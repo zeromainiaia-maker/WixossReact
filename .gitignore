@@ -17,6 +17,10 @@ dist-ssr
 .env.*
 !.env.example
 
+# Sensitive config (contains API tokens)
+.mcp.json
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
