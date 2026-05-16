@@ -1,0 +1,4414 @@
+﻿import { useEffect, useMemo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { supabase } from '../supabaseClient';
+import type { User } from '@supabase/supabase-js';
+import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
+import { buildEffectsMap } from '../data/effectParser';
+import { calcFieldPowers } from '../engine/effectEngine';
+import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeLookAndReorder, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
+import { hasKeyword } from '../utils/keywords';
+
+interface Props {
+  user: User;
+  roomId: string;
+  myDeckId: string;
+  cards: CardData[];
+  onBack: () => void;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// リフレッシュ: トラッシュ全枚数をデッキに加えシャッフル。ライフがあれば一番上をトラッシュへ（バーストなし）。
+function applyRefresh(state: PlayerState): PlayerState {
+  const newDeck = shuffle([...state.trash]);
+  const topLife = state.life_cloth.length > 0 ? state.life_cloth[state.life_cloth.length - 1] : null;
+  return {
+    ...state,
+    deck:       newDeck,
+    trash:      topLife ? [topLife] : [],
+    life_cloth: topLife ? state.life_cloth.slice(0, -1) : state.life_cloth,
+  };
+}
+
+// ドロー処理（リフレッシュ対応）。
+// デッキ枚数が不足した場合: 残り全枚数をドロー → リフレッシュ → そこで停止（追加ドローは行わない）。
+function drawCards(state: PlayerState, count: number): PlayerState {
+  if (count <= 0) return state;
+  const canDraw = Math.min(count, state.deck.length);
+  const drew: PlayerState = {
+    ...state,
+    hand: [...state.hand, ...state.deck.slice(0, canDraw)],
+    deck: state.deck.slice(canDraw),
+  };
+  return canDraw < count ? applyRefresh(drew) : drew;
+}
+
+function jankenWinner(h: string, g: string, hostId: string, guestId: string): string | null {
+  if (h === g) return null;
+  if (
+    (h === 'GU' && g === 'CHOKI') ||
+    (h === 'CHOKI' && g === 'PA') ||
+    (h === 'PA' && g === 'GU')
+  ) return hostId;
+  return guestId;
+}
+
+// ── テーマカラー（ここで配色を一括管理） ─────────────────────────────
+// 値を変えると対応する UI の色がすべて変わります
+const C = {
+  // 背景
+  bgApp:        '#050508',  // アプリ全体
+  bgSetup:      '#0a0a0f',  // セットアップ画面
+  bgBar:        '#0a0a0d',  // ステータスバー
+  bgOpponent:   '#08080e',  // 相手フィールド
+  bgSelf:       '#0b0d12',  // 自分フィールド
+  bgModal:      '#0d0d14',  // 確認ダイアログ
+  bgCard:       '#060d1a',  // カードスロット（カードあり）
+  bgCardEmpty:  '#070707',  // カードスロット（空）
+  bgButton:     '#1a1a2e',  // ボタン・選択肢
+  bgButtonDark: '#111',     // 暗いボタン（閉じる等）
+  bgBadge:      '#0a0f1a',  // タップ可能バッジ
+
+  // ボーダー（完全な値）
+  borderCard:        '1px solid #2a4a7a',   // カード枠（カードあり）
+  borderEmpty:       '1px dashed #1a1a1a',  // カード枠（空）
+  borderBadge:       '1px solid #1e3050',   // タップバッジ枠
+  borderUI:          '1px solid #333',      // 汎用 UI 枠
+  borderUIMid:       '1px solid #444',      // やや濃い UI 枠
+  borderPanel:       '1px solid #141414',   // 相手フィールド枠
+  borderSelf:        '1px solid #0a1a2e',   // 自分フィールド枠
+  borderBar:         '1px solid #111',      // バー下線・ダークボタン枠
+  borderBarBtn:      '1px solid #1a1a1a',   // ステータスバー「終了」ボタン枠
+  borderMulligan:    '2px solid #333',      // マリガンカード（未選択）
+  borderMulliganSel: '2px solid #f44336',   // マリガンカード（選択中）
+
+  // テキスト
+  text:         '#fff',     // 主テキスト
+  textSub:      '#ddd',     // サブテキスト
+  textMuted:    '#ccc',     // 控えめ
+  textAlt:      '#aaa',     // 代替色（後攻など）
+  textDim:      '#888',     // 薄いテキスト
+  textDimmer:   '#666',     // さらに薄い（確認ダイアログ補足）
+  textFaint:    '#555',     // かなり薄い
+  textUiFaint:  '#444',     // UI 要素（カード番号など）
+  textVeryFaint:'#333',     // ほぼ背景（ヒント等）
+  textDimmost:  '#222',     // 最も薄いテキスト
+  textGhost:    '#1e1e1e',  // ほぼ見えない（空スロットラベル）
+  textBadge:    '#688cd2',  // タップバッジのラベル
+  textStatDim:  '#adadad',  // 非タップバッジのラベル
+  textOpLabel:  '#252525',  // 「相手」パネルラベル
+  textMyLabel:  '#152030',  // 「自分」パネルラベル
+  statDefault:  '#999',     // 数値バッジのデフォルト色
+  disabled:     '#555',     // 無効状態のボタン背景
+
+  // ゲーム状態アクセント
+  accent:       '#007bff',  // メインアクセント（青）
+  accentLight:  '#7ab8ff',  // 薄い青（手札数など）
+  success:      '#4caf50',  // 成功・自分のターン・勝ち
+  danger:       '#f44336',  // 危険・負け・選択中
+  dangerDark:   '#e53935',  // 濃い赤（引き直しボタン）
+  dangerEnd:    '#c0392b',  // 対戦終了ボタン
+  life:         '#bb3333',  // ライフクロス
+  coin:         '#cc8800',  // コイン（金色）
+  aiko:         '#ffcc00',  // じゃんけんあいこ
+} as const;
+
+// グロウコストのパース: "《白》×１《赤》×２" → [{color:'白',count:1},{color:'赤',count:2}]
+// 全角数字（０-９）を半角に変換してから数値化する
+function parseGrowCost(raw: string): { color: string; count: number }[] {
+  if (!raw || raw === 'なし' || raw === '-') return [];
+  const toHalf = (s: string) =>
+    s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+  const result: { color: string; count: number }[] = [];
+  for (const m of raw.matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
+    const count = parseInt(toHalf(m[2]));
+    if (count > 0) result.push({ color: m[1], count });
+  }
+  return result;
+}
+
+// ルリグのグロウ互換性チェック: CardClass に共通する名前（"/"区切り）が1つでもあれば true
+function lrigClassesCompatible(fromClass: string, toClass: string): boolean {
+  const fromSet = new Set(fromClass.split('/').map(s => s.trim()).filter(Boolean));
+  return toClass.split('/').map(s => s.trim()).some(c => fromSet.has(c));
+}
+
+// カードの Restriction チェック: "-" または空なら常に使用可。
+// それ以外は「〇〇限定」形式で、現在ルリグの CardClass（"/"区切り）に含まれる名前が
+// Restriction 文字列中に存在すれば使用可。
+// 例: Restriction="タマ限定", lrigClass="タマ" → true
+//     Restriction="タマ限定", lrigClass="タマ/イオナ" → true
+//     Restriction="タマ限定", lrigClass="花代" → false
+function meetsRestriction(restriction: string, lrigClass: string): boolean {
+  if (!restriction || restriction === '-') return true;
+  return lrigClass.split('/').map(s => s.trim()).some(cls => restriction.includes(cls));
+}
+
+
+// マルチエナ判定: card.effects の CONTINUOUS GRANT_KEYWORD 'マルチエナ' 効果を持つカード
+// + ゲーム中に動的付与された keyword_grants も確認
+function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>): boolean {
+  const card = cards.find(c => c.CardNum === cardNum);
+  if (card?.effects?.some(e =>
+    e.effectType === 'CONTINUOUS' &&
+    e.action.type === 'GRANT_KEYWORD' &&
+    (e.action as { keyword: string }).keyword === 'マルチエナ'
+  )) return true;
+  return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
+}
+
+function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>): boolean {
+  const costs = parseGrowCost(growCost);
+  if (costs.length === 0) return true;
+  // 色指定コストを先に処理し、マルチエナをワイルドカードとして温存する
+  const sorted = [...costs].sort((a, b) => (a.color === '無' ? 1 : 0) - (b.color === '無' ? 1 : 0));
+  type P = { color: string; isWild: boolean };
+  let pool: P[] = energyNums.map(n => {
+    const c = cards.find(cd => cd.CardNum === n);
+    return { color: c?.Color ?? '無', isWild: isMultiEna(n, cards, keywordGrants) };
+  });
+  for (const { color, count } of sorted) {
+    let needed = count;
+    // まず通常カードで充当
+    const rem: P[] = [];
+    for (const p of pool) {
+      if (needed > 0 && !p.isWild && (color === '無' || p.color === color)) needed--;
+      else rem.push(p);
+    }
+    pool = rem;
+    // 不足分をマルチエナで補う
+    if (needed > 0) {
+      const rem2: P[] = [];
+      for (const p of pool) {
+        if (needed > 0 && p.isWild) needed--;
+        else rem2.push(p);
+      }
+      pool = rem2;
+    }
+    if (needed > 0) return false;
+  }
+  return true;
+}
+
+const JANKEN_LABEL: Record<string, string> = { GU: 'グー✊', CHOKI: 'チョキ✌', PA: 'パー✋' };
+const PHASE_LABEL: Record<string, string> = {
+  UP: 'アップ', DRAW: 'ドロー', ENERGY: 'エナ', GROW: 'グロウ', MAIN: 'メイン',
+  ATTACK_ARTS:    'アーツステップ(自分)',
+  ATTACK_ARTS_OP: 'アーツステップ(相手)',
+  ATTACK_SIGNI: 'シグニアタック', ATTACK_LRIG: 'ルリグアタック', END: 'エンド',
+};
+
+const PHASE_BTN: Record<TurnPhase, string> = {
+  UP: 'ドローフェイズへ', DRAW: 'エナフェイズへ', ENERGY: 'グロウフェイズへ',
+  GROW: 'メインフェイズへ', MAIN: 'アタックフェイズへ',
+  ATTACK_ARTS:    'アーツ終了→相手へ',
+  ATTACK_ARTS_OP: 'アーツ終了',
+  ATTACK_SIGNI: 'ルリグアタックへ', ATTACK_LRIG: 'エンドフェイズへ', END: 'ターン終了',
+};
+
+const PHASE_NEXT: Record<TurnPhase, TurnPhase> = {
+  UP: 'DRAW', DRAW: 'ENERGY', ENERGY: 'GROW', GROW: 'MAIN',
+  MAIN: 'ATTACK_ARTS',
+  ATTACK_ARTS: 'ATTACK_ARTS_OP', ATTACK_ARTS_OP: 'ATTACK_SIGNI',
+  ATTACK_SIGNI: 'ATTACK_LRIG', ATTACK_LRIG: 'END', END: 'UP',
+};
+
+// 非ターンプレイヤーが進行ボタンを持つフェイズ
+const NON_TURN_PLAYER_PHASES: TurnPhase[] = ['ATTACK_ARTS_OP'];
+
+// 待機中メッセージ（自分がボタンを持たないフェイズ）
+const WAITING_MSG: Partial<Record<TurnPhase, string>> = {
+  ATTACK_ARTS_OP: '相手のアーツステップ待機中...',
+};
+
+const setupWrap: React.CSSProperties = {
+  height: '100vh', display: 'flex', flexDirection: 'column',
+  justifyContent: 'center', alignItems: 'center',
+  backgroundColor: C.bgSetup, gap: 20, color: C.textMuted,
+  padding: 24, boxSizing: 'border-box',
+};
+
+const primaryBtn: React.CSSProperties = {
+  padding: '12px 32px', borderRadius: 8, border: 'none',
+  backgroundColor: C.accent, color: C.text, fontSize: 15,
+  fontWeight: 'bold', cursor: 'pointer',
+};
+
+// ─── フェイズアクション定義 ───────────────────────────────────────────
+interface CardAction {
+  label: string;
+  color?: string;
+  onClick: () => void;
+}
+
+// ─── カード拡大モーダル ─────────────────────────────────────────────
+// createPortal で document.body 直下に描画し、親のスタッキングコンテキストから脱出させる
+function CardModal({ card, onClose, actions }: { card: CardData; onClose: () => void; actions?: CardAction[] }) {
+  return createPortal(
+    <div
+      onClick={onClose}
+      onTouchEnd={e => { e.preventDefault(); onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 3000,
+        backgroundColor: 'rgba(0,0,0,0.95)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}
+    >
+      <img
+        src={card.ImgURL} alt={card.CardName}
+        style={{ maxWidth: '90vw', maxHeight: '62vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 0 40px #007bff44' }}
+        onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+      />
+      <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', marginTop: 14, textAlign: 'center' }}>{card.CardName}</p>
+      <p style={{ color: C.textFaint, fontSize: 11, margin: '4px 0 0', textAlign: 'center' }}>
+        {card.CardNum} / {card.Type}{card.Level ? ` Lv.${card.Level}` : ''} / {card.Color}
+      </p>
+      {actions && actions.length > 0 && (
+        <div
+          onClick={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
+          style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {actions.map((act, i) => (
+            <button key={i}
+              onClick={() => { act.onClick(); onClose(); }}
+              onTouchEnd={e => { e.preventDefault(); e.stopPropagation(); act.onClick(); onClose(); }}
+              style={{
+                padding: '10px 24px', borderRadius: 8, border: 'none',
+                backgroundColor: act.color ?? C.accent, color: C.text,
+                fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
+              }}>
+              {act.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <p style={{ color: C.textVeryFaint, fontSize: 11, marginTop: 10 }}>タップして閉じる</p>
+    </div>,
+    document.body,
+  );
+}
+
+// ─── CardStackModal: スタックカード拡大（スワイプで上下移動） ──────────
+function CardStackModal({ stack, cards, onClose, actions }: {
+  stack: string[];
+  cards: CardData[];
+  onClose: () => void;
+  actions?: CardAction[];
+}) {
+  const [idx, setIdx] = useState(stack.length - 1);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  const card = cards.find(c => c.CardNum === stack[idx]);
+  const isTop = idx === stack.length - 1;
+  const isBottom = idx === 0;
+  const hasStack = stack.length > 1;
+
+  const goDeeper  = () => setIdx(i => Math.max(0, i - 1));
+  const goShallow = () => setIdx(i => Math.min(stack.length - 1, i + 1));
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (!touchStart.current) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    touchStart.current = null;
+    if (dist < 12) { onClose(); return; }
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      if (dx < -40) goDeeper(); else if (dx > 40) goShallow();
+    } else {
+      if (dy > 40) goDeeper(); else if (dy < -40) goShallow();
+    }
+  };
+
+  return createPortal(
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 3000,
+        backgroundColor: 'rgba(0,0,0,0.95)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: 20, userSelect: 'none',
+      }}
+    >
+      {hasStack && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }} onClick={e => e.stopPropagation()}>
+          {[...stack].reverse().map((_, ri) => {
+            const si = stack.length - 1 - ri;
+            return (
+              <div key={ri} onClick={e => { e.stopPropagation(); setIdx(si); }}
+                style={{
+                  width: 9, height: 9, borderRadius: '50%', cursor: 'pointer',
+                  backgroundColor: si === idx ? C.accent : C.textVeryFaint,
+                  border: si === idx ? '1px solid #7ab8ff' : '1px solid #222',
+                }} />
+            );
+          })}
+        </div>
+      )}
+      <div style={{ color: C.textFaint, fontSize: 10, marginBottom: 6, textAlign: 'center' }}>
+        {isTop ? '最上層（アクティブ）' : isBottom ? '最下層' : `上から${stack.length - idx}枚目`}
+        {hasStack && <span style={{ color: C.textVeryFaint, marginLeft: 8 }}>{idx + 1} / {stack.length}</span>}
+      </div>
+      {card ? (
+        <img
+          src={card.ImgURL} alt={card.CardName}
+          onClick={e => e.stopPropagation()}
+          style={{ maxWidth: '86vw', maxHeight: '66vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 0 40px #007bff44' }}
+          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+        />
+      ) : (
+        <div style={{ width: 200, height: 280, backgroundColor: C.bgButtonDark, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.stopPropagation()}>
+          <span style={{ color: C.textUiFaint, fontSize: 12 }}>{stack[idx]}</span>
+        </div>
+      )}
+      <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', marginTop: 12, textAlign: 'center' }}>
+        {card?.CardName ?? stack[idx]}
+      </p>
+      <p style={{ color: C.textFaint, fontSize: 11, margin: '4px 0 0', textAlign: 'center' }}>
+        {card?.CardNum} / {card?.Type}{card?.Level ? ` Lv.${card.Level}` : ''} / {card?.Color}
+      </p>
+      {actions && actions.length > 0 && (
+        <div
+          onClick={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
+          style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {actions.map((act, i) => (
+            <button key={i}
+              onClick={() => { act.onClick(); onClose(); }}
+              onTouchEnd={e => { e.preventDefault(); e.stopPropagation(); act.onClick(); onClose(); }}
+              style={{ padding: '10px 24px', borderRadius: 8, border: 'none',
+                backgroundColor: act.color ?? C.accent, color: C.text,
+                fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+              {act.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <p style={{ color: C.textDimmost, fontSize: 10, marginTop: 12 }}>
+        {hasStack ? 'スワイプで移動 / タップで閉じる' : 'タップして閉じる'}
+      </p>
+    </div>,
+    document.body,
+  );
+}
+
+// ─── CardSlot: フィールド用（長押しで拡大） ─────────────────────────
+interface CardSlotProps {
+  cardNum: string | null;
+  cards: CardData[];
+  width?: number;
+  height?: number;
+  label?: string;
+  faceDown?: boolean;
+  actions?: CardAction[];
+}
+
+function CardSlot({ cardNum, cards, width = 60, height = 84, label, faceDown, actions }: CardSlotProps) {
+  const [enlarged, setEnlarged] = useState(false);
+  const touchPos = useRef<{ x: number; y: number } | null>(null);
+  const card = cardNum ? cards.find(c => c.CardNum === cardNum) : null;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    touchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (!touchPos.current || !cardNum || faceDown) { touchPos.current = null; return; }
+    const dx = e.changedTouches[0].clientX - touchPos.current.x;
+    const dy = e.changedTouches[0].clientY - touchPos.current.y;
+    touchPos.current = null;
+    if (Math.sqrt(dx * dx + dy * dy) < 10) setEnlarged(true);
+  };
+
+  return (
+    <>
+      <div
+        style={{
+          width, height, flexShrink: 0, borderRadius: 4, overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: cardNum ? C.borderCard : C.borderEmpty,
+          backgroundColor: cardNum ? C.bgCard : C.bgCardEmpty,
+          userSelect: 'none', touchAction: 'none',
+          cursor: cardNum && !faceDown ? 'pointer' : 'default',
+        }}
+        onClick={() => { if (cardNum && !faceDown) setEnlarged(true); }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => { touchPos.current = null; }}
+      >
+        {faceDown && cardNum ? (
+          <img src="/Card_Black.jpg" alt="card back" draggable={false}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block' }} />
+        ) : card ? (
+          <img src={card.ImgURL} alt={card.CardName} draggable={false}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block' }}
+            onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }}
+          />
+        ) : (
+          <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+        )}
+      </div>
+      {enlarged && card && <CardModal card={card} onClose={() => setEnlarged(false)} actions={actions} />}
+    </>
+  );
+}
+
+// ─── StackSlot: ルリグ・アシストルリグ用スタックスロット ─────────────
+interface StackSlotProps {
+  stack: string[];
+  cards: CardData[];
+  width?: number;
+  height?: number;
+  label?: string;
+  faceDown?: boolean;
+  actions?: CardAction[];
+  isDown?: boolean;
+  isFrozen?: boolean;
+}
+
+function StackSlot({ stack, cards, width = 60, height = 84, label, faceDown, actions, isDown = false, isFrozen = false }: StackSlotProps) {
+  const [showModal, setShowModal] = useState(false);
+  const touchPos = useRef<{ x: number; y: number } | null>(null);
+
+  const topCard = stack.length > 0 ? stack[stack.length - 1] : null;
+  const card = topCard ? cards.find(c => c.CardNum === topCard) : null;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    touchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (!touchPos.current || !topCard || faceDown) { touchPos.current = null; return; }
+    const dx = e.changedTouches[0].clientX - touchPos.current.x;
+    const dy = e.changedTouches[0].clientY - touchPos.current.y;
+    touchPos.current = null;
+    if (Math.sqrt(dx * dx + dy * dy) < 10) setShowModal(true);
+  };
+
+  return (
+    <>
+      <div style={{ position: 'relative', width, flexShrink: 0 }}>
+        <div
+          style={{
+            width, height, borderRadius: 4, overflow: 'hidden',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: topCard ? C.borderCard : C.borderEmpty,
+            backgroundColor: topCard ? C.bgCard : C.bgCardEmpty,
+            userSelect: 'none', touchAction: 'none',
+            cursor: topCard && !faceDown ? 'pointer' : 'default',
+          }}
+          onClick={() => { if (topCard && !faceDown) setShowModal(true); }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={() => { touchPos.current = null; }}
+        >
+          {faceDown && topCard ? (
+            <img src="/Card_Black.jpg" alt="card back" draggable={false}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block' }} />
+          ) : card ? (
+            <img src={card.ImgURL} alt={card.CardName} draggable={false}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block',
+                ...(isDown ? { transform: 'rotate(90deg)' } : {}) }}
+              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }}
+            />
+          ) : (
+            <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+          )}
+        </div>
+        {stack.length > 1 && (
+          <div style={{
+            position: 'absolute', bottom: 2, right: 2,
+            backgroundColor: C.accent, color: C.text,
+            fontSize: 8, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none',
+          }}>
+            ×{stack.length}
+          </div>
+        )}
+        {isFrozen && (
+          <div style={{
+            position: 'absolute', bottom: 2, left: 0, right: 0,
+            backgroundColor: 'rgba(100,180,255,0.88)', color: '#003366',
+            fontSize: 8, fontWeight: 'bold', textAlign: 'center',
+            pointerEvents: 'none', lineHeight: '13px',
+          }}>
+            凍結
+          </div>
+        )}
+      </div>
+      {showModal && topCard && (
+        <CardStackModal stack={stack} cards={cards} onClose={() => setShowModal(false)} actions={actions} />
+      )}
+    </>
+  );
+}
+
+// ─── StackedSigniSlot: シグニゾーン用スタックスロット ──────────────
+const SIGNI_STACK_OFFSET = 4; // スタック1枚あたりのずらし量(px)
+
+interface StackedSigniSlotProps {
+  stack: string[] | null;
+  cards: CardData[];
+  width?: number;
+  height?: number;
+  label?: string;
+  actions?: CardAction[];
+  isDown?: boolean;
+  isFrozen?: boolean;
+  effectivePowers?: Map<string, number>;
+}
+
+function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, effectivePowers }: StackedSigniSlotProps) {
+  const [showModal, setShowModal] = useState(false);
+  const touchPos = useRef<{ x: number; y: number } | null>(null);
+
+  const n = stack?.length ?? 0;
+  const extraH = Math.max(0, n - 1) * SIGNI_STACK_OFFSET;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    touchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (!touchPos.current || !n) { touchPos.current = null; return; }
+    const dx = e.changedTouches[0].clientX - touchPos.current.x;
+    const dy = e.changedTouches[0].clientY - touchPos.current.y;
+    touchPos.current = null;
+    if (Math.sqrt(dx * dx + dy * dy) < 10) setShowModal(true);
+  };
+
+  if (!n) {
+    return (
+      <div style={{
+        width, height, flexShrink: 0, borderRadius: 4,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: C.borderEmpty, backgroundColor: C.bgCardEmpty,
+      }}>
+        <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        style={{
+          position: 'relative', width, height: height + extraH, flexShrink: 0,
+          userSelect: 'none', touchAction: 'none', cursor: 'pointer',
+        }}
+        onClick={() => { if (n) setShowModal(true); }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => { touchPos.current = null; }}
+      >
+        {/* i=0=最下層, i=n-1=最上層(アクティブ)。最上層が最前面・最下端に表示 */}
+        {stack!.map((cardNum, i) => {
+          const card = cards.find(c => c.CardNum === cardNum);
+          const top = (n - 1 - i) * SIGNI_STACK_OFFSET;
+          const isTopCard = i === n - 1;
+          const imgTransform = isDown && isTopCard ? 'rotate(90deg)' : undefined;
+          return (
+            <div key={i} style={{
+              position: 'absolute', top, left: 0,
+              width, height, borderRadius: 4, overflow: 'hidden',
+              zIndex: i + 1,
+              border: C.borderCard, backgroundColor: C.bgCard,
+            }}>
+              {card ? (
+                <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block',
+                    ...(imgTransform ? { transform: imgTransform } : {}) }}
+                  onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }}
+                />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 8, color: C.textVeryFaint }}>{cardNum}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {/* パワー表示（スタック最前面カード） */}
+        {(() => {
+          const topNum = stack![n - 1];
+          const topCard = cards.find(c => c.CardNum === topNum);
+          const basePow = topCard?.Power;
+          if (!basePow || basePow === '-') return null;
+          const effPow = effectivePowers?.get(topNum);
+          const displayPow = effPow !== undefined ? effPow : parseInt(basePow, 10);
+          const isBuffed = effPow !== undefined && effPow !== parseInt(basePow, 10);
+          return (
+            <div style={{
+              position: 'absolute',
+              bottom: extraH + 3,
+              left: 0, right: 0,
+              textAlign: 'center',
+              zIndex: n + 1,
+              pointerEvents: 'none',
+              fontSize: 13,
+              fontWeight: 'bold',
+              color: isBuffed ? (effPow! > parseInt(basePow, 10) ? '#003300' : '#330000') : '#000000',
+              lineHeight: 1,
+              textShadow: [
+                '-1px -1px 0 #fff', '1px -1px 0 #fff',
+                '-1px  1px 0 #fff', '1px  1px 0 #fff',
+                ' 0px -1px 0 #fff', '0px  1px 0 #fff',
+                '-1px  0px 0 #fff', '1px  0px 0 #fff',
+              ].join(', '),
+            }}>
+              {displayPow.toLocaleString()}
+            </div>
+          );
+        })()}
+        {n > 1 && (
+          <div style={{
+            position: 'absolute', top: extraH + 2, right: 2,
+            backgroundColor: C.accent, color: C.text,
+            fontSize: 8, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none',
+            zIndex: n + 2,
+          }}>
+            ×{n}
+          </div>
+        )}
+        {isFrozen && (
+          <div style={{
+            position: 'absolute', bottom: extraH + 2, left: 0, right: 0,
+            backgroundColor: 'rgba(100,180,255,0.88)', color: '#003366',
+            fontSize: 8, fontWeight: 'bold', textAlign: 'center',
+            pointerEvents: 'none', zIndex: n + 2, lineHeight: '13px',
+          }}>
+            凍結
+          </div>
+        )}
+      </div>
+      {showModal && stack && (
+        <CardStackModal stack={stack} cards={cards} onClose={() => setShowModal(false)} actions={actions} />
+      )}
+    </>
+  );
+}
+
+// ─── MulliganCard: マリガン用（タップで選択、長押しで拡大） ────────
+function MulliganCard({ cardNum, cards, selected, onToggle }: {
+  cardNum: string;
+  cards: CardData[];
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const [enlarged, setEnlarged] = useState(false);
+  const longPressed = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const card = cards.find(c => c.CardNum === cardNum);
+
+  const handleStart = () => {
+    longPressed.current = false;
+    timer.current = setTimeout(() => {
+      longPressed.current = true;
+      setEnlarged(true);
+      timer.current = null;
+    }, 400);
+  };
+  const handleEnd = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+      if (!longPressed.current) onToggle();
+    }
+  };
+  const handleCancel = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+  };
+
+  return (
+    <>
+      <div
+        style={{
+          width: 90, height: 126, position: 'relative', flexShrink: 0, borderRadius: 6,
+          overflow: 'hidden', userSelect: 'none', touchAction: 'none', boxSizing: 'border-box',
+          border: selected ? C.borderMulliganSel : C.borderMulligan,
+          cursor: 'pointer',
+        }}
+        onMouseDown={handleStart} onMouseUp={handleEnd} onMouseLeave={handleCancel}
+        onTouchStart={e => { e.preventDefault(); handleStart(); }}
+        onTouchEnd={e => { e.preventDefault(); handleEnd(); }}
+        onTouchCancel={handleCancel}
+      >
+        {card ? (
+          <img src={card.ImgURL} alt={card.CardName} draggable={false}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', display: 'block' }}
+            onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 9, color: C.textFaint, textAlign: 'center', padding: 4 }}>{cardNum}</span>
+          </div>
+        )}
+        {selected && (
+          <div style={{
+            position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 'bold', color: C.text, textShadow: '0 1px 4px #000' }}>戻す</span>
+          </div>
+        )}
+      </div>
+      {enlarged && card && <CardModal card={card} onClose={() => setEnlarged(false)} />}
+    </>
+  );
+}
+
+// ─── 手札表示（枚数に応じてカードを重ねて1行に収める） ──────────────
+function HandCards({ cardNums, cards, faceDown, getCardActions }: {
+  cardNums: string[];
+  cards: CardData[];
+  faceDown?: boolean;
+  getCardActions?: (cardNum: string, index: number) => CardAction[];
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [cw, setCw] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setCw(el.clientWidth);
+    const ro = new ResizeObserver(([entry]) => setCw(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const cardW = 50;
+  const cardH = 70;
+  const n = cardNums.length;
+
+  // カード左端の間隔: 全カードが container 幅に収まるよう自動縮小、最大は cardW+4
+  const spacing = n <= 1
+    ? 0
+    : Math.min(cardW + 4, cw > cardW ? (cw - cardW) / (n - 1) : 4);
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: n > 0 ? cardH : 0, flexShrink: 0 }}>
+      {n > 0 && (
+        <div style={{ position: 'relative', height: cardH, width: '100%' }}>
+          {cardNums.map((num, i) => (
+            <div key={i} style={{ position: 'absolute', left: i * spacing, top: 0, zIndex: i }}>
+              <CardSlot cardNum={num} cards={cards} width={cardW} height={cardH} faceDown={faceDown}
+                actions={!faceDown && getCardActions ? getCardActions(num, i) : undefined} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 数値バッジ ──────────────────────────────────────────────────────
+function Stat({ label, value, color = C.statDefault, onClick }: {
+  label: string; value: number; color?: string; onClick?: () => void;
+}) {
+  return onClick ? (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+        padding: '5px 5px', borderRadius: 7,
+        backgroundColor: C.bgBadge, border: C.borderBadge,
+        cursor: 'pointer', userSelect: 'none',
+      }}
+    >
+      <span style={{ fontSize: 14, fontWeight: 'bold', color, lineHeight: 1 }}>{value}</span>
+      <span style={{ fontSize: 8, color: C.textBadge, lineHeight: 1 }}>{label}</span>
+    </div>
+  ) : (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, padding: '3px 4px' }}>
+      <span style={{ fontSize: 13, fontWeight: 'bold', color, lineHeight: 1 }}>{value}</span>
+      <span style={{ fontSize: 8, color: C.textStatDim, lineHeight: 1 }}>{label}</span>
+    </div>
+  );
+}
+
+// ─── ZoneCardModal: ゾーンのカード一覧 ──────────────────────────────
+function ZoneCardModal({ title, cardNums, cards, onClose, getCardActions }: {
+  title: string;
+  cardNums: string[];
+  cards: CardData[];
+  onClose: () => void;
+  getCardActions?: (cardNum: string) => CardAction[];
+}) {
+  return createPortal(
+    <div
+      onClick={onClose}
+      onTouchEnd={e => { e.preventDefault(); onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 2500,
+        backgroundColor: 'rgba(0,0,0,0.93)',
+        display: 'flex', flexDirection: 'column',
+        padding: '14px 12px', boxSizing: 'border-box',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        onTouchEnd={e => e.stopPropagation()}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexShrink: 0 }}>
+        <span style={{ color: C.textSub, fontWeight: 'bold', fontSize: 15 }}>
+          {title}
+          <span style={{ color: C.textUiFaint, fontSize: 12, fontWeight: 'normal', marginLeft: 8 }}>{cardNums.length}枚</span>
+        </span>
+        <button onClick={onClose}
+          style={{ padding: '5px 16px', borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButtonDark, color: C.textDim, cursor: 'pointer', fontSize: 13 }}>
+          閉じる
+        </button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {cardNums.length === 0 ? (
+          <p style={{ color: C.textVeryFaint, textAlign: 'center', marginTop: 40, fontSize: 13 }}>カードなし</p>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {cardNums.map((num, i) => (
+              <div key={i}
+                onClick={e => e.stopPropagation()}
+                onTouchEnd={e => e.stopPropagation()}>
+                <CardSlot cardNum={num} cards={cards} width={62} height={87}
+                  actions={getCardActions ? getCardActions(num) : undefined} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ─── プレイヤー盤面 ──────────────────────────────────────────────────
+// 自分:  上段=シグニ×3(中央寄り)  下段=CHECK|AL|LRIG|AR|KEY
+// 相手:  上段=KEY|AR|LRIG|AL|CHECK  下段=シグニ×3(中央寄り、左右反転)
+// ※ signi[0] は所有者視点で「左端」なので、相手表示時は逆順にして
+//   画面上の左右を正しく合わせる。他のゾーンも同様に反転する。
+function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, closeZoneSignal, effectivePowers }: {
+  state: PlayerState; cards: CardData[]; isMe: boolean;
+  getSigniZoneActions?: (rawZoneIdx: number) => CardAction[];
+  getLrigDeckCardActions?: (cardNum: string) => CardAction[];
+  getLrigFieldActions?: () => CardAction[];
+  closeZoneSignal?: number;
+  effectivePowers?: Map<string, number>;
+}) {
+  const [zoneModal, setZoneModal] = useState<{
+    title: string; cardNums: string[]; getCardActions?: (cardNum: string) => CardAction[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (closeZoneSignal) setZoneModal(null);
+  }, [closeZoneSignal]);
+  const signiW = 82, signiH = 82;
+  const lowerW = 58, lowerH = 58;
+  const lrigW  = 70, lrigH  = 70;
+
+  const showZone = (title: string, cardNums: string[]) => setZoneModal({ title, cardNums });
+
+  const statsRow = (
+    <div style={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap', padding: '2px 0', alignItems: 'center' }}>
+      <Stat label="手札"        value={state.hand.length} color="#7ab8ff" />
+      <Stat label="デッキ"      value={state.deck.length} />
+      {isMe
+        ? <Stat label="ルリグDK" value={state.lrig_deck.length} onClick={() => setZoneModal({ title: 'ルリグデッキ', cardNums: state.lrig_deck, getCardActions: getLrigDeckCardActions })} />
+        : <Stat label="ルリグDK" value={state.lrig_deck.length} />
+      }
+      <Stat label="ライフ"      value={state.life_cloth.length} color="#bb3333" />
+      <Stat label="エナ"        value={state.energy.length}     onClick={() => showZone('エナゾーン', state.energy)} />
+      <Stat label="トラッシュ"  value={state.trash.length}      onClick={() => showZone('トラッシュ', state.trash)} />
+      <Stat label="Lトラッシュ" value={state.lrig_trash.length} onClick={() => showZone('ルリグトラッシュ', state.lrig_trash)} />
+      <Stat label="コイン"      value={state.coins} color="#cc8800" />
+    </div>
+  );
+
+  // 相手表示時はシグニ配列を左右反転
+  const rawSigni = state.field.signi ?? [null, null, null];
+  const displaySigni = isMe ? rawSigni : [...rawSigni].reverse();
+
+  const signiRow = (
+    <div style={{ display: 'flex', gap: 5, justifyContent: 'center', alignItems: 'flex-start' }}>
+      {displaySigni.map((s, i) => {
+        // isMe=true のとき displayIndex = rawIndex、isMe=false のとき逆順
+        const rawIdx = isMe ? i : (rawSigni.length - 1 - i);
+        return (
+          <StackedSigniSlot key={i} stack={s} cards={cards} width={signiW} height={signiH}
+            label={`シグニ${i + 1}`}
+            actions={getSigniZoneActions ? getSigniZoneActions(rawIdx) : undefined}
+            isDown={state.field.signi_down?.[rawIdx] ?? false}
+            isFrozen={state.field.signi_frozen?.[rawIdx] ?? false}
+            effectivePowers={effectivePowers} />
+        );
+      })}
+    </div>
+  );
+
+  // 下段5ゾーン。相手表示時は左右をまるごと反転する。
+  const check     = state.field.check ?? null;
+  const assist_l  = state.field.assist_lrig_l ?? [];
+  const lrig      = state.field.lrig ?? [];
+  const assist_r  = state.field.assist_lrig_r ?? [];
+  const key_piece = state.field.key_piece ?? null;
+
+  type Slot = { label: string; w: number; h: number; cardNum?: string | null; stack?: string[] };
+  const lowerSlots: Slot[] = isMe
+    ? [
+        { cardNum: check,    label: 'CHECK',      w: lowerW, h: lowerH },
+        { stack:   assist_l, label: 'アシスト左',  w: lowerW, h: lowerH },
+        { stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
+        { stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
+        { cardNum: key_piece,label: 'KEY',         w: lowerW, h: lowerH },
+      ]
+    : [
+        { cardNum: key_piece,label: 'KEY',         w: lowerW, h: lowerH },
+        { stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
+        { stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
+        { stack:   assist_l, label: 'アシスト左',  w: lowerW, h: lowerH },
+        { cardNum: check,    label: 'CHECK',       w: lowerW, h: lowerH },
+      ];
+
+  const lrig_down = state.field.lrig_down ?? false;
+
+  const lowerRow = (
+    <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
+      {lowerSlots.map((slot, i) =>
+        slot.stack !== undefined
+          ? <StackSlot
+              key={i} stack={slot.stack} cards={cards} width={slot.w} height={slot.h} label={slot.label}
+              actions={slot.label === 'LRIG' && isMe && getLrigFieldActions ? getLrigFieldActions() : undefined}
+              isDown={slot.label === 'LRIG' ? lrig_down : false}
+              isFrozen={slot.label === 'LRIG' ? (state.field.lrig_frozen ?? false) : false}
+            />
+          : <CardSlot  key={i} cardNum={slot.cardNum ?? null} cards={cards} width={slot.w} height={slot.h} label={slot.label} />
+      )}
+    </div>
+  );
+
+  const content = isMe ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {signiRow}
+      {lowerRow}
+      {statsRow}
+    </div>
+  ) : (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {statsRow}
+      {lowerRow}
+      {signiRow}
+    </div>
+  );
+
+  return (
+    <>
+      {content}
+      {zoneModal && (
+        <ZoneCardModal
+          title={zoneModal.title}
+          cardNums={zoneModal.cardNums}
+          cards={cards}
+          onClose={() => setZoneModal(null)}
+          getCardActions={zoneModal.getCardActions}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── メインコンポーネント ────────────────────────────────────────────
+export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: Props) {
+  const [bs, setBs] = useState<BattleStateRow | null>(null);
+  const [myDeckData, setMyDeckData] = useState<{ main_deck: string[]; lrig_deck: string[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [mulliganSelected, setMulliganSelected] = useState<Set<number>>(new Set());
+  const [pendingSigniSummon, setPendingSigniSummon] = useState<{ cardNum: string; handIndex: number } | null>(null);
+  const [showEnergySkipConfirm, setShowEnergySkipConfirm] = useState(false);
+  const [showGrowModal, setShowGrowModal] = useState(false);
+  const [pendingGrowCard, setPendingGrowCard] = useState<CardData | null>(null);
+  const [selectedGrowCost, setSelectedGrowCost] = useState<Set<number>>(new Set());
+  const [showArtsModal, setShowArtsModal] = useState(false);
+  const [pendingArtsCard, setPendingArtsCard] = useState<CardData | null>(null);
+  const [selectedArtsCost, setSelectedArtsCost] = useState<Set<number>>(new Set());
+  const [closeZoneSignal, setCloseZoneSignal] = useState(0);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [selectedRemoveZones, setSelectedRemoveZones] = useState<Set<number>>(new Set());
+  const [pendingSpellCast, setPendingSpellCast] = useState<{ cardNum: string; handIndex: number } | null>(null);
+  const [selectedSpellCost, setSelectedSpellCost] = useState<Set<number>>(new Set());
+  const [pendingCutinCard, setPendingCutinCard] = useState<CardData | null>(null);
+  const [selectedCutinCost, setSelectedCutinCost] = useState<Set<number>>(new Set());
+  // シグニ起動効果
+  const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
+  const [selectedSigniActivatedCost, setSelectedSigniActivatedCost] = useState<Set<number>>(new Set());
+  // 効果インタラクション：SELECT_TARGET / SEARCH / CHOOSE
+  const [effectSelectedNums, setEffectSelectedNums] = useState<string[]>([]);
+  // 効果スタック整列UI：自分の pending エントリの id を並べた配列
+  const [stackOrderIds, setStackOrderIds] = useState<string[]>([]);
+  const transitioningRef = useRef(false);
+  const leavingRef = useRef(false);
+  const doPhaseAdvanceRef      = useRef<(() => Promise<void>) | null>(null);
+  const triggerPendingCrashRef = useRef<(() => Promise<void>) | null>(null);
+  const resolveStackNextRef    = useRef<(() => Promise<void>) | null>(null);
+
+  useEffect(() => {
+    supabase.from('battle_states').select('*').eq('room_id', roomId).single()
+      .then(({ data, error }) => {
+        if (error) console.error('battle_states 取得エラー:', error.message);
+        if (data) setBs(data as BattleStateRow);
+      });
+
+    supabase.from('decks').select('main_deck, lrig_deck').eq('id', myDeckId).single()
+      .then(({ data }) => {
+        if (data) setMyDeckData(data as { main_deck: string[]; lrig_deck: string[] });
+      });
+
+    const channel = supabase
+      .channel(`battle-${roomId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'battle_states', filter: `room_id=eq.${roomId}`,
+      }, (payload) => { setBs(payload.new as BattleStateRow); })
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}`,
+      }, () => {
+        if (!leavingRef.current) { leavingRef.current = true; onBack(); }
+      })
+      .subscribe((status) => {
+        // 接続後に最新データを再取得（リロード時に Realtime が間に合わない場合の対策）
+        if (status === 'SUBSCRIBED') {
+          supabase.from('battle_states').select('*').eq('room_id', roomId).single()
+            .then(({ data }) => { if (data) setBs(data as BattleStateRow); });
+        }
+      });
+
+    return () => { supabase.removeChannel(channel); };
+  }, [roomId, myDeckId]);
+
+  useEffect(() => {
+    if (!bs) return;
+    const isHost = user.id === bs.host_id;
+
+    // じゃんけん結果処理（両プレイヤー共通：どちらか一方が実行）
+    if (!transitioningRef.current && bs.setup_phase === 'JAN_KEN' && bs.host_janken && bs.guest_janken) {
+      transitioningRef.current = true;
+      const winner = jankenWinner(bs.host_janken, bs.guest_janken, bs.host_id, bs.guest_id);
+      const update = winner
+        ? { first_player_id: winner, setup_phase: 'LRIG_SELECT', host_janken: null as null, guest_janken: null as null }
+        : { host_janken: null as null, guest_janken: null as null };
+      const t = setTimeout(() => {
+        supabase.from('battle_states').update(update).eq('room_id', roomId)
+          .then(() => { transitioningRef.current = false; });
+      }, 1800);
+      return () => { clearTimeout(t); transitioningRef.current = false; };
+    }
+
+    // 以下はホストのみが担当するフェーズ遷移
+    if (!isHost || transitioningRef.current) return;
+
+    if (bs.setup_phase === 'LRIG_SELECT' && bs.host_lrig_selected && bs.guest_lrig_selected) {
+      transitioningRef.current = true;
+      supabase.from('battle_states').update({ setup_phase: 'MULLIGAN' }).eq('room_id', roomId)
+        .then(() => { transitioningRef.current = false; });
+      return () => { transitioningRef.current = false; };
+    }
+  }, [
+    bs?.setup_phase,
+    bs?.host_lrig_selected, bs?.guest_lrig_selected,
+    bs?.host_janken, bs?.guest_janken,
+  ]);
+
+  // PLAYING 移行時に loading をリセット（マリガン確定後の loading=true をクリア）
+  useEffect(() => {
+    if (bs?.global_phase === 'PLAYING') setLoading(false);
+  }, [bs?.global_phase]);
+
+  // ── バトルに必要なカードだけを抽出（全1万枚+ を毎回スキャンしない） ────────────
+  // 自分のデッキ + bs の全ゾーンにある CardNum を収集し、大本の cards から Map を作る。
+  // 大本の cards 配列は一切変更しない。
+  const battleCardNums = useMemo(() => {
+    const nums = new Set<string>();
+    const addAll = (arr?: string[]) => arr?.forEach(n => nums.add(n));
+    const addState = (s: PlayerState) => {
+      addAll(s.deck); addAll(s.lrig_deck); addAll(s.hand);
+      addAll(s.life_cloth); addAll(s.trash); addAll(s.lrig_trash);
+      addAll(s.energy); addAll(s.field.lrig);
+      s.field.signi.forEach(stack => stack?.forEach(n => nums.add(n)));
+    };
+    if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
+    if (bs) { addState(bs.host_state); addState(bs.guest_state); }
+    return nums;
+  }, [myDeckData, bs]);
+
+  const battleCardMap = useMemo(
+    () => new Map(cards.filter(c => battleCardNums.has(c.CardNum)).map(c => [c.CardNum, c])),
+    [cards, battleCardNums],
+  );
+
+  // サブコンポーネントや既存ヘルパーに渡す配列（最大〜100枚）
+  const battleCards = useMemo(() => [...battleCardMap.values()], [battleCardMap]);
+
+  // CONTINUOUS 効果マップ（バトル中の全カードを対象）
+  const effectsMap = useMemo(() => buildEffectsMap(battleCards), [battleCards]);
+
+  // フィールドシグニの有効パワー（CONTINUOUS 効果適用済み）
+  const effectivePowers = useMemo(() => {
+    if (!bs) return new Map<string, number>();
+    const localIsHost = user.id === bs.host_id;
+    const myS  = localIsHost ? bs.host_state  : bs.guest_state;
+    const opS  = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    return calcFieldPowers(myS, opS, myTurn, effectsMap, battleCardMap);
+  }, [bs, effectsMap, battleCardMap, user.id]);
+
+  // ── Rules of Hooks 対策：PLAYING セクション由来の useEffect を if(!bs) より前に置く ──
+
+  // 効果スタック整列UI の更新
+  useEffect(() => {
+    if (!bs?.effect_stack || !user) { setStackOrderIds([]); return; }
+    const stack = bs.effect_stack;
+    const isTurnPlayer = bs.active_user_id === user.id;
+    const myPending = isTurnPlayer ? stack.pendingTurn : stack.pendingOpp;
+    const needOrder = isTurnPlayer ? !stack.orderTurnDone : !stack.orderOppDone;
+    if (needOrder && myPending.length > 1) {
+      setStackOrderIds(prev => {
+        const prevSet = new Set(prev);
+        const same = myPending.length === prev.length && myPending.every(e => prevSet.has(e.id));
+        return same ? prev : myPending.map(e => e.id);
+      });
+    } else {
+      setStackOrderIds([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.effect_stack]);
+
+  // キューが解決可能になったらターンプレイヤーが自動解決
+  useEffect(() => {
+    if (!bs || !user) return;
+    const stack = bs.effect_stack;
+    if (!stack) return;
+    if (!isReadyToResolve(stack)) return;
+    if (stack.queue.length === 0) return;
+    if (bs.pending_effect) return;
+    if (loading) return;
+    if (bs.active_user_id !== user.id) return;
+    resolveStackNextRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.effect_stack, bs?.pending_effect, loading]);
+
+  // pending_life_crashes の自動消化
+  useEffect(() => {
+    if (!bs || !user) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    if (loading) return;
+    const localIsHost = user.id === bs.host_id;
+    const localMy = localIsHost ? bs.host_state : bs.guest_state;
+    if (localMy.field?.check) return;
+    if (!(localMy.pending_life_crashes ?? 0)) return;
+    triggerPendingCrashRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase]);
+
+  // ON_TURN_END 解決後の自動フェーズ進行
+  useEffect(() => {
+    if (!bs || !user) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (bs.turn_phase !== 'END') return;
+    const localIsMyTurn = bs.active_user_id === user.id;
+    if (!localIsMyTurn || loading) return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    const localIsHost = user.id === bs.host_id;
+    const localMy = localIsHost ? bs.host_state : bs.guest_state;
+    if (!(localMy.actions_done?.includes('__TURN_END__'))) return;
+    doPhaseAdvanceRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, loading, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state]);
+
+  if (!bs) return (
+    <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgSetup, color: C.text }}>
+      読み込み中...
+    </div>
+  );
+
+  const isHost = user.id === bs.host_id;
+
+  // ══════════════════════════════════════════
+  // SETUP フェイズ
+  // ══════════════════════════════════════════
+  if (bs.global_phase === 'SETUP') {
+
+    // ① じゃんけん
+    if (bs.setup_phase === 'JAN_KEN') {
+      const myJanken = isHost ? bs.host_janken : bs.guest_janken;
+      const opJanken = isHost ? bs.guest_janken : bs.host_janken;
+
+      const handleJanken = async (choice: string) => {
+        if (loading || myJanken) return;
+        setLoading(true);
+        try {
+          const myUpdate = isHost ? { host_janken: choice } : { guest_janken: choice };
+          await supabase.from('battle_states').update(myUpdate).eq('room_id', roomId);
+
+          const { data: fresh } = await supabase
+            .from('battle_states').select('host_janken, guest_janken')
+            .eq('room_id', roomId).single();
+
+          if (fresh?.host_janken && fresh?.guest_janken && !transitioningRef.current) {
+            transitioningRef.current = true;
+            const winner = jankenWinner(fresh.host_janken, fresh.guest_janken, bs.host_id, bs.guest_id);
+            const transUpdate: Partial<BattleStateRow> = winner
+              ? { first_player_id: winner, setup_phase: 'LRIG_SELECT', host_janken: null, guest_janken: null }
+              : { host_janken: null, guest_janken: null };
+            await new Promise(resolve => setTimeout(resolve, 1800));
+            await supabase.from('battle_states').update(transUpdate).eq('room_id', roomId);
+            transitioningRef.current = false;
+          }
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      if (myJanken && opJanken) {
+        const hostChoice = isHost ? myJanken : opJanken;
+        const guestChoice = isHost ? opJanken : myJanken;
+        const winner = jankenWinner(hostChoice, guestChoice, bs.host_id, bs.guest_id);
+        const iWon = winner === user.id;
+        return (
+          <div style={setupWrap}>
+            <h2 style={{ color: C.text, margin: 0 }}>じゃんけん結果</h2>
+            <p style={{ margin: 0 }}>あなた: {JANKEN_LABEL[myJanken]}   相手: {JANKEN_LABEL[opJanken]}</p>
+            {winner ? (
+              <>
+                <p style={{ color: iWon ? C.success : C.danger, fontSize: 24, fontWeight: 'bold', margin: 0 }}>
+                  {iWon ? '勝ち！先攻です' : '負け…後攻です'}
+                </p>
+                <p style={{ color: C.textFaint, fontSize: 13, margin: '8px 0 0' }}>次のフェイズへ移行中...</p>
+              </>
+            ) : (
+              <>
+                <p style={{ color: C.aiko, fontSize: 28, fontWeight: 'bold', margin: 0 }}>あいこ！</p>
+                <p style={{ color: C.textDim, fontSize: 14, margin: '8px 0 0' }}>もう一度選んでください...</p>
+              </>
+            )}
+          </div>
+        );
+      }
+
+      if (myJanken) return (
+        <div style={setupWrap}>
+          <h2 style={{ color: C.text, margin: 0 }}>じゃんけん</h2>
+          <p style={{ color: C.success }}>あなた: {JANKEN_LABEL[myJanken]}</p>
+          <p style={{ color: C.textFaint }}>相手の選択を待っています...</p>
+        </div>
+      );
+
+      return (
+        <div style={setupWrap}>
+          <h2 style={{ color: C.text, margin: 0 }}>じゃんけんで先攻後攻を決めます</h2>
+          <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>出す手を選んでください</p>
+          <div style={{ display: 'flex', gap: 16 }}>
+            {(['GU', 'CHOKI', 'PA'] as const).map(c => (
+              <button key={c} onClick={() => handleJanken(c)} disabled={loading}
+                style={{ ...primaryBtn, fontSize: 20, padding: '20px 28px' }}>
+                {JANKEN_LABEL[c]}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ② ルリグ選択
+    if (bs.setup_phase === 'LRIG_SELECT') {
+      const mySelected = isHost ? bs.host_lrig_selected : bs.guest_lrig_selected;
+
+      if (mySelected) return (
+        <div style={setupWrap}>
+          <h2 style={{ color: C.text, margin: 0 }}>ルリグ配置完了</h2>
+          <p style={{ color: C.success }}>相手の準備を待っています...</p>
+          <p style={{ color: C.textDim, fontSize: 13 }}>配置: {battleCardMap.get(mySelected)?.CardName ?? mySelected}</p>
+        </div>
+      );
+
+      if (!myDeckData) return <div style={setupWrap}><p>デッキ読み込み中...</p></div>;
+
+      const lv0Lrigs = myDeckData.lrig_deck
+        .filter((num, i, arr) => arr.indexOf(num) === i)
+        .map(num => battleCardMap.get(num))
+        .filter((c): c is CardData => !!c && c.Type === 'ルリグ' && c.Level === '0');
+
+      const handleSelectLrig = async (cardNum: string) => {
+        if (loading) return;
+        setLoading(true);
+        const shuffled = shuffle(myDeckData.main_deck);
+        const myState: PlayerState = {
+          life_cloth: [], hand: shuffled.slice(0, 5), deck: shuffled.slice(5),
+          lrig_deck: (() => { const i = myDeckData.lrig_deck.indexOf(cardNum); return i === -1 ? myDeckData.lrig_deck : [...myDeckData.lrig_deck.slice(0, i), ...myDeckData.lrig_deck.slice(i + 1)]; })(),
+          trash: [], lrig_trash: [], energy: [], coins: 0,
+          field: { lrig: [cardNum], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null },
+        };
+        const update = isHost
+          ? { host_lrig_selected: cardNum, host_state: myState }
+          : { guest_lrig_selected: cardNum, guest_state: myState };
+        await supabase.from('battle_states').update(update).eq('room_id', roomId);
+        setLoading(false);
+      };
+
+      return (
+        <div style={setupWrap}>
+          <h2 style={{ color: C.text, margin: 0 }}>センタールリグを配置</h2>
+          <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>Lv0ルリグを選ぶとデッキをシャッフルして手札5枚を引きます</p>
+          {lv0Lrigs.length === 0 ? (
+            <p style={{ color: '#f44' }}>Lv0ルリグが見つかりません。デッキを確認してください。</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', width: 300 }}>
+              {lv0Lrigs.map(card => (
+                <button key={card.CardNum} onClick={() => handleSelectLrig(card.CardNum)} disabled={loading}
+                  style={{ padding: '12px 20px', borderRadius: 8, cursor: 'pointer', border: C.borderUIMid, backgroundColor: C.bgButton, color: C.text, fontSize: 14, textAlign: 'left' }}>
+                  {card.CardName}
+                  <span style={{ color: C.textFaint, fontSize: 11, marginLeft: 8 }}>{card.CardNum}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ③ マリガン（カード画像で選択）
+    if (bs.setup_phase === 'MULLIGAN') {
+      const myState: PlayerState = isHost ? bs.host_state : bs.guest_state;
+      const myDone = isHost ? bs.host_mulligan_done : bs.guest_mulligan_done;
+      const iAmFirst = bs.first_player_id === user.id;
+
+      if (myDone) return (
+        <div style={setupWrap}>
+          <h2 style={{ color: C.text, margin: 0 }}>マリガン完了</h2>
+          <p style={{ color: iAmFirst ? C.accent : C.textAlt, fontWeight: 'bold', fontSize: 18, margin: 0 }}>
+            {iAmFirst ? '先攻です' : '後攻です'}
+          </p>
+          <p style={{ color: C.textFaint }}>相手の確認を待っています...</p>
+        </div>
+      );
+
+      const toggleCard = (i: number) => setMulliganSelected(prev => {
+        const next = new Set(prev);
+        if (next.has(i)) next.delete(i); else next.add(i);
+        return next;
+      });
+
+      const handleConfirm = async () => {
+        if (loading) return;
+        setLoading(true);
+        try {
+          let newHand = [...myState.hand];
+          let newDeck = [...myState.deck];
+
+          if (mulliganSelected.size > 0) {
+            const returning = [...mulliganSelected].map(i => myState.hand[i]);
+            const keeping = myState.hand.filter((_, i) => !mulliganSelected.has(i));
+            newDeck = shuffle([...newDeck, ...returning]);
+            newHand = [...keeping, ...newDeck.slice(0, returning.length)];
+            newDeck = newDeck.slice(returning.length);
+          }
+
+          const newLifeCloth = newDeck.slice(0, 7);
+          newDeck = newDeck.slice(7);
+
+          const newState: PlayerState = { ...myState, hand: newHand, deck: newDeck, life_cloth: newLifeCloth };
+          const update = isHost
+            ? { host_state: newState, host_mulligan_done: true }
+            : { guest_state: newState, guest_mulligan_done: true };
+          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+
+          // 最新状態を取得して両者が完了しているか確認
+          const { data: fresh } = await supabase
+            .from('battle_states')
+            .select('host_mulligan_done, guest_mulligan_done, first_player_id')
+            .eq('room_id', roomId)
+            .single();
+
+          if (fresh?.host_mulligan_done && fresh?.guest_mulligan_done) {
+            // 両者完了 → 自分が直接 PLAYING へ遷移させる（両プレイヤーとも送信して確実に反映）
+            const playingUpdate = {
+              global_phase: 'PLAYING' as const,
+              setup_phase: null as null,
+              active_user_id: fresh.first_player_id as string,
+            };
+            await supabase.from('battle_states').update(playingUpdate).eq('room_id', roomId);
+          }
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div style={{ ...setupWrap, justifyContent: 'flex-start', paddingTop: 32, overflowY: 'auto' }}>
+          <h2 style={{ color: C.text, margin: 0, flexShrink: 0 }}>マリガン</h2>
+          <p style={{ color: iAmFirst ? C.accent : C.textAlt, fontWeight: 'bold', margin: 0, flexShrink: 0 }}>
+            {iAmFirst ? '先攻' : '後攻'}
+          </p>
+          <p style={{ color: C.textDim, margin: 0, fontSize: 12, textAlign: 'center', flexShrink: 0 }}>
+            タップで選択（戻す）/ 長押しで拡大
+          </p>
+          {/* カード画像グリッド */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', flexShrink: 0 }}>
+            {myState.hand.map((cardNum, i) => (
+              <MulliganCard
+                key={i}
+                cardNum={cardNum}
+                cards={battleCards}
+                selected={mulliganSelected.has(i)}
+                onToggle={() => toggleCard(i)}
+              />
+            ))}
+          </div>
+          {mulliganSelected.size > 0 && (
+            <p style={{ color: '#f44', fontSize: 12, margin: 0, flexShrink: 0 }}>
+              {mulliganSelected.size}枚を戻して引き直します
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
+            {mulliganSelected.size > 0 ? (
+              <button onClick={handleConfirm} disabled={loading}
+                style={{ ...primaryBtn, backgroundColor: C.dangerDark }}>
+                {mulliganSelected.size}枚引き直す
+              </button>
+            ) : (
+              <button onClick={handleConfirm} disabled={loading} style={primaryBtn}>
+                このままでOK
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // PLAYING フェイズ
+  // ══════════════════════════════════════════
+  const my = isHost ? bs.host_state : bs.guest_state;
+  const op = isHost ? bs.guest_state : bs.host_state;
+  const isMyTurn = bs.active_user_id === user.id;
+  // このフェイズの進行ボタンを自分が持つか
+  const iControlThisPhase = NON_TURN_PLAYER_PHASES.includes(bs.turn_phase) ? !isMyTurn : isMyTurn;
+
+  // ドロー枚数（先攻1ターン目=1枚、それ以外=2枚）
+  const drawCount = bs.turn_count === 1 && bs.active_user_id === bs.first_player_id ? 1 : 2;
+
+  // ─── バニッシュ・ターントリガー ヘルパー ─────────────────────────────
+
+  /**
+   * バニッシュ前後の PlayerState を比較し、フィールドトップが変わってエナゾーンへ移動した
+   * カードをバニッシュ済みとして返す。
+   */
+  const detectBanishedSigni = (before: PlayerState, after: PlayerState): string[] => {
+    const result: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const beforeTop = (before.field.signi[i] ?? []).at(-1);
+      const afterTop  = (after.field.signi[i] ?? []).at(-1);
+      if (!beforeTop || beforeTop === afterTop) continue;
+      if (after.energy.includes(beforeTop)) result.push(beforeTop);
+    }
+    return result;
+  };
+
+  /**
+   * バニッシュされたシグニの ON_BANISH 効果 + フィールド上の全シグニのトリガーを収集する。
+   * banishedPlayerId: バニッシュされたシグニのオーナーの userId (host_id or guest_id)。
+   */
+  const collectBanishTriggers = (
+    banishedCardNum: string,
+    banishedPlayerId: string,
+    afterHostState: PlayerState,
+    afterGuestState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const opId = isHost ? bs.guest_id : bs.host_id;
+    const myAfterState = isHost ? afterHostState : afterGuestState;
+    const opAfterState = isHost ? afterGuestState : afterHostState;
+    const banishedOwnerIsMe = banishedPlayerId === user.id;
+
+    // 1. バニッシュされたカード自身の ON_BANISH 効果
+    for (const eff of (effectsMap.get(banishedCardNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      const cardName = battleCardMap.get(banishedCardNum)?.CardName ?? banishedCardNum;
+      entries.push({
+        id: crypto.randomUUID(),
+        playerId: banishedPlayerId,
+        cardNum: banishedCardNum,
+        effectId: eff.effectId,
+        label: `${cardName} の【バニッシュ時】効果`,
+        effect: eff,
+      });
+    }
+
+    // 2. 自分フィールド上シグニのトリガー
+    for (const stack of myAfterState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (banishedOwnerIsMe  && scope !== 'any_ally' && scope !== 'any') continue;
+        if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: crypto.randomUUID(),
+          playerId: user.id,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（バニッシュ時）`,
+          effect: eff,
+        });
+      }
+    }
+
+    // 3. 相手フィールド上シグニのトリガー
+    for (const stack of opAfterState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
+        const scope = eff.triggerScope ?? 'self';
+        // 相手視点：「自分の味方がバニッシュ」= !banishedOwnerIsMe
+        if (!banishedOwnerIsMe && scope !== 'any_ally' && scope !== 'any') continue;
+        if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: crypto.randomUUID(),
+          playerId: opId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（バニッシュ時）`,
+          effect: eff,
+        });
+      }
+    }
+
+    return entries;
+  };
+
+  /**
+   * ターン開始時・終了時の AUTO 効果を収集する。
+   * 自分のフィールドシグニ（'self' スコープ）+ ルリグ + 相手の any_opp/any も対象。
+   */
+  const collectTurnTriggers = (
+    timing: 'ON_TURN_START' | 'ON_TURN_END',
+    myState: PlayerState,
+    opState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const opId = isHost ? bs.guest_id : bs.host_id;
+    const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時' : 'ターン終了時';
+
+    // 自分のフィールドシグニ（self = このターンプレイヤーのカード）
+    for (const stack of myState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        if ((eff.triggerScope ?? 'self') !== 'self') continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: crypto.randomUUID(),
+          playerId: user.id,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（${labelSuffix}）`,
+          effect: eff,
+        });
+      }
+    }
+
+    // 自分のルリグ
+    const myLrigNum = myState.field.lrig.at(-1);
+    if (myLrigNum) {
+      for (const eff of (effectsMap.get(myLrigNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        const cardName = battleCardMap.get(myLrigNum)?.CardName ?? myLrigNum;
+        entries.push({
+          id: crypto.randomUUID(),
+          playerId: user.id,
+          cardNum: myLrigNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（${labelSuffix}）`,
+          effect: eff,
+        });
+      }
+    }
+
+    // 相手フィールドシグニ（any_opp / any でこちらのターンにも反応するカード）
+    for (const stack of opState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_opp' && scope !== 'any') continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: crypto.randomUUID(),
+          playerId: opId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（${labelSuffix}）`,
+          effect: eff,
+        });
+      }
+    }
+
+    return entries;
+  };
+
+  // フェイズ進行（実処理）
+  const doPhaseAdvance = async () => {
+    setLoading(true);
+    try {
+      const phase = bs.turn_phase;
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      let newMyState = my;
+      const update: Partial<BattleStateRow> = {};
+
+      if (phase === 'UP') {
+        // アップフェイズ開始時にすでにアップ済み（ENDフェイズで処理）。ドローして次へ。
+        const drawBlocked = my.blocked_actions?.includes('DRAW') ?? false;
+        newMyState = drawBlocked
+          ? { ...my, actions_done: [] }
+          : { ...drawCards(my, drawCount), actions_done: ['DRAW'] };
+        update.turn_phase = 'DRAW';
+
+        // ON_TURN_START トリガー収集（ドローと同時にスタック積み）
+        const startEntries = collectTurnTriggers('ON_TURN_START', newMyState, op);
+        if (startEntries.length > 0) {
+          const turnPlayerId = bs.active_user_id ?? user.id;
+          const existingStack = bs.effect_stack ?? null;
+          update.effect_stack = existingStack
+            ? pushToStack(existingStack, startEntries)
+            : initStack(turnPlayerId, startEntries);
+        }
+      } else if (phase === 'MAIN' && bs.turn_count === 1) {
+        update.turn_phase = 'END';
+      } else if (phase === 'END') {
+        // ON_TURN_END トリガーをまだ収集していなければ先に解決する
+        const turnEndMarked = my.actions_done?.includes('__TURN_END__');
+        if (!turnEndMarked) {
+          const endEntries = collectTurnTriggers('ON_TURN_END', my, op);
+          if (endEntries.length > 0) {
+            const markedMyState: PlayerState = {
+              ...my,
+              actions_done: [...(my.actions_done ?? []), '__TURN_END__'],
+            };
+            const turnPlayerId = bs.active_user_id ?? user.id;
+            const existingStack = bs.effect_stack ?? null;
+            const stack = existingStack
+              ? pushToStack(existingStack, endEntries)
+              : initStack(turnPlayerId, endEntries);
+            await supabase.from('battle_states')
+              .update({ [stateKey]: markedMyState, effect_stack: stack })
+              .eq('room_id', roomId);
+            return; // エフェクト解決後に自動で再度ターン終了処理を行う
+          }
+        }
+
+        // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
+        newMyState = {
+          ...my,
+          temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
+          keyword_grants:     {},   // ターン内付与キーワードをリセット
+          blocked_actions:    [],   // ターン内封じ行動をリセット
+          actions_done:       [],   // ターン内行動履歴をリセット
+          pending_life_crashes: 0,  // ダブルクラッシュ残数をリセット
+        };
+        // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
+        // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
+        const opKey = isHost ? 'guest_state' : 'host_state';
+        const opState = isHost ? bs.guest_state : bs.host_state;
+        const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
+        const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
+        const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
+        const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
+        update[opKey] = {
+          ...opState,
+          field: {
+            ...opState.field,
+            signi_down:   newSigniDown,
+            signi_frozen: [false, false, false],
+            lrig_down:    (opState.field.lrig_down ?? false) && curLrigFrozen,
+            lrig_frozen:  false,
+          },
+        };
+        update.turn_phase = 'UP';
+        update.active_user_id = (isHost ? bs.guest_id : bs.host_id) as string;
+        update.turn_count = bs.turn_count + 1;
+      } else {
+        update.turn_phase = PHASE_NEXT[phase];
+      }
+
+      await supabase.from('battle_states')
+        .update({ [stateKey]: newMyState, ...update })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // フェイズ進行（エナフェイズ未使用時は確認ポップアップ）
+  const handlePhaseAdvance = () => {
+    if (!iControlThisPhase || loading) return;
+    if (bs.turn_phase === 'ENERGY') {
+      const used    = my.actions_done?.includes('ENERGY') ?? false;
+      const blocked = my.blocked_actions?.includes('ENERGY') ?? false;
+      if (!used && !blocked) {
+        setShowEnergySkipConfirm(true);
+        return;
+      }
+    }
+    doPhaseAdvance();
+  };
+
+  // エナチャージ（手札のカードをエナゾーンへ）
+  const handleEnergyChargeFromHand = async (handIndex: number) => {
+    if (!isMyTurn || loading) return;
+    setLoading(true);
+    try {
+      const cardNum = my.hand[handIndex];
+      const newMyState: PlayerState = {
+        ...my,
+        hand: my.hand.filter((_, i) => i !== handIndex),
+        energy: [...my.energy, cardNum],
+        actions_done: [...(my.actions_done ?? []), 'ENERGY'],
+      };
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // エナチャージ（シグニゾーンの最上層カードをエナゾーンへ）
+  const handleEnergyChargeFromSigni = async (zoneIndex: number) => {
+    if (!isMyTurn || loading) return;
+    setLoading(true);
+    try {
+      const signiStack = my.field.signi[zoneIndex];
+      if (!signiStack || signiStack.length === 0) return;
+      const cardNum = signiStack[signiStack.length - 1];
+      const newStack = signiStack.slice(0, -1);
+      const newSigni = [...my.field.signi] as (string[] | null)[];
+      newSigni[zoneIndex] = newStack.length > 0 ? newStack : null;
+      const newMyState: PlayerState = {
+        ...my,
+        field: { ...my.field, signi: newSigni },
+        energy: [...my.energy, cardNum],
+        actions_done: [...(my.actions_done ?? []), 'ENERGY'],
+      };
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ===== 効果エンジン統合 =====
+
+  // 効果タイプの表示ラベル
+  const effectTypeLabel = (t: string) => {
+    if (t === 'AUTO') return '【自】';
+    if (t === 'ACTIVATED') return '【起】';
+    if (t === 'LIFE_BURST') return '【ライフバースト】';
+    return `【${t}】`;
+  };
+
+  // --- スタック操作 ---
+
+  /**
+   * カードの効果をスタックに積む。
+   * effectTypes/timings でフィルタし、該当効果を StackEntry として追加。
+   * extraUpdate でフィールド状態（召喚後など）を同時に保存できる。
+   */
+  const queueCardEffects = async (
+    cardNum: string,
+    effectTypes: ('AUTO' | 'ACTIVATED' | 'LIFE_BURST')[],
+    timings: string[],
+    startMyState: PlayerState,
+    startOpState: PlayerState,
+    extraUpdate: Record<string, unknown> = {},
+  ): Promise<boolean> => {
+    const effects = effectsMap.get(cardNum) ?? [];
+    const targets = effects.filter(e =>
+      (effectTypes as string[]).includes(e.effectType) &&
+      (timings.length === 0 || e.timing?.some(t => timings.includes(t)))
+    );
+    if (targets.length === 0) return false;
+
+    const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+    const turnPlayerId = bs?.active_user_id ?? user.id;
+
+    const entries: StackEntry[] = targets.map(eff => ({
+      id: crypto.randomUUID(),
+      playerId: user.id,
+      cardNum,
+      effectId: eff.effectId,
+      label: `${cardName} の${effectTypeLabel(eff.effectType)}効果`,
+      effect: eff,
+    }));
+
+    const existing = bs?.effect_stack ?? null;
+    const stack: EffectStack = existing
+      ? pushToStack(existing, entries)
+      : initStack(turnPlayerId, entries);
+
+    const myKey = isHost ? 'host_state' : 'guest_state';
+    const opKey = isHost ? 'guest_state' : 'host_state';
+    await supabase.from('battle_states')
+      .update({
+        [myKey]: startMyState,
+        [opKey]: startOpState,
+        effect_stack: stack,
+        pending_effect: null,
+        ...extraUpdate,
+      })
+      .eq('room_id', roomId);
+    return true;
+  };
+
+  // --- スタック解決 ---
+
+  /**
+   * キューの先頭エントリを取り出して effectExecutor で実行し DB に保存する。
+   * ターンプレイヤーが呼び出す（useEffect で監視）。
+   */
+  const resolveStackNext = async () => {
+    if (!bs?.effect_stack || loading) return;
+    const stack = bs.effect_stack;
+    if (!isReadyToResolve(stack) || stack.queue.length === 0) return;
+
+    setLoading(true);
+    try {
+      const { entry, newStack } = shiftQueue(stack);
+      if (!entry) {
+        await supabase.from('battle_states')
+          .update({ effect_stack: null })
+          .eq('room_id', roomId);
+        return;
+      }
+
+      const ownerIsHost = entry.playerId === bs.host_id;
+      const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
+      const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [] };
+      const result = executeEffect(entry.effect, ctx);
+
+      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
+      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+
+      const stackAfter = isStackDone(newStack) ? null : newStack;
+      const update: Record<string, unknown> = {
+        host_state: hostState,
+        guest_state: guestState,
+        effect_stack: stackAfter,
+      };
+      if (!result.done) {
+        update.pending_effect = {
+          sourcePlayerId: entry.playerId,
+          sourceCardNum: entry.cardNum,
+          effectId: entry.effectId,
+          interaction: result.pending,
+        } satisfies PendingEffect;
+        // インタラクション中はスタック（残キュー）を保持
+        update.effect_stack = newStack;
+      } else {
+        update.pending_effect = null;
+
+        // ON_BANISH: バニッシュされたシグニを検出してスタックに追加
+        const hostBanished  = detectBanishedSigni(bs.host_state, hostState);
+        const guestBanished = detectBanishedSigni(bs.guest_state, guestState);
+        const banishEntries: StackEntry[] = [];
+        for (const cardNum of hostBanished) {
+          banishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState));
+        }
+        for (const cardNum of guestBanished) {
+          banishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+        if (banishEntries.length > 0) {
+          const baseStack = (update.effect_stack as typeof stackAfter) ?? null;
+          update.effect_stack = baseStack
+            ? pushToStack(baseStack, banishEntries)
+            : initStack(stack.turnPlayerId, banishEntries);
+        }
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  // --- 整列UI用ハンドラ ---
+
+  /** 自分の未整列効果のID配列を引数として順序を確定する */
+  const handleConfirmStackOrder = async (orderedIds: string[]) => {
+    if (!bs?.effect_stack || loading) return;
+    setLoading(true);
+    try {
+      const isTurnPlayer = bs.active_user_id === user.id;
+      const stack = isTurnPlayer
+        ? confirmTurnOrder(bs.effect_stack, orderedIds)
+        : confirmOppOrder(bs.effect_stack, orderedIds);
+      await supabase.from('battle_states')
+        .update({ effect_stack: isStackDone(stack) ? null : stack })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- pending_effect インタラクション解決 ---
+
+  const handleEffectInteraction = async (selectedOrChoiceId: string[]) => {
+    if (!bs?.pending_effect || loading) return;
+    setLoading(true);
+    try {
+      const pe = bs.pending_effect;
+      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+      const ownerState = ownerIsHost ? bs.host_state : bs.guest_state;
+      const otherState = ownerIsHost ? bs.guest_state : bs.host_state;
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [] };
+      const inter = pe.interaction;
+
+      let result: ExecResult;
+      if (inter.type === 'SELECT_TARGET') {
+        result = resumeSelectTarget(selectedOrChoiceId, inter, ctx);
+      } else if (inter.type === 'SEARCH') {
+        result = resumeSearch(selectedOrChoiceId, inter, ctx);
+      } else if (inter.type === 'CHOOSE') {
+        result = resumeChoose(selectedOrChoiceId[0] ?? '', inter, ctx);
+      } else if (inter.type === 'LOOK_AND_REORDER') {
+        result = resumeLookAndReorder(selectedOrChoiceId, [], inter, ctx);
+      } else {
+        return;
+      }
+
+      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
+      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
+      if (!result.done) {
+        update.pending_effect = { ...pe, interaction: result.pending } satisfies PendingEffect;
+      } else {
+        update.pending_effect = null;
+
+        // ON_BANISH: バニッシュされたシグニを検出してスタックに追加
+        const hostBanished  = detectBanishedSigni(bs.host_state, hostState);
+        const guestBanished = detectBanishedSigni(bs.guest_state, guestState);
+        const banishEntries: StackEntry[] = [];
+        for (const cardNum of hostBanished) {
+          banishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState));
+        }
+        for (const cardNum of guestBanished) {
+          banishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+        if (banishEntries.length > 0) {
+          const turnPlayerId = bs.active_user_id ?? user.id;
+          const existingStack = bs.effect_stack ?? null;
+          update.effect_stack = existingStack
+            ? pushToStack(existingStack, banishEntries)
+            : initStack(turnPlayerId, banishEntries);
+        }
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      setEffectSelectedNums([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * フィールド上の全シグニから、指定イベントに反応する AUTO 効果を収集して StackEntry[] を返す。
+   * 召喚されたカード自身（triggerScope='self'）はここでは除き、queueCardEffects で別途処理する。
+   */
+  const collectFieldTriggers = (
+    event: 'ON_PLAY' | 'ON_BANISH' | 'ON_ATTACK_SIGNI',
+    triggeringCardNum: string,
+    myState: PlayerState,
+    opState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const opId = isHost ? bs.guest_id : bs.host_id;
+
+    // 自分のフィールド：'any_ally' または 'any' トリガー
+    for (const stack of myState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      if (topNum === triggeringCardNum) continue; // 自身は除く（ON_PLAYは queueCardEffects で処理）
+      const effects = effectsMap.get(topNum) ?? [];
+      for (const eff of effects) {
+        if (eff.effectType !== 'AUTO') continue;
+        if (!eff.timing?.includes(event)) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_ally' && scope !== 'any') continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: crypto.randomUUID(),
+          playerId: user.id,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（他のシグニ召喚時）`,
+          effect: eff,
+        });
+      }
+    }
+
+    // 相手のフィールド：'any_opp' または 'any' トリガー（相手のシグニが自分の召喚に反応）
+    for (const stack of opState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      const effects = effectsMap.get(topNum) ?? [];
+      for (const eff of effects) {
+        if (eff.effectType !== 'AUTO') continue;
+        if (!eff.timing?.includes(event)) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any' && scope !== 'any_opp') continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: crypto.randomUUID(),
+          playerId: opId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（シグニ召喚時）`,
+          effect: eff,
+        });
+      }
+    }
+
+    return entries;
+  };
+
+  // シグニ召喚（ゾーン選択後に実行）
+  const handleSummonSigni = async (handIndex: number, zoneIndex: number) => {
+    if (!isMyTurn || loading) return;
+    setLoading(true);
+    setPendingSigniSummon(null);
+    try {
+      const cardNum = my.hand[handIndex];
+      const existingStack = my.field.signi[zoneIndex] ?? [];
+      const newSigni = [...my.field.signi] as (string[] | null)[];
+      newSigni[zoneIndex] = [cardNum];
+      const placed: PlayerState = {
+        ...my,
+        hand: my.hand.filter((_, i) => i !== handIndex),
+        field: { ...my.field, signi: newSigni },
+        trash: [...my.trash, ...existingStack],
+      };
+
+      // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
+      const fieldEntries = collectFieldTriggers('ON_PLAY', cardNum, placed, op);
+
+      // 召喚したカード自身の ON_PLAY 効果
+      const ownEffects = effectsMap.get(cardNum) ?? [];
+      const ownOnPlay = ownEffects.filter(e =>
+        e.effectType === 'AUTO' &&
+        e.timing?.includes('ON_PLAY') &&
+        (e.triggerScope === undefined || e.triggerScope === 'self'),
+      );
+
+      if (ownOnPlay.length === 0 && fieldEntries.length === 0) {
+        // 効果なし：そのまま保存
+        const stateKey = isHost ? 'host_state' : 'guest_state';
+        await supabase.from('battle_states').update({ [stateKey]: placed }).eq('room_id', roomId);
+        return;
+      }
+
+      // 自身の ON_PLAY エントリを StackEntry に変換
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      const ownEntries: StackEntry[] = ownOnPlay.map(eff => ({
+        id: crypto.randomUUID(),
+        playerId: user.id,
+        cardNum,
+        effectId: eff.effectId,
+        label: `${cardName} の【出】/【自】効果`,
+        effect: eff,
+      }));
+
+      // すべてをスタックに積む
+      const allEntries = [...ownEntries, ...fieldEntries];
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existing = bs?.effect_stack ?? null;
+      const stack = existing
+        ? pushToStack(existing, allEntries)
+        : initStack(turnPlayerId, allEntries);
+
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: placed, effect_stack: stack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // グロウ
+  const myLrig = my.field.lrig ?? [];
+  const currentLrigNum = myLrig[myLrig.length - 1] ?? null;
+  const currentLrig = currentLrigNum ? battleCardMap.get(currentLrigNum) ?? null : null;
+  const currentLrigLevel = currentLrig ? parseInt(currentLrig.Level) || 0 : 0;
+
+  const growCandidates = my.lrig_deck
+    .filter((num, i, arr) => arr.indexOf(num) === i)
+    .map(num => battleCardMap.get(num))
+    .filter((c): c is CardData =>
+      !!c &&
+      c.Type === 'ルリグ' &&
+      parseInt(c.Level) === currentLrigLevel + 1 &&
+      // 現在のルリグと CardClass に共通名称があるものだけ候補にする
+      (!currentLrig || lrigClassesCompatible(currentLrig.CardClass, c.CardClass))
+    );
+
+  // ルリグのクラス（制限チェック共通）
+  const lrigClass = currentLrig?.CardClass ?? '';
+
+  // シグニ召喚: リミット計算
+  const lrigLimit = parseInt(currentLrig?.Limit ?? '0') || 0;
+  const fieldSigniTopLevels: number[] = my.field.signi.map(stack => {
+    if (!stack || stack.length === 0) return 0;
+    const top = battleCardMap.get(stack[stack.length - 1]);
+    return parseInt(top?.Level ?? '0') || 0;
+  });
+  const fieldSigniTotal = fieldSigniTopLevels.reduce((s, l) => s + l, 0);
+
+
+  // アーツ候補（自分の lrig_deck からアーツカード）
+  const artsCandidates: CardData[] = my.lrig_deck
+    .filter((num, i, arr) => arr.indexOf(num) === i)
+    .map(num => battleCardMap.get(num))
+    .filter((c): c is CardData => !!c && c.Type === 'アーツ');
+
+  // スペルカットイン候補（自分の lrig_deck から、相手がスペル発動中のとき用）
+  const cutinCandidates = my.lrig_deck
+    .filter((num, i, arr) => arr.indexOf(num) === i)
+    .map(num => battleCardMap.get(num))
+    .filter((c): c is CardData =>
+      !!c &&
+      c.Timing.includes('スペルカットイン') &&
+      meetsRestriction(c.Restriction, lrigClass)
+    );
+
+  const toggleGrowCostCard = (idx: number) => {
+    setSelectedGrowCost(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const executeGrow = async (card: CardData, costIndices: Set<number>) => {
+    if (!isMyTurn || loading) return;
+    setLoading(true);
+    setShowGrowModal(false);
+    setPendingGrowCard(null);
+    setSelectedGrowCost(new Set());
+    try {
+      const cardNum = card.CardNum;
+      const idx = my.lrig_deck.indexOf(cardNum);
+      const newLrigDeck = idx === -1 ? my.lrig_deck
+        : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const newMyState: PlayerState = {
+        ...my,
+        lrig_deck: newLrigDeck,
+        field: { ...my.field, lrig: [...my.field.lrig, cardNum] },
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+        actions_done: [...(my.actions_done ?? []), 'GROW'],
+      };
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleRemoveZone = (zi: number) => {
+    setSelectedRemoveZones(prev => {
+      const next = new Set(prev);
+      if (next.has(zi)) next.delete(zi); else next.add(zi);
+      return next;
+    });
+  };
+
+  const handleRemove = async () => {
+    if (!isMyTurn || loading || selectedRemoveZones.size === 0) return;
+    setLoading(true);
+    setShowRemoveModal(false);
+    try {
+      const newSigni = [...my.field.signi] as (string[] | null)[];
+      let newTrash = [...my.trash];
+      for (const zi of selectedRemoveZones) {
+        newTrash = [...newTrash, ...(my.field.signi[zi] ?? [])];
+        newSigni[zi] = null;
+      }
+      const newMyState: PlayerState = {
+        ...my,
+        field: { ...my.field, signi: newSigni },
+        trash: newTrash,
+        actions_done: [...(my.actions_done ?? []), 'REMOVE'],
+      };
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+      setSelectedRemoveZones(new Set());
+    }
+  };
+
+  const toggleArtsCostCard = (idx: number) => {
+    setSelectedArtsCost(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const executeArts = async (card: CardData, costIndices: Set<number>) => {
+    if (loading) return;
+    setLoading(true);
+    setShowArtsModal(false);
+    setPendingArtsCard(null);
+    setSelectedArtsCost(new Set());
+    try {
+      const cardNum = card.CardNum;
+      const idx = my.lrig_deck.indexOf(cardNum);
+      const newLrigDeck = idx === -1 ? my.lrig_deck
+        : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const paid: PlayerState = {
+        ...my,
+        lrig_deck: newLrigDeck,
+        energy: newEnergy,
+        lrig_trash: [...my.lrig_trash, cardNum],
+        trash: [...my.trash, ...paidNums],
+      };
+      // アーツ効果を発火
+      const fired = await queueCardEffects(cardNum, ['ACTIVATED'], [], paid, op);
+      if (!fired) {
+        const stateKey = isHost ? 'host_state' : 'guest_state';
+        await supabase.from('battle_states').update({ [stateKey]: paid }).eq('room_id', roomId);
+      }
+      setCloseZoneSignal(s => s + 1);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSpellCostCard = (idx: number) => {
+    setSelectedSpellCost(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  // スペル発動: 手札から除いてコスト支払い → pending_spell をセット（カットイン待ち）
+  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number) => {
+    if (!isMyTurn || loading) return;
+    setLoading(true);
+    setPendingSpellCast(null);
+    setSelectedSpellCost(new Set());
+    try {
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const newMyState: PlayerState = {
+        ...my,
+        hand: my.hand.filter((_, i) => i !== handIdx),
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+      };
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const spell: PendingSpell = { caster_id: user.id, card_num: card.CardNum };
+      await supabase.from('battle_states')
+        .update({ [stateKey]: newMyState, pending_spell: spell })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // スペルカットインをパス → スペル解決（スペル効果を発火）
+  const handleCutinPass = async () => {
+    if (!bs.pending_spell || loading) return;
+    setLoading(true);
+    setPendingCutinCard(null);
+    setSelectedCutinCost(new Set());
+    try {
+      const { caster_id, card_num } = bs.pending_spell;
+      const casterIsHost = caster_id === bs.host_id;
+      const casterState = casterIsHost ? bs.host_state : bs.guest_state;
+      const nonCasterState = casterIsHost ? bs.guest_state : bs.host_state;
+      const resolved: PlayerState = { ...casterState, trash: [...casterState.trash, card_num] };
+
+      // スペル効果を発火（casterがowner）
+      const effects = effectsMap.get(card_num) ?? [];
+      const spellEff = effects.find(e => e.effectType === 'ACTIVATED');
+      if (!spellEff) {
+        await supabase.from('battle_states')
+          .update({
+            [casterIsHost ? 'host_state' : 'guest_state']: resolved,
+            pending_spell: null, pending_effect: null,
+          })
+          .eq('room_id', roomId);
+        return;
+      }
+
+      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: battleCardMap, logs: [] };
+      const result = executeEffect(spellEff, ctx);
+      const hostState  = casterIsHost ? result.ownerState : result.otherState;
+      const guestState = casterIsHost ? result.otherState : result.ownerState;
+      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
+      if (!result.done) {
+        update.pending_effect = { sourcePlayerId: caster_id, sourceCardNum: card_num, effectId: spellEff.effectId, interaction: result.pending } satisfies PendingEffect;
+      } else {
+        update.pending_effect = null;
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleCutinCostCard = (idx: number) => {
+    setSelectedCutinCost(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  // カットイン使用 → カットイン効果発火・スペルをトラッシュ（打ち消し）
+  const handleCutinUse = async (cutinCard: CardData, costIndices: Set<number>) => {
+    if (!bs.pending_spell || loading) return;
+    setLoading(true);
+    setPendingCutinCard(null);
+    setSelectedCutinCost(new Set());
+    try {
+      const { caster_id, card_num } = bs.pending_spell;
+      const casterIsHost = caster_id === bs.host_id;
+      const casterState = casterIsHost ? bs.host_state : bs.guest_state;
+      // スペルをトラッシュへ（打ち消し）
+      const newCasterState: PlayerState = { ...casterState, trash: [...casterState.trash, card_num] };
+      // カットインコスト支払い＆ルリグデッキから除去
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const lrigIdx = my.lrig_deck.indexOf(cutinCard.CardNum);
+      const newLrigDeck = lrigIdx === -1 ? my.lrig_deck
+        : [...my.lrig_deck.slice(0, lrigIdx), ...my.lrig_deck.slice(lrigIdx + 1)];
+      const cutinPaid: PlayerState = {
+        ...my,
+        lrig_deck: newLrigDeck,
+        energy: newEnergy,
+        lrig_trash: [...my.lrig_trash, cutinCard.CardNum],
+        trash: [...my.trash, ...paidNums],
+      };
+      // カットイン効果発火（ownerState=me, otherState=caster）
+      const effects = effectsMap.get(cutinCard.CardNum) ?? [];
+      const cutinEff = effects.find(e => e.effectType === 'ACTIVATED');
+      if (!cutinEff) {
+        const myKey = isHost ? 'host_state' : 'guest_state';
+        const casterKey = casterIsHost ? 'host_state' : 'guest_state';
+        // myとcasterが同じキーになる場合の処理
+        if (myKey === casterKey) {
+          // 自分がcasterとはならない（カットインは非キャスター側）
+          await supabase.from('battle_states')
+            .update({ [myKey]: cutinPaid, pending_spell: null })
+            .eq('room_id', roomId);
+        } else {
+          await supabase.from('battle_states')
+            .update({ [myKey]: cutinPaid, [casterKey]: newCasterState, pending_spell: null })
+            .eq('room_id', roomId);
+        }
+        return;
+      }
+      // ownerState=cutinPaid(me), otherState=newCasterState
+      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: battleCardMap, logs: [] };
+      const result = executeEffect(cutinEff, ctx);
+      // myがhost/guestに応じてマッピング
+      const hostState  = isHost ? result.ownerState : result.otherState;
+      const guestState = isHost ? result.otherState : result.ownerState;
+      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
+      if (!result.done) {
+        update.pending_effect = { sourcePlayerId: user.id, sourceCardNum: cutinCard.CardNum, effectId: cutinEff.effectId, interaction: result.pending } satisfies PendingEffect;
+      } else {
+        update.pending_effect = null;
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // フェイズ別・手札カードアクションを返す
+  const getMyHandCardActions = (cardNum: string, handIndex: number): CardAction[] => {
+    if (!isMyTurn || loading) return [];
+    const actionList: CardAction[] = [];
+
+    if (bs.turn_phase === 'ENERGY') {
+      const used    = my.actions_done?.includes('ENERGY') ?? false;
+      const blocked = my.blocked_actions?.includes('ENERGY') ?? false;
+      if (!used && !blocked) {
+        actionList.push({
+          label: 'エナチャージ',
+          color: C.accent,
+          onClick: () => handleEnergyChargeFromHand(handIndex),
+        });
+      }
+    }
+
+    if (bs.turn_phase === 'MAIN') {
+      const cardData = battleCardMap.get(cardNum);
+      if (cardData?.Type === 'シグニ') {
+        const signiLevel = parseInt(cardData.Level) || 0;
+        // レベル制限: シグニLv ≤ ルリグLv
+        const levelOk = signiLevel <= currentLrigLevel;
+        // 空ゾーン制限: 空のゾーンにのみ召喚可能、かつ合計レベルがリミット以内
+        const canFitSomewhere = [0, 1, 2].some(zi => {
+          const isEmpty = (my.field.signi[zi] ?? []).length === 0;
+          return isEmpty && (fieldSigniTotal + signiLevel) <= lrigLimit;
+        });
+        // Restriction チェック
+        const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass);
+        if (levelOk && canFitSomewhere && restrictionOk) {
+          actionList.push({
+            label: '召喚',
+            color: C.success,
+            onClick: () => setPendingSigniSummon({ cardNum, handIndex }),
+          });
+        }
+      }
+      if (cardData?.Type === 'スペル' && meetsRestriction(cardData.Restriction, lrigClass)) {
+        // pending_spell がある間は新たにスペルを発動できない
+        const spellBlocked = !!bs.pending_spell;
+        if (!spellBlocked) {
+          actionList.push({
+            label: '発動',
+            color: C.accent,
+            onClick: () => { setPendingSpellCast({ cardNum, handIndex }); setSelectedSpellCost(new Set()); },
+          });
+        }
+      }
+    }
+
+    return actionList;
+  };
+
+  // ルリグデッキのカードアクション（アーツ使用）
+  const getMyLrigDeckCardActions = (cardNum: string): CardAction[] => {
+    if (loading) return [];
+    const cardData = battleCardMap.get(cardNum);
+    if (!cardData || cardData.Type !== 'アーツ') return [];
+    if (!meetsRestriction(cardData.Restriction, lrigClass)) return [];
+
+    const phase = bs.turn_phase;
+    // 使用できるフェイズと担当プレイヤーの判定
+    const canUse =
+      (phase === 'MAIN'         && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
+      (phase === 'ATTACK_ARTS'  && isMyTurn  && cardData.Timing.includes('アタックフェイズ')) ||
+      (phase === 'ATTACK_ARTS_OP' && !isMyTurn && cardData.Timing.includes('アタックフェイズ'));
+
+    if (!canUse) return [];
+    if (!canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants)) return [];
+    return [{
+      label: '使用',
+      color: C.coin,
+      onClick: () => { setPendingArtsCard(cardData); setSelectedArtsCost(new Set()); setShowArtsModal(true); },
+    }];
+  };
+
+  // ライフクロスを1枚クラッシュし、チェック状態にする
+  // returns null: ライフなし（即勝利判定が必要）、string: クラッシュしたカード番号
+  const crashOneLife = (state: PlayerState): { newState: PlayerState; crashed: string | null } => {
+    if (state.life_cloth.length === 0) return { newState: state, crashed: null };
+    const crashed = state.life_cloth[state.life_cloth.length - 1];
+    return {
+      newState: {
+        ...state,
+        life_cloth: state.life_cloth.slice(0, -1),
+        field: { ...state.field, check: crashed },
+      },
+      crashed,
+    };
+  };
+
+  // シグニアタック処理（キーワード能力対応）
+  const handleSigniAttack = async (zoneIndex: number) => {
+    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
+    if (op.field.check) return; // 相手のライフバースト処理待ち中はアタック不可
+    setLoading(true);
+    try {
+      const myTopNum = (my.field.signi[zoneIndex] ?? []).at(-1);
+      if (!myTopNum) return;
+
+      const opZoneIndex = 2 - zoneIndex; // 正面ゾーン（表示反転を考慮）
+      const opStack = op.field.signi[opZoneIndex] ?? [];
+      const opTopCardNum = opStack.length > 0 ? opStack[opStack.length - 1] : null;
+      const opTopCard = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
+
+      const myKey = isHost ? 'host_state' : 'guest_state';
+      const opKey = isHost ? 'guest_state' : 'host_state';
+
+      // 自分のシグニをダウン
+      const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
+      newSigniDown[zoneIndex] = true;
+      let newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown } };
+      let newOpState = op;
+      let banishedOpCardNum: string | null = null; // バニッシュされた相手シグニ
+
+      // キーワード能力を確認
+      const myGrants = my.keyword_grants;
+      const isAssassin    = hasKeyword(myTopNum, 'アサシン',      battleCardMap, myGrants);
+      const isLancer      = hasKeyword(myTopNum, 'ランサー',      battleCardMap, myGrants);
+      const isDoubleCrush = hasKeyword(myTopNum, 'ダブルクラッシュ', battleCardMap, myGrants);
+
+      // アサシン：正面シグニを無視してライフへ直接アタック
+      const effectivelyEmpty = !opTopCardNum || isAssassin;
+
+      if (!effectivelyEmpty && opTopCardNum && opTopCard) {
+        // ─── 通常バトル（正面シグニあり・アサシンなし）───
+        const myPower = effectivePowers.get(myTopNum)
+          ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
+        const opPower = effectivePowers.get(opTopCardNum)
+          ?? (parseInt(opTopCard.Power ?? '0') || 0);
+
+        if (myPower >= opPower) {
+          // バトル勝利：相手シグニの処理
+          const opCharms = op.field.signi_charms ?? [];
+          const opCharm  = opCharms[opZoneIndex] ?? null;
+
+          if (opCharm) {
+            // チャームが付いている → チャームを除去（トラッシュへ）してシグニ生存
+            const newCharms = [...opCharms];
+            newCharms[opZoneIndex] = null;
+            newOpState = {
+              ...op,
+              trash: [...op.trash, opCharm],
+              field: { ...op.field, signi_charms: newCharms },
+            };
+          } else {
+            // 通常バニッシュ → 相手エナへ
+            banishedOpCardNum = opTopCardNum;
+            const newOpSigni = [...op.field.signi] as (string[] | null)[];
+            newOpSigni[opZoneIndex] = null;
+            const newOpDown   = [...(op.field.signi_down   ?? [false, false, false])];
+            const newOpFrozen = [...(op.field.signi_frozen  ?? [false, false, false])];
+            newOpDown[opZoneIndex]   = false;
+            newOpFrozen[opZoneIndex] = false;
+            newOpState = {
+              ...op,
+              energy: [...op.energy, ...opStack],
+              field: { ...op.field, signi: newOpSigni, signi_down: newOpDown, signi_frozen: newOpFrozen },
+            };
+          }
+
+          // ランサー：バトル勝利後に追加でライフを1枚クラッシュ
+          if (isLancer) {
+            const { newState: afterCrash, crashed } = crashOneLife(newOpState);
+            if (!crashed) {
+              // ライフなし → 相手の敗北
+              await supabase.from('battle_states')
+                .update({ [myKey]: newMyState, [opKey]: newOpState, global_phase: 'FINISHED', winner_id: user.id })
+                .eq('room_id', roomId);
+              return;
+            }
+            newOpState = afterCrash;
+          }
+        }
+        // バトル敗北：何も起きない（両シグニ生存）
+      } else {
+        // ─── ライフへのアタック（正面空 or アサシン）───
+        const crashCount = isDoubleCrush ? 2 : 1;
+        let pendingExtra = 0;
+
+        // 1枚目クラッシュ
+        const { newState: afterFirst, crashed: firstCrashed } = crashOneLife(newOpState);
+        if (!firstCrashed) {
+          // ライフなし → 相手の敗北
+          await supabase.from('battle_states')
+            .update({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: user.id })
+            .eq('room_id', roomId);
+          return;
+        }
+        newOpState = afterFirst;
+
+        if (crashCount > 1) {
+          // ダブルクラッシュ：1枚目バースト後に追加クラッシュが残る
+          pendingExtra = crashCount - 1;
+          newOpState = { ...newOpState, pending_life_crashes: (newOpState.pending_life_crashes ?? 0) + pendingExtra };
+        }
+      }
+
+      // ON_ATTACK_SIGNI トリガー（アタックしたシグニ自身）
+      const attackEntries: StackEntry[] = (effectsMap.get(myTopNum) ?? [])
+        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
+        .map(e => ({
+          id: crypto.randomUUID(),
+          playerId: user.id,
+          cardNum: myTopNum,
+          effectId: e.effectId,
+          label: `${battleCardMap.get(myTopNum)?.CardName ?? myTopNum} の【自】効果（シグニアタック時）`,
+          effect: e,
+        } satisfies StackEntry));
+
+      // ON_BANISH トリガー（バニッシュされた相手シグニ + フィールドトリガー）
+      const newHostState  = isHost ? newMyState : newOpState;
+      const newGuestState = isHost ? newOpState : newMyState;
+      const banishEntries = banishedOpCardNum
+        ? collectBanishTriggers(
+            banishedOpCardNum,
+            isHost ? bs.guest_id : bs.host_id,
+            newHostState,
+            newGuestState,
+          )
+        : [];
+
+      const allTriggers = [...attackEntries, ...banishEntries];
+      if (allTriggers.length > 0) {
+        const turnPlayerId = bs.active_user_id ?? user.id;
+        const existingStack = bs.effect_stack ?? null;
+        const stack = existingStack
+          ? pushToStack(existingStack, allTriggers)
+          : initStack(turnPlayerId, allTriggers);
+        await supabase.from('battle_states')
+          .update({ [myKey]: newMyState, [opKey]: newOpState, effect_stack: stack })
+          .eq('room_id', roomId);
+      } else {
+        await supabase.from('battle_states')
+          .update({ [myKey]: newMyState, [opKey]: newOpState })
+          .eq('room_id', roomId);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ルリグアタック: 自分のルリグをダウンし相手にガード応答を要求
+  const handleLrigAttack = async () => {
+    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_LRIG') return;
+    if (my.field.lrig_down) return; // すでに攻撃済み
+    if (op.field.lrig_attacked) return; // ガード応答待ち中
+    setLoading(true);
+    try {
+      const myKey = isHost ? 'host_state' : 'guest_state';
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      const newMyState: PlayerState = { ...my, field: { ...my.field, lrig_down: true } };
+      const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
+      await supabase.from('battle_states')
+        .update({ [myKey]: newMyState, [opKey]: newOpState })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ダブルクラッシュ等による追加ライフクラッシュ（バースト後に自動発動）
+  const triggerPendingCrash = async () => {
+    const pending = my.pending_life_crashes ?? 0;
+    if (!pending || my.field.check || loading) return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const stateWithDec: PlayerState = { ...my, pending_life_crashes: pending - 1 };
+      const { newState: afterCrash, crashed } = crashOneLife(stateWithDec);
+      if (!crashed) {
+        const winnerId = isHost ? bs.guest_id : bs.host_id;
+        await supabase.from('battle_states')
+          .update({ [stateKey]: { ...stateWithDec, pending_life_crashes: 0 }, global_phase: 'FINISHED', winner_id: winnerId })
+          .eq('room_id', roomId);
+        return;
+      }
+      await supabase.from('battle_states').update({ [stateKey]: afterCrash }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // refs を常に最新の関数インスタンスに同期（Rules of Hooks 対応）
+  doPhaseAdvanceRef.current      = doPhaseAdvance;
+  triggerPendingCrashRef.current = triggerPendingCrash;
+  resolveStackNextRef.current    = resolveStackNext;
+
+  // ガード応答: handIndex=ガードカードのインデックス、null=ガードしない
+  const handleGuardResponse = async (handIndex: number | null) => {
+    if (!my.field.lrig_attacked || loading) return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      let newMyState: PlayerState;
+      if (handIndex !== null) {
+        // ガードカードをトラッシュへ
+        const cardNum = my.hand[handIndex];
+        newMyState = {
+          ...my,
+          hand: my.hand.filter((_, i) => i !== handIndex),
+          trash: [...my.trash, cardNum],
+          field: { ...my.field, lrig_attacked: false },
+        };
+      } else {
+        // ガードしない → ライフクロスをクラッシュ
+        if (my.life_cloth.length > 0) {
+          const crashed = my.life_cloth[my.life_cloth.length - 1];
+          newMyState = {
+            ...my,
+            life_cloth: my.life_cloth.slice(0, -1),
+            field: { ...my.field, lrig_attacked: false, check: crashed },
+          };
+        } else {
+          // ライフクロス0枚 → 自分の敗北
+          const winnerId = isHost ? bs.guest_id : bs.host_id;
+          const clearedMyState: PlayerState = { ...my, field: { ...my.field, lrig_attacked: false } };
+          await supabase.from('battle_states')
+            .update({ [stateKey]: clearedMyState, global_phase: 'FINISHED', winner_id: winnerId })
+            .eq('room_id', roomId);
+          return;
+        }
+      }
+      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ライフバースト確認後の処理
+  const handleLifeBurstResponse = async (activate: boolean) => {
+    if (!my.field.check || loading) return;
+    setLoading(true);
+    try {
+      const cardNum = my.field.check;
+      // チェックゾーンをクリアしてエナへ移動した状態を基点にする
+      const baseState: PlayerState = {
+        ...my,
+        energy: [...my.energy, cardNum],
+        field: { ...my.field, check: null },
+      };
+      if (!activate) {
+        const stateKey = isHost ? 'host_state' : 'guest_state';
+        await supabase.from('battle_states')
+          .update({ [stateKey]: baseState, pending_effect: null })
+          .eq('room_id', roomId);
+        return;
+      }
+      // LIFE_BURST効果を発火
+      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseState, op);
+      if (!fired) {
+        const stateKey = isHost ? 'host_state' : 'guest_state';
+        await supabase.from('battle_states')
+          .update({ [stateKey]: baseState, pending_effect: null })
+          .eq('room_id', roomId);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // シグニ起動効果を実行（コスト支払い後）
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingSigniActivated(null);
+    setSelectedSigniActivatedCost(new Set());
+    try {
+      // エナコストを支払う
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // down_self コストの場合はそのゾーンをダウン
+      const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
+      if (effect.cost?.down_self) {
+        const zoneIdx = my.field.signi.findIndex(s => s?.at(-1) === cardNum);
+        if (zoneIdx >= 0) newSigniDown[zoneIdx] = true;
+      }
+      const paid: PlayerState = {
+        ...my,
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+        field: { ...my.field, signi_down: newSigniDown },
+        actions_done: [...(my.actions_done ?? []), effect.effectId],
+      };
+      // 効果をスタックに積む
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      const entry: StackEntry = {
+        id: crypto.randomUUID(),
+        playerId: user.id,
+        cardNum,
+        effectId: effect.effectId,
+        label: `${cardName} の【起】効果`,
+        effect,
+      };
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existingStack = bs?.effect_stack ?? null;
+      const newStack = existingStack
+        ? pushToStack(existingStack, [entry])
+        : initStack(turnPlayerId, [entry]);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // シグニゾーンのカードアクション（エナチャージ / 起動 / アタック）
+  const getMySigniZoneActions = (rawZoneIdx: number): CardAction[] => {
+    if (!isMyTurn || loading) return [];
+    const stack = my.field.signi[rawZoneIdx];
+
+    if (bs.turn_phase === 'ENERGY') {
+      const used    = my.actions_done?.includes('ENERGY') ?? false;
+      const blocked = my.blocked_actions?.includes('ENERGY') ?? false;
+      if (used || blocked) return [];
+      if (!stack || stack.length === 0) return [];
+      return [{ label: 'エナチャージ', color: C.accent, onClick: () => handleEnergyChargeFromSigni(rawZoneIdx) }];
+    }
+
+    if (bs.turn_phase === 'MAIN') {
+      if (!stack || stack.length === 0) return [];
+      const topNum = stack[stack.length - 1];
+      const effects = effectsMap.get(topNum) ?? [];
+      const activatable = effects.filter(e =>
+        e.effectType === 'ACTIVATED' &&
+        (e.timing === undefined || e.timing.includes('MAIN')) &&
+        !(my.actions_done?.includes(e.effectId)) &&
+        !(my.blocked_actions?.includes(e.effectId)),
+      );
+      if (activatable.length === 0) return [];
+      return activatable.map(eff => {
+        const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+        const costLabel = eff.cost
+          ? [
+              energyTotal > 0 ? `エナ${energyTotal}` : null,
+              eff.cost.discard ? `手札${eff.cost.discard}枚トラッシュ` : null,
+              eff.cost.down_self ? 'ダウン' : null,
+            ].filter(Boolean).join('・') || 'コストなし'
+          : 'コストなし';
+        return {
+          label: `【起】${costLabel}`,
+          color: C.coin,
+          onClick: () => {
+            setPendingSigniActivated({ cardNum: topNum, effect: eff });
+            setSelectedSigniActivatedCost(new Set());
+          },
+        };
+      });
+    }
+
+    if (bs.turn_phase === 'ATTACK_SIGNI') {
+      if (!stack || stack.length === 0) return []; // シグニなし
+      if (my.field.signi_down?.[rawZoneIdx]) return []; // すでにダウン
+      if (op.field.check) return []; // 相手のライフバースト処理待ち
+      return [{ label: 'アタック', color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
+    }
+
+    return [];
+  };
+
+  // ルリグゾーンのカードアクション（ルリグアタック）
+  const getMyLrigFieldActions = (): CardAction[] => {
+    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_LRIG') return [];
+    if (my.field.lrig.length === 0) return [];
+    if (my.field.lrig_down) return []; // 攻撃済み
+    if (op.field.lrig_attacked) return []; // ガード応答待ち
+    return [{ label: 'アタック', color: C.danger, onClick: handleLrigAttack }];
+  };
+
+  // 勝敗確定後の終了確認（両者が押したらルーム削除）
+  const handleEndAck = async () => {
+    if (loading) return;
+    setLoading(true);
+    const ackKey = isHost ? 'host_end_ack' : 'guest_end_ack';
+    await supabase.from('battle_states').update({ [ackKey]: true }).eq('room_id', roomId);
+    // 最新状態を取得して両者が押したか確認
+    const { data } = await supabase
+      .from('battle_states')
+      .select('host_end_ack, guest_end_ack')
+      .eq('room_id', roomId)
+      .single();
+    if (data?.host_end_ack && data?.guest_end_ack) {
+      leavingRef.current = true;
+      await supabase.from('battle_states').delete().eq('room_id', roomId);
+      await supabase.from('rooms').delete().eq('id', roomId);
+      onBack();
+      return;
+    }
+    setLoading(false);
+  };
+
+  // 対戦終了（ルーム削除）
+  const handleEnd = async () => {
+    leavingRef.current = true;
+    setLoading(true);
+    await supabase.from('battle_states').delete().eq('room_id', roomId);
+    await supabase.from('rooms').delete().eq('id', roomId);
+    setLoading(false);
+    setShowEndConfirm(false);
+    onBack();
+  };
+
+  return (
+    <div style={{ height: '100vh', backgroundColor: C.bgApp, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {/* 勝敗確定ポップアップ */}
+      {bs.global_phase === 'FINISHED' && bs.winner_id && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 5000,
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 16,
+            padding: '40px 32px', width: 'min(88vw, 320px)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20,
+            textAlign: 'center',
+          }}>
+            {bs.winner_id === user.id ? (
+              <>
+                <p style={{ fontSize: 48, margin: 0 }}>🏆</p>
+                <p style={{ color: '#ffd700', fontSize: 28, fontWeight: 'bold', margin: 0 }}>
+                  勝利！
+                </p>
+                <p style={{ color: C.textDim, fontSize: 13, margin: 0 }}>
+                  おめでとうございます！
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 48, margin: 0 }}>💀</p>
+                <p style={{ color: C.danger, fontSize: 28, fontWeight: 'bold', margin: 0 }}>
+                  敗北...
+                </p>
+                <p style={{ color: C.textDim, fontSize: 13, margin: 0 }}>
+                  また挑戦しましょう！
+                </p>
+              </>
+            )}
+            {(() => {
+              const myAck = isHost ? bs.host_end_ack : bs.guest_end_ack;
+              const opAck = isHost ? bs.guest_end_ack : bs.host_end_ack;
+              return (
+                <>
+                  {opAck && !myAck && (
+                    <p style={{ color: C.textDim, fontSize: 12, margin: 0 }}>
+                      相手が終了を待っています
+                    </p>
+                  )}
+                  <button
+                    onClick={handleEndAck}
+                    disabled={loading || myAck}
+                    style={{
+                      width: '100%', padding: '14px 0', borderRadius: 10, border: 'none',
+                      backgroundColor: myAck ? C.disabled : C.dangerEnd,
+                      color: C.text, fontSize: 15, fontWeight: 'bold',
+                      cursor: (loading || myAck) ? 'default' : 'pointer',
+                    }}
+                  >
+                    {myAck ? '終了待機中...' : '対戦終了'}
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* 終了確認モーダル */}
+      {showEndConfirm && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4000,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '28px 24px', width: 'min(88vw, 320px)', textAlign: 'center',
+          }}>
+            <p style={{ color: C.text, fontSize: 16, fontWeight: 'bold', margin: '0 0 8px' }}>
+              対戦を終了しますか？
+            </p>
+            <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 24px' }}>
+              ルームが削除され、対戦データは失われます
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 8,
+                  border: C.borderUI, backgroundColor: 'transparent',
+                  color: C.textDim, fontSize: 14, cursor: 'pointer',
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleEnd}
+                disabled={loading}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 8,
+                  border: 'none', backgroundColor: loading ? C.disabled : C.dangerEnd,
+                  color: C.text, fontSize: 14, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer',
+                }}
+              >
+                {loading ? '削除中...' : '終了する'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* グロウ選択モーダル */}
+      {showGrowModal && createPortal(
+        <div onClick={() => { setShowGrowModal(false); setPendingGrowCard(null); setSelectedGrowCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 3500,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(92vw, 360px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {!pendingGrowCard ? (
+              /* ── Phase 1: グロウ先選択 ── */
+              <>
+                <p style={{ color: C.textSub, fontSize: 15, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  グロウ先を選択
+                </p>
+                <p style={{ color: C.textDim, fontSize: 11, margin: 0, textAlign: 'center' }}>
+                  現在 Lv.{currentLrigLevel} → Lv.{currentLrigLevel + 1}
+                </p>
+                <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {growCandidates.length === 0 ? (
+                    <p style={{ color: C.textFaint, textAlign: 'center', margin: '12px 0' }}>候補なし</p>
+                  ) : growCandidates.map(card => {
+                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants);
+                    const totalReq = parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
+                    return (
+                      <button key={card.CardNum}
+                        onClick={() => {
+                          if (!canAfford) return;
+                          if (totalReq === 0) { executeGrow(card, new Set()); }
+                          else { setPendingGrowCard(card); setSelectedGrowCost(new Set()); }
+                        }}
+                        disabled={loading || !canAfford}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '8px 12px', borderRadius: 8, border: C.borderUI,
+                          backgroundColor: canAfford ? C.bgButton : C.bgButtonDark,
+                          cursor: (loading || !canAfford) ? 'default' : 'pointer',
+                          opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
+                        <img src={card.ImgURL} alt={card.CardName}
+                          style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                        <div>
+                          <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>
+                            {card.CardName}
+                          </p>
+                          <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
+                            コスト: {card.GrowCost || 'なし'}
+                          </p>
+                          {!canAfford && (
+                            <p style={{ color: C.danger, fontSize: 10, margin: '2px 0 0' }}>エナ不足</p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button onClick={() => { setShowGrowModal(false); setPendingGrowCard(null); setSelectedGrowCost(new Set()); }}
+                  style={{ padding: '8px 0', borderRadius: 8, border: C.borderUI,
+                    backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 13 }}>
+                  キャンセル（グロウしない）
+                </button>
+              </>
+            ) : (() => {
+              /* ── Phase 2: コスト支払いカード選択 ── */
+              const costItems = parseGrowCost(pendingGrowCard.GrowCost);
+              const totalReq = costItems.reduce((s, c) => s + c.count, 0);
+              const selectedNums = [...selectedGrowCost].map(i => my.energy[i]);
+              const isValid = selectedGrowCost.size === totalReq &&
+                canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants);
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => { setPendingGrowCard(null); setSelectedGrowCost(new Set()); }}
+                      style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
+                      ← 戻る
+                    </button>
+                    <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>
+                      コストを選択
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img src={pendingGrowCard.ImgURL} alt={pendingGrowCard.CardName}
+                      style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                    <div>
+                      <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>
+                        {pendingGrowCard.CardName}
+                      </p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
+                        コスト: {pendingGrowCard.GrowCost}
+                      </p>
+                    </div>
+                  </div>
+                  <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                    エナから選択: {selectedGrowCost.size} / {totalReq}枚
+                    {costItems.map((c, i) => (
+                      <span key={i} style={{ marginLeft: 6, color: C.textDim }}>({c.color}×{c.count})</span>
+                    ))}
+                  </p>
+                  <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                    {my.energy.length === 0 ? (
+                      <p style={{ color: C.textFaint, fontSize: 12, margin: '8px 0' }}>エナがありません</p>
+                    ) : my.energy.map((num, i) => {
+                      const card = battleCardMap.get(num);
+                      const isSel = selectedGrowCost.has(i);
+                      const isWild = isMultiEna(num, battleCards, my.keyword_grants);
+                      return (
+                        <div key={i} onClick={() => toggleGrowCostCard(i)}
+                          style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
+                            overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                            border: isSel ? C.borderMulliganSel : isWild ? '1px solid #ffcc00' : C.borderCard }}>
+                          {card ? (
+                            <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
+                            </div>
+                          )}
+                          {isWild && !isSel && (
+                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                              backgroundColor: 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
+                              <span style={{ fontSize: 7, fontWeight: 'bold', color: '#000' }}>マルチ</span>
+                            </div>
+                          )}
+                          {isSel && (
+                            <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.45)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ color: C.text, fontSize: 14, fontWeight: 'bold' }}>✓</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={() => executeGrow(pendingGrowCard, selectedGrowCost)}
+                    disabled={loading || !isValid}
+                    style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: isValid ? C.success : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
+                    グロウ実行
+                  </button>
+                </>
+              );
+            })()}
+
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* アーツ使用モーダル */}
+      {showArtsModal && createPortal(
+        <div onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 3500,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(92vw, 360px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {!pendingArtsCard ? (
+              /* Phase 1: アーツ選択 */
+              <>
+                <p style={{ color: C.textSub, fontSize: 15, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  アーツを選択
+                </p>
+                <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {artsCandidates.map(card => {
+                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.Cost, my.keyword_grants);
+                    const totalReq = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
+                    return (
+                      <button key={card.CardNum}
+                        onClick={() => {
+                          if (!canAfford) return;
+                          if (totalReq === 0) { executeArts(card, new Set()); }
+                          else { setPendingArtsCard(card); setSelectedArtsCost(new Set()); }
+                        }}
+                        disabled={loading || !canAfford}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '8px 12px', borderRadius: 8, border: C.borderUI,
+                          backgroundColor: canAfford ? C.bgButton : C.bgButtonDark,
+                          cursor: (loading || !canAfford) ? 'default' : 'pointer',
+                          opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
+                        <img src={card.ImgURL} alt={card.CardName}
+                          style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                        <div>
+                          <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>
+                            {card.CardName}
+                          </p>
+                          <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>
+                            コスト: {card.Cost || 'なし'}
+                          </p>
+                          <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>
+                            {card.Timing}
+                          </p>
+                          {!canAfford && (
+                            <p style={{ color: C.danger, fontSize: 10, margin: '2px 0 0' }}>エナ不足</p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); }}
+                  style={{ padding: '8px 0', borderRadius: 8, border: C.borderUI,
+                    backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 13 }}>
+                  キャンセル
+                </button>
+              </>
+            ) : (() => {
+              /* Phase 2: コスト支払いカード選択 */
+              const costItems = parseGrowCost(pendingArtsCard.Cost);
+              const totalReq = costItems.reduce((s, c) => s + c.count, 0);
+              const selectedNums = [...selectedArtsCost].map(i => my.energy[i]);
+              const isValid = selectedArtsCost.size === totalReq &&
+                canAffordGrowCost(selectedNums, battleCards, pendingArtsCard.Cost, my.keyword_grants);
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => { setPendingArtsCard(null); setSelectedArtsCost(new Set()); }}
+                      style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
+                      ← 戻る
+                    </button>
+                    <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>
+                      コストを選択
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img src={pendingArtsCard.ImgURL} alt={pendingArtsCard.CardName}
+                      style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                    <div>
+                      <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>
+                        {pendingArtsCard.CardName}
+                      </p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
+                        コスト: {pendingArtsCard.Cost}
+                      </p>
+                    </div>
+                  </div>
+                  <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                    エナから選択: {selectedArtsCost.size} / {totalReq}枚
+                    {costItems.map((c, i) => (
+                      <span key={i} style={{ marginLeft: 6, color: C.textDim }}>({c.color}×{c.count})</span>
+                    ))}
+                  </p>
+                  <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                    {my.energy.length === 0 ? (
+                      <p style={{ color: C.textFaint, fontSize: 12, margin: '8px 0' }}>エナがありません</p>
+                    ) : my.energy.map((num, i) => {
+                      const card = battleCardMap.get(num);
+                      const isSel = selectedArtsCost.has(i);
+                      const isWild = isMultiEna(num, battleCards, my.keyword_grants);
+                      return (
+                        <div key={i} onClick={() => toggleArtsCostCard(i)}
+                          style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
+                            overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                            border: isSel ? C.borderMulliganSel : isWild ? '1px solid #ffcc00' : C.borderCard }}>
+                          {card ? (
+                            <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
+                            </div>
+                          )}
+                          {isWild && !isSel && (
+                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                              backgroundColor: 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
+                              <span style={{ fontSize: 7, fontWeight: 'bold', color: '#000' }}>マルチ</span>
+                            </div>
+                          )}
+                          {isSel && (
+                            <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.45)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ color: C.text, fontSize: 14, fontWeight: 'bold' }}>✓</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost)}
+                    disabled={loading || !isValid}
+                    style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: isValid ? C.coin : C.disabled,
+                      color: isValid ? '#000' : C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
+                    アーツ使用
+                  </button>
+                </>
+              );
+            })()}
+
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* スペル発動コスト選択 */}
+      {pendingSpellCast && createPortal(
+        <div onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 3500,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(92vw, 360px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const spellCard = battleCardMap.get(pendingSpellCast.cardNum);
+              if (!spellCard) return null;
+              const costItems = parseGrowCost(spellCard.Cost);
+              const totalReq = costItems.reduce((s, c) => s + c.count, 0);
+              const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);
+              const isValid = totalReq === 0 ||
+                (selectedSpellCost.size === totalReq &&
+                  canAffordGrowCost(selectedNums, battleCards, spellCard.Cost, my.keyword_grants));
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); }}
+                      style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
+                      ← キャンセル
+                    </button>
+                    <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>
+                      スペル発動
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img src={spellCard.ImgURL} alt={spellCard.CardName}
+                      style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                    <div>
+                      <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{spellCard.CardName}</p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: {spellCard.Cost || 'なし'}</p>
+                    </div>
+                  </div>
+                  {totalReq > 0 && (
+                    <>
+                      <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                        エナから選択: {selectedSpellCost.size} / {totalReq}枚
+                        {costItems.map((c, i) => (
+                          <span key={i} style={{ marginLeft: 6, color: C.textDim }}>({c.color}×{c.count})</span>
+                        ))}
+                      </p>
+                      <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                        {my.energy.map((num, i) => {
+                          const card = battleCardMap.get(num);
+                          const isSel = selectedSpellCost.has(i);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants);
+                          return (
+                            <div key={i} onClick={() => toggleSpellCostCard(i)}
+                              style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
+                                overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                                border: isSel ? C.borderMulliganSel : isWild ? '1px solid #ffcc00' : C.borderCard }}>
+                              {card
+                                ? <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                                : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
+                                  </div>
+                              }
+                              {isWild && !isSel && (
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                                  backgroundColor: 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
+                                  <span style={{ fontSize: 7, fontWeight: 'bold', color: '#000' }}>マルチ</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.45)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: C.text, fontSize: 14, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex)}
+                    disabled={loading || !isValid}
+                    style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: isValid ? C.accent : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
+                    発動する
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* スペルカットインポップアップ（相手のスペル発動中に表示） */}
+      {bs.pending_spell && bs.pending_spell.caster_id !== user.id && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: 20 }}>
+          <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '20px 16px', width: 'min(92vw, 360px)', maxHeight: '85vh',
+            display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const spellCard = battleCardMap.get(bs.pending_spell.card_num);
+              if (!pendingCutinCard) {
+                return (
+                  <>
+                    <p style={{ color: C.danger, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                      スペルカットイン
+                    </p>
+                    <p style={{ color: C.textDim, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                      相手がスペルを発動しました
+                    </p>
+                    {spellCard && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 12px', borderRadius: 8, border: C.borderUI,
+                        backgroundColor: C.bgButton }}>
+                        <img src={spellCard.ImgURL} alt={spellCard.CardName}
+                          style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                        <div>
+                          <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{spellCard.CardName}</p>
+                          <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>{spellCard.Timing}</p>
+                        </div>
+                      </div>
+                    )}
+                    {cutinCandidates.length > 0 && (
+                      <>
+                        <p style={{ color: C.textMuted, fontSize: 12, margin: 0 }}>カットインカード:</p>
+                        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {cutinCandidates.map(card => {
+                            const canAfford = canAffordGrowCost(my.energy, battleCards, card.Cost, my.keyword_grants);
+                            return (
+                              <button key={card.CardNum}
+                                onClick={() => { if (canAfford) { setPendingCutinCard(card); setSelectedCutinCost(new Set()); } }}
+                                disabled={loading || !canAfford}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10,
+                                  padding: '8px 12px', borderRadius: 8, border: C.borderUI,
+                                  backgroundColor: canAfford ? C.bgButton : C.bgButtonDark,
+                                  cursor: (loading || !canAfford) ? 'default' : 'pointer',
+                                  opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
+                                <img src={card.ImgURL} alt={card.CardName}
+                                  style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                                  onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                                <div>
+                                  <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{card.CardName}</p>
+                                  <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>コスト: {card.Cost || 'なし'}</p>
+                                  {!canAfford && <p style={{ color: C.danger, fontSize: 10, margin: 0 }}>エナ不足</p>}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                    <button onClick={handleCutinPass} disabled={loading}
+                      style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: loading ? C.disabled : C.bgButton,
+                        color: C.text, fontSize: 14, fontWeight: 'bold',
+                        cursor: loading ? 'default' : 'pointer' }}>
+                      {loading ? '処理中...' : 'パス（カットインしない）'}
+                    </button>
+                  </>
+                );
+              }
+              /* カットインのコスト選択 */
+              const costItems = parseGrowCost(pendingCutinCard.Cost);
+              const totalReq = costItems.reduce((s, c) => s + c.count, 0);
+              const selectedNums = [...selectedCutinCost].map(i => my.energy[i]);
+              const isValid = totalReq === 0 ||
+                (selectedCutinCost.size === totalReq &&
+                  canAffordGrowCost(selectedNums, battleCards, pendingCutinCard.Cost, my.keyword_grants));
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => { setPendingCutinCard(null); setSelectedCutinCost(new Set()); }}
+                      style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
+                      ← 戻る
+                    </button>
+                    <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>カットインコスト選択</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img src={pendingCutinCard.ImgURL} alt={pendingCutinCard.CardName}
+                      style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                    <div>
+                      <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{pendingCutinCard.CardName}</p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: {pendingCutinCard.Cost || 'なし'}</p>
+                    </div>
+                  </div>
+                  {totalReq > 0 && (
+                    <>
+                      <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                        エナから選択: {selectedCutinCost.size} / {totalReq}枚
+                        {costItems.map((c, i) => (
+                          <span key={i} style={{ marginLeft: 6, color: C.textDim }}>({c.color}×{c.count})</span>
+                        ))}
+                      </p>
+                      <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                        {my.energy.map((num, i) => {
+                          const card = battleCardMap.get(num);
+                          const isSel = selectedCutinCost.has(i);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants);
+                          return (
+                            <div key={i} onClick={() => toggleCutinCostCard(i)}
+                              style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
+                                overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                                border: isSel ? C.borderMulliganSel : isWild ? '1px solid #ffcc00' : C.borderCard }}>
+                              {card
+                                ? <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                                : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
+                                  </div>
+                              }
+                              {isWild && !isSel && (
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                                  backgroundColor: 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
+                                  <span style={{ fontSize: 7, fontWeight: 'bold', color: '#000' }}>マルチ</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.45)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: C.text, fontSize: 14, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <button onClick={() => handleCutinUse(pendingCutinCard, selectedCutinCost)}
+                    disabled={loading || !isValid}
+                    style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: isValid ? C.danger : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
+                    カットイン使用
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* スペル発動待機中（発動側） */}
+      {bs.pending_spell && bs.pending_spell.caster_id === user.id && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3200,
+          backgroundColor: 'rgba(0,0,0,0.70)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '28px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(() => {
+              const spellCard = battleCardMap.get(bs.pending_spell.card_num);
+              return (
+                <>
+                  {spellCard && (
+                    <img src={spellCard.ImgURL} alt={spellCard.CardName}
+                      style={{ width: 60, height: 84, objectFit: 'cover', borderRadius: 6, margin: '0 auto' }}
+                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                  )}
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>
+                    {spellCard?.CardName ?? 'スペル'} 発動中
+                  </p>
+                  <p style={{ color: C.textDim, fontSize: 12, margin: 0 }}>
+                    相手のカットイン応答を待っています...
+                  </p>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* エナチャージスキップ確認 */}
+      {showEnergySkipConfirm && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4000,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 320px)', textAlign: 'center',
+          }}>
+            <p style={{ color: C.text, fontSize: 15, fontWeight: 'bold', margin: '0 0 8px' }}>
+              エナチャージを行いますか？
+            </p>
+            <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 20px' }}>
+              エナチャージを行わずグロウフェイズへ進みます
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowEnergySkipConfirm(false)}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8,
+                  border: C.borderUI, backgroundColor: 'transparent',
+                  color: C.textDim, fontSize: 14, cursor: 'pointer' }}>
+                戻る
+              </button>
+              <button onClick={() => { setShowEnergySkipConfirm(false); doPhaseAdvance(); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8,
+                  border: 'none', backgroundColor: C.accent,
+                  color: C.text, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+                このまま進む
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ライフバースト確認（自分のチェックゾーンにカードがある場合） */}
+      {my.field.check && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4500,
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20,
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 320px)',
+            display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center',
+          }}>
+            {(() => {
+              const checkCard = battleCardMap.get(my.field.check!);
+              const hasBurst = checkCard?.LifeBurst === '1';
+              return (
+                <>
+                  <p style={{ color: C.life, fontSize: 15, fontWeight: 'bold', margin: 0 }}>
+                    ライフクロスクラッシュ
+                  </p>
+                  {checkCard ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <img src={checkCard.ImgURL} alt={checkCard.CardName}
+                        style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6,
+                          boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none' }}
+                        onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                      <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
+                        {checkCard.CardName}
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ width: 80, height: 112, backgroundColor: C.bgButton,
+                      borderRadius: 6, margin: '0 auto' }} />
+                  )}
+                  {hasBurst ? (
+                    <>
+                      <p style={{ color: C.accent, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
+                        ライフバーストあり
+                      </p>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button onClick={() => handleLifeBurstResponse(true)}
+                          disabled={loading}
+                          style={{ flex: 1, padding: '11px 0', borderRadius: 8, border: 'none',
+                            backgroundColor: loading ? C.disabled : C.accent,
+                            color: C.text, fontSize: 13, fontWeight: 'bold',
+                            cursor: loading ? 'default' : 'pointer' }}>
+                          ライフバースト発動
+                        </button>
+                        <button onClick={() => handleLifeBurstResponse(false)}
+                          disabled={loading}
+                          style={{ flex: 1, padding: '11px 0', borderRadius: 8, border: C.borderUI,
+                            backgroundColor: 'transparent',
+                            color: C.textDim, fontSize: 13,
+                            cursor: loading ? 'default' : 'pointer' }}>
+                          スキップ
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
+                        ライフバーストなし
+                      </p>
+                      <button onClick={() => handleLifeBurstResponse(false)}
+                        disabled={loading}
+                        style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                          backgroundColor: loading ? C.disabled : C.bgButton,
+                          color: C.text, fontSize: 13, fontWeight: 'bold',
+                          cursor: loading ? 'default' : 'pointer' }}>
+                        エナへ送る
+                      </button>
+                    </>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ガード応答ダイアログ（自分が攻撃されたとき） */}
+      {my.field.lrig_attacked && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4500,
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20,
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 340px)',
+            display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center',
+          }}>
+            <p style={{ color: C.danger, fontSize: 15, fontWeight: 'bold', margin: 0 }}>
+              ルリグに攻撃された！
+            </p>
+            <p style={{ color: C.textDim, fontSize: 12, margin: 0 }}>
+              手札の「ガード」を持つカードをトラッシュに送り攻撃を防ぐか、ライフクロスをクラッシュします
+            </p>
+            {(() => {
+              const guardCards = my.hand
+                .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
+                .filter(({ card }) => card?.Guard === '1');
+              return guardCards.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: '40vh' }}>
+                  {guardCards.map(({ num, i, card }) => (
+                    <button key={i} onClick={() => handleGuardResponse(i)}
+                      disabled={loading}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 12px', borderRadius: 8, border: C.borderUI,
+                        backgroundColor: loading ? C.disabled : C.bgButton,
+                        cursor: loading ? 'default' : 'pointer', textAlign: 'left' }}>
+                      {card && (
+                        <img src={card.ImgURL} alt={card.CardName}
+                          style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                      )}
+                      <div>
+                        <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>
+                          {card?.CardName ?? num}
+                        </p>
+                        <p style={{ color: C.accent, fontSize: 11, margin: 0 }}>ガードに使う（トラッシュへ）</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
+                  使用できるガードカードが手札にありません
+                </p>
+              );
+            })()}
+            <button onClick={() => handleGuardResponse(null)}
+              disabled={loading}
+              style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                backgroundColor: loading ? C.disabled : C.danger,
+                color: C.text, fontSize: 14, fontWeight: 'bold',
+                cursor: loading ? 'default' : 'pointer' }}>
+              ガードしない（ライフクロスクラッシュ）
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* リムーブ選択モーダル */}
+      {showRemoveModal && createPortal(
+        <div onClick={() => setShowRemoveModal(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 3500,
+            backgroundColor: 'rgba(0,0,0,0.88)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '24px 20px', width: 'min(88vw, 320px)', textAlign: 'center',
+              display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ color: C.textSub, fontSize: 15, fontWeight: 'bold', margin: 0 }}>リムーブ</p>
+            <p style={{ color: C.textDim, fontSize: 12, margin: 0 }}>
+              トラッシュに送るゾーンを選択（レゾナ不可）
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              {([0, 1, 2] as const).map(zi => {
+                const stack = my.field.signi[zi] ?? [];
+                const topCardNum = stack[stack.length - 1] ?? null;
+                const topCard = topCardNum ? battleCardMap.get(topCardNum) : null;
+                const isEmpty = stack.length === 0;
+                const isResona = topCard?.Type === 'レゾナ';
+                const isDisabled = isEmpty || isResona;
+                const isSel = selectedRemoveZones.has(zi);
+                return (
+                  <button key={zi}
+                    onClick={() => { if (!isDisabled) toggleRemoveZone(zi); }}
+                    disabled={isDisabled}
+                    style={{
+                      flex: 1, padding: '10px 4px', borderRadius: 8,
+                      border: isSel ? `2px solid ${C.danger}` : isDisabled ? `1px solid #333` : C.borderUI,
+                      backgroundColor: isSel ? 'rgba(244,67,54,0.2)' : isDisabled ? C.bgCardEmpty : C.bgButton,
+                      color: isDisabled ? C.textFaint : C.text,
+                      fontSize: 12, cursor: isDisabled ? 'default' : 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    }}>
+                    {topCard ? (
+                      <img src={topCard.ImgURL} alt={topCard.CardName}
+                        style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4 }}
+                        onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                    ) : (
+                      <div style={{ width: 44, height: 62, backgroundColor: C.bgCardEmpty,
+                        borderRadius: 4, border: C.borderEmpty }} />
+                    )}
+                    <span>ゾーン{zi + 1}</span>
+                    {isResona && <span style={{ fontSize: 10, color: C.danger }}>レゾナ</span>}
+                    {isEmpty  && <span style={{ fontSize: 10, color: C.textFaint }}>空</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={handleRemove}
+              disabled={loading || selectedRemoveZones.size === 0}
+              style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                backgroundColor: selectedRemoveZones.size > 0 ? '#8b4513' : C.disabled,
+                color: C.text, fontSize: 14, fontWeight: 'bold',
+                cursor: (loading || selectedRemoveZones.size === 0) ? 'default' : 'pointer' }}>
+              {selectedRemoveZones.size > 0 ? `${selectedRemoveZones.size}枚をトラッシュへ` : 'ゾーンを選択してください'}
+            </button>
+            <button onClick={() => setShowRemoveModal(false)}
+              style={{ padding: '8px 0', borderRadius: 8, border: C.borderUI,
+                backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 13 }}>
+              キャンセル
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* シグニ召喚ゾーン選択 */}
+      {pendingSigniSummon && createPortal(
+        <div onClick={() => setPendingSigniSummon(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 3500,
+            backgroundColor: 'rgba(0,0,0,0.88)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{
+              backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '24px 20px', width: 'min(80vw, 300px)', textAlign: 'center',
+            }}>
+            <p style={{ color: C.textSub, fontSize: 15, fontWeight: 'bold', margin: '0 0 4px' }}>
+              召喚先のゾーンを選択
+            </p>
+            {(() => {
+              const summonCard = battleCardMap.get(pendingSigniSummon.cardNum);
+              const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
+              return (
+                <p style={{ color: C.textDim, fontSize: 12, margin: '0 0 14px' }}>
+                  Lv.{signiLevel}　リミット: {fieldSigniTotal}/{lrigLimit}
+                </p>
+              );
+            })()}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              {([0, 1, 2] as const).map(zi => {
+                const summonCard = battleCardMap.get(pendingSigniSummon.cardNum);
+                const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
+                const isOccupied = (my.field.signi[zi] ?? []).length > 0;
+                const afterTotal = fieldSigniTotal + signiLevel; // 空ゾーン前提なので既存Lvは0
+                const overLimit = afterTotal > lrigLimit;
+                const isDisabled = loading || isOccupied || overLimit;
+                const reason = isOccupied ? '使用中' : overLimit ? 'リミット超過' : null;
+                return (
+                  <button key={zi}
+                    onClick={() => !isDisabled && handleSummonSigni(pendingSigniSummon.handIndex, zi)}
+                    disabled={isDisabled}
+                    style={{
+                      flex: 1, padding: '12px 0', borderRadius: 8,
+                      border: isDisabled ? `1px solid ${C.danger}` : C.borderUI,
+                      backgroundColor: isDisabled ? C.disabled : C.bgButton,
+                      color: isDisabled ? C.textFaint : C.text,
+                      fontSize: 13, cursor: isDisabled ? 'default' : 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    }}>
+                    <span>ゾーン{zi + 1}</span>
+                    <span style={{ fontSize: 11, color: isDisabled ? C.danger : C.textDim }}>
+                      {reason ?? `${afterTotal}/${lrigLimit}`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => setPendingSigniSummon(null)}
+              style={{
+                marginTop: 12, padding: '8px 20px', borderRadius: 8, border: C.borderUI,
+                backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 13,
+              }}>
+              キャンセル
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ステータスバー */}
+      <div style={{
+        flexShrink: 0, backgroundColor: C.bgBar, borderBottom: C.borderBar,
+        padding: '6px 12px', display: 'flex', gap: 8, alignItems: 'center',
+      }}>
+        <span style={{ color: C.textMuted, fontWeight: 'bold', fontSize: 13 }}>T{bs.turn_count}</span>
+        <span style={{ color: isMyTurn ? C.accent : C.textDim, fontSize: 12, fontWeight: 'bold' }}>
+          {PHASE_LABEL[bs.turn_phase] ?? bs.turn_phase}
+        </span>
+
+        {/* GROWフェイズのグロウボタン */}
+        {isMyTurn && bs.turn_phase === 'GROW' && (() => {
+          const used    = my.actions_done?.includes('GROW') ?? false;
+          const blocked = my.blocked_actions?.includes('GROW') ?? false;
+          if (used || blocked || growCandidates.length === 0) return null;
+          return (
+            <button onClick={() => setShowGrowModal(true)} disabled={loading}
+              style={{ padding: '4px 10px', borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 'bold',
+                backgroundColor: C.success, color: C.text, cursor: loading ? 'default' : 'pointer' }}>
+              グロウ
+            </button>
+          );
+        })()}
+
+        {iControlThisPhase ? (
+          bs.turn_phase === 'ATTACK_LRIG' && op.field.lrig_attacked ? (
+            <span style={{ fontSize: 11, color: C.textDim }}>ガード応答待ち...</span>
+          ) : (
+          <button
+            onClick={handlePhaseAdvance}
+            disabled={loading}
+            style={{
+              padding: '5px 16px', borderRadius: 5, border: 'none',
+              backgroundColor: loading ? C.disabled : bs.turn_phase === 'END' ? C.dangerDark : C.accent,
+              color: C.text, fontSize: 12, fontWeight: 'bold',
+              cursor: loading ? 'default' : 'pointer',
+            }}
+          >
+            {PHASE_BTN[bs.turn_phase]}
+          </button>
+          )
+        ) : (
+          <span style={{ fontSize: 11, color: C.textDim }}>
+            {WAITING_MSG[bs.turn_phase] ?? '相手のターン中...'}
+          </span>
+        )}
+
+        {/* MAINフェイズのリムーブボタン */}
+        {isMyTurn && bs.turn_phase === 'MAIN' && !(my.actions_done?.includes('REMOVE') ?? false) && (
+          <button onClick={() => { setShowRemoveModal(true); setSelectedRemoveZones(new Set()); }}
+            disabled={loading}
+            style={{ padding: '4px 10px', borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 'bold',
+              backgroundColor: '#8b4513', color: C.text, cursor: loading ? 'default' : 'pointer' }}>
+            リムーブ
+          </button>
+        )}
+
+        <button onClick={() => setShowEndConfirm(true)} style={{
+          marginLeft: 'auto', padding: '3px 10px', borderRadius: 4,
+          border: C.borderBarBtn, backgroundColor: 'transparent', color: C.textVeryFaint, cursor: 'pointer', fontSize: 11,
+        }}>終了</button>
+      </div>
+
+      {/* 盤面エリア */}
+      <div style={{ flex: 1, overflow: 'hidden', padding: 4, display: 'flex', flexDirection: 'column', gap: 3, boxSizing: 'border-box' }}>
+        {/* 相手盤面 */}
+        <div style={{ border: C.borderPanel, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgOpponent }}>
+          <HandCards cardNums={op.hand} cards={battleCards} faceDown />
+          <PlayerField state={op} cards={battleCards} isMe={false} effectivePowers={effectivePowers} />
+        </div>
+
+        {/* 中央区切り */}
+        <div style={{ height: 2, flexShrink: 0, background: 'linear-gradient(to right, transparent, #007bff33, transparent)' }} />
+
+        {/* 自分の盤面 */}
+        <div style={{ border: C.borderSelf, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgSelf }}>
+          <PlayerField state={my} cards={battleCards} isMe={true} getSigniZoneActions={getMySigniZoneActions} getLrigDeckCardActions={getMyLrigDeckCardActions} getLrigFieldActions={getMyLrigFieldActions} closeZoneSignal={closeZoneSignal} effectivePowers={effectivePowers} />
+          <HandCards cardNums={my.hand} cards={battleCards} getCardActions={getMyHandCardActions} />
+        </div>
+      </div>
+
+      {/* ===== シグニ起動効果 コスト支払いモーダル ===== */}
+      {pendingSigniActivated && createPortal(
+        <div
+          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4000,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* カード情報 */}
+            {(() => {
+              const card = battleCardMap.get(pendingSigniActivated.cardNum);
+              const eff  = pendingSigniActivated.effect;
+              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const selectedNums = [...selectedSigniActivatedCost].map(i => my.energy[i]);
+              const canAfford = energyTotal === 0
+                ? true
+                : selectedSigniActivatedCost.size === energyTotal &&
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants);
+
+              return (
+                <>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    【起】効果を発動
+                  </p>
+                  {card && (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <img src={card.ImgURL} alt={card.CardName}
+                        style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                      <div>
+                        <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
+                        <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
+                          コスト: {[
+                            energyTotal > 0 ? `エナ${energyTotal}枚` : null,
+                            eff.cost?.discard ? `手札${eff.cost.discard}枚` : null,
+                            eff.cost?.down_self ? 'このシグニをダウン' : null,
+                          ].filter(Boolean).join('・') || 'なし'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {energyTotal > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        エナゾーンから選択: {selectedSigniActivatedCost.size} / {energyTotal}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.energy.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedSigniActivatedCost.has(i);
+                          return (
+                            <div key={i}
+                              onClick={() => setSelectedSigniActivatedCost(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (next.size >= energyTotal) return prev;
+                                next.add(i); return next;
+                              })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #f44336' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); }}
+                      disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost)}
+                      disabled={loading || !canAfford}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
+                        color: C.text, fontSize: 14, fontWeight: 'bold',
+                        cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
+                      発動
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ===== 効果スタック 整列モーダル ===== */}
+      {(() => {
+        if (!bs.effect_stack || !user) return null;
+        const stack = bs.effect_stack;
+        const isTurnPlayer = bs.active_user_id === user.id;
+        const myPending = isTurnPlayer ? stack.pendingTurn : stack.pendingOpp;
+        const needOrder = isTurnPlayer ? !stack.orderTurnDone : !stack.orderOppDone;
+        if (!needOrder || myPending.length <= 1) return null;
+
+        const ordered = stackOrderIds
+          .map(id => myPending.find(e => e.id === id))
+          .filter((e): e is NonNullable<typeof e> => !!e);
+
+        const moveUp = (idx: number) => {
+          if (idx === 0) return;
+          const next = [...stackOrderIds];
+          [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+          setStackOrderIds(next);
+        };
+        const moveDown = (idx: number) => {
+          if (idx >= stackOrderIds.length - 1) return;
+          const next = [...stackOrderIds];
+          [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+          setStackOrderIds(next);
+        };
+
+        return createPortal(
+          <div style={{ position: 'fixed', inset: 0, zIndex: 4100,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div onClick={e => e.stopPropagation()}
+              style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                padding: '20px 16px', width: 'min(95vw, 420px)',
+                display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                効果の発動順序を決めてください
+              </p>
+              <p style={{ color: C.text, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                ↑↓ ボタンで順序を変更し「確定」を押してください
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {ordered.map((entry, idx) => {
+                  const card = battleCardMap.get(entry.cardNum);
+                  return (
+                    <div key={entry.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8,
+                        backgroundColor: C.bgButton, borderRadius: 8, padding: '6px 10px' }}>
+                      <span style={{ color: C.textFaint, fontSize: 12, minWidth: 20, textAlign: 'center' }}>
+                        {idx + 1}
+                      </span>
+                      {card && (
+                        <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                          style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />
+                      )}
+                      <span style={{ color: C.text, fontSize: 12, flex: 1 }}>{entry.label}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <button onClick={() => moveUp(idx)} disabled={idx === 0 || loading}
+                          style={{ padding: '2px 8px', borderRadius: 4, border: 'none',
+                            backgroundColor: idx === 0 ? C.disabled : C.bgButton,
+                            color: C.text, cursor: idx === 0 ? 'default' : 'pointer', fontSize: 12 }}>
+                          ↑
+                        </button>
+                        <button onClick={() => moveDown(idx)} disabled={idx >= ordered.length - 1 || loading}
+                          style={{ padding: '2px 8px', borderRadius: 4, border: 'none',
+                            backgroundColor: idx >= ordered.length - 1 ? C.disabled : C.bgButton,
+                            color: C.text, cursor: idx >= ordered.length - 1 ? 'default' : 'pointer', fontSize: 12 }}>
+                          ↓
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => handleConfirmStackOrder(stackOrderIds)}
+                disabled={loading}
+                style={{ padding: '12px 0', borderRadius: 8, border: 'none',
+                  backgroundColor: loading ? C.disabled : C.success,
+                  color: C.text, fontSize: 14, fontWeight: 'bold',
+                  cursor: loading ? 'default' : 'pointer' }}>
+                発動順序を確定
+              </button>
+            </div>
+          </div>,
+          document.body,
+        );
+      })()}
+
+      {/* ===== 効果インタラクション モーダル ===== */}
+      {bs.pending_effect?.sourcePlayerId === user.id && (() => {
+        const pe = bs.pending_effect!;
+        const inter = pe.interaction;
+        const srcCard = battleCardMap.get(pe.sourceCardNum);
+
+        // SELECT_TARGET / SEARCH 共通：カード選択ピッカー
+        if (inter.type === 'SELECT_TARGET' || inter.type === 'SEARCH') {
+          const candidates = inter.type === 'SELECT_TARGET' ? inter.candidates : inter.visibleCards;
+          const maxPick = inter.type === 'SELECT_TARGET' ? inter.count : inter.maxPick;
+          const label = inter.type === 'SELECT_TARGET'
+            ? `対象を${maxPick}体選んでください`
+            : `デッキから${maxPick}枚まで選んでください`;
+          const canConfirm = inter.type === 'SELECT_TARGET'
+            ? (inter.optional || effectSelectedNums.length >= maxPick)
+            : effectSelectedNums.length <= maxPick;
+
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
+                  display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                </p>
+                <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>{label}</p>
+                <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                  {candidates.map(cardNum => {
+                    const c = battleCardMap.get(cardNum);
+                    const isSel = effectSelectedNums.includes(cardNum);
+                    return (
+                      <div key={cardNum}
+                        onClick={() => {
+                          setEffectSelectedNums(prev => {
+                            if (prev.includes(cardNum)) return prev.filter(n => n !== cardNum);
+                            if (prev.length >= maxPick) return prev;
+                            return [...prev, cardNum];
+                          });
+                        }}
+                        style={{ position: 'relative', width: 60, height: 84, borderRadius: 4,
+                          border: isSel ? '2px solid #f44336' : C.borderCard,
+                          cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}>
+                        {c ? (
+                          <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontSize: 8, color: C.textFaint }}>{cardNum}</span>
+                          </div>
+                        )}
+                        {isSel && (
+                          <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>✓</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {inter.type === 'SELECT_TARGET' && inter.optional && (
+                    <button onClick={() => handleEffectInteraction([])}
+                      disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      スキップ
+                    </button>
+                  )}
+                  <button onClick={() => handleEffectInteraction(effectSelectedNums)}
+                    disabled={loading || !canConfirm}
+                    style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: canConfirm ? C.success : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !canConfirm) ? 'default' : 'pointer' }}>
+                    決定 ({effectSelectedNums.length}/{maxPick})
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
+        // CHOOSE：選択肢ボタン
+        if (inter.type === 'CHOOSE') {
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '20px 16px', width: 'min(92vw, 360px)',
+                  display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                </p>
+                <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>効果を選択してください</p>
+                {inter.options.map(opt => (
+                  <button key={opt.id}
+                    disabled={loading || !opt.available}
+                    onClick={() => handleEffectInteraction([opt.id])}
+                    style={{ padding: '12px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: opt.available ? C.success : C.disabled,
+                      color: C.text, fontSize: 13, fontWeight: 'bold',
+                      cursor: (!opt.available || loading) ? 'default' : 'pointer' }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
+        return null;
+      })()}
+
+    </div>
+  );
+}

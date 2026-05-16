@@ -1,0 +1,1074 @@
+import type { PlayerState, CardData, PendingInteractionDef, TargetScope } from '../types';
+import { hasShadow } from '../utils/keywords';
+import type {
+  CardEffect,
+  EffectAction,
+  TargetFilter,
+  Owner,
+  NumberOrRef,
+  Condition,
+  DrawAction,
+  BanishAction,
+  BounceAction,
+  PowerModifyAction,
+  PowerSetAction,
+  TrashAction,
+  EnergyChargeAction,
+  EnergyChargeFromDeckAction,
+  LifeCrashAction,
+  ShuffleDeckAction,
+  TransferToHandAction,
+  AddToFieldAction,
+  AddToLifeAction,
+  FreezeAction,
+  DownAction,
+  UpAction,
+  BlockActionAction,
+  StoryChangeAction,
+  GrantKeywordAction,
+  SearchAction,
+  SequenceAction,
+  ChooseAction,
+  ConditionalAction,
+  LookAndReorderAction,
+  TransferToDeckAction,
+  GrantProtectionAction,
+  AttachCharmAction,
+  RevealAndPickAction,
+} from '../types/effects';
+
+// ===== 実行コンテキスト & 結果型 =====
+
+export interface ExecCtx {
+  ownerState: PlayerState;   // "self"：効果オーナー
+  otherState: PlayerState;   // "opponent"：相手
+  cardMap: Map<string, CardData>;
+  logs: string[];
+}
+
+export type ExecResult =
+  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[] }
+  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef };
+
+// ===== ユーティリティ =====
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function resolveNum(n: NumberOrRef): number {
+  return typeof n === 'number' ? n : 0;
+}
+
+function ownerState(owner: Owner, ctx: ExecCtx): PlayerState {
+  return owner === 'self' ? ctx.ownerState : ctx.otherState;
+}
+
+function setOwnerState(owner: Owner, s: PlayerState, ctx: ExecCtx): ExecCtx {
+  return owner === 'self'
+    ? { ...ctx, ownerState: s }
+    : { ...ctx, otherState: s };
+}
+
+function addLog(ctx: ExecCtx, msg: string): ExecCtx {
+  return { ...ctx, logs: [...ctx.logs, msg] };
+}
+
+function done(ctx: ExecCtx): ExecResult {
+  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs };
+}
+
+function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
+  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending };
+}
+
+export function matchesFilter(card: CardData | undefined, filter: TargetFilter | undefined): boolean {
+  if (!card) return false;
+  if (!filter) return true;
+  if (filter.cardType) {
+    const types = Array.isArray(filter.cardType) ? filter.cardType : [filter.cardType];
+    if (!types.includes(card.Type as (typeof types)[number])) return false;
+  }
+  if (filter.color) {
+    const colors = Array.isArray(filter.color) ? filter.color : [filter.color];
+    if (!colors.some(c => card.Color?.includes(c))) return false;
+  }
+  if (filter.level !== undefined) {
+    const lv = parseInt(card.Level ?? '', 10);
+    if (typeof filter.level === 'number') {
+      if (lv !== filter.level) return false;
+    } else {
+      if (filter.level.min !== undefined && lv < filter.level.min) return false;
+      if (filter.level.max !== undefined && lv > filter.level.max) return false;
+    }
+  }
+  if (filter.story) {
+    const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
+    if (!stories.some(s => card.Story?.includes(s))) return false;
+  }
+  if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
+  if (filter.cardNum && card.CardNum !== filter.cardNum) return false;
+  if (filter.powerRange) {
+    const pw = parseInt(card.Power ?? '', 10);
+    if (filter.powerRange.min !== undefined && pw < filter.powerRange.min) return false;
+    if (filter.powerRange.max !== undefined && pw > filter.powerRange.max) return false;
+  }
+  return true;
+}
+
+function fieldTopNums(state: PlayerState): string[] {
+  return state.field.signi.flatMap(stack =>
+    stack && stack.length > 0 ? [stack[stack.length - 1]] : []
+  );
+}
+
+function fieldCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>): string[] {
+  return fieldTopNums(state).filter(n => matchesFilter(cardMap.get(n), filter));
+}
+
+function handCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>): string[] {
+  return state.hand.filter(n => matchesFilter(cardMap.get(n), filter));
+}
+
+function trashCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>): string[] {
+  return state.trash.filter(n => matchesFilter(cardMap.get(n), filter));
+}
+
+function energyCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>): string[] {
+  return state.energy.filter(n => matchesFilter(cardMap.get(n), filter));
+}
+
+function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
+  const s = ctx.ownerState;
+  const o = ctx.otherState;
+  function st(owner: Owner) { return owner === 'self' ? s : o; }
+  function cmp(a: number, op: string, b: number): boolean {
+    switch (op) {
+      case 'gte': return a >= b; case 'lte': return a <= b;
+      case 'gt':  return a > b;  case 'lt':  return a < b;
+      case 'eq':  return a === b; case 'neq': return a !== b;
+      default: return true;
+    }
+  }
+  switch (cond.type) {
+    case 'FIELD_COUNT':
+      return cmp(st(cond.owner).field.signi.filter(s => s && s.length > 0).length,
+        cond.operator, resolveNum(cond.value));
+    case 'HAND_COUNT':
+      return cmp(st(cond.owner).hand.length, cond.operator, resolveNum(cond.value));
+    case 'LIFE_COUNT':
+      return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
+    case 'ENERGY_COUNT':
+      return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
+    case 'HAS_CARD_IN_FIELD':
+      return st(cond.owner).field.signi.some(stack =>
+        stack?.some(n => matchesFilter(ctx.cardMap.get(n), cond.filter)));
+    case 'IS_MY_TURN':    return true;
+    case 'IS_OPPONENT_TURN': return false;
+    default: return true;
+  }
+}
+
+// ===== フィールドからカードを除去する（バニッシュ/バウンス共通） =====
+
+function removeFromField(cardNum: string, state: PlayerState): PlayerState {
+  const newSigni = state.field.signi.map(stack => {
+    if (!stack) return null;
+    if (stack[stack.length - 1] !== cardNum) return stack;
+    return stack.length > 1 ? stack.slice(0, -1) : null;
+  }) as (string[] | null)[];
+  // ダウン/フリーズ状態もクリア
+  const zoneIdx = state.field.signi.findIndex(s => s?.at(-1) === cardNum);
+  const newDown   = [...(state.field.signi_down   ?? [false, false, false])];
+  const newFrozen = [...(state.field.signi_frozen  ?? [false, false, false])];
+  if (zoneIdx >= 0) { newDown[zoneIdx] = false; newFrozen[zoneIdx] = false; }
+  return { ...state, field: { ...state.field, signi: newSigni, signi_down: newDown as boolean[], signi_frozen: newFrozen as boolean[] } };
+}
+
+// SELECT_TARGET ヘルパー：候補数によって自動実行か要インタラクションかを決める
+function selectOrInteract(
+  candidates: string[],
+  count: number,
+  optional: boolean,
+  scope: TargetScope,
+  thenAction: EffectAction,
+  continuation: EffectAction | undefined,
+  ctx: ExecCtx,
+  autoApply: (selected: string[], ctx: ExecCtx) => ExecCtx,
+): ExecResult {
+  // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
+  let filteredCands = candidates;
+  if (scope === 'opp_field') {
+    filteredCands = candidates.filter(
+      n => !hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants),
+    );
+  }
+  if (filteredCands.length === 0) return done(ctx);
+  if (filteredCands.length <= count) {
+    return done(autoApply(filteredCands, ctx));
+  }
+  return needsInteraction(ctx, {
+    type: 'SELECT_TARGET',
+    candidates: filteredCands,
+    count,
+    optional,
+    targetScope: scope,
+    thenAction,
+    continuation,
+  });
+}
+
+// ===== 個別アクション実行 =====
+
+function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
+  const count = resolveNum(a.count);
+  const state = ownerState(a.owner, ctx);
+  const canDraw = Math.min(count, state.deck.length);
+  let s: PlayerState = {
+    ...state,
+    hand: [...state.hand, ...state.deck.slice(0, canDraw)],
+    deck: state.deck.slice(canDraw),
+  };
+  if (canDraw < count && s.trash.length > 0) {
+    const topLife = s.life_cloth.at(-1) ?? null;
+    s = {
+      ...s,
+      deck: shuffle([...s.trash]),
+      trash: topLife ? [topLife] : [],
+      life_cloth: topLife ? s.life_cloth.slice(0, -1) : s.life_cloth,
+    };
+  }
+  return done(addLog(setOwnerState(a.owner, s, ctx), `${count}枚ドロー`));
+}
+
+function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
+  const tgt = a.target;
+  const state = ownerState(tgt.owner, ctx);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+
+  function applyBanish(selected: string[], c: ExecCtx): ExecCtx {
+    let cur = c;
+    for (const num of selected) {
+      const s = ownerState(tgt.owner, cur);
+      const removed = removeFromField(num, s);
+      const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, num] };
+      cur = addLog(setOwnerState(tgt.owner, withEnergy, cur),
+        `${cur.cardMap.get(num)?.CardName ?? num}をバニッシュ`);
+    }
+    return cur;
+  }
+
+  if (tgt.count === 'ALL') return done(applyBanish(cands, ctx));
+  const count = resolveNum(tgt.count);
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyBanish);
+}
+
+function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
+  const tgt = a.target;
+  const state = ownerState(tgt.owner, ctx);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+
+  function applyBounce(selected: string[], c: ExecCtx): ExecCtx {
+    let cur = c;
+    for (const num of selected) {
+      const s = ownerState(tgt.owner, cur);
+      const removed = removeFromField(num, s);
+      const withHand: PlayerState = { ...removed, hand: [...removed.hand, num] };
+      cur = addLog(setOwnerState(tgt.owner, withHand, cur),
+        `${cur.cardMap.get(num)?.CardName ?? num}を手札に戻す`);
+    }
+    return cur;
+  }
+
+  if (tgt.count === 'ALL') return done(applyBounce(cands, ctx));
+  const count = resolveNum(tgt.count);
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyBounce);
+}
+
+function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
+  const delta = resolveNum(a.delta);
+  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  if (cands.length === 0) return done(ctx);
+  const mods = [
+    ...(state.temp_power_mods ?? []),
+    ...cands.map(cardNum => ({ cardNum, delta })),
+  ];
+  const newS: PlayerState = { ...state, temp_power_mods: mods };
+  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `パワー${delta > 0 ? '+' : ''}${delta}`));
+}
+
+function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
+  const value = resolveNum(a.value);
+  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  if (cands.length === 0) return done(ctx);
+  const filtered = (state.temp_power_mods ?? []).filter(m => !cands.includes(m.cardNum));
+  const setMods = cands.map(cardNum => {
+    const base = parseInt(ctx.cardMap.get(cardNum)?.Power ?? '0') || 0;
+    return { cardNum, delta: value - base };
+  });
+  const newS: PlayerState = { ...state, temp_power_mods: [...filtered, ...setMods] };
+  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `パワーを${value}にセット`));
+}
+
+function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
+  const tgt = a.target;
+  const state = ownerState(tgt.owner, ctx);
+
+  if (tgt.type === 'SIGNI') {
+    const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+    const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+    function applyTrashField(selected: string[], c: ExecCtx): ExecCtx {
+      let cur = c;
+      for (const num of selected) {
+        const s = ownerState(tgt.owner, cur);
+        const removed = removeFromField(num, s);
+        cur = addLog(setOwnerState(tgt.owner,
+          { ...removed, trash: [...removed.trash, num] }, cur),
+          `${cur.cardMap.get(num)?.CardName ?? num}をトラッシュへ`);
+      }
+      return cur;
+    }
+    if (tgt.count === 'ALL') return done(applyTrashField(cands, ctx));
+    const count = resolveNum(tgt.count);
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyTrashField);
+  }
+
+  if (tgt.type === 'HAND_CARD') {
+    if (tgt.blind) {
+      const count = tgt.count === 'ALL' ? state.hand.length : resolveNum(tgt.count);
+      const picked = shuffle([...state.hand]).slice(0, count);
+      const newS: PlayerState = {
+        ...state,
+        hand: state.hand.filter(n => !picked.includes(n)),
+        trash: [...state.trash, ...picked],
+      };
+      return done(addLog(setOwnerState(tgt.owner, newS, ctx), `手札${count}枚ランダム捨て`));
+    }
+    const cands = handCandidates(state, tgt.filter, ctx.cardMap);
+    const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
+    function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
+      const s = ownerState(tgt.owner, c);
+      const remaining = [...s.hand];
+      const toTrash: string[] = [];
+      for (const n of selected) {
+        const idx = remaining.indexOf(n);
+        if (idx >= 0) { remaining.splice(idx, 1); toTrash.push(n); }
+      }
+      const newS: PlayerState = { ...s, hand: remaining, trash: [...s.trash, ...toTrash] };
+      return addLog(setOwnerState(tgt.owner, newS, c), `手札${toTrash.length}枚捨てる`);
+    }
+    if (tgt.count === 'ALL') return done(applyTrashHand(cands, ctx));
+    const count = resolveNum(tgt.count);
+    return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, applyTrashHand);
+  }
+
+  return done(ctx);
+}
+
+function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
+  const tgt = a.target;
+  const state = ownerState(tgt.owner, ctx);
+  let cands: string[];
+  let scope: TargetScope;
+
+  if (tgt.type === 'HAND_CARD') {
+    cands = handCandidates(state, tgt.filter, ctx.cardMap);
+    scope = 'self_hand';
+  } else if (tgt.type === 'TRASH_CARD') {
+    cands = trashCandidates(state, tgt.filter, ctx.cardMap);
+    scope = 'self_trash';
+  } else {
+    cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+    scope = 'self_field';
+  }
+
+  function applyCharge(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgt.owner, c);
+    let newS = { ...s };
+    for (const n of selected) {
+      if (tgt.type === 'HAND_CARD') {
+        newS = { ...newS, hand: newS.hand.filter(x => x !== n), energy: [...newS.energy, n] };
+      } else if (tgt.type === 'TRASH_CARD') {
+        newS = { ...newS, trash: newS.trash.filter(x => x !== n), energy: [...newS.energy, n] };
+      } else {
+        const removed = removeFromField(n, newS);
+        newS = { ...removed, energy: [...removed.energy, n] };
+      }
+    }
+    return addLog(setOwnerState(tgt.owner, newS, c), `エナチャージ${selected.length}枚`);
+  }
+
+  const count = tgt.count === 'ALL' ? cands.length : resolveNum(tgt.count);
+  if (tgt.count === 'ALL') return done(applyCharge(cands, ctx));
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, applyCharge);
+}
+
+function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): ExecResult {
+  const count = resolveNum(a.count);
+  const state = ownerState(a.owner, ctx);
+  const took = state.deck.slice(0, count);
+  const newS: PlayerState = {
+    ...state,
+    deck: state.deck.slice(count),
+    energy: [...state.energy, ...took],
+  };
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${count}枚（デッキから）`));
+}
+
+function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
+  const count = resolveNum(a.count);
+  const state = ownerState(a.owner, ctx);
+  const crashed: string[] = [];
+  let life = [...state.life_cloth];
+  for (let i = 0; i < count && life.length > 0; i++) {
+    crashed.push(life.pop()!);
+  }
+  // クラッシュしたカードはcheckゾーンへ（バーストトリガーは呼び出し元が担当）
+  const checkCard = crashed[0] ?? null;
+  const newS: PlayerState = {
+    ...state,
+    life_cloth: life,
+    field: { ...state.field, check: checkCard },
+  };
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `ライフクロス${count}枚クラッシュ`));
+}
+
+function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  const newS: PlayerState = { ...state, deck: shuffle([...state.deck]) };
+  return done(addLog(setOwnerState(a.owner, newS, ctx), 'デッキシャッフル'));
+}
+
+function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
+  const src = a.source;
+  const tgtOwner = src.owner;
+  const state = ownerState(tgtOwner, ctx);
+
+  let cands: string[];
+  let scope: TargetScope;
+
+  if (src.type === 'TRASH_CARD') {
+    cands = trashCandidates(state, src.filter, ctx.cardMap);
+    scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
+  } else if (src.type === 'ENERGY_CARD') {
+    cands = energyCandidates(state, src.filter, ctx.cardMap);
+    scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
+  } else {
+    return done(ctx);
+  }
+
+  function applyTransfer(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgtOwner, c);
+    let newS = { ...s };
+    for (const n of selected) {
+      if (src.type === 'TRASH_CARD') {
+        newS = { ...newS, trash: newS.trash.filter(x => x !== n), hand: [...newS.hand, n] };
+      } else if (src.type === 'ENERGY_CARD') {
+        newS = { ...newS, energy: newS.energy.filter(x => x !== n), hand: [...newS.hand, n] };
+      }
+    }
+    return addLog(setOwnerState(tgtOwner, newS, c), `${selected.length}枚を手札に加える`);
+  }
+
+  const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
+  if (src.count === 'ALL') return done(applyTransfer(cands, ctx));
+  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx, applyTransfer);
+}
+
+function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
+  const tgtOwner = a.owner;
+  const src = a.source;
+  if (!src) return done(ctx);
+
+  const state = ownerState(tgtOwner, ctx);
+  let cands: string[];
+  let scope: TargetScope;
+
+  if (src.type === 'TRASH_CARD') {
+    cands = trashCandidates(state, src.filter, ctx.cardMap);
+    scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
+  } else if (src.type === 'ENERGY_CARD') {
+    cands = energyCandidates(state, src.filter, ctx.cardMap);
+    scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
+  } else {
+    return done(ctx);
+  }
+
+  // 場に出す：空きゾーンに配置（呼び出し元が担当できないため自動的に最初の空きへ）
+  const srcDefined = src!;
+  function applyToField(selected: string[], c: ExecCtx): ExecCtx {
+    let cur = c;
+    for (const n of selected) {
+      const s = ownerState(tgtOwner, cur);
+      let newS = { ...s };
+      if (srcDefined.type === 'TRASH_CARD') {
+        newS = { ...newS, trash: newS.trash.filter(x => x !== n) };
+      } else if (srcDefined.type === 'ENERGY_CARD') {
+        newS = { ...newS, energy: newS.energy.filter(x => x !== n) };
+      }
+      // 空きゾーンに配置
+      const signi = [...newS.field.signi] as (string[] | null)[];
+      const emptyIdx = signi.findIndex(z => !z || z.length === 0);
+      if (emptyIdx >= 0) signi[emptyIdx] = [n];
+      newS = { ...newS, field: { ...newS.field, signi } };
+      cur = addLog(setOwnerState(tgtOwner, newS, cur),
+        `${cur.cardMap.get(n)?.CardName ?? n}を場に出す`);
+    }
+    return cur;
+  }
+
+  const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
+  if (src.count === 'ALL') return done(applyToField(cands, ctx));
+  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx, applyToField);
+}
+
+function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
+  const count = resolveNum(a.count);
+  const state = ownerState(a.owner, ctx);
+  if (!a.fromTop) return done(ctx);
+  const took = state.deck.slice(0, count);
+  const newS: PlayerState = {
+    ...state,
+    deck: state.deck.slice(count),
+    life_cloth: [...state.life_cloth, ...took],
+  };
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `ライフクロス+${count}枚`));
+}
+
+function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.target.owner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
+
+  function applyFreeze(selected: string[], c: ExecCtx): ExecCtx {
+    let cur = c;
+    for (const num of selected) {
+      const s = ownerState(a.target.owner, cur);
+      const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
+      if (zoneIdx < 0) continue;
+      const newFrozen = [...(s.field.signi_frozen ?? [false, false, false])] as boolean[];
+      newFrozen[zoneIdx] = true;
+      const newS: PlayerState = { ...s, field: { ...s.field, signi_frozen: newFrozen } };
+      cur = addLog(setOwnerState(a.target.owner, newS, cur),
+        `${cur.cardMap.get(num)?.CardName ?? num}を凍結`);
+    }
+    return cur;
+  }
+
+  if (a.target.count === 'ALL') return done(applyFreeze(cands, ctx));
+  const count = resolveNum(a.target.count);
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyFreeze);
+}
+
+function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.target.owner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+
+  function applyDown(selected: string[], c: ExecCtx): ExecCtx {
+    let cur = c;
+    for (const num of selected) {
+      const s = ownerState(a.target.owner, cur);
+      const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
+      if (zoneIdx < 0) continue;
+      const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
+      newDown[zoneIdx] = true;
+      cur = addLog(setOwnerState(a.target.owner,
+        { ...s, field: { ...s.field, signi_down: newDown } }, cur),
+        `${cur.cardMap.get(num)?.CardName ?? num}をダウン`);
+    }
+    return cur;
+  }
+
+  if (a.target.count === 'ALL') return done(applyDown(cands, ctx));
+  const count = resolveNum(a.target.count);
+  const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyDown);
+}
+
+function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.target.owner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
+
+  function applyUp(selected: string[], c: ExecCtx): ExecCtx {
+    let cur = c;
+    for (const num of selected) {
+      const s = ownerState(a.target.owner, cur);
+      const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
+      if (zoneIdx < 0) continue;
+      const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
+      newDown[zoneIdx] = false;
+      cur = addLog(setOwnerState(a.target.owner,
+        { ...s, field: { ...s.field, signi_down: newDown } }, cur),
+        `${cur.cardMap.get(num)?.CardName ?? num}をアップ`);
+    }
+    return cur;
+  }
+
+  if (a.target.count === 'ALL') return done(applyUp(cands, ctx));
+  const count = resolveNum(a.target.count);
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyUp);
+}
+
+function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.target.owner, ctx);
+  const blocked = [...(state.blocked_actions ?? []), a.actionId];
+  const newS: PlayerState = { ...state, blocked_actions: blocked };
+  return done(addLog(setOwnerState(a.target.owner, newS, ctx), `アクション${a.actionId}を封じる`));
+}
+
+function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
+  const tgt = a.target;
+  const state = ownerState(tgt.owner, ctx);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+
+  function applyStory(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgt.owner, c);
+    const overrides = { ...(s.story_overrides ?? {}) };
+    for (const n of selected) overrides[n] = a.newStory;
+    return addLog(setOwnerState(tgt.owner, { ...s, story_overrides: overrides }, c),
+      `ストーリーを${a.newStory}に変更`);
+  }
+
+  if (tgt.count === 'ALL') return done(applyStory(cands, ctx));
+  const count = resolveNum(tgt.count);
+  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyStory);
+}
+
+function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
+  const tgt = a.target;
+  const state = ownerState(tgt.owner, ctx);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+
+  function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgt.owner, c);
+    const grants = { ...(s.keyword_grants ?? {}) };
+    for (const n of selected) {
+      grants[n] = [...(grants[n] ?? []), a.keyword];
+    }
+    return addLog(setOwnerState(tgt.owner, { ...s, keyword_grants: grants }, c),
+      `【${a.keyword}】を付与`);
+  }
+
+  if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
+  const count = resolveNum(tgt.count);
+  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyGrant);
+}
+
+function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.from.owner as Owner, ctx);
+  const fromDeck = a.from.location === 'deck';
+  const pool = fromDeck ? state.deck : state.trash;
+  const visible = pool.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
+
+  if (visible.length === 0) {
+    // 候補なし：シャッフルだけ実行
+    if (a.afterSearch) return executeAction(a.afterSearch, ctx);
+    return done(ctx);
+  }
+
+  return needsInteraction(ctx, {
+    type: 'SEARCH',
+    visibleCards: fromDeck ? [...state.deck] : visible, // デッキは全公開、トラッシュは対象のみ
+    maxPick: a.maxCount,
+    thenAction: a.then,
+    afterAction: a.afterSearch,
+  });
+}
+
+function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
+  let cur = ctx;
+  for (let i = 0; i < a.steps.length; i++) {
+    const result = executeAction(a.steps[i], cur);
+    if (!result.done) {
+      // インタラクション必要：残りのステップをcontinuationに入れる
+      const remaining = a.steps.slice(i + 1);
+      const cont: EffectAction | undefined = remaining.length > 0
+        ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining })
+        : undefined;
+      const pending: PendingInteractionDef = cont
+        ? { ...result.pending, continuation: cont }
+        : result.pending;
+      return { ...result, pending };
+    }
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+  }
+  return done(cur);
+}
+
+function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
+  const options = a.choices.map(ch => ({
+    id: ch.choiceId,
+    label: ch.label,
+    action: ch.action,
+    available: ch.condition ? evalCondition(ch.condition, ctx) : true,
+  }));
+  return needsInteraction(ctx, { type: 'CHOOSE', options, count: a.choose_count });
+}
+
+function execConditional(a: ConditionalAction, ctx: ExecCtx): ExecResult {
+  const cond = evalCondition(a.condition, ctx);
+  if (cond) return executeAction(a.then, ctx);
+  if (a.else) return executeAction(a.else, ctx);
+  return done(ctx);
+}
+
+function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.source.owner as Owner, ctx);
+  const count = resolveNum(a.count);
+  const cards = state.deck.slice(0, count);
+  if (cards.length === 0) return done(ctx);
+  // 一時的にデッキからカードを取り除く
+  const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
+  const newCtx = setOwnerState(a.source.owner as Owner, newS, ctx);
+  return needsInteraction(newCtx, {
+    type: 'LOOK_AND_REORDER',
+    cards,
+    canTrash: a.canTrash ?? false,
+    destLocation: 'deck',
+    destOwner: (a.destination.owner === 'any' ? 'self' : a.destination.owner) as 'self' | 'opponent',
+    destPosition: a.destination.position,
+  });
+}
+
+function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
+  const src = a.source;
+  const state = ownerState(src.owner, ctx);
+  let cards: string[];
+
+  if (src.type === 'TRASH_CARD') {
+    const cands = trashCandidates(state, src.filter, ctx.cardMap);
+    cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
+    let newS: PlayerState = { ...state, trash: state.trash.filter(n => !cards.includes(n)) };
+    if (a.shuffle) {
+      newS = { ...newS, deck: shuffle([...newS.deck, ...cards]) };
+    } else {
+      newS = { ...newS, deck: [...newS.deck, ...cards] };
+    }
+    return done(addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}枚をデッキに戻す`));
+  }
+  return done(ctx);
+}
+
+function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult {
+  // 効果耐性はキーワード付与として扱う
+  const tgt = a.target;
+  const state = ownerState(tgt.owner, ctx);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+  const keyword = `PROTECTION:${a.from.join(',')}:${a.sourceOwner}`;
+
+  function applyProtection(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgt.owner, c);
+    const grants = { ...(s.keyword_grants ?? {}) };
+    for (const n of selected) grants[n] = [...(grants[n] ?? []), keyword];
+    return addLog(setOwnerState(tgt.owner, { ...s, keyword_grants: grants }, c), '効果耐性付与');
+  }
+
+  if (tgt.count === 'ALL') return done(applyProtection(cands, ctx));
+  const count = resolveNum(tgt.count);
+  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyProtection);
+}
+
+function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
+  // charm: チャームにするカード（手札 or エナなど）
+  // to: 付ける対象シグニ（フィールド）
+  const charmOwner = a.charm.owner ?? 'self';
+  const toOwner    = a.to.owner ?? 'self';
+  const charmSrc   = ownerState(charmOwner, ctx);
+  const toState    = ownerState(toOwner, ctx);
+
+  // チャームカードを手札から探す
+  const charmCands = charmSrc.hand.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+  if (charmCands.length === 0) return done(addLog(ctx, 'チャーム対象なし'));
+
+  // 対象シグニのゾーンを探す
+  const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap);
+  if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象シグニなし'));
+
+  // どちらか複数なら最初のものを自動選択（インタラクション拡張は今後）
+  const charmNum = charmCands[0];
+  const targetNum = toCands[0];
+
+  const zoneIdx = toState.field.signi.findIndex(s => s?.at(-1) === targetNum);
+  if (zoneIdx < 0) return done(addLog(ctx, 'チャーム付与: ゾーン不明'));
+
+  // 手札からチャームカードを除去
+  let newCharmSrc: PlayerState = {
+    ...charmSrc,
+    hand: charmSrc.hand.filter(n => n !== charmNum),
+  };
+  let ctx2 = setOwnerState(charmOwner, newCharmSrc, ctx);
+
+  // 対象シグニのゾーンにチャームをセット
+  let newToState = ownerState(toOwner, ctx2);
+  const charms = [...(newToState.field.signi_charms ?? [null, null, null])];
+  charms[zoneIdx] = charmNum;
+  newToState = { ...newToState, field: { ...newToState.field, signi_charms: charms } };
+  ctx2 = setOwnerState(toOwner, newToState, ctx2);
+
+  const cardName = ctx.cardMap.get(charmNum)?.CardName ?? charmNum;
+  const targetName = ctx.cardMap.get(targetNum)?.CardName ?? targetNum;
+  return done(addLog(ctx2, `${cardName}を${targetName}にチャームとして付与`));
+}
+
+function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  const count = resolveNum(a.revealCount);
+  const visible = state.deck.slice(0, count);
+  const pickable = a.filter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter)) : visible;
+  const maxPick = a.pickCount === 'ALL' ? pickable.length : a.pickCount;
+
+  if (pickable.length === 0) {
+    // ピック対象なし：残りを指定場所へ
+    if (a.remainder) {
+      const pos = a.remainder.position;
+      const newS: PlayerState = {
+        ...state,
+        deck: pos === 'bottom'
+          ? [...state.deck.slice(count), ...visible]
+          : state.deck,
+      };
+      return done(addLog(setOwnerState(a.owner, newS, ctx), `デッキ${count}枚公開：対象なし`));
+    }
+    return done(ctx);
+  }
+
+  // 一時的にデッキ上部を除去
+  const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
+  const newCtx = setOwnerState(a.owner, newS, ctx);
+
+  return needsInteraction(newCtx, {
+    type: 'SEARCH',
+    visibleCards: pickable,
+    maxPick,
+    thenAction: a.then,
+    afterAction: a.remainder
+      ? {
+          type: 'LOOK_AND_REORDER',
+          source: { location: 'deck', owner: a.owner },
+          count: 0, // placeholder: remainder handled separately
+          private: true,
+          reorder: false,
+          destination: { location: a.remainder.location, owner: a.owner, position: a.remainder.position },
+        }
+      : undefined,
+  });
+}
+
+// ===== メイン実行関数 =====
+
+export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
+  switch (action.type) {
+    case 'DRAW':                    return execDraw(action as DrawAction, ctx);
+    case 'BANISH':                  return execBanish(action as BanishAction, ctx);
+    case 'BOUNCE':                  return execBounce(action as BounceAction, ctx);
+    case 'POWER_MODIFY':            return execPowerModify(action as PowerModifyAction, ctx);
+    case 'POWER_SET':               return execPowerSet(action as PowerSetAction, ctx);
+    case 'TRASH':                   return execTrash(action as TrashAction, ctx);
+    case 'ENERGY_CHARGE':           return execEnergyCharge(action as EnergyChargeAction, ctx);
+    case 'ENERGY_CHARGE_FROM_DECK': return execEnergyChargeFromDeck(action as EnergyChargeFromDeckAction, ctx);
+    case 'LIFE_CRASH':              return execLifeCrash(action as LifeCrashAction, ctx);
+    case 'SHUFFLE_DECK':            return execShuffleDeck(action as ShuffleDeckAction, ctx);
+    case 'REVEAL':                  return done(addLog(ctx, 'カードを公開'));
+    case 'ADD_TO_HAND':             return done(addLog(ctx, 'カードを手札に加える')); // SEARCH内で処理
+    case 'TRANSFER_TO_HAND':        return execTransferToHand(action as TransferToHandAction, ctx);
+    case 'ADD_TO_FIELD':            return execAddToField(action as AddToFieldAction, ctx);
+    case 'ADD_TO_LIFE':             return execAddToLife(action as AddToLifeAction, ctx);
+    case 'FREEZE':                  return execFreeze(action as FreezeAction, ctx);
+    case 'DOWN':                    return execDown(action as DownAction, ctx);
+    case 'UP':                      return execUp(action as UpAction, ctx);
+    case 'BLOCK_ACTION':            return execBlockAction(action as BlockActionAction, ctx);
+    case 'STORY_CHANGE':            return execStoryChange(action as StoryChangeAction, ctx);
+    case 'GRANT_KEYWORD':           return execGrantKeyword(action as GrantKeywordAction, ctx);
+    case 'SEARCH':                  return execSearch(action as SearchAction, ctx);
+    case 'SEQUENCE':                return execSequence(action as SequenceAction, ctx);
+    case 'CHOOSE':                  return execChoose(action as ChooseAction, ctx);
+    case 'CONDITIONAL':             return execConditional(action as ConditionalAction, ctx);
+    case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
+    case 'TRANSFER_TO_DECK':        return execTransferToDeck(action as TransferToDeckAction, ctx);
+    case 'COUNTER_SPELL':           return done(addLog(ctx, 'スペル/アーツ打ち消し'));
+    case 'COST_REDUCTION':          return done(addLog(ctx, 'コスト減少効果（次のカード使用時適用）'));
+    case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
+    case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
+    case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);
+    case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
+    default:                        return done(ctx);
+  }
+}
+
+export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
+  return executeAction(effect.action, ctx);
+}
+
+// ===== インタラクション解決（UIから呼ばれる） =====
+
+// SELECT_TARGET: ユーザーが selected[] のカードを選択した
+export function resumeSelectTarget(
+  selected: string[],
+  pending: PendingInteractionDef & { type: 'SELECT_TARGET' },
+  ctx: ExecCtx,
+): ExecResult {
+  // 選択されたカードに thenAction を個別適用
+  let cur = ctx;
+  for (const cardNum of selected) {
+    // thenActionを単一カードに適用するため、フィルタなしで直接適用
+    const result = applyDirectAction(pending.thenAction, cardNum, cur);
+    if (!result.done) return result; // ネストしたインタラクション（通常なし）
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+  }
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
+}
+
+// SEARCH: ユーザーが picked[] のカードをピックした
+export function resumeSearch(
+  picked: string[],
+  pending: PendingInteractionDef & { type: 'SEARCH' },
+  ctx: ExecCtx,
+): ExecResult {
+  let cur = ctx;
+  for (const cardNum of picked) {
+    const result = applyDirectAction(pending.thenAction, cardNum, cur);
+    if (!result.done) return result;
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+  }
+  if (pending.afterAction) {
+    const r = executeAction(pending.afterAction, cur);
+    if (!r.done) return r;
+    cur = { ...cur, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+  }
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
+}
+
+// CHOOSE: ユーザーが choiceId を選択した
+export function resumeChoose(
+  choiceId: string,
+  pending: PendingInteractionDef & { type: 'CHOOSE' },
+  ctx: ExecCtx,
+): ExecResult {
+  const opt = pending.options.find(o => o.id === choiceId);
+  if (!opt) return done(ctx);
+  const result = executeAction(opt.action, ctx);
+  if (!result.done) return result;
+  if (pending.continuation) {
+    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+  }
+  return result;
+}
+
+// LOOK_AND_REORDER: ユーザーが reordered[] の順に並べ（先頭=デッキトップ）
+export function resumeLookAndReorder(
+  reordered: string[],
+  trashed: string[],
+  pending: PendingInteractionDef & { type: 'LOOK_AND_REORDER' },
+  ctx: ExecCtx,
+): ExecResult {
+  const keep = reordered.filter(n => !trashed.includes(n));
+  const destOwner = pending.destOwner;
+  const state = ownerState(destOwner, ctx);
+  let newS: PlayerState;
+  if (pending.destPosition === 'top') {
+    newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
+  } else if (pending.destPosition === 'bottom') {
+    newS = { ...state, deck: [...state.deck, ...keep], trash: [...state.trash, ...trashed] };
+  } else {
+    newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
+  }
+  let cur = addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`);
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
+}
+
+// ===== 直接アクション適用（特定のcardNumに対して） =====
+
+function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx): ExecResult {
+  switch (action.type) {
+    case 'BANISH': {
+      // cardNumが opponent.field にあるか自分のフィールドにあるかを検索
+      let found: Owner | null = null;
+      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
+      if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
+      if (!found) return done(ctx);
+      const s = ownerState(found, ctx);
+      const removed = removeFromField(cardNum, s);
+      const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, cardNum] };
+      return done(addLog(setOwnerState(found, withEnergy, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をバニッシュ`));
+    }
+    case 'BOUNCE': {
+      let found: Owner | null = null;
+      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
+      if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
+      if (!found) return done(ctx);
+      const s = ownerState(found, ctx);
+      const removed = removeFromField(cardNum, s);
+      const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum] };
+      return done(addLog(setOwnerState(found, withHand, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に戻す`));
+    }
+    case 'TRASH': {
+      // hand からトラッシュ
+      for (const owner of ['self', 'opponent'] as Owner[]) {
+        const s = ownerState(owner, ctx);
+        if (s.hand.includes(cardNum)) {
+          const newS: PlayerState = {
+            ...s,
+            hand: s.hand.filter(n => n !== cardNum),
+            trash: [...s.trash, cardNum],
+          };
+          return done(addLog(setOwnerState(owner, newS, ctx), `手札をトラッシュへ`));
+        }
+      }
+      return done(ctx);
+    }
+    case 'ADD_TO_HAND': {
+      // SEARCH内でのみ使用：cardNumをオーナーの手札へ
+      const newS: PlayerState = { ...ctx.ownerState, hand: [...ctx.ownerState.hand, cardNum] };
+      return done(addLog({ ...ctx, ownerState: newS }, `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に加える`));
+    }
+    case 'TRANSFER_TO_HAND': {
+      const src = (action as TransferToHandAction).source;
+      const state = ownerState(src.owner, ctx);
+      let newS = { ...state };
+      if (src.type === 'TRASH_CARD') {
+        newS = { ...newS, trash: newS.trash.filter(n => n !== cardNum), hand: [...newS.hand, cardNum] };
+      } else if (src.type === 'ENERGY_CARD') {
+        newS = { ...newS, energy: newS.energy.filter(n => n !== cardNum), hand: [...newS.hand, cardNum] };
+      }
+      return done(addLog(setOwnerState(src.owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に加える`));
+    }
+    case 'ADD_TO_FIELD': {
+      const owner = (action as AddToFieldAction).owner;
+      const src = (action as AddToFieldAction).source;
+      const state = ownerState(owner, ctx);
+      let newS = { ...state };
+      if (src?.type === 'TRASH_CARD') {
+        newS = { ...newS, trash: newS.trash.filter(n => n !== cardNum) };
+      } else if (src?.type === 'ENERGY_CARD') {
+        newS = { ...newS, energy: newS.energy.filter(n => n !== cardNum) };
+      }
+      const signi = [...newS.field.signi] as (string[] | null)[];
+      const emptyIdx = signi.findIndex(z => !z || z.length === 0);
+      if (emptyIdx >= 0) signi[emptyIdx] = [cardNum];
+      newS = { ...newS, field: { ...newS.field, signi } };
+      return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場に出す`));
+    }
+    default:
+      return executeAction(action, ctx);
+  }
+}

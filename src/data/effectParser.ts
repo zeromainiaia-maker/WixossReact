@@ -1,0 +1,905 @@
+import type { CardData } from '../types';
+import type {
+  CardEffect,
+  EffectType,
+  EffectTiming,
+  EffectCost,
+  EnergyCost,
+  EffectAction,
+  EffectTarget,
+  EffectDuration,
+  ActiveCondition,
+  TargetFilter,
+  Owner,
+  SequenceAction,
+  UnknownAction,
+  TransferToDeckAction,
+  CounterSpellAction,
+  CostReductionAction,
+  GrantProtectionAction,
+  AttachCharmAction,
+  RevealAndPickAction,
+} from '../types/effects';
+
+// ===== 数値ユーティリティ =====
+
+const FW_DIGIT: Record<string, string> = {
+  '０':'0','１':'1','２':'2','３':'3','４':'4',
+  '５':'5','６':'6','７':'7','８':'8','９':'9',
+};
+function toHalf(s: string): string {
+  return s.replace(/[０-９]/g, c => FW_DIGIT[c] ?? c);
+}
+function parseNum(s: string): number {
+  return parseInt(toHalf(s), 10);
+}
+
+// ===== コストパース =====
+
+const ENERGY_COLORS = new Set(['白', '赤', '青', '緑', '黒', '無']);
+
+function parseEnergyCosts(str: string): EnergyCost[] {
+  const costs: EnergyCost[] = [];
+  const re = /《([^》]+)》(?:×([０-９\d]+))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(str)) !== null) {
+    if (ENERGY_COLORS.has(m[1])) {
+      costs.push({
+        color: m[1] as EnergyCost['color'],
+        count: m[2] ? parseNum(m[2]) : 1,
+      });
+    }
+  }
+  return costs;
+}
+
+function parseCost(costStr: string): EffectCost | undefined {
+  if (!costStr || costStr === '-') return undefined;
+  const cost: EffectCost = {};
+  const energy = parseEnergyCosts(costStr);
+  if (energy.length > 0) cost.energy = energy;
+  if (costStr.includes('《ダウン》')) cost.down_self = true;
+  const dm = costStr.match(/手札を([０-９\d]+)枚捨てる/);
+  if (dm) cost.discard = parseNum(dm[1]);
+  return Object.keys(cost).length > 0 ? cost : undefined;
+}
+
+// ===== タイミングパース（アーツ用）=====
+
+function parseArtsTiming(timingStr: string): EffectTiming[] {
+  const t: EffectTiming[] = [];
+  if (timingStr.includes('メインフェイズ')) t.push('MAIN');
+  if (timingStr.includes('アタックフェイズ')) t.push('ATTACK');
+  if (timingStr.includes('スペルカットイン')) t.push('SPELL_CUTIN');
+  return t.length > 0 ? t : ['MAIN'];
+}
+
+// ===== ターゲットフィルタパース =====
+
+function parsePowerFilter(text: string): Partial<TargetFilter> {
+  const above = text.match(/パワー([０-９\d]+)以上/);
+  const below = text.match(/パワー([０-９\d]+)以下/);
+  if (above || below) {
+    return { powerRange: { min: above ? parseNum(above[1]) : undefined, max: below ? parseNum(below[1]) : undefined } };
+  }
+  return {};
+}
+
+function parseLevelFilter(text: string): Partial<TargetFilter> {
+  const above = text.match(/レベル([０-９\d]+)以上/);
+  const below = text.match(/レベル([０-９\d]+)以下/);
+  const exact = text.match(/レベル([０-９\d]+)の/);
+  if (above || below) {
+    return { level: { min: above ? parseNum(above[1]) : undefined, max: below ? parseNum(below[1]) : undefined } };
+  }
+  if (exact) return { level: parseNum(exact[1]) };
+  return {};
+}
+
+function parseColorFilter(text: string): Partial<TargetFilter> {
+  for (const c of ['白', '赤', '青', '緑', '黒']) {
+    if (text.includes(`${c}の`)) return { color: c };
+  }
+  return {};
+}
+
+function parseCardTypeFilter(text: string): Partial<TargetFilter> {
+  if (text.includes('シグニ')) return { cardType: 'シグニ' };
+  if (text.includes('スペル')) return { cardType: 'スペル' };
+  if (text.includes('アーツ')) return { cardType: 'アーツ' };
+  if (text.includes('ルリグ')) return { cardType: 'ルリグ' };
+  return {};
+}
+
+// ＜クラス名＞ を配列で抽出（例: ＜鉱石＞か＜宝石＞ → ['鉱石','宝石']）
+function parseStoryFilter(text: string): Partial<TargetFilter> {
+  const matches = [...text.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]);
+  if (matches.length === 0) return {};
+  return { story: matches.length === 1 ? matches[0] : matches };
+}
+
+// ===== シグニターゲットパース =====
+
+function parseSigniTarget(text: string, owner: Owner): EffectTarget {
+  const all = text.includes('すべてのシグニ') || text.includes('全てのシグニ');
+  const upToM = text.match(/シグニ([０-９\d]+)体まで/);
+  const countM = text.match(/シグニ([０-９\d]+)体/);
+  const count = all ? 'ALL' : (upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1));
+  const filter: TargetFilter = {
+    cardType: 'シグニ',
+    ...parsePowerFilter(text),
+    ...parseLevelFilter(text),
+    ...parseColorFilter(text),
+  };
+  return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
+}
+
+// ===== CONTINUOUS activeCondition パース =====
+
+type ConditionParseResult = {
+  condition: ActiveCondition | undefined;
+  rest: string;
+  conditionFound: boolean; // true=条件文が見つかったがパース成功かどうかはconditionで判断
+};
+
+function parseActiveCondition(text: string): ConditionParseResult {
+  // パターン1: 「対戦相手のターンの間、」「あなたのターンの間、」
+  const turnM = text.match(/^(対戦相手|あなた)のターンの間、/);
+  if (turnM) {
+    return {
+      condition: { type: 'TURN_OWNER', owner: turnM[1] === '対戦相手' ? 'opponent' : 'self' },
+      rest: text.slice(turnM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン2: 「あなたの場に《カード名》/＜カード名＞があるかぎり、」
+  const fieldNameM = text.match(/^あなたの場に(《[^》]+》|＜[^＞]+＞)があるかぎり、/);
+  if (fieldNameM) {
+    const nameM = fieldNameM[1].match(/[《＜]([^》＞]+)[》＞]/);
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: nameM?.[1] } },
+      rest: text.slice(fieldNameM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
+  const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
+  if (fieldGenM) {
+    return { condition: undefined, rest: text.slice(fieldGenM[0].length), conditionFound: true };
+  }
+
+  // パターン4: 「あなたのトラッシュにカードがN枚以上あるかぎり、」
+  const trashM = text.match(/^あなたのトラッシュにカードが([０-９\d]+)枚以上あるかぎり、/);
+  if (trashM) {
+    return {
+      condition: { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'gte', value: parseNum(trashM[1]) },
+      rest: text.slice(trashM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン5: 「あなたのエナゾーンにカードがN枚以上あるかぎり、」
+  const enaM = text.match(/^あなたのエナゾーンにカードが([０-９\d]+)枚以上あるかぎり、/);
+  if (enaM) {
+    return {
+      condition: { type: 'COUNT_THRESHOLD', location: 'energy', owner: 'self', operator: 'gte', value: parseNum(enaM[1]) },
+      rest: text.slice(enaM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン6: 「このシグニのパワーがN以上であるかぎり、」
+  const selfPowerM = text.match(/^このシグニのパワーが([０-９\d]+)以上であるかぎり、/);
+  if (selfPowerM) {
+    return {
+      condition: { type: 'SELF_POWER_THRESHOLD', operator: 'gte', value: parseNum(selfPowerM[1]) },
+      rest: text.slice(selfPowerM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン7: 「あなたの手札が対戦相手よりN枚以上多いかぎり、」
+  const handDiffM = text.match(/^あなたの手札が対戦相手より([０-９\d]+)枚以上多いかぎり、/);
+  if (handDiffM) {
+    return {
+      condition: { type: 'HAND_DIFF', operator: 'gte', value: parseNum(handDiffM[1]) },
+      rest: text.slice(handDiffM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン8: 「あなたの手札が対戦相手より多いかぎり、」（枚数なし → ≥1）
+  if (text.startsWith('あなたの手札が対戦相手より多いかぎり、')) {
+    return {
+      condition: { type: 'HAND_DIFF', operator: 'gte', value: 1 },
+      rest: text.slice('あなたの手札が対戦相手より多いかぎり、'.length),
+      conditionFound: true,
+    };
+  }
+
+  // それ以外の「〜かぎり、」パターン（複雑な条件→未解析）
+  const genericKagiriM = text.match(/^.+かぎり、/);
+  if (genericKagiriM && genericKagiriM[0].length < 60) {
+    return { condition: undefined, rest: text.slice(genericKagiriM[0].length), conditionFound: true };
+  }
+
+  return { condition: undefined, rest: text, conditionFound: false };
+}
+
+// ===== アクションパース（1文） =====
+
+function parseSingleSentence(text: string): EffectAction {
+  const t = text.trim().replace(/。$/, '');
+
+  // ---- グロウフェイズスキップ ----
+  if (t.includes('グロウフェイズをスキップする')) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'GROW', until: 'END_OF_TURN' };
+  }
+
+  // ---- スペル/アーツ打ち消し ----
+  if ((t.includes('スペル') || t.includes('アーツ')) && t.includes('打ち消す')) {
+    return { type: 'COUNTER_SPELL' } as CounterSpellAction;
+  }
+
+  // ---- コスト減少（「青のスペルのコストは《無×1》減る」など）----
+  const costRedM = t.match(/(白|赤|青|緑|黒)の(スペル|アーツ)のコストは《([^》]+)》(?:×([０-９\d]+))?減/);
+  if (costRedM) {
+    return {
+      type: 'COST_REDUCTION',
+      targetCardType: costRedM[2] as 'スペル' | 'アーツ',
+      color: costRedM[1],
+      reduction: [{ color: costRedM[3] as EnergyCost['color'], count: costRedM[4] ? parseNum(costRedM[4]) : 1 }],
+    } as CostReductionAction;
+  }
+
+  // ---- エナチャージ（【エナチャージN】ショートハンド）----
+  const ecM = t.match(/【エナチャージ([０-９\d]+)】/);
+  if (ecM) return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) };
+
+  // ---- ドロー：まず「引き、捨てる」複合パターンを先にチェック ----
+  const drawDiscardM = t.match(/カードを([０-９\d]+)枚引き、手札を([０-９\d]+)枚捨てる/);
+  if (drawDiscardM) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'DRAW', owner: 'self', count: parseNum(drawDiscardM[1]) },
+        { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(drawDiscardM[2]) } },
+      ],
+    };
+  }
+  const drawM = t.match(/カードを([０-９\d]+)枚引く/);
+  if (drawM) return { type: 'DRAW', owner: 'self', count: parseNum(drawM[1]) };
+
+  // ---- バニッシュ ----
+  if (t.includes('バニッシュする') || t.includes('バニッシュしてもよい')) {
+    if (t.match(/すべてのシグニをバニッシュ/)) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
+      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ' } } };
+    }
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'BANISH', target: parseSigniTarget(t, owner) };
+  }
+
+  // ---- トラッシュに置く（直接除去）----
+  if (t.includes('トラッシュに置く') || t.includes('トラッシュに置く')) {
+    // デッキからトラッシュ
+    const deckM = t.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
+    if (deckM) {
+      const both = t.includes('各プレイヤー');
+      if (both) {
+        return {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckM[1]) } },
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: parseNum(deckM[1]) } },
+          ],
+        };
+      }
+      return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckM[1]) } };
+    }
+    // シグニ・ルリグをトラッシュへ（対戦相手 or 自分）
+    if (t.includes('対戦相手のシグニ') || t.includes('対戦相手のパワー') || t.includes('対戦相手のセンタールリグ')) {
+      return { type: 'TRASH', target: parseSigniTarget(t, 'opponent') };
+    }
+    if (t.includes('あなたのシグニ')) {
+      return { type: 'TRASH', target: parseSigniTarget(t, 'self') };
+    }
+  }
+
+  // ---- バウンス（手札に戻す）----
+  if (t.includes('手札に戻す')) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const upToM = t.match(/([０-９\d]+)体まで/);
+    const countM = t.match(/([０-９\d]+)体を対象/);
+    const all = t.includes('すべて');
+    const count = all ? 'ALL' : (upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1));
+    return {
+      type: 'BOUNCE',
+      target: {
+        type: 'SIGNI', owner, count, upToCount: !!upToM,
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t) },
+      },
+    };
+  }
+
+  // ---- ハンデス（相手手札捨て）----
+  if (t.includes('捨てさせる') || (t.includes('対戦相手は手札を') && t.includes('捨てる'))) {
+    // 見ないで選ぶ（ランダム）
+    const blindM = t.match(/対戦相手の手札を([０-９\d]+)枚見ないで選び、捨てさせる/)
+                ?? t.match(/対戦相手の手札を([０-９\d]+)枚見ないで選び捨てさせる/);
+    if (blindM) {
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(blindM[1]), blind: true } };
+    }
+    // 1枚版（「1枚」省略パターン）
+    if (t.match(/対戦相手の手札を.*見ないで選び/)) {
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } };
+    }
+    // 強制捨て
+    const forceM = t.match(/対戦相手は手札を([０-９\d]+)枚捨てる/);
+    if (forceM) {
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(forceM[1]) } };
+    }
+    // 「対戦相手は手札を1枚捨てる」
+    if (t.match(/対戦相手は手札を.*捨てる/)) {
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
+    }
+    // 見てからレベル指定で捨てさせる（複雑→UNKNOWN）
+  }
+
+  // ---- 自分手札を捨てる ----
+  const selfDiscardM = t.match(/^(?:あなたは)?手札を([０-９\d]+)枚捨てる$/);
+  if (selfDiscardM) {
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(selfDiscardM[1]) } };
+  }
+
+  // ---- サーチ（手札 or 場に出す）----
+  if (t.includes('デッキから') && t.includes('探して') && t.includes('シャッフル') &&
+      (t.includes('手札に加え') || t.includes('場に出し') || t.includes('トラッシュに置き'))) {
+    const filter: TargetFilter = {
+      ...parseCardTypeFilter(t),
+      ...parseLevelFilter(t),
+      ...parseColorFilter(t),
+      ...parseStoryFilter(t),
+    };
+    const nameM = t.match(/《([^》]+)》/);
+    if (nameM) filter.cardName = nameM[1];
+    const upToM = t.match(/([０-９\d]+)枚まで/);
+    const countM = t.match(/([０-９\d]+)枚を探/);
+    const maxCount = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
+    const toField = t.includes('場に出し');
+    const toTrash = t.includes('トラッシュに置き');
+    return {
+      type: 'SEARCH',
+      from: { location: 'deck', owner: 'self' },
+      filter,
+      maxCount,
+      then: toField
+        ? { type: 'ADD_TO_FIELD', owner: 'self' }
+        : toTrash
+          ? { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } }
+          : { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
+      afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
+    };
+  }
+
+  // ---- パワーパンプ / デバフ ----
+  const plusM = t.match(/パワーを＋([０-９\d]+)する/) ?? t.match(/パワーは＋([０-９\d]+)され/);
+  const minusM = t.match(/パワーを－([０-９\d]+)する/) ?? t.match(/パワーは－([０-９\d]+)され/);
+  if (plusM || minusM) {
+    const delta = plusM ? parseNum(plusM[1]) : -(parseNum(minusM![1]));
+    let target: EffectTarget;
+    if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたのシグニのパワーを/)) {
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t) } };
+    } else if (t.match(/対戦相手のシグニ([０-９\d]+)体/)) {
+      target = parseSigniTarget(t, 'opponent');
+    } else if (t.match(/あなたのシグニ([０-９\d]+)体/)) {
+      target = parseSigniTarget(t, 'self');
+    } else if (t.match(/このシグニ/)) {
+      target = { type: 'SIGNI', owner: 'self', count: 1 };
+    } else {
+      target = { type: 'SIGNI', owner: 'any', count: 1 };
+    }
+    return { type: 'POWER_MODIFY', target, delta };
+  }
+
+  // ---- パワーセット（基本パワーはNになる）----
+  const powerSetM = t.match(/(?:基本)?パワーは([０-９\d]+)になる/);
+  if (powerSetM) {
+    const target: EffectTarget = t.includes('このシグニ')
+      ? { type: 'SIGNI', owner: 'self', count: 1 }
+      : { type: 'SIGNI', owner: 'any', count: 1 };
+    return { type: 'POWER_SET', target, value: parseNum(powerSetM[1]) };
+  }
+
+  // ---- ダウンし凍結（複合）----
+  if (t.includes('ダウンし凍結')) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const signiTgt = parseSigniTarget(t, owner);
+    return { type: 'SEQUENCE', steps: [{ type: 'DOWN', target: signiTgt }, { type: 'FREEZE', target: signiTgt }] };
+  }
+
+  // ---- ダウン ----
+  if (t.includes('ダウンする') || t.match(/をダウン/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    if (t.includes('センタールリグ')) {
+      return { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 } };
+    }
+    return { type: 'DOWN', target: parseSigniTarget(t, owner) };
+  }
+
+  // ---- 凍結 ----
+  if (t.includes('凍結する')) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'FREEZE', target: parseSigniTarget(t, owner) };
+  }
+
+  // ---- アップ ----
+  if (t.includes('アップする') || t.match(/をアップ/)) {
+    if (t.includes('すべてのシグニをアップ') || t.match(/あなたのシグニ[をが]アップ/)) {
+      return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
+    }
+    return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 } };
+  }
+
+  // ---- デッキ上 → エナゾーン ----
+  if ((t.includes('デッキの一番上のカードをエナゾーンに置く')) ||
+      (t.includes('デッキの上からカードを') && t.includes('エナゾーンに置く'))) {
+    const cM = t.match(/カードを([０-９\d]+)枚/);
+    return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: cM ? parseNum(cM[1]) : 1 };
+  }
+
+  // ---- トラッシュ → 手札 ----
+  if (t.includes('トラッシュから') && t.includes('手札に加える')) {
+    const filter: TargetFilter = { ...parseCardTypeFilter(t) };
+    const upToM = t.match(/([０-９\d]+)枚まで/);
+    const cM = t.match(/([０-９\d]+)枚を対象/);
+    const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
+  }
+
+  // ---- トラッシュ → デッキ（全回収+シャッフル）----
+  if ((t.includes('トラッシュ') || t.includes('トラッシュにある')) &&
+      (t.includes('デッキに加え') || t.includes('デッキに戻し')) &&
+      (t.includes('シャッフル') || t.includes('シャッフルする'))) {
+    const all = t.includes('すべて') || t.includes('全て') || t.includes('全部');
+    const count = all ? 'ALL' : 1;
+    return {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'TRASH_CARD', owner: 'self', count },
+      shuffle: true,
+    } as TransferToDeckAction;
+  }
+
+  // ---- エナゾーン → 手札 ----
+  if (t.includes('エナゾーンから') && t.includes('手札に加える')) {
+    const upToM = t.match(/([０-９\d]+)枚まで/);
+    const cM = t.match(/([０-９\d]+)枚を対象/);
+    const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count, upToCount: !!upToM } };
+  }
+
+  // ---- デッキ上を見て並び替え ----
+  if (t.includes('デッキの上からカードを') && (t.includes('見て') || t.includes('見る')) &&
+      (t.includes('デッキの一番上に戻す') || t.includes('デッキの一番下に置き'))) {
+    const cM = t.match(/カードを([０-９\d]+)枚見/);
+    const toBottom = t.includes('デッキの一番下に置き');
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'self' },
+      count: cM ? parseNum(cM[1]) : 3,
+      private: true,
+      reorder: t.includes('好きな順番'),
+      canTrash: t.includes('トラッシュに置き'),
+      destination: { location: 'deck', owner: 'self', position: toBottom ? 'bottom' : 'top' },
+    };
+  }
+
+  // ---- デッキ一番上を見る（1枚確認）----
+  if (t.match(/デッキの一番上を見る/)) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'self' },
+      count: 1, private: true, reorder: false,
+      destination: { location: 'deck', owner: 'self', position: 'top' },
+    };
+  }
+
+  // ---- ライフクロスに加える ----
+  if (t.includes('ライフクロスに加える') || t.includes('ライフクロスに置く')) {
+    const cM = t.match(/カードを([０-９\d]+)枚/);
+    return { type: 'ADD_TO_LIFE', owner: 'self', count: cM ? parseNum(cM[1]) : 1, fromTop: true };
+  }
+
+  // ---- ライフクロスをクラッシュ ----
+  if (t.includes('ライフクロス') && t.includes('クラッシュ')) {
+    const op = t.includes('対戦相手');
+    const cM = t.match(/([０-９\d]+)枚をクラッシュ/) ?? t.match(/ライフクロス([０-９\d]+)枚/);
+    return { type: 'LIFE_CRASH', owner: op ? 'opponent' : 'self', count: cM ? parseNum(cM[1]) : 1, triggerBurst: true };
+  }
+
+  // ---- エナゾーンから場に出す ----
+  if (t.includes('エナゾーンから') && t.includes('場に出す')) {
+    return { type: 'ADD_TO_FIELD', owner: 'self' };
+  }
+
+  // ---- このシグニをトラッシュから場に出す（自己蘇生）----
+  if (t.match(/このシグニをトラッシュから場に出す/)) {
+    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } };
+  }
+
+  // ---- トラッシュからシグニを場に出す ----
+  if (t.includes('トラッシュから') && (t.includes('場に出す') || t.includes('場に出してもよい'))) {
+    const filter: TargetFilter = {
+      cardType: 'シグニ',
+      ...parseLevelFilter(t),
+      ...parseColorFilter(t),
+      ...parseStoryFilter(t),
+    };
+    const upToM = t.match(/([０-９\d]+)枚まで/);
+    const countM = t.match(/([０-９\d]+)枚を対象/);
+    const count = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
+    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
+  }
+
+  // ---- 場に出す（デッキ上から / 手札から など）----
+  if (t.includes('場に出してもよい') || (t.includes('場に出す') && !t.includes('エナ') && !t.includes('トラッシュ'))) {
+    return { type: 'ADD_TO_FIELD', owner: 'self' };
+  }
+
+  // ---- 効果耐性付与（「対戦相手の〜の効果を受けない」）----
+  if (t.includes('効果を受けない')) {
+    const from: string[] = [];
+    if (t.includes('ルリグ')) from.push('ルリグ');
+    if (t.match(/シグニの効果|シグニとシグニ|シグニ以外/)) from.push('シグニ');
+    if (t.includes('スペル')) from.push('スペル');
+    if (t.includes('アーツ')) from.push('アーツ');
+    if (from.length === 0) from.push('any');
+    const signiFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parsePowerFilter(t) };
+    const hasFilter = signiFilter.story || signiFilter.powerRange;
+    const target: EffectTarget = hasFilter
+      ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: signiFilter }
+      : { type: 'SIGNI', owner: 'self', count: 'ALL' };
+    return { type: 'GRANT_PROTECTION', target, from, sourceOwner: 'opponent', duration: 'PERMANENT' } as GrantProtectionAction;
+  }
+
+  // ---- チャーム付与 ----
+  if (t.includes('チャーム】にする') || t.includes('チャーム】にしてもよい')) {
+    const charmIsTopOfDeck = t.includes('デッキの一番上のカード');
+    const charmIsSelf = t.includes('このシグニをそれの') || t.includes('このシグニを');
+    const charm: EffectTarget = charmIsTopOfDeck
+      ? { type: 'DECK_CARD', owner: 'self', count: 1 }
+      : { type: 'SIGNI', owner: 'self', count: 1 };
+    const toTarget: EffectTarget = charmIsSelf && !charmIsTopOfDeck
+      ? { type: 'SIGNI', owner: 'self', count: 1, filter: parseStoryFilter(t) as TargetFilter }
+      : { type: 'SIGNI', owner: 'self', count: 1 };
+    return { type: 'ATTACH_CHARM', charm, to: toTarget } as AttachCharmAction;
+  }
+
+  // ---- キーワード能力（スタンドアロン形式：【XXX】（説明）or 【XXX】のみ）----
+  // 【マルチエナ】など CONTINUOUS 効果として記載されるキーワード能力
+  {
+    const saM = t.match(/^【([^】]+)】[（(]?/);
+    if (saM && !['常','出','起','自','ガード','エナチャージ'].includes(saM[1]) && !saM[1].match(/^エナチャージ/)) {
+      const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+      const target: EffectTarget = { type: 'SIGNI', owner: 'self', count: 1 };
+      return { type: 'GRANT_KEYWORD', target, keyword: saM[1], duration: dur };
+    }
+  }
+
+  // ---- キーワード能力付与（【ランサー】【ダブルクラッシュ】など）----
+  if (t.includes('を得る') || t.includes('を持つ')) {
+    const kwM = t.match(/【([^】]+)】/);
+    if (kwM && !['常','出','起','自','ガード'].includes(kwM[1])) {
+      const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+      // エナゾーンのカード全体 or シグニ or ルリグ
+      const target: EffectTarget = t.includes('エナゾーンにあるカード') || t.includes('エナゾーンのカード')
+        ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }
+        : t.includes('このシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
+        : t.includes('センタールリグ') ? { type: 'LRIG', owner: 'self', count: 1 }
+        : { type: 'SIGNI', owner: 'any', count: 1 };
+      return { type: 'GRANT_KEYWORD', target, keyword: kwM[1], duration: dur };
+    }
+  }
+
+  // ---- 【ガード】キーワード（説明文はスキップ）----
+  if (t.startsWith('【ガード】')) {
+    return { type: 'UNKNOWN', raw: '【ガード】（ルール処理済み）' };
+  }
+
+  // ---- 不明 ----
+  return { type: 'UNKNOWN', raw: t };
+}
+
+// ===== 文分割 =====
+
+function splitSentences(text: string): string[] {
+  return text.split(/(?<=。)/).filter(s => s.trim() && s !== '。');
+}
+
+// ===== アクションテキスト全体パース =====
+
+function parseActionText(text: string): EffectAction {
+  const sentences = splitSentences(text);
+  if (sentences.length === 0) return { type: 'UNKNOWN', raw: text };
+  if (sentences.length === 1) return parseSingleSentence(sentences[0]);
+
+  // ---- デッキの一番上を公開 → 条件分岐（それが〜の場合）----
+  if (sentences[0].trim().match(/デッキの一番上を公開する/) && sentences.length >= 2) {
+    const condM = sentences[1].trim().match(/^それが(.+?)のシグニの場合、(.+)/);
+    if (condM) {
+      const storyFilter = parseStoryFilter(condM[1]);
+      const filter: TargetFilter = { cardType: 'シグニ', ...storyFilter };
+      const thenText = condM[2].replace(/。$/, '');
+      const thenAction: EffectAction = thenText.match(/カードを([０-９\d]+)枚引く/)
+        ? { type: 'DRAW', owner: 'self', count: parseNum(thenText.match(/カードを([０-９\d]+)枚引く/)![1]) }
+        : { type: 'TRANSFER_TO_HAND', source: { type: 'DECK_CARD', owner: 'self', count: 1, filter } };
+      return { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, filter, pickCount: 1, then: thenAction, remainder: { location: 'deck', position: 'top' } } as RevealAndPickAction;
+    }
+  }
+
+  // ---- デッキの上からN枚公開 → その中からフィルタでピック → 残りをデッキに戻す ----
+  if (sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚公開する/) && sentences.length >= 2) {
+    const revM = sentences[0].match(/([０-９\d]+)枚公開する/);
+    const pickM = sentences[1].trim().match(/その中から(.+?)のシグニ([０-９\d]+|すべて)枚?を手札に加える/);
+    const remainM = sentences.find(s => s.includes('デッキの一番上に戻す') || s.includes('デッキの一番下に置'));
+    if (revM && pickM) {
+      const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(pickM[1]) };
+      const pickCount = pickM[2] === 'すべて' ? 'ALL' : parseNum(pickM[2]);
+      return {
+        type: 'REVEAL_AND_PICK', owner: 'self',
+        revealCount: parseNum(revM[1]),
+        filter, pickCount,
+        then: { type: 'ADD_TO_HAND', owner: 'self' },
+        remainder: remainM?.includes('一番下') ? { location: 'deck', position: 'bottom' } : { location: 'deck', position: 'top' },
+      } as RevealAndPickAction;
+    }
+  }
+
+  const steps: EffectAction[] = [];
+  for (const s of sentences) {
+    const clean = s.trim();
+    if (!clean) continue;
+    // 「そうした場合、」「その後、〜の場合、」はCONDITIONALとして前のステップと結合
+    const thenM = clean.match(/^(?:そうした場合、|その後、([^、]+の場合、))/);
+    if (thenM && steps.length > 0) {
+      const rest = clean.slice(thenM[0].length);
+      const thenAction = parseSingleSentence(rest);
+      steps.push({ type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: thenAction });
+    } else {
+      steps.push(parseSingleSentence(clean));
+    }
+  }
+
+  if (steps.length === 1) return steps[0];
+  return { type: 'SEQUENCE', steps };
+}
+
+// ===== 効果ブロック分割 =====
+
+function splitEffectBlocks(text: string): string[] {
+  // 「。」の直後に【常/出/起/自/ガード】が来る箇所で分割（lookbehind）
+  return text.split(/(?<=。)(?=【(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
+}
+
+// ===== 単一ブロックパース =====
+
+function parseBlock(cardNum: string, block: string, index: number): CardEffect | null {
+  const typeM = block.match(/^【(常|出|起|自|ガード)】/);
+  if (!typeM) return null;
+  const marker = typeM[1];
+
+  // 【ガード】キーワードは効果として登録しない（ルール処理済み）
+  if (marker === 'ガード') return null;
+
+  const afterMarker = block.slice(typeM[0].length);
+  const colonIdx = afterMarker.indexOf('：');
+  if (colonIdx < 0) return null;
+
+  const costStr = afterMarker.slice(0, colonIdx).trim();
+  const actionText = afterMarker.slice(colonIdx + 1).trim();
+
+  let effectType: EffectType;
+  let timing: EffectTiming[] | undefined;
+  let mandatory = false;
+
+  switch (marker) {
+    case '常': effectType = 'CONTINUOUS'; mandatory = true; break;
+    case '出':
+      effectType = 'AUTO'; timing = ['ON_PLAY'];
+      mandatory = costStr === '';
+      break;
+    case '起': effectType = 'ACTIVATED'; timing = ['MAIN']; break;
+    case '自':
+      effectType = 'AUTO';
+      timing = actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
+             : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
+             : ['ON_PLAY'];
+      mandatory = true;
+      break;
+    default: return null;
+  }
+
+  const cost = parseCost(costStr);
+  let activeCondition: ActiveCondition | undefined;
+  let resolvedAction: EffectAction;
+  let parseStatus: CardEffect['parseStatus'] = 'AUTO';
+
+  if (effectType === 'CONTINUOUS') {
+    const { condition, rest, conditionFound } = parseActiveCondition(actionText);
+    activeCondition = condition;
+    resolvedAction = parseActionText(rest || actionText);
+    // 条件が見つかったが解析できなかった場合はPARTIAL
+    if (conditionFound && !condition) parseStatus = 'PARTIAL';
+  } else {
+    resolvedAction = parseActionText(actionText);
+  }
+
+  if (resolvedAction.type === 'UNKNOWN') {
+    parseStatus = 'UNKNOWN';
+  } else if (resolvedAction.type === 'SEQUENCE') {
+    const seq = resolvedAction as SequenceAction;
+    if (seq.steps.some(s => s.type === 'UNKNOWN')) parseStatus = 'PARTIAL';
+  }
+
+  const duration: EffectDuration = effectType === 'CONTINUOUS' ? 'PERMANENT'
+    : actionText.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
+    : 'INSTANT';
+
+  return {
+    effectId: `${cardNum}-E${index + 1}`,
+    effectType,
+    timing,
+    activeCondition,
+    cost,
+    action: resolvedAction,
+    duration,
+    mandatory,
+    parseStatus,
+  };
+}
+
+// ===== アーツ・スペルパース =====
+
+function parseArtsEffect(card: CardData): CardEffect | null {
+  if (!card.EffectText || card.EffectText === '-') return null;
+  const action = parseActionText(card.EffectText);
+  const hasUnknown = action.type === 'UNKNOWN'
+    || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
+  return {
+    effectId: `${card.CardNum}-E1`,
+    effectType: 'ACTIVATED',
+    timing: parseArtsTiming(card.Timing ?? ''),
+    cost: parseCost(card.Cost),
+    action,
+    duration: 'INSTANT',
+    mandatory: false,
+    parseStatus: hasUnknown ? (action.type === 'UNKNOWN' ? 'UNKNOWN' : 'PARTIAL') : 'AUTO',
+  };
+}
+
+function parseSpellEffect(card: CardData): CardEffect | null {
+  if (!card.EffectText || card.EffectText === '-') return null;
+  const action = parseActionText(card.EffectText);
+  return {
+    effectId: `${card.CardNum}-E1`,
+    effectType: 'ACTIVATED',
+    timing: ['MAIN'],
+    cost: parseCost(card.Cost),
+    action,
+    duration: 'INSTANT',
+    mandatory: false,
+    parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : 'AUTO',
+  };
+}
+
+function parseBurstEffect(card: CardData): CardEffect | null {
+  if (!card.BurstText || card.BurstText === '-') return null;
+  const raw = card.BurstText.replace(/^：/, '').trim();
+  if (!raw) return null;
+  const action = parseActionText(raw);
+  return {
+    effectId: `${card.CardNum}-BURST`,
+    effectType: 'LIFE_BURST',
+    timing: ['ON_LIFE_BURST'],
+    action,
+    duration: 'INSTANT',
+    mandatory: false,
+    parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : 'AUTO',
+  };
+}
+
+// ===== メインエクスポート =====
+
+export function parseCardEffects(card: CardData): CardEffect[] {
+  const effects: CardEffect[] = [];
+
+  if (card.Type === 'アーツ') {
+    const e = parseArtsEffect(card);
+    if (e) effects.push(e);
+  } else if (card.Type === 'スペル') {
+    const e = parseSpellEffect(card);
+    if (e) effects.push(e);
+  } else {
+    // シグニ・ルリグ：EffectTextを複数ブロックに分割して解析
+    if (card.EffectText && card.EffectText !== '-') {
+      splitEffectBlocks(card.EffectText).forEach((block, i) => {
+        const e = parseBlock(card.CardNum, block, i);
+        if (e) effects.push(e);
+      });
+    }
+  }
+
+  // ライフバースト（全タイプ共通）
+  if (card.LifeBurst === '1' && card.BurstText && card.BurstText !== '-') {
+    const burst = parseBurstEffect(card);
+    if (burst) effects.push(burst);
+  }
+
+  return effects;
+}
+
+// CardData[] → Map<CardNum, CardEffect[]>（ゲーム起動時に使用）
+/**
+ * AUTO ON_PLAY 効果のテキストから triggerScope を推定する。
+ * Supabase 保存済みの effects には triggerScope が含まれていない場合があるため、
+ * 実行時にカードテキストから動的に補完する。
+ */
+function inferTriggerScope(effect: CardEffect, card: CardData): import('../types/effects').TriggerScope | undefined {
+  if (effect.effectType !== 'AUTO') return undefined;
+  if (!effect.timing?.includes('ON_PLAY')) return undefined;
+  const text = (card.EffectText ?? '') + (card.BurstText ?? '');
+  // 「他のシグニが場に出たとき」「あなたのシグニが場に出たとき」→ 味方シグニ全体
+  if (/他の.*シグニ.*場に出たとき/.test(text) ||
+      /あなたのシグニが場に出たとき/.test(text)) {
+    return 'any_ally';
+  }
+  // 「対戦相手.*シグニ.*場に出たとき」→ 相手シグニ
+  if (/対戦相手.*シグニ.*場に出たとき/.test(text)) {
+    return 'any_opp';
+  }
+  return undefined; // 'self'（このカード自身が出たとき）
+}
+
+export function buildEffectsMap(cards: CardData[]): Map<string, CardEffect[]> {
+  const map = new Map<string, CardEffect[]>();
+  for (const card of cards) {
+    // Supabaseからプリパース済みeffectsがある場合はそれを優先
+    const raw = (card.effects && card.effects.length > 0)
+      ? card.effects
+      : parseCardEffects(card);
+    // triggerScope を動的に補完（Supabase保存時に欠けている場合に対応）
+    const effects = raw.map(e =>
+      e.triggerScope !== undefined
+        ? e
+        : { ...e, triggerScope: inferTriggerScope(e, card) },
+    );
+    if (effects.length > 0) map.set(card.CardNum, effects);
+  }
+  return map;
+}
+
+// 解析統計（デバッグ用）
+export function analyzeParseResults(cards: CardData[]): {
+  total: number; auto: number; partial: number; unknown: number;
+  unknownCards: { cardNum: string; cardName: string; raw: string }[];
+} {
+  let auto = 0, partial = 0, unknown = 0;
+  const unknownCards: { cardNum: string; cardName: string; raw: string }[] = [];
+  for (const card of cards) {
+    for (const e of parseCardEffects(card)) {
+      if (e.parseStatus === 'AUTO') auto++;
+      else if (e.parseStatus === 'PARTIAL') partial++;
+      else if (e.parseStatus === 'UNKNOWN') {
+        unknown++;
+        unknownCards.push({
+          cardNum: card.CardNum,
+          cardName: card.CardName,
+          raw: (e.action as UnknownAction).raw ?? e.effectId,
+        });
+      }
+    }
+  }
+  return { total: auto + partial + unknown, auto, partial, unknown, unknownCards };
+}

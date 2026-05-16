@@ -1,0 +1,232 @@
+import type { PlayerState, CardData } from '../types';
+import type {
+  CardEffect,
+  ActiveCondition,
+  EffectAction,
+  PowerModifyAction,
+  TargetFilter,
+} from '../types/effects';
+
+// ===== activeCondition 判定 =====
+
+function checkActiveCondition(
+  cond: ActiveCondition | undefined,
+  ownerState: PlayerState,   // 効果を持つカードのオーナー
+  otherState: PlayerState,   // 相手
+  isOwnerTurn: boolean,      // 効果オーナーのターンかどうか
+): boolean {
+  if (!cond) return true;
+  switch (cond.type) {
+    case 'TURN_OWNER':
+      return cond.owner === 'self' ? isOwnerTurn : !isOwnerTurn;
+
+    case 'HAS_CARD_IN_FIELD': {
+      const state = cond.owner === 'self' ? ownerState : otherState;
+      return state.field.signi.some(stack =>
+        stack?.some(num => {
+          if (cond.filter.cardName) return num === cond.filter.cardName;
+          if (cond.filter.cardNum)  return num === cond.filter.cardNum;
+          return true;
+        })
+      );
+    }
+
+    case 'COUNT_THRESHOLD': {
+      const state = cond.owner === 'self' ? ownerState : otherState;
+      const count = getLocationCount(state, cond.location);
+      switch (cond.operator) {
+        case 'gte': return count >= cond.value;
+        case 'lte': return count <= cond.value;
+        case 'gt':  return count >  cond.value;
+        case 'lt':  return count <  cond.value;
+        case 'eq':  return count === cond.value;
+        case 'neq': return count !== cond.value;
+      }
+      break;
+    }
+
+    case 'SELF_POWER_THRESHOLD':
+      // 自身のパワーは動的に変わるため、ここでは常に true として扱う（近似）
+      return true;
+
+    case 'HAND_DIFF': {
+      const diff = ownerState.hand.length - otherState.hand.length;
+      switch (cond.operator) {
+        case 'gte': return diff >= cond.value;
+        case 'lte': return diff <= cond.value;
+        case 'gt':  return diff >  cond.value;
+        case 'lt':  return diff <  cond.value;
+        case 'eq':  return diff === cond.value;
+        case 'neq': return diff !== cond.value;
+      }
+      break;
+    }
+  }
+  return true;
+}
+
+function getLocationCount(state: PlayerState, location: string): number {
+  switch (location) {
+    case 'hand':     return state.hand.length;
+    case 'trash':    return state.trash.length;
+    case 'energy':   return state.energy.length;
+    case 'deck':     return state.deck.length;
+    case 'life_cloth': return state.life_cloth.length;
+    default:         return 0;
+  }
+}
+
+// ===== フィルタ判定 =====
+
+function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | undefined): boolean {
+  if (!filter || !cardData) return true;
+  if (filter.cardType) {
+    const types = Array.isArray(filter.cardType) ? filter.cardType : [filter.cardType];
+    if (!types.includes(cardData.Type as typeof types[number])) return false;
+  }
+  if (filter.color) {
+    const colors = Array.isArray(filter.color) ? filter.color : [filter.color];
+    if (!colors.some(c => cardData.Color?.includes(c))) return false;
+  }
+  if (filter.level !== undefined) {
+    const lvNum = parseInt(cardData.Level ?? '', 10);
+    if (typeof filter.level === 'number') {
+      if (lvNum !== filter.level) return false;
+    } else {
+      if (filter.level.min !== undefined && lvNum < filter.level.min) return false;
+      if (filter.level.max !== undefined && lvNum > filter.level.max) return false;
+    }
+  }
+  if (filter.powerRange) {
+    const pw = parseInt(cardData.Power ?? '', 10);
+    if (filter.powerRange.min !== undefined && pw < filter.powerRange.min) return false;
+    if (filter.powerRange.max !== undefined && pw > filter.powerRange.max) return false;
+  }
+  return true;
+}
+
+// ===== POWER_MODIFY アクション抽出 =====
+
+function extractPowerModifies(action: EffectAction): PowerModifyAction[] {
+  if (action.type === 'POWER_MODIFY') return [action];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifies(s));
+  }
+  if (action.type === 'CONDITIONAL') {
+    return [...extractPowerModifies(action.then), ...(action.else ? extractPowerModifies(action.else) : [])];
+  }
+  return [];
+}
+
+// ===== フィールドシグニの有効パワー計算 =====
+
+/**
+ * フィールド上のシグニ全体の有効パワーを計算する。
+ * @param myState  - ローカルプレイヤーの状態
+ * @param opState  - 相手プレイヤーの状態
+ * @param isMyTurn - ローカルプレイヤーのターンかどうか
+ * @param effectsMap - CardNum → CardEffect[] のマップ
+ * @param cardMap    - CardNum → CardData のマップ
+ * @returns CardNum → 有効パワー（数値）のマップ。フィールドにいないカードは含まれない
+ */
+export function calcFieldPowers(
+  myState: PlayerState,
+  opState: PlayerState,
+  isMyTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Map<string, number> {
+  // ベースパワーを収集（フィールドの最前面シグニ）
+  const powers = new Map<string, number>();
+
+  const collectBase = (state: PlayerState) => {
+    for (const stack of state.field.signi) {
+      if (!stack || stack.length === 0) continue;
+      const topNum = stack[stack.length - 1];
+      const card = cardMap.get(topNum);
+      const base = parseInt(card?.Power ?? '', 10);
+      if (!isNaN(base)) powers.set(topNum, base);
+    }
+  };
+  collectBase(myState);
+  collectBase(opState);
+
+  // フィールド上のすべてのカードの CONTINUOUS POWER_MODIFY を適用
+  const applyEffects = (ownerState: PlayerState, otherState: PlayerState, isOwnerTurn: boolean) => {
+    for (const stack of ownerState.field.signi) {
+      if (!stack || stack.length === 0) continue;
+      const topNum = stack[stack.length - 1];
+      const effects = effectsMap.get(topNum);
+      if (!effects) continue;
+
+      for (const effect of effects) {
+        if (effect.effectType !== 'CONTINUOUS') continue;
+        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn)) continue;
+
+        const mods = extractPowerModifies(effect.action);
+        for (const mod of mods) {
+          const delta = typeof mod.delta === 'number' ? mod.delta : 0;
+          const target = mod.target;
+
+          // ターゲットのオーナー決定（self=このカードのオーナー、opponent=相手）
+          const targetIsOwner = target.owner === 'self' || target.owner === 'any';
+          const targetIsOther  = target.owner === 'opponent' || target.owner === 'any';
+
+          if (targetIsOwner) {
+            applyDeltaToState(ownerState, delta, target.filter, cardMap, powers);
+          }
+          if (targetIsOther) {
+            applyDeltaToState(otherState, delta, target.filter, cardMap, powers);
+          }
+        }
+      }
+    }
+  };
+
+  applyEffects(myState, opState, isMyTurn);
+  applyEffects(opState, myState, !isMyTurn);
+
+  // temp_power_mods（起動・自動効果によるターン内一時パワー修正）を適用
+  const applyTempMods = (state: PlayerState) => {
+    for (const mod of state.temp_power_mods ?? []) {
+      if (powers.has(mod.cardNum)) {
+        powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + mod.delta);
+      }
+    }
+  };
+  applyTempMods(myState);
+  applyTempMods(opState);
+
+  return powers;
+}
+
+function applyDeltaToState(
+  state: PlayerState,
+  delta: number,
+  filter: TargetFilter | undefined,
+  cardMap: Map<string, CardData>,
+  powers: Map<string, number>,
+) {
+  for (const stack of state.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const topNum = stack[stack.length - 1];
+    if (!powers.has(topNum)) continue;
+    const card = cardMap.get(topNum);
+    if (!matchesFilter(card, filter)) continue;
+    powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+  }
+}
+
+/**
+ * ルリグのルリグデッキ（アシスト含む）の CONTINUOUS 効果も考慮する場合に拡張可能。
+ * 現時点ではフィールドシグニのみ対象。
+ */
+export function getEffectivePower(
+  cardNum: string,
+  powers: Map<string, number>,
+  cardMap: Map<string, CardData>,
+): number {
+  if (powers.has(cardNum)) return powers.get(cardNum)!;
+  const card = cardMap.get(cardNum);
+  return parseInt(card?.Power ?? '', 10) || 0;
+}
