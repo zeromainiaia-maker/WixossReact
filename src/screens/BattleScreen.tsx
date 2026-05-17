@@ -2294,8 +2294,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ルリグのクラス（制限チェック共通）
   const lrigClass = currentLrig?.CardClass ?? '';
 
-  // シグニ召喚: リミット計算
-  const lrigLimit = parseInt(currentLrig?.Limit ?? '0') || 0;
+  // シグニ召喚: リミット計算（アシストルリグが各スロットに存在する場合+1ずつ）
+  const lrigLimit = (parseInt(currentLrig?.Limit ?? '0') || 0)
+    + ((my.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
+    + ((my.field.assist_lrig_r ?? []).length > 0 ? 1 : 0);
   const fieldSigniTopLevels: number[] = my.field.signi.map(stack => {
     if (!stack || stack.length === 0) return 0;
     const top = battleCardMap.get(stack[stack.length - 1]);
