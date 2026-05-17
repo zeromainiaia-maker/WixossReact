@@ -2628,27 +2628,83 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return actionList;
   };
 
-  // ルリグデッキのカードアクション（アーツ使用）
+  // ルリグデッキのカードアクション（アーツ / キーピース / アシストルリグ）
   const getMyLrigDeckCardActions = (cardNum: string): CardAction[] => {
     if (loading) return [];
     const cardData = battleCardMap.get(cardNum);
-    if (!cardData || cardData.Type !== 'アーツ') return [];
+    if (!cardData) return [];
     if (!meetsRestriction(cardData.Restriction, lrigClass)) return [];
 
     const phase = bs.turn_phase;
-    // 使用できるフェイズと担当プレイヤーの判定
-    const canUse =
-      (phase === 'MAIN'         && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
-      (phase === 'ATTACK_ARTS'  && isMyTurn  && cardData.Timing.includes('アタックフェイズ')) ||
-      (phase === 'ATTACK_ARTS_OP' && !isMyTurn && cardData.Timing.includes('アタックフェイズ'));
+    const actions: CardAction[] = [];
 
-    if (!canUse) return [];
-    if (!canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants)) return [];
-    return [{
-      label: '使用',
-      color: C.coin,
-      onClick: () => { setPendingArtsCard(cardData); setSelectedArtsCost(new Set()); setShowArtsModal(true); },
-    }];
+    // ── アーツ ──
+    if (cardData.Type === 'アーツ') {
+      const canUse =
+        (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
+        (phase === 'ATTACK_ARTS'    && isMyTurn  && cardData.Timing.includes('アタックフェイズ')) ||
+        (phase === 'ATTACK_ARTS_OP' && !isMyTurn && cardData.Timing.includes('アタックフェイズ'));
+      if (canUse && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants)) {
+        actions.push({
+          label: '使用',
+          color: C.coin,
+          onClick: () => { setPendingArtsCard(cardData); setSelectedArtsCost(new Set()); setShowArtsModal(true); },
+        });
+      }
+    }
+
+    // ── キーピース ──
+    if ((cardData.Type === 'キー' || cardData.Type === 'ピース') && !my.field.key_piece) {
+      const timing = cardData.Timing ?? '';
+      const canUse =
+        (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
+        (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ'));
+      const coinNeeded = parseCoinCost(cardData.Cost);
+      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants);
+      if (canUse && canAfford) {
+        actions.push({
+          label: 'キーにセット',
+          color: '#cc8800',
+          onClick: () => { setPendingKeyCard(cardData); setSelectedKeyCost(new Set()); setShowKeyModal(true); },
+        });
+      }
+    }
+
+    // ── アシストルリグ ──
+    if (cardData.Type === 'アシストルリグ' && isMyTurn) {
+      const canGrow = phase === 'MAIN' || phase === 'GROW' || phase === 'ATTACK_ARTS';
+      if (canGrow && canAffordGrowCost(my.energy, battleCards, cardData.GrowCost, my.keyword_grants)) {
+        const targetLevel = parseInt(cardData.Level) || 0;
+        if (targetLevel <= currentLrigLevel) {
+          // 左スロット
+          const lStack = my.field.assist_lrig_l ?? [];
+          const lTopLevel = lStack.length > 0
+            ? (parseInt(battleCardMap.get(lStack[lStack.length - 1])?.Level ?? '') || 0)
+            : -1;
+          if (targetLevel === lTopLevel + 1) {
+            actions.push({
+              label: 'グロウ(左)',
+              color: '#6644aa',
+              onClick: () => { setPendingAssistGrowCard(cardData); setPendingAssistSide('l'); setSelectedAssistGrowCost(new Set()); setShowAssistGrowModal(true); },
+            });
+          }
+          // 右スロット
+          const rStack = my.field.assist_lrig_r ?? [];
+          const rTopLevel = rStack.length > 0
+            ? (parseInt(battleCardMap.get(rStack[rStack.length - 1])?.Level ?? '') || 0)
+            : -1;
+          if (targetLevel === rTopLevel + 1) {
+            actions.push({
+              label: 'グロウ(右)',
+              color: '#6644aa',
+              onClick: () => { setPendingAssistGrowCard(cardData); setPendingAssistSide('r'); setSelectedAssistGrowCost(new Set()); setShowAssistGrowModal(true); },
+            });
+          }
+        }
+      }
+    }
+
+    return actions;
   };
 
   // ライフクロスを1枚クラッシュし、チェック状態にする
