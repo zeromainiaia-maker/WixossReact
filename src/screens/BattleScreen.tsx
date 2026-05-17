@@ -2852,10 +2852,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const signiLevel = parseInt(cardData.Level) || 0;
         // レベル制限: シグニLv ≤ ルリグLv
         const levelOk = signiLevel <= currentLrigLevel;
-        // 空ゾーン制限: 空のゾーンにのみ召喚可能、かつ合計レベルがリミット以内
+        // リミット制限: 召喚後の合計レベルがリミット以内のゾーンが1つ以上あれば召喚可
+        // 既存シグニのいるゾーンにも召喚可（既存はトラッシュへ）。その場合は既存Lvを差し引く
         const canFitSomewhere = [0, 1, 2].some(zi => {
-          const isEmpty = (my.field.signi[zi] ?? []).length === 0;
-          return isEmpty && (fieldSigniTotal + signiLevel) <= lrigLimit;
+          const existingLevel = fieldSigniTopLevels[zi] ?? 0;
+          return (fieldSigniTotal - existingLevel + signiLevel) <= lrigLimit;
         });
         // Restriction チェック
         const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass);
