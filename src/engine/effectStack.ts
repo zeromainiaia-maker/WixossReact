@@ -73,10 +73,24 @@ export function isStackDone(stack: EffectStack): boolean {
 /**
  * 既存スタックに新しいエントリを追加する。
  * 追加後は順序が未確定に戻る（両プレイヤーが再度整列の機会を得る）。
+ *
+ * 両プレイヤーが既に順序確定済みの場合（解決中に新トリガーが発生した場合）は、
+ * 解決済みエントリの二重発動を防ぐためキューに直接追記する。
  */
 export function pushToStack(stack: EffectStack, entries: StackEntry[]): EffectStack {
   const addTurn = entries.filter(e => e.playerId === stack.turnPlayerId);
   const addOpp  = entries.filter(e => e.playerId !== stack.turnPlayerId);
+
+  // 両者確定済み（解決中に新トリガー発生）→ キューに直接追加
+  if (stack.orderTurnDone && stack.orderOppDone) {
+    return {
+      ...stack,
+      pendingTurn: [...stack.pendingTurn, ...addTurn],
+      pendingOpp:  [...stack.pendingOpp,  ...addOpp],
+      queue: [...stack.queue, ...entries],
+    };
+  }
+
   const pendingTurn = [...stack.pendingTurn, ...addTurn];
   const pendingOpp  = [...stack.pendingOpp,  ...addOpp];
   // 追加があったプレイヤーの確定をリセット
