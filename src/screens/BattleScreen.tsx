@@ -623,10 +623,12 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
 
   return (
     <>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div
         style={{
           position: 'relative', width, height: height + extraH, flexShrink: 0,
           userSelect: 'none', touchAction: 'none', cursor: 'pointer',
+          borderRadius: charmCardNum ? '4px 4px 0 0' : 4,
         }}
         onClick={() => { if (n) setShowModal(true); }}
         onTouchStart={handleTouchStart}
