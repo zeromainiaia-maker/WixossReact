@@ -215,7 +215,8 @@ function selectOrInteract(
     );
   }
   if (filteredCands.length === 0) return done(ctx);
-  if (filteredCands.length <= count) {
+  // optional=true（「してもよい」）の場合は自動適用せずプレイヤーに選ばせる
+  if (!optional && filteredCands.length <= count) {
     return done(autoApply(filteredCands, ctx));
   }
   return needsInteraction(ctx, {
