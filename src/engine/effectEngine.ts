@@ -262,6 +262,59 @@ function applyDeltaToState(
   }
 }
 
+// ===== アクティブなコスト修正を計算 =====
+
+export interface ActiveCostMod {
+  direction: 'increase' | 'decrease';
+  targetCardType: string;
+  amount: EnergyCost[];
+}
+
+/**
+ * フィールドの CONTINUOUS CostIncrease/CostReduction 効果を収集する。
+ * - self側の修正 = 自分のフィールドカードによるもの（自分のコストへ影響する場合と相手へ影響する場合）
+ * - BattleScreen でスペル/アーツ使用コスト計算時に呼び出す
+ */
+export function calcActiveCostMods(
+  myState: PlayerState,
+  opState: PlayerState,
+  isMyTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): { forMy: ActiveCostMod[]; forOp: ActiveCostMod[] } {
+  const forMy: ActiveCostMod[] = [];
+  const forOp: ActiveCostMod[] = [];
+
+  const scanOwner = (ownerState: PlayerState, otherState: PlayerState, isOwnerTurn: boolean) => {
+    const candidates: string[] = [];
+    for (const stack of ownerState.field.signi) {
+      if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
+    }
+    if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig[ownerState.field.lrig.length - 1]);
+
+    for (const topNum of candidates) {
+      const effects = effectsMap.get(topNum);
+      if (!effects) continue;
+      for (const effect of effects) {
+        if (effect.effectType !== 'CONTINUOUS') continue;
+        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn)) continue;
+        // CostIncrease: targetOwner が 'opponent' なら相手のコストを増やす
+        const increases = extractCostIncreases(effect.action);
+        for (const inc of increases) {
+          const target = inc.targetOwner === 'opponent' ? forOp : forMy;
+          target.push({ direction: 'increase', targetCardType: inc.targetCardType, amount: inc.amount });
+        }
+      }
+    }
+  };
+
+  const myIsOwner = true;
+  scanOwner(myState, opState, isMyTurn && myIsOwner);
+  scanOwner(opState, myState, !isMyTurn);
+
+  return { forMy, forOp };
+}
+
 /**
  * ルリグのルリグデッキ（アシスト含む）の CONTINUOUS 効果も考慮する場合に拡張可能。
  * 現時点ではフィールドシグニのみ対象。
