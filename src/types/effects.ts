@@ -346,6 +346,7 @@ export interface TransferToDeckAction {
   type: 'TRANSFER_TO_DECK';
   source: EffectTarget;
   shuffle: boolean;
+  destination?: 'deck' | 'lrig_deck'; // 省略時は 'deck'
 }
 
 // スペル/アーツの効果を打ち消す
