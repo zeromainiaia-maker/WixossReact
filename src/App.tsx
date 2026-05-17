@@ -3,7 +3,7 @@ import Papa from 'papaparse';
 import { supabase } from './supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { ViewMode, CardData, Deck } from './types';
-import { parseCardEffects } from './data/effectParser';
+import type { CardEffect } from './types/effects';
 import LoginScreen from './screens/LoginScreen';
 import StartScreen from './screens/StartScreen';
 import DeckListScreen from './screens/DeckListScreen';
