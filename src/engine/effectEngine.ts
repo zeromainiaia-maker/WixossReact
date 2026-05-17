@@ -213,6 +213,17 @@ export function calcFieldPowers(
             applyDeltaToState(otherState, delta, target.filter, cardMap, powers);
           }
         }
+
+        // POWER_MODIFY_PER_STACK: このカードのスタック枚数に比例したパワー増減
+        const perStackMods = extractPowerModifiesPerStack(effect.action);
+        for (const mod of perStackMods) {
+          // topNum のスタック（スタック最上面を除く下のカード数）を取得
+          const stack = ownerState.field.signi.find(s => s?.at(-1) === topNum);
+          const stackBelow = stack ? stack.length - 1 : 0;
+          if (stackBelow <= 0) continue;
+          const stackDelta = mod.deltaPerCard * stackBelow;
+          applyDeltaToState(ownerState, stackDelta, mod.target.filter, cardMap, powers);
+        }
       }
     }
   };
