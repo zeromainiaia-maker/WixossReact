@@ -4,7 +4,11 @@ import type {
   ActiveCondition,
   EffectAction,
   PowerModifyAction,
+  PowerModifyPerStackAction,
+  CostIncreaseAction,
   TargetFilter,
+  Owner,
+  EnergyCost,
 } from '../types/effects';
 
 // ===== activeCondition 判定 =====
