@@ -4472,6 +4472,284 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         </div>
       </div>
 
+      {/* ===== キーピース 使用モーダル ===== */}
+      {showKeyModal && pendingKeyCard && createPortal(
+        <div onClick={() => { setShowKeyModal(false); setPendingKeyCard(null); setSelectedKeyCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const card = pendingKeyCard;
+              const coinNeeded = parseCoinCost(card.Cost);
+              const energyTotal = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
+              const selectedNums = [...selectedKeyCost].map(i => my.energy[i]);
+              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants));
+              const canAfford = energyOk && my.coins >= coinNeeded;
+              return (
+                <>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    キーにセット
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <img src={card.ImgURL} alt={card.CardName}
+                      style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                    <div>
+                      <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
+                      <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
+                        コスト: {[coinNeeded > 0 ? `コイン${coinNeeded}個` : null, energyTotal > 0 ? `エナ${energyTotal}枚` : null].filter(Boolean).join('・') || 'なし'}
+                      </p>
+                      {coinNeeded > 0 && <p style={{ color: my.coins >= coinNeeded ? C.coin : C.danger, fontSize: 11, margin: '2px 0 0' }}>手持ちコイン: {my.coins}</p>}
+                    </div>
+                  </div>
+                  {energyTotal > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>エナゾーンから選択: {selectedKeyCost.size} / {energyTotal}枚</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.energy.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedKeyCost.has(i);
+                          return (
+                            <div key={i} onClick={() => setSelectedKeyCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #f44336' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => { setShowKeyModal(false); setPendingKeyCard(null); setSelectedKeyCost(new Set()); }} disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      キャンセル
+                    </button>
+                    <button onClick={() => executeKeyPiece(card, selectedKeyCost)} disabled={loading || !canAfford}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: (loading || !canAfford) ? C.disabled : '#cc8800',
+                        color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
+                      セット
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ===== キーピース 起動効果モーダル ===== */}
+      {pendingKeyActivated && createPortal(
+        <div onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const card = battleCardMap.get(pendingKeyActivated.cardNum);
+              const eff = pendingKeyActivated.effect;
+              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const selectedNums = [...selectedKeyActivatedCost].map(i => my.energy[i]);
+              const canAfford = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants));
+              return (
+                <>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>キー【起】効果を発動</p>
+                  {card && (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <img src={card.ImgURL} alt={card.CardName} style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                      <div>
+                        <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
+                        <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>コスト: {energyTotal > 0 ? `エナ${energyTotal}枚` : 'なし'}</p>
+                      </div>
+                    </div>
+                  )}
+                  {energyTotal > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>エナゾーンから選択: {selectedKeyActivatedCost.size} / {energyTotal}枚</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.energy.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedKeyActivatedCost.has(i);
+                          return (
+                            <div key={i} onClick={() => setSelectedKeyActivatedCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #f44336' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => { setPendingKeyActivated(null); setSelectedKeyActivatedCost(new Set()); }} disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      キャンセル
+                    </button>
+                    <button onClick={() => executeKeyActivated(pendingKeyActivated.cardNum, eff, selectedKeyActivatedCost)} disabled={loading || !canAfford}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
+                        color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
+                      発動
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ===== アシストルリグ グロウモーダル ===== */}
+      {showAssistGrowModal && pendingAssistGrowCard && pendingAssistSide && createPortal(
+        <div onClick={() => { setShowAssistGrowModal(false); setPendingAssistGrowCard(null); setPendingAssistSide(null); setSelectedAssistGrowCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const card = pendingAssistGrowCard;
+              const side = pendingAssistSide;
+              const growCost = card.GrowCost;
+              const energyTotal = parseGrowCost(growCost).reduce((s, c) => s + c.count, 0);
+              const selectedNums = [...selectedAssistGrowCost].map(i => my.energy[i]);
+              const canAfford = energyTotal === 0
+                ? true
+                : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants);
+              return (
+                <>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    アシストグロウ（{side === 'l' ? '左' : '右'}）
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <img src={card.ImgURL} alt={card.CardName} style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                    <div>
+                      <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
+                      <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>Lv.{card.Level} / グロウコスト: {growCost || 'なし'}</p>
+                    </div>
+                  </div>
+                  {energyTotal > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>エナゾーンから選択: {selectedAssistGrowCost.size} / {energyTotal}枚</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.energy.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedAssistGrowCost.has(i);
+                          return (
+                            <div key={i} onClick={() => setSelectedAssistGrowCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #f44336' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => { setShowAssistGrowModal(false); setPendingAssistGrowCard(null); setPendingAssistSide(null); setSelectedAssistGrowCost(new Set()); }} disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      キャンセル
+                    </button>
+                    <button onClick={() => executeAssistGrow(card, side, selectedAssistGrowCost)} disabled={loading || !canAfford}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: (loading || !canAfford) ? C.disabled : '#6644aa',
+                        color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
+                      グロウ
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ===== アシストルリグ 起動効果モーダル ===== */}
+      {pendingAssistActivated && createPortal(
+        <div onClick={() => { setPendingAssistActivated(null); setSelectedAssistActivatedCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const card = battleCardMap.get(pendingAssistActivated.cardNum);
+              const eff = pendingAssistActivated.effect;
+              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const selectedNums = [...selectedAssistActivatedCost].map(i => my.energy[i]);
+              const canAfford = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants));
+              return (
+                <>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>アシスト【起】効果を発動</p>
+                  {card && (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <img src={card.ImgURL} alt={card.CardName} style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                      <div>
+                        <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
+                        <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>コスト: {energyTotal > 0 ? `エナ${energyTotal}枚` : 'なし'}</p>
+                      </div>
+                    </div>
+                  )}
+                  {energyTotal > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>エナゾーンから選択: {selectedAssistActivatedCost.size} / {energyTotal}枚</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.energy.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedAssistActivatedCost.has(i);
+                          return (
+                            <div key={i} onClick={() => setSelectedAssistActivatedCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #f44336' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => { setPendingAssistActivated(null); setSelectedAssistActivatedCost(new Set()); }} disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      キャンセル
+                    </button>
+                    <button onClick={() => executeAssistActivated(pendingAssistActivated.cardNum, eff, selectedAssistActivatedCost)} disabled={loading || !canAfford}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
+                        color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
+                      発動
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* ===== シグニ起動効果 コスト支払いモーダル ===== */}
       {pendingSigniActivated && createPortal(
         <div
