@@ -1266,6 +1266,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [effectSelectedNums, setEffectSelectedNums] = useState<string[]>([]);
   // 効果スタック整列UI：自分の pending エントリの id を並べた配列
   const [stackOrderIds, setStackOrderIds] = useState<string[]>([]);
+  // LOOK_AND_REORDER インタラクション：現在の並び順
+  const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
   const transitioningRef = useRef(false);
   const leavingRef = useRef(false);
   const doPhaseAdvanceRef      = useRef<(() => Promise<void>) | null>(null);
