@@ -1086,11 +1086,17 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
         slot.stack !== undefined
           ? <StackSlot
               key={i} stack={slot.stack} cards={cards} width={slot.w} height={slot.h} label={slot.label}
-              actions={slot.label === 'LRIG' && isMe && getLrigFieldActions ? getLrigFieldActions() : undefined}
+              actions={
+                slot.label === 'LRIG'      && isMe && getLrigFieldActions ? getLrigFieldActions() :
+                slot.label === 'アシスト左' && isMe && getAssistLActions  ? getAssistLActions()  :
+                slot.label === 'アシスト右' && isMe && getAssistRActions  ? getAssistRActions()  :
+                undefined
+              }
               isDown={slot.label === 'LRIG' ? lrig_down : false}
               isFrozen={slot.label === 'LRIG' ? (state.field.lrig_frozen ?? false) : false}
             />
-          : <CardSlot  key={i} cardNum={slot.cardNum ?? null} cards={cards} width={slot.w} height={slot.h} label={slot.label} />
+          : <CardSlot key={i} cardNum={slot.cardNum ?? null} cards={cards} width={slot.w} height={slot.h} label={slot.label}
+              actions={slot.label === 'KEY' && isMe && getKeyPieceActions ? getKeyPieceActions() : undefined} />
       )}
     </div>
   );
