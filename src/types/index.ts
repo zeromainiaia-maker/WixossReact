@@ -81,6 +81,15 @@ export interface PlayerState {
   // 効果エンジン用：ターン終了時にクリア
   temp_power_mods?: Array<{ cardNum: string; delta: number }>;
   keyword_grants?: Record<string, string[]>; // CardNum → ['ランサー', ...]
+  // アクティブなコスト修正（CostIncrease/CostReduction効果）
+  cost_modifiers?: Array<{
+    direction: 'increase' | 'decrease';
+    targetCardType: string;
+    amount: { color: string; count: number }[];
+    until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT';
+  }>;
+  // 能力消去されたシグニのCardNum一覧
+  abilities_removed?: string[];
 }
 
 export interface GameLog {
