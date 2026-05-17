@@ -401,6 +401,113 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'DRAW_OUTSIDE_DRAW_PHASE', until: 'END_OF_TURN' };
   }
 
+  // ---- 両者手札全捨て＋最多ドロー ----
+  if (t.match(/あなたと対戦相手は手札をすべて捨て.*最も大きい数に等しい枚数のカードを引く/)) {
+    return { type: 'MUTUAL_DISCARD_AND_DRAW', drawMax: true } as MutualDiscardAndDrawAction;
+  }
+
+  // ---- ドローフェイズ枚数制限（すべてのプレイヤー）----
+  const drawLimitM = t.match(/すべてのプレイヤーはドローフェイズにカードを([０-９\d]+)枚しか引くことができない/);
+  if (drawLimitM) {
+    const n = parseNum(drawLimitM[1]);
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: `DRAW_LIMIT_${n}`, until: 'PERMANENT' },
+        { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: `DRAW_LIMIT_${n}`, until: 'PERMANENT' },
+      ],
+    };
+  }
+
+  // ---- 次のカード使用コスト減少＋打ち消し耐性 ----
+  if (t.match(/次にあなたが(スペル|アーツ)を使用する場合.*コストは.*減り.*打ち消されない/)) {
+    const typeM = t.match(/次にあなたが(スペル|アーツ)/);
+    const costs = parseEnergyCosts(t);
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'COST_REDUCTION', targetCardType: (typeM?.[1] ?? 'スペル') as 'スペル' | 'アーツ', reduction: costs, duration: 'UNTIL_END_OF_TURN' } as CostReductionAction,
+        { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, keyword: 'NEXT_UNCOUNTERABLE', duration: 'UNTIL_END_OF_TURN' },
+      ],
+    };
+  }
+
+  // ---- 対戦相手スペル/アーツのコスト増加 ----
+  const costIncM = t.match(/対戦相手の(スペル|アーツ|ルリグ)の使用コストは/);
+  if (costIncM && t.includes('増える')) {
+    const amount = parseEnergyCosts(t);
+    return {
+      type: 'COST_INCREASE',
+      targetCardType: costIncM[1] as 'スペル' | 'アーツ' | 'ルリグ',
+      targetOwner: 'opponent',
+      amount: amount.length > 0 ? amount : [{ color: '無', count: 1 }],
+      duration: 'PERMANENT',
+    } as CostIncreaseAction;
+  }
+
+  // ---- フィールドカウント依存パワー修正（AUTO: 〜につき±N）----
+  const perFieldM = t.match(/シグニのパワーを.*＜([^＞]+)＞のシグニ１体につき([＋－])([０-９\d]+)する/);
+  if (perFieldM) {
+    const sign = perFieldM[2] === '＋' ? 1 : -1;
+    const delta = sign * parseNum(perFieldM[3]);
+    const tgtOwner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return {
+      type: 'POWER_MODIFY_PER_FIELD',
+      target: { type: 'SIGNI', owner: tgtOwner, count: 'ALL', filter: { cardType: 'シグニ' } },
+      deltaPerUnit: delta,
+      countFilter: { cardType: 'シグニ', story: perFieldM[1] },
+      countOwner: 'self',
+    } as PowerModifyPerFieldAction;
+  }
+
+  // ---- スタック枚数依存パワー修正（CONTINUOUS: 下にあるカード1枚につき）----
+  const perStackM = t.match(/このシグニの下にあるカード.*につき([＋－])([０-９\d]+)される/);
+  if (perStackM) {
+    const sign = perStackM[1] === '＋' ? 1 : -1;
+    return {
+      type: 'POWER_MODIFY_PER_STACK',
+      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      deltaPerCard: sign * parseNum(perStackM[2]),
+    } as PowerModifyPerStackAction;
+  }
+
+  // ---- チャーム保護（バニッシュ時チャーム消費で防ぐ）----
+  if (t.match(/シグニ.*バニッシュされる場合.*チャーム.*トラッシュに置いてもよい/)) {
+    const storyF = parseStoryFilter(t) as TargetFilter;
+    return {
+      type: 'CHARM_PROTECTION',
+      signiFilter: { cardType: 'シグニ', ...storyF },
+      optional: true,
+    } as CharmProtectionAction;
+  }
+
+  // ---- 限定条件無視 ----
+  if (t.match(/限定条件は無視される/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'IGNORE_RESTRICTIONS', until: 'PERMANENT' };
+  }
+
+  // ---- PlayFree: ルリグデッキからアーツをコストなしで使用 ----
+  if (t.match(/ルリグデッキから.*アーツ.*コストを支払わずに使用する/)) {
+    const filter: TargetFilter = { cardType: 'アーツ', ...parseColorFilter(t) };
+    return { type: 'PLAY_FREE', source: 'lrig_deck', filter, ignoreCost: true, optional: false } as PlayFreeAction;
+  }
+
+  // ---- PlayFree: 手札からスペルをコストなしで使用 ----
+  if (t.match(/手札から.*スペル.*コストを支払わずに使用する/)) {
+    const filter: TargetFilter = { cardType: 'スペル', ...parseColorFilter(t) };
+    return { type: 'PLAY_FREE', source: 'hand', filter, ignoreCost: true, optional: false } as PlayFreeAction;
+  }
+
+  // ---- PlayFree: 対戦相手手札からスペルを使用 ----
+  if (t.match(/対戦相手の手札を見て.*スペル.*使用してもよい/)) {
+    return { type: 'PLAY_FREE', source: 'opp_hand', filter: { cardType: 'スペル' }, ignoreCost: true, ignoreRestrictions: true, optional: true } as PlayFreeAction;
+  }
+
+  // ---- PlayFree: 対戦相手トラッシュからスペルを使用 ----
+  if (t.match(/対戦相手のトラッシュから.*スペル.*使用してもよい/)) {
+    return { type: 'PLAY_FREE', source: 'opp_trash', filter: { cardType: 'スペル' }, ignoreCost: true, ignoreRestrictions: true, optional: true } as PlayFreeAction;
+  }
+
   // ---- グロウフェイズスキップ ----
   if (t.includes('グロウフェイズをスキップする')) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'GROW', until: 'END_OF_TURN' };
