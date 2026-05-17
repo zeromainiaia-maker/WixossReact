@@ -251,7 +251,11 @@ function parseActiveCondition(text: string): ConditionParseResult {
 // ===== アクションパース（1文） =====
 
 function parseSingleSentence(text: string): EffectAction {
-  const t = text.trim().replace(/。$/, '');
+  // タイミング・期間プレフィックスを除去（既にparseBlockで処理済み）
+  const t = text.trim().replace(/。$/, '')
+    .replace(/^ターン終了時まで、/, '')
+    .replace(/^このシグニがアタックしたとき、/, '')
+    .replace(/^バニッシュされたとき、/, '');
 
   // ---- このシグニはアタックできない（CONTINUOUS）----
   if (t.match(/このシグニはアタックできない/)) {
