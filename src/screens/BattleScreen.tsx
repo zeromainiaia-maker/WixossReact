@@ -750,6 +750,16 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
             凍結
           </div>
         )}
+        {isAbilityRemoved && (
+          <div style={{
+            position: 'absolute', top: extraH + 2, left: 0, right: 0,
+            backgroundColor: 'rgba(80,0,80,0.82)', color: '#ffaaff',
+            fontSize: 7, fontWeight: 'bold', textAlign: 'center',
+            pointerEvents: 'none', zIndex: n + 2, lineHeight: '13px',
+          }}>
+            能力消去
+          </div>
+        )}
       </div>
       {charmCardNum && (
         <CharmPeek width={width}
