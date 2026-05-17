@@ -379,6 +379,34 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, applyTrashHand);
   }
 
+  if (tgt.type === 'ENERGY_CARD') {
+    const cands = energyCandidates(state, tgt.filter, ctx.cardMap);
+    const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
+    function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
+      const s = ownerState(tgt.owner, c);
+      const newS: PlayerState = {
+        ...s,
+        energy: s.energy.filter(n => !selected.includes(n)),
+        trash: [...s.trash, ...selected],
+      };
+      return addLog(setOwnerState(tgt.owner, newS, c), `エナゾーン${selected.length}枚トラッシュへ`);
+    }
+    if (tgt.count === 'ALL') return done(applyTrashEnergy(cands, ctx));
+    const count = resolveNum(tgt.count);
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, applyTrashEnergy);
+  }
+
+  if (tgt.type === 'DECK_CARD') {
+    const count = tgt.count === 'ALL' ? state.deck.length : resolveNum(tgt.count);
+    const took = state.deck.slice(0, count);
+    const newS: PlayerState = {
+      ...state,
+      deck: state.deck.slice(count),
+      trash: [...state.trash, ...took],
+    };
+    return done(addLog(setOwnerState(tgt.owner, newS, ctx), `デッキ上${count}枚トラッシュへ`));
+  }
+
   return done(ctx);
 }
 
