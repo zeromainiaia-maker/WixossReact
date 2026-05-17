@@ -733,9 +733,7 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
 
 // ─── CharmPeek: チャームカードの覗き表示（シグニ下に裏向きで重ねる） ──
 const CHARM_PEEK_H = 20;
-function CharmPeek({ cardNum: _, cards: __, width, isMe: _isMe, onTap }: {
-  cardNum: string; cards: CardData[]; width: number; isMe: boolean; onTap: () => void;
-}) {
+function CharmPeek({ width, onTap }: { width: number; onTap: () => void; }) {
   const touchPos = useRef<{ x: number; y: number } | null>(null);
   return (
     <div
