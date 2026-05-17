@@ -164,6 +164,10 @@ export type EffectAction =
   | GrantProtectionAction
   | AttachCharmAction
   | RevealAndPickAction
+  | BanishRedirectAction
+  | RearrangeSigniAction
+  | GrowFreeAction
+  | RemoveAbilitiesAction
   | UnknownAction;
 
 export interface DrawAction {
