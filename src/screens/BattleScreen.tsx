@@ -2107,7 +2107,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     effectTypes: ('AUTO' | 'ACTIVATED' | 'LIFE_BURST')[],
     timings: string[],
     startMyState: PlayerState,
-    startOpState: PlayerState,
+    _startOpState: PlayerState,
     extraUpdate: Record<string, unknown> = {},
   ): Promise<boolean> => {
     const effects = effectsMap.get(cardNum) ?? [];
