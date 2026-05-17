@@ -1112,7 +1112,7 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
   effectivePowers?: Map<string, number>;
 }) {
   const [zoneModal, setZoneModal] = useState<{
-    title: string; cardNums: string[]; getCardActions?: (cardNum: string) => CardAction[];
+    title: string; cardNums: string[]; isLrigDeck?: boolean;
   } | null>(null);
 
   useEffect(() => {
