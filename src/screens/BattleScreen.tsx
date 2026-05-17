@@ -1399,6 +1399,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ── Rules of Hooks 対策：PLAYING セクション由来の useEffect を if(!bs) より前に置く ──
 
+  // LOOK_AND_REORDER インタラクションが来たら初期順序をセット
+  useEffect(() => {
+    if (!bs?.pending_effect) return;
+    const inter = bs.pending_effect.interaction;
+    if (inter.type === 'LOOK_AND_REORDER') {
+      setLookReorderOrder(prev => {
+        const same = prev.length === inter.cards.length && prev.every((n, i) => n === inter.cards[i]);
+        return same ? prev : [...inter.cards];
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.pending_effect]);
+
   // 効果スタック整列UI の更新
   useEffect(() => {
     if (!bs?.effect_stack || !user) { setStackOrderIds([]); return; }
