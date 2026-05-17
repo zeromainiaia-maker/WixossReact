@@ -25,6 +25,21 @@ export default function StartScreen({ user, setViewMode }: Props) {
       gap: '16px',
       position: 'relative',
     }}>
+      <button onClick={() => window.location.reload()} style={{
+        position: 'absolute',
+        top: '20px',
+        left: '20px',
+        padding: '6px 14px',
+        fontSize: '12px',
+        backgroundColor: 'transparent',
+        color: '#666',
+        border: '1px solid #333',
+        borderRadius: '4px',
+        cursor: 'pointer',
+      }}>
+        ↺ リロード
+      </button>
+
       <button onClick={handleLogout} style={{
         position: 'absolute',
         top: '20px',
