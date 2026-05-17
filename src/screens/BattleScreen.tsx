@@ -2427,9 +2427,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : initStack(turnPlayerId, allEntries);
 
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states')
+      const { error: summonErr } = await supabase.from('battle_states')
         .update({ [stateKey]: placed, effect_stack: stack, pending_effect: null })
         .eq('room_id', roomId);
+      if (summonErr) console.error('[handleSummonSigni] DB error:', summonErr);
     } finally {
       setLoading(false);
     }
