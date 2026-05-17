@@ -1799,6 +1799,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // フェイズ進行（実処理）
   const doPhaseAdvance = async () => {
+    // いずれかのチェックゾーンにカードがある間はフェーズ移動不可
+    if (my.field.check || op.field.check) return;
     setLoading(true);
     try {
       const phase = bs.turn_phase;
