@@ -716,10 +716,78 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
           </div>
         )}
       </div>
+      {charmCardNum && (
+        <CharmPeek cardNum={charmCardNum} cards={cards} width={width} isMe={!!isMe}
+          onTap={() => setShowCharmModal(true)} />
+      )}
+      </div>
       {showModal && stack && (
         <CardStackModal stack={stack} cards={cards} onClose={() => setShowModal(false)} actions={actions} />
       )}
+      {showCharmModal && charmCardNum && (
+        <CharmModal cardNum={charmCardNum} cards={cards} isMe={!!isMe} onClose={() => setShowCharmModal(false)} />
+      )}
     </>
+  );
+}
+
+// ─── CharmPeek: チャームカードの覗き表示（シグニ下に裏向きで重ねる） ──
+const CHARM_PEEK_H = 20;
+function CharmPeek({ cardNum: _, cards: __, width, isMe: _isMe, onTap }: {
+  cardNum: string; cards: CardData[]; width: number; isMe: boolean; onTap: () => void;
+}) {
+  const touchPos = useRef<{ x: number; y: number } | null>(null);
+  return (
+    <div
+      style={{
+        width, height: CHARM_PEEK_H, overflow: 'hidden', flexShrink: 0,
+        cursor: 'pointer', borderRadius: '0 0 4px 4px',
+        border: '1px solid rgba(100,150,255,0.35)', borderTop: 'none',
+        touchAction: 'none', userSelect: 'none',
+      }}
+      onClick={onTap}
+      onTouchStart={e => { e.preventDefault(); touchPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+      onTouchEnd={e => {
+        e.preventDefault();
+        if (!touchPos.current) return;
+        const dx = e.changedTouches[0].clientX - touchPos.current.x;
+        const dy = e.changedTouches[0].clientY - touchPos.current.y;
+        touchPos.current = null;
+        if (Math.sqrt(dx * dx + dy * dy) < 10) onTap();
+      }}
+      onTouchCancel={() => { touchPos.current = null; }}
+    >
+      <img
+        src="/Card_Black.jpg"
+        alt="charm"
+        draggable={false}
+        style={{ width: '100%', height: Math.round(width * 1.4), objectFit: 'cover', objectPosition: 'top',
+          display: 'block', pointerEvents: 'none' }}
+      />
+    </div>
+  );
+}
+
+// ─── CharmModal: チャームタップ時モーダル ──────────────────────────
+function CharmModal({ cardNum, cards, isMe, onClose }: {
+  cardNum: string; cards: CardData[]; isMe: boolean; onClose: () => void;
+}) {
+  const card = cards.find(c => c.CardNum === cardNum);
+  if (isMe && card) return <CardModal card={card} onClose={onClose} />;
+  return createPortal(
+    <div
+      onClick={onClose}
+      onTouchEnd={e => { e.preventDefault(); onClose(); }}
+      style={{ position: 'fixed', inset: 0, zIndex: 3000,
+        backgroundColor: 'rgba(0,0,0,0.95)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    >
+      <img src="/Card_Black.jpg" alt="charm back" draggable={false}
+        style={{ maxWidth: '90vw', maxHeight: '62vh', objectFit: 'contain', borderRadius: 10 }} />
+      <p style={{ color: C.textFaint, fontSize: 12, marginTop: 12 }}>チャーム（非公開）</p>
+    </div>,
+    document.body,
   );
 }
 
