@@ -121,18 +121,69 @@ const C = {
   aiko:         '#ffcc00',  // じゃんけんあいこ
 } as const;
 
+const toHalfWidth = (s: string) =>
+  s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+
 // グロウコストのパース: "《白》×１《赤》×２" → [{color:'白',count:1},{color:'赤',count:2}]
-// 全角数字（０-９）を半角に変換してから数値化する
 function parseGrowCost(raw: string): { color: string; count: number }[] {
   if (!raw || raw === 'なし' || raw === '-') return [];
-  const toHalf = (s: string) =>
-    s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
   const result: { color: string; count: number }[] = [];
   for (const m of raw.matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
-    const count = parseInt(toHalf(m[2]));
+    const count = parseInt(toHalfWidth(m[2]));
     if (count > 0) result.push({ color: m[1], count });
   }
   return result;
+}
+
+// EffectText から【グロウ】条件テキストを抽出（次の【】の手前まで）
+function extractGrowCondition(effectText?: string): string | null {
+  const m = effectText?.match(/【グロウ】([^【]*)/);
+  return m ? m[1].trim() : null;
+}
+
+// 【グロウ】条件を評価する。認識できないテキスト（グロウ効果など）は true（条件なし）扱い
+function checkGrowCondition(
+  cond: string | null,
+  myState: PlayerState,
+  currentLrigName: string | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!cond) return true;
+
+  // ライフクロスが○枚以下
+  let m = cond.match(/あなたのライフクロスが([０-９\d]+)枚以下/);
+  if (m) return myState.life_cloth.length <= parseInt(toHalfWidth(m[1]));
+
+  // センタールリグがカード名に《X》を含む（CardClass が混在する遊月・肆などでも正確に判定）
+  m = cond.match(/あなたのセンタールリグがカード名に《([^》]+)》を含む/);
+  if (m) return !!(currentLrigName?.includes(m[1]));
+
+  // トラッシュに○の色のカードが○枚以上ある
+  m = cond.match(/あなたのトラッシュに([^\s]+?)のカードが([０-９\d]+)枚以上/);
+  if (m) {
+    const [, color, nStr] = m;
+    const n = parseInt(toHalfWidth(nStr));
+    const count = myState.trash.filter(num => cardMap.get(num)?.Color?.includes(color)).length;
+    return count >= n;
+  }
+
+  // エナゾーンにあるカードが持つ色が○種類以上
+  m = cond.match(/あなたのエナゾーンにあるカードが持つ色が([０-９\d]+)種類以上/);
+  if (m) {
+    const needed = parseInt(toHalfWidth(m[1]));
+    const wixossColors = ['白', '赤', '青', '緑', '黒'];
+    const colorSet = new Set<string>();
+    for (const num of myState.energy) {
+      const card = cardMap.get(num);
+      for (const c of wixossColors) {
+        if (card?.Color?.includes(c)) colorSet.add(c);
+      }
+    }
+    return colorSet.size >= needed;
+  }
+
+  // 認識できないパターン（マユの「ルリグを公開し…」等のグロウ効果テキスト）→ 条件なし
+  return true;
 }
 
 // ルリグのグロウ互換性チェック: CardClass に共通する名前（"/"区切り）が1つでもあれば true
