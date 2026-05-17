@@ -575,10 +575,13 @@ interface StackedSigniSlotProps {
   isDown?: boolean;
   isFrozen?: boolean;
   effectivePowers?: Map<string, number>;
+  charmCardNum?: string | null;
+  isMe?: boolean;
 }
 
-function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, effectivePowers }: StackedSigniSlotProps) {
+function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, effectivePowers, charmCardNum, isMe }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
+  const [showCharmModal, setShowCharmModal] = useState(false);
   const touchPos = useRef<{ x: number; y: number } | null>(null);
 
   const n = stack?.length ?? 0;
