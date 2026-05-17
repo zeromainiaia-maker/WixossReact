@@ -609,12 +609,13 @@ interface StackedSigniSlotProps {
   actions?: CardAction[];
   isDown?: boolean;
   isFrozen?: boolean;
+  isAbilityRemoved?: boolean;
   effectivePowers?: Map<string, number>;
   charmCardNum?: string | null;
   isMe?: boolean;
 }
 
-function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, effectivePowers, charmCardNum, isMe }: StackedSigniSlotProps) {
+function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isAbilityRemoved = false, effectivePowers, charmCardNum, isMe }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
   const touchPos = useRef<{ x: number; y: number } | null>(null);
