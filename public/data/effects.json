@@ -343,6 +343,23 @@
       "duration": "INSTANT",
       "mandatory": false,
       "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WD01-016-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WD01-017": [
@@ -359,6 +376,23 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
+      "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WD01-017-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
       "parseStatus": "AUTO"
     }
   ],
@@ -737,6 +771,23 @@
       "duration": "INSTANT",
       "mandatory": false,
       "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WD02-016-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WD02-017": [
@@ -753,6 +804,23 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
+      "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WD02-017-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
       "parseStatus": "AUTO"
     }
   ],
@@ -1070,6 +1138,23 @@
       "duration": "INSTANT",
       "mandatory": false,
       "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WD03-016-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WD03-017": [
@@ -1086,6 +1171,23 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
+      "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WD03-017-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
       "parseStatus": "AUTO"
     }
   ],
@@ -1835,6 +1937,23 @@
       "duration": "INSTANT",
       "mandatory": false,
       "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WD05-015-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WD05-016": [
@@ -1851,6 +1970,23 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
+      "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WD05-016-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
       "parseStatus": "AUTO"
     }
   ],
@@ -4092,6 +4228,23 @@
       "duration": "INSTANT",
       "mandatory": false,
       "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WX01-051-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WX01-052": [
@@ -5503,6 +5656,23 @@
       "duration": "INSTANT",
       "mandatory": false,
       "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WX01-100-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WX01-101": [
@@ -5520,6 +5690,23 @@
       "duration": "INSTANT",
       "mandatory": false,
       "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WX01-101-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WX01-102": [
@@ -5536,6 +5723,23 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
+      "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WX01-102-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
       "parseStatus": "AUTO"
     }
   ],
@@ -13032,6 +13236,23 @@
       "duration": "PERMANENT",
       "mandatory": true,
       "parseStatus": "AUTO"
+    },
+    {
+      "effectId": "WX04-054-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WX04-056": [
@@ -14935,6 +15156,23 @@
       "duration": "INSTANT",
       "mandatory": false,
       "parseStatus": "PARTIAL"
+    },
+    {
+      "effectId": "WX05-006-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": "ALL"
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
     }
   ],
   "WX05-007": [
@@ -18311,6 +18549,120 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
+      "parseStatus": "AUTO"
+    }
+  ],
+  "WD04-016": [
+    {
+      "effectId": "WD04-016-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
+    }
+  ],
+  "WD04-017": [
+    {
+      "effectId": "WD04-017-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
+    }
+  ],
+  "WX02-076": [
+    {
+      "effectId": "WX02-076-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
+    }
+  ],
+  "WX02-077": [
+    {
+      "effectId": "WX02-077-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
+    }
+  ],
+  "WX02-078": [
+    {
+      "effectId": "WX02-078-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "AUTO"
+    }
+  ],
+  "WX02-079": [
+    {
+      "effectId": "WX02-079-MULTI",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "マルチエナ",
+        "duration": "PERMANENT"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
       "parseStatus": "AUTO"
     }
   ]
