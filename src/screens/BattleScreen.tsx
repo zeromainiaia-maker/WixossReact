@@ -283,7 +283,7 @@ function canAffordWithExtraCost(
     pool = rem;
     if (needed > 0) return false;
   }
-  return canAffordGrowCost(pool, cards, baseCost, keywordGrants);
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti);
 }
 
 const JANKEN_LABEL: Record<string, string> = { GU: 'グー✊', CHOKI: 'チョキ✌', PA: 'パー✋' };
