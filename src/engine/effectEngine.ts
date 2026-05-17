@@ -279,7 +279,7 @@ export function calcActiveCostMods(
   opState: PlayerState,
   isMyTurn: boolean,
   effectsMap: Map<string, CardEffect[]>,
-  cardMap: Map<string, CardData>,
+  _cardMap: Map<string, CardData>,
 ): { forMy: ActiveCostMod[]; forOp: ActiveCostMod[] } {
   const forMy: ActiveCostMod[] = [];
   const forOp: ActiveCostMod[] = [];
