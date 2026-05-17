@@ -1147,6 +1147,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // シグニ起動効果
   const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedSigniActivatedCost, setSelectedSigniActivatedCost] = useState<Set<number>>(new Set());
+  // キーピース
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [pendingKeyCard, setPendingKeyCard] = useState<CardData | null>(null);
+  const [selectedKeyCost, setSelectedKeyCost] = useState<Set<number>>(new Set());
+  const [pendingKeyActivated, setPendingKeyActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
+  const [selectedKeyActivatedCost, setSelectedKeyActivatedCost] = useState<Set<number>>(new Set());
+  // アシストルリグ
+  const [showAssistGrowModal, setShowAssistGrowModal] = useState(false);
+  const [pendingAssistGrowCard, setPendingAssistGrowCard] = useState<CardData | null>(null);
+  const [pendingAssistSide, setPendingAssistSide] = useState<'l' | 'r' | null>(null);
+  const [selectedAssistGrowCost, setSelectedAssistGrowCost] = useState<Set<number>>(new Set());
+  const [pendingAssistActivated, setPendingAssistActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
+  const [selectedAssistActivatedCost, setSelectedAssistActivatedCost] = useState<Set<number>>(new Set());
   // ライフクロスクラッシュ時のカード拡大
   const [burstCardZoomed, setBurstCardZoomed] = useState(false);
   // 効果インタラクション：SELECT_TARGET / SEARCH / CHOOSE
