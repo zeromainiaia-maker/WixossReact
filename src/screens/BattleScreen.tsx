@@ -2135,7 +2135,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       : initStack(turnPlayerId, entries);
 
     const myKey = isHost ? 'host_state' : 'guest_state';
-    const opKey = isHost ? 'guest_state' : 'host_state';
     const { error } = await supabase.from('battle_states')
       .update({
         [myKey]: startMyState,
