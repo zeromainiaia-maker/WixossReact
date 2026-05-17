@@ -1416,21 +1416,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return calcActiveCostMods(myS, opS, myTurn, effectsMap, battleCardMap);
   }, [bs, effectsMap, battleCardMap, user.id]);
 
-  // フィールドにCONTINUOUS GRANT_KEYWORD マルチエナ（対エナゾーン）効果があるか
+  // フィールド（シグニ＋センタールリグ）にCONTINUOUS GRANT_KEYWORD マルチエナ（count:ALL）効果があるか
+  // WX01-027（シグニ）・WX05-006（ルリグLv5）のような「全エナにマルチエナ付与」効果を検出
   const myEnaAllMulti = useMemo(() => {
     if (!bs) return false;
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
-    return myS.field.signi.some(stack => {
-      const topNum = stack?.at(-1);
-      if (!topNum) return false;
-      return (effectsMap.get(topNum) ?? []).some(e =>
+    const hasAllMultiEffect = (cardNum: string) =>
+      (effectsMap.get(cardNum) ?? []).some(e =>
         e.effectType === 'CONTINUOUS' &&
         e.action?.type === 'GRANT_KEYWORD' &&
         (e.action as { keyword: string }).keyword === 'マルチエナ' &&
-        (e.action as { target: { type: string } }).target?.type === 'ENERGY_CARD'
+        (e.action as { target: { count: unknown } }).target?.count === 'ALL'
       );
-    });
+    // シグニゾーン
+    if (myS.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasAllMultiEffect(top); })) return true;
+    // センタールリグ
+    const lrigTop = myS.field.lrig.at(-1);
+    if (lrigTop && hasAllMultiEffect(lrigTop)) return true;
+    return false;
   }, [bs, effectsMap, user.id]);
 
   // ── Rules of Hooks 対策：PLAYING セクション由来の useEffect を if(!bs) より前に置く ──
