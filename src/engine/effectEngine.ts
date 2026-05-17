@@ -122,6 +122,22 @@ function extractPowerModifies(action: EffectAction): PowerModifyAction[] {
   return [];
 }
 
+function extractPowerModifiesPerStack(action: EffectAction): PowerModifyPerStackAction[] {
+  if (action.type === 'POWER_MODIFY_PER_STACK') return [action as PowerModifyPerStackAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerStack(s));
+  }
+  return [];
+}
+
+function extractCostIncreases(action: EffectAction): CostIncreaseAction[] {
+  if (action.type === 'COST_INCREASE') return [action as CostIncreaseAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractCostIncreases(s));
+  }
+  return [];
+}
+
 // ===== フィールドシグニの有効パワー計算 =====
 
 /**
