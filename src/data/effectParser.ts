@@ -370,6 +370,27 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, filter: { level: parseNum(levelHandM[1]) } } };
   }
 
+  // ---- パワー増減禁止（CONTINUOUS 耐性）----
+  if (t.match(/シグニのパワーは増減しない/)) {
+    return {
+      type: 'GRANT_PROTECTION',
+      target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+      from: ['POWER_MODIFY'],
+      sourceOwner: 'opponent',
+      duration: 'PERMANENT',
+    } as GrantProtectionAction;
+  }
+
+  // ---- 相手シグニの自発トラッシュ禁止 ----
+  if (t.match(/自分で自分のシグニを場からトラッシュに置くことができない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'SELF_SIGNI_TRASH', until: 'PERMANENT' };
+  }
+
+  // ---- フェーズ外ドロー禁止 ----
+  if (t.match(/グロウフェイズとドローフェイズ以外でカードを引いたり.*できない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'DRAW_OUTSIDE_DRAW_PHASE', until: 'END_OF_TURN' };
+  }
+
   // ---- グロウフェイズスキップ ----
   if (t.includes('グロウフェイズをスキップする')) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'GROW', until: 'END_OF_TURN' };
