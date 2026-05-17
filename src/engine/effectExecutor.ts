@@ -1067,6 +1067,17 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
     case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
     case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);
+    case 'PLAY_FREE':               return execPlayFree(action as PlayFreeAction, ctx);
+    case 'COST_INCREASE':           return execCostIncrease(action as CostIncreaseAction, ctx);
+    case 'POWER_MODIFY_PER_FIELD':  return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
+    case 'CHARM_PROTECTION':        return execCharmProtection(action as CharmProtectionAction, ctx);
+    case 'MUTUAL_DISCARD_AND_DRAW': return execMutualDiscardAndDraw(action as MutualDiscardAndDrawAction, ctx);
+    case 'REMOVE_ABILITIES':        return execRemoveAbilities(action as RemoveAbilitiesAction, ctx);
+    // 以下は CONTINUOUS 効果専用（effectEngine 側で処理）
+    case 'BANISH_REDIRECT':         return done(addLog(ctx, 'バニッシュ先変更（CONTINUOUS）'));
+    case 'REARRANGE_SIGNI':         return needsInteraction(ctx, { type: 'CHOOSE', options: [], count: 0 });
+    case 'GROW_FREE':               return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
+    case 'POWER_MODIFY_PER_STACK':  return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
     default:                        return done(ctx);
   }
