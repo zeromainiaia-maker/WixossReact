@@ -247,6 +247,129 @@ function parseActiveCondition(text: string): ConditionParseResult {
 function parseSingleSentence(text: string): EffectAction {
   const t = text.trim().replace(/。$/, '');
 
+  // ---- このシグニはアタックできない（CONTINUOUS）----
+  if (t.match(/このシグニはアタックできない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, actionId: 'ATTACK', until: 'PERMANENT' };
+  }
+
+  // ---- バニッシュ先変更（エナゾーン→トラッシュ）----
+  if (t.match(/バニッシュされる場合.*エナゾーンに置かれる代わりにトラッシュに置かれる/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const until = t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
+    return {
+      type: 'BANISH_REDIRECT',
+      target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ' } },
+      redirectTo: 'trash',
+      until,
+    } as BanishRedirectAction;
+  }
+
+  // ---- 対戦相手エナゾーン→トラッシュ ----
+  if (t.match(/対戦相手のエナゾーンから.*カード.*トラッシュに置く/)) {
+    const cM = t.match(/カード([０-９\d]+)枚/);
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: cM ? parseNum(cM[1]) : 1 } };
+  }
+
+  // ---- エナゾーン全色破壊（各プレイヤー）----
+  if (t.match(/エナゾーンからすべての.*白.*赤.*青.*緑.*黒.*のカードをトラッシュに置く/)) {
+    const colorFilter: TargetFilter = { color: ['白', '赤', '青', '緑', '黒'] };
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL', filter: colorFilter } },
+        { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 'ALL', filter: colorFilter } },
+      ],
+    };
+  }
+
+  // ---- 対戦相手エナゾーン全カード＋シグニ全滅 ----
+  if (t.match(/対戦相手のエナゾーンにあるすべてのカード.*対戦相手のすべてのシグニをトラッシュに置く/)) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 'ALL' } },
+        { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } } },
+      ],
+    };
+  }
+
+  // ---- フリーグロウ（コスト不要でグロウ）----
+  if (t.match(/グロウコストを支払わず.*センタールリグにグロウする/)) {
+    return { type: 'GROW_FREE', levelFilter: 'same' } as GrowFreeAction;
+  }
+
+  // ---- グロウコスト減少（ルリグ対象）----
+  if (t.match(/グロウコストは.*になる/)) {
+    const costs = parseEnergyCosts(t);
+    const dur = t.includes('次のあなたのターン') ? 'NEXT_TURN' : 'PERMANENT';
+    return {
+      type: 'COST_REDUCTION',
+      targetCardType: 'ルリグ',
+      reduction: costs.length > 0 ? costs : [{ color: '無', count: 0 }],
+      isGrowCost: true,
+      duration: dur,
+    } as CostReductionAction;
+  }
+
+  // ---- ルリグトラッシュ→ルリグデッキ ----
+  if (t.match(/ルリグトラッシュから.*ルリグデッキに加える/)) {
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t) };
+    return {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'LRIG_TRASH_CARD', owner: 'self', count: 1, filter },
+      shuffle: false,
+      destination: 'lrig_deck',
+    } as TransferToDeckAction;
+  }
+
+  // ---- シグニ再配置 ----
+  if (t.match(/シグニを好きなように配置し直してもよい/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner, count: 'ALL' } } as RearrangeSigniAction;
+  }
+  if (t.match(/シグニ.*とこのシグニの場所を入れ替えてもよい/)) {
+    return { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'self', count: 1 }, swap: true } as RearrangeSigniAction;
+  }
+
+  // ---- アーツ使用禁止 ----
+  if (t.match(/対戦相手はアーツを使用できない/)) {
+    const until = t.includes('次のターン') ? 'NEXT_TURN' : 'END_OF_TURN';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'ARTS', until };
+  }
+
+  // ---- エナフェーズスキップ ----
+  if (t.match(/対戦相手は.*エナフェイズをスキップする/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'ENERGY_PHASE', until: 'END_OF_TURN' };
+  }
+
+  // ---- ガード不可 ----
+  if (t.match(/対戦相手は.*シグニで【ガード】ができない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until: 'END_OF_TURN' };
+  }
+
+  // ---- 能力消去 ----
+  if (t.match(/シグニは能力を失う/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+    return { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner, count: 'ALL' }, until: dur } as RemoveAbilitiesAction;
+  }
+
+  // ---- 条件付きドロー（手札が少ない場合に差分だけ引く）----
+  const handFillM = t.match(/手札が([０-９\d]+)枚より少ない場合、その差の分だけカードを引く/);
+  if (handFillM) {
+    return {
+      type: 'CONDITIONAL',
+      condition: { type: 'HAND_COUNT', owner: 'self', operator: 'lt', value: parseNum(handFillM[1]) },
+      then: { type: 'DRAW', owner: 'self', count: 1 },
+    };
+  }
+
+  // ---- ハンデス（レベル指定）----
+  const levelHandM = t.match(/対戦相手の手札を見て.*レベル([０-９\d]+).*カード.*選び.*捨てさせる/);
+  if (levelHandM) {
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, filter: { level: parseNum(levelHandM[1]) } } };
+  }
+
   // ---- グロウフェイズスキップ ----
   if (t.includes('グロウフェイズをスキップする')) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'GROW', until: 'END_OF_TURN' };
