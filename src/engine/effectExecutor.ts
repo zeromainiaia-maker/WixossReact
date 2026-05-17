@@ -35,6 +35,12 @@ import type {
   GrantProtectionAction,
   AttachCharmAction,
   RevealAndPickAction,
+  PlayFreeAction,
+  CostIncreaseAction,
+  PowerModifyPerFieldAction,
+  CharmProtectionAction,
+  MutualDiscardAndDrawAction,
+  RemoveAbilitiesAction,
 } from '../types/effects';
 
 // ===== 実行コンテキスト & 結果型 =====
