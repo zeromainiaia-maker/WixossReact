@@ -903,6 +903,134 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
+function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
+  const state = a.source === 'opp_hand' || a.source === 'opp_trash'
+    ? ctx.otherState : ctx.ownerState;
+  let cands: string[];
+  let scope: TargetScope;
+
+  if (a.source === 'hand') {
+    cands = handCandidates(ctx.ownerState, a.filter, ctx.cardMap);
+    scope = 'self_hand';
+  } else if (a.source === 'opp_hand') {
+    cands = handCandidates(ctx.otherState, a.filter, ctx.cardMap);
+    scope = 'opp_hand';
+  } else if (a.source === 'opp_trash') {
+    cands = trashCandidates(ctx.otherState, a.filter, ctx.cardMap);
+    scope = 'opp_trash';
+  } else {
+    // lrig_deck: ルリグデッキの先頭から対象を探す
+    cands = (ctx.ownerState.lrig_deck ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
+    scope = 'self_hand'; // 近似
+  }
+
+  if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 対象なし'));
+
+  // インタラクションでカードを選ばせる（選択後の実際の使用はBattleScreenが担当）
+  return needsInteraction(ctx, {
+    type: 'SEARCH',
+    visibleCards: cands,
+    maxPick: 1,
+    thenAction: { type: 'ADD_TO_HAND', owner: 'self' }, // プレースホルダー
+  });
+
+  void state; void scope;
+}
+
+function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
+  const tgtOwner = a.targetOwner === 'self' ? 'self' : 'opponent';
+  const state = ownerState(tgtOwner, ctx);
+  const mod = {
+    direction: 'increase' as const,
+    targetCardType: a.targetCardType,
+    amount: a.amount,
+    until: (a.duration ?? 'PERMANENT') as 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT',
+  };
+  const newS: PlayerState = {
+    ...state,
+    cost_modifiers: [...(state.cost_modifiers ?? []), mod],
+  };
+  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${a.targetCardType}コスト+${a.amount.map(e => e.count + e.color).join('')}`));
+}
+
+function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): ExecResult {
+  const countState = ownerState(a.countOwner, ctx);
+  const fieldCount = countState.field.signi.filter(stack => {
+    if (!stack || stack.length === 0) return false;
+    const card = ctx.cardMap.get(stack[stack.length - 1]);
+    return matchesFilter(card, a.countFilter);
+  }).length;
+
+  if (fieldCount === 0) return done(ctx);
+
+  const delta = a.deltaPerUnit * fieldCount;
+  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const mods = [
+    ...(state.temp_power_mods ?? []),
+    ...cands.map(cardNum => ({ cardNum, delta })),
+  ];
+  const newS: PlayerState = { ...state, temp_power_mods: mods };
+  return done(addLog(setOwnerState(tgtOwner, newS, ctx),
+    `パワー${delta > 0 ? '+' : ''}${delta}（フィールド×${fieldCount}体）`));
+}
+
+function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult {
+  // チャーム保護は BattleScreen のバニッシュ処理内で判定するため、
+  // ここではプレイヤー状態にキーワードとして記録する
+  const keyword = `CHARM_PROTECTION:${JSON.stringify(a.signiFilter)}`;
+  const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+  // フィールドの対象シグニ全体に付与
+  const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap);
+  for (const n of cands) grants[n] = [...(grants[n] ?? []), keyword];
+  const newOwner: PlayerState = { ...ctx.ownerState, keyword_grants: grants };
+  return done(addLog({ ...ctx, ownerState: newOwner }, 'チャーム保護付与'));
+}
+
+function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): ExecResult {
+  // 両者の手札枚数を記録してから全捨て
+  const selfCount  = ctx.ownerState.hand.length;
+  const otherCount = ctx.otherState.hand.length;
+  const maxCount   = Math.max(selfCount, otherCount);
+
+  let cur: ExecCtx = {
+    ...ctx,
+    ownerState: { ...ctx.ownerState, hand: [], trash: [...ctx.ownerState.trash, ...ctx.ownerState.hand] },
+    otherState: { ...ctx.otherState, hand: [], trash: [...ctx.otherState.trash, ...ctx.otherState.hand] },
+  };
+  cur = addLog(cur, `両者手札全捨て（${selfCount}枚/${otherCount}枚）`);
+
+  if (!a.drawMax || maxCount === 0) return done(cur);
+
+  // 双方が maxCount 枚引く
+  const drawSelf  = Math.min(maxCount, cur.ownerState.deck.length);
+  const drawOther = Math.min(maxCount, cur.otherState.deck.length);
+  cur = {
+    ...cur,
+    ownerState: {
+      ...cur.ownerState,
+      hand: [...cur.ownerState.deck.slice(0, drawSelf)],
+      deck: cur.ownerState.deck.slice(drawSelf),
+    },
+    otherState: {
+      ...cur.otherState,
+      hand: [...cur.otherState.deck.slice(0, drawOther)],
+      deck: cur.otherState.deck.slice(drawOther),
+    },
+  };
+  return done(addLog(cur, `各${maxCount}枚ドロー`));
+}
+
+function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
+  const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const removed = [...(state.abilities_removed ?? []), ...cands];
+  const newS: PlayerState = { ...state, abilities_removed: removed };
+  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `シグニ${cands.length}体の能力を消去`));
+}
+
 // ===== メイン実行関数 =====
 
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
