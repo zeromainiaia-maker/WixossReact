@@ -611,8 +611,7 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
           <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
         </div>
         {charmCardNum && (
-          <CharmPeek cardNum={charmCardNum} cards={cards} width={width} isMe={!!isMe}
-            onTap={() => setShowCharmModal(true)} />
+          <CharmPeek width={width} onTap={() => setShowCharmModal(true)} />
         )}
         {showCharmModal && charmCardNum && (
           <CharmModal cardNum={charmCardNum} cards={cards} isMe={!!isMe} onClose={() => setShowCharmModal(false)} />
