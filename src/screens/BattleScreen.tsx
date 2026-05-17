@@ -264,8 +264,9 @@ function canAffordWithExtraCost(
   baseCost: string,
   extraCosts: { color: string; count: number }[],
   keywordGrants?: Record<string, string[]>,
+  allMulti?: boolean,
 ): boolean {
-  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants);
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti);
   // 追加コスト分をプールから引いてから基本コストをチェック
   let pool = [...energyNums];
   for (const { color, count } of extraCosts) {
