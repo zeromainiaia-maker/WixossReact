@@ -147,6 +147,16 @@ type ConditionParseResult = {
 };
 
 function parseActiveCondition(text: string): ConditionParseResult {
+  // パターン0: 「このターン、」（ターン終了時まで適用される常時効果）
+  if (text.startsWith('このターン、')) {
+    return { condition: undefined, rest: text.slice('このターン、'.length), conditionFound: true };
+  }
+
+  // パターン0b: 「ターン終了時まで、」（常時効果の持続期間指定）
+  if (text.startsWith('ターン終了時まで、')) {
+    return { condition: undefined, rest: text.slice('ターン終了時まで、'.length), conditionFound: true };
+  }
+
   // パターン1: 「対戦相手のターンの間、」「あなたのターンの間、」
   const turnM = text.match(/^(対戦相手|あなた)のターンの間、/);
   if (turnM) {
