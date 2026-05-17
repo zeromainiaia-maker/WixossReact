@@ -218,16 +218,10 @@ function meetsRestriction(restriction: string, lrigClass: string): boolean {
 }
 
 
-// マルチエナ判定: card.effects の CONTINUOUS GRANT_KEYWORD 'マルチエナ' 効果を持つカード
-// + ゲーム中に動的付与された keyword_grants も確認
-function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean): boolean {
+// マルチエナ判定: allMulti（フィールドのWX01-027のような全エナ付与効果）か
+// keyword_grants で動的付与された場合のみtrue
+function isMultiEna(cardNum: string, _cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean): boolean {
   if (allMulti) return true;
-  const card = cards.find(c => c.CardNum === cardNum);
-  if (card?.effects?.some(e =>
-    e.effectType === 'CONTINUOUS' &&
-    e.action.type === 'GRANT_KEYWORD' &&
-    (e.action as { keyword: string }).keyword === 'マルチエナ'
-  )) return true;
   return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
 }
 
