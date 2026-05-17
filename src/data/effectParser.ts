@@ -23,6 +23,12 @@ import type {
   RearrangeSigniAction,
   GrowFreeAction,
   RemoveAbilitiesAction,
+  PlayFreeAction,
+  CostIncreaseAction,
+  PowerModifyPerStackAction,
+  PowerModifyPerFieldAction,
+  CharmProtectionAction,
+  MutualDiscardAndDrawAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
