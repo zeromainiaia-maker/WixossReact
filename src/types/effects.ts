@@ -168,6 +168,12 @@ export type EffectAction =
   | RearrangeSigniAction
   | GrowFreeAction
   | RemoveAbilitiesAction
+  | PlayFreeAction
+  | CostIncreaseAction
+  | PowerModifyPerStackAction
+  | PowerModifyPerFieldAction
+  | CharmProtectionAction
+  | MutualDiscardAndDrawAction
   | UnknownAction;
 
 export interface DrawAction {
