@@ -602,12 +602,21 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
 
   if (!n) {
     return (
-      <div style={{
-        width, height, flexShrink: 0, borderRadius: 4,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        border: C.borderEmpty, backgroundColor: C.bgCardEmpty,
-      }}>
-        <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{
+          width, height, flexShrink: 0, borderRadius: charmCardNum ? '4px 4px 0 0' : 4,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: C.borderEmpty, backgroundColor: C.bgCardEmpty,
+        }}>
+          <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+        </div>
+        {charmCardNum && (
+          <CharmPeek cardNum={charmCardNum} cards={cards} width={width} isMe={!!isMe}
+            onTap={() => setShowCharmModal(true)} />
+        )}
+        {showCharmModal && charmCardNum && (
+          <CharmModal cardNum={charmCardNum} cards={cards} isMe={!!isMe} onClose={() => setShowCharmModal(false)} />
+        )}
       </div>
     );
   }
