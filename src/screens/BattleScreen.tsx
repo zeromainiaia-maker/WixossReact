@@ -2392,12 +2392,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
       const fieldEntries = collectFieldTriggers('ON_PLAY', cardNum, placed, op);
 
-      // 召喚したカード自身の ON_PLAY 効果
+      // 召喚したカード自身の ON_PLAY 効果（mandatory=falseの任意効果は自動発動しない）
       const ownEffects = effectsMap.get(cardNum) ?? [];
       const ownOnPlay = ownEffects.filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
-        (e.triggerScope === undefined || e.triggerScope === 'self'),
+        (e.triggerScope === undefined || e.triggerScope === 'self') &&
+        e.mandatory !== false,
       );
 
       if (ownOnPlay.length === 0 && fieldEntries.length === 0) {
