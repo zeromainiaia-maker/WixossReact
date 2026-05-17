@@ -153,9 +153,23 @@ export function calcFieldPowers(
 
   // フィールド上のすべてのカードの CONTINUOUS POWER_MODIFY を適用
   const applyEffects = (ownerState: PlayerState, otherState: PlayerState, isOwnerTurn: boolean) => {
+    // 効果を持ちうるフィールド上カードを列挙
+    const candidates: string[] = [];
+    // シグニ（各ゾーン最前面）
     for (const stack of ownerState.field.signi) {
-      if (!stack || stack.length === 0) continue;
-      const topNum = stack[stack.length - 1];
+      if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
+    }
+    // センタールリグ（最前面）
+    if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig[ownerState.field.lrig.length - 1]);
+    // アシストルリグ（左右それぞれ最前面）
+    const al = ownerState.field.assist_lrig_l ?? [];
+    if (al.length > 0) candidates.push(al[al.length - 1]);
+    const ar = ownerState.field.assist_lrig_r ?? [];
+    if (ar.length > 0) candidates.push(ar[ar.length - 1]);
+    // キーピース
+    if (ownerState.field.key_piece) candidates.push(ownerState.field.key_piece);
+
+    for (const topNum of candidates) {
       const effects = effectsMap.get(topNum);
       if (!effects) continue;
 
