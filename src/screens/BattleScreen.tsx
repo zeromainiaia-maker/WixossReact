@@ -2335,10 +2335,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const existingStack = my.field.signi[zoneIndex] ?? [];
       const newSigni = [...my.field.signi] as (string[] | null)[];
       newSigni[zoneIndex] = [cardNum];
+      // 入れ替え召喚時はそのゾーンのダウン・凍結・チャームをリセット
+      const newSigniDown   = [...(my.field.signi_down   ?? [false, false, false])];
+      const newSigniFrozen = [...(my.field.signi_frozen  ?? [false, false, false])];
+      const newCharms      = [...(my.field.signi_charms  ?? [null, null, null])];
+      newSigniDown[zoneIndex]   = false;
+      newSigniFrozen[zoneIndex] = false;
+      newCharms[zoneIndex]      = null;
       const placed: PlayerState = {
         ...my,
         hand: my.hand.filter((_, i) => i !== handIndex),
-        field: { ...my.field, signi: newSigni },
+        field: {
+          ...my.field,
+          signi: newSigni,
+          signi_down:   newSigniDown,
+          signi_frozen: newSigniFrozen,
+          signi_charms: newCharms,
+        },
         trash: [...my.trash, ...existingStack],
       };
 
