@@ -273,7 +273,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.count === 'ALL') return done(applyBanish(cands, ctx));
   const count = resolveNum(tgt.count);
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyBanish);
+  return selectOrInteract(cands, count, a.optional ?? false, scope, a, undefined, ctx, applyBanish);
 }
 
 function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
