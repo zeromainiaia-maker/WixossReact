@@ -2429,6 +2429,143 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // ── キーピース使用 ──
+  const executeKeyPiece = async (card: CardData, costIndices: Set<number>) => {
+    if (loading) return;
+    setLoading(true);
+    setShowKeyModal(false);
+    setPendingKeyCard(null);
+    setSelectedKeyCost(new Set());
+    try {
+      const cardNum = card.CardNum;
+      const idx = my.lrig_deck.indexOf(cardNum);
+      const newLrigDeck = idx === -1 ? my.lrig_deck
+        : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const coinCost = parseCoinCost(card.Cost);
+      const paid: PlayerState = {
+        ...my,
+        lrig_deck: newLrigDeck,
+        field: { ...my.field, key_piece: cardNum },
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+        coins: Math.max(0, my.coins - coinCost),
+      };
+      const fired = await queueCardEffects(cardNum, ['AUTO'], ['ON_PLAY'], paid, op);
+      if (!fired) {
+        const stateKey = isHost ? 'host_state' : 'guest_state';
+        await supabase.from('battle_states').update({ [stateKey]: paid }).eq('room_id', roomId);
+      }
+      setCloseZoneSignal(s => s + 1);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── キーピース起動効果 ──
+  const executeKeyActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingKeyActivated(null);
+    setSelectedKeyActivatedCost(new Set());
+    try {
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const paid: PlayerState = {
+        ...my,
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+        actions_done: [...(my.actions_done ?? []), effect.effectId],
+      };
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      const entry: StackEntry = {
+        id: crypto.randomUUID(),
+        playerId: user.id,
+        cardNum,
+        effectId: effect.effectId,
+        label: `${cardName} の【起】効果`,
+        effect,
+      };
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existingStack = bs?.effect_stack ?? null;
+      const newStack = existingStack ? pushToStack(existingStack, [entry]) : initStack(turnPlayerId, [entry]);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── アシストルリグ グロウ ──
+  const executeAssistGrow = async (card: CardData, side: 'l' | 'r', costIndices: Set<number>) => {
+    if (!isMyTurn || loading) return;
+    setLoading(true);
+    setShowAssistGrowModal(false);
+    setPendingAssistGrowCard(null);
+    setPendingAssistSide(null);
+    setSelectedAssistGrowCost(new Set());
+    try {
+      const cardNum = card.CardNum;
+      const idx = my.lrig_deck.indexOf(cardNum);
+      const newLrigDeck = idx === -1 ? my.lrig_deck
+        : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const sideKey = side === 'l' ? 'assist_lrig_l' : 'assist_lrig_r';
+      const currentStack = (side === 'l' ? my.field.assist_lrig_l : my.field.assist_lrig_r) ?? [];
+      const newMyState: PlayerState = {
+        ...my,
+        lrig_deck: newLrigDeck,
+        field: { ...my.field, [sideKey]: [...currentStack, cardNum] },
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+      };
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── アシストルリグ 起動効果 ──
+  const executeAssistActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingAssistActivated(null);
+    setSelectedAssistActivatedCost(new Set());
+    try {
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const paid: PlayerState = {
+        ...my,
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+        actions_done: [...(my.actions_done ?? []), effect.effectId],
+      };
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      const entry: StackEntry = {
+        id: crypto.randomUUID(),
+        playerId: user.id,
+        cardNum,
+        effectId: effect.effectId,
+        label: `${cardName} の【起】効果`,
+        effect,
+      };
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existingStack = bs?.effect_stack ?? null;
+      const newStack = existingStack ? pushToStack(existingStack, [entry]) : initStack(turnPlayerId, [entry]);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleSpellCostCard = (idx: number) => {
     setSelectedSpellCost(prev => {
       const next = new Set(prev);
