@@ -5295,6 +5295,69 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           );
         }
 
+        // LOOK_AND_REORDER：デッキトップのカードを見て並べ替え
+        if (inter.type === 'LOOK_AND_REORDER') {
+          const moveCard = (idx: number, dir: -1 | 1) => {
+            const newOrder = [...lookReorderOrder];
+            const swapIdx = idx + dir;
+            if (swapIdx < 0 || swapIdx >= newOrder.length) return;
+            [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+            setLookReorderOrder(newOrder);
+          };
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '20px 16px', width: 'min(95vw, 400px)',
+                  display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                </p>
+                <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
+                  カードを見て並べ替えてください（上がデッキトップ）
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {lookReorderOrder.map((cardNum, i) => {
+                    const c = battleCardMap.get(cardNum);
+                    return (
+                      <div key={cardNum} style={{ display: 'flex', alignItems: 'center', gap: 8,
+                        backgroundColor: C.bgButton, borderRadius: 6, padding: '6px 8px' }}>
+                        <span style={{ color: C.textDim, fontSize: 11, width: 16 }}>{i + 1}</span>
+                        <img src={c?.ImgURL} alt={c?.CardName} draggable={false}
+                          style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                          onError={e2 => { (e2.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                        <span style={{ color: C.textSub, fontSize: 12, flex: 1 }}>{c?.CardName ?? cardNum}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <button onClick={() => moveCard(i, -1)} disabled={i === 0}
+                            style={{ padding: '2px 8px', fontSize: 11, borderRadius: 4,
+                              border: C.borderUI, backgroundColor: 'transparent',
+                              color: i === 0 ? C.textDim : C.text, cursor: i === 0 ? 'default' : 'pointer' }}>↑</button>
+                          <button onClick={() => moveCard(i, 1)} disabled={i === lookReorderOrder.length - 1}
+                            style={{ padding: '2px 8px', fontSize: 11, borderRadius: 4,
+                              border: C.borderUI, backgroundColor: 'transparent',
+                              color: i === lookReorderOrder.length - 1 ? C.textDim : C.text,
+                              cursor: i === lookReorderOrder.length - 1 ? 'default' : 'pointer' }}>↓</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button onClick={() => { handleEffectInteraction(lookReorderOrder); setLookReorderOrder([]); }}
+                  disabled={loading}
+                  style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                    backgroundColor: loading ? C.disabled : C.success,
+                    color: C.text, fontSize: 14, fontWeight: 'bold',
+                    cursor: loading ? 'default' : 'pointer' }}>
+                  決定
+                </button>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
         return null;
       })()}
 
