@@ -2833,7 +2833,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
         (phase === 'ATTACK_ARTS'    && isMyTurn  && cardData.Timing.includes('アタックフェイズ')) ||
         (phase === 'ATTACK_ARTS_OP' && !isMyTurn && cardData.Timing.includes('アタックフェイズ'));
-      if (canUse && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants)) {
+      const extraArtsCosts = activeCostMods.forMy
+        .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
+        .flatMap(m => m.amount);
+      if (canUse && canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, extraArtsCosts, my.keyword_grants)) {
         actions.push({
           label: '使用',
           color: C.coin,
