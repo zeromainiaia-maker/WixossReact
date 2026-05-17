@@ -206,7 +206,8 @@ function meetsRestriction(restriction: string, lrigClass: string): boolean {
 
 // マルチエナ判定: card.effects の CONTINUOUS GRANT_KEYWORD 'マルチエナ' 効果を持つカード
 // + ゲーム中に動的付与された keyword_grants も確認
-function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>): boolean {
+function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean): boolean {
+  if (allMulti) return true;
   const card = cards.find(c => c.CardNum === cardNum);
   if (card?.effects?.some(e =>
     e.effectType === 'CONTINUOUS' &&
@@ -216,7 +217,7 @@ function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<s
   return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
 }
 
-function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>): boolean {
+function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>, allMulti?: boolean): boolean {
   const costs = parseGrowCost(growCost);
   if (costs.length === 0) return true;
   // 色指定コストを先に処理し、マルチエナをワイルドカードとして温存する
@@ -224,7 +225,7 @@ function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: st
   type P = { color: string; isWild: boolean };
   let pool: P[] = energyNums.map(n => {
     const c = cards.find(cd => cd.CardNum === n);
-    return { color: c?.Color ?? '無', isWild: isMultiEna(n, cards, keywordGrants) };
+    return { color: c?.Color ?? '無', isWild: isMultiEna(n, cards, keywordGrants, allMulti) };
   });
   for (const { color, count } of sorted) {
     let needed = count;
