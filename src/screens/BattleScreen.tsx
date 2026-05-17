@@ -5228,14 +5228,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 </p>
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>{label}</p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-                  {candidates.map(cardNum => {
+                  {candidates.map((cardNum, idx) => {
                     const c = battleCardMap.get(cardNum);
-                    const isSel = effectSelectedNums.includes(cardNum);
+                    // 同名カード対応: このインデックスより前に同名カードが何枚あるか vs 選択済みの同名カード枚数
+                    const countBefore = candidates.slice(0, idx).filter(n => n === cardNum).length;
+                    const countSelected = effectSelectedNums.filter(n => n === cardNum).length;
+                    const isSel = countBefore < countSelected;
                     return (
-                      <div key={cardNum}
+                      <div key={idx}
                         onClick={() => {
                           setEffectSelectedNums(prev => {
-                            if (prev.includes(cardNum)) return prev.filter(n => n !== cardNum);
+                            if (isSel) {
+                              const ri = prev.indexOf(cardNum);
+                              return ri >= 0 ? [...prev.slice(0, ri), ...prev.slice(ri + 1)] : prev;
+                            }
                             if (prev.length >= maxPick) return prev;
                             return [...prev, cardNum];
                           });
