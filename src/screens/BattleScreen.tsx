@@ -1059,6 +1059,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // シグニ起動効果
   const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedSigniActivatedCost, setSelectedSigniActivatedCost] = useState<Set<number>>(new Set());
+  // ライフクロスクラッシュ時のカード拡大
+  const [burstCardZoomed, setBurstCardZoomed] = useState(false);
   // 効果インタラクション：SELECT_TARGET / SEARCH / CHOOSE
   const [effectSelectedNums, setEffectSelectedNums] = useState<string[]>([]);
   // 効果スタック整列UI：自分の pending エントリの id を並べた配列
@@ -1151,6 +1153,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       addAll(s.life_cloth); addAll(s.trash); addAll(s.lrig_trash);
       addAll(s.energy); addAll(s.field.lrig);
       s.field.signi.forEach(stack => stack?.forEach(n => nums.add(n)));
+      if (s.field.check) nums.add(s.field.check);
+      if (s.field.key_piece) nums.add(s.field.key_piece);
+      addAll(s.field.assist_lrig_l); addAll(s.field.assist_lrig_r);
+      (s.field.signi_charms ?? []).forEach(n => n && nums.add(n));
     };
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
     if (bs) { addState(bs.host_state); addState(bs.guest_state); }
@@ -3747,8 +3753,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {checkCard ? (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <img src={checkCard.ImgURL} alt={checkCard.CardName}
+                        onClick={() => setBurstCardZoomed(true)}
                         style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6,
-                          boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none' }}
+                          boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none',
+                          cursor: 'pointer' }}
                         onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
                       <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
                         {checkCard.CardName}
@@ -3804,6 +3812,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         </div>,
         document.body,
       )}
+
+      {/* ライフクロスクラッシュ カード拡大 */}
+      {burstCardZoomed && my.field.check && (() => {
+        const zCard = battleCardMap.get(my.field.check);
+        if (!zCard) return null;
+        return createPortal(
+          <div
+            onClick={() => setBurstCardZoomed(false)}
+            onTouchEnd={e => { e.preventDefault(); setBurstCardZoomed(false); }}
+            style={{ position: 'fixed', inset: 0, zIndex: 5000,
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            <img src={zCard.ImgURL} alt={zCard.CardName} draggable={false}
+              style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 10, objectFit: 'contain' }}
+              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+            <span style={{ color: C.textFaint, fontSize: 12 }}>タップで閉じる</span>
+          </div>,
+          document.body,
+        );
+      })()}
 
       {/* ガード応答ダイアログ（自分が攻撃されたとき） */}
       {my.field.lrig_attacked && createPortal(
