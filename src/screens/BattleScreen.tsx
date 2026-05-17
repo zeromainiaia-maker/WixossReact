@@ -3954,7 +3954,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.textMuted, fontSize: 12, margin: 0 }}>カットインカード:</p>
                         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {cutinCandidates.map(card => {
-                            const canAfford = canAffordGrowCost(my.energy, battleCards, card.Cost, my.keyword_grants);
+                            const extraArtsCosts = activeCostMods.forMy
+                              .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
+                              .flatMap(m => m.amount);
+                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants);
                             return (
                               <button key={card.CardNum}
                                 onClick={() => { if (canAfford) { setPendingCutinCard(card); setSelectedCutinCost(new Set()); } }}
