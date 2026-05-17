@@ -185,11 +185,13 @@ export interface DrawAction {
 export interface BounceAction {
   type: 'BOUNCE'; // フィールド→手札
   target: EffectTarget;
+  optional?: boolean; // true = 「してもよい」（プレイヤーがスキップ可能）
 }
 
 export interface BanishAction {
   type: 'BANISH';
   target: EffectTarget;
+  optional?: boolean; // true = 「してもよい」（プレイヤーがスキップ可能）
 }
 
 export interface PowerModifyAction {
