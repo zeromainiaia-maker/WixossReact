@@ -296,7 +296,7 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.count === 'ALL') return done(applyBounce(cands, ctx));
   const count = resolveNum(tgt.count);
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyBounce);
+  return selectOrInteract(cands, count, a.optional ?? false, scope, a, undefined, ctx, applyBounce);
 }
 
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
