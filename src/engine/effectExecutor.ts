@@ -1075,7 +1075,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'REMOVE_ABILITIES':        return execRemoveAbilities(action as RemoveAbilitiesAction, ctx);
     // 以下は CONTINUOUS 効果専用（effectEngine 側で処理）
     case 'BANISH_REDIRECT':         return done(addLog(ctx, 'バニッシュ先変更（CONTINUOUS）'));
-    case 'REARRANGE_SIGNI':         return needsInteraction(ctx, { type: 'CHOOSE', options: [], count: 0 });
+    case 'REARRANGE_SIGNI':         return done(addLog(ctx, 'シグニ並び替え（BattleScreen側で処理）'));
     case 'GROW_FREE':               return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
     case 'POWER_MODIFY_PER_STACK':  return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
