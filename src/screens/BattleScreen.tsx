@@ -1397,6 +1397,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return calcActiveCostMods(myS, opS, myTurn, effectsMap, battleCardMap);
   }, [bs, effectsMap, battleCardMap, user.id]);
 
+  // フィールドにCONTINUOUS GRANT_KEYWORD マルチエナ（対エナゾーン）効果があるか
+  const myEnaAllMulti = useMemo(() => {
+    if (!bs) return false;
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    return myS.field.signi.some(stack => {
+      const topNum = stack?.at(-1);
+      if (!topNum) return false;
+      return (effectsMap.get(topNum) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' &&
+        e.action?.type === 'GRANT_KEYWORD' &&
+        (e.action as { keyword: string }).keyword === 'マルチエナ' &&
+        (e.action as { target: { type: string } }).target?.type === 'ENERGY_CARD'
+      );
+    });
+  }, [bs, effectsMap, user.id]);
+
   // ── Rules of Hooks 対策：PLAYING セクション由来の useEffect を if(!bs) より前に置く ──
 
   // LOOK_AND_REORDER インタラクションが来たら初期順序をセット
