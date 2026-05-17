@@ -395,6 +395,54 @@ export interface RevealAndPickAction {
   remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' };
 }
 
+// コストなしでカードを使用する（手札・相手手札・相手トラッシュ・ルリグデッキから）
+export interface PlayFreeAction {
+  type: 'PLAY_FREE';
+  source: 'hand' | 'opp_hand' | 'opp_trash' | 'lrig_deck';
+  filter: TargetFilter;
+  ignoreCost: boolean;
+  ignoreRestrictions?: boolean;
+  optional: boolean;
+}
+
+// コスト増加（CONTINUOUS効果で相手のカード使用コストを増やす）
+export interface CostIncreaseAction {
+  type: 'COST_INCREASE';
+  targetCardType: 'スペル' | 'アーツ' | 'ルリグ';
+  targetOwner: Owner;
+  amount: EnergyCost[];
+  duration?: 'UNTIL_END_OF_TURN' | 'PERMANENT';
+}
+
+// スタック枚数に比例したパワー修正（CONTINUOUS効果内）
+export interface PowerModifyPerStackAction {
+  type: 'POWER_MODIFY_PER_STACK';
+  target: EffectTarget;
+  deltaPerCard: number; // スタック1枚（最上面を除く）ごとのパワー増減
+}
+
+// フィールドカウントに比例したパワー修正（AUTO効果内）
+export interface PowerModifyPerFieldAction {
+  type: 'POWER_MODIFY_PER_FIELD';
+  target: EffectTarget;       // パワーを変更する対象
+  deltaPerUnit: number;       // フィールドの対象1体ごとのパワー増減
+  countFilter: TargetFilter;  // カウントするシグニのフィルタ
+  countOwner: Owner;          // カウントするフィールドのオーナー
+}
+
+// チャームを消費してバニッシュを防ぐ
+export interface CharmProtectionAction {
+  type: 'CHARM_PROTECTION';
+  signiFilter: TargetFilter;
+  optional: boolean;
+}
+
+// 両者手札全捨て → 捨てた枚数の最大値分だけ引く
+export interface MutualDiscardAndDrawAction {
+  type: 'MUTUAL_DISCARD_AND_DRAW';
+  drawMax: boolean;
+}
+
 // バニッシュされたシグニをエナゾーンではなくトラッシュへ送る
 export interface BanishRedirectAction {
   type: 'BANISH_REDIRECT';
