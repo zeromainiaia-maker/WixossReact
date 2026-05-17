@@ -198,6 +198,13 @@ function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: st
   return true;
 }
 
+function parseCoinCost(costStr: string): number {
+  if (!costStr) return 0;
+  const toHalf = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+  for (const m of costStr.matchAll(/《コイン》×([０-９\d]+)/g)) return parseInt(toHalf(m[1])) || 0;
+  return 0;
+}
+
 const JANKEN_LABEL: Record<string, string> = { GU: 'グー✊', CHOKI: 'チョキ✌', PA: 'パー✋' };
 const PHASE_LABEL: Record<string, string> = {
   UP: 'アップ', DRAW: 'ドロー', ENERGY: 'エナ', GROW: 'グロウ', MAIN: 'メイン',
