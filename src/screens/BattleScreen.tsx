@@ -1039,7 +1039,9 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
             actions={getSigniZoneActions ? getSigniZoneActions(rawIdx) : undefined}
             isDown={state.field.signi_down?.[rawIdx] ?? false}
             isFrozen={state.field.signi_frozen?.[rawIdx] ?? false}
-            effectivePowers={effectivePowers} />
+            effectivePowers={effectivePowers}
+            charmCardNum={state.field.signi_charms?.[rawIdx] ?? null}
+            isMe={isMe} />
         );
       })}
     </div>
