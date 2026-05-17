@@ -356,9 +356,11 @@ export interface CounterSpellAction {
 // コスト減少（コードハートVACなど）
 export interface CostReductionAction {
   type: 'COST_REDUCTION';
-  targetCardType: 'スペル' | 'アーツ';
+  targetCardType: 'スペル' | 'アーツ' | 'ルリグ';
   color?: string;
   reduction: EnergyCost[];
+  isGrowCost?: boolean;          // true = グロウコスト対象
+  duration?: 'UNTIL_END_OF_TURN' | 'PERMANENT' | 'NEXT_TURN';
 }
 
 // 効果耐性付与（「対戦相手の〜の効果を受けない」）
