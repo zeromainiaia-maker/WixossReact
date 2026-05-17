@@ -19,7 +19,7 @@ interface Props {
 
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
+    return generateUUID();
   }
   // HTTP環境など crypto.randomUUID が使えない場合のフォールバック
   const bytes = new Uint8Array(16);
@@ -1819,7 +1819,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       const cardName = battleCardMap.get(banishedCardNum)?.CardName ?? banishedCardNum;
       entries.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         playerId: banishedPlayerId,
         cardNum: banishedCardNum,
         effectId: eff.effectId,
@@ -1839,7 +1839,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           playerId: user.id,
           cardNum: topNum,
           effectId: eff.effectId,
@@ -1861,7 +1861,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           playerId: opId,
           cardNum: topNum,
           effectId: eff.effectId,
@@ -1896,7 +1896,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if ((eff.triggerScope ?? 'self') !== 'self') continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           playerId: user.id,
           cardNum: topNum,
           effectId: eff.effectId,
@@ -1913,7 +1913,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
         const cardName = battleCardMap.get(myLrigNum)?.CardName ?? myLrigNum;
         entries.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           playerId: user.id,
           cardNum: myLrigNum,
           effectId: eff.effectId,
@@ -1933,7 +1933,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (scope !== 'any_opp' && scope !== 'any') continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           playerId: opId,
           cardNum: topNum,
           effectId: eff.effectId,
@@ -2135,7 +2135,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const turnPlayerId = bs?.active_user_id ?? user.id;
 
     const entries: StackEntry[] = targets.map(eff => ({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       playerId: user.id,
       cardNum,
       effectId: eff.effectId,
@@ -2337,7 +2337,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (scope !== 'any_ally' && scope !== 'any') continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           playerId: user.id,
           cardNum: topNum,
           effectId: eff.effectId,
@@ -2359,7 +2359,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (scope !== 'any' && scope !== 'any_opp') continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           playerId: opId,
           cardNum: topNum,
           effectId: eff.effectId,
@@ -2425,7 +2425,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 自身の ON_PLAY エントリを StackEntry に変換
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const ownEntries: StackEntry[] = ownOnPlay.map(eff => ({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         playerId: user.id,
         cardNum,
         effectId: eff.effectId,
@@ -2661,7 +2661,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         playerId: user.id,
         cardNum,
         effectId: effect.effectId,
@@ -2728,7 +2728,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         playerId: user.id,
         cardNum,
         effectId: effect.effectId,
@@ -3155,7 +3155,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const attackEntries: StackEntry[] = (effectsMap.get(myTopNum) ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
         .map(e => ({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           playerId: user.id,
           cardNum: myTopNum,
           effectId: e.effectId,
@@ -3340,7 +3340,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 効果をスタックに積む
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         playerId: user.id,
         cardNum,
         effectId: effect.effectId,
