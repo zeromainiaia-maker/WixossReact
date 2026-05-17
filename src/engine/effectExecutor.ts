@@ -1219,6 +1219,15 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       return done(ctx);
     }
+    case 'POWER_MODIFY': {
+      const pmAction = action as PowerModifyAction;
+      const delta = resolveNum(pmAction.delta);
+      const tgtOwner = pmAction.target.owner === 'any' ? 'self' : pmAction.target.owner as Owner;
+      const s = ownerState(tgtOwner, ctx);
+      const mods = [...(s.temp_power_mods ?? []), { cardNum, delta }];
+      const newS: PlayerState = { ...s, temp_power_mods: mods };
+      return done(addLog(setOwnerState(tgtOwner, newS, ctx), `パワー${delta > 0 ? '+' : ''}${delta}`));
+    }
     case 'ADD_TO_HAND': {
       // SEARCH内でのみ使用：cardNumをオーナーの手札へ
       const newS: PlayerState = { ...ctx.ownerState, hand: [...ctx.ownerState.hand, cardNum] };
