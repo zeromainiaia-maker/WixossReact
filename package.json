@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:effects": "tsx scripts/buildEffectsJson.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
