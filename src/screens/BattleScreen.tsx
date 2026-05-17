@@ -1894,6 +1894,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // フェイズ進行（エナフェイズ未使用時は確認ポップアップ）
   const handlePhaseAdvance = () => {
     if (!iControlThisPhase || loading) return;
+    if (my.field.check || op.field.check) return; // チェックゾーンにカードがある間はブロック
     if (bs.turn_phase === 'ENERGY') {
       const used    = my.actions_done?.includes('ENERGY') ?? false;
       const blocked = my.blocked_actions?.includes('ENERGY') ?? false;
