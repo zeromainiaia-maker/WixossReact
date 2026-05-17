@@ -2360,6 +2360,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // シグニ召喚（ゾーン選択後に実行）
   const handleSummonSigni = async (handIndex: number, zoneIndex: number) => {
+    console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
     if (!isMyTurn || loading) return;
     setLoading(true);
     setPendingSigniSummon(null);
