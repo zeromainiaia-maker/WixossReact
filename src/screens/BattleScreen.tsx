@@ -205,6 +205,34 @@ function parseCoinCost(costStr: string): number {
   return 0;
 }
 
+// コスト増加修正を考慮してエナを追加消費できるか確認
+function canAffordWithExtraCost(
+  energyNums: string[],
+  cards: CardData[],
+  baseCost: string,
+  extraCosts: { color: string; count: number }[],
+  keywordGrants?: Record<string, string[]>,
+): boolean {
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants);
+  // 追加コスト分をプールから引いてから基本コストをチェック
+  let pool = [...energyNums];
+  for (const { color, count } of extraCosts) {
+    let needed = count;
+    const rem: string[] = [];
+    for (const n of pool) {
+      if (needed > 0) {
+        const cd = cards.find(c => c.CardNum === n);
+        const cardColor = cd?.Color ?? '無';
+        if (color === '無' || cardColor.includes(color)) { needed--; continue; }
+      }
+      rem.push(n);
+    }
+    pool = rem;
+    if (needed > 0) return false;
+  }
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants);
+}
+
 const JANKEN_LABEL: Record<string, string> = { GU: 'グー✊', CHOKI: 'チョキ✌', PA: 'パー✋' };
 const PHASE_LABEL: Record<string, string> = {
   UP: 'アップ', DRAW: 'ドロー', ENERGY: 'エナ', GROW: 'グロウ', MAIN: 'メイン',
