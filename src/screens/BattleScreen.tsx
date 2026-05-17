@@ -991,11 +991,14 @@ function ZoneCardModal({ title, cardNums, cards, onClose, getCardActions }: {
 // 相手:  上段=KEY|AR|LRIG|AL|CHECK  下段=シグニ×3(中央寄り、左右反転)
 // ※ signi[0] は所有者視点で「左端」なので、相手表示時は逆順にして
 //   画面上の左右を正しく合わせる。他のゾーンも同様に反転する。
-function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, closeZoneSignal, effectivePowers }: {
+function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, getKeyPieceActions, getAssistLActions, getAssistRActions, closeZoneSignal, effectivePowers }: {
   state: PlayerState; cards: CardData[]; isMe: boolean;
   getSigniZoneActions?: (rawZoneIdx: number) => CardAction[];
   getLrigDeckCardActions?: (cardNum: string) => CardAction[];
   getLrigFieldActions?: () => CardAction[];
+  getKeyPieceActions?: () => CardAction[];
+  getAssistLActions?: () => CardAction[];
+  getAssistRActions?: () => CardAction[];
   closeZoneSignal?: number;
   effectivePowers?: Map<string, number>;
 }) {
