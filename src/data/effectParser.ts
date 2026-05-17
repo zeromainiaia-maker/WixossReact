@@ -19,6 +19,10 @@ import type {
   GrantProtectionAction,
   AttachCharmAction,
   RevealAndPickAction,
+  BanishRedirectAction,
+  RearrangeSigniAction,
+  GrowFreeAction,
+  RemoveAbilitiesAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
