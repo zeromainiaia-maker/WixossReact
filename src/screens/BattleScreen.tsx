@@ -3670,7 +3670,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {artsCandidates.map(card => {
-                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.Cost, my.keyword_grants);
+                    const extraArtsCosts = activeCostMods.forMy
+                      .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
+                      .flatMap(m => m.amount);
+                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants);
                     const totalReq = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
