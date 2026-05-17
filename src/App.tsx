@@ -71,39 +71,37 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // public/data/CardData_Sheet1.csv からカードデータを読み込む
+  // CSV と事前生成 effects.json を並行 fetch してカードデータを構築
   useEffect(() => {
-    fetch('/data/CardData_Sheet1.csv')
-      .then(r => r.text())
-      .then(csv => {
+    Promise.all([
+      fetch('/data/CardData_Sheet1.csv').then(r => r.text()),
+      fetch('/data/effects.json').then(r => r.json() as Promise<Record<string, CardEffect[]>>),
+    ])
+      .then(([csv, effectsJson]) => {
         const { data } = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
-        const loaded: CardData[] = data.map(r => {
-          const card: CardData = {
-            CardNum:     r.CardNum,
-            CardName:    r.CardName,
-            ImgURL:      r.ImgURL,
-            Type:        r.Type,
-            CardClass:   r.CardClass,
-            Color:       r.Color,
-            Level:       r.Level,
-            GrowCost:    r.GrowCost,
-            Cost:        r.Cost,
-            Limit:       r.Limit,
-            Power:       r.Power,
-            Restriction: r.Restriction,
-            Team:        r.Team,
-            Timing:      r.Timing,
-            Guard:       r.Guard,
-            Coin:        r.Coin,
-            Story:       r.Story,
-            LifeBurst:   r.LifeBurst,
-            EffectText:  r.EffectText,
-            BurstText:   r.BurstText,
-            effects:     [],
-          };
-          card.effects = parseCardEffects(card);
-          return card;
-        });
+        const loaded: CardData[] = data.map(r => ({
+          CardNum:     r.CardNum,
+          CardName:    r.CardName,
+          ImgURL:      r.ImgURL,
+          Type:        r.Type,
+          CardClass:   r.CardClass,
+          Color:       r.Color,
+          Level:       r.Level,
+          GrowCost:    r.GrowCost,
+          Cost:        r.Cost,
+          Limit:       r.Limit,
+          Power:       r.Power,
+          Restriction: r.Restriction,
+          Team:        r.Team,
+          Timing:      r.Timing,
+          Guard:       r.Guard,
+          Coin:        r.Coin,
+          Story:       r.Story,
+          LifeBurst:   r.LifeBurst,
+          EffectText:  r.EffectText,
+          BurstText:   r.BurstText,
+          effects:     effectsJson[r.CardNum] ?? [],
+        }));
         setCards(loaded);
       })
       .catch(e => console.error('カードデータ読み込み失敗:', e));
