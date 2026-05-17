@@ -2401,8 +2401,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       !!c &&
       c.Type === 'ルリグ' &&
       parseInt(c.Level) === currentLrigLevel + 1 &&
-      // 現在のルリグと CardClass に共通名称があるものだけ候補にする
-      (!currentLrig || lrigClassesCompatible(currentLrig.CardClass, c.CardClass))
+      // CardClass 互換チェック
+      (!currentLrig || lrigClassesCompatible(currentLrig.CardClass, c.CardClass)) &&
+      // 【グロウ】条件チェック（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数）
+      checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig?.CardName, battleCardMap)
     );
 
   // ルリグのクラス（制限チェック共通）
