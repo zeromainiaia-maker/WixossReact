@@ -7,7 +7,6 @@ import type {
   PowerModifyPerStackAction,
   CostIncreaseAction,
   TargetFilter,
-  Owner,
   EnergyCost,
 } from '../types/effects';
 
