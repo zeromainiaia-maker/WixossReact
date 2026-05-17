@@ -1231,10 +1231,10 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
       {zoneModal && (
         <ZoneCardModal
           title={zoneModal.title}
-          cardNums={zoneModal.cardNums}
+          cardNums={zoneModal.isLrigDeck ? state.lrig_deck : zoneModal.cardNums}
           cards={cards}
           onClose={() => setZoneModal(null)}
-          getCardActions={zoneModal.getCardActions}
+          getCardActions={zoneModal.isLrigDeck ? getLrigDeckCardActions : undefined}
         />
       )}
     </>
