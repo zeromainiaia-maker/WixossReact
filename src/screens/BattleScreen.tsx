@@ -1294,6 +1294,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return calcFieldPowers(myS, opS, myTurn, effectsMap, battleCardMap);
   }, [bs, effectsMap, battleCardMap, user.id]);
 
+  // CONTINUOUS コスト修正（CostIncreaseAction 効果を集計）
+  const activeCostMods = useMemo(() => {
+    if (!bs) return { forMy: [], forOp: [] };
+    const localIsHost = user.id === bs.host_id;
+    const myS  = localIsHost ? bs.host_state  : bs.guest_state;
+    const opS  = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    return calcActiveCostMods(myS, opS, myTurn, effectsMap, battleCardMap);
+  }, [bs, effectsMap, battleCardMap, user.id]);
+
   // ── Rules of Hooks 対策：PLAYING セクション由来の useEffect を if(!bs) より前に置く ──
 
   // 効果スタック整列UI の更新
