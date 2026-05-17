@@ -2950,7 +2950,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const extraArtsCosts = activeCostMods.forMy
         .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
         .flatMap(m => m.amount);
-      if (canUse && canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, extraArtsCosts, my.keyword_grants)) {
+      if (canUse && canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti)) {
         actions.push({
           label: '使用',
           color: C.coin,
@@ -2966,7 +2966,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
         (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ'));
       const coinNeeded = parseCoinCost(cardData.Cost);
-      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants);
+      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants, myEnaAllMulti);
       if (canUse && canAfford) {
         actions.push({
           label: 'キーにセット',
@@ -2979,7 +2979,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ── アシストルリグ ──
     if (cardData.Type === 'アシストルリグ' && isMyTurn) {
       const canGrow = phase === 'MAIN' || phase === 'GROW' || phase === 'ATTACK_ARTS';
-      if (canGrow && canAffordGrowCost(my.energy, battleCards, cardData.GrowCost, my.keyword_grants)) {
+      if (canGrow && canAffordGrowCost(my.energy, battleCards, cardData.GrowCost, my.keyword_grants, myEnaAllMulti)) {
         const targetLevel = parseInt(cardData.Level) || 0;
         if (targetLevel <= currentLrigLevel) {
           // 左スロット
@@ -3632,7 +3632,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {growCandidates.length === 0 ? (
                     <p style={{ color: C.textFaint, textAlign: 'center', margin: '12px 0' }}>候補なし</p>
                   ) : growCandidates.map(card => {
-                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants);
+                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti);
                     const totalReq = parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -3677,7 +3677,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedGrowCost].map(i => my.energy[i]);
               const isValid = selectedGrowCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants);
+                canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants, myEnaAllMulti);
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3715,7 +3715,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     ) : my.energy.map((num, i) => {
                       const card = battleCardMap.get(num);
                       const isSel = selectedGrowCost.has(i);
-                      const isWild = isMultiEna(num, battleCards, my.keyword_grants);
+                      const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
                       return (
                         <div key={i} onClick={() => toggleGrowCostCard(i)}
                           style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
@@ -3787,7 +3787,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
-                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants);
+                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
                     const totalReq = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -3838,7 +3838,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
               const isValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants);
+                canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3876,7 +3876,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     ) : my.energy.map((num, i) => {
                       const card = battleCardMap.get(num);
                       const isSel = selectedArtsCost.has(i);
-                      const isWild = isMultiEna(num, battleCards, my.keyword_grants);
+                      const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
                       return (
                         <div key={i} onClick={() => toggleArtsCostCard(i)}
                           style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
@@ -3947,7 +3947,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = totalReq === 0 ||
                 (selectedSpellCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, spellCard.Cost, extraSpellCosts, my.keyword_grants));
+                  canAffordWithExtraCost(selectedNums, battleCards, spellCard.Cost, extraSpellCosts, my.keyword_grants, myEnaAllMulti));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3981,7 +3981,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         {my.energy.map((num, i) => {
                           const card = battleCardMap.get(num);
                           const isSel = selectedSpellCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
                           return (
                             <div key={i} onClick={() => toggleSpellCostCard(i)}
                               style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
@@ -4071,7 +4071,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             const extraArtsCosts = activeCostMods.forMy
                               .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                               .flatMap(m => m.amount);
-                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants);
+                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
                             return (
                               <button key={card.CardNum}
                                 onClick={() => { if (canAfford) { setPendingCutinCard(card); setSelectedCutinCost(new Set()); } }}
@@ -4114,7 +4114,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = totalReq === 0 ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, pendingCutinCard.Cost, extraArtsCosts, my.keyword_grants));
+                  canAffordWithExtraCost(selectedNums, battleCards, pendingCutinCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4146,7 +4146,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         {my.energy.map((num, i) => {
                           const card = battleCardMap.get(num);
                           const isSel = selectedCutinCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
                           return (
                             <div key={i} onClick={() => toggleCutinCostCard(i)}
                               style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
@@ -4709,7 +4709,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const coinNeeded = parseCoinCost(card.Cost);
               const energyTotal = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => my.energy[i]);
-              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants));
+              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants, myEnaAllMulti));
               const canAfford = energyOk && my.coins >= coinNeeded;
               return (
                 <>
@@ -4782,7 +4782,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedKeyActivatedCost].map(i => my.energy[i]);
-              const canAfford = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants));
+              const canAfford = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti));
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>キー【起】効果を発動</p>
@@ -4852,7 +4852,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const selectedNums = [...selectedAssistGrowCost].map(i => my.energy[i]);
               const canAfford = energyTotal === 0
                 ? true
-                : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants);
+                : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti);
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
@@ -4920,7 +4920,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedAssistActivatedCost].map(i => my.energy[i]);
-              const canAfford = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants));
+              const canAfford = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti));
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>アシスト【起】効果を発動</p>
@@ -4995,7 +4995,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const canAfford = energyTotal === 0
                 ? true
                 : selectedSigniActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti);
 
               return (
                 <>
