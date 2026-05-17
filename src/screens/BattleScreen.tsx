@@ -1895,6 +1895,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           blocked_actions:    [],   // ターン内封じ行動をリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           pending_life_crashes: 0,  // ダブルクラッシュ残数をリセット
+          cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
