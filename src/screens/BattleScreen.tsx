@@ -3720,8 +3720,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const costItems = parseGrowCost(pendingArtsCard.Cost);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedArtsCost].map(i => my.energy[i]);
+              const extraArtsCosts = activeCostMods.forMy
+                .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
+                .flatMap(m => m.amount);
               const isValid = selectedArtsCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, pendingArtsCard.Cost, my.keyword_grants);
+                canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants);
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
