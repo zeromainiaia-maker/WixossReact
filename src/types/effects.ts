@@ -391,6 +391,34 @@ export interface RevealAndPickAction {
   remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' };
 }
 
+// バニッシュされたシグニをエナゾーンではなくトラッシュへ送る
+export interface BanishRedirectAction {
+  type: 'BANISH_REDIRECT';
+  target: EffectTarget;
+  redirectTo: 'trash';
+  until: 'END_OF_TURN' | 'PERMANENT';
+}
+
+// フィールド上のシグニを再配置する
+export interface RearrangeSigniAction {
+  type: 'REARRANGE_SIGNI';
+  target: EffectTarget;
+  swap?: boolean; // true=このシグニと対象シグニの位置を交換
+}
+
+// コストなしでグロウする
+export interface GrowFreeAction {
+  type: 'GROW_FREE';
+  levelFilter?: 'same' | 'any'; // 'same'=現在のルリグと同レベルのみ
+}
+
+// シグニの能力を消去する
+export interface RemoveAbilitiesAction {
+  type: 'REMOVE_ABILITIES';
+  target: EffectTarget;
+  until: EffectDuration;
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface UnknownAction {
   type: 'UNKNOWN';
