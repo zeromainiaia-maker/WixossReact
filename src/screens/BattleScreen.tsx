@@ -4195,6 +4195,54 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         );
       })()}
 
+      {/* 相手のライフクロスクラッシュ確認（攻撃側・読み取り専用） */}
+      {!my.field.check && op.field.check && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4400,
+          backgroundColor: 'rgba(0,0,0,0.80)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20,
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 320px)',
+            display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center',
+          }}>
+            {(() => {
+              const checkCard = battleCardMap.get(op.field.check!);
+              const hasBurst = checkCard?.LifeBurst === '1';
+              return (
+                <>
+                  <p style={{ color: C.life, fontSize: 15, fontWeight: 'bold', margin: 0 }}>
+                    相手のライフクロスクラッシュ
+                  </p>
+                  {checkCard ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <img src={checkCard.ImgURL} alt={checkCard.CardName}
+                        style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6,
+                          boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none' }}
+                        onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                      <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
+                        {checkCard.CardName}
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ width: 80, height: 112, backgroundColor: C.bgButton, borderRadius: 6, margin: '0 auto' }} />
+                  )}
+                  <p style={{ color: hasBurst ? C.accent : C.textFaint, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
+                    {hasBurst ? 'ライフバーストあり' : 'ライフバーストなし'}
+                  </p>
+                  <p style={{ color: C.textGhost, fontSize: 11, margin: 0 }}>
+                    相手の応答を待っています…
+                  </p>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* ガード応答ダイアログ（自分が攻撃されたとき） */}
       {my.field.lrig_attacked && createPortal(
         <div style={{
