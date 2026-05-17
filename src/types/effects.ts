@@ -271,7 +271,7 @@ export interface BlockActionAction {
   type: 'BLOCK_ACTION'; // アクションを封じる
   target: EffectTarget; // 封じる対象プレイヤー
   actionId: string;     // 封じるアクションID（例: 'ATTACK_SIGNI'）
-  until: 'END_OF_TURN' | 'END_OF_GAME';
+  until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT' | 'END_OF_GAME';
 }
 
 export interface StoryChangeAction {
