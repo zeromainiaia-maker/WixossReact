@@ -173,6 +173,7 @@ export type EffectAction =
   | CostIncreaseAction
   | PowerModifyPerStackAction
   | PowerModifyPerFieldAction
+  | PowerModifyPerLevelSumAction
   | CharmProtectionAction
   | MutualDiscardAndDrawAction
   | UnknownAction;
