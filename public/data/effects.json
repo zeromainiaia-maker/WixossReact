@@ -441,8 +441,11 @@
       "effectId": "WD02-001-E1",
       "effectType": "CONTINUOUS",
       "activeCondition": {
-        "type": "TURN_OWNER",
-        "owner": "self"
+        "type": "AND",
+        "conditions": [
+          { "type": "TURN_OWNER", "owner": "self" },
+          { "type": "HAS_CARD_IN_FIELD", "owner": "self", "filter": { "cardNum": "WD02-009" } }
+        ]
       },
       "action": {
         "type": "POWER_MODIFY",
