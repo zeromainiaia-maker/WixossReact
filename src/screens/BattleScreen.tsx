@@ -2483,6 +2483,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.mandatory !== false,
       );
 
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      appendBattleLogs([`${cardName}を召喚`]);
+
       if (ownOnPlay.length === 0 && fieldEntries.length === 0) {
         // 効果なし：そのまま保存
         const stateKey = isHost ? 'host_state' : 'guest_state';
@@ -2491,7 +2494,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // 自身の ON_PLAY エントリを StackEntry に変換
-      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const ownEntries: StackEntry[] = ownOnPlay.map(eff => ({
         id: generateUUID(),
         playerId: user.id,
