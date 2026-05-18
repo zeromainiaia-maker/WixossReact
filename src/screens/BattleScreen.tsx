@@ -5416,6 +5416,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ? (inter.optional || effectSelectedNums.length >= maxPick)
             : effectSelectedNums.length <= maxPick;
 
+          // フィールド対象の場合: 候補のゾーンインデックス（0→2）を再構築
+          // candidates は zone 0→1→2 の順なので、フィールドを同順で走査してマッピングする
+          const fieldZoneInfo: number[] = (() => {
+            if (inter.type !== 'SELECT_TARGET') return [];
+            const scope = inter.targetScope;
+            if (scope !== 'opp_field' && scope !== 'self_field') return [];
+            const fieldState = scope === 'opp_field' ? op : my;
+            const result: number[] = [];
+            let ci = 0;
+            for (let zi = 0; zi < 3 && ci < candidates.length; zi++) {
+              const topNum = fieldState.field.signi[zi]?.at(-1);
+              if (!topNum) continue;
+              if (candidates[ci] === topNum) { result.push(zi); ci++; }
+            }
+            return result;
+          })();
+
           return createPortal(
             <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
               backgroundColor: 'rgba(0,0,0,0.92)',
@@ -5435,35 +5452,43 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     const countBefore = candidates.slice(0, idx).filter(n => n === cardNum).length;
                     const countSelected = effectSelectedNums.filter(n => n === cardNum).length;
                     const isSel = countBefore < countSelected;
+                    const zoneIdx = fieldZoneInfo[idx]; // undefined if not a field target
                     return (
-                      <div key={idx}
-                        onClick={() => {
-                          setEffectSelectedNums(prev => {
-                            if (isSel) {
-                              const ri = prev.indexOf(cardNum);
-                              return ri >= 0 ? [...prev.slice(0, ri), ...prev.slice(ri + 1)] : prev;
-                            }
-                            if (prev.length >= maxPick) return prev;
-                            return [...prev, cardNum];
-                          });
-                        }}
-                        style={{ position: 'relative', width: 60, height: 84, borderRadius: 4,
-                          border: isSel ? '2px solid #f44336' : C.borderCard,
-                          cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}>
-                        {c ? (
-                          <img src={c.ImgURL} alt={c.CardName} draggable={false}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ fontSize: 8, color: C.textFaint }}>{cardNum}</span>
-                          </div>
-                        )}
-                        {isSel && (
-                          <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>✓</span>
-                          </div>
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <div
+                          onClick={() => {
+                            setEffectSelectedNums(prev => {
+                              if (isSel) {
+                                const ri = prev.indexOf(cardNum);
+                                return ri >= 0 ? [...prev.slice(0, ri), ...prev.slice(ri + 1)] : prev;
+                              }
+                              if (prev.length >= maxPick) return prev;
+                              return [...prev, cardNum];
+                            });
+                          }}
+                          style={{ position: 'relative', width: 60, height: 84, borderRadius: 4,
+                            border: isSel ? '2px solid #f44336' : C.borderCard,
+                            cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}>
+                          {c ? (
+                            <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ fontSize: 8, color: C.textFaint }}>{cardNum}</span>
+                            </div>
+                          )}
+                          {isSel && (
+                            <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>✓</span>
+                            </div>
+                          )}
+                        </div>
+                        {zoneIdx !== undefined && (
+                          <span style={{ fontSize: 9, color: '#9abcbc', lineHeight: 1 }}>
+                            ゾーン{zoneIdx + 1}
+                          </span>
                         )}
                       </div>
                     );
