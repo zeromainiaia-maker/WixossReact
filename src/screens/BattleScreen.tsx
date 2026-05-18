@@ -2907,7 +2907,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
       // ownerState=cutinPaid(me), otherState=newCasterState
-      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: battleCardMap, logs: [] };
+      const cutinPowers = calcFieldPowers(cutinPaid, newCasterState, bs.active_user_id === user.id, effectsMap, battleCardMap);
+      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: battleCardMap, logs: [], effectivePowers: cutinPowers };
       const result = executeEffect(cutinEff, ctx);
       // myがhost/guestに応じてマッピング
       const hostState  = isHost ? result.ownerState : result.otherState;
