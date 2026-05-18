@@ -1044,7 +1044,23 @@ function parseSingleSentence(text: string): EffectAction {
 // ===== 文分割 =====
 
 function splitSentences(text: string): string[] {
-  return text.split(/(?<=。)/).filter(s => s.trim() && s !== '。');
+  // 引用符「...」内の句点では分割しない
+  const result: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '「') depth++;
+    else if (text[i] === '」') depth--;
+    else if (text[i] === '。' && depth === 0) {
+      result.push(text.slice(start, i + 1));
+      start = i + 1;
+    }
+  }
+  if (start < text.length) {
+    const tail = text.slice(start).trim();
+    if (tail) result.push(tail);
+  }
+  return result.filter(s => s.trim() && s !== '。');
 }
 
 // ===== アクションテキスト全体パース =====
