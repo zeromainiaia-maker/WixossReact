@@ -139,8 +139,13 @@ function fieldTopNums(state: PlayerState): string[] {
   );
 }
 
-function fieldCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>): string[] {
-  return fieldTopNums(state).filter(n => matchesFilter(cardMap.get(n), filter));
+function fieldCandidates(
+  state: PlayerState,
+  filter: TargetFilter | undefined,
+  cardMap: Map<string, CardData>,
+  effectivePowers?: Map<string, number>,
+): string[] {
+  return fieldTopNums(state).filter(n => matchesFilter(cardMap.get(n), filter, effectivePowers?.get(n)));
 }
 
 function handCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>): string[] {
