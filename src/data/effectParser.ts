@@ -1056,8 +1056,8 @@ function parseActionText(text: string): EffectAction {
           const pickCount = pickM1[2] === 'すべて' ? 'ALL' : parseNum(pickM1[2]);
           return { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(revM[1]), filter, pickCount, then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder } as RevealAndPickAction;
         }
-        if (pickM2 || pickM3 || pickM5) {
-          const storyStr = (pickM2 || pickM3 || pickM5)![1];
+        if (pickM2 || pickM3) {
+          const storyStr = (pickM2 || pickM3)![1];
           const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(storyStr) };
           return { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(revM[1]), filter, pickCount: 'ALL', then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder } as RevealAndPickAction;
         }
