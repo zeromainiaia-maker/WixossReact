@@ -1015,6 +1015,31 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
     `パワー${delta > 0 ? '+' : ''}${delta}（フィールド×${fieldCount}体）`));
 }
 
+function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: ExecCtx): ExecResult {
+  const lrigState = a.lrigOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  const lrigNum = lrigState.field.lrig.at(-1);
+  const lv = parseInt(ctx.cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
+  if (isNaN(lv) || lv === 0) return done(ctx);
+
+  const delta = a.deltaPerLevel * lv;
+  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
+  if (cands.length === 0) return done(ctx);
+
+  function applyMod(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgtOwner, c);
+    const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
+    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: mods }, c),
+      `パワー${delta > 0 ? '+' : ''}${delta}（ルリグlv${lv}×${a.deltaPerLevel}）`);
+  }
+
+  if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
+  const count = resolveNum(a.target.count);
+  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, applyMod);
+}
+
 function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult {
   // チャーム保護は BattleScreen のバニッシュ処理内で判定するため、
   // ここではプレイヤー状態にキーワードとして記録する
