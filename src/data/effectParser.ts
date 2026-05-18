@@ -959,6 +959,12 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
   }
 
+  // ---- 自分のXかYのシグニを好きな数トラッシュ ----
+  if (t.match(/あなたの.+のシグニを好きな数対象とし.*トラッシュに置く/)) {
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t) };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: true, filter } };
+  }
+
   // ---- シグニをデッキに戻す ----
   if (t.includes('デッキに戻す') || t.includes('デッキに戻し')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
