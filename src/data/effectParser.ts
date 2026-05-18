@@ -1018,7 +1018,23 @@ function parseActionText(text: string): EffectAction {
     if (/^(?:どちらか|以下の?[０-９\d２３]+つから)/.test(c) && c.includes('選ぶ')) return false;
     return true;
   });
-  if (sentences.length === 0) return { type: 'UNKNOWN', raw: text };
+  if (sentences.length === 0) {
+    // CHOOSEパターン: フィルタで全文が除去された場合、①②③付き選択肢を解析
+    const choiceItems = [...text.matchAll(/[①②③]([^①②③。]+)。?/g)];
+    if (choiceItems.length >= 2) {
+      return {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: choiceItems.length,
+        choices: choiceItems.map((m, i) => ({
+          choiceId: `c${i}`,
+          label: `選択肢${i + 1}`,
+          action: parseSingleSentence(m[1].trim()),
+        })),
+      } as ChooseAction;
+    }
+    return { type: 'UNKNOWN', raw: text };
+  }
   if (sentences.length === 1) return parseSingleSentence(sentences[0]);
 
   // ---- デッキの一番上を公開 → 条件分岐（それが〜の場合）----
