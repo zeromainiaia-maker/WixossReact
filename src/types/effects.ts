@@ -491,6 +491,19 @@ export interface RemoveAbilitiesAction {
   until: EffectDuration;
 }
 
+// ルリグのレベルに比例したパワー修正（ACTIVATED効果）
+export interface PowerModifyPerLrigLevelAction {
+  type: 'POWER_MODIFY_PER_LRIG_LEVEL';
+  target: EffectTarget;
+  deltaPerLevel: number;
+  lrigOwner: Owner; // どちらのルリグのレベルを参照するか
+}
+
+// このターンを強制終了する（例: ジャッジメント・クロス）
+export interface ForceEndTurnAction {
+  type: 'FORCE_END_TURN';
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface UnknownAction {
   type: 'UNKNOWN';
