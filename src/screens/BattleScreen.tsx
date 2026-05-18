@@ -1313,6 +1313,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const resolveStackNextRef       = useRef<(() => Promise<void>) | null>(null);
   const checkPowerZeroBanishRef   = useRef<(() => Promise<void>) | null>(null);
 
+  // フェーズ変化をバトルログに記録
+  useEffect(() => {
+    if (!bs) return;
+    const phase = bs.turn_phase;
+    const turn  = bs.turn_count;
+    if (prevPhaseRef.current === phase && prevTurnRef.current === turn) return;
+    if (prevPhaseRef.current !== null) {
+      const isMine = bs.active_user_id === user.id;
+      const who = isMine ? 'あなた' : '相手';
+      const msg = phase === 'UP'
+        ? `── T${turn} ${who}のターン開始 ──`
+        : `[${who}] ${PHASE_LABEL[phase] ?? phase}フェイズ`;
+      setBattleLogs(prev => [...prev, msg].slice(-200));
+    }
+    prevPhaseRef.current = phase;
+    prevTurnRef.current  = turn;
+  }, [bs?.turn_phase, bs?.turn_count, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     supabase.from('battle_states').select('*').eq('room_id', roomId).single()
       .then(({ data, error }) => {
