@@ -2563,6 +2563,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return entries;
   };
 
+  /**
+   * 相手がアーツを使用したとき、ON_OPP_ARTS_USE トリガーを持つ自分のシグニを収集する。
+   * activeCondition（HAS_CARD_IN_FIELD 等）を満たす場合のみスタックに追加する。
+   */
+  const collectOppArtsUseTriggers = (
+    myState: PlayerState,
+    opState: PlayerState,
+    isMyTurnNow: boolean,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    for (const stack of myState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of effectsMap.get(topNum) ?? []) {
+        if (eff.effectType !== 'AUTO') continue;
+        if (!eff.timing?.includes('ON_OPP_ARTS_USE')) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, myState, opState, isMyTurnNow, battleCardMap)) continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（相手アーツ使用時）`,
+          effect: eff,
+        });
+      }
+    }
+    return entries;
+  };
+
   // シグニ召喚（ゾーン選択後に実行）
   const handleSummonSigni = async (handIndex: number, zoneIndex: number) => {
     console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
