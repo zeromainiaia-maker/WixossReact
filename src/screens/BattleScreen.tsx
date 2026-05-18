@@ -3415,6 +3415,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, topNum] };
         if (ownerIsHost) hostState = withEnergy; else guestState = withEnergy;
         changed = true;
+        const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ`]);
 
         // ON_BANISH トリガー収集
         const triggers = collectBanishTriggers(topNum, ownerId, hostState, guestState);
