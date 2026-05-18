@@ -914,6 +914,55 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: `GUARD_MAX_LV${lv}`, until: 'END_OF_TURN' };
   }
 
+  // ---- ライフクロス → 手札 ----
+  if (t.match(/ライフクロス/) && t.match(/手札に加える/)) {
+    const cM = t.match(/([０-９\d]+)枚/);
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: cM ? parseNum(cM[1]) : 1 } };
+  }
+
+  // ---- このシグニを手札に加える（自己バウンス）----
+  if (t.match(/このシグニを手札に加える/)) {
+    return { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'self', count: 1 } };
+  }
+
+  // ---- 自分のすべてのシグニをトラッシュ（任意）----
+  if (t.match(/あなたのすべてのシグニを場からトラッシュに置いてもよい/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
+  }
+
+  // ---- シグニをデッキに戻す ----
+  if (t.includes('デッキに戻す') || t.includes('デッキに戻し')) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t) };
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: false } as TransferToDeckAction;
+  }
+
+  // ---- デッキ上公開 / 見る（単独 or シャッフル付き）----
+  const deckLookM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開|見)る/);
+  if (deckLookM) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'self' },
+      count: parseNum(deckLookM[1]),
+      private: !t.includes('公開'),
+      reorder: t.includes('好きな順番'),
+      canTrash: t.includes('トラッシュに置き') || t.includes('トラッシュに置いてもよい'),
+      destination: { location: 'deck', owner: 'self', position: 'top' },
+    };
+  }
+
+  // ---- それをトラッシュに置く（コンテキスト依存）----
+  if (t.match(/^それをトラッシュに置く/) || t.match(/^それらをトラッシュに置く/)) {
+    const all = t.includes('それら');
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: all ? 'ALL' : 1 } };
+  }
+
+  // ---- デッキをシャッフルする（単独）----
+  if (t.match(/デッキをシャッフルする|自分のデッキをシャッフルする/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'SHUFFLE_DECK', owner };
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
