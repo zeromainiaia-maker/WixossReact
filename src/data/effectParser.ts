@@ -1041,15 +1041,16 @@ function parseActionText(text: string): EffectAction {
       // 「その中から(すべての|N枚の)XXシグニをN枚手札に加え」パターン
       const pickSentence = sentences.find(s => s.includes('その中から') && (s.includes('手札に加える') || s.includes('手札に加え')));
       if (pickSentence) {
-        const pickM1 = pickSentence.match(/その中から(.+?)のシグニ([０-９\d]+|すべて)枚?を手札に加える/);
+        const pickM1 = pickSentence.match(/その中から(.+?)のシグニ([０-９\d]+|すべて)枚?を手札に加え/);
         const pickM2 = pickSentence.match(/その中からすべての(.+?)のシグニを手札に加え/);
-        const pickM3 = pickSentence.match(/その中から(.+?)のシグニをすべて手札に加える?/);
+        const pickM3 = pickSentence.match(/その中から(.+?)のシグニをすべて手札に加え/);
         const pickM4 = pickSentence.match(/その中からカード([０-９\d]+)枚を手札に加え/);
-        const pickM5 = pickSentence.match(/その中から(.+?)のシグニをすべて手札に加える/);
         const remainS = sentences.find(s => s.includes('デッキの一番下') || s.includes('デッキの一番上に戻す') || s.includes('トラッシュに置く'));
         const toBottom = remainS?.includes('一番下') ?? false;
-        const toTrash = remainS?.includes('トラッシュ') && !remainS?.includes('デッキ') ? true : false;
-        const remainder = toTrash ? undefined : { location: 'deck' as const, position: toBottom ? 'bottom' as const : 'top' as const };
+        const toTrash = !!(remainS?.includes('トラッシュ') && !remainS?.includes('デッキ'));
+        const remainder: RevealAndPickAction['remainder'] = toTrash
+          ? { location: 'trash', position: 'any' }
+          : { location: 'deck', position: toBottom ? 'bottom' : 'top' };
         if (pickM1) {
           const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(pickM1[1]) };
           const pickCount = pickM1[2] === 'すべて' ? 'ALL' : parseNum(pickM1[2]);
