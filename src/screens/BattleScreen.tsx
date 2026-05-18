@@ -1296,15 +1296,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // LOOK_AND_REORDER インタラクション：現在の並び順
   const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
   const [logExpanded, setLogExpanded] = useState(false);
+  const [battleLogs, setBattleLogs] = useState<import('../types').GameLog[]>([]);
   const logScrollRef = useRef<HTMLDivElement>(null);
   const prevPhaseRef = useRef<string | null>(null);
   const prevTurnRef  = useRef<number | null>(null);
+  // Realtime で受け取った game_logs をローカル state に同期
+  const prevGameLogsLenRef = useRef<number>(0);
+  useEffect(() => {
+    const remote = bs?.game_logs ?? [];
+    if (remote.length > prevGameLogsLenRef.current) {
+      setBattleLogs(remote.slice(-200));
+      prevGameLogsLenRef.current = remote.length;
+    }
+  }, [bs?.game_logs]);
 
   const appendBattleLogs = useCallback((entries: string[]) => {
     if (entries.length === 0 || !user) return;
     const now = new Date().toISOString();
-    const logs = entries.map(action => ({ timestamp: now, user_id: user.id, action }));
-    supabase.rpc('append_battle_logs', { p_room_id: roomId, p_logs: logs });
+    const newLogs = entries.map(action => ({ timestamp: now, user_id: user.id, action }));
+    // ローカルに即時反映
+    setBattleLogs(prev => {
+      const next = [...prev, ...newLogs].slice(-200);
+      prevGameLogsLenRef.current = next.length;
+      return next;
+    });
+    // DB に書き込んで相手に同期
+    supabase.rpc('append_battle_logs', { p_room_id: roomId, p_logs: newLogs })
+      .then(({ error }) => { if (error) console.error('[battle_log]', error.message); });
   }, [roomId, user]);
 
   const transitioningRef = useRef(false);
