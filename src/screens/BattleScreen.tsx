@@ -3212,10 +3212,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       if (!effectivelyEmpty && opTopCardNum && opTopCard) {
         // ─── 通常バトル（正面シグニあり・アサシンなし）───
+        const opCardName = opTopCard.CardName ?? opTopCardNum;
         const myPower = effectivePowers.get(myTopNum)
           ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
         const opPower = effectivePowers.get(opTopCardNum)
           ?? (parseInt(opTopCard.Power ?? '0') || 0);
+        appendBattleLogs([`${myCardName}（${myPower}）vs ${opCardName}（${opPower}）`]);
 
         if (myPower >= opPower) {
           // バトル勝利：相手シグニの処理
@@ -3231,6 +3233,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               trash: [...op.trash, opCharm],
               field: { ...op.field, signi_charms: newCharms },
             };
+            appendBattleLogs([`${opCardName}のチャームを除去（シグニ生存）`]);
           } else {
             // 通常バニッシュ → 相手エナへ
             banishedOpCardNum = opTopCardNum;
@@ -3245,6 +3248,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               energy: [...op.energy, ...opStack],
               field: { ...op.field, signi: newOpSigni, signi_down: newOpDown, signi_frozen: newOpFrozen },
             };
+            appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ`]);
           }
 
           // ランサー：バトル勝利後に追加でライフを1枚クラッシュ
@@ -3252,35 +3256,44 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const { newState: afterCrash, crashed } = crashOneLife(newOpState);
             if (!crashed) {
               // ライフなし → 相手の敗北
+              appendBattleLogs([`ランサー：相手のライフなし → 相手の敗北`]);
               await supabase.from('battle_states')
                 .update({ [myKey]: newMyState, [opKey]: newOpState, global_phase: 'FINISHED', winner_id: user.id })
                 .eq('room_id', roomId);
               return;
             }
+            appendBattleLogs([`ランサー：ライフクロスをクラッシュ`]);
             newOpState = afterCrash;
           }
+        } else {
+          appendBattleLogs([`${myCardName}はバトルに敗北`]);
         }
-        // バトル敗北：何も起きない（両シグニ生存）
       } else {
         // ─── ライフへのアタック（正面空 or アサシン）───
         const crashCount = isDoubleCrush ? 2 : 1;
         let pendingExtra = 0;
+        const attackLabel = isAssassin && opTopCardNum
+          ? `${myCardName}（アサシン）がライフをクラッシュ`
+          : `${myCardName}がライフをクラッシュ`;
 
         // 1枚目クラッシュ
         const { newState: afterFirst, crashed: firstCrashed } = crashOneLife(newOpState);
         if (!firstCrashed) {
           // ライフなし → 相手の敗北
+          appendBattleLogs([`${myCardName}がアタック：相手のライフなし → 相手の敗北`]);
           await supabase.from('battle_states')
             .update({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: user.id })
             .eq('room_id', roomId);
           return;
         }
+        appendBattleLogs([attackLabel]);
         newOpState = afterFirst;
 
         if (crashCount > 1) {
           // ダブルクラッシュ：1枚目バースト後に追加クラッシュが残る
           pendingExtra = crashCount - 1;
           newOpState = { ...newOpState, pending_life_crashes: (newOpState.pending_life_crashes ?? 0) + pendingExtra };
+          appendBattleLogs([`ダブルクラッシュ：バースト後に追加クラッシュ予約`]);
         }
       }
 
