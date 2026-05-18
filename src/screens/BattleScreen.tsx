@@ -2904,6 +2904,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // スペル発動: 手札から除いてコスト支払い → pending_spell をセット（カットイン待ち）
   const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number) => {
     if (!isMyTurn || loading) return;
+    if (isActionBlocked('USE_SPELL')) return;
     setLoading(true);
     setPendingSpellCast(null);
     setSelectedSpellCost(new Set());
