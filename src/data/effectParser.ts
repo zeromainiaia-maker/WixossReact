@@ -29,6 +29,7 @@ import type {
   PowerModifyPerFieldAction,
   CharmProtectionAction,
   MutualDiscardAndDrawAction,
+  BlockActionAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
