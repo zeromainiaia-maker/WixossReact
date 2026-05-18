@@ -3263,10 +3263,66 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // パワー0以下シグニの自動バニッシュ処理
+  const checkAndBanishPowerZero = async () => {
+    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
+    if (bs.effect_stack || bs.pending_effect) return;
+
+    let hostState  = bs.host_state;
+    let guestState = bs.guest_state;
+    const isMyTurnLocal = bs.active_user_id === bs.host_id;
+    const powers = calcFieldPowers(hostState, guestState, isMyTurnLocal, effectsMap, battleCardMap);
+    let changed = false;
+    const allTriggers: StackEntry[] = [];
+
+    for (const ownerIsHost of [true, false]) {
+      const ownerId = ownerIsHost ? bs.host_id : bs.guest_id;
+      const ownerState = ownerIsHost ? hostState : guestState;
+      const grants = ownerState.keyword_grants;
+
+      for (const stack of ownerState.field.signi) {
+        if (!stack?.length) continue;
+        const topNum = stack[stack.length - 1];
+        const power = powers.get(topNum) ?? parseInt(battleCardMap.get(topNum)?.Power ?? '0', 10);
+        if (power > 0) continue;
+        // バニッシュ耐性あり → 0のまま場に残る
+        if (hasBanishResist(topNum, battleCardMap, grants)) continue;
+
+        // バニッシュ実行（フィールドから除去 → オーナーのエナへ）
+        const currentOwner = ownerIsHost ? hostState : guestState;
+        const removed = removeFromField(topNum, currentOwner);
+        const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, topNum] };
+        if (ownerIsHost) hostState = withEnergy; else guestState = withEnergy;
+        changed = true;
+
+        // ON_BANISH トリガー収集
+        const triggers = collectBanishTriggers(topNum, ownerId, hostState, guestState);
+        allTriggers.push(...triggers);
+      }
+    }
+
+    if (!changed) return;
+    setLoading(true);
+    try {
+      let newStack = bs.effect_stack;
+      if (allTriggers.length > 0) {
+        newStack = initStack(bs.active_user_id, allTriggers);
+      }
+      await supabase.from('battle_states').update({
+        host_state: hostState,
+        guest_state: guestState,
+        ...(newStack !== bs.effect_stack ? { effect_stack: newStack } : {}),
+      }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // refs を常に最新の関数インスタンスに同期（Rules of Hooks 対応）
-  doPhaseAdvanceRef.current      = doPhaseAdvance;
-  triggerPendingCrashRef.current = triggerPendingCrash;
-  resolveStackNextRef.current    = resolveStackNext;
+  doPhaseAdvanceRef.current         = doPhaseAdvance;
+  triggerPendingCrashRef.current    = triggerPendingCrash;
+  resolveStackNextRef.current       = resolveStackNext;
+  checkPowerZeroBanishRef.current   = checkAndBanishPowerZero;
 
   // ガード応答: handIndex=ガードカードのインデックス、null=ガードしない
   const handleGuardResponse = async (handIndex: number | null) => {
