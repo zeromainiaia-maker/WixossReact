@@ -2116,7 +2116,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  // フェイズ進行（エナフェイズ未使用時は確認ポップアップ）
+  // フェイズ進行（エナフェイズ・グロウフェイズ未使用時は確認ポップアップ）
   const handlePhaseAdvance = () => {
     if (!iControlThisPhase || loading) return;
     if (my.field.check || op.field.check) return; // チェックゾーンにカードがある間はブロック
@@ -2126,6 +2126,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!used && !blocked) {
         setShowEnergySkipConfirm(true);
         return;
+      }
+    }
+    if (bs.turn_phase === 'GROW') {
+      const grew    = my.actions_done?.includes('GROW') ?? false;
+      const blocked = my.blocked_actions?.includes('GROW') ?? false;
+      if (!grew && !blocked) {
+        const hasAffordable = growCandidates.some(card =>
+          canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti)
+        );
+        if (hasAffordable) {
+          setShowGrowSkipConfirm(true);
+          return;
+        }
       }
     }
     doPhaseAdvance();
