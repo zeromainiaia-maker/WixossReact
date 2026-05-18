@@ -1300,6 +1300,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const logScrollRef = useRef<HTMLDivElement>(null);
   const prevPhaseRef = useRef<string | null>(null);
   const prevTurnRef  = useRef<number | null>(null);
+  const prevBsRef    = useRef<typeof bs>(null);
 
   const appendBattleLogs = useCallback((entries: string[]) => {
     if (entries.length === 0) return;
