@@ -318,7 +318,7 @@ export function calcActiveCostMods(
       if (!effects) continue;
       for (const effect of effects) {
         if (effect.effectType !== 'CONTINUOUS') continue;
-        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn)) continue;
+        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, _cardMap)) continue;
         // CostIncrease: targetOwner が 'opponent' なら相手のコストを増やす
         const increases = extractCostIncreases(effect.action);
         for (const inc of increases) {
