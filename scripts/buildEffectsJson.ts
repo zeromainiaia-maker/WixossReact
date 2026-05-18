@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import { parseCardEffects } from '../src/data/effectParser';
+import { mergeManualEffects } from '../src/data/manualEffects';
 import type { CardData } from '../src/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
