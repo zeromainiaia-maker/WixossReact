@@ -1508,6 +1508,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase]);
 
+  // パワー0以下シグニの自動バニッシュ
+  useEffect(() => {
+    if (!bs || !user) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    if (loading) return;
+    if (bs.active_user_id !== user.id) return;
+    checkPowerZeroBanishRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]);
+
   // ON_TURN_END 解決後の自動フェーズ進行
   useEffect(() => {
     if (!bs || !user) return;
