@@ -14,9 +14,10 @@ import type {
 
 function checkActiveCondition(
   cond: ActiveCondition | undefined,
-  ownerState: PlayerState,   // 効果を持つカードのオーナー
-  otherState: PlayerState,   // 相手
-  isOwnerTurn: boolean,      // 効果オーナーのターンかどうか
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  cardMap: Map<string, CardData>,
 ): boolean {
   if (!cond) return true;
   switch (cond.type) {
@@ -25,13 +26,12 @@ function checkActiveCondition(
 
     case 'HAS_CARD_IN_FIELD': {
       const state = cond.owner === 'self' ? ownerState : otherState;
-      return state.field.signi.some(stack =>
-        stack?.some(num => {
-          if (cond.filter.cardName) return num === cond.filter.cardName;
-          if (cond.filter.cardNum)  return num === cond.filter.cardNum;
-          return true;
-        })
-      );
+      const fieldNums = state.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+      return fieldNums.some(num => {
+        if (cond.filter.cardNum)  return num === cond.filter.cardNum;
+        if (cond.filter.cardName) return cardMap.get(num)?.CardName?.includes(cond.filter.cardName) ?? false;
+        return true;
+      });
     }
 
     case 'COUNT_THRESHOLD': {
@@ -49,7 +49,6 @@ function checkActiveCondition(
     }
 
     case 'SELF_POWER_THRESHOLD':
-      // 自身のパワーは動的に変わるため、ここでは常に true として扱う（近似）
       return true;
 
     case 'HAND_DIFF': {
@@ -64,6 +63,9 @@ function checkActiveCondition(
       }
       break;
     }
+
+    case 'AND':
+      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap));
   }
   return true;
 }
