@@ -337,10 +337,6 @@ export function calcActiveCostMods(
   return { forMy, forOp };
 }
 
-/**
- * ルリグのルリグデッキ（アシスト含む）の CONTINUOUS 効果も考慮する場合に拡張可能。
- * 現時点ではフィールドシグニのみ対象。
- */
 export function getEffectivePower(
   cardNum: string,
   powers: Map<string, number>,
@@ -349,4 +345,62 @@ export function getEffectivePower(
   if (powers.has(cardNum)) return powers.get(cardNum)!;
   const card = cardMap.get(cardNum);
   return parseInt(card?.Power ?? '', 10) || 0;
+}
+
+// ===== CONTINUOUS BLOCK_ACTION 計算 =====
+
+export interface ContinuousBlockResult {
+  forSelf: Set<string>;           // ownerState に対してブロックされるアクションID
+  forOther: Set<string>;          // otherState に対してブロックされるアクションID
+  cannotAttackSigni: Set<string>; // ownerState のフィールド上で攻撃不可のCardNum
+}
+
+function extractBlockActions(action: EffectAction): BlockActionAction[] {
+  if (action.type === 'BLOCK_ACTION') return [action as BlockActionAction];
+  if (action.type === 'SEQUENCE') {
+    return (action as import('../types/effects').SequenceAction).steps.flatMap(s => extractBlockActions(s));
+  }
+  return [];
+}
+
+/**
+ * フィールド上の CONTINUOUS BLOCK_ACTION 効果を収集する。
+ * ownerState 視点：forSelf = 自分がブロックされるアクション、forOther = 相手がブロックされるアクション。
+ */
+export function calcContinuousBlockedActions(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): ContinuousBlockResult {
+  const forSelf = new Set<string>();
+  const forOther = new Set<string>();
+  const cannotAttackSigni = new Set<string>();
+
+  function scanField(fieldOwner: PlayerState, fieldOther: PlayerState, isFieldOwnerTurn: boolean, isMe: boolean) {
+    for (const stack of fieldOwner.field.signi) {
+      if (!stack || stack.length === 0) continue;
+      const topNum = stack[stack.length - 1];
+      const effects = effectsMap.get(topNum) ?? [];
+      for (const effect of effects) {
+        if (effect.effectType !== 'CONTINUOUS') continue;
+        if (!checkActiveCondition(effect.activeCondition, fieldOwner, fieldOther, isFieldOwnerTurn, cardMap)) continue;
+        for (const b of extractBlockActions(effect.action)) {
+          if (b.actionId === 'ATTACK_SIGNI_SELF' && isMe) {
+            cannotAttackSigni.add(topNum);
+          } else if (b.target.owner === 'opponent') {
+            // この効果が ME のフィールドカードなら相手(forOther)を、相手フィールドなら自分(forSelf)をブロック
+            if (isMe) forOther.add(b.actionId);
+            else forSelf.add(b.actionId);
+          }
+        }
+      }
+    }
+  }
+
+  scanField(ownerState, otherState, isOwnerTurn, true);
+  scanField(otherState, ownerState, !isOwnerTurn, false);
+
+  return { forSelf, forOther, cannotAttackSigni };
 }
