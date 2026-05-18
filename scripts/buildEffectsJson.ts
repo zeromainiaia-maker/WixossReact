@@ -57,7 +57,8 @@ for (const r of rows) {
     effects:     [],
   };
 
-  const effects = parseCardEffects(card);
+  const parsed = parseCardEffects(card);
+  const effects = mergeManualEffects(card.CardNum, parsed);
   if (effects.length === 0) continue;
 
   result[card.CardNum] = effects;
