@@ -1,4 +1,5 @@
 import type { CardData } from '../types';
+import { mergeManualEffects } from './manualEffects';
 import type {
   CardEffect,
   EffectType,
