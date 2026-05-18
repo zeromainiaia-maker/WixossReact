@@ -1389,8 +1389,10 @@ export function buildEffectsMap(cards: CardData[]): Map<string, CardEffect[]> {
     const raw = (card.effects && card.effects.length > 0)
       ? card.effects
       : parseCardEffects(card);
+    // マニュアル効果をマージ
+    const merged = mergeManualEffects(card.CardNum, raw);
     // triggerScope を動的に補完（Supabase保存時に欠けている場合に対応）
-    const effects = raw.map(e =>
+    const effects = merged.map(e =>
       e.triggerScope !== undefined
         ? e
         : { ...e, triggerScope: inferTriggerScope(e, card) },
