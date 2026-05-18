@@ -1133,8 +1133,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);
     case 'PLAY_FREE':               return execPlayFree(action as PlayFreeAction, ctx);
     case 'COST_INCREASE':           return execCostIncrease(action as CostIncreaseAction, ctx);
-    case 'POWER_MODIFY_PER_FIELD':  return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
-    case 'CHARM_PROTECTION':        return execCharmProtection(action as CharmProtectionAction, ctx);
+    case 'POWER_MODIFY_PER_FIELD':     return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
+    case 'POWER_MODIFY_PER_LRIG_LEVEL': return execPowerModifyPerLrigLevel(action as PowerModifyPerLrigLevelAction, ctx);
+    case 'FORCE_END_TURN':             return done(addLog({ ...ctx, forceEndTurn: true }, 'ターンを強制終了'));
+    case 'CHARM_PROTECTION':           return execCharmProtection(action as CharmProtectionAction, ctx);
     case 'MUTUAL_DISCARD_AND_DRAW': return execMutualDiscardAndDraw(action as MutualDiscardAndDrawAction, ctx);
     case 'REMOVE_ABILITIES':        return execRemoveAbilities(action as RemoveAbilitiesAction, ctx);
     // 以下は CONTINUOUS 効果専用（effectEngine 側で処理）
