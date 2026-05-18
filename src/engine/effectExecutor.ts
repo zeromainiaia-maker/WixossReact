@@ -692,7 +692,9 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
 
 function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.target.owner, ctx);
-  const blocked = [...(state.blocked_actions ?? []), a.actionId];
+  // NEXT_TURN は ':NEXT_TURN' サフィックスで区別し、ターン終了時に変換して次のターンに適用
+  const id = a.until === 'NEXT_TURN' ? `${a.actionId}:NEXT_TURN` : a.actionId;
+  const blocked = [...(state.blocked_actions ?? []), id];
   const newS: PlayerState = { ...state, blocked_actions: blocked };
   return done(addLog(setOwnerState(a.target.owner, newS, ctx), `アクション${a.actionId}を封じる`));
 }
