@@ -90,7 +90,7 @@ function addLog(ctx: ExecCtx, msg: string): ExecCtx {
 }
 
 function done(ctx: ExecCtx): ExecResult {
-  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs };
+  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn };
 }
 
 function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
