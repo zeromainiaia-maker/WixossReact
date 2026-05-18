@@ -3455,6 +3455,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (handIndex !== null) {
         // ガードカードをトラッシュへ
         const cardNum = my.hand[handIndex];
+        const guardCardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+        appendBattleLogs([`ガード（${guardCardName}）`]);
         newMyState = {
           ...my,
           hand: my.hand.filter((_, i) => i !== handIndex),
@@ -3465,6 +3467,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ガードしない → ライフクロスをクラッシュ
         if (my.life_cloth.length > 0) {
           const crashed = my.life_cloth[my.life_cloth.length - 1];
+          const crashedName = battleCardMap.get(crashed)?.CardName ?? crashed;
+          appendBattleLogs([`ルリグアタック：ライフクロスをクラッシュ（${crashedName}）`]);
           newMyState = {
             ...my,
             life_cloth: my.life_cloth.slice(0, -1),
@@ -3472,6 +3476,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           };
         } else {
           // ライフクロス0枚 → 自分の敗北
+          appendBattleLogs([`ルリグアタック：ライフなし → 敗北`]);
           const winnerId = isHost ? bs.guest_id : bs.host_id;
           const clearedMyState: PlayerState = { ...my, field: { ...my.field, lrig_attacked: false } };
           await supabase.from('battle_states')
