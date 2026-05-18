@@ -1867,6 +1867,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // このフェイズの進行ボタンを自分が持つか
   const iControlThisPhase = NON_TURN_PLAYER_PHASES.includes(bs.turn_phase) ? !isMyTurn : isMyTurn;
 
+  // CONTINUOUS BLOCK_ACTION 効果によるアクション禁止（フィールド常駐効果）
+  const contBlocked = useMemo(
+    () => calcContinuousBlockedActions(my, op, isMyTurn, effectsMap, battleCardMap),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [my, op, isMyTurn],
+  );
+  // blocked_actions（一時的封じ）＋ CONTINUOUS 効果の両方を考慮した禁止チェック
+  const isActionBlocked = (actionId: string) =>
+    (my.blocked_actions?.some(a => a === actionId) ?? false) || contBlocked.forSelf.has(actionId);
+
   // ドロー枚数（先攻1ターン目=1枚、それ以外=2枚）
   const drawCount = bs.turn_count === 1 && bs.active_user_id === bs.first_player_id ? 1 : 2;
 
