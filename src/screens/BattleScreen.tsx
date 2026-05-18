@@ -2333,6 +2333,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           update.effect_stack = existingStack
             ? pushToStack(existingStack, banishEntries)
             : initStack(turnPlayerId, banishEntries);
+        } else {
+          // インタラクション解決後にキューが空になったスタックをクリア
+          const existingStack = bs.effect_stack ?? null;
+          if (existingStack && isStackDone(existingStack)) {
+            update.effect_stack = null;
+          }
         }
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
