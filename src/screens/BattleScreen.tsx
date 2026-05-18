@@ -2338,6 +2338,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         return;
       }
+      if (result.logs.length > 0) appendBattleLogs(result.logs);
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
       const guestState = ownerIsHost ? result.otherState : result.ownerState;
