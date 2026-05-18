@@ -35,3 +35,18 @@ export function hasShadow(
 ): boolean {
   return hasKeyword(cardNum, 'シャドウ', cardMap, keywordGrants);
 }
+
+/**
+ * シグニがバニッシュ耐性（バニッシュされない）を持つかチェックする。
+ * effects.json 未登録カードは EffectText の直接検索でフォールバックする。
+ */
+export function hasBanishResist(
+  cardNum: string,
+  cardMap: Map<string, CardData>,
+  keywordGrants?: Record<string, string[]>,
+): boolean {
+  if (hasKeyword(cardNum, 'バニッシュされない', cardMap, keywordGrants)) return true;
+  // effects.json 未登録カード用フォールバック
+  const card = cardMap.get(cardNum);
+  return card?.EffectText?.includes('バニッシュされない') ?? false;
+}
