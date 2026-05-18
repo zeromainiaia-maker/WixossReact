@@ -656,7 +656,7 @@ function parseSingleSentence(text: string): EffectAction {
         : toTrash
           ? { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } }
           : { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
-      afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
+      afterSearch: t.includes('シャッフル') ? { type: 'SHUFFLE_DECK', owner: 'self' } : undefined,
     };
   }
 
