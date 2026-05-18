@@ -2116,8 +2116,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
         const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
         const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
+        // ':NEXT_TURN' サフィックスのブロックを次のターン用に変換（サフィックス除去して残す）
+        const convertedOpBlocked = (opState.blocked_actions ?? [])
+          .filter(a => a.endsWith(':NEXT_TURN'))
+          .map(a => a.replace(':NEXT_TURN', ''));
         update[opKey] = {
           ...opState,
+          blocked_actions: convertedOpBlocked,
           field: {
             ...opState.field,
             signi_down:   newSigniDown,
