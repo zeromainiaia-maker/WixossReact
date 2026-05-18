@@ -3372,12 +3372,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const stateWithDec: PlayerState = { ...my, pending_life_crashes: pending - 1 };
       const { newState: afterCrash, crashed } = crashOneLife(stateWithDec);
       if (!crashed) {
+        appendBattleLogs([`ダブルクラッシュ：ライフなし → 相手の敗北`]);
         const winnerId = isHost ? bs.guest_id : bs.host_id;
         await supabase.from('battle_states')
           .update({ [stateKey]: { ...stateWithDec, pending_life_crashes: 0 }, global_phase: 'FINISHED', winner_id: winnerId })
           .eq('room_id', roomId);
         return;
       }
+      const pendingCrashedName = battleCardMap.get(crashed)?.CardName ?? crashed;
+      appendBattleLogs([`ダブルクラッシュ：ライフクロスをクラッシュ（${pendingCrashedName}）`]);
       await supabase.from('battle_states').update({ [stateKey]: afterCrash }).eq('room_id', roomId);
     } finally {
       setLoading(false);
