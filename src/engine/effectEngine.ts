@@ -142,6 +142,23 @@ function extractPowerModifiesPerLevelSum(action: EffectAction): PowerModifyPerLe
   return [];
 }
 
+/**
+ * ACTIVATED 効果の POWER_MODIFY_PER_LRIG_LEVEL を解決して temp_power_mods 相当の delta を計算する。
+ * @returns [cardNum, delta] ペア配列（BattleScreenで temp_power_mods に追加する）
+ */
+export function resolvePowerModifyPerLrigLevel(
+  action: PowerModifyPerLrigLevelAction,
+  targetCardNum: string,
+  ownerState: PlayerState,
+  opState: PlayerState,
+  cardMap: Map<string, CardData>,
+): number {
+  const lrigState = action.lrigOwner === 'self' ? ownerState : opState;
+  const lrigNum = lrigState.field.lrig.at(-1);
+  const lv = parseInt(cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
+  return isNaN(lv) ? 0 : action.deltaPerLevel * lv;
+}
+
 function extractCostIncreases(action: EffectAction): CostIncreaseAction[] {
   if (action.type === 'COST_INCREASE') return [action as CostIncreaseAction];
   if (action.type === 'SEQUENCE') {
