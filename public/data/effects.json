@@ -1679,6 +1679,13 @@
     {
       "effectId": "WD05-001-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "AND",
+        "conditions": [
+          { "type": "HAS_CARD_IN_FIELD", "owner": "self", "filter": { "cardNum": "WD05-009" } },
+          { "type": "COUNT_THRESHOLD", "owner": "self", "location": "trash", "operator": "gte", "value": 20 }
+        ]
+      },
       "action": {
         "type": "POWER_MODIFY",
         "target": {
