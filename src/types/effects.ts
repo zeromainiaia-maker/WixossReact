@@ -66,7 +66,8 @@ export type ActiveCondition =
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter }
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number }
   | { type: 'SELF_POWER_THRESHOLD'; operator: CompareOp; value: number }
-  | { type: 'HAND_DIFF'; operator: CompareOp; value: number }; // 自分の手札と相手の手札の差
+  | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札と相手の手札の差
+  | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
   | { type: 'FIELD_COUNT'; owner: Owner; cardType?: CardTypeFilter; operator: CompareOp; value: NumberOrRef }
