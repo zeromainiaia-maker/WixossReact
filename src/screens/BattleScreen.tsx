@@ -781,7 +781,8 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
           const basePow = topCard?.Power;
           if (!basePow || basePow === '-') return null;
           const effPow = effectivePowers?.get(topNum);
-          const displayPow = effPow !== undefined ? effPow : parseInt(basePow, 10);
+          const rawPow = effPow !== undefined ? effPow : parseInt(basePow, 10);
+          const displayPow = Math.max(0, rawPow);
           const isBuffed = effPow !== undefined && effPow !== parseInt(basePow, 10);
           return (
             <div style={{
