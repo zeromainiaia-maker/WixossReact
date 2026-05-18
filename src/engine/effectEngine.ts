@@ -144,7 +144,7 @@ function extractPowerModifiesPerLevelSum(action: EffectAction): PowerModifyPerLe
  */
 export function resolvePowerModifyPerLrigLevel(
   action: PowerModifyPerLrigLevelAction,
-  targetCardNum: string,
+  _targetCardNum: string,
   ownerState: PlayerState,
   opState: PlayerState,
   cardMap: Map<string, CardData>,
