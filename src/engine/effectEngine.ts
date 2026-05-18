@@ -244,12 +244,31 @@ export function calcFieldPowers(
         // POWER_MODIFY_PER_STACK: このカードのスタック枚数に比例したパワー増減
         const perStackMods = extractPowerModifiesPerStack(effect.action);
         for (const mod of perStackMods) {
-          // topNum のスタック（スタック最上面を除く下のカード数）を取得
           const stack = ownerState.field.signi.find(s => s?.at(-1) === topNum);
           const stackBelow = stack ? stack.length - 1 : 0;
           if (stackBelow <= 0) continue;
           const stackDelta = mod.deltaPerCard * stackBelow;
           applyDeltaToState(ownerState, stackDelta, mod.target.filter, cardMap, powers);
+        }
+
+        // POWER_MODIFY_PER_LEVEL_SUM: 場の他シグニのレベル合計に比例したパワー増減
+        const perLevelSumMods = extractPowerModifiesPerLevelSum(effect.action);
+        for (const mod of perLevelSumMods) {
+          const countState = mod.countOwner === 'self' ? ownerState : otherState;
+          let levelSum = 0;
+          for (const s of countState.field.signi) {
+            if (!s || s.length === 0) continue;
+            const sNum = s[s.length - 1];
+            if (mod.excludeSelf && sNum === topNum) continue;
+            const sCard = cardMap.get(sNum);
+            if (!matchesFilter(sCard, mod.countFilter)) continue;
+            const lv = parseInt(sCard?.Level ?? '', 10);
+            if (!isNaN(lv)) levelSum += lv;
+          }
+          const delta = mod.deltaPerLevel * levelSum;
+          if (delta !== 0 && powers.has(topNum)) {
+            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+          }
         }
       }
     }
