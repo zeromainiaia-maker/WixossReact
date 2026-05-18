@@ -4731,9 +4731,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               手札の「ガード」を持つカードをトラッシュに送り攻撃を防ぐか、ライフクロスをクラッシュします
             </p>
             {(() => {
+              const guardBlockedMax = [...(my.blocked_actions ?? []), ...contBlocked.forSelf]
+                .reduce((max, a) => {
+                  const m = a.match(/^GUARD_MAX_LV(\d+)/);
+                  return m ? Math.max(max, parseInt(m[1])) : max;
+                }, -1);
               const guardCards = my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
-                .filter(({ card }) => card?.Guard === '1');
+                .filter(({ card }) => {
+                  if (card?.Guard !== '1') return false;
+                  if (guardBlockedMax >= 0 && parseInt(card.Level ?? '-1') <= guardBlockedMax) return false;
+                  return true;
+                });
               return guardCards.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: '40vh' }}>
                   {guardCards.map(({ num, i, card }) => (
