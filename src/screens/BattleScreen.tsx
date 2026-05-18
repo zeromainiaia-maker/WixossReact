@@ -3350,6 +3350,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const myKey = isHost ? 'host_state' : 'guest_state';
       const opKey = isHost ? 'guest_state' : 'host_state';
+      const lrigName = battleCardMap.get(my.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
+      appendBattleLogs([`${lrigName}がアタック`]);
       const newMyState: PlayerState = { ...my, field: { ...my.field, lrig_down: true } };
       const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
       await supabase.from('battle_states')
