@@ -998,6 +998,30 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'SHUFFLE_DECK', owner };
   }
 
+  // ---- 手札から<X>のシグニを１枚捨てる（コスト・追加コスト）----
+  const handDiscardStoryM = t.match(/^手札から.+シグニ.+捨てる$/);
+  if (handDiscardStoryM) {
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t) };
+    const cM = t.match(/([０-９\d]+)枚/);
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cM ? parseNum(cM[1]) : 1, filter } };
+  }
+
+  // ---- デッキの一番上のカードをエナゾーンに加える（単独）----
+  if (t.match(/デッキの一番上のカードをエナゾーンに(?:加える|置く)/)) {
+    return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 };
+  }
+
+  // ---- 対戦相手のシグニをトラッシュに置く（対戦相手が対象を選ぶパターン）----
+  if (t.match(/対戦相手は.*自分のシグニ.*トラッシュに置く/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
+  }
+
+  // ---- デッキからサーチしてトラッシュへ ----
+  if (t.includes('デッキから') && t.includes('探して') && t.includes('トラッシュに置く')) {
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStoryFilter(t) };
+    return { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter, maxCount: 1, then: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } };
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
