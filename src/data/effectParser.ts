@@ -12,6 +12,7 @@ import type {
   TargetFilter,
   Owner,
   SequenceAction,
+  ChooseAction,
   UnknownAction,
   TransferToDeckAction,
   CounterSpellAction,
