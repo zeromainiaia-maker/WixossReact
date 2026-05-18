@@ -267,7 +267,7 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
 function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyBanish(selected: string[], c: ExecCtx): ExecCtx {
@@ -290,7 +290,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
 function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyBounce(selected: string[], c: ExecCtx): ExecCtx {
@@ -314,7 +314,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const delta = resolveNum(a.delta);
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   if (cands.length === 0) return done(ctx);
 
   function applyPowerMod(selected: string[], c: ExecCtx): ExecCtx {
@@ -337,7 +337,7 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   const value = resolveNum(a.value);
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   if (cands.length === 0) return done(ctx);
   const filtered = (state.temp_power_mods ?? []).filter(m => !cands.includes(m.cardNum));
   const setMods = cands.map(cardNum => {
@@ -353,7 +353,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(tgt.owner, ctx);
 
   if (tgt.type === 'SIGNI') {
-    const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+    const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
     function applyTrashField(selected: string[], c: ExecCtx): ExecCtx {
       let cur = c;
@@ -444,7 +444,7 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
     cands = trashCandidates(state, tgt.filter, ctx.cardMap);
     scope = 'self_trash';
   } else {
-    cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+    cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
     scope = 'self_field';
   }
 
@@ -603,7 +603,7 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
 
 function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.target.owner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyFreeze(selected: string[], c: ExecCtx): ExecCtx {
@@ -628,7 +628,7 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
 
 function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.target.owner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
 
   function applyDown(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
@@ -653,7 +653,7 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
 
 function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.target.owner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyUp(selected: string[], c: ExecCtx): ExecCtx {
@@ -686,7 +686,7 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
 function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
 
   function applyStory(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgt.owner, c);
@@ -705,7 +705,7 @@ function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
 function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgt.owner, c);
@@ -822,7 +822,7 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   // 効果耐性はキーワード付与として扱う
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
   const keyword = `PROTECTION:${a.from.join(',')}:${a.sourceOwner}`;
 
   function applyProtection(selected: string[], c: ExecCtx): ExecCtx {
@@ -851,7 +851,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   if (charmCands.length === 0) return done(addLog(ctx, 'チャーム対象なし'));
 
   // 対象シグニのゾーンを探す
-  const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap);
+  const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象シグニなし'));
 
   // どちらか複数なら最初のものを自動選択（インタラクション拡張は今後）
@@ -987,7 +987,7 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
   const delta = a.deltaPerUnit * fieldCount;
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   const mods = [
     ...(state.temp_power_mods ?? []),
     ...cands.map(cardNum => ({ cardNum, delta })),
@@ -1003,7 +1003,7 @@ function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult
   const keyword = `CHARM_PROTECTION:${JSON.stringify(a.signiFilter)}`;
   const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
   // フィールドの対象シグニ全体に付与
-  const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap);
+  const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap, ctx.effectivePowers);
   for (const n of cands) grants[n] = [...(grants[n] ?? []), keyword];
   const newOwner: PlayerState = { ...ctx.ownerState, keyword_grants: grants };
   return done(addLog({ ...ctx, ownerState: newOwner }, 'チャーム保護付与'));
@@ -1046,7 +1046,7 @@ function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): 
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   const removed = [...(state.abilities_removed ?? []), ...cands];
   const newS: PlayerState = { ...state, abilities_removed: removed };
   return done(addLog(setOwnerState(tgtOwner, newS, ctx), `シグニ${cands.length}体の能力を消去`));
