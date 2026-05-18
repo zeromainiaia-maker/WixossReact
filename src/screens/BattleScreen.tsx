@@ -4868,7 +4868,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <div style={{ flex: 1, overflow: 'hidden', padding: 4, display: 'flex', flexDirection: 'column', gap: 3, boxSizing: 'border-box' }}>
 
         {/* バトルログ */}
-        {battleLogs.length > 0 && (
+        {(bs?.game_logs?.length ?? 0) > 0 && (
           <div
             ref={logScrollRef}
             onClick={() => setLogExpanded(v => !v)}
@@ -4886,11 +4886,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               position: 'relative',
             }}
           >
-            {[...battleLogs].reverse().slice(0, logExpanded ? 60 : 2).map((log, i) => (
-              <div key={i} style={{ fontSize: 10, color: i === 0 ? '#b8d4d4' : '#7a9a9a', lineHeight: '1.6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {log}
-              </div>
-            ))}
+            {[...(bs?.game_logs ?? [])].reverse().slice(0, logExpanded ? 60 : 2).map((log, i) => {
+              const text = log.user_id !== user.id
+                ? log.action.replace(/あなた/g, '\x00').replace(/相手/g, 'あなた').replace(/\x00/g, '相手')
+                : log.action;
+              return (
+                <div key={i} style={{ fontSize: 10, color: i === 0 ? '#b8d4d4' : '#7a9a9a', lineHeight: '1.6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {text}
+                </div>
+              );
+            })}
             <div style={{
               position: 'absolute', right: 6, top: '50%', transform: logExpanded ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)',
               fontSize: 8, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none', transition: 'transform 0.2s',
