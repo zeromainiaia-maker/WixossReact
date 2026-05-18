@@ -15,7 +15,7 @@ import type {
 
 // ===== activeCondition 判定 =====
 
-function checkActiveCondition(
+export function checkActiveCondition(
   cond: ActiveCondition | undefined,
   ownerState: PlayerState,
   otherState: PlayerState,
