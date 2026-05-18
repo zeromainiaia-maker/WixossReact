@@ -133,6 +133,14 @@ function extractPowerModifiesPerStack(action: EffectAction): PowerModifyPerStack
   return [];
 }
 
+function extractPowerModifiesPerLevelSum(action: EffectAction): PowerModifyPerLevelSumAction[] {
+  if (action.type === 'POWER_MODIFY_PER_LEVEL_SUM') return [action as PowerModifyPerLevelSumAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerLevelSum(s));
+  }
+  return [];
+}
+
 function extractCostIncreases(action: EffectAction): CostIncreaseAction[] {
   if (action.type === 'COST_INCREASE') return [action as CostIncreaseAction];
   if (action.type === 'SEQUENCE') {
