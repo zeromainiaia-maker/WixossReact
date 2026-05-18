@@ -188,7 +188,11 @@ export function calcFieldPowers(
     // キーピース
     if (ownerState.field.key_piece) candidates.push(ownerState.field.key_piece);
 
+    // 同一CardNumが複数ゾーンに存在する場合、効果元として重複処理しない
+    const seenSources = new Set<string>();
     for (const topNum of candidates) {
+      if (seenSources.has(topNum)) continue;
+      seenSources.add(topNum);
       const effects = effectsMap.get(topNum);
       if (!effects) continue;
 
