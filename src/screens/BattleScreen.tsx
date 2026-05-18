@@ -1295,17 +1295,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [stackOrderIds, setStackOrderIds] = useState<string[]>([]);
   // LOOK_AND_REORDER インタラクション：現在の並び順
   const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
-  const [battleLogs, setBattleLogs] = useState<string[]>([]);
   const [logExpanded, setLogExpanded] = useState(false);
   const logScrollRef = useRef<HTMLDivElement>(null);
   const prevPhaseRef = useRef<string | null>(null);
   const prevTurnRef  = useRef<number | null>(null);
-  const prevBsRef    = useRef<typeof bs>(null);
 
   const appendBattleLogs = useCallback((entries: string[]) => {
-    if (entries.length === 0) return;
-    setBattleLogs(prev => [...prev, ...entries].slice(-200));
-  }, []);
+    if (entries.length === 0 || !user) return;
+    const now = new Date().toISOString();
+    const logs = entries.map(action => ({ timestamp: now, user_id: user.id, action }));
+    supabase.rpc('append_battle_logs', { p_room_id: roomId, p_logs: logs });
+  }, [roomId, user]);
 
   const transitioningRef = useRef(false);
   const leavingRef = useRef(false);
