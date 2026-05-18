@@ -16,8 +16,9 @@ export type EffectTiming =
   | 'ON_TRASH'        // このカードがトラッシュに置かれたとき
   | 'ON_ATTACK_SIGNI' // シグニアタックフェイズ（このシグニがアタックしたとき）
   | 'ON_ATTACK_LRIG'  // ルリグアタックフェイズ
-  | 'ON_TURN_START'   // ターン開始時
-  | 'ON_TURN_END';    // ターン終了時
+  | 'ON_TURN_START'    // ターン開始時
+  | 'ON_TURN_END'      // ターン終了時
+  | 'ON_OPP_ARTS_USE'; // 相手がアーツを使用したとき（自分フィールドのシグニがトリガー）
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
