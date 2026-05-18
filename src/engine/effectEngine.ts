@@ -30,11 +30,7 @@ function checkActiveCondition(
     case 'HAS_CARD_IN_FIELD': {
       const state = cond.owner === 'self' ? ownerState : otherState;
       const fieldNums = state.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
-      return fieldNums.some(num => {
-        if (cond.filter.cardNum)  return num === cond.filter.cardNum;
-        if (cond.filter.cardName) return cardMap.get(num)?.CardName?.includes(cond.filter.cardName) ?? false;
-        return true;
-      });
+      return fieldNums.some(num => matchesFilter(cardMap.get(num), cond.filter));
     }
 
     case 'COUNT_THRESHOLD': {
