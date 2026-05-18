@@ -94,7 +94,11 @@ function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecRes
   return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending };
 }
 
-export function matchesFilter(card: CardData | undefined, filter: TargetFilter | undefined): boolean {
+export function matchesFilter(
+  card: CardData | undefined,
+  filter: TargetFilter | undefined,
+  effectivePower?: number,  // 実効パワー（未指定時はcard.Powerを使用）
+): boolean {
   if (!card) return false;
   if (!filter) return true;
   if (filter.cardType) {
@@ -121,7 +125,8 @@ export function matchesFilter(card: CardData | undefined, filter: TargetFilter |
   if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
   if (filter.cardNum && card.CardNum !== filter.cardNum) return false;
   if (filter.powerRange) {
-    const pw = parseInt(card.Power ?? '', 10);
+    // CONTINUOUS効果・temp_power_mods適用済みの実効パワーを優先して使用する
+    const pw = effectivePower !== undefined ? Math.max(0, effectivePower) : parseInt(card.Power ?? '', 10);
     if (filter.powerRange.min !== undefined && pw < filter.powerRange.min) return false;
     if (filter.powerRange.max !== undefined && pw > filter.powerRange.max) return false;
   }
