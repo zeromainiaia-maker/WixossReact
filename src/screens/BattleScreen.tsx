@@ -2396,7 +2396,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         return;
       }
-      if (result.logs.length > 0) appendBattleLogs(result.logs);
+      if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
       const guestState = ownerIsHost ? result.otherState : result.ownerState;
@@ -2431,6 +2431,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await flushBattleLogs();
       setEffectSelectedNums([]);
     } finally {
       setLoading(false);
