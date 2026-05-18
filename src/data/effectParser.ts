@@ -1006,21 +1006,36 @@ function parseActionText(text: string): EffectAction {
     }
   }
 
-  // ---- デッキの上からN枚公開 → その中からフィルタでピック → 残りをデッキに戻す ----
+  // ---- デッキの上からN枚公開 → その中からフィルタでピック → 残りを処理 ----
   if (sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚公開する/) && sentences.length >= 2) {
     const revM = sentences[0].match(/([０-９\d]+)枚公開する/);
-    const pickM = sentences[1].trim().match(/その中から(.+?)のシグニ([０-９\d]+|すべて)枚?を手札に加える/);
-    const remainM = sentences.find(s => s.includes('デッキの一番上に戻す') || s.includes('デッキの一番下に置'));
-    if (revM && pickM) {
-      const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(pickM[1]) };
-      const pickCount = pickM[2] === 'すべて' ? 'ALL' : parseNum(pickM[2]);
-      return {
-        type: 'REVEAL_AND_PICK', owner: 'self',
-        revealCount: parseNum(revM[1]),
-        filter, pickCount,
-        then: { type: 'ADD_TO_HAND', owner: 'self' },
-        remainder: remainM?.includes('一番下') ? { location: 'deck', position: 'bottom' } : { location: 'deck', position: 'top' },
-      } as RevealAndPickAction;
+    if (revM) {
+      // 「その中から(すべての|N枚の)XXシグニをN枚手札に加え」パターン
+      const pickSentence = sentences.find(s => s.includes('その中から') && (s.includes('手札に加える') || s.includes('手札に加え')));
+      if (pickSentence) {
+        const pickM1 = pickSentence.match(/その中から(.+?)のシグニ([０-９\d]+|すべて)枚?を手札に加える/);
+        const pickM2 = pickSentence.match(/その中からすべての(.+?)のシグニを手札に加え/);
+        const pickM3 = pickSentence.match(/その中から(.+?)のシグニをすべて手札に加える?/);
+        const pickM4 = pickSentence.match(/その中からカード([０-９\d]+)枚を手札に加え/);
+        const pickM5 = pickSentence.match(/その中から(.+?)のシグニをすべて手札に加える/);
+        const remainS = sentences.find(s => s.includes('デッキの一番下') || s.includes('デッキの一番上に戻す') || s.includes('トラッシュに置く'));
+        const toBottom = remainS?.includes('一番下') ?? false;
+        const toTrash = remainS?.includes('トラッシュ') && !remainS?.includes('デッキ') ? true : false;
+        const remainder = toTrash ? undefined : { location: 'deck' as const, position: toBottom ? 'bottom' as const : 'top' as const };
+        if (pickM1) {
+          const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(pickM1[1]) };
+          const pickCount = pickM1[2] === 'すべて' ? 'ALL' : parseNum(pickM1[2]);
+          return { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(revM[1]), filter, pickCount, then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder } as RevealAndPickAction;
+        }
+        if (pickM2 || pickM3 || pickM5) {
+          const storyStr = (pickM2 || pickM3 || pickM5)![1];
+          const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(storyStr) };
+          return { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(revM[1]), filter, pickCount: 'ALL', then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder } as RevealAndPickAction;
+        }
+        if (pickM4) {
+          return { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(revM[1]), pickCount: parseNum(pickM4[1]), then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder } as RevealAndPickAction;
+        }
+      }
     }
   }
 
