@@ -4737,17 +4737,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           );
         })()}
 
-        {iControlThisPhase && !bs.effect_stack && !bs.pending_effect && !loading ? (
+        {iControlThisPhase ? (
           bs.turn_phase === 'ATTACK_LRIG' && op.field.lrig_attacked ? (
             <span style={{ fontSize: 11, color: C.textDim }}>ガード応答待ち...</span>
           ) : (
           <button
             onClick={handlePhaseAdvance}
+            disabled={!!(bs.effect_stack || bs.pending_effect || loading)}
             style={{
               padding: '5px 16px', borderRadius: 5, border: 'none',
               backgroundColor: bs.turn_phase === 'END' ? C.dangerDark : C.accent,
               color: C.text, fontSize: 12, fontWeight: 'bold',
               cursor: 'pointer',
+              visibility: (bs.effect_stack || bs.pending_effect || loading) ? 'hidden' : 'visible',
             }}
           >
             {PHASE_BTN[bs.turn_phase]}
