@@ -2649,6 +2649,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      appendBattleLogs([`${card.CardName}にグロウ`]);
     } finally {
       setLoading(false);
     }
