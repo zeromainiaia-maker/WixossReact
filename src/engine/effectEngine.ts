@@ -200,8 +200,20 @@ export function calcFieldPowers(
         for (const mod of mods) {
           const delta = typeof mod.delta === 'number' ? mod.delta : 0;
           const target = mod.target;
+          const isSelfOnly = target.count !== 'ALL';
 
-          // ターゲットのオーナー決定（self=このカードのオーナー、opponent=相手）
+          // count !== 'ALL' はCONTINUOUSにおける「このシグニ」= 効果元カードのみ対象
+          if (isSelfOnly) {
+            const card = cardMap.get(topNum);
+            if ((target.owner === 'self' || target.owner === 'any') &&
+                matchesFilter(card, target.filter) &&
+                powers.has(topNum)) {
+              powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+            }
+            continue;
+          }
+
+          // count === 'ALL': 対象オーナーのシグニ全体に適用
           const targetIsOwner = target.owner === 'self' || target.owner === 'any';
           const targetIsOther  = target.owner === 'opponent' || target.owner === 'any';
 
