@@ -4886,7 +4886,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <div style={{ flex: 1, overflow: 'hidden', padding: 4, display: 'flex', flexDirection: 'column', gap: 3, boxSizing: 'border-box' }}>
 
         {/* バトルログ */}
-        {(bs?.game_logs?.length ?? 0) > 0 && (
+        {battleLogs.length > 0 && (
           <div
             ref={logScrollRef}
             onClick={() => setLogExpanded(v => !v)}
@@ -4904,7 +4904,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               position: 'relative',
             }}
           >
-            {[...(bs?.game_logs ?? [])].reverse().slice(0, logExpanded ? 60 : 2).map((log, i) => {
+            {[...battleLogs].reverse().slice(0, logExpanded ? 60 : 2).map((log, i) => {
               const text = log.user_id !== user.id
                 ? log.action.replace(/あなた/g, '\x00').replace(/相手/g, 'あなた').replace(/\x00/g, '相手')
                 : log.action;
