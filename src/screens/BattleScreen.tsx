@@ -3552,9 +3552,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!changed) return;
     setLoading(true);
     try {
-      let newStack = bs.effect_stack;
+      let newStack = bs.effect_stack as EffectStack | null;
       if (allTriggers.length > 0) {
-        newStack = initStack(bs.active_user_id, allTriggers);
+        newStack = initStack(bs.active_user_id!, allTriggers);
       }
       await supabase.from('battle_states').update({
         host_state: hostState,
