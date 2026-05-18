@@ -267,9 +267,13 @@ function applyDeltaToState(
   cardMap: Map<string, CardData>,
   powers: Map<string, number>,
 ) {
+  // 同一CardNumが複数ゾーンにある場合、同じpowersエントリに重複適用しない
+  const seen = new Set<string>();
   for (const stack of state.field.signi) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
+    if (seen.has(topNum)) continue;
+    seen.add(topNum);
     if (!powers.has(topNum)) continue;
     const card = cardMap.get(topNum);
     if (!matchesFilter(card, filter)) continue;
