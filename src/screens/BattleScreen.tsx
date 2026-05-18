@@ -2354,6 +2354,55 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ? pushToStack(baseStack, banishEntries)
             : initStack(stack.turnPlayerId, banishEntries);
         }
+
+        // FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する
+        if (result.forceEndTurn) {
+          const activeIsHost = bs.active_user_id === bs.host_id;
+          const activeKey  = activeIsHost ? 'host_state'  : 'guest_state';
+          const nextKey    = activeIsHost ? 'guest_state' : 'host_state';
+          const activeState = activeIsHost ? hostState  : guestState;
+          const nextState   = activeIsHost ? guestState : hostState;
+
+          // アクティブプレイヤーの一時状態をクリア
+          const clearedActive: typeof activeState = {
+            ...activeState,
+            temp_power_mods:    [],
+            keyword_grants:     {},
+            blocked_actions:    [],
+            actions_done:       [],
+            pending_life_crashes: 0,
+            cost_modifiers: (activeState.cost_modifiers ?? []).filter((m: {until?: string}) => m.until !== 'END_OF_TURN'),
+          };
+
+          // 次のターンプレイヤー（相手）のシグニをアップ（凍結中はアップせず凍結解除）
+          const signiDown   = nextState.field.signi_down   ?? [false, false, false];
+          const sIgniFrozen = nextState.field.signi_frozen  ?? [false, false, false];
+          const newSigniDown = signiDown.map((d: boolean, i: number) => d && sIgniFrozen[i]) as boolean[];
+          const convertedBlocked = (nextState.blocked_actions ?? [])
+            .filter((a: string) => a.endsWith(':NEXT_TURN'))
+            .map((a: string) => a.replace(':NEXT_TURN', ''));
+          const nextStateUpd = {
+            ...nextState,
+            blocked_actions: convertedBlocked,
+            field: {
+              ...nextState.field,
+              signi_down:   newSigniDown,
+              signi_frozen: [false, false, false] as [boolean, boolean, boolean],
+              lrig_down:    (nextState.field.lrig_down ?? false) && (nextState.field.lrig_frozen ?? false),
+              lrig_frozen:  false,
+            },
+          };
+
+          Object.assign(update, {
+            [activeKey]:     clearedActive,
+            [nextKey]:       nextStateUpd,
+            turn_phase:      'UP',
+            active_user_id:  activeIsHost ? bs.guest_id : bs.host_id,
+            turn_count:      bs.turn_count + 1,
+            effect_stack:    null,
+          });
+          appendBattleLogs(['ターンが強制終了されました'], { defer: true });
+        }
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
       // main update が確定してから flush（先に RPC が届いて stale な effect_stack で再実行されるのを防ぐ）
