@@ -220,17 +220,24 @@ function meetsRestriction(restriction: string, lrigClass: string): boolean {
 
 // マルチエナ判定:
 // 1. allMulti（WX01-027/WX05-006のような「全エナにマルチエナ付与」効果がフィールドにある）
-// 2. カード自身の CONTINUOUS GRANT_KEYWORD マルチエナ（count:1 = 自身のみ）
-// 3. keyword_grants で動的付与された場合
+// 2. カード自身の CONTINUOUS GRANT_KEYWORD マルチエナ（count!='ALL' = 自身のみ）
+// 3. EffectText に「：【マルチエナ】」パターン（effects.json 未登録カードへのフォールバック）
+// 4. keyword_grants で動的付与された場合
 function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean): boolean {
   if (allMulti) return true;
   const card = cards.find(c => c.CardNum === cardNum);
-  if (card?.effects?.some(e =>
-    e.effectType === 'CONTINUOUS' &&
-    e.action.type === 'GRANT_KEYWORD' &&
-    (e.action as { keyword: string }).keyword === 'マルチエナ' &&
-    (e.action as { target: { count: unknown } }).target?.count === 1
-  )) return true;
+  if (card) {
+    if (card.effects?.some(e =>
+      e.effectType === 'CONTINUOUS' &&
+      e.action.type === 'GRANT_KEYWORD' &&
+      (e.action as { keyword: string }).keyword === 'マルチエナ' &&
+      (e.action as { target: { count: unknown } }).target?.count !== 'ALL'
+    )) return true;
+    // effects.json 未登録カード用フォールバック：
+    // 「【常】：【マルチエナ】」形式（サーバント系）を EffectText から直接検出
+    // WX01-027のような「【常】：あなたの〜は【マルチエナ】を持つ」は「：あ」で始まるため非一致
+    if (card.EffectText?.includes('：【マルチエナ】')) return true;
+  }
   return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
 }
 
