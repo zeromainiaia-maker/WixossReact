@@ -985,6 +985,8 @@ function parseActionText(text: string): EffectAction {
     if (c.startsWith('」') || c === '」を得る' || c === '」を持つ') return false;
     // 数字+丸括弧で始まる選択肢番号行（①②③）はスキップ（CHOOSE ヘッダと対にあるため）
     if (/^[①②③]/.test(c)) return false;
+    // 「どちらか/以下のN/から選ぶ」などCHOOSEヘッダ文はスキップ
+    if (/^(?:どちらか|以下の?[０-９\d２３]+つから)/.test(c) && c.includes('選ぶ')) return false;
     return true;
   });
   if (sentences.length === 0) return { type: 'UNKNOWN', raw: text };
