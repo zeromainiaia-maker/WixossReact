@@ -2245,6 +2245,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ctxPowers = calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, battleCardMap);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum };
       const result = executeEffect(entry.effect, ctx);
+      if (result.logs.length > 0) appendBattleLogs(result.logs);
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
       const guestState = ownerIsHost ? result.otherState : result.ownerState;
