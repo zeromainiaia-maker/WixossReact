@@ -174,6 +174,8 @@ export type EffectAction =
   | PowerModifyPerStackAction
   | PowerModifyPerFieldAction
   | PowerModifyPerLevelSumAction
+  | PowerModifyPerLrigLevelAction
+  | ForceEndTurnAction
   | CharmProtectionAction
   | MutualDiscardAndDrawAction
   | UnknownAction;
