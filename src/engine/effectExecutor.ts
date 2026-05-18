@@ -38,6 +38,7 @@ import type {
   PlayFreeAction,
   CostIncreaseAction,
   PowerModifyPerFieldAction,
+  PowerModifyPerLrigLevelAction,
   CharmProtectionAction,
   MutualDiscardAndDrawAction,
   RemoveAbilitiesAction,
