@@ -51,6 +51,7 @@ export interface ExecCtx {
   cardMap: Map<string, CardData>;
   logs: string[];
   effectivePowers?: Map<string, number>; // CONTINUOUS+temp_power_mods 適用済みパワー（powerRangeフィルタ用）
+  sourceCardNum?: string;    // 効果発動元カード番号（「このシグニ」参照用）
 }
 
 export type ExecResult =
