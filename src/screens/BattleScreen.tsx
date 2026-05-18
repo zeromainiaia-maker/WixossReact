@@ -2275,6 +2275,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!bs?.effect_stack || loading) return;
     const stack = bs.effect_stack;
     if (!isReadyToResolve(stack) || stack.queue.length === 0) return;
+    if (stackProcessingRef.current) return;  // stale closure による多重実行を防ぐ
+    stackProcessingRef.current = true;
 
     setLoading(true);
     try {
