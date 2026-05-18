@@ -3115,9 +3115,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ── アーツ ──
     if (cardData.Type === 'アーツ') {
       const canUse =
-        (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
-        (phase === 'ATTACK_ARTS'    && isMyTurn  && cardData.Timing.includes('アタックフェイズ')) ||
-        (phase === 'ATTACK_ARTS_OP' && !isMyTurn && cardData.Timing.includes('アタックフェイズ'));
+        !isActionBlocked('USE_ARTS') && (
+          (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
+          (phase === 'ATTACK_ARTS'    && isMyTurn  && cardData.Timing.includes('アタックフェイズ')) ||
+          (phase === 'ATTACK_ARTS_OP' && !isMyTurn && cardData.Timing.includes('アタックフェイズ'))
+        );
       const extraArtsCosts = activeCostMods.forMy
         .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
         .flatMap(m => m.amount);
