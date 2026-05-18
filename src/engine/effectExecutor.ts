@@ -182,7 +182,7 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
 
 // ===== フィールドからカードを除去する（バニッシュ/バウンス共通） =====
 
-function removeFromField(cardNum: string, state: PlayerState): PlayerState {
+export function removeFromField(cardNum: string, state: PlayerState): PlayerState {
   const newSigni = state.field.signi.map(stack => {
     if (!stack) return null;
     if (stack[stack.length - 1] !== cardNum) return stack;
