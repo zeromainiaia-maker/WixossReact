@@ -1037,6 +1037,23 @@ function parseActionText(text: string): EffectAction {
   }
   if (sentences.length === 1) return parseSingleSentence(sentences[0]);
 
+  // ---- デッキ上からN枚見る → その中から好きな枚数をトラッシュ/デッキへ ----
+  if (sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚見る/) && sentences.length >= 2) {
+    const cM = sentences[0].match(/([０-９\d]+)枚見る/);
+    const nextS = sentences[1].trim();
+    if (cM && nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
+      return {
+        type: 'LOOK_AND_REORDER',
+        source: { location: 'deck', owner: 'self' },
+        count: parseNum(cM[1]),
+        private: true,
+        reorder: nextS.includes('好きな順番'),
+        canTrash: nextS.includes('トラッシュ'),
+        destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
+      };
+    }
+  }
+
   // ---- デッキの一番上を公開 → 条件分岐（それが〜の場合）----
   if (sentences[0].trim().match(/デッキの一番上を公開する/) && sentences.length >= 2) {
     const condM = sentences[1].trim().match(/^それが(.+?)のシグニの場合、(.+)/);
