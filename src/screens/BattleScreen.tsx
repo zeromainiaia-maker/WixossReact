@@ -2926,6 +2926,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
+      const spellWho = caster_id === user.id ? '自分' : '相手';
+      const spellName = battleCardMap.get(card_num)?.CardName ?? card_num;
+      appendBattleLogs([`[${spellWho}] ${spellName}を使用`]);
       const spellPowers = calcFieldPowers(resolved, nonCasterState, bs.active_user_id === caster_id, effectsMap, battleCardMap);
       const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: battleCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num };
       const result = executeEffect(spellEff, ctx);
