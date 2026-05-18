@@ -200,7 +200,7 @@ export function calcFieldPowers(
 
       for (const effect of effects) {
         if (effect.effectType !== 'CONTINUOUS') continue;
-        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn)) continue;
+        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap)) continue;
 
         const mods = extractPowerModifies(effect.action);
         for (const mod of mods) {
