@@ -1303,6 +1303,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const prevTurnRef  = useRef<number | null>(null);
   // Realtime で受け取った game_logs をローカル state に同期
   const prevGameLogsLenRef = useRef<number>(0);
+  // defer: true のログを main update 後に一括 flush するバッファ
+  const pendingLogsRef = useRef<import('../types').GameLog[]>([]);
   useEffect(() => {
     const remote = bs?.game_logs ?? [];
     if (remote.length > prevGameLogsLenRef.current) {
@@ -1311,7 +1313,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   }, [bs?.game_logs]);
 
-  const appendBattleLogs = useCallback((entries: string[]) => {
+  const appendBattleLogs = useCallback((entries: string[], opts?: { defer?: boolean }) => {
     if (entries.length === 0 || !user) return;
     const now = new Date().toISOString();
     const newLogs = entries.map(action => ({ timestamp: now, user_id: user.id, action }));
@@ -1321,10 +1323,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       prevGameLogsLenRef.current = next.length;
       return next;
     });
-    // DB に書き込んで相手に同期
-    supabase.rpc('append_battle_logs', { p_room_id: roomId, p_logs: newLogs })
-      .then(({ error }) => { if (error) console.error('[battle_log]', error.message); });
+    if (opts?.defer) {
+      // DB 書き込みを pendingLogsRef にバッファ（main update 後に一括 flush）
+      pendingLogsRef.current.push(...newLogs);
+    } else {
+      // DB に即時書き込んで相手に同期
+      supabase.rpc('append_battle_logs', { p_room_id: roomId, p_logs: newLogs })
+        .then(({ error }) => { if (error) console.error('[battle_log]', error.message); });
+    }
   }, [roomId, user]);
+
+  const flushBattleLogs = useCallback(async () => {
+    if (pendingLogsRef.current.length === 0) return;
+    const toFlush = [...pendingLogsRef.current];
+    pendingLogsRef.current = [];
+    const { error } = await supabase.rpc('append_battle_logs', { p_room_id: roomId, p_logs: toFlush });
+    if (error) console.error('[battle_log]', error.message);
+  }, [roomId]);
 
   const transitioningRef = useRef(false);
   const leavingRef = useRef(false);
