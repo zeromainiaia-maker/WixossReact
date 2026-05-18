@@ -474,6 +474,20 @@ function parseSingleSentence(text: string): EffectAction {
     } as PowerModifyPerStackAction;
   }
 
+  // ---- 他シグニのレベル合計依存パワー修正（CONTINUOUS: 場にある他の＜X＞のレベル1につき±N）----
+  const perLevelSumM = t.match(/このシグニのパワーはあなたの場にある他の(.+?)のシグニのレベル１につき([＋－])([０-９\d]+)される/);
+  if (perLevelSumM) {
+    const sign = perLevelSumM[2] === '＋' ? 1 : -1;
+    return {
+      type: 'POWER_MODIFY_PER_LEVEL_SUM',
+      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      deltaPerLevel: sign * parseNum(perLevelSumM[3]),
+      countFilter: { cardType: 'シグニ', ...parseStoryFilter(perLevelSumM[1]) },
+      countOwner: 'self',
+      excludeSelf: true,
+    } as PowerModifyPerLevelSumAction;
+  }
+
   // ---- チャーム保護（バニッシュ時チャーム消費で防ぐ）----
   if (t.match(/シグニ.*バニッシュされる場合.*チャーム.*トラッシュに置いてもよい/)) {
     const storyF = parseStoryFilter(t) as TargetFilter;
