@@ -5,6 +5,7 @@ import type {
   EffectAction,
   PowerModifyAction,
   PowerModifyPerStackAction,
+  PowerModifyPerLevelSumAction,
   CostIncreaseAction,
   BlockActionAction,
   TargetFilter,
