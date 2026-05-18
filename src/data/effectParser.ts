@@ -880,6 +880,19 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- 引用符キーワード効果付与（「【常】：XXX」を得る）----
+  const grantQuotedM = t.match(/を対象とし、ターン終了時まで、それは「【常】：(.+?)。?」を得る/);
+  if (grantQuotedM) {
+    const keyword = grantQuotedM[1].replace(/。$/, '');
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const target: EffectTarget = t.includes('シグニ') && t.includes('センタールリグ')
+      ? { type: 'SIGNI', owner, count: 1 } // ルリグかシグニ → 近似でSIGNI
+      : t.includes('シグニ')
+        ? parseSigniTarget(t, owner)
+        : { type: 'LRIG', owner, count: 1 };
+    return { type: 'GRANT_KEYWORD', target, keyword, duration: 'UNTIL_END_OF_TURN' };
+  }
+
   // ---- キーワード能力付与（【ランサー】【ダブルクラッシュ】など）----
   if (t.includes('を得る') || t.includes('を持つ')) {
     const kwM = t.match(/【([^】]+)】/);
