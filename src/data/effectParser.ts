@@ -631,7 +631,7 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- サーチ（手札 or 場に出す）----
-  if (t.includes('デッキから') && t.includes('探して') && t.includes('シャッフル') &&
+  if (t.includes('デッキから') && t.includes('探して') &&
       (t.includes('手札に加え') || t.includes('場に出し') || t.includes('トラッシュに置き'))) {
     const filter: TargetFilter = {
       ...parseCardTypeFilter(t),
