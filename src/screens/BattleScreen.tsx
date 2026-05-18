@@ -1297,9 +1297,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
   const transitioningRef = useRef(false);
   const leavingRef = useRef(false);
-  const doPhaseAdvanceRef      = useRef<(() => Promise<void>) | null>(null);
-  const triggerPendingCrashRef = useRef<(() => Promise<void>) | null>(null);
-  const resolveStackNextRef    = useRef<(() => Promise<void>) | null>(null);
+  const doPhaseAdvanceRef         = useRef<(() => Promise<void>) | null>(null);
+  const triggerPendingCrashRef    = useRef<(() => Promise<void>) | null>(null);
+  const resolveStackNextRef       = useRef<(() => Promise<void>) | null>(null);
+  const checkPowerZeroBanishRef   = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     supabase.from('battle_states').select('*').eq('room_id', roomId).single()
