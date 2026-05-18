@@ -340,13 +340,26 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(tgtOwner, ctx);
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   if (cands.length === 0) return done(ctx);
-  const filtered = (state.temp_power_mods ?? []).filter(m => !cands.includes(m.cardNum));
-  const setMods = cands.map(cardNum => {
-    const base = parseInt(ctx.cardMap.get(cardNum)?.Power ?? '0') || 0;
-    return { cardNum, delta: value - base };
-  });
-  const newS: PlayerState = { ...state, temp_power_mods: [...filtered, ...setMods] };
-  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `パワーを${value}にセット`));
+
+  function applyPowerSet(targets: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgtOwner, c);
+    const filtered = (s.temp_power_mods ?? []).filter(m => !targets.includes(m.cardNum));
+    const setMods = targets.map(cardNum => {
+      const base = parseInt(c.cardMap.get(cardNum)?.Power ?? '0') || 0;
+      return { cardNum, delta: value - base };
+    });
+    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: [...filtered, ...setMods] }, c), `パワーを${value}にセット`);
+  }
+
+  if (a.target.count === 'ALL') return done(applyPowerSet(cands, ctx));
+
+  const count = resolveNum(a.target.count);
+  // 「このシグニ」: sourceCardNum が候補に含まれていれば自動適用
+  if (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
+    return done(applyPowerSet([ctx.sourceCardNum], ctx));
+  }
+  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, applyPowerSet);
 }
 
 function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
