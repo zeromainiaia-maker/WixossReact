@@ -2339,6 +2339,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
     } finally {
+      stackProcessingRef.current = false;
       setLoading(false);
     }
   };
