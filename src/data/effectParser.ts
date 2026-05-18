@@ -28,6 +28,7 @@ import type {
   CostIncreaseAction,
   PowerModifyPerStackAction,
   PowerModifyPerFieldAction,
+  PowerModifyPerLevelSumAction,
   CharmProtectionAction,
   MutualDiscardAndDrawAction,
   BlockActionAction,
