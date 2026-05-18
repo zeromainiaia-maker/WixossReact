@@ -914,6 +914,34 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: `GUARD_MAX_LV${lv}`, until: 'END_OF_TURN' };
   }
 
+  // ---- ライフクロス → トラッシュ ----
+  if (t.match(/ライフクロス.*トラッシュに置く/) || t.match(/ライフクロス.*を捨てる/)) {
+    const cM = t.match(/([０-９\d]+)枚/);
+    return { type: 'LIFE_CRASH', owner: 'self', count: cM ? parseNum(cM[1]) : 1, triggerBurst: false };
+  }
+
+  // ---- 手札をすべて捨てる ----
+  if (t.match(/手札をすべて捨てる/) || t.match(/手札を全て捨てる/)) {
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' } };
+  }
+
+  // ---- 自分のシグニを場からトラッシュ（ストーリー・色フィルタ付き）----
+  if (t.match(/あなたの.+シグニ.+場からトラッシュに置く/) && !t.includes('対戦相手')) {
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t) };
+    const upToM = t.match(/好きな数/);
+    const cM = t.match(/([０-９\d]+)体/);
+    const count = upToM ? 'ALL' : (cM ? parseNum(cM[1]) : 1);
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count, filter } };
+  }
+
+  // ---- 各プレイヤーは自分のシグニをトラッシュ ----
+  if (t.match(/各プレイヤーは自分のシグニ.*トラッシュに置く/)) {
+    return { type: 'SEQUENCE', steps: [
+      { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } },
+      { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
+    ] };
+  }
+
   // ---- ライフクロス → 手札 ----
   if (t.match(/ライフクロス/) && t.match(/手札に加える/)) {
     const cM = t.match(/([０-９\d]+)枚/);
