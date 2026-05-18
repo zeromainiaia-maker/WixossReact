@@ -2161,6 +2161,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     try {
       const cardNum = my.hand[handIndex];
+      const name = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const newMyState: PlayerState = {
         ...my,
         hand: my.hand.filter((_, i) => i !== handIndex),
@@ -2169,6 +2170,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      appendBattleLogs([`エナチャージ（${name}）`]);
     } finally {
       setLoading(false);
     }
@@ -2182,6 +2184,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const signiStack = my.field.signi[zoneIndex];
       if (!signiStack || signiStack.length === 0) return;
       const cardNum = signiStack[signiStack.length - 1];
+      const name = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const newStack = signiStack.slice(0, -1);
       const newSigni = [...my.field.signi] as (string[] | null)[];
       newSigni[zoneIndex] = newStack.length > 0 ? newStack : null;
@@ -2193,6 +2196,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      appendBattleLogs([`エナチャージ（${name}）`]);
     } finally {
       setLoading(false);
     }
