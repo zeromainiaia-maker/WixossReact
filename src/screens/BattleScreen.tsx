@@ -1332,6 +1332,48 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     prevTurnRef.current  = turn;
   }, [bs?.turn_phase, bs?.turn_count, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 相手の直接アクション（召喚・グロウ・エナチャージ）をbsの差分から検出してログに記録
+  useEffect(() => {
+    const prev = prevBsRef.current;
+    prevBsRef.current = bs;
+    if (!bs || !prev) return;
+
+    const opState     = isHost ? bs.guest_state    : bs.host_state;
+    const prevOpState = isHost ? prev.guest_state   : prev.host_state;
+    const logs: string[] = [];
+
+    // 相手のシグニ召喚：手札が減り、かつシグニゾーンの最上面カードが変わった
+    const opHandSet     = new Set(opState.hand);
+    const prevOpHandSet = new Set(prevOpState.hand);
+    for (let i = 0; i < 3; i++) {
+      const curTop  = opState.field.signi[i]?.at(-1);
+      const prevTop = prevOpState.field.signi[i]?.at(-1);
+      if (curTop && curTop !== prevTop && prevOpHandSet.has(curTop) && !opHandSet.has(curTop)) {
+        const name = battleCardMap.get(curTop)?.CardName ?? curTop;
+        logs.push(`相手が${name}を召喚`);
+      }
+    }
+
+    // 相手のグロウ：ルリグデッキからフィールドに新カード
+    const curOpLrig  = opState.field.lrig.at(-1);
+    const prevOpLrig = prevOpState.field.lrig.at(-1);
+    if (curOpLrig && curOpLrig !== prevOpLrig) {
+      const name = battleCardMap.get(curOpLrig)?.CardName ?? curOpLrig;
+      logs.push(`相手が${name}にグロウ`);
+    }
+
+    // 相手のエナチャージ：actions_done に 'ENERGY' が追加された瞬間
+    const prevHadEnergy = prevOpState.actions_done?.includes('ENERGY') ?? false;
+    const curHasEnergy  = opState.actions_done?.includes('ENERGY') ?? false;
+    if (!prevHadEnergy && curHasEnergy) {
+      const newCards = opState.energy.filter(n => !prevOpState.energy.includes(n));
+      const names = newCards.map(n => battleCardMap.get(n)?.CardName ?? n).join('、');
+      logs.push(`相手がエナチャージ${names ? `（${names}）` : ''}`);
+    }
+
+    if (logs.length > 0) appendBattleLogs(logs);
+  }, [bs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     supabase.from('battle_states').select('*').eq('room_id', roomId).single()
       .then(({ data, error }) => {
