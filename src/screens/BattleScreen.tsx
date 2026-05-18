@@ -2725,6 +2725,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   const executeArts = async (card: CardData, costIndices: Set<number>) => {
     if (loading) return;
+    if (isActionBlocked('USE_ARTS')) return;
     setLoading(true);
     setShowArtsModal(false);
     setPendingArtsCard(null);
