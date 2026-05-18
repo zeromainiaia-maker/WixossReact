@@ -2355,6 +2355,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(stack.turnPlayerId, banishEntries);
         }
 
+        // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
+        const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
+        if (entryCardType === 'アーツ' && entry.playerId !== user.id) {
+          // 自分（user.id）の myState を決定
+          const myStateForTrigger = ownerIsHost ? (isHost ? hostState : guestState) : (isHost ? guestState : hostState);
+          const opStateForTrigger = ownerIsHost ? (isHost ? guestState : hostState) : (isHost ? hostState : guestState);
+          const iAmHost = isHost;
+          const myIsActive = bs.active_user_id === user.id;
+          const artsTriggers = collectOppArtsUseTriggers(myStateForTrigger, opStateForTrigger, myIsActive);
+          if (artsTriggers.length > 0) {
+            const baseStack2 = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStack2
+              ? pushToStack(baseStack2, artsTriggers)
+              : initStack(iAmHost ? bs.host_id : bs.guest_id, artsTriggers);
+          }
+        }
+
         // FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する
         if (result.forceEndTurn) {
           const activeIsHost = bs.active_user_id === bs.host_id;
