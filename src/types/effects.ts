@@ -431,6 +431,16 @@ export interface PowerModifyPerStackAction {
   deltaPerCard: number; // スタック1枚（最上面を除く）ごとのパワー増減
 }
 
+// フィールドの他シグニのレベル合計に比例したパワー修正（CONTINUOUS効果内）
+export interface PowerModifyPerLevelSumAction {
+  type: 'POWER_MODIFY_PER_LEVEL_SUM';
+  target: EffectTarget;
+  deltaPerLevel: number;     // レベル1につきのパワー増減
+  countFilter: TargetFilter; // カウント対象シグニのフィルタ
+  countOwner: Owner;         // カウント対象フィールドのオーナー
+  excludeSelf?: boolean;     // true=このシグニ自身をカウントから除外
+}
+
 // フィールドカウントに比例したパワー修正（AUTO効果内）
 export interface PowerModifyPerFieldAction {
   type: 'POWER_MODIFY_PER_FIELD';
