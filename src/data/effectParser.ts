@@ -884,6 +884,36 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'UNKNOWN', raw: '【ガード】（ルール処理済み）' };
   }
 
+  // ---- アーツ使用禁止 ----
+  if (t.match(/対戦相手はアーツを使用できない/)) {
+    const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN'
+      : t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_ARTS', until };
+  }
+
+  // ---- スペル使用禁止 ----
+  if (t.match(/対戦相手はスペルを使用できない/)) {
+    const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN' : 'PERMANENT';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_SPELL', until };
+  }
+
+  // ---- エナフェイズスキップ（対戦相手）----
+  if (t.match(/対戦相手は自分のエナフェイズをスキップする/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'ENERGY', until: 'NEXT_TURN' };
+  }
+
+  // ---- このシグニはアタックできない（CONTINUOUS）----
+  if (t.match(/このシグニはアタックできない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'ATTACK_SIGNI_SELF', until: 'PERMANENT' };
+  }
+
+  // ---- ガード制限（このターン、レベルN以下はガードできない）----
+  const guardLvM = t.match(/対戦相手.*レベル([０-９\d]+)以下のシグニで【ガード】ができない/);
+  if (guardLvM) {
+    const lv = parseNum(guardLvM[1]);
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: `GUARD_MAX_LV${lv}`, until: 'END_OF_TURN' };
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
