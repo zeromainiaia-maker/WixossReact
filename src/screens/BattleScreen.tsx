@@ -3648,6 +3648,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!stack || stack.length === 0) return []; // シグニなし
       if (my.field.signi_down?.[rawZoneIdx]) return []; // すでにダウン
       if (op.field.check) return []; // 相手のライフバースト処理待ち
+      const topNum = stack[stack.length - 1];
+      if (contBlocked.cannotAttackSigni.has(topNum)) return []; // アタック不可シグニ
       return [{ label: 'アタック', color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
     }
 
