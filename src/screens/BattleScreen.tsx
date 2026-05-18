@@ -2341,6 +2341,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      // main update が確定してから flush（先に RPC が届いて stale な effect_stack で再実行されるのを防ぐ）
+      await flushBattleLogs();
     } finally {
       stackProcessingRef.current = false;
       setLoading(false);
