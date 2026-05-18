@@ -2844,7 +2844,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       const spellPowers = calcFieldPowers(resolved, nonCasterState, bs.active_user_id === caster_id, effectsMap, battleCardMap);
-      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: battleCardMap, logs: [], effectivePowers: spellPowers };
+      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: battleCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num };
       const result = executeEffect(spellEff, ctx);
       const hostState  = casterIsHost ? result.ownerState : result.otherState;
       const guestState = casterIsHost ? result.otherState : result.ownerState;
