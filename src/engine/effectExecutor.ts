@@ -53,10 +53,11 @@ export interface ExecCtx {
   logs: string[];
   effectivePowers?: Map<string, number>; // CONTINUOUS+temp_power_mods 適用済みパワー（powerRangeフィルタ用）
   sourceCardNum?: string;    // 効果発動元カード番号（「このシグニ」参照用）
+  forceEndTurn?: boolean;    // FORCE_END_TURN でセット → BattleScreen がターン終了処理を行う
 }
 
 export type ExecResult =
-  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[] }
+  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean }
   | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef };
 
 // ===== ユーティリティ =====
