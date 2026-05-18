@@ -4826,6 +4826,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* 盤面エリア */}
       <div style={{ flex: 1, overflow: 'hidden', padding: 4, display: 'flex', flexDirection: 'column', gap: 3, boxSizing: 'border-box' }}>
+
+        {/* バトルログ */}
+        {battleLogs.length > 0 && (
+          <div
+            ref={logScrollRef}
+            onClick={() => setLogExpanded(v => !v)}
+            style={{
+              flexShrink: 0,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              borderRadius: 5,
+              padding: '3px 8px',
+              cursor: 'pointer',
+              overflow: 'hidden',
+              maxHeight: logExpanded ? 200 : 38,
+              overflowY: logExpanded ? 'auto' : 'hidden',
+              border: '1px solid rgba(255,255,255,0.09)',
+              transition: 'max-height 0.2s ease',
+              position: 'relative',
+            }}
+          >
+            {[...battleLogs].reverse().slice(0, logExpanded ? 60 : 2).map((log, i) => (
+              <div key={i} style={{ fontSize: 10, color: i === 0 ? '#b8d4d4' : '#7a9a9a', lineHeight: '1.6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {log}
+              </div>
+            ))}
+            <div style={{
+              position: 'absolute', right: 6, top: '50%', transform: logExpanded ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)',
+              fontSize: 8, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none', transition: 'transform 0.2s',
+            }}>▼</div>
+          </div>
+        )}
+
         {/* 相手盤面 */}
         <div style={{ border: C.borderPanel, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgOpponent }}>
           <HandCards cardNums={op.hand} cards={battleCards} faceDown />
