@@ -28,6 +28,27 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX05-020 幻水　シャチ（AUTO E2）
+  // 【自】《ターン１回》：あなたの＜鉱石＞か＜宝石＞のシグニ１体が対戦相手のアーツの効果を受けたとき、
+  //   対戦相手にダメージを与える。（近似: 相手がアーツを使用したとき、フィールドに該当シグニがいれば発動）
+  'WX05-020': [
+    {
+      effectId: 'WX05-020-E2',
+      effectType: 'AUTO',
+      timing: ['ON_OPP_ARTS_USE'],
+      triggerScope: 'self',
+      activeCondition: {
+        type: 'HAS_CARD_IN_FIELD',
+        owner: 'self',
+        filter: { cardType: 'シグニ', story: ['鉱石', '宝石'] },
+      },
+      action: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX05-016 ジャッジメント・クロス（アーツ）
   // 全5色コストで使用 → このターンを強制終了する
   'WX05-016': [
