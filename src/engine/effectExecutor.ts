@@ -50,6 +50,7 @@ export interface ExecCtx {
   otherState: PlayerState;   // "opponent"：相手
   cardMap: Map<string, CardData>;
   logs: string[];
+  effectivePowers?: Map<string, number>; // CONTINUOUS+temp_power_mods 適用済みパワー（powerRangeフィルタ用）
 }
 
 export type ExecResult =
