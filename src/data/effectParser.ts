@@ -1256,6 +1256,293 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { hasCharm: true } as TargetFilter } };
   }
 
+  // ---- パワーをターゲット自身のレベル×N変更 ----
+  {
+    const byTargetLevelM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーをそれのレベル([０-９\d]+)につき([＋－])([０-９\d]+)する/);
+    if (byTargetLevelM) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const sign = byTargetLevelM[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_BY_TARGET_LEVEL',
+        target: { type: 'SIGNI', owner, count: parseNum(byTargetLevelM[1]) },
+        deltaPerLevel: sign * parseNum(byTargetLevelM[4]),
+        until: 'UNTIL_END_OF_TURN',
+      } as PowerModifyByTargetLevelAction;
+    }
+  }
+
+  // ---- パワーをN倍にする ----
+  {
+    const multiplyM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーを([０-９\d]+)倍にする/);
+    if (multiplyM) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      return {
+        type: 'POWER_MULTIPLY',
+        target: { type: 'SIGNI', owner, count: parseNum(multiplyM[1]) },
+        multiplier: parseNum(multiplyM[2]),
+        until: 'UNTIL_END_OF_TURN',
+      } as PowerMultiplyAction;
+    }
+  }
+
+  // ---- レベルをN変更する ----
+  {
+    const levelModM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのレベルを([＋－])([０-９\d]+)する/);
+    if (levelModM) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const sign = levelModM[2] === '＋' ? 1 : -1;
+      return {
+        type: 'LEVEL_MODIFY',
+        target: { type: 'SIGNI', owner, count: parseNum(levelModM[1]) },
+        delta: sign * parseNum(levelModM[3]),
+        until: 'UNTIL_END_OF_TURN',
+      } as LevelModifyAction;
+    }
+  }
+
+  // ---- チャーム枚数比例パワー変更（フィールド上）----
+  {
+    const perCharmM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーを場にある【チャーム】([０-９\d]+)枚につき([＋－])([０-９\d]+)する/);
+    if (perCharmM) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const sign = perCharmM[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_CHARM',
+        target: { type: 'SIGNI', owner, count: parseNum(perCharmM[1]) },
+        deltaPerCharm: sign * parseNum(perCharmM[4]),
+        sourceOwner: t.includes('対戦相手のシグニN体') ? 'any' : 'any',
+        sourceLocation: 'field',
+        until: 'UNTIL_END_OF_TURN',
+      } as PowerModifyPerCharmAction;
+    }
+    const oppCharmM = t.match(/対戦相手のシグニのパワーを、対戦相手の場にある【チャーム】([０-９\d]+)枚につき([＋－])([０-９\d]+)する/);
+    if (oppCharmM) {
+      const sign = oppCharmM[2] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_CHARM',
+        target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' },
+        deltaPerCharm: sign * parseNum(oppCharmM[3]),
+        sourceOwner: 'opponent',
+        sourceLocation: 'field',
+        until: 'UNTIL_END_OF_TURN',
+      } as PowerModifyPerCharmAction;
+    }
+    // この方法でトラッシュに置いたシグニのレベル合計×N
+    const perTrashedLevelM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーをこの方法でトラッシュに置いたシグニのレベル([０-９\d]+)につき([＋－])([０-９\d]+)/);
+    if (perTrashedLevelM) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const sign = perTrashedLevelM[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_TRASHED_LEVEL',
+        target: { type: 'SIGNI', owner, count: parseNum(perTrashedLevelM[1]) },
+        deltaPerLevel: sign * parseNum(perTrashedLevelM[4]),
+        until: 'UNTIL_END_OF_TURN',
+      } as PowerModifyPerTrashedLevelAction;
+    }
+    // この方法でトラッシュに置いたチャーム枚数×N
+    const perTrashedCharmM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーをこの方法でトラッシュに置いた【チャーム】([０-９\d]+)枚につき([＋－])([０-９\d]+)/);
+    if (perTrashedCharmM) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const sign = perTrashedCharmM[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_CHARM',
+        target: { type: 'SIGNI', owner, count: parseNum(perTrashedCharmM[1]) },
+        deltaPerCharm: sign * parseNum(perTrashedCharmM[4]),
+        sourceOwner: owner,
+        sourceLocation: 'trashed_this_effect',
+        until: 'UNTIL_END_OF_TURN',
+      } as PowerModifyPerCharmAction;
+    }
+  }
+
+  // ---- エナゾーンカード枚数比例パワー変更（常時）----
+  {
+    const perEnergyM = t.match(/このシグニのパワーはあなたのエナゾーンにあるカード([０-９\d]+)枚につき([＋－])([０-９\d]+)され/);
+    if (perEnergyM) {
+      const sign = perEnergyM[2] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_ENERGY',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerCard: sign * parseNum(perEnergyM[3]),
+        energyOwner: 'self',
+      } as PowerModifyPerEnergyAction;
+    }
+  }
+
+  // ---- ダメージを受けない ----
+  if (t.match(/あなたはダメージを受けない/)) {
+    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN' } as PreventDamageAction;
+  }
+
+  // ---- エナゾーンをN枚に均等化 ----
+  {
+    const equalizeM = t.match(/自分のエナゾーンのカードが([０-９\d]+)枚になるように/);
+    if (equalizeM) {
+      return { type: 'EQUALIZE_ENERGY', targetCount: parseNum(equalizeM[1]) } as EqualizeEnergyAction;
+    }
+  }
+
+  // ---- 手札を任意枚捨て、捨てた枚数+N枚引く ----
+  {
+    const varDiscardM = t.match(/手札を好きな枚数捨て、捨てた枚数に([０-９\d]+)を加えた枚数のカードを引く/);
+    if (varDiscardM) {
+      return { type: 'VARIABLE_DISCARD_AND_DRAW', drawBonus: parseNum(varDiscardM[1]), owner: 'self' } as VariableDiscardAndDrawAction;
+    }
+  }
+
+  // ---- バニッシュの代替コスト（手札からスペルを捨てる）----
+  {
+    const banishSubstSpellM = t.match(/バニッシュされる場合、代わりに手札からスペルを([０-９\d]+)枚捨ててもよい/);
+    if (banishSubstSpellM) {
+      const count = parseNum(banishSubstSpellM[1]);
+      const tgtCount = t.match(/あなたのシグニ([０-９\d]+)体が/);
+      return {
+        type: 'BANISH_SUBSTITUTE',
+        trigger: { type: 'SIGNI', owner: 'self', count: tgtCount ? parseNum(tgtCount[1]) : 1 },
+        substituteCost: { discardSpell: count },
+        optional: true,
+      } as BanishSubstituteAction;
+    }
+    // ---- バニッシュの代替コスト（下のスペルをトラッシュ）----
+    const banishSubstStackM = t.match(/シグニ([０-９\d]+)体がバニッシュされる場合、代わりにこのシグニの下からスペル([０-９\d]+)枚をトラッシュに置いてもよい/);
+    if (banishSubstStackM) {
+      return {
+        type: 'BANISH_SUBSTITUTE',
+        trigger: { type: 'SIGNI', owner: 'self', count: parseNum(banishSubstStackM[1]) },
+        substituteCost: { trashStackSpell: parseNum(banishSubstStackM[2]) },
+        optional: true,
+      } as BanishSubstituteAction;
+    }
+  }
+
+  // ---- トラッシュからスペルをこのカードの下に置く ----
+  {
+    const stackSpellM = t.match(/トラッシュからスペルを([０-９\d]+)枚まで対象とし、それらをこのカードの下に置く/);
+    if (stackSpellM) {
+      return {
+        type: 'STACK_SPELL',
+        from: 'trash',
+        filter: { cardType: 'スペル' },
+        maxCount: parseNum(stackSpellM[1]),
+      } as StackSpellAction;
+    }
+  }
+
+  // ---- エナゾーンのカード色を継承 ----
+  if (t.match(/エナゾーンにあるカードの色を追加で持つ/)) {
+    return { type: 'COLOR_INHERIT', source: 'energy', owner: 'self' } as ColorInheritAction;
+  }
+
+  // ---- 条件付きディスカード（無色カードN枚捨てないかぎりM枚捨てる）----
+  {
+    const condDiscM = t.match(/対戦相手は無色のカードを([０-９\d]+)枚捨てないかぎり手札を([０-９\d]+)枚捨てる/);
+    if (condDiscM) {
+      return {
+        type: 'CONDITIONAL_DISCARD',
+        owner: 'opponent',
+        avoidCount: parseNum(condDiscM[1]),
+        avoidFilter: { color: '無' },
+        elseCount: parseNum(condDiscM[2]),
+      } as ConditionalDiscardAction;
+    }
+  }
+
+  // ---- フィールドシグニ数+N枚エナチャージ ----
+  {
+    const enaByFieldM = t.match(/あなたの場にあるシグニの数に([０-９\d]+)を加えた枚数のカードをデッキの上からエナゾーンに置く/);
+    if (enaByFieldM) {
+      return { type: 'ENERGY_CHARGE_BY_FIELD_COUNT', owner: 'self', bonus: parseNum(enaByFieldM[1]) } as EnergyChargeByFieldCountAction;
+    }
+  }
+
+  // ---- 対戦相手のデッキ上か/とライフクロス上を見る ----
+  if (t.match(/対戦相手のデッキの一番上.*ライフクロスの一番上.*見る/)) {
+    const mode = t.includes('か') ? 'either' : 'both';
+    return { type: 'LOOK_AT_DECK_AND_LIFE', targetOwner: 'opponent', mode } as LookAtDeckAndLifeAction;
+  }
+
+  // ---- グロウコスト減少 ----
+  {
+    const growCostM = t.match(/(?:この?カードの上に)?グロウするためのコストは(.+)減る/);
+    if (growCostM) {
+      const costs = parseEnergyCosts(growCostM[1]);
+      return { type: 'GROW_COST_REDUCTION', reduction: costs.length > 0 ? costs : [{ color: '無', count: 1 }] } as GrowCostReductionAction;
+    }
+  }
+
+  // ---- 同名カード使用禁止 ----
+  if (t.match(/対戦相手はそれと同じ名前のカードを使用できない/)) {
+    return { type: 'NAME_BAN', targetSelf: true, duration: 'GAME' } as NameBanAction;
+  }
+
+  // ---- トラッシュからコスト以下のスペルを使用 ----
+  {
+    const playFreeM = t.match(/トラッシュからコストの合計が([０-９\d]+)以下の(.+?)スペル([０-９\d]+)枚を対象とし、それをコストを支払わずに使用してもよい/);
+    if (playFreeM) {
+      const colorFilter = parseStoryFilter(playFreeM[2]) as TargetFilter;
+      return {
+        type: 'PLAY_FREE_FROM_TRASH',
+        costThreshold: parseNum(playFreeM[1]),
+        filter: { cardType: 'スペル', ...colorFilter },
+        maxCount: parseNum(playFreeM[3]),
+      } as PlayFreeFromTrashAction;
+    }
+  }
+
+  // ---- パワー閾値でトラッシュ ----
+  {
+    const powerThreshM = t.match(/このシグニのパワーが([０-９\d]+)以上になったとき、これをトラッシュに置く/);
+    if (powerThreshM) {
+      return { type: 'POWER_THRESHOLD_TRASH', threshold: parseNum(powerThreshM[1]), operator: 'gte' } as PowerThresholdTrashAction;
+    }
+  }
+
+  // ---- パワーバフをデバフへ反転 ----
+  if (t.match(/対戦相手のシグニのパワーが対戦相手の効果によって＋.*される場合、代わりに－.*される/)) {
+    return {
+      type: 'POWER_FLIP',
+      target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' },
+      sourceOwner: 'opponent',
+    } as PowerFlipAction;
+  }
+
+  // ---- 自分自身ではトラッシュに置けない ----
+  if (t.match(/自分でこのシグニを場からトラッシュに置くことができない/)) {
+    return { type: 'SELF_TRASH_PREVENT' } as SelfTrashPreventAction;
+  }
+
+  // ---- 代替コストで支払う（エナゾーンからこのシグニをトラッシュ）----
+  {
+    const costSubM = t.match(/《([^》]+)》を支払う際、代わりにあなたのエナゾーンからこのシグニをトラッシュに置いてもよい/);
+    if (costSubM) {
+      const origCost = parseEnergyCosts(`《${costSubM[1]}》`);
+      return {
+        type: 'COST_SUBSTITUTE',
+        originalCost: origCost,
+        substituteCost: { banish_self: true },
+        optional: true,
+      } as CostSubstituteAction;
+    }
+  }
+
+  // ---- 自身の基本パワーはNになる（条件なし単独文）----
+  {
+    const basePowerM = t.match(/^このシグニの基本パワーは([０-９\d]+)になる$/);
+    if (basePowerM) {
+      return { type: 'POWER_SET', target: { type: 'SIGNI', owner: 'self', count: 1 }, value: parseNum(basePowerM[1]) };
+    }
+  }
+
+  // ---- 無色ではないすべてのシグニをトラッシュ ----
+  if (t.match(/無色ではないすべてのシグニをトラッシュに置く/)) {
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 'ALL' } };
+  }
+
+  // ---- 対戦相手の場にあるすべての【チャーム】をトラッシュに置く ----
+  if (t.match(/すべての【チャーム】をトラッシュに置く/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { hasCharm: true } as TargetFilter } };
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
