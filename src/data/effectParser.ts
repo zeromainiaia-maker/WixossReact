@@ -1602,7 +1602,21 @@ function parseActionText(text: string): EffectAction {
     }
     return { type: 'UNKNOWN', raw: text };
   }
-  if (sentences.length === 1) return parseSingleSentence(sentences[0]);
+  if (sentences.length === 1) {
+    const s = sentences[0];
+    // ---- 「カードをN枚引き、X」複合文 ----
+    const drawAndM = s.trim().match(/^カードを([０-９\d]+)枚引き、(.+)/);
+    if (drawAndM) {
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'DRAW', owner: 'self', count: parseNum(drawAndM[1]) },
+          parseSingleSentence(drawAndM[2]),
+        ],
+      } as SequenceAction;
+    }
+    return parseSingleSentence(s);
+  }
 
   // ---- デッキ上からN枚見る → その中から好きな枚数をトラッシュ/デッキへ ----
   if (sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚見る/) && sentences.length >= 2) {
