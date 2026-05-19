@@ -1,12 +1,12 @@
 /**
- * public/data/CardData_Sheet1.csv を読み込み、
+ * public/data/CardData_Sheet*.csv を読み込み、
  * parseCardEffects で全カードの効果を解析して
  * public/data/effects.json として出力するスクリプト。
  *
  * 実行: npm run build:effects
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Papa from 'papaparse';
@@ -17,14 +17,21 @@ import type { CardData } from '../src/types';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 
-// CSV 読み込み
-const csvText = readFileSync(join(root, 'public/data/CardData_Sheet1.csv'), 'utf-8')
-  .replace(/^﻿/, ''); // BOM除去
+// 存在する Sheet*.csv を順番に読み込んで結合
+const allRows: Record<string, string>[] = [];
+for (let i = 1; i <= 11; i++) {
+  const csvPath = join(root, `public/data/CardData_Sheet${i}.csv`);
+  if (!existsSync(csvPath)) break;
+  const csvText = readFileSync(csvPath, 'utf-8').replace(/^﻿/, ''); // BOM除去
+  const { data } = Papa.parse<Record<string, string>>(csvText, {
+    header: true,
+    skipEmptyLines: true,
+  });
+  console.log(`Sheet${i}: ${data.length}件`);
+  allRows.push(...data);
+}
 
-const { data: rows } = Papa.parse<Record<string, string>>(csvText, {
-  header: true,
-  skipEmptyLines: true,
-});
+const rows = allRows;
 
 console.log(`カード数: ${rows.length}`);
 
