@@ -1059,11 +1059,39 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 基本レベルをNにする ----
-  const baseLevelM = t.match(/基本レベルは([０-９\d]+)になる/);
+  const baseLevelM = t.match(/基本レベルは([０-９\d]+)になる/) ?? t.match(/基本レベルを([０-９\d]+)にする/);
   if (baseLevelM) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN' : 'END_OF_TURN';
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner, count: t.includes('すべて') || t.includes('場にあるシグニ') ? 'ALL' : 1 }, actionId: `SET_LEVEL_${toHalf(baseLevelM[1])}`, until };
+  }
+
+  // ---- このシグニはバニッシュされない（耐性）----
+  if (t.match(/このシグニはバニッシュされない/)) {
+    return {
+      type: 'GRANT_PROTECTION',
+      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      from: ['BANISH'],
+      sourceOwner: 'opponent',
+      duration: 'PERMANENT',
+    } as GrantProtectionAction;
+  }
+
+  // ---- ゲームから除外する ----
+  if (t.match(/ゲームから除外する/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const isHand = t.includes('手札');
+    const isEnergy = t.includes('エナゾーン');
+    const isTrash = t.includes('トラッシュ');
+    if (isHand && isEnergy) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'TRASH', target: { type: 'HAND_CARD', owner, count: 'ALL' } },
+        { type: 'TRASH', target: { type: 'ENERGY_CARD', owner, count: 'ALL' } },
+      ] };
+    }
+    const count = t.includes('すべて') ? 'ALL' : (t.match(/([０-９\d]+)枚まで/) ? parseNum(t.match(/([０-９\d]+)枚まで/)![1]) : 1);
+    const srcType = isHand ? 'HAND_CARD' : isEnergy ? 'ENERGY_CARD' : 'TRASH_CARD';
+    return { type: 'TRASH', target: { type: srcType as EffectTarget['type'], owner, count } };
   }
 
   // ---- あなたの他のシグニ１体をトラッシュ（コスト系効果）----
