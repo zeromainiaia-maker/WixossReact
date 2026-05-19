@@ -33,6 +33,7 @@ import type {
   CharmProtectionAction,
   MutualDiscardAndDrawAction,
   BlockActionAction,
+  EnergyChargeAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
