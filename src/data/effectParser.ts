@@ -1146,17 +1146,62 @@ function parseSingleSentence(text: string): EffectAction {
     };
   }
 
-  // ---- このシグニのパワーはあなたの場にある他の＜X＞のシグニ１体につき±Nされる ----
-  const perFieldSelfM = t.match(/このシグニのパワーはあなたの場にある他の(.+?)のシグニ１体につき([＋－])([０-９\d]+)され/);
+  // ---- このシグニのパワーはあなたの場にある[他の]＜X＞のシグニ１体につき±Nされる ----
+  const perFieldSelfM = t.match(/このシグニのパワーは(あなた|対戦相手)の場にある(?:他の)?(.+?)のシグニ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
   if (perFieldSelfM) {
-    const sign = perFieldSelfM[2] === '＋' ? 1 : -1;
+    const countOwner: Owner = perFieldSelfM[1] === '対戦相手' ? 'opponent' : 'self';
+    const sign = perFieldSelfM[3] === '＋' ? 1 : -1;
     return {
       type: 'POWER_MODIFY_PER_FIELD',
       target: { type: 'SIGNI', owner: 'self', count: 1 },
-      deltaPerUnit: sign * parseNum(perFieldSelfM[3]),
-      countFilter: { cardType: 'シグニ', ...parseStoryFilter(perFieldSelfM[1]) },
-      countOwner: 'self',
+      deltaPerUnit: sign * parseNum(perFieldSelfM[4]),
+      countFilter: { cardType: 'シグニ', ...parseStoryFilter(perFieldSelfM[2]) },
+      countOwner,
     } as PowerModifyPerFieldAction;
+  }
+
+  // ---- このシグニのパワーは対戦相手の場にあるシグニN体につき±Nされる（ストーリーなし）----
+  const perFieldOppM = t.match(/このシグニのパワーは対戦相手の場にあるシグニ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
+  if (perFieldOppM) {
+    const sign = perFieldOppM[1] === '＋' ? 1 : -1;
+    return {
+      type: 'POWER_MODIFY_PER_FIELD',
+      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      deltaPerUnit: sign * parseNum(perFieldOppM[2]),
+      countFilter: { cardType: 'シグニ' },
+      countOwner: 'opponent',
+    } as PowerModifyPerFieldAction;
+  }
+
+  // ---- 対戦相手の手札を見る ----
+  if (t.match(/対戦相手の手札を見る/)) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'hand', owner: 'opponent' },
+      count: 99,
+      private: true,
+      reorder: false,
+      destination: { location: 'hand', owner: 'opponent', position: 'top' },
+    };
+  }
+
+  // ---- トラッシュからN枚エナゾーンに置く ----
+  {
+    const trashToEnaM = t.match(/トラッシュからカードを([０-９\d]+)枚までを?対象とし、それら?をエナゾーンに置く/);
+    if (trashToEnaM) {
+      return {
+        type: 'ENERGY_CHARGE',
+        target: { type: 'TRASH_CARD', owner: 'self', count: parseNum(trashToEnaM[1]), upToCount: true },
+      } as EnergyChargeAction;
+    }
+  }
+
+  // ---- 手札をN枚捨てる（自分）----
+  {
+    const selfDiscardM = t.match(/^あなたは手札を([０-９\d]+)枚捨てる$/);
+    if (selfDiscardM) {
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(selfDiscardM[1]) } };
+    }
   }
 
   // ---- 対戦相手の場にあるすべての【チャーム】をトラッシュに置く ----
