@@ -263,6 +263,7 @@ function parseSingleSentence(text: string): EffectAction {
     .replace(/^あなたのターン開始時、/, '')
     .replace(/^ターン終了時、/, '')
     .replace(/^このシグニがアタックしたとき、/, '')
+    .replace(/^このシグニがバニッシュされたとき、/, '')
     .replace(/^バニッシュされたとき、/, '');
 
   // ---- このシグニはアタックできない（CONTINUOUS）----
