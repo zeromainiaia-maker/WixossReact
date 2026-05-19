@@ -49,6 +49,188 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX06-019 幻水　シロナクジ
+  // 【常】あなたの他の＜水獣＞のシグニ1体が対戦相手の効果によって場を離れる場合、
+  //   代わりにターン終了時まで、このシグニのパワーを－6000してもよい。
+  'WX06-019': [
+    {
+      effectId: 'WX06-019-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'BANISH_SUBSTITUTE',
+        trigger: { type: 'SIGNI', owner: 'self', count: 1, filter: { story: '水獣' } },
+        substituteCost: { powerReduction: 6000 },
+        optional: true,
+      },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX06-022 大槍　トライデ
+  // 【常】センタールリグが白かつ中央ゾーン在籍かぎり、基本パワーは10000になり、
+  //   「対戦相手の効果によってバニッシュされない」を得る。（条件はPARTIAL）
+  'WX06-022': [
+    {
+      effectId: 'WX06-022-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'POWER_SET', target: { type: 'SIGNI', owner: 'self', count: 1 }, value: 10000 },
+          {
+            type: 'GRANT_PROTECTION',
+            target: { type: 'SIGNI', owner: 'self', count: 1 },
+            from: ['シグニ', 'アーツ', 'スペル', 'ルリグ'],
+            sourceOwner: 'opponent',
+            duration: 'PERMANENT',
+          },
+        ],
+      } as SequenceAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX06-033 反復する独自性　グリッド
+  // 【出】このターン、あなたの効果によってデッキ上から公開する場合、代わりに1枚多く公開してもよい。
+  //   （既存型では表現不可のためUNKNOWNアクション＋MANUALステータス）
+  'WX06-033': [
+    {
+      effectId: 'WX06-033-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: { type: 'UNKNOWN', raw: 'このターン、デッキ上公開枚数+1してもよい（グリッド固有）' },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX08-035 弩砲　トーピード（E1のみ）
+  // 【常】あなたの場にある《クロスアイコン》を持つシグニ1体につき＋2000される。
+  //   （アイコンフィルタ未対応のためPARTIAL：全シグニ1体ごと+2000で近似）
+  'WX08-035': [
+    {
+      effectId: 'WX08-035-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'POWER_MODIFY_PER_FIELD',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerUnit: 2000,
+        countFilter: { cardType: 'シグニ' },
+        countOwner: 'self',
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX09-CB02 終末の回旋　チェロン（E1のみ）
+  // 【常】あなたの《クロスアイコン》を持つ＜美巧＞のシグニは対戦相手の効果によってバニッシュされない。
+  //   （アイコンフィルタ未対応のためPARTIAL：美巧全体に保護で近似）
+  'WX09-CB02': [
+    {
+      effectId: 'WX09-CB02-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_PROTECTION',
+        target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { story: '美巧' } },
+        from: ['シグニ', 'アーツ', 'スペル', 'ルリグ'],
+        sourceOwner: 'opponent',
+        duration: 'PERMANENT',
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX10-018 暴風警報（スペル）
+  // このターン、対戦相手のシグニかセンタールリグがアタックしたとき、
+  //   1度目か2度目の場合、そのアタックを無効にする。（PARTIAL：全アタック防止で近似）
+  'WX10-018': [
+    {
+      effectId: 'WX10-018-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      action: { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN' },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX10-053 集結する守護（スペル）
+  // コストはサーバントシグニ1体につき《無×2》減る（PARTIAL近似）。
+  // ①トラッシュからサーバントシグニを2枚まで手札に。②サーバント全シグニ+5000+ランサー。
+  'WX10-053': [
+    {
+      effectId: 'WX10-053-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '無', count: 7 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'COST_REDUCTION',
+            targetCardType: 'スペル',
+            reduction: [{ color: '無', count: 2 }],
+            duration: 'PERMANENT',
+          },
+          {
+            type: 'CHOOSE',
+            choose_count: 1,
+            from_count: 2,
+            choices: [
+              {
+                choiceId: 'c0',
+                label: '①サーバントを手札へ',
+                action: {
+                  type: 'TRANSFER_TO_HAND',
+                  source: { type: 'TRASH_CARD', owner: 'self', count: 2, upToCount: true },
+                },
+              },
+              {
+                choiceId: 'c1',
+                label: '②全サーバント+5000+ランサー',
+                action: {
+                  type: 'SEQUENCE',
+                  steps: [
+                    { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, delta: 5000 },
+                    { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN' },
+                  ],
+                } as SequenceAction,
+              },
+            ],
+          } as ChooseAction,
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX11-024 リフレッシュ・エンド（スペル）
+  // このターン、対戦相手が次にリフレッシュした場合、その後でこのターンを終了する。
+  //   （PARTIAL：リフレッシュ条件を省略しFORCE_END_TURNで近似）
+  'WX11-024': [
+    {
+      effectId: 'WX11-024-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      action: { type: 'FORCE_END_TURN' },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX05-016 ジャッジメント・クロス（アーツ）
   // 全5色コストで使用 → このターンを強制終了する
   'WX05-016': [
