@@ -5,6 +5,7 @@ import Papa from 'papaparse';
 import { parseCardEffects } from '../src/data/effectParser';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import type { CardData } from '../src/types';
+import type { UnknownAction } from '../src/types/effects';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -33,15 +34,16 @@ for (const r of allRows) {
   };
   const effects = mergeManualEffects(card.CardNum, parseCardEffects(card));
   for (const e of effects.filter(x => x.parseStatus === 'UNKNOWN')) {
+    const rawText = (e.action as UnknownAction).raw ?? '(undefined)';
     unknownList.push({
       cardNum: r.CardNum,
       cardName: r.CardName,
       effectText: r.EffectText ?? '',
       burstText: r.BurstText ?? '',
-      rawText: e.rawText ?? '(undefined)',
+      rawText,
     });
 
-    const key = (e.rawText ?? '')
+    const key = rawText
       .replace(/《[^》]*》/g, '《?》')
       .replace(/【[^】]*】/g, '【?】')
       .replace(/[（(].*?[)）]/g, '(...)')
