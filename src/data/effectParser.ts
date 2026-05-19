@@ -362,10 +362,11 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 能力消去 ----
-  if (t.match(/シグニは能力を失う/)) {
+  if (t.match(/能力を失[うい]/) || t.match(/能力を新たに得られない/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
-    return { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner, count: 'ALL' }, until: dur } as RemoveAbilitiesAction;
+    const all = t.match(/すべての.*シグニ/) || t.match(/場にあるシグニは能力を失/);
+    return { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner, count: all ? 'ALL' : 1 }, until: dur } as RemoveAbilitiesAction;
   }
 
   // ---- 条件付きドロー（手札が少ない場合に差分だけ引く）----
