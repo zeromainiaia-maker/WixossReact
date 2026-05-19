@@ -597,8 +597,9 @@ export interface BanishSubstituteAction {
   type: 'BANISH_SUBSTITUTE';
   trigger: EffectTarget;
   substituteCost: {
-    discardSpell?: number;
-    trashStackSpell?: number;
+    discardSpell?: number;    // 手札からスペルをN枚捨てる
+    trashStackSpell?: number; // このシグニの下からスペルN枚をトラッシュに置く
+    powerReduction?: number;  // 自分のシグニのパワーをN下げる
   };
   optional: boolean;
 }
