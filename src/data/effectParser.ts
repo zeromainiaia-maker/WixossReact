@@ -258,6 +258,9 @@ function parseSingleSentence(text: string): EffectAction {
   // タイミング・期間プレフィックスを除去（既にparseBlockで処理済み）
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
+    .replace(/^あなたのターン終了時、/, '')
+    .replace(/^あなたのターン開始時、/, '')
+    .replace(/^ターン終了時、/, '')
     .replace(/^このシグニがアタックしたとき、/, '')
     .replace(/^バニッシュされたとき、/, '');
 
