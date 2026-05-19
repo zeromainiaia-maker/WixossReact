@@ -1052,6 +1052,73 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter, maxCount: 1, then: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } };
   }
 
+  // ---- あなたの他のシグニ１体をトラッシュ（コスト系効果）----
+  if (t.match(/あなたの他のシグニ.+をトラッシュに置く/)) {
+    const cM = t.match(/([０-９\d]+)体/);
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: cM ? parseNum(cM[1]) : 1 } };
+  }
+
+  // ---- 対戦相手にダメージを与える（直接ライフクラッシュ）----
+  if (t.match(/対戦相手にダメージを与える/)) {
+    return { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true };
+  }
+
+  // ---- このターン／次にスペルを使用する場合コスト減 ----
+  if (t.match(/次に.*スペルを使用する場合.*コストは.*減る/)) {
+    const costs = parseEnergyCosts(t);
+    return {
+      type: 'COST_REDUCTION',
+      targetCardType: 'スペル',
+      reduction: costs.length > 0 ? costs : [{ color: '無', count: 1 }],
+      duration: 'UNTIL_END_OF_TURN',
+    } as CostReductionAction;
+  }
+
+  // ---- 対戦相手の手札を見てN枚選び捨てさせる ----
+  {
+    const hvdM = t.match(/対戦相手の手札を見て([０-９\d]+)枚選び/);
+    if (hvdM) {
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hvdM[1]) } };
+    }
+    if (t.match(/対戦相手の手札を見て.*カード.*選び.*捨てさせる/)) {
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
+    }
+  }
+
+  // ---- シグニをデッキの一番上に置く ----
+  if (t.match(/それをデッキの一番上に置く/) || t.match(/シグニ.+をデッキの一番上に置く/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter: { cardType: 'シグニ' } }, shuffle: false } as TransferToDeckAction;
+  }
+
+  // ---- 対戦相手は自分のデッキの一番上を公開する ----
+  if (t.match(/対戦相手は自分のデッキの一番上を公開する/)) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'opponent' },
+      count: 1, private: false, reorder: false,
+      destination: { location: 'deck', owner: 'opponent', position: 'top' },
+    };
+  }
+
+  // ---- このシグニのパワーはあなたの場にある他の＜X＞のシグニ１体につき±Nされる ----
+  const perFieldSelfM = t.match(/このシグニのパワーはあなたの場にある他の(.+?)のシグニ１体につき([＋－])([０-９\d]+)され/);
+  if (perFieldSelfM) {
+    const sign = perFieldSelfM[2] === '＋' ? 1 : -1;
+    return {
+      type: 'POWER_MODIFY_PER_FIELD',
+      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      deltaPerUnit: sign * parseNum(perFieldSelfM[3]),
+      countFilter: { cardType: 'シグニ', ...parseStoryFilter(perFieldSelfM[1]) },
+      countOwner: 'self',
+    } as PowerModifyPerFieldAction;
+  }
+
+  // ---- 対戦相手の場にあるすべての【チャーム】をトラッシュに置く ----
+  if (t.match(/すべての【チャーム】をトラッシュに置く/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { hasCharm: true } as TargetFilter } };
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
