@@ -597,7 +597,7 @@ function parseSingleSentence(text: string): EffectAction {
     if (t.includes('対戦相手のシグニ') || t.includes('対戦相手のパワー') || t.includes('対戦相手のセンタールリグ')) {
       return { type: 'TRASH', target: parseSigniTarget(t, 'opponent') };
     }
-    if (t.includes('あなたのシグニ')) {
+    if (t.includes('あなたのシグニ') || t.includes('あなたの他のシグニ')) {
       return { type: 'TRASH', target: parseSigniTarget(t, 'self') };
     }
   }
