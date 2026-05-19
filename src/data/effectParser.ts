@@ -1345,6 +1345,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       effectType = 'AUTO';
       timing = actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
+             : actionText.includes('ターン終了時') ? ['ON_TURN_END']
+             : actionText.includes('ターン開始時') ? ['ON_TURN_START']
              : ['ON_PLAY'];
       mandatory = true;
       break;
