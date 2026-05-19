@@ -180,6 +180,28 @@ export type EffectAction =
   | ForceEndTurnAction
   | CharmProtectionAction
   | MutualDiscardAndDrawAction
+  | PowerModifyByTargetLevelAction
+  | PowerMultiplyAction
+  | LevelModifyAction
+  | PowerModifyPerCharmAction
+  | PowerModifyPerEnergyAction
+  | PreventDamageAction
+  | EqualizeEnergyAction
+  | VariableDiscardAndDrawAction
+  | BanishSubstituteAction
+  | StackSpellAction
+  | ColorInheritAction
+  | ConditionalDiscardAction
+  | EnergyChargeByFieldCountAction
+  | LookAtDeckAndLifeAction
+  | GrowCostReductionAction
+  | NameBanAction
+  | PlayFreeFromTrashAction
+  | PowerThresholdTrashAction
+  | PowerFlipAction
+  | SelfTrashPreventAction
+  | CostSubstituteAction
+  | PowerModifyPerTrashedLevelAction
   | UnknownAction;
 
 export interface DrawAction {
