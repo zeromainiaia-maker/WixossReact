@@ -73,13 +73,18 @@ export default function App() {
 
   // CSV と事前生成 effects.json を並行 fetch してカードデータを構築
   useEffect(() => {
+    const sheetFetches = Array.from({ length: 11 }, (_, i) =>
+      fetch(`/data/CardData_Sheet${i + 1}.csv`).then(r => r.ok ? r.text() : null)
+    );
     Promise.all([
-      fetch('/data/CardData_Sheet1.csv').then(r => r.text()),
+      Promise.all(sheetFetches),
       fetch('/data/effects.json').then(r => r.json() as Promise<Record<string, CardEffect[]>>),
     ])
-      .then(([csv, effectsJson]) => {
-        const { data } = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
-        const loaded: CardData[] = data.map(r => ({
+      .then(([csvResults, effectsJson]) => {
+        const allRows = csvResults
+          .filter((t): t is string => t !== null)
+          .flatMap(csv => Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true }).data);
+        const loaded: CardData[] = allRows.map(r => ({
           CardNum:     r.CardNum,
           CardName:    r.CardName,
           ImgURL:      r.ImgURL,
