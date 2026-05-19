@@ -530,6 +530,173 @@ export interface ForceEndTurnAction {
   type: 'FORCE_END_TURN';
 }
 
+// ターゲット自身のレベル×N倍パワー変更
+export interface PowerModifyByTargetLevelAction {
+  type: 'POWER_MODIFY_BY_TARGET_LEVEL';
+  target: EffectTarget;
+  deltaPerLevel: number;
+  until: EffectDuration;
+}
+
+// パワーをN倍にする
+export interface PowerMultiplyAction {
+  type: 'POWER_MULTIPLY';
+  target: EffectTarget;
+  multiplier: number;
+  until: EffectDuration;
+}
+
+// レベルをN変更する
+export interface LevelModifyAction {
+  type: 'LEVEL_MODIFY';
+  target: EffectTarget;
+  delta: number;
+  until: EffectDuration;
+}
+
+// チャーム枚数比例パワー変更（フィールドまたはこの効果でトラッシュした枚数）
+export interface PowerModifyPerCharmAction {
+  type: 'POWER_MODIFY_PER_CHARM';
+  target: EffectTarget;
+  deltaPerCharm: number;
+  sourceOwner: Owner;
+  sourceLocation: 'field' | 'trashed_this_effect';
+  until: EffectDuration;
+}
+
+// エナゾーンのカード枚数比例パワー変更（常時効果）
+export interface PowerModifyPerEnergyAction {
+  type: 'POWER_MODIFY_PER_ENERGY';
+  target: EffectTarget;
+  deltaPerCard: number;
+  energyOwner: Owner;
+}
+
+// このターン、プレイヤーはダメージを受けない
+export interface PreventDamageAction {
+  type: 'PREVENT_DAMAGE';
+  owner: Owner;
+  until: EffectDuration;
+}
+
+// 各プレイヤーのエナゾーンをN枚に均等化する
+export interface EqualizeEnergyAction {
+  type: 'EQUALIZE_ENERGY';
+  targetCount: number;
+}
+
+// 手札を任意枚捨て、その枚数+bonus枚引く
+export interface VariableDiscardAndDrawAction {
+  type: 'VARIABLE_DISCARD_AND_DRAW';
+  drawBonus: number;
+  owner: Owner;
+}
+
+// バニッシュの代替コスト（任意で代替コストを払いバニッシュを回避）
+export interface BanishSubstituteAction {
+  type: 'BANISH_SUBSTITUTE';
+  trigger: EffectTarget;
+  substituteCost: {
+    discardSpell?: number;
+    trashStackSpell?: number;
+  };
+  optional: boolean;
+}
+
+// トラッシュからスペルをこのカードの下に置く
+export interface StackSpellAction {
+  type: 'STACK_SPELL';
+  from: 'trash';
+  filter: TargetFilter;
+  maxCount: number;
+}
+
+// エナゾーンのカードの色を自身の色として追加で持つ
+export interface ColorInheritAction {
+  type: 'COLOR_INHERIT';
+  source: 'energy';
+  owner: Owner;
+}
+
+// 条件付き強制ディスカード（N枚捨てないかぎりM枚捨てる）
+export interface ConditionalDiscardAction {
+  type: 'CONDITIONAL_DISCARD';
+  owner: Owner;
+  avoidCount: number;
+  avoidFilter?: TargetFilter;
+  elseCount: number;
+}
+
+// フィールドシグニ数+bonus枚デッキからエナゾーンに置く
+export interface EnergyChargeByFieldCountAction {
+  type: 'ENERGY_CHARGE_BY_FIELD_COUNT';
+  owner: Owner;
+  bonus: number;
+}
+
+// 対戦相手のデッキ上・ライフクロス上を見る
+export interface LookAtDeckAndLifeAction {
+  type: 'LOOK_AT_DECK_AND_LIFE';
+  targetOwner: Owner;
+  mode: 'both' | 'either';
+}
+
+// グロウコスト減少
+export interface GrowCostReductionAction {
+  type: 'GROW_COST_REDUCTION';
+  reduction: EnergyCost[];
+}
+
+// このゲームの間、対戦相手は同名カードを使用できない
+export interface NameBanAction {
+  type: 'NAME_BAN';
+  targetSelf: boolean;
+  duration: 'GAME';
+}
+
+// トラッシュからコスト以下のスペルをコスト無しで使用
+export interface PlayFreeFromTrashAction {
+  type: 'PLAY_FREE_FROM_TRASH';
+  costThreshold: number;
+  filter: TargetFilter;
+  maxCount: number;
+}
+
+// パワーが閾値以上になったとき自身をトラッシュに置く
+export interface PowerThresholdTrashAction {
+  type: 'POWER_THRESHOLD_TRASH';
+  threshold: number;
+  operator: 'gte' | 'gt';
+}
+
+// 対戦相手のパワーバフをデバフへ反転する
+export interface PowerFlipAction {
+  type: 'POWER_FLIP';
+  target: EffectTarget;
+  sourceOwner: Owner;
+}
+
+// 自分自身の効果ではトラッシュに置けない制限
+export interface SelfTrashPreventAction {
+  type: 'SELF_TRASH_PREVENT';
+}
+
+// 特定コストを代替コスト（エナからこのシグニをトラッシュ等）で支払う
+export interface CostSubstituteAction {
+  type: 'COST_SUBSTITUTE';
+  originalCost: EnergyCost[];
+  substituteCost: EffectCost;
+  optional: boolean;
+}
+
+// この効果でトラッシュしたシグニのレベル合計×N比例パワー変更
+export interface PowerModifyPerTrashedLevelAction {
+  type: 'POWER_MODIFY_PER_TRASHED_LEVEL';
+  target: EffectTarget;
+  deltaPerLevel: number;
+  until: EffectDuration;
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface UnknownAction {
   type: 'UNKNOWN';
