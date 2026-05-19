@@ -337,7 +337,7 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- シグニ再配置 ----
-  if (t.match(/シグニを好きなように配置し直してもよい/)) {
+  if (t.match(/シグニを好きなように配置し直す/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     return { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner, count: 'ALL' } } as RearrangeSigniAction;
   }
