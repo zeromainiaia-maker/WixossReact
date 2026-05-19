@@ -1198,6 +1198,29 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- エナゾーンからN枚まで手札に加える ----
+  {
+    const enaToHandM = t.match(/エナゾーンからカードを([０-９\d]+)枚まで対象とし、それら?を手札に加えてもよい/);
+    if (enaToHandM) {
+      return {
+        type: 'TRANSFER_TO_HAND',
+        source: { type: 'ENERGY_CARD', owner: 'self', count: parseNum(enaToHandM[1]), upToCount: true },
+      };
+    }
+  }
+
+  // ---- あなたの＜色＞のシグニの基本パワーをNにする ----
+  {
+    const colorPowerSetM = t.match(/あなたの([白赤青緑黒])のシグニの基本パワーを([０-９\d]+)にする/);
+    if (colorPowerSetM) {
+      return {
+        type: 'POWER_SET',
+        target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { color: colorPowerSetM[1] } },
+        value: parseNum(colorPowerSetM[2]),
+      };
+    }
+  }
+
   // ---- 手札をN枚捨てる（自分）----
   {
     const selfDiscardM = t.match(/^あなたは手札を([０-９\d]+)枚捨てる$/);
