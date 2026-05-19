@@ -1052,6 +1052,20 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter, maxCount: 1, then: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } };
   }
 
+  // ---- シグニの【出】能力の発動を止める ----
+  if (t.match(/シグニの【出】能力は発動しない/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' };
+  }
+
+  // ---- 基本レベルをNにする ----
+  const baseLevelM = t.match(/基本レベルは([０-９\d]+)になる/);
+  if (baseLevelM) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN' : 'END_OF_TURN';
+    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner, count: t.includes('すべて') || t.includes('場にあるシグニ') ? 'ALL' : 1 }, actionId: `SET_LEVEL_${toHalf(baseLevelM[1])}`, until };
+  }
+
   // ---- あなたの他のシグニ１体をトラッシュ（コスト系効果）----
   if (t.match(/あなたの他のシグニ.+をトラッシュに置く/)) {
     const cM = t.match(/([０-９\d]+)体/);
