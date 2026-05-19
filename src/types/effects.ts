@@ -109,6 +109,7 @@ export interface TargetFilter {
   hasGuard?:  boolean;
   isDown?:    boolean;
   isFrozen?:  boolean;
+  hasCharm?:  boolean;
 }
 
 // ===== ターゲット =====
