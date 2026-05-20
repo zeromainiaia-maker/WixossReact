@@ -19,7 +19,7 @@ interface Props {
 
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return generateUUID();
+    return crypto.randomUUID();
   }
   // HTTP環境など crypto.randomUUID が使えない場合のフォールバック
   const bytes = new Uint8Array(16);
