@@ -3493,25 +3493,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ダブルクラッシュ等による追加ライフクラッシュ（バースト後に自動発動）
+  // 同時クラッシュで先にライフから取り出したカードを check にセットして処理する
   const triggerPendingCrash = async () => {
-    const pending = my.pending_life_crashes ?? 0;
-    if (!pending || my.field.check || loading) return;
+    const pendingCards = my.pending_crashed_cards ?? [];
+    if (!pendingCards.length || my.field.check || loading) return;
     setLoading(true);
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const stateWithDec: PlayerState = { ...my, pending_life_crashes: pending - 1 };
-      const { newState: afterCrash, crashed } = crashOneLife(stateWithDec);
-      if (!crashed) {
-        appendBattleLogs([`ダブルクラッシュ：ライフなし → 自分の敗北`]);
-        const winnerId = isHost ? bs.guest_id : bs.host_id;
-        await supabase.from('battle_states')
-          .update({ [stateKey]: { ...stateWithDec, pending_life_crashes: 0 }, global_phase: 'FINISHED', winner_id: winnerId })
-          .eq('room_id', roomId);
-        return;
-      }
-      const pendingCrashedName = battleCardMap.get(crashed)?.CardName ?? crashed;
-      appendBattleLogs([`ダブルクラッシュ：ライフクロスをクラッシュ（${pendingCrashedName}）`]);
-      await supabase.from('battle_states').update({ [stateKey]: afterCrash }).eq('room_id', roomId);
+      const [nextCard, ...remaining] = pendingCards;
+      const newMyState: PlayerState = {
+        ...my,
+        pending_crashed_cards: remaining,
+        field: { ...my.field, check: nextCard },
+      };
+      const crashedName = battleCardMap.get(nextCard)?.CardName ?? nextCard;
+      appendBattleLogs([`ダブルクラッシュ：ライフクロスをクラッシュ（${crashedName}）`]);
+      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
     } finally {
       setLoading(false);
     }
