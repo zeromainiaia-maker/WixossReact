@@ -3415,11 +3415,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([attackLabel]);
         newOpState = afterFirst;
 
-        if (crashCount > 1) {
-          // ダブルクラッシュ：1枚目バースト後に追加クラッシュが残る
-          pendingExtra = crashCount - 1;
-          newOpState = { ...newOpState, pending_life_crashes: (newOpState.pending_life_crashes ?? 0) + pendingExtra };
-          appendBattleLogs([`ダブルクラッシュ：バースト後に追加クラッシュ予約`]);
+        if (crashCount > 1 && newOpState.life_cloth.length > 0) {
+          // 公式ルール「同時クラッシュ」: 2枚目もライフから先に取り出す
+          const secondCard = newOpState.life_cloth[newOpState.life_cloth.length - 1];
+          newOpState = {
+            ...newOpState,
+            life_cloth: newOpState.life_cloth.slice(0, -1),
+            pending_crashed_cards: [...(newOpState.pending_crashed_cards ?? []), secondCard],
+          };
+          appendBattleLogs([`ダブルクラッシュ：2枚目（${battleCardMap.get(secondCard)?.CardName ?? secondCard}）を同時クラッシュ予約`]);
         }
       }
 
