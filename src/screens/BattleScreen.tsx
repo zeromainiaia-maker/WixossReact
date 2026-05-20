@@ -1553,9 +1553,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.pending_effect) return;
     if (loading) return;
     if (bs.active_user_id !== user.id) return;
+    // 相手のチェックゾーンにカードがある（バースト処理待ち）間はスタック解決を停止
+    const isLocalHost = user.id === bs.host_id;
+    const opStateForCheck = isLocalHost ? bs.guest_state : bs.host_state;
+    if (opStateForCheck.field?.check) return;
     resolveStackNextRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, loading]);
+  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state]);
 
   // pending_life_crashes の自動消化
   useEffect(() => {
