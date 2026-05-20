@@ -77,7 +77,7 @@ export interface PlayerState {
   actions_done?: string[];    // このターンに使用済みのアクション（ターン開始時にリセット）
   blocked_actions?: string[]; // カード効果で封じられたアクション
   story_overrides?: Record<string, string>; // CardNum -> ゲーム中に変更されたStory（大本のCardDataは変えない）
-  pending_life_crashes?: number; // ダブルクラッシュなどで追加クラッシュが残っている枚数
+  pending_crashed_cards?: string[]; // ダブルクラッシュ等で同時クラッシュしたが未処理のカード番号（バースト処理待ち）
   // 効果エンジン用：ターン終了時にクリア
   temp_power_mods?: Array<{ cardNum: string; delta: number }>;
   keyword_grants?: Record<string, string[]>; // CardNum → ['ランサー', ...]
