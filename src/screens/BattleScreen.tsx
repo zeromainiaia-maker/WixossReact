@@ -3397,7 +3397,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         // ─── ライフへのアタック（正面空 or アサシン）───
         const crashCount = isDoubleCrush ? 2 : 1;
-        let pendingExtra = 0;
         const attackLabel = isAssassin && opTopCardNum
           ? `${myCardName}（アサシン）がライフをクラッシュ`
           : `${myCardName}がライフをクラッシュ`;
