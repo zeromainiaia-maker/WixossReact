@@ -1570,7 +1570,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const localIsHost = user.id === bs.host_id;
     const localMy = localIsHost ? bs.host_state : bs.guest_state;
     if (localMy.field?.check) return;
-    if (!(localMy.pending_life_crashes ?? 0)) return;
+    if (!(localMy.pending_crashed_cards?.length ?? 0)) return;
     triggerPendingCrashRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase]);
