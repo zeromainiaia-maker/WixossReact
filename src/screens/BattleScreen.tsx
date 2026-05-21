@@ -4308,13 +4308,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       );
                     })}
                   </div>
-                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost)}
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, isBetting)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.coin : C.disabled,
                       color: isValid ? '#000' : C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
-                    アーツ使用
+                    {isBetting ? 'アーツ使用（ベットあり）' : 'アーツ使用'}
                   </button>
                 </>
               );
