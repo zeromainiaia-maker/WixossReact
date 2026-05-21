@@ -15,7 +15,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('LOGIN');
   const [loading, setLoading] = useState(true);
-  const [cards, setCards] = useState<CardData[]>([]);
+  const [cards, setCards] = useState<CardData[]>([]);       // デッキ編集用（トークン除外）
+  const [allCards, setAllCards] = useState<CardData[]>([]); // バトル用（トークン含む）
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [battleRoomId, setBattleRoomId] = useState<string | null>(null);
