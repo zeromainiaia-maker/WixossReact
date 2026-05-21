@@ -3333,7 +3333,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const canUse =
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
         (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ'));
-      const coinNeeded = parseCoinCost(cardData.Cost);
+      const coinNeeded = parseCoinCost(cardData.Cost) + parseCoinCost(cardData.GrowCost);
       const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants, myEnaAllMulti);
       if (canUse && canAfford) {
         actions.push({
