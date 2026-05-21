@@ -877,14 +877,15 @@ function parseSingleSentence(text: string): EffectAction {
       } as EnergyChargeAction;
     }
     // "対戦相手のシグニN体を対象とし、それをエナゾーンに置く" （フィルタなし）
-    const m3 = t.match(/対戦相手の(?:レベル([０-９\d]+)以下の)?シグニ([０-９\d]+)体を対象とし.*それをエナゾーンに置く/);
+    const m3 = t.match(/対戦相手の(?:レベル([０-９\d]+)(以下|以上)の)?シグニ([０-９\d]+)体を対象とし.*それをエナゾーンに置く/);
     if (m3) {
-      const filter: import('../types/effects').TargetFilter = m3[1]
-        ? { cardType: 'シグニ', level: { max: parseNum(m3[1]) } }
+      const lv = m3[1] ? parseNum(m3[1]) : undefined;
+      const filter: import('../types/effects').TargetFilter = lv !== undefined
+        ? { cardType: 'シグニ', level: m3[2] === '以下' ? { max: lv } : { min: lv } }
         : { cardType: 'シグニ' };
       return {
         type: 'ENERGY_CHARGE',
-        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m3[2]), filter },
+        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m3[3]), filter },
       } as EnergyChargeAction;
     }
   }
