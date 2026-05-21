@@ -909,6 +909,15 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'GRANT_PROTECTION', target, from, sourceOwner: 'opponent', duration: 'PERMANENT' } as GrantProtectionAction;
   }
 
+  // ---- チアガール変換 ----
+  if (t.includes('チアガールにする')) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const target: EffectTarget = t.includes('このシグニ')
+      ? { type: 'SIGNI', owner: 'self', count: 1 }
+      : { type: 'SIGNI', owner, count: 1 };
+    return { type: 'GRANT_KEYWORD', target, keyword: 'チアガール', duration: 'PERMANENT' };
+  }
+
   // ---- チャーム付与 ----
   if (t.includes('チャーム】にする') || t.includes('チャーム】にしてもよい')) {
     const charmIsTopOfDeck = t.includes('デッキの一番上のカード');
