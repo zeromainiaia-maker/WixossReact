@@ -669,6 +669,14 @@ function parseSingleSentence(text: string): EffectAction {
     // 見てからレベル指定で捨てさせる（複雑→UNKNOWN）
   }
 
+  // ---- 各プレイヤーは手札をN枚捨てる ----
+  {
+    const bothDiscardM = t.match(/各プレイヤーは手札を([０-９\d]+)枚捨てる/);
+    if (bothDiscardM) {
+      return { type: 'DISCARD_BOTH', count: parseNum(bothDiscardM[1]) };
+    }
+  }
+
   // ---- 自分手札を捨てる ----
   const selfDiscardM = t.match(/^(?:あなたは)?手札を([０-９\d]+)枚捨てる$/);
   if (selfDiscardM) {
