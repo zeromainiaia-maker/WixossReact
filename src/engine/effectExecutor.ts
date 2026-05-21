@@ -1413,6 +1413,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'PLACE_VIRUS':                  return execPlaceVirus(action as PlaceVirusAction, ctx);
     case 'ATTACH_ACCE':                  return execAttachAcce(action as AttachAcceAction, ctx);
     case 'BLOOD_CRYSTAL_ARMOR':          return execBloodCrystalArmor(action as BloodCrystalArmorAction, ctx);
+    case 'POWER_MODIFY_PER_VIRUS_COUNT': return done(addLog(ctx, 'ウィルス数比例パワー（effectEngine処理）'));
     // 以下は CONTINUOUS 効果専用（effectEngine 側で処理）
     case 'BANISH_REDIRECT':                return done(addLog(ctx, 'バニッシュ先変更（CONTINUOUS）'));
     case 'REARRANGE_SIGNI':                return done(addLog(ctx, 'シグニ並び替え（BattleScreen側で処理）'));
