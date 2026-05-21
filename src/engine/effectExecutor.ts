@@ -1260,6 +1260,105 @@ function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
   return done(addLog(newCtx, `各プレイヤー手札${a.count}枚捨て`));
 }
 
+function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
+  const tgtState = a.targetOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
+  const ZONE_COUNT = 3;
+  const virus = [...(tgtState.field.signi_virus ?? [0, 0, 0])];
+  // どのゾーンに置けるか（まだウィルスが置かれていないゾーン）
+  const available = [0, 1, 2].filter(i => virus[i] === 0);
+
+  let placed = 0;
+  if (a.zoneCount === 'ALL') {
+    for (let i = 0; i < ZONE_COUNT; i++) {
+      if (virus[i] === 0) { virus[i] = a.virusCount; placed++; }
+    }
+  } else {
+    const maxZones = Math.min(a.zoneCount as number, available.length);
+    for (let i = 0; i < maxZones; i++) {
+      virus[available[i]] = a.virusCount; placed++;
+    }
+  }
+
+  const newField = { ...tgtState.field, signi_virus: virus };
+  const newState: PlayerState = { ...tgtState, field: newField };
+  const ctx2 = a.targetOwner === 'opponent'
+    ? { ...ctx, otherState: newState }
+    : { ...ctx, ownerState: newState };
+  return done(addLog(ctx2, `【ウィルス】を${placed}ゾーンに配置`));
+}
+
+function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
+  // シグニ選択 → エナゾーンのこのカードをそのシグニのアクセにする
+  // "このカード" = 現在実行中のカード（sourceCardNum 未保持のため簡易実装）
+  // UI上の完全実装はBattleScreen側で処理するため、ここでは選択のみ促す
+  const tgtState = a.targetSigniOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
+  // アクセ未付きのシグニゾーンを候補とする
+  const acce = tgtState.field.signi_acce ?? [null, null, null];
+  const candidates = (tgtState.field.signi ?? []).flatMap((stack, i) => {
+    if (!stack || stack.length === 0) return [];
+    if (acce[i] !== null) return []; // すでにアクセあり
+    const top = stack[stack.length - 1];
+    if (a.signiFilter && !matchesFilter(ctx.cardMap.get(top), a.signiFilter)) return [];
+    return [top];
+  });
+  if (candidates.length === 0) return done(addLog(ctx, 'アクセ対象なし'));
+
+  // エナゾーンからアクセカード選択 → 選択後に signi_acce[zoneIdx] に設定
+  // thenAction として ATTACH_ACCE 自身を渡すのは循環するので、
+  // ここでは SELECT_TARGET でシグニを選ばせ、applyDirectAction で適用する
+  const srcState = a.sourceOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
+  // エナゾーンにこのカード（自分自身）があることを前提として、
+  // SELECT_TARGET で「どのシグニに付けるか」を選ばせる
+  const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
+  return {
+    done: false,
+    ownerState: ctx.ownerState,
+    otherState: ctx.otherState,
+    logs: ctx.logs,
+    pending: {
+      type: 'SELECT_TARGET',
+      candidates,
+      count: 1,
+      optional: false,
+      targetScope: scope,
+      thenAction: a, // BattleScreen 側で ATTACH_ACCE を解釈して signi_acce を更新
+    } as PendingInteractionDef,
+  };
+}
+
+function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecResult {
+  // 自分のフィールドにある＜紅蓮＞シグニのうち未武装のものを選択
+  const candidates = (ctx.ownerState.field.signi ?? []).flatMap((stack) => {
+    if (!stack || stack.length === 0) return [];
+    const top = stack[stack.length - 1];
+    const card = ctx.cardMap.get(top);
+    if (a.targetFilter && !matchesFilter(card, a.targetFilter)) return [];
+    // 血晶武装可能（手札またはトラッシュに同名カードがある）
+    const sameName = card?.CardName;
+    if (!sameName) return [];
+    const inHand = a.source.includes('hand') && ctx.ownerState.hand.some(n => ctx.cardMap.get(n)?.CardName === sameName);
+    const inTrash = a.source.includes('trash') && ctx.ownerState.trash.some(n => ctx.cardMap.get(n)?.CardName === sameName);
+    if (!inHand && !inTrash) return [];
+    return [top];
+  });
+  if (candidates.length === 0) return done(addLog(ctx, '血晶武装対象なし'));
+
+  return {
+    done: false,
+    ownerState: ctx.ownerState,
+    otherState: ctx.otherState,
+    logs: ctx.logs,
+    pending: {
+      type: 'SELECT_TARGET',
+      candidates,
+      count: Math.min(a.count, candidates.length),
+      optional: false,
+      targetScope: 'self_field',
+      thenAction: a, // BattleScreen側で解釈してスタックに積む
+    } as PendingInteractionDef,
+  };
+}
+
 // ===== メイン実行関数 =====
 
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
