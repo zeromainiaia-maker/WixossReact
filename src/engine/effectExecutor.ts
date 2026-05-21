@@ -44,6 +44,8 @@ import type {
   RemoveAbilitiesAction,
   GainCoinAction,
   DiscardBothAction,
+  RemoveCharmAction,
+  ForceSigniAttackAction,
 } from '../types/effects';
 
 // ===== 実行コンテキスト & 結果型 =====
