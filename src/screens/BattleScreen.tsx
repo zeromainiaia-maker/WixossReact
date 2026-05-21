@@ -281,6 +281,13 @@ function parseCoinCost(costStr: string): number {
   return 0;
 }
 
+function parseBetCost(effectText: string): number {
+  if (!effectText) return 0;
+  const m = effectText.match(/ベット[―─]\s*((?:《コインアイコン》)+)/);
+  if (!m) return 0;
+  return (m[1].match(/《コインアイコン》/g) ?? []).length;
+}
+
 // コスト増加修正を考慮してエナを追加消費できるか確認
 function canAffordWithExtraCost(
   energyNums: string[],
