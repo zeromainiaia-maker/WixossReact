@@ -1542,13 +1542,7 @@ export function resumeSearch(
   ctx: ExecCtx,
 ): ExecResult {
   let cur = ctx;
-  // 複数ピック時：インデックスの大きい方から処理してデッキのインデックスずれを防ぐ
-  const sortedPicked = [...picked].sort((a, b) => {
-    const ia = decodeCardId(a).srcIdx ?? -1;
-    const ib = decodeCardId(b).srcIdx ?? -1;
-    return ib - ia; // 降順
-  });
-  for (const id of sortedPicked) {
+  for (const id of picked) {
     const result = applyDirectAction(pending.thenAction, id, cur);
     if (!result.done) return result;
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
