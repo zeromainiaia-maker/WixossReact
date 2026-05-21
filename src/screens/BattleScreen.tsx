@@ -5212,8 +5212,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {checkCard ? (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <img src={checkCard.ImgURL} alt={checkCard.CardName}
+                        onClick={() => setOpCheckCardZoomed(true)}
+                        onTouchEnd={e => { e.preventDefault(); setOpCheckCardZoomed(true); }}
                         style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6,
-                          boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none' }}
+                          boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none', cursor: 'pointer' }}
                         onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
                       <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
                         {checkCard.CardName}
