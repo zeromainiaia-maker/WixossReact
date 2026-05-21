@@ -2506,7 +2506,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       effectType = 'AUTO';
       timing = actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
-             : actionText.match(/場からトラッシュに置かれたとき/) ? ['ON_TRASH']
+             : actionText.match(/(?:手札か?デッキから|場から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.includes('ターン終了時') ? ['ON_TURN_END']
              : actionText.includes('ターン開始時') ? ['ON_TURN_START']
              : actionText.includes('各アタックフェイズ開始時') ? ['ATTACK']
@@ -2514,7 +2514,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : ['ON_PLAY'];
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
       if (timing[0] === 'ON_TRASH') {
-        const m = actionText.match(/場からトラッシュに置かれたとき[、,]\s*(.+)/);
+        const m = actionText.match(/(?:(?:手札か?デッキから|場から)トラッシュに置かれたとき)[、,]\s*(.+)/);
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ATTACK') {
