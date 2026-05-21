@@ -1112,8 +1112,8 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- デッキ上 → エナゾーン ----
-  if ((t.includes('デッキの一番上のカードをエナゾーンに置く')) ||
-      (t.includes('デッキの上からカードを') && t.includes('エナゾーンに置く'))) {
+  if ((t.includes('デッキの一番上のカードをエナゾーンに置')) ||
+      (t.includes('デッキの上からカードを') && t.includes('エナゾーンに置'))) {
     const cM = t.match(/カードを([０-９\d]+)枚/);
     return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: cM ? parseNum(cM[1]) : 1 };
   }
