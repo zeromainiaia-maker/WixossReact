@@ -2338,6 +2338,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
     }
+    if (bs.turn_phase === 'ATTACK_SIGNI') {
+      const signiDown   = my.field.signi_down   ?? [false, false, false];
+      const hasUpSigni  = my.field.signi.some((stack, i) =>
+        (stack?.length ?? 0) > 0 && !signiDown[i],
+      );
+      if (hasUpSigni) {
+        setShowSigniAttackSkipConfirm(true);
+        return;
+      }
+    }
+    if (bs.turn_phase === 'ATTACK_LRIG') {
+      const hasLrig  = (my.field.lrig?.length ?? 0) > 0;
+      const lrigUp   = !(my.field.lrig_down ?? false);
+      if (hasLrig && lrigUp) {
+        setShowLrigAttackSkipConfirm(true);
+        return;
+      }
+    }
     doPhaseAdvance();
   };
 
