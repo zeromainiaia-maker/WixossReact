@@ -800,7 +800,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
   const count = resolveNum(tgt.count);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyGrant);
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
 
 function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
