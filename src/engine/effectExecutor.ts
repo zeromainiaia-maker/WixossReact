@@ -279,10 +279,6 @@ function selectOrInteract(
     );
   }
   if (filteredCands.length === 0) return done(ctx);
-  // optional=true（「してもよい」）の場合は自動適用せずプレイヤーに選ばせる
-  if (!optional && filteredCands.length <= count) {
-    return done(autoApply(filteredCands, ctx));
-  }
   return needsInteraction(ctx, {
     type: 'SELECT_TARGET',
     candidates: filteredCands,
