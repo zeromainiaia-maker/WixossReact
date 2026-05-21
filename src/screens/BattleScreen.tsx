@@ -3009,7 +3009,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setIsEncore(false);
     try {
       const cardNum = card.CardNum;
-      const idx = my.lrig_deck.indexOf(cardNum);
+      const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
+      const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const paidNums = [...costIndices].map(i => my.energy[i]);
@@ -3019,19 +3020,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const paid: PlayerState = {
         ...my,
         lrig_deck: encore
-          ? [cardNum, ...newLrigDeck]       // アンコール：ルリグデッキ先頭に戻す
+          ? [instanceId, ...newLrigDeck]    // アンコール：ルリグデッキ先頭に戻す
           : newLrigDeck,
         energy: newEnergy,
         lrig_trash: encore
           ? my.lrig_trash                   // アンコール：ルリグトラッシュに置かない
-          : [...my.lrig_trash, cardNum],
+          : [...my.lrig_trash, instanceId],
         trash: [...my.trash, ...paidNums],
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
       };
       if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
       // アーツ効果を発火
-      const fired = await queueCardEffects(cardNum, ['ACTIVATED'], [], paid, op);
+      const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paid, op);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await supabase.from('battle_states').update({ [stateKey]: paid }).eq('room_id', roomId);
