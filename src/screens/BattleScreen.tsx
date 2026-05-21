@@ -2963,7 +2963,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
-      const coinCost = parseCoinCost(card.Cost);
+      const coinCost = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
       const paid: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
