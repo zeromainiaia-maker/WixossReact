@@ -4032,6 +4032,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
                             コスト: {card.GrowCost || 'なし'}
                           </p>
+                          {(parseInt(card.Coin) || 0) > 0 && (
+                            <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>
+                              コイン+{card.Coin}枚
+                            </p>
+                          )}
                           {!canAfford && (
                             <p style={{ color: C.danger, fontSize: 10, margin: '2px 0 0' }}>エナ不足</p>
                           )}
