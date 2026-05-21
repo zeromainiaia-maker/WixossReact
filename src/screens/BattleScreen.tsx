@@ -1624,7 +1624,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return false;
   }, [bs, effectsMap, user.id]);
 
-  // ── Rules of Hooks 対策：PLAYING セクション由来の useEffect を if(!bs) より前に置く ──
+  // ── Rules of Hooks 対策：PLAYING セクション由来の hooks を if(!bs)/SETUP return より前に置く ──
+
+  // CONTINUOUS BLOCK_ACTION 効果によるアクション禁止（フィールド常駐効果）
+  const contBlocked = useMemo(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return { forSelf: new Set<string>(), forOpp: new Set<string>() };
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    return calcContinuousBlockedActions(myS, opS, myTurn, effectsMap, battleCardMap);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs, effectsMap, battleCardMap, user.id]);
 
   // LOOK_AND_REORDER インタラクションが来たら初期順序をセット
   useEffect(() => {
