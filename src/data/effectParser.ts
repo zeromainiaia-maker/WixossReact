@@ -936,8 +936,8 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
-  // ---- バウンス（手札に戻す）----
-  if (t.includes('手札に戻す')) {
+  // ---- バウンス（手札に戻す / 戻してもよい）----
+  if (t.includes('手札に戻す') || t.includes('手札に戻してもよい')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const upToM = t.match(/([０-９\d]+)体まで/);
     const countM = t.match(/([０-９\d]+)体を対象/);
