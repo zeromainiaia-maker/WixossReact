@@ -1337,7 +1337,11 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
           cardNums={zoneModal.isLrigDeck ? state.lrig_deck : zoneModal.cardNums}
           cards={cards}
           onClose={() => setZoneModal(null)}
-          getCardActions={zoneModal.isLrigDeck ? getLrigDeckCardActions : undefined}
+          getCardActions={
+            zoneModal.isLrigDeck ? getLrigDeckCardActions :
+            zoneModal.isFreeZone  ? getFreeZoneActions :
+            undefined
+          }
         />
       )}
     </>
