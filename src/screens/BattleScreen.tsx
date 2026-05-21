@@ -3760,11 +3760,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!bs || loading || bs.global_phase !== 'PLAYING') return;
     if (bs.effect_stack || bs.pending_effect) return;
 
+    const isMyTurnLocal = bs.active_user_id === bs.host_id;
+    const powers = calcFieldPowers(bs.host_state, bs.guest_state, isMyTurnLocal, effectsMap, battleCardMap);
+
+    // バニッシュ候補を先に収集してフィンガープリントで二重処理を防ぐ
+    const candidates: string[] = [];
+    for (const ownerIsHost of [true, false]) {
+      const ownerState = ownerIsHost ? bs.host_state : bs.guest_state;
+      const grants = ownerState.keyword_grants;
+      for (const stack of ownerState.field.signi) {
+        if (!stack?.length) continue;
+        const topNum = stack[stack.length - 1];
+        const power = powers.get(topNum) ?? parseInt(battleCardMap.get(topNum)?.Power ?? '0', 10);
+        if (power > 0) continue;
+        if (hasBanishResist(topNum, battleCardMap, grants)) continue;
+        candidates.push(topNum);
+      }
+    }
+    if (candidates.length === 0) return;
+
+    const candidateKey = [...candidates].sort().join(',');
+    if (candidateKey === lastBanishedKeyRef.current) return; // DB伝播待ち中の二重処理をスキップ
+    lastBanishedKeyRef.current = candidateKey;
+
     let hostState  = bs.host_state;
     let guestState = bs.guest_state;
-    const isMyTurnLocal = bs.active_user_id === bs.host_id;
-    const powers = calcFieldPowers(hostState, guestState, isMyTurnLocal, effectsMap, battleCardMap);
-    let changed = false;
     const allTriggers: StackEntry[] = [];
 
     for (const ownerIsHost of [true, false]) {
@@ -3777,24 +3797,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const topNum = stack[stack.length - 1];
         const power = powers.get(topNum) ?? parseInt(battleCardMap.get(topNum)?.Power ?? '0', 10);
         if (power > 0) continue;
-        // バニッシュ耐性あり → 0のまま場に残る
         if (hasBanishResist(topNum, battleCardMap, grants)) continue;
 
-        // バニッシュ実行（フィールドから除去 → オーナーのエナへ）
         const currentOwner = ownerIsHost ? hostState : guestState;
         const removed = removeFromField(topNum, currentOwner);
         const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, topNum] };
         if (ownerIsHost) hostState = withEnergy; else guestState = withEnergy;
-        changed = true;
         const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
         appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ`]);
 
-        // ON_BANISH トリガー収集
         const triggers = collectBanishTriggers(topNum, ownerId, hostState, guestState);
         allTriggers.push(...triggers);
       }
     }
 
+    const changed = candidates.length > 0;
     if (!changed) return;
     setLoading(true);
     try {
