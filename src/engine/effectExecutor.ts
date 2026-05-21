@@ -737,7 +737,7 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
 
   if (a.target.count === 'ALL') return done(applyUp(cands, ctx));
   const count = resolveNum(a.target.count);
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyUp);
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
 
 function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
