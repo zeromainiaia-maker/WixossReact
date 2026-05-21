@@ -2672,13 +2672,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const existingStack = my.field.signi[zoneIndex] ?? [];
       const newSigni = [...my.field.signi] as (string[] | null)[];
       newSigni[zoneIndex] = [cardNum];
-      // 入れ替え召喚時はそのゾーンのダウン・凍結・チャームをリセット
+      // 入れ替え召喚時はそのゾーンのダウン・凍結・チャーム・アクセ・ウィルスをリセット
       const newSigniDown   = [...(my.field.signi_down   ?? [false, false, false])];
       const newSigniFrozen = [...(my.field.signi_frozen  ?? [false, false, false])];
       const newCharms      = [...(my.field.signi_charms  ?? [null, null, null])];
+      const newAcce        = [...(my.field.signi_acce    ?? [null, null, null])];
+      const newVirus       = [...(my.field.signi_virus   ?? [0, 0, 0])];
       newSigniDown[zoneIndex]   = false;
       newSigniFrozen[zoneIndex] = false;
-      newCharms[zoneIndex]      = null;
+      const zoneExtraTrash: string[] = [...existingStack];
+      if (newCharms[zoneIndex]) { zoneExtraTrash.push(newCharms[zoneIndex]!); newCharms[zoneIndex] = null; }
+      if (newAcce[zoneIndex])   { zoneExtraTrash.push(newAcce[zoneIndex]!);   newAcce[zoneIndex]   = null; }
+      newVirus[zoneIndex] = 0;
       const placed: PlayerState = {
         ...my,
         hand: my.hand.filter((_, i) => i !== handIndex),
@@ -2688,8 +2693,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_down:   newSigniDown,
           signi_frozen: newSigniFrozen,
           signi_charms: newCharms,
+          signi_acce:   newAcce,
+          signi_virus:  newVirus as number[],
         },
-        trash: [...my.trash, ...existingStack],
+        trash: [...my.trash, ...zoneExtraTrash],
       };
 
       // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
