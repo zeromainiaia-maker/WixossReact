@@ -1955,6 +1955,15 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- グロウコスト減少 ----
   {
+    // コスト0（ライフ条件付き等）
+    const growFreeCondM = t.match(/ライフクロスが([０-９\d]+)枚以下の場合.*グロウするためのコストは.*×0.*になる/);
+    if (growFreeCondM) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(growFreeCondM[1]) },
+        then: { type: 'GROW_FREE' } as GrowFreeAction,
+      };
+    }
     const growCostM = t.match(/(?:この?カードの上に)?グロウするためのコストは(.+)減る/);
     if (growCostM) {
       const costs = parseEnergyCosts(growCostM[1]);
