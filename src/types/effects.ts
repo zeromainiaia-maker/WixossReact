@@ -209,6 +209,7 @@ export type EffectAction =
   | DiscardBothAction
   | RemoveCharmAction
   | ForceSigniAttackAction
+  | GrantLrigAbilityAction
   | UnknownAction;
 
 export interface DrawAction {
