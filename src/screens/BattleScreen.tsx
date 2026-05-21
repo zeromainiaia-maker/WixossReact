@@ -241,7 +241,7 @@ function meetsRestriction(restriction: string, lrigClass: string): boolean {
 // 4. keyword_grants で動的付与された場合
 function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean): boolean {
   if (allMulti) return true;
-  const card = cards.find(c => c.CardNum === cardNum);
+  const card = cards.find(c => c.CardNum === getCardNum(cardNum));
   if (card) {
     if (card.effects?.some(e =>
       e.effectType === 'CONTINUOUS' &&
