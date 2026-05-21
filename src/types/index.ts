@@ -81,6 +81,8 @@ export interface PlayerState {
   // 効果エンジン用：ターン終了時にクリア
   temp_power_mods?: Array<{ cardNum: string; delta: number }>;
   keyword_grants?: Record<string, string[]>; // CardNum → ['ランサー', ...]
+  // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
+  must_attack_signi?: boolean;
   // アクティブなコスト修正（CostIncrease/CostReduction効果）
   cost_modifiers?: Array<{
     direction: 'increase' | 'decrease';
