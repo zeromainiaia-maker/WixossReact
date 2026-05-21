@@ -831,6 +831,11 @@ export interface LrigLimitModifyAction {
 }
 
 // パーサーが解釈できなかった効果（手動対応が必要）
+export interface StubAction {
+  type: 'STUB';
+  id: string;
+}
+
 export interface UnknownAction {
   type: 'UNKNOWN';
   raw: string;
