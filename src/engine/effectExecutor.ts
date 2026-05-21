@@ -649,7 +649,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
 
   const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
   if (src.count === 'ALL') return done(applyToField(cands, ctx));
-  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx, applyToField);
+  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
