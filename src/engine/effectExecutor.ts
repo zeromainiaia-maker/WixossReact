@@ -1128,6 +1128,37 @@ function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, newS, ctx), `コイン${gained}枚獲得（計${newS.coins}枚）`));
 }
 
+function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
+  const s = ownerState(a.targetOwner, ctx);
+  const charms = [...(s.field.signi_charms ?? [null, null, null])];
+  const count = a.count === 'ALL'
+    ? charms.filter(c => c !== null).length
+    : a.count;
+  let removed = 0;
+  let newTrash = [...s.trash];
+  const newCharms = charms.map(c => {
+    if (c !== null && removed < count) {
+      // フィルターがあればチェック
+      if (!a.targetFilter || matchesFilter(ctx.cardMap.get(c), a.targetFilter)) {
+        newTrash = [...newTrash, c];
+        removed++;
+        return null;
+      }
+    }
+    return c;
+  });
+  const newS: PlayerState = { ...s, field: { ...s.field, signi_charms: newCharms }, trash: newTrash };
+  const ctx2 = setOwnerState(a.targetOwner, newS, ctx);
+  return done(addLog(ctx2, `チャーム${removed}枚をトラッシュに置いた`));
+}
+
+function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResult {
+  const s = ownerState(a.targetOwner, ctx);
+  const newS: PlayerState = { ...s, must_attack_signi: true };
+  const ctx2 = setOwnerState(a.targetOwner, newS, ctx);
+  return done(addLog(ctx2, `${a.targetOwner === 'opponent' ? '対戦相手' : '自分'}のシグニは可能ならばアタックしなければならない`));
+}
+
 function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
   const selfDiscard = Math.min(a.count, ctx.ownerState.hand.length);
   const otherDiscard = Math.min(a.count, ctx.otherState.hand.length);
