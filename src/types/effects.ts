@@ -701,6 +701,23 @@ export interface PowerModifyPerTrashedLevelAction {
   until: EffectDuration;
 }
 
+// デッキ枚数N枚につきパワー±M（常時効果）
+export interface PowerModifyPerDeckCountAction {
+  type: 'POWER_MODIFY_PER_DECK_COUNT';
+  target: EffectTarget;
+  deltaPerUnit: number;   // N枚ごとのパワー増減
+  unitSize: number;       // N（枚単位）
+  deckOwner: Owner;
+}
+
+// エナゾーンの色の種類Nつにつきパワー±M（常時効果）
+export interface PowerModifyPerEnergyColorAction {
+  type: 'POWER_MODIFY_PER_ENERGY_COLOR';
+  target: EffectTarget;
+  deltaPerColor: number;
+  energyOwner: Owner;
+}
+
 // コインを得る
 export interface GainCoinAction {
   type: 'GAIN_COIN';
