@@ -1659,9 +1659,26 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(tgtOwner, newS, ctx), `パワー${delta > 0 ? '+' : ''}${delta}`));
     }
     case 'ADD_TO_HAND': {
-      // SEARCH内でのみ使用：cardNumをオーナーの手札へ
-      const newS: PlayerState = { ...ctx.ownerState, hand: [...ctx.ownerState.hand, cardNum] };
-      return done(addLog({ ...ctx, ownerState: newS }, `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に加える`));
+      // SEARCH内で使用：位置エンコードID「CardNum@idx」を受け取り、デッキ/トラッシュの正確な位置から除去して手札へ
+      const { cardNum: cn, srcIdx } = decodeCardId(cardNum);
+      let s = { ...ctx.ownerState };
+      // デッキから srcIdx の位置で検索・除去（同名カードでも正確な1枚だけ）
+      if (srcIdx !== null && s.deck[srcIdx] === cn) {
+        const newDeck = [...s.deck];
+        newDeck.splice(srcIdx, 1);
+        s = { ...s, deck: newDeck };
+      } else {
+        // トラッシュ検索（TRASH_CARD source の場合）
+        const ti = srcIdx !== null && s.trash[srcIdx] === cn ? srcIdx : s.trash.indexOf(cn);
+        if (ti >= 0) {
+          const newTrash = [...s.trash];
+          newTrash.splice(ti, 1);
+          s = { ...s, trash: newTrash };
+        }
+        // ※ RevealAndPick等、既に除去済みの場合はデッキ/トラッシュに存在しない → 追加のみ
+      }
+      const newS: PlayerState = { ...s, hand: [...s.hand, cn] };
+      return done(addLog({ ...ctx, ownerState: newS }, `${ctx.cardMap.get(cn)?.CardName ?? cn}を手札に加える`));
     }
     case 'TRANSFER_TO_HAND': {
       const src = (action as TransferToHandAction).source;
