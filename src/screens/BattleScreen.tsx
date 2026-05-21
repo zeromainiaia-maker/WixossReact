@@ -4812,6 +4812,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
+      {/* スペルカットイン カード拡大 */}
+      {cutinSpellZoomed && bs.pending_spell && (() => {
+        const zCard = battleCardMap.get(bs.pending_spell.card_num);
+        if (!zCard) return null;
+        return createPortal(
+          <div
+            onClick={() => setCutinSpellZoomed(false)}
+            onTouchEnd={e => { e.preventDefault(); setCutinSpellZoomed(false); }}
+            style={{ position: 'fixed', inset: 0, zIndex: 5000,
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            <img src={zCard.ImgURL} alt={zCard.CardName} draggable={false}
+              style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 10, objectFit: 'contain' }}
+              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+            <span style={{ color: C.textFaint, fontSize: 12 }}>タップで閉じる</span>
+          </div>,
+          document.body,
+        );
+      })()}
+
       {/* スペルカットインポップアップ（相手のスペル発動中に表示） */}
       {bs.pending_spell && bs.pending_spell.caster_id !== user.id && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
