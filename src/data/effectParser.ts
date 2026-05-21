@@ -1908,7 +1908,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
   // GRANT_LRIG_ABILITY: rawText からサブ能力をここでパース（parseBlock が使えるタイミング）
   if (resolvedAction.type === 'GRANT_LRIG_ABILITY') {
-    const gla = resolvedAction as import('../types/effects').GrantLrigAbilityAction;
+    const gla = resolvedAction as GrantLrigAbilityAction;
     if (gla.rawText) {
       const subBlocks = splitEffectBlocks(gla.rawText);
       gla.abilities = subBlocks
