@@ -1300,6 +1300,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'DISCARD_BOTH':            return execDiscardBoth(action as DiscardBothAction, ctx);
     case 'REMOVE_CHARM':            return execRemoveCharm(action as RemoveCharmAction, ctx);
     case 'FORCE_SIGNI_ATTACK':      return execForceSigniAttack(action as ForceSigniAttackAction, ctx);
+    case 'POWER_MODIFY_PER_TRASH_COUNT': return execPowerModifyPerTrashCount(action as PowerModifyPerTrashCountAction, ctx);
+    case 'POWER_MODIFY_PER_LIFE_COUNT':  return execPowerModifyPerLifeCount(action as PowerModifyPerLifeCountAction, ctx);
     case 'GRANT_LRIG_ABILITY':           return done(ctx); // CONTINUOUS: effectEngine 側で処理
     // 以下は CONTINUOUS 効果専用（effectEngine 側で処理）
     case 'BANISH_REDIRECT':                return done(addLog(ctx, 'バニッシュ先変更（CONTINUOUS）'));
