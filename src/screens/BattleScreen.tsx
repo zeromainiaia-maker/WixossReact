@@ -1586,8 +1586,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // サブコンポーネントや既存ヘルパーに渡す配列（最大〜100枚）
   const battleCards = useMemo(() => [...battleCardMap.values()], [battleCardMap]);
 
-  // CONTINUOUS 効果マップ（バトル中の全カードを対象）
-  const effectsMap = useMemo(() => buildEffectsMap(battleCards), [battleCards]);
+  // CONTINUOUS 効果マップ（バトル中の全カードを対象・InstanceMapでインスタンスIDを透過的に扱う）
+  const effectsMap = useMemo(
+    () => new InstanceMap(buildEffectsMap(battleCards)),
+    [battleCards],
+  );
 
   // フィールドシグニの有効パワー（CONTINUOUS 効果適用済み）
   const effectivePowers = useMemo(() => {
