@@ -31,6 +31,18 @@ for (let i = 1; i <= 11; i++) {
   allRows.push(...data);
 }
 
+// CardData_TK.csv（クラフトカード・トークン）も読み込む
+const tkPath = join(root, 'public/data/CardData_TK.csv');
+if (existsSync(tkPath)) {
+  const tkText = readFileSync(tkPath, 'utf-8').replace(/^﻿/, '');
+  const { data: tkData } = Papa.parse<Record<string, string>>(tkText, {
+    header: true,
+    skipEmptyLines: true,
+  });
+  console.log(`CardData_TK: ${tkData.length}件`);
+  allRows.push(...tkData);
+}
+
 const rows = allRows;
 
 console.log(`カード数: ${rows.length}`);
