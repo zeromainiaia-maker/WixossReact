@@ -4060,6 +4060,49 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
+  // フリーゾーンのカードアクション
+  const getMyFreeZoneActions = (cardNum: string): CardAction[] => {
+    if (!isMyTurn || loading) return [];
+    const actions: CardAction[] = [];
+    actions.push({
+      label: '手札に戻す',
+      color: C.textSub,
+      onClick: async () => {
+        const newFreeZone = (my.field.free_zone ?? []).filter(n => n !== cardNum);
+        const newGrants = { ...(my.keyword_grants ?? {}) };
+        delete newGrants[cardNum];
+        const newMy: typeof my = {
+          ...my,
+          hand: [...my.hand, cardNum],
+          keyword_grants: newGrants,
+          field: { ...my.field, free_zone: newFreeZone },
+        };
+        const stateKey = isHost ? 'host_state' : 'guest_state';
+        await supabase.from('battle_states').update({ [stateKey]: newMy }).eq('room_id', roomId);
+        setCloseZoneSignal(s => s + 1);
+      },
+    });
+    actions.push({
+      label: 'トラッシュへ',
+      color: C.danger,
+      onClick: async () => {
+        const newFreeZone = (my.field.free_zone ?? []).filter(n => n !== cardNum);
+        const newGrants = { ...(my.keyword_grants ?? {}) };
+        delete newGrants[cardNum];
+        const newMy: typeof my = {
+          ...my,
+          trash: [...my.trash, cardNum],
+          keyword_grants: newGrants,
+          field: { ...my.field, free_zone: newFreeZone },
+        };
+        const stateKey = isHost ? 'host_state' : 'guest_state';
+        await supabase.from('battle_states').update({ [stateKey]: newMy }).eq('room_id', roomId);
+        setCloseZoneSignal(s => s + 1);
+      },
+    });
+    return actions;
+  };
+
   // 勝敗確定後の終了確認（両者が押したらルーム削除）
   const handleEndAck = async () => {
     if (loading) return;
