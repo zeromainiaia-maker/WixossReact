@@ -4221,10 +4221,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = selectedArtsCost.size === totalReq &&
                 canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
+              const betCostForCard = parseBetCost(pendingArtsCard.EffectText ?? '');
+              const canBet = betCostForCard > 0 && my.coins >= betCostForCard;
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setPendingArtsCard(null); setSelectedArtsCost(new Set()); }}
+                    <button onClick={() => { setPendingArtsCard(null); setSelectedArtsCost(new Set()); setIsBetting(false); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← 戻る
@@ -4246,6 +4248,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </p>
                     </div>
                   </div>
+                  {betCostForCard > 0 && (
+                    <button
+                      onClick={() => { if (canBet || isBetting) setIsBetting(b => !b); }}
+                      disabled={!canBet && !isBetting}
+                      style={{ padding: '8px 12px', borderRadius: 8,
+                        border: isBetting ? `2px solid ${C.coin}` : C.borderUI,
+                        backgroundColor: isBetting ? 'rgba(204,136,0,0.15)' : C.bgButton,
+                        color: isBetting ? C.coin : (canBet ? C.text : C.textFaint),
+                        cursor: (canBet || isBetting) ? 'pointer' : 'default',
+                        fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>ベット（コイン{betCostForCard}枚追加消費）</span>
+                      <span style={{ fontSize: 11, color: canBet ? C.coin : C.danger }}>
+                        {isBetting ? 'ON' : 'OFF'} / 所持: {my.coins}枚
+                      </span>
+                    </button>
+                  )}
                   <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
                     エナから選択: {selectedArtsCost.size} / {totalReq}枚
                     {costItems.map((c, i) => (
