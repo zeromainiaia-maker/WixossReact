@@ -1658,13 +1658,24 @@ function parseSingleSentence(text: string): EffectAction {
     };
   }
 
-  // ---- トラッシュからN枚エナゾーンに置く ----
+  // ---- トラッシュからN枚エナゾーンに置く（フィルタあり・なし両対応）----
   {
     const trashToEnaM = t.match(/トラッシュからカードを([０-９\d]+)枚までを?対象とし、それら?をエナゾーンに置く/);
     if (trashToEnaM) {
       return {
         type: 'ENERGY_CHARGE',
         target: { type: 'TRASH_CARD', owner: 'self', count: parseNum(trashToEnaM[1]), upToCount: true },
+      } as EnergyChargeAction;
+    }
+    // 汎用: トラッシュから(フィルタ)N枚を対象とし、それをエナゾーンに置く
+    const trashToEnaG = t.match(/トラッシュから.{0,30}?([０-９\d]+)枚(まで)?を?対象とし、それら?をエナゾーンに置く/);
+    if (trashToEnaG) {
+      const filter: TargetFilter = { ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t) };
+      if (t.includes('シグニ')) filter.cardType = 'シグニ';
+      if (t.includes('スペル')) filter.cardType = 'スペル';
+      return {
+        type: 'ENERGY_CHARGE',
+        target: { type: 'TRASH_CARD', owner: 'self', count: parseNum(trashToEnaG[1]), upToCount: !!trashToEnaG[2], filter: Object.keys(filter).length > 0 ? filter : undefined },
       } as EnergyChargeAction;
     }
   }
