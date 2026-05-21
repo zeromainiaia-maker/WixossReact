@@ -2121,6 +2121,24 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- このアーツは対戦相手のターンにしか使用できない ----
+  if (t.match(/このアーツは対戦相手のターンにしか使用できない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'USE_ARTS_EXCEPT_OPP_TURN', until: 'PERMANENT' };
+  }
+
+  // ---- このシグニには（N枚まで/好きな枚数）アクセを付けることができる ----
+  if (t.match(/このシグニには.*【アクセ】を付けることができる/)) {
+    const maxM = t.match(/([０-９\d]+)枚まで/);
+    const unlimited = t.includes('好きな枚数');
+    const max = unlimited ? 99 : (maxM ? parseNum(maxM[1]) : 1);
+    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, actionId: `ACCE_LIMIT_${max}`, until: 'PERMANENT' };
+  }
+
+  // ---- このターン、次に対戦相手のシグニがアタックしたとき、そのアタックを無効にする ----
+  if (t.match(/次に対戦相手のシグニがアタックしたとき.*アタックを無効にする/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'NEGATE_NEXT_SIGNI_ATTACK', until: 'END_OF_TURN' };
+  }
+
   // ---- 対戦相手の効果でシグニのパワーは増加しない（CONTINUOUS保護）----
   if (t.match(/対戦相手の効果によって.*シグニのパワーは＋.*されない/)) {
     const owner: Owner = t.includes('対戦相手のシグニ') ? 'opponent' : 'self';
