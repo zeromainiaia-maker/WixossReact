@@ -820,19 +820,43 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
 function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   const src = a.source;
   const state = ownerState(src.owner, ctx);
-  let cards: string[];
+  const toBottom = a.position === 'bottom';
+
+  function insertToDeck(s: PlayerState, cards: string[]): PlayerState {
+    if (a.shuffle) return { ...s, deck: shuffle([...s.deck, ...cards]) };
+    return toBottom
+      ? { ...s, deck: [...s.deck, ...cards] }
+      : { ...s, deck: [...cards, ...s.deck] };
+  }
 
   if (src.type === 'TRASH_CARD') {
     const cands = trashCandidates(state, src.filter, ctx.cardMap);
-    cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
-    let newS: PlayerState = { ...state, trash: state.trash.filter(n => !cards.includes(n)) };
-    if (a.shuffle) {
-      newS = { ...newS, deck: shuffle([...newS.deck, ...cards]) };
-    } else {
-      newS = { ...newS, deck: [...newS.deck, ...cards] };
-    }
+    const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
+    const newS = insertToDeck({ ...state, trash: state.trash.filter(n => !cards.includes(n)) }, cards);
     return done(addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}枚をデッキに戻す`));
   }
+
+  if (src.type === 'SIGNI') {
+    const cands = fieldCandidates(state, src.filter, ctx.cardMap, ctx.effectivePowers);
+    const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
+    const scope: TargetScope = src.owner === 'self' ? 'self_field' : 'opp_field';
+
+    function applyToBottom(selected: string[], c: ExecCtx): ExecCtx {
+      let cur = c;
+      for (const num of selected) {
+        const s = ownerState(src.owner, cur);
+        const removed = removeFromField(num, s);
+        const newS = insertToDeck(removed, [num]);
+        cur = addLog(setOwnerState(src.owner, newS, cur),
+          `${cur.cardMap.get(num)?.CardName ?? num}をデッキ${toBottom ? '下' : '上'}へ`);
+      }
+      return cur;
+    }
+
+    if (src.count === 'ALL') return done(applyToBottom(cands, ctx));
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyToBottom);
+  }
+
   return done(ctx);
 }
 
