@@ -238,6 +238,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン2b: 「あなたの場に《カード名》/＜カード名＞があり、」（複合条件の前半）
+  const fieldNameAndM = text.match(/^あなたの場に(《[^》]+》|＜[^＞]+＞)があり、/);
+  if (fieldNameAndM) {
+    const nameM = fieldNameAndM[1].match(/[《＜]([^》＞]+)[》＞]/);
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: nameM?.[1] } },
+      rest: text.slice(fieldNameAndM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
