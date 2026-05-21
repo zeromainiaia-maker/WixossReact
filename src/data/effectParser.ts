@@ -4050,11 +4050,24 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let parseStatus: CardEffect['parseStatus'] = 'AUTO';
 
   if (effectType === 'CONTINUOUS') {
-    const { condition, rest, conditionFound } = parseActiveCondition(actionText);
-    activeCondition = condition;
-    resolvedAction = parseActionText(rest || actionText);
-    // 条件が見つかったが解析できなかった場合はPARTIAL
-    if (conditionFound && !condition) parseStatus = 'PARTIAL';
+    // 複数条件を繰り返しパースして AND で結合する
+    let remaining = actionText;
+    const parsedConds: ActiveCondition[] = [];
+    let anyFound = false;
+    let anyFailed = false;
+    while (true) {
+      const r = parseActiveCondition(remaining);
+      if (!r.conditionFound) break;
+      anyFound = true;
+      if (r.condition) parsedConds.push(r.condition);
+      else anyFailed = true;
+      remaining = r.rest;
+    }
+    if (parsedConds.length === 0) activeCondition = undefined;
+    else if (parsedConds.length === 1) activeCondition = parsedConds[0];
+    else activeCondition = { type: 'AND', conditions: parsedConds };
+    resolvedAction = parseActionText(remaining || actionText);
+    if (anyFound && (parsedConds.length === 0 || anyFailed)) parseStatus = 'PARTIAL';
   } else {
     resolvedAction = parseActionText(actionText);
   }
