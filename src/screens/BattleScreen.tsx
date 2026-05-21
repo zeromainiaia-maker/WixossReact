@@ -1205,9 +1205,46 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
   // 相手表示時はシグニ配列を左右反転
   const rawSigni = state.field.signi ?? [null, null, null];
   const displaySigni = isMe ? rawSigni : [...rawSigni].reverse();
+  const freeZoneCards = state.field.free_zone ?? [];
+  const freeZoneW = 52, freeZoneH = signiH;
+
+  // フリーゾーンスロット（シグニ行の左端に配置）
+  const freeZoneSlot = (
+    <div
+      onClick={() => freeZoneCards.length > 0 && showZone('フリーゾーン', freeZoneCards)}
+      style={{
+        width: freeZoneW, height: freeZoneH, borderRadius: 6, flexShrink: 0,
+        border: freeZoneCards.length > 0 ? '1px solid #5599bb' : '1px dashed #334455',
+        backgroundColor: freeZoneCards.length > 0 ? 'rgba(40,80,100,0.35)' : 'rgba(20,30,40,0.2)',
+        cursor: freeZoneCards.length > 0 ? 'pointer' : 'default',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        position: 'relative', overflow: 'hidden',
+      }}>
+      {freeZoneCards.length > 0 ? (
+        <>
+          <img
+            src={cards.find(c => c.CardNum === freeZoneCards[freeZoneCards.length - 1])?.ImgURL ?? ''}
+            alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+            {freeZoneCards.some(n => state.keyword_grants?.[n]?.includes('チアガール')) && (
+              <div style={{ fontSize: 8, color: '#aaddff', fontWeight: 'bold', marginBottom: 2 }}>CHEER</div>
+            )}
+            <div style={{
+              backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 8, padding: '1px 5px',
+              fontSize: 11, color: '#fff', fontWeight: 'bold',
+            }}>{freeZoneCards.length}</div>
+          </div>
+        </>
+      ) : (
+        <span style={{ fontSize: 8, color: '#334455', textAlign: 'center', lineHeight: 1.3 }}>FREE<br/>ZONE</span>
+      )}
+    </div>
+  );
 
   const signiRow = (
-    <div style={{ display: 'flex', gap: 5, justifyContent: 'center', alignItems: 'flex-start' }}>
+    <div style={{ display: 'flex', gap: 5, alignItems: 'flex-start' }}>
+      {freeZoneSlot}
       {displaySigni.map((s, i) => {
         // isMe=true のとき displayIndex = rawIndex、isMe=false のとき逆順
         const rawIdx = isMe ? i : (rawSigni.length - 1 - i);
@@ -1225,6 +1262,8 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
             isMe={isMe} />
         );
       })}
+      {/* バランス用スペーサー（フリーゾーン分） */}
+      <div style={{ width: freeZoneW, flexShrink: 0 }} />
     </div>
   );
 
