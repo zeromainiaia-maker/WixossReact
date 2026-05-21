@@ -48,6 +48,9 @@ import type {
   ForceSigniAttackAction,
   PowerModifyPerTrashCountAction,
   PowerModifyPerLifeCountAction,
+  PlaceVirusAction,
+  AttachAcceAction,
+  BloodCrystalArmorAction,
 } from '../types/effects';
 
 // ===== 実行コンテキスト & 結果型 =====
