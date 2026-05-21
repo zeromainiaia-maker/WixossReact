@@ -863,6 +863,11 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'IGNORE_LRIG_TYPE', until: 'PERMANENT' };
   }
 
+  // ---- 正面への配置強制（CONTINUOUS: 相手のシグニ配置先を制限）----
+  if (t.match(/対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'FORCE_PLACE_FRONT', until: 'PERMANENT' };
+  }
+
   // ---- バニッシュ ----
   if (t.includes('バニッシュする') || t.includes('バニッシュしてもよい')) {
     if (t.match(/すべてのシグニをバニッシュ/)) {
