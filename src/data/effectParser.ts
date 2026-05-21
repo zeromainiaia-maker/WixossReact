@@ -554,6 +554,165 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- CONTINUOUS: センタールリグのレベルN につきパワー±M ----
+  {
+    const m = t.match(/このシグニのパワーは(あなた|対戦相手)のセンタールリグのレベル([０-９\d]+)につき([＋－])([０-９\d]+)される/);
+    if (m) {
+      const lrigOwner: Owner = m[1] === 'あなた' ? 'self' : 'opponent';
+      const sign = m[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_LRIG_LEVEL',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerLevel: sign * parseNum(m[4]),
+        lrigOwner,
+      } as PowerModifyPerLrigLevelAction;
+    }
+  }
+
+  // ---- ACTIVATED: 対戦相手のシグニのパワーをルリグレベルNにつき（ターン終了時まで）----
+  {
+    const m = t.match(/対戦相手のシグニ([０-９\d]+)体を対象とし.*ターン終了時まで.*パワーを(?:あなた|対戦相手)のセンタールリグのレベル([０-９\d]+)につき([＋－])([０-９\d]+)する/);
+    if (m) {
+      const sign = m[3] === '＋' ? 1 : -1;
+      const lrigOwner: Owner = t.includes('対戦相手のセンタールリグのレベル') ? 'opponent' : 'self';
+      return {
+        type: 'POWER_MODIFY_PER_LRIG_LEVEL',
+        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m[1]) },
+        deltaPerLevel: sign * parseNum(m[4]),
+        lrigOwner,
+      } as PowerModifyPerLrigLevelAction;
+    }
+  }
+
+  // ---- ACTIVATED: 対戦相手の全シグニのパワーをルリグレベルにつき（即時）----
+  {
+    const m = t.match(/対戦相手のすべてのシグニのパワーを(?:あなた|対戦相手)のセンタールリグのレベル([０-９\d]+)につき([＋－])([０-９\d]+)する/);
+    if (m) {
+      const sign = m[2] === '＋' ? 1 : -1;
+      const lrigOwner: Owner = t.includes('対戦相手のセンタールリグのレベル') ? 'opponent' : 'self';
+      return {
+        type: 'POWER_MODIFY_PER_LRIG_LEVEL',
+        target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+        deltaPerLevel: sign * parseNum(m[3]),
+        lrigOwner,
+      } as PowerModifyPerLrigLevelAction;
+    }
+  }
+
+  // ---- CONTINUOUS: トラッシュのカードN枚につきパワー±M ----
+  {
+    // "あなたのトラッシュにある＜X＞のシグニN枚につき"
+    const m1 = t.match(/このシグニのパワーは(あなた|対戦相手|すべてのプレイヤー)のトラッシュにある(.+?)([０-９\d]+)枚につき([＋－])([０-９\d]+)される/);
+    if (m1) {
+      const trashOwner: 'self' | 'opponent' | 'both' =
+        m1[1] === 'すべてのプレイヤー' ? 'both' : m1[1] === 'あなた' ? 'self' : 'opponent';
+      const sign = m1[4] === '＋' ? 1 : -1;
+      const filterStr = m1[2].trim();
+      const filter: import('../types/effects').TargetFilter | undefined =
+        filterStr === 'カード' ? undefined
+        : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) }
+        : filterStr.includes('スペル') ? { cardType: 'スペル' }
+        : undefined;
+      return {
+        type: 'POWER_MODIFY_PER_TRASH_COUNT',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerUnit: sign * parseNum(m1[5]),
+        unitSize: parseNum(m1[3]),
+        trashOwner,
+        countFilter: filter,
+      } as PowerModifyPerTrashCountAction;
+    }
+    // 種類カウント版 "N種類につき"
+    const m2 = t.match(/このシグニのパワーは(あなた|対戦相手)のトラッシュにある(.+?)([０-９\d]+)種類につき([＋－])([０-９\d]+)される/);
+    if (m2) {
+      const trashOwner: 'self' | 'opponent' | 'both' = m2[1] === 'あなた' ? 'self' : 'opponent';
+      const sign = m2[4] === '＋' ? 1 : -1;
+      const filterStr = m2[2].trim();
+      const filter: import('../types/effects').TargetFilter | undefined =
+        filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) } : undefined;
+      return {
+        type: 'POWER_MODIFY_PER_TRASH_COUNT',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerUnit: sign * parseNum(m2[5]),
+        unitSize: parseNum(m2[3]),
+        trashOwner,
+        countFilter: filter,
+        countByVariety: true,
+      } as PowerModifyPerTrashCountAction;
+    }
+  }
+
+  // ---- ACTIVATED: ターン終了時まで、パワーをトラッシュ枚数につき ----
+  {
+    const m = t.match(/対戦相手のシグニ([０-９\d]+)体を対象とし.*ターン終了時まで.*パワーを(あなた|対戦相手|すべてのプレイヤー)のトラッシュにある(.+?)([０-９\d]+)枚につき([＋－])([０-９\d]+)する/);
+    if (m) {
+      const trashOwner: 'self' | 'opponent' | 'both' =
+        m[2] === 'すべてのプレイヤー' ? 'both' : m[2] === 'あなた' ? 'self' : 'opponent';
+      const sign = m[5] === '＋' ? 1 : -1;
+      const filterStr = m[3].trim();
+      const filter: import('../types/effects').TargetFilter | undefined =
+        filterStr === 'カード' ? undefined
+        : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) }
+        : filterStr.includes('スペル') ? { cardType: 'スペル' }
+        : filterStr.match(/[赤青緑黒白]/u) ? { color: filterStr.replace(/のカード|のシグニ/g, '').trim() }
+        : undefined;
+      return {
+        type: 'POWER_MODIFY_PER_TRASH_COUNT',
+        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m[1]) },
+        deltaPerUnit: sign * parseNum(m[6]),
+        unitSize: parseNum(m[4]),
+        trashOwner,
+        countFilter: filter,
+        until: 'END_OF_TURN',
+      } as PowerModifyPerTrashCountAction;
+    }
+  }
+
+  // ---- ACTIVATED: ターン終了時まで、パワーをトラッシュ1枚につき ----
+  {
+    const m = t.match(/対戦相手のシグニ([０-９\d]+)体を対象とし.*ターン終了時まで.*パワーを(あなた|すべてのプレイヤー)のトラッシュにある(?:カード)?([１-９]?)枚につき([＋－])([０-９\d]+)する/);
+    if (m) {
+      const trashOwner: 'self' | 'both' = m[2] === 'すべてのプレイヤー' ? 'both' : 'self';
+      const sign = m[4] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_TRASH_COUNT',
+        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m[1]) },
+        deltaPerUnit: sign * parseNum(m[5]),
+        unitSize: m[3] ? parseNum(m[3]) : 1,
+        trashOwner,
+        until: 'END_OF_TURN',
+      } as PowerModifyPerTrashCountAction;
+    }
+  }
+
+  // ---- CONTINUOUS: ライフクロスN枚につきパワー±M ----
+  {
+    const m = t.match(/このシグニのパワーは(あなた|対戦相手)のライフクロス([０-９\d]+)枚につき([＋－])([０-９\d]+)される/);
+    if (m) {
+      const lifeOwner: Owner = m[1] === 'あなた' ? 'self' : 'opponent';
+      const sign = m[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_LIFE_COUNT',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerLife: sign * parseNum(m[4]),
+        lifeOwner,
+      } as PowerModifyPerLifeCountAction;
+    }
+  }
+
+  // ---- CONTINUOUS: この下にあるカード1枚につきパワー±M（PER_STACK補完）----
+  {
+    const m = t.match(/このシグニのパワーはこの下にあるカード([０-９\d]+)枚につき([＋－])([０-９\d]+)される/);
+    if (m) {
+      const sign = m[2] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_STACK',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerCard: sign * parseNum(m[3]),
+      } as PowerModifyPerStackAction;
+    }
+  }
+
   // ---- チャーム保護（バニッシュ時チャーム消費で防ぐ）----
   if (t.match(/シグニ.*バニッシュされる場合.*チャーム.*トラッシュに置いてもよい/)) {
     const storyF = parseStoryFilter(t) as TargetFilter;
