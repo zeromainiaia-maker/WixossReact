@@ -1100,11 +1100,17 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- このシグニはバニッシュされない（耐性）----
-  if (t.match(/このシグニはバニッシュされない/)) {
+  if (t.match(/バニッシュされない/)) {
+    const from: string[] = [];
+    if (t.includes('シグニの効果')) from.push('シグニ');
+    if (t.includes('ルリグの効果') || t.includes('ルリグによって')) from.push('ルリグ');
+    if (t.includes('スペルの効果') || t.includes('スペルによって')) from.push('スペル');
+    if (t.includes('アーツの効果') || t.includes('アーツによって')) from.push('アーツ');
+    if (from.length === 0) from.push('BANISH');
     return {
       type: 'GRANT_PROTECTION',
       target: { type: 'SIGNI', owner: 'self', count: 1 },
-      from: ['BANISH'],
+      from,
       sourceOwner: 'opponent',
       duration: 'PERMANENT',
     } as GrantProtectionAction;
