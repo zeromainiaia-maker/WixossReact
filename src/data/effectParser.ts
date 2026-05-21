@@ -2154,16 +2154,22 @@ function parseActionText(text: string): EffectAction {
 
   // ---- デッキの一番上を公開 → 条件分岐（それが〜の場合）----
   if (sentences[0].trim().match(/デッキの一番上を公開する/) && sentences.length >= 2) {
-    const condM = sentences[1].trim().match(/^それが(.+?)のシグニの場合、(.+)/);
+    const condS = sentences[1].trim();
+    // "それが/そのカードが ... の場合、..."
+    const condM = condS.match(/^(?:それが|そのカードが)(.+?)(?:の場合|であった場合|でない場合)、(.+)/);
     if (condM) {
-      const storyFilter = parseStoryFilter(condM[1]);
-      const filter: TargetFilter = { cardType: 'シグニ', ...storyFilter };
+      const condText = condM[1];
       const thenText = condM[2].replace(/。$/, '');
-      const thenAction: EffectAction = thenText.match(/カードを([０-９\d]+)枚引く/)
-        ? { type: 'DRAW', owner: 'self', count: parseNum(thenText.match(/カードを([０-９\d]+)枚引く/)![1]) }
-        : { type: 'TRANSFER_TO_HAND', source: { type: 'DECK_CARD', owner: 'self', count: 1, filter } };
+      const thenAction = parseSingleSentence(thenText);
+      const filter: TargetFilter = {
+        cardType: 'シグニ',
+        ...parseStoryFilter(condText),
+        ...parseLevelFilter(condText),
+        ...parseColorFilter(condText),
+      };
       return { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, filter, pickCount: 1, then: thenAction, remainder: { location: 'deck', position: 'top' } } as RevealAndPickAction;
     }
+    // マッチしない場合、単純に「公開する + 後続」のシーケンスとして扱う
   }
 
   // ---- デッキの上からN枚公開 → その中からフィルタでピック → 残りを処理 ----
