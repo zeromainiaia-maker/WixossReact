@@ -3321,7 +3321,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       appendBattleLogs([`[自分] ${cutinCard.CardName}を使用（カットイン）`]);
       // ownerState=cutinPaid(me), otherState=newCasterState
       const cutinPowers = calcFieldPowers(cutinPaid, newCasterState, bs.active_user_id === user.id, effectsMap, battleCardMap);
-      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: battleCardMap, logs: [], effectivePowers: cutinPowers, sourceCardNum: cutinCard.CardNum };
+      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: battleCardMap, logs: [], effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId };
       const result = executeEffect(cutinEff, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs);
       // myがhost/guestに応じてマッピング
