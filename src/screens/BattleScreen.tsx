@@ -825,7 +825,7 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
         {/* パワー表示（スタック最前面カード） */}
         {(() => {
           const topNum = stack![n - 1];
-          const topCard = cards.find(c => c.CardNum === topNum);
+          const topCard = cards.find(c => c.CardNum === getCardNum(topNum));
           const basePow = topCard?.Power;
           if (!basePow || basePow === '-') return null;
           const effPow = effectivePowers?.get(topNum);
