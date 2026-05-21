@@ -219,6 +219,7 @@ export type EffectAction =
   | BloodCrystalArmorAction
   | PowerModifyPerVirusCountAction
   | LrigLimitModifyAction
+  | AddCraftToLrigDeckAction
   | StubAction
   | UnknownAction;
 
