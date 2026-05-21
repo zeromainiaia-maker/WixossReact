@@ -1373,6 +1373,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [pendingSigniSummon, setPendingSigniSummon] = useState<{ cardNum: string; handIndex: number } | null>(null);
   const [showEnergySkipConfirm, setShowEnergySkipConfirm] = useState(false);
   const [showGrowSkipConfirm, setShowGrowSkipConfirm] = useState(false);
+  const [showSigniAttackSkipConfirm, setShowSigniAttackSkipConfirm] = useState(false);
+  const [showLrigAttackSkipConfirm, setShowLrigAttackSkipConfirm] = useState(false);
   const [showGrowModal, setShowGrowModal] = useState(false);
   const [pendingGrowCard, setPendingGrowCard] = useState<CardData | null>(null);
   const [selectedGrowCost, setSelectedGrowCost] = useState<Set<number>>(new Set());
