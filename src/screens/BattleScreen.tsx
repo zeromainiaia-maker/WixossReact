@@ -2454,8 +2454,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         effect_stack: stackAfter,
       };
       if (!result.done) {
+        // opponentResponds=true の場合、相手プレイヤーがUIを操作する
+        const oppId = ownerIsHost ? bs.guest_id : bs.host_id;
+        const respondPlayerId = result.pending?.type === 'SELECT_TARGET' && result.pending.opponentResponds
+          ? oppId : undefined;
         update.pending_effect = {
           sourcePlayerId: entry.playerId,
+          ...(respondPlayerId ? { respondPlayerId } : {}),
           sourceCardNum: entry.cardNum,
           effectId: entry.effectId,
           interaction: result.pending,
