@@ -465,7 +465,7 @@ function CardStackModal({ stack, cards, onClose, actions }: {
   const [idx, setIdx] = useState(stack.length - 1);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
-  const card = cards.find(c => c.CardNum === stack[idx]);
+  const card = cards.find(c => c.CardNum === getCardNum(stack[idx]));
   const isTop = idx === stack.length - 1;
   const isBottom = idx === 0;
   const hasStack = stack.length > 1;
