@@ -1784,6 +1784,17 @@ function parseSingleSentence(text: string): EffectAction {
         until: 'UNTIL_END_OF_TURN',
       } as LevelModifyAction;
     }
+    // このシグニのレベルをN変更する
+    const selfLevelModM = t.match(/このシグニのレベルを([＋－])([０-９\d]+)する/);
+    if (selfLevelModM) {
+      const sign = selfLevelModM[1] === '＋' ? 1 : -1;
+      return {
+        type: 'LEVEL_MODIFY',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        delta: sign * parseNum(selfLevelModM[2]),
+        until: 'UNTIL_END_OF_TURN',
+      } as LevelModifyAction;
+    }
   }
 
   // ---- チャーム枚数比例パワー変更（フィールド上）----
