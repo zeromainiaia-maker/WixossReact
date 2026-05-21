@@ -1628,7 +1628,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // CONTINUOUS BLOCK_ACTION 効果によるアクション禁止（フィールド常駐効果）
   const contBlocked = useMemo(() => {
-    if (!bs || bs.global_phase !== 'PLAYING') return { forSelf: new Set<string>(), forOpp: new Set<string>() };
+    if (!bs || bs.global_phase !== 'PLAYING') return { forSelf: new Set<string>(), forOther: new Set<string>(), cannotAttackSigni: new Set<string>() };
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
     const opS = localIsHost ? bs.guest_state : bs.host_state;
