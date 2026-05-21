@@ -713,6 +713,19 @@ function parseSingleSentence(text: string): EffectAction {
     };
   }
 
+  // ---- 複数対象パワー修整（「それらのパワーをそれぞれ±N」）----
+  {
+    const multiPowerM = t.match(/シグニ([０-９\d]+)体を対象とし.*それらのパワーをそれぞれ([＋－])([０-９\d]+)する/);
+    if (multiPowerM) {
+      const count = parseNum(multiPowerM[1]);
+      const delta = multiPowerM[2] === '＋' ? parseNum(multiPowerM[3]) : -parseNum(multiPowerM[3]);
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+      const target: EffectTarget = { type: 'SIGNI', owner, count, filter: { cardType: 'シグニ' } };
+      return { type: 'POWER_MODIFY', target, delta, duration: dur } as PowerModifyAction & { duration: EffectDuration };
+    }
+  }
+
   // ---- パワーパンプ / デバフ ----
   const plusM = t.match(/パワーを＋([０-９\d]+)する/) ?? t.match(/パワーは＋([０-９\d]+)され/);
   const minusM = t.match(/パワーを－([０-９\d]+)する/) ?? t.match(/パワーは－([０-９\d]+)され/);
