@@ -147,6 +147,20 @@ export function matchesFilter(
 
 
 
+/**
+ * 位置エンコードID「CardNum@idx」をデコードする。
+ * idxはデッキ・手札等の配列インデックス、またはフィールドのゾーンインデックス。
+ * エンコードなしの場合は srcIdx: null を返す。
+ */
+export function decodeCardId(id: string): { cardNum: string; srcIdx: number | null } {
+  const at = id.lastIndexOf('@');
+  if (at > 0) {
+    const n = Number(id.slice(at + 1));
+    if (Number.isInteger(n) && n >= 0) return { cardNum: id.slice(0, at), srcIdx: n };
+  }
+  return { cardNum: id, srcIdx: null };
+}
+
 function fieldCandidates(
   state: PlayerState,
   filter: TargetFilter | undefined,
