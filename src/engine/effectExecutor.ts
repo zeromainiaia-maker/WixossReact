@@ -46,6 +46,8 @@ import type {
   DiscardBothAction,
   RemoveCharmAction,
   ForceSigniAttackAction,
+  PowerModifyPerTrashCountAction,
+  PowerModifyPerLifeCountAction,
 } from '../types/effects';
 
 // ===== 実行コンテキスト & 結果型 =====
