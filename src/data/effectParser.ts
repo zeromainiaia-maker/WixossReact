@@ -826,6 +826,43 @@ function parseSingleSentence(text: string): EffectAction {
   const drawM = t.match(/カードを([０-９\d]+)枚引く/);
   if (drawM) return { type: 'DRAW', owner: 'self', count: parseNum(drawM[1]) };
 
+  // ---- 対戦相手シグニをエナゾーンに置く（パワーフィルタあり）----
+  {
+    // "対戦相手のパワーN以上のシグニN体を対象とし、それをエナゾーンに置く"
+    const m1 = t.match(/対戦相手のパワー([０-９\d]+)以上のシグニ([０-９\d]+|すべての)体?を対象とし.*エナゾーンに置く/);
+    if (m1) {
+      const count = m1[2] === 'すべての' ? 'ALL' : parseNum(m1[2]);
+      return {
+        type: 'ENERGY_CHARGE',
+        target: { type: 'SIGNI', owner: 'opponent', count, filter: { cardType: 'シグニ', powerRange: { min: parseNum(m1[1]) } } },
+      } as EnergyChargeAction;
+    }
+    // "対戦相手のパワーN以上のすべてのシグニをエナゾーンに置く"
+    const m2 = t.match(/対戦相手のパワー([０-９\d]+)以上のすべてのシグニをエナゾーンに置く/);
+    if (m2) {
+      return {
+        type: 'ENERGY_CHARGE',
+        target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', powerRange: { min: parseNum(m2[1]) } } },
+      } as EnergyChargeAction;
+    }
+    // "対戦相手のシグニN体を対象とし、それをエナゾーンに置く" （フィルタなし）
+    const m3 = t.match(/対戦相手の(?:レベル([０-９\d]+)以下の)?シグニ([０-９\d]+)体を対象とし.*それをエナゾーンに置く/);
+    if (m3) {
+      const filter: import('../types/effects').TargetFilter = m3[1]
+        ? { cardType: 'シグニ', level: { max: parseNum(m3[1]) } }
+        : { cardType: 'シグニ' };
+      return {
+        type: 'ENERGY_CHARGE',
+        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m3[2]), filter },
+      } as EnergyChargeAction;
+    }
+  }
+
+  // ---- ルリグタイプ無視（グロウ制限解除）----
+  if (t.match(/このルリグにグロウするためのルリグタイプは無視される/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'IGNORE_LRIG_TYPE', until: 'PERMANENT' };
+  }
+
   // ---- バニッシュ ----
   if (t.includes('バニッシュする') || t.includes('バニッシュしてもよい')) {
     if (t.match(/すべてのシグニをバニッシュ/)) {
