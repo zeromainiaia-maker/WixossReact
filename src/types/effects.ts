@@ -217,6 +217,7 @@ export type EffectAction =
   | PlaceVirusAction
   | AttachAcceAction
   | BloodCrystalArmorAction
+  | PowerModifyPerVirusCountAction
   | UnknownAction;
 
 export interface DrawAction {
