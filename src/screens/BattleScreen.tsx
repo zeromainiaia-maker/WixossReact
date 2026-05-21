@@ -1863,12 +1863,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const handleSelectLrig = async (cardNum: string) => {
         if (loading) return;
         setLoading(true);
-        const shuffled = shuffle(myDeckData.main_deck);
+        // インスタンスIDを付与（シャッフル後のmainDeckとlrigDeck全体に連番を振る）
+        const mainWithIds  = assignInstanceIds(shuffle(myDeckData.main_deck));
+        const lrigWithIds  = assignInstanceIds(myDeckData.lrig_deck);
+        // 選択されたルリグのインスタンスIDを取得
+        const selOrigIdx   = myDeckData.lrig_deck.indexOf(cardNum);
+        const selectedId   = selOrigIdx >= 0 ? lrigWithIds[selOrigIdx] : `${cardNum}#1`;
+        const lrigDeckIds  = lrigWithIds.filter((_, i) => i !== selOrigIdx);
         const myState: PlayerState = {
-          life_cloth: [], hand: shuffled.slice(0, 5), deck: shuffled.slice(5),
-          lrig_deck: (() => { const i = myDeckData.lrig_deck.indexOf(cardNum); return i === -1 ? myDeckData.lrig_deck : [...myDeckData.lrig_deck.slice(0, i), ...myDeckData.lrig_deck.slice(i + 1)]; })(),
+          life_cloth: [], hand: mainWithIds.slice(0, 5), deck: mainWithIds.slice(5),
+          lrig_deck: lrigDeckIds,
           trash: [], lrig_trash: [], energy: [], coins: 0,
-          field: { lrig: [cardNum], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
+          field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
         };
         const update = isHost
           ? { host_lrig_selected: cardNum, host_state: myState }
