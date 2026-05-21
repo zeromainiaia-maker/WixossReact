@@ -602,7 +602,7 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
 
   const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
   if (src.count === 'ALL') return done(applyTransfer(cands, ctx));
-  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx, applyTransfer);
+  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
