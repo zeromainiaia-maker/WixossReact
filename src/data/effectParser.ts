@@ -928,7 +928,7 @@ function parseSingleSentence(text: string): EffectAction {
       return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckM[1]) } };
     }
     // デッキからトラッシュ（もよい・オプション）
-    const deckOptM = t.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置いてもよい/);
+    const deckOptM = t.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚トラッシュに置いてもよい/);
     if (deckOptM) {
       return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckOptM[1]) } };
     }
