@@ -3288,18 +3288,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // カットインコスト支払い＆ルリグデッキから除去
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
-      const lrigIdx = my.lrig_deck.indexOf(cutinCard.CardNum);
+      const lrigIdx = my.lrig_deck.findIndex(id => getCardNum(id) === cutinCard.CardNum);
+      const cutinInstanceId = lrigIdx >= 0 ? my.lrig_deck[lrigIdx] : cutinCard.CardNum;
       const newLrigDeck = lrigIdx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, lrigIdx), ...my.lrig_deck.slice(lrigIdx + 1)];
       const cutinPaid: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
         energy: newEnergy,
-        lrig_trash: [...my.lrig_trash, cutinCard.CardNum],
+        lrig_trash: [...my.lrig_trash, cutinInstanceId],
         trash: [...my.trash, ...paidNums],
       };
       // カットイン効果発火（ownerState=me, otherState=caster）
-      const effects = effectsMap.get(cutinCard.CardNum) ?? [];
+      const effects = effectsMap.get(cutinInstanceId) ?? [];
       const cutinEff = effects.find(e => e.effectType === 'ACTIVATED');
       if (!cutinEff) {
         const myKey = isHost ? 'host_state' : 'guest_state';
