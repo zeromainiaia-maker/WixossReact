@@ -321,9 +321,14 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 対戦相手エナゾーン→トラッシュ ----
-  if (t.match(/対戦相手のエナゾーンから.*カード.*トラッシュに置く/)) {
+  if (t.match(/対戦相手(?:は自分)?のエナゾーンから.*カード.*トラッシュに置く/)) {
     const cM = t.match(/カード([０-９\d]+)枚/);
     return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: cM ? parseNum(cM[1]) : 1 } };
+  }
+  // ---- 自分エナゾーン→トラッシュ ----
+  if (t.match(/あなたのエナゾーンからカード([０-９\d]+)枚をトラッシュに置く/)) {
+    const cM = t.match(/カード([０-９\d]+)枚/);
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: cM ? parseNum(cM[1]) : 1 } };
   }
 
   // ---- エナゾーン全色破壊（各プレイヤー）----
