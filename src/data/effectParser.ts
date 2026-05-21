@@ -179,6 +179,8 @@ function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...parseLevelFilter(text),
     ...parseColorFilter(text),
   };
+  if (text.includes('感染状態')) filter.infected = true;
+  if (text.includes('アクセされている') || text.match(/アクセされて(?:いる|いた)/)) filter.hasAcce = true;
   return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
 }
 
