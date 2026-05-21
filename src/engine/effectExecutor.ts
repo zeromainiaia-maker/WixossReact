@@ -260,6 +260,7 @@ function selectOrInteract(
   continuation: EffectAction | undefined,
   ctx: ExecCtx,
   autoApply: (selected: string[], ctx: ExecCtx) => ExecCtx,
+  opponentResponds = false,
 ): ExecResult {
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
   let filteredCands = candidates;
@@ -281,6 +282,7 @@ function selectOrInteract(
     targetScope: scope,
     thenAction,
     continuation,
+    ...(opponentResponds ? { opponentResponds: true } : {}),
   });
 }
 
