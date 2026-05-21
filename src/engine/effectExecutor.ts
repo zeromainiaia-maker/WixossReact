@@ -157,7 +157,21 @@ function fieldCandidates(
   cardMap: Map<string, CardData>,
   effectivePowers?: Map<string, number>,
 ): string[] {
-  return fieldTopNums(state).filter(n => matchesFilter(cardMap.get(n), filter, effectivePowers?.get(n)));
+  return state.field.signi.flatMap((stack, zoneIdx) => {
+    if (!stack || stack.length === 0) return [];
+    const cardNum = stack[stack.length - 1];
+    // ゾーン状態に依存するフィルター（infected / hasAcce）
+    if (filter?.infected !== undefined) {
+      const infected = (state.field.signi_virus?.[zoneIdx] ?? 0) > 0;
+      if (filter.infected !== infected) return [];
+    }
+    if (filter?.hasAcce !== undefined) {
+      const acceExists = (state.field.signi_acce?.[zoneIdx] ?? null) !== null;
+      if (filter.hasAcce !== acceExists) return [];
+    }
+    if (!matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum))) return [];
+    return [cardNum];
+  });
 }
 
 function handCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>): string[] {
