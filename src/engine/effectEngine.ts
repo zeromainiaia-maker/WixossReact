@@ -88,6 +88,8 @@ function getLocationCount(state: PlayerState, location: string): number {
 
 function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | undefined): boolean {
   if (!filter || !cardData) return true;
+  if (filter.cardName && cardData.CardName !== filter.cardName) return false;
+  if (filter.cardNum  && cardData.CardNum  !== filter.cardNum)  return false;
   if (filter.cardType) {
     const types = Array.isArray(filter.cardType) ? filter.cardType : [filter.cardType];
     if (!types.includes(cardData.Type as typeof types[number])) return false;
@@ -109,6 +111,10 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     const pw = parseInt(cardData.Power ?? '', 10);
     if (filter.powerRange.min !== undefined && pw < filter.powerRange.min) return false;
     if (filter.powerRange.max !== undefined && pw > filter.powerRange.max) return false;
+  }
+  if (filter.story) {
+    const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
+    if (!stories.some(s => cardData.Story?.includes(s))) return false;
   }
   return true;
 }
