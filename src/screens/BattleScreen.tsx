@@ -2846,6 +2846,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const coinGain = parseInt(card.Coin) || 0;
+      const growCoinCost = parseCoinCost(card.GrowCost);
       const newMyState: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
@@ -2853,7 +2854,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
         actions_done: [...(my.actions_done ?? []), 'GROW'],
-        coins: Math.min(5, my.coins + coinGain),
+        coins: Math.min(5, Math.max(0, my.coins - growCoinCost) + coinGain),
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
