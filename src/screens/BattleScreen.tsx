@@ -1836,7 +1836,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           life_cloth: [], hand: shuffled.slice(0, 5), deck: shuffled.slice(5),
           lrig_deck: (() => { const i = myDeckData.lrig_deck.indexOf(cardNum); return i === -1 ? myDeckData.lrig_deck : [...myDeckData.lrig_deck.slice(0, i), ...myDeckData.lrig_deck.slice(i + 1)]; })(),
           trash: [], lrig_trash: [], energy: [], coins: 0,
-          field: { lrig: [cardNum], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null },
+          field: { lrig: [cardNum], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
         };
         const update = isHost
           ? { host_lrig_selected: cardNum, host_state: myState }
