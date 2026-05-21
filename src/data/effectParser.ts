@@ -3719,6 +3719,20 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- ルリグデッキにクラフトの《CardName》N枚を加える ----
+  {
+    const m = t.match(/あなたのルリグデッキにクラフトの《([^》]+)》([１-９\d一二三四五六七八九十]+)枚を加える/);
+    if (m) {
+      const count = parseNum(m[2]);
+      return {
+        type: 'ADD_CRAFT_TO_LRIG_DECK',
+        owner: 'self',
+        cardName: m[1],
+        count: count > 0 ? count : 1,
+      } as AddCraftToLrigDeckAction;
+    }
+  }
+
   // ---- センタールリグは「【自】...」を得る ----
   if (t.match(/あなたのセンタールリグは「【[常出起自]】/s)) {
     return { type: 'STUB', id: 'CENTER_LRIG_GAIN_AUTO_ABILITY' } as StubAction;
