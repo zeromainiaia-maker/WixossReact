@@ -4205,7 +4205,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     );
                   })}
                 </div>
-                <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); }}
+                <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); setIsBetting(false); }}
                   style={{ padding: '8px 0', borderRadius: 8, border: C.borderUI,
                     backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 13 }}>
                   キャンセル
