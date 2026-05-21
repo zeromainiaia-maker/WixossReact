@@ -70,6 +70,7 @@ import type {
   LrigLimitModifyAction,
   FreezeAction,
   LookAndReorderAction,
+  StubAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
