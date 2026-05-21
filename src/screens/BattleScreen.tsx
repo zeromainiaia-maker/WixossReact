@@ -264,7 +264,7 @@ function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: st
   const sorted = [...costs].sort((a, b) => (a.color === '無' ? 1 : 0) - (b.color === '無' ? 1 : 0));
   type P = { color: string; isWild: boolean };
   let pool: P[] = energyNums.map(n => {
-    const c = cards.find(cd => cd.CardNum === n);
+    const c = cards.find(cd => cd.CardNum === getCardNum(n));
     return { color: c?.Color ?? '無', isWild: isMultiEna(n, cards, keywordGrants, allMulti) };
   });
   for (const { color, count } of sorted) {
