@@ -1238,7 +1238,7 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
       {freeZoneCards.length > 0 ? (
         <>
           <img
-            src={cards.find(c => c.CardNum === freeZoneCards[freeZoneCards.length - 1])?.ImgURL ?? ''}
+            src={cards.find(c => c.CardNum === getCardNum(freeZoneCards[freeZoneCards.length - 1]))?.ImgURL ?? ''}
             alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
