@@ -145,11 +145,7 @@ export function matchesFilter(
   return true;
 }
 
-function fieldTopNums(state: PlayerState): string[] {
-  return state.field.signi.flatMap(stack =>
-    stack && stack.length > 0 ? [stack[stack.length - 1]] : []
-  );
-}
+
 
 function fieldCandidates(
   state: PlayerState,
