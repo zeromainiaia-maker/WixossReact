@@ -3723,6 +3723,46 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'CENTER_LRIG_GAIN_AUTO_ABILITY' } as StubAction;
   }
 
+  // ---- 引用符の内側のテキスト（...」を得る で終わる）----
+  if (t.endsWith('」を得る') || t.endsWith('」を得る。')) {
+    return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+  }
+
+  // ---- そのアタックを無効にする（単独）----
+  if (t.match(/^そのアタックを無効にする/)) {
+    return { type: 'STUB', id: 'NEGATE_THAT_ATTACK' } as StubAction;
+  }
+
+  // ---- このシグニのパワーをXを持つシグニ１体につき＋Nする ----
+  if (t.match(/このシグニのパワーを.*を持つ.*シグニ１体につき[＋+]\d+する/)) {
+    return { type: 'STUB', id: 'POWER_BOOST_PER_SIGNI_WITH_ICON' } as StubAction;
+  }
+
+  // ---- カード名を宣言して相手デッキ公開 ----
+  if (t.match(/カード名[１-９\d一二三]つを宣言する/)) {
+    return { type: 'STUB', id: 'DECLARE_CARD_NAME' } as StubAction;
+  }
+
+  // ---- 対戦相手が選択して行う（以下の〜から〜を選ぶ）----
+  if (t.match(/対戦相手は以下の[２-９\d]つから[１-９\d]つを選び.*対戦相手はそれを行う/s)) {
+    return { type: 'STUB', id: 'OPP_CHOOSE_EFFECT' } as StubAction;
+  }
+
+  // ---- 【アクセ】にする ----
+  if (t.match(/【アクセ】にする/)) {
+    return { type: 'STUB', id: 'ACCE_FROM_HAND' } as StubAction;
+  }
+
+  // ---- このシグニを他のシグニゾーンに配置 ----
+  if (t.match(/このシグニを他のシグニゾーンに配置/)) {
+    return { type: 'STUB', id: 'MOVE_TO_OTHER_SIGNI_ZONE' } as StubAction;
+  }
+
+  // ---- それのパワーをアタックしたシグニのレベル１につき±Nする ----
+  if (t.match(/それのパワーをアタックした.*シグニのレベル[１-９\d]につき[＋＋－-]/)) {
+    return { type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
