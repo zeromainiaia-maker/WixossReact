@@ -949,16 +949,41 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'GRANT_KEYWORD', target, keyword: 'チアガール', duration: 'PERMANENT' };
   }
 
+  // ---- 強制攻撃 ----
+  if (t.includes('可能ならばアタックしなければならない')) {
+    const target: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'FORCE_SIGNI_ATTACK', targetOwner: target } as ForceSigniAttackAction;
+  }
+
+  // ---- チャーム除去 ----
+  if ((t.includes('チャーム】') || t.includes('【チャーム】')) && t.includes('トラッシュに置く')) {
+    const isOpp = t.includes('対戦相手');
+    const targetOwner: Owner = isOpp ? 'opponent' : 'self';
+    const countM = t.match(/【チャーム】([１-９\d]+)枚/);
+    const toHalf = (s: string) => s.replace(/[１-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF11 + 0x31));
+    const count: number | 'ALL' = countM ? (parseInt(toHalf(countM[1])) || 1) : 'ALL';
+    return { type: 'REMOVE_CHARM', targetOwner, count } as RemoveCharmAction;
+  }
+
   // ---- チャーム付与 ----
   if (t.includes('チャーム】にする') || t.includes('チャーム】にしてもよい')) {
-    const charmIsTopOfDeck = t.includes('デッキの一番上のカード');
-    const charmIsSelf = t.includes('このシグニをそれの') || t.includes('このシグニを');
+    // チャーム付与先オーナー判定
+    const toOwner: Owner = t.match(/対戦相手のシグニ.+【チャーム】/) ? 'opponent' : 'self';
+    // チャームの出所判定
+    const charmIsTopOfDeck = t.includes('デッキの一番上のカード') || t.includes('デッキの上からカード');
+    const charmFromTrash = t.includes('トラッシュから');
+    const charmIsSelf = (t.includes('このシグニをそれの') || t.includes('このシグニを')) && !charmIsTopOfDeck && !charmFromTrash;
+    const charmIsThisCard = t.includes('このカードをそれの') || t.includes('このカードを');
+    // チャームの出所オーナー
+    const charmOwner: Owner = t.includes('対戦相手のデッキ') || t.includes('対戦相手のトラッシュ') ? 'opponent' : 'self';
     const charm: EffectTarget = charmIsTopOfDeck
-      ? { type: 'DECK_CARD', owner: 'self', count: 1 }
-      : { type: 'SIGNI', owner: 'self', count: 1 };
-    const toTarget: EffectTarget = charmIsSelf && !charmIsTopOfDeck
-      ? { type: 'SIGNI', owner: 'self', count: 1, filter: parseStoryFilter(t) as TargetFilter }
-      : { type: 'SIGNI', owner: 'self', count: 1 };
+      ? { type: 'DECK_CARD', owner: charmOwner, count: 1 }
+      : charmFromTrash
+        ? { type: 'TRASH_CARD', owner: charmOwner, count: 1, filter: parseStoryFilter(t) as TargetFilter }
+        : charmIsSelf || charmIsThisCard
+          ? { type: 'SIGNI', owner: 'self', count: 1 }
+          : { type: 'SIGNI', owner: 'self', count: 1 };
+    const toTarget: EffectTarget = { type: 'SIGNI', owner: toOwner, count: 1 };
     return { type: 'ATTACH_CHARM', charm, to: toTarget } as AttachCharmAction;
   }
 
