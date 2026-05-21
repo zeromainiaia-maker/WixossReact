@@ -745,12 +745,16 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'POWER_MODIFY', target, delta };
   }
 
-  // ---- パワーセット（基本パワーはNになる）----
-  const powerSetM = t.match(/(?:基本)?パワーは([０-９\d]+)になる/);
+  // ---- パワーセット（基本パワーはNになる / それの基本パワーをNにする）----
+  const powerSetM = t.match(/(?:基本)?パワーは([０-９\d]+)になる/)
+                 ?? t.match(/(?:基本)?パワーを([０-９\d]+)にする/);
   if (powerSetM) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const cM = t.match(/シグニ([０-９\d]+)体/);
+    const count = cM ? parseNum(cM[1]) : 1;
     const target: EffectTarget = t.includes('このシグニ')
       ? { type: 'SIGNI', owner: 'self', count: 1 }
-      : { type: 'SIGNI', owner: 'any', count: 1 };
+      : { type: 'SIGNI', owner, count };
     return { type: 'POWER_SET', target, value: parseNum(powerSetM[1]) };
   }
 
