@@ -461,7 +461,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const count = resolveNum(tgt.count);
     // 「対戦相手は手札をN枚捨てる」= 相手自身が選択する
     const opponentResponds = tgt.owner === 'opponent' && !tgt.blind;
-    return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, applyTrashHand, opponentResponds);
+    return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, opponentResponds);
   }
 
   if (tgt.type === 'ENERGY_CARD') {
