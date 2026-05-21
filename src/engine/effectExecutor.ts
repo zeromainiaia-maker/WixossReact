@@ -530,7 +530,7 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
 
   const count = tgt.count === 'ALL' ? cands.length : resolveNum(tgt.count);
   if (tgt.count === 'ALL') return done(applyCharge(cands, ctx));
-  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, applyCharge);
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): ExecResult {
