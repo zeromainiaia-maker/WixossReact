@@ -910,6 +910,14 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BANISH', target: parseSigniTarget(t, owner) };
   }
 
+  // ---- デッキからトラッシュ（もよい）----
+  {
+    const deckOptM = t.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚トラッシュに置いてもよい/);
+    if (deckOptM) {
+      return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckOptM[1]) } };
+    }
+  }
+
   // ---- トラッシュに置く（直接除去）----
   if (t.includes('トラッシュに置く') || t.includes('トラッシュに置く')) {
     // デッキからトラッシュ
@@ -926,11 +934,6 @@ function parseSingleSentence(text: string): EffectAction {
         };
       }
       return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckM[1]) } };
-    }
-    // デッキからトラッシュ（もよい・オプション）
-    const deckOptM = t.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚トラッシュに置いてもよい/);
-    if (deckOptM) {
-      return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckOptM[1]) } };
     }
     // シグニ・ルリグをトラッシュへ（対戦相手 or 自分）
     if (t.includes('対戦相手のシグニ') || t.includes('対戦相手の感染状態のシグニ') || t.includes('対戦相手のパワー') || t.includes('対戦相手のセンタールリグ')) {
