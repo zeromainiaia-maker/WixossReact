@@ -990,7 +990,7 @@ function MulliganCard({ cardNum, cards, selected, onToggle }: {
   const [enlarged, setEnlarged] = useState(false);
   const longPressed = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const card = cards.find(c => c.CardNum === cardNum);
+  const card = cards.find(c => c.CardNum === getCardNum(cardNum));
 
   const handleStart = () => {
     longPressed.current = false;
