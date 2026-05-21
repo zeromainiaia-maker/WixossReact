@@ -489,7 +489,7 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 対戦相手スペル/アーツのコスト増加 ----
-  const costIncM = t.match(/対戦相手の(スペル|アーツ|ルリグ)の使用コストは/);
+  const costIncM = t.match(/対戦相手の(スペル|アーツ|ルリグ)(?:の【[^】]+】能力)?の使用コストは/);
   if (costIncM && t.includes('増える')) {
     const amount = parseEnergyCosts(t);
     return {
