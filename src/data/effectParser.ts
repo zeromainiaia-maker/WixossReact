@@ -56,6 +56,8 @@ import type {
   SelfTrashPreventAction,
   CostSubstituteAction,
   PowerModifyPerTrashedLevelAction,
+  RemoveCharmAction,
+  ForceSigniAttackAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
