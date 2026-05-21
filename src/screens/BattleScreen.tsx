@@ -1560,7 +1560,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // 大本の cards 配列は一切変更しない。
   const battleCardNums = useMemo(() => {
     const nums = new Set<string>();
-    const addAll = (arr?: string[]) => arr?.forEach(n => nums.add(n));
+    // インスタンスID（CardNum#N）からCardNumを取り出して登録
+    const addAll = (arr?: string[]) => arr?.forEach(n => nums.add(getCardNum(n)));
     const addState = (s: PlayerState) => {
       addAll(s.deck); addAll(s.lrig_deck); addAll(s.hand);
       addAll(s.life_cloth); addAll(s.trash); addAll(s.lrig_trash);
