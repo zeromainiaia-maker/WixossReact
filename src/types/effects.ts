@@ -736,6 +736,13 @@ export interface DiscardBothAction {
   count: number; // 各プレイヤーが捨てる枚数
 }
 
+// センタールリグへの能力付与（CONTINUOUS効果から発生）
+export interface GrantLrigAbilityAction {
+  type: 'GRANT_LRIG_ABILITY';
+  abilities: CardEffect[];  // 付与される能力（サブエフェクト）
+  rawText: string;          // 元のテキスト（表示用）
+}
+
 // チャームを外す（シグニに付いたチャームをトラッシュに置く）
 export interface RemoveCharmAction {
   type: 'REMOVE_CHARM';
