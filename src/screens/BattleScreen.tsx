@@ -5070,6 +5070,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
+      {/* 強制攻撃バナー */}
+      {isMyTurn && my.must_attack_signi && bs.turn_phase === 'ATTACK_SIGNI' && (
+        <div style={{ flexShrink: 0, backgroundColor: '#7a1a1a', padding: '4px 12px',
+          fontSize: 11, color: '#ffaaaa', textAlign: 'center' }}>
+          ⚠ あなたのシグニは可能ならばアタックしなければなりません
+        </div>
+      )}
+      {!isMyTurn && op.must_attack_signi && bs.turn_phase === 'ATTACK_SIGNI' && (
+        <div style={{ flexShrink: 0, backgroundColor: '#1a3a1a', padding: '4px 12px',
+          fontSize: 11, color: '#aaffaa', textAlign: 'center' }}>
+          対戦相手のシグニは可能ならばアタックしなければなりません
+        </div>
+      )}
+
       {/* ステータスバー */}
       <div style={{
         flexShrink: 0, backgroundColor: C.bgBar, borderBottom: C.borderBar,
