@@ -399,8 +399,9 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- ガード不可 ----
-  if (t.match(/対戦相手は.*シグニで【ガード】ができない/)) {
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until: 'END_OF_TURN' };
+  if (t.match(/対戦相手は(?:.*シグニで)?【ガード】ができない/)) {
+    const until: BlockActionAction['until'] = t.includes('次の') ? 'NEXT_TURN' : 'END_OF_TURN';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until };
   }
 
   // ---- 能力消去 ----
