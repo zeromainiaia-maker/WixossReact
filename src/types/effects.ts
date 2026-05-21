@@ -202,6 +202,8 @@ export type EffectAction =
   | SelfTrashPreventAction
   | CostSubstituteAction
   | PowerModifyPerTrashedLevelAction
+  | GainCoinAction
+  | DiscardBothAction
   | UnknownAction;
 
 export interface DrawAction {
