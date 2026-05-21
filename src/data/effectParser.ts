@@ -2121,6 +2121,36 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- 対戦相手の効果でシグニのパワーは増加しない（CONTINUOUS保護）----
+  if (t.match(/対戦相手の効果によって.*シグニのパワーは＋.*されない/)) {
+    const owner: Owner = t.includes('対戦相手のシグニ') ? 'opponent' : 'self';
+    return {
+      type: 'GRANT_PROTECTION',
+      target: { type: 'SIGNI', owner, count: 'ALL' },
+      from: ['POWER_MODIFY'],
+      sourceOwner: 'opponent',
+      duration: 'PERMANENT',
+    } as GrantProtectionAction;
+  }
+
+  // ---- コスト0スペル使用禁止（すべてのプレイヤー）----
+  if (t.match(/すべてのプレイヤーはコストの合計が[０-９\d]+のスペルを使用できない/)) {
+    const costM = t.match(/コストの合計が([０-９\d]+)/);
+    const cost = costM ? parseNum(costM[1]) : 0;
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: `USE_SPELL_COST_${cost}`, until: 'PERMANENT' },
+        { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: `USE_SPELL_COST_${cost}`, until: 'PERMANENT' },
+      ],
+    };
+  }
+
+  // ---- 手札以外からシグニを場に出せない ----
+  if (t.match(/自身の効果によって手札以外からシグニを場に出せない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'PLAY_SIGNI_NOT_FROM_HAND', until: 'PERMANENT' };
+  }
+
   // ---- ルリグアタックステップスキップ ----
   if (t.match(/ルリグアタックステップをスキップする/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
