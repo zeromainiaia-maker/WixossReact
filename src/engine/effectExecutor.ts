@@ -1179,6 +1179,68 @@ function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResu
   return done(addLog(ctx2, `${a.targetOwner === 'opponent' ? '対戦相手' : '自分'}のシグニは可能ならばアタックしなければならない`));
 }
 
+function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: ExecCtx): ExecResult {
+  const countTrash = (st: PlayerState) => {
+    const cards = st.trash;
+    if (a.countByVariety) {
+      const names = new Set(cards
+        .filter(n => !a.countFilter || matchesFilter(ctx.cardMap.get(n), a.countFilter))
+        .map(n => ctx.cardMap.get(n)?.CardClass ?? n));
+      return names.size;
+    }
+    return cards.filter(n => !a.countFilter || matchesFilter(ctx.cardMap.get(n), a.countFilter)).length;
+  };
+  let count = 0;
+  if (a.trashOwner === 'both') {
+    count = countTrash(ctx.ownerState) + countTrash(ctx.otherState);
+  } else {
+    count = countTrash(a.trashOwner === 'self' ? ctx.ownerState : ctx.otherState);
+  }
+  const delta = Math.floor(count / a.unitSize) * a.deltaPerUnit;
+  if (delta === 0) return done(ctx);
+
+  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as import('../types').PlayerState['field'] extends never ? never : 'self' | 'opponent';
+  const tgtO = a.target.owner === 'opponent' ? 'opponent' : 'self' as 'self' | 'opponent';
+  const state = ownerState(tgtO, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
+  if (cands.length === 0) return done(ctx);
+
+  function applyMod(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgtO, c);
+    const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
+    return addLog(setOwnerState(tgtO, { ...s, temp_power_mods: mods }, c),
+      `パワー${delta > 0 ? '+' : ''}${delta}（トラッシュ${count}枚×${a.deltaPerUnit}/${a.unitSize}）`);
+  }
+
+  if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
+  const cnt = resolveNum(a.target.count);
+  const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx, applyMod);
+}
+
+function execPowerModifyPerLifeCount(a: PowerModifyPerLifeCountAction, ctx: ExecCtx): ExecResult {
+  const lifeState = a.lifeOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  const count = lifeState.life_cloth.length;
+  const delta = a.deltaPerLife * count;
+  if (delta === 0) return done(ctx);
+
+  const tgtO = a.target.owner === 'opponent' ? 'opponent' : 'self' as 'self' | 'opponent';
+  const state = ownerState(tgtO, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
+
+  function applyMod(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgtO, c);
+    const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
+    return addLog(setOwnerState(tgtO, { ...s, temp_power_mods: mods }, c),
+      `パワー${delta > 0 ? '+' : ''}${delta}（ライフ${count}枚×${a.deltaPerLife}）`);
+  }
+
+  if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
+  const cnt = resolveNum(a.target.count);
+  const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx, applyMod);
+}
+
 function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
   const selfDiscard = Math.min(a.count, ctx.ownerState.hand.length);
   const otherDiscard = Math.min(a.count, ctx.otherState.hand.length);
