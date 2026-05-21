@@ -1185,10 +1185,12 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GAIN_COIN':               return execGainCoin(action as GainCoinAction, ctx);
     case 'DISCARD_BOTH':            return execDiscardBoth(action as DiscardBothAction, ctx);
     // 以下は CONTINUOUS 効果専用（effectEngine 側で処理）
-    case 'BANISH_REDIRECT':         return done(addLog(ctx, 'バニッシュ先変更（CONTINUOUS）'));
-    case 'REARRANGE_SIGNI':         return done(addLog(ctx, 'シグニ並び替え（BattleScreen側で処理）'));
-    case 'GROW_FREE':               return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
-    case 'POWER_MODIFY_PER_STACK':  return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
+    case 'BANISH_REDIRECT':                return done(addLog(ctx, 'バニッシュ先変更（CONTINUOUS）'));
+    case 'REARRANGE_SIGNI':                return done(addLog(ctx, 'シグニ並び替え（BattleScreen側で処理）'));
+    case 'GROW_FREE':                      return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
+    case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
+    case 'POWER_MODIFY_PER_DECK_COUNT':    return done(addLog(ctx, 'デッキ枚数比例パワー（effectEngine処理）'));
+    case 'POWER_MODIFY_PER_ENERGY_COLOR':  return done(addLog(ctx, 'エナ色種類比例パワー（effectEngine処理）'));
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
     default:                        return done(ctx);
   }
