@@ -19,6 +19,7 @@ import type {
   CounterSpellAction,
   CostReductionAction,
   GrantProtectionAction,
+  GrantKeywordAction,
   AttachCharmAction,
   RevealAndPickAction,
   BanishRedirectAction,
