@@ -1478,6 +1478,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const triggerPendingCrashRef    = useRef<(() => Promise<void>) | null>(null);
   const resolveStackNextRef       = useRef<(() => Promise<void>) | null>(null);
   const checkPowerZeroBanishRef   = useRef<(() => Promise<void>) | null>(null);
+  const lastBanishedKeyRef        = useRef<string>(''); // 直前に処理したバニッシュ候補のフィンガープリント（二重処理防止）
 
   // フェーズ変化をバトルログに記録（アクティブプレイヤーのみDB書き込み）
   useEffect(() => {
