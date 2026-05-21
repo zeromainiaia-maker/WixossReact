@@ -155,7 +155,8 @@ export type PendingInteractionDef =
     };
 
 export interface PendingEffect {
-  sourcePlayerId: string;
+  sourcePlayerId: string;   // 効果オーナーのプレイヤーID（effectExecutorのownerState用）
+  respondPlayerId?: string; // UIに応答するプレイヤーID（省略時=sourcePlayerId。対戦相手が選ぶ場合は相手ID）
   sourceCardNum: string;
   effectId: string;
   interaction: PendingInteractionDef;
