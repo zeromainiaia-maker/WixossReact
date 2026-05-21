@@ -478,7 +478,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     if (tgt.count === 'ALL') return done(applyTrashEnergy(cands, ctx));
     const count = resolveNum(tgt.count);
-    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, applyTrashEnergy);
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
   }
 
   if (tgt.type === 'DECK_CARD') {
