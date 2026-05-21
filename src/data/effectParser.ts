@@ -2195,6 +2195,23 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'NEGATE_NEXT_SIGNI_ATTACK', until: 'END_OF_TURN' };
   }
 
+  // ---- あなたのライフクロスの一番上を見る ----
+  if (t.match(/あなたのライフクロスの一番上を見る/)) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: 1 },
+      canTrash: false,
+      destLocation: 'deck',
+      destOwner: 'self',
+      destPosition: 'top',
+    } as LookAndReorderAction;
+  }
+
+  // ---- このシグニはダウン状態でもアタックできる（スリープアタッカー）----
+  if (t.match(/このシグニはダウン状態でもアタックできる/)) {
+    return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: 'スリープアタッカー', duration: 'PERMANENT' } as GrantKeywordAction;
+  }
+
   // ---- 対戦相手の効果でシグニのパワーは増加しない（CONTINUOUS保護）----
   if (t.match(/対戦相手の効果によって.*シグニのパワーは＋.*されない/)) {
     const owner: Owner = t.includes('対戦相手のシグニ') ? 'opponent' : 'self';
