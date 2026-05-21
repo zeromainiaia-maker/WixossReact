@@ -647,7 +647,7 @@ function StackSlot({ stack, cards, width = 60, height = 84, label, faceDown, act
   const touchPos = useRef<{ x: number; y: number } | null>(null);
 
   const topCard = stack.length > 0 ? stack[stack.length - 1] : null;
-  const card = topCard ? cards.find(c => c.CardNum === topCard) : null;
+  const card = topCard ? cards.find(c => c.CardNum === getCardNum(topCard)) : null;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
