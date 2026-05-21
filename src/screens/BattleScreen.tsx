@@ -847,6 +847,26 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
             能力消去
           </div>
         )}
+        {virusCount > 0 && (
+          <div style={{
+            position: 'absolute', top: extraH + 2, right: 2,
+            backgroundColor: 'rgba(180,0,0,0.88)', color: '#fff',
+            fontSize: 8, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
+          }}>
+            V
+          </div>
+        )}
+        {acceCardNum && (
+          <div style={{
+            position: 'absolute', bottom: extraH + 2, right: 2,
+            backgroundColor: 'rgba(0,120,60,0.9)', color: '#fff',
+            fontSize: 7, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
+          }}>
+            ACE
+          </div>
+        )}
       </div>
       {charmCardNum && (
         <CharmPeek width={width}
