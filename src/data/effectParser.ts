@@ -1389,6 +1389,47 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: false } as TransferToDeckAction;
   }
 
+  // ---- デッキの一番上を公開する（単独文） ----
+  {
+    const deckTopM = t.match(/^(?:あなたの|対戦相手の)?デッキの一番上を公開する$/);
+    if (deckTopM) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      return {
+        type: 'LOOK_AND_REORDER',
+        source: { location: 'deck', owner },
+        count: 1,
+        private: false,
+        reorder: false,
+        destination: { location: 'deck', owner, position: 'top' },
+      };
+    }
+  }
+
+  // ---- 残りをシャッフルして/好きな順番でデッキへ（LOOK/REVEALの後続フラグメント）----
+  if (t.match(/^残りをシャッフルして(?:デッキの一番下に置く|デッキに戻す)/)) {
+    return { type: 'SHUFFLE_DECK', owner: 'self' };
+  }
+  if (t.match(/^残りを好きな順番でデッキの一番下に置く/)) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'self' },
+      count: 0,
+      private: true,
+      reorder: true,
+      destination: { location: 'deck', owner: 'self', position: 'bottom' },
+    };
+  }
+  if (t.match(/^残りをデッキの一番下に置く/)) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'self' },
+      count: 0,
+      private: true,
+      reorder: false,
+      destination: { location: 'deck', owner: 'self', position: 'bottom' },
+    };
+  }
+
   // ---- デッキ上公開 / 見る（単独 or シャッフル付き）----
   const deckLookM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開|見)る/);
   if (deckLookM) {
