@@ -2237,9 +2237,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const grew    = my.actions_done?.includes('GROW') ?? false;
       const blocked = my.blocked_actions?.includes('GROW') ?? false;
       if (!grew && !blocked) {
-        const hasAffordable = growCandidates.some(card =>
-          canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti)
-        );
+        const hasAffordable = growCandidates.some(card => {
+          const gCoin = parseCoinCost(card.GrowCost);
+          return (gCoin === 0 || my.coins >= gCoin) &&
+            canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti);
+        });
         if (hasAffordable) {
           setShowGrowSkipConfirm(true);
           return;
