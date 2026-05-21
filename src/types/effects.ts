@@ -831,6 +831,13 @@ export interface LrigLimitModifyAction {
   until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT';
 }
 
+export interface AddCraftToLrigDeckAction {
+  type: 'ADD_CRAFT_TO_LRIG_DECK';
+  owner: Owner;
+  cardName: string; // クラフトカードのCardName（CardData_TKから検索）
+  count: number;
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   type: 'STUB';
