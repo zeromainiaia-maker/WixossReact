@@ -40,6 +40,21 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+// インスタンスIDを意識したMap：CardNum#N のキーに対して自動的にCardNum部分で検索する
+class InstanceMap<V> extends Map<string, V> {
+  override get(id: string): V | undefined { return super.get(getCardNum(id)); }
+  override has(id: string): boolean       { return super.has(getCardNum(id)); }
+}
+
+// デッキのカード配列にインスタンスIDを付与する（WD03-009 → WD03-009#1, WD03-009#2, ...）
+function assignInstanceIds(cards: string[]): string[] {
+  const counts: Record<string, number> = {};
+  return cards.map(cn => {
+    counts[cn] = (counts[cn] ?? 0) + 1;
+    return `${cn}#${counts[cn]}`;
+  });
+}
+
 // リフレッシュ: トラッシュ全枚数をデッキに加えシャッフル。ライフがあれば一番上をトラッシュへ（バーストなし）。
 function applyRefresh(state: PlayerState): PlayerState {
   const newDeck = shuffle([...state.trash]);
