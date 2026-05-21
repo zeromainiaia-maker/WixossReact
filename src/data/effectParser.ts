@@ -1033,7 +1033,8 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- パワーパンプ / デバフ ----
   const plusM = t.match(/パワーを＋([０-９\d]+)する/) ?? t.match(/パワーは＋([０-９\d]+)され/);
-  const minusM = t.match(/パワーを－([０-９\d]+)する/) ?? t.match(/パワーは－([０-９\d]+)され/);
+  const minusM = t.match(/パワーを－([０-９\d]+)する/) ?? t.match(/パワーは－([０-９\d]+)され/)
+               ?? t.match(/パワーを-([０-９\d]+)する/);
   if (plusM || minusM) {
     const delta = plusM ? parseNum(plusM[1]) : -(parseNum(minusM![1]));
     let target: EffectTarget;
