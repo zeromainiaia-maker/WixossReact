@@ -141,6 +141,33 @@ function extractPowerModifiesPerLevelSum(action: EffectAction): PowerModifyPerLe
   return [];
 }
 
+function extractPowerModifiesPerLrigLevel(action: EffectAction): PowerModifyPerLrigLevelAction[] {
+  if (action.type === 'POWER_MODIFY_PER_LRIG_LEVEL') return [action as PowerModifyPerLrigLevelAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerLrigLevel(s));
+  }
+  return [];
+}
+
+function extractPowerModifiesPerTrashCount(action: EffectAction): PowerModifyPerTrashCountAction[] {
+  if (action.type === 'POWER_MODIFY_PER_TRASH_COUNT') {
+    const a = action as PowerModifyPerTrashCountAction;
+    if (!a.until) return [a]; // until あり = ACTIVATED（executor処理）、なし = CONTINUOUS
+  }
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerTrashCount(s));
+  }
+  return [];
+}
+
+function extractPowerModifiesPerLifeCount(action: EffectAction): PowerModifyPerLifeCountAction[] {
+  if (action.type === 'POWER_MODIFY_PER_LIFE_COUNT') return [action as PowerModifyPerLifeCountAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerLifeCount(s));
+  }
+  return [];
+}
+
 /**
  * ACTIVATED 効果の POWER_MODIFY_PER_LRIG_LEVEL を解決して temp_power_mods 相当の delta を計算する。
  * @returns [cardNum, delta] ペア配列（BattleScreenで temp_power_mods に追加する）
