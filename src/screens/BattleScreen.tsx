@@ -1320,6 +1320,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [pendingArtsCard, setPendingArtsCard] = useState<CardData | null>(null);
   const [selectedArtsCost, setSelectedArtsCost] = useState<Set<number>>(new Set());
   const [isBetting, setIsBetting] = useState(false);
+  const [isEncore, setIsEncore] = useState(false);
   const [closeZoneSignal, setCloseZoneSignal] = useState(0);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [selectedRemoveZones, setSelectedRemoveZones] = useState<Set<number>>(new Set());
