@@ -1905,7 +1905,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     resolvedAction = parseActionText(actionText);
   }
 
-  if (resolvedAction.type === 'UNKNOWN') {
+  // GRANT_LRIG_ABILITY: rawText からサブ能力をここでパース（parseBlock が使えるタイミング）
+  if (resolvedAction.type === 'GRANT_LRIG_ABILITY') {
+    const gla = resolvedAction as import('../types/effects').GrantLrigAbilityAction;
+    if (gla.rawText) {
+      const subBlocks = splitEffectBlocks(gla.rawText);
+      gla.abilities = subBlocks
+        .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
+        .filter((e): e is import('../types/effects').CardEffect => e !== null);
+    }
+    const hasUnknownSub = gla.abilities.length === 0 || gla.abilities.some(e => e.parseStatus === 'UNKNOWN');
+    parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
+  } else if (resolvedAction.type === 'UNKNOWN') {
     parseStatus = 'UNKNOWN';
   } else if (resolvedAction.type === 'SEQUENCE') {
     const seq = resolvedAction as SequenceAction;
