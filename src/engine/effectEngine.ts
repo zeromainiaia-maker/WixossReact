@@ -169,6 +169,14 @@ function extractPowerModifiesPerLifeCount(action: EffectAction): PowerModifyPerL
   return [];
 }
 
+function extractPowerModifiesPerVirusCount(action: EffectAction): PowerModifyPerVirusCountAction[] {
+  if (action.type === 'POWER_MODIFY_PER_VIRUS_COUNT') return [action as PowerModifyPerVirusCountAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerVirusCount(s));
+  }
+  return [];
+}
+
 /**
  * ACTIVATED 効果の POWER_MODIFY_PER_LRIG_LEVEL を解決して temp_power_mods 相当の delta を計算する。
  * @returns [cardNum, delta] ペア配列（BattleScreenで temp_power_mods に追加する）
