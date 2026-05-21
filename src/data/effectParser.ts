@@ -59,6 +59,9 @@ import type {
   RemoveCharmAction,
   ForceSigniAttackAction,
   GrantLrigAbilityAction,
+  PowerModifyPerTrashCountAction,
+  PowerModifyPerLifeCountAction,
+  PowerModifyPerLrigLevelAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
