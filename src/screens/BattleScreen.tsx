@@ -1496,6 +1496,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return calcActiveCostMods(myS, opS, myTurn, effectsMap, battleCardMap);
   }, [bs, effectsMap, battleCardMap, user.id]);
 
+  // フィールドのシグニ・キーピースが持つ GRANT_LRIG_ABILITY 効果でセンタールリグに付与された能力
+  const grantedMyLrigEffects = useMemo(() => {
+    if (!bs) return [];
+    const localIsHost = user.id === bs.host_id;
+    const myS  = localIsHost ? bs.host_state  : bs.guest_state;
+    const opS  = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    return collectLrigGrantedEffects(myS, opS, myTurn, effectsMap, battleCardMap);
+  }, [bs, effectsMap, battleCardMap, user.id]);
+
   // フィールド（シグニ＋センタールリグ）にCONTINUOUS GRANT_KEYWORD マルチエナ（count:ALL）効果があるか
   // WX01-027（シグニ）・WX05-006（ルリグLv5）のような「全エナにマルチエナ付与」効果を検出
   const myEnaAllMulti = useMemo(() => {
