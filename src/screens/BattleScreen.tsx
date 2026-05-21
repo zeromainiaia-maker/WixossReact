@@ -1579,7 +1579,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [myDeckData, bs]);
 
   const battleCardMap = useMemo(
-    () => new Map(cards.filter(c => battleCardNums.has(c.CardNum)).map(c => [c.CardNum, c])),
+    () => new InstanceMap(cards.filter(c => battleCardNums.has(c.CardNum)).map(c => [c.CardNum, c] as [string, CardData])),
     [cards, battleCardNums],
   );
 
