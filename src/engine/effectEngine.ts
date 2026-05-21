@@ -7,6 +7,8 @@ import type {
   PowerModifyPerStackAction,
   PowerModifyPerLevelSumAction,
   PowerModifyPerLrigLevelAction,
+  PowerModifyPerTrashCountAction,
+  PowerModifyPerLifeCountAction,
   CostIncreaseAction,
   BlockActionAction,
   TargetFilter,
