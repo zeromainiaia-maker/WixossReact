@@ -2785,11 +2785,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleSummonSigni = async (handIndex: number, zoneIndex: number) => {
     console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
     if (!isMyTurn || loading) return;
+    if ((my.field.signi[zoneIndex] ?? []).length > 0) return; // 空きゾーンにしか召喚できない
     setLoading(true);
     setPendingSigniSummon(null);
     try {
       const cardNum = my.hand[handIndex];
-      const existingStack = my.field.signi[zoneIndex] ?? [];
+      const existingStack: string[] = [];
       const newSigni = [...my.field.signi] as (string[] | null)[];
       newSigni[zoneIndex] = [cardNum];
       // 入れ替え召喚時はそのゾーンのダウン・凍結・チャーム・アクセ・ウィルスをリセット
