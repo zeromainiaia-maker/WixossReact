@@ -1974,6 +1974,16 @@ function parseSingleSentence(text: string): EffectAction {
         maxCount: parseNum(playFreeM[3]),
       } as PlayFreeFromTrashAction;
     }
+    // ルリグトラッシュからコスト以下のアーツを使用
+    const lrigTrashArtsM = t.match(/ルリグトラッシュからコストの合計が([０-９\d]+)以下のアーツ([０-９\d]+)枚を対象とし、それをコストを支払わずに使用する/);
+    if (lrigTrashArtsM) {
+      return {
+        type: 'PLAY_FREE_FROM_TRASH',
+        costThreshold: parseNum(lrigTrashArtsM[1]),
+        filter: { cardType: 'アーツ' },
+        maxCount: parseNum(lrigTrashArtsM[2]),
+      } as PlayFreeFromTrashAction;
+    }
   }
 
   // ---- パワー閾値でトラッシュ ----
