@@ -2474,6 +2474,157 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' } as StubAction;
   }
 
+  // ---- 対戦相手のライフクロスの一番上を見る ----
+  if (t.match(/^対戦相手のライフクロスの一番上を見る$/)) {
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+  }
+
+  // ---- ルリグトラッシュのすべてのルリグをこのカードの下に置く ----
+  if (t.match(/あなたのルリグトラッシュからすべてのルリグをこのカードの下に置く/)) {
+    return { type: 'STUB', id: 'STACK_ALL_LRIG_UNDER' } as StubAction;
+  }
+
+  // ---- 【チャーム】数以下のスペル使用禁止 ----
+  if (t.match(/対戦相手はコストの合計が場にある【チャーム】の数以下のスペルを使用できない/)) {
+    return { type: 'STUB', id: 'BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT' } as StubAction;
+  }
+
+  // ---- このシグニのレベルはエナ枚数に比例する ----
+  if (t.match(/このシグニのレベルはあなたのエナゾーンにある.*につき.*＋[１-９\d]/)) {
+    return { type: 'STUB', id: 'DYNAMIC_LEVEL_BY_ENERGY' } as StubAction;
+  }
+
+  // ---- シグニがクラスを失い別クラスを得る ----
+  if (t.match(/(?:シグニ|それ).*クラスを失い.*を得る/)) {
+    return { type: 'STUB', id: 'CLASS_CHANGE' } as StubAction;
+  }
+
+  // ---- 【起】能力コストを《黒×0》にする ----
+  if (t.match(/次に.*【起】能力を使用する場合.*コストは《黒×0》になる/)) {
+    return { type: 'STUB', id: 'ACTIVATE_COST_ZERO_BLACK' } as StubAction;
+  }
+
+  // ---- アクセされていた場合、エナゾーンに置く ----
+  if (t.match(/アクセされていた場合.*エナゾーンに置く/)) {
+    return { type: 'STUB', id: 'ACCE_TO_ENERGY' } as StubAction;
+  }
+
+  // ---- 対戦相手のライフクロスを見て選択的にグロウ ----
+  if (t.match(/対戦相手のセンタールリグがレベル[０-９\d]+以上の場合.*グロウコストを支払わずにグロウする/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_FREE_GROW' } as StubAction;
+  }
+
+  // ---- センタールリグが特定色の場合、このシグニは条件付き能力を得る ----
+  if (t.match(/あなたのセンタールリグが.*であるかぎり.*このシグニは.*を得る/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_KEYWORD_BY_CENTER_COLOR' } as StubAction;
+  }
+
+  // ---- このターンにアタックしていた場合、手札を捨てる ----
+  if (t.match(/このターンにこのシグニがアタックしていた場合.*手札を.*枚捨てる/)) {
+    return { type: 'STUB', id: 'DISCARD_IF_ATTACKED_THIS_TURN' } as StubAction;
+  }
+
+  // ---- 正面以外のシグニゾーンにもアタックできる ----
+  if (t.match(/このシグニの正面以外.*シグニゾーンにもアタックできる/)) {
+    return { type: 'STUB', id: 'MULTI_ZONE_ATTACK' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニは能力を得られない ----
+  if (t.match(/対戦相手のシグニは.*新たに能力を得られない/)) {
+    return { type: 'STUB', id: 'PREVENT_OPP_SIGNI_ABILITY_GAIN' } as StubAction;
+  }
+
+  // ---- 対戦相手のトラッシュからスペルを使用する ----
+  if (t.match(/対戦相手のトラッシュからスペル.*あなたの手札にあるかのように使用する/)) {
+    return { type: 'STUB', id: 'CAST_FROM_OPP_TRASH' } as StubAction;
+  }
+
+  // ---- 対戦相手の手札とルリグデッキを公開させる ----
+  if (t.match(/対戦相手は自分の手札を公開し.*ルリグデッキからカードを.*選び公開する/)) {
+    return { type: 'STUB', id: 'OPP_REVEAL_HAND_AND_LRIG_DECK' } as StubAction;
+  }
+
+  // ---- 特定センタールリグのとき、トラッシュからエナゾーンに置く ----
+  if (t.match(/センタールリグが.*の場合.*トラッシュからエナゾーンに置く/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_TRASH_TO_ENERGY' } as StubAction;
+  }
+
+  // ---- シグニの【出】能力で指定したシグニがクラスを失い別クラスを得る ----
+  if (t.match(/【出】能力で指定された.*シグニ.*クラスと色を失い.*を得る/)) {
+    return { type: 'STUB', id: 'PLAY_EFFECT_TARGET_CLASS_CHANGE' } as StubAction;
+  }
+
+  // ---- 対戦相手の手札を見て特定スペルを捨てさせる ----
+  if (t.match(/対戦相手の手札を見て.*スペル.*捨てさせる/)) {
+    return { type: 'STUB', id: 'VIEW_AND_DISCARD_SPELL' } as StubAction;
+  }
+
+  // ---- 《ライズアイコン》を持つシグニがバニッシュされる場合、代わりに下のカードをトラッシュ ----
+  if (t.match(/《ライズアイコン》.*バニッシュされる場合.*下から.*枚をトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'RISE_BANISH_SUBSTITUTE' } as StubAction;
+  }
+
+  // ---- スペルの使用コスト減少（色指定あり）----
+  {
+    const spellCostM = t.match(/あなたが使用する(.+)スペルの使用コストは《([^》]+)》減る/);
+    if (spellCostM) {
+      const costParsed = parseCost(spellCostM[2]);
+      if (costParsed && costParsed.length > 0) {
+        return {
+          type: 'COST_REDUCTION',
+          cardType: 'スペル',
+          reduction: costParsed,
+          until: 'PERMANENT',
+        } as import('../types/effects').CostReductionAction;
+      }
+    }
+  }
+
+  // ---- センタールリグがレベルN以上の場合、代わりに複数選択 ----
+  if (t.match(/センタールリグ.*レベル[０-９\d]+以上の場合.*代わりに[２-９]つまで選ぶ/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE' } as StubAction;
+  }
+
+  // ---- センタールリグが特定キャラの場合、代わりに複数選択 ----
+  if (t.match(/センタールリグが.*の場合.*代わりに[２-９]つまで選ぶ/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER' } as StubAction;
+  }
+
+  // ---- ④など番号付きの選択肢 ----
+  if (t.match(/^[④⑤⑥][^⑦].*(?:する|ない|る)$/)) {
+    return { type: 'STUB', id: 'NUMBERED_CHOICE_OPTION' } as StubAction;
+  }
+
+  // ---- このシグニのレベル以上のトラッシュシグニを下に置く（天使等）----
+  if (t.match(/あなたのトラッシュからレベル.*のシグニ.*このシグニの下に置く/)) {
+    return { type: 'STUB', id: 'ADD_UNDER_STACK_FROM_TRASH' } as StubAction;
+  }
+
+  // ---- アンコール（特定コスト付）----
+  if (t.match(/^アンコール－/)) {
+    return { type: 'STUB', id: 'ENCORE' } as StubAction;
+  }
+
+  // ---- 以下のN個から選ぶ（番号なし）----
+  if (t.match(/^以下の[０-９\d２-９]+つから/)) {
+    return { type: 'STUB', id: 'CHOOSE_FROM_OPTIONS' } as StubAction;
+  }
+
+  // ---- あなたのシグニの効果で対戦相手のパワーが減ったとき、自身パワーUP ----
+  if (t.match(/対戦相手のシグニのパワーが減ったとき.*このシグニのパワーを減った値/)) {
+    return { type: 'STUB', id: 'REACTIVE_POWER_UP' } as StubAction;
+  }
+
+  // ---- このターン、あなたのシグニは対戦相手の効果によってダウンしない ----
+  if (t.match(/このターン.*あなたのシグニは対戦相手の効果によってダウンしない/)) {
+    return { type: 'STUB', id: 'PREVENT_SIGNI_DOWN_BY_OPP' } as StubAction;
+  }
+
+  // ---- このシグニは◎能力を得る（引用符付き複雑な能力文）----
+  if (t.match(/このシグニは「【[常出起自]】.*」を得る/s)) {
+    return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
