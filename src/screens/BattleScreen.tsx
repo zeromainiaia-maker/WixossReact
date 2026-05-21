@@ -4164,10 +4164,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       .flatMap(m => m.amount);
                     const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
                     const totalReq = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
+                    const betCostAmt = parseBetCost(card.EffectText ?? '');
                     return (
                       <button key={card.CardNum}
                         onClick={() => {
                           if (!canAfford) return;
+                          setIsBetting(false);
                           if (totalReq === 0) { executeArts(card, new Set()); }
                           else { setPendingArtsCard(card); setSelectedArtsCost(new Set()); }
                         }}
@@ -4190,6 +4192,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>
                             {card.Timing}
                           </p>
+                          {betCostAmt > 0 && (
+                            <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>
+                              ベット: コイン{betCostAmt}枚
+                            </p>
+                          )}
                           {!canAfford && (
                             <p style={{ color: C.danger, fontSize: 10, margin: '2px 0 0' }}>エナ不足</p>
                           )}
