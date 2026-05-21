@@ -698,6 +698,19 @@ export interface PowerModifyPerTrashedLevelAction {
   until: EffectDuration;
 }
 
+// コインを得る
+export interface GainCoinAction {
+  type: 'GAIN_COIN';
+  owner: Owner;
+  count: number;
+}
+
+// 各プレイヤーが手札をN枚捨てる
+export interface DiscardBothAction {
+  type: 'DISCARD_BOTH';
+  count: number; // 各プレイヤーが捨てる枚数
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface UnknownAction {
   type: 'UNKNOWN';
