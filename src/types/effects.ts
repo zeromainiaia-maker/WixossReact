@@ -733,6 +733,20 @@ export interface DiscardBothAction {
   count: number; // 各プレイヤーが捨てる枚数
 }
 
+// チャームを外す（シグニに付いたチャームをトラッシュに置く）
+export interface RemoveCharmAction {
+  type: 'REMOVE_CHARM';
+  targetOwner: Owner;          // どちらのシグニのチャームを外すか
+  count: number | 'ALL';       // 何枚外すか
+  targetFilter?: TargetFilter; // 対象シグニのフィルター
+}
+
+// 対戦相手のシグニを強制的にアタックさせる
+export interface ForceSigniAttackAction {
+  type: 'FORCE_SIGNI_ATTACK';
+  targetOwner: Owner;
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface UnknownAction {
   type: 'UNKNOWN';
