@@ -288,6 +288,29 @@ function parseBetCost(effectText: string): number {
   return (m[1].match(/《コインアイコン》/g) ?? []).length;
 }
 
+// アンコールコストをパース（エナコスト＋コイン枚数）
+function parseEncoreCost(effectText: string): { energy: { color: string; count: number }[]; coins: number } | null {
+  if (!effectText.startsWith('アンコール－')) return null;
+  const afterDash = effectText.slice('アンコール－'.length);
+  // 「（」か漢字テキストの直前まで（アイコン部分のみ）
+  const beforeContent = afterDash.split(/[（。【]/)[0];
+  const ENERGY_COLORS = new Set(['白', '赤', '青', '緑', '黒', '無']);
+  const energy: { color: string; count: number }[] = [];
+  let coins = 0;
+  const re = /《([^》]+)》/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(beforeContent)) !== null) {
+    if (m[1] === 'コインアイコン') { coins++; continue; }
+    if (ENERGY_COLORS.has(m[1])) { energy.push({ color: m[1], count: 1 }); continue; }
+    const inner = m[1].match(/^([白赤青緑黒無])×([０-９0-9]+)$/);
+    if (inner) {
+      const cnt = parseInt(inner[2].replace(/[０-９]/g, c => String(c.charCodeAt(0) - 0x30 - 0xFEE0)));
+      energy.push({ color: inner[1], count: isNaN(cnt) ? parseInt(inner[2]) : cnt });
+    }
+  }
+  return (energy.length > 0 || coins > 0) ? { energy, coins } : null;
+}
+
 // コスト増加修正を考慮してエナを追加消費できるか確認
 function canAffordWithExtraCost(
   energyNums: string[],
