@@ -2048,7 +2048,6 @@ function parseSingleSentence(text: string): EffectAction {
     const trashToDeckTopM = t.match(/トラッシュから(.+?)([０-９\d]+)枚を?対象とし、それ(?:ら)?を(?:対戦相手の)?デッキの一番上に置く/);
     if (trashToDeckTopM) {
       const owner: Owner = t.includes('対戦相手のトラッシュ') ? 'opponent' : 'self';
-      const destOwner: Owner = t.match(/それ(?:ら)?を対戦相手のデッキ/) ? 'opponent' : owner;
       const filter: TargetFilter = { ...parseStoryFilter(trashToDeckTopM[1]) };
       if (trashToDeckTopM[1].includes('スペル')) filter.cardType = 'スペル';
       if (trashToDeckTopM[1].includes('シグニ')) filter.cardType = 'シグニ';
@@ -2057,7 +2056,6 @@ function parseSingleSentence(text: string): EffectAction {
         source: { type: 'TRASH_CARD', owner, count: parseNum(trashToDeckTopM[2]), filter: Object.keys(filter).length > 0 ? filter : undefined },
         shuffle: false,
         position: 'top',
-        destOwner,
       } as TransferToDeckAction;
     }
   }
