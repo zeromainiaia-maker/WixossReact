@@ -1608,15 +1608,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に戻す`));
     }
     case 'TRASH': {
-      // hand からトラッシュ
+      // hand からトラッシュ（同名カードが複数ある場合は先頭の1枚のみ）
       for (const owner of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(owner, ctx);
-        if (s.hand.includes(cardNum)) {
-          const newS: PlayerState = {
-            ...s,
-            hand: s.hand.filter(n => n !== cardNum),
-            trash: [...s.trash, cardNum],
-          };
+        const hi = s.hand.indexOf(cardNum);
+        if (hi >= 0) {
+          const newHand = [...s.hand];
+          newHand.splice(hi, 1);
+          const newS: PlayerState = { ...s, hand: newHand, trash: [...s.trash, cardNum] };
           return done(addLog(setOwnerState(owner, newS, ctx), `手札をトラッシュへ`));
         }
       }
