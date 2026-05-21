@@ -5240,6 +5240,78 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
+      {/* シグニアタックスキップ確認 */}
+      {showSigniAttackSkipConfirm && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4000,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 340px)', textAlign: 'center',
+          }}>
+            <p style={{ color: C.accent, fontSize: 15, fontWeight: 'bold', margin: '0 0 6px' }}>
+              まだ攻撃していないシグニがいます
+            </p>
+            <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 20px' }}>
+              このままルリグアタックステップへ進みますか？
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowSigniAttackSkipConfirm(false)}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8,
+                  border: C.borderUI, backgroundColor: 'transparent',
+                  color: C.textDim, fontSize: 14, cursor: 'pointer' }}>
+                戻る
+              </button>
+              <button onClick={() => { setShowSigniAttackSkipConfirm(false); doPhaseAdvance(); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8,
+                  border: 'none', backgroundColor: C.accent,
+                  color: C.text, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+                このまま進む
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ルリグアタックスキップ確認 */}
+      {showLrigAttackSkipConfirm && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4000,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 340px)', textAlign: 'center',
+          }}>
+            <p style={{ color: C.accent, fontSize: 15, fontWeight: 'bold', margin: '0 0 6px' }}>
+              まだルリグが攻撃していません
+            </p>
+            <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 20px' }}>
+              このままエンドフェイズへ進みますか？
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowLrigAttackSkipConfirm(false)}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8,
+                  border: C.borderUI, backgroundColor: 'transparent',
+                  color: C.textDim, fontSize: 14, cursor: 'pointer' }}>
+                戻る
+              </button>
+              <button onClick={() => { setShowLrigAttackSkipConfirm(false); doPhaseAdvance(); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8,
+                  border: 'none', backgroundColor: C.accent,
+                  color: C.text, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+                このまま進む
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* ライフバースト確認（自分のチェックゾーンにカードがある場合） */}
       {my.field.check && createPortal(
         <div style={{
