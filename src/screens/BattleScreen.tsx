@@ -3840,11 +3840,44 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ルリグゾーンのカードアクション（ルリグアタック）
   const getMyLrigFieldActions = (): CardAction[] => {
-    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_LRIG') return [];
+    if (!isMyTurn || loading) return [];
     if (my.field.lrig.length === 0) return [];
-    if (my.field.lrig_down) return []; // 攻撃済み
-    if (op.field.lrig_attacked) return []; // ガード応答待ち
-    return [{ label: 'アタック', color: C.danger, onClick: handleLrigAttack }];
+
+    // MAINフェイズ：付与された ACTIVATED 能力を表示
+    if (bs.turn_phase === 'MAIN') {
+      return grantedMyLrigEffects
+        .filter(e =>
+          e.effectType === 'ACTIVATED' &&
+          !(my.actions_done?.includes(e.effectId)) &&
+          !(my.blocked_actions?.includes(e.effectId)),
+        )
+        .map(eff => {
+          const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+          const exceedCost = eff.cost?.exceed ?? 0;
+          const costParts: string[] = [];
+          if (exceedCost > 0) costParts.push(`エクシード${exceedCost}`);
+          if (energyTotal > 0) costParts.push(`エナ${energyTotal}`);
+          const costLabel = costParts.join('・') || 'コストなし';
+          return {
+            label: `【起】${costLabel}`,
+            color: C.coin,
+            onClick: () => {
+              const lrigTop = my.field.lrig.at(-1) ?? '';
+              setPendingLrigGranted({ sourceCardNum: lrigTop, effect: eff });
+              setSelectedLrigGrantedCost(new Set());
+            },
+          };
+        });
+    }
+
+    // ATTACK_LRIGフェイズ：ルリグアタック
+    if (bs.turn_phase === 'ATTACK_LRIG') {
+      if (my.field.lrig_down) return []; // 攻撃済み
+      if (op.field.lrig_attacked) return []; // ガード応答待ち
+      return [{ label: 'アタック', color: C.danger, onClick: handleLrigAttack }];
+    }
+
+    return [];
   };
 
   // ── キーピース フィールドアクション ──
