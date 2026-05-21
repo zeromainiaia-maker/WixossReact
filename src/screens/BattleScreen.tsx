@@ -1409,6 +1409,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedLrigGrantedCost, setSelectedLrigGrantedCost] = useState<Set<number>>(new Set());
   // ライフクロスクラッシュ時のカード拡大
   const [burstCardZoomed, setBurstCardZoomed] = useState(false);
+  const [opCheckCardZoomed, setOpCheckCardZoomed] = useState(false); // 相手ライフクラッシュ拡大
+  const [cutinSpellZoomed, setCutinSpellZoomed] = useState(false);   // スペルカットイン画面の拡大
   // 効果インタラクション：SELECT_TARGET / SEARCH / CHOOSE
   const [effectSelectedNums, setEffectSelectedNums] = useState<string[]>([]);
   // 効果スタック整列UI：自分の pending エントリの id を並べた配列
