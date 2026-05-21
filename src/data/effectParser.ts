@@ -1405,6 +1405,23 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- それを手札に加える（REVEAL_AND_PICK の then、またはデッキトップ公開後の処理）----
+  if (t.match(/^それを手札に加える$/)) {
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'DECK_CARD', owner: 'self', count: 1 } };
+  }
+  // ---- それをエナゾーンに置く（REVEAL後の処理）----
+  if (t.match(/^それをエナゾーンに置く$/)) {
+    return { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction;
+  }
+  // ---- それを場からトラッシュに置く ----
+  if (t.match(/^それを場からトラッシュに置く$/) || t.match(/^それをトラッシュに置く$/)) {
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1 } };
+  }
+  // ---- それらを場からトラッシュに置く ----
+  if (t.match(/^それらを場からトラッシュに置く$/) || t.match(/^それらをトラッシュに置く$/)) {
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 'ALL' } };
+  }
+
   // ---- 残りをシャッフルして/好きな順番でデッキへ（LOOK/REVEALの後続フラグメント）----
   if (t.match(/^残りをシャッフルして(?:デッキの一番下に置く|デッキに戻す)/)) {
     return { type: 'SHUFFLE_DECK', owner: 'self' };
