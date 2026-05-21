@@ -100,6 +100,8 @@ function parseCost(costStr: string): EffectCost | undefined {
   if (costStr.includes('《ダウン》')) cost.down_self = true;
   const dm = costStr.match(/手札を([０-９\d]+)枚捨てる/);
   if (dm) cost.discard = parseNum(dm[1]);
+  const em = costStr.match(/エクシード([０-９\d]+)/);
+  if (em) cost.exceed = parseNum(em[1]);
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 
