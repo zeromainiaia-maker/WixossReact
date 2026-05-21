@@ -2313,6 +2313,167 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- このシグニはすべての領域で黒でもある ----
+  if (t.match(/このシグニはすべての領域で黒でもある/)) {
+    return { type: 'STUB', id: 'ALL_ZONE_BLACK' } as StubAction;
+  }
+
+  // ---- センタールリグは黒になる ----
+  if (t.match(/あなたのセンタールリグは黒になる/)) {
+    return { type: 'STUB', id: 'CENTER_LRIG_COLOR_CHANGE_BLACK' } as StubAction;
+  }
+
+  // ---- すべての領域のルリグとシグニが黒になる ----
+  if (t.match(/あなたのすべての領域にあるルリグとシグニは黒になる/)) {
+    return { type: 'STUB', id: 'ALL_CARDS_COLOR_CHANGE_BLACK' } as StubAction;
+  }
+
+  // ---- 対戦相手のすべてのシグニを《サーバントＺＥＲＯ》にする ----
+  if (t.match(/対戦相手のすべてのシグニを《サーバントＺＥＲＯ》にする/)) {
+    return { type: 'STUB', id: 'ALL_OPP_SIGNI_SERVANT_ZERO' } as StubAction;
+  }
+
+  // ---- シグニ1体を《サーバントＺＥＲＯ》にする ----
+  if (t.match(/(?:対戦相手のシグニ|それ).*《サーバントＺＥＲＯ》にする/)) {
+    return { type: 'STUB', id: 'SIGNI_SERVANT_ZERO' } as StubAction;
+  }
+
+  // ---- 対戦相手のエナの【マルチエナ】を除去 ----
+  if (t.match(/対戦相手のエナゾーンにあるカードは【マルチエナ】を失い/)) {
+    return { type: 'STUB', id: 'REMOVE_OPP_MULTI_ENA' } as StubAction;
+  }
+
+  // ---- ゲームに敗北しない（条件付き）----
+  {
+    const preventDefeatM = t.match(/ライフクロスが([０-９\d]+)枚以上ある場合.*ゲームに敗北しない/);
+    if (preventDefeatM) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LIFE_COUNT', owner: 'self', operator: 'gte', value: parseNum(preventDefeatM[1]) },
+        then: { type: 'STUB', id: 'PREVENT_DEFEAT' },
+      };
+    }
+  }
+
+  // ---- ゲームに敗北する（デメリット）----
+  if (t.match(/あなたはゲームに敗北する/)) {
+    return { type: 'STUB', id: 'DEFEAT' } as StubAction;
+  }
+
+  // ---- レベル参照オーバーライド ----
+  if (t.match(/(?:あなたの)?能力か効果.*レベルを参照する場合.*として扱ってもよい/)) {
+    return { type: 'STUB', id: 'LEVEL_REFERENCE_OVERRIDE' } as StubAction;
+  }
+
+  // ---- 下にあるルリグの【起】/【自】能力を持つ ----
+  if (t.match(/このルリグはこのカードの下にあるルリグの【起】能力を持つ/)) {
+    return { type: 'STUB', id: 'GRANT_UNDER_LRIG_ACTIVATE_ABILITY' } as StubAction;
+  }
+  if (t.match(/このルリグはこのカードの下にあるルリグの【自】能力を持つ/)) {
+    return { type: 'STUB', id: 'GRANT_UNDER_LRIG_AUTO_ABILITY' } as StubAction;
+  }
+
+  // ---- 改造素材をルリグデッキに加える ----
+  if (t.match(/あなたのルリグデッキに《改造素材》.*加える/)) {
+    return { type: 'STUB', id: 'ADD_MATERIAL' } as StubAction;
+  }
+
+  // ---- エナコスト色代替（赤か青→白）----
+  {
+    const colorSubM = t.match(/あなたが《([^》]+)》か《([^》]+)》を支払う際.*代わりに《([^》]+)》を支払ってもよい/);
+    if (colorSubM) {
+      return { type: 'STUB', id: `ENERGY_COLOR_SUBSTITUTE_${colorSubM[1]}_OR_${colorSubM[2]}_TO_${colorSubM[3]}` } as StubAction;
+    }
+  }
+
+  // ---- エナコスト色代替（黒トラッシュで任意色）----
+  if (t.match(/エナコストを支払う際.*エナゾーンから.*トラッシュに置くことで.*エナ.*支払える/)) {
+    return { type: 'STUB', id: 'ENERGY_COLOR_SUBSTITUTE_TRASH' } as StubAction;
+  }
+
+  // ---- ＜アーム＞シグニ保護 ----
+  if (t.match(/あなたの＜アーム＞のシグニは対戦相手のルリグの効果を受けず/)) {
+    return { type: 'STUB', id: 'ARM_SIGNI_LRIG_PROTECTION' } as StubAction;
+  }
+
+  // ---- ＜ウェポン＞シグニ保護 ----
+  if (t.match(/あなたの＜ウェポン＞のシグニは対戦相手のシグニの効果を受けず/)) {
+    return { type: 'STUB', id: 'WEAPON_SIGNI_PROTECTION' } as StubAction;
+  }
+
+  // ---- ライドオン（乗機）----
+  if (t.match(/センタールリグ.*＜乗機＞のシグニ.*乗ってもよい/)) {
+    return { type: 'STUB', id: 'RIDE_ON' } as StubAction;
+  }
+
+  // ---- シードを開花する ----
+  if (t.match(/【シード】.*開花する/)) {
+    return { type: 'STUB', id: 'SEED_BLOOM' } as StubAction;
+  }
+
+  // ---- 選んだ能力を得る ----
+  if (t.match(/あなたのシグニ.*ターン終了時まで.*選んだ能力を得る/)) {
+    return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY' } as StubAction;
+  }
+
+  // ---- シグニ下のウェポンシグニを手札に加える ----
+  if (t.match(/あなたのシグニの下にある.*シグニ.*を手札に加える/)) {
+    return { type: 'STUB', id: 'ADD_UNDER_SIGNI_TO_HAND' } as StubAction;
+  }
+
+  // ---- 対戦相手の効果によってダメージを受けない ----
+  if (t.match(/あなたは対戦相手の効果によってダメージを受けず/)) {
+    return { type: 'STUB', id: 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' } as StubAction;
+  }
+
+  // ---- 対戦相手がルリグアタックした際、追加で1枚捨てないとガードできない ----
+  if (t.match(/手札から.*【ガードアイコン】.*追加で.*捨てないかぎり【ガード】ができない/)) {
+    return { type: 'STUB', id: 'EXTRA_GUARD_COST' } as StubAction;
+  }
+
+  // ---- このターン、シグニ/センタールリグのアタックを無効にする（複数回目） ----
+  if (t.match(/対戦相手の(?:シグニ|センタールリグ).*アタック.*(?:一度目|二度目).*無効にする/)) {
+    return { type: 'STUB', id: 'NEGATE_NTH_ATTACK' } as StubAction;
+  }
+
+  // ---- 対戦相手はシグニをN体までしか場に出せない ----
+  {
+    const fieldLimitM = t.match(/対戦相手はシグニを([０-９\d]+)体までしか場に出すことができない/);
+    if (fieldLimitM) {
+      return { type: 'STUB', id: `LIMIT_OPP_FIELD_${parseNum(fieldLimitM[1])}` } as StubAction;
+    }
+  }
+
+  // ---- 《レイヤーアイコン》能力コピー ----
+  if (t.match(/《レイヤーアイコン》能力.*を得る/)) {
+    return { type: 'STUB', id: 'LAYER_ABILITY_COPY' } as StubAction;
+  }
+
+  // ---- あなたにダメージを与える ----
+  if (t.match(/^あなたにダメージを与える$/)) {
+    return { type: 'LIFE_CRASH', owner: 'self', count: 1 };
+  }
+
+  // ---- 手札からカードをエナゾーンに置く（optional）----
+  if (t.match(/あなたの手札からカード([０-９\d]+)枚をエナゾーンに置いてもよい/)) {
+    return { type: 'STUB', id: 'HAND_TO_ENERGY_OPTIONAL' } as StubAction;
+  }
+
+  // ---- 対戦相手のエナゾーンにカードが置かれたとき、超過分をトラッシュ ----
+  if (t.match(/対戦相手のエナゾーンに.*カード.*置かれたとき.*エナゾーンにある.*[０-９\d]+枚以上.*トラッシュに置く/)) {
+    return { type: 'STUB', id: 'OPP_ENERGY_OVERFLOW_TRASH' } as StubAction;
+  }
+
+  // ---- このシグニが場に出たターン、自身の【出】能力で選んだ能力を得る ----
+  if (t.match(/このシグニが場に出たターン.*自身の【出】能力で選んだ能力を得る/)) {
+    return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY_FROM_PLAY' } as StubAction;
+  }
+
+  // ---- 次のターンまで対戦相手は各シグニアタックステップで1度しかアタックできない ----
+  if (t.match(/対戦相手は各シグニアタックステップに.*合計一度しかアタックできない/)) {
+    return { type: 'STUB', id: 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
