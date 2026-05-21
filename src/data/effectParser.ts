@@ -1794,7 +1794,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (colonIdx < 0) return null;
 
   const costStr = afterMarker.slice(0, colonIdx).trim();
-  const actionText = afterMarker.slice(colonIdx + 1).trim();
+  let actionText = afterMarker.slice(colonIdx + 1).trim();
 
   let effectType: EffectType;
   let timing: EffectTiming[] | undefined;
