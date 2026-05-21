@@ -65,6 +65,7 @@ import type {
   PlaceVirusAction,
   AttachAcceAction,
   BloodCrystalArmorAction,
+  PowerModifyPerVirusCountAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
