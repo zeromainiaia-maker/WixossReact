@@ -2462,6 +2462,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
+      lastResolvedEntryIdRef.current = entry.id;
       const ownerIsHost = entry.playerId === bs.host_id;
       const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
       const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
