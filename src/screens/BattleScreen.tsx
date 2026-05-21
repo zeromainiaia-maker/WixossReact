@@ -5434,7 +5434,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               display: 'flex', flexDirection: 'column', gap: 12 }}>
             {(() => {
               const card = pendingKeyCard;
-              const coinNeeded = parseCoinCost(card.Cost);
+              const coinNeeded = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
               const energyTotal = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => my.energy[i]);
               const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants, myEnaAllMulti));
