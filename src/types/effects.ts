@@ -724,6 +724,26 @@ export interface PowerModifyPerEnergyColorAction {
   energyOwner: Owner;
 }
 
+// トラッシュ枚数N枚につきパワー±M（常時・ターン終了時まで）
+export interface PowerModifyPerTrashCountAction {
+  type: 'POWER_MODIFY_PER_TRASH_COUNT';
+  target: EffectTarget;
+  deltaPerUnit: number;    // unitSize枚ごとのパワー増減
+  unitSize: number;        // 何枚ごとに deltaPerUnit を適用するか
+  trashOwner: Owner | 'both';
+  countFilter?: TargetFilter;   // カウント対象のフィルタ（クラス・色・タイプ等）
+  countByVariety?: boolean;     // true=種類, false=枚数
+  until?: EffectDuration;       // END_OF_TURN なら起動/自動効果；なければ常時効果
+}
+
+// ライフクロス枚数につきパワー±M（常時効果）
+export interface PowerModifyPerLifeCountAction {
+  type: 'POWER_MODIFY_PER_LIFE_COUNT';
+  target: EffectTarget;
+  deltaPerLife: number;
+  lifeOwner: Owner;
+}
+
 // コインを得る
 export interface GainCoinAction {
   type: 'GAIN_COIN';
