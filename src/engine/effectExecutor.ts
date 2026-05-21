@@ -1388,6 +1388,26 @@ function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecRe
   };
 }
 
+function execAddCraftToLrigDeck(a: import('../types/effects').AddCraftToLrigDeckAction, ctx: ExecCtx): ExecResult {
+  // CardData_TK から cardName が一致するクラフトカードを検索
+  const craftCard = [...ctx.cardMap.values()].find(
+    c => c.CardName === a.cardName && c.Type?.includes('クラフト'),
+  );
+  if (!craftCard) {
+    return done(addLog(ctx, `クラフトカード「${a.cardName}」が見つかりません`));
+  }
+  const s = ownerState(a.owner, ctx);
+  const additions = Array(a.count).fill(craftCard.CardNum);
+  const newState: PlayerState = {
+    ...s,
+    lrig_deck: [...additions, ...s.lrig_deck],
+  };
+  return done(addLog(
+    setOwnerState(a.owner, newState, ctx),
+    `クラフト「${a.cardName}」×${a.count}枚をルリグデッキに追加`,
+  ));
+}
+
 // ===== メイン実行関数 =====
 
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
