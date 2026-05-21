@@ -871,7 +871,7 @@ function parseSingleSentence(text: string): EffectAction {
       ],
     };
   }
-  const drawM = t.match(/カードを([０-９\d]+)枚引く/);
+  const drawM = t.match(/カードを([０-９\d]+)枚引(?:く|いてもよい)/);
   if (drawM) return { type: 'DRAW', owner: 'self', count: parseNum(drawM[1]) };
 
   // ---- 対戦相手シグニをエナゾーンに置く（パワーフィルタあり）----
