@@ -5188,6 +5188,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         );
       })()}
 
+      {/* 相手ライフクロスクラッシュ カード拡大 */}
+      {opCheckCardZoomed && op.field.check && (() => {
+        const zCard = battleCardMap.get(op.field.check);
+        if (!zCard) return null;
+        return createPortal(
+          <div
+            onClick={() => setOpCheckCardZoomed(false)}
+            onTouchEnd={e => { e.preventDefault(); setOpCheckCardZoomed(false); }}
+            style={{ position: 'fixed', inset: 0, zIndex: 5000,
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            <img src={zCard.ImgURL} alt={zCard.CardName} draggable={false}
+              style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 10, objectFit: 'contain' }}
+              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+            <span style={{ color: C.textFaint, fontSize: 12 }}>タップで閉じる</span>
+          </div>,
+          document.body,
+        );
+      })()}
+
       {/* 相手のライフクロスクラッシュ確認（攻撃側・読み取り専用） */}
       {!my.field.check && op.field.check && createPortal(
         <div style={{
