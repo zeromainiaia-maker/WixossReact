@@ -6135,7 +6135,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       })()}
 
       {/* ===== 効果インタラクション モーダル ===== */}
-      {bs.pending_effect?.sourcePlayerId === user.id && (() => {
+      {(bs.pending_effect?.respondPlayerId ?? bs.pending_effect?.sourcePlayerId) === user.id && (() => {
         const pe = bs.pending_effect!;
         const inter = pe.interaction;
         const srcCard = battleCardMap.get(pe.sourceCardNum);
