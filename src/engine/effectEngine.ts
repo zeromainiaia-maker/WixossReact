@@ -380,6 +380,42 @@ export function calcActiveCostMods(
   return { forMy, forOp };
 }
 
+// ===== GRANT_LRIG_ABILITY 収集 =====
+
+/**
+ * フィールド上のシグニ・キーピースが持つ CONTINUOUS GRANT_LRIG_ABILITY 効果を収集し、
+ * センタールリグが付与された CardEffect[] を返す。
+ */
+export function collectLrigGrantedEffects(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): CardEffect[] {
+  const granted: CardEffect[] = [];
+
+  const candidates: string[] = [];
+  for (const stack of ownerState.field.signi) {
+    if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
+  }
+  if (ownerState.field.key_piece) candidates.push(ownerState.field.key_piece);
+
+  for (const cardNum of candidates) {
+    const effects = effectsMap.get(cardNum) ?? [];
+    for (const effect of effects) {
+      if (effect.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap)) continue;
+      if (effect.action.type === 'GRANT_LRIG_ABILITY') {
+        const gla = effect.action as GrantLrigAbilityAction;
+        granted.push(...gla.abilities);
+      }
+    }
+  }
+
+  return granted;
+}
+
 export function getEffectivePower(
   cardNum: string,
   powers: Map<string, number>,
