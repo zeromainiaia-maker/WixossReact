@@ -375,6 +375,17 @@ export function calcFieldPowers(
             powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
           }
         }
+
+        // POWER_MODIFY_PER_VIRUS_COUNT: 場のウィルス数に比例したパワー増減（常時）
+        const perVirusMods = extractPowerModifiesPerVirusCount(effect.action);
+        for (const mod of perVirusMods) {
+          const vState = mod.virusOwner === 'self' ? ownerState : otherState;
+          const virusCount = (vState.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
+          const delta = mod.deltaPerVirus * virusCount;
+          if (delta !== 0 && powers.has(topNum)) {
+            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+          }
+        }
       }
     }
   };
