@@ -4837,7 +4837,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         padding: '8px 12px', borderRadius: 8, border: C.borderUI,
                         backgroundColor: C.bgButton }}>
                         <img src={spellCard.ImgURL} alt={spellCard.CardName}
-                          style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                          onClick={() => setCutinSpellZoomed(true)}
+                          onTouchEnd={e => { e.preventDefault(); setCutinSpellZoomed(true); }}
+                          style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
                           onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
                         <div>
                           <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{spellCard.CardName}</p>
