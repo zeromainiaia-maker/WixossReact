@@ -2454,10 +2454,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/場からトラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.includes('ターン終了時') ? ['ON_TURN_END']
              : actionText.includes('ターン開始時') ? ['ON_TURN_START']
+             : actionText.includes('各アタックフェイズ開始時') ? ['ATTACK']
+             : actionText.includes('アタックフェイズ開始時') ? ['ATTACK']
              : ['ON_PLAY'];
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
       if (timing[0] === 'ON_TRASH') {
         const m = actionText.match(/場からトラッシュに置かれたとき[、,]\s*(.+)/);
+        if (m) actionText = m[1];
+      }
+      if (timing[0] === 'ATTACK') {
+        const m = actionText.match(/各?アタックフェイズ開始時[、,]\s*(.+)/);
         if (m) actionText = m[1];
       }
       mandatory = true;
