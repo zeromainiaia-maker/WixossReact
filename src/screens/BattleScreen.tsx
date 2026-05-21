@@ -961,7 +961,7 @@ function CharmPeek({ width, onTap }: { width: number; onTap: () => void; }) {
 function CharmModal({ cardNum, cards, isMe, onClose }: {
   cardNum: string; cards: CardData[]; isMe: boolean; onClose: () => void;
 }) {
-  const card = cards.find(c => c.CardNum === cardNum);
+  const card = cards.find(c => c.CardNum === getCardNum(cardNum));
   if (isMe && card) return <CardModal card={card} onClose={onClose} />;
   return createPortal(
     <div
