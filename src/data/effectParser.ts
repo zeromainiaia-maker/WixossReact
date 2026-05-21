@@ -743,6 +743,21 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- CONTINUOUS: 場にある【ウィルス】N つにつきパワー±M ----
+  {
+    const m = t.match(/このシグニのパワーは(対戦相手|あなた)の場にある【ウィルス】([０-９\d]+)つにつき([＋－])([０-９\d]+)される/);
+    if (m) {
+      const virusOwner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      const sign = m[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_VIRUS_COUNT',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerVirus: sign * parseNum(m[4]),
+        virusOwner,
+      } as PowerModifyPerVirusCountAction;
+    }
+  }
+
   // ---- CONTINUOUS: この下にあるカード1枚につきパワー±M（PER_STACK補完）----
   {
     const m = t.match(/このシグニのパワーはこの下にあるカード([０-９\d]+)枚につき([＋－])([０-９\d]+)される/);
