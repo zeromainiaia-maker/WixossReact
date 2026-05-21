@@ -11,6 +11,7 @@ import type {
   BlockActionAction,
   TargetFilter,
   EnergyCost,
+  GrantLrigAbilityAction,
 } from '../types/effects';
 
 // ===== activeCondition 判定 =====
