@@ -2118,6 +2118,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           blocked_actions:    [],   // ターン内封じ行動をリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
+          must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
