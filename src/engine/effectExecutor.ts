@@ -1640,9 +1640,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const state = ownerState(src.owner, ctx);
       let newS = { ...state };
       if (src.type === 'TRASH_CARD') {
-        newS = { ...newS, trash: newS.trash.filter(n => n !== cardNum), hand: [...newS.hand, cardNum] };
+        const ti = newS.trash.indexOf(cardNum);
+        if (ti >= 0) { const t = [...newS.trash]; t.splice(ti, 1); newS = { ...newS, trash: t }; }
+        newS = { ...newS, hand: [...newS.hand, cardNum] };
       } else if (src.type === 'ENERGY_CARD') {
-        newS = { ...newS, energy: newS.energy.filter(n => n !== cardNum), hand: [...newS.hand, cardNum] };
+        const ei = newS.energy.indexOf(cardNum);
+        if (ei >= 0) { const e = [...newS.energy]; e.splice(ei, 1); newS = { ...newS, energy: e }; }
+        newS = { ...newS, hand: [...newS.hand, cardNum] };
       }
       return done(addLog(setOwnerState(src.owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に加える`));
     }
@@ -1652,9 +1656,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const state = ownerState(owner, ctx);
       let newS = { ...state };
       if (src?.type === 'TRASH_CARD') {
-        newS = { ...newS, trash: newS.trash.filter(n => n !== cardNum) };
+        const ti = newS.trash.indexOf(cardNum);
+        if (ti >= 0) { const t = [...newS.trash]; t.splice(ti, 1); newS = { ...newS, trash: t }; }
       } else if (src?.type === 'ENERGY_CARD') {
-        newS = { ...newS, energy: newS.energy.filter(n => n !== cardNum) };
+        const ei = newS.energy.indexOf(cardNum);
+        if (ei >= 0) { const e = [...newS.energy]; e.splice(ei, 1); newS = { ...newS, energy: e }; }
       }
       const signi = [...newS.field.signi] as (string[] | null)[];
       const emptyIdx = signi.findIndex(z => !z || z.length === 0);
