@@ -73,6 +73,8 @@ export interface PlayerState {
     check?: string | null;
     key_piece?: string | null;
     signi_charms?: (string | null)[]; // [zone0, zone1, zone2] チャームカードのCardNum or null
+    signi_acce?:   (string | null)[]; // [zone0, zone1, zone2] アクセカードのCardNum or null
+    signi_virus?:  number[];          // [zone0, zone1, zone2] ウィルス数（0 or 1）
   };
   actions_done?: string[];    // このターンに使用済みのアクション（ターン開始時にリセット）
   blocked_actions?: string[]; // カード効果で封じられたアクション
