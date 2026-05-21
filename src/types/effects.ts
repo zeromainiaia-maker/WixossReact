@@ -819,6 +819,14 @@ export interface BloodCrystalArmorAction {
   count: number;                 // 武装する枚数（通常1）
 }
 
+// センタールリグのリミット増減
+export interface LrigLimitModifyAction {
+  type: 'LRIG_LIMIT_MODIFY';
+  owner: Owner;             // 影響を受けるルリグのオーナー
+  delta: number;            // 増減値（正=増加、負=減少）
+  until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT';
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface UnknownAction {
   type: 'UNKNOWN';
