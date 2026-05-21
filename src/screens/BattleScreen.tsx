@@ -3124,7 +3124,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedAssistGrowCost(new Set());
     try {
       const cardNum = card.CardNum;
-      const idx = my.lrig_deck.indexOf(cardNum);
+      const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
+      const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const paidNums = [...costIndices].map(i => my.energy[i]);
@@ -3135,7 +3136,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newMyState: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
-        field: { ...my.field, [sideKey]: [...currentStack, cardNum] },
+        field: { ...my.field, [sideKey]: [...currentStack, instanceId] },
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
         coins: Math.min(5, my.coins + assistCoinGain),
