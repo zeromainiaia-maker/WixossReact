@@ -3732,6 +3732,56 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動：エクシードコスト＋エナコスト支払い
+  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingLrigGranted(null);
+    setSelectedLrigGrantedCost(new Set());
+    try {
+      // エクシードコスト：ルリグスタックの下からN枚をルリグトラッシュへ
+      const exceedCost = effect.cost?.exceed ?? 0;
+      let newLrig = [...my.field.lrig];
+      let newLrigTrash = [...my.lrig_trash];
+      if (exceedCost > 0 && newLrig.length > 1) {
+        const exceedCards = newLrig.splice(0, Math.min(exceedCost, newLrig.length - 1));
+        newLrigTrash = [...newLrigTrash, ...exceedCards];
+      }
+      // エナコスト支払い
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const paid: import('../types').PlayerState = {
+        ...my,
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+        field: { ...my.field, lrig: newLrig },
+        lrig_trash: newLrigTrash,
+        actions_done: [...(my.actions_done ?? []), effect.effectId],
+      };
+      const lrigTop = my.field.lrig.at(-1);
+      const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
+      const entry: import('../types').StackEntry = {
+        id: generateUUID(),
+        playerId: user.id,
+        cardNum: lrigTop ?? '',
+        effectId: effect.effectId,
+        label: `${cardName} の【起】付与効果`,
+        effect,
+      };
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existingStack = bs?.effect_stack ?? null;
+      const newStack = existingStack
+        ? pushToStack(existingStack, [entry])
+        : initStack(turnPlayerId, [entry]);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // シグニゾーンのカードアクション（エナチャージ / 起動 / アタック）
   const getMySigniZoneActions = (rawZoneIdx: number): CardAction[] => {
     if (!isMyTurn || loading) return [];
