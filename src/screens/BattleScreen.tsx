@@ -797,7 +797,7 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
       >
         {/* i=0=最下層, i=n-1=最上層(アクティブ)。最上層が最前面・最下端に表示 */}
         {stack!.map((cardNum, i) => {
-          const card = cards.find(c => c.CardNum === cardNum);
+          const card = cards.find(c => c.CardNum === getCardNum(cardNum));
           const top = (n - 1 - i) * SIGNI_STACK_OFFSET;
           const isTopCard = i === n - 1;
           const imgTransform = isDown && isTopCard ? 'rotate(90deg)' : undefined;
