@@ -885,33 +885,49 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
 }
 
 function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
-  // charm: チャームにするカード（手札 or エナなど）
-  // to: 付ける対象シグニ（フィールド）
   const charmOwner = a.charm.owner ?? 'self';
   const toOwner    = a.to.owner ?? 'self';
   const charmSrc   = ownerState(charmOwner, ctx);
   const toState    = ownerState(toOwner, ctx);
 
-  // チャームカードを手札から探す
-  const charmCands = charmSrc.hand.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+  // チャームカードの候補をソース（手札/エナ/トラッシュ/デッキ）から探す
+  let charmCands: string[];
+  let charmFromLocation: 'hand' | 'energy' | 'trash' | 'deck';
+  if (a.charm.type === 'DECK_CARD') {
+    charmCands = charmSrc.deck.slice(0, 1);
+    charmFromLocation = 'deck';
+  } else if (a.charm.type === 'TRASH_CARD') {
+    charmCands = charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+    charmFromLocation = 'trash';
+  } else {
+    // デフォルトは手札 or エナ（filter指定があればエナから）
+    const fromEnergy = charmSrc.energy.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+    const fromHand = charmSrc.hand.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+    if (fromEnergy.length > 0) { charmCands = fromEnergy; charmFromLocation = 'energy'; }
+    else { charmCands = fromHand; charmFromLocation = 'hand'; }
+  }
   if (charmCands.length === 0) return done(addLog(ctx, 'チャーム対象なし'));
 
   // 対象シグニのゾーンを探す
   const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象シグニなし'));
 
-  // どちらか複数なら最初のものを自動選択（インタラクション拡張は今後）
   const charmNum = charmCands[0];
   const targetNum = toCands[0];
-
   const zoneIdx = toState.field.signi.findIndex(s => s?.at(-1) === targetNum);
   if (zoneIdx < 0) return done(addLog(ctx, 'チャーム付与: ゾーン不明'));
 
-  // 手札からチャームカードを除去
-  let newCharmSrc: PlayerState = {
-    ...charmSrc,
-    hand: charmSrc.hand.filter(n => n !== charmNum),
-  };
+  // チャームカードをソースから除去
+  let newCharmSrc: PlayerState = { ...charmSrc };
+  if (charmFromLocation === 'deck') {
+    newCharmSrc = { ...newCharmSrc, deck: newCharmSrc.deck.slice(1) };
+  } else if (charmFromLocation === 'energy') {
+    newCharmSrc = { ...newCharmSrc, energy: newCharmSrc.energy.filter(n => n !== charmNum) };
+  } else if (charmFromLocation === 'trash') {
+    newCharmSrc = { ...newCharmSrc, trash: newCharmSrc.trash.filter(n => n !== charmNum) };
+  } else {
+    newCharmSrc = { ...newCharmSrc, hand: newCharmSrc.hand.filter(n => n !== charmNum) };
+  }
   let ctx2 = setOwnerState(charmOwner, newCharmSrc, ctx);
 
   // 対象シグニのゾーンにチャームをセット
