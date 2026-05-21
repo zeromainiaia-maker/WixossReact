@@ -2017,6 +2017,51 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { hasCharm: true } as TargetFilter } };
   }
 
+  // ---- 手札からパワーN以上のシグニを場に出せない ----
+  {
+    const blockPlayM = t.match(/対戦相手は手札からパワー([０-９\d]+)以上のシグニを場に出せない/);
+    if (blockPlayM) {
+      const until = t.includes('次の対戦相手のターン') ? 'END_OF_TURN' : 'END_OF_TURN';
+      return {
+        type: 'BLOCK_ACTION',
+        target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+        actionId: `PLAY_SIGNI_POWER_${parseNum(blockPlayM[1])}_OR_MORE`,
+        until,
+        filter: { powerRange: { min: parseNum(blockPlayM[1]) } },
+      } as BlockActionAction;
+    }
+  }
+
+  // ---- 場にあるシグニの起動能力使用禁止 ----
+  if (t.match(/対戦相手は場にあるシグニの【起】能力を使用できない/)) {
+    const until = t.includes('ターン終了時') ? 'END_OF_TURN' : 'PERMANENT';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'SIGNI_ACTIVATED_ABILITY', until };
+  }
+
+  // ---- 各ターン1回しかアーツを使用できない ----
+  if (t.match(/対戦相手は各ターンに一度しかアーツを使用できない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'ARTS_LIMIT_1', until: 'PERMANENT' };
+  }
+
+  // ---- スペル/カードをトラッシュからデッキの一番上に置く ----
+  {
+    const trashToDeckTopM = t.match(/トラッシュから(.+?)([０-９\d]+)枚を?対象とし、それ(?:ら)?を(?:対戦相手の)?デッキの一番上に置く/);
+    if (trashToDeckTopM) {
+      const owner: Owner = t.includes('対戦相手のトラッシュ') ? 'opponent' : 'self';
+      const destOwner: Owner = t.match(/それ(?:ら)?を対戦相手のデッキ/) ? 'opponent' : owner;
+      const filter: TargetFilter = { ...parseStoryFilter(trashToDeckTopM[1]) };
+      if (trashToDeckTopM[1].includes('スペル')) filter.cardType = 'スペル';
+      if (trashToDeckTopM[1].includes('シグニ')) filter.cardType = 'シグニ';
+      return {
+        type: 'TRANSFER_TO_DECK',
+        source: { type: 'TRASH_CARD', owner, count: parseNum(trashToDeckTopM[2]), filter: Object.keys(filter).length > 0 ? filter : undefined },
+        shuffle: false,
+        position: 'top',
+        destOwner,
+      } as TransferToDeckAction;
+    }
+  }
+
   // ---- ウィルス配置 ----
   {
     // すべてのシグニゾーンに１つずつ置く
