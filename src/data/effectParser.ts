@@ -2770,6 +2770,201 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'COPY_SIGNI' } as StubAction;
   }
 
+  // ---- 対戦相手は追加で《ガードアイコン》カードを捨てないとガードできない ----
+  if (t.match(/手札から《ガードアイコン》.*追加で.*捨てないかぎり【ガード】ができない/)) {
+    return { type: 'STUB', id: 'EXTRA_GUARD_COST_FROM_HAND' } as StubAction;
+  }
+
+  // ---- ルリグデッキのレゾナに出現条件追加 ----
+  if (t.match(/あなたのルリグデッキにあるレゾナは出現条件に追加で.*を持つ/)) {
+    return { type: 'STUB', id: 'ADD_RESONANCE_CONDITION' } as StubAction;
+  }
+
+  // ---- ライズされたとき能力付与 ----
+  if (t.match(/ライズされたとき.*シグニは.*能力を得る/s)) {
+    return { type: 'STUB', id: 'GRANT_ABILITY_ON_RISE' } as StubAction;
+  }
+
+  // ---- 手札からスペルをコスト不要で使用 ----
+  if (t.match(/あなたの手札から.*スペル.*コストを支払わずに使用してもよい/)) {
+    return { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND_FREE' } as StubAction;
+  }
+
+  // ---- このシグニはすべてのクラスを持つ ----
+  if (t.match(/このシグニはすべてのクラスを持つ/)) {
+    return { type: 'STUB', id: 'ALL_CLASS' } as StubAction;
+  }
+
+  // ---- 下にあるシグニの複数能力を得る ----
+  if (t.match(/このシグニはこのカードの下にある.*シグニの【常】と【自】と【起】の能力/)) {
+    return { type: 'STUB', id: 'GRANT_UNDER_SIGNI_ALL_ABILITIES' } as StubAction;
+  }
+
+  // ---- 英知能力が有効になる ----
+  if (t.match(/【英知】能力.*有効になる/)) {
+    return { type: 'STUB', id: 'ACTIVATE_EICHI_ABILITY' } as StubAction;
+  }
+
+  // ---- アタックフェイズの間レベル参照変更 ----
+  if (t.match(/アタックフェイズの間.*レベルを参照する場合.*レベルは.*として扱う/)) {
+    return { type: 'STUB', id: 'ATTACK_PHASE_LEVEL_OVERRIDE' } as StubAction;
+  }
+
+  // ---- アクセされているシグニが能力を得る ----
+  if (t.match(/これにアクセされている.*シグニは.*を得る/s)) {
+    return { type: 'STUB', id: 'ACCE_SIGNI_GRANT_ABILITY' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニに起動能力付与 ----
+  if (t.match(/対戦相手のレベル.*シグニ.*【起】.*能力を持つ.*ターン終了時.*トラッシュ/s)) {
+    return { type: 'STUB', id: 'OPP_SIGNI_SELF_TRASH_TRIGGER' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニが攻撃不可コスト付き ----
+  if (t.match(/対戦相手のすべてのシグニは.*支払わないかぎりアタックできない.*を得る/s)) {
+    return { type: 'STUB', id: 'OPP_SIGNI_ATTACK_COST' } as StubAction;
+  }
+
+  // ---- 対戦相手のエナゾーン超過でトラッシュ ----
+  if (t.match(/対戦相手のエナゾーンにカードが[０-９\d]+枚以上ある場合.*トラッシュに置く/)) {
+    return { type: 'STUB', id: 'OPP_ENERGY_EXCESS_TRASH' } as StubAction;
+  }
+
+  // ---- 次のターンまで引ける枚数制限 ----
+  if (t.match(/次のターンの間.*対戦相手はカードを合計[０-９\d]+枚までしか引けない/)) {
+    return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT' } as StubAction;
+  }
+
+  // ---- レゾナの出現条件のカードをエナゾーンに置く ----
+  if (t.match(/レゾナの出現条件のためにトラッシュに置いたカード.*エナゾーンに置く/)) {
+    return { type: 'STUB', id: 'RESONANCE_COST_CARDS_TO_ENERGY' } as StubAction;
+  }
+
+  // ---- トラッシュから3種類のゾーンに置く ----
+  if (t.match(/あなたのトラッシュから.*エナゾーンに置き.*手札に加え.*デッキの一番下に置く/)) {
+    return { type: 'STUB', id: 'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH' } as StubAction;
+  }
+
+  // ---- ルリグデッキから特定ルリグをこのルリグの上に置く ----
+  if (t.match(/あなたのルリグデッキから.*このルリグの上に置く/)) {
+    return { type: 'STUB', id: 'PLACE_LRIG_FROM_DECK_ON_TOP' } as StubAction;
+  }
+
+  // ---- 凍結状態のシグニが場を離れる場合トラッシュ ----
+  if (t.match(/対戦相手の凍結状態のシグニが場を離れる場合.*トラッシュに置かれる/)) {
+    return { type: 'STUB', id: 'FROZEN_SIGNI_TO_TRASH_ON_LEAVE' } as StubAction;
+  }
+
+  // ---- 感染状態のシグニの起動能力使用禁止 ----
+  if (t.match(/対戦相手は感染状態のシグニの【起】能力を使用できない/)) {
+    return { type: 'STUB', id: 'PREVENT_INFECTED_SIGNI_ACTIVATE' } as StubAction;
+  }
+
+  // ---- あなたの効果1つによるレベル参照override ----
+  if (t.match(/あなたの効果[０-９\d]*つによってこのシグニのレベルを参照する場合.*として扱ってもよい/)) {
+    return { type: 'STUB', id: 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT' } as StubAction;
+  }
+
+  // ---- 【トラップ】と同じゾーンにシグニがない場合シグニになる ----
+  if (t.match(/この【トラップ】と同じシグニゾーンにシグニがない場合.*シグニにする/)) {
+    return { type: 'STUB', id: 'TRAP_TO_SIGNI_IF_ZONE_EMPTY' } as StubAction;
+  }
+
+  // ---- 英知シグニの基本レベル変更 ----
+  if (t.match(/あなたの＜英知＞のシグニ.*基本レベルを.*にする/)) {
+    return { type: 'STUB', id: 'CHANGE_EICHI_SIGNI_BASE_LEVEL' } as StubAction;
+  }
+
+  // ---- 次の対戦相手ターン終了時まで保護 ----
+  if (t.match(/次の対戦相手のターン終了時まで.*ダメージを受けず/)) {
+    return { type: 'STUB', id: 'PREVENT_DAMAGE_UNTIL_OPP_TURN_END' } as StubAction;
+  }
+
+  // ---- 次のターンまでゲームに敗北しない ----
+  if (t.match(/次の.*ターン.*ゲームに敗北しない/)) {
+    return { type: 'STUB', id: 'PREVENT_DEFEAT_UNTIL_NEXT_TURN' } as StubAction;
+  }
+
+  // ---- ライズシグニが場を離れる際にその下のカードをトラッシュ ----
+  if (t.match(/アタックフェイズの間.*《ライズアイコン》を持つあなたのシグニが.*場を離れる場合.*その下からすべてのカード/)) {
+    return { type: 'STUB', id: 'RISE_LEAVE_DISCARD_STACK' } as StubAction;
+  }
+
+  // ---- このルリグのリミット増加と追加色取得 ----
+  if (t.match(/このルリグのリミットは[０-９\d]+増え.*追加で.*を得る/)) {
+    return { type: 'STUB', id: 'LRIG_LIMIT_UP_AND_COLOR_GAIN' } as StubAction;
+  }
+
+  // ---- このシグニは対戦相手の効果によってダウンしない ----
+  if (t.match(/このシグニは対戦相手の効果によってダウンしない/)) {
+    return { type: 'STUB', id: 'PREVENT_SELF_DOWN_BY_OPP' } as StubAction;
+  }
+
+  // ---- ＜ウェポン＞シグニはダウンしない ----
+  if (t.match(/あなたの＜ウェポン＞のシグニは対戦相手の効果によってダウンしない/)) {
+    return { type: 'STUB', id: 'WEAPON_SIGNI_PREVENT_DOWN' } as StubAction;
+  }
+
+  // ---- 各ターンパワーに基づいてアタック回数制限 ----
+  if (t.match(/このシグニは自身のパワー.*につき一度までしかアタックできない/)) {
+    return { type: 'STUB', id: 'ATTACK_COUNT_BY_POWER' } as StubAction;
+  }
+
+  // ---- パワー上限設定 ----
+  if (t.match(/このシグニのパワーは[０-９\d]+より大きくならない/)) {
+    return { type: 'STUB', id: 'POWER_CAP' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニのパワーが－される場合、代わりに２倍 ----
+  if (t.match(/対戦相手のシグニのパワーが－.*される場合.*代わりに２倍/)) {
+    return { type: 'STUB', id: 'DOUBLE_POWER_MINUS' } as StubAction;
+  }
+
+  // ---- バニッシュ代替（ライズ下のカードをトラッシュ）----
+  if (t.match(/このシグニがバニッシュされる場合.*代わりにこのシグニの下から.*トラッシュに置く/)) {
+    return { type: 'STUB', id: 'BANISH_SUBSTITUTE_RISE_STACK' } as StubAction;
+  }
+
+  // ---- トラッシュから天使シグニを別シグニの下に置く ----
+  if (t.match(/あなたのトラッシュから.*シグニ.*あなたの.*シグニ.*の下に置く/)) {
+    return { type: 'STUB', id: 'TRASH_SIGNI_UNDER_FIELD_SIGNI' } as StubAction;
+  }
+
+  // ---- アクセされているシグニがすべての色を得る ----
+  if (t.match(/アクセされている.*シグニはすべての色を得る/)) {
+    return { type: 'STUB', id: 'ACCE_SIGNI_ALL_COLOR' } as StubAction;
+  }
+
+  // ---- あなたのターン中にレゾナが場に出たとき選択 ----
+  if (t.match(/あなたのターン.*レゾナ.*が場に出たとき.*以下の.*から.*選ぶ/)) {
+    return { type: 'STUB', id: 'RESONANCE_PLAY_CHOOSE' } as StubAction;
+  }
+
+  // ---- あなたのシグニのパワーが【アクセ】数に比例 ----
+  if (t.match(/このシグニのパワーはあなたの場にある【アクセ】.*につき/)) {
+    return { type: 'STUB', id: 'POWER_BY_ACCE_COUNT' } as StubAction;
+  }
+
+  // ---- ライフクロスの上から2枚を好きな順番で戻す ----
+  {
+    const lifeReorderM = t.match(/ライフクロスの上からカードを([０-９\d]+)枚見て.*好きな順番で一番上に戻す/);
+    if (lifeReorderM) {
+      return {
+        type: 'LOOK_AND_REORDER',
+        source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: parseNum(lifeReorderM[1]) },
+        canTrash: false,
+        destLocation: 'deck',
+        destOwner: 'self',
+        destPosition: 'any',
+      } as LookAndReorderAction;
+    }
+  }
+
+  // ---- センタールリグは「【自】...」を得る ----
+  if (t.match(/あなたのセンタールリグは「【[常出起自]】/s)) {
+    return { type: 'STUB', id: 'CENTER_LRIG_GAIN_AUTO_ABILITY' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
