@@ -1052,13 +1052,18 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
-  const mods = [
-    ...(state.temp_power_mods ?? []),
-    ...cands.map(cardNum => ({ cardNum, delta })),
-  ];
-  const newS: PlayerState = { ...state, temp_power_mods: mods };
-  return done(addLog(setOwnerState(tgtOwner, newS, ctx),
-    `パワー${delta > 0 ? '+' : ''}${delta}（フィールド×${fieldCount}体）`));
+
+  function applyMod(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgtOwner, c);
+    const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
+    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: mods }, c),
+      `パワー${delta > 0 ? '+' : ''}${delta}（フィールド×${fieldCount}体）`);
+  }
+
+  if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
+  const cnt = resolveNum(a.target.count);
+  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx, applyMod);
 }
 
 function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: ExecCtx): ExecResult {
