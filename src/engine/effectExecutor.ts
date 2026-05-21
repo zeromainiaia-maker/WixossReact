@@ -771,8 +771,22 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     for (const n of selected) {
       grants[n] = [...(grants[n] ?? []), a.keyword];
     }
-    return addLog(setOwnerState(tgt.owner, { ...s, keyword_grants: grants }, c),
-      `【${a.keyword}】を付与`);
+    let newS: PlayerState = { ...s, keyword_grants: grants };
+
+    // チアガールはフリーゾーンへ移動
+    if (a.keyword === 'チアガール') {
+      for (const n of selected) {
+        const zoneIdx = newS.field.signi.findIndex(stack => stack?.at(-1) === n);
+        if (zoneIdx >= 0) {
+          const newSigni = [...newS.field.signi] as (string[] | null)[];
+          newSigni[zoneIdx] = null;
+          const newFreeZone = [...(newS.field.free_zone ?? []), n];
+          newS = { ...newS, field: { ...newS.field, signi: newSigni, free_zone: newFreeZone } };
+        }
+      }
+    }
+
+    return addLog(setOwnerState(tgt.owner, newS, c), `【${a.keyword}】を付与`);
   }
 
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
