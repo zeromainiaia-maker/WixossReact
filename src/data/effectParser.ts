@@ -517,6 +517,35 @@ function parseSingleSentence(text: string): EffectAction {
     } as PowerModifyPerLevelSumAction;
   }
 
+  // ---- デッキ枚数比例パワー修正（CONTINUOUS: デッキのN枚につき±M）----
+  {
+    const perDeckM = t.match(/このシグニのパワーはあなたのデッキの枚数([０-９\d]+)枚につき([＋－])([０-９\d]+)される/);
+    if (perDeckM) {
+      const sign = perDeckM[2] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_DECK_COUNT',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerUnit: sign * parseNum(perDeckM[3]),
+        unitSize: parseNum(perDeckM[1]),
+        deckOwner: 'self',
+      } as import('../types/effects').PowerModifyPerDeckCountAction;
+    }
+  }
+
+  // ---- エナ色種類比例パワー修正（CONTINUOUS: エナの色の種類N種につき±M）----
+  {
+    const perColorM = t.match(/このシグニのパワーはあなたのエナゾーンにあるカードが持つ色の種類([０-９\d]+)つにつき([＋－])([０-９\d]+)される/);
+    if (perColorM) {
+      const sign = perColorM[2] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_ENERGY_COLOR',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerColor: sign * parseNum(perColorM[3]),
+        energyOwner: 'self',
+      } as import('../types/effects').PowerModifyPerEnergyColorAction;
+    }
+  }
+
   // ---- チャーム保護（バニッシュ時チャーム消費で防ぐ）----
   if (t.match(/シグニ.*バニッシュされる場合.*チャーム.*トラッシュに置いてもよい/)) {
     const storyF = parseStoryFilter(t) as TargetFilter;
