@@ -2172,8 +2172,8 @@ function parseActionText(text: string): EffectAction {
   // ---- デッキの一番上を公開 → 条件分岐（それが〜の場合）----
   if (sentences[0].trim().match(/デッキの一番上を公開する/) && sentences.length >= 2) {
     const condS = sentences[1].trim();
-    // "それが/そのカードが ... の場合、..."
-    const condM = condS.match(/^(?:それが|そのカードが)(.+?)(?:の場合|であった場合|でない場合)、(.+)/);
+    // "それが/そのカードが ... の場合/ではない場合、..."
+    const condM = condS.match(/^(?:それが|そのカードが)(.+?)(?:の場合|であった場合|でない場合|ではない場合)、(.+)/);
     if (condM) {
       const condText = condM[1];
       const thenText = condM[2].replace(/。$/, '');
