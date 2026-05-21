@@ -214,6 +214,9 @@ export type EffectAction =
   | RemoveCharmAction
   | ForceSigniAttackAction
   | GrantLrigAbilityAction
+  | PlaceVirusAction
+  | AttachAcceAction
+  | BloodCrystalArmorAction
   | UnknownAction;
 
 export interface DrawAction {
