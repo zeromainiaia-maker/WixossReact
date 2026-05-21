@@ -2835,13 +2835,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  const executeArts = async (card: CardData, costIndices: Set<number>) => {
+  const executeArts = async (card: CardData, costIndices: Set<number>, betting: boolean = false) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
     setLoading(true);
     setShowArtsModal(false);
     setPendingArtsCard(null);
     setSelectedArtsCost(new Set());
+    setIsBetting(false);
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.indexOf(cardNum);
@@ -2849,13 +2850,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const betCost = betting ? parseBetCost(card.EffectText ?? '') : 0;
       const paid: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
         energy: newEnergy,
         lrig_trash: [...my.lrig_trash, cardNum],
         trash: [...my.trash, ...paidNums],
+        coins: Math.max(0, my.coins - betCost),
       };
+      if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       // アーツ効果を発火
       const fired = await queueCardEffects(cardNum, ['ACTIVATED'], [], paid, op);
       if (!fired) {
