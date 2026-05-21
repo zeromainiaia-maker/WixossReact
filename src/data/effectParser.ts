@@ -58,6 +58,7 @@ import type {
   PowerModifyPerTrashedLevelAction,
   RemoveCharmAction,
   ForceSigniAttackAction,
+  GrantLrigAbilityAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
