@@ -70,6 +70,7 @@ import type {
   LrigLimitModifyAction,
   FreezeAction,
   LookAndReorderAction,
+  AddCraftToLrigDeckAction,
   StubAction,
 } from '../types/effects';
 
