@@ -383,12 +383,13 @@ export interface GrantKeywordAction {
   duration: EffectDuration;
 }
 
-// トラッシュ/エナなどから全カードをデッキに戻してシャッフル
+// トラッシュ/エナ/フィールドからデッキへ移動
 export interface TransferToDeckAction {
   type: 'TRANSFER_TO_DECK';
   source: EffectTarget;
   shuffle: boolean;
   destination?: 'deck' | 'lrig_deck'; // 省略時は 'deck'
+  position?: 'top' | 'bottom';        // デッキの挿入位置（省略時は top）
 }
 
 // スペル/アーツの効果を打ち消す
