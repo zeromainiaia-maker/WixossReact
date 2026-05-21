@@ -5691,6 +5691,127 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
+      {/* ===== ルリグ付与能力（GRANT_LRIG_ABILITY）発動モーダル ===== */}
+      {pendingLrigGranted && createPortal(
+        <div
+          onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4000,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const eff = pendingLrigGranted.effect;
+              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const exceedCost = eff.cost?.exceed ?? 0;
+              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const selectedNums = [...selectedLrigGrantedCost].map(i => my.energy[i]);
+              const canAffordEnergy = energyTotal === 0
+                ? true
+                : selectedLrigGrantedCost.size === energyTotal &&
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti);
+              const canAffordExceed = exceedCost === 0 || (my.field.lrig.length - 1) >= exceedCost;
+              const canAfford = canAffordEnergy && canAffordExceed;
+              const lrigTop = my.field.lrig.at(-1);
+              const lrigCard = battleCardMap.get(lrigTop ?? '');
+
+              return (
+                <>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    ルリグ付与【起】効果を発動
+                  </p>
+                  {lrigCard && (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <img src={lrigCard.ImgURL} alt={lrigCard.CardName}
+                        style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                      <div>
+                        <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{lrigCard.CardName}</p>
+                        <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
+                          コスト: {[
+                            exceedCost > 0 ? `エクシード${exceedCost}` : null,
+                            energyTotal > 0 ? `エナ${energyTotal}枚` : null,
+                          ].filter(Boolean).join('・') || 'なし'}
+                        </p>
+                        {exceedCost > 0 && !canAffordExceed && (
+                          <p style={{ color: C.danger, fontSize: 11, margin: '4px 0 0' }}>
+                            ルリグスタックが不足しています
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {energyTotal > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        エナゾーンから選択: {selectedLrigGrantedCost.size} / {energyTotal}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.energy.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedLrigGrantedCost.has(i);
+                          return (
+                            <div key={i}
+                              onClick={() => setSelectedLrigGrantedCost(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (next.size >= energyTotal) return prev;
+                                next.add(i); return next;
+                              })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #f44336' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); }}
+                      disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={() => executeLrigGranted(eff, selectedLrigGrantedCost)}
+                      disabled={loading || !canAfford}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
+                        color: C.text, fontSize: 14, fontWeight: 'bold',
+                        cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
+                      発動
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* ===== 効果スタック 整列モーダル ===== */}
       {(() => {
         if (!bs.effect_stack || !user) return null;
