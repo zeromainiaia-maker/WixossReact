@@ -77,15 +77,16 @@ export default function App() {
     const sheetFetches = Array.from({ length: 11 }, (_, i) =>
       fetch(`/data/CardData_Sheet${i + 1}.csv`).then(r => r.ok ? r.text() : null)
     );
+    const tkFetch = fetch('/data/CardData_TK.csv').then(r => r.ok ? r.text() : null);
     Promise.all([
       Promise.all(sheetFetches),
+      tkFetch,
       fetch('/data/effects.json').then(r => r.json() as Promise<Record<string, CardEffect[]>>),
     ])
-      .then(([csvResults, effectsJson]) => {
-        const allRows = csvResults
-          .filter((t): t is string => t !== null)
-          .flatMap(csv => Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true }).data);
-        const loaded: CardData[] = allRows.map(r => ({
+      .then(([csvResults, tkCsv, effectsJson]) => {
+        const parseRows = (csv: string) =>
+          Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true }).data;
+        const toCardData = (r: Record<string, string>): CardData => ({
           CardNum:     r.CardNum,
           CardName:    r.CardName,
           ImgURL:      r.ImgURL,
@@ -107,8 +108,14 @@ export default function App() {
           EffectText:  r.EffectText,
           BurstText:   r.BurstText,
           effects:     effectsJson[r.CardNum] ?? [],
-        }));
-        setCards(loaded);
+        });
+        const sheetCards = csvResults
+          .filter((t): t is string => t !== null)
+          .flatMap(parseRows)
+          .map(toCardData);
+        const tokenCards = tkCsv ? parseRows(tkCsv).map(toCardData) : [];
+        setCards(sheetCards);
+        setAllCards([...sheetCards, ...tokenCards]);
       })
       .catch(e => console.error('カードデータ読み込み失敗:', e));
   }, []);
