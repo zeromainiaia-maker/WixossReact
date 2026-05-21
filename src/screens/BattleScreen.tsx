@@ -143,6 +143,7 @@ function parseGrowCost(raw: string): { color: string; count: number }[] {
   if (!raw || raw === 'なし' || raw === '-') return [];
   const result: { color: string; count: number }[] = [];
   for (const m of raw.matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
+    if (m[1] === 'コイン') continue; // コインはエナではない。parseCoinCostで別処理
     const count = parseInt(toHalfWidth(m[2]));
     if (count > 0) result.push({ color: m[1], count });
   }
