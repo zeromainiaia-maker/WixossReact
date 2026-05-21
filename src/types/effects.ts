@@ -94,6 +94,7 @@ export interface EffectCost {
   banish_self?: boolean;  // 自身をバニッシュ
   life_crash?: number;    // 自分のライフクロスをN枚クラッシュ
   down_self?: boolean;    // 自身をダウン
+  exceed?: number;        // エクシード：ルリグの下からN枚をルリグトラッシュへ
 }
 
 // ===== ターゲットフィルタ =====
