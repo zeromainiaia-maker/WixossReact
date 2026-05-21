@@ -3209,7 +3209,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: [...my.trash, ...paidNums],
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const spell: PendingSpell = { caster_id: user.id, card_num: card.CardNum };
+      // handからはインスタンスIDで正確な1枚を参照する
+      const spell: PendingSpell = { caster_id: user.id, card_num: my.hand[handIdx] ?? card.CardNum };
       await supabase.from('battle_states')
         .update({ [stateKey]: newMyState, pending_spell: spell })
         .eq('room_id', roomId);
