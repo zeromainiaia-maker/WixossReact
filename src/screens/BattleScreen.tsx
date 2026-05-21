@@ -2448,6 +2448,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const stack = bs.effect_stack;
     if (!isReadyToResolve(stack) || stack.queue.length === 0) return;
     if (stackProcessingRef.current) return;  // stale closure による多重実行を防ぐ
+    // DB伝播前に setLoading(false) で useEffect が再発火しても同一エントリを二重処理しない
+    if (stack.queue[0].id === lastResolvedEntryIdRef.current) return;
     stackProcessingRef.current = true;
 
     setLoading(true);
