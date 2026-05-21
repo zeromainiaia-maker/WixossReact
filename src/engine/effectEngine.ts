@@ -314,6 +314,58 @@ export function calcFieldPowers(
             powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
           }
         }
+
+        // POWER_MODIFY_PER_LRIG_LEVEL: センタールリグのレベルに比例したパワー増減（常時）
+        const perLrigLevelMods = extractPowerModifiesPerLrigLevel(effect.action);
+        for (const mod of perLrigLevelMods) {
+          const lrigState = mod.lrigOwner === 'self' ? ownerState : otherState;
+          const lrigNum = lrigState.field.lrig.at(-1);
+          const lv = parseInt(cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
+          if (isNaN(lv) || lv === 0) continue;
+          const delta = mod.deltaPerLevel * lv;
+          if (mod.target.count === 'ALL') {
+            const tgtState = mod.target.owner === 'self' ? ownerState
+              : mod.target.owner === 'opponent' ? otherState : ownerState;
+            applyDeltaToState(tgtState, delta, mod.target.filter, cardMap, powers);
+          } else if (powers.has(topNum)) {
+            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+          }
+        }
+
+        // POWER_MODIFY_PER_TRASH_COUNT: トラッシュ枚数に比例したパワー増減（常時）
+        const perTrashMods = extractPowerModifiesPerTrashCount(effect.action);
+        for (const mod of perTrashMods) {
+          const countTrash = (st: PlayerState) => {
+            const cards = st.trash;
+            if (mod.countByVariety) {
+              const names = new Set(cards.map(n => cardMap.get(n)?.CardClass ?? n)
+                .filter((_, i) => !mod.countFilter || matchesFilter(cardMap.get(cards[i]), mod.countFilter)));
+              return names.size;
+            }
+            return cards.filter(n => !mod.countFilter || matchesFilter(cardMap.get(n), mod.countFilter)).length;
+          };
+          let count = 0;
+          if (mod.trashOwner === 'both') {
+            count = countTrash(ownerState) + countTrash(otherState);
+          } else {
+            count = countTrash(mod.trashOwner === 'self' ? ownerState : otherState);
+          }
+          const delta = Math.floor(count / mod.unitSize) * mod.deltaPerUnit;
+          if (delta !== 0 && powers.has(topNum)) {
+            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+          }
+        }
+
+        // POWER_MODIFY_PER_LIFE_COUNT: ライフクロス枚数に比例したパワー増減（常時）
+        const perLifeMods = extractPowerModifiesPerLifeCount(effect.action);
+        for (const mod of perLifeMods) {
+          const lifeState = mod.lifeOwner === 'self' ? ownerState : otherState;
+          const count = lifeState.life_cloth.length;
+          const delta = mod.deltaPerLife * count;
+          if (delta !== 0 && powers.has(topNum)) {
+            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+          }
+        }
       }
     }
   };
