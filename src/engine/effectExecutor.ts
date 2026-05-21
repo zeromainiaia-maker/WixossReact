@@ -1616,6 +1616,35 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       newS = { ...newS, field: { ...newS.field, signi } };
       return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場に出す`));
     }
+    case 'ATTACH_ACCE': {
+      // cardNum = SELECT_TARGET で選ばれたシグニ
+      const acceAction = action as import('../types/effects').AttachAcceAction;
+      const tgtState = ownerState(acceAction.targetSigniOwner, ctx);
+      const srcState = ownerState(acceAction.sourceOwner, ctx);
+      const zoneIdx  = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum);
+      if (zoneIdx < 0) return done(ctx);
+      const acceCardNum = ctx.sourceCardNum;
+      if (!acceCardNum) return done(ctx);
+      // エナゾーンまたは手札からアクセカードを除去
+      let newSrc = { ...srcState };
+      if (newSrc.energy.includes(acceCardNum)) {
+        newSrc = { ...newSrc, energy: newSrc.energy.filter(n => n !== acceCardNum) };
+      } else if (newSrc.hand.includes(acceCardNum)) {
+        newSrc = { ...newSrc, hand: newSrc.hand.filter(n => n !== acceCardNum) };
+      } else {
+        return done(ctx);
+      }
+      let ctx2 = setOwnerState(acceAction.sourceOwner, newSrc, ctx);
+      // signi_acce[zoneIdx] に設定
+      const tgt2 = ownerState(acceAction.targetSigniOwner, ctx2);
+      const newAcce = [...(tgt2.field.signi_acce ?? [null, null, null])];
+      newAcce[zoneIdx] = acceCardNum;
+      const newTgt: PlayerState = { ...tgt2, field: { ...tgt2.field, signi_acce: newAcce } };
+      ctx2 = setOwnerState(acceAction.targetSigniOwner, newTgt, ctx2);
+      const acceCardName  = ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum;
+      const signiCardName = ctx.cardMap.get(cardNum)?.CardName ?? cardNum;
+      return done(addLog(ctx2, `${acceCardName}を${signiCardName}にアクセ`));
+    }
     default:
       return executeAction(action, ctx);
   }
