@@ -1742,6 +1742,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const signiCardName = ctx.cardMap.get(cardNum)?.CardName ?? cardNum;
       return done(addLog(ctx2, `${acceCardName}を${signiCardName}にアクセ`));
     }
+    case 'SEQUENCE': {
+      // SEARCH の thenAction が SEQUENCE[REVEAL, ADD_TO_HAND] 等の場合、
+      // cardNum を各ステップに引き継いで実行する
+      const steps = (action as import('../types/effects').SequenceAction).steps;
+      let cur = ctx;
+      for (const step of steps) {
+        const r = applyDirectAction(step, cardNum, cur);
+        if (!r.done) return r;
+        cur = { ...cur, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+      }
+      return done(cur);
+    }
     default:
       return executeAction(action, ctx);
   }
