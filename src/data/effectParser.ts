@@ -1141,6 +1141,31 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: srcType as EffectTarget['type'], owner, count } };
   }
 
+  // ---- 対戦相手のすべてのシグニをトラッシュに置く ----
+  if (t.match(/対戦相手のすべてのシグニをトラッシュに置く/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } };
+  }
+
+  // ---- デッキの一番上のカードをトラッシュに置く ----
+  if (t.match(/デッキの一番上のカードをトラッシュに置く/) || t.match(/あなたのデッキの一番上のカードをトラッシュに置く/)) {
+    const cM = t.match(/([０-９\d]+)枚/);
+    const count = cM ? parseNum(cM[1]) : 1;
+    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count } };
+  }
+
+  // ---- シグニをデッキの一番下に置く ----
+  if (t.match(/デッキの一番下に置く/) && (t.includes('シグニ') || t.includes('それ'))) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const cM = t.match(/([０-９\d]+)体/);
+    const count = cM ? parseNum(cM[1]) : 1;
+    return {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'SIGNI', owner, count, filter: { cardType: 'シグニ' } },
+      shuffle: false,
+      position: 'bottom',
+    } as import('../types/effects').TransferToDeckAction;
+  }
+
   // ---- あなたの他のシグニ１体をトラッシュ（コスト系効果）----
   if (t.match(/あなたの他のシグニ.+をトラッシュに置く/)) {
     const cM = t.match(/([０-９\d]+)体/);
