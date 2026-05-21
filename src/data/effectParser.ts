@@ -67,6 +67,9 @@ import type {
   AttachAcceAction,
   BloodCrystalArmorAction,
   PowerModifyPerVirusCountAction,
+  LrigLimitModifyAction,
+  FreezeAction,
+  LookAndReorderAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
