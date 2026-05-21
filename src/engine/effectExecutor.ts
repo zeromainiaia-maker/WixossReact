@@ -1218,6 +1218,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'REMOVE_ABILITIES':        return execRemoveAbilities(action as RemoveAbilitiesAction, ctx);
     case 'GAIN_COIN':               return execGainCoin(action as GainCoinAction, ctx);
     case 'DISCARD_BOTH':            return execDiscardBoth(action as DiscardBothAction, ctx);
+    case 'REMOVE_CHARM':            return execRemoveCharm(action as RemoveCharmAction, ctx);
+    case 'FORCE_SIGNI_ATTACK':      return execForceSigniAttack(action as ForceSigniAttackAction, ctx);
     // 以下は CONTINUOUS 効果専用（effectEngine 側で処理）
     case 'BANISH_REDIRECT':                return done(addLog(ctx, 'バニッシュ先変更（CONTINUOUS）'));
     case 'REARRANGE_SIGNI':                return done(addLog(ctx, 'シグニ並び替え（BattleScreen側で処理）'));
