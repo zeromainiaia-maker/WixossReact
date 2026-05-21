@@ -786,6 +786,14 @@ export interface ForceSigniAttackAction {
   targetOwner: Owner;
 }
 
+// 対戦相手の場のウィルス数Nにつきパワー±M（常時効果）
+export interface PowerModifyPerVirusCountAction {
+  type: 'POWER_MODIFY_PER_VIRUS_COUNT';
+  target: EffectTarget;
+  deltaPerVirus: number;
+  virusOwner: Owner;
+}
+
 // ウィルストークンを置く
 export interface PlaceVirusAction {
   type: 'PLACE_VIRUS';
