@@ -2566,16 +2566,16 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- スペルの使用コスト減少（色指定あり）----
   {
-    const spellCostM = t.match(/あなたが使用する(.+)スペルの使用コストは《([^》]+)》減る/);
+    const spellCostM = t.match(/あなたが使用する(.+)スペルの使用コストは《[^》]+》減る/);
     if (spellCostM) {
-      const costParsed = parseCost(spellCostM[2]);
-      if (costParsed && costParsed.length > 0) {
+      const costs = parseEnergyCosts(t);
+      if (costs.length > 0) {
         return {
           type: 'COST_REDUCTION',
-          cardType: 'スペル',
-          reduction: costParsed,
-          until: 'PERMANENT',
-        } as import('../types/effects').CostReductionAction;
+          targetCardType: 'スペル',
+          reduction: costs,
+          duration: 'PERMANENT',
+        } as CostReductionAction;
       }
     }
   }
