@@ -2114,17 +2114,41 @@ function parseActionText(text: string): EffectAction {
   // ---- デッキ上からN枚見る → その中から好きな枚数をトラッシュ/デッキへ ----
   if (sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚見る/) && sentences.length >= 2) {
     const cM = sentences[0].match(/([０-９\d]+)枚見る/);
-    const nextS = sentences[1].trim();
-    if (cM && nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
-      return {
-        type: 'LOOK_AND_REORDER',
-        source: { location: 'deck', owner: 'self' },
-        count: parseNum(cM[1]),
-        private: true,
-        reorder: nextS.includes('好きな順番'),
-        canTrash: nextS.includes('トラッシュ'),
-        destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
-      };
+    if (cM) {
+      const nextS = sentences[1].trim();
+      if (nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
+        return {
+          type: 'LOOK_AND_REORDER',
+          source: { location: 'deck', owner: 'self' },
+          count: parseNum(cM[1]),
+          private: true,
+          reorder: nextS.includes('好きな順番'),
+          canTrash: nextS.includes('トラッシュ'),
+          destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
+        };
+      }
+      // その中からXを手札に加える → 残りをシャッフルしてデッキへ
+      if (nextS.match(/その中から.+(手札に加える|手札に加え)/)) {
+        const pickM = nextS.match(/その中から(?:(.+?)の)?(?:シグニ|カード)?([０-９\d]+|すべて)枚?(?:を公開し)?(?:手札に加える|手札に加え)/);
+        const remainS = sentences.find(s => s.trim().match(/残りを(?:シャッフルして)?デッキ/));
+        const remainder: RevealAndPickAction['remainder'] = remainS?.includes('一番下')
+          ? { location: 'deck', position: 'bottom' }
+          : { location: 'deck', position: 'top' };
+        if (pickM) {
+          const story = pickM[1] ? parseStoryFilter(pickM[1]) : {};
+          const filter: TargetFilter = { ...story };
+          const pickCount = pickM[2] === 'すべて' ? 'ALL' : parseNum(pickM[2]);
+          return {
+            type: 'REVEAL_AND_PICK',
+            owner: 'self',
+            revealCount: parseNum(cM[1]),
+            filter: Object.keys(filter).length > 0 ? filter : undefined,
+            pickCount,
+            then: { type: 'ADD_TO_HAND', owner: 'self' },
+            remainder,
+          } as RevealAndPickAction;
+        }
+      }
     }
   }
 
