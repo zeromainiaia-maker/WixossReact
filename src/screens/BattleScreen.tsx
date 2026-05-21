@@ -4215,8 +4215,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               コイン+{card.Coin}枚
                             </p>
                           )}
+                          {growCoinNeeded > 0 && (
+                            <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>
+                              コイン×{growCoinNeeded}（所持: {my.coins}）
+                            </p>
+                          )}
                           {!canAfford && (
-                            <p style={{ color: C.danger, fontSize: 10, margin: '2px 0 0' }}>エナ不足</p>
+                            <p style={{ color: C.danger, fontSize: 10, margin: '2px 0 0' }}>
+                              {growCoinNeeded > 0 && my.coins < growCoinNeeded ? 'コイン不足' : 'エナ不足'}
+                            </p>
                           )}
                         </div>
                       </button>
