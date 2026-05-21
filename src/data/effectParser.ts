@@ -2625,6 +2625,136 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as StubAction;
   }
 
+  // ---- 対戦相手のエナゾーンにカードが置かれたとき条件付きトラッシュ ----
+  if (t.match(/対戦相手のエナゾーンに.*置かれたとき.*以上.*トラッシュに置く/)) {
+    return { type: 'STUB', id: 'OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL' } as StubAction;
+  }
+
+  // ---- 対戦相手の効果によってダメージを受けず/ライフクロスは移動しない ----
+  if (t.match(/対戦相手の効果によって.*ダメージを受けず/)) {
+    return { type: 'STUB', id: 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP' } as StubAction;
+  }
+
+  // ---- 対戦相手の効果によってエナゾーン/手札はトラッシュに移動しない ----
+  if (t.match(/対戦相手の効果によって.*(?:エナゾーン|手札).*トラッシュに移動しない/)) {
+    return { type: 'STUB', id: 'PREVENT_ZONE_MOVE_BY_OPP' } as StubAction;
+  }
+
+  // ---- 他のシグニは対戦相手の効果によってダウンしない ----
+  if (t.match(/あなたの(?:他の)?シグニは対戦相手の効果によってダウンしない/)) {
+    return { type: 'STUB', id: 'PREVENT_SIGNI_DOWN_BY_OPP_ALL' } as StubAction;
+  }
+
+  // ---- 【アクセ】をトラッシュに置く（各ターン終了時）----
+  if (t.match(/このシグニに付いている【アクセ】.*トラッシュに置く/)) {
+    return { type: 'STUB', id: 'TRASH_ACCE_AT_TURN_END' } as StubAction;
+  }
+
+  // ---- 【チャーム】カウントに基づいてカードを引く ----
+  if (t.match(/【チャーム】の数に.*加えた枚数のカードを引く/)) {
+    return { type: 'STUB', id: 'DRAW_BY_CHARM_COUNT' } as StubAction;
+  }
+
+  // ---- 場の＜精羅＞/特定クラスに基づいてコスト軽減 ----
+  if (t.match(/あなたの場に.*のシグニがある場合.*使用コストは.*減る/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_COST_REDUCTION_BY_FIELD' } as StubAction;
+  }
+
+  // ---- パワーN以上のシグニがある場合コスト軽減 ----
+  if (t.match(/あなたの場にパワー[０-９\d]+以上のシグニがある場合.*使用コストは.*減る/)) {
+    return { type: 'STUB', id: 'COST_REDUCTION_IF_HIGH_POWER_SIGNI' } as StubAction;
+  }
+
+  // ---- 各プレイヤーがセンタールリグレベル分手札を捨てる ----
+  if (t.match(/各プレイヤーは.*センタールリグのレベルの数だけ手札を捨てる/)) {
+    return { type: 'STUB', id: 'BOTH_DISCARD_BY_CENTER_LEVEL' } as StubAction;
+  }
+
+  // ---- コイン技を無効にする ----
+  if (t.match(/コイン技を無効にする/)) {
+    return { type: 'STUB', id: 'NEGATE_COIN_ABILITY' } as StubAction;
+  }
+
+  // ---- ウィルス追加コストでのアーツ使用 ----
+  if (t.match(/使用コストとして追加で.*【ウィルス】を.*取り除いてもよい/)) {
+    return { type: 'STUB', id: 'EXTRA_COST_REMOVE_VIRUS' } as StubAction;
+  }
+
+  // ---- アクセコスト軽減 ----
+  if (t.match(/このシグニにアクセするための.*使用コストは.*減る/)) {
+    return { type: 'STUB', id: 'ACCE_COST_REDUCTION' } as StubAction;
+  }
+
+  // ---- 貯菌を置く ----
+  if (t.match(/【貯菌】.*置く/)) {
+    return { type: 'STUB', id: 'PLACE_CHOKKIN' } as StubAction;
+  }
+
+  // ---- ＜調理＞シグニのバニッシュ代替 ----
+  if (t.match(/＜調理＞のシグニ.*バニッシュされる場合.*代わりに.*【アクセ】.*トラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'COOKING_BANISH_SUBSTITUTE' } as StubAction;
+  }
+
+  // ---- 《ライズアイコン》を持つシグニのパワーに比例したパワーアップ ----
+  if (t.match(/《ライズアイコン》を持つあなたのシグニ.*につき\+[０-９\d]+する/)) {
+    return { type: 'STUB', id: 'POWER_UP_BY_RISE_COUNT' } as StubAction;
+  }
+
+  // ---- 《ライズアイコン》を持つシグニが場に出たとき選択効果 ----
+  if (t.match(/《ライズアイコン》を持つあなたのシグニ.*場に出たとき.*以下の.*から.*選ぶ/)) {
+    return { type: 'STUB', id: 'RISE_PLAY_CHOOSE' } as StubAction;
+  }
+
+  // ---- デッキのシグニをレベル参照 ----
+  if (t.match(/あなたのデッキにある.*シグニのレベルを参照する場合.*として扱ってもよい/)) {
+    return { type: 'STUB', id: 'DECK_SIGNI_LEVEL_OVERRIDE' } as StubAction;
+  }
+
+  // ---- 水獣/特定クラスのシグニが場を離れたとき引く ----
+  if (t.match(/あなたの.*のシグニ.*対戦相手の効果によって場を離れたとき.*カードを.*引いてもよい/)) {
+    return { type: 'STUB', id: 'DRAW_ON_SIGNI_LEAVE_BY_OPP' } as StubAction;
+  }
+
+  // ---- シグニ下に積む（英知など）----
+  if (t.match(/あなたのトラッシュから.*シグニ.*枚.*このシグニの下に置く/)) {
+    return { type: 'STUB', id: 'STACK_SIGNI_UNDER' } as StubAction;
+  }
+
+  // ---- 下にあるシグニの【常】能力を得る ----
+  if (t.match(/このシグニはこのカードの下にあるシグニの【常】.*能力を得る/)) {
+    return { type: 'STUB', id: 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY' } as StubAction;
+  }
+
+  // ---- 基本レベルを変更 ----
+  if (t.match(/このシグニの基本レベルを.*にしてもよい/)) {
+    return { type: 'STUB', id: 'CHANGE_BASE_LEVEL' } as StubAction;
+  }
+
+  // ---- 【トラップ】を手札に加える ----
+  if (t.match(/あなたの【トラップ】.*手札に加える/)) {
+    return { type: 'STUB', id: 'TRAP_TO_HAND' } as StubAction;
+  }
+
+  // ---- 手札からスペルを使用する ----
+  if (t.match(/あなたの手札から.*スペル.*コストを支払って使用する/)) {
+    return { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND' } as StubAction;
+  }
+
+  // ---- 対戦相手の場に【ウィルス】がない場合このシグニをトラッシュ ----
+  if (t.match(/対戦相手の場に【ウィルス】がない場合.*このシグニを.*トラッシュに置く/)) {
+    return {
+      type: 'CONDITIONAL',
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { virus: true } },
+      then: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { self: true } } },
+      else: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { self: true } } },
+    } as import('../types/effects').ConditionalAction;
+  }
+
+  // ---- 対戦相手のシグニ１体とこのシグニが同じカードになる ----
+  if (t.match(/対象のあなたのシグニ.*トラッシュにある.*シグニ.*と同じカードになる/)) {
+    return { type: 'STUB', id: 'COPY_SIGNI' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
