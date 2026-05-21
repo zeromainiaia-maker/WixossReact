@@ -765,7 +765,7 @@ function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
   if (tgt.count === 'ALL') return done(applyStory(cands, ctx));
   const count = resolveNum(tgt.count);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyStory);
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
 
 function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
