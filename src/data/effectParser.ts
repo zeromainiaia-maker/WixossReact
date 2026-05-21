@@ -949,6 +949,7 @@ function parseSingleSentence(text: string): EffectAction {
         type: 'SIGNI', owner, count, upToCount: !!upToM,
         filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t) },
       },
+      optional: t.includes('もよい'),
     };
   }
 
