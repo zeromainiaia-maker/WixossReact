@@ -1392,6 +1392,11 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'self', count: 1 } };
   }
 
+  // ---- このシグニを場からトラッシュに置く（自己トラッシュ）----
+  if (t.match(/^このシグニを場からトラッシュに置く/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } };
+  }
+
   // ---- 自分のすべてのシグニをトラッシュ（任意）----
   if (t.match(/あなたのすべてのシグニを場からトラッシュに置いてもよい/)) {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
