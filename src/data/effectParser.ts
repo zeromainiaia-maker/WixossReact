@@ -1932,6 +1932,46 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { hasCharm: true } as TargetFilter } };
   }
 
+  // ---- ウィルス配置 ----
+  {
+    // すべてのシグニゾーンに１つずつ置く
+    if (t.match(/対戦相手のすべてのシグニゾーンに【ウィルス】を?[１-９\d]?つずつ置く/)) {
+      return { type: 'PLACE_VIRUS', targetOwner: 'opponent', zoneCount: 'ALL', virusCount: 1 } as PlaceVirusAction;
+    }
+    // N つまでに１つずつ
+    const vm1 = t.match(/対戦相手のシグニゾーン([１-９\d]+)つまでに【ウィルス】を?[１-９\d]*つずつ?置く/);
+    if (vm1) {
+      return { type: 'PLACE_VIRUS', targetOwner: 'opponent', zoneCount: parseNum(vm1[1]), virusCount: 1, upToZoneCount: true } as PlaceVirusAction;
+    }
+    // N つに M つ置く
+    const vm2 = t.match(/対戦相手のシグニゾーン([１-９\d]+)つに【ウィルス】([１-９\d]+)つを?置く/);
+    if (vm2) {
+      return { type: 'PLACE_VIRUS', targetOwner: 'opponent', zoneCount: parseNum(vm2[1]), virusCount: parseNum(vm2[2]) } as PlaceVirusAction;
+    }
+    // 「に【ウィルス】を置く」（対戦相手シグニゾーン1つ＋ウィルス数省略）
+    const vm3 = t.match(/対戦相手のシグニゾーン([１-９\d]+)つに【ウィルス】を?置く/);
+    if (vm3) {
+      return { type: 'PLACE_VIRUS', targetOwner: 'opponent', zoneCount: parseNum(vm3[1]), virusCount: 1 } as PlaceVirusAction;
+    }
+  }
+
+  // ---- アクセ ----
+  if (t.match(/このカードをエナゾーンからそれの【アクセ】にする/)) {
+    return { type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self' } as AttachAcceAction;
+  }
+
+  // ---- 血晶武装 ----
+  {
+    const bcaM = t.match(/血晶武装［([^］]+)］する/);
+    if (bcaM) {
+      const srcText = bcaM[1];
+      const sources: ('hand' | 'trash')[] = [];
+      if (srcText.includes('手札')) sources.push('hand');
+      if (srcText.includes('トラッシュ')) sources.push('trash');
+      return { type: 'BLOOD_CRYSTAL_ARMOR', source: sources.length > 0 ? sources : ['hand', 'trash'], count: 1 } as BloodCrystalArmorAction;
+    }
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
