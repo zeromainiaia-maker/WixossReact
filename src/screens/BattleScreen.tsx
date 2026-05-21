@@ -4321,7 +4321,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* アーツ使用モーダル */}
       {showArtsModal && createPortal(
-        <div onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); setIsBetting(false); }}
+        <div onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); setIsBetting(false); setIsEncore(false); }}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
