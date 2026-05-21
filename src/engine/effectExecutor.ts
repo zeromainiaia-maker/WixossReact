@@ -211,12 +211,33 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
     if (stack[stack.length - 1] !== cardNum) return stack;
     return stack.length > 1 ? stack.slice(0, -1) : null;
   }) as (string[] | null)[];
-  // ダウン/フリーズ状態もクリア
   const zoneIdx = state.field.signi.findIndex(s => s?.at(-1) === cardNum);
   const newDown   = [...(state.field.signi_down   ?? [false, false, false])];
   const newFrozen = [...(state.field.signi_frozen  ?? [false, false, false])];
-  if (zoneIdx >= 0) { newDown[zoneIdx] = false; newFrozen[zoneIdx] = false; }
-  return { ...state, field: { ...state.field, signi: newSigni, signi_down: newDown as boolean[], signi_frozen: newFrozen as boolean[] } };
+  const newCharms = [...(state.field.signi_charms  ?? [null, null, null])];
+  const newAcce   = [...(state.field.signi_acce    ?? [null, null, null])];
+  const newVirus  = [...(state.field.signi_virus   ?? [0, 0, 0])];
+  const extraTrash: string[] = [];
+  if (zoneIdx >= 0) {
+    newDown[zoneIdx]   = false;
+    newFrozen[zoneIdx] = false;
+    if (newCharms[zoneIdx]) { extraTrash.push(newCharms[zoneIdx]!); newCharms[zoneIdx] = null; }
+    if (newAcce[zoneIdx])   { extraTrash.push(newAcce[zoneIdx]!);   newAcce[zoneIdx]   = null; }
+    newVirus[zoneIdx] = 0;
+  }
+  return {
+    ...state,
+    trash: extraTrash.length > 0 ? [...state.trash, ...extraTrash] : state.trash,
+    field: {
+      ...state.field,
+      signi: newSigni,
+      signi_down:   newDown   as boolean[],
+      signi_frozen: newFrozen as boolean[],
+      signi_charms: newCharms,
+      signi_acce:   newAcce,
+      signi_virus:  newVirus  as number[],
+    },
+  };
 }
 
 // SELECT_TARGET ヘルパー：候補数によって自動実行か要インタラクションかを決める
