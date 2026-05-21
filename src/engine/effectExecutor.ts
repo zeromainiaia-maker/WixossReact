@@ -430,7 +430,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     if (tgt.count === 'ALL') return done(applyTrashField(cands, ctx));
     const count = resolveNum(tgt.count);
-    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyTrashField);
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
   }
 
   if (tgt.type === 'HAND_CARD') {
