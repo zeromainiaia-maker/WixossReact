@@ -202,6 +202,8 @@ export type EffectAction =
   | SelfTrashPreventAction
   | CostSubstituteAction
   | PowerModifyPerTrashedLevelAction
+  | PowerModifyPerDeckCountAction
+  | PowerModifyPerEnergyColorAction
   | GainCoinAction
   | DiscardBothAction
   | UnknownAction;
