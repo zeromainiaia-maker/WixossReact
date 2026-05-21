@@ -1211,7 +1211,7 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
   // フリーゾーンスロット（シグニ行の左端に配置）
   const freeZoneSlot = (
     <div
-      onClick={() => freeZoneCards.length > 0 && showZone('フリーゾーン', freeZoneCards)}
+      onClick={() => freeZoneCards.length > 0 && setZoneModal({ title: 'フリーゾーン', cardNums: freeZoneCards, isFreeZone: isMe })}
       style={{
         width: freeZoneW, height: freeZoneH, borderRadius: 6, flexShrink: 0,
         border: freeZoneCards.length > 0 ? '1px solid #5599bb' : '1px dashed #334455',
