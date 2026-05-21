@@ -205,6 +205,8 @@ export type EffectAction =
   | PowerModifyPerTrashedLevelAction
   | PowerModifyPerDeckCountAction
   | PowerModifyPerEnergyColorAction
+  | PowerModifyPerTrashCountAction
+  | PowerModifyPerLifeCountAction
   | GainCoinAction
   | DiscardBothAction
   | RemoveCharmAction
