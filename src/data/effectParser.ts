@@ -1013,9 +1013,9 @@ function parseSingleSentence(text: string): EffectAction {
     let target: EffectTarget;
     if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたのシグニのパワーを/)) {
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t) } };
-    } else if (t.match(/対戦相手のシグニ([０-９\d]+)体/)) {
+    } else if (t.match(/対戦相手の(?:感染状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
       target = parseSigniTarget(t, 'opponent');
-    } else if (t.match(/あなたのシグニ([０-９\d]+)体/)) {
+    } else if (t.match(/あなたの(?:感染状態の)?シグニ([０-９\d]+)体/)) {
       target = parseSigniTarget(t, 'self');
     } else if (t.match(/このシグニ/)) {
       target = { type: 'SIGNI', owner: 'self', count: 1 };
