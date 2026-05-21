@@ -581,7 +581,7 @@ interface CardSlotProps {
 function CardSlot({ cardNum, cards, width = 60, height = 84, label, faceDown, actions }: CardSlotProps) {
   const [enlarged, setEnlarged] = useState(false);
   const touchPos = useRef<{ x: number; y: number } | null>(null);
-  const card = cardNum ? cards.find(c => c.CardNum === cardNum) : null;
+  const card = cardNum ? cards.find(c => c.CardNum === getCardNum(cardNum)) : null;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
