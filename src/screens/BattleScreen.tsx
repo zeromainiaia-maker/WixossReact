@@ -344,7 +344,7 @@ function canAffordWithExtraCost(
     const rem: string[] = [];
     for (const n of pool) {
       if (needed > 0) {
-        const cd = cards.find(c => c.CardNum === n);
+        const cd = cards.find(c => c.CardNum === getCardNum(n));
         const cardColor = cd?.Color ?? '無';
         if (color === '無' || cardColor.includes(color)) { needed--; continue; }
       }
