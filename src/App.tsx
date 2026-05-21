@@ -206,7 +206,7 @@ export default function App() {
           user={user}
           roomId={battleRoomId}
           myDeckId={battleDeckId}
-          cards={cards}
+          cards={allCards}
           onBack={() => { setBattleRoomId(null); setBattleDeckId(null); setViewMode('START'); }}
         />
       )}
