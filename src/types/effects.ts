@@ -785,6 +785,31 @@ export interface ForceSigniAttackAction {
   targetOwner: Owner;
 }
 
+// ウィルストークンを置く
+export interface PlaceVirusAction {
+  type: 'PLACE_VIRUS';
+  targetOwner: Owner;          // どちらのゾーンにウィルスを置くか
+  zoneCount: number | 'ALL';   // 何ゾーンに置くか
+  virusCount: number;          // 各ゾーンに置くウィルス数（通常1）
+  upToZoneCount?: boolean;     // true=「～つまで」
+}
+
+// エナゾーンのカードをシグニのアクセにする
+export interface AttachAcceAction {
+  type: 'ATTACH_ACCE';
+  targetSigniOwner: Owner;     // アクセを付けるシグニのオーナー
+  sourceOwner: Owner;          // アクセカードのオーナー（エナゾーン）
+  signiFilter?: TargetFilter;  // 対象シグニのフィルター
+}
+
+// 血晶武装：手札またはトラッシュから同名カードをシグニの下に重ねる
+export interface BloodCrystalArmorAction {
+  type: 'BLOOD_CRYSTAL_ARMOR';
+  source: ('hand' | 'trash')[];  // どこから探すか
+  targetFilter?: TargetFilter;   // 対象シグニのフィルター
+  count: number;                 // 武装する枚数（通常1）
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface UnknownAction {
   type: 'UNKNOWN';
