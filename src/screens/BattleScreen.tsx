@@ -6191,22 +6191,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                   {candidates.map((cardNum, idx) => {
                     const c = battleCardMap.get(cardNum);
-                    // 同名カード対応: このインデックスより前に同名カードが何枚あるか vs 選択済みの同名カード枚数
-                    const countBefore = candidates.slice(0, idx).filter(n => n === cardNum).length;
-                    const countSelected = effectSelectedNums.filter(n => n === cardNum).length;
-                    const isSel = countBefore < countSelected;
-                    const zoneIdx = fieldZoneInfo[idx]; // undefined if not a field target
+                    // インデックス文字列で管理 → 同名カードでも個別に選択できる
+                    const idxStr = String(idx);
+                    const isSel = effectSelectedNums.includes(idxStr);
+                    // フィールド対象の場合のゾーン番号（candidates[idx] = zone idx が対応）
+                    const zoneIdx = fieldZoneInfo[idx];
                     return (
                       <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         <div
                           onClick={() => {
                             setEffectSelectedNums(prev => {
-                              if (isSel) {
-                                const ri = prev.indexOf(cardNum);
-                                return ri >= 0 ? [...prev.slice(0, ri), ...prev.slice(ri + 1)] : prev;
+                              if (prev.includes(idxStr)) {
+                                return prev.filter(x => x !== idxStr);
                               }
                               if (prev.length >= maxPick) return prev;
-                              return [...prev, cardNum];
+                              return [...prev, idxStr];
                             });
                           }}
                           style={{ position: 'relative', width: 60, height: 84, borderRadius: 4,
@@ -6246,7 +6245,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       スキップ
                     </button>
                   )}
-                  <button onClick={() => handleEffectInteraction(effectSelectedNums)}
+                  <button onClick={() => {
+                    // インデックス文字列 → CardNum に変換してから渡す
+                    const selectedNums = effectSelectedNums.map(i => candidates[parseInt(i, 10)] ?? i);
+                    handleEffectInteraction(selectedNums);
+                  }}
                     disabled={loading || !canConfirm}
                     style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                       backgroundColor: canConfirm ? C.success : C.disabled,
