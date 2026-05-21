@@ -42,6 +42,8 @@ import type {
   CharmProtectionAction,
   MutualDiscardAndDrawAction,
   RemoveAbilitiesAction,
+  GainCoinAction,
+  DiscardBothAction,
 } from '../types/effects';
 
 // ===== 実行コンテキスト & 結果型 =====
