@@ -128,6 +128,7 @@ export type PendingInteractionDef =
       targetScope: TargetScope;
       thenAction: EffectAction;   // 選択後に実行するアクション（各カードに適用）
       continuation?: EffectAction;
+      opponentResponds?: boolean; // true = 相手プレイヤーが選択するインタラクション（例:「対戦相手は手札を1枚捨てる」）
     }
   | {
       type: 'SEARCH';
