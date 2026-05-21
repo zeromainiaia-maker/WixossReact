@@ -1700,6 +1700,13 @@ function splitSentences(text: string): string[] {
 // ===== アクションテキスト全体パース =====
 
 function parseActionText(text: string): EffectAction {
+  // ---- センタールリグへの能力付与 ----
+  if (text.includes('センタールリグは以下の能力を得る') || text.includes('レベルN以上のセンタールリグは以下の能力を得る')) {
+    const m = text.match(/以下の能力を得る[。、]?(.+)/s);
+    // abilities は parseBlock 後に埋められる（此処では rawText のみ保持）
+    return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: m?.[1]?.trim() ?? '' } as import('../types/effects').GrantLrigAbilityAction;
+  }
+
   const sentences = splitSentences(text).filter(s => {
     const c = s.trim().replace(/。$/, '');
     if (!c) return false;
