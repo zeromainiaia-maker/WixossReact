@@ -2833,7 +2833,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
       const fieldEntries = collectFieldTriggers('ON_PLAY', cardNum, placed, op);
 
-      // 召喚したカード自身の ON_PLAY 効果（mandatory=falseの任意効果は自動発動しない）
+      // 召喚したカード自身の ON_PLAY 効果
       const ownEffects = effectsMap.get(cardNum) ?? [];
       const ownOnPlay = ownEffects.filter(e =>
         e.effectType === 'AUTO' &&
@@ -2841,18 +2841,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (e.triggerScope === undefined || e.triggerScope === 'self') &&
         e.mandatory !== false,
       );
+      // コスト付き任意【出】効果（mandatory: false + cost あり）
+      const ownCostOnPlay = ownEffects.filter(e =>
+        e.effectType === 'AUTO' &&
+        e.timing?.includes('ON_PLAY') &&
+        (e.triggerScope === undefined || e.triggerScope === 'self') &&
+        e.mandatory === false &&
+        e.cost,
+      );
 
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       appendBattleLogs([`${cardName}を召喚`]);
 
-      if (ownOnPlay.length === 0 && fieldEntries.length === 0) {
-        // 効果なし：そのまま保存
-        const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states').update({ [stateKey]: placed }).eq('room_id', roomId);
-        return;
-      }
-
-      // 自身の ON_PLAY エントリを StackEntry に変換
+      // 自身の mandatory ON_PLAY エントリ
       const ownEntries: StackEntry[] = ownOnPlay.map(eff => ({
         id: generateUUID(),
         playerId: user.id,
@@ -2861,6 +2862,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         label: `${cardName} の【出】/【自】効果`,
         effect: eff,
       }));
+
+      // コスト付き【出】効果があればモーダルで確認（DBはモーダル確定後に保存）
+      if (ownCostOnPlay.length > 0) {
+        setPendingSigniOnPlayCost({
+          cardNum,
+          costEffect: ownCostOnPlay[0],
+          placedState: placed,
+          mandatoryEntries: [...ownEntries, ...fieldEntries],
+        });
+        return;
+      }
+
+      if (ownOnPlay.length === 0 && fieldEntries.length === 0) {
+        // 効果なし：そのまま保存
+        const stateKey = isHost ? 'host_state' : 'guest_state';
+        await supabase.from('battle_states').update({ [stateKey]: placed }).eq('room_id', roomId);
+        return;
+      }
 
       // すべてをスタックに積む
       const allEntries = [...ownEntries, ...fieldEntries];
