@@ -268,7 +268,6 @@ function selectOrInteract(
   thenAction: EffectAction,
   continuation: EffectAction | undefined,
   ctx: ExecCtx,
-  autoApply: (selected: string[], ctx: ExecCtx) => ExecCtx,
   opponentResponds = false,
 ): ExecResult {
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
