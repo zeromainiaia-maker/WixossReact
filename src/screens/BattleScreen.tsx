@@ -4377,6 +4377,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               ベット: コイン{betCostAmt}枚
                             </p>
                           )}
+                          {(() => {
+                            const encoreCost = parseEncoreCost(card.EffectText ?? '');
+                            if (!encoreCost) return null;
+                            const encoreEnaStr = encoreCost.energy.map(e => `《${e.color}》${e.count > 1 ? `×${e.count}` : ''}`).join('');
+                            const encoreCoinStr = encoreCost.coins > 0 ? ` コイン${encoreCost.coins}枚` : '';
+                            return (
+                              <p style={{ color: '#88ddff', fontSize: 10, margin: '2px 0 0' }}>
+                                アンコール: {encoreEnaStr}{encoreCoinStr}
+                              </p>
+                            );
+                          })()}
                           {!canAfford && (
                             <p style={{ color: C.danger, fontSize: 10, margin: '2px 0 0' }}>エナ不足</p>
                           )}
