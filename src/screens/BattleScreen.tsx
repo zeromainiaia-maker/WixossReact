@@ -5,7 +5,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects } from '../engine/effectEngine';
-import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeLookAndReorder, removeFromField, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeLookAndReorder, removeFromField, getCardNum, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 
