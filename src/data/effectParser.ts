@@ -2486,8 +2486,169 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 対戦相手のライフクロスの一番上を見る ----
-  if (t.match(/(?:^対戦相手|対戦相手)のライフクロスの一番上を見る/)) {
+  if (t.match(/対戦相手のライフクロスの一番上を見る/)) {
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+  }
+
+  // ---- センタールリグのレベルが条件で代わりに複数選択（レベルが以上）----
+  if (t.match(/センタールリグのレベルが?[０-９\d]+以上の場合.*代わりに[２-９]つまで選ぶ/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE' } as StubAction;
+  }
+
+  // ---- そのシグニは引用符付き能力を得る（ライズ時等）----
+  if (t.match(/そのシグニは「【常】.*」を得る/s)) {
+    return { type: 'STUB', id: 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY' } as StubAction;
+  }
+
+  // ---- ルリグアタックで特定カード名をすべてトラッシュ ----
+  if (t.match(/対戦相手の場とエナゾーンからカード名に.*を含むすべてのカードをトラッシュに置く/)) {
+    return { type: 'STUB', id: 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY' } as StubAction;
+  }
+
+  // ---- スペルを制限なし・コスト0で使用 ----
+  if (t.match(/スペル.*コストを支払わずに限定条件を無視して使用/)) {
+    return { type: 'STUB', id: 'PLAY_SPELL_FREE_IGNORE_RESTRICTION' } as StubAction;
+  }
+
+  // ---- シグニ1体かセンタールリグのアタックを無効 ----
+  if (t.match(/対戦相手のシグニ.*かセンタールリグ.*がアタックしたとき.*そのアタックを無効にする/)) {
+    return { type: 'STUB', id: 'NEGATE_SIGNI_OR_LRIG_ATTACK' } as StubAction;
+  }
+
+  // ---- カードを1枚引き手札1枚をデッキ下に ----
+  if (t.match(/^カードを([０-９\d]+)枚引き、手札からカード([０-９\d]+)枚をデッキの一番下に置く$/)) {
+    const m = t.match(/^カードを([０-９\d]+)枚引き、手札からカード([０-９\d]+)枚をデッキの一番下に置く$/);
+    if (m) {
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'DRAW', owner: 'self', count: parseNum(m[1]) },
+          { type: 'TRANSFER_TO_DECK', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(m[2]) }, position: 'bottom' },
+        ],
+      } as import('../types/effects').SequenceAction;
+    }
+  }
+
+  // ---- 同じ選択肢を2回選んでもよい ----
+  if (t.match(/同じ選択肢を[２-９]回選んでもよい/)) {
+    return { type: 'STUB', id: 'CHOOSE_SAME_OPTION_TWICE' } as StubAction;
+  }
+
+  // ---- 対戦相手のレベルNのシグニをトラッシュに置く ----
+  if (t.match(/対戦相手のレベル[０-９\d]+(?:以下)?のシグニ([０-９\d]+)体を対象とし.*トラッシュに置く/)) {
+    const m = t.match(/対戦相手のレベル([０-９\d]+)(以下)?のシグニ([０-９\d]+)?体を対象とし.*トラッシュに置く/);
+    if (m) {
+      const filter: import('../types/effects').TargetFilter = { cardType: 'シグニ', levelRange: { max: parseNum(m[1]) } };
+      if (!m[2]) filter.levelRange = { min: parseNum(m[1]), max: parseNum(m[1]) };
+      return {
+        type: 'TRASH',
+        target: { type: 'SIGNI', owner: 'opponent', count: m[3] ? parseNum(m[3]) : 1, filter },
+      };
+    }
+  }
+
+  // ---- 他のシグニのパワーが対戦相手の効果で－されない ----
+  if (t.match(/あなたの(?:他の)?シグニのパワーは対戦相手の効果によって－.*されない/)) {
+    return { type: 'STUB', id: 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP' } as StubAction;
+  }
+
+  // ---- このターン4度目のアタックかつ特定センタールリグで選択 ----
+  if (t.match(/そのアタックがこのターン[一二三四五六七八九十]+度目.*センタールリグ.*の場合.*以下の.*から.*選ぶ/)) {
+    return { type: 'STUB', id: 'NTH_ATTACK_CENTER_LRIG_CHOOSE' } as StubAction;
+  }
+
+  // ---- 対戦相手がシグニとエナゾーンのカードをトラッシュ ----
+  if (t.match(/対戦相手は.*自分の場からシグニ.*自分のエナゾーンからカード.*トラッシュに置く/)) {
+    return { type: 'STUB', id: 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY' } as StubAction;
+  }
+
+  // ---- 対戦相手のターン中、このシグニがバニッシュされたとき相手が手札をデッキ上に ----
+  if (t.match(/対戦相手のターンの間.*このシグニがバニッシュされたとき.*対戦相手は手札.*デッキの一番上に置く/)) {
+    return { type: 'STUB', id: 'OPP_RETURN_HAND_ON_SELF_BANISH' } as StubAction;
+  }
+
+  // ---- バニッシュしたシグニがエナ代わりにトラッシュ（このシグニによって）----
+  if (t.match(/このシグニによってバニッシュされたシグニはエナゾーンに置かれる代わりにトラッシュに置かれる/)) {
+    return { type: 'STUB', id: 'BANISH_BY_SELF_GOES_TO_TRASH' } as StubAction;
+  }
+
+  // ---- シグニがアタックしたとき、このシグニを別のゾーンに配置 ----
+  if (t.match(/対戦相手のシグニ.*がアタックしたとき.*このシグニを他のシグニゾーンに配置してもよい/)) {
+    return { type: 'STUB', id: 'MOVE_SELF_TO_OTHER_ZONE_ON_OPP_ATTACK' } as StubAction;
+  }
+
+  // ---- ターン終了時まで、特定クラス複数体のパワーUP ----
+  if (t.match(/あなたの＜[^＞]+＞のシグニを[０-９\d]+体まで対象とし.*ターン終了時まで.*それらのパワーを.*[＋+]/)) {
+    const m = t.match(/[＋+]([０-９\d]+)する/);
+    if (m) {
+      return { type: 'STUB', id: `MULTI_SIGNI_POWER_UP_${parseNum(m[1])}` } as StubAction;
+    }
+    return { type: 'STUB', id: 'MULTI_SIGNI_POWER_UP' } as StubAction;
+  }
+
+  // ---- このシグニは効果によって手札に戻らずダウンしない ----
+  if (t.match(/このシグニは対戦相手の効果によって.*手札に戻らずダウンしない/)) {
+    return { type: 'STUB', id: 'PREVENT_BOUNCE_AND_DOWN_BY_OPP' } as StubAction;
+  }
+
+  // ---- 手札が少ない場合、対戦相手の手札をデッキ下に ----
+  if (t.match(/あなたの手札が対戦相手より少ない場合.*対戦相手は手札を.*デッキの一番下に置く/)) {
+    return { type: 'STUB', id: 'OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND' } as StubAction;
+  }
+
+  // ---- 対戦相手シグニのパワーをトラッシュされたシグニのレベル×Nだけ減少 ----
+  if (t.match(/対戦相手のシグニ.*ターン終了時まで.*それのパワーをトラッシュに置かれたそのシグニのレベル.*につき－/)) {
+    return { type: 'STUB', id: 'OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL' } as StubAction;
+  }
+
+  // ---- シード開花（optional）----
+  if (t.match(/あなたの【シード】.*開花してもよい/)) {
+    return { type: 'STUB', id: 'SEED_BLOOM_OPTIONAL' } as StubAction;
+  }
+
+  // ---- 手札から無色ではないカードをエナゾーンに置く ----
+  if (t.match(/あなたの手札から.*無色ではないカードを.*枚までエナゾーンに置く/)) {
+    return { type: 'STUB', id: 'HAND_NONCOLORLESS_TO_ENERGY' } as StubAction;
+  }
+
+  // ---- エナゾーンのカードをトラッシュ（自分の）----
+  if (t.match(/^あなたのエナゾーンからカード([０-９\d]+)枚を対象とし、それをトラッシュに置く$/) ||
+      t.match(/^あなたのエナゾーンからカード([０-９\d]+)枚をトラッシュに置く$/)) {
+    const m = t.match(/カード([０-９\d]+)枚/);
+    return {
+      type: 'TRASH',
+      target: { type: 'ENERGY_CARD', owner: 'self', count: m ? parseNum(m[1]) : 1 },
+    };
+  }
+
+  // ---- 対戦相手のトラッシュの色とクラスを失わせる ----
+  if (t.match(/対戦相手のトラッシュにあるカードは色とクラスを失う/)) {
+    return { type: 'STUB', id: 'OPP_TRASH_LOSE_COLOR_AND_CLASS' } as StubAction;
+  }
+
+  // ---- このシグニには複数枚アクセを付けられる ----
+  if (t.match(/このシグニには[２-９]枚まで【アクセ】を付けられる/)) {
+    return { type: 'STUB', id: 'MULTI_ACCE_LIMIT' } as StubAction;
+  }
+
+  // ---- 手札から調理シグニをアクセにする（枚数付き）----
+  if (t.match(/あなたの手札から.*シグニを[０-９\d]+枚までこのシグニの【アクセ】にする/)) {
+    return { type: 'STUB', id: 'MULTI_ACCE_FROM_HAND' } as StubAction;
+  }
+
+  // ---- チャーム枚数でパワーアップ ----
+  if (t.match(/このシグニのパワーは.*【チャーム】.*枚につき[＋+]/)) {
+    return { type: 'STUB', id: 'POWER_BY_CHARM_COUNT' } as StubAction;
+  }
+
+  // ---- 《ライズアイコン_黒》を持つシグニが場に出たとき ----
+  if (t.match(/《ライズアイコン[_黒]*》.*持つ.*シグニ.*場に出たとき/)) {
+    return { type: 'STUB', id: 'BLACK_RISE_PLAY_STACK_FROM_TRASH' } as StubAction;
+  }
+
+  // ---- トラッシュから特定名前シグニをアクセにする ----
+  if (t.match(/あなたのトラッシュから《[^》]+》.*このシグニの【アクセ】にする/)) {
+    return { type: 'STUB', id: 'NAMED_SIGNI_ACCE_FROM_TRASH' } as StubAction;
   }
 
   // ---- このシグニはダウン状態で場に出る ----
