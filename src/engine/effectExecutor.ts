@@ -1123,8 +1123,9 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
 
 function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
   const s = ownerState(a.owner, ctx);
-  const newS: PlayerState = { ...s, coins: s.coins + a.count };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `コイン${a.count}枚獲得`));
+  const gained = Math.min(a.count, 5 - s.coins);
+  const newS: PlayerState = { ...s, coins: Math.min(5, s.coins + a.count) };
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `コイン${gained}枚獲得（計${newS.coins}枚）`));
 }
 
 function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
