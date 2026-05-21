@@ -2742,12 +2742,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 対戦相手の場に【ウィルス】がない場合このシグニをトラッシュ ----
   if (t.match(/対戦相手の場に【ウィルス】がない場合.*このシグニを.*トラッシュに置く/)) {
-    return {
-      type: 'CONDITIONAL',
-      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { virus: true } },
-      then: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { self: true } } },
-      else: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { self: true } } },
-    } as import('../types/effects').ConditionalAction;
+    return { type: 'STUB', id: 'SELF_TRASH_IF_NO_OPP_VIRUS' } as StubAction;
   }
 
   // ---- 対戦相手のシグニ１体とこのシグニが同じカードになる ----
