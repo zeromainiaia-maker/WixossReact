@@ -922,7 +922,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     }
 
     if (src.count === 'ALL') return done(applyToBottom(cands, ctx));
-    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyToBottom);
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
   }
 
   return done(ctx);
