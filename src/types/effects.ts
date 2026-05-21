@@ -111,6 +111,8 @@ export interface TargetFilter {
   isDown?:    boolean;
   isFrozen?:  boolean;
   hasCharm?:  boolean;
+  hasAcce?:   boolean; // アクセが付いている
+  infected?:  boolean; // 感染状態（ウィルスのあるゾーンのシグニ）
 }
 
 // ===== ターゲット =====
