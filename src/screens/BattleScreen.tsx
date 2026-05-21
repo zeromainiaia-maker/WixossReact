@@ -4183,7 +4183,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {growCandidates.length === 0 ? (
                     <p style={{ color: C.textFaint, textAlign: 'center', margin: '12px 0' }}>候補なし</p>
                   ) : growCandidates.map(card => {
-                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti);
+                    const growCoinNeeded = parseCoinCost(card.GrowCost);
+                    const canAfford = (growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
+                      canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti);
                     const totalReq = parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
