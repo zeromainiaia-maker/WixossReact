@@ -687,7 +687,7 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
 
   if (a.target.count === 'ALL') return done(applyFreeze(cands, ctx));
   const count = resolveNum(a.target.count);
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx, applyFreeze);
+  return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
 
 function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
