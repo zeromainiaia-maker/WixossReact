@@ -1637,8 +1637,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs, effectsMap, battleCardMap, user.id]);
 
-  // LOOK_AND_REORDER インタラクションが来たら初期順序をセット
+  // pending_effectが変わったらカード選択をリセット（別効果の選択状態が残らないように）
   useEffect(() => {
+    setEffectSelectedNums([]);
     if (!bs?.pending_effect) return;
     const inter = bs.pending_effect.interaction;
     if (inter.type === 'LOOK_AND_REORDER') {
