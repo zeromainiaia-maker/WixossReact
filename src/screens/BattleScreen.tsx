@@ -3942,6 +3942,75 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // シグニ出現時コスト付き【出】効果：発動
+  const executeSigniOnPlayCost = async (
+    cardNum: string,
+    costEffect: import('../types/effects').CardEffect,
+    costIndices: Set<number>,
+    placedState: PlayerState,
+    mandatoryEntries: StackEntry[],
+  ) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingSigniOnPlayCost(null);
+    setSelectedSigniOnPlayCost(new Set());
+    try {
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const paid: PlayerState = {
+        ...placedState,
+        energy: newEnergy,
+        trash: [...placedState.trash, ...paidNums],
+      };
+      const cName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      const costEntry: StackEntry = {
+        id: generateUUID(),
+        playerId: user.id,
+        cardNum,
+        effectId: costEffect.effectId,
+        label: `${cName} の【出】効果`,
+        effect: costEffect,
+      };
+      const allEntries = [...mandatoryEntries, costEntry];
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existingStack = bs?.effect_stack ?? null;
+      const newStack = existingStack
+        ? pushToStack(existingStack, allEntries)
+        : initStack(turnPlayerId, allEntries);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // シグニ出現時コスト付き【出】効果：スキップ（召喚はコミット）
+  const skipSigniOnPlayCost = async (placedState: PlayerState, mandatoryEntries: StackEntry[]) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingSigniOnPlayCost(null);
+    setSelectedSigniOnPlayCost(new Set());
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      if (mandatoryEntries.length === 0) {
+        await supabase.from('battle_states').update({ [stateKey]: placedState }).eq('room_id', roomId);
+      } else {
+        const turnPlayerId = bs.active_user_id ?? user.id;
+        const existingStack = bs?.effect_stack ?? null;
+        const newStack = existingStack
+          ? pushToStack(existingStack, mandatoryEntries)
+          : initStack(turnPlayerId, mandatoryEntries);
+        await supabase.from('battle_states')
+          .update({ [stateKey]: placedState, effect_stack: newStack, pending_effect: null })
+          .eq('room_id', roomId);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動：エクシードコスト＋エナコスト支払い
   const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
     if (loading) return;
