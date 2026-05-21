@@ -1702,6 +1702,20 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN' } as PreventDamageAction;
   }
 
+  // ---- 次のターンの間、対戦相手のルリグはダメージを与えない ----
+  if (t.match(/次の.*ターンの間、対戦相手のルリグはあなたにダメージを与えない/)) {
+    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'NEXT_TURN' } as PreventDamageAction;
+  }
+
+  // ---- シグニの位置交換 ----
+  if (t.match(/あなたの他のシグニ[０-９\d]*体を対象とし、それとこのシグニの場所を入れ替える/)) {
+    return {
+      type: 'REARRANGE_SIGNI',
+      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      swap: true,
+    } as RearrangeSigniAction;
+  }
+
   // ---- エナゾーンをN枚に均等化 ----
   {
     const equalizeM = t.match(/自分のエナゾーンのカードが([０-９\d]+)枚になるように/);
