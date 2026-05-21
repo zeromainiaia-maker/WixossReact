@@ -2117,6 +2117,71 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- ルリグアタックステップスキップ ----
+  if (t.match(/ルリグアタックステップをスキップする/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'LRIG_ATTACK_STEP', until: 'END_OF_TURN' };
+  }
+
+  // ---- シグニアタックステップスキップ ----
+  if (t.match(/シグニアタックステップをスキップする/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'SIGNI_ATTACK_STEP', until: 'END_OF_TURN' };
+  }
+
+  // ---- アーツとスペル使用禁止 ----
+  if (t.match(/アーツとスペルを使用できない/)) {
+    const owner: Owner = (t.includes('あなたはアーツ') || (t.includes('あなたは') && !t.includes('対戦相手'))) ? 'self' : 'opponent';
+    const until: BlockActionAction['until'] = t.includes('次のあなたのターン') ? 'NEXT_TURN' : t.includes('次の対戦相手のターン') ? 'NEXT_TURN' : 'END_OF_TURN';
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'ARTS_AND_SPELL', until };
+  }
+
+  // ---- センタールリグのリミット増減 ----
+  {
+    const limitM = t.match(/(?:対戦相手の)?センタールリグのリミットは([１-９\d]+)(増え|減る)/);
+    if (limitM) {
+      const delta = parseNum(limitM[1]) * (limitM[2] === '増え' ? 1 : -1);
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const until: LrigLimitModifyAction['until'] = t.includes('次の') ? 'NEXT_TURN' : t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
+      return { type: 'LRIG_LIMIT_MODIFY', owner, delta, until } as LrigLimitModifyAction;
+    }
+  }
+
+  // ---- 対戦相手の手札が多い場合に捨てさせる ----
+  {
+    const discardSizeM = t.match(/対戦相手の手札が([０-９\d]+)枚以上ある場合、対戦相手は手札が([０-９\d]+)枚になるようにカードを捨てる/);
+    if (discardSizeM) {
+      const threshold = parseNum(discardSizeM[1]);
+      const target = parseNum(discardSizeM[2]);
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'HAND_COUNT', owner: 'opponent', operator: 'gte', value: threshold },
+        then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: threshold - target } },
+      };
+    }
+  }
+
+  // ---- 感染状態のシグニはアップフェイズにアップしない ----
+  if (t.match(/感染状態のシグニはアップフェイズにアップしない/)) {
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    return { type: 'FREEZE', target: { type: 'SIGNI', owner, count: 'ALL', filter: { infected: true } } } as FreezeAction;
+  }
+
+  // ---- ライフクロスを見てデッキに戻す ----
+  {
+    const lifeToTopM = t.match(/ライフクロスの上からカードを([０-９\d]+)枚まで見て.*(?:デッキの一番上に戻す|好きな順番でデッキの一番上に戻す)/);
+    if (lifeToTopM) {
+      return {
+        type: 'LOOK_AND_REORDER',
+        source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: parseNum(lifeToTopM[1]) },
+        canTrash: false,
+        destLocation: 'deck',
+        destOwner: 'self',
+        destPosition: 'any',
+      } as LookAndReorderAction;
+    }
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
