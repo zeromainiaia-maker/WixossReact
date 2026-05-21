@@ -2955,12 +2955,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const sideKey = side === 'l' ? 'assist_lrig_l' : 'assist_lrig_r';
       const currentStack = (side === 'l' ? my.field.assist_lrig_l : my.field.assist_lrig_r) ?? [];
+      const assistCoinGain = parseInt(card.Coin) || 0;
       const newMyState: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
         field: { ...my.field, [sideKey]: [...currentStack, cardNum] },
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
+        coins: Math.min(5, my.coins + assistCoinGain),
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
