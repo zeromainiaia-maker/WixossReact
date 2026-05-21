@@ -219,6 +219,7 @@ export type EffectAction =
   | BloodCrystalArmorAction
   | PowerModifyPerVirusCountAction
   | LrigLimitModifyAction
+  | StubAction
   | UnknownAction;
 
 export interface DrawAction {
