@@ -4491,6 +4491,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     {costItems.map((c, i) => (
                       <span key={i} style={{ marginLeft: 6, color: C.textDim }}>({c.color}×{c.count})</span>
                     ))}
+                    {isEncore && encoreExtraEna.map((e, i) => (
+                      <span key={`enc${i}`} style={{ marginLeft: 6, color: '#88ddff' }}>+({e.color}×{e.count})</span>
+                    ))}
                   </p>
                   <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
                     {my.energy.length === 0 ? (
