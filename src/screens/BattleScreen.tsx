@@ -1997,12 +1997,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // このフェイズの進行ボタンを自分が持つか
   const iControlThisPhase = NON_TURN_PLAYER_PHASES.includes(bs.turn_phase) ? !isMyTurn : isMyTurn;
 
-  // CONTINUOUS BLOCK_ACTION 効果によるアクション禁止（フィールド常駐効果）
-  const contBlocked = useMemo(
-    () => calcContinuousBlockedActions(my, op, isMyTurn, effectsMap, battleCardMap),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [my, op, isMyTurn],
-  );
   // blocked_actions（一時的封じ）＋ CONTINUOUS 効果の両方を考慮した禁止チェック
   const isActionBlocked = (actionId: string) =>
     (my.blocked_actions?.some(a => a === actionId) ?? false) || contBlocked.forSelf.has(actionId);
