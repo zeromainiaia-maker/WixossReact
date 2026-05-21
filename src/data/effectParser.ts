@@ -901,10 +901,10 @@ function parseSingleSentence(text: string): EffectAction {
       return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckM[1]) } };
     }
     // シグニ・ルリグをトラッシュへ（対戦相手 or 自分）
-    if (t.includes('対戦相手のシグニ') || t.includes('対戦相手のパワー') || t.includes('対戦相手のセンタールリグ')) {
+    if (t.includes('対戦相手のシグニ') || t.includes('対戦相手の感染状態のシグニ') || t.includes('対戦相手のパワー') || t.includes('対戦相手のセンタールリグ')) {
       return { type: 'TRASH', target: parseSigniTarget(t, 'opponent') };
     }
-    if (t.includes('あなたのシグニ') || t.includes('あなたの他のシグニ')) {
+    if (t.includes('あなたのシグニ') || t.includes('あなたの他のシグニ') || t.includes('あなたの感染状態のシグニ')) {
       return { type: 'TRASH', target: parseSigniTarget(t, 'self') };
     }
   }
