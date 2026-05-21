@@ -1195,6 +1195,8 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
             isAbilityRemoved={s ? s.some(num => state.abilities_removed?.includes(num)) : false}
             effectivePowers={effectivePowers}
             charmCardNum={state.field.signi_charms?.[rawIdx] ?? null}
+            acceCardNum={state.field.signi_acce?.[rawIdx] ?? null}
+            virusCount={state.field.signi_virus?.[rawIdx] ?? 0}
             isMe={isMe} />
         );
       })}
