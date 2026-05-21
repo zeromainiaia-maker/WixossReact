@@ -2775,6 +2775,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const coinGain = parseInt(card.Coin) || 0;
       const newMyState: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
@@ -2782,10 +2783,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
         actions_done: [...(my.actions_done ?? []), 'GROW'],
+        coins: Math.min(5, my.coins + coinGain),
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
-      appendBattleLogs([`${card.CardName}にグロウ`]);
+      const coinLog = coinGain > 0 ? `（コイン+${coinGain}）` : '';
+      appendBattleLogs([`${card.CardName}にグロウ${coinLog}`]);
     } finally {
       setLoading(false);
     }
