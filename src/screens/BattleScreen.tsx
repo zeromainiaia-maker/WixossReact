@@ -2904,7 +2904,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  const executeArts = async (card: CardData, costIndices: Set<number>, betting: boolean = false) => {
+  const executeArts = async (card: CardData, costIndices: Set<number>, betting: boolean = false, encore: boolean = false) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
     setLoading(true);
@@ -2912,6 +2912,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setPendingArtsCard(null);
     setSelectedArtsCost(new Set());
     setIsBetting(false);
+    setIsEncore(false);
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.indexOf(cardNum);
@@ -2920,15 +2921,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const betCost = betting ? parseBetCost(card.EffectText ?? '') : 0;
+      const encoreCoinCost = encore ? (parseEncoreCost(card.EffectText ?? '')?.coins ?? 0) : 0;
       const paid: PlayerState = {
         ...my,
-        lrig_deck: newLrigDeck,
+        lrig_deck: encore
+          ? [cardNum, ...newLrigDeck]       // アンコール：ルリグデッキ先頭に戻す
+          : newLrigDeck,
         energy: newEnergy,
-        lrig_trash: [...my.lrig_trash, cardNum],
+        lrig_trash: encore
+          ? my.lrig_trash                   // アンコール：ルリグトラッシュに置かない
+          : [...my.lrig_trash, cardNum],
         trash: [...my.trash, ...paidNums],
-        coins: Math.max(0, my.coins - betCost),
+        coins: Math.max(0, my.coins - betCost - encoreCoinCost),
       };
       if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
+      if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
       // アーツ効果を発火
       const fired = await queueCardEffects(cardNum, ['ACTIVATED'], [], paid, op);
       if (!fired) {
