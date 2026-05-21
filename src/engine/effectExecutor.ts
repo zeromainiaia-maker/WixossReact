@@ -817,17 +817,25 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.from.owner as Owner, ctx);
   const fromDeck = a.from.location === 'deck';
   const pool = fromDeck ? state.deck : state.trash;
-  const visible = pool.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
 
-  if (visible.length === 0) {
-    // 候補なし：シャッフルだけ実行
+  // 対象カードが1枚でも存在するか確認
+  const hasVisible = pool.some(n => matchesFilter(ctx.cardMap.get(n), a.filter));
+  if (!hasVisible) {
     if (a.afterSearch) return executeAction(a.afterSearch, ctx);
     return done(ctx);
   }
 
+  // 同名カードを区別するため位置エンコードID「CardNum@idx」で生成
+  // デッキ：全体を公開、トラッシュ：条件一致のみ
+  const visibleCards = fromDeck
+    ? state.deck.map((n, i) => `${n}@${i}`)
+    : pool.map((n, i) => ({ n, i }))
+        .filter(({ n }) => matchesFilter(ctx.cardMap.get(n), a.filter))
+        .map(({ n, i }) => `${n}@${i}`);
+
   return needsInteraction(ctx, {
     type: 'SEARCH',
-    visibleCards: fromDeck ? [...state.deck] : visible, // デッキは全公開、トラッシュは対象のみ
+    visibleCards,
     maxPick: a.maxCount,
     thenAction: a.then,
     afterAction: a.afterSearch,
