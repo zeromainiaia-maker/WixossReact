@@ -206,6 +206,8 @@ export type EffectAction =
   | PowerModifyPerEnergyColorAction
   | GainCoinAction
   | DiscardBothAction
+  | RemoveCharmAction
+  | ForceSigniAttackAction
   | UnknownAction;
 
 export interface DrawAction {
