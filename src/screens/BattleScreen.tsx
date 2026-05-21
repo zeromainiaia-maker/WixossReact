@@ -6222,9 +6222,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>{label}</p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                   {candidates.map((rawId, idx) => {
-                    // 位置エンコードID（CardNum@idx）に対応：表示用にCardNumをデコード
-                    const atPos = rawId.lastIndexOf('@');
-                    const cardNum = atPos > 0 ? rawId.slice(0, atPos) : rawId;
+                    // インスタンスID（CardNum#N）からCardNumを取り出して表示用データを取得
+                    const cardNum = getCardNum(rawId);
                     const c = battleCardMap.get(cardNum);
                     // インデックス文字列で管理 → 同名カードでも個別に選択できる
                     const idxStr = String(idx);
