@@ -4405,15 +4405,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ) : (() => {
               /* Phase 2: コスト支払いカード選択 */
               const costItems = parseGrowCost(pendingArtsCard.Cost);
-              const totalReq = costItems.reduce((s, c) => s + c.count, 0);
+              const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
+              const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
+              const encoreExtraCostItems = encoreExtraEna.flatMap(e => Array(e.count).fill({ color: e.color, count: 1 }));
+              const totalReq = costItems.reduce((s, c) => s + c.count, 0) +
+                (isEncore ? encoreExtraEna.reduce((s, e) => s + e.count, 0) : 0);
               const selectedNums = [...selectedArtsCost].map(i => my.energy[i]);
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
+              const combinedCostStr = isEncore && encoreCostForCard
+                ? (pendingArtsCard.Cost ? pendingArtsCard.Cost + '+encore' : 'encore')
+                : pendingArtsCard.Cost;
               const isValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
+                canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti) &&
+                (!isEncore || encoreExtraEna.every(req =>
+                  selectedNums.filter(n => {
+                    const c = battleCardMap.get(n);
+                    return c?.Color === req.color || isMultiEna(n, battleCards, my.keyword_grants, myEnaAllMulti);
+                  }).length >= req.count
+                ));
               const betCostForCard = parseBetCost(pendingArtsCard.EffectText ?? '');
               const canBet = betCostForCard > 0 && my.coins >= betCostForCard;
+              const canEncore = !!encoreCostForCard && (encoreCostForCard.coins === 0 || my.coins >= encoreCostForCard.coins);
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
