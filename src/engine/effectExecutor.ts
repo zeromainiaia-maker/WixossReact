@@ -820,13 +820,11 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     return done(ctx);
   }
 
-  // 同名カードを区別するため位置エンコードID「CardNum@idx」で生成
+  // インスタンスIDで各カードを一意に識別（同名カードも区別できる）
   // デッキ：全体を公開、トラッシュ：条件一致のみ
   const visibleCards = fromDeck
-    ? state.deck.map((n, i) => `${n}@${i}`)
-    : pool.map((n, i) => ({ n, i }))
-        .filter(({ n }) => matchesFilter(ctx.cardMap.get(n), a.filter))
-        .map(({ n, i }) => `${n}@${i}`);
+    ? [...state.deck]
+    : pool.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
 
   return needsInteraction(ctx, {
     type: 'SEARCH',
