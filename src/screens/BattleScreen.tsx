@@ -1463,6 +1463,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const transitioningRef = useRef(false);
   const leavingRef = useRef(false);
   const stackProcessingRef        = useRef(false);  // resolveStackNext の多重実行防止
+  const lastResolvedEntryIdRef    = useRef<string | null>(null); // 直前に処理したキュー先頭のID（DB伝播前の二重処理防止）
   const doPhaseAdvanceRef         = useRef<(() => Promise<void>) | null>(null);
   const triggerPendingCrashRef    = useRef<(() => Promise<void>) | null>(null);
   const resolveStackNextRef       = useRef<(() => Promise<void>) | null>(null);
