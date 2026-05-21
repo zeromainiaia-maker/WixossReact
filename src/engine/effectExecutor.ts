@@ -1121,6 +1121,23 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   return done(addLog(setOwnerState(tgtOwner, newS, ctx), `シグニ${cands.length}体の能力を消去`));
 }
 
+function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
+  const s = ownerState(a.owner, ctx);
+  const newS: PlayerState = { ...s, coins: s.coins + a.count };
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `コイン${a.count}枚獲得`));
+}
+
+function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
+  const selfDiscard = Math.min(a.count, ctx.ownerState.hand.length);
+  const otherDiscard = Math.min(a.count, ctx.otherState.hand.length);
+  const newCtx: ExecCtx = {
+    ...ctx,
+    ownerState: { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(selfDiscard), trash: [...ctx.ownerState.trash, ...ctx.ownerState.hand.slice(0, selfDiscard)] },
+    otherState: { ...ctx.otherState, hand: ctx.otherState.hand.slice(otherDiscard), trash: [...ctx.otherState.trash, ...ctx.otherState.hand.slice(0, otherDiscard)] },
+  };
+  return done(addLog(newCtx, `各プレイヤー手札${a.count}枚捨て`));
+}
+
 // ===== メイン実行関数 =====
 
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
