@@ -1337,9 +1337,7 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
   // エナゾーンからアクセカード選択 → 選択後に signi_acce[zoneIdx] に設定
   // thenAction として ATTACH_ACCE 自身を渡すのは循環するので、
   // ここでは SELECT_TARGET でシグニを選ばせ、applyDirectAction で適用する
-  const srcState = a.sourceOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
-  // エナゾーンにこのカード（自分自身）があることを前提として、
-  // SELECT_TARGET で「どのシグニに付けるか」を選ばせる
+  // SELECT_TARGET で「どのシグニに付けるか」を選ばせる（applyDirectActionのATTACH_ACCEで完結）
   const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
   return {
     done: false,
