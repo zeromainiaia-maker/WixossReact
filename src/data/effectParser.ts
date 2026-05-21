@@ -936,7 +936,8 @@ function parseSingleSentence(text: string): EffectAction {
       return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ' } } };
     }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    return { type: 'BANISH', target: parseSigniTarget(t, owner) };
+    const isOptional = t.includes('バニッシュしてもよい');
+    return { type: 'BANISH', target: parseSigniTarget(t, owner), ...(isOptional ? { optional: true } : {}) };
   }
 
   // ---- デッキからトラッシュ（もよい）----
