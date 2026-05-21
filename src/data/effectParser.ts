@@ -922,6 +922,12 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'GRANT_KEYWORD', target, keyword, duration: 'UNTIL_END_OF_TURN' };
   }
 
+  // ---- コイン獲得（《コインアイコン》を得る）----
+  if (t.match(/《コインアイコン》/) && t.includes('を得る')) {
+    const count = (t.match(/《コインアイコン》/g) ?? []).length;
+    return { type: 'GAIN_COIN', owner: 'self', count };
+  }
+
   // ---- キーワード能力付与（【ランサー】【ダブルクラッシュ】など）----
   if (t.includes('を得る') || t.includes('を持つ')) {
     const kwM = t.match(/【([^】]+)】/);
