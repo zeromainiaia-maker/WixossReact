@@ -62,6 +62,9 @@ import type {
   PowerModifyPerTrashCountAction,
   PowerModifyPerLifeCountAction,
   PowerModifyPerLrigLevelAction,
+  PlaceVirusAction,
+  AttachAcceAction,
+  BloodCrystalArmorAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
