@@ -2133,6 +2133,17 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- 手札からシグニを公開してもよい ----
+  {
+    const revealHandM = t.match(/あなたの手札から(?:名前の異なる)?(?:(.+?)の)?シグニを?([０-９\d]+)枚まで公開してもよい/);
+    if (revealHandM) {
+      const filter: TargetFilter = { cardType: 'シグニ' };
+      if (revealHandM[1]) Object.assign(filter, parseStoryFilter(revealHandM[1]));
+      const count = parseNum(revealHandM[2]);
+      return { type: 'REVEAL', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: true, filter } } as { type: 'REVEAL'; source?: EffectTarget };
+    }
+  }
+
   // ---- このアーツは対戦相手のターンにしか使用できない ----
   if (t.match(/このアーツは対戦相手のターンにしか使用できない/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'USE_ARTS_EXCEPT_OPP_TURN', until: 'PERMANENT' };
