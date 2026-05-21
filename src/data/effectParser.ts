@@ -2625,6 +2625,26 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as StubAction;
   }
 
+  // ---- エナコスト節約（センタールリグの色のエナの代わりにシグニをトラッシュ）----
+  if (t.match(/センタールリグが持つ色のエナ.*支払う際.*代わりに.*シグニをトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'ENERGY_SUBSTITUTE_TRASH_SIGNI' } as StubAction;
+  }
+
+  // ---- 【トラップ】を表向きにして発動 ----
+  if (t.match(/【トラップ】.*表向きにし《トラップアイコン》を発動させる/)) {
+    return { type: 'STUB', id: 'ACTIVATE_TRAP' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニを【トラップ】として設置 ----
+  if (t.match(/対戦相手のシグニ.*【トラップ】としてそのシグニゾーンに設置する/)) {
+    return { type: 'STUB', id: 'SET_OPP_SIGNI_AS_TRAP' } as StubAction;
+  }
+
+  // ---- 手札からカードを【トラップ】として設置 ----
+  if (t.match(/あなたの手札からカード.*【トラップ】.*シグニゾーンに設置してもよい/)) {
+    return { type: 'STUB', id: 'SET_HAND_CARD_AS_TRAP' } as StubAction;
+  }
+
   // ---- 対戦相手のエナゾーンにカードが置かれたとき条件付きトラッシュ ----
   if (t.match(/対戦相手のエナゾーンに.*置かれたとき.*以上.*トラッシュに置く/)) {
     return { type: 'STUB', id: 'OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL' } as StubAction;
