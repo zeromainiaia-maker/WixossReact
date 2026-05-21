@@ -4469,6 +4469,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </span>
                     </button>
                   )}
+                  {encoreCostForCard && (
+                    <button
+                      onClick={() => { if (canEncore || isEncore) setIsEncore(b => !b); }}
+                      disabled={!canEncore && !isEncore}
+                      style={{ padding: '8px 12px', borderRadius: 8,
+                        border: isEncore ? '2px solid #88ddff' : C.borderUI,
+                        backgroundColor: isEncore ? 'rgba(0,100,180,0.15)' : C.bgButton,
+                        color: isEncore ? '#88ddff' : (canEncore ? C.text : C.textFaint),
+                        cursor: (canEncore || isEncore) ? 'pointer' : 'default',
+                        fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>アンコール（ルリグデッキに戻す）</span>
+                      <span style={{ fontSize: 11 }}>
+                        {isEncore ? 'ON' : 'OFF'}
+                        {encoreCostForCard.coins > 0 && ` / コイン${encoreCostForCard.coins}枚`}
+                      </span>
+                    </button>
+                  )}
                   <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
                     エナから選択: {selectedArtsCost.size} / {totalReq}枚
                     {costItems.map((c, i) => (
