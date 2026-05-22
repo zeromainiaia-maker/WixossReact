@@ -3648,17 +3648,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
           // ランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer) {
-            const { newState: afterCrash, crashed } = crashOneLife(newOpState);
-            if (!crashed) {
+            const { newState: afterCrash, crashed, prevented } = crashOneLife(newOpState);
+            if (prevented) {
+              appendBattleLogs([`ランサー：ダメージ無効`]);
+              newOpState = afterCrash;
+            } else if (!crashed) {
               // ライフなし → 相手の敗北
               appendBattleLogs([`ランサー：相手のライフなし → 相手の敗北`]);
               await supabase.from('battle_states')
                 .update({ [myKey]: newMyState, [opKey]: newOpState, global_phase: 'FINISHED', winner_id: user.id })
                 .eq('room_id', roomId);
               return;
+            } else {
+              appendBattleLogs([`ランサー：ライフクロスをクラッシュ`]);
+              newOpState = afterCrash;
             }
-            appendBattleLogs([`ランサー：ライフクロスをクラッシュ`]);
-            newOpState = afterCrash;
           }
         } else {
           appendBattleLogs([`${myCardName}はバトルに敗北`]);
