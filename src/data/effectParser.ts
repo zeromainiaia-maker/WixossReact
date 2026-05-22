@@ -4379,6 +4379,66 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'CLASS_SIGNI_POWER_BY_HAND' } as StubAction;
   }
 
+  // ---- 対戦相手が自分のパワーN以上のシグニを選びエナゾーンに置く ----
+  if (t.match(/対戦相手は自分の.+シグニ.+エナゾーンに置く/)) {
+    return { type: 'STUB', id: 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY' } as StubAction;
+  }
+
+  // ---- そのシグニとこのシグニのパワーをそれぞれ±Nする ----
+  if (t.match(/そのシグニとこのシグニのパワーをそれぞれ[－＋][０-９\d]+する/)) {
+    const mPlus  = t.match(/＋([０-９\d]+)/);
+    const mMinus = t.match(/－([０-９\d]+)/);
+    const delta = mPlus ? parseNum(mPlus[1]) : -(mMinus ? parseNum(mMinus[1]) : 0);
+    return { type: 'STUB', id: 'POWER_MOD_TARGET_AND_SELF', delta } as unknown as StubAction;
+  }
+
+  // ---- 手札からレベルNのシグニをエナゾーンに置く ----
+  if (t.match(/手札からレベル[０-９\d]+(?:以上|以下)?のシグニを[０-９\d]*枚?(?:まで)?エナゾーンに置く/)) {
+    const countM = t.match(/([０-９\d]+)枚まで/);
+    const count = countM ? parseNum(countM[1]) : 1;
+    return { type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'self', count, filter: { cardType: 'シグニ' } } } as EnergyChargeAction;
+  }
+
+  // ---- このシグニはルリグが持つ色1つを得る ----
+  if (t.match(/このシグニは.*ルリグ.*持つ色[１-９\d]*つを得る/)) {
+    return { type: 'STUB', id: 'SIGNI_GAIN_ONE_LRIG_COLOR' } as StubAction;
+  }
+
+  // ---- レベルNのシグニをこのシグニの下に置いてもよい ----
+  if (t.match(/(?:レベル[０-９\d]+(?:以上|以下)?の)?シグニ.*をこのシグニの下に置いてもよい/)) {
+    return { type: 'STUB', id: 'PLACE_SIGNI_UNDER_SELF_OPT' } as StubAction;
+  }
+
+  // ---- シグニ複数体を《サーバントZERO》にする ----
+  if (t.match(/シグニ.*体.*を.*《サーバント.*》にする/)) {
+    return { type: 'STUB', id: 'MAKE_MULTI_SERVANT_ZERO' } as StubAction;
+  }
+
+  // ---- トラッシュに置かれたシグニのレベル合計×Nパワー修正 ----
+  if (t.match(/トラッシュに置かれたシグニのレベル[０-９\d]+につき[－＋]/)) {
+    return { type: 'STUB', id: 'POWER_MOD_BY_TRASHED_SIGNI_LEVEL' } as StubAction;
+  }
+
+  // ---- 捨てたカード1枚につき-N万 ----
+  if (t.match(/捨てたカード[０-９\d]+枚につき[－＋][０-９\d]+する/)) {
+    return { type: 'STUB', id: 'POWER_MOD_BY_DISCARD_COUNT_HIGH' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニ1体と以下の２つから１つを選ぶ ----
+  if (t.match(/対戦相手のシグニ.*以下の[２-９]つから[１-９]つを選ぶ/)) {
+    return { type: 'STUB', id: 'TARGET_AND_CHOOSE' } as StubAction;
+  }
+
+  // ---- 特定カードがいる場合、以下のN個から ----
+  if (t.match(/場に他の[＜＜][^＞＞]+[＞＞]のシグニがある場合.*以下の[２-９]つから/)) {
+    return { type: 'STUB', id: 'ALLY_CLASS_CHOOSE' } as StubAction;
+  }
+
+  // ---- 代わりに+Nされる（前文の続き） ----
+  if (t.match(/^代わりに[＋＋][０-９\d]+される$/)) {
+    return { type: 'STUB', id: 'REPLACE_PLUS_N' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
