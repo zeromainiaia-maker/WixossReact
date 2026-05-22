@@ -3675,17 +3675,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : `${myCardName}がライフをクラッシュ`;
 
         // 1枚目クラッシュ
-        const { newState: afterFirst, crashed: firstCrashed } = crashOneLife(newOpState);
-        if (!firstCrashed) {
+        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented } = crashOneLife(newOpState);
+        if (firstPrevented) {
+          appendBattleLogs([`${myCardName}がアタック：ダメージ無効`]);
+          newOpState = afterFirst;
+        } else if (!firstCrashed) {
           // ライフなし → 相手の敗北
           appendBattleLogs([`${myCardName}がアタック：相手のライフなし → 相手の敗北`]);
           await supabase.from('battle_states')
             .update({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: user.id })
             .eq('room_id', roomId);
           return;
+        } else {
+          appendBattleLogs([attackLabel]);
+          newOpState = afterFirst;
         }
-        appendBattleLogs([attackLabel]);
-        newOpState = afterFirst;
 
         if (crashCount > 1 && newOpState.life_cloth.length > 0) {
           // 公式ルール「同時クラッシュ」: 2枚目もライフから先に取り出す
