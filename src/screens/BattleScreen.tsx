@@ -1427,6 +1427,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [stackOrderIds, setStackOrderIds] = useState<string[]>([]);
   // LOOK_AND_REORDER インタラクション：現在の並び順
   const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
+  // アシストルリグセットアップ（センタールリグ選択後の中間状態）
+  const [pendingLrigSetup, setPendingLrigSetup] = useState<{
+    centerCardNum: string;
+    centerInstanceId: string;
+    lrigWithIds: string[];
+    mainWithIds: string[];
+    remainingLv0: Array<{ cardNum: string; instanceId: string; origIdx: number }>;
+    assistStep: 'confirm' | 'select_l' | 'select_r';
+    assistLInstanceId: string | null;
+    assistLCardNum: string | null;
+  } | null>(null);
   const [logExpanded, setLogExpanded] = useState(false);
   const [battleLogs, setBattleLogs] = useState<import('../types').GameLog[]>([]);
   const logScrollRef = useRef<HTMLDivElement>(null);
