@@ -4507,8 +4507,8 @@ function parseActionText(text: string): EffectAction {
   }
   if (sentences.length === 1) {
     const s = sentences[0];
-    // ---- 「以下のN個から選ぶ」を含む1文の場合、元textから①②③を解析 ----
-    if (s.match(/以下の[０-９\d２-９]+つから[０-９\d１-９]+つを?選ぶ/)) {
+    // ---- 「以下のN個から選ぶ」を含む1文の場合、元textから①②③④を解析 ----
+    if (s.match(/以下の[０-９\d２-９]+つから[０-９\d１-９]+つ(?:まで)?を?選ぶ/)) {
       const choiceItems = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
       if (choiceItems.length >= 2) {
         return {
