@@ -2232,11 +2232,12 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/あなたのライフクロスの一番上を見る/)) {
     return {
       type: 'LOOK_AND_REORDER',
-      source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: 1 },
+      source: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self' },
+      count: 1,
+      private: true,
+      reorder: false,
       canTrash: false,
-      destLocation: 'deck',
-      destOwner: 'self',
-      destPosition: 'top',
+      destination: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self', position: 'top' },
     } as LookAndReorderAction;
   }
 
