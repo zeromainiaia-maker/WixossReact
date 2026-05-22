@@ -72,6 +72,7 @@ import type {
   LookAndReorderAction,
   AddCraftToLrigDeckAction,
   StubAction,
+  PowerModifyAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
