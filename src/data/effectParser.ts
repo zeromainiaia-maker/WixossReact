@@ -3917,6 +3917,16 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN' } as StubAction;
   }
 
+  // ---- アーツの《無》コストはセンタールリグの色でしか支払えない ----
+  if (t.match(/このアーツの使用コストに含まれる《無》コストは.*センタールリグが持つ色でしか支払えない/)) {
+    return { type: 'STUB', id: 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR' } as StubAction;
+  }
+
+  // ---- グリッド固有デッキ公開+1 ----
+  if (t.match(/デッキ上公開枚数\+[０-９\d]+/)) {
+    return { type: 'STUB', id: 'GRID_REVEAL_PLUS' } as StubAction;
+  }
+
   // ---- ガード代替コスト ----
   if (t.match(/【ガード】する際.*代わりに/)) {
     return { type: 'STUB', id: 'GUARD_ALTERNATIVE_COST' } as StubAction;
