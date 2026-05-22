@@ -4722,12 +4722,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('ターン開始時') ? ['ON_TURN_START']
              : ['ON_PLAY'];
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
-      if (timing[0] === 'ON_TRASH') {
-        const m = actionText.match(/(?:(?:手札か?デッキから|場から)トラッシュに置かれたとき)[、,]\s*(.+)/);
+      if (timing[0] === 'ON_BANISH') {
+        const m = actionText.match(/[^、。「」]{2,80}バニッシュされたとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
+      if (timing[0] === 'ON_TRASH') {
+        const m = actionText.match(/(?:(?:手札か?デッキから|場から)トラッシュに置かれたとき)[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+        else {
+          const m2 = actionText.match(/[^、。「」]{2,80}トラッシュに置かれたとき[、,]\s*(.+)/s);
+          if (m2) actionText = m2[1];
+        }
+      }
       if (timing[0] === 'ATTACK') {
-        const m = actionText.match(/各?アタックフェイズ開始時[、,]\s*(.+)/);
+        const m = actionText.match(/各?アタックフェイズ開始時[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
       mandatory = true;
