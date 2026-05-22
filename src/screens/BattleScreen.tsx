@@ -6823,7 +6823,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               act.type === 'ADD_TO_HAND'    ? '手札に加える' :
               act.type === 'ENERGY_CHARGE'  ? 'エナに置く' :
               act.type === 'ADD_TO_FIELD'   ? '場に出す' :
-              act.type === 'POWER_MODIFY'   ? `パワーを${(act as import('../types/effects').PowerModifyAction).delta > 0 ? '+' : ''}${(act as import('../types/effects').PowerModifyAction).delta}する` :
+              act.type === 'POWER_MODIFY'   ? (() => { const d = (act as import('../types/effects').PowerModifyAction).delta; const n = typeof d === 'number' ? d : 0; return `パワーを${n > 0 ? '+' : ''}${n}する`; })() :
               act.type === 'DOWN'           ? 'ダウンする' :
               act.type === 'FREEZE'         ? '凍結する' :
               act.type === 'DRAW'           ? '引く' :
