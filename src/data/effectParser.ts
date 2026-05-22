@@ -4729,10 +4729,6 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_TRASH') {
         const m = actionText.match(/(?:(?:手札か?デッキから|場から)トラッシュに置かれたとき)[、,]\s*(.+)/s);
         if (m) actionText = m[1];
-        else {
-          const m2 = actionText.match(/[^、。「」]{2,80}トラッシュに置かれたとき[、,]\s*(.+)/s);
-          if (m2) actionText = m2[1];
-        }
       }
       if (timing[0] === 'ATTACK') {
         const m = actionText.match(/各?アタックフェイズ開始時[、,]\s*(.+)/s);
