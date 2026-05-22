@@ -1894,6 +1894,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 選択されたルリグのインスタンスIDを取得
         const selOrigIdx   = myDeckData.lrig_deck.indexOf(cardNum);
         const selectedId   = selOrigIdx >= 0 ? lrigWithIds[selOrigIdx] : `${cardNum}#1`;
+
+        // Lv0ルリグが3枚以上ならアシストルリグ配置フローへ
+        const allLv0Indices = myDeckData.lrig_deck
+          .map((num, i) => {
+            const c = battleCardMap.get(num);
+            return c && c.Type === 'ルリグ' && c.Level === '0' ? i : -1;
+          })
+          .filter(i => i >= 0);
+
+        if (allLv0Indices.length >= 3) {
+          const remainingLv0 = allLv0Indices
+            .filter(i => i !== selOrigIdx)
+            .map(i => ({ cardNum: myDeckData.lrig_deck[i], instanceId: lrigWithIds[i], origIdx: i }));
+          setPendingLrigSetup({
+            centerCardNum: cardNum,
+            centerInstanceId: selectedId,
+            lrigWithIds,
+            mainWithIds,
+            remainingLv0,
+            assistStep: 'confirm',
+            assistLInstanceId: null,
+            assistLCardNum: null,
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Lv0ルリグ1〜2枚：アシストなしで通常セットアップ
         const lrigDeckIds  = lrigWithIds.filter((_, i) => i !== selOrigIdx);
         const myState: PlayerState = {
           life_cloth: [], hand: mainWithIds.slice(0, 5), deck: mainWithIds.slice(5),
