@@ -2908,8 +2908,6 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 対戦相手シグニをレベル合計制限でエナに置く ----
   if (t.match(/対戦相手のシグニを.*レベルの合計が.*以下になるように.*対象.*エナゾーンに置く/)) {
-    const m = t.match(/([０-９\d]+)体まで/);
-    const count = m ? parseNum(m[1]) : 2;
     return {
       type: 'SEQUENCE',
       steps: [{
