@@ -4715,7 +4715,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       effectType = 'AUTO';
       timing = actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
-             : actionText.match(/(?:手札か?デッキから|場から)トラッシュに置かれたとき/) ? ['ON_TRASH']
+             : actionText.match(/(?:手札か?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.includes('各アタックフェイズ開始時') ? ['ATTACK']
              : actionText.includes('アタックフェイズ開始時') ? ['ATTACK']
              : actionText.includes('ターン終了時') ? ['ON_TURN_END']
@@ -4727,8 +4727,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_TRASH') {
-        const m = actionText.match(/(?:(?:手札か?デッキから|場から)トラッシュに置かれたとき)[、,]\s*(.+)/s);
+        const m = actionText.match(/(?:(?:手札か?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき)[、,]\s*(.+)/s);
         if (m) actionText = m[1];
+        else {
+          // 「対戦相手の効果によって〜」等のトリガー文を除去
+          const m2 = actionText.match(/[^、。「」]{2,100}トラッシュに置かれたとき[、,]\s*(.+)/s);
+          if (m2) actionText = m2[1];
+        }
       }
       if (timing[0] === 'ATTACK') {
         const m = actionText.match(/各?アタックフェイズ開始時[、,]\s*(.+)/s);
