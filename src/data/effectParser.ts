@@ -4400,7 +4400,7 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- このシグニはルリグが持つ色1つを得る ----
-  if (t.match(/このシグニは.*ルリグ.*持つ色[１-９\d]*つを得る/)) {
+  if (t.match(/このシグニは.*(?:ルリグ|それ).*持つ色[１-９\d]*つを得る/)) {
     return { type: 'STUB', id: 'SIGNI_GAIN_ONE_LRIG_COLOR' } as StubAction;
   }
 
