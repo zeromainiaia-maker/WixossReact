@@ -4904,9 +4904,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
-              const combinedCostStr = isEncore && encoreCostForCard
-                ? (pendingArtsCard.Cost ? pendingArtsCard.Cost + '+encore' : 'encore')
-                : pendingArtsCard.Cost;
               const isValid = selectedArtsCost.size === totalReq &&
                 canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti) &&
                 (!isEncore || encoreExtraEna.every(req =>
