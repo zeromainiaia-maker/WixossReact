@@ -3691,40 +3691,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
-    // ── アシストルリグ ──
-    if (cardData.Type === 'アシストルリグ' && isMyTurn) {
-      const canGrow = phase === 'MAIN' || phase === 'GROW' || phase === 'ATTACK_ARTS';
-      if (canGrow && canAffordGrowCost(my.energy, battleCards, cardData.GrowCost, my.keyword_grants, myEnaAllMulti)) {
-        const targetLevel = parseInt(cardData.Level) || 0;
-        if (targetLevel <= currentLrigLevel) {
-          // 左スロット
-          const lStack = my.field.assist_lrig_l ?? [];
-          const lTopLevel = lStack.length > 0
-            ? (parseInt(battleCardMap.get(lStack[lStack.length - 1])?.Level ?? '') || 0)
-            : -1;
-          if (targetLevel === lTopLevel + 1) {
-            actions.push({
-              label: 'グロウ(左)',
-              color: '#6644aa',
-              onClick: () => { setPendingAssistGrowCard(cardData); setPendingAssistSide('l'); setSelectedAssistGrowCost(new Set()); setShowAssistGrowModal(true); },
-            });
-          }
-          // 右スロット
-          const rStack = my.field.assist_lrig_r ?? [];
-          const rTopLevel = rStack.length > 0
-            ? (parseInt(battleCardMap.get(rStack[rStack.length - 1])?.Level ?? '') || 0)
-            : -1;
-          if (targetLevel === rTopLevel + 1) {
-            actions.push({
-              label: 'グロウ(右)',
-              color: '#6644aa',
-              onClick: () => { setPendingAssistGrowCard(cardData); setPendingAssistSide('r'); setSelectedAssistGrowCost(new Set()); setShowAssistGrowModal(true); },
-            });
-          }
-        }
-      }
-    }
-
     return actions;
   };
 
