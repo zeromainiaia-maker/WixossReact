@@ -95,6 +95,8 @@ export interface PlayerState {
   }>;
   // 能力消去されたシグニのCardNum一覧
   abilities_removed?: string[];
+  // 次のダメージを無効にする回数（PREVENT_NEXT_DAMAGE 効果）
+  prevent_next_damage?: number;
 }
 
 export interface GameLog {
