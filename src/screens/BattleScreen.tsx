@@ -4438,30 +4438,51 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ── アシストルリグ フィールドアクション ──
   const getAssistActions = (side: 'l' | 'r'): CardAction[] => {
-    if (!isMyTurn || loading) return [];
     const stack = (side === 'l' ? my.field.assist_lrig_l : my.field.assist_lrig_r) ?? [];
     if (stack.length === 0) return [];
     const topNum = stack[stack.length - 1];
     const phase = bs.turn_phase;
-    const effects = effectsMap.get(topNum) ?? [];
-    const activatable = effects.filter(e =>
-      e.effectType === 'ACTIVATED' &&
-      !(my.actions_done?.includes(e.effectId)) &&
-      !(my.blocked_actions?.includes(e.effectId)) &&
-      (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP'),
-    );
-    return activatable.map(eff => {
-      const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
-      const costLabel = eff.cost
-        ? [energyTotal > 0 ? `エナ${energyTotal}` : null, eff.cost.down_self ? 'ダウン' : null]
-            .filter(Boolean).join('・') || 'コストなし'
-        : 'コストなし';
-      return {
-        label: `【起】${costLabel}`,
-        color: C.coin,
-        onClick: () => { setPendingAssistActivated({ cardNum: topNum, effect: eff }); setSelectedAssistActivatedCost(new Set()); },
-      };
-    });
+    const actions: CardAction[] = [];
+
+    // グロウ（自ターン or 相手アタックフェイズ）
+    const growCands = getAssistGrowCandidates(side);
+    if (!loading && growCands.length > 0) {
+      actions.push({
+        label: 'グロウ',
+        color: '#6644aa',
+        onClick: () => {
+          setPendingAssistSide(side);
+          setPendingAssistGrowCard(null);
+          setSelectedAssistGrowCost(new Set());
+          setShowAssistGrowModal(true);
+        },
+      });
+    }
+
+    // 起動効果（自ターンのみ）
+    if (isMyTurn && !loading) {
+      const effects = effectsMap.get(topNum) ?? [];
+      const activatable = effects.filter(e =>
+        e.effectType === 'ACTIVATED' &&
+        !(my.actions_done?.includes(e.effectId)) &&
+        !(my.blocked_actions?.includes(e.effectId)) &&
+        (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP'),
+      );
+      activatable.forEach(eff => {
+        const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+        const costLabel = eff.cost
+          ? [energyTotal > 0 ? `エナ${energyTotal}` : null, eff.cost.down_self ? 'ダウン' : null]
+              .filter(Boolean).join('・') || 'コストなし'
+          : 'コストなし';
+        actions.push({
+          label: `【起】${costLabel}`,
+          color: C.coin,
+          onClick: () => { setPendingAssistActivated({ cardNum: topNum, effect: eff }); setSelectedAssistActivatedCost(new Set()); },
+        });
+      });
+    }
+
+    return actions;
   };
 
   // フリーゾーンのカードアクション
