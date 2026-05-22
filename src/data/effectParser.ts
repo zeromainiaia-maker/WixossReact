@@ -4489,8 +4489,8 @@ function parseActionText(text: string): EffectAction {
     return true;
   });
   if (sentences.length === 0) {
-    // CHOOSEパターン: フィルタで全文が除去された場合、①②③付き選択肢を解析
-    const choiceItems = [...text.matchAll(/[①②③]([^①②③。]+)。?/g)];
+    // CHOOSEパターン: フィルタで全文が除去された場合、①②③④付き選択肢を解析
+    const choiceItems = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
     if (choiceItems.length >= 2) {
       return {
         type: 'CHOOSE',
