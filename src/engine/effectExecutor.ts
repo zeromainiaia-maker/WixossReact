@@ -1278,7 +1278,6 @@ function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: Ex
   const delta = Math.floor(count / a.unitSize) * a.deltaPerUnit;
   if (delta === 0) return done(ctx);
 
-  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as import('../types').PlayerState['field'] extends never ? never : 'self' | 'opponent';
   const tgtO = a.target.owner === 'opponent' ? 'opponent' : 'self' as 'self' | 'opponent';
   const state = ownerState(tgtO, ctx);
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
