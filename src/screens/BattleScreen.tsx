@@ -1895,17 +1895,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const selOrigIdx   = myDeckData.lrig_deck.indexOf(cardNum);
         const selectedId   = selOrigIdx >= 0 ? lrigWithIds[selOrigIdx] : `${cardNum}#1`;
 
-        // Lv0ルリグが3枚以上ならアシストルリグ配置フローへ
-        const allLv0Indices = myDeckData.lrig_deck
+        // アシストルリグ（Type='アシストルリグ'かつLv0）が存在すれば配置フローへ
+        const assistLv0Indices = myDeckData.lrig_deck
           .map((num, i) => {
             const c = battleCardMap.get(num);
-            return c && c.Type === 'ルリグ' && c.Level === '0' ? i : -1;
+            return c && c.Type === 'アシストルリグ' && c.Level === '0' ? i : -1;
           })
           .filter(i => i >= 0);
 
-        if (allLv0Indices.length >= 3) {
-          const remainingLv0 = allLv0Indices
-            .filter(i => i !== selOrigIdx)
+        if (assistLv0Indices.length > 0) {
+          const remainingLv0 = assistLv0Indices
             .map(i => ({ cardNum: myDeckData.lrig_deck[i], instanceId: lrigWithIds[i], origIdx: i }));
           setPendingLrigSetup({
             centerCardNum: cardNum,
