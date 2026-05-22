@@ -4507,6 +4507,22 @@ function parseActionText(text: string): EffectAction {
   }
   if (sentences.length === 1) {
     const s = sentences[0];
+    // ---- 「以下のN個から選ぶ」を含む1文の場合、元textから①②③を解析 ----
+    if (s.match(/以下の[０-９\d２-９]+つから[０-９\d１-９]+つを?選ぶ/)) {
+      const choiceItems = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
+      if (choiceItems.length >= 2) {
+        return {
+          type: 'CHOOSE',
+          choose_count: 1,
+          from_count: choiceItems.length,
+          choices: choiceItems.map((m, i) => ({
+            choiceId: `c${i}`,
+            label: `選択肢${i + 1}`,
+            action: parseSingleSentence(m[1].replace(/[。）\s]+$/, '').trim()),
+          })),
+        } as ChooseAction;
+      }
+    }
     // ---- 「カードをN枚引き、X」複合文 ----
     const drawAndM = s.trim().match(/^カードを([０-９\d]+)枚引き、(.+)/);
     if (drawAndM) {
