@@ -3912,6 +3912,11 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'OPP_LRIG_ATTACK_COST' } as StubAction;
   }
 
+  // ---- このターン、プレイヤーはそれ（対象ルリグ）でアタックできない ----
+  if (t.match(/このターン.*プレイヤーはそれでアタックできない/)) {
+    return { type: 'STUB', id: 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN' } as StubAction;
+  }
+
   // ---- ガード代替コスト ----
   if (t.match(/【ガード】する際.*代わりに/)) {
     return { type: 'STUB', id: 'GUARD_ALTERNATIVE_COST' } as StubAction;
