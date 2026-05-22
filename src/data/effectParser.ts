@@ -2583,6 +2583,11 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'OPP_RETURN_HAND_ON_SELF_BANISH' } as StubAction;
   }
 
+  // ---- 対戦相手は手札をN枚デッキの一番上に置く ----
+  if (t.match(/対戦相手は手札を[０-９\d１-３]+枚デッキの一番上に置く/)) {
+    return { type: 'STUB', id: 'OPP_HAND_TO_DECK_TOP' } as StubAction;
+  }
+
   // ---- バニッシュしたシグニがエナ代わりにトラッシュ（このシグニによって）----
   if (t.match(/このシグニによってバニッシュされたシグニはエナゾーンに置かれる代わりにトラッシュに置かれる/)) {
     return { type: 'STUB', id: 'BANISH_BY_SELF_GOES_TO_TRASH' } as StubAction;
