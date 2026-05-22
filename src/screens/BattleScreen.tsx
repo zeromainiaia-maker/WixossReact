@@ -6568,9 +6568,52 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (inter.type === 'SELECT_TARGET' || inter.type === 'SEARCH') {
           const candidates = inter.type === 'SELECT_TARGET' ? inter.candidates : inter.visibleCards;
           const maxPick = inter.type === 'SELECT_TARGET' ? inter.count : inter.maxPick;
-          const label = inter.type === 'SELECT_TARGET'
-            ? `対象を${maxPick}体選んでください`
-            : `デッキから${maxPick}枚まで選んでください`;
+
+          // 選択UIの説明文を生成（何のためにどこから選ぶか）
+          const label = (() => {
+            if (inter.type === 'SEARCH') {
+              const act = inter.thenAction;
+              const actionDesc =
+                act.type === 'ADD_TO_HAND'    ? '手札に加えるカードを' :
+                act.type === 'ADD_TO_FIELD'   ? '場に出すカードを' :
+                act.type === 'ENERGY_CHARGE'  ? 'エナに置くカードを' :
+                act.type === 'ADD_TO_LIFE'    ? 'ライフに加えるカードを' :
+                act.type === 'TRASH'          ? 'トラッシュに置くカードを' :
+                'デッキから';
+              return `${actionDesc}${maxPick}枚まで選んでください`;
+            }
+            // SELECT_TARGET
+            const scopeDesc: Record<string, string> = {
+              self_hand:   '手札から',
+              opp_hand:    '相手の手札から',
+              self_field:  '自分のシグニゾーンから',
+              opp_field:   '相手のシグニゾーンから',
+              self_energy: 'エナから',
+              opp_energy:  '相手のエナから',
+              self_trash:  'トラッシュから',
+              opp_trash:   '相手のトラッシュから',
+            };
+            const from = scopeDesc[inter.targetScope] ?? '';
+            const act = inter.thenAction;
+            const actionDesc =
+              act.type === 'BANISH'         ? 'バニッシュする' :
+              act.type === 'BOUNCE'         ? '手札に戻す' :
+              act.type === 'TRASH'          ? 'トラッシュに置く' :
+              act.type === 'ADD_TO_HAND'    ? '手札に加える' :
+              act.type === 'ENERGY_CHARGE'  ? 'エナに置く' :
+              act.type === 'ADD_TO_FIELD'   ? '場に出す' :
+              act.type === 'POWER_MODIFY'   ? `パワーを${(act as import('../types/effects').PowerModifyAction).delta > 0 ? '+' : ''}${(act as import('../types/effects').PowerModifyAction).delta}する` :
+              act.type === 'DOWN'           ? 'ダウンする' :
+              act.type === 'FREEZE'         ? '凍結する' :
+              act.type === 'DRAW'           ? '引く' :
+              act.type === 'ADD_TO_LIFE'    ? 'ライフに加える' :
+              act.type === 'BANISH_SUBSTITUTE' ? 'バニッシュ代わりの' :
+              act.type === 'REVEAL'         ? '公開する' :
+              act.type === 'TRANSFER_TO_DECK' ? 'デッキに加える' :
+              '';
+            const countStr = maxPick === 1 ? '' : `${maxPick}枚`;
+            return `${from}${actionDesc}カードを${countStr}選んでください`;
+          })();
           const canConfirm = inter.type === 'SELECT_TARGET'
             ? (inter.optional || effectSelectedNums.length >= maxPick)
             : effectSelectedNums.length <= maxPick;
