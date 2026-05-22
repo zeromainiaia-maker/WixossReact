@@ -3724,17 +3724,18 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'POWER_BY_ACCE_COUNT' } as StubAction;
   }
 
-  // ---- ライフクロスの上から2枚を好きな順番で戻す ----
+  // ---- ライフクロスの上からN枚を好きな順番で戻す ----
   {
     const lifeReorderM = t.match(/ライフクロスの上からカードを([０-９\d]+)枚見て.*好きな順番で一番上に戻す/);
     if (lifeReorderM) {
       return {
         type: 'LOOK_AND_REORDER',
-        source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: parseNum(lifeReorderM[1]) },
+        source: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self' },
+        count: parseNum(lifeReorderM[1]),
+        private: true,
+        reorder: true,
         canTrash: false,
-        destLocation: 'deck',
-        destOwner: 'self',
-        destPosition: 'any',
+        destination: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self', position: 'any' },
       } as LookAndReorderAction;
     }
   }
