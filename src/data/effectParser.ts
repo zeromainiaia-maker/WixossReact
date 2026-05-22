@@ -1593,7 +1593,6 @@ function parseSingleSentence(text: string): EffectAction {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const isHand = t.includes('手札');
     const isEnergy = t.includes('エナゾーン');
-    const isTrash = t.includes('トラッシュ');
     if (isHand && isEnergy) {
       return { type: 'SEQUENCE', steps: [
         { type: 'TRASH', target: { type: 'HAND_CARD', owner, count: 'ALL' } },
