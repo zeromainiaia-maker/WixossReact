@@ -1936,6 +1936,132 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         setLoading(false);
       };
 
+      // アシストルリグセットアップフロー
+      if (pendingLrigSetup) {
+        const setup = pendingLrigSetup;
+        const centerCard = battleCardMap.get(setup.centerCardNum);
+
+        const confirmNoAssist = async () => {
+          setLoading(true);
+          const lrigDeckIds = setup.lrigWithIds.filter(id => id !== setup.centerInstanceId);
+          const myState: PlayerState = {
+            life_cloth: [], hand: setup.mainWithIds.slice(0, 5), deck: setup.mainWithIds.slice(5),
+            lrig_deck: lrigDeckIds,
+            trash: [], lrig_trash: [], energy: [], coins: 0,
+            field: { lrig: [setup.centerInstanceId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
+          };
+          const update = isHost
+            ? { host_lrig_selected: setup.centerCardNum, host_state: myState }
+            : { guest_lrig_selected: setup.centerCardNum, guest_state: myState };
+          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+          setPendingLrigSetup(null);
+          setLoading(false);
+        };
+
+        const selectAssistL = (instanceId: string, cardNum: string) => {
+          setPendingLrigSetup({ ...setup, assistStep: 'select_r', assistLInstanceId: instanceId, assistLCardNum: cardNum });
+        };
+
+        const selectAssistR = async (instanceId: string) => {
+          if (!setup.assistLInstanceId) return;
+          setLoading(true);
+          const usedIds = new Set([setup.centerInstanceId, setup.assistLInstanceId, instanceId]);
+          const lrigDeckIds = setup.lrigWithIds.filter(id => !usedIds.has(id));
+          const myState: PlayerState = {
+            life_cloth: [], hand: setup.mainWithIds.slice(0, 5), deck: setup.mainWithIds.slice(5),
+            lrig_deck: lrigDeckIds,
+            trash: [], lrig_trash: [], energy: [], coins: 0,
+            field: {
+              lrig: [setup.centerInstanceId],
+              signi: [null, null, null],
+              assist_lrig_l: [setup.assistLInstanceId],
+              assist_lrig_r: [instanceId],
+              check: null, key_piece: null, free_zone: [],
+            },
+          };
+          const update = isHost
+            ? { host_lrig_selected: setup.centerCardNum, host_state: myState }
+            : { guest_lrig_selected: setup.centerCardNum, guest_state: myState };
+          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+          setPendingLrigSetup(null);
+          setLoading(false);
+        };
+
+        const btnStyle = { padding: '12px 20px', borderRadius: 8, cursor: 'pointer', border: C.borderUIMid, backgroundColor: C.bgButton, color: C.text, fontSize: 14, textAlign: 'left' as const };
+
+        if (setup.assistStep === 'confirm') {
+          return (
+            <div style={setupWrap}>
+              <h2 style={{ color: C.text, margin: 0 }}>アシストルリグを配置しますか？</h2>
+              <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>
+                センター: {centerCard?.CardName ?? setup.centerCardNum}
+              </p>
+              <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
+                ルリグを配置する枚数は1枚（センターのみ）か3枚（センター＋アシスト左右）です
+              </p>
+              <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                <button onClick={() => setPendingLrigSetup({ ...setup, assistStep: 'select_l' })} disabled={loading}
+                  style={{ ...btnStyle, backgroundColor: C.accent, fontWeight: 'bold' }}>
+                  配置する（3枚）
+                </button>
+                <button onClick={confirmNoAssist} disabled={loading} style={btnStyle}>
+                  配置しない（1枚）
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        if (setup.assistStep === 'select_l') {
+          return (
+            <div style={setupWrap}>
+              <h2 style={{ color: C.text, margin: 0 }}>アシストルリグ（左）を選択</h2>
+              <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>
+                センター: {centerCard?.CardName ?? setup.centerCardNum}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', width: 300 }}>
+                {setup.remainingLv0.map(({ cardNum, instanceId }) => {
+                  const c = battleCardMap.get(cardNum);
+                  return (
+                    <button key={instanceId} onClick={() => selectAssistL(instanceId, cardNum)} disabled={loading}
+                      style={btnStyle}>
+                      {c?.CardName ?? cardNum}
+                      <span style={{ color: C.textFaint, fontSize: 11, marginLeft: 8 }}>{cardNum}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        if (setup.assistStep === 'select_r') {
+          const assistLCard = battleCardMap.get(setup.assistLCardNum ?? '');
+          const remainingForR = setup.remainingLv0.filter(({ instanceId }) => instanceId !== setup.assistLInstanceId);
+          return (
+            <div style={setupWrap}>
+              <h2 style={{ color: C.text, margin: 0 }}>アシストルリグ（右）を選択</h2>
+              <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>
+                センター: {centerCard?.CardName ?? setup.centerCardNum}
+                　左: {assistLCard?.CardName ?? setup.assistLCardNum}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', width: 300 }}>
+                {remainingForR.map(({ cardNum, instanceId }) => {
+                  const c = battleCardMap.get(cardNum);
+                  return (
+                    <button key={instanceId} onClick={() => selectAssistR(instanceId)} disabled={loading}
+                      style={btnStyle}>
+                      {c?.CardName ?? cardNum}
+                      <span style={{ color: C.textFaint, fontSize: 11, marginLeft: 8 }}>{cardNum}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+      }
+
       return (
         <div style={setupWrap}>
           <h2 style={{ color: C.text, margin: 0 }}>センタールリグを配置</h2>
