@@ -2332,11 +2332,12 @@ function parseSingleSentence(text: string): EffectAction {
     if (lifeToTopM) {
       return {
         type: 'LOOK_AND_REORDER',
-        source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: parseNum(lifeToTopM[1]) },
+        source: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self' },
+        count: parseNum(lifeToTopM[1]),
+        private: true,
+        reorder: true,
         canTrash: false,
-        destLocation: 'deck',
-        destOwner: 'self',
-        destPosition: 'any',
+        destination: { location: 'deck' as import('../types/effects').CardLocation, owner: 'self', position: 'any' },
       } as LookAndReorderAction;
     }
   }
