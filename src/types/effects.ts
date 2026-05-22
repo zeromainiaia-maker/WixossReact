@@ -109,6 +109,7 @@ export interface TargetFilter {
   story?:     string | string[];
   hasGuard?:  boolean;
   isDown?:    boolean;
+  isUp?:      boolean; // アップ状態（ダウンしていない）
   isFrozen?:  boolean;
   hasCharm?:  boolean;
   hasAcce?:   boolean; // アクセが付いている
