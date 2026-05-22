@@ -4482,10 +4482,10 @@ function parseActionText(text: string): EffectAction {
     if (c.startsWith('（') && (c.endsWith('）') || c.endsWith('）。'))) return false;
     // 「」を得る」などのフラグメントをスキップ（引用符付き能力の末尾切れ）
     if (c.startsWith('」') || c === '」を得る' || c === '」を持つ') return false;
-    // 数字+丸括弧で始まる選択肢番号行（①②③）はスキップ（CHOOSE ヘッダと対にあるため）
-    if (/^[①②③]/.test(c)) return false;
+    // 数字+丸括弧で始まる選択肢番号行（①②③④）はスキップ（CHOOSE ヘッダと対にあるため）
+    if (/^[①②③④]/.test(c)) return false;
     // 「どちらか/以下のN/から選ぶ」などCHOOSEヘッダ文はスキップ
-    if (/^(?:どちらか|以下の?[０-９\d２３]+つから)/.test(c) && c.includes('選ぶ')) return false;
+    if (/^(?:どちらか|以下の?[０-９\d２-４]+つから)/.test(c) && c.includes('選ぶ')) return false;
     return true;
   });
   if (sentences.length === 0) {
