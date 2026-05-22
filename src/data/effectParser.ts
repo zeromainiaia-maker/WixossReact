@@ -4537,6 +4537,31 @@ function parseActionText(text: string): EffectAction {
     return parseSingleSentence(s);
   }
 
+  // ---- 「...もよい。そうした場合、以下のN個から選ぶ。①...②...」 ----
+  {
+    const chooseIdx = sentences.findIndex(s => s.match(/(?:以下の[０-９\d２-９]+つから.*選ぶ|以下の[０-９\d２-９]+つから.*1つまで選ぶ)/));
+    if (chooseIdx >= 1) {
+      const choiceItems = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
+      if (choiceItems.length >= 2) {
+        const chooseAction: ChooseAction = {
+          type: 'CHOOSE',
+          choose_count: 1,
+          from_count: choiceItems.length,
+          choices: choiceItems.map((m, i) => ({
+            choiceId: `c${i}`,
+            label: `選択肢${i + 1}`,
+            action: parseSingleSentence(m[1].replace(/[。）\s]+$/, '').trim()),
+          })),
+        };
+        const priorActions = sentences.slice(0, chooseIdx).map(s => parseSingleSentence(s.trim()));
+        if (priorActions.length === 1) {
+          return { type: 'SEQUENCE', steps: [...priorActions, chooseAction] } as SequenceAction;
+        }
+        return { type: 'SEQUENCE', steps: [...priorActions, chooseAction] } as SequenceAction;
+      }
+    }
+  }
+
   // ---- デッキ上からN枚見る → その中から好きな枚数をトラッシュ/デッキへ ----
   if (sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚見る/) && sentences.length >= 2) {
     const cM = sentences[0].match(/([０-９\d]+)枚見る/);
