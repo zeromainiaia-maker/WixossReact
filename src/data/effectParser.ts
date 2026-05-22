@@ -751,7 +751,7 @@ function parseSingleSentence(text: string): EffectAction {
         trashOwner,
         countFilter: filter,
         countByVariety: true,
-        until: 'END_OF_TURN',
+        until: 'UNTIL_END_OF_TURN',
       } as PowerModifyPerTrashCountAction;
     }
   }
