@@ -729,7 +729,7 @@ function parseSingleSentence(text: string): EffectAction {
         deltaPerUnit: sign * parseNum(m[5]),
         unitSize: m[3] ? parseNum(m[3]) : 1,
         trashOwner,
-        until: 'END_OF_TURN',
+        until: 'UNTIL_END_OF_TURN',
       } as PowerModifyPerTrashCountAction;
     }
   }
