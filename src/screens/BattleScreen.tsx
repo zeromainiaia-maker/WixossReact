@@ -6643,10 +6643,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
                   padding: '20px 16px', width: 'min(95vw, 400px)', maxHeight: '85vh',
                   display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                <p style={{ color: C.textSub, fontSize: 12, margin: 0, textAlign: 'center' }}>
                   {srcCard?.CardName ?? pe.sourceCardNum}の効果
                 </p>
-                <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>{label}</p>
+                <p style={{ color: C.text, fontSize: 15, fontWeight: 'bold', margin: 0, textAlign: 'center',
+                  padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
+                  {label}
+                </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                   {candidates.map((rawId, idx) => {
                     // インスタンスID（CardNum#N）からCardNumを取り出して表示用データを取得
