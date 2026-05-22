@@ -3126,6 +3126,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     .map(num => battleCardMap.get(num))
     .filter((c): c is CardData => !!c && c.Type === 'アーツ');
 
+  // アシストグロウ候補（各ゾーンごとに、lrig_deck からアシストルリグを検索）
+  const getAssistGrowCandidates = (side: 'l' | 'r'): CardData[] => {
+    if (!bs) return [];
+    const phase = bs.turn_phase;
+    const stack = (side === 'l' ? my.field.assist_lrig_l : my.field.assist_lrig_r) ?? [];
+    const topInstanceId = stack.length > 0 ? stack[stack.length - 1] : null;
+    const topCard = topInstanceId ? battleCardMap.get(topInstanceId) : null;
+    const topLevel = topCard !== undefined ? (parseInt(topCard?.Level ?? '-1') || 0) : -1;
+    const topClass = topCard?.CardClass ?? '';
+    const canGrowPhase =
+      (phase === 'MAIN'           && isMyTurn) ||
+      (phase === 'ATTACK_ARTS'    && isMyTurn) ||
+      (phase === 'ATTACK_ARTS_OP' && !isMyTurn);
+    if (!canGrowPhase) return [];
+    return my.lrig_deck
+      .map(num => battleCardMap.get(num))
+      .filter((c): c is CardData => {
+        if (!c || c.Type !== 'アシストルリグ') return false;
+        const level = parseInt(c.Level) || 0;
+        if (level !== topLevel + 1) return false;
+        if (level > currentLrigLevel) return false;
+        if (topClass && !lrigClassesCompatible(topClass, c.CardClass)) return false;
+        const timingOk =
+          (phase === 'MAIN' && c.Timing.includes('メインフェイズ')) ||
+          ((phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP') && c.Timing.includes('アタックフェイズ'));
+        return timingOk;
+      });
+  };
+
   // スペルカットイン候補（自分の lrig_deck から、相手がスペル発動中のとき用）
   const cutinCandidates = my.lrig_deck
     .filter((num, i, arr) => arr.indexOf(num) === i)
