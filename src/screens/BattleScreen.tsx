@@ -2746,7 +2746,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             keyword_grants:     {},
             blocked_actions:    [],
             actions_done:       [],
-            pending_life_crashes: 0,
+
             cost_modifiers: (activeState.cost_modifiers ?? []).filter((m: {until?: string}) => m.until !== 'END_OF_TURN'),
           };
 
