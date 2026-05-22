@@ -712,7 +712,7 @@ function parseSingleSentence(text: string): EffectAction {
         unitSize: parseNum(m[4]),
         trashOwner,
         countFilter: filter,
-        until: 'END_OF_TURN',
+        until: 'UNTIL_END_OF_TURN',
       } as PowerModifyPerTrashCountAction;
     }
   }
