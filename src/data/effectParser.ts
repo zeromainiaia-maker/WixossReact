@@ -2480,7 +2480,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- あなたにダメージを与える ----
   if (t.match(/^あなたにダメージを与える$/)) {
-    return { type: 'LIFE_CRASH', owner: 'self', count: 1 };
+    return { type: 'LIFE_CRASH', owner: 'self', count: 1, triggerBurst: true };
   }
 
   // ---- 手札からカードをエナゾーンに置く（optional）----
