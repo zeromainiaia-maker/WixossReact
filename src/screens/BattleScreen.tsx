@@ -4898,7 +4898,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const costItems = parseGrowCost(pendingArtsCard.Cost);
               const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
-              const encoreExtraCostItems = encoreExtraEna.flatMap(e => Array(e.count).fill({ color: e.color, count: 1 }));
               const totalReq = costItems.reduce((s, c) => s + c.count, 0) +
                 (isEncore ? encoreExtraEna.reduce((s, e) => s + e.count, 0) : 0);
               const selectedNums = [...selectedArtsCost].map(i => my.energy[i]);
