@@ -4539,22 +4539,11 @@ function parseActionText(text: string): EffectAction {
   {
     const chooseIdx = sentences.findIndex(s => s.match(/以下の[０-９\d２-９]+つから.*選ぶ/));
     if (chooseIdx >= 1) {
-      const choiceItems = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
-      if (choiceItems.length >= 2) {
-        const chooseAction: ChooseAction = {
-          type: 'CHOOSE',
-          choose_count: 1,
-          from_count: choiceItems.length,
-          choices: choiceItems.map((m, i) => ({
-            choiceId: `c${i}`,
-            label: `選択肢${i + 1}`,
-            action: parseSingleSentence(m[1].replace(/[。）\s]+$/, '').trim()),
-          })),
-        };
+      const chooseCountM = sentences[chooseIdx].match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
+      const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
+      const chooseAction = buildChoose(text, chooseCount);
+      if (chooseAction) {
         const priorActions = sentences.slice(0, chooseIdx).map(s => parseSingleSentence(s.trim()));
-        if (priorActions.length === 1) {
-          return { type: 'SEQUENCE', steps: [...priorActions, chooseAction] } as SequenceAction;
-        }
         return { type: 'SEQUENCE', steps: [...priorActions, chooseAction] } as SequenceAction;
       }
     }
