@@ -174,6 +174,18 @@ function fieldCandidates(
       const acceExists = (state.field.signi_acce?.[zoneIdx] ?? null) !== null;
       if (filter.hasAcce !== acceExists) return [];
     }
+    if (filter?.isDown !== undefined) {
+      const isDown = state.field.signi_down?.[zoneIdx] ?? false;
+      if (filter.isDown !== isDown) return [];
+    }
+    if (filter?.isUp !== undefined) {
+      const isDown = state.field.signi_down?.[zoneIdx] ?? false;
+      if (filter.isUp !== !isDown) return [];
+    }
+    if (filter?.isFrozen !== undefined) {
+      const isFrozen = state.field.signi_frozen?.[zoneIdx] ?? false;
+      if (filter.isFrozen !== isFrozen) return [];
+    }
     if (!matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum))) return [];
     return [cardNum];
   });
