@@ -4488,40 +4488,38 @@ function parseActionText(text: string): EffectAction {
     if (/^(?:どちらか|以下の?[０-９\d２-４]+つから)/.test(c) && c.includes('選ぶ')) return false;
     return true;
   });
+  // CHOOSEパターン共通ヘルパー
+  function buildChoose(rawText: string, chooseCount: number): ChooseAction | null {
+    const items = [...rawText.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
+    if (items.length < 2) return null;
+    return {
+      type: 'CHOOSE',
+      choose_count: chooseCount,
+      from_count: items.length,
+      choices: items.map((m, i) => ({
+        choiceId: `c${i}`,
+        label: `選択肢${i + 1}`,
+        action: parseActionText(m[1].replace(/[。）\s]+$/, '').trim()),
+      })),
+    };
+  }
+
   if (sentences.length === 0) {
     // CHOOSEパターン: フィルタで全文が除去された場合、①②③④付き選択肢を解析
-    const choiceItems = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
-    if (choiceItems.length >= 2) {
-      return {
-        type: 'CHOOSE',
-        choose_count: 1,
-        from_count: choiceItems.length,
-        choices: choiceItems.map((m, i) => ({
-          choiceId: `c${i}`,
-          label: `選択肢${i + 1}`,
-          action: parseSingleSentence(m[1].trim()),
-        })),
-      } as ChooseAction;
-    }
+    const chooseCountM = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
+    const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
+    const chosen = buildChoose(text, chooseCount);
+    if (chosen) return chosen;
     return { type: 'UNKNOWN', raw: text };
   }
   if (sentences.length === 1) {
     const s = sentences[0];
     // ---- 「以下のN個から選ぶ」を含む1文の場合、元textから①②③④を解析 ----
     if (s.match(/以下の[０-９\d２-９]+つから[０-９\d１-９]+つ(?:まで)?を?選ぶ/)) {
-      const choiceItems = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
-      if (choiceItems.length >= 2) {
-        return {
-          type: 'CHOOSE',
-          choose_count: 1,
-          from_count: choiceItems.length,
-          choices: choiceItems.map((m, i) => ({
-            choiceId: `c${i}`,
-            label: `選択肢${i + 1}`,
-            action: parseSingleSentence(m[1].replace(/[。）\s]+$/, '').trim()),
-          })),
-        } as ChooseAction;
-      }
+      const chooseCountM = s.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
+      const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
+      const chosen = buildChoose(text, chooseCount);
+      if (chosen) return chosen;
     }
     // ---- 「カードをN枚引き、X」複合文 ----
     const drawAndM = s.trim().match(/^カードを([０-９\d]+)枚引き、(.+)/);
