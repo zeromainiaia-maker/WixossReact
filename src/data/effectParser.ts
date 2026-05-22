@@ -4539,7 +4539,7 @@ function parseActionText(text: string): EffectAction {
 
   // ---- 「...もよい。そうした場合、以下のN個から選ぶ。①...②...」 ----
   {
-    const chooseIdx = sentences.findIndex(s => s.match(/(?:以下の[０-９\d２-９]+つから.*選ぶ|以下の[０-９\d２-９]+つから.*1つまで選ぶ)/));
+    const chooseIdx = sentences.findIndex(s => s.match(/以下の[０-９\d２-９]+つから.*選ぶ/));
     if (chooseIdx >= 1) {
       const choiceItems = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
       if (choiceItems.length >= 2) {
