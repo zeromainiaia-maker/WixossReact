@@ -424,7 +424,7 @@ function CardModal({ card, onClose, actions }: { card: CardData; onClose: () => 
       <img
         src={card.ImgURL} alt={card.CardName}
         style={{ maxWidth: '90vw', maxHeight: '62vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 0 40px #007bff44' }}
-        onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }}
       />
       <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', marginTop: 14, textAlign: 'center' }}>{card.CardName}</p>
       <p style={{ color: C.textFaint, fontSize: 11, margin: '4px 0 0', textAlign: 'center' }}>
@@ -528,7 +528,7 @@ function CardStackModal({ stack, cards, onClose, actions }: {
           src={card.ImgURL} alt={card.CardName}
           onClick={e => e.stopPropagation()}
           style={{ maxWidth: '86vw', maxHeight: '66vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 0 40px #007bff44' }}
-          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }}
         />
       ) : (
         <div style={{ width: 200, height: 280, backgroundColor: C.bgButtonDark, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -1028,7 +1028,7 @@ function MulliganCard({ cardNum, cards, selected, onToggle }: {
         {card ? (
           <img src={card.ImgURL} alt={card.CardName} draggable={false}
             style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', display: 'block' }}
-            onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+            onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }}
           />
         ) : (
           <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -4683,7 +4683,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
                         <img src={card.ImgURL} alt={card.CardName}
                           style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
-                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                         <div>
                           <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>
                             {card.CardName}
@@ -4739,7 +4739,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <img src={pendingGrowCard.ImgURL} alt={pendingGrowCard.CardName}
                       style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
-                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                      onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                     <div>
                       <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>
                         {pendingGrowCard.CardName}
@@ -4770,7 +4770,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           {card ? (
                             <img src={card.ImgURL} alt={card.CardName} draggable={false}
                               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                           ) : (
                             <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
                               display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -4852,7 +4852,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
                         <img src={card.ImgURL} alt={card.CardName}
                           style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
-                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                         <div>
                           <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>
                             {card.CardName}
@@ -4930,7 +4930,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <img src={pendingArtsCard.ImgURL} alt={pendingArtsCard.CardName}
                       style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
-                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                      onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                     <div>
                       <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>
                         {pendingArtsCard.CardName}
@@ -4997,7 +4997,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           {card ? (
                             <img src={card.ImgURL} alt={card.CardName} draggable={false}
                               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                           ) : (
                             <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
                               display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -5075,7 +5075,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <img src={spellCard.ImgURL} alt={spellCard.CardName}
                       style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
-                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                      onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                     <div>
                       <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{spellCard.CardName}</p>
                       <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: {spellCard.Cost || 'なし'}</p>
@@ -5102,7 +5102,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               {card
                                 ? <img src={card.ImgURL} alt={card.CardName} draggable={false}
                                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                    onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                                    onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
@@ -5155,7 +5155,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
             <img src={zCard.ImgURL} alt={zCard.CardName} draggable={false}
               style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 10, objectFit: 'contain' }}
-              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
             <span style={{ color: C.textFaint, fontSize: 12 }}>タップで閉じる</span>
           </div>,
           document.body,
@@ -5190,7 +5190,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           onClick={() => setCutinSpellZoomed(true)}
                           onTouchEnd={e => { e.preventDefault(); setCutinSpellZoomed(true); }}
                           style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
-                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                         <div>
                           <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{spellCard.CardName}</p>
                           <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>{spellCard.Timing}</p>
@@ -5217,7 +5217,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                                   opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
                                 <img src={card.ImgURL} alt={card.CardName}
                                   style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
-                                  onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                                  onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                                 <div>
                                   <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{card.CardName}</p>
                                   <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>コスト: {card.Cost || 'なし'}</p>
@@ -5262,7 +5262,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <img src={pendingCutinCard.ImgURL} alt={pendingCutinCard.CardName}
                       style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
-                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                      onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                     <div>
                       <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{pendingCutinCard.CardName}</p>
                       <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: {pendingCutinCard.Cost || 'なし'}</p>
@@ -5289,7 +5289,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               {card
                                 ? <img src={card.ImgURL} alt={card.CardName} draggable={false}
                                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                    onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                                    onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
@@ -5343,7 +5343,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {spellCard && (
                     <img src={spellCard.ImgURL} alt={spellCard.CardName}
                       style={{ width: 60, height: 84, objectFit: 'cover', borderRadius: 6, margin: '0 auto' }}
-                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                      onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                   )}
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>
                     {spellCard?.CardName ?? 'スペル'} 発動中
@@ -5536,7 +5536,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6,
                           boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none',
                           cursor: 'pointer' }}
-                        onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                       <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
                         {checkCard.CardName}
                       </p>
@@ -5605,7 +5605,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
             <img src={zCard.ImgURL} alt={zCard.CardName} draggable={false}
               style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 10, objectFit: 'contain' }}
-              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
             <span style={{ color: C.textFaint, fontSize: 12 }}>タップで閉じる</span>
           </div>,
           document.body,
@@ -5625,7 +5625,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
             <img src={zCard.ImgURL} alt={zCard.CardName} draggable={false}
               style={{ maxWidth: '80vw', maxHeight: '70vh', borderRadius: 10, objectFit: 'contain' }}
-              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
             <span style={{ color: C.textFaint, fontSize: 12 }}>タップで閉じる</span>
           </div>,
           document.body,
@@ -5660,7 +5660,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         onTouchEnd={e => { e.preventDefault(); setOpCheckCardZoomed(true); }}
                         style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6,
                           boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none', cursor: 'pointer' }}
-                        onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                       <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
                         {checkCard.CardName}
                       </p>
@@ -5726,7 +5726,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       {card && (
                         <img src={card.ImgURL} alt={card.CardName}
                           style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
-                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                       )}
                       <div>
                         <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>
@@ -5794,7 +5794,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     {topCard ? (
                       <img src={topCard.ImgURL} alt={topCard.CardName}
                         style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4 }}
-                        onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                     ) : (
                       <div style={{ width: 44, height: 62, backgroundColor: C.bgCardEmpty,
                         borderRadius: 4, border: C.borderEmpty }} />
@@ -6197,7 +6197,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
                         <img src={card.ImgURL} alt={card.CardName}
                           style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
-                          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                         <div>
                           <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{card.CardName}</p>
                           <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>Lv.{card.Level} / グロウコスト: {card.GrowCost || 'なし'}</p>
