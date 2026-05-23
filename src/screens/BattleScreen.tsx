@@ -5922,7 +5922,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       {/* ===== シグニ起動効果 コスト支払いモーダル ===== */}
       {pendingSigniActivated && createPortal(
         <div
-          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); }}
+          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -5936,12 +5936,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const card = battleCardMap.get(pendingSigniActivated.cardNum);
               const eff  = pendingSigniActivated.effect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniActivatedCost].map(i => my.energy[i]);
-              const canAfford = energyTotal === 0
+              const energyOk = energyTotal === 0
                 ? true
                 : selectedSigniActivatedCost.size === energyTotal &&
                   canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti);
+              const discardOk = selectedSigniActivatedDiscard.size >= discardNeeded;
+              const canAfford = energyOk && discardOk;
 
               return (
                 <>
