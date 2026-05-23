@@ -23,6 +23,7 @@ export default function App() {
   const [battleRoomId, setBattleRoomId] = useState<string | null>(null);
   const [battleDeckId, setBattleDeckId] = useState<string | null>(null);
   const [cpuBattleDeckId, setCpuBattleDeckId] = useState<string | null>(null);
+  const [cpuBattleMode, setCpuBattleMode] = useState(false);
 
   // 認証状態の監視 + 対戦ルームへの再入場
   useEffect(() => {
