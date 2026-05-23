@@ -552,6 +552,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const resolveStackNextRef       = useRef<(() => Promise<void>) | null>(null);
   const checkPowerZeroBanishRef   = useRef<(() => Promise<void>) | null>(null);
   const lastBanishedKeyRef        = useRef<string>(''); // 直前に処理したバニッシュ候補のフィンガープリント（二重処理防止）
+  const cpuTurnRef                = useRef<(() => Promise<void>) | null>(null); // CPU自動行動
+  const cpuSetupRef               = useRef<(() => Promise<void>) | null>(null); // CPUセットアップ自動行動
 
   // フェーズ変化をバトルログに記録（アクティブプレイヤーのみDB書き込み）
   useEffect(() => {
