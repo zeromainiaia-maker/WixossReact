@@ -23,4 +23,5 @@ const result = buildEffectsMap([{
   BurstText: '：対戦相手のセンタールリグとすべてのシグニをダウンする。',
 }]);
 
-console.log(JSON.stringify(result, null, 2));
+const entries = Array.from(result.entries());
+console.log(JSON.stringify(entries, null, 2));
