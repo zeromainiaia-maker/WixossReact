@@ -545,20 +545,21 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
   }, [gs?.burstCard, gs?.burstOwner, resolveBurst]);
 
-  // UP/DRAWフェイズ（プレイヤーも自動）
+  // UP/DRAW/ENDフェイズ（プレイヤーも自動）
   useEffect(() => {
     if (!gs || gs.winner || gs.turnPlayer !== 'player' || gs.pendingInteraction || gs.burstCard) return;
-    if (gs.phase !== 'UP' && gs.phase !== 'DRAW') return;
+    if (gs.phase !== 'UP' && gs.phase !== 'DRAW' && gs.phase !== 'END') return;
     cpuTimerRef.current = setTimeout(() => {
       setGs(prev => {
         if (!prev || prev.winner) return prev;
         if (prev.phase === 'UP')   return processUp(prev);
         if (prev.phase === 'DRAW') return processDraw(prev);
+        if (prev.phase === 'END')  return advancePhase(prev);
         return prev;
       });
     }, 200);
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
-  }, [gs?.phase, gs?.turnPlayer, gs?.winner, processUp, processDraw]);
+  }, [gs?.phase, gs?.turnPlayer, gs?.winner, processUp, processDraw, advancePhase]);
 
   // ======= プレイヤー操作ハンドラ =======
   const handleZoneClick = (zoneIdx: number) => {
