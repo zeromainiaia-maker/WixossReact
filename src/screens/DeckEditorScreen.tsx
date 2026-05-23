@@ -153,6 +153,15 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
     const card = cardMap.get(cardNum);
     const bg = getCardBg(card?.Color ?? '');
     const hasLB = card?.LifeBurst === '1';
+    const lrig = from === 'lrig';
+    const nameCount = lrig ? countInLrigByName(card?.CardName ?? '') : countInMainByName(card?.CardName ?? '');
+    const copyMax = lrig ? LRIG_COPY_MAX : COPY_MAX;
+    const extra = lrig && card && isExtraLrigCard(card);
+    const canAdd = card != null && nameCount < copyMax && (
+      lrig
+        ? (extra ? extraLrigCount < LRIG_EXTRA_MAX : regularLrigCount < LRIG_MAX)
+        : current.mainDeck.length < MAIN_MAX
+    );
     return (
       <div
         key={cardNum}
@@ -168,6 +177,11 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
           {card?.CardClass && <p style={{ fontSize: '10px', color: '#666', margin: 0 }}>{card.CardClass}</p>}
         </div>
         <span style={{ fontSize: '13px', color: '#5533aa', fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>×{count}</span>
+        <button
+          onClick={e => { e.stopPropagation(); if (card) addCard(card); }}
+          disabled={!canAdd}
+          style={{ padding: '2px 8px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: canAdd ? 'rgba(119,85,221,0.15)' : 'rgba(200,200,200,0.3)', color: canAdd ? '#5533aa' : '#aaa', fontSize: '12px' }}
+        >＋</button>
         <button onClick={e => { e.stopPropagation(); removeCard(cardNum, from); }} style={{ padding: '2px 8px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.6)', color: '#cc3333', fontSize: '12px' }}>−</button>
       </div>
     );
