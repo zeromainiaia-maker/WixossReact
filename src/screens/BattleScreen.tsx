@@ -19,6 +19,10 @@ interface Props {
   onBack: () => void;
 }
 
+// CPU専用プレイヤーID（MatchmakingScreenと共有）
+const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001';
+const CPU_ACTION_DELAY = 900; // CPU行動の遅延ms（オンライン感を出す）
+
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
