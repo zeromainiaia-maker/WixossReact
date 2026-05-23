@@ -177,7 +177,7 @@ export default function App() {
   return (
     <>
       {viewMode === 'LOGIN' && <LoginScreen />}
-      {viewMode === 'START' && user && <StartScreen user={user} setViewMode={setViewMode} onCpuBattle={() => { setCpuBattleMode(true); setViewMode('DECK_LIST'); }} />}
+      {viewMode === 'START' && user && <StartScreen user={user} setViewMode={setViewMode} onCpuBattle={() => setViewMode('MATCHMAKING')} />}
       {viewMode === 'DECK_LIST' && user && (
         <DeckListScreen
           decks={decks}
