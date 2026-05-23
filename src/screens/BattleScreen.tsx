@@ -1030,6 +1030,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           <h2 style={{ color: C.text, margin: 0 }}>じゃんけん</h2>
           <p style={{ color: C.success }}>あなた: {JANKEN_LABEL[myJanken]}</p>
           <p style={{ color: C.textFaint }}>相手の選択を待っています...</p>
+          {setupLeaveBtn}
         </div>
       );
 
@@ -1045,6 +1046,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               </button>
             ))}
           </div>
+          {setupLeaveBtn}
         </div>
       );
     }
