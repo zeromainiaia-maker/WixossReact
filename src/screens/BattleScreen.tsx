@@ -618,7 +618,7 @@ function CardSlot({ cardNum, cards, width = 60, height = 84, label, faceDown, ac
         ) : card ? (
           <img src={card.ImgURL} alt={card.CardName} draggable={false}
             style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block' }}
-            onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }}
+            onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }}
           />
         ) : (
           <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
@@ -686,7 +686,7 @@ function StackSlot({ stack, cards, width = 60, height = 84, label, faceDown, act
             <img src={card.ImgURL} alt={card.CardName} draggable={false}
               style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block',
                 ...(isDown ? { transform: 'rotate(90deg)' } : {}) }}
-              onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }}
+              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }}
             />
           ) : (
             <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
@@ -812,7 +812,7 @@ function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, action
                 <img src={card.ImgURL} alt={card.CardName} draggable={false}
                   style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block',
                     ...(imgTransform ? { transform: imgTransform } : {}) }}
-                  onError={e => { (e.target as HTMLImageElement).style.opacity = '0.15'; }}
+                  onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }}
                 />
               ) : (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
