@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { User } from '@supabase/supabase-js';
 import type { CardData, PlayerState, TurnPhase, Deck } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { executeEffect, getCardNum } from '../engine/effectExecutor';
+import { executeEffect, getCardNum, resumeSelectTarget } from '../engine/effectExecutor';
 import { calcFieldPowers } from '../engine/effectEngine';
 import { hasKeyword } from '../utils/keywords';
 import type { ExecCtx } from '../engine/effectExecutor';
