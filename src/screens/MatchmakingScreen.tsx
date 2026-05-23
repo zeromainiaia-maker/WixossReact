@@ -68,6 +68,56 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
     return () => { supabase.removeChannel(channel); };
   }, [room?.id]);
 
+  // CPU対戦：即時ルーム作成 → battle_states 生成 → 対戦開始
+  const handleCpuBattle = async () => {
+    if (!selectedDeckId) return;
+    setLoading(true); setError(null);
+
+    // CPU デッキ：ユーザーの別デッキを優先、なければ同じデッキ
+    const cpuDeck = validDecks.find(d => d.id !== selectedDeckId) ?? validDecks[0];
+    if (!cpuDeck) { setError('対戦用デッキが見つかりません'); setLoading(false); return; }
+
+    const { data: roomData, error: roomErr } = await supabase
+      .from('rooms')
+      .insert({
+        host_id: user.id,
+        host_deck_id: selectedDeckId,
+        guest_id: CPU_PLAYER_ID,
+        guest_deck_id: cpuDeck.id,
+        status: 'PLAYING',
+        is_cpu_battle: true,
+        passcode: null,
+      })
+      .select()
+      .single();
+
+    if (roomErr || !roomData) { setError(roomErr?.message ?? '作成失敗'); setLoading(false); return; }
+
+    const emptyPlayerState = {
+      deck: [], lrig_deck: [], hand: [], life_cloth: [], trash: [], lrig_trash: [],
+      energy: [], coins: 0,
+      field: { lrig: [], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
+    };
+    const { error: bsErr } = await supabase.from('battle_states').insert({
+      room_id: roomData.id,
+      host_id: user.id,
+      guest_id: CPU_PLAYER_ID,
+      global_phase: 'SETUP',
+      setup_phase: 'JAN_KEN',
+      turn_phase: 'UP',
+      active_user_id: null,
+      turn_count: 1,
+      host_state: emptyPlayerState,
+      guest_state: emptyPlayerState,
+      game_logs: [],
+    });
+
+    setLoading(false);
+    if (bsErr) { setError(bsErr.message); return; }
+
+    onBattleStart(roomData.id, selectedDeckId);
+  };
+
   const handleCreateRoom = async () => {
     if (!selectedDeckId) return;
     setLoading(true); setError(null);
