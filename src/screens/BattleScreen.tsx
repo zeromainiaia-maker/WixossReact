@@ -335,6 +335,7 @@ const WAITING_MSG: Partial<Record<TurnPhase, string>> = {
 };
 
 const setupWrap: React.CSSProperties = {
+  position: 'relative',
   height: '100vh', display: 'flex', flexDirection: 'column',
   justifyContent: 'center', alignItems: 'center',
   backgroundColor: C.bgSetup, gap: 20, color: C.textMuted,
