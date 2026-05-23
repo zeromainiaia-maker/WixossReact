@@ -4,6 +4,23 @@ import { supabase } from '../supabaseClient';
 const toFakeEmail = (username: string) =>
   `${username.toLowerCase().trim()}@wixoss.game`;
 
+function toJapaneseAuthError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('user already registered') || m.includes('already been registered'))
+    return 'このユーザーネームはすでに登録されています';
+  if (m.includes('password should be at least'))
+    return 'パスワードは6文字以上で入力してください';
+  if (m.includes('weak password'))
+    return 'パスワードが簡単すぎます。英数字を組み合わせてください';
+  if (m.includes('invalid email') || m.includes('unable to validate email'))
+    return 'ユーザーネームに使用できない文字が含まれています';
+  if (m.includes('signup is disabled'))
+    return '現在新規登録は受け付けていません';
+  if (m.includes('email rate limit') || m.includes('rate limit'))
+    return 'しばらく時間をおいてから再試行してください';
+  return '登録に失敗しました。しばらくしてから再試行してください';
+}
+
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
