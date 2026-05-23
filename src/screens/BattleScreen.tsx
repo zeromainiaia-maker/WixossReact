@@ -3195,75 +3195,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   checkPowerZeroBanishRef.current   = checkAndBanishPowerZero;
 
   // ══════════════════════════════════════════
-  // CPU AI ロジック
+  // CPU AI ロジック（ターン行動）
   // ══════════════════════════════════════════
-
-  // CPU セットアップ自動行動
-  const cpuSetupAction = async () => {
-    if (!bs) return;
-    const phase = bs.setup_phase;
-
-    // ① じゃんけん：グー/チョキ/パーをランダム選択
-    if (phase === 'JAN_KEN') {
-      const choices = ['グー', 'チョキ', 'パー'];
-      const pick = choices[Math.floor(Math.random() * 3)];
-      await supabase.from('battle_states').update({ guest_janken: pick }).eq('room_id', roomId);
-      return;
-    }
-
-    // ② ルリグ選択：Lv.0ルリグの先頭を選択
-    if (phase === 'LRIG_SELECT' && cpuDeckData) {
-      const lrigWithIds = assignInstanceIds(cpuDeckData.lrig_deck);
-      const mainWithIds = assignInstanceIds(shuffle(cpuDeckData.main_deck));
-
-      // Lv.0ルリグを探す
-      const lv0Idx = cpuDeckData.lrig_deck.findIndex(num => {
-        const c = cards.find(card => card.CardNum === num);
-        return c?.Type === 'ルリグ' && c.Level === '0';
-      });
-      if (lv0Idx < 0) return;
-
-      const selectedId = lrigWithIds[lv0Idx];
-      const lrigDeckIds = lrigWithIds.filter((_, i) => i !== lv0Idx);
-
-      const cpuState: PlayerState = {
-        life_cloth: [], hand: mainWithIds.slice(0, 5), deck: mainWithIds.slice(5),
-        lrig_deck: lrigDeckIds, trash: [], lrig_trash: [], energy: [], coins: 0,
-        field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
-      };
-      await supabase.from('battle_states').update({
-        guest_lrig_selected: cpuDeckData.lrig_deck[lv0Idx],
-        guest_state: cpuState,
-      }).eq('room_id', roomId);
-      return;
-    }
-
-    // ③ マリガン：マリガンせず、ライフクロスを7枚セット
-    if (phase === 'MULLIGAN') {
-      const cpuSt = bs.guest_state;
-      const newLifeCloth = cpuSt.deck.slice(0, 7);
-      const newDeck = cpuSt.deck.slice(7);
-      const newCpuSt: PlayerState = { ...cpuSt, deck: newDeck, life_cloth: newLifeCloth };
-
-      await supabase.from('battle_states').update({
-        guest_state: newCpuSt,
-        guest_mulligan_done: true,
-      }).eq('room_id', roomId);
-
-      // 両者完了チェック
-      const { data: fresh } = await supabase
-        .from('battle_states').select('host_mulligan_done, guest_mulligan_done, first_player_id')
-        .eq('room_id', roomId).single();
-      if (fresh?.host_mulligan_done && fresh?.guest_mulligan_done) {
-        await supabase.from('battle_states').update({
-          global_phase: 'PLAYING',
-          setup_phase: null,
-          active_user_id: fresh.first_player_id as string,
-        }).eq('room_id', roomId);
-      }
-    }
-  };
-  cpuSetupRef.current = cpuSetupAction;
 
   // CPU ターン自動行動
   const cpuTurnAction = async () => {
