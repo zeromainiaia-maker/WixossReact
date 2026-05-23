@@ -703,6 +703,14 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
 }
 
 function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
+  if (a.target.type === 'LRIG') {
+    const state = ownerState(a.target.owner, ctx);
+    const newS: PlayerState = { ...state, field: { ...state.field, lrig_down: true } };
+    const lrigName = state.field.lrig?.length
+      ? (ctx.cardMap.get(getCardNum(state.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ')
+      : 'ルリグ';
+    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`));
+  }
   const state = ownerState(a.target.owner, ctx);
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
 
