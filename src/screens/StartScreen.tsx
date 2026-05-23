@@ -82,6 +82,19 @@ export default function StartScreen({ user, setViewMode, onCpuBattle }: Props) {
         オンライン対戦
       </button>
 
+      <button onClick={onCpuBattle} style={{
+        width: '260px',
+        padding: '16px',
+        borderRadius: '8px',
+        border: 'none',
+        backgroundColor: '#1a7a3a',
+        color: '#fff',
+        fontSize: '16px',
+        fontWeight: 'bold',
+      }}>
+        CPU対戦
+      </button>
+
       <button onClick={() => setViewMode('DECK_LIST')} style={{
         width: '260px',
         padding: '16px',
