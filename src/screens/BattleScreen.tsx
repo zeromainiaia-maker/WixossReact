@@ -5346,7 +5346,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           )
         ) : (
           <span style={{ fontSize: 11, color: C.textDim }}>
-            {WAITING_MSG[bs.turn_phase] ?? '相手のターン中...'}
+            {isCpuBattle && bs.active_user_id === CPU_PLAYER_ID
+            ? 'CPUの行動中...'
+            : (WAITING_MSG[bs.turn_phase] ?? '相手のターン中...')}
           </span>
         )}
 
