@@ -1,61 +1,79 @@
 # 画像アップロード失敗リスト（再実行待ち）
 
-作成日: 2026-05-23
+最終更新: 2026-05-23（sync-storage.mjs 実行後）
 
-## Sheet2〜10+TK 失敗分（38枚）
+## 失敗分（63枚）
 
 ```
+WD01-002
+WD01-006
+WD01-007
+WD01-008
+WD01-011
+WD02-003
+WD02-005
+WD02-009
+WD02-012
+WD02-014
+WD03-005
+WD03-004
+WD03-009
+WD04-004
+WD04-003
+WD05-004
+WD05-005
+WX01-032
+WX01-085
+WX03-019
+WX04-020
+WX04-064
+WX08-071
+WX08-044
+WX08-032
+WX11-012
+WX11-042
+WX12-CB01
 WX12-CB02
-WX15-067
-WX15-070
 WX15-094
 WX15-096
+WX16-Re17
 WX17-040
 WX17-044
 WX18-074
 WX19-004
-WX20-033
+WX20-022
 WX20-034-CB
-WX20-041-CB
+WX20-033
+WX20-036-CB
 WX20-039-CB
-WX20-044-CB
+WX20-041-CB
 WX20-042-CB
+WX20-044-CB
 WX20-047-CB
-WX21-033-CB
 WX21-031-CB
+WX21-033-CB
 WD06-018
+WX22-Re12
+WX22-Re11
+WXEX1-80Re
+WXEX1-81Re
 WXK02-030
 WD09-018
-WD13-015
+WD11-004
+WD12-004
 WD15-002
 WD15-006
-WD15-011
-WD15-015
+WD15-014
 WD15-013
-WD15-017
-WD15-016
+WD15-015
 WD15-018
-WD15-020
-WD15-019
-WD15-023-E
-SP01-003
-SP23-013
-SP32-013
-PR-248
-PR-274
+WD17-009
 ```
-
-## Sheet1 失敗分
-
-Sheet1のログが残っていないため不明。再実行時は `upload-card-images.mjs` を
-`upsert: true` のまま実行すれば、成功済みは上書き・失敗分のみ追加される。
 
 ## 再実行方法
 
 ```bash
-# Sheet1の失敗分を含む全体を再実行する場合
-node scripts/upload-card-images.mjs       # Sheet1
-node scripts/upload-card-images-all.mjs   # Sheet2〜10+TK
+node scripts/sync-storage.mjs
 ```
 
 失敗の主な原因: `ERR_TOO_MANY_REDIRECTS`（タカラトミーサイトのホットリンク制限）
