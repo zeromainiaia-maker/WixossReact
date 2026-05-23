@@ -654,6 +654,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs?.global_phase === 'PLAYING') setLoading(false);
   }, [bs?.global_phase]);
 
+  // ── CPU 対戦：セットアップ自動行動 ──────────────────────────
+  useEffect(() => {
+    if (!bs || !isCpuBattle || bs.global_phase !== 'SETUP') return;
+    if (bs.setup_phase === 'JAN_KEN'     && bs.guest_janken)        return;
+    if (bs.setup_phase === 'LRIG_SELECT' && bs.guest_lrig_selected) return;
+    if (bs.setup_phase === 'MULLIGAN'    && bs.guest_mulligan_done) return;
+    if (bs.setup_phase === 'LRIG_SELECT' && !cpuDeckData)           return;
+    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
+    cpuTimerRef.current = setTimeout(() => { cpuSetupRef.current?.(); }, CPU_ACTION_DELAY);
+    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
+  }, [isCpuBattle, bs?.setup_phase, bs?.guest_janken, bs?.guest_lrig_selected, bs?.guest_mulligan_done, cpuDeckData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── CPU 対戦：ターン自動行動 ──────────────────────────────────
+  useEffect(() => {
+    if (!bs || !isCpuBattle || bs.global_phase !== 'PLAYING') return;
+    if (bs.pending_effect || bs.effect_stack) return;
+    const cpuSt = bs.guest_state;
+    const isCpuTurn = bs.active_user_id === CPU_PLAYER_ID;
+    if (!isCpuTurn && !cpuSt.field?.check && !cpuSt.field?.lrig_attacked) return;
+    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
+    cpuTimerRef.current = setTimeout(() => { cpuTurnRef.current?.(); }, CPU_ACTION_DELAY);
+    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
+  }, [
+    isCpuBattle, bs?.global_phase, bs?.active_user_id, bs?.turn_phase,
+    bs?.guest_state?.field?.check, bs?.guest_state?.field?.lrig_attacked,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    JSON.stringify(bs?.guest_state?.field?.signi_down),
+    bs?.pending_effect, !!bs?.effect_stack,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── バトルに必要なカードだけを抽出（全1万枚+ を毎回スキャンしない） ────────────
   // 自分のデッキ + bs の全ゾーンにある CardNum を収集し、大本の cards から Map を作る。
   // 大本の cards 配列は一切変更しない。
