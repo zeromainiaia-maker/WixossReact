@@ -1084,12 +1084,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const mySelected = isHost ? bs.host_lrig_selected : bs.guest_lrig_selected;
 
       if (mySelected) return (
-        <div style={setupWrap}>
+        <>{setupLeaveConfirmModal}<div style={setupWrap}>
           <h2 style={{ color: C.text, margin: 0 }}>ルリグ配置完了</h2>
           <p style={{ color: C.success }}>相手の準備を待っています...</p>
           <p style={{ color: C.textDim, fontSize: 13 }}>配置: {battleCardMap.get(mySelected)?.CardName ?? mySelected}</p>
           {setupLeaveBtn}
-        </div>
+        </div></>
       );
 
       if (!myDeckData) return <div style={setupWrap}><p>デッキ読み込み中...</p></div>;
