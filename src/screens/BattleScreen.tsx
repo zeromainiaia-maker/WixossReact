@@ -7012,7 +7012,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <span style={{ color: C.textDim, fontSize: 11, width: 16 }}>{i + 1}</span>
                         <img src={c?.ImgURL} alt={c?.CardName} draggable={false}
                           style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
-                          onError={e2 => { (e2.target as HTMLImageElement).style.opacity = '0.2'; }} />
+                          onError={e2 => { const img = e2.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                         <span style={{ color: C.textSub, fontSize: 12, flex: 1 }}>{c?.CardName ?? cardNum}</span>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <button onClick={() => moveCard(i, -1)} disabled={i === 0}
