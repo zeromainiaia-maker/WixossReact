@@ -3318,6 +3318,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── UPフェイズ（ドロー）───
     if (phase === 'UP') {
+      appendBattleLogs([`[CPU] ${drawCount}枚ドロー`]);
       const newCpuSt = drawCards(cpuSt, drawCount);
       await supabase.from('battle_states').update({
         guest_state: { ...newCpuSt, actions_done: ['DRAW'] },
@@ -3338,6 +3339,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const blocked = cpuSt.blocked_actions?.includes('ENERGY') ?? false;
       if (!used && !blocked && cpuSt.hand.length > 0) {
         const charged = cpuSt.hand[0];
+        const chargedCard = battleCardMap.get(charged);
+        appendBattleLogs([`[CPU] エナチャージ: ${chargedCard?.CardName ?? charged}`]);
         const newCpuSt: PlayerState = {
           ...cpuSt,
           hand: cpuSt.hand.slice(1),
