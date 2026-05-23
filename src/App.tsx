@@ -10,6 +10,7 @@ import DeckListScreen from './screens/DeckListScreen';
 import DeckEditorScreen from './screens/DeckEditorScreen';
 import MatchmakingScreen from './screens/MatchmakingScreen';
 import BattleScreen from './screens/BattleScreen';
+import CpuBattleScreen from './screens/CpuBattleScreen';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
