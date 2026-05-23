@@ -74,7 +74,7 @@ export default function App() {
 
   // CSV と事前生成 effects.json を並行 fetch してカードデータを構築
   useEffect(() => {
-    const sheetFetches = Array.from({ length: 11 }, (_, i) =>
+    const sheetFetches = Array.from({ length: 10 }, (_, i) =>
       fetch(`/data/CardData_Sheet${i + 1}.csv`).then(r => r.ok ? r.text() : null)
     );
     const tkFetch = fetch('/data/CardData_TK.csv').then(r => r.ok ? r.text() : null);
