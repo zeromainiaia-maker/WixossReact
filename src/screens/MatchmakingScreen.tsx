@@ -11,7 +11,7 @@ interface Props {
   onBack: () => void;
 }
 
-type Step = 'SELECT_DECK' | 'SELECT_MODE' | 'HOST_WAITING' | 'GUEST_WAITING';
+type Step = 'SELECT_DECK' | 'SELECT_MODE' | 'CPU_DECK_SELECT' | 'HOST_WAITING' | 'GUEST_WAITING';
 
 // CPU専用プレイヤーID（auth.usersに存在しない固定UUID）
 export const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001';
@@ -48,6 +48,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
 
   const [step, setStep] = useState<Step>('SELECT_DECK');
   const [selectedDeckId, setSelectedDeckId] = useState<string>(validDecks[0]?.id ?? '');
+  const [cpuDeckId, setCpuDeckId] = useState<string>(validDecks[0]?.id ?? '');
   const [room, setRoom] = useState<Room | null>(null);
   const [passcodeInput, setPasscodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -70,12 +71,8 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
 
   // CPU対戦：即時ルーム作成 → battle_states 生成 → 対戦開始
   const handleCpuBattle = async () => {
-    if (!selectedDeckId) return;
+    if (!selectedDeckId || !cpuDeckId) return;
     setLoading(true); setError(null);
-
-    // CPU デッキ：ユーザーの別デッキを優先、なければ同じデッキ
-    const cpuDeck = validDecks.find(d => d.id !== selectedDeckId) ?? validDecks[0];
-    if (!cpuDeck) { setError('対戦用デッキが見つかりません'); setLoading(false); return; }
 
     const { data: roomData, error: roomErr } = await supabase
       .from('rooms')
@@ -83,7 +80,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
         host_id: user.id,
         host_deck_id: selectedDeckId,
         guest_id: CPU_PLAYER_ID,
-        guest_deck_id: cpuDeck.id,
+        guest_deck_id: cpuDeckId,
         status: 'PLAYING',
         is_cpu_battle: true,
         passcode: null,
@@ -211,7 +208,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
   if (step === 'SELECT_MODE') return (
     <div style={wrap}>
       <h2 style={{ color: '#fff', margin: 0 }}>対戦モード選択</h2>
-      <button style={{ ...primaryBtn, backgroundColor: '#28a745' }} onClick={handleCpuBattle} disabled={loading}>
+      <button style={{ ...primaryBtn, backgroundColor: '#28a745' }} onClick={() => { setCpuDeckId(validDecks[0]?.id ?? ''); setStep('CPU_DECK_SELECT'); }} disabled={loading}>
         CPU対戦
       </button>
       <div style={{ width: '100%', maxWidth: 280, borderTop: '1px solid #333', margin: '4px 0' }} />
@@ -240,6 +237,42 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
       </div>
       {error && <p style={{ color: '#ff4444', margin: 0 }}>{error}</p>}
       <button style={ghostBtn} onClick={() => setStep('SELECT_DECK')}>戻る</button>
+    </div>
+  );
+
+  if (step === 'CPU_DECK_SELECT') return (
+    <div style={wrap}>
+      <h2 style={{ color: '#fff', margin: 0 }}>CPUの使用デッキを選択</h2>
+      {validDecks.length === 0 ? (
+        <p style={{ color: '#888', textAlign: 'center', maxWidth: 280, lineHeight: 1.6 }}>
+          使用可能なデッキがありません。
+        </p>
+      ) : (
+        <select
+          value={cpuDeckId}
+          onChange={e => setCpuDeckId(e.target.value)}
+          style={{
+            width: 260, padding: '12px 16px', borderRadius: 8,
+            border: '1px solid #444', backgroundColor: '#111',
+            color: '#fff', fontSize: 15, cursor: 'pointer', appearance: 'auto',
+          }}
+        >
+          {validDecks.map(deck => (
+            <option key={deck.id} value={deck.id}>{deck.name}</option>
+          ))}
+        </select>
+      )}
+      {error && <p style={{ color: '#ff4444', margin: 0 }}>{error}</p>}
+      <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 280, boxSizing: 'border-box' }}>
+        <button style={{ ...ghostBtn, maxWidth: '46%' }} onClick={() => setStep('SELECT_MODE')} disabled={loading}>戻る</button>
+        <button
+          style={{ ...primaryBtn, maxWidth: '54%', backgroundColor: '#28a745', opacity: cpuDeckId ? 1 : 0.4 }}
+          disabled={loading || !cpuDeckId}
+          onClick={handleCpuBattle}
+        >
+          {loading ? '準備中...' : '対戦開始'}
+        </button>
+      </div>
     </div>
   );
 
