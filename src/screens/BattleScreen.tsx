@@ -1423,6 +1423,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [cutinSpellZoomed, setCutinSpellZoomed] = useState(false);   // スペルカットイン画面の拡大
   // 効果インタラクション：SELECT_TARGET / SEARCH / CHOOSE
   const [effectSelectedNums, setEffectSelectedNums] = useState<string[]>([]);
+  // カード選択UI長押し拡大
+  const [expandedPickImgUrl, setExpandedPickImgUrl] = useState<string | null>(null);
+  const pickLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 効果スタック整列UI：自分の pending エントリの id を並べた配列
   const [stackOrderIds, setStackOrderIds] = useState<string[]>([]);
   // LOOK_AND_REORDER インタラクション：現在の並び順
