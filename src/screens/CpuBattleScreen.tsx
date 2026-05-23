@@ -506,8 +506,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
           return !(cpu.field.signi_down?.[i] ?? false);
         });
         if (upZones.length > 0) {
-          const ng = signiAttack(g, upZones[0]);
-          return ng.winner || ng.burstCard ? ng : ng;
+          return signiAttack(g, upZones[0]);
         }
         appendLog('[CPU] シグニアタック終了');
         return advancePhase(g);
