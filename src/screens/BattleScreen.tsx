@@ -1283,6 +1283,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             {iAmFirst ? '先攻です' : '後攻です'}
           </p>
           <p style={{ color: C.textFaint }}>相手の確認を待っています...</p>
+          {setupLeaveBtn}
         </div>
       );
 
