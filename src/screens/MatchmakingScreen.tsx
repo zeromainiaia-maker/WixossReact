@@ -13,6 +13,9 @@ interface Props {
 
 type Step = 'SELECT_DECK' | 'SELECT_MODE' | 'HOST_WAITING' | 'GUEST_WAITING';
 
+// CPU専用プレイヤーID（auth.usersに存在しない固定UUID）
+export const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001';
+
 const primaryBtn: React.CSSProperties = {
   width: '100%', maxWidth: 280, padding: '14px 0', borderRadius: 8, border: 'none',
   backgroundColor: '#007bff', color: '#fff', fontSize: 15,
