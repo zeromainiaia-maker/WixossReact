@@ -564,11 +564,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const phase = bs.turn_phase;
     const turn  = bs.turn_count;
     if (prevPhaseRef.current === phase && prevTurnRef.current === turn) return;
-    if (prevPhaseRef.current !== null && bs.active_user_id === user.id) {
-      const msg = phase === 'UP'
-        ? `── T${turn} あなたのターン開始 ──`
-        : `[あなた] ${PHASE_LABEL[phase] ?? phase}フェイズ`;
-      appendBattleLogs([msg]);
+    if (prevPhaseRef.current !== null) {
+      if (bs.active_user_id === user.id) {
+        const msg = phase === 'UP'
+          ? `── T${turn} あなたのターン開始 ──`
+          : `[あなた] ${PHASE_LABEL[phase] ?? phase}フェイズ`;
+        appendBattleLogs([msg]);
+      } else if (bs.active_user_id === CPU_PLAYER_ID) {
+        const msg = phase === 'UP'
+          ? `── T${turn} CPUのターン開始 ──`
+          : `[CPU] ${PHASE_LABEL[phase] ?? phase}フェイズ`;
+        appendBattleLogs([msg]);
+      }
     }
     prevPhaseRef.current = phase;
     prevTurnRef.current  = turn;
