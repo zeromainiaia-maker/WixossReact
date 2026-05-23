@@ -3375,6 +3375,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         if (growTarget) {
           const growCard = cards.find(c => c.CardNum === growTarget)!;
+          appendBattleLogs([`[CPU] グロウ: ${growCard.CardName}（Lv.${growCard.Level}）`]);
           const costs = parseGrowCost(growCard.GrowCost);
           // エナから支払い
           let newEnergy = [...cpuSt.energy];
