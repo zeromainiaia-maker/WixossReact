@@ -173,7 +173,7 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
             <p style={{ fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#111', fontWeight: '500', margin: 0 }}>{card?.CardName ?? cardNum}</p>
             {hasLB && <span style={{ fontSize: '9px', backgroundColor: '#e05c00', color: '#fff', borderRadius: '3px', padding: '1px 4px', flexShrink: 0, fontWeight: 'bold' }}>LB</span>}
           </div>
-          <p style={{ fontSize: '10px', color: '#555', margin: 0 }}>{card?.Type}{card?.Level ? ` / Lv.${card.Level}` : ''} / {card?.Color}</p>
+          <p style={{ fontSize: '10px', color: '#555', margin: 0 }}>{card?.CardNum} / {card?.Type}{card?.Level ? ` / Lv.${card.Level}` : ''} / {card?.Color}</p>
           {card?.CardClass && <p style={{ fontSize: '10px', color: '#666', margin: 0 }}>{card.CardClass}</p>}
         </div>
         <span style={{ fontSize: '13px', color: '#5533aa', fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>×{count}</span>
