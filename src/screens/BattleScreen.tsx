@@ -3218,7 +3218,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ライフバースト確認（チェックゾーンのカードを処理）───
     if (cpuSt.field?.check) {
       const cardNum = cpuSt.field.check;
-      const cardData = cards.find(c => c.CardNum === getCardNum(cardNum));
       // CPUはライフバーストを常に発動しない（エナに送るだけ）
       const newCpuSt: PlayerState = {
         ...cpuSt,
