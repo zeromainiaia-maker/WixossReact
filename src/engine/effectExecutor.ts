@@ -835,11 +835,8 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     return done(ctx);
   }
 
-  // インスタンスIDで各カードを一意に識別（同名カードも区別できる）
-  // デッキ：全体を公開、トラッシュ：条件一致のみ
-  const visibleCards = fromDeck
-    ? [...state.deck]
-    : pool.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
+  // フィルタがある場合は一致カードのみ表示、ない場合は全体を公開
+  const visibleCards = pool.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
 
   return needsInteraction(ctx, {
     type: 'SEARCH',
