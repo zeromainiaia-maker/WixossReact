@@ -896,7 +896,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const phase = bs.setup_phase;
 
     if (phase === 'JAN_KEN') {
-      const choices = ['グー', 'チョキ', 'パー'];
+      const choices = ['GU', 'CHOKI', 'PA'];
       const pick = choices[Math.floor(Math.random() * 3)];
       await supabase.from('battle_states').update({ guest_janken: pick }).eq('room_id', roomId);
       return;
