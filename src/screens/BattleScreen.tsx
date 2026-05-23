@@ -575,7 +575,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     supabase.from('battle_states').select('*').eq('room_id', roomId).single()
       .then(({ data, error }) => {
         if (error) console.error('battle_states 取得エラー:', error.message);
-        if (data) setBs(data as BattleStateRow);
+        if (data) {
+          setBs(data as BattleStateRow);
+          if ((data as BattleStateRow).guest_id === CPU_PLAYER_ID) {
+            setIsCpuBattle(true);
+            supabase.from('rooms').select('guest_deck_id').eq('id', roomId).single()
+              .then(async ({ data: rd }) => {
+                if (!rd?.guest_deck_id) return;
+                const { data: dd } = await supabase.from('decks')
+                  .select('main_deck, lrig_deck').eq('id', rd.guest_deck_id).single();
+                if (dd) setCpuDeckData(dd as { main_deck: string[]; lrig_deck: string[] });
+              });
+          }
+        }
       });
 
     supabase.from('decks').select('main_deck, lrig_deck').eq('id', myDeckId).single()
