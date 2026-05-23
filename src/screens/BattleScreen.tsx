@@ -6887,6 +6887,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     return (
                       <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         <div
+                          onPointerDown={() => {
+                            pickLongPressTimer.current = setTimeout(() => {
+                              setExpandedPickImgUrl(c?.ImgURL ?? null);
+                            }, 500);
+                          }}
+                          onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                          onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                          onContextMenu={e => e.preventDefault()}
                           onClick={() => {
                             setEffectSelectedNums(prev => {
                               if (prev.includes(idxStr)) {
