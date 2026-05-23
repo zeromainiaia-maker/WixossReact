@@ -946,6 +946,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ══════════════════════════════════════════
   // SETUP フェイズ
   // ══════════════════════════════════════════
+
+  const handleSetupLeave = async () => {
+    leavingRef.current = true;
+    await supabase.from('battle_states').delete().eq('room_id', roomId);
+    await supabase.from('rooms').delete().eq('id', roomId);
+    onBack();
+  };
+
+  const setupLeaveBtn = (
+    <button
+      onClick={handleSetupLeave}
+      style={{
+        marginTop: 8, padding: '6px 18px', borderRadius: 6, border: '1px solid #444',
+        backgroundColor: 'transparent', color: '#666', fontSize: 12, cursor: 'pointer',
+      }}
+    >
+      対戦を終了してロビーへ戻る
+    </button>
+  );
+
   if (bs.global_phase === 'SETUP') {
 
     // ① じゃんけん
