@@ -361,7 +361,7 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
                           src={card.ImgURL}
                           alt={card.CardName}
                           style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', display: 'block' }}
-                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }}
+                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
                         />
                         {isSelected && (
                           <div style={{ position: 'absolute', top: '4px', right: '4px', backgroundColor: '#7755dd', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 'bold' }}>✓</div>
@@ -402,7 +402,7 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
                 src={card.ImgURL}
                 alt={card.CardName}
                 style={{ maxWidth: '80vw', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px' }}
-                onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }}
+                onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <p style={{ fontSize: '14px', fontWeight: 'bold', textAlign: 'center', color: '#fff', margin: 0 }}>{card.CardName}</p>
