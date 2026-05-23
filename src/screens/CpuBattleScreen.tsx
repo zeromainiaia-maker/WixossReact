@@ -8,7 +8,8 @@ import { calcFieldPowers } from '../engine/effectEngine';
 import { hasKeyword } from '../utils/keywords';
 import type { ExecCtx } from '../engine/effectExecutor';
 import type { PendingInteractionDef } from '../types';
-import { C, CardAction, PlayerField, HandCards } from '../components/BoardComponents';
+import { C, PlayerField, HandCards } from '../components/BoardComponents';
+import type { CardAction } from '../components/BoardComponents';
 
 // ======= 定数 =======
 const CPU_ID = 'cpu';
