@@ -280,6 +280,40 @@ export function calcFieldPowers(
         if (effect.effectType !== 'CONTINUOUS') continue;
         if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap)) continue;
 
+        // POWER_SET: 基本パワーを指定値に変更（POWER_MODIFYより先に適用）
+        const sets = extractPowerSets(effect.action);
+        for (const s of sets) {
+          const value = typeof s.value === 'number' ? s.value : 0;
+          if (s.target.count !== 'ALL') {
+            // count !== 'ALL' = このシグニのみ
+            const card = cardMap.get(topNum);
+            if ((s.target.owner === 'self' || s.target.owner === 'any') &&
+                matchesFilter(card, s.target.filter) &&
+                powers.has(topNum)) {
+              powers.set(topNum, value);
+            }
+          } else {
+            if (s.target.owner === 'self' || s.target.owner === 'any') {
+              for (const stack of ownerState.field.signi) {
+                if (!stack || stack.length === 0) continue;
+                const num = stack[stack.length - 1];
+                if (!powers.has(num)) continue;
+                if (!matchesFilter(cardMap.get(num), s.target.filter)) continue;
+                powers.set(num, value);
+              }
+            }
+            if (s.target.owner === 'opponent' || s.target.owner === 'any') {
+              for (const stack of otherState.field.signi) {
+                if (!stack || stack.length === 0) continue;
+                const num = stack[stack.length - 1];
+                if (!powers.has(num)) continue;
+                if (!matchesFilter(cardMap.get(num), s.target.filter)) continue;
+                powers.set(num, value);
+              }
+            }
+          }
+        }
+
         const mods = extractPowerModifies(effect.action);
         for (const mod of mods) {
           const delta = typeof mod.delta === 'number' ? mod.delta : 0;
