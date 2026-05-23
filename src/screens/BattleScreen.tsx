@@ -1060,6 +1060,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           <h2 style={{ color: C.text, margin: 0 }}>ルリグ配置完了</h2>
           <p style={{ color: C.success }}>相手の準備を待っています...</p>
           <p style={{ color: C.textDim, fontSize: 13 }}>配置: {battleCardMap.get(mySelected)?.CardName ?? mySelected}</p>
+          {setupLeaveBtn}
         </div>
       );
 
