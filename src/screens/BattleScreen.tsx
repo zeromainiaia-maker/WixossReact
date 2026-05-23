@@ -1277,7 +1277,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       return (
-        <div style={setupWrap}>
+        <>{setupLeaveConfirmModal}<div style={setupWrap}>
           <h2 style={{ color: C.text, margin: 0 }}>センタールリグを配置</h2>
           <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>Lv0ルリグを選ぶとデッキをシャッフルして手札5枚を引きます</p>
           {lv0Lrigs.length === 0 ? (
