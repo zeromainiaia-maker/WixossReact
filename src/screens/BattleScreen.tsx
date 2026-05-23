@@ -3271,6 +3271,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ライフバースト確認（チェックゾーンのカードを処理）───
     if (cpuSt.field?.check) {
       const cardNum = cpuSt.field.check;
+      const burstCard = battleCardMap.get(cardNum);
+      appendBattleLogs([`[CPU] ライフクロスをオープン: ${burstCard?.CardName ?? cardNum}（ライフバースト不発動）`]);
       // CPUはライフバーストを常に発動しない（エナに送るだけ）
       const newCpuSt: PlayerState = {
         ...cpuSt,
@@ -3290,12 +3292,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let newCpuSt: PlayerState;
       if (cpuSt.life_cloth.length > 0) {
         const crashed = cpuSt.life_cloth[cpuSt.life_cloth.length - 1];
+        appendBattleLogs([`[CPU] ルリグアタックを受けた → ライフクロスクラッシュ（残り${cpuSt.life_cloth.length - 1}枚）`]);
         newCpuSt = {
           ...cpuSt,
           life_cloth: cpuSt.life_cloth.slice(0, -1),
           field: { ...cpuSt.field, lrig_attacked: false, check: crashed },
         };
       } else {
+        appendBattleLogs([`[CPU] ライフクロスが0枚 → あなたの勝利！`]);
         // ライフなし → 人間の勝利
         await supabase.from('battle_states').update({
           guest_state: { ...cpuSt, field: { ...cpuSt.field, lrig_attacked: false } },
