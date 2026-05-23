@@ -382,27 +382,17 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
       {/* カード画像拡大モーダル */}
       {expandedCardNum && expandedCard && (() => {
         const card = expandedCard;
-        const lrig = isLrigCard(card);
-        const nameCount = lrig ? countInLrigByName(card.CardName) : countInMainByName(card.CardName);
-        const copyMax = lrig ? LRIG_COPY_MAX : COPY_MAX;
-        const extra = lrig && isExtraLrigCard(card);
-        const canAdd = nameCount < copyMax && (
-          lrig
-            ? (extra ? extraLrigCount < LRIG_EXTRA_MAX : regularLrigCount < LRIG_MAX)
-            : current.mainDeck.length < MAIN_MAX
-        );
         const hasLB = card.LifeBurst === '1';
         return (
           <div
-            onClick={e => { if (e.target === e.currentTarget) setExpandedCardNum(null); }}
+            onClick={() => setExpandedCardNum(null)}
             style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, cursor: 'pointer' }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '20px', maxWidth: '90vw', cursor: 'default' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '20px', maxWidth: '90vw' }}>
               <img
                 src={card.ImgURL}
                 alt={card.CardName}
-                onClick={() => setExpandedCardNum(null)}
-                style={{ maxWidth: '80vw', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
+                style={{ maxWidth: '80vw', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px' }}
                 onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -411,21 +401,6 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
               </div>
               <p style={{ fontSize: '11px', color: '#aaa', textAlign: 'center', margin: 0 }}>{card.CardNum} / {card.Type} / {card.Color}{card.Level ? ` / Lv.${card.Level}` : ''}</p>
               {card.CardClass && <p style={{ fontSize: '11px', color: '#888', textAlign: 'center', margin: 0 }}>{card.CardClass}</p>}
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={() => addCard(card)}
-                  disabled={!canAdd}
-                  style={{ padding: '8px 22px', borderRadius: '6px', border: 'none', fontSize: '13px', backgroundColor: canAdd ? '#7755dd' : '#333', color: canAdd ? '#fff' : '#555' }}
-                >
-                  ＋ 追加 ({nameCount}/{copyMax})
-                </button>
-                <button
-                  onClick={() => setExpandedCardNum(null)}
-                  style={{ padding: '8px 22px', borderRadius: '6px', border: '1px solid #666', backgroundColor: 'transparent', color: '#ccc', fontSize: '13px' }}
-                >
-                  閉じる
-                </button>
-              </div>
             </div>
           </div>
         );
