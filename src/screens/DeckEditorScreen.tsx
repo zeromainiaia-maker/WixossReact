@@ -394,14 +394,15 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
         const hasLB = card.LifeBurst === '1';
         return (
           <div
-            onClick={() => setExpandedCardNum(null)}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
+            onClick={e => { if (e.target === e.currentTarget) setExpandedCardNum(null); }}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, cursor: 'pointer' }}
           >
-            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '20px', maxWidth: '90vw' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '20px', maxWidth: '90vw', cursor: 'default' }}>
               <img
                 src={card.ImgURL}
                 alt={card.CardName}
-                style={{ maxWidth: '80vw', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px' }}
+                onClick={() => setExpandedCardNum(null)}
+                style={{ maxWidth: '80vw', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer' }}
                 onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
