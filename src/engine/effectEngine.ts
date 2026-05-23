@@ -133,6 +133,14 @@ function extractPowerModifies(action: EffectAction): PowerModifyAction[] {
   return [];
 }
 
+function extractPowerSets(action: EffectAction): PowerSetAction[] {
+  if (action.type === 'POWER_SET') return [action as PowerSetAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerSets(s));
+  }
+  return [];
+}
+
 function extractPowerModifiesPerStack(action: EffectAction): PowerModifyPerStackAction[] {
   if (action.type === 'POWER_MODIFY_PER_STACK') return [action as PowerModifyPerStackAction];
   if (action.type === 'SEQUENCE') {
