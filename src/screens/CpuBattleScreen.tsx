@@ -449,7 +449,6 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
 
     let result;
     if (inter.type === 'SELECT_TARGET') {
-      const { resumeSelectTarget } = require('../engine/effectExecutor');
       const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
       const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: '' };
       result = resumeSelectTarget(selectedNums, inter, ctx);
