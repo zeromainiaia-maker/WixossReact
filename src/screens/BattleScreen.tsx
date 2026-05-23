@@ -1305,14 +1305,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const iAmFirst = bs.first_player_id === user.id;
 
       if (myDone) return (
-        <div style={setupWrap}>
+        <>{setupLeaveConfirmModal}<div style={setupWrap}>
           <h2 style={{ color: C.text, margin: 0 }}>マリガン完了</h2>
           <p style={{ color: iAmFirst ? C.accent : C.textAlt, fontWeight: 'bold', fontSize: 18, margin: 0 }}>
             {iAmFirst ? '先攻です' : '後攻です'}
           </p>
           <p style={{ color: C.textFaint }}>相手の確認を待っています...</p>
           {setupLeaveBtn}
-        </div>
+        </div></>
       );
 
       const toggleCard = (i: number) => setMulliganSelected(prev => {
