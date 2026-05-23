@@ -182,9 +182,10 @@ export default function App() {
         <DeckListScreen
           decks={decks}
           cards={cards}
-          onCreateDeck={handleCreateDeck}
-          onEditDeck={id => { setSelectedDeckId(id); setViewMode('DECK_EDITOR'); }}
-          onBack={() => setViewMode('START')}
+          onCreateDeck={cpuBattleMode ? undefined : handleCreateDeck}
+          onEditDeck={cpuBattleMode ? undefined : (id => { setSelectedDeckId(id); setViewMode('DECK_EDITOR'); })}
+          onCpuSelect={cpuBattleMode ? (id => { setCpuBattleDeckId(id); setCpuBattleMode(false); setViewMode('CPU_BATTLE'); }) : undefined}
+          onBack={() => { setCpuBattleMode(false); setViewMode('START'); }}
         />
       )}
       {viewMode === 'DECK_EDITOR' && currentDeck && (
