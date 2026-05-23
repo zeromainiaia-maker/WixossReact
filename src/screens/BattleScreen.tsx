@@ -949,6 +949,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ══════════════════════════════════════════
 
   const handleSetupLeave = async () => {
+    setShowSetupLeaveConfirm(false);
     leavingRef.current = true;
     await supabase.from('battle_states').delete().eq('room_id', roomId);
     await supabase.from('rooms').delete().eq('id', roomId);
@@ -957,14 +958,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   const setupLeaveBtn = (
     <button
-      onClick={handleSetupLeave}
+      onClick={() => setShowSetupLeaveConfirm(true)}
       style={{
-        marginTop: 8, padding: '6px 18px', borderRadius: 6, border: '1px solid #444',
-        backgroundColor: 'transparent', color: '#666', fontSize: 12, cursor: 'pointer',
+        position: 'absolute', top: 14, right: 14,
+        padding: '5px 12px', borderRadius: 6, border: '1px solid #444',
+        backgroundColor: 'transparent', color: '#888', fontSize: 13, cursor: 'pointer',
       }}
     >
-      対戦を終了してロビーへ戻る
+      終了
     </button>
+  );
+
+  const setupLeaveConfirmModal = showSetupLeaveConfirm && (
+    <div style={{
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)',
+      display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999,
+    }}>
+      <div style={{
+        backgroundColor: '#1a1a2e', border: '1px solid #444', borderRadius: 10,
+        padding: '28px 32px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 16,
+      }}>
+        <p style={{ color: '#ccc', margin: 0, fontSize: 15 }}>ルームを削除して終了しますか？</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <button onClick={handleSetupLeave}
+            style={{ padding: '8px 28px', borderRadius: 6, border: 'none', backgroundColor: '#c0392b', color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 'bold' }}>
+            終了する
+          </button>
+          <button onClick={() => setShowSetupLeaveConfirm(false)}
+            style={{ padding: '8px 28px', borderRadius: 6, border: '1px solid #444', backgroundColor: 'transparent', color: '#aaa', fontSize: 14, cursor: 'pointer' }}>
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </div>
   );
 
   if (bs.global_phase === 'SETUP') {
