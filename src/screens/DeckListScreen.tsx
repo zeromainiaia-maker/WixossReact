@@ -16,10 +16,12 @@ export default function DeckListScreen({ decks, cards, onCreateDeck, onEditDeck,
 
   const getCard = (cardNum: string) => cards.find(c => c.CardNum === cardNum);
 
+  const isCpuMode = !!onCpuSelect;
+
   const handleCreate = () => {
     const trimmed = nameInput.trim();
     if (!trimmed) return;
-    onCreateDeck(trimmed);
+    onCreateDeck?.(trimmed);
     setShowModal(false);
     setNameInput('');
   };
