@@ -848,6 +848,63 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, loading, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state]);
 
+  // ── CPU自動行動：SETUPフェーズ ──────────────────────────────────────
+  useEffect(() => {
+    if (!isCpuBattle || !bs || bs.global_phase !== 'SETUP') return;
+    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
+    cpuTimerRef.current = setTimeout(() => {
+      cpuSetupRef.current?.();
+    }, CPU_ACTION_DELAY);
+    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCpuBattle, bs?.setup_phase, bs?.guest_janken, bs?.guest_lrig_selected, bs?.guest_mulligan_done, cpuDeckData]);
+
+  // ── CPU自動行動：PLAYINGフェーズ（CPUターン） ───────────────────────
+  useEffect(() => {
+    if (!isCpuBattle || !bs) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (bs.active_user_id !== CPU_PLAYER_ID) return;
+    if (bs.pending_effect || bs.effect_stack || loading) return;
+    if (bs.turn_phase === 'ATTACK_ARTS_OP') return; // プレイヤーが操作するフェーズ
+    // チェックゾーンにカードがある間は待機（プレイヤーのバースト処理待ち）
+    if (bs.host_state.field?.check) return;
+    // lrig_attacked が true の間は待機（プレイヤーのガード処理待ち）
+    if (bs.host_state.field?.lrig_attacked) return;
+    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
+    cpuTimerRef.current = setTimeout(() => {
+      cpuTurnRef.current?.();
+    }, CPU_ACTION_DELAY);
+    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isCpuBattle, bs?.global_phase, bs?.active_user_id, bs?.turn_phase,
+    bs?.pending_effect, bs?.effect_stack, loading,
+    bs?.host_state, bs?.guest_state,
+  ]);
+
+  // ── CPUのチェックゾーン自動処理（CPUのライフがクラッシュされた場合） ──
+  useEffect(() => {
+    if (!isCpuBattle || !bs) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    const cpuCheck = bs.guest_state.field?.check;
+    if (!cpuCheck) return;
+    if (bs.pending_effect || bs.effect_stack || loading) return;
+    if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
+    // CPUはバースト発動をスキップ（チェックカードをエナへ送る）
+    cpuTimerRef.current = setTimeout(async () => {
+      const newCpuState: PlayerState = {
+        ...bs.guest_state,
+        energy: [...bs.guest_state.energy, cpuCheck],
+        field: { ...bs.guest_state.field, check: null },
+      };
+      await supabase.from('battle_states')
+        .update({ guest_state: newCpuState })
+        .eq('room_id', roomId);
+    }, CPU_ACTION_DELAY);
+    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCpuBattle, bs?.global_phase, bs?.guest_state?.field?.check, bs?.pending_effect, bs?.effect_stack, loading]);
+
   if (!bs) return (
     <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgSetup, color: C.text }}>
       読み込み中...
