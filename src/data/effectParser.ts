@@ -1119,6 +1119,14 @@ function parseSingleSentence(text: string): EffectAction {
   // ---- ダウン ----
   if (t.includes('ダウンする') || t.match(/をダウン/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    if (t.includes('センタールリグ') && t.includes('シグニ')) {
+      // 「センタールリグとすべてのシグニをダウン」のような複合ダウン
+      const signiTgt = parseSigniTarget(t, owner);
+      return { type: 'SEQUENCE', steps: [
+        { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 } },
+        { type: 'DOWN', target: signiTgt },
+      ]};
+    }
     if (t.includes('センタールリグ')) {
       return { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 } };
     }
