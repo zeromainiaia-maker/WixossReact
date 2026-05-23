@@ -420,6 +420,10 @@ function MulliganCard({ cardNum, cards, selected, onToggle }: {
 export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: Props) {
   const [bs, setBs] = useState<BattleStateRow | null>(null);
   const [myDeckData, setMyDeckData] = useState<{ main_deck: string[]; lrig_deck: string[] } | null>(null);
+  // CPU対戦用
+  const [isCpuBattle, setIsCpuBattle] = useState(false);
+  const [cpuDeckData, setCpuDeckData] = useState<{ main_deck: string[]; lrig_deck: string[] } | null>(null);
+  const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [mulliganSelected, setMulliganSelected] = useState<Set<number>>(new Set());
