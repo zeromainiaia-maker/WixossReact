@@ -3523,8 +3523,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const opTopNum = opStack.length > 0 ? opStack[opStack.length - 1] : null;
 
         const myTopNum = (cpuSt.field.signi[firstUp] ?? []).at(-1)!;
-        const myPower = parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0;
+        const myCard = battleCardMap.get(myTopNum);
+        const myPower = parseInt(myCard?.Power ?? '0') || 0;
         const opPower = opTopNum ? (parseInt(battleCardMap.get(opTopNum)?.Power ?? '0') || 0) : 0;
+        const opCard = opTopNum ? battleCardMap.get(opTopNum) : null;
 
         const newSigniDown = [...signiDown];
         newSigniDown[firstUp] = true;
@@ -3533,8 +3535,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         if (opTopNum && myPower < opPower) {
           // バトル負け：何もしない（シグニはダウンのみ）
+          appendBattleLogs([`[CPU] ${myCard?.CardName ?? myTopNum} がバトル敗北（${myPower} < ${opPower}）`]);
         } else if (opTopNum) {
           // バトル勝ち：相手シグニバニッシュ → エナへ
+          appendBattleLogs([`[CPU] ${myCard?.CardName ?? myTopNum} がバトル勝利 → ${opCard?.CardName ?? opTopNum} をバニッシュ`]);
           const newOpSigni = [...huSt.field.signi] as (string[] | null)[];
           newOpSigni[opZone] = null;
           newHuSt = {
@@ -3546,12 +3550,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 正面シグニなし：ライフクロスをクラッシュ
           if (huSt.life_cloth.length > 0) {
             const crashed = huSt.life_cloth[huSt.life_cloth.length - 1];
+            appendBattleLogs([`[CPU] ${myCard?.CardName ?? myTopNum} → あなたのライフをクラッシュ（残り${huSt.life_cloth.length - 1}枚）`]);
             newHuSt = {
               ...huSt,
               life_cloth: huSt.life_cloth.slice(0, -1),
               field: { ...huSt.field, check: crashed },
             };
           } else {
+            appendBattleLogs([`[CPU] あなたのライフが0枚 → CPUの勝利！`]);
             // 人間のライフなし → CPUの勝利
             await supabase.from('battle_states').update({
               guest_state: newCpuSt,
