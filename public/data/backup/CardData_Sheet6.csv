@@ -1,23 +1,67 @@
 CardNum,CardName,ImgURL,Type,CardClass,Color,Level,GrowCost,Cost,Limit,Power,Restriction,Team,Timing,Guard,Coin,Story,LifeBurst,EffectText,BurstText
+SPK07-01,レイラ＝ニュートラル,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK07/SPK07-01.jpg,ルリグ,レイラ,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK07-02,アロス・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK07/SPK07-02.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK07-03,闘娘　翠子,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK07/SPK07-03.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK07-04,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK07/SPK07-04.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK07-05,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK07/SPK07-05.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK07-06,来夢の巫女　リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK07/SPK07-06.jpg,ルリグ,リメンバ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK07-07,純真の記憶　リル,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK07/SPK07-07.jpg,ルリグ,リル,赤,0,《赤》×０,-,0,-,-,-,-,0,1,-,0,-,-
+SPK07-08,カーニバル　†０†,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK07/SPK07-08.jpg,ルリグ,カーニバル,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK08-01,レイラ＝ニュートラル,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-01.jpg,ルリグ,レイラ,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK08-02,アロス・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-02.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK08-03,闘娘　翠子,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-03.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK08-04,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-04.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK08-05,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-05.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK08-06,来夢の巫女　リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-06.jpg,ルリグ,リメンバ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK08-07,純真の記憶　リル,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-07.jpg,ルリグ,リル,赤,0,《赤》×０,-,0,-,-,-,-,0,1,-,0,-,-
+SPK08-08,カーニバル　†０†,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-08.jpg,ルリグ,カーニバル,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK08-09,夢限,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-09.jpg,ルリグ,夢限,無,0,《無》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK08-10,エルドラ　Ｂｏｏｔ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-10.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK08-11,花蕾の巫女　ユキ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-11.jpg,ルリグ,イオナ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK08-12,爪牙　遊月・零,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK08/SPK08-12.jpg,ルリグ,ユヅキ,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK09-01,レイラ＝ニュートラル,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-01.jpg,ルリグ,レイラ,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK09-02,アロス・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-02.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK09-03,闘娘　翠子,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-03.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK09-04,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-04.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK09-05,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-05.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK09-06,来夢の巫女　リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-06.jpg,ルリグ,リメンバ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK09-07,純真の記憶　リル,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-07.jpg,ルリグ,リル,赤,0,《赤》×０,-,0,-,-,-,-,0,1,-,0,-,-
+SPK09-08,カーニバル　†０†,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-08.jpg,ルリグ,カーニバル,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+SPK09-09,夢限,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-09.jpg,ルリグ,夢限,無,0,《無》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK09-10,エルドラ　Ｂｏｏｔ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-10.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK09-11,花蕾の巫女　ユキ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-11.jpg,ルリグ,イオナ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+SPK09-12,爪牙　遊月・零,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK09/SPK09-12.jpg,ルリグ,ユヅキ,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 SPK16-6A,ドント・ラッシュ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-6A.jpg,アーツ,-,青,-,-,《青》×４,-,-,-,-,アタックフェイズ,0,-,-,0,対戦相手のセンタールリグが緑か黒の場合、このアーツの使用コストは《青×2》になる。対戦相手のシグニを２体まで対象とし、それらをダウンし凍結する。（凍結されたシグニは次の自分のアップフェイズにアップしない）,-
 SPK16-6B,ナンバー・バインド,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-6B.jpg,アーツ,-,白,-,-,《白》×３,-,-,-,-,アタックフェイズ,0,-,-,0,このアーツの使用コストはあなたの場にあるシグニ１体につき《白×1》減る。対戦相手のシグニを、レベルの合計が６以下になるように好きな数対象とし、ターン終了時まで、それらは「【常】：アタックできない。」を得る。,-
 SPK16-6C,タクティカル・パニッシュ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-6C.jpg,アーツ,-,黒,-,-,《黒》×０,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。あなたのトラッシュにカードが１５枚以上ある場合、代わりにターン終了時まで、それのパワーを－8000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
+SPK16-7A,ジェラシー・ゲイズ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-7A.jpg,アーツ,-,黒,-,-,《黒》×１《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,次の対戦相手のターンの間、対戦相手は手札からパワー12000以上のシグニを場に出せない。,-
 SPK16-7B,ペナルティ・チャンス,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-7B.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,アタックフェイズ,0,-,-,0,以下の３つから１つを選ぶ。①あなたの手札が０枚の場合、カードを２枚引く。②対戦相手のシグニ１体を対象とし、あなたの場にシグニがない場合、それをダウンする。③このターンが効果によって追加されたターンである場合、このアタックフェイズを終了する。,-
+SPK16-7C,コードアート　Ｉ・Ｚ・Ｒ・Ｈ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-7C.jpg,シグニ,精械：電機,青,4,-,-,-,12000,-,-,-,0,-,-,1,【自】：各ターン終了時、対戦相手のシグニ１体を対象とし、それを凍結する。【出】：対戦相手の凍結状態のシグニ１体を対象とし、それをバニッシュする。,：カードを１枚引く。
 SPK16-8A,三焼揃踏,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-8A.jpg,アーツ,-,赤,-,-,《赤》×１,-,-,-,-,アタックフェイズ,0,-,-,0,同じパワーを持つシグニ３体を対象とし、それらをバニッシュする。（自分のシグニを含んでもよい。合計２体以下のシグニに使用することはできない）,-
 SPK16-8B,聖笏の威光　ハシュマル,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-8B.jpg,シグニ,精像：天使,白,2,-,-,-,5000,-,-,-,0,-,-,0,【常】：あなたのライフクロスは１ターンに１枚までしかクラッシュされない。（複数枚のライフクロスがクラッシュされる場合は１枚だけクラッシュされる）,-
 SPK16-8C,時英の埋設　＃タイプス＃,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-8C.jpg,シグニ,精像：英知,緑,3,-,-,-,7000,-,-,-,0,-,-,0,【自】：このシグニがアタックしたとき、対戦相手のセンタールリグの下からカードを２枚まで対象とし、あなたのルリグデッキから、あなたのセンタールリグと同じルリグタイプを持つルリグ２枚をルリグトラッシュに置いてもよい。そうした場合、それらをルリグトラッシュに置く。【出】：あなたのルリグトラッシュからレベル４以下のルリグ１枚を対象とし、それをルリグデッキに加える。,-
 SPK16-9A,ドント・ファイト,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-9A.jpg,アーツ,-,青,-,-,《青》×１,-,-,-,-,アタックフェイズ,0,-,-,0,対戦相手のシグニ１体を対象とし、それをダウンする。それが白か赤のシグニの場合、追加でカードを２枚引く。,-
+SPK16-9B,ハロー・エフェクト,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-9B.jpg,アーツ,-,黒,-,-,《黒》×１《無》×６,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,このアーツの使用コストは、あなたのルリグトラッシュにあるアーツ１枚につき《無×2》減る。対戦相手のシグニ１体を対象とし、それをバニッシュする。,-
+SPK16-9C,幻怪　ベンザイテン,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-9C.jpg,シグニ,精生：怪異,白,2,-,-,-,5000,-,-,-,0,-,-,0,【常】：対戦相手は場にあるシグニの【起】能力を使用できない。（効果を受けないシグニの能力も使用できない）,-
 SPK16-10A,バイ・ザ・ウェイ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-10A.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,アタックフェイズ,0,-,-,0,このアーツは対戦相手のターンにしか使用できない。以下の３つから２つまで選ぶ。①対戦相手の手札が７枚以上ある場合、あなたは対戦相手の手札を４枚見ないで選び、捨てさせる。②対戦相手は自分のエナゾーンからカード５枚を対象とし、対戦相手のエナゾーンにカードが１０枚以上ある場合、それらをトラッシュに置く。③あなたのデッキの一番上のカードをエナゾーンに置く。,-
+SPK16-10B,羅石　セキエイ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-10B.jpg,シグニ,精羅：鉱石,赤,2,-,-,-,5000,-,-,-,0,-,-,0,【出】：対戦相手の無色のシグニ１体を対象とし、それをバニッシュする。,-
+SPK16-10C,羅植　ツバキ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-10C.jpg,シグニ,精羅：植物,緑,3,-,-,-,8000,-,-,-,0,-,-,1,【起】《緑》このシグニを場からトラッシュに置く：あなたのトラッシュから無色のカード１枚を対象とし、それを手札に加える。,：カードを１枚引く。
+SPK16-11A,ダブル・チャクラム,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-11A.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,アンコール－あなたのセンタールリグの下からカード３枚をルリグトラッシュに置く以下の３つから１つを選ぶ。①あなたのデッキの上からカードを２枚見る。その中から１枚を手札に加え、残りをデッキの一番下に置く。②対戦相手のレベル３以下のシグニ１体を対象とし、それをダウンする。③対戦相手のレベル５のシグニ１体を対象とし、それをバニッシュする。,-
+SPK16-11B,異体同心　華代,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-11B.jpg,キー,-,赤,-,-,《コイン》×２,-,-,-,-,-,0,-,-,0,【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】：対戦相手のシグニ１体を対象とし、それをバニッシュする。あなたのセンタールリグが＜緑子＞の場合、代わりに対戦相手のシグニを２体まで対象とし、それらをバニッシュする。,-
 SPK16-11C,魔海の騒音　ラハブ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-11C.jpg,シグニ,精像：悪魔,青,2,-,-,-,3000,-,-,-,0,-,-,0,【出】手札を１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
 SPK16-11D,幻怪　ドアーフ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-11D.jpg,シグニ,精生：怪異,緑,2,-,-,-,3000,-,-,-,0,-,-,0,【自】：このシグニがアタックしたとき、このターンにあなたがアーツを使用していた場合、カードを１枚引き、【エナチャージ１】をする。,-
 SPK16-11E,アイス・フィンガー,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-11E.jpg,スペル,-,黒,-,-,《黒》×１《青》×１《無》×１,-,-,-,-,-,0,-,-,0,対戦相手のシグニ１体を対象とし、それをバニッシュする。そうした場合、カードを２枚引く。,-
+SPK16-12A,大剣　デュランダ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-12A.jpg,シグニ,精武：アーム,白,3,-,-,-,8000,-,-,-,0,-,-,1,【常】：あなたの場にあるシグニ３体がそれぞれ共通する色を持たないかぎり、このシグニの基本パワーは15000になり、対戦相手の効果を受けない。（無色は色に含まれないので、場のシグニが白、無色、無色の場合、この能力は発動する）,：あなたのデッキからレベル３以下のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
 SPK16-12B,狂想の滅炎,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-12B.jpg,スペル,-,赤,-,-,《赤》×１,-,-,-,-,-,0,-,-,0,以下の２つから１つを選ぶ。①対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。　②ターン終了時まで、あなたのすべてのシグニのパワーを＋3000する。,-
 SPK16-12C,ＰＲＡＹＩＮＧ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-12C.jpg,スペル,-,青,-,-,《青》×１,-,-,-,-,-,0,-,-,0,以下の２つから１つを選ぶ。①カードを２枚引き、手札を１枚捨てる。②対戦相手は手札を１枚捨てる。,-
 SPK16-12D,大盤振舞,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-12D.jpg,アーツ,-,緑,-,-,《緑》×１,-,-,-,-,メインフェイズアタックフェイズスペルカットイン,0,-,-,0,好きな数のシグニを対象とし、ターン終了時まで、それらのパワーを合わせて＋20000する。この効果では1000単位でしか数字を割り振ることができない。,-
 SPK16-12E,超罠　ミミック,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-12E.jpg,シグニ,精武：トリック,黒,4,-,-,-,10000,-,-,-,0,-,-,0,【出】：カードを３枚引き、手札からカード３枚を好きな順番でデッキの一番上に置く。（デッキが２枚以下の場合それらをすべて引く）,-
+SPK16-13A,ゼノ・マルチプル,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-13A.jpg,アーツ,-,白,-,-,《白》×２《青》×２,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の４つから２つまで選ぶ。①対戦相手のセンタールリグ１体を対象する。このターン、プレイヤーはそれでアタックできない。②対戦相手のすべてのシグニを凍結する。③対戦相手のシグニ１体を対象とし、それを手札に戻す。④カードを２枚引く。,-
 SPK16-13B,決勝馬焼,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-13B.jpg,アーツ,-,赤,-,-,《赤》×１,-,-,-,-,アタックフェイズ,0,-,-,0,ベット―《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。あなたがベットしていた場合、代わりに対戦相手のすべてのシグニをバニッシュする。,-
 SPK16-13C,羅植　カヤッパ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-13C.jpg,シグニ,精羅：植物,緑,1,-,-,-,2000,-,-,-,0,-,-,1,【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。,：【エナチャージ１】
 SPK16-13D,コードアンチ　エレチェア,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-13D.jpg,シグニ,精械：古代兵器,黒,3,-,-,-,5000,-,-,-,0,-,-,1,【出】：このシグニがトラッシュから場に出た場合、対戦相手は自分のシグニ１体を対象とし、それをバニッシュする。,：対戦相手のレベル２以下のシグニ１体を対象とし、それをバニッシュする。
+SPK16-13E,カウンター・ヴァンプ,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK16/SPK16-13E.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,アタックフェイズ,0,-,-,0,ベット―《コインアイコン》以下の３つから１つを選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①対戦相手のシグニ１体を対象とし、このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合、それをバニッシュする。②このターンに対戦相手の効果によってあなたのエナゾーンからカードがトラッシュに置かれていた場合、あなたのデッキの上からカードを３枚エナゾーンに置く。③このターンに対戦相手の効果によってあなたの手札からカードがトラッシュに移動していた場合、あなたの手札が６枚より少ない分だけカードを引く。,-
+SPK17-01,セレクト・ハッピー５,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK17/SPK17-01.jpg,アーツ,-,白,-,-,《白》×０,-,-,-,-,メインフェイズアタックフェイズスペルカットイン,0,-,-,0,アンコール－キー１枚を場からルリグトラッシュに置く以下の５つから１つを選ぶ。①あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。②対戦相手のトラッシュにあるカードを２枚まで対象とし、それらをゲームから除外する。③このターン、あなたは対戦相手の効果によってダメージを受けない。④対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。⑤ターン終了時まで、対戦相手のすべてのシグニは効果によって得ている能力を失う。,-
 SPK21-01,ハーベスト・フォース,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK21/SPK21-01.jpg,アーツ,-,白,-,-,《白》×３《無》×３,-,-,-,-,アタックフェイズ,0,-,-,0,対戦相手のシグニ２体を対象とし、それらを手札に戻す。（１体のシグニだけに使用することはできない）,-
 SPK21-02,マスト・ハイド,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK21/SPK21-02.jpg,アーツ,-,白,-,-,《白》×１《無》×１,-,-,にじさんじ限定,-,アタックフェイズ,0,-,-,0,ターン終了時まで、対象の対戦相手のシグニ１体は「【常】：アタックできない。」を得る。あなたの登録者数が７０万人を達成している場合、追加でターン終了時まで、対象の対戦相手のシグニ１体は「【常】：アタックできない。」を得る。あなたの登録者数が１００万人を達成している場合、追加でターン終了時まで、対象の対戦相手のセンタールリグ１体は「【常】：アタックできない。」を得る。,-
 SPK21-03,ファイト・ゴースト,https://www.takaratomy.co.jp/products/wixoss/img/card/SPK21/SPK21-03.jpg,アーツ,-,白,-,-,《白》×０,-,-,にじさんじ限定,-,メインフェイズ,0,-,-,0,あなたのデッキから＜電機＞のシグニを２枚まで探して公開し手札に加え、デッキをシャッフルする。登録者数を２０万人得る。あなたのセンタールリグのレベルが対戦相手のセンタールリグと同じ場合、追加で登録者数を１０万人得る。,-
@@ -36,6 +80,14 @@ PR-005,タマ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-005.jp
 PR-006,花代,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-006.jpg,ルリグ,花代,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-007,ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-007.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-008,緑子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-008.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-009,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-009.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-010,花代・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-010.jpg,ルリグ,花代,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-011,コード・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-011.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-012,闘娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-012.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-013,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-013.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-014,花代・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-014.jpg,ルリグ,花代,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-015,コード・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-015.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-016,闘娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-016.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-017,中槍　ハスタル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-017.jpg,シグニ,精武：アーム,白,2,-,-,-,5000,タマ限定,-,-,0,-,-,0,【常】：あなたの場にレベル４の＜タマ＞がいるかぎり、このシグニの基本パワーは10000になる。,-
 PR-018,羅石　ミスリル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-018.jpg,シグニ,精羅：宝石,赤,3,-,-,-,15000,花代限定,-,-,0,-,-,1,【出】：手札を１枚捨てる。【常】：あなたのターンの間、このシグニの基本パワーは18000になる。,：カードを１枚引く。
 PR-019,ＴＲＥＡＳＵＲＥ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-019.jpg,スペル,-,青,-,-,《青》×１,-,-,ピルルク限定,-,-,0,-,-,1,手札を好きな枚数捨て、捨てた枚数に１を加えた枚数のカードを引く。,：カードを２枚捨て、カードを３枚引く。
@@ -45,11 +97,20 @@ PR-022,バロック・ディフェンス,https://www.takaratomy.co.jp/products/w
 PR-023,アンチ・スペル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-023.jpg,アーツ,-,青,-,-,《青》×１《無》×１,-,-,-,-,スペルカットイン,0,-,-,0,スペル１つを対象とし、それの効果を打ち消す。,-
 PR-024,チャージング,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-024.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,メインフェイズ,0,-,-,0,あなたのデッキの一番上のカードをエナゾーンに置く。,-
 PR-025,再三再四,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-025.jpg,アーツ,-,緑,-,-,《緑》×１,-,-,-,-,メインフェイズ,0,-,-,0,あなたのエナゾーンからカードを２枚まで対象とし、それらを手札に加える。,-
+PR-026,中槍　ハスタル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-026.jpg,シグニ,精武：アーム,白,2,-,-,-,5000,タマ限定,-,-,0,-,-,0,【常】：あなたの場にレベル４の＜タマ＞がいるかぎり、このシグニの基本パワーは10000になる。,-
+PR-027,羅石　ミスリル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-027.jpg,シグニ,精羅：宝石,赤,3,-,-,-,15000,花代限定,-,-,0,-,-,1,【出】：手札を１枚捨てる。【常】：あなたのターンの間、このシグニの基本パワーは18000になる。,：カードを１枚引く。
+PR-028,ＴＲＥＡＳＵＲＥ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-028.jpg,スペル,-,青,-,-,《青》×１,-,-,ピルルク限定,-,-,0,-,-,1,手札を好きな枚数捨て、捨てた枚数に１を加えた枚数のカードを引く。,：カードを２枚捨て、カードを３枚引く。
+PR-029,増援,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-029.jpg,スペル,-,緑,-,-,《緑》×１,-,-,緑子限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたのデッキからパワー10000以上のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②あなたのデッキの上からカードを２枚エナゾーンに置く。,-
 PR-030,ゲット・インデックス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-030.jpg,スペル,-,白,-,-,《白》×０,-,-,タマ限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
 PR-031,硝煙の気焔,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-031.jpg,スペル,-,赤,-,-,《赤》×０,-,-,花代限定,-,-,0,-,-,0,対象のあなたのシグニ１体をバニッシュする。そうした場合、対象の対戦相手のパワー10000以下のシグニ１体をバニッシュする。,-
 PR-032,コードアート　Ｍ・Ｇ・Ｔ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-032.jpg,シグニ,精械：電機,青,3,-,-,-,7000,ピルルク限定,-,-,0,-,-,1,【出】：あなたのトラッシュからレベル１の＜電機＞のシグニ１枚を対象とし、それを手札に加える。,：あなたのトラッシュから＜電機＞のシグニ１枚を対象とし、それを手札に加える。
 PR-033,羅植　ローザリ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-033.jpg,シグニ,精羅：植物,緑,1,-,-,-,1000,緑子限定,-,-,0,-,-,0,【起】《ダウン》：あなたのデッキからレベル2の＜植物＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
 PR-034,墓守の小悪　アルマ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-034.jpg,シグニ,精像：悪魔,黒,2,-,-,-,3000,ウリス限定,-,-,0,-,-,0,【常】：あなたのトラッシュにカードが５枚以上あるかぎり、このシグニのパワーは＋2000される。【常】：あなたの場にレベル４の＜ウリス＞がいる場合、このシグニの基本パワーは10000になる。（両方の条件を満たしている場合、このシグニのパワーは12000となる）,-
+PR-035,ゲット・インデックス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-035.jpg,スペル,-,白,-,-,《白》×０,-,-,タマ限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
+PR-036,硝煙の気焔,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-036.jpg,スペル,-,赤,-,-,《赤》×０,-,-,花代限定,-,-,0,-,-,0,対象のあなたのシグニ１体をバニッシュする。そうした場合、対象の対戦相手のパワー10000以下のシグニ１体をバニッシュする。,-
+PR-037,コードアート　Ｍ・Ｇ・Ｔ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-037.jpg,シグニ,精械：電機,青,3,-,-,-,7000,ピルルク限定,-,-,0,-,-,1,【出】：あなたのトラッシュからレベル１の＜電機＞のシグニ１枚を対象とし、それを手札に加える。,：あなたのトラッシュから＜電機＞のシグニ１枚を対象とし、それを手札に加える。
+PR-038,羅植　ローザリ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-038.jpg,シグニ,精羅：植物,緑,1,-,-,-,1000,緑子限定,-,-,0,-,-,0,【起】《ダウン》：あなたのデッキからレベル2の＜植物＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
+PR-039,墓守の小悪　アルマ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-039.jpg,シグニ,精像：悪魔,黒,2,-,-,-,3000,ウリス限定,-,-,0,-,-,0,【常】：あなたのトラッシュにカードが５枚以上あるかぎり、このシグニのパワーは＋2000される。【常】：あなたの場にレベル４の＜ウリス＞がいる場合、このシグニの基本パワーは10000になる。（両方の条件を満たしている場合、このシグニのパワーは12000となる）,-
 PR-040,ゼノ・マルチプル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-040.jpg,アーツ,-,白,-,-,《白》×２《青》×２,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の４つから２つまで選ぶ。①対戦相手のセンタールリグ１体を対象する。このターン、プレイヤーはそれでアタックできない。②対戦相手のすべてのシグニを凍結する。③対戦相手のシグニ１体を対象とし、それを手札に戻す。④カードを２枚引く。,-
 PR-041,エルドラ×マーク０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-041.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-042,遊月・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-042.jpg,ルリグ,ユヅキ,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
@@ -62,6 +123,7 @@ PR-048,星占の巫女　リメンバ・ヌーン,https://www.takaratomy.co.jp/p
 PR-049,星占の巫女　リメンバ・モーニ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-049.jpg,ルリグ,リメンバ/ピルルク,白,1,《白》×０,-,2,-,-,-,-,0,-,-,0,-,-
 PR-050,星占の巫女　リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-050.jpg,ルリグ,リメンバ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-051,創造の鍵主　ウムル＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-051.jpg,ルリグ,ウムル,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-052,創造の鍵主　ウムル＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-052.jpg,ルリグ,ウムル,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-053,烈情の割裂,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-053.jpg,スペル,-,赤,-,-,《赤》×１,-,-,-,-,-,0,-,-,0,各プレイヤーは自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。（エナゾーンのカードが４枚以下のプレイヤーは、この効果の影響を受けない）,-
 PR-054,ＴＨＲＥＥ　ＯＵＴ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-054.jpg,スペル,-,青,-,-,《青》×１,-,-,-,-,-,0,-,-,0,カードを３枚引き、手札を１枚捨てる。,-
 PR-055,ネクスト・レディ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-055.jpg,スペル,-,無,-,-,《無》×０,-,-,-,-,-,0,-,-,0,あなたのセンタールリグの下からカードを好きな枚数対象とし、それらをルリグトラッシュに置く。その後、以下の４つから、この方法でルリグトラッシュに置いたカードの枚数と同じ数まで選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。②カードを１枚引く。③あなたのデッキの一番上のカードをエナゾーンに置く。④各プレイヤーは自分のデッキの上からカードを４枚トラッシュに置く。,-
@@ -70,9 +132,11 @@ PR-057,デス・ブーケトス,https://www.takaratomy.co.jp/products/wixoss/img
 PR-058,サルベージ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-058.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加える。,-
 PR-059,閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-059.jpg,ルリグ,ウリス,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-060,エルドラ＝マーク０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-060.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-061,遊月・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-061.jpg,ルリグ,ユヅキ,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-062,ゼロ/メイデン　イオナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-062.jpg,ルリグ,イオナ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-063,奇跡の軌跡　アン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-063.jpg,ルリグ,アン,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-064,ミルルン・ノット,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-064.jpg,ルリグ,ミルルン,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-065,創造の鍵主　ウムル＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-065.jpg,ルリグ,ウムル,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-066,ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-066.jpg,ルリグ,ウリス,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-067,イオナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-067.jpg,ルリグ,イオナ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-068,エルドラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-068.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
@@ -82,14 +146,33 @@ PR-071,羅石　アンモライト,https://www.takaratomy.co.jp/products/wixoss/
 PR-072,ロック・ユー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-072.jpg,アーツ,-,青,-,-,《青》×１,-,-,-,-,アタックフェイズスペルカットイン,0,-,-,0,このターン、対戦相手のスペルの使用コストは《無×3》増える。あなたのセンタールリグが＜ピルルク＞の場合、このターン、対戦相手のアーツの使用コストは《無×3》増える。（カットインされたスペルはこの効果の影響を受けない）,-
 PR-073,幻獣　ミャオ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-073.jpg,シグニ,精生：地獣,緑,2,-,-,-,5000,緑子限定,-,-,0,-,-,0,【常】：対戦相手の場にシグニが３体あるかぎり、このシグニは【ランサー】を得る。（【ランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロスを１枚クラッシュする）,-
 PR-074,デス・バイ・デス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-074.jpg,スペル,-,黒,-,-,《黒》×０,-,-,ウリス限定,-,-,0,-,-,0,対象のあなたのシグニ１体をバニッシュする。そうした場合、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－8000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
+PR-075,巨弓　ヤエキリ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-075.jpg,シグニ,精武：アーム,白,3,-,-,-,7000,-,-,-,0,-,-,1,【常】：あなたの場に＜アーム＞か＜ウェポン＞のシグニが合計３体あるかぎり、このシグニの基本パワーは10000になり、このシグニは「【自】：対戦相手の効果によってこのシグニが場を離れたとき、あなたのデッキからレベル３以下の＜アーム＞か＜ウェポン＞のシグニ１枚を探して場に出し、デッキをシャッフルする。」を得る。,：あなたのデッキから＜アーム＞か＜ウェポン＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+PR-076,羅石　アンモライト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-076.jpg,シグニ,精羅：鉱石,赤,2,-,-,-,1000,-,-,-,0,-,-,0,【自】：あなたが赤のスペルを使用したとき、ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。,-
+PR-077,ロック・ユー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-077.jpg,アーツ,-,青,-,-,《青》×１,-,-,-,-,アタックフェイズスペルカットイン,0,-,-,0,このターン、対戦相手のスペルの使用コストは《無×3》増える。あなたのセンタールリグが＜ピルルク＞の場合、このターン、対戦相手のアーツの使用コストは《無×3》増える。（カットインされたスペルはこの効果の影響を受けない）,-
+PR-078,幻獣　ミャオ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-078.jpg,シグニ,精生：地獣,緑,2,-,-,-,5000,緑子限定,-,-,0,-,-,0,【常】：対戦相手の場にシグニが３体あるかぎり、このシグニは【ランサー】を得る。（【ランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロスを１枚クラッシュする）,-
+PR-079,デス・バイ・デス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-079.jpg,スペル,-,黒,-,-,《黒》×０,-,-,ウリス限定,-,-,0,-,-,0,対象のあなたのシグニ１体をバニッシュする。そうした場合、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－8000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
+PR-080,ミルルン・ノット,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-080.jpg,ルリグ,ミルルン,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-081,奇跡の軌跡　アン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-081.jpg,ルリグ,アン,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-082,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-082.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-083,花代・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-083.jpg,ルリグ,花代,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-084,コード・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-084.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-085,闘娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-085.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-086,閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-086.jpg,ルリグ,ウリス,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-087,エルドラ＝マーク０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-087.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-088,遊月・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-088.jpg,ルリグ,ユヅキ,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-089,ゼロ/メイデン　イオナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-089.jpg,ルリグ,イオナ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-090,奇跡の軌跡　アン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-090.jpg,ルリグ,アン,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-091,ミルルン・ノット,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-091.jpg,ルリグ,ミルルン,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-092,サーバント　Ｏ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-092.jpg,シグニ,精元,無,1,-,-,-,2000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
 PR-093,羅植　カーノ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-093.jpg,シグニ,精羅：植物,緑,2,-,-,-,5000,-,-,-,0,-,-,0,【自】：あなたのターンの間、あなたのエナゾーンにカード１枚が置かれたとき、ターン終了時まで、このシグニのパワーを＋3000する。【自】：このシグニのパワーが15000以上になったとき、対戦相手のシグニ１体を対象とし、このシグニとそれをバニッシュする。,-
 PR-094,ＡＴＴＲＡＣＴＩＯＮ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-094.jpg,スペル,-,青,-,-,《青》×２《無》×２,-,-,-,-,-,0,-,-,0,あなたのデッキからコストの合計が１のスペル１枚とコストの合計が２のスペル１枚とコストの合計が３のスペル１枚を探して公開し手札に加え、デッキをシャッフルする。,-
 PR-095,豊潤,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-095.jpg,スペル,-,緑,-,-,《緑》×１,-,-,-,-,-,0,-,-,0,あなたの場にある＜空獣＞と＜地獣＞と＜植物＞のシグニ１体につきあなたのデッキの一番上のカードをエナゾーンに置く。,-
 PR-096,アイギス・シールド,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-096.jpg,アーツ,-,白,-,-,《白》×２,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,対戦相手のターンの場合、ターン終了時まで、あなたのすべてのシグニのパワーを＋5000する。（この効果を処理したあとに場に出たシグニは、この効果の影響を受けない）,-
+PR-097,羅植　カーノ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-097.jpg,シグニ,精羅：植物,緑,2,-,-,-,5000,-,-,-,0,-,-,0,【自】：あなたのターンの間、あなたのエナゾーンにカード１枚が置かれたとき、ターン終了時まで、このシグニのパワーを＋3000する。【自】：このシグニのパワーが15000以上になったとき、対戦相手のシグニ１体を対象とし、このシグニとそれをバニッシュする。,-
 PR-098,ジェラシー・ゲイズ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-098.jpg,アーツ,-,黒,-,-,《黒》×１《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,次の対戦相手のターンの間、対戦相手は手札からパワー12000以上のシグニを場に出せない。,-
 PR-099,噴流する知識,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-099.jpg,スペル,-,無,-,-,《無》×０,-,-,-,-,-,0,-,-,1,カードを１枚引く。,：【エナチャージ１】
 PR-100,アイドル・ディフェンス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-100.jpg,アーツ,-,白,-,-,《白》×１《無》×７,-,-,-,-,アタックフェイズ,0,-,-,0,このターンに対戦相手がアーツかスペルを使用していた場合、このアーツの使用コストは《白×1》《無×4》になる。両方を使用していた場合、このアーツの使用コストは《白×0》になる。以下の２つから１つを選ぶ。①このターン、対戦相手のシグニアタックステップをスキップする。②このターン、対戦相手のルリグアタックステップをスキップする。,-
+PR-101,ロック・ユー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-101.jpg,アーツ,-,青,-,-,《青》×１,-,-,-,-,アタックフェイズスペルカットイン,0,-,-,0,このターン、対戦相手のスペルの使用コストは《無×3》増える。あなたのセンタールリグが＜ピルルク＞の場合、このターン、対戦相手のアーツの使用コストは《無×3》増える。（カットインされたスペルはこの効果の影響を受けない）,-
 PR-102,星占の巫女　リメンバ・デッドナイト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-102.jpg,ルリグ,リメンバ/ピルルク,白,5,《白》×１《青》×２,-,12,-,-,-,-,0,-,-,0,【グロウ】あなたのセンタールリグがカード名に《リメンバ》を含む【常】：対戦相手の凍結状態のシグニは能力を失う。【起】エクシード１：対戦相手のシグニ１体を対象とし、それを凍結する。すでにそのシグニが凍結状態である場合、代わりにそれをバニッシュする。【起】《ターン１回》エクシード２：対戦相手の凍結状態のシグニ１体につきカードを１枚引く。,-
 PR-103,ステコ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-103.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-104,スペル・サルベージ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-104.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,あなたのトラッシュからあなたのセンタールリグと共通する色を持つスペル１枚を対象とし、それを手札に加える。,-
@@ -98,20 +181,46 @@ PR-106,羅石　ルリル,https://www.takaratomy.co.jp/products/wixoss/img/card/
 PR-107,ＣＲＹＳＴＡＬ　ＳＥＡＬ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-107.jpg,スペル,-,青,-,-,《青》×０,-,-,ピルルク限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、対戦相手の手札を１枚見ないで選び、捨てさせる。,-
 PR-108,犠牲,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-108.jpg,スペル,-,緑,-,-,《緑》×０,-,-,緑子限定,-,-,0,-,-,0,対象のあなたのシグニ１体をバニッシュする。そうした場合、対象の対戦相手のパワー12000以上のシグニ１体をバニッシュする。,-
 PR-109,好色の罪人　ベルフェーゴ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-109.jpg,シグニ,精像：悪魔,黒,2,-,-,-,5000,-,-,-,0,-,-,0,【出】：あなたのデッキから＜悪魔＞のシグニ１枚を探してトラッシュに置き、デッキをシャッフルする。,-
+PR-110,大剣　デュランダ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-110.jpg,シグニ,精武：アーム,白,3,-,-,-,8000,-,-,-,0,-,-,1,【常】：あなたの場にあるシグニ３体がそれぞれ共通する色を持たないかぎり、このシグニの基本パワーは15000になり、対戦相手の効果を受けない。（無色は色に含まれないので、場のシグニが白、無色、無色の場合、この能力は発動する）,：あなたのデッキからレベル３以下のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+PR-111,羅石　ルリル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-111.jpg,シグニ,精羅：宝石,赤,1,-,-,-,7000,-,-,-,0,-,-,1,【出】：あなたのデッキの一番上を公開する。それが赤のカードではない場合、このシグニを場からトラッシュに置く。,：カードを１枚引く。
+PR-112,ＣＲＹＳＴＡＬ　ＳＥＡＬ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-112.jpg,スペル,-,青,-,-,《青》×０,-,-,ピルルク限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、対戦相手の手札を１枚見ないで選び、捨てさせる。,-
+PR-113,犠牲,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-113.jpg,スペル,-,緑,-,-,《緑》×０,-,-,緑子限定,-,-,0,-,-,0,対象のあなたのシグニ１体をバニッシュする。そうした場合、対象の対戦相手のパワー12000以上のシグニ１体をバニッシュする。,-
+PR-114,好色の罪人　ベルフェーゴ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-114.jpg,シグニ,精像：悪魔,黒,2,-,-,-,5000,-,-,-,0,-,-,0,【出】：あなたのデッキから＜悪魔＞のシグニ１枚を探してトラッシュに置き、デッキをシャッフルする。,-
+PR-115,アンシエント・サプライズ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-115.jpg,アーツ,-,黒,-,-,《黒》×１《無》×２,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の３つから１つを選ぶ。①各プレイヤーは自分のデッキの上からカードを７枚トラッシュに置く。②あなたのトラッシュからレベル３以下の＜古代兵器＞のシグニ１枚を対象とし、それを場に出す。③あなたのトラッシュにカードが１０枚以上ある場合、ターン終了時まで、対戦相手のすべてのシグニのパワーを－5000する。２０枚以上ある場合、代わりにターン終了時まで、対戦相手のすべてのシグニのパワーを－8000する。,-
 PR-116,サーバント　Ｑ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-116.jpg,シグニ,精元,無,4,-,-,-,12000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
 PR-117,サーバント　Ｔ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-117.jpg,シグニ,精元,無,3,-,-,-,8000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
 PR-118,サーバント　Ｄ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-118.jpg,シグニ,精元,無,2,-,-,-,5000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
 PR-119,ドーピング,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-119.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,メインフェイズアタックフェイズスペルカットイン,0,-,-,0,シグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000する。,-
 PR-120,レインボーアート,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-120.jpg,アーツ,-,無,-,-,《赤》×１《青》×１《緑》×１《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,あなたのトラッシュからシグニ１枚とスペル１枚を対象とし、それらを手札に加える。その後、この方法で手札に加えたカード１枚につきそのカードに含まれる色１つを選択する。選択した色に赤を含む場合、対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。緑を含む場合、対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。青を含む場合、カードを１枚引く。,-
 PR-121,ファフニール,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-121.jpg,アーツ,-,白,-,-,《白》×０,-,-,タマ限定,-,メインフェイズ,0,-,-,0,このターン、次にあなたがスペルを使用する場合、それの使用コストは《白×2》減り、対戦相手の効果によって打ち消されない。,-
+PR-122,ゲット・インデックス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-122.jpg,スペル,-,白,-,-,《白》×０,-,-,タマ限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
+PR-123,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-123.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-124,花代・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-124.jpg,ルリグ,花代,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-125,コード・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-125.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-126,闘娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-126.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-127,閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-127.jpg,ルリグ,ウリス,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-128,エルドラ＝マーク０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-128.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-129,遊月・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-129.jpg,ルリグ,ユヅキ,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-130,ゼロ/メイデン　イオナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-130.jpg,ルリグ,イオナ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-131,奇跡の軌跡　アン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-131.jpg,ルリグ,アン,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-132,ミルルン・ノット,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-132.jpg,ルリグ,ミルルン,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-133,創造の鍵主　ウムル＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-133.jpg,ルリグ,ウムル,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-134,星占の巫女　リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-134.jpg,ルリグ,リメンバ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-135,オーバーサルベージ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-135.jpg,アーツ,-,無,-,-,《無》×３,-,-,-,-,メインフェイズ,0,-,-,0,あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニを２枚まで対象とし、それらを手札に加える。,-
 PR-136,モダン・バウンダリー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-136.jpg,アーツ,-,白,-,-,《白》×１《無》×１,-,-,タマ限定,-,メインフェイズアタックフェイズ,0,-,-,0,数字１つを宣言する。その後、あなたのデッキの上からカードを３枚公開する。その中に宣言した数字と同じレベルのシグニがある場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。この効果で公開したカードを好きな順番でデッキの一番上に戻す。,-
+PR-137,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-137.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-138,純朴の光輝　アグライア,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-138.jpg,シグニ,精像：天使,白,1,-,-,-,1000,-,-,-,0,-,-,1,【出】：あなたのデッキの上からカードを３枚公開する。この方法で＜天使＞のシグニが３枚公開された場合、その中から１枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。,：カードを１枚引く。
 PR-139,龍炎の昇拳,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-139.jpg,スペル,-,赤,-,-,《赤》×０,-,-,ユヅキ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①対象のあなたのシグニ１体をバニッシュする。そうした場合、対象のパワー8000以下のシグニ１体をバニッシュする。②対象のあなたのシグニ１体をバニッシュする。そうした場合、対戦相手のエナゾーンから対象の【マルチエナ】を持つカード１枚をトラッシュに置く。,-
 PR-140,コードアート　Ｄ・Ｔ・Ｐ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-140.jpg,シグニ,精械：電機,青,3,-,-,-,8000,-,-,-,0,-,-,0,【出】：対戦相手の場に凍結状態のシグニがある場合、カードを１枚引く。,-
 PR-141,羅植　ツバキ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-141.jpg,シグニ,精羅：植物,緑,3,-,-,-,8000,-,-,-,0,-,-,1,【起】《緑》このシグニを場からトラッシュに置く：あなたのトラッシュから無色のカード１枚を対象とし、それを手札に加える。,：カードを１枚引く。
 PR-142,トーチュン・ウィップ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-142.jpg,スペル,-,黒,-,-,《黒》×０,-,-,イオナ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたの白のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②対象のあなたの黒のシグニ１体をバニッシュする。そうした場合、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－7000する。,-
+PR-143,純朴の光輝　アグライア,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-143.jpg,シグニ,精像：天使,白,1,-,-,-,1000,-,-,-,0,-,-,1,【出】：あなたのデッキの上からカードを３枚公開する。この方法で＜天使＞のシグニが３枚公開された場合、その中から１枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。,：カードを１枚引く。
+PR-144,龍炎の昇拳,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-144.jpg,スペル,-,赤,-,-,《赤》×０,-,-,ユヅキ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①対象のあなたのシグニ１体をバニッシュする。そうした場合、対象のパワー8000以下のシグニ１体をバニッシュする。②対象のあなたのシグニ１体をバニッシュする。そうした場合、対戦相手のエナゾーンから対象の【マルチエナ】を持つカード１枚をトラッシュに置く。,-
+PR-145,コードアート　Ｄ・Ｔ・Ｐ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-145.jpg,シグニ,精械：電機,青,3,-,-,-,8000,-,-,-,0,-,-,0,【出】：対戦相手の場に凍結状態のシグニがある場合、カードを１枚引く。,-
+PR-146,羅植　ツバキ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-146.jpg,シグニ,精羅：植物,緑,3,-,-,-,8000,-,-,-,0,-,-,1,【起】《緑》このシグニを場からトラッシュに置く：あなたのトラッシュから無色のカード１枚を対象とし、それを手札に加える。,：カードを１枚引く。
+PR-147,トーチュン・ウィップ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-147.jpg,スペル,-,黒,-,-,《黒》×０,-,-,イオナ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたの白のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②対象のあなたの黒のシグニ１体をバニッシュする。そうした場合、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－7000する。,-
 PR-148,ＳＥＡＲＣＨＥＲ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-148.jpg,スペル,-,青,-,-,《無》×１,-,-,-,-,-,0,-,-,1,あなたのデッキからスペル１枚を探して公開し手札に加え、デッキをシャッフルする。,：あなたのデッキからスペル１枚を探して公開し手札に加え、デッキをシャッフルする。
+,,,,,,,,,,,,,,,,,,,
 PR-150,札引かもね,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-150.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-151,ハロー・エフェクト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-151.jpg,アーツ,-,黒,-,-,《黒》×１《無》×６,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,このアーツの使用コストは、あなたのルリグトラッシュにあるアーツ１枚につき《無×2》減る。対戦相手のシグニ１体を対象とし、それをバニッシュする。,-
 PR-152,悠久の使者　サシェ・ヌーベル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-152.jpg,ルリグ,サシェ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
@@ -120,7 +229,16 @@ PR-154,白羅星　ネプチューン,https://www.takaratomy.co.jp/products/wixo
 PR-155,ラッキーガード,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-155.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,スペルカットイン,0,-,-,0,あなたのシグニ１体を対象とし、ターン終了時まで、それは「【常】：バニッシュされない。」を得る。,-
 PR-156,ラスト・セレクト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-156.jpg,アーツ,-,白,-,-,《白》×１《黒》×１,-,-,タマ/イオナ限定,-,メインフェイズアタックフェイズ,0,-,-,0,対戦相手のシグニ１体を対象とし、あなたのセンタールリグの下からカード４枚をルリグトラッシュに置く。そうした場合、それをトラッシュに置く。,-
 PR-157,一覇二鳥,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-157.jpg,アーツ,-,赤,-,-,《赤》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,ターン終了時まで、あなたのセンタールリグは【ダブルクラッシュ】を得る。このターン、対戦相手はレベル１のシグニで【ガード】ができない。,-
+PR-158,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-158.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-159,花代・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-159.jpg,ルリグ,花代,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-160,コード・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-160.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-161,闘娘　緑姫,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-161.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-162,閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-162.jpg,ルリグ,ウリス,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-163,遊月・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-163.jpg,ルリグ,ユヅキ,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-164,ｉｎｆｅｃｔｅｄ　ＷＩＸＯＳＳ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-164.jpg,ルリグ,-,無,0,《無》×０,-,0,-,-,-,-,0,-,-,0,-,-
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
 PR-168,アン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-168.jpg,ルリグ,アン,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-169,ミルルン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-169.jpg,ルリグ,ミルルン,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-170,ウムル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-170.jpg,ルリグ,ウムル,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
@@ -132,21 +250,37 @@ PR-175,轟炎　フレイスロ大尉,https://www.takaratomy.co.jp/products/wixo
 PR-176,ＭＡＧＩＣ　ＨＡＮＤ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-176.jpg,スペル,-,青,-,-,《青》×０,-,-,ミルルン限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから《ＭＡＧＩＣ　ＨＡＮＤ》以外のスペル１枚を探して公開し手札に加え、デッキをシャッフルする。,-
 PR-177,激奏,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-177.jpg,スペル,-,緑,-,-,《緑》×０,-,-,アン限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキの上からカードを４枚公開する。その中から＜美巧＞のシグニ１枚を手札に加えるかエナゾーンに置く。残りを好きな順番でデッキの一番下に置く。,-
 PR-178,幻蟲　ヘイケ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-178.jpg,シグニ,精生：凶蟲,黒,2,-,-,-,5000,-,-,-,0,-,-,0,【自】：【チャーム】１枚が場からいずれかのトラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－4000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
+PR-179,スター・フェスティバル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-179.jpg,スペル,-,白,-,-,《白》×０,-,-,サシェ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①レゾナではないあなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから＜宇宙＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②対象のあなたのレゾナ１体をバニッシュする。そうした場合、対象の対戦相手のレベル３以下のシグニ１体を手札に戻す。,-
+PR-180,轟炎　フレイスロ大尉,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-180.jpg,シグニ,精武：ウェポン,赤,3,-,-,-,7000,-,-,-,0,-,-,0,【出】：０から５までの数字１つを宣言する。あなたのデッキの上からカードを宣言した数字に等しい枚数トラッシュに置く。その後、この方法でトラッシュに置かれたカードがすべて＜ウェポン＞のシグニである場合、宣言した数字に等しいレベルを持つシグニ１体を対象とし、それをバニッシュする。,-
+PR-181,ＭＡＧＩＣ　ＨＡＮＤ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-181.jpg,スペル,-,青,-,-,《青》×０,-,-,ミルルン限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから《ＭＡＧＩＣ　ＨＡＮＤ》以外のスペル１枚を探して公開し手札に加え、デッキをシャッフルする。,-
+PR-182,激奏,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-182.jpg,スペル,-,緑,-,-,《緑》×０,-,-,アン限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキの上からカードを４枚公開する。その中から＜美巧＞のシグニ１枚を手札に加えるかエナゾーンに置く。残りを好きな順番でデッキの一番下に置く。,-
+PR-183,幻蟲　ヘイケ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-183.jpg,シグニ,精生：凶蟲,黒,2,-,-,-,5000,-,-,-,0,-,-,0,【自】：【チャーム】１枚が場からいずれかのトラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－4000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
 PR-184,デッド・スプラッシュ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-184.jpg,アーツ,-,黒,-,-,《黒》×１《無》×３,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,対戦相手のセンタールリグが白の場合、このカードの基本コストは《黒×1》になる。あなたのトラッシュから黒のシグニ１枚を対象とし、それを場に出す。,-
+PR-185,アンシエント・サプライズ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-185.jpg,アーツ,-,黒,-,-,《黒》×１《無》×２,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の３つから１つを選ぶ。①各プレイヤーは自分のデッキの上からカードを７枚トラッシュに置く。②あなたのトラッシュからレベル３以下の＜古代兵器＞のシグニ１枚を対象とし、それを場に出す。③あなたのトラッシュにカードが１０枚以上ある場合、ターン終了時まで、対戦相手のすべてのシグニのパワーを－5000する。２０枚以上ある場合、代わりにターン終了時まで、対戦相手のすべてのシグニのパワーを－8000する。,-
 PR-186,導きし者　タウィル=フィーラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-186.jpg,ルリグ,タウィル,白,4,《白》×２,-,12,-,-,-,-,0,-,-,0,-,-
 PR-187,虚心の鍵主　ウムル=フィーラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-187.jpg,ルリグ,ウムル,黒,4,《黒》×２,-,12,-,-,-,-,0,-,-,0,-,-
+PR-188,星占の巫女　リメンバ・ナイト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-188.jpg,ルリグ,リメンバ/ピルルク,白,4,《白》×１《青》×２,-,11,-,-,-,-,0,-,-,0,【常】：対戦相手のルリグの【起】能力の使用コストは《無×1》増える。【出】：対戦相手のシグニ１体を対象とし、それを凍結する。【起】《無》《無》手札から白か青のシグニを１枚捨てる：シグニ１体を対象とし、それを凍結する。【起】《ダウン》：対戦相手の凍結状態のシグニ１体を対象とし、それをバニッシュする。,-
+PR-189,星占の巫女　リメンバ・ドウン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-189.jpg,ルリグ,リメンバ/ピルルク,白,3,《白》×１《青》×１,-,7,-,-,-,-,0,-,-,0,【出】：対戦相手のレベル２以下のシグニ１体を対象とし、それを凍結する。,-
+PR-190,星占の巫女　リメンバ・ヌーン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-190.jpg,ルリグ,リメンバ/ピルルク,白,2,《青》×１,-,5,-,-,-,-,0,-,-,0,-,-
+PR-191,星占の巫女　リメンバ・モーニ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-191.jpg,ルリグ,リメンバ/ピルルク,白,1,《白》×０,-,2,-,-,-,-,0,-,-,0,-,-
+PR-192,星占の巫女　リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-192.jpg,ルリグ,リメンバ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-193,捲火重来,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-193.jpg,アーツ,-,赤,-,-,《赤》×２,-,-,花代/ユヅキ限定,-,メインフェイズ,0,-,-,0,このカードは対戦相手のエナゾーンにカードが４枚以上ある場合にしか使用できない。対戦相手のエナゾーンからカードを２枚まで対象とし、それらをトラッシュに置く。,-
+,,,,,,,,,,,,,,,,,,,
 PR-195,星占の巫女　リメンバ・ミッドナイト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-195.jpg,ルリグ,リメンバ/ピルルク,白,4,《白》×１《青》×２,-,11,-,-,-,-,0,-,-,0,【自】《ターン１回》：あなたの《クロスアイコン》を持つシグニ１体が場に出たとき、対戦相手のシグニ１体を対象とし、それを凍結する。【自】：あなたのシグニが《ヘブン》したとき、カードを１枚引く。【起】《ダウン》：対戦相手は自分の凍結状態のシグニ１体につき手札を１枚捨てる。この能力はあなたの場にクロス状態のシグニがある場合にしか使用できない。,-
+PR-196,星占の巫女　リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-196.jpg,ルリグ,リメンバ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-197,永らえし者　タウィル=ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-197.jpg,ルリグ,タウィル,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-198,悠久の使者　サシェ・ヌーベル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-198.jpg,ルリグ,サシェ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-199,ミュウ＝ハッチ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-199.jpg,ルリグ,ミュウ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-200,サウザンド・パニッシュ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-200.jpg,アーツ,-,黒,-,-,《黒》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
 PR-201,狂乱する博奕,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-201.jpg,スペル,-,無,-,-,《無》×３,-,-,-,-,-,0,-,-,0,あなたの手札を１枚選ぶ。対戦相手は《白2》2《赤2》2《青2》2《緑2》2《黒2》2《無2》2から１つと、シグニかスペルから１つを宣言する。その後、そのカードを公開する。そのカードが宣言されたアイコンとカードの種類のどちらも持たない場合、対戦相手のすべてのシグニをトラッシュに置く。どちらかを持つ場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。どちらも持つ場合、あなたは手札をすべて捨てる。,-
 PR-202,エルドラ×マーク0,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-202.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+,,,,,,,,,,,,,,,,,,,
 PR-204,アーク・ディストラクト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-204.jpg,アーツ,-,白,-,-,《白》×１《無》×２,-,-,-,-,メインフェイズ,0,-,-,0,このカードはあなたのセンタールリグがレベル４以下の場合にしか使用できない。ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このターンにあなたが《アーク・ディストラクト》以外のアーツを使用していない場合、このルリグの下からカードを２枚ルリグトラッシュに置いてもよい。そうした場合、このルリグをアップする。」を得る。,-
 PR-205,簒奪の花嫁　アルフォウ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-205.jpg,ルリグ,アルフォウ,黒,2,《黒》×２,-,6,-,-,-,-,0,-,-,0,【自】：あなたがリフレッシュしたとき、対戦相手のシグニ１体を対象とし、それがこのターンであなたの最初のリフレッシュである場合、それをバニッシュする。,-
 PR-206,宿業の花嫁　アルフォウ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-206.jpg,ルリグ,アルフォウ,黒,1,《黒》×１,-,2,-,-,-,-,0,-,-,0,【自】：このルリグが対戦相手のライフクロス１枚をクラッシュしたとき、各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。,-
 PR-207,三剣,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-207.jpg,スペル,-,緑,-,-,《緑》×１,-,-,-,-,-,0,-,-,0,あなたのデッキの上からカードを３枚エナゾーンに置く。このターン、あなたはアーツとスペルを使用できない。,-
 PR-208,グレイブ・ラッシュ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-208.jpg,アーツ,-,黒,-,-,《黒》×１,-,-,-,-,メインフェイズ,0,-,-,0,あなたのライフクロスが２枚以下の場合、このアーツは追加で《アタックフェイズアイコン》を持つ。あなたのトラッシュからシグニ３枚を対象とし、あなたの場にシグニがない場合、それらを能力を持たないシグニとして場に出す。ターン終了時、それらを場からトラッシュに置く。,-
+,,,,,,,,,,,,,,,,,,,
 PR-210,ＲｉＲｉ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-210.jpg,ルリグ,サシェ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-211,クロスロード,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-211.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,あなたのデッキから《クロスアイコン》を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
 PR-212,コードアンチ　メイジ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-212.jpg,シグニ,精械：古代兵器,黒,3,-,-,-,8000,-,-,-,0,-,-,1,【起】《アタックフェイズアイコン》《黒》《黒》《無》：あなたのトラッシュからそれぞれレベルの異なる無色ではないシグニ４枚をデッキの一番下に置く。そうした場合、このシグニをトラッシュから場に出し、デッキをシャッフルする。（この能力は、このシグニがトラッシュにある場合にしか使用できない）,：あなたのデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュから無色ではないシグニ１枚を対象とし、それを手札に加える。
@@ -155,22 +289,43 @@ PR-214,轟砲　ウルバン,https://www.takaratomy.co.jp/products/wixoss/img/ca
 PR-215,ＳＰＡＤＥ　ＷＯＲＫ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-215.jpg,スペル,-,青,-,-,《青》×０,-,-,エルドラ限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから【ライフバースト】を持つ無色ではないカード１枚を探して公開し手札に加え、デッキをシャッフルする。,-
 PR-216,保湿成分,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-216.jpg,アーツ,-,緑,-,-,《緑》×１,-,-,-,-,アタックフェイズスペルカットイン,0,-,-,0,アンコール－《無》（アンコールコストを追加で支払って使用してもよい。そうした場合、これは追加で「このカードをルリグデッキに戻す。」を得る）あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000し、それは「【常】：対戦相手のターンの間、このシグニは対戦相手の効果を受けない。」を得る。,-
 PR-217,キャッチ・リリース,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-217.jpg,スペル,-,黒,-,-,《黒》×０,-,-,ミュウ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①対象のレゾナではないあなたのシグニ１体をバニッシュする。そうした場合、あなたのトラッシュから対象の＜凶蟲＞のシグニ１枚を手札に加える。②対象のあなたのレゾナ１体をバニッシュする。そうした場合、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－10000する。,-
+PR-218,小剣　ミカムネ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-218.jpg,シグニ,精武：アーム/ウェポン,白,1,-,-,-,2000,-,-,-,0,-,-,0,【常】：あなたの場に白ではないシグニがある場合、このシグニの基本パワーは5000になる。【常】：このシグニがエナゾーンにあるかぎり、あなたは自分のセンタールリグが持つ色のエナ１つを支払う際に、代わりにあなたのエナゾーンからこのシグニをトラッシュに置いてもよい。,-
+PR-219,轟砲　ウルバン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-219.jpg,シグニ,精武：ウェポン,赤,3,-,-,-,8000,-,-,-,0,-,-,0,【自】《ターン１回》：【ダブルクラッシュ】によって対戦相手のライフクロスが２枚以上クラッシュされたとき、このシグニをアップする。,-
+PR-220,ＳＰＡＤＥ　ＷＯＲＫ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-220.jpg,スペル,-,青,-,-,《青》×０,-,-,エルドラ限定,-,-,0,-,-,0,あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから【ライフバースト】を持つ無色ではないカード１枚を探して公開し手札に加え、デッキをシャッフルする。,-
+PR-221,保湿成分,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-221.jpg,アーツ,-,緑,-,-,《緑》×１,-,-,-,-,アタックフェイズスペルカットイン,0,-,-,0,アンコール－《無》（アンコールコストを追加で支払って使用してもよい。そうした場合、これは追加で「このカードをルリグデッキに戻す。」を得る）あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000し、それは「【常】：対戦相手のターンの間、このシグニは対戦相手の効果を受けない。」を得る。,-
+PR-222,キャッチ・リリース,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-222.jpg,スペル,-,黒,-,-,《黒》×０,-,-,ミュウ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①対象のレゾナではないあなたのシグニ１体をバニッシュする。そうした場合、あなたのトラッシュから対象の＜凶蟲＞のシグニ１枚を手札に加える。②対象のあなたのレゾナ１体をバニッシュする。そうした場合、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－10000する。,-
+,,,,,,,,,,,,,,,,,,,
+PR-224,ゼノ・マルチプル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-224.jpg,アーツ,-,白,-,-,《白》×２《青》×２,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の４つから２つまで選ぶ。①対戦相手のセンタールリグ１体を対象する。このターン、プレイヤーはそれでアタックできない。②対戦相手のすべてのシグニを凍結する。③対戦相手のシグニ１体を対象とし、それを手札に戻す。④カードを２枚引く。,-
+PR-225,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-225.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-226,悠久の使者　サシェ・ヌーベル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-226.jpg,ルリグ,サシェ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-227,ララ・ルー”N”,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-227.jpg,ルリグ,ララ・ルー,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-228,ソウイ＝ゼロ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-228.jpg,ルリグ,ソウイ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-229,アイヤイ★ベット,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-229.jpg,ルリグ,アイヤイ,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-230,ミュウ＝ハッチ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-230.jpg,ルリグ,ミュウ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+,,,,,,,,,,,,,,,,,,,
 PR-232,ロマネ・ディフェンス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-232.jpg,アーツ,-,白,-,-,《白》×１,-,-,-,-,アタックフェイズ,0,-,-,0,対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。手札を１枚捨てる。,-
 PR-233,永らえし者　タウィル＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-233.jpg,ルリグ,タウィル,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,
 PR-237,幻獣　ベイア,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-237.jpg,シグニ,精生：地獣,緑,4,-,-,-,10000,-,-,-,0,-,-,0,【自】：あなたのシグニが対戦相手のライフクロス１枚をクラッシュしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【出】：ターン終了時まで、あなたのすべてのシグニのパワーを＋5000する。,-
 PR-238,ディストラクト・アウト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-238.jpg,アーツ,-,黒,-,-,《黒》×１,-,-,-,-,メインフェイズ,0,-,-,0,ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このルリグの下からカードを好きな枚数対象とし、このターンにあなたが《ディストラクト・アウト》以外のアーツを使用していない場合、それらをルリグトラッシュに置く。この方法でルリグトラッシュに置かれたカード１枚につき各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。その後、あなたのデッキが０枚の場合、このルリグをアップする。」を得る。,-
 PR-239,ころん,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-239.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-240,幻獣　アカズキン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-240.jpg,シグニ,精生：地獣,緑,2,-,-,-,1000,-,-,-,0,-,-,0,【常】：このシグニのレベルはあなたのエナゾーンにあるカード５枚につき＋１され、このシグニのパワーはこのシグニのレベル１につき＋3000される。【常】：このシグニはレベルが４以上であるかぎり、「【自】：このシグニがアタックしたとき、このシグニの正面のシグニをバニッシュする。」を得、レベルが５以上であるかぎり、「【常】：このシグニは対戦相手の効果を受けない。」を得る。【自】：あなたのメインフェイズ開始時、あなたのデッキの一番上のカードをエナゾーンに置く。,-
 PR-241,恋慕の巫女　ユキ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-241.jpg,ルリグ,イオナ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-242,一蓮托生,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-242.jpg,アーツ,-,緑,-,-,《緑》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の２つから１つを選ぶ。①あなたのデッキからカードを２枚まで探してエナゾーンに置き、デッキをシャッフルする。②あなたのエナゾーンから対戦相手の選んだシグニ１枚を場に出す。（ルールや効果によって場に出すことのできないシグニが選ばれた場合、何も起きない）,-
+PR-243,奇跡の軌跡　アン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-243.jpg,ルリグ,アン,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-244,閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-244.jpg,ルリグ,ウリス,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-245,シャボン・サクシード,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-245.jpg,スペル,-,白,-,-,《白》×０,-,-,タウィル限定,-,-,0,-,-,0,あなたの＜天使＞のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから＜天使＞のシグニ１枚を探して公開し、手札に加えるか場に出し、デッキをシャッフルする。,-
 PR-246,幻竜　アパト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-246.jpg,シグニ,精生：龍獣,赤,3,-,-,-,7000,-,-,-,0,-,-,0,【常】：あなたのトラッシュに＜龍獣＞のシグニが５枚以上あるかぎり、このシグニの基本パワーは12000になる。【出】：パワーが「あなたのトラッシュにある＜龍獣＞のシグニの枚数×1000」以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《ダウン》手札から＜龍獣＞のシグニを１枚捨てる：あなたのデッキから《幻竜　アパト》以外の＜龍獣＞のシグニ１枚を探して場に出し、デッキをシャッフルする。,-
 PR-247,コードアート　B・B・Q,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-247.jpg,シグニ,精械：電機,青,2,-,-,-,5000,-,-,-,0,-,-,1,【出】：あなたのトラッシュからコストの合計が４以上の青のスペル１枚を対象とし、それを手札に加える。,：あなたのデッキからスペル１枚を探して公開し手札に加え、デッキをシャッフルする。
 PR-248,快演,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-248.jpg,スペル,-,緑,-,-,《緑》×０,-,-,アイヤイ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから＜遊具＞のシグニ１枚を探してエナゾーンに置き、デッキをシャッフルする。②対象のあなたのシグニ１体をバニッシュする。そうした場合、あなたのエナゾーンから対象の＜遊具＞のシグニ１枚を手札に加える。,-
 PR-249,チャーム・タクティクス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-249.jpg,アーツ,-,黒,-,-,《黒》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,アンコール－《無》（アンコールコストを追加で支払って使用してもよい。そうした場合、これは追加で「このカードをルリグデッキに戻す。」を得る）以下の２つから１つを選ぶ。①あなたのシグニを２体まで対象とし、あなたのデッキの上からカード２枚をそれらの【チャーム】にする。②対戦相手のシグニを２体まで対象とし、対戦相手のデッキの上からカード２枚をそれらの【チャーム】にする。,-
+PR-250,シャボン・サクシード,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-250.jpg,スペル,-,白,-,-,《白》×０,-,-,タウィル限定,-,-,0,-,-,0,あなたの＜天使＞のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから＜天使＞のシグニ１枚を探して公開し、手札に加えるか場に出し、デッキをシャッフルする。,-
+PR-251,幻竜　アパト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-251.jpg,シグニ,精生：龍獣,赤,3,-,-,-,7000,-,-,-,0,-,-,0,【常】：あなたのトラッシュに＜龍獣＞のシグニが５枚以上あるかぎり、このシグニの基本パワーは12000になる。【出】：パワーが「あなたのトラッシュにある＜龍獣＞のシグニの枚数×1000」以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《ダウン》手札から＜龍獣＞のシグニを１枚捨てる：あなたのデッキから《幻竜　アパト》以外の＜龍獣＞のシグニ１枚を探して場に出し、デッキをシャッフルする。,-
+PR-252,コードアート　B・B・Q,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-252.jpg,シグニ,精械：電機,青,2,-,-,-,5000,-,-,-,0,-,-,1,【出】：あなたのトラッシュからコストの合計が４以上の青のスペル１枚を対象とし、それを手札に加える。,：あなたのデッキからスペル１枚を探して公開し手札に加え、デッキをシャッフルする。
+PR-253,快演,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-253.jpg,スペル,-,緑,-,-,《緑》×０,-,-,アイヤイ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから＜遊具＞のシグニ１枚を探してエナゾーンに置き、デッキをシャッフルする。②対象のあなたのシグニ１体をバニッシュする。そうした場合、あなたのエナゾーンから対象の＜遊具＞のシグニ１枚を手札に加える。,-
+PR-254,チャーム・タクティクス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-254.jpg,アーツ,-,黒,-,-,《黒》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,アンコール－《無》（アンコールコストを追加で支払って使用してもよい。そうした場合、これは追加で「このカードをルリグデッキに戻す。」を得る）以下の２つから１つを選ぶ。①あなたのシグニを２体まで対象とし、あなたのデッキの上からカード２枚をそれらの【チャーム】にする。②対戦相手のシグニを２体まで対象とし、対戦相手のデッキの上からカード２枚をそれらの【チャーム】にする。,-
 PR-255,コードアート　†Ａ・Ｌ・Ｃ・Ａ†,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-255.jpg,シグニ,精械：電機,黒,3,-,-,-,8000,-,-,-,0,-,-,0,【出】手札から＜電機＞のシグニを１枚捨てる：以下の３つから１つを選ぶ。①対戦相手のシグニ２体を対象とし、ターン終了時まで、それらのパワーをそれぞれ－2000する。②あなたのデッキの上からカードを２枚トラッシュに置く。その後、あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加える。③あなたのデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュから黒のスペル１枚を対象とし、それを手札に加える。,-
 PR-256,燐廻転生,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-256.jpg,アーツ,-,赤,-,-,《赤》×１《無》×２,-,-,-,-,メインフェイズ,0,-,-,0,ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このルリグの下からカードを好きな枚数対象とし、それらをルリグトラッシュに置く。その後、この方法で２枚以上のカードをルリグトラッシュに置いた場合、数字２つを宣言する。このターン、対戦相手は宣言された数字と同じレベルのシグニで【ガード】ができない。４枚以上の場合、ターン終了時まで、このルリグは【トリプルクラッシュ】を得る。５枚以上の場合、このルリグをアップする。」を得る。,-
 PR-257,ディストラクト・スルー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-257.jpg,アーツ,-,青,-,-,《青》×１,-,-,-,-,メインフェイズ,0,-,-,0,ターン終了時まで、あなたのセンタールリグは「【起】エクシード１：カードを１枚引く。」「【起】エクシード１：対戦相手のシグニ１体を対象とし、それを凍結する。」「【起】エクシード２：カード名１つを宣言する。その後、対戦相手の手札を見て、宣言したカードをすべて捨てさせる。」を得る。,-
@@ -179,7 +334,12 @@ PR-259,ウトゥルス・チェイン,https://www.takaratomy.co.jp/products/wixo
 PR-260,羅石　セキエイ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-260.jpg,シグニ,精羅：鉱石,赤,2,-,-,-,5000,-,-,-,0,-,-,0,【出】：対戦相手の無色のシグニ１体を対象とし、それをバニッシュする。,-
 PR-261,幻竜　#ヤモリ#,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-261.jpg,シグニ,精生：龍獣,緑,1,-,-,-,2000,-,-,-,0,-,-,1,【自】：このシグニがバニッシュされたとき、《緑》を支払ってもよい。そうした場合、あなたのデッキからレベル２の＜龍獣＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,：カードを１枚引く。
 PR-262,ドライ＝ラッカー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-262.jpg,シグニ,精武：毒牙,黒,3,-,-,-,8000,-,-,-,0,-,-,0,【自】《ターン１回》：対戦相手のシグニのパワーが０以下になったとき、あなたのデッキの一番上のカードをエナゾーンに置く。,-
+PR-263,羅石　セキエイ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-263.jpg,シグニ,精羅：鉱石,赤,2,-,-,-,5000,-,-,-,0,-,-,0,【出】：対戦相手の無色のシグニ１体を対象とし、それをバニッシュする。,-
+PR-264,幻竜　#ヤモリ#,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-264.jpg,シグニ,精生：龍獣,緑,1,-,-,-,2000,-,-,-,0,-,-,1,【自】：このシグニがバニッシュされたとき、《緑》を支払ってもよい。そうした場合、あなたのデッキからレベル２の＜龍獣＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,：カードを１枚引く。
+PR-265,ドライ＝ラッカー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-265.jpg,シグニ,精武：毒牙,黒,3,-,-,-,8000,-,-,-,0,-,-,0,【自】《ターン１回》：対戦相手のシグニのパワーが０以下になったとき、あなたのデッキの一番上のカードをエナゾーンに置く。,-
 PR-266,羅星　アルデバラン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-266.jpg,シグニ,精羅：宇宙,白,3,-,-,-,7000,サシェ限定,-,-,0,-,-,0,【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。【自】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次のあなたのターンまで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《白×0》：対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。」を得る。,-
+,,,,,,,,,,,,,,,,,,,
+PR-268,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-268.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-269,サーバント　Ｑ２,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-269.jpg,シグニ,精元,無,4,-,-,-,1000,-,-,-,1,-,-,0,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,-
 PR-270,サーバント　Ｔ２,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-270.jpg,シグニ,精元,無,3,-,-,-,7000,-,-,-,1,-,-,0,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,-
 PR-271,サーバント　Ｄ２,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-271.jpg,シグニ,精元,無,2,-,-,-,3000,-,-,-,1,-,-,0,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,-
@@ -192,16 +352,22 @@ PR-277,ビクトリアン・バウンダリー,https://www.takaratomy.co.jp/prod
 PR-278,ららみ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-278.jpg,ルリグ,タウィル,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-279,冥者　ハナレ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-279.jpg,ルリグ,ハナレ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-280,黒衣の花嫁　アルフォウ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-280.jpg,ルリグ,アルフォウ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-281,アイヤイ★ベット,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-281.jpg,ルリグ,アイヤイ,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-282,各務原あづみ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-282.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-283,終末の回旋　チェロン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-283.jpg,シグニ,精像：美巧,緑,2,-,-,-,3000,-,-,-,0,-,-,0,【常】：あなたの《クロスアイコン》を持つ＜美巧＞のシグニは対戦相手の効果によってバニッシュされない。【自】：このシグニがバニッシュされたとき、《緑》を支払ってもよい。そうした場合、あなたのデッキからレベル３以下の《終末の回旋　チェロン》以外の＜美巧＞のシグニ１枚を探して公開し手札に加えるか場に出し、デッキをシャッフルする。,-
 PR-284,無垢なる宝剣,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-284.jpg,スペル,-,無,-,-,《無》×０,-,-,-,-,-,0,-,-,0,このスペルを使用する際、使用コストとして追加でエナゾーンからカードを２枚以上トラッシュに置く。これの使用コストとして追加で白のカードがトラッシュに置かれた場合、対象の対戦相手のシグニ１体を手札に戻す。赤の場合、対象の対戦相手のパワー12000以下のシグニ１体をバニッシュする。青の場合、カードを２枚引き、手札を１枚捨てる。緑の場合、対象の対戦相手のパワー12000以上のシグニ１体をバニッシュする。黒の場合、あなたのトラッシュから対象のシグニ１枚を手札に加える。,-
 PR-285,集結する守護,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-285.jpg,スペル,-,無,-,-,《無》×７,-,-,-,-,-,0,-,-,0,このスペルの使用コストはあなたの場にあるカード名に《サーバント》を含むシグニ１体につき《無×2》減る。以下の２つから１つを選ぶ。①あなたのトラッシュからカード名に《サーバント》を含むシグニを２枚まで対象とし、それらを手札に加える。②ターン終了時まで、カード名に《サーバント》を含むあなたのすべてのシグニのパワーを＋5000し、それらは【ランサー】を得る。,-
 PR-286,バニラ・スクランブル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-286.jpg,アーツ,-,白,-,-,《白》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の２つから２つまで選ぶ。選んだ数が２つの場合、このアーツの使用コストは《無×2》増える。①あなたのデッキから能力を持たないシグニを３枚まで探して公開し手札に加え、デッキをシャッフルする。②あなたの手札から能力を持たないシグニを好きな枚数場に出す。ターン終了時、それらを場からトラッシュに置く。,-
+PR-287,アイドル・ディフェンス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-287.jpg,アーツ,-,白,-,-,《白》×１《無》×７,-,-,-,-,アタックフェイズ,0,-,-,0,このターンに対戦相手がアーツかスペルを使用していた場合、このアーツの使用コストは《白×1》《無×4》になる。両方を使用していた場合、このアーツの使用コストは《白×0》になる。以下の２つから１つを選ぶ。①このターン、対戦相手のシグニアタックステップをスキップする。②このターン、対戦相手のルリグアタックステップをスキップする。,-
 PR-288,小砲　アルマイル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-288.jpg,シグニ,精武：ウェポン,赤,1,-,-,-,5000,-,-,-,0,-,-,1,【常】：あなたのセンタールリグがレベル２以上であるかぎり、このシグニの基本パワーは1000になる。【常】：このシグニが中央のシグニゾーンにあるかぎり、「【自】：このシグニがアタックしたとき、対戦相手のパワー2000以下のシグニ１体を対象とし、あなたのセンタールリグのレベルが対戦相手のセンタールリグと同じ場合、それをバニッシュする。」を得る。,：【エナチャージ１】
 PR-289,ゲット・ノスタルジア,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-289.jpg,スペル,-,白,-,-,《白》×２,-,-,イオナ限定,-,-,0,-,-,0,このスペルの使用コストは対戦相手の場にある能力を持たないシグニ１体につき《白×1》減る。あなたのデッキから＜迷宮＞のシグニを２枚まで探して公開し手札に加え、デッキをシャッフルする。,-
 PR-290,幻水　スズメダ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-290.jpg,シグニ,精生：水獣,青,2,-,-,-,3000,-,-,-,0,-,-,0,【常】：あなたの手札が対戦相手より多いかぎり、このシグニの基本パワーは8000になる。【出】：あなたの手札が３枚以下の場合、カードを１枚引く。,-
 PR-291,羅植　ワサビ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-291.jpg,シグニ,精羅：植物,緑,1,-,-,-,2000,-,-,-,0,-,-,1,【常】：このシグニは＜地獣＞を持つ。（場にあるかぎり有効である）【常】：あなたのエナゾーンにカードが７枚以上あるかぎり、このシグニの基本パワーは7000になる。【自】《ターン１回》：あなたのライフクロス１枚がクラッシュされたとき、あなたのデッキの一番上のカードをエナゾーンに置く。,：【エナチャージ１】
+PR-292,ゲット・ノスタルジア,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-292.jpg,スペル,-,白,-,-,《白》×２,-,-,イオナ限定,-,-,0,-,-,0,このスペルの使用コストは対戦相手の場にある能力を持たないシグニ１体につき《白×1》減る。あなたのデッキから＜迷宮＞のシグニを２枚まで探して公開し手札に加え、デッキをシャッフルする。,-
+PR-293,幻水　スズメダ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-293.jpg,シグニ,精生：水獣,青,2,-,-,-,3000,-,-,-,0,-,-,0,【常】：あなたの手札が対戦相手より多いかぎり、このシグニの基本パワーは8000になる。【出】：あなたの手札が３枚以下の場合、カードを１枚引く。,-
+PR-294,羅植　ワサビ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-294.jpg,シグニ,精羅：植物,緑,1,-,-,-,2000,-,-,-,0,-,-,1,【常】：このシグニは＜地獣＞を持つ。（場にあるかぎり有効である）【常】：あなたのエナゾーンにカードが７枚以上あるかぎり、このシグニの基本パワーは7000になる。【自】《ターン１回》：あなたのライフクロス１枚がクラッシュされたとき、あなたのデッキの一番上のカードをエナゾーンに置く。,：【エナチャージ１】
 PR-295,コードアート　Ｔ・Ａ・Ｐ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-295.jpg,シグニ,精械：電機,青,1,-,-,-,2000,-,-,-,0,-,-,1,【常】：対戦相手の手札が０枚であるかぎり、このシグニの基本パワーは10000になる。【出】：対戦相手の手札を見る。,：対戦相手の手札を見て１枚選び、捨てさせる。
+,,,,,,,,,,,,,,,,,,,
 PR-297,羅植　サクラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-297.jpg,シグニ,精羅：植物,緑,4,-,-,-,12000,-,-,-,0,-,-,1,【自】：あなたのメインフェイズの間、対戦相手のシグニ１体がバニッシュされたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【自】：あなたのシグニ１体が効果によってダウン状態になったとき、あなたのデッキの一番上のカードをエナゾーンに置く。（コストの支払いおよびアタックによるダウンは効果に含まれない）,：あなたのデッキの一番上のカードをエナゾーンに置く。その後、あなたのエナゾーンからカードを１枚まで対象とし、それを手札に加える。
 PR-298,リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-298.jpg,ルリグ,リメンバ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-299,アルフォウ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-299.jpg,ルリグ,アルフォウ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
@@ -209,16 +375,23 @@ PR-300,サシェ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-300
 PR-301,ミュウ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-301.jpg,ルリグ,ミュウ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-302,アイヤイ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-302.jpg,ルリグ,アイヤイ,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-303,ハナレ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-303.jpg,ルリグ,ハナレ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-304,冥者　ハナレ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-304.jpg,ルリグ,ハナレ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-305,エンジェルキラー　†上柚木綾瀬†,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-305.jpg,シグニ,精像：天使,黒,3,-,-,-,8000,-,-,-,0,-,-,0,【自】：あなたのターンの間、このシグニがバトルしたとき、手札を１枚捨ててもよい。そうした場合、そのバトル終了時にこのシグニがバトルしたそのシグニを場からデッキの一番下に置く。【出】：対戦相手の＜天使＞のシグニ１体を対象とし、あなたのセンタールリグが黒の場合、それをバニッシュする。【出】《黒》：対戦相手のレベル３のシグニ１体を対象とし、それをバニッシュする。,-
 PR-306,ステコ・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-306.jpg,ルリグ,ユヅキ,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-307,リヴァイバル・エクシード,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-307.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,-,0,-,-,0,対戦相手のターンの間、このカードの使用コストは《無》《無》《無》になる。あなたのルリグのエクシードの値が３以下の能力１つをコストを支払わずに使用する。（使用タイミングを無視する）,-
 PR-308,無二の征服　アレクサンド,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-308.jpg,シグニ,精像：武勇,赤,2,-,-,-,8000,-,-,-,0,-,-,1,【ライズ】あなたのレベル１の赤のシグニの上に置く【自】：各アタックフェイズ開始時、あなたの他の赤のシグニ１体を対象とし、ターン終了時まで、それは「【常】：バニッシュされない。」を得る。,：カードを１枚引く。
 PR-309,コードアンチ　カイヅカ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-309.jpg,シグニ,精械：古代兵器,黒,3,-,-,-,7000,-,-,-,0,-,-,0,【自】：あなたのトラッシュからシグニ１体が場に出たとき、このシグニをトラッシュから場に出してもよい。そうした場合、ターン終了時に、またはこのシグニが場から離れる場合に、このシグニをゲームから除外する。【出】：対戦相手のシグニ１体を対象とし、このシグニがトラッシュから場に出た場合、ターン終了時まで、それのパワーを－5000する。,-
+PR-310,リヴァイバル・エクシード,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-310.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,-,0,-,-,0,対戦相手のターンの間、このカードの使用コストは《無》《無》《無》になる。あなたのルリグのエクシードの値が３以下の能力１つをコストを支払わずに使用する。（使用タイミングを無視する）,-
+PR-311,無二の征服　アレクサンド,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-311.jpg,シグニ,精像：武勇,赤,2,-,-,-,8000,-,-,-,0,-,-,1,【ライズ】あなたのレベル１の赤のシグニの上に置く【自】：各アタックフェイズ開始時、あなたの他の赤のシグニ１体を対象とし、ターン終了時まで、それは「【常】：バニッシュされない。」を得る。,：カードを１枚引く。
+PR-312,コードアンチ　カイヅカ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-312.jpg,シグニ,精械：古代兵器,黒,3,-,-,-,7000,-,-,-,0,-,-,0,【自】：あなたのトラッシュからシグニ１体が場に出たとき、このシグニをトラッシュから場に出してもよい。そうした場合、ターン終了時に、またはこのシグニが場から離れる場合に、このシグニをゲームから除外する。【出】：対戦相手のシグニ１体を対象とし、このシグニがトラッシュから場に出た場合、ターン終了時まで、それのパワーを－5000する。,-
+PR-313,アーク・ディストラクト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-313.jpg,アーツ,-,白,-,-,《白》×１《無》×２,-,-,-,-,メインフェイズ,0,-,-,0,このカードはあなたのセンタールリグがレベル４以下の場合にしか使用できない。ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このターンにあなたが《アーク・ディストラクト》以外のアーツを使用していない場合、このルリグの下からカードを２枚ルリグトラッシュに置いてもよい。そうした場合、このルリグをアップする。」を得る。,-
+PR-314,ネクスト・レディ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-314.jpg,スペル,-,無,-,-,《無》×０,-,-,-,-,-,0,-,-,0,あなたのセンタールリグの下からカードを好きな枚数対象とし、それらをルリグトラッシュに置く。その後、以下の４つから、この方法でルリグトラッシュに置いたカードの枚数と同じ数まで選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。②カードを１枚引く。③あなたのデッキの一番上のカードをエナゾーンに置く。④各プレイヤーは自分のデッキの上からカードを４枚トラッシュに置く。,-
 PR-315,月欠けの戦場,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-315.jpg,アーツ,-,黒,-,-,《黒》×１《白》×１《無》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の３つから２つまで選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのセンタールリグのレベル１につき－2000する。②ターン終了時まで、対戦相手のすべてのシグニは「【常】：あなたが《無》を支払わないかぎりアタックできない。」を得る。③あなたのルリグトラッシュからレベル２以下のルリグを２枚まで対象とし、それらをあなたのセンタールリグの下に置く。,-
 PR-316,サチュレイト・ガット,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-316.jpg,アーツ,-,黒,-,-,《黒》×２,-,-,ハナレ限定,-,メインフェイズアタックフェイズ,0,-,-,0,以下の２つから１つを選ぶ。①あなたのトラッシュから＜毒牙＞のシグニを２枚まで対象とし、それらを手札に加える。②手札をすべて捨てる。その後、あなたのトラッシュから＜毒牙＞のシグニを２枚まで対象とし、それらを場に出す。,-
 PR-317,サクシード・ディストラクト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-317.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,ターン終了時まで、あなたのセンタールリグは「【起】エクシード４：対戦相手のシグニ１体を対象とし、それをバニッシュする。」「【起】エクシード４：カードを２枚引く。」「【起】エクシード４：あなたのデッキの上からカードを２枚エナゾーンに置く。」を得る。このアーツによってあなたのルリグが得た能力は、使用タイミング《メインフェイズアイコン》《アタックフェイズアイコン》を得る。,-
 PR-318,紡績する知識,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-318.jpg,スペル,-,無,-,-,《無》×１,-,-,-,-,-,0,-,-,1,あなたのデッキからあなたのセンタールリグと共通する色を持つカード１枚を探して公開し手札に加え、デッキをシャッフルする。,：カードを１枚引く。
 PR-319,幻蟲　オオムラサキ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-319.jpg,シグニ,精生：凶蟲,黒,3,-,-,-,7000,ミュウ限定,-,-,0,-,-,0,【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。【常】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。」を得る。,-
+PR-320,紆余曲折,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-320.jpg,アーツ,-,緑,-,-,《緑》×１《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,ターン終了時まで、あなたのセンタールリグは「【起】エクシード１：対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。」「【起】エクシード１：あなたのエナゾーンからカード１枚を対象とし、それを手札に加える。」「【起】エクシード１：あなたのデッキの一番上のカードをエナゾーンに置く。」を得る。,-
 PR-321,クライシス・チャンス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-321.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,アタックフェイズ,0,-,-,0,あなたのトラッシュからシグニ１枚を対象とし、あなたの手札が０枚の場合、それを手札に加える。あなたのエナゾーンにカードがない場合、あなたのデッキの上からカードを２枚エナゾーンに置く。あなたの場にシグニがない場合、あなたの手札からシグニ１枚を場に出す。,-
 PR-322,白亜の鍵主　ウルトゥム,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-322.jpg,ルリグ,ウムル,白黒,4,《黒》×３,-,11,-,-,-,-,0,-,-,0,【起】《ターン１回》《黒×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから黒の＜天使＞のシグニ１枚と黒の＜古代兵器＞のシグニ１枚を好きな順番でデッキの一番下に置く。そうした場合、それをトラッシュに置く。【起】《アタックフェイズアイコン》エクシード２：あなたのトラッシュから黒のシグニ１枚を対象とし、それを場に出すかあなたの手札から黒のシグニ１枚を場に出す。この方法で場に出たシグニの【出】能力は発動しない。,-
 PR-323,ピンチ・ディフェンス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-323.jpg,アーツ,-,白,-,-,《白》×１《無》×１,-,-,-,-,アタックフェイズ,0,-,-,0,対戦相手のセンタールリグ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。あなたのセンタールリグが白で、あなたのライフクロスが２枚以下の場合、代わりに対戦相手のセンタールリグ１体とシグニ１体を対象とし、ターン終了時まで、それらは「【常】：アタックできない。」を得る。,-
@@ -227,9 +400,13 @@ PR-325,ドント・エスケープ,https://www.takaratomy.co.jp/products/wixoss/
 PR-326,雲散霧消,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-326.jpg,アーツ,-,緑,-,-,《緑》×２《無》×１,-,-,-,-,アタックフェイズメインフェイズ,0,-,-,0,対戦相手のパワー15000以上のシグニ１体を対象とし、それをバニッシュする。あなたのセンタールリグが緑で、あなたのライフクロスが２枚以下の場合、代わりに対戦相手のパワー10000以上のシグニを２体まで対象とし、それらをバニッシュする。,-
 PR-327,アンシエント・ゲート,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-327.jpg,アーツ,-,黒,-,-,《黒》×２《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。あなたのセンタールリグが黒で、あなたのライフクロスが２枚以下の場合、代わりに対戦相手のシグニを２体まで対象とし、ターン終了時まで、それらのパワーをそれぞれ－15000する。,-
 PR-328,美学の海賊　リリアナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-328.jpg,シグニ,精像：武勇,赤,3,-,-,-,7000,-,-,-,0,-,-,1,【自】：このシグニがアタックしたとき、手札から＜武勇＞のシグニを２枚まで捨ててもよい。以下の２つから、この方法で捨てたシグニの枚数と同じ数だけ選ぶ。①このシグニのパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。②あなたのトラッシュからレベル２以下の《ライズアイコン》を持たない＜武勇＞のシグニ１枚を対象とし、それを場に出す。,：カードを１枚引く。
+,,,,,,,,,,,,,,,,,,,
 PR-330,異国の黒船　ペリー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-330.jpg,シグニ,精像：武勇,赤,1,-,-,-,1000,-,-,-,0,-,-,1,【自】《ターン２回》：《ライズアイコン》を持つあなたのシグニ１体が場に出たとき、ターン終了時まで、このシグニのパワーを＋4000する。【自】：このシグニがアタックしたとき、このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。,：カードを１枚引く。
 PR-331,ＰＲＡＮＫ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-331.jpg,スペル,-,青,-,《青》×０,-,-,-,あや限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたの＜トリック＞のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキの上からカードを３枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。その後、残りを好きな順番でデッキの一番下に置く。②対象のあなたの＜トリック＞のシグニ１体をバニッシュする。そうした場合、対象のあなたの【トラップ】１つを手札に加える。,-
 PR-332,コードイート　ウナドン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-332.jpg,シグニ,精械：調理,緑,2,-,-,-,5000,-,-,-,0,-,-,0,【自】：このシグニがアタックしたとき、このシグニのパワーが10000以上の場合、あなたのデッキから《アクセアイコン》を持つカード１枚を探してエナゾーンに置き、デッキをシャッフルする。【出】《緑×0》：あなたのエナゾーンにある《アクセアイコン》を持つ＜調理＞のシグニ１枚を対象とし、それをこのシグニの【アクセ】にする。,-
+PR-333,異国の黒船　ペリー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-333.jpg,シグニ,精像：武勇,赤,1,-,-,-,1000,-,-,-,0,-,-,1,【自】《ターン２回》：《ライズアイコン》を持つあなたのシグニ１体が場に出たとき、ターン終了時まで、このシグニのパワーを＋4000する。【自】：このシグニがアタックしたとき、このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。,：カードを１枚引く。
+PR-334,ＰＲＡＮＫ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-334.jpg,スペル,-,青,-,《青》×０,-,-,-,あや限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたの＜トリック＞のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキの上からカードを３枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。その後、残りを好きな順番でデッキの一番下に置く。②対象のあなたの＜トリック＞のシグニ１体をバニッシュする。そうした場合、対象のあなたの【トラップ】１つを手札に加える。,-
+PR-335,コードイート　ウナドン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-335.jpg,シグニ,精械：調理,緑,2,-,-,-,5000,-,-,-,0,-,-,0,【自】：このシグニがアタックしたとき、このシグニのパワーが10000以上の場合、あなたのデッキから《アクセアイコン》を持つカード１枚を探してエナゾーンに置き、デッキをシャッフルする。【出】《緑×0》：あなたのエナゾーンにある《アクセアイコン》を持つ＜調理＞のシグニ１枚を対象とし、それをこのシグニの【アクセ】にする。,-
 PR-336,サーバント　Ｑ３,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-336.jpg,シグニ,精元,無,4,-,-,-,12000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：カードを１枚引く。
 PR-337,サーバント　Ｔ３,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-337.jpg,シグニ,精元,無,3,-,-,-,8000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：カードを１枚引く。
 PR-338,サーバント　Ｄ３,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-338.jpg,シグニ,精元,無,2,-,-,-,5000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：カードを１枚引く。
@@ -241,17 +418,24 @@ PR-343,純真の記憶　リル,https://www.takaratomy.co.jp/products/wixoss/img
 PR-344,あーや！０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-344.jpg,ルリグ,あや,青,0,《青》×０,-,0,-,-,-,-,0,4,-,0,-,-
 PR-345,メル＝レディ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-345.jpg,ルリグ,メル,緑,0,《緑》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-346,ママ♥０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-346.jpg,ルリグ,ママ,緑,0,《緑》×０,-,0,-,-,-,-,0,4,-,0,-,-
+PR-347,ナナシ　其ノ無,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-347.jpg,ルリグ,ナナシ,黒,0,《黒》×０,-,0,-,-,-,-,0,2,-,0,-,-
 PR-348,インベスト・チャージング,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-348.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,メインフェイズ,0,-,-,0,ベット―《コインアイコン》《コインアイコン》あなたのデッキの一番上のカードをエナゾーンに置く。あなたがベットしていた場合、代わりにデッキの上からカードを２枚エナゾーンに置く。,-
 PR-349,モアコイン・サルベージ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-349.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,ベット―《コインアイコン》《コインアイコン》あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加える。あなたがベットしていた場合、代わりにあなたのセンタールリグと共通する色を持つシグニ２枚を対象とし、それらを手札に加える。,-
 PR-350,リル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-350.jpg,ルリグ,リル,赤,0,《赤》×０,-,0,-,-,-,-,0,1,-,0,-,-
 PR-351,あーや,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-351.jpg,ルリグ,あや,青,0,《青》×０,-,0,-,-,-,-,0,4,-,0,-,-
 PR-352,メル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-352.jpg,ルリグ,メル,緑,0,《緑》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-353,ナナシ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-353.jpg,ルリグ,ナナシ,黒,0,《黒》×０,-,0,-,-,-,-,0,2,-,0,-,-
+PR-354,一覇二鳥,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-354.jpg,アーツ,-,赤,-,-,《赤》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,ターン終了時まで、あなたのセンタールリグは【ダブルクラッシュ】を得る。このターン、対戦相手はレベル１のシグニで【ガード】ができない。,-
+PR-355,ドーナ　START,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-355.jpg,ルリグ,ドーナ,白,0,《白》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-356,幻竜　ボルシャック,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-356.jpg,シグニ,精生：龍獣,赤,3,-,-,-,6000,-,-,-,0,-,-,1,【常】：あなたのアタックフェイズの間、このシグニのパワーはあなたのトラッシュにある＜龍獣＞のシグニ１枚につき＋1000される。【常】：このシグニはパワーが12000以上であるかぎり、【ダブルクラッシュ】を得る。【自】：このシグニがアタックしたとき、対戦相手のパワー10000以下のシグニ１体を対象とし、あなたのトラッシュに＜龍獣＞のシグニが１０枚以上ある場合、それをバニッシュする。,：カードを１枚引く。
+PR-357,純真の記憶　リル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-357.jpg,ルリグ,リル,赤,0,《赤》×０,-,0,-,-,-,-,0,1,-,0,-,-
 PR-358,デッド・ゲート,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-358.jpg,アーツ,-,黒,-,-,《黒》×２,-,-,-,-,メインフェイズ　アタックフェイズ,0,-,-,0,このアーツを使用する際、使用コストとして追加で《黒×1》を支払ってもよい。対象のあなたのセンタールリグよりレベルが１つ高い対戦相手のシグニ１体をトラッシュに置く。追加で《黒×1》を支払っていた場合、あなたのトラッシュから対象のあなたのセンタールリグよりレベルが１つ低いシグニ１枚を場に出す。,-
 PR-359,ゴースト・パーティー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-359.jpg,スペル,-,白,-,-,《白》×０,-,-,ドーナ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたの＜怪異＞のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから＜怪異＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②対象のあなたの＜怪異＞のシグニ２体を場からトラッシュに置く。この方法でシグニ２体をトラッシュに置いた場合、対象の対戦相手のシグニ１体を手札に戻す。,-
 PR-360,験英の応援　＃ウカロー＃,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-360.jpg,シグニ,精像：英知,緑,3,-,-,-,7000,-,-,-,0,-,-,1,【常】：このシグニが場に出たターンの間、このシグニは自身の【出】能力で選んだ能力を得る。【出】：以下の３つから１つを選ぶ。①「【常】：あなたの他の＜英知＞のシグニのパワーは対戦相手の効果によって減少しない。」②「【常】：あなたの他の＜英知＞のシグニは対戦相手の効果によって場から手札に移動しない。」③「【常】：あなたの他の＜英知＞のシグニは対戦相手の効果によってバニッシュされない。」,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
 PR-361,羅菌　ニュウサ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-361.jpg,シグニ,精羅：微菌,黒,3,-,-,-,7000,ナナシ限定,-,-,0,-,-,0,【出】：ターン終了時まで、対戦相手の感染状態のすべてのシグニのパワーを－2000する。【起】このシグニを場からトラッシュに置く：ターン終了時まで、対戦相手の感染状態のすべてのシグニのパワーを－5000する。その後、対戦相手の場にあるすべての【ウィルス】を取り除く。,-
+PR-362,ゴースト・パーティー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-362.jpg,スペル,-,白,-,-,《白》×０,-,-,ドーナ限定,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたの＜怪異＞のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキから＜怪異＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②対象のあなたの＜怪異＞のシグニ２体を場からトラッシュに置く。この方法でシグニ２体をトラッシュに置いた場合、対象の対戦相手のシグニ１体を手札に戻す。,-
+PR-363,験英の応援　＃ウカロー＃,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-363.jpg,シグニ,精像：英知,緑,3,-,-,-,7000,-,-,-,0,-,-,1,【常】：このシグニが場に出たターンの間、このシグニは自身の【出】能力で選んだ能力を得る。【出】：以下の３つから１つを選ぶ。①「【常】：あなたの他の＜英知＞のシグニのパワーは対戦相手の効果によって減少しない。」②「【常】：あなたの他の＜英知＞のシグニは対戦相手の効果によって場から手札に移動しない。」③「【常】：あなたの他の＜英知＞のシグニは対戦相手の効果によってバニッシュされない。」,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
+PR-364,羅菌　ニュウサ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-364.jpg,シグニ,精羅：微菌,黒,3,-,-,-,7000,ナナシ限定,-,-,0,-,-,0,【出】：ターン終了時まで、対戦相手の感染状態のすべてのシグニのパワーを－2000する。【起】このシグニを場からトラッシュに置く：ターン終了時まで、対戦相手の感染状態のすべてのシグニのパワーを－5000する。その後、対戦相手の場にあるすべての【ウィルス】を取り除く。,-
 PR-365,セレクター,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-365.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,あなたのデッキから、限定条件にあなたのセンタールリグのルリグタイプを持つカード１枚を探して公開し手札に加え、デッキをシャッフルする。,-
 PR-366,験英の応援　＃ゴウカク＃,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-366.jpg,シグニ,精像：英知,緑,2,-,-,-,5000,-,-,-,0,-,-,1,【出】英知=５：あなたのデッキの一番上のカードをエナゾーンに置く。【自】英知=８：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、それをエナゾーンに置く。【自】英知=１０：このシグニがアタックしたとき、あなたの他のシグニ１体を対象とし、それの【自】の【英知】能力１つを発動させる。,：【エナチャージ１】
 PR-367,因果応報,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-367.jpg,アーツ,-,緑,-,-,《緑》×６《無》×１２,-,-,-,-,メインフェイズ,0,-,-,0,このアーツの使用コストはあなたのセンタールリグのレベル１につき《無×2》減る。対戦相手のエナゾーンにあるすべての、白、赤、青、緑、黒のカードと対戦相手の場にあるすべてのシグニをトラッシュに置く。あなたのセンタールリグが＜緑子＞の場合、追加で対戦相手のエナゾーンにあるすべてのカードをトラッシュに置く。,-
@@ -261,20 +445,36 @@ PR-370,大槍　ヴァルキリー,https://www.takaratomy.co.jp/products/wixoss/
 PR-371,ダブル・チャクラム,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-371.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,アンコール－あなたのセンタールリグの下からカード３枚をルリグトラッシュに置く以下の３つから１つを選ぶ。①あなたのデッキの上からカードを２枚見る。その中から１枚を手札に加え、残りをデッキの一番下に置く。②対戦相手のレベル３以下のシグニ１体を対象とし、それをダウンする。③対戦相手のレベル５のシグニ１体を対象とし、それをバニッシュする。,-
 PR-372,羅星　≡デネキュ≡,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-372.jpg,シグニ,精羅：宇宙,赤,2,-,-,-,5000,-,-,-,0,-,-,1,【出】：数字１つを宣言する。その後、あなたのデッキの一番上を公開する。それが宣言した数字と同じレベルのシグニの場合、それを場に出す。,：【エナチャージ１】
 PR-373,幻蟲　§アメンボ§,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-373.jpg,シグニ,精生：凶蟲,青,3,-,-,-,8000,-,-,-,0,-,-,1,【常】：このシグニはすべての領域で黒でもある。【自】：あなたの手札からカード１枚がトラッシュに置かれたとき、このシグニの正面のシグニ１体を対象とし、それをダウンする。【自】：このカードが手札からトラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、《青》か《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－5000する。,：あなたのトラッシュから＜凶蟲＞のシグニ１枚を対象とし、それを手札に加える。
+PR-374,ダブル・チャクラム,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-374.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,アンコール－あなたのセンタールリグの下からカード３枚をルリグトラッシュに置く以下の３つから１つを選ぶ。①あなたのデッキの上からカードを２枚見る。その中から１枚を手札に加え、残りをデッキの一番下に置く。②対戦相手のレベル３以下のシグニ１体を対象とし、それをダウンする。③対戦相手のレベル５のシグニ１体を対象とし、それをバニッシュする。,-
+PR-375,羅星　≡デネキュ≡,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-375.jpg,シグニ,精羅：宇宙,赤,2,-,-,-,5000,-,-,-,0,-,-,1,【出】：数字１つを宣言する。その後、あなたのデッキの一番上を公開する。それが宣言した数字と同じレベルのシグニの場合、それを場に出す。,：【エナチャージ１】
+PR-376,幻蟲　§アメンボ§,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-376.jpg,シグニ,精生：凶蟲,青,3,-,-,-,8000,-,-,-,0,-,-,1,【常】：このシグニはすべての領域で黒でもある。【自】：あなたの手札からカード１枚がトラッシュに置かれたとき、このシグニの正面のシグニ１体を対象とし、それをダウンする。【自】：このカードが手札からトラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、《青》か《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－5000する。,：あなたのトラッシュから＜凶蟲＞のシグニ１枚を対象とし、それを手札に加える。
+PR-377,一蓮托生,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-377.jpg,アーツ,-,緑,-,-,《緑》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の２つから１つを選ぶ。①あなたのデッキからカードを２枚まで探してエナゾーンに置き、デッキをシャッフルする。②あなたのエナゾーンから対戦相手の選んだシグニ１枚を場に出す。（ルールや効果によって場に出すことのできないシグニが選ばれた場合、何も起きない）,-
 PR-378,選択する物語,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-378.jpg,スペル,-,無,-,-,《無》×０,-,-,-,-,-,0,-,-,0,以下の２つから１つを選ぶ。①あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、カードを１枚引き、このカードをゲームから除外する。②あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキの一番上のカードをエナゾーンに置き、このカードをゲームから除外する。,-
 PR-379,ステコ　―０―,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-379.jpg,ルリグ,カーニバル,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-380,ステアード・サルベージ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-380.jpg,アーツ,-,白黒,-,-,《白/黒》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,あなたのルリグトラッシュから、このアーツの使用コストで支払ったエナと共通する色を持つ、アーツとレゾナをそれぞれ１枚まで対象とし、それらをルリグデッキに加える。,-
 PR-381,フェイタル・パニッシュ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-381.jpg,アーツ,-,黒,-,-,《黒》×３,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,ベット―《コインアイコン》《コインアイコン》ターン終了時まで、対戦相手のすべてのシグニのパワーを－7000する。あなたがベットしていた場合、代わりに－12000する。（パワーが０以下のシグニはルールによってバニッシュされる）,-
+PR-382,サーバント　Ｄ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-382.jpg,シグニ,-,無,2,-,-,-,5000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
+PR-383,サーバント　Ｏ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-383.jpg,シグニ,精元,無,1,-,-,-,2000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
 PR-384,コードイート　キリタン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-384.jpg,シグニ,精械：調理,緑,3,-,-,-,8000,-,-,-,0,-,-,0,【出】《緑》：あなたのデッキから《アクセアイコン》を持つシグニ１枚を探してエナゾーンに置き、デッキをシャッフルする。【起】《アタックフェイズアイコン》このシグニを場からトラッシュに置く：対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。この能力はあなたの場にアクセされているシグニがある場合にしか使用できない。,-
 PR-385,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-385.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-386,炎芒一閃,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-386.jpg,アーツ,-,赤,-,-,《赤》×０,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,対戦相手のパワー1000以下のすべてのシグニをバニッシュする。,-
 PR-387,ライブ・スタート,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-387.jpg,アーツ,-,白,-,-,《白》×１《黒》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,ベット―《コインアイコン》あなたのデッキからレベル４以下の白か黒のシグニ１枚を探してダウン状態で場に出し、デッキをシャッフルする。その後、あなたがベットしていた場合、追加であなたのトラッシュからこの方法で場に出したシグニのクロス条件に含まれるシグニ１枚を対象とし、それを場に出す。,-
 PR-388,混沌の豊穣　シュブニグラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-388.jpg,シグニ,精像：天使,白,4,-,-,-,12000,タウィル限定,-,-,0,-,-,1,《クロスアイコン》《コードアンチ　ヨグソトス》の右【常】：あなたのダウン状態のシグニは対戦相手のシグニの効果を受けない。【クロス自】：このシグニが《ヘブン》したとき、対戦相手のパワー10000以下のすべてのシグニをトラッシュに置く。,：あなたのデッキから白か黒のシグニ１枚を探して公開し手札に加えるか場に出し、デッキをシャッフルする。
+,,,,,,,,,,,,,,,,,,,
 PR-390,ららみ！０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-390.jpg,ルリグ,あや,青,0,《青》×０,-,0,-,-,-,-,0,4,-,0,-,-
+PR-391,ドーナ　START,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-391.jpg,ルリグ,ドーナ,白,0,《白》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-392,純真の記憶　リル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-392.jpg,ルリグ,リル,赤,0,《赤》×０,-,0,-,-,-,-,0,1,-,0,-,-
+PR-393,あーや！０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-393.jpg,ルリグ,あや,青,0,《青》×０,-,0,-,-,-,-,0,4,-,0,-,-
+PR-394,メル＝レディ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-394.jpg,ルリグ,メル,緑,0,《緑》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-395,ママ♥０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-395.jpg,ルリグ,ママ,緑,0,《緑》×０,-,0,-,-,-,-,0,4,-,0,-,-
+PR-396,ナナシ　其ノ無,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-396.jpg,ルリグ,ナナシ,黒,0,《黒》×０,-,0,-,-,-,-,0,2,-,0,-,-
+PR-397,アロス・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-397.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-398,カーニバル　―０―,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-398.jpg,ルリグ,カーニバル,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-399,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-399.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-400,ＹＳマリン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-400.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-401,ＫＡＧＥＨＡ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-401.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-402,怠惰の魔王　ベルフェゴール,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-402.jpg,シグニ,精像：悪魔,黒,2,-,-,-,7000,-,-,-,0,-,-,1,【常】：あなたのトラッシュにカードが１５枚以上ないかぎり、このシグニはアタックできない。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのトラッシュから黒のシグニ７枚をデッキに加えてシャッフルする。そうした場合、ターン終了時まで、それのパワーを－7000する。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのトラッシュにある黒のカード１枚につき－1000する。
+PR-403,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-403.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-404,タマヨリヒメ　～Ａｐｏｃａｌｙｐｓｅ～,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-404.jpg,ルリグ,タマ,白,4,《白》×２,-,12,-,-,-,-,0,-,-,0,-,-
 PR-405,タマヨリヒメ　～見た目は０、頭脳レベルは３～,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-405.jpg,ルリグ,タマ,白,3,《白》×２,-,8,-,-,-,-,0,-,-,0,-,-
 PR-406,タマヨリヒメ　～ＴＨＥ　ＰＲＯＧＲＥＳＳ～,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-406.jpg,ルリグ,タマ,白,2,《白》×１,-,5,-,-,-,-,0,-,-,0,-,-
@@ -282,28 +482,52 @@ PR-407,タマヨリヒメ　～ＴＨＥ　ＤＡＷＮ～,https://www.takaratom
 PR-408,タマヨリヒメ　～ＴＨＥ　ＯＲＩＧＩＮ～,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-408.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-409,ママ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-409.jpg,ルリグ,ママ,緑,0,《緑》×０,-,0,-,-,-,-,0,4,-,0,-,-
 PR-410,ドーナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-410.jpg,ルリグ,ドーナ,白,0,《白》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-411,ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-411.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-412,カーニバル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-412.jpg,ルリグ,カーニバル,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-413,グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-413.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-414,永らえし者　タウィル＝フィーラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-414.jpg,ルリグ,タウィル,白,4,《白》×３,-,11,-,-,-,-,0,-,-,0,【常】：あなたの＜天使＞のシグニのパワーを＋1000する。【起】《ターン１回》《白×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから＜天使＞のシグニ７枚をデッキの一番下に置く。そうした場合、それをバニッシュし、デッキをシャッフルする。【起】《ターン１回》《白×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから名前の異なる＜天使＞のシグニ７枚をデッキの一番下に置く。そうした場合、それをトラッシュに置き、デッキをシャッフルする。,-
+PR-415,カーニバル　―０―,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-415.jpg,ルリグ,カーニバル,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-416,アロス・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-416.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-417,混沌の鍵主　ウムル＝フィーラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-417.jpg,ルリグ,ウムル,黒,4,《黒》×３,-,11,-,-,-,-,0,-,-,0,【出】：あなたのトラッシュにあるシグニ１枚を対象とし、ターン終了時まで、次にそれの【起】能力を使用する場合、その能力の使用コストは《黒×0》になる。【起】《ターン１回》《黒×0》：あなたのデッキの上からカードを３枚トラッシュに置く。【起】《ダウン》：あなたのトラッシュからシグニ１枚を対象とし、それを場に出す。,-
+PR-418,黒衣の花嫁　アルフォウ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-418.jpg,ルリグ,アルフォウ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-419,冥者　ハナレ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-419.jpg,ルリグ,ハナレ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-420,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-420.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-421,コードアート　Ｎ・Ａ・Ｉ・Ｓ・Ｅ・Ｎ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-421.jpg,シグニ,精械：電機,青,3,-,-,-,8000,-,-,-,0,-,-,0,【自】：あなたのターン終了時、カードを１枚引く。【自】：対戦相手のターン終了時、対戦相手は手札を１枚捨てる。,-
 PR-422,３－遊　§タカラトミーたそ§,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-422.jpg,シグニ,精武：遊具,青,3,-,-,-,7867,-,-,-,0,-,-,0,【自】：パワー０以下のこのシグニがバニッシュされたとき、あなたはゲームに敗北する。【自】：あなたのターン終了時、このシグニのパワーが10000以上の場合、このシグニを場からトラッシュに置き、カードを３枚引く。,-
 PR-423,幻獣　定時ほー＆甲たそ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-423.jpg,シグニ,精生：空獣,緑,2,-,-,-,5000,-,-,-,0,-,-,1,【自】：メインフェイズかアタックフェイズの間、対戦相手が自分の効果でカードを１枚引いたとき、対戦相手にダメージを与える。その後、このシグニをバニッシュする。,：【エナチャージ１】
+PR-424,３－遊　§タカラトミーたそ§,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-424.jpg,シグニ,精武：遊具,青,3,-,-,-,7867,-,-,-,0,-,-,0,【自】：パワー０以下のこのシグニがバニッシュされたとき、あなたはゲームに敗北する。【自】：あなたのターン終了時、このシグニのパワーが10000以上の場合、このシグニを場からトラッシュに置き、カードを３枚引く。,-
 PR-425,ニパ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-425.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-426,篭手　エルゼ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-426.jpg,シグニ,精武：アーム,白,3,-,-,-,8000,-,-,-,0,-,-,1,【常】：あなたのライフクロスが１枚以下で、このシグニが中央のシグニゾーンにあるかぎり、このシグニのパワーは＋4000され、このシグニは「【自】：このシグニがアタックしたとき、正面のシグニ１体を対象とし、それをバニッシュする。」を得る。【自】《ターン１回》：あなたのライフクロス１枚がクラッシュされたとき、対戦相手のレベル３以下のシグニ１体を対象とし、それをバニッシュする。,：あなたのデッキからレベル３以下の白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
 PR-427,羅星　リンゼ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-427.jpg,シグニ,精羅：宇宙,白,2,-,-,-,5000,-,-,-,0,-,-,0,【自】：このシグニがアタックしたとき、次のあなたのターンまで、対戦相手はアーツとスペルを使用できない。【自】：あなたのターン終了時、あなたは手札をすべて捨ててもよい。この方法でカードを１枚以上捨てた場合、捨てた枚数に１を加えた枚数のカードを引く。【出】：あなたのトラッシュから《篭手　エルゼ》１枚を対象とし、あなたのライフクロスが１枚以下の場合、それを場に出す。,-
+PR-428,３－遊　§タカラトミーたそ§,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-428.jpg,シグニ,精武：遊具,青,3,-,-,-,7867,-,-,-,0,-,-,0,【自】：パワー０以下のこのシグニがバニッシュされたとき、あなたはゲームに敗北する。【自】：あなたのターン終了時、このシグニのパワーが10000以上の場合、このシグニを場からトラッシュに置き、カードを３枚引く。,-
 PR-429,サード・ディスティニー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-429.jpg,アーツ,-,白赤,-,-,《白》×１《赤》×１《無》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,以下の３つから１つを選ぶ。あなたのライフクロスが２枚以下の場合、代わりに２つまで選ぶ。①あなたのデッキの上からカードを３枚公開する。その中から好きな枚数の無色ではないシグニを場に出し、残りをトラッシュに置く。それらのシグニの【出】能力は発動しない。②対戦相手のトラッシュにあるカードを３枚まで対象とし、それらをゲームから除外する。③あなたのトラッシュからカードを３枚まで対象とし、それらをデッキに加えてシャッフルする。カードを１枚引く。,-
 PR-430,温泉の盛宴　草津結衣奈,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-430.jpg,シグニ,精像：武勇,赤,3,-,-,-,7000,-,-,-,0,-,-,0,【常】：このシグニは中央のシグニゾーンにあるかぎり、「【常】：あなたの他のシグニはライフバーストではない対戦相手のシグニの効果を受けず、それらのパワーを＋3000する。」を得る。【自】：このシグニがバニッシュされたとき、《赤》《赤》を支払ってもよい。そうした場合、このシグニをエナゾーンからダウン状態で場に出す。,-
 PR-431,サーバント　Ａ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-431.jpg,シグニ,精元,無,3,-,-,-,8000,-,-,-,0,-,-,1,【常】：【マルチエナ】【出】：＜精像＞か＜精武＞か＜精羅＞か＜精械＞か＜精生＞から１つを宣言する。あなたのデッキの上からカードを４枚公開する。その中から宣言したクラスを持つシグニ１枚を手札に加え、残りをトラッシュに置く。,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
 PR-432,ＭＩＲＲＯＲ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-432.jpg,スペル,-,青,-,-,《青》×１,-,-,-,-,-,0,-,-,0,カードを１枚引く。あなたのルリグトラッシュからあなたのセンタールリグと完全に同一のルリグタイプを持つレベル０のルリグ１枚を対象とし、それをあなたのセンタールリグの下に置いてもよい。,-
 PR-433,ストール・ストーリー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-433.jpg,アーツ,-,青,-,-,《青》×０,-,-,-,-,メインフェイズアタックフェイズスペルカットイン,0,-,-,0,対戦相手のルリグトラッシュからアーツ１枚を対象とし、このターン、それをあなたのルリグデッキにあるかのように使用してもよい。この方法であなたがそのアーツを使用する際、そのコストの色を無視して支払ってもよい。（限定条件、使用タイミングは無視しない）,-
 PR-434,錯乱する所以,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-434.jpg,スペル,-,無,-,-,《無》×１,-,-,-,-,-,0,-,-,1,数字１つを宣言する。あなたのデッキの上からカードを５枚公開する。その中から宣言した数字と同じレベルを持つシグニを２枚まで手札に加え、残りをシャッフルしてデッキの一番下に置く。,：数字１つを宣言する。あなたのデッキの上からカードを５枚公開する。その中から宣言した数字と同じレベルを持つシグニを２枚まで手札に加え、残りをシャッフルしてデッキの一番下に置く。
+PR-435,錯乱する所以,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-435.jpg,スペル,-,無,-,-,《無》×１,-,-,-,-,-,0,-,-,1,数字１つを宣言する。あなたのデッキの上からカードを５枚公開する。その中から宣言した数字と同じレベルを持つシグニを２枚まで手札に加え、残りをシャッフルしてデッキの一番下に置く。,：数字１つを宣言する。あなたのデッキの上からカードを５枚公開する。その中から宣言した数字と同じレベルを持つシグニを２枚まで手札に加え、残りをシャッフルしてデッキの一番下に置く。
+PR-436,ダブル・チャクラム,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-436.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,アンコール－あなたのセンタールリグの下からカード３枚をルリグトラッシュに置く以下の３つから１つを選ぶ。①あなたのデッキの上からカードを２枚見る。その中から１枚を手札に加え、残りをデッキの一番下に置く。②対戦相手のレベル３以下のシグニ１体を対象とし、それをダウンする。③対戦相手のレベル５のシグニ１体を対象とし、それをバニッシュする。,-
+PR-437,奇跡の軌跡　アン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-437.jpg,ルリグ,アン,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-438,椎名　六花,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-438.jpg,ルリグ,花代,赤,0,《赤》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-439,サティスファクション,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-439.jpg,アーツ,-,無,-,-,《無》×６,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,あなたのセンタールリグのレベルが４以下で、対戦相手のセンタールリグのレベルが５以上の場合、このアーツの使用コストは《無×1》になる。以下の４つから２つまで選ぶ。①対戦相手のシグニ１体を対象とし、それをバニッシュする。②カードを２枚引く。③あなたのデッキの上からカードを２枚エナゾーンに置く。④あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを場に出す。そのシグニの【出】能力は発動しない。,-
+,,,,,,,,,,,,,,,,,,,
 PR-441,閉ざされし使　リワト＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-441.jpg,ルリグ,タウィル,無,0,《無》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-442,ビッカメ娘　,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-442.jpg,シグニ,精械：電機,青,3,-,-,-,1111,-,-,-,0,-,-,1,【常】：このシグニのパワーはあなたのデッキの枚数１０枚につき＋4000される。【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを１０枚トラッシュに置く。この方法でカードを１０枚トラッシュに置いた場合、カードを２枚引く。【自】：このシグニが場からトラッシュに置かれたとき、あなたは手札を１枚捨てる。,：あなたのデッキの枚数１０枚につきカードを１枚引く。
+PR-443,ビッカメ娘　,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-443.jpg,シグニ,精械：電機,青,3,-,-,-,1111,-,-,-,0,-,-,1,【常】：このシグニのパワーはあなたのデッキの枚数１０枚につき＋4000される。【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを１０枚トラッシュに置く。この方法でカードを１０枚トラッシュに置いた場合、カードを２枚引く。【自】：このシグニが場からトラッシュに置かれたとき、あなたは手札を１枚捨てる。,：あなたのデッキの枚数１０枚につきカードを１枚引く。
+PR-444,ビッカメ娘　,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-444.jpg,シグニ,精械：電機,青,3,-,-,-,1111,-,-,-,0,-,-,1,【常】：このシグニのパワーはあなたのデッキの枚数１０枚につき＋4000される。【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを１０枚トラッシュに置く。この方法でカードを１０枚トラッシュに置いた場合、カードを２枚引く。【自】：このシグニが場からトラッシュに置かれたとき、あなたは手札を１枚捨てる。,：あなたのデッキの枚数１０枚につきカードを１枚引く。
+PR-445,ビッカメ娘　,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-445.jpg,シグニ,精械：電機,青,3,-,-,-,1111,-,-,-,0,-,-,1,【常】：このシグニのパワーはあなたのデッキの枚数１０枚につき＋4000される。【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを１０枚トラッシュに置く。この方法でカードを１０枚トラッシュに置いた場合、カードを２枚引く。【自】：このシグニが場からトラッシュに置かれたとき、あなたは手札を１枚捨てる。,：あなたのデッキの枚数１０枚につきカードを１枚引く。
+PR-446,ビッカメ娘　,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-446.jpg,シグニ,精械：電機,青,3,-,-,-,1111,-,-,-,0,-,-,1,【常】：このシグニのパワーはあなたのデッキの枚数１０枚につき＋4000される。【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを１０枚トラッシュに置く。この方法でカードを１０枚トラッシュに置いた場合、カードを２枚引く。【自】：このシグニが場からトラッシュに置かれたとき、あなたは手札を１枚捨てる。,：あなたのデッキの枚数１０枚につきカードを１枚引く。
+PR-447,ビッカメ娘　,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-447.jpg,シグニ,精械：電機,青,3,-,-,-,1111,-,-,-,0,-,-,1,【常】：このシグニのパワーはあなたのデッキの枚数１０枚につき＋4000される。【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを１０枚トラッシュに置く。この方法でカードを１０枚トラッシュに置いた場合、カードを２枚引く。【自】：このシグニが場からトラッシュに置かれたとき、あなたは手札を１枚捨てる。,：あなたのデッキの枚数１０枚につきカードを１枚引く。
 PR-448,ヨナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-448.jpg,ルリグ,アン,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-449,サーバント　Ｏ２,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-449.jpg,シグニ,精元,無,1,-,-,-,1000,-,-,-,1,-,-,0,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,-
+PR-450,サーバント　Ｏ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-450.jpg,シグニ,精元,無,1,-,-,-,2000,-,-,-,1,-,-,1,【ガード】【常】：【マルチエナ】,：【エナチャージ１】
+PR-451,サーバント　Ｏ３,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-451.jpg,シグニ,精元,無,1,-,-,-,2000,-,-,-,1,-,-,1,【ガード】【常】：【マルチエナ】,：カードを１枚引く。
 PR-452,ぼたん＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-452.jpg,ルリグ,ウムル,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-453,サーバント　Ｏ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-453.jpg,シグニ,精元,無,1,-,-,-,2000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
+PR-454,サーバント　Ｄ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-454.jpg,シグニ,精元,無,2,-,-,-,5000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
+PR-455,サーバント　Ｔ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-455.jpg,シグニ,精元,無,3,-,-,-,8000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
+PR-456,サーバント　Ｑ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-456.jpg,シグニ,精元,無,4,-,-,-,12000,-,-,-,1,-,-,1,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,：【エナチャージ１】
 PR-457,コードイート　八重,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-457.jpg,シグニ,精械：調理,緑,3,-,-,-,8000,-,-,-,0,-,-,1,【出】手札を一枚捨てる：あなたのデッキの上からカードを２枚公開する。その中からあなたのセンタールリグと共通する色を持つすべてのカードをエナゾーンに置き、残りを好きな順番でデッキの一番下に置く。【起】《ターン１回》《無》《無》：あなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
 PR-458,生生流転,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-458.jpg,アーツ,-,緑,-,-,《緑》×２《無》×２,-,-,-,-,メインフェイズアタックフェイズスペルカットイン,0,-,-,0,ベット―《コインアイコン》《コインアイコン》あなたがベットする場合、このアーツの使用コストは《緑×0》になる。あなたのデッキの一番上のカードをライフクロスに加える。,-
 PR-459A,トライ・ラック,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-459A.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,対戦相手の手札を１枚見ないで選び、対戦相手はそのカードを公開する。その後、そのカードがレベル１のシグニの場合、あなたのデッキの上からカードを３枚エナゾーンに置く。レベル２のシグニの場合、あなたはカードを３枚引く。レベル３のシグニの場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。レベル４のシグニの場合、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。レベル５のシグニの場合、あなたは手札を１枚捨てる。スペルの場合、対戦相手はそのカードを捨てる。,-
@@ -314,6 +538,7 @@ PR-463,カウンター・ヴァンプ,https://www.takaratomy.co.jp/products/wixo
 PR-464,絶影の追跡者　エリナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-464.jpg,シグニ,精像：武勇,赤,2,-,-,-,5000,-,-,-,0,-,-,1,【常】：あなたのセンタールリグがレベル４以上で赤であるかぎり、このシグニのパワーは＋5000され、このシグニは【ダブルクラッシュ】を得る。【出】：対戦相手のパワー3000以下のシグニ１体を対象とし、対戦相手の場にシグニが３体ある場合、それをバニッシュする。,：カードを１枚引く。
 PR-465,時英の埋設　#タイプス#,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-465.jpg,シグニ,精像：英知,緑,3,-,-,-,7000,-,-,-,0,-,-,0,【自】：このシグニがアタックしたとき、対戦相手のセンタールリグの下からカードを２枚まで対象とし、あなたのルリグデッキから、あなたのセンタールリグと同じルリグタイプを持つルリグ２枚をルリグトラッシュに置いてもよい。そうした場合、それらをルリグトラッシュに置く。【出】：あなたのルリグトラッシュからレベル４以下のルリグ１枚を対象とし、それをルリグデッキに加える。,-
 PR-466,懐古の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-466.jpg,ルリグ,タマ,白,4,《黒》×０,-,11,-,-,-,-,0,2,-,0,【常】：あなたの白のシグニのパワーを＋1000する。【自】：あなたの《新鋭の巫女　タマヨリヒメ》が場に出たとき、対戦相手のすべてのシグニを手札に戻す。【起】《ターン１回》《白×0》：あなたの手札からコストの合計が５以下のスペル１枚をコストを支払わずに使用する。この能力はあなたの場に《新鋭の巫女　タマヨリヒメ》がいる場合にしか使用できない。,-
+,,,,,,,,,,,,,,,,,,,
 PR-468,炎のタマ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-468.jpg,アーツ,-,赤,-,-,《赤》×３《無》×３,-,-,-,-,アタックフェイズスペルカットイン,0,-,-,0,このターンに対戦相手がスペルを使用していた場合、このアーツの使用コストは使用されたスペル１枚につき《赤×1》《無×1》減る。このターンに対戦相手がアーツを使用していた場合、このアーツの使用コストは《赤×3》《無×3》減る。このターン、あなたはゲームに敗北しない。このカードをゲームから除外する。,-
 PR-469,五体合体　グレートタマヨリオー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-469.jpg,ルリグ,タマ,白,5,《白》×０,-,5,-,-,-,-,0,-,-,0,【グロウ】あなたのルリグデッキにある＜タマ＞のルリグ５枚をゲームから除外する【常】：レベル０のルリグからこのルリグにグロウできる。【常】：あなたはアーツとスペルを使用できない。【起】《メインフェイズアイコン》《アタックフェイズアイコン》《白》《白》《白》ルリグデッキにある＜タマ＞のルリグ１枚をゲームから除外する：以下の３つからこの【起】能力でまだ選ばれていない１つを選ぶ。①対戦相手のすべてのシグニをトラッシュに置く。②対戦相手のデッキからすべてのカードをトラッシュに置く。③対戦相手のルリグデッキからカードを１枚見ないで選び公開する。それがルリグでない場合、それをルリグトラッシュに置く。,-
 PR-470A,現実からの逃避　タマ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-470A.jpg,レゾナ,精像：美巧,緑,2,-,-,-,5000,-,-,-,0,-,-,0,【出現条件】《メインフェイズアイコン》パワーの合計が10000以上になるようにあなたのエナゾーンからシグニを好きな数トラッシュに置く【自】：あなたのデッキがシャッフルされたとき、ターン終了時まで、このシグニのパワーを＋5000する。【自】：あなたのアタックフェイズ開始時、このシグニのパワーが10000以上の場合、カードを１枚引く。25000以上の場合、このシグニをルリグデッキに戻し、あなたのルリグデッキから《進化する筋肉　紗倉ひびき》を場に出す。,-
@@ -322,22 +547,36 @@ PR-471,相手ルリグ全員タマに憧れてる説,https://www.takaratomy.co.j
 PR-472,１日シグニ　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-472.jpg,シグニ,精元,無,1,-,-,-,1000,-,-,-,0,-,-,0,【常】：このシグニのパワーはあなたのセンタールリグのルリグタイプ１つにつき＋2000される。【常】：あなたのセンタールリグのルリグタイプが２つ以上であるかぎり、対戦相手はスペルを使用できない。【常】：【マルチエナ】,-
 PR-473,永らえし者　タウィル＝フェム,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-473.jpg,ルリグ,タウィル,白,5,《白》×３,-,12,-,-,-,-,0,-,-,0,【常】：このルリグはこのカードの下にあるルリグの【起】能力を持つ。【自】：対戦相手のシグニ１体がアタックしたとき、手札から＜天使＞のシグニを２枚捨ててもよい。そうした場合、そのアタックしているシグニはこのアタックであなたにダメージを与えない。【自】：あなたのターン終了時、トラッシュから＜天使＞のシグニ１枚を対象とし、それを手札に加える。,-
 PR-474,ラッキー・パンチ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-474.jpg,アーツ,-,白,-,-,《白》×０,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,あなたのライフクロスの一番上を見る。それがシグニの場合、そのシグニを場に出してもよい。それがスペルの場合、そのスペルを手札にあるかのようにコストを支払わずに使用してもよい。（限定条件は無視しない）,-
+PR-475,炎のタマ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-475.jpg,アーツ,-,赤,-,-,《赤》×３《無》×３,-,-,-,-,アタックフェイズスペルカットイン,0,-,-,0,このターンに対戦相手がスペルを使用していた場合、このアーツの使用コストは使用されたスペル１枚につき《赤×1》《無×1》減る。このターンに対戦相手がアーツを使用していた場合、このアーツの使用コストは《赤×3》《無×3》減る。このターン、あなたはゲームに敗北しない。このカードをゲームから除外する。,-
 PR-K001,レイラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K001.jpg,ルリグ,レイラ,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-K002,ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K002.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K003,翠子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K003.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-K004,グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K004.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-K005,タマ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K005.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-K006,リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K006.jpg,ルリグ,リメンバ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-K007,リル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K007.jpg,ルリグ,リル,赤,0,《赤》×０,-,0,-,-,-,-,0,1,-,0,-,-
+PR-K008,カーニバル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K008.jpg,ルリグ,カーニバル,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-K009,ゴー☆ジャス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K009.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K010,ブラッディ・アウト,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K010.jpg,アーツ,-,黒,-,-,《黒》×２,-,-,-,-,メインフェイズアタックフェイズスペルカットイン,0,-,-,0,ベット―《コインアイコン》《コインアイコン》あなたのシグニ１体を場からトラッシュに置く。そうした場合、対象の対戦相手のレベル４以下のシグニ１体をバニッシュする。あなたがベットしていた場合、追加で対象の対戦相手のシグニ１体をバニッシュする。,-
 PR-K011,双撃の記憶　リル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K011.jpg,キー,-,赤,-,-,《コイン》×１,-,-,-,-,-,0,-,-,0,【自】：あなたのメインフェイズ開始時、あなたのデッキの一番上を公開する。それがあなたのセンタールリグと共通する色を持つシグニの場合、それを手札に加える。【起】このキーを場からルリグトラッシュに置く：《コインアイコン》《コインアイコン》を得る。,-
 PR-K012,レイラ＝ニュートラル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K012.jpg,ルリグ,レイラ,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-K013,アロス・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K013.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K014,闘娘　翠子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K014.jpg,ルリグ,緑子,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-K015,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K015.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-K016,駄姫　グズ子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K016.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
+PR-K017,アロス・ピルルク,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K017.jpg,ルリグ,ピルルク,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K018,中罠　ハンプティ・ダンプティ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K018.jpg,シグニ,精武：トリック,黒,2,-,-,-,4000,-,-,-,0,-,-,1,【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたの場にあるすべてのシグニのレベルが偶数の場合、ターン終了時まで、それのパワーを－4000する。,：カードを１枚引く。
 PR-K019,始まりのルリグ　夢限の鍵,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K019.jpg,キー,-,無,-,-,《コイン》×１,-,-,-,-,-,0,-,-,0,【常】：あなたの＜精元＞のシグニのパワーを＋2000する。【出】：あなたのトラッシュから＜精元＞のシグニを２枚まで対象とし、それらを手札に加える。【起】《アタックフェイズアイコン》このキーを場からルリグトラッシュに置く：このターン、あなたは対戦相手のルリグによってダメージを受けない。,-
+PR-K020,ネクスト・レディ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K020.jpg,スペル,-,無,-,-,《無》×０,-,-,-,-,-,0,-,-,0,あなたのセンタールリグの下からカードを好きな枚数対象とし、それらをルリグトラッシュに置く。その後、以下の４つから、この方法でルリグトラッシュに置いたカードの枚数と同じ数まで選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。②カードを１枚引く。③あなたのデッキの一番上のカードをエナゾーンに置く。④各プレイヤーは自分のデッキの上からカードを４枚トラッシュに置く。,-
 PR-K021,讃の遊　シンカリオンＥ６こまち,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K021.jpg,シグニ,精武：遊具,白,3,-,-,-,5000,-,-,-,0,-,-,0,【自】：各アタックフェイズ開始時、ターン終了時まで、このシグニの基本パワーは正面のシグニのパワーと同じ値になる。【自】：このシグニがアタックしたとき、このシグニのパワーが8000の場合、【エナチャージ１】する。【自】：このシグニがアタックしたとき、シグニ１体を対象とし、このシグニのパワーが12000の場合、《白》《白》《無》《無》を支払ってもよい。そうした場合、それを手札に戻す。,-
 PR-K022,新鋭の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K022.jpg,キー,-,白,-,-,《コイン》×１,-,-,-,-,-,0,-,-,0,【常】：あなたのセンタールリグは以下の能力を得る。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》エクシード２：数字１つを宣言する。その後、あなたのデッキの上からカードを３枚公開する。その中に宣言した数字と同じレベルのシグニがある場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。この効果で公開したカードを好きな順番でデッキの一番上に戻す。,-
 PR-K023,ドロー・フォー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K023.jpg,アーツ,-,青,-,-,《青》×１《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,カードを４枚引く。,-
 PR-K024,ファントム・ガーデン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K024.jpg,アーツ,-,無,-,-,《無》×１,-,-,-,-,メインフェイズ,0,-,-,0,ベット―《コインアイコン》（このアーツを使用する際に《コインアイコン》を支払ってもよい）あなたのトラッシュからあなたのセンタールリグと共通する色を持つそれぞれレベルの異なるシグニを３枚まで対象とし、それらを手札に加える。あなたがベットしていた場合、３枚の代わりに４枚まで対象とし、それらを手札に加える。,-
 PR-K025,駄姫　ステコ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K025.jpg,ルリグ,グズ子,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-K026,応諾の鍵主　ウムル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K026.jpg,キー,-,黒,-,-,《コイン》×２《無》×３,-,-,-,-,-,0,-,-,0,【常】：あなたのセンタールリグは以下の能力を得る。【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。【起】《ターン１回》《アタックフェイズアイコン》エクシード２：対戦相手のシグニを２体まで対象とし、あなたのデッキの上からカードを９枚トラッシュに置く。この方法でカードが９枚トラッシュに置かれた場合、ターン終了時まで、それらのパワーを合わせて－18000する。この効果では1000単位でしか数字を割り振ることができない。【起】このキーを場からルリグトラッシュに置く：あなたのトラッシュからシグニ１体を対象とし、それを手札に加える。,-
+PR-K027,新月の巫女　タマヨリヒメ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K027.jpg,ルリグ,タマ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K028,来夢の巫女　リメンバ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K028.jpg,ルリグ,リメンバ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-K029,純真の記憶　リル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K029.jpg,ルリグ,リル,赤,0,《赤》×０,-,0,-,-,-,-,0,1,-,0,-,-
 PR-K030,カーニバル　†０†,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K030.jpg,ルリグ,カーニバル,黒,0,《黒》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-K031,イコール・プライズ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K031.jpg,アーツ,-,青,-,-,《青》×２,-,-,-,-,アタックフェイズ,0,-,-,0,あなたの手札からそれぞれレベルの異なるシグニを３枚まで捨てる。その後、この方法で捨てたシグニ１枚につきそれと同じレベルを持つ対戦相手のシグニ１体を対象とし、それらをバニッシュする。,-
 PR-K032,ビカム・ユー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K032.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,メインフェイズ,0,-,-,0,以下の２つから１つを選ぶ。①あなたのセンタールリグが対戦相手のセンタールリグのレベル以下の場合、あなたのセンタールリグはグロウする。ターン終了時まで、あなたのすべてのキーは能力を失う。（グロウコストは支払う）②あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加え、カードを１枚引く。,-
@@ -347,14 +586,18 @@ PR-K035,花蕾の巫女　ユキ,https://www.takaratomy.co.jp/products/wixoss/im
 PR-K036,爪牙　遊月・零,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K036.jpg,ルリグ,ユヅキ,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K037,英血の器　優羽莉　Ｌｖ０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K037.jpg,ルリグ,LoV,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-K038,大装　フェリシア,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K038.jpg,シグニ,精武：アーム,赤,3,-,-,-,7000,-,-,-,0,-,-,1,【常】：あなたのライフクロスが２枚以下であるかぎり、このシグニのパワーは＋3000される。【自】：あなたのライフクロスが０枚になったとき、対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】：あなたは手札をすべて捨てる。この方法で１枚以上のカードを捨てた場合、カードを２枚引く。,：どちらか１つ選ぶ。①カードを１枚引く。②【エナチャージ１】
+PR-K039,エルドラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K039.jpg,ルリグ,エルドラ,青,0,《青》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K040,ユキ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K040.jpg,ルリグ,イオナ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
+PR-K041,遊月,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K041.jpg,ルリグ,ユヅキ,緑,0,《緑》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K042,優羽莉,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K042.jpg,ルリグ,LoV,赤,0,《赤》×０,-,0,-,-,-,-,0,3,-,0,-,-
 PR-K043,爪英の忠誠　風の姉妹,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K043.jpg,シグニ,精像：英知,緑,3,-,-,-,7000,-,-,-,0,-,-,1,【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、手札からレベルの合計が７になるようにシグニを好きな枚数捨ててもよい。そうした場合、それをデッキの一番下に置く。【出】《無》《無》《無》：あなたのデッキからレベルの合計が５の無色ではないシグニ２枚を探して公開し手札に加え、デッキをシャッフルする。,：どちらか１つ選ぶ。①カードを１枚引く。②【エナチャージ１】
 PR-K044,焔型闘娘　花代＆緑子,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K044.jpg,キー,-,赤緑,-,-,《コイン》×２《赤》×１《緑》×１《無》×１,-,-,-,-,-,0,-,-,0,【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをバニッシュし、【エナチャージ１】をする。【出】：以下の３つから２つまで選ぶ。①あなたの赤か緑のシグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】を得る。②対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。③あなたのトラッシュから赤か緑のカードを合計２枚まで対象とし、それらを手札に加える。,-
 PR-K045,ドント・リブミー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K045.jpg,アーツ,-,青,-,-,《青》×１,-,-,-,-,アタックフェイズ,0,-,-,0,ベット―《コインアイコン》《コインアイコン》対戦相手のシグニ１体を対象とし、それをダウンする。あなたがベットしていた場合、代わりに対戦相手のシグニ２体を対象とし、それらをダウンする。,-
 PR-K046,ユーリア・シャルデット,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K046.jpg,キー,-,無,-,《コイン》×１,-,-,-,-,-,-,0,-,-,0,【起】《ターン１回》《無》：スペルのカード名１つを宣言する。次の対戦相手のターンの間、対戦相手は宣言されたカード名のスペルを使用できない。【起】《メインフェイズアイコン》《アタックフェイズアイコン》《スペルカットインアイコン》このキーを場からルリグトラッシュに置く：対戦相手のシグニ１体を対象とし、それをバニッシュする。その後、対戦相手のトラッシュにあるカード１枚を対象とし、それをゲームから除外する。,-
+,,,,,,,,,,,,,,,,,,,
 PR-K048,５ｔｈ　Ａｎｎｉｖ．Ｈｅｒｏｉｎｅｓ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K048.jpg,キー,-,白赤青,-,-,《コイン》×１《無》×３,-,-,-,-,-,0,-,-,0,このキーを場に出すための《無》コストは白か赤か青でしか支払えない。【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード３：あなたのデッキからシグニを３枚まで探して場に出し、デッキをシャッフルする。【出】：対戦相手のシグニ１体を対象とし、それを手札に戻す。対戦相手の手札を１枚見ないで選び、捨てさせる。あなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
 PR-K049,エルフの聖者　セイラ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K049.jpg,シグニ,精像：英知,黒,2,-,-,-,5000,-,-,-,0,-,-,1,【自】：このシグニがアタックしたとき、あなたと対戦相手のデッキの一番下のカードをトラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が６以上の場合、ターン終了時まで、このシグニの正面のシグニのパワーを－5000する。,：カードを１枚引く。
+,,,,,,,,,,,,,,,,,,,
 PR-K051,暴風警報,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K051.jpg,アーツ,-,緑,-,-,《緑》×２,-,-,-,-,アタックフェイズ,0,-,-,0,このターン、対戦相手のシグニかセンタールリグがアタックしたとき、そのアタックがこのターン一度目か二度目の場合、そのアタックを無効にする。,-
 PR-K052,奏世の鍵主　ウムル＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K052.jpg,ルリグ,ウムル,青,0,《青》×０,-,0,-,-,アンシエント・サプライズ,-,0,-,-,0,-,-
 PR-K053,奏世の鍵主　ステコ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K053.jpg,ルリグ,ウムル,青,0,《青》×０,-,0,-,-,アンシエント・サプライズ,-,0,-,-,0,-,-
@@ -365,15 +608,26 @@ PR-K057,紗倉ひびき,https://www.takaratomy.co.jp/products/wixoss/img/card/PR
 PR-K058,美兎＆楓＆凛　レベル０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K058.jpg,ルリグ,にじさんじ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K059,奏でし者　タウィル＝ノル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K059.jpg,ルリグ,タウィル,赤,0,《赤》×０,-,0,-,-,アンシエント・サプライズ,-,0,-,-,0,-,-
 PR-K060,虚鍵の閻魔　ウリス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K060.jpg,キー,-,無,-,-,《コイン》×１,-,-,-,-,-,0,-,-,0,このキーはあなたのエナゾーンにあるカードが持つ色が合計３種類以上ある場合にしか新たに場に出せない。【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード４：あなたの手札を１枚選ぶ。対戦相手は《白2》2《赤2》2《青2》2《緑2》2《黒2》2《無2》2から１つを宣言する。そのカードを公開し、それが宣言されたアイコンを持つカードではない場合、対戦相手のすべてのシグニをトラッシュに置く。【常】：あなたは限定条件を無視してアーツを使用できる。,-
+PR-K061,美兎＆楓＆凛　レベル０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K061.jpg,ルリグ,にじさんじ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K062,ＹＳマリン＝ハッチ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K062.jpg,ルリグ,ミュウ,黒,0,《黒》×０,-,0,-,-,-,-,0,-,-,0,-,-
+,,,,,,,,,,,,,,,,,,,
 PR-K064,コードアンチ　ラティナ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K064.jpg,シグニ,精械：古代兵器,白,2,-,-,-,5000,-,-,-,0,-,-,1,【出】アップ状態のセンタールリグ１体をダウンする：以下の３つから１つを選ぶ。①あなたのデッキからあなたのセンタールリグと共通する色を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。③対戦相手の手札を１枚見ないで選び、捨てさせる。,：カードを１枚引く。
+,,,,,,,,,,,,,,,,,,,
 PR-K066,歳月不待,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K066.jpg,アーツ,-,緑,-,-,《緑》×３,-,-,-,-,メインフェイズ,0,-,-,0,あなたのすべてのシグニを場からトラッシュに置き、手札をすべて捨てる。その後、カードを５枚引き、あなたのデッキの一番上のカードをライフクロスに加える。,-
+PR-K067,美兎＆楓＆凛　レベル０,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K067.jpg,ルリグ,にじさんじ,白,0,《白》×０,-,0,-,-,-,-,0,-,-,0,-,-
 PR-K068,祝福の五光,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K068.jpg,スペル,-,赤,-,-,《赤》×２《無》×１,-,-,-,-,-,0,-,-,0,このスペルの使用コストは対戦相手のコイン１枚につき《赤×1》減る。以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをバニッシュする。そうした場合、カードを１枚引くか【エナチャージ１】をする。②カードを５枚引く。対戦相手はあなたの手札を２枚見ないで選び、あなたはそれらを捨てる。,-
+,,,,,,,,,,,,,,,,,,,
 PR-K070,札探の蒼天　メイ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K070.jpg,シグニ,精像：天使,青,2,-,-,-,5000,-,-,-,0,-,-,1,【出】エナゾーンからカード１枚をトラッシュに置く：あなたのデッキから、この方法でトラッシュに置いたカードと共通するクラスを持つ無色ではないレベル３以下のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。【起】《ターン１回》《青×0》：対戦相手は手札を公開する。対戦相手はあなたのルリグデッキからカード１枚を見ないで選び、あなたはそれを公開する。,：カードを１枚引く。
+,,,,,,,,,,,,,,,,,,,
 PR-K072,パワー・オブ・ヒロインズ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K072.jpg,アーツ,-,青,-,-,《青》×１《無》×１,-,-,-,-,メインフェイズアタックフェイズ,0,-,-,0,ベット―《コインアイコン》以下の２つから１つを選ぶ。あなたがベットしていた場合、代わりに２つ選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンする。カードを１枚引く。②あなたの手札から＜調理＞のシグニ１枚を場に出す。ターン終了時まで、そのシグニは能力を失う。その後、あなたのデッキから＜調理＞のシグニ１枚を探して対象のあなたの＜調理＞のシグニ１体の【アクセ】にし、デッキをシャッフルする。,-
 PR-K073,コードＶＬ　花畑チャイカ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K073.jpg,シグニ,精械：電機,黒,3,-,-,-,7000,-,-,-,0,-,-,1,【出】：あなたの場にレベル２、レベル３、レベル４のシグニがある場合、以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。②あなたのデッキから《コードＶＬ　花畑チャイカ》以外の＜電機＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,：あなたのトラッシュからレベル２の＜電機＞のシグニ１枚を対象とし、それを場に出す。
+PR-K074,サーバント　Ｏ２,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K074.jpg,シグニ,精元,無,1,-,-,-,1000,-,-,-,1,-,-,0,【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：【マルチエナ】（エナコストを支払う際、このカードは好きな色１つとして支払える）,-
+PR-K075,応諾の鍵主　ウムル,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K075.jpg,キー,-,黒,-,-,《コイン》×２《無》×３,-,-,-,-,-,0,-,-,0,【常】：あなたのセンタールリグは以下の能力を得る。【起】《ターン１回》《アタックフェイズアイコン》エクシード１：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。【起】《ターン１回》《アタックフェイズアイコン》エクシード２：対戦相手のシグニを２体まで対象とし、あなたのデッキの上からカードを９枚トラッシュに置く。この方法でカードが９枚トラッシュに置かれた場合、ターン終了時まで、それらのパワーを合わせて－18000する。この効果では1000単位でしか数字を割り振ることができない。【起】このキーを場からルリグトラッシュに置く：あなたのトラッシュからシグニ１体を対象とし、それを手札に加える。,-
 PR-K076,大装　ネメシス,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K076.jpg,シグニ,精武：アーム,黒,3,-,-,-,7000,-,-,-,0,-,-,1,【自】：このシグニがバニッシュされたとき、対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。そうした場合、それをバニッシュする。【起】《黒》このシグニを場からトラッシュに置く：あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000し、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニのパワーと同じだけ－（マイナス）する。」を得る。,：このターンにアタックした対戦相手のシグニ１体を対象とし、それをバニッシュする。
 PR-K077,紡ぐ鍵,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K077.jpg,キー,-,無,-,-,《コイン》×１,-,-,-,-,-,0,-,-,0,【常】：あなたのセンタールリグは以下の能力を得る。【起】エクシード１：次のターンの間、対戦相手のルリグはあなたにダメージを与えない。【起】《アタックフェイズアイコン》エクシード３：ターン終了時まで、あなたのセンタールリグは「【自】：対戦相手のシグニ１体がアタックしたとき、手札からそのシグニと同じレベルのシグニを１枚捨ててもよい。そうした場合、そのアタックしているシグニはこのアタックであなたにダメージを与えない。」を得る。,-
 PR-K078,炎魔の冥土　アイリ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K078.jpg,シグニ,精像：悪魔,赤,3,-,-,-,7000,-,-,-,0,-,-,1,【自】：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、あなたのデッキの上からカードを３枚公開する。その中からレベル２以下のシグニ１枚を手札に加え、残りを好きな順番でデッキの一番下に置く。【出】：対戦相手はあなたの手札を１枚見ないで選び、あなたはそれを公開する。それが＜悪魔＞かレベル３以上のシグニの場合、ターン終了時まで、このシグニは【ランサー】を得る。,：あなたのトラッシュから＜悪魔＞かレベル３のシグニ１枚を対象とし、それを手札に加える。
+,,,,,,,,,,,,,,,,,,,
 PR-K080,弩書　ザ・ロウ,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K080.jpg,シグニ,精武：ウェポン,黒,4,-,-,-,13000,-,-,-,0,-,-,1,【ライズ】あなたのシグニ２体の上に置く（どちらかのシグニがあるシグニゾーンに出す）【起】《アタックフェイズアイコン》このシグニの下からカード１枚をトラッシュに置く：ターン終了時まで、対戦相手のシグニ１体のパワーを－４０００する。【起】《ターン１回》《無》：あなたのトラッシュからシグニ１枚を手札に加える。,：あなたのトラッシュからシグニ１枚を手札に加える。
+,,,,,,,,,,,,,,,,,,,
 PR-K082,メンダコギロチン,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K082.jpg,アーツ,-,白黒,-,-,《白/黒》×２,-,-,-,-,メインフェイズアタックフェイズスペルカットイン,0,-,-,0,以下の５つから２つまで選ぶ。①このターン、対戦相手はスペルを使用できない。②対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。③対戦相手のトラッシュにあるカードを３枚まで対象とし、それらをゲームから除外する。④対戦相手のシグニ１体を対象とし、それをトラッシュに置く。手札を２枚捨てる。⑤あなたのデッキの上からカードを２枚トラッシュに置く。その後、あなたのトラッシュから白か黒のシグニを合計２枚まで対象とし、それらを手札に加える。,-
+PR-K083,ビカム・ユー,https://www.takaratomy.co.jp/products/wixoss/img/card/PR/PR-K083.jpg,アーツ,-,無,-,-,《無》×０,-,-,-,-,メインフェイズ,0,-,-,0,以下の２つから１つを選ぶ。①あなたのセンタールリグが対戦相手のセンタールリグのレベル以下の場合、あなたのセンタールリグはグロウする。ターン終了時まで、あなたのすべてのキーは能力を失う。（グロウコストは支払う）②あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加え、カードを１枚引く。,-
