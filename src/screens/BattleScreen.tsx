@@ -672,11 +672,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   useEffect(() => {
     if (!bs || !isCpuBattle || bs.global_phase !== 'PLAYING') return;
     if (bs.pending_effect || bs.effect_stack) return;
-    // ATTACK_ARTS_OPは非ターンプレイヤー（人間）が担当するのでCPUは動かない
-    if (bs.turn_phase === 'ATTACK_ARTS_OP') return;
     const cpuSt = bs.guest_state;
     const isCpuTurn = bs.active_user_id === CPU_PLAYER_ID;
-    if (!isCpuTurn && !cpuSt.field?.check && !cpuSt.field?.lrig_attacked) return;
+    // ATTACK_ARTS_OPはCPUがターンプレイヤーのとき人間が担当→CPU動かない
+    // CPUが非ターンプレイヤーのときはCPUが担当→動く
+    if (bs.turn_phase === 'ATTACK_ARTS_OP' && isCpuTurn) return;
+    if (!isCpuTurn && bs.turn_phase !== 'ATTACK_ARTS_OP' && !cpuSt.field?.check && !cpuSt.field?.lrig_attacked) return;
     if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
     cpuTimerRef.current = setTimeout(() => { cpuTurnRef.current?.(); }, CPU_ACTION_DELAY);
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
