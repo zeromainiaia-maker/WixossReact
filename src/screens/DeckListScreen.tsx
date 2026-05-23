@@ -43,7 +43,7 @@ export default function DeckListScreen({ decks, cards, onCreateDeck, onEditDeck,
               <div key={deck.id} onClick={() => onEditDeck(deck.id)} style={deckCardStyle}>
                 <div style={{ width: '100%', aspectRatio: '3/4', backgroundColor: '#1a1a2e', borderRadius: '4px', overflow: 'hidden', marginBottom: '12px' }}>
                   {thumbnail ? (
-                    <img src={thumbnail.ImgURL} alt={thumbnail.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    <img src={thumbnail.ImgURL} alt={thumbnail.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
                   ) : (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: '12px' }}>NO IMAGE</div>
                   )}
