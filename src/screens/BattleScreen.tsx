@@ -3474,6 +3474,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newCpuSt = { ...newCpuSt, energy: newEnergy };
         }
 
+        appendBattleLogs([`[CPU] シグニ配置: ${candidate.card!.CardName}（ゾーン${zone + 1}）`]);
         const newSigni = [...newCpuSt.field.signi] as (string[] | null)[];
         newSigni[zone] = [candidate.id];
         newCpuSt = {
