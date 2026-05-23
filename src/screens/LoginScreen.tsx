@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
-const toFakeEmail = (username: string) =>
-  `${username.toLowerCase().trim()}@wixoss.game`;
+const toFakeEmail = (username: string): string => {
+  const bytes = new TextEncoder().encode(username.trim());
+  const binary = Array.from(bytes, b => String.fromCharCode(b)).join('');
+  const base64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return `${base64}@wixoss.game`;
+};
 
 function toJapaneseAuthError(message: string): string {
   const m = message.toLowerCase();
