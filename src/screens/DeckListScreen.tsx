@@ -45,7 +45,7 @@ export default function DeckListScreen({ decks, cards, onCreateDeck, onEditDeck,
           {decks.map(deck => {
             const thumbnail = deck.thumbnailCardNum ? getCard(deck.thumbnailCardNum) : null;
             return (
-              <div key={deck.id} onClick={() => onEditDeck(deck.id)} style={deckCardStyle}>
+              <div key={deck.id} onClick={() => isCpuMode ? onCpuSelect?.(deck.id) : onEditDeck?.(deck.id)} style={{ ...deckCardStyle, borderColor: isCpuMode ? '#1a7a3a' : undefined }}>
                 <div style={{ width: '100%', aspectRatio: '3/4', backgroundColor: '#1a1a2e', borderRadius: '4px', overflow: 'hidden', marginBottom: '12px' }}>
                   {thumbnail ? (
                     <img src={thumbnail.ImgURL} alt={thumbnail.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
