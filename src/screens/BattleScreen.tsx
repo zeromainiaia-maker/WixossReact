@@ -3584,6 +3584,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ATTACK_LRIGフェイズ：ルリグアタック ───
     if (phase === 'ATTACK_LRIG') {
       if (!cpuSt.field.lrig_down) {
+        const cpuLrigNum = cpuSt.field.lrig.at(-1) ? getCardNum(cpuSt.field.lrig.at(-1)!) : null;
+        const cpuLrigCard = cpuLrigNum ? battleCardMap.get(cpuLrigNum) : null;
+        appendBattleLogs([`[CPU] ルリグアタック: ${cpuLrigCard?.CardName ?? 'ルリグ'}`]);
         const newCpuSt: PlayerState = { ...cpuSt, field: { ...cpuSt.field, lrig_down: true } };
         const newHuSt: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true } };
         await supabase.from('battle_states').update({
