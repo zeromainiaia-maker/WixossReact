@@ -213,6 +213,15 @@ export default function App() {
           onBack={() => { setBattleRoomId(null); setBattleDeckId(null); setViewMode('START'); }}
         />
       )}
+      {viewMode === 'CPU_BATTLE' && user && cpuBattleDeckId && (
+        <CpuBattleScreen
+          user={user}
+          myDeckId={cpuBattleDeckId}
+          decks={decks}
+          cards={allCards}
+          onBack={() => { setCpuBattleDeckId(null); setViewMode('START'); }}
+        />
+      )}
     </>
   );
 }
