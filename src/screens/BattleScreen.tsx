@@ -3135,6 +3135,423 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   resolveStackNextRef.current       = resolveStackNext;
   checkPowerZeroBanishRef.current   = checkAndBanishPowerZero;
 
+  // ══════════════════════════════════════════
+  // CPU AI ロジック
+  // ══════════════════════════════════════════
+
+  // CPU セットアップ自動行動
+  const cpuSetupAction = async () => {
+    if (!bs) return;
+    const phase = bs.setup_phase;
+
+    // ① じゃんけん：グー/チョキ/パーをランダム選択
+    if (phase === 'JAN_KEN') {
+      const choices = ['グー', 'チョキ', 'パー'];
+      const pick = choices[Math.floor(Math.random() * 3)];
+      await supabase.from('battle_states').update({ guest_janken: pick }).eq('room_id', roomId);
+      return;
+    }
+
+    // ② ルリグ選択：Lv.0ルリグの先頭を選択
+    if (phase === 'LRIG_SELECT' && cpuDeckData) {
+      const lrigWithIds = assignInstanceIds(cpuDeckData.lrig_deck);
+      const mainWithIds = assignInstanceIds(shuffle(cpuDeckData.main_deck));
+
+      // Lv.0ルリグを探す
+      const lv0Idx = cpuDeckData.lrig_deck.findIndex(num => {
+        const c = cards.find(card => card.CardNum === num);
+        return c?.Type === 'ルリグ' && c.Level === '0';
+      });
+      if (lv0Idx < 0) return;
+
+      const selectedId = lrigWithIds[lv0Idx];
+      const lrigDeckIds = lrigWithIds.filter((_, i) => i !== lv0Idx);
+
+      const cpuState: PlayerState = {
+        life_cloth: [], hand: mainWithIds.slice(0, 5), deck: mainWithIds.slice(5),
+        lrig_deck: lrigDeckIds, trash: [], lrig_trash: [], energy: [], coins: 0,
+        field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
+      };
+      await supabase.from('battle_states').update({
+        guest_lrig_selected: cpuDeckData.lrig_deck[lv0Idx],
+        guest_state: cpuState,
+      }).eq('room_id', roomId);
+      return;
+    }
+
+    // ③ マリガン：マリガンせず、ライフクロスを7枚セット
+    if (phase === 'MULLIGAN') {
+      const cpuSt = bs.guest_state;
+      const newLifeCloth = cpuSt.deck.slice(0, 7);
+      const newDeck = cpuSt.deck.slice(7);
+      const newCpuSt: PlayerState = { ...cpuSt, deck: newDeck, life_cloth: newLifeCloth };
+
+      await supabase.from('battle_states').update({
+        guest_state: newCpuSt,
+        guest_mulligan_done: true,
+      }).eq('room_id', roomId);
+
+      // 両者完了チェック
+      const { data: fresh } = await supabase
+        .from('battle_states').select('host_mulligan_done, guest_mulligan_done, first_player_id')
+        .eq('room_id', roomId).single();
+      if (fresh?.host_mulligan_done && fresh?.guest_mulligan_done) {
+        await supabase.from('battle_states').update({
+          global_phase: 'PLAYING',
+          setup_phase: null,
+          active_user_id: fresh.first_player_id as string,
+        }).eq('room_id', roomId);
+      }
+    }
+  };
+  cpuSetupRef.current = cpuSetupAction;
+
+  // CPU ターン自動行動
+  const cpuTurnAction = async () => {
+    if (!bs || bs.global_phase !== 'PLAYING') return;
+    const cpuSt = bs.guest_state;   // CPUは常にguest
+    const huSt  = bs.host_state;    // 人間は常にhost
+    const isCpuTurnNow = bs.active_user_id === CPU_PLAYER_ID;
+
+    // ─── ライフバースト確認（チェックゾーンのカードを処理）───
+    if (cpuSt.field?.check) {
+      const cardNum = cpuSt.field.check;
+      const cardData = cards.find(c => c.CardNum === getCardNum(cardNum));
+      // CPUはライフバーストを常に発動しない（エナに送るだけ）
+      const newCpuSt: PlayerState = {
+        ...cpuSt,
+        energy: [...cpuSt.energy, cardNum],
+        field: { ...cpuSt.field, check: null },
+      };
+      await supabase.from('battle_states').update({
+        guest_state: newCpuSt,
+        pending_effect: null,
+      }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── ルリグアタックのガード応答（CPUがlrig_attackedされている）───
+    if (cpuSt.field?.lrig_attacked) {
+      // CPUはガードしない
+      let newCpuSt: PlayerState;
+      if (cpuSt.life_cloth.length > 0) {
+        const crashed = cpuSt.life_cloth[cpuSt.life_cloth.length - 1];
+        newCpuSt = {
+          ...cpuSt,
+          life_cloth: cpuSt.life_cloth.slice(0, -1),
+          field: { ...cpuSt.field, lrig_attacked: false, check: crashed },
+        };
+      } else {
+        // ライフなし → 人間の勝利
+        await supabase.from('battle_states').update({
+          guest_state: { ...cpuSt, field: { ...cpuSt.field, lrig_attacked: false } },
+          winner_id: user.id,
+          global_phase: 'FINISHED',
+        }).eq('room_id', roomId);
+        return;
+      }
+      await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+      return;
+    }
+
+    if (!isCpuTurnNow) return;
+
+    const phase = bs.turn_phase;
+
+    // ─── UPフェイズ（ドロー）───
+    if (phase === 'UP') {
+      const newCpuSt = drawCards(cpuSt, drawCount);
+      await supabase.from('battle_states').update({
+        guest_state: { ...newCpuSt, actions_done: ['DRAW'] },
+        turn_phase: 'DRAW',
+      }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── DRAWフェイズ → ENERGYへ ───
+    if (phase === 'DRAW') {
+      await supabase.from('battle_states').update({ turn_phase: 'ENERGY' }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── ENERGYフェイズ：手札の先頭1枚をエナチャージ ───
+    if (phase === 'ENERGY') {
+      const used    = cpuSt.actions_done?.includes('ENERGY') ?? false;
+      const blocked = cpuSt.blocked_actions?.includes('ENERGY') ?? false;
+      if (!used && !blocked && cpuSt.hand.length > 0) {
+        const charged = cpuSt.hand[0];
+        const newCpuSt: PlayerState = {
+          ...cpuSt,
+          hand: cpuSt.hand.slice(1),
+          energy: [...cpuSt.energy, charged],
+          actions_done: [...(cpuSt.actions_done ?? []), 'ENERGY'],
+        };
+        await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+        // 少し待ってGROWへ進む
+        await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
+      }
+      await supabase.from('battle_states').update({ turn_phase: 'GROW' }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── GROWフェイズ：グロウ可能なら最初の候補でグロウ ───
+    if (phase === 'GROW') {
+      const grew    = cpuSt.actions_done?.includes('GROW') ?? false;
+      const blocked = cpuSt.blocked_actions?.includes('GROW') ?? false;
+      if (!grew && !blocked) {
+        const cpuLrigs = cpuSt.lrig_deck.filter((num, i, arr) => arr.indexOf(num) === i);
+        const currentLrigId = cpuSt.field.lrig.at(-1) ?? null;
+        const currentLrigNum = currentLrigId ? getCardNum(currentLrigId) : null;
+        const currentLrigCard = currentLrigNum ? cards.find(c => c.CardNum === currentLrigNum) : null;
+        const currentLevel = currentLrigCard ? parseInt(currentLrigCard.Level) || 0 : 0;
+
+        const growTarget = cpuLrigs.find(num => {
+          const c = cards.find(card => card.CardNum === num);
+          if (!c || c.Type !== 'ルリグ') return false;
+          if (parseInt(c.Level) !== currentLevel + 1) return false;
+          return canAffordGrowCost(cpuSt.energy, battleCards, c.GrowCost);
+        });
+
+        if (growTarget) {
+          const growCard = cards.find(c => c.CardNum === growTarget)!;
+          const costs = parseGrowCost(growCard.GrowCost);
+          // エナから支払い
+          let newEnergy = [...cpuSt.energy];
+          for (const { color, count } of costs) {
+            let paid = 0;
+            newEnergy = newEnergy.filter(eNum => {
+              if (paid >= count) return true;
+              const eCard = cards.find(c => c.CardNum === getCardNum(eNum));
+              const eColor = eCard?.Color ?? '';
+              if (color === '無' || eColor.includes(color)) { paid++; return false; }
+              return true;
+            });
+          }
+          // lrig_deckからグロウ対象を取り出す
+          const newLrigDeck = cpuSt.lrig_deck.filter(num => num !== growTarget);
+          const lrigWithIds = assignInstanceIds(cpuSt.lrig_deck);
+          const growIdx = cpuSt.lrig_deck.indexOf(growTarget);
+          const growInstanceId = growIdx >= 0 ? lrigWithIds[growIdx] : `${growTarget}#1`;
+          const newCpuSt: PlayerState = {
+            ...cpuSt,
+            energy: newEnergy,
+            lrig_deck: newLrigDeck,
+            field: { ...cpuSt.field, lrig: [...cpuSt.field.lrig, growInstanceId] },
+            actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
+          };
+          await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+          await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
+        }
+      }
+      await supabase.from('battle_states').update({ turn_phase: 'MAIN' }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── MAINフェイズ：シグニを手札から召喚（空きゾーンに1枚ずつ）───
+    if (phase === 'MAIN') {
+      if (bs.turn_count === 1) {
+        // 先攻1ターン目はMAINからENDへ
+        await supabase.from('battle_states').update({ turn_phase: 'END' }).eq('room_id', roomId);
+        return;
+      }
+      const cpuLrigId = cpuSt.field.lrig.at(-1) ?? null;
+      const cpuLrigNum = cpuLrigId ? getCardNum(cpuLrigId) : null;
+      const cpuLrigCard = cpuLrigNum ? cards.find(c => c.CardNum === cpuLrigNum) : null;
+      const cpuLimit = parseInt(cpuLrigCard?.Limit ?? '0') || 0;
+
+      // 現在のフィールドのシグニの合計レベル
+      let fieldTotal = 0;
+      for (const stack of cpuSt.field.signi) {
+        if (!stack?.length) continue;
+        const topNum = getCardNum(stack[stack.length - 1]);
+        const topCard = cards.find(c => c.CardNum === topNum);
+        fieldTotal += parseInt(topCard?.Level ?? '0') || 0;
+      }
+
+      // 手札のシグニをコストの低い順（レベル低い順）でフィルタ
+      const handSignis = cpuSt.hand
+        .map((id, idx) => ({ id, idx, card: cards.find(c => c.CardNum === getCardNum(id)) }))
+        .filter(({ card }) => card && card.Type === 'シグニ')
+        .sort((a, b) => (parseInt(a.card!.Level) || 0) - (parseInt(b.card!.Level) || 0));
+
+      let newCpuSt = { ...cpuSt };
+      let changed = false;
+
+      for (let zone = 0; zone < 3; zone++) {
+        if ((newCpuSt.field.signi[zone] ?? []).length > 0) continue; // ゾーン埋まってる
+        if (handSignis.length === 0) break;
+
+        // 召喚できるシグニを探す（リミット内）
+        const candidate = handSignis.find(({ card }) => {
+          const lv = parseInt(card!.Level) || 0;
+          return fieldTotal + lv <= cpuLimit;
+        });
+        if (!candidate) break;
+
+        // エナ支払い（シグニのコスト）
+        const signiCosts = parseGrowCost(candidate.card!.Cost);
+        if (signiCosts.length > 0) {
+          let canPay = true;
+          let newEnergy = [...newCpuSt.energy];
+          for (const { color, count } of signiCosts) {
+            let paid = 0;
+            const after = newEnergy.filter(eNum => {
+              if (paid >= count) return true;
+              const eCard = cards.find(c => c.CardNum === getCardNum(eNum));
+              const eColor = eCard?.Color ?? '';
+              if (color === '無' || eColor.includes(color)) { paid++; return false; }
+              return true;
+            });
+            if (paid < count) { canPay = false; break; }
+            newEnergy = after;
+          }
+          if (!canPay) {
+            handSignis.splice(handSignis.indexOf(candidate), 1);
+            continue;
+          }
+          newCpuSt = { ...newCpuSt, energy: newEnergy };
+        }
+
+        const newSigni = [...newCpuSt.field.signi] as (string[] | null)[];
+        newSigni[zone] = [candidate.id];
+        newCpuSt = {
+          ...newCpuSt,
+          hand: newCpuSt.hand.filter(id => id !== candidate.id),
+          field: { ...newCpuSt.field, signi: newSigni },
+        };
+        const lv = parseInt(candidate.card!.Level) || 0;
+        fieldTotal += lv;
+        handSignis.splice(handSignis.indexOf(candidate), 1);
+        changed = true;
+      }
+
+      if (changed) {
+        await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+        await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
+      }
+
+      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_ARTS' }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── ATTACK_ARTSフェイズ：アーツ不使用でスキップ ───
+    if (phase === 'ATTACK_ARTS') {
+      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_ARTS_OP' }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── ATTACK_ARTS_OPフェイズ（非ターンプレイヤー=人間が担当）：CPU関係なし ───
+    // このフェイズは人間が応答する。人間がATTACK_SIGNIへ進める。
+    // ATTACK_ARTS_OPのactive制御が人間側なのでCPUはここでは何もしない。
+
+    // ─── ATTACK_SIGNIフェイズ：全シグニでアタック ───
+    if (phase === 'ATTACK_SIGNI') {
+      // まだダウンしていないシグニを1枚ずつアタック
+      const signiDown = cpuSt.field.signi_down ?? [false, false, false];
+      const firstUp = cpuSt.field.signi.findIndex((stack, i) =>
+        (stack ?? []).length > 0 && !signiDown[i]
+      );
+
+      if (firstUp >= 0) {
+        const opZone = 2 - firstUp; // 正面ゾーン（反転）
+        const opStack = huSt.field.signi[opZone] ?? [];
+        const opTopNum = opStack.length > 0 ? opStack[opStack.length - 1] : null;
+
+        const myTopNum = (cpuSt.field.signi[firstUp] ?? []).at(-1)!;
+        const myPower = parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0;
+        const opPower = opTopNum ? (parseInt(battleCardMap.get(opTopNum)?.Power ?? '0') || 0) : 0;
+
+        const newSigniDown = [...signiDown];
+        newSigniDown[firstUp] = true;
+        let newCpuSt: PlayerState = { ...cpuSt, field: { ...cpuSt.field, signi_down: newSigniDown } };
+        let newHuSt = huSt;
+
+        if (opTopNum && myPower < opPower) {
+          // バトル負け：何もしない（シグニはダウンのみ）
+        } else if (opTopNum) {
+          // バトル勝ち：相手シグニバニッシュ → エナへ
+          const newOpSigni = [...huSt.field.signi] as (string[] | null)[];
+          newOpSigni[opZone] = null;
+          newHuSt = {
+            ...huSt,
+            energy: [...huSt.energy, opTopNum],
+            field: { ...huSt.field, signi: newOpSigni },
+          };
+        } else {
+          // 正面シグニなし：ライフクロスをクラッシュ
+          if (huSt.life_cloth.length > 0) {
+            const crashed = huSt.life_cloth[huSt.life_cloth.length - 1];
+            newHuSt = {
+              ...huSt,
+              life_cloth: huSt.life_cloth.slice(0, -1),
+              field: { ...huSt.field, check: crashed },
+            };
+          } else {
+            // 人間のライフなし → CPUの勝利
+            await supabase.from('battle_states').update({
+              guest_state: newCpuSt,
+              host_state: huSt,
+              winner_id: CPU_PLAYER_ID,
+              global_phase: 'FINISHED',
+            }).eq('room_id', roomId);
+            return;
+          }
+        }
+
+        await supabase.from('battle_states').update({
+          guest_state: newCpuSt,
+          host_state: newHuSt,
+        }).eq('room_id', roomId);
+        return; // 次のuseEffectトリガーで残りのシグニをアタック
+      }
+
+      // 全シグニアタック完了 → ATTACK_LRIGへ
+      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_LRIG' }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── ATTACK_LRIGフェイズ：ルリグアタック ───
+    if (phase === 'ATTACK_LRIG') {
+      if (!cpuSt.field.lrig_down) {
+        const newCpuSt: PlayerState = { ...cpuSt, field: { ...cpuSt.field, lrig_down: true } };
+        const newHuSt: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true } };
+        await supabase.from('battle_states').update({
+          guest_state: newCpuSt,
+          host_state: newHuSt,
+        }).eq('room_id', roomId);
+        return;
+      }
+      // ルリグアタック済み → ENDへ
+      await supabase.from('battle_states').update({ turn_phase: 'END' }).eq('room_id', roomId);
+      return;
+    }
+
+    // ─── ENDフェイズ：ターン終了処理 ───
+    if (phase === 'END') {
+      const nextHuSt = { ...huSt, field: {
+        ...huSt.field,
+        signi_down:   [false, false, false] as boolean[],
+        signi_frozen: [false, false, false] as boolean[],
+        lrig_down:    false,
+        lrig_frozen:  false,
+      }};
+      const cleanCpuSt: PlayerState = {
+        ...cpuSt,
+        temp_power_mods: [], keyword_grants: {}, blocked_actions: [], actions_done: [],
+        pending_crashed_cards: [], must_attack_signi: undefined, prevent_next_damage: undefined,
+        cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
+      };
+      await supabase.from('battle_states').update({
+        guest_state: cleanCpuSt,
+        host_state: nextHuSt,
+        turn_phase: 'UP',
+        active_user_id: user.id,
+        turn_count: bs.turn_count + 1,
+      }).eq('room_id', roomId);
+    }
+  };
+  cpuTurnRef.current = cpuTurnAction;
+
   // ガード応答: handIndex=ガードカードのインデックス、null=ガードしない
   const handleGuardResponse = async (handIndex: number | null) => {
     if (!my.field.lrig_attacked || loading) return;
