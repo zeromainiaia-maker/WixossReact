@@ -5,6 +5,7 @@ import type { ViewMode } from '../types';
 interface Props {
   user: User;
   setViewMode: (mode: ViewMode) => void;
+  onCpuBattle: () => void;
 }
 
 export default function StartScreen({ user, setViewMode }: Props) {
