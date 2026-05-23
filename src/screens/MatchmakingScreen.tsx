@@ -68,58 +68,6 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
     return () => { supabase.removeChannel(channel); };
   }, [room?.id]);
 
-  // CPU対戦：即時ルーム作成 → battle_states 生成 → 対戦開始
-  const handleCpuBattle = async () => {
-    if (!selectedDeckId) return;
-    setLoading(true); setError(null);
-
-    // CPU デッキ：ユーザーの別デッキを使用（なければ同じデッキ）
-    const cpuDeck = validDecks.find(d => d.id !== selectedDeckId) ?? validDecks[0];
-    if (!cpuDeck) { setError('対戦用デッキが見つかりません'); setLoading(false); return; }
-
-    // ルーム作成
-    const { data: roomData, error: roomErr } = await supabase
-      .from('rooms')
-      .insert({
-        host_id: user.id,
-        host_deck_id: selectedDeckId,
-        guest_id: CPU_PLAYER_ID,
-        guest_deck_id: cpuDeck.id,
-        status: 'PLAYING',
-        is_cpu_battle: true,
-        passcode: null,
-      })
-      .select()
-      .single();
-
-    if (roomErr || !roomData) { setError(roomErr?.message ?? '作成失敗'); setLoading(false); return; }
-
-    // battle_states を即時生成（セットアップ画面から開始）
-    const emptyPlayerState = {
-      deck: [], lrig_deck: [], hand: [], life_cloth: [], trash: [], lrig_trash: [],
-      energy: [], coins: 0,
-      field: { lrig: [], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
-    };
-    const { error: bsErr } = await supabase.from('battle_states').insert({
-      room_id: roomData.id,
-      host_id: user.id,
-      guest_id: CPU_PLAYER_ID,
-      global_phase: 'SETUP',
-      setup_phase: 'JAN_KEN',
-      turn_phase: 'UP',
-      active_user_id: null,
-      turn_count: 1,
-      host_state: emptyPlayerState,
-      guest_state: emptyPlayerState,
-      game_logs: [],
-    });
-
-    setLoading(false);
-    if (bsErr) { setError(bsErr.message); return; }
-
-    onBattleStart(roomData.id, selectedDeckId);
-  };
-
   const handleCreateRoom = async () => {
     if (!selectedDeckId) return;
     setLoading(true); setError(null);
@@ -213,12 +161,8 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
   if (step === 'SELECT_MODE') return (
     <div style={wrap}>
       <h2 style={{ color: '#fff', margin: 0 }}>対戦モード選択</h2>
-      <button style={{ ...primaryBtn, backgroundColor: '#28a745' }} onClick={handleCpuBattle} disabled={loading}>
-        CPU対戦（Supabase対戦）
-      </button>
-      <div style={{ width: '100%', maxWidth: 280, borderTop: '1px solid #333', margin: '4px 0' }} />
       <button style={primaryBtn} onClick={handleCreateRoom} disabled={loading}>
-        ルームを作成する（人間対戦）
+        ルームを作成する
       </button>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <p style={{ margin: 0, fontSize: 13, color: '#666' }}>または</p>
