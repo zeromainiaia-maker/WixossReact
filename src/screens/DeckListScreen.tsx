@@ -30,8 +30,10 @@ export default function DeckListScreen({ decks, cards, onCreateDeck, onEditDeck,
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0f', color: '#fff', padding: '24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
         <button onClick={onBack} style={backButtonStyle}>← 戻る</button>
-        <h2 style={{ fontSize: '20px', color: '#007bff' }}>デッキ一覧</h2>
-        <button onClick={() => { setNameInput(''); setShowModal(true); }} style={createButtonStyle}>＋ 新規作成</button>
+        <h2 style={{ fontSize: '20px', color: isCpuMode ? '#1a7a3a' : '#007bff' }}>
+          {isCpuMode ? 'CPU対戦 — デッキ選択' : 'デッキ一覧'}
+        </h2>
+        {!isCpuMode && <button onClick={() => { setNameInput(''); setShowModal(true); }} style={createButtonStyle}>＋ 新規作成</button>}
       </div>
 
       {decks.length === 0 ? (
