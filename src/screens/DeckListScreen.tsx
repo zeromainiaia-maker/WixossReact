@@ -4,12 +4,13 @@ import type { CardData, Deck } from '../types';
 interface Props {
   decks: Deck[];
   cards: CardData[];
-  onCreateDeck: (name: string) => void;
-  onEditDeck: (id: string) => void;
+  onCreateDeck?: (name: string) => void;
+  onEditDeck?: (id: string) => void;
+  onCpuSelect?: (id: string) => void;
   onBack: () => void;
 }
 
-export default function DeckListScreen({ decks, cards, onCreateDeck, onEditDeck, onBack }: Props) {
+export default function DeckListScreen({ decks, cards, onCreateDeck, onEditDeck, onCpuSelect, onBack }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [nameInput, setNameInput] = useState('');
 
