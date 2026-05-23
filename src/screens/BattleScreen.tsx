@@ -1367,7 +1367,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
 
       return (
-        <div style={{ ...setupWrap, justifyContent: 'flex-start', paddingTop: 32, overflowY: 'auto' }}>
+        <>{setupLeaveConfirmModal}<div style={{ ...setupWrap, justifyContent: 'flex-start', paddingTop: 32, overflowY: 'auto' }}>
           <h2 style={{ color: C.text, margin: 0, flexShrink: 0 }}>マリガン</h2>
           <p style={{ color: iAmFirst ? C.accent : C.textAlt, fontWeight: 'bold', margin: 0, flexShrink: 0 }}>
             {iAmFirst ? '先攻' : '後攻'}
