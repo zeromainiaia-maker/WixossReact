@@ -3683,15 +3683,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ起動効果を実行（コスト支払い後）
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>) => {
     if (loading) return;
     setLoading(true);
     setPendingSigniActivated(null);
     setSelectedSigniActivatedCost(new Set());
+    setSelectedSigniActivatedDiscard(new Set());
     try {
       // エナコストを支払う
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // 手札捨てコストを支払う
+      const discardedCards = [...discardCostIndices].map(i => my.hand[i]);
+      const newHand = my.hand.filter((_, i) => !discardCostIndices.has(i));
       // down_self コストの場合はそのゾーンをダウン
       const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
       if (effect.cost?.down_self) {
@@ -3700,8 +3704,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       const paid: PlayerState = {
         ...my,
+        hand: newHand,
         energy: newEnergy,
-        trash: [...my.trash, ...paidNums],
+        trash: [...my.trash, ...paidNums, ...discardedCards],
         field: { ...my.field, signi_down: newSigniDown },
         actions_done: [...(my.actions_done ?? []), effect.effectId],
       };
