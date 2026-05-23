@@ -216,7 +216,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
       </button>
       <div style={{ width: '100%', maxWidth: 280, borderTop: '1px solid #333', margin: '4px 0' }} />
       <button style={primaryBtn} onClick={handleCreateRoom} disabled={loading}>
-        ルームを作成する（人間対戦）
+        ルームを作成する
       </button>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <p style={{ margin: 0, fontSize: 13, color: '#666' }}>または</p>
