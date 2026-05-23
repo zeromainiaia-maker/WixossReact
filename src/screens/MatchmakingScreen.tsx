@@ -211,8 +211,12 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
   if (step === 'SELECT_MODE') return (
     <div style={wrap}>
       <h2 style={{ color: '#fff', margin: 0 }}>対戦モード選択</h2>
+      <button style={{ ...primaryBtn, backgroundColor: '#28a745' }} onClick={handleCpuBattle} disabled={loading}>
+        CPU対戦（Supabase対戦）
+      </button>
+      <div style={{ width: '100%', maxWidth: 280, borderTop: '1px solid #333', margin: '4px 0' }} />
       <button style={primaryBtn} onClick={handleCreateRoom} disabled={loading}>
-        ルームを作成する
+        ルームを作成する（人間対戦）
       </button>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <p style={{ margin: 0, fontSize: 13, color: '#666' }}>または</p>
