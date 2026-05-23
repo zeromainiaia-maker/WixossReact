@@ -426,6 +426,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [showSetupLeaveConfirm, setShowSetupLeaveConfirm] = useState(false);
   const [mulliganSelected, setMulliganSelected] = useState<Set<number>>(new Set());
   const [pendingSigniSummon, setPendingSigniSummon] = useState<{ cardNum: string; handIndex: number } | null>(null);
   const [showEnergySkipConfirm, setShowEnergySkipConfirm] = useState(false);
