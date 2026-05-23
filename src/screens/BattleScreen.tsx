@@ -1240,7 +1240,7 @@ function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardA
           <img
             src={cards.find(c => c.CardNum === getCardNum(freeZoneCards[freeZoneCards.length - 1]))?.ImgURL ?? ''}
             alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrorCard.webp')) img.src = '/ErrorCard.webp'; }} />
           <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
             {freeZoneCards.some(n => state.keyword_grants?.[n]?.includes('チアガール')) && (
               <div style={{ fontSize: 8, color: '#aaddff', fontWeight: 'bold', marginBottom: 2 }}>CHEER</div>
