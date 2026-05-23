@@ -1054,16 +1054,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       if (myJanken) return (
-        <div style={setupWrap}>
+        <>{setupLeaveConfirmModal}<div style={setupWrap}>
           <h2 style={{ color: C.text, margin: 0 }}>じゃんけん</h2>
           <p style={{ color: C.success }}>あなた: {JANKEN_LABEL[myJanken]}</p>
           <p style={{ color: C.textFaint }}>相手の選択を待っています...</p>
           {setupLeaveBtn}
-        </div>
+        </div></>
       );
 
       return (
-        <div style={setupWrap}>
+        <>{setupLeaveConfirmModal}<div style={setupWrap}>
           <h2 style={{ color: C.text, margin: 0 }}>じゃんけんで先攻後攻を決めます</h2>
           <p style={{ color: C.textDim, margin: 0, fontSize: 13 }}>出す手を選んでください</p>
           <div style={{ display: 'flex', gap: 16 }}>
@@ -1075,7 +1075,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ))}
           </div>
           {setupLeaveBtn}
-        </div>
+        </div></>
       );
     }
 
