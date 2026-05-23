@@ -3486,9 +3486,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return;
     }
 
-    // ─── ATTACK_ARTS_OPフェイズ（非ターンプレイヤー=人間が担当）：CPU関係なし ───
-    // このフェイズは人間が応答する。人間がATTACK_SIGNIへ進める。
-    // ATTACK_ARTS_OPのactive制御が人間側なのでCPUはここでは何もしない。
+    // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
+    if (phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
+      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_SIGNI' }).eq('room_id', roomId);
+      return;
+    }
 
     // ─── ATTACK_SIGNIフェイズ：全シグニでアタック ───
     if (phase === 'ATTACK_SIGNI') {
