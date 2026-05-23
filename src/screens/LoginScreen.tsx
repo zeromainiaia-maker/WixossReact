@@ -41,7 +41,7 @@ export default function LoginScreen() {
         password,
         options: { data: { username: username.trim() } },
       });
-      if (error) alert('登録エラー: ' + error.message);
+      if (error) alert(toJapaneseAuthError(error.message));
       else alert('登録完了！ログインしてください。');
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
