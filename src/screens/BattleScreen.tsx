@@ -581,6 +581,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (data) setMyDeckData(data as { main_deck: string[]; lrig_deck: string[] });
       });
 
+    // CPU対戦かどうか確認し、CPUデッキを取得
+    supabase.from('rooms').select('is_cpu_battle, guest_deck_id').eq('id', roomId).single()
+      .then(({ data: roomData }) => {
+        if (roomData?.is_cpu_battle) {
+          setIsCpuBattle(true);
+          if (roomData.guest_deck_id) {
+            supabase.from('decks').select('main_deck, lrig_deck').eq('id', roomData.guest_deck_id).single()
+              .then(({ data: cpuDeck }) => {
+                if (cpuDeck) setCpuDeckData(cpuDeck as { main_deck: string[]; lrig_deck: string[] });
+              });
+          }
+        }
+      });
+
     const channel = supabase
       .channel(`battle-${roomId}`)
       .on('postgres_changes', {
