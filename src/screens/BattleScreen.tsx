@@ -692,6 +692,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [
     isCpuBattle, bs?.global_phase, bs?.active_user_id, bs?.turn_phase,
     bs?.guest_state?.field?.check, bs?.guest_state?.field?.lrig_attacked,
+    bs?.host_state?.field?.lrig_attacked,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(bs?.guest_state?.field?.signi_down),
     bs?.pending_effect, !!bs?.effect_stack,
