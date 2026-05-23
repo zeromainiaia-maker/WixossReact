@@ -1373,6 +1373,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               </button>
             )}
           </div>
+          {setupLeaveBtn}
         </div>
       );
     }
