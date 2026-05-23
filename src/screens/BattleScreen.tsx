@@ -452,6 +452,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // シグニ起動効果
   const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedSigniActivatedCost, setSelectedSigniActivatedCost] = useState<Set<number>>(new Set());
+  const [selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard] = useState<Set<number>>(new Set());
   // シグニ出現時コスト付き任意【出】効果
   const [pendingSigniOnPlayCost, setPendingSigniOnPlayCost] = useState<{
     cardNum: string;
