@@ -1628,6 +1628,23 @@ export function resumeLookAndReorder(
   return done(cur);
 }
 
+// SELECT_ZONE: プレイヤーが選んだゾーン番号にカードを配置する
+export function resumeSelectZone(
+  zoneIndex: number,
+  pending: PendingInteractionDef & { type: 'SELECT_ZONE' },
+  ctx: ExecCtx,
+): ExecResult {
+  const state = ownerState(pending.owner, ctx);
+  const signi = [...state.field.signi] as (string[] | null)[];
+  if (signi[zoneIndex] && (signi[zoneIndex]?.length ?? 0) > 0) return done(ctx); // 占有済みならスキップ
+  signi[zoneIndex] = [pending.cardNum];
+  const newS: PlayerState = { ...state, field: { ...state.field, signi } };
+  const cur = addLog(setOwnerState(pending.owner, newS, ctx),
+    `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}を場に出す`);
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
+}
+
 // ===== 直接アクション適用（特定のcardNumに対して） =====
 
 function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx): ExecResult {
