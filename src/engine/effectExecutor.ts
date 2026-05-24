@@ -485,8 +485,9 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     if (tgt.count === 'ALL') return done(applyTrashHand(cands, ctx));
     const count = resolveNum(tgt.count);
-    // 「対戦相手は手札をN枚捨てる」= 相手自身が選択する
-    const opponentResponds = tgt.owner === 'opponent' && !tgt.blind;
+    // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」= 自分が選択
+    // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」= 相手自身が選択
+    const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
     return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, opponentResponds);
   }
 
