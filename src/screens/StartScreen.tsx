@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { ViewMode } from '../types';
+import { APP_VERSION } from '../version';
 
 interface Props {
   user: User;
