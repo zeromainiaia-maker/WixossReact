@@ -99,6 +99,8 @@ export interface PlayerState {
   prevent_next_damage?: number;
   // スペル/アーツ効果でターン終了まで付与されたルリグの AUTO 能力
   lrig_granted_auto_effects?: import('./effects').CardEffect[];
+  // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（BANISH_REDIRECT）
+  banish_redirect?: boolean;
 }
 
 export interface GameLog {
