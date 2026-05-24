@@ -3891,8 +3891,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
-      const discardNums = [...discardIndices].map(i => my.hand[i]);
-      const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
+      const discardNums = [...discardIndices].map(i => placedState.hand[i]);
+      const newHand = placedState.hand.filter((_, i) => !discardIndices.has(i));
       const paid: PlayerState = {
         ...placedState,
         energy: newEnergy,
