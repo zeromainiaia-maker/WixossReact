@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { APP_VERSION } from '../version';
 
 const toFakeEmail = (username: string): string => {
   const bytes = new TextEncoder().encode(username.trim());
