@@ -6762,6 +6762,54 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           );
         }
 
+        // SELECT_ZONE：効果によるデッキトップのカードのゾーン選択
+        if (inter.type === 'SELECT_ZONE') {
+          const placeCard = battleCardMap.get(inter.cardNum);
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '20px 16px', width: 'min(95vw, 380px)',
+                  display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <img src={placeCard?.ImgURL} alt={placeCard?.CardName}
+                    style={{ width: 60, height: 84, objectFit: 'cover', borderRadius: 6 }}
+                    onError={e2 => { const img = e2.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                  <p style={{ color: C.text, fontSize: 13, margin: 0 }}>
+                    {placeCard?.CardName ?? inter.cardNum}
+                  </p>
+                </div>
+                <p style={{ color: C.textDim, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                  場に出すゾーンを選択してください
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {([0, 1, 2] as const).map(zi => {
+                    const isOccupied = (my.field.signi[zi] ?? []).length > 0;
+                    return (
+                      <button key={zi}
+                        onClick={() => !isOccupied && !loading && handleSelectZoneForEffect(zi)}
+                        disabled={isOccupied || loading}
+                        style={{ flex: 1, padding: '12px 0', borderRadius: 8,
+                          border: isOccupied ? `1px solid ${C.textFaint}` : C.borderUI,
+                          backgroundColor: isOccupied ? C.disabled : C.bgButton,
+                          color: isOccupied ? C.textFaint : C.text,
+                          fontSize: 13, cursor: isOccupied || loading ? 'default' : 'pointer' }}>
+                        ゾーン{zi + 1}{isOccupied ? '\n(使用中)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
         return null;
       })()}
 
