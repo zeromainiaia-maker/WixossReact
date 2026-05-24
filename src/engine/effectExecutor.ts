@@ -1552,7 +1552,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `リミット${(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}（UI処理）`));
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
     // 以下は CONTINUOUS 効果専用（effectEngine 側で処理）
-    case 'BANISH_REDIRECT':                return done(addLog(ctx, 'バニッシュ先変更（CONTINUOUS）'));
+    case 'BANISH_REDIRECT': {
+      const newOwner: PlayerState = { ...ctx.ownerState, banish_redirect: true };
+      return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手のシグニのバニッシュ先をトラッシュへ変更'));
+    }
     case 'REARRANGE_SIGNI':                return done(addLog(ctx, 'シグニ並び替え（BattleScreen側で処理）'));
     case 'GROW_FREE':                      return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
     case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
