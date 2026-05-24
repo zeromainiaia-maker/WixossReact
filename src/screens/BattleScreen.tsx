@@ -6213,6 +6213,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         {my.energy.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniOnPlayCost.has(i);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
                           return (
                             <div key={i}
                               onClick={() => setSelectedSigniOnPlayCost(prev => {
@@ -6222,7 +6223,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                                 next.add(i); return next;
                               })}
                               style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
-                                border: isSel ? '2px solid #f44336' : C.borderCard,
+                                border: isSel ? '2px solid #f44336' : isWild ? '1px solid #ffcc00' : C.borderCard,
                                 cursor: 'pointer', overflow: 'hidden' }}>
                               {c ? (
                                 <img src={c.ImgURL} alt={c.CardName} draggable={false}
@@ -6231,6 +6232,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                                 <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
                                   display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isWild && !isSel && (
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                                  backgroundColor: 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
+                                  <span style={{ fontSize: 7, fontWeight: 'bold', color: '#000' }}>マルチ</span>
                                 </div>
                               )}
                               {isSel && (
