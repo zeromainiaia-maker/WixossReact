@@ -6658,7 +6658,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 ? true
                 : selectedLrigGrantedCost.size === energyTotal &&
                   canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti);
-              const canAffordExceed = exceedCost === 0 || (my.field.lrig.length - 1) >= exceedCost;
+              const totalExceedAvail = (my.field.lrig.length - 1)
+                + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
+                + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);
+              const canAffordExceed = exceedCost === 0 || totalExceedAvail >= exceedCost;
               const canAfford = canAffordEnergy && canAffordExceed;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
