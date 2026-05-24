@@ -680,6 +680,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   useEffect(() => {
     if (!bs || !isCpuBattle || bs.global_phase !== 'PLAYING') return;
     if (bs.pending_effect || bs.effect_stack) return;
+    // プレイヤー（人間）がライフバースト処理中はCPU停止
+    if (bs.host_state?.field?.check) return;
     const cpuSt = bs.guest_state;
     const isCpuTurn = bs.active_user_id === CPU_PLAYER_ID;
     // ATTACK_ARTS_OPはCPUがターンプレイヤーのとき人間が担当→CPU動かない
@@ -692,7 +694,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [
     isCpuBattle, bs?.global_phase, bs?.active_user_id, bs?.turn_phase,
     bs?.guest_state?.field?.check, bs?.guest_state?.field?.lrig_attacked,
-    bs?.host_state?.field?.lrig_attacked,
+    bs?.host_state?.field?.check, bs?.host_state?.field?.lrig_attacked,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(bs?.guest_state?.field?.signi_down),
     bs?.pending_effect, !!bs?.effect_stack,
