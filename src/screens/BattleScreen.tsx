@@ -2478,9 +2478,53 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         coins: Math.min(5, Math.max(0, my.coins - growCoinCost) + coinGain),
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      const cardName = card.CardName;
       const coinLog = coinGain > 0 ? `（コイン+${coinGain}）` : '';
-      appendBattleLogs([`${card.CardName}にグロウ${coinLog}`]);
+      appendBattleLogs([`${cardName}にグロウ${coinLog}`]);
+
+      // ルリグの ON_PLAY 効果を確認
+      const ownEffects = effectsMap.get(cardNum) ?? [];
+      const mandatoryOnPlay = ownEffects.filter(e =>
+        e.effectType === 'AUTO' &&
+        e.timing?.includes('ON_PLAY') &&
+        e.mandatory !== false,
+      );
+      const costOnPlay = ownEffects.filter(e =>
+        e.effectType === 'AUTO' &&
+        e.timing?.includes('ON_PLAY') &&
+        e.mandatory === false &&
+        e.cost,
+      );
+
+      // コスト付き任意【出】効果があればモーダルで確認
+      if (costOnPlay.length > 0) {
+        const mandatoryEntries: StackEntry[] = mandatoryOnPlay.map(eff => ({
+          id: generateUUID(), playerId: user.id, cardNum,
+          effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
+        }));
+        setPendingSigniOnPlayCost({
+          cardNum, costEffect: costOnPlay[0],
+          placedState: newMyState, mandatoryEntries,
+        });
+        return;
+      }
+
+      if (mandatoryOnPlay.length === 0) {
+        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+        return;
+      }
+
+      // mandatory ON_PLAY 効果をスタックに積む
+      const entries: StackEntry[] = mandatoryOnPlay.map(eff => ({
+        id: generateUUID(), playerId: user.id, cardNum,
+        effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
+      }));
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existing = bs?.effect_stack ?? null;
+      const stack = existing ? pushToStack(existing, entries) : initStack(turnPlayerId, entries);
+      await supabase.from('battle_states')
+        .update({ [stateKey]: newMyState, effect_stack: stack, pending_effect: null })
+        .eq('room_id', roomId);
     } finally {
       setLoading(false);
     }
