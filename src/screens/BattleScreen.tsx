@@ -3112,13 +3112,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const newOpFrozen = [...(op.field.signi_frozen  ?? [false, false, false])];
           const newOpCharms = [...(op.field.signi_charms  ?? [null, null, null])];
           const newOpAcce   = [...(op.field.signi_acce    ?? [null, null, null])];
-          const newOpVirus  = [...(op.field.signi_virus   ?? [0, 0, 0])];
           newOpDown[opZoneIndex]   = false;
           newOpFrozen[opZoneIndex] = false;
           const banishExtraTrash: string[] = [];
           if (newOpCharms[opZoneIndex]) { banishExtraTrash.push(newOpCharms[opZoneIndex]!); newOpCharms[opZoneIndex] = null; }
           if (newOpAcce[opZoneIndex])   { banishExtraTrash.push(newOpAcce[opZoneIndex]!);   newOpAcce[opZoneIndex]   = null; }
-          newOpVirus[opZoneIndex] = 0;
+          // ウィルスはゾーンに属するため、シグニがバニッシュされても除去しない
           const redirectBanish = my.banish_redirect === true;
           newOpState = {
             ...op,
@@ -3133,7 +3132,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_frozen: newOpFrozen,
               signi_charms: newOpCharms,
               signi_acce:   newOpAcce,
-              signi_virus:  newOpVirus as number[],
             },
           };
           appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : ''}`]);
