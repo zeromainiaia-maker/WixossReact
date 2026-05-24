@@ -3879,6 +3879,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     cardNum: string,
     costEffect: import('../types/effects').CardEffect,
     costIndices: Set<number>,
+    discardIndices: Set<number>,
     placedState: PlayerState,
     mandatoryEntries: StackEntry[],
   ) => {
@@ -3886,13 +3887,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     setPendingSigniOnPlayCost(null);
     setSelectedSigniOnPlayCost(new Set());
+    setSelectedSigniOnPlayDiscard(new Set());
     try {
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const discardNums = [...discardIndices].map(i => my.hand[i]);
+      const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
       const paid: PlayerState = {
         ...placedState,
         energy: newEnergy,
-        trash: [...placedState.trash, ...paidNums],
+        hand: newHand,
+        trash: [...placedState.trash, ...paidNums, ...discardNums],
       };
       const cName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const costEntry: StackEntry = {
