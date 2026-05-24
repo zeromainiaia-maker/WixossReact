@@ -6369,7 +6369,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       {/* ===== シグニ出現時コスト付き【出】効果 モーダル ===== */}
       {pendingSigniOnPlayCost && createPortal(
         <div
-          onClick={() => skipSigniOnPlayCost(pendingSigniOnPlayCost.placedState, pendingSigniOnPlayCost.mandatoryEntries)}
           style={{ position: 'fixed', inset: 0, zIndex: 4000,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
