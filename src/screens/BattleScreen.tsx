@@ -6295,6 +6295,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                                 if (next.size >= energyTotal) return prev;
                                 next.add(i); return next;
                               })}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
                                 border: isSel ? '2px solid #f44336' : isWild ? '1px solid #ffcc00' : C.borderCard,
                                 cursor: 'pointer', overflow: 'hidden' }}>
