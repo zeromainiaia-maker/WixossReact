@@ -888,7 +888,20 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
 function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
   let cur = ctx;
   for (let i = 0; i < a.steps.length; i++) {
-    const result = executeAction(a.steps[i], cur);
+    const step = a.steps[i];
+    // リコレクトゲート：条件未達なら残りステップをすべてスキップ
+    if (step.type === 'RECOLLECT_GATE') {
+      const gate = step as import('../types/effects').RecollectGateAction;
+      const artsInLrigTrash = (cur.ownerState.lrig_trash ?? []).filter(
+        n => cur.cardMap.get(n)?.Type === 'アーツ'
+      ).length;
+      if (artsInLrigTrash < gate.minArts) {
+        return done(addLog(cur, `リコレクト条件未達（アーツ${artsInLrigTrash}枚 / 必要${gate.minArts}枚以上）`));
+      }
+      cur = addLog(cur, `リコレクト条件達成（アーツ${artsInLrigTrash}枚）`);
+      continue;
+    }
+    const result = executeAction(step, cur);
     if (!result.done) {
       // インタラクション必要：残りのステップをcontinuationに入れる
       const remaining = a.steps.slice(i + 1);
