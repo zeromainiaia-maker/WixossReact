@@ -213,25 +213,6 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   const setOppState = (g: CpuGameState, s: PlayerState): CpuGameState =>
     g.turnPlayer === 'player' ? { ...g, cpu: s }    : { ...g, player: s };
 
-  // ======= 効果実行ヘルパー =======
-  const execEffect = useCallback((g: CpuGameState, cardNum: string, effectType: string): CpuGameState => {
-    const effs = effectsMap.get(cardNum) ?? [];
-    const eff = effs.find(e => e.effectType === effectType);
-    if (!eff) return g;
-    const owner   = g.turnPlayer === 'player' ? g.player : g.cpu;
-    const other   = g.turnPlayer === 'player' ? g.cpu    : g.player;
-    const ctxPowers = calcFieldPowers(owner, other, true, effectsMap, cardMap);
-    const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: cardNum };
-    const result = executeEffect(eff, ctx);
-    for (const l of result.logs) appendLog(l);
-    let ng = g.turnPlayer === 'player'
-      ? { ...g, player: result.ownerState, cpu: result.otherState }
-      : { ...g, cpu: result.ownerState, player: result.otherState };
-    if (!result.done && result.pending) {
-      ng = { ...ng, pendingInteraction: result.pending, pendingOwner: g.turnPlayer };
-    }
-    return ng;
-  }, [effectsMap, cardMap, appendLog]);
 
   // ======= フェーズ自動進行 =======
   const advancePhase = useCallback((g: CpuGameState): CpuGameState => {
