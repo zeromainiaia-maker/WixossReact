@@ -3104,21 +3104,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`${myCardName}（${myPower}）vs ${opCardName}（${opPower}）`]);
 
         if (myPower >= opPower) {
-          // バトル勝利：相手シグニの処理
-          const opCharms = op.field.signi_charms ?? [];
-          const opCharm  = opCharms[opZoneIndex] ?? null;
-
-          if (opCharm) {
-            // チャームが付いている → チャームを除去（トラッシュへ）してシグニ生存
-            const newCharms = [...opCharms];
-            newCharms[opZoneIndex] = null;
-            newOpState = {
-              ...op,
-              trash: [...op.trash, opCharm],
-              field: { ...op.field, signi_charms: newCharms },
-            };
-            appendBattleLogs([`${opCardName}のチャームを除去（シグニ生存）`]);
-          } else {
+          // バトル勝利：相手シグニをバニッシュ（チャームがあればトラッシュへ）
+          {
             // 通常バニッシュ → 相手エナへ（チャーム・アクセもトラッシュへ、ウィルスリセット）
             banishedOpCardNum = opTopCardNum;
             const newOpSigni = [...op.field.signi] as (string[] | null)[];
