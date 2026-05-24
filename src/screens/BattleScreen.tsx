@@ -6998,6 +6998,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       スキップ
                     </button>
                   )}
+                  {inter.type === 'SEARCH' && (
+                    <button onClick={() => handleEffectInteraction([])}
+                      disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      該当なし
+                    </button>
+                  )}
                   <button onClick={() => {
                     // インデックス文字列 → CardNum に変換してから渡す
                     const selectedNums = effectSelectedNums.map(i => candidates[parseInt(i, 10)] ?? i);
