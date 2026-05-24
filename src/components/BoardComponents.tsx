@@ -799,7 +799,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   );
 
   const rawSigni = state.field.signi ?? [null, null, null];
-  const displaySigni = rawSigni;
+  const displaySigni = isMe ? rawSigni : [...rawSigni].reverse();
   const freeZoneCards = state.field.free_zone ?? [];
   const freeZoneW = 52, freeZoneH = signiH;
 
