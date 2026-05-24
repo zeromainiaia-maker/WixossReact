@@ -987,6 +987,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ── Rules of Hooks 対策：PLAYING セクション由来の hooks を if(!bs)/SETUP return より前に置く ──
 
+  // CPU対戦: ゲーム終了時にCPUのACKを自動設定
+  useEffect(() => {
+    if (!isCpuBattle || bs?.global_phase !== 'FINISHED' || bs?.guest_end_ack) return;
+    supabase.from('battle_states').update({ guest_end_ack: true }).eq('room_id', roomId);
+  }, [isCpuBattle, bs?.global_phase, bs?.guest_end_ack, roomId]);
+
+  // CPU対戦: 両者ACK揃い次第ルームを自動削除
+  useEffect(() => {
+    if (!isCpuBattle || !bs?.host_end_ack || !bs?.guest_end_ack) return;
+    leavingRef.current = true;
+    supabase.from('battle_states').delete().eq('room_id', roomId).then(() => {
+      supabase.from('rooms').delete().eq('id', roomId).then(() => onBack());
+    });
+  }, [isCpuBattle, bs?.host_end_ack, bs?.guest_end_ack, roomId, onBack]);
+
   // CONTINUOUS BLOCK_ACTION 効果によるアクション禁止（フィールド常駐効果）
   const contBlocked = useMemo(() => {
     if (!bs || bs.global_phase !== 'PLAYING') return { forSelf: new Set<string>(), forOther: new Set<string>(), cannotAttackSigni: new Set<string>() };
