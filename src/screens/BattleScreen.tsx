@@ -1686,6 +1686,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
+          lrig_granted_auto_effects: undefined, // ターン終了時まで付与されたルリグ能力をクリア
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
