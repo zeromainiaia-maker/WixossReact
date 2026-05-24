@@ -3577,8 +3577,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         const myTopNum = (cpuSt.field.signi[firstUp] ?? []).at(-1)!;
         const myCard = battleCardMap.get(myTopNum);
-        const myPower = parseInt(myCard?.Power ?? '0') || 0;
-        const opPower = opTopNum ? (parseInt(battleCardMap.get(opTopNum)?.Power ?? '0') || 0) : 0;
+        const myPower = effectivePowers.get(myTopNum) ?? (parseInt(myCard?.Power ?? '0') || 0);
+        const opPower = opTopNum ? (effectivePowers.get(opTopNum) ?? (parseInt(battleCardMap.get(opTopNum)?.Power ?? '0') || 0)) : 0;
         const opCard = opTopNum ? battleCardMap.get(opTopNum) : null;
 
         const newSigniDown = [...signiDown];
