@@ -3068,7 +3068,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!myTopNum) return;
 
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
-      const opZoneIndex = zoneIndex; // 同番号ゾーン同士が対戦
+      const opZoneIndex = 2 - zoneIndex; // 正面ゾーン（表示反転を考慮）
       const opStack = op.field.signi[opZoneIndex] ?? [];
       const opTopCardNum = opStack.length > 0 ? opStack[opStack.length - 1] : null;
       const opTopCard = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
