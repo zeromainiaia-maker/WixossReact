@@ -254,6 +254,59 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX01-028 アーク・オーラ（スペル、コスト《白》×5、タマ限定）
+  // ターン終了時まで、あなたのセンタールリグは
+  // 「【自】：このルリグがアタックしたとき、あなたのシグニ１体を場からトラッシュに置いてもよい。
+  //   そうした場合、このルリグをアップする。」を得る。
+  'WX01-028': [
+    {
+      effectId: 'WX01-028-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '白', count: 5 }] },
+      action: {
+        type: 'GRANT_LRIG_ABILITY',
+        abilities: [
+          {
+            effectId: 'WX01-028-AUTO',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_LRIG'],
+            action: {
+              type: 'CHOOSE',
+              choose_count: 1,
+              from_count: 2,
+              choices: [
+                {
+                  choiceId: 'trash_and_up',
+                  label: 'シグニ１体をトラッシュしてルリグをアップ',
+                  action: {
+                    type: 'SEQUENCE',
+                    steps: [
+                      { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } },
+                      { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } },
+                    ],
+                  } as SequenceAction,
+                },
+                {
+                  choiceId: 'skip',
+                  label: 'トラッシュしない',
+                  action: { type: 'SEQUENCE', steps: [] } as SequenceAction,
+                },
+              ],
+            } as ChooseAction,
+            duration: 'INSTANT',
+            mandatory: false,
+            parseStatus: 'MANUAL',
+          },
+        ] as CardEffect[],
+        rawText: 'このルリグがアタックしたとき、シグニ１体をトラッシュしてもよい。そうした場合、このルリグをアップする。',
+      } as GrantLrigAbilityAction,
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX01-057 出弓　セフィラム
   // 【出】：あなたのデッキの一番上を見る。
   //         それがLv.2以下のシグニで自分の場に他のシグニがない場合、それを場に出してもよい。
