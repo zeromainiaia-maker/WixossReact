@@ -131,6 +131,12 @@ export function matchesFilter(
       if (filter.level.max !== undefined && lv > filter.level.max) return false;
     }
   }
+  if (filter.levelParity !== undefined) {
+    const lv = parseInt(card.Level ?? '', 10);
+    if (isNaN(lv)) return false;
+    if (filter.levelParity === 'even' && lv % 2 !== 0) return false;
+    if (filter.levelParity === 'odd'  && lv % 2 !== 1) return false;
+  }
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
     if (!stories.some(s => card.CardClass?.includes(s))) return false;
