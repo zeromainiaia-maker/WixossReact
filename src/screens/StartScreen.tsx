@@ -8,7 +8,7 @@ interface Props {
   onCpuBattle: () => void;
 }
 
-export default function StartScreen({ user, setViewMode, onCpuBattle }: Props) {
+export default function StartScreen({ user, setViewMode, onCpuBattle: _onCpuBattle }: Props) {
   const username = user.user_metadata?.username ?? user.email ?? 'プレイヤー';
 
   const handleLogout = async () => {
