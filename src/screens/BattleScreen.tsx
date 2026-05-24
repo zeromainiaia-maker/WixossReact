@@ -3257,13 +3257,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const myKey = isHost ? 'host_state' : 'guest_state';
       const opKey = isHost ? 'guest_state' : 'host_state';
-      const lrigName = battleCardMap.get(my.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
+      const lrigNum = my.field.lrig.at(-1) ?? '';
+      const lrigName = battleCardMap.get(lrigNum)?.CardName ?? 'ルリグ';
       appendBattleLogs([`${lrigName}がアタック`]);
       const newMyState: PlayerState = { ...my, field: { ...my.field, lrig_down: true } };
       const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
-      await supabase.from('battle_states')
-        .update({ [myKey]: newMyState, [opKey]: newOpState })
-        .eq('room_id', roomId);
+
+      // ON_ATTACK_LRIG AUTO トリガー収集（WX01-028等でスペル付与された能力）
+      const onAttackEffects = (my.lrig_granted_auto_effects ?? [])
+        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
+      const update: Partial<BattleStateRow> = { [myKey]: newMyState, [opKey]: newOpState };
+      if (onAttackEffects.length > 0) {
+        const entries: StackEntry[] = onAttackEffects.map(e => ({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum: lrigNum,
+          effectId: e.effectId,
+          label: `${lrigName} の【自】効果（アタック時）`,
+          effect: e,
+        }));
+        const existing = bs.effect_stack ?? null;
+        update.effect_stack = existing ? pushToStack(existing, entries) : initStack(user.id, entries);
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
     } finally {
       setLoading(false);
     }
