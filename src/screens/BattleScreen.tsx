@@ -1123,9 +1123,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const handleSelectLrig = async (cardNum: string) => {
         if (loading) return;
         setLoading(true);
+        // ゲストはホストとinstance IDが衝突しないよう #g プレフィックスを使う
+        const assignFn = isHost ? assignInstanceIds : assignGuestInstanceIds;
         // インスタンスIDを付与（シャッフル後のmainDeckとlrigDeck全体に連番を振る）
-        const mainWithIds  = assignInstanceIds(shuffle(myDeckData.main_deck));
-        const lrigWithIds  = assignInstanceIds(myDeckData.lrig_deck);
+        const mainWithIds  = assignFn(shuffle(myDeckData.main_deck));
+        const lrigWithIds  = assignFn(myDeckData.lrig_deck);
         // 選択されたルリグのインスタンスIDを取得
         const selOrigIdx   = myDeckData.lrig_deck.indexOf(cardNum);
         const selectedId   = selOrigIdx >= 0 ? lrigWithIds[selOrigIdx] : `${cardNum}#1`;
