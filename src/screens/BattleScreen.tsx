@@ -4367,7 +4367,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       {/* 終了確認モーダル */}
       {showEndConfirm && createPortal(
         <div style={{
-          position: 'fixed', inset: 0, zIndex: 4000,
+          position: 'fixed', inset: 0, zIndex: 9999,
           backgroundColor: 'rgba(0,0,0,0.85)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
