@@ -3460,7 +3460,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .sort((a, b) => (parseInt(a.card!.Level) || 0) - (parseInt(b.card!.Level) || 0));
 
       let newCpuSt = { ...cpuSt };
-      let changed = false;
 
       for (let zone = 0; zone < 3; zone++) {
         if ((newCpuSt.field.signi[zone] ?? []).length > 0) continue; // ゾーン埋まってる
@@ -3508,10 +3507,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const lv = parseInt(candidate.card!.Level) || 0;
         fieldTotal += lv;
         handSignis.splice(handSignis.indexOf(candidate), 1);
-        changed = true;
-      }
 
-      if (changed) {
+        // 1枚ずつSupabaseを更新して画面に反映させてから次へ
         await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
       }
