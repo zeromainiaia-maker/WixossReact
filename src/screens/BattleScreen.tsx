@@ -131,14 +131,20 @@ function extractGrowCondition(effectText?: string): string | null {
 function checkGrowCondition(
   cond: string | null,
   myState: PlayerState,
-  currentLrigName: string | undefined,
+  currentLrig: CardData | undefined,
   cardMap: Map<string, CardData>,
 ): boolean {
   if (!cond) return true;
 
+  const currentLrigName = currentLrig?.CardName;
+
   // ライフクロスが○枚以下
   let m = cond.match(/あなたのライフクロスが([０-９\d]+)枚以下/);
   if (m) return myState.life_cloth.length <= parseInt(toHalfWidth(m[1]));
+
+  // ライフクロスが○枚である（PR-461等）
+  m = cond.match(/あなたのライフクロスが([０-９\d]+)枚である/);
+  if (m) return myState.life_cloth.length === parseInt(toHalfWidth(m[1]));
 
   // センタールリグがカード名に《X》を含む（CardClass が混在する遊月・肆などでも正確に判定）
   m = cond.match(/あなたのセンタールリグがカード名に《([^》]+)》を含む/);
@@ -166,6 +172,13 @@ function checkGrowCondition(
       }
     }
     return colorSet.size >= needed;
+  }
+
+  // ○かつ○のルリグ（グロウ元ルリグが指定された複数色を持つ必要がある）
+  m = cond.match(/([白赤青緑黒])かつ([白赤青緑黒])のルリグ/);
+  if (m) {
+    const lrigColor = currentLrig?.Color ?? '';
+    return lrigColor.includes(m[1]) && lrigColor.includes(m[2]);
   }
 
   // 認識できないパターン（マユの「ルリグを公開し…」等のグロウ効果テキスト）→ 条件なし
