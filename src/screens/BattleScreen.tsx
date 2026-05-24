@@ -4625,7 +4625,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
-              const isValid = selectedArtsCost.size === totalReq &&
+              const artsDiscardCost = (effectsMap.get(pendingArtsCard.CardNum) ?? [])
+                .filter(e => e.effectType === 'ACTIVATED')
+                .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
+              const energyValid = selectedArtsCost.size === totalReq &&
                 canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
@@ -4633,6 +4636,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     return c?.Color === req.color || isMultiEna(n, battleCards, my.keyword_grants, myEnaAllMulti);
                   }).length >= req.count
                 ));
+              const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost;
               const betCostForCard = parseBetCost(pendingArtsCard.EffectText ?? '');
               const canBet = betCostForCard > 0 && my.coins >= betCostForCard;
               const canEncore = !!encoreCostForCard && (encoreCostForCard.coins === 0 || my.coins >= encoreCostForCard.coins);
