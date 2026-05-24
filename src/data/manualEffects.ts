@@ -254,6 +254,59 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX01-057 出弓　セフィラム
+  // 【出】：あなたのデッキの一番上を見る。
+  //         それがLv.2以下のシグニで自分の場に他のシグニがない場合、それを場に出してもよい。
+  // ※条件チェック（Lv.2以下・他シグニなし）はプレイヤーに委ねてCHOOSEで任意実装
+  'WX01-057': [
+    {
+      effectId: 'WX01-057-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'LOOK_AND_REORDER',
+            source: { location: 'deck', owner: 'self' },
+            count: 1,
+            private: true,
+            reorder: false,
+            destination: { location: 'deck', owner: 'self', position: 'top' },
+          },
+          {
+            type: 'CHOOSE',
+            choose_count: 1,
+            choices: [
+              {
+                choiceId: 'yes',
+                label: 'デッキトップを場に出す',
+                action: { type: 'ADD_TO_FIELD', owner: 'self' },
+              },
+              {
+                choiceId: 'no',
+                label: '場に出さない',
+                action: { type: 'SEQUENCE', steps: [] },
+              },
+            ],
+          } as ChooseAction,
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX01-057-BURST',
+      effectType: 'LIFE_BURST',
+      timing: ['ON_LIFE_BURST'],
+      action: { type: 'DRAW', owner: 'self', count: 1 },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
