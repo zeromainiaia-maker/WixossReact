@@ -559,7 +559,7 @@ export function collectLrigGrantedEffects(
     const effects = effectsMap.get(cardNum) ?? [];
     for (const effect of effects) {
       if (effect.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap)) continue;
+      if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cardNum)) continue;
       if (effect.action.type === 'GRANT_LRIG_ABILITY') {
         const gla = effect.action as GrantLrigAbilityAction;
         granted.push(...gla.abilities);
