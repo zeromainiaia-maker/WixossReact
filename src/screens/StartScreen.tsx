@@ -56,15 +56,13 @@ export default function StartScreen({ user, setViewMode, onCpuBattle: _onCpuBatt
         ログアウト
       </button>
 
-      <p style={{
-        position: 'absolute',
-        bottom: '20px',
-        right: '20px',
-        fontSize: '12px',
-        color: '#555',
-      }}>
+      <p style={{ position: 'absolute', bottom: 20, right: 20, fontSize: 12, color: '#555', margin: 0 }}>
         「{username}」でログイン中
       </p>
+
+      <span style={{ position: 'absolute', bottom: 12, left: 16, fontSize: 11, color: '#333' }}>
+        {APP_VERSION}
+      </span>
 
       <h1 style={{ fontSize: '32px', letterSpacing: '6px', color: '#007bff' }}>
         WIXOSS ONLINE
