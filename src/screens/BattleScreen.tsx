@@ -6366,12 +6366,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const card = battleCardMap.get(pendingSigniOnPlayCost.cardNum);
               const eff  = pendingSigniOnPlayCost.costEffect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniOnPlayCost].map(i => my.energy[i]);
-              const canAfford = energyTotal === 0
+              const energyOk = energyTotal === 0
                 ? true
                 : selectedSigniOnPlayCost.size === energyTotal &&
                   canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti);
+              const canAfford = energyOk && selectedSigniOnPlayDiscard.size >= discardNeeded;
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
@@ -6384,7 +6386,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       <div>
                         <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
-                          コスト: {energyTotal > 0 ? `エナ${energyTotal}枚` : 'なし'}
+                          コスト: {[
+                            energyTotal > 0 ? `エナ${energyTotal}枚` : null,
+                            discardNeeded > 0 ? `手札${discardNeeded}枚` : null,
+                          ].filter(Boolean).join('・') || 'なし'}
                         </p>
                       </div>
                     </div>
@@ -6437,6 +6442,47 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
+                  {discardNeeded > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        手札から捨てるカードを選択: {selectedSigniOnPlayDiscard.size} / {discardNeeded}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.hand.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedSigniOnPlayDiscard.has(i);
+                          return (
+                            <div key={i}
+                              onClick={() => setSelectedSigniOnPlayDiscard(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (next.size >= discardNeeded) return prev;
+                                next.add(i); return next;
+                              })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #ff9800' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => skipSigniOnPlayCost(pendingSigniOnPlayCost.placedState, pendingSigniOnPlayCost.mandatoryEntries)}
@@ -6450,6 +6496,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         pendingSigniOnPlayCost.cardNum,
                         pendingSigniOnPlayCost.costEffect,
                         selectedSigniOnPlayCost,
+                        selectedSigniOnPlayDiscard,
                         pendingSigniOnPlayCost.placedState,
                         pendingSigniOnPlayCost.mandatoryEntries,
                       )}
