@@ -181,8 +181,129 @@ function checkGrowCondition(
     return lrigColor.includes(m[1]) && lrigColor.includes(m[2]);
   }
 
-  // 認識できないパターン（マユの「ルリグを公開し…」等のグロウ効果テキスト）→ 条件なし
+  // ルリグデッキから＜X＞か＜Y＞のルリグ（＜Z＞ではない）を1枚置く
+  m = cond.match(/あなたのルリグデッキから(?:＜([^＞]+)＞ではない、)?＜([^＞]+)＞か＜([^＞]+)＞のルリグ１枚/);
+  if (m) {
+    const excludeRaw = m[1] ?? null;
+    const class1 = m[2], class2 = m[3];
+    const excludeClasses = excludeRaw ? excludeRaw.split(/[／/]/).map(c => c.trim()) : [];
+    return myState.lrig_deck.some(id => {
+      const card = cardMap.get(id);
+      if (!card) return false;
+      const classes = card.CardClass?.split('/').map(c => c.trim()) ?? [];
+      if (!classes.some(c => c === class1 || c === class2)) return false;
+      if (excludeClasses.length > 0 && excludeClasses.every(ec => classes.includes(ec))) return false;
+      return true;
+    });
+  }
+
+  // ルリグデッキにある＜X＞のルリグN枚をゲームから除外する
+  m = cond.match(/あなたのルリグデッキにある＜([^＞]+)＞のルリグ([０-９\d]+)枚をゲームから除外する/);
+  if (m) {
+    const targetClass = m[1];
+    const required = parseInt(toHalfWidth(m[2]));
+    const count = myState.lrig_deck.filter(id => {
+      const card = cardMap.get(id);
+      return card?.CardClass?.split('/').map(c => c.trim()).some(c => c === targetClass) ?? false;
+    }).length;
+    return count >= required;
+  }
+
+  // 場にある《X》をセンタールリグの下に置く（現在のセンタールリグがXであることを確認）
+  m = cond.match(/あなたの場にある《([^》]+)》をあなたのセンタールリグの下に置く/);
+  if (m) {
+    const targetName = m[1];
+    // 現センタールリグトップまたはアシストルリグに対象カードがあるか確認
+    const centerTop = myState.field.lrig.at(-1) ? cardMap.get(myState.field.lrig.at(-1)!) : undefined;
+    if (centerTop?.CardName === targetName) return true;
+    const assistCards = [
+      ...(myState.field.assist_lrig_l ?? []),
+      ...(myState.field.assist_lrig_r ?? []),
+    ].map(id => cardMap.get(id));
+    return assistCards.some(c => c?.CardName === targetName);
+  }
+
+  // 場にあるカード名に《X》か《Y》を含むキーをセンタールリグの下に置く
+  m = cond.match(/あなたの場にあるカード名に《([^》]+)》か《([^》]+)》を含むキー/);
+  if (m) {
+    const name1 = m[1], name2 = m[2];
+    const keyCard = myState.field.key_piece ? cardMap.get(myState.field.key_piece) : null;
+    return !!(keyCard && (keyCard.CardName.includes(name1) || keyCard.CardName.includes(name2)));
+  }
+
+  // 認識できないパターン → 条件なし扱い（WXEX1-20の不正テキスト等）
   return true;
+}
+
+// グロウ時の追加効果を実行する（ルリグデッキから置く・除外する等）
+function applyGrowEffect(
+  growCond: string | null,
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+): { state: PlayerState; log: string | null } {
+  if (!growCond) return { state, log: null };
+
+  // ルリグデッキから＜X＞か＜Y＞のルリグ（＜Z＞ではない）をセンタールリグの下に置く
+  let m = growCond.match(/あなたのルリグデッキから(?:＜([^＞]+)＞ではない、)?＜([^＞]+)＞か＜([^＞]+)＞のルリグ１枚(?:を公開し、それ)?をあなたのセンタールリグの下に置く/);
+  if (m) {
+    const excludeRaw = m[1] ?? null;
+    const class1 = m[2], class2 = m[3];
+    const excludeClasses = excludeRaw ? excludeRaw.split(/[／/]/).map(c => c.trim()) : [];
+    const idx = state.lrig_deck.findIndex(id => {
+      const card = cardMap.get(id);
+      if (!card) return false;
+      const classes = card.CardClass?.split('/').map(c => c.trim()) ?? [];
+      if (!classes.some(c => c === class1 || c === class2)) return false;
+      if (excludeClasses.length > 0 && excludeClasses.every(ec => classes.includes(ec))) return false;
+      return true;
+    });
+    if (idx < 0) return { state, log: null };
+    const chosenId = state.lrig_deck[idx];
+    const newLrigDeck = state.lrig_deck.filter((_, i) => i !== idx);
+    const newLrig = [chosenId, ...state.field.lrig]; // 「下に置く」= スタックの最下部
+    const cardName = cardMap.get(chosenId)?.CardName ?? chosenId;
+    return {
+      state: { ...state, lrig_deck: newLrigDeck, field: { ...state.field, lrig: newLrig } },
+      log: `グロウ効果：${cardName}をセンタールリグの下に置いた`,
+    };
+  }
+
+  // ルリグデッキにある＜X＞のルリグN枚をゲームから除外する
+  m = growCond.match(/あなたのルリグデッキにある＜([^＞]+)＞のルリグ([０-９\d]+)枚をゲームから除外する/);
+  if (m) {
+    const targetClass = m[1];
+    const required = parseInt(toHalfWidth(m[2]));
+    const toRemove: number[] = [];
+    state.lrig_deck.forEach((id, i) => {
+      if (toRemove.length >= required) return;
+      const card = cardMap.get(id);
+      if (card?.CardClass?.split('/').map(c => c.trim()).some(c => c === targetClass)) toRemove.push(i);
+    });
+    const removeSet = new Set(toRemove);
+    const newLrigDeck = state.lrig_deck.filter((_, i) => !removeSet.has(i));
+    return {
+      state: { ...state, lrig_deck: newLrigDeck },
+      log: `グロウ効果：＜${targetClass}＞のルリグ${toRemove.length}枚をゲームから除外した`,
+    };
+  }
+
+  // 場にあるカード名に《X》か《Y》を含むキーをセンタールリグの下に置く
+  m = growCond.match(/あなたの場にあるカード名に《([^》]+)》か《([^》]+)》を含むキー１枚をあなたのセンタールリグの下に置く/);
+  if (m) {
+    const name1 = m[1], name2 = m[2];
+    const keyId = state.field.key_piece;
+    if (!keyId) return { state, log: null };
+    const keyCard = cardMap.get(keyId);
+    if (!keyCard || (!keyCard.CardName.includes(name1) && !keyCard.CardName.includes(name2))) return { state, log: null };
+    const newLrig = [keyId, ...state.field.lrig];
+    return {
+      state: { ...state, field: { ...state.field, lrig: newLrig, key_piece: null } },
+      log: `グロウ効果：${keyCard.CardName}をセンタールリグの下に置いた`,
+    };
+  }
+
+  // 場にある《X》をセンタールリグの下に置く（ユキ等：現センタールリグが対象のため追加処理不要）
+  return { state, log: null };
 }
 
 // ルリグのグロウ互換性チェック: CardClass に共通する名前（"/"区切り）が1つでもあれば true
