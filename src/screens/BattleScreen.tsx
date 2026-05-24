@@ -6083,7 +6083,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* ===== アシストルリグ 起動効果モーダル ===== */}
       {pendingAssistActivated && createPortal(
-        <div onClick={() => { setPendingAssistActivated(null); setSelectedAssistActivatedCost(new Set()); }}
+        <div onClick={() => { setPendingAssistActivated(null); setSelectedAssistActivatedCost(new Set()); setSelectedAssistActivatedDiscard(new Set()); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={e => e.stopPropagation()}
@@ -6094,9 +6094,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const card = battleCardMap.get(pendingAssistActivated.cardNum);
               const eff = pendingAssistActivated.effect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedAssistActivatedCost].map(i => my.energy[i]);
-              const canAfford = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti));
+              const energyOk = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti));
+              const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded;
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>アシスト【起】効果を発動</p>
@@ -6105,7 +6107,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       <img src={card.ImgURL} alt={card.CardName} style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
                       <div>
                         <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
-                        <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>コスト: {energyTotal > 0 ? `エナ${energyTotal}枚` : 'なし'}</p>
+                        <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>コスト: {[
+                          energyTotal > 0 ? `エナ${energyTotal}枚` : null,
+                          discardNeeded > 0 ? `手札${discardNeeded}枚` : null,
+                        ].filter(Boolean).join('・') || 'なし'}</p>
                       </div>
                     </div>
                   )}
@@ -6131,12 +6136,40 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
+                  {discardNeeded > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        手札から捨てるカードを選択: {selectedAssistActivatedDiscard.size} / {discardNeeded}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.hand.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedAssistActivatedDiscard.has(i);
+                          return (
+                            <div key={i}
+                              onClick={() => setSelectedAssistActivatedDiscard(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (next.size >= discardNeeded) return prev;
+                                next.add(i); return next;
+                              })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #ff9800' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                 : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: C.textFaint }}>{num}</span></div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { setPendingAssistActivated(null); setSelectedAssistActivatedCost(new Set()); }} disabled={loading}
+                    <button onClick={() => { setPendingAssistActivated(null); setSelectedAssistActivatedCost(new Set()); setSelectedAssistActivatedDiscard(new Set()); }} disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
-                    <button onClick={() => executeAssistActivated(pendingAssistActivated.cardNum, eff, selectedAssistActivatedCost)} disabled={loading || !canAfford}
+                    <button onClick={() => executeAssistActivated(pendingAssistActivated.cardNum, eff, selectedAssistActivatedCost, selectedAssistActivatedDiscard)} disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
                         color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
