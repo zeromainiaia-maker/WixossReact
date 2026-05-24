@@ -51,6 +51,7 @@ import type {
   PlaceVirusAction,
   AttachAcceAction,
   BloodCrystalArmorAction,
+  GrantLrigAbilityAction,
 } from '../types/effects';
 
 // ===== 実行コンテキスト & 結果型 =====
