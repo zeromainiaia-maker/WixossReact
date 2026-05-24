@@ -154,6 +154,12 @@ export type PendingInteractionDef =
       destOwner: 'self' | 'opponent';
       destPosition: 'top' | 'bottom' | 'any';
       continuation?: EffectAction;
+    }
+  | {
+      type: 'SELECT_ZONE';
+      cardNum: string;          // 場に出すカードのCardNum（instance ID含む）
+      owner: 'self' | 'opponent';
+      continuation?: EffectAction;
     };
 
 export interface PendingEffect {
