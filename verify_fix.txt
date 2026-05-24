@@ -1,0 +1,13 @@
+WX19-024 WX19-024-E2 step[1]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 4} then=BANISH
+WXDi-P01-059 WXDi-P01-059-E1 step[1]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 1} then=UNKNOWN
+WXDi-P01-059 WXDi-P01-059-E1 step[2]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 1} then=BANISH
+WXDi-P01-074 WXDi-P01-074-E1 step[1]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 1} then=TRANSFER_TO_HAND
+WXDi-P01-082 WXDi-P01-082-E1 step[1]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 1} then=TRANSFER_TO_HAND
+WXDi-P15-089 WXDi-P15-089-E1 step[1]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 1} then=TRASH
+WXDi-CP02-063 WXDi-CP02-063-E1 step[1]: cond=DECK_TOP_MATCHES filter={'story': 'ブルアカ'} then=POWER_MODIFY
+WX24-P3-047 WX24-P3-047-E2 step[1]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'story': '宇宙'} then=UNKNOWN
+WX24-P3-047 WX24-P3-047-E2 step[2]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'story': '宇宙'} then=BOUNCE
+WX24-P3-059 WX24-P3-059-E1 step[1]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 1} then=POWER_MODIFY
+WX24-P3-062 WX24-P3-062-E1 step[1]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 1} then=UNKNOWN
+WX24-P3-062 WX24-P3-062-E1 step[2]: cond=DECK_TOP_MATCHES filter={'cardType': 'シグニ', 'level': 1} then=BOUNCE
+WX25-CP1-054 WX25-CP1-054-E1 step[1]: cond=DECK_TOP_MATCHES filter={'story': 'ブルアカ'} then=TRASH
