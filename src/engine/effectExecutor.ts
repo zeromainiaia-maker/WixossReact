@@ -1530,6 +1530,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GRANT_KEYWORD':           return execGrantKeyword(action as GrantKeywordAction, ctx);
     case 'SEARCH':                  return execSearch(action as SearchAction, ctx);
     case 'SEQUENCE':                return execSequence(action as SequenceAction, ctx);
+    case 'RECOLLECT_GATE':         return done(addLog(ctx, 'リコレクトゲート（シーケンス外では常に通過）'));
     case 'CHOOSE':                  return execChoose(action as ChooseAction, ctx);
     case 'CONDITIONAL':             return execConditional(action as ConditionalAction, ctx);
     case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
