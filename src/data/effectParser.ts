@@ -253,6 +253,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン2c: 「あなたの場に他の＜X＞(か＜Y＞)*のシグニがあるかぎり、」（自身を除く同ストーリー）
+  const fieldOtherStoryM = text.match(/^あなたの場に他の((?:＜[^＞]+＞(?:か)?)+)のシグニがあるかぎり、/);
+  if (fieldOtherStoryM) {
+    const storyFilter = parseStoryFilter(fieldOtherStoryM[1]);
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter }, excludeSelf: true },
+      rest: text.slice(fieldOtherStoryM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
