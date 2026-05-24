@@ -139,6 +139,7 @@ export interface EffectTarget {
   filter?: TargetFilter;
   upToCount?: boolean;   // count > 1 のとき「以上」を許容するか
   blind?: boolean;       // true = 対戦相手の手札を見ないで選ぶ（ランダム選択）
+  actingPlayerSelects?: boolean; // true = 手札を見て自分が選ぶ（「手札を見てN枚選び捨てさせる」）
 }
 
 // ===== アクション =====
