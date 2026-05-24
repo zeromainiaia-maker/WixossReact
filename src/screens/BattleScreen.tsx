@@ -7176,6 +7176,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
+      {/* 終了ボタン（常に最前面に固定 — エラーで画面が固まっても操作できる） */}
+      {createPortal(
+        <button
+          onClick={() => setShowEndConfirm(true)}
+          style={{
+            position: 'fixed', top: 6, right: 8, zIndex: 9998,
+            padding: '4px 10px', borderRadius: 4,
+            border: '1px solid #444', backgroundColor: 'rgba(0,0,0,0.55)',
+            color: '#666', cursor: 'pointer', fontSize: 11,
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          終了
+        </button>,
+        document.body,
+      )}
+
     </div>
   );
 }
