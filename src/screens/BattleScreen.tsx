@@ -922,8 +922,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     if (phase === 'LRIG_SELECT' && cpuDeckData) {
-      const lrigWithIds = assignInstanceIds(cpuDeckData.lrig_deck);
-      const mainWithIds = assignInstanceIds(shuffle(cpuDeckData.main_deck));
+      const lrigWithIds = assignGuestInstanceIds(cpuDeckData.lrig_deck);
+      const mainWithIds = assignGuestInstanceIds(shuffle(cpuDeckData.main_deck));
       const lv0Idx = cpuDeckData.lrig_deck.findIndex(num => {
         const c = cards.find(card => card.CardNum === num);
         return c?.Type === 'ルリグ' && c.Level === '0';
