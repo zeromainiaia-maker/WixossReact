@@ -3271,6 +3271,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const huSt  = bs.host_state;    // 人間は常にhost
     const isCpuTurnNow = bs.active_user_id === CPU_PLAYER_ID;
 
+    // 人間がライフバースト処理中（チェックゾーンにカードあり）はCPU行動しない
+    if (huSt.field?.check) return;
+
     // ─── ライフバースト確認（チェックゾーンのカードを処理）───
     if (cpuSt.field?.check) {
       const cardNum = cpuSt.field.check;
