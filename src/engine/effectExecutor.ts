@@ -1700,7 +1700,21 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に戻す`));
     }
     case 'TRASH': {
-      // hand からトラッシュ（同名カードが複数ある場合は先頭の1枚のみ）
+      const trashAction = action as TrashAction;
+      const tgt = trashAction.target;
+      if (tgt.type === 'SIGNI') {
+        // フィールドのシグニをトラッシュ
+        const owner = tgt.owner as Owner;
+        const s = ownerState(owner, ctx);
+        if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
+          const removed = removeFromField(cardNum, s);
+          const newS: PlayerState = { ...removed, trash: [...removed.trash, cardNum] };
+          return done(addLog(setOwnerState(owner, newS, ctx),
+            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
+        }
+        return done(ctx);
+      }
+      // HAND_CARD: hand からトラッシュ（同名カードが複数ある場合は先頭の1枚のみ）
       for (const owner of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(owner, ctx);
         const hi = s.hand.indexOf(cardNum);
