@@ -4745,7 +4745,48 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       );
                     })}
                   </div>
-                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, isBetting, isEncore)}
+                  {artsDiscardCost > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        手札から捨てるカードを選択: {selectedArtsDiscard.size} / {artsDiscardCost}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.hand.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedArtsDiscard.has(i);
+                          return (
+                            <div key={i}
+                              onClick={() => setSelectedArtsDiscard(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (next.size >= artsDiscardCost) return prev;
+                                next.add(i); return next;
+                              })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #ff9800' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, isBetting, isEncore, selectedArtsDiscard)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? (isEncore ? '#3377bb' : C.coin) : C.disabled,
