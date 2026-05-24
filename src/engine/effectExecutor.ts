@@ -620,7 +620,20 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.owner;
   const src = a.source;
-  if (!src) return done(ctx);
+
+  // source未指定＝デッキトップのカードを場に出す（LOOK_AND_REORDERの続きで使う）
+  if (!src) {
+    const state = ownerState(tgtOwner, ctx);
+    if (state.deck.length === 0) return done(ctx);
+    const cardNum = state.deck[0];
+    const signi = [...state.field.signi] as (string[] | null)[];
+    const emptyIdx = signi.findIndex(z => !z || z.length === 0);
+    if (emptyIdx < 0) return done(ctx); // 空きゾーンなし
+    signi[emptyIdx] = [cardNum];
+    const newS: PlayerState = { ...state, deck: state.deck.slice(1), field: { ...state.field, signi } };
+    return done(addLog(setOwnerState(tgtOwner, newS, ctx),
+      `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場に出す`));
+  }
 
   const state = ownerState(tgtOwner, ctx);
   let cands: string[];
