@@ -700,7 +700,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ATTACK_ARTS_OPはCPUがターンプレイヤーのとき人間が担当→CPU動かない
     // CPUが非ターンプレイヤーのときはCPUが担当→動く
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && isCpuTurn) return;
-    if (!isCpuTurn && bs.turn_phase !== 'ATTACK_ARTS_OP' && !cpuSt.field?.check && !cpuSt.field?.lrig_attacked) return;
+    if (!isCpuTurn && bs.turn_phase !== 'ATTACK_ARTS_OP' && !cpuSt.field?.check && !cpuSt.field?.lrig_attacked && !bs.pending_spell) return;
     if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
     cpuTimerRef.current = setTimeout(() => { cpuTurnRef.current?.(); }, CPU_ACTION_DELAY);
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
@@ -710,7 +710,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     bs?.host_state?.field?.check, bs?.host_state?.field?.lrig_attacked,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(bs?.guest_state?.field?.signi_down),
-    bs?.pending_effect, !!bs?.effect_stack,
+    bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── バトルに必要なカードだけを抽出（全1万枚+ を毎回スキャンしない） ────────────
