@@ -65,7 +65,7 @@ export type NumberOrRef = number | { $ref: string };
 
 export type ActiveCondition =
   | { type: 'TURN_OWNER'; owner: Owner }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter }
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean }
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number }
   | { type: 'SELF_POWER_THRESHOLD'; operator: CompareOp; value: number }
   | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札と相手の手札の差
