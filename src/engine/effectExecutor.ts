@@ -228,6 +228,11 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'HAS_CARD_IN_FIELD':
       return st(cond.owner).field.signi.some(stack =>
         stack?.some(n => matchesFilter(ctx.cardMap.get(n), cond.filter)));
+    case 'DECK_TOP_MATCHES': {
+      const topNum = st(cond.owner).deck[0];
+      if (!topNum) return false;
+      return matchesFilter(ctx.cardMap.get(topNum), cond.filter);
+    }
     case 'IS_MY_TURN':    return true;
     case 'IS_OPPONENT_TURN': return false;
     default: return true;
