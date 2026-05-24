@@ -2575,13 +2575,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  const executeArts = async (card: CardData, costIndices: Set<number>, betting: boolean = false, encore: boolean = false) => {
+  const executeArts = async (card: CardData, costIndices: Set<number>, betting: boolean = false, encore: boolean = false, discardIndices: Set<number> = new Set()) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
     setLoading(true);
     setShowArtsModal(false);
     setPendingArtsCard(null);
     setSelectedArtsCost(new Set());
+    setSelectedArtsDiscard(new Set());
     setIsBetting(false);
     setIsEncore(false);
     try {
@@ -2592,6 +2593,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const discardNums = [...discardIndices].map(i => my.hand[i]);
+      const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
       const betCost = betting ? parseBetCost(card.EffectText ?? '') : 0;
       const encoreCoinCost = encore ? (parseEncoreCost(card.EffectText ?? '')?.coins ?? 0) : 0;
       const paid: PlayerState = {
@@ -2600,10 +2603,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? [instanceId, ...newLrigDeck]    // アンコール：ルリグデッキ先頭に戻す
           : newLrigDeck,
         energy: newEnergy,
+        hand: newHand,
         lrig_trash: encore
           ? my.lrig_trash                   // アンコール：ルリグトラッシュに置かない
           : [...my.lrig_trash, instanceId],
-        trash: [...my.trash, ...paidNums],
+        trash: [...my.trash, ...paidNums, ...discardNums],
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
       };
       if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
