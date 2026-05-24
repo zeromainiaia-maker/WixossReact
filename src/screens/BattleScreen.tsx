@@ -8,8 +8,8 @@ import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, chec
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
-import { C, CardModal, CardStackModal, CardSlot, StackSlot, StackedSigniSlot, SIGNI_STACK_OFFSET, CharmPeek, CharmModal, HandCards, Stat, ZoneCardModal, PlayerField } from '../components/BoardComponents';
-import type { CardAction, CardSlotProps, StackSlotProps, StackedSigniSlotProps } from '../components/BoardComponents';
+import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
+import type { CardAction } from '../components/BoardComponents';
 
 interface Props {
   user: User;
