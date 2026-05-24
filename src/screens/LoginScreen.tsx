@@ -93,6 +93,10 @@ export default function LoginScreen() {
       <button onClick={() => setIsSignUp(v => !v)} style={secondaryButtonStyle}>
         {isSignUp ? 'ログインに戻る' : 'アカウントを作成'}
       </button>
+
+      <span style={{ position: 'fixed', bottom: 12, left: 16, fontSize: 11, color: '#333' }}>
+        {APP_VERSION}
+      </span>
     </div>
   );
 }
