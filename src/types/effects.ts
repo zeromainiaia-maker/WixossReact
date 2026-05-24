@@ -78,6 +78,7 @@ export type Condition =
   | { type: 'ENERGY_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }
+  | { type: 'AND'; conditions: Condition[] }
   | { type: 'IS_MY_TURN' }
   | { type: 'IS_OPPONENT_TURN' };
 
