@@ -846,6 +846,12 @@ export interface AddCraftToLrigDeckAction {
   count: number;
 }
 
+// リコレクトアイコンゲート：ルリグトラッシュのアーツ枚数が条件を満たさない場合、後続ステップをスキップ
+export interface RecollectGateAction {
+  type: 'RECOLLECT_GATE';
+  minArts: number;
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   type: 'STUB';
