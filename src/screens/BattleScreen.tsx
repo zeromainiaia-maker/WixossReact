@@ -2607,7 +2607,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const coinGain = parseInt(card.Coin) || 0;
       const growCoinCost = parseCoinCost(card.GrowCost);
-      const newMyState: PlayerState = {
+      let newMyState: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
         field: { ...my.field, lrig: [...my.field.lrig, instanceId] },
@@ -2616,10 +2616,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: [...(my.actions_done ?? []), 'GROW'],
         coins: Math.min(5, Math.max(0, my.coins - growCoinCost) + coinGain),
       };
+      // グロウ条件の追加効果（ルリグをデッキから下に置く・除外する等）
+      const growCond = extractGrowCondition(card.EffectText);
+      const { state: afterGrowEffect, log: growEffectLog } = applyGrowEffect(growCond, newMyState, battleCardMap);
+      newMyState = afterGrowEffect;
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const cardName = card.CardName;
       const coinLog = coinGain > 0 ? `（コイン+${coinGain}）` : '';
-      appendBattleLogs([`${cardName}にグロウ${coinLog}`]);
+      const logs = [`${cardName}にグロウ${coinLog}`];
+      if (growEffectLog) logs.push(growEffectLog);
+      appendBattleLogs(logs);
 
       // ルリグの ON_PLAY 効果を確認
       const ownEffects = effectsMap.get(cardNum) ?? [];
