@@ -3105,41 +3105,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         if (myPower >= opPower) {
           // バトル勝利：相手シグニをバニッシュ（チャームがあればトラッシュへ）
-          {
-            // 通常バニッシュ → 相手エナへ（チャーム・アクセもトラッシュへ、ウィルスリセット）
-            banishedOpCardNum = opTopCardNum;
-            const newOpSigni = [...op.field.signi] as (string[] | null)[];
-            newOpSigni[opZoneIndex] = null;
-            const newOpDown   = [...(op.field.signi_down   ?? [false, false, false])];
-            const newOpFrozen = [...(op.field.signi_frozen  ?? [false, false, false])];
-            const newOpCharms = [...(op.field.signi_charms  ?? [null, null, null])];
-            const newOpAcce   = [...(op.field.signi_acce    ?? [null, null, null])];
-            const newOpVirus  = [...(op.field.signi_virus   ?? [0, 0, 0])];
-            newOpDown[opZoneIndex]   = false;
-            newOpFrozen[opZoneIndex] = false;
-            const banishExtraTrash: string[] = [];
-            if (newOpCharms[opZoneIndex]) { banishExtraTrash.push(newOpCharms[opZoneIndex]!); newOpCharms[opZoneIndex] = null; }
-            if (newOpAcce[opZoneIndex])   { banishExtraTrash.push(newOpAcce[opZoneIndex]!);   newOpAcce[opZoneIndex]   = null; }
-            newOpVirus[opZoneIndex] = 0;
-            const redirectBanish = my.banish_redirect === true;
-            newOpState = {
-              ...op,
-              energy: redirectBanish ? op.energy : [...op.energy, ...opStack],
-              trash: redirectBanish
-                ? [...op.trash, ...opStack, ...banishExtraTrash]
-                : (banishExtraTrash.length > 0 ? [...op.trash, ...banishExtraTrash] : op.trash),
-              field: {
-                ...op.field,
-                signi: newOpSigni,
-                signi_down:   newOpDown,
-                signi_frozen: newOpFrozen,
-                signi_charms: newOpCharms,
-                signi_acce:   newOpAcce,
-                signi_virus:  newOpVirus as number[],
-              },
-            };
-            appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : ''}`]);
-          }
+          banishedOpCardNum = opTopCardNum;
+          const newOpSigni = [...op.field.signi] as (string[] | null)[];
+          newOpSigni[opZoneIndex] = null;
+          const newOpDown   = [...(op.field.signi_down   ?? [false, false, false])];
+          const newOpFrozen = [...(op.field.signi_frozen  ?? [false, false, false])];
+          const newOpCharms = [...(op.field.signi_charms  ?? [null, null, null])];
+          const newOpAcce   = [...(op.field.signi_acce    ?? [null, null, null])];
+          const newOpVirus  = [...(op.field.signi_virus   ?? [0, 0, 0])];
+          newOpDown[opZoneIndex]   = false;
+          newOpFrozen[opZoneIndex] = false;
+          const banishExtraTrash: string[] = [];
+          if (newOpCharms[opZoneIndex]) { banishExtraTrash.push(newOpCharms[opZoneIndex]!); newOpCharms[opZoneIndex] = null; }
+          if (newOpAcce[opZoneIndex])   { banishExtraTrash.push(newOpAcce[opZoneIndex]!);   newOpAcce[opZoneIndex]   = null; }
+          newOpVirus[opZoneIndex] = 0;
+          const redirectBanish = my.banish_redirect === true;
+          newOpState = {
+            ...op,
+            energy: redirectBanish ? op.energy : [...op.energy, ...opStack],
+            trash: redirectBanish
+              ? [...op.trash, ...opStack, ...banishExtraTrash]
+              : (banishExtraTrash.length > 0 ? [...op.trash, ...banishExtraTrash] : op.trash),
+            field: {
+              ...op.field,
+              signi: newOpSigni,
+              signi_down:   newOpDown,
+              signi_frozen: newOpFrozen,
+              signi_charms: newOpCharms,
+              signi_acce:   newOpAcce,
+              signi_virus:  newOpVirus as number[],
+            },
+          };
+          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : ''}`]);
 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer || isSLancer) {
