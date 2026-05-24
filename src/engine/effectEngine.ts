@@ -119,7 +119,7 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
   }
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
-    if (!stories.some(s => cardData.Story?.includes(s))) return false;
+    if (!stories.some(s => cardData.CardClass?.includes(s))) return false;
   }
   return true;
 }
