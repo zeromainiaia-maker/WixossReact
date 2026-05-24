@@ -1062,7 +1062,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const winner = jankenWinner(hostChoice, guestChoice, bs.host_id, bs.guest_id);
         const iWon = winner === user.id;
         return (
-          <div style={setupWrap}>
+          <>{setupLeaveConfirmModal}<div style={setupWrap}>
             <h2 style={{ color: C.text, margin: 0 }}>じゃんけん結果</h2>
             <p style={{ margin: 0 }}>あなた: {JANKEN_LABEL[myJanken]}   相手: {JANKEN_LABEL[opJanken]}</p>
             {winner ? (
@@ -1078,7 +1078,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 <p style={{ color: C.textDim, fontSize: 14, margin: '8px 0 0' }}>もう一度選んでください...</p>
               </>
             )}
-          </div>
+            {setupLeaveBtn}
+          </div></>
         );
       }
 
