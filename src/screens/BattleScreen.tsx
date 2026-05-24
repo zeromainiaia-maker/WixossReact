@@ -2129,6 +2129,42 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // SELECT_ZONE: 効果でデッキトップを場に出す際のゾーン選択
+  const handleSelectZoneForEffect = async (zoneIndex: number) => {
+    if (!bs?.pending_effect || loading) return;
+    setLoading(true);
+    try {
+      const pe = bs.pending_effect;
+      const inter = pe.interaction;
+      if (inter.type !== 'SELECT_ZONE') return;
+      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+      const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
+      const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
+      const isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
+      const ctxPowers = calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, battleCardMap);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum };
+
+      const result = resumeSelectZone(zoneIndex, inter, ctx);
+      if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
+
+      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
+      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
+      if (!result.done) {
+        const { respondPlayerId: _drop, ...peBase } = pe;
+        update.pending_effect = { ...peBase, interaction: result.pending } satisfies PendingEffect;
+      } else {
+        update.pending_effect = null;
+        const existingStack = bs.effect_stack ?? null;
+        if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   /**
    * フィールド上の全シグニから、指定イベントに反応する AUTO 効果を収集して StackEntry[] を返す。
    * 召喚されたカード自身（triggerScope='self'）はここでは除き、queueCardEffects で別途処理する。
