@@ -3088,6 +3088,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const myGrants = my.keyword_grants;
       const isAssassin    = hasKeyword(myTopNum, 'アサシン',      battleCardMap, myGrants);
       const isLancer      = hasKeyword(myTopNum, 'ランサー',      battleCardMap, myGrants);
+      const isSLancer     = hasKeyword(myTopNum, 'Sランサー',     battleCardMap, myGrants);
       const isDoubleCrush = hasKeyword(myTopNum, 'ダブルクラッシュ', battleCardMap, myGrants);
 
       // アサシン：正面シグニを無視してライフへ直接アタック
