@@ -2570,7 +2570,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // CardClass 互換チェック
       (!currentLrig || lrigClassesCompatible(currentLrig.CardClass, c.CardClass)) &&
       // 【グロウ】条件チェック（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数・複数色制限）
-      checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig, battleCardMap)
+      checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig ?? undefined, battleCardMap)
     );
 
   // ルリグのクラス（制限チェック共通）
