@@ -719,8 +719,10 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
       const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
       if (zoneIdx < 0) continue;
       const newFrozen = [...(s.field.signi_frozen ?? [false, false, false])] as boolean[];
+      const newDown   = [...(s.field.signi_down   ?? [false, false, false])] as boolean[];
       newFrozen[zoneIdx] = true;
-      const newS: PlayerState = { ...s, field: { ...s.field, signi_frozen: newFrozen } };
+      newDown[zoneIdx]   = true; // 凍結はダウン状態も伴う
+      const newS: PlayerState = { ...s, field: { ...s.field, signi_frozen: newFrozen, signi_down: newDown } };
       cur = addLog(setOwnerState(a.target.owner, newS, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}を凍結`);
     }
