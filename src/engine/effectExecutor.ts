@@ -283,7 +283,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   };
 }
 
-// SELECT_TARGET ヘルパー：候補数によって自動実行か要インタラクションかを decided める
+// SELECT_TARGET ヘルパー：候補数によって自動実行か要インタラクションかを決める
 function selectOrInteract(
   candidates: string[],
   count: number,
