@@ -3929,6 +3929,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     setPendingSigniOnPlayCost(null);
     setSelectedSigniOnPlayCost(new Set());
+    setSelectedSigniOnPlayDiscard(new Set());
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
       if (mandatoryEntries.length === 0) {
