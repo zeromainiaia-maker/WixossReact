@@ -279,12 +279,11 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       signi_frozen: newFrozen as boolean[],
       signi_charms: newCharms,
       signi_acce:   newAcce,
-      signi_virus:  newVirus  as number[],
     },
   };
 }
 
-// SELECT_TARGET ヘルパー：候補数によって自動実行か要インタラクションかを決める
+// SELECT_TARGET ヘルパー：候補数によって自動実行か要インタラクションかを decided める
 function selectOrInteract(
   candidates: string[],
   count: number,
