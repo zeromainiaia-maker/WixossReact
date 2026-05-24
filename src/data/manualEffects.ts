@@ -1,4 +1,4 @@
-import type { CardEffect, SequenceAction, ChooseAction } from '../types/effects';
+import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction } from '../types/effects';
 
 /**
  * パーサーで自動解析できないカード固有の効果定義。
