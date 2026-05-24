@@ -3313,6 +3313,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return;
     }
 
+    // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
+    // ※ このチェックは !isCpuTurnNow の早期リターンより前に置く必要がある
+    if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
+      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_SIGNI' }).eq('room_id', roomId);
+      return;
+    }
+
     if (!isCpuTurnNow) return;
 
     const phase = bs.turn_phase;
