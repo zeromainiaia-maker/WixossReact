@@ -1,0 +1,58 @@
+CardName: 幻獣　ハチ  Type: シグニ  Level: 1  CardClass: 精生：地獣
+EffectText: 【起】《ダウン》：あなたのデッキの一番上を公開する。それが＜空獣＞か＜地獣＞のシグニの場合、それを手札に加える。
+
+[
+  {
+    "effectId": "WX02-039-E1",
+    "effectType": "ACTIVATED",
+    "timing": [
+      "MAIN"
+    ],
+    "cost": {
+      "down_self": true
+    },
+    "action": {
+      "type": "REVEAL_AND_PICK",
+      "owner": "self",
+      "revealCount": 1,
+      "filter": {
+        "cardType": "シグニ",
+        "story": [
+          "空獣",
+          "地獣"
+        ]
+      },
+      "pickCount": 1,
+      "then": {
+        "type": "TRANSFER_TO_HAND",
+        "source": {
+          "type": "DECK_CARD",
+          "owner": "self",
+          "count": 1
+        }
+      },
+      "remainder": {
+        "location": "deck",
+        "position": "top"
+      }
+    },
+    "duration": "INSTANT",
+    "mandatory": false,
+    "parseStatus": "AUTO"
+  },
+  {
+    "effectId": "WX02-039-BURST",
+    "effectType": "LIFE_BURST",
+    "timing": [
+      "ON_LIFE_BURST"
+    ],
+    "action": {
+      "type": "DRAW",
+      "owner": "self",
+      "count": 1
+    },
+    "duration": "INSTANT",
+    "mandatory": false,
+    "parseStatus": "AUTO"
+  }
+]
