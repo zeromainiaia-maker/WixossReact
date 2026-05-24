@@ -6433,7 +6433,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {card && (
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                       <img src={card.ImgURL} alt={card.CardName}
-                        style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                        onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card.ImgURL); }, 500); }}
+                        onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                        onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                        onContextMenu={e => e.preventDefault()}
+                        draggable={false}
+                        style={{ width: 52, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }} />
                       <div>
                         <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
