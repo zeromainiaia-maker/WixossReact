@@ -840,7 +840,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
     <div style={{ display: 'flex', gap: 5, alignItems: 'flex-start' }}>
       {freeZoneSlot}
       {displaySigni.map((s, i) => {
-        const rawIdx = isMe ? i : (rawSigni.length - 1 - i);
+        const rawIdx = i;
         return (
           <StackedSigniSlot key={i} stack={s} cards={cards} width={signiW} height={signiH}
             label={`シグニ${i + 1}`}
