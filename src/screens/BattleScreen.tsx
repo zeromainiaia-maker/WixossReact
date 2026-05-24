@@ -6448,7 +6448,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         手札から捨てるカードを選択: {selectedSigniOnPlayDiscard.size} / {discardNeeded}枚
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                        {my.hand.map((num, i) => {
+                        {pendingSigniOnPlayCost.placedState.hand.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniOnPlayDiscard.has(i);
                           return (
