@@ -1,0 +1,6 @@
+WX10-007 CardClass: サシェ
+WX10-007 CardName: 祈願の使者　サシェ・モティエ
+WX07-006: CardClass=精羅：宇宙 (short example)
+WD03-009: CardClass=精械：電機 (電機 example)
+WX08-006: CardClass=精生：凶蟲 (凶蟲 example)
+WX15-032: CardClass=精像：武勇 (武勇 example)
