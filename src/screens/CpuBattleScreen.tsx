@@ -309,7 +309,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     if (!attkCard) return g;
 
     const isDown = attacker.field.signi_down?.[zoneIdx] ?? false;
-    const hasSleeperAttacker = hasKeyword(attkInstId, cardMap, attacker.keyword_grants ?? {}, 'スリープアタッカー');
+    const hasSleeperAttacker = hasKeyword(attkInstId, 'スリープアタッカー', cardMap, attacker.keyword_grants ?? {});
     if (isDown && !hasSleeperAttacker) return g;
 
     const newAttkDown = [...(attacker.field.signi_down ?? [false,false,false])] as [boolean,boolean,boolean];
