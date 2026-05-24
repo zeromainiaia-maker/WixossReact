@@ -7111,6 +7111,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return null;
       })()}
 
+      {/* ===== 長押し拡大オーバーレイ（全モーダル共通） ===== */}
+      {expandedPickImgUrl && createPortal(
+        <div
+          onPointerDown={() => setExpandedPickImgUrl(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 9000,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer' }}>
+          <img src={expandedPickImgUrl} alt=""
+            draggable={false}
+            style={{ maxWidth: '85vw', maxHeight: '80vh', borderRadius: 8, objectFit: 'contain' }} />
+        </div>,
+        document.body,
+      )}
+
     </div>
   );
 }
