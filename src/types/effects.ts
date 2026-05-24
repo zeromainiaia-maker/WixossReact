@@ -227,6 +227,7 @@ export type EffectAction =
   | PowerModifyPerVirusCountAction
   | LrigLimitModifyAction
   | AddCraftToLrigDeckAction
+  | RecollectGateAction
   | StubAction
   | UnknownAction;
 
