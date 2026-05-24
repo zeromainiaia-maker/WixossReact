@@ -641,7 +641,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     return needsInteraction(newCtx, {
       type: 'SELECT_ZONE',
       cardNum,
-      owner: tgtOwner,
+      owner: tgtOwner === 'opponent' ? 'opponent' : 'self',
     });
   }
 
