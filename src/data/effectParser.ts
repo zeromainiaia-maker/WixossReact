@@ -4134,8 +4134,9 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- リコレクトアイコン条件 ----
-  if (t.match(/《リコレクトアイコン》/)) {
-    return { type: 'STUB', id: 'RECOLLECT_ICON' } as StubAction;
+  const recollectM = t.match(/《リコレクトアイコン》［([０-９\d]+)枚以上/);
+  if (recollectM) {
+    return { type: 'RECOLLECT_GATE', minArts: parseNum(recollectM[1]) } as import('../types/effects').RecollectGateAction;
   }
 
   // ---- 対戦相手が手札を捨てないかぎり分岐 ----
