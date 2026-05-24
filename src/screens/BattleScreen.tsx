@@ -3511,12 +3511,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return;
     }
 
-    // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
-    if (phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
-      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_SIGNI' }).eq('room_id', roomId);
-      return;
-    }
-
     // ─── ATTACK_SIGNIフェイズ：全シグニでアタック ───
     if (phase === 'ATTACK_SIGNI') {
       // まだダウンしていないシグニを1枚ずつアタック
