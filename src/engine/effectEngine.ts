@@ -26,6 +26,7 @@ export function checkActiveCondition(
   otherState: PlayerState,
   isOwnerTurn: boolean,
   cardMap: Map<string, CardData>,
+  sourceCardNum?: string,
 ): boolean {
   if (!cond) return true;
   switch (cond.type) {
@@ -35,7 +36,10 @@ export function checkActiveCondition(
     case 'HAS_CARD_IN_FIELD': {
       const state = cond.owner === 'self' ? ownerState : otherState;
       const fieldNums = state.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
-      return fieldNums.some(num => matchesFilter(cardMap.get(num), cond.filter));
+      const targets = (cond.excludeSelf && sourceCardNum)
+        ? fieldNums.filter(n => n !== sourceCardNum)
+        : fieldNums;
+      return targets.some(num => matchesFilter(cardMap.get(num), cond.filter));
     }
 
     case 'COUNT_THRESHOLD': {
@@ -69,7 +73,7 @@ export function checkActiveCondition(
     }
 
     case 'AND':
-      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap));
+      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum));
   }
   return true;
 }
