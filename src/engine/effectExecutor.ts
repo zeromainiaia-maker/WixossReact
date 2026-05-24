@@ -1533,7 +1533,18 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'FORCE_SIGNI_ATTACK':      return execForceSigniAttack(action as ForceSigniAttackAction, ctx);
     case 'POWER_MODIFY_PER_TRASH_COUNT': return execPowerModifyPerTrashCount(action as PowerModifyPerTrashCountAction, ctx);
     case 'POWER_MODIFY_PER_LIFE_COUNT':  return execPowerModifyPerLifeCount(action as PowerModifyPerLifeCountAction, ctx);
-    case 'GRANT_LRIG_ABILITY':           return done(ctx); // CONTINUOUS: effectEngine 側で処理
+    case 'GRANT_LRIG_ABILITY': {
+      const ga = action as GrantLrigAbilityAction;
+      if (ga.abilities && ga.abilities.length > 0) {
+        const existing = ctx.ownerState.lrig_granted_auto_effects ?? [];
+        const newOwner: PlayerState = {
+          ...ctx.ownerState,
+          lrig_granted_auto_effects: [...existing, ...ga.abilities],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグ付与能力: ${ga.rawText}`));
+      }
+      return done(ctx);
+    }
     case 'PLACE_VIRUS':                  return execPlaceVirus(action as PlaceVirusAction, ctx);
     case 'ATTACH_ACCE':                  return execAttachAcce(action as AttachAcceAction, ctx);
     case 'BLOOD_CRYSTAL_ARMOR':          return execBloodCrystalArmor(action as BloodCrystalArmorAction, ctx);
