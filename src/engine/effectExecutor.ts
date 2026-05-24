@@ -759,6 +759,14 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
 }
 
 function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
+  if (a.target.type === 'LRIG') {
+    const s = ownerState(a.target.owner, ctx);
+    const lrigName = s.field.lrig?.length
+      ? (ctx.cardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ')
+      : 'ルリグ';
+    const newS: PlayerState = { ...s, field: { ...s.field, lrig_down: false } };
+    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をアップ`));
+  }
   const state = ownerState(a.target.owner, ctx);
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
