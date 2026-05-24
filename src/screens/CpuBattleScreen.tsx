@@ -230,8 +230,10 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   // ======= UP フェイズ処理 =======
   const processUp = useCallback((g: CpuGameState): CpuGameState => {
     const s = myState(g);
-    const newSigniDown = [false, false, false] as [boolean, boolean, boolean];
     const frozen = s.field.signi_frozen ?? [false, false, false];
+    const curDown = s.field.signi_down ?? [false, false, false];
+    // 凍結中のシグニはアップしない（down && frozen が true のものだけ残す）
+    const newSigniDown = curDown.map((d, i) => d && frozen[i]) as [boolean, boolean, boolean];
     const newFrozen = frozen.map(_f => false) as [boolean, boolean, boolean];
     const newS: PlayerState = {
       ...s,
