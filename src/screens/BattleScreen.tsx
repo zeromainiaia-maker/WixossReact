@@ -3613,10 +3613,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if ((newCpuSt.field.signi[zone] ?? []).length > 0) continue; // ゾーン埋まってる
         if (handSignis.length === 0) break;
 
-        // 召喚できるシグニを探す（リミット内）
+        // 召喚できるシグニを探す（リミット内 かつ シグニLv ≤ ルリグLv）
         const candidate = handSignis.find(({ card }) => {
           const lv = parseInt(card!.Level) || 0;
-          return fieldTotal + lv <= cpuLimit;
+          return lv <= cpuLrigLevel && fieldTotal + lv <= cpuLimit;
         });
         if (!candidate) break;
 
