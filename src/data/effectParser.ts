@@ -1082,8 +1082,8 @@ function parseSingleSentence(text: string): EffectAction {
   if (plusM || minusM) {
     const delta = plusM ? parseNum(plusM[1]) : -(parseNum(minusM![1]));
     let target: EffectTarget;
-    if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたのシグニのパワーを/)) {
-      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t) } };
+    if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:[白赤青緑黒]の|＜[^＞]+＞の|他の)?シグニのパワーを/)) {
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t) } };
     } else if (t.match(/対戦相手の(?:感染状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
       target = parseSigniTarget(t, 'opponent');
     } else if (t.match(/あなたの(?:感染状態の)?シグニ([０-９\d]+)体/)) {
