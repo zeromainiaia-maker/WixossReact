@@ -5796,10 +5796,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           </button>
         )}
 
-        <button onClick={() => setShowEndConfirm(true)} style={{
-          marginLeft: 'auto', padding: '3px 10px', borderRadius: 4,
-          border: C.borderBarBtn, backgroundColor: 'transparent', color: C.textVeryFaint, cursor: 'pointer', fontSize: 11,
-        }}>終了</button>
       </div>
 
       {/* 盤面エリア */}
