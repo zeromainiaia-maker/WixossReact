@@ -4001,13 +4001,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setPendingLrigGranted(null);
     setSelectedLrigGrantedCost(new Set());
     try {
-      // エクシードコスト：ルリグスタックの下からN枚をルリグトラッシュへ
+      // エクシードコスト：センター → 左アシスト → 右アシストの順で下からN枚をルリグトラッシュへ
       const exceedCost = effect.cost?.exceed ?? 0;
-      let newLrig = [...my.field.lrig];
+      let newLrig     = [...my.field.lrig];
+      let newAssistL  = [...(my.field.assist_lrig_l ?? [])];
+      let newAssistR  = [...(my.field.assist_lrig_r ?? [])];
       let newLrigTrash = [...my.lrig_trash];
-      if (exceedCost > 0 && newLrig.length > 1) {
-        const exceedCards = newLrig.splice(0, Math.min(exceedCost, newLrig.length - 1));
-        newLrigTrash = [...newLrigTrash, ...exceedCards];
+      if (exceedCost > 0) {
+        let remaining = exceedCost;
+        const fromCenter = Math.min(remaining, newLrig.length - 1);
+        if (fromCenter > 0) { newLrigTrash = [...newLrigTrash, ...newLrig.splice(0, fromCenter)]; remaining -= fromCenter; }
+        if (remaining > 0 && newAssistL.length > 1) {
+          const fromL = Math.min(remaining, newAssistL.length - 1);
+          newLrigTrash = [...newLrigTrash, ...newAssistL.splice(0, fromL)]; remaining -= fromL;
+        }
+        if (remaining > 0 && newAssistR.length > 1) {
+          const fromR = Math.min(remaining, newAssistR.length - 1);
+          newLrigTrash = [...newLrigTrash, ...newAssistR.splice(0, fromR)];
+        }
       }
       // エナコスト支払い
       const paidNums = [...costIndices].map(i => my.energy[i]);
@@ -4016,7 +4027,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...my,
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
-        field: { ...my.field, lrig: newLrig },
+        field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
       };
