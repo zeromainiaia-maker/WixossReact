@@ -12,7 +12,7 @@ import { C, PlayerField, HandCards } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 
 // ======= 定数 =======
-const CPU_ID = 'cpu';
+// const CPU_ID = 'cpu'; // 将来使用予定
 const HAND_INIT = 5;
 const LIFE_DEFAULT = 5;
 const CPU_DELAY = 700;
