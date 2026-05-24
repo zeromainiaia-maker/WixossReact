@@ -865,12 +865,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else if (inter.type === 'SEARCH') {
         const count = inter.maxPick ?? 0;
         selected = inter.visibleCards.slice(0, count);
+      } else if (inter.type === 'LOOK_AND_REORDER') {
+        selected = [...inter.cards];
       }
       handleEffectInteraction(selected);
     }, CPU_ACTION_DELAY);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCpuBattle, bs?.pending_effect?.respondPlayerId, bs?.pending_effect]);
+
+  // CPU対戦：effectスタック整列をCPUが自動確定
+  useEffect(() => {
+    if (!isCpuBattle || !bs?.effect_stack || loading) return;
+    const stack = bs.effect_stack;
+    const cpuIsTurnPlayer = bs.active_user_id === CPU_PLAYER_ID;
+    const cpuNeedsOrder = cpuIsTurnPlayer
+      ? (!stack.orderTurnDone && stack.pendingTurn.length > 1)
+      : (!stack.orderOppDone && stack.pendingOpp.length > 1);
+    if (!cpuNeedsOrder) return;
+    const cpuPending = cpuIsTurnPlayer ? stack.pendingTurn : stack.pendingOpp;
+    const timer = setTimeout(async () => {
+      const orderedIds = cpuPending.map(e => e.id);
+      const newStack = cpuIsTurnPlayer
+        ? confirmTurnOrder(stack, orderedIds)
+        : confirmOppOrder(stack, orderedIds);
+      await supabase.from('battle_states')
+        .update({ effect_stack: isStackDone(newStack) ? null : newStack })
+        .eq('room_id', roomId);
+    }, CPU_ACTION_DELAY);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCpuBattle, bs?.effect_stack]);
 
   // ── バトルに必要なカードだけを抽出（全1万枚+ を毎回スキャンしない） ────────────
   // 自分のデッキ + bs の全ゾーンにある CardNum を収集し、大本の cards から Map を作る。
