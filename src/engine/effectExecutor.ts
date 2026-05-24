@@ -233,6 +233,8 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!topNum) return false;
       return matchesFilter(ctx.cardMap.get(topNum), cond.filter);
     }
+    case 'AND':
+      return cond.conditions.every(c => evalCondition(c, ctx));
     case 'IS_MY_TURN':    return true;
     case 'IS_OPPONENT_TURN': return false;
     default: return true;
