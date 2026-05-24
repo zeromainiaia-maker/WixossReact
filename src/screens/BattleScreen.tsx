@@ -852,7 +852,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (stack.queue.length === 0) return;
     if (bs.pending_effect) return;
     if (loading) return;
-    if (bs.active_user_id !== user.id) return;
+    // ターンプレイヤーが自分か、キュー先頭のエフェクト所有者が自分の場合に解決する
+    // （相手ターン中の自分のライフバーストなど、非ターンプレイヤーのエフェクトにも対応）
+    const firstEntry = stack.queue[0];
+    if (bs.active_user_id !== user.id && firstEntry?.playerId !== user.id) return;
     // 相手のチェックゾーンにカードがある（バースト処理待ち）間はスタック解決を停止
     const isLocalHost = user.id === bs.host_id;
     const opStateForCheck = isLocalHost ? bs.guest_state : bs.host_state;
