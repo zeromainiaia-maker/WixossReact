@@ -471,6 +471,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     mandatoryEntries: StackEntry[];
   } | null>(null);
   const [selectedSigniOnPlayCost, setSelectedSigniOnPlayCost] = useState<Set<number>>(new Set());
+  const [selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard] = useState<Set<number>>(new Set());
   // キーピース
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [pendingKeyCard, setPendingKeyCard] = useState<CardData | null>(null);
