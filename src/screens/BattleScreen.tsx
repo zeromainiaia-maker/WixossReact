@@ -861,7 +861,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const shuffled = [...inter.candidates].sort(() => Math.random() - 0.5);
         selected = shuffled.slice(0, Math.min(count, shuffled.length));
       } else if (inter.type === 'CHOOSE') {
-        selected = inter.choices.length > 0 ? [inter.choices[0].id] : [];
+        selected = inter.options.length > 0 ? [inter.options[0].id] : [];
       } else if (inter.type === 'SEARCH') {
         const count = inter.maxPick ?? 0;
         selected = inter.visibleCards.slice(0, count);
