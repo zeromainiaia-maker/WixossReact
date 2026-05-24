@@ -3688,7 +3688,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       );
 
       if (firstUp >= 0) {
-        const opZone = 2 - firstUp; // 正面ゾーン（反転）
+        const opZone = firstUp; // 同番号ゾーン同士が対戦
         const opStack = huSt.field.signi[opZone] ?? [];
         const opTopNum = opStack.length > 0 ? opStack[opStack.length - 1] : null;
 
