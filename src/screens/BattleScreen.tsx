@@ -3131,10 +3131,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (newOpCharms[opZoneIndex]) { banishExtraTrash.push(newOpCharms[opZoneIndex]!); newOpCharms[opZoneIndex] = null; }
             if (newOpAcce[opZoneIndex])   { banishExtraTrash.push(newOpAcce[opZoneIndex]!);   newOpAcce[opZoneIndex]   = null; }
             newOpVirus[opZoneIndex] = 0;
+            const redirectBanish = my.banish_redirect === true;
             newOpState = {
               ...op,
-              energy: [...op.energy, ...opStack],
-              trash: banishExtraTrash.length > 0 ? [...op.trash, ...banishExtraTrash] : op.trash,
+              energy: redirectBanish ? op.energy : [...op.energy, ...opStack],
+              trash: redirectBanish
+                ? [...op.trash, ...opStack, ...banishExtraTrash]
+                : (banishExtraTrash.length > 0 ? [...op.trash, ...banishExtraTrash] : op.trash),
               field: {
                 ...op.field,
                 signi: newOpSigni,
@@ -3145,7 +3148,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 signi_virus:  newOpVirus as number[],
               },
             };
-            appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ`]);
+            appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : ''}`]);
           }
 
           // ランサー：バトル勝利後に追加でライフを1枚クラッシュ
