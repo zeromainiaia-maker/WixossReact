@@ -861,9 +861,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const firstEntry = stack.queue[0];
     if (bs.active_user_id !== user.id && firstEntry?.playerId !== user.id) return;
     // 相手のチェックゾーンにカードがある（バースト処理待ち）間はスタック解決を停止
+    // ※ CPUバトルでは相手（CPU）はスタック解決後に自動処理するためブロックしない
     const isLocalHost = user.id === bs.host_id;
     const opStateForCheck = isLocalHost ? bs.guest_state : bs.host_state;
-    if (opStateForCheck.field?.check) return;
+    if (!isCpuBattle && opStateForCheck.field?.check) return;
     resolveStackNextRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state]);
