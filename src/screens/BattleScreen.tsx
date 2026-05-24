@@ -61,6 +61,15 @@ function assignInstanceIds(cards: string[]): string[] {
   });
 }
 
+// CPUゲスト側用：ホストと衝突しないよう #g1, #g2... で採番
+function assignGuestInstanceIds(cards: string[]): string[] {
+  const counts: Record<string, number> = {};
+  return cards.map(cn => {
+    counts[cn] = (counts[cn] ?? 0) + 1;
+    return `${cn}#g${counts[cn]}`;
+  });
+}
+
 // リフレッシュ: トラッシュ全枚数をデッキに加えシャッフル。ライフがあれば一番上をトラッシュへ（バーストなし）。
 function applyRefresh(state: PlayerState): PlayerState {
   const newDeck = shuffle([...state.trash]);
