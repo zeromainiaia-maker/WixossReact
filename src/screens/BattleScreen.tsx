@@ -3648,6 +3648,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }).eq('room_id', roomId);
         return;
       }
+      // ガード応答待ち・ライフバースト処理中はENDへ進まない
+      if (huSt.field.lrig_attacked || huSt.field.check) return;
       // ルリグアタック済み → ENDへ
       await supabase.from('battle_states').update({ turn_phase: 'END' }).eq('room_id', roomId);
       return;
