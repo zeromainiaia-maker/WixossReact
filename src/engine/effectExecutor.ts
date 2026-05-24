@@ -261,14 +261,13 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   const newFrozen = [...(state.field.signi_frozen  ?? [false, false, false])];
   const newCharms = [...(state.field.signi_charms  ?? [null, null, null])];
   const newAcce   = [...(state.field.signi_acce    ?? [null, null, null])];
-  const newVirus  = [...(state.field.signi_virus   ?? [0, 0, 0])];
   const extraTrash: string[] = [];
   if (zoneIdx >= 0) {
     newDown[zoneIdx]   = false;
     newFrozen[zoneIdx] = false;
     if (newCharms[zoneIdx]) { extraTrash.push(newCharms[zoneIdx]!); newCharms[zoneIdx] = null; }
     if (newAcce[zoneIdx])   { extraTrash.push(newAcce[zoneIdx]!);   newAcce[zoneIdx]   = null; }
-    newVirus[zoneIdx] = 0;
+    // ウィルスはゾーンに属するため、シグニが離れても除去しない
   }
   return {
     ...state,
