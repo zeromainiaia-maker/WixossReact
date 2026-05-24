@@ -1,0 +1,202 @@
+=== WXDi-P10-073 ===
+[
+  {
+    "effectId": "WXDi-P10-073-E1",
+    "effectType": "AUTO",
+    "timing": [
+      "ON_ATTACK_SIGNI"
+    ],
+    "action": {
+      "type": "SEQUENCE",
+      "steps": [
+        {
+          "type": "LOOK_AND_REORDER",
+          "source": {
+            "location": "deck",
+            "owner": "self"
+          },
+          "count": 1,
+          "private": false,
+          "reorder": false,
+          "destination": {
+            "location": "deck",
+            "owner": "self",
+            "position": "top"
+          }
+        },
+        {
+          "type": "CONDITIONAL",
+          "condition": {
+            "type": "IS_MY_TURN"
+          },
+          "then": {
+            "type": "POWER_MODIFY",
+            "target": {
+              "type": "SIGNI",
+              "owner": "opponent",
+              "count": 1,
+              "filter": {
+                "cardType": "シグニ"
+              },
+              "upToCount": false
+            },
+            "delta": -2000
+          }
+        }
+      ]
+    },
+    "duration": "UNTIL_END_OF_TURN",
+    "mandatory": true,
+    "parseStatus": "AUTO"
+  }
+]
+
+=== WDK04-011 ===
+[
+  {
+    "effectId": "WDK04-011-E1",
+    "effectType": "ACTIVATED",
+    "timing": [
+      "MAIN"
+    ],
+    "cost": {
+      "energy": [
+        {
+          "color": "黒",
+          "count": 1
+        }
+      ]
+    },
+    "action": {
+      "type": "SEQUENCE",
+      "steps": [
+        {
+          "type": "LOOK_AND_REORDER",
+          "source": {
+            "location": "deck",
+            "owner": "self"
+          },
+          "count": 1,
+          "private": false,
+          "reorder": false,
+          "destination": {
+            "location": "deck",
+            "owner": "self",
+            "position": "top"
+          }
+        },
+        {
+          "type": "CONDITIONAL",
+          "condition": {
+            "type": "IS_MY_TURN"
+          },
+          "then": {
+            "type": "UNKNOWN",
+            "raw": "そのカードを手札に加える"
+          }
+        },
+        {
+          "type": "POWER_MODIFY",
+          "target": {
+            "type": "SIGNI",
+            "owner": "opponent",
+            "count": 1,
+            "filter": {
+              "cardType": "シグニ"
+            },
+            "upToCount": false
+          },
+          "delta": -8000
+        }
+      ]
+    },
+    "duration": "UNTIL_END_OF_TURN",
+    "mandatory": false,
+    "parseStatus": "AUTO"
+  },
+  {
+    "effectId": "WDK04-011-BURST",
+    "effectType": "LIFE_BURST",
+    "timing": [
+      "ON_LIFE_BURST"
+    ],
+    "action": {
+      "type": "POWER_MODIFY",
+      "target": {
+        "type": "SIGNI",
+        "owner": "opponent",
+        "count": 1,
+        "filter": {
+          "cardType": "シグニ"
+        },
+        "upToCount": false
+      },
+      "delta": -10000
+    },
+    "duration": "INSTANT",
+    "mandatory": false,
+    "parseStatus": "AUTO"
+  }
+]
+
+=== WDK04-015 ===
+[
+  {
+    "effectId": "WDK04-015-E1",
+    "effectType": "AUTO",
+    "timing": [
+      "ON_PLAY"
+    ],
+    "action": {
+      "type": "SEQUENCE",
+      "steps": [
+        {
+          "type": "LOOK_AND_REORDER",
+          "source": {
+            "location": "deck",
+            "owner": "self"
+          },
+          "count": 1,
+          "private": false,
+          "reorder": false,
+          "destination": {
+            "location": "deck",
+            "owner": "self",
+            "position": "top"
+          }
+        },
+        {
+          "type": "UNKNOWN",
+          "raw": "それをデッキの一番下に置いてもよい"
+        },
+        {
+          "type": "UNKNOWN",
+          "raw": "この方法で公開したカードがレベルが奇数のシグニの場合、《黒》を支払ってもよい"
+        },
+        {
+          "type": "CONDITIONAL",
+          "condition": {
+            "type": "IS_MY_TURN"
+          },
+          "then": {
+            "type": "POWER_MODIFY",
+            "target": {
+              "type": "SIGNI",
+              "owner": "opponent",
+              "count": 1,
+              "filter": {
+                "cardType": "シグニ"
+              },
+              "upToCount": false
+            },
+            "delta": 7000
+          }
+        }
+      ]
+    },
+    "duration": "UNTIL_END_OF_TURN",
+    "mandatory": true,
+    "parseStatus": "PARTIAL"
+  }
+]
+

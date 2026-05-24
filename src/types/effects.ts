@@ -108,6 +108,7 @@ export interface TargetFilter {
   cardNum?:   string;
   color?:     string | string[];
   level?:     number | { min?: number; max?: number };
+  levelParity?: 'even' | 'odd';
   levelRange?: { min?: number; max?: number };
   powerRange?: { min?: number; max?: number };
   story?:     string | string[];
