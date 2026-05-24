@@ -486,6 +486,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedAssistGrowCost, setSelectedAssistGrowCost] = useState<Set<number>>(new Set());
   const [pendingAssistActivated, setPendingAssistActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedAssistActivatedCost, setSelectedAssistActivatedCost] = useState<Set<number>>(new Set());
+  const [selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard] = useState<Set<number>>(new Set());
   // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動
   const [pendingLrigGranted, setPendingLrigGranted] = useState<{ sourceCardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedLrigGrantedCost, setSelectedLrigGrantedCost] = useState<Set<number>>(new Set());
