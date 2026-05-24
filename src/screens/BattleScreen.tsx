@@ -847,6 +847,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // CPU対戦：CPU が respondPlayer として応答すべき pending_effect を自動解決
+  // 「対戦相手は手札を捨てる」等、効果の解決をCPUが行う必要がある場合
+  useEffect(() => {
+    if (!isCpuBattle || !bs?.pending_effect) return;
+    const pe = bs.pending_effect;
+    if (pe.respondPlayerId !== CPU_PLAYER_ID) return;
+    const inter = pe.interaction;
+    const timer = setTimeout(() => {
+      let selected: string[] = [];
+      if (inter.type === 'SELECT_TARGET') {
+        const count = typeof inter.count === 'number' ? inter.count : 1;
+        const shuffled = [...inter.candidates].sort(() => Math.random() - 0.5);
+        selected = shuffled.slice(0, Math.min(count, shuffled.length));
+      } else if (inter.type === 'CHOOSE') {
+        selected = inter.choices.length > 0 ? [inter.choices[0].id] : [];
+      } else if (inter.type === 'SEARCH') {
+        const count = inter.maxPick ?? 0;
+        selected = inter.visibleCards.slice(0, count);
+      }
+      handleEffectInteraction(selected);
+    }, CPU_ACTION_DELAY);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCpuBattle, bs?.pending_effect?.respondPlayerId, bs?.pending_effect]);
+
   // ── バトルに必要なカードだけを抽出（全1万枚+ を毎回スキャンしない） ────────────
   // 自分のデッキ + bs の全ゾーンにある CardNum を収集し、大本の cards から Map を作る。
   // 大本の cards 配列は一切変更しない。
