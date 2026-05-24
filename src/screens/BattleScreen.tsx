@@ -3154,21 +3154,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : ''}`]);
           }
 
-          // ランサー：バトル勝利後に追加でライフを1枚クラッシュ
-          if (isLancer) {
+          // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
+          if (isLancer || isSLancer) {
+            const label = isSLancer ? 'Sランサー' : 'ランサー';
             const { newState: afterCrash, crashed, prevented } = crashOneLife(newOpState);
             if (prevented) {
-              appendBattleLogs([`ランサー：ダメージ無効`]);
+              appendBattleLogs([`${label}：ダメージ無効`]);
               newOpState = afterCrash;
             } else if (!crashed) {
-              // ライフなし → 相手の敗北
-              appendBattleLogs([`ランサー：相手のライフなし → 相手の敗北`]);
-              await supabase.from('battle_states')
-                .update({ [myKey]: newMyState, [opKey]: newOpState, global_phase: 'FINISHED', winner_id: user.id })
-                .eq('room_id', roomId);
-              return;
+              if (isSLancer) {
+                // Sランサー：ライフなし → ダメージ → 相手の敗北
+                appendBattleLogs([`Sランサー：ライフなし → ダメージ → 相手の敗北`]);
+                await supabase.from('battle_states')
+                  .update({ [myKey]: newMyState, [opKey]: newOpState, global_phase: 'FINISHED', winner_id: user.id })
+                  .eq('room_id', roomId);
+                return;
+              }
+              // ランサー：ライフなし → 効果消滅（ダメージは与えない）
+              appendBattleLogs([`ランサー：ライフなし（効果消滅）`]);
             } else {
-              appendBattleLogs([`ランサー：ライフクロスをクラッシュ`]);
+              appendBattleLogs([`${label}：ライフクロスをクラッシュ`]);
               newOpState = afterCrash;
             }
           }
