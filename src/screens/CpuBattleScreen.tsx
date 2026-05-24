@@ -357,6 +357,33 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       const newDefender = { ...defender, field: { ...defender.field, signi: newDefSigni }, trash: [...defender.trash, ...banished] };
       ng = setOppState(ng, newDefender);
       appendLog(`${attkCard.CardName} の勝利`);
+
+      // ランサー/Sランサー：バトル勝利後に追加ライフクラッシュ
+      const isLancer  = hasKeyword(attkInstId, 'ランサー',  cardMap, attacker.keyword_grants ?? {});
+      const isSLancer = hasKeyword(attkInstId, 'Sランサー', cardMap, attacker.keyword_grants ?? {});
+      if (isLancer || isSLancer) {
+        const currentDef = oppState(ng);
+        if (currentDef.life_cloth.length === 0) {
+          if (isSLancer) {
+            appendLog('Sランサー：ライフなし → 勝利');
+            return checkWin({ ...ng, winner: g.turnPlayer });
+          }
+          appendLog('ランサー：ライフなし（効果消滅）');
+        } else {
+          const crashed = currentDef.life_cloth[currentDef.life_cloth.length - 1];
+          const crashedCard = cardMap.get(crashed);
+          const newLife = currentDef.life_cloth.slice(0, -1);
+          const newDef = { ...currentDef, life_cloth: newLife, energy: [...currentDef.energy, crashed] };
+          ng = setOppState(ng, newDef);
+          appendLog(`${isSLancer ? 'Sランサー' : 'ランサー'}：ライフクロスをクラッシュ`);
+          ng = checkWin(ng);
+          if (ng.winner) return ng;
+          if ((crashedCard?.LifeBurst ?? '0') === '1') {
+            const burstOwner = g.turnPlayer === 'player' ? 'cpu' : 'player';
+            return { ...ng, burstCard: crashed, burstOwner };
+          }
+        }
+      }
     } else {
       appendLog(`${attkCard.CardName} の敗北`);
     }
