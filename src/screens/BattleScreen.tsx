@@ -3787,6 +3787,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_crashed_cards: [], must_attack_signi: undefined, prevent_next_damage: undefined,
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: undefined,
+        banish_redirect: undefined,
       };
       await supabase.from('battle_states').update({
         guest_state: cleanCpuSt,
