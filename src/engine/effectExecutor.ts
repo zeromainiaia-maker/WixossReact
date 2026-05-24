@@ -132,7 +132,7 @@ export function matchesFilter(
   }
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
-    if (!stories.some(s => card.Story?.includes(s))) return false;
+    if (!stories.some(s => card.CardClass?.includes(s))) return false;
   }
   if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
   if (filter.cardNum && card.CardNum !== filter.cardNum) return false;
