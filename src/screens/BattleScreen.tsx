@@ -3373,21 +3373,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const grew    = cpuSt.actions_done?.includes('GROW') ?? false;
       const blocked = cpuSt.blocked_actions?.includes('GROW') ?? false;
       if (!grew && !blocked) {
-        const cpuLrigs = cpuSt.lrig_deck.filter((num, i, arr) => arr.indexOf(num) === i);
         const currentLrigId = cpuSt.field.lrig.at(-1) ?? null;
         const currentLrigNum = currentLrigId ? getCardNum(currentLrigId) : null;
         const currentLrigCard = currentLrigNum ? cards.find(c => c.CardNum === currentLrigNum) : null;
         const currentLevel = currentLrigCard ? parseInt(currentLrigCard.Level) || 0 : 0;
 
-        const growTarget = cpuLrigs.find(num => {
-          const c = cards.find(card => card.CardNum === num);
+        // lrig_deckはinstance IDを持つのでgetCardNum()でCardNumに変換して照合
+        const growTargetId = cpuSt.lrig_deck.find(instanceId => {
+          const cardNum = getCardNum(instanceId);
+          const c = cards.find(card => card.CardNum === cardNum);
           if (!c || c.Type !== 'ルリグ') return false;
           if (parseInt(c.Level) !== currentLevel + 1) return false;
-          return canAffordGrowCost(cpuSt.energy, battleCards, c.GrowCost);
+          return canAffordGrowCost(cpuSt.energy, cards, c.GrowCost);
         });
 
-        if (growTarget) {
-          const growCard = cards.find(c => c.CardNum === growTarget)!;
+        if (growTargetId) {
+          const growCardNum = getCardNum(growTargetId);
+          const growCard = cards.find(c => c.CardNum === growCardNum)!;
           appendBattleLogs([`[CPU] グロウ: ${growCard.CardName}（Lv.${growCard.Level}）`]);
           const costs = parseGrowCost(growCard.GrowCost);
           // エナから支払い
@@ -3402,16 +3404,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               return true;
             });
           }
-          // lrig_deckからグロウ対象を取り出す
-          const newLrigDeck = cpuSt.lrig_deck.filter(num => num !== growTarget);
-          const lrigWithIds = assignInstanceIds(cpuSt.lrig_deck);
-          const growIdx = cpuSt.lrig_deck.indexOf(growTarget);
-          const growInstanceId = growIdx >= 0 ? lrigWithIds[growIdx] : `${growTarget}#1`;
+          // lrig_deckはinstance IDなのでgrowTargetIdをそのまま除外・フィールドに積む
+          const newLrigDeck = cpuSt.lrig_deck.filter(id => id !== growTargetId);
           const newCpuSt: PlayerState = {
             ...cpuSt,
             energy: newEnergy,
             lrig_deck: newLrigDeck,
-            field: { ...cpuSt.field, lrig: [...cpuSt.field.lrig, growInstanceId] },
+            field: { ...cpuSt.field, lrig: [...cpuSt.field.lrig, growTargetId] },
             actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
           };
           await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
