@@ -257,7 +257,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX01-057 出弓　セフィラム
   // 【出】：あなたのデッキの一番上を見る。
   //         それがLv.2以下のシグニで自分の場に他のシグニがない場合、それを場に出してもよい。
-  // ※条件チェック（Lv.2以下・他シグニなし）はプレイヤーに委ねてCHOOSEで任意実装
   'WX01-057': [
     {
       effectId: 'WX01-057-E1',
@@ -275,21 +274,32 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
             destination: { location: 'deck', owner: 'self', position: 'top' },
           },
           {
-            type: 'CHOOSE',
-            choose_count: 1,
-            choices: [
-              {
-                choiceId: 'yes',
-                label: 'デッキトップを場に出す',
-                action: { type: 'ADD_TO_FIELD', owner: 'self' },
-              },
-              {
-                choiceId: 'no',
-                label: '場に出さない',
-                action: { type: 'SEQUENCE', steps: [] },
-              },
-            ],
-          } as ChooseAction,
+            // 条件：デッキトップがLv.2以下のシグニ かつ 自分の場に他のシグニがない（自身のみ=1体）
+            type: 'CONDITIONAL',
+            condition: {
+              type: 'AND',
+              conditions: [
+                { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: { max: 2 } } },
+                { type: 'FIELD_COUNT', owner: 'self', operator: 'eq', value: 1 },
+              ],
+            },
+            then: {
+              type: 'CHOOSE',
+              choose_count: 1,
+              choices: [
+                {
+                  choiceId: 'yes',
+                  label: 'デッキトップを場に出す',
+                  action: { type: 'ADD_TO_FIELD', owner: 'self' },
+                },
+                {
+                  choiceId: 'no',
+                  label: '場に出さない',
+                  action: { type: 'SEQUENCE', steps: [] },
+                },
+              ],
+            } as ChooseAction,
+          },
         ],
       } as SequenceAction,
       duration: 'INSTANT',
