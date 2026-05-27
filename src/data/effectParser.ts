@@ -267,6 +267,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン2d: 「あなたの場に他の《X》のシグニがあるかぎり、」（アイコン条件）
+  const fieldOtherIconM = text.match(/^あなたの場に他の《([^》]+)》のシグニがあるかぎり、/);
+  if (fieldOtherIconM) {
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, excludeSelf: true },
+      rest: text.slice(fieldOtherIconM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3a: 「あなたの場にレゾナがあるかぎり、」
   if (text.startsWith('あなたの場にレゾナがあるかぎり、')) {
     return { condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } }, rest: text.slice('あなたの場にレゾナがあるかぎり、'.length), conditionFound: true };
