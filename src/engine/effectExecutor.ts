@@ -913,9 +913,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining } as SequenceAction)
           : undefined;
         const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
+        const stub = step as import('../types/effects').StubAction;
+        const costColors = stub.costColors ?? [];
+        const canAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
+        const payLabel = costColors.length > 0
+          ? `発動する（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
+          : '発動する';
         const options = [
-          { id: 'pay', label: 'コストを支払う', action: conditional.then, available: true },
-          { id: 'skip', label: '支払わない', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          { id: 'pay', label: payLabel, action: conditional.then, available: canAfford, ...(costColors.length ? { costColors } : {}) },
+          { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
         ];
         const pending: PendingInteractionDef = {
           type: 'CHOOSE',
@@ -923,7 +929,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           count: 1,
           ...(cont ? { continuation: cont } : {}),
         };
-        return needsInteraction(addLog(cur, '任意コスト：支払いますか？'), pending);
+        return needsInteraction(addLog(cur, '任意コスト：発動しますか？'), pending);
       }
     }
     const result = executeAction(step, cur);
