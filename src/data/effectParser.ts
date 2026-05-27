@@ -3883,9 +3883,9 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
   }
 
-  // ---- 場所（ゾーン）を入れ替える ----
+  // ---- 場所（ゾーン）を入れ替える → REARRANGE_SIGNI (swap) ----
   if (t.includes('場所を入れ替える') || t.includes('場所を入れ替えてもよい')) {
-    return { type: 'STUB', id: 'SWAP_ZONES' } as StubAction;
+    return { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'any', count: 1 }, swap: true } as RearrangeSigniAction;
   }
 
   // ---- すべての領域で色を失う ----
