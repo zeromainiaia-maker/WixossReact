@@ -5063,6 +5063,132 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
   }
 
+  // ---- あなたの手札を公開する ----
+  if (t.match(/^あなたの手札(?:を|から.+)?を?公開する$/)) {
+    return { type: 'REVEAL' };
+  }
+
+  // ---- 対戦相手のアタックしているシグニのアタックを一度無効にする ----
+  if (t.match(/対戦相手の.*アタックしている.*シグニ.*アタックを.*無効にする/)) {
+    return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
+  }
+
+  // ---- 使用条件：特定タイミングにしか使えない ----
+  if (t.match(/この能力は.*アタックしたときにしか使用できない/) ||
+      t.match(/この能力は.*時にしか使用できない/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- 対戦相手のターンの間/次のターンの間のコスト変動 ----
+  if (t.match(/(?:対戦相手のターン|次のターン).*使用コストは/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- シグニの下からカードを手札に加える ----
+  if (t.match(/このシグニの下からカード[０-９\d]*枚?を対象とし、それを手札に加える/) ||
+      t.match(/このシグニの下からカード[０-９\d]*枚?を手札に加える/)) {
+    return { type: 'STUB', id: 'ADD_UNDER_SIGNI_TO_HAND' } as StubAction;
+  }
+
+  // ---- 次のターンの間、対戦相手はグロウできない ----
+  if (t.match(/次のターンの間、対戦相手はグロウできない/)) {
+    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+  }
+
+  // ---- 対戦相手のターン終了時、このシグニをトラッシュに置いてもよい ----
+  if (t.match(/対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' } as StubAction;
+  }
+
+  // ---- トリガーした能力の処理順説明（ルール説明）----
+  if (t.match(/トリガーした能力は.*好きな順番で処理する/) ||
+      t.match(/（このアーツの後に.*処理する）/) ||
+      t.match(/このカードの使用コストは.*にしか支払えない/)) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- このアーツは/このカードは対戦相手の手札が0枚の場合にしか使用できない ----
+  if (t.match(/この(?:アーツ|カード)は.*手札が[０-９\d０]枚の場合にしか使用できない/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- 選んだカードによって追加効果（CHOOSE系）----
+  if (t.match(/あなたの場に.*シグニが[０-９\d]+体ある場合、代わりにカードを.*トラッシュに置く/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
+  }
+
+  // ---- この方法でデッキに加えた/トラッシュに置かれたカードN枚につきパワー±N ----
+  if (t.match(/この方法で.*カード[０-９\d]*枚につき[＋－][０-９\d]+する/)) {
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+  }
+
+  // ---- 公開したカードを好きな順番でデッキの一番下に置く ----
+  if (t.match(/公開したカードを好きな順番でデッキの一番下に置く/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+
+  // ---- 使用しなかった場合、そのスペルを対戦相手のトラッシュに置く ----
+  if (t.match(/使用しなかった場合、そのスペルを対戦相手のトラッシュに置く/)) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- そうしない場合、このシグニを場からトラッシュに置く ----
+  if (t.match(/そうしない場合、このシグニを場からトラッシュに置く/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } };
+  }
+
+  // ---- あなたのデッキを上から/手札からカードをN枚公開する（汎用）----
+  if (t.match(/^あなたの(?:デッキの一番上|手札から)を?公開する$/) ||
+      t.match(/^デッキの一番上を公開する$/)) {
+    return { type: 'REVEAL' };
+  }
+
+  // ---- 対戦相手の手札をN枚見る ----
+  if (t.match(/^対戦相手の手札を見る$/) || t.match(/^対戦相手の手札を[０-９\d]+枚見る$/)) {
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+  }
+
+  // ---- このカードがあなたの効果によって手札から公開されたとき ----
+  if (t.match(/このカードがあなたの効果によって手札から公開されたとき/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニN体を対象とし、ターン終了時まで、パワー±N ----
+  {
+    const m = t.match(/対戦相手のシグニ([０-９\d０-９]+)体?(?:まで)?を対象とし(?:、ターン終了時まで、それら?のパワーを([＋－][０-９\d]+)する)?/);
+    if (m) {
+      const cnt = parseNum(m[1]);
+      const deltaStr = m[2];
+      if (deltaStr) {
+        const sign = deltaStr[0] === '＋' ? 1 : -1;
+        const delta = sign * parseNum(deltaStr.slice(1));
+        return {
+          type: 'POWER_MODIFY',
+          target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: t.includes('まで') },
+          delta,
+        };
+      }
+    }
+  }
+
+  // ---- あなたのシグニN体を対象とし、ターン終了時まで、パワー±N ----
+  {
+    const m = t.match(/あなたのシグニ([０-９\d０-９]+)体?(?:まで)?を対象とし(?:、ターン終了時まで、それら?のパワーを([＋－][０-９\d]+)する)?/);
+    if (m) {
+      const cnt = parseNum(m[1]);
+      const deltaStr = m[2];
+      if (deltaStr) {
+        const sign = deltaStr[0] === '＋' ? 1 : -1;
+        const delta = sign * parseNum(deltaStr.slice(1));
+        return {
+          type: 'POWER_MODIFY',
+          target: { type: 'SIGNI', owner: 'self', count: cnt, upToCount: t.includes('まで') },
+          delta,
+        };
+      }
+    }
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
