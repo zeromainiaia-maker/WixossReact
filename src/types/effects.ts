@@ -236,6 +236,8 @@ export type EffectAction =
   | LrigLimitModifyAction
   | AddCraftToLrigDeckAction
   | RecollectGateAction
+  | AltCostOppTurnAction
+  | BlockCardUseAction
   | StubAction
   | UnknownAction;
 
