@@ -446,6 +446,11 @@ function canAffordWithExtraCost(
   return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti);
 }
 
+// EnergyCost[] を growCost 文字列に変換（altCostOppTurn 用）
+function energyCostToString(costs: { color: string; count: number }[]): string {
+  return costs.map(e => `《${e.color}》×${e.count}`).join('');
+}
+
 const JANKEN_LABEL: Record<string, string> = { GU: 'グー✊', CHOKI: 'チョキ✌', PA: 'パー✋' };
 const PHASE_LABEL: Record<string, string> = {
   UP: 'アップ', DRAW: 'ドロー', ENERGY: 'エナ', GROW: 'グロウ', MAIN: 'メイン',
