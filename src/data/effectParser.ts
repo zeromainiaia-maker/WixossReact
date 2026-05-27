@@ -7241,7 +7241,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 場に〈X〉のシグニがある場合、カードを引き、対戦相手のデッキの一番上を公開する ----
   if (t.match(/場に.*のシグニがある場合.*カードを.*引き.*対戦相手のデッキの一番上を公開する/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'FIELD_COND_DRAW_REVEAL' } as StubAction;
 
   // ---- デッキの一番上のカードをトラッシュに置いてもよい ----
   if (t.match(/^あなたのデッキの一番上のカードをトラッシュに置いてもよい$/))
