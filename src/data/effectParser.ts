@@ -4839,9 +4839,10 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
-  // ---- 任意コスト支払い（広い汎用パターン）→ STUB ----
+  // ---- 任意コスト支払い（広い汎用パターン）→ STUB with costColors ----
   if (t.match(/を支払ってもよい$/) || t.match(/を支払ってもよい。$/)) {
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+    const costColors = [...t.matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    return { type: 'STUB', id: 'OPTIONAL_COST', ...(costColors.length ? { costColors } : {}) } as StubAction;
   }
 
   // ---- 括弧で始まるルール説明（汎用スキップ）----
