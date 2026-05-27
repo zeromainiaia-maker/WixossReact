@@ -381,10 +381,10 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
-  // それ以外の「〜かぎり、」パターン（複雑な条件→未解析）
-  const genericKagiriM = text.match(/^.+かぎり、/);
+  // それ以外の「〜かぎり、」パターン（複雑な条件→未解析、句点を越えない）
+  const genericKagiriM = text.match(/^[^。]+かぎり、/);
   if (genericKagiriM && genericKagiriM[0].length < 60) {
-    return { condition: undefined, rest: text.slice(genericKagiriM[0].length), conditionFound: true };
+    return { condition: undefined, rest: text.slice(genericKagiriM[0].length), conditionFound: true, isTimingMarker: true };
   }
 
   return { condition: undefined, rest: text, conditionFound: false };
