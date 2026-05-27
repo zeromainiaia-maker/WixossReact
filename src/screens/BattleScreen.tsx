@@ -1889,6 +1889,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
           blocked_actions:    [],   // ターン内封じ行動をリセット
+          blocked_card_names: [],   // ターン内使用禁止カードをリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
