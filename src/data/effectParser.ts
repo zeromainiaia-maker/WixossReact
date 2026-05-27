@@ -138,6 +138,10 @@ function parseUseCondition(text: string): Condition {
   m = text.match(/あなたのライフクロスが([０-９\d]+)枚/);
   if (m) return { type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: n(m[1]) };
 
+  // このシグニが中央のシグニゾーンにある
+  if (text.match(/このシグニが中央のシグニゾーンにある/))
+    return { type: 'THIS_CARD_IN_CENTER_ZONE' };
+
   // このカード/シグニ/スペルがトラッシュにある
   if (text.match(/この(?:カード|シグニ|スペル)がトラッシュにある/))
     return { type: 'THIS_CARD_IN_LOCATION', location: 'trash' };
