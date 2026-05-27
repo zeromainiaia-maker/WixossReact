@@ -150,6 +150,7 @@ export type PendingInteractionDef =
       options: Array<{ id: string; label: string; action: EffectAction; available: boolean; costColors?: string[] }>;
       count: number;
       continuation?: EffectAction;
+      opponentResponds?: boolean; // true = 対戦相手が選択するインタラクション（例:「対戦相手は支払ってもよい」）
     }
   | {
       type: 'LOOK_AND_REORDER';
