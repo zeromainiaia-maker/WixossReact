@@ -915,6 +915,9 @@ export interface CardEffect {
   // 発動できる条件（条件を満たさないと使えない）
   condition?: Condition;
 
+  // 対戦相手ターン中の代替エナコスト（このフィールドがある場合、相手ターンはこちらを使う）
+  altCostOppTurn?: EnergyCost[];
+
   // 発動コスト
   cost?: EffectCost;
 
