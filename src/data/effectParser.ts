@@ -6967,7 +6967,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- あなたがベットしていた場合（繰り返す・代わりに等） ----
   if (t.match(/あなたがベットしていた場合/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'BET_CONDITION' } as StubAction;
 
   // ---- シグニがトラッシュから場に出たとき、払い、トラッシュに置いてもよい ----
   if (t.match(/のシグニ.*がトラッシュから場に出たとき.*払い.*トラッシュに置いてもよい/))
