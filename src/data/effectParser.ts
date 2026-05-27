@@ -5075,7 +5075,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- デッキの上からN枚見て特定クラスを手札/エナゾーンに加える ----
   {
-    const m = t.match(/あなたのデッキの上からカードを([０-９\d]+)枚見て、その中から(.+?)を([０-９\d]+)枚?(?:公開し)?(?:手札に加える|エナゾーンに置く)/);
+    const m = t.match(/あなたのデッキの上からカードを([０-９\d]+)枚見て、その中から(.+?)([０-９\d]+)枚?(?:を公開し)?(?:手札に加える|エナゾーンに置く)/);
     if (m) {
       const revealCount = parseNum(m[1]);
       const filter = parseCardTypeFilter(m[2]);
@@ -5089,6 +5089,16 @@ function parseSingleSentence(text: string): EffectAction {
         remainder: { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' },
       };
     }
+  }
+
+  // ---- デッキの上から〜がめくれるまで公開し手札に加える（汎用）----
+  if (t.match(/あなたのデッキの上から.+がめくれるまで公開し(?:、それ)?を手札に加える/)) {
+    return { type: 'STUB', id: 'DECK_REVEAL_UNTIL' } as StubAction;
+  }
+
+  // ---- デッキの上からN枚のカードを公開する（センタールリグレベル参照等）----
+  if (t.match(/あなたのデッキの上からあなたのセンタールリグのレベルと同じ枚数のカードを公開する/)) {
+    return { type: 'STUB', id: 'DECK_REVEAL_UNTIL' } as StubAction;
   }
 
   // ---- あなたのトラッシュからクラスのシグニを対象とし（コスト付き）手札に ----
