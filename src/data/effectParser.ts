@@ -5079,17 +5079,13 @@ function parseSingleSentence(text: string): EffectAction {
     if (m) {
       const revealCount = parseNum(m[1]);
       const filter = parseCardTypeFilter(m[2]);
-      const toHand = t.includes('手札に加える');
-      const dest: EffectAction = toHand
-        ? { type: 'ADD_TO_HAND', owner: 'self' }
-        : { type: 'ENERGY_CHARGE', owner: 'self', count: 1 };
       return {
         type: 'REVEAL_AND_PICK',
         owner: 'self',
         revealCount,
         pickCount: parseNum(m[3]),
         filter,
-        then: dest,
+        then: { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction,
         remainder: { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' },
       };
     }
