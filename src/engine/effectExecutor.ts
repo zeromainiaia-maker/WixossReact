@@ -901,6 +901,31 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       cur = addLog(cur, `リコレクト条件達成（アーツ${artsInLrigTrash}枚）`);
       continue;
     }
+    // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN)
+    // IS_MY_TURN はパーサーが「コスト支払い → 効果発動」を表すプレースホルダーとして使用
+    if (step.type === 'STUB') {
+      const nextStep = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
+      if (nextStep?.type === 'CONDITIONAL' &&
+          (nextStep as ConditionalAction).condition.type === 'IS_MY_TURN') {
+        const conditional = nextStep as ConditionalAction;
+        const remaining = a.steps.slice(i + 2);
+        const cont: EffectAction | undefined = remaining.length > 0
+          ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining } as SequenceAction)
+          : undefined;
+        const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
+        const options = [
+          { id: 'pay', label: 'コストを支払う', action: conditional.then, available: true },
+          { id: 'skip', label: '支払わない', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+        ];
+        const pending: PendingInteractionDef = {
+          type: 'CHOOSE',
+          options,
+          count: 1,
+          ...(cont ? { continuation: cont } : {}),
+        };
+        return needsInteraction(addLog(cur, '任意コスト：支払いますか？'), pending);
+      }
+    }
     const result = executeAction(step, cur);
     if (!result.done) {
       // インタラクション必要：残りのステップをcontinuationに入れる
