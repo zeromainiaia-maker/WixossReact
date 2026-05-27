@@ -7567,7 +7567,7 @@ function parseSpellEffect(card: CardData): CardEffect | null {
 
 function parseBurstEffect(card: CardData): CardEffect | null {
   if (!card.BurstText || card.BurstText === '-') return null;
-  const raw = card.BurstText.replace(/^：/, '').trim();
+  const raw = stripRuleParens(card.BurstText).replace(/^：/, '').trim();
   if (!raw) return null;
   const action = parseActionText(raw);
   return {
