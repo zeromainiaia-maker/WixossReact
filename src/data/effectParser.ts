@@ -75,6 +75,7 @@ import type {
   StubAction,
   PowerModifyAction,
   BanishAction,
+  Condition,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
