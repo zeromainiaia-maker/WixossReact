@@ -402,13 +402,13 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
         return (
           <div
             onClick={() => setExpandedCardNum(null)}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, cursor: 'pointer' }}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 200, cursor: 'pointer', overflowY: 'auto', padding: '16px 0' }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '20px', maxWidth: '90vw' }}>
+            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', width: 'min(90vw, 360px)' }}>
               <img
                 src={card.ImgURL}
                 alt={card.CardName}
-                style={{ maxWidth: '80vw', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px' }}
+                style={{ maxWidth: '80vw', maxHeight: '55vh', objectFit: 'contain', borderRadius: '8px' }}
                 onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -417,6 +417,19 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
               </div>
               <p style={{ fontSize: '11px', color: '#aaa', textAlign: 'center', margin: 0 }}>{card.CardNum} / {card.Type} / {card.Color}{card.Level ? ` / Lv.${card.Level}` : ''}</p>
               {card.CardClass && <p style={{ fontSize: '11px', color: '#888', textAlign: 'center', margin: 0 }}>{card.CardClass}</p>}
+              {card.EffectText && card.EffectText !== '-' && (
+                <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: '6px', padding: '8px 10px', borderLeft: '3px solid #7755dd' }}>
+                  <p style={{ fontSize: '10px', color: '#bb99ff', fontWeight: 'bold', margin: '0 0 4px' }}>通常効果</p>
+                  <p style={{ fontSize: '11px', color: '#ddd', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{card.EffectText}</p>
+                </div>
+              )}
+              {hasLB && card.BurstText && card.BurstText !== '-' && (
+                <div style={{ width: '100%', backgroundColor: 'rgba(255,200,100,0.07)', borderRadius: '6px', padding: '8px 10px', borderLeft: '3px solid #e05c00' }}>
+                  <p style={{ fontSize: '10px', color: '#ff9955', fontWeight: 'bold', margin: '0 0 4px' }}>ライフバースト効果</p>
+                  <p style={{ fontSize: '11px', color: '#ddd', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{card.BurstText}</p>
+                </div>
+              )}
+              <button onClick={() => setExpandedCardNum(null)} style={{ marginTop: '4px', padding: '8px 24px', border: 'none', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '13px', cursor: 'pointer' }}>閉じる</button>
             </div>
           </div>
         );
