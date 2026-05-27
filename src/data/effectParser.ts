@@ -4943,8 +4943,8 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
   }
 
-  // ---- 対戦相手のシグニ1体を対象とし、手札を1枚捨ててもよい ----
-  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、手札を[０-９\d]+枚捨ててもよい/)) {
+  // ---- 対戦相手のシグニN体を対象とし、手札から〜を捨てる（複合パターン）----
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、手札(?:から.+)?を[０-９\d好きな枚数]+枚?捨て(?:てもよい)?$/)) {
     return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
   }
 
