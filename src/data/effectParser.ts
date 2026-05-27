@@ -6918,7 +6918,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- エナゾーンにレベルXシグニがそれぞれN枚以上ある場合、シグニをエナゾーンに置く ----
   if (t.match(/エナゾーンに.*のシグニがそれぞれ.*以上ある場合.*シグニ.*エナゾーンに置く/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'ENERGY_LEVEL_CONDITION_CHOOSE' } as StubAction;
 
   // ---- 対戦相手のシグニのパワーが効果によって+される場合、代わりに-される ----
   if (t.match(/対戦相手のシグニのパワーが効果によって.*される場合、代わりに.*される/))
