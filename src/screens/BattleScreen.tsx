@@ -3189,7 +3189,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         }
       }
-      if (cardData?.Type === 'スペル' && meetsRestriction(cardData.Restriction, lrigClass)) {
+      if (cardData?.Type === 'スペル' && meetsRestriction(cardData.Restriction, lrigClass) &&
+          !my.blocked_card_names?.includes(cardData.CardName)) {
         // pending_spell がある間は新たにスペルを発動できない
         const spellBlocked = !!bs.pending_spell;
         const spellEff = effectsMap.get(cardNum)?.find(e => e.effectType === 'ACTIVATED');
