@@ -5077,17 +5077,20 @@ function parseSingleSentence(text: string): EffectAction {
   {
     const m = t.match(/あなたのデッキの上からカードを([０-９\d]+)枚見て、その中から(.+?)を([０-９\d]+)枚?(?:公開し)?(?:手札に加える|エナゾーンに置く)/);
     if (m) {
-      const count = parseNum(m[1]);
+      const revealCount = parseNum(m[1]);
       const filter = parseCardTypeFilter(m[2]);
       const toHand = t.includes('手札に加える');
+      const dest: EffectAction = toHand
+        ? { type: 'ADD_TO_HAND', owner: 'self' }
+        : { type: 'ENERGY_CHARGE', owner: 'self', count: 1 };
       return {
         type: 'REVEAL_AND_PICK',
-        source: { location: 'deck', owner: 'self' },
-        revealCount: count,
+        owner: 'self',
+        revealCount,
         pickCount: parseNum(m[3]),
         filter,
-        dest: toHand ? 'hand' : 'energy',
-        restDest: 'deck_bottom',
+        then: dest,
+        remainder: { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' },
       };
     }
   }
