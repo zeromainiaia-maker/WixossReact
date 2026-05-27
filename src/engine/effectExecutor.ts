@@ -1759,6 +1759,62 @@ export function resumeChoose(
   return result;
 }
 
+// OPTIONAL_COST: 任意コスト付き効果の発動/スキップ選択後の処理
+// choiceId='pay': energyNums 分のエナを支払い効果発動, 'skip': スキップ
+export function resumeOptionalCost(
+  choiceId: string,
+  energyNums: string[],
+  pending: PendingInteractionDef & { type: 'CHOOSE' },
+  ctx: ExecCtx,
+): ExecResult {
+  const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
+  const skipOpt = pending.options.find(o => o.id === 'skip');
+  const payOpt  = pending.options.find(o => o.id === 'pay');
+
+  if (choiceId !== 'pay') {
+    // スキップ: スキップアクション → continuation
+    const result = executeAction(skipOpt?.action ?? noopAction, ctx);
+    if (!result.done) return result;
+    if (pending.continuation) {
+      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+    }
+    return result;
+  }
+
+  // コスト支払い: 色バリデーション → エナ消費 → アクション実行
+  const costColors = [...(payOpt?.costColors ?? [])];
+  for (const n of energyNums) {
+    const color = ctx.cardMap.get(n)?.Color ?? '無';
+    const idx = costColors.findIndex(c => c === color || c === '無');
+    if (idx === -1) return done(addLog(ctx, `コスト支払いエラー: ${color}は不要`));
+    costColors.splice(idx, 1);
+  }
+  if (costColors.length > 0) return done(addLog(ctx, `コスト支払いエラー: エナ不足`));
+
+  const newEnergy = ctx.ownerState.energy.filter(n => !energyNums.includes(n));
+  const newTrash  = [...ctx.ownerState.trash, ...energyNums];
+  let cur = addLog(
+    { ...ctx, ownerState: { ...ctx.ownerState, energy: newEnergy, trash: newTrash } },
+    `コスト支払い: ${(payOpt?.costColors ?? []).map(c => `《${c}》`).join('')}`,
+  );
+
+  const result = executeAction(payOpt?.action ?? noopAction, cur);
+  if (!result.done) {
+    // continuationを result.pending に付け足す
+    if (pending.continuation) {
+      const merged: EffectAction = result.pending.continuation
+        ? { type: 'SEQUENCE', steps: [result.pending.continuation, pending.continuation] } as SequenceAction
+        : pending.continuation;
+      return { ...result, pending: { ...result.pending, continuation: merged } };
+    }
+    return result;
+  }
+  if (pending.continuation) {
+    return executeAction(pending.continuation, { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+  }
+  return result;
+}
+
 // LOOK_AND_REORDER: ユーザーが reordered[] の順に並べ（先頭=デッキトップ）
 export function resumeLookAndReorder(
   reordered: string[],
