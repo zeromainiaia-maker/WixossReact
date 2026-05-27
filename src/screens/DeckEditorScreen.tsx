@@ -301,7 +301,7 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
                 <div
                   key={card.CardNum}
                   onClick={() => setExpandedCardNum(card.CardNum)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderBottom: '1px solid rgba(0,0,0,0.07)', cursor: 'pointer', backgroundColor: bg, borderRadius: '6px', marginBottom: '3px' }}
+                  style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px', borderBottom: '1px solid rgba(0,0,0,0.07)', cursor: 'pointer', backgroundColor: bg, borderRadius: '6px', marginBottom: '3px' }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
@@ -309,19 +309,27 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
                       {hasLB && <span style={{ fontSize: '9px', backgroundColor: '#e05c00', color: '#fff', borderRadius: '3px', padding: '1px 4px', flexShrink: 0, fontWeight: 'bold' }}>LB</span>}
                     </div>
                     <p style={{ fontSize: '10px', color: '#555', margin: 0 }}>{card.CardNum} / {card.Type}{card.Level ? ` / Lv.${card.Level}` : ''} / {card.Color}</p>
-                    {card.CardClass && <p style={{ fontSize: '10px', color: '#666', margin: 0 }}>{card.CardClass}</p>}
+                    {card.CardClass && <p style={{ fontSize: '10px', color: '#666', margin: '0 0 2px' }}>{card.CardClass}</p>}
+                    {card.EffectText && card.EffectText !== '-' && (
+                      <p style={effectTextStyle}><span style={effectLabelStyle}>通常</span>{card.EffectText}</p>
+                    )}
+                    {hasLB && card.BurstText && card.BurstText !== '-' && (
+                      <p style={{ ...effectTextStyle, borderLeft: '2px solid #e05c00' }}><span style={{ ...effectLabelStyle, backgroundColor: '#e05c00' }}>LB</span>{card.BurstText}</p>
+                    )}
                   </div>
-                  {nameCount > 0 && <span style={{ fontSize: '12px', color: '#5533aa', minWidth: '24px', textAlign: 'center' }}>×{nameCount}</span>}
-                  <button
-                    onClick={e => { e.stopPropagation(); removeCard(card.CardNum, lrig ? 'lrig' : 'main'); }}
-                    disabled={nameCount === 0}
-                    style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', fontSize: '12px', backgroundColor: nameCount > 0 ? '#cc4444' : '#ddd', color: nameCount > 0 ? '#fff' : '#aaa', flexShrink: 0 }}
-                  >−</button>
-                  <button
-                    onClick={e => { e.stopPropagation(); addCard(card); }}
-                    disabled={!canAdd}
-                    style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', fontSize: '12px', backgroundColor: canAdd ? '#7755dd' : '#ddd', color: canAdd ? '#fff' : '#aaa', flexShrink: 0 }}
-                  >＋</button>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                    {nameCount > 0 && <span style={{ fontSize: '12px', color: '#5533aa', minWidth: '24px', textAlign: 'center' }}>×{nameCount}</span>}
+                    <button
+                      onClick={e => { e.stopPropagation(); removeCard(card.CardNum, lrig ? 'lrig' : 'main'); }}
+                      disabled={nameCount === 0}
+                      style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', fontSize: '12px', backgroundColor: nameCount > 0 ? '#cc4444' : '#ddd', color: nameCount > 0 ? '#fff' : '#aaa', flexShrink: 0 }}
+                    >−</button>
+                    <button
+                      onClick={e => { e.stopPropagation(); addCard(card); }}
+                      disabled={!canAdd}
+                      style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', fontSize: '12px', backgroundColor: canAdd ? '#7755dd' : '#ddd', color: canAdd ? '#fff' : '#aaa', flexShrink: 0 }}
+                    >＋</button>
+                  </div>
                 </div>
               );
             })}
