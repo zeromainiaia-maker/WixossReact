@@ -4803,6 +4803,93 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- 任意コスト支払い（広い汎用パターン）→ STUB ----
+  if (t.match(/を支払ってもよい$/) || t.match(/を支払ってもよい。$/)) {
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+  }
+
+  // ---- 括弧で始まるルール説明（汎用スキップ）----
+  if (t.startsWith('（') && (t.endsWith('）') || t.length > 8)) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- デッキの一番下に置く系 ----
+  if (t.match(/手札からカード[０-９\d]+枚を好きな順番でデッキの一番下に置く/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'hand', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+  if (t.match(/あなたのデッキの(?:下|一番下)からカード([０-９\d]+)枚?トラッシュに置く/)) {
+    const m = t.match(/([０-９\d]+)枚/);
+    const cnt = m ? parseNum(m[1]) : 1;
+    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: cnt } };
+  }
+  if (t.match(/あなたのデッキの一番下のカードをトラッシュに置いてもよい/)) {
+    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } };
+  }
+  if (t.match(/(?:それ|そのカード)をデッキの一番下に置いてもよい$/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+  if (t.match(/手札からカード[０-９\d]+枚を(?:好きな順番で)?デッキの一番下に置く/)) {
+    const m = t.match(/([０-９\d]+)枚/);
+    return { type: 'LOOK_AND_REORDER', source: { location: 'hand', owner: 'self' }, count: m ? parseNum(m[1]) : 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+
+  // ---- 次の対戦相手のターンの間、特定ゾーンのシグニでアタックできない ----
+  if (t.match(/次の対戦相手のターン.*アタックできない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, actionId: 'ATTACK', until: 'NEXT_TURN' } as BlockActionAction;
+  }
+
+  // ---- 対戦相手のシグニ1体を対象とし、それを裏向きにする ----
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、それを裏向きにする/)) {
+    return { type: 'STUB', id: 'FACE_DOWN_OPP_SIGNI' } as StubAction;
+  }
+
+  // ---- 色宣言・手札選択 ----
+  if (t.match(/^色[０-９\d]*つを宣言する$/)) {
+    return { type: 'STUB', id: 'DECLARE_COLOR' } as StubAction;
+  }
+  if (t.match(/^対戦相手は色[０-９\d]*つを宣言する$/)) {
+    return { type: 'STUB', id: 'OPP_DECLARE_COLOR' } as StubAction;
+  }
+  if (t.match(/^あなたの手札を[０-９\d]*枚?選ぶ$/)) {
+    return { type: 'STUB', id: 'CHOOSE_HAND_CARD' } as StubAction;
+  }
+
+  // ---- ライフバーストを発動しない（そのカードの）----
+  if (t.match(/そのカードのライフバーストは発動しない/)) {
+    return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CARD' } as StubAction;
+  }
+
+  // ---- アクセアイコン持ちシグニをエナゾーンへ ----
+  if (t.match(/《アクセアイコン》を持つシグニ.*エナゾーンに置く/)) {
+    return { type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { hasKeyword: 'アクセ' } } } as EnergyChargeAction;
+  }
+
+  // ---- 同じ場所にシグニがある/ない場合トラッシュ/表向き ----
+  if (t.match(/同じ場所にシグニがある場合、トラッシュに置く/)) {
+    return { type: 'STUB', id: 'TRASH_IF_ZONE_OCCUPIED' } as StubAction;
+  }
+
+  // ---- 好きな枚数手札に加え残りをエナゾーンに置く ----
+  if (t.match(/その中からカードを好きな枚数手札に加え、残りをエナゾーンに置く/)) {
+    return { type: 'STUB', id: 'CHOOSE_HAND_OR_ENERGY' } as StubAction;
+  }
+
+  // ---- ウィルスを除く ----
+  if (t.match(/【ウィルス】を好きな数取り除く/)) {
+    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+  }
+
+  // ---- マジックボックス/トラップ設置 ----
+  if (t.match(/【マジックボックス】として.*シグニゾーンに設置/)) {
+    return { type: 'STUB', id: 'PLACE_MAGIC_BOX' } as StubAction;
+  }
+  if (t.match(/【マジックボックス】.*表向きにし.*トラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'OPEN_MAGIC_BOX' } as StubAction;
+  }
+  if (t.match(/【トラップ】として.*シグニゾーンに設置してもよい/)) {
+    return { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
