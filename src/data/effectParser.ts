@@ -5459,6 +5459,157 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- ゲームから除外 ----
+  if (t.match(/をゲームから除外(?:してもよい|する)/))
+    return { type: 'STUB', id: 'BANISH_FROM_GAME' } as StubAction;
+
+  // ---- アーツ/スペル使用条件でコスト変化 ----
+  if (t.match(/対戦相手が(?:アーツ|スペル)を使用していた場合/) ||
+      t.match(/このターンに対戦相手が(?:アーツ|スペル)/) ||
+      t.match(/両方を使用していた場合/))
+    return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
+
+  // ---- 使用コストがXになる/減る ----
+  if (t.match(/このアーツの使用コストは《.+》になる/) ||
+      t.match(/このアーツの使用コストは《.+》減る/) ||
+      t.match(/使用コストは《.+》になる$/) ||
+      t.match(/それの使用コストは《.+》減る$/) ||
+      t.match(/使用コストは[、《].+?[》]?に?なる/))
+    return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
+
+  // ---- 選んだ数がN以上の場合コストが変わる ----
+  if (t.match(/選んだ数が[０-９\d]+つ以上の場合、このアーツの使用コストは/))
+    return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
+
+  // ---- ライフバーストを発動させる ----
+  if (t.match(/そのライフバーストを発動させる/) ||
+      t.match(/ライフバーストを持っていた場合.*チェックゾーンに置き/))
+    return { type: 'STUB', id: 'TRIGGER_LIFE_BURST' } as StubAction;
+
+  // ---- 《ヘブン》/自動能力引用文 ----
+  if (t.match(/が《ヘブン》したとき/) ||
+      t.match(/^【自】：.+したとき/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- アタックを一度無効にする ----
+  if (t.match(/のアタックを一度無効にする/) ||
+      t.match(/アタックであなたにダメージを与えない/))
+    return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
+
+  // ---- 対戦相手はデッキの一番上を公開する ----
+  if (t.match(/対戦相手は(?:自分の)?デッキの一番上のカードを公開する/))
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+
+  // ---- それらを入れ替えてもよい ----
+  if (t.match(/^あなたはそれらを入れ替えてもよい$/))
+    return { type: 'STUB', id: 'SWAP_OPTIONAL' } as StubAction;
+
+  // ---- トラッシュから手札にあるかのように使用 ----
+  if (t.match(/トラッシュから.*手札にあるかのように.*(?:使用|発動)(?:する|してもよい)/) ||
+      t.match(/トラッシュから.*コストを支払わずに.*使用してもよい/))
+    return { type: 'STUB', id: 'PLAY_FREE' } as StubAction;
+
+  // ---- 代替コスト支払い（支払う際、代わりにトラッシュ） ----
+  if (t.match(/支払う際、代わりに.*トラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- 対戦相手エナゾーン全カードとシグニをすべてトラッシュ ----
+  if (t.match(/対戦相手のエナゾーンにあるすべての.*カードと対戦相手の場にあるすべてのシグニをトラッシュに置く/))
+    return { type: 'STUB', id: 'MASS_TRASH' } as StubAction;
+
+  // ---- 選んだ色につきシグニを手札/エナ ----
+  if (t.match(/選んだ色[１-９1-9]+つにつき.*シグニ[１-９1-9]+枚を手札に加えるかエナゾーンに置く/))
+    return { type: 'STUB', id: 'CHOOSE_COLOR_FROM_LIST' } as StubAction;
+
+  // ---- カード名に〜含むすべてを手札に加え残りをトラッシュ ----
+  if (t.match(/その中からカード名に《.+》を含むすべてのカードを手札に加え、残りをトラッシュに置く/))
+    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+
+  // ---- 好きな数の〈クラス〉シグニを場に出す ----
+  if (t.match(/その中から好きな数の[＜〈<].+[＞〉>]のシグニを場に出し、残りをトラッシュに置く/))
+    return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
+
+  // ---- 以下からN選ぶ ----
+  if (t.match(/^以下から[０-９\d]+つから[０-９\d]+つまで選ぶ$/) ||
+      t.match(/^以下から[０-９\d]+つ選ぶ$/))
+    return { type: 'STUB', id: 'CHOOSE_N_FROM_LIST' } as StubAction;
+
+  // ---- それをトラッシュに置いて対戦相手デッキ上をライフに ----
+  if (t.match(/トラッシュに置いて対戦相手のデッキの一番上のカードをライフクロスに加えてもよい/))
+    return { type: 'STUB', id: 'DECK_TOP_TO_LIFE' } as StubAction;
+
+  // ---- 感染状態の場合、代わりに ----
+  if (t.match(/感染状態の場合、代わりに/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- ウィルスN個取り除く（複数形） ----
+  if (t.match(/対戦相手の場にある【ウィルス】[０-９\d]+つを取り除いてもよい/))
+    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+
+  // ---- シグニがアクセされたとき自動能力 ----
+  if (t.match(/シグニ[１-９1-9０-９\d]*体?がアクセされたとき/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- そのシグニと共通する色を持つシグニを手札から捨ててもよい ----
+  if (t.match(/手札からそのシグニと共通する色を持つシグニを[１-９1-9０-９\d]*枚捨ててもよい/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- 対戦相手シグニのアタックを無効にしたとき/センタールリグをガードしたとき ----
+  if (t.match(/対戦相手のシグニ[１-９1-9０-９\d]*体?のアタックを(?:効果によって)?無効にしたとき/) ||
+      t.match(/対戦相手のセンタールリグのアタックを【ガード】するか/))
+    return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
+
+  // ---- 正面のシグニを対象とし、デッキ上カードをトラッシュ ----
+  if (t.match(/正面のシグニ[１-９1-9０-９\d]*体?を対象とし、あなたのデッキの一番上のカードをトラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+
+  // ---- 【トラップ】をトラッシュに置く ----
+  if (t.match(/【トラップ】[１-９1-9０-９\d]*つをトラッシュに置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- このシグニによってクラッシュされたLBは発動しない ----
+  if (t.match(/このシグニによってクラッシュされたカードのライフバーストは発動しない/))
+    return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CRASH' } as StubAction;
+
+  // ---- この効果でレベルは0以下にならない ----
+  if (t.match(/この効果でレベルは[０0]以下にはならない/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- 宣言した数字と同じレベルシグニを捨てさせる ----
+  if (t.match(/宣言した数字と同じレベルのシグニをすべて捨てさせる/) ||
+      t.match(/その後、数字[１-９1-9０-９\d]*つを宣言し、その数字と同じレベル.*シグニをすべて捨てさせる/))
+    return { type: 'STUB', id: 'DECLARE_NUMBER' } as StubAction;
+
+  // ---- 対戦相手の手札を見てシグニを捨てさせる ----
+  if (t.match(/対戦相手の手札を見て.*シグニ(?:を|すべて)捨てさせる/))
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+
+  // ---- この方法で場に出たレゾナの【出】能力は発動しない ----
+  if (t.match(/この方法で場に出たレゾナの【出】能力は発動しない/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- 好きな数のシグニを対象とし、合わせてパワーを増やす ----
+  if (t.match(/好きな数のシグニを対象とし、ターン終了時まで、それらのパワーを合わせて/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- この下から好きな枚数のシグニをトラッシュ ----
+  if (t.match(/この下から好きな枚数のシグニを対象とし、それらをトラッシュに置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- 公開した他のカードをシャッフルしてデッキ下 ----
+  if (t.match(/公開した他のカードをシャッフルしてデッキの一番下に置く/))
+    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+
+  // ---- N以外/0からNの数字を宣言する ----
+  if (t.match(/^[０0]から[０-９\d]+までの数字[１-９1-9０-９\d]*つを宣言する$/) ||
+      t.match(/^[０-９\d]+以外の数字[１-９1-9０-９\d]*つを宣言する$/))
+    return { type: 'STUB', id: 'DECLARE_NUMBER' } as StubAction;
+
+  // ---- 括弧で終わる注釈文（場合/含まれる/何もしない） ----
+  if (t.match(/[）)）]$/) &&
+      (t.includes('この効果は何もしない') || t.includes('含まれる') || t.includes('場を離れていた場合')))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
