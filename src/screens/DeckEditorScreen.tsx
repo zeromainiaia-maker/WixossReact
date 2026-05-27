@@ -472,6 +472,15 @@ const smallButtonStyle: React.CSSProperties = {
   backgroundColor: '#7755dd', color: '#fff', fontSize: '13px',
 };
 
+const cardBtnStyle = (variant: 'add' | 'remove' | 'disabled'): React.CSSProperties => ({
+  width: '38px', height: '38px', borderRadius: '6px', border: 'none',
+  fontSize: '18px', fontWeight: 'bold', flexShrink: 0, cursor: variant === 'disabled' ? 'default' : 'pointer',
+  backgroundColor: variant === 'add' ? '#7755dd' : variant === 'remove' ? '#cc4444' : '#ddd',
+  color: variant === 'disabled' ? '#aaa' : '#fff',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  lineHeight: 1,
+});
+
 const effectTextStyle: React.CSSProperties = {
   fontSize: '9px', color: '#444', margin: '3px 0 0',
   lineHeight: 1.5, borderLeft: '2px solid #7755dd',
