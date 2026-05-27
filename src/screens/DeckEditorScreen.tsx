@@ -183,13 +183,13 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-          <span style={{ fontSize: '13px', color: '#5533aa', fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>×{count}</span>
           <button
             onClick={e => { e.stopPropagation(); if (card) addCard(card); }}
             disabled={!canAdd}
-            style={{ padding: '2px 8px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: canAdd ? 'rgba(119,85,221,0.15)' : 'rgba(200,200,200,0.3)', color: canAdd ? '#5533aa' : '#aaa', fontSize: '12px' }}
+            style={cardBtnStyle(canAdd ? 'add' : 'disabled')}
           >＋</button>
-          <button onClick={e => { e.stopPropagation(); removeCard(cardNum, from); }} style={{ padding: '2px 8px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.6)', color: '#cc3333', fontSize: '12px' }}>−</button>
+          <span style={{ fontSize: '12px', color: '#5533aa', fontWeight: 'bold', minWidth: '28px', textAlign: 'center' }}>×{count}</span>
+          <button onClick={e => { e.stopPropagation(); removeCard(cardNum, from); }} style={cardBtnStyle('remove')}>−</button>
         </div>
       </div>
     );
