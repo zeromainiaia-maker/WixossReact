@@ -4944,7 +4944,17 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 対戦相手のシグニN体を対象とし、手札から〜を捨てる（複合パターン）----
-  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、手札(?:から.+)?を[０-９\d好きな枚数]+枚?捨て(?:てもよい)?$/)) {
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?(?:まで)?を対象とし、手札から.+捨て(?:る|てもよい)?$/)) {
+    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+  }
+
+  // ---- このシグニのレベル以下のシグニN体を対象とし、手札から〜捨てる ----
+  if (t.match(/このシグニのレベル以下の対戦相手のシグニ.+手札から.+捨て(?:る|てもよい)?$/)) {
+    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+  }
+
+  // ---- あなたの場に〜がいる場合、対戦相手のシグニN体を対象とし... ----
+  if (t.match(/あなたの場に.+がいる場合、対戦相手のシグニ.+を対象とし、手札から.+捨て/)) {
     return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
   }
 
