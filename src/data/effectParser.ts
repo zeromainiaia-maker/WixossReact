@@ -7603,6 +7603,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let activeCondition: ActiveCondition | undefined;
   let resolvedAction: EffectAction;
   let parseStatus: CardEffect['parseStatus'] = 'AUTO';
+  let useCondition: Condition | undefined;
 
   if (effectType === 'CONTINUOUS') {
     // 複数条件を繰り返しパースして AND で結合する
@@ -7627,8 +7628,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     if (anyFound && anyFailed && parsedConds.length > 0) parseStatus = 'PARTIAL';
   } else {
     // 使用条件（「この能力は〜にしか使用できない」）を抽出してからパース
-    const { cleaned: cleanedAction, condition: blockUseCondition } = extractUseCondition(actionText);
-    if (blockUseCondition) actionText = cleanedAction;
+    const extracted = extractUseCondition(actionText);
+    if (extracted.condition) {
+      useCondition = extracted.condition;
+      actionText = extracted.cleaned;
+    }
     resolvedAction = parseActionText(actionText);
   }
 
