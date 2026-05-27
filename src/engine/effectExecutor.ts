@@ -293,6 +293,13 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!src) return false;
       return ctx.ownerState.field.signi[1]?.includes(src) ?? false;
     }
+    case 'THIS_CARD_IS_DOWN': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const zoneIdx = ctx.ownerState.field.signi.findIndex(z => z?.includes(src));
+      if (zoneIdx < 0) return false;
+      return ctx.ownerState.field.signi_down?.[zoneIdx] ?? false;
+    }
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
