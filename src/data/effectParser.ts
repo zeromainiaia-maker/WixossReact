@@ -4908,6 +4908,11 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
   }
 
+  // ---- この効果/方法でクラッシュされたカードのライフバーストは発動しない ----
+  if (t.match(/この(?:効果|方法)でクラッシュされたカードのライフバーストは発動しない/)) {
+    return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CRASH' } as StubAction;
+  }
+
   // ---- この効果はN枚までしか適用されない ----
   if (t.match(/この効果は[０-９\d]+枚までしか適用されない/)) {
     return { type: 'STUB', id: 'EFFECT_LIMIT' } as StubAction;
