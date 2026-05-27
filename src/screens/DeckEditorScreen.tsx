@@ -166,7 +166,7 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
       <div
         key={cardNum}
         onClick={() => setExpandedCardNum(cardNum)}
-        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderBottom: '1px solid rgba(0,0,0,0.07)', backgroundColor: bg, borderRadius: '6px', marginBottom: '3px', cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 10px', borderBottom: '1px solid rgba(0,0,0,0.07)', backgroundColor: bg, borderRadius: '6px', marginBottom: '3px', cursor: 'pointer' }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
@@ -174,15 +174,23 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
             {hasLB && <span style={{ fontSize: '9px', backgroundColor: '#e05c00', color: '#fff', borderRadius: '3px', padding: '1px 4px', flexShrink: 0, fontWeight: 'bold' }}>LB</span>}
           </div>
           <p style={{ fontSize: '10px', color: '#555', margin: 0 }}>{card?.CardNum} / {card?.Type}{card?.Level ? ` / Lv.${card.Level}` : ''} / {card?.Color}</p>
-          {card?.CardClass && <p style={{ fontSize: '10px', color: '#666', margin: 0 }}>{card.CardClass}</p>}
+          {card?.CardClass && <p style={{ fontSize: '10px', color: '#666', margin: '0 0 2px' }}>{card.CardClass}</p>}
+          {card?.EffectText && card.EffectText !== '-' && (
+            <p style={effectTextStyle}><span style={effectLabelStyle}>通常</span>{card.EffectText}</p>
+          )}
+          {hasLB && card?.BurstText && card.BurstText !== '-' && (
+            <p style={{ ...effectTextStyle, borderLeft: '2px solid #e05c00' }}><span style={{ ...effectLabelStyle, backgroundColor: '#e05c00' }}>LB</span>{card.BurstText}</p>
+          )}
         </div>
-        <span style={{ fontSize: '13px', color: '#5533aa', fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>×{count}</span>
-        <button
-          onClick={e => { e.stopPropagation(); if (card) addCard(card); }}
-          disabled={!canAdd}
-          style={{ padding: '2px 8px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: canAdd ? 'rgba(119,85,221,0.15)' : 'rgba(200,200,200,0.3)', color: canAdd ? '#5533aa' : '#aaa', fontSize: '12px' }}
-        >＋</button>
-        <button onClick={e => { e.stopPropagation(); removeCard(cardNum, from); }} style={{ padding: '2px 8px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.6)', color: '#cc3333', fontSize: '12px' }}>−</button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          <span style={{ fontSize: '13px', color: '#5533aa', fontWeight: 'bold', minWidth: '20px', textAlign: 'center' }}>×{count}</span>
+          <button
+            onClick={e => { e.stopPropagation(); if (card) addCard(card); }}
+            disabled={!canAdd}
+            style={{ padding: '2px 8px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: canAdd ? 'rgba(119,85,221,0.15)' : 'rgba(200,200,200,0.3)', color: canAdd ? '#5533aa' : '#aaa', fontSize: '12px' }}
+          >＋</button>
+          <button onClick={e => { e.stopPropagation(); removeCard(cardNum, from); }} style={{ padding: '2px 8px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.6)', color: '#cc3333', fontSize: '12px' }}>−</button>
+        </div>
       </div>
     );
   };
