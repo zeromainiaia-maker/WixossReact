@@ -4890,6 +4890,64 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'PLACE_TRAP_OPTIONAL' } as StubAction;
   }
 
+  // ---- デッキ上からシグニがめくれるまで/宣言したカードまで公開する ----
+  if (t.match(/デッキの上から.*めくれるまで公開する/)) {
+    return { type: 'STUB', id: 'DECK_REVEAL_UNTIL' } as StubAction;
+  }
+
+  // ---- デッキ上を公開し、宣言レベルのシグニなら手札/エナに加える ----
+  if (t.match(/デッキの一番上を公開し、それが宣言した数字と同じレベル.*手札に加える/)) {
+    return { type: 'STUB', id: 'DECK_TOP_CHECK_LEVEL_HAND' } as StubAction;
+  }
+  if (t.match(/デッキの一番上を公開し、それが宣言した数字と同じレベル.*エナゾーンに置く/)) {
+    return { type: 'STUB', id: 'DECK_TOP_CHECK_LEVEL_ENERGY' } as StubAction;
+  }
+
+  // ---- この方法で公開されたカードをシャッフルしてデッキの一番下に置く ----
+  if (t.match(/この方法で公開されたカードをシャッフルしてデッキの一番下に置く/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+
+  // ---- この効果はN枚までしか適用されない ----
+  if (t.match(/この効果は[０-９\d]+枚までしか適用されない/)) {
+    return { type: 'STUB', id: 'EFFECT_LIMIT' } as StubAction;
+  }
+
+  // ---- 対戦相手のセンタールリグが〜の場合、このアーツの使用コストは〜になる ----
+  if (t.match(/対戦相手のセンタールリグが.*の場合、このアーツの使用コストは/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
+  }
+
+  // ---- この方法でカードをN枚以上捨てた場合、捨てた枚数＋Nのカードを引く ----
+  if (t.match(/この方法でカードを[０-９\d]+枚以上捨てた場合、捨てた枚数に[０-９\d]+を加えた枚数のカードを引く/)) {
+    return { type: 'STUB', id: 'VARIABLE_DRAW_BY_DISCARD' } as StubAction;
+  }
+
+  // ---- 色リストから1つを選ぶ ----
+  if (t.match(/^(?:白|赤|青|緑|黒)(?:、(?:白|赤|青|緑|黒))+から[０-９\d]+つを選ぶ$/)) {
+    return { type: 'STUB', id: 'CHOOSE_COLOR_FROM_LIST' } as StubAction;
+  }
+
+  // ---- 対戦相手は色・コストを宣言する ----
+  if (t.match(/対戦相手は.*から[０-９\d]*つを宣言する/)) {
+    return { type: 'STUB', id: 'OPP_DECLARE_CHOICE' } as StubAction;
+  }
+
+  // ---- その中から特定条件のシグニをエナゾーンに置き残りをデッキ上に ----
+  if (t.match(/その中から.*のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く/)) {
+    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニ1体を対象とし、手札を1枚捨ててもよい ----
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、手札を[０-９\d]+枚捨ててもよい/)) {
+    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+  }
+
+  // ---- 数値範囲で数字を宣言する ----
+  if (t.match(/[０-９\d]+～[０-９\d]+の数字[０-９\d]*つを宣言する/)) {
+    return { type: 'STUB', id: 'DECLARE_NUMBER_RANGE' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
