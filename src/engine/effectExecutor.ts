@@ -1747,6 +1747,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
         return done(addLog(ctx, '任意コスト（自動支払い）'));
       }
+      // 対戦相手払い単独発動（SEQUENCEパターン外）：支払わないとして処理
+      if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
+        return done(addLog(ctx, '対戦相手任意コスト（スキップ）'));
+      }
       // アーツコスト削減：次のアーツ使用時に適用（ここでは記録のみ）
       if (stub.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || stub.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
         return done(addLog(ctx, 'アーツコスト削減（次回アーツ使用時適用）'));
