@@ -210,6 +210,7 @@ type ConditionParseResult = {
   condition: ActiveCondition | undefined;
   rest: string;
   conditionFound: boolean; // true=条件文が見つかったがパース成功かどうかはconditionで判断
+  isTimingMarker?: boolean; // true=条件ではなくタイミング/期間マーカー（anyFailed対象外）
 };
 
 function parseActiveCondition(text: string): ConditionParseResult {
