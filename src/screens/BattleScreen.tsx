@@ -4961,7 +4961,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         {pendingArtsCard.CardName}
                       </p>
                       <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
-                        コスト: {pendingArtsCard.Cost}
+                        コスト: {pendingArtsEffectiveCost ?? pendingArtsCard.Cost}
                       </p>
                     </div>
                   </div>
