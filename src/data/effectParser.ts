@@ -5164,9 +5164,13 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
   }
 
-  // ---- あなたのメインフェイズ開始時〜（フェーズトリガー）----
-  if (t.match(/あなたのメインフェイズ開始時/)) {
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  // ---- あなたのメインフェイズ開始時〜（フェーズトリガー前置きを剥がして再解析）----
+  {
+    const m = t.match(/^あなたのメインフェイズ開始時[、,]\s*(.+)$/);
+    if (m) return parseSingleSentence(m[1].trim());
+  }
+  if (t === 'あなたのメインフェイズ開始時') {
+    return { type: 'STUB', id: 'MAIN_PHASE_START_TRIGGER' } as StubAction;
   }
 
   // ---- あなたのエナゾーンにあるすべてのカードを手札に加える ----
