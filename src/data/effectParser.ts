@@ -97,6 +97,135 @@ function stripRuleParens(s: string): string {
   } while (result !== prev);
   return result.trim();
 }
+// ===== 使用条件パース =====
+
+function parseUseCondition(text: string): Condition {
+  const n = (s: string) => parseInt(toHalf(s), 10);
+  const op = (s: string): import('../types/effects').CompareOp => s === '以上' ? 'gte' : s === '以下' ? 'lte' : 'eq';
+
+  // クロス状態（未実装メカニクス → COND_STUB で常に許可）
+  if (text.match(/クロス状態/)) return { type: 'COND_STUB', raw: text };
+
+  // 対戦相手のセンタールリグがレベルX以上/以下
+  let m = text.match(/対戦相手のセンタールリグがレベル([０-９\d]+)(以上|以下)/);
+  if (m) return { type: 'LRIG_LEVEL', owner: 'opponent', operator: op(m[2]), value: n(m[1]) };
+
+  // あなたのセンタールリグがレベルX以上/以下
+  m = text.match(/あなたのセンタールリグがレベル([０-９\d]+)(以上|以下)/);
+  if (m) return { type: 'LRIG_LEVEL', owner: 'self', operator: op(m[2]), value: n(m[1]) };
+
+  // あなたのセンタールリグが＜X＞
+  m = text.match(/あなたのセンタールリグが＜([^＞]+)＞/);
+  if (m) return { type: 'LRIG_STORY', owner: 'self', story: m[1] };
+
+  // 対戦相手の手札がX枚
+  m = text.match(/対戦相手の手札が([０-９\d]+)枚/);
+  if (m) return { type: 'HAND_COUNT', owner: 'opponent', operator: 'eq', value: n(m[1]) };
+
+  // あなたの手札がX枚
+  m = text.match(/あなたの手札が([０-９\d]+)枚/);
+  if (m) return { type: 'HAND_COUNT', owner: 'self', operator: 'eq', value: n(m[1]) };
+
+  // 対戦相手のエナゾーンにカードがX枚以上/以下
+  m = text.match(/対戦相手のエナゾーンに(?:ある)?カードが([０-９\d]+)枚(以上|以下)/);
+  if (m) return { type: 'ENERGY_COUNT', owner: 'opponent', operator: op(m[2]), value: n(m[1]) };
+
+  // あなたのライフクロスが対戦相手より少ない
+  if (text.match(/あなたのライフクロスが対戦相手より少ない/))
+    return { type: 'LIFE_COMPARE_OPP', operator: 'lt' };
+
+  // あなたのライフクロスがX枚
+  m = text.match(/あなたのライフクロスが([０-９\d]+)枚/);
+  if (m) return { type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: n(m[1]) };
+
+  // このカード/シグニ/スペルがトラッシュにある
+  if (text.match(/この(?:カード|シグニ|スペル)がトラッシュにある/))
+    return { type: 'THIS_CARD_IN_LOCATION', location: 'trash' };
+
+  // このスペルがエナゾーンにある
+  if (text.match(/このスペルがエナゾーンにある/))
+    return { type: 'THIS_CARD_IN_LOCATION', location: 'energy' };
+
+  // あなたのトラッシュにカード名に《X》を含むカードがある
+  m = text.match(/あなたのトラッシュにカード名に《([^》]+)》を含むカードがある/);
+  if (m) return { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: m[1] } };
+
+  // あなたの場にカード名に《X》を含むシグニがある
+  m = text.match(/あなたの場にカード名に《([^》]+)》を含むシグニがある/);
+  if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName: m[1] } };
+
+  // あなたの場に他の＜X＞のシグニがある
+  m = text.match(/あなたの場に他の＜([^＞]+)＞のシグニがある/);
+  if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: m[1] }, excludeSelf: true };
+
+  // あなたの場に＜X＞のシグニがある
+  m = text.match(/あなたの場に＜([^＞]+)＞のシグニがある/);
+  if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: m[1] } };
+
+  // 対戦相手の場にレベルX以上のシグニがある
+  m = text.match(/対戦相手の場にレベル([０-９\d]+)以上のシグニがある/);
+  if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', levelRange: { min: n(m[1]) } } };
+
+  // あなたの場にパワーX以上のシグニがある
+  m = text.match(/あなたの場にパワー([０-９\d]+)以上のシグニがある/);
+  if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', powerRange: { min: n(m[1]) } } };
+
+  // このシグニのパワーがX以上
+  m = text.match(/このシグニのパワーが([０-９\d]+)以上/);
+  if (m) return { type: 'SELF_POWER_GTE', value: n(m[1]) };
+
+  // あなたの場にシグニがない
+  if (text.match(/あなたの場にシグニがない/))
+    return { type: 'FIELD_COUNT', owner: 'self', operator: 'eq', value: 0 };
+
+  // あなたの場にアクセされているシグニがある
+  if (text.match(/あなたの場にアクセされているシグニがある/))
+    return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasAcce: true } };
+
+  // あなたの場に《X》がいる（特定カード名）
+  m = text.match(/あなたの場に《([^》]+)》が(?:いる|ある)/);
+  if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: m[1] } };
+
+  // 対戦相手のシグニ１体がアタックした（タイミング制限）
+  if (text.match(/対戦相手のシグニ.*がアタックした/))
+    return { type: 'DURING_PHASE', phases: ['ATTACK_SIGNI_OP'] };
+
+  // AND条件（〜にあり〜）
+  m = text.match(/^この(?:カード|シグニ)がトラッシュにあり(.+)$/);
+  if (m) {
+    const cond2 = parseUseCondition(m[1]);
+    return { type: 'AND', conditions: [{ type: 'THIS_CARD_IN_LOCATION', location: 'trash' }, cond2] };
+  }
+
+  // 《ライズアイコン》その他未対応
+  return { type: 'COND_STUB', raw: text };
+}
+
+// 効果テキストから「この能力は〜にしか使用できない」を抽出し、残りのテキストと条件を返す
+function extractUseCondition(text: string): { cleaned: string; condition?: Condition } {
+  const marker = /この(?:能力|カード|シグニ|スペル)は(.+?)(?:場合にしか使用できない|ときにしか使用できない)/;
+
+  // 末尾パターン：「…。この能力は〜できない。」
+  const endM = text.match(/^([\s\S]+?)。この(?:能力|カード|シグニ|スペル)は(.+?)(?:場合にしか使用できない|ときにしか使用できない)。?$/);
+  if (endM) {
+    return { cleaned: endM[1].trim(), condition: parseUseCondition(endM[2].trim()) };
+  }
+
+  // 先頭パターン：「このカードは〜できない。…」（スペル全体への条件）
+  const startM = text.match(/^この(?:カード|スペル)は(.+?)(?:場合にしか使用できない|ときにしか使用できない)。([\s\S]+)$/);
+  if (startM) {
+    return { cleaned: startM[2].trim(), condition: parseUseCondition(startM[1].trim()) };
+  }
+
+  // 全体が条件文（単独で現れる場合）
+  const wholeM = text.match(marker);
+  if (wholeM && wholeM[0] === text.replace(/。$/, '').trim()) {
+    return { cleaned: '', condition: parseUseCondition(wholeM[1].trim()) };
+  }
+
+  return { cleaned: text };
+}
+
 function parseNum(s: string): number {
   return parseInt(toHalf(s), 10);
 }
