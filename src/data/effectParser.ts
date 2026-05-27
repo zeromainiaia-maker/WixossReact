@@ -4746,9 +4746,10 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } };
   }
 
-  // ---- 《色》を支払ってもよい（任意追加コスト）→ スキップ ----
+  // ---- 《色》を支払ってもよい（単色任意コスト）→ OPTIONAL_COST with costColors ----
   if (t.match(/^《[赤青緑黒白無]》を支払ってもよい$/)) {
-    return { type: 'STUB', id: 'OPTIONAL_COLOR_PAY' } as StubAction;
+    const costColors = [...t.matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    return { type: 'STUB', id: 'OPTIONAL_COST', costColors } as StubAction;
   }
 
   // ---- あなたのルリグゾーンに【リミットアッパー】を置く ----
