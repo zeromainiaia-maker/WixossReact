@@ -6991,7 +6991,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- このシグニが中央のシグニゾーンにある場合 ----
   if (t.match(/このシグニが中央のシグニゾーンにある場合/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'CENTER_ZONE_CONDITION' } as StubAction;
 
   // ---- このターンにアタックしたシグニを対象とし、キーをルリグトラッシュに置いてもよい ----
   if (t.match(/このターンにアタックしたシグニを.*対象とし.*ルリグトラッシュに置いてもよい/))
