@@ -64,6 +64,7 @@ export interface ExecCtx {
   effectivePowers?: Map<string, number>; // CONTINUOUS+temp_power_mods 適用済みパワー（powerRangeフィルタ用）
   sourceCardNum?: string;    // 効果発動元カード番号（「このシグニ」参照用）
   forceEndTurn?: boolean;    // FORCE_END_TURN でセット → BattleScreen がターン終了処理を行う
+  currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
 }
 
 export type ExecResult =
