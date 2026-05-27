@@ -4536,6 +4536,11 @@ function parseActionText(text: string): EffectAction {
     if (!c) return false;
     // 括弧内のルール注釈をスキップ（例: 「（それは次のアップフェイズにアップしない）」）
     if (c.startsWith('（') && (c.endsWith('）') || c.endsWith('）。'))) return false;
+    // 複数文にまたがる丸括弧ルール説明のフラグメントをスキップ
+    if (c.startsWith('（') && c.includes('【出】能力')) return false;
+    if (c.includes('コストを支払わず発動しないことを選んでもよい')) return false;
+    // 単独の閉じ括弧・鍵括弧フラグメントをスキップ
+    if (c === '）' || c === '』') return false;
     // 「」を得る」などのフラグメントをスキップ（引用符付き能力の末尾切れ）
     if (c.startsWith('」') || c === '」を得る' || c === '」を持つ') return false;
     // 数字+丸括弧で始まる選択肢番号行（①②③④）はスキップ（CHOOSE ヘッダと対にあるため）
