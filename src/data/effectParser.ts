@@ -211,7 +211,7 @@ function parseUseCondition(text: string): Condition {
 
 // 効果テキストから「この能力は〜にしか使用できない」を抽出し、残りのテキストと条件を返す
 function extractUseCondition(text: string): { cleaned: string; condition?: Condition } {
-  const RESTRICT_SUFFIX = '(?:場合にしか使用できない|ときにしか使用できない|場合にしか発動しない|ときにしか発動しない)';
+  const RESTRICT_SUFFIX = '(?:場合(?:に)?しか使用できない|ときにしか使用できない|場合(?:に)?しか発動しない|ときにしか発動しない)';
   const marker = new RegExp(`この(?:能力|カード|シグニ|スペル)は(.+?)${RESTRICT_SUFFIX}`);
 
   // 末尾パターン：「…。この能力は〜できない。」
