@@ -7708,14 +7708,28 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   const stripped = stripRuleParens(card.EffectText);
   const { cleaned, condition } = extractUseCondition(stripped);
-  const action = parseActionText(condition ? cleaned : stripped);
+  let action = parseActionText(condition ? cleaned : stripped);
   const hasUnknown = action.type === 'UNKNOWN'
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
+  // ALT_COST_OPP_TURN をアクション列から CardEffect フィールドに昇格
+  let altCostOppTurn: import('../types/effects').EnergyCost[] | undefined;
+  if (action.type === 'ALT_COST_OPP_TURN') {
+    altCostOppTurn = (action as import('../types/effects').AltCostOppTurnAction).cost;
+    action = { type: 'SEQUENCE', steps: [] } as import('../types/effects').SequenceAction;
+  } else if (action.type === 'SEQUENCE') {
+    const seq = action as SequenceAction;
+    const altStep = seq.steps.find(s => s.type === 'ALT_COST_OPP_TURN') as import('../types/effects').AltCostOppTurnAction | undefined;
+    if (altStep) {
+      altCostOppTurn = altStep.cost;
+      action = { ...seq, steps: seq.steps.filter(s => s.type !== 'ALT_COST_OPP_TURN') };
+    }
+  }
   return {
     effectId: `${card.CardNum}-E1`,
     effectType: 'ACTIVATED',
     timing: parseArtsTiming(card.Timing ?? ''),
     cost: parseCost(card.Cost),
+    altCostOppTurn,
     condition,
     action,
     duration: 'INSTANT',
