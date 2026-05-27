@@ -7477,7 +7477,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
         .filter((e): e is import('../types/effects').CardEffect => e !== null);
     }
-    const hasUnknownSub = gla.abilities.length === 0 || gla.abilities.some(e => e.parseStatus === 'UNKNOWN');
+    // rawTextが「。」だけ（句点のみ）の場合は、実際の能力は別のブロックで解析済みのためAUTO扱い
+    const rawTextOnlyPunct = !gla.rawText || /^[。、\s]*$/.test(gla.rawText);
+    const hasUnknownSub = !rawTextOnlyPunct && (gla.abilities.length === 0 || gla.abilities.some(e => e.parseStatus === 'UNKNOWN'));
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
   } else if (resolvedAction.type === 'UNKNOWN') {
     parseStatus = 'UNKNOWN';
