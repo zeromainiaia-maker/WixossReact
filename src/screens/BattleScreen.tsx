@@ -3219,6 +3219,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ── アーツ ──
     if (cardData.Type === 'アーツ') {
+      // blocked_card_names チェック
+      if (my.blocked_card_names?.includes(cardData.CardName)) return actions;
       const canUse =
         !isActionBlocked('USE_ARTS') && (
           (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
@@ -3228,11 +3230,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const extraArtsCosts = activeCostMods.forMy
         .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
         .flatMap(m => m.amount);
-      if (canUse && canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti)) {
+      // 対戦相手ターン中の代替コストがあればそちらを使う
+      const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
+      const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
+      const costOk = effectiveCostStr
+        ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti)
+        : canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
+      if (canUse && costOk) {
         actions.push({
           label: '使用',
           color: C.coin,
-          onClick: () => { setPendingArtsCard(cardData); setSelectedArtsCost(new Set()); setShowArtsModal(true); },
+          onClick: () => {
+            setPendingArtsCard(cardData);
+            setPendingArtsEffectiveCost(effectiveCostStr);
+            setSelectedArtsCost(new Set());
+            setShowArtsModal(true);
+          },
         });
       }
     }
