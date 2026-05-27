@@ -7439,7 +7439,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (!r.conditionFound) break;
       anyFound = true;
       if (r.condition) parsedConds.push(r.condition);
-      else anyFailed = true;
+      else if (!r.isTimingMarker) anyFailed = true;
       remaining = r.rest;
     }
     if (parsedConds.length === 0) activeCondition = undefined;
