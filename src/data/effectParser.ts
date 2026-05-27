@@ -4526,6 +4526,50 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'PLACE_LIMIT_UPPER' } as StubAction;
   }
 
+  // ---- 使用条件テキスト（ゲームプレイに不要）→ スキップ ----
+  if (t.match(/この(?:能力|カード)は.*場合にしか使用できない/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- 括弧ルール説明の後続フラグメント ----
+  if (t.startsWith('（【トラップ】') || t.startsWith('（【シード】')) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+  if (t.endsWith('トラッシュに置く）') || t.endsWith('置く）') || t.endsWith('いてもよい）')) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- 公開したカードをシャッフル・並べ替えてデッキに戻す ----
+  if (t.match(/公開したカードをシャッフルして(?:デッキの一番下|デッキ)に置く/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+  if (t.match(/残りを好きな順番でデッキの一番上に戻す/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: true, destination: { location: 'deck', owner: 'self', position: 'top' } };
+  }
+
+  // ---- 対戦相手のシグニ1体を対象とし、《色》を支払ってもよい ----
+  if (t.match(/対戦相手のシグニ[０-９\d]*体を対象とし、《[赤青緑黒白無]》を支払ってもよい/)) {
+    return { type: 'STUB', id: 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' } as StubAction;
+  }
+
+  // ---- その中からカード1枚を【シード】/【トラップ】として設置 ----
+  if (t.match(/その中からカード[０-９\d]+枚を【シード】として.*シグニゾーンに出して/)) {
+    return { type: 'STUB', id: 'PLACE_SEED_FROM_REVEALED' } as StubAction;
+  }
+  if (t.match(/その中からカード[０-９\d]+枚を【トラップ】として.*シグニゾーンに設置/)) {
+    return { type: 'STUB', id: 'PLACE_TRAP_FROM_REVEALED' } as StubAction;
+  }
+
+  // ---- このゲームの間、以下の能力を得る ----
+  if (t.match(/このゲームの間、あなたは以下の能力を得る/)) {
+    return { type: 'STUB', id: 'GAIN_ABILITY_THIS_GAME' } as StubAction;
+  }
+
+  // ---- 以下をN回行う ----
+  if (t.match(/^以下を[０-９\d]+回行う$/)) {
+    return { type: 'STUB', id: 'REPEAT_N_TIMES' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
