@@ -7193,11 +7193,11 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 対戦相手のエナゾーンにカードがN枚以上ある場合、シグニの下から〜トラッシュに置いてもよい ----
   if (t.match(/対戦相手のエナゾーンにカードが[１-９\d０-９]+枚以上ある場合.*シグニの下から.*トラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'CONDITIONAL_TRASH_UNDER_SIGNI' } as StubAction;
 
   // ---- このターン終了時、《コインアイコン》を合計N枚以上支払っていなかった場合 ----
   if (t.match(/このターン終了時.*《コインアイコン》を合計[１-９\d０-９]+枚以上支払っていなかった場合/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'COIN_SPEND_CONDITION' } as StubAction;
 
   // ---- 対戦相手のレベルN以上のシグニをトラッシュに置く ----
   if (t.match(/対戦相手のレベル[０-９\d]+以上のシグニ.*体を対象とし.*トラッシュに置く/))
