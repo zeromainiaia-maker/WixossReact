@@ -4180,10 +4180,16 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'OPP_TURN_NO_ENERGY_COST_ZERO' } as StubAction;
   }
 
-  // ---- 対戦相手が自分のシグニを選びエナゾーンに置く ----
-  if (t.match(/対戦相手は自分の.+シグニ.+選び.+エナゾーン/) ||
-      t.match(/対戦相手の.+シグニ.+エナゾーンに置く/)) {
-    return { type: 'STUB', id: 'OPP_SIGNI_TO_ENERGY' } as StubAction;
+  // ---- 対戦相手のシグニをエナゾーンに置く → BANISH と同等 ----
+  {
+    const m = t.match(/対戦相手のシグニ([０-９\d]*)体(?:を対象とし、)?(?:それを)?エナゾーンに置く/);
+    if (m) {
+      const cnt = m[1] ? parseNum(m[1]) : 1;
+      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as BanishAction;
+    }
+  }
+  if (t.match(/対戦相手は自分の.+シグニ.+選び.+エナゾーン/)) {
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
   }
 
   // ---- サーバントZEROにする / シグニ名変更 ----
