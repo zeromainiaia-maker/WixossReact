@@ -4861,7 +4861,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- アクセアイコン持ちシグニをエナゾーンへ ----
   if (t.match(/《アクセアイコン》を持つシグニ.*エナゾーンに置く/)) {
-    return { type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { hasKeyword: 'アクセ' } } } as EnergyChargeAction;
+    return { type: 'STUB', id: 'PLACE_ACCE_SIGNI_TO_ENERGY' } as StubAction;
   }
 
   // ---- 同じ場所にシグニがある/ない場合トラッシュ/表向き ----
