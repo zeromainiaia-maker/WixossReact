@@ -3186,7 +3186,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (cardData?.Type === 'スペル' && meetsRestriction(cardData.Restriction, lrigClass)) {
         // pending_spell がある間は新たにスペルを発動できない
         const spellBlocked = !!bs.pending_spell;
-        if (!spellBlocked) {
+        const spellEff = effectsMap.get(cardNum)?.find(e => e.effectType === 'ACTIVATED');
+        const condOk = !spellEff?.condition || evalUseCondition(spellEff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
+        if (!spellBlocked && condOk) {
           actionList.push({
             label: '発動',
             color: C.accent,
