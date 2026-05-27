@@ -7053,7 +7053,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- レベルNのシグニの場合、手札をN枚捨てる ----
   if (t.match(/レベル[０-９\d]+のシグニの場合、あなたは手札を[１-９\d０-９]+枚捨てる/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'LEVEL_BASED_CONDITIONAL' } as StubAction;
 
   // ---- それがスペルの場合、コストを支払わずに使用してもよい ----
   if (t.match(/それがスペルの場合.*コストを支払わずに使用してもよい/))
