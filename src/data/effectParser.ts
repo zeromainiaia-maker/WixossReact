@@ -211,8 +211,8 @@ function extractUseCondition(text: string): { cleaned: string; condition?: Condi
     return { cleaned: endM[1].trim(), condition: parseUseCondition(endM[2].trim()) };
   }
 
-  // 先頭パターン：「このカードは〜できない。…」（スペル全体への条件）
-  const startM = text.match(/^この(?:カード|スペル)は(.+?)(?:場合にしか使用できない|ときにしか使用できない)。([\s\S]+)$/);
+  // 先頭パターン：「このカードは〜できない。…」（スペル/アーツ全体への条件）
+  const startM = text.match(/^この(?:カード|スペル|アーツ)は(.+?)(?:場合にしか使用できない|ときにしか使用できない)。([\s\S]+)$/);
   if (startM) {
     return { cleaned: startM[2].trim(), condition: parseUseCondition(startM[1].trim()) };
   }
