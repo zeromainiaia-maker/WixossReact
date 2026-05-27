@@ -288,6 +288,11 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (loc === 'lrig_trash') return ctx.ownerState.lrig_trash.includes(src);
       return false;
     }
+    case 'THIS_CARD_IN_CENTER_ZONE': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      return ctx.ownerState.field.signi[1]?.includes(src) ?? false;
+    }
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
