@@ -93,8 +93,10 @@ async function processOne(cardNum, index) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const webp = await sharp(Buffer.from(await res.arrayBuffer())).webp({ quality: 82 }).toBuffer();
+    // UPDATEポリシーがないため、削除してからINSERTする
+    await supabase.storage.from(BUCKET).remove([`${cardNum}.webp`]);
     const { error } = await supabase.storage.from(BUCKET)
-      .upload(`${cardNum}.webp`, webp, { contentType: 'image/webp', upsert: true });
+      .upload(`${cardNum}.webp`, webp, { contentType: 'image/webp', upsert: false });
     if (error) throw new Error(error.message);
     console.log(`${label} ✓ ${(webp.length / 1024).toFixed(0)}KB  ${imgUrl}`);
     ok++;
