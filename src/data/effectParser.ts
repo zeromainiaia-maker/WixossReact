@@ -86,6 +86,10 @@ const FW_DIGIT: Record<string, string> = {
 function toHalf(s: string): string {
   return s.replace(/[０-９]/g, c => FW_DIGIT[c] ?? c);
 }
+// ルール補足テキスト（全角括弧）を除去
+function stripRuleParens(s: string): string {
+  return s.replace(/（[^）]*）/g, '').trim();
+}
 function parseNum(s: string): number {
   return parseInt(toHalf(s), 10);
 }
