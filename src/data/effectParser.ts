@@ -5117,8 +5117,8 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
   }
 
-  // ---- この方法でデッキに加えた/トラッシュに置かれたカードN枚につきパワー±N ----
-  if (t.match(/この方法で.*カード[０-９\d]*枚につき[＋－][０-９\d]+する/)) {
+  // ---- この方法で〜N単位につきパワー±N / コスト減少（汎用）----
+  if (t.match(/この方法で.*につき/)) {
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
   }
 
