@@ -5137,6 +5137,32 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
   }
 
+  // ---- N体以下/以上のシグニに使用することはできない（使用条件テキスト）----
+  if (t.match(/のシグニに使用することはできない[）]?$/) || t.match(/にしか使用することはできない[）]?$/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- このゲームの間、特定カードを使用できない ----
+  if (t.match(/このゲームの間、あなたは《.+》を使用できない/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニN体を対象とし、手札をN枚捨ててもよい ----
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、手札を好きな枚数捨ててもよい/) ||
+      t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、手札を[０-９\d]+枚?捨ててもよい$/)) {
+    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+  }
+
+  // ---- 各プレイヤーは手札・エナ・シグニをすべてトラッシュに ----
+  if (t.match(/各プレイヤーは.*(?:手札|エナゾーン).*シグニをすべてトラッシュに置く/)) {
+    return { type: 'STUB', id: 'TRASH_ALL_SIGNI_AND_KEY' } as StubAction;
+  }
+
+  // ---- このシグニのレベルはN枚につきN減る ----
+  if (t.match(/このシグニのレベルは.*[０-９\d]枚?につき[０-９\d]+減る/)) {
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+  }
+
   // ---- そうしない場合、このシグニを場からトラッシュに置く ----
   if (t.match(/そうしない場合、このシグニを場からトラッシュに置く/)) {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } };
