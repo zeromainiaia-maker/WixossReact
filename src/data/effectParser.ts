@@ -5829,10 +5829,11 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
 
   // ---- センタールリグが〈クラス〉の場合にしか使用できない ----
-  if (t.match(/この能力はあなたのセンタールリグが[＜〈<].+[＞〉>]の場合しか使用できない/) ||
-      t.match(/この能力はこのシグニが.+の場合にしか発動しない/) ||
-      t.match(/この能力の使用コストは無色ではないカードでしか支払えない/) ||
+  if (t.match(/この能力の使用コストは無色ではないカードでしか支払えない/) ||
       t.match(/このアーツの使用コストに含まれる.*コストは.*でしか支払えない/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  if (t.match(/この能力はあなたのセンタールリグが[＜〈<].+[＞〉>]の場合しか使用できない/) ||
+      t.match(/この能力はこのシグニが.+の場合にしか発動しない/))
     return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
 
   // ---- 手札から《特定カード》を捨てる ----
