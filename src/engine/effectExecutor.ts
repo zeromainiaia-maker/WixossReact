@@ -1003,6 +1003,25 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
         const stub = step as import('../types/effects').StubAction;
         const costColors = stub.costColors ?? [];
+
+        // OPPONENT_PAY_OPTIONAL: 対戦相手がコストを支払う/支払わない
+        // pay → 何も起きない（対戦相手のエナ消費）, skip → 効果発動（conditional.then）
+        if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
+          const canOppAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.otherState, cur.cardMap);
+          const payLabel = costColors.length > 0
+            ? `支払う（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
+            : '支払う';
+          const options = [
+            { id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, ...(costColors.length ? { costColors } : {}) },
+            { id: 'skip', label: '支払わない', action: conditional.then, available: true },
+          ];
+          const pending: PendingInteractionDef = {
+            type: 'CHOOSE', options, count: 1, opponentResponds: true,
+            ...(cont ? { continuation: cont } : {}),
+          };
+          return needsInteraction(addLog(cur, '対戦相手：コストを支払いますか？'), pending);
+        }
+
         const canAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
         const payLabel = costColors.length > 0
           ? `発動する（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
