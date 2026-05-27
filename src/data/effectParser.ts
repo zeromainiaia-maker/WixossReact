@@ -265,6 +265,22 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3a: 「あなたの場にレゾナがあるかぎり、」
+  if (text.startsWith('あなたの場にレゾナがあるかぎり、')) {
+    return { condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } }, rest: text.slice('あなたの場にレゾナがあるかぎり、'.length), conditionFound: true };
+  }
+
+  // パターン3b: 「あなたの場に〜クラスのシグニがN体あるかぎり、」（クラス数体条件）
+  const fieldClassCountM = text.match(/^あなたの場に(?:他の)?((?:＜[^＞]+＞(?:か)?)+)のシグニが([０-９\d]+)体あるかぎり、/);
+  if (fieldClassCountM) {
+    const storyFilter = parseStoryFilter(fieldClassCountM[1]);
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter } },
+      rest: text.slice(fieldClassCountM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
@@ -281,6 +297,12 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン4b: 「あなたのトラッシュに〜があるかぎり、」（スペル等）
+  const trashGenM = text.match(/^あなたのトラッシュに.+があるかぎり、/);
+  if (trashGenM) {
+    return { condition: undefined, rest: text.slice(trashGenM[0].length), conditionFound: true };
+  }
+
   // パターン5: 「あなたのエナゾーンにカードがN枚以上あるかぎり、」
   const enaM = text.match(/^あなたのエナゾーンにカードが([０-９\d]+)枚以上あるかぎり、/);
   if (enaM) {
@@ -289,6 +311,28 @@ function parseActiveCondition(text: string): ConditionParseResult {
       rest: text.slice(enaM[0].length),
       conditionFound: true,
     };
+  }
+
+  // パターン5b: 「あなたのエナゾーンにあるカードが対戦相手よりN枚以上多いかぎり、」
+  const enaDiffM = text.match(/^あなたのエナゾーンにあるカードが対戦相手より([０-９\d]+)枚以上多いかぎり、/);
+  if (enaDiffM) {
+    return { condition: undefined, rest: text.slice(enaDiffM[0].length), conditionFound: true };
+  }
+
+  // パターン5c: 「あなたの手札がN枚以上/以下/０枚であるかぎり、」
+  const handCountM = text.match(/^あなたの手札が([０-９\d]+)枚(以上|以下|ある)かぎり、/);
+  if (handCountM) {
+    const val = parseNum(handCountM[1]);
+    const op: CompareOp = handCountM[2] === '以上' ? 'gte' : handCountM[2] === '以下' ? 'lte' : 'eq';
+    return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: op, value: val }, rest: text.slice(handCountM[0].length), conditionFound: true };
+  }
+  const handZeroM = text.match(/^あなたの手札が０枚であるかぎり、/);
+  if (handZeroM) {
+    return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: 'eq', value: 0 }, rest: text.slice(handZeroM[0].length), conditionFound: true };
+  }
+  const handGenM = text.match(/^あなたの手札が.+かぎり、/);
+  if (handGenM) {
+    return { condition: undefined, rest: text.slice(handGenM[0].length), conditionFound: true };
   }
 
   // パターン6: 「このシグニのパワーがN以上であるかぎり、」
