@@ -856,6 +856,7 @@ export interface RecollectGateAction {
 export interface StubAction {
   type: 'STUB';
   id: string;
+  costColors?: string[]; // OPTIONAL_COST: 支払うエナの色リスト（例: ['赤','赤']）
 }
 
 export interface UnknownAction {
