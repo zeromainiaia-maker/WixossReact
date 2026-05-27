@@ -12,6 +12,7 @@ import type {
   ActiveCondition,
   TargetFilter,
   Owner,
+  CompareOp,
   SequenceAction,
   ChooseAction,
   UnknownAction,
