@@ -7423,13 +7423,16 @@ function parseActionText(text: string): EffectAction {
   // ---- 「...もよい。そうした場合、以下のN個から選ぶ。①...②...」 ----
   {
     const chooseIdx = sentences.findIndex(s => s.match(/以下の[０-９\d２-９]+つから.*選ぶ/));
-    if (chooseIdx >= 1) {
-      const chooseCountM = sentences[chooseIdx].match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
+    if (chooseIdx >= 0) {
+      const chooseSentence = sentences[chooseIdx];
+      const chooseCountM = chooseSentence.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
       const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
       const chooseAction = buildChoose(text, chooseCount);
       if (chooseAction) {
         const priorActions = sentences.slice(0, chooseIdx).map(s => parseSingleSentence(s.trim()));
-        return { type: 'SEQUENCE', steps: [...priorActions, chooseAction] } as SequenceAction;
+        return priorActions.length === 0
+          ? chooseAction
+          : { type: 'SEQUENCE', steps: [...priorActions, chooseAction] } as SequenceAction;
       }
     }
   }
