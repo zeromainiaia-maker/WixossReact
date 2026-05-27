@@ -587,6 +587,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedGrowCost, setSelectedGrowCost] = useState<Set<number>>(new Set());
   const [showArtsModal, setShowArtsModal] = useState(false);
   const [pendingArtsCard, setPendingArtsCard] = useState<CardData | null>(null);
+  const [pendingArtsEffectiveCost, setPendingArtsEffectiveCost] = useState<string | null>(null);
   const [selectedArtsCost, setSelectedArtsCost] = useState<Set<number>>(new Set());
   const [selectedArtsDiscard, setSelectedArtsDiscard] = useState<Set<number>>(new Set());
   const [isBetting, setIsBetting] = useState(false);
