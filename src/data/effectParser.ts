@@ -4747,11 +4747,6 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'PLACE_LIMIT_UPPER' } as StubAction;
   }
 
-  // ---- 使用条件テキスト（ゲームプレイに不要）→ スキップ ----
-  if (t.match(/この(?:能力|カード)は.*場合にしか使用できない/)) {
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
-  }
-
   // ---- 括弧ルール説明の後続フラグメント ----
   if (t.startsWith('（【トラップ】') || t.startsWith('（【シード】')) {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
