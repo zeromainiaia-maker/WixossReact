@@ -76,11 +76,19 @@ export type Condition =
   | { type: 'HAND_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'LIFE_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'ENERGY_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter }
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean }
+  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }
+  | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number }
+  | { type: 'LRIG_STORY'; owner: Owner; story: string }
+  | { type: 'THIS_CARD_IN_LOCATION'; location: CardLocation }
+  | { type: 'SELF_POWER_GTE'; value: number }
+  | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp }
+  | { type: 'DURING_PHASE'; phases: string[] }
   | { type: 'AND'; conditions: Condition[] }
   | { type: 'IS_MY_TURN' }
-  | { type: 'IS_OPPONENT_TURN' };
+  | { type: 'IS_OPPONENT_TURN' }
+  | { type: 'COND_STUB'; raw: string };
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
