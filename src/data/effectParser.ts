@@ -4948,6 +4948,66 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'DECLARE_NUMBER_RANGE' } as StubAction;
   }
 
+  // ---- 手札からクラスシグニを好きな枚数公開する ----
+  if (t.match(/手札から.+のシグニを好きな枚数公開する/)) {
+    return { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND' } as StubAction;
+  }
+
+  // ---- この方法で公開したカード1枚につき±Nパワー ----
+  if (t.match(/この方法で公開したカード[０-９\d]*枚につき[＋－][０-９\d]+する/)) {
+    return { type: 'STUB', id: 'POWER_MOD_PER_REVEALED' } as StubAction;
+  }
+
+  // ---- ターン終了時まで、公開シグニのレベル合計につき±Nパワー ----
+  if (t.match(/ターン終了時まで.*公開された.*レベル.*につき[＋－][０-９\d]+する/)) {
+    return { type: 'STUB', id: 'POWER_MOD_PER_REVEALED_LEVEL' } as StubAction;
+  }
+
+  // ---- このカードはこのターンにアーツを使用していた場合、使用できない ----
+  if (t.match(/このカードはあなたがこのターンにアーツを使用していた場合、使用できない/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_ARTS_USED' } as StubAction;
+  }
+
+  // ---- アーツ使用時に手札から色のカードをN枚まで捨てる ----
+  if (t.match(/このアーツを使用する際、手札から.+のカードを[０-９\d]+枚まで捨てる/)) {
+    return { type: 'STUB', id: 'ARTS_USE_DISCARD_COLOR_HAND' } as StubAction;
+  }
+
+  // ---- 対戦相手の手札をN枚見ないで選び公開させる ----
+  if (t.match(/対戦相手の手札を[０-９\d]*枚?見ないで選び、対戦相手はそのカードを公開する/)) {
+    return { type: 'STUB', id: 'REVEAL_OPP_HAND_CARD' } as StubAction;
+  }
+
+  // ---- 対戦相手のエナゾーンからカードをトラッシュに置いてもよい ----
+  if (t.match(/対戦相手のエナゾーンからカード[０-９\d]*枚?を対象とし、それをトラッシュに置いてもよい/)) {
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } };
+  }
+
+  // ---- 対戦相手のシグニN体を対象とする（単独）----
+  if (t.match(/^対戦相手のシグニ[０-９\d]*体?を対象とする$/)) {
+    return { type: 'STUB', id: 'TARGET_OPP_SIGNI_ONLY' } as StubAction;
+  }
+
+  // ---- そのカード/それをトラッシュに置いてもよい（単独）----
+  if (t.match(/^(?:そのカード|それ)をトラッシュに置いてもよい$/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'any', count: 1 } };
+  }
+
+  // ---- このゲームの間、コインの使用制限 ----
+  if (t.match(/このゲームの間.*《コインアイコン》.*しか支払えない/)) {
+    return { type: 'STUB', id: 'COIN_USE_RESTRICTION' } as StubAction;
+  }
+
+  // ---- ビート説明テキスト（括弧複合）→ スキップ ----
+  if (t.match(/【ビート】はターン終了時まであなたが持ち/) || t.includes('コストの支払いで【ビート】')) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- 場の条件＋代わりに修正（条件付きパワーボーナス）----
+  if (t.match(/あなたの場に.*シグニが[０-９\d]+体ある場合、代わりに[＋－][０-９\d]+する/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
