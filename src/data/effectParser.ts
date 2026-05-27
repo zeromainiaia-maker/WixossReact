@@ -6964,8 +6964,10 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
 
   // ---- このターン、あなたは《X》を使用できない ----
-  if (t.match(/このターン、あなたは《.+》を使用できない/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  {
+    const m = t.match(/このターン、あなたは《(.+)》を使用できない/);
+    if (m) return { type: 'BLOCK_CARD_USE', cardName: m[1] } as import('../types/effects').BlockCardUseAction;
+  }
 
   // ---- その後、それをクラッシュしてもよい ----
   if (t.match(/それをクラッシュしてもよい/))
