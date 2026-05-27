@@ -5499,9 +5499,16 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
   }
 
-  // ---- 対戦相手のターンの間/次のターンの間のコスト変動 ----
-  if (t.match(/(?:対戦相手のターン|次のターン).*使用コストは/)) {
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  // ---- 対戦相手のターンの間、このカードの使用コストは《》になる ----
+  {
+    const m = t.match(/^(?:対戦相手のターン|次のターン)の間、この(?:カード|アーツ|スペル|シグニ)の使用コストは(.+)になる/);
+    if (m) {
+      const cost = parseEnergyCosts(m[1]);
+      if (cost.length > 0) return { type: 'ALT_COST_OPP_TURN', cost } as import('../types/effects').AltCostOppTurnAction;
+    }
+    if (t.match(/(?:対戦相手のターン|次のターン).*使用コストは/)) {
+      return { type: 'STUB', id: 'ARTS_COST_MODIFY_OPP_TURN' } as StubAction;
+    }
   }
 
   // ---- シグニの下からカードを手札に加える ----
