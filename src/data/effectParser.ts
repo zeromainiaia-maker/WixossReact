@@ -5003,6 +5003,61 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
   }
 
+  // ---- 括弧で終わるルール説明（後続フラグメント）→ スキップ ----
+  if (t.endsWith('）') && (t.includes('【マジックボックス】') || t.includes('【ビート】') || t.includes('コストの合計') || t.includes('例えば'))) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- この効果ではN単位でしか数字を割り振れない → スキップ ----
+  if (t.match(/この効果では[０-９\d]+単位でしか数字を割り振れない/)) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- 対戦相手のセンタールリグが〜の場合、このカード/アーツのコストが変わる ----
+  if (t.match(/対戦相手のセンタールリグが.+の場合、このカードの基本コストは/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_CARD_COST_BY_OPP_LRIG' } as StubAction;
+  }
+
+  // ---- それが能力を持たない場合、代わりにトラッシュ ----
+  if (t.match(/能力を持たない場合、代わりにそれをトラッシュに置く/)) {
+    return { type: 'STUB', id: 'ABILITY_CHECK_ELSE_TRASH' } as StubAction;
+  }
+
+  // ---- 特定条件の場合、手札を捨てる/捨てない選択 ----
+  if (t.match(/の場合、手札を[０-９\d]+枚捨ててもよい/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_DISCARD' } as StubAction;
+  }
+
+  // ---- エナから特定クラスのカードをトラッシュに置いてもよい（任意）----
+  if (t.match(/あなたのエナゾーンから.+のカード[０-９\d]+枚?をトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' } as StubAction;
+  }
+
+  // ---- 対戦相手はデッキをシグニ/スペルがめくれるまで公開する ----
+  if (t.match(/対戦相手は.*デッキを上から.*めくれるまで公開する/)) {
+    return { type: 'STUB', id: 'OPP_DECK_REVEAL_UNTIL' } as StubAction;
+  }
+
+  // ---- あなたのデッキを上から特定カードがめくれるまで公開する ----
+  if (t.match(/あなたのデッキを上から.+がめくれるまで公開する/)) {
+    return { type: 'STUB', id: 'DECK_REVEAL_UNTIL_CLASS' } as StubAction;
+  }
+
+  // ---- その中のそれぞれ名前の異なる〜の枚数を数える ----
+  if (t.match(/その中のそれぞれ名前の異なる.*の枚数を数える/)) {
+    return { type: 'STUB', id: 'COUNT_DISTINCT_NAMES' } as StubAction;
+  }
+
+  // ---- 手札から捨てなければ手札をN枚捨てる（コスト選択）----
+  if (t.match(/手札から.+捨てないかぎり手札を[０-９\d]+枚捨てる/)) {
+    return { type: 'STUB', id: 'DISCARD_OR_PENALTY' } as StubAction;
+  }
+
+  // ---- デッキ上から宣言数に等しい枚数をトラッシュ ----
+  if (t.match(/デッキの上から宣言した数字に等しい枚数のカードをトラッシュに置く/)) {
+    return { type: 'STUB', id: 'DECK_TOP_DECLARED_NUM_TRASH' } as StubAction;
+  }
+
   // ---- 場の条件＋代わりに修正（条件付きパワーボーナス）----
   if (t.match(/あなたの場に.*シグニが[０-９\d]+体ある場合、代わりに[＋－][０-９\d]+する/)) {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
