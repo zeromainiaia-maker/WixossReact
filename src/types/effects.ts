@@ -82,6 +82,7 @@ export type Condition =
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'LRIG_STORY'; owner: Owner; story: string }
   | { type: 'THIS_CARD_IN_LOCATION'; location: CardLocation }
+  | { type: 'THIS_CARD_IN_CENTER_ZONE' }
   | { type: 'SELF_POWER_GTE'; value: number }
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp }
   | { type: 'DURING_PHASE'; phases: string[] }
