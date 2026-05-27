@@ -5073,6 +5073,36 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'REVEAL' };
   }
 
+  // ---- デッキの一番上を公開し、選んだ色を持つシグニである場合、手札/エナゾーンに ----
+  if (t.match(/あなたのデッキの一番上を公開し、それが選んだ色を持つシグニである場合/)) {
+    const toHand = t.includes('手札に加える');
+    const owner: Owner = 'self';
+    return {
+      type: 'REVEAL_AND_PICK',
+      owner,
+      revealCount: 1,
+      pickCount: 1,
+      then: { type: 'ADD_TO_HAND', owner } as import('../types/effects').AddToHandAction,
+      remainder: { location: 'deck' as import('../types/effects').CardLocation, position: 'top' },
+    };
+    void toHand;
+  }
+
+  // ---- デッキの一番下のカードをチェックゾーンに置く ----
+  if (t.match(/あなたのデッキの一番下のカードをチェックゾーンに置く/)) {
+    return { type: 'STUB', id: 'DECK_TOP_TO_LIFE' } as StubAction;
+  }
+
+  // ---- その中から1枚を手札に加え〜残りをX置く ----
+  if (t.match(/その中から[０-９\d]*枚?を手札に加え(?:、[０-９\d]*枚?を)?(?:エナゾーンに置く|トラッシュに置く|デッキの.+に置く)/)) {
+    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+  }
+
+  // ---- このアーツはあなたの〜の場合にしか使用できない ----
+  if (t.match(/^このアーツはあなたの.+の場合(?:か、|にしか)(?:あなたの.+の場合)?(?:か、)?にしか?使用できない/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
   // ---- デッキの上からN枚見て特定クラスを手札/エナゾーンに加える ----
   {
     const m = t.match(/あなたのデッキの上からカードを([０-９\d]+)枚見て、その中から(.+?)([０-９\d]+)枚?(?:を公開し)?(?:手札に加える|エナゾーンに置く)/);
