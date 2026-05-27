@@ -4954,8 +4954,69 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- あなたの場に〜がいる場合、対戦相手のシグニN体を対象とし... ----
-  if (t.match(/あなたの場に.+がいる場合、対戦相手のシグニ.+を対象とし、手札から.+捨て/)) {
+  if (t.match(/あなたの場に.+がいる場合、対戦相手のシグニ.+を対象とし、手札から.+捨て/) ||
+      t.match(/あなたの場に.+がいる場合、対戦相手のシグニ.+を対象とし、あなたの.+置いてもよい/)) {
     return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニN体を対象とし、あなたの〜をトラッシュ/デッキに置いてもよい ----
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?(?:まで)?を対象とし、あなたの.+(?:トラッシュに置いてもよい|デッキの一番.+に置いてもよい)/)) {
+    return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニN体を対象とし、あなたの手札から〜公開する ----
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、あなたの(?:手札から|トラッシュから|エナゾーン)/)) {
+    return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニを〜体まで対象とし（複数ターゲット）----
+  if (t.match(/対戦相手のシグニを[０-９\d]+体まで対象とし/)) {
+    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+  }
+
+  // ---- このターンと次のターンの間〜（二ターン効果）----
+  if (t.match(/このターンと次のターンの間/)) {
+    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+  }
+
+  // ---- このゲームの間、あなたのセンタールリグは〜を得る ----
+  if (t.match(/このゲームの間、あなたの(?:センタールリグ|《.+》)は/) ||
+      t.match(/このゲームの間、あなたはグロウできない/) ||
+      t.match(/このゲームの間、あなたは.+を使用できない/)) {
+    return { type: 'STUB', id: 'GAIN_ABILITY_THIS_GAME' } as StubAction;
+  }
+
+  // ---- その中からN枚を手札に加え、M枚をエナゾーンに/残りを〜 ----
+  if (t.match(/その中から[０-９\d]*枚?を手札に加え/) ||
+      t.match(/その中から好きな枚数を手札に加え/)) {
+    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+  }
+
+  // ---- あなたのメインフェイズ開始時〜（フェーズトリガー）----
+  if (t.match(/あなたのメインフェイズ開始時/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- あなたのエナゾーンにあるすべてのカードを手札に加える ----
+  if (t.match(/あなたのエナゾーンにあるすべてのカードを手札に加える/)) {
+    const state: PlayerState = undefined as unknown as PlayerState;
+    void state;
+    return { type: 'TRANSFER_TO_HAND', source: { location: 'energy', owner: 'self' }, count: 'ALL' };
+  }
+
+  // ---- あなたのエナゾーンにあるカードが持つ色から最大N色まで選ぶ ----
+  if (t.match(/あなたのエナゾーンにあるカードが持つ色から最大[０-９\d]+色まで選ぶ/)) {
+    return { type: 'STUB', id: 'CHOOSE_COLOR_FROM_LIST' } as StubAction;
+  }
+
+  // ---- この方法でトラッシュに置いたカードの中に〜がある場合 ----
+  if (t.match(/この方法でトラッシュに置いたカードの中に/)) {
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+  }
+
+  // ---- その中から《アクセアイコン》を持つカードをエナゾーンに ----
+  if (t.match(/その中から《アクセアイコン》を持つ.+エナゾーンに置き/)) {
+    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
   }
 
   // ---- 数値範囲で数字を宣言する ----
