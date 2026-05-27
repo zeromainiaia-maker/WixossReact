@@ -2291,7 +2291,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else if (inter.type === 'CHOOSE') {
         const choiceId = selectedOrChoiceId[0] ?? '';
         const opt = inter.options.find(o => o.id === choiceId);
-        if (opt?.costColors?.length) {
+        if (inter.opponentResponds) {
+          // 対戦相手払い選択: resumeOpponentPayOptional で otherState のエナを消費
+          const energyNums = selectedOrChoiceId.slice(1);
+          result = resumeOpponentPayOptional(choiceId, energyNums, inter, ctx);
+        } else if (opt?.costColors?.length) {
           // 任意コスト付き選択: resumeOptionalCost でエナ消費処理
           const energyNums = selectedOrChoiceId.slice(1);
           result = resumeOptionalCost(choiceId, energyNums, inter, ctx);
