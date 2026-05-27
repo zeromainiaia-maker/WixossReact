@@ -1724,7 +1724,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(ctx);
       }
       // 任意コストの単独発動（SEQUENCEパターン外）：支払ったものとして処理
-      if (stub.id === 'OPTIONAL_COST' || stub.id === 'OPTIONAL_COLOR_PAY' ||
+      if (stub.id === 'OPTIONAL_COST' ||
           stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
         return done(addLog(ctx, '任意コスト（自動支払い）'));
       }
