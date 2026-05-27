@@ -7305,7 +7305,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 場に《X》がいる場合、色を宣言し、エナゾーンから宣言した色を持つカードをトラッシュに置いてもよい ----
   if (t.match(/場に《.+》がいる場合.*色.*宣言し.*エナゾーンから.*カード.*トラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'DECLARE_COLOR_COND_ENERGY_TRASH' } as StubAction;
 
   // ---- 手札から白/赤/青/緑/黒のカードをN枚捨ててもよい ----
   if (t.match(/手札から[白赤青緑黒]のカードを[１-９\d０-９]+枚捨ててもよい/))
