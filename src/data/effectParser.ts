@@ -321,12 +321,27 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: undefined, rest: text.slice(enaDiffM[0].length), conditionFound: true };
   }
 
-  // パターン5c: 「あなたの手札がN枚以上/以下/０枚であるかぎり、」
-  const handCountM = text.match(/^あなたの手札が([０-９\d]+)枚(以上|以下|ある)かぎり、/);
+  // パターン5c: 「あなたの手札がN枚以上/以下あるかぎり、」（「以上あるかぎり」も含む）
+  const handCountM = text.match(/^あなたの手札が([０-９\d]+)枚(以上あるかぎり|以下あるかぎり|以上かぎり|以下かぎり|あるかぎり)、/);
   if (handCountM) {
     const val = parseNum(handCountM[1]);
-    const op: CompareOp = handCountM[2] === '以上' ? 'gte' : handCountM[2] === '以下' ? 'lte' : 'eq';
+    const op: CompareOp = handCountM[2].startsWith('以上') ? 'gte' : handCountM[2].startsWith('以下') ? 'lte' : 'eq';
     return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: op, value: val }, rest: text.slice(handCountM[0].length), conditionFound: true };
+  }
+
+  // パターン5d: 「対戦相手の手札がN枚以上/以下であるかぎり、」
+  const oppHandM = text.match(/^対戦相手の手札が([０-９\d]+)枚(以上|以下)(?:であるかぎり|かぎり)、/);
+  if (oppHandM) {
+    const val = parseNum(oppHandM[1]);
+    const op: CompareOp = oppHandM[2] === '以上' ? 'gte' : 'lte';
+    return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'opponent', operator: op, value: val }, rest: text.slice(oppHandM[0].length), conditionFound: true };
+  }
+
+  // パターン5e: 「あなたのセンタールリグがレベルN以上であるかぎり、」
+  const centerLrigLevelM = text.match(/^あなたのセンタールリグがレベル([０-９\d]+)以上(?:であるかぎり|かぎり)、/);
+  if (centerLrigLevelM) {
+    const val = parseNum(centerLrigLevelM[1]);
+    return { condition: { type: 'COUNT_THRESHOLD', location: 'lrig_deck', owner: 'self', operator: 'gte', value: val }, rest: text.slice(centerLrigLevelM[0].length), conditionFound: true };
   }
   const handZeroM = text.match(/^あなたの手札が０枚であるかぎり、/);
   if (handZeroM) {
