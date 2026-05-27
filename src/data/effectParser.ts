@@ -73,6 +73,7 @@ import type {
   AddCraftToLrigDeckAction,
   StubAction,
   PowerModifyAction,
+  BanishAction,
 } from '../types/effects';
 
 // ===== 数値ユーティリティ =====
