@@ -7249,8 +7249,97 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           );
         }
 
-        // CHOOSE：選択肢ボタン
+        // CHOOSE：選択肢ボタン（任意コスト付きの場合はエナ選択UIを統合）
         if (inter.type === 'CHOOSE') {
+          const payOpt = inter.options.find(o => o.id === 'pay' && o.costColors?.length);
+          const skipOpt = inter.options.find(o => o.id === 'skip');
+          const isOptionalCost = !!payOpt;
+
+          if (isOptionalCost) {
+            // 任意コスト: エナ選択 + 発動/スキップボタン
+            const costColors = payOpt!.costColors!;
+            const totalReq = costColors.length;
+            const selectedNums = [...selectedOptCost].map(i => my.energy[i]);
+            const colorValid = (() => {
+              const needed = [...costColors];
+              for (const n of selectedNums) {
+                const color = battleCardMap.get(n)?.Color ?? '無';
+                const idx = needed.findIndex(c => c === color || c === '無');
+                if (idx === -1) return false;
+                needed.splice(idx, 1);
+              }
+              return needed.length === 0;
+            })();
+            const canConfirm = selectedOptCost.size === totalReq && colorValid;
+
+            return createPortal(
+              <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+                backgroundColor: 'rgba(0,0,0,0.92)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                <div onClick={e => e.stopPropagation()}
+                  style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                    padding: '16px', width: 'min(94vw, 380px)', maxHeight: '80vh',
+                    display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                  </p>
+                  <p style={{ color: C.text, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                    コスト: {costColors.map(c => `《${c}》`).join('')} を支払いますか？
+                  </p>
+                  <p style={{ color: canConfirm ? C.success : C.textMuted, fontSize: 11, margin: 0, textAlign: 'center' }}>
+                    エナから選択: {selectedOptCost.size} / {totalReq}枚
+                    {costColors.map((c, i) => <span key={i} style={{ marginLeft: 4, color: C.textDim }}>({c})</span>)}
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                    {my.energy.length === 0
+                      ? <p style={{ color: C.textFaint, fontSize: 12 }}>エナがありません</p>
+                      : my.energy.map((num, i) => {
+                          const card = battleCardMap.get(num);
+                          const isSel = selectedOptCost.has(i);
+                          return (
+                            <div key={i}
+                              onClick={() => setSelectedOptCost(prev => {
+                                const next = new Set(prev);
+                                isSel ? next.delete(i) : next.add(i);
+                                return next;
+                              })}
+                              style={{ width: 52, cursor: 'pointer', borderRadius: 4, overflow: 'hidden',
+                                border: isSel ? `2px solid ${C.success}` : '2px solid transparent',
+                                opacity: isSel ? 1 : 0.75 }}>
+                              <img src={card?.ImgURL ?? '/ErrerCard.webp'} alt={card?.CardName ?? num}
+                                style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', display: 'block' }}
+                                onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                              <div style={{ backgroundColor: 'rgba(0,0,0,0.6)', textAlign: 'center', padding: '1px 2px' }}>
+                                <span style={{ fontSize: 9, color: '#fff' }}>{card?.Color ?? '?'}</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                    }
+                  </div>
+                  <button
+                    disabled={loading || !canConfirm || !payOpt.available}
+                    onClick={() => { handleEffectInteraction(['pay', ...selectedNums]); setSelectedOptCost(new Set()); }}
+                    style={{ padding: '12px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: (canConfirm && payOpt.available) ? C.success : C.disabled,
+                      color: C.text, fontSize: 13, fontWeight: 'bold',
+                      cursor: (canConfirm && payOpt.available && !loading) ? 'pointer' : 'default' }}>
+                    {payOpt.label}
+                  </button>
+                  <button
+                    disabled={loading}
+                    onClick={() => { handleEffectInteraction([skipOpt?.id ?? 'skip']); setSelectedOptCost(new Set()); }}
+                    style={{ padding: '10px 0', borderRadius: 8, border: C.borderUI,
+                      backgroundColor: 'transparent', color: C.textDim, fontSize: 13,
+                      cursor: loading ? 'default' : 'pointer' }}>
+                    {skipOpt?.label ?? 'スキップ'}
+                  </button>
+                </div>
+              </div>,
+              document.body,
+            );
+          }
+
           return createPortal(
             <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
               backgroundColor: 'rgba(0,0,0,0.92)',
