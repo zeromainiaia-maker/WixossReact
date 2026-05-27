@@ -4999,9 +4999,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- あなたのエナゾーンにあるすべてのカードを手札に加える ----
   if (t.match(/あなたのエナゾーンにあるすべてのカードを手札に加える/)) {
-    const state: PlayerState = undefined as unknown as PlayerState;
-    void state;
-    return { type: 'TRANSFER_TO_HAND', source: { location: 'energy', owner: 'self' }, count: 'ALL' };
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' } };
   }
 
   // ---- あなたのエナゾーンにあるカードが持つ色から最大N色まで選ぶ ----
