@@ -471,3 +471,18 @@ const smallButtonStyle: React.CSSProperties = {
   padding: '6px 12px', borderRadius: '6px', border: 'none',
   backgroundColor: '#7755dd', color: '#fff', fontSize: '13px',
 };
+
+const effectTextStyle: React.CSSProperties = {
+  fontSize: '9px', color: '#444', margin: '3px 0 0',
+  lineHeight: 1.5, borderLeft: '2px solid #7755dd',
+  paddingLeft: '5px', display: '-webkit-box',
+  WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+} as React.CSSProperties;
+
+const effectLabelStyle: React.CSSProperties = {
+  display: 'inline-block', fontSize: '8px', fontWeight: 'bold',
+  backgroundColor: '#7755dd', color: '#fff',
+  borderRadius: '2px', padding: '0 3px', marginRight: '4px',
+  verticalAlign: 'middle', flexShrink: 0,
+};
