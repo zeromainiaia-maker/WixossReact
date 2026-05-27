@@ -318,17 +318,17 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
                     )}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                    {nameCount > 0 && <span style={{ fontSize: '12px', color: '#5533aa', minWidth: '24px', textAlign: 'center' }}>×{nameCount}</span>}
-                    <button
-                      onClick={e => { e.stopPropagation(); removeCard(card.CardNum, lrig ? 'lrig' : 'main'); }}
-                      disabled={nameCount === 0}
-                      style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', fontSize: '12px', backgroundColor: nameCount > 0 ? '#cc4444' : '#ddd', color: nameCount > 0 ? '#fff' : '#aaa', flexShrink: 0 }}
-                    >−</button>
                     <button
                       onClick={e => { e.stopPropagation(); addCard(card); }}
                       disabled={!canAdd}
-                      style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', fontSize: '12px', backgroundColor: canAdd ? '#7755dd' : '#ddd', color: canAdd ? '#fff' : '#aaa', flexShrink: 0 }}
+                      style={cardBtnStyle(canAdd ? 'add' : 'disabled')}
                     >＋</button>
+                    {nameCount > 0 && <span style={{ fontSize: '12px', color: '#5533aa', fontWeight: 'bold', minWidth: '28px', textAlign: 'center' }}>×{nameCount}</span>}
+                    <button
+                      onClick={e => { e.stopPropagation(); removeCard(card.CardNum, lrig ? 'lrig' : 'main'); }}
+                      disabled={nameCount === 0}
+                      style={cardBtnStyle(nameCount > 0 ? 'remove' : 'disabled')}
+                    >−</button>
                   </div>
                 </div>
               );
