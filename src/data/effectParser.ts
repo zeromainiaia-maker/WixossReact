@@ -7595,7 +7595,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   } else {
     // シグニ・ルリグ：EffectTextを複数ブロックに分割して解析
     if (card.EffectText && card.EffectText !== '-') {
-      splitEffectBlocks(card.EffectText).forEach((block, i) => {
+      splitEffectBlocks(stripRuleParens(card.EffectText)).forEach((block, i) => {
         const e = parseBlock(card.CardNum, block, i);
         if (e) effects.push(e);
       });
