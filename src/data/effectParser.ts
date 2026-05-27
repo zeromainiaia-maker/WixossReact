@@ -7666,6 +7666,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     effectType,
     timing,
     activeCondition,
+    condition: useCondition,
     cost,
     action: resolvedAction,
     duration,
