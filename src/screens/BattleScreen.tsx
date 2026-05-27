@@ -4915,7 +4915,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               </>
             ) : (() => {
               /* Phase 2: コスト支払いカード選択 */
-              const costItems = parseGrowCost(pendingArtsCard.Cost);
+              const effectiveCost = pendingArtsEffectiveCost ?? pendingArtsCard.Cost;
+              const costItems = parseGrowCost(effectiveCost);
               const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
               const totalReq = costItems.reduce((s, c) => s + c.count, 0) +
@@ -4928,7 +4929,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, pendingArtsCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);
