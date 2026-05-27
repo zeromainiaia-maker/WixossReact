@@ -5073,6 +5073,62 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'REVEAL' };
   }
 
+  // ---- デッキの上からN枚見て特定クラスを手札/エナゾーンに加える ----
+  {
+    const m = t.match(/あなたのデッキの上からカードを([０-９\d]+)枚見て、その中から(.+?)を([０-９\d]+)枚?(?:公開し)?(?:手札に加える|エナゾーンに置く)/);
+    if (m) {
+      const count = parseNum(m[1]);
+      const filter = parseCardTypeFilter(m[2]);
+      const toHand = t.includes('手札に加える');
+      return {
+        type: 'REVEAL_AND_PICK',
+        source: { location: 'deck', owner: 'self' },
+        revealCount: count,
+        pickCount: parseNum(m[3]),
+        filter,
+        dest: toHand ? 'hand' : 'energy',
+        restDest: 'deck_bottom',
+      };
+    }
+  }
+
+  // ---- あなたのトラッシュからクラスのシグニを対象とし（コスト付き）手札に ----
+  if (t.match(/あなたのトラッシュから.+のシグニ[０-９\d]*枚?を対象とし、手札からカードを[０-９\d]+枚捨て(?:る|てもよい)/)) {
+    return { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' } as StubAction;
+  }
+
+  // ---- あなたのトラッシュからクラスのシグニを使用する ----
+  if (t.match(/あなたのトラッシュから.+のシグニ[０-９\d]*枚?を対象とし、.*使用する/)) {
+    return { type: 'STUB', id: 'ENCORE' } as StubAction;
+  }
+
+  // ---- あなたのエナゾーンからクラスのシグニをトラッシュ/公開する（複数）----
+  if (t.match(/あなたのエナゾーンから.+のシグニを?[０-９\d好きな枚数]*枚?(?:まで)?対象とし/) ||
+      t.match(/あなたのエナゾーンから.+のシグニ[０-９\d]*枚?をトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' } as StubAction;
+  }
+
+  // ---- ライフクロスが〜の場合の条件テキスト ----
+  if (t.match(/あなたのライフクロスが[０-９\d]+枚以下の場合/) ||
+      t.match(/あなたのライフクロスの(?:上から|一番上)/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
+  }
+
+  // ---- センタールリグが〜の場合の条件テキスト ----
+  if (t.match(/あなたのセンタールリグが.+の場合、(?:代わりに|追加で|この能力)/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  }
+
+  // ---- 次の対戦相手のターン〜（一時的制限）----
+  if (t.match(/^次の対戦相手のターン(?:終了時まで|の間|、)/)) {
+    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+  }
+
+  // ---- このターン、対戦相手が〜（アタック制限・コスト条件）----
+  if (t.match(/^このターン、対戦相手(?:が|は)/)) {
+    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+  }
+
   // ---- 対戦相手のアタックしているシグニのアタックを一度無効にする ----
   if (t.match(/対戦相手の.*アタックしている.*シグニ.*アタックを.*無効にする/)) {
     return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
