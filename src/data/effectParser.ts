@@ -7538,8 +7538,8 @@ function parseActionText(text: string): EffectAction {
   for (const s of sentences) {
     const clean = s.trim();
     if (!clean) continue;
-    // 「そうした場合、」「その後、〜の場合、」はCONDITIONALとして前のステップと結合
-    const thenM = clean.match(/^(?:そうした場合、|その後、([^、]+の場合、))/);
+    // 「そうした場合、」「その後、〜の場合、」「この方法で〜支払った場合、」はCONDITIONALとして前のステップと結合
+    const thenM = clean.match(/^(?:そうした場合、|その後、([^、]+の場合、)|この方法で.+を支払った場合、)/);
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
       const thenAction = parseSingleSentence(rest);
