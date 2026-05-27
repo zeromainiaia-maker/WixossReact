@@ -7669,6 +7669,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     if (seq.steps.some(s => s.type === 'UNKNOWN')) parseStatus = 'PARTIAL';
   }
 
+  // ALT_COST_OPP_TURN をアクション列から抽出して CardEffect フィールドに昇格
+  let altCostOppTurn: import('../types/effects').EnergyCost[] | undefined;
+  if (resolvedAction.type === 'ALT_COST_OPP_TURN') {
+    altCostOppTurn = (resolvedAction as import('../types/effects').AltCostOppTurnAction).cost;
+    resolvedAction = { type: 'SEQUENCE', steps: [] } as import('../types/effects').SequenceAction;
+  } else if (resolvedAction.type === 'SEQUENCE') {
+    const seq = resolvedAction as import('../types/effects').SequenceAction;
+    const altStep = seq.steps.find(s => s.type === 'ALT_COST_OPP_TURN') as import('../types/effects').AltCostOppTurnAction | undefined;
+    if (altStep) {
+      altCostOppTurn = altStep.cost;
+      resolvedAction = { ...seq, steps: seq.steps.filter(s => s.type !== 'ALT_COST_OPP_TURN') };
+    }
+  }
+
   const duration: EffectDuration = effectType === 'CONTINUOUS' ? 'PERMANENT'
     : actionText.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
     : 'INSTANT';
@@ -7679,6 +7693,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     timing,
     activeCondition,
     condition: useCondition,
+    altCostOppTurn,
     cost,
     action: resolvedAction,
     duration,
