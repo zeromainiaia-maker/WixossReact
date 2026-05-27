@@ -1588,6 +1588,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
         return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、次のダメージを1回無効'));
       }
+      if (stub.id === 'NEGATE_ATTACK_ON_TRIGGER') {
+        // 発動中のアタックを無効化: prevent_next_damage と同様のフラグで近似
+        const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
+        return done(addLog({ ...ctx, ownerState: newOwner }, 'アタックを無効にする'));
+      }
       return done(addLog(ctx, `[STUB: ${stub.id}]`));
     }
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
