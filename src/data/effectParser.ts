@@ -1528,7 +1528,7 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- デッキ上公開 / 見る（単独 or シャッフル付き）----
-  const deckLookM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開|見)る/);
+  const deckLookM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開する|見る|公開し)/);
   if (deckLookM) {
     return {
       type: 'LOOK_AND_REORDER',
