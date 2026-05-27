@@ -5605,9 +5605,9 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
   }
 
-  // ---- このカードがあなたの効果によって手札から公開されたとき ----
+  // ---- このカードがあなたの効果によって手札から公開されたとき（parseBlock未処理フォールバック） ----
   if (t.match(/このカードがあなたの効果によって手札から公開されたとき/)) {
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'REVEALED_FROM_HAND_UNSTRIPPED' } as StubAction;
   }
 
   // ---- 対戦相手のシグニN体を対象とし、ターン終了時まで、パワー±N ----
