@@ -249,20 +249,79 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT':
       return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
-    case 'HAS_CARD_IN_FIELD':
-      return st(cond.owner).field.signi.some(stack =>
-        stack?.some(n => matchesFilter(ctx.cardMap.get(n), cond.filter)));
+    case 'HAS_CARD_IN_FIELD': {
+      const srcNum = ctx.sourceCardNum;
+      return st(cond.owner).field.signi.some(stack => {
+        if (!stack || stack.length === 0) return false;
+        const top = stack[stack.length - 1];
+        if (cond.excludeSelf && srcNum && top === srcNum) return false;
+        return matchesFilter(ctx.cardMap.get(top), cond.filter);
+      });
+    }
+    case 'TRASH_HAS_CARD':
+      return st(cond.owner).trash.some(n => matchesFilter(ctx.cardMap.get(n), cond.filter));
     case 'DECK_TOP_MATCHES': {
       const topNum = st(cond.owner).deck[0];
       if (!topNum) return false;
       return matchesFilter(ctx.cardMap.get(topNum), cond.filter);
     }
+    case 'LRIG_LEVEL': {
+      const lrig = st(cond.owner).field.lrig;
+      const topLrig = lrig[lrig.length - 1];
+      if (!topLrig) return false;
+      const lv = parseInt(ctx.cardMap.get(topLrig)?.Level ?? '-1', 10);
+      return cmp(lv, cond.operator, cond.value);
+    }
+    case 'LRIG_STORY': {
+      const lrig = st(cond.owner).field.lrig;
+      const topLrig = lrig[lrig.length - 1];
+      if (!topLrig) return false;
+      const card = ctx.cardMap.get(topLrig);
+      return card?.CardClass?.includes(cond.story) ?? false;
+    }
+    case 'THIS_CARD_IN_LOCATION': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const loc = cond.location;
+      if (loc === 'trash') return ctx.ownerState.trash.includes(src);
+      if (loc === 'energy') return ctx.ownerState.energy.includes(src);
+      if (loc === 'lrig_trash') return ctx.ownerState.lrig_trash.includes(src);
+      return false;
+    }
+    case 'SELF_POWER_GTE': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const pw = ctx.effectivePowers?.get(src) ?? parseInt(ctx.cardMap.get(src)?.Power ?? '0', 10);
+      return pw >= cond.value;
+    }
+    case 'LIFE_COMPARE_OPP':
+      return cmp(s.life_cloth.length, cond.operator, o.life_cloth.length);
+    case 'DURING_PHASE':
+      return cond.phases.includes(ctx.currentPhase ?? '');
     case 'AND':
       return cond.conditions.every(c => evalCondition(c, ctx));
     case 'IS_MY_TURN':    return true;
     case 'IS_OPPONENT_TURN': return false;
+    case 'COND_STUB':     return true;
     default: return true;
   }
+}
+
+// ===== 使用条件チェック（BattleScreen から呼び出す） =====
+export function evalUseCondition(
+  condition: import('../types/effects').Condition,
+  ownerState: PlayerState,
+  oppState: PlayerState,
+  cardMap: Map<string, CardData>,
+  sourceCardNum: string,
+  currentPhase: string,
+  effectivePowers?: Map<string, number>,
+): boolean {
+  const ctx: ExecCtx = {
+    ownerState, otherState: oppState, cardMap,
+    effectivePowers, sourceCardNum, currentPhase, logs: [],
+  };
+  return evalCondition(condition, ctx);
 }
 
 // ===== フィールドからカードを除去する（バニッシュ/バウンス共通） =====
