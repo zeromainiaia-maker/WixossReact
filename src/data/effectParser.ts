@@ -3781,6 +3781,14 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 引用符の内側のテキスト（...」を得る で終わる）----
   if (t.endsWith('」を得る') || t.endsWith('」を得る。')) {
+    const quoted = (t.match(/「([^」]+)」を得る/) ?? [])[1] ?? '';
+    if (quoted.includes('アタックできない')) {
+      return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'any', count: 1 }, actionId: 'ATTACK', until: 'END_OF_TURN' } as BlockActionAction;
+    }
+    const kwMatch = quoted.match(/^(ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ|バニッシュ耐性|シールド|チャーム)$/);
+    if (kwMatch) {
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'any', count: 1 }, keyword: kwMatch[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
+    }
     return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
   }
 
