@@ -7627,19 +7627,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     if (anyFound && anyFailed && parsedConds.length > 0) parseStatus = 'PARTIAL';
   } else {
     // 使用条件（「この能力は〜にしか使用できない」）を抽出してからパース
-    const { cleaned: cleanedAction, condition: useCondition } = extractUseCondition(actionText);
-    resolvedAction = parseActionText(cleanedAction || actionText);
-    if (useCondition) {
-      const eff = { condition: useCondition } as Partial<CardEffect>;
-      Object.assign(eff, { _useCondition: useCondition });
-      (resolvedAction as { _useCondition?: Condition })._useCondition = useCondition;
-    }
-    // useConditionをブロックに付与（後でreturn時にセット）
-    if (useCondition) {
-      const result = buildBlock();
-      if (result) result.condition = useCondition;
-      return result;
-    }
+    const { cleaned: cleanedAction, condition: blockUseCondition } = extractUseCondition(actionText);
+    if (blockUseCondition) actionText = cleanedAction;
+    resolvedAction = parseActionText(actionText);
   }
 
   // GRANT_LRIG_ABILITY: rawText からサブ能力をここでパース（parseBlock が使えるタイミング）
