@@ -7253,7 +7253,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 場にそのカードと共通する色を持つルリグがいる場合、捨てさせる ----
   if (t.match(/場にそのカードと共通する色を持つルリグがいる場合.*捨てさせる/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'REVEALED_CARD_COLOR_DISCARD' } as StubAction;
 
   // ---- 手札からカードをN枚まで好きな順番でデッキの一番下に置く ----
   if (t.match(/手札からカードを[１-９\d０-９]+枚まで好きな順番でデッキの一番下に置く/))
