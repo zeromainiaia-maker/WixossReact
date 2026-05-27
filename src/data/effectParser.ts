@@ -7289,7 +7289,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- このアーツを使用する際に〈X〉のカードをトラッシュに置いていた場合 ----
   if (t.match(/このアーツを使用する際に.*のカード.*枚をトラッシュに置いていた場合/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'ARTS_EXTRA_COST_CONDITION' } as StubAction;
 
   // ---- 手札から色の〈X〉のカードをN枚まで捨てる ----
   if (t.match(/手札から.*の[＜〈<].+[＞〉>]のカードを[１-９\d０-９]+枚まで捨てる/))
