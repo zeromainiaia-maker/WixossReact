@@ -597,6 +597,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedSigniActivatedCost, setSelectedSigniActivatedCost] = useState<Set<number>>(new Set());
   const [selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard] = useState<Set<number>>(new Set());
+  // 任意コスト支払い（OPTIONAL_COST）のエナ選択
+  const [selectedOptCost, setSelectedOptCost] = useState<Set<number>>(new Set());
   // シグニ出現時コスト付き任意【出】効果
   const [pendingSigniOnPlayCost, setPendingSigniOnPlayCost] = useState<{
     cardNum: string;
