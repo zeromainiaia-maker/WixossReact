@@ -7544,6 +7544,7 @@ function parseActionText(text: string): EffectAction {
   for (const s of sentences) {
     const clean = s.trim();
     if (!clean) continue;
+
     // 「そうしなかった場合、」= 直前が OPPONENT_PAY_OPTIONAL の場合、その else アクションを IS_MY_TURN CONDITIONAL でラップ
     const notThenM = clean.match(/^そうしなかった場合、/);
     if (notThenM && steps.length > 0) {
@@ -7555,8 +7556,23 @@ function parseActionText(text: string): EffectAction {
         continue;
       }
     }
-    // 「そうした場合、」「その後、〜の場合、」「(その後、)この方法で〜支払った場合、」はCONDITIONALとして前のステップと結合
-    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+を支払った場合、)|この方法で.+を支払った場合、)/);
+
+    // 「*を支払わなかった場合、」= 直近の CONDITIONAL(IS_MY_TURN) に else を追加
+    const notPaidM = clean.match(/^(?:《[^》]+》)+を支払わなかった場合、/);
+    if (notPaidM && steps.length > 0) {
+      for (let j = steps.length - 1; j >= 0; j--) {
+        const st = steps[j] as import('../types/effects').ConditionalAction;
+        if (st?.type === 'CONDITIONAL' && st.condition?.type === 'IS_MY_TURN') {
+          const rest = clean.slice(notPaidM[0].length);
+          st.else = parseSingleSentence(rest);
+          break;
+        }
+      }
+      continue;
+    }
+
+    // 「そうした場合、」「その後、〜の場合、」「(その後、)この方法で〜支払った場合、」「《色》を支払った場合、」はCONDITIONALとして前のステップと結合
+    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+を支払った場合、)|この方法で.+を支払った場合、|(?:《[^》]+》)+を支払った場合、)/);
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
       const thenAction = parseSingleSentence(rest);
