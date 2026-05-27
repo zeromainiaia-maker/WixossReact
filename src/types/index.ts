@@ -146,7 +146,7 @@ export type PendingInteractionDef =
     }
   | {
       type: 'CHOOSE';
-      options: Array<{ id: string; label: string; action: EffectAction; available: boolean }>;
+      options: Array<{ id: string; label: string; action: EffectAction; available: boolean; costColors?: string[] }>;
       count: number;
       continuation?: EffectAction;
     }
