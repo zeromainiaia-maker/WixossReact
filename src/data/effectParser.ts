@@ -142,6 +142,10 @@ function parseUseCondition(text: string): Condition {
   if (text.match(/このシグニが中央のシグニゾーンにある/))
     return { type: 'THIS_CARD_IN_CENTER_ZONE' };
 
+  // このシグニがダウン状態
+  if (text.match(/このシグニがダウン状態/))
+    return { type: 'THIS_CARD_IS_DOWN' };
+
   // このカード/シグニ/スペルがトラッシュにある
   if (text.match(/この(?:カード|シグニ|スペル)がトラッシュにある/))
     return { type: 'THIS_CARD_IN_LOCATION', location: 'trash' };
