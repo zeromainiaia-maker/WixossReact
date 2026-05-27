@@ -7544,6 +7544,17 @@ function parseActionText(text: string): EffectAction {
   for (const s of sentences) {
     const clean = s.trim();
     if (!clean) continue;
+    // 「そうしなかった場合、」= 直前が OPPONENT_PAY_OPTIONAL の場合、その else アクションを IS_MY_TURN CONDITIONAL でラップ
+    const notThenM = clean.match(/^そうしなかった場合、/);
+    if (notThenM && steps.length > 0) {
+      const prev = steps[steps.length - 1];
+      if (prev && (prev as import('../types/effects').StubAction).type === 'STUB' &&
+          (prev as import('../types/effects').StubAction).id === 'OPPONENT_PAY_OPTIONAL') {
+        const rest = clean.slice(notThenM[0].length);
+        steps.push({ type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: parseSingleSentence(rest) });
+        continue;
+      }
+    }
     // 「そうした場合、」「その後、〜の場合、」「(その後、)この方法で〜支払った場合、」はCONDITIONALとして前のステップと結合
     const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+を支払った場合、)|この方法で.+を支払った場合、)/);
     if (thenM && steps.length > 0) {
