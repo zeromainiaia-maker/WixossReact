@@ -7552,7 +7552,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
 
 function parseSpellEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
-  const action = parseActionText(card.EffectText);
+  const action = parseActionText(stripRuleParens(card.EffectText));
   return {
     effectId: `${card.CardNum}-E1`,
     effectType: 'ACTIVATED',
