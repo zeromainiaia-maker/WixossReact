@@ -7535,7 +7535,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
 function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
-  const action = parseActionText(card.EffectText);
+  const action = parseActionText(stripRuleParens(card.EffectText));
   const hasUnknown = action.type === 'UNKNOWN'
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
   return {
