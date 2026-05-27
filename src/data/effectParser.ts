@@ -7582,6 +7582,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       timing = actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
              : actionText.match(/(?:手札か?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
+             : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
+             : actionText.match(/このカードがあなたの効果によって手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
              : actionText.includes('各アタックフェイズ開始時') ? ['ATTACK']
              : actionText.includes('アタックフェイズ開始時') ? ['ATTACK']
              : actionText.includes('ターン終了時') ? ['ON_TURN_END']
