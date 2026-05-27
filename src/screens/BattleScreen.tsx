@@ -2316,7 +2316,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
       if (!result.done) {
         // continuationが発生した場合、次のインタラクションは効果オーナーが応答する（respondPlayerIdをリセット）
-        const nextOpponentResponds = result.pending?.type === 'SELECT_TARGET' && result.pending.opponentResponds;
+        const nextOpponentResponds = (result.pending?.type === 'SELECT_TARGET' || result.pending?.type === 'CHOOSE') && result.pending.opponentResponds;
         const nextRespondPlayerId = nextOpponentResponds ? pe.respondPlayerId : undefined;
         const { respondPlayerId: _drop, ...peBase } = pe;
         update.pending_effect = {
