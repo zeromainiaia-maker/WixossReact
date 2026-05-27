@@ -7492,7 +7492,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (resolvedAction.type === 'GRANT_LRIG_ABILITY') {
     const gla = resolvedAction as GrantLrigAbilityAction;
     if (gla.rawText) {
-      const subBlocks = splitEffectBlocks(gla.rawText);
+      const cleanRaw = gla.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
+      const subBlocks = splitEffectBlocks(cleanRaw);
       gla.abilities = subBlocks
         .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
         .filter((e): e is import('../types/effects').CardEffect => e !== null);
