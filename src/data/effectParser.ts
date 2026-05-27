@@ -7608,6 +7608,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const m = actionText.match(/各?アタックフェイズ開始時[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
+      if (timing[0] === 'ON_REVEALED_FROM_HAND') {
+        const m = actionText.match(/このカードがあなたの効果によって手札から公開されたとき[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
+      if (timing[0] === 'ON_ENERGY_FROM_TRASH') {
+        const m = actionText.match(/トラッシュからエナゾーンに置かれたとき[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
       mandatory = true;
       break;
     default: return null;
