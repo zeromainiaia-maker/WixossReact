@@ -4689,8 +4689,46 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 対戦相手のシグニとあなたのシグニ各1体（トレード）----
-  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、(?:あなたの)?シグニ[０-９\d]*体?を場からトラッシュに置いてもよい/)) {
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、(?:あなたの|この)?シグニ[０-９\d]*体?を場からトラッシュに置いてもよい/)) {
     return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
+  }
+
+  // ---- 対戦相手はあなたの手札を見ないで選び捨てさせる ----
+  if (t.match(/対戦相手はあなたの手札を[０-９\d]*枚?見ないで選び、あなたはそれを捨てる/)) {
+    return { type: 'STUB', id: 'OPP_CHOOSE_YOUR_HAND_DISCARD' } as StubAction;
+  }
+
+  // ---- その中から特定ストーリーのカードを公開して手札に加え残りをデッキ下に置く ----
+  if (t.match(/その中から.+のカード[０-９\d]+枚を公開し手札に加え、残りをシャッフルしてデッキの一番下に置く/)) {
+    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+  }
+
+  // ---- ゲームルール説明フラグメント（スキップ）----
+  if (t.match(/この効果では[０-９\d]+単位でしか数字を割り振ることができない/)) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+  if (t.match(/^（実際の.+は変わらない$/)) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- ターン終了時に裏向きシグニを表向きにする ----
+  if (t.match(/この方法で裏向きにしたシグニを.*表向きにする/)) {
+    return { type: 'STUB', id: 'FLIP_FACE_DOWN_SIGNI' } as StubAction;
+  }
+
+  // ---- 特定クラフトカードをルリグデッキに加える ----
+  if (t.match(/クラフトの《[^》]+》[０-９\d]*枚?をルリグデッキに加える/)) {
+    return { type: 'STUB', id: 'ADD_CRAFT_TO_LRIG_DECK' } as StubAction;
+  }
+
+  // ---- デッキ上をN枚公開する後続処理 ----
+  if (t.match(/その後、あなたのデッキの一番上を公開する/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'top' } };
+  }
+
+  // ---- あなたのデッキ上を宣言した枚数トラッシュに置く ----
+  if (t.match(/あなたのデッキの上からカードを宣言した数字に等しい枚数トラッシュに置く/)) {
+    return { type: 'STUB', id: 'DECK_TOP_DECLARED_NUM_TRASH' } as StubAction;
   }
 
   // ---- それ/あなたはそれをトラッシュに置いてもよい ----
