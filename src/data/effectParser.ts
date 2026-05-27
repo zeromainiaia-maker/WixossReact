@@ -4817,7 +4817,7 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/手札からカード[０-９\d]+枚を好きな順番でデッキの一番下に置く/)) {
     return { type: 'LOOK_AND_REORDER', source: { location: 'hand', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
   }
-  if (t.match(/あなたのデッキの(?:下|一番下)からカード([０-９\d]+)枚?トラッシュに置く/)) {
+  if (t.match(/あなたのデッキの(?:下|一番下)からカードを?([０-９\d]+)枚?トラッシュに置く/)) {
     const m = t.match(/([０-９\d]+)枚/);
     const cnt = m ? parseNum(m[1]) : 1;
     return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: cnt } };
