@@ -99,6 +99,22 @@ function addLog(ctx: ExecCtx, msg: string): ExecCtx {
   return { ...ctx, logs: [...ctx.logs, msg] };
 }
 
+// 任意コストが支払えるかチェック（色の一致を検証）
+function canPayOptionalCost(costColors: string[], state: PlayerState, cardMap: Map<string, CardData>): boolean {
+  const pool = [...state.energy];
+  for (const color of costColors) {
+    if (color === '無') {
+      if (pool.length === 0) return false;
+      pool.splice(0, 1);
+    } else {
+      const idx = pool.findIndex(n => cardMap.get(n)?.Color === color);
+      if (idx === -1) return false;
+      pool.splice(idx, 1);
+    }
+  }
+  return true;
+}
+
 function done(ctx: ExecCtx): ExecResult {
   return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn };
 }
