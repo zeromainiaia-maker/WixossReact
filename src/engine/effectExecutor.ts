@@ -1913,6 +1913,56 @@ export function resumeOptionalCost(
   return result;
 }
 
+// OPPONENT_PAY_OPTIONAL: 対戦相手がコスト支払いを選択した後の処理
+// pay → 対戦相手（otherState）のエナを消費して効果なし, skip → 効果発動
+export function resumeOpponentPayOptional(
+  choiceId: string,
+  energyNums: string[], // 対戦相手が選択したエナカードのCardNum
+  pending: PendingInteractionDef & { type: 'CHOOSE' },
+  ctx: ExecCtx,
+): ExecResult {
+  const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
+  const payOpt  = pending.options.find(o => o.id === 'pay');
+  const skipOpt = pending.options.find(o => o.id === 'skip');
+
+  if (choiceId !== 'pay') {
+    // 対戦相手が支払わない → 効果発動
+    const result = executeAction(skipOpt?.action ?? noopAction, ctx);
+    if (!result.done) {
+      if (pending.continuation) {
+        const merged: EffectAction = result.pending.continuation
+          ? { type: 'SEQUENCE', steps: [result.pending.continuation, pending.continuation] } as SequenceAction
+          : pending.continuation;
+        return { ...result, pending: { ...result.pending, continuation: merged } };
+      }
+      return result;
+    }
+    if (pending.continuation) {
+      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+    }
+    return result;
+  }
+
+  // 対戦相手が支払う → otherState のエナを消費（効果なし）
+  const costColors = [...(payOpt?.costColors ?? [])];
+  for (const n of energyNums) {
+    const color = ctx.cardMap.get(n)?.Color ?? '無';
+    const idx = costColors.findIndex(c => c === color || c === '無');
+    if (idx === -1) return done(addLog(ctx, `コスト支払いエラー: ${color}は不要`));
+    costColors.splice(idx, 1);
+  }
+  if (costColors.length > 0) return done(addLog(ctx, 'コスト支払いエラー: エナ不足'));
+
+  const newOppEnergy = ctx.otherState.energy.filter(n => !energyNums.includes(n));
+  const newOppTrash  = [...ctx.otherState.trash, ...energyNums];
+  const cur = addLog(
+    { ...ctx, otherState: { ...ctx.otherState, energy: newOppEnergy, trash: newOppTrash } },
+    `対戦相手コスト支払い: ${(payOpt?.costColors ?? []).map(c => `《${c}》`).join('')}`,
+  );
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
+}
+
 // LOOK_AND_REORDER: ユーザーが reordered[] の順に並べ（先頭=デッキトップ）
 export function resumeLookAndReorder(
   reordered: string[],
