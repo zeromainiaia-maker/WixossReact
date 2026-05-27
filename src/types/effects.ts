@@ -860,11 +860,23 @@ export interface RecollectGateAction {
   minArts: number;
 }
 
+// 対戦相手ターン中の代替コスト（「対戦相手のターンの間、使用コストは〜になる」）
+export interface AltCostOppTurnAction {
+  type: 'ALT_COST_OPP_TURN';
+  cost: EnergyCost[];
+}
+
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   type: 'STUB';
   id: string;
   costColors?: string[]; // OPTIONAL_COST: 支払うエナの色リスト（例: ['赤','赤']）
+}
+
+// このターン特定カードを使用禁止にする
+export interface BlockCardUseAction {
+  type: 'BLOCK_CARD_USE';
+  cardName: string;
 }
 
 export interface UnknownAction {
