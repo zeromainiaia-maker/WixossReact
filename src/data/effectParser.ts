@@ -207,16 +207,17 @@ function parseUseCondition(text: string): Condition {
 
 // 効果テキストから「この能力は〜にしか使用できない」を抽出し、残りのテキストと条件を返す
 function extractUseCondition(text: string): { cleaned: string; condition?: Condition } {
-  const marker = /この(?:能力|カード|シグニ|スペル)は(.+?)(?:場合にしか使用できない|ときにしか使用できない)/;
+  const RESTRICT_SUFFIX = '(?:場合にしか使用できない|ときにしか使用できない|場合にしか発動しない|ときにしか発動しない)';
+  const marker = new RegExp(`この(?:能力|カード|シグニ|スペル)は(.+?)${RESTRICT_SUFFIX}`);
 
   // 末尾パターン：「…。この能力は〜できない。」
-  const endM = text.match(/^([\s\S]+?)。この(?:能力|カード|シグニ|スペル)は(.+?)(?:場合にしか使用できない|ときにしか使用できない)。?$/);
+  const endM = text.match(new RegExp(`^([\\s\\S]+?)。この(?:能力|カード|シグニ|スペル)は(.+?)${RESTRICT_SUFFIX}。?$`));
   if (endM) {
     return { cleaned: endM[1].trim(), condition: parseUseCondition(endM[2].trim()) };
   }
 
   // 先頭パターン：「このカードは〜できない。…」（スペル/アーツ全体への条件）
-  const startM = text.match(/^この(?:カード|スペル|アーツ)は(.+?)(?:場合にしか使用できない|ときにしか使用できない)。([\s\S]+)$/);
+  const startM = text.match(new RegExp(`^この(?:カード|スペル|アーツ)は(.+?)${RESTRICT_SUFFIX}。([\\s\\S]+)$`));
   if (startM) {
     return { cleaned: startM[2].trim(), condition: parseUseCondition(startM[1].trim()) };
   }
