@@ -7129,7 +7129,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 対戦相手のシグニ〜体を対象とし、以下からN以上選ぶ ----
   if (t.match(/対戦相手のシグニ.*体を対象とし、以下から[１-９\d０-９]*つを選ぶ/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE' } as StubAction;
 
   // ---- 〈X〉のシグニをN枚捨てるか手札をN枚捨てる ----
   if (t.match(/のシグニを[１-９\d０-９]+枚捨てるか手札を[１-９\d０-９]+枚捨てる/))
