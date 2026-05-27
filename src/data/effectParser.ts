@@ -4570,6 +4570,103 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'REPEAT_N_TIMES' } as StubAction;
   }
 
+  // ---- 対戦相手のパワーN以下のシグニをエナゾーンに置く ----
+  {
+    const banishM = t.match(/対戦相手のパワー([０-９\d]+)以下のシグニ([０-９\d]*)体?を対象とし、それをエナゾーンに置く/);
+    if (banishM) {
+      const cnt = banishM[2] ? parseNum(banishM[2]) : 1;
+      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: cnt, filter: { maxPower: parseNum(banishM[1]) } } } as BanishAction;
+    }
+  }
+
+  // ---- 公開したカードをトラッシュに置く ----
+  if (t.match(/^公開したカードをトラッシュに置く$/)) {
+    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } };
+  }
+
+  // ---- それらを好きな順番でデッキの一番上/下に戻す ----
+  if (t.match(/それらを好きな順番でデッキの一番上に戻す/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: true, destination: { location: 'deck', owner: 'self', position: 'top' } };
+  }
+  if (t.match(/それらを好きな順番でデッキの一番下に置く/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: true, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+  if (t.match(/その後、残りを好きな順番でデッキの一番下に置く/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: true, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+
+  // ---- 対戦相手はデッキの一番上を公開する ----
+  if (t.match(/対戦相手はデッキの一番上を公開する/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'opponent' }, count: 1, private: false, reorder: false, destination: { location: 'deck', owner: 'opponent', position: 'top' } };
+  }
+
+  // ---- あなたのデッキをシャッフルし一番上を公開する ----
+  if (t.match(/あなたのデッキをシャッフルし.*一番上を公開する/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'top' } };
+  }
+
+  // ---- その後、あなたのキー１枚を場からルリグトラッシュに置いてもよい ----
+  if (t.match(/あなたのキー[０-９\d]*枚?を場からルリグトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'TRASH_OWN_KEY_OPTIONAL' } as StubAction;
+  }
+
+  // ---- それらのどちらか／一方を対戦相手に見せずに裏向きでルリグデッキに加える ----
+  if (t.match(/(?:どちらか|いずれか|一方)[０-９\d]*枚?を対戦相手に見せず.*ルリグデッキに加える/)) {
+    return { type: 'STUB', id: 'ADD_CARD_TO_LRIG_DECK_HIDDEN' } as StubAction;
+  }
+
+  // ---- このアーツを使用する際、ルリグデッキからアーツをルリグトラッシュに置いてもよい ----
+  if (t.match(/このアーツを使用する際.*ルリグデッキから.*アーツ.*ルリグトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'ARTS_USE_DISCARD_LRIG_DECK' } as StubAction;
+  }
+
+  // ---- このアーツの使用コストは《無×N》減る ----
+  if (t.match(/このアーツの使用コストは.*減る/)) {
+    return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
+  }
+
+  // ---- ベットメカニクス ----
+  if (t.match(/あなたがベットしていた場合、代わりに/)) {
+    return { type: 'STUB', id: 'BET_ALTERNATIVE' } as StubAction;
+  }
+  if (t.match(/^ベット―/)) {
+    return { type: 'STUB', id: 'BET_MECHANIC' } as StubAction;
+  }
+
+  // ---- トラップメカニクス ----
+  if (t.match(/【トラップ】を表向きにし.*《トラップアイコン》/)) {
+    return { type: 'STUB', id: 'ACTIVATE_TRAP_IN_FIELD' } as StubAction;
+  }
+
+  // ---- 同じ選択肢をN回以上選んでもよい ----
+  if (t.match(/同じ選択肢を[０-９\d]+回以上選んでもよい/)) {
+    return { type: 'STUB', id: 'CHOOSE_SAME_OPTION_MULTIPLE' } as StubAction;
+  }
+
+  // ---- 対戦相手のシグニとあなたのシグニ各1体（トレード）----
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、あなたのシグニ[０-９\d]*体?を場からトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
+  }
+
+  // ---- この効果でクラッシュされたカードのライフバーストは発動しない ----
+  if (t.match(/この効果でクラッシュされたカードのライフバーストは発動しない/)) {
+    return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CRASH' } as StubAction;
+  }
+
+  // ---- あなたのエナゾーンからすべてのカードをトラッシュに置く ----
+  if (t.match(/あなたのエナゾーンからすべてのカードをトラッシュに置く/)) {
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' } };
+  }
+
+  // ---- 手札からクラス等のシグニをN枚捨ててもよい ----
+  {
+    const optDiscardM = t.match(/手札から(.+?)のシグニ?を([０-９\d]+)枚?捨ててもよい/);
+    if (optDiscardM) {
+      const cnt = parseNum(optDiscardM[2]);
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cnt, filter: parseCardTypeFilter(optDiscardM[1]) } };
+    }
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
