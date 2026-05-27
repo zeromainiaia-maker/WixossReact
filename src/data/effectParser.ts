@@ -6664,6 +6664,466 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/その後、手札から[＜〈<].+[＞〉>]のシグニを[１-９\d０-９]+枚捨ててよい/))
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
+  // ---- 残りをライフクロスの上に戻す ----
+  if (t.match(/残りを好きな順番でライフクロスの一番上に戻す/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- 引いた枚数と同じ枚数をデッキの下に置く ----
+  if (t.match(/この方法で引いたカードの枚数と同じ枚数のカードを手札から.*デッキの一番下に置く/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- 引いた枚数と同じ枚数を捨てる ----
+  if (t.match(/この方法で引いた枚数と同じ枚数のカードを捨てる/))
+    return { type: 'STUB', id: 'TRASH' } as StubAction;
+
+  // ---- 手札から〈クラス〉シグニをN枚公開してもよい ----
+  if (t.match(/手札から.*[＜〈<].+[＞〉>].*のシグニを[１-９\d０-９]+枚公開してもよい/))
+    return { type: 'STUB', id: 'REVEAL_AND_PICK' } as StubAction;
+
+  // ---- トラッシュのスペルをコスト支払って/コストを支払わずに使用する ----
+  if (t.match(/トラッシュにあるスペル.*使用する/) || t.match(/トラッシュからスペルを.*使用する/))
+    return { type: 'STUB', id: 'PLAY_FREE' } as StubAction;
+
+  // ---- 正面のシグニをトラッシュに置いてもよい ----
+  if (t.match(/正面のシグニ.*トラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'BANISH' } as StubAction;
+
+  // ---- N枚以上移動していた場合、代わりにN以上選ぶ ----
+  if (t.match(/代わりに[１-９\d０-９２三四五六七八九]+つまで選ぶ/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- ～枚以上/ある場合、以下のN以上から選ぶ ----
+  if (t.match(/以上.*場合、以下の.*から.*選ぶ/) || t.match(/以上ある場合、以下.*選ぶ/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- デッキを上から条件が満たされるまで公開してもよい ----
+  if (t.match(/デッキを上から.*が[２-９\d]枚めくれるまで公開してもよい/))
+    return { type: 'STUB', id: 'REVEAL_AND_PICK' } as StubAction;
+  if (t.match(/デッキを上から.*のレベルの合計が.*以上になるまで公開する/))
+    return { type: 'STUB', id: 'REVEAL_AND_PICK' } as StubAction;
+  if (t.match(/デッキを上から.*のシグニが[１-９\d０-９]+枚めくれるまで公開/))
+    return { type: 'STUB', id: 'REVEAL_AND_PICK' } as StubAction;
+
+  // ---- それの基本レベルを宣言した数字にする ----
+  if (t.match(/それの基本レベルを宣言した数字にする/))
+    return { type: 'STUB', id: 'DECLARE_CARD_NAME' } as StubAction;
+
+  // ---- このターン、デッキにある〈X〉のシグニのレベルはNになる ----
+  if (t.match(/このターン.*デッキにある.*のシグニのレベルは[０-９\d]+になる/))
+    return { type: 'STUB', id: 'GAIN_ABILITY_THIS_GAME' } as StubAction;
+
+  // ---- その中から１枚をそれの下に置く ----
+  if (t.match(/その中から[１-９\d０-９]*枚をそれの下に置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- ルリグトラッシュからアーツをコストを支払わずに使用する ----
+  if (t.match(/ルリグトラッシュから.*アーツ.*コストを支払わずに.*使用する/))
+    return { type: 'STUB', id: 'PLAY_FREE' } as StubAction;
+
+  // ---- 赤の場合、対戦相手のライフクロスをエナゾーンに置く ----
+  if (t.match(/.*の場合、対戦相手のライフクロス.*エナゾーンに置く/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- エナゾーンにレベルXシグニがそれぞれN枚以上ある場合、シグニをエナゾーンに置く ----
+  if (t.match(/エナゾーンに.*のシグニがそれぞれ.*以上ある場合.*シグニ.*エナゾーンに置く/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- 対戦相手のシグニのパワーが効果によって+される場合、代わりに-される ----
+  if (t.match(/対戦相手のシグニのパワーが効果によって.*される場合、代わりに.*される/))
+    return { type: 'STUB', id: 'REPLACE_PLUS_N' } as StubAction;
+
+  // ---- それのパワーをこの方法でXのパワーと同じだけ±する ----
+  if (t.match(/それのパワーをこの方法で.*のパワーと同じだけ/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- 対戦相手は手札を〜チェックゾーンに置く ----
+  if (t.match(/対戦相手は手札を.*チェックゾーンに置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- それのレベルをこの方法で公開されたシグニのレベルと同じだけ-する ----
+  if (t.match(/それのレベルをこの方法で.*のレベルと同じだけ/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- この方法で〈X〉のシグニがN種類公開された場合 ----
+  if (t.match(/この方法で.*のシグニが[１-９\d０-９]+種類公開された場合/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- この効果をセンタールリグのレベルと同じ回数行う ----
+  if (t.match(/この効果を.*センタールリグのレベルと同じ回数行う/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- この方法でデッキにカードをN枚以上加えた場合 ----
+  if (t.match(/この方法でデッキにカードを[１-９\d０-９]+枚以上加えた場合/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- このカードにグロウする際、手札からシグニをN枚まで公開する ----
+  if (t.match(/このカードにグロウする際、手札から.*公開する/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- 使用コストはセンタールリグのレベルにつきN減る ----
+  if (t.match(/使用コストは.*センタールリグのレベル.*減る/))
+    return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
+
+  // ---- ベットしていなかった場合、次のターンをスキップする ----
+  if (t.match(/ベットしていなかった場合.*ターンをスキップする/))
+    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+
+  // ---- 対象のシグニは選んだ能力を得る ----
+  if (t.match(/対象のシグニ.*選んだ能力を得る/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- あなたがベットしていた場合（繰り返す・代わりに等） ----
+  if (t.match(/あなたがベットしていた場合/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- シグニがトラッシュから場に出たとき、払い、トラッシュに置いてもよい ----
+  if (t.match(/のシグニ.*がトラッシュから場に出たとき.*払い.*トラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- このターン、あなたは《X》を使用できない ----
+  if (t.match(/このターン、あなたは《.+》を使用できない/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- その後、それをクラッシュしてもよい ----
+  if (t.match(/それをクラッシュしてもよい/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- デッキからカードN枚を探す ----
+  if (t.match(/あなたのデッキからカード[１-９\d０-９]*枚を探す/))
+    return { type: 'STUB', id: 'REVEAL_AND_PICK' } as StubAction;
+
+  // ---- 好きな枚数の無色ではないシグニを場に出し、残りをトラッシュに置く ----
+  if (t.match(/好きな枚数の無色ではないシグニを場に出し/))
+    return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
+
+  // ---- それぞれレベルの異なるシグニをN枚まで捨てる ----
+  if (t.match(/それぞれレベルの異なるシグニを[１-９\d０-９]+枚まで捨てる/))
+    return { type: 'STUB', id: 'TRASH' } as StubAction;
+
+  // ---- 代わりにN枚まで対象とし、それらを手札に加える ----
+  if (t.match(/代わりに[１-９\d０-９]+枚まで対象とし、それらを手札に加える/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- このシグニが中央のシグニゾーンにある場合 ----
+  if (t.match(/このシグニが中央のシグニゾーンにある場合/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- このターンにアタックしたシグニを対象とし、キーをルリグトラッシュに置いてもよい ----
+  if (t.match(/このターンにアタックしたシグニを.*対象とし.*ルリグトラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+
+  // ---- トラッシュにある〈X〉のシグニN枚につき±Nする ----
+  if (t.match(/トラッシュにある.*のシグニ[１-９\d０-９]+枚につき/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- シグニゾーンにシグニがある場合、手札に戻してから開花する ----
+  if (t.match(/シグニゾーンにシグニがある場合.*手札に戻してから開花する/))
+    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+
+  // ---- それぞれレベルの異なるシグニN枚が公開された場合、追加で ----
+  if (t.match(/それぞれレベルの異なるシグニ[１-９\d０-９]+枚が公開された場合/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- 手札がN枚より多い場合、その差の分だけ手札からカードをエナゾーンに置く ----
+  if (t.match(/手札が[１-９\d０-９]+枚より多い場合、その差.*エナゾーンに置く/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- 対戦相手のトラッシュから〜デッキの一番下に置く ----
+  if (t.match(/対戦相手のトラッシュから.*デッキの一番下に置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- 対象のシグニを他のシグニゾーンに配置してもよい ----
+  if (t.match(/対象のシグニ.*他のシグニゾーンに配置してもよい/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- 指定されたシグニゾーンにあるシグニのパワーをそのシグニのレベルにつきNする ----
+  if (t.match(/指定されたシグニゾーンにあるシグニのパワーを.*レベル.*につき/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- チャームをトラッシュに置いてもよい（コスト支払い） ----
+  if (t.match(/【チャーム】.*枚をトラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- 残りを好きな順番でデッキの一番上に置く ----
+  if (t.match(/^残りを好きな順番でデッキの一番上に置く$/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- それらのパワーを合わせて－Nする ----
+  if (t.match(/それらのパワーを合わせて[－-][０-９\d]+する/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- センタールリグと共通する色を持つすべてのカードをエナゾーンに置き ----
+  if (t.match(/センタールリグと共通する色を持つすべてのカードをエナゾーンに置き/))
+    return { type: 'STUB', id: 'REVEAL_AND_PICK' } as StubAction;
+
+  // ---- レベルNのシグニの場合、手札をN枚捨てる ----
+  if (t.match(/レベル[０-９\d]+のシグニの場合、あなたは手札を[１-９\d０-９]+枚捨てる/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- それがスペルの場合、コストを支払わずに使用してもよい ----
+  if (t.match(/それがスペルの場合.*コストを支払わずに使用してもよい/))
+    return { type: 'STUB', id: 'PLAY_FREE' } as StubAction;
+
+  // ---- この方法でカードがN枚トラッシュに置かれた場合 ----
+  if (t.match(/この方法でカードが[１-９\d０-９]+枚トラッシュに置かれた場合/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- あなたと対戦相手のデッキの一番下のカードをトラッシュに置く ----
+  if (t.match(/あなたと対戦相手のデッキの一番下のカードをトラッシュに置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- このアーツの使用コストは選んだ数だけ増える ----
+  if (t.match(/このアーツの使用コストは選んだ数だけ.*増える/))
+    return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
+
+  // ---- 対戦相手は手札を公開する ----
+  if (t.match(/^対戦相手は手札を公開する$/))
+    return { type: 'STUB', id: 'PEEP_HAND' } as StubAction;
+
+  // ---- それを対戦相手のデッキの一番下に置いてもよい ----
+  if (t.match(/それを対戦相手のデッキの一番下に置いてもよい/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- シグニを〜体まで対象とし、それらを裏向きにしてもよい ----
+  if (t.match(/シグニを[１-９\d０-９]+体まで対象とし.*裏向きにしてもよい/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- この方法でシグニを手札に加えた場合、手札をN枚捨てる ----
+  if (t.match(/この方法でシグニを手札に加えた場合、手札を[１-９\d０-９]+枚捨てる/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- デッキの上からカードをN枚を見る（重複「を」) ----
+  if (t.match(/デッキの上からカードを[１-９\d０-９]+枚を見る/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- スペルを使用する場合、コストに含まれるエナコストを代わりに《無》として支払ってもよい ----
+  if (t.match(/スペルを使用する場合.*代わりに《無》として支払ってもよい/))
+    return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
+
+  // ---- そのカードと対戦相手のデッキの一番上のカードを入れ替えてもよい ----
+  if (t.match(/そのカードと.*デッキの一番上のカードを入れ替えてもよい/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- デッキの上からカードをN枚トラッシュに置きカードをN枚見る ----
+  if (t.match(/デッキの上から、?カードを[１-９\d０-９]+枚トラッシュに置きカードを[１-９\d０-９]+枚見る/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- 見たカードの中から《X》を〜ダウン状態で場に出し、残りをデッキの一番下に置く ----
+  if (t.match(/見たカードの中から.*場に出し.*残りを.*デッキの一番下に置く/))
+    return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
+
+  // ---- 《ガードアイコン》を持たないカード〜デッキの一番下に置いてもよい ----
+  if (t.match(/《ガードアイコン》を持たないカード.*デッキの一番下に置いてもよい/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- 手札〜ルリグゾーンに裏向きで置く ----
+  if (t.match(/手札.*ルリグゾーンに裏向きで置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- 次の対戦相手のターン終了時、そのカードを手札に加える ----
+  if (t.match(/次の対戦相手のターン終了時、そのカードを手札に加える/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- メインフェイズの間、デッキからシグニがトラッシュに置かれたとき、場に出す ----
+  if (t.match(/メインフェイズの間.*デッキから.*シグニ.*がトラッシュに置かれたとき.*場に出す/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- デッキをシャッフルし一番上のカードを公開し手札に加える ----
+  if (t.match(/デッキをシャッフルし.*一番上のカードを公開し手札に加える/))
+    return { type: 'STUB', id: 'DRAW' } as StubAction;
+
+  // ---- 対戦相手のシグニ〜体を対象とし、以下からN以上選ぶ ----
+  if (t.match(/対戦相手のシグニ.*体を対象とし、以下から[１-９\d０-９]*つを選ぶ/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- 〈X〉のシグニをN枚捨てるか手札をN枚捨てる ----
+  if (t.match(/のシグニを[１-９\d０-９]+枚捨てるか手札を[１-９\d０-９]+枚捨てる/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- このカードが捨てられたとき、手札を〜してもよい ----
+  if (t.match(/このカードが捨てられたとき/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- アタックフェイズの間、エナコストを支払う際、シグニの下のカードをトラッシュに置いて支払える ----
+  if (t.match(/アタックフェイズの間.*エナコストを支払う際.*シグニの下にあるカードを.*トラッシュに置いて支払える/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- この方法でエナコストはNターンにN以上しか支払えない ----
+  if (t.match(/この方法でエナコストは.*ターンに.*しか支払えない/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- このシグニの下にあったカードをトラッシュからエナゾーンに置く ----
+  if (t.match(/このシグニの下にあったカード.*エナゾーンに置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- 《ガードアイコン》を持たないシグニをデッキに加えてもよい ----
+  if (t.match(/《ガードアイコン》を持たないシグニを.*枚まで.*デッキに加えてもよい/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- デッキの一番上のカードを公開し宣言したレベルのシグニの場合手札に加える ----
+  if (t.match(/デッキの一番上のカードを公開し.*宣言した.*レベルのシグニの場合.*手札に加える/))
+    return { type: 'STUB', id: 'REVEAL_AND_PICK' } as StubAction;
+
+  // ---- デッキの上からそれのレベルと同じ枚数のカードをトラッシュに置く ----
+  if (t.match(/デッキの上からそれのレベルと同じ枚数のカードをトラッシュに置く/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- 正面にシグニがない場合、そのアタックを無効にしてもよい ----
+  if (t.match(/正面にシグニがない場合、そのアタックを無効にしてもよい/))
+    return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
+
+  // ---- スペルを使用したとき、手札を捨ててもよい ----
+  if (t.match(/スペルを使用したとき.*手札を.*枚捨ててもよい/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- このカードを捨てたとき、手札を捨ててもよい ----
+  if (t.match(/このカードを捨てたとき.*手札を.*枚捨ててもよい/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- このシグニの下からカードを好きな枚数トラッシュに置く ----
+  if (t.match(/このシグニの下からカードを好きな枚数トラッシュに置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- そうしなかった場合、次のドローフェイズの間にカードを合計N枚までしか引けない ----
+  if (t.match(/そうしなかった場合.*次の.*ドローフェイズの間.*引けない/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- そのカードをデッキに加えてシャッフルしてもよい ----
+  if (t.match(/そのカードをデッキに加えてシャッフルしてもよい/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- 《ディソナアイコン》のカードをN枚捨ててもよい ----
+  if (t.match(/《ディソナアイコン》のカードを[１-９\d０-９]*枚捨ててもよい/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- 対戦相手のエナゾーンにカードがN枚以上ある場合、シグニの下から〜トラッシュに置いてもよい ----
+  if (t.match(/対戦相手のエナゾーンにカードが[１-９\d０-９]+枚以上ある場合.*シグニの下から.*トラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- このターン終了時、《コインアイコン》を合計N枚以上支払っていなかった場合 ----
+  if (t.match(/このターン終了時.*《コインアイコン》を合計[１-９\d０-９]+枚以上支払っていなかった場合/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- 対戦相手のレベルN以上のシグニをトラッシュに置く ----
+  if (t.match(/対戦相手のレベル[０-９\d]+以上のシグニ.*体を対象とし.*トラッシュに置く/))
+    return { type: 'STUB', id: 'BANISH' } as StubAction;
+
+  // ---- そのカードが《X》の場合、この効果を繰り返す ----
+  if (t.match(/そのカードが《.+》の場合、この効果を繰り返す/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- それらのカードを好きな順番でデッキの一番上に戻す ----
+  if (t.match(/それらのカードを好きな順番でデッキの一番上に戻す/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- 対戦相手の効果によって〜が場を離れる場合、〜行ってもよい ----
+  if (t.match(/対戦相手の効果によって.*が場を離れる場合.*行ってもよい/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- バトルによってシグニをバニッシュしたとき、〜捨ててもよい ----
+  if (t.match(/バトルによってシグニ.*をバニッシュしたとき.*捨ててもよい/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- このターンにあなたが手札からXのカードをN枚以上捨てていた場合 ----
+  if (t.match(/このターンにあなたが手札から.*カードを[１-９\d０-９]+枚以上捨てていた場合/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- パワーをこの方法でデッキに移動したシグニのパワーと同じだけ±する ----
+  if (t.match(/パワーをこの方法でデッキに移動したシグニのパワーと同じだけ/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- このアーツを使用する際、ライフクロスをトラッシュに置いてもよい ----
+  if (t.match(/このアーツを使用する際.*ライフクロス.*枚をトラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- このアーツを使用する際、手札からパワーN以上のシグニをN枚まで捨てる ----
+  if (t.match(/このアーツを使用する際.*手札からパワー[０-９\d]+以上のシグニを.*枚まで捨てる/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- デッキの一番上を見て、裏向きでルリグゾーンに置く ----
+  if (t.match(/デッキの一番上を見て.*裏向きでルリグゾーンに置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- 場に〈X〉のシグニがある場合、カードを引き、対戦相手のデッキの一番上を公開する ----
+  if (t.match(/場に.*のシグニがある場合.*カードを.*引き.*対戦相手のデッキの一番上を公開する/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- デッキの一番上のカードをトラッシュに置いてもよい ----
+  if (t.match(/^あなたのデッキの一番上のカードをトラッシュに置いてもよい$/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- 対戦相手の手札をN枚見ないで選び、公開させる ----
+  if (t.match(/対戦相手の手札を[１-９\d０-９]*枚見ないで選び/))
+    return { type: 'STUB', id: 'PEEP_HAND' } as StubAction;
+
+  // ---- 場にそのカードと共通する色を持つルリグがいる場合、捨てさせる ----
+  if (t.match(/場にそのカードと共通する色を持つルリグがいる場合.*捨てさせる/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- 手札からカードをN枚まで好きな順番でデッキの一番下に置く ----
+  if (t.match(/手札からカードを[１-９\d０-９]+枚まで好きな順番でデッキの一番下に置く/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- シグニによってダメージを受ける場合、代わりに手札を捨ててもよい ----
+  if (t.match(/シグニによってダメージを受ける場合、代わりに手札を.*捨ててもよい/))
+    return { type: 'STUB', id: 'GAIN_ABILITY_THIS_GAME' } as StubAction;
+
+  // ---- 〈X〉のシグニN体を対象とし、以下のN以上から選ぶ ----
+  if (t.match(/のシグニ[１-９\d０-９]*体を対象とし、以下の[１-９\d０-９]*つから[１-９\d０-９]*つを選ぶ/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- 手札からカードをN枚まで裏向きでルリグゾーンに置く ----
+  if (t.match(/手札からカードを[１-９\d０-９]*枚まで裏向きでルリグゾーンに置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- この方法でダウンしたルリグのレベルの合計に〜カードをトラッシュに置く ----
+  if (t.match(/この方法でダウンしたルリグのレベルの合計に.*枚数のカードをトラッシュに置く/))
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+
+  // ---- それがレベルN以下の場合、代わりにそれをトラッシュに置く ----
+  if (t.match(/それがレベル[０-９\d]+以下の場合、代わりにそれをトラッシュに置く/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- 対戦相手の【Xトークン名】を好きな数取り除いてもよい ----
+  if (t.match(/対戦相手の【.+】を好きな数取り除いてもよい/))
+    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+
+  // ---- アタック終了時、このシグニを場から〜に置いてもよい ----
+  if (t.match(/そのアタック終了時.*このシグニを場から.*に置いてもよい/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction;
+
+  // ---- このアーツを使用する際に〈X〉のカードをトラッシュに置いていた場合 ----
+  if (t.match(/このアーツを使用する際に.*のカード.*枚をトラッシュに置いていた場合/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- 手札から色の〈X〉のカードをN枚まで捨てる ----
+  if (t.match(/手札から.*の[＜〈<].+[＞〉>]のカードを[１-９\d０-９]+枚まで捨てる/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- 〈X〉のシグニを対象とし、トラッシュからそれぞれレベルの異なる〈X〉のシグニN枚をデッキの一番下に置いてもよい ----
+  if (t.match(/のシグニ.*を対象とし.*トラッシュからそれぞれレベルの異なる.*のシグニ.*枚を.*デッキの一番下に置いてもよい/))
+    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+
+  // ---- この方法でトラッシュに置いたカードの中からカードをN枚まで対象とし、エナゾーンに置く ----
+  if (t.match(/この方法でトラッシュに置いたカードの中からカードを.*枚まで対象とし.*エナゾーンに置く/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
+  // ---- 場に《X》がいる場合、色を宣言し、エナゾーンから宣言した色を持つカードをトラッシュに置いてもよい ----
+  if (t.match(/場に《.+》がいる場合.*色.*宣言し.*エナゾーンから.*カード.*トラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- 手札から白/赤/青/緑/黒のカードをN枚捨ててもよい ----
+  if (t.match(/手札から[白赤青緑黒]のカードを[１-９\d０-９]+枚捨ててもよい/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- 場に《X》がいる場合、対戦相手のシグニを対象とし〜捨ててもよい ----
+  if (t.match(/場に《.+》がいる場合.*対戦相手.*シグニ.*捨ててもよい/))
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+
+  // ---- 手札をN枚以上捨てた場合、追加でライフクロス〜デッキの一番下に置く ----
+  if (t.match(/手札を[１-９\d０-９]+枚以上捨てた場合.*ライフクロス.*デッキの一番下に置く/))
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
