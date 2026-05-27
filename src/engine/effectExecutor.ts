@@ -1694,6 +1694,13 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
     case 'POWER_MODIFY_PER_DECK_COUNT':    return done(addLog(ctx, 'デッキ枚数比例パワー（effectEngine処理）'));
     case 'POWER_MODIFY_PER_ENERGY_COLOR':  return done(addLog(ctx, 'エナ色種類比例パワー（effectEngine処理）'));
+    case 'ALT_COST_OPP_TURN':
+      return done(addLog(ctx, '対戦相手ターン間コスト変動（展開フェイズで適用済み）'));
+    case 'BLOCK_CARD_USE': {
+      const bcu = action as import('../types/effects').BlockCardUseAction;
+      const newOwner = { ...ctx.ownerState, blocked_card_names: [...(ctx.ownerState.blocked_card_names ?? []), bcu.cardName] };
+      return done(addLog({ ...ctx, ownerState: newOwner }, `このターン《${bcu.cardName}》を使用不可`));
+    }
     case 'STUB': {
       const stub = action as import('../types/effects').StubAction;
       if (stub.id === 'PREVENT_NEXT_DAMAGE') {
