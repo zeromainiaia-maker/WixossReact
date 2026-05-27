@@ -422,6 +422,16 @@ function parseSingleSentence(text: string): EffectAction {
     .replace(/^[^、。「」]{2,60}ライズされたとき、/, '')
     .replace(/^[^、。「」]{2,60}アタックしたとき、/, '');
 
+  // ---- 条件かぎり、代わりに＋Nされる/する（条件付き代替パワー修正）----
+  if (t.match(/^[^。]+かぎり、代わりに[＋+][０-９\d]+(?:される|する)/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_ALT_POWER_BOOST' } as StubAction;
+  }
+
+  // ---- このシグニは＜X＞を持つ（クラス/ストーリー付与）----
+  if (t.match(/^このシグニは＜[^＞]+＞を持つ/)) {
+    return { type: 'STUB', id: 'GRANT_SIGNI_CLASS' } as StubAction;
+  }
+
   // ---- このシグニはアタックできない（CONTINUOUS）----
   if (t.match(/このシグニはアタックできない/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, actionId: 'ATTACK', until: 'PERMANENT' };
