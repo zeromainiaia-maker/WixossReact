@@ -7679,7 +7679,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
 function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
-  const action = parseActionText(stripRuleParens(card.EffectText));
+  const stripped = stripRuleParens(card.EffectText);
+  const { cleaned, condition } = extractUseCondition(stripped);
+  const action = parseActionText(condition ? cleaned : stripped);
   const hasUnknown = action.type === 'UNKNOWN'
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
   return {
@@ -7687,6 +7689,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     effectType: 'ACTIVATED',
     timing: parseArtsTiming(card.Timing ?? ''),
     cost: parseCost(card.Cost),
+    condition,
     action,
     duration: 'INSTANT',
     mandatory: false,
@@ -7696,12 +7699,15 @@ function parseArtsEffect(card: CardData): CardEffect | null {
 
 function parseSpellEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
-  const action = parseActionText(stripRuleParens(card.EffectText));
+  const stripped = stripRuleParens(card.EffectText);
+  const { cleaned, condition } = extractUseCondition(stripped);
+  const action = parseActionText(condition ? cleaned : stripped);
   return {
     effectId: `${card.CardNum}-E1`,
     effectType: 'ACTIVATED',
     timing: ['MAIN'],
     cost: parseCost(card.Cost),
+    condition,
     action,
     duration: 'INSTANT',
     mandatory: false,
