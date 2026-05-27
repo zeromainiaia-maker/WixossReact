@@ -4644,8 +4644,61 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 対戦相手のシグニとあなたのシグニ各1体（トレード）----
-  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、あなたのシグニ[０-９\d]*体?を場からトラッシュに置いてもよい/)) {
+  if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、(?:あなたの)?シグニ[０-９\d]*体?を場からトラッシュに置いてもよい/)) {
     return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
+  }
+
+  // ---- それ/あなたはそれをトラッシュに置いてもよい ----
+  if (t.match(/^(?:あなたは)?それをトラッシュに置いてもよい$/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
+  }
+
+  // ---- そのシグニ/それを場からトラッシュに置く ----
+  if (t.match(/^(?:その|それ)(?:シグニ)?を場からトラッシュに置く$/)) {
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
+  }
+
+  // ---- それらの【出】能力は発動しない ----
+  if (t.match(/それらの【出】能力は発動しない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'any', count: 'ALL' }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' } as BlockActionAction;
+  }
+
+  // ---- シグニゾーンを指定する ----
+  if (t.match(/(?:あなたの|対戦相手の)?シグニゾーン[０-９\d]*つ?を指定する/)) {
+    return { type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE' } as StubAction;
+  }
+
+  // ---- この効果で公開したカードを好きな順番でデッキの一番上に戻す ----
+  if (t.match(/この効果で公開したカードを好きな順番でデッキの一番上に戻す/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 0, private: false, reorder: true, destination: { location: 'deck', owner: 'self', position: 'top' } };
+  }
+
+  // ---- そのカードをデッキの一番下に置いてもよい ----
+  if (t.match(/そのカードをデッキの一番下に置いてもよい/)) {
+    return { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
+  }
+
+  // ---- 対戦相手がアーツを使用できない ----
+  if (t.match(/このターン、あなたはアーツを使用できない/)) {
+    return { type: 'STUB', id: 'PREVENT_OWN_ARTS_USE' } as StubAction;
+  }
+
+  // ---- 追加ターン ----
+  if (t.match(/追加の[０-９\d]*ターンを得る/)) {
+    return { type: 'STUB', id: 'GAIN_EXTRA_TURN' } as StubAction;
+  }
+
+  // ---- 括弧ルール説明（【ビート】等）----
+  if (t.startsWith('（') && t.includes('この能力はあなたの【')) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+  if (t.startsWith('（') && t.includes('コストの合計とは')) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
+
+  // ---- このターンそれがチェックゾーンから移動された場合、ゲームから除外 ----
+  if (t.match(/チェックゾーンから.*ゲームから除外/)) {
+    return { type: 'STUB', id: 'EXILE_FROM_CHECK_ZONE' } as StubAction;
   }
 
   // ---- この効果でクラッシュされたカードのライフバーストは発動しない ----
