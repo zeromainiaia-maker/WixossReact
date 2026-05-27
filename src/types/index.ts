@@ -79,6 +79,7 @@ export interface PlayerState {
   };
   actions_done?: string[];    // このターンに使用済みのアクション（ターン開始時にリセット）
   blocked_actions?: string[]; // カード効果で封じられたアクション
+  blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
   story_overrides?: Record<string, string>; // CardNum -> ゲーム中に変更されたStory（大本のCardDataは変えない）
   pending_crashed_cards?: string[]; // ダブルクラッシュ等で同時クラッシュしたが未処理のカード番号（バースト処理待ち）
   // 効果エンジン用：ターン終了時にクリア
