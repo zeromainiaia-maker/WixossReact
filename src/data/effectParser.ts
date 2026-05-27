@@ -5007,6 +5007,81 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'CHOOSE_COLOR_FROM_LIST' } as StubAction;
   }
 
+  // ---- 対戦相手の場にある【ウィルス】を取り除く ----
+  if (t.match(/対戦相手の場にある【ウィルス】[０-９\d]*つを取り除く(?:てもよい)?/)) {
+    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+  }
+
+  // ---- あなたのシグニに手札からカードを裏向きで付ける（チャーム）----
+  if (t.match(/手札からカード[０-９\d]*枚?を裏向きで付ける/) ||
+      t.match(/あなたのシグニ.+に.+手札からカードを.+付ける/)) {
+    return { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI' } as StubAction;
+  }
+
+  // ---- 対戦相手のルリグトラッシュからアーツを使用する ----
+  if (t.match(/対戦相手のルリグトラッシュから.+を対象とし/) ||
+      t.match(/対戦相手のルリグトラッシュから.+使用/)) {
+    return { type: 'STUB', id: 'CAST_FROM_OPP_TRASH' } as StubAction;
+  }
+
+  // ---- このアーツはあなたのセンタールリグが〜の場合にしか使用できない ----
+  if (t.match(/^このアーツはあなたのセンタールリグが.+の場合(?:にしか使用できない|か、)/)) {
+    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+  }
+
+  // ---- あなたの場にあるすべてのシグニが〜の場合（条件付き効果）----
+  if (t.match(/^あなたの場にあるすべてのシグニが.+の場合/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  }
+
+  // ---- このシグニの下からカードをトラッシュに置く ----
+  if (t.match(/このシグニの下からカード[０-９\d]*枚?をトラッシュに置いてもよい/) ||
+      t.match(/このシグニの下からカード[０-９\d]*枚?をトラッシュに置く$/)) {
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+  }
+
+  // ---- デッキをシャッフルし、そのシグニを公開しデッキの〜に置く ----
+  if (t.match(/デッキをシャッフルし、そのシグニを公開しデッキの(?:一番上|上から)/)) {
+    return { type: 'STUB', id: 'DECK_TOP_TO_LIFE' } as StubAction;
+  }
+
+  // ---- その後、デッキをシャッフルし、それをコストを支払わずに使用する ----
+  if (t.match(/デッキをシャッフルし、(?:それ|そのカード)をコストを支払わずに使用する/)) {
+    return { type: 'STUB', id: 'PLAY_FREE' } as StubAction;
+  }
+
+  // ---- デッキをシャッフルし、そのカードをデッキの一番上に置く ----
+  if (t.match(/デッキをシャッフルし、そのカードをデッキの一番上に置く/)) {
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'DECK_CARD', owner: 'self', count: 1 }, position: 'top', shuffle: true };
+  }
+
+  // ---- あなたのトラッシュにカード名に〜を含むカードがある場合 ----
+  if (t.match(/あなたのトラッシュにカード名に.+を含むカードがある場合/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  }
+
+  // ---- センタールリグのレベルが〜の場合のアーツコスト変動 ----
+  if (t.match(/あなたのセンタールリグのレベルが.+の場合/) ||
+      t.match(/あなたのセンタールリグのレベルが対戦相手より/)) {
+    return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
+  }
+
+  // ---- 対戦相手のパワーN以下/以上のシグニを対象とし手札から〜 ----
+  if (t.match(/対戦相手のパワー[０-９\d]+以[下上]のシグニ[０-９\d]*体?を対象とし/) ||
+      t.match(/対戦相手のパワー[０-９\d]+以[下上]のシグニ[０-９\d]*体?.*手札から.+捨て/)) {
+    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+  }
+
+  // ---- この方法でトラッシュに置かれたカードの中からシグニをN枚対象とし〜 ----
+  if (t.match(/この方法でトラッシュに置かれたカードの中からシグニ/)) {
+    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+  }
+
+  // ---- その中から〜アイコンを持つカードをエナゾーンに置き残りを〜 ----
+  if (t.match(/その中から.+アイコン》を持つ.+エナゾーンに置き、残り/)) {
+    return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
+  }
+
   // ---- この方法でトラッシュに置いたカードの中に〜がある場合 ----
   if (t.match(/この方法でトラッシュに置いたカードの中に/)) {
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
