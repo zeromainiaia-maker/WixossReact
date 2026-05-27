@@ -4495,6 +4495,37 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'REPLACE_PLUS_N' } as StubAction;
   }
 
+  // ---- 数字を宣言する ----
+  if (t.match(/^数字[０-９\d]*つ?を宣言する$/)) {
+    return { type: 'STUB', id: 'DECLARE_NUMBER' } as StubAction;
+  }
+
+  // ---- 手札をN枚捨ててもよい（任意）----
+  if (t.match(/^手札を([０-９\d]+)枚捨ててもよい$/)) {
+    const cnt = parseNum((t.match(/([０-９\d]+)枚/) ?? [])[1] ?? '1');
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cnt } };
+  }
+
+  // ---- それの【出】能力は発動しない（出コストを支払ったが効果を抑止）----
+  if (t.match(/それの【出】能力は発動しない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'any', count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' } as BlockActionAction;
+  }
+
+  // ---- このシグニを場からトラッシュに置いてもよい ----
+  if (t.match(/^このシグニを場からトラッシュに置いてもよい$/)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } };
+  }
+
+  // ---- 《色》を支払ってもよい（任意追加コスト）→ スキップ ----
+  if (t.match(/^《[赤青緑黒白無]》を支払ってもよい$/)) {
+    return { type: 'STUB', id: 'OPTIONAL_COLOR_PAY' } as StubAction;
+  }
+
+  // ---- あなたのルリグゾーンに【リミットアッパー】を置く ----
+  if (t.match(/ルリグゾーンに【リミットアッパー】[０-９\d]*つを置く/)) {
+    return { type: 'STUB', id: 'PLACE_LIMIT_UPPER' } as StubAction;
+  }
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
