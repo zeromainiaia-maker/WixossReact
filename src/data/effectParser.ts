@@ -7264,7 +7264,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 〈X〉のシグニN体を対象とし、以下のN以上から選ぶ ----
   if (t.match(/のシグニ[１-９\d０-９]*体を対象とし、以下の[１-９\d０-９]*つから[１-９\d０-９]*つを選ぶ/))
-    return { type: 'STUB', id: 'USE_CONDITION_TEXT' } as StubAction;
+    return { type: 'STUB', id: 'TARGET_SIGNI_CHOOSE' } as StubAction;
 
   // ---- 手札からカードをN枚まで裏向きでルリグゾーンに置く ----
   if (t.match(/手札からカードを[１-９\d０-９]*枚まで裏向きでルリグゾーンに置く/))
