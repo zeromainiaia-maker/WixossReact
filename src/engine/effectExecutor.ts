@@ -1395,6 +1395,18 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAction, ctx: ExecCtx): ExecResult {
+  const countState = ownerState(a.countOwner, ctx);
+  const fieldCount = countState.field.signi.filter(stack => {
+    if (!stack || stack.length === 0) return false;
+    const card = ctx.cardMap.get(stack[stack.length - 1]);
+    return matchesFilter(card, a.countFilter);
+  }).length;
+  if (fieldCount === 0) return done(ctx);
+  const drawCount = a.drawPerUnit * fieldCount;
+  return executeAction({ type: 'DRAW', owner: 'self', count: drawCount }, ctx);
+}
+
 function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: ExecCtx): ExecResult {
   const lrigState = a.lrigOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const lrigNum = lrigState.field.lrig.at(-1);
