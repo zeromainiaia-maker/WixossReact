@@ -1982,6 +1982,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           declared_guard_restrict_level: undefined, // 宣言数字をリセット
           hand_signi_guard_enabled: undefined,     // 手札シグニガードフラグをリセット
           lrig_limit_mod: undefined,               // ルリグリミット修正をリセット
+          prevent_opp_guard: undefined,            // 相手ガード禁止フラグをリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
