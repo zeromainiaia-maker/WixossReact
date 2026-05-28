@@ -6460,9 +6460,12 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/手札から.+捨てないかぎり/))
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
-  // ---- 対象のシグニをエナゾーンに置く（BOUNCE to energy） ----
-  if (t.match(/^対象の対戦相手のシグニ[１-９\d０-９]*体?をエナゾーンに置く$/))
-    return { type: 'STUB', id: 'MASS_TRASH' } as StubAction;
+  // ---- 対象のシグニをエナゾーンに置く（= バニッシュ相当）----
+  if (t.match(/^対象の対戦相手のシグニ[１-９\d０-９]*体?をエナゾーンに置く$/)) {
+    const cntM = t.match(/([１-９\d０-９]+)体/);
+    const cnt = cntM ? parseNum(cntM[1]) : 1;
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as BanishAction;
+  }
 
   // ---- デッキ公開して宣言した色のカードをエナゾーン ----
   if (t.match(/デッキの一番上を公開し、それが宣言した色を持つカードの場合.*エナゾーンに置く/))
