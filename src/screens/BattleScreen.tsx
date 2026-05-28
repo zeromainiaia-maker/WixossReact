@@ -3678,6 +3678,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           life_cloth: cpuSt.life_cloth.slice(0, -1),
           field: { ...cpuSt.field, lrig_attacked: false, check: crashed },
         };
+      } else if (cpuSt.prevent_defeat) {
+        appendBattleLogs([`[CPU] ルリグアタック：ライフなし → 敗北無効`]);
+        newCpuSt = { ...cpuSt, prevent_defeat: undefined, field: { ...cpuSt.field, lrig_attacked: false } };
       } else {
         appendBattleLogs([`[CPU] ライフクロスが0枚 → あなたの勝利！`]);
         // ライフなし → 人間の勝利
