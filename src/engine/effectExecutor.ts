@@ -2070,9 +2070,30 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if (quotedText) return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 15)}...」（ログのみ）`));
         return done(addLog(ctx, '能力を付与（effectEngine処理）'));
       }
-      // ルリグデッキ下操作
+      // ルリグデッキ下操作（多パターン）
       if (stub.id === 'LRIG_UNDER_CARD_OP') {
         const srcLrig = ctx.sourceCardNum;
+        const effLrigTxt = srcLrig ? (ctx.cardMap.get(srcLrig)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(srcLrig)?.BurstText ?? '') : '';
+        // 「エナゾーンからシグニをデッキの一番上に置く」→ エナ→デッキ先頭
+        if (effLrigTxt.match(/エナゾーンから.+シグニ.+デッキの一番上に置いてもよい/) && ctx.ownerState.energy.length > 0) {
+          const signiInEnergy = ctx.ownerState.energy.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+          if (signiInEnergy.length > 0) {
+            const picked = signiInEnergy[0];
+            const newOwner = {
+              ...ctx.ownerState,
+              energy: ctx.ownerState.energy.filter(cn => cn !== picked),
+              deck: [picked, ...ctx.ownerState.deck],
+            };
+            return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(picked)?.CardName ?? picked}をエナからデッキ上へ`));
+          }
+          return done(addLog(ctx, 'エナゾーンにシグニなし'));
+        }
+        // 「このシグニをエナゾーンに置く」→ フィールドからエナへ
+        if ((effLrigTxt.match(/このシグニをエナゾーンに置いてもよい/) || effLrigTxt.match(/このシグニをエナゾーンに置く/)) && srcLrig) {
+          const removed = removeFromField(srcLrig, ctx.ownerState);
+          const newOwner = { ...removed, energy: [...removed.energy, srcLrig] };
+          return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcLrig)?.CardName ?? srcLrig}をエナゾーンへ`));
+        }
         // 「このシグニの下にあるすべてのカードをトラッシュに置く」パターン
         if (srcLrig) {
           for (const owner of ['self', 'opponent'] as const) {
