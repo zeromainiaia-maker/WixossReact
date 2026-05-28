@@ -248,6 +248,7 @@ export type EffectAction =
   | NegateAttackAction
   | PlaceUnderSigniAction
   | PlaceUnderSourceSigniAction
+  | PreventNextDamageAction
   | StubAction
   | UnknownAction;
 
