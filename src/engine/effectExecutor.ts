@@ -1395,6 +1395,25 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx: ExecCtx): ExecResult {
+  const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
+  if (cands.length === 0) return done(ctx);
+
+  function applyNegate(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgtOwner, c);
+    const negated = [...(s.negated_attacks ?? []), ...selected];
+    return addLog(setOwnerState(tgtOwner, { ...s, negated_attacks: negated }, c),
+      `${selected.length}体のシグニのアタックを無効化`);
+  }
+
+  if (a.target.count === 'ALL') return done(applyNegate(cands, ctx));
+  const cnt = resolveNum(a.target.count);
+  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, applyNegate, ctx);
+}
+
 function execAwakenSigni(ctx: ExecCtx): ExecResult {
   if (!ctx.sourceCardNum) return done(ctx);
   const awakened = [...(ctx.ownerState.awakened_signi ?? [])];
