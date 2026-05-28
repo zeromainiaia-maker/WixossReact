@@ -102,6 +102,8 @@ export interface PlayerState {
   lrig_granted_auto_effects?: import('./effects').CardEffect[];
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（BANISH_REDIRECT）
   banish_redirect?: boolean;
+  // 覚醒状態のシグニのCardNum一覧（永続、場を離れるまで有効）
+  awakened_signi?: string[];
 }
 
 export interface GameLog {
