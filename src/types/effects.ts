@@ -268,6 +268,12 @@ export interface AwakenSigniAction {
   type: 'AWAKEN_SIGNI';
 }
 
+// このターン、次にターゲットシグニがアタックしたとき、そのアタックを無効にする
+export interface NegateAttackAction {
+  type: 'NEGATE_ATTACK';
+  target: EffectTarget;
+}
+
 export interface BounceAction {
   type: 'BOUNCE'; // フィールド→手札
   target: EffectTarget;
