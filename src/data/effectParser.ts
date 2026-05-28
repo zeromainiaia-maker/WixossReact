@@ -5763,10 +5763,14 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
-  // ---- シグニの下からカードを手札に加える ----
-  if (t.match(/このシグニの下からカード[０-９\d]*枚?を対象とし、それを手札に加える/) ||
-      t.match(/このシグニの下からカード[０-９\d]*枚?を手札に加える/)) {
-    return { type: 'STUB', id: 'ADD_UNDER_SIGNI_TO_HAND' } as StubAction;
+  // ---- このシグニの下からカードを移動 ----
+  {
+    const m = t.match(/このシグニの下から(?:《[^》]+》の)?カード([０-９\d]*)枚?まで?を?(?:対象とし、それ(?:ら)?を)?(手札に加える|エナゾーンに置く|トラッシュに置く)/);
+    if (m) {
+      const dest: 'hand' | 'energy' | 'trash' = m[2].includes('手札') ? 'hand' : m[2].includes('エナ') ? 'energy' : 'trash';
+      const cnt = m[1] ? parseNum(m[1]) : 1;
+      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: dest, count: cnt, upToCount: t.includes('まで'), fromThis: true } as TakeFromUnderSigniAction;
+    }
   }
 
   // ---- 次のターンの間、対戦相手はグロウできない ----
