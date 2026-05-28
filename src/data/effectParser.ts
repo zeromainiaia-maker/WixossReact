@@ -7538,7 +7538,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 手札〜ルリグゾーンに裏向きで置く ----
   if (t.match(/手札.*ルリグゾーンに裏向きで置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
 
   // ---- 次の対戦相手のターン終了時、そのカードを手札に加える ----
   if (t.match(/次の対戦相手のターン終了時、そのカードを手札に加える/))
