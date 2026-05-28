@@ -102,7 +102,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX06-033-E1',
       effectType: 'AUTO',
       timing: ['ON_PLAY'],
-      action: { type: 'UNKNOWN', raw: 'このターン、デッキ上公開枚数+1してもよい（グリッド固有）' },
+      action: { type: 'STUB', id: 'GRID_REVEAL_PLUS' },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: false,
       parseStatus: 'MANUAL',
