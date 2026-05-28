@@ -2853,6 +2853,29 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: newOther },
           `パワー${totalDelta}（${count}枚捨て×${deltaPerCard}）`));
       }
+      // デッキ上2枚を見てクラスシグニをエナへ、残りをデッキ上へ
+      if (stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY') {
+        const srcRPC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtRPC = srcRPC ? (srcRPC.EffectText ?? '') + ' ' + (srcRPC.BurstText ?? '') : '';
+        const classMatchRPC = txtRPC.match(/[<＜]([^>＞]+)[>＞]のシグニ.*エナゾーンに置く/);
+        const targetClassRPC = classMatchRPC?.[1];
+        const viewedRPC = (ctx.lastProcessedCards ?? []).length > 0 ? ctx.lastProcessedCards! : ctx.ownerState.deck.slice(0, 2);
+        if (viewedRPC.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK_CLASS_TO_ENERGY）'));
+        const toEnergyRPC = viewedRPC.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          return c?.Type === 'シグニ' && (!targetClassRPC || c.CardClass?.includes(targetClassRPC));
+        });
+        const toTopRPC = viewedRPC.filter(cn => !toEnergyRPC.includes(cn));
+        let newDeckRPC = [...ctx.ownerState.deck];
+        for (const cn of [...toEnergyRPC, ...toTopRPC]) {
+          const idx = newDeckRPC.indexOf(cn); if (idx >= 0) newDeckRPC.splice(idx, 1);
+        }
+        newDeckRPC = [...toTopRPC, ...newDeckRPC];
+        const newOwnerRPC = { ...ctx.ownerState, deck: newDeckRPC, energy: [...ctx.ownerState.energy, ...toEnergyRPC] };
+        const enamesRPC = toEnergyRPC.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, ownerState: newOwnerRPC },
+          `${enamesRPC || 'なし'}をエナゾーンへ、残り${toTopRPC.length}枚をデッキ上へ`));
+      }
       // 手札のクラスシグニを好きな枚数公開（公開＝SELECT_TARGET、デッキに触れない）
       if (stub.id === 'REVEAL_CLASS_SIGNI_FROM_HAND') {
         const srcRev = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
