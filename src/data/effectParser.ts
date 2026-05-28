@@ -7809,7 +7809,7 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'REVEALED_SIGNI_TO_FIELD_REST_TRASH' } as StubAction;
 
   // ---- この効果をN回繰り返す ----
-  if (t.match(/この効果を(?:あと)?[０-９\d]+回(?:まで)?繰り返す(?:もよい)?/) ||
+  if (t.match(/この効果を(?:あと)?[０-９\d]+回(?:まで)?繰り返し(?:て)?(?:もよい)?/) ||
       t.match(/このアーツの効果を一度繰り返す/))
     return { type: 'STUB', id: 'REPEAT_EFFECT' } as StubAction;
 
