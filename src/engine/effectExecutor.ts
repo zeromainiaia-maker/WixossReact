@@ -2203,6 +2203,29 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'TARGET_ONLY') {
         return done(addLog(ctx, '対象選択（ログのみ）'));
       }
+      // デッキ上N枚公開してM枚を手札に加え残りをデッキ下/トラッシュ/エナゾーンへ
+      if (stub.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM') {
+        const params = (stub as import('../types/effects').StubAction & { revealPickParams?: { pickCount: number | 'ALL'; restDest: 'deck_bottom' | 'trash' | 'energy'; then: 'hand' | 'energy' } }).revealPickParams
+          ?? { pickCount: 1, restDest: 'deck_bottom' as const, then: 'hand' as const };
+        const effText = ctx.sourceCardNum
+          ? (ctx.cardMap.get(ctx.sourceCardNum)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(ctx.sourceCardNum)?.BurstText ?? '')
+          : '';
+        const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const revealM = effText.match(/カードを([０-９\d]+)枚(?:見る|公開する)/);
+        const revealCount = revealM ? parseInt(toHW(revealM[1])) : 5;
+        const deckCards = ctx.ownerState.deck.slice(0, Math.min(revealCount, ctx.ownerState.deck.length));
+        if (deckCards.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK）'));
+        const maxPick = params.pickCount === 'ALL' ? deckCards.length : (params.pickCount as number);
+        const addHandAction: import('../types/effects').AddToHandAction = { type: 'ADD_TO_HAND' };
+        const pending: PendingInteractionDef = {
+          type: 'SEARCH',
+          visibleCards: deckCards,
+          maxPick,
+          thenAction: addHandAction,
+          restDest: params.restDest,
+        };
+        return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで手札に）`), pending);
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
