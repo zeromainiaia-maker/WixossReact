@@ -1433,6 +1433,27 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
   return selectOrInteract(cands, a.count, a.upToCount ?? false, scope, thenAction, undefined, ctx);
 }
 
+function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigniAction, ctx: ExecCtx): ExecResult {
+  let cands: string[] = [];
+  if (a.fromThis && ctx.sourceCardNum) {
+    const zoneIdx = ctx.ownerState.field.signi.findIndex(s => s?.includes(ctx.sourceCardNum!));
+    if (zoneIdx !== -1) {
+      const stack = ctx.ownerState.field.signi[zoneIdx]!;
+      // under-cards = all except the last (top) card
+      cands = stack.slice(0, -1).filter(cn => !a.filter || matchesFilter(ctx.cardMap.get(cn), a.filter));
+    }
+  } else {
+    ctx.ownerState.field.signi.forEach(stack => {
+      if (!stack || stack.length <= 1) return;
+      stack.slice(0, -1).forEach(cn => {
+        if (!a.filter || matchesFilter(ctx.cardMap.get(cn), a.filter)) cands.push(cn);
+      });
+    });
+  }
+  if (cands.length === 0) return done(ctx);
+  return selectOrInteract(cands, a.count, a.upToCount ?? false, 'self_field', a, undefined, ctx);
+}
+
 function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
