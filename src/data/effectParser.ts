@@ -78,6 +78,13 @@ import type {
   Condition,
 } from '../types/effects';
 
+// costColors から実際の色名だけを抽出（カード名・その他を除外）
+function extractCostColors(text: string): string[] {
+  return [...text.matchAll(/《([^》]+)》/g)]
+    .map(m => m[1])
+    .filter(s => /^[赤青緑黒白無](?:[×x×]\d+)?$/.test(s));
+}
+
 // ===== 数値ユーティリティ =====
 
 const FW_DIGIT: Record<string, string> = {
