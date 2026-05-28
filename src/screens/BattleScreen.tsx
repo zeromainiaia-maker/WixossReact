@@ -6007,7 +6007,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         {/* GROWフェイズのグロウボタン */}
         {isMyTurn && bs.turn_phase === 'GROW' && (() => {
           const used    = my.actions_done?.includes('GROW') ?? false;
-          const blocked = my.blocked_actions?.includes('GROW') ?? false;
+          const blocked = (my.blocked_actions?.includes('GROW') ?? false) || (my.no_grow ?? false);
           if (used || blocked || growCandidates.length === 0) return null;
           return (
             <button onClick={() => setShowGrowModal(true)} disabled={loading}
