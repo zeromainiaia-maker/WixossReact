@@ -4221,7 +4221,13 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
   }
 
-  // ---- シグニの下にカードを置く（手札・エナ・デッキから） ----
+  // ---- デッキからN枚このシグニの下に置く ----
+  {
+    const m = t.match(/あなたのデッキの上からカードを([０-９\d]+)枚?このシグニの下に置く/);
+    if (m) return { type: 'PLACE_UNDER_SIGNI', source: 'deck_top', count: parseNum(m[1]) } as PlaceUnderSigniAction;
+  }
+
+  // ---- シグニの下にカードを置く（手札・エナ・デッキから、汎用） ----
   if (t.match(/(?:このシグニ|シグニ１体)の下に置く/) || t.match(/このシグニの下から.*エナゾーンに置く/)) {
     return { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI' } as StubAction;
   }
