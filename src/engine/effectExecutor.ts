@@ -2069,9 +2069,13 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'CONDITIONAL_POWER_BONUS') {
         return done(addLog(ctx, '条件付きパワー修正'));
       }
-      // グロウ/ゾーン制限系
-      if (stub.id === 'LRIG_GROW_RESTRICT' || stub.id === 'LRIG_ZONE_RESTRICT' ||
-          stub.id === 'LRIG_LEVEL_RESTRICT' || stub.id === 'EXTRA_PHASE_RESTRICT') {
+      // グロウ制限：対戦相手の no_grow フラグをセット
+      if (stub.id === 'LRIG_GROW_RESTRICT') {
+        const newOther = { ...ctx.otherState, no_grow: true };
+        return done(addLog({ ...ctx, otherState: newOther }, '対戦相手はグロウできない'));
+      }
+      // その他ゾーン/レベル/フェイズ制限
+      if (stub.id === 'LRIG_ZONE_RESTRICT' || stub.id === 'LRIG_LEVEL_RESTRICT' || stub.id === 'EXTRA_PHASE_RESTRICT') {
         return done(addLog(ctx, 'ルリグ制限効果（ログのみ）'));
       }
       // カード名コピー系
