@@ -1817,8 +1817,8 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
-  // ---- それを手札に加える（REVEAL_AND_PICK の then、またはデッキトップ公開後の処理）----
-  if (t.match(/^それを手札に加える$/)) {
+  // ---- それを/手札に加える（REVEAL_AND_PICK の then、またはデッキトップ公開後の処理）----
+  if (t.match(/^(?:それを)?手札に加える$/)) {
     return { type: 'TRANSFER_TO_HAND', source: { type: 'DECK_CARD', owner: 'self', count: 1 } };
   }
   // ---- それをエナゾーンに置く（REVEAL後の処理）----
