@@ -7639,7 +7639,6 @@ function parseActionText(text: string): EffectAction {
       if (
         cur?.type === 'LOOK_AND_REORDER' &&
         (cur as LookAndReorderAction).count > 0 &&
-        !(cur as LookAndReorderAction).private &&
         nxt?.type === 'STUB' &&
         (nxt as StubAction).id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM'
       ) {
