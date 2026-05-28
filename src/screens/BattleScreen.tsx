@@ -4931,20 +4931,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   アーツを選択
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {artsCandidates.map(card => {
+                  {(() => {
+                    const myLrigName = battleCardMap.get(my.field.lrig.at(-1) ?? '')?.CardName;
+                    return artsCandidates.map(card => {
+                    const effCost = computeArtsEffectiveCost(card, my, myLrigName);
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
-                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
-                    const totalReq = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
+                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti);
+                    const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
                     const betCostAmt = parseBetCost(card.EffectText ?? '');
+                    const costReduced = effCost !== card.Cost;
                     return (
                       <button key={card.CardNum}
                         onClick={() => {
                           if (!canAfford) return;
                           setIsBetting(false);
                           if (totalReq === 0) { executeArts(card, new Set()); }
-                          else { setPendingArtsCard(card); setSelectedArtsCost(new Set()); }
+                          else {
+                            setPendingArtsCard(card);
+                            setPendingArtsEffectiveCost(costReduced ? effCost : null);
+                            setSelectedArtsCost(new Set());
+                          }
                         }}
                         disabled={loading || !canAfford}
                         style={{ display: 'flex', alignItems: 'center', gap: 10,
