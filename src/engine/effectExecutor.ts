@@ -2265,7 +2265,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: 'ライズ対象シグニ常在能力獲得',
           SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 'シグニ引用常在能力付与',
           SIGNI_GRANT_CHOSEN_ABILITY: 'シグニ選んだ能力付与',
-          ACCE_SIGNI_GRANT_ABILITY: 'アクセシグニに能力付与',
           GRANT_LRIG_TYPE_GAME_WIDE: 'ゲーム全体ルリグタイプ付与',
           // ライズ/スタック系
           RIDE_ON: 'ライドオン', RISE_BANISH_SUBSTITUTE: 'ライズバニッシュ代替',
