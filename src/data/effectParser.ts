@@ -1267,6 +1267,24 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
+  // ---- 対戦相手の色か色のシグニをトラッシュ/エナ（色フィルター付き）----
+  {
+    const colorBanishM = t.match(/対戦相手の([白赤青緑黒]か[白赤青緑黒])のシグニ([０-９\d]+)体を対象とし.*トラッシュに置く/);
+    if (colorBanishM) {
+      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorBanishM[2]) } } as BanishAction;
+    }
+    const colorEnergyM = t.match(/対戦相手の([白赤青緑黒]か[白赤青緑黒])のシグニ([０-９\d]+)体を対象とし.*エナゾーンに置く/);
+    if (colorEnergyM) {
+      return { type: 'ENERGY_CHARGE', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorEnergyM[2]) } } as EnergyChargeAction;
+    }
+    // 対戦相手は自分のシグニN体を選びエナゾーンに置く
+    if (t.match(/対戦相手は自分のシグニ[０-９\d]*体?を選びエナゾーンに置く/)) {
+      const cntM = t.match(/([０-９\d]+)体/);
+      const cnt = cntM ? parseNum(cntM[1]) : 1;
+      return { type: 'ENERGY_CHARGE', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as EnergyChargeAction;
+    }
+  }
+
   // ---- ルリグタイプ無視（グロウ制限解除）----
   if (t.match(/このルリグにグロウするためのルリグタイプは無視される/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'IGNORE_LRIG_TYPE', until: 'PERMANENT' };
