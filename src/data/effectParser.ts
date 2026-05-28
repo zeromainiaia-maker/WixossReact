@@ -7800,15 +7800,15 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- それらをルリグトラッシュに置く ----
   if (t.match(/^それらをルリグトラッシュに置く$/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
 
   // ---- それをルリグデッキに加える ----
   if (t.match(/^それをルリグデッキに加える$/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
 
   // ---- このカードをセンタールリグの下に置く ----
   if (t.match(/このカードをあなたのセンタールリグの下に置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
 
   // ---- 手札シグニへのガードアイコン付与 ----
   if (t.match(/このターン.*手札にあるシグニは《ガードアイコン》を得る/))
