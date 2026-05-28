@@ -2095,6 +2095,20 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           totalDelta = toSigned(totalM[1]);
         }
 
+        // ドローパターン: "枚数に+Nを加えた枚数のカードを引く"
+        const drawM = effText.match(/枚数に([０-９\d]+)を加えた枚数のカードを引く/);
+        if (drawM) {
+          const bonus = parseInt(toHW(drawM[1]));
+          const drawCount = processed.length + bonus;
+          if (drawCount > 0) {
+            const s = ctx.ownerState;
+            const canDraw = Math.min(drawCount, s.deck.length);
+            const newS: PlayerState = { ...s, hand: [...s.hand, ...s.deck.slice(0, canDraw)], deck: s.deck.slice(canDraw) };
+            return done(addLog({ ...ctx, ownerState: newS }, `${drawCount}枚ドロー（移動${processed.length}枚+${bonus}）`));
+          }
+          return done(addLog(ctx, 'ドロー（移動枚数+N）'));
+        }
+
         if (totalDelta !== 0) {
           const mods = [...(ctx.otherState.temp_power_mods ?? [])];
           const oppField = ctx.otherState.field;
