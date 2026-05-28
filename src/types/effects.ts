@@ -937,6 +937,15 @@ export interface PreventNextDamageAction {
   count: number;
 }
 
+export interface TakeFromUnderSigniAction {
+  type: 'TAKE_FROM_UNDER_SIGNI';
+  destination: 'hand' | 'energy' | 'trash';
+  count: number;
+  upToCount?: boolean;
+  filter?: TargetFilter;
+  fromThis?: boolean; // true = このシグニの下から（sourceCardNumが基準）
+}
+
 export interface UnknownAction {
   type: 'UNKNOWN';
   raw: string;
