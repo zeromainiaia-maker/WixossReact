@@ -284,6 +284,12 @@ function parseNum(s: string): number {
   return parseInt(toHalf(s), 10);
 }
 
+function parseSignedNum(s: string): number {
+  const h = toHalf(s);
+  if (h.startsWith('-') || h.startsWith('－')) return -parseInt(h.replace(/[＋－+-]/, ''), 10);
+  return parseInt(h.replace(/[＋＋+]/, ''), 10);
+}
+
 // ===== コストパース =====
 
 const ENERGY_COLORS = new Set(['白', '赤', '青', '緑', '黒', '無']);
