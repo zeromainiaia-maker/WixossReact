@@ -7809,7 +7809,7 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'REVEALED_SIGNI_TO_FIELD_REST_TRASH' } as StubAction;
 
   // ---- この効果をN回繰り返す ----
-  if (t.match(/(?:この効果|このアーツの効果)を(?:あと)?[０-９\d一]*回(?:まで)?繰り返[すし](?:て)?(?:もよい)?/))
+  if (t.match(/(?:この効果|このアーツの効果)を(?:あと)?[０-９\d一]*[回度](?:まで)?繰り返[すし](?:て)?(?:もよい)?/))
     return { type: 'STUB', id: 'REPEAT_EFFECT' } as StubAction;
 
   // ---- クラスレベル合計によるパワー変更 ----
