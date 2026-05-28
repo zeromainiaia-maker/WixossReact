@@ -2303,6 +2303,31 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       return done(cur);
     }
+    case 'PLACE_UNDER_SOURCE_SIGNI': {
+      // ctx.sourceCardNum にあるシグニのゾーンに cardNum を下から追加
+      const fromLoc = (action as import('../types/effects').PlaceUnderSourceSigniAction).fromLocation;
+      const sourceCard = ctx.sourceCardNum;
+      if (!sourceCard) return done(ctx);
+      const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCard));
+      if (zoneIdx === -1) return done(ctx);
+      // 移動元のリストから除去
+      let newState = { ...ctx.ownerState };
+      if (fromLoc === 'trash') {
+        newState = { ...newState, trash: newState.trash.filter(c => c !== cardNum) };
+      } else if (fromLoc === 'hand') {
+        newState = { ...newState, hand: newState.hand.filter(c => c !== cardNum) };
+      } else if (fromLoc === 'energy') {
+        newState = { ...newState, energy: newState.energy.filter(c => c !== cardNum) };
+      }
+      // ゾーンの先頭に追加（下に置く）
+      const newSigni = newState.field.signi.map((stack, i) => {
+        if (i !== zoneIdx) return stack;
+        return [cardNum, ...(stack ?? [])];
+      }) as (string[] | null)[];
+      newState = { ...newState, field: { ...newState.field, signi: newSigni } };
+      return done(addLog({ ...ctx, ownerState: newState },
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をシグニの下に置いた`));
+    }
     default:
       return executeAction(action, ctx);
   }
