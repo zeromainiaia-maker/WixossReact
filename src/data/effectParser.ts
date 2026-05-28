@@ -75,6 +75,7 @@ import type {
   DrawPerFieldCountAction,
   AwakenSigniAction,
   NegateAttackAction,
+  PlaceUnderSigniAction,
   StubAction,
   PowerModifyAction,
   BanishAction,
