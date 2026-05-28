@@ -7454,7 +7454,13 @@ function parseActionText(text: string): EffectAction {
       if (chosen) return chosen;
     }
     // ---- 「どちらか/いずれか選ぶ。①...②...」パターン：フィルタで選択肢行が消えたが元textにある場合 ----
-    if (/[①②③④]/.test(text) && /(?:どちらか|いずれか)[１-９\d０-９]*つ?を?選ぶ/.test(text)) {
+    // 残存 sentence が「①②③④」に続く選択肢の内容テキストで、元のテキストが選択肢構造の場合のみ適用
+    if (
+      /[①②③④]/.test(text) &&
+      /(?:どちらか|いずれか)[１-９\d０-９]*つ?を?選ぶ/.test(text) &&
+      // 残存 sentence が「その中から」「残りを」等、選択肢後続テキストの典型パターンで始まる場合
+      /^(?:その中から|残りを|以下の)/.test(s.trim())
+    ) {
       const chosen = buildChoose(text, 1);
       if (chosen) return chosen;
     }
