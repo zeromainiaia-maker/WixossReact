@@ -1428,7 +1428,8 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
   if (cands.length === 0) return done(ctx);
   const thenAction: import('../types/effects').PlaceUnderSourceSigniAction =
     { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: a.source as 'trash' | 'hand' | 'energy' };
-  const scope: TargetScope = 'self_trash';
+  const scope: TargetScope = a.source === 'hand' ? 'self_hand' :
+                              a.source === 'energy' ? 'self_energy' : 'self_trash';
   return selectOrInteract(cands, a.count, a.upToCount ?? false, scope, thenAction, undefined, ctx);
 }
 
