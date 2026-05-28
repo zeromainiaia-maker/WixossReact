@@ -74,6 +74,7 @@ import type {
   AddCraftToLrigDeckAction,
   DrawPerFieldCountAction,
   AwakenSigniAction,
+  NegateAttackAction,
   StubAction,
   PowerModifyAction,
   BanishAction,
