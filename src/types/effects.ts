@@ -244,6 +244,7 @@ export type EffectAction =
   | AltCostOppTurnAction
   | BlockCardUseAction
   | DrawPerFieldCountAction
+  | AwakenSigniAction
   | StubAction
   | UnknownAction;
 
