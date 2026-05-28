@@ -133,8 +133,11 @@ function removeOneCostColor(cost: string, color: string): string {
 }
 
 // EffectText を参照してアーツの実効コストを算出（条件付きコスト軽減の近似）
-function computeArtsEffectiveCost(card: import('./BattleScreen').never extends never ? import('../types').CardData : never, myState: import('../types').PlayerState, lrigName: string | undefined): string;
-function computeArtsEffectiveCost(card: { Cost: string; EffectText?: string }, myState: { life_cloth: string[]; hand: string[]; field: { lrig: string[] } }, lrigName?: string): string {
+function computeArtsEffectiveCost(
+  card: { Cost: string; EffectText?: string },
+  myState: { life_cloth: string[]; hand: string[] },
+  lrigName?: string,
+): string {
   const text = card.EffectText ?? '';
   const base = card.Cost;
   let m: RegExpMatchArray | null;
