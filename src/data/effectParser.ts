@@ -5823,7 +5823,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 対戦相手のアタックしているシグニのアタックを一度無効にする ----
   if (t.match(/対戦相手の.*アタックしている.*シグニ.*アタックを.*無効にする/)) {
-    return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
+    return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as NegateAttackAction;
   }
 
   // ---- 使用条件：特定タイミングにしか使えない ----
