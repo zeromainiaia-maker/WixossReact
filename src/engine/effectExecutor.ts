@@ -1158,6 +1158,29 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     return done(addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}枚をデッキに戻す`));
   }
 
+  if (src.type === 'HAND_CARD') {
+    const cands = handCandidates(state, src.filter, ctx.cardMap);
+    const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
+    const scope: TargetScope = src.owner === 'self' ? 'self_hand' : 'opp_hand';
+
+    function applyHandToDeck(selected: string[], c: ExecCtx): ExecCtx {
+      let cur = c;
+      const s = ownerState(src.owner, cur);
+      const remaining = [...s.hand];
+      const toMove: string[] = [];
+      for (const n of selected) {
+        const i = remaining.indexOf(n);
+        if (i >= 0) { remaining.splice(i, 1); toMove.push(n); }
+      }
+      const newS = insertToDeck({ ...s, hand: remaining }, toMove);
+      return addLog(setOwnerState(src.owner, newS, cur),
+        `手札${toMove.length}枚をデッキ${toBottom ? '下' : '上'}に置く`);
+    }
+
+    if (src.count === 'ALL') return done(applyHandToDeck(cands, ctx));
+    return selectOrInteract(cands, count, a.source.upToCount ?? false, scope, a, undefined, ctx);
+  }
+
   if (src.type === 'SIGNI') {
     const cands = fieldCandidates(state, src.filter, ctx.cardMap, ctx.effectivePowers);
     const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
