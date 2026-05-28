@@ -5970,7 +5970,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 手札の枚数の上限がN増える ----
   if (t.match(/あなたの手札の枚数の上限は[１-９\d０-９]+増える/))
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'STUB', id: 'HAND_SIZE_INCREASE' } as StubAction;
 
   // ---- ウィルスをシグニゾーンに置く（合計N個になるように） ----
   if (t.match(/【ウィルス】の合計が[１-９\d０-９]+つになるように.*シグニゾーンに【ウィルス】を置く/))
