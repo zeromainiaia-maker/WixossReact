@@ -7818,7 +7818,8 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'POWER_MOD_BY_FIELD_CLASS_LEVEL' } as StubAction;
 
   // ---- 手札からクラスシグニを公開 ----
-  if (t.match(/手札から[＜《].*[＞》].*シグニ.*を公開する/))
+  if (t.match(/手札から(?:好きな枚数の)?[＜《].*[＞》].*シグニ.*を公開する/) ||
+      t.match(/対戦相手のシグニ.*を対象とし.*手札から.*シグニを公開する/))
     return { type: 'STUB', id: 'HAND_REVEAL_CLASS_SIGNI' } as StubAction;
 
   // ---- その後、特定カードを公開してもよい ----
