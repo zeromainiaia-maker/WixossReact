@@ -2657,6 +2657,29 @@ export function resumeSearch(
     if (!result.done) return result;
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
   }
+  // 未ピックカードの処理（REVEAL_PICK_HAND_SHUFFLE_BOTTOM など）
+  if (pending.restDest) {
+    const remaining = pending.visibleCards.filter(n => !picked.includes(n));
+    let logMsg = '';
+    for (const cardNum of remaining) {
+      const di = cur.ownerState.deck.indexOf(cardNum);
+      if (di < 0) continue;
+      const newDeck = [...cur.ownerState.deck];
+      newDeck.splice(di, 1);
+      if (pending.restDest === 'deck_bottom') {
+        newDeck.push(cardNum);
+        cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck } };
+        logMsg = '残りをデッキ下へ';
+      } else if (pending.restDest === 'trash') {
+        cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck, trash: [...cur.ownerState.trash, cardNum] } };
+        logMsg = '残りをトラッシュへ';
+      } else if (pending.restDest === 'energy') {
+        cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck, energy: [...cur.ownerState.energy, cardNum] } };
+        logMsg = '残りをエナゾーンへ';
+      }
+    }
+    if (logMsg && remaining.length > 0) cur = addLog(cur, logMsg);
+  }
   if (pending.afterAction) {
     const r = executeAction(pending.afterAction, cur);
     if (!r.done) return r;
