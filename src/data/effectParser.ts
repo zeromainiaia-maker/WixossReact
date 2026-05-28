@@ -7900,11 +7900,7 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'GROW_COST_ZERO' } as StubAction;
 
   // ---- ルリグトラッシュからルリグをセンター下へ ----
-  if (t.match(/ルリグトラッシュから.*センタールリグの下に置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
-
-  // ---- ルリグトラッシュから複数のルリグをセンター下へ ----
-  if (t.match(/ルリグトラッシュから.*ルリグ.*センタールリグの下に置く/))
+  if (t.match(/ルリグトラッシュから.*センタールリグの下に置(?:く|いてもよい)/))
     return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
 
   // ---- すべての領域でクラスとして扱う ----
