@@ -2044,9 +2044,30 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'BET_MECHANIC' || stub.id === 'BET_ALTERNATIVE') {
         return done(addLog(ctx, 'ベット（BattleScreen側処理）'));
       }
-      // ロールプレイ系能力付与（CONTINUOUS効果エンジン側）
+      // 引用符付き能力付与（キーワードを keyword_grants に格納）
       if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
           stub.id === 'GRANT_ABILITY_INNER_TEXT' || stub.id === 'GRANT_QUOTED_ACTIVATE_ABILITY') {
+        const srcGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtGQ = srcGQ ? (srcGQ.EffectText ?? '') + ' ' + (srcGQ.BurstText ?? '') : '';
+        // 付与するキーワードを抽出（ランサー、ダブルクラッシュ、貫通、マルチエナ等）
+        const knownKeywords = ['ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'アサシン', 'バニッシュ無効', 'ライフバースト無効', '影', 'チャーム'];
+        const quotedM = txtGQ.match(/「([^」]+)」を得る/);
+        const quotedText = quotedM ? quotedM[1] : '';
+        const grantedKws = knownKeywords.filter(kw => quotedText.includes(kw));
+        // 対象シグニを決定（「このシグニ」→sourceCardNum、「あなたのシグニすべて」→全自シグニ）
+        const allM = txtGQ.match(/あなたのシグニすべては|あなたの場にあるすべてのシグニ/);
+        const targetCardNums: string[] = allM
+          ? ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : [])
+          : (ctx.sourceCardNum ? [ctx.sourceCardNum] : []);
+        if (grantedKws.length > 0 && targetCardNums.length > 0) {
+          const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+          for (const cn of targetCardNums) {
+            grants[cn] = [...new Set([...(grants[cn] ?? []), ...grantedKws])];
+          }
+          const newOwner = { ...ctx.ownerState, keyword_grants: grants };
+          return done(addLog({ ...ctx, ownerState: newOwner }, `${grantedKws.join('・')}を付与（${targetCardNums.length}体）`));
+        }
+        if (quotedText) return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 15)}...」（ログのみ）`));
         return done(addLog(ctx, '能力を付与（effectEngine処理）'));
       }
       // 加入者数獲得（サブスクライバーカウント）
