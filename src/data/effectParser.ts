@@ -7506,7 +7506,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- シグニを〜体まで対象とし、それらを裏向きにしてもよい ----
   if (t.match(/シグニを[１-９\d０-９]+体まで対象とし.*裏向きにしてもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SIGNI_FLIP_FACEDOWN' } as StubAction;
 
   // ---- この方法でシグニを手札に加えた場合、手札をN枚捨てる ----
   if (t.match(/この方法でシグニを手札に加えた場合、手札を[１-９\d０-９]+枚捨てる/))
