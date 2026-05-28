@@ -2539,8 +2539,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return needsInteraction(addLog(ctx, `デッキからシグニを${pickCount}枚まで検索`), pending);
       }
       // その他公開ピック（エナへ・任意公開など）
-      if (stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY' ||
-          stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
+      if (stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
         return done(addLog(ctx, 'デッキ公開/ピック（ログのみ）'));
       }
       // ソングフラグメント
