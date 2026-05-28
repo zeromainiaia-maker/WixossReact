@@ -92,6 +92,7 @@ export type Condition =
   | { type: 'AND'; conditions: Condition[] }
   | { type: 'IS_MY_TURN' }
   | { type: 'IS_OPPONENT_TURN' }
+  | { type: 'PAID_ADDITIONAL_COST' }
   | { type: 'COND_STUB'; raw: string };
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
