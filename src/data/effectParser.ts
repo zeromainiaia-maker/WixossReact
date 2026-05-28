@@ -7988,7 +7988,7 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'POWER_MOD_DOUBLE_DIFF' } as StubAction;
 
   // ---- アクセ操作 ----
-  if (t.match(/【アクセ】に(?:して|付け)(?:もよい)?/))
+  if (t.match(/【アクセ】/))
     return { type: 'STUB', id: 'ACCE_OP' } as StubAction;
 
   // ---- パワー減少量コピー（毒牙等） ----
