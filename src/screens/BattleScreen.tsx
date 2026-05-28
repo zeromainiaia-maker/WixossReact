@@ -121,6 +121,49 @@ function parseGrowCost(raw: string): { color: string; count: number }[] {
   return result;
 }
 
+// コスト文字列から指定色を1つ減らす（《X》×Nが1→削除、2+→-1）
+function removeOneCostColor(cost: string, color: string): string {
+  const parts = parseGrowCost(cost);
+  const idx = parts.findIndex(p => p.color === color);
+  if (idx < 0) return cost;
+  const newParts = [...parts];
+  newParts[idx] = { color: newParts[idx].color, count: newParts[idx].count - 1 };
+  const result = newParts.filter(p => p.count > 0).map(p => `《${p.color}》×${p.count}`).join('');
+  return result || 'なし';
+}
+
+// EffectText を参照してアーツの実効コストを算出（条件付きコスト軽減の近似）
+function computeArtsEffectiveCost(card: import('./BattleScreen').never extends never ? import('../types').CardData : never, myState: import('../types').PlayerState, lrigName: string | undefined): string;
+function computeArtsEffectiveCost(card: { Cost: string; EffectText?: string }, myState: { life_cloth: string[]; hand: string[]; field: { lrig: string[] } }, lrigName?: string): string {
+  const text = card.EffectText ?? '';
+  const base = card.Cost;
+  let m: RegExpMatchArray | null;
+
+  // ライフクロスがN枚以下の場合コスト減
+  m = text.match(/ライフクロスが([０-９\d]+)枚以下.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
+  if (m && myState.life_cloth.length <= parseInt(toHalfWidth(m[1]))) {
+    return removeOneCostColor(base, m[2]);
+  }
+
+  // 手札がN枚以下の場合コスト減
+  m = text.match(/手札が([０-９\d]+)枚以下.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
+  if (m && myState.hand.length <= parseInt(toHalfWidth(m[1]))) {
+    return removeOneCostColor(base, m[2]);
+  }
+
+  // センタールリグ名条件
+  m = text.match(/センタールリグのカード名に《([^》]+)》を含む.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
+  if (m && lrigName?.includes(m[1])) {
+    return removeOneCostColor(base, m[2]);
+  }
+  m = text.match(/センタールリグが.*?カード名に《([^》]+)》.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
+  if (m && lrigName?.includes(m[1])) {
+    return removeOneCostColor(base, m[2]);
+  }
+
+  return base;
+}
+
 // EffectText から【グロウ】条件テキストを抽出（次の【】の手前まで）
 function extractGrowCondition(effectText?: string): string | null {
   const m = effectText?.match(/【グロウ】([^【]*)/);
