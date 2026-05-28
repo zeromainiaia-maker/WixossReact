@@ -2057,6 +2057,22 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
         return done(addLog(ctx, 'このゲームの間：能力付与（ログのみ）'));
       }
+      // メインフェイズ終了
+      if (stub.id === 'SKIP_MAIN_PHASE') {
+        return done(addLog(ctx, 'メインフェイズ終了（BattleScreen側処理）'));
+      }
+      // ライフクロス手札追加
+      if (stub.id === 'CRASH_LIFE_TO_HAND') {
+        return done(addLog(ctx, '対戦相手のライフクロス手札追加（ログのみ）'));
+      }
+      // クラス/色宣言
+      if (stub.id === 'DECLARE_CLASS' || stub.id === 'DECLARE_COLOR') {
+        return done(addLog(ctx, 'クラス/色宣言（ログのみ）'));
+      }
+      // ターゲット選択のみ（アクションなし）
+      if (stub.id === 'TARGET_ONLY') {
+        return done(addLog(ctx, '対象選択（ログのみ）'));
+      }
       return done(addLog(ctx, `[STUB: ${stub.id}]`));
     }
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
