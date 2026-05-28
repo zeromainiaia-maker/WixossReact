@@ -5923,11 +5923,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   const m = a.match(/^GUARD_MAX_LV(\d+)/);
                   return m ? Math.max(max, parseInt(m[1])) : max;
                 }, -1);
+              const declaredRestrictLv = op.declared_guard_restrict_level;
               const guardCards = my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
                 .filter(({ card }) => {
                   if (card?.Guard !== '1') return false;
                   if (guardBlockedMax >= 0 && parseInt(card.Level ?? '-1') <= guardBlockedMax) return false;
+                  if (declaredRestrictLv !== undefined && parseInt(card.Level ?? '-1') === declaredRestrictLv) return false;
                   return true;
                 });
               return guardCards.length > 0 ? (
