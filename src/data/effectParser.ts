@@ -6344,8 +6344,13 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
 
   // ---- この下からカードをトラッシュに置いてもよい ----
-  if (t.match(/この下からカード[１-９\d０-９]*枚をトラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+  {
+    const mUnder = t.match(/この下からカード([１-９\d０-９]*)枚をトラッシュに置いてもよい/);
+    if (mUnder) {
+      const count = mUnder[1] ? parseNum(mUnder[1]) : 1;
+      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count, upToCount: true, fromThis: true } as TakeFromUnderSigniAction;
+    }
+  }
 
   // ---- スペルがN種類以上ある場合 ----
   if (t.match(/スペルが[１-９\d０-９]+種類以上ある場合/))
