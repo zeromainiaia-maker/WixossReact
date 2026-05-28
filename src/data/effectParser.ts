@@ -6704,7 +6704,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 他のすべてのシグニをトラッシュに置く ----
   if (t.match(/^他のすべてのシグニをトラッシュに置く$/))
-    return { type: 'STUB', id: 'MASS_TRASH' } as StubAction;
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', excludeSelf: true } };
 
   // ---- このターン、あなたは他のシグニを場に出せない ----
   if (t.match(/このターン、あなたは他のシグニを場に出せない/) ||
