@@ -2421,9 +2421,23 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'SKIP_MAIN_PHASE') {
         return done(addLog(ctx, 'メインフェイズ終了（BattleScreen側処理）'));
       }
-      // ライフクロス手札追加
+      // ライフクロスの一番上を手札に加える
       if (stub.id === 'CRASH_LIFE_TO_HAND') {
-        return done(addLog(ctx, '対戦相手のライフクロス手札追加（ログのみ）'));
+        const srcCLH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCLH = srcCLH ? (srcCLH.EffectText ?? '') + ' ' + (srcCLH.BurstText ?? '') : '';
+        // 対象プレイヤーを判定
+        const isOpp = txtCLH.match(/対戦相手のライフクロス.*手札に加える/);
+        const target = isOpp ? 'opponent' : 'self';
+        const st = ownerState(target, ctx);
+        if (st.life_cloth.length === 0) return done(addLog(ctx, 'ライフクロスなし（CRASH_LIFE_TO_HAND）'));
+        const top = st.life_cloth[st.life_cloth.length - 1];
+        const newSt: PlayerState = {
+          ...st,
+          life_cloth: st.life_cloth.slice(0, -1),
+          hand: [...st.hand, top],
+        };
+        const name = ctx.cardMap.get(top)?.CardName ?? top;
+        return done(addLog(setOwnerState(target, newSt, ctx), `ライフクロス上（${name}）を手札へ`));
       }
       // クラス/色宣言
       if (stub.id === 'DECLARE_CLASS' || stub.id === 'DECLARE_COLOR') {
