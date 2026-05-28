@@ -1868,6 +1868,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const newOwner = { ...ctx.ownerState, blocked_card_names: [...(ctx.ownerState.blocked_card_names ?? []), bcu.cardName] };
       return done(addLog({ ...ctx, ownerState: newOwner }, `このターン《${bcu.cardName}》を使用不可`));
     }
+    case 'PREVENT_NEXT_DAMAGE': {
+      const pnd = action as import('../types/effects').PreventNextDamageAction;
+      const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
+      return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、次の${pnd.count ?? 1}回のダメージを無効`));
+    }
     case 'STUB': {
       const stub = action as import('../types/effects').StubAction;
       if (stub.id === 'PREVENT_NEXT_DAMAGE') {
