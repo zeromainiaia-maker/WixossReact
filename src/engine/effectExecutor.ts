@@ -2303,6 +2303,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       return done(cur);
     }
+    case 'NEGATE_ATTACK': {
+      // cardNum を対象シグニの negated_attacks に追加
+      const na = action as import('../types/effects').NegateAttackAction;
+      const tgtOwner = na.target.owner === 'any' ? 'opponent' : na.target.owner as Owner;
+      const s = ownerState(tgtOwner, ctx);
+      const negated = [...(s.negated_attacks ?? []), cardNum];
+      const newS = { ...s, negated_attacks: negated };
+      return done(addLog(setOwnerState(tgtOwner, newS, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}のアタックを無効化`));
+    }
     case 'PLACE_UNDER_SOURCE_SIGNI': {
       // ctx.sourceCardNum にあるシグニのゾーンに cardNum を下から追加
       const fromLoc = (action as import('../types/effects').PlaceUnderSourceSigniAction).fromLocation;
