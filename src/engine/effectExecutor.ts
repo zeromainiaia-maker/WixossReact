@@ -2797,6 +2797,82 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOwner = { ...ctx.ownerState, hand_signi_guard_enabled: true };
         return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン手札のシグニはガードに使える'));
       }
+      // トラッシュからシグニをフィールドシグニの下に置く（ライズ補充）
+      if (stub.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
+        const srcCardT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtT = srcCardT ? (srcCardT.EffectText ?? '') + ' ' + (srcCardT.BurstText ?? '') : '';
+        const toHWT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const lvMT = txtT.match(/レベル([０-９\d]+)以下の/);
+        const maxLvT = lvMT ? parseInt(toHWT(lvMT[1])) : 99;
+        const trashSigniT = ctx.ownerState.trash.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          return c?.Type === 'シグニ' && parseInt(c.Level ?? '0') <= maxLvT;
+        });
+        if (trashSigniT.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし（シグニ下配置スキップ）'));
+        const placeUnderAction: import('../types/effects').PlaceUnderSourceSigniAction = {
+          type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'trash',
+        };
+        return selectOrInteract(trashSigniT, 1, false, 'self_trash', placeUnderAction as EffectAction, undefined, ctx);
+      }
+      // ルリグリミット修正（エナフェイズ終了まで）
+      if (stub.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
+        const srcL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtL = srcL ? (srcL.EffectText ?? '') + ' ' + (srcL.BurstText ?? '') : '';
+        const toHWL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mL = txtL.match(/リミットを([＋+]?)([０-９\d]+)(?:にする|増やす|する)/);
+        const mLMinus = txtL.match(/リミットを([－-])([０-９\d]+)/);
+        let deltaL = 1;
+        if (mLMinus) {
+          deltaL = -parseInt(toHWL(mLMinus[2]));
+        } else if (mL) {
+          deltaL = parseInt(toHWL(mL[2]));
+        } else {
+          const mLPlus = txtL.match(/リミットを＋([０-９\d]+)/);
+          if (mLPlus) deltaL = parseInt(toHWL(mLPlus[1]));
+        }
+        const newMod = (ctx.ownerState.lrig_limit_mod ?? 0) + deltaL;
+        const newOwner = { ...ctx.ownerState, lrig_limit_mod: newMod };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `リミット${deltaL > 0 ? '+' : ''}${deltaL}（エナフェイズ終了まで）`));
+      }
+      // 捨てた枚数基準パワー修正
+      if (stub.id === 'POWER_MOD_BY_DISCARD_COUNT_HIGH') {
+        const count = (ctx.lastProcessedCards ?? []).length;
+        if (count === 0) return done(addLog(ctx, 'パワー修正（捨てた0枚）'));
+        const srcPH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPH = srcPH ? (srcPH.EffectText ?? '') + ' ' + (srcPH.BurstText ?? '') : '';
+        const toHWPH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mPH = txtPH.match(/枚につき([－＋][０-９\d]+)/);
+        const deltaPerCard = mPH ? parseInt(toHWPH(mPH[1]).replace('－', '-').replace('＋', '+')) : -3000;
+        const totalDelta = deltaPerCard * count;
+        const mods = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) {
+          const top = ctx.otherState.field.signi[zi]?.at(-1);
+          if (top) mods.push({ cardNum: top, delta: totalDelta });
+        }
+        const newOther = { ...ctx.otherState, temp_power_mods: mods };
+        return done(addLog({ ...ctx, otherState: newOther },
+          `パワー${totalDelta}（${count}枚捨て×${deltaPerCard}）`));
+      }
+      // デッキトップを公開してレベル一致なら手札に加える
+      if (stub.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
+        const declaredLv = ctx.ownerState.declared_guard_restrict_level;
+        if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topCard = ctx.ownerState.deck[0];
+        const topData = ctx.cardMap.get(topCard);
+        const topLv = parseInt(topData?.Level ?? '-1');
+        if (declaredLv !== undefined && topData?.Type === 'シグニ' && topLv === declaredLv) {
+          const newDeck = ctx.ownerState.deck.slice(1);
+          const newOwner = { ...ctx.ownerState, deck: newDeck, hand: [...ctx.ownerState.hand, topCard] };
+          return done(addLog({ ...ctx, ownerState: newOwner },
+            `デッキトップ公開：${topData?.CardName ?? topCard}（Lv${topLv}）→手札`));
+        }
+        const name = topData?.CardName ?? topCard;
+        const lv = topData?.Level ?? '?';
+        const newDeck2 = ctx.ownerState.deck.slice(1);
+        const newOwner2 = { ...ctx.ownerState, deck: [...newDeck2, topCard] };
+        return done(addLog({ ...ctx, ownerState: newOwner2 },
+          `デッキトップ公開：${name}（Lv${lv}）→不一致、デッキ下へ`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
