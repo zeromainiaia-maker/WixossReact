@@ -6613,7 +6613,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- シグニゾーンに配置してもよい ----
   if (t.match(/シグニゾーン[１-９\d０-９]*つに配置してもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SIGNI_REPOSITION' } as StubAction;
 
   // ---- 各プレイヤーがシグニを場に出す ----
   if (t.match(/各プレイヤーは.*シグニを.*場に出し/))
