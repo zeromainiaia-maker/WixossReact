@@ -7585,8 +7585,8 @@ function parseActionText(text: string): EffectAction {
       continue;
     }
 
-    // 「そうした場合、」「その後、〜の場合、」「(その後、)この方法で〜支払った場合、」「《色》を支払った場合、」はCONDITIONALとして前のステップと結合
-    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+を支払った場合、)|この方法で.+を支払った場合、|(?:《[^》]+》)+を支払った場合、)/);
+    // 「そうした場合、」「この方法で...た場合、」「《色》を支払った場合、」はCONDITIONALとして前のステップと結合
+    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|(?:《[^》]+》)+を支払った場合、)/);
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
       const thenAction = parseSingleSentence(rest);
