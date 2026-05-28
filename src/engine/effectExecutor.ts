@@ -2178,7 +2178,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           COPY_TARGET_POWER: '対象のパワーをコピー', INFECTED_SIGNI_POWER_DOWN_BY_LEVEL: 'ウイルスシグニレベル分パワーダウン',
           LEVEL_MOD_PER_COUNT: 'レベル修正（カウント）', SET_LEVEL_RANGE: 'レベル範囲設定',
           TRASH_FROM_DECK_PER_SIGNI_LEVEL: 'シグニレベル枚数デッキトラッシュ',
-          POWER_MOD_BY_COLOR_VARIETY: 'パワー修正（色の種類）',
           COUNT_BASED_DRAW_OR_POWER: 'カウント基準ドロー/パワー',
           // ダメージ/バースト抑制
           SUPPRESS_LIFE_BURST_ON_CRASH: 'クラッシュ時ライフバースト抑制',
