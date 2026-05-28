@@ -5432,9 +5432,42 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
   }
 
-  // ---- 対戦相手のシグニを〜体まで対象とし（複数ターゲット）----
-  if (t.match(/対戦相手のシグニを[０-９\d]+体まで対象とし/)) {
-    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+  // ---- 対戦相手のシグニをN体まで対象とし → 具体アクション ----
+  {
+    const mDown = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、それらをダウンし凍結する/);
+    if (mDown) {
+      const cnt = parseNum(mDown[1]);
+      return { type: 'SEQUENCE', steps: [
+        { type: 'DOWN',   target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true } } as DownAction,
+        { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true } } as FreezeAction,
+      ]} as SequenceAction;
+    }
+    const mDown2 = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、それらをダウンする/);
+    if (mDown2) {
+      const cnt = parseNum(mDown2[1]);
+      return { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true } } as DownAction;
+    }
+    const mBounce = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、それらを手札に戻す/);
+    if (mBounce) {
+      const cnt = parseNum(mBounce[1]);
+      return { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true } } as BounceAction;
+    }
+    const mBanish = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、それらをバニッシュする/);
+    if (mBanish) {
+      const cnt = parseNum(mBanish[1]);
+      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true } } as BanishAction;
+    }
+    const mPow = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、(?:ターン終了時まで、)?それらのパワーをそれぞれ([＋－+\-][０-９\d]+)する/);
+    if (mPow) {
+      const cnt = parseNum(mPow[1]);
+      const delta = parseSignedNum(mPow[2]);
+      return { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true }, delta } as PowerModifyAction;
+    }
+    // 手札/エナ/トラッシュ消費系は TARGET_AND_DISCARD_HAND STUB に残す
+    if (t.match(/対戦相手のシグニを[０-９\d]+体まで対象とし/) &&
+        (t.includes('手札') || t.includes('エナゾーン') || t.includes('トラッシュに置いてもよい'))) {
+      return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+    }
   }
 
   // ---- このターンと次のターンの間〜（二ターン効果）----
