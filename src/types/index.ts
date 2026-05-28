@@ -122,6 +122,8 @@ export interface PlayerState {
   subscriber_count?: number;
   // ルリグリミット加算修正（エナフェイズ終了まで）
   lrig_limit_mod?: number;
+  // このターン、相手はガードできない（追加無色支払いなし版：OPP_GUARD_COST_COLORLESS）
+  prevent_opp_guard?: boolean;
 }
 
 export interface GameLog {
