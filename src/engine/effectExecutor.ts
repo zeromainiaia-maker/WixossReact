@@ -2121,12 +2121,24 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'ENCORE') {
         return done(addLog(ctx, 'アンコール（BattleScreen側処理）'));
       }
-      // 対戦相手のライフクロス上を見る
+      // 対戦相手のライフクロス上を見る（複数枚パターン対応）
       if (stub.id === 'LOOK_OPP_LIFE_TOP') {
+        const srcLT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtLT = srcLT ? (srcLT.EffectText ?? '') + ' ' + (srcLT.BurstText ?? '') : '';
+        const toHWLT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // 「対戦相手の手札を見る」パターン → 相手の手札枚数をログ
+        if (txtLT.match(/対戦相手の手札を[０-９\d]*枚?見る/)) {
+          const oppHand = ctx.otherState.hand.length;
+          return done(addLog({ ...ctx, lastProcessedCards: ctx.otherState.hand }, `対戦相手の手札${oppHand}枚を確認`));
+        }
         const oppS = ownerState('opponent', ctx);
-        const topCard = oppS.life_cloth[oppS.life_cloth.length - 1];
-        const cardName = topCard ? (ctx.cardMap.get(topCard)?.CardName ?? topCard) : 'なし';
-        return done(addLog(ctx, `対戦相手のライフクロスの一番上を確認：${cardName}`));
+        // N枚確認パターン
+        const countM = txtLT.match(/ライフクロスの上(?:から)?([０-９\d]+)枚(?:の)?(?:カードを)?(?:見る|確認)/);
+        const count = countM ? parseInt(toHWLT(countM[1])) : 1;
+        const viewed = oppS.life_cloth.slice(Math.max(0, oppS.life_cloth.length - count));
+        if (viewed.length === 0) return done(addLog(ctx, '対戦相手のライフクロスなし'));
+        const names = viewed.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+        return done(addLog({ ...ctx, lastProcessedCards: viewed }, `対戦相手のライフクロス上${viewed.length}枚を確認：${names}`));
       }
       // トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ
       if (stub.id === 'TRADE_BANISH_SELF_SIGNI') {
