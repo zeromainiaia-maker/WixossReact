@@ -5780,8 +5780,22 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- このシグニの下からカードを移動 ----
   {
-    const m = t.match(/このシグニの下から(?:《[^》]+》の)?カードを?([０-９\d]*)枚?(まで)?(?:を?対象とし、それ(?:ら)?を)?(手札に加える|エナゾーンに置く|トラッシュに置く)/);
-    if (m && !m[3]?.includes('か')) {
+    // 「手札に加えるかエナゾーンに置く」CHOOSE パターン
+    const mc = t.match(/このシグニの下から(?:《[^》]+》の)?カードを?([０-９\d]*)枚?(まで)?を?手札に加えるかエナゾーンに置く/);
+    if (mc) {
+      const cnt = mc[1] ? parseNum(mc[1]) : 1;
+      return {
+        type: 'CHOOSE',
+        options: [
+          { id: 'hand',   label: '手札に加える',   action: { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'hand',   count: cnt, upToCount: !!mc[2], fromThis: true }, available: true },
+          { id: 'energy', label: 'エナゾーンに置く', action: { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'energy', count: cnt, upToCount: !!mc[2], fromThis: true }, available: true },
+        ],
+        count: 1,
+      } as import('../types/effects').ChooseAction;
+    }
+    // 単一移動先
+    const m = t.match(/このシグニの下から(?:《[^》]+》の)?カードを?([０-９\d]*)枚?(まで)?(?:を?対象とし、それ(?:ら)?を)?を?(手札に加える|エナゾーンに置く|トラッシュに置く)/);
+    if (m) {
       const dest: 'hand' | 'energy' | 'trash' = m[3].includes('手札') ? 'hand' : m[3].includes('エナ') ? 'energy' : 'trash';
       const cnt = m[1] ? parseNum(m[1]) : 1;
       return { type: 'TAKE_FROM_UNDER_SIGNI', destination: dest, count: cnt, upToCount: !!m[2], fromThis: true } as TakeFromUnderSigniAction;
