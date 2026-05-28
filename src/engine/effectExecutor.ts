@@ -1104,6 +1104,30 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           }
         }
       }
+      // Pattern ⑤: OPTIONAL_COST (後続のCONDITIONALなし)
+      // pay → 残りステップ実行; skip → 残りステップをスキップ
+      {
+        const stub5 = step as import('../types/effects').StubAction;
+        const optIds5 = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
+        if (optIds5.includes(stub5.id)) {
+          const remaining5 = a.steps.slice(i + 1);
+          const noopAction5: SequenceAction = { type: 'SEQUENCE', steps: [] };
+          const cont5: EffectAction = remaining5.length > 0
+            ? (remaining5.length === 1 ? remaining5[0] : { type: 'SEQUENCE', steps: remaining5 } as SequenceAction)
+            : noopAction5;
+          const costColors5 = stub5.costColors ?? [];
+          const canAfford5 = costColors5.length === 0 || canPayOptionalCost(costColors5, cur.ownerState, cur.cardMap);
+          const payLabel5 = costColors5.length > 0
+            ? `支払う（${costColors5.map(c => `《${c}》`).join('')}）`
+            : '支払う';
+          const options5 = [
+            { id: 'pay', label: payLabel5, action: cont5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}) },
+            { id: 'skip', label: 'スキップ', action: noopAction5 as EffectAction, available: true },
+          ];
+          const pending5: PendingInteractionDef = { type: 'CHOOSE', options: options5, count: 1 };
+          return needsInteraction(addLog(cur, '任意コスト：支払いますか？'), pending5);
+        }
+      }
     }
     const result = executeAction(step, cur);
     if (!result.done) {
