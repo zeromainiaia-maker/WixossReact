@@ -4227,6 +4227,34 @@ function parseSingleSentence(text: string): EffectAction {
     if (m) return { type: 'PLACE_UNDER_SIGNI', source: 'deck_top', count: parseNum(m[1]) } as PlaceUnderSigniAction;
   }
 
+  // ---- エナゾーンからN枚このシグニの下に置く ----
+  {
+    const m = t.match(/あなたのエナゾーンから((?:《ガードアイコン》を持たない)?(?:カード|シグニ))を?([０-９\d]+)枚?まで?このシグニの下に置く/);
+    if (m) {
+      return {
+        type: 'PLACE_UNDER_SIGNI',
+        source: 'energy',
+        count: parseNum(m[2]),
+        upToCount: t.includes('まで'),
+        filter: { cardType: 'シグニ' },
+      } as PlaceUnderSigniAction;
+    }
+  }
+
+  // ---- 手札からN枚このシグニの下に置く ----
+  {
+    const m = t.match(/あなたの手札から((?:レベル[０-９\d０-９]+の)?(?:シグニ|カード))を?([０-９\d]+)枚?まで?このシグニの下に置く/);
+    if (m) {
+      return {
+        type: 'PLACE_UNDER_SIGNI',
+        source: 'hand',
+        count: parseNum(m[2]),
+        upToCount: t.includes('まで'),
+        filter: { cardType: 'シグニ' },
+      } as PlaceUnderSigniAction;
+    }
+  }
+
   // ---- シグニの下にカードを置く（手札・エナ・デッキから、汎用） ----
   if (t.match(/(?:このシグニ|シグニ１体)の下に置く/) || t.match(/このシグニの下から.*エナゾーンに置く/)) {
     return { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI' } as StubAction;
