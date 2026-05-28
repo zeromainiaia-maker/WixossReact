@@ -3665,7 +3665,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (cpuSt.field?.lrig_attacked) {
       // CPUはガードしない
       let newCpuSt: PlayerState;
-      if (cpuSt.life_cloth.length > 0) {
+      if (cpuSt.prevent_lrig_damage) {
+        appendBattleLogs([`[CPU] ルリグアタックを受けたがルリグダメージ無効`]);
+        newCpuSt = { ...cpuSt, prevent_lrig_damage: undefined, field: { ...cpuSt.field, lrig_attacked: false } };
+        await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+        return;
+      } else if (cpuSt.life_cloth.length > 0) {
         const crashed = cpuSt.life_cloth[cpuSt.life_cloth.length - 1];
         appendBattleLogs([`[CPU] ルリグアタックを受けた → ライフクロスクラッシュ（残り${cpuSt.life_cloth.length - 1}枚）`]);
         newCpuSt = {
