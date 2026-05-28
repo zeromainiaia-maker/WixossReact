@@ -2493,14 +2493,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           CONDITIONAL_ALTERNATE_EFFECT: '条件付き代替効果',
           DECLARE_COLOR_COND_ENERGY_TRASH: '宣言色→エナトラッシュ条件',
           TRASH_IF_ZONE_OCCUPIED: 'ゾーン占有時トラッシュ',
-          PREVENT_POWER_MINUS_BY_OPP: '相手パワーマイナス防止',
           PICK_FROM_TRASHED_CARDS: 'トラッシュカードからピック',
-          POWER_MOD_BY_COLOR_VARIETY: 'パワー修正（色種類）',
-          POWER_DOUBLE_ALL: '全パワー倍',
           TRASH_CLASS_TO_HAND_OR_ENERGY: 'クラストラッシュ→手札かエナ',
           TRASH_SPELL_FREE_USE_LIMIT: 'トラッシュスペル無料使用制限',
           UPKEEP_OR_NO_UP: 'アップキープかアップなし',
-          MULTI_ACCE_FROM_HAND: '手札から複数アクセ',
         };
         const logMsg = STUB_LOG[stub.id];
         if (logMsg !== undefined) {
