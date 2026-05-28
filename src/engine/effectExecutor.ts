@@ -2365,6 +2365,27 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog({ ...ctx, ownerState: newState },
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をシグニの下に置いた`));
     }
+    case 'TAKE_FROM_UNDER_SIGNI': {
+      const ta = action as import('../types/effects').TakeFromUnderSigniAction;
+      // cardNum をシグニゾーンの下カードから除去
+      const newSigni = ctx.ownerState.field.signi.map(stack => {
+        if (!stack) return stack;
+        const idx = stack.indexOf(cardNum);
+        if (idx === -1 || idx === stack.length - 1) return stack; // 上にある or 最上位(シグニ自体)
+        return [...stack.slice(0, idx), ...stack.slice(idx + 1)];
+      }) as (string[] | null)[];
+      let newOwner = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigni } };
+      const destLabel = ta.destination === 'hand' ? '手札' : ta.destination === 'energy' ? 'エナゾーン' : 'トラッシュ';
+      if (ta.destination === 'hand') {
+        newOwner = { ...newOwner, hand: [...newOwner.hand, cardNum] };
+      } else if (ta.destination === 'energy') {
+        newOwner = { ...newOwner, energy: [...newOwner.energy, cardNum] };
+      } else {
+        newOwner = { ...newOwner, trash: [...newOwner.trash, cardNum] };
+      }
+      return done(addLog({ ...ctx, ownerState: newOwner },
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をシグニの下から${destLabel}に移動`));
+    }
     default:
       return executeAction(action, ctx);
   }
