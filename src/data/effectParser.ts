@@ -1389,10 +1389,15 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
-  // ---- 自分手札を捨てる ----
-  const selfDiscardM = t.match(/^(?:あなたは)?手札を([０-９\d]+)枚捨てる$/);
+  // ---- 自分手札を捨てる（任意含む）----
+  const selfDiscardM = t.match(/^(?:あなたは)?手札を([０-９\d]+)枚?捨てる(?:もよい)?$/);
   if (selfDiscardM) {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(selfDiscardM[1]) } };
+  }
+  // ---- 「その後、手札をN枚捨ててもよい」 ----
+  {
+    const optDiscardM = t.match(/手札を([０-９\d]+)枚捨ててもよい$/);
+    if (optDiscardM) return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(optDiscardM[1]) } };
   }
 
   // ---- サーチ（手札 or 場に出す or エナゾーン）----
