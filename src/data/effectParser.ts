@@ -7784,7 +7784,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- それを裏向きにする ----
   if (t.match(/^それ(?:ら)?を裏向きにする(?:もよい)?$/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SIGNI_FLIP_FACEDOWN' } as StubAction;
 
   // ---- N個を選ぶ（CHOOSE断片）----
   if (t.match(/^[１-９\d０-９]+つ(?:まで)?選ぶ$/))
