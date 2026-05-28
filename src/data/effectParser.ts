@@ -4257,6 +4257,21 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'COPY_LRIG_NAME_ABILITY' } as StubAction;
   }
 
+  // ---- 〈クラス〉のシグニN体につきカードをM枚引く ----
+  {
+    const m = t.match(/(あなた|対戦相手)?の?場にある(＜[^＞]+＞の)?シグニ([０-９\d]+)体につきカードを([０-９\d]+)枚引く/);
+    if (m) {
+      const countOwner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      const storyFilter = m[2] ? parseStoryFilter(m[2]) : {};
+      return {
+        type: 'DRAW_PER_FIELD_COUNT',
+        drawPerUnit: parseNum(m[4]),
+        countFilter: { cardType: 'シグニ', ...storyFilter },
+        countOwner,
+      } as DrawPerFieldCountAction;
+    }
+  }
+
   // ---- 対戦相手のシグニ/ルリグのパワーをX×N修正（動的倍率） ----
   if (t.match(/シグニ１体につき[－＋][０-９\d]+する/) || t.match(/につき[－＋][０-９\d]+される/)) {
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
