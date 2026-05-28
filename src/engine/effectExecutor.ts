@@ -2461,6 +2461,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcSO = ctx.sourceCardNum;
         const effSOtxt = srcSO ? (ctx.cardMap.get(srcSO)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(srcSO)?.BurstText ?? '') : '';
         const processed = ctx.lastProcessedCards ?? [];
+        const toHWSO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         // 「それをルリグデッキに加える」→ sourceCardNumをlrig_deckへ
         if (effSOtxt.match(/それをルリグデッキに加える/) && srcSO) {
           const newOwner = { ...ctx.ownerState, lrig_trash: ctx.ownerState.lrig_trash.filter(n => n !== srcSO), lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcSO] };
@@ -2470,6 +2471,36 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if ((effSOtxt.match(/それらをルリグトラッシュに置く/) || effSOtxt.match(/ルリグトラッシュに置く/)) && processed.length > 0) {
           const newOwner = { ...ctx.ownerState, lrig_trash: [...ctx.ownerState.lrig_trash, ...processed] };
           return done(addLog({ ...ctx, ownerState: newOwner }, `${processed.length}枚をルリグトラッシュへ`));
+        }
+        // 「ルリグトラッシュからアーツをルリグデッキに戻す」
+        if (effSOtxt.match(/ルリグトラッシュから.*アーツ.*ルリグデッキに加える/)) {
+          const artsInLrigTrash = ctx.ownerState.lrig_trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
+          if (artsInLrigTrash.length > 0) {
+            const toMove = artsInLrigTrash.slice(0, 1);
+            const newOwner = {
+              ...ctx.ownerState,
+              lrig_trash: ctx.ownerState.lrig_trash.filter(cn => !toMove.includes(cn)),
+              lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), ...toMove],
+            };
+            return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(toMove[0])?.CardName ?? toMove[0]}をルリグデッキへ`));
+          }
+          return done(addLog(ctx, 'ルリグトラッシュにアーツなし'));
+        }
+        // 「ルリグデッキからN枚をルリグトラッシュに置く」
+        const lrigDeckTrashM = effSOtxt.match(/ルリグデッキ(?:の上から)?([０-９\d]+)枚をルリグトラッシュに/);
+        if (lrigDeckTrashM) {
+          const count = parseInt(toHWSO(lrigDeckTrashM[1]));
+          const lrig_deck = ctx.ownerState.lrig_deck ?? [];
+          const toTrash = lrig_deck.slice(0, Math.min(count, lrig_deck.length));
+          if (toTrash.length > 0) {
+            const newOwner = {
+              ...ctx.ownerState,
+              lrig_deck: lrig_deck.slice(toTrash.length),
+              lrig_trash: [...ctx.ownerState.lrig_trash, ...toTrash],
+            };
+            return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグデッキ上${toTrash.length}枚をルリグトラッシュへ`));
+          }
+          return done(addLog(ctx, 'ルリグデッキなし'));
         }
         return done(addLog(ctx, 'ソウル操作'));
       }
