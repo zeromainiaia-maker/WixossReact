@@ -4298,7 +4298,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- ルリグの下のカード操作（ソウル・移動） ----
   if (t.match(/ルリグの下.+カード/) || t.includes('ソウル】にする')) {
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
   }
 
   // ---- デッキからN枚このシグニの下に置く ----
