@@ -1671,11 +1671,13 @@ function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
     : a.count;
   let removed = 0;
   let newTrash = [...s.trash];
+  const removedCards: string[] = [];
   const newCharms = charms.map(c => {
     if (c !== null && removed < count) {
       // フィルターがあればチェック
       if (!a.targetFilter || matchesFilter(ctx.cardMap.get(c), a.targetFilter)) {
         newTrash = [...newTrash, c];
+        removedCards.push(c);
         removed++;
         return null;
       }
@@ -1684,7 +1686,7 @@ function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
   });
   const newS: PlayerState = { ...s, field: { ...s.field, signi_charms: newCharms }, trash: newTrash };
   const ctx2 = setOwnerState(a.targetOwner, newS, ctx);
-  return done(addLog(ctx2, `チャーム${removed}枚をトラッシュに置いた`));
+  return done({ ...addLog(ctx2, `チャーム${removed}枚をトラッシュに置いた`), lastProcessedCards: removedCards });
 }
 
 function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResult {
