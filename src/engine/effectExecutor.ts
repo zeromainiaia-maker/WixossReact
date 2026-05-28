@@ -2182,7 +2182,30 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog(ctx, 'パワー修正（手札枚数）'));
       }
       if (stub.id === 'DOUBLE_POWER_MINUS' || stub.id === 'POWER_MOD_PER_OPPONENT_FIELD') {
-        return done(addLog(ctx, 'パワー修正（動的カウント）'));
+        const srcPMO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMO = srcPMO ? (srcPMO.EffectText ?? '') + ' ' + (srcPMO.BurstText ?? '') : '';
+        const toHWP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // パターン: "対戦相手の場にあるシグニ1体につき-N" or "2倍にする"
+        const perM = txtPMO.match(/(?:シグニ|体)([０-９\d]*)体?につき([－＋][０-９\d]+)/);
+        const doubleM = txtPMO.match(/パワーを([０-９\d]+)倍にする/);
+        const oppCount = ctx.otherState.field.signi.filter(s => s && s.length > 0).length;
+        if (perM) {
+          const unitCount = parseInt(toHWP(perM[1] || '1')) || 1;
+          const delta = parseInt(toHWP(perM[2]).replace('－', '-').replace('＋', '+'));
+          const totalDelta = Math.floor(oppCount / unitCount) * delta;
+          if (totalDelta !== 0) {
+            const mods = [...(ctx.ownerState.temp_power_mods ?? [])];
+            for (let zi = 0; zi < 3; zi++) {
+              const top = ctx.ownerState.field.signi[zi]?.at(-1);
+              if (top) mods.push({ cardNum: top, delta: totalDelta });
+            }
+            return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: mods } },
+              `パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（相手シグニ${oppCount}体）`));
+          }
+        } else if (doubleM) {
+          return done(addLog(ctx, 'パワー2倍修正（ログのみ）'));
+        }
+        return done(addLog(ctx, `パワー修正（相手${oppCount}体基準）`));
       }
       // 条件付きパワーボーナス
       if (stub.id === 'CONDITIONAL_POWER_BONUS') {
