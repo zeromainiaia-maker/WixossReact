@@ -1438,17 +1438,15 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   if (cands.length === 0) return done(ctx);
 
-  function applyNegate(selected: string[], c: ExecCtx): ExecCtx {
-    const s = ownerState(tgtOwner, c);
-    const negated = [...(s.negated_attacks ?? []), ...selected];
-    return addLog(setOwnerState(tgtOwner, { ...s, negated_attacks: negated }, c),
-      `${selected.length}体のシグニのアタックを無効化`);
+  if (a.target.count === 'ALL') {
+    const s = ownerState(tgtOwner, ctx);
+    const negated = [...(s.negated_attacks ?? []), ...cands];
+    const newS = { ...s, negated_attacks: negated };
+    return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}体のシグニのアタックを無効化`));
   }
-
-  if (a.target.count === 'ALL') return done(applyNegate(cands, ctx));
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, applyNegate, ctx);
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execAwakenSigni(ctx: ExecCtx): ExecResult {
