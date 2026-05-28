@@ -5871,7 +5871,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 次のターンの間、対戦相手はグロウできない ----
   if (t.match(/次のターンの間、対戦相手はグロウできない/)) {
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GROW', until: 'NEXT_TURN' } as import('./effects').BlockActionAction;
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GROW', until: 'NEXT_TURN' } as BlockActionAction;
   }
 
   // ---- 対戦相手のターン終了時、このシグニをトラッシュに置いてもよい ----
