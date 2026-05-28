@@ -3311,8 +3311,10 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'DISCARD_BY_POWER_MATCH' } as StubAction;
   }
 
-  // ---- このターン次にダメージを受ける場合代わりに受けない ----
-  if (t.match(/このターン.*次にあなたがダメージを受ける場合.*代わりにダメージを受けない/)) {
+  // ---- このターン次にダメージを受ける場合代わりに受けない（シグニ/ルリグ指定含む）----
+  if (t.match(/このターン.*次にあなたが(?:シグニ|ルリグ|[^から]*)?(?:から|によって|で)?ダメージを受ける場合.*代わりにダメージを受けない/) ||
+      t.match(/このターン.*あなたは.*(?:シグニ|ルリグ)によってダメージを受けない/) ||
+      t.match(/それはこのアタックでダメージを与えない/)) {
     return { type: 'PREVENT_NEXT_DAMAGE', count: 1 } as PreventNextDamageAction;
   }
 
