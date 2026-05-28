@@ -7442,11 +7442,6 @@ function parseActionText(text: string): EffectAction {
     const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
     const chosen = buildChoose(text, chooseCount);
     if (chosen) return chosen;
-    // 「どちらか/いずれか選ぶ」パターン
-    if (/[①②③④]/.test(text)) {
-      const chosen2 = buildChoose(text, 1);
-      if (chosen2) return chosen2;
-    }
     return { type: 'UNKNOWN', raw: text };
   }
   if (sentences.length === 1) {
