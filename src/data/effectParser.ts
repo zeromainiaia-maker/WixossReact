@@ -5852,12 +5852,13 @@ function parseSingleSentence(text: string): EffectAction {
       const cnt = mc[1] ? parseNum(mc[1]) : 1;
       return {
         type: 'CHOOSE',
-        options: [
-          { id: 'hand',   label: '手札に加える',   action: { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'hand',   count: cnt, upToCount: !!mc[2], fromThis: true }, available: true },
-          { id: 'energy', label: 'エナゾーンに置く', action: { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'energy', count: cnt, upToCount: !!mc[2], fromThis: true }, available: true },
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          { choiceId: 'hand',   label: '手札に加える',   action: { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'hand',   count: cnt, upToCount: !!mc[2], fromThis: true } as TakeFromUnderSigniAction },
+          { choiceId: 'energy', label: 'エナゾーンに置く', action: { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'energy', count: cnt, upToCount: !!mc[2], fromThis: true } as TakeFromUnderSigniAction },
         ],
-        count: 1,
-      } as import('../types/effects').ChooseAction;
+      } as ChooseAction;
     }
     // 単一移動先
     const m = t.match(/このシグニの下から(?:《[^》]+》の)?カードを?([０-９\d]*)枚?(まで)?(?:を?対象とし、それ(?:ら)?を)?を?(手札に加える|エナゾーンに置く|トラッシュに置く)/);
