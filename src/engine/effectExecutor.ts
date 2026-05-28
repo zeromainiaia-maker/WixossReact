@@ -2242,7 +2242,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           PLACE_SEED_FROM_REVEALED: 'シード設置（公開から）', SEED_FLOWER_OP: 'シードフラワー操作',
           SEED_HAND_AND_BLOOM_FROM_DECK_TOP: 'シード手札+ブルーム',
           // 公開/ピック系
-          REVEAL_PICK_HAND_SHUFFLE_BOTTOM: '公開して手札に加え残りをシャッフル後デッキ下',
           REVEAL_CLASS_SIGNI_FROM_HAND: '手札のクラスシグニを公開',
           HAND_REVEAL_CLASS_SIGNI: '手札のクラスシグニを公開',
           OPTIONAL_HAND_REVEAL_NAMED: '手札カードを任意公開',
