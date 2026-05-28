@@ -5991,7 +5991,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- このシグニのレベルはN枚につきN減る ----
   if (t.match(/このシグニのレベルは.*[０-９\d]枚?につき[０-９\d]+減る/)) {
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'STUB', id: 'LEVEL_MOD_PER_COUNT' } as StubAction;
   }
 
   // ---- そうしない場合、このシグニを場からトラッシュに置く ----
