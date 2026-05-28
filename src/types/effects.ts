@@ -245,6 +245,7 @@ export type EffectAction =
   | BlockCardUseAction
   | DrawPerFieldCountAction
   | AwakenSigniAction
+  | NegateAttackAction
   | StubAction
   | UnknownAction;
 
