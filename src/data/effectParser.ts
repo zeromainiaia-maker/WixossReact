@@ -1377,9 +1377,9 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(selfDiscardM[1]) } };
   }
 
-  // ---- サーチ（手札 or 場に出す）----
+  // ---- サーチ（手札 or 場に出す or エナゾーン）----
   if (t.includes('デッキから') && t.includes('探して') &&
-      (t.includes('手札に加え') || t.includes('場に出し') || t.includes('トラッシュに置き'))) {
+      (t.includes('手札に加え') || t.includes('場に出し') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く'))) {
     const filter: TargetFilter = {
       ...parseCardTypeFilter(t),
       ...parseLevelFilter(t),
