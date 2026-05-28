@@ -591,7 +591,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       };
       return addLog(setOwnerState(tgt.owner, newS, c), `エナゾーン${selected.length}枚トラッシュへ`);
     }
-    if (tgt.count === 'ALL') return done(applyTrashEnergy(cands, ctx));
+    if (tgt.count === 'ALL') return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
     return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
   }
@@ -604,7 +604,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       deck: state.deck.slice(count),
       trash: [...state.trash, ...took],
     };
-    return done(addLog(setOwnerState(tgt.owner, newS, ctx), `デッキ上${count}枚トラッシュへ`));
+    return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `デッキ上${count}枚トラッシュへ`), lastProcessedCards: took });
   }
 
   return done(ctx);
