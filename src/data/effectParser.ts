@@ -2016,6 +2016,53 @@ function parseSingleSentence(text: string): EffectAction {
     };
   }
 
+  // ---- CONTINUOUS: このシグニのパワーはあなたの場にいるルリグ N体につき±N（ルリグ参照）----
+  {
+    const m = t.match(/このシグニのパワーは(あなた|対戦相手)の場に(?:いる|ある)(?:他の)?(.+?)のルリグ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
+    if (m) {
+      const countOwner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      const sign = m[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_FIELD',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerUnit: sign * parseNum(m[4]),
+        countFilter: { cardType: 'ルリグ', ...parseColorFilter(m[2]), ...parseStoryFilter(m[2]) },
+        countOwner,
+      } as PowerModifyPerFieldAction;
+    }
+  }
+
+  // ---- CONTINUOUS: このシグニのパワーは他のシグニ N体につき±N（両プレイヤー参照）----
+  {
+    const m = t.match(/このシグニのパワーは他のシグニ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
+    if (m) {
+      const sign = m[1] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_FIELD',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerUnit: sign * parseNum(m[2]),
+        countFilter: { cardType: 'シグニ' },
+        countOwner: 'any',
+        excludeSelf: true,
+      } as PowerModifyPerFieldAction;
+    }
+  }
+
+  // ---- CONTINUOUS: このシグニのパワーはあなたの手札N枚につき±N----
+  {
+    const m = t.match(/このシグニのパワーは(?:あなたの)?手札([０-９\d]+)枚につき([＋－])([０-９\d]+)され/);
+    if (m) {
+      const sign = m[2] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_FIELD',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerUnit: sign * parseNum(m[3]),
+        countFilter: { cardType: 'シグニ' },
+        countOwner: 'self',
+      } as import('../types/effects').StubAction; // TODO: implement PowerModifyPerHandCount
+    }
+  }
+
   // ---- このシグニのパワーはあなたの場にある[他の]＜X＞のシグニ１体につき±Nされる ----
   const perFieldSelfM = t.match(/このシグニのパワーは(あなた|対戦相手)の場にある(?:他の)?(.+?)のシグニ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
   if (perFieldSelfM) {
@@ -2025,7 +2072,7 @@ function parseSingleSentence(text: string): EffectAction {
       type: 'POWER_MODIFY_PER_FIELD',
       target: { type: 'SIGNI', owner: 'self', count: 1 },
       deltaPerUnit: sign * parseNum(perFieldSelfM[4]),
-      countFilter: { cardType: 'シグニ', ...parseStoryFilter(perFieldSelfM[2]) },
+      countFilter: { cardType: 'シグニ', ...parseStoryFilter(perFieldSelfM[2]), ...parseColorFilter(perFieldSelfM[2]) },
       countOwner,
     } as PowerModifyPerFieldAction;
   }
