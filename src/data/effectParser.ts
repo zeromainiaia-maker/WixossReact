@@ -7571,6 +7571,20 @@ function parseActionText(text: string): EffectAction {
       continue;
     }
 
+    // 「追加で.*を支払っていた場合、[代わりに]」= Pattern④ 追加コスト強化
+    // 代わりに → IS_MY_TURN (REPLACE モード)、なし → PAID_ADDITIONAL_COST (ADDITIONAL モード)
+    const additionalPaidM = clean.match(/^(?:この方法で)?追加で.+を支払っていた場合、(代わりに)?/);
+    if (additionalPaidM && steps.length > 0) {
+      const isReplace = !!additionalPaidM[1];
+      const rest = clean.slice(additionalPaidM[0].length);
+      const thenAction = parseSingleSentence(rest);
+      const condition = isReplace
+        ? { type: 'IS_MY_TURN' as const }
+        : { type: 'PAID_ADDITIONAL_COST' as const };
+      steps.push({ type: 'CONDITIONAL', condition, then: thenAction });
+      continue;
+    }
+
     // 「そうした場合、」「その後、〜の場合、」「(その後、)この方法で〜支払った場合、」「《色》を支払った場合、」はCONDITIONALとして前のステップと結合
     const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+を支払った場合、)|この方法で.+を支払った場合、|(?:《[^》]+》)+を支払った場合、)/);
     if (thenM && steps.length > 0) {
