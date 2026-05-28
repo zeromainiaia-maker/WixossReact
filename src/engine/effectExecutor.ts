@@ -2497,6 +2497,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           TRASH_CLASS_TO_HAND_OR_ENERGY: 'クラストラッシュ→手札かエナ',
           TRASH_SPELL_FREE_USE_LIMIT: 'トラッシュスペル無料使用制限',
           UPKEEP_OR_NO_UP: 'アップキープかアップなし',
+          OPTIONAL_DISCARD_CLASS_SIGNI: 'クラスシグニを任意捨て',
+          WEAPON_SIGNI_PREVENT_DOWN: 'ウェポンシグニダウン防止',
+          ACTIVATE_COST_ZERO_BLACK: '黒の起動コスト0',
+          BET_CONDITION: 'ベット条件',
+          TRADE_SELF_AND_OPP_TO_ENERGY: '自分と相手をエナに',
         };
         const logMsg = STUB_LOG[stub.id];
         if (logMsg !== undefined) {
