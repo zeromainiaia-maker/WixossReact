@@ -3419,12 +3419,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`${myCardName}がアタック：ダメージ無効`]);
           newOpState = afterFirst;
         } else if (!firstCrashed) {
-          // ライフなし → 相手の敗北
-          appendBattleLogs([`${myCardName}がアタック：相手のライフなし → 相手の敗北`]);
-          await supabase.from('battle_states')
-            .update({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: user.id })
-            .eq('room_id', roomId);
-          return;
+          if (newOpState.prevent_defeat) {
+            appendBattleLogs([`${myCardName}がアタック：ライフなし → 敗北無効`]);
+            newOpState = { ...newOpState, prevent_defeat: undefined };
+          } else {
+            // ライフなし → 相手の敗北
+            appendBattleLogs([`${myCardName}がアタック：相手のライフなし → 相手の敗北`]);
+            await supabase.from('battle_states')
+              .update({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: user.id })
+              .eq('room_id', roomId);
+            return;
+          }
         } else {
           appendBattleLogs([attackLabel]);
           newOpState = afterFirst;
