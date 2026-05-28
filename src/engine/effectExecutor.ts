@@ -1217,7 +1217,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     const cands = trashCandidates(state, src.filter, ctx.cardMap);
     const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
     const newS = insertToDeck({ ...state, trash: state.trash.filter(n => !cards.includes(n)) }, cards);
-    return done(addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}枚をデッキに戻す`));
+    return done({ ...addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}枚をデッキに戻す`), lastProcessedCards: cards });
   }
 
   if (src.type === 'HAND_CARD') {
@@ -1239,7 +1239,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
         `手札${toMove.length}枚をデッキ${toBottom ? '下' : '上'}に置く`);
     }
 
-    if (src.count === 'ALL') return done(applyHandToDeck(cands, ctx));
+    if (src.count === 'ALL') return done({ ...applyHandToDeck(cands, ctx), lastProcessedCards: cands });
     return selectOrInteract(cands, count, a.source.upToCount ?? false, scope, a, undefined, ctx);
   }
 
@@ -1260,7 +1260,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       return cur;
     }
 
-    if (src.count === 'ALL') return done(applyToBottom(cands, ctx));
+    if (src.count === 'ALL') return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
     return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
   }
 
