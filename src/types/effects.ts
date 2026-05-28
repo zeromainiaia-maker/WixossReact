@@ -243,6 +243,7 @@ export type EffectAction =
   | RecollectGateAction
   | AltCostOppTurnAction
   | BlockCardUseAction
+  | DrawPerFieldCountAction
   | StubAction
   | UnknownAction;
 
