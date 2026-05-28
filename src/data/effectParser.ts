@@ -6458,7 +6458,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- デッキの上からシグニのレベルと同じ枚数をトラッシュ ----
   if (t.match(/デッキの上からそのシグニのレベルと同じ枚数のカードをトラッシュに置く/))
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'STUB', id: 'TRASH_FROM_DECK_PER_SIGNI_LEVEL' } as StubAction;
 
   // ---- デッキからシグニを探して公開する ----
   if (t.match(/^あなたのデッキからシグニ[１-９\d０-９]*枚を探して公開する$/))
