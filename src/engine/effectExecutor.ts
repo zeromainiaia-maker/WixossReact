@@ -312,9 +312,10 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cond.phases.includes(ctx.currentPhase ?? '');
     case 'AND':
       return cond.conditions.every(c => evalCondition(c, ctx));
-    case 'IS_MY_TURN':    return true;
-    case 'IS_OPPONENT_TURN': return false;
-    case 'COND_STUB':     return true;
+    case 'IS_MY_TURN':            return true;
+    case 'IS_OPPONENT_TURN':      return false;
+    case 'PAID_ADDITIONAL_COST':  return false; // execSequence の look-ahead で処理済みのため通常到達しない
+    case 'COND_STUB':             return true;
     default: return true;
   }
 }
