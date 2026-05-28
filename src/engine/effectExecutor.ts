@@ -3062,6 +3062,42 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const placeAction: import('../types/effects').PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
         return selectOrInteract(handSigHSU, maxHSU, false, 'self_hand', placeAction as EffectAction, undefined, ctx);
       }
+      // 手札からカードをこのシグニの下に置く（HAND_CARDS_UNDER_SIGNI / PLACE_SIGNI_UNDER_SELF_OPT）
+      if (stub.id === 'HAND_CARDS_UNDER_SIGNI' || stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT') {
+        const srcHCU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtHCU = srcHCU ? (srcHCU.EffectText ?? '') + ' ' + (srcHCU.BurstText ?? '') : '';
+        const toHWHCU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const maxMHCU = txtHCU.match(/(?:手札から)?カード(?:を)?([０-９\d]+)枚まで/);
+        const maxHCU = maxMHCU ? parseInt(toHWHCU(maxMHCU[1])) : 1;
+        const optHCU = stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT' || txtHCU.includes('もよい');
+        const lvMHCU = txtHCU.match(/レベル([０-９\d]+)以上のシグニ/);
+        const minLvHCU = lvMHCU ? parseInt(toHWHCU(lvMHCU[1])) : 0;
+        const handCandsHCU = ctx.ownerState.hand.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (!c) return false;
+          const lv = parseInt(c.Level ?? '0');
+          return (!minLvHCU || lv >= minLvHCU);
+        });
+        if (handCandsHCU.length === 0) return done(addLog(ctx, '手札なし（シグニ下配置スキップ）'));
+        const placeActionHCU: import('../types/effects').PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
+        return selectOrInteract(handCandsHCU, maxHCU, optHCU, 'self_hand', placeActionHCU as EffectAction, undefined, ctx);
+      }
+      // シグニの下のカードをエナゾーンに置く
+      if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
+        const underCardsUTE: string[] = [];
+        for (let zi = 0; zi < 3; zi++) {
+          const stack = ctx.ownerState.field.signi[zi];
+          if (stack && stack.length > 1) underCardsUTE.push(...stack.slice(0, -1));
+        }
+        if (underCardsUTE.length === 0) return done(addLog(ctx, 'シグニの下にカードなし'));
+        const srcUTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtUTE = srcUTE ? (srcUTE.EffectText ?? '') + ' ' + (srcUTE.BurstText ?? '') : '';
+        const toHWUTE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const maxMUTE = txtUTE.match(/カード([０-９\d]+)枚/);
+        const maxUTE = maxMUTE ? parseInt(toHWUTE(maxMUTE[1])) : 1;
+        const toEnergyAction: EffectAction = { type: 'MOVE_CARD', from: 'hand', to: 'energy', owner: 'self' } as EffectAction;
+        return selectOrInteract(underCardsUTE, maxUTE, false, 'self_hand', toEnergyAction, undefined, ctx);
+      }
       // デッキトップを公開してレベル一致なら手札に加える
       if (stub.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
         const declaredLv = ctx.ownerState.declared_guard_restrict_level;
