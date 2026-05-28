@@ -3084,19 +3084,28 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // シグニの下のカードをエナゾーンに置く
       if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
-        const underCardsUTE: string[] = [];
-        for (let zi = 0; zi < 3; zi++) {
-          const stack = ctx.ownerState.field.signi[zi];
-          if (stack && stack.length > 1) underCardsUTE.push(...stack.slice(0, -1));
+        // sourceCardNumのシグニが自分フィールドにある場合はそのゾーンの下を優先
+        const srcZoneUTE = ctx.sourceCardNum
+          ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum)
+          : -1;
+        let pickedZoneUTE = srcZoneUTE >= 0 ? srcZoneUTE : -1;
+        if (pickedZoneUTE < 0) {
+          // 最初に見つけた「下にカードがある」ゾーン
+          pickedZoneUTE = ctx.ownerState.field.signi.findIndex(s => s && s.length > 1);
         }
-        if (underCardsUTE.length === 0) return done(addLog(ctx, 'シグニの下にカードなし'));
-        const srcUTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-        const txtUTE = srcUTE ? (srcUTE.EffectText ?? '') + ' ' + (srcUTE.BurstText ?? '') : '';
-        const toHWUTE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const maxMUTE = txtUTE.match(/カード([０-９\d]+)枚/);
-        const maxUTE = maxMUTE ? parseInt(toHWUTE(maxMUTE[1])) : 1;
-        const toEnergyAction: EffectAction = { type: 'MOVE_CARD', from: 'hand', to: 'energy', owner: 'self' } as EffectAction;
-        return selectOrInteract(underCardsUTE, maxUTE, false, 'self_hand', toEnergyAction, undefined, ctx);
+        if (pickedZoneUTE < 0) return done(addLog(ctx, 'シグニの下にカードなし'));
+        const stackUTE = [...(ctx.ownerState.field.signi[pickedZoneUTE] ?? [])];
+        const movedUTE = stackUTE.shift(); // 一番下のカードを取り出す
+        if (!movedUTE) return done(addLog(ctx, 'シグニの下にカードなし'));
+        const newSigniUTE = [...ctx.ownerState.field.signi] as (string[] | null)[];
+        newSigniUTE[pickedZoneUTE] = stackUTE.length > 0 ? stackUTE : null;
+        const newOwnerUTE = {
+          ...ctx.ownerState,
+          field: { ...ctx.ownerState.field, signi: newSigniUTE },
+          energy: [...ctx.ownerState.energy, movedUTE],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwnerUTE },
+          `${ctx.cardMap.get(movedUTE)?.CardName ?? movedUTE}をエナゾーンへ（シグニ下から）`));
       }
       // デッキトップを公開してレベル一致なら手札に加える
       if (stub.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
