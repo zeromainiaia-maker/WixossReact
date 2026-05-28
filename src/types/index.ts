@@ -102,6 +102,8 @@ export interface PlayerState {
   lrig_granted_auto_effects?: import('./effects').CardEffect[];
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（BANISH_REDIRECT）
   banish_redirect?: boolean;
+  // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
+  declared_guard_restrict_level?: number;
   // 覚醒状態のシグニのCardNum一覧（永続、場を離れるまで有効）
   awakened_signi?: string[];
   // このターン次にアタックしたとき無効にされるシグニのCardNum一覧
