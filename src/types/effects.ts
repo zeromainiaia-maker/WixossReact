@@ -253,6 +253,14 @@ export interface DrawAction {
   count: NumberOrRef;
 }
 
+// フィールドのシグニ N体につき M枚ドロー
+export interface DrawPerFieldCountAction {
+  type: 'DRAW_PER_FIELD_COUNT';
+  drawPerUnit: number;        // シグニ1体ごとに引く枚数
+  countFilter: TargetFilter;  // カウント対象シグニのフィルタ
+  countOwner: Owner;          // カウントするフィールドのオーナー
+}
+
 export interface BounceAction {
   type: 'BOUNCE'; // フィールド→手札
   target: EffectTarget;
