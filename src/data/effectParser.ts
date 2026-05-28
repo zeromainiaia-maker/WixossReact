@@ -98,11 +98,16 @@ function extractCostColors(text: string): string[] {
 // REVEAL_PICK_HAND_SHUFFLE_BOTTOM STUBのメタデータを抽出して返す
 function makeRevealPickStub(t: string): StubAction {
   let pickCount: number | 'ALL' = 1;
+  // パターン1: "その中からN枚" (直接)
   const countM = t.match(/その中から([０-９\d]+|好きな枚数|すべて)/);
   if (countM) {
     const v = countM[1];
     if (v === '好きな枚数' || v === 'すべて') pickCount = 'ALL';
     else pickCount = parseNum(v);
+  } else {
+    // パターン2: "カードをN枚まで" or "N枚まで手札に加え" (数字が中間にある場合)
+    const countM2 = t.match(/([０-９\d]+)枚(?:まで)?(?:を)?手札に加え/);
+    if (countM2) pickCount = parseNum(countM2[1]);
   }
   let restDest: 'deck_bottom' | 'trash' | 'energy' = 'deck_bottom';
   if (t.match(/残り.*トラッシュ|トラッシュに置く$|トラッシュに置いてもよい$/)) restDest = 'trash';
