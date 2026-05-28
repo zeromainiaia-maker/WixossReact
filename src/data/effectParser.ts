@@ -6366,7 +6366,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- すべてのシグニを好きなように配置し直してもよい ----
   if (t.match(/すべてのシグニを、?好きなように配置し直してもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SIGNI_REPOSITION' } as StubAction;
 
   // ---- 宣言されたカード名のカードが《サーバントZERO》になる ----
   if (t.match(/宣言されたカード名のカードは《サーバント.*》になる/))
