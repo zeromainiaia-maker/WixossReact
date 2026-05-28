@@ -2366,6 +2366,28 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog({ ...ctx, ownerState: newState },
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をシグニの下に置いた`));
     }
+    case 'DOWN': {
+      const downA = action as import('../types/effects').DownAction;
+      const downOwner = downA.target.owner === 'any' ? 'opponent' : downA.target.owner as Owner;
+      const downS = ownerState(downOwner, ctx);
+      const zoneIdx = downS.field.signi.findIndex(st => st?.at(-1) === cardNum);
+      if (zoneIdx < 0) return done(ctx);
+      const newDown = [...(downS.field.signi_down ?? [false, false, false])] as boolean[];
+      newDown[zoneIdx] = true;
+      return done(addLog(setOwnerState(downOwner, { ...downS, field: { ...downS.field, signi_down: newDown } }, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をダウン`));
+    }
+    case 'FREEZE': {
+      const frzA = action as import('../types/effects').FreezeAction;
+      const frzOwner = frzA.target.owner === 'any' ? 'opponent' : frzA.target.owner as Owner;
+      const frzS = ownerState(frzOwner, ctx);
+      const frzIdx = frzS.field.signi.findIndex(st => st?.at(-1) === cardNum);
+      if (frzIdx < 0) return done(ctx);
+      const newFrz = [...(frzS.field.signi_frozen ?? [false, false, false])] as boolean[];
+      newFrz[frzIdx] = true;
+      return done(addLog(setOwnerState(frzOwner, { ...frzS, field: { ...frzS.field, signi_frozen: newFrz } }, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を凍結`));
+    }
     case 'TAKE_FROM_UNDER_SIGNI': {
       const ta = action as import('../types/effects').TakeFromUnderSigniAction;
       // cardNum をシグニゾーンの下カードから除去
