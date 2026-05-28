@@ -7887,7 +7887,7 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'TRAP_OPERATION' } as StubAction;
 
   // ---- トラップ/チェックゾーン操作 ----
-  if (t.match(/【トラップ】として.*設置/) || t.match(/チェックゾーン(?:に置|から|を離れ|のライフ)/) ||
+  if (t.match(/【トラップ】として.*設置/) || t.match(/チェックゾーン(?:に?置|から|を離れ|のライフ|置いた)/) ||
       t.match(/トラップ能力を得て/))
     return { type: 'STUB', id: 'TRAP_OPERATION' } as StubAction;
 
