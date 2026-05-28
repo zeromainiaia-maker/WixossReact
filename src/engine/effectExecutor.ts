@@ -1763,6 +1763,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'COST_INCREASE':           return execCostIncrease(action as CostIncreaseAction, ctx);
     case 'POWER_MODIFY_PER_FIELD':     return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
     case 'DRAW_PER_FIELD_COUNT':       return execDrawPerFieldCount(action as import('../types/effects').DrawPerFieldCountAction, ctx);
+    case 'AWAKEN_SIGNI':               return execAwakenSigni(ctx);
     case 'POWER_MODIFY_PER_LRIG_LEVEL': return execPowerModifyPerLrigLevel(action as PowerModifyPerLrigLevelAction, ctx);
     case 'FORCE_END_TURN':             return done(addLog({ ...ctx, forceEndTurn: true }, 'ターンを強制終了'));
     case 'CHARM_PROTECTION':           return execCharmProtection(action as CharmProtectionAction, ctx);
