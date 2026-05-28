@@ -2137,6 +2137,27 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // 条件付きパワーボーナス
       if (stub.id === 'CONDITIONAL_POWER_BONUS') {
+        const srcCB = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCB = srcCB ? (srcCB.EffectText ?? '') + ' ' + (srcCB.BurstText ?? '') : '';
+        const toHWC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const toSignedC = (s: string) => parseInt(toHWC(s).replace('－', '-').replace('＋', '+'));
+        // パターン「この方法でN枚以上の場合、±X」
+        const cM = txtCB.match(/この方法で.*?([０-９\d]+)枚以上.*?場合.*?([－＋][０-９\d]+)(?:する|される)/s);
+        if (cM) {
+          const threshold = parseInt(toHWC(cM[1]));
+          const delta = toSignedC(cM[2]);
+          const processed = ctx.lastProcessedCards ?? [];
+          if (processed.length >= threshold && delta !== 0) {
+            const mods = [...(ctx.otherState.temp_power_mods ?? [])];
+            for (let zi = 0; zi < 3; zi++) {
+              const top = ctx.otherState.field.signi[zi]?.at(-1);
+              if (top) mods.push({ cardNum: top, delta });
+            }
+            const newOther = { ...ctx.otherState, temp_power_mods: mods };
+            return done(addLog({ ...ctx, otherState: newOther }, `パワー${delta > 0 ? '+' : ''}${delta}（条件達成）`));
+          }
+          return done(addLog(ctx, `条件未達（必要${threshold}枚、処理${processed.length}枚）`));
+        }
         return done(addLog(ctx, '条件付きパワー修正'));
       }
       // グロウ制限：対戦相手の no_grow フラグをセット
