@@ -7662,7 +7662,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- デッキの一番上を見て、裏向きでルリグゾーンに置く ----
   if (t.match(/デッキの一番上を見て.*裏向きでルリグゾーンに置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
 
   // ---- 場に〈X〉のシグニがある場合、カードを引き、対戦相手のデッキの一番上を公開する ----
   if (t.match(/場に.*のシグニがある場合.*カードを.*引き.*対戦相手のデッキの一番上を公開する/))
