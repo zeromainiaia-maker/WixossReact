@@ -2824,9 +2824,20 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY' } as StubAction;
   }
 
-  // ---- シグニ下のウェポンシグニを手札に加える ----
-  if (t.match(/あなたのシグニの下にある.*シグニ.*を手札に加える/)) {
-    return { type: 'STUB', id: 'ADD_UNDER_SIGNI_TO_HAND' } as StubAction;
+  // ---- シグニの下にあるカードを手札・エナ等へ移動（他のシグニ基準） ----
+  {
+    const m = t.match(/あなたのシグニの下にある(.*?)(?:シグニ|カード)([０-９\d]*)枚?まで?を?対象とし、それ(?:ら)?を(手札に加える|エナゾーンに置く|トラッシュに置く)/);
+    if (m) {
+      const dest: 'hand' | 'energy' | 'trash' = m[3].includes('手札') ? 'hand' : m[3].includes('エナ') ? 'energy' : 'trash';
+      const cnt = m[2] ? parseNum(m[2]) : 1;
+      const storyFilter = m[1] ? parseStoryFilter(m[1]) : {};
+      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: dest, count: cnt, upToCount: t.includes('まで'), filter: { cardType: 'シグニ', ...storyFilter } } as TakeFromUnderSigniAction;
+    }
+    if (t.match(/あなたのシグニの下にある.*シグニ.*を手札に加える/)) {
+      const storyM = t.match(/あなたのシグニの下にある(＜[^＞]+＞)の/);
+      const storyFilter = storyM ? parseStoryFilter(storyM[1]) : {};
+      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'hand', count: 1, upToCount: t.includes('まで'), filter: { cardType: 'シグニ', ...storyFilter } } as TakeFromUnderSigniAction;
+    }
   }
 
   // ---- 対戦相手の効果によってダメージを受けない ----
