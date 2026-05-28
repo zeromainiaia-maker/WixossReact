@@ -1885,6 +1885,12 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'SHUFFLE_DECK', owner };
   }
 
+  // ---- 手札からシグニをN枚捨てる（クラス指定なし）----
+  {
+    const m = t.match(/^手札からシグニを([０-９\d]+)枚捨てる$/);
+    if (m) return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(m[1]), filter: { cardType: 'シグニ' } } };
+  }
+
   // ---- 手札から<X>のシグニを１枚捨てる（コスト・追加コスト）----
   const handDiscardStoryM = t.match(/^手札から.+シグニ.+捨てる$/);
   if (handDiscardStoryM) {
