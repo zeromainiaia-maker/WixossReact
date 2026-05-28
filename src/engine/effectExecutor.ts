@@ -2042,6 +2042,28 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // ルリグデッキ下操作
       if (stub.id === 'LRIG_UNDER_CARD_OP') {
+        const srcLrig = ctx.sourceCardNum;
+        // 「このシグニの下にあるすべてのカードをトラッシュに置く」パターン
+        if (srcLrig) {
+          for (const owner of ['self', 'opponent'] as const) {
+            const st = ownerState(owner, ctx);
+            for (let zi = 0; zi < 3; zi++) {
+              const stack = st.field.signi[zi];
+              if (!stack || stack.length < 2) continue;
+              if (stack.at(-1) === srcLrig) {
+                const underCards = stack.slice(0, -1);
+                const newSigni = [...st.field.signi] as (string[] | null)[];
+                newSigni[zi] = [srcLrig];
+                const newS: PlayerState = {
+                  ...st,
+                  field: { ...st.field, signi: newSigni },
+                  trash: [...st.trash, ...underCards],
+                };
+                return done(addLog(setOwnerState(owner, newS, ctx), `シグニ下${underCards.length}枚をトラッシュへ`));
+              }
+            }
+          }
+        }
         return done(addLog(ctx, 'ルリグデッキ下のカード操作'));
       }
       // アンコールメカニクス（トラッシュからシグニを出す）
