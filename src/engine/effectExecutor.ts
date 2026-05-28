@@ -1961,6 +1961,17 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'ENCORE') {
         return done(addLog(ctx, 'アンコール（BattleScreen側処理）'));
       }
+      // 対戦相手のライフクロス上を見る
+      if (stub.id === 'LOOK_OPP_LIFE_TOP') {
+        const oppS = ownerState('opponent', ctx);
+        const topCard = oppS.life_cloth[oppS.life_cloth.length - 1];
+        const cardName = topCard ? (ctx.cardMap.get(topCard)?.CardName ?? topCard) : 'なし';
+        return done(addLog(ctx, `対戦相手のライフクロスの一番上を確認：${cardName}`));
+      }
+      // トレード：自シグニのバニッシュと引き換えに対象シグニを除去
+      if (stub.id === 'TRADE_BANISH_SELF_SIGNI') {
+        return done(addLog(ctx, 'トレード効果（自シグニバニッシュ）'));
+      }
       return done(addLog(ctx, `[STUB: ${stub.id}]`));
     }
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
