@@ -2370,6 +2370,27 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, 'ソウル操作'));
       }
+      // デッキ上をライフクロスに加える
+      if (stub.id === 'DECK_TOP_TO_LIFE') {
+        const srcDTL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtDTL = srcDTL ? (srcDTL.EffectText ?? '') + ' ' + (srcDTL.BurstText ?? '') : '';
+        const toHWD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // 枚数の解析（デフォルト1枚）
+        const cntM = txtDTL.match(/デッキの一番上(?:から)?([０-９\d]+)枚のカードをライフクロスに/);
+        const addCount = cntM ? parseInt(toHWD(cntM[1])) : 1;
+        // 対象プレイヤーの判断
+        const oppPattern = /対戦相手のデッキの一番上のカードをライフクロスに/;
+        const owner = oppPattern.test(txtDTL) ? 'opponent' : 'self';
+        const st = ownerState(owner, ctx);
+        if (st.deck.length === 0) return done(addLog(ctx, 'デッキなし（ライフ追加）'));
+        const toAdd = st.deck.slice(0, Math.min(addCount, st.deck.length));
+        const newS: PlayerState = {
+          ...st,
+          deck: st.deck.slice(toAdd.length),
+          life_cloth: [...toAdd, ...st.life_cloth],
+        };
+        return done(addLog(setOwnerState(owner, newS, ctx), `デッキ上${toAdd.length}枚をライフクロスに加えた`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
