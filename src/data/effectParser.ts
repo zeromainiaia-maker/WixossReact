@@ -7602,7 +7602,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- このシグニの下からカードを好きな枚数トラッシュに置く ----
   if (t.match(/このシグニの下からカードを好きな枚数トラッシュに置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count: 9, upToCount: true, fromThis: true } as TakeFromUnderSigniAction;
 
   // ---- そうしなかった場合、次のドローフェイズの間にカードを合計N枚までしか引けない ----
   if (t.match(/そうしなかった場合.*次の.*ドローフェイズの間.*引けない/))
