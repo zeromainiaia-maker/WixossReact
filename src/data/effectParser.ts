@@ -3402,9 +3402,17 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'SIGNI_GRANT_CHOSEN_ABILITY' } as StubAction;
   }
 
-  // ---- トラッシュから特定カード複数をシグニ下に置く ----
-  if (t.match(/あなたのトラッシュから《[^》]+》.*枚.*このシグニの下に置く/)) {
-    return { type: 'STUB', id: 'STACK_SPECIFIC_CARDS_FROM_TRASH_UNDER' } as StubAction;
+  // ---- トラッシュから特定カード名指定でシグニ下に置く ----
+  {
+    const nameMatches = [...t.matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    if (nameMatches.length > 0 && t.startsWith('あなたのトラッシュから《') && t.includes('このシグニの下に置く')) {
+      if (nameMatches.length === 1) {
+        return { type: 'PLACE_UNDER_SIGNI', source: 'trash', count: 1, filter: { cardName: nameMatches[0] } } as PlaceUnderSigniAction;
+      }
+      // 複数名：「か」ならどれか1枚、「と」なら全部
+      const count = /》か《/.test(t) ? 1 : nameMatches.length;
+      return { type: 'PLACE_UNDER_SIGNI', source: 'trash', count, upToCount: false, filter: { cardType: 'シグニ' } } as PlaceUnderSigniAction;
+    }
   }
 
   // ---- 対戦相手のシグニをデッキの上から3番目に置く ----
