@@ -2397,7 +2397,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           OPP_TURN_NO_ENERGY_COST: '相手ターン中エナコスト不要',
           OPP_ZONE_PLACEMENT_RESTRICT: '相手ゾーン配置制限',
           ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 'アーツ無色→センター色支払い必須',
-          ARTS_EXTRA_COST_CONDITION: 'アーツ追加コスト条件',
           NEGATE_ABILITY: '能力無効', NEGATE_THAT_ATTACK: 'そのアタック無効',
           NEGATE_NTH_ATTACK: 'N回目のアタック無効',
           NEGATE_COIN_ABILITY: 'コイン能力無効',
