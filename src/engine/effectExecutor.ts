@@ -2652,6 +2652,15 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           }
           return done(addLog(ctx, 'ルリグトラッシュにアーツなし'));
         }
+        // 「このカードをセンタールリグの下に置く」→ sourceCardNumをlrig_deckの先頭（ルリグの下）へ
+        if (effSOtxt.match(/このカードをあなたのセンタールリグの下に置く/) && srcSO) {
+          // ルリグの下 = lrig_deck の末尾（先頭がトップ）に追加
+          const lrig_deck = ctx.ownerState.lrig_deck ?? [];
+          // 手札から取り除く
+          const newHand = ctx.ownerState.hand.filter(cn => cn !== srcSO);
+          const newOwner = { ...ctx.ownerState, hand: newHand, lrig_deck: [...lrig_deck, srcSO] };
+          return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcSO)?.CardName ?? srcSO}をルリグデッキ（ルリグ下）へ`));
+        }
         // 「ルリグデッキからN枚をルリグトラッシュに置く」
         const lrigDeckTrashM = effSOtxt.match(/ルリグデッキ(?:の上から)?([０-９\d]+)枚をルリグトラッシュに/);
         if (lrigDeckTrashM) {
