@@ -2012,8 +2012,21 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // 数字宣言：現在はランダム値で代用
       if (stub.id === 'DECLARE_NUMBER') {
-        const declared = Math.floor(Math.random() * 4) + 1;
-        return done(addLog(ctx, `数字を「${declared}」と宣言`));
+        // 宣言した数字をPlayerStateに保存するSETアクションを各選択肢に
+        const setAction = (n: number): import('../types/effects').StubAction => ({
+          type: 'STUB', id: 'SET_DECLARED_NUMBER', value: n,
+        });
+        const options = [1, 2, 3, 4, 5].map(n => ({
+          id: `num_${n}`, label: `${n}を宣言`, action: setAction(n) as EffectAction, available: true,
+        }));
+        const pending: PendingInteractionDef = { type: 'CHOOSE', options, count: 1 };
+        return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), pending);
+      }
+      // DECLARE_NUMBER の宣言値を PlayerState に格納
+      if (stub.id === 'SET_DECLARED_NUMBER') {
+        const val = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+        const newOwner = { ...ctx.ownerState, declared_guard_restrict_level: val };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `数字「${val}」を宣言（相手はLv${val}シグニでガード不可）`));
       }
       // カード名宣言
       if (stub.id === 'DECLARE_CARD_NAME') {
