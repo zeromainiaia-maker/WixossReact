@@ -7630,6 +7630,50 @@ function parseActionText(text: string): EffectAction {
     }
   }
 
+  // LOOK_AND_REORDER(reveal) + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM) → REVEAL_AND_PICK
+  {
+    const merged: EffectAction[] = [];
+    for (let mi = 0; mi < steps.length; mi++) {
+      const cur = steps[mi];
+      const nxt = steps[mi + 1];
+      if (
+        cur?.type === 'LOOK_AND_REORDER' &&
+        (cur as LookAndReorderAction).count > 0 &&
+        !(cur as LookAndReorderAction).private &&
+        nxt?.type === 'STUB' &&
+        (nxt as StubAction).id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM'
+      ) {
+        const look = cur as LookAndReorderAction;
+        const stub = nxt as StubAction;
+        const rpp = stub.revealPickParams;
+        const pickCount = rpp?.pickCount ?? 1;
+        const restDest = rpp?.restDest ?? 'deck_bottom';
+        const thenDest = rpp?.then ?? 'hand';
+        const thenAction: EffectAction = thenDest === 'energy'
+          ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self' as Owner, count: 1 } } as EnergyChargeAction
+          : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction;
+        const remainder = restDest === 'trash'
+          ? { location: 'trash' as import('../types/effects').CardLocation, position: 'bottom' as const }
+          : { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' as const };
+        merged.push({
+          type: 'REVEAL_AND_PICK',
+          owner: 'self',
+          revealCount: look.count,
+          pickCount,
+          then: thenAction,
+          remainder,
+        } as RevealAndPickAction);
+        mi++;
+      } else {
+        merged.push(cur);
+      }
+    }
+    if (merged.length !== steps.length) {
+      steps.length = 0;
+      steps.push(...merged);
+    }
+  }
+
   if (steps.length === 1) return steps[0];
   return { type: 'SEQUENCE', steps };
 }
