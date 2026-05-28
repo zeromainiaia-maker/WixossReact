@@ -6333,7 +6333,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- その中からN枚を【トラップ】として設置する ----
   if (t.match(/その中から[１-９\d０-９]*枚?まで?を【トラップ】として.*シグニゾーンに設置する/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
 
   // ---- パワーをこの方法で捨てたシグニのパワーと同じだけ増減 ----
   if (t.match(/パワーをこの方法で捨てたシグニのパワーと同じだけ/))
