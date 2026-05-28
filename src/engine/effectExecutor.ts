@@ -2381,6 +2381,38 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
         return done(addLog({ ...ctx, otherState: newOther }, `ウイルスを除去（ゾーン${zoneIdx + 1}）`));
       }
+      // 手札から任意でエナゾーンに置く
+      if (stub.id === 'HAND_TO_ENERGY_OPTIONAL') {
+        const srcHTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtHTE = srcHTE ? (srcHTE.EffectText ?? '') + ' ' + (srcHTE.BurstText ?? '') : '';
+        const toHWHTE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const maxM = txtHTE.match(/手札から(?:カード)?([０-９\d]+)枚まで/);
+        const maxHTE = maxM ? parseInt(toHWHTE(maxM[1])) : 1;
+        if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（エナ任意置きスキップ）'));
+        const toEnaAction: EffectAction = { type: 'MOVE_CARD', from: 'hand', to: 'energy', owner: 'self' } as EffectAction;
+        return selectOrInteract(ctx.ownerState.hand, maxHTE, true, 'self_hand', toEnaAction, undefined, ctx);
+      }
+      // 相手の手札を見てスペルを捨てさせる
+      if (stub.id === 'VIEW_AND_DISCARD_SPELL') {
+        const srcVDS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtVDS = srcVDS ? (srcVDS.EffectText ?? '') + ' ' + (srcVDS.BurstText ?? '') : '';
+        const toHWVDS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // コスト合計N以下のスペル
+        const costLimitM = txtVDS.match(/コストの合計が([０-９\d]+)以下のスペル/);
+        const costLimit = costLimitM ? parseInt(toHWVDS(costLimitM[1])) : 99;
+        const spellCands = ctx.otherState.hand.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (c?.Type !== 'スペル') return false;
+          const cost = c.Cost ?? '';
+          const colorCount = (cost.match(/[赤青緑黒白無]/g) ?? []).length;
+          return colorCount <= costLimit;
+        });
+        if (spellCands.length === 0) return done(addLog(ctx, '相手手札に対象スペルなし'));
+        const maxM2 = txtVDS.match(/スペル([０-９\d]+)枚/);
+        const maxVDS = maxM2 ? parseInt(toHWVDS(maxM2[1])) : 1;
+        const discardAction: EffectAction = { type: 'MOVE_CARD', from: 'hand', to: 'trash', owner: 'opponent' } as EffectAction;
+        return selectOrInteract(spellCands, maxVDS, false, 'opp_hand', discardAction, undefined, ctx);
+      }
       // ゲームから除外：自分のシグニをフィールドからトラッシュへ（ゲーム除外の近似）
       if (stub.id === 'BANISH_FROM_GAME') {
         const src = ctx.sourceCardNum;
