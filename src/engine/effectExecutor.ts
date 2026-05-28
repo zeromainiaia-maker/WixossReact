@@ -2506,25 +2506,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           TRASH_SPELL_FREE_USE_LIMIT: 'トラッシュスペル無料使用制限',
           UPKEEP_OR_NO_UP: 'アップキープかアップなし',
           MULTI_ACCE_FROM_HAND: '手札から複数アクセ',
-          // 追加データ（Sheet9以降）
-          PLACE_LIMIT_UPPER: 'リミット上限設置',
-          EXILE_FROM_CHECK_ZONE: 'チェックゾーンから除外',
-          TRASH_SIGNI_UNDER_FIELD_SIGNI: 'フィールドシグニ下トラッシュ',
-          DO_THREE_THINGS: '3つの処理（スキップ）',
-          LOSE_COLOR_ALL_ZONES: '全ゾーン色喪失',
-          ARTS_USE_DISCARD_LRIG_DECK: 'アーツ使用時ルリグデッキ捨て',
-          PLAY_FREE: 'コストなしプレイ（スキップ）',
-          CONDITIONAL_MULTI_CHOOSE_BY_CENTER: 'センタールリグ複数選択（スキップ）',
-          PLACE_TRAP_FROM_REVEALED: 'トラップ設置（公開から）',
-          REMOVE_VIRUS: 'ウイルス除去',
-          GRANT_GUARD_ICON_HAND_SIGNI: 'ガードアイコン付与',
-          PLACE_SEED_FROM_REVEALED: 'シード設置（公開から）',
-          LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END: 'エナフェイズ終了まで制限変更',
-          SUPPRESS_LIFE_BURST_ON_CRASH: 'クラッシュ時ライフバースト抑制',
-          DOWN_UP_SIGNI_AND_CHOOSE: 'ダウン/アップ+選択（スキップ）',
-          CHOOSE_N_FROM_LIST: 'リストからN個選択（スキップ）',
-          CAST_FROM_OPP_TRASH: '相手トラッシュからキャスト（スキップ）',
-          CRAFT_TO_LRIG_DECK: 'クラフト→ルリグデッキ',
         };
         const logMsg = STUB_LOG[stub.id];
         if (logMsg !== undefined) {
