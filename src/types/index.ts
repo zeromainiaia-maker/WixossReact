@@ -157,6 +157,7 @@ export type PendingInteractionDef =
       maxPick: number;
       thenAction: EffectAction;   // ピックしたカードに対するアクション
       afterAction?: EffectAction; // 完了後のアクション（通常はSHUFFLE_DECK）
+      restDest?: 'deck_bottom' | 'trash' | 'energy'; // 未ピックカードの行き先（REVEAL_PICK_HAND_SHUFFLE_BOTTOM用）
       continuation?: EffectAction;
     }
   | {
