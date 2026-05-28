@@ -2353,10 +2353,27 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで手札に）`), pending);
       }
+      // ソウル/ルリグデッキ操作
+      if (stub.id === 'SOUL_OP') {
+        const srcSO = ctx.sourceCardNum;
+        const effSOtxt = srcSO ? (ctx.cardMap.get(srcSO)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(srcSO)?.BurstText ?? '') : '';
+        const processed = ctx.lastProcessedCards ?? [];
+        // 「それをルリグデッキに加える」→ sourceCardNumをlrig_deckへ
+        if (effSOtxt.match(/それをルリグデッキに加える/) && srcSO) {
+          const newOwner = { ...ctx.ownerState, lrig_trash: ctx.ownerState.lrig_trash.filter(n => n !== srcSO), lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcSO] };
+          return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcSO)?.CardName ?? srcSO}をルリグデッキへ`));
+        }
+        // 「それらをルリグトラッシュに置く」→ lastProcessedCardsをlrig_trashへ
+        if ((effSOtxt.match(/それらをルリグトラッシュに置く/) || effSOtxt.match(/ルリグトラッシュに置く/)) && processed.length > 0) {
+          const newOwner = { ...ctx.ownerState, lrig_trash: [...ctx.ownerState.lrig_trash, ...processed] };
+          return done(addLog({ ...ctx, ownerState: newOwner }, `${processed.length}枚をルリグトラッシュへ`));
+        }
+        return done(addLog(ctx, 'ソウル操作'));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
-          // ソウル/ルリグデッキ下操作
+          // ソウル/ルリグデッキ下操作（汎用フォールバック）
           SOUL_OP: 'ソウル操作',
           // トラップ系
           TRAP_OPERATION: 'トラップ操作', TRAP_OP: 'トラップ操作',
