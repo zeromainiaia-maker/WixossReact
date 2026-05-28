@@ -6839,8 +6839,8 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/発動後にデッキに加わった.*[）)）]/))
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
-  // ---- このアーツを使用する際〜コストを支払ってもよい ----
-  if (t.match(/このアーツを使用する際.*コスト.*支払(?:ってもよい|っていた場合)/))
+  // ---- このアーツ/スペルを使用する際〜コストを支払ってもよい / 捨ててもよい ----
+  if (t.match(/(?:このアーツ|このスペル)を使用する際.*(?:コスト.*支払(?:ってもよい|っていた場合)|捨ててもよい|取り除いてもよい)/))
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
   // ---- 『【常】：…を得る（長文引用） ----
