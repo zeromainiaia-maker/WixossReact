@@ -1395,6 +1395,43 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction, ctx: ExecCtx): ExecResult {
+  const sourceCardNum = ctx.sourceCardNum;
+  if (!sourceCardNum) return done(ctx);
+
+  // ソースシグニがあるゾーンのインデックスを探す
+  const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCardNum));
+  if (zoneIdx === -1) return done(ctx);
+
+  if (a.source === 'deck_top') {
+    const count = Math.min(a.count, ctx.ownerState.deck.length);
+    if (count === 0) return done(ctx);
+    const cards = ctx.ownerState.deck.slice(0, count);  // デッキの一番上からN枚
+    const newDeck = ctx.ownerState.deck.slice(count);
+    const newSigni = ctx.ownerState.field.signi.map((stack, i) => {
+      if (i !== zoneIdx) return stack;
+      return [...cards, ...(stack ?? [])];
+    }) as (string[] | null)[];
+    const newOwner = { ...ctx.ownerState, deck: newDeck, field: { ...ctx.ownerState.field, signi: newSigni } };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `デッキトップから${count}枚をシグニの下に置いた`));
+  }
+
+  // trash/hand/energy: SELECT_TARGET インタラクション
+  const state = ctx.ownerState;
+  const srcList = a.source === 'trash' ? state.trash :
+                  a.source === 'hand'  ? state.hand  :
+                                          state.energy;
+  const cands = srcList.filter(cn => {
+    const card = ctx.cardMap.get(cn);
+    return !a.filter || matchesFilter(card, a.filter);
+  });
+  if (cands.length === 0) return done(ctx);
+  const thenAction: import('../types/effects').PlaceUnderSourceSigniAction =
+    { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: a.source as 'trash' | 'hand' | 'energy' };
+  const scope: TargetScope = 'self_trash';
+  return selectOrInteract(cands, a.count, a.upToCount ?? false, scope, thenAction, undefined, ctx);
+}
+
 function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
