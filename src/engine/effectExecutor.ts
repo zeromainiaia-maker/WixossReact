@@ -3024,6 +3024,44 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(key)?.CardName ?? key}をルリグトラッシュへ`));
       }
+      // 手札からクラスシグニを任意枚数捨てる
+      if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
+        const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtODC = srcODC ? (srcODC.EffectText ?? '') + ' ' + (srcODC.BurstText ?? '') : '';
+        const toHWODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const classMatchODC = txtODC.match(/手札から[<＜]([^>＞]+)[>＞]のシグニ/);
+        const targetClassODC = classMatchODC?.[1];
+        const maxMODC = txtODC.match(/シグニ([０-９\d]+)枚まで/);
+        const maxODC = maxMODC ? parseInt(toHWODC(maxMODC[1])) : 1;
+        const handCands = ctx.ownerState.hand.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (c?.Type !== 'シグニ') return false;
+          if (targetClassODC && !c.CardClass?.includes(targetClassODC)) return false;
+          return true;
+        });
+        if (handCands.length === 0) return done(addLog(ctx, `手札に${targetClassODC ?? 'クラス'}シグニなし（任意捨てスキップ）`));
+        const discardAction: EffectAction = { type: 'MOVE_CARD', from: 'hand', to: 'trash', owner: 'self' } as EffectAction;
+        return selectOrInteract(handCands, maxODC, true, 'self_hand', discardAction, undefined, ctx);
+      }
+      // 手札のシグニをこのシグニの下に置く
+      if (stub.id === 'HAND_SIGNI_UNDER_SIGNI') {
+        const srcHSU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtHSU = srcHSU ? (srcHSU.EffectText ?? '') + ' ' + (srcHSU.BurstText ?? '') : '';
+        const toHWHSU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const maxMHSU = txtHSU.match(/手札から.*シグニ([０-９\d]+)枚/);
+        const maxHSU = maxMHSU ? parseInt(toHWHSU(maxMHSU[1])) : 1;
+        const classMatchHSU = txtHSU.match(/手札から[<＜]([^>＞]+)[>＞]のシグニ/);
+        const targetClassHSU = classMatchHSU?.[1];
+        const handSigHSU = ctx.ownerState.hand.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (c?.Type !== 'シグニ') return false;
+          if (targetClassHSU && !c.CardClass?.includes(targetClassHSU)) return false;
+          return true;
+        });
+        if (handSigHSU.length === 0) return done(addLog(ctx, '手札にシグニなし（シグニ下配置スキップ）'));
+        const placeAction: import('../types/effects').PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
+        return selectOrInteract(handSigHSU, maxHSU, false, 'self_hand', placeAction as EffectAction, undefined, ctx);
+      }
       // デッキトップを公開してレベル一致なら手札に加える
       if (stub.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
         const declaredLv = ctx.ownerState.declared_guard_restrict_level;
