@@ -1355,12 +1355,25 @@ function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
 }
 
 function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): ExecResult {
-  const countState = ownerState(a.countOwner, ctx);
-  const fieldCount = countState.field.signi.filter(stack => {
+  // ターゲットのcardNumを取得（excludeSelf用）
+  const tgtOwnerForExclude = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  const tgtStatePre = ownerState(tgtOwnerForExclude, ctx);
+  const tgtCandsPre = a.target.count !== 'ALL'
+    ? fieldCandidates(tgtStatePre, a.target.filter, ctx.cardMap, ctx.effectivePowers)
+    : [];
+  const excludeCardNum = a.excludeSelf && tgtCandsPre.length > 0 ? tgtCandsPre[0] : undefined;
+
+  const countSigniInState = (s: PlayerState) => s.field.signi.filter(stack => {
     if (!stack || stack.length === 0) return false;
-    const card = ctx.cardMap.get(stack[stack.length - 1]);
+    const cn = stack[stack.length - 1];
+    if (a.excludeSelf && cn === excludeCardNum) return false;
+    const card = ctx.cardMap.get(cn);
     return matchesFilter(card, a.countFilter);
   }).length;
+
+  const fieldCount = a.countOwner === 'any'
+    ? countSigniInState(ctx.ownerState) + countSigniInState(ctx.otherState)
+    : countSigniInState(ownerState(a.countOwner, ctx));
 
   if (fieldCount === 0) return done(ctx);
 
