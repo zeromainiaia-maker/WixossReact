@@ -3337,10 +3337,11 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'DISCARD_BY_POWER_MATCH' } as StubAction;
   }
 
-  // ---- このターン次にダメージを受ける場合代わりに受けない（シグニ/ルリグ指定含む）----
+  // ---- このターン次にダメージを受ける場合代わりに受けない（シグニ/ルリグ/効果指定含む）----
   if (t.match(/このターン.*次にあなたが(?:シグニ|ルリグ|[^から]*)?(?:から|によって|で)?ダメージを受ける場合.*代わりにダメージを受けない/) ||
-      t.match(/このターン.*あなたは.*(?:シグニ|ルリグ)によってダメージを受けない/) ||
-      t.match(/それはこのアタックでダメージを与えない/)) {
+      t.match(/このターン.*あなたは.*(?:シグニ|ルリグ|対戦相手の効果)によってダメージを受けない/) ||
+      t.match(/それはこのアタックでダメージを与えない/) ||
+      t.match(/このターン、あなたは対戦相手の効果によってダメージを受けない/)) {
     return { type: 'PREVENT_NEXT_DAMAGE', count: 1 } as PreventNextDamageAction;
   }
 
