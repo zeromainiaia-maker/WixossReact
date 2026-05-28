@@ -4379,7 +4379,7 @@ function parseSingleSentence(text: string): EffectAction {
   }
   // ---- アタックを無効にする（一度・汎用） ----
   if (t.includes('アタックを無効') && !t.includes('無効にし')) {
-    return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
+    return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as NegateAttackAction;
   }
 
   // ---- 場所（ゾーン）を入れ替える → REARRANGE_SIGNI (swap) ----
