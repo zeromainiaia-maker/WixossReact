@@ -2685,6 +2685,76 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         return done(addLog(setOwnerState(owner, newS, ctx), `デッキ上${toAdd.length}枚をライフクロスに加えた`));
       }
+      // カウント基準ドロー/パワー（lastProcessedCardsの枚数だけドロー or パワー修正）
+      if (stub.id === 'COUNT_BASED_DRAW_OR_POWER') {
+        const srcCBDP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCBDP = srcCBDP ? (srcCBDP.EffectText ?? '') + ' ' + (srcCBDP.BurstText ?? '') : '';
+        const toHWCBDP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const processed = ctx.lastProcessedCards ?? [];
+        const count = processed.length;
+        // 「捨てた枚数のカードを引く」パターン
+        if (txtCBDP.match(/(?:捨てた|置かれた|ダウンした).*枚数.*(?:引く|カードを引)/)) {
+          const bonusM = txtCBDP.match(/枚数に([０-９\d]+)を加えた枚数/);
+          const bonus = bonusM ? parseInt(toHWCBDP(bonusM[1])) : 0;
+          const drawCount = count + bonus;
+          if (drawCount > 0) {
+            const s = ctx.ownerState;
+            const canDraw = Math.min(drawCount, s.deck.length);
+            const newS: PlayerState = { ...s, hand: [...s.hand, ...s.deck.slice(0, canDraw)], deck: s.deck.slice(canDraw) };
+            return done(addLog({ ...ctx, ownerState: newS }, `${drawCount}枚ドロー（処理${count}枚${bonus > 0 ? `+${bonus}` : ''}）`));
+          }
+          return done(addLog(ctx, 'ドロー0枚（カウントなし）'));
+        }
+        // 「捨てた枚数につきパワー±N」パターン
+        const perM = txtCBDP.match(/(?:捨てた|置かれた).*枚数.*([＋－][０-９\d]+)/);
+        if (perM) {
+          const delta = parseInt(toHWCBDP(perM[1]).replace('＋', '+').replace('－', '-')) * count;
+          if (delta !== 0) {
+            const mods = [...(ctx.otherState.temp_power_mods ?? [])];
+            for (let zi = 0; zi < 3; zi++) {
+              const top = ctx.otherState.field.signi[zi]?.at(-1);
+              if (top) mods.push({ cardNum: top, delta });
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: mods } },
+              `パワー${delta > 0 ? '+' : ''}${delta}（処理${count}枚）`));
+          }
+        }
+        return done(addLog(ctx, `カウント基準効果（処理${count}枚）`));
+      }
+      // アーツ使用時にルリグデッキからアーツを任意でルリグトラッシュへ
+      if (stub.id === 'ARTS_USE_DISCARD_LRIG_DECK') {
+        const lrigDeck = ctx.ownerState.lrig_deck ?? [];
+        const artsInDeck = lrigDeck.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
+        if (artsInDeck.length === 0) return done(addLog(ctx, 'ルリグデッキにアーツなし'));
+        const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
+        // 任意なのでスキップ選択肢も提供
+        const options = [
+          ...artsInDeck.slice(0, 3).map(cn => ({
+            id: cn,
+            label: `捨てる（${ctx.cardMap.get(cn)?.CardName ?? cn}）`,
+            action: { type: 'STUB', id: 'INTERNAL_DISCARD_LRIG_DECK_ARTS', value: cn } as import('../types/effects').StubAction as EffectAction,
+            available: true,
+          })),
+          { id: 'skip', label: 'スキップ', action: noopAction as EffectAction, available: true },
+        ];
+        const pending: PendingInteractionDef = { type: 'CHOOSE', options, count: 1 };
+        return needsInteraction(addLog(ctx, 'ルリグデッキからアーツを捨てますか？'), pending);
+      }
+      // INTERNAL: ルリグデッキからアーツをルリグトラッシュへ（CHOOSEの続き）
+      if (stub.id === 'INTERNAL_DISCARD_LRIG_DECK_ARTS') {
+        const cnArt = String(stub.value ?? '');
+        if (!cnArt) return done(addLog(ctx, 'INTERNAL_DISCARD_LRIG_DECK_ARTS: value なし'));
+        const lrigDeck = ctx.ownerState.lrig_deck ?? [];
+        const newDeck = lrigDeck.filter(cn => cn !== cnArt);
+        const newOwner = { ...ctx.ownerState, lrig_deck: newDeck, lrig_trash: [...ctx.ownerState.lrig_trash, cnArt] };
+        const artName = ctx.cardMap.get(cnArt)?.CardName ?? cnArt;
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${artName}をルリグトラッシュへ`));
+      }
+      // 手札のシグニにガードアイコンを付与（このターン）
+      if (stub.id === 'GRANT_GUARD_ICON_HAND_SIGNI') {
+        const newOwner = { ...ctx.ownerState, hand_signi_guard_enabled: true };
+        return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン手札のシグニはガードに使える'));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
