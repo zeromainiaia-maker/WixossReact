@@ -2853,6 +2853,33 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: newOther },
           `パワー${totalDelta}（${count}枚捨て×${deltaPerCard}）`));
       }
+      // キー１枚を任意でルリグトラッシュに置く（追加効果条件）
+      if (stub.id === 'TRASH_OWN_KEY_OPTIONAL') {
+        const keyPiece = ctx.ownerState.field.key_piece;
+        if (!keyPiece) return done(addLog(ctx, 'キーなし（追加効果スキップ）'));
+        const keyName = ctx.cardMap.get(keyPiece)?.CardName ?? keyPiece;
+        const trashKeyStub: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_OWN_KEY' };
+        const skipStub: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const pendingKey: PendingInteractionDef = {
+          type: 'CHOOSE',
+          options: [
+            { id: 'do', label: `${keyName}をルリグトラッシュへ（追加効果）`, action: trashKeyStub as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: skipStub as EffectAction, available: true },
+          ],
+          count: 1,
+        };
+        return needsInteraction(addLog(ctx, `キー「${keyName}」をルリグトラッシュに置いてもよい`), pendingKey);
+      }
+      if (stub.id === 'INTERNAL_TRASH_OWN_KEY') {
+        const key = ctx.ownerState.field.key_piece;
+        if (!key) return done(addLog(ctx, 'キーなし'));
+        const newField = { ...ctx.ownerState.field, key_piece: null };
+        const newOwner = {
+          ...ctx.ownerState, field: newField,
+          lrig_trash: [...ctx.ownerState.lrig_trash, key],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(key)?.CardName ?? key}をルリグトラッシュへ`));
+      }
       // デッキトップを公開してレベル一致なら手札に加える
       if (stub.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
         const declaredLv = ctx.ownerState.declared_guard_restrict_level;
