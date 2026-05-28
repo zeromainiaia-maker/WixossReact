@@ -4911,7 +4911,7 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 捨てたカード枚数に1加えた枚数ドロー ----
-  if (t.match(/捨てたカードの枚数に[０-９\d]+を加えた枚数.*カードを引く/)) {
+  if (t.match(/捨てた(?:カードの)?枚数に[０-９\d]+を加えた枚数.*カードを引く/)) {
     return { type: 'STUB', id: 'DRAW_DISCARD_COUNT_PLUS_N' } as StubAction;
   }
 
