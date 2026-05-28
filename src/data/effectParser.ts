@@ -1393,6 +1393,7 @@ function parseSingleSentence(text: string): EffectAction {
     const maxCount = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
     const toField = t.includes('場に出し');
     const toTrash = t.includes('トラッシュに置き');
+    const toEnergy = t.includes('エナゾーンに置く');
     return {
       type: 'SEARCH',
       from: { location: 'deck', owner: 'self' },
@@ -1402,7 +1403,9 @@ function parseSingleSentence(text: string): EffectAction {
         ? { type: 'ADD_TO_FIELD', owner: 'self' }
         : toTrash
           ? { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } }
-          : { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
+          : toEnergy
+            ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction
+            : { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
       afterSearch: t.includes('シャッフル') ? { type: 'SHUFFLE_DECK', owner: 'self' } : undefined,
     };
   }
