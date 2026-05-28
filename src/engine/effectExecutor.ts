@@ -2481,8 +2481,32 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           pending,
         );
       }
+      // デッキから探してもよい（REVEAL_AND_PICK: シグニ検索→手札or場）
+      if (stub.id === 'REVEAL_AND_PICK') {
+        const srcRAP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtRAP = srcRAP ? (srcRAP.EffectText ?? '') + ' ' + (srcRAP.BurstText ?? '') : '';
+        const toHWRAP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const countM = txtRAP.match(/シグニ([０-９\d]+)枚を探して/);
+        const pickCount = countM ? parseInt(toHWRAP(countM[1])) : 1;
+        // デッキ全体からシグニのみをフィルタ
+        const signiInDeck = ctx.ownerState.deck.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+        if (signiInDeck.length === 0) return done(addLog(ctx, 'デッキにシグニなし'));
+        const toField = txtRAP.match(/場に出す/) && !txtRAP.match(/手札に加える/);
+        const thenAction: EffectAction = toField
+          ? { type: 'ADD_TO_FIELD', owner: 'self' } as import('../types/effects').AddToFieldAction
+          : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction;
+        const shuffleAction: import('../types/effects').ShuffleDeckAction = { type: 'SHUFFLE_DECK', owner: 'self' };
+        const pending: PendingInteractionDef = {
+          type: 'SEARCH',
+          visibleCards: signiInDeck,
+          maxPick: Math.min(pickCount, signiInDeck.length),
+          thenAction,
+          afterAction: shuffleAction,
+        };
+        return needsInteraction(addLog(ctx, `デッキからシグニを${pickCount}枚まで検索`), pending);
+      }
       // その他公開ピック（エナへ・任意公開など）
-      if (stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY' || stub.id === 'REVEAL_AND_PICK' ||
+      if (stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY' ||
           stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
         return done(addLog(ctx, 'デッキ公開/ピック（ログのみ）'));
       }
