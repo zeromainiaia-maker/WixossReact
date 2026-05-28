@@ -4994,7 +4994,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 対戦相手が任意コストを支払う（支払わなかった場合に効果発動）----
   if (t.match(/^対戦相手は.*を支払ってもよい/)) {
-    const costColors = [...t.matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    const costColors = extractCostColors(t);
     return { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...(costColors.length ? { costColors } : {}) } as StubAction;
   }
 
