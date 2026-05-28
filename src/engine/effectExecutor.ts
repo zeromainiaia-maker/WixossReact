@@ -65,10 +65,11 @@ export interface ExecCtx {
   sourceCardNum?: string;    // 効果発動元カード番号（「このシグニ」参照用）
   forceEndTurn?: boolean;    // FORCE_END_TURN でセット → BattleScreen がターン終了処理を行う
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
+  lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
 }
 
 export type ExecResult =
-  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean }
+  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[] }
   | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef };
 
 // ===== ユーティリティ =====
