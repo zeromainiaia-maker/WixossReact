@@ -4236,11 +4236,19 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'TOP_TO_BOTTOM_OPTIONAL' } as StubAction;
   }
 
-  // ---- アタックを無効にする ----
-  if (t.includes('アタックを無効') && !t.includes('無効にし')) {
-    return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
+  // ---- 対戦相手のシグニN体を対象とし、このターン、次にアタックしたとき無効 ----
+  {
+    const m = t.match(/対戦相手の(?:シグニ(?:やルリグ)?|ルリグとシグニ)(?:を([１-９\d０-９]+)体)?(?:まで)?を?対象とし.*次に.*アタックしたとき.*そのアタックを無効にする/);
+    if (m || t.includes('アタックしたとき、そのアタックを無効にする')) {
+      const cnt = m?.[1] ? parseNum(m[1]) : 1;
+      return {
+        type: 'NEGATE_ATTACK',
+        target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: t.includes('まで') },
+      } as NegateAttackAction;
+    }
   }
-  if (t.includes('アタックしたとき、そのアタックを無効にする')) {
+  // ---- アタックを無効にする（一度・汎用） ----
+  if (t.includes('アタックを無効') && !t.includes('無効にし')) {
     return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
   }
 
