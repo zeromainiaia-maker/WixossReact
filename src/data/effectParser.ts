@@ -4253,6 +4253,16 @@ function parseSingleSentence(text: string): EffectAction {
   {
     const m = t.match(/あなたのデッキの上からカードを([０-９\d]+)枚?このシグニの下に置く/);
     if (m) return { type: 'PLACE_UNDER_SIGNI', source: 'deck_top', count: parseNum(m[1]) } as PlaceUnderSigniAction;
+    // シャッフルしてデッキ上からN枚置く
+    const ms = t.match(/デッキをシャッフルし上からカード([０-９\d]+)枚をこのシグニの下に置く/);
+    if (ms) {
+      return {
+        type: 'SEQUENCE', steps: [
+          { type: 'SHUFFLE_DECK', owner: 'self' },
+          { type: 'PLACE_UNDER_SIGNI', source: 'deck_top', count: parseNum(ms[1]) },
+        ]
+      } as import('../types/effects').SequenceAction;
+    }
   }
 
   // ---- エナゾーンからN枚このシグニの下に置く ----
