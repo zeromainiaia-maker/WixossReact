@@ -78,11 +78,21 @@ import type {
   Condition,
 } from '../types/effects';
 
-// costColors から実際の色名だけを抽出（カード名・その他を除外）
+// costColors から実際の色名だけを抽出（カード名を除外、《赤×2》→["赤","赤"]に展開）
 function extractCostColors(text: string): string[] {
-  return [...text.matchAll(/《([^》]+)》/g)]
-    .map(m => m[1])
-    .filter(s => /^[赤青緑黒白無](?:[×x×]\d+)?$/.test(s));
+  const result: string[] = [];
+  for (const m of text.matchAll(/《([^》]+)》/g)) {
+    const s = m[1];
+    const countM = s.match(/^([赤青緑黒白無])[×x×](\d+)$/);
+    if (countM) {
+      const count = parseInt(countM[2], 10);
+      for (let i = 0; i < count; i++) result.push(countM[1]);
+    } else if (/^[赤青緑黒白無]$/.test(s)) {
+      result.push(s);
+    }
+    // カード名・その他は無視
+  }
+  return result;
 }
 
 // ===== 数値ユーティリティ =====
