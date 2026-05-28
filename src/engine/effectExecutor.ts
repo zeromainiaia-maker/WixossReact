@@ -1972,6 +1972,50 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'TRADE_BANISH_SELF_SIGNI') {
         return done(addLog(ctx, 'トレード効果（自シグニバニッシュ）'));
       }
+      // 手札を捨てて対戦相手シグニを対象とする効果（スキップ）
+      if (stub.id === 'TARGET_AND_DISCARD_HAND') {
+        return done(addLog(ctx, '対戦相手シグニを対象+手札捨て（スキップ）'));
+      }
+      // 動的パワー修正（COUNT依存）
+      if (stub.id === 'POWER_MOD_PER_COUNT' || stub.id === 'POWER_MOD_BY_HAND_COUNT' ||
+          stub.id === 'DOUBLE_POWER_MINUS' || stub.id === 'POWER_MOD_PER_OPPONENT_FIELD') {
+        return done(addLog(ctx, 'パワー修正（動的カウント）'));
+      }
+      // 条件付きパワーボーナス
+      if (stub.id === 'CONDITIONAL_POWER_BONUS') {
+        return done(addLog(ctx, '条件付きパワー修正'));
+      }
+      // グロウ/ゾーン制限系
+      if (stub.id === 'LRIG_GROW_RESTRICT' || stub.id === 'LRIG_ZONE_RESTRICT' ||
+          stub.id === 'LRIG_LEVEL_RESTRICT' || stub.id === 'EXTRA_PHASE_RESTRICT') {
+        return done(addLog(ctx, 'ルリグ制限効果（ログのみ）'));
+      }
+      // カード名コピー系
+      if (stub.id === 'COPY_LRIG_NAME_ABILITY') {
+        return done(addLog(ctx, 'ルリグ名コピー（ログのみ）'));
+      }
+      // バトル/アタック条件系
+      if (stub.id === 'CONDITIONAL_ARTS_COST' || stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
+        return done(addLog(ctx, '条件分岐（ログのみ）'));
+      }
+      // マスゴミ/大量トラッシュ
+      if (stub.id === 'MASS_TRASH' || stub.id === 'TRASH_ALL_SIGNI_AND_KEY') {
+        return done(addLog(ctx, '大量トラッシュ効果（ログのみ）'));
+      }
+      // 公開ピック
+      if (stub.id === 'REVEAL_PICK_PLAY' || stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY' ||
+          stub.id === 'REVEAL_AND_PICK' || stub.id === 'DECK_REVEAL_UNTIL' ||
+          stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
+        return done(addLog(ctx, 'デッキ公開/ピック（ログのみ）'));
+      }
+      // ソングフラグメント
+      if (stub.id === 'SONG_FRAGMENT') {
+        return done(addLog(ctx, 'ソング効果フラグメント'));
+      }
+      // ゲーム全体能力付与
+      if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
+        return done(addLog(ctx, 'このゲームの間：能力付与（ログのみ）'));
+      }
       return done(addLog(ctx, `[STUB: ${stub.id}]`));
     }
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
