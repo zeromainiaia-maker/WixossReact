@@ -851,7 +851,7 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   if (a.target.count === 'ALL') return done(applyDown(cands, ctx));
   const count = resolveNum(a.target.count);
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
