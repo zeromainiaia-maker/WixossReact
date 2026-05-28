@@ -2241,7 +2241,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           SPELL_COST_REDUCTION_BY_TRASH_COUNT: 'トラッシュ数スペルコスト軽減',
           SPECIFIC_CARD_COST_REDUCE: '特定カードコスト軽減',
           ARTS_COST_REDUCTION_BY_COST_THRESHOLD: 'コスト閾値アーツコスト軽減',
-          REDUCE_PLAY_ABILITY_COST: 'プレイ能力コスト軽減', ACCE_COST_REDUCTION: 'アクセコスト軽減',
+          REDUCE_PLAY_ABILITY_COST: 'プレイ能力コスト軽減',
           // ガード系
           GRANT_GUARD_ICON_HAND_SIGNI: 'ガードアイコン付与（手札シグニ）',
           OPP_GUARD_COST_COLORLESS: '相手ガードコスト（無色）',
