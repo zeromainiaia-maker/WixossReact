@@ -3389,12 +3389,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               newOpState = afterCrash;
             } else if (!crashed) {
               if (isSLancer) {
+              if (newOpState.prevent_defeat) {
+                appendBattleLogs([`Sランサー：ライフなし → 敗北無効`]);
+                newOpState = { ...newOpState, prevent_defeat: undefined };
+              } else {
                 // Sランサー：ライフなし → ダメージ → 相手の敗北
                 appendBattleLogs([`Sランサー：ライフなし → ダメージ → 相手の敗北`]);
                 await supabase.from('battle_states')
                   .update({ [myKey]: newMyState, [opKey]: newOpState, global_phase: 'FINISHED', winner_id: user.id })
                   .eq('room_id', roomId);
                 return;
+              }
               }
               // ランサー：ライフなし → 効果消滅（ダメージは与えない）
               appendBattleLogs([`ランサー：ライフなし（効果消滅）`]);
