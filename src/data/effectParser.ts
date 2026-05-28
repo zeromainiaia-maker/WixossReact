@@ -3760,10 +3760,6 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'NUMBERED_CHOICE_OPTION' } as StubAction;
   }
 
-  // ---- このシグニのレベル以上のトラッシュシグニを下に置く（天使等）----
-  if (t.match(/あなたのトラッシュからレベル.*のシグニ.*このシグニの下に置く/)) {
-    return { type: 'STUB', id: 'ADD_UNDER_STACK_FROM_TRASH' } as StubAction;
-  }
 
   // ---- アンコール（特定コスト付）----
   if (t.match(/^アンコール－/)) {
