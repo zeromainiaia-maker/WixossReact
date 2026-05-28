@@ -2070,10 +2070,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if (quotedText) return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 15)}...」（ログのみ）`));
         return done(addLog(ctx, '能力を付与（effectEngine処理）'));
       }
-      // 加入者数獲得（サブスクライバーカウント）
-      if (stub.id === 'GAIN_SUBSCRIBER_COUNT') {
-        return done(addLog(ctx, 'サブスクライバーカウント+1'));
-      }
       // ルリグデッキ下操作
       if (stub.id === 'LRIG_UNDER_CARD_OP') {
         const srcLrig = ctx.sourceCardNum;
