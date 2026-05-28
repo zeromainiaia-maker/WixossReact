@@ -8143,6 +8143,26 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/追加で手札を[０-９\d]+枚捨てていた場合.*代わりに/))
     return { type: 'STUB', id: 'CONDITIONAL_ALTERNATE_EFFECT' } as StubAction;
 
+  // ---- クラッシュされたカードをエナ代わりにトラッシュ ----
+  if (t.match(/クラッシュされたカードはエナゾーンに置かれる代わりにトラッシュに置かれる/))
+    return { type: 'STUB', id: 'CRASH_TO_TRASH_INSTEAD' } as StubAction;
+
+  // ---- それのパワーをこのシグニのパワーと同じだけ変更 ----
+  if (t.match(/それのパワーをこのシグニのパワーと同じだけ[－＋]する/))
+    return { type: 'STUB', id: 'POWER_EQUAL_TO_SELF_POWER' } as StubAction;
+
+  // ---- このターンに対戦相手の効果で手札が減った分だけドロー ----
+  if (t.match(/このターンに対戦相手の効果によって.*トラッシュに移動していた場合.*カードを引く/))
+    return { type: 'STUB', id: 'DRAW_IF_OPP_DISCARDED_HAND' } as StubAction;
+
+  // ---- このスペルを使用する際、クラスシグニを場からトラッシュに置いてもよい ----
+  if (t.match(/このスペルを使用する際.*シグニ.*を場からトラッシュに置いてもよい/))
+    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+
+  // ---- このターン対戦相手の色と共通しないカードのライフバーストは発動しない ----
+  if (t.match(/対戦相手のセンタールリグと共通する色を持たない.*ライフバーストは発動しない/))
+    return { type: 'STUB', id: 'SUPPRESS_LIFEBURST_COLOR_CONDITION' } as StubAction;
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
