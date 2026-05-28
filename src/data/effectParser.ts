@@ -1826,12 +1826,12 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
-  // ---- それを/手札に加える（REVEAL_AND_PICK の then、またはデッキトップ公開後の処理）----
-  if (t.match(/^(?:それを)?手札に加える$/)) {
+  // ---- それ/それら/これ/そのカードを手札に加える ----
+  if (t.match(/^(?:それら?を|これを|そのカードを)?手札に加える$/)) {
     return { type: 'TRANSFER_TO_HAND', source: { type: 'DECK_CARD', owner: 'self', count: 1 } };
   }
-  // ---- それをエナゾーンに置く（REVEAL後の処理）----
-  if (t.match(/^それをエナゾーンに置く$/)) {
+  // ---- それ/それらをエナゾーンに置く（REVEAL後の処理）----
+  if (t.match(/^それら?をエナゾーンに置く$/)) {
     return { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction;
   }
   // ---- それを場からトラッシュに置く ----
