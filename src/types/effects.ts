@@ -517,7 +517,8 @@ export interface PowerModifyPerFieldAction {
   target: EffectTarget;       // パワーを変更する対象
   deltaPerUnit: number;       // フィールドの対象1体ごとのパワー増減
   countFilter: TargetFilter;  // カウントするシグニのフィルタ
-  countOwner: Owner;          // カウントするフィールドのオーナー
+  countOwner: Owner;          // カウントするフィールドのオーナー（'any'=両プレイヤー）
+  excludeSelf?: boolean;      // true=ターゲット自身をカウントから除外
 }
 
 // チャームを消費してバニッシュを防ぐ
