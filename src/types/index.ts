@@ -104,6 +104,8 @@ export interface PlayerState {
   banish_redirect?: boolean;
   // 覚醒状態のシグニのCardNum一覧（永続、場を離れるまで有効）
   awakened_signi?: string[];
+  // このターン次にアタックしたとき無効にされるシグニのCardNum一覧
+  negated_attacks?: string[];
 }
 
 export interface GameLog {
