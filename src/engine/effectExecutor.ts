@@ -2938,6 +2938,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, ownerState: newOwner },
           `${ctx.cardMap.get(targetCnPR)?.CardName ?? targetCnPR}パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（${revCount}枚公開）`));
       }
+      // このターン相手はガードできない（ガードコスト無色版 or ガード禁止）
+      if (stub.id === 'OPP_GUARD_COST_COLORLESS' || stub.id === 'PREVENT_OPP_GUARD_THIS_TURN') {
+        const newOwner = { ...ctx.ownerState, prevent_opp_guard: true };
+        return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン対戦相手はガードできない'));
+      }
       // キー１枚を任意でルリグトラッシュに置く（追加効果条件）
       if (stub.id === 'TRASH_OWN_KEY_OPTIONAL') {
         const keyPiece = ctx.ownerState.field.key_piece;
