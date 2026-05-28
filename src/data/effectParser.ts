@@ -4185,9 +4185,9 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BANISH', target: parseSigniTarget(t, owner) };
   }
 
-  // ---- 覚醒する ----
+  // ---- このシグニは覚醒する ----
   if (t.includes('覚醒する') || t.includes('覚醒状態にする')) {
-    return { type: 'STUB', id: 'AWAKEN' } as StubAction;
+    return { type: 'AWAKEN_SIGNI' } as AwakenSigniAction;
   }
 
   // ---- 歌のカケラ ----
