@@ -7918,7 +7918,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- ルリグトラッシュからルリグをセンター下へ ----
   if (t.match(/ルリグトラッシュから.*センタールリグの下に置(?:く|いてもよい)/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
 
   // ---- すべての領域でクラスとして扱う ----
   if (t.match(/このカードはすべての領域で.*として扱う/))
