@@ -108,6 +108,10 @@ export interface PlayerState {
   negated_attacks?: string[];
   // このターンまたは次のターン、グロウできない
   no_grow?: boolean;
+  // このターン、ライフバースト発動を抑制（クラッシュされた側）
+  suppress_life_burst?: boolean;
+  // このターン、ルリグダメージを受けない
+  prevent_lrig_damage?: boolean;
 }
 
 export interface GameLog {
