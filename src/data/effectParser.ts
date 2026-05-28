@@ -5185,6 +5185,10 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/^（実際の.+は変わらない$/)) {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
   }
+  // ---- 1ターンに一度の制限注釈 ----
+  if (t.match(/(?:この効果|このカードの効果|この能力)は[１1一]ターンに一度しか発動しない/)) {
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  }
 
   // ---- ターン終了時に裏向きシグニを表向きにする ----
   if (t.match(/この方法で裏向きにしたシグニを.*表向きにする/)) {
