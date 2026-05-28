@@ -73,6 +73,7 @@ import type {
   LookAndReorderAction,
   AddCraftToLrigDeckAction,
   DrawPerFieldCountAction,
+  AwakenSigniAction,
   StubAction,
   PowerModifyAction,
   BanishAction,
