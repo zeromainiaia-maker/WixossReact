@@ -7654,7 +7654,8 @@ function parseActionText(text: string): EffectAction {
       const nxt = steps[mi + 1];
       if (
         cur?.type === 'LOOK_AND_REORDER' &&
-        (cur as LookAndReorderAction).count > 0 &&
+        typeof (cur as LookAndReorderAction).count === 'number' &&
+        ((cur as LookAndReorderAction).count as number) > 0 &&
         nxt?.type === 'STUB' &&
         (nxt as StubAction).id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM'
       ) {
