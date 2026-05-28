@@ -262,6 +262,11 @@ export interface DrawPerFieldCountAction {
   countOwner: Owner;          // カウントするフィールドのオーナー
 }
 
+// このシグニを覚醒させる（覚醒状態になる）
+export interface AwakenSigniAction {
+  type: 'AWAKEN_SIGNI';
+}
+
 export interface BounceAction {
   type: 'BOUNCE'; // フィールド→手札
   target: EffectTarget;
