@@ -925,6 +925,7 @@ export interface StubAction {
     restDest: 'deck_bottom' | 'trash' | 'energy';
     then: 'hand' | 'energy';
   };
+  value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）
 }
 
 // このターン特定カードを使用禁止にする
