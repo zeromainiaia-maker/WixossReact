@@ -2400,10 +2400,40 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'MASS_TRASH' || stub.id === 'TRASH_ALL_SIGNI_AND_KEY') {
         return done(addLog(ctx, '大量トラッシュ効果（ログのみ）'));
       }
-      // 公開ピック
-      if (stub.id === 'REVEAL_PICK_PLAY' || stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY' ||
-          stub.id === 'REVEAL_AND_PICK' || stub.id === 'DECK_REVEAL_UNTIL' ||
-          stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
+      // デッキ公開してシグニを場に出す
+      if (stub.id === 'REVEAL_PICK_PLAY') {
+        const srcRPP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtRPP = srcRPP ? (srcRPP.EffectText ?? '') + ' ' + (srcRPP.BurstText ?? '') : '';
+        const toHWR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const revealCountM = txtRPP.match(/カードを([０-９\d]+)枚(?:見る|公開する)/);
+        const revealCount = revealCountM ? parseInt(toHWR(revealCountM[1])) : 5;
+        const deckCards = ctx.ownerState.deck.slice(0, Math.min(revealCount, ctx.ownerState.deck.length));
+        if (deckCards.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK_PLAY）'));
+        // 場に出せるシグニをフィルタ（簡易：「シグニ」タイプ）
+        const signiCards = deckCards.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+        const pickCount = txtRPP.match(/シグニを([０-９\d]+)枚まで場に出す/) ? parseInt(toHWR(RegExp.$1)) : 1;
+        const addFieldAction: import('../types/effects').AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
+        const restToTrashAction: import('../types/effects').TrashAction = {
+          type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 'ALL' },
+        };
+        const pending: PendingInteractionDef = {
+          type: 'SEARCH',
+          visibleCards: deckCards,
+          maxPick: Math.min(pickCount, signiCards.length),
+          thenAction: addFieldAction,
+          restDest: 'trash',
+          continuation: restToTrashAction,
+        };
+        // デッキから公開した分を除去
+        const newOwnerDeck = ctx.ownerState.deck.slice(deckCards.length);
+        return needsInteraction(
+          addLog({ ...ctx, ownerState: { ...ctx.ownerState, deck: newOwnerDeck } }, `デッキ上${deckCards.length}枚公開（シグニを場に）`),
+          pending,
+        );
+      }
+      // その他公開ピック（エナへ・任意公開など）
+      if (stub.id === 'REVEAL_PICK_CLASS_TO_ENERGY' || stub.id === 'REVEAL_AND_PICK' ||
+          stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
         return done(addLog(ctx, 'デッキ公開/ピック（ログのみ）'));
       }
       // ソングフラグメント
