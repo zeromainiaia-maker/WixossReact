@@ -2778,8 +2778,11 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 改造素材をルリグデッキに加える ----
-  if (t.match(/あなたのルリグデッキに《改造素材》.*加える/)) {
-    return { type: 'STUB', id: 'ADD_MATERIAL' } as StubAction;
+  {
+    const m = t.match(/あなたのルリグデッキに《([^》]+)》([０-９\d]*)枚?を?加える/);
+    if (m) {
+      return { type: 'ADD_CRAFT_TO_LRIG_DECK', owner: 'self', cardName: m[1], count: m[2] ? parseNum(m[2]) : 1 } as AddCraftToLrigDeckAction;
+    }
   }
 
   // ---- エナコスト色代替（赤か青→白）----
