@@ -6182,7 +6182,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 好きな数のシグニを対象とし、合わせてパワーを増やす ----
   if (t.match(/好きな数のシグニを対象とし、ターン終了時まで、それらのパワーを合わせて/))
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'STUB', id: 'POWER_MOD_DISTRIBUTE' } as StubAction;
 
   // ---- この下から好きな枚数のシグニをトラッシュ ----
   if (t.match(/この下から好きな枚数のシグニを対象とし、それらをトラッシュに置く/))
