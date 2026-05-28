@@ -5640,7 +5640,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- この方法でトラッシュに置かれたカードの中からシグニをN枚対象とし〜 ----
   if (t.match(/この方法でトラッシュに置かれたカードの中からシグニ/)) {
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS' } as StubAction;
   }
 
   // ---- その中から〜アイコンを持つカードをエナゾーンに置き残りを〜 ----
