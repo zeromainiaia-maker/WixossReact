@@ -2413,9 +2413,42 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'CONDITIONAL_ARTS_COST' || stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
         return done(addLog(ctx, '条件分岐（ログのみ）'));
       }
-      // マスゴミ/大量トラッシュ
-      if (stub.id === 'MASS_TRASH' || stub.id === 'TRASH_ALL_SIGNI_AND_KEY') {
-        return done(addLog(ctx, '大量トラッシュ効果（ログのみ）'));
+      // 大量トラッシュ: 相手エナ全体+相手シグニ全体、またはシグニ+キー
+      if (stub.id === 'MASS_TRASH') {
+        // 相手のエナゾーン全カード + フィールド全シグニをトラッシュ
+        const oppSigniAll = ctx.otherState.field.signi.flatMap(s => s ?? []);
+        const oppEnaAll = [...ctx.otherState.energy];
+        const newOtherField: PlayerState['field'] = {
+          ...ctx.otherState.field,
+          signi: [null, null, null],
+        };
+        const newOther: PlayerState = {
+          ...ctx.otherState,
+          energy: [],
+          trash: [...ctx.otherState.trash, ...oppSigniAll, ...oppEnaAll],
+          field: newOtherField,
+        };
+        return done(addLog({ ...ctx, otherState: newOther },
+          `相手エナ${oppEnaAll.length}枚+シグニ${oppSigniAll.length}体をトラッシュ`));
+      }
+      if (stub.id === 'TRASH_ALL_SIGNI_AND_KEY') {
+        // 自分のシグニ全体 + キーをトラッシュ/ルリグトラッシュへ
+        const srcTAK = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtTAK = srcTAK ? (srcTAK.EffectText ?? '') : '';
+        const isSelfTarget = !txtTAK.match(/対戦相手/);
+        const target = isSelfTarget ? 'self' : 'opponent';
+        const st = ownerState(target, ctx);
+        const signiAll = st.field.signi.flatMap(s => s ?? []);
+        const keyCard = st.field.key_piece;
+        const newField: PlayerState['field'] = { ...st.field, signi: [null, null, null], key_piece: null };
+        const newSt: PlayerState = {
+          ...st,
+          trash: [...st.trash, ...signiAll],
+          lrig_trash: keyCard ? [...st.lrig_trash, keyCard] : st.lrig_trash,
+          field: newField,
+        };
+        return done(addLog(setOwnerState(target, newSt, ctx),
+          `シグニ${signiAll.length}体${keyCard ? '+キー' : ''}をトラッシュへ`));
       }
       // デッキ公開してシグニを場に出す
       if (stub.id === 'REVEAL_PICK_PLAY') {
