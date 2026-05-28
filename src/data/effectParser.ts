@@ -7448,6 +7448,11 @@ function parseActionText(text: string): EffectAction {
       const chosen = buildChoose(text, chooseCount);
       if (chosen) return chosen;
     }
+    // ---- 「どちらか/いずれか選ぶ。①...②...」パターン：フィルタで選択肢行が消えたが元textにある場合 ----
+    if (/[①②③④]/.test(text) && /(?:どちらか|いずれか)[１-９\d０-９]*つ?を?選ぶ/.test(text)) {
+      const chosen = buildChoose(text, 1);
+      if (chosen) return chosen;
+    }
     // ---- 「カードをN枚引き、X」複合文 ----
     const drawAndM = s.trim().match(/^カードを([０-９\d]+)枚引き、(.+)/);
     if (drawAndM) {
