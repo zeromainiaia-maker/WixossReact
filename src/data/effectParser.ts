@@ -6337,7 +6337,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- パワーをこの方法で捨てたシグニのパワーと同じだけ増減 ----
   if (t.match(/パワーをこの方法で捨てたシグニのパワーと同じだけ/))
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'STUB', id: 'POWER_MOD_MIRROR' } as StubAction;
 
   // ---- 《レイヤーアイコン》の能力を得る ----
   if (t.match(/《レイヤーアイコン》の能力を得る/))
