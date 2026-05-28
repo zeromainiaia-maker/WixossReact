@@ -4056,6 +4056,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if ((my.prevent_next_damage ?? 0) > 0) {
           appendBattleLogs([`ルリグアタック：ダメージ無効`]);
           newMyState = { ...my, prevent_next_damage: (my.prevent_next_damage ?? 0) - 1, field: { ...my.field, lrig_attacked: false } };
+        } else if (my.prevent_lrig_damage) {
+          appendBattleLogs([`ルリグアタック：ルリグダメージ無効`]);
+          newMyState = { ...my, prevent_lrig_damage: undefined, field: { ...my.field, lrig_attacked: false } };
         } else if (my.life_cloth.length > 0) {
           const crashed = my.life_cloth[my.life_cloth.length - 1];
           const crashedName = battleCardMap.get(crashed)?.CardName ?? crashed;
