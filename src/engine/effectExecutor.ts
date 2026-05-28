@@ -2084,6 +2084,56 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOwner = { ...ctx.ownerState, prevent_lrig_damage: true };
         return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン自分へのルリグダメージを無効'));
       }
+      // 敗北無効フラグ
+      if (stub.id === 'PREVENT_DEFEAT_THIS_TURN' || stub.id === 'PREVENT_DEFEAT_UNTIL_NEXT_TURN' || stub.id === 'PREVENT_DEFEAT') {
+        const newOwner = { ...ctx.ownerState, prevent_defeat: true };
+        return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン敗北無効'));
+      }
+      // サブスクライバーカウント+1
+      if (stub.id === 'GAIN_SUBSCRIBER_COUNT') {
+        const newOwner = { ...ctx.ownerState, subscriber_count: (ctx.ownerState.subscriber_count ?? 0) + 1 };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `サブスクライバーカウント: ${newOwner.subscriber_count}`));
+      }
+      // ウイルス除去：対戦相手のシグニに乗った最初のウイルスを取り除く
+      if (stub.id === 'REMOVE_VIRUS' || stub.id === 'EXTRA_COST_REMOVE_VIRUS') {
+        const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
+        const zoneIdx = virusArr.findIndex(v => v > 0);
+        if (zoneIdx < 0) return done(addLog(ctx, 'ウイルスなし'));
+        const newVirus = [...virusArr];
+        newVirus[zoneIdx] = 0;
+        const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
+        return done(addLog({ ...ctx, otherState: newOther }, `ウイルスを除去（ゾーン${zoneIdx + 1}）`));
+      }
+      // ゲームから除外：自分のシグニをフィールドからトラッシュへ（ゲーム除外の近似）
+      if (stub.id === 'BANISH_FROM_GAME') {
+        const src = ctx.sourceCardNum;
+        if (!src) return done(addLog(ctx, 'BANISH_FROM_GAME: sourceCardNumなし'));
+        const inOwner = ctx.ownerState.field.signi.some(s => s?.at(-1) === src);
+        const inOther = ctx.otherState.field.signi.some(s => s?.at(-1) === src);
+        if (inOwner) {
+          const removed = removeFromField(src, ctx.ownerState);
+          const newOwner = { ...removed, trash: [...removed.trash, src] };
+          const name = ctx.cardMap.get(src)?.CardName ?? src;
+          return done(addLog({ ...ctx, ownerState: newOwner }, `${name}をゲームから除外`));
+        }
+        if (inOther) {
+          const removed = removeFromField(src, ctx.otherState);
+          const newOther = { ...removed, trash: [...removed.trash, src] };
+          const name = ctx.cardMap.get(src)?.CardName ?? src;
+          return done(addLog({ ...ctx, otherState: newOther }, `${name}をゲームから除外`));
+        }
+        return done(addLog(ctx, 'BANISH_FROM_GAME: フィールドにカードなし'));
+      }
+      // 対戦相手が手札を1枚選んで捨てる
+      if (stub.id === 'OPP_CHOOSE_YOUR_HAND_DISCARD') {
+        const cands = ctx.ownerState.hand;
+        if (cands.length === 0) return done(addLog(ctx, '手札なし（OPP_CHOOSE_YOUR_HAND_DISCARD）'));
+        const trashAction: import('../types/effects').TrashAction = {
+          type: 'TRASH',
+          target: { type: 'HAND_CARD', owner: 'self', count: 1, upToCount: false },
+        };
+        return selectOrInteract(cands, 1, false, 'self_hand', trashAction, undefined, ctx, true);
+      }
       // チェックゾーンから除外：対戦相手のチェックゾーンのカードをトラッシュへ
       if (stub.id === 'EXILE_FROM_CHECK_ZONE') {
         const target = ctx.otherState.field.check ?? ctx.ownerState.field.check;
