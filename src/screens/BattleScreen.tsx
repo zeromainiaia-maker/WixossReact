@@ -3768,7 +3768,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── GROWフェイズ：グロウ可能なら最初の候補でグロウ ───
     if (phase === 'GROW') {
       const grew    = cpuSt.actions_done?.includes('GROW') ?? false;
-      const blocked = cpuSt.blocked_actions?.includes('GROW') ?? false;
+      const blocked = (cpuSt.blocked_actions?.includes('GROW') ?? false) || (cpuSt.no_grow ?? false);
       if (!grew && !blocked) {
         const currentLrigId = cpuSt.field.lrig.at(-1) ?? null;
         const currentLrigNum = currentLrigId ? getCardNum(currentLrigId) : null;
