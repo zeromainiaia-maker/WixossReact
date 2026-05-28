@@ -5928,7 +5928,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 }, -1);
               const declaredRestrictLv = op.declared_guard_restrict_level;
               const handGuardEnabled = my.hand_signi_guard_enabled;
-              const guardCards = my.hand
+              // 相手のprevent_opp_guardフラグ（OPP_GUARD_COST_COLORLESS等）でガード禁止
+              const guardDisabledByOpp = op.prevent_opp_guard === true;
+              const guardCards = guardDisabledByOpp ? [] : my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
                 .filter(({ card }) => {
                   // hand_signi_guard_enabled が true の場合、手札のシグニはすべてガードに使える
