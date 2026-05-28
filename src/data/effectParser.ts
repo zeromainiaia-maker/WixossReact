@@ -1743,10 +1743,13 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_ARTS', until };
   }
 
-  // ---- スペル使用禁止 ----
+  // ---- スペル使用禁止（対戦相手 or 自分）----
   if (t.match(/対戦相手はスペルを使用できない/)) {
     const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN' : 'PERMANENT';
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_SPELL', until };
+  }
+  if (t.match(/このターン、あなたはスペルを使用できない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'USE_SPELL', until: 'END_OF_TURN' };
   }
 
   // ---- エナフェイズスキップ（対戦相手）----
