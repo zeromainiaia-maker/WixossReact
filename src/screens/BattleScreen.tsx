@@ -4073,6 +4073,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             life_cloth: my.life_cloth.slice(0, -1),
             field: { ...my.field, lrig_attacked: false, check: crashed },
           };
+        } else if (my.prevent_defeat) {
+          appendBattleLogs([`ルリグアタック：ライフなし → 敗北無効`]);
+          newMyState = { ...my, prevent_defeat: undefined, field: { ...my.field, lrig_attacked: false } };
         } else {
           // ライフクロス0枚 → 自分の敗北
           appendBattleLogs([`ルリグアタック：ライフなし → 敗北`]);
