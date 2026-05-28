@@ -120,6 +120,8 @@ export interface PlayerState {
   prevent_defeat?: boolean;
   // サブスクライバーカウント（ちあコーデ系）
   subscriber_count?: number;
+  // ルリグリミット加算修正（エナフェイズ終了まで）
+  lrig_limit_mod?: number;
 }
 
 export interface GameLog {
