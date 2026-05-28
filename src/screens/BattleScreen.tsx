@@ -5646,7 +5646,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     <div style={{ width: 80, height: 112, backgroundColor: C.bgButton,
                       borderRadius: 6, margin: '0 auto' }} />
                   )}
-                  {hasBurst ? (
+                  {hasBurst && !my.suppress_life_burst ? (
                     <>
                       <p style={{ color: C.accent, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
                         ライフバーストあり
@@ -5672,9 +5672,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </>
                   ) : (
                     <>
-                      <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
-                        ライフバーストなし
-                      </p>
+                      {hasBurst && my.suppress_life_burst && (
+                        <p style={{ color: C.textDim, fontSize: 12, margin: 0 }}>
+                          ライフバースト抑制中
+                        </p>
+                      )}
+                      {!hasBurst && (
+                        <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
+                          ライフバーストなし
+                        </p>
+                      )}
                       <button onClick={() => handleLifeBurstResponse(false)}
                         disabled={loading}
                         style={{ padding: '11px 0', borderRadius: 8, border: 'none',
