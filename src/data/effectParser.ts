@@ -1037,17 +1037,66 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
-  // ---- ACTIVATED: ターン終了時まで、パワーをフィールドの＜クラス＞シグニN体につき ----
+  // ---- ACTIVATED: ターン終了時まで、パワーをフィールドの＜クラス＞シグニN体につき（対象:相手シグニ、フィルタ:クラス）----
   {
-    const m = t.match(/対戦相手のシグニ([０-９\d]+)体を対象とし.*ターン終了時まで.*パワーをあなたの(＜[^＞]+＞)のシグニ([０-９\d]+)体につき([＋－])([０-９\d]+)する/);
+    const m = t.match(/対戦相手のシグニ([０-９\d]+)体を対象とし.*ターン終了時まで.*パワーをあなたの(?:場にある)?(?:(他の))?(＜[^＞]+＞)のシグニ([０-９\d]+)体につき([＋－])([０-９\d]+)する/);
     if (m) {
-      const sign = m[4] === '＋' ? 1 : -1;
+      const sign = m[5] === '＋' ? 1 : -1;
+      const excludeSelf = !!m[2];
       return {
         type: 'POWER_MODIFY_PER_FIELD',
         target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m[1]) },
-        deltaPerUnit: sign * parseNum(m[5]),
-        countFilter: { cardType: 'シグニ', story: [m[2].slice(1, -1)] },
+        deltaPerUnit: sign * parseNum(m[6]),
+        countFilter: { cardType: 'シグニ', story: m[3].slice(1, -1) },
         countOwner: 'self',
+        ...(excludeSelf ? { excludeSelf: true } : {}),
+      } as PowerModifyPerFieldAction;
+    }
+  }
+
+  // ---- ACTIVATED: ターン終了時まで、パワーをフィールドの色のシグニN体につき（対象:相手シグニ、フィルタ:色）----
+  {
+    const m = t.match(/対戦相手のシグニ([０-９\d]+)体を対象とし.*ターン終了時まで.*パワーをあなたの場にある(?:(他の))?([白赤青緑黒]+)のシグニ([０-９\d]+)体につき([＋－])([０-９\d]+)する/);
+    if (m) {
+      const sign = m[5] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_FIELD',
+        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m[1]) },
+        deltaPerUnit: sign * parseNum(m[6]),
+        countFilter: { cardType: 'シグニ', color: m[3] },
+        countOwner: 'self',
+        ...(m[2] ? { excludeSelf: true } : {}),
+      } as PowerModifyPerFieldAction;
+    }
+  }
+
+  // ---- ACTIVATED: ターン終了時まで、パワーをフィールドの「下にカードがある」シグニN体につき（対象:相手シグニ）----
+  {
+    const m = t.match(/対戦相手のシグニ([０-９\d]+)体を対象とし.*ターン終了時まで.*パワーを(?:あなたの場にある)?下にカードがある(?:あなたの)?シグニ([０-９\d]+)体につき([＋－])([０-９\d]+)する/);
+    if (m) {
+      const sign = m[3] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_FIELD',
+        target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m[1]) },
+        deltaPerUnit: sign * parseNum(m[4]),
+        countFilter: { cardType: 'シグニ' },
+        countOwner: 'self',
+      } as PowerModifyPerFieldAction;
+    }
+  }
+
+  // ---- ACTIVATED: ターン終了時まで、パワーを自分シグニ１体につき±N（対象:自シグニ）----
+  {
+    const m = t.match(/あなたのシグニ([０-９\d]+)体を対象とし.*ターン終了時まで.*パワーをあなたの(?:場にある)?(?:(他の))?(＜[^＞]+＞)のシグニ([０-９\d]+)体につき([＋－])([０-９\d]+)する/);
+    if (m) {
+      const sign = m[5] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_FIELD',
+        target: { type: 'SIGNI', owner: 'self', count: parseNum(m[1]) },
+        deltaPerUnit: sign * parseNum(m[6]),
+        countFilter: { cardType: 'シグニ', story: m[3].slice(1, -1) },
+        countOwner: 'self',
+        ...(m[2] ? { excludeSelf: true } : {}),
       } as PowerModifyPerFieldAction;
     }
   }
