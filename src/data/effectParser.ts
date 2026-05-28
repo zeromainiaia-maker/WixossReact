@@ -4916,7 +4916,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- その中から特定ストーリーのカードを公開して手札に加え残りをデッキ下に置く ----
   if (t.match(/その中から.+のカード[０-９\d]+枚を公開し手札に加え、残りをシャッフルしてデッキの一番下に置く/)) {
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
   }
 
   // ---- ゲームルール説明フラグメント（スキップ）----
@@ -5212,7 +5212,7 @@ function parseSingleSentence(text: string): EffectAction {
   // ---- その中からN枚を手札に加え、M枚をエナゾーンに/残りを〜 ----
   if (t.match(/その中から[０-９\d]*枚?を手札に加え/) ||
       t.match(/その中から好きな枚数を手札に加え/)) {
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
   }
 
   // ---- あなたのメインフェイズ開始時〜（フェーズトリガー前置きを剥がして再解析）----
@@ -5466,7 +5466,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- その中から1枚を手札に加え〜残りをX置く ----
   if (t.match(/その中から[０-９\d]*枚?を手札に加え(?:、[０-９\d]*枚?を)?(?:エナゾーンに置く|トラッシュに置く|デッキの.+に置く)/)) {
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
   }
 
   // ---- このアーツはあなたの〜の場合にしか使用できない ----
@@ -5757,7 +5757,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- カード名に〜含むすべてを手札に加え残りをトラッシュ ----
   if (t.match(/その中からカード名に《.+》を含むすべてのカードを手札に加え、残りをトラッシュに置く/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- 好きな数の〈クラス〉シグニを場に出す ----
   if (t.match(/その中から好きな数の[＜〈<].+[＞〉>]のシグニを場に出し、残りをトラッシュに置く/))
@@ -5858,13 +5858,13 @@ function parseSingleSentence(text: string): EffectAction {
       t.match(/その中から.*(?:好きな数の|それぞれ名前の異なるように).*シグニ.*手札に加え/) ||
       t.match(/その中から(?:白か黒|青か黒|赤か白).+シグニ.+手札に加え/) ||
       t.match(/その中からレベル[０-９\d０-９]+のシグニ.+手札に加え/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- その中からスペル/カードを手札に加える ----
   if (t.match(/その中から.*スペル[１-９\d]*枚を(?:公開し)?手札に加える$/) ||
       t.match(/その中から.*を公開し手札に加えるかエナゾーンに置く$/) ||
       t.match(/その中から.*アイコン》を持つシグニ[１-９\d]*枚を(?:公開し)?手札に加える$/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- その後、そのシグニを場に出し残りをトラッシュ ----
   if (t.match(/その後、そのシグニを場に出し、残りをトラッシュに置く/))
@@ -5906,7 +5906,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- デッキを公開しクラスシグニがめくれるまで ----
   if (t.match(/デッキの上から.*シグニがめくれるまで公開し、そのシグニを手札に加える/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- このシグニが〜したとき（AUTO能力引用） ----
   if (t.match(/このシグニが対戦相手のシグニ[１-９\d０-９]*体?をバニッシュしたとき/))
@@ -6334,15 +6334,15 @@ function parseSingleSentence(text: string): EffectAction {
   // ---- その中から色のカードをN枚まで選び手札に加えるかエナゾーンに置き残りをトラッシュ ----
   if (t.match(/その中から(?:白|赤|青|緑|黒)のカードを[１-９\d０-９]+枚まで選び.*手札に加えるかエナゾーンに置き/) ||
       t.match(/その中からすべての(?:白|赤|青|緑|黒)のカードを手札に加え/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- その中から色のカードをN枚まで公開し手札に加え残りをデッキ下 ----
   if (t.match(/その中から(?:白|赤|青|緑|黒)のカードを[１-９\d０-９]+枚まで公開し手札に加え.*デッキの一番下に置く/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- その中からすべての緑のカードをエナゾーンに置き残りをトラッシュ ----
   if (t.match(/その中からすべての(?:白|赤|青|緑|黒)のカードをエナゾーンに置き/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- 対戦相手のシグニを対象とし、パワーをN体/N枚につき変動 ----
   if (t.match(/対戦相手のシグニ[１-９\d０-９]*体?を対象とし.*パワーを.*につき[＋－][０-９\d０-９]+する/) ||
@@ -6355,7 +6355,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- その中からスペル１枚を公開し手札に加え残りをデッキ下 ----
   if (t.match(/その中からスペル[１-９\d０-９]*枚を公開し手札に加え.*デッキの一番下に置く/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- レベルN についても同様である） ----
   if (t.match(/レベル[１-９\d０-９]についても同様(?:である)?[）)）]/))
@@ -6537,7 +6537,7 @@ function parseSingleSentence(text: string): EffectAction {
   // ---- その中から〈クラス〉のカードをN枚まで選びエナゾーンに置き残りをデッキ下 ----
   if (t.match(/その中から[＜〈<].+[＞〉>]のカードを[１-９\d０-９]*枚?まで?エナゾーンに置き/) ||
       t.match(/その中から[＜〈<].+[＞〉>]のカードを[１-９\d０-９]*枚?を?公開し手札に加え/))
-    return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
 
   // ---- 手札から〈クラス〉のカードをN枚公開してもよい ----
   if (t.match(/あなたの手札から[＜〈<].+[＞〉>]のカードを[１-９\d０-９]*枚?まで?公開してもよい/))
