@@ -4483,8 +4483,15 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- 対戦相手のシグニに次にアタックしたとき（シングル/マルチ） ----
-  if (t.match(/次に.*アタックしたとき.*アタックを無効/)) {
-    return { type: 'STUB', id: 'NEGATE_NEXT_ATTACK' } as StubAction;
+  {
+    const m = t.match(/対戦相手の(?:シグニ|ルリグ|シグニかルリグ|ルリグとシグニ)(?:を([１-９\d０-９]+)体)?(?:まで)?を?対象とし.*次に.*アタックしたとき.*アタックを無効/);
+    if (m) {
+      const cnt = m[1] ? parseNum(m[1]) : 1;
+      return {
+        type: 'NEGATE_ATTACK',
+        target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: t.includes('まで') },
+      } as NegateAttackAction;
+    }
   }
 
   // ---- 対戦相手のセンタールリグのアタック無効 ----
