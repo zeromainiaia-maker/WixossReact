@@ -6621,11 +6621,11 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- シグニを裏向きにしてもよい ----
   if (t.match(/シグニ[１-９\d０-９]*体?(?:まで)?を対象とし、それらを裏向きにしてもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SIGNI_FLIP_FACEDOWN' } as StubAction;
 
   // ---- シグニをエナゾーンからデッキ下に置いてもよい ----
   if (t.match(/このシグニをエナゾーンからデッキの一番下に置いてもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
 
   // ---- 正面にあったシグニをトラッシュ（単独文） ----
   if (t.match(/^正面にあったそのシグニをトラッシュに置く$/))
