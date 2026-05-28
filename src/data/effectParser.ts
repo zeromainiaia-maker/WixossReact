@@ -7726,6 +7726,72 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/手札を[１-９\d０-９]+枚以上捨てた場合.*ライフクロス.*デッキの一番下に置く/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
+  // ---- このメインフェイズを終了する ----
+  if (t.match(/^このメインフェイズを終了する$/))
+    return { type: 'STUB', id: 'SKIP_MAIN_PHASE' } as StubAction;
+
+  // ---- コストの合計は0以下にならない（ルール注釈）----
+  if (t.match(/使用コストの合計は[０0]以下にならない/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- すべてのプレイヤーはドローフェイズにN枚までしか引けない ----
+  if (t.match(/すべてのプレイヤーはドローフェイズの間にカードを合計[０-９\d]+枚までしか引けない/))
+    return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT' } as StubAction;
+
+  // ---- 【マルチエナ】常時能力 ----
+  if (t.match(/^【常】：【マルチエナ】$/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- 対戦相手のライフクロスを手札に加えさせる ----
+  if (t.match(/対戦相手のライフクロス[１-９\d０-９]*枚?を手札に加えさせる/))
+    return { type: 'STUB', id: 'CRASH_LIFE_TO_HAND' } as StubAction;
+
+  // ---- このカードをエナゾーンから手札に加えてもよい ----
+  if (t.match(/このカードをエナゾーンから手札に加えてもよい/))
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 1 } };
+
+  // ---- その中から１枚をエナゾーンに置く ----
+  if (t.match(/^その中から[１-９\d０-９]*枚?をエナゾーンに置く$/) || t.match(/^追加でそれをエナゾーンに置く$/))
+    return { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction;
+
+  // ---- 数字/クラス/色を宣言する（種別選択）----
+  if (t.match(/^(?:その後、)?クラス[１-９\d０-９]*つを宣言する$/) || t.match(/^クラス[１-９\d０-９]*つを宣言する$/))
+    return { type: 'STUB', id: 'DECLARE_CLASS' } as StubAction;
+  if (t.match(/^(?:その後、)?色[１-９\d０-９]*つを宣言する$/))
+    return { type: 'STUB', id: 'DECLARE_COLOR' } as StubAction;
+
+  // ---- N体まで対象とする / シグニ１体を対象とする（単独） ----
+  if (t.match(/^シグニ[１-９\d０-９]*体?を対象とする$/) || t.match(/^対戦相手のルリグかシグニ[１-９\d０-９]*体?を対象とする$/))
+    return { type: 'STUB', id: 'TARGET_ONLY' } as StubAction;
+
+  // ---- それを裏向きにする ----
+  if (t.match(/^それ(?:ら)?を裏向きにする(?:もよい)?$/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- N個を選ぶ（CHOOSE断片）----
+  if (t.match(/^[１-９\d０-９]+つ(?:まで)?選ぶ$/))
+    return { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE' } as StubAction;
+
+  // ---- 引用符付き常時能力を得る（「【常】：〜」）----
+  if (t.match(/^「【常】：.+」$/) || t.match(/^「【常】：.+。」$/))
+    return { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as StubAction;
+
+  // ---- ① / ② を行う（番号付き効果フラグメント）----
+  if (t.match(/^[①②③④⑤]を行う$/))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
+  // ---- それらをルリグトラッシュに置く ----
+  if (t.match(/^それらをルリグトラッシュに置く$/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- それをルリグデッキに加える ----
+  if (t.match(/^それをルリグデッキに加える$/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
+  // ---- このカードをセンタールリグの下に置く ----
+  if (t.match(/このカードをあなたのセンタールリグの下に置く/))
+    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+
   // ---- 不明 ----
   return { type: 'UNKNOWN', raw: t };
 }
