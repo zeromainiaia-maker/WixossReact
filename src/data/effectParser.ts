@@ -6029,7 +6029,7 @@ function parseSingleSentence(text: string): EffectAction {
   // ---- アタックを一度無効にする ----
   if (t.match(/のアタックを一度無効にする/) ||
       t.match(/アタックであなたにダメージを与えない/))
-    return { type: 'STUB', id: 'NEGATE_ATTACK_ON_TRIGGER' } as StubAction;
+    return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as NegateAttackAction;
 
   // ---- 対戦相手はデッキの一番上を公開する ----
   if (t.match(/対戦相手は(?:自分の)?デッキの一番上のカードを公開する/))
