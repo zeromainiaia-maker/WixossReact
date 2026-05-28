@@ -878,6 +878,11 @@ export interface StubAction {
   type: 'STUB';
   id: string;
   costColors?: string[]; // OPTIONAL_COST: 支払うエナの色リスト（例: ['赤','赤']）
+  revealPickParams?: {   // REVEAL_PICK_HAND_SHUFFLE_BOTTOM: REVEAL_AND_PICK マージ用メタデータ
+    pickCount: number | 'ALL';
+    restDest: 'deck_bottom' | 'trash' | 'energy';
+    then: 'hand' | 'energy';
+  };
 }
 
 // このターン特定カードを使用禁止にする
