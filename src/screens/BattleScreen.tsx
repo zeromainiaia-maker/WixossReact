@@ -4968,7 +4968,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             {card.CardName}
                           </p>
                           <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>
-                            コスト: {card.Cost || 'なし'}
+                            コスト: {costReduced ? <><s style={{ color: C.textFaint }}>{card.Cost}</s> → {effCost}</> : (card.Cost || 'なし')}
                           </p>
                           <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>
                             {card.Timing}
