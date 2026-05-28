@@ -112,6 +112,10 @@ export interface PlayerState {
   suppress_life_burst?: boolean;
   // このターン、ルリグダメージを受けない
   prevent_lrig_damage?: boolean;
+  // このターン（または次のターンまで）、敗北しない
+  prevent_defeat?: boolean;
+  // サブスクライバーカウント（ちあコーデ系）
+  subscriber_count?: number;
 }
 
 export interface GameLog {
