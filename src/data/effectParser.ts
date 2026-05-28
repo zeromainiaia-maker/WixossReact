@@ -3528,8 +3528,12 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- デッキの一番上のカードをシグニの下に置く ----
-  if (t.match(/あなたのデッキの一番上のカードをこのシグニの下に置く/)) {
-    return { type: 'STUB', id: 'DECK_TOP_UNDER_SELF' } as StubAction;
+  {
+    const m = t.match(/あなたのデッキの一番上のカードを([０-９\d]+)枚?このシグニの下に置く/);
+    if (m) return { type: 'PLACE_UNDER_SIGNI', source: 'deck_top', count: parseNum(m[1]) } as PlaceUnderSigniAction;
+    if (t.match(/あなたのデッキの一番上のカードをこのシグニの下に置く/)) {
+      return { type: 'PLACE_UNDER_SIGNI', source: 'deck_top', count: 1 } as PlaceUnderSigniAction;
+    }
   }
 
   // ---- 限定条件無視アーツ使用 ----
