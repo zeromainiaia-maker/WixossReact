@@ -72,6 +72,7 @@ import type {
   FreezeAction,
   LookAndReorderAction,
   AddCraftToLrigDeckAction,
+  DrawPerFieldCountAction,
   StubAction,
   PowerModifyAction,
   BanishAction,
