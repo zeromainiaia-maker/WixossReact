@@ -2869,6 +2869,56 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const noopAction: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
         return selectOrInteract(handCands, handCands.length, true, 'self_hand', noopAction as EffectAction, undefined, ctx);
       }
+      // 自シグニを他の空きシグニゾーンに移動（してもよい）
+      if (stub.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
+        const srcMov = ctx.sourceCardNum;
+        if (!srcMov) return done(addLog(ctx, 'ゾーン移動：ソースカードなし'));
+        const currentZone = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcMov);
+        if (currentZone < 0) return done(addLog(ctx, 'ゾーン移動：フィールドにいない'));
+        const emptyZones = [0, 1, 2].filter(i =>
+          i !== currentZone && (!ctx.ownerState.field.signi[i] || ctx.ownerState.field.signi[i]!.length === 0));
+        if (emptyZones.length === 0) return done(addLog(ctx, 'ゾーン移動：空きゾーンなし'));
+        const moveOptions = emptyZones.map(zi => ({
+          id: `zone_${zi}`,
+          label: `ゾーン${zi + 1}に移動`,
+          action: ({ type: 'STUB', id: 'INTERNAL_MOVE_TO_ZONE', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        moveOptions.push({ id: 'skip', label: 'スキップ',
+          action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as import('../types/effects').StubAction) as EffectAction,
+          available: true });
+        const pendingMov: PendingInteractionDef = { type: 'CHOOSE', options: moveOptions, count: 1 };
+        return needsInteraction(addLog(ctx, '他のシグニゾーンに移動してもよい'), pendingMov);
+      }
+      if (stub.id === 'INTERNAL_MOVE_TO_ZONE') {
+        const srcZ = ctx.sourceCardNum;
+        const targetZoneNum = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+        if (!srcZ) return done(addLog(ctx, 'ゾーン移動：ソースカードなし'));
+        const curZone = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcZ);
+        if (curZone < 0 || curZone === targetZoneNum) return done(addLog(ctx, 'ゾーン移動：ゾーン特定不可'));
+        const newSigniMov = [...ctx.ownerState.field.signi] as (string[] | null)[];
+        const movedStack = [...(newSigniMov[curZone] ?? [])];
+        newSigniMov[curZone] = null;
+        newSigniMov[targetZoneNum] = movedStack;
+        const copyArr = <T>(arr: T[] | undefined, def: T): T[] =>
+          arr ? [...arr] : [def, def, def];
+        const newDown   = copyArr(ctx.ownerState.field.signi_down, false);
+        const newFrozen = copyArr(ctx.ownerState.field.signi_frozen, false);
+        const newCharms = copyArr(ctx.ownerState.field.signi_charms as (null | string)[], null);
+        const newAcce   = copyArr(ctx.ownerState.field.signi_acce as (null | string)[], null);
+        const newVirus  = copyArr(ctx.ownerState.field.signi_virus, 0);
+        [newDown[targetZoneNum], newFrozen[targetZoneNum], newCharms[targetZoneNum], newAcce[targetZoneNum], newVirus[targetZoneNum]] =
+          [newDown[curZone], newFrozen[curZone], newCharms[curZone], newAcce[curZone], newVirus[curZone]];
+        newDown[curZone] = false; newFrozen[curZone] = false;
+        newCharms[curZone] = null; newAcce[curZone] = null; newVirus[curZone] = 0;
+        const newFieldMov = {
+          ...ctx.ownerState.field, signi: newSigniMov,
+          signi_down: newDown as boolean[], signi_frozen: newFrozen as boolean[],
+          signi_charms: newCharms, signi_acce: newAcce, signi_virus: newVirus,
+        };
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: newFieldMov } },
+          `${ctx.cardMap.get(srcZ)?.CardName ?? srcZ}をゾーン${curZone + 1}→ゾーン${targetZoneNum + 1}に移動`));
+      }
       // 公開したカード枚数基準パワー修正
       if (stub.id === 'POWER_MOD_PER_REVEALED') {
         const revCount = (ctx.lastProcessedCards ?? []).length;
