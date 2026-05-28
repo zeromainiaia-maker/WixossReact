@@ -81,6 +81,8 @@ import type {
   StubAction,
   PowerModifyAction,
   BanishAction,
+  BounceAction,
+  DownAction,
   Condition,
 } from '../types/effects';
 
