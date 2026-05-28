@@ -5780,11 +5780,11 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- このシグニの下からカードを移動 ----
   {
-    const m = t.match(/このシグニの下から(?:《[^》]+》の)?カード([０-９\d]*)枚?まで?を?(?:対象とし、それ(?:ら)?を)?(手札に加える|エナゾーンに置く|トラッシュに置く)/);
-    if (m) {
-      const dest: 'hand' | 'energy' | 'trash' = m[2].includes('手札') ? 'hand' : m[2].includes('エナ') ? 'energy' : 'trash';
+    const m = t.match(/このシグニの下から(?:《[^》]+》の)?カードを?([０-９\d]*)枚?(まで)?(?:を?対象とし、それ(?:ら)?を)?(手札に加える|エナゾーンに置く|トラッシュに置く)/);
+    if (m && !m[3]?.includes('か')) {
+      const dest: 'hand' | 'energy' | 'trash' = m[3].includes('手札') ? 'hand' : m[3].includes('エナ') ? 'energy' : 'trash';
       const cnt = m[1] ? parseNum(m[1]) : 1;
-      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: dest, count: cnt, upToCount: t.includes('まで'), fromThis: true } as TakeFromUnderSigniAction;
+      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: dest, count: cnt, upToCount: !!m[2], fromThis: true } as TakeFromUnderSigniAction;
     }
   }
 
