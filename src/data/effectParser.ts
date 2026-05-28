@@ -5593,9 +5593,17 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- このシグニの下からカードをトラッシュに置く ----
-  if (t.match(/このシグニの下からカード[０-９\d]*枚?をトラッシュに置いてもよい/) ||
-      t.match(/このシグニの下からカード[０-９\d]*枚?をトラッシュに置く$/)) {
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+  {
+    const mOpt = t.match(/このシグニの下からカード([０-９\d]*)枚?をトラッシュに置いてもよい/);
+    if (mOpt) {
+      const count = mOpt[1] ? parseNum(mOpt[1]) : 1;
+      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count, upToCount: true, fromThis: true } as TakeFromUnderSigniAction;
+    }
+    const mReq = t.match(/このシグニの下からカード([０-９\d]*)枚?をトラッシュに置く$/);
+    if (mReq) {
+      const count = mReq[1] ? parseNum(mReq[1]) : 1;
+      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count, fromThis: true } as TakeFromUnderSigniAction;
+    }
   }
 
   // ---- デッキをシャッフルし、そのシグニを公開しデッキの〜に置く ----
