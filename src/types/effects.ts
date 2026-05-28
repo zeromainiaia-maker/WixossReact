@@ -931,6 +931,11 @@ export interface BlockCardUseAction {
   cardName: string;
 }
 
+export interface PreventNextDamageAction {
+  type: 'PREVENT_NEXT_DAMAGE';
+  count: number;
+}
+
 export interface UnknownAction {
   type: 'UNKNOWN';
   raw: string;
