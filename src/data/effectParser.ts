@@ -5650,7 +5650,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- この方法でトラッシュに置いたカードの中に〜がある場合 ----
   if (t.match(/この方法でトラッシュに置いたカードの中に/)) {
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'STUB', id: 'CONDITIONAL_PER_TRASH' } as StubAction;
   }
 
   // ---- その中から《アクセアイコン》を持つカードをエナゾーンに ----
