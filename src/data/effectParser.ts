@@ -4594,7 +4594,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- デッキ上複数枚見て一部を手札・残りをデッキ下 ----
   if (t.match(/その中からカードを.*手札に加え.*残り.*デッキの一番下に置く/)) {
-    return { type: 'STUB', id: 'LOOK_TOP_ADD_HAND_REST_BOTTOM' } as StubAction;
+    return makeRevealPickStub(t);
   }
 
   // ---- 対戦相手のスペル・起を使用できない（次のターン間） ----
