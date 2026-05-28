@@ -830,8 +830,8 @@ function parseSingleSentence(text: string): EffectAction {
     } as PowerModifyPerFieldAction;
   }
 
-  // ---- スタック枚数依存パワー修正（CONTINUOUS: 下にあるカード1枚につき）----
-  const perStackM = t.match(/このシグニの下にあるカード.*につき([＋－])([０-９\d]+)される/);
+  // ---- スタック枚数依存パワー修正（CONTINUOUS: 下にあるカード/シグニ1枚につき）----
+  const perStackM = t.match(/このシグニの下にある(?:カード|シグニ)[０-９\d０-９]*枚?につき([＋－])([０-９\d]+)され/);
   if (perStackM) {
     const sign = perStackM[1] === '＋' ? 1 : -1;
     return {
