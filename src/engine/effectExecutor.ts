@@ -2312,6 +2312,24 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // ゲーム全体能力付与
       if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
+        const srcGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtGA = srcGA ? (srcGA.EffectText ?? '') + ' ' + (srcGA.BurstText ?? '') : '';
+        // 「このゲームの間、あなたはグロウできない」
+        if (txtGA.match(/このゲームの間、あなたはグロウできない/)) {
+          const newOwner = { ...ctx.ownerState, no_grow: true };
+          return done(addLog({ ...ctx, ownerState: newOwner }, 'このゲームの間グロウ不可'));
+        }
+        // 「このゲームの間、対戦相手はグロウできない」
+        if (txtGA.match(/このゲームの間、対戦相手はグロウできない/)) {
+          const newOther = { ...ctx.otherState, no_grow: true };
+          return done(addLog({ ...ctx, otherState: newOther }, 'このゲームの間相手グロウ不可'));
+        }
+        // 「このゲームの間、あなたは～を使用できない」
+        const blockM = txtGA.match(/このゲームの間、あなたは《([^》]+)》を使用できない/);
+        if (blockM) {
+          const newOwner = { ...ctx.ownerState, blocked_card_names: [...(ctx.ownerState.blocked_card_names ?? []), blockM[1]] };
+          return done(addLog({ ...ctx, ownerState: newOwner }, `《${blockM[1]}》の使用をブロック`));
+        }
         return done(addLog(ctx, 'このゲームの間：能力付与（ログのみ）'));
       }
       // メインフェイズ終了
