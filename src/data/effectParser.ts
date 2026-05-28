@@ -7694,7 +7694,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 手札からカードをN枚まで裏向きでルリグゾーンに置く ----
   if (t.match(/手札からカードを[１-９\d０-９]*枚まで裏向きでルリグゾーンに置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
 
   // ---- この方法でダウンしたルリグのレベルの合計に〜カードをトラッシュに置く ----
   if (t.match(/この方法でダウンしたルリグのレベルの合計に.*枚数のカードをトラッシュに置く/))
