@@ -5000,7 +5000,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 任意コスト支払い（広い汎用パターン）→ STUB with costColors ----
   if (t.match(/を支払ってもよい$/) || t.match(/を支払ってもよい。$/)) {
-    const costColors = [...t.matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    const costColors = extractCostColors(t);
     return { type: 'STUB', id: 'OPTIONAL_COST', ...(costColors.length ? { costColors } : {}) } as StubAction;
   }
 
