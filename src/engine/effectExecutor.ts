@@ -2666,6 +2666,7 @@ export function resumeSelectTarget(
     if (!result.done) return result; // ネストしたインタラクション（通常なし）
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
   }
+  cur = { ...cur, lastProcessedCards: selected };
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
