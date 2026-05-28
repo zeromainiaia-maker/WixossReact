@@ -6157,7 +6157,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 【トラップ】をトラッシュに置く ----
   if (t.match(/【トラップ】[１-９1-9０-９\d]*つをトラッシュに置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
 
   // ---- このシグニによってクラッシュされたLBは発動しない ----
   if (t.match(/このシグニによってクラッシュされたカードのライフバーストは発動しない/))
