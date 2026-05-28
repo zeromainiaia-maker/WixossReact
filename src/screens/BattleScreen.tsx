@@ -132,15 +132,47 @@ function removeOneCostColor(cost: string, color: string): string {
   return result || 'なし';
 }
 
+// "《白×2》《赤》" 形式のEffectText内コスト表記をparseGrowCost互換文字列に変換
+function normalizeCostText(s: string): string {
+  const result: { color: string; count: number }[] = [];
+  for (const m of s.matchAll(/《([^×》]+?)(?:×([０-９\d]+))?》/g)) {
+    const color = m[1].trim();
+    if (['コイン', 'ターン1回', 'アタックフェイズ', 'ダウン'].includes(color)) continue;
+    const count = m[2] ? parseInt(toHalfWidth(m[2])) : 1;
+    result.push({ color, count });
+  }
+  return result.map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
+}
+
 // EffectText を参照してアーツの実効コストを算出（条件付きコスト軽減の近似）
 function computeArtsEffectiveCost(
   card: { Cost: string; EffectText?: string },
   myState: { life_cloth: string[]; hand: string[] },
   lrigName?: string,
+  oppLrigColor?: string,
+  myLrigLevel?: number,
 ): string {
   const text = card.EffectText ?? '';
   const base = card.Cost;
   let m: RegExpMatchArray | null;
+
+  // 対戦相手のルリグ色条件：コスト上書き
+  m = text.match(/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの)?使用コストは(.+?)になる/s);
+  if (m && oppLrigColor) {
+    const colors = m[1].split(/か|と/).map(c => c.trim()).filter(Boolean);
+    if (colors.some(c => oppLrigColor.includes(c))) {
+      return normalizeCostText(m[2]);
+    }
+  }
+
+  // 自分のセンタールリグのレベル条件：コスト減
+  m = text.match(/センタールリグのレベルが([０-９\d]+)(以上|以下)[^、]*(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
+  if (m && myLrigLevel !== undefined) {
+    const threshold = parseInt(toHalfWidth(m[1]));
+    const op = m[2];
+    const condMet = op === '以上' ? myLrigLevel >= threshold : myLrigLevel <= threshold;
+    if (condMet) return removeOneCostColor(base, m[3]);
+  }
 
   // ライフクロスがN枚以下の場合コスト減
   m = text.match(/ライフクロスが([０-９\d]+)枚以下.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
