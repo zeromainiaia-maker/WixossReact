@@ -6204,11 +6204,11 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- トラップ配置し直す ----
   if (t.match(/すべての【トラップ】を好きなように配置し直す/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
 
   // ---- 手札からカードを【トラップ】として設置する ----
   if (t.match(/手札からカードを[１-９\d]*枚?まで【トラップ】として.*シグニゾーンに設置する/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
 
   // ---- その中から〈クラス〉/レベル/色シグニを手札に加え残りをトラッシュ ----
   if (t.match(/その中から.*[＜〈<].*[＞〉>].*シグニ.*手札に加え/) ||
