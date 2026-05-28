@@ -1420,6 +1420,12 @@ function parseSingleSentence(text: string): EffectAction {
       const target: EffectTarget = { type: 'SIGNI', owner, count, filter: { cardType: 'シグニ' } };
       return { type: 'POWER_MODIFY', target, delta } as PowerModifyAction;
     }
+    // フラグメント「それらのパワーをそれぞれ±N000する」- 対戦相手シグニを近似ターゲットとして使用
+    const fragM = t.match(/^(?:それら|それとこのシグニ)のパワーをそれぞれ([＋－])([０-９\d]+)する$/);
+    if (fragM) {
+      const delta = fragM[1] === '＋' ? parseNum(fragM[2]) : -parseNum(fragM[2]);
+      return { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, delta } as PowerModifyAction;
+    }
   }
 
   // ---- パワーパンプ / デバフ ----
