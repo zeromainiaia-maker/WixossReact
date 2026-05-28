@@ -6430,8 +6430,15 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- 手札からカードをデッキ上/下に置く ----
-  if (t.match(/手札からカード[１-９\d０-９]*枚?をデッキの一番[上下]に置く/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+  {
+    const mHandDeck = t.match(/手札からカード([１-９\d０-９]*)枚?(まで)?をデッキの一番([上下])に置く/);
+    if (mHandDeck) {
+      const cnt = mHandDeck[1] ? parseNum(mHandDeck[1]) : 1;
+      const up = !!mHandDeck[2];
+      const pos = mHandDeck[3] === '上' ? 'top' : 'bottom';
+      return { type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'self', count: cnt, upToCount: up }, shuffle: false, position: pos } as import('../types/effects').TransferToDeckAction;
+    }
+  }
 
   // ---- あなたのターンの場合（条件付き効果） ----
   if (t.match(/^あなたのターンの場合、/))
