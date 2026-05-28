@@ -118,7 +118,7 @@ function canPayOptionalCost(costColors: string[], state: PlayerState, cardMap: M
 }
 
 function done(ctx: ExecCtx): ExecResult {
-  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn };
+  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards };
 }
 
 function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
