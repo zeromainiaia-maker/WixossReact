@@ -3892,9 +3892,24 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'DRAW_ON_SIGNI_LEAVE_BY_OPP' } as StubAction;
   }
 
-  // ---- シグニ下に積む（英知など）----
-  if (t.match(/あなたのトラッシュから.*シグニ.*枚.*このシグニの下に置く/)) {
-    return { type: 'STUB', id: 'STACK_SIGNI_UNDER' } as StubAction;
+  // ---- シグニ下に積む（トラッシュからシグニ）----
+  {
+    const m = t.match(/あなたのトラッシュから(＜[^＞]+＞の|共通する色を持たない)?(?:レベル[０-９\d＋以下上]+の)?([＜〈<][^＞〉>]+[＞〉>]の)?(?:シグニ|カード)を?([０-９\d]+)枚?まで(?:を)?対象とし.*このシグニの下に置く/);
+    if (m) {
+      const cnt = parseNum(m[3]);
+      const storyFilter = (m[1] || m[2]) ? parseStoryFilter(m[1] ?? m[2] ?? '') : {};
+      return {
+        type: 'PLACE_UNDER_SIGNI',
+        source: 'trash',
+        count: cnt,
+        upToCount: t.includes('まで'),
+        filter: { cardType: 'シグニ', ...storyFilter },
+      } as PlaceUnderSigniAction;
+    }
+    // フォールバック：トラッシュから置く
+    if (t.match(/あなたのトラッシュから.*シグニ.*枚.*このシグニの下に置く/)) {
+      return { type: 'PLACE_UNDER_SIGNI', source: 'trash', count: 1, filter: { cardType: 'シグニ' } } as PlaceUnderSigniAction;
+    }
   }
 
   // ---- 下にあるシグニの【常】能力を得る ----
