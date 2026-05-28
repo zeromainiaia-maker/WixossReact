@@ -2064,7 +2064,51 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog(ctx, '対戦相手シグニを対象+手札捨て（スキップ）'));
       }
       // 動的パワー修正（COUNT依存）
-      if (stub.id === 'POWER_MOD_PER_COUNT' || stub.id === 'POWER_MOD_BY_HAND_COUNT' ||
+      if (stub.id === 'POWER_MOD_PER_COUNT') {
+        const src = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const effText = src ? (src.EffectText ?? '') + ' ' + (src.BurstText ?? '') : '';
+        const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const toSigned = (s: string) => parseInt(toHW(s).replace('－', '-').replace('＋', '+'));
+        // パターン1: "N体/枚につき±X" → count × deltaPerUnit
+        const perM = effText.match(/([０-９\d]+)[体枚]?につき([－＋][０-９\d]+)/);
+        // パターン2: "レベル1につき±X" → sum(level) × deltaPerUnit
+        const lvlM = !perM ? effText.match(/レベル([０-９\d]+)につき([－＋][０-９\d]+)/) : null;
+        // パターン3: "合計で±X" （固定合計値）
+        const totalM = (!perM && !lvlM) ? effText.match(/合計で([－＋][０-９\d]+)/) : null;
+
+        let totalDelta = 0;
+        const processed = ctx.lastProcessedCards ?? [];
+
+        if (perM) {
+          const divisor = Math.max(1, parseInt(toHW(perM[1])));
+          const deltaPerUnit = toSigned(perM[2]);
+          totalDelta = Math.floor(processed.length / divisor) * deltaPerUnit;
+        } else if (lvlM) {
+          const unitLvl = Math.max(1, parseInt(toHW(lvlM[1])));
+          const deltaPerLvl = toSigned(lvlM[2]);
+          const sumLvl = processed.reduce((acc, cn) => {
+            const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0');
+            return acc + (isNaN(lv) ? 0 : lv);
+          }, 0);
+          totalDelta = Math.floor(sumLvl / unitLvl) * deltaPerLvl;
+        } else if (totalM) {
+          totalDelta = toSigned(totalM[1]);
+        }
+
+        if (totalDelta !== 0) {
+          const mods = [...(ctx.otherState.temp_power_mods ?? [])];
+          const oppField = ctx.otherState.field;
+          for (let zi = 0; zi < 3; zi++) {
+            const top = oppField.signi[zi]?.at(-1);
+            if (top) mods.push({ cardNum: top, delta: totalDelta });
+          }
+          const newOther = { ...ctx.otherState, temp_power_mods: mods };
+          return done(addLog({ ...ctx, otherState: newOther },
+            `パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（処理${processed.length}枚）`));
+        }
+        return done(addLog(ctx, 'パワー修正（動的カウント）'));
+      }
+      if (stub.id === 'POWER_MOD_BY_HAND_COUNT' ||
           stub.id === 'DOUBLE_POWER_MINUS' || stub.id === 'POWER_MOD_PER_OPPONENT_FIELD') {
         return done(addLog(ctx, 'パワー修正（動的カウント）'));
       }
