@@ -2108,8 +2108,31 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, 'パワー修正（動的カウント）'));
       }
-      if (stub.id === 'POWER_MOD_BY_HAND_COUNT' ||
-          stub.id === 'DOUBLE_POWER_MINUS' || stub.id === 'POWER_MOD_PER_OPPONENT_FIELD') {
+      if (stub.id === 'POWER_MOD_BY_HAND_COUNT') {
+        const src2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txt2 = src2 ? (src2.EffectText ?? '') + ' ' + (src2.BurstText ?? '') : '';
+        const toHW2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const m2 = txt2.match(/手札([０-９\d]+)枚につき([－＋][０-９\d]+)/);
+        if (m2) {
+          const divisor = Math.max(1, parseInt(toHW2(m2[1])));
+          const delta = parseInt(toHW2(m2[2]).replace('－', '-').replace('＋', '+'));
+          const count = Math.floor(ctx.ownerState.hand.length / divisor);
+          const totalDelta = count * delta;
+          if (totalDelta !== 0) {
+            const mods = [...(ctx.otherState.temp_power_mods ?? [])];
+            const oppField = ctx.otherState.field;
+            for (let zi = 0; zi < 3; zi++) {
+              const top = oppField.signi[zi]?.at(-1);
+              if (top) mods.push({ cardNum: top, delta: totalDelta });
+            }
+            const newOther = { ...ctx.otherState, temp_power_mods: mods };
+            return done(addLog({ ...ctx, otherState: newOther },
+              `パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（手札${ctx.ownerState.hand.length}枚）`));
+          }
+        }
+        return done(addLog(ctx, 'パワー修正（手札枚数）'));
+      }
+      if (stub.id === 'DOUBLE_POWER_MINUS' || stub.id === 'POWER_MOD_PER_OPPONENT_FIELD') {
         return done(addLog(ctx, 'パワー修正（動的カウント）'));
       }
       // 条件付きパワーボーナス
