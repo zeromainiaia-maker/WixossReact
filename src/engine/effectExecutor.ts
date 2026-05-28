@@ -2853,6 +2853,41 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: newOther },
           `パワー${totalDelta}（${count}枚捨て×${deltaPerCard}）`));
       }
+      // 手札のクラスシグニを好きな枚数公開（公開＝SELECT_TARGET、デッキに触れない）
+      if (stub.id === 'REVEAL_CLASS_SIGNI_FROM_HAND') {
+        const srcRev = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtRev = srcRev ? (srcRev.EffectText ?? '') + ' ' + (srcRev.BurstText ?? '') : '';
+        const classMatchRev = txtRev.match(/手札から(?:それぞれ名前の異なる)?[<＜]([^>＞]+)[>＞]のシグニ/);
+        const targetClassRev = classMatchRev?.[1];
+        const handCands = ctx.ownerState.hand.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (c?.Type !== 'シグニ') return false;
+          if (targetClassRev && !c.CardClass?.includes(targetClassRev)) return false;
+          return true;
+        });
+        if (handCands.length === 0) return done(addLog(ctx, `手札に${targetClassRev ?? 'クラス'}シグニなし（公開スキップ）`));
+        const noopAction: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        return selectOrInteract(handCands, handCands.length, true, 'self_hand', noopAction as EffectAction, undefined, ctx);
+      }
+      // 公開したカード枚数基準パワー修正
+      if (stub.id === 'POWER_MOD_PER_REVEALED') {
+        const revCount = (ctx.lastProcessedCards ?? []).length;
+        if (revCount === 0) return done(addLog(ctx, 'パワー修正：公開0枚'));
+        const srcPR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPR = srcPR ? (srcPR.EffectText ?? '') + ' ' + (srcPR.BurstText ?? '') : '';
+        const toHWPR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mPR = txtPR.match(/枚につき([＋+][０-９\d]+)/);
+        const deltaPerCard = mPR ? parseInt(toHWPR(mPR[1]).replace('＋', '+').replace('+', '+')) : 1000;
+        const totalDelta = deltaPerCard * revCount;
+        const targetCnPR = ctx.sourceCardNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)
+          ? ctx.sourceCardNum
+          : ctx.ownerState.field.signi.find(s => s && s.length > 0)?.at(-1);
+        if (!targetCnPR) return done(addLog(ctx, `パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（フィールドなし）`));
+        const mods = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: targetCnPR, delta: totalDelta }];
+        const newOwner = { ...ctx.ownerState, temp_power_mods: mods };
+        return done(addLog({ ...ctx, ownerState: newOwner },
+          `${ctx.cardMap.get(targetCnPR)?.CardName ?? targetCnPR}パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（${revCount}枚公開）`));
+      }
       // キー１枚を任意でルリグトラッシュに置く（追加効果条件）
       if (stub.id === 'TRASH_OWN_KEY_OPTIONAL') {
         const keyPiece = ctx.ownerState.field.key_piece;
