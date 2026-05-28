@@ -2074,6 +2074,39 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOther = { ...ctx.otherState, no_grow: true };
         return done(addLog({ ...ctx, otherState: newOther }, '対戦相手はグロウできない'));
       }
+      // ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット
+      if (stub.id === 'SUPPRESS_LIFE_BURST_ON_CRASH' || stub.id === 'SUPPRESS_LIFE_BURST_ON_CARD') {
+        const newOther = { ...ctx.otherState, suppress_life_burst: true };
+        return done(addLog({ ...ctx, otherState: newOther }, 'このターン対戦相手のライフバーストは発動しない'));
+      }
+      // このターンのルリグダメージ無効：ownerState に prevent_lrig_damage フラグをセット
+      if (stub.id === 'PREVENT_LRIG_DAMAGE_THIS_TURN') {
+        const newOwner = { ...ctx.ownerState, prevent_lrig_damage: true };
+        return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン自分へのルリグダメージを無効'));
+      }
+      // チェックゾーンから除外：対戦相手のチェックゾーンのカードをトラッシュへ
+      if (stub.id === 'EXILE_FROM_CHECK_ZONE') {
+        const target = ctx.otherState.field.check ?? ctx.ownerState.field.check;
+        if (target) {
+          const cardName = ctx.cardMap.get(target)?.CardName ?? target;
+          if (ctx.otherState.field.check) {
+            const newOther = {
+              ...ctx.otherState,
+              trash: [...ctx.otherState.trash, target],
+              field: { ...ctx.otherState.field, check: null },
+            };
+            return done(addLog({ ...ctx, otherState: newOther }, `チェックゾーンから除外（${cardName}）`));
+          } else {
+            const newOwner = {
+              ...ctx.ownerState,
+              trash: [...ctx.ownerState.trash, target],
+              field: { ...ctx.ownerState.field, check: null },
+            };
+            return done(addLog({ ...ctx, ownerState: newOwner }, `チェックゾーンから除外（${cardName}）`));
+          }
+        }
+        return done(addLog(ctx, 'チェックゾーンにカードなし'));
+      }
       // その他ゾーン/レベル/フェイズ制限
       if (stub.id === 'LRIG_ZONE_RESTRICT' || stub.id === 'LRIG_LEVEL_RESTRICT' || stub.id === 'EXTRA_PHASE_RESTRICT') {
         return done(addLog(ctx, 'ルリグ制限効果（ログのみ）'));
