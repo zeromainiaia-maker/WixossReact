@@ -2003,9 +2003,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
         return done(addLog(ctx, '対戦相手任意コスト（スキップ）'));
       }
-      // アーツコスト削減：次のアーツ使用時に適用（ここでは記録のみ）
+      // アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み）
       if (stub.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || stub.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
-        return done(addLog(ctx, 'アーツコスト削減（次回アーツ使用時適用）'));
+        return done(ctx); // コストは支払い時点で計算済み、ここでは何もしない
       }
       // 数字宣言：現在はランダム値で代用
       if (stub.id === 'DECLARE_NUMBER') {
