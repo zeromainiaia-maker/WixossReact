@@ -6186,7 +6186,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- この下から好きな枚数のシグニをトラッシュ ----
   if (t.match(/この下から好きな枚数のシグニを対象とし、それらをトラッシュに置く/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count: 9, upToCount: true, fromThis: true, filter: { cardType: 'シグニ' } } as TakeFromUnderSigniAction;
 
   // ---- 公開した他のカードをシャッフルしてデッキ下 ----
   if (t.match(/公開した他のカードをシャッフルしてデッキの一番下に置く/))
