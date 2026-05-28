@@ -571,7 +571,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       const newS: PlayerState = { ...s, hand: remaining, trash: [...s.trash, ...toTrash] };
       return addLog(setOwnerState(tgt.owner, newS, c), `手札${toTrash.length}枚捨てる`);
     }
-    if (tgt.count === 'ALL') return done(applyTrashHand(cands, ctx));
+    if (tgt.count === 'ALL') return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」= 自分が選択
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」= 相手自身が選択
