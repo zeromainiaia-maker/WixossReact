@@ -1161,7 +1161,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : result.pending;
       return { ...result, pending };
     }
-    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards };
   }
   return done(cur);
 }
