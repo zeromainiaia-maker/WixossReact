@@ -5130,8 +5130,9 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'ARTS_USE_DISCARD_LRIG_DECK' } as StubAction;
   }
 
-  // ---- このアーツの使用コストは《無×N》減る ----
-  if (t.match(/このアーツの使用コストは.*減る/)) {
+  // ---- このアーツ/スペル/カードの使用コストは減る/増える ----
+  if (t.match(/(?:このアーツ|このスペル|このカード)の使用コストは.*(?:減る|増える)/) ||
+      t.match(/使用コストは.*(?:減る|増える)$/)) {
     return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
   }
 
