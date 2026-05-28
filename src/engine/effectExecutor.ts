@@ -542,7 +542,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       }
       return cur;
     }
-    if (tgt.count === 'ALL') return done(applyTrashField(cands, ctx));
+    if (tgt.count === 'ALL') return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
     return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
   }
@@ -556,7 +556,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         hand: state.hand.filter(n => !picked.includes(n)),
         trash: [...state.trash, ...picked],
       };
-      return done(addLog(setOwnerState(tgt.owner, newS, ctx), `手札${count}枚ランダム捨て`));
+      return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札${count}枚ランダム捨て`), lastProcessedCards: picked });
     }
     const cands = handCandidates(state, tgt.filter, ctx.cardMap);
     const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
