@@ -6384,7 +6384,7 @@ function parseSingleSentence(text: string): EffectAction {
   // ---- トラップを表向きにして発動 / トラップアイコン発動 ----
   if (t.match(/【トラップ】.*表向きにし.*トラップアイコン.*発動してもよい/) ||
       t.match(/トラップアイコン》を発動させる/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
 
   // ---- このターン終了時、手札をN枚捨てる ----
   if (t.match(/^このターン終了時、手札を[１-９\d０-９]+枚捨てる$/))
