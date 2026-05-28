@@ -4271,15 +4271,20 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 手札からN枚このシグニの下に置く ----
   {
-    const m = t.match(/あなたの手札から((?:レベル[０-９\d０-９]+の)?(?:シグニ|カード))を?([０-９\d]+)枚?まで?このシグニの下に置く/);
+    const m = t.match(/あなたの手札から((?:レベル[０-９\d０-９]+の)?(?:シグニ|カード))を?([０-９\d]+)枚?(まで)?(?:を対象とし、それ(?:ら)?を)?このシグニの下に置く/);
     if (m) {
       return {
         type: 'PLACE_UNDER_SIGNI',
         source: 'hand',
         count: parseNum(m[2]),
-        upToCount: t.includes('まで'),
+        upToCount: !!m[3],
         filter: { cardType: 'シグニ' },
       } as PlaceUnderSigniAction;
+    }
+    // 「あなたは手札をN枚まで」形式
+    const m2 = t.match(/あなたは手札を([０-９\d]+)枚?(まで)?このシグニの下に置く/);
+    if (m2) {
+      return { type: 'PLACE_UNDER_SIGNI', source: 'hand', count: parseNum(m2[1]), upToCount: !!m2[2], filter: { cardType: 'シグニ' } } as PlaceUnderSigniAction;
     }
   }
 
