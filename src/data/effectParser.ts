@@ -7126,8 +7126,13 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
 
   // ---- このシグニの下にあるカードをトラッシュに置く ----
-  if (t.match(/このシグニの下にある.*カード[１-９\d０-９]*枚をトラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+  {
+    const mUnder2 = t.match(/このシグニの下にある.*カード([１-９\d０-９]*)枚をトラッシュに置いてもよい/);
+    if (mUnder2) {
+      const count = mUnder2[1] ? parseNum(mUnder2[1]) : 1;
+      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count, upToCount: true, fromThis: true } as TakeFromUnderSigniAction;
+    }
+  }
 
   // ---- あなたのグロウフェイズ開始時〜 ----
   if (t.match(/^あなたのグロウフェイズ開始時/))
