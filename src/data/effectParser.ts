@@ -2048,21 +2048,6 @@ function parseSingleSentence(text: string): EffectAction {
     }
   }
 
-  // ---- CONTINUOUS: このシグニのパワーはあなたの手札N枚につき±N----
-  {
-    const m = t.match(/このシグニのパワーは(?:あなたの)?手札([０-９\d]+)枚につき([＋－])([０-９\d]+)され/);
-    if (m) {
-      const sign = m[2] === '＋' ? 1 : -1;
-      return {
-        type: 'POWER_MODIFY_PER_FIELD',
-        target: { type: 'SIGNI', owner: 'self', count: 1 },
-        deltaPerUnit: sign * parseNum(m[3]),
-        countFilter: { cardType: 'シグニ' },
-        countOwner: 'self',
-      } as import('../types/effects').StubAction; // TODO: implement PowerModifyPerHandCount
-    }
-  }
-
   // ---- このシグニのパワーはあなたの場にある[他の]＜X＞のシグニ１体につき±Nされる ----
   const perFieldSelfM = t.match(/このシグニのパワーは(あなた|対戦相手)の場にある(?:他の)?(.+?)のシグニ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
   if (perFieldSelfM) {
