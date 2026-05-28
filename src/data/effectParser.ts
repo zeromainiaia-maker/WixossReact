@@ -3275,7 +3275,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- このターン次にダメージを受ける場合代わりに受けない ----
   if (t.match(/このターン.*次にあなたがダメージを受ける場合.*代わりにダメージを受けない/)) {
-    return { type: 'STUB', id: 'PREVENT_NEXT_DAMAGE' } as StubAction;
+    return { type: 'PREVENT_NEXT_DAMAGE', count: 1 } as PreventNextDamageAction;
   }
 
   // ---- 代わりに＋Nする（前の効果に続く）----
