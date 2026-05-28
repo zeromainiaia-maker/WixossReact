@@ -76,6 +76,7 @@ import type {
   AwakenSigniAction,
   NegateAttackAction,
   PlaceUnderSigniAction,
+  PreventNextDamageAction,
   StubAction,
   PowerModifyAction,
   BanishAction,
