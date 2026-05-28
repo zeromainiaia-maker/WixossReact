@@ -1128,6 +1128,25 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, '任意コスト：支払いますか？'), pending5);
         }
       }
+      // Pattern ⑥: TARGET_AND_DISCARD_HAND
+      // 手札1枚を自動捨て → 残りステップへ続行（ターゲットは後続ステップが独立して選択）
+      if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'TARGET_AND_DISCARD_HAND') {
+        if (cur.ownerState.hand.length > 0) {
+          const discardIdx = cur.ownerState.hand.length - 1;
+          const discarded = cur.ownerState.hand[discardIdx];
+          const newOwnerHand = [...cur.ownerState.hand.slice(0, discardIdx)];
+          const newOwnerTrash = [...cur.ownerState.trash, discarded];
+          const discardName = cur.cardMap.get(discarded)?.CardName ?? discarded;
+          cur = {
+            ...cur,
+            ownerState: { ...cur.ownerState, hand: newOwnerHand, trash: newOwnerTrash },
+            logs: [...cur.logs, `手札を捨て対戦相手シグニを対象に（${discardName}を捨て）`],
+          };
+        } else {
+          cur = { ...cur, logs: [...cur.logs, '手札なし（TARGET_AND_DISCARD_HAND）'] };
+        }
+        continue;
+      }
     }
     const result = executeAction(step, cur);
     if (!result.done) {
