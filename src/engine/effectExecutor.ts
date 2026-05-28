@@ -2216,7 +2216,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const deckCards = ctx.ownerState.deck.slice(0, Math.min(revealCount, ctx.ownerState.deck.length));
         if (deckCards.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK）'));
         const maxPick = params.pickCount === 'ALL' ? deckCards.length : (params.pickCount as number);
-        const addHandAction: import('../types/effects').AddToHandAction = { type: 'ADD_TO_HAND' };
+        const addHandAction: import('../types/effects').AddToHandAction = { type: 'ADD_TO_HAND', owner: 'self' };
         const pending: PendingInteractionDef = {
           type: 'SEARCH',
           visibleCards: deckCards,
