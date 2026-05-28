@@ -2090,9 +2090,24 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const cardName = topCard ? (ctx.cardMap.get(topCard)?.CardName ?? topCard) : 'なし';
         return done(addLog(ctx, `対戦相手のライフクロスの一番上を確認：${cardName}`));
       }
-      // トレード：自シグニのバニッシュと引き換えに対象シグニを除去
+      // トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ
       if (stub.id === 'TRADE_BANISH_SELF_SIGNI') {
-        return done(addLog(ctx, 'トレード効果（自シグニバニッシュ）'));
+        const selfSigni = ctx.ownerState.field.signi
+          .map((stack, zi) => stack?.at(-1) ? { cn: stack.at(-1)!, zi } : null)
+          .filter(Boolean) as { cn: string; zi: number }[];
+        const oppSigni = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+        if (selfSigni.length === 0 || oppSigni.length === 0) {
+          return done(addLog(ctx, 'トレード条件未達（シグニなし）'));
+        }
+        // まず自分シグニを選んでトラッシュ → continuation で相手シグニをバニッシュ
+        const selfCands = selfSigni.map(s => s.cn);
+        const trashSelfAction: import('../types/effects').TrashAction = {
+          type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 },
+        };
+        const banishOppAction: import('../types/effects').BanishAction = {
+          type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+        };
+        return selectOrInteract(selfCands, 1, false, 'self_field', trashSelfAction, banishOppAction, ctx);
       }
       // 手札を捨てて対戦相手シグニを対象とする効果（スキップ）
       if (stub.id === 'TARGET_AND_DISCARD_HAND') {
