@@ -6682,7 +6682,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- このターン終了時、すべてのシグニを裏向きにする ----
   if (t.match(/このターン終了時.*すべてのシグニを裏向きにする/))
-    return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
+    return { type: 'STUB', id: 'SIGNI_FLIP_FACEDOWN' } as StubAction;
 
   // ---- デッキ一番上のカードを公開し（デッキ上確認系） ----
   if (t.match(/^このシグニがアップ状態の場合、あなたのデッキの一番上を公開してもよい$/) ||
