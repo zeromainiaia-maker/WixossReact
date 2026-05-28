@@ -95,6 +95,23 @@ function extractCostColors(text: string): string[] {
   return result;
 }
 
+// REVEAL_PICK_HAND_SHUFFLE_BOTTOM STUBのメタデータを抽出して返す
+function makeRevealPickStub(t: string): StubAction {
+  let pickCount: number | 'ALL' = 1;
+  const countM = t.match(/その中から([０-９\d]+|好きな枚数|すべて)/);
+  if (countM) {
+    const v = countM[1];
+    if (v === '好きな枚数' || v === 'すべて') pickCount = 'ALL';
+    else pickCount = parseNum(v);
+  }
+  let restDest: 'deck_bottom' | 'trash' | 'energy' = 'deck_bottom';
+  if (t.match(/残り.*トラッシュ|トラッシュに置く$|トラッシュに置いてもよい$/)) restDest = 'trash';
+  else if (t.match(/残り.*エナゾーン|エナゾーンに置く$/)) restDest = 'energy';
+  const then: 'hand' | 'energy' =
+    (t.match(/エナゾーンに置く/) && !t.match(/手札に加え/)) ? 'energy' : 'hand';
+  return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM', revealPickParams: { pickCount, restDest, then } } as StubAction;
+}
+
 // ===== 数値ユーティリティ =====
 
 const FW_DIGIT: Record<string, string> = {
