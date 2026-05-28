@@ -6704,7 +6704,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 他のすべてのシグニをトラッシュに置く ----
   if (t.match(/^他のすべてのシグニをトラッシュに置く$/))
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', excludeSelf: true } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
 
   // ---- このターン、あなたは他のシグニを場に出せない ----
   if (t.match(/このターン、あなたは他のシグニを場に出せない/) ||
@@ -7081,7 +7081,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- あなたの他のすべてのシグニをトラッシュに置く ----
   if (t.match(/^あなたの他のすべてのシグニをトラッシュに置く$/))
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', excludeSelf: true } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
 
   // ---- この方法で手札を1枚捨てなかった場合、このシグニをトラッシュ ----
   if (t.match(/この方法で手札を[１-９\d０-９]+枚捨てなかった場合、このシグニを場からトラッシュに置く/))
