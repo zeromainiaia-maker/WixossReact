@@ -4886,7 +4886,7 @@ function parseSingleSentence(text: string): EffectAction {
   }
 
   // ---- デッキ上複数枚見て一部を手札・残りをデッキ下 ----
-  if (t.match(/その中からカードを.*手札に加え.*残り.*デッキの一番下に置く/)) {
+  if (t.match(/その中からカード(?:[０-９\d]+枚)?を?.*手札に加え.*残り.*デッキの一番下に置く/)) {
     return makeRevealPickStub(t);
   }
 
