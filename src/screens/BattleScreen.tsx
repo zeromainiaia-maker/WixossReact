@@ -4964,9 +4964,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(() => {
-                    const myLrigName = battleCardMap.get(my.field.lrig.at(-1) ?? '')?.CardName;
+                    const myLrigCard = battleCardMap.get(my.field.lrig.at(-1) ?? '');
+                    const myLrigName = myLrigCard?.CardName;
+                    const myLrigLevel = myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0;
+                    const oppLrigColor = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
                     return artsCandidates.map(card => {
-                    const effCost = computeArtsEffectiveCost(card, my, myLrigName);
+                    const effCost = computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel);
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
