@@ -6332,9 +6332,9 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/^プレイヤーを[１-９\d０-９]*人?まで選ぶ$/))
     return { type: 'STUB', id: 'CHOOSE_N_FROM_LIST' } as StubAction;
 
-  // ---- 対戦相手のすべてのシグニをエナゾーンに置く ----
+  // ---- 対戦相手のすべてのシグニをエナゾーンに置く（= 全バニッシュ）----
   if (t.match(/対戦相手のすべてのシグニをエナゾーンに置く/))
-    return { type: 'STUB', id: 'MASS_TRASH' } as StubAction;
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as BanishAction;
 
   // ---- あなたの他の＜クラス＞のシグニ１体を場からトラッシュに置いてもよい ----
   if (t.match(/対象のあなたの他の[＜〈<].+[＞〉>]のシグニ[１-９\d０-９]*体?を場からトラッシュに置いてもよい/))
