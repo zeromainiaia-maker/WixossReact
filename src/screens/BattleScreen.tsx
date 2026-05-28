@@ -4995,7 +4995,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         </div>
                       </button>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
                 <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setIsBetting(false); }}
                   style={{ padding: '8px 0', borderRadius: 8, border: C.borderUI,
