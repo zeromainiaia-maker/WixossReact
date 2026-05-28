@@ -6254,7 +6254,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- シグニ１体の基本レベルをN～Nにする ----
   if (t.match(/それの基本レベルを[１-９\d０-９]～[１-９\d０-９]いずれかのレベル[１-９\d０-９]つにする/))
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'STUB', id: 'SET_LEVEL_RANGE' } as StubAction;
 
   // ---- それらの【出】能力は発動せず〜 ----
   if (t.match(/【出】能力は発動せず/) ||
