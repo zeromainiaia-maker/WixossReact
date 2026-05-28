@@ -246,6 +246,8 @@ export type EffectAction =
   | DrawPerFieldCountAction
   | AwakenSigniAction
   | NegateAttackAction
+  | PlaceUnderSigniAction
+  | PlaceUnderSourceSigniAction
   | StubAction
   | UnknownAction;
 
