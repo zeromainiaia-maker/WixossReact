@@ -2370,6 +2370,33 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, 'ソウル操作'));
       }
+      // デッキを見て並べ替え（STUB版：動的パース）
+      if (stub.id === 'LOOK_AND_REORDER') {
+        const srcLOR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtLOR = srcLOR ? (srcLOR.EffectText ?? '') + ' ' + (srcLOR.BurstText ?? '') : '';
+        const toHWL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // 「残りをデッキに加えてシャッフルする」→ lastProcessedCardsをデッキへシャッフル
+        if ((txtLOR.match(/残りをデッキに加えてシャッフルする/) || txtLOR.match(/^残りをデッキに加えてシャッフルする$/)) && ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0) {
+          const cards = ctx.lastProcessedCards;
+          const newDeck = shuffle([...ctx.ownerState.deck, ...cards]);
+          const newS: PlayerState = { ...ctx.ownerState, deck: newDeck };
+          return done(addLog({ ...ctx, ownerState: newS }, `残り${cards.length}枚をデッキに戻してシャッフル`));
+        }
+        // 「デッキ上からN枚見る」→ LOOK_AND_REORDER インタラクション
+        const lookM = txtLOR.match(/デッキの上(?:から)?カードを?([０-９\d]+)枚(?:を?見る|確認する)/);
+        if (lookM) {
+          const count = parseInt(toHWL(lookM[1]));
+          const visible = ctx.ownerState.deck.slice(0, Math.min(count, ctx.ownerState.deck.length));
+          if (visible.length > 0) {
+            const newS: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visible.length) };
+            return needsInteraction(
+              addLog({ ...ctx, ownerState: newS }, `デッキ上${visible.length}枚を確認`),
+              { type: 'LOOK_AND_REORDER', cards: visible, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top' },
+            );
+          }
+        }
+        return done(addLog(ctx, 'デッキを見て並べ替え（スキップ）'));
+      }
       // デッキ上をライフクロスに加える
       if (stub.id === 'DECK_TOP_TO_LIFE') {
         const srcDTL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
