@@ -1038,6 +1038,53 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         };
         return needsInteraction(addLog(cur, '任意コスト：発動しますか？'), pending);
       }
+
+      // Pattern ④ 追加コスト強化: STUB ... BASE_STEPS ... CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)
+      // (直後でなく離れた位置にある CONDITIONAL を先読みしてインタラクションを生成)
+      {
+        const stub4 = step as import('../types/effects').StubAction;
+        const optIds = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
+        if (optIds.includes(stub4.id)) {
+          const condIdx = a.steps.findIndex((s, idx) => {
+            if (idx <= i + 1) return false;
+            if (s?.type !== 'CONDITIONAL') return false;
+            const c = (s as ConditionalAction).condition.type;
+            return c === 'IS_MY_TURN' || c === 'PAID_ADDITIONAL_COST';
+          });
+          if (condIdx > i + 1) {
+            const conditional4 = a.steps[condIdx] as ConditionalAction;
+            const baseSteps = a.steps.slice(i + 1, condIdx);
+            const remaining4 = a.steps.slice(condIdx + 1);
+            const noopAction4: SequenceAction = { type: 'SEQUENCE', steps: [] };
+            const baseAction4: EffectAction = baseSteps.length === 0 ? noopAction4
+              : baseSteps.length === 1 ? baseSteps[0]
+              : { type: 'SEQUENCE', steps: baseSteps } as SequenceAction;
+            const cont4: EffectAction | undefined = remaining4.length > 0
+              ? (remaining4.length === 1 ? remaining4[0] : { type: 'SEQUENCE', steps: remaining4 } as SequenceAction)
+              : undefined;
+            const isAdditional = conditional4.condition.type === 'PAID_ADDITIONAL_COST';
+            const payAction4: EffectAction = isAdditional
+              ? (baseSteps.length === 0
+                  ? conditional4.then
+                  : { type: 'SEQUENCE', steps: [...baseSteps, conditional4.then] } as SequenceAction)
+              : conditional4.then; // replace mode: 強化効果のみ
+            const costColors4 = stub4.costColors ?? [];
+            const canAfford4 = costColors4.length === 0 || canPayOptionalCost(costColors4, cur.ownerState, cur.cardMap);
+            const payLabel4 = costColors4.length > 0
+              ? `追加コスト支払う（${costColors4.map(c => `《${c}》`).join('')}）`
+              : '追加コストを支払う';
+            const opts4 = [
+              { id: 'pay', label: payLabel4, action: payAction4, available: canAfford4, ...(costColors4.length ? { costColors: costColors4 } : {}) },
+              { id: 'skip', label: 'スキップ（基本効果のみ）', action: baseAction4, available: true },
+            ];
+            const pending4: PendingInteractionDef = {
+              type: 'CHOOSE', options: opts4, count: 1,
+              ...(cont4 ? { continuation: cont4 } : {}),
+            };
+            return needsInteraction(addLog(cur, '追加コスト：支払いますか？'), pending4);
+          }
+        }
+      }
     }
     const result = executeAction(step, cur);
     if (!result.done) {
