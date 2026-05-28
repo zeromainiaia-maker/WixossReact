@@ -1395,6 +1395,14 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+function execAwakenSigni(ctx: ExecCtx): ExecResult {
+  if (!ctx.sourceCardNum) return done(ctx);
+  const awakened = [...(ctx.ownerState.awakened_signi ?? [])];
+  if (!awakened.includes(ctx.sourceCardNum)) awakened.push(ctx.sourceCardNum);
+  const newOwner = { ...ctx.ownerState, awakened_signi: awakened };
+  return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.sourceCardNum} が覚醒状態になった`));
+}
+
 function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAction, ctx: ExecCtx): ExecResult {
   const countState = ownerState(a.countOwner, ctx);
   const fieldCount = countState.field.signi.filter(stack => {
