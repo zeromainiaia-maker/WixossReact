@@ -106,6 +106,8 @@ export interface PlayerState {
   awakened_signi?: string[];
   // このターン次にアタックしたとき無効にされるシグニのCardNum一覧
   negated_attacks?: string[];
+  // このターンまたは次のターン、グロウできない
+  no_grow?: boolean;
 }
 
 export interface GameLog {
