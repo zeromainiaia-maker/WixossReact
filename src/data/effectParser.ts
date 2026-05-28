@@ -8128,7 +8128,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- そうした場合、それを手札に加える ----
   if (t.match(/^そうした場合、それを手札に加える$/))
-    return { type: 'ADD_TO_HAND', owner: 'self' } as AddToHandAction;
+    return { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction;
 
   // ---- そうした場合、デッキ上をN枚見る ----
   if (t.match(/^そうした場合.*デッキの上から.*枚.*見る$/))
