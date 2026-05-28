@@ -990,6 +990,24 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       cur = addLog(cur, `リコレクト条件達成（アーツ${artsInLrigTrash}枚）`);
       continue;
     }
+    // TARGET_AND_DISCARD_HAND: 対戦相手シグニを対象とし手札を捨ててバニッシュ/バウンス/パワー変更
+    if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'TARGET_AND_DISCARD_HAND') {
+      const remaining = a.steps.slice(i + 1);
+      const cont: EffectAction | undefined = remaining.length > 0
+        ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining } as SequenceAction)
+        : undefined;
+      const oppState = cur.otherState;
+      const cands = fieldCandidates(oppState, { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers);
+      // 対戦相手シグニをバニッシュ（applyDirectActionが正しいカードを特定）、その後手札1枚捨て
+      const banishAction: import('../types/effects').BanishAction = {
+        type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+      };
+      const discardCont: EffectAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } as import('../types/effects').TrashAction;
+      const fullCont: EffectAction = cont
+        ? { type: 'SEQUENCE', steps: [discardCont, cont] } as SequenceAction
+        : discardCont;
+      return selectOrInteract(cands, 1, false, 'opp_field', banishAction, fullCont, cur);
+    }
     // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN)
     // IS_MY_TURN はパーサーが「コスト支払い → 効果発動」を表すプレースホルダーとして使用
     if (step.type === 'STUB') {
