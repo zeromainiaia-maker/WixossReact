@@ -268,6 +268,21 @@ export interface AwakenSigniAction {
   type: 'AWAKEN_SIGNI';
 }
 
+// シグニの下にカードを置く（デッキトップ・トラッシュ・手札から）
+export interface PlaceUnderSigniAction {
+  type: 'PLACE_UNDER_SIGNI';
+  source: 'deck_top' | 'trash' | 'hand' | 'energy';
+  count: number;
+  upToCount?: boolean;
+  filter?: TargetFilter;
+}
+
+// SELECT_TARGET の thenAction：選択カードをソースシグニの下に置く
+export interface PlaceUnderSourceSigniAction {
+  type: 'PLACE_UNDER_SOURCE_SIGNI';
+  fromLocation: 'trash' | 'hand' | 'energy';
+}
+
 // このターン、次にターゲットシグニがアタックしたとき、そのアタックを無効にする
 export interface NegateAttackAction {
   type: 'NEGATE_ATTACK';
