@@ -4257,13 +4257,13 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- エナゾーンからN枚このシグニの下に置く ----
   {
-    const m = t.match(/あなたのエナゾーンから((?:《ガードアイコン》を持たない)?(?:カード|シグニ))を?([０-９\d]+)枚?まで?このシグニの下に置く/);
+    const m = t.match(/あなたのエナゾーンから((?:《ガードアイコン》を持たない)?(?:カード|シグニ))を?([０-９\d]+)枚?(まで)?(?:を対象とし、それ(?:ら)?を)?このシグニの下に置く/);
     if (m) {
       return {
         type: 'PLACE_UNDER_SIGNI',
         source: 'energy',
         count: parseNum(m[2]),
-        upToCount: t.includes('まで'),
+        upToCount: !!m[3],
         filter: { cardType: 'シグニ' },
       } as PlaceUnderSigniAction;
     }
