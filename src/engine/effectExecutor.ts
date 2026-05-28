@@ -2213,22 +2213,71 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const txtCB = srcCB ? (srcCB.EffectText ?? '') + ' ' + (srcCB.BurstText ?? '') : '';
         const toHWC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const toSignedC = (s: string) => parseInt(toHWC(s).replace('－', '-').replace('＋', '+'));
-        // パターン「この方法でN枚以上の場合、±X」
+        // 共通ユーティリティ：対象シグニ全体にパワー修正を適用
+        const applyPowerDelta = (delta: number, target: 'self' | 'opponent', reason: string): ExecResult => {
+          if (delta === 0) return done(addLog(ctx, reason));
+          const targetState = target === 'self' ? ctx.ownerState : ctx.otherState;
+          const mods = [...(targetState.temp_power_mods ?? [])];
+          for (let zi = 0; zi < 3; zi++) {
+            const top = targetState.field.signi[zi]?.at(-1);
+            if (top) mods.push({ cardNum: top, delta });
+          }
+          const newState = { ...targetState, temp_power_mods: mods };
+          const newCtx = target === 'self'
+            ? { ...ctx, ownerState: newState }
+            : { ...ctx, otherState: newState };
+          return done(addLog(newCtx, `パワー${delta > 0 ? '+' : ''}${delta}（${reason}）`));
+        };
+        // パターン「この方法でN枚以上の場合、±X」（lastProcessedCards使用）
         const cM = txtCB.match(/この方法で.*?([０-９\d]+)枚以上.*?場合.*?([－＋][０-９\d]+)(?:する|される)/s);
         if (cM) {
           const threshold = parseInt(toHWC(cM[1]));
           const delta = toSignedC(cM[2]);
           const processed = ctx.lastProcessedCards ?? [];
-          if (processed.length >= threshold && delta !== 0) {
-            const mods = [...(ctx.otherState.temp_power_mods ?? [])];
-            for (let zi = 0; zi < 3; zi++) {
-              const top = ctx.otherState.field.signi[zi]?.at(-1);
-              if (top) mods.push({ cardNum: top, delta });
-            }
-            const newOther = { ...ctx.otherState, temp_power_mods: mods };
-            return done(addLog({ ...ctx, otherState: newOther }, `パワー${delta > 0 ? '+' : ''}${delta}（条件達成）`));
-          }
+          if (processed.length >= threshold) return applyPowerDelta(delta, 'opponent', `条件達成（${processed.length}枚≥${threshold}）`);
           return done(addLog(ctx, `条件未達（必要${threshold}枚、処理${processed.length}枚）`));
+        }
+        // パターン「あなたの場にシグニがN体以上ある場合、代わりに±X」
+        const fieldM = txtCB.match(/あなたの場[にの](?:.*?)シグニが([０-９\d]+)体(?:以上|以上ある)(?:.*?)場合[、，](?:代わりに)?([－＋][０-９\d]+)/);
+        if (fieldM) {
+          const threshold = parseInt(toHWC(fieldM[1]));
+          const delta = toSignedC(fieldM[2]);
+          const ownCount = ctx.ownerState.field.signi.filter(s => s && s.length > 0).length;
+          if (ownCount >= threshold) return applyPowerDelta(delta, 'opponent', `自場${ownCount}体≥${threshold}`);
+          return done(addLog(ctx, `条件未達（自場${ownCount}体/必要${threshold}体）`));
+        }
+        // パターン「あなたのエナゾーンにカードがN枚以上ある場合」
+        const energyM = txtCB.match(/あなたのエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)/);
+        if (energyM) {
+          const threshold = parseInt(toHWC(energyM[1]));
+          const delta = toSignedC(energyM[2]);
+          if (ctx.ownerState.energy.length >= threshold) return applyPowerDelta(delta, 'opponent', `エナ${ctx.ownerState.energy.length}枚≥${threshold}`);
+          return done(addLog(ctx, `条件未達（エナ${ctx.ownerState.energy.length}枚/必要${threshold}枚）`));
+        }
+        // パターン「対戦相手のエナゾーンにカードがN枚以上ある場合」
+        const oppEnergyM = txtCB.match(/対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合.*?([－＋][０-９\d]+)/);
+        if (oppEnergyM) {
+          const threshold = parseInt(toHWC(oppEnergyM[1]));
+          const delta = toSignedC(oppEnergyM[2]);
+          if (ctx.otherState.energy.length >= threshold) return applyPowerDelta(delta, 'opponent', `相手エナ${ctx.otherState.energy.length}枚≥${threshold}`);
+          return done(addLog(ctx, `条件未達（相手エナ${ctx.otherState.energy.length}枚/必要${threshold}枚）`));
+        }
+        // パターン「あなたの手札がN枚以上の場合」
+        const handM = txtCB.match(/あなたの手札が([０-９\d]+)枚以上(?:の場合)?.*?([－＋][０-９\d]+)/);
+        if (handM) {
+          const threshold = parseInt(toHWC(handM[1]));
+          const delta = toSignedC(handM[2]);
+          if (ctx.ownerState.hand.length >= threshold) return applyPowerDelta(delta, 'opponent', `手札${ctx.ownerState.hand.length}枚≥${threshold}`);
+          return done(addLog(ctx, `条件未達（手札${ctx.ownerState.hand.length}枚/必要${threshold}枚）`));
+        }
+        // パターン「あなたのトラッシュにカード名に〜を含むカードがある場合」（固定パワー）
+        const trashNameM = txtCB.match(/あなたのトラッシュにカード名に《?([^》]+)》?を含むカードがある場合.*?([－＋][０-９\d]+)/);
+        if (trashNameM) {
+          const cardName = trashNameM[1];
+          const delta = toSignedC(trashNameM[2]);
+          const found = ctx.ownerState.trash.some(cn => ctx.cardMap.get(cn)?.CardName?.includes(cardName));
+          if (found) return applyPowerDelta(delta, 'opponent', `トラッシュに${cardName}あり`);
+          return done(addLog(ctx, `条件未達（トラッシュに${cardName}なし）`));
         }
         return done(addLog(ctx, '条件付きパワー修正'));
       }
