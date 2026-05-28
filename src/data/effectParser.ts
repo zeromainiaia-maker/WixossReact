@@ -6377,9 +6377,14 @@ function parseSingleSentence(text: string): EffectAction {
   if (t.match(/その中から[＜〈<].+[＞〉>]のシグニを[１-９\d０-９]+枚まで場に出し/))
     return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
 
-  // ---- 手札からカードをデッキの一番上に置く ----
-  if (t.match(/手札からカード[１-９\d０-９]+枚を好きな順番でデッキの一番上に置く/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+  // ---- 手札からカードをデッキの一番上に置く（好きな順番） ----
+  {
+    const mHDTop = t.match(/手札からカード([１-９\d０-９]+)枚(?:まで)?を(?:好きな順番で)?デッキの一番上に置く/);
+    if (mHDTop) {
+      const cnt = parseNum(mHDTop[1]);
+      return { type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'self', count: cnt }, shuffle: false, position: 'top' } as import('../types/effects').TransferToDeckAction;
+    }
+  }
 
   // ---- 対戦相手は数字を宣言する ----
   if (t.match(/^対戦相手は数字[１-９\d０-９]*つを宣言する$/))
