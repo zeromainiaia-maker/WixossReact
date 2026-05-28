@@ -3898,7 +3898,15 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- シグニ下に積む（トラッシュからシグニ）----
   {
-    const m = t.match(/あなたのトラッシュから(＜[^＞]+＞の|共通する色を持たない)?(?:レベル[０-９\d＋以下上]+の)?([＜〈<][^＞〉>]+[＞〉>]の)?(?:シグニ|カード)を?([０-９\d]+)枚?まで(?:を)?対象とし.*このシグニの下に置く/);
+    // それぞれN枚まで（レベルN, M, K のシグニをそれぞれ）
+    const mEach = t.match(/あなたのトラッシュから((?:レベル[０-９\d]+[、，]?)+)のシグニをそれぞれ([０-９\d]+)枚まで.*このシグニの下に置く/);
+    if (mEach) {
+      const levelCount = (mEach[1].match(/レベル/g) || []).length;
+      const perCount = parseNum(mEach[2]);
+      return { type: 'PLACE_UNDER_SIGNI', source: 'trash', count: levelCount * perCount, upToCount: true, filter: { cardType: 'シグニ' } } as PlaceUnderSigniAction;
+    }
+    // N枚まで or N枚を（レベル・クラス条件付き）
+    const m = t.match(/あなたのトラッシュから(＜[^＞]+＞の|共通する色を持たない)?(?:レベル[０-９\d＋以下上]+の)?([＜〈<][^＞〉>]+[＞〉>]の)?(?:シグニ|カード)を?([０-９\d]+)枚?(まで)?(?:を)?対象とし.*このシグニの下に置く/);
     if (m) {
       const cnt = parseNum(m[3]);
       const storyFilter = (m[1] || m[2]) ? parseStoryFilter(m[1] ?? m[2] ?? '') : {};
@@ -3906,7 +3914,7 @@ function parseSingleSentence(text: string): EffectAction {
         type: 'PLACE_UNDER_SIGNI',
         source: 'trash',
         count: cnt,
-        upToCount: t.includes('まで'),
+        upToCount: !!m[4],
         filter: { cardType: 'シグニ', ...storyFilter },
       } as PlaceUnderSigniAction;
     }
