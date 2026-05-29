@@ -2232,8 +2232,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       appendBattleLogs([`[${who}] ${entry.label}`], { defer: true });
       const ctxPowers = calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, battleCardMap);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum };
-      const result = executeEffect(entry.effect, ctx);
+      let result = executeEffect(entry.effect, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
+
+      // FORCE_TARGET_SELF: opp_field SELECT_TARGETで強制対象シグニが候補にある場合、候補を絞る
+      if (!result.done && result.pending.type === 'SELECT_TARGET' && result.pending.scope === 'opp_field') {
+        const forcedNums = collectForcedTargets(otherState, effectsMap, isOwnerTurn);
+        const forcedInCands = forcedNums.filter(n => (result as { done: false; pending: { type: 'SELECT_TARGET'; candidates: string[] } }).pending.candidates.includes(n));
+        if (forcedInCands.length > 0 && forcedInCands.length < (result as { done: false; pending: { candidates: string[] } }).pending.candidates.length) {
+          result = { ...result, pending: { ...(result as { done: false; pending: object }).pending, candidates: forcedInCands } } as typeof result;
+          appendBattleLogs([`[FORCE_TARGET_SELF] 対象が${forcedInCands.length}体に強制`], { defer: true });
+        }
+      }
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
       const guestState = ownerIsHost ? result.otherState : result.ownerState;
