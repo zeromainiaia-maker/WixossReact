@@ -6059,12 +6059,176 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
-      // === バッチ18: エンジン必須系（ログのみ実装、将来の本実装待ち） ===
-      // トラップ系（engine: トラップゾーン未実装）
-      if (stub.id === 'TRAP_OPERATION' || stub.id === 'TRAP_OP' || stub.id === 'PLACE_TRAP_FROM_REVEALED'
-          || stub.id === 'PLACE_TRAP_OPTIONAL' || stub.id === 'ACTIVATE_TRAP' || stub.id === 'TRAP_TO_HAND'
-          || stub.id === 'SET_OPP_SIGNI_AS_TRAP' || stub.id === 'SET_HAND_CARD_AS_TRAP' || stub.id === 'TRAP_TO_SIGNI_IF_ZONE_EMPTY') {
-        return done(addLog(ctx, `[トラップ系: ${stub.id}]`));
+      // === バッチ18: エンジン必須系 ===
+      // トラップ系 ─────────────────────────────────────────────────────────
+
+      // PLACE_TRAP_OPTIONAL / SET_HAND_CARD_AS_TRAP: 手札からトラップ設置
+      if (stub.id === 'PLACE_TRAP_OPTIONAL' || stub.id === 'SET_HAND_CARD_AS_TRAP') {
+        if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, 'トラップ設置：手札なし'));
+        const zoneOptsPTO = [0, 1, 2].map(zi => ({
+          id: `zone_${zi}`,
+          label: `ゾーン${zi + 1}に設置`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog(ctx, 'トラップにするカードを選択'), {
+          type: 'SELECT_TARGET',
+          candidates: ctx.ownerState.hand,
+          count: 1,
+          optional: false,
+          targetScope: 'self_hand',
+          thenAction: ({ type: 'STUB', id: 'CHOOSE_TRAP_ZONE' } as import('../types/effects').StubAction) as EffectAction,
+          continuation: ({ type: 'CHOOSE', choose_count: 1, from_count: 3, choices: zoneOptsPTO.map(o => ({ choiceId: o.id, label: o.label, action: o.action })) } as import('../types/effects').ChooseAction) as EffectAction,
+        });
+      }
+      // CHOOSE_TRAP_ZONE: 選択済みカードのゾーン選択
+      if (stub.id === 'CHOOSE_TRAP_ZONE') {
+        const zoneOptsCTZ = [0, 1, 2].map(zi => ({
+          id: `zone_${zi}`,
+          label: `ゾーン${zi + 1}に設置`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog(ctx, '設置するゾーンを選択'), {
+          type: 'CHOOSE', options: zoneOptsCTZ, count: 1,
+        });
+      }
+      // INTERNAL_SET_TRAP: ゾーン番号をstub.valueで受け取りトラップ設置
+      if (stub.id === 'INTERNAL_SET_TRAP') {
+        const zoneIdxIST = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+        const trapCardIST = ctx.lastProcessedCards?.[0] ?? null;
+        if (!trapCardIST) return done(addLog(ctx, 'トラップ設置：対象カードなし'));
+        const currentTrapsIST = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+        const newTrashIST = [...ctx.ownerState.trash];
+        if (currentTrapsIST[zoneIdxIST]) newTrashIST.push(currentTrapsIST[zoneIdxIST]!);
+        currentTrapsIST[zoneIdxIST] = trapCardIST;
+        const newHandIST = ctx.ownerState.hand.filter(c => c !== trapCardIST);
+        const newOwnerIST = { ...ctx.ownerState, hand: newHandIST, trash: newTrashIST, field: { ...ctx.ownerState.field, signi_traps: currentTrapsIST } };
+        return done(addLog({ ...ctx, ownerState: newOwnerIST }, `トラップ設置: ゾーン${zoneIdxIST + 1}`));
+      }
+      // TRAP_TO_HAND: signi_trapsの全カードを手札へ
+      if (stub.id === 'TRAP_TO_HAND') {
+        const trapsToHandTTH = (ctx.ownerState.field.signi_traps ?? [null, null, null]).filter(Boolean) as string[];
+        if (trapsToHandTTH.length === 0) return done(addLog(ctx, 'トラップなし'));
+        const newHandTTH = [...ctx.ownerState.hand, ...trapsToHandTTH];
+        const newTrapsTTH: (string | null)[] = [null, null, null];
+        const newOwnerTTH = { ...ctx.ownerState, hand: newHandTTH, field: { ...ctx.ownerState.field, signi_traps: newTrapsTTH } };
+        return done(addLog({ ...ctx, ownerState: newOwnerTTH }, `トラップ${trapsToHandTTH.length}枚を手札へ`));
+      }
+      // ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: スペル等でトラップを強制発動
+      if (stub.id === 'ACTIVATE_TRAP' || stub.id === 'ACTIVATE_TRAP_IN_FIELD') {
+        const trapsAT = ctx.ownerState.field.signi_traps ?? [null, null, null];
+        const firstTrapIdxAT = trapsAT.findIndex(t => t !== null);
+        if (firstTrapIdxAT < 0) return done(addLog(ctx, 'トラップなし'));
+        const trapCardAT = trapsAT[firstTrapIdxAT]!;
+        const newTrapsAT = [...trapsAT] as (string | null)[];
+        newTrapsAT[firstTrapIdxAT] = null;
+        const newOwnerAT = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, trapCardAT], field: { ...ctx.ownerState.field, signi_traps: newTrapsAT } };
+        return done(addLog({ ...ctx, ownerState: newOwnerAT }, `トラップ発動: ゾーン${firstTrapIdxAT + 1}`));
+      }
+      // SET_OPP_SIGNI_AS_TRAP: 相手のシグニ1体をトラップとして設置
+      if (stub.id === 'SET_OPP_SIGNI_AS_TRAP') {
+        const oppSigniCandsSSOSAT = (ctx.otherState.field.signi.map((s, zi) => s?.at(-1) ? { instId: s.at(-1)!, zi } : null).filter(Boolean)) as Array<{ instId: string; zi: number }>;
+        if (oppSigniCandsSSOSAT.length === 0) return done(addLog(ctx, 'SET_OPP_SIGNI_AS_TRAP: 相手シグニなし'));
+        return needsInteraction(addLog(ctx, '相手のシグニを選択（トラップ化）'), {
+          type: 'SELECT_TARGET',
+          candidates: oppSigniCandsSSOSAT.map(x => x.instId),
+          count: 1,
+          optional: false,
+          targetScope: 'opp_field',
+          thenAction: ({ type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_TRAP' } as import('../types/effects').StubAction) as EffectAction,
+        });
+      }
+      // INTERNAL_OPP_SIGNI_TO_TRAP: 選択した相手シグニをトラップゾーンへ
+      if (stub.id === 'INTERNAL_OPP_SIGNI_TO_TRAP') {
+        const targetIOSTT = ctx.lastProcessedCards?.[0] ?? null;
+        if (!targetIOSTT) return done(addLog(ctx, 'INTERNAL_OPP_SIGNI_TO_TRAP: 対象なし'));
+        let zoneIdxIOSTT = -1;
+        for (let zi = 0; zi < 3; zi++) {
+          if ((ctx.otherState.field.signi[zi] ?? []).includes(targetIOSTT)) { zoneIdxIOSTT = zi; break; }
+        }
+        if (zoneIdxIOSTT < 0) return done(addLog(ctx, 'INTERNAL_OPP_SIGNI_TO_TRAP: ゾーン特定失敗'));
+        const newOppSigniIOSTT = [...ctx.otherState.field.signi] as (string[] | null)[];
+        newOppSigniIOSTT[zoneIdxIOSTT] = null;
+        const newOppTrapsIOSTT = [...(ctx.otherState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+        const newOppTrashIOSTT = [...ctx.otherState.trash];
+        if (newOppTrapsIOSTT[zoneIdxIOSTT]) newOppTrashIOSTT.push(newOppTrapsIOSTT[zoneIdxIOSTT]!);
+        newOppTrapsIOSTT[zoneIdxIOSTT] = targetIOSTT;
+        const newOtherIOSTT = { ...ctx.otherState, trash: newOppTrashIOSTT, field: { ...ctx.otherState.field, signi: newOppSigniIOSTT, signi_traps: newOppTrapsIOSTT } };
+        return done(addLog({ ...ctx, otherState: newOtherIOSTT }, `相手シグニ→トラップ: ゾーン${zoneIdxIOSTT + 1}`));
+      }
+      // TRAP_TO_SIGNI_IF_ZONE_EMPTY: このカードのゾーンにシグニがない場合、signi_traps[zone]→signi[zone]
+      if (stub.id === 'TRAP_TO_SIGNI_IF_ZONE_EMPTY') {
+        const srcCardTTSIZE = ctx.sourceCardNum ?? null;
+        if (!srcCardTTSIZE) return done(addLog(ctx, 'TRAP_TO_SIGNI_IF_ZONE_EMPTY: sourceCardNumなし'));
+        let zoneIdxTTSIZE = -1;
+        for (let zi = 0; zi < 3; zi++) {
+          const trapsArr = ctx.ownerState.field.signi_traps ?? [null, null, null];
+          if (trapsArr[zi] === srcCardTTSIZE || (ctx.ownerState.field.signi[zi] ?? []).includes(srcCardTTSIZE)) {
+            zoneIdxTTSIZE = zi; break;
+          }
+        }
+        if (zoneIdxTTSIZE < 0) return done(addLog(ctx, 'TRAP_TO_SIGNI_IF_ZONE_EMPTY: ゾーン特定失敗'));
+        if (ctx.ownerState.field.signi[zoneIdxTTSIZE]?.length) return done(addLog(ctx, 'TRAP_TO_SIGNI_IF_ZONE_EMPTY: ゾーンにシグニあり'));
+        const trapCardTTSIZE = (ctx.ownerState.field.signi_traps ?? [])[zoneIdxTTSIZE];
+        if (!trapCardTTSIZE) return done(addLog(ctx, 'TRAP_TO_SIGNI_IF_ZONE_EMPTY: トラップなし'));
+        const newSigniTTSIZE = [...ctx.ownerState.field.signi] as (string[] | null)[];
+        newSigniTTSIZE[zoneIdxTTSIZE] = [trapCardTTSIZE];
+        const newTrapsTTSIZE = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+        newTrapsTTSIZE[zoneIdxTTSIZE] = null;
+        const newOwnerTTSIZE = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniTTSIZE, signi_traps: newTrapsTTSIZE } };
+        return done(addLog({ ...ctx, ownerState: newOwnerTTSIZE }, `トラップ→シグニ: ゾーン${zoneIdxTTSIZE + 1}`));
+      }
+      // PLACE_TRAP_FROM_REVEALED: lastProcessedCards[0]をトラップ設置（ゾーン選択→INTERNAL_SET_TRAP）
+      if (stub.id === 'PLACE_TRAP_FROM_REVEALED') {
+        if (!(ctx.lastProcessedCards?.[0])) return done(addLog(ctx, 'PLACE_TRAP_FROM_REVEALED: 対象なし'));
+        const zoneOptsPTFR = [0, 1, 2].map(zi => ({
+          id: `zone_${zi}`,
+          label: `ゾーン${zi + 1}に設置`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog(ctx, '設置するゾーンを選択（公開から）'), {
+          type: 'CHOOSE', options: zoneOptsPTFR, count: 1,
+        });
+      }
+      // TRAP_OP: ソースカードのテキストに応じて操作判定
+      if (stub.id === 'TRAP_OP') {
+        const srcTRAPOP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtTRAPOP = srcTRAPOP ? (srcTRAPOP.EffectText ?? '') + ' ' + (srcTRAPOP.BurstText ?? '') : '';
+        if (txtTRAPOP.includes('トラッシュに置く') || txtTRAPOP.includes('トラッシュへ置く')) {
+          const trapsTO = ctx.ownerState.field.signi_traps ?? [null, null, null];
+          const firstIdxTO = trapsTO.findIndex(t => t !== null);
+          if (firstIdxTO < 0) return done(addLog(ctx, 'トラップなし'));
+          const trapCardTO = trapsTO[firstIdxTO]!;
+          const newTrapsTO = [...trapsTO] as (string | null)[];
+          newTrapsTO[firstIdxTO] = null;
+          const newOwnerTO = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, trapCardTO], field: { ...ctx.ownerState.field, signi_traps: newTrapsTO } };
+          return done(addLog({ ...ctx, ownerState: newOwnerTO }, `トラップをトラッシュへ`));
+        }
+        if (txtTRAPOP.includes('手札から') && (txtTRAPOP.includes('設置') || txtTRAPOP.includes('トラップ'))) {
+          if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, 'トラップ設置：手札なし'));
+          const zoneOptsTRAPOP = [0, 1, 2].map(zi => ({
+            id: `zone_${zi}`,
+            label: `ゾーン${zi + 1}に設置`,
+            action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as import('../types/effects').StubAction) as EffectAction,
+            available: true,
+          }));
+          return needsInteraction(addLog(ctx, 'トラップにするカードを選択'), {
+            type: 'SELECT_TARGET',
+            candidates: ctx.ownerState.hand,
+            count: 1,
+            optional: false,
+            targetScope: 'self_hand',
+            thenAction: ({ type: 'STUB', id: 'CHOOSE_TRAP_ZONE' } as import('../types/effects').StubAction) as EffectAction,
+            continuation: ({ type: 'CHOOSE', choose_count: 1, from_count: 3, choices: zoneOptsTRAPOP.map(o => ({ choiceId: o.id, label: o.label, action: o.action })) } as import('../types/effects').ChooseAction) as EffectAction,
+          });
+        }
+        return done(addLog(ctx, '[トラップ操作]'));
+      }
+      // TRAP_OPERATION: 汎用ログ（複雑すぎるため）
+      if (stub.id === 'TRAP_OPERATION') {
+        return done(addLog(ctx, '[トラップ操作]'));
       }
       // シード系（engine: シードゾーン未実装）
       if (stub.id === 'SEED_BLOOM' || stub.id === 'SEED_BLOOM_OPTIONAL' || stub.id === 'PLACE_SEED_FROM_REVEALED'
