@@ -147,10 +147,11 @@ function normalizeCostText(s: string): string {
 // EffectText を参照してアーツの実効コストを算出（条件付きコスト軽減の近似）
 function computeArtsEffectiveCost(
   card: { Cost: string; EffectText?: string },
-  myState: { life_cloth: string[]; hand: string[] },
+  myState: { life_cloth: string[]; hand: string[]; field?: PlayerState['field'] },
   lrigName?: string,
   oppLrigColor?: string,
   myLrigLevel?: number,
+  cardMap?: Map<string, CardData>,
 ): string {
   const text = card.EffectText ?? '';
   const base = card.Cost;
