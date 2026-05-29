@@ -2447,6 +2447,82 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         return selectOrInteract(spellCands, maxVDS, false, 'opp_hand', discardVDS as EffectAction, undefined, ctx);
       }
+      // 自シグニをデッキトップに置く
+      if (stub.id === 'SELF_TO_DECK_TOP') {
+        const srcSTD = ctx.sourceCardNum;
+        if (!srcSTD || !ctx.ownerState.field.signi.some(s => s?.at(-1) === srcSTD)) {
+          return done(addLog(ctx, 'SELF_TO_DECK_TOP: フィールドにいない'));
+        }
+        const removedSTD = removeFromField(srcSTD, ctx.ownerState);
+        const newOwnerSTD = { ...removedSTD, deck: [srcSTD, ...removedSTD.deck] };
+        return done(addLog({ ...ctx, ownerState: newOwnerSTD },
+          `${ctx.cardMap.get(srcSTD)?.CardName ?? srcSTD}をデッキトップへ`));
+      }
+      // 相手のトラッシュからカードをデッキトップに（もよい）
+      if (stub.id === 'OPP_TRASH_TO_DECK_TOP') {
+        if (ctx.otherState.trash.length === 0) return done(addLog(ctx, '相手トラッシュなし'));
+        const noopOTT: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contOTT: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_OPP_TRASH_TO_DECK_TOP' };
+        const pendingOTT: PendingInteractionDef = {
+          type: 'SELECT_TARGET',
+          candidates: ctx.otherState.trash,
+          count: 1,
+          optional: true,
+          targetScope: 'opp_trash',
+          thenAction: noopOTT as EffectAction,
+          continuation: contOTT as EffectAction,
+        };
+        return needsInteraction(addLog(ctx, '相手トラッシュのカードをデッキ上に置いてもよい'), pendingOTT);
+      }
+      if (stub.id === 'INTERNAL_OPP_TRASH_TO_DECK_TOP') {
+        const selectedOTT = ctx.lastProcessedCards ?? [];
+        if (selectedOTT.length === 0) return done(addLog(ctx, 'スキップ'));
+        let newOther = { ...ctx.otherState };
+        for (const cn of selectedOTT) {
+          const ti = newOther.trash.indexOf(cn);
+          if (ti >= 0) {
+            const newTrash = [...newOther.trash]; newTrash.splice(ti, 1);
+            newOther = { ...newOther, trash: newTrash, deck: [cn, ...newOther.deck] };
+          }
+        }
+        const namesOTT = selectedOTT.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, otherState: newOther }, `${namesOTT}を相手デッキトップへ`));
+      }
+      // 相手の手札をデッキトップに置く
+      if (stub.id === 'OPP_HAND_TO_DECK_TOP') {
+        const srcHDT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtHDT = srcHDT ? (srcHDT.EffectText ?? '') + ' ' + (srcHDT.BurstText ?? '') : '';
+        const toHWHDT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const maxMHDT = txtHDT.match(/手札を([０-９\d]+)枚/);
+        const maxHDT = maxMHDT ? parseInt(toHWHDT(maxMHDT[1])) : 1;
+        if (ctx.otherState.hand.length === 0) return done(addLog(ctx, '相手手札なし'));
+        const noopHDT: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contHDT: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_OPP_HAND_TO_DECK_TOP' };
+        const pendingHDT: PendingInteractionDef = {
+          type: 'SELECT_TARGET',
+          candidates: ctx.otherState.hand,
+          count: maxHDT,
+          optional: false,
+          targetScope: 'opp_hand',
+          thenAction: noopHDT as EffectAction,
+          continuation: contHDT as EffectAction,
+          opponentResponds: true,
+        };
+        return needsInteraction(addLog(ctx, `相手は手札を${maxHDT}枚デッキトップに置く`), pendingHDT);
+      }
+      if (stub.id === 'INTERNAL_OPP_HAND_TO_DECK_TOP') {
+        const selectedHDT = ctx.lastProcessedCards ?? [];
+        if (selectedHDT.length === 0) return done(addLog(ctx, 'スキップ'));
+        let newOther = { ...ctx.otherState };
+        for (const cn of selectedHDT) {
+          const hi = newOther.hand.indexOf(cn);
+          if (hi >= 0) {
+            const newHand = [...newOther.hand]; newHand.splice(hi, 1);
+            newOther = { ...newOther, hand: newHand, deck: [cn, ...newOther.deck] };
+          }
+        }
+        return done(addLog({ ...ctx, otherState: newOther }, `相手手札${selectedHDT.length}枚をデッキトップへ`));
+      }
       // ゲームから除外：自分のシグニをフィールドからトラッシュへ（ゲーム除外の近似）
       if (stub.id === 'BANISH_FROM_GAME') {
         const src = ctx.sourceCardNum;
