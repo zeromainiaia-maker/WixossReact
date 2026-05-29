@@ -3573,7 +3573,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           )
         : [];
 
-      const allTriggers = [...attackEntries, ...banishEntries];
+      // ON_ATTACK_SIGNI トリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
+      const opPlayerId = isHost ? bs.guest_id : bs.host_id;
+      const opAtkedEntries: StackEntry[] = [];
+      for (const opSigniStack of newOpState.field.signi) {
+        const opTopNum = opSigniStack?.at(-1);
+        if (!opTopNum) continue;
+        for (const oe of (effectsMap.get(opTopNum) ?? [])) {
+          if (oe.effectType !== 'AUTO' || !oe.timing?.includes('ON_ATTACK_SIGNI')) continue;
+          const oeAct = oe.action as import('../types/effects').StubAction;
+          if (oeAct.type !== 'STUB' || oeAct.id !== 'MOVE_TO_OTHER_SIGNI_ZONE') continue;
+          opAtkedEntries.push({
+            id: generateUUID(),
+            playerId: opPlayerId,
+            cardNum: opTopNum,
+            effectId: oe.effectId,
+            label: `${battleCardMap.get(opTopNum)?.CardName ?? opTopNum} の【自】効果（相手シグニアタック時）`,
+            effect: oe,
+          } satisfies StackEntry);
+        }
+      }
+
+      const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? user.id;
         const existingStack = bs.effect_stack ?? null;
