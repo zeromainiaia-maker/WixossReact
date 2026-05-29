@@ -5480,7 +5480,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'PICK_FROM_TRASHED_CARDS') {
         const trashPFTC = ctx.ownerState.trash;
         if (trashPFTC.length === 0) return done(addLog(ctx, 'トラッシュなし'));
-        const thenPFTC: import('../types/effects').TransferToHandAction = { type: 'TRANSFER_TO_HAND', source: 'trash', owner: 'self', count: 1, optional: true, filter: undefined };
+        const thenPFTC: import('../types/effects').TransferToHandAction = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } };
         return needsInteraction(ctx, {
           type: 'SELECT_TARGET', candidates: trashPFTC, count: 1, optional: true,
           targetScope: 'self_trash', thenAction: thenPFTC,
