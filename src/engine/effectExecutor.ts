@@ -6907,8 +6907,29 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {
         return done(addLog(ctx, '相手の全効果を無効化（このターン）'));
       }
-      // EFFECT_LIMIT: 効果を制限（ログのみ）
+      // EFFECT_LIMIT: 連続効果の上限枚数をキャップ（直前のパワー修正を上限値でキャップ）
       if (stub.id === 'EFFECT_LIMIT') {
+        const srcEL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtEL = srcEL ? (srcEL.EffectText ?? '') + ' ' + (srcEL.BurstText ?? '') : '';
+        const toHWEL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const capMEL = txtEL.match(/この効果は([０-９\d]+)枚(?:まで|までしか)/);
+        if (capMEL && ctx.sourceCardNum) {
+          const cap = parseInt(toHWEL(capMEL[1]));
+          // temp_power_mods の最後のエントリをキャップ（deltaPerUnit * cap が上限）
+          const mods = [...(ctx.ownerState.temp_power_mods ?? [])];
+          if (mods.length > 0) {
+            const last = mods[mods.length - 1];
+            // deltaPerUnit を推定（最後のdelta / 現在のカウントから逆算が困難なので単純に cap を使う）
+            // 最も単純な実装：delta の絶対値が cap * 1000 を超える場合キャップ
+            const capVal = cap * 1000;
+            if (Math.abs(last.delta) > capVal) {
+              mods[mods.length - 1] = { ...last, delta: last.delta > 0 ? capVal : -capVal };
+              return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: mods } },
+                `効果上限: ${cap}枚（パワー修正を${last.delta > 0 ? '+' : '-'}${capVal}にキャップ）`));
+            }
+          }
+          return done(addLog(ctx, `効果上限: ${cap}枚（キャップ内）`));
+        }
         return done(addLog(ctx, '効果制限'));
       }
       // DISONA_RESTRICTION: DISONA制限（ログのみ）
