@@ -6834,40 +6834,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, card_class_overrides: overridesIACCOp } },
           `${ctx.cardMap.get(targetCnIACC)?.CardName ?? targetCnIACC}のクラスを＜${newClassIACC}＞に変更`));
       }
-      // LOSE_COLOR_ALL_ZONES: チームルリグ3体未満→全ゾーンで色喪失（PlayerState.colorless_card_overrides に追加）
+      // LOSE_COLOR_ALL_ZONES: CONTINUOUS効果（effectEngine.collectColorlessOverridesで動的計算）
       if (stub.id === 'LOSE_COLOR_ALL_ZONES') {
-        const srcLCAZ = ctx.sourceCardNum;
-        if (!srcLCAZ) return done(addLog(ctx, '[LOSE_COLOR_ALL_ZONES: ソースなし]'));
-        // カードテキストからチーム名と条件を確認
-        const cardLCAZ = ctx.cardMap.get(srcLCAZ);
-        const txtLCAZ = cardLCAZ ? (cardLCAZ.EffectText ?? '') + ' ' + (cardLCAZ.BurstText ?? '') : '';
-        const teamMLCAZ = txtLCAZ.match(/あなたの場に＜([^＞]+)＞のルリグが３体いない/);
-        const teamNameLCAZ = teamMLCAZ?.[1] ?? '';
-        // フィールドのルリグでチーム数をカウント
-        const lrigNumsLCAZ = [
-          ctx.ownerState.field.lrig.at(-1),
-          ctx.ownerState.field.assist_lrig_l?.at(-1),
-          ctx.ownerState.field.assist_lrig_r?.at(-1),
-        ].filter((n): n is string => !!n);
-        const teamCountLCAZ = teamNameLCAZ ? lrigNumsLCAZ.filter(n => {
-          const lc = ctx.cardMap.get(n);
-          return lc && ((lc.Story ?? '').includes(teamNameLCAZ) || (lc.CardClass ?? '').includes(teamNameLCAZ) || (lc.CardName ?? '').includes(teamNameLCAZ));
-        }).length : 0;
-        if (teamNameLCAZ && teamCountLCAZ >= 3) {
-          // 条件を満たしている（ルリグ3体→色を保持）
-          const currentCO = ctx.ownerState.colorless_card_overrides ?? [];
-          const newCO = currentCO.filter(cn => cn !== srcLCAZ);
-          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, colorless_card_overrides: newCO } },
-            `${cardLCAZ?.CardName ?? srcLCAZ}は＜${teamNameLCAZ}＞3体揃い→色を保持`));
-        }
-        // 条件未満→色喪失
-        const currentCO2 = ctx.ownerState.colorless_card_overrides ?? [];
-        if (!currentCO2.includes(srcLCAZ)) {
-          const newCO2 = [...currentCO2, srcLCAZ];
-          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, colorless_card_overrides: newCO2 } },
-            `${cardLCAZ?.CardName ?? srcLCAZ}は全ゾーンで色喪失（＜${teamNameLCAZ}＞3体未満）`));
-        }
-        return done(addLog(ctx, `${cardLCAZ?.CardName ?? srcLCAZ}は色喪失済み`));
+        return done(addLog(ctx, '[LOSE_COLOR_ALL_ZONES: effectEngineで動的処理中]'));
       }
       // CHANGE_SIGNI_COLOR: 対象シグニの色を指定色に変更（ターン終了時まで）
       if (stub.id === 'CHANGE_SIGNI_COLOR') {
