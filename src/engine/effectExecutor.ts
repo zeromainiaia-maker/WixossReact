@@ -5752,7 +5752,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
         const signiInOppLOHDS = ctx.otherState.hand.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
         if (signiInOppLOHDS.length === 0) return done(addLog(ctx, '相手手札にシグニなし'));
-        const thenLOHDS: import('../types/effects').TrashAction = { type: 'TRASH', owner: 'opponent', source: 'hand', count: 1, optional: false, filter: undefined };
+        const thenLOHDS: import('../types/effects').TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
         return needsInteraction(ctx, {
           type: 'SELECT_TARGET', candidates: signiInOppLOHDS, count: 1, optional: false,
           targetScope: 'opp_hand', thenAction: thenLOHDS,
