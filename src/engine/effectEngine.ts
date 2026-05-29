@@ -27,6 +27,7 @@ export function checkActiveCondition(
   isOwnerTurn: boolean,
   cardMap: Map<string, CardData>,
   sourceCardNum?: string,
+  effectivePowers?: Map<string, number>,
 ): boolean {
   if (!cond) return true;
   switch (cond.type) {
@@ -56,8 +57,21 @@ export function checkActiveCondition(
       break;
     }
 
-    case 'SELF_POWER_THRESHOLD':
+    case 'SELF_POWER_THRESHOLD': {
+      // effectivePowers がある場合はそちらを参照、なければカードの基本パワーを使用
+      const selfPower = sourceCardNum
+        ? (effectivePowers?.get(sourceCardNum) ?? parseInt(cardMap.get(sourceCardNum)?.Power ?? '0'))
+        : 0;
+      switch (cond.operator) {
+        case 'gte': return selfPower >= cond.value;
+        case 'lte': return selfPower <= cond.value;
+        case 'gt':  return selfPower >  cond.value;
+        case 'lt':  return selfPower <  cond.value;
+        case 'eq':  return selfPower === cond.value;
+        case 'neq': return selfPower !== cond.value;
+      }
       return true;
+    }
 
     case 'HAND_DIFF': {
       const diff = ownerState.hand.length - otherState.hand.length;
