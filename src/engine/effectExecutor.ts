@@ -3546,6 +3546,130 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, ownerState: newOwner2 },
           `デッキトップ公開：${name}（Lv${lv}）→不一致、デッキ下へ`));
       }
+      // 相手の手札のシグニを見て捨てさせる（宣言数字フィルタ or 有色フィルタ）
+      if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
+        const declaredLvLOD = ctx.ownerState.declared_guard_restrict_level;
+        const oppHandLOD = ctx.otherState.hand;
+        const candsLOD = oppHandLOD.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (c?.Type !== 'シグニ') return false;
+          if (declaredLvLOD !== undefined) {
+            return parseInt(c.Level ?? '-1') === declaredLvLOD;
+          }
+          const color = c?.Color ?? '';
+          return color.length > 0 && color !== '無';
+        });
+        if (candsLOD.length === 0) return done(addLog(ctx, '相手手札に対象シグニなし（LOOK_OPP_HAND_DISCARD_SIGNI）'));
+        const discardLOD: import('../types/effects').TrashAction = {
+          type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+        };
+        return selectOrInteract(candsLOD, 1, false, 'opp_hand', discardLOD as EffectAction, undefined, ctx);
+      }
+      // デッキ上を公開し、宣言したレベルのシグニならエナゾーンへ
+      if (stub.id === 'DECK_TOP_CHECK_LEVEL_ENERGY') {
+        if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし（DECK_TOP_CHECK_LEVEL_ENERGY）'));
+        const declaredLvDTE = ctx.ownerState.declared_guard_restrict_level;
+        const topCardDTE = ctx.ownerState.deck[0];
+        const topDataDTE = ctx.cardMap.get(topCardDTE);
+        const topLvDTE = parseInt(topDataDTE?.Level ?? '-1');
+        const topNameDTE = topDataDTE?.CardName ?? topCardDTE;
+        if (topDataDTE?.Type === 'シグニ' && declaredLvDTE !== undefined && topLvDTE === declaredLvDTE) {
+          const newDeckDTE = ctx.ownerState.deck.slice(1);
+          const newOwnerDTE = { ...ctx.ownerState, deck: newDeckDTE, energy: [...ctx.ownerState.energy, topCardDTE] };
+          return done(addLog({ ...ctx, ownerState: newOwnerDTE },
+            `デッキトップ公開：${topNameDTE}（Lv${topLvDTE}）→エナゾーンへ`));
+        }
+        return done(addLog(ctx, `デッキトップ公開：${topNameDTE}（Lv${topDataDTE?.Level ?? '?'}）→条件不一致`));
+      }
+      // ルリグトラッシュのアーツ枚数に基づくパワー修正
+      if (stub.id === 'POWER_MOD_BY_LRIG_TRASH_ARTS') {
+        const srcPMLTA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMLTA = srcPMLTA ? (srcPMLTA.EffectText ?? '') + ' ' + (srcPMLTA.BurstText ?? '') : '';
+        const toHWPMLTA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const artsCountPMLTA = (ctx.ownerState.lrig_trash ?? []).filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ').length;
+        const perMPMLTA = txtPMLTA.match(/アーツ([０-９\d]*)枚?につき([－＋][０-９\d]+)/);
+        if (perMPMLTA) {
+          const divisorPMLTA = parseInt(toHWPMLTA(perMPMLTA[1] || '1')) || 1;
+          const deltaPMLTA = parseInt(toHWPMLTA(perMPMLTA[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPMLTA = Math.floor(artsCountPMLTA / divisorPMLTA) * deltaPMLTA;
+          if (totalDeltaPMLTA !== 0) {
+            const targetsPMLTA = ctx.lastProcessedCards ?? [];
+            const modsPMLTA = [...(ctx.otherState.temp_power_mods ?? [])];
+            if (targetsPMLTA.length > 0) {
+              for (const cn of targetsPMLTA) modsPMLTA.push({ cardNum: cn, delta: totalDeltaPMLTA });
+            } else {
+              for (let zi = 0; zi < 3; zi++) {
+                const top = ctx.otherState.field.signi[zi]?.at(-1);
+                if (top) modsPMLTA.push({ cardNum: top, delta: totalDeltaPMLTA });
+              }
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMLTA } },
+              `パワー${totalDeltaPMLTA > 0 ? '+' : ''}${totalDeltaPMLTA}（ルリグトラッシュアーツ${artsCountPMLTA}枚）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（ルリグトラッシュアーツ${artsCountPMLTA}枚）`));
+      }
+      // ルリグレベルに基づくパワー修正（相手センタールリグのレベルを参照）
+      if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL') {
+        const srcPMLV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMLV = srcPMLV ? (srcPMLV.EffectText ?? '') + ' ' + (srcPMLV.BurstText ?? '') : '';
+        const toHWPMLV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const oppLrigTop = ctx.otherState.field.lrig.at(-1);
+        const oppLrigLv = parseInt(ctx.cardMap.get(oppLrigTop ?? '')?.Level ?? '0');
+        const perMPMLV = txtPMLV.match(/レベル([０-９\d]*)につき([－＋][０-９\d]+)/);
+        if (perMPMLV) {
+          const divisorPMLV = parseInt(toHWPMLV(perMPMLV[1] || '1')) || 1;
+          const deltaPMLV = parseInt(toHWPMLV(perMPMLV[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPMLV = Math.floor(oppLrigLv / divisorPMLV) * deltaPMLV;
+          if (totalDeltaPMLV !== 0) {
+            const targetsPMLV = ctx.lastProcessedCards ?? [];
+            const modsPMLV = [...(ctx.otherState.temp_power_mods ?? [])];
+            if (targetsPMLV.length > 0) {
+              for (const cn of targetsPMLV) modsPMLV.push({ cardNum: cn, delta: totalDeltaPMLV });
+            } else {
+              for (let zi = 0; zi < 3; zi++) {
+                const top = ctx.otherState.field.signi[zi]?.at(-1);
+                if (top) modsPMLV.push({ cardNum: top, delta: totalDeltaPMLV });
+              }
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMLV } },
+              `パワー${totalDeltaPMLV > 0 ? '+' : ''}${totalDeltaPMLV}（相手ルリグLv${oppLrigLv}）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（相手ルリグLv${oppLrigLv}）`));
+      }
+      // ルリグレベル合計に基づくパワー修正（自分のルリグ全体のレベル合計を参照）
+      if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM') {
+        const srcPMLS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMLS = srcPMLS ? (srcPMLS.EffectText ?? '') + ' ' + (srcPMLS.BurstText ?? '') : '';
+        const toHWPMLS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const lrigLvSum = (ctx.ownerState.field.lrig ?? []).reduce((acc, cn) => {
+          const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0');
+          return acc + (isNaN(lv) ? 0 : lv);
+        }, 0);
+        const perMPMLS = txtPMLS.match(/レベルの合計([０-９\d]*)につき([－＋][０-９\d]+)/);
+        if (perMPMLS) {
+          const divisorPMLS = parseInt(toHWPMLS(perMPMLS[1] || '1')) || 1;
+          const deltaPMLS = parseInt(toHWPMLS(perMPMLS[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPMLS = Math.floor(lrigLvSum / divisorPMLS) * deltaPMLS;
+          if (totalDeltaPMLS !== 0) {
+            // 自シグニ（sourceCardNum）に適用、なければ全自シグニ
+            const selfTargetPMLS = ctx.sourceCardNum;
+            const modsPMLS = [...(ctx.ownerState.temp_power_mods ?? [])];
+            if (selfTargetPMLS && ctx.ownerState.field.signi.some(s => s?.at(-1) === selfTargetPMLS)) {
+              modsPMLS.push({ cardNum: selfTargetPMLS, delta: totalDeltaPMLS });
+            } else {
+              for (let zi = 0; zi < 3; zi++) {
+                const top = ctx.ownerState.field.signi[zi]?.at(-1);
+                if (top) modsPMLS.push({ cardNum: top, delta: totalDeltaPMLS });
+              }
+            }
+            return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPMLS } },
+              `パワー${totalDeltaPMLS > 0 ? '+' : ''}${totalDeltaPMLS}（ルリグレベル合計${lrigLvSum}）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（ルリグレベル合計${lrigLvSum}）`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
