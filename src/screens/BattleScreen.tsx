@@ -3591,6 +3591,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // MULTI_ZONE_ATTACK: 正面以外のゾーンにも追加バトル（ダメージなし）
+      const hasMultiZoneAttack = (effectsMap.get(myTopNum) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' && (e.action as import('../types/effects').StubAction).id === 'MULTI_ZONE_ATTACK'
+      );
+      if (hasMultiZoneAttack) {
+        const myPowerMZA = effectivePowers.get(myTopNum) ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
+        for (let zi = 0; zi < 3; zi++) {
+          if (zi === zoneIndex) continue; // 正面は既に処理済み
+          const oppZiMZA = 2 - zi;
+          const oppStackMZA = newOpState.field.signi[oppZiMZA] ?? [];
+          const oppTopMZA = oppStackMZA.at(-1);
+          if (!oppTopMZA) continue;
+          const oppPowerMZA = effectivePowers.get(oppTopMZA) ?? (parseInt(battleCardMap.get(oppTopMZA)?.Power ?? '0') || 0);
+          if (myPowerMZA >= oppPowerMZA) {
+            // バニッシュ（ダメージなし）
+            const oppSigniMZA = [...newOpState.field.signi] as (string[] | null)[];
+            oppSigniMZA[oppZiMZA] = null;
+            const oppDownMZA = [...(newOpState.field.signi_down ?? [false, false, false])];
+            oppDownMZA[oppZiMZA] = false;
+            newOpState = {
+              ...newOpState,
+              energy: [...newOpState.energy, ...oppStackMZA],
+              field: { ...newOpState.field, signi: oppSigniMZA, signi_down: oppDownMZA },
+            };
+            appendBattleLogs([`${myCardName}（多重ゾーン）が${battleCardMap.get(oppTopMZA)?.CardName ?? oppTopMZA}をバニッシュ（ダメージなし）`]);
+          }
+        }
+      }
+
       // ON_ATTACK_SIGNI トリガー（アタックしたシグニ自身）
       const attackEntries: StackEntry[] = (effectsMap.get(myTopNum) ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
