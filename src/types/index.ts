@@ -125,6 +125,8 @@ export interface PlayerState {
   lrig_limit_mod?: number;
   // このターン、相手はガードできない（追加無色支払いなし版：OPP_GUARD_COST_COLORLESS）
   prevent_opp_guard?: boolean;
+  // 次の自分のターンのドロー枚数上限（LIMIT_OPP_DRAW_COUNT等）
+  draw_limit?: number;
 }
 
 export interface GameLog {
