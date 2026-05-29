@@ -1955,6 +1955,10 @@ function parseSingleSentence(text: string): EffectAction {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' };
   }
+  // ---- この方法で場に出たシグニの【出】能力は発動しない ----
+  if (t.match(/この方法で場に出たシグニの【出】能力は発動しない/)) {
+    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'any', count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' };
+  }
 
   // ---- 基本レベルをNにする ----
   const baseLevelM = t.match(/基本レベルは([０-９\d]+)になる/) ?? t.match(/基本レベルを([０-９\d]+)にする/);
