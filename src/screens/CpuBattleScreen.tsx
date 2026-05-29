@@ -772,7 +772,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
 
   const isPlayerTurn = gs.turnPlayer === 'player';
 
-  const canEndPhase = isPlayerTurn && !gs.winner && !gs.burstCard && !gs.pendingInteraction
+  const canEndPhase = isPlayerTurn && !gs.winner && !gs.burstCard && !gs.pendingInteraction && !gs.trapActivation
     && ['MAIN', 'ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG', 'ENERGY', 'GROW'].includes(gs.phase);
 
   const phaseBtn: Partial<Record<TurnPhase, string>> = {
