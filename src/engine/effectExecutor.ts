@@ -7134,9 +7134,50 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newSDUSC: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_down: downDUSC } };
         return done(addLog({ ...ctx, ownerState: newSDUSC }, `${ctx.cardMap.get(srcDUSC)?.CardName ?? srcDUSC}をダウン+選択`));
       }
-      // CHOOSE_N_FROM_LIST / CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE:
-      //   汎用選択（ログ）
-      if (stub.id === 'CHOOSE_N_FROM_LIST' || stub.id === 'CHOOSE_COLOR_FROM_LIST'
+      // CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
+      if (stub.id === 'CHOOSE_N_FROM_LIST') {
+        const srcCNFL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCNFL = srcCNFL ? (srcCNFL.EffectText ?? '') + ' ' + (srcCNFL.BurstText ?? '') : '';
+        const toHWCNFL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // 選択数を解析（「N つまで選ぶ」「N つ選ぶ」）
+        const countM = txtCNFL.match(/([１-４1-4])つ(?:まで)?選ぶ/);
+        const maxChoose = countM ? parseInt(toHWCNFL(countM[1])) : 2;
+        // ①②③④ を解析してCHOOSEオプション生成（CONDITIONAL_MULTI_CHOOSE_BY_CENTERと同じロジック）
+        const choicePatternsCNFL = [
+          { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
+          { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
+        ];
+        const optsCNFL: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+        for (const { m, idx } of choicePatternsCNFL) {
+          const mat = txtCNFL.match(m);
+          if (!mat) continue;
+          const choiceTxtCNFL = mat[1].replace(/。\s*$/, '').trim();
+          let choiceActionCNFL: EffectAction | null = null;
+          if (choiceTxtCNFL.match(/カードを[１1]枚引く/))
+            choiceActionCNFL = { type: 'DRAW', count: 1 } as import('../types/effects').DrawAction;
+          if (!choiceActionCNFL && choiceTxtCNFL.match(/対戦相手のシグニ[１1]体を対象とし.*ダウン/))
+            choiceActionCNFL = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').DownAction;
+          if (!choiceActionCNFL && choiceTxtCNFL.match(/手札を[１1]枚見ないで選び.*捨て/))
+            choiceActionCNFL = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as import('../types/effects').TrashAction;
+          const pwDownMCNFL = !choiceActionCNFL && choiceTxtCNFL.match(/パワーを([－-][０-９\d]+)する/);
+          if (pwDownMCNFL) {
+            const delta = parseInt(toHWCNFL(pwDownMCNFL[1]).replace('－', '-'));
+            choiceActionCNFL = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: delta } as import('../types/effects').StubAction) as EffectAction;
+          }
+          if (!choiceActionCNFL && choiceTxtCNFL.match(/ダウンする/))
+            choiceActionCNFL = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').DownAction;
+          if (choiceActionCNFL)
+            optsCNFL.push({ id: `choice_${idx}`, label: `${'①②③④'[idx]}${choiceTxtCNFL.slice(0, 18)}...`, action: choiceActionCNFL, available: true });
+        }
+        if (optsCNFL.length > 0) {
+          return needsInteraction(addLog(ctx, `効果を${maxChoose}つ選択（CHOOSE_N_FROM_LIST）`), {
+            type: 'CHOOSE', options: optsCNFL, count: Math.min(maxChoose, optsCNFL.length),
+          });
+        }
+        return done(addLog(ctx, `リストからN個選択（解析不可: ${txtCNFL.slice(0,30)}）`));
+      }
+      // CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE
+      if (stub.id === 'CHOOSE_COLOR_FROM_LIST'
           || stub.id === 'CHOOSE_SAME_OPTION_TWICE' || stub.id === 'CHOOSE_SAME_OPTION_MULTIPLE') {
         return done(addLog(ctx, `選択効果（${stub.id}）`));
       }
