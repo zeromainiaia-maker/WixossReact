@@ -6492,9 +6492,43 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, '[トラップ操作]'));
       }
-      // TRAP_OPERATION: 汎用ログ（複雑すぎるため）
+      // TRAP_OPERATION: lastProcessedCardsがあればそのカードをトラップ設置、なければデッキ上1枚から設置
       if (stub.id === 'TRAP_OPERATION') {
-        return done(addLog(ctx, '[トラップ操作]'));
+        const cardToTrapTO = ctx.lastProcessedCards?.[0];
+        if (cardToTrapTO) {
+          // lastProcessedCards[0] をトラップとして設置（ゾーン選択）
+          const zoneOptsTRAPOP = [0, 1, 2].map(zi => ({
+            id: `trapop_zone_${zi}`,
+            label: `ゾーン${zi + 1}にトラップ設置`,
+            action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as import('../types/effects').StubAction) as EffectAction,
+            available: true,
+          }));
+          return needsInteraction(
+            addLog({ ...ctx, lastProcessedCards: [cardToTrapTO] }, `${ctx.cardMap.get(cardToTrapTO)?.CardName ?? cardToTrapTO}をトラップとして設置`),
+            { type: 'CHOOSE', options: zoneOptsTRAPOP, count: 1 }
+          );
+        }
+        // lastProcessedCardsなし：デッキ上1枚を手札に加える（デッキ上確認後のトラップ設置が多い）
+        if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, '[トラップ操作：デッキなし]'));
+        const topCardTO = ctx.ownerState.deck[0];
+        const newDeckTO = ctx.ownerState.deck.slice(1);
+        const newOwnerTO = { ...ctx.ownerState, deck: newDeckTO };
+        const zoneOptsTRAPOP2 = [0, 1, 2].map(zi => ({
+          id: `trapop2_zone_${zi}`,
+          label: `ゾーン${zi + 1}にトラップ設置`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        zoneOptsTRAPOP2.push({
+          id: 'trapop2_skip', label: 'スキップ（手札に加える）',
+          action: ({ type: 'ADD_TO_HAND', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as unknown) as EffectAction,
+          available: true,
+        });
+        return needsInteraction(
+          addLog({ ...ctx, ownerState: newOwnerTO, lastProcessedCards: [topCardTO] },
+            `デッキ上${ctx.cardMap.get(topCardTO)?.CardName ?? topCardTO}：トラップ設置？`),
+          { type: 'CHOOSE', options: zoneOptsTRAPOP2, count: 1 }
+        );
       }
       // シード系（engine: シードゾーン未実装）
       if (stub.id === 'SEED_BLOOM' || stub.id === 'SEED_BLOOM_OPTIONAL' || stub.id === 'PLACE_SEED_FROM_REVEALED'
