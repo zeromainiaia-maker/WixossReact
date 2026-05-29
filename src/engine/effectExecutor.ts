@@ -6117,8 +6117,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: スペル等でトラップを強制発動
       if (stub.id === 'ACTIVATE_TRAP' || stub.id === 'ACTIVATE_TRAP_IN_FIELD') {
-        const trapsAT = ctx.ownerState.field.signi_traps ?? [null, null, null];
-        const firstTrapIdxAT = trapsAT.findIndex(t => t !== null);
+        const trapsAT: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
+        const firstTrapIdxAT = trapsAT.findIndex((t: string | null) => t !== null);
         if (firstTrapIdxAT < 0) return done(addLog(ctx, 'トラップなし'));
         const trapCardAT = trapsAT[firstTrapIdxAT]!;
         const newTrapsAT = [...trapsAT] as (string | null)[];
