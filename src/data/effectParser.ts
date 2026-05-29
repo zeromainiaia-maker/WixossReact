@@ -8787,7 +8787,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   // 歌のカケラ効果（EffectTextに【歌のカケラ】：〜 がある場合）
   if (card.EffectText && card.EffectText !== '-' && card.EffectText.includes('【歌のカケラ】')) {
-    const songM = card.EffectText.match(/【歌のカケラ】：(.+?)(?=（|【[常出起自ガ]】|$)/s);
+    // 「（【...」形式のルールテキスト括弧か次の効果マーカーまでで区切る（括弧内キーワードで止めない）
+    const songM = card.EffectText.match(/【歌のカケラ】：(.+?)(?=（【|【[常出起自ガ]】|$)/s);
     if (songM) {
       const raw = stripRuleParens(songM[1]).trim();
       if (raw) {
