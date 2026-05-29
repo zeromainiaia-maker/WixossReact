@@ -5770,7 +5770,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           return col.split('/').some(c => revColorsRCCD.includes(c));
         });
         if (matchingRCCD.length === 0) return done(addLog(ctx, `手札に${revColorRCCD}カードなし`));
-        const thenRCCD: import('../types/effects').TrashAction = { type: 'TRASH', owner: 'self', source: 'hand', count: 1, optional: false, filter: undefined };
+        const thenRCCD: import('../types/effects').TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
         return needsInteraction(ctx, {
           type: 'SELECT_TARGET', candidates: matchingRCCD, count: 1, optional: false,
           targetScope: 'self_hand', thenAction: thenRCCD,
