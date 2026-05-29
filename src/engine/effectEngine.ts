@@ -683,6 +683,69 @@ export function collectColorlessOverrides(
 }
 
 /**
+ * PREVENT_ZONE_MOVE_BY_OPP: フィールドのシグニがCONTINUOUS保護効果を持つ場合、
+ * 保護されているゾーン（'hand' | 'energy'）を動的に返す。
+ * state のフィールド上シグニとキーピースを走査する。
+ */
+export function collectProtectedZones(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): ('hand' | 'energy')[] {
+  const result = new Set<'hand' | 'energy'>();
+  const candidates: string[] = [];
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (state.field.key_piece) candidates.push(state.field.key_piece);
+  for (const cn of candidates) {
+    const effs = effectsMap.get(cn) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'PREVENT_ZONE_MOVE_BY_OPP') continue;
+      const card = cardMap.get(cn);
+      const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+      if (txt.includes('エナゾーン') && txt.includes('トラッシュに移動しない')) result.add('energy');
+      if (txt.includes('手札') && txt.includes('トラッシュに移動しない')) result.add('hand');
+    }
+  }
+  return [...result];
+}
+
+/**
+ * ENERGY_COLOR_SUBSTITUTE: フィールドのキーピース等がCONTINUOUSで色代替を持つ場合、
+ * その代替ルール { from: string[], to: string }[] を動的に返す。
+ */
+export function collectEnergyColorSubs(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { from: string[]; to: string }[] {
+  const result: { from: string[]; to: string }[] = [];
+  const candidates: string[] = [];
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (state.field.key_piece) candidates.push(state.field.key_piece);
+  if (state.field.lrig.length > 0) candidates.push(state.field.lrig.at(-1)!);
+  for (const cn of candidates) {
+    const effs = effectsMap.get(cn) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB') continue;
+      if (act.id === 'ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白') {
+        result.push({ from: ['赤', '青'], to: '白' });
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * FORCE_TARGET_SELF: フィールドのシグニが「相手ターンに可能ならば自分を対象にさせる」CONTINUOUS効果を持つ場合、
  * そのシグニのCardNumセットを返す（相手ターン中にアクティブなもの）。
  */
