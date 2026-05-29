@@ -4,7 +4,8 @@ export type EffectType =
   | 'ACTIVATED'   // 起動効果（プレイヤーが能動的に使う）
   | 'AUTO'        // 自動効果（条件を満たすと自動トリガー）
   | 'CONTINUOUS'  // 常時効果（フィールドにいる間適用）
-  | 'LIFE_BURST'; // ライフバースト
+  | 'LIFE_BURST'  // ライフバースト
+  | 'TRAP_ICON';  // トラップアイコン（トラップが表向きになったとき発動）
 
 export type EffectTiming =
   | 'MAIN'            // メインフェイズ
@@ -12,6 +13,7 @@ export type EffectTiming =
   | 'SPELL_CUTIN'     // スペルカットイン
   | 'ON_PLAY'         // 出効果（場に出たとき）
   | 'ON_LIFE_BURST'   // ライフバースト発動時
+  | 'ON_TRAP_ACTIVATE' // トラップアイコン発動時
   | 'ON_BANISH'       // このカードがバニッシュされたとき
   | 'ON_TRASH'        // このカードがトラッシュに置かれたとき
   | 'ON_ATTACK_SIGNI' // シグニアタックフェイズ（このシグニがアタックしたとき）
