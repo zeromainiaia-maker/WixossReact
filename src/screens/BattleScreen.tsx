@@ -425,7 +425,7 @@ function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<s
   return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
 }
 
-function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>, allMulti?: boolean, colorlessOverrides?: string[]): boolean {
+function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>, allMulti?: boolean, colorlessOverrides?: string[], colorSubs?: { from: string[]; to: string }[]): boolean {
   const costs = parseGrowCost(growCost);
   if (costs.length === 0) return true;
   // 色指定コストを先に処理し、マルチエナをワイルドカードとして温存する
@@ -439,11 +439,15 @@ function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: st
   });
   for (const { color, count } of sorted) {
     let needed = count;
-    // まず通常カードで充当
+    // まず通常カードで充当（energy_color_substitutes も考慮）
     const rem: P[] = [];
     for (const p of pool) {
-      if (needed > 0 && !p.isWild && (color === '無' || p.color === color)) needed--;
-      else rem.push(p);
+      if (needed > 0 && !p.isWild) {
+        const colorMatches = color === '無' || p.color === color ||
+          (colorSubs?.some(s => s.to === p.color && s.from.includes(color)));
+        if (colorMatches) { needed--; continue; }
+      }
+      rem.push(p);
     }
     pool = rem;
     // 不足分をマルチエナで補う
