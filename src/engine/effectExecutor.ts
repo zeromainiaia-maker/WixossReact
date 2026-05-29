@@ -6727,9 +6727,105 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // CONDITIONAL_MULTI_CHOOSE_BY_CENTER: センタールリグによる複数選択
       if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER') {
-        const centerCMCBC = ctx.ownerState.field.lrig.at(-1);
-        const centerCardCMCBC = centerCMCBC ? ctx.cardMap.get(centerCMCBC) : undefined;
-        return done(addLog(ctx, `センター（${centerCardCMCBC?.CardName ?? 'なし'}）による複数選択`));
+        const srcCMCBC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCMCBC = srcCMCBC ? (srcCMCBC.EffectText ?? '') + ' ' + (srcCMCBC.BurstText ?? '') : '';
+        const toHWCMCBC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // 各選択肢（①②③④）を解析してCHOOSEオプション生成
+        const choicePatterns = [
+          { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
+          { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
+        ];
+        const optionsCMCBC: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+        for (const { m, idx } of choicePatterns) {
+          const mat = txtCMCBC.match(m);
+          if (!mat) continue;
+          const choiceTxt = mat[1].replace(/。\s*$/,'').trim();
+          let choiceAction: EffectAction | null = null;
+          // 「カードを1枚引く」→ DRAW
+          if (choiceTxt.match(/カードを[１1]枚引く/)) {
+            choiceAction = { type: 'DRAW', count: 1 } as import('../types/effects').DrawAction;
+          }
+          // 「各プレイヤーはデッキの上からN枚トラッシュに置く」
+          const deckTrashM = choiceTxt.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
+          if (!choiceAction && deckTrashM) {
+            const cnt = parseInt(toHWCMCBC(deckTrashM[1]));
+            choiceAction = ({ type: 'STUB', id: 'INTERNAL_DECK_TRASH_BOTH', value: cnt } as import('../types/effects').StubAction) as EffectAction;
+          }
+          // 「対戦相手のシグニを対象とし、それをダウンする」→ DOWN STUBとして後で処理
+          if (!choiceAction && choiceTxt.match(/対戦相手のシグニ[１1]体を対象とし.*ダウン/)) {
+            const downActCMCBC: import('../types/effects').DownAction = {
+              type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+            };
+            choiceAction = downActCMCBC as EffectAction;
+          }
+          // 「対戦相手の手札を1枚見ないで選び、捨てさせる」
+          if (!choiceAction && choiceTxt.match(/手札を[１1]枚見ないで選び.*捨て/)) {
+            const blindTrashCMCBC: import('../types/effects').TrashAction = {
+              type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+            };
+            choiceAction = blindTrashCMCBC as EffectAction;
+          }
+          // 「対戦相手のシグニ1体のパワーを-N」
+          const pwDownM = !choiceAction && choiceTxt.match(/パワーを([－-][０-９\d]+)する/);
+          if (pwDownM) {
+            const delta = parseInt(toHWCMCBC(pwDownM[1]).replace('－','-'));
+            choiceAction = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: delta } as import('../types/effects').StubAction) as EffectAction;
+          }
+          // 「トラッシュからシグニを場に出す」
+          if (!choiceAction && choiceTxt.match(/トラッシュから.*シグニ[１1]枚.*場に出す/)) {
+            choiceAction = ({ type: 'STUB', id: 'SUMMON_FROM_TRASH' } as import('../types/effects').StubAction) as EffectAction;
+          }
+          // 「アタックできない」→ blocked_actions追加
+          if (!choiceAction && choiceTxt.match(/アタックできない/)) {
+            choiceAction = ({ type: 'STUB', id: 'INTERNAL_BLOCK_ATTACK_THIS_TURN' } as import('../types/effects').StubAction) as EffectAction;
+          }
+          if (choiceAction) {
+            optionsCMCBC.push({
+              id: `choice_${idx}`,
+              label: `${['①','②','③','④'][idx]}${choiceTxt.slice(0, 20)}...`,
+              action: choiceAction,
+              available: true,
+            });
+          }
+        }
+        if (optionsCMCBC.length > 0) {
+          return needsInteraction(addLog(ctx, '効果を選択してください'), {
+            type: 'CHOOSE', options: optionsCMCBC, count: 1,
+          });
+        }
+        const centerCMCBC2 = ctx.ownerState.field.lrig.at(-1);
+        const centerCardCMCBC2 = centerCMCBC2 ? ctx.cardMap.get(centerCMCBC2) : undefined;
+        return done(addLog(ctx, `センター（${centerCardCMCBC2?.CardName ?? 'なし'}）による複数選択（解析不可）`));
+      }
+      // INTERNAL_DECK_TRASH_BOTH: 両プレイヤーのデッキ上N枚をトラッシュ
+      if (stub.id === 'INTERNAL_DECK_TRASH_BOTH') {
+        const cntIDTB = typeof stub.value === 'number' ? stub.value : 7;
+        const selfDeckIDTB = ctx.ownerState.deck;
+        const oppDeckIDTB = ctx.otherState.deck;
+        const selfTrashIDTB = selfDeckIDTB.slice(0, Math.min(cntIDTB, selfDeckIDTB.length));
+        const oppTrashIDTB = oppDeckIDTB.slice(0, Math.min(cntIDTB, oppDeckIDTB.length));
+        const newOwnerIDTB: PlayerState = { ...ctx.ownerState, deck: selfDeckIDTB.slice(selfTrashIDTB.length), trash: [...ctx.ownerState.trash, ...selfTrashIDTB] };
+        const newOtherIDTB: PlayerState = { ...ctx.otherState, deck: oppDeckIDTB.slice(oppTrashIDTB.length), trash: [...ctx.otherState.trash, ...oppTrashIDTB] };
+        return done(addLog({ ...ctx, ownerState: newOwnerIDTB, otherState: newOtherIDTB },
+          `各プレイヤーデッキ上${cntIDTB}枚トラッシュ`));
+      }
+      // INTERNAL_POWER_MOD_OPP_ONE: 相手の1体にパワー修正
+      if (stub.id === 'INTERNAL_POWER_MOD_OPP_ONE') {
+        const deltaIPMOO = typeof stub.value === 'number' ? stub.value : -12000;
+        const targetIPMOO = ctx.lastProcessedCards?.[0]
+          ?? [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).find(c => !!c);
+        if (!targetIPMOO) return done(addLog(ctx, '対象なし'));
+        const modsIPMOO = [...(ctx.otherState.temp_power_mods ?? []), { cardNum: targetIPMOO, delta: deltaIPMOO }];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsIPMOO } },
+          `${ctx.cardMap.get(targetIPMOO)?.CardName ?? targetIPMOO}パワー${deltaIPMOO}`));
+      }
+      // INTERNAL_BLOCK_ATTACK_THIS_TURN: 対象がアタックできない
+      if (stub.id === 'INTERNAL_BLOCK_ATTACK_THIS_TURN') {
+        const targetIBAC = ctx.lastProcessedCards?.[0];
+        if (!targetIBAC) return done(addLog(ctx, '対象なし'));
+        const blockedIBAC = [...(ctx.otherState.blocked_actions ?? []), `ATTACK:${targetIBAC}`];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: blockedIBAC } },
+          `${ctx.cardMap.get(targetIBAC)?.CardName ?? targetIBAC}はアタックできない`));
       }
       // DOWN_UP_SIGNI_AND_CHOOSE: シグニをダウン/アップして選択
       if (stub.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {
