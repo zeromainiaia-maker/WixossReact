@@ -1835,6 +1835,62 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return result;
   };
 
+  // フィールドからトラッシュに移動したシグニを検出（ON_TRASHトリガー用）
+  const detectTrashedSigni = (before: PlayerState, after: PlayerState): string[] => {
+    const result: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const beforeTop = (before.field.signi[i] ?? []).at(-1);
+      const afterTop  = (after.field.signi[i] ?? []).at(-1);
+      if (!beforeTop || beforeTop === afterTop) continue;
+      // エナではなくトラッシュに移動した場合
+      if (!after.energy.includes(beforeTop) && after.trash.includes(beforeTop)) result.push(beforeTop);
+    }
+    return result;
+  };
+
+  // ON_TRASH トリガーを収集する
+  const collectTrashTriggers = (
+    trashedCardNum: string,
+    trashedPlayerId: string,
+    afterHostState: PlayerState,
+    afterGuestState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    // トラッシュに置かれたカード自身の ON_TRASH 効果
+    for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+      const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
+      entries.push({
+        id: generateUUID(),
+        playerId: trashedPlayerId,
+        cardNum: trashedCardNum,
+        effectId: eff.effectId,
+        label: `${cardName} の【トラッシュ時】効果`,
+        effect: eff,
+      });
+    }
+    // フィールド上シグニのON_TRASHフィールドトリガー（ally_banished等）
+    const ownerState = trashedPlayerId === bs.host_id ? afterHostState : afterGuestState;
+    for (const stack of ownerState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_ally' && scope !== 'any') continue;
+        entries.push({
+          id: generateUUID(),
+          playerId: trashedPlayerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（シグニトラッシュ時）`,
+          effect: eff,
+        });
+      }
+    }
+    return entries;
+  };
+
   /**
    * バニッシュされたシグニの ON_BANISH 効果 + フィールド上の全シグニのトリガーを収集する。
    * banishedPlayerId: バニッシュされたシグニのオーナーの userId (host_id or guest_id)。
