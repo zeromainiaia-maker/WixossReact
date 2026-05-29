@@ -4025,6 +4025,401 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           thenAction: addToEnergyCSTE as EffectAction,
         });
       }
+      // 公開枚数（lastProcessedCards）に基づくパワー修正
+      if (stub.id === 'POWER_MOD_PER_REVEALED') {
+        const srcPMPR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMPR = srcPMPR ? (srcPMPR.EffectText ?? '') + ' ' + (srcPMPR.BurstText ?? '') : '';
+        const toHWPMPR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const revealedCountPMPR = (ctx.lastProcessedCards ?? []).length;
+        const perMPMPR = txtPMPR.match(/([０-９\d]*)枚?につき([－＋][０-９\d]+)/);
+        if (perMPMPR && revealedCountPMPR > 0) {
+          const divisorPMPR = parseInt(toHWPMPR(perMPMPR[1] || '1')) || 1;
+          const deltaPMPR = parseInt(toHWPMPR(perMPMPR[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPMPR = Math.floor(revealedCountPMPR / divisorPMPR) * deltaPMPR;
+          if (totalDeltaPMPR !== 0) {
+            const modsPMPR = [...(ctx.otherState.temp_power_mods ?? [])];
+            for (let zi = 0; zi < 3; zi++) {
+              const top = ctx.otherState.field.signi[zi]?.at(-1);
+              if (top) modsPMPR.push({ cardNum: top, delta: totalDeltaPMPR });
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPR } },
+              `パワー${totalDeltaPMPR > 0 ? '+' : ''}${totalDeltaPMPR}（公開${revealedCountPMPR}枚）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（公開${revealedCountPMPR}枚）`));
+      }
+      // 自場チャーム数に基づくパワー修正
+      if (stub.id === 'POWER_BY_CHARM_COUNT') {
+        const srcPBCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPBCC = srcPBCC ? (srcPBCC.EffectText ?? '') + ' ' + (srcPBCC.BurstText ?? '') : '';
+        const toHWPBCC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const charmCountPBCC = (ctx.ownerState.field.signi_charms ?? []).filter(c => c !== null && c !== undefined).length;
+        const perMPBCC = txtPBCC.match(/チャーム([０-９\d]*)(?:個|枚)?につき([－＋][０-９\d]+)/);
+        if (perMPBCC && charmCountPBCC > 0) {
+          const divisorPBCC = parseInt(toHWPBCC(perMPBCC[1] || '1')) || 1;
+          const deltaPBCC = parseInt(toHWPBCC(perMPBCC[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPBCC = Math.floor(charmCountPBCC / divisorPBCC) * deltaPBCC;
+          if (totalDeltaPBCC !== 0) {
+            const targetsPBCC = ctx.lastProcessedCards ?? [];
+            const modsPBCC = [...(ctx.otherState.temp_power_mods ?? [])];
+            if (targetsPBCC.length > 0) {
+              for (const cn of targetsPBCC) modsPBCC.push({ cardNum: cn, delta: totalDeltaPBCC });
+            } else {
+              for (let zi = 0; zi < 3; zi++) {
+                const top = ctx.otherState.field.signi[zi]?.at(-1);
+                if (top) modsPBCC.push({ cardNum: top, delta: totalDeltaPBCC });
+              }
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBCC } },
+              `パワー${totalDeltaPBCC > 0 ? '+' : ''}${totalDeltaPBCC}（チャーム${charmCountPBCC}個）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（チャーム${charmCountPBCC}個）`));
+      }
+      // エナゾーンの色の種類数に基づくパワー修正
+      if (stub.id === 'POWER_BY_ENERGY_COLOR_VARIETY') {
+        const srcPBECV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPBECV = srcPBECV ? (srcPBECV.EffectText ?? '') + ' ' + (srcPBECV.BurstText ?? '') : '';
+        const toHWPBECV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const energyColorSetPBECV = new Set<string>();
+        for (const cn of ctx.ownerState.energy) {
+          const colors = (ctx.cardMap.get(cn)?.Color ?? '').split('/').map(c => c.trim()).filter(c => c && c !== '無');
+          for (const col of colors) energyColorSetPBECV.add(col);
+        }
+        const varietyPBECV = energyColorSetPBECV.size;
+        const perMPBECV = txtPBECV.match(/エナゾーン.*?色の種類([０-９\d]*)(?:色|つ)?につき([－＋][０-９\d]+)/);
+        if (perMPBECV && varietyPBECV > 0) {
+          const divisorPBECV = parseInt(toHWPBECV(perMPBECV[1] || '1')) || 1;
+          const deltaPBECV = parseInt(toHWPBECV(perMPBECV[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPBECV = Math.floor(varietyPBECV / divisorPBECV) * deltaPBECV;
+          if (totalDeltaPBECV !== 0) {
+            const targetsPBECV = ctx.lastProcessedCards ?? [];
+            const modsPBECV = [...(ctx.otherState.temp_power_mods ?? [])];
+            if (targetsPBECV.length > 0) {
+              for (const cn of targetsPBECV) modsPBECV.push({ cardNum: cn, delta: totalDeltaPBECV });
+            } else {
+              for (let zi = 0; zi < 3; zi++) {
+                const top = ctx.otherState.field.signi[zi]?.at(-1);
+                if (top) modsPBECV.push({ cardNum: top, delta: totalDeltaPBECV });
+              }
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBECV } },
+              `パワー${totalDeltaPBECV > 0 ? '+' : ''}${totalDeltaPBECV}（エナ色種類${varietyPBECV}）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（エナ色種類${varietyPBECV}）`));
+      }
+      // 自場ライズシグニ数に基づくパワー修正（スタック2枚以上のシグニ）
+      if (stub.id === 'POWER_BY_RISE_SIGNI_COUNT') {
+        const srcPBRSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPBRSC = srcPBRSC ? (srcPBRSC.EffectText ?? '') + ' ' + (srcPBRSC.BurstText ?? '') : '';
+        const toHWPBRSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const riseCountPBRSC = ctx.ownerState.field.signi.filter(s => (s?.length ?? 0) >= 2).length;
+        const perMPBRSC = txtPBRSC.match(/ライズシグニ([０-９\d]*)体?につき([－＋][０-９\d]+)/);
+        if (perMPBRSC && riseCountPBRSC > 0) {
+          const divisorPBRSC = parseInt(toHWPBRSC(perMPBRSC[1] || '1')) || 1;
+          const deltaPBRSC = parseInt(toHWPBRSC(perMPBRSC[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPBRSC = Math.floor(riseCountPBRSC / divisorPBRSC) * deltaPBRSC;
+          if (totalDeltaPBRSC !== 0) {
+            const targetsPBRSC = ctx.lastProcessedCards ?? [];
+            const modsPBRSC = [...(ctx.otherState.temp_power_mods ?? [])];
+            if (targetsPBRSC.length > 0) {
+              for (const cn of targetsPBRSC) modsPBRSC.push({ cardNum: cn, delta: totalDeltaPBRSC });
+            } else {
+              for (let zi = 0; zi < 3; zi++) {
+                const top = ctx.otherState.field.signi[zi]?.at(-1);
+                if (top) modsPBRSC.push({ cardNum: top, delta: totalDeltaPBRSC });
+              }
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBRSC } },
+              `パワー${totalDeltaPBRSC > 0 ? '+' : ''}${totalDeltaPBRSC}（ライズシグニ${riseCountPBRSC}体）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（ライズシグニ${riseCountPBRSC}体）`));
+      }
+      // 相手同ゾーン（前）シグニのレベルに基づくパワー修正
+      if (stub.id === 'POWER_MOD_BY_FRONT_LEVEL') {
+        const srcPMFLL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMFLL = srcPMFLL ? (srcPMFLL.EffectText ?? '') + ' ' + (srcPMFLL.BurstText ?? '') : '';
+        const toHWPMFLL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcZoneFLL = ctx.sourceCardNum
+          ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum)
+          : -1;
+        const frontCnFLL = srcZoneFLL >= 0 ? ctx.otherState.field.signi[srcZoneFLL]?.at(-1) : undefined;
+        const frontLvFLL = parseInt(ctx.cardMap.get(frontCnFLL ?? '')?.Level ?? '0') || 0;
+        const perMPMFLL = txtPMFLL.match(/前.*?シグニのレベル([０-９\d]*)につき([－＋][０-９\d]+)/);
+        if (perMPMFLL && frontLvFLL > 0) {
+          const divisorPMFLL = parseInt(toHWPMFLL(perMPMFLL[1] || '1')) || 1;
+          const deltaPMFLL = parseInt(toHWPMFLL(perMPMFLL[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPMFLL = Math.floor(frontLvFLL / divisorPMFLL) * deltaPMFLL;
+          if (totalDeltaPMFLL !== 0 && ctx.sourceCardNum) {
+            const modsFLL = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: totalDeltaPMFLL }];
+            return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsFLL } },
+              `パワー${totalDeltaPMFLL > 0 ? '+' : ''}${totalDeltaPMFLL}（前シグニLv${frontLvFLL}）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（前シグニLv${frontLvFLL}）`));
+      }
+      // 相手フィールドのウイルスシグニのレベル合計に基づくパワー修正
+      if (stub.id === 'INFECTED_SIGNI_POWER_DOWN_BY_LEVEL') {
+        const srcISPDL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtISPDL = srcISPDL ? (srcISPDL.EffectText ?? '') + ' ' + (srcISPDL.BurstText ?? '') : '';
+        const toHWISPDL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const virusLvSumISPDL = [0, 1, 2].reduce((acc, zi) => {
+          if ((ctx.otherState.field.signi_virus?.[zi] ?? 0) === 0) return acc;
+          const top = ctx.otherState.field.signi[zi]?.at(-1);
+          return acc + (parseInt(ctx.cardMap.get(top ?? '')?.Level ?? '0') || 0);
+        }, 0);
+        const perMISPDL = txtISPDL.match(/ウイルス.*?シグニのレベル([０-９\d]*)につき([－＋][０-９\d]+)/);
+        if (perMISPDL && virusLvSumISPDL > 0) {
+          const divisorISPDL = parseInt(toHWISPDL(perMISPDL[1] || '1')) || 1;
+          const deltaISPDL = parseInt(toHWISPDL(perMISPDL[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaISPDL = Math.floor(virusLvSumISPDL / divisorISPDL) * deltaISPDL;
+          if (totalDeltaISPDL !== 0) {
+            const modsISPDL = [...(ctx.otherState.temp_power_mods ?? [])];
+            for (let zi = 0; zi < 3; zi++) {
+              const top = ctx.otherState.field.signi[zi]?.at(-1);
+              if (top) modsISPDL.push({ cardNum: top, delta: totalDeltaISPDL });
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsISPDL } },
+              `パワー${totalDeltaISPDL > 0 ? '+' : ''}${totalDeltaISPDL}（ウイルスLv合計${virusLvSumISPDL}）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（ウイルスシグニLv合計${virusLvSumISPDL}）`));
+      }
+      // 自シグニパワーの2倍を全相手シグニにマイナス
+      if (stub.id === 'DOUBLE_OWN_POWER_MINUS') {
+        const selfPwDOPM = ctx.effectivePowers?.get(ctx.sourceCardNum ?? '')
+          ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Power ?? '0', 10);
+        const deltaDOPM = -(selfPwDOPM * 2);
+        if (deltaDOPM !== 0) {
+          const modsDOPM = [...(ctx.otherState.temp_power_mods ?? [])];
+          for (let zi = 0; zi < 3; zi++) {
+            const top = ctx.otherState.field.signi[zi]?.at(-1);
+            if (top) modsDOPM.push({ cardNum: top, delta: deltaDOPM });
+          }
+          return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsDOPM } },
+            `全相手シグニパワー${deltaDOPM}（自パワー${selfPwDOPM}×2）`));
+        }
+        return done(addLog(ctx, '全相手シグニパワー-0'));
+      }
+      // 全自シグニのパワーを2倍にする（現在値と同量をデルタ追加）
+      if (stub.id === 'POWER_DOUBLE_ALL') {
+        const modsPDA = [...(ctx.ownerState.temp_power_mods ?? [])];
+        let boostedPDA = 0;
+        for (let zi = 0; zi < 3; zi++) {
+          const top = ctx.ownerState.field.signi[zi]?.at(-1);
+          if (!top) continue;
+          const curPw = ctx.effectivePowers?.get(top) ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0', 10);
+          modsPDA.push({ cardNum: top, delta: curPw });
+          boostedPDA++;
+        }
+        if (boostedPDA > 0)
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPDA } },
+            `全自シグニのパワー×2（${boostedPDA}体）`));
+        return done(addLog(ctx, '自場にシグニなし（POWER_DOUBLE_ALL）'));
+      }
+      // lastProcessedCards の先頭シグニのパワーを自シグニにコピー
+      if (stub.id === 'COPY_TARGET_POWER') {
+        const targetCnCTP = (ctx.lastProcessedCards ?? [])[0];
+        const selfCnCTP = ctx.sourceCardNum;
+        if (!targetCnCTP || !selfCnCTP) return done(addLog(ctx, 'パワーコピー不可（対象/自シグニなし）'));
+        const targetPwCTP = ctx.effectivePowers?.get(targetCnCTP) ?? parseInt(ctx.cardMap.get(targetCnCTP)?.Power ?? '0', 10);
+        const selfPwCTP = ctx.effectivePowers?.get(selfCnCTP) ?? parseInt(ctx.cardMap.get(selfCnCTP)?.Power ?? '0', 10);
+        const deltaCTP = targetPwCTP - selfPwCTP;
+        const modsCTP = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: selfCnCTP, delta: deltaCTP }];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsCTP } },
+          `パワー${targetPwCTP}をコピー（${ctx.cardMap.get(targetCnCTP)?.CardName ?? targetCnCTP}から）`));
+      }
+      // 自パワーに合わせて相手シグニのパワーを設定
+      if (stub.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER') {
+        const selfPwSOSP = ctx.effectivePowers?.get(ctx.sourceCardNum ?? '')
+          ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Power ?? '0', 10);
+        const targetsSOSP = (ctx.lastProcessedCards?.length ? ctx.lastProcessedCards
+          : [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn));
+        const modsSOSP = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (const cn of targetsSOSP) {
+          const oppPw = ctx.effectivePowers?.get(cn) ?? parseInt(ctx.cardMap.get(cn)?.Power ?? '0', 10);
+          if (selfPwSOSP !== oppPw) modsSOSP.push({ cardNum: cn, delta: selfPwSOSP - oppPw });
+        }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsSOSP } },
+          `相手シグニのパワーを${selfPwSOSP}に設定`));
+      }
+      // クラスが出るまでデッキ上からトラッシュに置く
+      if (stub.id === 'DECK_MILL_UNTIL_CLASS') {
+        const srcDMUC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtDMUC = srcDMUC ? (srcDMUC.EffectText ?? '') + ' ' + (srcDMUC.BurstText ?? '') : '';
+        const classMatchDMUC = txtDMUC.match(/[<＜《]([^>＞》]+)[>＞»].*?(?:が出る|が出現|のシグニが現れる)まで/);
+        const targetClassDMUC = classMatchDMUC?.[1];
+        let curDMUC = ctx;
+        let milledDMUC = 0;
+        while (curDMUC.ownerState.deck.length > 0) {
+          const topDMUC = curDMUC.ownerState.deck[0];
+          const topDataDMUC = curDMUC.cardMap.get(topDMUC);
+          const newDeckDMUC = curDMUC.ownerState.deck.slice(1);
+          const newTrashDMUC = [...curDMUC.ownerState.trash, topDMUC];
+          curDMUC = { ...curDMUC, ownerState: { ...curDMUC.ownerState, deck: newDeckDMUC, trash: newTrashDMUC } };
+          milledDMUC++;
+          if (!targetClassDMUC || (topDataDMUC?.Type === 'シグニ' && topDataDMUC.CardClass?.includes(targetClassDMUC))) break;
+        }
+        return done(addLog(curDMUC, `デッキ上${milledDMUC}枚をトラッシュ（${targetClassDMUC ?? 'クラス'}まで削り）`));
+      }
+      // 宣言した数だけデッキ上からトラッシュへ
+      if (stub.id === 'DECK_TOP_DECLARED_NUM_TRASH') {
+        const declaredNumDTDT = ctx.ownerState.declared_guard_restrict_level ?? 1;
+        const topCardsDTDT = ctx.ownerState.deck.slice(0, declaredNumDTDT);
+        if (topCardsDTDT.length === 0) return done(addLog(ctx, 'デッキなし（DECK_TOP_DECLARED_NUM_TRASH）'));
+        const newOwnerDTDT = {
+          ...ctx.ownerState,
+          deck: ctx.ownerState.deck.slice(declaredNumDTDT),
+          trash: [...ctx.ownerState.trash, ...topCardsDTDT],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwnerDTDT },
+          `デッキ上${topCardsDTDT.length}枚→トラッシュ（宣言数${declaredNumDTDT}）`));
+      }
+      // 自場シグニのレベル合計枚数をデッキ上からトラッシュ
+      if (stub.id === 'TRASH_FROM_DECK_PER_SIGNI_LEVEL') {
+        const lvSumTFDPSL = [0, 1, 2].reduce((acc, zi) => {
+          const top = ctx.ownerState.field.signi[zi]?.at(-1);
+          return acc + (parseInt(ctx.cardMap.get(top ?? '')?.Level ?? '0') || 0);
+        }, 0);
+        if (lvSumTFDPSL === 0 || ctx.ownerState.deck.length === 0)
+          return done(addLog(ctx, `デッキトップトラッシュ不可（Lv合計${lvSumTFDPSL}）`));
+        const trashCountTFDPSL = Math.min(lvSumTFDPSL, ctx.ownerState.deck.length);
+        const newOwnerTFDPSL = {
+          ...ctx.ownerState,
+          deck: ctx.ownerState.deck.slice(trashCountTFDPSL),
+          trash: [...ctx.ownerState.trash, ...ctx.ownerState.deck.slice(0, trashCountTFDPSL)],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwnerTFDPSL },
+          `デッキ上${trashCountTFDPSL}枚→トラッシュ（シグニLv合計${lvSumTFDPSL}）`));
+      }
+      // チャーム数だけドロー
+      if (stub.id === 'DRAW_BY_CHARM_COUNT') {
+        const charmCountDBCC = (ctx.ownerState.field.signi_charms ?? []).filter(c => c !== null && c !== undefined).length;
+        if (charmCountDBCC === 0) return done(addLog(ctx, 'チャームなし（DRAW_BY_CHARM_COUNT）'));
+        const drawCountDBCC = Math.min(charmCountDBCC, ctx.ownerState.deck.length);
+        if (drawCountDBCC === 0) return done(addLog(ctx, 'デッキなし（DRAW_BY_CHARM_COUNT）'));
+        const newOwnerDBCC = {
+          ...ctx.ownerState,
+          deck: ctx.ownerState.deck.slice(drawCountDBCC),
+          hand: [...ctx.ownerState.hand, ...ctx.ownerState.deck.slice(0, drawCountDBCC)],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwnerDBCC }, `${drawCountDBCC}枚ドロー（チャーム${charmCountDBCC}個）`));
+      }
+      // 複数色（2色以上）の相手シグニをバニッシュ
+      if (stub.id === 'BANISH_MULTI_COLOR_SIGNI') {
+        let curBMCS = ctx;
+        let banishedBMCS = 0;
+        for (let zi = 0; zi < 3; zi++) {
+          const top = curBMCS.otherState.field.signi[zi]?.at(-1);
+          if (!top) continue;
+          const colorsBMCS = (curBMCS.cardMap.get(top)?.Color ?? '').split('/').map(c => c.trim()).filter(Boolean);
+          if (colorsBMCS.length < 2) continue;
+          const removedBMCS = removeFromField(top, curBMCS.otherState);
+          curBMCS = { ...curBMCS, otherState: { ...removedBMCS, energy: [...removedBMCS.energy, top] } };
+          banishedBMCS++;
+        }
+        return done(addLog(curBMCS, banishedBMCS > 0
+          ? `複数色シグニ${banishedBMCS}体をバニッシュ`
+          : '複数色シグニなし（BANISH_MULTI_COLOR_SIGNI）'));
+      }
+      // 相手フィールドシグニとエナゾーンをすべてトラッシュ
+      if (stub.id === 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY') {
+        let newOtherOTFSAE = { ...ctx.otherState };
+        for (let zi = 0; zi < 3; zi++) {
+          const top = newOtherOTFSAE.field.signi[zi]?.at(-1);
+          if (!top) continue;
+          const removedOTFSAE = removeFromField(top, newOtherOTFSAE);
+          newOtherOTFSAE = { ...removedOTFSAE, trash: [...removedOTFSAE.trash, top] };
+        }
+        const extraTrashOTFSAE = [...newOtherOTFSAE.energy];
+        newOtherOTFSAE = { ...newOtherOTFSAE, energy: [], trash: [...newOtherOTFSAE.trash, ...extraTrashOTFSAE] };
+        return done(addLog({ ...ctx, otherState: newOtherOTFSAE }, '相手フィールドシグニとエナゾーンをすべてトラッシュ'));
+      }
+      // 自シグニをフィールドから退場させてデッキ下へ
+      if (stub.id === 'LEAVE_FIELD_TO_DECK_BOTTOM') {
+        const srcCnLFDB = ctx.sourceCardNum;
+        if (!srcCnLFDB || !ctx.ownerState.field.signi.some(s => s?.at(-1) === srcCnLFDB))
+          return done(addLog(ctx, '対象がフィールドにいない（LEAVE_FIELD_TO_DECK_BOTTOM）'));
+        const removedLFDB = removeFromField(srcCnLFDB, ctx.ownerState);
+        return done(addLog({ ...ctx, ownerState: { ...removedLFDB, deck: [...removedLFDB.deck, srcCnLFDB] } },
+          `${ctx.cardMap.get(srcCnLFDB)?.CardName ?? srcCnLFDB}をデッキ下へ`));
+      }
+      // ルリグダメージ無効フラグを設定
+      if (stub.id === 'PREVENT_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_UNTIL_OPP_TURN_END'
+          || stub.id === 'PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN') {
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_lrig_damage: true } },
+          'このターンルリグダメージ無効'));
+      }
+      // 色条件によるライフバースト抑制（相手に suppress_life_burst フラグ）
+      if (stub.id === 'SUPPRESS_LIFEBURST_COLOR_CONDITION') {
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, suppress_life_burst: true } },
+          'ライフバースト発動抑制（色条件）'));
+      }
+      // 相手エナが指定数以上のとき超過分をトラッシュ
+      if (stub.id === 'OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL') {
+        const srcOEOTC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOEOTC = srcOEOTC ? (srcOEOTC.EffectText ?? '') + ' ' + (srcOEOTC.BurstText ?? '') : '';
+        const toHWOEOTC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const maxMOEOTC = txtOEOTC.match(/エナゾーンにカードが([０-９\d]*)枚?以上/);
+        const maxEnaOEOTC = maxMOEOTC ? (parseInt(toHWOEOTC(maxMOEOTC[1])) || 5) : 5;
+        const oppEnaCountOEOTC = ctx.otherState.energy.length;
+        if (oppEnaCountOEOTC >= maxEnaOEOTC) {
+          const excessOEOTC = oppEnaCountOEOTC - maxEnaOEOTC + 1;
+          const newEnaOEOTC = ctx.otherState.energy.slice(0, ctx.otherState.energy.length - excessOEOTC);
+          const toTrashOEOTC = ctx.otherState.energy.slice(ctx.otherState.energy.length - excessOEOTC);
+          const newOtherOEOTC = { ...ctx.otherState, energy: newEnaOEOTC, trash: [...ctx.otherState.trash, ...toTrashOEOTC] };
+          return done(addLog({ ...ctx, otherState: newOtherOEOTC },
+            `相手エナ${excessOEOTC}枚→トラッシュ（${oppEnaCountOEOTC}枚≥${maxEnaOEOTC}）`));
+        }
+        return done(addLog(ctx, `相手エナ${oppEnaCountOEOTC}枚（条件${maxEnaOEOTC}枚以上：未達）`));
+      }
+      // エナゾーンからカードを手札へ（SELECT→INTERNAL）
+      if (stub.id === 'ENERGY_TO_HAND_ON_DECK') {
+        const selfEnaETHOD = ctx.ownerState.energy;
+        if (selfEnaETHOD.length === 0) return done(addLog(ctx, 'エナゾーンにカードなし（ENERGY_TO_HAND_ON_DECK）'));
+        const noopETHOD: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contETHOD: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_ENERGY_TO_HAND' };
+        return needsInteraction(addLog(ctx, 'エナゾーンからカードを選択（手札へ）'), {
+          type: 'SELECT_TARGET', candidates: selfEnaETHOD, count: 1, optional: false,
+          targetScope: 'self_energy', thenAction: noopETHOD as EffectAction, continuation: contETHOD as EffectAction,
+        });
+      }
+      // ENERGY_TO_HAND_ON_DECK 後処理：選択エナを手札へ
+      if (stub.id === 'INTERNAL_ENERGY_TO_HAND') {
+        const selectedETH = ctx.lastProcessedCards ?? [];
+        if (selectedETH.length === 0) return done(addLog(ctx, 'なし（INTERNAL_ENERGY_TO_HAND）'));
+        const newOwnerETH = {
+          ...ctx.ownerState,
+          energy: ctx.ownerState.energy.filter(cn => !selectedETH.includes(cn)),
+          hand: [...ctx.ownerState.hand, ...selectedETH],
+        };
+        const nameETH = selectedETH.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, ownerState: newOwnerETH }, `エナゾーン：${nameETH}→手札`));
+      }
+      // コイン獲得+手札から捨て（先頭N枚を自動捨て）
+      if (stub.id === 'GAIN_COIN_AND_DISCARD') {
+        const srcGCAD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtGCAD = srcGCAD ? (srcGCAD.EffectText ?? '') + ' ' + (srcGCAD.BurstText ?? '') : '';
+        const toHWGCAD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const coinMGCAD = txtGCAD.match(/コイン([０-９\d]*)(?:枚?|個?)を得る/);
+        const coinCountGCAD = coinMGCAD ? (parseInt(toHWGCAD(coinMGCAD[1] || '1')) || 1) : 1;
+        const discardMGCAD = txtGCAD.match(/手札を([０-９\d]*)枚?(?:捨て|トラッシュ)/);
+        const discardCountGCAD = discardMGCAD ? (parseInt(toHWGCAD(discardMGCAD[1] || '1')) || 1) : 1;
+        let curGCAD = addLog({ ...ctx, ownerState: { ...ctx.ownerState, coins: (ctx.ownerState.coins ?? 0) + coinCountGCAD } },
+          `コイン+${coinCountGCAD}`);
+        const actualDiscardGCAD = Math.min(discardCountGCAD, curGCAD.ownerState.hand.length);
+        if (actualDiscardGCAD > 0) {
+          const toDiscardGCAD = curGCAD.ownerState.hand.slice(0, actualDiscardGCAD);
+          curGCAD = addLog({ ...curGCAD, ownerState: {
+            ...curGCAD.ownerState,
+            hand: curGCAD.ownerState.hand.slice(actualDiscardGCAD),
+            trash: [...curGCAD.ownerState.trash, ...toDiscardGCAD],
+          }}, `手札${actualDiscardGCAD}枚捨て`);
+        }
+        return done(curGCAD);
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
