@@ -670,7 +670,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   };
 
   const handleSigniAttackAction = (zoneIdx: number) => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return;
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return;
     if (gs.phase !== 'ATTACK_SIGNI') return;
     const isDown = gs.player.field.signi_down?.[zoneIdx] ?? false;
     const stack = gs.player.field.signi[zoneIdx];
@@ -679,13 +679,13 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   };
 
   const handleLrigAttackAction = () => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return;
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return;
     if (gs.phase !== 'ATTACK_LRIG' || gs.player.field.lrig_down) return;
     setGs(prev => prev ? lrigAttack(prev) : prev);
   };
 
   const handleEndPhase = () => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return;
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return;
     setGs(prev => prev ? advancePhase(prev) : prev);
   };
 
