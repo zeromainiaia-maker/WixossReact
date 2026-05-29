@@ -143,6 +143,9 @@
 | 2026-05-30 | 正面以外のゾーンにも追加バトル（ダメージなし・シグニバニッシュのみ） | MULTI_ZONE_ATTACK |
 | 2026-05-30 | 対象シグニ色変更（PlayerState.signi_color_overrides / ENDフェーズリセット） | CHANGE_SIGNI_COLOR |
 | 2026-05-30 | このシグニがルリグの色を1つ得る（signi_color_overrides）| SIGNI_GAIN_ONE_LRIG_COLOR |
+| 2026-05-30 | CONTINUOUS効果を動的計算に統一（executor.tsのPlayerState直変更を削除） | PREVENT_ZONE_MOVE_BY_OPP, ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白, LOSE_COLOR_ALL_ZONES |
+| 2026-05-30 | MULTI_ZONE_ATTACK：強制/任意をテキスト解析で判定、バトル負けケース追加 | MULTI_ZONE_ATTACK |
+| 2026-05-30 | ExecCtxにotherProtectedZones追加、resolveStackNext動的計算でexecutorへ渡す | PREVENT_ZONE_MOVE_BY_OPP |
 
 ---
 
