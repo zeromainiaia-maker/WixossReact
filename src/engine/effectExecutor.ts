@@ -6105,9 +6105,31 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: newOtherIRSZ },
           `相手ゾーン${zoneIdxIRSZ + 1}を削除（${oppStackIRSZ.length}体トラッシュ）`));
       }
-      // ゾーン管理系（engine: ゾーンロック未実装）
-      if (stub.id === 'DESIGNATE_SIGNI_ZONE' || stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
-        return done(addLog(ctx, `[ゾーン管理: ${stub.id}]`));
+      // DESIGNATE_SIGNI_ZONE: 相手シグニゾーンを1つ指定する
+      if (stub.id === 'DESIGNATE_SIGNI_ZONE') {
+        const zoneOptsDSZ = [0, 1, 2].map(zi => ({
+          id: `zone_${zi}`,
+          label: `ゾーン${zi + 1}を指定`,
+          action: ({ type: 'STUB', id: 'INTERNAL_DESIGNATE_ZONE', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog(ctx, '指定する相手シグニゾーンを選択'), {
+          type: 'CHOOSE', options: zoneOptsDSZ, count: 1,
+        });
+      }
+      // INTERNAL_DESIGNATE_ZONE: 選択したゾーンを相手Stateに保存
+      if (stub.id === 'INTERNAL_DESIGNATE_ZONE') {
+        const zoneIdxIDZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+        const newOtherIDZ = { ...ctx.otherState, designated_zone: zoneIdxIDZ };
+        return done(addLog({ ...ctx, otherState: newOtherIDZ }, `相手ゾーン${zoneIdxIDZ + 1}を指定`));
+      }
+      // BLOCK_OPP_ZONE_PLACEMENT: 指定ゾーンへの配置を禁止（disabled_signi_zones に追加）
+      if (stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
+        const zoneIdxBOZP = ctx.otherState.designated_zone ?? 0;
+        const currentDisabledBOZP = [...(ctx.otherState.disabled_signi_zones ?? [])];
+        if (!currentDisabledBOZP.includes(zoneIdxBOZP)) currentDisabledBOZP.push(zoneIdxBOZP);
+        const newOtherBOZP = { ...ctx.otherState, disabled_signi_zones: currentDisabledBOZP };
+        return done(addLog({ ...ctx, otherState: newOtherBOZP }, `相手ゾーン${zoneIdxBOZP + 1}へのシグニ配置を禁止`));
       }
       // アーツ条件系（engine: アーツ使用条件未実装）
       if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ARTS_USE_DISCARD_COLOR_HAND'
