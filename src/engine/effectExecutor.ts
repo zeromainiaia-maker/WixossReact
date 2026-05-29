@@ -2040,7 +2040,55 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // シグニの下にカードを置く
       if (stub.id === 'PLACE_CARD_UNDER_SIGNI' || stub.id === 'STACK_SIGNI_UNDER') {
-        return done(addLog(ctx, 'カードをシグニの下に置く'));
+        const srcPCUS = ctx.sourceCardNum;
+        const effPCUS = srcPCUS ? ctx.cardMap.get(srcPCUS) : undefined;
+        const txtPCUS = effPCUS ? (effPCUS.EffectText ?? '') + ' ' + (effPCUS.BurstText ?? '') : '';
+        // 「このシグニを他のシグニの下に置く」パターン
+        if (txtPCUS.match(/このシグニを.+の下に置く/) && srcPCUS) {
+          const srcZonePCUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
+          if (srcZonePCUS < 0) return done(addLog(ctx, 'このシグニが場にいない'));
+          const candidatesPCUS = [0, 1, 2]
+            .filter(zi => zi !== srcZonePCUS && ctx.ownerState.field.signi[zi]?.length)
+            .map(zi => ctx.ownerState.field.signi[zi]!.at(-1)!)
+            .filter(Boolean);
+          if (candidatesPCUS.length === 0) return done(addLog(ctx, '配置先シグニなし'));
+          const placeUnderStub: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_SELF_UNDER_SIGNI' };
+          return selectOrInteract(candidatesPCUS, 1, false, 'self_field', placeUnderStub, undefined, ctx);
+        }
+        // 「トラッシュからカードをこのシグニの下に置く」パターン（lastProcessedCardsを使用）
+        if (ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0 && srcPCUS) {
+          const targetZonePCUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
+          if (targetZonePCUS < 0) return done(addLog(ctx, 'このシグニが場にいない'));
+          const newSigniPCUS = [...ctx.ownerState.field.signi] as (string[] | null)[];
+          const currentStackPCUS = newSigniPCUS[targetZonePCUS] ?? [];
+          newSigniPCUS[targetZonePCUS] = [...ctx.lastProcessedCards, ...currentStackPCUS];
+          const newOwnerPCUS: PlayerState = {
+            ...ctx.ownerState,
+            trash: ctx.ownerState.trash.filter(cn => !ctx.lastProcessedCards!.includes(cn)),
+            field: { ...ctx.ownerState.field, signi: newSigniPCUS },
+          };
+          return done(addLog({ ...ctx, ownerState: newOwnerPCUS },
+            `${ctx.lastProcessedCards.length}枚を${effPCUS?.CardName ?? srcPCUS}の下に配置`));
+        }
+        return done(addLog(ctx, 'カードをシグニの下に置く（スキップ）'));
+      }
+      // INTERNAL_PLACE_SELF_UNDER_SIGNI: 自シグニを選択シグニのスタック下に移動
+      if (stub.id === 'INTERNAL_PLACE_SELF_UNDER_SIGNI') {
+        const targetCnIPSUS = ctx.lastProcessedCards?.[0];
+        const srcCnIPSUS = ctx.sourceCardNum;
+        if (!targetCnIPSUS || !srcCnIPSUS) return done(addLog(ctx, '対象なし'));
+        const srcZoneIPSUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcCnIPSUS);
+        const targetZoneIPSUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === targetCnIPSUS);
+        if (srcZoneIPSUS < 0 || targetZoneIPSUS < 0) return done(addLog(ctx, 'ゾーン特定不可'));
+        const newSigniIPSUS = [...ctx.ownerState.field.signi] as (string[] | null)[];
+        // sourceCardNumを元ゾーンから削除（スタックの最後だけ取り出す）
+        const srcStackIPSUS = newSigniIPSUS[srcZoneIPSUS] ?? [];
+        newSigniIPSUS[srcZoneIPSUS] = srcStackIPSUS.length > 1 ? srcStackIPSUS.slice(0, -1) : null;
+        // targetゾーンのスタック最下部に追加
+        newSigniIPSUS[targetZoneIPSUS] = [srcCnIPSUS, ...(newSigniIPSUS[targetZoneIPSUS] ?? [])];
+        const newOwnerIPSUS: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIPSUS } };
+        return done(addLog({ ...ctx, ownerState: newOwnerIPSUS },
+          `${ctx.cardMap.get(srcCnIPSUS)?.CardName ?? srcCnIPSUS}を${ctx.cardMap.get(targetCnIPSUS)?.CardName ?? targetCnIPSUS}の下に配置`));
       }
       // 覚醒メカニクス（ルリグ変身）
       if (stub.id === 'AWAKEN') {
