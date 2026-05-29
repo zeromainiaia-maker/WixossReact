@@ -6886,16 +6886,23 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // CHANGE_SIGNI_COLOR: 対象シグニの色を指定色に変更（ターン終了時まで）
       if (stub.id === 'CHANGE_SIGNI_COLOR') {
+        // value がある場合：SELECT_TARGET の後処理（対象 = lastProcessedCards[0]）
+        if (typeof stub.value === 'string' && ctx.lastProcessedCards?.length) {
+          const targetCSC2 = ctx.lastProcessedCards[0];
+          const newColorCSC2 = stub.value as string;
+          const overridesCSC2 = { ...(ctx.otherState.signi_color_overrides ?? {}), [targetCSC2]: newColorCSC2 };
+          return done(addLog({ ...ctx, otherState: { ...ctx.otherState, signi_color_overrides: overridesCSC2 } },
+            `${ctx.cardMap.get(targetCSC2)?.CardName ?? targetCSC2}の色を${newColorCSC2}に変更`));
+        }
         const srcCSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtCSC = srcCSC ? (srcCSC.EffectText ?? '') + ' ' + (srcCSC.BurstText ?? '') : '';
         // 変更先の色を抽出（「それを白にする」「赤にする」等）
         const colorMCSC = txtCSC.match(/それを([赤青緑黒白]+)にする/);
         const newColorCSC = colorMCSC ? colorMCSC[1] : null;
         if (!newColorCSC) return done(addLog(ctx, 'CHANGE_SIGNI_COLOR: 変更先色不明'));
-        // 相手シグニ1体を選択
+        // 相手シグニ1体を選択（lastProcessedCardsが既にあれば直接適用）
         const oppSigniCSC = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
         if (oppSigniCSC.length === 0) return done(addLog(ctx, '相手シグニなし（CHANGE_SIGNI_COLOR）'));
-        // lastProcessedCards に対象がある場合はそれを使う
         const targetCSC = ctx.lastProcessedCards?.[0];
         if (targetCSC && oppSigniCSC.includes(targetCSC)) {
           const overridesCSC = { ...(ctx.otherState.signi_color_overrides ?? {}), [targetCSC]: newColorCSC };
