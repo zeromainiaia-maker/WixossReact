@@ -1,0 +1,124 @@
+# STUB実装状況メモ
+
+最終更新: 2026-05-29  
+調査コマンド: `node -e "...effects.json STUB集計..."`（詳細はセッション履歴参照）
+
+## 全体サマリー
+
+| 指標 | 値 |
+|---|---|
+| STUB種別総数 | 503種 |
+| STUB登場総数 | 2,174回 |
+| 真の未ハンドル（executor未登録） | 13回 / 12種 |
+| ログ/スキップのみ（ゲーム効果なし） | 上位30件を以下に記載 |
+
+---
+
+## ステータス凡例
+
+- ✅ 実装済み（ゲームに効果あり）
+- ⚡ 部分実装（近似処理・一部ケースのみ動作）
+- 📝 ログのみ（STUB_LOGテーブル or スキップ）
+- ❌ 完全未処理（executor未登録）
+
+---
+
+## 上位STUB詳細
+
+### 件数Top（全件数）
+
+| 件数 | STUB ID | ステータス | 内容 | executor行 |
+|---|---|---|---|---|
+| 387 | OPTIONAL_COST | ✅ | 任意コスト選択ダイアログ | ~1055 |
+| 106 | ARTS_COST_REDUCTION_BY_EFFECT | ✅ | アーツコスト軽減（支払い時計算済み） | ~2016 |
+| 59 | TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST | ✅ | 任意コストとして処理 | ~1072 |
+| 57 | POWER_MOD_PER_COUNT | ⚡ | カウント別パワー変更（部分実装） | ~2221 |
+| 52 | TARGET_AND_DISCARD_HAND | ⚡ | 手札捨て+バニッシュ（SEQUENCE内とfallback） | ~1001,2217 |
+| 45 | CONDITIONAL_POWER_BONUS | ⚡ | 条件付きパワーボーナス | 要確認 |
+| 42 | RULE_REMINDER_TEXT | ✅ | 説明テキスト（無音スキップ） | ~2003 |
+| 39 | GRANT_QUOTED_AUTO_ABILITY | ✅ | キーワード能力付与 | ~2102 |
+| 35 | DECLARE_NUMBER | ✅ | 1〜5宣言ダイアログ | ~2020 |
+| 33 | OPTIONAL_TRASH_ENERGY_CLASS | ✅ | 任意コストとして処理 | ~2007 |
+| 33 | LRIG_GROW_RESTRICT | ⚡ | ルリググロウ制限（部分） | 要確認 |
+| 29 | SOUL_OP | ⚡ | ソウルメカニクス（複数サブパターン実装） | ~3021 |
+| 29 | LOOK_OPP_LIFE_TOP | ✅ | 相手ライフ確認（ログ出力） | ~2179 |
+| 28 | TRADE_BANISH_SELF_SIGNI | ✅ | 自シグニトラッシュ→相手シグニバニッシュ | ~2198 |
+| 23 | LRIG_UNDER_CARD_OP | ⚡ | ルリグデッキ下操作（複数パターン） | ~2128 |
+| 22 | GRANT_ABILITY_INNER_TEXT | ✅ | キーワード能力付与（quoted版） | ~2102 |
+| 21 | GAIN_SUBSCRIBER_COUNT | 📝 | チャンネル登録数カウント（スキップ） | STUB_LOG |
+| 17 | LOOK_AND_REORDER | ⚡ | デッキ並べ替え（STUB版は限定対応） | ~3131 |
+| 17 | DECLARE_CARD_NAME | 📝 | カード名宣言（ログのみ） | ~2038 |
+| 16 | REVEAL_PICK_HAND_SHUFFLE_BOTTOM | ⚡ | 公開ピック→手札 | 要確認 |
+| 16 | GRANT_QUOTED_ABILITY | ✅ | 引用符付き能力付与 | ~2102 |
+| 16 | COPY_LRIG_NAME_ABILITY | 📝 | ルリグ名コピー（ログのみ） | ~2814 |
+| 15 | REVEAL_PICK_PLAY | ⚡ | 公開ピック→プレイ | 要確認 |
+| 15 | TARGET_ONLY | 📝 | 対象選択のみ（ログのみ） | ~2993 |
+| 14 | GAIN_ABILITY_THIS_GAME | 📝 | このゲームの間能力付与（ログのみ） | ~2963 |
+| 14 | ARTS_COST_REDUCTION_BY_CENTER_LRIG | ✅ | センタールリグによるコスト軽減（スキップ） | ~2016 |
+| 14 | CONDITIONAL_ARTS_COST | ⚡ | 条件付きアーツコスト | 要確認 |
+| 13 | BET_MECHANIC | 📝 | ベット（BattleScreen側） | ~2098 |
+| 13 | REVEAL_AND_PICK | ⚡ | 公開してピック | 要確認 |
+| 12 | TRAP_OPERATION | 📝 | トラップ操作（ログのみ・ゾーン未実装） | ~6064 |
+
+### ログのみ Top（game効果ゼロ）
+
+| 件数 | STUB ID | 実装に必要なもの | 難度 |
+|---|---|---|---|
+| 29 | SOUL_OP | ルリグ下ゾーン管理（部分実装あり・完成要） | C |
+| 17 | LOOK_AND_REORDER | デッキ閲覧UI+並べ替え（STUB版フォールバック改善） | B |
+| 12 | TRAP_OPERATION | チェックゾーン+トラップライフサイクル | D |
+| 10 | DESIGNATE_SIGNI_ZONE | ゾーンロック制御 | B |
+| 10 | REMOVE_VIRUS | ウィルス数減算（部分実装あり） | B |
+| 10 | ARTS_USE_DISCARD_LRIG_DECK | アーツ使用時ルリグデッキ捨て（実装あり・完成要） | B |
+| 9 | PLAY_FREE（STUB版） | カードテキスト解析→実際のプレイフロー | C |
+| 9 | GRANT_GUARD_ICON_HAND_SIGNI | hand_signi_guard_enabledフラグ（実装あり） | A |
+| 8 | ACCE_FROM_HAND | アクセ装着メカニクス（実装あり・完成要） | B |
+| 8 | COUNT_BASED_DRAW_OR_POWER | lastProcessedCards参照ドロー/パワー（実装あり） | B |
+| 8 | PLACE_SEED_FROM_REVEALED | シードゾーン+ブルーム機構 | D |
+| 8 | LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END | lrig_limit_mod（実装あり・期間管理が課題） | A |
+| 7 | DOWN_UP_SIGNI_AND_CHOOSE | シグニダウン+選択（実装あり・完成要） | A |
+| 7 | TRAP_OP | トラップ操作（TRAP_OPERATIONと同様） | D |
+| 7 | TRASH_SIGNI_UNDER_FIELD_SIGNI | ライズ機構（実装あり・完成要） | B |
+| 7 | DO_THREE_THINGS | 3択効果（複雑な分岐） | C |
+| 7 | LOSE_COLOR_ALL_ZONES | 全ゾーンの色消失 | B |
+| 7 | PLACE_LIMIT_UPPER | リミットアッパー設置（ログのみ） | B |
+| 6 | CONDITIONAL_COST_REDUCTION_BY_FIELD | フィールド依存コスト軽減 | B |
+| 6 | OPP_GUARD_COST_COLORLESS | 相手ガードコスト無色化 | B |
+
+---
+
+## 真の未ハンドル（executor完全未登録・13件）
+
+これらは`[STUB: xxx]`としてログ出力されるだけ：
+
+| 件数 | STUB ID |
+|---|---|
+| 2 | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
+| 1 | END_ATTACK_IF_EXTRA_TURN |
+| 1 | SUPPRESS_GAIN_ABILITY |
+| 1 | PREVENT_SIGNI_DOWN_BY_OPP |
+| 1 | ALL_PLAYER_MILL |
+| 1 | ADJACENT_SIGNI_POWER_MOD |
+| 1 | PREVENT_OPP_UPKEEP |
+| 1 | BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN |
+| 1 | LIMIT_OPP_ATTACK_ONCE |
+| 1 | SUPPRESS_OPP_SIGNI_ABILITIES |
+| 1 | DRAW_IF_OPP_DISCARDED_HAND |
+| 1 | OPTIONAL_DISCARD_GUARD |
+
+---
+
+## 実装履歴
+
+| 日付 | 実装内容 | 対象STUB |
+|---|---|---|
+| （未着手） | - | - |
+
+---
+
+## 実装優先度メモ
+
+**A（即実装可）:** GRANT_GUARD_ICON_HAND_SIGNI, DOWN_UP_SIGNI_AND_CHOOSE, LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END  
+**B（中難度）:** DESIGNATE_SIGNI_ZONE, REMOVE_VIRUS, ACCE_FROM_HAND, TRASH_SIGNI_UNDER_FIELD_SIGNI, OPP_GUARD_COST_COLORLESS, LOSE_COLOR_ALL_ZONES  
+**C（高難度）:** SOUL_OP, PLAY_FREE(STUB版), DO_THREE_THINGS  
+**D（新規ゾーン必要）:** TRAP_OPERATION, PLACE_SEED_FROM_REVEALED  
