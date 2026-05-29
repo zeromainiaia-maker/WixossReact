@@ -4668,6 +4668,213 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'GAIN_EXTRA_TURN') {
         return done(addLog(ctx, '追加ターン獲得（エンジン実装待ち）'));
       }
+      // ガードアイコン付与（手札のシグニに付与: フラグ設定）
+      if (stub.id === 'HAND_SIGNI_HAS_GUARD_ICON') {
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, hand_signi_guard_enabled: true } },
+          '手札のシグニすべてにガードアイコン付与'));
+      }
+      // フィールドのエナシグニが色を獲得（ログのみ・スキップ）
+      if (stub.id === 'FIELD_ENERGY_SIGNI_GAIN_COLOR') {
+        return done(addLog(ctx, 'エナゾーンのシグニが色を獲得（スキップ）'));
+      }
+      // 相手が宣言した色に応じてエナをトラッシュ（相手の宣言が必要→スキップ）
+      if (stub.id === 'DECLARE_COLOR_COND_ENERGY_TRASH' || stub.id === 'OPP_DECLARE_COLOR_COND_ENERGY_TRASH') {
+        return done(addLog(ctx, '色宣言条件エナトラッシュ（スキップ）'));
+      }
+      // エナのカードが指定レベル合計を超えたらトラッシュ
+      if (stub.id === 'ENERGY_BY_LEVEL_SUM_LIMIT') {
+        const srcEBLSL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtEBLSL = srcEBLSL ? (srcEBLSL.EffectText ?? '') + ' ' + (srcEBLSL.BurstText ?? '') : '';
+        const toHWEBLSL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const maxLvMEBLSL = txtEBLSL.match(/レベルの合計が([０-９\d]*)を超え/);
+        const maxLvEBLSL = maxLvMEBLSL ? (parseInt(toHWEBLSL(maxLvMEBLSL[1])) || 10) : 10;
+        const enaLvSumEBLSL = ctx.ownerState.energy.reduce((acc, cn) => {
+          return acc + (parseInt(ctx.cardMap.get(cn)?.Level ?? '0') || 0);
+        }, 0);
+        if (enaLvSumEBLSL > maxLvEBLSL) {
+          const excessEBLSL = enaLvSumEBLSL - maxLvEBLSL;
+          // 末尾から excess 分をトラッシュ（簡易実装）
+          const trashCountEBLSL = ctx.ownerState.energy.slice().reverse().reduce((acc, cn) => {
+            if (acc.total <= 0) return acc;
+            const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0') || 0;
+            return { total: acc.total - lv, cns: [...acc.cns, cn] };
+          }, { total: excessEBLSL, cns: [] as string[] }).cns;
+          const newOwnerEBLSL = {
+            ...ctx.ownerState,
+            energy: ctx.ownerState.energy.filter(cn => !trashCountEBLSL.includes(cn)),
+            trash: [...ctx.ownerState.trash, ...trashCountEBLSL],
+          };
+          return done(addLog({ ...ctx, ownerState: newOwnerEBLSL },
+            `エナLv合計${enaLvSumEBLSL}→上限${maxLvEBLSL}超え、${trashCountEBLSL.length}枚トラッシュ`));
+        }
+        return done(addLog(ctx, `エナLv合計${enaLvSumEBLSL}（上限${maxLvEBLSL}以内）`));
+      }
+      // 相手エナのカード1枚を色条件でトラッシュ（相手が選択→スキップ）
+      if (stub.id === 'OPP_ENERGY_COLOR_CONDITION_TRASH') {
+        // 相手エナから色条件に合うカードを1枚自動トラッシュ（最後の1枚）
+        const srcOECCT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOECCT = srcOECCT ? (srcOECCT.EffectText ?? '') + ' ' + (srcOECCT.BurstText ?? '') : '';
+        const colorMOECCT = txtOECCT.match(/([赤青緑黒白無])のカード/);
+        const targetColorOECCT = colorMOECCT?.[1];
+        const targetCardOECCT = targetColorOECCT
+          ? ctx.otherState.energy.find(cn => (ctx.cardMap.get(cn)?.Color ?? '').includes(targetColorOECCT))
+          : ctx.otherState.energy.at(-1);
+        if (!targetCardOECCT) return done(addLog(ctx, '対象エナカードなし（OPP_ENERGY_COLOR_CONDITION_TRASH）'));
+        const newOtherOECCT = {
+          ...ctx.otherState,
+          energy: ctx.otherState.energy.filter(cn => cn !== targetCardOECCT),
+          trash: [...ctx.otherState.trash, targetCardOECCT],
+        };
+        return done(addLog({ ...ctx, otherState: newOtherOECCT },
+          `相手エナ：${ctx.cardMap.get(targetCardOECCT)?.CardName ?? targetCardOECCT}→トラッシュ`));
+      }
+      // トラッシュのカードを手札かエナへ（CHOOSE → INTERNAL）
+      if (stub.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
+        const targetTCTHOE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
+        if (!targetTCTHOE) return done(addLog(ctx, 'トラッシュにカードなし（TRASHED_CARD_TO_HAND_OR_ENERGY）'));
+        const cardNameTCTHOE = ctx.cardMap.get(targetTCTHOE)?.CardName ?? targetTCTHOE;
+        const toHandAction: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_HAND' };
+        const toEnaAction: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_ENERGY' };
+        return needsInteraction(addLog(ctx, `${cardNameTCTHOE}を手札かエナへ`), {
+          type: 'CHOOSE',
+          options: [
+            { id: 'hand', label: '手札に加える', action: toHandAction as EffectAction, available: true },
+            { id: 'energy', label: 'エナゾーンへ', action: toEnaAction as EffectAction, available: true },
+          ],
+          count: 1,
+        });
+      }
+      // TRASHED_CARD_TO_HAND_OR_ENERGY → 手札選択後処理
+      if (stub.id === 'INTERNAL_TRASH_TO_HAND') {
+        const targetITTH = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
+        if (!targetITTH) return done(ctx);
+        const ti = ctx.ownerState.trash.indexOf(targetITTH);
+        if (ti < 0) return done(ctx);
+        const newTrashITTH = [...ctx.ownerState.trash]; newTrashITTH.splice(ti, 1);
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, trash: newTrashITTH, hand: [...ctx.ownerState.hand, targetITTH] } },
+          `トラッシュ：${ctx.cardMap.get(targetITTH)?.CardName ?? targetITTH}→手札`));
+      }
+      // TRASHED_CARD_TO_HAND_OR_ENERGY → エナ選択後処理
+      if (stub.id === 'INTERNAL_TRASH_TO_ENERGY') {
+        const targetITTE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
+        if (!targetITTE) return done(ctx);
+        const ti = ctx.ownerState.trash.indexOf(targetITTE);
+        if (ti < 0) return done(ctx);
+        const newTrashITTE = [...ctx.ownerState.trash]; newTrashITTE.splice(ti, 1);
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, trash: newTrashITTE, energy: [...ctx.ownerState.energy, targetITTE] } },
+          `トラッシュ：${ctx.cardMap.get(targetITTE)?.CardName ?? targetITTE}→エナゾーン`));
+      }
+      // 複数シグニをエナへ（lastProcessedCards or 全自フィールドシグニ）
+      if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
+        const targetsMSTE = ctx.lastProcessedCards?.length
+          ? ctx.lastProcessedCards
+          : [0, 1, 2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
+        let newOwnerMSTE = ctx.ownerState;
+        let countMSTE = 0;
+        for (const cn of targetsMSTE) {
+          if (!newOwnerMSTE.field.signi.some(s => s?.at(-1) === cn)) continue;
+          const removedMSTE = removeFromField(cn, newOwnerMSTE);
+          newOwnerMSTE = { ...removedMSTE, energy: [...removedMSTE.energy, cn] };
+          countMSTE++;
+        }
+        return done(addLog({ ...ctx, ownerState: newOwnerMSTE },
+          countMSTE > 0 ? `${countMSTE}体のシグニをエナゾーンへ` : 'シグニをエナへ（対象なし）'));
+      }
+      // 非ガードの手札捨てをエナゾーンへ
+      if (stub.id === 'NON_GUARD_DISCARD_TO_ENERGY') {
+        const lastDiscardedNGDE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1) ?? '';
+        if (!lastDiscardedNGDE) return done(addLog(ctx, 'カードなし（NON_GUARD_DISCARD_TO_ENERGY）'));
+        const isGuardNGDE = (ctx.cardMap.get(lastDiscardedNGDE)?.Guard ?? '') !== '';
+        if (!isGuardNGDE) {
+          // トラッシュからエナへ移動
+          const ti = ctx.ownerState.trash.indexOf(lastDiscardedNGDE);
+          if (ti >= 0) {
+            const newTrashNGDE = [...ctx.ownerState.trash]; newTrashNGDE.splice(ti, 1);
+            return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, trash: newTrashNGDE, energy: [...ctx.ownerState.energy, lastDiscardedNGDE] } },
+              `${ctx.cardMap.get(lastDiscardedNGDE)?.CardName ?? lastDiscardedNGDE}（非ガード）→エナゾーン`));
+          }
+        }
+        return done(addLog(ctx, 'ガードカード（NON_GUARD_DISCARD_TO_ENERGY）'));
+      }
+      // ゾーンが空いているときトラッシュ（条件付き）
+      if (stub.id === 'TRASH_IF_ZONE_OCCUPIED') {
+        const emptyZoneTIZO = ctx.ownerState.field.signi.findIndex(z => !z || z.length === 0);
+        if (emptyZoneTIZO < 0 && ctx.sourceCardNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)) {
+          const removedTIZO = removeFromField(ctx.sourceCardNum, ctx.ownerState);
+          return done(addLog({ ...ctx, ownerState: { ...removedTIZO, trash: [...removedTIZO.trash, ctx.sourceCardNum] } },
+            `${ctx.cardMap.get(ctx.sourceCardNum)?.CardName ?? ctx.sourceCardNum}→トラッシュ（ゾーン満杯）`));
+        }
+        return done(addLog(ctx, 'ゾーン空きあり（TRASH_IF_ZONE_OCCUPIED）'));
+      }
+      // 条件付きトラッシュ→エナ（lastProcessedCards or トラッシュ末尾）
+      if (stub.id === 'CONDITIONAL_TRASH_TO_ENERGY') {
+        const targetCTTE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
+        if (!targetCTTE) return done(addLog(ctx, 'トラッシュにカードなし（CONDITIONAL_TRASH_TO_ENERGY）'));
+        const ti = ctx.ownerState.trash.indexOf(targetCTTE);
+        if (ti < 0) return done(addLog(ctx, '対象がトラッシュにない'));
+        const newTrashCTTE = [...ctx.ownerState.trash]; newTrashCTTE.splice(ti, 1);
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, trash: newTrashCTTE, energy: [...ctx.ownerState.energy, targetCTTE] } },
+          `トラッシュ：${ctx.cardMap.get(targetCTTE)?.CardName ?? targetCTTE}→エナゾーン`));
+      }
+      // トラッシュからクラスシグニを手札かエナへ選択
+      if (stub.id === 'TRASH_CLASS_TO_HAND_OR_ENERGY') {
+        const srcTCTHOE2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtTCTHOE2 = srcTCTHOE2 ? (srcTCTHOE2.EffectText ?? '') + ' ' + (srcTCTHOE2.BurstText ?? '') : '';
+        const classMTCTHOE2 = txtTCTHOE2.match(/[<＜《]([^>＞》]+)[>＞»]/);
+        const targetClassTCTHOE2 = classMTCTHOE2?.[1];
+        const candsTCTHOE2 = ctx.ownerState.trash.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          return c?.Type === 'シグニ' && (!targetClassTCTHOE2 || c.CardClass?.includes(targetClassTCTHOE2));
+        });
+        if (candsTCTHOE2.length === 0) return done(addLog(ctx, 'トラッシュに対象なし（TRASH_CLASS_TO_HAND_OR_ENERGY）'));
+        const noopTCTHOE2: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contTCTHOE2: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_HAND' };
+        return needsInteraction(addLog(ctx, `トラッシュから${targetClassTCTHOE2 ?? 'シグニ'}を選択`), {
+          type: 'SELECT_TARGET', candidates: candsTCTHOE2, count: 1, optional: false,
+          targetScope: 'self_trash', thenAction: noopTCTHOE2 as EffectAction, continuation: contTCTHOE2 as EffectAction,
+        });
+      }
+      // ルリグデッキにカードを追加（非ルリグをルリグトラッシュへ）
+      if (stub.id === 'NON_LRIG_TO_LRIG_TRASH') {
+        const target = (ctx.lastProcessedCards ?? [])[0];
+        if (!target) return done(addLog(ctx, '対象なし（NON_LRIG_TO_LRIG_TRASH）'));
+        // フィールドまたはトラッシュから除去してルリグトラッシュへ
+        let newOwnerNLTLT = ctx.ownerState;
+        if (newOwnerNLTLT.field.signi.some(s => s?.at(-1) === target)) {
+          newOwnerNLTLT = removeFromField(target, newOwnerNLTLT);
+        } else {
+          const ti = newOwnerNLTLT.trash.indexOf(target);
+          if (ti >= 0) { const t = [...newOwnerNLTLT.trash]; t.splice(ti, 1); newOwnerNLTLT = { ...newOwnerNLTLT, trash: t }; }
+        }
+        newOwnerNLTLT = { ...newOwnerNLTLT, lrig_trash: [...newOwnerNLTLT.lrig_trash, target] };
+        return done(addLog({ ...ctx, ownerState: newOwnerNLTLT },
+          `${ctx.cardMap.get(target)?.CardName ?? target}→ルリグトラッシュ`));
+      }
+      // フィールドの全シグニの名前が一致するカードをエナ・フィールドからトラッシュ
+      if (stub.id === 'TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY') {
+        const srcTABN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtTABN = srcTABN ? (srcTABN.EffectText ?? '') + ' ' + (srcTABN.BurstText ?? '') : '';
+        const nameMTABN = txtTABN.match(/「([^」]+)」/);
+        const targetNameTABN = nameMTABN?.[1];
+        if (!targetNameTABN) return done(addLog(ctx, '対象名称なし（TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY）'));
+        let newOtherTABN = ctx.otherState;
+        // 相手フィールドから
+        for (let zi = 0; zi < 3; zi++) {
+          const top = newOtherTABN.field.signi[zi]?.at(-1);
+          if (!top || (ctx.cardMap.get(top)?.CardName ?? '') !== targetNameTABN) continue;
+          const removedTABN = removeFromField(top, newOtherTABN);
+          newOtherTABN = { ...removedTABN, trash: [...removedTABN.trash, top] };
+        }
+        // 相手エナから
+        const enaToTrashTABN = newOtherTABN.energy.filter(cn => (ctx.cardMap.get(cn)?.CardName ?? '') === targetNameTABN);
+        newOtherTABN = {
+          ...newOtherTABN,
+          energy: newOtherTABN.energy.filter(cn => (ctx.cardMap.get(cn)?.CardName ?? '') !== targetNameTABN),
+          trash: [...newOtherTABN.trash, ...enaToTrashTABN],
+        };
+        return done(addLog({ ...ctx, otherState: newOtherTABN },
+          `「${targetNameTABN}」を相手フィールド・エナからトラッシュ`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
