@@ -395,9 +395,10 @@ export interface StackedSigniSlotProps {
   acceCardNum?: string | null;
   virusCount?: number;
   isMe?: boolean;
+  trapCardNum?: string | null;
 }
 
-export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, isMe }: StackedSigniSlotProps) {
+export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, isMe, trapCardNum }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
   const touchPos = useRef<{ x: number; y: number } | null>(null);
