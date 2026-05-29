@@ -425,9 +425,18 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
         <div style={{
           width, height, flexShrink: 0, borderRadius: charmCardNum ? '4px 4px 0 0' : 4,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: C.borderEmpty, backgroundColor: C.bgCardEmpty,
+          position: 'relative',
+          border: trapCardNum ? '1px dashed #ffd700' : C.borderEmpty,
+          backgroundColor: trapCardNum ? 'rgba(40,30,0,0.6)' : C.bgCardEmpty,
         }}>
-          <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+          {trapCardNum ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>🪤</span>
+              <span style={{ fontSize: 7, color: '#ffd700', fontWeight: 'bold', lineHeight: 1 }}>TRAP</span>
+            </div>
+          ) : (
+            <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+          )}
         </div>
         {charmCardNum && (
           <CharmPeek width={width} onTap={() => setShowCharmModal(true)} />
