@@ -999,6 +999,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (s.field.key_piece) nums.add(s.field.key_piece);
       addAll(s.field.assist_lrig_l); addAll(s.field.assist_lrig_r);
       (s.field.signi_charms ?? []).forEach(n => n && nums.add(n));
+      (s.field.signi_soul   ?? []).forEach(n => n && nums.add(n));
       addAll(s.field.free_zone);
     };
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
