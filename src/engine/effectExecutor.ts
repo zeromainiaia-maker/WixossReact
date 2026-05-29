@@ -5748,6 +5748,117 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, ownerState: { ...sCPT, deck: sCPT.deck.slice(1), hand: [...sCPT.hand, drawnCPT] } },
           `トラッシュ${trashCountCPT}枚条件達成→1枚ドロー`));
       }
+      // === バッチ10: 公開・手札・相手手札操作 ===
+      // LOOK_OPP_HAND_DISCARD_SIGNI: 相手の手札を見てシグニ1枚を捨てさせる
+      if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
+        const signiInOppLOHDS = ctx.otherState.hand.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+        if (signiInOppLOHDS.length === 0) return done(addLog(ctx, '相手手札にシグニなし'));
+        const thenLOHDS: import('../types/effects').TrashAction = { type: 'TRASH', owner: 'opponent', source: 'hand', count: 1, optional: false, filter: undefined };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: signiInOppLOHDS, count: 1, optional: false,
+          targetScope: 'opp_hand', thenAction: thenLOHDS,
+        });
+      }
+      // REVEALED_CARD_COLOR_DISCARD: 公開カードの色と同じ色の手札カードを捨てる
+      if (stub.id === 'REVEALED_CARD_COLOR_DISCARD') {
+        const revCardRCCD = ctx.lastProcessedCards?.[0];
+        if (!revCardRCCD) return done(addLog(ctx, '公開カードなし'));
+        const revColorRCCD = ctx.cardMap.get(revCardRCCD)?.Color ?? '';
+        if (!revColorRCCD) return done(addLog(ctx, '公開カードの色不明'));
+        const revColorsRCCD = revColorRCCD.split('/');
+        const matchingRCCD = ctx.ownerState.hand.filter(cn => {
+          const col = ctx.cardMap.get(cn)?.Color ?? '';
+          return col.split('/').some(c => revColorsRCCD.includes(c));
+        });
+        if (matchingRCCD.length === 0) return done(addLog(ctx, `手札に${revColorRCCD}カードなし`));
+        const thenRCCD: import('../types/effects').TrashAction = { type: 'TRASH', owner: 'self', source: 'hand', count: 1, optional: false, filter: undefined };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: matchingRCCD, count: 1, optional: false,
+          targetScope: 'self_hand', thenAction: thenRCCD,
+        });
+      }
+      // VIEW_AND_DISCARD_SPELL (STUB版): 手札か場のカードを見てスペルを捨てる → 手札からスペルを1枚捨てる
+      // (already implemented by batch 5 VIEW_AND_DISCARD_SPELL)
+      // OPP_TRASH_TO_OPP_SIGNI_UNDER: 相手トラッシュから相手シグニ下にカードを置く
+      if (stub.id === 'OPP_TRASH_TO_OPP_SIGNI_UNDER') {
+        const sOTTOSU = ctx.otherState;
+        if (sOTTOSU.trash.length === 0) return done(addLog(ctx, '相手トラッシュなし'));
+        const topTrashOTTOSU = sOTTOSU.trash.at(-1)!;
+        // 相手の最初のシグニのゾーン下に置く
+        let targetZoneOTTOSU = -1;
+        for (let zi = 0; zi < 3; zi++) { if (sOTTOSU.field.signi[zi]?.at(-1)) { targetZoneOTTOSU = zi; break; } }
+        if (targetZoneOTTOSU < 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
+        const newSigniOTTOSU = sOTTOSU.field.signi.map((stack, i) => {
+          if (i !== targetZoneOTTOSU) return stack;
+          return [topTrashOTTOSU, ...(stack ?? [])];
+        }) as (string[] | null)[];
+        const newSOTTOSU: PlayerState = { ...sOTTOSU, trash: sOTTOSU.trash.slice(0, -1), field: { ...sOTTOSU.field, signi: newSigniOTTOSU } };
+        return done(addLog({ ...ctx, otherState: newSOTTOSU },
+          `${ctx.cardMap.get(topTrashOTTOSU)?.CardName ?? topTrashOTTOSU}を相手シグニ下へ`));
+      }
+      // POWER_MOD_BY_ATTACKER_LEVEL: アタッカーのレベル×deltaをパワー修正
+      if (stub.id === 'POWER_MOD_BY_ATTACKER_LEVEL') {
+        const toHWPMBAL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // ソースカードのレベルを使う
+        const srcCardPMBAL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const attackerLevelPMBAL = srcCardPMBAL ? parseInt(toHWPMBAL(srcCardPMBAL.Level ?? '0')) || 0 : 0;
+        const txtPMBAL = srcCardPMBAL ? (srcCardPMBAL.EffectText ?? '') + ' ' + (srcCardPMBAL.BurstText ?? '') : '';
+        const mPMBAL = txtPMBAL.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPMBAL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_ATTACKER_LEVEL）'));
+        const singleDeltaPMBAL = parseInt(toHWPMBAL(mPMBAL[1]).replace('＋', '+').replace('－', '-'));
+        const totalDeltaPMBAL = singleDeltaPMBAL * attackerLevelPMBAL;
+        const modsPMBAL = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMBAL.push({ cardNum: top, delta: totalDeltaPMBAL }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBAL } },
+          `アタッカーLv${attackerLevelPMBAL}×${singleDeltaPMBAL}→相手シグニパワー${totalDeltaPMBAL}`));
+      }
+      // POWER_MOD_BY_FIELD_CLASS_LEVEL: フィールドのクラスシグニレベル合計×deltaをパワー修正
+      if (stub.id === 'POWER_MOD_BY_FIELD_CLASS_LEVEL') {
+        const toHWPMBFCL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcPMBFCL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMBFCL = srcPMBFCL ? (srcPMBFCL.EffectText ?? '') + ' ' + (srcPMBFCL.BurstText ?? '') : '';
+        const classMatchPMBFCL = txtPMBFCL.match(/【([^】]+)】/);
+        const classNamePMBFCL = classMatchPMBFCL?.[1] ?? '';
+        const mDeltaPMBFCL = txtPMBFCL.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mDeltaPMBFCL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_FIELD_CLASS_LEVEL）'));
+        const singleDeltaPMBFCL = parseInt(toHWPMBFCL(mDeltaPMBFCL[1]).replace('＋', '+').replace('－', '-'));
+        let levelSumPMBFCL = 0;
+        for (let zi = 0; zi < 3; zi++) {
+          const cn = ctx.ownerState.field.signi[zi]?.at(-1);
+          if (!cn) continue;
+          const card = ctx.cardMap.get(cn);
+          if (!classNamePMBFCL || (card?.CardClass ?? '').includes(classNamePMBFCL)) {
+            levelSumPMBFCL += parseInt(toHWPMBFCL(card?.Level ?? '0')) || 0;
+          }
+        }
+        const totalDeltaPMBFCL = singleDeltaPMBFCL * levelSumPMBFCL;
+        if (ctx.sourceCardNum) {
+          const modsOwnPMBFCL = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: totalDeltaPMBFCL }];
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsOwnPMBFCL } },
+            `フィールド【${classNamePMBFCL}】レベル合計${levelSumPMBFCL}×${singleDeltaPMBFCL}→パワー${totalDeltaPMBFCL}`));
+        }
+        const modsOppPMBFCL = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsOppPMBFCL.push({ cardNum: top, delta: totalDeltaPMBFCL }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsOppPMBFCL } },
+          `フィールドクラスレベル${levelSumPMBFCL}→相手パワー${totalDeltaPMBFCL}`));
+      }
+      // POWER_MOD_PER_REVEALED_LEVEL: 公開カードのレベル合計×deltaをパワー修正
+      if (stub.id === 'POWER_MOD_PER_REVEALED_LEVEL') {
+        const toHWPMPRL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcPMPRL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMPRL = srcPMPRL ? (srcPMPRL.EffectText ?? '') + ' ' + (srcPMPRL.BurstText ?? '') : '';
+        const mPMPRL = txtPMPRL.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPMPRL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_PER_REVEALED_LEVEL）'));
+        const singleDeltaPMPRL = parseInt(toHWPMPRL(mPMPRL[1]).replace('＋', '+').replace('－', '-'));
+        const levelSumPMPRL = (ctx.lastProcessedCards ?? []).reduce((sum, cn) => {
+          return sum + (parseInt(toHWPMPRL(ctx.cardMap.get(cn)?.Level ?? '0')) || 0);
+        }, 0);
+        const totalDeltaPMPRL = singleDeltaPMPRL * levelSumPMPRL;
+        const modsPMPRL = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMPRL.push({ cardNum: top, delta: totalDeltaPMPRL }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
+          `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
