@@ -2935,6 +2935,49 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, ownerState: newOwnerRPC },
           `${enamesRPC || 'なし'}をエナゾーンへ、残り${toTopRPC.length}枚をデッキ上へ`));
       }
+      // 相手シグニ複数をエナに置く
+      if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
+        const srcMSE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtMSE = srcMSE ? (srcMSE.EffectText ?? '') + ' ' + (srcMSE.BurstText ?? '') : '';
+        const toHWMSE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const maxMMSE = txtMSE.match(/シグニ([０-９\d]+)体まで/);
+        const maxMSE = maxMMSE ? parseInt(toHWMSE(maxMMSE[1])) : 2;
+        const oppCandsMSE = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+        if (oppCandsMSE.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
+        const banishMSE: import('../types/effects').BanishAction = {
+          type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+        };
+        return selectOrInteract(oppCandsMSE, maxMSE, false, 'opp_field', banishMSE as EffectAction, undefined, ctx);
+      }
+      // 相手シグニをデッキに加えてシャッフル
+      if (stub.id === 'OPP_SIGNI_TO_DECK_AND_SHUFFLE') {
+        const oppCandsSDS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+        if (oppCandsSDS.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
+        const noopSDS: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contSDS: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE' };
+        const pendingSDS: PendingInteractionDef = {
+          type: 'SELECT_TARGET',
+          candidates: oppCandsSDS,
+          count: 1,
+          optional: false,
+          targetScope: 'opp_field',
+          thenAction: noopSDS as EffectAction,
+          continuation: contSDS as EffectAction,
+        };
+        return needsInteraction(addLog(ctx, '相手シグニ1体をデッキに加えてシャッフル'), pendingSDS);
+      }
+      if (stub.id === 'INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE') {
+        const selected = ctx.lastProcessedCards ?? [];
+        if (selected.length === 0) return done(addLog(ctx, '選択なし'));
+        let newOther = { ...ctx.otherState };
+        for (const cn of selected) {
+          newOther = removeFromField(cn, newOther);
+          const shuffled = [...newOther.deck, cn].sort(() => Math.random() - 0.5);
+          newOther = { ...newOther, deck: shuffled };
+        }
+        const names = selected.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, otherState: newOther }, `${names}をデッキに加えてシャッフル`));
+      }
       // 手札のクラスシグニを好きな枚数公開（公開＝SELECT_TARGET、デッキに触れない）
       if (stub.id === 'REVEAL_CLASS_SIGNI_FROM_HAND') {
         const srcRev = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
