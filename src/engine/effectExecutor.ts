@@ -5705,8 +5705,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // OPP_ENERGY_OR_DISCARD_CONDITION: 相手はエナゾーンかトラッシュか選択
       if (stub.id === 'OPP_ENERGY_OR_DISCARD_CONDITION') {
-        const toEnaOEODC: import('../types/effects').EnergyChargeAction = { type: 'ENERGY_CHARGE', owner: 'opponent', count: 1 };
-        const toTrashOEODC: import('../types/effects').TrashAction = { type: 'TRASH', owner: 'opponent', source: 'hand', count: 1, filter: undefined, optional: false };
+        const toEnaOEODC: import('../types/effects').EnergyChargeAction = { type: 'ENERGY_CHARGE', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } };
+        const toTrashOEODC: import('../types/effects').TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
         return needsInteraction(ctx, {
           type: 'CHOOSE', count: 1, opponentResponds: true,
           options: [
