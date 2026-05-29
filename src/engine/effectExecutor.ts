@@ -6075,8 +6075,38 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'SIGNI_FLIP_FACEDOWN' || stub.id === 'FLIP_FACE_DOWN_SIGNI' || stub.id === 'FACE_DOWN_OPP_SIGNI') {
         return done(addLog(ctx, `[裏向き: ${stub.id}]`));
       }
+      // REMOVE_SIGNI_ZONE: 対戦相手のシグニゾーンを1つ削除
+      if (stub.id === 'REMOVE_SIGNI_ZONE') {
+        // 対戦相手のゾーン選択（CHOOSEインタラクション）
+        const oppZoneOptionsRSZ = [0, 1, 2].map(zi => ({
+          id: `zone_${zi}`,
+          label: `相手ゾーン${zi + 1}を削除`,
+          action: ({ type: 'STUB', id: 'INTERNAL_REMOVE_SIGNI_ZONE', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog(ctx, '削除する対戦相手のシグニゾーンを選択'), {
+          type: 'CHOOSE', options: oppZoneOptionsRSZ, count: 1,
+        });
+      }
+      // INTERNAL_REMOVE_SIGNI_ZONE: 選択したゾーンを削除してシグニをトラッシュへ
+      if (stub.id === 'INTERNAL_REMOVE_SIGNI_ZONE') {
+        const zoneIdxIRSZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+        const oppStackIRSZ = ctx.otherState.field.signi[zoneIdxIRSZ] ?? [];
+        // そのゾーンのシグニをすべてトラッシュへ
+        let newOtherIRSZ = ctx.otherState;
+        for (const cn of oppStackIRSZ) {
+          const removed = removeFromField(cn, newOtherIRSZ);
+          newOtherIRSZ = { ...removed, trash: [...removed.trash, cn] };
+        }
+        // ゾーンを無効化
+        const newDisabledIRSZ = [...(newOtherIRSZ.disabled_signi_zones ?? [])];
+        if (!newDisabledIRSZ.includes(zoneIdxIRSZ)) newDisabledIRSZ.push(zoneIdxIRSZ);
+        newOtherIRSZ = { ...newOtherIRSZ, disabled_signi_zones: newDisabledIRSZ };
+        return done(addLog({ ...ctx, otherState: newOtherIRSZ },
+          `相手ゾーン${zoneIdxIRSZ + 1}を削除（${oppStackIRSZ.length}体トラッシュ）`));
+      }
       // ゾーン管理系（engine: ゾーンロック未実装）
-      if (stub.id === 'DESIGNATE_SIGNI_ZONE' || stub.id === 'REMOVE_SIGNI_ZONE' || stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
+      if (stub.id === 'DESIGNATE_SIGNI_ZONE' || stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
         return done(addLog(ctx, `[ゾーン管理: ${stub.id}]`));
       }
       // アーツ条件系（engine: アーツ使用条件未実装）
