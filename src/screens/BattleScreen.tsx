@@ -505,8 +505,9 @@ function canAffordWithExtraCost(
   extraCosts: { color: string; count: number }[],
   keywordGrants?: Record<string, string[]>,
   allMulti?: boolean,
+  colorlessOverrides?: string[],
 ): boolean {
-  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti);
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, colorlessOverrides);
   // 追加コスト分をプールから引いてから基本コストをチェック
   let pool = [...energyNums];
   for (const { color, count } of extraCosts) {
@@ -515,7 +516,8 @@ function canAffordWithExtraCost(
     for (const n of pool) {
       if (needed > 0) {
         const cd = cards.find(c => c.CardNum === getCardNum(n));
-        const cardColor = cd?.Color ?? '無';
+        const isColorless = colorlessOverrides?.includes(getCardNum(n)) || colorlessOverrides?.includes(n);
+        const cardColor = isColorless ? '無' : (cd?.Color ?? '無');
         if (color === '無' || cardColor.includes(color)) { needed--; continue; }
       }
       rem.push(n);
@@ -523,7 +525,7 @@ function canAffordWithExtraCost(
     pool = rem;
     if (needed > 0) return false;
   }
-  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti);
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, colorlessOverrides);
 }
 
 // EnergyCost[] を growCost 文字列に変換（altCostOppTurn 用）
