@@ -2368,8 +2368,14 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // サブスクライバーカウント+1
       if (stub.id === 'GAIN_SUBSCRIBER_COUNT') {
-        const newOwner = { ...ctx.ownerState, subscriber_count: (ctx.ownerState.subscriber_count ?? 0) + 1 };
-        return done(addLog({ ...ctx, ownerState: newOwner }, `サブスクライバーカウント: ${newOwner.subscriber_count}`));
+        const srcSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtSC = srcSC ? (srcSC.EffectText ?? '') + ' ' + (srcSC.BurstText ?? '') : '';
+        const toHWSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mSC = txtSC.match(/登録者数を([０-９\d]+)万人得る/);
+        const gain = mSC ? parseInt(toHWSC(mSC[1])) : 1;
+        const newCnt = (ctx.ownerState.subscriber_count ?? 0) + gain;
+        const newOwner = { ...ctx.ownerState, subscriber_count: newCnt };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `登録者数＋${gain}万人（計${newCnt}万人）`));
       }
       // ウイルス除去：対戦相手のシグニに乗った最初のウイルスを取り除く
       if (stub.id === 'REMOVE_VIRUS' || stub.id === 'EXTRA_COST_REMOVE_VIRUS') {
