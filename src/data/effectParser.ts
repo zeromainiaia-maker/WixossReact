@@ -8785,6 +8785,26 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     if (burst) effects.push(burst);
   }
 
+  // 歌のカケラ効果（EffectTextに【歌のカケラ】：〜 がある場合）
+  if (card.EffectText && card.EffectText !== '-' && card.EffectText.includes('【歌のカケラ】')) {
+    const songM = card.EffectText.match(/【歌のカケラ】：(.+?)(?=（|【[常出起自ガ]】|$)/s);
+    if (songM) {
+      const raw = stripRuleParens(songM[1]).trim();
+      if (raw) {
+        const action = parseActionText(raw);
+        effects.push({
+          effectId: `${card.CardNum}-SONG`,
+          effectType: 'SONG_ICON',
+          timing: ['ON_SONG_ACTIVATE'],
+          action,
+          duration: 'INSTANT',
+          mandatory: false,
+          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : 'AUTO',
+        });
+      }
+    }
+  }
+
   // トラップアイコン効果（EffectTextに【トラップアイコン】：〜 がある場合）
   if (card.EffectText && card.EffectText !== '-' && card.EffectText.includes('【トラップアイコン】')) {
     const trapM = card.EffectText.match(/【トラップアイコン】：(.+?)(?=（|【[常出起自ガ]】|$)/s);
