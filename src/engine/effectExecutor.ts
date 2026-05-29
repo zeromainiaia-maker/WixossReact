@@ -2034,9 +2034,28 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOwner = { ...ctx.ownerState, declared_guard_restrict_level: val };
         return done(addLog({ ...ctx, ownerState: newOwner }, `数字「${val}」を宣言（相手はLv${val}シグニでガード不可）`));
       }
-      // カード名宣言
+      // カード名宣言（手札のカード名から選択）
       if (stub.id === 'DECLARE_CARD_NAME') {
-        return done(addLog(ctx, 'カード名を宣言'));
+        const handNames = [...new Set(
+          ctx.ownerState.hand.map(cn => ctx.cardMap.get(cn)?.CardName).filter(Boolean) as string[]
+        )];
+        if (handNames.length === 0) {
+          const newOwnerDCN = { ...ctx.ownerState, declared_card_name: 'シグニ' };
+          return done(addLog({ ...ctx, ownerState: newOwnerDCN }, '「シグニ」を宣言（手札なし）'));
+        }
+        const optsDCN = handNames.slice(0, 4).map(name => ({
+          id: 'name_' + name,
+          label: name,
+          action: ({ type: 'STUB', id: 'INTERNAL_DECLARE_CARD_NAME', value: name } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        const pendingDCN: PendingInteractionDef = { type: 'CHOOSE', options: optsDCN, count: 1 };
+        return needsInteraction(addLog(ctx, 'カード名を宣言（手札のカード名から選択）'), pendingDCN);
+      }
+      if (stub.id === 'INTERNAL_DECLARE_CARD_NAME') {
+        const nameDCN = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+        const newOwnerIDCN = { ...ctx.ownerState, declared_card_name: nameDCN };
+        return done(addLog({ ...ctx, ownerState: newOwnerIDCN }, `「${nameDCN}」を宣言`));
       }
       // シグニの下にカードを置く
       if (stub.id === 'PLACE_CARD_UNDER_SIGNI' || stub.id === 'STACK_SIGNI_UNDER') {
