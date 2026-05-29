@@ -5637,6 +5637,117 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBDCH } },
           `捨て${discardCountPMBDCH}枚×${singleDeltaPMBDCH}→相手パワー${totalDeltaPMBDCH}`));
       }
+      // === バッチ9: ルリグ・条件サーチ・選択系 ===
+      // CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK (STUB版): クラフトをルリグデッキへ
+      if (stub.id === 'CRAFT_TO_LRIG_DECK' || stub.id === 'ADD_CRAFT_TO_LRIG_DECK') {
+        const cnCTLD = ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
+        if (!cnCTLD) return done(addLog(ctx, 'クラフトカードなし'));
+        let sCTLD = ctx.ownerState;
+        sCTLD = { ...sCTLD, hand: sCTLD.hand.filter(c => c !== cnCTLD), trash: sCTLD.trash.filter(c => c !== cnCTLD), lrig_deck: [...sCTLD.lrig_deck, cnCTLD] };
+        return done(addLog({ ...ctx, ownerState: sCTLD }, `${ctx.cardMap.get(cnCTLD)?.CardName ?? cnCTLD}をルリグデッキに追加`));
+      }
+      // PLACE_LRIG_FROM_DECK_ON_TOP: ルリグデッキからルリグをフィールドへ
+      if (stub.id === 'PLACE_LRIG_FROM_DECK_ON_TOP') {
+        const sPLFDOT = ctx.ownerState;
+        const topLrigPLFDOT = sPLFDOT.lrig_deck[0];
+        if (!topLrigPLFDOT) return done(addLog(ctx, 'ルリグデッキなし'));
+        const newSPLFDOT: PlayerState = {
+          ...sPLFDOT,
+          lrig_deck: sPLFDOT.lrig_deck.slice(1),
+          field: { ...sPLFDOT.field, lrig: [...sPLFDOT.field.lrig, topLrigPLFDOT] },
+        };
+        return done(addLog({ ...ctx, ownerState: newSPLFDOT }, `${ctx.cardMap.get(topLrigPLFDOT)?.CardName ?? topLrigPLFDOT}をフィールドへ`));
+      }
+      // LRIG_LIMIT_UP_AND_COLOR_GAIN: ルリグリミット増加（+1）と色獲得（log）
+      if (stub.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
+        const newSLLUACG: PlayerState = { ...ctx.ownerState, lrig_limit_mod: (ctx.ownerState.lrig_limit_mod ?? 0) + 1 };
+        return done(addLog({ ...ctx, ownerState: newSLLUACG }, 'ルリグリミット+1（色獲得はエンジン処理）'));
+      }
+      // CONDITIONAL_SEARCH_IF_FIELD: フィールドにシグニがある場合サーチ
+      if (stub.id === 'CONDITIONAL_SEARCH_IF_FIELD') {
+        const hasSigniCSIF = ctx.ownerState.field.signi.some(s => s && s.length > 0);
+        if (!hasSigniCSIF) return done(addLog(ctx, 'フィールドにシグニなし（サーチなし）'));
+        // デッキ上3枚からシグニを選択
+        const deckCSIF = ctx.ownerState.deck;
+        if (deckCSIF.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topCSIF = deckCSIF.slice(0, Math.min(3, deckCSIF.length));
+        const signiTopCSIF = topCSIF.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+        if (signiTopCSIF.length === 0) return done(addLog(ctx, 'デッキ上3枚にシグニなし'));
+        const thenCSIF: import('../types/effects').TransferToHandAction = { type: 'TRANSFER_TO_HAND', source: 'deck', owner: 'self', count: 1, optional: true, filter: undefined };
+        const newSCSIF: PlayerState = { ...ctx.ownerState, deck: deckCSIF.slice(topCSIF.length), hand: [...ctx.ownerState.hand, signiTopCSIF[0]] };
+        return done(addLog({ ...ctx, ownerState: newSCSIF }, `フィールドあり→${ctx.cardMap.get(signiTopCSIF[0])?.CardName ?? signiTopCSIF[0]}を手札へ`));
+      }
+      // CONDITIONAL_SEARCH_IF_RESONA: フィールドにレゾナがある場合サーチ
+      if (stub.id === 'CONDITIONAL_SEARCH_IF_RESONA') {
+        const hasResonaCSIR = ctx.ownerState.field.signi.some(s => s && s.some(cn => ctx.cardMap.get(cn)?.Type === 'レゾナ'));
+        if (!hasResonaCSIR) return done(addLog(ctx, 'レゾナなし（サーチなし）'));
+        const deckCSIR = ctx.ownerState.deck;
+        if (deckCSIR.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topCSIR = deckCSIR.slice(0, Math.min(5, deckCSIR.length));
+        const signiCSIR = topCSIR.find(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+        if (!signiCSIR) return done(addLog(ctx, 'デッキ上5枚にシグニなし'));
+        const restCSIR = topCSIR.filter(cn => cn !== signiCSIR);
+        const newSCSIR: PlayerState = { ...ctx.ownerState, deck: [...restCSIR, ...deckCSIR.slice(topCSIR.length)], hand: [...ctx.ownerState.hand, signiCSIR] };
+        return done(addLog({ ...ctx, ownerState: newSCSIR }, `レゾナあり→${ctx.cardMap.get(signiCSIR)?.CardName ?? signiCSIR}を手札へ`));
+      }
+      // CHOSEN_TO_ENERGY_OR_HAND: 選んだカードをエナか手札か選択して追加
+      if (stub.id === 'CHOSEN_TO_ENERGY_OR_HAND') {
+        const cnCTEOH = ctx.lastProcessedCards?.[0];
+        if (!cnCTEOH) return done(addLog(ctx, '対象カードなし'));
+        const toHandCTEOH: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_HAND' };
+        const toEnaCTEOH: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_ENERGY' };
+        return needsInteraction(ctx, {
+          type: 'CHOOSE', count: 1,
+          options: [
+            { id: 'to_hand', label: '手札に加える', action: toHandCTEOH, available: true },
+            { id: 'to_energy', label: 'エナゾーンへ', action: toEnaCTEOH, available: true },
+          ],
+        });
+      }
+      // OPP_ENERGY_OR_DISCARD_CONDITION: 相手はエナゾーンかトラッシュか選択
+      if (stub.id === 'OPP_ENERGY_OR_DISCARD_CONDITION') {
+        const toEnaOEODC: import('../types/effects').EnergyChargeAction = { type: 'ENERGY_CHARGE', owner: 'opponent', count: 1 };
+        const toTrashOEODC: import('../types/effects').TrashAction = { type: 'TRASH', owner: 'opponent', source: 'hand', count: 1, filter: undefined, optional: false };
+        return needsInteraction(ctx, {
+          type: 'CHOOSE', count: 1, opponentResponds: true,
+          options: [
+            { id: 'energy', label: 'エナからカードを置く', action: toEnaOEODC, available: ctx.otherState.energy.length > 0 },
+            { id: 'discard', label: '手札を1枚捨てる', action: toTrashOEODC, available: ctx.otherState.hand.length > 0 },
+          ],
+        });
+      }
+      // PLACE_SIGNI_UNDER_SIGNI: シグニをシグニ下に設置（lastProcessed→sourceCardNumのゾーン下）
+      if (stub.id === 'PLACE_SIGNI_UNDER_SIGNI') {
+        const cardToPlacePSUS = ctx.lastProcessedCards?.[0];
+        if (!cardToPlacePSUS || !ctx.sourceCardNum) return done(addLog(ctx, '対象なし（PLACE_SIGNI_UNDER_SIGNI）'));
+        let selfZonePSUS = -1;
+        for (let zi = 0; zi < 3; zi++) { if (ctx.ownerState.field.signi[zi]?.at(-1) === ctx.sourceCardNum) { selfZonePSUS = zi; break; } }
+        if (selfZonePSUS < 0) return done(addLog(ctx, 'ゾーン不明（PLACE_SIGNI_UNDER_SIGNI）'));
+        let sPSUS = ctx.ownerState;
+        sPSUS = { ...sPSUS, hand: sPSUS.hand.filter(c => c !== cardToPlacePSUS), trash: sPSUS.trash.filter(c => c !== cardToPlacePSUS) };
+        const newSigniPSUS = sPSUS.field.signi.map((stack, i) => {
+          if (i !== selfZonePSUS) return stack;
+          return [cardToPlacePSUS, ...(stack ?? [])];
+        }) as (string[] | null)[];
+        sPSUS = { ...sPSUS, field: { ...sPSUS.field, signi: newSigniPSUS } };
+        return done(addLog({ ...ctx, ownerState: sPSUS }, `${ctx.cardMap.get(cardToPlacePSUS)?.CardName ?? cardToPlacePSUS}をシグニ下に設置`));
+      }
+      // CONDITIONAL_PER_TRASH: トラッシュ枚数による条件（N枚以上でX）
+      if (stub.id === 'CONDITIONAL_PER_TRASH') {
+        const srcCPT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCPT = srcCPT ? (srcCPT.EffectText ?? '') + ' ' + (srcCPT.BurstText ?? '') : '';
+        const toHWCPT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mCPT = txtCPT.match(/トラッシュに(?:カードが)?([０-９\d]+)枚以上/);
+        const threshold = mCPT ? parseInt(toHWCPT(mCPT[1])) : 5;
+        const trashCountCPT = ctx.ownerState.trash.length;
+        if (trashCountCPT < threshold) return done(addLog(ctx, `トラッシュ${trashCountCPT}枚（閾値${threshold}枚に未達）`));
+        // 条件達成→1枚ドロー
+        const sCPT = ctx.ownerState;
+        if (sCPT.deck.length === 0) return done(addLog(ctx, `トラッシュ条件達成だがデッキなし`));
+        const drawnCPT = sCPT.deck[0];
+        return done(addLog({ ...ctx, ownerState: { ...sCPT, deck: sCPT.deck.slice(1), hand: [...sCPT.hand, drawnCPT] } },
+          `トラッシュ${trashCountCPT}枚条件達成→1枚ドロー`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
