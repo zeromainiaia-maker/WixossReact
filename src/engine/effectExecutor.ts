@@ -2935,6 +2935,64 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, ownerState: newOwnerRPC },
           `${enamesRPC || 'なし'}をエナゾーンへ、残り${toTopRPC.length}枚をデッキ上へ`));
       }
+      // ガードアイコンなしカードを捨てたとき、そのカードをエナへ
+      if (stub.id === 'NON_GUARD_DISCARD_TO_ENERGY') {
+        const selected = ctx.lastProcessedCards ?? [];
+        let newOwnerNGD = { ...ctx.ownerState };
+        for (const cn of selected) {
+          const c = ctx.cardMap.get(cn);
+          const hasGuard = c?.Guard === '1' || c?.Guard === 'TRUE' || c?.Guard === 'true';
+          if (!hasGuard) {
+            const ti = newOwnerNGD.trash.indexOf(cn);
+            if (ti >= 0) {
+              const newTrash = [...newOwnerNGD.trash];
+              newTrash.splice(ti, 1);
+              newOwnerNGD = { ...newOwnerNGD, trash: newTrash, energy: [...newOwnerNGD.energy, cn] };
+            }
+          }
+        }
+        return done(addLog({ ...ctx, ownerState: newOwnerNGD }, 'ガードなしカードをエナゾーンへ'));
+      }
+      // トラッシュに置かれたカードを手札かエナに
+      if (stub.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
+        const selected = ctx.lastProcessedCards ?? [];
+        if (selected.length === 0) return done(addLog(ctx, '対象カードなし'));
+        const target = selected[0];
+        const inTrash = ctx.ownerState.trash.includes(target);
+        if (!inTrash) return done(addLog(ctx, 'トラッシュにカードなし'));
+        const cardName = ctx.cardMap.get(target)?.CardName ?? target;
+        const toHandStub: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASHED_TO_HAND' };
+        const toEnaStub: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASHED_TO_ENERGY' };
+        const pendingTCTE: PendingInteractionDef = {
+          type: 'CHOOSE',
+          options: [
+            { id: 'hand', label: `${cardName}を手札に`, action: toHandStub as EffectAction, available: true },
+            { id: 'energy', label: `${cardName}をエナゾーンに`, action: toEnaStub as EffectAction, available: true },
+          ],
+          count: 1,
+        };
+        return needsInteraction(addLog(ctx, `${cardName}：手札かエナゾーンに置く`), pendingTCTE);
+      }
+      if (stub.id === 'INTERNAL_TRASHED_TO_HAND') {
+        const selected = ctx.lastProcessedCards ?? [];
+        const target = selected[0];
+        if (!target) return done(addLog(ctx, 'INTERNAL_TRASHED_TO_HAND: 対象なし'));
+        const ti = ctx.ownerState.trash.indexOf(target);
+        if (ti < 0) return done(addLog(ctx, '対象がトラッシュにない'));
+        const newTrash = [...ctx.ownerState.trash]; newTrash.splice(ti, 1);
+        const newOwner = { ...ctx.ownerState, trash: newTrash, hand: [...ctx.ownerState.hand, target] };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(target)?.CardName ?? target}を手札に`));
+      }
+      if (stub.id === 'INTERNAL_TRASHED_TO_ENERGY') {
+        const selected = ctx.lastProcessedCards ?? [];
+        const target = selected[0];
+        if (!target) return done(addLog(ctx, 'INTERNAL_TRASHED_TO_ENERGY: 対象なし'));
+        const ti = ctx.ownerState.trash.indexOf(target);
+        if (ti < 0) return done(addLog(ctx, '対象がトラッシュにない'));
+        const newTrash = [...ctx.ownerState.trash]; newTrash.splice(ti, 1);
+        const newOwner = { ...ctx.ownerState, trash: newTrash, energy: [...ctx.ownerState.energy, target] };
+        return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(target)?.CardName ?? target}をエナゾーンに`));
+      }
       // 相手シグニ複数をエナに置く
       if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
         const srcMSE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
