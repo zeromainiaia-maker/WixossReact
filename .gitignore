@@ -20,6 +20,7 @@ dist-ssr
 # Sensitive config (contains API tokens)
 .mcp.json
 .claude/
+scripts/firebase-service-account.json
 
 # Editor directories and files
 .vscode/*
