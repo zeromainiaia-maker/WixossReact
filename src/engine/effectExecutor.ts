@@ -2152,7 +2152,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           const betNoOpt = { id: 'bet_no', label: 'ベットしない（2択）', action: noopBET as EffectAction, available: true };
           const pendingBetQ: PendingInteractionDef = {
             type: 'CHOOSE', options: [betYesOpt, betNoOpt], count: 1,
-            continuation: optsBET.length > 0 ? ({ type: 'CHOOSE', options: optsBET, count: Math.min(2, optsBET.length) } as import('../types/effects').ChooseAction) as EffectAction : undefined,
+            continuation: optsBET.length > 0 ? ({ type: 'CHOOSE', options: optsBET, count: Math.min(2, optsBET.length) } as unknown as EffectAction) : undefined,
           };
           return needsInteraction(addLog(ctx, 'ベットしますか？（コインを消費して4択→強化）'), pendingBetQ);
         }
