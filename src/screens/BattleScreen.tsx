@@ -1122,14 +1122,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs, battleCardMap, user.id]);
 
-  // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でトラッシュに移動できないゾーン（動的計算）
-  const myProtectedZones = useMemo(() => {
-    if (!bs || bs.global_phase !== 'PLAYING') return [] as ('hand' | 'energy')[];
-    const localIsHost = user.id === bs.host_id;
-    const myS = localIsHost ? bs.host_state : bs.guest_state;
-    return collectProtectedZones(myS, battleCardMap, effectsMap);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs, battleCardMap, effectsMap, user.id]);
+  // PREVENT_ZONE_MOVE_BY_OPP はresolveStackNext内でotherProtectedZonesとして動的計算
 
   // ENERGY_COLOR_SUBSTITUTE: 色代替ルール（動的計算）
   const myColorSubs = useMemo(() => {
