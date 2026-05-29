@@ -5069,6 +5069,150 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newSPFDNOT: PlayerState = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
         return done(addLog({ ...ctx, ownerState: newSPFDNOT }, '次の相手ターン最初のダメージを無効'));
       }
+      // === バッチ5: アクセ・デッキ・パワー補足 ===
+      // ACCE_TO_ENERGY / PLACE_ACCE_SIGNI_TO_ENERGY: アクセカードをエナゾーンへ
+      if (stub.id === 'ACCE_TO_ENERGY' || stub.id === 'PLACE_ACCE_SIGNI_TO_ENERGY') {
+        const sATE = ctx.ownerState;
+        const acceCardsATE = (sATE.field.signi_acce ?? []).filter((c): c is string => c !== null);
+        if (acceCardsATE.length === 0) return done(addLog(ctx, 'アクセなし'));
+        const newSATE: PlayerState = {
+          ...sATE,
+          field: { ...sATE.field, signi_acce: [null, null, null] },
+          energy: [...sATE.energy, ...acceCardsATE],
+        };
+        return done(addLog({ ...ctx, ownerState: newSATE }, `アクセ${acceCardsATE.length}枚をエナゾーンへ`));
+      }
+      // ACCE_BANISH_SELF_TRASH: アクセを自分のトラッシュへ
+      if (stub.id === 'ACCE_BANISH_SELF_TRASH') {
+        const sABST = ctx.ownerState;
+        const acceCardsABST = (sABST.field.signi_acce ?? []).filter((c): c is string => c !== null);
+        if (acceCardsABST.length === 0) return done(addLog(ctx, 'アクセなし'));
+        const newSABST: PlayerState = {
+          ...sABST,
+          field: { ...sABST.field, signi_acce: [null, null, null] },
+          trash: [...sABST.trash, ...acceCardsABST],
+        };
+        return done(addLog({ ...ctx, ownerState: newSABST }, `アクセ${acceCardsABST.length}枚をトラッシュへ`));
+      }
+      // FROM_TRASH_TO_CENTER_ZONE: トラッシュからカードをチェックゾーンへ
+      if (stub.id === 'FROM_TRASH_TO_CENTER_ZONE') {
+        const cnFTCZ = ctx.lastProcessedCards?.[0] ?? ctx.ownerState.trash.at(-1);
+        if (!cnFTCZ) return done(addLog(ctx, 'トラッシュなし'));
+        const sFTCZ = ctx.ownerState;
+        const newSFTCZ: PlayerState = {
+          ...sFTCZ,
+          trash: sFTCZ.trash.filter(c => c !== cnFTCZ),
+          field: { ...sFTCZ.field, check: cnFTCZ },
+        };
+        return done(addLog({ ...ctx, ownerState: newSFTCZ }, `${ctx.cardMap.get(cnFTCZ)?.CardName ?? cnFTCZ}をセンターゾーンへ`));
+      }
+      // VIEW_AND_DISCARD_SPELL: 手札からスペルを選んでトラッシュへ
+      if (stub.id === 'VIEW_AND_DISCARD_SPELL') {
+        const spellsVADS = ctx.ownerState.hand.filter(cn => ctx.cardMap.get(cn)?.Type === 'スペル');
+        if (spellsVADS.length === 0) return done(addLog(ctx, '手札にスペルなし'));
+        const thenVADS: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: spellsVADS, count: 1, optional: false,
+          targetScope: 'self_hand', thenAction: thenVADS,
+        });
+      }
+      if (stub.id === 'INTERNAL_TRASH_CARD') {
+        const cnITC = ctx.lastProcessedCards?.[0];
+        if (!cnITC) return done(ctx);
+        const sITC = ctx.ownerState;
+        const newSITC: PlayerState = { ...sITC, hand: sITC.hand.filter(c => c !== cnITC), trash: [...sITC.trash, cnITC] };
+        return done(addLog({ ...ctx, ownerState: newSITC }, `${ctx.cardMap.get(cnITC)?.CardName ?? cnITC}をトラッシュへ`));
+      }
+      // POWER_BY_ACCE_COUNT: アクセ数×deltaをパワー修正
+      if (stub.id === 'POWER_BY_ACCE_COUNT') {
+        const srcPBAC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPBAC = srcPBAC ? (srcPBAC.EffectText ?? '') + ' ' + (srcPBAC.BurstText ?? '') : '';
+        const toHWPBAC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mPBAC = txtPBAC.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPBAC) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_BY_ACCE_COUNT）'));
+        const singleDeltaPBAC = parseInt(toHWPBAC(mPBAC[1]).replace('＋', '+').replace('－', '-'));
+        const acceCountPBAC = (ctx.ownerState.field.signi_acce ?? []).filter(c => c !== null).length;
+        const totalDeltaPBAC = singleDeltaPBAC * acceCountPBAC;
+        if (totalDeltaPBAC === 0) return done(addLog(ctx, 'アクセなし（POWER_BY_ACCE_COUNT）'));
+        const modsPBAC = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) {
+          const top = ctx.otherState.field.signi[zi]?.at(-1);
+          if (top) modsPBAC.push({ cardNum: top, delta: totalDeltaPBAC });
+        }
+        const newSOPBAC: PlayerState = { ...ctx.otherState, temp_power_mods: modsPBAC };
+        return done(addLog({ ...ctx, otherState: newSOPBAC },
+          `アクセ${acceCountPBAC}枚×${singleDeltaPBAC}→相手シグニパワー${totalDeltaPBAC}`));
+      }
+      // POWER_BY_CENTER_LRIG_TYPE_COUNT: センタールリグのタイプ数×deltaをパワー修正
+      if (stub.id === 'POWER_BY_CENTER_LRIG_TYPE_COUNT') {
+        const srcPCLTC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPCLTC = srcPCLTC ? (srcPCLTC.EffectText ?? '') + ' ' + (srcPCLTC.BurstText ?? '') : '';
+        const toHWPCLTC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mPCLTC = txtPCLTC.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPCLTC) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_BY_CENTER_LRIG_TYPE_COUNT）'));
+        const singleDeltaPCLTC = parseInt(toHWPCLTC(mPCLTC[1]).replace('＋', '+').replace('－', '-'));
+        const centerNumPCLTC = ctx.ownerState.field.lrig.at(-1);
+        const centerCardPCLTC = centerNumPCLTC ? ctx.cardMap.get(centerNumPCLTC) : undefined;
+        const typesCountPCLTC = centerCardPCLTC ? (centerCardPCLTC.Team ?? '').split('/').filter(Boolean).length : 0;
+        const totalDeltaPCLTC = singleDeltaPCLTC * typesCountPCLTC;
+        if (totalDeltaPCLTC === 0) return done(addLog(ctx, 'タイプなし（POWER_BY_CENTER_LRIG_TYPE_COUNT）'));
+        // 自分のシグニに適用
+        if (ctx.sourceCardNum) {
+          const modsPCLTC = [...(ctx.ownerState.temp_power_mods ?? [])];
+          modsPCLTC.push({ cardNum: ctx.sourceCardNum, delta: totalDeltaPCLTC });
+          const newSOPCLTC: PlayerState = { ...ctx.ownerState, temp_power_mods: modsPCLTC };
+          return done(addLog({ ...ctx, ownerState: newSOPCLTC },
+            `センタールリグタイプ${typesCountPCLTC}種×${singleDeltaPCLTC}→パワー${totalDeltaPCLTC}`));
+        }
+        return done(addLog(ctx, `センタールリグタイプ${typesCountPCLTC}種×${singleDeltaPCLTC}（対象なし）`));
+      }
+      // DRAW_AND_PUT_HAND_TO_DECK_BOTTOM: ドローして手札1枚をデッキ下に
+      if (stub.id === 'DRAW_AND_PUT_HAND_TO_DECK_BOTTOM') {
+        const srcDAPHTDB = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtDAPHTDB = srcDAPHTDB ? (srcDAPHTDB.EffectText ?? '') + ' ' + (srcDAPHTDB.BurstText ?? '') : '';
+        const toHWDAPHTDB = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mDAPHTDB = txtDAPHTDB.match(/([０-９\d]+)枚引き/);
+        const drawCntDAPHTDB = mDAPHTDB ? parseInt(toHWDAPHTDB(mDAPHTDB[1])) : 1;
+        let sDAPHTDB = ctx.ownerState;
+        const canDrawDAPHTDB = Math.min(drawCntDAPHTDB, sDAPHTDB.deck.length);
+        sDAPHTDB = { ...sDAPHTDB, hand: [...sDAPHTDB.hand, ...sDAPHTDB.deck.slice(0, canDrawDAPHTDB)], deck: sDAPHTDB.deck.slice(canDrawDAPHTDB) };
+        // 手札からデッキ下に置くカードを選択
+        if (sDAPHTDB.hand.length > 0) {
+          const putCard = sDAPHTDB.hand[0]; // 先頭を自動選択
+          sDAPHTDB = { ...sDAPHTDB, hand: sDAPHTDB.hand.slice(1), deck: [...sDAPHTDB.deck, putCard] };
+        }
+        return done(addLog({ ...ctx, ownerState: sDAPHTDB }, `${canDrawDAPHTDB}枚ドロー、手札1枚をデッキ下へ`));
+      }
+      // LRIG_LIMIT_MODIFY (STUB版): ルリグリミット修正
+      if (stub.id === 'LRIG_LIMIT_MODIFY') {
+        const srcLLM = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtLLM = srcLLM ? (srcLLM.EffectText ?? '') + ' ' + (srcLLM.BurstText ?? '') : '';
+        const toHWLLM = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mLLM = txtLLM.match(/リミットを?([＋\+－\-]?[０-９\d]+)/);
+        if (!mLLM) return done(addLog(ctx, 'ルリグリミット修正値解析失敗'));
+        const deltaLLM = parseInt(toHWLLM(mLLM[1]).replace('＋', '+').replace('－', '-'));
+        const newSLLM: PlayerState = { ...ctx.ownerState, lrig_limit_mod: (ctx.ownerState.lrig_limit_mod ?? 0) + deltaLLM };
+        return done(addLog({ ...ctx, ownerState: newSLLM }, `ルリグリミット${deltaLLM > 0 ? '+' : ''}${deltaLLM}`));
+      }
+      // LRIG_TRASH_KEY_TO_CENTER_UNDER: ルリグトラッシュのキーをセンタールリグの下に
+      if (stub.id === 'LRIG_TRASH_KEY_TO_CENTER_UNDER') {
+        const sLTKCU = ctx.ownerState;
+        const keyCardLTKCU = sLTKCU.lrig_trash.find(cn => ctx.cardMap.get(cn)?.Type === 'キー');
+        if (!keyCardLTKCU) return done(addLog(ctx, 'ルリグトラッシュにキーなし'));
+        const newLrigDeckLTKCU = [...sLTKCU.field.lrig];
+        if (newLrigDeckLTKCU.length > 0) {
+          newLrigDeckLTKCU.splice(newLrigDeckLTKCU.length - 1, 0, keyCardLTKCU);
+        } else {
+          newLrigDeckLTKCU.push(keyCardLTKCU);
+        }
+        const newSLTKCU: PlayerState = {
+          ...sLTKCU,
+          lrig_trash: sLTKCU.lrig_trash.filter(c => c !== keyCardLTKCU),
+          field: { ...sLTKCU.field, lrig: newLrigDeckLTKCU },
+        };
+        return done(addLog({ ...ctx, ownerState: newSLTKCU },
+          `${ctx.cardMap.get(keyCardLTKCU)?.CardName ?? keyCardLTKCU}をセンタールリグの下に`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
