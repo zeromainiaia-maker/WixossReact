@@ -5150,7 +5150,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     const myLrigLevel = myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0;
                     const oppLrigColor = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
                     return artsCandidates.map(card => {
-                    const effCost = computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel);
+                    const effCost = computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap);
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
