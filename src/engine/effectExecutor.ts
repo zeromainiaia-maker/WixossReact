@@ -3000,6 +3000,44 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           }
           return done(addLog(ctx, 'ルリグデッキなし'));
         }
+        // 「このルリグの下からカード１枚をシグニの【ソウル】にする」
+        if (effSOtxt.match(/このルリグの下からカード[１1]枚をそれの【ソウル】にする/)) {
+          const lrigStack = ctx.ownerState.field.lrig;
+          const underCards = lrigStack.length > 1 ? lrigStack.slice(0, -1) : [];
+          if (underCards.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし（ソウル付与）'));
+          const selfSigniCands = [0, 1, 2]
+            .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+            .filter((c): c is string => !!c);
+          if (selfSigniCands.length === 0) return done(addLog(ctx, 'ソウル付与対象シグニなし'));
+          // SELECT_TARGETで対象シグニを選択してからソウルを付与
+          const soulCard = underCards[underCards.length - 1]; // ルリグ直下のカードを使用
+          const attachSoulStub: import('../types/effects').StubAction = {
+            type: 'STUB', id: 'INTERNAL_ATTACH_SOUL_FROM_LRIG', value: soulCard,
+          };
+          return selectOrInteract(selfSigniCands, 1, false, 'self_field', attachSoulStub, null, ctx);
+        }
+        // 「ルリグトラッシュからルリグ１枚をシグニの【ソウル】にする」
+        if (effSOtxt.match(/ルリグトラッシュからルリグ[１1]枚をそれの【ソウル】にする/)) {
+          const lrigInTrash = ctx.ownerState.lrig_trash.filter(cn => {
+            const c = ctx.cardMap.get(cn);
+            return c?.Type === 'ルリグ' || c?.Type === 'アシストルリグ';
+          });
+          if (lrigInTrash.length === 0) return done(addLog(ctx, 'ルリグトラッシュにルリグなし'));
+          const selfSigniSoulCands = [0, 1, 2]
+            .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+            .filter((c): c is string => !!c);
+          if (selfSigniSoulCands.length === 0) return done(addLog(ctx, 'ソウル付与対象シグニなし'));
+          // まず対象シグニを選択 → INTERNAL_CHOOSE_SOUL_LRIG でルリグトラッシュから選択
+          const chooseSoulStub: import('../types/effects').StubAction = {
+            type: 'STUB', id: 'INTERNAL_CHOOSE_SOUL_LRIG',
+          };
+          return selectOrInteract(selfSigniSoulCands, 1, false, 'self_field', chooseSoulStub, null, ctx);
+        }
+        // 「他のルリグの下にあるすべてのカードをこのルリグの下に置く」（チームルリグ統合）
+        if (effSOtxt.match(/他のルリグの下にあるすべてのカードをこのルリグの下に置く/)) {
+          // 現在はアシストルリグの下カードをサポートしていないため、ログのみ
+          return done(addLog(ctx, '他ルリグ下カードを統合（アシストルリグ下未実装）'));
+        }
         return done(addLog(ctx, 'ソウル操作'));
       }
       // デッキを見て並べ替え（STUB版：動的パース）
