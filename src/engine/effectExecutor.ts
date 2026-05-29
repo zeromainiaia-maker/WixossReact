@@ -2387,6 +2387,21 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
         return done(addLog({ ...ctx, otherState: newOther }, `ウイルスを除去（ゾーン${zoneIdx + 1}）`));
       }
+      // このターンにこのシグニがアタックしていた場合、手札を1枚捨てる
+      if (stub.id === 'DISCARD_IF_ATTACKED_THIS_TURN') {
+        if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（捨てスキップ）'));
+        const srcDAT = ctx.sourceCardNum;
+        // sourceCardNumがダウン状態（≒アタック済み）かを確認
+        const zi = srcDAT
+          ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcDAT)
+          : -1;
+        const isDown = zi >= 0 && (ctx.ownerState.field.signi_down?.[zi] ?? false);
+        if (!isDown) return done(addLog(ctx, 'アタックなし（捨てスキップ）'));
+        const discardDAT: import('../types/effects').TrashAction = {
+          type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 },
+        };
+        return selectOrInteract(ctx.ownerState.hand, 1, false, 'self_hand', discardDAT as EffectAction, undefined, ctx);
+      }
       // 手札から任意でエナゾーンに置く
       if (stub.id === 'HAND_TO_ENERGY_OPTIONAL') {
         const srcHTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
