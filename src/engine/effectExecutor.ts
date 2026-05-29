@@ -6118,9 +6118,19 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
         return done(addLog(ctx, `[ルリグシステム: ${stub.id}]`));
       }
-      // 手札/ドロー制限（engine: 手札上限システム未実装）
-      if (stub.id === 'HAND_SIZE_INCREASE' || stub.id === 'REDUCE_OPP_HAND_LIMIT' || stub.id === 'LIMIT_OPP_DRAW_COUNT') {
-        return done(addLog(ctx, `[手札制限: ${stub.id}]`));
+      // ドロー枚数制限（次のターン）
+      if (stub.id === 'LIMIT_OPP_DRAW_COUNT' || stub.id === 'OPP_MAIN_PHASE_LIMIT_DOWN') {
+        const srcLODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtLODC = srcLODC ? (srcLODC.EffectText ?? '') + ' ' + (srcLODC.BurstText ?? '') : '';
+        const toHWLODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const limitM = txtLODC.match(/合計([０-９\d]+)枚までしか引けない/);
+        const limitVal = limitM ? parseInt(toHWLODC(limitM[1])) : 1;
+        const newOtherLODC: PlayerState = { ...ctx.otherState, draw_limit: limitVal };
+        return done(addLog({ ...ctx, otherState: newOtherLODC }, `対戦相手の次ターンのドロー上限${limitVal}枚に制限`));
+      }
+      // 手札上限増加（CONTINUOUS：シグニがフィールドにある間）
+      if (stub.id === 'HAND_SIZE_INCREASE' || stub.id === 'REDUCE_OPP_HAND_LIMIT') {
+        return done(addLog(ctx, `[手札制限: ${stub.id}]（effectEngine未対応）`));
       }
       // ライフバースト特殊（engine: 発動システム改修必要）
       if (stub.id === 'LIFE_BURST_DOUBLE' || stub.id === 'TRIGGER_LIFE_BURST' || stub.id === 'BATTLE_BANISH_LIFE_BURST') {
