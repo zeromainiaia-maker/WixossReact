@@ -5286,9 +5286,22 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, 'ゾーン空きあり（TRASH_IF_ZONE_OCCUPIED）'));
       }
-      // 条件付きトラッシュ→エナ（lastProcessedCards or トラッシュ末尾）
+      // 条件付きトラッシュ→エナ（センタールリグ名条件付き）
       if (stub.id === 'CONDITIONAL_TRASH_TO_ENERGY') {
-        const targetCTTE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
+        const srcCTTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCTTE = srcCTTE ? (srcCTTE.EffectText ?? '') + ' ' + (srcCTTE.BurstText ?? '') : '';
+        // 「センタールリグが＜X＞の場合」条件チェック
+        const lrigCondM = txtCTTE.match(/あなたのセンタールリグが＜([^＞]+)＞の場合/);
+        if (lrigCondM) {
+          const reqLrigClass = lrigCondM[1];
+          const centerLrig = ctx.ownerState.field.lrig.at(-1);
+          const lrigCard = centerLrig ? ctx.cardMap.get(centerLrig) : undefined;
+          const lrigOk = lrigCard && ((lrigCard.Story ?? '').includes(reqLrigClass) || (lrigCard.CardClass ?? '').includes(reqLrigClass) || (lrigCard.CardName ?? '').includes(reqLrigClass));
+          if (!lrigOk) return done(addLog(ctx, `センタールリグが＜${reqLrigClass}＞でない（条件未達）`));
+        }
+        const targetCTTE = ctx.sourceCardNum && ctx.ownerState.trash.includes(ctx.sourceCardNum)
+          ? ctx.sourceCardNum
+          : (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
         if (!targetCTTE) return done(addLog(ctx, 'トラッシュにカードなし（CONDITIONAL_TRASH_TO_ENERGY）'));
         const ti = ctx.ownerState.trash.indexOf(targetCTTE);
         if (ti < 0) return done(addLog(ctx, '対象がトラッシュにない'));
