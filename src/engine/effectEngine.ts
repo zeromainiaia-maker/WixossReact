@@ -637,3 +637,47 @@ export function calcContinuousBlockedActions(
 
   return { forSelf, forOther, cannotAttackSigni };
 }
+
+/**
+ * LOSE_COLOR_ALL_ZONES: フィールドのシグニが「チームルリグ3体未満→全ゾーンで色喪失」条件を満たすか判定し、
+ * 色を失うカードのCardNumセットを返す。
+ * ownerState/otherState 両方のフィールドを走査して、それぞれのプレイヤー視点で返す。
+ */
+export function collectColorlessOverrides(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, import('../data/cardLoader').CardData>,
+): { ownerColorless: string[]; otherColorless: string[] } {
+  function getColorlessForPlayer(ps: PlayerState): string[] {
+    const result: string[] = [];
+    for (const stack of ps.field.signi) {
+      if (!stack || stack.length === 0) continue;
+      const topNum = stack[stack.length - 1];
+      const card = cardMap.get(topNum);
+      if (!card) continue;
+      // カードのEffectTextに「すべての領域で色を失う」が含まれているか確認
+      const txt = (card.EffectText ?? '') + ' ' + (card.BurstText ?? '');
+      if (!txt.includes('すべての領域で色を失う')) continue;
+      // 「あなたの場に＜チーム名＞のルリグが３体いないかぎり」条件チェック
+      const teamM = txt.match(/あなたの場に＜([^＞]+)＞のルリグが３体いない/);
+      if (!teamM) { result.push(topNum); continue; }
+      const teamName = teamM[1];
+      // フィールドのルリグ（センター + アシスト左右）でチーム名一致カードを数える
+      const lrigNums = [
+        ps.field.lrig.at(-1),
+        ps.field.assist_lrig_l?.at(-1),
+        ps.field.assist_lrig_r?.at(-1),
+      ].filter((n): n is string => !!n);
+      const teamCount = lrigNums.filter(n => {
+        const lc = cardMap.get(n);
+        return lc && ((lc.Story ?? '').includes(teamName) || (lc.CardClass ?? '').includes(teamName) || (lc.CardName ?? '').includes(teamName));
+      }).length;
+      if (teamCount < 3) result.push(topNum);
+    }
+    return result;
+  }
+  return {
+    ownerColorless: getColorlessForPlayer(ownerState),
+    otherColorless: getColorlessForPlayer(otherState),
+  };
+}
