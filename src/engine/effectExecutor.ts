@@ -6660,8 +6660,37 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog(ctx, `[グロウコスト: ${stub.id}]`));
       }
       // コスト軽減系（engine: コスト計算システム未実装）
-      if (stub.id === 'CONDITIONAL_COST_REDUCTION_BY_FIELD' || stub.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG'
-          || stub.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || stub.id === 'SPECIFIC_CARD_COST_REDUCE'
+      // CONDITIONAL_COST_REDUCTION_BY_FIELD: フィールド条件（クラス/枚数）でコスト軽減チェック
+      if (stub.id === 'CONDITIONAL_COST_REDUCTION_BY_FIELD') {
+        const srcCCRF = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCCRF = srcCCRF ? (srcCCRF.EffectText ?? '') + ' ' + (srcCCRF.BurstText ?? '') : '';
+        // クラス条件（「＜クラス1＞と＜クラス2＞のシグニがある場合」）
+        const classMatchesCCRF = [...txtCCRF.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]).slice(0, 3);
+        if (classMatchesCCRF.length > 0) {
+          const allPresentCCRF = classMatchesCCRF.every(cls =>
+            ctx.ownerState.field.signi.some(s => {
+              const top = s?.at(-1); return top && ctx.cardMap.get(top)?.CardClass?.includes(cls);
+            })
+          );
+          return done(addLog(ctx, `コスト軽減条件[${classMatchesCCRF.join('+')}]: ${allPresentCCRF ? '条件達成（コスト軽減適用）' : '条件未達（通常コスト）'}`));
+        }
+        return done(addLog(ctx, 'コスト軽減条件（条件解析不可）'));
+      }
+      // CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のルリグ属性によるコスト変更チェック
+      if (stub.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG') {
+        const srcCCOL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCCOL = srcCCOL ? (srcCCOL.EffectText ?? '') + ' ' + (srcCCOL.BurstText ?? '') : '';
+        const condM = txtCCOL.match(/対戦相手のセンタールリグが([赤青緑黒白]+)の場合/);
+        if (condM) {
+          const condColor = condM[1];
+          const oppLrigCn = ctx.otherState.field.lrig.at(-1);
+          const oppColor = oppLrigCn ? (ctx.cardMap.get(oppLrigCn)?.Color ?? '') : '';
+          const met = oppColor.includes(condColor);
+          return done(addLog(ctx, `コスト変更条件（相手${condColor}）: ${met ? '条件達成' : '条件未達'}`));
+        }
+        return done(addLog(ctx, 'コスト変更条件（ルリグ属性解析不可）'));
+      }
+      if (stub.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || stub.id === 'SPECIFIC_CARD_COST_REDUCE'
           || stub.id === 'ARTS_COST_REDUCTION_BY_COST_THRESHOLD' || stub.id === 'REDUCE_PLAY_ABILITY_COST') {
         return done(addLog(ctx, `[コスト軽減: ${stub.id}]`));
       }
