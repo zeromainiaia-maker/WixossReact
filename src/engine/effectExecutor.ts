@@ -5859,6 +5859,165 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
+      // === バッチ18: エンジン必須系（ログのみ実装、将来の本実装待ち） ===
+      // トラップ系（engine: トラップゾーン未実装）
+      if (stub.id === 'TRAP_OPERATION' || stub.id === 'TRAP_OP' || stub.id === 'PLACE_TRAP_FROM_REVEALED'
+          || stub.id === 'PLACE_TRAP_OPTIONAL' || stub.id === 'ACTIVATE_TRAP' || stub.id === 'TRAP_TO_HAND'
+          || stub.id === 'SET_OPP_SIGNI_AS_TRAP' || stub.id === 'SET_HAND_CARD_AS_TRAP' || stub.id === 'TRAP_TO_SIGNI_IF_ZONE_EMPTY') {
+        return done(addLog(ctx, `[トラップ系: ${stub.id}]`));
+      }
+      // シード系（engine: シードゾーン未実装）
+      if (stub.id === 'SEED_BLOOM' || stub.id === 'SEED_BLOOM_OPTIONAL' || stub.id === 'PLACE_SEED_FROM_REVEALED'
+          || stub.id === 'SEED_FLOWER_OP' || stub.id === 'SEED_HAND_AND_BLOOM_FROM_DECK_TOP') {
+        return done(addLog(ctx, `[シード系: ${stub.id}]`));
+      }
+      // 裏向き系（engine: 裏向きゾーン未実装）
+      if (stub.id === 'SIGNI_FLIP_FACEDOWN' || stub.id === 'FLIP_FACE_DOWN_SIGNI' || stub.id === 'FACE_DOWN_OPP_SIGNI') {
+        return done(addLog(ctx, `[裏向き: ${stub.id}]`));
+      }
+      // ゾーン管理系（engine: ゾーンロック未実装）
+      if (stub.id === 'DESIGNATE_SIGNI_ZONE' || stub.id === 'REMOVE_SIGNI_ZONE' || stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
+        return done(addLog(ctx, `[ゾーン管理: ${stub.id}]`));
+      }
+      // アーツ条件系（engine: アーツ使用条件未実装）
+      if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ARTS_USE_DISCARD_COLOR_HAND'
+          || stub.id === 'ARTS_EXTRA_COST_CONDITION' || stub.id === 'ACCE_COST_REDUCTION') {
+        return done(addLog(ctx, `[アーツ/アクセコスト: ${stub.id}]`));
+      }
+      // フリープレイ系（engine: 無料プレイ未実装）
+      if (stub.id === 'PLAY_FREE' || stub.id === 'PLAY_SPELL_FREE_IGNORE_RESTRICTION' || stub.id === 'CAST_FROM_OPP_TRASH'
+          || stub.id === 'PLAY_SPELL_FROM_HAND' || stub.id === 'PLAY_SPELL_FROM_HAND_FREE'
+          || stub.id === 'USE_SPELL_FROM_TRASH' || stub.id === 'PLAY_EFFECT_TARGET_CLASS_CHANGE') {
+        return done(addLog(ctx, `[フリープレイ: ${stub.id}]`));
+      }
+      // 複雑パワー修正（engine: コンテキスト/配置情報必要）
+      if (stub.id === 'POWER_MOD_DISTRIBUTE' || stub.id === 'POWER_MOD_DOUBLE_DIFF' || stub.id === 'POWER_MOD_ON_FRONT_PLACE'
+          || stub.id === 'CONDITIONAL_ALT_POWER_BOOST' || stub.id === 'REACTIVE_POWER_UP'
+          || stub.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
+        return done(addLog(ctx, `[複合パワー修正: ${stub.id}]`));
+      }
+      // レベル修正（engine: ベースレベル変更システム未実装）
+      if (stub.id === 'LEVEL_MOD_PER_COUNT' || stub.id === 'SET_LEVEL_RANGE') {
+        return done(addLog(ctx, `[レベル修正: ${stub.id}]`));
+      }
+      // 保護・移動防止系（engine: 各防止フラグシステム未実装）
+      if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP' || stub.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH'
+          || stub.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH' || stub.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP'
+          || stub.id === 'PREVENT_BOUNCE_AND_DOWN_BY_OPP' || stub.id === 'PREVENT_OPP_SIGNI_ABILITY_GAIN'
+          || stub.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP' || stub.id === 'PREVENT_POWER_MINUS_BY_OPP'
+          || stub.id === 'PREVENT_OPP_POWER_PLUS' || stub.id === 'PREVENT_ABILITY_CHANGE_BY_OPP'
+          || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL' || stub.id === 'PREVENT_SELF_DOWN_BY_OPP'
+          || stub.id === 'PREVENT_INFECTED_SIGNI_ACTIVATE' || stub.id === 'PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE'
+          || stub.id === 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN' || stub.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD'
+          || stub.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY' || stub.id === 'BLOCK_OPP_ENCORE_AND_BET'
+          || stub.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP' || stub.id === 'PREVENT_OWN_ARTS_USE') {
+        return done(addLog(ctx, `[保護効果: ${stub.id}]`));
+      }
+      // グロウコスト変更（engine: グロウコスト処理未実装）
+      if (stub.id === 'GROW_COST_ZERO' || stub.id === 'CONDITIONAL_FREE_GROW' || stub.id === 'GROW_COST_SUBSTITUTE_TRASH_SIGNI') {
+        return done(addLog(ctx, `[グロウコスト: ${stub.id}]`));
+      }
+      // コスト軽減系（engine: コスト計算システム未実装）
+      if (stub.id === 'CONDITIONAL_COST_REDUCTION_BY_FIELD' || stub.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG'
+          || stub.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || stub.id === 'SPECIFIC_CARD_COST_REDUCE'
+          || stub.id === 'ARTS_COST_REDUCTION_BY_COST_THRESHOLD' || stub.id === 'REDUCE_PLAY_ABILITY_COST') {
+        return done(addLog(ctx, `[コスト軽減: ${stub.id}]`));
+      }
+      // ガード系（engine: ガードコスト処理未実装）
+      if (stub.id === 'GUARD_ALTERNATIVE_COST' || stub.id === 'EXTRA_GUARD_COST_FROM_HAND' || stub.id === 'OPTIONAL_TRADE_GUARD_SIGNI') {
+        return done(addLog(ctx, `[ガードコスト: ${stub.id}]`));
+      }
+      // 能力付与系（engine: CardEffect付与システム未実装）
+      if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_FROM_PLAY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF'
+          || stub.id === 'GRANT_LRIG_ABILITY' || stub.id === 'GRANT_LRIG_TRASH_ACTIVATE_ABILITY'
+          || stub.id === 'GRANT_UNDER_LRIG_ACTIVATE_ABILITY' || stub.id === 'GRANT_UNDER_LRIG_AUTO_ABILITY'
+          || stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES' || stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY'
+          || stub.id === 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE' || stub.id === 'GRANT_ABILITY_UNTIL_OPP_TURN'
+          || stub.id === 'GRANT_SIGNI_CLASS' || stub.id === 'LAYER_ABILITY_COPY' || stub.id === 'COPY_ABILITY'
+          || stub.id === 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY' || stub.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY'
+          || stub.id === 'SIGNI_GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_LRIG_TYPE_GAME_WIDE') {
+        return done(addLog(ctx, `[能力付与: ${stub.id}]`));
+      }
+      // ライズ/スタック系（engine: ライズシステム未実装）
+      if (stub.id === 'RIDE_ON' || stub.id === 'RISE_BANISH_SUBSTITUTE' || stub.id === 'RISE_LEAVE_DISCARD_STACK'
+          || stub.id === 'BANISH_SUBSTITUTE_RISE_STACK' || stub.id === 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE'
+          || stub.id === 'COOKING_BANISH_SUBSTITUTE' || stub.id === 'BLACK_RISE_PLAY_STACK_FROM_TRASH') {
+        return done(addLog(ctx, `[ライズ/スタック: ${stub.id}]`));
+      }
+      // エナ代替系（engine: コスト代替システム未実装）
+      if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_TRASH' || stub.id === 'ENERGY_SUBSTITUTE_TRASH_SIGNI'
+          || stub.id === 'ENERGY_SUBSTITUTE_TRASH_KEY' || stub.id === 'ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI') {
+        return done(addLog(ctx, `[エナ代替: ${stub.id}]`));
+      }
+      // カード属性変更系（engine: 属性変更システム未実装）
+      if (stub.id === 'COPY_SIGNI' || stub.id === 'COPY_CARD' || stub.id === 'CLASS_CHANGE'
+          || stub.id === 'CHANGE_SIGNI_COLOR' || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
+          || stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
+          || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
+          || stub.id === 'ALL_CLASS' || stub.id === 'ALL_COLOR' || stub.id === 'ALL_ZONE_BLACK'
+          || stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK' || stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE'
+          || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK' || stub.id === 'SIGNI_LOSE_COLOR'
+          || stub.id === 'SIGNI_GAIN_ONE_LRIG_COLOR' || stub.id === 'LOSE_COLOR_ALL_ZONES'
+          || stub.id === 'INHERIT_OPP_LRIG_TYPE' || stub.id === 'INHERIT_UNDER_SIGNI_COLOR') {
+        return done(addLog(ctx, `[属性変更: ${stub.id}]`));
+      }
+      // ルリグデッキ/ライドシステム
+      if (stub.id === 'STACK_ALL_LRIG_UNDER' || stub.id === 'LRIG_RIDE_SIGNI' || stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI'
+          || stub.id === 'CENTER_LRIG_DISMOUNT' || stub.id === 'LRIG_GAIN_ABILITY' || stub.id === 'LRIG_ALL_NAMES'
+          || stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
+        return done(addLog(ctx, `[ルリグシステム: ${stub.id}]`));
+      }
+      // 手札/ドロー制限（engine: 手札上限システム未実装）
+      if (stub.id === 'HAND_SIZE_INCREASE' || stub.id === 'REDUCE_OPP_HAND_LIMIT' || stub.id === 'LIMIT_OPP_DRAW_COUNT') {
+        return done(addLog(ctx, `[手札制限: ${stub.id}]`));
+      }
+      // ライフバースト特殊（engine: 発動システム改修必要）
+      if (stub.id === 'LIFE_BURST_DOUBLE' || stub.id === 'TRIGGER_LIFE_BURST' || stub.id === 'BATTLE_BANISH_LIFE_BURST') {
+        return done(addLog(ctx, `[ライフバースト特殊: ${stub.id}]`));
+      }
+      // ビートゾーン系（engine: ビートゾーン未実装）
+      if (stub.id === 'BEAT_ZONE_OP' || stub.id === 'TRASH_SIGNI_TO_BEAT' || stub.id === 'SIGNI_UNDER_WEAPON_SIGNI'
+          || stub.id === 'PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON' || stub.id === 'PLACE_DECK_TOP_UNDER_WEAPON_SIGNI'
+          || stub.id === 'CONDITIONAL_TRASH_UNDER_SIGNI') {
+        return done(addLog(ctx, `[ビートゾーン: ${stub.id}]`));
+      }
+      // アタック制限系（engine: アタック制限システム未実装）
+      if (stub.id === 'ONE_ATTACK_PER_TURN' || stub.id === 'ODD_LEVEL_SIGNI_CANT_ATTACK'
+          || stub.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || stub.id === 'ATTACK_COUNT_BY_POWER'
+          || stub.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL' || stub.id === 'ADJACENT_ZONE_ATTACK'
+          || stub.id === 'MULTI_ZONE_ATTACK' || stub.id === 'BLOCK_FRONT_SIGNI_ATTACK') {
+        return done(addLog(ctx, `[アタック制限: ${stub.id}]`));
+      }
+      // ブロック系（engine: 行動ブロック未実装）
+      if (stub.id === 'BLOCK_OPP_ARTS_SPELL_ACT' || stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED'
+          || stub.id === 'BLOCK_ALL_OPP_ACTIVATE_ABILITY' || stub.id === 'BLOCK_OPP_SPELL_ACT_NEXT_TURN'
+          || stub.id === 'BLOCK_NON_WHITE_SPELL' || stub.id === 'BLOCK_COLORLESS_PLAY'
+          || stub.id === 'BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT' || stub.id === 'BLOCK_OPP_DECK_TO_ENERGY'
+          || stub.id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT') {
+        return done(addLog(ctx, `[ブロック効果: ${stub.id}]`));
+      }
+      // コストアップ系（engine: コスト計算未実装）
+      if (stub.id === 'FIRST_SPELL_COST_UP' || stub.id === 'OPP_LRIG_ATTACK_COST' || stub.id === 'OPP_SIGNI_ATTACK_COST'
+          || stub.id === 'OPP_MAIN_PHASE_LIMIT_DOWN' || stub.id === 'OPP_TURN_NO_ENERGY_COST'
+          || stub.id === 'OPP_ZONE_PLACEMENT_RESTRICT' || stub.id === 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR') {
+        return done(addLog(ctx, `[コストアップ/制限: ${stub.id}]`));
+      }
+      // シグニ移動/リダイレクト系（engine: 移動先変更未実装）
+      if (stub.id === 'MOVE_TO_ATTACKER_FRONT' || stub.id === 'FORCE_TARGET_SELF' || stub.id === 'BANISH_BY_SELF_GOES_TO_TRASH'
+          || stub.id === 'BANISH_REDIRECT_TO_HAND' || stub.id === 'CRASH_TO_TRASH_INSTEAD'
+          || stub.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS' || stub.id === 'OPP_RETURN_HAND_ON_SELF_BANISH') {
+        return done(addLog(ctx, `[移動リダイレクト: ${stub.id}]`));
+      }
+      // ダメージ特殊（engine: ダメージ処理拡張必要）
+      if (stub.id === 'MULTI_DAMAGE_ON_LRIG_ATTACK' || stub.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') {
+        return done(addLog(ctx, `[ダメージ/フェイズ特殊: ${stub.id}]`));
+      }
+      // ウェポン・プロテクション系（engine: 種族保護フラグ未実装）
+      if (stub.id === 'DRIVE_SIGNI_PREVENT_DOWN' || stub.id === 'WEAPON_SIGNI_PROTECT_DOWN'
+          || stub.id === 'WEAPON_SIGNI_PROTECTION' || stub.id === 'ARM_SIGNI_LRIG_PROTECTION'
+          || stub.id === 'WHITE_SIGNI_ABILITY_PROTECT' || stub.id === 'WEAPON_SIGNI_PREVENT_DOWN') {
+        return done(addLog(ctx, `[種族保護: ${stub.id}]`));
+      }
       // === バッチ17: パワー反転・条件分岐・ターゲット系 ===
       // REVERSE_OPP_POWER_MINUS: 相手シグニのパワーマイナス修正を反転（プラスに）
       if (stub.id === 'REVERSE_OPP_POWER_MINUS') {
