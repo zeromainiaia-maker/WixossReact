@@ -1,5 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope } from '../types';
 import { hasShadow } from '../utils/keywords';
+import { parseCardEffects } from '../data/effectParser';
 import type {
   CardEffect,
   EffectAction,
