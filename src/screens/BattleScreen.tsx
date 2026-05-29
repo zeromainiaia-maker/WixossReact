@@ -2446,6 +2446,43 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(stack.turnPlayerId, trashEntries);
         }
 
+        // ON_ENERGY_FROM_TRASH: トラッシュからエナゾーンに移動したカードのトリガー
+        const hostEnergyFromTrash  = detectEnergyFromTrash(bs.host_state, hostState);
+        const guestEnergyFromTrash = detectEnergyFromTrash(bs.guest_state, guestState);
+        const energyFromTrashEntries: StackEntry[] = [];
+        for (const cardNum of hostEnergyFromTrash) {
+          for (const eff of (effectsMap.get(cardNum) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_FROM_TRASH')) continue;
+            energyFromTrashEntries.push({
+              id: generateUUID(),
+              playerId: bs.host_id,
+              cardNum,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【自】効果（トラッシュからエナ時）`,
+              effect: eff,
+            });
+          }
+        }
+        for (const cardNum of guestEnergyFromTrash) {
+          for (const eff of (effectsMap.get(cardNum) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_FROM_TRASH')) continue;
+            energyFromTrashEntries.push({
+              id: generateUUID(),
+              playerId: bs.guest_id,
+              cardNum,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【自】効果（トラッシュからエナ時）`,
+              effect: eff,
+            });
+          }
+        }
+        if (energyFromTrashEntries.length > 0) {
+          const baseStackE = (update.effect_stack as typeof stackAfter) ?? null;
+          update.effect_stack = baseStackE
+            ? pushToStack(baseStackE, energyFromTrashEntries)
+            : initStack(stack.turnPlayerId, energyFromTrashEntries);
+        }
+
         // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
         const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
         if (entryCardType === 'アーツ' && entry.playerId !== user.id) {
