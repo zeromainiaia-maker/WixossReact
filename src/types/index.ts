@@ -106,6 +106,8 @@ export interface PlayerState {
   banish_redirect?: boolean;
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
   declared_guard_restrict_level?: number;
+  // DECLARE_CARD_NAME で宣言されたカード名（デッキ上確認効果等で使用）
+  declared_card_name?: string;
   // このターン、手札のすべてのシグニが【ガード】を得る（GRANT_GUARD_ICON_HAND_SIGNI）
   hand_signi_guard_enabled?: boolean;
   // 覚醒状態のシグニのCardNum一覧（永続、場を離れるまで有効）
