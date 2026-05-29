@@ -67,6 +67,9 @@ export interface ExecCtx {
   forceEndTurn?: boolean;    // FORCE_END_TURN でセット → BattleScreen がターン終了処理を行う
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
   lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
+  // CONTINUOUS保護効果（effectEngine動的計算）: 相手の効果でトラッシュに移動できないゾーン
+  // ownerProtected = 効果オーナーの保護, otherProtected = 相手の保護
+  otherProtectedZones?: ('hand' | 'energy')[];
 }
 
 export type ExecResult =
