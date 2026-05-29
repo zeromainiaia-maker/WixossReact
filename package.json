@@ -18,6 +18,7 @@
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "firebase-admin": "^13.4.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.2",
     "@types/papaparse": "^5.5.2",
