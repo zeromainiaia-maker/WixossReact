@@ -125,6 +125,11 @@ interface CpuGameState {
   burstOwner: 'player' | 'cpu' | null;
   guardPending: boolean;
   guardOwner: 'player' | 'cpu' | null;
+  trapActivation: {
+    zone: number;
+    trapCard: string;
+    defenderSide: 'player' | 'cpu';
+  } | null;
 }
 
 interface Props {
