@@ -6780,12 +6780,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if (emptyIdxSR < 0) return done(addLog(ctx, '空きゾーンなし（配置替え不可）'));
         const candidatesSR = signiSR.flatMap(stack => (stack && stack.length > 0 ? [stack[stack.length - 1]] : []));
         if (candidatesSR.length === 0) return done(addLog(ctx, 'シグニなし'));
-        // SELECT_TARGET → 選択シグニを空きゾーンへ移動（continuation内で処理）
-        const contSR: import('../types/effects').SequenceAction = {
-          type: 'SEQUENCE',
-          steps: [{ type: 'STUB', id: 'INTERNAL_REPOSITION_MOVE' } as import('../types/effects').StubAction],
-        };
-        // INTERNAL_REPOSITION_MOVE を上流で呼ぶ
         return needsInteraction(ctx, {
           type: 'SELECT_TARGET', candidates: candidatesSR, count: 1, optional: stub.id === 'SWAP_OPTIONAL',
           targetScope: 'self_field',
