@@ -2469,6 +2469,26 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         return selectOrInteract(newOwner.hand, 1, false, 'self_hand', discardEPDD as EffectAction, undefined, ctxDrawn);
       }
+      // フィールドに他のクラスシグニがない場合、手札を捨てる
+      if (stub.id === 'DISCARD_IF_NO_CLASS_SIGNI') {
+        const srcDINC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtDINC = srcDINC ? (srcDINC.EffectText ?? '') + ' ' + (srcDINC.BurstText ?? '') : '';
+        const classMatchDINC = txtDINC.match(/他の[<＜]([^>＞]+)[>＞]のシグニがない場合/);
+        const targetClassDINC = classMatchDINC?.[1];
+        // フィールドに自分以外のクラスシグニがあるかチェック
+        const hasOtherClassSigni = ctx.ownerState.field.signi.some(stack => {
+          const top = stack?.at(-1);
+          if (!top || top === ctx.sourceCardNum) return false;
+          const c = ctx.cardMap.get(top);
+          return c?.Type === 'シグニ' && (!targetClassDINC || c.CardClass?.includes(targetClassDINC));
+        });
+        if (hasOtherClassSigni) return done(addLog(ctx, `他の${targetClassDINC ?? 'クラス'}シグニあり（捨てスキップ）`));
+        if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし'));
+        const discardDINC: import('../types/effects').TrashAction = {
+          type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 },
+        };
+        return selectOrInteract(ctx.ownerState.hand, 1, false, 'self_hand', discardDINC as EffectAction, undefined, ctx);
+      }
       // このターンにこのシグニがアタックしていた場合、手札を1枚捨てる
       if (stub.id === 'DISCARD_IF_ATTACKED_THIS_TURN') {
         if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（捨てスキップ）'));
