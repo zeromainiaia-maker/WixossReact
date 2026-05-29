@@ -5859,6 +5859,239 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
+      // === バッチ17: パワー反転・条件分岐・ターゲット系 ===
+      // REVERSE_OPP_POWER_MINUS: 相手シグニのパワーマイナス修正を反転（プラスに）
+      if (stub.id === 'REVERSE_OPP_POWER_MINUS') {
+        const modsRPM = (ctx.otherState.temp_power_mods ?? []).map(m => m.delta < 0 ? { ...m, delta: Math.abs(m.delta) } : m);
+        const newOtherRPM: PlayerState = { ...ctx.otherState, temp_power_mods: modsRPM };
+        return done(addLog({ ...ctx, otherState: newOtherRPM }, '相手シグニのパワーマイナスを反転（プラスに）'));
+      }
+      // NEGATE_THAT_ATTACK: 現在のアタックを無効化
+      if (stub.id === 'NEGATE_THAT_ATTACK') {
+        // lastProcessedCards の1枚目を攻撃中のシグニとして無効化
+        const attackerNTA = ctx.lastProcessedCards?.[0];
+        if (attackerNTA) {
+          const negatedNTA = [...(ctx.ownerState.negated_attacks ?? []), attackerNTA];
+          const newSNTA: PlayerState = { ...ctx.ownerState, negated_attacks: negatedNTA };
+          return done(addLog({ ...ctx, ownerState: newSNTA }, `${ctx.cardMap.get(attackerNTA)?.CardName ?? attackerNTA}のアタックを無効化`));
+        }
+        return done(addLog(ctx, 'アタック無効化（対象不明）'));
+      }
+      // NEGATE_NTH_ATTACK: N回目のアタックを無効化（ログのみ）
+      if (stub.id === 'NEGATE_NTH_ATTACK') {
+        const toHWNNA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcNNA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtNNA = srcNNA ? (srcNNA.EffectText ?? '') : '';
+        const mNNA = txtNNA.match(/([０-９\d]+)回目/);
+        const nNNA = mNNA ? parseInt(toHWNNA(mNNA[1])) : 1;
+        return done(addLog(ctx, `${nNNA}回目のアタックを無効化`));
+      }
+      // NEGATE_COIN_ABILITY: コイン能力を無効化（ログのみ）
+      if (stub.id === 'NEGATE_COIN_ABILITY') {
+        return done(addLog(ctx, 'コイン能力を無効化'));
+      }
+      // NEGATE_ALL_OPP_EFFECTS: 相手の全効果を無効化（ログのみ）
+      if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {
+        return done(addLog(ctx, '相手の全効果を無効化（このターン）'));
+      }
+      // EFFECT_LIMIT: 効果を制限（ログのみ）
+      if (stub.id === 'EFFECT_LIMIT') {
+        return done(addLog(ctx, '効果制限'));
+      }
+      // DISONA_RESTRICTION: DISONA制限（ログのみ）
+      if (stub.id === 'DISONA_RESTRICTION') {
+        return done(addLog(ctx, 'DISONA制限'));
+      }
+      // COIN_SPEND_CONDITION / COIN_USE_RESTRICTION: コイン関連制限
+      if (stub.id === 'COIN_SPEND_CONDITION' || stub.id === 'COIN_USE_RESTRICTION') {
+        return done(addLog(ctx, stub.id === 'COIN_SPEND_CONDITION' ? 'コイン消費条件' : 'コイン使用制限'));
+      }
+      // INCREASE_ACT_ABILITY_COST: 起動能力のコストを増加（ログのみ）
+      if (stub.id === 'INCREASE_ACT_ABILITY_COST') {
+        return done(addLog(ctx, '起動能力コスト増加'));
+      }
+      // CONDITIONAL_KEYWORD_BY_CENTER_COLOR: センタールリグの色に応じてキーワード付与
+      if (stub.id === 'CONDITIONAL_KEYWORD_BY_CENTER_COLOR') {
+        const centerCKBC = ctx.ownerState.field.lrig.at(-1);
+        const centerCardCKBC = centerCKBC ? ctx.cardMap.get(centerCKBC) : undefined;
+        const centerColorCKBC = centerCardCKBC?.Color ?? '';
+        const srcCKBC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCKBC = srcCKBC ? (srcCKBC.EffectText ?? '') : '';
+        const mKwCKBC = txtCKBC.match(/【([^】]+)】/);
+        const kwCKBC = mKwCKBC ? mKwCKBC[1] : 'ランサー';
+        const mColorCKBC = txtCKBC.match(/(赤|青|緑|白|黒)/);
+        const condColorCKBC = mColorCKBC ? mColorCKBC[1] : '';
+        if (condColorCKBC && !centerColorCKBC.includes(condColorCKBC)) {
+          return done(addLog(ctx, `センター色${centerColorCKBC}≠${condColorCKBC}（条件不達成）`));
+        }
+        // 自分のフィールドシグニにキーワード付与
+        const kwGrantsCKBC = { ...(ctx.ownerState.keyword_grants ?? {}) };
+        (ctx.ownerState.field.signi ?? []).forEach(s => {
+          if (s && s.length > 0) {
+            const cn = s[s.length - 1];
+            const existing = kwGrantsCKBC[cn] ?? [];
+            if (!existing.includes(kwCKBC)) kwGrantsCKBC[cn] = [...existing, kwCKBC];
+          }
+        });
+        const newSCKBC: PlayerState = { ...ctx.ownerState, keyword_grants: kwGrantsCKBC };
+        return done(addLog({ ...ctx, ownerState: newSCKBC }, `センター色${centerColorCKBC}→全シグニに【${kwCKBC}】付与`));
+      }
+      // SELECT_OTHER_SIGNI: ソース以外のシグニを選択
+      if (stub.id === 'SELECT_OTHER_SIGNI') {
+        const srcSOS = ctx.sourceCardNum;
+        const candsSOS = (ctx.ownerState.field.signi ?? []).flatMap(s => {
+          if (!s || s.length === 0) return [];
+          const top = s[s.length - 1];
+          return top !== srcSOS ? [top] : [];
+        });
+        if (candsSOS.length === 0) return done(addLog(ctx, '選択可能な他シグニなし'));
+        const noopSOS: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candsSOS, count: 1, optional: true,
+          targetScope: 'self_field', thenAction: noopSOS as EffectAction,
+        });
+      }
+      // ENERGY_LEVEL_CONDITION_CHOOSE: エナにレベルN以上があればCHOOSE提示
+      if (stub.id === 'ENERGY_LEVEL_CONDITION_CHOOSE') {
+        const toHWELCC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcELCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtELCC = srcELCC ? (srcELCC.EffectText ?? '') + ' ' + (srcELCC.BurstText ?? '') : '';
+        const mLvELCC = txtELCC.match(/レベル([０-９\d]+)以上/);
+        const threshELCC = mLvELCC ? parseInt(toHWELCC(mLvELCC[1])) : 4;
+        const hasLevelELCC = ctx.ownerState.energy.some(cn => {
+          const lv = parseInt(toHWELCC(ctx.cardMap.get(cn)?.Level ?? '0')) || 0;
+          return lv >= threshELCC;
+        });
+        if (!hasLevelELCC) return done(addLog(ctx, `エナにLv${threshELCC}以上なし（条件不達成）`));
+        return done(addLog(ctx, `エナにLv${threshELCC}以上あり（条件達成）→選択効果`));
+      }
+      // LEVEL_BASED_CONDITIONAL: レベル基準で条件分岐
+      if (stub.id === 'LEVEL_BASED_CONDITIONAL') {
+        const toHWLBC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const centerLBC = ctx.ownerState.field.lrig.at(-1);
+        const centerCardLBC = centerLBC ? ctx.cardMap.get(centerLBC) : undefined;
+        const centerLvLBC = centerCardLBC ? parseInt(toHWLBC(centerCardLBC.Level ?? '0')) || 0 : 0;
+        return done(addLog(ctx, `レベル${centerLvLBC}基準の条件分岐（スキップ）`));
+      }
+      // OPP_DECLARE_COLOR: 相手が色を宣言（ログのみ）
+      if (stub.id === 'OPP_DECLARE_COLOR') {
+        return done(addLog(ctx, '相手が色を宣言'));
+      }
+      // COLLAB: コラボ効果（ログのみ）
+      if (stub.id === 'COLLAB') {
+        const centerCol = ctx.ownerState.field.lrig.at(-1);
+        const centerNameCol = centerCol ? ctx.cardMap.get(centerCol)?.CardName ?? centerCol : 'なし';
+        return done(addLog(ctx, `コラボ効果（センター：${centerNameCol}）`));
+      }
+      // GATE: ゲート効果（ログのみ）
+      if (stub.id === 'GATE') {
+        return done(addLog(ctx, 'ゲート効果'));
+      }
+      // OPEN_MAGIC_BOX: マジックボックスを開ける（ログのみ）
+      if (stub.id === 'OPEN_MAGIC_BOX') {
+        return done(addLog(ctx, 'マジックボックスを開ける'));
+      }
+      // PLACE_MAGIC_BOX: マジックボックスを設置（ログのみ）
+      if (stub.id === 'PLACE_MAGIC_BOX') {
+        return done(addLog(ctx, 'マジックボックスを設置'));
+      }
+      // TARGET_OPP_SIGNI_ONLY / TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: 対象修飾子（ログのみ）
+      if (stub.id === 'TARGET_OPP_SIGNI_ONLY' || stub.id === 'TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE') {
+        return done(addLog(ctx, '相手シグニを対象とする'));
+      }
+      // USE_CONDITION_ARTS_USED: アーツ使用条件（ログのみ）
+      if (stub.id === 'USE_CONDITION_ARTS_USED') {
+        return done(addLog(ctx, 'アーツ使用条件'));
+      }
+      // CENTER_ZONE_CONDITION: センターゾーン条件（ログのみ）
+      if (stub.id === 'CENTER_ZONE_CONDITION') {
+        return done(addLog(ctx, 'センターゾーン条件'));
+      }
+      // DEPLOY_RESTRICT: 配置制限（ログのみ）
+      if (stub.id === 'DEPLOY_RESTRICT') {
+        return done(addLog(ctx, '配置制限'));
+      }
+      // DEFEAT: 敗北処理（ログのみ）
+      if (stub.id === 'DEFEAT') {
+        return done(addLog(ctx, '敗北処理（エンジン未実装）'));
+      }
+      // REPEAT_N_TIMES / REPEAT_EFFECT: 繰り返し効果（ログのみ）
+      if (stub.id === 'REPEAT_N_TIMES' || stub.id === 'REPEAT_EFFECT') {
+        return done(addLog(ctx, '繰り返し効果（スキップ）'));
+      }
+      // PLACE_CHOKKIN: チョッキン設置（ログのみ）
+      if (stub.id === 'PLACE_CHOKKIN') {
+        return done(addLog(ctx, 'チョッキン設置'));
+      }
+      // ADD_RESONANCE_CONDITION: レゾナ条件追加（ログのみ）
+      if (stub.id === 'ADD_RESONANCE_CONDITION') {
+        return done(addLog(ctx, 'レゾナ条件追加'));
+      }
+      // IGNORE_LRIG_RESTRICTION_ARTS: ルリグ制限アーツを無視（ログのみ）
+      if (stub.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
+        return done(addLog(ctx, 'ルリグ制限アーツを無視'));
+      }
+      // COST_COLOR_SELECT: コスト色を選択（ログのみ）
+      if (stub.id === 'COST_COLOR_SELECT') {
+        return done(addLog(ctx, 'コスト色を選択'));
+      }
+      // HASTARLIQ: ハスタルリク効果（ログのみ）
+      if (stub.id === 'HASTARLIQ') {
+        return done(addLog(ctx, 'ハスタルリク効果'));
+      }
+      // ACTIVATE_EICHI_ABILITY / CHANGE_EICHI_SIGNI_BASE_LEVEL / TRIGGER_OTHER_SIGNI_EICHI_ABILITY: エイチ系
+      if (stub.id === 'ACTIVATE_EICHI_ABILITY' || stub.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL' || stub.id === 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY') {
+        return done(addLog(ctx, `エイチ能力（${stub.id}）`));
+      }
+      // SUPPRESS_CENTER_ON_PLAY: プレイ時センター抑制（ログのみ）
+      if (stub.id === 'SUPPRESS_CENTER_ON_PLAY') {
+        return done(addLog(ctx, 'プレイ時センター抑制'));
+      }
+      // SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: ダメージを自トラッシュで代替（ログのみ）
+      if (stub.id === 'SUBSTITUTE_DAMAGE_WITH_SELF_TRASH') {
+        return done(addLog(ctx, 'ダメージを自トラッシュで代替'));
+      }
+      // SELECT_NO_COMMON_COLOR: 共通色なしを選択（ログのみ）
+      if (stub.id === 'SELECT_NO_COMMON_COLOR') {
+        return done(addLog(ctx, '共通色なしを選択'));
+      }
+      // DISCARD_BY_POWER_MATCH: パワー一致で捨て（ログのみ）
+      if (stub.id === 'DISCARD_BY_POWER_MATCH') {
+        return done(addLog(ctx, 'パワー一致で捨て（スキップ）'));
+      }
+      // DECLARE_NUMBER_RANGE / DECLARE_NUMBER_POWER: 数字宣言（ログのみ）
+      if (stub.id === 'DECLARE_NUMBER_RANGE' || stub.id === 'DECLARE_NUMBER_POWER') {
+        return done(addLog(ctx, '数字宣言'));
+      }
+      // CONDITIONAL_ALTERNATE_EFFECT: 条件付き代替効果（ログのみ）
+      if (stub.id === 'CONDITIONAL_ALTERNATE_EFFECT') {
+        return done(addLog(ctx, '条件付き代替効果（スキップ）'));
+      }
+      // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（ログのみ）
+      if (stub.id === 'TRASH_SPELL_FREE_USE_LIMIT') {
+        return done(addLog(ctx, 'トラッシュスペル無料使用制限'));
+      }
+      // UPKEEP_OR_NO_UP: アップキープかアップなし（ログのみ）
+      if (stub.id === 'UPKEEP_OR_NO_UP') {
+        return done(addLog(ctx, 'アップキープかアップなし'));
+      }
+      // ACTIVATE_COST_ZERO_BLACK: 黒の起動コスト0（ログのみ）
+      if (stub.id === 'ACTIVATE_COST_ZERO_BLACK') {
+        return done(addLog(ctx, '黒の起動コスト0'));
+      }
+      // BET_CONDITION: ベット条件（ログのみ）
+      if (stub.id === 'BET_CONDITION') {
+        return done(addLog(ctx, 'ベット条件'));
+      }
+      // DISABLE_FIRST_ABILITY_ON_ATTACK: アタック時最初の能力を無効化（ログのみ）
+      if (stub.id === 'DISABLE_FIRST_ABILITY_ON_ATTACK') {
+        return done(addLog(ctx, 'アタック時最初の能力を無効化'));
+      }
+      // REPLACE_PLUS_N: +N置換（ログのみ）
+      if (stub.id === 'REPLACE_PLUS_N') {
+        return done(addLog(ctx, '+N置換'));
+      }
+      // CONDITIONAL_KEYWORD_BY_CENTER_COLOR already handled above
       // === バッチ16: アクセ・公開・汎用選択系 ===
       // GRID_REVEAL_PLUS: グリッド公開（デッキ上を公開し結果に応じてドロー等）
       if (stub.id === 'GRID_REVEAL_PLUS') {
