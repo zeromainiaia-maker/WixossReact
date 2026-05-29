@@ -2236,11 +2236,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       // FORCE_TARGET_SELF: opp_field SELECT_TARGETで強制対象シグニが候補にある場合、候補を絞る
-      if (!result.done && result.pending.type === 'SELECT_TARGET' && result.pending.scope === 'opp_field') {
+      if (!result.done && result.pending.type === 'SELECT_TARGET' && result.pending.targetScope === 'opp_field') {
         const forcedNums = collectForcedTargets(otherState, effectsMap, isOwnerTurn);
-        const forcedInCands = forcedNums.filter(n => (result as { done: false; pending: { type: 'SELECT_TARGET'; candidates: string[] } }).pending.candidates.includes(n));
-        if (forcedInCands.length > 0 && forcedInCands.length < (result as { done: false; pending: { candidates: string[] } }).pending.candidates.length) {
-          result = { ...result, pending: { ...(result as { done: false; pending: object }).pending, candidates: forcedInCands } } as typeof result;
+        const forcedInCands = forcedNums.filter(n => result.done === false && result.pending.type === 'SELECT_TARGET' && result.pending.candidates.includes(n));
+        if (forcedInCands.length > 0 && result.done === false && result.pending.type === 'SELECT_TARGET' && forcedInCands.length < result.pending.candidates.length) {
+          const pend = result.pending;
+          result = { ...result, pending: { ...pend, candidates: forcedInCands } } as typeof result;
           appendBattleLogs([`[FORCE_TARGET_SELF] 対象が${forcedInCands.length}体に強制`], { defer: true });
         }
       }
