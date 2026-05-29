@@ -141,6 +141,8 @@
 | 2026-05-30 | 赤/青の支払いを白で代替可能（PlayerState.energy_color_substitutes） | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
 | 2026-05-30 | 相手シグニのマイナス合計分だけ自シグニをパワーアップ（ターン終了時AUTOで処理） | REACTIVE_POWER_UP |
 | 2026-05-30 | 正面以外のゾーンにも追加バトル（ダメージなし・シグニバニッシュのみ） | MULTI_ZONE_ATTACK |
+| 2026-05-30 | 対象シグニ色変更（PlayerState.signi_color_overrides / ENDフェーズリセット） | CHANGE_SIGNI_COLOR |
+| 2026-05-30 | このシグニがルリグの色を1つ得る（signi_color_overrides）| SIGNI_GAIN_ONE_LRIG_COLOR |
 
 ---
 
