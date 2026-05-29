@@ -5673,7 +5673,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const topCSIF = deckCSIF.slice(0, Math.min(3, deckCSIF.length));
         const signiTopCSIF = topCSIF.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
         if (signiTopCSIF.length === 0) return done(addLog(ctx, 'デッキ上3枚にシグニなし'));
-        const thenCSIF: import('../types/effects').TransferToHandAction = { type: 'TRANSFER_TO_HAND', source: 'deck', owner: 'self', count: 1, optional: true, filter: undefined };
         const newSCSIF: PlayerState = { ...ctx.ownerState, deck: deckCSIF.slice(topCSIF.length), hand: [...ctx.ownerState.hand, signiTopCSIF[0]] };
         return done(addLog({ ...ctx, ownerState: newSCSIF }, `フィールドあり→${ctx.cardMap.get(signiTopCSIF[0])?.CardName ?? signiTopCSIF[0]}を手札へ`));
       }
