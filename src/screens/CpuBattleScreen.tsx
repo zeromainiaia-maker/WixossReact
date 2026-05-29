@@ -332,6 +332,14 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const defInstId = defStack?.at(-1);
 
     if (!defInstId) {
+      // トラップチェック：防御側のゾーンにトラップがあれば発動トリガー
+      const defTrapCard = defender.field.signi_traps?.[zoneIdx] ?? null;
+      if (defTrapCard) {
+        const defenderSide: 'player' | 'cpu' = g.turnPlayer === 'player' ? 'cpu' : 'player';
+        appendLog(`【トラップ】トリガー（${cardMap.get(defTrapCard)?.CardName ?? defTrapCard}）`);
+        return { ...setMyState(g, newAttacker), trapActivation: { zone: zoneIdx, trapCard: defTrapCard, defenderSide } };
+      }
+
       if (defender.life_cloth.length === 0) {
         appendLog(`${attkCard.CardName} がアタック → 相手ライフなし`);
         return checkWin(setMyState(setOppState(g, defender), newAttacker));
