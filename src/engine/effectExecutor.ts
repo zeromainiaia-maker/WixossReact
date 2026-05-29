@@ -2943,9 +2943,49 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         return needsInteraction(addLog(ctx, `デッキからシグニを${pickCount}枚まで検索`), pending);
       }
-      // その他公開ピック（エナへ・任意公開など）
+      // デッキを条件が満たされるまで公開する
       if (stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
-        return done(addLog(ctx, 'デッキ公開/ピック（ログのみ）'));
+        const isOpp = stub.id === 'OPP_DECK_REVEAL_UNTIL';
+        const stateRU = isOpp ? ctx.otherState : ctx.ownerState;
+        const srcRU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
+        const toHWRU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // 停止条件を解析
+        const classM = txtRU.match(/＜([^＞]+)＞のシグニがめくれるまで/);
+        const targetClassRU = classM ? classM[1] : null;
+        const lvM = txtRU.match(/レベル([０-９\d]+)を持つ/);
+        const targetLvRU = lvM ? parseInt(toHWRU(lvM[1])) : null;
+        const untilSigniRU = !!txtRU.match(/シグニがめくれるまで/);
+        const untilNameRU = !!txtRU.match(/宣言したカードがめくれるまで|宣言したカードが公開されるまで/);
+        const declaredNameRU = ctx.ownerState.declared_card_name ?? null;
+        const toTrashRestRU = !!txtRU.match(/残りをトラッシュに置く/);
+        const toBottomRestRU = !!txtRU.match(/残り.*デッキの一番下/);
+        // デッキを先頭から公開していく
+        const deckRU = [...stateRU.deck];
+        const revealedRU: string[] = [];
+        let hitCardRU: string | null = null;
+        for (const cn of deckRU) {
+          revealedRU.push(cn);
+          const card = ctx.cardMap.get(cn);
+          let stop = false;
+          if (untilSigniRU && card?.Type === 'シグニ') {
+            if (!targetClassRU || card?.CardClass?.includes(targetClassRU)) {
+              if (!targetLvRU || parseInt(card?.Level ?? '0') === targetLvRU) stop = true;
+            }
+          }
+          if (untilNameRU && declaredNameRU && card?.CardName === declaredNameRU) stop = true;
+          if (!untilSigniRU && !untilNameRU) { stop = true; break; } // 条件不明：先頭1枚
+          if (stop) { hitCardRU = cn; break; }
+        }
+        const nonHitRU = revealedRU.filter(cn => cn !== hitCardRU);
+        let newStateRU = { ...stateRU, deck: deckRU.filter(cn => !revealedRU.includes(cn)) };
+        if (toTrashRestRU && nonHitRU.length > 0) newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...nonHitRU] };
+        if (toBottomRestRU && nonHitRU.length > 0) newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...nonHitRU] };
+        const newCtxRU = isOpp
+          ? { ...ctx, otherState: newStateRU, lastProcessedCards: hitCardRU ? [hitCardRU] : [] }
+          : { ...ctx, ownerState: newStateRU, lastProcessedCards: hitCardRU ? [hitCardRU] : [] };
+        const hitNameRU = hitCardRU ? ctx.cardMap.get(hitCardRU)?.CardName ?? hitCardRU : 'ヒットなし';
+        return done(addLog(newCtxRU, `デッキ公開 ${revealedRU.length}枚 → ヒット: ${hitNameRU}`));
       }
       // ソングフラグメント
       if (stub.id === 'SONG_FRAGMENT') {
