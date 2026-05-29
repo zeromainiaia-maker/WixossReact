@@ -1104,6 +1104,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs, effectsMap, battleCardMap, user.id]);
 
+  // LOSE_COLOR_ALL_ZONES: チームルリグ3体未満→全ゾーン色喪失カードのリスト
+  const myColorlessOverrides = useMemo(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return [] as string[];
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    return collectColorlessOverrides(myS, opS, battleCardMap).ownerColorless;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs, battleCardMap, user.id]);
+
   // pending_effectが変わったらカード選択をリセット（別効果の選択状態が残らないように）
   useEffect(() => {
     setEffectSelectedNums([]);
