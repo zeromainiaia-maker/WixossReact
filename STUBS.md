@@ -112,6 +112,9 @@
 
 | 日付 | 実装内容 | 対象STUB |
 |---|---|---|
+| 2026-05-29 | UNKNOWN 0件達成：SONG_ICON regex修正+「この方法で場に出たシグニの」パース追加 | effectParser UNKNOWN解消 |
+| 2026-05-29 | アップ状態クラスシグニ選択→ダウン（コスト軽減素材として） | DOWN_UP_SIGNI_AND_CHOOSE |
+| 2026-05-29 | lastProcessedCards/デッキ上1枚からトラップ設置ゾーン選択 | TRAP_OPERATION |
 | 2026-05-29 | センタールリグ下の任意枚数をルリグトラッシュへ（WX12-Re22等） | SOUL_OP（拡張） |
 | 2026-05-29 | コイン消費ベット→2択/4択ダイアログ+①②③④実行 | BET_MECHANIC |
 | 2026-05-29 | 歌のカケラ効果をeffects.jsonに15枚追加+エナから発動 | SONG_FRAGMENT |
