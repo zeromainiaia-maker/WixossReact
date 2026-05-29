@@ -2450,7 +2450,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if (fieldClassM) {
           const cls = fieldClassM[1];
           const delta = toSignedC(fieldClassM[2]);
-          const found = ctx.ownerState.field.signi.some((s, zi) => {
+          const found = ctx.ownerState.field.signi.some((s) => {
             const top = s?.at(-1);
             if (!top || top === ctx.sourceCardNum) return false;
             const c = ctx.cardMap.get(top);
