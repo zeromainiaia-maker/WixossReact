@@ -2056,7 +2056,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtGQ = srcGQ ? (srcGQ.EffectText ?? '') + ' ' + (srcGQ.BurstText ?? '') : '';
         // 付与するキーワードを抽出（ランサー、ダブルクラッシュ、貫通、マルチエナ等）
-        const knownKeywords = ['ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'アサシン', 'バニッシュ無効', 'ライフバースト無効', '影', 'チャーム'];
+        const knownKeywords = ['ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'アサシン', 'バニッシュ無効', 'ライフバースト無効', '影', 'チャーム', 'シャドウ', 'ガードアイコン'];
         const quotedM = txtGQ.match(/「([^」]+)」を得る/);
         const quotedText = quotedM ? quotedM[1] : '';
         const grantedKws = knownKeywords.filter(kw => quotedText.includes(kw));
