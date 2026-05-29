@@ -2688,6 +2688,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const currentLrig = currentLrigNum ? battleCardMap.get(currentLrigNum) ?? null : null;
   const currentLrigLevel = currentLrig ? parseInt(currentLrig.Level) || 0 : 0;
 
+  // 現在のルリグにグロウ色制限があるか確認（「このルリグは〜のルリグにしかグロウできない」）
+  const growColorRestrictText = currentLrig?.EffectText?.match(/このルリグは(.+)のルリグにしかグロウできない/)?.[1] ?? null;
   const growCandidates = my.lrig_deck
     .filter((num, i, arr) => arr.indexOf(num) === i)
     .map(num => battleCardMap.get(num))
@@ -2698,7 +2700,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // CardClass 互換チェック
       (!currentLrig || lrigClassesCompatible(currentLrig.CardClass, c.CardClass)) &&
       // 【グロウ】条件チェック（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数・複数色制限）
-      checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig ?? undefined, battleCardMap)
+      checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig ?? undefined, battleCardMap) &&
+      // グロウ色制限チェック（「青かつ黒のルリグにしかグロウできない」等）
+      (!growColorRestrictText || (() => {
+        const colors = growColorRestrictText.split(/かつ|と/).map(s => s.trim());
+        const cColors = (c.Color ?? '').split(/[・,、]/).map(s => s.trim());
+        return colors.every(col => cColors.includes(col));
+      })())
     );
 
   // ルリグのクラス（制限チェック共通）
