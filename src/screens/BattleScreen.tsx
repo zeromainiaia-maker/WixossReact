@@ -3616,31 +3616,43 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      // MULTI_ZONE_ATTACK: 正面以外のゾーンにも追加バトル（ダメージなし）
-      const hasMultiZoneAttack = (effectsMap.get(myTopNum) ?? []).some(e =>
+      // MULTI_ZONE_ATTACK: 正面以外のゾーンにも追加バトル
+      // 「アタックする」（強制）か「アタックできる」（任意）かをテキストで判定
+      const mzaEffect = (effectsMap.get(myTopNum) ?? []).find(e =>
         e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' && (e.action as import('../types/effects').StubAction).id === 'MULTI_ZONE_ATTACK'
       );
-      if (hasMultiZoneAttack) {
-        const myPowerMZA = effectivePowers.get(myTopNum) ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
+      if (mzaEffect) {
+        const myCardDataMZA = battleCardMap.get(myTopNum);
+        const myTxtMZA = (myCardDataMZA?.EffectText ?? '') + ' ' + (myCardDataMZA?.BurstText ?? '');
+        // 「アタックする」= 強制、「アタックできる」= 任意（デフォルト任意）
+        const isForcedMZA = myTxtMZA.includes('シグニゾーンにもアタックする') && !myTxtMZA.includes('アタックできる');
+        const myPowerMZA = effectivePowers.get(myTopNum) ?? (parseInt(myCardDataMZA?.Power ?? '0') || 0);
         for (let zi = 0; zi < 3; zi++) {
           if (zi === zoneIndex) continue; // 正面は既に処理済み
           const oppZiMZA = 2 - zi;
           const oppStackMZA = newOpState.field.signi[oppZiMZA] ?? [];
           const oppTopMZA = oppStackMZA.at(-1);
-          if (!oppTopMZA) continue;
+          if (!oppTopMZA) continue; // 相手シグニなし（空ゾーン）はダメージなしスキップ
           const oppPowerMZA = effectivePowers.get(oppTopMZA) ?? (parseInt(battleCardMap.get(oppTopMZA)?.Power ?? '0') || 0);
-          if (myPowerMZA >= oppPowerMZA) {
-            // バニッシュ（ダメージなし）
-            const oppSigniMZA = [...newOpState.field.signi] as (string[] | null)[];
-            oppSigniMZA[oppZiMZA] = null;
-            const oppDownMZA = [...(newOpState.field.signi_down ?? [false, false, false])];
-            oppDownMZA[oppZiMZA] = false;
-            newOpState = {
-              ...newOpState,
-              energy: [...newOpState.energy, ...oppStackMZA],
-              field: { ...newOpState.field, signi: oppSigniMZA, signi_down: oppDownMZA },
-            };
-            appendBattleLogs([`${myCardName}（多重ゾーン）が${battleCardMap.get(oppTopMZA)?.CardName ?? oppTopMZA}をバニッシュ（ダメージなし）`]);
+          // 「アタックできる」（任意）の場合: バトル判定はするが自動的に負けもあり得る
+          // ゲーム上は「アタックを宣言するかどうか」を選択すべきだが、現状は自動適用
+          // 「アタックする」（強制）の場合 or 自動でバトル判定
+          if (isForcedMZA || myPowerMZA >= oppPowerMZA) {
+            if (myPowerMZA >= oppPowerMZA) {
+              // バニッシュ（追加ゾーンなのでダメージなし）
+              const oppSigniMZA = [...newOpState.field.signi] as (string[] | null)[];
+              oppSigniMZA[oppZiMZA] = null;
+              const oppDownMZA = [...(newOpState.field.signi_down ?? [false, false, false])];
+              oppDownMZA[oppZiMZA] = false;
+              newOpState = {
+                ...newOpState,
+                energy: [...newOpState.energy, ...oppStackMZA],
+                field: { ...newOpState.field, signi: oppSigniMZA, signi_down: oppDownMZA },
+              };
+              appendBattleLogs([`${myCardName}が${battleCardMap.get(oppTopMZA)?.CardName ?? oppTopMZA}をバニッシュ（追加ゾーン・ダメージなし）`]);
+            } else {
+              appendBattleLogs([`${myCardName}（${myPowerMZA}）vs ${battleCardMap.get(oppTopMZA)?.CardName ?? oppTopMZA}（${oppPowerMZA}）：追加ゾーンバトル負け`]);
+            }
           }
         }
       }
