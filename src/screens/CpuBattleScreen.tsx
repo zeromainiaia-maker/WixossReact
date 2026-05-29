@@ -473,7 +473,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const { trapActivation } = g;
     if (!trapActivation) return g;
     const { zone, trapCard, defenderSide } = trapActivation;
-    let ng = { ...g, trapActivation: null };
+    let ng: CpuGameState = { ...g, trapActivation: null };
 
     // 1. トラップ発動（選択した場合）
     if (activate) {
