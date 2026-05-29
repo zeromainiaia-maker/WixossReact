@@ -1835,6 +1835,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return result;
   };
 
+  // トラッシュからエナゾーンに移動したカードを検出（ON_ENERGY_FROM_TRASHトリガー用）
+  const detectEnergyFromTrash = (before: PlayerState, after: PlayerState): string[] => {
+    const newInEnergy = after.energy.filter(n => !before.energy.includes(n));
+    return newInEnergy.filter(n => before.trash.includes(n));
+  };
+
   // フィールドからトラッシュに移動したシグニを検出（ON_TRASHトリガー用）
   const detectTrashedSigni = (before: PlayerState, after: PlayerState): string[] => {
     const result: string[] = [];
