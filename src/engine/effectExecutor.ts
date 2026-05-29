@@ -3434,6 +3434,78 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: newFieldMov } },
           `${ctx.cardMap.get(srcZ)?.CardName ?? srcZ}をゾーン${curZone + 1}→ゾーン${targetZoneNum + 1}に移動`));
       }
+      // ソウル付与（ルリグの下カードを選択シグニに付与）
+      if (stub.id === 'INTERNAL_ATTACH_SOUL_FROM_LRIG') {
+        const targetSigniAS = (ctx.lastProcessedCards ?? [])[0];
+        const soulCardAS = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+        if (!targetSigniAS || !soulCardAS) return done(addLog(ctx, 'ソウル付与：対象またはカードなし'));
+        const zoneIdxAS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === targetSigniAS);
+        if (zoneIdxAS < 0) return done(addLog(ctx, 'ソウル付与：対象シグニが場にない'));
+        // ルリグ直下から取り出す（スタックの2番目から末尾-1、一番下のカード）
+        const lrigStackAS = ctx.ownerState.field.lrig;
+        const newLrigAS = lrigStackAS.filter(cn => cn !== soulCardAS);
+        // ソウルとして設定
+        const newSoulAS = [...(ctx.ownerState.field.signi_soul ?? [null, null, null])];
+        // 既存ソウルがあればlrig_trashへ
+        const prevSoulAS = newSoulAS[zoneIdxAS];
+        newSoulAS[zoneIdxAS] = soulCardAS;
+        const newOwnerAS: PlayerState = {
+          ...ctx.ownerState,
+          lrig_trash: prevSoulAS ? [...ctx.ownerState.lrig_trash, prevSoulAS] : ctx.ownerState.lrig_trash,
+          field: { ...ctx.ownerState.field, lrig: newLrigAS, signi_soul: newSoulAS as (string | null)[] },
+        };
+        const signName = ctx.cardMap.get(targetSigniAS)?.CardName ?? targetSigniAS;
+        const soulName = ctx.cardMap.get(soulCardAS)?.CardName ?? soulCardAS;
+        return done(addLog({ ...ctx, ownerState: newOwnerAS }, `${soulName}を${signName}の【ソウル】に付与`));
+      }
+      // ソウル付与（ルリグトラッシュからルリグを選択シグニに付与）
+      if (stub.id === 'INTERNAL_CHOOSE_SOUL_LRIG') {
+        const targetSigniCSL = (ctx.lastProcessedCards ?? [])[0];
+        if (!targetSigniCSL) return done(addLog(ctx, 'ソウル付与（ルリグトラッシュ）：対象シグニなし'));
+        const zoneIdxCSL = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === targetSigniCSL);
+        if (zoneIdxCSL < 0) return done(addLog(ctx, 'ソウル付与：対象シグニが場にない'));
+        const lrigInTrashCSL = ctx.ownerState.lrig_trash.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          return c?.Type === 'ルリグ' || c?.Type === 'アシストルリグ';
+        });
+        if (lrigInTrashCSL.length === 0) return done(addLog(ctx, 'ルリグトラッシュにルリグなし'));
+        // SEARCHインタラクションでルリグトラッシュから1枚選択
+        const attachAfterSearch: import('../types/effects').StubAction = {
+          type: 'STUB', id: 'INTERNAL_SET_SOUL_FROM_LRIG_TRASH_RESULT',
+          value: targetSigniCSL,
+        };
+        const pendingCSL: PendingInteractionDef = {
+          type: 'SEARCH',
+          candidates: lrigInTrashCSL,
+          count: 1,
+          optional: false,
+          thenAction: attachAfterSearch as EffectAction,
+          continuationAction: null,
+        };
+        return needsInteraction(addLog(ctx, 'ルリグトラッシュからルリグを選択（ソウル付与）'), pendingCSL);
+      }
+      // ルリグトラッシュ選択後ソウル付与
+      if (stub.id === 'INTERNAL_SET_SOUL_FROM_LRIG_TRASH_RESULT') {
+        const targetSigniSFLTR = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+        const soulCardSFLTR = (ctx.lastProcessedCards ?? [])[0];
+        if (!targetSigniSFLTR || !soulCardSFLTR) return done(addLog(ctx, 'ソウル付与結果：対象またはカードなし'));
+        const zoneIdxSFLTR = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === targetSigniSFLTR);
+        if (zoneIdxSFLTR < 0) return done(addLog(ctx, 'ソウル付与：対象シグニが場にない'));
+        const newLrigTrashSFLTR = ctx.ownerState.lrig_trash.filter(cn => cn !== soulCardSFLTR);
+        const newSoulSFLTR = [...(ctx.ownerState.field.signi_soul ?? [null, null, null])];
+        const prevSoulSFLTR = newSoulSFLTR[zoneIdxSFLTR];
+        newSoulSFLTR[zoneIdxSFLTR] = soulCardSFLTR;
+        const newOwnerSFLTR: PlayerState = {
+          ...ctx.ownerState,
+          lrig_trash: prevSoulSFLTR
+            ? [...newLrigTrashSFLTR, prevSoulSFLTR]
+            : newLrigTrashSFLTR,
+          field: { ...ctx.ownerState.field, signi_soul: newSoulSFLTR as (string | null)[] },
+        };
+        const signNameSFLTR = ctx.cardMap.get(targetSigniSFLTR)?.CardName ?? targetSigniSFLTR;
+        const soulNameSFLTR = ctx.cardMap.get(soulCardSFLTR)?.CardName ?? soulCardSFLTR;
+        return done(addLog({ ...ctx, ownerState: newOwnerSFLTR }, `${soulNameSFLTR}を${signNameSFLTR}の【ソウル】に付与`));
+      }
       // 公開したカード枚数基準パワー修正
       if (stub.id === 'POWER_MOD_PER_REVEALED') {
         const revCount = (ctx.lastProcessedCards ?? []).length;
