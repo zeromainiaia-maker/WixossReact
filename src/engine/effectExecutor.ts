@@ -6787,16 +6787,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'COOKING_BANISH_SUBSTITUTE' || stub.id === 'BLACK_RISE_PLAY_STACK_FROM_TRASH') {
         return done(addLog(ctx, `[ライズ/スタック: ${stub.id}]`));
       }
-      // ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白: 赤か青の支払いを白で代替可能
+      // ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白: CONTINUOUS効果（effectEngine.collectEnergyColorSubsで動的計算）
       if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白') {
-        const existSubs = ctx.ownerState.energy_color_substitutes ?? [];
-        const alreadySet = existSubs.some(s => JSON.stringify(s.from) === JSON.stringify(['赤', '青']) && s.to === '白');
-        if (!alreadySet) {
-          const newSubs = [...existSubs, { from: ['赤', '青'], to: '白' }];
-          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, energy_color_substitutes: newSubs } },
-            '赤/青の支払いを白で代替可能（ENERGY_COLOR_SUBSTITUTE）'));
-        }
-        return done(addLog(ctx, 'エナ色代替設定済み'));
+        return done(addLog(ctx, '[ENERGY_COLOR_SUBSTITUTE: effectEngineで動的処理中]'));
       }
       // エナ代替系（engine: コスト代替システム未実装）
       if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_TRASH' || stub.id === 'ENERGY_SUBSTITUTE_TRASH_SIGNI'
