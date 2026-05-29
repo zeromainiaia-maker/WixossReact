@@ -6934,8 +6934,28 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog(ctx, `コラボ効果（センター：${centerNameCol}）`));
       }
       // GATE: ゲート効果（ログのみ）
+      // GATE: 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可）
       if (stub.id === 'GATE') {
-        return done(addLog(ctx, 'ゲート効果'));
+        const zoneOptsGATE = [0, 1, 2].map(zi => ({
+          id: `gate_zone_${zi}`,
+          label: `相手ゾーン${zi + 1}に【ゲート】設置`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SET_GATE', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog(ctx, '【ゲート】を設置するゾーンを選択'), {
+          type: 'CHOOSE', options: zoneOptsGATE, count: 1,
+        });
+      }
+      if (stub.id === 'INTERNAL_SET_GATE') {
+        const gateZoneIdx = typeof stub.value === 'number' ? stub.value : 0;
+        const currentGates = [...(ctx.otherState.signi_gate_zones ?? [])];
+        if (!currentGates.includes(gateZoneIdx)) currentGates.push(gateZoneIdx);
+        // ゲートゾーンの相手シグニを blocked_actions に追加（アタック不可）
+        const gateTop = ctx.otherState.field.signi[gateZoneIdx]?.at(-1);
+        const blocked = [...(ctx.otherState.blocked_actions ?? [])];
+        if (gateTop) blocked.push(`ATTACK:${gateTop}`);
+        const newOtherGATE = { ...ctx.otherState, signi_gate_zones: currentGates, blocked_actions: blocked };
+        return done(addLog({ ...ctx, otherState: newOtherGATE }, `相手ゾーン${gateZoneIdx + 1}に【ゲート】設置`));
       }
       // OPEN_MAGIC_BOX: マジックボックスを開ける（ログのみ）
       if (stub.id === 'OPEN_MAGIC_BOX') {
