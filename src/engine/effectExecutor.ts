@@ -2469,6 +2469,65 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         return selectOrInteract(newOwner.hand, 1, false, 'self_hand', discardEPDD as EffectAction, undefined, ctxDrawn);
       }
+      // 手札から無色でないカードをエナに置く
+      if (stub.id === 'HAND_NONCOLORLESS_TO_ENERGY') {
+        const nonColorless = ctx.ownerState.hand.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          const color = c?.Color ?? '';
+          return color.length > 0 && color !== '無';
+        });
+        if (nonColorless.length === 0) return done(addLog(ctx, '手札に有色カードなし'));
+        const noopHNE: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contHNE: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_HAND_TO_ENERGY' };
+        const pendingHNE: PendingInteractionDef = {
+          type: 'SELECT_TARGET',
+          candidates: nonColorless,
+          count: 1,
+          optional: true,
+          targetScope: 'self_hand',
+          thenAction: noopHNE as EffectAction,
+          continuation: contHNE as EffectAction,
+        };
+        return needsInteraction(addLog(ctx, '手札から有色カードをエナゾーンに置いてもよい'), pendingHNE);
+      }
+      // 対戦相手のエナゾーンが閾値以上の場合、1枚トラッシュに
+      if (stub.id === 'OPP_ENERGY_EXCESS_TRASH') {
+        const srcOEE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOEE = srcOEE ? (srcOEE.EffectText ?? '') + ' ' + (srcOEE.BurstText ?? '') : '';
+        const toHWOEE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const threshMOEE = txtOEE.match(/エナゾーンにカードが([０-９\d]+)枚以上/);
+        const threshOEE = threshMOEE ? parseInt(toHWOEE(threshMOEE[1])) : 5;
+        if (ctx.otherState.energy.length < threshOEE) {
+          return done(addLog(ctx, `相手エナ${ctx.otherState.energy.length}枚（${threshOEE}枚未満、スキップ）`));
+        }
+        const noopOEE: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contOEE: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_OPP_ENERGY_TO_TRASH' };
+        const pendingOEE: PendingInteractionDef = {
+          type: 'SELECT_TARGET',
+          candidates: ctx.otherState.energy,
+          count: 1,
+          optional: false,
+          targetScope: 'opp_energy',
+          thenAction: noopOEE as EffectAction,
+          continuation: contOEE as EffectAction,
+          opponentResponds: true,
+        };
+        return needsInteraction(addLog(ctx, `相手エナから1枚選びトラッシュへ（${ctx.otherState.energy.length}枚）`), pendingOEE);
+      }
+      if (stub.id === 'INTERNAL_OPP_ENERGY_TO_TRASH') {
+        const selectedOET = ctx.lastProcessedCards ?? [];
+        if (selectedOET.length === 0) return done(addLog(ctx, 'スキップ'));
+        let newOther = { ...ctx.otherState };
+        for (const cn of selectedOET) {
+          const ei = newOther.energy.indexOf(cn);
+          if (ei >= 0) {
+            const newEnergy = [...newOther.energy]; newEnergy.splice(ei, 1);
+            newOther = { ...newOther, energy: newEnergy, trash: [...newOther.trash, cn] };
+          }
+        }
+        const namesOET = selectedOET.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, otherState: newOther }, `${namesOET}を相手エナからトラッシュへ`));
+      }
       // フィールドに他のクラスシグニがない場合、手札を捨てる
       if (stub.id === 'DISCARD_IF_NO_CLASS_SIGNI') {
         const srcDINC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
