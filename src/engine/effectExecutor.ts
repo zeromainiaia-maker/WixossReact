@@ -7879,7 +7879,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           BET_CONDITION: 'ベット条件',
           TRADE_SELF_AND_OPP_TO_ENERGY: '自分と相手をエナに',
           // 真の未ハンドルSTUBをログのみで追加
-          ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白: 'エナ色代用（赤/青→白）',
           END_ATTACK_IF_EXTRA_TURN: '追加ターン時アタック終了',
           SUPPRESS_GAIN_ABILITY: '能力取得を抑制',
           PREVENT_SIGNI_DOWN_BY_OPP: '相手効果によるシグニダウン防止',
