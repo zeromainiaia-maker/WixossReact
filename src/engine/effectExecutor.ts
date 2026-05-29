@@ -3949,6 +3949,82 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsIPU } },
           `${namesIPU}のパワー${deltaIPU > 0 ? '+' : ''}${deltaIPU}`));
       }
+      // デッキトップトラッシュ済みシグニのレベルに基づく全相手シグニパワー修正
+      if (stub.id === 'POWER_MOD_BY_TRASHED_SIGNI_LEVEL') {
+        const lastTrashedPMTSL = ctx.ownerState.trash.at(-1) ?? '';
+        const lvPMTSL = parseInt(ctx.cardMap.get(lastTrashedPMTSL)?.Level ?? '0') || 0;
+        if (lvPMTSL > 0) {
+          const deltaPMTSL = -2000 * lvPMTSL;
+          const modsPMTSL = [...(ctx.otherState.temp_power_mods ?? [])];
+          for (let zi = 0; zi < 3; zi++) {
+            const top = ctx.otherState.field.signi[zi]?.at(-1);
+            if (top) modsPMTSL.push({ cardNum: top, delta: deltaPMTSL });
+          }
+          const namePMTSL = ctx.cardMap.get(lastTrashedPMTSL)?.CardName ?? lastTrashedPMTSL;
+          return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMTSL } },
+            `全相手シグニパワー${deltaPMTSL}（${namePMTSL} Lv${lvPMTSL}）`));
+        }
+        return done(addLog(ctx, 'パワー修正（トラッシュシグニLv0）'));
+      }
+      // 自シグニのパワーの半分だけ全相手シグニをパワーマイナス
+      if (stub.id === 'ALL_OPP_SIGNI_POWER_DOWN_HALF') {
+        const selfPowerAOSPDH = ctx.effectivePowers?.get(ctx.sourceCardNum ?? '')
+          ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Power ?? '0', 10);
+        const halfPowerAOSPDH = Math.floor(selfPowerAOSPDH / 2);
+        if (halfPowerAOSPDH > 0) {
+          const modsAOSPDH = [...(ctx.otherState.temp_power_mods ?? [])];
+          for (let zi = 0; zi < 3; zi++) {
+            const top = ctx.otherState.field.signi[zi]?.at(-1);
+            if (top) modsAOSPDH.push({ cardNum: top, delta: -halfPowerAOSPDH });
+          }
+          return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsAOSPDH } },
+            `全相手シグニパワー-${halfPowerAOSPDH}（自パワー${selfPowerAOSPDH}の半分）`));
+        }
+        return done(addLog(ctx, '全相手シグニパワー半減（自パワー0）'));
+      }
+      // エナゾーンからカード1枚選んでトラッシュ（SELECT→INTERNAL）
+      if (stub.id === 'ENERGY_TO_TRASH') {
+        const selfEnergyETT = ctx.ownerState.energy;
+        if (selfEnergyETT.length === 0) return done(addLog(ctx, 'エナゾーンにカードなし（ENERGY_TO_TRASH）'));
+        const noopETT: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contETT: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_ENERGY_TO_TRASH' };
+        return needsInteraction(addLog(ctx, 'エナゾーンからカードを選択（トラッシュへ）'), {
+          type: 'SELECT_TARGET', candidates: selfEnergyETT, count: 1, optional: false,
+          targetScope: 'self_energy', thenAction: noopETT as EffectAction, continuation: contETT as EffectAction,
+        });
+      }
+      // ENERGY_TO_TRASH の後処理：選択したエナカードをトラッシュへ
+      if (stub.id === 'INTERNAL_ENERGY_TO_TRASH') {
+        const selectedETT = ctx.lastProcessedCards ?? [];
+        if (selectedETT.length === 0) return done(addLog(ctx, 'なし（INTERNAL_ENERGY_TO_TRASH）'));
+        const newEnergyETT = ctx.ownerState.energy.filter(cn => !selectedETT.includes(cn));
+        const newTrashETT = [...ctx.ownerState.trash, ...selectedETT];
+        const newOwnerETT = { ...ctx.ownerState, energy: newEnergyETT, trash: newTrashETT };
+        const nameETT = selectedETT.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, ownerState: newOwnerETT }, `エナゾーン：${nameETT}→トラッシュ`));
+      }
+      // デッキ上のクラスシグニを最大2枚選んでエナゾーンへ（LOOK_AND_REORDER後）
+      if (stub.id === 'CLASS_SIGNI_TO_ENERGY') {
+        const srcCSTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCSTE = srcCSTE ? (srcCSTE.EffectText ?? '') + ' ' + (srcCSTE.BurstText ?? '') : '';
+        const toHWCSTE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const classMatchCSTE = txtCSTE.match(/[<＜《]([^>＞》]+)[>＞»]のシグニ(?:を([０-９\d]*)枚まで|を([０-９\d]*)体まで)/);
+        const targetClassCSTE = classMatchCSTE?.[1];
+        const maxPickCSTE = parseInt(toHWCSTE(classMatchCSTE?.[2] ?? classMatchCSTE?.[3] ?? '2')) || 2;
+        const topCardsCSTE = ctx.ownerState.deck.slice(0, 4);
+        const filteredCSTE = topCardsCSTE.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (c?.Type !== 'シグニ') return false;
+          if (targetClassCSTE && !c.CardClass?.includes(targetClassCSTE)) return false;
+          return true;
+        });
+        if (filteredCSTE.length === 0) return done(addLog(ctx, 'デッキ上にクラスシグニなし（CLASS_SIGNI_TO_ENERGY）'));
+        const addToEnergyCSTE: import('../types/effects').AddToEnergyAction = { type: 'ADD_TO_ENERGY', owner: 'self' };
+        return needsInteraction(addLog(ctx, `デッキ上4枚からシグニを${maxPickCSTE}枚まで選択（エナゾーンへ）`), {
+          type: 'SEARCH', visibleCards: filteredCSTE, maxPick: maxPickCSTE,
+          thenAction: addToEnergyCSTE as EffectAction,
+        });
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
