@@ -5843,6 +5843,13 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO:
       // 相手シグニをサーバントゼロ（Color='無色', CardClass='無', abilities_removed）にする
       if (stub.id === 'ALL_OPP_SIGNI_SERVANT_ZERO' || stub.id === 'MAKE_SERVANT_ZERO' || stub.id === 'MAKE_MULTI_SERVANT_ZERO' || stub.id === 'SIGNI_SERVANT_ZERO') {
+        // MAKE_SERVANT_ZERO: 相手シグニ1体をSELECT_TARGETで選択してからサーバントゼロに
+        if ((stub.id === 'MAKE_SERVANT_ZERO' || stub.id === 'SIGNI_SERVANT_ZERO') && !ctx.lastProcessedCards?.length) {
+          const oppSigniMSZ = [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
+          if (oppSigniMSZ.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし（SERVANT_ZERO）'));
+          const applyMSZ: import('../types/effects').StubAction = { type: 'STUB', id: stub.id };
+          return selectOrInteract(oppSigniMSZ, 1, false, 'opp_field', applyMSZ as EffectAction, undefined, ctx);
+        }
         // サーバントゼロ: 相手フィールドのシグニを能力消去 + ストーリーをサーバント0に
         const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards :
           [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
