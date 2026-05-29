@@ -425,7 +425,7 @@ function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<s
   return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
 }
 
-function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>, allMulti?: boolean): boolean {
+function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>, allMulti?: boolean, colorlessOverrides?: string[]): boolean {
   const costs = parseGrowCost(growCost);
   if (costs.length === 0) return true;
   // 色指定コストを先に処理し、マルチエナをワイルドカードとして温存する
@@ -433,7 +433,9 @@ function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: st
   type P = { color: string; isWild: boolean };
   let pool: P[] = energyNums.map(n => {
     const c = cards.find(cd => cd.CardNum === getCardNum(n));
-    return { color: c?.Color ?? '無', isWild: isMultiEna(n, cards, keywordGrants, allMulti) };
+    // colorless_card_overrides に含まれるカードは全ゾーンで無色扱い
+    const isColorless = colorlessOverrides?.includes(getCardNum(n)) || colorlessOverrides?.includes(n);
+    return { color: isColorless ? '無' : (c?.Color ?? '無'), isWild: !isColorless && isMultiEna(n, cards, keywordGrants, allMulti) };
   });
   for (const { color, count } of sorted) {
     let needed = count;
