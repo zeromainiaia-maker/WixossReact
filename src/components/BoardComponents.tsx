@@ -395,9 +395,10 @@ export interface StackedSigniSlotProps {
   acceCardNum?: string | null;
   virusCount?: number;
   isMe?: boolean;
+  trapCardNum?: string | null;
 }
 
-export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, isMe }: StackedSigniSlotProps) {
+export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, isMe, trapCardNum }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
   const touchPos = useRef<{ x: number; y: number } | null>(null);
@@ -424,9 +425,18 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
         <div style={{
           width, height, flexShrink: 0, borderRadius: charmCardNum ? '4px 4px 0 0' : 4,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: C.borderEmpty, backgroundColor: C.bgCardEmpty,
+          position: 'relative',
+          border: trapCardNum ? '1px dashed #ffd700' : C.borderEmpty,
+          backgroundColor: trapCardNum ? 'rgba(40,30,0,0.6)' : C.bgCardEmpty,
         }}>
-          <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+          {trapCardNum ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>🪤</span>
+              <span style={{ fontSize: 7, color: '#ffd700', fontWeight: 'bold', lineHeight: 1 }}>TRAP</span>
+            </div>
+          ) : (
+            <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+          )}
         </div>
         {charmCardNum && (
           <CharmPeek width={width} onTap={() => setShowCharmModal(true)} />
@@ -559,6 +569,16 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
           }}>
             ACE
+          </div>
+        )}
+        {trapCardNum && (
+          <div style={{
+            position: 'absolute', bottom: extraH + 2, left: 2,
+            backgroundColor: 'rgba(80,60,0,0.9)', color: '#ffd700',
+            fontSize: 7, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
+          }}>
+            TRAP
           </div>
         )}
       </div>
@@ -852,6 +872,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             charmCardNum={state.field.signi_charms?.[rawIdx] ?? null}
             acceCardNum={state.field.signi_acce?.[rawIdx] ?? null}
             virusCount={state.field.signi_virus?.[rawIdx] ?? 0}
+            trapCardNum={state.field.signi_traps?.[rawIdx] ?? null}
             isMe={isMe} />
         );
       })}

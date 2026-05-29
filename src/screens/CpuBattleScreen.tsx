@@ -125,6 +125,11 @@ interface CpuGameState {
   burstOwner: 'player' | 'cpu' | null;
   guardPending: boolean;
   guardOwner: 'player' | 'cpu' | null;
+  trapActivation: {
+    zone: number;
+    trapCard: string;
+    defenderSide: 'player' | 'cpu';
+  } | null;
 }
 
 interface Props {
@@ -193,6 +198,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       attackingSigniIdx: null, signiAttackQueue: [],
       burstCard: null, burstOwner: null,
       guardPending: false, guardOwner: null,
+      trapActivation: null,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -326,6 +332,14 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const defInstId = defStack?.at(-1);
 
     if (!defInstId) {
+      // トラップチェック：防御側のゾーンにトラップがあれば発動トリガー
+      const defTrapCard = defender.field.signi_traps?.[zoneIdx] ?? null;
+      if (defTrapCard) {
+        const defenderSide: 'player' | 'cpu' = g.turnPlayer === 'player' ? 'cpu' : 'player';
+        appendLog(`【トラップ】トリガー（${cardMap.get(defTrapCard)?.CardName ?? defTrapCard}）`);
+        return { ...setMyState(g, newAttacker), trapActivation: { zone: zoneIdx, trapCard: defTrapCard, defenderSide } };
+      }
+
       if (defender.life_cloth.length === 0) {
         appendLog(`${attkCard.CardName} がアタック → 相手ライフなし`);
         return checkWin(setMyState(setOppState(g, defender), newAttacker));
@@ -454,6 +468,69 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     return ng;
   }, [effectsMap, cardMap, appendLog, checkWin]);
 
+  // ======= トラップ処理 =======
+  const resolveTrap = useCallback((g: CpuGameState, activate: boolean): CpuGameState => {
+    const { trapActivation } = g;
+    if (!trapActivation) return g;
+    const { zone, trapCard, defenderSide } = trapActivation;
+    let ng: CpuGameState = { ...g, trapActivation: null };
+
+    // 1. トラップ発動（選択した場合）
+    if (activate) {
+      const effs = effectsMap.get(trapCard) ?? [];
+      const trapEff = effs.find(e => e.effectType === 'TRAP_ICON');
+      if (trapEff) {
+        const owner = defenderSide === 'player' ? ng.player : ng.cpu;
+        const other = defenderSide === 'player' ? ng.cpu : ng.player;
+        const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
+        const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: trapCard };
+        const result = executeEffect(trapEff, ctx);
+        for (const l of result.logs) appendLog(l);
+        ng = defenderSide === 'player'
+          ? { ...ng, player: result.ownerState, cpu: result.otherState }
+          : { ...ng, cpu: result.ownerState, player: result.otherState };
+        appendLog(`【トラップアイコン】発動！`);
+        if (!result.done && result.pending) {
+          return { ...ng, pendingInteraction: result.pending, pendingOwner: defenderSide };
+        }
+      } else {
+        appendLog(`トラップアイコン効果なし（${cardMap.get(trapCard)?.CardName ?? trapCard}）`);
+      }
+    } else {
+      appendLog(`トラップ未発動`);
+    }
+
+    // 2. 発動した場合のみトラップをトラッシュへ
+    if (activate) {
+      const defState = defenderSide === 'player' ? ng.player : ng.cpu;
+      const newTraps = [...(defState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+      newTraps[zone] = null;
+      const newDefState = { ...defState, field: { ...defState.field, signi_traps: newTraps }, trash: [...defState.trash, trapCard] };
+      ng = defenderSide === 'player' ? { ...ng, player: newDefState } : { ...ng, cpu: newDefState };
+    }
+
+    // 3. アタック継続（ライフクラッシュ）
+    const defender = defenderSide === 'player' ? ng.player : ng.cpu;
+    if (defender.life_cloth.length === 0) {
+      appendLog('アタック継続 → 相手ライフなし');
+      return checkWin(ng);
+    }
+    const crashed = defender.life_cloth[defender.life_cloth.length - 1];
+    const newLife = defender.life_cloth.slice(0, -1);
+    const crashedCard = cardMap.get(crashed);
+    appendLog(`アタック継続 → ライフクラッシュ: ${crashedCard?.CardName ?? crashed}`);
+    const newDefAfterCrash = { ...defender, life_cloth: newLife, energy: [...defender.energy, crashed] };
+    ng = defenderSide === 'player'
+      ? { ...ng, player: newDefAfterCrash }
+      : { ...ng, cpu: newDefAfterCrash };
+    ng = checkWin(ng);
+    if (ng.winner) return ng;
+    if ((crashedCard?.LifeBurst ?? '0') === '1') {
+      return { ...ng, burstCard: crashed, burstOwner: defenderSide };
+    }
+    return ng;
+  }, [effectsMap, cardMap, appendLog, checkWin]);
+
   // ======= 効果インタラクション解決 =======
   const resolveInteraction = useCallback((g: CpuGameState, selectedNums: string[]): CpuGameState => {
     if (!g.pendingInteraction || !g.pendingOwner) return g;
@@ -539,10 +616,10 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
 
   // ======= CPUターンのuseEffect =======
   useEffect(() => {
-    if (!gs || gs.winner || gs.pendingInteraction || gs.burstCard || gs.turnPlayer !== 'cpu') return;
+    if (!gs || gs.winner || gs.pendingInteraction || gs.burstCard || gs.trapActivation || gs.turnPlayer !== 'cpu') return;
     cpuTimerRef.current = setTimeout(() => {
       setGs(prev => {
-        if (!prev || prev.winner || prev.pendingInteraction || prev.burstCard || prev.turnPlayer !== 'cpu') return prev;
+        if (!prev || prev.winner || prev.pendingInteraction || prev.burstCard || prev.trapActivation || prev.turnPlayer !== 'cpu') return prev;
         return cpuAction(prev);
       });
     }, CPU_DELAY);
@@ -558,9 +635,18 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
   }, [gs?.burstCard, gs?.burstOwner, resolveBurst]);
 
+  // CPU側トラップは自動発動
+  useEffect(() => {
+    if (!gs || !gs.trapActivation || gs.trapActivation.defenderSide !== 'cpu') return;
+    cpuTimerRef.current = setTimeout(() => {
+      setGs(prev => prev?.trapActivation ? resolveTrap(prev, true) : prev);
+    }, CPU_DELAY);
+    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
+  }, [gs?.trapActivation, resolveTrap]);
+
   // UP/DRAW/ENDフェイズ（プレイヤーも自動）
   useEffect(() => {
-    if (!gs || gs.winner || gs.turnPlayer !== 'player' || gs.pendingInteraction || gs.burstCard) return;
+    if (!gs || gs.winner || gs.turnPlayer !== 'player' || gs.pendingInteraction || gs.burstCard || gs.trapActivation) return;
     if (gs.phase !== 'UP' && gs.phase !== 'DRAW' && gs.phase !== 'END') return;
     cpuTimerRef.current = setTimeout(() => {
       setGs(prev => {
@@ -584,7 +670,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   };
 
   const handleSigniAttackAction = (zoneIdx: number) => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return;
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return;
     if (gs.phase !== 'ATTACK_SIGNI') return;
     const isDown = gs.player.field.signi_down?.[zoneIdx] ?? false;
     const stack = gs.player.field.signi[zoneIdx];
@@ -593,13 +679,13 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   };
 
   const handleLrigAttackAction = () => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return;
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return;
     if (gs.phase !== 'ATTACK_LRIG' || gs.player.field.lrig_down) return;
     setGs(prev => prev ? lrigAttack(prev) : prev);
   };
 
   const handleEndPhase = () => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return;
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return;
     setGs(prev => prev ? advancePhase(prev) : prev);
   };
 
@@ -628,7 +714,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
 
   // ======= PlayerField用のアクションゲッター =======
   const getPlayerSigniZoneActions = useCallback((rawZoneIdx: number): CardAction[] => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return [];
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return [];
     if (gs.phase === 'ATTACK_SIGNI') {
       const stack = gs.player.field.signi[rawZoneIdx];
       const isDown = gs.player.field.signi_down?.[rawZoneIdx] ?? false;
@@ -643,7 +729,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   }, [gs, selectedHandIdx]);
 
   const getPlayerLrigFieldActions = useCallback((): CardAction[] => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return [];
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return [];
     if (gs.phase === 'ATTACK_LRIG' && !gs.player.field.lrig_down) {
       return [{ label: 'アタック', color: C.danger, onClick: handleLrigAttackAction }];
     }
@@ -651,7 +737,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   }, [gs]);
 
   const getPlayerHandCardActions = useCallback((cardNum: string, index: number): CardAction[] => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return [];
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return [];
     if (gs.phase === 'ENERGY') {
       return [{ label: 'エナチャージ', color: C.accent, onClick: () => handleEnergySelect(index) }];
     }
@@ -686,7 +772,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
 
   const isPlayerTurn = gs.turnPlayer === 'player';
 
-  const canEndPhase = isPlayerTurn && !gs.winner && !gs.burstCard && !gs.pendingInteraction
+  const canEndPhase = isPlayerTurn && !gs.winner && !gs.burstCard && !gs.pendingInteraction && !gs.trapActivation
     && ['MAIN', 'ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG', 'ENERGY', 'GROW'].includes(gs.phase);
 
   const phaseBtn: Partial<Record<TurnPhase, string>> = {
@@ -850,6 +936,42 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: C.accent, color: C.text, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
                       発動する
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* トラップ確認ダイアログ（プレイヤー側） */}
+      {gs.trapActivation && gs.trapActivation.defenderSide === 'player' && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 4500, backgroundColor: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12, padding: '24px 20px', width: 'min(88vw, 340px)', display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center' }}>
+            {(() => {
+              const trapCn = getCardNum(gs.trapActivation.trapCard);
+              const tcard = cards.find(c => c.CardNum === trapCn);
+              return (
+                <>
+                  <p style={{ color: '#ffd700', fontSize: 15, fontWeight: 'bold', margin: 0 }}>【トラップ】トリガー！</p>
+                  {tcard && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <img src={tcard.ImgURL} alt={tcard.CardName}
+                        style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6, boxShadow: '0 0 14px #ffd700' }}
+                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                      <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>{tcard.CardName}</p>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={() => setGs(prev => prev?.trapActivation ? resolveTrap(prev, false) : prev)}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textDim, fontSize: 14, cursor: 'pointer' }}>
+                      発動しない
+                    </button>
+                    <button onClick={() => setGs(prev => prev?.trapActivation ? resolveTrap(prev, true) : prev)}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none', backgroundColor: '#ffd700', color: '#000', fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+                      《トラップアイコン》発動
                     </button>
                   </div>
                 </>

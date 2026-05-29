@@ -21,6 +21,7 @@ export type EffectTiming =
   | 'ON_TURN_START'    // ターン開始時
   | 'ON_TURN_END'      // ターン終了時
   | 'ON_OPP_ARTS_USE'  // 相手がアーツを使用したとき（自分フィールドのシグニがトリガー）
+  | 'ON_TRAP_ACTIVATE' // トラップアイコン発動時
   | 'ON_REVEALED_FROM_HAND' // このカードが効果によって手札から公開されたとき
   | 'ON_ENERGY_FROM_TRASH'; // このカードがトラッシュからエナゾーンに置かれたとき
 
