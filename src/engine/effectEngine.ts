@@ -87,7 +87,7 @@ export function checkActiveCondition(
     }
 
     case 'AND':
-      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum));
+      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers));
   }
   return true;
 }
