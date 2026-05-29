@@ -6675,20 +6675,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'LEVEL_MOD_PER_COUNT' || stub.id === 'SET_LEVEL_RANGE') {
         return done(addLog(ctx, `[レベル修正: ${stub.id}]`));
       }
-      // PREVENT_ZONE_MOVE_BY_OPP: 相手の効果でエナ/手札をトラッシュに移動させない
+      // PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS効果（effectEngine.collectProtectedZonesで動的計算）
       if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
-        const srcPZMO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-        const txtPZMO = srcPZMO ? (srcPZMO.EffectText ?? '') + ' ' + (srcPZMO.BurstText ?? '') : '';
-        const protectZones: ('hand' | 'energy')[] = [];
-        if (txtPZMO.includes('エナゾーン') && txtPZMO.includes('トラッシュに移動しない')) protectZones.push('energy');
-        if (txtPZMO.includes('手札') && txtPZMO.includes('トラッシュに移動しない')) protectZones.push('hand');
-        if (protectZones.length > 0) {
-          const curProtect = ctx.ownerState.prevent_opp_trash_from ?? [];
-          const newProtect = [...new Set([...curProtect, ...protectZones])] as ('hand' | 'energy')[];
-          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_opp_trash_from: newProtect } },
-            `保護：相手効果で${protectZones.join('/')}→トラッシュ不可`));
-        }
-        return done(addLog(ctx, `[PREVENT_ZONE_MOVE_BY_OPP: 対象ゾーン不明]`));
+        return done(addLog(ctx, '[PREVENT_ZONE_MOVE_BY_OPP: effectEngineで動的処理中]'));
       }
       // 保護・移動防止系（engine: 各防止フラグシステム未実装）
       if (stub.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH'
