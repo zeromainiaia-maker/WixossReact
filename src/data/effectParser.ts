@@ -5868,9 +5868,19 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
   }
 
+  // ---- 次の対戦相手のターン〜場に出せない（配置制限）----
+  if (t.match(/^次の対戦相手のターン(?:終了時まで|の間|、)/) && t.includes('場に出せない')) {
+    return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
+  }
+
   // ---- 次の対戦相手のターン〜（一時的制限）----
   if (t.match(/^次の対戦相手のターン(?:終了時まで|の間|、)/)) {
     return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+  }
+
+  // ---- このターン、対戦相手が場に出せない（配置制限）----
+  if (t.match(/^このターン、対戦相手(?:が|は)/) && t.includes('場に出せない')) {
+    return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
   }
 
   // ---- このターン、対戦相手が〜（アタック制限・コスト条件）----
