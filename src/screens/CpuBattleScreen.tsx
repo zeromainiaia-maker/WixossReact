@@ -946,6 +946,42 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
         document.body,
       )}
 
+      {/* トラップ確認ダイアログ（プレイヤー側） */}
+      {gs.trapActivation && gs.trapActivation.defenderSide === 'player' && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 4500, backgroundColor: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12, padding: '24px 20px', width: 'min(88vw, 340px)', display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center' }}>
+            {(() => {
+              const trapCn = getCardNum(gs.trapActivation.trapCard);
+              const tcard = cards.find(c => c.CardNum === trapCn);
+              return (
+                <>
+                  <p style={{ color: '#ffd700', fontSize: 15, fontWeight: 'bold', margin: 0 }}>【トラップ】トリガー！</p>
+                  {tcard && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <img src={tcard.ImgURL} alt={tcard.CardName}
+                        style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6, boxShadow: '0 0 14px #ffd700' }}
+                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                      <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>{tcard.CardName}</p>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={() => setGs(prev => prev?.trapActivation ? resolveTrap(prev, false) : prev)}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textDim, fontSize: 14, cursor: 'pointer' }}>
+                      発動しない
+                    </button>
+                    <button onClick={() => setGs(prev => prev?.trapActivation ? resolveTrap(prev, true) : prev)}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none', backgroundColor: '#ffd700', color: '#000', fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+                      《トラップアイコン》発動
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* 効果インタラクション（SELECT_TARGET） */}
       {gs.pendingInteraction?.type === 'SELECT_TARGET' && gs.pendingOwner === 'player' && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 5000, backgroundColor: 'rgba(0,0,0,0.9)',
