@@ -6580,9 +6580,81 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           : '相手があなたのために選ぶ';
         return done(addLog(ctx, labelODC));
       }
-      // DO_THREE_THINGS: 3つの処理を実行（汎用ログ）
+      // DO_THREE_THINGS: 3〜4つの処理を動的解析して実行
       if (stub.id === 'DO_THREE_THINGS') {
-        return done(addLog(ctx, '3つの処理（個別解析要）'));
+        const srcDTT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtDTT = srcDTT ? (srcDTT.EffectText ?? '') + ' ' + (srcDTT.BurstText ?? '') : '';
+        let ctxDTT = ctx;
+        const logsDTT: string[] = [];
+        // ①「対戦相手のシグニ1体をトラッシュに置く」
+        if (txtDTT.match(/①.*対戦相手のシグニ[１1]体を対象とし.*トラッシュに置く/)) {
+          const oppTopSigni = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).find(cn => !!cn);
+          if (oppTopSigni) {
+            const removedDTT = removeFromField(oppTopSigni, ctxDTT.otherState);
+            ctxDTT = { ...ctxDTT, otherState: { ...removedDTT, trash: [...removedDTT.trash, oppTopSigni] } };
+            logsDTT.push(`①${ctx.cardMap.get(oppTopSigni)?.CardName ?? oppTopSigni}をトラッシュへ`);
+          }
+        }
+        // ②「対戦相手のライフクロス1枚をトラッシュに置く」
+        if (txtDTT.match(/②.*ライフクロス[１1]枚をトラッシュに置く/)) {
+          const life = ctxDTT.otherState.life_cloth;
+          if (life.length > 0) {
+            const top = life[life.length - 1];
+            ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
+              life_cloth: life.slice(0,-1),
+              trash: [...ctxDTT.otherState.trash, top],
+            }};
+            logsDTT.push(`②ライフクロス(${ctx.cardMap.get(top)?.CardName ?? top})をトラッシュへ`);
+          }
+        }
+        // ③「対戦相手のエナゾーンからカード1枚をトラッシュに置く」
+        if (txtDTT.match(/③.*エナゾーンからカード[１1]枚を対象とし.*トラッシュに置く/)) {
+          const oppEna = ctxDTT.otherState.energy;
+          if (oppEna.length > 0) {
+            const picked = oppEna[0];
+            ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
+              energy: oppEna.slice(1),
+              trash: [...ctxDTT.otherState.trash, picked],
+            }};
+            logsDTT.push(`③エナ(${ctx.cardMap.get(picked)?.CardName ?? picked})をトラッシュへ`);
+          }
+        }
+        // ④「対戦相手のセンタールリグの下のカード1枚をルリグトラッシュに置く」
+        if (txtDTT.match(/④.*センタールリグの下にあるカード[１1]枚を対象とし.*ルリグトラッシュに置く/)) {
+          const oppLrigStack = ctxDTT.otherState.field.lrig;
+          if (oppLrigStack.length > 1) {
+            const under = oppLrigStack[oppLrigStack.length - 2];
+            const newLrigDTT = [...oppLrigStack.slice(0,-1).slice(0,-1), oppLrigStack[oppLrigStack.length - 1]];
+            ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
+              field: { ...ctxDTT.otherState.field, lrig: newLrigDTT },
+              lrig_trash: [...ctxDTT.otherState.lrig_trash, under],
+            }};
+            logsDTT.push(`④${ctx.cardMap.get(under)?.CardName ?? under}をルリグトラッシュへ`);
+          }
+        }
+        // 「対戦相手の全ルリグとシグニをダウンし凍結する」
+        if (txtDTT.match(/①.*(?:すべてのルリグとシグニ|全.*ルリグ.*シグニ)をダウンし凍結する/)) {
+          const newSigniDownDTT = [true, true, true];
+          const newSigniFrozenDTT = [true, true, true];
+          ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
+            field: { ...ctxDTT.otherState.field,
+              signi_down: newSigniDownDTT,
+              signi_frozen: newSigniFrozenDTT,
+              lrig_down: true,
+              lrig_frozen: true,
+            },
+          }};
+          logsDTT.push('①全シグニ・ルリグをダウン+凍結');
+        }
+        // 「全相手シグニが能力を失う（次ターン終了まで）」
+        if (txtDTT.match(/②.*すべてのシグニは能力を失う/)) {
+          const oppAllSigniDTT = [0,1,2].map(zi => ctxDTT.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
+          const abRemovedDTT = [...new Set([...(ctxDTT.otherState.abilities_removed ?? []), ...oppAllSigniDTT])];
+          ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState, abilities_removed: abRemovedDTT } };
+          logsDTT.push(`②全${oppAllSigniDTT.length}体の能力を消去`);
+        }
+        if (logsDTT.length > 0) return done(addLog(ctxDTT, logsDTT.join(' / ')));
+        return done(addLog(ctx, '3つの処理（個別解析不可）'));
       }
       // CONDITIONAL_MULTI_CHOOSE_BY_CENTER: センタールリグによる複数選択
       if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER') {
