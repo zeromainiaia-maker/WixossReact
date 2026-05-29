@@ -2832,8 +2832,28 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog(ctx, 'ルリグ制限効果（ログのみ）'));
       }
       // カード名コピー系
+      // COPY_LRIG_NAME_ABILITY: ルリグトラッシュのルリグ名/タイプを現在のルリグに追加
       if (stub.id === 'COPY_LRIG_NAME_ABILITY') {
-        return done(addLog(ctx, 'ルリグ名コピー（ログのみ）'));
+        const srcCLNA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCLNA = srcCLNA ? (srcCLNA.EffectText ?? '') + ' ' + (srcCLNA.BurstText ?? '') : '';
+        // 「ルリグトラッシュにあるレベルNの＜ストーリー名＞と同じカード名としても扱う」
+        const aliasM = txtCLNA.match(/ルリグトラッシュにある(?:レベル[０-９\d]+の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名としても扱う/);
+        if (aliasM) {
+          const storyName = aliasM[1];
+          // ルリグトラッシュから対象ストーリーのルリグを探す
+          const targetLrig = ctx.ownerState.lrig_trash.find(cn => {
+            const c = ctx.cardMap.get(cn);
+            return c?.CardClass?.includes(storyName) || c?.Story?.includes(storyName) || c?.CardName?.includes(storyName);
+          });
+          const aliasName = targetLrig ? (ctx.cardMap.get(targetLrig)?.CardName ?? storyName) : storyName;
+          const currentAliases = ctx.ownerState.lrig_name_aliases ?? [];
+          if (!currentAliases.includes(aliasName)) {
+            const newOwner = { ...ctx.ownerState, lrig_name_aliases: [...currentAliases, aliasName] };
+            return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグが「${aliasName}」名としても扱われる`));
+          }
+          return done(addLog(ctx, `ルリグ名エイリアス（${aliasName}）設定済み`));
+        }
+        return done(addLog(ctx, 'ルリグ名コピー（テキスト解析不可）'));
       }
       // 条件付きアーツコスト（条件チェックのみ・タイミング変更はBattleScreen側未実装）
       if (stub.id === 'CONDITIONAL_ARTS_COST') {
