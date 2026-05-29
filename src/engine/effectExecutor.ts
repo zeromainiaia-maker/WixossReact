@@ -6078,15 +6078,50 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'GUARD_ALTERNATIVE_COST' || stub.id === 'EXTRA_GUARD_COST_FROM_HAND' || stub.id === 'OPTIONAL_TRADE_GUARD_SIGNI') {
         return done(addLog(ctx, `[ガードコスト: ${stub.id}]`));
       }
+      // 選んだキーワード能力付与（シグニ対象・CHOOSEインタラクション）
+      if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF'
+          || stub.id === 'SIGNI_GRANT_CHOSEN_ABILITY') {
+        const srcGCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtGCA = srcGCA ? (srcGCA.EffectText ?? '') + ' ' + (srcGCA.BurstText ?? '') : '';
+        // 既知キーワードを選択肢として抽出
+        const knownKwsGCA = ['アサシン', 'ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'シャドウ', 'バニッシュ無効'];
+        const choiceKwsGCA = knownKwsGCA.filter(kw => txtGCA.includes(`【${kw}】`) || txtGCA.includes(kw));
+        if (choiceKwsGCA.length > 0) {
+          // 対象シグニを決定（lastProcessedCards or sourceCardNum）
+          const targetSigniGCA = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum ?? null;
+          if (!targetSigniGCA) return done(addLog(ctx, '能力付与対象なし'));
+          const optionsGCA = choiceKwsGCA.map(kw => ({
+            id: kw,
+            label: `【${kw}】を付与`,
+            action: ({ type: 'STUB', id: 'INTERNAL_GRANT_KEYWORD_TO_TARGET', value: `${targetSigniGCA}:${kw}` } as import('../types/effects').StubAction) as EffectAction,
+            available: true,
+          }));
+          return needsInteraction(addLog(ctx, '能力を選んでください'), { type: 'CHOOSE', options: optionsGCA, count: 1 });
+        }
+        return done(addLog(ctx, `[能力付与: ${stub.id}]（キーワード解析不可）`));
+      }
+      // INTERNAL_GRANT_KEYWORD_TO_TARGET: 選択されたキーワードを対象シグニに付与
+      if (stub.id === 'INTERNAL_GRANT_KEYWORD_TO_TARGET') {
+        const valIGKTT = typeof stub.value === 'string' ? stub.value : '';
+        const [targetCnIGKTT, kwIGKTT] = valIGKTT.split(':');
+        if (!targetCnIGKTT || !kwIGKTT) return done(addLog(ctx, 'キーワード付与失敗（引数不正）'));
+        const grantsIGKTT = { ...(ctx.ownerState.keyword_grants ?? {}) };
+        grantsIGKTT[targetCnIGKTT] = [...new Set([...(grantsIGKTT[targetCnIGKTT] ?? []), kwIGKTT])];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsIGKTT } },
+          `${ctx.cardMap.get(targetCnIGKTT)?.CardName ?? targetCnIGKTT}に【${kwIGKTT}】付与`));
+      }
+      // GRANT_CHOSEN_ABILITY_FROM_PLAY: プレイ時選んだ能力を自シグニに付与（ログのみ）
+      if (stub.id === 'GRANT_CHOSEN_ABILITY_FROM_PLAY') {
+        return done(addLog(ctx, '[能力付与（プレイ時選択）: 複雑効果スキップ]'));
+      }
       // 能力付与系（engine: CardEffect付与システム未実装）
-      if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_FROM_PLAY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF'
-          || stub.id === 'GRANT_LRIG_ABILITY' || stub.id === 'GRANT_LRIG_TRASH_ACTIVATE_ABILITY'
+      if (stub.id === 'GRANT_LRIG_ABILITY' || stub.id === 'GRANT_LRIG_TRASH_ACTIVATE_ABILITY'
           || stub.id === 'GRANT_UNDER_LRIG_ACTIVATE_ABILITY' || stub.id === 'GRANT_UNDER_LRIG_AUTO_ABILITY'
           || stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES' || stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY'
           || stub.id === 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE' || stub.id === 'GRANT_ABILITY_UNTIL_OPP_TURN'
           || stub.id === 'GRANT_SIGNI_CLASS' || stub.id === 'LAYER_ABILITY_COPY' || stub.id === 'COPY_ABILITY'
           || stub.id === 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY' || stub.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY'
-          || stub.id === 'SIGNI_GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_LRIG_TYPE_GAME_WIDE') {
+          || stub.id === 'GRANT_LRIG_TYPE_GAME_WIDE') {
         return done(addLog(ctx, `[能力付与: ${stub.id}]`));
       }
       // ライズ/スタック系（engine: ライズシステム未実装）
