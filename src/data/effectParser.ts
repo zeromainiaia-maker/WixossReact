@@ -6562,7 +6562,7 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- 正面に加え両隣にもアタック（トリプルアタック） ----
   if (t.match(/正面に加えてその両隣のシグニゾーンにもアタックする/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'MULTI_ZONE_ATTACK' } as StubAction;
 
   // ---- 追加ターン/追加フェイズのルール注釈 ----
   if (t.match(/この方法で追加されたターンの.+の間、あなたは/) ||
