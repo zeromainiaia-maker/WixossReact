@@ -7266,13 +7266,32 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           targetScope: 'self_hand', thenAction: noopCHOE as EffectAction,
         });
       }
-      // OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU:
-      //   対戦相手が選択する効果（ログのみ）
+      // OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
       if (stub.id === 'OPP_DECLARE_CHOICE' || stub.id === 'OPP_CHOOSE_EFFECT' || stub.id === 'OPP_CHOOSES_FOR_YOU') {
-        const labelODC = stub.id === 'OPP_DECLARE_CHOICE' ? '相手が宣言する'
-          : stub.id === 'OPP_CHOOSE_EFFECT' ? '相手が効果を選ぶ'
-          : '相手があなたのために選ぶ';
-        return done(addLog(ctx, labelODC));
+        const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtODC = srcODC ? (srcODC.EffectText ?? '') + ' ' + (srcODC.BurstText ?? '') : '';
+        // ①②パターンを解析
+        const choicePatsODC = [{ m: /①([^②③]+)/, idx: 0 }, { m: /②([^③④]+)/, idx: 1 }];
+        const optsODC: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+        for (const { m, idx } of choicePatsODC) {
+          const mat = txtODC.match(m);
+          if (!mat) continue;
+          const ctxt = mat[1].replace(/。\s*$/, '').trim();
+          let act: EffectAction | null = null;
+          if (ctxt.match(/デッキの上からカードを([０-９\d]+)枚トラッシュ/)) {
+            const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+            const cnt = parseInt(toHW(ctxt.match(/([０-９\d]+)枚/)![1]));
+            act = ({ type: 'STUB', id: 'INTERNAL_DECK_TRASH_BOTH', value: cnt } as import('../types/effects').StubAction) as EffectAction;
+          }
+          if (!act && ctxt.match(/手札.+を.+加える/)) act = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as import('../types/effects').TransferToHandAction;
+          if (act) optsODC.push({ id: `odc_${idx}`, label: `${'①②'[idx]}${ctxt.slice(0, 20)}...`, action: act, available: true });
+        }
+        if (optsODC.length > 0) {
+          return needsInteraction(addLog(ctx, `対戦相手が選択（${optsODC.length}択）`), {
+            type: 'CHOOSE', options: optsODC, count: 1, opponentResponds: true,
+          });
+        }
+        return done(addLog(ctx, `相手選択（解析不可: ${stub.id}）`));
       }
       // DO_THREE_THINGS: 3〜4つの処理を動的解析して実行
       if (stub.id === 'DO_THREE_THINGS') {
