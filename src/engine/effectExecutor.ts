@@ -2402,8 +2402,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // グロウ制限：対戦相手の no_grow フラグをセット
       if (stub.id === 'LRIG_GROW_RESTRICT') {
-        const newOther = { ...ctx.otherState, no_grow: true };
-        return done(addLog({ ...ctx, otherState: newOther }, '対戦相手はグロウできない'));
+        // CONTINUOUS効果のため、BattleScreenのgrowCandidatesフィルタリングで色制限を適用
+        // （effectTextの「このルリグは〜のルリグにしかグロウできない」をBattleScreen側で解析）
+        return done(addLog(ctx, 'グロウ色制限（BattleScreen側処理）'));
       }
       // ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット
       if (stub.id === 'SUPPRESS_LIFE_BURST_ON_CRASH' || stub.id === 'SUPPRESS_LIFE_BURST_ON_CARD') {
