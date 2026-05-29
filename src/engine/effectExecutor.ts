@@ -6824,8 +6824,22 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: newOtherLODC }, `対戦相手の次ターンのドロー上限${limitVal}枚に制限`));
       }
       // 手札上限増加（CONTINUOUS：シグニがフィールドにある間）
+      // HAND_SIZE_INCREASE: 手札上限を増やす / REDUCE_OPP_HAND_LIMIT: 相手の手札上限を減らす
       if (stub.id === 'HAND_SIZE_INCREASE' || stub.id === 'REDUCE_OPP_HAND_LIMIT') {
-        return done(addLog(ctx, `[手札制限: ${stub.id}]（effectEngine未対応）`));
+        const srcHSI = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtHSI = srcHSI ? (srcHSI.EffectText ?? '') + ' ' + (srcHSI.BurstText ?? '') : '';
+        const toHWHSI = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const limitM = txtHSI.match(/手札を([０-９\d]+)枚まで/);
+        const newLimit = limitM ? parseInt(toHWHSI(limitM[1])) : null;
+        if (stub.id === 'HAND_SIZE_INCREASE' && newLimit !== null) {
+          const newOwnerHSI = { ...ctx.ownerState, hand_limit: newLimit };
+          return done(addLog({ ...ctx, ownerState: newOwnerHSI }, `手札上限を${newLimit}枚に設定`));
+        }
+        if (stub.id === 'REDUCE_OPP_HAND_LIMIT' && newLimit !== null) {
+          const newOtherHSI = { ...ctx.otherState, hand_limit: newLimit };
+          return done(addLog({ ...ctx, otherState: newOtherHSI }, `相手手札上限を${newLimit}枚に設定`));
+        }
+        return done(addLog(ctx, `[手札制限: ${stub.id}]`));
       }
       // ライフバースト特殊（engine: 発動システム改修必要）
       if (stub.id === 'LIFE_BURST_DOUBLE' || stub.id === 'TRIGGER_LIFE_BURST' || stub.id === 'BATTLE_BANISH_LIFE_BURST') {
