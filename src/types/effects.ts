@@ -5,7 +5,8 @@ export type EffectType =
   | 'AUTO'        // 自動効果（条件を満たすと自動トリガー）
   | 'CONTINUOUS'  // 常時効果（フィールドにいる間適用）
   | 'LIFE_BURST'  // ライフバースト
-  | 'TRAP_ICON';  // トラップアイコン（トラップが表向きになったとき発動）
+  | 'TRAP_ICON'   // トラップアイコン（トラップが表向きになったとき発動）
+  | 'SONG_ICON';  // 歌のカケラ（対応するルリグが発動するとき実行）
 
 export type EffectTiming =
   | 'MAIN'            // メインフェイズ
