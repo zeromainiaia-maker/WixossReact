@@ -136,6 +136,11 @@
 | 2026-05-30 | MAKE_SERVANT_ZERO に1体SELECT_TARGETインタラクション追加（全体→1体選択に改善） | MAKE_SERVANT_ZERO, SIGNI_SERVANT_ZERO |
 | 2026-05-30 | チームルリグ3体未満→全ゾーン色喪失（PlayerState.colorless_card_overrides・canAffordGrowCost対応） | LOSE_COLOR_ALL_ZONES |
 | 2026-05-30 | 相手ターン中にSELECT_TARGET候補を強制対象シグニのみに絞る（effectEngine.collectForcedTargets追加） | FORCE_TARGET_SELF |
+| 2026-05-30 | 「手札の枚数の上限はN増える」パターン対応 / ENDフェーズ手札上限チェック追加 | HAND_SIZE_INCREASE |
+| 2026-05-30 | 保護フラグ実装（相手効果でエナ/手札→トラッシュ阻止） | PREVENT_ZONE_MOVE_BY_OPP |
+| 2026-05-30 | 赤/青の支払いを白で代替可能（PlayerState.energy_color_substitutes） | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
+| 2026-05-30 | 相手シグニのマイナス合計分だけ自シグニをパワーアップ（ターン終了時AUTOで処理） | REACTIVE_POWER_UP |
+| 2026-05-30 | 正面以外のゾーンにも追加バトル（ダメージなし・シグニバニッシュのみ） | MULTI_ZONE_ATTACK |
 
 ---
 
