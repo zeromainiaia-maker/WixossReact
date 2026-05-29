@@ -2418,6 +2418,43 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           if (found) return applyPowerDelta(delta, 'opponent', `トラッシュに${cardName}あり`);
           return done(addLog(ctx, `条件未達（トラッシュに${cardName}なし）`));
         }
+        // パターン「トラッシュにある＜クラス＞のカードN枚につき±X」
+        const trashClassM = txtCB.match(/トラッシュにある＜([^＞]+)＞のカード[０-９\d]*枚?につき([－＋][０-９\d]+)/);
+        if (trashClassM) {
+          const cls = trashClassM[1];
+          const delta = toSignedC(trashClassM[2]);
+          const count = ctx.ownerState.trash.filter(cn => {
+            const c = ctx.cardMap.get(cn);
+            return c?.CardClass?.includes(cls) || c?.CardName?.includes(cls);
+          }).length;
+          if (count > 0) {
+            const totalDelta = count * delta;
+            return applyPowerDelta(totalDelta, 'opponent', `トラッシュ<${cls}>${count}枚×${delta}`);
+          }
+          return done(addLog(ctx, `条件未達（トラッシュ<${cls}>なし）`));
+        }
+        // パターン「場に他の＜クラス＞のシグニがある場合、±X」
+        const fieldClassM = txtCB.match(/あなたの場に(?:他の)?＜([^＞]+)＞のシグニがある場合.*?([－＋][０-９\d]+)/);
+        if (fieldClassM) {
+          const cls = fieldClassM[1];
+          const delta = toSignedC(fieldClassM[2]);
+          const found = ctx.ownerState.field.signi.some((s, zi) => {
+            const top = s?.at(-1);
+            if (!top || top === ctx.sourceCardNum) return false;
+            const c = ctx.cardMap.get(top);
+            return c?.CardClass?.includes(cls);
+          });
+          if (found) return applyPowerDelta(delta, 'self', `場に<${cls}>あり`);
+          return done(addLog(ctx, `条件未達（場に<${cls}>なし）`));
+        }
+        // パターン「このシグニのパワーを±X（自シグニ強化）」
+        const selfPwM = txtCB.match(/このシグニのパワーを([－＋][０-９\d]+)する/);
+        if (selfPwM && ctx.sourceCardNum) {
+          const delta = toSignedC(selfPwM[1]);
+          const mods = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta }];
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: mods } },
+            `${ctx.cardMap.get(ctx.sourceCardNum)?.CardName ?? ctx.sourceCardNum}パワー${delta > 0 ? '+' : ''}${delta}`));
+        }
         return done(addLog(ctx, '条件付きパワー修正'));
       }
       // グロウ制限：対戦相手の no_grow フラグをセット
