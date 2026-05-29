@@ -1924,9 +1924,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (phase === 'UP') {
         // アップフェイズ開始時にすでにアップ済み（ENDフェイズで処理）。ドローして次へ。
         const drawBlocked = my.blocked_actions?.includes('DRAW') ?? false;
+        const effectiveDrawCount = my.draw_limit !== undefined ? Math.min(drawCount, my.draw_limit) : drawCount;
         newMyState = drawBlocked
-          ? { ...my, actions_done: [] }
-          : { ...drawCards(my, drawCount), actions_done: ['DRAW'] };
+          ? { ...my, actions_done: [], draw_limit: undefined }
+          : { ...drawCards(my, effectiveDrawCount), actions_done: ['DRAW'], draw_limit: undefined };
         update.turn_phase = 'DRAW';
 
         // ON_TURN_START トリガー収集（ドローと同時にスタック積み）
