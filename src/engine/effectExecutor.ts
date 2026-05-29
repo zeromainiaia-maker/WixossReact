@@ -2233,9 +2233,21 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         return selectOrInteract(selfCands, 1, false, 'self_field', trashSelfAction, banishOppAction, ctx);
       }
-      // 手札を捨てて対戦相手シグニを対象とする効果（スキップ）
+      // 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ）
       if (stub.id === 'TARGET_AND_DISCARD_HAND') {
-        return done(addLog(ctx, '対戦相手シグニを対象+手札捨て（スキップ）'));
+        const oppCandsTADH = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+        if (oppCandsTADH.length === 0 || ctx.ownerState.hand.length === 0)
+          return done(addLog(ctx, '対戦相手シグニまたは手札なし（TARGET_AND_DISCARD_HAND）'));
+        // 手札を1枚自動捨て（末尾）→ 相手シグニをlastProcessedCardsへ
+        const discardedTADH = ctx.ownerState.hand[ctx.ownerState.hand.length - 1];
+        const newOwnerTADH: PlayerState = {
+          ...ctx.ownerState,
+          hand: ctx.ownerState.hand.slice(0, -1),
+          trash: [...ctx.ownerState.trash, discardedTADH],
+        };
+        const noopTADH: SequenceAction = { type: 'SEQUENCE', steps: [] };
+        return selectOrInteract(oppCandsTADH, 1, false, 'opp_field', noopTADH as EffectAction, undefined,
+          addLog({ ...ctx, ownerState: newOwnerTADH }, `手札（${ctx.cardMap.get(discardedTADH)?.CardName ?? discardedTADH}）を捨て対象選択`));
       }
       // 動的パワー修正（COUNT依存）
       if (stub.id === 'POWER_MOD_PER_COUNT') {
