@@ -4420,6 +4420,254 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(curGCAD);
       }
+      // 対象シグニと自シグニの両方にパワー修正
+      if (stub.id === 'POWER_MOD_TARGET_AND_SELF') {
+        const srcPMTS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMTS = srcPMTS ? (srcPMTS.EffectText ?? '') + ' ' + (srcPMTS.BurstText ?? '') : '';
+        const toHWPMTS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const deltaMPMTS = txtPMTS.match(/([－＋][０-９\d]+)/);
+        if (deltaMPMTS) {
+          const deltaPMTS = parseInt(toHWPMTS(deltaMPMTS[1]).replace('－', '-').replace('＋', '+'));
+          // 対象（lastProcessedCards or 全相手シグニ）にデルタ
+          const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards
+            : [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
+          const modsOther = [...(ctx.otherState.temp_power_mods ?? [])];
+          for (const cn of targets) modsOther.push({ cardNum: cn, delta: deltaPMTS });
+          let newCtx = { ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsOther } };
+          // 自シグニ（sourceCardNum）にも同デルタ
+          if (ctx.sourceCardNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)) {
+            const modsOwn = [...(newCtx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaPMTS }];
+            newCtx = { ...newCtx, ownerState: { ...newCtx.ownerState, temp_power_mods: modsOwn } };
+          }
+          return done(addLog(newCtx, `対象+自シグニパワー${deltaPMTS > 0 ? '+' : ''}${deltaPMTS}`));
+        }
+        return done(addLog(ctx, 'パワー修正（対象+自）'));
+      }
+      // 自シグニのパワーに等しく相手シグニのパワーを設定
+      if (stub.id === 'POWER_EQUAL_TO_SELF_POWER') {
+        const selfPwPETS = ctx.effectivePowers?.get(ctx.sourceCardNum ?? '')
+          ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Power ?? '0', 10);
+        const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards
+          : [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
+        const modsPETS = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (const cn of targets) {
+          const oppPwPETS = ctx.effectivePowers?.get(cn) ?? parseInt(ctx.cardMap.get(cn)?.Power ?? '0', 10);
+          if (selfPwPETS !== oppPwPETS) modsPETS.push({ cardNum: cn, delta: selfPwPETS - oppPwPETS });
+        }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPETS } },
+          `相手シグニのパワーを${selfPwPETS}に設定`));
+      }
+      // 前のシグニのパワーと等しく設定（自シグニを前シグニのパワーに）
+      if (stub.id === 'POWER_EQUALS_FRONT_SIGNI') {
+        const srcZonePEFS = ctx.sourceCardNum
+          ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum)
+          : -1;
+        const frontCnPEFS = srcZonePEFS >= 0 ? ctx.otherState.field.signi[srcZonePEFS]?.at(-1) : undefined;
+        if (!frontCnPEFS || !ctx.sourceCardNum) return done(addLog(ctx, '前シグニなし（POWER_EQUALS_FRONT_SIGNI）'));
+        const frontPwPEFS = ctx.effectivePowers?.get(frontCnPEFS) ?? parseInt(ctx.cardMap.get(frontCnPEFS)?.Power ?? '0', 10);
+        const selfPwPEFS = ctx.effectivePowers?.get(ctx.sourceCardNum) ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum)?.Power ?? '0', 10);
+        const deltaPEFS = frontPwPEFS - selfPwPEFS;
+        if (deltaPEFS !== 0) {
+          const modsPEFS = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaPEFS }];
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPEFS } },
+            `パワーを前シグニの${frontPwPEFS}に設定`));
+        }
+        return done(addLog(ctx, `パワー既に${frontPwPEFS}（前シグニと同値）`));
+      }
+      // 自・相手のシグニレベル合計を比較してパワー修正
+      if (stub.id === 'POWER_BY_LEVEL_SUM_COMPARE') {
+        const srcPBLSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPBLSC = srcPBLSC ? (srcPBLSC.EffectText ?? '') + ' ' + (srcPBLSC.BurstText ?? '') : '';
+        const toHWPBLSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const selfLvSumPBLSC = [0, 1, 2].reduce((acc, zi) => {
+          return acc + (parseInt(ctx.cardMap.get(ctx.ownerState.field.signi[zi]?.at(-1) ?? '')?.Level ?? '0') || 0);
+        }, 0);
+        const oppLvSumPBLSC = [0, 1, 2].reduce((acc, zi) => {
+          return acc + (parseInt(ctx.cardMap.get(ctx.otherState.field.signi[zi]?.at(-1) ?? '')?.Level ?? '0') || 0);
+        }, 0);
+        const deltaMPBLSC = txtPBLSC.match(/([－＋][０-９\d]+)/);
+        const deltaPBLSC = deltaMPBLSC ? parseInt(toHWPBLSC(deltaMPBLSC[1]).replace('－', '-').replace('＋', '+')) : 0;
+        if (selfLvSumPBLSC > oppLvSumPBLSC && deltaPBLSC !== 0) {
+          const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards
+            : [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
+          const modsPBLSC = [...(ctx.otherState.temp_power_mods ?? [])];
+          for (const cn of targets) modsPBLSC.push({ cardNum: cn, delta: deltaPBLSC });
+          return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBLSC } },
+            `パワー${deltaPBLSC > 0 ? '+' : ''}${deltaPBLSC}（Lv合計：自${selfLvSumPBLSC}＞相手${oppLvSumPBLSC}）`));
+        }
+        return done(addLog(ctx, `パワー修正なし（Lv合計：自${selfLvSumPBLSC}・相手${oppLvSumPBLSC}）`));
+      }
+      // トラッシュに置いたシグニのパワーだけ自シグニをパワーアップ
+      if (stub.id === 'POWER_UP_BY_DISCARDED_SIGNI_POWER') {
+        const trashedCnPUBDP = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1) ?? '';
+        const trashedPwPUBDP = parseInt(ctx.cardMap.get(trashedCnPUBDP)?.Power ?? '0') || 0;
+        if (trashedPwPUBDP > 0 && ctx.sourceCardNum) {
+          const modsPUBDP = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: trashedPwPUBDP }];
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPUBDP } },
+            `パワー+${trashedPwPUBDP}（${ctx.cardMap.get(trashedCnPUBDP)?.CardName ?? trashedCnPUBDP}のパワー）`));
+        }
+        return done(addLog(ctx, `パワーアップ不可（トラッシュシグニパワー${trashedPwPUBDP}）`));
+      }
+      // シャッフル後に全シグニのパワーを半減
+      if (stub.id === 'SHUFFLE_DECK_POWER_HALF') {
+        const shuffledSDP = [...ctx.ownerState.deck].sort(() => Math.random() - 0.5);
+        const modsSDHP = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) {
+          const top = ctx.otherState.field.signi[zi]?.at(-1);
+          if (!top) continue;
+          const curPw = ctx.effectivePowers?.get(top) ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0', 10);
+          modsSDHP.push({ cardNum: top, delta: -Math.floor(curPw / 2) });
+        }
+        return done(addLog(
+          { ...ctx, ownerState: { ...ctx.ownerState, deck: shuffledSDP }, otherState: { ...ctx.otherState, temp_power_mods: modsSDHP } },
+          `デッキシャッフル→全相手シグニパワー半減`));
+      }
+      // 公開したシグニをフィールドに出し、残りをトラッシュ
+      if (stub.id === 'REVEALED_SIGNI_TO_FIELD_REST_TRASH') {
+        const revealedRSTF = ctx.lastProcessedCards ?? [];
+        if (revealedRSTF.length === 0) return done(addLog(ctx, '公開カードなし（REVEALED_SIGNI_TO_FIELD_REST_TRASH）'));
+        const signiRSTF = revealedRSTF.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+        const nonSigniRSTF = revealedRSTF.filter(cn => ctx.cardMap.get(cn)?.Type !== 'シグニ');
+        let newOwnerRSTF = ctx.ownerState;
+        // シグニをフィールドへ（空きゾーンへ順番に配置）
+        const fieldRSTF = [...newOwnerRSTF.field.signi] as (string[] | null)[];
+        for (const cn of signiRSTF) {
+          const emptyZoneRSTF = fieldRSTF.findIndex(z => !z || z.length === 0);
+          if (emptyZoneRSTF >= 0) {
+            fieldRSTF[emptyZoneRSTF] = [cn];
+            const di = newOwnerRSTF.deck.indexOf(cn);
+            if (di >= 0) {
+              const newDeckRSTF = [...newOwnerRSTF.deck];
+              newDeckRSTF.splice(di, 1);
+              newOwnerRSTF = { ...newOwnerRSTF, deck: newDeckRSTF };
+            }
+          } else {
+            nonSigniRSTF.push(cn);
+          }
+        }
+        newOwnerRSTF = { ...newOwnerRSTF, field: { ...newOwnerRSTF.field, signi: fieldRSTF } };
+        // 残りをトラッシュへ
+        for (const cn of nonSigniRSTF) {
+          const di = newOwnerRSTF.deck.indexOf(cn);
+          if (di >= 0) {
+            const newDeckRSTF = [...newOwnerRSTF.deck];
+            newDeckRSTF.splice(di, 1);
+            newOwnerRSTF = { ...newOwnerRSTF, deck: newDeckRSTF, trash: [...newOwnerRSTF.trash, cn] };
+          }
+        }
+        return done(addLog({ ...ctx, ownerState: newOwnerRSTF },
+          `公開シグニ${signiRSTF.length}体→フィールド、非シグニ${nonSigniRSTF.length}枚→トラッシュ`));
+      }
+      // 相手シグニをデッキのN番目に挿入
+      if (stub.id === 'OPP_SIGNI_TO_DECK_NTH') {
+        const targetOSTDN = (ctx.lastProcessedCards ?? [])[0];
+        if (!targetOSTDN) return done(addLog(ctx, '対象なし（OPP_SIGNI_TO_DECK_NTH）'));
+        const srcOSTDN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOSTDN = srcOSTDN ? (srcOSTDN.EffectText ?? '') + ' ' + (srcOSTDN.BurstText ?? '') : '';
+        const toHWOSTDN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const nthMOSTDN = txtOSTDN.match(/デッキの上から([０-９\d]*)番目/);
+        const nthOSTDN = nthMOSTDN ? (parseInt(toHWOSTDN(nthMOSTDN[1])) - 1) : 0;
+        const removedOSTDN = removeFromField(targetOSTDN, ctx.otherState);
+        const newOtherDeckOSTDN = [...removedOSTDN.deck];
+        newOtherDeckOSTDN.splice(Math.max(0, nthOSTDN), 0, targetOSTDN);
+        return done(addLog({ ...ctx, otherState: { ...removedOSTDN, deck: newOtherDeckOSTDN } },
+          `${ctx.cardMap.get(targetOSTDN)?.CardName ?? targetOSTDN}→相手デッキ上から${nthOSTDN + 1}番目`));
+      }
+      // 相手シグニが退場時にエナではなくトラッシュへ（フラグ設定）
+      if (stub.id === 'OPP_SIGNI_LEAVE_TO_TRASH') {
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, banish_redirect: true } },
+          '相手シグニのバニッシュ先→トラッシュに変更'));
+      }
+      // 相手より手札が少ない場合、相手の手札をデッキ下へ
+      if (stub.id === 'OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND') {
+        const selfHandCntOHTDB = ctx.ownerState.hand.length;
+        const oppHandCntOHTDB = ctx.otherState.hand.length;
+        if (oppHandCntOHTDB > selfHandCntOHTDB) {
+          const newOtherOHTDB = {
+            ...ctx.otherState,
+            hand: [],
+            deck: [...ctx.otherState.deck, ...ctx.otherState.hand],
+          };
+          return done(addLog({ ...ctx, otherState: newOtherOHTDB },
+            `相手手札${oppHandCntOHTDB}枚→デッキ下（自手札${selfHandCntOHTDB}枚＜相手）`));
+        }
+        return done(addLog(ctx, `相手手札${oppHandCntOHTDB}枚≤自手札${selfHandCntOHTDB}枚（条件未達）`));
+      }
+      // トラッシュから3ゾーンへ分配（lastProcessedCards→各ゾーンへ）
+      if (stub.id === 'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH') {
+        const toDistTZD = ctx.lastProcessedCards ?? ctx.ownerState.trash.slice(-3);
+        if (toDistTZD.length === 0) return done(addLog(ctx, 'トラッシュにカードなし（TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH）'));
+        let newOwnerTZD = ctx.ownerState;
+        const fieldTZD = [...newOwnerTZD.field.signi] as (string[] | null)[];
+        for (let i = 0; i < Math.min(toDistTZD.length, 3); i++) {
+          if (!fieldTZD[i] || fieldTZD[i]!.length === 0) {
+            fieldTZD[i] = [toDistTZD[i]];
+            newOwnerTZD = { ...newOwnerTZD, trash: newOwnerTZD.trash.filter(cn => cn !== toDistTZD[i]) };
+          }
+        }
+        return done(addLog({ ...ctx, ownerState: { ...newOwnerTZD, field: { ...newOwnerTZD.field, signi: fieldTZD } } },
+          `トラッシュから${toDistTZD.length}枚を各ゾーンへ`));
+      }
+      // 自・相手を両方エナへ（ゾーン交換系）
+      if (stub.id === 'TRADE_SELF_AND_OPP_TO_ENERGY') {
+        const selfCnTSAOTE = ctx.sourceCardNum;
+        const oppTargetTSAOTE = (ctx.lastProcessedCards ?? [])[0];
+        if (!selfCnTSAOTE) return done(addLog(ctx, '対象なし（TRADE_SELF_AND_OPP_TO_ENERGY）'));
+        let newOwnerTSAOTE = ctx.ownerState;
+        if (ctx.ownerState.field.signi.some(s => s?.at(-1) === selfCnTSAOTE)) {
+          const removedTSAOTE = removeFromField(selfCnTSAOTE, newOwnerTSAOTE);
+          newOwnerTSAOTE = { ...removedTSAOTE, energy: [...removedTSAOTE.energy, selfCnTSAOTE] };
+        }
+        let newOtherTSAOTE = ctx.otherState;
+        if (oppTargetTSAOTE && ctx.otherState.field.signi.some(s => s?.at(-1) === oppTargetTSAOTE)) {
+          const removedOppTSAOTE = removeFromField(oppTargetTSAOTE, newOtherTSAOTE);
+          newOtherTSAOTE = { ...removedOppTSAOTE, energy: [...removedOppTSAOTE.energy, oppTargetTSAOTE] };
+        }
+        return done(addLog({ ...ctx, ownerState: newOwnerTSAOTE, otherState: newOtherTSAOTE },
+          `自・相手シグニをエナゾーンへ`));
+      }
+      // 自シグニをデッキトップへ（フィールドから退場）
+      if (stub.id === 'SELF_TO_DECK_TOP') {
+        const selfCnSTDT = ctx.sourceCardNum;
+        if (!selfCnSTDT || !ctx.ownerState.field.signi.some(s => s?.at(-1) === selfCnSTDT))
+          return done(addLog(ctx, '対象がフィールドにいない（SELF_TO_DECK_TOP）'));
+        const removedSTDT = removeFromField(selfCnSTDT, ctx.ownerState);
+        return done(addLog({ ...ctx, ownerState: { ...removedSTDT, deck: [selfCnSTDT, ...removedSTDT.deck] } },
+          `${ctx.cardMap.get(selfCnSTDT)?.CardName ?? selfCnSTDT}をデッキトップへ`));
+      }
+      // 相手シグニをゲートを通じてデッキへ（バウンス）
+      if (stub.id === 'OPP_SIGNI_TO_DECK_BY_GATE') {
+        const targetOSTDBG = (ctx.lastProcessedCards ?? [])[0];
+        if (!targetOSTDBG) return done(addLog(ctx, '対象なし（OPP_SIGNI_TO_DECK_BY_GATE）'));
+        const removedOSTDBG = removeFromField(targetOSTDBG, ctx.otherState);
+        const newDeckOSTDBG = [...removedOSTDBG.deck, targetOSTDBG];
+        return done(addLog({ ...ctx, otherState: { ...removedOSTDBG, deck: newDeckOSTDBG } },
+          `${ctx.cardMap.get(targetOSTDBG)?.CardName ?? targetOSTDBG}→相手デッキ下`));
+      }
+      // デッキ上のシグニをフィールドへ（最初のシグニを配置）
+      if (stub.id === 'LOOK_TOP_SIGNI_TO_FIELD') {
+        const topNLTSTF = 3;
+        const topCardsLTSTF = ctx.ownerState.deck.slice(0, topNLTSTF);
+        const firstSigniLTSTF = topCardsLTSTF.find(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+        if (!firstSigniLTSTF) return done(addLog(ctx, `デッキ上${topNLTSTF}枚にシグニなし`));
+        const emptyZoneLTSTF = ctx.ownerState.field.signi.findIndex(z => !z || z.length === 0);
+        if (emptyZoneLTSTF < 0) return done(addLog(ctx, '空きシグニゾーンなし'));
+        const newDeckLTSTF = ctx.ownerState.deck.filter(cn => cn !== firstSigniLTSTF);
+        const newFieldLTSTF = [...ctx.ownerState.field.signi] as (string[] | null)[];
+        newFieldLTSTF[emptyZoneLTSTF] = [firstSigniLTSTF];
+        // 残りはデッキ下へ（トラッシュへのバリアント）
+        const restLTSTF = topCardsLTSTF.filter(cn => cn !== firstSigniLTSTF);
+        const restDeckLTSTF = newDeckLTSTF.filter(cn => !restLTSTF.includes(cn));
+        const finalTrashLTSTF = [...ctx.ownerState.trash, ...restLTSTF];
+        return done(addLog({ ...ctx, ownerState: {
+          ...ctx.ownerState, deck: restDeckLTSTF, trash: finalTrashLTSTF,
+          field: { ...ctx.ownerState.field, signi: newFieldLTSTF },
+        }}, `デッキ上から${ctx.cardMap.get(firstSigniLTSTF)?.CardName ?? firstSigniLTSTF}→フィールド`));
+      }
+      // 追加ターンを獲得（ログのみ、ゲームエンジン実装が必要）
+      if (stub.id === 'GAIN_EXTRA_TURN') {
+        return done(addLog(ctx, '追加ターン獲得（エンジン実装待ち）'));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
