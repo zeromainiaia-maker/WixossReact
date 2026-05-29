@@ -5859,6 +5859,152 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
+      // === バッチ14: シグニ移動・エナ操作・複数対象系 ===
+      // OPP_SIGNI_TO_DECK_AND_SHUFFLE / OPP_SIGNI_TO_DECK_BY_GATE / OPP_SIGNI_TO_DECK_NTH:
+      //   相手シグニをデッキに混ぜる
+      if (stub.id === 'OPP_SIGNI_TO_DECK_AND_SHUFFLE' || stub.id === 'OPP_SIGNI_TO_DECK_BY_GATE' || stub.id === 'OPP_SIGNI_TO_DECK_NTH') {
+        const candidatesOSTDS = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+        if (candidatesOSTDS.length === 0) return done(addLog(ctx, '相手シグニなし'));
+        const thenOSTDS: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_BOUNCE_TO_DECK' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candidatesOSTDS, count: 1, optional: false,
+          targetScope: 'opp_field', thenAction: thenOSTDS as EffectAction,
+        });
+      }
+      // INTERNAL_BOUNCE_TO_DECK: 選択シグニをデッキにランダム挿入
+      if (stub.id === 'INTERNAL_BOUNCE_TO_DECK') {
+        const cnIBTD = ctx.lastProcessedCards?.[0];
+        if (!cnIBTD) return done(addLog(ctx, '対象なし'));
+        const inOwnIBTD = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnIBTD);
+        const ownerIBTD: Owner = inOwnIBTD ? 'self' : 'opponent';
+        const sIBTD = ownerState(ownerIBTD, ctx);
+        const removedIBTD = removeFromField(cnIBTD, sIBTD);
+        const deckIBTD = [...removedIBTD.deck];
+        const insertIBTD = Math.floor(Math.random() * (deckIBTD.length + 1));
+        deckIBTD.splice(insertIBTD, 0, cnIBTD);
+        const newSIBTD: PlayerState = { ...removedIBTD, deck: deckIBTD };
+        return done(addLog(setOwnerState(ownerIBTD, newSIBTD, ctx),
+          `${ctx.cardMap.get(cnIBTD)?.CardName ?? cnIBTD}をデッキに混ぜた（シャッフル）`));
+      }
+      // OPP_SIGNI_LEAVE_TO_TRASH: 相手シグニ退場→トラッシュ（エナではなく）
+      if (stub.id === 'OPP_SIGNI_LEAVE_TO_TRASH') {
+        const candidatesOSLT = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+        if (candidatesOSLT.length === 0) return done(addLog(ctx, '相手シグニなし'));
+        const thenOSLT: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_LEAVE_TO_TRASH' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candidatesOSLT, count: 1, optional: false,
+          targetScope: 'opp_field', thenAction: thenOSLT as EffectAction,
+        });
+      }
+      // INTERNAL_LEAVE_TO_TRASH: 選択シグニをトラッシュに置く
+      if (stub.id === 'INTERNAL_LEAVE_TO_TRASH') {
+        const cnILT = ctx.lastProcessedCards?.[0];
+        if (!cnILT) return done(addLog(ctx, '対象なし'));
+        const inOwnILT = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnILT);
+        const ownerILT: Owner = inOwnILT ? 'self' : 'opponent';
+        const sILT = ownerState(ownerILT, ctx);
+        const removedILT = removeFromField(cnILT, sILT);
+        const newSILT: PlayerState = { ...removedILT, trash: [...removedILT.trash, cnILT] };
+        return done(addLog(setOwnerState(ownerILT, newSILT, ctx),
+          `${ctx.cardMap.get(cnILT)?.CardName ?? cnILT}をトラッシュへ退場`));
+      }
+      // TRADE_SELF_AND_OPP_TO_ENERGY: 自シグニ+相手シグニ1体→両者エナ
+      if (stub.id === 'TRADE_SELF_AND_OPP_TO_ENERGY') {
+        const srcTSAOTE = ctx.sourceCardNum;
+        let ctxTSAOTE = ctx;
+        if (srcTSAOTE && ctx.ownerState.field.signi.some(s => s?.at(-1) === srcTSAOTE)) {
+          const removedTSAOTE = removeFromField(srcTSAOTE, ctx.ownerState);
+          const newOwnerTSAOTE: PlayerState = { ...removedTSAOTE, energy: [...removedTSAOTE.energy, srcTSAOTE] };
+          ctxTSAOTE = { ...ctxTSAOTE, ownerState: newOwnerTSAOTE };
+        }
+        const candsTSAOTE = (ctxTSAOTE.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+        if (candsTSAOTE.length === 0) return done(addLog(ctxTSAOTE, '自シグニ→エナ（相手シグニなし）'));
+        const banishTSAOTE: import('../types/effects').BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1 } };
+        return needsInteraction(addLog(ctxTSAOTE, '自シグニ→エナ、相手シグニ1体選択'), {
+          type: 'SELECT_TARGET', candidates: candsTSAOTE, count: 1, optional: false,
+          targetScope: 'opp_field', thenAction: banishTSAOTE as EffectAction,
+        });
+      }
+      // MULTI_SIGNI_TO_ENERGY: 自分の複数シグニをエナに
+      if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
+        const toHWMSTE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcMSTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtMSTE = srcMSTE ? (srcMSTE.EffectText ?? '') + ' ' + (srcMSTE.BurstText ?? '') : '';
+        const mMSTE = txtMSTE.match(/([０-９\d]+)体/);
+        const countMSTE = mMSTE ? parseInt(toHWMSTE(mMSTE[1])) : 2;
+        const candsMSTE = (ctx.ownerState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+        if (candsMSTE.length === 0) return done(addLog(ctx, 'シグニなし'));
+        const banishMSTE: import('../types/effects').BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1 } };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candsMSTE,
+          count: Math.min(countMSTE, candsMSTE.length), optional: false,
+          targetScope: 'self_field', thenAction: banishMSTE as EffectAction,
+        });
+      }
+      // MULTI_SIGNI_POWER_UP_5000: 複数シグニに+5000パワー
+      if (stub.id === 'MULTI_SIGNI_POWER_UP_5000') {
+        const toHWMSPU5 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcMSPU5 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtMSPU5 = srcMSPU5 ? (srcMSPU5.EffectText ?? '') + ' ' + (srcMSPU5.BurstText ?? '') : '';
+        const mMSPU5 = txtMSPU5.match(/([０-９\d]+)体/);
+        const countMSPU5 = mMSPU5 ? parseInt(toHWMSPU5(mMSPU5[1])) : 2;
+        const mDeltaMSPU5 = txtMSPU5.match(/\+([０-９\d]+)/);
+        const deltaMSPU5 = mDeltaMSPU5 ? parseInt(toHWMSPU5(mDeltaMSPU5[1])) : 5000;
+        const candsMSPU5 = (ctx.ownerState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+        if (candsMSPU5.length === 0) return done(addLog(ctx, 'シグニなし'));
+        const pmMSPU5: import('../types/effects').PowerModifyAction = {
+          type: 'POWER_MODIFY', delta: deltaMSPU5, target: { type: 'SIGNI', owner: 'self', count: 1 },
+        };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candsMSPU5,
+          count: Math.min(countMSPU5, candsMSPU5.length), optional: false,
+          targetScope: 'self_field', thenAction: pmMSPU5 as EffectAction,
+        });
+      }
+      // TRASHED_CARD_TO_HAND_OR_ENERGY: トラッシュカード→手札かエナ選択
+      if (stub.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
+        const cnTCTHOE = ctx.lastProcessedCards?.[0] ?? ctx.ownerState.trash.at(-1);
+        if (!cnTCTHOE) return done(addLog(ctx, 'トラッシュなし'));
+        const toHandTCTHOE: import('../types/effects').TransferToHandAction = {
+          type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 },
+        };
+        const toEnergyTCTHOE: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_ENERGY' };
+        return needsInteraction(ctx, {
+          type: 'CHOOSE', count: 1,
+          options: [
+            { id: 'hand', label: '手札に加える', action: toHandTCTHOE as EffectAction, available: true },
+            { id: 'energy', label: 'エナゾーンに置く', action: toEnergyTCTHOE as EffectAction, available: true },
+          ],
+        });
+      }
+      // OPP_TRASH_FIELD_SIGNI_AND_ENERGY: 相手のシグニとエナをトラッシュ
+      if (stub.id === 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY') {
+        const candidatesOTFSE = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+        let otherOTFSE = ctx.otherState;
+        // 相手フィールドシグニを全てトラッシュ
+        for (const cn of candidatesOTFSE) {
+          const removed = removeFromField(cn, otherOTFSE);
+          otherOTFSE = { ...removed, trash: [...removed.trash, cn] };
+        }
+        // 相手エナを全てトラッシュ
+        otherOTFSE = { ...otherOTFSE, trash: [...otherOTFSE.trash, ...otherOTFSE.energy], energy: [] };
+        return done(addLog({ ...ctx, otherState: otherOTFSE },
+          `相手シグニ${candidatesOTFSE.length}体+全エナをトラッシュ`));
+      }
+      // NON_GUARD_DISCARD_TO_ENERGY: 非ガード捨て牌をエナゾーンへ
+      if (stub.id === 'NON_GUARD_DISCARD_TO_ENERGY') {
+        const cnNGDTE = ctx.lastProcessedCards?.[0];
+        if (!cnNGDTE) return done(addLog(ctx, '対象なし'));
+        const cardNGDTE = ctx.cardMap.get(cnNGDTE);
+        const hasGuardNGDTE = cardNGDTE?.Guard === '○' || (cardNGDTE?.EffectText ?? '').includes('【ガード】');
+        if (hasGuardNGDTE) return done(addLog(ctx, 'ガードカードなのでエナ移動なし'));
+        const newSNGDTE: PlayerState = {
+          ...ctx.ownerState,
+          trash: ctx.ownerState.trash.filter(c => c !== cnNGDTE),
+          energy: [...ctx.ownerState.energy, cnNGDTE],
+        };
+        return done(addLog({ ...ctx, ownerState: newSNGDTE }, `非ガード捨て牌→エナゾーンへ`));
+      }
       // === バッチ13: エナ操作・カウント・条件分岐系 ===
       // ENERGY_TO_HAND_ON_DECK: エナゾーンの末尾→手札（デッキ経由を省略）
       if (stub.id === 'ENERGY_TO_HAND_ON_DECK') {
