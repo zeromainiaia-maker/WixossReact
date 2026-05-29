@@ -6383,11 +6383,37 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'ARTS_EXTRA_COST_CONDITION' || stub.id === 'ACCE_COST_REDUCTION') {
         return done(addLog(ctx, `[アーツ/アクセコスト: ${stub.id}]`));
       }
-      // フリープレイ系（engine: 無料プレイ未実装）
+      // フリープレイ系：lastProcessedCards[0] のカードをコストなしでプレイ
       if (stub.id === 'PLAY_FREE' || stub.id === 'PLAY_SPELL_FREE_IGNORE_RESTRICTION' || stub.id === 'CAST_FROM_OPP_TRASH'
           || stub.id === 'PLAY_SPELL_FROM_HAND' || stub.id === 'PLAY_SPELL_FROM_HAND_FREE'
           || stub.id === 'USE_SPELL_FROM_TRASH' || stub.id === 'PLAY_EFFECT_TARGET_CLASS_CHANGE') {
-        return done(addLog(ctx, `[フリープレイ: ${stub.id}]`));
+        const cnPF = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
+        if (!cnPF) return done(addLog(ctx, '[フリープレイ: 対象カードなし]'));
+        const cardPF = ctx.cardMap.get(cnPF);
+        if (!cardPF) return done(addLog(ctx, '[フリープレイ: カードデータなし]'));
+        const effectsPF = parseCardEffects(cardPF);
+        // スペル・アーツは主効果（ACTIVATED/AUTO）を実行
+        const mainEffPF = effectsPF.find(e =>
+          e.effectType === 'ACTIVATED' ||
+          (e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'))
+        );
+        if (mainEffPF) {
+          const newCtxPF = { ...ctx, sourceCardNum: cnPF };
+          // カードをトラッシュ/使用済みへ移動してから効果実行
+          let stateAfterPF = ctx.ownerState;
+          if (cardPF.Type === 'スペル') {
+            stateAfterPF = { ...stateAfterPF, trash: [...stateAfterPF.trash, cnPF], hand: stateAfterPF.hand.filter(c => c !== cnPF) };
+          }
+          const execCtxPF = { ...newCtxPF, ownerState: stateAfterPF };
+          const resPF = executeAction(mainEffPF.action, addLog(execCtxPF, `${cardPF.CardName}をコストなしで使用`));
+          return resPF;
+        }
+        // シグニは場に出す
+        if (cardPF.Type === 'シグニ') {
+          const addPF: import('../types/effects').AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
+          return executeAction(addPF, { ...ctx, lastProcessedCards: [cnPF] });
+        }
+        return done(addLog(ctx, `[フリープレイ: ${cardPF.CardName} (効果実行不可)]`));
       }
       // 複雑パワー修正（engine: コンテキスト/配置情報必要）
       if (stub.id === 'POWER_MOD_DISTRIBUTE' || stub.id === 'POWER_MOD_DOUBLE_DIFF' || stub.id === 'POWER_MOD_ON_FRONT_PLACE'
