@@ -468,6 +468,69 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     return ng;
   }, [effectsMap, cardMap, appendLog, checkWin]);
 
+  // ======= トラップ処理 =======
+  const resolveTrap = useCallback((g: CpuGameState, activate: boolean): CpuGameState => {
+    const { trapActivation } = g;
+    if (!trapActivation) return g;
+    const { zone, trapCard, defenderSide } = trapActivation;
+    let ng = { ...g, trapActivation: null };
+
+    // 1. トラップ発動（選択した場合）
+    if (activate) {
+      const effs = effectsMap.get(trapCard) ?? [];
+      const trapEff = effs.find(e => e.effectType === 'TRAP_ICON');
+      if (trapEff) {
+        const owner = defenderSide === 'player' ? ng.player : ng.cpu;
+        const other = defenderSide === 'player' ? ng.cpu : ng.player;
+        const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
+        const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: trapCard };
+        const result = executeEffect(trapEff, ctx);
+        for (const l of result.logs) appendLog(l);
+        ng = defenderSide === 'player'
+          ? { ...ng, player: result.ownerState, cpu: result.otherState }
+          : { ...ng, cpu: result.ownerState, player: result.otherState };
+        appendLog(`【トラップアイコン】発動！`);
+        if (!result.done && result.pending) {
+          return { ...ng, pendingInteraction: result.pending, pendingOwner: defenderSide };
+        }
+      } else {
+        appendLog(`トラップアイコン効果なし（${cardMap.get(trapCard)?.CardName ?? trapCard}）`);
+      }
+    } else {
+      appendLog(`トラップ未発動`);
+    }
+
+    // 2. 発動した場合のみトラップをトラッシュへ
+    if (activate) {
+      const defState = defenderSide === 'player' ? ng.player : ng.cpu;
+      const newTraps = [...(defState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+      newTraps[zone] = null;
+      const newDefState = { ...defState, field: { ...defState.field, signi_traps: newTraps }, trash: [...defState.trash, trapCard] };
+      ng = defenderSide === 'player' ? { ...ng, player: newDefState } : { ...ng, cpu: newDefState };
+    }
+
+    // 3. アタック継続（ライフクラッシュ）
+    const defender = defenderSide === 'player' ? ng.player : ng.cpu;
+    if (defender.life_cloth.length === 0) {
+      appendLog('アタック継続 → 相手ライフなし');
+      return checkWin(ng);
+    }
+    const crashed = defender.life_cloth[defender.life_cloth.length - 1];
+    const newLife = defender.life_cloth.slice(0, -1);
+    const crashedCard = cardMap.get(crashed);
+    appendLog(`アタック継続 → ライフクラッシュ: ${crashedCard?.CardName ?? crashed}`);
+    const newDefAfterCrash = { ...defender, life_cloth: newLife, energy: [...defender.energy, crashed] };
+    ng = defenderSide === 'player'
+      ? { ...ng, player: newDefAfterCrash }
+      : { ...ng, cpu: newDefAfterCrash };
+    ng = checkWin(ng);
+    if (ng.winner) return ng;
+    if ((crashedCard?.LifeBurst ?? '0') === '1') {
+      return { ...ng, burstCard: crashed, burstOwner: defenderSide };
+    }
+    return ng;
+  }, [effectsMap, cardMap, appendLog, checkWin]);
+
   // ======= 効果インタラクション解決 =======
   const resolveInteraction = useCallback((g: CpuGameState, selectedNums: string[]): CpuGameState => {
     if (!g.pendingInteraction || !g.pendingOwner) return g;
