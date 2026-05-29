@@ -5859,6 +5859,126 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
+      // === バッチ15: 公開・アクセ応用・条件ドロー系 ===
+      // FIELD_COND_DRAW_REVEAL: フィールド条件達成時にデッキ上を公開し同クラスなら手札へ
+      if (stub.id === 'FIELD_COND_DRAW_REVEAL') {
+        const srcFCDR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtFCDR = srcFCDR ? (srcFCDR.EffectText ?? '') + ' ' + (srcFCDR.BurstText ?? '') : '';
+        const mClassFCDR = txtFCDR.match(/＜([^＞]+)＞/);
+        const classNameFCDR = mClassFCDR ? mClassFCDR[1] : '';
+        const hasClassFCDR = !classNameFCDR || ctx.ownerState.field.signi.some(s => {
+          if (!s || s.length === 0) return false;
+          return ctx.cardMap.get(s[s.length - 1])?.CardClass?.includes(classNameFCDR);
+        });
+        if (!hasClassFCDR) return done(addLog(ctx, `フィールドに＜${classNameFCDR}＞なし（条件未達成）`));
+        const sFCDR = ctx.ownerState;
+        if (sFCDR.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topFCDR = sFCDR.deck[0];
+        const topCardFCDR = ctx.cardMap.get(topFCDR);
+        const topClassFCDR = topCardFCDR?.CardClass ?? '';
+        if (classNameFCDR && topClassFCDR.includes(classNameFCDR)) {
+          const newSFCDR: PlayerState = { ...sFCDR, deck: sFCDR.deck.slice(1), hand: [...sFCDR.hand, topFCDR] };
+          return done(addLog({ ...ctx, ownerState: newSFCDR }, `公開${topCardFCDR?.CardName ?? topFCDR}(＜${classNameFCDR}＞一致)→手札へ`));
+        }
+        const newSFCDR2: PlayerState = { ...sFCDR, deck: sFCDR.deck.slice(1), trash: [...sFCDR.trash, topFCDR] };
+        return done(addLog({ ...ctx, ownerState: newSFCDR2 }, `公開${topCardFCDR?.CardName ?? topFCDR}(不一致)→トラッシュ`));
+      }
+      // REVEAL: デッキ上を公開（名前ログ）
+      if (stub.id === 'REVEAL') {
+        const sREV = ctx.ownerState;
+        if (sREV.deck.length === 0) return done(addLog(ctx, 'デッキなし（公開できず）'));
+        const topREV = sREV.deck[0];
+        const cardREV = ctx.cardMap.get(topREV);
+        return done(addLog({ ...ctx, lastProcessedCards: [topREV] }, `公開：${cardREV?.CardName ?? topREV}`));
+      }
+      // HAND_REVEAL_CLASS_SIGNI: 手札のクラスシグニを公開（フィルタしてログ）
+      if (stub.id === 'HAND_REVEAL_CLASS_SIGNI') {
+        const srcHRCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtHRCS = srcHRCS ? (srcHRCS.EffectText ?? '') + ' ' + (srcHRCS.BurstText ?? '') : '';
+        const mHRCS = txtHRCS.match(/＜([^＞]+)＞/);
+        const classNameHRCS = mHRCS ? mHRCS[1] : '';
+        const classSigniHRCS = ctx.ownerState.hand.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          return c?.Type === 'シグニ' && (!classNameHRCS || (c.CardClass ?? '').includes(classNameHRCS));
+        });
+        const namesHRCS = classSigniHRCS.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+        return done(addLog({ ...ctx, lastProcessedCards: classSigniHRCS },
+          `手札${classNameHRCS ? '＜' + classNameHRCS + '＞' : 'シグニ'}公開：${namesHRCS || 'なし'}`));
+      }
+      // OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開
+      if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
+        const srcOHRN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOHRN = srcOHRN ? (srcOHRN.EffectText ?? '') + ' ' + (srcOHRN.BurstText ?? '') : '';
+        const mNameOHRN = txtOHRN.match(/「([^」]+)」/);
+        const nameOHRN = mNameOHRN ? mNameOHRN[1] : '';
+        const matchingOHRN = ctx.ownerState.hand.filter(cn => nameOHRN && ctx.cardMap.get(cn)?.CardName === nameOHRN);
+        if (matchingOHRN.length === 0) return done(addLog(ctx, `手札に「${nameOHRN}」なし（公開なし）`));
+        return done(addLog({ ...ctx, lastProcessedCards: matchingOHRN },
+          `手札「${nameOHRN}」を公開（${matchingOHRN.length}枚）`));
+      }
+      // ACCE_SIGNI_GRANT_ABILITY: アクセ中のシグニにキーワード能力を付与
+      if (stub.id === 'ACCE_SIGNI_GRANT_ABILITY') {
+        const srcAcceAGSA = ctx.sourceCardNum;
+        const acceAGSA = ctx.ownerState.field.signi_acce ?? [null, null, null];
+        const zoneIdxAGSA = acceAGSA.findIndex(cn => cn === srcAcceAGSA);
+        if (zoneIdxAGSA < 0) return done(addLog(ctx, 'アクセ中のシグニが見つからない'));
+        const targetSigniAGSA = ctx.ownerState.field.signi[zoneIdxAGSA]?.at(-1);
+        if (!targetSigniAGSA) return done(addLog(ctx, 'アクセ先のシグニがいない'));
+        const srcCardAGSA = ctx.cardMap.get(srcAcceAGSA ?? '');
+        const txtAGSA = srcCardAGSA ? (srcCardAGSA.EffectText ?? '') : '';
+        const mKwAGSA = txtAGSA.match(/【([^】]+)】/);
+        const kwAGSA = mKwAGSA ? mKwAGSA[1] : 'ランサー';
+        const kwGrantsAGSA = { ...(ctx.ownerState.keyword_grants ?? {}) };
+        const existingAGSA = kwGrantsAGSA[targetSigniAGSA] ?? [];
+        if (!existingAGSA.includes(kwAGSA)) kwGrantsAGSA[targetSigniAGSA] = [...existingAGSA, kwAGSA];
+        const newSAGSA: PlayerState = { ...ctx.ownerState, keyword_grants: kwGrantsAGSA };
+        return done(addLog({ ...ctx, ownerState: newSAGSA },
+          `${ctx.cardMap.get(targetSigniAGSA)?.CardName ?? targetSigniAGSA}に【${kwAGSA}】付与`));
+      }
+      // MOVE_ACCE_TO_SIGNI: アクセを別のシグニに付け替え
+      if (stub.id === 'MOVE_ACCE_TO_SIGNI') {
+        const srcAcceMATS = ctx.sourceCardNum;
+        const acceMATS = [...(ctx.ownerState.field.signi_acce ?? [null, null, null])];
+        const srcZoneMATS = acceMATS.findIndex(cn => cn === srcAcceMATS);
+        if (srcZoneMATS < 0) return done(addLog(ctx, 'アクセ中のシグニが見つからない'));
+        // アクセがついていないゾーンを探す
+        const dstZoneMATS = acceMATS.findIndex((cn, i) => i !== srcZoneMATS && cn === null &&
+          ctx.ownerState.field.signi[i] && (ctx.ownerState.field.signi[i]?.length ?? 0) > 0);
+        if (dstZoneMATS < 0) return done(addLog(ctx, '移動先のシグニゾーンなし'));
+        acceMATS[srcZoneMATS] = null;
+        acceMATS[dstZoneMATS] = srcAcceMATS ?? null;
+        const newSMATS: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_acce: acceMATS } };
+        const dstSigniName = ctx.cardMap.get(ctx.ownerState.field.signi[dstZoneMATS]?.at(-1) ?? '')?.CardName ?? 'シグニ';
+        return done(addLog({ ...ctx, ownerState: newSMATS },
+          `${ctx.cardMap.get(srcAcceMATS ?? '')?.CardName ?? 'アクセ'}を${dstSigniName}へ移動`));
+      }
+      // PEEP_HAND: 相手の手札を覗き見（ログに枚数と名前を表示）
+      if (stub.id === 'PEEP_HAND') {
+        const oppHandPH = ctx.otherState.hand;
+        const namesPH = oppHandPH.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+        return done(addLog(ctx, `相手の手札を確認（${oppHandPH.length}枚）：${namesPH || 'なし'}`));
+      }
+      // REVEAL_OPP_HAND_CARD: 相手の手札のカードを1枚公開
+      if (stub.id === 'REVEAL_OPP_HAND_CARD') {
+        const oppHandROHC = ctx.otherState.hand;
+        if (oppHandROHC.length === 0) return done(addLog(ctx, '相手の手札なし'));
+        const randROHC = oppHandROHC[Math.floor(Math.random() * oppHandROHC.length)];
+        return done(addLog({ ...ctx, lastProcessedCards: [randROHC] },
+          `相手の手札を公開：${ctx.cardMap.get(randROHC)?.CardName ?? randROHC}`));
+      }
+      // OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND: 公開ログ
+      if (stub.id === 'OPP_REVEAL_HAND_AND_LRIG_DECK' || stub.id === 'OPP_REVEAL_LRIG_DECK' || stub.id === 'OPP_REVEAL_TOP_AND_HAND') {
+        const handNames = ctx.otherState.hand.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+        const lrigNames = ctx.otherState.lrig_deck.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+        if (stub.id === 'OPP_REVEAL_LRIG_DECK') {
+          return done(addLog(ctx, `相手のルリグデッキ公開（${ctx.otherState.lrig_deck.length}枚）：${lrigNames || 'なし'}`));
+        }
+        if (stub.id === 'OPP_REVEAL_TOP_AND_HAND') {
+          const topName = ctx.cardMap.get(ctx.otherState.deck[0] ?? '')?.CardName ?? 'なし';
+          return done(addLog(ctx, `相手のデッキ上（${topName}）+手札（${handNames || 'なし'}）を公開`));
+        }
+        return done(addLog(ctx, `相手の手札（${handNames || 'なし'}）+ルリグデッキ（${lrigNames || 'なし'}）を公開`));
+      }
       // === バッチ14: シグニ移動・エナ操作・複数対象系 ===
       // OPP_SIGNI_TO_DECK_AND_SHUFFLE / OPP_SIGNI_TO_DECK_BY_GATE / OPP_SIGNI_TO_DECK_NTH:
       //   相手シグニをデッキに混ぜる
