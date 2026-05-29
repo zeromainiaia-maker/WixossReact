@@ -148,6 +148,8 @@ export interface PlayerState {
   colorless_card_overrides?: string[];
   // 対戦相手の効果でトラッシュに移動できないゾーン（PREVENT_ZONE_MOVE_BY_OPP等）
   prevent_opp_trash_from?: ('hand' | 'energy')[];
+  // ターン終了時まで有効なシグニ色オーバーライド（CardNum → 新色名）
+  signi_color_overrides?: Record<string, string>;
   // エナの色代替（キーピース等：from色のエナをto色として扱う）
   energy_color_substitutes?: { from: string[]; to: string }[];
 }
