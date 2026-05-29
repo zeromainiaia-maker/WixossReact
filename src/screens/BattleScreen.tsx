@@ -1986,6 +1986,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_limit_mod: undefined,               // ルリグリミット修正をリセット
           prevent_opp_guard: undefined,            // 相手ガード禁止フラグをリセット
           draw_limit: undefined,                   // ドロー上限リセット（次ターン開始時にも解除）
+          card_class_overrides: undefined,         // クラスオーバーライドリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
