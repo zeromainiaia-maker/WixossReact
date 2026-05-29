@@ -4875,6 +4875,200 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: newOtherTABN },
           `「${targetNameTABN}」を相手フィールド・エナからトラッシュ`));
       }
+      // === バッチ4: デッキ/手札/エナ操作 ===
+      // DRAW: N枚ドロー
+      if (stub.id === 'DRAW') {
+        const srcDRW = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtDRW = srcDRW ? (srcDRW.EffectText ?? '') + ' ' + (srcDRW.BurstText ?? '') : '';
+        const toHWDRW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mDRW = txtDRW.match(/カードを([０-９\d]+)枚引く/);
+        const drawCountDRW = mDRW ? parseInt(toHWDRW(mDRW[1])) : 1;
+        const sDRW = ctx.ownerState;
+        const canDrawDRW = Math.min(drawCountDRW, sDRW.deck.length);
+        const newSDRW: PlayerState = { ...sDRW, hand: [...sDRW.hand, ...sDRW.deck.slice(0, canDrawDRW)], deck: sDRW.deck.slice(canDrawDRW) };
+        return done(addLog({ ...ctx, ownerState: newSDRW }, `${drawCountDRW}枚ドロー`));
+      }
+      // LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: デッキ上N枚を確認して並べ替え
+      if (stub.id === 'LOOK_TOP_N' || stub.id === 'LOOK_TOP_SORT' || stub.id === 'LOOK_TOP_COLOR_SORT' || stub.id === 'LOOK_TOP_BY_LIFE_COUNT') {
+        const srcLTN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtLTN = srcLTN ? (srcLTN.EffectText ?? '') + ' ' + (srcLTN.BurstText ?? '') : '';
+        const toHWLTN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        let countLTN = 3;
+        if (stub.id === 'LOOK_TOP_BY_LIFE_COUNT') {
+          countLTN = ctx.ownerState.life_cloth.length;
+        } else {
+          const mLTN = txtLTN.match(/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/);
+          if (mLTN) countLTN = parseInt(toHWLTN(mLTN[1]));
+        }
+        const visLTN = ctx.ownerState.deck.slice(0, Math.min(countLTN, ctx.ownerState.deck.length));
+        if (visLTN.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const newSLTN: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visLTN.length) };
+        return needsInteraction(
+          addLog({ ...ctx, ownerState: newSLTN }, `デッキ上${visLTN.length}枚を確認`),
+          { type: 'LOOK_AND_REORDER', cards: visLTN, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top' },
+        );
+      }
+      // LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を確認して残りをデッキ下に
+      if (stub.id === 'LOOK_TOP_ONE_RETURN_REST_BOTTOM') {
+        const srcLTORB = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtLTORB = srcLTORB ? (srcLTORB.EffectText ?? '') + ' ' + (srcLTORB.BurstText ?? '') : '';
+        const toHWLTORB = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mLTORB = txtLTORB.match(/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/);
+        const countLTORB = mLTORB ? parseInt(toHWLTORB(mLTORB[1])) : 3;
+        const visLTORB = ctx.ownerState.deck.slice(0, Math.min(countLTORB, ctx.ownerState.deck.length));
+        if (visLTORB.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const newSLTORB: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visLTORB.length) };
+        return needsInteraction(
+          addLog({ ...ctx, ownerState: newSLTORB }, `デッキ上${visLTORB.length}枚を確認（残りをデッキ下へ）`),
+          { type: 'LOOK_AND_REORDER', cards: visLTORB, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'bottom' },
+        );
+      }
+      // LOOK_TOP_SPELLS_TO_HAND: デッキ上N枚を確認してスペルを手札へ・残りをデッキへ
+      if (stub.id === 'LOOK_TOP_SPELLS_TO_HAND') {
+        const srcLTSH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtLTSH = srcLTSH ? (srcLTSH.EffectText ?? '') + ' ' + (srcLTSH.BurstText ?? '') : '';
+        const toHWLTSH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mLTSH = txtLTSH.match(/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/);
+        const countLTSH = mLTSH ? parseInt(toHWLTSH(mLTSH[1])) : 3;
+        const sLTSH = ctx.ownerState;
+        const revealedLTSH = sLTSH.deck.slice(0, Math.min(countLTSH, sLTSH.deck.length));
+        const spellsLTSH = revealedLTSH.filter(cn => ctx.cardMap.get(cn)?.Type === 'スペル');
+        const restLTSH = revealedLTSH.filter(cn => ctx.cardMap.get(cn)?.Type !== 'スペル');
+        const newSLTSH: PlayerState = {
+          ...sLTSH,
+          deck: [...restLTSH, ...sLTSH.deck.slice(revealedLTSH.length)],
+          hand: [...sLTSH.hand, ...spellsLTSH],
+        };
+        return done(addLog({ ...ctx, ownerState: newSLTSH },
+          `デッキ上${revealedLTSH.length}枚確認、スペル${spellsLTSH.length}枚を手札に`));
+      }
+      // LIFE_TO_HAND_OPTIONAL: ライフクロス1枚を手札に加える
+      if (stub.id === 'LIFE_TO_HAND_OPTIONAL') {
+        const sLTH = ctx.ownerState;
+        if (sLTH.life_cloth.length === 0) return done(addLog(ctx, 'ライフクロスなし'));
+        const topLife = sLTH.life_cloth[0];
+        const newSLTH: PlayerState = { ...sLTH, life_cloth: sLTH.life_cloth.slice(1), hand: [...sLTH.hand, topLife] };
+        return done(addLog({ ...ctx, ownerState: newSLTH }, 'ライフクロス1枚を手札に加えた'));
+      }
+      // HAND_TO_ENERGY_OPTIONAL: 手札1枚を任意でエナゾーンへ
+      if (stub.id === 'HAND_TO_ENERGY_OPTIONAL') {
+        const cHTE = ctx.ownerState.hand;
+        if (cHTE.length === 0) return done(addLog(ctx, '手札なし'));
+        const thenHTE: import('../types/effects').AddToEnergyAction = { type: 'ADD_TO_ENERGY', owner: 'self' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: cHTE, count: 1, optional: true,
+          targetScope: 'self_hand', thenAction: thenHTE,
+        });
+      }
+      // HAND_NONCOLORLESS_TO_ENERGY: 手札の無色以外カードをエナゾーンへ
+      if (stub.id === 'HAND_NONCOLORLESS_TO_ENERGY') {
+        const sHNCE = ctx.ownerState;
+        const nonColorlessHNCE = sHNCE.hand.filter(cn => { const c = ctx.cardMap.get(cn)?.Color ?? ''; return c !== '' && c !== '無色'; });
+        const remainHNCE = sHNCE.hand.filter(cn => { const c = ctx.cardMap.get(cn)?.Color ?? ''; return c === '' || c === '無色'; });
+        const newSHNCE: PlayerState = { ...sHNCE, hand: remainHNCE, energy: [...sHNCE.energy, ...nonColorlessHNCE] };
+        return done(addLog({ ...ctx, ownerState: newSHNCE }, `手札の無色以外${nonColorlessHNCE.length}枚をエナゾーンへ`));
+      }
+      // OPP_HAND_TO_DECK_TOP: 相手の手札をデッキトップに戻す
+      if (stub.id === 'OPP_HAND_TO_DECK_TOP') {
+        const sOHTDT = ctx.otherState;
+        if (sOHTDT.hand.length === 0) return done(addLog(ctx, '相手手札なし'));
+        const newSOHTDT: PlayerState = { ...sOHTDT, deck: [...sOHTDT.hand, ...sOHTDT.deck], hand: [] };
+        return done(addLog({ ...ctx, otherState: newSOHTDT }, `相手の手札${ctx.otherState.hand.length}枚をデッキトップに戻した`));
+      }
+      // OPP_TRASH_TO_DECK_TOP: 相手のトラッシュ最上段をデッキトップに
+      if (stub.id === 'OPP_TRASH_TO_DECK_TOP') {
+        const sOTTDT = ctx.otherState;
+        if (sOTTDT.trash.length === 0) return done(addLog(ctx, '相手トラッシュなし'));
+        const topTrashOTTDT = sOTTDT.trash.at(-1)!;
+        const newSOTTDT: PlayerState = { ...sOTTDT, trash: sOTTDT.trash.slice(0, -1), deck: [topTrashOTTDT, ...sOTTDT.deck] };
+        return done(addLog({ ...ctx, otherState: newSOTTDT },
+          `${ctx.cardMap.get(topTrashOTTDT)?.CardName ?? topTrashOTTDT}を相手デッキトップに戻した`));
+      }
+      // REMOVE_OPP_MULTI_ENA / REMOVE_OPP_MULTI_ENA_ONLY: 相手の複数色エナをトラッシュへ
+      if (stub.id === 'REMOVE_OPP_MULTI_ENA' || stub.id === 'REMOVE_OPP_MULTI_ENA_ONLY') {
+        const sROME = ctx.otherState;
+        const multiColorROME = sROME.energy.filter(cn => (ctx.cardMap.get(cn)?.Color ?? '').includes('/'));
+        if (multiColorROME.length === 0) return done(addLog(ctx, '相手の複数色エナなし'));
+        const newSROME: PlayerState = {
+          ...sROME,
+          energy: sROME.energy.filter(cn => !(ctx.cardMap.get(cn)?.Color ?? '').includes('/')),
+          trash: [...sROME.trash, ...multiColorROME],
+        };
+        return done(addLog({ ...ctx, otherState: newSROME }, `相手の複数色エナ${multiColorROME.length}枚をトラッシュへ`));
+      }
+      // BOTH_DISCARD_BY_CENTER_LEVEL: 両者センタールリグのレベル分捨て
+      if (stub.id === 'BOTH_DISCARD_BY_CENTER_LEVEL') {
+        const centerNumBDCL = ctx.ownerState.field.lrig.at(-1);
+        const centerCardBDCL = centerNumBDCL ? ctx.cardMap.get(centerNumBDCL) : undefined;
+        const toHWBDCL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const centerLevelBDCL = centerCardBDCL ? parseInt(toHWBDCL(centerCardBDCL.Level ?? '0')) || 0 : 0;
+        const selfDiscardBDCL = Math.min(centerLevelBDCL, ctx.ownerState.hand.length);
+        const otherDiscardBDCL = Math.min(centerLevelBDCL, ctx.otherState.hand.length);
+        const newCtxBDCL: ExecCtx = {
+          ...ctx,
+          ownerState: { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(selfDiscardBDCL), trash: [...ctx.ownerState.trash, ...ctx.ownerState.hand.slice(0, selfDiscardBDCL)] },
+          otherState: { ...ctx.otherState, hand: ctx.otherState.hand.slice(otherDiscardBDCL), trash: [...ctx.otherState.trash, ...ctx.otherState.hand.slice(0, otherDiscardBDCL)] },
+        };
+        return done(addLog(newCtxBDCL, `両者センターレベル${centerLevelBDCL}枚ずつ捨て`));
+      }
+      // TRASH_SIGNI_UNDER_FIELD_SIGNI: 自分フィールドシグニ下のカードをトラッシュへ
+      if (stub.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
+        let sTSUFS = ctx.ownerState;
+        const underCardsTSUFS = sTSUFS.field.signi.flatMap(stack => stack && stack.length > 1 ? stack.slice(0, -1) : []);
+        const newSigniTSUFS = sTSUFS.field.signi.map(stack => !stack || stack.length <= 1 ? stack : [stack.at(-1)!]) as (string[] | null)[];
+        sTSUFS = { ...sTSUFS, field: { ...sTSUFS.field, signi: newSigniTSUFS }, trash: [...sTSUFS.trash, ...underCardsTSUFS] };
+        return done(addLog({ ...ctx, ownerState: sTSUFS }, `シグニ下${underCardsTSUFS.length}枚をトラッシュへ`));
+      }
+      // UNDER_SIGNI_TO_ENERGY: シグニ下カードをエナゾーンへ
+      if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
+        let sUSTE = ctx.ownerState;
+        const underCardsUSTE = sUSTE.field.signi.flatMap(stack => stack && stack.length > 1 ? stack.slice(0, -1) : []);
+        const newSigniUSTE = sUSTE.field.signi.map(stack => !stack || stack.length <= 1 ? stack : [stack.at(-1)!]) as (string[] | null)[];
+        sUSTE = { ...sUSTE, field: { ...sUSTE.field, signi: newSigniUSTE }, energy: [...sUSTE.energy, ...underCardsUSTE] };
+        return done(addLog({ ...ctx, ownerState: sUSTE }, `シグニ下${underCardsUSTE.length}枚をエナゾーンへ`));
+      }
+      // UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: シグニ下のクラスなしカードをエナゾーンへ
+      if (stub.id === 'UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS') {
+        let sUSTENC = ctx.ownerState;
+        const newSigniUSTENC = [...sUSTENC.field.signi] as (string[] | null)[];
+        const toEnaUSTENC: string[] = [];
+        for (let zi = 0; zi < 3; zi++) {
+          const stack = sUSTENC.field.signi[zi];
+          if (!stack || stack.length <= 1) continue;
+          const under = stack.slice(0, -1);
+          const noClass = under.filter(cn => !(ctx.cardMap.get(cn)?.CardClass));
+          const hasClass = under.filter(cn => !!ctx.cardMap.get(cn)?.CardClass);
+          newSigniUSTENC[zi] = [...hasClass, stack.at(-1)!];
+          toEnaUSTENC.push(...noClass);
+        }
+        sUSTENC = { ...sUSTENC, field: { ...sUSTENC.field, signi: newSigniUSTENC }, energy: [...sUSTENC.energy, ...toEnaUSTENC] };
+        return done(addLog({ ...ctx, ownerState: sUSTENC }, `クラスなしシグニ下${toEnaUSTENC.length}枚をエナゾーンへ`));
+      }
+      // ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える
+      if (stub.id === 'ADD_CARD_TO_LRIG_DECK' || stub.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN') {
+        const cardsACLD = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards : [];
+        if (cardsACLD.length === 0) return done(addLog(ctx, '対象カードなし'));
+        let sACLD = ctx.ownerState;
+        for (const cn of cardsACLD) {
+          sACLD = {
+            ...sACLD,
+            hand: sACLD.hand.filter(c => c !== cn),
+            trash: sACLD.trash.filter(c => c !== cn),
+            lrig_deck: [...sACLD.lrig_deck, cn],
+          };
+        }
+        return done(addLog({ ...ctx, ownerState: sACLD }, `${cardsACLD.length}枚をルリグデッキに加えた`));
+      }
+      // PREVENT_LOW_LEVEL_LRIG_DAMAGE / PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ
+      if (stub.id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' || stub.id === 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP') {
+        const newSPLLD: PlayerState = { ...ctx.ownerState, prevent_lrig_damage: true };
+        return done(addLog({ ...ctx, ownerState: newSPLLD }, 'ルリグダメージ無効'));
+      }
+      // PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN: 相手の次ターン最初のダメージを無効
+      if (stub.id === 'PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN') {
+        const newSPFDNOT: PlayerState = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
+        return done(addLog({ ...ctx, ownerState: newSPFDNOT }, '次の相手ターン最初のダメージを無効'));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
