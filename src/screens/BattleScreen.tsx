@@ -197,6 +197,35 @@ function computeArtsEffectiveCost(
     return removeOneCostColor(base, m[2]);
   }
 
+  // フィールドにパワーN以上のシグニがある場合コスト減（CONDITIONAL_COST_REDUCTION_BY_FIELD）
+  if (myState.field && cardMap) {
+    m = text.match(/あなたの場にパワー([０-９\d]+)以上のシグニがある場合[^、]*使用コストは《([^》]+)》×([０-９\d]+)減る/);
+    if (m) {
+      const reqPower = parseInt(toHalfWidth(m[1]));
+      const color = m[2];
+      const cnt = parseInt(toHalfWidth(m[3]));
+      const hasStrongSigni = (myState.field.signi ?? []).some(stack => {
+        const top = stack?.at(-1);
+        if (!top) return false;
+        const pow = parseInt(cardMap.get(top)?.Power ?? '0');
+        return pow >= reqPower;
+      });
+      if (hasStrongSigni) return removeNColorFromCost(base, color, cnt);
+    }
+    // フィールドに特定クラスのシグニがある場合コスト減
+    m = text.match(/あなたの場に＜([^＞]+)＞のシグニがある場合[^、]*使用コストは《([^》]+)》×([０-９\d]+)減る/);
+    if (m) {
+      const reqClass = m[1];
+      const color = m[2];
+      const cnt = parseInt(toHalfWidth(m[3]));
+      const hasClassSigni = (myState.field.signi ?? []).some(stack => {
+        const top = stack?.at(-1);
+        return top && (cardMap.get(top)?.CardClass ?? '').includes(reqClass);
+      });
+      if (hasClassSigni) return removeNColorFromCost(base, color, cnt);
+    }
+  }
+
   return base;
 }
 
