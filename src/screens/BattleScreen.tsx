@@ -510,8 +510,9 @@ function canAffordWithExtraCost(
   keywordGrants?: Record<string, string[]>,
   allMulti?: boolean,
   colorlessOverrides?: string[],
+  colorSubs?: { from: string[]; to: string }[],
 ): boolean {
-  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, colorlessOverrides);
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs);
   // 追加コスト分をプールから引いてから基本コストをチェック
   let pool = [...energyNums];
   for (const { color, count } of extraCosts) {
@@ -522,14 +523,17 @@ function canAffordWithExtraCost(
         const cd = cards.find(c => c.CardNum === getCardNum(n));
         const isColorless = colorlessOverrides?.includes(getCardNum(n)) || colorlessOverrides?.includes(n);
         const cardColor = isColorless ? '無' : (cd?.Color ?? '無');
-        if (color === '無' || cardColor.includes(color)) { needed--; continue; }
+        // color substitutes: to色が対象色と一致すれば代替可能
+        const colorMatches = color === '無' || cardColor.includes(color) ||
+          (colorSubs?.some(s => s.to === cardColor && s.from.includes(color)));
+        if (colorMatches) { needed--; continue; }
       }
       rem.push(n);
     }
     pool = rem;
     if (needed > 0) return false;
   }
-  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, colorlessOverrides);
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs);
 }
 
 // EnergyCost[] を growCost 文字列に変換（altCostOppTurn 用）
@@ -2096,7 +2100,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const hasAffordable = growCandidates.some(card => {
           const gCoin = parseCoinCost(card.GrowCost);
           return (gCoin === 0 || my.coins >= gCoin) &&
-            canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+            canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
         });
         if (hasAffordable) {
           setShowGrowSkipConfirm(true);
@@ -3403,8 +3407,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
       const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
       const costOk = effectiveCostStr
-        ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides)
-        : canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+        ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs)
+        : canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
       if (canUse && costOk) {
         actions.push({
           label: '使用',
@@ -3426,7 +3430,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
         (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ'));
       const coinNeeded = parseCoinCost(cardData.Cost) + parseCoinCost(cardData.GrowCost);
-      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
       if (canUse && canAfford) {
         actions.push({
           label: 'キーにセット',
@@ -4925,7 +4929,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   ) : growCandidates.map(card => {
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     const canAfford = (growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
-                      canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                      canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
                     const totalReq = parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -4982,7 +4986,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedGrowCost].map(i => my.energy[i]);
               const isValid = selectedGrowCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -5102,7 +5106,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
-                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
                     const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
                     const betCostAmt = parseBetCost(card.EffectText ?? '');
                     const costReduced = effCost !== card.Cost;
@@ -5184,7 +5188,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);
@@ -5388,7 +5392,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = totalReq === 0 ||
                 (selectedSpellCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, spellCard.Cost, extraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides));
+                  canAffordWithExtraCost(selectedNums, battleCards, spellCard.Cost, extraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -5538,7 +5542,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             const extraArtsCosts = activeCostMods.forMy
                               .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                               .flatMap(m => m.amount);
-                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
                             return (
                               <button key={card.CardNum}
                                 onClick={() => { if (canAfford) { setPendingCutinCard(card); setSelectedCutinCost(new Set()); } }}
@@ -5581,7 +5585,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = totalReq === 0 ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, pendingCutinCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides));
+                  canAffordWithExtraCost(selectedNums, battleCards, pendingCutinCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -5747,7 +5751,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             </p>
             <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 12px' }}>
               {growCandidates
-                .filter(c => canAffordGrowCost(my.energy, battleCards, c.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides))
+                .filter(c => canAffordGrowCost(my.energy, battleCards, c.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs))
                 .map(c => c.CardName)
                 .join('・')}
             </p>
@@ -6383,7 +6387,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const coinNeeded = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
               const energyTotal = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => my.energy[i]);
-              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides));
+              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && my.coins >= coinNeeded;
               return (
                 <>
@@ -6463,7 +6467,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedKeyActivatedCost].map(i => my.energy[i]);
-              const energyOk = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides));
+              const energyOk = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && selectedKeyActivatedDiscard.size >= discardNeeded;
               return (
                 <>
@@ -6576,7 +6580,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {getAssistGrowCandidates(pendingAssistSide).map(card => {
-                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
                     const energyTotal = parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -6618,7 +6622,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 const selectedNums = [...selectedAssistGrowCost].map(i => my.energy[i]);
                 const canAfford = energyTotal === 0
                   ? true
-                  : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                  : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
                 return (
                   <>
                     <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
@@ -6694,7 +6698,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedAssistActivatedCost].map(i => my.energy[i]);
-              const energyOk = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides));
+              const energyOk = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded;
               return (
                 <>
@@ -6812,7 +6816,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const energyOk = energyTotal === 0
                 ? true
                 : selectedSigniActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
               const discardOk = selectedSigniActivatedDiscard.size >= discardNeeded;
               const canAfford = energyOk && discardOk;
 
@@ -6984,7 +6988,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const energyOk = energyTotal === 0
                 ? true
                 : selectedSigniOnPlayCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
               const canAfford = energyOk && selectedSigniOnPlayDiscard.size >= discardNeeded;
               return (
                 <>
@@ -7162,7 +7166,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const canAffordEnergy = energyTotal === 0
                 ? true
                 : selectedLrigGrantedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
               const totalExceedAvail = (my.field.lrig.length - 1)
                 + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
                 + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);
