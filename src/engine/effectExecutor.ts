@@ -5132,8 +5132,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }}, `デッキ上から${ctx.cardMap.get(firstSigniLTSTF)?.CardName ?? firstSigniLTSTF}→フィールド`));
       }
       // 追加ターンを獲得（ログのみ、ゲームエンジン実装が必要）
+      // GAIN_EXTRA_TURN: 追加ターンフラグをセット（BattleScreen側でターン終了時に追加ターンを付与）
       if (stub.id === 'GAIN_EXTRA_TURN') {
-        return done(addLog(ctx, '追加ターン獲得（エンジン実装待ち）'));
+        const newOwnerET = { ...ctx.ownerState, extra_turn: true };
+        return done(addLog({ ...ctx, ownerState: newOwnerET }, '追加ターンを獲得（次のターン終了後にもう1ターン）'));
       }
       // ガードアイコン付与（手札のシグニに付与: フラグ設定）
       if (stub.id === 'HAND_SIGNI_HAS_GUARD_ICON') {
