@@ -89,11 +89,11 @@ export default function App() {
       .then(([csvResults, tkCsv, effectsJson]) => {
         const parseRows = (csv: string) =>
           Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true }).data;
-        const storageBase = import.meta.env.VITE_FIREBASE_STORAGE_BASE;
+        const storageBase = import.meta.env.VITE_CARD_IMAGE_BASE;
         const toCardData = (r: Record<string, string>): CardData => ({
           CardNum:     r.CardNum,
           CardName:    r.CardName,
-          ImgURL:      `${storageBase}/${r.CardNum}.webp?alt=media`,
+          ImgURL:      `${storageBase}/${r.CardNum}.webp`,
           Type:        r.Type,
           CardClass:   r.CardClass,
           Color:       r.Color,
