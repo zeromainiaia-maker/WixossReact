@@ -127,6 +127,8 @@ export interface PlayerState {
   prevent_opp_guard?: boolean;
   // 次の自分のターンのドロー枚数上限（LIMIT_OPP_DRAW_COUNT等）
   draw_limit?: number;
+  // ターン終了時まで有効なカードクラスオーバーライド（CardNum → 新クラス名）
+  card_class_overrides?: Record<string, string>;
 }
 
 export interface GameLog {
