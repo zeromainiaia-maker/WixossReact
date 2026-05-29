@@ -146,6 +146,12 @@
 | 2026-05-30 | CONTINUOUS効果を動的計算に統一（executor.tsのPlayerState直変更を削除） | PREVENT_ZONE_MOVE_BY_OPP, ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白, LOSE_COLOR_ALL_ZONES |
 | 2026-05-30 | MULTI_ZONE_ATTACK：強制/任意をテキスト解析で判定、バトル負けケース追加 | MULTI_ZONE_ATTACK |
 | 2026-05-30 | ExecCtxにotherProtectedZones追加、resolveStackNext動的計算でexecutorへ渡す | PREVENT_ZONE_MOVE_BY_OPP |
+| 2026-05-30 | computeArtsEffectiveCost にフィールド条件コスト軽減追加（スペルにも対応）| CONDITIONAL_COST_REDUCTION_BY_FIELD |
+| 2026-05-30 | ルリグカード自身のON_ATTACK_LRIG AUTO効果を処理（handleLrigAttack改善） | ルリグのアタック時AUTO |
+| 2026-05-30 | ON_TRASHトリガー実装（56件）：detectTrashedSigni/collectTrashTriggers追加 | ON_TRASH timing |
+| 2026-05-30 | ON_ENERGY_FROM_TRASHトリガー実装（3件）：detectEnergyFromTrash追加 | ON_ENERGY_FROM_TRASH timing |
+| 2026-05-30 | CONDITIONAL_TRASH_TO_ENERGYにセンタールリグ条件チェック追加 | CONDITIONAL_TRASH_TO_ENERGY |
+| 2026-05-30 | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVELをSELECT_TARGET 1体選択に改善 | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL |
 
 ---
 
