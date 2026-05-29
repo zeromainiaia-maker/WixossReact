@@ -5859,6 +5859,119 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
+      // === バッチ16: アクセ・公開・汎用選択系 ===
+      // GRID_REVEAL_PLUS: グリッド公開（デッキ上を公開し結果に応じてドロー等）
+      if (stub.id === 'GRID_REVEAL_PLUS') {
+        const sGRP = ctx.ownerState;
+        if (sGRP.deck.length === 0) return done(addLog(ctx, 'デッキなし（グリッド公開できず）'));
+        const topGRP = sGRP.deck[0];
+        const cardGRP = ctx.cardMap.get(topGRP);
+        const newSGRP: PlayerState = { ...sGRP, deck: sGRP.deck.slice(1), trash: [...sGRP.trash, topGRP] };
+        return done(addLog({ ...ctx, ownerState: newSGRP, lastProcessedCards: [topGRP] },
+          `グリッド公開：${cardGRP?.CardName ?? topGRP}→トラッシュ`));
+      }
+      // MAGIC_BOX_REVEAL: マジックボックスを開けて公開
+      if (stub.id === 'MAGIC_BOX_REVEAL') {
+        const sMBR = ctx.ownerState;
+        if (sMBR.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topMBR = sMBR.deck[0];
+        const cardMBR = ctx.cardMap.get(topMBR);
+        return done(addLog({ ...ctx, lastProcessedCards: [topMBR] },
+          `マジックボックス公開：${cardMBR?.CardName ?? topMBR}`));
+      }
+      // ACCE_OP: アクセ操作（汎用ログ）
+      if (stub.id === 'ACCE_OP') {
+        const acceCountAO = (ctx.ownerState.field.signi_acce ?? []).filter(cn => cn !== null).length;
+        return done(addLog(ctx, `アクセ操作（現在${acceCountAO}個のアクセ）`));
+      }
+      // ACCE_SIGNI_ALL_COLOR: アクセ中のシグニを全色にする
+      if (stub.id === 'ACCE_SIGNI_ALL_COLOR') {
+        const srcASAC = ctx.sourceCardNum;
+        const acceASAC = ctx.ownerState.field.signi_acce ?? [null, null, null];
+        const zoneIdxASAC = acceASAC.findIndex(cn => cn === srcASAC);
+        if (zoneIdxASAC < 0) return done(addLog(ctx, 'アクセ中のシグニが見つからない'));
+        const targetSigniASAC = ctx.ownerState.field.signi[zoneIdxASAC]?.at(-1);
+        if (!targetSigniASAC) return done(addLog(ctx, 'アクセ先のシグニがいない'));
+        // story_overrides にフラグとして記録（全色付与の意）
+        const ovASAC = { ...(ctx.ownerState.story_overrides ?? {}), [targetSigniASAC]: 'ALL_COLOR' };
+        const newSASAC: PlayerState = { ...ctx.ownerState, story_overrides: ovASAC };
+        return done(addLog({ ...ctx, ownerState: newSASAC },
+          `${ctx.cardMap.get(targetSigniASAC)?.CardName ?? targetSigniASAC}が全色を持つ`));
+      }
+      // TRASH_ACCE_AT_TURN_END: アクセカードをターン終了時にトラッシュ（即座に処理）
+      if (stub.id === 'TRASH_ACCE_AT_TURN_END') {
+        const accesTATE = ctx.ownerState.field.signi_acce ?? [null, null, null];
+        const acceCardsToTrash = accesTATE.filter((cn): cn is string => cn !== null);
+        if (acceCardsToTrash.length === 0) return done(addLog(ctx, 'アクセなし（トラッシュ対象なし）'));
+        const newAcceTATE = [null, null, null] as (string | null)[];
+        const newSTATE: PlayerState = {
+          ...ctx.ownerState,
+          trash: [...ctx.ownerState.trash, ...acceCardsToTrash],
+          field: { ...ctx.ownerState.field, signi_acce: newAcceTATE },
+        };
+        return done(addLog({ ...ctx, ownerState: newSTATE }, `アクセ${acceCardsToTrash.length}枚→トラッシュ（ターン終了）`));
+      }
+      // MULTI_ACCE_LIMIT: アクセを特定枚数に制限（ログのみ）
+      if (stub.id === 'MULTI_ACCE_LIMIT') {
+        const acceCountMAL = (ctx.ownerState.field.signi_acce ?? []).filter(cn => cn !== null).length;
+        return done(addLog(ctx, `マルチアクセ制限（現在${acceCountMAL}個）`));
+      }
+      // CHOOSE_HAND_CARD: 手札から1枚選択（lastProcessedCardsに設定）
+      if (stub.id === 'CHOOSE_HAND_CARD') {
+        const handCHC = ctx.ownerState.hand;
+        if (handCHC.length === 0) return done(addLog(ctx, '手札なし'));
+        const noopCHC: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: handCHC, count: 1, optional: true,
+          targetScope: 'self_hand', thenAction: noopCHC as EffectAction,
+        });
+      }
+      // CHOOSE_HAND_OR_ENERGY: 手札かエナから選択
+      if (stub.id === 'CHOOSE_HAND_OR_ENERGY') {
+        const candsCHOE = [...ctx.ownerState.hand, ...ctx.ownerState.energy];
+        if (candsCHOE.length === 0) return done(addLog(ctx, '手札もエナもなし'));
+        const noopCHOE: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candsCHOE, count: 1, optional: true,
+          targetScope: 'self_hand', thenAction: noopCHOE as EffectAction,
+        });
+      }
+      // OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU:
+      //   対戦相手が選択する効果（ログのみ）
+      if (stub.id === 'OPP_DECLARE_CHOICE' || stub.id === 'OPP_CHOOSE_EFFECT' || stub.id === 'OPP_CHOOSES_FOR_YOU') {
+        const labelODC = stub.id === 'OPP_DECLARE_CHOICE' ? '相手が宣言する'
+          : stub.id === 'OPP_CHOOSE_EFFECT' ? '相手が効果を選ぶ'
+          : '相手があなたのために選ぶ';
+        return done(addLog(ctx, labelODC));
+      }
+      // DO_THREE_THINGS: 3つの処理を実行（汎用ログ）
+      if (stub.id === 'DO_THREE_THINGS') {
+        return done(addLog(ctx, '3つの処理（個別解析要）'));
+      }
+      // CONDITIONAL_MULTI_CHOOSE_BY_CENTER: センタールリグによる複数選択
+      if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER') {
+        const centerCMCBC = ctx.ownerState.field.lrig.at(-1);
+        const centerCardCMCBC = centerCMCBC ? ctx.cardMap.get(centerCMCBC) : undefined;
+        return done(addLog(ctx, `センター（${centerCardCMCBC?.CardName ?? 'なし'}）による複数選択`));
+      }
+      // DOWN_UP_SIGNI_AND_CHOOSE: シグニをダウン/アップして選択
+      if (stub.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {
+        const srcDUSC = ctx.sourceCardNum;
+        if (!srcDUSC) return done(addLog(ctx, 'ソースカードなし'));
+        const signiZoneDUSC = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcDUSC);
+        if (signiZoneDUSC < 0) return done(addLog(ctx, '場にシグニなし'));
+        // 対象をダウン
+        const downDUSC = [...(ctx.ownerState.field.signi_down ?? [false, false, false])];
+        downDUSC[signiZoneDUSC] = true;
+        const newSDUSC: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_down: downDUSC } };
+        return done(addLog({ ...ctx, ownerState: newSDUSC }, `${ctx.cardMap.get(srcDUSC)?.CardName ?? srcDUSC}をダウン+選択`));
+      }
+      // CHOOSE_N_FROM_LIST / CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE:
+      //   汎用選択（ログ）
+      if (stub.id === 'CHOOSE_N_FROM_LIST' || stub.id === 'CHOOSE_COLOR_FROM_LIST'
+          || stub.id === 'CHOOSE_SAME_OPTION_TWICE' || stub.id === 'CHOOSE_SAME_OPTION_MULTIPLE') {
+        return done(addLog(ctx, `選択効果（${stub.id}）`));
+      }
       // === バッチ15: 公開・アクセ応用・条件ドロー系 ===
       // FIELD_COND_DRAW_REVEAL: フィールド条件達成時にデッキ上を公開し同クラスなら手札へ
       if (stub.id === 'FIELD_COND_DRAW_REVEAL') {
