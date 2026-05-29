@@ -2018,6 +2018,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           prevent_opp_guard: undefined,            // 相手ガード禁止フラグをリセット
           draw_limit: undefined,                   // ドロー上限リセット（次ターン開始時にも解除）
           card_class_overrides: undefined,         // クラスオーバーライドリセット
+          signi_color_overrides: undefined,        // シグニ色オーバーライドリセット
           disabled_signi_zones: undefined,         // ゾーン無効化リセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
