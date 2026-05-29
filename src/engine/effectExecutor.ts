@@ -3476,11 +3476,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         };
         const pendingCSL: PendingInteractionDef = {
           type: 'SEARCH',
-          candidates: lrigInTrashCSL,
-          count: 1,
-          optional: false,
+          visibleCards: lrigInTrashCSL,
+          maxPick: 1,
           thenAction: attachAfterSearch as EffectAction,
-          continuationAction: null,
         };
         return needsInteraction(addLog(ctx, 'ルリグトラッシュからルリグを選択（ソウル付与）'), pendingCSL);
       }
