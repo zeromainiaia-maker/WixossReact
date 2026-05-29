@@ -6921,9 +6921,22 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'ALL_CLASS' || stub.id === 'ALL_COLOR' || stub.id === 'ALL_ZONE_BLACK'
           || stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK' || stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE'
           || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK' || stub.id === 'SIGNI_LOSE_COLOR'
-          || stub.id === 'SIGNI_GAIN_ONE_LRIG_COLOR'
           || stub.id === 'INHERIT_OPP_LRIG_TYPE' || stub.id === 'INHERIT_UNDER_SIGNI_COLOR') {
         return done(addLog(ctx, `[属性変更: ${stub.id}]`));
+      }
+      // SIGNI_GAIN_ONE_LRIG_COLOR: このシグニがルリグの色を1つ得る（ターン終了時まで）
+      if (stub.id === 'SIGNI_GAIN_ONE_LRIG_COLOR') {
+        const srcSGOLC = ctx.sourceCardNum;
+        if (!srcSGOLC) return done(addLog(ctx, 'SIGNI_GAIN_ONE_LRIG_COLOR: ソースなし'));
+        const lrigCnSGOLC = ctx.ownerState.field.lrig.at(-1);
+        const lrigColorSGOLC = lrigCnSGOLC ? (ctx.cardMap.get(lrigCnSGOLC)?.Color ?? '').split('')[0] : null;
+        if (!lrigColorSGOLC) return done(addLog(ctx, 'SIGNI_GAIN_ONE_LRIG_COLOR: ルリグ色不明'));
+        const origCardSGOLC = ctx.cardMap.get(srcSGOLC);
+        const origColorSGOLC = origCardSGOLC?.Color ?? '無';
+        const newColorSGOLC = origColorSGOLC.includes(lrigColorSGOLC) ? origColorSGOLC : origColorSGOLC + lrigColorSGOLC;
+        const overridesSGOLC = { ...(ctx.ownerState.signi_color_overrides ?? {}), [srcSGOLC]: newColorSGOLC };
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, signi_color_overrides: overridesSGOLC } },
+          `${origCardSGOLC?.CardName ?? srcSGOLC}が${lrigColorSGOLC}を得る`));
       }
       // ルリグデッキ/ライドシステム
       if (stub.id === 'STACK_ALL_LRIG_UNDER' || stub.id === 'LRIG_RIDE_SIGNI' || stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI'
