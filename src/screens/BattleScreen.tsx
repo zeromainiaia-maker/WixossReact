@@ -3273,7 +3273,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         coins: Math.min(5, my.coins + assistCoinGain),
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      // アシストルリグの ON_PLAY 効果をスタックに積む
+      const assistOnPlay = (effectsMap.get(cardNum) ?? []).filter(e =>
+        e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY') && e.mandatory !== false
+      );
+      if (assistOnPlay.length > 0) {
+        const entries: StackEntry[] = assistOnPlay.map(eff => ({
+          id: generateUUID(), playerId: user.id, cardNum,
+          effectId: eff.effectId,
+          label: `${card.CardName} の【出】効果`,
+          effect: eff,
+        }));
+        const existing = bs?.effect_stack ?? null;
+        const stack = existing ? pushToStack(existing, entries) : initStack(bs?.active_user_id ?? user.id, entries);
+        await supabase.from('battle_states').update({ [stateKey]: newMyState, effect_stack: stack }).eq('room_id', roomId);
+      } else {
+        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      }
     } finally {
       setLoading(false);
     }
