@@ -6871,8 +6871,17 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcHSI = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtHSI = srcHSI ? (srcHSI.EffectText ?? '') + ' ' + (srcHSI.BurstText ?? '') : '';
         const toHWHSI = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // 「手札をN枚まで」パターン（直接指定）
         const limitM = txtHSI.match(/手札を([０-９\d]+)枚まで/);
-        const newLimit = limitM ? parseInt(toHWHSI(limitM[1])) : null;
+        // 「手札の枚数の上限はN増える（6枚からM枚になる）」パターン
+        const increaseM = txtHSI.match(/手札の枚数の上限は([０-９\d]+)増える/);
+        // 「6枚からN枚になる」パターン（括弧内の上限値）
+        const becomeM = txtHSI.match(/[（(].*から([０-９\d]+)枚になる[）)]/);
+        const DEFAULT_HAND = 6;
+        let newLimit: number | null = null;
+        if (limitM) newLimit = parseInt(toHWHSI(limitM[1]));
+        else if (becomeM) newLimit = parseInt(toHWHSI(becomeM[1]));
+        else if (increaseM) newLimit = DEFAULT_HAND + parseInt(toHWHSI(increaseM[1]));
         if (stub.id === 'HAND_SIZE_INCREASE' && newLimit !== null) {
           const newOwnerHSI = { ...ctx.ownerState, hand_limit: newLimit };
           return done(addLog({ ...ctx, ownerState: newOwnerHSI }, `手札上限を${newLimit}枚に設定`));
