@@ -131,6 +131,8 @@ export interface PlayerState {
   card_class_overrides?: Record<string, string>;
   // このターン無効化された自フィールドのシグニゾーン番号（REMOVE_SIGNI_ZONE効果）
   disabled_signi_zones?: number[];
+  // このターン指定された相手シグニゾーン番号（DESIGNATE_SIGNI_ZONE効果）
+  designated_zone?: number;
 }
 
 export interface GameLog {
