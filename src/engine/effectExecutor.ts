@@ -2114,9 +2114,85 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'AWAKEN') {
         return done(addLog(ctx, '【覚醒】発動（BattleScreen側処理）'));
       }
-      // ベットメカニクス
-      if (stub.id === 'BET_MECHANIC' || stub.id === 'BET_ALTERNATIVE') {
-        return done(addLog(ctx, 'ベット（BattleScreen側処理）'));
+      // BET_MECHANIC: コインを消費してベット→強化選択（①②③④から2つ、ベット時4つ）
+      if (stub.id === 'BET_MECHANIC') {
+        const srcBET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtBET = srcBET ? (srcBET.EffectText ?? '') + ' ' + (srcBET.BurstText ?? '') : '';
+        const toHWBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // ①②③④ 選択肢を解析
+        const choicePatsBET = [
+          { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
+          { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
+        ];
+        const parseChoiceBET = (txt: string): Array<{ id: string; label: string; action: EffectAction; available: boolean }> => {
+          const opts: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+          for (const { m, idx } of choicePatsBET) {
+            const mat = txt.match(m);
+            if (!mat) continue;
+            const ctxt = mat[1].replace(/。\s*$/, '').trim();
+            let act: EffectAction | null = null;
+            if (ctxt.match(/カードを[１1]枚引く/)) act = { type: 'DRAW', count: 1 } as import('../types/effects').DrawAction;
+            if (!act && ctxt.match(/手札を[１1]枚捨てる/)) act = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as import('../types/effects').TrashAction;
+            if (!act && ctxt.match(/対戦相手のシグニ.*手札に戻す/)) act = { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').BounceAction;
+            const pwBET = !act && ctxt.match(/パワーを([－-][０-９\d]+)する/);
+            if (pwBET) act = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: parseInt(toHWBET(pwBET[1]).replace('－','-')) } as import('../types/effects').StubAction) as EffectAction;
+            if (!act && ctxt.match(/対戦相手は手札を[１1]枚捨てる/)) act = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as import('../types/effects').TrashAction;
+            if (!act && ctxt.match(/ダウンする/)) act = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').DownAction;
+            if (act) opts.push({ id: `bet_c${idx}`, label: `${'①②③④'[idx]}${ctxt.slice(0, 18)}...`, action: act, available: true });
+          }
+          return opts;
+        };
+        const optsBET = parseChoiceBET(txtBET);
+        if (optsBET.length === 0) return done(addLog(ctx, 'ベット（選択肢解析不可）'));
+        const hasCoins = ctx.ownerState.coins > 0;
+        // コインがある場合はベット選択を提示
+        if (hasCoins) {
+          const noopBET: SequenceAction = { type: 'SEQUENCE', steps: [] };
+          const betYesOpt = { id: 'bet_yes', label: `ベットする（コイン消費・4択）`, action: ({ type: 'STUB', id: 'INTERNAL_BET_SHOW_4', value: txtBET } as import('../types/effects').StubAction) as EffectAction, available: true };
+          const betNoOpt = { id: 'bet_no', label: 'ベットしない（2択）', action: noopBET as EffectAction, available: true };
+          const pendingBetQ: PendingInteractionDef = {
+            type: 'CHOOSE', options: [betYesOpt, betNoOpt], count: 1,
+            continuation: optsBET.length > 0 ? ({ type: 'CHOOSE', options: optsBET, count: Math.min(2, optsBET.length) } as import('../types/effects').ChooseAction) as EffectAction : undefined,
+          };
+          return needsInteraction(addLog(ctx, 'ベットしますか？（コインを消費して4択→強化）'), pendingBetQ);
+        }
+        // コインなし：通常2択
+        return needsInteraction(addLog(ctx, 'ベット（コインなし）→2択'), {
+          type: 'CHOOSE', options: optsBET, count: Math.min(2, optsBET.length),
+        });
+      }
+      // INTERNAL_BET_SHOW_4: ベット時に4択を表示
+      if (stub.id === 'INTERNAL_BET_SHOW_4') {
+        const txtIBET = typeof stub.value === 'string' ? stub.value : '';
+        const toHWIBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const choicePatsIBET = [
+          { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
+          { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
+        ];
+        const optsIBET: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+        for (const { m, idx } of choicePatsIBET) {
+          const mat = txtIBET.match(m);
+          if (!mat) continue;
+          const ctxt = mat[1].replace(/。\s*$/, '').trim();
+          let act: EffectAction | null = null;
+          if (ctxt.match(/カードを[１1]枚引く/)) act = { type: 'DRAW', count: 1 } as import('../types/effects').DrawAction;
+          if (!act && ctxt.match(/対戦相手のシグニ.*手札に戻す/)) act = { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').BounceAction;
+          const pwIBET = !act && ctxt.match(/パワーを([－-][０-９\d]+)する/);
+          if (pwIBET) act = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: parseInt(toHWIBET(pwIBET[1]).replace('－','-')) } as import('../types/effects').StubAction) as EffectAction;
+          if (!act && ctxt.match(/手札を[１1]枚捨てる|対戦相手は手札を[１1]枚捨てる/)) act = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as import('../types/effects').TrashAction;
+          if (!act && ctxt.match(/ダウンする/)) act = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').DownAction;
+          if (act) optsIBET.push({ id: `ibet_c${idx}`, label: `${'①②③④'[idx]}${ctxt.slice(0,18)}...`, action: act, available: true });
+        }
+        // コインを1枚消費
+        const newOwnerIBET = { ...ctx.ownerState, coins: Math.max(0, ctx.ownerState.coins - 1) };
+        if (optsIBET.length === 0) return done(addLog({ ...ctx, ownerState: newOwnerIBET }, 'ベット4択（解析不可）'));
+        return needsInteraction(addLog({ ...ctx, ownerState: newOwnerIBET }, `ベット！コイン消費→4択`), {
+          type: 'CHOOSE', options: optsIBET, count: Math.min(4, optsIBET.length),
+        });
+      }
+      // BET_ALTERNATIVE: ベット強化済みなのでスキップ（BET_MECHANICで処理済み）
+      if (stub.id === 'BET_ALTERNATIVE' || stub.id === 'BET_CONDITION') {
+        return done(addLog(ctx, 'ベット強化（BET_MECHANICで処理済み）'));
       }
       // 引用符付き能力付与（キーワードを keyword_grants に格納）
       if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
