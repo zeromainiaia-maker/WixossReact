@@ -714,7 +714,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
 
   // ======= PlayerField用のアクションゲッター =======
   const getPlayerSigniZoneActions = useCallback((rawZoneIdx: number): CardAction[] => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return [];
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return [];
     if (gs.phase === 'ATTACK_SIGNI') {
       const stack = gs.player.field.signi[rawZoneIdx];
       const isDown = gs.player.field.signi_down?.[rawZoneIdx] ?? false;
@@ -729,7 +729,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   }, [gs, selectedHandIdx]);
 
   const getPlayerLrigFieldActions = useCallback((): CardAction[] => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return [];
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return [];
     if (gs.phase === 'ATTACK_LRIG' && !gs.player.field.lrig_down) {
       return [{ label: 'アタック', color: C.danger, onClick: handleLrigAttackAction }];
     }
@@ -737,7 +737,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   }, [gs]);
 
   const getPlayerHandCardActions = useCallback((cardNum: string, index: number): CardAction[] => {
-    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction) return [];
+    if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return [];
     if (gs.phase === 'ENERGY') {
       return [{ label: 'エナチャージ', color: C.accent, onClick: () => handleEnergySelect(index) }];
     }
