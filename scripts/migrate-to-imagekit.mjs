@@ -21,34 +21,41 @@ const AUTH = 'Basic ' + Buffer.from(IMAGEKIT_PRIVATE_KEY + ':').toString('base64
 const CONCURRENCY = 5;
 const DELAY_MS = 200;
 
-// CSVからCardNumを収集
-const CSV_FILES = [
-  '../public/data/CardData_Sheet1.csv',
-  '../public/data/CardData_Sheet2.csv',
-  '../public/data/CardData_Sheet3.csv',
-  '../public/data/CardData_Sheet4.csv',
-  '../public/data/CardData_Sheet5.csv',
-  '../public/data/CardData_Sheet6.csv',
-  '../public/data/CardData_Sheet7.csv',
-  '../public/data/CardData_Sheet8.csv',
-  '../public/data/CardData_Sheet9.csv',
-  '../public/data/CardData_Sheet10.csv',
-  '../public/data/CardData_TK.csv',
-];
+// 失敗リストファイルが指定されていればそちらを使う
+const RETRY_FILE = process.env.RETRY_FILE;
+let all;
 
-const cardNums = new Set();
-for (const f of CSV_FILES) {
-  const path = resolve(__dirname, f);
-  if (!existsSync(path)) continue;
-  const lines = readFileSync(path, 'utf-8').replace(/^﻿/, '').split('\n').slice(1);
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const cardNum = line.split(',')[0]?.trim();
-    if (cardNum) cardNums.add(cardNum);
+if (RETRY_FILE && existsSync(RETRY_FILE)) {
+  all = readFileSync(RETRY_FILE, 'utf-8').split('\n').map(s => s.trim()).filter(Boolean);
+  console.log(`リトライモード: ${RETRY_FILE}`);
+} else {
+  // CSVからCardNumを収集
+  const CSV_FILES = [
+    '../public/data/CardData_Sheet1.csv',
+    '../public/data/CardData_Sheet2.csv',
+    '../public/data/CardData_Sheet3.csv',
+    '../public/data/CardData_Sheet4.csv',
+    '../public/data/CardData_Sheet5.csv',
+    '../public/data/CardData_Sheet6.csv',
+    '../public/data/CardData_Sheet7.csv',
+    '../public/data/CardData_Sheet8.csv',
+    '../public/data/CardData_Sheet9.csv',
+    '../public/data/CardData_Sheet10.csv',
+    '../public/data/CardData_TK.csv',
+  ];
+  const cardNums = new Set();
+  for (const f of CSV_FILES) {
+    const path = resolve(__dirname, f);
+    if (!existsSync(path)) continue;
+    const lines = readFileSync(path, 'utf-8').replace(/^﻿/, '').split('\n').slice(1);
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const cardNum = line.split(',')[0]?.trim();
+      if (cardNum) cardNums.add(cardNum);
+    }
   }
+  all = [...cardNums];
 }
-
-const all = [...cardNums];
 console.log(`対象: ${all.length} 枚\n`);
 
 let ok = 0, fail = 0;
