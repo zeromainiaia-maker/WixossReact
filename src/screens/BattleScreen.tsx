@@ -5432,7 +5432,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             {(() => {
               const spellCard = battleCardMap.get(pendingSpellCast.cardNum);
               if (!spellCard) return null;
-              const costItems = parseGrowCost(spellCard.Cost);
+              // フィールド条件によるコスト軽減をスペルにも適用
+              const myLrigCardSP = battleCardMap.get(my.field.lrig.at(-1) ?? '');
+              const effSpellCost = computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap);
+              const costItems = parseGrowCost(effSpellCost);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);
               const extraSpellCosts = activeCostMods.forMy
@@ -5440,7 +5443,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = totalReq === 0 ||
                 (selectedSpellCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, spellCard.Cost, extraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
+                  canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, extraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
