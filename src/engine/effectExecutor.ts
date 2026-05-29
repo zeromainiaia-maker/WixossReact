@@ -3035,8 +3035,23 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         // 「他のルリグの下にあるすべてのカードをこのルリグの下に置く」（チームルリグ統合）
         if (effSOtxt.match(/他のルリグの下にあるすべてのカードをこのルリグの下に置く/)) {
-          // 現在はアシストルリグの下カードをサポートしていないため、ログのみ
-          return done(addLog(ctx, '他ルリグ下カードを統合（アシストルリグ下未実装）'));
+          const assistLSO = ctx.ownerState.field.assist_lrig_l ?? [];
+          const assistRSO = ctx.ownerState.field.assist_lrig_r ?? [];
+          // アシストルリグの下のカード（スタックのトップ以外）を収集
+          const underLSO = assistLSO.length > 1 ? assistLSO.slice(0, -1) : [];
+          const underRSO = assistRSO.length > 1 ? assistRSO.slice(0, -1) : [];
+          const allUnderSO = [...underLSO, ...underRSO];
+          if (allUnderSO.length === 0) return done(addLog(ctx, '他ルリグの下にカードなし'));
+          // センタールリグのスタック下に追加（古いカードが先頭）
+          const newLrigSO = [...allUnderSO, ...ctx.ownerState.field.lrig];
+          // アシストルリグのトップのみ残す
+          const newAssistLSO = assistLSO.length > 0 ? [assistLSO[assistLSO.length - 1]] : [];
+          const newAssistRSO = assistRSO.length > 0 ? [assistRSO[assistRSO.length - 1]] : [];
+          const newOwnerSO: PlayerState = {
+            ...ctx.ownerState,
+            field: { ...ctx.ownerState.field, lrig: newLrigSO, assist_lrig_l: newAssistLSO, assist_lrig_r: newAssistRSO },
+          };
+          return done(addLog({ ...ctx, ownerState: newOwnerSO }, `他ルリグ下${allUnderSO.length}枚をセンタールリグ下に統合`));
         }
         return done(addLog(ctx, 'ソウル操作'));
       }
