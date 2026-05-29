@@ -646,7 +646,7 @@ export function calcContinuousBlockedActions(
 export function collectColorlessOverrides(
   ownerState: PlayerState,
   otherState: PlayerState,
-  cardMap: Map<string, import('../data/cardLoader').CardData>,
+  cardMap: Map<string, CardData>,
 ): { ownerColorless: string[]; otherColorless: string[] } {
   function getColorlessForPlayer(ps: PlayerState): string[] {
     const result: string[] = [];
