@@ -2387,6 +2387,69 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
         return done(addLog({ ...ctx, otherState: newOther }, `ウイルスを除去（ゾーン${zoneIdx + 1}）`));
       }
+      // デッキトップを見て下に置いてもよい
+      if (stub.id === 'TOP_TO_BOTTOM_OPTIONAL') {
+        if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topTTB = ctx.ownerState.deck[0];
+        const topNameTTB = ctx.cardMap.get(topTTB)?.CardName ?? topTTB;
+        const toBottomTTB: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TOP_TO_BOTTOM' };
+        const skipTTB: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const pendingTTB: PendingInteractionDef = {
+          type: 'CHOOSE',
+          options: [
+            { id: 'do', label: `${topNameTTB}をデッキ下へ`, action: toBottomTTB as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: skipTTB as EffectAction, available: true },
+          ],
+          count: 1,
+        };
+        return needsInteraction(addLog(ctx, `デッキトップ：${topNameTTB}（デッキ下に置いてもよい）`), pendingTTB);
+      }
+      if (stub.id === 'INTERNAL_TOP_TO_BOTTOM') {
+        if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topITTB = ctx.ownerState.deck[0];
+        const newDeckITTB = [...ctx.ownerState.deck.slice(1), topITTB];
+        const newOwnerITTB = { ...ctx.ownerState, deck: newDeckITTB };
+        return done(addLog({ ...ctx, ownerState: newOwnerITTB },
+          `${ctx.cardMap.get(topITTB)?.CardName ?? topITTB}をデッキ下へ`));
+      }
+      // 各プレイヤーがカードを1枚引き手札を1枚デッキ下に置く
+      if (stub.id === 'DRAW_AND_PUT_HAND_TO_DECK_BOTTOM') {
+        let newOwnerDAPH = { ...ctx.ownerState };
+        let newOtherDAPH = { ...ctx.otherState };
+        if (newOwnerDAPH.deck.length > 0) {
+          newOwnerDAPH = { ...newOwnerDAPH, hand: [...newOwnerDAPH.hand, newOwnerDAPH.deck[0]], deck: newOwnerDAPH.deck.slice(1) };
+        }
+        if (newOtherDAPH.deck.length > 0) {
+          newOtherDAPH = { ...newOtherDAPH, hand: [...newOtherDAPH.hand, newOtherDAPH.deck[0]], deck: newOtherDAPH.deck.slice(1) };
+        }
+        const ctxDrawnDAPH = { ...ctx, ownerState: newOwnerDAPH, otherState: newOtherDAPH };
+        if (newOwnerDAPH.hand.length === 0) return done(addLog(ctxDrawnDAPH, '両者ドロー（手札なし）'));
+        const noopDAPH: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contDAPH: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_HAND_TO_DECK_BOTTOM' };
+        const pendingDAPH: PendingInteractionDef = {
+          type: 'SELECT_TARGET',
+          candidates: newOwnerDAPH.hand,
+          count: 1,
+          optional: false,
+          targetScope: 'self_hand',
+          thenAction: noopDAPH as EffectAction,
+          continuation: contDAPH as EffectAction,
+        };
+        return needsInteraction(addLog(ctxDrawnDAPH, '手札を1枚デッキの一番下に置く'), pendingDAPH);
+      }
+      if (stub.id === 'INTERNAL_HAND_TO_DECK_BOTTOM') {
+        const selectedHDB = ctx.lastProcessedCards ?? [];
+        if (selectedHDB.length === 0) return done(addLog(ctx, 'スキップ'));
+        let newOwnerHDB = { ...ctx.ownerState };
+        for (const cn of selectedHDB) {
+          const hi = newOwnerHDB.hand.indexOf(cn);
+          if (hi >= 0) {
+            const newHand = [...newOwnerHDB.hand]; newHand.splice(hi, 1);
+            newOwnerHDB = { ...newOwnerHDB, hand: newHand, deck: [...newOwnerHDB.deck, cn] };
+          }
+        }
+        return done(addLog({ ...ctx, ownerState: newOwnerHDB }, `手札${selectedHDB.length}枚をデッキ下へ`));
+      }
       // 各プレイヤーがカードを1枚引き、1枚捨てる
       if (stub.id === 'EACH_PLAYER_DRAW_DISCARD') {
         // 両者ドロー
