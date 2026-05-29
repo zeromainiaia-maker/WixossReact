@@ -112,6 +112,10 @@
 
 | 日付 | 実装内容 | 対象STUB |
 |---|---|---|
+| 2026-05-29 | センタールリグ下の任意枚数をルリグトラッシュへ（WX12-Re22等） | SOUL_OP（拡張） |
+| 2026-05-29 | コイン消費ベット→2択/4択ダイアログ+①②③④実行 | BET_MECHANIC |
+| 2026-05-29 | 歌のカケラ効果をeffects.jsonに15枚追加+エナから発動 | SONG_FRAGMENT |
+| 2026-05-29 | 相手ゾーン選択→signi_gate_zones設定+アタック不可フラグ | GATE |
 | 2026-05-29 | PLAY_FREE: parseCardEffectsでスペル/シグニ効果を実行 | PLAY_FREE, PLAY_SPELL_FREE_IGNORE_RESTRICTION, CAST_FROM_OPP_TRASH, USE_SPELL_FROM_TRASH |
 | 2026-05-29 | ①②③④選択肢解析+CHOOSE | CHOOSE_N_FROM_LIST |
 | 2026-05-29 | N回繰り返し（パワー修正・デッキトラッシュに対応） | REPEAT_N_TIMES, REPEAT_EFFECT |
