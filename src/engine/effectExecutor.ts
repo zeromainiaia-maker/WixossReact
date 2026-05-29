@@ -3257,6 +3257,21 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           };
           return selectOrInteract(selfSigniSoulCands, 1, false, 'self_field', chooseSoulStub, undefined, ctx);
         }
+        // 「センタールリグの下からカードを好きな枚数対象とし、それらをルリグトラッシュに置く」
+        if (effSOtxt.match(/センタールリグの下からカードを好きな枚数対象とし.*ルリグトラッシュに置く/)) {
+          const lrigStackSO = ctx.ownerState.field.lrig;
+          const underCardsSO = lrigStackSO.length > 1 ? lrigStackSO.slice(0, -1) : [];
+          if (underCardsSO.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし'));
+          // 全カードをルリグトラッシュへ（簡易：任意枚数→全枚）
+          const newLrigSO2 = [lrigStackSO[lrigStackSO.length - 1]]; // トップのみ残す
+          const newOwnerSO2: PlayerState = {
+            ...ctx.ownerState,
+            field: { ...ctx.ownerState.field, lrig: newLrigSO2 },
+            lrig_trash: [...ctx.ownerState.lrig_trash, ...underCardsSO],
+          };
+          return done(addLog({ ...ctx, ownerState: newOwnerSO2, lastProcessedCards: underCardsSO },
+            `センタールリグ下${underCardsSO.length}枚をルリグトラッシュへ`));
+        }
         // 「他のルリグの下にあるすべてのカードをこのルリグの下に置く」（チームルリグ統合）
         if (effSOtxt.match(/他のルリグの下にあるすべてのカードをこのルリグの下に置く/)) {
           const assistLSO = ctx.ownerState.field.assist_lrig_l ?? [];
