@@ -3014,7 +3014,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           const attachSoulStub: import('../types/effects').StubAction = {
             type: 'STUB', id: 'INTERNAL_ATTACH_SOUL_FROM_LRIG', value: soulCard,
           };
-          return selectOrInteract(selfSigniCands, 1, false, 'self_field', attachSoulStub, null, ctx);
+          return selectOrInteract(selfSigniCands, 1, false, 'self_field', attachSoulStub, undefined, ctx);
         }
         // 「ルリグトラッシュからルリグ１枚をシグニの【ソウル】にする」
         if (effSOtxt.match(/ルリグトラッシュからルリグ[１1]枚をそれの【ソウル】にする/)) {
@@ -3031,7 +3031,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           const chooseSoulStub: import('../types/effects').StubAction = {
             type: 'STUB', id: 'INTERNAL_CHOOSE_SOUL_LRIG',
           };
-          return selectOrInteract(selfSigniSoulCands, 1, false, 'self_field', chooseSoulStub, null, ctx);
+          return selectOrInteract(selfSigniSoulCands, 1, false, 'self_field', chooseSoulStub, undefined, ctx);
         }
         // 「他のルリグの下にあるすべてのカードをこのルリグの下に置く」（チームルリグ統合）
         if (effSOtxt.match(/他のルリグの下にあるすべてのカードをこのルリグの下に置く/)) {
