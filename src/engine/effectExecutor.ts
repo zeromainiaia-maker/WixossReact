@@ -6884,9 +6884,31 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, `${cardLCAZ?.CardName ?? srcLCAZ}は色喪失済み`));
       }
+      // CHANGE_SIGNI_COLOR: 対象シグニの色を指定色に変更（ターン終了時まで）
+      if (stub.id === 'CHANGE_SIGNI_COLOR') {
+        const srcCSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCSC = srcCSC ? (srcCSC.EffectText ?? '') + ' ' + (srcCSC.BurstText ?? '') : '';
+        // 変更先の色を抽出（「それを白にする」「赤にする」等）
+        const colorMCSC = txtCSC.match(/それを([赤青緑黒白]+)にする/);
+        const newColorCSC = colorMCSC ? colorMCSC[1] : null;
+        if (!newColorCSC) return done(addLog(ctx, 'CHANGE_SIGNI_COLOR: 変更先色不明'));
+        // 相手シグニ1体を選択
+        const oppSigniCSC = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
+        if (oppSigniCSC.length === 0) return done(addLog(ctx, '相手シグニなし（CHANGE_SIGNI_COLOR）'));
+        // lastProcessedCards に対象がある場合はそれを使う
+        const targetCSC = ctx.lastProcessedCards?.[0];
+        if (targetCSC && oppSigniCSC.includes(targetCSC)) {
+          const overridesCSC = { ...(ctx.otherState.signi_color_overrides ?? {}), [targetCSC]: newColorCSC };
+          return done(addLog({ ...ctx, otherState: { ...ctx.otherState, signi_color_overrides: overridesCSC } },
+            `${ctx.cardMap.get(targetCSC)?.CardName ?? targetCSC}の色を${newColorCSC}に変更`));
+        }
+        // 対象選択
+        const applyCSC: import('../types/effects').StubAction = { type: 'STUB', id: 'CHANGE_SIGNI_COLOR', value: newColorCSC };
+        return selectOrInteract(oppSigniCSC, 1, false, 'opp_field', applyCSC as EffectAction, undefined, ctx);
+      }
       // カード属性変更系（engine: 属性変更システム未実装）
       if (stub.id === 'COPY_SIGNI' || stub.id === 'COPY_CARD'
-          || stub.id === 'CHANGE_SIGNI_COLOR' || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
+          || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
           || stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
           || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
           || stub.id === 'ALL_CLASS' || stub.id === 'ALL_COLOR' || stub.id === 'ALL_ZONE_BLACK'
