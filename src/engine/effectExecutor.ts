@@ -351,17 +351,22 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   const newFrozen = [...(state.field.signi_frozen  ?? [false, false, false])];
   const newCharms = [...(state.field.signi_charms  ?? [null, null, null])];
   const newAcce   = [...(state.field.signi_acce    ?? [null, null, null])];
+  const newSoul   = [...(state.field.signi_soul    ?? [null, null, null])];
   const extraTrash: string[] = [];
+  const extraLrigTrash: string[] = [];
   if (zoneIdx >= 0) {
     newDown[zoneIdx]   = false;
     newFrozen[zoneIdx] = false;
     if (newCharms[zoneIdx]) { extraTrash.push(newCharms[zoneIdx]!); newCharms[zoneIdx] = null; }
     if (newAcce[zoneIdx])   { extraTrash.push(newAcce[zoneIdx]!);   newAcce[zoneIdx]   = null; }
+    // ソウルはシグニが場を離れるとルリグトラッシュへ
+    if (newSoul[zoneIdx])   { extraLrigTrash.push(newSoul[zoneIdx]!); newSoul[zoneIdx] = null; }
     // ウィルスはゾーンに属するため、シグニが離れても除去しない
   }
   return {
     ...state,
     trash: extraTrash.length > 0 ? [...state.trash, ...extraTrash] : state.trash,
+    lrig_trash: extraLrigTrash.length > 0 ? [...state.lrig_trash, ...extraLrigTrash] : state.lrig_trash,
     field: {
       ...state.field,
       signi: newSigni,
@@ -369,6 +374,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       signi_frozen: newFrozen as boolean[],
       signi_charms: newCharms,
       signi_acce:   newAcce,
+      signi_soul:   newSoul   as (string | null)[],
     },
   };
 }
