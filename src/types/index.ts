@@ -108,6 +108,8 @@ export interface PlayerState {
   declared_guard_restrict_level?: number;
   // DECLARE_CARD_NAME で宣言されたカード名（デッキ上確認効果等で使用）
   declared_card_name?: string;
+  // COPY_LRIG_NAME_ABILITY: ルリグが別のルリグ名/タイプを持つとして扱うエイリアス
+  lrig_name_aliases?: string[];
   // このターン、手札のすべてのシグニが【ガード】を得る（GRANT_GUARD_ICON_HAND_SIGNI）
   hand_signi_guard_enabled?: boolean;
   // 覚醒状態のシグニのCardNum一覧（永続、場を離れるまで有効）
