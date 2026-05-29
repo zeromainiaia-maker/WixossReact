@@ -2211,10 +2211,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtGQ = srcGQ ? (srcGQ.EffectText ?? '') + ' ' + (srcGQ.BurstText ?? '') : '';
         // 付与するキーワードを抽出（ランサー、ダブルクラッシュ、貫通、マルチエナ等）
-        const knownKeywords = ['ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'アサシン', 'バニッシュ無効', 'ライフバースト無効', '影', 'チャーム', 'シャドウ', 'ガードアイコン'];
-        const quotedM = txtGQ.match(/「([^」]+)」を得る/);
+        const knownKeywords = ['Sランサー', 'ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'アサシン', 'バニッシュ無効', 'ライフバースト無効', '影', 'チャーム', 'シャドウ', 'ガードアイコン', 'アタックできない', 'フリーズ', 'ドライブ'];
+        // 引用符内のテキスト（「...」を得る）または直接記述（「…は...を得る」）を抽出
+        const quotedM = txtGQ.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/) ?? txtGQ.match(/【([^】]+)】を得る/);
         const quotedText = quotedM ? quotedM[1] : '';
-        const grantedKws = knownKeywords.filter(kw => quotedText.includes(kw));
+        const grantedKws = knownKeywords.filter(kw => quotedText.includes(kw) || txtGQ.match(new RegExp(`【${kw}】を得`)));
         // 対象シグニを決定（「このシグニ」→sourceCardNum、「あなたのシグニすべて」→全自シグニ）
         const allM = txtGQ.match(/あなたのシグニすべては|あなたの場にあるすべてのシグニ/);
         const targetCardNums: string[] = allM
