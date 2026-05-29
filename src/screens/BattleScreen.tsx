@@ -3809,7 +3809,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries];
+      // ON_TRASH: banish_redirect=true の場合、バニッシュされたシグニがトラッシュへ
+      const trashEntriesSA: StackEntry[] = [];
+      if (banishedOpCardNum && my.banish_redirect === true) {
+        trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, opPlayerId, newMyState, newOpState));
+      }
+
+      const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries, ...trashEntriesSA];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? user.id;
         const existingStack = bs.effect_stack ?? null;
