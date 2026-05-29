@@ -3009,9 +3009,19 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'DECLARE_CLASS' || stub.id === 'DECLARE_COLOR') {
         return done(addLog(ctx, 'クラス/色宣言（ログのみ）'));
       }
-      // ターゲット選択のみ（アクションなし）
+      // ターゲット選択のみ（lastProcessedCards に格納し後続ステップへ）
       if (stub.id === 'TARGET_ONLY') {
-        return done(addLog(ctx, '対象選択（ログのみ）'));
+        const srcTO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtTO = srcTO ? (srcTO.EffectText ?? '') + ' ' + (srcTO.BurstText ?? '') : '';
+        // テキストから自分/相手どちらのシグニを選ぶか判断
+        const isOwnTO = (txtTO.includes('あなたのシグニ') || txtTO.includes('自分のシグニ'))
+          && !txtTO.match(/対戦相手.{0,5}シグニ/);
+        const stateTO = isOwnTO ? ctx.ownerState : ctx.otherState;
+        const scopeTO: import('../types').TargetScope = isOwnTO ? 'self_field' : 'opp_field';
+        const candsTO = fieldCandidates(stateTO, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+        if (candsTO.length === 0) return done(addLog(ctx, '対象シグニなし（TARGET_ONLY）'));
+        const noopTO: SequenceAction = { type: 'SEQUENCE', steps: [] };
+        return selectOrInteract(candsTO, 1, false, scopeTO, noopTO as EffectAction, undefined, ctx);
       }
       // デッキ上N枚公開してM枚を手札に加え残りをデッキ下/トラッシュ/エナゾーンへ
       if (stub.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM') {
