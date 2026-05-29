@@ -6782,9 +6782,36 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'DEFEAT') {
         return done(addLog(ctx, '敗北処理（エンジン未実装）'));
       }
-      // REPEAT_N_TIMES / REPEAT_EFFECT: 繰り返し効果（ログのみ）
+      // REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す
       if (stub.id === 'REPEAT_N_TIMES' || stub.id === 'REPEAT_EFFECT') {
-        return done(addLog(ctx, '繰り返し効果（スキップ）'));
+        const srcRNT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtRNT = srcRNT ? (srcRNT.EffectText ?? '') + ' ' + (srcRNT.BurstText ?? '') : '';
+        const toHWRNT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const nM = txtRNT.match(/以下を([２-９\d]+)回行う/);
+        const nRNT = nM ? parseInt(toHWRNT(nM[1])) : 1;
+        // パワー修正パターン
+        const pwMRNT = txtRNT.match(/パワーを([－-][０-９\d]+)する/);
+        if (pwMRNT) {
+          const delta = parseInt(toHWRNT(pwMRNT[1]).replace('－', '-'));
+          const totalDelta = delta * nRNT;
+          const modsRNT = [...(ctx.otherState.temp_power_mods ?? [])];
+          [0,1,2].forEach(zi => {
+            const top = ctx.otherState.field.signi[zi]?.at(-1);
+            if (top) modsRNT.push({ cardNum: top, delta: totalDelta });
+          });
+          return done(addLog({...ctx, otherState: {...ctx.otherState, temp_power_mods: modsRNT}},
+            `${nRNT}回繰り返し: 全シグニパワー${totalDelta}（${delta}×${nRNT}）`));
+        }
+        // デッキトラッシュパターン
+        const millMRNT = txtRNT.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
+        if (millMRNT) {
+          const millPerRound = parseInt(toHWRNT(millMRNT[1]));
+          const totalMill = millPerRound * nRNT;
+          const toTrashRNT = ctx.otherState.deck.slice(0, Math.min(totalMill, ctx.otherState.deck.length));
+          const newOtherRNT = { ...ctx.otherState, deck: ctx.otherState.deck.slice(toTrashRNT.length), trash: [...ctx.otherState.trash, ...toTrashRNT] };
+          return done(addLog({...ctx, otherState: newOtherRNT}, `${nRNT}回繰り返し: デッキ${toTrashRNT.length}枚トラッシュ`));
+        }
+        return done(addLog(ctx, `${nRNT}回繰り返し効果（後続ステップで処理）`));
       }
       // PLACE_CHOKKIN: チョッキン設置（ログのみ）
       if (stub.id === 'PLACE_CHOKKIN') {
