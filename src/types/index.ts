@@ -144,6 +144,8 @@ export interface PlayerState {
   signi_gate_zones?: number[];
   // このターン指定された相手シグニゾーン番号（DESIGNATE_SIGNI_ZONE効果）
   designated_zone?: number;
+  // 全ゾーンで色を失うカードのCardNum一覧（LOSE_COLOR_ALL_ZONES: チームルリグ3体未満時）
+  colorless_card_overrides?: string[];
 }
 
 export interface GameLog {
