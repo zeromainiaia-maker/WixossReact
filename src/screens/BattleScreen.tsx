@@ -121,6 +121,17 @@ function parseGrowCost(raw: string): { color: string; count: number }[] {
   return result;
 }
 
+// コスト文字列から指定色をN個減らす
+function removeNColorFromCost(cost: string, color: string, n: number): string {
+  const parts = parseGrowCost(cost);
+  const idx = parts.findIndex(p => p.color === color);
+  if (idx < 0) return cost;
+  const newParts = [...parts];
+  newParts[idx] = { color: newParts[idx].color, count: Math.max(0, newParts[idx].count - n) };
+  const result = newParts.filter(p => p.count > 0).map(p => `《${p.color}》×${p.count}`).join('');
+  return result || 'なし';
+}
+
 // コスト文字列から指定色を1つ減らす（《X》×Nが1→削除、2+→-1）
 function removeOneCostColor(cost: string, color: string): string {
   const parts = parseGrowCost(cost);
