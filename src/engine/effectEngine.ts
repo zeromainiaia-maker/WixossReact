@@ -720,7 +720,7 @@ export function collectProtectedZones(
  */
 export function collectEnergyColorSubs(
   state: PlayerState,
-  cardMap: Map<string, CardData>,
+  _cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): { from: string[]; to: string }[] {
   const result: { from: string[]; to: string }[] = [];
