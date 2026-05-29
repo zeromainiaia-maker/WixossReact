@@ -170,6 +170,7 @@ export type EffectAction =
   | ShuffleDeckAction
   | RevealAction
   | AddToHandAction
+  | AddToEnergyAction
   | TransferToHandAction
   | AddToFieldAction
   | AddToLifeAction
