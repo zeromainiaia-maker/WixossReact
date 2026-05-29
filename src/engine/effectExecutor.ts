@@ -3858,6 +3858,97 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, `パワー修正（トラッシュシグニLv合計${lvSumTrashedPDTL}）`));
       }
+      // アタックしたシグニのレベルに基づくパワー修正
+      if (stub.id === 'POWER_MOD_BY_ATTACKER_LEVEL') {
+        const srcPMAL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMAL = srcPMAL ? (srcPMAL.EffectText ?? '') + ' ' + (srcPMAL.BurstText ?? '') : '';
+        const toHWPMAL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const attackerLv = parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Level ?? '0');
+        const perMPMAL = txtPMAL.match(/レベル([０-９\d]*)につき([－＋][０-９\d]+)/);
+        if (perMPMAL && attackerLv > 0) {
+          const divisorPMAL = parseInt(toHWPMAL(perMPMAL[1] || '1')) || 1;
+          const deltaPMAL = parseInt(toHWPMAL(perMPMAL[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPMAL = Math.floor(attackerLv / divisorPMAL) * deltaPMAL;
+          if (totalDeltaPMAL !== 0) {
+            const targetsPMAL = ctx.lastProcessedCards ?? [];
+            const modsPMAL = [...(ctx.otherState.temp_power_mods ?? [])];
+            if (targetsPMAL.length > 0) {
+              for (const cn of targetsPMAL) modsPMAL.push({ cardNum: cn, delta: totalDeltaPMAL });
+            } else {
+              for (let zi = 0; zi < 3; zi++) {
+                const top = ctx.otherState.field.signi[zi]?.at(-1);
+                if (top) modsPMAL.push({ cardNum: top, delta: totalDeltaPMAL });
+              }
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMAL } },
+              `パワー${totalDeltaPMAL > 0 ? '+' : ''}${totalDeltaPMAL}（アタッカーLv${attackerLv}）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（アタッカーLv${attackerLv}）`));
+      }
+      // 公開したシグニのレベルに基づくパワー修正（lastProcessedCards使用）
+      if (stub.id === 'POWER_MOD_PER_REVEALED_LEVEL') {
+        const srcPMRL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMRL = srcPMRL ? (srcPMRL.EffectText ?? '') + ' ' + (srcPMRL.BurstText ?? '') : '';
+        const toHWPMRL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const revealedPMRL = ctx.lastProcessedCards ?? [];
+        const lvSumPMRL = revealedPMRL.reduce((acc, cn) => {
+          const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0');
+          return acc + (isNaN(lv) ? 0 : lv);
+        }, 0);
+        const perMPMRL = txtPMRL.match(/シグニのレベル([０-９\d]*)につき([－＋][０-９\d]+)/);
+        if (perMPMRL) {
+          const divisorPMRL = parseInt(toHWPMRL(perMPMRL[1] || '1')) || 1;
+          const deltaPMRL = parseInt(toHWPMRL(perMPMRL[2]).replace('－', '-').replace('＋', '+'));
+          const totalDeltaPMRL = Math.floor(lvSumPMRL / divisorPMRL) * deltaPMRL;
+          if (totalDeltaPMRL !== 0) {
+            const modsPMRL = [...(ctx.otherState.temp_power_mods ?? [])];
+            for (let zi = 0; zi < 3; zi++) {
+              const top = ctx.otherState.field.signi[zi]?.at(-1);
+              if (top) modsPMRL.push({ cardNum: top, delta: totalDeltaPMRL });
+            }
+            return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMRL } },
+              `パワー${totalDeltaPMRL > 0 ? '+' : ''}${totalDeltaPMRL}（公開シグニLv${lvSumPMRL}）`));
+          }
+        }
+        return done(addLog(ctx, `パワー修正（公開シグニレベル${lvSumPMRL}）`));
+      }
+      // 複数の自シグニにパワー+5000（SELECT_TARGET→INTERNAL_POWER_UP_SELECTED）
+      if (stub.id === 'MULTI_SIGNI_POWER_UP_5000') {
+        const srcMSPU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtMSPU = srcMSPU ? (srcMSPU.EffectText ?? '') + ' ' + (srcMSPU.BurstText ?? '') : '';
+        const toHWMSPU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const classMatchMSPU = txtMSPU.match(/あなたの[<＜《]([^>＞»]+)[>＞»]のシグニを([０-９\d]*)体まで/);
+        const targetClassMSPU = classMatchMSPU?.[1];
+        const maxCountMSPU = parseInt(toHWMSPU(classMatchMSPU?.[2] || '2')) || 2;
+        const selfCandsMSPU = ctx.ownerState.field.signi
+          .map(s => s?.at(-1))
+          .filter((cn): cn is string => !!cn && (!targetClassMSPU || (ctx.cardMap.get(cn)?.CardClass ?? '').includes(targetClassMSPU)));
+        if (selfCandsMSPU.length === 0) return done(addLog(ctx, '自場に対象シグニなし（MULTI_SIGNI_POWER_UP_5000）'));
+        const noopMSPU: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contMSPU: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_POWER_UP_SELECTED' };
+        return needsInteraction(addLog(ctx, `シグニを${maxCountMSPU}体まで選択（パワー+5000）`), {
+          type: 'SELECT_TARGET', candidates: selfCandsMSPU, count: maxCountMSPU, optional: true,
+          targetScope: 'self_field', thenAction: noopMSPU as EffectAction, continuation: contMSPU as EffectAction,
+        });
+      }
+      // MULTI_SIGNI_POWER_UP_5000 の後処理：選択した自シグニにパワー+5000
+      if (stub.id === 'INTERNAL_POWER_UP_SELECTED') {
+        const selectedIPU = ctx.lastProcessedCards ?? [];
+        if (selectedIPU.length === 0) return done(addLog(ctx, 'なし（INTERNAL_POWER_UP_SELECTED）'));
+        const srcIPU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtIPU = srcIPU ? (srcIPU.EffectText ?? '') + ' ' + (srcIPU.BurstText ?? '') : '';
+        const toHWIPU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const deltaIPU = (() => {
+          const m = txtIPU.match(/それらのパワーをそれぞれ([＋－][０-９\d]+)/);
+          return m ? parseInt(toHWIPU(m[1]).replace('＋', '+').replace('－', '-')) : 5000;
+        })();
+        const modsIPU = [...(ctx.ownerState.temp_power_mods ?? [])];
+        for (const cn of selectedIPU) modsIPU.push({ cardNum: cn, delta: deltaIPU });
+        const namesIPU = selectedIPU.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsIPU } },
+          `${namesIPU}のパワー${deltaIPU > 0 ? '+' : ''}${deltaIPU}`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
