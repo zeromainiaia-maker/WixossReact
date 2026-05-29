@@ -2874,22 +2874,45 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
         const srcGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtGA = srcGA ? (srcGA.EffectText ?? '') + ' ' + (srcGA.BurstText ?? '') : '';
-        // 「このゲームの間、あなたはグロウできない」
-        if (txtGA.match(/このゲームの間、あなたはグロウできない/)) {
-          const newOwner = { ...ctx.ownerState, no_grow: true };
-          return done(addLog({ ...ctx, ownerState: newOwner }, 'このゲームの間グロウ不可'));
+        let ctxGA = ctx;
+        const logsGA: string[] = [];
+        // 「あなたはグロウできない」（「このゲームの間」句を含む複合文も含む）
+        if (txtGA.match(/あなたはグロウできない/)) {
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, no_grow: true } };
+          logsGA.push('グロウ不可（このゲーム）');
         }
-        // 「このゲームの間、対戦相手はグロウできない」
-        if (txtGA.match(/このゲームの間、対戦相手はグロウできない/)) {
-          const newOther = { ...ctx.otherState, no_grow: true };
-          return done(addLog({ ...ctx, otherState: newOther }, 'このゲームの間相手グロウ不可'));
+        // 「対戦相手はグロウできない」
+        if (txtGA.match(/対戦相手はグロウできない/)) {
+          ctxGA = { ...ctxGA, otherState: { ...ctxGA.otherState, no_grow: true } };
+          logsGA.push('相手グロウ不可（このゲーム）');
+        }
+        // 「あなたのセンタールリグは【ダブルクラッシュ】を得る」→ keyword_grantsに追加
+        if (txtGA.match(/センタールリグは【ダブルクラッシュ】を得/)) {
+          const centerGAcn = ctxGA.ownerState.field.lrig.at(-1);
+          if (centerGAcn) {
+            const grantsGA = { ...(ctxGA.ownerState.keyword_grants ?? {}) };
+            grantsGA[centerGAcn] = [...new Set([...(grantsGA[centerGAcn] ?? []), 'ダブルクラッシュ'])];
+            ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, keyword_grants: grantsGA } };
+            logsGA.push('センタールリグにダブルクラッシュ付与（このゲーム）');
+          }
+        }
+        // 「あなたのセンタールリグは【ランサー】を得る」
+        if (txtGA.match(/センタールリグは【ランサー】を得/)) {
+          const centerGAL = ctxGA.ownerState.field.lrig.at(-1);
+          if (centerGAL) {
+            const grantsGAL = { ...(ctxGA.ownerState.keyword_grants ?? {}) };
+            grantsGAL[centerGAL] = [...new Set([...(grantsGAL[centerGAL] ?? []), 'ランサー'])];
+            ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, keyword_grants: grantsGAL } };
+            logsGA.push('センタールリグにランサー付与（このゲーム）');
+          }
         }
         // 「このゲームの間、あなたは～を使用できない」
-        const blockM = txtGA.match(/このゲームの間、あなたは《([^》]+)》を使用できない/);
-        if (blockM) {
-          const newOwner = { ...ctx.ownerState, blocked_card_names: [...(ctx.ownerState.blocked_card_names ?? []), blockM[1]] };
-          return done(addLog({ ...ctx, ownerState: newOwner }, `《${blockM[1]}》の使用をブロック`));
+        const blockMGA = txtGA.match(/このゲームの間、あなたは《([^》]+)》を使用できない/);
+        if (blockMGA) {
+          ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, blocked_card_names: [...(ctxGA.ownerState.blocked_card_names ?? []), blockMGA[1]] } };
+          logsGA.push(`《${blockMGA[1]}》の使用をブロック`);
         }
+        if (logsGA.length > 0) return done(addLog(ctxGA, logsGA.join('・')));
         return done(addLog(ctx, 'このゲームの間：能力付与（ログのみ）'));
       }
       // メインフェイズ終了
