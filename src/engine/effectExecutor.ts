@@ -5859,6 +5859,127 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
+      // === バッチ11: デッキ/エナ/ドロー系 ===
+      // RESONANCE_COST_CARDS_TO_ENERGY: レゾナコストカードをエナゾーンへ
+      if (stub.id === 'RESONANCE_COST_CARDS_TO_ENERGY') {
+        const cardsRCCTE = ctx.lastProcessedCards ?? [];
+        if (cardsRCCTE.length === 0) return done(addLog(ctx, 'レゾナコストカードなし'));
+        const newSRCCTE: PlayerState = {
+          ...ctx.ownerState,
+          energy: [...ctx.ownerState.energy, ...cardsRCCTE],
+          trash: ctx.ownerState.trash.filter(c => !cardsRCCTE.includes(c)),
+        };
+        return done(addLog({ ...ctx, ownerState: newSRCCTE }, `レゾナコスト${cardsRCCTE.length}枚→エナゾーンへ`));
+      }
+      // ENERGY_TO_TRASH: 自分のエナゾーンの末尾カード→トラッシュ
+      if (stub.id === 'ENERGY_TO_TRASH') {
+        const sETT = ctx.ownerState;
+        if (sETT.energy.length === 0) return done(addLog(ctx, 'エナゾーンなし'));
+        const lastEnaETT = sETT.energy.at(-1)!;
+        const newSETT: PlayerState = {
+          ...sETT,
+          energy: sETT.energy.slice(0, -1),
+          trash: [...sETT.trash, lastEnaETT],
+        };
+        return done(addLog({ ...ctx, ownerState: newSETT }, `${ctx.cardMap.get(lastEnaETT)?.CardName ?? lastEnaETT}をエナ→トラッシュ`));
+      }
+      // EACH_PLAYER_DRAW_DISCARD: 両者がドロー+捨て（ドローのみ実装、捨ては選択省略）
+      if (stub.id === 'EACH_PLAYER_DRAW_DISCARD') {
+        const toHWEPDD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcEPDD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtEPDD = srcEPDD ? (srcEPDD.EffectText ?? '') + ' ' + (srcEPDD.BurstText ?? '') : '';
+        const mEPDD = txtEPDD.match(/([０-９\d]+)枚引く/);
+        const drawNEPDD = mEPDD ? parseInt(toHWEPDD(mEPDD[1])) : 1;
+        let ownerEPDD = ctx.ownerState;
+        let otherEPDD = ctx.otherState;
+        const canDrawOwnEPDD = Math.min(drawNEPDD, ownerEPDD.deck.length);
+        ownerEPDD = { ...ownerEPDD, hand: [...ownerEPDD.hand, ...ownerEPDD.deck.slice(0, canDrawOwnEPDD)], deck: ownerEPDD.deck.slice(canDrawOwnEPDD) };
+        const canDrawOtherEPDD = Math.min(drawNEPDD, otherEPDD.deck.length);
+        otherEPDD = { ...otherEPDD, hand: [...otherEPDD.hand, ...otherEPDD.deck.slice(0, canDrawOtherEPDD)], deck: otherEPDD.deck.slice(canDrawOtherEPDD) };
+        return done(addLog({ ...ctx, ownerState: ownerEPDD, otherState: otherEPDD }, `両者${drawNEPDD}枚ドロー`));
+      }
+      // DRAW_DISCARD_COUNT_PLUS_N: N枚引いてM枚捨てる
+      if (stub.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
+        const toHWDDCPN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcDDCPN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtDDCPN = srcDDCPN ? (srcDDCPN.EffectText ?? '') + ' ' + (srcDDCPN.BurstText ?? '') : '';
+        const mDrawDDCPN = txtDDCPN.match(/([０-９\d]+)枚引く/);
+        const mDiscDDCPN = txtDDCPN.match(/([０-９\d]+)枚捨てる/);
+        const drawNDDCPN = mDrawDDCPN ? parseInt(toHWDDCPN(mDrawDDCPN[1])) : 1;
+        const discNDDCPN = mDiscDDCPN ? parseInt(toHWDDCPN(mDiscDDCPN[1])) : 1;
+        let sDDCPN = ctx.ownerState;
+        const canDrawDDCPN = Math.min(drawNDDCPN, sDDCPN.deck.length);
+        sDDCPN = { ...sDDCPN, hand: [...sDDCPN.hand, ...sDDCPN.deck.slice(0, canDrawDDCPN)], deck: sDDCPN.deck.slice(canDrawDDCPN) };
+        const newCtxDDCPN = { ...ctx, ownerState: sDDCPN };
+        if (discNDDCPN > 0 && sDDCPN.hand.length > 0) {
+          const thenDDCPN: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
+          return needsInteraction(addLog(newCtxDDCPN, `${drawNDDCPN}枚ドロー→${discNDDCPN}枚捨て選択`), {
+            type: 'SELECT_TARGET',
+            candidates: sDDCPN.hand,
+            count: Math.min(discNDDCPN, sDDCPN.hand.length),
+            optional: false,
+            targetScope: 'self_hand',
+            thenAction: thenDDCPN as EffectAction,
+          });
+        }
+        return done(addLog(newCtxDDCPN, `${drawNDDCPN}枚ドロー`));
+      }
+      // PLACE_LIMIT_UPPER: ルリグリミット上限を+1
+      if (stub.id === 'PLACE_LIMIT_UPPER') {
+        const newSPLU: PlayerState = { ...ctx.ownerState, lrig_limit_mod: (ctx.ownerState.lrig_limit_mod ?? 0) + 1 };
+        return done(addLog({ ...ctx, ownerState: newSPLU }, 'リミット上限+1'));
+      }
+      // LOOK_DECK_BOTTOM: デッキ下を1枚確認
+      if (stub.id === 'LOOK_DECK_BOTTOM') {
+        const sLDB = ctx.ownerState;
+        if (sLDB.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const bottomLDB = sLDB.deck.at(-1)!;
+        return needsInteraction(ctx, {
+          type: 'LOOK_AND_REORDER',
+          cards: [bottomLDB],
+          canTrash: false,
+          destLocation: 'deck',
+          destOwner: 'self',
+          destPosition: 'bottom',
+        });
+      }
+      // LOOK_TOP_BOTTOM: デッキ上1枚とデッキ下1枚を確認
+      if (stub.id === 'LOOK_TOP_BOTTOM') {
+        const sLTB = ctx.ownerState;
+        if (sLTB.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topLTB = sLTB.deck[0];
+        const bottomLTB = sLTB.deck.at(-1)!;
+        const cardsLTB = sLTB.deck.length === 1 ? [topLTB] : [topLTB, bottomLTB];
+        return needsInteraction(ctx, {
+          type: 'LOOK_AND_REORDER',
+          cards: cardsLTB,
+          canTrash: false,
+          destLocation: 'deck',
+          destOwner: 'self',
+          destPosition: 'any',
+        });
+      }
+      // LOOK_TOP_OPP_CHOOSE_TRASH: デッキ上N枚を公開し相手が1枚選んでトラッシュ
+      if (stub.id === 'LOOK_TOP_OPP_CHOOSE_TRASH') {
+        const toHWLTOCT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcLTOCT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtLTOCT = srcLTOCT ? (srcLTOCT.EffectText ?? '') + ' ' + (srcLTOCT.BurstText ?? '') : '';
+        const mLTOCT = txtLTOCT.match(/上から([０-９\d]+)枚/);
+        const nLTOCT = mLTOCT ? parseInt(toHWLTOCT(mLTOCT[1])) : 3;
+        const sLTOCT = ctx.ownerState;
+        if (sLTOCT.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const visLTOCT = sLTOCT.deck.slice(0, Math.min(nLTOCT, sLTOCT.deck.length));
+        const thenLTOCT: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
+        return needsInteraction(addLog(ctx, `デッキ上${visLTOCT.length}枚公開`), {
+          type: 'SELECT_TARGET',
+          candidates: visLTOCT,
+          count: 1,
+          optional: false,
+          targetScope: 'self_hand' as import('../types').TargetScope,
+          thenAction: thenLTOCT as EffectAction,
+          opponentResponds: true,
+        });
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
