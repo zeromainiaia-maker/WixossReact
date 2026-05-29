@@ -296,7 +296,7 @@ export function calcFieldPowers(
 
       for (const effect of effects) {
         if (effect.effectType !== 'CONTINUOUS') continue;
-        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum)) continue;
+        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum, powers)) continue;
 
         // POWER_SET: 基本パワーを指定値に変更（POWER_MODIFYより先に適用）
         const sets = extractPowerSets(effect.action);
