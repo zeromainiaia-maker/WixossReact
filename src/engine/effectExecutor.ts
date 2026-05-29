@@ -6802,6 +6802,41 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, card_class_overrides: overridesIACCOp } },
           `${ctx.cardMap.get(targetCnIACC)?.CardName ?? targetCnIACC}のクラスを＜${newClassIACC}＞に変更`));
       }
+      // LOSE_COLOR_ALL_ZONES: チームルリグ3体未満→全ゾーンで色喪失（PlayerState.colorless_card_overrides に追加）
+      if (stub.id === 'LOSE_COLOR_ALL_ZONES') {
+        const srcLCAZ = ctx.sourceCardNum;
+        if (!srcLCAZ) return done(addLog(ctx, '[LOSE_COLOR_ALL_ZONES: ソースなし]'));
+        // カードテキストからチーム名と条件を確認
+        const cardLCAZ = ctx.cardMap.get(srcLCAZ);
+        const txtLCAZ = cardLCAZ ? (cardLCAZ.EffectText ?? '') + ' ' + (cardLCAZ.BurstText ?? '') : '';
+        const teamMLCAZ = txtLCAZ.match(/あなたの場に＜([^＞]+)＞のルリグが３体いない/);
+        const teamNameLCAZ = teamMLCAZ?.[1] ?? '';
+        // フィールドのルリグでチーム数をカウント
+        const lrigNumsLCAZ = [
+          ctx.ownerState.field.lrig.at(-1),
+          ctx.ownerState.field.assist_lrig_l?.at(-1),
+          ctx.ownerState.field.assist_lrig_r?.at(-1),
+        ].filter((n): n is string => !!n);
+        const teamCountLCAZ = teamNameLCAZ ? lrigNumsLCAZ.filter(n => {
+          const lc = ctx.cardMap.get(n);
+          return lc && ((lc.Story ?? '').includes(teamNameLCAZ) || (lc.CardClass ?? '').includes(teamNameLCAZ) || (lc.CardName ?? '').includes(teamNameLCAZ));
+        }).length : 0;
+        if (teamNameLCAZ && teamCountLCAZ >= 3) {
+          // 条件を満たしている（ルリグ3体→色を保持）
+          const currentCO = ctx.ownerState.colorless_card_overrides ?? [];
+          const newCO = currentCO.filter(cn => cn !== srcLCAZ);
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, colorless_card_overrides: newCO } },
+            `${cardLCAZ?.CardName ?? srcLCAZ}は＜${teamNameLCAZ}＞3体揃い→色を保持`));
+        }
+        // 条件未満→色喪失
+        const currentCO2 = ctx.ownerState.colorless_card_overrides ?? [];
+        if (!currentCO2.includes(srcLCAZ)) {
+          const newCO2 = [...currentCO2, srcLCAZ];
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, colorless_card_overrides: newCO2 } },
+            `${cardLCAZ?.CardName ?? srcLCAZ}は全ゾーンで色喪失（＜${teamNameLCAZ}＞3体未満）`));
+        }
+        return done(addLog(ctx, `${cardLCAZ?.CardName ?? srcLCAZ}は色喪失済み`));
+      }
       // カード属性変更系（engine: 属性変更システム未実装）
       if (stub.id === 'COPY_SIGNI' || stub.id === 'COPY_CARD'
           || stub.id === 'CHANGE_SIGNI_COLOR' || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
@@ -6810,7 +6845,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'ALL_CLASS' || stub.id === 'ALL_COLOR' || stub.id === 'ALL_ZONE_BLACK'
           || stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK' || stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE'
           || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK' || stub.id === 'SIGNI_LOSE_COLOR'
-          || stub.id === 'SIGNI_GAIN_ONE_LRIG_COLOR' || stub.id === 'LOSE_COLOR_ALL_ZONES'
+          || stub.id === 'SIGNI_GAIN_ONE_LRIG_COLOR'
           || stub.id === 'INHERIT_OPP_LRIG_TYPE' || stub.id === 'INHERIT_UNDER_SIGNI_COLOR') {
         return done(addLog(ctx, `[属性変更: ${stub.id}]`));
       }
