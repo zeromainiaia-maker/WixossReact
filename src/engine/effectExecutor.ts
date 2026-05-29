@@ -5859,6 +5859,130 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
+      // === バッチ12: アクセ・シグニ配置・能力付与・無効系 ===
+      // ACCE_FROM_HAND: 手札のアクセカードを自分のシグニに付ける
+      if (stub.id === 'ACCE_FROM_HAND' || stub.id === 'MULTI_ACCE_FROM_HAND') {
+        const srcAFH = ctx.sourceCardNum;
+        if (!srcAFH || !ctx.ownerState.hand.includes(srcAFH)) return done(addLog(ctx, 'アクセカードが手札にない'));
+        const acceAFH = ctx.ownerState.field.signi_acce ?? [null, null, null];
+        const candidatesAFH = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
+          if (!stack || stack.length === 0) return [];
+          if (acceAFH[i] !== null) return [];
+          return [stack[stack.length - 1]];
+        });
+        if (candidatesAFH.length === 0) return done(addLog(ctx, 'アクセ対象のシグニなし'));
+        const attachAFH: AttachAcceAction = { type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candidatesAFH, count: 1, optional: false,
+          targetScope: 'self_field', thenAction: attachAFH as EffectAction,
+        });
+      }
+      // ACCE_FROM_TRASH: トラッシュのアクセカードを自分のシグニに付ける
+      if (stub.id === 'ACCE_FROM_TRASH' || stub.id === 'NAMED_SIGNI_ACCE_FROM_TRASH') {
+        const acceAFTR = ctx.ownerState.field.signi_acce ?? [null, null, null];
+        const candidatesAFTR = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
+          if (!stack || stack.length === 0) return [];
+          if (acceAFTR[i] !== null) return [];
+          return [stack[stack.length - 1]];
+        });
+        if (candidatesAFTR.length === 0) return done(addLog(ctx, 'アクセ対象のシグニなし'));
+        // トラッシュのアクセカードをいったん手札に移し、ATTACH_ACCEで処理
+        const srcAFTR = ctx.sourceCardNum;
+        const trashAcceAFTR = srcAFTR && ctx.ownerState.trash.includes(srcAFTR) ? srcAFTR : null;
+        if (!trashAcceAFTR) return done(addLog(ctx, 'アクセカードがトラッシュにない'));
+        const newSAFTR: PlayerState = {
+          ...ctx.ownerState,
+          trash: ctx.ownerState.trash.filter(c => c !== trashAcceAFTR),
+          hand: [...ctx.ownerState.hand, trashAcceAFTR],
+        };
+        const attachAFTR: AttachAcceAction = { type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self' };
+        return needsInteraction({ ...ctx, ownerState: newSAFTR }, {
+          type: 'SELECT_TARGET', candidates: candidatesAFTR, count: 1, optional: false,
+          targetScope: 'self_field', thenAction: attachAFTR as EffectAction,
+        });
+      }
+      // SIGNI_REPOSITION: 自分のシグニ1体を空きゾーンに移動
+      if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'SWAP_OPTIONAL') {
+        const signiSR = ctx.ownerState.field.signi ?? [];
+        const emptyIdxSR = signiSR.findIndex(s => !s || s.length === 0);
+        if (emptyIdxSR < 0) return done(addLog(ctx, '空きゾーンなし（配置替え不可）'));
+        const candidatesSR = signiSR.flatMap(stack => (stack && stack.length > 0 ? [stack[stack.length - 1]] : []));
+        if (candidatesSR.length === 0) return done(addLog(ctx, 'シグニなし'));
+        // SELECT_TARGET → 選択シグニを空きゾーンへ移動（continuation内で処理）
+        const contSR: import('../types/effects').SequenceAction = {
+          type: 'SEQUENCE',
+          steps: [{ type: 'STUB', id: 'INTERNAL_REPOSITION_MOVE' } as import('../types/effects').StubAction],
+        };
+        // INTERNAL_REPOSITION_MOVE を上流で呼ぶ
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candidatesSR, count: 1, optional: stub.id === 'SWAP_OPTIONAL',
+          targetScope: 'self_field',
+          thenAction: { type: 'STUB', id: 'INTERNAL_REPOSITION_MOVE' } as EffectAction,
+        });
+      }
+      // INTERNAL_REPOSITION_MOVE: 選択シグニを空きゾーンへ移動（SIGNI_REPOSITIONの後半）
+      if (stub.id === 'INTERNAL_REPOSITION_MOVE') {
+        const cnIRM = ctx.lastProcessedCards?.[0];
+        if (!cnIRM) return done(addLog(ctx, '対象なし'));
+        const signiIRM = [...(ctx.ownerState.field.signi ?? [])] as (string[] | null)[];
+        const srcIdxIRM = signiIRM.findIndex(s => s?.at(-1) === cnIRM);
+        const dstIdxIRM = signiIRM.findIndex(s => !s || s.length === 0);
+        if (srcIdxIRM < 0 || dstIdxIRM < 0) return done(addLog(ctx, 'シグニ移動不可'));
+        const stack = signiIRM[srcIdxIRM]!;
+        signiIRM[srcIdxIRM] = stack.length > 1 ? stack.slice(0, -1) : null;
+        signiIRM[dstIdxIRM] = [cnIRM];
+        const newSIRM: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: signiIRM } };
+        return done(addLog({ ...ctx, ownerState: newSIRM },
+          `${ctx.cardMap.get(cnIRM)?.CardName ?? cnIRM}をゾーン${srcIdxIRM + 1}→${dstIdxIRM + 1}に移動`));
+      }
+      // GRANT_CONDITIONAL_ASSASSIN_ABILITY: 条件付きアサシンをkeyword_grantsに付与
+      if (stub.id === 'GRANT_CONDITIONAL_ASSASSIN_ABILITY') {
+        const cnGCAA = ctx.sourceCardNum;
+        if (!cnGCAA) return done(addLog(ctx, 'ソースカードなし'));
+        const kwGCAA = { ...(ctx.ownerState.keyword_grants ?? {}) };
+        const existingGCAA = kwGCAA[cnGCAA] ?? [];
+        if (!existingGCAA.includes('アサシン')) kwGCAA[cnGCAA] = [...existingGCAA, 'アサシン'];
+        const newSGCAA: PlayerState = { ...ctx.ownerState, keyword_grants: kwGCAA };
+        return done(addLog({ ...ctx, ownerState: newSGCAA },
+          `${ctx.cardMap.get(cnGCAA)?.CardName ?? cnGCAA}にアサシン付与（条件付き）`));
+      }
+      // NEGATE_ABILITY: 対象シグニの能力を無効化（abilities_removedに追加）
+      if (stub.id === 'NEGATE_ABILITY') {
+        const targetNA = ctx.lastProcessedCards?.[0];
+        if (targetNA) {
+          // 対象がいずれかのフィールドに存在するか確認
+          const inOwnNA = ctx.ownerState.field.signi.some(s => s?.at(-1) === targetNA);
+          const inOppNA = ctx.otherState.field.signi.some(s => s?.at(-1) === targetNA);
+          if (inOwnNA) {
+            const newOwnerNA: PlayerState = { ...ctx.ownerState, abilities_removed: [...(ctx.ownerState.abilities_removed ?? []), targetNA] };
+            return done(addLog({ ...ctx, ownerState: newOwnerNA }, `${ctx.cardMap.get(targetNA)?.CardName ?? targetNA}の能力を無効化`));
+          }
+          if (inOppNA) {
+            const newOtherNA: PlayerState = { ...ctx.otherState, abilities_removed: [...(ctx.otherState.abilities_removed ?? []), targetNA] };
+            return done(addLog({ ...ctx, otherState: newOtherNA }, `${ctx.cardMap.get(targetNA)?.CardName ?? targetNA}の能力を無効化`));
+          }
+        }
+        // 対象が不明: 相手フィールドからSELECT
+        const candNA = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+        if (candNA.length === 0) return done(addLog(ctx, '無効化対象なし'));
+        const thenNA: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_NEGATE_ABILITY' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candNA, count: 1, optional: false,
+          targetScope: 'opp_field', thenAction: thenNA as EffectAction,
+        });
+      }
+      // INTERNAL_NEGATE_ABILITY: 選択シグニの能力を無効化
+      if (stub.id === 'INTERNAL_NEGATE_ABILITY') {
+        const cnINA = ctx.lastProcessedCards?.[0];
+        if (!cnINA) return done(addLog(ctx, '対象なし'));
+        const inOwnINA = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnINA);
+        if (inOwnINA) {
+          const newOwnerINA: PlayerState = { ...ctx.ownerState, abilities_removed: [...(ctx.ownerState.abilities_removed ?? []), cnINA] };
+          return done(addLog({ ...ctx, ownerState: newOwnerINA }, `${ctx.cardMap.get(cnINA)?.CardName ?? cnINA}の能力を無効化`));
+        }
+        const newOtherINA: PlayerState = { ...ctx.otherState, abilities_removed: [...(ctx.otherState.abilities_removed ?? []), cnINA] };
+        return done(addLog({ ...ctx, otherState: newOtherINA }, `${ctx.cardMap.get(cnINA)?.CardName ?? cnINA}の能力を無効化`));
+      }
       // === バッチ11: デッキ/エナ/ドロー系 ===
       // RESONANCE_COST_CARDS_TO_ENERGY: レゾナコストカードをエナゾーンへ
       if (stub.id === 'RESONANCE_COST_CARDS_TO_ENERGY') {
