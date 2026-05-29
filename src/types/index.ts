@@ -129,6 +129,8 @@ export interface PlayerState {
   draw_limit?: number;
   // ターン終了時まで有効なカードクラスオーバーライド（CardNum → 新クラス名）
   card_class_overrides?: Record<string, string>;
+  // このターン無効化された自フィールドのシグニゾーン番号（REMOVE_SIGNI_ZONE効果）
+  disabled_signi_zones?: number[];
 }
 
 export interface GameLog {
