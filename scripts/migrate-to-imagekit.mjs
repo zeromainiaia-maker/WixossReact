@@ -1,10 +1,11 @@
 /**
  * SupabaseのカードバケットをImageKit Storageに移行するスクリプト
  *
- * 実行:
+ * 実行（全件）:
  *   node scripts/migrate-to-imagekit.mjs
  *
- * 途中で止まっても再実行可（既存ファイルは上書きされるが問題なし）
+ * 失敗分のみ再実行:
+ *   RETRY_FILE=/path/to/failed.txt node scripts/migrate-to-imagekit.mjs
  */
 
 import { readFileSync, existsSync } from 'fs';
