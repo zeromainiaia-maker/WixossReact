@@ -5384,6 +5384,131 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newSOtherSZ: PlayerState = { ...ctx.otherState, abilities_removed: abilRemovedSZ, story_overrides: storyOverridesSZ };
         return done(addLog({ ...ctx, otherState: newSOtherSZ }, `${targets.length}体をサーバントゼロに`));
       }
+      // === バッチ7: バニッシュ・トラッシュ・条件効果 ===
+      // BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ
+      if (stub.id === 'BANISH') {
+        const cnBAN = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
+        if (!cnBAN) return done(addLog(ctx, 'バニッシュ対象なし'));
+        const foundOppBAN = ctx.otherState.field.signi.some(s => s?.at(-1) === cnBAN);
+        if (foundOppBAN) {
+          const removedBAN = removeFromField(cnBAN, ctx.otherState);
+          const newSOtherBAN: PlayerState = { ...removedBAN, energy: [...removedBAN.energy, cnBAN] };
+          return done(addLog({ ...ctx, otherState: newSOtherBAN }, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}をバニッシュ`));
+        }
+        const foundSelfBAN = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnBAN);
+        if (foundSelfBAN) {
+          const removedBAN = removeFromField(cnBAN, ctx.ownerState);
+          const newSBAN: PlayerState = { ...removedBAN, energy: [...removedBAN.energy, cnBAN] };
+          return done(addLog({ ...ctx, ownerState: newSBAN }, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}をバニッシュ`));
+        }
+        return done(addLog(ctx, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}はフィールドにない`));
+      }
+      // TRASH (STUB版): lastProcessedCards[0] か sourceCardNum をトラッシュへ
+      if (stub.id === 'TRASH') {
+        const cnTRS = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
+        if (!cnTRS) return done(addLog(ctx, 'トラッシュ対象なし'));
+        // 自フィールド
+        if (ctx.ownerState.field.signi.some(s => s?.includes(cnTRS))) {
+          const removedTRS = removeFromField(cnTRS, ctx.ownerState);
+          return done(addLog({ ...ctx, ownerState: { ...removedTRS, trash: [...removedTRS.trash, cnTRS] } },
+            `${ctx.cardMap.get(cnTRS)?.CardName ?? cnTRS}をトラッシュへ`));
+        }
+        // 自手札
+        if (ctx.ownerState.hand.includes(cnTRS)) {
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, hand: ctx.ownerState.hand.filter(c => c !== cnTRS), trash: [...ctx.ownerState.trash, cnTRS] } },
+            `${ctx.cardMap.get(cnTRS)?.CardName ?? cnTRS}をトラッシュへ`));
+        }
+        // 相手フィールド
+        if (ctx.otherState.field.signi.some(s => s?.includes(cnTRS))) {
+          const removedTRS = removeFromField(cnTRS, ctx.otherState);
+          return done(addLog({ ...ctx, otherState: { ...removedTRS, trash: [...removedTRS.trash, cnTRS] } },
+            `${ctx.cardMap.get(cnTRS)?.CardName ?? cnTRS}をトラッシュへ`));
+        }
+        return done(addLog(ctx, `${ctx.cardMap.get(cnTRS)?.CardName ?? cnTRS}（TRASH STUB）`));
+      }
+      // BANISH_FROM_GAME: ゲームから除外（ルリグトラッシュへ）
+      if (stub.id === 'BANISH_FROM_GAME') {
+        const cnBFG = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
+        if (!cnBFG) return done(addLog(ctx, '除外対象なし'));
+        const foundOppBFG = ctx.otherState.field.signi.some(s => s?.at(-1) === cnBFG);
+        const ownerBFG: 'self' | 'opponent' = foundOppBFG ? 'opponent' : 'self';
+        const stBFG = ownerState(ownerBFG, ctx);
+        const removedBFG = removeFromField(cnBFG, stBFG);
+        const newSBFG: PlayerState = { ...removedBFG, lrig_trash: [...removedBFG.lrig_trash, cnBFG] };
+        return done(addLog(setOwnerState(ownerBFG, newSBFG, ctx), `${ctx.cardMap.get(cnBFG)?.CardName ?? cnBFG}をゲームから除外`));
+      }
+      // TRASH_ALL_OPP_CARDS: 相手の全フィールドシグニと手札をトラッシュへ
+      if (stub.id === 'TRASH_ALL_OPP_CARDS') {
+        let sOppTAOC = ctx.otherState;
+        const toTrashTAOC: string[] = [];
+        const newSigniTAOC = sOppTAOC.field.signi.map(stack => {
+          if (stack && stack.length > 0) { toTrashTAOC.push(...stack); return null; }
+          return stack;
+        }) as (string[] | null)[];
+        toTrashTAOC.push(...sOppTAOC.hand);
+        sOppTAOC = { ...sOppTAOC, field: { ...sOppTAOC.field, signi: newSigniTAOC }, hand: [], trash: [...sOppTAOC.trash, ...toTrashTAOC] };
+        return done(addLog({ ...ctx, otherState: sOppTAOC }, `相手の${toTrashTAOC.length}枚をトラッシュへ`));
+      }
+      // ABILITY_CHECK_ELSE_TRASH: 能力なしなら自トラッシュ
+      if (stub.id === 'ABILITY_CHECK_ELSE_TRASH') {
+        if (!ctx.sourceCardNum) return done(ctx);
+        const srcDataACET = ctx.cardMap.get(ctx.sourceCardNum);
+        const hasAbilityACET = !!(srcDataACET?.EffectText?.trim() || srcDataACET?.BurstText?.trim());
+        if (hasAbilityACET) return done(addLog(ctx, '能力ありのためトラッシュなし'));
+        const removedACET = removeFromField(ctx.sourceCardNum, ctx.ownerState);
+        return done(addLog({ ...ctx, ownerState: { ...removedACET, trash: [...removedACET.trash, ctx.sourceCardNum] } }, '能力なし→トラッシュ'));
+      }
+      // OPTIONAL_DISCARD_CLASS_SIGNI: クラスシグニを任意で捨てる
+      if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
+        const srcODCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtODCS = srcODCS ? (srcODCS.EffectText ?? '') + ' ' + (srcODCS.BurstText ?? '') : '';
+        const classMatchODCS = txtODCS.match(/【([^】]+)】/);
+        const classFilterODCS = classMatchODCS?.[1];
+        const candsODCS = ctx.ownerState.hand.filter(cn => {
+          const card = ctx.cardMap.get(cn);
+          if (card?.Type !== 'シグニ') return false;
+          return !classFilterODCS || (card.CardClass ?? '').includes(classFilterODCS);
+        });
+        if (candsODCS.length === 0) return done(addLog(ctx, '対象クラスシグニなし（任意捨て）'));
+        const thenODCS: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: candsODCS, count: 1, optional: true,
+          targetScope: 'self_hand', thenAction: thenODCS,
+        });
+      }
+      // PICK_FROM_TRASHED_CARDS: トラッシュカードからピックして手札へ
+      if (stub.id === 'PICK_FROM_TRASHED_CARDS') {
+        const trashPFTC = ctx.ownerState.trash;
+        if (trashPFTC.length === 0) return done(addLog(ctx, 'トラッシュなし'));
+        const thenPFTC: import('../types/effects').TransferToHandAction = { type: 'TRANSFER_TO_HAND', source: 'trash', owner: 'self', count: 1, optional: true, filter: undefined };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: trashPFTC, count: 1, optional: true,
+          targetScope: 'self_trash', thenAction: thenPFTC,
+        });
+      }
+      // CONDITIONAL_ADD_HAND: フィールドにシグニがあれば手札に1枚追加
+      if (stub.id === 'CONDITIONAL_ADD_HAND') {
+        const hasSigniCAH = ctx.ownerState.field.signi.some(s => s && s.length > 0);
+        if (!hasSigniCAH) return done(addLog(ctx, 'フィールドにシグニなし（手札追加なし）'));
+        const sCAH = ctx.ownerState;
+        if (sCAH.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const drawnCAH = sCAH.deck[0];
+        const newSCAH: PlayerState = { ...sCAH, deck: sCAH.deck.slice(1), hand: [...sCAH.hand, drawnCAH] };
+        return done(addLog({ ...ctx, ownerState: newSCAH }, '条件達成→手札に1枚追加'));
+      }
+      // CONDITIONAL_DISCARD: 条件付き手札捨て
+      if (stub.id === 'CONDITIONAL_DISCARD') {
+        if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（条件捨てなし）'));
+        const thenCD: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
+        return needsInteraction(ctx, {
+          type: 'SELECT_TARGET', candidates: ctx.ownerState.hand, count: 1, optional: false,
+          targetScope: 'self_hand', thenAction: thenCD,
+        });
+      }
+      // PICK_FROM_TRASHED_CARDS の後半 / CONDITIONAL_ALTERNATE_EFFECT: 代替効果（スキップ）
+      // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（log）
+      // OPP_DECLARE_COLOR: 相手が色を宣言（log）
+      // SELECT_NO_COMMON_COLOR / DISCARD_OR_PENALTY / DISCARD_BY_POWER_MATCH: log
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
