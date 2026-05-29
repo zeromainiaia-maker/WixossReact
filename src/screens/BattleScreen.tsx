@@ -2423,6 +2423,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(stack.turnPlayerId, banishEntries);
         }
 
+        // ON_TRASH: トラッシュに移動したシグニを検出してスタックに追加
+        const hostTrashed  = detectTrashedSigni(bs.host_state, hostState);
+        const guestTrashed = detectTrashedSigni(bs.guest_state, guestState);
+        const trashEntries: StackEntry[] = [];
+        for (const cardNum of hostTrashed) {
+          trashEntries.push(...collectTrashTriggers(cardNum, bs.host_id, hostState, guestState));
+        }
+        for (const cardNum of guestTrashed) {
+          trashEntries.push(...collectTrashTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+        if (trashEntries.length > 0) {
+          const baseStackT = (update.effect_stack as typeof stackAfter) ?? null;
+          update.effect_stack = baseStackT
+            ? pushToStack(baseStackT, trashEntries)
+            : initStack(stack.turnPlayerId, trashEntries);
+        }
+
         // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
         const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
         if (entryCardType === 'アーツ' && entry.playerId !== user.id) {
