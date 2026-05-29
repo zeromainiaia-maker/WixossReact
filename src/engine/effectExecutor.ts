@@ -7353,16 +7353,48 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           `${ctx.cardMap.get(targetIBAC)?.CardName ?? targetIBAC}はアタックできない`));
       }
       // DOWN_UP_SIGNI_AND_CHOOSE: シグニをダウン/アップして選択
+      // DOWN_UP_SIGNI_AND_CHOOSE: アップ状態の特定クラスシグニを好きな数ダウン（コスト軽減素材）
       if (stub.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {
-        const srcDUSC = ctx.sourceCardNum;
-        if (!srcDUSC) return done(addLog(ctx, 'ソースカードなし'));
-        const signiZoneDUSC = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcDUSC);
-        if (signiZoneDUSC < 0) return done(addLog(ctx, '場にシグニなし'));
-        // 対象をダウン
-        const downDUSC = [...(ctx.ownerState.field.signi_down ?? [false, false, false])];
-        downDUSC[signiZoneDUSC] = true;
-        const newSDUSC: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_down: downDUSC } };
-        return done(addLog({ ...ctx, ownerState: newSDUSC }, `${ctx.cardMap.get(srcDUSC)?.CardName ?? srcDUSC}をダウン+選択`));
+        const srcDUSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtDUSC = srcDUSC ? (srcDUSC.EffectText ?? '') + ' ' + (srcDUSC.BurstText ?? '') : '';
+        // 対象クラスを抽出（「アップ状態の＜クラス＞のシグニ」）
+        const classM = txtDUSC.match(/アップ状態の＜([^＞]+)＞のシグニ/);
+        const targetClass = classM ? classM[1] : null;
+        // UP状態の対象クラスシグニを収集
+        const upSigniDUSC = [0, 1, 2].flatMap(zi => {
+          const top = ctx.ownerState.field.signi[zi]?.at(-1);
+          const isDown = ctx.ownerState.field.signi_down?.[zi] ?? false;
+          if (!top || isDown) return [];
+          const card = ctx.cardMap.get(top);
+          if (targetClass && !card?.CardClass?.includes(targetClass)) return [];
+          return [{ cn: top, zi }];
+        });
+        if (upSigniDUSC.length === 0) {
+          return done(addLog(ctx, `アップ状態の${targetClass ?? 'シグニ'}なし（DOWN_UP_SIGNI_AND_CHOOSE）`));
+        }
+        // 選択肢：「N体ダウン」オプション（0 to upSigniDUSC.length）
+        const optsDUSC = [
+          { id: 'dusc_none', label: 'ダウンしない', action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction, available: true },
+          ...upSigniDUSC.map((s, i) => ({
+            id: `dusc_${i}`,
+            label: `${ctx.cardMap.get(s.cn)?.CardName ?? s.cn}をダウン`,
+            action: ({ type: 'STUB', id: 'INTERNAL_DOWN_SIGNI_BY_ZONE', value: s.zi } as import('../types/effects').StubAction) as EffectAction,
+            available: true,
+          })),
+        ];
+        return needsInteraction(
+          addLog(ctx, `アップ${targetClass ?? ''}シグニを選択してダウン（コスト軽減素材）`),
+          { type: 'CHOOSE', options: optsDUSC, count: 1 }
+        );
+      }
+      if (stub.id === 'INTERNAL_DOWN_SIGNI_BY_ZONE') {
+        const ziIDSBZ = typeof stub.value === 'number' ? stub.value : 0;
+        const downArrIDSBZ = [...(ctx.ownerState.field.signi_down ?? [false, false, false])];
+        downArrIDSBZ[ziIDSBZ] = true;
+        const newOwnerIDSBZ = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_down: downArrIDSBZ } };
+        const topIDSBZ = ctx.ownerState.field.signi[ziIDSBZ]?.at(-1);
+        return done(addLog({ ...ctx, ownerState: newOwnerIDSBZ, lastProcessedCards: topIDSBZ ? [topIDSBZ] : [] },
+          `${topIDSBZ ? ctx.cardMap.get(topIDSBZ)?.CardName : 'シグニ'}をダウン（コスト軽減）`));
       }
       // CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
       if (stub.id === 'CHOOSE_N_FROM_LIST') {
