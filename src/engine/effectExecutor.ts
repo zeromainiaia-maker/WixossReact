@@ -2389,8 +2389,34 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const maxM = txtHTE.match(/手札から(?:カード)?([０-９\d]+)枚まで/);
         const maxHTE = maxM ? parseInt(toHWHTE(maxM[1])) : 1;
         if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（エナ任意置きスキップ）'));
-        const toEnaAction: EffectAction = { type: 'MOVE_CARD', from: 'hand', to: 'energy', owner: 'self' } as EffectAction;
-        return selectOrInteract(ctx.ownerState.hand, maxHTE, true, 'self_hand', toEnaAction, undefined, ctx);
+        // thenAction: noop（RULE_REMINDER_TEXT）, continuation: INTERNAL_HAND_TO_ENERGY でエナ移動
+        const noopHTE: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contHTE: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_HAND_TO_ENERGY' };
+        const pendingHTE: PendingInteractionDef = {
+          type: 'SELECT_TARGET',
+          candidates: ctx.ownerState.hand,
+          count: maxHTE,
+          optional: true,
+          targetScope: 'self_hand',
+          thenAction: noopHTE as EffectAction,
+          continuation: contHTE as EffectAction,
+        };
+        return needsInteraction(addLog(ctx, '手札からエナゾーンに置いてもよい'), pendingHTE);
+      }
+      // INTERNAL: lastProcessedCardsの手札カードをエナへ移動
+      if (stub.id === 'INTERNAL_HAND_TO_ENERGY') {
+        const selected = ctx.lastProcessedCards ?? [];
+        let newOwnerHTE = { ...ctx.ownerState };
+        for (const cn of selected) {
+          const hi = newOwnerHTE.hand.indexOf(cn);
+          if (hi >= 0) {
+            const newHand = [...newOwnerHTE.hand];
+            newHand.splice(hi, 1);
+            newOwnerHTE = { ...newOwnerHTE, hand: newHand, energy: [...newOwnerHTE.energy, cn] };
+          }
+        }
+        const names = selected.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, ownerState: newOwnerHTE }, `${names || 'なし'}をエナゾーンへ`));
       }
       // 相手の手札を見てスペルを捨てさせる
       if (stub.id === 'VIEW_AND_DISCARD_SPELL') {
@@ -2410,8 +2436,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if (spellCands.length === 0) return done(addLog(ctx, '相手手札に対象スペルなし'));
         const maxM2 = txtVDS.match(/スペル([０-９\d]+)枚/);
         const maxVDS = maxM2 ? parseInt(toHWVDS(maxM2[1])) : 1;
-        const discardAction: EffectAction = { type: 'MOVE_CARD', from: 'hand', to: 'trash', owner: 'opponent' } as EffectAction;
-        return selectOrInteract(spellCands, maxVDS, false, 'opp_hand', discardAction, undefined, ctx);
+        const discardVDS: import('../types/effects').TrashAction = {
+          type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+        };
+        return selectOrInteract(spellCands, maxVDS, false, 'opp_hand', discardVDS as EffectAction, undefined, ctx);
       }
       // ゲームから除外：自分のシグニをフィールドからトラッシュへ（ゲーム除外の近似）
       if (stub.id === 'BANISH_FROM_GAME') {
