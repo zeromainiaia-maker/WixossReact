@@ -146,6 +146,10 @@ export interface PlayerState {
   designated_zone?: number;
   // 全ゾーンで色を失うカードのCardNum一覧（LOSE_COLOR_ALL_ZONES: チームルリグ3体未満時）
   colorless_card_overrides?: string[];
+  // 対戦相手の効果でトラッシュに移動できないゾーン（PREVENT_ZONE_MOVE_BY_OPP等）
+  prevent_opp_trash_from?: ('hand' | 'energy')[];
+  // エナの色代替（キーピース等：from色のエナをto色として扱う）
+  energy_color_substitutes?: { from: string[]; to: string }[];
 }
 
 export interface GameLog {
