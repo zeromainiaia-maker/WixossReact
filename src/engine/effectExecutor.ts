@@ -5509,6 +5509,134 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（log）
       // OPP_DECLARE_COLOR: 相手が色を宣言（log）
       // SELECT_NO_COMMON_COLOR / DISCARD_OR_PENALTY / DISCARD_BY_POWER_MATCH: log
+      // === バッチ8: パワー修正（ルリグ・カウント系） ===
+      // POWER_MOD_BY_LRIG_LEVEL: ルリグレベル×deltaを相手シグニに適用
+      if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL') {
+        const toHWPMBLL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const centerNumPMBLL = ctx.ownerState.field.lrig.at(-1);
+        const centerCardPMBLL = centerNumPMBLL ? ctx.cardMap.get(centerNumPMBLL) : undefined;
+        const lrigLevelPMBLL = centerCardPMBLL ? parseInt(toHWPMBLL(centerCardPMBLL.Level ?? '0')) || 0 : 0;
+        const srcPMBLL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMBLL = srcPMBLL ? (srcPMBLL.EffectText ?? '') + ' ' + (srcPMBLL.BurstText ?? '') : '';
+        const mPMBLL = txtPMBLL.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPMBLL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_LRIG_LEVEL）'));
+        const singleDeltaPMBLL = parseInt(toHWPMBLL(mPMBLL[1]).replace('＋', '+').replace('－', '-'));
+        const totalDeltaPMBLL = singleDeltaPMBLL * lrigLevelPMBLL;
+        const modsPMBLL = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMBLL.push({ cardNum: top, delta: totalDeltaPMBLL }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBLL } },
+          `ルリグLv${lrigLevelPMBLL}×${singleDeltaPMBLL}→相手シグニパワー${totalDeltaPMBLL}`));
+      }
+      // POWER_MOD_BY_LRIG_LEVEL_SUM: 全ルリグレベル合計×deltaを相手シグニに
+      if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM') {
+        const toHWPMBLLS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const lrigLevelSumPMBLLS = ctx.ownerState.field.lrig.reduce((sum, cn) => {
+          return sum + (parseInt(toHWPMBLLS(ctx.cardMap.get(cn)?.Level ?? '0')) || 0);
+        }, 0);
+        const srcPMBLLS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMBLLS = srcPMBLLS ? (srcPMBLLS.EffectText ?? '') + ' ' + (srcPMBLLS.BurstText ?? '') : '';
+        const mPMBLLS = txtPMBLLS.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPMBLLS) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_LRIG_LEVEL_SUM）'));
+        const singleDeltaPMBLLS = parseInt(toHWPMBLLS(mPMBLLS[1]).replace('＋', '+').replace('－', '-'));
+        const totalDeltaPMBLLS = singleDeltaPMBLLS * lrigLevelSumPMBLLS;
+        const modsPMBLLS = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMBLLS.push({ cardNum: top, delta: totalDeltaPMBLLS }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBLLS } },
+          `全ルリグLv合計${lrigLevelSumPMBLLS}×${singleDeltaPMBLLS}→相手シグニパワー${totalDeltaPMBLLS}`));
+      }
+      // POWER_MOD_BY_LRIG_TRASH_ARTS: ルリグトラッシュのアーツ数×deltaを相手シグニに
+      if (stub.id === 'POWER_MOD_BY_LRIG_TRASH_ARTS') {
+        const toHWPMBLTA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const artsCountPMBLTA = ctx.ownerState.lrig_trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ').length;
+        const srcPMBLTA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMBLTA = srcPMBLTA ? (srcPMBLTA.EffectText ?? '') + ' ' + (srcPMBLTA.BurstText ?? '') : '';
+        const mPMBLTA = txtPMBLTA.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPMBLTA) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_LRIG_TRASH_ARTS）'));
+        const singleDeltaPMBLTA = parseInt(toHWPMBLTA(mPMBLTA[1]).replace('＋', '+').replace('－', '-'));
+        const totalDeltaPMBLTA = singleDeltaPMBLTA * artsCountPMBLTA;
+        const modsPMBLTA = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMBLTA.push({ cardNum: top, delta: totalDeltaPMBLTA }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBLTA } },
+          `ルリグトラッシュアーツ${artsCountPMBLTA}×${singleDeltaPMBLTA}→相手パワー${totalDeltaPMBLTA}`));
+      }
+      // POWER_MOD_BY_TRASH_CLASS_COUNT: トラッシュの特定クラス枚数×deltaをパワー修正
+      if (stub.id === 'POWER_MOD_BY_TRASH_CLASS_COUNT') {
+        const toHWPMBTCC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcPMBTCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMBTCC = srcPMBTCC ? (srcPMBTCC.EffectText ?? '') + ' ' + (srcPMBTCC.BurstText ?? '') : '';
+        const classMatchPMBTCC = txtPMBTCC.match(/【([^】]+)】.*?(?:の)?(?:シグニ|カード).*?([＋\+－\-][０-９\d]+)/);
+        if (!classMatchPMBTCC) return done(addLog(ctx, 'クラス/パワー値解析失敗（POWER_MOD_BY_TRASH_CLASS_COUNT）'));
+        const classNamePMBTCC = classMatchPMBTCC[1];
+        const singleDeltaPMBTCC = parseInt(toHWPMBTCC(classMatchPMBTCC[2]).replace('＋', '+').replace('－', '-'));
+        const trashClassCountPMBTCC = ctx.ownerState.trash.filter(cn => (ctx.cardMap.get(cn)?.CardClass ?? '').includes(classNamePMBTCC)).length;
+        const totalDeltaPMBTCC = singleDeltaPMBTCC * trashClassCountPMBTCC;
+        if (ctx.sourceCardNum) {
+          const modsOwnPMBTCC = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: totalDeltaPMBTCC }];
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsOwnPMBTCC } },
+            `トラッシュ【${classNamePMBTCC}】${trashClassCountPMBTCC}枚×${singleDeltaPMBTCC}→パワー${totalDeltaPMBTCC}`));
+        }
+        const modsOppPMBTCC = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsOppPMBTCC.push({ cardNum: top, delta: totalDeltaPMBTCC }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsOppPMBTCC } },
+          `トラッシュ【${classNamePMBTCC}】${trashClassCountPMBTCC}枚→相手パワー${totalDeltaPMBTCC}`));
+      }
+      // POWER_MOD_BY_UNDER_COUNT: シグニ下のカード枚数×deltaをパワー修正
+      if (stub.id === 'POWER_MOD_BY_UNDER_COUNT') {
+        const toHWPMBUC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcPMBUC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMBUC = srcPMBUC ? (srcPMBUC.EffectText ?? '') + ' ' + (srcPMBUC.BurstText ?? '') : '';
+        const mPMBUC = txtPMBUC.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPMBUC || !ctx.sourceCardNum) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_UNDER_COUNT）'));
+        const singleDeltaPMBUC = parseInt(toHWPMBUC(mPMBUC[1]).replace('＋', '+').replace('－', '-'));
+        let selfZonePMBUC = -1;
+        for (let zi = 0; zi < 3; zi++) { if (ctx.ownerState.field.signi[zi]?.at(-1) === ctx.sourceCardNum) { selfZonePMBUC = zi; break; } }
+        const underCountPMBUC = selfZonePMBUC >= 0 ? Math.max(0, (ctx.ownerState.field.signi[selfZonePMBUC]?.length ?? 1) - 1) : 0;
+        const totalDeltaPMBUC = singleDeltaPMBUC * underCountPMBUC;
+        const modsPMBUC = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: totalDeltaPMBUC }];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPMBUC } },
+          `シグニ下${underCountPMBUC}枚×${singleDeltaPMBUC}→パワー${totalDeltaPMBUC}`));
+      }
+      // POWER_MOD_BY_COLOR_VARIETY: 色の種類数×deltaをパワー修正
+      if (stub.id === 'POWER_MOD_BY_COLOR_VARIETY') {
+        const toHWPMBCV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcPMBCV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMBCV = srcPMBCV ? (srcPMBCV.EffectText ?? '') + ' ' + (srcPMBCV.BurstText ?? '') : '';
+        const mPMBCV = txtPMBCV.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPMBCV) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_COLOR_VARIETY）'));
+        const singleDeltaPMBCV = parseInt(toHWPMBCV(mPMBCV[1]).replace('＋', '+').replace('－', '-'));
+        // 自分のエナゾーンの色の種類（"無色"以外）
+        const colorsInEna = new Set<string>();
+        for (const cn of ctx.ownerState.energy) {
+          const col = ctx.cardMap.get(cn)?.Color ?? '';
+          col.split('/').forEach(c => { if (c && c !== '無色') colorsInEna.add(c); });
+        }
+        const colorCountPMBCV = colorsInEna.size;
+        const totalDeltaPMBCV = singleDeltaPMBCV * colorCountPMBCV;
+        if (ctx.sourceCardNum) {
+          const modsOwnPMBCV = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: totalDeltaPMBCV }];
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsOwnPMBCV } },
+            `エナ色${colorCountPMBCV}種×${singleDeltaPMBCV}→パワー${totalDeltaPMBCV}`));
+        }
+        const modsOppPMBCV = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsOppPMBCV.push({ cardNum: top, delta: totalDeltaPMBCV }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsOppPMBCV } },
+          `エナ色${colorCountPMBCV}種→相手シグニパワー${totalDeltaPMBCV}`));
+      }
+      // POWER_MOD_BY_DISCARD_COUNT_HIGH: 捨てた枚数の高い方×deltaをパワー修正
+      if (stub.id === 'POWER_MOD_BY_DISCARD_COUNT_HIGH') {
+        const toHWPMBDCH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcPMBDCH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPMBDCH = srcPMBDCH ? (srcPMBDCH.EffectText ?? '') + ' ' + (srcPMBDCH.BurstText ?? '') : '';
+        const mPMBDCH = txtPMBDCH.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mPMBDCH) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_DISCARD_COUNT_HIGH）'));
+        const singleDeltaPMBDCH = parseInt(toHWPMBDCH(mPMBDCH[1]).replace('＋', '+').replace('－', '-'));
+        const discardCountPMBDCH = ctx.lastProcessedCards?.length ?? 0;
+        const totalDeltaPMBDCH = singleDeltaPMBDCH * discardCountPMBDCH;
+        const modsPMBDCH = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMBDCH.push({ cardNum: top, delta: totalDeltaPMBDCH }); }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBDCH } },
+          `捨て${discardCountPMBDCH}枚×${singleDeltaPMBDCH}→相手パワー${totalDeltaPMBDCH}`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
