@@ -2951,6 +2951,36 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const noopAction: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
         return selectOrInteract(handCands, handCands.length, true, 'self_hand', noopAction as EffectAction, undefined, ctx);
       }
+      // 対戦相手が自分のシグニを選んでエナに置く
+      if (stub.id === 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY') {
+        const srcOCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOCS = srcOCS ? (srcOCS.EffectText ?? '') + ' ' + (srcOCS.BurstText ?? '') : '';
+        const toHWOCS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const powerLimitM = txtOCS.match(/パワー([０-９\d]+)以上のシグニ/);
+        const powerLimit = powerLimitM ? parseInt(toHWOCS(powerLimitM[1])) : 0;
+        const oppCands = ctx.otherState.field.signi
+          .map(s => s?.at(-1))
+          .filter((cn): cn is string => {
+            if (!cn) return false;
+            const pw = ctx.effectivePowers?.get(cn) ?? parseInt(ctx.cardMap.get(cn)?.Power ?? '0');
+            return pw >= powerLimit;
+          });
+        if (oppCands.length === 0) return done(addLog(ctx, '対象シグニなし（相手エナ置きスキップ）'));
+        // 相手がシグニを選ぶ（opponentResponds: true）
+        const banishToEnaAction: import('../types/effects').BanishAction = {
+          type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+        };
+        const pendingOCS: PendingInteractionDef = {
+          type: 'SELECT_TARGET',
+          candidates: oppCands,
+          count: 1,
+          optional: false,
+          targetScope: 'opp_field',
+          thenAction: banishToEnaAction as EffectAction,
+          opponentResponds: true,
+        };
+        return needsInteraction(addLog(ctx, `対戦相手はパワー${powerLimit}以上のシグニ1体をエナゾーンに置く`), pendingOCS);
+      }
       // 自シグニを他の空きシグニゾーンに移動（してもよい）
       if (stub.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
         const srcMov = ctx.sourceCardNum;
