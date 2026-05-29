@@ -7539,8 +7539,37 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog(ctx, `リストからN個選択（解析不可: ${txtCNFL.slice(0,30)}）`));
       }
       // CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE
-      if (stub.id === 'CHOOSE_COLOR_FROM_LIST'
-          || stub.id === 'CHOOSE_SAME_OPTION_TWICE' || stub.id === 'CHOOSE_SAME_OPTION_MULTIPLE') {
+      // CHOOSE_COLOR_FROM_LIST: エナゾーンの色から選ぶ（最大N色）→ selectedColors に保存
+      if (stub.id === 'CHOOSE_COLOR_FROM_LIST') {
+        const colorNames = ['白', '赤', '青', '緑', '黒'];
+        // エナゾーンにある色を収集
+        const enaColorsCCL = new Set<string>();
+        ctx.ownerState.energy.forEach(cn => {
+          const c = ctx.cardMap.get(cn);
+          (c?.Color ?? '').split(/[・,、]/).forEach(col => { if (colorNames.includes(col.trim())) enaColorsCCL.add(col.trim()); });
+        });
+        if (enaColorsCCL.size === 0) return done(addLog(ctx, '色選択：エナに色なし'));
+        const optsCCL = [...enaColorsCCL].map(col => ({
+          id: `color_${col}`,
+          label: `《${col}》を選ぶ`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SELECT_COLOR', value: col } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        const srcCCL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCCL = srcCCL ? srcCCL.EffectText ?? '' : '';
+        const maxMCCL = txtCCL.match(/最大([１-５1-5])色/);
+        const maxCount = maxMCCL ? parseInt(maxMCCL[1].replace(/[１-５]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))) : 1;
+        return needsInteraction(addLog(ctx, `色を選択（最大${maxCount}色）`), {
+          type: 'CHOOSE', options: optsCCL, count: Math.min(maxCount, optsCCL.length),
+        });
+      }
+      if (stub.id === 'INTERNAL_SELECT_COLOR') {
+        const colISC = typeof stub.value === 'string' ? stub.value : '';
+        const selectedColors = [...(ctx.ownerState.story_overrides?.['__selected_colors__']?.split(',') ?? []), colISC].filter(Boolean);
+        const newOv = { ...(ctx.ownerState.story_overrides ?? {}), '__selected_colors__': selectedColors.join(',') };
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, story_overrides: newOv } }, `《${colISC}》を選択`));
+      }
+      if (stub.id === 'CHOOSE_SAME_OPTION_TWICE' || stub.id === 'CHOOSE_SAME_OPTION_MULTIPLE') {
         return done(addLog(ctx, `選択効果（${stub.id}）`));
       }
       // === バッチ15: 公開・アクセ応用・条件ドロー系 ===
