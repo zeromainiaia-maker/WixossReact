@@ -3095,8 +3095,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const newSigni = [...my.field.signi] as (string[] | null)[];
       let newTrash = [...my.trash];
+      const removedSigniNums: string[] = [];
       for (const zi of selectedRemoveZones) {
-        newTrash = [...newTrash, ...(my.field.signi[zi] ?? [])];
+        const stack = my.field.signi[zi] ?? [];
+        const top = stack.at(-1);
+        if (top) removedSigniNums.push(top);
+        newTrash = [...newTrash, ...stack];
         newSigni[zi] = null;
       }
       const newMyState: PlayerState = {
@@ -3106,7 +3110,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: [...(my.actions_done ?? []), 'REMOVE'],
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      // ON_TRASH トリガー（フィールドから直接トラッシュ）
+      const removeTrashEntries: StackEntry[] = [];
+      for (const cn of removedSigniNums) {
+        removeTrashEntries.push(...collectTrashTriggers(cn, user.id, newMyState, op));
+      }
+      if (removeTrashEntries.length > 0) {
+        const existing = bs?.effect_stack ?? null;
+        const stack = existing ? pushToStack(existing, removeTrashEntries) : initStack(user.id, removeTrashEntries);
+        await supabase.from('battle_states').update({ [stateKey]: newMyState, effect_stack: stack }).eq('room_id', roomId);
+      } else {
+        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      }
     } finally {
       setLoading(false);
       setSelectedRemoveZones(new Set());
