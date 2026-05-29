@@ -6704,7 +6704,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // DISCARD_OR_PENALTY: 手札を1枚捨てるかペナルティを選ぶ
       if (stub.id === 'DISCARD_OR_PENALTY') {
         if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（ペナルティ）'));
-        const thenDOP: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
         const noopDOP: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
         return needsInteraction(ctx, {
           type: 'CHOOSE',
