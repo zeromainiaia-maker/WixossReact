@@ -5213,6 +5213,177 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, ownerState: newSLTKCU },
           `${ctx.cardMap.get(keyCardLTKCU)?.CardName ?? keyCardLTKCU}をセンタールリグの下に`));
       }
+      // === バッチ6: パワー補足・ウィルス・条件移動 ===
+      // POWER_CAP: シグニのパワーをN以下に制限
+      if (stub.id === 'POWER_CAP') {
+        const srcPC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPC = srcPC ? (srcPC.EffectText ?? '') + ' ' + (srcPC.BurstText ?? '') : '';
+        const toHWPC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mPC = txtPC.match(/パワーが?([０-９\d,，]+)以下/);
+        if (!mPC || !ctx.sourceCardNum) return done(addLog(ctx, 'パワー上限解析失敗'));
+        const capPC = parseInt(toHWPC(mPC[1]).replace(/[,，]/g, ''));
+        const currentPowerPC = ctx.effectivePowers?.get(ctx.sourceCardNum) ?? 0;
+        if (currentPowerPC <= capPC) return done(addLog(ctx, `パワー上限${capPC}以下のため修正なし`));
+        const deltaPC = capPC - currentPowerPC;
+        const modsPC = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaPC }];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPC } },
+          `パワー上限${capPC}に制限（${deltaPC}）`));
+      }
+      // POWER_COPY_FROM_DOWNED: ダウン状態のシグニのパワーをコピー
+      if (stub.id === 'POWER_COPY_FROM_DOWNED') {
+        if (!ctx.sourceCardNum) return done(ctx);
+        let targetPowerPCFD = 0;
+        // 相手のダウンシグニから探す
+        for (let zi = 0; zi < 3; zi++) {
+          if (ctx.otherState.field.signi_down?.[zi]) {
+            const dn = ctx.otherState.field.signi[zi]?.at(-1);
+            if (dn) { targetPowerPCFD = ctx.effectivePowers?.get(dn) ?? 0; break; }
+          }
+        }
+        if (targetPowerPCFD === 0) return done(addLog(ctx, 'ダウンシグニなし'));
+        const selfPowerPCFD = ctx.effectivePowers?.get(ctx.sourceCardNum) ?? 0;
+        const deltaPCFD = targetPowerPCFD - selfPowerPCFD;
+        if (deltaPCFD === 0) return done(addLog(ctx, 'パワー差なし'));
+        const modsPCFD = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaPCFD }];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPCFD } },
+          `ダウンシグニパワー${targetPowerPCFD}をコピー（${deltaPCFD > 0 ? '+' : ''}${deltaPCFD}）`));
+      }
+      // CHARM_CONDITIONAL_POWER: チャームがある場合パワー修正
+      if (stub.id === 'CHARM_CONDITIONAL_POWER') {
+        if (!ctx.sourceCardNum) return done(ctx);
+        const srcCCP = ctx.cardMap.get(ctx.sourceCardNum);
+        const txtCCP = srcCCP ? (srcCCP.EffectText ?? '') + ' ' + (srcCCP.BurstText ?? '') : '';
+        const toHWCCP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mCCP = txtCCP.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mCCP) return done(addLog(ctx, 'パワー値解析失敗（CHARM_CONDITIONAL_POWER）'));
+        const deltaCCP = parseInt(toHWCCP(mCCP[1]).replace('＋', '+').replace('－', '-'));
+        let selfZoneCCP = -1;
+        for (let zi = 0; zi < 3; zi++) {
+          if (ctx.ownerState.field.signi[zi]?.at(-1) === ctx.sourceCardNum) { selfZoneCCP = zi; break; }
+        }
+        const hasCharmCCP = selfZoneCCP >= 0 && (ctx.ownerState.field.signi_charms?.[selfZoneCCP] ?? null) !== null;
+        if (!hasCharmCCP) return done(addLog(ctx, 'チャームなし（CHARM_CONDITIONAL_POWER）'));
+        const modsCCP = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaCCP }];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsCCP } },
+          `チャームあり→パワー${deltaCCP > 0 ? '+' : ''}${deltaCCP}`));
+      }
+      // POWER_BOOST_PER_SIGNI_WITH_ICON: キーワード持ちシグニ1体につきパワー修正
+      if (stub.id === 'POWER_BOOST_PER_SIGNI_WITH_ICON') {
+        const srcPBPSWI = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtPBPSWI = srcPBPSWI ? (srcPBPSWI.EffectText ?? '') + ' ' + (srcPBPSWI.BurstText ?? '') : '';
+        const toHWPBPSWI = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mDeltaPBPSWI = txtPBPSWI.match(/([＋\+－\-][０-９\d]+)/);
+        if (!mDeltaPBPSWI) return done(addLog(ctx, 'パワー値解析失敗（POWER_BOOST_PER_SIGNI_WITH_ICON）'));
+        const singleDeltaPBPSWI = parseInt(toHWPBPSWI(mDeltaPBPSWI[1]).replace('＋', '+').replace('－', '-'));
+        // キーワード能力持ちシグニをカウント（keyword_grants または effectText に【〇】パターン）
+        let countPBPSWI = 0;
+        const kwGrants = ctx.ownerState.keyword_grants ?? {};
+        for (let zi = 0; zi < 3; zi++) {
+          const cn = ctx.ownerState.field.signi[zi]?.at(-1);
+          if (!cn) continue;
+          if (kwGrants[cn]?.length) countPBPSWI++;
+          else if ((ctx.cardMap.get(cn)?.EffectText ?? '').includes('【')) countPBPSWI++;
+        }
+        const totalDeltaPBPSWI = singleDeltaPBPSWI * countPBPSWI;
+        if (totalDeltaPBPSWI === 0) return done(addLog(ctx, 'キーワード持ちシグニなし'));
+        const modsPBPSWI = [...(ctx.otherState.temp_power_mods ?? [])];
+        for (let zi = 0; zi < 3; zi++) {
+          const top = ctx.otherState.field.signi[zi]?.at(-1);
+          if (top) modsPBPSWI.push({ cardNum: top, delta: totalDeltaPBPSWI });
+        }
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBPSWI } },
+          `キーワード持ちシグニ${countPBPSWI}体×${singleDeltaPBPSWI}→相手パワー${totalDeltaPBPSWI}`));
+      }
+      // POWER_MOD_MIRROR: 相手シグニのパワーに合わせてパワー修正
+      if (stub.id === 'POWER_MOD_MIRROR') {
+        if (!ctx.sourceCardNum) return done(ctx);
+        let selfZonePMM = -1;
+        for (let zi = 0; zi < 3; zi++) {
+          if (ctx.ownerState.field.signi[zi]?.at(-1) === ctx.sourceCardNum) { selfZonePMM = zi; break; }
+        }
+        if (selfZonePMM < 0) return done(addLog(ctx, '自ゾーン不明'));
+        const oppCnPMM = ctx.otherState.field.signi[selfZonePMM]?.at(-1);
+        const oppPowerPMM = oppCnPMM ? (ctx.effectivePowers?.get(oppCnPMM) ?? 0) : 0;
+        const selfPowerPMM = ctx.effectivePowers?.get(ctx.sourceCardNum) ?? 0;
+        const deltaPMM = oppPowerPMM - selfPowerPMM;
+        if (deltaPMM === 0) return done(addLog(ctx, 'パワー同じ（POWER_MOD_MIRROR）'));
+        const modsPMM = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaPMM }];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPMM } },
+          `パワーミラー: 相手${oppPowerPMM}に合わせ（${deltaPMM > 0 ? '+' : ''}${deltaPMM}）`));
+      }
+      // PLACE_VIRUS_CENTER: 相手の全シグニゾーンにウィルスを設置
+      if (stub.id === 'PLACE_VIRUS_CENTER') {
+        const sOtherPVC = ctx.otherState;
+        const virusPVC = [...(sOtherPVC.field.signi_virus ?? [0, 0, 0])];
+        for (let i = 0; i < 3; i++) { if (virusPVC[i] === 0 && sOtherPVC.field.signi[i]?.at(-1)) virusPVC[i] = 1; }
+        const newSOtherPVC: PlayerState = { ...sOtherPVC, field: { ...sOtherPVC.field, signi_virus: virusPVC } };
+        return done(addLog({ ...ctx, otherState: newSOtherPVC }, '相手全シグニゾーンにウィルス設置'));
+      }
+      // SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ
+      if (stub.id === 'SELF_TRASH_IF_NO_OPP_VIRUS') {
+        const hasVirusSTINOV = (ctx.otherState.field.signi_virus ?? []).some(v => v > 0);
+        if (hasVirusSTINOV) return done(addLog(ctx, '相手ウィルスあり（トラッシュなし）'));
+        if (!ctx.sourceCardNum) return done(ctx);
+        const removedSTINOV = removeFromField(ctx.sourceCardNum, ctx.ownerState);
+        const newSSTINOV: PlayerState = { ...removedSTINOV, trash: [...removedSTINOV.trash, ctx.sourceCardNum] };
+        return done(addLog({ ...ctx, ownerState: newSSTINOV }, '相手ウィルスなし→自トラッシュ'));
+      }
+      // NO_ABILITY_SIGNI_TO_DECK_BOTTOM: 能力なしシグニをデッキ下に
+      if (stub.id === 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM') {
+        if (!ctx.sourceCardNum) return done(ctx);
+        const srcDataNASDB = ctx.cardMap.get(ctx.sourceCardNum);
+        const hasAbility = !!(srcDataNASDB?.EffectText ?? srcDataNASDB?.BurstText);
+        if (hasAbility) return done(addLog(ctx, '能力ありのためデッキ下移動なし'));
+        const removedNASDB = removeFromField(ctx.sourceCardNum, ctx.ownerState);
+        const newSNASDB: PlayerState = { ...removedNASDB, deck: [...removedNASDB.deck, ctx.sourceCardNum] };
+        return done(addLog({ ...ctx, ownerState: newSNASDB }, '能力なし→デッキ下'));
+      }
+      // FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 凍結状態のシグニが退場するとトラッシュへ
+      if (stub.id === 'FROZEN_SIGNI_TO_TRASH_ON_LEAVE') {
+        // 凍結シグニをフィールドからトラッシュへ移動
+        let sFSTTOL = ctx.ownerState;
+        const frozenSigni: string[] = [];
+        for (let zi = 0; zi < 3; zi++) {
+          if (sFSTTOL.field.signi_frozen?.[zi]) {
+            const top = sFSTTOL.field.signi[zi]?.at(-1);
+            if (top) frozenSigni.push(top);
+          }
+        }
+        for (const cn of frozenSigni) {
+          const removed = removeFromField(cn, sFSTTOL);
+          sFSTTOL = { ...removed, trash: [...removed.trash, cn] };
+        }
+        return done(addLog({ ...ctx, ownerState: sFSTTOL }, `凍結シグニ${frozenSigni.length}枚をトラッシュへ`));
+      }
+      // FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 凍結シグニのバニッシュをデッキ下へ
+      if (stub.id === 'FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM') {
+        let sFSBTDB = ctx.ownerState;
+        const frozenSigniFSBTDB: string[] = [];
+        for (let zi = 0; zi < 3; zi++) {
+          if (sFSBTDB.field.signi_frozen?.[zi]) {
+            const top = sFSBTDB.field.signi[zi]?.at(-1);
+            if (top) frozenSigniFSBTDB.push(top);
+          }
+        }
+        for (const cn of frozenSigniFSBTDB) {
+          const removed = removeFromField(cn, sFSBTDB);
+          sFSBTDB = { ...removed, deck: [...removed.deck, cn] };
+        }
+        return done(addLog({ ...ctx, ownerState: sFSBTDB }, `凍結シグニ${frozenSigniFSBTDB.length}枚をデッキ下へ`));
+      }
+      // ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO:
+      // 相手シグニをサーバントゼロ（Color='無色', CardClass='無', abilities_removed）にする
+      if (stub.id === 'ALL_OPP_SIGNI_SERVANT_ZERO' || stub.id === 'MAKE_SERVANT_ZERO' || stub.id === 'MAKE_MULTI_SERVANT_ZERO' || stub.id === 'SIGNI_SERVANT_ZERO') {
+        // サーバントゼロ: 相手フィールドのシグニを能力消去 + ストーリーをサーバント0に
+        const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards :
+          [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
+        if (targets.length === 0) return done(addLog(ctx, '対象なし（SERVANT_ZERO）'));
+        const abilRemovedSZ = [...(ctx.otherState.abilities_removed ?? []), ...targets.filter(cn => !(ctx.otherState.abilities_removed ?? []).includes(cn))];
+        const storyOverridesSZ = { ...(ctx.otherState.story_overrides ?? {}) };
+        for (const cn of targets) { storyOverridesSZ[cn] = 'サーバント'; }
+        const newSOtherSZ: PlayerState = { ...ctx.otherState, abilities_removed: abilRemovedSZ, story_overrides: storyOverridesSZ };
+        return done(addLog({ ...ctx, otherState: newSOtherSZ }, `${targets.length}体をサーバントゼロに`));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
