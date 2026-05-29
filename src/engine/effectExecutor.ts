@@ -2834,9 +2834,22 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'COPY_LRIG_NAME_ABILITY') {
         return done(addLog(ctx, 'ルリグ名コピー（ログのみ）'));
       }
-      // バトル/アタック条件系
-      if (stub.id === 'CONDITIONAL_ARTS_COST' || stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
-        return done(addLog(ctx, '条件分岐（ログのみ）'));
+      // 条件付きアーツコスト（条件チェックのみ・タイミング変更はBattleScreen側未実装）
+      if (stub.id === 'CONDITIONAL_ARTS_COST') {
+        const srcCAC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCAC = srcCAC ? (srcCAC.EffectText ?? '') + ' ' + (srcCAC.BurstText ?? '') : '';
+        const toHWCAC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const lifeM = txtCAC.match(/ライフクロスが([０-９\d]+)枚以下/);
+        if (lifeM) {
+          const threshold = parseInt(toHWCAC(lifeM[1]));
+          const myLife = ctx.ownerState.life_cloth.length;
+          const met = myLife <= threshold;
+          return done(addLog(ctx, `条件付きアーツ（ライフ${myLife}枚/閾値${threshold}以下: ${met ? '条件達成' : '未達成'}）`));
+        }
+        return done(addLog(ctx, '条件付きアーツコスト'));
+      }
+      if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
+        return done(addLog(ctx, 'センターレベル基準多択（ログのみ）'));
       }
       // 大量トラッシュ: 相手エナ全体+相手シグニ全体、またはシグニ+キー
       if (stub.id === 'MASS_TRASH') {
