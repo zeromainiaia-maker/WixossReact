@@ -3068,8 +3068,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           return true;
         });
         if (handCands.length === 0) return done(addLog(ctx, `手札に${targetClassODC ?? 'クラス'}シグニなし（任意捨てスキップ）`));
-        const discardAction: EffectAction = { type: 'MOVE_CARD', from: 'hand', to: 'trash', owner: 'self' } as EffectAction;
-        return selectOrInteract(handCands, maxODC, true, 'self_hand', discardAction, undefined, ctx);
+        const discardActionODC: import('../types/effects').TrashAction = {
+          type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 },
+        };
+        return selectOrInteract(handCands, maxODC, true, 'self_hand', discardActionODC as EffectAction, undefined, ctx);
       }
       // 手札のシグニをこのシグニの下に置く
       if (stub.id === 'HAND_SIGNI_UNDER_SIGNI') {
