@@ -1977,9 +1977,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // ENDフェーズ：手札上限チェック（HAND_SIZE_INCREASE効果）
+        const handLimitEND = my.hand_limit ?? 6;
+        let myHandEND = my.hand;
+        let myTrashEND = my.trash;
+        if (my.hand.length > handLimitEND) {
+          const excessEND = my.hand.length - handLimitEND;
+          // 超過分をトラッシュへ（後ろから捨てる）
+          myTrashEND = [...my.trash, ...my.hand.slice(-excessEND)];
+          myHandEND  = my.hand.slice(0, handLimitEND);
+          appendBattleLogs([`手札上限超過（${my.hand.length}枚→${handLimitEND}枚）：${excessEND}枚捨て`]);
+        }
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         newMyState = {
           ...my,
+          hand: myHandEND,
+          trash: myTrashEND,
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
           blocked_actions:    [],   // ターン内封じ行動をリセット
