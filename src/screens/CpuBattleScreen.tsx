@@ -616,10 +616,10 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
 
   // ======= CPUターンのuseEffect =======
   useEffect(() => {
-    if (!gs || gs.winner || gs.pendingInteraction || gs.burstCard || gs.turnPlayer !== 'cpu') return;
+    if (!gs || gs.winner || gs.pendingInteraction || gs.burstCard || gs.trapActivation || gs.turnPlayer !== 'cpu') return;
     cpuTimerRef.current = setTimeout(() => {
       setGs(prev => {
-        if (!prev || prev.winner || prev.pendingInteraction || prev.burstCard || prev.turnPlayer !== 'cpu') return prev;
+        if (!prev || prev.winner || prev.pendingInteraction || prev.burstCard || prev.trapActivation || prev.turnPlayer !== 'cpu') return prev;
         return cpuAction(prev);
       });
     }, CPU_DELAY);
@@ -635,9 +635,18 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
   }, [gs?.burstCard, gs?.burstOwner, resolveBurst]);
 
+  // CPU側トラップは自動発動
+  useEffect(() => {
+    if (!gs || !gs.trapActivation || gs.trapActivation.defenderSide !== 'cpu') return;
+    cpuTimerRef.current = setTimeout(() => {
+      setGs(prev => prev?.trapActivation ? resolveTrap(prev, true) : prev);
+    }, CPU_DELAY);
+    return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
+  }, [gs?.trapActivation, resolveTrap]);
+
   // UP/DRAW/ENDフェイズ（プレイヤーも自動）
   useEffect(() => {
-    if (!gs || gs.winner || gs.turnPlayer !== 'player' || gs.pendingInteraction || gs.burstCard) return;
+    if (!gs || gs.winner || gs.turnPlayer !== 'player' || gs.pendingInteraction || gs.burstCard || gs.trapActivation) return;
     if (gs.phase !== 'UP' && gs.phase !== 'DRAW' && gs.phase !== 'END') return;
     cpuTimerRef.current = setTimeout(() => {
       setGs(prev => {
