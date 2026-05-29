@@ -4309,27 +4309,34 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, 'パワー修正（ゾーンカード数）'));
       }
-      // トラッシュに置かれたシグニのレベルに基づくパワー修正（lastProcessedCardsから取得）
+      // トラッシュに置かれたシグニのレベルに基づくパワー修正（1体対象 or 全体）
       if (stub.id === 'OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL') {
         const srcPDTL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPDTL = srcPDTL ? (srcPDTL.EffectText ?? '') + ' ' + (srcPDTL.BurstText ?? '') : '';
         const toHWPDTL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const perMPDTL = txtPDTL.match(/トラッシュに置かれた.*?シグニのレベル([０-９\d]*)につき([－＋][０-９\d]+)/);
-        const trashed = ctx.lastProcessedCards ?? [];
-        const lvSumTrashedPDTL = trashed.reduce((acc, cn) => {
+        const trashedCards = ctx.lastProcessedCards ?? [];
+        const lvSumTrashedPDTL = trashedCards.reduce((acc, cn) => {
           const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0');
           return acc + (isNaN(lv) ? 0 : lv);
         }, 0);
-        if (perMPDTL) {
+        if (perMPDTL && lvSumTrashedPDTL > 0) {
           const divisorPDTL = parseInt(toHWPDTL(perMPDTL[1] || '1')) || 1;
           const deltaPDTL = parseInt(toHWPDTL(perMPDTL[2]).replace('－', '-').replace('＋', '+'));
           const totalDeltaPDTL = Math.floor(lvSumTrashedPDTL / divisorPDTL) * deltaPDTL;
           if (totalDeltaPDTL !== 0) {
-            const modsPDTL = [...(ctx.otherState.temp_power_mods ?? [])];
-            for (let zi = 0; zi < 3; zi++) {
-              const top = ctx.otherState.field.signi[zi]?.at(-1);
-              if (top) modsPDTL.push({ cardNum: top, delta: totalDeltaPDTL });
+            // 「対戦相手のシグニ１体を対象とし」の場合 SELECT_TARGET で1体選択
+            const isSingleTarget = txtPDTL.includes('対戦相手のシグニ１体を対象とし');
+            const oppCandsPDTL = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
+            if (isSingleTarget && oppCandsPDTL.length > 0 && !ctx.lastProcessedCards?.some(cn => oppCandsPDTL.includes(cn))) {
+              // 対象選択が未済なら SELECT_TARGET
+              const applyPDTL: import('../types/effects').StubAction = { type: 'STUB', id: 'OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL' };
+              return selectOrInteract(oppCandsPDTL, 1, false, 'opp_field', applyPDTL as EffectAction, undefined, ctx);
             }
+            // 選択済みまたは全体対象: 適用
+            const modsPDTL = [...(ctx.otherState.temp_power_mods ?? [])];
+            const targetsPDTL = isSingleTarget && ctx.lastProcessedCards?.length ? ctx.lastProcessedCards : oppCandsPDTL;
+            for (const cn of targetsPDTL) modsPDTL.push({ cardNum: cn, delta: totalDeltaPDTL });
             return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPDTL } },
               `パワー${totalDeltaPDTL > 0 ? '+' : ''}${totalDeltaPDTL}（トラッシュ済みLv合計${lvSumTrashedPDTL}）`));
           }
