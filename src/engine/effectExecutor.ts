@@ -5859,6 +5859,109 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMPRL } },
           `公開レベル合計${levelSumPMPRL}×${singleDeltaPMPRL}→相手シグニパワー${totalDeltaPMPRL}`));
       }
+      // === バッチ13: エナ操作・カウント・条件分岐系 ===
+      // ENERGY_TO_HAND_ON_DECK: エナゾーンの末尾→手札（デッキ経由を省略）
+      if (stub.id === 'ENERGY_TO_HAND_ON_DECK') {
+        const sETHOD = ctx.ownerState;
+        if (sETHOD.energy.length === 0) return done(addLog(ctx, 'エナゾーンなし'));
+        const lastEnaETHOD = sETHOD.energy.at(-1)!;
+        const newSETHOD: PlayerState = {
+          ...sETHOD,
+          energy: sETHOD.energy.slice(0, -1),
+          hand: [...sETHOD.hand, lastEnaETHOD],
+        };
+        return done(addLog({ ...ctx, ownerState: newSETHOD }, `${ctx.cardMap.get(lastEnaETHOD)?.CardName ?? lastEnaETHOD}をエナ→手札`));
+      }
+      // OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL / OPP_ENERGY_EXCESS_TRASH:
+      //   相手エナゾーンが閾値超えなら超過分をトラッシュ
+      if (stub.id === 'OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL' || stub.id === 'OPP_ENERGY_EXCESS_TRASH') {
+        const toHWOEOT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcOEOT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOEOT = srcOEOT ? (srcOEOT.EffectText ?? '') + ' ' + (srcOEOT.BurstText ?? '') : '';
+        const mOEOT = txtOEOT.match(/([０-９\d]+)枚/);
+        const limitOEOT = mOEOT ? parseInt(toHWOEOT(mOEOT[1])) : 5;
+        const oppEnaOEOT = ctx.otherState.energy;
+        if (oppEnaOEOT.length <= limitOEOT) return done(addLog(ctx, `相手エナ${oppEnaOEOT.length}枚≤${limitOEOT}：トラッシュなし`));
+        const excessOEOT = oppEnaOEOT.length - limitOEOT;
+        const trashOEOT = oppEnaOEOT.slice(limitOEOT);
+        const newOtherOEOT: PlayerState = {
+          ...ctx.otherState,
+          energy: oppEnaOEOT.slice(0, limitOEOT),
+          trash: [...ctx.otherState.trash, ...trashOEOT],
+        };
+        return done(addLog({ ...ctx, otherState: newOtherOEOT }, `相手エナ超過${excessOEOT}枚→トラッシュ`));
+      }
+      // OPP_ENERGY_COLOR_CONDITION_TRASH: 相手エナの特定色をトラッシュ
+      if (stub.id === 'OPP_ENERGY_COLOR_CONDITION_TRASH') {
+        const srcOECCT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOECCT = srcOECCT ? (srcOECCT.EffectText ?? '') + ' ' + (srcOECCT.BurstText ?? '') : '';
+        const mColorOECCT = txtOECCT.match(/(赤|青|緑|白|黒|無色)/);
+        const colorOECCT = mColorOECCT ? mColorOECCT[1] : '';
+        const removeOECCT = colorOECCT
+          ? ctx.otherState.energy.filter(cn => ctx.cardMap.get(cn)?.Color?.includes(colorOECCT))
+          : [];
+        if (removeOECCT.length === 0) return done(addLog(ctx, `相手エナに${colorOECCT || '対象'}色なし`));
+        const newOtherOECCT: PlayerState = {
+          ...ctx.otherState,
+          energy: ctx.otherState.energy.filter(cn => !removeOECCT.includes(cn)),
+          trash: [...ctx.otherState.trash, ...removeOECCT],
+        };
+        return done(addLog({ ...ctx, otherState: newOtherOECCT }, `相手${colorOECCT}エナ${removeOECCT.length}枚→トラッシュ`));
+      }
+      // COUNT_DISTINCT_NAMES: フィールドの異なる名称数を数えてパワー修正
+      if (stub.id === 'COUNT_DISTINCT_NAMES') {
+        const toHWCDN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const srcCDN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCDN = srcCDN ? (srcCDN.EffectText ?? '') + ' ' + (srcCDN.BurstText ?? '') : '';
+        const mCDN = txtCDN.match(/([＋\+－\-][０-９\d]+)/);
+        const deltaCDN = mCDN ? parseInt(toHWCDN(mCDN[1]).replace('＋', '+').replace('－', '-')) : 1000;
+        const ownSigniNames = new Set<string>();
+        (ctx.ownerState.field.signi ?? []).forEach(s => {
+          if (s && s.length > 0) {
+            const name = ctx.cardMap.get(s[s.length - 1])?.CardName;
+            if (name) ownSigniNames.add(name);
+          }
+        });
+        const countCDN = ownSigniNames.size;
+        const totalCDN = deltaCDN * countCDN;
+        if (ctx.sourceCardNum) {
+          const modsOwnCDN = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: totalCDN }];
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsOwnCDN } },
+            `異なる名称${countCDN}種×${deltaCDN}→パワー${totalCDN}`));
+        }
+        return done(addLog(ctx, `異なる名称${countCDN}種`));
+      }
+      // DISCARD_OR_PENALTY: 手札を1枚捨てるかペナルティを選ぶ
+      if (stub.id === 'DISCARD_OR_PENALTY') {
+        if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（ペナルティ）'));
+        const thenDOP: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
+        const noopDOP: import('../types/effects').StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        return needsInteraction(ctx, {
+          type: 'CHOOSE',
+          count: 1,
+          options: [
+            { id: 'discard', label: '手札を1枚捨てる', action: { type: 'STUB', id: 'INTERNAL_TRASH_CARD' } as EffectAction, available: ctx.ownerState.hand.length > 0 },
+            { id: 'penalty', label: 'ペナルティを受ける', action: noopDOP as EffectAction, available: true },
+          ],
+        });
+      }
+      // REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐
+      if (stub.id === 'REVEAL_TOP_CONDITIONAL_ROUTE') {
+        const toHWRTCR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const sRTCR = ctx.ownerState;
+        if (sRTCR.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+        const topRTCR = sRTCR.deck[0];
+        const cardRTCR = ctx.cardMap.get(topRTCR);
+        const topLevelRTCR = cardRTCR ? parseInt(toHWRTCR(cardRTCR.Level ?? '0')) || 0 : 0;
+        const srcRTCR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtRTCR = srcRTCR ? (srcRTCR.EffectText ?? '') + ' ' + (srcRTCR.BurstText ?? '') : '';
+        const mLvRTCR = txtRTCR.match(/レベル([０-９\d]+)以上/);
+        const threshRTCR = mLvRTCR ? parseInt(toHWRTCR(mLvRTCR[1])) : 3;
+        const condMetRTCR = topLevelRTCR >= threshRTCR;
+        const newSRTCR: PlayerState = { ...sRTCR, deck: sRTCR.deck.slice(1), trash: [...sRTCR.trash, topRTCR] };
+        return done(addLog({ ...ctx, ownerState: newSRTCR },
+          `公開${cardRTCR?.CardName ?? topRTCR}(Lv${topLevelRTCR})：条件${condMetRTCR ? '達成' : '未達成'}→トラッシュ`));
+      }
       // === バッチ12: アクセ・シグニ配置・能力付与・無効系 ===
       // ACCE_FROM_HAND: 手札のアクセカードを自分のシグニに付ける
       if (stub.id === 'ACCE_FROM_HAND' || stub.id === 'MULTI_ACCE_FROM_HAND') {
