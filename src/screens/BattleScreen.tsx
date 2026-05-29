@@ -2271,7 +2271,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const who = entry.playerId === user.id ? '自分' : '相手';
       appendBattleLogs([`[${who}] ${entry.label}`], { defer: true });
       const ctxPowers = calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, battleCardMap);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum };
+      // PREVENT_ZONE_MOVE_BY_OPP: 相手（otherState）の保護ゾーンを動的計算してctxに渡す
+      const otherProtectedZones = collectProtectedZones(otherState, battleCardMap, effectsMap);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones };
       let result = executeEffect(entry.effect, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
