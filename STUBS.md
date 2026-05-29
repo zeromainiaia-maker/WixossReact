@@ -112,6 +112,12 @@
 
 | 日付 | 実装内容 | 対象STUB |
 |---|---|---|
+| 2026-05-29 | PLAY_FREE: parseCardEffectsでスペル/シグニ効果を実行 | PLAY_FREE, PLAY_SPELL_FREE_IGNORE_RESTRICTION, CAST_FROM_OPP_TRASH, USE_SPELL_FROM_TRASH |
+| 2026-05-29 | ①②③④選択肢解析+CHOOSE | CHOOSE_N_FROM_LIST |
+| 2026-05-29 | N回繰り返し（パワー修正・デッキトラッシュに対応） | REPEAT_N_TIMES, REPEAT_EFFECT |
+| 2026-05-29 | ルリグ名エイリアスをlrig_name_aliasesに保存 | COPY_LRIG_NAME_ABILITY |
+| 2026-05-29 | トラッシュクラス枚数・自場クラス・自シグニパワーパターンを追加 | CONDITIONAL_POWER_BONUS (拡張) |
+| 2026-05-29 | 手札捨て+相手シグニ選択インタラクション（スタンドアロン時） | TARGET_AND_DISCARD_HAND (スタンドアロン改善) |
 | 2026-05-29 | カード名宣言ダイアログ（手札から選択）・declared_card_name状態保存 | DECLARE_CARD_NAME |
 | 2026-05-29 | 相手シグニ選択インタラクション・lastProcessedCardsへ格納 | TARGET_ONLY |
 | 2026-05-29 | ライフ枚数条件チェックのログ改善 | CONDITIONAL_ARTS_COST |
