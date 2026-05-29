@@ -198,6 +198,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       attackingSigniIdx: null, signiAttackQueue: [],
       burstCard: null, burstOwner: null,
       guardPending: false, guardOwner: null,
+      trapActivation: null,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
