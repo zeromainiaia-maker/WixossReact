@@ -4679,6 +4679,24 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const newS: PlayerState = { ...s, hand: [...s.hand, cardNum] };
       return done(addLog({ ...ctx, ownerState: newS }, `${ctx.cardMap.get(cn)?.CardName ?? cn}を手札に加える`));
     }
+    case 'ADD_TO_ENERGY': {
+      // デッキ/トラッシュから除去してエナゾーンへ
+      const cnE = getCardNum(cardNum);
+      let sE = { ...ctx.ownerState };
+      const diE = sE.deck.indexOf(cardNum);
+      if (diE >= 0) {
+        const newDeck = [...sE.deck]; newDeck.splice(diE, 1);
+        sE = { ...sE, deck: newDeck };
+      } else {
+        const tiE = sE.trash.indexOf(cardNum);
+        if (tiE >= 0) {
+          const newTrash = [...sE.trash]; newTrash.splice(tiE, 1);
+          sE = { ...sE, trash: newTrash };
+        }
+      }
+      const newSE: PlayerState = { ...sE, energy: [...sE.energy, cardNum] };
+      return done(addLog({ ...ctx, ownerState: newSE }, `${ctx.cardMap.get(cnE)?.CardName ?? cnE}をエナゾーンへ`));
+    }
     case 'TRANSFER_TO_HAND': {
       const src = (action as TransferToHandAction).source;
       const state = ownerState(src.owner, ctx);
