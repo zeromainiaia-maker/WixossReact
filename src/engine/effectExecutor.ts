@@ -6649,9 +6649,22 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, `[フリープレイ: ${cardPF.CardName} (効果実行不可)]`));
       }
+      // REACTIVE_POWER_UP: あなたの効果で相手シグニのパワーが減ったとき、その分だけ自シグニのパワーを上げる
+      if (stub.id === 'REACTIVE_POWER_UP') {
+        const srcRPU = ctx.sourceCardNum;
+        if (!srcRPU) return done(addLog(ctx, '[REACTIVE_POWER_UP: ソースなし]'));
+        // 相手シグニの temp_power_mods のマイナス分を合計（このターンに加えられた全マイナス）
+        const oppMods = ctx.otherState.temp_power_mods ?? [];
+        const totalMinus = oppMods.reduce((acc, m) => acc + (m.delta < 0 ? -m.delta : 0), 0);
+        if (totalMinus <= 0) return done(addLog(ctx, 'リアクティブパワーアップ：相手パワーマイナスなし'));
+        const selfMods = [...(ctx.ownerState.temp_power_mods ?? [])];
+        selfMods.push({ cardNum: srcRPU, delta: totalMinus });
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: selfMods } },
+          `リアクティブパワーアップ：+${totalMinus}（相手マイナス合計分）`));
+      }
       // 複雑パワー修正（engine: コンテキスト/配置情報必要）
       if (stub.id === 'POWER_MOD_DISTRIBUTE' || stub.id === 'POWER_MOD_DOUBLE_DIFF' || stub.id === 'POWER_MOD_ON_FRONT_PLACE'
-          || stub.id === 'CONDITIONAL_ALT_POWER_BOOST' || stub.id === 'REACTIVE_POWER_UP'
+          || stub.id === 'CONDITIONAL_ALT_POWER_BOOST'
           || stub.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
         return done(addLog(ctx, `[複合パワー修正: ${stub.id}]`));
       }
