@@ -6183,8 +6183,46 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'ENERGY_SUBSTITUTE_TRASH_KEY' || stub.id === 'ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI') {
         return done(addLog(ctx, `[エナ代替: ${stub.id}]`));
       }
+      // CLASS_CHANGE: シグニのクラスを一時変更（SELECT_TARGETで対象選択）
+      if (stub.id === 'CLASS_CHANGE') {
+        const srcCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtCC = srcCC ? (srcCC.EffectText ?? '') + ' ' + (srcCC.BurstText ?? '') : '';
+        // 変更先クラスを抽出 (＜怪異＞など)
+        const newClassM = txtCC.match(/＜([^＞]+)＞を得る/);
+        const newClass = newClassM ? newClassM[1] : null;
+        if (!newClass) return done(addLog(ctx, 'クラス変更先不明'));
+        // 自分・相手のフィールドシグニを対象候補
+        const allSigniCC = [
+          ...[0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
+          ...[0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
+        ];
+        if (allSigniCC.length === 0) return done(addLog(ctx, 'クラス変更対象なし'));
+        const changeClassStub: import('../types/effects').StubAction = {
+          type: 'STUB', id: 'INTERNAL_APPLY_CLASS_CHANGE', value: newClass,
+        };
+        return needsInteraction(addLog(ctx, `クラスを＜${newClass}＞に変更する対象を選択`), {
+          type: 'SELECT_TARGET', candidates: allSigniCC, count: 1, optional: false,
+          targetScope: 'self_field', thenAction: changeClassStub as EffectAction,
+        });
+      }
+      // INTERNAL_APPLY_CLASS_CHANGE: 選択シグニのクラスを変更
+      if (stub.id === 'INTERNAL_APPLY_CLASS_CHANGE') {
+        const targetCnIACC = ctx.lastProcessedCards?.[0];
+        const newClassIACC = typeof stub.value === 'string' ? stub.value : '';
+        if (!targetCnIACC || !newClassIACC) return done(addLog(ctx, 'クラス変更適用失敗'));
+        // 自分・相手どちらのフィールドかを判断
+        const inOwnIACC = ctx.ownerState.field.signi.some(s => s?.at(-1) === targetCnIACC);
+        if (inOwnIACC) {
+          const overridesIACC = { ...(ctx.ownerState.card_class_overrides ?? {}), [targetCnIACC]: newClassIACC };
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, card_class_overrides: overridesIACC } },
+            `${ctx.cardMap.get(targetCnIACC)?.CardName ?? targetCnIACC}のクラスを＜${newClassIACC}＞に変更`));
+        }
+        const overridesIACCOp = { ...(ctx.otherState.card_class_overrides ?? {}), [targetCnIACC]: newClassIACC };
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, card_class_overrides: overridesIACCOp } },
+          `${ctx.cardMap.get(targetCnIACC)?.CardName ?? targetCnIACC}のクラスを＜${newClassIACC}＞に変更`));
+      }
       // カード属性変更系（engine: 属性変更システム未実装）
-      if (stub.id === 'COPY_SIGNI' || stub.id === 'COPY_CARD' || stub.id === 'CLASS_CHANGE'
+      if (stub.id === 'COPY_SIGNI' || stub.id === 'COPY_CARD'
           || stub.id === 'CHANGE_SIGNI_COLOR' || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
           || stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
           || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
