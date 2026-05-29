@@ -110,6 +110,10 @@ export interface PlayerState {
   declared_card_name?: string;
   // COPY_LRIG_NAME_ABILITY: ルリグが別のルリグ名/タイプを持つとして扱うエイリアス
   lrig_name_aliases?: string[];
+  // GAIN_EXTRA_TURN: 追加ターンフラグ（BattleScreen側でターン終了時にチェック）
+  extra_turn?: boolean;
+  // HAND_SIZE_INCREASE: 手札上限数（未設定 = デフォルト∞）
+  hand_limit?: number;
   // このターン、手札のすべてのシグニが【ガード】を得る（GRANT_GUARD_ICON_HAND_SIGNI）
   hand_signi_guard_enabled?: boolean;
   // 覚醒状態のシグニのCardNum一覧（永続、場を離れるまで有効）
