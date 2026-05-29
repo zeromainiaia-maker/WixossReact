@@ -356,6 +356,12 @@ export interface AddToHandAction {
   owner: Owner;
 }
 
+// SEARCH内で直前に選んだカードをエナゾーンへ
+export interface AddToEnergyAction {
+  type: 'ADD_TO_ENERGY';
+  owner: Owner;
+}
+
 // トラッシュ・エナ・ライフクロスなど任意の場所から手札へ移動
 export interface TransferToHandAction {
   type: 'TRANSFER_TO_HAND';
