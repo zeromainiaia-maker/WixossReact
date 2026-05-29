@@ -2387,6 +2387,25 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
         return done(addLog({ ...ctx, otherState: newOther }, `ウイルスを除去（ゾーン${zoneIdx + 1}）`));
       }
+      // 各プレイヤーがカードを1枚引き、1枚捨てる
+      if (stub.id === 'EACH_PLAYER_DRAW_DISCARD') {
+        // 両者ドロー
+        let newOwner = { ...ctx.ownerState };
+        let newOther = { ...ctx.otherState };
+        if (newOwner.deck.length > 0) {
+          newOwner = { ...newOwner, hand: [...newOwner.hand, newOwner.deck[0]], deck: newOwner.deck.slice(1) };
+        }
+        if (newOther.deck.length > 0) {
+          newOther = { ...newOther, hand: [...newOther.hand, newOther.deck[0]], deck: newOther.deck.slice(1) };
+        }
+        const ctxDrawn = { ...ctx, ownerState: newOwner, otherState: newOther };
+        // 自分が手札を捨てるSELECT_TARGETを出す（相手はCPU戦ではランダム、対人ではopponentResponds）
+        if (newOwner.hand.length === 0) return done(addLog(ctxDrawn, '両者ドロー（捨てなし）'));
+        const discardEPDD: import('../types/effects').TrashAction = {
+          type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 },
+        };
+        return selectOrInteract(newOwner.hand, 1, false, 'self_hand', discardEPDD as EffectAction, undefined, ctxDrawn);
+      }
       // このターンにこのシグニがアタックしていた場合、手札を1枚捨てる
       if (stub.id === 'DISCARD_IF_ATTACKED_THIS_TURN') {
         if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（捨てスキップ）'));
