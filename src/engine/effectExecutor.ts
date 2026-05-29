@@ -3133,9 +3133,32 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const hitNameRU = hitCardRU ? ctx.cardMap.get(hitCardRU)?.CardName ?? hitCardRU : 'ヒットなし';
         return done(addLog(newCtxRU, `デッキ公開 ${revealedRU.length}枚 → ヒット: ${hitNameRU}`));
       }
-      // ソングフラグメント
+      // SONG_FRAGMENT: エナゾーンから【歌のカケラ】持ちカードをトラッシュに置き、その効果を発動
       if (stub.id === 'SONG_FRAGMENT') {
-        return done(addLog(ctx, 'ソング効果フラグメント'));
+        // エナゾーンから歌のカケラ持ちカードを検索
+        const songCardsInEnergy = ctx.ownerState.energy.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          return c?.EffectText?.includes('【歌のカケラ】');
+        });
+        if (songCardsInEnergy.length === 0) return done(addLog(ctx, '歌のカケラ：エナゾーンにカードなし'));
+        // 複数ある場合は選択（1枚のみの場合は自動）
+        const songCard = songCardsInEnergy[0];
+        const songCardData = ctx.cardMap.get(songCard);
+        // エナゾーンから除いてトラッシュへ
+        const newOwnerSF: PlayerState = {
+          ...ctx.ownerState,
+          energy: ctx.ownerState.energy.filter(cn => cn !== songCard),
+          trash: [...ctx.ownerState.trash, songCard],
+        };
+        // 歌のカケラ効果を実行
+        const songEffects = parseCardEffects(songCardData!);
+        const songEff = songEffects.find(e => e.effectType === 'SONG_ICON');
+        if (songEff) {
+          const songCtx = { ...ctx, ownerState: newOwnerSF, sourceCardNum: songCard };
+          const songResult = executeAction(songEff.action, addLog(songCtx, `【歌のカケラ】発動：${songCardData?.CardName ?? songCard}`));
+          return songResult;
+        }
+        return done(addLog({ ...ctx, ownerState: newOwnerSF }, `歌のカケラ（${songCardData?.CardName ?? songCard}）：効果なし`));
       }
       // ゲーム全体能力付与
       if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
