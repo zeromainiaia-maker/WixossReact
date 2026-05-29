@@ -6197,8 +6197,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcTRAPOP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtTRAPOP = srcTRAPOP ? (srcTRAPOP.EffectText ?? '') + ' ' + (srcTRAPOP.BurstText ?? '') : '';
         if (txtTRAPOP.includes('トラッシュに置く') || txtTRAPOP.includes('トラッシュへ置く')) {
-          const trapsTO = ctx.ownerState.field.signi_traps ?? [null, null, null];
-          const firstIdxTO = trapsTO.findIndex(t => t !== null);
+          const trapsTO: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
+          const firstIdxTO = trapsTO.findIndex((t: string | null) => t !== null);
           if (firstIdxTO < 0) return done(addLog(ctx, 'トラップなし'));
           const trapCardTO = trapsTO[firstIdxTO]!;
           const newTrapsTO = [...trapsTO] as (string | null)[];
