@@ -587,6 +587,16 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             TRAP
           </div>
         )}
+        {seedCardNum && (
+          <div style={{
+            position: 'absolute', bottom: extraH + 2, left: trapCardNum ? 36 : 2,
+            backgroundColor: 'rgba(0,60,20,0.9)', color: '#44ff88',
+            fontSize: 7, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
+          }}>
+            SEED
+          </div>
+        )}
       </div>
       {charmCardNum && (
         <CharmPeek width={width}
