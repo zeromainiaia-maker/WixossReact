@@ -8618,6 +8618,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const m = actionText.match(/トラッシュからエナゾーンに置かれたとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
+      if (timing[0] === 'ON_BLOOD_CRYSTAL_ARMOR') {
+        const m = actionText.match(/(?:(?:あなたの|このシグニが?)(?:シグニ[１-９\d０-９]*体?が?)?血晶武装状態になったとき)[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
       mandatory = true;
       break;
     default: return null;
