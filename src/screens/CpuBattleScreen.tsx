@@ -258,6 +258,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       hand_signi_guard_enabled: undefined,
       lrig_limit_mod: undefined,
       prevent_opp_guard: undefined,
+      attacked_signi_ids: undefined,
     };
     appendLog(`[${g.turnPlayer === 'player' ? 'P' : 'CPU'}] アップフェイズ`);
     return advancePhase(setMyState(g, newS));
