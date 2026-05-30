@@ -29,6 +29,8 @@ export interface CardData {
   EffectText?: string;
   BurstText?: string;
   effects?: import('./effects').CardEffect[];
+  hasCrossIcon?: boolean;
+  crossConditionText?: string;
 }
 
 export interface Deck {
