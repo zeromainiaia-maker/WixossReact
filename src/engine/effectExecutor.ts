@@ -8838,7 +8838,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'SUPPRESS_OPP_SIGNI_ABILITIES') {
         const oppTopsSOS = ctx.otherState.field.signi
           .map(s => s?.at(-1))
-          .filter((n): n is string => !!n);
+          .filter((n): n is string => !!n && !(ctx.otherProtectedSigniNums ?? []).includes(n));
         const newRemovedSOS = [...new Set([...(ctx.otherState.abilities_removed ?? []), ...oppTopsSOS])];
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, abilities_removed: newRemovedSOS } },
           '相手フィールドの全シグニの能力を消去'));
