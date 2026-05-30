@@ -8754,6 +8754,58 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           opponentResponds: true,
         });
       }
+      // ALL_PLAYER_MILL: 各プレイヤーがデッキ上N枚をトラッシュ
+      if (stub.id === 'ALL_PLAYER_MILL') {
+        const srcAPM = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtAPM = srcAPM ? (srcAPM.EffectText ?? '') + ' ' + (srcAPM.BurstText ?? '') : '';
+        const toHWAPM = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const mAPM = txtAPM.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/) ||
+                     txtAPM.match(/デッキの上から([０-９\d]+)枚.*トラッシュ/);
+        const cntAPM = mAPM ? parseInt(toHWAPM(mAPM[1])) : 1;
+        const selfMillAPM = ctx.ownerState.deck.slice(0, Math.min(cntAPM, ctx.ownerState.deck.length));
+        const oppMillAPM  = ctx.otherState.deck.slice(0, Math.min(cntAPM, ctx.otherState.deck.length));
+        const newOwnerAPM: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(selfMillAPM.length), trash: [...ctx.ownerState.trash, ...selfMillAPM] };
+        const newOtherAPM: PlayerState = { ...ctx.otherState, deck: ctx.otherState.deck.slice(oppMillAPM.length),  trash: [...ctx.otherState.trash,  ...oppMillAPM]  };
+        return done(addLog({ ...ctx, ownerState: newOwnerAPM, otherState: newOtherAPM },
+          `各プレイヤーデッキ上${cntAPM}枚トラッシュ`));
+      }
+      // SUPPRESS_OPP_SIGNI_ABILITIES: 相手フィールドの全シグニの能力を消去
+      if (stub.id === 'SUPPRESS_OPP_SIGNI_ABILITIES') {
+        const oppTopsSOS = ctx.otherState.field.signi
+          .map(s => s?.at(-1))
+          .filter((n): n is string => !!n);
+        const newRemovedSOS = [...new Set([...(ctx.otherState.abilities_removed ?? []), ...oppTopsSOS])];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, abilities_removed: newRemovedSOS } },
+          '相手フィールドの全シグニの能力を消去'));
+      }
+      // END_ATTACK_IF_EXTRA_TURN: 追加ターン獲得時にアタックを終了（BattleScreen側でターン終了時チェック）
+      if (stub.id === 'END_ATTACK_IF_EXTRA_TURN') {
+        return done(addLog(ctx, '追加ターン時アタック終了（ターン終了時処理）'));
+      }
+      // BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: 相手ターン中、相手はシグニを配置できない
+      if (stub.id === 'BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN') {
+        const newBlockedBOSP = [...(ctx.otherState.blocked_actions ?? []), 'PLACE_SIGNI'];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOSP } },
+          '相手はシグニを配置できない'));
+      }
+      // PREVENT_OPP_UPKEEP: 相手のアップキープ（アップ）を防ぐ
+      if (stub.id === 'PREVENT_OPP_UPKEEP') {
+        const newBlockedPOU = [...(ctx.otherState.blocked_actions ?? []), 'UPKEEP'];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedPOU } },
+          '相手はアップキープできない'));
+      }
+      // DRAW_IF_OPP_DISCARDED_HAND: 相手が手札を捨てたときドロー（トリガー系・ログのみ）
+      if (stub.id === 'DRAW_IF_OPP_DISCARDED_HAND') {
+        return done(addLog(ctx, '[相手手札捨て時ドロートリガー: BattleScreen側未実装]'));
+      }
+      // OPTIONAL_DISCARD_GUARD: 手札を捨ててガード（任意）
+      if (stub.id === 'OPTIONAL_DISCARD_GUARD') {
+        return done(addLog(ctx, '[任意捨てガード: ガードシステム側未実装]'));
+      }
+      // ADJACENT_SIGNI_POWER_MOD: 隣接シグニのパワー修正（effectEngine側で動的処理）
+      if (stub.id === 'ADJACENT_SIGNI_POWER_MOD') {
+        return done(addLog(ctx, '[隣接シグニパワー修正: effectEngineで動的処理]'));
+      }
       // 全STUBIDに対するログマップ（実装待ち）
       {
         const STUB_LOG: Record<string, string> = {
