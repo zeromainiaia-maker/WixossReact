@@ -152,6 +152,12 @@
 | 2026-05-30 | ON_ENERGY_FROM_TRASHトリガー実装（3件）：detectEnergyFromTrash追加 | ON_ENERGY_FROM_TRASH timing |
 | 2026-05-30 | CONDITIONAL_TRASH_TO_ENERGYにセンタールリグ条件チェック追加 | CONDITIONAL_TRASH_TO_ENERGY |
 | 2026-05-30 | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVELをSELECT_TARGET 1体選択に改善 | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL |
+| 2026-05-30 | アシストグロウ時のON_PLAY効果をスタックに追加 | executeAssistGrow改善 |
+| 2026-05-30 | handleRemove時にON_TRASHトリガーを追加 | ON_TRASH |
+| 2026-05-30 | SELF_POWER_THRESHOLD条件を正確に評価（effectivePowers参照） | checkActiveCondition |
+| 2026-05-30 | GRANT_QUOTED_AUTO_ABILITYのknownKeywordsに Sランサー等追加 | GRANT_QUOTED_AUTO_ABILITY |
+| 2026-05-30 | 英知=N 条件をACTIVE_CONDITIONとして正確にパース（EICHI_LEVEL_SUM型追加） | 英知システム全般 |
+| 2026-05-30 | CONTINUOUS英知効果の動的チェック（collectEichiStubEffects）・UI反映 | SUPPRESS_LIFE_BURST_ON_CRASH(英知=8) |
 
 ---
 
