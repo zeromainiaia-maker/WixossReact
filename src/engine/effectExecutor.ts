@@ -1466,24 +1466,17 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
 }
 
 function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
-  const state = a.source === 'opp_hand' || a.source === 'opp_trash'
-    ? ctx.otherState : ctx.ownerState;
   let cands: string[];
-  let scope: TargetScope;
 
   if (a.source === 'hand') {
     cands = handCandidates(ctx.ownerState, a.filter, ctx.cardMap);
-    scope = 'self_hand';
   } else if (a.source === 'opp_hand') {
     cands = handCandidates(ctx.otherState, a.filter, ctx.cardMap);
-    scope = 'opp_hand';
   } else if (a.source === 'opp_trash') {
     cands = trashCandidates(ctx.otherState, a.filter, ctx.cardMap);
-    scope = 'opp_trash';
   } else {
     // lrig_deck: ルリグデッキの先頭から対象を探す
     cands = (ctx.ownerState.lrig_deck ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
-    scope = 'self_hand'; // 近似
   }
 
   if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 対象なし'));
@@ -1495,8 +1488,6 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
     maxPick: 1,
     thenAction: { type: 'ADD_TO_HAND', owner: 'self' }, // プレースホルダー
   });
-
-  void state; void scope;
 }
 
 function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
