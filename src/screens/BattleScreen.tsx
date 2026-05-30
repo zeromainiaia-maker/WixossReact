@@ -7873,6 +7873,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               act.type === 'BANISH_SUBSTITUTE' ? 'バニッシュ代わりの' :
               act.type === 'REVEAL'         ? '公開する' :
               act.type === 'TRANSFER_TO_DECK' ? 'デッキに加える' :
+              act.type === 'BLOOD_CRYSTAL_ARMOR' ? '血晶武装する' :
               '';
             const countStr = maxPick === 1 ? '' : `${maxPick}枚`;
             return `${from}${actionDesc}カードを${countStr}選んでください`;
