@@ -9579,6 +9579,58 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}のアタックを無効化`));
     }
+    case 'BLOOD_CRYSTAL_ARMOR': {
+      // cardNum = 血晶武装する対象シグニ（SELECT_TARGETで選ばれたフィールドシグニ）
+      const bcaA = action as import('../types/effects').BloodCrystalArmorAction;
+      const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
+      if (zoneIdx < 0) return done(ctx);
+      const targetCard = ctx.cardMap.get(cardNum);
+      const sameName = targetCard?.CardName;
+      if (!sameName) return done(ctx);
+
+      let newState = { ...ctx.ownerState };
+      let foundCard: string | null = null;
+      let shuffleNeeded = false;
+
+      // hand / trash から同名カードを探す（deck は最後に）
+      for (const src of bcaA.source) {
+        if (src === 'hand') {
+          const idx = newState.hand.findIndex(n => ctx.cardMap.get(n)?.CardName === sameName);
+          if (idx >= 0) { foundCard = newState.hand[idx]; newState = { ...newState, hand: newState.hand.filter((_, i) => i !== idx) }; break; }
+        } else if (src === 'trash') {
+          const idx = newState.trash.findIndex(n => ctx.cardMap.get(n)?.CardName === sameName);
+          if (idx >= 0) { foundCard = newState.trash[idx]; newState = { ...newState, trash: newState.trash.filter((_, i) => i !== idx) }; break; }
+        } else if (src === 'deck') {
+          const idx = newState.deck.findIndex(n => ctx.cardMap.get(n)?.CardName === sameName);
+          if (idx >= 0) { foundCard = newState.deck[idx]; newState = { ...newState, deck: newState.deck.filter((_, i) => i !== idx) }; shuffleNeeded = true; break; }
+        }
+      }
+      if (!foundCard) return done(addLog({ ...ctx, ownerState: newState }, `血晶武装対象なし（${sameName}）`));
+
+      // シグニスタックの先頭に追加（下に置く）
+      const newSigni = newState.field.signi.map((stack, i) => {
+        if (i !== zoneIdx) return stack;
+        return [foundCard!, ...(stack ?? [])];
+      }) as (string[] | null)[];
+
+      // 血晶武装フラグを立てる（既にtrueでもtrueのまま）
+      const wasAlreadyArmored = newState.field.signi_armor?.[zoneIdx] ?? false;
+      const newArmor = [...(newState.field.signi_armor ?? [false, false, false])];
+      newArmor[zoneIdx] = true;
+
+      newState = { ...newState, field: { ...newState.field, signi: newSigni, signi_armor: newArmor as boolean[] } };
+
+      // デッキから武装した場合はシャッフル
+      if (shuffleNeeded) {
+        newState = { ...newState, deck: [...newState.deck].sort(() => Math.random() - 0.5) };
+      }
+
+      const newCtx = { ...ctx, ownerState: newState };
+      const logMsg = `${sameName}を血晶武装${wasAlreadyArmored ? '（追加）' : ''}`;
+      // wasAlreadyArmored を外側トリガー検出のために lastProcessedCards として渡す
+      // ON_BLOOD_CRYSTAL_ARMOR トリガーはBattleScreen側で検出・発火する
+      return done(addLog(newCtx, logMsg));
+    }
     case 'PLACE_UNDER_SOURCE_SIGNI': {
       // ctx.sourceCardNum にあるシグニのゾーンに cardNum を下から追加
       const fromLoc = (action as import('../types/effects').PlaceUnderSourceSigniAction).fromLocation;
