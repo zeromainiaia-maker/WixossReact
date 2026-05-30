@@ -2560,6 +2560,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(stack.turnPlayerId, energyFromTrashEntries);
         }
 
+        // ON_BLOOD_CRYSTAL_ARMOR: 血晶武装状態になったシグニのトリガーを収集
+        const hostNewArmoredSE  = detectNewlyArmored(bs.host_state,  hostState);
+        const guestNewArmoredSE = detectNewlyArmored(bs.guest_state, guestState);
+        const armorEntriesSE: StackEntry[] = [];
+        for (const cardNum of hostNewArmoredSE) {
+          armorEntriesSE.push(...collectArmorTriggers(cardNum, bs.host_id, hostState, guestState));
+        }
+        for (const cardNum of guestNewArmoredSE) {
+          armorEntriesSE.push(...collectArmorTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+        if (armorEntriesSE.length > 0) {
+          const baseStackA = (update.effect_stack as typeof stackAfter) ?? null;
+          update.effect_stack = baseStackA
+            ? pushToStack(baseStackA, armorEntriesSE)
+            : initStack(stack.turnPlayerId, armorEntriesSE);
+        }
+
         // COLLAB: コラボライバー呼び出しで配置されたアシストルリグのON_PLAY効果を積む
         if ((entry.effect.action as import('../types/effects').StubAction)?.type === 'STUB' &&
             (entry.effect.action as import('../types/effects').StubAction)?.id === 'COLLAB') {
