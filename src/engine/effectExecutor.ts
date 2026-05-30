@@ -6617,10 +6617,162 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           { type: 'CHOOSE', options: zoneOptsTRAPOP2, count: 1 }
         );
       }
-      // シード系（engine: シードゾーン未実装）
-      if (stub.id === 'SEED_BLOOM' || stub.id === 'SEED_BLOOM_OPTIONAL' || stub.id === 'PLACE_SEED_FROM_REVEALED'
-          || stub.id === 'SEED_FLOWER_OP' || stub.id === 'SEED_HAND_AND_BLOOM_FROM_DECK_TOP') {
-        return done(addLog(ctx, `[シード系: ${stub.id}]`));
+      // ─── シード系 ────────────────────────────────────────────────────────────
+      // PLACE_SEED_FROM_REVEALED: デッキ上4枚を見て1枚を【シード】として設置
+      if (stub.id === 'PLACE_SEED_FROM_REVEALED') {
+        const topCardsPSFR = ctx.ownerState.deck.slice(0, 4);
+        if (topCardsPSFR.length === 0) return done(addLog(ctx, 'PLACE_SEED_FROM_REVEALED: デッキなし'));
+        return needsInteraction(addLog(ctx, '【シード】として設置するカードを選択（任意）'), {
+          type: 'SEARCH',
+          visibleCards: topCardsPSFR,
+          maxPick: 1,
+          thenAction: ({ type: 'SEQUENCE', steps: [] } as import('../types/effects').SequenceAction) as EffectAction,
+          continuation: ({ type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK' } as import('../types/effects').StubAction) as EffectAction,
+        });
+      }
+      // INTERNAL_SEED_FROM_DECK: SEARCHで選択したカードをデッキから取り出してゾーン選択
+      if (stub.id === 'INTERNAL_SEED_FROM_DECK') {
+        const pickedISD = ctx.lastProcessedCards?.[0];
+        if (!pickedISD) return done(addLog(ctx, 'シード設置：未選択'));
+        const newDeckISD = ctx.ownerState.deck.filter(c => c !== pickedISD);
+        const newOwnerISD = { ...ctx.ownerState, deck: newDeckISD };
+        const zoneOptsISD = [0, 1, 2].map(zi => ({
+          id: `seed_zone_${zi}`,
+          label: `ゾーン${zi + 1}にシード設置`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog({ ...ctx, ownerState: newOwnerISD }, 'シード設置ゾーンを選択'), {
+          type: 'CHOOSE', options: zoneOptsISD, count: 1,
+        });
+      }
+      // INTERNAL_SET_SEED: lastProcessedCards[0]を指定ゾーンにシード設置
+      if (stub.id === 'INTERNAL_SET_SEED') {
+        const zoneIdxISS = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+        const seedCardISS = ctx.lastProcessedCards?.[0] ?? null;
+        if (!seedCardISS) return done(addLog(ctx, 'シード設置：対象カードなし'));
+        const currentSeedsISS = [...(ctx.ownerState.field.signi_seeds ?? [null, null, null])] as (string | null)[];
+        const newTrashISS = [...ctx.ownerState.trash];
+        if (currentSeedsISS[zoneIdxISS]) newTrashISS.push(currentSeedsISS[zoneIdxISS]!);
+        currentSeedsISS[zoneIdxISS] = seedCardISS;
+        // 手札にあれば手札からも除去（手札から設置するケース）
+        const newHandISS = ctx.ownerState.hand.filter(c => c !== seedCardISS);
+        const newOwnerISS = { ...ctx.ownerState, hand: newHandISS, trash: newTrashISS, field: { ...ctx.ownerState.field, signi_seeds: currentSeedsISS } };
+        return done(addLog({ ...ctx, ownerState: newOwnerISS }, `シード設置: ゾーン${zoneIdxISS + 1}`));
+      }
+      // SEED_BLOOM: シード1枚を対象とし開花する
+      // SEED_BLOOM_OPTIONAL: 任意でシード1枚を開花する
+      if (stub.id === 'SEED_BLOOM' || stub.id === 'SEED_BLOOM_OPTIONAL') {
+        const seedsSB = ctx.ownerState.field.signi_seeds ?? [null, null, null];
+        const availableZonesSB = [0, 1, 2].filter(zi => seedsSB[zi] !== null);
+        if (availableZonesSB.length === 0) return done(addLog(ctx, 'シード開花：シードなし'));
+        const optional = stub.id === 'SEED_BLOOM_OPTIONAL';
+        const zoneOptsSB = availableZonesSB.map(zi => {
+          const seedName = ctx.cardMap.get(seedsSB[zi]!)?.CardName ?? seedsSB[zi]!;
+          return {
+            id: `bloom_zone_${zi}`,
+            label: `ゾーン${zi + 1}（${seedName}）を開花`,
+            action: ({ type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: zi } as import('../types/effects').StubAction) as EffectAction,
+            available: true,
+          };
+        });
+        if (optional) {
+          zoneOptsSB.push({ id: 'bloom_skip', label: 'スキップ', action: ({ type: 'SEQUENCE', steps: [] } as import('../types/effects').SequenceAction) as EffectAction, available: true });
+        }
+        return needsInteraction(addLog(ctx, '開花するシードを選択'), {
+          type: 'CHOOSE', options: zoneOptsSB, count: 1,
+        });
+      }
+      // INTERNAL_BLOOM_SEED: 指定ゾーンのシードを開花する
+      if (stub.id === 'INTERNAL_BLOOM_SEED') {
+        const zoneIdxIBS = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+        const seedCardIBS = (ctx.ownerState.field.signi_seeds ?? [null, null, null])[zoneIdxIBS];
+        if (!seedCardIBS) return done(addLog(ctx, `開花：ゾーン${zoneIdxIBS + 1}にシードなし`));
+        const newSeedsIBS = [...(ctx.ownerState.field.signi_seeds ?? [null, null, null])] as (string | null)[];
+        newSeedsIBS[zoneIdxIBS] = null;
+        // 同ゾーンにシグニがある場合は開花しない
+        const signiStackIBS = ctx.ownerState.field.signi[zoneIdxIBS];
+        if (signiStackIBS?.length) {
+          const newOwnerSkip = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
+          return done(addLog({ ...ctx, ownerState: newOwnerSkip }, `開花：ゾーン${zoneIdxIBS + 1}にシグニあり（開花不可）`));
+        }
+        const seedCardDataIBS = ctx.cardMap.get(seedCardIBS);
+        // シグニ以外はトラッシュへ
+        if (!seedCardDataIBS || seedCardDataIBS.Type !== 'シグニ') {
+          const newOwnerIBS = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, seedCardIBS], field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
+          return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：シグニでないためトラッシュへ`));
+        }
+        // ルリグレベルチェック
+        const lrigInstIBS = ctx.ownerState.field.lrig.at(-1);
+        const lrigCardIBS = lrigInstIBS ? ctx.cardMap.get(lrigInstIBS) : null;
+        const lrigLevelIBS = parseInt(lrigCardIBS?.Level ?? '0', 10);
+        const signiLevelIBS = parseInt(seedCardDataIBS.Level ?? '0', 10);
+        if (signiLevelIBS > lrigLevelIBS) {
+          const newOwnerIBS = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, seedCardIBS], field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
+          return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}レベル${signiLevelIBS}超過でトラッシュへ`));
+        }
+        // リミットチェック（他ゾーンのシグニレベル合計 + このシグニのレベル > ルリグのリミット）
+        const lrigLimitIBS = parseInt(lrigCardIBS?.Limit ?? '0', 10);
+        let usedLimitIBS = 0;
+        for (let zi = 0; zi < 3; zi++) {
+          if (zi === zoneIdxIBS) continue;
+          const topInstZI = ctx.ownerState.field.signi[zi]?.at(-1);
+          if (topInstZI) usedLimitIBS += parseInt(ctx.cardMap.get(topInstZI)?.Level ?? '0', 10);
+        }
+        if (usedLimitIBS + signiLevelIBS > lrigLimitIBS) {
+          const newOwnerIBS = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, seedCardIBS], field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
+          return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}リミット超過でトラッシュへ`));
+        }
+        // 場に出す（出現時能力はトリガーしない）
+        const newSigniIBS = [...ctx.ownerState.field.signi] as (string[] | null)[];
+        newSigniIBS[zoneIdxIBS] = [seedCardIBS];
+        const newOwnerIBS = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIBS, signi_seeds: newSeedsIBS } };
+        return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}がゾーン${zoneIdxIBS + 1}に出た`));
+      }
+      // SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シード1枚を手札に加え、デッキ上をシード設置
+      if (stub.id === 'SEED_HAND_AND_BLOOM_FROM_DECK_TOP') {
+        const seedsSHAB = ctx.ownerState.field.signi_seeds ?? [null, null, null];
+        const availSHAB = [0, 1, 2].filter(zi => seedsSHAB[zi] !== null);
+        if (availSHAB.length === 0) return done(addLog(ctx, 'SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シードなし'));
+        const optsSHAB = availSHAB.map(zi => {
+          const seedName = ctx.cardMap.get(seedsSHAB[zi]!)?.CardName ?? seedsSHAB[zi]!;
+          return {
+            id: `shabfdt_${zi}`,
+            label: `ゾーン${zi + 1}（${seedName}）を手札に`,
+            action: ({ type: 'STUB', id: 'INTERNAL_SEED_TO_HAND_THEN_DECK_TOP', value: zi } as import('../types/effects').StubAction) as EffectAction,
+            available: true,
+          };
+        });
+        return needsInteraction(addLog(ctx, '手札に加えるシードを選択'), {
+          type: 'CHOOSE', options: optsSHAB, count: 1,
+        });
+      }
+      // INTERNAL_SEED_TO_HAND_THEN_DECK_TOP: 指定ゾーンのシードを手札に加えてデッキ上をシード設置
+      if (stub.id === 'INTERNAL_SEED_TO_HAND_THEN_DECK_TOP') {
+        const zoneIdxISTH = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+        const seedsISTH = [...(ctx.ownerState.field.signi_seeds ?? [null, null, null])] as (string | null)[];
+        const seedCardISTH = seedsISTH[zoneIdxISTH];
+        if (!seedCardISTH) return done(addLog(ctx, 'INTERNAL_SEED_TO_HAND_THEN_DECK_TOP: シードなし'));
+        seedsISTH[zoneIdxISTH] = null;
+        const newHandISTH = [...ctx.ownerState.hand, seedCardISTH];
+        let newOwnerISTH = { ...ctx.ownerState, hand: newHandISTH, field: { ...ctx.ownerState.field, signi_seeds: seedsISTH } };
+        if (newOwnerISTH.deck.length === 0) return done(addLog({ ...ctx, ownerState: newOwnerISTH }, `${ctx.cardMap.get(seedCardISTH)?.CardName}を手札へ・デッキなし`));
+        const topCardISTH = newOwnerISTH.deck[0];
+        const newDeckISTH = newOwnerISTH.deck.slice(1);
+        newOwnerISTH = { ...newOwnerISTH, deck: newDeckISTH };
+        const zoneOptsISTH = [0, 1, 2].map(zi => ({
+          id: `isth_zone_${zi}`,
+          label: `ゾーン${zi + 1}にシード設置`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog({ ...ctx, ownerState: newOwnerISTH, lastProcessedCards: [topCardISTH] }, `デッキ上${ctx.cardMap.get(topCardISTH)?.CardName ?? topCardISTH}をシード設置`), {
+          type: 'CHOOSE', options: zoneOptsISTH, count: 1,
+        });
+      }
+      // SEED_FLOWER_OP / BLOOM_CHOOSE: 詳細効果（個別テキスト依存）
+      if (stub.id === 'SEED_FLOWER_OP' || stub.id === 'BLOOM_CHOOSE') {
+        return done(addLog(ctx, `[シード効果: ${stub.id}]`));
       }
       // 裏向き系（engine: 裏向きゾーン未実装）
       if (stub.id === 'SIGNI_FLIP_FACEDOWN' || stub.id === 'FLIP_FACE_DOWN_SIGNI' || stub.id === 'FACE_DOWN_OPP_SIGNI') {
