@@ -2525,6 +2525,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // SEED_BLOOM系: 開花したシグニのON_PLAY効果をスタックに積む
+        // INTERNAL_BLOOM_SEED（1枚開花）またはSEED_BLOOM「好きな枚数」パスのどちらも
+        // lastProcessedCards に開花したCardNumが入る
+        {
+          const stubId = (entry.effect.action as import('../types/effects').StubAction)?.id;
+          const isBloomAction = stubId === 'INTERNAL_BLOOM_SEED' || stubId === 'SEED_BLOOM' || stubId === 'SEED_BLOOM_OPTIONAL';
+          if (isBloomAction && (result.lastProcessedCards?.length ?? 0) > 0) {
+            const bloomOnPlayEntries: StackEntry[] = [];
+            for (const instanceId of result.lastProcessedCards!) {
+              const cn = getCardNum(instanceId);
+              for (const eff of (effectsMap.get(cn) ?? [])) {
+                if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+                bloomOnPlayEntries.push({
+                  id: generateUUID(),
+                  playerId: entry.playerId,
+                  cardNum: instanceId,
+                  effectId: eff.effectId,
+                  label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果（開花）`,
+                  effect: eff,
+                });
+              }
+            }
+            if (bloomOnPlayEntries.length > 0) {
+              const baseStackB = (update.effect_stack as typeof stackAfter) ?? null;
+              update.effect_stack = baseStackB
+                ? pushToStack(baseStackB, bloomOnPlayEntries)
+                : initStack(stack.turnPlayerId, bloomOnPlayEntries);
+            }
+          }
+        }
+
         // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
         const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
         if (entryCardType === 'アーツ' && entry.playerId !== user.id) {
