@@ -6915,13 +6915,27 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return selectOrInteract(oppSigniCSC, 1, false, 'opp_field', applyCSC as EffectAction, undefined, ctx);
       }
       // カード属性変更系（engine: 属性変更システム未実装）
+      // SIGNI_LOSE_COLOR: このシグニが色を失う（ターン終了時まで）
+      if (stub.id === 'SIGNI_LOSE_COLOR') {
+        const srcSLC = ctx.sourceCardNum;
+        if (!srcSLC) return done(addLog(ctx, 'SIGNI_LOSE_COLOR: ソースなし'));
+        const ownerHasSLC = ctx.ownerState.field.signi.some(s => s?.includes(srcSLC));
+        if (ownerHasSLC) {
+          const overridesSLC = { ...(ctx.ownerState.signi_color_overrides ?? {}), [srcSLC]: '無' };
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, signi_color_overrides: overridesSLC } },
+            `${ctx.cardMap.get(srcSLC)?.CardName ?? srcSLC}が色を失う`));
+        }
+        const oppOverridesSLC = { ...(ctx.otherState.signi_color_overrides ?? {}), [srcSLC]: '無' };
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, signi_color_overrides: oppOverridesSLC } },
+          `${ctx.cardMap.get(srcSLC)?.CardName ?? srcSLC}が色を失う`));
+      }
       if (stub.id === 'COPY_SIGNI' || stub.id === 'COPY_CARD'
           || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
           || stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
           || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
           || stub.id === 'ALL_CLASS' || stub.id === 'ALL_COLOR' || stub.id === 'ALL_ZONE_BLACK'
           || stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK' || stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE'
-          || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK' || stub.id === 'SIGNI_LOSE_COLOR'
+          || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK'
           || stub.id === 'INHERIT_OPP_LRIG_TYPE' || stub.id === 'INHERIT_UNDER_SIGNI_COLOR') {
         return done(addLog(ctx, `[属性変更: ${stub.id}]`));
       }
