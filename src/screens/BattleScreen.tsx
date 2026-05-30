@@ -1095,6 +1095,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return calcActiveCostMods(myS, opS, myTurn, effectsMap, battleCardMap);
   }, [bs, effectsMap, battleCardMap, user.id]);
 
+  // SPECIFIC_CARD_COST_REDUCE: 特定カード名のコスト軽減（《無×N》）を収集
+  const specificCardCostReductions = useMemo(() => {
+    if (!bs) return [];
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    return collectSpecificCardCostReductions(myS, battleCardMap, effectsMap);
+  }, [bs, effectsMap, battleCardMap, user.id]);
+
   // フィールドのシグニ・キーピースが持つ GRANT_LRIG_ABILITY 効果でセンタールリグに付与された能力
   const grantedMyLrigEffects = useMemo(() => {
     if (!bs) return [];
