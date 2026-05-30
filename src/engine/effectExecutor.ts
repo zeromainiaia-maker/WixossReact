@@ -215,6 +215,10 @@ function fieldCandidates(
       const isFrozen = state.field.signi_frozen?.[zoneIdx] ?? false;
       if (filter.isFrozen !== isFrozen) return [];
     }
+    if (filter?.isArmored !== undefined) {
+      const isArmored = state.field.signi_armor?.[zoneIdx] ?? false;
+      if (filter.isArmored !== isArmored) return [];
+    }
     if (!matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum))) return [];
     return [cardNum];
   });
