@@ -704,7 +704,12 @@ export function collectColorlessOverrides(
       ].filter((n): n is string => !!n);
       const teamCount = lrigNums.filter(n => {
         const lc = cardMap.get(n);
-        return lc && ((lc.Story ?? '').includes(teamName) || (lc.CardClass ?? '').includes(teamName) || (lc.CardName ?? '').includes(teamName));
+        return lc && (
+          (lc.Team ?? '').includes(teamName) ||
+          (lc.Story ?? '').includes(teamName) ||
+          (lc.CardClass ?? '').includes(teamName) ||
+          (lc.CardName ?? '').includes(teamName)
+        );
       }).length;
       if (teamCount < 3) result.push(topNum);
     }
