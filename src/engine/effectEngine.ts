@@ -447,12 +447,9 @@ export function calcFieldPowers(
             }
             return cards.filter(n => !mod.countFilter || matchesFilter(cardMap.get(n), mod.countFilter)).length;
           };
-          let count = 0;
-          if (mod.trashOwner === 'both') {
-            count = countTrash(ownerState) + countTrash(otherState);
-          } else {
-            count = countTrash(mod.trashOwner === 'self' ? ownerState : otherState);
-          }
+          const count = mod.trashOwner === 'both'
+            ? countTrash(ownerState) + countTrash(otherState)
+            : countTrash(mod.trashOwner === 'self' ? ownerState : otherState);
           const delta = Math.floor(count / mod.unitSize) * mod.deltaPerUnit;
           if (delta !== 0 && powers.has(topNum)) {
             powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
