@@ -6009,7 +6009,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             const extraArtsCosts = activeCostMods.forMy
                               .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                               .flatMap(m => m.amount);
-                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, card.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                            const cutinReduction = specificCardCostReductions.find(r => r.targetCardName === card.CardName);
+                            const cutinReducedCost = cutinReduction ? removeNColorFromCost(card.Cost, '無', cutinReduction.colorlessReduction) : card.Cost;
+                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, cutinReducedCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
                             return (
                               <button key={card.CardNum}
                                 onClick={() => { if (canAfford) { setPendingCutinCard(card); setSelectedCutinCost(new Set()); } }}
