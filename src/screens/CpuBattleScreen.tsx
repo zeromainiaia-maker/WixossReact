@@ -720,7 +720,8 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     if (gs.phase === 'ATTACK_SIGNI') {
       const stack = gs.player.field.signi[rawZoneIdx];
       const isDown = gs.player.field.signi_down?.[rawZoneIdx] ?? false;
-      if (stack?.length && !isDown) {
+      const attackLimitHit = gs.player.signi_attack_once_limit && (gs.player.attacked_signi_ids?.length ?? 0) > 0;
+      if (stack?.length && !isDown && !attackLimitHit) {
         return [{ label: 'アタック', color: C.danger, onClick: () => handleSigniAttackAction(rawZoneIdx) }];
       }
     }
