@@ -894,6 +894,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             actions={getSigniZoneActions ? getSigniZoneActions(rawIdx) : undefined}
             isDown={state.field.signi_down?.[rawIdx] ?? false}
             isFrozen={state.field.signi_frozen?.[rawIdx] ?? false}
+            isArmored={state.field.signi_armor?.[rawIdx] ?? false}
             isAbilityRemoved={s ? s.some(num => state.abilities_removed?.includes(num)) : false}
             effectivePowers={effectivePowers}
             charmCardNum={state.field.signi_charms?.[rawIdx] ?? null}
