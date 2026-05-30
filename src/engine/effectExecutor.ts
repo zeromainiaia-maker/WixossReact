@@ -1898,18 +1898,25 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
 }
 
 function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecResult {
-  // 自分のフィールドにある＜紅蓮＞シグニのうち未武装のものを選択
-  const candidates = (ctx.ownerState.field.signi ?? []).flatMap((stack) => {
+  // 自分のフィールドにいる対象シグニのうち、同名カードが指定領域にあるものを選択候補とする
+  const candidates = (ctx.ownerState.field.signi ?? []).flatMap((stack, zoneIdx) => {
     if (!stack || stack.length === 0) return [];
     const top = stack[stack.length - 1];
     const card = ctx.cardMap.get(top);
     if (a.targetFilter && !matchesFilter(card, a.targetFilter)) return [];
-    // 血晶武装可能（手札またはトラッシュに同名カードがある）
     const sameName = card?.CardName;
     if (!sameName) return [];
-    const inHand = a.source.includes('hand') && ctx.ownerState.hand.some(n => ctx.cardMap.get(n)?.CardName === sameName);
+    // 既に血晶武装状態でも選択可能（さらに重ねることができる）
+    const inHand  = a.source.includes('hand')  && ctx.ownerState.hand.some(n => ctx.cardMap.get(n)?.CardName === sameName);
     const inTrash = a.source.includes('trash') && ctx.ownerState.trash.some(n => ctx.cardMap.get(n)?.CardName === sameName);
-    if (!inHand && !inTrash) return [];
+    const inDeck  = a.source.includes('deck')  && ctx.ownerState.deck.some(n => ctx.cardMap.get(n)?.CardName === sameName);
+    // 自身と同名のカードをカウントする際、フィールドにある自身は除く
+    const fieldSelf = stack[stack.length - 1];
+    const inHandExcSelf  = a.source.includes('hand')  && ctx.ownerState.hand.some(n => { const cn = ctx.cardMap.get(n)?.CardName; return cn === sameName && n !== fieldSelf; });
+    const inTrashExcSelf = a.source.includes('trash') && ctx.ownerState.trash.some(n => ctx.cardMap.get(n)?.CardName === sameName);
+    const inDeckExcSelf  = a.source.includes('deck')  && ctx.ownerState.deck.some(n => ctx.cardMap.get(n)?.CardName === sameName);
+    void zoneIdx; void inHand; void inTrash; void inDeck;
+    if (!inHandExcSelf && !inTrashExcSelf && !inDeckExcSelf) return [];
     return [top];
   });
   if (candidates.length === 0) return done(addLog(ctx, '血晶武装対象なし'));
@@ -1925,7 +1932,7 @@ function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecRe
       count: Math.min(a.count, candidates.length),
       optional: false,
       targetScope: 'self_field',
-      thenAction: a, // BattleScreen側で解釈してスタックに積む
+      thenAction: a, // applyDirectAction の BLOOD_CRYSTAL_ARMOR ケースで処理
     } as PendingInteractionDef,
   };
 }
