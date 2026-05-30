@@ -830,3 +830,60 @@ export function collectForcedTargets(
   }
   return result;
 }
+
+/**
+ * OPP_GUARD_COST_COLORLESS: 自分のフィールド（ルリグ含む）に
+ * 「対戦相手は追加で《無》を支払わないかぎりガードができない」CONTINUOUS効果が
+ * アクティブかどうかを返す。アクティブであれば相手はガード時に追加エナ1枚(無色)が必要。
+ */
+export function collectOppGuardExtraColorlessCost(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn: boolean,
+): boolean {
+  // シグニゾーン走査
+  const candidates: string[] = [];
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  // ルリグゾーン（センタールリグ）
+  if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig.at(-1)!);
+
+  for (const cn of candidates) {
+    const effs = effectsMap.get(cn) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'OPP_GUARD_COST_COLORLESS') continue;
+      // activeConditionがある場合はチェック
+      if (eff.activeCondition) {
+        if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn)) continue;
+      } else {
+        // activeConditionなし = テキスト解析で条件チェック
+        const card = cardMap.get(cn);
+        const txt = card?.EffectText ?? '';
+        // 「レベル３の覚醒状態のシグニがあるかぎり」
+        if (txt.includes('覚醒状態のシグニがあるかぎり')) {
+          const lv3AwakNum = txt.match(/レベル([１-９\d]+)の覚醒状態/)?.[1];
+          const lv3 = lv3AwakNum ? parseInt(lv3AwakNum.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) : 3;
+          const hasAwakened = ownerState.field.signi.some(stack => {
+            const top = stack?.at(-1);
+            if (!top) return false;
+            if (!(ownerState.awakened_signi ?? []).includes(top)) return false;
+            return (cardMap.get(top)?.Level ?? 0) === lv3;
+          });
+          if (!hasAwakened) continue;
+        }
+        // 「すべてのシグニが《ディソナアイコン》」などの未パース条件はスキップ（不確か）
+        else if (txt.includes('すべてのシグニが《ディソナアイコン》')) {
+          continue; // 複雑条件のため安全のためスキップ
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
