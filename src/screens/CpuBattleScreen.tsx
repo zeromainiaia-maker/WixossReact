@@ -326,7 +326,8 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
 
     const newAttkDown = [...(attacker.field.signi_down ?? [false,false,false])] as [boolean,boolean,boolean];
     newAttkDown[zoneIdx] = true;
-    const newAttacker = { ...attacker, field: { ...attacker.field, signi_down: newAttkDown } };
+    const newAttkAttackedIds = [...new Set([...(attacker.attacked_signi_ids ?? []), attkInstId])];
+    const newAttacker = { ...attacker, field: { ...attacker.field, signi_down: newAttkDown }, attacked_signi_ids: newAttkAttackedIds };
 
     const defStack = defender.field.signi[zoneIdx];
     const defInstId = defStack?.at(-1);
