@@ -2718,12 +2718,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const cardNum of guestBanished) {
           banishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState));
         }
-        if (banishEntries.length > 0) {
+
+        // SEED_BLOOM: 開花したシグニのON_PLAY効果をスタックに積む（pending_effect経由の場合）
+        const bloomedCardsPE = result.lastProcessedCards ?? [];
+        const bloomOnPlayPE: StackEntry[] = [];
+        for (const instanceId of bloomedCardsPE) {
+          const cn = getCardNum(instanceId);
+          for (const eff of (effectsMap.get(cn) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+            bloomOnPlayPE.push({
+              id: generateUUID(),
+              playerId: pe.sourcePlayerId,
+              cardNum: instanceId,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果（開花）`,
+              effect: eff,
+            });
+          }
+        }
+
+        const pendingEntries = [...banishEntries, ...bloomOnPlayPE];
+        if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
           update.effect_stack = existingStack
-            ? pushToStack(existingStack, banishEntries)
-            : initStack(turnPlayerId, banishEntries);
+            ? pushToStack(existingStack, pendingEntries)
+            : initStack(turnPlayerId, pendingEntries);
         } else {
           // インタラクション解決後にキューが空になったスタックをクリア
           const existingStack = bs.effect_stack ?? null;
