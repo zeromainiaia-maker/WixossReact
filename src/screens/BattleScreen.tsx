@@ -1931,6 +1931,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     for (const eff of (effectsMap.get(banishedCardNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      // activeCondition チェック（「対戦相手のターンの間」等）
+      const isBanishedOwnerTurn = bs.active_user_id === banishedPlayerId;
+      if (!checkActiveCondition(eff.activeCondition, banishedOwnerIsMe ? myAfterState : opAfterState, banishedOwnerIsMe ? opAfterState : myAfterState, isBanishedOwnerTurn, battleCardMap, banishedCardNum)) continue;
       const cardName = battleCardMap.get(banishedCardNum)?.CardName ?? banishedCardNum;
       entries.push({
         id: generateUUID(),
