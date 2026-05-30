@@ -345,26 +345,36 @@ export function evalUseCondition(
 // ===== フィールドからカードを除去する（バニッシュ/バウンス共通） =====
 
 export function removeFromField(cardNum: string, state: PlayerState): PlayerState {
-  const newSigni = state.field.signi.map(stack => {
+  const zoneIdx = state.field.signi.findIndex(s => s?.at(-1) === cardNum);
+  const newSigni = state.field.signi.map((stack, i) => {
     if (!stack) return null;
     if (stack[stack.length - 1] !== cardNum) return stack;
+    // 血晶武装状態: 下に置かれたカードはルール処理でトラッシュへ（このゾーンを空にする）
+    // 血晶武装でなくても複数枚あれば下カードをトラッシュへ（PLACE_UNDER_SIGNI等）
+    if (i === zoneIdx) return null;
     return stack.length > 1 ? stack.slice(0, -1) : null;
   }) as (string[] | null)[];
-  const zoneIdx = state.field.signi.findIndex(s => s?.at(-1) === cardNum);
   const newDown   = [...(state.field.signi_down   ?? [false, false, false])];
   const newFrozen = [...(state.field.signi_frozen  ?? [false, false, false])];
   const newCharms = [...(state.field.signi_charms  ?? [null, null, null])];
   const newAcce   = [...(state.field.signi_acce    ?? [null, null, null])];
   const newSoul   = [...(state.field.signi_soul    ?? [null, null, null])];
+  const newArmor  = [...(state.field.signi_armor   ?? [false, false, false])];
   const extraTrash: string[] = [];
   const extraLrigTrash: string[] = [];
   if (zoneIdx >= 0) {
     newDown[zoneIdx]   = false;
     newFrozen[zoneIdx] = false;
+    newArmor[zoneIdx]  = false;
     if (newCharms[zoneIdx]) { extraTrash.push(newCharms[zoneIdx]!); newCharms[zoneIdx] = null; }
     if (newAcce[zoneIdx])   { extraTrash.push(newAcce[zoneIdx]!);   newAcce[zoneIdx]   = null; }
     // ソウルはシグニが場を離れるとルリグトラッシュへ
     if (newSoul[zoneIdx])   { extraLrigTrash.push(newSoul[zoneIdx]!); newSoul[zoneIdx] = null; }
+    // 血晶武装の下カード（スタックの先頭からシグニ直前まで）をトラッシュへ
+    const oldStack = state.field.signi[zoneIdx] ?? [];
+    if (oldStack.length > 1) {
+      extraTrash.push(...oldStack.slice(0, -1));
+    }
     // ウィルスはゾーンに属するため、シグニが離れても除去しない
   }
   return {
@@ -379,6 +389,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       signi_charms: newCharms,
       signi_acce:   newAcce,
       signi_soul:   newSoul   as (string | null)[],
+      signi_armor:  newArmor  as boolean[],
     },
   };
 }
