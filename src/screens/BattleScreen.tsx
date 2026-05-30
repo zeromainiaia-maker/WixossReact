@@ -4846,6 +4846,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (op.field.check) return []; // 相手のライフバースト処理待ち
       const topNum = stack[stack.length - 1];
       if (contBlocked.cannotAttackSigni.has(topNum)) return []; // アタック不可シグニ
+      // シグニ合計1回アタック制限チェック
+      if (my.signi_attack_once_limit && (my.attacked_signi_ids?.length ?? 0) > 0) return [];
       return [{ label: 'アタック', color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
     }
 
