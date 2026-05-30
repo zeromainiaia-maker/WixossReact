@@ -1,6 +1,6 @@
 # STUB実装状況メモ
 
-最終更新: 2026-05-30 (v0.105)  
+最終更新: 2026-05-30 (v0.106)  
 調査コマンド: `node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json','utf8')); const c={}; for(const [,es] of Object.entries(d)){ if(!Array.isArray(es)) continue; for(const e of es){ const a=e.action; if(a?.type==='STUB'){c[a.id]=(c[a.id]||0)+1;}}} const s=Object.entries(c).sort((a,b)=>b[1]-a[1]); console.log('総計:', s.length, '/', s.reduce((a,b)=>a+b[1],0)); s.slice(0,20).forEach(([k,v])=>console.log(v,k))"`
 
 ## 全体サマリー（v0.105）
