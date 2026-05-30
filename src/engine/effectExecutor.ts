@@ -7037,8 +7037,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       // 複雑パワー修正（engine: コンテキスト/配置情報必要）
       if (stub.id === 'POWER_MOD_DISTRIBUTE' || stub.id === 'POWER_MOD_DOUBLE_DIFF' || stub.id === 'POWER_MOD_ON_FRONT_PLACE'
-          || stub.id === 'CONDITIONAL_ALT_POWER_BOOST'
-          || stub.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
+          || stub.id === 'CONDITIONAL_ALT_POWER_BOOST') {
         return done(addLog(ctx, `[複合パワー修正: ${stub.id}]`));
       }
       // レベル修正（engine: ベースレベル変更システム未実装）
