@@ -7002,8 +7002,18 @@ function parseSingleSentence(text: string): EffectAction {
     return { type: 'STUB', id: 'DECLARE_NUMBER' } as StubAction;
 
   // ---- このシグニが血晶武装状態の場合 ----
-  if (t.match(/このシグニが血晶武装状態の場合/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  // （ACTIVATED/AUTO効果内の条件分岐として parseSingleSentence へ到達した場合。
+  //   通常は extractUseCondition / condition フィールドで処理されるためここには稀にしか来ない）
+  if (t.match(/このシグニが血晶武装状態の場合、(.+)/s)) {
+    const bodyM = t.match(/このシグニが血晶武装状態の場合、(.+)/s);
+    if (bodyM) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'THIS_CARD_IS_ARMORED' },
+        then: parseSingleSentence(bodyM[1]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
 
   // ---- そのカードがNのシグニの場合（レベル条件） ----
   if (t.match(/そのカードがレベル[１-９\d０-９]+のシグニの場合/))
