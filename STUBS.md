@@ -53,25 +53,25 @@
 | 3 | PLACE_CARD_UNDER_SIGNI | ✅ | カードをシグニ下に（if-branch実装済み） |
 | 3 | MAKE_SERVANT_ZERO | ✅ | サーバントゼロ（if-branch実装済み） |
 
-### 「ログのみ」if-branchを持つSTUB（v0.105時点）
+### 「ログのみ」if-branchを持つSTUB（v0.106時点）
 
 これらはif-branchがあるが、ゲーム状態を変更せずログのみを返す：
 
 | 件数 | STUB ID | 難度 | 実装に必要なもの |
 |---|---|---|---|
 | 4 | SEED_BLOOM | D | シードゾーン新設+ブルームシステム |
-| 4 | COLLAB | B | コラボ状態フラグ+BattleScreen対応 |
 | 1 | ENCORE | 高 | アーツ再使用ロジック |
-| 1 | LIMIT_OPP_SIGNI_ATTACKS_ONCE | B | BattleScreenでアタック制限チェック |
-| 1 | OPP_SIGNI_ONE_ATTACK_TOTAL | B | 相手シグニ合計1回アタック制限 |
+| 4 | COLLAB | ✅済 | v0.106でON_PLAY配置実装（コラボライバー2人を呼ぶ） |
+| 1 | LIMIT_OPP_SIGNI_ATTACKS_ONCE | ✅済 | v0.106でsigni_attack_once_limit実装 |
+| 1 | OPP_SIGNI_ONE_ATTACK_TOTAL | ✅済 | v0.106でsigni_attack_once_limit実装 |
 | 1 | MOVE_TO_ATTACKER_FRONT | ✅済 | v0.105で実装済み |
 | 1 | SIGNI_LOSE_COLOR | ✅済 | v0.105で実装済み |
 
 ---
 
-## 真の未ハンドル（v0.105時点）
+## 真の未ハンドル（v0.106時点）
 
-v0.105時点でexecutor.tsのif-branchが全てのAUTO/ACTIVATEDのSTUBをカバー済み。
+v0.106時点でexecutor.tsのif-branchが全てのAUTO/ACTIVATEDのSTUBをカバー済み。
 `[STUB: xxx]`形式のログは出ない状態。
 
 ---
