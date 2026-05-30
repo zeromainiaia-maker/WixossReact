@@ -86,6 +86,26 @@ export function checkActiveCondition(
       break;
     }
 
+    case 'EICHI_LEVEL_SUM': {
+      // 英知=N: 自分のフィールドの＜英知＞シグニのレベル合計
+      const eichiSum = ownerState.field.signi.reduce((sum, stack) => {
+        const top = stack?.at(-1);
+        if (!top) return sum;
+        const card = cardMap.get(top);
+        if (!card?.CardClass?.includes('英知')) return sum;
+        return sum + (parseInt(card.Level ?? '0') || 0);
+      }, 0);
+      switch (cond.operator) {
+        case 'gte': return eichiSum >= cond.value;
+        case 'lte': return eichiSum <= cond.value;
+        case 'gt':  return eichiSum >  cond.value;
+        case 'lt':  return eichiSum <  cond.value;
+        case 'eq':  return eichiSum === cond.value;
+        case 'neq': return eichiSum !== cond.value;
+      }
+      return false;
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers));
   }
