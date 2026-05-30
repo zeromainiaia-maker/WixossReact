@@ -4818,6 +4818,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (e.timing === undefined || e.timing.includes('MAIN')) &&
         !(my.actions_done?.includes(e.effectId)) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
+        !isActionBlocked('USE_ACT') &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
       );
       if (activatable.length === 0) return [];
