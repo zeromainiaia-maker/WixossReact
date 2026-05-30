@@ -510,12 +510,18 @@ function applyDeltaToState(
 ) {
   // 同一CardNumが複数ゾーンにある場合、同じpowersエントリに重複適用しない
   const seen = new Set<string>();
-  for (const stack of state.field.signi) {
+  for (let zoneIdx = 0; zoneIdx < state.field.signi.length; zoneIdx++) {
+    const stack = state.field.signi[zoneIdx];
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     if (seen.has(topNum)) continue;
     seen.add(topNum);
     if (!powers.has(topNum)) continue;
+    // isArmored フィルタのゾーン状態チェック
+    if (filter?.isArmored !== undefined) {
+      const isArmored = state.field.signi_armor?.[zoneIdx] ?? false;
+      if (filter.isArmored !== isArmored) continue;
+    }
     const card = cardMap.get(topNum);
     if (!matchesFilter(card, filter)) continue;
     powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
