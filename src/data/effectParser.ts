@@ -2647,9 +2647,10 @@ function parseSingleSentence(text: string): EffectAction {
     const bcaM = t.match(/血晶武装［([^］]+)］する/);
     if (bcaM) {
       const srcText = bcaM[1];
-      const sources: ('hand' | 'trash')[] = [];
+      const sources: ('hand' | 'trash' | 'deck')[] = [];
       if (srcText.includes('手札')) sources.push('hand');
       if (srcText.includes('トラッシュ')) sources.push('trash');
+      if (srcText.includes('デッキ')) sources.push('deck');
       return { type: 'BLOOD_CRYSTAL_ARMOR', source: sources.length > 0 ? sources : ['hand', 'trash'], count: 1 } as BloodCrystalArmorAction;
     }
   }
