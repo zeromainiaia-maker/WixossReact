@@ -6046,7 +6046,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 );
               }
               /* カットインのコスト選択 */
-              const costItems = parseGrowCost(pendingCutinCard.Cost);
+              const cutinReductionModal = specificCardCostReductions.find(r => r.targetCardName === pendingCutinCard.CardName);
+              const cutinReducedCostModal = cutinReductionModal ? removeNColorFromCost(pendingCutinCard.Cost, '無', cutinReductionModal.colorlessReduction) : pendingCutinCard.Cost;
+              const costItems = parseGrowCost(cutinReducedCostModal);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedCutinCost].map(i => my.energy[i]);
               const extraArtsCosts = activeCostMods.forMy
@@ -6054,7 +6056,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = totalReq === 0 ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, pendingCutinCard.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
+                  canAffordWithExtraCost(selectedNums, battleCards, cutinReducedCostModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
