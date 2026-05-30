@@ -2279,9 +2279,29 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }
         return done(addLog(ctx, 'ルリグデッキ下のカード操作'));
       }
-      // アンコールメカニクス（トラッシュからシグニを出す）
+      // アンコールメカニクス（ルリグトラッシュのアーツをコストなしで使用）
       if (stub.id === 'ENCORE') {
-        return done(addLog(ctx, 'アンコール（BattleScreen側処理）'));
+        const artsEN = (ctx.ownerState.lrig_trash ?? [])
+          .filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
+        if (artsEN.length === 0) return done(addLog(ctx, 'アンコール：ルリグトラッシュにアーツなし'));
+        const optsEN = artsEN.map(cn => ({
+          id: cn,
+          label: ctx.cardMap.get(cn)?.CardName ?? cn,
+          action: ({ type: 'STUB', id: 'INTERNAL_ENCORE_USE', value: cn } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog(ctx, 'アンコール：使用するアーツを選択'), { type: 'CHOOSE', options: optsEN, count: 1 });
+      }
+      // INTERNAL_ENCORE_USE: 選択したアーツをコストなしで実行
+      if (stub.id === 'INTERNAL_ENCORE_USE') {
+        const encoreCN = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+        const encoreCard = ctx.cardMap.get(encoreCN);
+        if (!encoreCard) return done(addLog(ctx, 'アンコール：カードデータなし'));
+        const encoreEffs = parseCardEffects(encoreCard);
+        const mainEncoreEff = encoreEffs.find(e => e.effectType === 'ACTIVATED');
+        if (!mainEncoreEff) return done(addLog(ctx, `アンコール：${encoreCard.CardName}に起動効果なし`));
+        return executeAction(mainEncoreEff.action,
+          addLog({ ...ctx, sourceCardNum: encoreCN }, `${encoreCard.CardName}をアンコール（コストなし）`));
       }
       // 対戦相手のライフクロス上を見る（複数枚パターン対応）
       if (stub.id === 'LOOK_OPP_LIFE_TOP') {
