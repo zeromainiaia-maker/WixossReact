@@ -6106,7 +6106,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     <div style={{ width: 80, height: 112, backgroundColor: C.bgButton,
                       borderRadius: 6, margin: '0 auto' }} />
                   )}
-                  {hasBurst && !my.suppress_life_burst ? (
+                  {hasBurst && !my.suppress_life_burst && !eichiSuppressActive ? (
                     <>
                       <p style={{ color: C.accent, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
                         ライフバーストあり
