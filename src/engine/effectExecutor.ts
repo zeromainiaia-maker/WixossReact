@@ -7404,10 +7404,22 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOASA } },
           'このターン、対戦相手はアーツ・スペル・起動能力を使用できない'));
       }
+      // BLOCK_COLORLESS_PLAY: 相手の無色プレイを封じる
+      if (stub.id === 'BLOCK_COLORLESS_PLAY') {
+        const newBlockedBCP = [...(ctx.otherState.blocked_actions ?? []), 'PLAY_COLORLESS'];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBCP } },
+          '相手は無色カードをプレイできない'));
+      }
+      // BLOCK_ALL_OPP_ACTIVATE_ABILITY: 全相手起動能力封じ
+      if (stub.id === 'BLOCK_ALL_OPP_ACTIVATE_ABILITY') {
+        const newBlockedBAAA = [...(ctx.otherState.blocked_actions ?? []), 'USE_ACT'];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBAAA } },
+          '相手は起動能力を使用できない'));
+      }
       // ブロック系（engine: 行動ブロック未実装）
       if (stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED'
-          || stub.id === 'BLOCK_ALL_OPP_ACTIVATE_ABILITY' || stub.id === 'BLOCK_OPP_SPELL_ACT_NEXT_TURN'
-          || stub.id === 'BLOCK_NON_WHITE_SPELL' || stub.id === 'BLOCK_COLORLESS_PLAY'
+          || stub.id === 'BLOCK_OPP_SPELL_ACT_NEXT_TURN'
+          || stub.id === 'BLOCK_NON_WHITE_SPELL'
           || stub.id === 'BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT' || stub.id === 'BLOCK_OPP_DECK_TO_ENERGY'
           || stub.id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT') {
         return done(addLog(ctx, `[ブロック効果: ${stub.id}]`));
