@@ -984,7 +984,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(bs?.guest_state?.field?.signi_down),
     bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);  
 
   // CPU対戦：CPU が respondPlayer として応答すべき pending_effect を自動解決
   // 「対戦相手は手札を捨てる」等、効果の解決をCPUが行う必要がある場合
@@ -1151,7 +1151,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opS = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
     return calcContinuousBlockedActions(myS, opS, myTurn, effectsMap, battleCardMap);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [bs, effectsMap, battleCardMap, user.id]);
 
   // LOSE_COLOR_ALL_ZONES: チームルリグ3体未満→全ゾーン色喪失カードのリスト
@@ -1161,7 +1161,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const myS = localIsHost ? bs.host_state : bs.guest_state;
     const opS = localIsHost ? bs.guest_state : bs.host_state;
     return collectColorlessOverrides(myS, opS, battleCardMap).ownerColorless;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [bs, battleCardMap, user.id]);
 
   // PREVENT_ZONE_MOVE_BY_OPP はresolveStackNext内でotherProtectedZonesとして動的計算
@@ -1176,7 +1176,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // 相手（op）のフィールドで英知条件を満たす SUPPRESS_LIFE_BURST_ON_CRASH があるか
     return collectEichiStubEffects(opS, battleCardMap, effectsMap, myS, !myTurn)
       .includes('SUPPRESS_LIFE_BURST_ON_CRASH');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // ENERGY_COLOR_SUBSTITUTE: 色代替ルール（動的計算）
@@ -1185,7 +1185,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
     return collectEnergyColorSubs(myS, battleCardMap, effectsMap);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT: 実効手札上限（自分のターン終了時に適用）
@@ -1195,7 +1195,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const myS = localIsHost ? bs.host_state : bs.guest_state;
     const opS = localIsHost ? bs.guest_state : bs.host_state;
     return collectHandLimits(myS, opS, battleCardMap, effectsMap);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // pending_effectが変わったらカード選択をリセット（別効果の選択状態が残らないように）
@@ -1209,7 +1209,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return same ? prev : [...inter.cards];
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [bs?.pending_effect]);
 
   // 効果スタック整列UI の更新
@@ -3862,7 +3862,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
       newSigniDown[zoneIndex] = true;
       const newAttackedIds = [...new Set([...(my.attacked_signi_ids ?? []), myTopNum])];
-      let newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds };
+      const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds };
       let newOpState = op;
       let banishedOpCardNum: string | null = null; // バニッシュされた相手シグニ
 
@@ -4594,7 +4594,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         const newSigniDown = [...signiDown];
         newSigniDown[firstUp] = true;
-        let newCpuSt: PlayerState = { ...cpuSt, field: { ...cpuSt.field, signi_down: newSigniDown } };
+        const newCpuSt: PlayerState = { ...cpuSt, field: { ...cpuSt.field, signi_down: newSigniDown } };
         let newHuSt = huSt;
 
         if (opTopNum && myPower < opPower) {
@@ -4929,9 +4929,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       // エクシードコスト：センター → 左アシスト → 右アシストの順で下からN枚をルリグトラッシュへ
       const exceedCost = effect.cost?.exceed ?? 0;
-      let newLrig     = [...my.field.lrig];
-      let newAssistL  = [...(my.field.assist_lrig_l ?? [])];
-      let newAssistR  = [...(my.field.assist_lrig_r ?? [])];
+      const newLrig     = [...my.field.lrig];
+      const newAssistL  = [...(my.field.assist_lrig_l ?? [])];
+      const newAssistR  = [...(my.field.assist_lrig_r ?? [])];
       let newLrigTrash = [...my.lrig_trash];
       if (exceedCost > 0) {
         let remaining = exceedCost;
