@@ -7014,7 +7014,28 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog(ctx, `[コストアップ/制限: ${stub.id}]`));
       }
       // シグニ移動/リダイレクト系（engine: 移動先変更未実装）
-      if (stub.id === 'MOVE_TO_ATTACKER_FRONT' || stub.id === 'FORCE_TARGET_SELF' || stub.id === 'BANISH_BY_SELF_GOES_TO_TRASH'
+      // MOVE_TO_ATTACKER_FRONT: アタッカー正面ゾーンに自分を移動（stub.value = 目標ゾーンインデックス）
+      if (stub.id === 'MOVE_TO_ATTACKER_FRONT') {
+        const targetZoneMTAF = typeof stub.value === 'number' ? stub.value : -1;
+        const srcMTAF = ctx.sourceCardNum;
+        if (targetZoneMTAF < 0 || !srcMTAF) return done(addLog(ctx, 'アタッカー前移動：情報不足'));
+        const curZoneMTAF = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcMTAF);
+        if (curZoneMTAF < 0) return done(addLog(ctx, 'アタッカー前移動：フィールドにいない'));
+        if (curZoneMTAF === targetZoneMTAF) return done(addLog(ctx, 'アタッカー前移動：すでに正面ゾーン'));
+        const targetStackMTAF = ctx.ownerState.field.signi[targetZoneMTAF];
+        if (targetStackMTAF && targetStackMTAF.length > 0) return done(addLog(ctx, 'アタッカー前移動：目標ゾーン占有済み'));
+        const newSigniMTAF = [...ctx.ownerState.field.signi] as (string[] | null)[];
+        const movedStackMTAF = [...(newSigniMTAF[curZoneMTAF] ?? [])];
+        newSigniMTAF[curZoneMTAF] = null;
+        newSigniMTAF[targetZoneMTAF] = movedStackMTAF;
+        const newDownMTAF = [...(ctx.ownerState.field.signi_down ?? [false, false, false])];
+        const wasDownMTAF = newDownMTAF[curZoneMTAF];
+        newDownMTAF[curZoneMTAF] = false;
+        newDownMTAF[targetZoneMTAF] = wasDownMTAF;
+        const newOwnerMTAF = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniMTAF, signi_down: newDownMTAF } };
+        return done(addLog({ ...ctx, ownerState: newOwnerMTAF }, `${ctx.cardMap.get(srcMTAF)?.CardName ?? srcMTAF}をゾーン${targetZoneMTAF + 1}（アタッカー正面）に移動`));
+      }
+      if (stub.id === 'FORCE_TARGET_SELF' || stub.id === 'BANISH_BY_SELF_GOES_TO_TRASH'
           || stub.id === 'BANISH_REDIRECT_TO_HAND' || stub.id === 'CRASH_TO_TRASH_INSTEAD'
           || stub.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS' || stub.id === 'OPP_RETURN_HAND_ON_SELF_BANISH') {
         return done(addLog(ctx, `[移動リダイレクト: ${stub.id}]`));
