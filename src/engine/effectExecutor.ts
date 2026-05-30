@@ -7038,17 +7038,29 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'MULTI_ZONE_ATTACK' || stub.id === 'BLOCK_FRONT_SIGNI_ATTACK') {
         return done(addLog(ctx, `[アタック制限: ${stub.id}]`));
       }
+      // BLOCK_OPP_ARTS_SPELL_ACT: このターン対戦相手はアーツ・スペル・起動能力を使用できない
+      if (stub.id === 'BLOCK_OPP_ARTS_SPELL_ACT') {
+        const newBlockedBOASA = [...(ctx.otherState.blocked_actions ?? []), 'USE_ARTS', 'USE_SPELL', 'USE_ACT'];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOASA } },
+          'このターン、対戦相手はアーツ・スペル・起動能力を使用できない'));
+      }
       // ブロック系（engine: 行動ブロック未実装）
-      if (stub.id === 'BLOCK_OPP_ARTS_SPELL_ACT' || stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED'
+      if (stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED'
           || stub.id === 'BLOCK_ALL_OPP_ACTIVATE_ABILITY' || stub.id === 'BLOCK_OPP_SPELL_ACT_NEXT_TURN'
           || stub.id === 'BLOCK_NON_WHITE_SPELL' || stub.id === 'BLOCK_COLORLESS_PLAY'
           || stub.id === 'BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT' || stub.id === 'BLOCK_OPP_DECK_TO_ENERGY'
           || stub.id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT') {
         return done(addLog(ctx, `[ブロック効果: ${stub.id}]`));
       }
+      // OPP_TURN_NO_ENERGY_COST: 対戦相手の次のターン中、対戦相手はエナコストを支払えない
+      if (stub.id === 'OPP_TURN_NO_ENERGY_COST') {
+        const newBlockedOTNEC = [...(ctx.otherState.blocked_actions ?? []), 'USE_ARTS:NEXT_TURN', 'USE_SPELL:NEXT_TURN'];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedOTNEC } },
+          '対戦相手の次のターン中、対戦相手はエナコストを支払えない'));
+      }
       // コストアップ系（engine: コスト計算未実装）
       if (stub.id === 'FIRST_SPELL_COST_UP' || stub.id === 'OPP_LRIG_ATTACK_COST' || stub.id === 'OPP_SIGNI_ATTACK_COST'
-          || stub.id === 'OPP_MAIN_PHASE_LIMIT_DOWN' || stub.id === 'OPP_TURN_NO_ENERGY_COST'
+          || stub.id === 'OPP_MAIN_PHASE_LIMIT_DOWN'
           || stub.id === 'OPP_ZONE_PLACEMENT_RESTRICT' || stub.id === 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR') {
         return done(addLog(ctx, `[コストアップ/制限: ${stub.id}]`));
       }
