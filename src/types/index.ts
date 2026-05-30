@@ -158,6 +158,12 @@ export interface PlayerState {
   attacked_signi_ids?: string[];
   // このターン、自分のシグニは合計1回しかアタックできない（LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL）
   signi_attack_once_limit?: boolean;
+  // 相手効果による自シグニのダウンを防ぐ（PREVENT_SIGNI_DOWN_BY_OPP_ALL）
+  prevent_signi_down_by_opp?: boolean;
+  // 相手シグニがアタック時に適用するパワー制限（OPP_SIGNI_ATTACK_POWER_RESTRICT）
+  opp_signi_attack_power_cap?: number;
+  // 裏向きシグニのCardNum一覧（SIGNI_FLIP_FACEDOWN / FACE_DOWN_OPP_SIGNI）
+  face_down_signi?: string[];
 }
 
 export interface GameLog {
