@@ -6719,6 +6719,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const txtSB = srcSB ? (srcSB.EffectText ?? '') + ' ' + (srcSB.BurstText ?? '') : '';
         if (txtSB.includes('好きな枚数')) {
           let curSB = ctx;
+          const bloomedCardsSB: string[] = [];
           for (const zi of [0, 1, 2]) {
             const s = (curSB.ownerState.field.signi_seeds ?? [null, null, null])[zi];
             if (!s) continue;
@@ -6747,9 +6748,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
             }
             const newSig2 = [...curSB.ownerState.field.signi] as (string[] | null)[];
             newSig2[zi] = [s];
+            bloomedCardsSB.push(s);
             curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, field: { ...curSB.ownerState.field, signi: newSig2, signi_seeds: newSeeds2 } } }, `開花：${sd.CardName}がゾーン${zi + 1}に出た`);
           }
-          return done(curSB);
+          const doneAllSB = done(curSB) as { done: true; ownerState: PlayerState; otherState: PlayerState; logs: string[] };
+          return bloomedCardsSB.length > 0 ? { ...doneAllSB, lastProcessedCards: bloomedCardsSB } : doneAllSB;
         }
         const optional = stub.id === 'SEED_BLOOM_OPTIONAL';
         const zoneOptsSB = availableZonesSB.map(zi => {
