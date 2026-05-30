@@ -6337,9 +6337,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 }, -1);
               const declaredRestrictLv = op.declared_guard_restrict_level;
               const handGuardEnabled = my.hand_signi_guard_enabled;
-              // 相手のprevent_opp_guardフラグ（OPP_GUARD_COST_COLORLESS等）でガード禁止
+              // 相手のprevent_opp_guardフラグ（PREVENT_OPP_GUARD_THIS_TURN等）でガード禁止
               const guardDisabledByOpp = op.prevent_opp_guard === true;
-              const guardCards = guardDisabledByOpp ? [] : my.hand
+              // 相手フィールドのOPP_GUARD_COST_COLORLESS: 追加で無色エナ1枚必要
+              const oppGuardExtraColorless = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, !isMyTurn);
+              // エナゾーンが空の場合はガード不可
+              const guardBlockedByExtraCost = oppGuardExtraColorless && my.energy.length === 0;
+              const guardCards = (guardDisabledByOpp || guardBlockedByExtraCost) ? [] : my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
                 .filter(({ card }) => {
                   // hand_signi_guard_enabled が true の場合、手札のシグニはすべてガードに使える
@@ -6349,33 +6353,47 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   if (declaredRestrictLv !== undefined && parseInt(card?.Level ?? '-1') === declaredRestrictLv) return false;
                   return true;
                 });
-              return guardCards.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: '40vh' }}>
-                  {guardCards.map(({ num, i, card }) => (
-                    <button key={i} onClick={() => handleGuardResponse(i)}
-                      disabled={loading}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '8px 12px', borderRadius: 8, border: C.borderUI,
-                        backgroundColor: loading ? C.disabled : C.bgButton,
-                        cursor: loading ? 'default' : 'pointer', textAlign: 'left' }}>
-                      {card && (
-                        <img src={card.ImgURL} alt={card.CardName}
-                          style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
-                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
-                      )}
-                      <div>
-                        <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>
-                          {card?.CardName ?? num}
-                        </p>
-                        <p style={{ color: C.accent, fontSize: 11, margin: 0 }}>ガードに使う（トラッシュへ）</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
-                  使用できるガードカードが手札にありません
-                </p>
+              return (
+                <>
+                  {oppGuardExtraColorless && (
+                    <p style={{ color: '#f0a030', fontSize: 12, margin: '0 0 6px',
+                      padding: '6px 10px', background: 'rgba(240,160,48,0.1)', borderRadius: 6,
+                      border: '1px solid rgba(240,160,48,0.3)' }}>
+                      ⚠ 追加で《無》×1（エナ1枚）を支払わないとガードできません
+                      {guardBlockedByExtraCost && '（エナゾーンが空のためガード不可）'}
+                    </p>
+                  )}
+                  {guardCards.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: '40vh' }}>
+                      {guardCards.map(({ num, i, card }) => (
+                        <button key={i} onClick={() => handleGuardResponse(i)}
+                          disabled={loading}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '8px 12px', borderRadius: 8, border: C.borderUI,
+                            backgroundColor: loading ? C.disabled : C.bgButton,
+                            cursor: loading ? 'default' : 'pointer', textAlign: 'left' }}>
+                          {card && (
+                            <img src={card.ImgURL} alt={card.CardName}
+                              style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                          )}
+                          <div>
+                            <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>
+                              {card?.CardName ?? num}
+                            </p>
+                            <p style={{ color: C.accent, fontSize: 11, margin: 0 }}>
+                              ガードに使う（トラッシュへ）{oppGuardExtraColorless ? '＋《無》×1消費' : ''}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
+                      使用できるガードカードが手札にありません
+                    </p>
+                  )}
+                </>
               );
             })()}
             <button onClick={() => handleGuardResponse(null)}
