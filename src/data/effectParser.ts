@@ -8714,15 +8714,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     : actionText.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
     : 'INSTANT';
 
-  return {
   // eichiCondition（英知=N 使用条件）を activeCondition に統合
-  let finalActiveCondition = activeCondition;
-  if (eichiCondition) {
-    finalActiveCondition = activeCondition
-      ? { type: 'AND', conditions: [eichiCondition, activeCondition] }
-      : eichiCondition;
-  }
+  const finalActiveCondition: ActiveCondition | undefined = eichiCondition
+    ? (activeCondition ? { type: 'AND', conditions: [eichiCondition, activeCondition] } : eichiCondition)
+    : activeCondition;
 
+  return {
     effectId: `${cardNum}-E${index + 1}`,
     effectType,
     timing,
