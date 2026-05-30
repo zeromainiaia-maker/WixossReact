@@ -704,7 +704,7 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
   const crashed: string[] = [];
-  let life = [...state.life_cloth];
+  const life = [...state.life_cloth];
   for (let i = 0; i < count && life.length > 0; i++) {
     crashed.push(life.pop()!);
   }
