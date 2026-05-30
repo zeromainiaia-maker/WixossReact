@@ -1165,6 +1165,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // PREVENT_ZONE_MOVE_BY_OPP はresolveStackNext内でotherProtectedZonesとして動的計算
 
+  // 英知CONTINUOUS STUB効果: SUPPRESS_LIFE_BURST_ON_CRASH など（動的チェック）
+  const eichiSuppressActive = useMemo(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return false;
+    const localIsHost = user.id === bs.host_id;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const myTurn = bs.active_user_id === user.id;
+    // 相手（op）のフィールドで英知条件を満たす SUPPRESS_LIFE_BURST_ON_CRASH があるか
+    return collectEichiStubEffects(opS, battleCardMap, effectsMap, myS, !myTurn)
+      .includes('SUPPRESS_LIFE_BURST_ON_CRASH');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
   // ENERGY_COLOR_SUBSTITUTE: 色代替ルール（動的計算）
   const myColorSubs = useMemo(() => {
     if (!bs || bs.global_phase !== 'PLAYING') return [] as { from: string[]; to: string }[];
