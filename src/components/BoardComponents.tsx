@@ -889,6 +889,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             acceCardNum={state.field.signi_acce?.[rawIdx] ?? null}
             virusCount={state.field.signi_virus?.[rawIdx] ?? 0}
             trapCardNum={state.field.signi_traps?.[rawIdx] ?? null}
+            seedCardNum={state.field.signi_seeds?.[rawIdx] ?? null}
             isMe={isMe} />
         );
       })}
