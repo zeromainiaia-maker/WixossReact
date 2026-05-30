@@ -7061,6 +7061,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP' || stub.id === 'PREVENT_POWER_MINUS_BY_OPP'
           || stub.id === 'PREVENT_OPP_POWER_PLUS' || stub.id === 'PREVENT_ABILITY_CHANGE_BY_OPP'
           || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL' || stub.id === 'PREVENT_SELF_DOWN_BY_OPP'
+          || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP' || stub.id === 'SUPPRESS_GAIN_ABILITY'
           || stub.id === 'PREVENT_INFECTED_SIGNI_ACTIVATE' || stub.id === 'PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE'
           || stub.id === 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN' || stub.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD'
           || stub.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY' || stub.id === 'BLOCK_OPP_ENCORE_AND_BET'
