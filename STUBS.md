@@ -1,147 +1,395 @@
-# STUB実装状況メモ
+# STUB実装状況メモ（全件）
 
-最終更新: 2026-05-30 (v0.107)  
-調査コマンド: `node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json','utf8')); const c={}; for(const [,es] of Object.entries(d)){ if(!Array.isArray(es)) continue; for(const e of es){ const a=e.action; if(a?.type==='STUB'){c[a.id]=(c[a.id]||0)+1;}}} const s=Object.entries(c).sort((a,b)=>b[1]-a[1]); console.log('総計:', s.length, '/', s.reduce((a,b)=>a+b[1],0)); s.slice(0,20).forEach(([k,v])=>console.log(v,k))"`
-
-## 全体サマリー（v0.105）
-
-| 指標 | 値 |
-|---|---|
-| STUB種別総数 | 336種 |
-| STUB登場総数 | 538件 |
-| AUTO/ACTIVATED STUBでif-branchなし | 0種（全てif-branch済み） |
-| CONTINUOUS STUB（effectEngineで動的処理） | 多数 |
-| 「ログのみ」if-branchのSTUB | 少数（COLLAB, SEED_BLOOM系等） |
-
-**注意:** STUB_LOGテーブルはフォールバックとして機能。実際にSTUB_LOGに到達するケースは、if-branchが全パターンをカバーできていないフォールバックケースのみ。
-
----
+最終更新: 2026-05-30 (v0.108)
 
 ## ステータス凡例
 
-- ✅ 実装済み（ゲームに効果あり）
-- ⚡ 部分実装（近似処理・一部ケースのみ動作）
-- 📝 ログのみ（STUB_LOGテーブル or スキップ）
-- ❌ 完全未処理（executor未登録）
+| 記号 | 意味 |
+|------|------|
+| ✅ | 実装済み（ゲームに効果あり） |
+| ⚡ | 部分実装（主要パターンは動作、稀ケースはログのみ） |
+| 📝 | ログのみ（STUB_LOGテーブルまたはCONTINUOUS未実装） |
+
+**effectType略称:** AUTO=自/起動, CONT=常在, LIFE=ライフバースト, SONG=歌牌
 
 ---
 
-## 上位STUB詳細
+## 全STUB一覧（件数順）
 
-### AUTO/ACTIVATED STUB上位（v0.105時点）
-
-| 件数 | STUB ID | ステータス | 内容 |
-|---|---|---|---|
-| 16 | GAIN_SUBSCRIBER_COUNT | ✅ | 登録者数カウント（if-branch実装済み）|
-| 12 | GRANT_QUOTED_AUTO_ABILITY | ✅ | キーワード能力付与（if-branch実装済み） |
-| 11 | SOUL_OP | ⚡ | ソウルメカニクス（複数サブパターン実装） |
-| 10 | SONG_FRAGMENT | ✅ | 歌のカケラ効果（if-branch実装済み） |
-| 9 | GRANT_QUOTED_ABILITY | ✅ | 引用符付き能力付与（if-branch実装済み） |
-| 9 | GRANT_ABILITY_INNER_TEXT | ✅ | キーワード能力付与（if-branch実装済み） |
-| 6 | CRAFT_TO_LRIG_DECK | ✅ | クラフトをルリグデッキに（if-branch実装済み） |
-| 5 | MOVE_TO_OTHER_SIGNI_ZONE | ✅ | シグニゾーン移動（if-branch実装済み） |
-| 5 | TRASH_SIGNI_UNDER_FIELD_SIGNI | ✅ | ライズ機構シグニ下トラッシュ（if-branch実装済み） |
-| 5 | COUNT_BASED_DRAW_OR_POWER | ✅ | カウント基準ドロー/パワー（if-branch実装済み） |
-| 4 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER | ✅ | センタールリグ多択（if-branch実装済み） |
-| 4 | SEED_BLOOM | 📝 | シードブルーム（ログのみ・難度D） |
-| 4 | COLLAB | 📝 | コラボ効果（if-branchあるが「ログのみ」） |
-| 3 | ACTIVATE_TRAP | ✅ | トラップ発動（if-branch実装済み） |
-| 3 | ACCE_FROM_HAND | ✅ | 手札からアクセ（if-branch実装済み） |
-| 3 | CLASS_CHANGE | ✅ | クラス変更（if-branch実装済み） |
-| 3 | POWER_MOD_PER_COUNT | ✅ | パワー修正（カウント別）（if-branch実装済み） |
-| 3 | DO_THREE_THINGS | ✅ | 3択効果（if-branch実装済み） |
-| 3 | PLACE_CARD_UNDER_SIGNI | ✅ | カードをシグニ下に（if-branch実装済み） |
-| 3 | MAKE_SERVANT_ZERO | ✅ | サーバントゼロ（if-branch実装済み） |
-
-### 「ログのみ」if-branchを持つSTUB（v0.106時点）
-
-これらはif-branchがあるが、ゲーム状態を変更せずログのみを返す：
-
-| 件数 | STUB ID | 難度 | 実装に必要なもの |
-|---|---|---|---|
-| 4 | SEED_BLOOM | D | シードゾーン新設+ブルームシステム |
-| 1 | ENCORE | 高 | アーツ再使用ロジック |
-| 4 | COLLAB | ✅済 | v0.106でON_PLAY配置実装（コラボライバー2人を呼ぶ） |
-| 1 | LIMIT_OPP_SIGNI_ATTACKS_ONCE | ✅済 | v0.106でsigni_attack_once_limit実装 |
-| 1 | OPP_SIGNI_ONE_ATTACK_TOTAL | ✅済 | v0.106でsigni_attack_once_limit実装 |
-| 1 | MOVE_TO_ATTACKER_FRONT | ✅済 | v0.105で実装済み |
-| 1 | SIGNI_LOSE_COLOR | ✅済 | v0.105で実装済み |
+| 件数 | effectType | 状態 | STUB ID |
+|-----:|-----------|:----:|---------|
+| 21 | AUTO/ACTIVATED/CONT/SONG | ✅ | GRANT_QUOTED_AUTO_ABILITY |
+| 16 | CONT | 📝 | COPY_LRIG_NAME_ABILITY |
+| 16 | AUTO | ✅ | GAIN_SUBSCRIBER_COUNT |
+| 13 | CONT/AUTO/ACTIVATED | ✅ | GRANT_ABILITY_INNER_TEXT |
+| 11 | ACTIVATED/AUTO | ⚡ | SOUL_OP |
+| 10 | AUTO/ACTIVATED/CONT | ✅ | GRANT_QUOTED_ABILITY |
+| 10 | ACTIVATED | ✅ | SONG_FRAGMENT |
+| 7 | CONT | 📝 | LEVEL_REFERENCE_OVERRIDE ※execRevealAndPickで部分対応 |
+| 7 | CONT | ✅ | LOSE_COLOR_ALL_ZONES |
+| 6 | ACTIVATED | ⚡ | CRAFT_TO_LRIG_DECK |
+| 5 | CONT | ⚡ | ARTS_IMMOVABLE ※executor直接チェック |
+| 5 | CONT/AUTO | ⚡ | COLLAB |
+| 5 | AUTO | ⚡ | COUNT_BASED_DRAW_OR_POWER |
+| 5 | AUTO | ⚡ | MOVE_TO_OTHER_SIGNI_ZONE |
+| 5 | ACTIVATED/CONT/AUTO | ✅ | POWER_MOD_PER_COUNT |
+| 5 | AUTO/ACTIVATED | ⚡ | TRASH_SIGNI_UNDER_FIELD_SIGNI |
+| 4 | ACTIVATED | ⚡ | CONDITIONAL_MULTI_CHOOSE_BY_CENTER |
+| 4 | ACTIVATED/AUTO | ⚡ | SEED_BLOOM ※ログのみ（シードゾーン未実装） |
+| 3 | ACTIVATED/AUTO | ⚡ | ACCE_FROM_HAND |
+| 3 | ACTIVATED/AUTO | ⚡ | ACTIVATE_TRAP |
+| 3 | ACTIVATED/AUTO | ⚡ | CLASS_CHANGE |
+| 3 | ACTIVATED | ⚡ | DO_THREE_THINGS |
+| 3 | CONT | ✅ | FORCE_TARGET_SELF |
+| 3 | ACTIVATED/AUTO | ⚡ | GATE |
+| 3 | AUTO | ⚡ | MAKE_SERVANT_ZERO |
+| 3 | CONT | ✅ | OPP_GUARD_COST_COLORLESS |
+| 3 | ACTIVATED/AUTO | ✅ | PLACE_CARD_UNDER_SIGNI |
+| 3 | CONT/AUTO | ⚡ | PREVENT_ZONE_MOVE_BY_OPP |
+| 2 | CONT/AUTO | ✅ | ARTS_COST_REDUCTION_BY_EFFECT |
+| 2 | CONT | 📝 | ATTACK_PHASE_LEVEL_OVERRIDE |
+| 2 | ACTIVATED | ⚡ | CONDITIONAL_COST_REDUCTION_BY_FIELD |
+| 2 | ACTIVATED | ⚡ | COPY_SIGNI |
+| 2 | AUTO | ⚡ | COPY_TARGET_POWER |
+| 2 | CONT/AUTO | ⚡ | DEPLOY_RESTRICT |
+| 2 | AUTO | ⚡ | DISCARD_IF_ATTACKED_THIS_TURN |
+| 2 | AUTO | ⚡ | DOUBLE_OWN_POWER_MINUS |
+| 2 | ACTIVATED | ✅ | ENCORE |
+| 2 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
+| 2 | ACTIVATED | ⚡ | EXTRA_COST_REMOVE_VIRUS |
+| 2 | CONT | 📝 | FIELD_ENERGY_SIGNI_GAIN_COLOR |
+| 2 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
+| 2 | ACTIVATED/AUTO | ⚡ | GRANT_CHOSEN_ABILITY |
+| 2 | CONT | 📝 | GRANT_QUOTED_ACTIVATE_ABILITY |
+| 2 | CONT | ✅ | HAND_SIZE_INCREASE |
+| 2 | AUTO | ⚡ | HAND_TO_ENERGY_OPTIONAL |
+| 2 | ACTIVATED/AUTO | ⚡ | LAYER_ABILITY_COPY |
+| 2 | AUTO/ACTIVATED | ⚡ | LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END |
+| 2 | ACTIVATED/CONT | ⚡ | LIMIT_OPP_DRAW_COUNT |
+| 2 | AUTO | ✅ | LOOK_OPP_LIFE_TOP |
+| 2 | CONT | ✅ | LRIG_GROW_RESTRICT |
+| 2 | AUTO | ⚡ | MOVE_TO_ATTACKER_FRONT |
+| 2 | CONT | ✅ | MULTI_ZONE_ATTACK |
+| 2 | CONT | 📝 | ONE_ATTACK_PER_TURN |
+| 2 | ACTIVATED | ⚡ | OPP_CHOOSE_OWN_SIGNI_TO_ENERGY |
+| 2 | AUTO | ⚡ | OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL |
+| 2 | AUTO | ⚡ | OPP_SIGNI_ATTACK_POWER_RESTRICT |
+| 2 | AUTO | ⚡ | PLACE_SIGNI_UNDER_SELF_OPT |
+| 2 | ACTIVATED | ⚡ | PLAY_SPELL_FREE_IGNORE_RESTRICTION |
+| 2 | ACTIVATED/AUTO | ⚡ | POWER_COPY_FROM_DOWNED |
+| 2 | AUTO | ⚡ | POWER_MOD_BY_ATTACKER_LEVEL |
+| 2 | AUTO | ✅ | POWER_MOD_BY_HAND_COUNT |
+| 2 | AUTO | ⚡ | POWER_MOD_BY_LRIG_TRASH_ARTS |
+| 2 | ACTIVATED/LIFE | ⚡ | PREVENT_LRIG_DAMAGE_THIS_TURN |
+| 2 | CONT | 📝 | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP |
+| 2 | AUTO | ⚡ | REACTIVE_POWER_UP |
+| 2 | AUTO/ACTIVATED | ⚡ | REMOVE_SIGNI_ZONE |
+| 2 | AUTO | ⚡ | RIDE_ON |
+| 2 | ACTIVATED/LIFE | ⚡ | SET_OPP_SIGNI_AS_TRAP |
+| 2 | ACTIVATED | ⚡ | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY |
+| 2 | AUTO | ⚡ | SIGNI_SERVANT_ZERO |
+| 2 | CONT | 📝 | SPECIFIC_CARD_COST_REDUCE |
+| 2 | AUTO/ACTIVATED | ⚡ | TRAP_TO_HAND |
+| 2 | AUTO | ⚡ | VIEW_AND_DISCARD_SPELL |
+| 1 | CONT | 📝 | ACCE_BANISH_SELF_TRASH |
+| 1 | CONT | 📝 | ACCE_COST_REDUCTION |
+| 1 | AUTO | ⚡ | ACCE_FROM_TRASH |
+| 1 | CONT | 📝 | ACCE_SIGNI_ALL_COLOR |
+| 1 | CONT | 📝 | ACCE_SIGNI_GRANT_ABILITY |
+| 1 | AUTO | ⚡ | ACCE_TO_ENERGY |
+| 1 | AUTO | ⚡ | ACTIVATE_COST_ZERO_BLACK |
+| 1 | ACTIVATED | ⚡ | ACTIVATE_EICHI_ABILITY |
+| 1 | AUTO | ⚡ | ADD_CARD_TO_LRIG_DECK |
+| 1 | CONT | 📝 | ADD_RESONANCE_CONDITION |
+| 1 | CONT | 📝 | ADJACENT_ZONE_ATTACK |
+| 1 | CONT | 📝 | ALL_CARDS_COLOR_CHANGE_BLACK |
+| 1 | ACTIVATED | ⚡ | ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE |
+| 1 | CONT | 📝 | ALL_CLASS |
+| 1 | CONT | 📝 | ALL_COLOR |
+| 1 | AUTO | ⚡ | ALL_OPP_SIGNI_POWER_DOWN_HALF |
+| 1 | ACTIVATED | ⚡ | ALL_OPP_SIGNI_SERVANT_ZERO |
+| 1 | CONT | 📝 | ALL_ZONE_BLACK |
+| 1 | CONT | 📝 | ARM_SIGNI_LRIG_PROTECTION |
+| 1 | ACTIVATED | ⚡ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR |
+| 1 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
+| 1 | CONT | 📝 | ARTS_COST_REDUCTION_BY_COST_THRESHOLD |
+| 1 | CONT | 📝 | ATTACK_COUNT_BY_POWER |
+| 1 | CONT | 📝 | BANISH_BY_SELF_GOES_TO_TRASH |
+| 1 | ACTIVATED | ⚡ | BANISH_REDIRECT_TO_HAND |
+| 1 | CONT | 📝 | BANISH_SUBSTITUTE_RISE_STACK |
+| 1 | AUTO | ⚡ | BATTLE_BANISH_LIFE_BURST |
+| 1 | AUTO | ⚡ | BLACK_RISE_PLAY_STACK_FROM_TRASH |
+| 1 | CONT | 📝 | BLOCK_ALL_OPP_ACTIVATE_ABILITY |
+| 1 | CONT | 📝 | BLOCK_COLORLESS_PLAY |
+| 1 | CONT | 📝 | BLOCK_FRONT_SIGNI_ATTACK |
+| 1 | CONT | 📝 | BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT |
+| 1 | CONT | 📝 | BLOCK_NON_WHITE_SPELL |
+| 1 | AUTO | ⚡ | BLOCK_OPP_ARTS_SPELL_ACT |
+| 1 | ACTIVATED | ⚡ | BLOCK_OPP_AUTO_ABILITY_EXTENDED |
+| 1 | CONT | 📝 | BLOCK_OPP_DECK_TO_ENERGY |
+| 1 | CONT | 📝 | BLOCK_OPP_ENCORE_AND_BET |
+| 1 | CONT | 📝 | BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT |
+| 1 | ACTIVATED | ⚡ | BLOCK_OPP_SPELL_ACT_NEXT_TURN |
+| 1 | ACTIVATED | ⚡ | BOTH_DISCARD_BY_CENTER_LEVEL |
+| 1 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |
+| 1 | CONT | 📝 | CENTER_LRIG_COLOR_CHANGE_BLACK |
+| 1 | AUTO | ⚡ | CENTER_LRIG_DISMOUNT |
+| 1 | ACTIVATED | ⚡ | CENTER_LRIG_RIDES_ON_SIGNI |
+| 1 | AUTO | ⚡ | CHANGE_BASE_LEVEL |
+| 1 | AUTO | ⚡ | CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN |
+| 1 | AUTO | ⚡ | CHANGE_EICHI_SIGNI_BASE_LEVEL |
+| 1 | AUTO | ⚡ | CHANGE_SIGNI_COLOR |
+| 1 | AUTO | ⚡ | CHOOSE_SAME_OPTION_TWICE |
+| 1 | AUTO | ✅ | CLASS_CHANGE (AUTO) |
+| 1 | AUTO | ⚡ | CONDITIONAL_FREE_GROW |
+| 1 | CONT | 📝 | CONDITIONAL_KEYWORD_BY_CENTER_COLOR |
+| 1 | ACTIVATED | ✅ | CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE |
+| 1 | AUTO | ✅ | CONDITIONAL_POWER_BONUS |
+| 1 | AUTO | ⚡ | CONDITIONAL_TRASH_TO_ENERGY |
+| 1 | CONT | 📝 | COOKING_BANISH_SUBSTITUTE |
+| 1 | ACTIVATED | ⚡ | DECK_SIGNI_LEVEL_OVERRIDE |
+| 1 | LIFE | ⚡ | DECK_TOP_TO_LIFE |
+| 1 | AUTO | ✅ | DECLARE_COLOR |
+| 1 | AUTO | ⚡ | DEFEAT |
+| 1 | ACTIVATED | ⚡ | DISCARD_BY_POWER_MATCH |
+| 1 | AUTO | ⚡ | DISCARD_IF_NO_CLASS_SIGNI |
+| 1 | CONT | 📝 | DOUBLE_POWER_MINUS |
+| 1 | AUTO | ⚡ | DRAW_AND_PUT_HAND_TO_DECK_BOTTOM |
+| 1 | LIFE | ⚡ | DRAW_BY_CHARM_COUNT |
+| 1 | AUTO | ⚡ | DRIVE_SIGNI_PREVENT_DOWN |
+| 1 | CONT | 📝 | DYNAMIC_LEVEL_BY_ENERGY |
+| 1 | AUTO | ⚡ | EACH_PLAYER_DRAW_DISCARD |
+| 1 | CONT | 📝 | ENERGY_COLOR_SUBSTITUTE_TRASH |
+| 1 | CONT | 📝 | ENERGY_SUBSTITUTE_TRASH_KEY |
+| 1 | CONT | 📝 | ENERGY_SUBSTITUTE_TRASH_SIGNI |
+| 1 | CONT | 📝 | ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI |
+| 1 | AUTO | ⚡ | ENERGY_TO_HAND_ON_DECK |
+| 1 | AUTO | ⚡ | ENERGY_TO_TRASH |
+| 1 | CONT | 📝 | EXTRA_GUARD_COST_FROM_HAND |
+| 1 | CONT | 📝 | FIRST_SPELL_COST_UP |
+| 1 | ACTIVATED | ⚡ | FROM_TRASH_TO_CENTER_ZONE |
+| 1 | CONT | 📝 | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM |
+| 1 | CONT | 📝 | FROZEN_SIGNI_TO_TRASH_ON_LEAVE |
+| 1 | CONT | 📝 | GAIN_ADDITIONAL_LRIG_TYPE |
+| 1 | AUTO | ⚡ | GAIN_COIN_AND_DISCARD |
+| 1 | CONT | 📝 | GAIN_LRIG_COLOR |
+| 1 | CONT | 📝 | GRANT_CHOSEN_ABILITY_FROM_PLAY |
+| 1 | ACTIVATED | ⚡ | GRANT_CHOSEN_ABILITY_SELF |
+| 1 | ACTIVATED | ⚡ | GRANT_CONDITIONAL_ASSASSIN_ABILITY |
+| 1 | CONT | 📝 | GRANT_LRIG_TRASH_ACTIVATE_ABILITY |
+| 1 | CONT | 📝 | GRANT_SIGNI_CLASS |
+| 1 | CONT | 📝 | GRANT_UNDER_LRIG_ACTIVATE_ABILITY |
+| 1 | CONT | 📝 | GRANT_UNDER_LRIG_AUTO_ABILITY |
+| 1 | CONT | 📝 | GRANT_UNDER_SIGNI_ALL_ABILITIES |
+| 1 | CONT | 📝 | GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE |
+| 1 | CONT | 📝 | GRANT_UNDER_SIGNI_CONSTANT_ABILITY |
+| 1 | AUTO | ⚡ | GRID_REVEAL_PLUS |
+| 1 | CONT | 📝 | GROW_COST_SUBSTITUTE_TRASH_SIGNI |
+| 1 | CONT | 📝 | GUARD_ALTERNATIVE_COST |
+| 1 | AUTO | ⚡ | HAND_CARDS_UNDER_SIGNI |
+| 1 | AUTO | ⚡ | HAND_NONCOLORLESS_TO_ENERGY |
+| 1 | CONT | 📝 | HAND_SIGNI_HAS_GUARD_ICON |
+| 1 | ACTIVATED | ⚡ | HASTARLIQ |
+| 1 | CONT | 📝 | IGNORE_LRIG_RESTRICTION_ARTS |
+| 1 | CONT | 📝 | INCREASE_ACT_ABILITY_COST |
+| 1 | CONT | 📝 | INFECTED_SIGNI_POWER_DOWN_BY_LEVEL |
+| 1 | CONT | 📝 | INHERIT_OPP_LRIG_TYPE |
+| 1 | CONT | 📝 | INHERIT_UNDER_SIGNI_COLOR |
+| 1 | CONT | 📝 | LEAVE_FIELD_TO_DECK_BOTTOM |
+| 1 | CONT | 📝 | LEVEL_MOD_PER_COUNT |
+| 1 | CONT | 📝 | LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT |
+| 1 | AUTO | ⚡ | LIFE_BURST_DOUBLE |
+| 1 | AUTO | ⚡ | LIMIT_OPP_SIGNI_ATTACKS_ONCE |
+| 1 | AUTO | ⚡ | LOOK_DECK_BOTTOM |
+| 1 | AUTO | ⚡ | LOOK_TOP_ONE_RETURN_REST_BOTTOM |
+| 1 | CONT | 📝 | LRIG_ALL_NAMES |
+| 1 | CONT | 📝 | LRIG_LIMIT_UP_AND_COLOR_GAIN |
+| 1 | AUTO | ⚡ | LRIG_TRASH_KEY_TO_CENTER_UNDER |
+| 1 | AUTO | ✅ | LRIG_UNDER_CARD_OP |
+| 1 | ACTIVATED | ⚡ | MAKE_MULTI_SERVANT_ZERO |
+| 1 | AUTO | ⚡ | MOVE_ACCE_TO_SIGNI |
+| 1 | AUTO | ⚡ | MULTI_ACCE_FROM_HAND |
+| 1 | CONT | 📝 | MULTI_ACCE_LIMIT |
+| 1 | ACTIVATED | ⚡ | MULTI_DAMAGE_ON_LRIG_ATTACK |
+| 1 | AUTO | ✅ | MULTI_SIGNI_POWER_UP_5000 |
+| 1 | AUTO | ⚡ | MULTI_SIGNI_TO_ENERGY |
+| 1 | AUTO | ⚡ | NAMED_SIGNI_ACCE_FROM_TRASH |
+| 1 | ACTIVATED | ⚡ | NEGATE_ALL_OPP_EFFECTS |
+| 1 | CONT | 📝 | NEGATE_ATTACK_ON_TRIGGER |
+| 1 | AUTO | ⚡ | NEGATE_COIN_ABILITY |
+| 1 | AUTO | ⚡ | NEGATE_THAT_ATTACK |
+| 1 | CONT | 📝 | NO_ABILITY_SIGNI_TO_DECK_BOTTOM |
+| 1 | AUTO | ⚡ | NON_GUARD_DISCARD_TO_ENERGY |
+| 1 | ACTIVATED | ⚡ | NON_LRIG_TO_LRIG_TRASH |
+| 1 | CONT | 📝 | ODD_LEVEL_SIGNI_CANT_ATTACK |
+| 1 | AUTO | ⚡ | OPP_CHOOSE_EFFECT |
+| 1 | AUTO | ⚡ | OPP_CHOOSES_FOR_YOU |
+| 1 | CONT | 📝 | OPP_ENERGY_COLOR_CONDITION_TRASH |
+| 1 | AUTO | ⚡ | OPP_ENERGY_EXCESS_TRASH |
+| 1 | ACTIVATED | ⚡ | OPP_ENERGY_OR_DISCARD_CONDITION |
+| 1 | AUTO | ⚡ | OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND |
+| 1 | CONT | 📝 | OPP_LRIG_ATTACK_COST |
+| 1 | AUTO | ⚡ | OPP_MAIN_PHASE_LIMIT_DOWN |
+| 1 | AUTO | ⚡ | OPP_RETURN_HAND_ON_SELF_BANISH |
+| 1 | ACTIVATED | ⚡ | OPP_REVEAL_HAND_AND_LRIG_DECK |
+| 1 | ACTIVATED | ⚡ | OPP_REVEAL_LRIG_DECK |
+| 1 | ACTIVATED | ⚡ | OPP_REVEAL_TOP_AND_HAND |
+| 1 | ACTIVATED | ⚡ | OPP_SIGNI_ATTACK_COST |
+| 1 | CONT | 📝 | OPP_SIGNI_LEAVE_TO_TRASH |
+| 1 | AUTO | ⚡ | OPP_SIGNI_ONE_ATTACK_TOTAL |
+| 1 | AUTO | ⚡ | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL |
+| 1 | ACTIVATED | ⚡ | OPP_SIGNI_TO_DECK_AND_SHUFFLE |
+| 1 | ACTIVATED | ⚡ | OPP_SIGNI_TO_DECK_BY_GATE |
+| 1 | ACTIVATED | ⚡ | OPP_SIGNI_TO_DECK_NTH |
+| 1 | AUTO | ⚡ | OPP_TRASH_FIELD_SIGNI_AND_ENERGY |
+| 1 | CONT | 📝 | OPP_TRASH_LOSE_COLOR_AND_CLASS |
+| 1 | AUTO | ⚡ | OPP_TRASH_TO_DECK_TOP |
+| 1 | AUTO | ⚡ | OPP_TRASH_TO_OPP_SIGNI_UNDER |
+| 1 | AUTO | ⚡ | OPP_TURN_NO_ENERGY_COST |
+| 1 | CONT | 📝 | OPP_ZONE_PLACEMENT_RESTRICT |
+| 1 | CONT | 📝 | OPTIONAL_COST |
+| 1 | AUTO | ⚡ | OPTIONAL_DISCARD_CLASS_SIGNI |
+| 1 | AUTO | ⚡ | PLACE_CHOKKIN |
+| 1 | AUTO | ⚡ | PLACE_DECK_TOP_UNDER_WEAPON_SIGNI |
+| 1 | ACTIVATED | ⚡ | PLACE_LRIG_FROM_DECK_ON_TOP |
+| 1 | AUTO | ⚡ | PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON |
+| 1 | AUTO | ⚡ | PLACE_VIRUS_CENTER |
+| 1 | CONT | 📝 | PLAY_EFFECT_TARGET_CLASS_CHANGE |
+| 1 | ACTIVATED | ⚡ | PLAY_FREE |
+| 1 | ACTIVATED | ⚡ | PLAY_SPELL_FROM_HAND |
+| 1 | AUTO | ⚡ | PLAY_SPELL_FROM_HAND_FREE |
+| 1 | AUTO | ⚡ | POWER_BOOST_PER_SIGNI_WITH_ICON |
+| 1 | CONT | 📝 | POWER_BY_ACCE_COUNT |
+| 1 | CONT | 📝 | POWER_BY_CENTER_LRIG_TYPE_COUNT |
+| 1 | CONT | 📝 | POWER_BY_CHARM_COUNT |
+| 1 | CONT | 📝 | POWER_BY_ENERGY_COLOR_VARIETY |
+| 1 | AUTO | ⚡ | POWER_BY_LEVEL_SUM_COMPARE |
+| 1 | CONT | 📝 | POWER_BY_RISE_SIGNI_COUNT |
+| 1 | CONT | 📝 | POWER_CAP |
+| 1 | ACTIVATED | ⚡ | POWER_DOUBLE_ALL |
+| 1 | AUTO | ⚡ | POWER_DOWN_BY_ZONE_CARD_COUNT |
+| 1 | AUTO | ⚡ | POWER_EQUALS_FRONT_SIGNI |
+| 1 | AUTO | ⚡ | POWER_MOD_BY_COLOR_VARIETY |
+| 1 | AUTO | ⚡ | POWER_MOD_BY_DISCARD_COUNT_HIGH |
+| 1 | CONT | 📝 | POWER_MOD_BY_FRONT_LEVEL |
+| 1 | AUTO | ⚡ | POWER_MOD_BY_LRIG_LEVEL_SUM |
+| 1 | ACTIVATED | ⚡ | POWER_MOD_BY_TRASHED_SIGNI_LEVEL |
+| 1 | AUTO | ⚡ | POWER_MOD_BY_UNDER_COUNT |
+| 1 | ACTIVATED | ⚡ | POWER_MOD_MIRROR |
+| 1 | AUTO | ⚡ | POWER_MOD_ON_FRONT_PLACE |
+| 1 | AUTO | ⚡ | POWER_MOD_TARGET_AND_SELF |
+| 1 | ACTIVATED | ⚡ | POWER_UP_BY_DISCARDED_SIGNI_POWER |
+| 1 | CONT | 📝 | PREVENT_ABILITY_CHANGE_BY_OPP |
+| 1 | CONT | 📝 | PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP |
+| 1 | ACTIVATED | ⚡ | PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE |
+| 1 | CONT | 📝 | PREVENT_BOUNCE_AND_DOWN_BY_OPP |
+| 1 | CONT | 📝 | PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP |
+| 1 | CONT | 📝 | PREVENT_DAMAGE_FROM_OPP_EFFECTS |
+| 1 | ACTIVATED | ⚡ | PREVENT_DAMAGE_UNTIL_OPP_TURN_END |
+| 1 | AUTO | ⚡ | PREVENT_DEFEAT_THIS_TURN |
+| 1 | AUTO | ⚡ | PREVENT_DEFEAT_UNTIL_NEXT_TURN |
+| 1 | ACTIVATED | ⚡ | PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN |
+| 1 | CONT | 📝 | PREVENT_INFECTED_SIGNI_ACTIVATE |
+| 1 | CONT | 📝 | PREVENT_LOW_LEVEL_LRIG_DAMAGE |
+| 1 | CONT | 📝 | PREVENT_LRIG_DAMAGE |
+| 1 | ACTIVATED | ⚡ | PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN |
+| 1 | CONT | 📝 | PREVENT_NON_FIELD_MOVE_BY_OPP |
+| 1 | CONT | 📝 | PREVENT_OPP_POWER_PLUS |
+| 1 | CONT | 📝 | PREVENT_OPP_SIGNI_ABILITY_GAIN |
+| 1 | CONT | 📝 | PREVENT_POWER_MINUS_BY_OPP |
+| 1 | CONT | 📝 | PREVENT_SELF_DOWN_BY_OPP |
+| 1 | CONT | 📝 | PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH |
+| 1 | CONT | 📝 | PREVENT_SIGNI_DOWN_BY_OPP_ALL |
+| 1 | CONT | 📝 | PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH |
+| 1 | ACTIVATED | ⚡ | PREVENT_TARGET_LRIG_ATTACK_THIS_TURN |
+| 1 | CONT | 📝 | REDUCE_OPP_HAND_LIMIT |
+| 1 | ACTIVATED | ⚡ | REDUCE_PLAY_ABILITY_COST |
+| 1 | CONT | 📝 | REMOVE_OPP_MULTI_ENA |
+| 1 | CONT | 📝 | REMOVE_OPP_MULTI_ENA_ONLY |
+| 1 | ACTIVATED | ⚡ | REMOVE_VIRUS |
+| 1 | AUTO | ⚡ | RESONANCE_COST_CARDS_TO_ENERGY |
+| 1 | CONT | 📝 | RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE |
+| 1 | ACTIVATED | ✅ | REVEAL_PICK_HAND_SHUFFLE_BOTTOM |
+| 1 | CONT | 📝 | REVERSE_OPP_POWER_MINUS |
+| 1 | CONT | 📝 | RISE_BANISH_SUBSTITUTE |
+| 1 | CONT | 📝 | RISE_LEAVE_DISCARD_STACK |
+| 1 | AUTO | ⚡ | RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY |
+| 1 | CONT | 📝 | RULE_REMINDER_TEXT |
+| 1 | AUTO | ⚡ | SEED_BLOOM_OPTIONAL |
+| 1 | ACTIVATED | ⚡ | SEED_HAND_AND_BLOOM_FROM_DECK_TOP |
+| 1 | AUTO | ⚡ | SELECT_OTHER_SIGNI |
+| 1 | ACTIVATED | ⚡ | SELF_TO_DECK_TOP |
+| 1 | AUTO | ⚡ | SELF_TRASH_IF_NO_OPP_VIRUS |
+| 1 | AUTO | ⚡ | SET_HAND_CARD_AS_TRAP |
+| 1 | ACTIVATED | ⚡ | SET_LEVEL_RANGE |
+| 1 | ACTIVATED | ⚡ | SET_OPP_SIGNI_POWER_BY_SELF_POWER |
+| 1 | CONT | 📝 | SIGNI_CANT_BOUNCE_FROM_FIELD |
+| 1 | AUTO | ⚡ | SIGNI_GAIN_ONE_LRIG_COLOR |
+| 1 | AUTO | ⚡ | SIGNI_GRANT_CHOSEN_ABILITY |
+| 1 | AUTO | ⚡ | SIGNI_LOSE_COLOR |
+| 1 | CONT | 📝 | SIGNI_PROTECT_MOVE_EXCEPT_ENERGY |
+| 1 | AUTO | ⚡ | SIGNI_REPOSITION |
+| 1 | ACTIVATED | ⚡ | SIGNI_UNDER_WEAPON_SIGNI |
+| 1 | ACTIVATED | ⚡ | SPELL_COST_REDUCTION_BY_TRASH_COUNT |
+| 1 | AUTO | ⚡ | STACK_ALL_LRIG_UNDER |
+| 1 | CONT | 📝 | SUBSTITUTE_DAMAGE_WITH_SELF_TRASH |
+| 1 | CONT | 📝 | SUPPRESS_LIFE_BURST_ON_CRASH |
+| 1 | ACTIVATED | ✅ | TARGET_AND_DISCARD_HAND |
+| 1 | AUTO | ⚡ | TOP_TO_BOTTOM_OPTIONAL |
+| 1 | AUTO | ⚡ | TRADE_SELF_AND_OPP_TO_ENERGY |
+| 1 | AUTO | ⚡ | TRAP_OP |
+| 1 | AUTO | ⚡ | TRAP_OPERATION |
+| 1 | ACTIVATED | ⚡ | TRAP_TO_SIGNI_IF_ZONE_EMPTY |
+| 1 | AUTO | ⚡ | TRASH_ACCE_AT_TURN_END |
+| 1 | AUTO | ⚡ | TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY |
+| 1 | ACTIVATED | ⚡ | TRASH_ALL_OPP_CARDS |
+| 1 | ACTIVATED | ✅ | TRASH_ALL_SIGNI_AND_KEY |
+| 1 | ACTIVATED | ⚡ | TRASH_CLASS_TO_HAND_OR_ENERGY |
+| 1 | AUTO | ⚡ | TRASH_SIGNI_TO_BEAT |
+| 1 | ACTIVATED | ⚡ | TRASH_SPELL_FREE_USE_LIMIT |
+| 1 | AUTO | ⚡ | TRASHED_CARD_TO_HAND_OR_ENERGY |
+| 1 | AUTO | ⚡ | TRIGGER_OTHER_SIGNI_EICHI_ABILITY |
+| 1 | ACTIVATED | ⚡ | TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH |
+| 1 | AUTO | ⚡ | UNDER_SIGNI_TO_ENERGY |
+| 1 | AUTO | ⚡ | UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS |
+| 1 | CONT | 📝 | WEAPON_SIGNI_PREVENT_DOWN |
+| 1 | CONT | 📝 | WEAPON_SIGNI_PROTECTION |
+| 1 | CONT | 📝 | WHITE_SIGNI_ABILITY_PROTECT |
 
 ---
 
-## 真の未ハンドル（v0.106時点）
+## 集計サマリー（v0.108）
 
-v0.106時点でexecutor.tsのif-branchが全てのAUTO/ACTIVATEDのSTUBをカバー済み。
-`[STUB: xxx]`形式のログは出ない状態。
+| カテゴリ | 種数 | 件数 |
+|---------|-----:|-----:|
+| 全STUB | 336 | 538 |
+| ✅ 実装済み（AUTO） | 約30 | - |
+| ⚡ 部分実装（AUTO+fallback） | 約170 | - |
+| 📝 ログのみ（CONT未実装） | 約136 | - |
+
+**注意事項:**
+- `CONT` = CONTINUOUS STUB。effectEngineのcollect関数で動的処理するものは✅
+- `⚡` = if-branchが存在し主要パターンは動作するが、STUB_LOGへのフォールバックも持つ
+- `📝CONT` = effectEngineに専用collect関数がなく、ゲーム状態への影響なし
 
 ---
 
-## 実装履歴
+## 調査コマンド
+
+```bash
+node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json','utf8')); const c={}; for(const [,es] of Object.entries(d)){ if(!Array.isArray(es)) continue; for(const e of es){ const a=e.action; if(a?.type==='STUB'){c[a.id]=(c[a.id]||0)+1;}}} const s=Object.entries(c).sort((a,b)=>b[1]-a[1]); console.log('総計:', s.length, '/', s.reduce((a,b)=>a+b[1],0)); s.slice(0,20).forEach(([k,v])=>console.log(v,k))"
+```
+
+---
+
+## 実装履歴（抜粋）
 
 | 日付 | 実装内容 | 対象STUB |
-|---|---|---|
-| 2026-05-29 | UNKNOWN 0件達成：SONG_ICON regex修正+「この方法で場に出たシグニの」パース追加 | effectParser UNKNOWN解消 |
-| 2026-05-29 | アップ状態クラスシグニ選択→ダウン（コスト軽減素材として） | DOWN_UP_SIGNI_AND_CHOOSE |
-| 2026-05-29 | lastProcessedCards/デッキ上1枚からトラップ設置ゾーン選択 | TRAP_OPERATION |
-| 2026-05-29 | センタールリグ下の任意枚数をルリグトラッシュへ（WX12-Re22等） | SOUL_OP（拡張） |
-| 2026-05-29 | コイン消費ベット→2択/4択ダイアログ+①②③④実行 | BET_MECHANIC |
-| 2026-05-29 | 歌のカケラ効果をeffects.jsonに15枚追加+エナから発動 | SONG_FRAGMENT |
-| 2026-05-29 | 相手ゾーン選択→signi_gate_zones設定+アタック不可フラグ | GATE |
-| 2026-05-29 | PLAY_FREE: parseCardEffectsでスペル/シグニ効果を実行 | PLAY_FREE, PLAY_SPELL_FREE_IGNORE_RESTRICTION, CAST_FROM_OPP_TRASH, USE_SPELL_FROM_TRASH |
-| 2026-05-29 | ①②③④選択肢解析+CHOOSE | CHOOSE_N_FROM_LIST |
-| 2026-05-29 | N回繰り返し（パワー修正・デッキトラッシュに対応） | REPEAT_N_TIMES, REPEAT_EFFECT |
-| 2026-05-29 | ルリグ名エイリアスをlrig_name_aliasesに保存 | COPY_LRIG_NAME_ABILITY |
-| 2026-05-29 | トラッシュクラス枚数・自場クラス・自シグニパワーパターンを追加 | CONDITIONAL_POWER_BONUS (拡張) |
-| 2026-05-29 | 手札捨て+相手シグニ選択インタラクション（スタンドアロン時） | TARGET_AND_DISCARD_HAND (スタンドアロン改善) |
-| 2026-05-29 | カード名宣言ダイアログ（手札から選択）・declared_card_name状態保存 | DECLARE_CARD_NAME |
-| 2026-05-29 | 相手シグニ選択インタラクション・lastProcessedCardsへ格納 | TARGET_ONLY |
-| 2026-05-29 | ライフ枚数条件チェックのログ改善 | CONDITIONAL_ARTS_COST |
-| 2026-05-29 | シグニ/宣言名/クラス条件でデッキ公開・lastProcessedCardsに格納・残りトラッシュ/デッキ下処理 | DECK_REVEAL_UNTIL, DECK_REVEAL_UNTIL_CLASS, OPP_DECK_REVEAL_UNTIL |
-| 2026-05-29 | トラップシステム全実装（設置/発動/UI/トラップアイコン効果/視覚表示） | TRAP_OPERATION, TRAP_OP, PLACE_TRAP_FROM_REVEALED, PLACE_TRAP_OPTIONAL, ACTIVATE_TRAP, TRAP_TO_HAND, SET_OPP_SIGNI_AS_TRAP, SET_HAND_CARD_AS_TRAP, TRAP_TO_SIGNI_IF_ZONE_EMPTY |
-| 2026-05-29 | ゾーン選択インタラクション＋disabled_signi_zonesへの反映 | DESIGNATE_SIGNI_ZONE, BLOCK_OPP_ZONE_PLACEMENT |
-| 2026-05-29 | STUB_LOGに11件追加（ログのみ・`[STUB: xxx]`から改善） | END_ATTACK_IF_EXTRA_TURN, SUPPRESS_GAIN_ABILITY, PREVENT_SIGNI_DOWN_BY_OPP, ALL_PLAYER_MILL, ADJACENT_SIGNI_POWER_MOD, PREVENT_OPP_UPKEEP, BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN, LIMIT_OPP_ATTACK_ONCE, SUPPRESS_OPP_SIGNI_ABILITIES, DRAW_IF_OPP_DISCARDED_HAND, OPTIONAL_DISCARD_GUARD |
-| 2026-05-30 | 防御側シグニのON_ATTACK_SIGNI AUTOトリガー対応（相手アタック時に防御側が発動） | MOVE_TO_OTHER_SIGNI_ZONE（BattleScreen追加） |
-| 2026-05-30 | MAKE_SERVANT_ZERO に1体SELECT_TARGETインタラクション追加（全体→1体選択に改善） | MAKE_SERVANT_ZERO, SIGNI_SERVANT_ZERO |
-| 2026-05-30 | チームルリグ3体未満→全ゾーン色喪失（PlayerState.colorless_card_overrides・canAffordGrowCost対応） | LOSE_COLOR_ALL_ZONES |
-| 2026-05-30 | 相手ターン中にSELECT_TARGET候補を強制対象シグニのみに絞る（effectEngine.collectForcedTargets追加） | FORCE_TARGET_SELF |
-| 2026-05-30 | 「手札の枚数の上限はN増える」パターン対応 / ENDフェーズ手札上限チェック追加 | HAND_SIZE_INCREASE |
-| 2026-05-30 | 保護フラグ実装（相手効果でエナ/手札→トラッシュ阻止） | PREVENT_ZONE_MOVE_BY_OPP |
-| 2026-05-30 | 赤/青の支払いを白で代替可能（PlayerState.energy_color_substitutes） | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
-| 2026-05-30 | 相手シグニのマイナス合計分だけ自シグニをパワーアップ（ターン終了時AUTOで処理） | REACTIVE_POWER_UP |
-| 2026-05-30 | 正面以外のゾーンにも追加バトル（ダメージなし・シグニバニッシュのみ） | MULTI_ZONE_ATTACK |
-| 2026-05-30 | 対象シグニ色変更（PlayerState.signi_color_overrides / ENDフェーズリセット） | CHANGE_SIGNI_COLOR |
-| 2026-05-30 | このシグニがルリグの色を1つ得る（signi_color_overrides）| SIGNI_GAIN_ONE_LRIG_COLOR |
-| 2026-05-30 | CONTINUOUS効果を動的計算に統一（executor.tsのPlayerState直変更を削除） | PREVENT_ZONE_MOVE_BY_OPP, ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白, LOSE_COLOR_ALL_ZONES |
-| 2026-05-30 | MULTI_ZONE_ATTACK：強制/任意をテキスト解析で判定、バトル負けケース追加 | MULTI_ZONE_ATTACK |
-| 2026-05-30 | ExecCtxにotherProtectedZones追加、resolveStackNext動的計算でexecutorへ渡す | PREVENT_ZONE_MOVE_BY_OPP |
-| 2026-05-30 | computeArtsEffectiveCost にフィールド条件コスト軽減追加（スペルにも対応）| CONDITIONAL_COST_REDUCTION_BY_FIELD |
-| 2026-05-30 | ルリグカード自身のON_ATTACK_LRIG AUTO効果を処理（handleLrigAttack改善） | ルリグのアタック時AUTO |
-| 2026-05-30 | ON_TRASHトリガー実装（56件）：detectTrashedSigni/collectTrashTriggers追加 | ON_TRASH timing |
-| 2026-05-30 | ON_ENERGY_FROM_TRASHトリガー実装（3件）：detectEnergyFromTrash追加 | ON_ENERGY_FROM_TRASH timing |
-| 2026-05-30 | CONDITIONAL_TRASH_TO_ENERGYにセンタールリグ条件チェック追加 | CONDITIONAL_TRASH_TO_ENERGY |
-| 2026-05-30 | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVELをSELECT_TARGET 1体選択に改善 | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL |
-| 2026-05-30 | アシストグロウ時のON_PLAY効果をスタックに追加 | executeAssistGrow改善 |
-| 2026-05-30 | handleRemove時にON_TRASHトリガーを追加 | ON_TRASH |
-| 2026-05-30 | SELF_POWER_THRESHOLD条件を正確に評価（effectivePowers参照） | checkActiveCondition |
-| 2026-05-30 | GRANT_QUOTED_AUTO_ABILITYのknownKeywordsに Sランサー等追加 | GRANT_QUOTED_AUTO_ABILITY |
-| 2026-05-30 | 英知=N 条件をACTIVE_CONDITIONとして正確にパース（EICHI_LEVEL_SUM型追加） | 英知システム全般 |
-| 2026-05-30 | CONTINUOUS英知効果の動的チェック（collectEichiStubEffects）・UI反映 | SUPPRESS_LIFE_BURST_ON_CRASH(英知=8) |
-| 2026-05-30 | ON_ATTACK_SIGNIトリガーでMOVE_TO_ATTACKER_FRONTを防御側として収集・executor.tsでゾーン移動実装 | MOVE_TO_ATTACKER_FRONT |
-| 2026-05-30 | signi_color_overridesに'無'を設定してシグニ色喪失（ENDフェーズリセット済み） | SIGNI_LOSE_COLOR |
-| 2026-05-30 | ON_PLAY COLLABでルリグデッキからアシストルリグを2体アシストゾーンに配置（ON_PLAY効果も自動発動） | COLLAB |
-| 2026-05-30 | PlayerState.signi_attack_once_limitフラグ追加・BattleScreen/CpuBattleScreenのアタック判定・ENDリセット実装 | LIMIT_OPP_SIGNI_ATTACKS_ONCE, OPP_SIGNI_ONE_ATTACK_TOTAL |
-| 2026-05-30 | ENCOREをCHOOSEでルリグトラッシュのアーツ選択→コストなし実行（INTERNAL_ENCORE_USE） | ENCORE |
-| 2026-05-30 | BLOCK_OPP_ARTS_SPELL_ACT：otherState.blocked_actionsにUSE_ARTS/SPELL/ACT追加（このターン有効） | BLOCK_OPP_ARTS_SPELL_ACT |
-| 2026-05-30 | OPP_TURN_NO_ENERGY_COST：USE_ARTS:NEXT_TURN/USE_SPELL:NEXT_TURN追加（次ターン変換） | OPP_TURN_NO_ENERGY_COST |
-| 2026-05-30 | BattleScreen：シグニ/ルリグ/キー/アシスト起動効果にisActionBlocked('USE_ACT')チェック追加 | USE_ACT block |
-
----
-
-## 次回実装優先度
-
-**高難度:**
-- SEED_BLOOM（4件）: シードゾーン新設が必要
-
-**残課題（ログのみ）:**
-- 各種保護効果（PREVENT_SIGNI_MOVE_BY_OPP等）
-- LEVEL_REFERENCE_OVERRIDE（7件）: レベル参照上書き
+|------|---------|---------|
+| 2026-05-30 v0.108 | OPP_GUARD_COST_COLORLESS CONT→effectEngine実装+BattleScreenガードUI | OPP_GUARD_COST_COLORLESS |
+| 2026-05-30 v0.108 | LEVEL_REFERENCE_OVERRIDE：execRevealAndPickでレベル上書き対応 | LEVEL_REFERENCE_OVERRIDE |
+| 2026-05-30 v0.108 | LOSE_COLOR_ALL_ZONES：Teamフィールド参照バグ修正 | LOSE_COLOR_ALL_ZONES |
+| 2026-05-30 v0.107 | BLOCK_OPP_ARTS_SPELL_ACT / OPP_TURN_NO_ENERGY_COST 実装 | BLOCK_OPP_ARTS_SPELL_ACT, OPP_TURN_NO_ENERGY_COST |
+| 2026-05-30 v0.106 | ENCORE, COLLAB, LIMIT_OPP_SIGNI_ATTACKS_ONCE 実装 | ENCORE, COLLAB, LIMIT_OPP_SIGNI_ATTACKS_ONCE |
+| 2026-05-29 | トラップシステム全実装 | TRAP_OPERATION, ACTIVATE_TRAP 等 |
+| 2026-05-29 | SONG_FRAGMENT, BET_MECHANIC, GATE 等実装 | 多数 |
