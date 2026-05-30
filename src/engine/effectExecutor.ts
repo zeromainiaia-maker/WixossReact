@@ -6819,9 +6819,47 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           type: 'CHOOSE', options: zoneOptsISTH, count: 1,
         });
       }
-      // SEED_FLOWER_OP / BLOOM_CHOOSE: 詳細効果（個別テキスト依存）
-      if (stub.id === 'SEED_FLOWER_OP' || stub.id === 'BLOOM_CHOOSE') {
-        return done(addLog(ctx, `[シード効果: ${stub.id}]`));
+      // SEED_FLOWER_OP: 別シード1枚を開花してデッキ上をシード設置（ヤマレンゲ系）
+      if (stub.id === 'SEED_FLOWER_OP') {
+        const seedsSFO = ctx.ownerState.field.signi_seeds ?? [null, null, null];
+        const availSFO = [0, 1, 2].filter(zi => seedsSFO[zi] !== null);
+        if (availSFO.length === 0) return done(addLog(ctx, 'SEED_FLOWER_OP: シードなし'));
+        const optsSFO = availSFO.map(zi => {
+          const seedName = ctx.cardMap.get(seedsSFO[zi]!)?.CardName ?? seedsSFO[zi]!;
+          return {
+            id: `sfo_zone_${zi}`,
+            label: `ゾーン${zi + 1}（${seedName}）を開花`,
+            // 開花してからデッキ上をシード設置
+            action: ({ type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: zi } as import('../types/effects').StubAction,
+              { type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK_TOP_PLACE' } as import('../types/effects').StubAction,
+            ] } as import('../types/effects').SequenceAction) as EffectAction,
+            available: true,
+          };
+        });
+        return needsInteraction(addLog(ctx, '開花するシードを選択（ヤマレンゲ効果）'), {
+          type: 'CHOOSE', options: optsSFO, count: 1,
+        });
+      }
+      // INTERNAL_SEED_FROM_DECK_TOP_PLACE: デッキ上1枚をシードとして設置
+      if (stub.id === 'INTERNAL_SEED_FROM_DECK_TOP_PLACE') {
+        if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'INTERNAL_SEED_FROM_DECK_TOP_PLACE: デッキなし'));
+        const topCardSFDTP = ctx.ownerState.deck[0];
+        const newDeckSFDTP = ctx.ownerState.deck.slice(1);
+        const newOwnerSFDTP = { ...ctx.ownerState, deck: newDeckSFDTP };
+        const zoneOptsSFDTP = [0, 1, 2].map(zi => ({
+          id: `sfdtp_zone_${zi}`,
+          label: `ゾーン${zi + 1}にシード設置`,
+          action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi } as import('../types/effects').StubAction) as EffectAction,
+          available: true,
+        }));
+        return needsInteraction(addLog({ ...ctx, ownerState: newOwnerSFDTP, lastProcessedCards: [topCardSFDTP] }, `デッキ上${ctx.cardMap.get(topCardSFDTP)?.CardName ?? topCardSFDTP}をシード設置`), {
+          type: 'CHOOSE', options: zoneOptsSFDTP, count: 1,
+        });
+      }
+      // BLOOM_CHOOSE: 開花したとき選択効果（個別効果テキスト依存）
+      if (stub.id === 'BLOOM_CHOOSE') {
+        return done(addLog(ctx, `[開花時選択効果: ${ctx.sourceCardNum}]`));
       }
       // 裏向き系（engine: 裏向きゾーン未実装）
       if (stub.id === 'SIGNI_FLIP_FACEDOWN' || stub.id === 'FLIP_FACE_DOWN_SIGNI' || stub.id === 'FACE_DOWN_OPP_SIGNI') {
