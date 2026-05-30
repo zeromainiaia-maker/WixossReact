@@ -26,6 +26,8 @@ export default defineConfig([
       '@typescript-eslint/no-unused-expressions': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/rules-of-hooks': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/purity': 'warn',
       'no-control-regex': 'warn',
     },
   },
