@@ -24,7 +24,8 @@ export type EffectTiming =
   | 'ON_TURN_END'      // ターン終了時
   | 'ON_OPP_ARTS_USE'  // 相手がアーツを使用したとき（自分フィールドのシグニがトリガー）
   | 'ON_REVEALED_FROM_HAND' // このカードが効果によって手札から公開されたとき
-  | 'ON_ENERGY_FROM_TRASH'; // このカードがトラッシュからエナゾーンに置かれたとき
+  | 'ON_ENERGY_FROM_TRASH' // このカードがトラッシュからエナゾーンに置かれたとき
+  | 'ON_BLOOD_CRYSTAL_ARMOR'; // シグニが血晶武装状態になったとき
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
