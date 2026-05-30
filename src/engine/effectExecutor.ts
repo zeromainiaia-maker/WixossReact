@@ -3066,6 +3066,18 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'REVEAL_PICK_PLAY') {
         const srcRPP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtRPP = srcRPP ? (srcRPP.EffectText ?? '') + ' ' + (srcRPP.BurstText ?? '') : '';
+        // 【シード】として設置するパターン（「それを【シード】として...」等）
+        if (txtRPP.match(/【シード】として.*シグニゾーンに出してもよい/) || txtRPP.match(/【シード】として.*シグニゾーンに出すか/)) {
+          const topCardsRPPS = ctx.ownerState.deck.slice(0, 1);
+          if (topCardsRPPS.length === 0) return done(addLog(ctx, 'REVEAL_PICK_PLAY(SEED): デッキなし'));
+          return needsInteraction(addLog(ctx, '【シード】として設置するカードを選択（任意）'), {
+            type: 'SEARCH',
+            visibleCards: topCardsRPPS,
+            maxPick: 1,
+            thenAction: ({ type: 'SEQUENCE', steps: [] } as import('../types/effects').SequenceAction) as EffectAction,
+            continuation: ({ type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK' } as import('../types/effects').StubAction) as EffectAction,
+          });
+        }
         const toHWR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const revealCountM = txtRPP.match(/カードを([０-９\d]+)枚(?:見る|公開する)/);
         const revealCount = revealCountM ? parseInt(toHWR(revealCountM[1])) : 5;
