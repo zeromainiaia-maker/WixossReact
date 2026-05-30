@@ -128,18 +128,16 @@ v0.106時点でexecutor.tsのif-branchが全てのAUTO/ACTIVATEDのSTUBをカバ
 | 2026-05-30 | CONTINUOUS英知効果の動的チェック（collectEichiStubEffects）・UI反映 | SUPPRESS_LIFE_BURST_ON_CRASH(英知=8) |
 | 2026-05-30 | ON_ATTACK_SIGNIトリガーでMOVE_TO_ATTACKER_FRONTを防御側として収集・executor.tsでゾーン移動実装 | MOVE_TO_ATTACKER_FRONT |
 | 2026-05-30 | signi_color_overridesに'無'を設定してシグニ色喪失（ENDフェーズリセット済み） | SIGNI_LOSE_COLOR |
+| 2026-05-30 | ON_PLAY COLLABでルリグデッキからアシストルリグを2体アシストゾーンに配置（ON_PLAY効果も自動発動） | COLLAB |
+| 2026-05-30 | PlayerState.signi_attack_once_limitフラグ追加・BattleScreen/CpuBattleScreenのアタック判定・ENDリセット実装 | LIMIT_OPP_SIGNI_ATTACKS_ONCE, OPP_SIGNI_ONE_ATTACK_TOTAL |
 
 ---
 
 ## 次回実装優先度
 
-**中難度:**
-- COLLAB（4件）: コラボ状態フラグ設定 + BattleScreen対応
-- LIMIT_OPP_SIGNI_ATTACKS_ONCE（1件）: BattleScreenでアタック制限チェック
-
 **高難度:**
 - SEED_BLOOM（4件）: シードゾーン新設が必要
-- ENCORE（2件）: アーツ再使用ロジック
+- ENCORE（1件）: アーツ再使用ロジック
 
 **BattleScreen変更必要:**
 - BLOCK_OPP_ARTS_SPELL_ACT, OPP_TURN_NO_ENERGY_COST など
