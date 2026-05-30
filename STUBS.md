@@ -386,6 +386,9 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-30 v0.109 | SEED_BLOOM: ON_PLAY効果トリガー実装（開花後にON_PLAYをスタックへ追加） | SEED_BLOOM, SEED_BLOOM_OPTIONAL |
+| 2026-05-30 v0.109 | WXK04-060 ON_BANISH条件修正（相手ターンのみ・manualEffects） | WXK04-060 |
+| 2026-05-30 v0.109 | collectBanishTriggersにactiveConditionチェック追加 | ON_BANISH全般 |
 | 2026-05-30 v0.108 | OPP_GUARD_COST_COLORLESS CONT→effectEngine実装+BattleScreenガードUI | OPP_GUARD_COST_COLORLESS |
 | 2026-05-30 v0.108 | LEVEL_REFERENCE_OVERRIDE：execRevealAndPickでレベル上書き対応 | LEVEL_REFERENCE_OVERRIDE |
 | 2026-05-30 v0.108 | LOSE_COLOR_ALL_ZONES：Teamフィールド参照バグ修正 | LOSE_COLOR_ALL_ZONES |
