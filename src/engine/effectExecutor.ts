@@ -7090,9 +7090,18 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'PREVENT_OPP_POWER_PLUS' || stub.id === 'PREVENT_ABILITY_CHANGE_BY_OPP'
           || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP' || stub.id === 'SUPPRESS_GAIN_ABILITY'
           || stub.id === 'PREVENT_INFECTED_SIGNI_ACTIVATE' || stub.id === 'PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE'
-          || stub.id === 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN' || stub.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD'
+          || stub.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD'
           || stub.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY') {
         return done(addLog(ctx, `[保護効果: ${stub.id}]`));
+      }
+      // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: このターン対象ルリグのアタックを防ぐ
+      if (stub.id === 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN') {
+        const tgtPTLAT = ctx.lastProcessedCards?.[0]
+          ?? ctx.otherState.field.lrig.at(-1);
+        if (!tgtPTLAT) return done(addLog(ctx, 'ルリグアタック防止: 対象なし'));
+        const newNegatedPTLAT = [...new Set([...(ctx.otherState.negated_attacks ?? []), tgtPTLAT])];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, negated_attacks: newNegatedPTLAT } },
+          `${ctx.cardMap.get(tgtPTLAT)?.CardName ?? tgtPTLAT}はこのターンアタックできない`));
       }
       // BLOCK_OPP_ENCORE_AND_BET: 相手のアンコール/ベット封じ
       if (stub.id === 'BLOCK_OPP_ENCORE_AND_BET') {
