@@ -193,6 +193,10 @@ function parseUseCondition(text: string): Condition {
   if (text.match(/このシグニがダウン状態/))
     return { type: 'THIS_CARD_IS_DOWN' };
 
+  // このシグニが血晶武装状態
+  if (text.match(/このシグニが血晶武装状態/))
+    return { type: 'THIS_CARD_IS_ARMORED' };
+
   // このカード/シグニ/スペルがトラッシュにある
   if (text.match(/この(?:カード|シグニ|スペル)がトラッシュにある/))
     return { type: 'THIS_CARD_IN_LOCATION', location: 'trash' };
