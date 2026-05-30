@@ -387,6 +387,9 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 v0.111 | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: collectAbilityProtectedSigni+ExecCtx.otherProtectedSigniNumsでfilter | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP |
+| 2026-05-31 v0.111 | SPECIFIC_CARD_COST_REDUCE: collectSpecificCardCostReductions+removeNColorFromCostでアーツコスト軽減 | SPECIFIC_CARD_COST_REDUCE |
+| 2026-05-31 v0.111 | ONE_ATTACK_PER_TURN: effectEngine.calcContinuousBlockedActionsで実装（attacked_signi_ids使用） | ONE_ATTACK_PER_TURN |
 | 2026-05-31 | REDUCE_OPP_HAND_LIMIT: effectEngine.collectHandLimitsで動的実装、HAND_SIZE_INCREASEも同関数に統一 | REDUCE_OPP_HAND_LIMIT, HAND_SIZE_INCREASE |
 | 2026-05-31 | ODD_LEVEL_SIGNI_CANT_ATTACK: effectEngine.calcContinuousBlockedActionsに奇数レベル判定を追加 | ODD_LEVEL_SIGNI_CANT_ATTACK |
 | 2026-05-30 v0.109 | SEED_BLOOM: ON_PLAY効果トリガー実装（開花後にON_PLAYをスタックへ追加） | SEED_BLOOM, SEED_BLOOM_OPTIONAL |
