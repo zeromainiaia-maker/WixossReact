@@ -70,6 +70,8 @@ export interface ExecCtx {
   // CONTINUOUS保護効果（effectEngine動的計算）: 相手の効果でトラッシュに移動できないゾーン
   // ownerProtected = 効果オーナーの保護, otherProtected = 相手の保護
   otherProtectedZones?: ('hand' | 'energy')[];
+  // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手の効果で能力を失えないシグニ（otherState のカード番号）
+  otherProtectedSigniNums?: string[];
 }
 
 export type ExecResult =
