@@ -8888,8 +8888,13 @@ export function parseCardEffects(card: CardData): CardEffect[] {
  */
 function inferTriggerScope(effect: CardEffect, card: CardData): import('../types/effects').TriggerScope | undefined {
   if (effect.effectType !== 'AUTO') return undefined;
-  if (!effect.timing?.includes('ON_PLAY')) return undefined;
   const text = (card.EffectText ?? '') + (card.BurstText ?? '');
+  if (effect.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) {
+    // 「あなたのシグニ１体が血晶武装状態になったとき」→ 味方シグニ全体
+    if (/あなたのシグニ[１-９\d０-９]*体?が血晶武装状態になったとき/.test(text)) return 'any_ally';
+    return 'self'; // 「このシグニが血晶武装状態になったとき」→ 自身のみ
+  }
+  if (!effect.timing?.includes('ON_PLAY')) return undefined;
   // 「他のシグニが場に出たとき」「あなたのシグニが場に出たとき」→ 味方シグニ全体
   if (/他の.*シグニ.*場に出たとき/.test(text) ||
       /あなたのシグニが場に出たとき/.test(text)) {
