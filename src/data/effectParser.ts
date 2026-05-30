@@ -5825,7 +5825,6 @@ function parseSingleSentence(text: string): EffectAction {
       then: { type: 'ADD_TO_HAND', owner } as import('../types/effects').AddToHandAction,
       remainder: { location: 'deck' as import('../types/effects').CardLocation, position: 'top' },
     };
-    void toHand;
   }
 
   // ---- デッキの一番下のカードをチェックゾーンに置く ----
