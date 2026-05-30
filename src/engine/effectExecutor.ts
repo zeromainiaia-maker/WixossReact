@@ -8673,12 +8673,16 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
             return done(addLog({ ...ctx, ownerState: newOwnerNA }, `${ctx.cardMap.get(targetNA)?.CardName ?? targetNA}の能力を無効化`));
           }
           if (inOppNA) {
+            if ((ctx.otherProtectedSigniNums ?? []).includes(targetNA)) {
+              return done(addLog(ctx, `${ctx.cardMap.get(targetNA)?.CardName ?? targetNA}は保護されているため能力を失わない`));
+            }
             const newOtherNA: PlayerState = { ...ctx.otherState, abilities_removed: [...(ctx.otherState.abilities_removed ?? []), targetNA] };
             return done(addLog({ ...ctx, otherState: newOtherNA }, `${ctx.cardMap.get(targetNA)?.CardName ?? targetNA}の能力を無効化`));
           }
         }
-        // 対象が不明: 相手フィールドからSELECT
-        const candNA = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+        // 対象が不明: 相手フィールドからSELECT（保護済みシグニを除く）
+        const candNA = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : [])
+          .filter(n => !(ctx.otherProtectedSigniNums ?? []).includes(n));
         if (candNA.length === 0) return done(addLog(ctx, '無効化対象なし'));
         const thenNA: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_NEGATE_ABILITY' };
         return needsInteraction(ctx, {
