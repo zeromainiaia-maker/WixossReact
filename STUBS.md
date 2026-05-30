@@ -1,16 +1,19 @@
 # STUB実装状況メモ
 
-最終更新: 2026-05-29  
-調査コマンド: `node -e "...effects.json STUB集計..."`（詳細はセッション履歴参照）
+最終更新: 2026-05-30 (v0.105)  
+調査コマンド: `node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json','utf8')); const c={}; for(const [,es] of Object.entries(d)){ if(!Array.isArray(es)) continue; for(const e of es){ const a=e.action; if(a?.type==='STUB'){c[a.id]=(c[a.id]||0)+1;}}} const s=Object.entries(c).sort((a,b)=>b[1]-a[1]); console.log('総計:', s.length, '/', s.reduce((a,b)=>a+b[1],0)); s.slice(0,20).forEach(([k,v])=>console.log(v,k))"`
 
-## 全体サマリー
+## 全体サマリー（v0.105）
 
 | 指標 | 値 |
 |---|---|
-| STUB種別総数 | 503種 |
-| STUB登場総数 | 2,174回 |
-| 真の未ハンドル（executor未登録） | 13回 / 12種 |
-| ログ/スキップのみ（ゲーム効果なし） | 上位30件を以下に記載 |
+| STUB種別総数 | 336種 |
+| STUB登場総数 | 538件 |
+| AUTO/ACTIVATED STUBでif-branchなし | 0種（全てif-branch済み） |
+| CONTINUOUS STUB（effectEngineで動的処理） | 多数 |
+| 「ログのみ」if-branchのSTUB | 少数（COLLAB, SEED_BLOOM系等） |
+
+**注意:** STUB_LOGテーブルはフォールバックとして機能。実際にSTUB_LOGに到達するケースは、if-branchが全パターンをカバーできていないフォールバックケースのみ。
 
 ---
 
