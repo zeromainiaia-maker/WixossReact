@@ -28,40 +28,30 @@
 
 ## 上位STUB詳細
 
-### 件数Top（全件数）
+### AUTO/ACTIVATED STUB上位（v0.105時点）
 
-| 件数 | STUB ID | ステータス | 内容 | executor行 |
-|---|---|---|---|---|
-| 387 | OPTIONAL_COST | ✅ | 任意コスト選択ダイアログ | ~1055 |
-| 106 | ARTS_COST_REDUCTION_BY_EFFECT | ✅ | アーツコスト軽減（支払い時計算済み） | ~2016 |
-| 59 | TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST | ✅ | 任意コストとして処理 | ~1072 |
-| 57 | POWER_MOD_PER_COUNT | ⚡ | カウント別パワー変更（部分実装） | ~2221 |
-| 52 | TARGET_AND_DISCARD_HAND | ⚡ | 手札捨て+バニッシュ（SEQUENCE内とfallback） | ~1001,2217 |
-| 45 | CONDITIONAL_POWER_BONUS | ⚡ | 条件付きパワーボーナス | 要確認 |
-| 42 | RULE_REMINDER_TEXT | ✅ | 説明テキスト（無音スキップ） | ~2003 |
-| 39 | GRANT_QUOTED_AUTO_ABILITY | ✅ | キーワード能力付与 | ~2102 |
-| 35 | DECLARE_NUMBER | ✅ | 1〜5宣言ダイアログ | ~2020 |
-| 33 | OPTIONAL_TRASH_ENERGY_CLASS | ✅ | 任意コストとして処理 | ~2007 |
-| 33 | LRIG_GROW_RESTRICT | ⚡ | ルリググロウ制限（部分） | 要確認 |
-| 29 | SOUL_OP | ⚡ | ソウルメカニクス（複数サブパターン実装） | ~3021 |
-| 29 | LOOK_OPP_LIFE_TOP | ✅ | 相手ライフ確認（ログ出力） | ~2179 |
-| 28 | TRADE_BANISH_SELF_SIGNI | ✅ | 自シグニトラッシュ→相手シグニバニッシュ | ~2198 |
-| 23 | LRIG_UNDER_CARD_OP | ⚡ | ルリグデッキ下操作（複数パターン） | ~2128 |
-| 22 | GRANT_ABILITY_INNER_TEXT | ✅ | キーワード能力付与（quoted版） | ~2102 |
-| 21 | GAIN_SUBSCRIBER_COUNT | 📝 | チャンネル登録数カウント（スキップ） | STUB_LOG |
-| 17 | LOOK_AND_REORDER | ⚡ | デッキ並べ替え（STUB版は限定対応） | ~3131 |
-| 17 | DECLARE_CARD_NAME | 📝 | カード名宣言（ログのみ） | ~2038 |
-| 16 | REVEAL_PICK_HAND_SHUFFLE_BOTTOM | ⚡ | 公開ピック→手札 | 要確認 |
-| 16 | GRANT_QUOTED_ABILITY | ✅ | 引用符付き能力付与 | ~2102 |
-| 16 | COPY_LRIG_NAME_ABILITY | 📝 | ルリグ名コピー（ログのみ） | ~2814 |
-| 15 | REVEAL_PICK_PLAY | ⚡ | 公開ピック→プレイ | 要確認 |
-| 15 | TARGET_ONLY | 📝 | 対象選択のみ（ログのみ） | ~2993 |
-| 14 | GAIN_ABILITY_THIS_GAME | 📝 | このゲームの間能力付与（ログのみ） | ~2963 |
-| 14 | ARTS_COST_REDUCTION_BY_CENTER_LRIG | ✅ | センタールリグによるコスト軽減（スキップ） | ~2016 |
-| 14 | CONDITIONAL_ARTS_COST | ⚡ | 条件付きアーツコスト | 要確認 |
-| 13 | BET_MECHANIC | 📝 | ベット（BattleScreen側） | ~2098 |
-| 13 | REVEAL_AND_PICK | ⚡ | 公開してピック | 要確認 |
-| 12 | TRAP_OPERATION | 📝 | トラップ操作（ログのみ・ゾーン未実装） | ~6064 |
+| 件数 | STUB ID | ステータス | 内容 |
+|---|---|---|---|
+| 16 | GAIN_SUBSCRIBER_COUNT | ✅ | 登録者数カウント（if-branch実装済み）|
+| 12 | GRANT_QUOTED_AUTO_ABILITY | ✅ | キーワード能力付与（if-branch実装済み） |
+| 11 | SOUL_OP | ⚡ | ソウルメカニクス（複数サブパターン実装） |
+| 10 | SONG_FRAGMENT | ✅ | 歌のカケラ効果（if-branch実装済み） |
+| 9 | GRANT_QUOTED_ABILITY | ✅ | 引用符付き能力付与（if-branch実装済み） |
+| 9 | GRANT_ABILITY_INNER_TEXT | ✅ | キーワード能力付与（if-branch実装済み） |
+| 6 | CRAFT_TO_LRIG_DECK | ✅ | クラフトをルリグデッキに（if-branch実装済み） |
+| 5 | MOVE_TO_OTHER_SIGNI_ZONE | ✅ | シグニゾーン移動（if-branch実装済み） |
+| 5 | TRASH_SIGNI_UNDER_FIELD_SIGNI | ✅ | ライズ機構シグニ下トラッシュ（if-branch実装済み） |
+| 5 | COUNT_BASED_DRAW_OR_POWER | ✅ | カウント基準ドロー/パワー（if-branch実装済み） |
+| 4 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER | ✅ | センタールリグ多択（if-branch実装済み） |
+| 4 | SEED_BLOOM | 📝 | シードブルーム（ログのみ・難度D） |
+| 4 | COLLAB | 📝 | コラボ効果（if-branchあるが「ログのみ」） |
+| 3 | ACTIVATE_TRAP | ✅ | トラップ発動（if-branch実装済み） |
+| 3 | ACCE_FROM_HAND | ✅ | 手札からアクセ（if-branch実装済み） |
+| 3 | CLASS_CHANGE | ✅ | クラス変更（if-branch実装済み） |
+| 3 | POWER_MOD_PER_COUNT | ✅ | パワー修正（カウント別）（if-branch実装済み） |
+| 3 | DO_THREE_THINGS | ✅ | 3択効果（if-branch実装済み） |
+| 3 | PLACE_CARD_UNDER_SIGNI | ✅ | カードをシグニ下に（if-branch実装済み） |
+| 3 | MAKE_SERVANT_ZERO | ✅ | サーバントゼロ（if-branch実装済み） |
 
 ### ログのみ Top（game効果ゼロ）
 
