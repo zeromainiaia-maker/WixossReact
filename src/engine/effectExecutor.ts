@@ -871,6 +871,10 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
       : 'ルリグ';
     return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`));
   }
+  // PREVENT_SIGNI_DOWN_BY_OPP: 相手がターゲットのシグニをダウンさせようとした場合は無効
+  if (a.target.owner === 'opponent' && ctx.otherState.prevent_signi_down_by_opp) {
+    return done(addLog(ctx, '相手シグニダウン無効（ダウン防止効果）'));
+  }
   const state = ownerState(a.target.owner, ctx);
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
 
