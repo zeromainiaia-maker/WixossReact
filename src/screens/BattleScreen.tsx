@@ -2151,6 +2151,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           card_class_overrides: undefined,         // クラスオーバーライドリセット
           signi_color_overrides: undefined,        // シグニ色オーバーライドリセット
           disabled_signi_zones: undefined,         // ゾーン無効化リセット
+          attacked_signi_ids: undefined,            // アタック済みシグニIDリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
