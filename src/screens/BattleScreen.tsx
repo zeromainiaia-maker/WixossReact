@@ -4909,6 +4909,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       e.effectType === 'ACTIVATED' &&
       !(my.actions_done?.includes(e.effectId)) &&
       !(my.blocked_actions?.includes(e.effectId)) &&
+      !isActionBlocked('USE_ACT') &&
       (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP' || phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG') &&
       (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, keyNum, phase, effectivePowers)),
     );
