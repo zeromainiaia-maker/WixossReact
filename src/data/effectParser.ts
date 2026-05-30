@@ -8560,8 +8560,8 @@ function parseActionText(text: string): EffectAction {
 // ===== 効果ブロック分割 =====
 
 function splitEffectBlocks(text: string): string[] {
-  // 「。」の直後に【常/出/起/自/ガード】が来る箇所で分割（lookbehind）
-  return text.split(/(?<=。)(?=【(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
+  // 「。」の直後に【(クロス)?(常|出|起|自|ガード)】が来る箇所で分割
+  return text.split(/(?<=。)(?=【(?:クロス)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
 }
 
 // ===== 単一ブロックパース =====
