@@ -3216,7 +3216,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
             }
           }
           if (untilNameRU && declaredNameRU && card?.CardName === declaredNameRU) stop = true;
-          if (!untilSigniRU && !untilNameRU) { stop = true; break; } // 条件不明：先頭1枚
+          if (!untilSigniRU && !untilNameRU) { break; } // 条件不明：先頭1枚
           if (stop) { hitCardRU = cn; break; }
         }
         const nonHitRU = revealedRU.filter(cn => cn !== hitCardRU);
