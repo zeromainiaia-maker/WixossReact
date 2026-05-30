@@ -8773,7 +8773,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
 function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
-  const stripped = stripRuleParens(card.EffectText);
+  // アンコール（《cost》（説明）本文）とベット（《cost》本文）のプレフィックスを除去してから解析
+  const stripped = stripRuleParens(card.EffectText)
+    .replace(/^(?:アンコール－|ベット[―─])(?:《[^》]+》)*\s*/, '');
   const { cleaned, condition } = extractUseCondition(stripped);
   let action = parseActionText(condition ? cleaned : stripped);
   const hasUnknown = action.type === 'UNKNOWN'
