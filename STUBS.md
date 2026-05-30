@@ -158,12 +158,28 @@
 | 2026-05-30 | GRANT_QUOTED_AUTO_ABILITYのknownKeywordsに Sランサー等追加 | GRANT_QUOTED_AUTO_ABILITY |
 | 2026-05-30 | 英知=N 条件をACTIVE_CONDITIONとして正確にパース（EICHI_LEVEL_SUM型追加） | 英知システム全般 |
 | 2026-05-30 | CONTINUOUS英知効果の動的チェック（collectEichiStubEffects）・UI反映 | SUPPRESS_LIFE_BURST_ON_CRASH(英知=8) |
+| 2026-05-30 | ON_ATTACK_SIGNIトリガーでMOVE_TO_ATTACKER_FRONTを防御側として収集・executor.tsでゾーン移動実装 | MOVE_TO_ATTACKER_FRONT |
+| 2026-05-30 | signi_color_overridesに'無'を設定してシグニ色喪失（ENDフェーズリセット済み） | SIGNI_LOSE_COLOR |
 
 ---
 
+## 全体サマリー（2026-05-30 v0.105時点）
+
+| 指標 | 値 |
+|---|---|
+| STUB種別総数 | 336種 |
+| STUB登場総数 | 538件 |
+| if-branchなしのAUTO/ACTIVATED STUB | 0種 |
+| 「ログのみ」のif-branchを持つSTUB（AUTO/ACTIVATED） | 少数（COLLABなど） |
+
+**現状の理解:**
+- AUTO/ACTIVATEDのSTUBは全てif-branchで処理されている
+- 「本当のSTUB_LOG（ゲーム効果なし）」は、if-branchで「ログのみ」を返すSTUBに限られる
+- 主な残課題：SEED_BLOOM系（シードゾーン未実装・難度D）、COLLAB（コラボ状態未実装）、ブロック効果系（複雑）
+
 ## 実装優先度メモ
 
-**A（即実装可）:** GRANT_GUARD_ICON_HAND_SIGNI, DOWN_UP_SIGNI_AND_CHOOSE, LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END  
-**B（中難度）:** DESIGNATE_SIGNI_ZONE, REMOVE_VIRUS, ACCE_FROM_HAND, TRASH_SIGNI_UNDER_FIELD_SIGNI, OPP_GUARD_COST_COLORLESS, LOSE_COLOR_ALL_ZONES  
-**C（高難度）:** SOUL_OP, PLAY_FREE(STUB版), DO_THREE_THINGS  
-**D（新規ゾーン必要）:** TRAP_OPERATION, PLACE_SEED_FROM_REVEALED  
+**即実装可:** SIGNI_LOSE_COLOR✅, MOVE_TO_ATTACKER_FRONT✅
+**中難度:** COLLAB（コラボ状態フラグ設定）, LIMIT_OPP_SIGNI_ATTACKS_ONCE（アタック制限）
+**高難度:** SEED_BLOOM（シードゾーン新設）, ENCORE（アーツ再使用）
+**ブロック効果系（BattleScreen変更必要）:** BLOCK_OPP_ARTS_SPELL_ACT, OPP_TURN_NO_ENERGY_COST  
