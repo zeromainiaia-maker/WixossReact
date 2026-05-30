@@ -131,23 +131,15 @@ v0.105時点でexecutor.tsのif-branchが全てのAUTO/ACTIVATEDのSTUBをカバ
 
 ---
 
-## 全体サマリー（2026-05-30 v0.105時点）
+## 次回実装優先度
 
-| 指標 | 値 |
-|---|---|
-| STUB種別総数 | 336種 |
-| STUB登場総数 | 538件 |
-| if-branchなしのAUTO/ACTIVATED STUB | 0種 |
-| 「ログのみ」のif-branchを持つSTUB（AUTO/ACTIVATED） | 少数（COLLABなど） |
+**中難度:**
+- COLLAB（4件）: コラボ状態フラグ設定 + BattleScreen対応
+- LIMIT_OPP_SIGNI_ATTACKS_ONCE（1件）: BattleScreenでアタック制限チェック
 
-**現状の理解:**
-- AUTO/ACTIVATEDのSTUBは全てif-branchで処理されている
-- 「本当のSTUB_LOG（ゲーム効果なし）」は、if-branchで「ログのみ」を返すSTUBに限られる
-- 主な残課題：SEED_BLOOM系（シードゾーン未実装・難度D）、COLLAB（コラボ状態未実装）、ブロック効果系（複雑）
+**高難度:**
+- SEED_BLOOM（4件）: シードゾーン新設が必要
+- ENCORE（2件）: アーツ再使用ロジック
 
-## 実装優先度メモ
-
-**即実装可:** SIGNI_LOSE_COLOR✅, MOVE_TO_ATTACKER_FRONT✅
-**中難度:** COLLAB（コラボ状態フラグ設定）, LIMIT_OPP_SIGNI_ATTACKS_ONCE（アタック制限）
-**高難度:** SEED_BLOOM（シードゾーン新設）, ENCORE（アーツ再使用）
-**ブロック効果系（BattleScreen変更必要）:** BLOCK_OPP_ARTS_SPELL_ACT, OPP_TURN_NO_ENERGY_COST  
+**BattleScreen変更必要:**
+- BLOCK_OPP_ARTS_SPELL_ACT, OPP_TURN_NO_ENERGY_COST など
