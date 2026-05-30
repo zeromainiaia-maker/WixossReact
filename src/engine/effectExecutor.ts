@@ -1363,11 +1363,47 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   return done(addLog(ctx2, `${cardName}を${targetName}にチャームとして付与`));
 }
 
+/** LEVEL_REFERENCE_OVERRIDE: カードテキストから許容レベル範囲を解析して返す。
+ * 「レベルを参照する場合、レベル４として扱ってもよい」→ { min:4, max:4 }
+ * 「レベルを参照する場合、１～４いずれかのレベル１つとして扱ってもよい」→ { min:1, max:4 }
+ */
+function getLevelReferenceOverride(card: import('../types').CardData | undefined): { min: number; max: number } | null {
+  const txt = card?.EffectText ?? '';
+  if (!txt.includes('レベルを参照する場合')) return null;
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  // 「レベルＮとして扱ってもよい」
+  const single = txt.match(/レベルを参照する場合、レベル([０-９\d]+)として扱ってもよい/);
+  if (single) {
+    const lv = parseInt(toHW(single[1]));
+    return { min: lv, max: lv };
+  }
+  // 「Ｎ～Ｍいずれかのレベル１つとして扱ってもよい」
+  const range = txt.match(/レベルを参照する場合、([０-９\d]+)～([０-９\d]+)いずれかのレベル/);
+  if (range) {
+    return { min: parseInt(toHW(range[1])), max: parseInt(toHW(range[2])) };
+  }
+  return null;
+}
+
 function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   const count = resolveNum(a.revealCount);
   const visible = state.deck.slice(0, count);
-  const pickable = a.filter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter)) : visible;
+  let pickable = a.filter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter)) : visible;
+  // LEVEL_REFERENCE_OVERRIDE: レベルフィルターがある場合、デッキ/手札/トラッシュ中の
+  // 「レベル参照上書き」カードも対象に含める
+  if (a.filter?.level !== undefined) {
+    const targetLevel = typeof a.filter.level === 'number' ? a.filter.level : null;
+    if (targetLevel !== null) {
+      const overridable = visible.filter(n => {
+        if (pickable.includes(n)) return false;
+        const card = ctx.cardMap.get(n);
+        const override = getLevelReferenceOverride(card);
+        return override !== null && targetLevel >= override.min && targetLevel <= override.max;
+      });
+      if (overridable.length > 0) pickable = [...pickable, ...overridable];
+    }
+  }
   const maxPick = a.pickCount === 'ALL' ? pickable.length : a.pickCount;
 
   if (pickable.length === 0) {
