@@ -1855,6 +1855,64 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return newInEnergy.filter(n => before.trash.includes(n));
   };
 
+  // 新たに血晶武装状態になったシグニのCardNumとゾーンインデックスを検出
+  const detectNewlyArmored = (before: PlayerState, after: PlayerState): string[] => {
+    const result: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const wasBefore = before.field.signi_armor?.[i] ?? false;
+      const isAfter   = after.field.signi_armor?.[i]  ?? false;
+      if (!wasBefore && isAfter) {
+        const cardNum = after.field.signi[i]?.at(-1);
+        if (cardNum) result.push(cardNum);
+      }
+    }
+    return result;
+  };
+
+  // ON_BLOOD_CRYSTAL_ARMOR トリガーを収集する
+  const collectArmorTriggers = (
+    armoredCardNum: string,
+    armoredPlayerId: string,
+    afterHostState: PlayerState,
+    afterGuestState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const ownerStateAfter = armoredPlayerId === bs!.host_id ? afterHostState : afterGuestState;
+    // このシグニ自身の ON_BLOOD_CRYSTAL_ARMOR (scope=self)
+    for (const eff of (effectsMap.get(armoredCardNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'self') continue;
+      entries.push({
+        id: generateUUID(),
+        playerId: armoredPlayerId,
+        cardNum: armoredCardNum,
+        effectId: eff.effectId,
+        label: `${battleCardMap.get(armoredCardNum)?.CardName ?? armoredCardNum} の【血晶武装時】効果`,
+        effect: eff,
+      });
+    }
+    // フィールド上の全シグニの ON_BLOOD_CRYSTAL_ARMOR (scope=any_ally)
+    for (const stack of ownerStateAfter.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_ally' && scope !== 'any') continue;
+        entries.push({
+          id: generateUUID(),
+          playerId: armoredPlayerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（血晶武装時）`,
+          effect: eff,
+        });
+      }
+    }
+    return entries;
+  };
+
   // フィールドからトラッシュに移動したシグニを検出（ON_TRASHトリガー用）
   const detectTrashedSigni = (before: PlayerState, after: PlayerState): string[] => {
     const result: string[] = [];
