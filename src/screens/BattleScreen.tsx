@@ -3858,10 +3858,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // キーワード能力を確認
       const myGrants = my.keyword_grants;
-      const isAssassin    = hasKeyword(myTopNum, 'アサシン',      battleCardMap, myGrants);
-      const isLancer      = hasKeyword(myTopNum, 'ランサー',      battleCardMap, myGrants);
-      const isSLancer     = hasKeyword(myTopNum, 'Sランサー',     battleCardMap, myGrants);
-      const isDoubleCrush = hasKeyword(myTopNum, 'ダブルクラッシュ', battleCardMap, myGrants);
+      // CONTINUOUS GRANT_KEYWORD: 血晶武装状態のシグニへの動的キーワード付与を確認
+      const myArmoredNums = new Set(
+        my.field.signi.flatMap((stack, i) =>
+          (my.field.signi_armor?.[i] && stack?.at(-1)) ? [stack.at(-1)!] : [],
+        ),
+      );
+      const contGrantedKeywords = new Set<string>();
+      for (const stack of my.field.signi) {
+        if (!stack?.length) continue;
+        const sourceNum = stack[stack.length - 1];
+        for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+          if (eff.effectType !== 'CONTINUOUS') continue;
+          const gkAction = eff.action.type === 'GRANT_KEYWORD' ? eff.action : null;
+          if (!gkAction || (gkAction as import('../types/effects').GrantKeywordAction).target.count !== 'ALL') continue;
+          const gkA = gkAction as import('../types/effects').GrantKeywordAction;
+          if (gkA.target.filter?.isArmored && !myArmoredNums.has(myTopNum)) continue;
+          if (gkA.target.filter?.isArmored === false && myArmoredNums.has(myTopNum)) continue;
+          contGrantedKeywords.add(gkA.keyword);
+        }
+      }
+      const hasGrantedKeyword = (kw: string) =>
+        hasKeyword(myTopNum, kw, battleCardMap, myGrants) || contGrantedKeywords.has(kw);
+      const isAssassin    = hasGrantedKeyword('アサシン');
+      const isLancer      = hasGrantedKeyword('ランサー');
+      const isSLancer     = hasGrantedKeyword('Sランサー');
+      const isDoubleCrush = hasGrantedKeyword('ダブルクラッシュ');
 
       // アサシン：正面シグニを無視してライフへ直接アタック
       const effectivelyEmpty = !opTopCardNum || isAssassin;
