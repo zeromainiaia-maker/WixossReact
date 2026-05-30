@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost } from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits } from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -1188,6 +1188,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs, battleCardMap, effectsMap, user.id]);
 
+  // HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT: 実効手札上限（自分のターン終了時に適用）
+  const myEffectiveHandLimit = useMemo(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return 6;
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    return collectHandLimits(myS, opS, battleCardMap, effectsMap);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
   // pending_effectが変わったらカード選択をリセット（別効果の選択状態が残らないように）
   useEffect(() => {
     setEffectSelectedNums([]);
@@ -2174,8 +2184,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
-        // ENDフェーズ：手札上限チェック（HAND_SIZE_INCREASE効果）
-        const handLimitEND = my.hand_limit ?? 6;
+        // ENDフェーズ：手札上限チェック（HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT 効果）
+        const handLimitEND = myEffectiveHandLimit;
         let myHandEND = my.hand;
         let myTrashEND = my.trash;
         if (my.hand.length > handLimitEND) {

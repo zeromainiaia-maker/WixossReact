@@ -62,7 +62,7 @@
 | 2 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
 | 2 | ACTIVATED/AUTO | ⚡ | GRANT_CHOSEN_ABILITY |
 | 2 | CONT | 📝 | GRANT_QUOTED_ACTIVATE_ABILITY |
-| 2 | CONT | ✅ | HAND_SIZE_INCREASE |
+| 2 | CONT | ✅ | HAND_SIZE_INCREASE ※effectEngine.collectHandLimitsで動的計算に移行 |
 | 2 | AUTO | ⚡ | HAND_TO_ENERGY_OPTIONAL |
 | 2 | ACTIVATED/AUTO | ⚡ | LAYER_ABILITY_COPY |
 | 2 | AUTO/ACTIVATED | ⚡ | LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END |
@@ -222,7 +222,7 @@
 | 1 | CONT | 📝 | NO_ABILITY_SIGNI_TO_DECK_BOTTOM |
 | 1 | AUTO | ⚡ | NON_GUARD_DISCARD_TO_ENERGY |
 | 1 | ACTIVATED | ⚡ | NON_LRIG_TO_LRIG_TRASH |
-| 1 | CONT | 📝 | ODD_LEVEL_SIGNI_CANT_ATTACK |
+| 1 | CONT | ✅ | ODD_LEVEL_SIGNI_CANT_ATTACK ※effectEngine.calcContinuousBlockedActionsで実装 |
 | 1 | AUTO | ⚡ | OPP_CHOOSE_EFFECT |
 | 1 | AUTO | ⚡ | OPP_CHOOSES_FOR_YOU |
 | 1 | CONT | 📝 | OPP_ENERGY_COLOR_CONDITION_TRASH |
@@ -303,7 +303,7 @@
 | 1 | CONT | 📝 | PREVENT_SIGNI_DOWN_BY_OPP_ALL |
 | 1 | CONT | 📝 | PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH |
 | 1 | ACTIVATED | ⚡ | PREVENT_TARGET_LRIG_ATTACK_THIS_TURN |
-| 1 | CONT | 📝 | REDUCE_OPP_HAND_LIMIT |
+| 1 | CONT | ✅ | REDUCE_OPP_HAND_LIMIT ※effectEngine.collectHandLimitsで実装 |
 | 1 | ACTIVATED | ⚡ | REDUCE_PLAY_ABILITY_COST |
 | 1 | CONT | 📝 | REMOVE_OPP_MULTI_ENA |
 | 1 | CONT | 📝 | REMOVE_OPP_MULTI_ENA_ONLY |
@@ -387,6 +387,8 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 | REDUCE_OPP_HAND_LIMIT: effectEngine.collectHandLimitsで動的実装、HAND_SIZE_INCREASEも同関数に統一 | REDUCE_OPP_HAND_LIMIT, HAND_SIZE_INCREASE |
+| 2026-05-31 | ODD_LEVEL_SIGNI_CANT_ATTACK: effectEngine.calcContinuousBlockedActionsに奇数レベル判定を追加 | ODD_LEVEL_SIGNI_CANT_ATTACK |
 | 2026-05-30 v0.109 | SEED_BLOOM: ON_PLAY効果トリガー実装（開花後にON_PLAYをスタックへ追加） | SEED_BLOOM, SEED_BLOOM_OPTIONAL |
 | 2026-05-30 v0.109 | WXK04-060 ON_BANISH条件修正（相手ターンのみ・manualEffects） | WXK04-060 |
 | 2026-05-30 v0.109 | collectBanishTriggersにactiveConditionチェック追加 | ON_BANISH全般 |

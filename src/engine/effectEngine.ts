@@ -682,6 +682,25 @@ export function calcContinuousBlockedActions(
   scanField(ownerState, otherState, isOwnerTurn, true);
   scanField(otherState, ownerState, !isOwnerTurn, false);
 
+  // ODD_LEVEL_SIGNI_CANT_ATTACK: 相手フィールドにこの効果があれば自分の奇数レベルシグニはアタック不可
+  for (const stack of otherState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasEffect = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'ODD_LEVEL_SIGNI_CANT_ATTACK' &&
+      checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap),
+    );
+    if (!hasEffect) continue;
+    for (const myStack of ownerState.field.signi) {
+      if (!myStack?.length) continue;
+      const myTop = myStack[myStack.length - 1];
+      const level = parseInt(cardMap.get(myTop)?.Level ?? '', 10);
+      if (!isNaN(level) && level % 2 === 1) cannotAttackSigni.add(myTop);
+    }
+  }
+
   return { forSelf, forOther, cannotAttackSigni };
 }
 
@@ -904,4 +923,55 @@ export function collectOppGuardExtraColorlessCost(
     }
   }
   return false;
+}
+
+/**
+ * HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT:
+ * ownerState のターン終了時に適用される実効手札上限を返す。
+ * - ownerState のフィールドにある HAND_SIZE_INCREASE 効果で上限を増加
+ * - opponentState のフィールドにある REDUCE_OPP_HAND_LIMIT 効果で上限を減少
+ */
+export function collectHandLimits(
+  ownerState: PlayerState,
+  opponentState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): number {
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  let limit = 6;
+
+  const scanForStub = (state: PlayerState, stubId: string, callback: (txt: string) => void) => {
+    const candidates: string[] = [];
+    for (const stack of state.field.signi) {
+      const top = stack?.at(-1);
+      if (top) candidates.push(top);
+    }
+    if (state.field.lrig.length > 0) candidates.push(state.field.lrig.at(-1)!);
+    for (const cn of candidates) {
+      for (const eff of (effectsMap.get(cn) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type !== 'STUB' || act.id !== stubId) continue;
+        const card = cardMap.get(cn);
+        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+        callback(txt);
+      }
+    }
+  };
+
+  scanForStub(ownerState, 'HAND_SIZE_INCREASE', (txt) => {
+    const becomeM   = txt.match(/[（(].*から([０-９\d]+)枚になる[）)]/);
+    const increaseM = txt.match(/手札の枚数の上限は([０-９\d]+)増える/);
+    const directM   = txt.match(/手札を([０-９\d]+)枚まで/);
+    if (becomeM)    limit = parseInt(toHW(becomeM[1]));
+    else if (increaseM) limit += parseInt(toHW(increaseM[1]));
+    else if (directM)   limit = parseInt(toHW(directM[1]));
+  });
+
+  scanForStub(opponentState, 'REDUCE_OPP_HAND_LIMIT', (txt) => {
+    const reduceM = txt.match(/手札の上限は([０-９\d]+)減る/);
+    limit -= reduceM ? parseInt(toHW(reduceM[1])) : 1;
+  });
+
+  return Math.max(0, limit);
 }
