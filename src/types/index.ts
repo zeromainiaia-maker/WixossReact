@@ -154,6 +154,8 @@ export interface PlayerState {
   energy_color_substitutes?: { from: string[]; to: string }[];
   // このターンにアタックしたシグニのCardNum一覧（ターン終了時リセット）
   attacked_signi_ids?: string[];
+  // このターン、自分のシグニは合計1回しかアタックできない（LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL）
+  signi_attack_once_limit?: boolean;
 }
 
 export interface GameLog {
