@@ -9210,18 +9210,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           ACTIVATE_COST_ZERO_BLACK: '黒の起動コスト0',
           BET_CONDITION: 'ベット条件',
           TRADE_SELF_AND_OPP_TO_ENERGY: '自分と相手をエナに',
-          // 真の未ハンドルSTUBをログのみで追加
-          END_ATTACK_IF_EXTRA_TURN: '追加ターン時アタック終了',
-          SUPPRESS_GAIN_ABILITY: '能力取得を抑制',
-          PREVENT_SIGNI_DOWN_BY_OPP: '相手効果によるシグニダウン防止',
-          ALL_PLAYER_MILL: '全プレイヤーデッキトップをトラッシュ',
-          ADJACENT_SIGNI_POWER_MOD: '隣接シグニパワー修正',
-          PREVENT_OPP_UPKEEP: '相手アップキープ阻止',
-          BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: '相手ターン中シグニ配置禁止',
-          LIMIT_OPP_ATTACK_ONCE: '相手アタック回数1回に制限',
-          SUPPRESS_OPP_SIGNI_ABILITIES: '相手シグニ能力抑制',
-          DRAW_IF_OPP_DISCARDED_HAND: '相手が手札を捨てた時ドロー',
-          OPTIONAL_DISCARD_GUARD: '任意捨てガード',
         };
         const logMsg = STUB_LOG[stub.id];
         if (logMsg !== undefined) {
