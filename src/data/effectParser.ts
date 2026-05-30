@@ -8853,7 +8853,15 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   } else {
     // シグニ・ルリグ：EffectTextを複数ブロックに分割して解析
     if (card.EffectText && card.EffectText !== '-') {
-      splitEffectBlocks(stripRuleParens(card.EffectText)).forEach((block, i) => {
+      let effectText = card.EffectText;
+      // クロスアイコン prefix の検出と除去
+      if (effectText.startsWith('《クロスアイコン》')) {
+        card.hasCrossIcon = true;
+        const crossM = effectText.match(/^《クロスアイコン》([^【]+)/);
+        if (crossM) card.crossConditionText = crossM[1].trim();
+        effectText = effectText.replace(/^《クロスアイコン》[^【]*/, '');
+      }
+      splitEffectBlocks(stripRuleParens(effectText)).forEach((block, i) => {
         const e = parseBlock(card.CardNum, block, i);
         if (e) effects.push(e);
       });
