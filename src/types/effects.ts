@@ -77,6 +77,7 @@ export type ActiveCondition =
   | { type: 'SELF_POWER_THRESHOLD'; operator: CompareOp; value: number }
   | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札と相手の手札の差
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
+  | { type: 'IS_SELF_ARMORED' }                                 // このシグニが血晶武装状態であるかぎり
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
