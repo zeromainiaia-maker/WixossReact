@@ -1063,3 +1063,61 @@ export function collectSpecificCardCostReductions(
   }
   return reductions;
 }
+
+// ===== クロスシグニ状態計算 =====
+
+function getZoneTopCardName(state: PlayerState, zoneIndex: number, cardMap: Map<string, CardData>): string | null {
+  const stack = state.field.signi[zoneIndex];
+  if (!stack || stack.length === 0) return null;
+  return cardMap.get(stack[stack.length - 1])?.CardName ?? null;
+}
+
+function evaluateSingleCross(state: PlayerState, zoneIndex: number, text: string, cardMap: Map<string, CardData>): boolean {
+  const m = text.match(/《([^》]+)》の([左右])/);
+  if (!m) return false;
+  // "の左" = このシグニはcardNameの左にいる → cardNameはzoneIndex+1にいる
+  // "の右" = このシグニはcardNameの右にいる → cardNameはzoneIndex-1にいる
+  const targetZone = m[2] === '左' ? zoneIndex + 1 : zoneIndex - 1;
+  if (targetZone < 0 || targetZone > 2) return false;
+  return getZoneTopCardName(state, targetZone, cardMap) === m[1];
+}
+
+function evaluateCrossCondition(state: PlayerState, zoneIndex: number, condText: string, cardMap: Map<string, CardData>): boolean {
+  const text = condText.replace(/（[^）]*）/g, '').trim();
+
+  if (text.includes('かつ')) {
+    return text.split(/\s*かつ\s*/).every(part => evaluateSingleCross(state, zoneIndex, part.trim(), cardMap));
+  }
+
+  if (text.includes('か')) {
+    // 形式1: 《X》の右か《Y》の左 - 各部分が独立した方向を持つ
+    const explicitParts = text.match(/《[^》]+》の[左右]/g);
+    if (explicitParts && explicitParts.length >= 2) {
+      return explicitParts.some(part => evaluateSingleCross(state, zoneIndex, part, cardMap));
+    }
+    // 形式2: 《X》か《Y》の左 - 共通の方向
+    const sharedM = text.match(/^((?:《[^》]+》か?)+)の([左右])$/);
+    if (sharedM) {
+      const names = [...sharedM[1].matchAll(/《([^》]+)》/g)].map(m => m[1]);
+      const dir = sharedM[2];
+      const targetZone = dir === '左' ? zoneIndex + 1 : zoneIndex - 1;
+      if (targetZone < 0 || targetZone > 2) return false;
+      const targetName = getZoneTopCardName(state, targetZone, cardMap);
+      return names.some(n => targetName === n);
+    }
+  }
+
+  return evaluateSingleCross(state, zoneIndex, text, cardMap);
+}
+
+export function collectCrossStates(playerState: PlayerState, cardMap: Map<string, CardData>): boolean[] {
+  const result = [false, false, false];
+  for (let z = 0; z < 3; z++) {
+    const stack = playerState.field.signi[z];
+    if (!stack || stack.length === 0) continue;
+    const card = cardMap.get(stack[stack.length - 1]);
+    if (!card?.hasCrossIcon || !card.crossConditionText) continue;
+    result[z] = evaluateCrossCondition(playerState, z, card.crossConditionText, cardMap);
+  }
+  return result;
+}
