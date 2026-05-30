@@ -3488,7 +3488,12 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // アーツ使用時にルリグデッキからアーツを任意でルリグトラッシュへ
       if (stub.id === 'ARTS_USE_DISCARD_LRIG_DECK') {
         const lrigDeck = ctx.ownerState.lrig_deck ?? [];
-        const artsInDeck = lrigDeck.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
+        const artsInDeck = lrigDeck.filter(cn => {
+          const c = ctx.cardMap.get(cn);
+          if (c?.Type !== 'アーツ') return false;
+          const effs = parseCardEffects(c);
+          return !effs.some(e => e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' && (e.action as import('../types/effects').StubAction).id === 'ARTS_IMMOVABLE');
+        });
         if (artsInDeck.length === 0) return done(addLog(ctx, 'ルリグデッキにアーツなし'));
         const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
         // 任意なのでスキップ選択肢も提供
