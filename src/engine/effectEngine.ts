@@ -717,6 +717,32 @@ export function collectColorlessOverrides(
 }
 
 /**
+ * 英知CONTINUOUS STUB効果を収集する。英知=N条件を満たすシグニのSTUB IDリストを返す。
+ * 主に SUPPRESS_LIFE_BURST_ON_CRASH, ADJACENT_ZONE_ATTACK などを BattleScreen で動的チェックするために使用。
+ */
+export function collectEichiStubEffects(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const result: string[] = [];
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!eff.activeCondition || eff.activeCondition.type !== 'EICHI_LEVEL_SUM') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, top)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB') result.push(act.id);
+    }
+  }
+  return result;
+}
+
+/**
  * PREVENT_ZONE_MOVE_BY_OPP: フィールドのシグニがCONTINUOUS保護効果を持つ場合、
  * 保護されているゾーン（'hand' | 'energy'）を動的に返す。
  * state のフィールド上シグニとキーピースを走査する。
