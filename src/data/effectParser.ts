@@ -8555,8 +8555,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   const colonIdx = afterMarker.indexOf('：');
   if (colonIdx < 0) return null;
 
-  const costStr = afterMarker.slice(0, colonIdx).trim();
+  let costStr = afterMarker.slice(0, colonIdx).trim();
   let actionText = afterMarker.slice(colonIdx + 1).trim();
+
+  // 英知=N 条件を costStr から抽出（AUTO/ACTIVATED 効果の使用条件）
+  let eichiCondition: ActiveCondition | undefined;
+  const eichiInCostM = costStr.match(/^英知=([０-９\d]+)\s*/);
+  if (eichiInCostM) {
+    const toHWEC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+    eichiCondition = { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: parseInt(toHWEC(eichiInCostM[1])) } as ActiveCondition;
+    costStr = costStr.slice(eichiInCostM[0].length).trim();
+  }
 
   let effectType: EffectType;
   let timing: EffectTiming[] | undefined;
@@ -8566,7 +8575,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     case '常': effectType = 'CONTINUOUS'; mandatory = true; break;
     case '出':
       effectType = 'AUTO'; timing = ['ON_PLAY'];
-      mandatory = costStr === '';
+      mandatory = costStr === '' && !eichiCondition;
       break;
     case '起': effectType = 'ACTIVATED'; timing = ['MAIN']; break;
     case '自':
