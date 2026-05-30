@@ -370,6 +370,34 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXK04-060 羅植 ガウラ: ON_BANISH は「対戦相手のターンの間」のみ
+  // パーサーが activeCondition を解析できないため手動で設定
+  'WXK04-060': [
+    {
+      effectId: 'WXK04-060-E1',
+      effectType: 'AUTO',
+      timing: ['ON_BANISH'],
+      activeCondition: { type: 'TURN_OWNER', owner: 'opponent' },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'LOOK_AND_REORDER',
+            source: { location: 'deck', owner: 'self' },
+            count: 1,
+            private: true,
+            reorder: false,
+            destination: { location: 'deck', owner: 'self', position: 'top' },
+          } as import('../types/effects').LookAndReorderAction,
+          { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as import('../types/effects').StubAction,
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
