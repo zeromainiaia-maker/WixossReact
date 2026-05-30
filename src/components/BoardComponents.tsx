@@ -821,6 +821,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   } | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (closeZoneSignal) setZoneModal(null);
   }, [closeZoneSignal]);
   const signiW = 82, signiH = 82;
