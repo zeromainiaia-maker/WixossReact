@@ -679,6 +679,21 @@ export function calcContinuousBlockedActions(
   scanField(ownerState, otherState, isOwnerTurn, true);
   scanField(otherState, ownerState, !isOwnerTurn, false);
 
+  // ONE_ATTACK_PER_TURN: このシグニ自身にこの常在効果があり、すでにアタック済みならアタック不可
+  for (const stack of ownerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasOneAtk = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'ONE_ATTACK_PER_TURN' &&
+      checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap),
+    );
+    if (hasOneAtk && (ownerState.attacked_signi_ids ?? []).includes(topNum)) {
+      cannotAttackSigni.add(topNum);
+    }
+  }
+
   // ODD_LEVEL_SIGNI_CANT_ATTACK: 相手フィールドにこの効果があれば自分の奇数レベルシグニはアタック不可
   for (const stack of otherState.field.signi) {
     if (!stack?.length) continue;
