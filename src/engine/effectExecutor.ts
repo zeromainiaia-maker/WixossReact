@@ -305,6 +305,13 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (zoneIdx < 0) return false;
       return ctx.ownerState.field.signi_down?.[zoneIdx] ?? false;
     }
+    case 'THIS_CARD_IS_ARMORED': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const zoneIdx = ctx.ownerState.field.signi.findIndex(z => z?.at(-1) === src);
+      if (zoneIdx < 0) return false;
+      return ctx.ownerState.field.signi_armor?.[zoneIdx] ?? false;
+    }
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
