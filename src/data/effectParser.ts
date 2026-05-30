@@ -8620,6 +8620,22 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let useCondition: Condition | undefined;
 
   if (effectType === 'CONTINUOUS') {
+    // costStr に「英知=N」条件が含まれる場合（「【常】英知=N：効果テキスト」形式）
+    const eichiCostM = costStr.match(/^英知=([０-９\d]+)$/);
+    if (eichiCostM) {
+      const toHWE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+      activeCondition = { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: parseInt(toHWE(eichiCostM[1])) } as ActiveCondition;
+      const resolvedEichi = parseActionText(actionText);
+      return {
+        effectId: `${cardNum}-E${index + 1}`,
+        effectType: 'CONTINUOUS',
+        activeCondition,
+        action: resolvedEichi,
+        duration: 'PERMANENT',
+        mandatory: true,
+        parseStatus: 'AUTO',
+      };
+    }
     // 複数条件を繰り返しパースして AND で結合する
     let remaining = actionText;
     const parsedConds: ActiveCondition[] = [];
