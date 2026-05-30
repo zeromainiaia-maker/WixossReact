@@ -7045,13 +7045,46 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
         return done(addLog(ctx, '[PREVENT_ZONE_MOVE_BY_OPP: effectEngineで動的処理中]'));
       }
+      // PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP: 相手によるシグニダウン防止
+      if (stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL' || stub.id === 'PREVENT_SELF_DOWN_BY_OPP'
+          || stub.id === 'PREVENT_BOUNCE_AND_DOWN_BY_OPP') {
+        const newOwnerPSD: PlayerState = { ...ctx.ownerState, prevent_signi_down_by_opp: true };
+        return done(addLog({ ...ctx, ownerState: newOwnerPSD }, '相手は自シグニをダウンできない'));
+      }
+      // OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手シグニアタック時パワー制限
+      if (stub.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
+        const srcOSAPR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtOSAPR = srcOSAPR ? (srcOSAPR.EffectText ?? '') + ' ' + (srcOSAPR.BurstText ?? '') : '';
+        const toHWOSAPR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const capM = txtOSAPR.match(/パワーが([０-９\d]+)以下のシグニは/);
+        const cap = capM ? parseInt(toHWOSAPR(capM[1])) : 12000;
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, opp_signi_attack_power_cap: cap } },
+          `相手シグニアタック時パワー上限: ${cap}`));
+      }
+      // SIGNI_FLIP_FACEDOWN / FLIP_FACE_DOWN_SIGNI: 自シグニを裏向きにする
+      if (stub.id === 'SIGNI_FLIP_FACEDOWN' || stub.id === 'FLIP_FACE_DOWN_SIGNI') {
+        const srcSFD = ctx.sourceCardNum;
+        if (!srcSFD) return done(addLog(ctx, '裏向き: ソースなし'));
+        const newFaceSFD = [...new Set([...(ctx.ownerState.face_down_signi ?? []), srcSFD])];
+        const newAbilSFD = [...new Set([...(ctx.ownerState.abilities_removed ?? []), srcSFD])];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, face_down_signi: newFaceSFD, abilities_removed: newAbilSFD } },
+          `${ctx.cardMap.get(srcSFD)?.CardName ?? srcSFD}を裏向きに`));
+      }
+      // FACE_DOWN_OPP_SIGNI: 相手シグニを裏向きにする（対象選択後）
+      if (stub.id === 'FACE_DOWN_OPP_SIGNI') {
+        const tgtFDOS = ctx.lastProcessedCards?.[0];
+        if (!tgtFDOS) return done(addLog(ctx, '裏向き: 対象なし'));
+        const newFaceFDOS = [...new Set([...(ctx.otherState.face_down_signi ?? []), tgtFDOS])];
+        const newAbilFDOS = [...new Set([...(ctx.otherState.abilities_removed ?? []), tgtFDOS])];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, face_down_signi: newFaceFDOS, abilities_removed: newAbilFDOS } },
+          `${ctx.cardMap.get(tgtFDOS)?.CardName ?? tgtFDOS}を裏向きに`));
+      }
       // 保護・移動防止系（engine: 各防止フラグシステム未実装）
       if (stub.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH'
           || stub.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH' || stub.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP'
-          || stub.id === 'PREVENT_BOUNCE_AND_DOWN_BY_OPP' || stub.id === 'PREVENT_OPP_SIGNI_ABILITY_GAIN'
+          || stub.id === 'PREVENT_OPP_SIGNI_ABILITY_GAIN'
           || stub.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP' || stub.id === 'PREVENT_POWER_MINUS_BY_OPP'
           || stub.id === 'PREVENT_OPP_POWER_PLUS' || stub.id === 'PREVENT_ABILITY_CHANGE_BY_OPP'
-          || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL' || stub.id === 'PREVENT_SELF_DOWN_BY_OPP'
           || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP' || stub.id === 'SUPPRESS_GAIN_ABILITY'
           || stub.id === 'PREVENT_INFECTED_SIGNI_ACTIVATE' || stub.id === 'PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE'
           || stub.id === 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN' || stub.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD'
