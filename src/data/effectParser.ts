@@ -5546,7 +5546,7 @@ function parseSingleSentence(text: string): EffectAction {
       const cnt = parseNum(mBanish[1]);
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true } } as BanishAction;
     }
-    const mPow = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、(?:ターン終了時まで、)?それらのパワーをそれぞれ([＋－+\-][０-９\d]+)する/);
+    const mPow = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、(?:ターン終了時まで、)?それらのパワーをそれぞれ([＋－+-][０-９\d]+)する/);
     if (mPow) {
       const cnt = parseNum(mPow[1]);
       const delta = parseSignedNum(mPow[2]);
