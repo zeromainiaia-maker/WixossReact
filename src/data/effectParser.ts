@@ -8765,6 +8765,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     duration,
     mandatory,
     parseStatus,
+    ...(isCrossOnly ? { crossOnly: true } : {}),
   };
 }
 
