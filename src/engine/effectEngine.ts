@@ -987,3 +987,79 @@ export function collectHandLimits(
 
   return Math.max(0, limit);
 }
+
+/**
+ * PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 対戦相手の効果による能力消失を防ぐシグニを返す。
+ * state のフィールド上に PREVENT_SIGNI_ABILITY_LOSS_BY_OPP CONT 効果があれば、
+ * 保護対象の他シグニ（同色）の CardNum セットを返す。
+ */
+export function collectAbilityProtectedSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): string[] {
+  const protectedNums = new Set<string>();
+  for (const stack of state.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') continue;
+      const card = cardMap.get(topNum);
+      const txt = card?.EffectText ?? '';
+      // "あなたの他の赤/白のシグニは対戦相手の効果によって能力を失わない"
+      const colorM = txt.match(/あなたの他の([^の]+?)のシグニは対戦相手の効果によって能力を失わない/);
+      const protectedColor = colorM?.[1];
+      for (const otherStack of state.field.signi) {
+        if (!otherStack || otherStack.length === 0) continue;
+        const otherTop = otherStack[otherStack.length - 1];
+        if (otherTop === topNum) continue;
+        if (!protectedColor) {
+          protectedNums.add(otherTop);
+        } else {
+          const otherCard = cardMap.get(otherTop);
+          if (otherCard?.Color?.includes(protectedColor)) protectedNums.add(otherTop);
+        }
+      }
+    }
+  }
+  return [...protectedNums];
+}
+
+/**
+ * SPECIFIC_CARD_COST_REDUCE: 特定カード名のコストを《無×N》減らすCONT効果を収集する。
+ * state のフィールド上のシグニ・ルリグを走査して、{targetCardName, colorlessReduction} のリストを返す。
+ */
+export function collectSpecificCardCostReductions(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { targetCardName: string; colorlessReduction: number }[] {
+  const reductions: { targetCardName: string; colorlessReduction: number }[] = [];
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const candidates: string[] = [];
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (state.field.lrig.length > 0) candidates.push(state.field.lrig.at(-1)!);
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'SPECIFIC_CARD_COST_REDUCE') continue;
+      const card = cardMap.get(cn);
+      const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+      // 《カード名》の使用コストは《無×N》減る
+      const m = txt.match(/《([^》]+)》の使用コストは《無×([０-９\d]+)》減る/);
+      if (m) {
+        const colorlessReduction = parseInt(toHW(m[2]));
+        if (!isNaN(colorlessReduction) && colorlessReduction > 0) {
+          reductions.push({ targetCardName: m[1], colorlessReduction });
+        }
+      }
+    }
+  }
+  return reductions;
+}
