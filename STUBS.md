@@ -130,6 +130,10 @@ v0.106時点でexecutor.tsのif-branchが全てのAUTO/ACTIVATEDのSTUBをカバ
 | 2026-05-30 | signi_color_overridesに'無'を設定してシグニ色喪失（ENDフェーズリセット済み） | SIGNI_LOSE_COLOR |
 | 2026-05-30 | ON_PLAY COLLABでルリグデッキからアシストルリグを2体アシストゾーンに配置（ON_PLAY効果も自動発動） | COLLAB |
 | 2026-05-30 | PlayerState.signi_attack_once_limitフラグ追加・BattleScreen/CpuBattleScreenのアタック判定・ENDリセット実装 | LIMIT_OPP_SIGNI_ATTACKS_ONCE, OPP_SIGNI_ONE_ATTACK_TOTAL |
+| 2026-05-30 | ENCOREをCHOOSEでルリグトラッシュのアーツ選択→コストなし実行（INTERNAL_ENCORE_USE） | ENCORE |
+| 2026-05-30 | BLOCK_OPP_ARTS_SPELL_ACT：otherState.blocked_actionsにUSE_ARTS/SPELL/ACT追加（このターン有効） | BLOCK_OPP_ARTS_SPELL_ACT |
+| 2026-05-30 | OPP_TURN_NO_ENERGY_COST：USE_ARTS:NEXT_TURN/USE_SPELL:NEXT_TURN追加（次ターン変換） | OPP_TURN_NO_ENERGY_COST |
+| 2026-05-30 | BattleScreen：シグニ/ルリグ/キー/アシスト起動効果にisActionBlocked('USE_ACT')チェック追加 | USE_ACT block |
 
 ---
 
@@ -137,7 +141,7 @@ v0.106時点でexecutor.tsのif-branchが全てのAUTO/ACTIVATEDのSTUBをカバ
 
 **高難度:**
 - SEED_BLOOM（4件）: シードゾーン新設が必要
-- ENCORE（1件）: アーツ再使用ロジック
 
-**BattleScreen変更必要:**
-- BLOCK_OPP_ARTS_SPELL_ACT, OPP_TURN_NO_ENERGY_COST など
+**残課題（ログのみ）:**
+- 各種保護効果（PREVENT_SIGNI_MOVE_BY_OPP等）
+- LEVEL_REFERENCE_OVERRIDE（7件）: レベル参照上書き
