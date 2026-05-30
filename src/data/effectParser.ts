@@ -8604,7 +8604,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     case '起': effectType = 'ACTIVATED'; timing = ['MAIN']; break;
     case '自':
       effectType = 'AUTO';
-      timing = actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
+      timing = actionText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
+             : actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
              : actionText.match(/(?:手札か?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
