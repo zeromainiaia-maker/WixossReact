@@ -416,6 +416,18 @@ type ConditionParseResult = {
 };
 
 function parseActiveCondition(text: string): ConditionParseResult {
+  // パターン-1: 「英知=N：」（英知シグニのレベル合計条件）
+  const eichiM = text.match(/^英知=([０-９\d]+)：/);
+  if (eichiM) {
+    const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+    const value = parseInt(toHW(eichiM[1]));
+    return {
+      condition: { type: 'EICHI_LEVEL_SUM', operator: 'eq', value } as import('../types/effects').ActiveCondition,
+      rest: text.slice(eichiM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン0: 「このターン、」（ターン終了時まで適用される常時効果）
   if (text.startsWith('このターン、')) {
     return { condition: undefined, rest: text.slice('このターン、'.length), conditionFound: true, isTimingMarker: true };
