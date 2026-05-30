@@ -2798,7 +2798,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
-        const pendingEntries = [...banishEntries, ...bloomOnPlayPE];
+        // ON_BLOOD_CRYSTAL_ARMOR: 血晶武装状態になったシグニを検出してトリガー収集
+        const hostNewArmored  = detectNewlyArmored(bs.host_state,  hostState);
+        const guestNewArmored = detectNewlyArmored(bs.guest_state, guestState);
+        const armorEntries: StackEntry[] = [];
+        for (const cardNum of hostNewArmored) {
+          armorEntries.push(...collectArmorTriggers(cardNum, bs.host_id, hostState, guestState));
+        }
+        for (const cardNum of guestNewArmored) {
+          armorEntries.push(...collectArmorTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+
+        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries];
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
