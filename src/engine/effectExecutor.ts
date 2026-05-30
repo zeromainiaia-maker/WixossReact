@@ -7203,11 +7203,44 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'OPP_DECLARE_COLOR') {
         return done(addLog(ctx, '相手が色を宣言'));
       }
-      // COLLAB: コラボ効果（ログのみ）
+      // COLLAB: コラボ効果
       if (stub.id === 'COLLAB') {
+        const srcCL = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
+        const txtCL = (srcCL?.EffectText ?? '') + ' ' + (srcCL?.BurstText ?? '');
+        // 「コラボライバーN人を呼ぶ」= ルリグデッキからアシストルリグをアシストゾーンに配置
+        const callM = txtCL.match(/コラボライバー([２2])人を呼ぶ/);
+        const callCount = callM ? 2 : txtCL.includes('コラボライバー') && txtCL.includes('呼ぶ') ? 1 : 0;
+        if (callCount > 0) {
+          const lrigDk = ctx.ownerState.lrig_deck;
+          const assistInDk = lrigDk.filter(cn => {
+            const c = ctx.cardMap.get(getCardNum(cn));
+            return c?.Type === 'アシストルリグ';
+          });
+          if (assistInDk.length === 0) return done(addLog(ctx, 'コラボライバーなし'));
+          let ns: PlayerState = { ...ctx.ownerState };
+          let placed = 0;
+          for (const instanceId of assistInDk) {
+            if (placed >= callCount) break;
+            const lf = ns.field.assist_lrig_l ?? [];
+            const rt = ns.field.assist_lrig_r ?? [];
+            const newDk = ns.lrig_deck.filter(x => x !== instanceId);
+            const cName = ctx.cardMap.get(getCardNum(instanceId))?.CardName ?? instanceId;
+            if (lf.length === 0) {
+              ns = { ...ns, lrig_deck: newDk, field: { ...ns.field, assist_lrig_l: [instanceId] } };
+              placed++;
+            } else if (rt.length === 0) {
+              ns = { ...ns, lrig_deck: newDk, field: { ...ns.field, assist_lrig_r: [instanceId] } };
+              placed++;
+            } else {
+              break;
+            }
+            void cName;
+          }
+          return done(addLog({ ...ctx, ownerState: ns }, `コラボライバー${placed}人を呼んだ`));
+        }
         const centerCol = ctx.ownerState.field.lrig.at(-1);
         const centerNameCol = centerCol ? ctx.cardMap.get(centerCol)?.CardName ?? centerCol : 'なし';
-        return done(addLog(ctx, `コラボ効果（センター：${centerNameCol}）`));
+        return done(addLog(ctx, `コラボ（センター：${centerNameCol}）`));
       }
       // GATE: ゲート効果（ログのみ）
       // GATE: 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可）
