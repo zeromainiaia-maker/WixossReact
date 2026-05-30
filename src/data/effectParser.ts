@@ -5816,7 +5816,6 @@ function parseSingleSentence(text: string): EffectAction {
 
   // ---- デッキの一番上を公開し、選んだ色を持つシグニである場合、手札/エナゾーンに ----
   if (t.match(/あなたのデッキの一番上を公開し、それが選んだ色を持つシグニである場合/)) {
-    const toHand = t.includes('手札に加える');
     const owner: Owner = 'self';
     return {
       type: 'REVEAL_AND_PICK',
