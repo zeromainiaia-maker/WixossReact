@@ -140,6 +140,7 @@ export interface TargetFilter {
   hasCharm?:  boolean;
   hasAcce?:   boolean; // アクセが付いている
   infected?:  boolean; // 感染状態（ウィルスのあるゾーンのシグニ）
+  isArmored?: boolean; // 血晶武装状態
 }
 
 // ===== ターゲット =====
