@@ -152,6 +152,8 @@ export interface PlayerState {
   signi_color_overrides?: Record<string, string>;
   // エナの色代替（キーピース等：from色のエナをto色として扱う）
   energy_color_substitutes?: { from: string[]; to: string }[];
+  // このターンにアタックしたシグニのCardNum一覧（ターン終了時リセット）
+  attacked_signi_ids?: string[];
 }
 
 export interface GameLog {
