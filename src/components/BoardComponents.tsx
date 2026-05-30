@@ -427,13 +427,18 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
           width, height, flexShrink: 0, borderRadius: charmCardNum ? '4px 4px 0 0' : 4,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           position: 'relative',
-          border: trapCardNum ? '1px dashed #ffd700' : C.borderEmpty,
-          backgroundColor: trapCardNum ? 'rgba(40,30,0,0.6)' : C.bgCardEmpty,
+          border: trapCardNum ? '1px dashed #ffd700' : seedCardNum ? '1px dashed #44ff88' : C.borderEmpty,
+          backgroundColor: trapCardNum ? 'rgba(40,30,0,0.6)' : seedCardNum ? 'rgba(0,40,20,0.6)' : C.bgCardEmpty,
         }}>
           {trapCardNum ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>🪤</span>
               <span style={{ fontSize: 7, color: '#ffd700', fontWeight: 'bold', lineHeight: 1 }}>TRAP</span>
+            </div>
+          ) : seedCardNum ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>🌱</span>
+              <span style={{ fontSize: 7, color: '#44ff88', fontWeight: 'bold', lineHeight: 1 }}>SEED</span>
             </div>
           ) : (
             <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
