@@ -82,6 +82,8 @@ export interface PlayerState {
     signi_seeds?:  (string | null)[]; // [zone0, zone1, zone2] 【シード】のCardNum（設置済み・未開花）
     signi_armor?:  boolean[];         // [zone0, zone1, zone2] true=血晶武装状態（場を離れるまで維持）
     free_zone?:    string[];          // フリーゾーン（チアガール等を置く汎用ゾーン）
+    cross_state?:  boolean[];         // [zone0, zone1, zone2] true=クロス状態
+    heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み
   };
   actions_done?: string[];    // このターンに使用済みのアクション（ターン開始時にリセット）
   blocked_actions?: string[]; // カード効果で封じられたアクション
