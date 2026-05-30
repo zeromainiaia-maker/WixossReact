@@ -7064,9 +7064,24 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP' || stub.id === 'SUPPRESS_GAIN_ABILITY'
           || stub.id === 'PREVENT_INFECTED_SIGNI_ACTIVATE' || stub.id === 'PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE'
           || stub.id === 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN' || stub.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD'
-          || stub.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY' || stub.id === 'BLOCK_OPP_ENCORE_AND_BET'
-          || stub.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP' || stub.id === 'PREVENT_OWN_ARTS_USE') {
+          || stub.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY') {
         return done(addLog(ctx, `[保護効果: ${stub.id}]`));
+      }
+      // BLOCK_OPP_ENCORE_AND_BET: 相手のアンコール/ベット封じ
+      if (stub.id === 'BLOCK_OPP_ENCORE_AND_BET') {
+        const newBlockedBOEB = [...(ctx.otherState.blocked_actions ?? []), 'ENCORE', 'BET'];
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOEB } },
+          '相手はアンコール・ベットできない'));
+      }
+      // PREVENT_OWN_ARTS_USE: 自分のアーツ使用封じ
+      if (stub.id === 'PREVENT_OWN_ARTS_USE') {
+        const newBlockedPOAU = [...(ctx.ownerState.blocked_actions ?? []), 'USE_ARTS'];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, blocked_actions: newBlockedPOAU } },
+          '自分はアーツを使用できない'));
+      }
+      // PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: 全シグニの相手パワーマイナス防止（effectEngineで動的処理）
+      if (stub.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') {
+        return done(addLog(ctx, '[全シグニパワーマイナス防止: effectEngineで動的処理]'));
       }
       // グロウコスト変更（engine: グロウコスト処理未実装）
       if (stub.id === 'GROW_COST_ZERO' || stub.id === 'CONDITIONAL_FREE_GROW' || stub.id === 'GROW_COST_SUBSTITUTE_TRASH_SIGNI') {
