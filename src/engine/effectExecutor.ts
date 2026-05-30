@@ -6672,12 +6672,49 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOwnerISS = { ...ctx.ownerState, hand: newHandISS, trash: newTrashISS, field: { ...ctx.ownerState.field, signi_seeds: currentSeedsISS } };
         return done(addLog({ ...ctx, ownerState: newOwnerISS }, `シード設置: ゾーン${zoneIdxISS + 1}`));
       }
-      // SEED_BLOOM: シード1枚を対象とし開花する
+      // SEED_BLOOM: シード1枚（または好きな枚数）を開花する
       // SEED_BLOOM_OPTIONAL: 任意でシード1枚を開花する
       if (stub.id === 'SEED_BLOOM' || stub.id === 'SEED_BLOOM_OPTIONAL') {
         const seedsSB = ctx.ownerState.field.signi_seeds ?? [null, null, null];
         const availableZonesSB = [0, 1, 2].filter(zi => seedsSB[zi] !== null);
         if (availableZonesSB.length === 0) return done(addLog(ctx, 'シード開花：シードなし'));
+        // 「好きな枚数」全開花パターン
+        const srcSB = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+        const txtSB = srcSB ? (srcSB.EffectText ?? '') + ' ' + (srcSB.BurstText ?? '') : '';
+        if (txtSB.includes('好きな枚数')) {
+          let curSB = ctx;
+          for (const zi of [0, 1, 2]) {
+            const s = (curSB.ownerState.field.signi_seeds ?? [null, null, null])[zi];
+            if (!s) continue;
+            if (curSB.ownerState.field.signi[zi]?.length) { curSB = addLog(curSB, `開花：ゾーン${zi + 1}シグニあり`); continue; }
+            const sd = curSB.cardMap.get(s);
+            const newSeeds2 = [...(curSB.ownerState.field.signi_seeds ?? [null, null, null])] as (string | null)[];
+            newSeeds2[zi] = null;
+            if (!sd || sd.Type !== 'シグニ') {
+              curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, trash: [...curSB.ownerState.trash, s], field: { ...curSB.ownerState.field, signi_seeds: newSeeds2 } } }, `開花：シグニ以外→トラッシュ`);
+              continue;
+            }
+            const lrigInst2 = curSB.ownerState.field.lrig.at(-1);
+            const lrigCard2 = lrigInst2 ? curSB.cardMap.get(lrigInst2) : null;
+            const lrigLv2 = parseInt(lrigCard2?.Level ?? '0', 10);
+            const signiLv2 = parseInt(sd.Level ?? '0', 10);
+            if (signiLv2 > lrigLv2) {
+              curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, trash: [...curSB.ownerState.trash, s], field: { ...curSB.ownerState.field, signi_seeds: newSeeds2 } } }, `開花：${sd.CardName}レベル超過→トラッシュ`);
+              continue;
+            }
+            const lrigLim2 = parseInt(lrigCard2?.Limit ?? '0', 10);
+            let usedLim2 = 0;
+            for (let zj = 0; zj < 3; zj++) { if (zj !== zi) { const top2 = curSB.ownerState.field.signi[zj]?.at(-1); if (top2) usedLim2 += parseInt(curSB.cardMap.get(top2)?.Level ?? '0', 10); } }
+            if (usedLim2 + signiLv2 > lrigLim2) {
+              curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, trash: [...curSB.ownerState.trash, s], field: { ...curSB.ownerState.field, signi_seeds: newSeeds2 } } }, `開花：${sd.CardName}リミット超過→トラッシュ`);
+              continue;
+            }
+            const newSig2 = [...curSB.ownerState.field.signi] as (string[] | null)[];
+            newSig2[zi] = [s];
+            curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, field: { ...curSB.ownerState.field, signi: newSig2, signi_seeds: newSeeds2 } } }, `開花：${sd.CardName}がゾーン${zi + 1}に出た`);
+          }
+          return done(curSB);
+        }
         const optional = stub.id === 'SEED_BLOOM_OPTIONAL';
         const zoneOptsSB = availableZonesSB.map(zi => {
           const seedName = ctx.cardMap.get(seedsSB[zi]!)?.CardName ?? seedsSB[zi]!;
