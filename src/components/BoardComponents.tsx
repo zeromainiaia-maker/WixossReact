@@ -548,6 +548,16 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             凍結
           </div>
         )}
+        {isArmored && (
+          <div style={{
+            position: 'absolute', top: extraH + 2, left: 2,
+            backgroundColor: 'rgba(180,0,0,0.90)', color: '#ffe0e0',
+            fontSize: 7, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
+          }}>
+            血晶
+          </div>
+        )}
         {isAbilityRemoved && (
           <div style={{
             position: 'absolute', top: extraH + 2, left: 0, right: 0,
