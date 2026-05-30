@@ -8715,10 +8715,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     : 'INSTANT';
 
   return {
+  // eichiCondition（英知=N 使用条件）を activeCondition に統合
+  let finalActiveCondition = activeCondition;
+  if (eichiCondition) {
+    finalActiveCondition = activeCondition
+      ? { type: 'AND', conditions: [eichiCondition, activeCondition] }
+      : eichiCondition;
+  }
+
     effectId: `${cardNum}-E${index + 1}`,
     effectType,
     timing,
-    activeCondition,
+    activeCondition: finalActiveCondition,
     condition: useCondition,
     altCostOppTurn,
     cost,
