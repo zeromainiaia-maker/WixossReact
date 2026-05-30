@@ -1018,4 +1018,6 @@ export interface CardEffect {
 
   // AUTO=自動生成、MANUAL=手動記述、PARTIAL=一部未解析、UNKNOWN=未解析
   parseStatus?: 'AUTO' | 'MANUAL' | 'PARTIAL' | 'UNKNOWN';
+  // クロス状態のときのみ有効（【クロス常】【クロス出】【クロス起】【クロス自】）
+  crossOnly?: boolean;
 }
