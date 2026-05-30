@@ -3788,19 +3788,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const extraArtsCosts = activeCostMods.forMy
         .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
         .flatMap(m => m.amount);
+      // SPECIFIC_CARD_COST_REDUCE: 特定カード名の無色コスト軽減を適用
+      const specificReduction = specificCardCostReductions.find(r => r.targetCardName === cardData.CardName);
+      const reducedArtsCost = specificReduction
+        ? removeNColorFromCost(cardData.Cost, '無', specificReduction.colorlessReduction)
+        : cardData.Cost;
       // 対戦相手ターン中の代替コストがあればそちらを使う
       const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
       const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
       const costOk = effectiveCostStr
         ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs)
-        : canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+        : canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
       if (canUse && costOk) {
         actions.push({
           label: '使用',
           color: C.coin,
           onClick: () => {
             setPendingArtsCard(cardData);
-            setPendingArtsEffectiveCost(effectiveCostStr);
+            setPendingArtsEffectiveCost(effectiveCostStr ?? (specificReduction ? reducedArtsCost : null));
             setSelectedArtsCost(new Set());
             setShowArtsModal(true);
           },
