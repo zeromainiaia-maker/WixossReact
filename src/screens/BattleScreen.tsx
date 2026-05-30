@@ -4867,7 +4867,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e =>
           e.effectType === 'ACTIVATED' &&
           !(my.actions_done?.includes(e.effectId)) &&
-          !(my.blocked_actions?.includes(e.effectId)),
+          !(my.blocked_actions?.includes(e.effectId)) &&
+          !isActionBlocked('USE_ACT'),
         )
         .map(eff => {
           const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
