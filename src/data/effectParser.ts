@@ -586,6 +586,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン6b: 「このシグニが血晶武装状態であるかぎり、」
+  const armorKagiriM = text.match(/^このシグニが血晶武装状態であるかぎり、/);
+  if (armorKagiriM) {
+    return {
+      condition: { type: 'IS_SELF_ARMORED' } as ActiveCondition,
+      rest: text.slice(armorKagiriM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン7: 「あなたの手札が対戦相手よりN枚以上多いかぎり、」
   const handDiffM = text.match(/^あなたの手札が対戦相手より([０-９\d]+)枚以上多いかぎり、/);
   if (handDiffM) {
