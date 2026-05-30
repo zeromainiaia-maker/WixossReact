@@ -896,12 +896,12 @@ export interface AttachAcceAction {
   signiFilter?: TargetFilter;  // 対象シグニのフィルター
 }
 
-// 血晶武装：手札またはトラッシュから同名カードをシグニの下に重ねる
+// 血晶武装：手札・トラッシュ・デッキから同名カードをシグニの下に重ねる
 export interface BloodCrystalArmorAction {
   type: 'BLOOD_CRYSTAL_ARMOR';
-  source: ('hand' | 'trash')[];  // どこから探すか
-  targetFilter?: TargetFilter;   // 対象シグニのフィルター
-  count: number;                 // 武装する枚数（通常1）
+  source: ('hand' | 'trash' | 'deck')[];  // どこから探すか
+  targetFilter?: TargetFilter;             // 対象シグニのフィルター
+  count: number;                           // 武装する枚数（通常1）
 }
 
 // センタールリグのリミット増減
