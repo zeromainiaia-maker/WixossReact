@@ -28,6 +28,7 @@ export default defineConfig([
       'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/refs': 'warn',
       'react-hooks/purity': 'warn',
+      'react-hooks/immutability': 'warn',
       'no-control-regex': 'warn',
     },
   },
