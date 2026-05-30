@@ -321,9 +321,21 @@ export function calcFieldPowers(
       const effects = effectsMap.get(topNum);
       if (!effects) continue;
 
+      // クロス状態を一度だけ計算（crossOnly効果の判定用）
+      let crossStatesCache: boolean[] | null = null;
+      const getCrossStates = () => {
+        if (!crossStatesCache) crossStatesCache = collectCrossStates(ownerState, cardMap);
+        return crossStatesCache;
+      };
+
       for (const effect of effects) {
         if (effect.effectType !== 'CONTINUOUS') continue;
         if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum, powers)) continue;
+        // クロスのみ有効な効果: このシグニのゾーンがクロス状態でなければスキップ
+        if (effect.crossOnly) {
+          const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum || s?.includes(topNum));
+          if (zoneIdx === -1 || !getCrossStates()[zoneIdx]) continue;
+        }
 
         // POWER_SET: 基本パワーを指定値に変更（POWER_MODIFYより先に適用）
         const sets = extractPowerSets(effect.action);
