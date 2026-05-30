@@ -106,6 +106,13 @@ export function checkActiveCondition(
       return false;
     }
 
+    case 'IS_SELF_ARMORED': {
+      if (!sourceCardNum) return false;
+      const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
+      if (zoneIdx < 0) return false;
+      return ownerState.field.signi_armor?.[zoneIdx] ?? false;
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers));
   }
