@@ -2497,6 +2497,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(stack.turnPlayerId, energyFromTrashEntries);
         }
 
+        // COLLAB: コラボライバー呼び出しで配置されたアシストルリグのON_PLAY効果を積む
+        if ((entry.effect.action as import('../types/effects').StubAction)?.type === 'STUB' &&
+            (entry.effect.action as import('../types/effects').StubAction)?.id === 'COLLAB') {
+          const collabOnPlayEntries: StackEntry[] = [];
+          for (const instanceId of result.lastProcessedCards ?? []) {
+            const cn = getCardNum(instanceId);
+            for (const eff of (effectsMap.get(cn) ?? [])) {
+              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+              collabOnPlayEntries.push({
+                id: generateUUID(),
+                playerId: entry.playerId,
+                cardNum: instanceId,
+                effectId: eff.effectId,
+                label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果`,
+                effect: eff,
+              });
+            }
+          }
+          if (collabOnPlayEntries.length > 0) {
+            const baseStackC = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackC
+              ? pushToStack(baseStackC, collabOnPlayEntries)
+              : initStack(stack.turnPlayerId, collabOnPlayEntries);
+          }
+        }
+
         // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
         const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
         if (entryCardType === 'アーツ' && entry.playerId !== user.id) {
