@@ -4533,11 +4533,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ガードカードをトラッシュへ
         const cardNum = my.hand[handIndex];
         const guardCardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-        appendBattleLogs([`ガード（${guardCardName}）`]);
+        // OPP_GUARD_COST_COLORLESS: 相手フィールドにアクティブな場合、追加で無色エナを1枚消費
+        const needsExtraEnergy = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, !isMyTurn);
+        let energyAfterGuard = my.energy;
+        if (needsExtraEnergy && my.energy.length > 0) {
+          const removedEnergy = my.energy[my.energy.length - 1];
+          energyAfterGuard = my.energy.slice(0, -1);
+          appendBattleLogs([`ガード（${guardCardName}）＋追加コスト《無》消費（${battleCardMap.get(removedEnergy)?.CardName ?? removedEnergy}）`]);
+        } else {
+          appendBattleLogs([`ガード（${guardCardName}）`]);
+        }
         newMyState = {
           ...my,
           hand: my.hand.filter((_, i) => i !== handIndex),
-          trash: [...my.trash, cardNum],
+          trash: needsExtraEnergy && my.energy.length > 0
+            ? [...my.trash, cardNum, my.energy[my.energy.length - 1]]
+            : [...my.trash, cardNum],
+          energy: energyAfterGuard,
           field: { ...my.field, lrig_attacked: false },
         };
       } else {
