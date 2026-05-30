@@ -19,8 +19,10 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      'no-irregular-whitespace': ['error', { skipStrings: true, skipTemplates: true, skipRegExps: true, skipComments: true }],
+      'no-irregular-whitespace': ['error', { skipStrings: true, skipTemplates: true, skipRegExps: true, skipComments: true, skipJSXText: true }],
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
 ])

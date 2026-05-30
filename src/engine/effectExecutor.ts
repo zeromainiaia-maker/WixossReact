@@ -5743,7 +5743,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcPBAC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPBAC = srcPBAC ? (srcPBAC.EffectText ?? '') + ' ' + (srcPBAC.BurstText ?? '') : '';
         const toHWPBAC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const mPBAC = txtPBAC.match(/([＋\+－\-][０-９\d]+)/);
+        const mPBAC = txtPBAC.match(/([＋+－-][０-９\d]+)/);
         if (!mPBAC) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_BY_ACCE_COUNT）'));
         const singleDeltaPBAC = parseInt(toHWPBAC(mPBAC[1]).replace('＋', '+').replace('－', '-'));
         const acceCountPBAC = (ctx.ownerState.field.signi_acce ?? []).filter(c => c !== null).length;
@@ -5763,7 +5763,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcPCLTC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPCLTC = srcPCLTC ? (srcPCLTC.EffectText ?? '') + ' ' + (srcPCLTC.BurstText ?? '') : '';
         const toHWPCLTC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const mPCLTC = txtPCLTC.match(/([＋\+－\-][０-９\d]+)/);
+        const mPCLTC = txtPCLTC.match(/([＋+－-][０-９\d]+)/);
         if (!mPCLTC) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_BY_CENTER_LRIG_TYPE_COUNT）'));
         const singleDeltaPCLTC = parseInt(toHWPCLTC(mPCLTC[1]).replace('＋', '+').replace('－', '-'));
         const centerNumPCLTC = ctx.ownerState.field.lrig.at(-1);
@@ -5803,7 +5803,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcLLM = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtLLM = srcLLM ? (srcLLM.EffectText ?? '') + ' ' + (srcLLM.BurstText ?? '') : '';
         const toHWLLM = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const mLLM = txtLLM.match(/リミットを?([＋\+－\-]?[０-９\d]+)/);
+        const mLLM = txtLLM.match(/リミットを?([＋+－-]?[０-９\d]+)/);
         if (!mLLM) return done(addLog(ctx, 'ルリグリミット修正値解析失敗'));
         const deltaLLM = parseInt(toHWLLM(mLLM[1]).replace('＋', '+').replace('－', '-'));
         const newSLLM: PlayerState = { ...ctx.ownerState, lrig_limit_mod: (ctx.ownerState.lrig_limit_mod ?? 0) + deltaLLM };
@@ -5869,7 +5869,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcCCP = ctx.cardMap.get(ctx.sourceCardNum);
         const txtCCP = srcCCP ? (srcCCP.EffectText ?? '') + ' ' + (srcCCP.BurstText ?? '') : '';
         const toHWCCP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const mCCP = txtCCP.match(/([＋\+－\-][０-９\d]+)/);
+        const mCCP = txtCCP.match(/([＋+－-][０-９\d]+)/);
         if (!mCCP) return done(addLog(ctx, 'パワー値解析失敗（CHARM_CONDITIONAL_POWER）'));
         const deltaCCP = parseInt(toHWCCP(mCCP[1]).replace('＋', '+').replace('－', '-'));
         let selfZoneCCP = -1;
@@ -5887,7 +5887,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcPBPSWI = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPBPSWI = srcPBPSWI ? (srcPBPSWI.EffectText ?? '') + ' ' + (srcPBPSWI.BurstText ?? '') : '';
         const toHWPBPSWI = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const mDeltaPBPSWI = txtPBPSWI.match(/([＋\+－\-][０-９\d]+)/);
+        const mDeltaPBPSWI = txtPBPSWI.match(/([＋+－-][０-９\d]+)/);
         if (!mDeltaPBPSWI) return done(addLog(ctx, 'パワー値解析失敗（POWER_BOOST_PER_SIGNI_WITH_ICON）'));
         const singleDeltaPBPSWI = parseInt(toHWPBPSWI(mDeltaPBPSWI[1]).replace('＋', '+').replace('－', '-'));
         // キーワード能力持ちシグニをカウント（keyword_grants または effectText に【〇】パターン）
@@ -6140,7 +6140,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const lrigLevelPMBLL = centerCardPMBLL ? parseInt(toHWPMBLL(centerCardPMBLL.Level ?? '0')) || 0 : 0;
         const srcPMBLL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPMBLL = srcPMBLL ? (srcPMBLL.EffectText ?? '') + ' ' + (srcPMBLL.BurstText ?? '') : '';
-        const mPMBLL = txtPMBLL.match(/([＋\+－\-][０-９\d]+)/);
+        const mPMBLL = txtPMBLL.match(/([＋+－-][０-９\d]+)/);
         if (!mPMBLL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_LRIG_LEVEL）'));
         const singleDeltaPMBLL = parseInt(toHWPMBLL(mPMBLL[1]).replace('＋', '+').replace('－', '-'));
         const totalDeltaPMBLL = singleDeltaPMBLL * lrigLevelPMBLL;
@@ -6157,7 +6157,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         }, 0);
         const srcPMBLLS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPMBLLS = srcPMBLLS ? (srcPMBLLS.EffectText ?? '') + ' ' + (srcPMBLLS.BurstText ?? '') : '';
-        const mPMBLLS = txtPMBLLS.match(/([＋\+－\-][０-９\d]+)/);
+        const mPMBLLS = txtPMBLLS.match(/([＋+－-][０-９\d]+)/);
         if (!mPMBLLS) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_LRIG_LEVEL_SUM）'));
         const singleDeltaPMBLLS = parseInt(toHWPMBLLS(mPMBLLS[1]).replace('＋', '+').replace('－', '-'));
         const totalDeltaPMBLLS = singleDeltaPMBLLS * lrigLevelSumPMBLLS;
@@ -6172,7 +6172,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const artsCountPMBLTA = ctx.ownerState.lrig_trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ').length;
         const srcPMBLTA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPMBLTA = srcPMBLTA ? (srcPMBLTA.EffectText ?? '') + ' ' + (srcPMBLTA.BurstText ?? '') : '';
-        const mPMBLTA = txtPMBLTA.match(/([＋\+－\-][０-９\d]+)/);
+        const mPMBLTA = txtPMBLTA.match(/([＋+－-][０-９\d]+)/);
         if (!mPMBLTA) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_LRIG_TRASH_ARTS）'));
         const singleDeltaPMBLTA = parseInt(toHWPMBLTA(mPMBLTA[1]).replace('＋', '+').replace('－', '-'));
         const totalDeltaPMBLTA = singleDeltaPMBLTA * artsCountPMBLTA;
@@ -6186,7 +6186,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const toHWPMBTCC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const srcPMBTCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPMBTCC = srcPMBTCC ? (srcPMBTCC.EffectText ?? '') + ' ' + (srcPMBTCC.BurstText ?? '') : '';
-        const classMatchPMBTCC = txtPMBTCC.match(/【([^】]+)】.*?(?:の)?(?:シグニ|カード).*?([＋\+－\-][０-９\d]+)/);
+        const classMatchPMBTCC = txtPMBTCC.match(/【([^】]+)】.*?(?:の)?(?:シグニ|カード).*?([＋+－-][０-９\d]+)/);
         if (!classMatchPMBTCC) return done(addLog(ctx, 'クラス/パワー値解析失敗（POWER_MOD_BY_TRASH_CLASS_COUNT）'));
         const classNamePMBTCC = classMatchPMBTCC[1];
         const singleDeltaPMBTCC = parseInt(toHWPMBTCC(classMatchPMBTCC[2]).replace('＋', '+').replace('－', '-'));
@@ -6207,7 +6207,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const toHWPMBUC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const srcPMBUC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPMBUC = srcPMBUC ? (srcPMBUC.EffectText ?? '') + ' ' + (srcPMBUC.BurstText ?? '') : '';
-        const mPMBUC = txtPMBUC.match(/([＋\+－\-][０-９\d]+)/);
+        const mPMBUC = txtPMBUC.match(/([＋+－-][０-９\d]+)/);
         if (!mPMBUC || !ctx.sourceCardNum) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_UNDER_COUNT）'));
         const singleDeltaPMBUC = parseInt(toHWPMBUC(mPMBUC[1]).replace('＋', '+').replace('－', '-'));
         let selfZonePMBUC = -1;
@@ -6223,7 +6223,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const toHWPMBCV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const srcPMBCV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPMBCV = srcPMBCV ? (srcPMBCV.EffectText ?? '') + ' ' + (srcPMBCV.BurstText ?? '') : '';
-        const mPMBCV = txtPMBCV.match(/([＋\+－\-][０-９\d]+)/);
+        const mPMBCV = txtPMBCV.match(/([＋+－-][０-９\d]+)/);
         if (!mPMBCV) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_COLOR_VARIETY）'));
         const singleDeltaPMBCV = parseInt(toHWPMBCV(mPMBCV[1]).replace('＋', '+').replace('－', '-'));
         // 自分のエナゾーンの色の種類（"無色"以外）
@@ -6249,7 +6249,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const toHWPMBDCH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const srcPMBDCH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPMBDCH = srcPMBDCH ? (srcPMBDCH.EffectText ?? '') + ' ' + (srcPMBDCH.BurstText ?? '') : '';
-        const mPMBDCH = txtPMBDCH.match(/([＋\+－\-][０-９\d]+)/);
+        const mPMBDCH = txtPMBDCH.match(/([＋+－-][０-９\d]+)/);
         if (!mPMBDCH) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_DISCARD_COUNT_HIGH）'));
         const singleDeltaPMBDCH = parseInt(toHWPMBDCH(mPMBDCH[1]).replace('＋', '+').replace('－', '-'));
         const discardCountPMBDCH = ctx.lastProcessedCards?.length ?? 0;
@@ -6424,7 +6424,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcCardPMBAL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const attackerLevelPMBAL = srcCardPMBAL ? parseInt(toHWPMBAL(srcCardPMBAL.Level ?? '0')) || 0 : 0;
         const txtPMBAL = srcCardPMBAL ? (srcCardPMBAL.EffectText ?? '') + ' ' + (srcCardPMBAL.BurstText ?? '') : '';
-        const mPMBAL = txtPMBAL.match(/([＋\+－\-][０-９\d]+)/);
+        const mPMBAL = txtPMBAL.match(/([＋+－-][０-９\d]+)/);
         if (!mPMBAL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_ATTACKER_LEVEL）'));
         const singleDeltaPMBAL = parseInt(toHWPMBAL(mPMBAL[1]).replace('＋', '+').replace('－', '-'));
         const totalDeltaPMBAL = singleDeltaPMBAL * attackerLevelPMBAL;
@@ -6440,7 +6440,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const txtPMBFCL = srcPMBFCL ? (srcPMBFCL.EffectText ?? '') + ' ' + (srcPMBFCL.BurstText ?? '') : '';
         const classMatchPMBFCL = txtPMBFCL.match(/【([^】]+)】/);
         const classNamePMBFCL = classMatchPMBFCL?.[1] ?? '';
-        const mDeltaPMBFCL = txtPMBFCL.match(/([＋\+－\-][０-９\d]+)/);
+        const mDeltaPMBFCL = txtPMBFCL.match(/([＋+－-][０-９\d]+)/);
         if (!mDeltaPMBFCL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_FIELD_CLASS_LEVEL）'));
         const singleDeltaPMBFCL = parseInt(toHWPMBFCL(mDeltaPMBFCL[1]).replace('＋', '+').replace('－', '-'));
         let levelSumPMBFCL = 0;
@@ -6468,7 +6468,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const toHWPMPRL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const srcPMPRL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtPMPRL = srcPMPRL ? (srcPMPRL.EffectText ?? '') + ' ' + (srcPMPRL.BurstText ?? '') : '';
-        const mPMPRL = txtPMPRL.match(/([＋\+－\-][０-９\d]+)/);
+        const mPMPRL = txtPMPRL.match(/([＋+－-][０-９\d]+)/);
         if (!mPMPRL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_PER_REVEALED_LEVEL）'));
         const singleDeltaPMPRL = parseInt(toHWPMPRL(mPMPRL[1]).replace('＋', '+').replace('－', '-'));
         const levelSumPMPRL = (ctx.lastProcessedCards ?? []).reduce((sum, cn) => {
@@ -8473,7 +8473,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const toHWCDN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
         const srcCDN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtCDN = srcCDN ? (srcCDN.EffectText ?? '') + ' ' + (srcCDN.BurstText ?? '') : '';
-        const mCDN = txtCDN.match(/([＋\+－\-][０-９\d]+)/);
+        const mCDN = txtCDN.match(/([＋+－-][０-９\d]+)/);
         const deltaCDN = mCDN ? parseInt(toHWCDN(mCDN[1]).replace('＋', '+').replace('－', '-')) : 1000;
         const ownSigniNames = new Set<string>();
         (ctx.ownerState.field.signi ?? []).forEach(s => {
@@ -9348,7 +9348,7 @@ export function resumeOptionalCost(
 
   const newEnergy = ctx.ownerState.energy.filter(n => !energyNums.includes(n));
   const newTrash  = [...ctx.ownerState.trash, ...energyNums];
-  let cur = addLog(
+  const cur = addLog(
     { ...ctx, ownerState: { ...ctx.ownerState, energy: newEnergy, trash: newTrash } },
     `コスト支払い: ${(payOpt?.costColors ?? []).map(c => `《${c}》`).join('')}`,
   );
@@ -9438,7 +9438,7 @@ export function resumeLookAndReorder(
   } else {
     newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
   }
-  let cur = addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`);
+  const cur = addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
