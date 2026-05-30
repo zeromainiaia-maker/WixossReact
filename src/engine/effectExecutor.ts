@@ -7006,10 +7006,15 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           || stub.id === 'CONDITIONAL_TRASH_UNDER_SIGNI') {
         return done(addLog(ctx, `[ビートゾーン: ${stub.id}]`));
       }
+      // LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL: 相手シグニ合計1回アタック制限
+      if (stub.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || stub.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL') {
+        const newOtherOSA: PlayerState = { ...ctx.otherState, signi_attack_once_limit: true };
+        return done(addLog({ ...ctx, otherState: newOtherOSA }, '相手シグニは合計1回しかアタックできない'));
+      }
       // アタック制限系（engine: アタック制限システム未実装）
       if (stub.id === 'ONE_ATTACK_PER_TURN' || stub.id === 'ODD_LEVEL_SIGNI_CANT_ATTACK'
-          || stub.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || stub.id === 'ATTACK_COUNT_BY_POWER'
-          || stub.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL' || stub.id === 'ADJACENT_ZONE_ATTACK'
+          || stub.id === 'ATTACK_COUNT_BY_POWER'
+          || stub.id === 'ADJACENT_ZONE_ATTACK'
           || stub.id === 'MULTI_ZONE_ATTACK' || stub.id === 'BLOCK_FRONT_SIGNI_ATTACK') {
         return done(addLog(ctx, `[アタック制限: ${stub.id}]`));
       }
