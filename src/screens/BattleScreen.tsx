@@ -4169,7 +4169,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, opPlayerId, newMyState, newOpState));
       }
 
-      const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries, ...trashEntriesSA];
+      const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries, ...trashEntriesSA, ...heavenEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? user.id;
         const existingStack = bs.effect_stack ?? null;
