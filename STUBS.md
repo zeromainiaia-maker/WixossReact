@@ -53,51 +53,26 @@
 | 3 | PLACE_CARD_UNDER_SIGNI | ✅ | カードをシグニ下に（if-branch実装済み） |
 | 3 | MAKE_SERVANT_ZERO | ✅ | サーバントゼロ（if-branch実装済み） |
 
-### ログのみ Top（game効果ゼロ）
+### 「ログのみ」if-branchを持つSTUB（v0.105時点）
 
-| 件数 | STUB ID | 実装に必要なもの | 難度 |
+これらはif-branchがあるが、ゲーム状態を変更せずログのみを返す：
+
+| 件数 | STUB ID | 難度 | 実装に必要なもの |
 |---|---|---|---|
-| 29 | SOUL_OP | ルリグ下ゾーン管理（部分実装あり・完成要） | C |
-| 17 | LOOK_AND_REORDER | デッキ閲覧UI+並べ替え（STUB版フォールバック改善） | B |
-| 12 | TRAP_OPERATION | チェックゾーン+トラップライフサイクル | D |
-| 10 | DESIGNATE_SIGNI_ZONE | ゾーンロック制御 | B |
-| 10 | REMOVE_VIRUS | ウィルス数減算（部分実装あり） | B |
-| 10 | ARTS_USE_DISCARD_LRIG_DECK | アーツ使用時ルリグデッキ捨て（実装あり・完成要） | B |
-| 9 | PLAY_FREE（STUB版） | カードテキスト解析→実際のプレイフロー | C |
-| 9 | GRANT_GUARD_ICON_HAND_SIGNI | hand_signi_guard_enabledフラグ（実装あり） | A |
-| 8 | ACCE_FROM_HAND | アクセ装着メカニクス（実装あり・完成要） | B |
-| 8 | COUNT_BASED_DRAW_OR_POWER | lastProcessedCards参照ドロー/パワー（実装あり） | B |
-| 8 | PLACE_SEED_FROM_REVEALED | シードゾーン+ブルーム機構 | D |
-| 8 | LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END | lrig_limit_mod（実装あり・期間管理が課題） | A |
-| 7 | DOWN_UP_SIGNI_AND_CHOOSE | シグニダウン+選択（実装あり・完成要） | A |
-| 7 | TRAP_OP | トラップ操作（TRAP_OPERATIONと同様） | D |
-| 7 | TRASH_SIGNI_UNDER_FIELD_SIGNI | ライズ機構（実装あり・完成要） | B |
-| 7 | DO_THREE_THINGS | 3択効果（複雑な分岐） | C |
-| 7 | LOSE_COLOR_ALL_ZONES | 全ゾーンの色消失 | B |
-| 7 | PLACE_LIMIT_UPPER | リミットアッパー設置（ログのみ） | B |
-| 6 | CONDITIONAL_COST_REDUCTION_BY_FIELD | フィールド依存コスト軽減 | B |
-| 6 | OPP_GUARD_COST_COLORLESS | 相手ガードコスト無色化 | B |
+| 4 | SEED_BLOOM | D | シードゾーン新設+ブルームシステム |
+| 4 | COLLAB | B | コラボ状態フラグ+BattleScreen対応 |
+| 1 | ENCORE | 高 | アーツ再使用ロジック |
+| 1 | LIMIT_OPP_SIGNI_ATTACKS_ONCE | B | BattleScreenでアタック制限チェック |
+| 1 | OPP_SIGNI_ONE_ATTACK_TOTAL | B | 相手シグニ合計1回アタック制限 |
+| 1 | MOVE_TO_ATTACKER_FRONT | ✅済 | v0.105で実装済み |
+| 1 | SIGNI_LOSE_COLOR | ✅済 | v0.105で実装済み |
 
 ---
 
-## 真の未ハンドル（executor完全未登録・13件）
+## 真の未ハンドル（v0.105時点）
 
-これらは`[STUB: xxx]`としてログ出力されるだけ：
-
-| 件数 | STUB ID |
-|---|---|
-| 2 | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
-| 1 | END_ATTACK_IF_EXTRA_TURN |
-| 1 | SUPPRESS_GAIN_ABILITY |
-| 1 | PREVENT_SIGNI_DOWN_BY_OPP |
-| 1 | ALL_PLAYER_MILL |
-| 1 | ADJACENT_SIGNI_POWER_MOD |
-| 1 | PREVENT_OPP_UPKEEP |
-| 1 | BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN |
-| 1 | LIMIT_OPP_ATTACK_ONCE |
-| 1 | SUPPRESS_OPP_SIGNI_ABILITIES |
-| 1 | DRAW_IF_OPP_DISCARDED_HAND |
-| 1 | OPTIONAL_DISCARD_GUARD |
+v0.105時点でexecutor.tsのif-branchが全てのAUTO/ACTIVATEDのSTUBをカバー済み。
+`[STUB: xxx]`形式のログは出ない状態。
 
 ---
 
