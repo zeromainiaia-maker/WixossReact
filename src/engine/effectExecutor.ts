@@ -6808,11 +6808,12 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           const newOwnerIBS = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, seedCardIBS], field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
           return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}リミット超過でトラッシュへ`));
         }
-        // 場に出す（出現時能力はトリガーしない）
+        // 場に出す。lastProcessedCards にセットし BattleScreen が ON_PLAY 効果を積む
         const newSigniIBS = [...ctx.ownerState.field.signi] as (string[] | null)[];
         newSigniIBS[zoneIdxIBS] = [seedCardIBS];
         const newOwnerIBS = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIBS, signi_seeds: newSeedsIBS } };
-        return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}がゾーン${zoneIdxIBS + 1}に出た`));
+        const doneCtxIBS = addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}がゾーン${zoneIdxIBS + 1}に出た`);
+        return { ...(done(doneCtxIBS) as { done: true; ownerState: PlayerState; otherState: PlayerState; logs: string[] }), lastProcessedCards: [seedCardIBS] };
       }
       // SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シード1枚を手札に加え、デッキ上をシード設置
       if (stub.id === 'SEED_HAND_AND_BLOOM_FROM_DECK_TOP') {
