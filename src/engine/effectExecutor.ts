@@ -1266,7 +1266,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = src.owner === 'self' ? 'self_hand' : 'opp_hand';
 
     function applyHandToDeck(selected: string[], c: ExecCtx): ExecCtx {
-      let cur = c;
+      const cur = c;
       const s = ownerState(src.owner, cur);
       const remaining = [...s.hand];
       const toMove: string[] = [];
