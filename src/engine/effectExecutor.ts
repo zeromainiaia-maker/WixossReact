@@ -8699,6 +8699,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           const newOwnerINA: PlayerState = { ...ctx.ownerState, abilities_removed: [...(ctx.ownerState.abilities_removed ?? []), cnINA] };
           return done(addLog({ ...ctx, ownerState: newOwnerINA }, `${ctx.cardMap.get(cnINA)?.CardName ?? cnINA}の能力を無効化`));
         }
+        if ((ctx.otherProtectedSigniNums ?? []).includes(cnINA)) {
+          return done(addLog(ctx, `${ctx.cardMap.get(cnINA)?.CardName ?? cnINA}は保護されているため能力を失わない`));
+        }
         const newOtherINA: PlayerState = { ...ctx.otherState, abilities_removed: [...(ctx.otherState.abilities_removed ?? []), cnINA] };
         return done(addLog({ ...ctx, otherState: newOtherINA }, `${ctx.cardMap.get(cnINA)?.CardName ?? cnINA}の能力を無効化`));
       }
