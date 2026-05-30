@@ -93,6 +93,7 @@ export type Condition =
   | { type: 'THIS_CARD_IN_LOCATION'; location: CardLocation }
   | { type: 'THIS_CARD_IN_CENTER_ZONE' }
   | { type: 'THIS_CARD_IS_DOWN' }
+  | { type: 'THIS_CARD_IS_ARMORED' }                          // このシグニが血晶武装状態の場合
   | { type: 'SELF_POWER_GTE'; value: number }
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp }
   | { type: 'DURING_PHASE'; phases: string[] }
