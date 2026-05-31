@@ -121,6 +121,7 @@ export interface EffectCost {
   life_crash?: number;    // 自分のライフクロスをN枚クラッシュ
   down_self?: boolean;    // 自身をダウン
   exceed?: number;        // エクシード：ルリグの下からN枚をルリグトラッシュへ
+  beat_signi?: number;    // 場のシグニN体をビートにする（コスト）
 }
 
 // ===== ターゲットフィルタ =====
