@@ -110,7 +110,9 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
 function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
+  const bounceProtected = tgt.owner === 'opponent' ? new Set(ctx.otherBounceProtectedNums ?? []) : new Set<string>();
+  const allCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
+  const cands = bounceProtected.size > 0 ? allCands.filter(n => !bounceProtected.has(n)) : allCands;
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyBounce(selected: string[], c: ExecCtx): ExecCtx {
