@@ -389,6 +389,9 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 v0.126 | POWER_MOD_PER_COUNT (AUTO/ACTIVATED 51件): 手札/エナ/登録者数N枚につきパターン追加・正デルタ時ソースシグニへ適用 | POWER_MOD_PER_COUNT |
+| 2026-05-31 v0.126 | COUNT_BASED_DRAW_OR_POWER (スタンドアロン5件): エナ/手札/登録者数/フィールド体数ベースのドロー・パワー修正パターン追加 | COUNT_BASED_DRAW_OR_POWER |
+| 2026-05-31 v0.126 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER (9件): センター条件チェック追加（不一致→ベース効果スキップ）・Nつまで選択数を正しく反映 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER |
 | 2026-05-31 v0.125 | SOUL_OP (standalone fallback): ソウルがある場合に汎用消費インタラクション提示（SPDi43系等のテキスト解析失敗ケースに対応） | SOUL_OP |
 | 2026-05-31 v0.124 | POWER_MOD_PER_COUNT (CONT): effectEngine.applyEffectsにCONTINUOUS版ハンドラ追加（手札/エナ/登録者数基準パワー修正・WXDi P-series 3件対応） | POWER_MOD_PER_COUNT |
 | 2026-05-31 v0.123 | GAIN_EXTRA_TURN: BattleScreenターン終了処理に追加ターンロジック統合（extra_turnフラグ使用・同プレイヤーがUPフェイズへ） | GAIN_EXTRA_TURN |
