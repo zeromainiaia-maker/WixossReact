@@ -434,7 +434,44 @@ export function execStub(
       return done(addLog(ctx, 'ドロー（移動枚数+N）'));
     }
 
+    // フォールバック: lastProcessedCardsが空の場合にゲーム状態カウントを参照
+    if (totalDelta === 0 && processed.length === 0) {
+      const toSignedPMPC = (s: string) => parseInt(toHW(s).replace('＋','+').replace('－','-'));
+      // 手札N枚につき
+      const handM = effText.match(/手札([０-９\d]*)枚につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+      if (handM) {
+        const div = parseInt(toHW(handM[1] || '1')) || 1;
+        totalDelta = Math.floor(ctx.ownerState.hand.length / div) * toSignedPMPC(handM[2]);
+      }
+      // エナゾーンN枚につき
+      if (!totalDelta) {
+        const enaM = effText.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+        if (enaM) {
+          const div = parseInt(toHW(enaM[1] || '1')) || 1;
+          totalDelta = Math.floor(ctx.ownerState.energy.length / div) * toSignedPMPC(enaM[2]);
+        }
+      }
+      // 登録者数N万人につき
+      if (!totalDelta) {
+        const subM = effText.match(/登録者数([０-９\d]*)万人につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+        if (subM) {
+          const div = parseInt(toHW(subM[1] || '1')) || 1;
+          totalDelta = Math.floor((ctx.ownerState.subscriber_count ?? 0) / div) * toSignedPMPC(subM[2]);
+        }
+      }
+    }
+
     if (totalDelta !== 0) {
+      // 正デルタ（自シグニバフ）: "このシグニ"/"あなたのシグニ" → ソースシグニへ
+      const targetsOwn = totalDelta > 0 && effText.match(/(?:あなたの|この)シグニ/);
+      if (targetsOwn && ctx.sourceCardNum) {
+        const mods = [...(ctx.ownerState.temp_power_mods ?? [])];
+        mods.push({ cardNum: ctx.sourceCardNum, delta: totalDelta });
+        const newOwner = { ...ctx.ownerState, temp_power_mods: mods };
+        return done(addLog({ ...ctx, ownerState: newOwner },
+          `ソースシグニのパワー+${totalDelta}（処理${processed.length}枚）`));
+      }
+      // デフォルト: 全相手シグニへ
       const mods = [...(ctx.otherState.temp_power_mods ?? [])];
       const oppField = ctx.otherState.field;
       for (let zi = 0; zi < 3; zi++) {
