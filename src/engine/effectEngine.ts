@@ -346,6 +346,11 @@ export function calcFieldPowers(
   // ベースパワーを収集（フィールドの最前面シグニ）
   const powers = new Map<string, number>();
 
+  // LEVEL_MOD_PER_COUNT 実効レベルマップ（POWER_MODIFY_PER_LEVEL_SUM等で使用）
+  const levelMods = new Map<string, number>();
+  for (const [k, v] of buildLevelMods(myState, opState, effectsMap, cardMap)) levelMods.set(k, v);
+  for (const [k, v] of buildLevelMods(opState, myState, effectsMap, cardMap)) levelMods.set(k, v);
+
   const collectBase = (state: PlayerState) => {
     for (const stack of state.field.signi) {
       if (!stack || stack.length === 0) continue;
