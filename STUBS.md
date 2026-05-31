@@ -391,6 +391,9 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 |------|---------|---------|
 | 2026-05-31 v0.126 | POWER_MOD_PER_COUNT (AUTO/ACTIVATED 51件): 手札/エナ/登録者数N枚につきパターン追加・正デルタ時ソースシグニへ適用 | POWER_MOD_PER_COUNT |
 | 2026-05-31 v0.126 | COUNT_BASED_DRAW_OR_POWER (スタンドアロン5件): エナ/手札/登録者数/フィールド体数ベースのドロー・パワー修正パターン追加 | COUNT_BASED_DRAW_OR_POWER |
+| 2026-05-31 v0.127 | CONDITIONAL_ALTERNATE_EFFECT: 条件達成時にダウン済み相手シグニをトラッシュへ移動（WX06-024対応） | CONDITIONAL_ALTERNATE_EFFECT |
+| 2026-05-31 v0.127 | OPTIONAL_HAND_REVEAL_NAMED: effectExecutorパターン③に追加→任意��開インタラクション（WX05-038 LIFE_BURST対応） | OPTIONAL_HAND_REVEAL_NAMED |
+| 2026-05-31 v0.127 | CONDITIONAL_CARD_COST_BY_OPP_LRIG: computeArtsEffectiveCostの正規表現を"基本コスト"にも対応（WX03-002〜005・014の5枚修正） | CONDITIONAL_CARD_COST_BY_OPP_LRIG |
 | 2026-05-31 v0.126 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER (9件): センター条件チェック追加（不一致→ベース効果スキップ）・Nつまで選択数を正しく反映 | CONDITIONAL_MULTI_CHOOSE_BY_CENTER |
 | 2026-05-31 v0.125 | SOUL_OP (standalone fallback): ソウルがある場合に汎用消費インタラクション提示（SPDi43系等のテキスト解析失敗ケースに対応） | SOUL_OP |
 | 2026-05-31 v0.124 | POWER_MOD_PER_COUNT (CONT): effectEngine.applyEffectsにCONTINUOUS版ハンドラ追加（手札/エナ/登録者数基準パワー修正・WXDi P-series 3件対応） | POWER_MOD_PER_COUNT |
