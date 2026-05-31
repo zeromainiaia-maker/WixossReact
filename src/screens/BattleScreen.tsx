@@ -2193,7 +2193,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
 
         // ENDフェーズ：ビートゾーン全カードをトラッシュへ（手札上限処理と同タイミング）
-        let myBeatEND = my.beat_zone ?? [];
+        let myBeatEND = my.field.beat_zone ?? [];
         let myTrashBeat = my.trash;
         if (myBeatEND.length > 0) {
           myTrashBeat = [...my.trash, ...myBeatEND];
