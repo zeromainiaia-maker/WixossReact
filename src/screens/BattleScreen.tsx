@@ -175,7 +175,7 @@ function computeArtsEffectiveCost(
     lrigName?.includes(keyword) || lrigNameAliases?.some(a => a.includes(keyword));
 
   // 対戦相手のルリグ色条件：コスト上書き
-  m = text.match(/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの)?使用コストは(.+?)になる/s);
+  m = text.match(/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの|このカードの)?(?:使用|基本)コストは(.+?)になる/s);
   if (m && oppLrigColor) {
     const colors = m[1].split(/か|と/).map(c => c.trim()).filter(Boolean);
     if (colors.some(c => oppLrigColor.includes(c))) {
