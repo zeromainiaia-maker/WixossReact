@@ -514,7 +514,8 @@ export function calcFieldPowers(
             if (mod.excludeSelf && sNum === topNum) continue;
             const sCard = cardMap.get(sNum);
             if (!matchesFilter(sCard, mod.countFilter)) continue;
-            const lv = parseInt(sCard?.Level ?? '', 10);
+            // 実効レベルを使用（LEVEL_MOD_PER_COUNT適用済み）
+            const lv = levelMods.has(sNum) ? levelMods.get(sNum)! : parseInt(sCard?.Level ?? '', 10);
             if (!isNaN(lv)) levelSum += lv;
           }
           const delta = mod.deltaPerLevel * levelSum;
