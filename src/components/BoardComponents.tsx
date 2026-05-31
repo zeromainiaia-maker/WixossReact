@@ -849,33 +849,40 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   const rawSigni = state.field.signi ?? [null, null, null];
   const displaySigni = isMe ? rawSigni : [...rawSigni].reverse();
   const freeZoneCards = state.field.free_zone ?? [];
+  const beatZoneCards = state.field.beat_zone ?? [];
+  // フリーゾーンとビートゾーンを合算して表示
+  const allFreeCards = [...freeZoneCards, ...beatZoneCards];
+  const hasBeat = beatZoneCards.length > 0;
   const freeZoneW = 52, freeZoneH = signiH;
 
   const freeZoneSlot = (
     <div
-      onClick={() => freeZoneCards.length > 0 && setZoneModal({ title: 'フリーゾーン', cardNums: freeZoneCards, isFreeZone: isMe })}
+      onClick={() => allFreeCards.length > 0 && setZoneModal({ title: 'フリーゾーン/ビート', cardNums: allFreeCards, isFreeZone: isMe })}
       style={{
         width: freeZoneW, height: freeZoneH, borderRadius: 6, flexShrink: 0,
-        border: freeZoneCards.length > 0 ? '1px solid #5599bb' : '1px dashed #334455',
-        backgroundColor: freeZoneCards.length > 0 ? 'rgba(40,80,100,0.35)' : 'rgba(20,30,40,0.2)',
-        cursor: freeZoneCards.length > 0 ? 'pointer' : 'default',
+        border: hasBeat ? '1px solid #ff8844' : (allFreeCards.length > 0 ? '1px solid #5599bb' : '1px dashed #334455'),
+        backgroundColor: hasBeat ? 'rgba(120,50,0,0.35)' : (allFreeCards.length > 0 ? 'rgba(40,80,100,0.35)' : 'rgba(20,30,40,0.2)'),
+        cursor: allFreeCards.length > 0 ? 'pointer' : 'default',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         position: 'relative', overflow: 'hidden',
       }}>
-      {freeZoneCards.length > 0 ? (
+      {allFreeCards.length > 0 ? (
         <>
           <img
-            src={cards.find(c => c.CardNum === getCardNum(freeZoneCards[freeZoneCards.length - 1]))?.ImgURL ?? ''}
+            src={cards.find(c => c.CardNum === getCardNum(allFreeCards[allFreeCards.length - 1]))?.ImgURL ?? ''}
             alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
             onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
           <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+            {hasBeat && (
+              <div style={{ fontSize: 8, color: '#ffaa66', fontWeight: 'bold', marginBottom: 2 }}>BEAT</div>
+            )}
             {freeZoneCards.some(n => state.keyword_grants?.[n]?.includes('チアガール')) && (
               <div style={{ fontSize: 8, color: '#aaddff', fontWeight: 'bold', marginBottom: 2 }}>CHEER</div>
             )}
             <div style={{
               backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 8, padding: '1px 5px',
               fontSize: 11, color: '#fff', fontWeight: 'bold',
-            }}>{freeZoneCards.length}</div>
+            }}>{allFreeCards.length}</div>
           </div>
         </>
       ) : (
