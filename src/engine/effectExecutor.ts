@@ -1,6 +1,7 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope } from '../types';
 import { hasShadow } from '../utils/keywords';
 import { parseCardEffects } from '../data/effectParser';
+import { checkBeatCondition } from './effectEngine';
 import type {
   CardEffect,
   EffectAction,
