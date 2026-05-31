@@ -27,6 +27,7 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, getCardNum, fieldCandidates, selectOrInteract, shuffle,
 } from './execUtils';
+import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 
 export function execStub(
   stub: StubAction,
