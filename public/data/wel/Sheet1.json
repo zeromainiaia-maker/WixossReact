@@ -2960,5 +2960,65 @@
       }
     }
   ],
+  "WX02-001": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "白"
+        ]
+      },
+      "action": {
+        "search": {
+          "filter": {
+            "type": "signi"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    },
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "白",
+          "赤"
+        ]
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 7000
+          }
+        }
+      }
+    },
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "白",
+          "緑",
+          "無"
+        ]
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_gte": 10000
+          }
+        }
+      }
+    }
+  ],
   "_parseError": "```json\n{\n  \"WX01-074\": [\n    {\n      \"effectType\": \"SPELL_MAIN\",\n      \"action\": {\n        \"banish\": {\n          \"owner\": \"opp\",\n          \"count\": 1,\n          \"filter\": { \"power_lte\": 10000 }\n     "
 }

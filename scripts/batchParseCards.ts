@@ -194,7 +194,7 @@ function callClaude(prompt: string): string {
     const err = e as { stdout?: string; message?: string };
     return err.stdout ?? err.message ?? 'ERROR';
   } finally {
-    try { unlinkSync(tmpFile); } catch {}
+    try { unlinkSync(tmpFile); } catch (_e) { /* cleanup best-effort */ }
   }
 }
 
