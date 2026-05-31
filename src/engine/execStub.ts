@@ -1934,7 +1934,7 @@ export function execStub(
     // クラスフィルタ（＜X＞）
     const classM = txtT.match(/＜([^＞]+)＞のシグニ.*の下に置く/);
     const reqClass = classM?.[1];
-    // 色フィルタ（「共通する色を持たない」は除外）
+    // 色フィルタ
     const colorM = txtT.match(/あなたのトラッシュから(白|赤|青|緑|黒)の/);
     const reqColor = colorM?.[1];
     const trashSigniT = ctx.ownerState.trash.filter(cn => {
@@ -1946,10 +1946,71 @@ export function execStub(
       return true;
     });
     if (trashSigniT.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし（シグニ下配置スキップ）'));
-    const placeUnderAction: PlaceUnderSourceSigniAction = {
-      type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'trash',
-    };
-    return selectOrInteract(trashSigniT, maxCountT, true, 'self_trash', placeUnderAction as EffectAction, undefined, ctx);
+    const noopTSU: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    const contTSU: StubAction = { type: 'STUB', id: 'INTERNAL_TSU_CHOOSE_ZONE' };
+    return needsInteraction(addLog(ctx, 'トラッシュからシグニを選択（下に置く）'), {
+      type: 'SELECT_TARGET', candidates: trashSigniT, count: Math.min(maxCountT, trashSigniT.length),
+      optional: true, targetScope: 'self_trash',
+      thenAction: noopTSU as EffectAction, continuation: contTSU as EffectAction,
+    });
+  }
+  // INTERNAL_TSU_CHOOSE_ZONE: 選択トラッシュシグニをどのフィールドシグニの下に置くか選択
+  if (stub.id === 'INTERNAL_TSU_CHOOSE_ZONE') {
+    const rawTrash = stub.value ? String(stub.value).split(',') : (ctx.lastProcessedCards ?? []);
+    if (rawTrash.length === 0) return done(addLog(ctx, 'キャンセル（下置きスキップ）'));
+    const [firstTrash, ...restTrash] = rawTrash;
+    const srcTSU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtTSU = srcTSU ? (srcTSU.EffectText ?? '') + ' ' + (srcTSU.BurstText ?? '') : '';
+    // 配置先クラスフィルタ
+    const fieldClassM = txtTSU.match(/対象の.*＜([^＞]+)＞のシグニ.*体.*の下に置く|＜([^＞]+)＞のシグニ.*体.*の下に置く/);
+    const reqFieldClass = fieldClassM?.[1] ?? fieldClassM?.[2];
+    const fieldZones = [0, 1, 2].filter(zi => {
+      const top = ctx.ownerState.field.signi[zi]?.at(-1);
+      if (!top) return false;
+      if (reqFieldClass && !(ctx.cardMap.get(top)?.CardClass ?? '').includes(reqFieldClass)) return false;
+      return true;
+    });
+    if (fieldZones.length === 0) return done(addLog(ctx, '対象フィールドシグニなし'));
+    const opts = fieldZones.map(zi => {
+      const top = ctx.ownerState.field.signi[zi]!.at(-1)!;
+      const rest = restTrash.join(',');
+      const encoded = rest ? `${firstTrash}:${zi}:${rest}` : `${firstTrash}:${zi}`;
+      return {
+        id: `zone_${zi}`,
+        label: `${ctx.cardMap.get(top)?.CardName ?? top}の下（ゾーン${zi + 1}）`,
+        action: { type: 'STUB', id: 'INTERNAL_TSU_DO_PLACE', value: encoded } as StubAction as EffectAction,
+        available: true,
+      };
+    });
+    return needsInteraction(
+      addLog(ctx, `${ctx.cardMap.get(firstTrash)?.CardName ?? firstTrash}をどのシグニの下に置く？`),
+      { type: 'CHOOSE', options: opts, count: 1 },
+    );
+  }
+  // INTERNAL_TSU_DO_PLACE: トラッシュ→フィールド下配置実行、残りがあれば継続
+  if (stub.id === 'INTERNAL_TSU_DO_PLACE') {
+    const valStr = String(stub.value ?? '');
+    const colonIdx = valStr.indexOf(':');
+    const colonIdx2 = valStr.indexOf(':', colonIdx + 1);
+    const trashCard = colonIdx >= 0 ? valStr.slice(0, colonIdx) : valStr;
+    const zoneStr = colonIdx >= 0
+      ? (colonIdx2 >= 0 ? valStr.slice(colonIdx + 1, colonIdx2) : valStr.slice(colonIdx + 1))
+      : '';
+    const restStr = colonIdx2 >= 0 ? valStr.slice(colonIdx2 + 1) : '';
+    const zone = parseInt(zoneStr);
+    if (!trashCard || isNaN(zone)) return done(addLog(ctx, '配置情報なし'));
+    const newTrashITP = ctx.ownerState.trash.filter(c => c !== trashCard);
+    const newSigniITP = [...ctx.ownerState.field.signi] as (string[] | null)[];
+    newSigniITP[zone] = [trashCard, ...(newSigniITP[zone] ?? [])];
+    const newOwnerITP = { ...ctx.ownerState, trash: newTrashITP, field: { ...ctx.ownerState.field, signi: newSigniITP } };
+    let ctxITP = addLog({ ...ctx, ownerState: newOwnerITP },
+      `${ctx.cardMap.get(trashCard)?.CardName ?? trashCard}をゾーン${zone + 1}のシグニの下に配置`);
+    // 残りのトラッシュカードがあれば次の選択へ
+    if (restStr) {
+      const nextStub: StubAction = { type: 'STUB', id: 'INTERNAL_TSU_CHOOSE_ZONE', value: restStr };
+      return exec(nextStub as EffectAction, ctxITP);
+    }
+    return done(ctxITP);
   }
   // ルリグリミット修正（エナフェイズ終了まで）
   if (stub.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
