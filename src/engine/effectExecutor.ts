@@ -747,6 +747,28 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, 'シグニ下のカードを使用して発動しますか？'), pendingLUCO);
         }
 
+        // OPTIONAL_HAND_REVEAL_NAMED: 名前指定カードを手札から任意公開 → そうした場合 conditional.then
+        if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
+          const srcOHRN = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
+          const txtOHRN = srcOHRN ? (srcOHRN.EffectText ?? '') + ' ' + (srcOHRN.BurstText ?? '') : '';
+          const nameM = txtOHRN.match(/《([^》]+)》[１1]枚を公開してもよい/);
+          const targetName = nameM ? nameM[1] : '';
+          const hasCard = targetName
+            ? cur.ownerState.hand.some(cn => cur.cardMap.get(cn)?.CardName === targetName)
+            : false;
+          const optionsOHRN = [
+            { id: 'reveal', available: hasCard,
+              label: targetName ? `《${targetName}》を公開する` : '公開する',
+              action: conditional.then },
+            { id: 'skip', label: '公開しない', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          ];
+          const pendingOHRN: PendingInteractionDef = {
+            type: 'CHOOSE', options: optionsOHRN, count: 1,
+            ...(cont ? { continuation: cont } : {}),
+          };
+          return needsInteraction(addLog(cur, `《${targetName}》を公開しますか？`), pendingOHRN);
+        }
+
         // OPPONENT_PAY_OPTIONAL: 対戦相手がコストを支払う/支払わない
         // pay → 何も起きない（対戦相手のエナ消費）, skip → 効果発動（conditional.then）
         if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
