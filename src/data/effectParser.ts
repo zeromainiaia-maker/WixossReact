@@ -8582,6 +8582,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let costStr = afterMarker.slice(0, colonIdx).trim();
   let actionText = afterMarker.slice(colonIdx + 1).trim();
 
+  // ビートアイコン条件を costStr から抽出（《ビートアイコン》[条件]）
+  let beatCondition: import('../types/effects').Condition | undefined;
+  const beatIconM = costStr.match(/^《ビートアイコン》\[([^\]]+)\]\s*/);
+  if (beatIconM) {
+    beatCondition = { type: 'BEAT_CONDITION', condText: beatIconM[1] };
+    costStr = costStr.slice(beatIconM[0].length).trim();
+  }
+
   // 英知=N 条件を costStr から抽出（AUTO/ACTIVATED 効果の使用条件）
   let eichiCondition: ActiveCondition | undefined;
   const eichiInCostM = costStr.match(/^英知=([０-９\d]+)\s*/);
