@@ -389,6 +389,8 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 v0.121 | SOUL_OP (SEQUENCE→IS_MY_TURN): ソウル消費インタラクション実装・INTERNAL_CONSUME_SOULでシグニ下ソウルをルリグトラッシュへ（WXDi-P0x-009系7件対応） | SOUL_OP |
+| 2026-05-31 v0.121 | POWER_MOD_TARGET_AND_SELF: stub.deltaパラメータを優先使用（テキスト解析フォールバック） | POWER_MOD_TARGET_AND_SELF |
 | 2026-05-31 v0.117 | ATTACK_COUNT_BY_POWER: パワー/10000回数制限・attacked_signi_idsをバッグ化 | ATTACK_COUNT_BY_POWER |
 | 2026-05-31 v0.116 | ADJACENT_ZONE_ATTACK: 英知=10条件付き隣ゾーン追加バトルをBattleScreen.tsxに実装 | ADJACENT_ZONE_ATTACK |
 | 2026-05-31 v0.115 | DOUBLE_POWER_MINUS: applyEffectsでhasDoublePowerMinusフラグ+negMultiplier=2でapplyDeltaToState | DOUBLE_POWER_MINUS |

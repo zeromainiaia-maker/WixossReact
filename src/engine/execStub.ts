@@ -1489,6 +1489,26 @@ export function execStub(
     }
     return done(addLog(ctx, 'ソウル操作'));
   }
+  // INTERNAL_CONSUME_SOUL: ソースシグニの下にあるソウルカードをルリグトラッシュへ
+  if (stub.id === 'INTERNAL_CONSUME_SOUL') {
+    const srcICS = ctx.sourceCardNum;
+    if (!srcICS) return done(addLog(ctx, 'ソウル消費：ソースなし'));
+    const ziICS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcICS);
+    if (ziICS < 0) return done(addLog(ctx, 'ソウル消費：シグニがフィールドにいない'));
+    const stackICS = ctx.ownerState.field.signi[ziICS];
+    if (!stackICS || stackICS.length < 2) return done(addLog(ctx, 'ソウル消費：ソウルなし'));
+    const soulCardICS = stackICS[0];
+    const newStackICS = stackICS.slice(1);
+    const newSigniICS = [...ctx.ownerState.field.signi] as (string[] | null)[];
+    newSigniICS[ziICS] = newStackICS;
+    const newOwnerICS: PlayerState = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, signi: newSigniICS },
+      lrig_trash: [...ctx.ownerState.lrig_trash, soulCardICS],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerICS },
+      `ソウル（${ctx.cardMap.get(soulCardICS)?.CardName ?? soulCardICS}）を消費してルリグトラッシュへ`));
+  }
   // デッキを見て並べ替え（STUB版：動的パース）
   if (stub.id === 'LOOK_AND_REORDER') {
     const srcLOR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
@@ -3014,9 +3034,15 @@ export function execStub(
     const srcPMTS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMTS = srcPMTS ? (srcPMTS.EffectText ?? '') + ' ' + (srcPMTS.BurstText ?? '') : '';
     const toHWPMTS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const deltaMPMTS = txtPMTS.match(/([－＋][０-９\d]+)/);
-    if (deltaMPMTS) {
-      const deltaPMTS = parseInt(toHWPMTS(deltaMPMTS[1]).replace('－', '-').replace('＋', '+'));
+    // stub.delta パラメータが存在する場合はそちらを優先、なければカードテキストを解析
+    const paramDeltaPMTS = typeof (stub as StubAction & { delta?: number }).delta === 'number'
+      ? (stub as StubAction & { delta?: number }).delta!
+      : undefined;
+    const deltaMPMTS = !paramDeltaPMTS ? txtPMTS.match(/([－＋][０-９\d]+)/) : null;
+    if (paramDeltaPMTS !== undefined || deltaMPMTS) {
+      const deltaPMTS = paramDeltaPMTS !== undefined
+        ? paramDeltaPMTS
+        : parseInt(toHWPMTS(deltaMPMTS![1]).replace('－', '-').replace('＋', '+'));
       // 対象（lastProcessedCards or 全相手シグニ）にデルタ
       const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards
         : [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);

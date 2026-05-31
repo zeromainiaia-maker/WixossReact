@@ -695,6 +695,32 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const stub = step as import('../types/effects').StubAction;
         const costColors = stub.costColors ?? [];
 
+        // SOUL_OP: ソウルカードを消費してコスト支払い（WXDiシリーズ）
+        if (stub.id === 'SOUL_OP') {
+          const srcZoneSO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);
+          const stackSO = srcZoneSO >= 0 ? cur.ownerState.field.signi[srcZoneSO] : null;
+          const hasSoul = stackSO != null && stackSO.length >= 2;
+          const soulCard = hasSoul ? stackSO![0] : null;
+          const soulName = soulCard ? (cur.cardMap.get(soulCard)?.CardName ?? soulCard) : null;
+          const consumeSoulStub: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_CONSUME_SOUL' };
+          const payActionSO: EffectAction = hasSoul
+            ? ({ type: 'SEQUENCE', steps: [consumeSoulStub as EffectAction, conditional.then] } as SequenceAction)
+            : conditional.then;
+          const optionsSO = [
+            {
+              id: 'pay', available: hasSoul,
+              label: soulName ? `ソウル（${soulName}）を使用して発動` : 'ソウルを使用して発動',
+              action: payActionSO,
+            },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          ];
+          const pendingSO: PendingInteractionDef = {
+            type: 'CHOOSE', options: optionsSO, count: 1,
+            ...(cont ? { continuation: cont } : {}),
+          };
+          return needsInteraction(addLog(cur, 'ソウルを使用して発動しますか？'), pendingSO);
+        }
+
         // OPPONENT_PAY_OPTIONAL: 対戦相手がコストを支払う/支払わない
         // pay → 何も起きない（対戦相手のエナ消費）, skip → 効果発動（conditional.then）
         if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
