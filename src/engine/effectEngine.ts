@@ -588,7 +588,7 @@ export function calcFieldPowers(
             let countPMPC = 0;
             let deltaPMPC = 0;
             // 手札N枚につき
-            const handM = txt.match(/手札([０-９\d]*)枚につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+            const handM = txt.match(/手札([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
             if (handM) {
               const divisorH = parseInt(toHWPMPC(handM[1] || '1')) || 1;
               countPMPC = Math.floor(ownerState.hand.length / divisorH);
@@ -596,7 +596,7 @@ export function calcFieldPowers(
             }
             // エナゾーンのカードN枚につき
             if (!handM) {
-              const enaM = txt.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+              const enaM = txt.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
               if (enaM) {
                 const divisorE = parseInt(toHWPMPC(enaM[1] || '1')) || 1;
                 countPMPC = Math.floor(ownerState.energy.length / divisorE);
@@ -605,7 +605,7 @@ export function calcFieldPowers(
             }
             // 登録者数N万人につき
             if (!deltaPMPC) {
-              const subM = txt.match(/登録者数([０-９\d]*)万人につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+              const subM = txt.match(/登録者数([０-９\d]*)万人につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
               if (subM) {
                 const divisorS = parseInt(toHWPMPC(subM[1] || '1')) || 1;
                 const subCount = ownerState.subscriber_count ?? 0;
