@@ -389,6 +389,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 v0.117 | ATTACK_COUNT_BY_POWER: パワー/10000回数制限・attacked_signi_idsをバッグ化 | ATTACK_COUNT_BY_POWER |
 | 2026-05-31 v0.116 | ADJACENT_ZONE_ATTACK: 英知=10条件付き隣ゾーン追加バトルをBattleScreen.tsxに実装 | ADJACENT_ZONE_ATTACK |
 | 2026-05-31 v0.115 | DOUBLE_POWER_MINUS: applyEffectsでhasDoublePowerMinusフラグ+negMultiplier=2でapplyDeltaToState | DOUBLE_POWER_MINUS |
 | 2026-05-31 v0.115 | BLOCK_FRONT_SIGNI_ATTACK: calcContinuousBlockedActionsで相手の正面シグニをアタック不可化 | BLOCK_FRONT_SIGNI_ATTACK |
