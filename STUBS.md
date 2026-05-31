@@ -346,7 +346,8 @@
 | 1 | ACTIVATED | ⚡ | TRASH_ALL_OPP_CARDS |
 | 1 | ACTIVATED | ✅ | TRASH_ALL_SIGNI_AND_KEY |
 | 1 | ACTIVATED | ⚡ | TRASH_CLASS_TO_HAND_OR_ENERGY |
-| 1 | AUTO | ⚡ | TRASH_SIGNI_TO_BEAT |
+| 1 | AUTO | ⚡ | TRASH_SIGNI_TO_BEAT ※v0.112: 《ビートアイコン》[条件]解析・beat_zone状態管理・ターン終了クリーンアップ実装済み。対象選択(インタラクティブコスト)は未実装 |
+| 5 | ACTIVATED/AUTO | ⚡ | BEAT_ZONE_OP ※v0.112: ビートゾーン状態・UI(フリーゾーン共有)・ターン終了クリーンアップ実装済み。対象選択未実装 |
 | 1 | ACTIVATED | ⚡ | TRASH_SPELL_FREE_USE_LIMIT |
 | 1 | AUTO | ⚡ | TRASHED_CARD_TO_HAND_OR_ENERGY |
 | 1 | AUTO | ⚡ | TRIGGER_OTHER_SIGNI_EICHI_ABILITY |
