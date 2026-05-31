@@ -5595,23 +5595,59 @@ export function execStub(
       || stub.id === 'ENERGY_SUBSTITUTE_TRASH_KEY' || stub.id === 'ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI') {
     return done(addLog(ctx, `[エナ代替: ${stub.id}]`));
   }
-  // CLASS_CHANGE: シグニのクラスを一時変更（SELECT_TARGETで対象選択）
+  // CLASS_CHANGE: シグニのクラスを一時変更
   if (stub.id === 'CLASS_CHANGE') {
     const srcCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCC = srcCC ? (srcCC.EffectText ?? '') + ' ' + (srcCC.BurstText ?? '') : '';
-    // 変更先クラスを抽出 (＜怪異＞など)
-    const newClassM = txtCC.match(/＜([^＞]+)＞を得る/);
-    const newClass = newClassM ? newClassM[1] : null;
+    // 変更先クラスを抽出（＜怪異＞など）。lastProcessedCardsに宣言クラスが格納される場合もあり
+    const declaredClassCC = (ctx.lastProcessedCards ?? []).find(s => !s.match(/^WX|^WD|^WXD|^WXK|^SPDi/));
+    const newClassMCC = txtCC.match(/＜([^＞]+)＞を得る/);
+    const newClass = declaredClassCC ?? (newClassMCC ? newClassMCC[1] : null);
     if (!newClass) return done(addLog(ctx, 'クラス変更先不明'));
-    // 自分・相手のフィールドシグニを対象候補
+    // 「すべての...シグニ」→ 対象選択なし（全員適用）
+    if (txtCC.match(/すべて.*シグニ.*クラスを失い|すべての.*シグニは.*クラスを失い/)) {
+      const colorPatCC = txtCC.match(/(赤|青|緑|白|黒).*(?:と|か|または).*(赤|青|緑|白|黒)/);
+      const colorSingleCC = !colorPatCC && txtCC.match(/(赤|青|緑|白|黒).*シグニ.*クラスを失い/);
+      const reqColors: string[] = [];
+      if (colorPatCC) { colorPatCC.slice(1).forEach(c => { if (c) reqColors.push(c); }); }
+      else if (colorSingleCC) reqColors.push(colorSingleCC[1]);
+      const targets = [0, 1, 2]
+        .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+        .filter((cn): cn is string => {
+          if (!cn) return false;
+          if (reqColors.length === 0) return true;
+          const c = ctx.cardMap.get(cn);
+          return reqColors.some(col => (c?.Color ?? '').includes(col));
+        });
+      if (targets.length === 0) return done(addLog(ctx, 'クラス変更対象なし'));
+      const overridesCC = { ...(ctx.ownerState.card_class_overrides ?? {}) };
+      for (const cn of targets) overridesCC[cn] = newClass;
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, card_class_overrides: overridesCC } },
+        `${targets.length}体のシグニのクラスを＜${newClass}＞に変更`));
+    }
+    // lastProcessedCards に対象シグニがある場合（SEQUENCE内のターゲット選択後）
+    const targetFromContext = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.otherState.field.signi.some(s => s?.at(-1) === cn) ||
+      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn)
+    );
+    if (targetFromContext) {
+      const inOwnCC2 = ctx.ownerState.field.signi.some(s => s?.at(-1) === targetFromContext);
+      if (inOwnCC2) {
+        const ovCC2 = { ...(ctx.ownerState.card_class_overrides ?? {}), [targetFromContext]: newClass };
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, card_class_overrides: ovCC2 } },
+          `${ctx.cardMap.get(targetFromContext)?.CardName ?? targetFromContext}のクラスを＜${newClass}＞に変更`));
+      }
+      const ovCC2Op = { ...(ctx.otherState.card_class_overrides ?? {}), [targetFromContext]: newClass };
+      return done(addLog({ ...ctx, otherState: { ...ctx.otherState, card_class_overrides: ovCC2Op } },
+        `${ctx.cardMap.get(targetFromContext)?.CardName ?? targetFromContext}のクラスを＜${newClass}＞に変更`));
+    }
+    // 対象選択（1体）
     const allSigniCC = [
-      ...[0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
-      ...[0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
+      ...[0, 1, 2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
+      ...[0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
     ];
     if (allSigniCC.length === 0) return done(addLog(ctx, 'クラス変更対象なし'));
-    const changeClassStub: StubAction = {
-      type: 'STUB', id: 'INTERNAL_APPLY_CLASS_CHANGE', value: newClass,
-    };
+    const changeClassStub: StubAction = { type: 'STUB', id: 'INTERNAL_APPLY_CLASS_CHANGE', value: newClass };
     return needsInteraction(addLog(ctx, `クラスを＜${newClass}＞に変更する対象を選択`), {
       type: 'SELECT_TARGET', candidates: allSigniCC, count: 1, optional: false,
       targetScope: 'self_field', thenAction: changeClassStub as EffectAction,
