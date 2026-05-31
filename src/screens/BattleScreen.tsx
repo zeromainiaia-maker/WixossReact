@@ -3109,6 +3109,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
     if (!isMyTurn || loading) return;
     if ((my.field.signi[zoneIndex] ?? []).length > 0) return; // 空きゾーンにしか召喚できない
+    if (isActionBlocked('PLAY_COLORLESS') && battleCardMap.get(my.hand[handIndex])?.Color === '無') return;
     setLoading(true);
     setPendingSigniSummon(null);
     try {
