@@ -4433,12 +4433,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const removed = removeFromField(topNum, currentOwner);
         const opState = ownerIsHost ? guestState : hostState;
         const redirectBanishP0 = opState.banish_redirect === true;
+        const redirectBanishToHandP0 = opState.banish_redirect_to_hand === true;
         const withBanished: PlayerState = redirectBanishP0
           ? { ...removed, trash: [...removed.trash, topNum] }
-          : { ...removed, energy: [...removed.energy, topNum] };
+          : redirectBanishToHandP0
+            ? { ...removed, hand: [...removed.hand, topNum] }
+            : { ...removed, energy: [...removed.energy, topNum] };
         if (ownerIsHost) hostState = withBanished; else guestState = withBanished;
         const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : ''}`]);
+        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : ''}`]);
 
         const triggers = collectBanishTriggers(topNum, ownerId, hostState, guestState);
         allTriggers.push(...triggers);
