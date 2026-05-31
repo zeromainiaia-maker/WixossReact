@@ -4158,6 +4158,41 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // ADJACENT_ZONE_ATTACK: 英知=10条件で隣ゾーン1つにも追加バトル（WD20-009等）
+      const azaEffect = (effectsMap.get(myTopNum) ?? []).find(e =>
+        e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' &&
+        (e.action as import('../types/effects').StubAction).id === 'ADJACENT_ZONE_ATTACK' &&
+        checkActiveCondition(e.activeCondition, my, newOpState, isMyTurn, battleCardMap, myTopNum),
+      );
+      if (azaEffect) {
+        const myPowerAZA = effectivePowers.get(myTopNum) ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
+        const adjZones = [zoneIndex - 1, zoneIndex + 1].filter(zi => zi >= 0 && zi < 3);
+        let bestAZAZi = -1;
+        let bestAZAPower = Infinity;
+        for (const zi of adjZones) {
+          const oppZiAdj = 2 - zi;
+          const oppTopAdj = newOpState.field.signi[oppZiAdj]?.at(-1);
+          if (!oppTopAdj) continue;
+          const oppPowerAdj = effectivePowers.get(oppTopAdj) ?? (parseInt(battleCardMap.get(oppTopAdj)?.Power ?? '0') || 0);
+          if (oppPowerAdj < bestAZAPower) { bestAZAPower = oppPowerAdj; bestAZAZi = zi; }
+        }
+        if (bestAZAZi >= 0 && myPowerAZA >= bestAZAPower) {
+          const oppZiAZA = 2 - bestAZAZi;
+          const oppStackAZA = [...(newOpState.field.signi[oppZiAZA] ?? [])];
+          const oppTopAZA = oppStackAZA.at(-1)!;
+          const oppSigniAZA = [...newOpState.field.signi] as (string[] | null)[];
+          oppSigniAZA[oppZiAZA] = null;
+          const oppDownAZA = [...(newOpState.field.signi_down ?? [false, false, false])];
+          oppDownAZA[oppZiAZA] = false;
+          newOpState = {
+            ...newOpState,
+            energy: [...newOpState.energy, ...oppStackAZA],
+            field: { ...newOpState.field, signi: oppSigniAZA, signi_down: oppDownAZA },
+          };
+          appendBattleLogs([`${myCardName}が${battleCardMap.get(oppTopAZA)?.CardName ?? oppTopAZA}をバニッシュ（英知=10隣ゾーン追加バトル）`]);
+        }
+      }
+
       // ヘブンヘブン判定: アタッカーダウン後に全クロスシグニがダウン状態か確認
       const heavenEntries: StackEntry[] = [];
       const attackerCard = battleCardMap.get(myTopNum);
