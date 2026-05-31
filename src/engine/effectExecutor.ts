@@ -7387,8 +7387,23 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'LIFE_BURST_DOUBLE' || stub.id === 'TRIGGER_LIFE_BURST' || stub.id === 'BATTLE_BANISH_LIFE_BURST') {
         return done(addLog(ctx, `[ライフバースト特殊: ${stub.id}]`));
       }
-      // ビートゾーン系（engine: ビートゾーン未実装）
-      if (stub.id === 'BEAT_ZONE_OP' || stub.id === 'TRASH_SIGNI_TO_BEAT' || stub.id === 'SIGNI_UNDER_WEAPON_SIGNI'
+      // ビートゾーン操作
+      if (stub.id === 'BEAT_ZONE_OP') {
+        // フィールドのシグニ選択→ビートゾーンへ（target未実装: ログのみ）
+        const beatCard = stub.targetCardNum as string | undefined;
+        if (beatCard) {
+          const beatZone = [...(ctx.ownerState.beat_zone ?? []), beatCard];
+          const newOwner: PlayerState = { ...ctx.ownerState, beat_zone: beatZone };
+          const cardName = ctx.cardMap.get(beatCard)?.CardName ?? beatCard;
+          return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName}をビートゾーンに移動`));
+        }
+        return done(addLog(ctx, '[ビートゾーン移動: 対象未選択]'));
+      }
+      if (stub.id === 'TRASH_SIGNI_TO_BEAT') {
+        // トラッシュからシグニをビートゾーンへ（target未実装: ログのみ）
+        return done(addLog(ctx, '[トラッシュ→ビートゾーン: 未実装]'));
+      }
+      if (stub.id === 'SIGNI_UNDER_WEAPON_SIGNI'
           || stub.id === 'PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON' || stub.id === 'PLACE_DECK_TOP_UNDER_WEAPON_SIGNI'
           || stub.id === 'CONDITIONAL_TRASH_UNDER_SIGNI') {
         return done(addLog(ctx, `[ビートゾーン: ${stub.id}]`));
