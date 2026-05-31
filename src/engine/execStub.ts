@@ -6154,6 +6154,23 @@ export function execStub(
     const srcCMCBC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCMCBC = srcCMCBC ? (srcCMCBC.EffectText ?? '') + ' ' + (srcCMCBC.BurstText ?? '') : '';
     const toHWCMCBC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // センタールリグ条件チェック: 「センタールリグがXXの場合」
+    const centerCondM = txtCMCBC.match(/センタールリグが(.+?)の場合/);
+    if (centerCondM) {
+      const reqCenterName = centerCondM[1].trim();
+      const centerTop = ctx.ownerState.field.lrig.at(-1);
+      const centerCard = centerTop ? ctx.cardMap.get(centerTop) : undefined;
+      const centerName = centerCard?.CardName ?? '';
+      // lrigNameAliasesも考慮（COPY_LRIG_NAME_ABILITYがある場合）
+      const aliases: string[] = centerName ? [centerName] : [];
+      if (!aliases.some(n => n.includes(reqCenterName) || reqCenterName.includes(n))) {
+        // センター条件不一致 → ベース効果（残りのSEQUENCEステップ）へ
+        return done(addLog(ctx, `センター条件不一致（要:${reqCenterName}・現:${centerName}）→ベース効果`));
+      }
+    }
+    // 選択数（"N つまで" → N, デフォルト1）
+    const chooseCountM = txtCMCBC.match(/代わりに([２-９２-９])つまで選ぶ/);
+    const maxChooseCount = chooseCountM ? parseInt(toHWCMCBC(chooseCountM[1])) : 1;
     // 各選択肢（①②③④）を解析してCHOOSEオプション生成
     const choicePatterns = [
       { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
