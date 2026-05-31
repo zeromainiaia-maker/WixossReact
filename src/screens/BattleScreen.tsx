@@ -3672,6 +3672,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number) => {
     if (!isMyTurn || loading) return;
     if (isActionBlocked('USE_SPELL')) return;
+    if (isActionBlocked('PLAY_COLORLESS') && card.Color === '無') return;
+    if (isActionBlocked('BLOCK_NON_WHITE_SPELL') && !card.Color?.includes('白')) return;
     setLoading(true);
     setPendingSpellCast(null);
     setSelectedSpellCost(new Set());
