@@ -689,6 +689,40 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : discardCont;
       return selectOrInteract(cands, 1, false, 'opp_field', banishAction, fullCont, cur);
     }
+    // COST_COLOR_SELECT: コスト色に基づき次のSEARCHに色フィルタを適用
+    if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'COST_COLOR_SELECT') {
+      const ccStub = step as import('../types/effects').StubAction;
+      const colors = ccStub.costColors ?? [];
+      const nextSearchStep = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
+      if (nextSearchStep?.type === 'SEARCH' && colors.length > 0) {
+        const searchStep = nextSearchStep as SearchAction;
+        const afterRemaining = a.steps.slice(i + 2);
+        const uniqueColors = [...new Set(colors)];
+        if (uniqueColors.length === 1) {
+          // 色が1種類: 色フィルタ付きSEARCHを直接実行
+          const coloredSearch: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: uniqueColors[0] } };
+          const newSteps = [coloredSearch as EffectAction, ...afterRemaining];
+          return execSequence({ type: 'SEQUENCE', steps: newSteps } as SequenceAction, addLog(cur, `コスト色選択：${uniqueColors[0]}`));
+        } else {
+          // 色が複数: CHOOSEで色を選択させ、各色のSEARCHを実行
+          const afterCont: EffectAction | undefined = afterRemaining.length > 0
+            ? (afterRemaining.length === 1 ? afterRemaining[0] : { type: 'SEQUENCE', steps: afterRemaining } as SequenceAction)
+            : undefined;
+          const opts = uniqueColors.map(c => ({
+            id: c, label: `《${c}》のシグニをサーチ`, available: true,
+            action: (() => {
+              const cs: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: c } };
+              return afterCont ? { type: 'SEQUENCE', steps: [cs as EffectAction, afterCont] } as SequenceAction : cs as EffectAction;
+            })(),
+          }));
+          return needsInteraction(addLog(cur, 'コスト色選択：サーチする色を選んでください'), {
+            type: 'CHOOSE', options: opts, count: 1,
+          });
+        }
+      }
+      cur = addLog(cur, 'コスト色選択（スキップ）');
+      continue;
+    }
     // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN)
     // IS_MY_TURN はパーサーが「コスト支払い → 効果発動」を表すプレースホルダーとして使用
     if (step.type === 'STUB') {
