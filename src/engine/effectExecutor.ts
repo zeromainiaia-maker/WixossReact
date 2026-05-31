@@ -1,4 +1,4 @@
-import type { PlayerState, CardData, PendingInteractionDef, TargetScope } from '../types';
+import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import type {
   CardEffect,
   EffectAction,
