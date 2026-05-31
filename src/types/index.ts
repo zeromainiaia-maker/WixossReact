@@ -111,6 +111,8 @@ export interface PlayerState {
   lrig_granted_auto_effects?: import('./effects').CardEffect[];
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（BANISH_REDIRECT）
   banish_redirect?: boolean;
+  // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る（BANISH_REDIRECT_TO_HAND）
+  banish_redirect_to_hand?: boolean;
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
   declared_guard_restrict_level?: number;
   // DECLARE_CARD_NAME で宣言されたカード名（デッキ上確認効果等で使用）
