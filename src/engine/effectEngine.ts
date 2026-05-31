@@ -265,6 +265,69 @@ function extractCostIncreases(action: EffectAction): CostIncreaseAction[] {
 // ===== フィールドシグニの有効パワー計算 =====
 
 /**
+/**
+ * LEVEL_MOD_PER_COUNT CONTINUOUS効果によるシグニのレベル修正マップを構築する。
+ * ownerState のシグニが対象。otherState の盤面状況（チャーム数等）を参照する。
+ */
+function buildLevelMods(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Map<string, number> {
+  const levelMods = new Map<string, number>();
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  for (const stack of ownerState.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'LEVEL_MOD_PER_COUNT') continue;
+      const card = cardMap.get(topNum);
+      const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+      const baseLv = parseInt(card?.Level ?? '', 10);
+      if (isNaN(baseLv)) continue;
+      // "対戦相手の場にある【チャーム】N枚につきN減る"
+      const m = txt.match(/対戦相手の場にある【チャーム】([０-９\d]*)枚?につき([０-９\d]+)減る/);
+      if (m) {
+        const divisor = parseInt(toHW(m[1] || '1')) || 1;
+        const delta = parseInt(toHW(m[2])) || 1;
+        const charmCount = (otherState.field.signi_charms ?? []).filter(c => c !== null).length;
+        levelMods.set(topNum, Math.max(0, baseLv - Math.floor(charmCount / divisor) * delta));
+      }
+    }
+  }
+  return levelMods;
+}
+
+/**
+ * フィールド上シグニの実効レベルを計算して返す（LEVEL_MOD_PER_COUNT等を適用済み）。
+ * BattleScreen でのレベル表示や条件チェックに使用する。
+ */
+export function calcSigniLevels(
+  myState: PlayerState,
+  opState: PlayerState,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Map<string, number> {
+  const levels = new Map<string, number>();
+  for (const state of [myState, opState]) {
+    for (const stack of state.field.signi) {
+      if (!stack || stack.length === 0) continue;
+      const topNum = stack[stack.length - 1];
+      const baseLv = parseInt(cardMap.get(topNum)?.Level ?? '', 10);
+      if (!isNaN(baseLv)) levels.set(topNum, baseLv);
+    }
+  }
+  const modsMe = buildLevelMods(myState, opState, effectsMap, cardMap);
+  const modsOp = buildLevelMods(opState, myState, effectsMap, cardMap);
+  for (const [k, v] of modsMe) levels.set(k, v);
+  for (const [k, v] of modsOp) levels.set(k, v);
+  return levels;
+}
+
+/**
  * フィールド上のシグニ全体の有効パワーを計算する。
  * @param myState  - ローカルプレイヤーの状態
  * @param opState  - 相手プレイヤーの状態
