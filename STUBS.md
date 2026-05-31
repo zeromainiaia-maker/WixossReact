@@ -389,6 +389,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 v0.116 | ADJACENT_ZONE_ATTACK: 英知=10条件付き隣ゾーン追加バトルをBattleScreen.tsxに実装 | ADJACENT_ZONE_ATTACK |
 | 2026-05-31 v0.115 | DOUBLE_POWER_MINUS: applyEffectsでhasDoublePowerMinusフラグ+negMultiplier=2でapplyDeltaToState | DOUBLE_POWER_MINUS |
 | 2026-05-31 v0.115 | BLOCK_FRONT_SIGNI_ATTACK: calcContinuousBlockedActionsで相手の正面シグニをアタック不可化 | BLOCK_FRONT_SIGNI_ATTACK |
 | 2026-05-31 v0.115 | PREVENT_LRIG_DAMAGE (CONT条件付き): ガード応答時に手札0枚条件チェック実装 | PREVENT_LRIG_DAMAGE |
