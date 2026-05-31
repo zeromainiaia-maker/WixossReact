@@ -2053,3 +2053,40 @@ export function collectPowerProtectedSigni(
   }
   return [...protected_];
 }
+
+/**
+ * SIGNI_CANT_BOUNCE_FROM_FIELD: フィールドのシグニがバウンス（場→手札）から保護されているシグニを返す。
+ * stateのフィールドに SIGNI_CANT_BOUNCE_FROM_FIELD STUB がある場合、
+ * カードテキストのクラス（例：＜悪魔＞）に一致する全シグニを保護対象として返す。
+ */
+export function collectBounceProtectedSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const protected_ = new Set<string>();
+  for (const stack of state.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'SIGNI_CANT_BOUNCE_FROM_FIELD') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      const card = cardMap.get(topNum);
+      const txt = card?.EffectText ?? '';
+      const classM = txt.match(/あなたの＜([^＞]+)＞のシグニは場から手札に戻らない/);
+      const protectedClass = classM?.[1];
+      for (const s of state.field.signi) {
+        if (!s?.length) continue;
+        const sTop = s[s.length - 1];
+        if (!protectedClass || cardMap.get(sTop)?.CardClass?.includes(protectedClass)) {
+          protected_.add(sTop);
+        }
+      }
+    }
+  }
+  return [...protected_];
+}
