@@ -1076,6 +1076,52 @@ export function collectSpecificCardCostReductions(
   return reductions;
 }
 
+// ===== ビート条件評価 =====
+
+export function checkBeatCondition(beatZone: string[], condText: string, cardMap: Map<string, CardData>): boolean {
+  const n = (s: string) => parseInt(s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30)), 10);
+
+  // 枚数条件: N枚以下 / N枚以上
+  let m = condText.match(/^([０-９\d]+)枚以下$/);
+  if (m) return beatZone.length <= n(m[1]);
+  m = condText.match(/^([０-９\d]+)枚以上$/);
+  if (m) return beatZone.length >= n(m[1]);
+  m = condText.match(/^([０-９\d]+)枚$/);
+  if (m) return beatZone.length === n(m[1]);
+
+  // レベルN以上がN枚以上: "レベル3以上が4枚以上"
+  m = condText.match(/レベル([０-９\d]+)以上が([０-９\d]+)枚以上/);
+  if (m) {
+    const minLv = n(m[1]), minCount = n(m[2]);
+    const count = beatZone.filter(num => {
+      const lv = parseInt(cardMap.get(num)?.Level ?? '0', 10);
+      return !isNaN(lv) && lv >= minLv;
+    }).length;
+    return count >= minCount;
+  }
+
+  // レベルN～Mが各1枚以上: "レベル1～4が各1枚以上"
+  m = condText.match(/レベル([０-９\d]+)～([０-９\d]+)が各([０-９\d]+)枚以上/);
+  if (m) {
+    const from = n(m[1]), to = n(m[2]), each = n(m[3]);
+    for (let lv = from; lv <= to; lv++) {
+      const cnt = beatZone.filter(num => parseInt(cardMap.get(num)?.Level ?? '-1', 10) === lv).length;
+      if (cnt < each) return false;
+    }
+    return true;
+  }
+
+  // レベルN、Mが各1枚以上: "レベル1、2が各1枚以上"
+  m = condText.match(/レベル((?:[０-９\d]+[、,]?)+)が各([０-９\d]+)枚以上/);
+  if (m) {
+    const levels = m[1].split(/[、,]/).map(s => n(s.trim())).filter(v => !isNaN(v));
+    const each = n(m[2]);
+    return levels.every(lv => beatZone.filter(num => parseInt(cardMap.get(num)?.Level ?? '-1', 10) === lv).length >= each);
+  }
+
+  return false;
+}
+
 // ===== クロスシグニ状態計算 =====
 
 function getZoneTopCardName(state: PlayerState, zoneIndex: number, cardMap: Map<string, CardData>): string | null {
