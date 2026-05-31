@@ -204,7 +204,7 @@
 | 1 | AUTO | ⚡ | LIMIT_OPP_SIGNI_ATTACKS_ONCE |
 | 1 | AUTO | ⚡ | LOOK_DECK_BOTTOM |
 | 1 | AUTO | ⚡ | LOOK_TOP_ONE_RETURN_REST_BOTTOM |
-| 1 | CONT | ✅ | LRIG_ALL_NAMES ※v0.0.7: collectLrigNameAliasesでLRIG_ALL_NAMES_SENTINEL追加。lrigNameMatchesで全ルリグ名マッチ。execStubのCONDITIONAL_MULTI_CHOOSE_BY_CENTERもruntime aliasesを考慮 |
+| 1 | CONT | ✅ | LRIG_ALL_NAMES ※v0.129: collectLrigNameAliasesでLRIG_ALL_NAMES_SENTINEL追加。lrigNameMatchesで全ルリグ名マッチ。execStubのCONDITIONAL_MULTI_CHOOSE_BY_CENTERもruntime aliasesを考慮 |
 | 1 | CONT | ⚡ | LRIG_LIMIT_UP_AND_COLOR_GAIN ※v0.115: collectLrigColorAndLimitMods+lrigLimit計算に+limitDelta統合（色変更は部分的） |
 | 1 | AUTO | ⚡ | LRIG_TRASH_KEY_TO_CENTER_UNDER |
 | 1 | AUTO | ✅ | LRIG_UNDER_CARD_OP |
