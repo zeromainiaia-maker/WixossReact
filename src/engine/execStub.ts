@@ -1490,6 +1490,72 @@ export function execStub(
       };
       return selectOrInteract(selfSigniSoulCands, 1, false, 'self_field', chooseSoulStub, undefined, ctx);
     }
+    // 「このルリグの下からカードN枚をルリグトラッシュに置いてもよい」（任意・WXDi-P04/05/06-009系）
+    const lrigUnderOptM = effSOtxt.match(/このルリグの下からカード([０-９\d]+)枚をルリグトラッシュに置いてもよい/);
+    if (lrigUnderOptM) {
+      const countLUO = parseInt(toHWSO(lrigUnderOptM[1]));
+      const lrigStackLUO = ctx.ownerState.field.lrig;
+      const underLUO = lrigStackLUO.length > 1 ? lrigStackLUO.slice(0, -1) : [];
+      if (underLUO.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし'));
+      const toConsumeLUO = underLUO.slice(-Math.min(countLUO, underLUO.length));
+      const consumeActLUO = { type: 'STUB', id: 'INTERNAL_CONSUME_LRIG_UNDER', value: countLUO } as StubAction;
+      const noopActLUO: SequenceAction = { type: 'SEQUENCE', steps: [] };
+      const nameListLUO = toConsumeLUO.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+      return needsInteraction(addLog(ctx, `ルリグ下消費？（${nameListLUO}）`), {
+        type: 'CHOOSE', count: 1,
+        options: [
+          { id: 'consume', label: `ルリグ下（${nameListLUO}）をルリグトラッシュへ`, action: consumeActLUO as EffectAction, available: true },
+          { id: 'skip',    label: 'スキップ', action: noopActLUO as EffectAction, available: true },
+        ],
+      });
+    }
+    // 「センタールリグの下からカードN枚をルリグトラッシュに置く」（強制・固定枚数・WD22-016-UG/SPK06-05系）
+    const centerUnderFixedM = effSOtxt.match(/センタールリグの下からカード([０-９\d]+)枚をルリグトラッシュに置く/);
+    if (centerUnderFixedM) {
+      const countCUF = parseInt(toHWSO(centerUnderFixedM[1]));
+      const lrigStackCUF = ctx.ownerState.field.lrig;
+      const underCUF = lrigStackCUF.length > 1 ? lrigStackCUF.slice(0, -1) : [];
+      const toTrashCUF = underCUF.slice(-Math.min(countCUF, underCUF.length));
+      if (toTrashCUF.length === 0) return done(addLog(ctx, 'ルリグの下にカードなし（固定消費）'));
+      const remainCUF = underCUF.slice(0, underCUF.length - toTrashCUF.length);
+      const newLrigCUF = [...remainCUF, lrigStackCUF[lrigStackCUF.length - 1]];
+      const newOwnerCUF: PlayerState = {
+        ...ctx.ownerState,
+        field: { ...ctx.ownerState.field, lrig: newLrigCUF },
+        lrig_trash: [...ctx.ownerState.lrig_trash, ...toTrashCUF],
+      };
+      return done(addLog({ ...ctx, ownerState: newOwnerCUF, lastProcessedCards: toTrashCUF },
+        `センタールリグ下${toTrashCUF.length}枚をルリグトラッシュへ`));
+    }
+    // 「ルリグトラッシュからLvNのルリグをセンタールリグの下に置いてもよい」（WX13-033系）
+    const fromTrashToUnderM = effSOtxt.match(/ルリグトラッシュから.*レベル([０-９\d]+).*ルリグ[１1]枚.*センタールリグの下に置いてもよい/);
+    if (fromTrashToUnderM) {
+      const targetLvFTU = parseInt(toHWSO(fromTrashToUnderM[1]));
+      const centerTopFTU = ctx.ownerState.field.lrig.at(-1);
+      const centerCardFTU = centerTopFTU ? ctx.cardMap.get(centerTopFTU) : undefined;
+      const sameType = effSOtxt.includes('完全に同一のルリグタイプ');
+      const candidatesFTU = ctx.ownerState.lrig_trash.filter(cn => {
+        const c = ctx.cardMap.get(cn);
+        if (!c) return false;
+        if (parseInt(c.Level ?? '') !== targetLvFTU) return false;
+        if (sameType && centerCardFTU) {
+          return c.CardClass === centerCardFTU.CardClass || c.Story === centerCardFTU.Story;
+        }
+        return true;
+      });
+      if (candidatesFTU.length === 0) return done(addLog(ctx, `ルリグトラッシュにLv${targetLvFTU}のルリグなし`));
+      const noopFTU: SequenceAction = { type: 'SEQUENCE', steps: [] };
+      const opts = [
+        ...candidatesFTU.map(cn => ({
+          id: cn,
+          label: `${ctx.cardMap.get(cn)?.CardName ?? cn}をセンタールリグ下に置く`,
+          action: { type: 'STUB', id: 'INTERNAL_PLACE_LRIG_UNDER_CENTER', value: cn } as StubAction as EffectAction,
+          available: true,
+        })),
+        { id: 'skip', label: 'スキップ', action: noopFTU as EffectAction, available: true },
+      ];
+      return needsInteraction(addLog(ctx, 'センタールリグ下に置くルリグを選択'), { type: 'CHOOSE', count: 1, options: opts });
+    }
     // 「センタールリグの下からカードを好きな枚数対象とし、それらをルリグトラッシュに置く」
     if (effSOtxt.match(/センタールリグの下からカードを好きな枚数対象とし.*ルリグトラッシュに置く/)) {
       const lrigStackSO = ctx.ownerState.field.lrig;
