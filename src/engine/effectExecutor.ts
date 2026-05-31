@@ -3657,17 +3657,31 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const srcCardT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
         const txtT = srcCardT ? (srcCardT.EffectText ?? '') + ' ' + (srcCardT.BurstText ?? '') : '';
         const toHWT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        // 枚数（"N枚まで" or デフォルト1）
+        const countMT = txtT.match(/シグニ([０-９\d]+)枚(?:まで)?を対象とし.*の下に置く/);
+        const maxCountT = countMT ? parseInt(toHWT(countMT[1])) : 1;
+        // レベル上限
         const lvMT = txtT.match(/レベル([０-９\d]+)以下の/);
         const maxLvT = lvMT ? parseInt(toHWT(lvMT[1])) : 99;
+        // クラスフィルタ（＜X＞）
+        const classM = txtT.match(/＜([^＞]+)＞のシグニ.*の下に置く/);
+        const reqClass = classM?.[1];
+        // 色フィルタ（「共通する色を持たない」は除外）
+        const colorM = txtT.match(/あなたのトラッシュから(白|赤|青|緑|黒)の/);
+        const reqColor = colorM?.[1];
         const trashSigniT = ctx.ownerState.trash.filter(cn => {
           const c = ctx.cardMap.get(cn);
-          return c?.Type === 'シグニ' && parseInt(c.Level ?? '0') <= maxLvT;
+          if (!c || c.Type !== 'シグニ') return false;
+          if (parseInt(c.Level ?? '0') > maxLvT) return false;
+          if (reqClass && !(c.CardClass ?? '').includes(reqClass)) return false;
+          if (reqColor && !(c.Color ?? '').includes(reqColor)) return false;
+          return true;
         });
         if (trashSigniT.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし（シグニ下配置スキップ）'));
         const placeUnderAction: import('../types/effects').PlaceUnderSourceSigniAction = {
           type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'trash',
         };
-        return selectOrInteract(trashSigniT, 1, false, 'self_trash', placeUnderAction as EffectAction, undefined, ctx);
+        return selectOrInteract(trashSigniT, maxCountT, true, 'self_trash', placeUnderAction as EffectAction, undefined, ctx);
       }
       // ルリグリミット修正（エナフェイズ終了まで）
       if (stub.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
