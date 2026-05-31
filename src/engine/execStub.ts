@@ -6438,19 +6438,36 @@ export function execStub(
     const cardREV = ctx.cardMap.get(topREV);
     return done(addLog({ ...ctx, lastProcessedCards: [topREV] }, `公開：${cardREV?.CardName ?? topREV}`));
   }
-  // HAND_REVEAL_CLASS_SIGNI: 手札のクラスシグニを公開（フィルタしてログ）
+  // HAND_REVEAL_CLASS_SIGNI: 手札のクラスシグニを選択して公開（SELECT_TARGET）
   if (stub.id === 'HAND_REVEAL_CLASS_SIGNI') {
     const srcHRCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtHRCS = srcHRCS ? (srcHRCS.EffectText ?? '') + ' ' + (srcHRCS.BurstText ?? '') : '';
-    const mHRCS = txtHRCS.match(/＜([^＞]+)＞/);
-    const classNameHRCS = mHRCS ? mHRCS[1] : '';
-    const classSigniHRCS = ctx.ownerState.hand.filter(cn => {
+    // クラス名を抽出（例: ＜アーム＞、＜水獣＞）
+    const classMatchHRCS = txtHRCS.match(/手札から(?:好きな枚数の?)?[＜《]([^＞》]+)[＞》]/);
+    const classNameHRCS = classMatchHRCS ? classMatchHRCS[1] : '';
+    const isAnyCountHRCS = txtHRCS.includes('好きな枚数');
+    // 手札からクラスシグニを絞り込む
+    const candsHRCS = ctx.ownerState.hand.filter(cn => {
       const c = ctx.cardMap.get(cn);
       return c?.Type === 'シグニ' && (!classNameHRCS || (c.CardClass ?? '').includes(classNameHRCS));
     });
-    const namesHRCS = classSigniHRCS.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
-    return done(addLog({ ...ctx, lastProcessedCards: classSigniHRCS },
-      `手札${classNameHRCS ? '＜' + classNameHRCS + '＞' : 'シグニ'}公開：${namesHRCS || 'なし'}`));
+    if (candsHRCS.length === 0) {
+      return done(addLog({ ...ctx, lastProcessedCards: [] },
+        `手札に${classNameHRCS ? `＜${classNameHRCS}＞` : ''}シグニなし（公開なし）`));
+    }
+    const countHRCS = isAnyCountHRCS ? candsHRCS.length : 1;
+    const noopHRCS: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return needsInteraction(
+      addLog(ctx, `手札から${classNameHRCS ? `＜${classNameHRCS}＞` : ''}シグニを${isAnyCountHRCS ? '好きな枚数' : '１枚'}公開する`),
+      {
+        type: 'SELECT_TARGET',
+        candidates: candsHRCS,
+        count: countHRCS,
+        optional: isAnyCountHRCS,
+        targetScope: 'self_hand',
+        thenAction: noopHRCS as EffectAction,
+      }
+    );
   }
   // OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開
   if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
