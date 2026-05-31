@@ -1647,6 +1647,65 @@ export function execStub(
           `パワー${delta > 0 ? '+' : ''}${delta}（処理${count}枚）`));
       }
     }
+    // スタンドアロン: ゲーム状態カウントベースのドロー/パワー
+    if (count === 0) {
+      const toSignedCBDP = (s: string) => parseInt(toHWCBDP(s).replace('＋','+').replace('－','-'));
+      // "エナゾーン(?:のカード)?N枚につき(N枚)カードを引く"
+      const enaDrawM = txtCBDP.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき(?:カードを)?([０-９\d]*)枚(?:ドロー|引く)/);
+      if (enaDrawM) {
+        const div = parseInt(toHWCBDP(enaDrawM[1] || '1')) || 1;
+        const drawPerDiv = parseInt(toHWCBDP(enaDrawM[2] || '1')) || 1;
+        const drawCount = Math.floor(ctx.ownerState.energy.length / div) * drawPerDiv;
+        if (drawCount > 0) {
+          const s = ctx.ownerState;
+          const canDraw = Math.min(drawCount, s.deck.length);
+          const newS: PlayerState = { ...s, hand: [...s.hand, ...s.deck.slice(0, canDraw)], deck: s.deck.slice(canDraw) };
+          return done(addLog({ ...ctx, ownerState: newS }, `${drawCount}枚ドロー（エナ${ctx.ownerState.energy.length}枚÷${div}）`));
+        }
+        return done(addLog(ctx, 'エナゾーン基準ドロー（0枚）'));
+      }
+      // "手札N枚につき(N枚)カードを引く"
+      const handDrawM = txtCBDP.match(/手札([０-９\d]*)枚につき(?:カードを)?([０-９\d]*)枚(?:ドロー|引く)/);
+      if (handDrawM) {
+        const div = parseInt(toHWCBDP(handDrawM[1] || '1')) || 1;
+        const drawPerDiv = parseInt(toHWCBDP(handDrawM[2] || '1')) || 1;
+        const drawCount = Math.floor(ctx.ownerState.hand.length / div) * drawPerDiv;
+        if (drawCount > 0) {
+          const s = ctx.ownerState;
+          const canDraw = Math.min(drawCount, s.deck.length);
+          const newS: PlayerState = { ...s, hand: [...s.hand, ...s.deck.slice(0, canDraw)], deck: s.deck.slice(canDraw) };
+          return done(addLog({ ...ctx, ownerState: newS }, `${drawCount}枚ドロー（手札${ctx.ownerState.hand.length}枚÷${div}）`));
+        }
+        return done(addLog(ctx, '手札基準ドロー（0枚）'));
+      }
+      // "登録者数N万人につき(N枚)カードを引く"
+      const subDrawM = txtCBDP.match(/登録者数([０-９\d]*)万人につき(?:カードを)?([０-９\d]*)枚(?:ドロー|引く)/);
+      if (subDrawM) {
+        const div = parseInt(toHWCBDP(subDrawM[1] || '1')) || 1;
+        const drawPerDiv = parseInt(toHWCBDP(subDrawM[2] || '1')) || 1;
+        const drawCount = Math.floor((ctx.ownerState.subscriber_count ?? 0) / div) * drawPerDiv;
+        if (drawCount > 0) {
+          const s = ctx.ownerState;
+          const canDraw = Math.min(drawCount, s.deck.length);
+          const newS: PlayerState = { ...s, hand: [...s.hand, ...s.deck.slice(0, canDraw)], deck: s.deck.slice(canDraw) };
+          return done(addLog({ ...ctx, ownerState: newS }, `${drawCount}枚ドロー（登録者数${ctx.ownerState.subscriber_count ?? 0}万人÷${div}）`));
+        }
+        return done(addLog(ctx, '登録者数基準ドロー（0枚）'));
+      }
+      // "フィールドのシグニN体につき±X"
+      const fieldPwM = txtCBDP.match(/フィールド.*シグニ([０-９\d]*)体につき([＋＋\-－][０-９\d]+)/);
+      if (fieldPwM) {
+        const div = parseInt(toHWCBDP(fieldPwM[1] || '1')) || 1;
+        const ownSigniCount = ctx.ownerState.field.signi.filter(s => s && s.length > 0).length;
+        const delta = Math.floor(ownSigniCount / div) * toSignedCBDP(fieldPwM[2]);
+        if (delta !== 0 && ctx.sourceCardNum) {
+          const mods = [...(ctx.ownerState.temp_power_mods ?? [])];
+          mods.push({ cardNum: ctx.sourceCardNum, delta });
+          return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: mods } },
+            `ソースシグニパワー${delta > 0 ? '+' : ''}${delta}（フィールド${ownSigniCount}体）`));
+        }
+      }
+    }
     return done(addLog(ctx, `カウント基準効果（処理${count}枚）`));
   }
   // アーツ使用時にルリグデッキからアーツを任意でルリグトラッシュへ
