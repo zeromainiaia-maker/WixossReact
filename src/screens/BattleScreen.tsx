@@ -4992,7 +4992,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const baseStateForBurst = doubleBurst
         ? { ...baseState, life_burst_double_next: undefined }
         : baseState;
-      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, doubleBurst ? 2 : 1);
+      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await supabase.from('battle_states')
