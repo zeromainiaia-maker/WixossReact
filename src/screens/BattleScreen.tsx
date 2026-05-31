@@ -1283,16 +1283,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return collectLrigColorAndLimitMods(myS, battleCardMap, effectsMap, opS, myTurn);
   }, [bs, battleCardMap, effectsMap, user.id]);
 
-  // GAIN_LRIG_COLOR: ルリグの色を得るシグニ
-  const _myLrigColorInheritSigni = useMemo((): string[] => {
-    if (!bs || bs.global_phase !== 'PLAYING') return [];
-    const localIsHost = user.id === bs.host_id;
-    const myS = localIsHost ? bs.host_state : bs.guest_state;
-    const opS = localIsHost ? bs.guest_state : bs.host_state;
-    const myTurn = bs.active_user_id === user.id;
-    return collectLrigColorInheritSigni(myS, battleCardMap, effectsMap, opS, myTurn);
-  }, [bs, battleCardMap, effectsMap, user.id]);
-
   // pending_effectが変わったらカード選択をリセット（別効果の選択状態が残らないように）
   useEffect(() => {
     setEffectSelectedNums([]);
