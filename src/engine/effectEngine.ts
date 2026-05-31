@@ -875,6 +875,31 @@ export function calcContinuousBlockedActions(
     if (myFrontTop) cannotAttackSigni.add(myFrontTop);
   }
 
+  // BLOCK_OPP_ENCORE_AND_BET: 自フィールドにあれば相手のアンコール/ベットを封じる
+  for (const stack of ownerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_OPP_ENCORE_AND_BET' &&
+      checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap),
+    );
+    if (hasBlock) { forOther.add('ENCORE'); forOther.add('BET'); }
+  }
+  // 相手フィールドにあれば自分のアンコール/ベットを封じる
+  for (const stack of otherState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_OPP_ENCORE_AND_BET' &&
+      checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap),
+    );
+    if (hasBlock) { forSelf.add('ENCORE'); forSelf.add('BET'); }
+  }
+
   return { forSelf, forOther, cannotAttackSigni };
 }
 
