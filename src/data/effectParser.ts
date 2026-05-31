@@ -332,6 +332,10 @@ function parseCost(costStr: string): EffectCost | undefined {
   if (dm) cost.discard = parseNum(dm[1]);
   const em = costStr.match(/エクシード([０-９\d]+)/);
   if (em) cost.exceed = parseNum(em[1]);
+  // シグニを【ビート】にする（コスト）: "他のシグニ1体" or "シグニ1体"
+  const beatM = costStr.match(/(?:他の)?シグニ([０-９\d]+)体を【ビート】にする/);
+  if (beatM) cost.beat_signi = parseNum(beatM[1]);
+  else if (costStr.includes('シグニ１体を【ビート】にする') || costStr.includes('他のシグニ１体を【ビート】にする')) cost.beat_signi = 1;
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 
