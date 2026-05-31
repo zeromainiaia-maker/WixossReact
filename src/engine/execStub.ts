@@ -2133,8 +2133,20 @@ export function execStub(
       signi_down: newDown as boolean[], signi_frozen: newFrozen as boolean[],
       signi_charms: newCharms, signi_acce: newAcce, signi_virus: newVirus,
     };
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: newFieldMov } },
-      `${ctx.cardMap.get(srcZ)?.CardName ?? srcZ}をゾーン${curZone + 1}→ゾーン${targetZoneNum + 1}に移動`));
+    let ctxMov = addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: newFieldMov } },
+      `${ctx.cardMap.get(srcZ)?.CardName ?? srcZ}をゾーン${curZone + 1}→ゾーン${targetZoneNum + 1}に移動`);
+    // 「効果によって移動したとき、パワー+N」テキストがあれば即時適用
+    const movTxt = ctx.cardMap.get(srcZ)?.EffectText ?? '';
+    const movPwrM = movTxt.match(/移動したとき.*パワーを＋([０-９\d]+)/);
+    if (movPwrM) {
+      const toHWMov = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const boost = parseInt(toHWMov(movPwrM[1]));
+      const modsM = [...(ctxMov.ownerState.temp_power_mods ?? [])];
+      modsM.push({ cardNum: srcZ, delta: boost });
+      ctxMov = addLog({ ...ctxMov, ownerState: { ...ctxMov.ownerState, temp_power_mods: modsM } },
+        `${ctx.cardMap.get(srcZ)?.CardName ?? srcZ}のパワー+${boost}（ターン終了時まで）`);
+    }
+    return done(ctxMov);
   }
   // ソウル付与（ルリグの下カードを選択シグニに付与）
   if (stub.id === 'INTERNAL_ATTACH_SOUL_FROM_LRIG') {
