@@ -85,6 +85,7 @@ export interface PlayerState {
     cross_state?:  boolean[];         // [zone0, zone1, zone2] true=クロス状態
     heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み
   };
+  beat_zone?: string[];             // ビートゾーン（ターン終了時にトラッシュへ）
   actions_done?: string[];    // このターンに使用済みのアクション（ターン開始時にリセット）
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
