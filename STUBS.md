@@ -38,8 +38,8 @@
 | 4 | ACTIVATED/AUTO | ✅ | SEED_BLOOM ※v0.109: ON_PLAY効果トリガー実装・WXK04-060条件修正 |
 | 3 | ACTIVATED/AUTO | ⚡ | ACCE_FROM_HAND |
 | 3 | ACTIVATED/AUTO | ⚡ | ACTIVATE_TRAP |
-| 3 | ACTIVATED/AUTO | ⚡ | CLASS_CHANGE |
-| 3 | ACTIVATED | ⚡ | DO_THREE_THINGS |
+| 3 | ACTIVATED/AUTO | ✅ | CLASS_CHANGE ※v0.136: 「すべての...シグニ」全適用パターン追加（WXK04-006対応）・SEQUENCE内ターゲット引き継ぎ対応 |
+| 3 | ACTIVATED | ✅ | DO_THREE_THINGS ※v0.136: WXK11シリーズ①追加（ドローN/ルリグダウン/シグニアタック禁止選択/パワーX以下バニッシュ選択） |
 | 3 | CONT | ✅ | FORCE_TARGET_SELF |
 | 3 | ACTIVATED/AUTO | ⚡ | GATE |
 | 3 | AUTO | ⚡ | MAKE_SERVANT_ZERO |
