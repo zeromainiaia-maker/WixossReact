@@ -900,6 +900,23 @@ export function calcContinuousBlockedActions(
     if (hasBlock) { forSelf.add('ENCORE'); forSelf.add('BET'); }
   }
 
+  // ATTACK_COUNT_BY_POWER: 自シグニのパワー10000につき1回アタック制限
+  for (const stack of ownerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasATK = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'ATTACK_COUNT_BY_POWER' &&
+      checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap),
+    );
+    if (!hasATK) continue;
+    const power = parseInt(cardMap.get(topNum)?.Power ?? '0') || 0;
+    const maxAttacks = Math.floor(power / 10000);
+    const attackCount = (ownerState.attacked_signi_ids ?? []).filter(id => id === topNum).length;
+    if (attackCount >= maxAttacks) cannotAttackSigni.add(topNum);
+  }
+
   return { forSelf, forOther, cannotAttackSigni };
 }
 
