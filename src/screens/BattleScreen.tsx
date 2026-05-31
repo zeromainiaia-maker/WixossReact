@@ -2304,6 +2304,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
+          life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
           lrig_granted_auto_effects: undefined, // ターン終了時まで付与されたルリグ能力をクリア
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_to_hand: undefined,   // バニッシュ先→手札フラグをクリア
