@@ -389,6 +389,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 v0.122 | LRIG_UNDER_CARD_OP (SEQUENCE→IS_MY_TURN): シグニ下カード消費インタラクション実装（WX24/WX25/WXDi/SPDi43系12件対応） | LRIG_UNDER_CARD_OP |
 | 2026-05-31 v0.121 | SOUL_OP (SEQUENCE→IS_MY_TURN): ソウル消費インタラクション実装・INTERNAL_CONSUME_SOULでシグニ下ソウルをルリグトラッシュへ（WXDi-P0x-009系7件対応） | SOUL_OP |
 | 2026-05-31 v0.121 | POWER_MOD_TARGET_AND_SELF: stub.deltaパラメータを優先使用（テキスト解析フォールバック） | POWER_MOD_TARGET_AND_SELF |
 | 2026-05-31 v0.117 | ATTACK_COUNT_BY_POWER: パワー/10000回数制限・attacked_signi_idsをバッグ化 | ATTACK_COUNT_BY_POWER |

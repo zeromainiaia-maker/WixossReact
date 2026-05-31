@@ -721,6 +721,32 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, 'ソウルを使用して発動しますか？'), pendingSO);
         }
 
+        // LRIG_UNDER_CARD_OP: シグニ下のカードを消費してコスト支払い（WX24/WX25/WXDiシリーズ）
+        if (stub.id === 'LRIG_UNDER_CARD_OP') {
+          const srcZoneLUCO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);
+          const stackLUCO = srcZoneLUCO >= 0 ? cur.ownerState.field.signi[srcZoneLUCO] : null;
+          const hasUnder = stackLUCO != null && stackLUCO.length >= 2;
+          const underCard = hasUnder ? stackLUCO![0] : null;
+          const underName = underCard ? (cur.cardMap.get(underCard)?.CardName ?? underCard) : null;
+          const consumeUnderStub: import('../types/effects').StubAction = { type: 'STUB', id: 'INTERNAL_CONSUME_SOUL' };
+          const payActionLUCO: EffectAction = hasUnder
+            ? ({ type: 'SEQUENCE', steps: [consumeUnderStub as EffectAction, conditional.then] } as SequenceAction)
+            : conditional.then;
+          const optionsLUCO = [
+            {
+              id: 'pay', available: hasUnder,
+              label: underName ? `「${underName}」を使用して発動` : 'シグニ下のカードを使用して発動',
+              action: payActionLUCO,
+            },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          ];
+          const pendingLUCO: PendingInteractionDef = {
+            type: 'CHOOSE', options: optionsLUCO, count: 1,
+            ...(cont ? { continuation: cont } : {}),
+          };
+          return needsInteraction(addLog(cur, 'シグニ下のカードを使用して発動しますか？'), pendingLUCO);
+        }
+
         // OPPONENT_PAY_OPTIONAL: 対戦相手がコストを支払う/支払わない
         // pay → 何も起きない（対戦相手のエナ消費）, skip → 効果発動（conditional.then）
         if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
