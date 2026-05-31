@@ -1486,6 +1486,9 @@ export function collectCrossStates(playerState: PlayerState, cardMap: Map<string
  * CONTINUOUS効果があれば、そのエイリアスカード名のリストを返す。
  * NOTE: 同ルリグの【自】能力コピーは未実装（名前エイリアスのみ対応）。
  */
+/** すべてのルリグ名を持つことを示すセンチネル（LRIG_ALL_NAMES CONTINUOUS効果） */
+export const LRIG_ALL_NAMES_SENTINEL = '__ALL_LRIG_NAMES__';
+
 export function collectLrigNameAliases(
   ownerState: PlayerState,
   cardMap: Map<string, CardData>,
@@ -1499,7 +1502,15 @@ export function collectLrigNameAliases(
   for (const eff of (effectsMap.get(lrigTop) ?? [])) {
     if (eff.effectType !== 'CONTINUOUS') continue;
     const act = eff.action as import('../types/effects').StubAction;
-    if (act.type !== 'STUB' || act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
+    if (act.type !== 'STUB') continue;
+
+    // LRIG_ALL_NAMES: 場にあるこのルリグはすべてのルリグのカード名を得る
+    if (act.id === 'LRIG_ALL_NAMES') {
+      if (!aliases.includes(LRIG_ALL_NAMES_SENTINEL)) aliases.push(LRIG_ALL_NAMES_SENTINEL);
+      continue;
+    }
+
+    if (act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
 
     const card = cardMap.get(lrigTop);
     const txt = card?.EffectText ?? '';
