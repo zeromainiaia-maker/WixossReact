@@ -5410,8 +5410,13 @@ export function execStub(
       '相手は起動能力を使用できない'));
   }
   // ブロック系（engine: 行動ブロック未実装）
+  // BLOCK_OPP_SPELL_ACT_NEXT_TURN: 次の対戦相手のターン中、スペルと起動能力を使用できない
+  if (stub.id === 'BLOCK_OPP_SPELL_ACT_NEXT_TURN') {
+    const blockedBOSANT = [...(ctx.otherState.blocked_actions ?? []), 'USE_SPELL:NEXT_TURN', 'USE_ACT:NEXT_TURN'];
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: blockedBOSANT } },
+      '次の対戦相手のターン中、相手はスペルと起動能力を使用できない'));
+  }
   if (stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED'
-      || stub.id === 'BLOCK_OPP_SPELL_ACT_NEXT_TURN'
       || stub.id === 'BLOCK_NON_WHITE_SPELL'
       || stub.id === 'BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT' || stub.id === 'BLOCK_OPP_DECK_TO_ENERGY'
       || stub.id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT') {
