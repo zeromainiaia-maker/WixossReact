@@ -107,6 +107,8 @@ export interface PlayerState {
   abilities_removed?: string[];
   // 次のダメージを無効にする回数（PREVENT_NEXT_DAMAGE 効果）
   prevent_next_damage?: number;
+  // このターン、次のライフバーストは2回発動する（LIFE_BURST_DOUBLE 効果）
+  life_burst_double_next?: boolean;
   // スペル/アーツ効果でターン終了まで付与されたルリグの AUTO 能力
   lrig_granted_auto_effects?: import('./effects').CardEffect[];
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（BANISH_REDIRECT）
