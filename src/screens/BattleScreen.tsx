@@ -2192,14 +2192,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // ENDフェーズ：ビートゾーン全カードをトラッシュへ（手札上限処理と同タイミング）
+        let myBeatEND = my.beat_zone ?? [];
+        let myTrashBeat = my.trash;
+        if (myBeatEND.length > 0) {
+          myTrashBeat = [...my.trash, ...myBeatEND];
+          appendBattleLogs([`ビートゾーン（${myBeatEND.length}枚）をトラッシュへ`]);
+          myBeatEND = [];
+        }
+
         // ENDフェーズ：手札上限チェック（HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT 効果）
         const handLimitEND = myEffectiveHandLimit;
         let myHandEND = my.hand;
-        let myTrashEND = my.trash;
+        let myTrashEND = myTrashBeat;
         if (my.hand.length > handLimitEND) {
           const excessEND = my.hand.length - handLimitEND;
           // 超過分をトラッシュへ（後ろから捨てる）
-          myTrashEND = [...my.trash, ...my.hand.slice(-excessEND)];
+          myTrashEND = [...myTrashEND, ...my.hand.slice(-excessEND)];
           myHandEND  = my.hand.slice(0, handLimitEND);
           appendBattleLogs([`手札上限超過（${my.hand.length}枚→${handLimitEND}枚）：${excessEND}枚捨て`]);
         }
