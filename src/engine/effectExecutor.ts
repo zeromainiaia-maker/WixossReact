@@ -7390,14 +7390,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // ビートゾーン操作
       if (stub.id === 'BEAT_ZONE_OP') {
         // フィールドのシグニ選択→ビートゾーンへ（target未実装: ログのみ）
-        const beatCard = stub.targetCardNum as string | undefined;
-        if (beatCard) {
-          const beatZone = [...(ctx.ownerState.beat_zone ?? []), beatCard];
-          const newOwner: PlayerState = { ...ctx.ownerState, beat_zone: beatZone };
-          const cardName = ctx.cardMap.get(beatCard)?.CardName ?? beatCard;
-          return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName}をビートゾーンに移動`));
-        }
-        return done(addLog(ctx, '[ビートゾーン移動: 対象未選択]'));
+        return done(addLog(ctx, '[ビートゾーン移動: 対象選択未実装]'));
       }
       if (stub.id === 'TRASH_SIGNI_TO_BEAT') {
         // トラッシュからシグニをビートゾーンへ（target未実装: ログのみ）
