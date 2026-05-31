@@ -438,14 +438,14 @@ export function execStub(
     if (totalDelta === 0 && processed.length === 0) {
       const toSignedPMPC = (s: string) => parseInt(toHW(s).replace('＋','+').replace('－','-'));
       // 手札N枚につき
-      const handM = effText.match(/手札([０-９\d]*)枚につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+      const handM = effText.match(/手札([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
       if (handM) {
         const div = parseInt(toHW(handM[1] || '1')) || 1;
         totalDelta = Math.floor(ctx.ownerState.hand.length / div) * toSignedPMPC(handM[2]);
       }
       // エナゾーンN枚につき
       if (!totalDelta) {
-        const enaM = effText.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+        const enaM = effText.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
         if (enaM) {
           const div = parseInt(toHW(enaM[1] || '1')) || 1;
           totalDelta = Math.floor(ctx.ownerState.energy.length / div) * toSignedPMPC(enaM[2]);
@@ -453,7 +453,7 @@ export function execStub(
       }
       // 登録者数N万人につき
       if (!totalDelta) {
-        const subM = effText.match(/登録者数([０-９\d]*)万人につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+        const subM = effText.match(/登録者数([０-９\d]*)万人につき([＋+]?[－-][０-９\d]+|[＋+][０-９\d]+)/);
         if (subM) {
           const div = parseInt(toHW(subM[1] || '1')) || 1;
           totalDelta = Math.floor((ctx.ownerState.subscriber_count ?? 0) / div) * toSignedPMPC(subM[2]);
