@@ -6641,6 +6641,90 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsIPMOO } },
       `${ctx.cardMap.get(targetIPMOO)?.CardName ?? targetIPMOO}パワー${deltaIPMOO}`));
   }
+  // INTERNAL_BANISH_OPP_POWER_LTE: パワーN以下の相手シグニをバニッシュ（対象選択）
+  if (stub.id === 'INTERNAL_BANISH_OPP_POWER_LTE') {
+    const maxPwrIBOPL = typeof stub.value === 'number' ? stub.value : 7000;
+    const candsIBOPL = [0,1,2]
+      .map(zi => ctx.otherState.field.signi[zi]?.at(-1))
+      .filter((cn): cn is string => {
+        if (!cn) return false;
+        const pw = parseInt(ctx.cardMap.get(cn)?.Power ?? '99999');
+        return pw <= maxPwrIBOPL;
+      });
+    if (candsIBOPL.length === 0) return done(addLog(ctx, `バニッシュ対象なし（パワー${maxPwrIBOPL}以下）`));
+    const banishIBOPL: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
+    return selectOrInteract(candsIBOPL, 1, false, 'opp_field', banishIBOPL as EffectAction, undefined, ctx);
+  }
+  // SUMMON_FROM_ENERGY: エナゾーンからシグニを場に出す（シグニ限定）
+  if (stub.id === 'SUMMON_FROM_ENERGY') {
+    const srcSFE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtSFE = srcSFE ? (srcSFE.EffectText ?? '') : '';
+    const lvMSFE = txtSFE.match(/レベル([０-９\d]+)以下の/);
+    const toHWSFE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const maxLvSFE = lvMSFE ? parseInt(toHWSFE(lvMSFE[1])) : 99;
+    const signiInEnaSFE = ctx.ownerState.energy.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      if (!c || c.Type !== 'シグニ') return false;
+      return parseInt(c.Level ?? '0') <= maxLvSFE;
+    });
+    if (signiInEnaSFE.length === 0) return done(addLog(ctx, 'エナゾーンにシグニなし'));
+    const addFieldAct: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
+    return selectOrInteract(signiInEnaSFE, 1, false, 'self_energy', addFieldAct as EffectAction, undefined, ctx);
+  }
+  // INTERNAL_DISCARD_ALL_DRAW_N: 手札をすべて捨てN枚引く
+  if (stub.id === 'INTERNAL_DISCARD_ALL_DRAW_N') {
+    const drawNIDADN = typeof stub.value === 'number' ? stub.value : 4;
+    const newOwnerIDADN = { ...ctx.ownerState,
+      trash: [...ctx.ownerState.trash, ...ctx.ownerState.hand],
+      hand: [],
+    };
+    const canDraw = Math.min(drawNIDADN, newOwnerIDADN.deck.length);
+    const finalOwner = { ...newOwnerIDADN,
+      hand: newOwnerIDADN.deck.slice(0, canDraw),
+      deck: newOwnerIDADN.deck.slice(canDraw),
+    };
+    return done(addLog({ ...ctx, ownerState: finalOwner }, `手札すべて捨て→${drawNIDADN}枚ドロー`));
+  }
+  // INTERNAL_DECK_BOTTOM_SUMMON: デッキ下1枚トラッシュ→シグニなら場に出す
+  if (stub.id === 'INTERNAL_DECK_BOTTOM_SUMMON') {
+    const deck = ctx.ownerState.deck;
+    if (deck.length === 0) return done(addLog(ctx, 'デッキなし'));
+    const bottom = deck[deck.length - 1];
+    const newDeck = deck.slice(0, -1);
+    const card = ctx.cardMap.get(bottom);
+    let newOwner = { ...ctx.ownerState, deck: newDeck, trash: [...ctx.ownerState.trash, bottom] };
+    let ctxIDBSM = addLog({ ...ctx, ownerState: newOwner }, `デッキ下(${card?.CardName ?? bottom})をトラッシュへ`);
+    if (card?.Type === 'シグニ') {
+      const addField: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
+      return exec(addField as EffectAction, { ...ctxIDBSM, lastProcessedCards: [bottom] });
+    }
+    return done(ctxIDBSM);
+  }
+  // INTERNAL_DECK_BOTTOM_LEVEL_DOWN: デッキ下1枚トラッシュ→シグニなら同レベル相手シグニをダウン
+  if (stub.id === 'INTERNAL_DECK_BOTTOM_LEVEL_DOWN') {
+    const deckIDBLD = ctx.ownerState.deck;
+    if (deckIDBLD.length === 0) return done(addLog(ctx, 'デッキなし'));
+    const bottomIDBLD = deckIDBLD[deckIDBLD.length - 1];
+    const bottomCard = ctx.cardMap.get(bottomIDBLD);
+    const newDeckIDBLD = deckIDBLD.slice(0, -1);
+    let newOwnerIDBLD = { ...ctx.ownerState, deck: newDeckIDBLD, trash: [...ctx.ownerState.trash, bottomIDBLD] };
+    let ctxIDBLD = addLog({ ...ctx, ownerState: newOwnerIDBLD }, `デッキ下(${bottomCard?.CardName ?? bottomIDBLD})をトラッシュへ`);
+    if (bottomCard?.Type === 'シグニ') {
+      const lv = parseInt(bottomCard.Level ?? '0');
+      const targets = [0,1,2].map(zi => ctxIDBLD.otherState.field.signi[zi]?.at(-1))
+        .filter((cn): cn is string => {
+          if (!cn) return false;
+          return parseInt(ctx.cardMap.get(cn)?.Level ?? '-1') === lv;
+        });
+      const newDown = [...(ctxIDBLD.otherState.field.signi_down ?? [false,false,false])];
+      for (let zi = 0; zi < 3; zi++) {
+        if (targets.includes(ctxIDBLD.otherState.field.signi[zi]?.at(-1) ?? '')) newDown[zi] = true;
+      }
+      ctxIDBLD = addLog({ ...ctxIDBLD, otherState: { ...ctxIDBLD.otherState, field: { ...ctxIDBLD.otherState.field, signi_down: newDown } } },
+        `同レベル(${lv})の相手シグニ${targets.length}体をダウン`);
+    }
+    return done(ctxIDBLD);
+  }
   // INTERNAL_BLOCK_ATTACK_THIS_TURN: 対象がアタックできない
   if (stub.id === 'INTERNAL_BLOCK_ATTACK_THIS_TURN') {
     const targetIBAC = ctx.lastProcessedCards?.[0];
