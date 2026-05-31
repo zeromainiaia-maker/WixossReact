@@ -4028,9 +4028,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (newOpAcce[opZoneIndex])   { banishExtraTrash.push(newOpAcce[opZoneIndex]!);   newOpAcce[opZoneIndex]   = null; }
           // ウィルスはゾーンに属するため、シグニがバニッシュされても除去しない
           const redirectBanish = my.banish_redirect === true;
+          const redirectBanishToHand = my.banish_redirect_to_hand === true;
           newOpState = {
             ...op,
-            energy: redirectBanish ? op.energy : [...op.energy, ...opStack],
+            hand: redirectBanishToHand ? [...op.hand, ...opStack] : op.hand,
+            energy: (redirectBanish || redirectBanishToHand) ? op.energy : [...op.energy, ...opStack],
             trash: redirectBanish
               ? [...op.trash, ...opStack, ...banishExtraTrash]
               : (banishExtraTrash.length > 0 ? [...op.trash, ...banishExtraTrash] : op.trash),
