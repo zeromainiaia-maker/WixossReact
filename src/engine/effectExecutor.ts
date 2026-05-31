@@ -334,7 +334,7 @@ function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'IS_MY_TURN':            return true;
     case 'IS_OPPONENT_TURN':      return false;
     case 'BEAT_CONDITION': {
-      const beatZone = ctx.ownerState.beat_zone ?? [];
+      const beatZone = ctx.ownerState.field.beat_zone ?? [];
       return checkBeatCondition(beatZone, cond.condText, ctx.cardMap);
     }
     case 'PAID_ADDITIONAL_COST':  return false; // execSequence の look-ahead で処理済みのため通常到達しない
