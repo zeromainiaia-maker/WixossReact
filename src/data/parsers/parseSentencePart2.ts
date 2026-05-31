@@ -32,6 +32,7 @@ import type {
   TakeFromUnderSigniAction,
   StubAction,
   CardLocation,
+  RevealAction,
 } from '../../types/effects';
 import {
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
