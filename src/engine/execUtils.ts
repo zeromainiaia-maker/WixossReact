@@ -233,7 +233,28 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'DECK_TOP_MATCHES': {
       const topNum = st(cond.owner).deck[0];
       if (!topNum) return false;
-      return matchesFilter(ctx.cardMap.get(topNum), cond.filter);
+      const topCard = ctx.cardMap.get(topNum);
+      if (matchesFilter(topCard, cond.filter)) return true;
+      // LEVEL_REFERENCE_OVERRIDE: カードテキストで許容レベルが指定されている場合も考慮
+      if (cond.filter && cond.filter.level !== undefined) {
+        const targetLvDTM = typeof cond.filter.level === 'number' ? cond.filter.level : null;
+        if (targetLvDTM !== null) {
+          const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+          const txt = topCard?.EffectText ?? '';
+          const single = txt.match(/レベルを参照する場合、レベル([０-９\d]+)として扱ってもよい/);
+          if (single && parseInt(toHW(single[1])) === targetLvDTM) {
+            return matchesFilter(topCard, { ...cond.filter, level: undefined });
+          }
+          const range = txt.match(/レベルを参照する場合、([０-９\d]+)～([０-９\d]+)いずれかのレベル/);
+          if (range) {
+            const minLv = parseInt(toHW(range[1])); const maxLv = parseInt(toHW(range[2]));
+            if (targetLvDTM >= minLv && targetLvDTM <= maxLv) {
+              return matchesFilter(topCard, { ...cond.filter, level: undefined });
+            }
+          }
+        }
+      }
+      return false;
     }
     case 'LRIG_LEVEL': {
       const lrig = st(cond.owner).field.lrig;
