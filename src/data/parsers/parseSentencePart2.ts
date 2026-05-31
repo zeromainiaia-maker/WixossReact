@@ -31,11 +31,10 @@ import type {
   PreventNextDamageAction,
   TakeFromUnderSigniAction,
   StubAction,
+  CardLocation,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseSigniTarget,
-  parsePowerFilter, parseLevelFilter, parseColorFilter,
-  parseCardTypeFilter, parseStoryFilter, makeRevealPickStub,
+  parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
 } from '../parserUtils';
 
 export function parseSentencePart2(t: string): EffectAction | null {
@@ -281,12 +280,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.match(/あなたのライフクロスの一番上を見る/)) {
     return {
       type: 'LOOK_AND_REORDER',
-      source: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self' },
+      source: { location: 'life_cloth' as CardLocation, owner: 'self' },
       count: 1,
       private: true,
       reorder: false,
       canTrash: false,
-      destination: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self', position: 'top' },
+      destination: { location: 'life_cloth' as CardLocation, owner: 'self', position: 'top' },
     } as LookAndReorderAction;
   }
 
@@ -381,12 +380,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
     if (lifeToTopM) {
       return {
         type: 'LOOK_AND_REORDER',
-        source: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self' },
+        source: { location: 'life_cloth' as CardLocation, owner: 'self' },
         count: parseNum(lifeToTopM[1]),
         private: true,
         reorder: true,
         canTrash: false,
-        destination: { location: 'deck' as import('../types/effects').CardLocation, owner: 'self', position: 'any' },
+        destination: { location: 'deck' as CardLocation, owner: 'self', position: 'any' },
       } as LookAndReorderAction;
     }
   }
@@ -606,7 +605,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
           { type: 'DRAW', owner: 'self', count: parseNum(m[1]) },
           { type: 'TRANSFER_TO_DECK', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(m[2]) }, position: 'bottom' },
         ],
-      } as import('../types/effects').SequenceAction;
+      } as SequenceAction;
     }
   }
 
@@ -619,7 +618,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.match(/対戦相手のレベル[０-９\d]+(?:以下)?のシグニ([０-９\d]+)体を対象とし.*トラッシュに置く/)) {
     const m = t.match(/対戦相手のレベル([０-９\d]+)(以下)?のシグニ([０-９\d]+)?体を対象とし.*トラッシュに置く/);
     if (m) {
-      const filter: import('../types/effects').TargetFilter = { cardType: 'シグニ', levelRange: { max: parseNum(m[1]) } };
+      const filter: TargetFilter = { cardType: 'シグニ', levelRange: { max: parseNum(m[1]) } };
       if (!m[2]) filter.levelRange = { min: parseNum(m[1]), max: parseNum(m[1]) };
       return {
         type: 'TRASH',
@@ -928,7 +927,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return {
       type: 'REVEAL',
       source: { type: 'HAND_CARD', owner: 'self', count: 1 },
-    } as import('../types/effects').RevealAction;
+    } as RevealAction;
   }
 
   // ---- 悪魔シグニは場から手札に戻らない ----
@@ -981,7 +980,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
       steps: [{
         type: 'STUB', id: 'ENERGY_BY_LEVEL_SUM_LIMIT',
       } as StubAction],
-    } as import('../types/effects').SequenceAction;
+    } as SequenceAction;
   }
 
   // ---- 《ライズアイコン》を持つシグニのパワーに比例 ----
@@ -1827,12 +1826,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
     if (lifeReorderM) {
       return {
         type: 'LOOK_AND_REORDER',
-        source: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self' },
+        source: { location: 'life_cloth' as CardLocation, owner: 'self' },
         count: parseNum(lifeReorderM[1]),
         private: true,
         reorder: true,
         canTrash: false,
-        destination: { location: 'life_cloth' as import('../types/effects').CardLocation, owner: 'self', position: 'any' },
+        destination: { location: 'life_cloth' as CardLocation, owner: 'self', position: 'any' },
       } as LookAndReorderAction;
     }
   }
@@ -1937,7 +1936,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
           { type: 'SHUFFLE_DECK', owner: 'self' },
           { type: 'PLACE_UNDER_SIGNI', source: 'deck_top', count: parseNum(ms[1]) },
         ]
-      } as import('../types/effects').SequenceAction;
+      } as SequenceAction;
     }
   }
 

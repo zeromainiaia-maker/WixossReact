@@ -130,3 +130,27 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
 }
 
+
+const ENERGY_COLORS = new Set(['白', '赤', '青', '緑', '黒', '無']);
+
+export function parseEnergyCosts(str: string): EnergyCost[] {
+  const costs: EnergyCost[] = [];
+  // 《色》×数字 形式（起動能力コスト等）
+  const re = /《([^》]+)》(?:×([０-９\d]+))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(str)) !== null) {
+    if (ENERGY_COLORS.has(m[1])) {
+      costs.push({
+        color: m[1] as EnergyCost['color'],
+        count: m[2] ? parseNum(m[2]) : 1,
+      });
+    } else {
+      // 《色×数字》 形式（説明文中のコスト表記）
+      const inner = m[1].match(/^([白赤青緑黒無])×([０-９\d]+)$/);
+      if (inner && ENERGY_COLORS.has(inner[1])) {
+        costs.push({ color: inner[1] as EnergyCost['color'], count: parseNum(inner[2]) });
+      }
+    }
+  }
+  return costs;
+}

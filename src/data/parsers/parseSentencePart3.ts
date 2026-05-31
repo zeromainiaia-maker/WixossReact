@@ -16,12 +16,16 @@ import type {
   BanishAction,
   BounceAction,
   DownAction,
+  RecollectGateAction,
+  AddToHandAction,
+  CardLocation,
+  AltCostOppTurnAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseSigniTarget,
-  parsePowerFilter, parseLevelFilter, parseColorFilter,
-  parseCardTypeFilter, parseStoryFilter, makeRevealPickStub,
+  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors,
 } from '../parserUtils';
+import { parseSentencePart1 } from './parseSentencePart1';
+import { parseSentencePart2 } from './parseSentencePart2';
 
 export function parseSentencePart3(t: string): EffectAction | null {
   // ---- エナゾーンからN枚このシグニの下に置く ----
@@ -409,7 +413,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- リコレクトアイコン条件 ----
   const recollectM = t.match(/《リコレクトアイコン》［([０-９\d]+)枚以上/);
   if (recollectM) {
-    return { type: 'RECOLLECT_GATE', minArts: parseNum(recollectM[1]) } as import('../types/effects').RecollectGateAction;
+    return { type: 'RECOLLECT_GATE', minArts: parseNum(recollectM[1]) } as RecollectGateAction;
   }
 
   // ---- 対戦相手が手札を捨てないかぎり分岐 ----
@@ -1256,7 +1260,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- あなたのメインフェイズ開始時〜（フェーズトリガー前置きを剥がして再解析）----
   {
     const m = t.match(/^あなたのメインフェイズ開始時[、,]\s*(.+)$/);
-    if (m) return parseSingleSentence(m[1].trim());
+    if (m) return (parseSentencePart1(m[1].trim()) ?? parseSentencePart2(m[1].trim()) ?? { type: 'STUB', id: 'UNKNOWN_NESTED' } as EffectAction);
   }
   if (t === 'あなたのメインフェイズ開始時') {
     return { type: 'STUB', id: 'MAIN_PHASE_START_TRIGGER' } as StubAction;
@@ -1498,8 +1502,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
       owner,
       revealCount: 1,
       pickCount: 1,
-      then: { type: 'ADD_TO_HAND', owner } as import('../types/effects').AddToHandAction,
-      remainder: { location: 'deck' as import('../types/effects').CardLocation, position: 'top' },
+      then: { type: 'ADD_TO_HAND', owner } as AddToHandAction,
+      remainder: { location: 'deck' as CardLocation, position: 'top' },
     };
   }
 
@@ -1530,8 +1534,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
         revealCount,
         pickCount: parseNum(m[3]),
         filter,
-        then: { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction,
-        remainder: { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' },
+        then: { type: 'ADD_TO_HAND', owner: 'self' } as AddToHandAction,
+        remainder: { location: 'deck' as CardLocation, position: 'bottom' },
       };
     }
   }
@@ -1609,7 +1613,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
     const m = t.match(/^(?:対戦相手のターン|次のターン)の間、この(?:カード|アーツ|スペル|シグニ)の使用コストは(.+)になる/);
     if (m) {
       const cost = parseEnergyCosts(m[1]);
-      if (cost.length > 0) return { type: 'ALT_COST_OPP_TURN', cost } as import('../types/effects').AltCostOppTurnAction;
+      if (cost.length > 0) return { type: 'ALT_COST_OPP_TURN', cost } as AltCostOppTurnAction;
     }
     if (t.match(/(?:対戦相手のターン|次のターン).*使用コストは/)) {
       return { type: 'STUB', id: 'ARTS_COST_MODIFY_OPP_TURN' } as StubAction;

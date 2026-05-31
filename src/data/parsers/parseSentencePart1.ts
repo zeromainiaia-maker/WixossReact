@@ -47,9 +47,7 @@ import type {
   BanishAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseSigniTarget,
-  parsePowerFilter, parseLevelFilter, parseColorFilter,
-  parseCardTypeFilter, parseStoryFilter, makeRevealPickStub,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseEnergyCosts, toHalf,
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
@@ -309,7 +307,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
         deltaPerUnit: sign * parseNum(perDeckM[3]),
         unitSize: parseNum(perDeckM[1]),
         deckOwner: 'self',
-      } as import('../types/effects').PowerModifyPerDeckCountAction;
+      } as PowerModifyPerDeckCountAction;
     }
   }
 
@@ -323,7 +321,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
         target: { type: 'SIGNI', owner: 'self', count: 1 },
         deltaPerColor: sign * parseNum(perColorM[3]),
         energyOwner: 'self',
-      } as import('../types/effects').PowerModifyPerEnergyColorAction;
+      } as PowerModifyPerEnergyColorAction;
     }
   }
 
@@ -381,7 +379,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
         m1[1] === 'すべてのプレイヤー' ? 'both' : m1[1] === 'あなた' ? 'self' : 'opponent';
       const sign = m1[4] === '＋' ? 1 : -1;
       const filterStr = m1[2].trim();
-      const filter: import('../types/effects').TargetFilter | undefined =
+      const filter: TargetFilter | undefined =
         filterStr === 'カード' ? undefined
         : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) }
         : filterStr.includes('スペル') ? { cardType: 'スペル' }
@@ -401,7 +399,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       const trashOwner: 'self' | 'opponent' | 'both' = m2[1] === 'あなた' ? 'self' : 'opponent';
       const sign = m2[4] === '＋' ? 1 : -1;
       const filterStr = m2[2].trim();
-      const filter: import('../types/effects').TargetFilter | undefined =
+      const filter: TargetFilter | undefined =
         filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) } : undefined;
       return {
         type: 'POWER_MODIFY_PER_TRASH_COUNT',
@@ -423,7 +421,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
         m[2] === 'すべてのプレイヤー' ? 'both' : m[2] === 'あなた' ? 'self' : 'opponent';
       const sign = m[5] === '＋' ? 1 : -1;
       const filterStr = m[3].trim();
-      const filter: import('../types/effects').TargetFilter | undefined =
+      const filter: TargetFilter | undefined =
         filterStr === 'カード' ? undefined
         : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) }
         : filterStr.includes('スペル') ? { cardType: 'スペル' }
@@ -465,7 +463,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       const trashOwner: 'self' | 'opponent' | 'both' = m[2] === 'あなた' ? 'self' : 'opponent';
       const sign = m[5] === '＋' ? 1 : -1;
       const filterStr = m[3].trim();
-      const filter: import('../types/effects').TargetFilter | undefined =
+      const filter: TargetFilter | undefined =
         filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) } : undefined;
       return {
         type: 'POWER_MODIFY_PER_TRASH_COUNT',
@@ -686,7 +684,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const m3 = t.match(/対戦相手の(?:レベル([０-９\d]+)(以下|以上)の)?シグニ([０-９\d]+)体を対象とし.*それをエナゾーンに置く/);
     if (m3) {
       const lv = m3[1] ? parseNum(m3[1]) : undefined;
-      const filter: import('../types/effects').TargetFilter = lv !== undefined
+      const filter: TargetFilter = lv !== undefined
         ? { cardType: 'シグニ', level: m3[2] === '以下' ? { max: lv } : { min: lv } }
         : { cardType: 'シグニ' };
       return {
@@ -1452,7 +1450,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       source: { type: 'SIGNI', owner, count, filter: { cardType: 'シグニ' } },
       shuffle: false,
       position: 'bottom',
-    } as import('../types/effects').TransferToDeckAction;
+    } as TransferToDeckAction;
   }
 
   // ---- あなたの他のシグニ１体をトラッシュ（コスト系効果）----

@@ -1,12 +1,8 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope } from '../types';
-import { parseCardEffects } from '../data/effectParser';
 import type {
   CardEffect,
   EffectAction,
-  TargetFilter,
   Owner,
-  NumberOrRef,
-  Condition,
   DrawAction,
   BanishAction,
   BounceAction,

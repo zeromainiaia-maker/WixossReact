@@ -5,12 +5,14 @@ import type {
   TakeFromUnderSigniAction,
   StubAction,
   BanishAction,
+  ConditionalAction,
+  BlockCardUseAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseSigniTarget,
-  parsePowerFilter, parseLevelFilter, parseColorFilter,
-  parseCardTypeFilter, parseStoryFilter, makeRevealPickStub,
+  parseNum, makeRevealPickStub,
 } from '../parserUtils';
+import { parseSentencePart1 } from './parseSentencePart1';
+import { parseSentencePart2 } from './parseSentencePart2';
 
 export function parseSentencePart4(t: string): EffectAction | null {
   // ---- 手札からカードを【トラップ】として設置する ----
@@ -251,7 +253,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
     const mHDTop = t.match(/手札からカード([１-９\d０-９]+)枚(?:まで)?を(?:好きな順番で)?デッキの一番上に置く/);
     if (mHDTop) {
       const cnt = parseNum(mHDTop[1]);
-      return { type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'self', count: cnt }, shuffle: false, position: 'top' } as import('../types/effects').TransferToDeckAction;
+      return { type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'self', count: cnt }, shuffle: false, position: 'top' } as TransferToDeckAction;
     }
   }
 
@@ -310,7 +312,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
       const cnt = mHandDeck[1] ? parseNum(mHandDeck[1]) : 1;
       const up = !!mHandDeck[2];
       const pos = mHandDeck[3] === '上' ? 'top' : 'bottom';
-      return { type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'self', count: cnt, upToCount: up }, shuffle: false, position: pos } as import('../types/effects').TransferToDeckAction;
+      return { type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'self', count: cnt, upToCount: up }, shuffle: false, position: pos } as TransferToDeckAction;
     }
   }
 
@@ -777,8 +779,8 @@ export function parseSentencePart4(t: string): EffectAction | null {
       return {
         type: 'CONDITIONAL',
         condition: { type: 'THIS_CARD_IS_ARMORED' },
-        then: parseSingleSentence(bodyM[1]),
-      } as import('../types/effects').ConditionalAction;
+        then: (parseSentencePart1(bodyM[1]) ?? parseSentencePart2(bodyM[1]) ?? { type: 'STUB', id: 'UNKNOWN_NESTED' } as EffectAction),
+      } as ConditionalAction;
     }
   }
 
@@ -1218,7 +1220,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- このターン、あなたは《X》を使用できない ----
   {
     const m = t.match(/このターン、あなたは《(.+)》を使用できない/);
-    if (m) return { type: 'BLOCK_CARD_USE', cardName: m[1] } as import('../types/effects').BlockCardUseAction;
+    if (m) return { type: 'BLOCK_CARD_USE', cardName: m[1] } as BlockCardUseAction;
   }
 
   // ---- その後、それをクラッシュしてもよい ----

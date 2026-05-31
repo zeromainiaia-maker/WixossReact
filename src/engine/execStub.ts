@@ -1,4 +1,5 @@
-import type { PlayerState, CardData, TargetScope } from '../types';
+import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
+import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction,
   StubAction,
