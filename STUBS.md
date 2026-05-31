@@ -19,7 +19,7 @@
 | 件数 | effectType | 状態 | STUB ID |
 |-----:|-----------|:----:|---------|
 | 21 | AUTO/ACTIVATED/CONT/SONG | ✅ | GRANT_QUOTED_AUTO_ABILITY |
-| 16 | CONT | ⚡ | COPY_LRIG_NAME_ABILITY ※v0.113: collectLrigNameAliases実装・アーツコスト名前条件に対応（【自】能力コピーは未実装） |
+| 16 | CONT | ✅ | COPY_LRIG_NAME_ABILITY ※v0.113: collectLrigNameAliases実装・アーツコスト名前条件に対応 / v0.132: collectCopiedLrigAutoEffects追加・ON_ATTACK_LRIG/ON_PLAYトリガーにトラッシュルリグの【自】能力を組み込み |
 | 16 | AUTO | ✅ | GAIN_SUBSCRIBER_COUNT |
 | 13 | CONT/AUTO/ACTIVATED | ✅ | GRANT_ABILITY_INNER_TEXT |
 | 11 | ACTIVATED/AUTO | ⚡ | SOUL_OP |
