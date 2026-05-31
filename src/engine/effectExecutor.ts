@@ -627,15 +627,24 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   const fromDeck = a.from.location === 'deck';
   const pool = fromDeck ? state.deck : state.trash;
 
+  // '__lastRevealed__' 特殊フィルタ: 直前に公開したカードと同名でサーチ
+  const resolvedFilter = { ...a.filter };
+  if (resolvedFilter.cardName === '__lastRevealed__') {
+    const revealedNum = ctx.lastProcessedCards?.[0];
+    const revealedName = revealedNum ? ctx.cardMap.get(revealedNum)?.CardName : undefined;
+    if (revealedName) resolvedFilter.cardName = revealedName;
+    else delete resolvedFilter.cardName;
+  }
+
   // 対象カードが1枚でも存在するか確認
-  const hasVisible = pool.some(n => matchesFilter(ctx.cardMap.get(n), a.filter));
+  const hasVisible = pool.some(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
   if (!hasVisible) {
     if (a.afterSearch) return executeAction(a.afterSearch, ctx);
     return done(ctx);
   }
 
   // フィルタがある場合は一致カードのみ表示、ない場合は全体を公開
-  const visibleCards = pool.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
+  const visibleCards = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
 
   return needsInteraction(ctx, {
     type: 'SEARCH',
