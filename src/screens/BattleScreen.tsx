@@ -1284,7 +1284,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // GAIN_LRIG_COLOR: ルリグの色を得るシグニ
-  const myLrigColorInheritSigni = useMemo((): string[] => {
+  const _myLrigColorInheritSigni = useMemo((): string[] => {
     if (!bs || bs.global_phase !== 'PLAYING') return [];
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
