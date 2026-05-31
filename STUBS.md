@@ -121,7 +121,7 @@
 | 1 | CONT | 📝 | BANISH_SUBSTITUTE_RISE_STACK |
 | 1 | AUTO | ⚡ | BATTLE_BANISH_LIFE_BURST |
 | 1 | AUTO | ⚡ | BLACK_RISE_PLAY_STACK_FROM_TRASH |
-| 1 | CONT | ✅ | BLOCK_ALL_OPP_ACTIVATE_ABILITY ※v0.0.8: calcContinuousBlockedActionsでUSE_ACTをforSelfに追加（相手ターン条件付き） |
+| 1 | CONT | ✅ | BLOCK_ALL_OPP_ACTIVATE_ABILITY ※v0.131: calcContinuousBlockedActionsでUSE_ACTをforSelfに追加（相手ターン条件付き） |
 | 1 | CONT | ✅ | BLOCK_COLORLESS_PLAY ※v0.0.8: PLAY_COLORLESSをforSelfに追加。handleSummonSigni/castSpellでColor=無をガード |
 | 1 | CONT | ✅ | BLOCK_FRONT_SIGNI_ATTACK ※v0.115: calcContinuousBlockedActionsで正面シグニをcannotAttackSigniに追加 |
 | 1 | CONT | 📝 | BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT |
