@@ -6180,9 +6180,11 @@ export function execStub(
       const centerTop = ctx.ownerState.field.lrig.at(-1);
       const centerCard = centerTop ? ctx.cardMap.get(centerTop) : undefined;
       const centerName = centerCard?.CardName ?? '';
-      // lrigNameAliasesも考慮（COPY_LRIG_NAME_ABILITYがある場合）
-      const aliases: string[] = centerName ? [centerName] : [];
-      if (!aliases.some(n => n.includes(reqCenterName) || reqCenterName.includes(n))) {
+      // lrig_name_aliasesも考慮（COPY_LRIG_NAME_ABILITY / LRIG_ALL_NAMES）
+      const runtimeAliases = ctx.ownerState.lrig_name_aliases ?? [];
+      const hasAllNames = runtimeAliases.includes(LRIG_ALL_NAMES_SENTINEL);
+      const aliases: string[] = centerName ? [centerName, ...runtimeAliases.filter(a => a !== LRIG_ALL_NAMES_SENTINEL)] : [...runtimeAliases.filter(a => a !== LRIG_ALL_NAMES_SENTINEL)];
+      if (!hasAllNames && !aliases.some(n => n.includes(reqCenterName) || reqCenterName.includes(n))) {
         // センター条件不一致 → ベース効果（残りのSEQUENCEステップ）へ
         return done(addLog(ctx, `センター条件不一致（要:${reqCenterName}・現:${centerName}）→ベース効果`));
       }
