@@ -1749,6 +1749,28 @@ export function execStub(
     // スタンドアロン: ゲーム状態カウントベースのドロー/パワー
     if (count === 0) {
       const toSignedCBDP = (s: string) => parseInt(toHWCBDP(s).replace('＋','+').replace('－','-'));
+      // 「手札をN枚まで捨てる：枚数ドロー or 枚数のシグニパワー修正」パターン（インタラクティブ）
+      const discardCostMCBDP = txtCBDP.match(/手札を([０-９\d]+)枚まで捨てる/);
+      if (discardCostMCBDP) {
+        const maxDiscardCBDP = parseInt(toHWCBDP(discardCostMCBDP[1]));
+        const handCardsCBDP = ctx.ownerState.hand;
+        if (handCardsCBDP.length === 0) return done(addLog(ctx, '手札なし（捨てスキップ）'));
+        const noopSCBDP: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contSCBDP: StubAction = { type: 'STUB', id: 'INTERNAL_CBDOP_AFTER_DISCARD' };
+        const hasPwrDownCBDP = !!txtCBDP.match(/枚数.*パワー|パワー.*枚数/);
+        const logMsgCBDP = hasPwrDownCBDP
+          ? `手札を${maxDiscardCBDP}枚まで捨て、その枚数だけ相手シグニのパワーを修正`
+          : `手札を${maxDiscardCBDP}枚まで捨て、その枚数引く`;
+        return needsInteraction(addLog(ctx, logMsgCBDP), {
+          type: 'SELECT_TARGET',
+          candidates: handCardsCBDP,
+          count: Math.min(maxDiscardCBDP, handCardsCBDP.length),
+          optional: true,
+          targetScope: 'self_hand',
+          thenAction: noopSCBDP as EffectAction,
+          continuation: contSCBDP as EffectAction,
+        });
+      }
       // "エナゾーン(?:のカード)?N枚につき(N枚)カードを引く"
       const enaDrawM = txtCBDP.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき(?:カードを)?([０-９\d]*)枚(?:ドロー|引く)/);
       if (enaDrawM) {
