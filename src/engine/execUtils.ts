@@ -318,6 +318,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'PAID_ADDITIONAL_COST':  return false; // execSequence の look-ahead で処理済みのため通常到達しない
     case 'COND_STUB':             return true;
+    case 'LAST_PROCESSED_LEVEL_SUM_EQ': {
+      // lastProcessedCardsのシグニのレベル合計がvalue=Nか判定（WD21-012等）
+      const processed = ctx.lastProcessedCards ?? [];
+      const sum = processed.reduce((acc, cn) => {
+        const c = ctx.cardMap.get(cn);
+        if (c?.Type !== 'シグニ') return acc;
+        return acc + (parseInt(c.Level ?? '0', 10) || 0);
+      }, 0);
+      return sum === cond.value;
+    }
     default: return true;
   }
 }
