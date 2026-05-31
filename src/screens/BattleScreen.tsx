@@ -2217,7 +2217,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...my,
           hand: myHandEND,
           trash: myTrashEND,
-          beat_zone: myBeatEND,
+          field: { ...my.field, beat_zone: myBeatEND },
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
           blocked_actions:    [],   // ターン内封じ行動をリセット
