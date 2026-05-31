@@ -30,8 +30,8 @@
 | 6 | ACTIVATED | ⚡ | CRAFT_TO_LRIG_DECK |
 | 5 | CONT | ⚡ | ARTS_IMMOVABLE ※executor直接チェック |
 | 5 | CONT/AUTO | ⚡ | COLLAB |
-| 5 | AUTO | ⚡ | COUNT_BASED_DRAW_OR_POWER |
-| 5 | AUTO | ⚡ | MOVE_TO_OTHER_SIGNI_ZONE |
+| 5 | AUTO | ✅ | COUNT_BASED_DRAW_OR_POWER ※v0.135: 手札をN枚まで捨てるインタラクティブ処理追加（SELECT_TARGET→INTERNAL_CBDOP_AFTER_DISCARD）。捨て枚数ドロー/パワー修正に対応 |
+| 5 | AUTO | ✅ | MOVE_TO_OTHER_SIGNI_ZONE ※v0.135: INTERNAL_MOVE_TO_ZONEに移動後パワーブースト追加（「移動したとき.*パワーを＋」テキスト検出→temp_power_mods付与）。effects.json E2誤発修正（POWER_MODIFY→STUB noop） |
 | 5 | ACTIVATED/CONT/AUTO | ✅ | POWER_MOD_PER_COUNT |
 | 5 | AUTO/ACTIVATED | ⚡ | TRASH_SIGNI_UNDER_FIELD_SIGNI |
 | 4 | ACTIVATED | ⚡ | CONDITIONAL_MULTI_CHOOSE_BY_CENTER |
