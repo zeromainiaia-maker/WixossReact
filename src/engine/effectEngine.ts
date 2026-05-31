@@ -1117,6 +1117,44 @@ export function calcContinuousBlockedActions(
     if (attackCount >= maxAttacks) cannotAttackSigni.add(topNum);
   }
 
+  // BLOCK_ALL_OPP_ACTIVATE_ABILITY: 相手フィールドにありアクティブ条件(自ターン)が満たされていれば自分のUSE_ACTをブロック
+  for (const stack of otherState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const has = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_ALL_OPP_ACTIVATE_ABILITY' &&
+      checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap),
+    );
+    if (has) forSelf.add('USE_ACT');
+  }
+
+  // BLOCK_COLORLESS_PLAY: 自フィールドにあれば自分が無色シグニ/スペルをプレイ不可
+  for (const stack of ownerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const has = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_COLORLESS_PLAY' &&
+      checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap),
+    );
+    if (has) forSelf.add('PLAY_COLORLESS');
+  }
+
+  // BLOCK_NON_WHITE_SPELL: どちらかのフィールドにあれば両者の白以外スペル使用を封じる
+  const hasNonWhiteSpellBlock = [...ownerState.field.signi, ...otherState.field.signi].some(stack => {
+    if (!stack?.length) return false;
+    const topNum = stack[stack.length - 1];
+    return (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_NON_WHITE_SPELL',
+    );
+  });
+  if (hasNonWhiteSpellBlock) { forSelf.add('BLOCK_NON_WHITE_SPELL'); forOther.add('BLOCK_NON_WHITE_SPELL'); }
+
   return { forSelf, forOther, cannotAttackSigni };
 }
 
