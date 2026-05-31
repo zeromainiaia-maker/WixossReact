@@ -581,6 +581,44 @@ export function calcFieldPowers(
             }
           }
 
+          // POWER_MOD_PER_COUNT (CONT): 各種カウント×値だけパワー修正（自シグニに適用）
+          if (stub.id === 'POWER_MOD_PER_COUNT') {
+            const toHWPMPC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+            const parseNPMPC = (s: string) => parseInt(toHWPMPC(s), 10);
+            let countPMPC = 0;
+            let deltaPMPC = 0;
+            // 手札N枚につき
+            const handM = txt.match(/手札([０-９\d]*)枚につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+            if (handM) {
+              const divisorH = parseInt(toHWPMPC(handM[1] || '1')) || 1;
+              countPMPC = Math.floor(ownerState.hand.length / divisorH);
+              deltaPMPC = parseNPMPC(handM[2].replace('＋', '+').replace('－', '-'));
+            }
+            // エナゾーンのカードN枚につき
+            if (!handM) {
+              const enaM = txt.match(/エナゾーン(?:のカード)?([０-９\d]*)枚につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+              if (enaM) {
+                const divisorE = parseInt(toHWPMPC(enaM[1] || '1')) || 1;
+                countPMPC = Math.floor(ownerState.energy.length / divisorE);
+                deltaPMPC = parseNPMPC(enaM[2].replace('＋', '+').replace('－', '-'));
+              }
+            }
+            // 登録者数N万人につき
+            if (!deltaPMPC) {
+              const subM = txt.match(/登録者数([０-９\d]*)万人につき([＋+]?[－\-][０-９\d]+|[＋+][０-９\d]+)/);
+              if (subM) {
+                const divisorS = parseInt(toHWPMPC(subM[1] || '1')) || 1;
+                const subCount = ownerState.subscriber_count ?? 0;
+                countPMPC = Math.floor(subCount / divisorS);
+                deltaPMPC = parseNPMPC(subM[2].replace('＋', '+').replace('－', '-'));
+              }
+            }
+            const totalPMPC = countPMPC * deltaPMPC;
+            if (totalPMPC !== 0 && powers.has(topNum)) {
+              powers.set(topNum, (powers.get(topNum) ?? 0) + totalPMPC);
+            }
+          }
+
           // POWER_MOD_BY_FRONT_LEVEL: 正面の相手シグニのレベル×値だけその相手シグニのパワーを下げる
           if (stub.id === 'POWER_MOD_BY_FRONT_LEVEL') {
             const myZoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum);

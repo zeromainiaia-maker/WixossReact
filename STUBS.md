@@ -389,6 +389,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 v0.124 | POWER_MOD_PER_COUNT (CONT): effectEngine.applyEffectsにCONTINUOUS版ハンドラ追加（手札/エナ/登録者数基準パワー修正・WXDi P-series 3件対応） | POWER_MOD_PER_COUNT |
 | 2026-05-31 v0.123 | GAIN_EXTRA_TURN: BattleScreenターン終了処理に追加ターンロジック統合（extra_turnフラグ使用・同プレイヤーがUPフェイズへ） | GAIN_EXTRA_TURN |
 | 2026-05-31 v0.122 | LRIG_UNDER_CARD_OP (SEQUENCE→IS_MY_TURN): シグニ下カード消費インタラクション実装（WX24/WX25/WXDi/SPDi43系12件対応） | LRIG_UNDER_CARD_OP |
 | 2026-05-31 v0.121 | SOUL_OP (SEQUENCE→IS_MY_TURN): ソウル消費インタラクション実装・INTERNAL_CONSUME_SOULでシグニ下ソウルをルリグトラッシュへ（WXDi-P0x-009系7件対応） | SOUL_OP |
