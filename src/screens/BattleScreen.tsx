@@ -2571,7 +2571,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const otherProtectedSigniNums = collectAbilityProtectedSigni(otherState, battleCardMap, effectsMap);
       // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL: 相手フィールドのダウン保護シグニ
       const otherDownProtectedNums = collectDownProtectedSigni(otherState, battleCardMap, effectsMap, ownerState, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums };
+      // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手フィールドのバウンス保護シグニ
+      const otherBounceProtectedNums = collectBounceProtectedSigni(otherState, battleCardMap, effectsMap, ownerState, isOwnerTurn);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums, otherBounceProtectedNums };
       let result = executeEffect(entry.effect, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
