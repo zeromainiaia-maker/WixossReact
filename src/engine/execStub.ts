@@ -6575,6 +6575,32 @@ export function execStub(
       if (!choiceAction && choiceTxt.match(/アタックできない/)) {
         choiceAction = ({ type: 'STUB', id: 'INTERNAL_BLOCK_ATTACK_THIS_TURN' } as StubAction) as EffectAction;
       }
+      // 「対戦相手のパワーN以下のシグニをバニッシュ」
+      if (!choiceAction) {
+        const banishPwrMCMCBC = choiceTxt.match(/パワー([０-９\d万]+)以下.*バニッシュ/);
+        if (banishPwrMCMCBC) {
+          const maxPwrCMCBC = parseInt(toHWCMCBC(banishPwrMCMCBC[1]).replace('万','0000'));
+          choiceAction = ({ type: 'STUB', id: 'INTERNAL_BANISH_OPP_POWER_LTE', value: maxPwrCMCBC } as StubAction) as EffectAction;
+        }
+      }
+      // 「エナゾーンからシグニを場に出す」
+      if (!choiceAction && choiceTxt.match(/エナゾーンから.*シグニ.*場に出す/)) {
+        choiceAction = ({ type: 'STUB', id: 'SUMMON_FROM_ENERGY' } as StubAction) as EffectAction;
+      }
+      // 「手札をすべて捨て、N枚引く」
+      if (!choiceAction && choiceTxt.match(/手札をすべて捨て.*([２-９\d]枚|引く)/)) {
+        const drawAllM = choiceTxt.match(/([２-９2-9\d])枚引く/);
+        const drawAllN = drawAllM ? parseInt(toHWCMCBC(drawAllM[1])) : 4;
+        choiceAction = ({ type: 'STUB', id: 'INTERNAL_DISCARD_ALL_DRAW_N', value: drawAllN } as StubAction) as EffectAction;
+      }
+      // 「デッキ下のカードをトラッシュ→シグニなら場に出す」
+      if (!choiceAction && choiceTxt.match(/デッキの一番下.*トラッシュ.*シグニ.*場に出す/)) {
+        choiceAction = ({ type: 'STUB', id: 'INTERNAL_DECK_BOTTOM_SUMMON' } as StubAction) as EffectAction;
+      }
+      // 「デッキ下のカードをトラッシュ→同じレベルの相手シグニをダウン」
+      if (!choiceAction && choiceTxt.match(/デッキの一番下.*トラッシュ.*同じレベル.*ダウン/)) {
+        choiceAction = ({ type: 'STUB', id: 'INTERNAL_DECK_BOTTOM_LEVEL_DOWN' } as StubAction) as EffectAction;
+      }
       if (choiceAction) {
         optionsCMCBC.push({
           id: `choice_${idx}`,
