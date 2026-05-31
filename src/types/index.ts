@@ -82,10 +82,10 @@ export interface PlayerState {
     signi_seeds?:  (string | null)[]; // [zone0, zone1, zone2] 【シード】のCardNum（設置済み・未開花）
     signi_armor?:  boolean[];         // [zone0, zone1, zone2] true=血晶武装状態（場を離れるまで維持）
     free_zone?:    string[];          // フリーゾーン（チアガール等を置く汎用ゾーン）
+    beat_zone?:    string[];          // ビートゾーン（ターン終了時にトラッシュへ、UIはフリーゾーンと共有）
     cross_state?:  boolean[];         // [zone0, zone1, zone2] true=クロス状態
     heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み
   };
-  beat_zone?: string[];             // ビートゾーン（ターン終了時にトラッシュへ）
   actions_done?: string[];    // このターンに使用済みのアクション（ターン開始時にリセット）
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
