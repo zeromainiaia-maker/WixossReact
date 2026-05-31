@@ -6230,8 +6230,8 @@ export function execStub(
       }
     }
     if (optionsCMCBC.length > 0) {
-      return needsInteraction(addLog(ctx, '効果を選択してください'), {
-        type: 'CHOOSE', options: optionsCMCBC, count: 1,
+      return needsInteraction(addLog(ctx, `効果を最大${maxChooseCount}つ選択してください`), {
+        type: 'CHOOSE', options: optionsCMCBC, count: maxChooseCount,
       });
     }
     const centerCMCBC2 = ctx.ownerState.field.lrig.at(-1);
