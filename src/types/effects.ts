@@ -102,6 +102,7 @@ export type Condition =
   | { type: 'IS_MY_TURN' }
   | { type: 'IS_OPPONENT_TURN' }
   | { type: 'PAID_ADDITIONAL_COST' }
+  | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string };
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
