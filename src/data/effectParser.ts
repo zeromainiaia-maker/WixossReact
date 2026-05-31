@@ -8767,10 +8767,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
   return {
     effectId: `${cardNum}-E${index + 1}`,
+  // ビートアイコン条件を useCondition にマージ
+  const mergedCondition: import('../types/effects').Condition | undefined = beatCondition
+    ? (useCondition ? { type: 'AND', conditions: [beatCondition, useCondition] } : beatCondition)
+    : useCondition;
+
+  return {
+    effectId: `${cardNum}-E${index + 1}`,
     effectType,
     timing,
     activeCondition: finalActiveCondition,
-    condition: useCondition,
+    condition: mergedCondition,
     altCostOppTurn,
     cost,
     action: resolvedAction,
