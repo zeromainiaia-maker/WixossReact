@@ -115,7 +115,7 @@
 | 1 | ACTIVATED | ⚡ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR |
 | 1 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
 | 1 | CONT | ✅ | ARTS_COST_REDUCTION_BY_COST_THRESHOLD ※v0.114: collectArtsThresholdCostReductions+computeArtsEffectiveCostに統合 |
-| 1 | CONT | 📝 | ATTACK_COUNT_BY_POWER |
+| 1 | CONT | ✅ | ATTACK_COUNT_BY_POWER ※v0.117: calcContinuousBlockedActionsでパワー/10000回数上限・attacked_signi_idsをバッグ化 |
 | 1 | CONT | 📝 | BANISH_BY_SELF_GOES_TO_TRASH |
 | 1 | ACTIVATED | ⚡ | BANISH_REDIRECT_TO_HAND |
 | 1 | CONT | 📝 | BANISH_SUBSTITUTE_RISE_STACK |
