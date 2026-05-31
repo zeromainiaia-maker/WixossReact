@@ -103,7 +103,8 @@ export type Condition =
   | { type: 'IS_OPPONENT_TURN' }
   | { type: 'PAID_ADDITIONAL_COST' }
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
-  | { type: 'COND_STUB'; raw: string };
+  | { type: 'COND_STUB'; raw: string }
+  | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number };  // lastProcessedCardsのシグニレベル合計=N
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
