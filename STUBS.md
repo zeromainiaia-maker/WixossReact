@@ -325,7 +325,7 @@
 | 1 | AUTO | ⚡ | SET_HAND_CARD_AS_TRAP |
 | 1 | ACTIVATED | ⚡ | SET_LEVEL_RANGE |
 | 1 | ACTIVATED | ⚡ | SET_OPP_SIGNI_POWER_BY_SELF_POWER |
-| 1 | CONT | ✅ | SIGNI_CANT_BOUNCE_FROM_FIELD ※v0.0.8: collectBounceProtectedSigni追加・ExecCtxにotherBounceProtectedNums・execBounceでフィルタ |
+| 1 | CONT | ✅ | SIGNI_CANT_BOUNCE_FROM_FIELD ※v0.131: collectBounceProtectedSigni追加・ExecCtxにotherBounceProtectedNums・execBounceでフィルタ |
 | 1 | AUTO | ⚡ | SIGNI_GAIN_ONE_LRIG_COLOR |
 | 1 | AUTO | ⚡ | SIGNI_GRANT_CHOSEN_ABILITY |
 | 1 | AUTO | ⚡ | SIGNI_LOSE_COLOR |
