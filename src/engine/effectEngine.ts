@@ -16,6 +16,9 @@ import type {
   TargetFilter,
   EnergyCost,
   GrantLrigAbilityAction,
+  ConditionalAction,
+  Condition,
+  GrantProtectionAction,
 } from '../types/effects';
 
 // ===== activeCondition 判定 =====
@@ -134,7 +137,8 @@ function getLocationCount(state: PlayerState, location: string): number {
 
 function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | undefined): boolean {
   if (!filter || !cardData) return true;
-  if (filter.cardName && cardData.CardName !== filter.cardName) return false;
+  if (filter.cardName && !cardData.CardName?.includes(filter.cardName)) return false;
+  if (filter.cardNames && !filter.cardNames.includes(cardData.CardName ?? '')) return false;
   if (filter.cardNum  && cardData.CardNum  !== filter.cardNum)  return false;
   if (filter.cardType) {
     const types = Array.isArray(filter.cardType) ? filter.cardType : [filter.cardType];
@@ -172,10 +176,73 @@ function extractPowerModifies(action: EffectAction): PowerModifyAction[] {
   if (action.type === 'SEQUENCE') {
     return action.steps.flatMap(s => extractPowerModifies(s));
   }
-  if (action.type === 'CONDITIONAL') {
-    return [...extractPowerModifies(action.then), ...(action.else ? extractPowerModifies(action.else) : [])];
-  }
+  // CONDITIONAL は evalConditionForContinuous で別途条件評価するため再帰しない
   return [];
+}
+
+// CONTINUOUS効果向け条件評価（ExecCtx 不要、PlayerState + cardMap のみ使用）
+function evalConditionForContinuous(
+  cond: Condition,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+  sourceCardNum?: string,
+): boolean {
+  function st(owner: 'self' | 'opponent' | 'any') { return owner === 'opponent' ? otherState : ownerState; }
+  function cmp(a: number, op: string, b: number) {
+    switch (op) {
+      case 'gte': return a >= b; case 'lte': return a <= b;
+      case 'gt':  return a > b;  case 'lt':  return a < b;
+      case 'eq':  return a === b; case 'neq': return a !== b;
+      default: return true;
+    }
+  }
+  switch (cond.type) {
+    case 'FIELD_COUNT': {
+      const count = st(cond.owner).field.signi.filter(s => s && s.length > 0).length;
+      return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
+    }
+    case 'HAND_COUNT': {
+      const count = st(cond.owner).hand.length;
+      return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
+    }
+    case 'LIFE_COUNT': {
+      const count = st(cond.owner).life_cloth.length;
+      return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
+    }
+    case 'ENERGY_COUNT': {
+      const count = st(cond.owner).energy.length;
+      return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
+    }
+    case 'HAS_CARD_IN_FIELD': {
+      return st(cond.owner).field.signi.some(stack => {
+        if (!stack?.length) return false;
+        const top = stack[stack.length - 1];
+        if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return false;
+        return matchesFilter(cardMap.get(top), cond.filter);
+      });
+    }
+    case 'TRASH_HAS_CARD': {
+      return st(cond.owner).trash.some(n => matchesFilter(cardMap.get(n), cond.filter));
+    }
+    case 'LRIG_LEVEL': {
+      const lrig = st(cond.owner).field.lrig;
+      const top = lrig[lrig.length - 1];
+      if (!top) return false;
+      const lv = parseInt(cardMap.get(top)?.Level ?? '-1', 10);
+      return cmp(lv, cond.operator, cond.value);
+    }
+    case 'LRIG_STORY': {
+      const lrig = st(cond.owner).field.lrig;
+      const top = lrig[lrig.length - 1];
+      if (!top) return false;
+      return cardMap.get(top)?.CardClass?.includes(cond.story) ?? false;
+    }
+    case 'AND':
+      return cond.conditions.every(c => evalConditionForContinuous(c, ownerState, otherState, cardMap, sourceCardNum));
+    default:
+      return true;
+  }
 }
 
 function extractPowerSets(action: EffectAction): PowerSetAction[] {
@@ -490,6 +557,30 @@ export function calcFieldPowers(
           }
           if (targetIsOther) {
             applyDeltaToState(otherState, delta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
+          }
+        }
+
+        // CONDITIONAL + POWER_MODIFY: 条件付きパワー修正（条件を評価して適用）
+        if (effect.action.type === 'CONDITIONAL') {
+          const condAct = effect.action as ConditionalAction;
+          const condMet = evalConditionForContinuous(condAct.condition, ownerState, otherState, cardMap, topNum);
+          const branch = condMet ? condAct.then : condAct.else;
+          if (branch) {
+            for (const mod of extractPowerModifies(branch)) {
+              const delta = typeof mod.delta === 'number' ? mod.delta : 0;
+              if (delta === 0) continue;
+              const target = mod.target;
+              if (target.count !== 'ALL') {
+                if ((target.owner === 'self' || target.owner === 'any') && powers.has(topNum)) {
+                  powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+                }
+              } else {
+                if (target.owner === 'self' || target.owner === 'any')
+                  applyDeltaToState(ownerState, delta, target.filter, cardMap, powers);
+                if (target.owner === 'opponent' || target.owner === 'any')
+                  applyDeltaToState(otherState, delta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
+              }
+            }
           }
         }
 
@@ -1829,43 +1920,69 @@ export function collectDownProtectedSigni(
   isOwnerTurn: boolean,
 ): string[] {
   const protected_ = new Set<string>();
+
+  // ソース候補: フィールド上のシグニ + センタールリグ
+  const sourceCandidates: string[] = [];
   for (const stack of state.field.signi) {
-    if (!stack || stack.length === 0) continue;
-    const topNum = stack[stack.length - 1];
-    for (const eff of (effectsMap.get(topNum) ?? [])) {
+    if (stack?.length) sourceCandidates.push(stack[stack.length - 1]);
+  }
+  if (state.field.lrig.length) sourceCandidates.push(state.field.lrig[state.field.lrig.length - 1]);
+
+  for (const sourceNum of sourceCandidates) {
+    for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+
+      // 実アクション: GRANT_PROTECTION with from: ['DOWN']
+      if (eff.action.type === 'GRANT_PROTECTION') {
+        const gp = eff.action as GrantProtectionAction;
+        if (!gp.from.includes('DOWN')) continue;
+        if (gp.subjectFilter) {
+          // subjectFilter に一致する全シグニを保護
+          for (const stack of state.field.signi) {
+            if (!stack?.length) continue;
+            const top = stack[stack.length - 1];
+            if (matchesFilter(cardMap.get(top), gp.subjectFilter)) protected_.add(top);
+          }
+        } else if (gp.target) {
+          // target: self count:1 → ソースシグニ自身を保護
+          if ((gp.target.owner === 'self' || gp.target.owner === 'any') && gp.target.count === 1) {
+            protected_.add(sourceNum);
+          }
+        }
+        continue;
+      }
+
+      // 従来 STUB ベースの保護
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
 
       if (act.id === 'PREVENT_SELF_DOWN_BY_OPP') {
-        protected_.add(topNum);
+        protected_.add(sourceNum);
       }
 
       if (act.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL') {
-        // 自身以外の全シグニを保護
-        for (const otherStack of state.field.signi) {
-          if (!otherStack || otherStack.length === 0) continue;
-          const otherTop = otherStack[otherStack.length - 1];
-          if (otherTop !== topNum) protected_.add(otherTop);
+        for (const stack of state.field.signi) {
+          if (!stack || stack.length === 0) continue;
+          const top = stack[stack.length - 1];
+          if (top !== sourceNum) protected_.add(top);
         }
       }
 
       if (act.id === 'PREVENT_BOUNCE_AND_DOWN_BY_OPP') {
-        // 条件: 場に他の同ストーリーのシグニがある場合
-        const card = cardMap.get(topNum);
+        const card = cardMap.get(sourceNum);
         const txt = card?.EffectText ?? '';
         const storyM = txt.match(/場に他の＜([^＞]+)＞のシグニがあるかぎり/);
         if (storyM) {
           const requiredStory = storyM[1];
           const hasOther = state.field.signi.some(s => {
             const top = s?.at(-1);
-            if (!top || top === topNum) return false;
+            if (!top || top === sourceNum) return false;
             return cardMap.get(top)?.CardClass?.includes(requiredStory);
           });
-          if (hasOther) protected_.add(topNum);
+          if (hasOther) protected_.add(sourceNum);
         } else {
-          protected_.add(topNum);
+          protected_.add(sourceNum);
         }
       }
     }

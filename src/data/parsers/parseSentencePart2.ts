@@ -472,16 +472,6 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ENERGY_COLOR_SUBSTITUTE_TRASH' } as StubAction;
   }
 
-  // ---- ＜アーム＞シグニ保護 ----
-  if (t.match(/あなたの＜アーム＞のシグニは対戦相手のルリグの効果を受けず/)) {
-    return { type: 'STUB', id: 'ARM_SIGNI_LRIG_PROTECTION' } as StubAction;
-  }
-
-  // ---- ＜ウェポン＞シグニ保護 ----
-  if (t.match(/あなたの＜ウェポン＞のシグニは対戦相手のシグニの効果を受けず/)) {
-    return { type: 'STUB', id: 'WEAPON_SIGNI_PROTECTION' } as StubAction;
-  }
-
   // ---- ライドオン（乗機）----
   if (t.match(/センタールリグ.*＜乗機＞のシグニ.*乗ってもよい/)) {
     return { type: 'STUB', id: 'RIDE_ON' } as StubAction;
@@ -1771,14 +1761,23 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LRIG_LIMIT_UP_AND_COLOR_GAIN' } as StubAction;
   }
 
-  // ---- このシグニは対戦相手の効果によってダウンしない ----
-  if (t.match(/このシグニは対戦相手の効果によってダウンしない/)) {
-    return { type: 'STUB', id: 'PREVENT_SELF_DOWN_BY_OPP' } as StubAction;
-  }
-
-  // ---- ＜ウェポン＞シグニはダウンしない ----
-  if (t.match(/あなたの＜ウェポン＞のシグニは対戦相手の効果によってダウンしない/)) {
-    return { type: 'STUB', id: 'WEAPON_SIGNI_PREVENT_DOWN' } as StubAction;
+  // ---- 対戦相手の効果によってダウンしない（このシグニ / ＜CLASS＞全体）----
+  {
+    const classDownM = t.match(/あなたの＜([^＞]+)＞のシグニは対戦相手の効果によってダウンしない/);
+    if (classDownM) {
+      return {
+        type: 'GRANT_PROTECTION',
+        subjectFilter: { cardType: 'シグニ', story: classDownM[1] },
+        from: ['DOWN'], sourceOwner: 'opponent', duration: 'PERMANENT',
+      } as GrantProtectionAction;
+    }
+    if (t.match(/このシグニは対戦相手の効果によってダウンしない/)) {
+      return {
+        type: 'GRANT_PROTECTION',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        from: ['DOWN'], sourceOwner: 'opponent', duration: 'PERMANENT',
+      } as GrantProtectionAction;
+    }
   }
 
   // ---- 各ターンパワーに基づいてアタック回数制限 ----

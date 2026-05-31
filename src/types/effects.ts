@@ -128,7 +128,8 @@ export interface EffectCost {
 
 export interface TargetFilter {
   cardType?:  CardTypeFilter | CardTypeFilter[];
-  cardName?:  string;
+  cardName?:  string;      // 部分一致（cardName を含む）
+  cardNames?: string[];    // いずれかの名前に一致（複数名指定用、完全一致）
   cardNum?:   string;
   color?:     string | string[];
   level?:     number | { min?: number; max?: number };
@@ -511,8 +512,10 @@ export interface CostReductionAction {
 // 効果耐性付与（「対戦相手の〜の効果を受けない」）
 export interface GrantProtectionAction {
   type: 'GRANT_PROTECTION';
-  target: EffectTarget;
-  from: string[];     // 保護元：'ルリグ' | 'シグニ' | 'スペル' | 'アーツ'
+  target?: EffectTarget;          // 一時付与（AUTO/ACTIVATED）: 特定ターゲットに付与
+  subjectFilter?: TargetFilter;   // CONTINUOUS用: このフィルターの全シグニを保護
+  subjectOwner?: Owner;           // subjectFilter の所有者（省略時: 'self'）
+  from: string[];     // 保護元：'ルリグ' | 'シグニ' | 'スペル' | 'アーツ' | 'DOWN' | 'BOUNCE' | 'any'
   sourceOwner: Owner; // 誰の効果から保護するか
   duration: EffectDuration;
 }

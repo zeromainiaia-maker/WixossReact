@@ -502,6 +502,15 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   }
   const state = ownerState(a.target.owner, ctx);
   const downProtected = a.target.owner === 'opponent' ? new Set(ctx.otherDownProtectedNums ?? []) : new Set<string>();
+  // keyword_grants の PROTECTION:DOWN:opponent を確認（一時的な保護付与）
+  if (a.target.owner === 'opponent') {
+    const grants = ctx.otherState.keyword_grants ?? {};
+    for (const [cardNum, kws] of Object.entries(grants)) {
+      if (kws.some(kw => kw.startsWith('PROTECTION:') && kw.includes('DOWN') && kw.endsWith(':opponent'))) {
+        downProtected.add(cardNum);
+      }
+    }
+  }
   let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
   if (downProtected.size > 0) cands = cands.filter(n => !downProtected.has(n));
 
@@ -1056,6 +1065,11 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 }
 
 function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult {
+  // subjectFilter のみの場合は CONTINUOUS 用宣言（effectEngine 側で処理）→ no-op
+  if (!a.target && a.subjectFilter) {
+    return done(addLog(ctx, `効果耐性宣言（${a.from.join('/')}保護）`));
+  }
+  if (!a.target) return done(ctx);
   // 効果耐性はキーワード付与として扱う
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);

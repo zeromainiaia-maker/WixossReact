@@ -109,6 +109,22 @@ export function parseStoryFilter(text: string): Partial<TargetFilter> {
   return { story: matches.length === 1 ? matches[0] : matches };
 }
 
+// 《カード名》 を抽出してカード名フィルターを返す
+// コスト色（赤青緑黒白無）やアイコン系は除外する
+const COST_COLORS = new Set(['白', '赤', '青', '緑', '黒', '無']);
+export function parseNameFilter(text: string): Partial<TargetFilter> {
+  const names = [...text.matchAll(/《([^》]+)》/g)]
+    .map(m => m[1])
+    .filter(s =>
+      !COST_COLORS.has(s) &&
+      !s.includes('×') &&
+      !s.includes('アイコン') &&
+      !s.match(/^[白赤青緑黒無][×x×]\d+$/)
+    );
+  if (names.length === 0) return {};
+  return names.length === 1 ? { cardName: names[0] } : { cardNames: names };
+}
+
 // ===== シグニターゲットパース =====
 
 export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
@@ -121,6 +137,7 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...parsePowerFilter(text),
     ...parseLevelFilter(text),
     ...parseColorFilter(text),
+    ...parseStoryFilter(text),
   };
   if (text.includes('感染状態')) filter.infected = true;
   if (text.includes('アクセされている') || text.match(/アクセされて(?:いる|いた)/)) filter.hasAcce = true;

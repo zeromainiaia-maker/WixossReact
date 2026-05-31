@@ -20,6 +20,7 @@ import type {
   AddToHandAction,
   CardLocation,
   AltCostOppTurnAction,
+  ConditionalAction,
 } from '../../types/effects';
 import {
   parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors,
@@ -1332,7 +1333,20 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'TRANSFER_TO_DECK', source: { type: 'DECK_CARD', owner: 'self', count: 1 }, position: 'top', shuffle: true };
   }
 
-  // ---- あなたのトラッシュにカード名に〜を含むカードがある場合 ----
+  // ---- トラッシュにカード名を含むカードがある場合、パワー±N → CONDITIONAL + POWER_MODIFY ----
+  {
+    const m = t.match(/あなたのトラッシュにカード名に「?(.+?)」?を含むカードがある場合、(?:ターン終了時まで、)?(?:このシグニの)?パワーは([＋－])([０-９\d]+)される/);
+    if (m) {
+      const sign = m[2] === '＋' ? 1 : -1;
+      const delta = sign * parseNum(m[3]);
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: m[1] } },
+        then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta },
+      } as ConditionalAction;
+    }
+  }
+  // ---- トラッシュ条件（パワー修正なし）→ STUB フォールバック ----
   if (t.match(/あなたのトラッシュにカード名に.+を含むカードがある場合/)) {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
   }
@@ -1484,9 +1498,19 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DECK_TOP_DECLARED_NUM_TRASH' } as StubAction;
   }
 
-  // ---- 場の条件＋代わりに修正（条件付きパワーボーナス）----
-  if (t.match(/あなたの場に.*シグニが[０-９\d]+体ある場合、代わりに[＋－][０-９\d]+する/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  // ---- 場のシグニN体以上がある場合、パワー±M → CONDITIONAL + POWER_MODIFY ----
+  {
+    const m = t.match(/あなたの場に.*シグニが([０-９\d]+)体ある場合、代わりに([＋－])([０-９\d]+)する/);
+    if (m) {
+      const count = parseNum(m[1]);
+      const sign = m[2] === '＋' ? 1 : -1;
+      const delta = sign * parseNum(m[3]);
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'FIELD_COUNT', owner: 'self', operator: 'gte', value: count },
+        then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta },
+      } as ConditionalAction;
+    }
   }
 
   // ---- あなたの手札を公開する ----
@@ -1572,7 +1596,20 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' } as StubAction;
   }
 
-  // ---- センタールリグが〜の場合の条件テキスト ----
+  // ---- センタールリグが＜X＞の場合、パワー±N → CONDITIONAL + POWER_MODIFY ----
+  {
+    const m = t.match(/あなたのセンタールリグが＜([^＞]+)＞(?:ルリグ)?の場合、代わりに([＋－])([０-９\d]+)する/);
+    if (m) {
+      const sign = m[2] === '＋' ? 1 : -1;
+      const delta = sign * parseNum(m[3]);
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LRIG_STORY', owner: 'self', story: m[1] },
+        then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta },
+      } as ConditionalAction;
+    }
+  }
+  // ---- センタールリグが〜の場合（汎用フォールバック）----
   if (t.match(/あなたのセンタールリグが.+の場合、(?:代わりに|追加で|この能力)/)) {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
   }

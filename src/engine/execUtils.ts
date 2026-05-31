@@ -122,6 +122,7 @@ export function matchesFilter(
     if (!stories.some(s => card.CardClass?.includes(s))) return false;
   }
   if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
+  if (filter.cardNames && !filter.cardNames.includes(card.CardName ?? '')) return false;
   if (filter.cardNum && card.CardNum !== filter.cardNum) return false;
   if (filter.powerRange) {
     // CONTINUOUS効果・temp_power_mods適用済みの実効パワーを優先して使用する

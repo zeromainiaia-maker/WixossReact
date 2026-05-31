@@ -1057,14 +1057,24 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'ADD_TO_FIELD', owner: 'self' };
   }
 
-  // ---- 効果耐性付与（「対戦相手の〜の効果を受けない」）----
-  if (t.includes('効果を受けない')) {
+  // ---- 効果耐性付与（「対戦相手の〜の効果を受けない/受けず」）----
+  if (t.match(/効果を受けない|効果を受けず/)) {
     const from: string[] = [];
     if (t.includes('ルリグ')) from.push('ルリグ');
     if (t.match(/シグニの効果|シグニとシグニ|シグニ以外/)) from.push('シグニ');
     if (t.includes('スペル')) from.push('スペル');
     if (t.includes('アーツ')) from.push('アーツ');
     if (from.length === 0) from.push('any');
+    // 「あなたの＜CLASS＞のシグニは」→ CONTINUOUS用 subjectFilter（全一致シグニを保護）
+    const classM = t.match(/あなたの(?:他の)?＜([^＞]+)＞のシグニは/);
+    if (classM) {
+      return {
+        type: 'GRANT_PROTECTION',
+        subjectFilter: { cardType: 'シグニ', story: classM[1] },
+        from, sourceOwner: 'opponent', duration: 'PERMANENT',
+      } as GrantProtectionAction;
+    }
+    // 個別シグニへの保護（従来通り）
     const signiFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parsePowerFilter(t) };
     const hasFilter = signiFilter.story || signiFilter.powerRange;
     const target: EffectTarget = hasFilter
