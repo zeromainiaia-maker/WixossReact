@@ -1487,6 +1487,25 @@ export function execStub(
       };
       return done(addLog({ ...ctx, ownerState: newOwnerSO }, `他ルリグ下${allUnderSO.length}枚をセンタールリグ下に統合`));
     }
+    // 汎用フォールバック: ソースシグニの下にソウルがあれば消費するインタラクションを提示
+    if (ctx.sourceCardNum) {
+      const srcZoneSO2 = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
+      const stackSO2 = srcZoneSO2 >= 0 ? ctx.ownerState.field.signi[srcZoneSO2] : null;
+      if (stackSO2 && stackSO2.length >= 2) {
+        const soulCardSO2 = stackSO2[0];
+        const soulNameSO2 = ctx.cardMap.get(soulCardSO2)?.CardName ?? soulCardSO2;
+        const consumeSO2: StubAction = { type: 'STUB', id: 'INTERNAL_CONSUME_SOUL' };
+        const noopSO2: SequenceAction = { type: 'SEQUENCE', steps: [] };
+        const pendingSO2: PendingInteractionDef = {
+          type: 'CHOOSE', count: 1,
+          options: [
+            { id: 'consume', label: `ソウル（${soulNameSO2}）を使用`, action: consumeSO2 as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: noopSO2 as EffectAction, available: true },
+          ],
+        };
+        return needsInteraction(addLog(ctx, 'ソウルを使用しますか？'), pendingSO2);
+      }
+    }
     return done(addLog(ctx, 'ソウル操作'));
   }
   // INTERNAL_CONSUME_SOUL: ソースシグニの下にあるソウルカードをルリグトラッシュへ
