@@ -5940,9 +5940,27 @@ export function execStub(
   if (stub.id === 'DECLARE_NUMBER_RANGE' || stub.id === 'DECLARE_NUMBER_POWER') {
     return done(addLog(ctx, '数字宣言'));
   }
-  // CONDITIONAL_ALTERNATE_EFFECT: 条件付き代替効果（ログのみ）
+  // CONDITIONAL_ALTERNATE_EFFECT: 条件達成時にダウン済みシグニをトラッシュへ（代替効果）
   if (stub.id === 'CONDITIONAL_ALTERNATE_EFFECT') {
-    return done(addLog(ctx, '条件付き代替効果（スキップ）'));
+    const srcCAE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtCAE = srcCAE ? (srcCAE.EffectText ?? '') + ' ' + (srcCAE.BurstText ?? '') : '';
+    // 「あなたの場に＜CLASS＞のシグニがある場合、代わりに」パターン
+    const classMatchCAE = txtCAE.match(/あなたの場に＜([^＞]+)＞のシグニがある場合[、,]代わりに/);
+    const reqClassCAE = classMatchCAE ? classMatchCAE[1] : '';
+    const condMetCAE = reqClassCAE
+      ? ctx.ownerState.field.signi.some(stack => {
+          const cn = stack?.at(-1);
+          return cn && (ctx.cardMap.get(cn)?.CardClass ?? '').includes(reqClassCAE);
+        })
+      : false;
+    if (condMetCAE && ctx.lastProcessedCards?.[0]) {
+      const targetCAE = ctx.lastProcessedCards[0];
+      const removedCAE = removeFromField(targetCAE, ctx.otherState);
+      const newOtherCAE: PlayerState = { ...removedCAE, trash: [...removedCAE.trash, targetCAE] };
+      return done(addLog({ ...ctx, otherState: newOtherCAE },
+        `＜${reqClassCAE}＞あり→${ctx.cardMap.get(targetCAE)?.CardName ?? targetCAE}をトラッシュへ（代替効果）`));
+    }
+    return done(addLog(ctx, `代替条件未達（${reqClassCAE ? '＜' + reqClassCAE + '＞なし' : '条件解析不可'}）`));
   }
   // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（ログのみ）
   if (stub.id === 'TRASH_SPELL_FREE_USE_LIMIT') {
