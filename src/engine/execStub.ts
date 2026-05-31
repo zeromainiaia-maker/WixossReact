@@ -6427,12 +6427,10 @@ export function execStub(
     }
     // 「対戦相手の全ルリグとシグニをダウンし凍結する」
     if (txtDTT.match(/①.*(?:すべてのルリグとシグニ|全.*ルリグ.*シグニ)をダウンし凍結する/)) {
-      const newSigniDownDTT = [true, true, true];
-      const newSigniFrozenDTT = [true, true, true];
       ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
         field: { ...ctxDTT.otherState.field,
-          signi_down: newSigniDownDTT,
-          signi_frozen: newSigniFrozenDTT,
+          signi_down: [true, true, true],
+          signi_frozen: [true, true, true],
           lrig_down: true,
           lrig_frozen: true,
         },
@@ -6445,6 +6443,61 @@ export function execStub(
       const abRemovedDTT = [...new Set([...(ctxDTT.otherState.abilities_removed ?? []), ...oppAllSigniDTT])];
       ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState, abilities_removed: abRemovedDTT } };
       logsDTT.push(`②全${oppAllSigniDTT.length}体の能力を消去`);
+    }
+    // 「①カードをN枚引く」
+    if (!logsDTT.length) {
+      const drawDTT = txtDTT.match(/①.*カードを([０-９\d]+)枚引く/);
+      if (drawDTT) {
+        const toHWD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const n = parseInt(toHWD(drawDTT[1]));
+        const canDraw = Math.min(n, ctxDTT.ownerState.deck.length);
+        const newOwnerDraw = { ...ctxDTT.ownerState,
+          hand: [...ctxDTT.ownerState.hand, ...ctxDTT.ownerState.deck.slice(0, canDraw)],
+          deck: ctxDTT.ownerState.deck.slice(canDraw),
+        };
+        ctxDTT = { ...ctxDTT, ownerState: newOwnerDraw };
+        logsDTT.push(`①${n}枚ドロー`);
+      }
+    }
+    // 「①相手センタールリグをダウンする」
+    if (!logsDTT.length && txtDTT.match(/①.*(?:センタールリグ|対戦相手のルリグ)[１1]体を対象とし.*ダウン/)) {
+      ctxDTT = { ...ctxDTT, otherState: { ...ctxDTT.otherState,
+        field: { ...ctxDTT.otherState.field, lrig_down: true },
+      }};
+      logsDTT.push('①相手ルリグをダウン');
+    }
+    // 「①対戦相手のシグニ1体にアタック禁止」→ SELECT_TARGET が必要なためインタラクション
+    if (!logsDTT.length && txtDTT.match(/①.*対戦相手のシグニ[１1]体を対象.*アタックできない/)) {
+      const oppSigniDTT = [0,1,2]
+        .map(zi => ctxDTT.otherState.field.signi[zi]?.at(-1))
+        .filter((cn): cn is string => !!cn);
+      if (oppSigniDTT.length > 0) {
+        const blockStub: StubAction = { type: 'STUB', id: 'INTERNAL_BLOCK_ATTACK_THIS_TURN' };
+        return needsInteraction(addLog(ctxDTT, 'ターン終了時まで「アタックできない」シグニを選択'), {
+          type: 'SELECT_TARGET', candidates: oppSigniDTT, count: 1, optional: false,
+          targetScope: 'opp_field', thenAction: blockStub as EffectAction,
+        });
+      }
+    }
+    // 「①パワーN以下の相手シグニをバニッシュ」
+    if (!logsDTT.length) {
+      const banishPwrM = txtDTT.match(/①.*パワー([０-９\d万]+)以下.*バニッシュ/);
+      if (banishPwrM) {
+        const toHWB = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace('万','0000');
+        const maxPwr = parseInt(toHWB(banishPwrM[1]));
+        const bCands = [0,1,2]
+          .map(zi => ctxDTT.otherState.field.signi[zi]?.at(-1))
+          .filter((cn): cn is string => {
+            if (!cn) return false;
+            const pw = parseInt(ctx.cardMap.get(cn)?.Power ?? '99999');
+            return pw <= maxPwr;
+          });
+        if (bCands.length > 0) {
+          const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
+          return selectOrInteract(bCands, 1, false, 'opp_field', banishAct as EffectAction, undefined, ctxDTT);
+        }
+        return done(addLog(ctxDTT, `①バニッシュ対象なし（パワー${maxPwr}以下の相手シグニ不在）`));
+      }
     }
     if (logsDTT.length > 0) return done(addLog(ctxDTT, logsDTT.join(' / ')));
     return done(addLog(ctx, '3つの処理（個別解析不可）'));
