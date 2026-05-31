@@ -1632,6 +1632,38 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerICS },
       `ソウル（${ctx.cardMap.get(soulCardICS)?.CardName ?? soulCardICS}）を消費してルリグトラッシュへ`));
   }
+  // INTERNAL_CONSUME_LRIG_UNDER: ルリグの下からN枚をルリグトラッシュへ（SOUL_OP optional消費の実行部）
+  if (stub.id === 'INTERNAL_CONSUME_LRIG_UNDER') {
+    const countICLU = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '1'));
+    const lrigStackICLU = ctx.ownerState.field.lrig;
+    if (lrigStackICLU.length <= 1) return done(addLog(ctx, 'ルリグの下にカードなし'));
+    const underICLU = lrigStackICLU.slice(0, -1);
+    const toConsumeICLU = underICLU.slice(-Math.min(countICLU, underICLU.length));
+    const remainICLU = underICLU.slice(0, underICLU.length - toConsumeICLU.length);
+    const newLrigICLU = [...remainICLU, lrigStackICLU[lrigStackICLU.length - 1]];
+    const newOwnerICLU: PlayerState = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, lrig: newLrigICLU },
+      lrig_trash: [...ctx.ownerState.lrig_trash, ...toConsumeICLU],
+    };
+    const nameListICLU = toConsumeICLU.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+    return done(addLog({ ...ctx, ownerState: newOwnerICLU, lastProcessedCards: toConsumeICLU },
+      `ルリグ下（${nameListICLU}）をルリグトラッシュへ`));
+  }
+  // INTERNAL_PLACE_LRIG_UNDER_CENTER: ルリグトラッシュから選択ルリグをセンタールリグ下に配置
+  if (stub.id === 'INTERNAL_PLACE_LRIG_UNDER_CENTER') {
+    const cnIPLUC = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+    if (!cnIPLUC) return done(addLog(ctx, 'センタールリグ下配置：カードなし'));
+    const newLrigTrashIPLUC = ctx.ownerState.lrig_trash.filter(x => x !== cnIPLUC);
+    const newLrigIPLUC = [cnIPLUC, ...ctx.ownerState.field.lrig]; // 最下に追加
+    const newOwnerIPLUC: PlayerState = {
+      ...ctx.ownerState,
+      lrig_trash: newLrigTrashIPLUC,
+      field: { ...ctx.ownerState.field, lrig: newLrigIPLUC },
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerIPLUC },
+      `${ctx.cardMap.get(cnIPLUC)?.CardName ?? cnIPLUC}をセンタールリグ下に配置`));
+  }
   // デッキを見て並べ替え（STUB版：動的パース）
   if (stub.id === 'LOOK_AND_REORDER') {
     const srcLOR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
