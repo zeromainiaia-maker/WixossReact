@@ -1,4 +1,4 @@
-import type { Owner, EffectTarget, TargetFilter, StubAction } from '../types/effects';
+import type { Owner, EffectTarget, TargetFilter, StubAction, EnergyCost } from '../types/effects';
 
 // costColors から実際の色名だけを抽出（カード名を除外、《赤×2》→["赤","赤"]に展開）
 export function extractCostColors(text: string): string[] {
