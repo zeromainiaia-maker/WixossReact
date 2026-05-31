@@ -8765,8 +8765,6 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     ? (activeCondition ? { type: 'AND', conditions: [eichiCondition, activeCondition] } : eichiCondition)
     : activeCondition;
 
-  return {
-    effectId: `${cardNum}-E${index + 1}`,
   // ビートアイコン条件を useCondition にマージ
   const mergedCondition: import('../types/effects').Condition | undefined = beatCondition
     ? (useCondition ? { type: 'AND', conditions: [beatCondition, useCondition] } : beatCondition)
