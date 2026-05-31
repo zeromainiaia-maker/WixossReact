@@ -22,7 +22,7 @@
 | 16 | CONT | ✅ | COPY_LRIG_NAME_ABILITY ※v0.113: collectLrigNameAliases実装・アーツコスト名前条件に対応 / v0.132: collectCopiedLrigAutoEffects追加・ON_ATTACK_LRIG/ON_PLAYトリガーにトラッシュルリグの【自】能力を組み込み |
 | 16 | AUTO | ✅ | GAIN_SUBSCRIBER_COUNT |
 | 13 | CONT/AUTO/ACTIVATED | ✅ | GRANT_ABILITY_INNER_TEXT |
-| 11 | ACTIVATED/AUTO | ⚡ | SOUL_OP |
+| 11 | ACTIVATED/AUTO | ✅ | SOUL_OP ※v0.133: +3パターン追加（ルリグ下N枚任意消費/固定消費/ルリグトラッシュ→ルリグ下配置）+INTERNAL_CONSUME_LRIG_UNDER/INTERNAL_PLACE_LRIG_UNDER_CENTER |
 | 10 | AUTO/ACTIVATED/CONT | ✅ | GRANT_QUOTED_ABILITY |
 | 10 | ACTIVATED | ✅ | SONG_FRAGMENT |
 | 7 | CONT | 📝 | LEVEL_REFERENCE_OVERRIDE ※execRevealAndPickで部分対応 |
