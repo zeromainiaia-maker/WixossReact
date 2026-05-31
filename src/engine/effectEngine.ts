@@ -961,7 +961,9 @@ export function calcContinuousBlockedActions(
     for (const myStack of ownerState.field.signi) {
       if (!myStack?.length) continue;
       const myTop = myStack[myStack.length - 1];
-      const level = parseInt(cardMap.get(myTop)?.Level ?? '', 10);
+      // 実効レベルを使用（LEVEL_MOD_PER_COUNT適用済み）
+      const levelMods2 = buildLevelMods(ownerState, otherState, effectsMap, cardMap);
+      const level = levelMods2.has(myTop) ? levelMods2.get(myTop)! : parseInt(cardMap.get(myTop)?.Level ?? '', 10);
       if (!isNaN(level) && level % 2 === 1) cannotAttackSigni.add(myTop);
     }
   }
