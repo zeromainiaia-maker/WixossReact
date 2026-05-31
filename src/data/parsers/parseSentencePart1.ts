@@ -42,6 +42,8 @@ import type {
   PowerModifyPerLifeCountAction,
   PowerModifyPerLrigLevelAction,
   PowerModifyPerVirusCountAction,
+  PowerModifyPerDeckCountAction,
+  PowerModifyPerEnergyColorAction,
   StubAction,
   PowerModifyAction,
   BanishAction,
