@@ -12,6 +12,7 @@ import type {
   EnergyChargeAction,
   ShuffleDeckAction,
   TransferToHandAction,
+  TransferToDeckAction,
   AddToFieldAction,
   DownAction,
   SequenceAction,
