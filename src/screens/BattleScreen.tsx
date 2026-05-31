@@ -2346,9 +2346,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             lrig_frozen:  false,
           },
         };
-        update.turn_phase = 'UP';
-        update.active_user_id = (isHost ? bs.guest_id : bs.host_id) as string;
-        update.turn_count = bs.turn_count + 1;
+        // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
+        if (my.extra_turn) {
+          newMyState = { ...newMyState, extra_turn: undefined };
+          update.turn_phase = 'UP';
+          update.turn_count = bs.turn_count + 1;
+          appendBattleLogs(['追加ターン取得！']);
+        } else {
+          update.turn_phase = 'UP';
+          update.active_user_id = (isHost ? bs.guest_id : bs.host_id) as string;
+          update.turn_count = bs.turn_count + 1;
+        }
       } else {
         update.turn_phase = PHASE_NEXT[phase];
       }
