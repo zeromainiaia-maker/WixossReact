@@ -1,0 +1,2964 @@
+{
+  "WD01-001": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "has_signi": {
+          "owner": "self",
+          "filter": {
+            "name_has": "ローメイル"
+          }
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self_signi_all",
+          "delta": 2000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WD01-006": [
+    {
+      "effectType": "ACTIVATED",
+      "action": {
+        "bounce": {
+          "owner": "opp",
+          "count": 2
+        }
+      }
+    }
+  ],
+  "WD01-007": [
+    {
+      "effectType": "ACTIVATED",
+      "action": {
+        "search": {
+          "filter": {
+            "color": "白",
+            "type": "signi"
+          },
+          "dest": "hand",
+          "count": 2,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WD01-008": [
+    {
+      "effectType": "ACTIVATED",
+      "action": {
+        "grant_keyword": {
+          "target": {
+            "owner": "opp",
+            "count": 1
+          },
+          "word": "cannot_attack",
+          "duration": "turn"
+        }
+      }
+    }
+  ],
+  "WD01-009": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "during_turn": "opp"
+      },
+      "action": {
+        "power": {
+          "target": "self_signi_all",
+          "delta": 1000,
+          "duration": "perm"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "bounce": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WD01-011": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "白"
+        ]
+      },
+      "action": {
+        "search": {
+          "filter": {
+            "name_has": "甲冑　ローメイル"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WD01-014": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "move": {
+          "from": "deck_top",
+          "to": "deck_top",
+          "count": 3,
+          "order": "chosen"
+        }
+      }
+    }
+  ],
+  "WD01-015": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "opt": {
+          "search": {
+            "filter": {
+              "type": "signi"
+            },
+            "dest": "hand",
+            "count": 1,
+            "reveal": true
+          }
+        }
+      }
+    }
+  ],
+  "WD01-016": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "ガード"
+        }
+      }
+    },
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "マルチエナ"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WD01-017": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "ガード"
+        }
+      }
+    },
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "マルチエナ"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WD01-018": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "draw": 1
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WD02-001": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "and": [
+          {
+            "during_own_turn": true
+          },
+          {
+            "has_signi": {
+              "owner": "self",
+              "filter": {
+                "name_has": "ヴォルカノ"
+              }
+            }
+          }
+        ]
+      },
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all"
+          },
+          "delta": 2000
+        }
+      }
+    }
+  ],
+  "WD02-006": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 15000
+          }
+        }
+      }
+    }
+  ],
+  "WD02-007": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "seq": [
+          {
+            "discard": {
+              "count": 3
+            }
+          },
+          {
+            "banish": {
+              "owner": "opp",
+              "count": "all"
+            }
+          },
+          {
+            "banish": {
+              "owner": "self",
+              "count": "all"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WD02-008": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 7000
+          }
+        }
+      }
+    }
+  ],
+  "WD02-009": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "赤",
+          "赤",
+          "赤"
+        ]
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 15000
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 7000
+          }
+        }
+      }
+    }
+  ],
+  "WD02-011": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "stub": "SET_BASE_POWER_15000_UNTIL_EOT"
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WD02-014": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "opt": {
+          "banish": {
+            "owner": "opp",
+            "count": 1,
+            "filter": {
+              "power_lte": 1000
+            }
+          }
+        }
+      }
+    }
+  ],
+  "WD02-015": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 5000
+          }
+        }
+      }
+    }
+  ],
+  "WD03-001": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "and": [
+          {
+            "has_signi": {
+              "owner": "self",
+              "filter": {
+                "name_has": "コードアート　Ｒ・Ｍ・Ｎ"
+              }
+            }
+          },
+          {
+            "hand_lte": {
+              "owner": "opp",
+              "val": 1
+            }
+          }
+        ]
+      },
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all"
+          },
+          "delta": 2000
+        }
+      }
+    }
+  ],
+  "WD03-006": [
+    {
+      "effectType": "ACTIVATED",
+      "stub": "数字を宣言し対戦相手の手札を見て宣言した数字と同じレベルのシグニをすべて捨てさせる（動的レベル指定はスキーマ外）"
+    }
+  ],
+  "WD03-007": [
+    {
+      "effectType": "ACTIVATED",
+      "action": {
+        "down": {
+          "owner": "opp",
+          "count": 2
+        }
+      }
+    }
+  ],
+  "WD03-008": [
+    {
+      "effectType": "ACTIVATED",
+      "action": {
+        "draw": 2
+      }
+    }
+  ],
+  "WD03-009": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "青"
+        ]
+      },
+      "action": {
+        "discard": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "discard": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WD03-011": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "seq": [
+          {
+            "reveal": {
+              "from": "opp_hand",
+              "count": "all"
+            }
+          },
+          {
+            "discard": {
+              "owner": "opp",
+              "count": 1,
+              "filter": {
+                "level_gte": 1,
+                "level_lte": 1
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WD03-014": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "seq": [
+          {
+            "draw": 1
+          },
+          {
+            "discard": {
+              "count": 1
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WD03-015": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "discard": {
+          "owner": "opp",
+          "count": 1,
+          "random": true
+        }
+      }
+    }
+  ],
+  "WD04-001": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "and": [
+          {
+            "has_signi": {
+              "owner": "self",
+              "filter": {
+                "name_has": "幻獣　セイリュ"
+              }
+            }
+          },
+          {
+            "energy_gte": {
+              "owner": "self",
+              "val": 7
+            }
+          }
+        ]
+      },
+      "action": {
+        "power": {
+          "target": "self_signi_all",
+          "delta": 2000
+        }
+      }
+    }
+  ],
+  "WD04-006": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "power": {
+          "target": "self_signi_all",
+          "delta": 5000,
+          "duration": "turn"
+        }
+      }
+    }
+  ],
+  "WD04-007": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "add_hand": {
+          "from": "energy",
+          "count": 2
+        }
+      }
+    }
+  ],
+  "WD04-008": [
+    {
+      "effectType": "ACTIVATED",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_gte": 12000
+          }
+        }
+      }
+    }
+  ],
+  "WD04-009": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "field_gte": {
+          "owner": "self",
+          "val": 3,
+          "filter": {
+            "power_gte": 15000
+          }
+        }
+      },
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "ランサー"
+        }
+      }
+    },
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_attack"
+      ],
+      "activeCondition": {
+        "field_gte": {
+          "owner": "self",
+          "val": 3,
+          "filter": {
+            "power_gte": 15000
+          }
+        }
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_gte": 10000
+          }
+        }
+      }
+    }
+  ],
+  "WD04-010": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "self_power_gte": 10000
+      },
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "ランサー"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_gte": 12000
+          }
+        }
+      }
+    }
+  ],
+  "WD04-011": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all"
+          },
+          "delta": 2000,
+          "duration": "turn"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WD04-012": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": 1
+          },
+          "delta": 3000,
+          "duration": "turn"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WD04-013": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_attack"
+      ],
+      "action": {
+        "cond": {
+          "if": {
+            "self_power_gte": 5000
+          },
+          "then": {
+            "energy": {
+              "from": "deck",
+              "count": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "WD04-014": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "power": {
+          "target": "self_signi_1",
+          "delta": 2000,
+          "duration": "turn"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WD04-015": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_attack"
+      ],
+      "action": {
+        "cond": {
+          "if": {
+            "self_power_gte": 3000
+          },
+          "then": {
+            "energy": {
+              "from": "deck",
+              "count": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "WD04-016": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "guard"
+        }
+      }
+    },
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "multi_energy"
+        }
+      }
+    }
+  ],
+  "WD04-017": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "guard"
+        }
+      }
+    },
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "multi_energy"
+        }
+      }
+    }
+  ],
+  "WD04-018": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "seq": [
+          {
+            "down": {
+              "owner": "self",
+              "count": 1,
+              "filter": {
+                "isDown": false
+              }
+            }
+          },
+          {
+            "banish": {
+              "owner": "opp",
+              "count": 1,
+              "filter": {
+                "power_lte": "@downed_power"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WD05-001": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "and": [
+          {
+            "has_signi": {
+              "owner": "self",
+              "filter": {
+                "name_has": "堕落の砲女　メツム"
+              }
+            }
+          },
+          {
+            "trash_count_gte": {
+              "owner": "self",
+              "val": 20
+            }
+          }
+        ]
+      },
+      "action": {
+        "power": {
+          "target": "self_signi_all",
+          "delta": 2000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WD05-006": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "power": {
+          "target": "opp_signi_1",
+          "delta": -7000,
+          "duration": "turn"
+        }
+      }
+    }
+  ],
+  "WD05-007": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "power": {
+          "target": "opp_signi_1",
+          "delta": -15000,
+          "duration": "turn"
+        }
+      }
+    }
+  ],
+  "WD05-008": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "add_hand": {
+          "from": "trash",
+          "count": 3,
+          "filter": {
+            "type": "signi"
+          }
+        }
+      }
+    }
+  ],
+  "WD05-009": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "seq": [
+          {
+            "trash": {
+              "from": "deck",
+              "count": 7,
+              "owner": "self"
+            }
+          },
+          {
+            "trash": {
+              "from": "deck",
+              "count": 7,
+              "owner": "opp"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "add_hand": {
+          "from": "trash",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WD05-011": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "trash_count_gte": {
+          "owner": "self",
+          "val": 10
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "delta": 5000,
+          "duration": "perm"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WD05-014": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "trash": {
+          "from": "deck",
+          "count": 3,
+          "owner": "self"
+        }
+      }
+    }
+  ],
+  "WD05-017": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "power": {
+          "target": "opp_signi_1",
+          "delta": -4000,
+          "duration": "turn"
+        }
+      }
+    }
+  ],
+  "WD05-018": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "add_hand": {
+          "from": "trash",
+          "count": 1,
+          "filter": {
+            "type": "signi"
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "add_hand": {
+          "from": "trash",
+          "count": 1,
+          "filter": {
+            "type": "signi"
+          }
+        }
+      }
+    }
+  ],
+  "WX01-001": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "白"
+        ],
+        "discard": {
+          "count": 1,
+          "filter": {
+            "color": "白",
+            "type": "signi"
+          }
+        }
+      },
+      "action": {
+        "bounce": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-002": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": [
+        {
+          "has_signi": {
+            "owner": "self",
+            "filter": {
+              "color": "白"
+            }
+          }
+        },
+        {
+          "has_signi": {
+            "owner": "self",
+            "filter": {
+              "color": "赤"
+            }
+          }
+        }
+      ],
+      "action": {
+        "power": {
+          "target": "self_signi_all",
+          "delta": 3000
+        }
+      }
+    },
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "trash": {
+          "from": "opp_field",
+          "count": 1,
+          "filter": {
+            "power_lte": 10000
+          }
+        }
+      }
+    },
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "白",
+          "白",
+          "赤"
+        ],
+        "down_self": true
+      },
+      "action": {
+        "trash": {
+          "from": "opp_field",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-003": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "赤"
+        ],
+        "discard": {
+          "count": 1,
+          "filter": {
+            "color": "赤",
+            "type": "signi"
+          }
+        }
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 10000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-004": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "stub": "あなたのグロウフェイズをスキップする"
+      }
+    },
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "power": {
+          "target": "self_signi_all",
+          "delta": 5000,
+          "duration": "turn"
+        }
+      }
+    },
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "赤",
+          "赤",
+          "赤"
+        ]
+      },
+      "action": {
+        "stub": "このターン、対戦相手はレベル２以下のシグニで【ガード】ができない"
+      }
+    }
+  ],
+  "WX01-005": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "discard": {
+          "count": 1,
+          "filter": {
+            "color": "青",
+            "type": "signi"
+          }
+        }
+      },
+      "action": {
+        "discard": {
+          "owner": "opp",
+          "count": 1,
+          "random": true
+        }
+      }
+    }
+  ],
+  "WX01-006": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "discard": 1,
+        "discard_filter": {
+          "color": "緑",
+          "type": "signi"
+        }
+      },
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": 1
+          },
+          "delta": 10000,
+          "duration": "turn"
+        }
+      }
+    }
+  ],
+  "WX01-007": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "白"
+        ]
+      },
+      "action": {
+        "search": {
+          "filter": {
+            "type": "signi",
+            "level_lte": 2
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WX01-008": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all",
+            "filter": {
+              "color": "白",
+              "type": "signi"
+            }
+          },
+          "delta": 1000
+        }
+      }
+    }
+  ],
+  "WX01-009": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "cost": {
+        "discard": 1
+      },
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-010": [
+    {
+      "effectType": "ACTIVATED",
+      "action": {
+        "search": {
+          "filter": {
+            "color": "白",
+            "type": "signi"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WX01-011": [
+    {
+      "effectType": "AUTO",
+      "trigger": "on_play",
+      "cost": {
+        "energy": [
+          "赤"
+        ]
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 7000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-012": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all",
+            "filter": {
+              "color": "赤"
+            }
+          },
+          "delta": 1000
+        }
+      }
+    }
+  ],
+  "WX01-013": [
+    {
+      "effectType": "AUTO",
+      "trigger": "on_play",
+      "cost": {
+        "discard": 1
+      },
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-014": [
+    {
+      "effectType": "ACTIVATED",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 10000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-015": [
+    {
+      "effectType": "AUTO",
+      "trigger": "on_play",
+      "cost": {
+        "energy": [
+          "青"
+        ]
+      },
+      "action": {
+        "discard": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-016": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all",
+            "filter": {
+              "color": "青"
+            }
+          },
+          "delta": 1000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-017": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "cost": {
+        "discard": 1
+      },
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-018": [
+    {
+      "stub": "スペル1つを対象としてその効果を打ち消す（カウンター効果、未定義アクション）"
+    }
+  ],
+  "WX01-019": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all"
+          },
+          "delta": 1000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-020": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-021": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all",
+            "filter": {
+              "color": "緑"
+            }
+          },
+          "delta": 1000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-022": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "cost": {
+        "discard": 1
+      },
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-023": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "seq": [
+          {
+            "trash": {
+              "from": "opp_energy",
+              "count": "all"
+            }
+          },
+          {
+            "trash": {
+              "from": "opp_field",
+              "count": "all",
+              "filter": {
+                "type": "signi"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WX01-024": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "power": {
+          "target": {
+            "count": 1,
+            "filter": {
+              "type": "signi"
+            }
+          },
+          "delta": 5000,
+          "duration": "turn"
+        }
+      }
+    }
+  ],
+  "WX01-025": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "add_hand": {
+          "from": "self_trash",
+          "count": 1,
+          "filter": {
+            "type": "signi",
+            "color_shared_with_center_lrig": true
+          }
+        }
+      }
+    }
+  ],
+  "WX01-026": [
+    {
+      "effectType": "ARTS",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-027": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "grant_keyword": {
+          "target": "self_energy_all",
+          "word": "multi_energy",
+          "duration": "perm"
+        }
+      }
+    },
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "白"
+        ]
+      },
+      "action": {
+        "up": {
+          "owner": "self",
+          "count": 1
+        }
+      }
+    },
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "白",
+          "白"
+        ]
+      },
+      "action": {
+        "stub": "REPLACEMENT: このターン、opp signiバニッシュ時→エナ代わりにトラッシュへ"
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "search": {
+          "filter": {
+            "color": "白"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WX01-028": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "stub": "GRANT_ABILITY: センタールリグにアタック時シグニトラッシュ→アップ能力付与(ターン終了時)"
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "seq": [
+          {
+            "down": {
+              "owner": "opp",
+              "count": 1,
+              "filter": {
+                "type": "lrig"
+              }
+            }
+          },
+          {
+            "down": {
+              "owner": "opp",
+              "count": "all"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WX01-029": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_attack"
+      ],
+      "triggerFilter": {
+        "owner": "self",
+        "color": "赤"
+      },
+      "action": {
+        "power": {
+          "target": "trigger_signi",
+          "delta": 2000,
+          "duration": "turn"
+        }
+      }
+    },
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "赤"
+        ]
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 7000
+          }
+        }
+      }
+    },
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "赤",
+          "赤"
+        ]
+      },
+      "action": {
+        "grant_keyword": {
+          "target": "self",
+          "word": "double_crush",
+          "duration": "turn"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 10000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-030": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "seq": [
+          {
+            "banish": {
+              "owner": "opp",
+              "count": 1,
+              "filter": {
+                "power_lte": 12000
+              }
+            }
+          },
+          {
+            "grant_keyword": {
+              "target": "self_lrig",
+              "word": "double_crush",
+              "duration": "turn"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "stub": "CRASH: 自ライフ1枚トラッシュ→oppライフ1枚クラッシュ"
+      }
+    }
+  ],
+  "WX01-031": [
+    {
+      "effectType": "CONTINUOUS",
+      "action": {
+        "cost_reduce": {
+          "flat": 1,
+          "filter": {
+            "type": "spell",
+            "color": "青"
+          }
+        }
+      }
+    },
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "青"
+        ]
+      },
+      "action": {
+        "discard": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    },
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "青",
+          "青"
+        ]
+      },
+      "action": {
+        "add_hand": {
+          "from": "trash",
+          "count": 1,
+          "filter": {
+            "type": "spell"
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "discard": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-032": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "seq": [
+          {
+            "discard": {
+              "owner": "opp",
+              "count": 2
+            }
+          },
+          {
+            "cond": {
+              "if": {
+                "hand_lte": {
+                  "owner": "opp",
+                  "val": 0
+                }
+              },
+              "then": {
+                "draw": 1
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "discard": {
+          "owner": "opp",
+          "count": 1,
+          "random": true
+        }
+      }
+    }
+  ],
+  "WX01-033": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_spell_cast"
+      ],
+      "triggerFilter": {
+        "color": "緑"
+      },
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    },
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "cost": {
+        "energy": [
+          "緑"
+        ]
+      },
+      "action": {
+        "add_hand": {
+          "from": "energy",
+          "count": 1
+        }
+      }
+    },
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "緑",
+          "緑"
+        ]
+      },
+      "action": {
+        "move": {
+          "from": "trash",
+          "to": "deck",
+          "count": "all",
+          "filter": {
+            "color": "緑"
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 2
+        }
+      }
+    }
+  ],
+  "WX01-034": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "seq": [
+          {
+            "move": {
+              "from": "deck",
+              "to": "life",
+              "count": 1
+            }
+          },
+          {
+            "cond": {
+              "if": {
+                "energy_gte": {
+                  "owner": "self",
+                  "val": 10
+                }
+              },
+              "then": {
+                "move": {
+                  "from": "deck",
+                  "to": "life",
+                  "count": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "move": {
+          "from": "deck",
+          "to": "life",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-035": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "白"
+        ],
+        "down_self": true
+      },
+      "action": {
+        "bounce": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-036": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "stub": "DECK_TOP_PLAY: デッキ上確認、lv2以下signiかつ自場他シグニなし→場に出してもよい"
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "search": {
+          "filter": {
+            "level_lte": 4,
+            "level_gte": 4,
+            "color": "白",
+            "type": "signi"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WX01-037": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true
+      },
+      "action": {
+        "search": {
+          "filter": {
+            "type": "signi",
+            "level_lte": 3,
+            "name_not": "忘得ぬ幻想　ヴァルキリー"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WX01-038": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "seq": [
+          {
+            "search": {
+              "filter": {
+                "type": "signi",
+                "color": "白"
+              },
+              "dest": "hand",
+              "count": 1,
+              "reveal": true
+            }
+          },
+          {
+            "search": {
+              "filter": {
+                "type": "signi",
+                "color": "赤"
+              },
+              "dest": "hand",
+              "count": 1,
+              "reveal": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WX01-039": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "赤"
+        ],
+        "down_self": true
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 10000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-040": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 3000
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 5000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-041": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 7000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-042": [
+    {
+      "stub": "CRASH_LIFE_NOT_DEFINED: ライフクロスをクラッシュするアクションは未定義"
+    }
+  ],
+  "WX01-043": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "energy": [
+          "青"
+        ],
+        "down_self": true
+      },
+      "action": {
+        "draw": 2
+      }
+    }
+  ],
+  "WX01-044": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "freeze": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "level_lte": 3
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "seq": [
+          {
+            "discard": {
+              "count": 1
+            }
+          },
+          {
+            "discard": {
+              "owner": "opp",
+              "count": 1
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WX01-045": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true
+      },
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-046": [
+    {
+      "activeCondition": {
+        "hand_lte": {
+          "owner": "opp",
+          "val": 0
+        }
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-047": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true
+      },
+      "action": {
+        "add_hand": {
+          "from": "energy",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-049": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true
+      },
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-050": [
+    {
+      "action": {
+        "power": {
+          "target": {
+            "owner": "self",
+            "count": "all"
+          },
+          "delta": 5000,
+          "duration": "turn"
+        }
+      }
+    }
+  ],
+  "WX01-051": [
+    {
+      "keyword": "GUARD"
+    },
+    {
+      "effectType": "CONTINUOUS",
+      "keyword": "マルチエナ"
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-052": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "draw": 2
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-054": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "during_turn": "opp"
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 18000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-055": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "during_turn": "opp"
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 12000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-056": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "during_turn": "opp"
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 8000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-057": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "stub": "DECK_TOP_PLAY: デッキ上確認、lv2以下signiかつ自場他シグニなし→場に出してもよい"
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-058": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true,
+        "discard": 1
+      },
+      "action": {
+        "search": {
+          "filter": {
+            "level_lte": 3,
+            "color": "白",
+            "type": "signi"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WX01-059": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "stub": "DECK_TOP_PLAY: デッキ上確認、lv1signiかつ自場他シグニなし→場に出してもよい"
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-060": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "during_turn": "opp"
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 5000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-061": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true,
+        "discard": 1
+      },
+      "action": {
+        "search": {
+          "filter": {
+            "level_lte": 2,
+            "color": "白",
+            "type": "signi"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WX01-062": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "stub": "DECK_FILTER: デッキ上5枚確認、任意枚数トラッシュ、残りを好きな順でデッキトップへ"
+      }
+    }
+  ],
+  "WX01-063": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "up": {
+          "owner": "self",
+          "count": "all"
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "search": {
+          "filter": {
+            "type": "signi"
+          },
+          "dest": "hand",
+          "count": 1,
+          "reveal": true
+        }
+      }
+    }
+  ],
+  "WX01-065": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "during_turn": "self"
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 18000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-066": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "during_turn": "self"
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 12000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-067": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "discard": {
+          "owner": "self",
+          "count": 1
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-068": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "during_turn": "self"
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 8000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-069": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true,
+        "discard": 1
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 5000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-070": [
+    {
+      "effectType": "AUTO",
+      "timing": [
+        "on_play"
+      ],
+      "action": {
+        "discard": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-071": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": "your_turn",
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 5000
+        }
+      }
+    }
+  ],
+  "WX01-072": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true,
+        "discard": 1
+      },
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 2000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-073": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 15000
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 10000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-074": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "banish": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "power_lte": 10000
+          }
+        }
+      }
+    }
+  ],
+  "WX01-076": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "hand_diff_gte": {
+          "val": 3
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 18000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-077": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "hand_diff_gte": {
+          "val": 2
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 12000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-078": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "hand_diff_gte": {
+          "val": 2
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 8000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-079": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "freeze": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "level_lte": 2
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-080": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true,
+        "discard": 1
+      },
+      "action": {
+        "seq": [
+          {
+            "draw": 2
+          },
+          {
+            "discard": {
+              "count": 1
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WX01-081": [
+    {
+      "effectType": "AUTO",
+      "trigger": [
+        "on_play"
+      ],
+      "action": {
+        "freeze": {
+          "owner": "opp",
+          "count": 1,
+          "filter": {
+            "level_lte": 1,
+            "level_gte": 1
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-082": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "hand_diff_gte": {
+          "val": 1
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 5000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-083": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true,
+        "discard": 1
+      },
+      "action": {
+        "draw": 1
+      }
+    }
+  ],
+  "WX01-084": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "seq": [
+          {
+            "draw": 3
+          },
+          {
+            "discard": {
+              "count": 1
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WX01-085": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "seq": [
+          {
+            "down": {
+              "owner": "opp",
+              "count": "all"
+            }
+          },
+          {
+            "freeze": {
+              "owner": "opp",
+              "count": "all"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "seq": [
+          {
+            "down": {
+              "owner": "opp",
+              "count": 2
+            }
+          },
+          {
+            "freeze": {
+              "owner": "opp",
+              "count": 2
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "WX01-087": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "energy_diff_gte": {
+          "val": 5
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 18000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-089": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "energy_diff_gte": {
+          "val": 4
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 12000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-092": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "energy_diff_gte": {
+          "val": 3
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 8000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-093": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true,
+        "discard": 1
+      },
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-096": [
+    {
+      "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "energy_diff_gte": {
+          "val": 2
+        }
+      },
+      "action": {
+        "power": {
+          "target": "self",
+          "set": 5000,
+          "duration": "perm"
+        }
+      }
+    }
+  ],
+  "WX01-097": [
+    {
+      "effectType": "ACTIVATED",
+      "cost": {
+        "down_self": true,
+        "discard": 1
+      },
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-098": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 2
+        }
+      }
+    }
+  ],
+  "WX01-099": [
+    {
+      "effectType": "SPELL",
+      "action": {
+        "move": {
+          "from": "energy",
+          "to": "field",
+          "count": 1,
+          "filter": {
+            "type": "signi"
+          }
+        }
+      }
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "add_hand": {
+          "from": "energy",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "WX01-100": [
+    {
+      "effectType": "KEYWORD",
+      "word": "guard"
+    },
+    {
+      "effectType": "KEYWORD",
+      "word": "multi_energy"
+    },
+    {
+      "effectType": "LIFE_BURST",
+      "action": {
+        "energy": {
+          "from": "deck",
+          "count": 1
+        }
+      }
+    }
+  ],
+  "_parseError": "```json\n{\n  \"WX01-074\": [\n    {\n      \"effectType\": \"SPELL_MAIN\",\n      \"action\": {\n        \"banish\": {\n          \"owner\": \"opp\",\n          \"count\": 1,\n          \"filter\": { \"power_lte\": 10000 }\n     "
+}

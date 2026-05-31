@@ -7,12 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:effects": "tsx scripts/buildEffectsJson.ts",
+    "wel": "tsx scripts/batchParseCards.ts --sheet Sheet1 --batch-size 5",
+    "wel:dry": "tsx scripts/batchParseCards.ts --sheet Sheet1 --batch-size 5 --dry-run",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
     "@supabase/supabase-js": "^2.105.4",
+    "dotenv": "^17.4.2",
     "papaparse": "^5.5.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
