@@ -1829,6 +1829,58 @@ export function execStub(
     }
     return done(addLog(ctx, `カウント基準効果（処理${count}枚）`));
   }
+  // INTERNAL: 手札捨て後の効果（COUNT_BASED_DRAW_OR_POWER から継続）
+  if (stub.id === 'INTERNAL_CBDOP_AFTER_DISCARD') {
+    const selectedICD = ctx.lastProcessedCards ?? [];
+    const countICD = selectedICD.length;
+    // 選択カードを手札からトラッシュへ
+    let newOwnerICD = { ...ctx.ownerState };
+    for (const cn of selectedICD) {
+      const hi = newOwnerICD.hand.indexOf(cn);
+      if (hi >= 0) {
+        const newH = [...newOwnerICD.hand]; newH.splice(hi, 1);
+        newOwnerICD = { ...newOwnerICD, hand: newH, trash: [...newOwnerICD.trash, cn] };
+      }
+    }
+    if (countICD === 0) return done(addLog({ ...ctx, ownerState: newOwnerICD }, '捨てなし（効果スキップ）'));
+    const ctxICD = { ...ctx, ownerState: newOwnerICD };
+    const srcICD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtICD = srcICD ? (srcICD.EffectText ?? '') + ' ' + (srcICD.BurstText ?? '') : '';
+    const toHWICD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 「捨てたカードの枚数（に1を加えた枚数）カードを引く」
+    if (txtICD.match(/捨てたカードの枚数|枚数に等しい枚数.*引く|枚数のカードを引く/)) {
+      const bonusM = txtICD.match(/枚数に([０-９\d]+)を加えた枚数/);
+      const bonus = bonusM ? parseInt(toHWICD(bonusM[1])) : 0;
+      const drawCount = countICD + bonus;
+      const canDraw = Math.min(drawCount, ctxICD.ownerState.deck.length);
+      const newS: PlayerState = {
+        ...ctxICD.ownerState,
+        hand: [...ctxICD.ownerState.hand, ...ctxICD.ownerState.deck.slice(0, canDraw)],
+        deck: ctxICD.ownerState.deck.slice(canDraw),
+      };
+      return done(addLog({ ...ctxICD, ownerState: newS }, `手札${countICD}枚捨て→${drawCount}枚ドロー`));
+    }
+    // 「枚数と同じ数の相手シグニのパワーを-N」
+    const pwrM = txtICD.match(/それぞれ([＋－][０-９\d]+)/);
+    if (pwrM || txtICD.match(/枚数.*パワー.*([＋－][０-９\d]+)/)) {
+      const rawDelta = pwrM
+        ? pwrM[1]
+        : (txtICD.match(/パワー.*([＋－][０-９\d]+)/)?.[1] ?? '－5000');
+      const delta = parseInt(toHWICD(rawDelta).replace('＋', '+').replace('－', '-'));
+      const oppSigniAll = ([0, 1, 2] as const)
+        .map(i => ctxICD.otherState.field.signi[i]?.at(-1))
+        .filter((cn): cn is string => !!cn);
+      const targets = oppSigniAll.slice(0, countICD);
+      if (targets.length === 0) return done(addLog(ctxICD, 'パワー修正：相手シグニなし'));
+      const mods = [...(ctxICD.otherState.temp_power_mods ?? [])];
+      for (const cn of targets) mods.push({ cardNum: cn, delta });
+      return done(addLog(
+        { ...ctxICD, otherState: { ...ctxICD.otherState, temp_power_mods: mods } },
+        `手札${countICD}枚捨て→相手シグニ${targets.length}体にパワー${delta}`,
+      ));
+    }
+    return done(addLog(ctxICD, `手札${countICD}枚捨て（効果適用不明）`));
+  }
   // アーツ使用時にルリグデッキからアーツを任意でルリグトラッシュへ
   if (stub.id === 'ARTS_USE_DISCARD_LRIG_DECK') {
     const lrigDeck = ctx.ownerState.lrig_deck ?? [];
