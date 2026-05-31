@@ -1666,6 +1666,54 @@ export function collectLrigNameAliases(
 }
 
 /**
+ * COPY_LRIG_NAME_ABILITY (CONT) 【自】能力コピー:
+ * センタールリグの COPY_LRIG_NAME_ABILITY 効果が有効なとき、
+ * ルリグトラッシュの該当ルリグの AUTO 効果を返す（ON_ATTACK_LRIG 等のトリガーに使用）。
+ * effectId に "{centerTop}-COPY-" プレフィックスを付けて重複を防ぐ。
+ */
+export function collectCopiedLrigAutoEffects(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): import('../types/effects').CardEffect[] {
+  const result: import('../types/effects').CardEffect[] = [];
+  const centerTop = ownerState.field.lrig.at(-1);
+  if (!centerTop) return result;
+  const toHW2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
+  for (const eff of (effectsMap.get(centerTop) ?? [])) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    const act = eff.action as import('../types/effects').StubAction;
+    if (act.type !== 'STUB' || act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
+    if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, centerTop)) continue;
+
+    const card = cardMap.get(centerTop);
+    const txt = card?.EffectText ?? '';
+    const m = txt.match(/ルリグトラッシュにある(?:レベル([０-９\d]+)の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名/);
+    if (!m) continue;
+
+    const targetLevel = m[1] !== undefined ? parseInt(toHW2(m[1])) : undefined;
+    const storyName = m[2];
+
+    const targetLrig = ownerState.lrig_trash.find(cn => {
+      const c = cardMap.get(cn);
+      if (!c) return false;
+      if (targetLevel !== undefined && parseInt(c.Level ?? '0') !== targetLevel) return false;
+      return c.CardClass?.includes(storyName) || c.Story?.includes(storyName) || c.CardName?.includes(storyName);
+    });
+    if (!targetLrig) continue;
+
+    for (const trashEff of (effectsMap.get(targetLrig) ?? [])) {
+      if (trashEff.effectType !== 'AUTO') continue;
+      result.push({ ...trashEff, effectId: `${centerTop}-COPY-${trashEff.effectId}` });
+    }
+  }
+  return result;
+}
+
+/**
  * FIELD_ENERGY_SIGNI_GAIN_COLOR: フィールド上に「場とエナゾーンにあるシグニが追加で色を得る」
  * CONTINUOUS効果があれば、その色を得るシグニのインスタンスIDセットと得る色を返す。
  * フィルター付き（《ディソナアイコン》等）は識別子なしのためスキップ。
