@@ -4359,12 +4359,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, field: { ...my.field, lrig_down: true } };
       const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
 
-      // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力）
+      // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）
       const lrigCardEffects = (effectsMap.get(lrigNum) ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
       const grantedAttackEffects = (my.lrig_granted_auto_effects ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
-      const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects];
+      const copiedAutoEffects = collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, isMyTurn)
+        .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
+      const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects, ...copiedAutoEffects];
       const update: Partial<BattleStateRow> = { [myKey]: newMyState, [opKey]: newOpState };
       if (onAttackEffects.length > 0) {
         const entries: StackEntry[] = onAttackEffects.map(e => ({
