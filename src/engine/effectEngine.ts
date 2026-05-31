@@ -948,6 +948,8 @@ export function calcContinuousBlockedActions(
   }
 
   // ODD_LEVEL_SIGNI_CANT_ATTACK: 相手フィールドにこの効果があれば自分の奇数レベルシグニはアタック不可
+  // 実効レベルを事前計算（LEVEL_MOD_PER_COUNT適用済み）
+  const ownerEffectiveLevels = buildLevelMods(ownerState, otherState, effectsMap, cardMap);
   for (const stack of otherState.field.signi) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
@@ -961,9 +963,7 @@ export function calcContinuousBlockedActions(
     for (const myStack of ownerState.field.signi) {
       if (!myStack?.length) continue;
       const myTop = myStack[myStack.length - 1];
-      // 実効レベルを使用（LEVEL_MOD_PER_COUNT適用済み）
-      const levelMods2 = buildLevelMods(ownerState, otherState, effectsMap, cardMap);
-      const level = levelMods2.has(myTop) ? levelMods2.get(myTop)! : parseInt(cardMap.get(myTop)?.Level ?? '', 10);
+      const level = ownerEffectiveLevels.has(myTop) ? ownerEffectiveLevels.get(myTop)! : parseInt(cardMap.get(myTop)?.Level ?? '', 10);
       if (!isNaN(level) && level % 2 === 1) cannotAttackSigni.add(myTop);
     }
   }
