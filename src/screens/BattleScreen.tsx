@@ -4045,7 +4045,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_acce:   newOpAcce,
             },
           };
-          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : ''}`]);
+          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : ''}`]);
 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer || isSLancer) {
