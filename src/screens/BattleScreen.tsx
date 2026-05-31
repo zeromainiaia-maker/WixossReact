@@ -3966,7 +3966,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 自分のシグニをダウン
       const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
       newSigniDown[zoneIndex] = true;
-      const newAttackedIds = [...new Set([...(my.attacked_signi_ids ?? []), myTopNum])];
+      const newAttackedIds = [...(my.attacked_signi_ids ?? []), myTopNum];
       const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds };
       let newOpState = op;
       let banishedOpCardNum: string | null = null; // バニッシュされた相手シグニ
