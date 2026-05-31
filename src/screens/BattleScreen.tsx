@@ -2480,6 +2480,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     startMyState: PlayerState,
     _startOpState: PlayerState,
     extraUpdate: Record<string, unknown> = {},
+    repeatCount = 1,
   ): Promise<boolean> => {
     const effects = effectsMap.get(cardNum) ?? [];
     const targets = effects.filter(e =>
@@ -2491,7 +2492,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
     const turnPlayerId = bs?.active_user_id ?? user.id;
 
-    const entries: StackEntry[] = targets.map(eff => ({
+    const makeEntries = (): StackEntry[] => targets.map(eff => ({
       id: generateUUID(),
       playerId: user.id,
       cardNum,
@@ -2499,6 +2500,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       label: `${cardName} の${effectTypeLabel(eff.effectType)}効果`,
       effect: eff,
     }));
+    const allEntries: StackEntry[] = [];
+    for (let r = 0; r < repeatCount; r++) allEntries.push(...makeEntries());
+    const entries = allEntries;
 
     const existing = bs?.effect_stack ?? null;
     const stack: EffectStack = existing
