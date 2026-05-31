@@ -3343,14 +3343,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (growEffectLog) logs.push(growEffectLog);
       appendBattleLogs(logs);
 
-      // ルリグの ON_PLAY 効果を確認
+      // ルリグの ON_PLAY 効果を確認（COPY_LRIG_NAME_ABILITYコピー効果も含む）
       const ownEffects = effectsMap.get(cardNum) ?? [];
-      const mandatoryOnPlay = ownEffects.filter(e =>
+      const copiedOnPlayEffects = collectCopiedLrigAutoEffects(newMyState, battleCardMap, effectsMap, op, isMyTurn)
+        .filter(e => e.timing?.includes('ON_PLAY'));
+      const allOnPlayEffects = [...ownEffects, ...copiedOnPlayEffects];
+      const mandatoryOnPlay = allOnPlayEffects.filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
         e.mandatory !== false,
       );
-      const costOnPlay = ownEffects.filter(e =>
+      const costOnPlay = allOnPlayEffects.filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
         e.mandatory === false &&
