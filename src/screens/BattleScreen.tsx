@@ -171,7 +171,9 @@ function computeArtsEffectiveCost(
   let m: RegExpMatchArray | null;
 
   // lrigName判定：エイリアスも含めた名前一致チェック
+  // LRIG_ALL_NAMES_SENTINEL がある場合はどのキーワードにも一致
   const lrigNameMatches = (keyword: string) =>
+    lrigNameAliases?.includes(LRIG_ALL_NAMES_SENTINEL) ||
     lrigName?.includes(keyword) || lrigNameAliases?.some(a => a.includes(keyword));
 
   // 対戦相手のルリグ色条件：コスト上書き
