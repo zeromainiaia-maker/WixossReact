@@ -28,6 +28,8 @@ export interface ExecCtx {
   otherProtectedSigniNums?: string[];
   // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_BOUNCE_AND_DOWN_BY_OPP
   otherDownProtectedNums?: string[];
+  // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手シグニのバウンス保護（場→手札に戻せないシグニ）
+  otherBounceProtectedNums?: string[];
 }
 
 export type ExecResult =
