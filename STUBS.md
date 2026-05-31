@@ -125,7 +125,7 @@
 | 1 | CONT | ✅ | BLOCK_COLORLESS_PLAY ※v0.0.8: PLAY_COLORLESSをforSelfに追加。handleSummonSigni/castSpellでColor=無をガード |
 | 1 | CONT | ✅ | BLOCK_FRONT_SIGNI_ATTACK ※v0.115: calcContinuousBlockedActionsで正面シグニをcannotAttackSigniに追加 |
 | 1 | CONT | 📝 | BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT |
-| 1 | CONT | 📝 | BLOCK_NON_WHITE_SPELL |
+| 1 | CONT | ✅ | BLOCK_NON_WHITE_SPELL ※v0.0.8: BLOCK_NON_WHITE_SPELLを両者forSelf/forOtherに追加。castSpellで白以外をガード |
 | 1 | AUTO | ⚡ | BLOCK_OPP_ARTS_SPELL_ACT |
 | 1 | ACTIVATED | ⚡ | BLOCK_OPP_AUTO_ABILITY_EXTENDED |
 | 1 | CONT | 📝 | BLOCK_OPP_DECK_TO_ENERGY |
