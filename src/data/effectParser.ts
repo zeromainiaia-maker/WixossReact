@@ -6,7 +6,6 @@ import type {
   EffectType,
   EffectTiming,
   EffectCost,
-  EnergyCost,
   EffectDuration,
   ActiveCondition,
   TargetFilter,
