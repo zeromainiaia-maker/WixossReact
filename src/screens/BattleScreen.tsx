@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates } from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, collectLrigColorInheritSigni, collectMultiAcceSigni } from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -163,10 +163,16 @@ function computeArtsEffectiveCost(
   oppLrigColor?: string,
   myLrigLevel?: number,
   cardMap?: Map<string, CardData>,
+  lrigNameAliases?: string[],
+  artsThresholdReductions?: { minTotalCost: number; color: string; reduction: number }[],
 ): string {
   const text = card.EffectText ?? '';
   const base = card.Cost;
   let m: RegExpMatchArray | null;
+
+  // lrigName判定：エイリアスも含めた名前一致チェック
+  const lrigNameMatches = (keyword: string) =>
+    lrigName?.includes(keyword) || lrigNameAliases?.some(a => a.includes(keyword));
 
   // 対戦相手のルリグ色条件：コスト上書き
   m = text.match(/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの)?使用コストは(.+?)になる/s);
@@ -198,13 +204,13 @@ function computeArtsEffectiveCost(
     return removeOneCostColor(base, m[2]);
   }
 
-  // センタールリグ名条件
+  // センタールリグ名条件（エイリアスも考慮）
   m = text.match(/センタールリグのカード名に《([^》]+)》を含む.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
-  if (m && lrigName?.includes(m[1])) {
+  if (m && lrigNameMatches(m[1])) {
     return removeOneCostColor(base, m[2]);
   }
   m = text.match(/センタールリグが.*?カード名に《([^》]+)》.*?(?:このアーツの)?使用コストは《([^》]+)》[１-９一]つ少/s);
-  if (m && lrigName?.includes(m[1])) {
+  if (m && lrigNameMatches(m[1])) {
     return removeOneCostColor(base, m[2]);
   }
 
@@ -234,6 +240,16 @@ function computeArtsEffectiveCost(
         return top && (cardMap.get(top)?.CardClass ?? '').includes(reqClass);
       });
       if (hasClassSigni) return removeNColorFromCost(base, color, cnt);
+    }
+  }
+
+  // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト合計がN以上なら色コスト軽減
+  if (artsThresholdReductions && artsThresholdReductions.length > 0) {
+    const totalCost = parseGrowCost(base).reduce((s, c) => s + c.count, 0);
+    for (const { minTotalCost, color, reduction } of artsThresholdReductions) {
+      if (totalCost >= minTotalCost) {
+        return removeNColorFromCost(base, color, reduction);
+      }
     }
   }
 
@@ -466,25 +482,25 @@ function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<s
   return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
 }
 
-function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>, allMulti?: boolean, colorlessOverrides?: string[], colorSubs?: { from: string[]; to: string }[]): boolean {
+function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>, allMulti?: boolean, colorlessOverrides?: string[], colorSubs?: { from: string[]; to: string }[], extraColorMap?: Map<string, string>): boolean {
   const costs = parseGrowCost(growCost);
   if (costs.length === 0) return true;
   // 色指定コストを先に処理し、マルチエナをワイルドカードとして温存する
   const sorted = [...costs].sort((a, b) => (a.color === '無' ? 1 : 0) - (b.color === '無' ? 1 : 0));
-  type P = { color: string; isWild: boolean };
+  type P = { color: string; isWild: boolean; extraColor?: string };
   let pool: P[] = energyNums.map(n => {
     const c = cards.find(cd => cd.CardNum === getCardNum(n));
     // colorless_card_overrides に含まれるカードは全ゾーンで無色扱い
     const isColorless = colorlessOverrides?.includes(getCardNum(n)) || colorlessOverrides?.includes(n);
-    return { color: isColorless ? '無' : (c?.Color ?? '無'), isWild: !isColorless && isMultiEna(n, cards, keywordGrants, allMulti) };
+    return { color: isColorless ? '無' : (c?.Color ?? '無'), isWild: !isColorless && isMultiEna(n, cards, keywordGrants, allMulti), extraColor: extraColorMap?.get(n) };
   });
   for (const { color, count } of sorted) {
     let needed = count;
-    // まず通常カードで充当（energy_color_substitutes も考慮）
+    // まず通常カードで充当（energy_color_substitutes・追加色も考慮）
     const rem: P[] = [];
     for (const p of pool) {
       if (needed > 0 && !p.isWild) {
-        const colorMatches = color === '無' || p.color === color ||
+        const colorMatches = color === '無' || p.color === color || p.extraColor === color ||
           (colorSubs?.some(s => s.to === p.color && s.from.includes(color)));
         if (colorMatches) { needed--; continue; }
       }
@@ -552,8 +568,9 @@ function canAffordWithExtraCost(
   allMulti?: boolean,
   colorlessOverrides?: string[],
   colorSubs?: { from: string[]; to: string }[],
+  extraColorMap?: Map<string, string>,
 ): boolean {
-  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs);
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs, extraColorMap);
   // 追加コスト分をプールから引いてから基本コストをチェック
   let pool = [...energyNums];
   for (const { color, count } of extraCosts) {
@@ -564,8 +581,9 @@ function canAffordWithExtraCost(
         const cd = cards.find(c => c.CardNum === getCardNum(n));
         const isColorless = colorlessOverrides?.includes(getCardNum(n)) || colorlessOverrides?.includes(n);
         const cardColor = isColorless ? '無' : (cd?.Color ?? '無');
+        const extraColor = extraColorMap?.get(n);
         // color substitutes: to色が対象色と一致すれば代替可能
-        const colorMatches = color === '無' || cardColor.includes(color) ||
+        const colorMatches = color === '無' || cardColor.includes(color) || extraColor === color ||
           (colorSubs?.some(s => s.to === cardColor && s.from.includes(color)));
         if (colorMatches) { needed--; continue; }
       }
@@ -574,7 +592,7 @@ function canAffordWithExtraCost(
     pool = rem;
     if (needed > 0) return false;
   }
-  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs);
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs, extraColorMap);
 }
 
 // EnergyCost[] を growCost 文字列に変換（altCostOppTurn 用）
@@ -1196,6 +1214,45 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    
   }, [bs, battleCardMap, effectsMap, user.id]);
 
+  // FIELD_ENERGY_SIGNI_GAIN_COLOR: エナゾーンの追加色マップ（instId -> 追加色）
+  const myEnergyExtraColors = useMemo((): Map<string, string> => {
+    const map = new Map<string, string>();
+    if (!bs || bs.global_phase !== 'PLAYING') return map;
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    for (const { gainColor, instIds } of collectFieldEnergySigniColorGains(myS, battleCardMap, effectsMap)) {
+      for (const id of instIds) map.set(id, gainColor);
+    }
+    return map;
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
+  // COPY_LRIG_NAME_ABILITY (CONT): センタールリグの名前エイリアスリスト
+  const myLrigNameAliases = useMemo((): string[] => {
+    if (!bs || bs.global_phase !== 'PLAYING') return [];
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    return collectLrigNameAliases(myS, battleCardMap, effectsMap);
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
+  // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト閾値によるアーツコスト軽減
+  const myArtsThresholdReductions = useMemo(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return [] as { minTotalCost: number; color: string; reduction: number }[];
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    return collectArtsThresholdCostReductions(myS, battleCardMap, effectsMap);
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
+  // OPP_LRIG_ATTACK_COST: 自分がルリグアタックする際に支払う追加コスト（相手フィールドの効果による）
+  const myLrigAttackExtraCost = useMemo((): number => {
+    if (!bs || bs.global_phase !== 'PLAYING') return 0;
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    // 相手フィールドのOPP_LRIG_ATTACK_COSTが自分ターン中にアクティブな場合、自分が追加コスト支払い
+    return collectOppLrigAttackExtraCost(opS, myS, battleCardMap, effectsMap, !myTurn);
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
   // HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT: 実効手札上限（自分のターン終了時に適用）
   const myEffectiveHandLimit = useMemo(() => {
     if (!bs || bs.global_phase !== 'PLAYING') return 6;
@@ -1204,6 +1261,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opS = localIsHost ? bs.guest_state : bs.host_state;
     return collectHandLimits(myS, opS, battleCardMap, effectsMap);
    
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
+  // HAND_SIGNI_HAS_GUARD_ICON: 手札の特定クラスのシグニがガード可能
+  const myHandGuardClasses = useMemo((): string[] => {
+    if (!bs || bs.global_phase !== 'PLAYING') return [];
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    return collectHandGuardIconClasses(myS, battleCardMap, effectsMap, opS, myTurn);
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
+  // CENTER_LRIG_COLOR_CHANGE_BLACK / LRIG_LIMIT_UP_AND_COLOR_GAIN: ルリグの色・リミット変更
+  const myLrigColorAndLimitMods = useMemo(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return { extraColors: [] as string[], limitDelta: 0 };
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    return collectLrigColorAndLimitMods(myS, battleCardMap, effectsMap, opS, myTurn);
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
+  // GAIN_LRIG_COLOR: ルリグの色を得るシグニ
+  const myLrigColorInheritSigni = useMemo((): string[] => {
+    if (!bs || bs.global_phase !== 'PLAYING') return [];
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    return collectLrigColorInheritSigni(myS, battleCardMap, effectsMap, opS, myTurn);
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // pending_effectが変わったらカード選択をリセット（別効果の選択状態が残らないように）
@@ -2476,7 +2563,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const otherProtectedZones = collectProtectedZones(otherState, battleCardMap, effectsMap);
       // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手フィールドの能力保護シグニを動的計算してctxに渡す
       const otherProtectedSigniNums = collectAbilityProtectedSigni(otherState, battleCardMap, effectsMap);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums };
+      // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL: 相手フィールドのダウン保護シグニ
+      const otherDownProtectedNums = collectDownProtectedSigni(otherState, battleCardMap, effectsMap, ownerState, isOwnerTurn);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums };
       let result = executeEffect(entry.effect, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
@@ -3142,11 +3231,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ルリグのクラス（制限チェック共通）
   const lrigClass = currentLrig?.CardClass ?? '';
 
-  // シグニ召喚: リミット計算（アシストルリグ+1ずつ、lrig_limit_mod加算）
+  // シグニ召喚: リミット計算（アシストルリグ+1ずつ、lrig_limit_mod加算、LRIG_LIMIT_UP_AND_COLOR_GAIN加算）
   const lrigLimit = (parseInt(currentLrig?.Limit ?? '0') || 0)
     + ((my.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((my.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
-    + (my.lrig_limit_mod ?? 0);
+    + (my.lrig_limit_mod ?? 0)
+    + myLrigColorAndLimitMods.limitDelta;
   const fieldSigniTopLevels: number[] = my.field.signi.map(stack => {
     if (!stack || stack.length === 0) return 0;
     const top = battleCardMap.get(stack[stack.length - 1]);
@@ -3807,8 +3897,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
       const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
       const costOk = effectiveCostStr
-        ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs)
-        : canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+        ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
+        : canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
       if (canUse && costOk) {
         actions.push({
           label: '使用',
@@ -4210,8 +4300,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const opKey = isHost ? 'guest_state' : 'host_state';
       const lrigNum = my.field.lrig.at(-1) ?? '';
       const lrigName = battleCardMap.get(lrigNum)?.CardName ?? 'ルリグ';
+      // OPP_LRIG_ATTACK_COST: 相手フィールドの効果による追加コスト支払い
+      let myEnergyAfterAttack = my.energy;
+      if (myLrigAttackExtraCost > 0 && my.energy.length >= myLrigAttackExtraCost) {
+        const removed = myEnergyAfterAttack.slice(-myLrigAttackExtraCost);
+        myEnergyAfterAttack = myEnergyAfterAttack.slice(0, -myLrigAttackExtraCost);
+        appendBattleLogs([`ルリグアタック追加コスト（《無》×${myLrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
+      }
       appendBattleLogs([`${lrigName}がアタック`]);
-      const newMyState: PlayerState = { ...my, field: { ...my.field, lrig_down: true } };
+      const newMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, field: { ...my.field, lrig_down: true } };
       const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
 
       // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力）
@@ -4792,7 +4889,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if ((my.prevent_next_damage ?? 0) > 0) {
           appendBattleLogs([`ルリグアタック：ダメージ無効`]);
           newMyState = { ...my, prevent_next_damage: (my.prevent_next_damage ?? 0) - 1, field: { ...my.field, lrig_attacked: false } };
-        } else if (my.prevent_lrig_damage) {
+        } else if (my.prevent_lrig_damage || (() => {
+          // PREVENT_LRIG_DAMAGE (条件付き): 手札が0枚のかぎりルリグダメージ無効
+          return my.field.signi.some((stack) => {
+            const top = stack?.at(-1); if (!top) return false;
+            return (effectsMap.get(top) ?? []).some(eff =>
+              eff.effectType === 'CONTINUOUS' &&
+              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+              (eff.action as import('../types/effects').StubAction).id === 'PREVENT_LRIG_DAMAGE' &&
+              my.hand.length === 0,
+            );
+          });
+        })()) {
           appendBattleLogs([`ルリグアタック：ルリグダメージ無効`]);
           newMyState = { ...my, prevent_lrig_damage: undefined, field: { ...my.field, lrig_attacked: false } };
         } else if (my.life_cloth.length > 0) {
@@ -5614,11 +5722,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     const myLrigLevel = myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0;
                     const oppLrigColor = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
                     return artsCandidates.map(card => {
-                    const effCost = computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap);
+                    const effCost = computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap, myLrigNameAliases, myArtsThresholdReductions);
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
-                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
                     const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
                     const betCostAmt = parseBetCost(card.EffectText ?? '');
                     const costReduced = effCost !== card.Cost;
@@ -5700,7 +5808,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);
@@ -5898,7 +6006,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               if (!spellCard) return null;
               // フィールド条件によるコスト軽減をスペルにも適用
               const myLrigCardSP = battleCardMap.get(my.field.lrig.at(-1) ?? '');
-              const effSpellCost = computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap);
+              const effSpellCost = computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases);
               const costItems = parseGrowCost(effSpellCost);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);
@@ -5907,7 +6015,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = totalReq === 0 ||
                 (selectedSpellCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, extraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
+                  canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, extraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6059,7 +6167,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               .flatMap(m => m.amount);
                             const cutinReduction = specificCardCostReductions.find(r => r.targetCardName === card.CardName);
                             const cutinReducedCost = cutinReduction ? removeNColorFromCost(card.Cost, '無', cutinReduction.colorlessReduction) : card.Cost;
-                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, cutinReducedCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, cutinReducedCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
                             return (
                               <button key={card.CardNum}
                                 onClick={() => { if (canAfford) { setPendingCutinCard(card); setSelectedCutinCost(new Set()); } }}
@@ -6104,7 +6212,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .flatMap(m => m.amount);
               const isValid = totalReq === 0 ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, cutinReducedCostModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
+                  canAffordWithExtraCost(selectedNums, battleCards, cutinReducedCostModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6584,13 +6692,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const guardBlockedByExtraCost = oppGuardExtraColorless && my.energy.length === 0;
               const guardCards = (guardDisabledByOpp || guardBlockedByExtraCost) ? [] : my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
-                .filter(({ card }) => {
-                  // hand_signi_guard_enabled が true の場合、手札のシグニはすべてガードに使える
-                  const isGuardable = card?.Guard === '1' || (handGuardEnabled && card?.Type === 'シグニ');
+                .filter(({ num, card }) => {
+                  // hand_signi_guard_enabled: 手札のシグニはすべてガード可能
+                  // myHandGuardClasses: 特定クラスの手札シグニがガード可能 (HAND_SIGNI_HAS_GUARD_ICON)
+                  const classGuardable = myHandGuardClasses.length > 0 && card?.Type === 'シグニ' &&
+                    myHandGuardClasses.some(cls => card?.CardClass?.includes(cls));
+                  const isGuardable = card?.Guard === '1' || (handGuardEnabled && card?.Type === 'シグニ') || classGuardable;
                   if (!isGuardable) return false;
                   if (guardBlockedMax >= 0 && parseInt(card?.Level ?? '-1') <= guardBlockedMax) return false;
                   if (declaredRestrictLv !== undefined && parseInt(card?.Level ?? '-1') === declaredRestrictLv) return false;
                   return true;
+                  void num;
                 });
               return (
                 <>

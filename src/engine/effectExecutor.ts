@@ -73,6 +73,8 @@ export interface ExecCtx {
   otherProtectedZones?: ('hand' | 'energy')[];
   // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手の効果で能力を失えないシグニ（otherState のカード番号）
   otherProtectedSigniNums?: string[];
+  // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_BOUNCE_AND_DOWN_BY_OPP
+  otherDownProtectedNums?: string[];
 }
 
 export type ExecResult =
@@ -878,12 +880,14 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
       : 'ルリグ';
     return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`));
   }
-  // PREVENT_SIGNI_DOWN_BY_OPP: 相手がターゲットのシグニをダウンさせようとした場合は無効
+  // PREVENT_SIGNI_DOWN_BY_OPP (state flag) または CONT保護効果によりダウン無効
   if (a.target.owner === 'opponent' && ctx.otherState.prevent_signi_down_by_opp) {
     return done(addLog(ctx, '相手シグニダウン無効（ダウン防止効果）'));
   }
   const state = ownerState(a.target.owner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
+  const downProtected = a.target.owner === 'opponent' ? new Set(ctx.otherDownProtectedNums ?? []) : new Set<string>();
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers);
+  if (downProtected.size > 0) cands = cands.filter(n => !downProtected.has(n));
 
   function applyDown(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;

@@ -297,6 +297,31 @@ export function calcFieldPowers(
 
   // フィールド上のすべてのカードの CONTINUOUS POWER_MODIFY を適用
   const applyEffects = (ownerState: PlayerState, otherState: PlayerState, isOwnerTurn: boolean) => {
+    // PREVENT_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化するシグニ
+    const otherPowerProtected = new Set<string>();
+    for (const stack of otherState.field.signi) {
+      if (!stack || stack.length === 0) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, topNum)) continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type === 'STUB' && act.id === 'PREVENT_POWER_MINUS_BY_OPP') otherPowerProtected.add(topNum);
+      }
+    }
+
+    // DOUBLE_POWER_MINUS: 自分のフィールドにこの効果があれば相手シグニへの負デルタを2倍にする
+    const hasDoublePowerMinus = ownerState.field.signi.some(stack => {
+      const top = stack?.at(-1);
+      if (!top) return false;
+      return (effectsMap.get(top) ?? []).some(eff =>
+        eff.effectType === 'CONTINUOUS' &&
+        checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top) &&
+        (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+        (eff.action as import('../types/effects').StubAction).id === 'DOUBLE_POWER_MINUS',
+      );
+    });
+
     // 効果を持ちうるフィールド上カードを列挙
     const candidates: string[] = [];
     // シグニ（各ゾーン最前面）
@@ -396,7 +421,7 @@ export function calcFieldPowers(
             applyDeltaToState(ownerState, delta, target.filter, cardMap, powers);
           }
           if (targetIsOther) {
-            applyDeltaToState(otherState, delta, target.filter, cardMap, powers);
+            applyDeltaToState(otherState, delta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
           }
         }
 
@@ -441,7 +466,9 @@ export function calcFieldPowers(
           if (mod.target.count === 'ALL') {
             const tgtState = mod.target.owner === 'self' ? ownerState
               : mod.target.owner === 'opponent' ? otherState : ownerState;
-            applyDeltaToState(tgtState, delta, mod.target.filter, cardMap, powers);
+            const prot = tgtState === otherState ? otherPowerProtected : undefined;
+            const mult = tgtState === otherState && hasDoublePowerMinus ? 2 : 1;
+            applyDeltaToState(tgtState, delta, mod.target.filter, cardMap, powers, prot, mult);
           } else if (powers.has(topNum)) {
             powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
           }
@@ -489,6 +516,86 @@ export function calcFieldPowers(
             powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
           }
         }
+
+        // STUBベースの CONT パワー修正
+        if (effect.action.type === 'STUB') {
+          const stub = effect.action as import('../types/effects').StubAction;
+          const card = cardMap.get(topNum);
+          const txt = card?.EffectText ?? '';
+          const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+          const parseN = (s: string) => parseInt(toHW(s), 10);
+
+          // POWER_BY_ACCE_COUNT: 場のアクセ枚数×値だけパワーアップ
+          if (stub.id === 'POWER_BY_ACCE_COUNT') {
+            const acceCount = (ownerState.field.signi_acce ?? []).filter(a => a !== null).length;
+            const m = txt.match(/【アクセ】１枚につき[＋+]([０-９\d]+)/);
+            if (m && acceCount > 0 && powers.has(topNum)) {
+              powers.set(topNum, (powers.get(topNum) ?? 0) + acceCount * parseN(m[1]));
+            }
+          }
+
+          // POWER_BY_RISE_SIGNI_COUNT: ライズ状態のシグニ（スタック2枚以上）数×値
+          if (stub.id === 'POWER_BY_RISE_SIGNI_COUNT') {
+            const riseCount = ownerState.field.signi.filter(s => (s?.length ?? 0) >= 2).length;
+            const m = txt.match(/《ライズアイコン》.*シグニ１体につき[＋+]([０-９\d]+)/);
+            if (m && riseCount > 0 && powers.has(topNum)) {
+              powers.set(topNum, (powers.get(topNum) ?? 0) + riseCount * parseN(m[1]));
+            }
+          }
+
+          // POWER_BY_CHARM_COUNT: 場のチャーム枚数×値（自分の場のみ）
+          if (stub.id === 'POWER_BY_CHARM_COUNT') {
+            const charmCount = (ownerState.field.signi_charms ?? []).filter(c => c !== null).length;
+            const m = txt.match(/【チャーム】１枚につき[＋+]([０-９\d]+)/);
+            if (m && charmCount > 0 && powers.has(topNum)) {
+              powers.set(topNum, (powers.get(topNum) ?? 0) + charmCount * parseN(m[1]));
+            }
+          }
+
+          // POWER_BY_ENERGY_COLOR_VARIETY: エナの色種類数（白赤緑黒）×値
+          if (stub.id === 'POWER_BY_ENERGY_COLOR_VARIETY') {
+            const TARGET_COLORS = ['白', '赤', '緑', '黒'];
+            const colorSet = new Set<string>();
+            for (const instId of ownerState.energy) {
+              const baseNum = instId.includes('#') ? instId.slice(0, instId.indexOf('#')) : instId;
+              for (const col of TARGET_COLORS) {
+                if (cardMap.get(baseNum)?.Color?.includes(col)) colorSet.add(col);
+              }
+            }
+            const m = txt.match(/色１種類につき[＋+]([０-９\d]+)/);
+            if (m && colorSet.size > 0 && powers.has(topNum)) {
+              powers.set(topNum, (powers.get(topNum) ?? 0) + colorSet.size * parseN(m[1]));
+            }
+          }
+
+          // POWER_BY_CENTER_LRIG_TYPE_COUNT: センタールリグのルリグタイプ数×値
+          if (stub.id === 'POWER_BY_CENTER_LRIG_TYPE_COUNT') {
+            const lrigTop = ownerState.field.lrig.at(-1);
+            const lrigCard = lrigTop ? cardMap.get(lrigTop) : undefined;
+            const typeCount = lrigCard?.CardClass
+              ? lrigCard.CardClass.split(/[/／]/).filter(Boolean).length
+              : 0;
+            const m = txt.match(/ルリグタイプ１つにつき[＋+]([０-９\d]+)/);
+            if (m && typeCount > 0 && powers.has(topNum)) {
+              powers.set(topNum, (powers.get(topNum) ?? 0) + typeCount * parseN(m[1]));
+            }
+          }
+
+          // POWER_MOD_BY_FRONT_LEVEL: 正面の相手シグニのレベル×値だけその相手シグニのパワーを下げる
+          if (stub.id === 'POWER_MOD_BY_FRONT_LEVEL') {
+            const myZoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum);
+            if (myZoneIdx !== -1) {
+              const oppFrontNum = otherState.field.signi[myZoneIdx]?.at(-1);
+              if (oppFrontNum && powers.has(oppFrontNum)) {
+                const oppLevel = parseInt(cardMap.get(oppFrontNum)?.Level ?? '0', 10);
+                const m = txt.match(/レベル１につき[－-]([０-９\d]+)/);
+                if (m && oppLevel > 0) {
+                  powers.set(oppFrontNum, (powers.get(oppFrontNum) ?? 0) - oppLevel * parseN(m[1]));
+                }
+              }
+            }
+          }
+        }
       }
     }
   };
@@ -507,6 +614,28 @@ export function calcFieldPowers(
   applyTempMods(myState);
   applyTempMods(opState);
 
+  // POWER_CAP: パワー上限の適用（全パワー修正後に上限を適用）
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const applyCaps = (state: PlayerState) => {
+    for (const stack of state.field.signi) {
+      const topNum = stack?.at(-1);
+      if (!topNum || !powers.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type !== 'STUB' || act.id !== 'POWER_CAP') continue;
+        const txt = cardMap.get(topNum)?.EffectText ?? '';
+        const m = txt.match(/パワーは([０-９\d]+)より大きくならない/);
+        if (m) {
+          const cap = parseInt(toHW(m[1]), 10);
+          if (!isNaN(cap) && (powers.get(topNum) ?? 0) > cap) powers.set(topNum, cap);
+        }
+      }
+    }
+  };
+  applyCaps(myState);
+  applyCaps(opState);
+
   return powers;
 }
 
@@ -516,7 +645,10 @@ function applyDeltaToState(
   filter: TargetFilter | undefined,
   cardMap: Map<string, CardData>,
   powers: Map<string, number>,
+  powerProtectedNums?: Set<string>,
+  negMultiplier?: number,
 ) {
+  const effectiveDelta = (negMultiplier !== undefined && delta < 0) ? delta * negMultiplier : delta;
   // 同一CardNumが複数ゾーンにある場合、同じpowersエントリに重複適用しない
   const seen = new Set<string>();
   for (let zoneIdx = 0; zoneIdx < state.field.signi.length; zoneIdx++) {
@@ -526,6 +658,8 @@ function applyDeltaToState(
     if (seen.has(topNum)) continue;
     seen.add(topNum);
     if (!powers.has(topNum)) continue;
+    // PREVENT_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化
+    if (effectiveDelta < 0 && powerProtectedNums?.has(topNum)) continue;
     // isArmored フィルタのゾーン状態チェック
     if (filter?.isArmored !== undefined) {
       const isArmored = state.field.signi_armor?.[zoneIdx] ?? false;
@@ -533,7 +667,7 @@ function applyDeltaToState(
     }
     const card = cardMap.get(topNum);
     if (!matchesFilter(card, filter)) continue;
-    powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+    powers.set(topNum, (powers.get(topNum) ?? 0) + effectiveDelta);
   }
 }
 
@@ -723,6 +857,22 @@ export function calcContinuousBlockedActions(
       const level = parseInt(cardMap.get(myTop)?.Level ?? '', 10);
       if (!isNaN(level) && level % 2 === 1) cannotAttackSigni.add(myTop);
     }
+  }
+
+  // BLOCK_FRONT_SIGNI_ATTACK: 相手フィールドにこの効果があれば、正面の自分のシグニはアタック不可
+  for (let zi = 0; zi < otherState.field.signi.length; zi++) {
+    const oppStack = otherState.field.signi[zi];
+    if (!oppStack?.length) continue;
+    const oppTop = oppStack[oppStack.length - 1];
+    const hasEffect = (effectsMap.get(oppTop) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_FRONT_SIGNI_ATTACK' &&
+      checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap),
+    );
+    if (!hasEffect) continue;
+    const myFrontTop = ownerState.field.signi[zi]?.at(-1);
+    if (myFrontTop) cannotAttackSigni.add(myFrontTop);
   }
 
   return { forSelf, forOther, cannotAttackSigni };
@@ -1178,4 +1328,411 @@ export function collectCrossStates(playerState: PlayerState, cardMap: Map<string
     result[z] = evaluateCrossCondition(playerState, z, card.crossConditionText, cardMap);
   }
   return result;
+}
+
+/**
+ * COPY_LRIG_NAME_ABILITY (CONT): センタールリグに「ルリグトラッシュのルリグと同じカード名として扱う」
+ * CONTINUOUS効果があれば、そのエイリアスカード名のリストを返す。
+ * NOTE: 同ルリグの【自】能力コピーは未実装（名前エイリアスのみ対応）。
+ */
+export function collectLrigNameAliases(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): string[] {
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const aliases: string[] = [];
+  const lrigTop = ownerState.field.lrig.at(-1);
+  if (!lrigTop) return aliases;
+
+  for (const eff of (effectsMap.get(lrigTop) ?? [])) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    const act = eff.action as import('../types/effects').StubAction;
+    if (act.type !== 'STUB' || act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
+
+    const card = cardMap.get(lrigTop);
+    const txt = card?.EffectText ?? '';
+    // "ルリグトラッシュにある(レベルNの)?＜ストーリー名＞と同じカード名"
+    const m = txt.match(/ルリグトラッシュにある(?:レベル([０-９\d]+)の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名/);
+    if (!m) continue;
+
+    const targetLevel = m[1] !== undefined ? parseInt(toHW(m[1])) : undefined;
+    const storyName = m[2];
+
+    const targetLrig = ownerState.lrig_trash.find(cn => {
+      const c = cardMap.get(cn);
+      if (!c) return false;
+      if (targetLevel !== undefined && parseInt(c.Level ?? '0') !== targetLevel) return false;
+      return c.CardClass?.includes(storyName) || c.Story?.includes(storyName) || c.CardName?.includes(storyName);
+    });
+
+    if (targetLrig) {
+      const aliasName = cardMap.get(targetLrig)?.CardName;
+      if (aliasName && !aliases.includes(aliasName)) aliases.push(aliasName);
+    }
+  }
+  return aliases;
+}
+
+/**
+ * FIELD_ENERGY_SIGNI_GAIN_COLOR: フィールド上に「場とエナゾーンにあるシグニが追加で色を得る」
+ * CONTINUOUS効果があれば、その色を得るシグニのインスタンスIDセットと得る色を返す。
+ * フィルター付き（《ディソナアイコン》等）は識別子なしのためスキップ。
+ */
+export function collectFieldEnergySigniColorGains(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { gainColor: string; instIds: string[] }[] {
+  const results: { gainColor: string; instIds: string[] }[] = [];
+  const candidates: string[] = [];
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig.at(-1)!);
+
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'FIELD_ENERGY_SIGNI_GAIN_COLOR') continue;
+
+      const card = cardMap.get(cn);
+      const txt = card?.EffectText ?? '';
+      // 《ディソナアイコン》など識別不可なフィルターはスキップ
+      if (/《[^》]+》のシグニ/.test(txt)) continue;
+      // 得る色を解析: "追加で黒を得る"
+      const colorM = txt.match(/追加で([白赤青緑黒])を得る/);
+      if (!colorM) continue;
+      const gainColor = colorM[1];
+
+      const instIds: string[] = [];
+      for (const stack of ownerState.field.signi) {
+        const top = stack?.at(-1);
+        if (top) instIds.push(top);
+      }
+      for (const instId of ownerState.energy) {
+        const baseNum = instId.includes('#') ? instId.slice(0, instId.indexOf('#')) : instId;
+        if (cardMap.get(baseNum)?.Type === 'シグニ') instIds.push(instId);
+      }
+      results.push({ gainColor, instIds });
+    }
+  }
+  return results;
+}
+
+/**
+ * HAND_SIGNI_HAS_GUARD_ICON: フィールドに「手札の特定シグニが【ガードアイコン】を持つ」
+ * CONTINUOUS効果があれば、ガードに使えるシグニのクラスフィルター（nullは全シグニ）を返す。
+ */
+export function collectHandGuardIconClasses(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const classes: string[] = [];
+  const candidates: string[] = [];
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (state.field.key_piece) candidates.push(state.field.key_piece);
+
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, cn)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'HAND_SIGNI_HAS_GUARD_ICON') continue;
+      const txt = cardMap.get(cn)?.EffectText ?? '';
+      // "手札にある＜クラス＞のシグニは《ガードアイコン》を持つ"
+      const m = txt.match(/手札にある＜([^＞]+)＞のシグニは《ガードアイコン》を持つ/);
+      if (m) classes.push(m[1]);
+    }
+  }
+  return classes;
+}
+
+/**
+ * ALL_CLASS: フィールド上の「すべてのクラスを持つ」CONT効果を持つシグニのCardNumを返す。
+ * matchesFilter で story フィルターにヒットさせるために利用する。
+ * (条件付きのものは activeCondition で既にチェック済み)
+ */
+export function collectAllClassSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const result: string[] = [];
+  for (const stack of state.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ALL_CLASS') result.push(topNum);
+    }
+  }
+  return result;
+}
+
+/**
+ * ARTS_COST_REDUCTION_BY_COST_THRESHOLD: フィールドに「コストの合計がN以上のアーツを使用する場合
+ * 使用コストが《色×M》減る」CONTINUOUS効果があれば、その条件と軽減量を返す。
+ */
+export function collectArtsThresholdCostReductions(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { minTotalCost: number; color: string; reduction: number }[] {
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const results: { minTotalCost: number; color: string; reduction: number }[] = [];
+  const candidates: string[] = [];
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (state.field.lrig.length > 0) candidates.push(state.field.lrig.at(-1)!);
+  if (state.field.key_piece) candidates.push(state.field.key_piece);
+
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'ARTS_COST_REDUCTION_BY_COST_THRESHOLD') continue;
+      const txt = cardMap.get(cn)?.EffectText ?? '';
+      // "コストの合計がN以上のアーツを使用する場合、使用コストは《色×M》減る"
+      const m = txt.match(/コストの合計が([０-９\d]+)以上のアーツ.*?使用コストは《([白赤青緑黒無])×?([０-９\d]*)》?[１-９一]?つ?減る/);
+      if (m) {
+        const minTotal = parseInt(toHW(m[1]));
+        const color = m[2];
+        const reduction = m[3] ? parseInt(toHW(m[3])) : 1;
+        if (!isNaN(minTotal) && !isNaN(reduction)) results.push({ minTotalCost: minTotal, color, reduction });
+      }
+    }
+  }
+  return results;
+}
+
+/**
+ * OPP_LRIG_ATTACK_COST: フィールドに「相手ターン中、条件を満たす場合、対戦相手は《無》を支払わないかぎりルリグでアタックできない」
+ * CONTINUOUS効果があれば、追加エナ枚数を返す。
+ */
+export function collectOppLrigAttackExtraCost(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn: boolean,
+): number {
+  let extraCost = 0;
+  const candidates: string[] = [];
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig.at(-1)!);
+
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'OPP_LRIG_ATTACK_COST') continue;
+      const txt = cardMap.get(cn)?.EffectText ?? '';
+      // "《無》《無》を支払わないかぎりルリグでアタックできない" → 2枚
+      // "《無》を支払わないかぎりルリグでアタックできない" → 1枚
+      const costM = (txt.match(/《無》/g) ?? []).length;
+      if (costM > 0) extraCost = Math.max(extraCost, costM);
+    }
+  }
+  return extraCost;
+}
+
+/**
+ * CENTER_LRIG_COLOR_CHANGE_BLACK / LRIG_LIMIT_UP_AND_COLOR_GAIN / GAIN_LRIG_COLOR:
+ * フィールドにある常在効果によるルリグ色・リミット変更を収集する。
+ * 返値: { extraColors: string[]; limitDelta: number }
+ */
+export function collectLrigColorAndLimitMods(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): { extraColors: string[]; limitDelta: number } {
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const extraColors = new Set<string>();
+  let limitDelta = 0;
+  const candidates: string[] = [];
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (state.field.key_piece) candidates.push(state.field.key_piece);
+
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, cn)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB') continue;
+      const txt = cardMap.get(cn)?.EffectText ?? '';
+
+      if (act.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK') {
+        extraColors.add('黒');
+      }
+
+      if (act.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
+        // "リミットはN増え、追加でXと＜ストーリー＞を得る"
+        const limitM = txt.match(/リミットは([０-９\d]+)増え/);
+        if (limitM) limitDelta += parseInt(toHW(limitM[1]));
+        // 色の部分: "追加で白と" → 白
+        const colorM = txt.match(/追加で([白赤青緑黒]+)と/);
+        if (colorM) {
+          for (const col of ['白','赤','青','緑','黒'].filter(c => colorM[1].includes(c))) {
+            extraColors.add(col);
+          }
+        }
+      }
+    }
+  }
+
+  return { extraColors: [...extraColors], limitDelta };
+}
+
+/**
+ * GAIN_LRIG_COLOR: フィールド上の「ルリグが持つ色を得る」CONT効果のシグニCardNumを返す。
+ */
+export function collectLrigColorInheritSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const result: string[] = [];
+  for (const stack of state.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'GAIN_LRIG_COLOR') result.push(topNum);
+    }
+  }
+  return result;
+}
+
+/**
+ * MULTI_ACCE_LIMIT: フィールド上の「このシグニには2枚まで【アクセ】を付けられる」CONT効果のシグニを返す。
+ */
+export function collectMultiAcceSigni(
+  state: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const result: string[] = [];
+  for (const stack of state.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'MULTI_ACCE_LIMIT') result.push(topNum);
+    }
+  }
+  return result;
+}
+
+/**
+ * PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_BOUNCE_AND_DOWN_BY_OPP:
+ * 対戦相手の効果によるダウンから保護されているシグニのCardNum一覧を返す。
+ */
+export function collectDownProtectedSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const protected_ = new Set<string>();
+  for (const stack of state.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB') continue;
+
+      if (act.id === 'PREVENT_SELF_DOWN_BY_OPP') {
+        protected_.add(topNum);
+      }
+
+      if (act.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL') {
+        // 自身以外の全シグニを保護
+        for (const otherStack of state.field.signi) {
+          if (!otherStack || otherStack.length === 0) continue;
+          const otherTop = otherStack[otherStack.length - 1];
+          if (otherTop !== topNum) protected_.add(otherTop);
+        }
+      }
+
+      if (act.id === 'PREVENT_BOUNCE_AND_DOWN_BY_OPP') {
+        // 条件: 場に他の同ストーリーのシグニがある場合
+        const card = cardMap.get(topNum);
+        const txt = card?.EffectText ?? '';
+        const storyM = txt.match(/場に他の＜([^＞]+)＞のシグニがあるかぎり/);
+        if (storyM) {
+          const requiredStory = storyM[1];
+          const hasOther = state.field.signi.some(s => {
+            const top = s?.at(-1);
+            if (!top || top === topNum) return false;
+            return cardMap.get(top)?.CardClass?.includes(requiredStory);
+          });
+          if (hasOther) protected_.add(topNum);
+        } else {
+          protected_.add(topNum);
+        }
+      }
+    }
+  }
+  return [...protected_];
+}
+
+/**
+ * PREVENT_POWER_MINUS_BY_OPP: 対戦相手の効果によるパワーマイナスから保護されているシグニを返す。
+ */
+export function collectPowerProtectedSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const protected_ = new Set<string>();
+  for (const stack of state.field.signi) {
+    if (!stack || stack.length === 0) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'PREVENT_POWER_MINUS_BY_OPP') {
+        protected_.add(topNum);
+      }
+    }
+  }
+  return [...protected_];
 }

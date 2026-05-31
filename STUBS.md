@@ -1,6 +1,6 @@
 # STUB実装状況メモ（全件）
 
-最終更新: 2026-05-31 (v0.112)
+最終更新: 2026-05-31 (v0.115)
 
 ## ステータス凡例
 
@@ -19,7 +19,7 @@
 | 件数 | effectType | 状態 | STUB ID |
 |-----:|-----------|:----:|---------|
 | 21 | AUTO/ACTIVATED/CONT/SONG | ✅ | GRANT_QUOTED_AUTO_ABILITY |
-| 16 | CONT | 📝 | COPY_LRIG_NAME_ABILITY |
+| 16 | CONT | ⚡ | COPY_LRIG_NAME_ABILITY ※v0.113: collectLrigNameAliases実装・アーツコスト名前条件に対応（【自】能力コピーは未実装） |
 | 16 | AUTO | ✅ | GAIN_SUBSCRIBER_COUNT |
 | 13 | CONT/AUTO/ACTIVATED | ✅ | GRANT_ABILITY_INNER_TEXT |
 | 11 | ACTIVATED/AUTO | ⚡ | SOUL_OP |
@@ -49,6 +49,7 @@
 | 3 | CONT/AUTO | ⚡ | PREVENT_ZONE_MOVE_BY_OPP |
 | 2 | CONT/AUTO | ✅ | ARTS_COST_REDUCTION_BY_EFFECT |
 | 2 | CONT | 📝 | ATTACK_PHASE_LEVEL_OVERRIDE |
+
 | 2 | ACTIVATED | ⚡ | CONDITIONAL_COST_REDUCTION_BY_FIELD |
 | 2 | ACTIVATED | ⚡ | COPY_SIGNI |
 | 2 | AUTO | ⚡ | COPY_TARGET_POWER |
@@ -58,7 +59,7 @@
 | 2 | ACTIVATED | ✅ | ENCORE |
 | 2 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
 | 2 | ACTIVATED | ⚡ | EXTRA_COST_REMOVE_VIRUS |
-| 2 | CONT | 📝 | FIELD_ENERGY_SIGNI_GAIN_COLOR |
+| 2 | CONT | ⚡ | FIELD_ENERGY_SIGNI_GAIN_COLOR ※v0.113: collectFieldEnergySigniColorGains実装・エナ支払い追加色対応（《ディソナアイコン》フィルターは識別子未実装のため除外） |
 | 2 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
 | 2 | ACTIVATED/AUTO | ⚡ | GRANT_CHOSEN_ABILITY |
 | 2 | CONT | 📝 | GRANT_QUOTED_ACTIVATE_ABILITY |
@@ -105,7 +106,7 @@
 | 1 | CONT | 📝 | ADJACENT_ZONE_ATTACK |
 | 1 | CONT | 📝 | ALL_CARDS_COLOR_CHANGE_BLACK |
 | 1 | ACTIVATED | ⚡ | ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE |
-| 1 | CONT | 📝 | ALL_CLASS |
+| 1 | CONT | ⚡ | ALL_CLASS ※v0.115: collectAllClassSigni実装（レゾナ条件等のfiltterに活用可） |
 | 1 | CONT | 📝 | ALL_COLOR |
 | 1 | AUTO | ⚡ | ALL_OPP_SIGNI_POWER_DOWN_HALF |
 | 1 | ACTIVATED | ⚡ | ALL_OPP_SIGNI_SERVANT_ZERO |
@@ -113,7 +114,7 @@
 | 1 | CONT | 📝 | ARM_SIGNI_LRIG_PROTECTION |
 | 1 | ACTIVATED | ⚡ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR |
 | 1 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
-| 1 | CONT | 📝 | ARTS_COST_REDUCTION_BY_COST_THRESHOLD |
+| 1 | CONT | ✅ | ARTS_COST_REDUCTION_BY_COST_THRESHOLD ※v0.114: collectArtsThresholdCostReductions+computeArtsEffectiveCostに統合 |
 | 1 | CONT | 📝 | ATTACK_COUNT_BY_POWER |
 | 1 | CONT | 📝 | BANISH_BY_SELF_GOES_TO_TRASH |
 | 1 | ACTIVATED | ⚡ | BANISH_REDIRECT_TO_HAND |
@@ -122,7 +123,7 @@
 | 1 | AUTO | ⚡ | BLACK_RISE_PLAY_STACK_FROM_TRASH |
 | 1 | CONT | 📝 | BLOCK_ALL_OPP_ACTIVATE_ABILITY |
 | 1 | CONT | 📝 | BLOCK_COLORLESS_PLAY |
-| 1 | CONT | 📝 | BLOCK_FRONT_SIGNI_ATTACK |
+| 1 | CONT | ✅ | BLOCK_FRONT_SIGNI_ATTACK ※v0.115: calcContinuousBlockedActionsで正面シグニをcannotAttackSigniに追加 |
 | 1 | CONT | 📝 | BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT |
 | 1 | CONT | 📝 | BLOCK_NON_WHITE_SPELL |
 | 1 | AUTO | ⚡ | BLOCK_OPP_ARTS_SPELL_ACT |
@@ -133,7 +134,7 @@
 | 1 | ACTIVATED | ⚡ | BLOCK_OPP_SPELL_ACT_NEXT_TURN |
 | 1 | ACTIVATED | ⚡ | BOTH_DISCARD_BY_CENTER_LEVEL |
 | 1 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |
-| 1 | CONT | 📝 | CENTER_LRIG_COLOR_CHANGE_BLACK |
+| 1 | CONT | ⚡ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.115: collectLrigColorAndLimitModsで色変更収集（UI/コスト条件への統合は部分的） |
 | 1 | AUTO | ⚡ | CENTER_LRIG_DISMOUNT |
 | 1 | ACTIVATED | ⚡ | CENTER_LRIG_RIDES_ON_SIGNI |
 | 1 | AUTO | ⚡ | CHANGE_BASE_LEVEL |
@@ -154,7 +155,7 @@
 | 1 | AUTO | ⚡ | DEFEAT |
 | 1 | ACTIVATED | ⚡ | DISCARD_BY_POWER_MATCH |
 | 1 | AUTO | ⚡ | DISCARD_IF_NO_CLASS_SIGNI |
-| 1 | CONT | 📝 | DOUBLE_POWER_MINUS |
+| 1 | CONT | ✅ | DOUBLE_POWER_MINUS ※v0.115: calcFieldPowers applyEffectsで相手シグニへの負デルタを2倍に実装 |
 | 1 | AUTO | ⚡ | DRAW_AND_PUT_HAND_TO_DECK_BOTTOM |
 | 1 | LIFE | ⚡ | DRAW_BY_CHARM_COUNT |
 | 1 | AUTO | ⚡ | DRIVE_SIGNI_PREVENT_DOWN |
@@ -173,7 +174,7 @@
 | 1 | CONT | 📝 | FROZEN_SIGNI_TO_TRASH_ON_LEAVE |
 | 1 | CONT | 📝 | GAIN_ADDITIONAL_LRIG_TYPE |
 | 1 | AUTO | ⚡ | GAIN_COIN_AND_DISCARD |
-| 1 | CONT | 📝 | GAIN_LRIG_COLOR |
+| 1 | CONT | ⚡ | GAIN_LRIG_COLOR ※v0.115: collectLrigColorInheritSigni実装（SHADOW統合は未実装） |
 | 1 | CONT | 📝 | GRANT_CHOSEN_ABILITY_FROM_PLAY |
 | 1 | ACTIVATED | ⚡ | GRANT_CHOSEN_ABILITY_SELF |
 | 1 | ACTIVATED | ⚡ | GRANT_CONDITIONAL_ASSASSIN_ABILITY |
@@ -189,7 +190,7 @@
 | 1 | CONT | 📝 | GUARD_ALTERNATIVE_COST |
 | 1 | AUTO | ⚡ | HAND_CARDS_UNDER_SIGNI |
 | 1 | AUTO | ⚡ | HAND_NONCOLORLESS_TO_ENERGY |
-| 1 | CONT | 📝 | HAND_SIGNI_HAS_GUARD_ICON |
+| 1 | CONT | ✅ | HAND_SIGNI_HAS_GUARD_ICON ※v0.115: collectHandGuardIconClasses+ガードUI(myHandGuardClasses)に統合 |
 | 1 | ACTIVATED | ⚡ | HASTARLIQ |
 | 1 | CONT | 📝 | IGNORE_LRIG_RESTRICTION_ARTS |
 | 1 | CONT | 📝 | INCREASE_ACT_ABILITY_COST |
@@ -204,13 +205,13 @@
 | 1 | AUTO | ⚡ | LOOK_DECK_BOTTOM |
 | 1 | AUTO | ⚡ | LOOK_TOP_ONE_RETURN_REST_BOTTOM |
 | 1 | CONT | 📝 | LRIG_ALL_NAMES |
-| 1 | CONT | 📝 | LRIG_LIMIT_UP_AND_COLOR_GAIN |
+| 1 | CONT | ⚡ | LRIG_LIMIT_UP_AND_COLOR_GAIN ※v0.115: collectLrigColorAndLimitMods+lrigLimit計算に+limitDelta統合（色変更は部分的） |
 | 1 | AUTO | ⚡ | LRIG_TRASH_KEY_TO_CENTER_UNDER |
 | 1 | AUTO | ✅ | LRIG_UNDER_CARD_OP |
 | 1 | ACTIVATED | ⚡ | MAKE_MULTI_SERVANT_ZERO |
 | 1 | AUTO | ⚡ | MOVE_ACCE_TO_SIGNI |
 | 1 | AUTO | ⚡ | MULTI_ACCE_FROM_HAND |
-| 1 | CONT | 📝 | MULTI_ACCE_LIMIT |
+| 1 | CONT | ⚡ | MULTI_ACCE_LIMIT ※v0.115: collectMultiAcceSigni実装（アクセ付け時のUI制限への統合は未実装） |
 | 1 | ACTIVATED | ⚡ | MULTI_DAMAGE_ON_LRIG_ATTACK |
 | 1 | AUTO | ✅ | MULTI_SIGNI_POWER_UP_5000 |
 | 1 | AUTO | ⚡ | MULTI_SIGNI_TO_ENERGY |
@@ -229,7 +230,7 @@
 | 1 | AUTO | ⚡ | OPP_ENERGY_EXCESS_TRASH |
 | 1 | ACTIVATED | ⚡ | OPP_ENERGY_OR_DISCARD_CONDITION |
 | 1 | AUTO | ⚡ | OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND |
-| 1 | CONT | 📝 | OPP_LRIG_ATTACK_COST |
+| 1 | CONT | ✅ | OPP_LRIG_ATTACK_COST ※v0.114: collectOppLrigAttackExtraCost+handleLrigAttackに追加コスト支払い統合 |
 | 1 | AUTO | ⚡ | OPP_MAIN_PHASE_LIMIT_DOWN |
 | 1 | AUTO | ⚡ | OPP_RETURN_HAND_ON_SELF_BANISH |
 | 1 | ACTIVATED | ⚡ | OPP_REVEAL_HAND_AND_LRIG_DECK |
@@ -260,19 +261,19 @@
 | 1 | ACTIVATED | ⚡ | PLAY_SPELL_FROM_HAND |
 | 1 | AUTO | ⚡ | PLAY_SPELL_FROM_HAND_FREE |
 | 1 | AUTO | ⚡ | POWER_BOOST_PER_SIGNI_WITH_ICON |
-| 1 | CONT | 📝 | POWER_BY_ACCE_COUNT |
-| 1 | CONT | 📝 | POWER_BY_CENTER_LRIG_TYPE_COUNT |
-| 1 | CONT | 📝 | POWER_BY_CHARM_COUNT |
-| 1 | CONT | 📝 | POWER_BY_ENERGY_COLOR_VARIETY |
+| 1 | CONT | ✅ | POWER_BY_ACCE_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
+| 1 | CONT | ✅ | POWER_BY_CENTER_LRIG_TYPE_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
+| 1 | CONT | ✅ | POWER_BY_CHARM_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
+| 1 | CONT | ✅ | POWER_BY_ENERGY_COLOR_VARIETY ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
 | 1 | AUTO | ⚡ | POWER_BY_LEVEL_SUM_COMPARE |
-| 1 | CONT | 📝 | POWER_BY_RISE_SIGNI_COUNT |
-| 1 | CONT | 📝 | POWER_CAP |
+| 1 | CONT | ✅ | POWER_BY_RISE_SIGNI_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装（スタック2枚以上判定） |
+| 1 | CONT | ✅ | POWER_CAP ※v0.114: calcFieldPowers後処理でパワー上限適用 |
 | 1 | ACTIVATED | ⚡ | POWER_DOUBLE_ALL |
 | 1 | AUTO | ⚡ | POWER_DOWN_BY_ZONE_CARD_COUNT |
 | 1 | AUTO | ⚡ | POWER_EQUALS_FRONT_SIGNI |
 | 1 | AUTO | ⚡ | POWER_MOD_BY_COLOR_VARIETY |
 | 1 | AUTO | ⚡ | POWER_MOD_BY_DISCARD_COUNT_HIGH |
-| 1 | CONT | 📝 | POWER_MOD_BY_FRONT_LEVEL |
+| 1 | CONT | ✅ | POWER_MOD_BY_FRONT_LEVEL ※v0.114: calcFieldPowersのSTUBハンドラで正面シグニのレベル×値だけパワーダウン実装 |
 | 1 | AUTO | ⚡ | POWER_MOD_BY_LRIG_LEVEL_SUM |
 | 1 | ACTIVATED | ⚡ | POWER_MOD_BY_TRASHED_SIGNI_LEVEL |
 | 1 | AUTO | ⚡ | POWER_MOD_BY_UNDER_COUNT |
@@ -283,7 +284,7 @@
 | 1 | CONT | 📝 | PREVENT_ABILITY_CHANGE_BY_OPP |
 | 1 | CONT | 📝 | PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP |
 | 1 | ACTIVATED | ⚡ | PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE |
-| 1 | CONT | 📝 | PREVENT_BOUNCE_AND_DOWN_BY_OPP |
+| 1 | CONT | ✅ | PREVENT_BOUNCE_AND_DOWN_BY_OPP ※v0.114: collectDownProtectedSigni+execDownに保護フィルター統合 |
 | 1 | CONT | 📝 | PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP |
 | 1 | CONT | 📝 | PREVENT_DAMAGE_FROM_OPP_EFFECTS |
 | 1 | ACTIVATED | ⚡ | PREVENT_DAMAGE_UNTIL_OPP_TURN_END |
@@ -292,15 +293,15 @@
 | 1 | ACTIVATED | ⚡ | PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN |
 | 1 | CONT | 📝 | PREVENT_INFECTED_SIGNI_ACTIVATE |
 | 1 | CONT | 📝 | PREVENT_LOW_LEVEL_LRIG_DAMAGE |
-| 1 | CONT | 📝 | PREVENT_LRIG_DAMAGE |
+| 1 | CONT | ✅ | PREVENT_LRIG_DAMAGE ※v0.115: BattleScreenガード応答時に手札0枚条件を動的チェック |
 | 1 | ACTIVATED | ⚡ | PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN |
 | 1 | CONT | 📝 | PREVENT_NON_FIELD_MOVE_BY_OPP |
 | 1 | CONT | 📝 | PREVENT_OPP_POWER_PLUS |
 | 1 | CONT | 📝 | PREVENT_OPP_SIGNI_ABILITY_GAIN |
-| 1 | CONT | 📝 | PREVENT_POWER_MINUS_BY_OPP |
-| 1 | CONT | 📝 | PREVENT_SELF_DOWN_BY_OPP |
+| 1 | CONT | ✅ | PREVENT_POWER_MINUS_BY_OPP ※v0.114: calcFieldPowers applyDeltaToStateで負delta時の保護チェック実装 |
+| 1 | CONT | ✅ | PREVENT_SELF_DOWN_BY_OPP ※v0.114: collectDownProtectedSigni+execDownに保護フィルター統合 |
 | 1 | CONT | 📝 | PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH |
-| 1 | CONT | 📝 | PREVENT_SIGNI_DOWN_BY_OPP_ALL |
+| 1 | CONT | ✅ | PREVENT_SIGNI_DOWN_BY_OPP_ALL ※v0.114: collectDownProtectedSigni+execDownに保護フィルター統合 |
 | 1 | CONT | 📝 | PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH |
 | 1 | ACTIVATED | ⚡ | PREVENT_TARGET_LRIG_ATTACK_THIS_TURN |
 | 1 | CONT | ✅ | REDUCE_OPP_HAND_LIMIT ※effectEngine.collectHandLimitsで実装 |
@@ -334,7 +335,7 @@
 | 1 | ACTIVATED | ⚡ | SPELL_COST_REDUCTION_BY_TRASH_COUNT |
 | 1 | AUTO | ⚡ | STACK_ALL_LRIG_UNDER |
 | 1 | CONT | 📝 | SUBSTITUTE_DAMAGE_WITH_SELF_TRASH |
-| 1 | CONT | 📝 | SUPPRESS_LIFE_BURST_ON_CRASH |
+| 1 | CONT | ⚡ | SUPPRESS_LIFE_BURST_ON_CRASH ※collectEichiStubEffectsで英知=8条件付き実装済み |
 | 1 | ACTIVATED | ✅ | TARGET_AND_DISCARD_HAND |
 | 1 | AUTO | ⚡ | TOP_TO_BOTTOM_OPTIONAL |
 | 1 | AUTO | ⚡ | TRADE_SELF_AND_OPP_TO_ENERGY |
@@ -388,6 +389,21 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-05-31 v0.115 | DOUBLE_POWER_MINUS: applyEffectsでhasDoublePowerMinusフラグ+negMultiplier=2でapplyDeltaToState | DOUBLE_POWER_MINUS |
+| 2026-05-31 v0.115 | BLOCK_FRONT_SIGNI_ATTACK: calcContinuousBlockedActionsで相手の正面シグニをアタック不可化 | BLOCK_FRONT_SIGNI_ATTACK |
+| 2026-05-31 v0.115 | PREVENT_LRIG_DAMAGE (CONT条件付き): ガード応答時に手札0枚条件チェック実装 | PREVENT_LRIG_DAMAGE |
+| 2026-05-31 v0.115 | HAND_SIGNI_HAS_GUARD_ICON: collectHandGuardIconClasses+ガードUIに統合 | HAND_SIGNI_HAS_GUARD_ICON |
+| 2026-05-31 v0.115 | LRIG_LIMIT_UP_AND_COLOR_GAIN: limitDeltaをlrigLimit計算に加算 | LRIG_LIMIT_UP_AND_COLOR_GAIN |
+| 2026-05-31 v0.115 | 各collectX関数追加: collectAllClassSigni・collectLrigColorAndLimitMods・collectLrigColorInheritSigni・collectMultiAcceSigni | ALL_CLASS他 |
+| 2026-05-31 v0.114 | パワー系5件: POWER_BY_ACCE_COUNT・RISE_SIGNI_COUNT・CHARM_COUNT・ENERGY_COLOR_VARIETY・CENTER_LRIG_TYPE_COUNT をcalcFieldPowers STUBハンドラで実装 | パワー修正5件 |
+| 2026-05-31 v0.114 | POWER_CAP: calcFieldPowers後処理でパワー上限適用 | POWER_CAP |
+| 2026-05-31 v0.114 | POWER_MOD_BY_FRONT_LEVEL: calcFieldPowers STUBハンドラで正面シグニLv×値パワーダウン | POWER_MOD_BY_FRONT_LEVEL |
+| 2026-05-31 v0.114 | PREVENT_SELF_DOWN_BY_OPP・SIGNI_DOWN_BY_OPP_ALL・BOUNCE_AND_DOWN: collectDownProtectedSigni+execDown保護フィルター | ダウン保護3件 |
+| 2026-05-31 v0.114 | PREVENT_POWER_MINUS_BY_OPP: applyDeltaToStateに負delta保護チェック実装 | PREVENT_POWER_MINUS_BY_OPP |
+| 2026-05-31 v0.114 | ARTS_COST_REDUCTION_BY_COST_THRESHOLD: collectArtsThresholdCostReductions+computeArtsEffectiveCostに統合 | ARTS_COST_REDUCTION_BY_COST_THRESHOLD |
+| 2026-05-31 v0.114 | OPP_LRIG_ATTACK_COST: collectOppLrigAttackExtraCost+handleLrigAttack追加コスト支払い実装 | OPP_LRIG_ATTACK_COST |
+| 2026-05-31 v0.113 | COPY_LRIG_NAME_ABILITY (CONT): collectLrigNameAliases実装・computeArtsEffectiveCostのlrigName判定にエイリアス対応 | COPY_LRIG_NAME_ABILITY |
+| 2026-05-31 v0.113 | FIELD_ENERGY_SIGNI_GAIN_COLOR: collectFieldEnergySigniColorGains実装・canAffordGrowCost/canAffordWithExtraCostにextraColorMap対応 | FIELD_ENERGY_SIGNI_GAIN_COLOR |
 | 2026-05-31 v0.111 | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: collectAbilityProtectedSigni+ExecCtx.otherProtectedSigniNumsでfilter | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP |
 | 2026-05-31 v0.111 | SPECIFIC_CARD_COST_REDUCE: collectSpecificCardCostReductions+removeNColorFromCostでアーツコスト軽減 | SPECIFIC_CARD_COST_REDUCE |
 | 2026-05-31 v0.111 | ONE_ATTACK_PER_TURN: effectEngine.calcContinuousBlockedActionsで実装（attacked_signi_ids使用） | ONE_ATTACK_PER_TURN |
