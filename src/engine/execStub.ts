@@ -5362,7 +5362,12 @@ export function execStub(
     return done(addLog(ctx, `[手札制限: ${stub.id}]`));
   }
   // ライフバースト特殊（engine: 発動システム改修必要）
-  if (stub.id === 'LIFE_BURST_DOUBLE' || stub.id === 'TRIGGER_LIFE_BURST' || stub.id === 'BATTLE_BANISH_LIFE_BURST') {
+  // LIFE_BURST_DOUBLE: このターン、次のライフバーストは2回発動する
+  if (stub.id === 'LIFE_BURST_DOUBLE') {
+    const newOwnerLBD: PlayerState = { ...ctx.ownerState, life_burst_double_next: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerLBD }, 'このターン次のライフバーストは2回発動する'));
+  }
+  if (stub.id === 'TRIGGER_LIFE_BURST' || stub.id === 'BATTLE_BANISH_LIFE_BURST') {
     return done(addLog(ctx, `[ライフバースト特殊: ${stub.id}]`));
   }
   // ビートゾーン操作
