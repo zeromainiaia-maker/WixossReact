@@ -5451,9 +5451,26 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerMTAF }, `${ctx.cardMap.get(srcMTAF)?.CardName ?? srcMTAF}をゾーン${targetZoneMTAF + 1}（アタッカー正面）に移動`));
   }
   if (stub.id === 'FORCE_TARGET_SELF' || stub.id === 'BANISH_BY_SELF_GOES_TO_TRASH'
-      || stub.id === 'BANISH_REDIRECT_TO_HAND' || stub.id === 'CRASH_TO_TRASH_INSTEAD'
-      || stub.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS' || stub.id === 'OPP_RETURN_HAND_ON_SELF_BANISH') {
+      || stub.id === 'CRASH_TO_TRASH_INSTEAD'
+      || stub.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS') {
     return done(addLog(ctx, `[移動リダイレクト: ${stub.id}]`));
+  }
+  // BANISH_REDIRECT_TO_HAND: このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る
+  if (stub.id === 'BANISH_REDIRECT_TO_HAND') {
+    const newOwnerBRTH: PlayerState = { ...ctx.ownerState, banish_redirect_to_hand: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerBRTH }, 'このターン、対戦相手のシグニバニッシュ先→手札'));
+  }
+  // OPP_RETURN_HAND_ON_SELF_BANISH: バニッシュされたとき、対戦相手は手札を1枚デッキの一番上に置く
+  if (stub.id === 'OPP_RETURN_HAND_ON_SELF_BANISH') {
+    const candsORHOSB = ctx.otherState.hand;
+    if (candsORHOSB.length === 0) return done(addLog(ctx, '対戦相手の手札なし（OPP_RETURN_HAND_ON_SELF_BANISH）'));
+    const ttdActionORHOSB: EffectAction = {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+      shuffle: false,
+      position: 'top',
+    } as TransferToDeckAction;
+    return selectOrInteract(candsORHOSB, 1, false, 'opp_hand', ttdActionORHOSB, undefined, ctx, true);
   }
   // ダメージ特殊（engine: ダメージ処理拡張必要）
   if (stub.id === 'MULTI_DAMAGE_ON_LRIG_ATTACK' || stub.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') {
