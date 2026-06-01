@@ -421,10 +421,13 @@ export function calcFieldPowers(
   for (const [k, v] of buildLevelMods(opState, myState, effectsMap, cardMap)) levelMods.set(k, v);
 
   const collectBase = (state: PlayerState) => {
+    const identityOverrides = state.card_identity_overrides ?? {};
     for (const stack of state.field.signi) {
       if (!stack || stack.length === 0) continue;
       const topNum = stack[stack.length - 1];
-      const card = cardMap.get(topNum);
+      // COPY_SIGNI: card_identity_overrides でコピー元カードのパワーを使用
+      const resolvedNum = identityOverrides[topNum] ?? topNum;
+      const card = cardMap.get(resolvedNum);
       const base = parseInt(card?.Power ?? '', 10);
       if (!isNaN(base)) powers.set(topNum, base);
     }
