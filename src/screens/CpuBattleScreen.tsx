@@ -255,6 +255,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       },
       temp_power_mods: [],
       keyword_grants: {},
+      granted_effects: {},
       blocked_actions: [],
       actions_done: [],
       declared_guard_restrict_level: undefined,
