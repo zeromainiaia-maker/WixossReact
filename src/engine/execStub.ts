@@ -5904,7 +5904,45 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, signi_color_overrides: oppOverridesSLC } },
       `${ctx.cardMap.get(srcSLC)?.CardName ?? srcSLC}が色を失う`));
   }
-  if (stub.id === 'COPY_SIGNI' || stub.id === 'COPY_CARD'
+  // COPY_SIGNI: 自フィールドシグニ1体をトラッシュのシグニと同じカードにする（ターン終了時まで）
+  if (stub.id === 'COPY_SIGNI') {
+    const fieldSigniCS = [0,1,2]
+      .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+      .filter((cn): cn is string => !!cn);
+    const trashSigniCS = ctx.ownerState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+    // Phase 1: lastProcessedCards にフィールドシグニがなければ選択
+    const fieldTargetCS = (ctx.lastProcessedCards ?? []).find(cn => fieldSigniCS.includes(cn));
+    if (!fieldTargetCS) {
+      if (fieldSigniCS.length === 0) return done(addLog(ctx, 'コピー対象なし（自シグニなし）'));
+      const noopCS: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+      const contCS: StubAction = { type: 'STUB', id: 'COPY_SIGNI' };
+      return needsInteraction(addLog(ctx, 'コピーするシグニを選択（フィールドから）'), {
+        type: 'SELECT_TARGET', candidates: fieldSigniCS, count: 1, optional: false,
+        targetScope: 'self_field', thenAction: noopCS as EffectAction, continuation: contCS as EffectAction,
+      });
+    }
+    // Phase 2: トラッシュシグニを選択（コピー元）
+    if (trashSigniCS.length === 0) return done(addLog(ctx, 'コピー元なし（トラッシュにシグニなし）'));
+    const noopCS2: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    const contCS2: StubAction = { type: 'STUB', id: 'INTERNAL_COPY_SIGNI_APPLY', value: fieldTargetCS };
+    return needsInteraction(addLog(ctx, 'コピー元シグニを選択（トラッシュから）'), {
+      type: 'SELECT_TARGET', candidates: trashSigniCS, count: 1, optional: false,
+      targetScope: 'self_trash', thenAction: noopCS2 as EffectAction, continuation: contCS2 as EffectAction,
+    });
+  }
+  // INTERNAL_COPY_SIGNI_APPLY: card_identity_overrides を設定してコピーを適用
+  if (stub.id === 'INTERNAL_COPY_SIGNI_APPLY') {
+    const fieldNumICSA = typeof stub.value === 'string' ? stub.value : '';
+    const trashNumICSA = (ctx.lastProcessedCards ?? [])[0];
+    if (!fieldNumICSA || !trashNumICSA) return done(addLog(ctx, 'コピー適用失敗'));
+    const overridesICSA = { ...(ctx.ownerState.card_identity_overrides ?? {}), [fieldNumICSA]: trashNumICSA };
+    const newOwnerICSA = { ...ctx.ownerState, card_identity_overrides: overridesICSA };
+    const fieldName = ctx.cardMap.get(fieldNumICSA)?.CardName ?? fieldNumICSA;
+    const trashName = ctx.cardMap.get(trashNumICSA)?.CardName ?? trashNumICSA;
+    return done(addLog({ ...ctx, ownerState: newOwnerICSA },
+      `${fieldName}が${trashName}と同じカードになる（ターン終了時まで）`));
+  }
+  if (stub.id === 'COPY_CARD'
       || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
       || stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
       || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
