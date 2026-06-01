@@ -630,8 +630,8 @@
 | 1 | AUTO | ⚡ | NON_GUARD_DISCARD_TO_ENERGY |
 | 1 | ACTIVATED | ⚡ | NON_LRIG_TO_LRIG_TRASH |
 | 1 | CONT | ✅ | ODD_LEVEL_SIGNI_CANT_ATTACK ※effectEngine.calcContinuousBlockedActionsで実装 |
-| 1 | AUTO | ⚡ | OPP_CHOOSE_EFFECT |
-| 1 | AUTO | ⚡ | OPP_CHOOSES_FOR_YOU |
+| 1 | AUTO | ⚡ | OPP_CHOOSE_EFFECT ※v0.161: opponentResponds CHOOSE+テキスト解析改善（①ドロー/②手札シグニ配置パターン追加） |
+| 1 | AUTO | ⚡ | OPP_CHOOSES_FOR_YOU ※v0.161: INTERNAL_OPP_DECK_TRASH_N追加（相手デッキのみトラッシュ）+②トラッシュからシグニ手札パターン |
 | 1 | AUTO/ACTIVATED | ⚡ | OPP_DECK_REVEAL_UNTIL |
 | 2 | CONT | ⚡ | OPP_ENERGY_COLOR_CONDITION_TRASH ※collectOppEnergyColorRestriction+handleEnergyChargeFromHand/Signiでエナチャージ時に色制限チェック |
 | 2 | AUTO | ⚡ | OPP_ENERGY_EXCESS_TRASH |
@@ -639,12 +639,12 @@
 | 1 | AUTO | ⚡ | OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND |
 | 1 | AUTO/ACTIVATED | ⚡ | OPP_HAND_TO_DECK_TOP |
 | 1 | CONT | ✅ | OPP_LRIG_ATTACK_COST ※v0.114: collectOppLrigAttackExtraCost+handleLrigAttackに追加コスト支払い統合 |
-| 2 | AUTO | ⚡ | OPP_MAIN_PHASE_LIMIT_DOWN |
+| 2 | AUTO | ✅ | OPP_MAIN_PHASE_LIMIT_DOWN ※v0.161: pending_lrig_limit_mod(-2)フラグ設定→GROW→MAIN移行時にlrig_limit_modへ適用（誤実装draw_limit→修正） |
 | 1 | AUTO | ⚡ | OPP_RETURN_HAND_ON_SELF_BANISH |
 | 1 | ACTIVATED | ⚡ | OPP_REVEAL_HAND_AND_LRIG_DECK |
 | 1 | ACTIVATED | ⚡ | OPP_REVEAL_LRIG_DECK |
 | 1 | ACTIVATED | ⚡ | OPP_REVEAL_TOP_AND_HAND |
-| 2 | ACTIVATED | ⚡ | OPP_SIGNI_ATTACK_COST |
+| 2 | ACTIVATED | ✅ | OPP_SIGNI_ATTACK_COST ※v0.161: signi_attack_costフラグ(=2)設定+BattleScreen/CpuBattleScreenのシグニアタック時にエナ消費・不足時アタック不可 |
 | 1 | CONT | ✅ | OPP_SIGNI_LEAVE_TO_TRASH ※banish_redirectフラグ設置: BattleScreenのバニッシュ先変更に統合 |
 | 1 | AUTO | ⚡ | OPP_SIGNI_ONE_ATTACK_TOTAL |
 | 2 | AUTO | ⚡ | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL |
@@ -656,7 +656,7 @@
 | 1 | AUTO | ⚡ | OPP_TRASH_TO_DECK_TOP |
 | 2 | AUTO | ⚡ | OPP_TRASH_TO_OPP_SIGNI_UNDER |
 | 1 | AUTO | ⚡ | OPP_TURN_NO_ENERGY_COST |
-| 1 | CONT | ⚡ | OPP_ZONE_PLACEMENT_RESTRICT ※done(addLog)のみ（相手ゾーン配置制限フラグ未実装） |
+| 1 | CONT | ✅ | OPP_ZONE_PLACEMENT_RESTRICT ※v0.161: collectCenterZoneDeployRestrict(effectEngine)+handleSummonSigniで中央ゾーンLv3+配置禁止 |
 | 1 | AUTO | ✅ | OPTIONAL_HAND_REVEAL_NAMED |
 | 5 | AUTO | ⚡ | OPTIONAL_DISCARD_CLASS_SIGNI |
 | 1 | AUTO | ⚡ | PLACE_CHOKKIN |
