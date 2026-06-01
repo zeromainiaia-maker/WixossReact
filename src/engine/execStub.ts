@@ -7260,25 +7260,25 @@ export function execStub(
     const srcCMCBC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCMCBC = srcCMCBC ? (srcCMCBC.EffectText ?? '') + ' ' + (srcCMCBC.BurstText ?? '') : '';
     const toHWCMCBC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // センタールリグ条件チェック: 「センタールリグがXXの場合」
+    // ベース選択数「以下のN つから M つ(まで)選ぶ」
+    const baseCountM = txtCMCBC.match(/以下の[２-９\d２-９]つから([２-９\d１1])つ(?:まで)?選ぶ/);
+    const baseCount = baseCountM ? parseInt(toHWCMCBC(baseCountM[1])) : 1;
+    // センタールリグ条件チェック
     const centerCondM = txtCMCBC.match(/センタールリグが(.+?)の場合/);
+    let condMetCMCBC = !centerCondM; // 条件なしなら常にtrue
     if (centerCondM) {
-      const reqCenterName = centerCondM[1].trim();
+      const reqNames = centerCondM[1].trim().split(/か|と/).map(s => s.trim()).filter(Boolean);
       const centerTop = ctx.ownerState.field.lrig.at(-1);
       const centerCard = centerTop ? ctx.cardMap.get(centerTop) : undefined;
       const centerName = centerCard?.CardName ?? '';
-      // lrig_name_aliasesも考慮（COPY_LRIG_NAME_ABILITY / LRIG_ALL_NAMES）
       const runtimeAliases = ctx.ownerState.lrig_name_aliases ?? [];
       const hasAllNames = runtimeAliases.includes(LRIG_ALL_NAMES_SENTINEL);
-      const aliases: string[] = centerName ? [centerName, ...runtimeAliases.filter(a => a !== LRIG_ALL_NAMES_SENTINEL)] : [...runtimeAliases.filter(a => a !== LRIG_ALL_NAMES_SENTINEL)];
-      if (!hasAllNames && !aliases.some(n => n.includes(reqCenterName) || reqCenterName.includes(n))) {
-        // センター条件不一致 → ベース効果（残りのSEQUENCEステップ）へ
-        return done(addLog(ctx, `センター条件不一致（要:${reqCenterName}・現:${centerName}）→ベース効果`));
-      }
+      const aliases = [centerName, ...runtimeAliases.filter(a => a !== LRIG_ALL_NAMES_SENTINEL)];
+      condMetCMCBC = hasAllNames || reqNames.some(rn => aliases.some(a => a.includes(rn) || rn.includes(a)));
     }
-    // 選択数（"N つまで" → N, デフォルト1）
-    const chooseCountM = txtCMCBC.match(/代わりに([２-９２-９])つまで選ぶ/);
-    const maxChooseCount = chooseCountM ? parseInt(toHWCMCBC(chooseCountM[1])) : 1;
+    // 選択数: 条件達成なら"代わりにNつまで"、未達成はベース数
+    const enhCountM = txtCMCBC.match(/代わりに([２-９\d])つまで選ぶ/);
+    const maxChooseCount = condMetCMCBC && enhCountM ? parseInt(toHWCMCBC(enhCountM[1])) : baseCount;
     // 各選択肢（①②③④）を解析してCHOOSEオプション生成
     const choicePatterns = [
       { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
