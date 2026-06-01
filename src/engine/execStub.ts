@@ -743,7 +743,7 @@ export function execStub(
       newVirus[z] -= take;
       removed += take;
     }
-    let newCtx = addLog({ ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } } },
+    const newCtx = addLog({ ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } } },
       `ウイルス${removed}つを取り除く`);
     // トラッシュから黒のシグニをN枚選択して手札へ（SELECT_TARGETで選ばせる）
     const blackTrashCands = newCtx.ownerState.trash.filter(cn => {
