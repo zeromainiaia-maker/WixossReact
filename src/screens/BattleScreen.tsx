@@ -7876,7 +7876,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       {/* ===== シグニ起動効果 コスト支払いモーダル ===== */}
       {pendingSigniActivated && createPortal(
         <div
-          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); }}
+          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setKeySubstituteEnabled(false); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -7892,11 +7892,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const keySubCount = keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId ? 2 : 0;
+              const adjustedTotal = Math.max(0, energyTotal - keySubCount);
               const selectedNums = [...selectedSigniActivatedCost].map(i => my.energy[i]);
               const energyOk = energyTotal === 0
                 ? true
-                : selectedSigniActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                : selectedSigniActivatedCost.size === adjustedTotal &&
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount);
               const discardOk = selectedSigniActivatedDiscard.size >= discardNeeded;
               const canAfford = energyOk && discardOk;
 
@@ -7922,22 +7924,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </div>
                   )}
 
+                  {/* キーピース代替トグル */}
+                  {myEnergyTrashSubInfo.keySubInstId && energyTotal > 0 && (
+                    <button
+                      onClick={() => {
+                        setKeySubstituteEnabled(v => !v);
+                        setSelectedSigniActivatedCost(new Set());
+                      }}
+                      style={{ padding: '6px 10px', borderRadius: 6, border: keySubstituteEnabled ? '2px solid #ff9800' : C.borderUI,
+                        backgroundColor: keySubstituteEnabled ? 'rgba(255,152,0,0.2)' : 'transparent',
+                        color: C.text, fontSize: 11, cursor: 'pointer', textAlign: 'left' }}>
+                      {keySubstituteEnabled ? '✓ ' : ''}キー代替: {battleCardMap.get(myEnergyTrashSubInfo.keySubInstId)?.CardName ?? 'キー'} をルリグTへ (エナ2任意色分)
+                    </button>
+                  )}
+
                   {energyTotal > 0 && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
-                        エナゾーンから選択: {selectedSigniActivatedCost.size} / {energyTotal}枚
+                        エナゾーンから選択: {selectedSigniActivatedCost.size} / {adjustedTotal}枚
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {my.energy.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          const isTrashWild = myEnergyTrashSubInfo.wildcardInstIds.has(num);
+                          const trashColor = myEnergyTrashSubInfo.colorOverrideMap.get(num);
+                          const borderColor = isSel ? '#f44336' : isTrashWild ? '#4caf50' : trashColor ? '#9c27b0' : isWild ? '#ffcc00' : undefined;
                           return (
                             <div key={i}
                               onClick={() => setSelectedSigniActivatedCost(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
-                                if (next.size >= energyTotal) return prev;
+                                if (next.size >= adjustedTotal) return prev;
                                 next.add(i); return next;
                               })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
@@ -7945,7 +7964,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                               onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
-                                border: isSel ? '2px solid #f44336' : isWild ? '1px solid #ffcc00' : C.borderCard,
+                                border: borderColor ? `${isSel ? '2px' : '1px'} solid ${borderColor}` : C.borderCard,
                                 cursor: 'pointer', overflow: 'hidden' }}>
                               {c ? (
                                 <img src={c.ImgURL} alt={c.CardName} draggable={false}
@@ -7956,10 +7975,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                                   <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
                                 </div>
                               )}
-                              {isWild && !isSel && (
+                              {!isSel && (isTrashWild || trashColor || isWild) && (
                                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
-                                  backgroundColor: 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
-                                  <span style={{ fontSize: 7, fontWeight: 'bold', color: '#000' }}>マルチ</span>
+                                  backgroundColor: isTrashWild ? 'rgba(76,175,80,0.85)' : trashColor ? 'rgba(156,39,176,0.85)' : 'rgba(255,204,0,0.85)',
+                                  textAlign: 'center' }}>
+                                  <span style={{ fontSize: 7, fontWeight: 'bold', color: '#fff' }}>
+                                    {isTrashWild ? '代替' : trashColor ? trashColor : 'マルチ'}
+                                  </span>
                                 </div>
                               )}
                               {isSel && (
@@ -8023,14 +8045,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); }}
+                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setKeySubstituteEnabled(false); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard)}
+                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
