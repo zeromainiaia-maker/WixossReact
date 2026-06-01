@@ -6785,9 +6785,21 @@ export function execStub(
     const centerLvLBC = centerCardLBC ? parseInt(toHWLBC(centerCardLBC.Level ?? '0')) || 0 : 0;
     return done(addLog(ctx, `レベル${centerLvLBC}基準の条件分岐（スキップ）`));
   }
-  // OPP_DECLARE_COLOR: 相手が色を宣言（ログのみ）
+  // OPP_DECLARE_COLOR: 相手が色を宣言（5色CHOOSE opponentResponds→INTERNAL_SET_OPP_DECLARED_COLOR）
   if (stub.id === 'OPP_DECLARE_COLOR') {
-    return done(addLog(ctx, '相手が色を宣言'));
+    const colorsODC = ['白', '赤', '青', '緑', '黒'];
+    const setColorODC = (c: string): StubAction => ({ type: 'STUB', id: 'INTERNAL_SET_OPP_DECLARED_COLOR', value: c });
+    const optsODC = colorsODC.map(c => ({
+      id: `opp_color_${c}`, label: `${c}を宣言`, action: setColorODC(c) as EffectAction, available: true,
+    }));
+    return needsInteraction(addLog(ctx, '対戦相手が色を宣言する（白/赤/青/緑/黒）'), {
+      type: 'CHOOSE', options: optsODC, count: 1, opponentResponds: true,
+    });
+  }
+  if (stub.id === 'INTERNAL_SET_OPP_DECLARED_COLOR') {
+    const colorSODC = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+    const newOtherSODC = { ...ctx.otherState, declared_color: colorSODC };
+    return done(addLog({ ...ctx, otherState: newOtherSODC }, `対戦相手が色「${colorSODC}」を宣言`));
   }
   // COLLAB: コラボ効果
   if (stub.id === 'COLLAB') {

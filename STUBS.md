@@ -158,20 +158,20 @@
 | 2 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
 | 2 | ACTIVATED/AUTO | ✅ | GRANT_CHOSEN_ABILITY ※v0.138: lastProcessedCardsに自シグニなければSELECT_TARGET→CHOOSE能力(アサシン/ランサー/ダブルクラッシュ/バニッシュ不可/ダウン不可/バウンス不可)。keyword_grantsに格納 |
 | 2 | CONT | ⚡ | GRANT_QUOTED_ACTIVATE_ABILITY ※v0.138: GRANT_QUOTED_AUTO_ABILITYブロックから分離。起動能力パターンログ改善（レベル比例/2倍-タイプ識別） |
-| 2 | AUTO/ACTIVATED | 📝 | HAND_REVEAL_CLASS_SIGNI |
+| 2 | AUTO/ACTIVATED | ✅ | HAND_REVEAL_CLASS_SIGNI ※手札クラスシグニSELECT_TARGET→lastProcessedCardsに格納（v0.148） |
 | 2 | AUTO | ✅ | HAND_TO_ENERGY_OPTIONAL ※v0.139: 重複ハンドラ削除。先行ハンドラ（maxHTE解析+INTERNAL_HAND_TO_ENERGY続行）が正しく動作 |
 | 2 | ACTIVATED/AUTO | ✅ | LAYER_ABILITY_COPY ※v0.139: SELECT_TARGET(怪異trash/field)+INTERNAL_LAYER_COPY_APPLY。《レイヤーアイコン》テキストからSランサー等を keyword_grants に付与 |
 | 2 | ACTIVATED/CONT | ✅ | LIMIT_OPP_DRAW_COUNT ※v0.139: collectDrawLimits追加（CONTINUOUS LIMIT_OPP_DRAW_COUNT効果を動的検査）。BattleScreen UP フェイズのドロー計算に統合 |
-| 2 | AUTO/ACTIVATED | 📝 | LOOK_OPP_HAND_DISCARD_SIGNI |
-| 2 | AUTO/ACTIVATED | 📝 | LOOK_TOP_COLOR_SORT |
+| 2 | AUTO/ACTIVATED | ✅ | LOOK_OPP_HAND_DISCARD_SIGNI ※相手手札シグニをフィルタ→selectOrInteract→TRASH（v0.148） |
+| 2 | AUTO/ACTIVATED | ✅ | LOOK_TOP_COLOR_SORT ※LOOK_TOP_Nと同ハンドラ: デッキ上N枚LOOK_AND_REORDER（v0.148） |
 | 2 | CONT | ✅ | MULTI_ZONE_ATTACK |
 | 2 | CONT | ✅ | ONE_ATTACK_PER_TURN ※effectEngine.calcContinuousBlockedActionsで実装 |
 | 2 | ACTIVATED | ✅ | OPP_CHOOSE_OWN_SIGNI_TO_ENERGY ※v0.140: thenActionをBANISH→INTERNAL_OPP_FIELD_TO_ENERGYに修正（フィールド→エナゾーン移動） |
-| 2 | AUTO/ACTIVATED | 📝 | OPP_DECLARE_COLOR |
+| 2 | AUTO/ACTIVATED | ✅ | OPP_DECLARE_COLOR ※5色CHOOSE(opponentResponds)→INTERNAL_SET_OPP_DECLARED_COLOR→otherState.declared_color（v0.148） |
 | 2 | AUTO | ✅ | OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL ※v0.140: excess計算修正（常に1枚トラッシュ）・重複ハンドラ削除 |
 | 2 | AUTO | ✅ | OPP_SIGNI_ATTACK_POWER_RESTRICT ※v0.140: BattleScreenにeffectivePowers使用のパワー上限アタック制限チェック追加 |
-| 2 | AUTO/ACTIVATED | 📝 | PEEP_HAND |
-| 2 | AUTO/ACTIVATED | 📝 | PICK_FROM_TRASHED_CARDS |
+| 2 | AUTO/ACTIVATED | ✅ | PEEP_HAND ※相手手札全カード名をログ表示（v0.148） |
+| 2 | AUTO/ACTIVATED | ✅ | PICK_FROM_TRASHED_CARDS ※トラッシュSELECT_TARGET→TRANSFER_TO_HAND（v0.148） |
 | 2 | AUTO/ACTIVATED | 📝 | PLACE_ACCE_SIGNI_TO_ENERGY |
 | 2 | AUTO/ACTIVATED | 📝 | PLACE_MAGIC_BOX |
 | 2 | AUTO | ✅ | PLACE_SIGNI_UNDER_SELF_OPT ※v0.140: レベル完全一致フィルタ追加・フィールドソース対応（手札からなし→場から選択） |
@@ -181,21 +181,21 @@
 | 2 | AUTO/ACTIVATED | 📝 | PREVENT_OWN_ARTS_USE |
 | 2 | AUTO | ✅ | REACTIVE_POWER_UP ※相手temp_power_modsのマイナス合計を自パワーに加算 |
 | 2 | AUTO/ACTIVATED | 📝 | REPEAT_EFFECT |
-| 2 | AUTO/ACTIVATED | 📝 | REVEAL_OPP_HAND_CARD |
+| 2 | AUTO/ACTIVATED | ✅ | REVEAL_OPP_HAND_CARD ※相手手札からランダム1枚をlastProcessedCardsに格納して公開（v0.148） |
 | 2 | AUTO | ⚡ | RIDE_ON |
 | 2 | AUTO/ACTIVATED | 📝 | SIGNI_FLIP_FACEDOWN |
 | 2 | CONT | ✅ | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY ※v0.141: SELECT_TARGET(自フィールド)+keyword_grants付与(assassin/shadow/lancer等) |
 | 2 | AUTO | ⚡ | SIGNI_SERVANT_ZERO |
 | 2 | CONT | ✅ | SPECIFIC_CARD_COST_REDUCE ※v0.111: collectSpecificCardCostReductions+removeNColorFromCostでアーツコスト軽減 |
 | 2 | CONT | ✅ | SPELL_COST_REDUCTION_BY_TRASH_COUNT |
-| 2 | AUTO/ACTIVATED | 📝 | SUPPRESS_LIFE_BURST_ON_CARD |
-| 2 | AUTO/ACTIVATED | 📝 | SWAP_OPTIONAL |
-| 2 | AUTO/ACTIVATED | 📝 | TARGET_OPP_SIGNI_ONLY |
-| 2 | AUTO/ACTIVATED | 📝 | TRASH |
-| 2 | AUTO/ACTIVATED | 📝 | TRASH_IF_ZONE_OCCUPIED |
+| 2 | AUTO/ACTIVATED | ✅ | SUPPRESS_LIFE_BURST_ON_CARD ※suppress_life_burstフラグセット→BattleScreenのライフバースト発動抑制（v0.148） |
+| 2 | AUTO/ACTIVATED | ✅ | SWAP_OPTIONAL ※SELECT_TARGET(optional)→INTERNAL_REPOSITION_MOVEで空きゾーンへ移動（v0.148） |
+| 2 | AUTO/ACTIVATED | ⚡ | TARGET_OPP_SIGNI_ONLY ※ログのみ（対象修飾子・後続SELECT_TARGETで相手フィールド指定）（v0.148） |
+| 2 | AUTO/ACTIVATED | ✅ | TRASH ※lastProcessedCards[0]/sourceCardNumをフィールド/手札/相手フィールドからトラッシュへ（v0.148） |
+| 2 | AUTO/ACTIVATED | ✅ | TRASH_IF_ZONE_OCCUPIED ※フィールド満杯時にsourceCardNum自身をトラッシュへ（v0.148） |
 | 2 | ACTIVATED/LIFE | ✅ | TRASHED_CARD_TO_HAND_OR_ENERGY ※v0.142: lastProcessedCards優先+trash.at(-1)フォールバック・重複ハンドラ2つ削除 |
 | 2 | AUTO | ✅ | TRASH_ALL_SIGNI_AND_KEY |
-| 2 | AUTO/ACTIVATED | 📝 | USE_CONDITION_ARTS_USED |
+| 2 | AUTO/ACTIVATED | ⚡ | USE_CONDITION_ARTS_USED ※ログのみ（アーツ使用済み条件チェック・フラグ未実装）（v0.148） |
 | 2 | AUTO | ✅ | VIEW_AND_DISCARD_SPELL ※相手手札スペル選択+TRASH実装済み・重複ハンドラ削除 |
 | 1 | CONT | 📝 | ACCE_BANISH_SELF_TRASH |
 | 1 | CONT | 📝 | ACCE_COST_REDUCTION |
@@ -222,10 +222,10 @@
 | 1 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
 | 1 | CONT | ✅ | ARTS_COST_REDUCTION_BY_COST_THRESHOLD ※v0.114: collectArtsThresholdCostReductions+computeArtsEffectiveCostに統合 |
 | 1 | CONT | ✅ | ATTACK_COUNT_BY_POWER ※v0.117: calcContinuousBlockedActionsでパワー/10000回数上限・attacked_signi_idsをバッグ化 |
-| 1 | CONT | 📝 | BANISH_BY_SELF_GOES_TO_TRASH |
-| 1 | CONT | ⚡ | BANISH_REDIRECT_TO_HAND |
-| 1 | CONT | 📝 | BANISH_SUBSTITUTE_RISE_STACK |
-| 1 | AUTO/ACTIVATED | 📝 | BANISH_MULTI_COLOR_SIGNI |
+| 1 | CONT | ⚡ | BANISH_BY_SELF_GOES_TO_TRASH ※ログのみ（自己バニッシュ→トラッシュ置換効果・エンジン未対応）（v0.148） |
+| 1 | CONT | ✅ | BANISH_REDIRECT_TO_HAND ※banish_redirect_to_handフラグ→BattleScreenのバニッシュ先変更に統合（v0.148） |
+| 1 | CONT | ⚡ | BANISH_SUBSTITUTE_RISE_STACK ※ログのみ（ライズ/スタック置換効果・ライズシステム未実装）（v0.148） |
+| 1 | AUTO/ACTIVATED | ✅ | BANISH_MULTI_COLOR_SIGNI ※相手フィールドの複数色(2色以上)シグニを全体自動バニッシュ（v0.148） |
 | 1 | AUTO | ⚡ | BATTLE_BANISH_LIFE_BURST |
 | 1 | CONT | 📝 | BEAT_ZONE_OP ※v0.112: ビートゾーン状態・UI(フリーゾーン共有)・ターン終了クリーンアップ実装済み。対象選択未実装 |
 | 1 | AUTO | ⚡ | BLACK_RISE_PLAY_STACK_FROM_TRASH |
@@ -332,14 +332,14 @@
 | 1 | AUTO/ACTIVATED | 📝 | LIFE_TO_HAND_OPTIONAL |
 | 1 | AUTO | ⚡ | LIFE_BURST_DOUBLE |
 | 1 | AUTO | ⚡ | LIMIT_OPP_SIGNI_ATTACKS_ONCE |
-| 1 | AUTO | ⚡ | LOOK_DECK_BOTTOM |
-| 1 | AUTO/ACTIVATED | 📝 | LOOK_TOP_BOTTOM |
-| 1 | AUTO/ACTIVATED | 📝 | LOOK_TOP_BY_LIFE_COUNT |
-| 1 | AUTO/ACTIVATED | 📝 | LOOK_TOP_N |
-| 1 | AUTO/ACTIVATED | 📝 | LOOK_TOP_OPP_CHOOSE_TRASH |
-| 1 | AUTO/ACTIVATED | 📝 | LOOK_TOP_SIGNI_TO_FIELD |
-| 1 | AUTO/ACTIVATED | 📝 | LOOK_TOP_SORT |
-| 1 | AUTO/ACTIVATED | 📝 | LOOK_TOP_SPELLS_TO_HAND |
+| 1 | AUTO | ✅ | LOOK_DECK_BOTTOM ※デッキ下1枚LOOK_AND_REORDER(destPosition:'bottom')（v0.148） |
+| 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_BOTTOM ※デッキ上下1枚ずつLOOK_AND_REORDER(destPosition:'any')（v0.148） |
+| 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_BY_LIFE_COUNT ※ライフ枚数分デッキ上をLOOK_AND_REORDER（v0.148） |
+| 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_N ※デッキ上N枚LOOK_AND_REORDER（v0.148） |
+| 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_OPP_CHOOSE_TRASH ※デッキ上N枚公開→相手SELECT_TARGET(opponentResponds)→INTERNAL_TRASH_CARD（v0.148） |
+| 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_SIGNI_TO_FIELD ※デッキ上3枚から最初のシグニを空きゾーンに配置・残はトラッシュ（v0.148） |
+| 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_SORT ※LOOK_TOP_Nと同ハンドラ: デッキ上N枚LOOK_AND_REORDER（v0.148） |
+| 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_SPELLS_TO_HAND ※デッキ上N枚のスペルを自動で手札へ・非スペルはデッキ戻し（v0.148） |
 | 1 | AUTO | ⚡ | LOOK_TOP_ONE_RETURN_REST_BOTTOM |
 | 1 | CONT | ✅ | LRIG_ALL_NAMES ※v0.129: collectLrigNameAliasesでLRIG_ALL_NAMES_SENTINEL追加。lrigNameMatchesで全ルリグ名マッチ。execStubのCONDITIONAL_MULTI_CHOOSE_BY_CENTERもruntime aliasesを考慮 |
 | 1 | AUTO/ACTIVATED | 📝 | LRIG_GAIN_ABILITY |
