@@ -2253,23 +2253,20 @@ export function execStub(
   }
   // トラッシュに置かれたカードを手札かエナに
   if (stub.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
-    const selected = ctx.lastProcessedCards ?? [];
-    if (selected.length === 0) return done(addLog(ctx, '対象カードなし'));
-    const target = selected[0];
-    const inTrash = ctx.ownerState.trash.includes(target);
-    if (!inTrash) return done(addLog(ctx, 'トラッシュにカードなし'));
-    const cardName = ctx.cardMap.get(target)?.CardName ?? target;
-    const toHandStub: StubAction = { type: 'STUB', id: 'INTERNAL_TRASHED_TO_HAND' };
-    const toEnaStub: StubAction = { type: 'STUB', id: 'INTERNAL_TRASHED_TO_ENERGY' };
-    const pendingTCTE: PendingInteractionDef = {
-      type: 'CHOOSE',
-      options: [
-        { id: 'hand', label: `${cardName}を手札に`, action: toHandStub as EffectAction, available: true },
-        { id: 'energy', label: `${cardName}をエナゾーンに`, action: toEnaStub as EffectAction, available: true },
+    // lastProcessedCards優先、なければtrash末尾を使用
+    const targetTCTE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
+    if (!targetTCTE || !ctx.ownerState.trash.includes(targetTCTE)) {
+      return done(addLog(ctx, 'トラッシュにカードなし（TRASHED_CARD_TO_HAND_OR_ENERGY）'));
+    }
+    const cardNameTCTE = ctx.cardMap.get(targetTCTE)?.CardName ?? targetTCTE;
+    const toHandTCTE: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_HAND' };
+    const toEnaTCTE: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_ENERGY' };
+    return needsInteraction(addLog(ctx, `${cardNameTCTE}を手札かエナゾーンへ`), {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'hand', label: '手札に加える', action: toHandTCTE as EffectAction, available: true },
+        { id: 'energy', label: 'エナゾーンへ', action: toEnaTCTE as EffectAction, available: true },
       ],
-      count: 1,
-    };
-    return needsInteraction(addLog(ctx, `${cardName}：手札かエナゾーンに置く`), pendingTCTE);
+    });
   }
   if (stub.id === 'INTERNAL_TRASHED_TO_HAND') {
     const selected = ctx.lastProcessedCards ?? [];
@@ -2661,28 +2658,42 @@ export function execStub(
   }
   // シグニの下のカードをエナゾーンに置く
   if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
-    // sourceCardNumのシグニが自分フィールドにある場合はそのゾーンの下を優先
+    // SELECT_TARGET後の処理：lastProcessedCardsにカードがある場合
+    if (ctx.lastProcessedCards?.length) {
+      const movedUTE = ctx.lastProcessedCards[0];
+      const newSigniUTE2 = ctx.ownerState.field.signi.map(stack => {
+        if (!stack?.includes(movedUTE)) return stack;
+        const filtered = stack.filter(c => c !== movedUTE);
+        return filtered.length > 0 ? filtered : null;
+      }) as (string[] | null)[];
+      const newOwnerUTE2 = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniUTE2 }, energy: [...ctx.ownerState.energy, movedUTE] };
+      return done(addLog({ ...ctx, ownerState: newOwnerUTE2 },
+        `${ctx.cardMap.get(movedUTE)?.CardName ?? movedUTE}をエナゾーンへ（シグニ下から）`));
+    }
+    // ソースゾーンのシグニ下カードを収集
     const srcZoneUTE = ctx.sourceCardNum
       ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum)
-      : -1;
-    let pickedZoneUTE = srcZoneUTE >= 0 ? srcZoneUTE : -1;
-    if (pickedZoneUTE < 0) {
-      // 最初に見つけた「下にカードがある」ゾーン
-      pickedZoneUTE = ctx.ownerState.field.signi.findIndex(s => s && s.length > 1);
+      : ctx.ownerState.field.signi.findIndex(s => s && s.length > 1);
+    if (srcZoneUTE < 0) return done(addLog(ctx, 'シグニの下にカードなし（UNDER_SIGNI_TO_ENERGY）'));
+    const stackUTE = ctx.ownerState.field.signi[srcZoneUTE] ?? [];
+    const underCardsUTE = stackUTE.slice(0, -1); // 最前面以外（下のカード群）
+    if (underCardsUTE.length === 0) return done(addLog(ctx, 'シグニの下にカードなし'));
+    if (underCardsUTE.length === 1) {
+      // 1枚のみ→直接エナへ
+      const movedUTE = underCardsUTE[0];
+      const newStackUTE = stackUTE.filter(c => c !== movedUTE);
+      const newSigniUTE = [...ctx.ownerState.field.signi] as (string[] | null)[];
+      newSigniUTE[srcZoneUTE] = newStackUTE.length > 0 ? newStackUTE : null;
+      const newOwnerUTE = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniUTE }, energy: [...ctx.ownerState.energy, movedUTE] };
+      return done(addLog({ ...ctx, ownerState: newOwnerUTE },
+        `${ctx.cardMap.get(movedUTE)?.CardName ?? movedUTE}をエナゾーンへ（シグニ下から）`));
     }
-    if (pickedZoneUTE < 0) return done(addLog(ctx, 'シグニの下にカードなし'));
-    const stackUTE = [...(ctx.ownerState.field.signi[pickedZoneUTE] ?? [])];
-    const movedUTE = stackUTE.shift(); // 一番下のカードを取り出す
-    if (!movedUTE) return done(addLog(ctx, 'シグニの下にカードなし'));
-    const newSigniUTE = [...ctx.ownerState.field.signi] as (string[] | null)[];
-    newSigniUTE[pickedZoneUTE] = stackUTE.length > 0 ? stackUTE : null;
-    const newOwnerUTE = {
-      ...ctx.ownerState,
-      field: { ...ctx.ownerState.field, signi: newSigniUTE },
-      energy: [...ctx.ownerState.energy, movedUTE],
-    };
-    return done(addLog({ ...ctx, ownerState: newOwnerUTE },
-      `${ctx.cardMap.get(movedUTE)?.CardName ?? movedUTE}をエナゾーンへ（シグニ下から）`));
+    // 複数枚→SELECT_TARGET
+    const contUTE: StubAction = { type: 'STUB', id: 'UNDER_SIGNI_TO_ENERGY' };
+    return needsInteraction(addLog(ctx, 'シグニ下のカードを選択（エナゾーンへ）'), {
+      type: 'SELECT_TARGET', candidates: underCardsUTE, count: 1, optional: false,
+      targetScope: 'self_field', thenAction: contUTE as EffectAction,
+    });
   }
   // デッキトップを公開してレベル一致なら手札に加える
   if (stub.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
@@ -3801,19 +3812,25 @@ export function execStub(
     return done(addLog(ctx, `相手手札${oppHandCntOHTDB}枚≤自手札${selfHandCntOHTDB}枚（条件未達）`));
   }
   // トラッシュから3ゾーンへ分配（lastProcessedCards→各ゾーンへ）
+  // TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH: トラッシュから3枚選んでエナ/手札/デッキ下に分配
   if (stub.id === 'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH') {
-    const toDistTZD = ctx.lastProcessedCards ?? ctx.ownerState.trash.slice(-3);
-    if (toDistTZD.length === 0) return done(addLog(ctx, 'トラッシュにカードなし（TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH）'));
-    let newOwnerTZD = ctx.ownerState;
-    const fieldTZD = [...newOwnerTZD.field.signi] as (string[] | null)[];
-    for (let i = 0; i < Math.min(toDistTZD.length, 3); i++) {
-      if (!fieldTZD[i] || fieldTZD[i]!.length === 0) {
-        fieldTZD[i] = [toDistTZD[i]];
-        newOwnerTZD = { ...newOwnerTZD, trash: newOwnerTZD.trash.filter(cn => cn !== toDistTZD[i]) };
-      }
+    if ((ctx.lastProcessedCards?.length ?? 0) >= 3) {
+      const [toEna, toHand, toDeck] = ctx.lastProcessedCards!;
+      let sTZDFT = ctx.ownerState;
+      sTZDFT = { ...sTZDFT, trash: sTZDFT.trash.filter(c => c !== toEna && c !== toHand && c !== toDeck) };
+      sTZDFT = { ...sTZDFT, energy: [...sTZDFT.energy, toEna], hand: [...sTZDFT.hand, toHand], deck: [...sTZDFT.deck, toDeck] };
+      const nameTZDFT = [toEna, toHand, toDeck].map(c => ctx.cardMap.get(c)?.CardName ?? c).join('・');
+      return done(addLog({ ...ctx, ownerState: sTZDFT },
+        `${nameTZDFT}→エナ/手札/デッキ下`));
     }
-    return done(addLog({ ...ctx, ownerState: { ...newOwnerTZD, field: { ...newOwnerTZD.field, signi: fieldTZD } } },
-      `トラッシュから${toDistTZD.length}枚を各ゾーンへ`));
+    if (ctx.ownerState.trash.length < 3) {
+      return done(addLog(ctx, 'トラッシュが3枚未満（TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH）'));
+    }
+    const contTZDFT: StubAction = { type: 'STUB', id: 'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH' };
+    return needsInteraction(addLog(ctx, 'トラッシュから3枚選択（1枚目→エナ・2枚目→手札・3枚目→デッキ下）'), {
+      type: 'SELECT_TARGET', candidates: ctx.ownerState.trash, count: 3, optional: false,
+      targetScope: 'self_trash', thenAction: contTZDFT as EffectAction,
+    });
   }
   // 自・相手を両方エナへ（ゾーン交換系）
   if (stub.id === 'TRADE_SELF_AND_OPP_TO_ENERGY') {
@@ -3936,22 +3953,6 @@ export function execStub(
     };
     return done(addLog({ ...ctx, otherState: newOtherOECCT },
       `相手エナ：${ctx.cardMap.get(targetCardOECCT)?.CardName ?? targetCardOECCT}→トラッシュ`));
-  }
-  // トラッシュのカードを手札かエナへ（CHOOSE → INTERNAL）
-  if (stub.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
-    const targetTCTHOE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
-    if (!targetTCTHOE) return done(addLog(ctx, 'トラッシュにカードなし（TRASHED_CARD_TO_HAND_OR_ENERGY）'));
-    const cardNameTCTHOE = ctx.cardMap.get(targetTCTHOE)?.CardName ?? targetTCTHOE;
-    const toHandAction: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_HAND' };
-    const toEnaAction: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_ENERGY' };
-    return needsInteraction(addLog(ctx, `${cardNameTCTHOE}を手札かエナへ`), {
-      type: 'CHOOSE',
-      options: [
-        { id: 'hand', label: '手札に加える', action: toHandAction as EffectAction, available: true },
-        { id: 'energy', label: 'エナゾーンへ', action: toEnaAction as EffectAction, available: true },
-      ],
-      count: 1,
-    });
   }
   // TRASHED_CARD_TO_HAND_OR_ENERGY → 手札選択後処理
   if (stub.id === 'INTERNAL_TRASH_TO_HAND') {
@@ -4232,29 +4233,36 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: sTSUFS }, `シグニ下${underCardsTSUFS.length}枚をトラッシュへ`));
   }
   // UNDER_SIGNI_TO_ENERGY: シグニ下カードをエナゾーンへ
-  if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
-    let sUSTE = ctx.ownerState;
-    const underCardsUSTE = sUSTE.field.signi.flatMap(stack => stack && stack.length > 1 ? stack.slice(0, -1) : []);
-    const newSigniUSTE = sUSTE.field.signi.map(stack => !stack || stack.length <= 1 ? stack : [stack.at(-1)!]) as (string[] | null)[];
-    sUSTE = { ...sUSTE, field: { ...sUSTE.field, signi: newSigniUSTE }, energy: [...sUSTE.energy, ...underCardsUSTE] };
-    return done(addLog({ ...ctx, ownerState: sUSTE }, `シグニ下${underCardsUSTE.length}枚をエナゾーンへ`));
-  }
-  // UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: シグニ下のクラスなしカードをエナゾーンへ
+  // UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ
   if (stub.id === 'UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS') {
-    let sUSTENC = ctx.ownerState;
-    const newSigniUSTENC = [...sUSTENC.field.signi] as (string[] | null)[];
-    const toEnaUSTENC: string[] = [];
-    for (let zi = 0; zi < 3; zi++) {
-      const stack = sUSTENC.field.signi[zi];
-      if (!stack || stack.length <= 1) continue;
-      const under = stack.slice(0, -1);
-      const noClass = under.filter(cn => !(ctx.cardMap.get(cn)?.CardClass));
-      const hasClass = under.filter(cn => !!ctx.cardMap.get(cn)?.CardClass);
-      newSigniUSTENC[zi] = [...hasClass, stack.at(-1)!];
-      toEnaUSTENC.push(...noClass);
-    }
-    sUSTENC = { ...sUSTENC, field: { ...sUSTENC.field, signi: newSigniUSTENC }, energy: [...sUSTENC.energy, ...toEnaUSTENC] };
-    return done(addLog({ ...ctx, ownerState: sUSTENC }, `クラスなしシグニ下${toEnaUSTENC.length}枚をエナゾーンへ`));
+    const srcUSTENC = ctx.sourceCardNum;
+    if (!srcUSTENC) return done(addLog(ctx, 'UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: ソースなし'));
+    const srcZoneUSTENC = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcUSTENC);
+    if (srcZoneUSTENC < 0) return done(addLog(ctx, 'UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: ゾーン不明'));
+    const stackUSTENC = ctx.ownerState.field.signi[srcZoneUSTENC] ?? [];
+    const underUSTENC = stackUSTENC.slice(0, -1);
+    if (underUSTENC.length === 0) return done(addLog(ctx, 'シグニの下にカードなし（UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS）'));
+    // 各underカードについて、エナゾーンに同クラスを持つシグニがない場合エナへ
+    const targetCnUSTENC = underUSTENC.find(cn => {
+      const cnClass = ctx.cardMap.get(cn)?.CardClass ?? '';
+      if (!cnClass) return false;
+      const cnClasses = cnClass.split('/').map(s => s.trim()).filter(Boolean);
+      return !ctx.ownerState.energy.some(enaCn => {
+        const enaClass = ctx.cardMap.get(enaCn)?.CardClass ?? '';
+        return cnClasses.some(cls => enaClass.includes(cls));
+      });
+    });
+    if (!targetCnUSTENC) return done(addLog(ctx, 'エナゾーンに同クラスあり（UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS）'));
+    const newStackUSTENC = stackUSTENC.filter(c => c !== targetCnUSTENC);
+    const newSigniUSTENC = [...ctx.ownerState.field.signi] as (string[] | null)[];
+    newSigniUSTENC[srcZoneUSTENC] = newStackUSTENC.length > 0 ? newStackUSTENC : null;
+    const newOwnerUSTENC = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, signi: newSigniUSTENC },
+      energy: [...ctx.ownerState.energy, targetCnUSTENC],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerUSTENC },
+      `${ctx.cardMap.get(targetCnUSTENC)?.CardName ?? targetCnUSTENC}→エナゾーン（同クラスなし）`));
   }
   // ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える
   if (stub.id === 'ADD_CARD_TO_LRIG_DECK' || stub.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN') {
@@ -6080,8 +6088,16 @@ export function execStub(
     const colorMCSC = txtCSC.match(/それを([赤青緑黒白]+)にする/);
     const newColorCSC = colorMCSC ? colorMCSC[1] : null;
     if (!newColorCSC) return done(addLog(ctx, 'CHANGE_SIGNI_COLOR: 変更先色不明'));
+    // レベルフィルタ（「レベルN以下のシグニ」）
+    const toHWCSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const lvMaxMCSC = txtCSC.match(/レベル([０-９\d]+)以下のシグニ/);
+    const lvMaxCSC = lvMaxMCSC ? parseInt(toHWCSC(lvMaxMCSC[1])) : 99;
     // 相手シグニ1体を選択（lastProcessedCardsが既にあれば直接適用）
-    const oppSigniCSC = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
+    const oppSigniCSC = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => {
+      if (!c) return false;
+      const lv = parseInt(ctx.cardMap.get(c)?.Level ?? '99');
+      return lv <= lvMaxCSC;
+    });
     if (oppSigniCSC.length === 0) return done(addLog(ctx, '相手シグニなし（CHANGE_SIGNI_COLOR）'));
     const targetCSC = ctx.lastProcessedCards?.[0];
     if (targetCSC && oppSigniCSC.includes(targetCSC)) {
@@ -6156,8 +6172,44 @@ export function execStub(
   if (stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK') return done(addLog(ctx, '[ALL_CARDS_COLOR_CHANGE_BLACK: effectEngineで処理]'));
   // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（ログのみ）
   if (stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') return done(addLog(ctx, '[ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体効果ログ]'));
+  // CHANGE_BASE_LEVEL: このシグニの基本レベルを1～3にしてもよい（ターン終了まで）
+  if (stub.id === 'CHANGE_BASE_LEVEL') {
+    const srcCBL = ctx.sourceCardNum;
+    if (!srcCBL) return done(addLog(ctx, 'CHANGE_BASE_LEVEL: ソースなし'));
+    if (typeof stub.value === 'number') {
+      const newOvCBL = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [srcCBL]: stub.value as number };
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: newOvCBL } },
+        `${ctx.cardMap.get(srcCBL)?.CardName ?? srcCBL}の基本レベルを${stub.value}に変更`));
+    }
+    const optsCBL = [1,2,3].map(lv => ({
+      id: `lv_${lv}`, label: `レベル${lv}にする`,
+      action: ({ type: 'STUB', id: 'CHANGE_BASE_LEVEL', value: lv } as StubAction) as EffectAction,
+      available: true,
+    }));
+    optsCBL.push({ id: 'skip', label: 'スキップ',
+      action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction, available: true });
+    return needsInteraction(addLog(ctx, '基本レベルを変更してもよい（1～3）'), {
+      type: 'CHOOSE', options: optsCBL, count: 1,
+    });
+  }
+  // CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN: シグニ1体の基本レベルを1にしてもよい（次の自ターン終了まで）
+  if (stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN') {
+    if (ctx.lastProcessedCards?.length) {
+      const targetCBLUNT = ctx.lastProcessedCards[0];
+      const newOvCBLUNT = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [targetCBLUNT]: 1 };
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: newOvCBLUNT } },
+        `${ctx.cardMap.get(targetCBLUNT)?.CardName ?? targetCBLUNT}の基本レベルを1に変更`));
+    }
+    const allSigniCBLUNT = [...ctx.ownerState.field.signi, ...ctx.otherState.field.signi]
+      .flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+    if (allSigniCBLUNT.length === 0) return done(addLog(ctx, '対象シグニなし（CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN）'));
+    const contCBLUNT: StubAction = { type: 'STUB', id: 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN' };
+    return needsInteraction(addLog(ctx, 'シグニを選択（基本レベルを1にしてもよい）'), {
+      type: 'SELECT_TARGET', candidates: allSigniCBLUNT, count: 1, optional: true,
+      targetScope: 'self_field', thenAction: contCBLUNT as EffectAction,
+    });
+  }
   if (stub.id === 'COPY_CARD'
-      || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
       || stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
       || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
       || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK'
@@ -6667,9 +6719,75 @@ export function execStub(
   if (stub.id === 'HASTARLIQ') {
     return done(addLog(ctx, 'ハスタルリク効果'));
   }
-  // ACTIVATE_EICHI_ABILITY / CHANGE_EICHI_SIGNI_BASE_LEVEL / TRIGGER_OTHER_SIGNI_EICHI_ABILITY: エイチ系
-  if (stub.id === 'ACTIVATE_EICHI_ABILITY' || stub.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL' || stub.id === 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY') {
-    return done(addLog(ctx, `エイチ能力（${stub.id}）`));
+  // ACTIVATE_EICHI_ABILITY: コイン能力でエイチ能力を発動（ログのみ）
+  if (stub.id === 'ACTIVATE_EICHI_ABILITY') {
+    return done(addLog(ctx, 'エイチ能力発動（ACTIVATE_EICHI_ABILITY）'));
+  }
+  // CHANGE_EICHI_SIGNI_BASE_LEVEL: 英知シグニを選択→基本レベルを1～3に変更（ターン終了まで）
+  if (stub.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL') {
+    const toHWCESBL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // stub.valueが数値かつlastProcessedCardsあり→適用
+    if (typeof stub.value === 'number' && ctx.lastProcessedCards?.length) {
+      const targetCESBL = ctx.lastProcessedCards[0];
+      const newOvCESBL = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [targetCESBL]: stub.value as number };
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: newOvCESBL } },
+        `${ctx.cardMap.get(targetCESBL)?.CardName ?? targetCESBL}の基本レベルを${stub.value}に変更`));
+    }
+    // lastProcessedCardsあり（ターゲット選択済み）→レベル選択
+    if (ctx.lastProcessedCards?.length) {
+      const targetCESBL2 = ctx.lastProcessedCards[0];
+      const optsCESBL = [1,2,3].map(lv => ({
+        id: `lv_${lv}`, label: `レベル${lv}`,
+        action: ({ type: 'STUB', id: 'CHANGE_EICHI_SIGNI_BASE_LEVEL', value: lv } as StubAction) as EffectAction,
+        available: true,
+      }));
+      return needsInteraction(addLog(ctx, `${ctx.cardMap.get(targetCESBL2)?.CardName ?? targetCESBL2}のレベルを選択`), {
+        type: 'CHOOSE', options: optsCESBL, count: 1,
+      });
+    }
+    // SELECT_TARGET: 自フィールドの英知シグニ
+    const srcCESBL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtCESBL = srcCESBL ? (srcCESBL.EffectText ?? '') + ' ' + (srcCESBL.BurstText ?? '') : '';
+    const classNameCESBL = txtCESBL.match(/＜([^＞]+)＞のシグニ/)?.[1] ?? '英知';
+    const eichiCandsCESBL = ctx.ownerState.field.signi.flatMap(s => {
+      const top = s?.at(-1);
+      if (!top || top === ctx.sourceCardNum) return [];
+      return (ctx.cardMap.get(top)?.CardClass ?? '').includes(classNameCESBL) ? [top] : [];
+    });
+    if (eichiCandsCESBL.length === 0) return done(addLog(ctx, `＜${classNameCESBL}＞シグニなし（CHANGE_EICHI_SIGNI_BASE_LEVEL）`));
+    const contCESBL: StubAction = { type: 'STUB', id: 'CHANGE_EICHI_SIGNI_BASE_LEVEL' };
+    return needsInteraction(addLog(ctx, `＜${classNameCESBL}＞シグニを選択（基本レベル変更）`), {
+      type: 'SELECT_TARGET', candidates: eichiCandsCESBL, count: 1, optional: false,
+      targetScope: 'self_field', thenAction: contCESBL as EffectAction,
+    });
+    void toHWCESBL;
+  }
+  // TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 他の自シグニを選択し、その英知AUTO能力を発動させる
+  if (stub.id === 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY') {
+    if (ctx.lastProcessedCards?.length) {
+      const targetTOSEA = ctx.lastProcessedCards[0];
+      const cardTOSEA = ctx.cardMap.get(targetTOSEA);
+      if (!cardTOSEA) return done(addLog(ctx, 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY: カードなし'));
+      const effectsTOSEA = parseCardEffects(cardTOSEA);
+      // 英知AUTO能力を検索（activeCondition: EICHI_LEVEL_SUM）
+      const eichiEffTOSEA = effectsTOSEA.find(e =>
+        e.effectType === 'AUTO' && e.activeCondition?.type === 'EICHI_LEVEL_SUM');
+      if (!eichiEffTOSEA) return done(addLog(ctx, `${cardTOSEA.CardName}に英知AUTO能力なし`));
+      return exec(eichiEffTOSEA.action,
+        addLog({ ...ctx, sourceCardNum: targetTOSEA, lastProcessedCards: [] },
+          `${cardTOSEA.CardName}の英知AUTO能力を発動`));
+    }
+    // 他の自シグニを選択
+    const otherSigniTOSEA = ctx.ownerState.field.signi.flatMap(s => {
+      const top = s?.at(-1);
+      return (top && top !== ctx.sourceCardNum) ? [top] : [];
+    });
+    if (otherSigniTOSEA.length === 0) return done(addLog(ctx, '他のシグニなし（TRIGGER_OTHER_SIGNI_EICHI_ABILITY）'));
+    const contTOSEA: StubAction = { type: 'STUB', id: 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY' };
+    return needsInteraction(addLog(ctx, '英知能力を発動させるシグニを選択'), {
+      type: 'SELECT_TARGET', candidates: otherSigniTOSEA, count: 1, optional: false,
+      targetScope: 'self_field', thenAction: contTOSEA as EffectAction,
+    });
   }
   // SUPPRESS_CENTER_ON_PLAY: プレイ時センター抑制（ログのみ）
   if (stub.id === 'SUPPRESS_CENTER_ON_PLAY') {
@@ -6714,8 +6832,37 @@ export function execStub(
     return done(addLog(ctx, `代替条件未達（${reqClassCAE ? '＜' + reqClassCAE + '＞なし' : '条件解析不可'}）`));
   }
   // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（ログのみ）
+  // TRASH_SPELL_FREE_USE_LIMIT: トラッシュからコスト上限以下のスペルをコストなしで使用
   if (stub.id === 'TRASH_SPELL_FREE_USE_LIMIT') {
-    return done(addLog(ctx, 'トラッシュスペル無料使用制限'));
+    const cnTSFUL = ctx.lastProcessedCards?.[0];
+    if (!cnTSFUL) {
+      const srcTSFUL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+      const txtTSFUL = srcTSFUL ? (srcTSFUL.EffectText ?? '') + ' ' + (srcTSFUL.BurstText ?? '') : '';
+      const toHWTSFUL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const costLimMTSFUL = txtTSFUL.match(/コストの合計が([０-９\d]+)以下のスペル/);
+      const costLimTSFUL = costLimMTSFUL ? parseInt(toHWTSFUL(costLimMTSFUL[1])) : 2;
+      const trashSpellsTSFUL = ctx.ownerState.trash.filter(cn => {
+        const c = ctx.cardMap.get(cn);
+        if (!c || c.Type !== 'スペル') return false;
+        const colorCount = (c.Cost ?? '').match(/[赤青緑黒白無]/g)?.length ?? 0;
+        return colorCount <= costLimTSFUL;
+      });
+      if (trashSpellsTSFUL.length === 0) return done(addLog(ctx, `トラッシュにコスト${costLimTSFUL}以下のスペルなし`));
+      const contTSFUL: StubAction = { type: 'STUB', id: 'TRASH_SPELL_FREE_USE_LIMIT' };
+      return needsInteraction(addLog(ctx, 'トラッシュのスペルを選択（コストなし使用）'), {
+        type: 'SELECT_TARGET', candidates: trashSpellsTSFUL, count: 1, optional: false,
+        targetScope: 'self_trash', thenAction: contTSFUL as EffectAction,
+      });
+    }
+    const cardTSFUL = ctx.cardMap.get(cnTSFUL);
+    if (!cardTSFUL) return done(addLog(ctx, 'TRASH_SPELL_FREE_USE_LIMIT: カードなし'));
+    const effectsTSFUL = parseCardEffects(cardTSFUL);
+    const mainEffTSFUL = effectsTSFUL.find(e =>
+      e.effectType === 'ACTIVATED' || (e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')));
+    if (!mainEffTSFUL) return done(addLog(ctx, `${cardTSFUL.CardName}効果なし`));
+    return exec(mainEffTSFUL.action,
+      addLog({ ...ctx, sourceCardNum: cnTSFUL, lastProcessedCards: [] },
+        `${cardTSFUL.CardName}をトラッシュからコストなしで使用`));
   }
   // UPKEEP_OR_NO_UP: アップキープかアップなし（ログのみ）
   if (stub.id === 'UPKEEP_OR_NO_UP') {
@@ -7574,21 +7721,6 @@ export function execStub(
     });
   }
   // TRASHED_CARD_TO_HAND_OR_ENERGY: トラッシュカード→手札かエナ選択
-  if (stub.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
-    const cnTCTHOE = ctx.lastProcessedCards?.[0] ?? ctx.ownerState.trash.at(-1);
-    if (!cnTCTHOE) return done(addLog(ctx, 'トラッシュなし'));
-    const toHandTCTHOE: TransferToHandAction = {
-      type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 },
-    };
-    const toEnergyTCTHOE: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_ENERGY' };
-    return needsInteraction(ctx, {
-      type: 'CHOOSE', count: 1,
-      options: [
-        { id: 'hand', label: '手札に加える', action: toHandTCTHOE as EffectAction, available: true },
-        { id: 'energy', label: 'エナゾーンに置く', action: toEnergyTCTHOE as EffectAction, available: true },
-      ],
-    });
-  }
   // OPP_TRASH_FIELD_SIGNI_AND_ENERGY: 相手のシグニとエナをトラッシュ
   if (stub.id === 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY') {
     const candidatesOTFSE = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);

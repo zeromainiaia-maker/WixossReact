@@ -137,10 +137,10 @@
 | 1 | CONT | ⚡ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.115: collectLrigColorAndLimitModsで色変更収集（UI/コスト条件への統合は部分的） |
 | 1 | AUTO | ⚡ | CENTER_LRIG_DISMOUNT |
 | 1 | ACTIVATED | ⚡ | CENTER_LRIG_RIDES_ON_SIGNI |
-| 1 | AUTO | ⚡ | CHANGE_BASE_LEVEL |
-| 1 | AUTO | ⚡ | CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN |
-| 1 | AUTO | ⚡ | CHANGE_EICHI_SIGNI_BASE_LEVEL |
-| 1 | AUTO | ⚡ | CHANGE_SIGNI_COLOR |
+| 1 | AUTO | ✅ | CHANGE_BASE_LEVEL ※v0.142: CHOOSE(1-3,optional)→attack_phase_level_overrides設定 |
+| 1 | AUTO | ✅ | CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN ※v0.142: SELECT_TARGET(任意シグニ,optional)→レベル1に設定 |
+| 1 | AUTO | ✅ | CHANGE_EICHI_SIGNI_BASE_LEVEL ※v0.142: SELECT_TARGET(英知シグニ)→CHOOSE(1-3)→attack_phase_level_overrides |
+| 1 | AUTO | ✅ | CHANGE_SIGNI_COLOR ※v0.142: レベルフィルタ追加（「レベルN以下」テキスト解析） |
 | 1 | AUTO | ⚡ | CHOOSE_SAME_OPTION_TWICE |
 | 1 | AUTO | ✅ | CLASS_CHANGE (AUTO) |
 | 1 | AUTO | ⚡ | CONDITIONAL_FREE_GROW |
@@ -349,15 +349,15 @@
 | 1 | ACTIVATED | ⚡ | TRASH_CLASS_TO_HAND_OR_ENERGY |
 | 1 | AUTO | ⚡ | TRASH_SIGNI_TO_BEAT ※v0.112: 《ビートアイコン》[条件]解析・beat_zone状態管理・ターン終了クリーンアップ実装済み。対象選択(インタラクティブコスト)は未実装 |
 | 5 | ACTIVATED/AUTO | ⚡ | BEAT_ZONE_OP ※v0.112: ビートゾーン状態・UI(フリーゾーン共有)・ターン終了クリーンアップ実装済み。対象選択未実装 |
-| 1 | ACTIVATED | ⚡ | TRASH_SPELL_FREE_USE_LIMIT |
-| 1 | AUTO | ⚡ | TRASHED_CARD_TO_HAND_OR_ENERGY |
-| 1 | AUTO | ⚡ | TRIGGER_OTHER_SIGNI_EICHI_ABILITY |
-| 1 | ACTIVATED | ⚡ | TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH |
-| 1 | AUTO | ⚡ | UNDER_SIGNI_TO_ENERGY |
-| 1 | AUTO | ⚡ | UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS |
-| 1 | CONT | 📝 | WEAPON_SIGNI_PREVENT_DOWN |
+| 1 | ACTIVATED | ✅ | TRASH_SPELL_FREE_USE_LIMIT ※v0.142: SELECT_TARGET(トラッシュスペル,コスト上限フィルタ)+コストなし使用 |
+| 1 | AUTO | ✅ | TRASHED_CARD_TO_HAND_OR_ENERGY ※v0.142: lastProcessedCards優先+trash.at(-1)フォールバック・重複ハンドラ2つ削除 |
+| 1 | AUTO | ✅ | TRIGGER_OTHER_SIGNI_EICHI_ABILITY ※v0.142: SELECT_TARGET(他自シグニ)+英知AUTO効果を発動 |
+| 1 | ACTIVATED | ✅ | TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH ※v0.142: SELECT_TARGET(3枚)→1枚目エナ/2枚目手札/3枚目デッキ下 |
+| 1 | AUTO | ✅ | UNDER_SIGNI_TO_ENERGY ※v0.142: ソースゾーン限定・複数時SELECT_TARGET・重複ハンドラ削除 |
+| 1 | AUTO | ✅ | UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS ※v0.142: ソースゾーン限定・エナ同クラス確認・正しい条件チェック |
+| 1 | CONT | ⚡ | WEAPON_SIGNI_PREVENT_DOWN ※v0.142: effectEngine.collectDownProtectedSigniにウェポン保護追加（使用カードなし） |
 | 1 | CONT | 📝 | WEAPON_SIGNI_PROTECTION |
-| 1 | CONT | 📝 | WHITE_SIGNI_ABILITY_PROTECT |
+| 1 | CONT | ✅ | WHITE_SIGNI_ABILITY_PROTECT ※v0.142: effectEngine.collectAbilityProtectedSigniに相手ターン中の白シグニ保護追加 |
 
 ---
 
@@ -389,6 +389,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-06-01 v0.142 | 13件処理: CHANGE_BASE_LEVEL/UNTIL_NEXT_TURN(CHOOSE→level_override)・CHANGE_EICHI_SIGNI_BASE_LEVEL(SELECT+CHOOSE)・CHANGE_SIGNI_COLOR(levelフィルタ修正)・TRASH_SPELL_FREE_USE_LIMIT(SELECT+use_free)・TRASHED_CARD_TO_HAND_OR_ENERGY(fallback修正+重複2削除)・TRIGGER_OTHER_SIGNI_EICHI_ABILITY(SELECT+exec)・TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH(3枚選択+分配)・UNDER_SIGNI_TO_ENERGY(SELECT+正しいゾーン)・UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS(同クラス条件修正)・WHITE_SIGNI_ABILITY_PROTECT(effectEngine実装+BattleScreen更新)・WEAPON_SIGNI_PREVENT_DOWN(effectEngine追加) | 13件 |
 | 2026-06-01 v0.141 | 17件処理: PREVENT_LRIG_DAMAGE_THIS_TURN/REACTIVE_POWER_UP/REMOVE_SIGNI_ZONE/VIEW_AND_DISCARD_SPELL/ALL_OPP_SIGNI_POWER_DOWN_HALF(✅確認)。SIGNI_GRANT_QUOTED_CONSTANT_ABILITY(SELECT+keyword_grants)。ACTIVATE_COST_ZERO_BLACK/ADD_CARD_TO_LRIG_DECK(⚡改善)。effectEngine: collectAllZoneBlackCardNums/collectAllColorSigni/hasAllCardsColorBlack追加。BattleScreen myEnergyExtraColorsにALL_ZONE_BLACK+ALL_CARDS_COLOR_CHANGE_BLACK反映 | 17件 |
 | 2026-06-01 v0.140 | 8件✅化: OPP_CHOOSE_OWN_SIGNI_TO_ENERGY(field→energy修正)/OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL(excess1枚固定)/OPP_SIGNI_ATTACK_POWER_RESTRICT(BattleScreenパワー上限チェック)/PLACE_SIGNI_UNDER_SELF_OPT(exactLevel/fieldソース)/PLAY_SPELL_FREE_IGNORE_RESTRICTION(SELECT+分離)/POWER_MOD_BY_ATTACKER_LEVEL(SELECT+奇偶フィルタ)/POWER_MOD_BY_LRIG_TRASH_ARTS(SELECT追加)/effects.ts+effectExecutor.ts(fromLocation:'field'追加) | 8件 |
 | 2026-05-31 v0.126 | POWER_MOD_PER_COUNT (AUTO/ACTIVATED 51件): 手札/エナ/登録者数N枚につきパターン追加・正デルタ時ソースシグニへ適用 | POWER_MOD_PER_COUNT |

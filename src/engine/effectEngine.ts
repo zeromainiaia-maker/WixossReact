@@ -1510,6 +1510,7 @@ export function collectAbilityProtectedSigni(
   state: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn?: boolean,
 ): string[] {
   const protectedNums = new Set<string>();
   for (const stack of state.field.signi) {
@@ -1518,21 +1519,33 @@ export function collectAbilityProtectedSigni(
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') continue;
-      const card = cardMap.get(topNum);
-      const txt = card?.EffectText ?? '';
-      // "あなたの他の赤/白のシグニは対戦相手の効果によって能力を失わない"
-      const colorM = txt.match(/あなたの他の([^の]+?)のシグニは対戦相手の効果によって能力を失わない/);
-      const protectedColor = colorM?.[1];
-      for (const otherStack of state.field.signi) {
-        if (!otherStack || otherStack.length === 0) continue;
-        const otherTop = otherStack[otherStack.length - 1];
-        if (otherTop === topNum) continue;
-        if (!protectedColor) {
-          protectedNums.add(otherTop);
-        } else {
-          const otherCard = cardMap.get(otherTop);
-          if (otherCard?.Color?.includes(protectedColor)) protectedNums.add(otherTop);
+      if (act.type !== 'STUB') continue;
+
+      if (act.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') {
+        const card = cardMap.get(topNum);
+        const txt = card?.EffectText ?? '';
+        const colorM = txt.match(/あなたの他の([^の]+?)のシグニは対戦相手の効果によって能力を失わない/);
+        const protectedColor = colorM?.[1];
+        for (const otherStack of state.field.signi) {
+          if (!otherStack || otherStack.length === 0) continue;
+          const otherTop = otherStack[otherStack.length - 1];
+          if (otherTop === topNum) continue;
+          if (!protectedColor) {
+            protectedNums.add(otherTop);
+          } else {
+            const otherCard = cardMap.get(otherTop);
+            if (otherCard?.Color?.includes(protectedColor)) protectedNums.add(otherTop);
+          }
+        }
+      }
+
+      // WHITE_SIGNI_ABILITY_PROTECT: 対戦相手ターン中に白シグニを保護
+      if (act.id === 'WHITE_SIGNI_ABILITY_PROTECT') {
+        if (isOwnerTurn === true) continue; // 自ターン中は不活性
+        for (const otherStack of state.field.signi) {
+          if (!otherStack || otherStack.length === 0) continue;
+          const otherTop = otherStack[otherStack.length - 1];
+          if (cardMap.get(otherTop)?.Color?.includes('白')) protectedNums.add(otherTop);
         }
       }
     }
@@ -2123,6 +2136,15 @@ export function collectDownProtectedSigni(
           if (!stack || stack.length === 0) continue;
           const top = stack[stack.length - 1];
           if (top !== sourceNum) protected_.add(top);
+        }
+      }
+
+      // WEAPON_SIGNI_PREVENT_DOWN: ウェポンシグニはダウンしない（全ウェポンを保護）
+      if (act.id === 'WEAPON_SIGNI_PREVENT_DOWN') {
+        for (const stack of state.field.signi) {
+          if (!stack?.length) continue;
+          const top = stack[stack.length - 1];
+          if ((cardMap.get(top)?.CardClass ?? '').includes('ウェポン')) protected_.add(top);
         }
       }
 
