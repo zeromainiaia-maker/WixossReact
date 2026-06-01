@@ -4099,16 +4099,6 @@ export function execStub(
     const newSLTH: PlayerState = { ...sLTH, life_cloth: sLTH.life_cloth.slice(1), hand: [...sLTH.hand, topLife] };
     return done(addLog({ ...ctx, ownerState: newSLTH }, 'ライフクロス1枚を手札に加えた'));
   }
-  // HAND_TO_ENERGY_OPTIONAL: 手札1枚を任意でエナゾーンへ
-  if (stub.id === 'HAND_TO_ENERGY_OPTIONAL') {
-    const cHTE = ctx.ownerState.hand;
-    if (cHTE.length === 0) return done(addLog(ctx, '手札なし'));
-    const thenHTE: AddToEnergyAction = { type: 'ADD_TO_ENERGY', owner: 'self' };
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: cHTE, count: 1, optional: true,
-      targetScope: 'self_hand', thenAction: thenHTE,
-    });
-  }
   // HAND_NONCOLORLESS_TO_ENERGY: 手札の無色以外カードをエナゾーンへ
   if (stub.id === 'HAND_NONCOLORLESS_TO_ENERGY') {
     const sHNCE = ctx.ownerState;
