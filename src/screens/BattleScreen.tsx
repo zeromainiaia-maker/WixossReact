@@ -2232,7 +2232,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (phase === 'UP') {
         // アップフェイズ開始時にすでにアップ済み（ENDフェイズで処理）。ドローして次へ。
         const drawBlocked = my.blocked_actions?.includes('DRAW') ?? false;
-        const effectiveDrawCount = my.draw_limit !== undefined ? Math.min(drawCount, my.draw_limit) : drawCount;
+        // draw_limit: ターン内フラグ or 相手CONT LIMIT_OPP_DRAW_COUNT 効果の小さい方
+        const contDrawLimit = collectDrawLimits(op, effectsMap, battleCardMap, true);
+        const effectiveDrawLimit = contDrawLimit !== undefined
+          ? (my.draw_limit !== undefined ? Math.min(my.draw_limit, contDrawLimit) : contDrawLimit)
+          : my.draw_limit;
+        const effectiveDrawCount = effectiveDrawLimit !== undefined ? Math.min(drawCount, effectiveDrawLimit) : drawCount;
         newMyState = drawBlocked
           ? { ...my, actions_done: [], draw_limit: undefined }
           : { ...drawCards(my, effectiveDrawCount), actions_done: ['DRAW'], draw_limit: undefined };
