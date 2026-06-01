@@ -1385,14 +1385,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]);
 
   // ATTACH_ACCE完了後にacce_just_doneフラグを検出してON_ACCEトリガーを発火
+  // my は後で定義されるため bs から直接参照
+  const acceJustDoneRef = isHost ? bs?.host_state?.acce_just_done : bs?.guest_state?.acce_just_done;
   useEffect(() => {
-    if (!bs || !user || !isMyTurn || loading) return;
+    if (!bs || !user || !acceJustDoneRef || loading) return;
+    if (bs.active_user_id !== user.id) return;
     if (bs.effect_stack || bs.pending_effect) return;
-    const hostCardNum = my.acce_just_done;
-    if (!hostCardNum) return;
-    // フラグをクリアしてON_ACCEトリガーを処理
-    const stateKey = isHost ? 'host_state' : 'guest_state';
-    const cleared: PlayerState = { ...my, acce_just_done: null };
+    const hostCardNum = acceJustDoneRef;
+    const localIsHost = user.id === bs.host_id;
+    const localMy: PlayerState = localIsHost ? bs.host_state : bs.guest_state;
+    const stateKey = localIsHost ? 'host_state' : 'guest_state';
+    const cleared: PlayerState = { ...localMy, acce_just_done: null };
     (async () => {
       setLoading(true);
       try {
@@ -1403,7 +1406,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [my?.acce_just_done, bs?.effect_stack, bs?.pending_effect, loading]);
+  }, [acceJustDoneRef, bs?.effect_stack, bs?.pending_effect, loading]);
 
   // ON_TURN_END 解決後の自動フェーズ進行
   useEffect(() => {
