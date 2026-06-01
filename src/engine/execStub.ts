@@ -5569,27 +5569,57 @@ export function execStub(
   if (stub.id === 'GUARD_ALTERNATIVE_COST' || stub.id === 'EXTRA_GUARD_COST_FROM_HAND' || stub.id === 'OPTIONAL_TRADE_GUARD_SIGNI') {
     return done(addLog(ctx, `[ガードコスト: ${stub.id}]`));
   }
-  // 選んだキーワード能力付与（シグニ対象・CHOOSEインタラクション）
+  // 選んだキーワード/保護能力付与（シグニ対象・SELECT_TARGET→CHOOSEインタラクション）
   if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF'
       || stub.id === 'SIGNI_GRANT_CHOSEN_ABILITY') {
     const srcGCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGCA = srcGCA ? (srcGCA.EffectText ?? '') + ' ' + (srcGCA.BurstText ?? '') : '';
-    // 既知キーワードを選択肢として抽出
-    const knownKwsGCA = ['アサシン', 'ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'シャドウ', 'バニッシュ無効'];
-    const choiceKwsGCA = knownKwsGCA.filter(kw => txtGCA.includes(`【${kw}】`) || txtGCA.includes(kw));
-    if (choiceKwsGCA.length > 0) {
-      // 対象シグニを決定（lastProcessedCards or sourceCardNum）
-      const targetSigniGCA = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum ?? null;
-      if (!targetSigniGCA) return done(addLog(ctx, '能力付与対象なし'));
-      const optionsGCA = choiceKwsGCA.map(kw => ({
-        id: kw,
-        label: `【${kw}】を付与`,
-        action: ({ type: 'STUB', id: 'INTERNAL_GRANT_KEYWORD_TO_TARGET', value: `${targetSigniGCA}:${kw}` } as StubAction) as EffectAction,
-        available: true,
-      }));
-      return needsInteraction(addLog(ctx, '能力を選んでください'), { type: 'CHOOSE', options: optionsGCA, count: 1 });
+    const toHWGCA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 自フィールドシグニが対象（lastProcessedCardsに対象シグニを設定）
+    const targetFromLP = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn)
+    );
+    if (!targetFromLP) {
+      // SELECT_TARGET: 自フィールドシグニを選択してから能力付与へ
+      const fieldCandsGCA = [0,1,2]
+        .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+        .filter((cn): cn is string => !!cn);
+      if (fieldCandsGCA.length === 0) return done(addLog(ctx, '能力付与対象なし（自シグニなし）'));
+      const noopGCA: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+      const contGCA: StubAction = { type: 'STUB', id: stub.id };
+      return needsInteraction(addLog(ctx, '能力を付与するシグニを選択'), {
+        type: 'SELECT_TARGET', candidates: fieldCandsGCA, count: 1, optional: false,
+        targetScope: 'self_field', thenAction: noopGCA as EffectAction, continuation: contGCA as EffectAction,
+      });
     }
-    return done(addLog(ctx, `[能力付与: ${stub.id}]（キーワード解析不可）`));
+    // 選択数（"N つ選ぶ" or デフォルト1）
+    const chooseCountGCA = (() => {
+      const m = txtGCA.match(/([２-９2-9\d])つを選ぶ/);
+      return m ? parseInt(toHWGCA(m[1])) : 1;
+    })();
+    // テキストから選択肢を抽出（①②③④⑤）
+    const abilitiesGCA: Array<{ label: string; kw: string }> = [];
+    const abilityPatterns: Array<[RegExp, string]> = [
+      [/【アサシン】/, 'アサシン'],
+      [/【ランサー】/, 'ランサー'],
+      [/【ダブルクラッシュ】/, 'ダブルクラッシュ'],
+      [/【シャドウ】/, 'シャドウ'],
+      [/【マルチエナ】/, 'マルチエナ'],
+      [/バニッシュされない/, 'バニッシュ不可'],
+      [/ダウンしない/, 'ダウン不可'],
+      [/手札に戻らない/, 'バウンス不可'],
+    ];
+    for (const [pat, kw] of abilityPatterns) {
+      if (pat.test(txtGCA)) abilitiesGCA.push({ label: `【${kw}】を付与`, kw });
+    }
+    if (abilitiesGCA.length === 0) return done(addLog(ctx, `[能力付与: ${stub.id}]（能力解析不可）`));
+    const optionsGCA = abilitiesGCA.map(({ label, kw }) => ({
+      id: kw,
+      label,
+      action: ({ type: 'STUB', id: 'INTERNAL_GRANT_KEYWORD_TO_TARGET', value: `${targetFromLP}:${kw}` } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, '付与する能力を選択'), { type: 'CHOOSE', options: optionsGCA, count: chooseCountGCA });
   }
   // INTERNAL_GRANT_KEYWORD_TO_TARGET: 選択されたキーワードを対象シグニに付与
   if (stub.id === 'INTERNAL_GRANT_KEYWORD_TO_TARGET') {
