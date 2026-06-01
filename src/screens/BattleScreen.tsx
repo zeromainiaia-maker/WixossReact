@@ -2484,6 +2484,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           disabled_signi_zones: undefined,         // ゾーン無効化リセット
           attacked_signi_ids: undefined,            // アタック済みシグニIDリセット
           signi_attack_once_limit: undefined,       // シグニ1回アタック制限リセット
+          signi_attack_cost: undefined,             // シグニアタックコストリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
