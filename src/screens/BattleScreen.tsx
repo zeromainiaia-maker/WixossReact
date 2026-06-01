@@ -1096,11 +1096,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // サブコンポーネントや既存ヘルパーに渡す配列（最大〜100枚）
   const battleCards = useMemo(() => [...battleCardMap.values()], [battleCardMap]);
 
-  // CONTINUOUS 効果マップ（バトル中の全カードを対象・InstanceMapでインスタンスIDを透過的に扱う）
-  const effectsMap = useMemo(
+  // CONTINUOUS 効果マップ（ベース: カードデータのみ、静的）
+  const baseEffectsMap = useMemo(
     () => new InstanceMap(buildEffectsMap(battleCards)),
     [battleCards],
   );
+
+  // granted_effects を加味した augmented 効果マップ
+  // instanceId キーで付与能力を優先取得、なければ CardNum フォールバック（InstanceMap）
+  const effectsMap = useMemo(() => {
+    if (!bs) return baseEffectsMap;
+    const myGranted = (isHost ? bs.host_state : bs.guest_state).granted_effects ?? {};
+    const opGranted = (isHost ? bs.guest_state : bs.host_state).granted_effects ?? {};
+    if (Object.keys(myGranted).length === 0 && Object.keys(opGranted).length === 0) return baseEffectsMap;
+    const augMap = new Map<string, import('../types/effects').CardEffect[]>(baseEffectsMap);
+    for (const [instanceId, granted] of [...Object.entries(myGranted), ...Object.entries(opGranted)]) {
+      const base = baseEffectsMap.get(getCardNum(instanceId)) ?? [];
+      augMap.set(instanceId, [...base, ...granted]);
+    }
+    return new InstanceMap(augMap);
+  }, [bs, baseEffectsMap, isHost]);
 
   // フィールドシグニの有効パワー（CONTINUOUS 効果適用済み）
   const effectivePowers = useMemo(() => {
