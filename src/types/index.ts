@@ -189,6 +189,8 @@ export interface PlayerState {
   opponent_paid_optional_cost?: boolean;
   // UNKNOWN_NESTED / BANISH_FROM_GAME: 任意効果（自トラッシュ・除外）を実行したかどうか
   self_optional_effect_taken?: boolean;
+  // ATTACH_ACCE 直後にセット: アクセしたホストシグニのCardNum（BattleScreenでON_ACCEトリガー検出用）
+  acce_just_done?: string | null;
 }
 
 export interface GameLog {
