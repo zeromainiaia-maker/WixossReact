@@ -504,34 +504,23 @@ export function calcFieldPowers(
     // キーピース
     if (ownerState.field.key_piece) candidates.push(ownerState.field.key_piece);
 
-    // アクセカードのCONTINUOUS効果をホストシグニに適用
-    // 例: 「これにアクセされているシグニは【ランサー】を得る」
+    // アクセカードのCONTINUOUS効果（パワー修正のみ）をホストシグニに適用
+    // 例: 「これにアクセされているシグニはパワー+3000を得る」
+    // キーワード付与（ランサー等）はBattleScreen側で collectAcceCardKeywords で処理
     for (let zi = 0; zi < 3; zi++) {
       const acceNum = (ownerState.field.signi_acce ?? [])[zi] ?? null;
       if (!acceNum) continue;
       const hostStack = ownerState.field.signi[zi];
       if (!hostStack || hostStack.length === 0) continue;
       const hostNum = hostStack[hostStack.length - 1];
+      if (!powers.has(hostNum)) continue;
       for (const eff of (effectsMap.get(acceNum) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS') continue;
-        // アクセカードとして装着されているときのみ有効（IS_SELF_ACCE_CARDは常にtrue）
         if (eff.activeCondition && eff.activeCondition.type !== 'IS_SELF_ACCE_CARD') continue;
         const act = eff.action;
-        if (act.type === 'GRANT_KEYWORD') {
-          const kwAct = act as import('../types/effects').GrantKeywordAction;
-          // target.owner === 'any' はホストシグニへの付与を意味する
-          if (kwAct.target.owner === 'any' || kwAct.target.owner === 'opponent') {
-            const hostCard = cardMap.get(hostNum);
-            if (!matchesFilter(hostCard, kwAct.target.filter)) continue;
-            const kw = kwAct.keyword;
-            if (kw === 'ランサー') ownerSigniLancer.add(hostNum);
-            else if (kw === 'アサシン') ownerSigniAssassin.add(hostNum);
-            else if (kw === 'ダブルクラッシュ') ownerSigniDC.add(hostNum);
-            else if (kw === 'シャドウ') ownerSigniShadow.add(hostNum);
-          }
-        } else if (act.type === 'POWER_MODIFY') {
+        if (act.type === 'POWER_MODIFY') {
           const pmAct = act as import('../types/effects').PowerModifyAction;
-          if (powers.has(hostNum) && typeof pmAct.delta === 'number') {
+          if (typeof pmAct.delta === 'number') {
             powers.set(hostNum, (powers.get(hostNum) ?? 0) + pmAct.delta);
           }
         }
