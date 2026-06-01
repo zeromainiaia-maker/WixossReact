@@ -5252,12 +5252,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ起動効果を実行（コスト支払い後）
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false) => {
     if (loading) return;
     setLoading(true);
     setPendingSigniActivated(null);
     setSelectedSigniActivatedCost(new Set());
     setSelectedSigniActivatedDiscard(new Set());
+    setKeySubstituteEnabled(false);
     try {
       // エナコストを支払う
       const paidNums = [...costIndices].map(i => my.energy[i]);
@@ -5271,12 +5272,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const zoneIdx = my.field.signi.findIndex(s => s?.at(-1) === cardNum);
         if (zoneIdx >= 0) newSigniDown[zoneIdx] = true;
       }
+      // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）: キーをルリグトラッシュへ
+      const keySub = useKeySub && myEnergyTrashSubInfo.keySubInstId;
+      const newField = keySub
+        ? { ...my.field, signi_down: newSigniDown, key_piece: null }
+        : { ...my.field, signi_down: newSigniDown };
+      const newLrigTrash = keySub ? [...my.lrig_trash, myEnergyTrashSubInfo.keySubInstId!] : my.lrig_trash;
       const paid: PlayerState = {
         ...my,
         hand: newHand,
         energy: newEnergy,
         trash: [...my.trash, ...paidNums, ...discardedCards],
-        field: { ...my.field, signi_down: newSigniDown },
+        lrig_trash: newLrigTrash,
+        field: newField,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
       };
       // 効果をスタックに積む
