@@ -2466,6 +2466,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をシグニの下から${destLabel}に移動`));
     }
     default:
-      return executeAction(action, ctx);
+      // STUB 等の場合、選択中の cardNum を lastProcessedCards で引き渡す
+      return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
   }
 }
