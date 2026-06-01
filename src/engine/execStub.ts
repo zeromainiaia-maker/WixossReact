@@ -25,7 +25,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, getCardNum, fieldCandidates, selectOrInteract, shuffle,
+  removeFromField, getCardNum, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 
