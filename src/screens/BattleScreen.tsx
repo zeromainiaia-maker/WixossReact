@@ -5163,6 +5163,86 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // エナゾーンのACTIVATED能力（アクセカード）を発動
+  const executeEnergyActivated = async (
+    cardNum: string,
+    effect: import('../types/effects').CardEffect,
+    costIndices: Set<number>,
+  ) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingEnergyActivated(null);
+    setSelectedEnergyActivatedCost(new Set());
+    try {
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      // アクセカードがエナから取り除かれるのはATTACH_ACCE実行時（effectExecutor側）
+      // コストのみ先払い（緑×0の場合は何も消費しない）
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const paid: PlayerState = {
+        ...my,
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+        actions_done: [...(my.actions_done ?? []), effect.effectId],
+      };
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      const entry: StackEntry = {
+        id: generateUUID(),
+        playerId: user.id,
+        cardNum,
+        effectId: effect.effectId,
+        label: `${cardName}【起】アクセ`,
+        effect,
+      };
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existingStack = bs?.effect_stack ?? null;
+      const newStack = existingStack
+        ? pushToStack(existingStack, [entry])
+        : initStack(turnPlayerId, [entry]);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ON_ACCE トリガー: ATTACH_ACCE 完了後にホストシグニのON_ACCE AUTO効果を発火
+  const checkAndFireOnAcceTriggersForOwner = async (state: PlayerState, acceHostCardNum: string) => {
+    const triggerEntries: StackEntry[] = [];
+    for (const stack of state.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO') continue;
+        if (!eff.timing?.includes('ON_ACCE')) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, state, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        const card = battleCardMap.get(topNum);
+        triggerEntries.push({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${card?.CardName ?? topNum}【自】${eff.timing?.[0] ?? 'ON_ACCE'}`,
+          effect: eff,
+        });
+      }
+    }
+    // ホストシグニ自体のON_ACCE効果は上記でキャッチされる
+    // また「あなたのシグニ１体がアクセされたとき」系のWX15-059等
+    void acceHostCardNum;
+    if (triggerEntries.length === 0) return;
+    const stateKey = isHost ? 'host_state' : 'guest_state';
+    const curStack = bs?.effect_stack ?? null;
+    const turnPlayerId = bs.active_user_id ?? user.id;
+    const newStack = curStack
+      ? pushToStack(curStack, triggerEntries)
+      : initStack(turnPlayerId, triggerEntries);
+    await supabase.from('battle_states')
+      .update({ [stateKey]: state, effect_stack: newStack })
+      .eq('room_id', roomId);
+  };
+
   // シグニ出現時コスト付き【出】効果：発動
   const executeSigniOnPlayCost = async (
     cardNum: string,
