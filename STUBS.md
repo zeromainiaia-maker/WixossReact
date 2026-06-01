@@ -54,8 +54,8 @@
 | 2 | ACTIVATED | ⚡ | COPY_SIGNI |
 | 2 | AUTO | ✅ | COPY_TARGET_POWER ※v0.137: lastProcessedCards未設定時にSELECT_TARGET→COPY_TARGET_POWER継続。パワー差分をtemp_power_modsに設定 |
 | 2 | CONT/AUTO | ⚡ | DEPLOY_RESTRICT |
-| 2 | AUTO | ⚡ | DISCARD_IF_ATTACKED_THIS_TURN |
-| 2 | AUTO | ⚡ | DOUBLE_OWN_POWER_MINUS |
+| 2 | AUTO | ✅ | DISCARD_IF_ATTACKED_THIS_TURN ※実装済み: attacked_signi_idsチェック+手札SELECT捨て |
+| 2 | AUTO | ✅ | DOUBLE_OWN_POWER_MINUS ※v0.137: SELECT_TARGET(相手シグニ)+double_power_minus_targets設定。effectEngine.applyTempModsで負デルタを2倍適用 |
 | 2 | ACTIVATED | ✅ | ENCORE |
 | 2 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
 | 2 | ACTIVATED | ⚡ | EXTRA_COST_REMOVE_VIRUS |
