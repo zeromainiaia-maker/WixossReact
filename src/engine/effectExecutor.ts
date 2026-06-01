@@ -48,6 +48,7 @@ import type {
   AttachAcceAction,
   BloodCrystalArmorAction,
   GrantLrigAbilityAction,
+  GrantEffectAction,
   StubAction,
 } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
