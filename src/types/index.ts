@@ -177,6 +177,10 @@ export interface PlayerState {
   double_power_minus_targets?: string[];
   // アタックフェイズ中の英知レベルオーバーライド（CardNum → 扱うレベル）
   attack_phase_level_overrides?: Record<string, number>;
+  // COPY_SIGNI: このターン、フィールドシグニが別のカードとして扱われる（field_cardNum → copy_source_cardNum）
+  card_identity_overrides?: Record<string, string>;
+  // DEPLOY_RESTRICT: このターンと次のターン、このパワー以上のシグニを場に出せない（自ターン基準）
+  signi_deploy_power_limit?: number;
 }
 
 export interface GameLog {
