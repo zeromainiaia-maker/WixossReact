@@ -1790,40 +1790,49 @@ function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
 }
 
 function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
-  // シグニ選択 → エナゾーンのこのカードをそのシグニのアクセにする
-  // "このカード" = 現在実行中のカード（sourceCardNum 未保持のため簡易実装）
-  // UI上の完全実装はBattleScreen側で処理するため、ここでは選択のみ促す
+  const srcState = a.sourceOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
   const tgtState = a.targetSigniOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
-  // アクセ未付きのシグニゾーンを候補とする
   const acce = tgtState.field.signi_acce ?? [null, null, null];
-  const candidates = (tgtState.field.signi ?? []).flatMap((stack, i) => {
-    if (!stack || stack.length === 0) return [];
-    if (acce[i] !== null) return []; // すでにアクセあり
-    const top = stack[stack.length - 1];
-    if (a.signiFilter && !matchesFilter(ctx.cardMap.get(top), a.signiFilter)) return [];
-    return [top];
-  });
-  if (candidates.length === 0) return done(addLog(ctx, 'アクセ対象なし'));
 
-  // エナゾーンからアクセカード選択 → 選択後に signi_acce[zoneIdx] に設定
-  // thenAction として ATTACH_ACCE 自身を渡すのは循環するので、
-  // ここでは SELECT_TARGET でシグニを選ばせ、applyDirectAction で適用する
-  // SELECT_TARGET で「どのシグニに付けるか」を選ばせる（applyDirectActionのATTACH_ACCEで完結）
-  const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
-  return {
-    done: false,
-    ownerState: ctx.ownerState,
-    otherState: ctx.otherState,
-    logs: ctx.logs,
-    pending: {
+  // デコレ（fromHand）: まず手札からアクセカード選択 → 次にホストシグニ選択
+  if (a.fromHand) {
+    const handCands = srcState.hand.filter(cn => {
+      const card = ctx.cardMap.get(cn);
+      return card && card.Type === 'シグニ' && (!a.signiFilter || matchesFilter(card, a.signiFilter));
+    });
+    if (handCands.length === 0) return done(addLog(ctx, 'アクセ可能な手札シグニなし'));
+    // ステップ1: 手札からアクセカードを選択 → ステップ2: ホストシグニ選択へ
+    const selectHostAction: AttachAcceAction = { ...a, fromHand: false };
+    return needsInteraction(addLog(ctx, '手札からアクセするシグニを選択'), {
       type: 'SELECT_TARGET',
-      candidates,
+      candidates: handCands,
       count: 1,
       optional: false,
-      targetScope: scope,
-      thenAction: a, // BattleScreen 側で ATTACH_ACCE を解釈して signi_acce を更新
-    } as PendingInteractionDef,
-  };
+      targetScope: 'self_hand',
+      thenAction: selectHostAction as import('../types/effects').EffectAction,
+    });
+  }
+
+  // エナゾーン/手札からのアクセ: ホストシグニ選択
+  // targetFilter でホスト側フィルター、signiFilter でアクセカード側フィルター
+  const hostCands = (tgtState.field.signi ?? []).flatMap((stack, i) => {
+    if (!stack || stack.length === 0) return [];
+    if (acce[i] !== null) return []; // すでにアクセあり（1枚制限）
+    const top = stack[stack.length - 1];
+    if (a.targetFilter && !matchesFilter(ctx.cardMap.get(top), a.targetFilter)) return [];
+    return [top];
+  });
+  if (hostCands.length === 0) return done(addLog(ctx, 'アクセ対象なし'));
+
+  const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
+  return needsInteraction(addLog(ctx, 'どのシグニにアクセしますか？'), {
+    type: 'SELECT_TARGET',
+    candidates: hostCands,
+    count: 1,
+    optional: false,
+    targetScope: scope,
+    thenAction: a as import('../types/effects').EffectAction,
+  });
 }
 
 function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecResult {
