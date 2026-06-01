@@ -7073,9 +7073,15 @@ export function execStub(
       type: 'CHOOSE', options: optsDNR, count: 1,
     });
   }
-  // DECLARE_NUMBER_POWER: 数字宣言（ログのみ）
+  // DECLARE_NUMBER_POWER: パワー値宣言（3000〜15000）→ declared_guard_restrict_level に保存
   if (stub.id === 'DECLARE_NUMBER_POWER') {
-    return done(addLog(ctx, '数字宣言（POWER参照）'));
+    const setDNP = (n: number): StubAction => ({ type: 'STUB', id: 'SET_DECLARED_NUMBER', value: n });
+    const optsDNP = [3000, 5000, 7000, 10000, 12000, 15000].map(n => ({
+      id: `pwr_${n}`, label: `${n.toLocaleString()}を宣言`, action: setDNP(n) as EffectAction, available: true,
+    }));
+    return needsInteraction(addLog(ctx, 'パワーを宣言してください'), {
+      type: 'CHOOSE', options: optsDNP, count: 1,
+    });
   }
   // CONDITIONAL_ALTERNATE_EFFECT: 条件達成時にダウン済みシグニをトラッシュへ（代替効果）
   if (stub.id === 'CONDITIONAL_ALTERNATE_EFFECT') {
