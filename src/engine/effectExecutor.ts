@@ -878,8 +878,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           // conditional.then の BOUNCE/BANISH/DOWN の target.owner='self' → 'opponent' 修正
           let thenOTEC = conditional.then;
           if (['BOUNCE', 'BANISH', 'DOWN', 'POWER_MODIFY'].includes(thenOTEC.type)) {
-            const wt = thenOTEC as { target?: { owner?: string } };
-            if (wt.target?.owner === 'self') thenOTEC = { ...thenOTEC, target: { ...wt.target, owner: 'opponent' } };
+            const wt = thenOTEC as unknown as { target?: { owner?: string; [k: string]: unknown }; [k: string]: unknown };
+            if (wt.target?.owner === 'self') thenOTEC = { ...wt, target: { ...wt.target, owner: 'opponent' } } as unknown as EffectAction;
           }
           const cntMOTEC = txtOTEC.match(/([０-９\d]+)枚?(?:まで)?を?対象/);
           const pickCountOTEC = cntMOTEC ? parseInt(toHWOTEC(cntMOTEC[1])) : 1;
