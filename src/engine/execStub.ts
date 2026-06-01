@@ -7437,7 +7437,8 @@ export function execStub(
     const candsBOPG = ctx.otherState.field.signi.flatMap((s, zi) => {
       const top = s?.at(-1);
       if (!top) return [];
-      const pwr = (ctx.effectivePowers ?? {})[top] ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0');
+      const ep = ctx.effectivePowers;
+      const pwr = (ep instanceof Map ? ep.get(top) : (ep as Record<string, number> | undefined)?.[top]) ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0');
       return pwr >= minPwr ? [{ cn: top, zi }] : [];
     });
     if (candsBOPG.length === 0) return done(addLog(ctx, `パワー${minPwr}以上の相手シグニなし`));
