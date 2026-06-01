@@ -6105,26 +6105,43 @@ export function execStub(
     return done(addLog(ctx, `[コストアップ/制限: ${stub.id}]`));
   }
   // シグニ移動/リダイレクト系（engine: 移動先変更未実装）
-  // MOVE_TO_ATTACKER_FRONT: アタッカー正面ゾーンに自分を移動（stub.value = 目標ゾーンインデックス）
+  // MOVE_TO_ATTACKER_FRONT: 相手シグニアタック時、正面が空なら自分をその正面に移動（してもよい）
   if (stub.id === 'MOVE_TO_ATTACKER_FRONT') {
-    const targetZoneMTAF = typeof stub.value === 'number' ? stub.value : -1;
     const srcMTAF = ctx.sourceCardNum;
-    if (targetZoneMTAF < 0 || !srcMTAF) return done(addLog(ctx, 'アタッカー前移動：情報不足'));
+    if (!srcMTAF) return done(addLog(ctx, 'アタッカー前移動：ソースなし'));
+    // アタッカーゾーンを特定（stub.value 優先、なければ attacked_signi_ids から動的取得）
+    let targetZoneMTAF: number;
+    if (typeof stub.value === 'number' && stub.value >= 0) {
+      targetZoneMTAF = stub.value;
+    } else {
+      const attackerIds = ctx.otherState.attacked_signi_ids ?? [];
+      const lastAttacker = attackerIds[attackerIds.length - 1];
+      if (lastAttacker) {
+        targetZoneMTAF = ctx.otherState.field.signi.findIndex(s => s?.at(-1) === lastAttacker);
+      } else {
+        targetZoneMTAF = (ctx.otherState.field.signi_down ?? []).findIndex(d => d);
+      }
+    }
+    if (targetZoneMTAF < 0) return done(addLog(ctx, 'アタッカー前移動：ゾーン特定不可'));
+    // 自分の同ゾーンが空でなければ移動不可
+    const frontStack = ctx.ownerState.field.signi[targetZoneMTAF];
+    if (frontStack && frontStack.length > 0 && frontStack.at(-1) !== srcMTAF) {
+      return done(addLog(ctx, `アタッカー正面ゾーン${targetZoneMTAF + 1}は占有済み（移動不可）`));
+    }
     const curZoneMTAF = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcMTAF);
     if (curZoneMTAF < 0) return done(addLog(ctx, 'アタッカー前移動：フィールドにいない'));
     if (curZoneMTAF === targetZoneMTAF) return done(addLog(ctx, 'アタッカー前移動：すでに正面ゾーン'));
-    const targetStackMTAF = ctx.ownerState.field.signi[targetZoneMTAF];
-    if (targetStackMTAF && targetStackMTAF.length > 0) return done(addLog(ctx, 'アタッカー前移動：目標ゾーン占有済み'));
-    const newSigniMTAF = [...ctx.ownerState.field.signi] as (string[] | null)[];
-    const movedStackMTAF = [...(newSigniMTAF[curZoneMTAF] ?? [])];
-    newSigniMTAF[curZoneMTAF] = null;
-    newSigniMTAF[targetZoneMTAF] = movedStackMTAF;
-    const newDownMTAF = [...(ctx.ownerState.field.signi_down ?? [false, false, false])];
-    const wasDownMTAF = newDownMTAF[curZoneMTAF];
-    newDownMTAF[curZoneMTAF] = false;
-    newDownMTAF[targetZoneMTAF] = wasDownMTAF;
-    const newOwnerMTAF = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniMTAF, signi_down: newDownMTAF } };
-    return done(addLog({ ...ctx, ownerState: newOwnerMTAF }, `${ctx.cardMap.get(srcMTAF)?.CardName ?? srcMTAF}をゾーン${targetZoneMTAF + 1}（アタッカー正面）に移動`));
+    // 移動するかどうか選択
+    const moveStubMTAF: StubAction = { type: 'STUB', id: 'INTERNAL_MOVE_TO_ZONE', value: targetZoneMTAF };
+    const skipStubMTAF: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return needsInteraction(addLog(ctx, `ゾーン${targetZoneMTAF + 1}（アタッカー正面）に移動してもよい`), {
+      type: 'CHOOSE',
+      options: [
+        { id: 'move', label: `ゾーン${targetZoneMTAF + 1}に移動`, action: moveStubMTAF as EffectAction, available: true },
+        { id: 'skip', label: 'スキップ', action: skipStubMTAF as EffectAction, available: true },
+      ],
+      count: 1,
+    });
   }
   if (stub.id === 'FORCE_TARGET_SELF' || stub.id === 'BANISH_BY_SELF_GOES_TO_TRASH'
       || stub.id === 'CRASH_TO_TRASH_INSTEAD'
