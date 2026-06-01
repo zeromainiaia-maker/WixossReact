@@ -2365,20 +2365,35 @@ export function execStub(
         return pw >= powerLimit;
       });
     if (oppCands.length === 0) return done(addLog(ctx, '対象シグニなし（相手エナ置きスキップ）'));
-    // 相手がシグニを選ぶ（opponentResponds: true）
-    const banishToEnaAction: BanishAction = {
-      type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
-    };
+    // 相手がシグニを選ぶ（opponentResponds: true）→ INTERNAL_OPP_FIELD_TO_ENERGY でエナゾーンに移動
+    const moveToEnaAction: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_FIELD_TO_ENERGY' };
     const pendingOCS: PendingInteractionDef = {
       type: 'SELECT_TARGET',
       candidates: oppCands,
       count: 1,
       optional: false,
       targetScope: 'opp_field',
-      thenAction: banishToEnaAction as EffectAction,
+      thenAction: moveToEnaAction as EffectAction,
       opponentResponds: true,
     };
     return needsInteraction(addLog(ctx, `対戦相手はパワー${powerLimit}以上のシグニ1体をエナゾーンに置く`), pendingOCS);
+  }
+  // INTERNAL_OPP_FIELD_TO_ENERGY: lastProcessedCards[0]を相手フィールドからエナゾーンへ移動
+  if (stub.id === 'INTERNAL_OPP_FIELD_TO_ENERGY') {
+    const targetIOFTE = ctx.lastProcessedCards?.[0];
+    if (!targetIOFTE) return done(addLog(ctx, '対象なし（INTERNAL_OPP_FIELD_TO_ENERGY）'));
+    const newSigniIOFTE = ctx.otherState.field.signi.map(stack => {
+      if (!stack?.includes(targetIOFTE)) return stack;
+      const filtered = stack.filter(c => c !== targetIOFTE);
+      return filtered.length > 0 ? filtered : null;
+    }) as (string[] | null)[];
+    const newOtherIOFTE: PlayerState = {
+      ...ctx.otherState,
+      field: { ...ctx.otherState.field, signi: newSigniIOFTE },
+      energy: [...ctx.otherState.energy, targetIOFTE],
+    };
+    return done(addLog({ ...ctx, otherState: newOtherIOFTE },
+      `${ctx.cardMap.get(targetIOFTE)?.CardName ?? targetIOFTE}→相手エナゾーンへ`));
   }
   // 自シグニを他の空きシグニゾーンに移動（してもよい）
   if (stub.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
@@ -2611,13 +2626,34 @@ export function execStub(
     const maxMHCU = txtHCU.match(/(?:手札から)?カード(?:を)?([０-９\d]+)枚まで/);
     const maxHCU = maxMHCU ? parseInt(toHWHCU(maxMHCU[1])) : 1;
     const optHCU = stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT' || txtHCU.includes('もよい');
-    const lvMHCU = txtHCU.match(/レベル([０-９\d]+)以上のシグニ/);
-    const minLvHCU = lvMHCU ? parseInt(toHWHCU(lvMHCU[1])) : 0;
+    // レベル以上フィルタ（"レベルN以上"）または完全一致フィルタ（"レベルN"）
+    const lvMinMHCU = txtHCU.match(/レベル([０-９\d]+)以上/);
+    const lvExactMHCU = !lvMinMHCU && txtHCU.match(/レベル([０-９\d]+)(?![以上以下\d])/);
+    const minLvHCU = lvMinMHCU ? parseInt(toHWHCU(lvMinMHCU[1])) : 0;
+    const exactLvHCU = lvExactMHCU ? parseInt(toHWHCU(lvExactMHCU[1])) : -1;
+    const levelOkHCU = (lv: number) => {
+      if (exactLvHCU >= 0) return lv === exactLvHCU;
+      if (minLvHCU > 0) return lv >= minLvHCU;
+      return true;
+    };
+    // PLACE_SIGNI_UNDER_SELF_OPT で "手札から" の明示がない場合はフィールドから
+    const useFieldHCU = stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT' && !txtHCU.includes('手札');
+    if (useFieldHCU) {
+      const fieldCandsHCU = ctx.ownerState.field.signi.flatMap(stack => {
+        const top = stack?.at(-1);
+        if (!top || top === ctx.sourceCardNum) return [];
+        const c = ctx.cardMap.get(top);
+        if (!c) return [];
+        return levelOkHCU(parseInt(c.Level ?? '0')) ? [top] : [];
+      });
+      if (fieldCandsHCU.length === 0) return done(addLog(ctx, '対象シグニなし（PLACE_SIGNI_UNDER_SELF_OPT）'));
+      const placeFieldHCU: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'field' };
+      return selectOrInteract(fieldCandsHCU, maxHCU, optHCU, 'self_field', placeFieldHCU as EffectAction, undefined, ctx);
+    }
     const handCandsHCU = ctx.ownerState.hand.filter(cn => {
       const c = ctx.cardMap.get(cn);
       if (!c) return false;
-      const lv = parseInt(c.Level ?? '0');
-      return (!minLvHCU || lv >= minLvHCU);
+      return levelOkHCU(parseInt(c.Level ?? '0'));
     });
     if (handCandsHCU.length === 0) return done(addLog(ctx, '手札なし（シグニ下配置スキップ）'));
     const placeActionHCU: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
@@ -2703,33 +2739,31 @@ export function execStub(
     }
     return done(addLog(ctx, `デッキトップ公開：${topNameDTE}（Lv${topDataDTE?.Level ?? '?'}）→条件不一致`));
   }
-  // ルリグトラッシュのアーツ枚数に基づくパワー修正
+  // ルリグトラッシュのアーツ枚数に基づくパワー修正（対象1体を先にSELECT_TARGETで選ぶ）
   if (stub.id === 'POWER_MOD_BY_LRIG_TRASH_ARTS') {
     const srcPMLTA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMLTA = srcPMLTA ? (srcPMLTA.EffectText ?? '') + ' ' + (srcPMLTA.BurstText ?? '') : '';
     const toHWPMLTA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const artsCountPMLTA = (ctx.ownerState.lrig_trash ?? []).filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ').length;
     const perMPMLTA = txtPMLTA.match(/アーツ([０-９\d]*)枚?につき([－＋][０-９\d]+)/);
-    if (perMPMLTA) {
-      const divisorPMLTA = parseInt(toHWPMLTA(perMPMLTA[1] || '1')) || 1;
-      const deltaPMLTA = parseInt(toHWPMLTA(perMPMLTA[2]).replace('－', '-').replace('＋', '+'));
-      const totalDeltaPMLTA = Math.floor(artsCountPMLTA / divisorPMLTA) * deltaPMLTA;
-      if (totalDeltaPMLTA !== 0) {
-        const targetsPMLTA = ctx.lastProcessedCards ?? [];
-        const modsPMLTA = [...(ctx.otherState.temp_power_mods ?? [])];
-        if (targetsPMLTA.length > 0) {
-          for (const cn of targetsPMLTA) modsPMLTA.push({ cardNum: cn, delta: totalDeltaPMLTA });
-        } else {
-          for (let zi = 0; zi < 3; zi++) {
-            const top = ctx.otherState.field.signi[zi]?.at(-1);
-            if (top) modsPMLTA.push({ cardNum: top, delta: totalDeltaPMLTA });
-          }
-        }
-        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMLTA } },
-          `パワー${totalDeltaPMLTA > 0 ? '+' : ''}${totalDeltaPMLTA}（ルリグトラッシュアーツ${artsCountPMLTA}枚）`));
-      }
+    if (!perMPMLTA) return done(addLog(ctx, `パワー修正（ルリグトラッシュアーツ${artsCountPMLTA}枚）`));
+    const divisorPMLTA = parseInt(toHWPMLTA(perMPMLTA[1] || '1')) || 1;
+    const deltaPMLTA = parseInt(toHWPMLTA(perMPMLTA[2]).replace('－', '-').replace('＋', '+'));
+    const totalDeltaPMLTA = Math.floor(artsCountPMLTA / divisorPMLTA) * deltaPMLTA;
+    // 対象シグニが未選択なら SELECT_TARGET で相手シグニを選ぶ
+    if (!ctx.lastProcessedCards?.length) {
+      const oppCandsPMLTA = ctx.otherState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+      if (oppCandsPMLTA.length === 0) return done(addLog(ctx, '対象相手シグニなし（POWER_MOD_BY_LRIG_TRASH_ARTS）'));
+      const contPMLTA: StubAction = { type: 'STUB', id: 'POWER_MOD_BY_LRIG_TRASH_ARTS' };
+      return needsInteraction(addLog(ctx, '対象シグニを選択（ルリグトラッシュアーツによるパワー修正）'), {
+        type: 'SELECT_TARGET', candidates: oppCandsPMLTA, count: 1, optional: false,
+        targetScope: 'opp_field', thenAction: contPMLTA as EffectAction,
+      });
     }
-    return done(addLog(ctx, `パワー修正（ルリグトラッシュアーツ${artsCountPMLTA}枚）`));
+    const modsPMLTA = [...(ctx.otherState.temp_power_mods ?? [])];
+    for (const cn of ctx.lastProcessedCards) modsPMLTA.push({ cardNum: cn, delta: totalDeltaPMLTA });
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMLTA } },
+      `パワー${totalDeltaPMLTA > 0 ? '+' : ''}${totalDeltaPMLTA}（ルリグトラッシュアーツ${artsCountPMLTA}枚）`));
   }
   // ルリグレベルに基づくパワー修正（相手センタールリグのレベルを参照）
   if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL') {
@@ -2992,28 +3026,37 @@ export function execStub(
     const srcPMAL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMAL = srcPMAL ? (srcPMAL.EffectText ?? '') + ' ' + (srcPMAL.BurstText ?? '') : '';
     const toHWPMAL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const attackerLv = parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Level ?? '0');
+    const attackerLvPMAL = parseInt(toHWPMAL(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Level ?? '0')) || 0;
     const perMPMAL = txtPMAL.match(/レベル([０-９\d]*)につき([－＋][０-９\d]+)/);
-    if (perMPMAL && attackerLv > 0) {
-      const divisorPMAL = parseInt(toHWPMAL(perMPMAL[1] || '1')) || 1;
-      const deltaPMAL = parseInt(toHWPMAL(perMPMAL[2]).replace('－', '-').replace('＋', '+'));
-      const totalDeltaPMAL = Math.floor(attackerLv / divisorPMAL) * deltaPMAL;
-      if (totalDeltaPMAL !== 0) {
-        const targetsPMAL = ctx.lastProcessedCards ?? [];
-        const modsPMAL = [...(ctx.otherState.temp_power_mods ?? [])];
-        if (targetsPMAL.length > 0) {
-          for (const cn of targetsPMAL) modsPMAL.push({ cardNum: cn, delta: totalDeltaPMAL });
-        } else {
-          for (let zi = 0; zi < 3; zi++) {
-            const top = ctx.otherState.field.signi[zi]?.at(-1);
-            if (top) modsPMAL.push({ cardNum: top, delta: totalDeltaPMAL });
-          }
+    if (!perMPMAL || attackerLvPMAL === 0) return done(addLog(ctx, `パワー修正（アタッカーLv${attackerLvPMAL}）`));
+    const divisorPMAL = parseInt(toHWPMAL(perMPMAL[1] || '1')) || 1;
+    const deltaPMAL = parseInt(toHWPMAL(perMPMAL[2]).replace('－', '-').replace('＋', '+'));
+    const totalDeltaPMAL = Math.floor(attackerLvPMAL / divisorPMAL) * deltaPMAL;
+    // 対象シグニが未選択なら SELECT_TARGET で相手シグニを選ぶ（レベル奇数/偶数でフィルタ）
+    if (!ctx.lastProcessedCards?.length) {
+      const parityMPMAL = txtPMAL.match(/レベルが(奇数|偶数)の対戦相手/);
+      const parityPMAL = parityMPMAL?.[1];
+      const oppCandsPMAL = ctx.otherState.field.signi.flatMap(s => {
+        const top = s?.at(-1);
+        if (!top) return [];
+        if (parityPMAL) {
+          const lv = parseInt(toHWPMAL(ctx.cardMap.get(top)?.Level ?? '0')) || 0;
+          if (parityPMAL === '奇数' && lv % 2 === 0) return [];
+          if (parityPMAL === '偶数' && lv % 2 === 1) return [];
         }
-        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMAL } },
-          `パワー${totalDeltaPMAL > 0 ? '+' : ''}${totalDeltaPMAL}（アタッカーLv${attackerLv}）`));
-      }
+        return [top];
+      });
+      if (oppCandsPMAL.length === 0) return done(addLog(ctx, '対象相手シグニなし（POWER_MOD_BY_ATTACKER_LEVEL）'));
+      const contPMAL: StubAction = { type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL' };
+      return needsInteraction(addLog(ctx, '対象シグニを選択（アタッカーレベルによるパワー修正）'), {
+        type: 'SELECT_TARGET', candidates: oppCandsPMAL, count: 1, optional: false,
+        targetScope: 'opp_field', thenAction: contPMAL as EffectAction,
+      });
     }
-    return done(addLog(ctx, `パワー修正（アタッカーLv${attackerLv}）`));
+    const modsPMAL = [...(ctx.otherState.temp_power_mods ?? [])];
+    for (const cn of ctx.lastProcessedCards) modsPMAL.push({ cardNum: cn, delta: totalDeltaPMAL });
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMAL } },
+      `パワー${totalDeltaPMAL > 0 ? '+' : ''}${totalDeltaPMAL}（アタッカーLv${attackerLvPMAL}）`));
   }
   // 公開したシグニのレベルに基づくパワー修正（lastProcessedCards使用）
   if (stub.id === 'POWER_MOD_PER_REVEALED_LEVEL') {
@@ -3521,12 +3564,15 @@ export function execStub(
     const maxEnaOEOTC = maxMOEOTC ? (parseInt(toHWOEOTC(maxMOEOTC[1])) || 5) : 5;
     const oppEnaCountOEOTC = ctx.otherState.energy.length;
     if (oppEnaCountOEOTC >= maxEnaOEOTC) {
-      const excessOEOTC = oppEnaCountOEOTC - maxEnaOEOTC + 1;
-      const newEnaOEOTC = ctx.otherState.energy.slice(0, ctx.otherState.energy.length - excessOEOTC);
-      const toTrashOEOTC = ctx.otherState.energy.slice(ctx.otherState.energy.length - excessOEOTC);
-      const newOtherOEOTC = { ...ctx.otherState, energy: newEnaOEOTC, trash: [...ctx.otherState.trash, ...toTrashOEOTC] };
+      // 条件達成時は常に1枚（最後=直近に置かれたカード）をトラッシュ
+      const trashedOEOTC = ctx.otherState.energy.slice(-1);
+      const newOtherOEOTC = {
+        ...ctx.otherState,
+        energy: ctx.otherState.energy.slice(0, -1),
+        trash: [...ctx.otherState.trash, ...trashedOEOTC],
+      };
       return done(addLog({ ...ctx, otherState: newOtherOEOTC },
-        `相手エナ${excessOEOTC}枚→トラッシュ（${oppEnaCountOEOTC}枚≥${maxEnaOEOTC}）`));
+        `相手エナ1枚→トラッシュ（${oppEnaCountOEOTC}枚≥${maxEnaOEOTC}）`));
     }
     return done(addLog(ctx, `相手エナ${oppEnaCountOEOTC}枚（条件${maxEnaOEOTC}枚以上：未達）`));
   }
@@ -4717,21 +4763,6 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBLLS } },
       `全ルリグLv合計${lrigLevelSumPMBLLS}×${singleDeltaPMBLLS}→相手シグニパワー${totalDeltaPMBLLS}`));
   }
-  // POWER_MOD_BY_LRIG_TRASH_ARTS: ルリグトラッシュのアーツ数×deltaを相手シグニに
-  if (stub.id === 'POWER_MOD_BY_LRIG_TRASH_ARTS') {
-    const toHWPMBLTA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const artsCountPMBLTA = ctx.ownerState.lrig_trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ').length;
-    const srcPMBLTA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMBLTA = srcPMBLTA ? (srcPMBLTA.EffectText ?? '') + ' ' + (srcPMBLTA.BurstText ?? '') : '';
-    const mPMBLTA = txtPMBLTA.match(/([＋+－-][０-９\d]+)/);
-    if (!mPMBLTA) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_LRIG_TRASH_ARTS）'));
-    const singleDeltaPMBLTA = parseInt(toHWPMBLTA(mPMBLTA[1]).replace('＋', '+').replace('－', '-'));
-    const totalDeltaPMBLTA = singleDeltaPMBLTA * artsCountPMBLTA;
-    const modsPMBLTA = [...(ctx.otherState.temp_power_mods ?? [])];
-    for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMBLTA.push({ cardNum: top, delta: totalDeltaPMBLTA }); }
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBLTA } },
-      `ルリグトラッシュアーツ${artsCountPMBLTA}×${singleDeltaPMBLTA}→相手パワー${totalDeltaPMBLTA}`));
-  }
   // POWER_MOD_BY_TRASH_CLASS_COUNT: トラッシュの特定クラス枚数×deltaをパワー修正
   if (stub.id === 'POWER_MOD_BY_TRASH_CLASS_COUNT') {
     const toHWPMBTCC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -4967,22 +4998,6 @@ export function execStub(
     const newSOTTOSU: PlayerState = { ...sOTTOSU, trash: sOTTOSU.trash.slice(0, -1), field: { ...sOTTOSU.field, signi: newSigniOTTOSU } };
     return done(addLog({ ...ctx, otherState: newSOTTOSU },
       `${ctx.cardMap.get(topTrashOTTOSU)?.CardName ?? topTrashOTTOSU}を相手シグニ下へ`));
-  }
-  // POWER_MOD_BY_ATTACKER_LEVEL: アタッカーのレベル×deltaをパワー修正
-  if (stub.id === 'POWER_MOD_BY_ATTACKER_LEVEL') {
-    const toHWPMBAL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // ソースカードのレベルを使う
-    const srcCardPMBAL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const attackerLevelPMBAL = srcCardPMBAL ? parseInt(toHWPMBAL(srcCardPMBAL.Level ?? '0')) || 0 : 0;
-    const txtPMBAL = srcCardPMBAL ? (srcCardPMBAL.EffectText ?? '') + ' ' + (srcCardPMBAL.BurstText ?? '') : '';
-    const mPMBAL = txtPMBAL.match(/([＋+－-][０-９\d]+)/);
-    if (!mPMBAL) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_ATTACKER_LEVEL）'));
-    const singleDeltaPMBAL = parseInt(toHWPMBAL(mPMBAL[1]).replace('＋', '+').replace('－', '-'));
-    const totalDeltaPMBAL = singleDeltaPMBAL * attackerLevelPMBAL;
-    const modsPMBAL = [...(ctx.otherState.temp_power_mods ?? [])];
-    for (let zi = 0; zi < 3; zi++) { const top = ctx.otherState.field.signi[zi]?.at(-1); if (top) modsPMBAL.push({ cardNum: top, delta: totalDeltaPMBAL }); }
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMBAL } },
-      `アタッカーLv${attackerLevelPMBAL}×${singleDeltaPMBAL}→相手シグニパワー${totalDeltaPMBAL}`));
   }
   // POWER_MOD_BY_FIELD_CLASS_LEVEL: フィールドのクラスシグニレベル合計×deltaをパワー修正
   if (stub.id === 'POWER_MOD_BY_FIELD_CLASS_LEVEL') {
@@ -5537,8 +5552,52 @@ export function execStub(
       || stub.id === 'ARTS_EXTRA_COST_CONDITION' || stub.id === 'ACCE_COST_REDUCTION') {
     return done(addLog(ctx, `[アーツ/アクセコスト: ${stub.id}]`));
   }
+  // PLAY_SPELL_FREE_IGNORE_RESTRICTION: 手札のスペルをコストなし・限定条件無視で使用
+  if (stub.id === 'PLAY_SPELL_FREE_IGNORE_RESTRICTION') {
+    const cnPSFIR = ctx.lastProcessedCards?.[0];
+    if (!cnPSFIR) {
+      // 未選択：手札のスペルを SELECT_TARGET で選ぶ
+      const srcPSFIR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+      const txtPSFIR = srcPSFIR ? (srcPSFIR.EffectText ?? '') + ' ' + (srcPSFIR.BurstText ?? '') : '';
+      const toHWPSFIR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const costLimitMPSFIR = txtPSFIR.match(/コストの合計が([０-９\d]+)以下/);
+      const costLimitPSFIR = costLimitMPSFIR ? parseInt(toHWPSFIR(costLimitMPSFIR[1])) : Infinity;
+      const spellCandsPSFIR = ctx.ownerState.hand.filter(cn => {
+        const c = ctx.cardMap.get(cn);
+        if (!c || c.Type !== 'スペル') return false;
+        if (costLimitPSFIR < Infinity) {
+          const costArr = Array.isArray(c.Cost) ? c.Cost : [];
+          const totalCost = typeof c.Cost === 'string' ? parseInt(c.Cost) || 0 : costArr.length;
+          if (totalCost > costLimitPSFIR) return false;
+        }
+        return true;
+      });
+      if (spellCandsPSFIR.length === 0) return done(addLog(ctx, '[PLAY_SPELL_FREE_IGNORE_RESTRICTION: 手札に対象スペルなし]'));
+      const contPSFIR: StubAction = { type: 'STUB', id: 'PLAY_SPELL_FREE_IGNORE_RESTRICTION' };
+      return needsInteraction(addLog(ctx, '手札のスペルを選択（コストなし・限定条件無視）'), {
+        type: 'SELECT_TARGET', candidates: spellCandsPSFIR, count: 1, optional: false,
+        targetScope: 'self_hand', thenAction: contPSFIR as EffectAction,
+      });
+    }
+    // 選択済み：選んだスペルをトラッシュへ移動して効果実行
+    const cardPSFIR = ctx.cardMap.get(cnPSFIR);
+    if (!cardPSFIR) return done(addLog(ctx, '[PLAY_SPELL_FREE_IGNORE_RESTRICTION: カードデータなし]'));
+    const effectsPSFIR = parseCardEffects(cardPSFIR);
+    const mainEffPSFIR = effectsPSFIR.find(e =>
+      e.effectType === 'ACTIVATED' || (e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'))
+    );
+    if (!mainEffPSFIR) return done(addLog(ctx, `[PLAY_SPELL_FREE_IGNORE_RESTRICTION: ${cardPSFIR.CardName}効果なし]`));
+    const statePSFIR = {
+      ...ctx.ownerState,
+      trash: [...ctx.ownerState.trash, cnPSFIR],
+      hand: ctx.ownerState.hand.filter(c => c !== cnPSFIR),
+    };
+    return exec(mainEffPSFIR.action,
+      addLog({ ...ctx, ownerState: statePSFIR, sourceCardNum: cnPSFIR, lastProcessedCards: [] },
+        `${cardPSFIR.CardName}をコストなし・限定条件無視で使用`));
+  }
   // フリープレイ系：lastProcessedCards[0] のカードをコストなしでプレイ
-  if (stub.id === 'PLAY_FREE' || stub.id === 'PLAY_SPELL_FREE_IGNORE_RESTRICTION' || stub.id === 'CAST_FROM_OPP_TRASH'
+  if (stub.id === 'PLAY_FREE' || stub.id === 'CAST_FROM_OPP_TRASH'
       || stub.id === 'PLAY_SPELL_FROM_HAND' || stub.id === 'PLAY_SPELL_FROM_HAND_FREE'
       || stub.id === 'USE_SPELL_FROM_TRASH' || stub.id === 'PLAY_EFFECT_TARGET_CLASS_CHANGE') {
     const cnPF = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
@@ -7497,25 +7556,6 @@ export function execStub(
       hand: [...sETHOD.hand, lastEnaETHOD],
     };
     return done(addLog({ ...ctx, ownerState: newSETHOD }, `${ctx.cardMap.get(lastEnaETHOD)?.CardName ?? lastEnaETHOD}をエナ→手札`));
-  }
-  // OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL / OPP_ENERGY_EXCESS_TRASH:
-  //   相手エナゾーンが閾値超えなら超過分をトラッシュ
-  if (stub.id === 'OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL' || stub.id === 'OPP_ENERGY_EXCESS_TRASH') {
-    const toHWOEOT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcOEOT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtOEOT = srcOEOT ? (srcOEOT.EffectText ?? '') + ' ' + (srcOEOT.BurstText ?? '') : '';
-    const mOEOT = txtOEOT.match(/([０-９\d]+)枚/);
-    const limitOEOT = mOEOT ? parseInt(toHWOEOT(mOEOT[1])) : 5;
-    const oppEnaOEOT = ctx.otherState.energy;
-    if (oppEnaOEOT.length <= limitOEOT) return done(addLog(ctx, `相手エナ${oppEnaOEOT.length}枚≤${limitOEOT}：トラッシュなし`));
-    const excessOEOT = oppEnaOEOT.length - limitOEOT;
-    const trashOEOT = oppEnaOEOT.slice(limitOEOT);
-    const newOtherOEOT: PlayerState = {
-      ...ctx.otherState,
-      energy: oppEnaOEOT.slice(0, limitOEOT),
-      trash: [...ctx.otherState.trash, ...trashOEOT],
-    };
-    return done(addLog({ ...ctx, otherState: newOtherOEOT }, `相手エナ超過${excessOEOT}枚→トラッシュ`));
   }
   // OPP_ENERGY_COLOR_CONDITION_TRASH: 相手エナの特定色をトラッシュ
   if (stub.id === 'OPP_ENERGY_COLOR_CONDITION_TRASH') {

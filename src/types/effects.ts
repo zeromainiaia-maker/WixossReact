@@ -299,7 +299,7 @@ export interface PlaceUnderSigniAction {
 // SELECT_TARGET の thenAction：選択カードをソースシグニの下に置く
 export interface PlaceUnderSourceSigniAction {
   type: 'PLACE_UNDER_SOURCE_SIGNI';
-  fromLocation: 'trash' | 'hand' | 'energy';
+  fromLocation: 'trash' | 'hand' | 'energy' | 'field';
 }
 
 // このターン、次にターゲットシグニがアタックしたとき、そのアタックを無効にする

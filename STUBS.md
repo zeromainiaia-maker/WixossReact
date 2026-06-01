@@ -73,15 +73,15 @@
 | 2 | AUTO | ✅ | MOVE_TO_ATTACKER_FRONT ※v0.139: attacked_signi_ids の最終アタッカーからゾーンを動的取得。正面が空ならCHOOSE移動確認→INTERNAL_MOVE_TO_ZONE。stub.value後方互換保持 |
 | 2 | CONT | ✅ | MULTI_ZONE_ATTACK |
 | 2 | CONT | ✅ | ONE_ATTACK_PER_TURN ※effectEngine.calcContinuousBlockedActionsで実装 |
-| 2 | ACTIVATED | ⚡ | OPP_CHOOSE_OWN_SIGNI_TO_ENERGY |
-| 2 | AUTO | ⚡ | OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL |
-| 2 | AUTO | ⚡ | OPP_SIGNI_ATTACK_POWER_RESTRICT |
-| 2 | AUTO | ⚡ | PLACE_SIGNI_UNDER_SELF_OPT |
-| 2 | ACTIVATED | ⚡ | PLAY_SPELL_FREE_IGNORE_RESTRICTION |
+| 2 | ACTIVATED | ✅ | OPP_CHOOSE_OWN_SIGNI_TO_ENERGY ※v0.140: thenActionをBANISH→INTERNAL_OPP_FIELD_TO_ENERGYに修正（フィールド→エナゾーン移動） |
+| 2 | AUTO | ✅ | OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL ※v0.140: excess計算修正（常に1枚トラッシュ）・重複ハンドラ削除 |
+| 2 | AUTO | ✅ | OPP_SIGNI_ATTACK_POWER_RESTRICT ※v0.140: BattleScreenにeffectivePowers使用のパワー上限アタック制限チェック追加 |
+| 2 | AUTO | ✅ | PLACE_SIGNI_UNDER_SELF_OPT ※v0.140: レベル完全一致フィルタ追加・フィールドソース対応（手札からなし→場から選択） |
+| 2 | ACTIVATED | ✅ | PLAY_SPELL_FREE_IGNORE_RESTRICTION ※v0.140: グループから分離・SELECT_TARGET from hand(スペル/コスト上限フィルタ)追加 |
 | 2 | ACTIVATED/AUTO | ⚡ | POWER_COPY_FROM_DOWNED |
-| 2 | AUTO | ⚡ | POWER_MOD_BY_ATTACKER_LEVEL |
+| 2 | AUTO | ✅ | POWER_MOD_BY_ATTACKER_LEVEL ※v0.140: SELECT_TARGET(奇数/偶数フィルタ)追加・重複ハンドラ削除 |
 | 2 | AUTO | ✅ | POWER_MOD_BY_HAND_COUNT |
-| 2 | AUTO | ⚡ | POWER_MOD_BY_LRIG_TRASH_ARTS |
+| 2 | AUTO | ✅ | POWER_MOD_BY_LRIG_TRASH_ARTS ※v0.140: SELECT_TARGET追加・重複ハンドラ削除 |
 | 2 | ACTIVATED/LIFE | ⚡ | PREVENT_LRIG_DAMAGE_THIS_TURN |
 | 2 | CONT | ✅ | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP ※v0.111: collectAbilityProtectedSigni+ExecCtx.otherProtectedSigniNums |
 | 2 | AUTO | ⚡ | REACTIVE_POWER_UP |
@@ -389,6 +389,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-06-01 v0.140 | 8件✅化: OPP_CHOOSE_OWN_SIGNI_TO_ENERGY(field→energy修正)/OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL(excess1枚固定)/OPP_SIGNI_ATTACK_POWER_RESTRICT(BattleScreenパワー上限チェック)/PLACE_SIGNI_UNDER_SELF_OPT(exactLevel/fieldソース)/PLAY_SPELL_FREE_IGNORE_RESTRICTION(SELECT+分離)/POWER_MOD_BY_ATTACKER_LEVEL(SELECT+奇偶フィルタ)/POWER_MOD_BY_LRIG_TRASH_ARTS(SELECT追加)/effects.ts+effectExecutor.ts(fromLocation:'field'追加) | 8件 |
 | 2026-05-31 v0.126 | POWER_MOD_PER_COUNT (AUTO/ACTIVATED 51件): 手札/エナ/登録者数N枚につきパターン追加・正デルタ時ソースシグニへ適用 | POWER_MOD_PER_COUNT |
 | 2026-05-31 v0.126 | COUNT_BASED_DRAW_OR_POWER (スタンドアロン5件): エナ/手札/登録者数/フィールド体数ベースのドロー・パワー修正パターン追加 | COUNT_BASED_DRAW_OR_POWER |
 | 2026-05-31 v0.127 | CONDITIONAL_ALTERNATE_EFFECT: 条件達成時にダウン済み相手シグニをトラッシュへ移動（WX06-024対応） | CONDITIONAL_ALTERNATE_EFFECT |

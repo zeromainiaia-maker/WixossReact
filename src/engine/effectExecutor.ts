@@ -2308,6 +2308,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         newState = { ...newState, hand: newState.hand.filter(c => c !== cardNum) };
       } else if (fromLoc === 'energy') {
         newState = { ...newState, energy: newState.energy.filter(c => c !== cardNum) };
+      } else if (fromLoc === 'field') {
+        const newSigniWithRemoval = newState.field.signi.map(stack => {
+          if (!stack?.includes(cardNum)) return stack;
+          const filtered = stack.filter(c => c !== cardNum);
+          return filtered.length > 0 ? filtered : null;
+        }) as (string[] | null)[];
+        newState = { ...newState, field: { ...newState.field, signi: newSigniWithRemoval } };
       }
       // ゾーンの先頭に追加（下に置く）
       const newSigni = newState.field.signi.map((stack, i) => {
