@@ -5769,7 +5769,7 @@ export function execStub(
       || stub.id === 'GRANT_UNDER_LRIG_ACTIVATE_ABILITY' || stub.id === 'GRANT_UNDER_LRIG_AUTO_ABILITY'
       || stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES' || stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY'
       || stub.id === 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE' || stub.id === 'GRANT_ABILITY_UNTIL_OPP_TURN'
-      || stub.id === 'GRANT_SIGNI_CLASS' || stub.id === 'LAYER_ABILITY_COPY' || stub.id === 'COPY_ABILITY'
+      || stub.id === 'GRANT_SIGNI_CLASS' || stub.id === 'COPY_ABILITY'
       || stub.id === 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY' || stub.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY'
       || stub.id === 'GRANT_LRIG_TYPE_GAME_WIDE') {
     return done(addLog(ctx, `[能力付与: ${stub.id}]`));
