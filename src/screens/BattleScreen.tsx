@@ -808,6 +808,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [pendingKeyActivated, setPendingKeyActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedKeyActivatedCost, setSelectedKeyActivatedCost] = useState<Set<number>>(new Set());
   const [selectedKeyActivatedDiscard, setSelectedKeyActivatedDiscard] = useState<Set<number>>(new Set());
+  // キーピース代替コスト（ENERGY_SUBSTITUTE_TRASH_KEY）
+  const [keySubstituteEnabled, setKeySubstituteEnabled] = useState(false);
   // アシストルリグ
   const [showAssistGrowModal, setShowAssistGrowModal] = useState(false);
   const [pendingAssistGrowCard, setPendingAssistGrowCard] = useState<CardData | null>(null);
