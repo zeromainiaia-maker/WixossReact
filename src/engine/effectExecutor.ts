@@ -823,6 +823,91 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, `《${targetName}》を公開しますか？`), pendingOHRN);
         }
 
+        // TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST: 相手シグニを対象にして任意色コスト支払い
+        // パーサーが conditional.then の target.owner を 'self' と誤生成するため修正する
+        if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
+          const toHWTOSOC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+          const oppCandsTOSOC = fieldCandidates(cur.otherState, { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers);
+          if (oppCandsTOSOC.length === 0) {
+            if (cont) return executeAction(cont, cur);
+            return done(addLog(cur, '対象シグニなし（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）'));
+          }
+          const canAffordTOSOC = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
+          // パーサーバグ修正: conditional.then の target.owner='self'/'any' → 'opponent'
+          const fixOwnerTOSOC = (a: EffectAction): EffectAction => {
+            if (!a || typeof a !== 'object') return a;
+            if (['BANISH', 'BOUNCE', 'DOWN', 'FREEZE', 'GRANT_KEYWORD', 'POWER_MODIFY'].includes(a.type)) {
+              const withTgt = a as { target?: { owner?: string } };
+              if (withTgt.target && (withTgt.target.owner === 'self' || withTgt.target.owner === 'any')) {
+                return { ...a, target: { ...withTgt.target, owner: 'opponent' } };
+              }
+            }
+            return a;
+          };
+          const srcTOSOC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
+          const txtTOSOC = srcTOSOC ? (srcTOSOC.EffectText ?? '') + ' ' + (srcTOSOC.BurstText ?? '') : '';
+          const cntMTOSOC = txtTOSOC.match(/対戦相手のシグニ([０-９\d]+)体を対象とし/);
+          const targetCountTOSOC = cntMTOSOC ? parseInt(toHWTOSOC(cntMTOSOC[1])) : 1;
+          const fixedThenTOSOC = fixOwnerTOSOC(conditional.then);
+          const payLabelTOSOC = costColors.length > 0
+            ? `対象選択して発動（${costColors.map(c => `《${c}》`).join('')}）`
+            : '対象選択して発動';
+          // BANISH/BOUNCE等は opponent 修正により execBanish で相手フィールドから selectOrInteract が走る
+          const optsTOSOC = [
+            { id: 'pay', label: payLabelTOSOC, action: fixedThenTOSOC, available: canAffordTOSOC, ...(costColors.length ? { costColors } : {}) },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          ];
+          return needsInteraction(addLog(cur, '任意コスト：対象シグニを選んで発動しますか？'), {
+            type: 'CHOOSE', options: optsTOSOC, count: 1, ...(cont ? { continuation: cont } : {}),
+          });
+        }
+
+        // OPTIONAL_TRASH_ENERGY_CLASS: エナゾーンから特定クラスのカードを任意でトラッシュ/手札へ
+        if (stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
+          const srcOTEC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
+          const txtOTEC = srcOTEC ? (srcOTEC.EffectText ?? '') + ' ' + (srcOTEC.BurstText ?? '') : '';
+          const toHWOTEC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+          const classMOTEC = txtOTEC.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)/);
+          const reqClassOTEC = classMOTEC?.[1] ?? '';
+          const energyCandsOTEC = cur.ownerState.energy.filter(cn => {
+            if (!reqClassOTEC) return true;
+            return (cur.cardMap.get(cn)?.CardClass ?? '').includes(reqClassOTEC);
+          });
+          if (energyCandsOTEC.length === 0) {
+            if (cont) return executeAction(cont, cur);
+            return done(addLog(cur, `エナに${reqClassOTEC || 'カード'}なし（OPTIONAL_TRASH_ENERGY_CLASS）`));
+          }
+          const toHandOTEC = !!(txtOTEC.match(/それを手札に加える/) || conditional.then.type === 'TRANSFER_TO_HAND');
+          // conditional.then の BOUNCE/BANISH/DOWN の target.owner='self' → 'opponent' 修正
+          let thenOTEC = conditional.then;
+          if (['BOUNCE', 'BANISH', 'DOWN', 'POWER_MODIFY'].includes(thenOTEC.type)) {
+            const wt = thenOTEC as { target?: { owner?: string } };
+            if (wt.target?.owner === 'self') thenOTEC = { ...thenOTEC, target: { ...wt.target, owner: 'opponent' } };
+          }
+          const cntMOTEC = txtOTEC.match(/([０-９\d]+)枚?(?:まで)?を?対象/);
+          const pickCountOTEC = cntMOTEC ? parseInt(toHWOTEC(cntMOTEC[1])) : 1;
+          const destOTEC = toHandOTEC ? 'hand' : 'trash';
+          const selectStubOTEC: import('../types/effects').StubAction = {
+            type: 'STUB', id: 'INTERNAL_OTEC_SELECT',
+            value: `${destOTEC}:${reqClassOTEC}:${pickCountOTEC}`,
+          };
+          // "手札へ" パターン: エナカード移動がメイン効果, conditional.then を追加しない
+          // "トラッシュ" パターン: エナカード移動 + conditional.then（追加効果）
+          const payStepsOTEC: EffectAction[] = [selectStubOTEC as EffectAction];
+          if (!toHandOTEC) payStepsOTEC.push(thenOTEC);
+          const payActionOTEC: EffectAction = payStepsOTEC.length === 1
+            ? payStepsOTEC[0]
+            : { type: 'SEQUENCE', steps: payStepsOTEC } as import('../types/effects').SequenceAction;
+          const payLabelOTEC = reqClassOTEC ? `エナ＜${reqClassOTEC}＞を選択して発動` : 'エナから選択して発動';
+          const optsOTEC = [
+            { id: 'pay', label: payLabelOTEC, action: payActionOTEC, available: true },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          ];
+          return needsInteraction(addLog(cur, `エナゾーンのカードを選択しますか？`), {
+            type: 'CHOOSE', options: optsOTEC, count: 1, ...(cont ? { continuation: cont } : {}),
+          });
+        }
+
         // OPPONENT_PAY_OPTIONAL: 対戦相手がコストを支払う/支払わない
         // pay → 何も起きない（対戦相手のエナ消費）, skip → 効果発動（conditional.then）
         if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
