@@ -47,10 +47,28 @@ export function execStub(
   if (stub.id === 'RULE_REMINDER_TEXT' || stub.id === 'USE_CONDITION_TEXT') {
     return done(ctx);
   }
-  // 任意コストの単独発動（SEQUENCEパターン外）：支払ったものとして処理
-  if (stub.id === 'OPTIONAL_COST' ||
-      stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
-    return done(addLog(ctx, '任意コスト（自動支払い）'));
+  // OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース）
+  // 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パターンを処理済み
+  // ここはSEQUENCE末尾や非IS_MY_TURNパターンの33件ほどを担当
+  if (stub.id === 'OPTIONAL_COST') {
+    const costColorsOC = stub.costColors ?? [];
+    const canAffordOC = costColorsOC.length === 0 || canPayOptionalCost(costColorsOC, ctx.ownerState, ctx.cardMap);
+    const payLabelOC = costColorsOC.length > 0
+      ? `発動する（${costColorsOC.map(c => `《${c}》`).join('')}）`
+      : '発動する';
+    const noopOC: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
+    return needsInteraction(addLog(ctx, '任意コスト：発動しますか？'), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'pay',  label: payLabelOC, action: noopOC as EffectAction, available: canAffordOC,
+          ...(costColorsOC.length ? { costColors: costColorsOC } : {}) },
+        { id: 'skip', label: 'スキップ',  action: noopOC as EffectAction, available: true },
+      ],
+    });
+  }
+  // 他の任意コスト系（SEQUENCEパターン外のフォールバック）
+  if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
+    return done(addLog(ctx, `任意コスト（${stub.id}：後続ステップで処理）`));
   }
   // 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる）
   if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
