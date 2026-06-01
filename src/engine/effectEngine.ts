@@ -1242,6 +1242,40 @@ export function collectEichiStubEffects(
 }
 
 /**
+ * LIMIT_OPP_DRAW_COUNT (CONTINUOUS): 相手がドローフェイズに引けるカードを合計1枚に制限。
+ * センタールリグレベル≥3などの条件付きCONT効果を動的検査して返す。
+ */
+export function collectDrawLimits(
+  opponentState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+  isMyTurn: boolean,
+): number | undefined {
+  // opponentState のフィールドシグニ・ルリグを走査してCONT LIMIT_OPP_DRAW_COUNT を検出
+  const candidates: string[] = [
+    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...opponentState.field.lrig.slice(-1),
+  ];
+  if (opponentState.field.key_piece) candidates.push(opponentState.field.key_piece);
+  for (const cn of candidates) {
+    const effs = effectsMap.get(cn) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'LIMIT_OPP_DRAW_COUNT') continue;
+      // activeCondition チェック (レベル≥3 等)
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, opponentState, opponentState, isMyTurn, cardMap, cn)) continue;
+      // 引けるカード上限をテキストから解析
+      const txt = (cardMap.get(cn)?.EffectText ?? '') + ' ' + (cardMap.get(cn)?.BurstText ?? '');
+      const m = txt.match(/合計([０-９\d]+)枚まで/);
+      const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      return m ? parseInt(toHW(m[1])) : 1;
+    }
+  }
+  return undefined;
+}
+
+/**
  * PREVENT_ZONE_MOVE_BY_OPP: フィールドのシグニがCONTINUOUS保護効果を持つ場合、
  * 保護されているゾーン（'hand' | 'energy'）を動的に返す。
  * state のフィールド上シグニとキーピースを走査する。
