@@ -695,15 +695,68 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, subscriber_count: newCnt };
     return done(addLog({ ...ctx, ownerState: newOwner }, `登録者数＋${gain}万人（計${newCnt}万人）`));
   }
-  // ウイルス除去：対戦相手のシグニに乗った最初のウイルスを取り除く
+  // ウイルス除去：テキストを解析して適切な数のウイルスを取り除く
   if (stub.id === 'REMOVE_VIRUS') {
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
-    const zoneIdx = virusArr.findIndex(v => v > 0);
-    if (zoneIdx < 0) return done(addLog(ctx, 'ウイルスなし'));
+    const totalVirus = virusArr.reduce((s, v) => s + v, 0);
+    if (totalVirus === 0) return done(addLog(ctx, 'ウイルスなし'));
+    const srcRV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtRV = srcRV ? (srcRV.EffectText ?? '') + ' ' + (srcRV.BurstText ?? '') : '';
+    const toHWRV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const removeAllRV = !!(txtRV.match(/すべての【ウィルス】を取り除く/) || txtRV.match(/すべての.*ウィルス.*取り除く/));
+    const cntMRV = txtRV.match(/【ウィルス】([０-９\d]+)つを?取り除く/);
+    const removeCount = removeAllRV ? totalVirus : (cntMRV ? Math.min(parseInt(toHWRV(cntMRV[1])), totalVirus) : totalVirus);
     const newVirus = [...virusArr];
-    newVirus[zoneIdx] = 0;
+    let removed = 0;
+    for (let z = 0; z < 3 && removed < removeCount; z++) {
+      const take = Math.min(newVirus[z], removeCount - removed);
+      newVirus[z] -= take;
+      removed += take;
+    }
     const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
-    return done(addLog({ ...ctx, otherState: newOther }, `ウイルスを除去（ゾーン${zoneIdx + 1}）`));
+    return done(addLog({ ...ctx, otherState: newOther }, `ウイルス${removed}つを取り除く`));
+  }
+  // INTERNAL_REMOVE_VIRUS_N: N個ウイルスを除去（effectExecutorのREMOVE_VIRUS+IS_MY_TURNハンドラから使用）
+  if (stub.id === 'INTERNAL_REMOVE_VIRUS_N') {
+    const n = typeof stub.value === 'number' ? stub.value : 0;
+    if (n === 0) return done(ctx);
+    const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
+    const newVirus = [...virusArr];
+    let removed = 0;
+    for (let z = 0; z < 3 && removed < n; z++) {
+      const take = Math.min(newVirus[z], n - removed);
+      newVirus[z] -= take;
+      removed += take;
+    }
+    const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
+    return done(addLog({ ...ctx, otherState: newOther }, `ウイルス${removed}つを取り除く`));
+  }
+  // INTERNAL_RV_BATCH_TRANSFER: N個ウイルス除去 + トラッシュからシグニN枚を手札へ（WX15-028型）
+  if (stub.id === 'INTERNAL_RV_BATCH_TRANSFER') {
+    const n = typeof stub.value === 'number' ? stub.value : 0;
+    if (n === 0) return done(addLog(ctx, 'ウイルス取り除かない'));
+    const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
+    const newVirus = [...virusArr];
+    let removed = 0;
+    for (let z = 0; z < 3 && removed < n; z++) {
+      const take = Math.min(newVirus[z], n - removed);
+      newVirus[z] -= take;
+      removed += take;
+    }
+    let newCtx = addLog({ ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } } },
+      `ウイルス${removed}つを取り除く`);
+    // トラッシュから黒のシグニをN枚選択して手札へ（SELECT_TARGETで選ばせる）
+    const blackTrashCands = newCtx.ownerState.trash.filter(cn => {
+      const c = newCtx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && (c.Color ?? '').includes('黒');
+    });
+    if (blackTrashCands.length === 0) return done(addLog(newCtx, 'トラッシュに黒シグニなし'));
+    const pickN = Math.min(removed, blackTrashCands.length);
+    const addHandAction: AddToHandAction = { type: 'ADD_TO_HAND', owner: 'self' };
+    return needsInteraction(addLog(newCtx, `トラッシュから黒シグニ${pickN}枚を手札に加える`), {
+      type: 'SEARCH', visibleCards: blackTrashCands, maxPick: pickN,
+      thenAction: addHandAction as EffectAction,
+    });
   }
   // EXTRA_COST_REMOVE_VIRUS: ウイルスを任意数取り除いてからN+1択の効果を選ぶ
   if (stub.id === 'EXTRA_COST_REMOVE_VIRUS') {
