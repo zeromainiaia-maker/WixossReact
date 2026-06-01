@@ -5289,18 +5289,47 @@ export function execStub(
     const newOwnerTTSIZE = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniTTSIZE, signi_traps: newTrapsTTSIZE } };
     return done(addLog({ ...ctx, ownerState: newOwnerTTSIZE }, `トラップ→シグニ: ゾーン${zoneIdxTTSIZE + 1}`));
   }
-  // PLACE_TRAP_FROM_REVEALED: lastProcessedCards[0]をトラップ設置（ゾーン選択→INTERNAL_SET_TRAP）
+  // PLACE_TRAP_FROM_REVEALED: 前のLOOK_AND_REORDERで公開されたデッキ上N枚からトラップ設置
   if (stub.id === 'PLACE_TRAP_FROM_REVEALED') {
-    if (!(ctx.lastProcessedCards?.[0])) return done(addLog(ctx, 'PLACE_TRAP_FROM_REVEALED: 対象なし'));
+    const srcPTFR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtPTFR = srcPTFR ? (srcPTFR.EffectText ?? '') + ' ' + (srcPTFR.BurstText ?? '') : '';
+    const toHWPTFR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 公開枚数をテキストから解析（デフォルト2枚）
+    const cntMPTFR = txtPTFR.match(/カードを([０-９\d]+)枚見る/);
+    const revealCountPTFR = cntMPTFR ? parseInt(toHWPTFR(cntMPTFR[1])) : 2;
+    // デッキ上から公開カードを取得
+    const topCardsPTFR = ctx.ownerState.deck.slice(0, revealCountPTFR);
+    if (topCardsPTFR.length === 0) return done(addLog(ctx, 'PLACE_TRAP_FROM_REVEALED: デッキなし'));
+    // 公開カードをデッキから除去した状態でSEARCHを提示
+    const deckWithoutPTFR = ctx.ownerState.deck.slice(revealCountPTFR);
+    const ctxPTFR = { ...ctx, ownerState: { ...ctx.ownerState, deck: deckWithoutPTFR } };
+    const noopPTFR: SequenceAction = { type: 'SEQUENCE', steps: [] };
+    const contPTFR: StubAction = { type: 'STUB', id: 'INTERNAL_PTFR_CHOOSE_ZONE' };
+    return needsInteraction(
+      addLog(ctxPTFR, `デッキ公開${topCardsPTFR.length}枚からトラップを選択（任意）`),
+      {
+        type: 'SEARCH', visibleCards: topCardsPTFR, maxPick: 1,
+        thenAction: noopPTFR as EffectAction,
+        continuation: contPTFR as EffectAction,
+        restDest: 'deck_bottom',  // 未選択カードはデッキ下へ
+      },
+    );
+  }
+  // INTERNAL_PTFR_CHOOSE_ZONE: PLACE_TRAP_FROM_REVEALED用のゾーン選択
+  if (stub.id === 'INTERNAL_PTFR_CHOOSE_ZONE') {
+    const selectedPTFR = ctx.lastProcessedCards?.[0];
+    if (!selectedPTFR) return done(addLog(ctx, 'トラップ設置スキップ（選択なし）'));
     const zoneOptsPTFR = [0, 1, 2].map(zi => ({
-      id: `zone_${zi}`,
-      label: `ゾーン${zi + 1}に設置`,
+      id: `ptfr_zone_${zi}`,
+      label: `ゾーン${zi + 1}にトラップ設置`,
       action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog(ctx, '設置するゾーンを選択（公開から）'), {
-      type: 'CHOOSE', options: zoneOptsPTFR, count: 1,
-    });
+    return needsInteraction(
+      addLog({ ...ctx, lastProcessedCards: [selectedPTFR] },
+        `${ctx.cardMap.get(selectedPTFR)?.CardName ?? selectedPTFR}をトラップとしてゾーン選択`),
+      { type: 'CHOOSE', options: zoneOptsPTFR, count: 1 },
+    );
   }
   // TRAP_OP: ソースカードのテキストに応じて操作判定
   if (stub.id === 'TRAP_OP') {
