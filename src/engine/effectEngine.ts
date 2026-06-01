@@ -1543,6 +1543,110 @@ export function collectEnergyColorSubs(
 }
 
 /**
+ * エナ代替トラッシュ系CONTINUOUS効果（ENERGY_*_TRASH_*）を収集する。
+ * - ENERGY_COLOR_SUBSTITUTE_TRASH: ルリグ効果→黒エナ→任意色ワイルド
+ * - ENERGY_SUBSTITUTE_TRASH_SIGNI: エナゾーンの当該シグニ→センタールリグ色
+ * - ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI: フィールドシグニ効果→美巧エナ→白
+ * - ENERGY_SUBSTITUTE_TRASH_KEY: キーピース→エナ2枚任意色代替
+ */
+export function collectEnergyTrashSubstituteInfo(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): {
+  wildcardInstIds: Set<string>;          // 任意色として使えるエナinstId
+  colorOverrideMap: Map<string, string>; // 特定色として使えるエナinstId→色
+  keySubInstId: string | null;           // キーピースinstId（エナ2任意色）
+} {
+  const wildcardInstIds = new Set<string>();
+  const colorOverrideMap = new Map<string, string>();
+  let keySubInstId: string | null = null;
+
+  function baseNum(id: string): string {
+    const h = id.indexOf('#');
+    return h > 0 ? id.slice(0, h) : id;
+  }
+
+  // センタールリグのCONTINUOUS効果チェック（ENERGY_COLOR_SUBSTITUTE_TRASH）
+  let hasColorSubTrash = false;
+  let centerLrigColor = '';
+  const centerLrigInstId = state.field.lrig.at(-1);
+  if (centerLrigInstId) {
+    const lrigCard = cardMap.get(baseNum(centerLrigInstId));
+    centerLrigColor = lrigCard?.Color ?? '';
+    const effs = effectsMap.get(centerLrigInstId) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ENERGY_COLOR_SUBSTITUTE_TRASH') {
+        hasColorSubTrash = true;
+      }
+    }
+  }
+
+  // フィールドシグニのCONTINUOUS効果チェック（ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI）
+  let hasWhiteSubTrashSigni = false;
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    const effs = effectsMap.get(top) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI') {
+        hasWhiteSubTrashSigni = true;
+      }
+    }
+  }
+
+  // キーピースのCONTINUOUS効果チェック（ENERGY_SUBSTITUTE_TRASH_KEY）
+  const keyPiece = state.field.key_piece;
+  if (keyPiece) {
+    const effs = effectsMap.get(keyPiece) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ENERGY_SUBSTITUTE_TRASH_KEY') {
+        keySubInstId = keyPiece;
+        break;
+      }
+    }
+  }
+
+  // エナゾーンの各カードを判定
+  for (const instId of state.energy) {
+    const bn = baseNum(instId);
+    const card = cardMap.get(bn);
+    if (!card) continue;
+
+    // ENERGY_COLOR_SUBSTITUTE_TRASH: 黒エナ→ワイルド
+    if (hasColorSubTrash && (card.Color ?? '').includes('黒')) {
+      wildcardInstIds.add(instId);
+      continue;
+    }
+
+    // ENERGY_SUBSTITUTE_TRASH_SIGNI: このシグニ自身がエナにある→センタールリグ色
+    const selfEffs = effectsMap.get(instId) ?? [];
+    const hasSelfEffect = selfEffs.some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'ENERGY_SUBSTITUTE_TRASH_SIGNI',
+    );
+    if (hasSelfEffect && centerLrigColor) {
+      colorOverrideMap.set(instId, centerLrigColor);
+      continue;
+    }
+
+    // ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI: 美巧シグニ→白
+    if (hasWhiteSubTrashSigni && card.Type === 'シグニ' && (card.CardClass ?? '').includes('美巧')) {
+      colorOverrideMap.set(instId, '白');
+    }
+  }
+
+  return { wildcardInstIds, colorOverrideMap, keySubInstId };
+}
+
+/**
  * FORCE_TARGET_SELF: フィールドのシグニが「相手ターンに可能ならば自分を対象にさせる」CONTINUOUS効果を持つ場合、
  * そのシグニのCardNumセットを返す（相手ターン中にアクティブなもの）。
  */
