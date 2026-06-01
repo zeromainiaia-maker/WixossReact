@@ -330,7 +330,9 @@ export function execStub(
       // 「対戦相手のシグニの効果を受けない」→ GRANT_PROTECTION (CONTINUOUS)
       if (quotedText.includes('対戦相手のシグニの効果を受けない')) {
         const grantedEff: import('../types/effects').CardEffect = {
+          effectId: `granted-signi-protect-${Date.now()}`,
           effectType: 'CONTINUOUS',
+          duration: 'UNTIL_END_OF_TURN',
           action: {
             type: 'GRANT_PROTECTION',
             from: ['シグニ'],
@@ -348,7 +350,9 @@ export function execStub(
       // 「対戦相手の効果を受けない」（シグニ・スペル・アーツすべて）
       if (quotedText.match(/対戦相手の(?:カードの)?効果を受けない/)) {
         const grantedEff: import('../types/effects').CardEffect = {
+          effectId: `granted-all-protect-${Date.now()}`,
           effectType: 'CONTINUOUS',
+          duration: 'UNTIL_END_OF_TURN',
           action: {
             type: 'GRANT_PROTECTION',
             from: ['シグニ', 'スペル', 'アーツ'],
