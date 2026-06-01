@@ -6858,10 +6858,23 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedOTNEC } },
       '対戦相手の次のターン中、対戦相手はエナコストを支払えない'));
   }
+  // OPP_MAIN_PHASE_LIMIT_DOWN: 次の相手メインフェイズの間、センタールリグのリミット-2
+  if (stub.id === 'OPP_MAIN_PHASE_LIMIT_DOWN') {
+    const newOtherMPLD: PlayerState = { ...ctx.otherState, pending_lrig_limit_mod: (ctx.otherState.pending_lrig_limit_mod ?? 0) - 2 };
+    return done(addLog({ ...ctx, otherState: newOtherMPLD }, '次の相手メインフェイズ中、相手リミット-2'));
+  }
+  // OPP_SIGNI_ATTACK_COST: ターン終了時まで、相手シグニのアタックに《無》×2コスト
+  if (stub.id === 'OPP_SIGNI_ATTACK_COST') {
+    const newOtherSAC: PlayerState = { ...ctx.otherState, signi_attack_cost: 2 };
+    return done(addLog({ ...ctx, otherState: newOtherSAC }, 'ターン終了時まで、対戦相手シグニアタックに《無》×2コスト'));
+  }
+  // OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS効果（effectEngineで動的判定）
+  if (stub.id === 'OPP_ZONE_PLACEMENT_RESTRICT') {
+    return done(addLog(ctx, '[配置制限: OPP_ZONE_PLACEMENT_RESTRICT（CONTINUOUS）]'));
+  }
   // コストアップ系（engine: コスト計算未実装）
-  if (stub.id === 'FIRST_SPELL_COST_UP' || stub.id === 'OPP_LRIG_ATTACK_COST' || stub.id === 'OPP_SIGNI_ATTACK_COST'
-      || stub.id === 'OPP_MAIN_PHASE_LIMIT_DOWN'
-      || stub.id === 'OPP_ZONE_PLACEMENT_RESTRICT' || stub.id === 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR') {
+  if (stub.id === 'FIRST_SPELL_COST_UP' || stub.id === 'OPP_LRIG_ATTACK_COST'
+      || stub.id === 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR') {
     return done(addLog(ctx, `[コストアップ/制限: ${stub.id}]`));
   }
   // シグニ移動/リダイレクト系（engine: 移動先変更未実装）
