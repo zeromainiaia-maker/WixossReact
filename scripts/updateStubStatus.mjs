@@ -410,8 +410,9 @@ const lines = stubsMd.split('\n');
 let changedCount = 0;
 const newLines = lines.map(line => {
   // テーブル行かチェック（全STUB一覧セクションのみ変更）
-  // 形式: | 件数 | effectType | 📝 | STUB_ID ...
-  const match = line.match(/^\| *(\d+) \| ([^|]+) \| 📝 \| ([A-Z0-9_]+)(.*)\|?$/);
+  // 形式: | 件数 | effectType | 📝 | STUB_ID ... （末尾に\rがある場合も対応）
+  const trimmed = line.replace(/\r$/, '');
+  const match = trimmed.match(/^\| *(\d+) \| ([^|]+) \| 📝 \| ([A-Z0-9_]+)(.*)\|?$/);
   if (!match) return line;
 
   const count = match[1];
