@@ -837,17 +837,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const fixOwnerTOSOC = (a: EffectAction): EffectAction => {
             if (!a || typeof a !== 'object') return a;
             if (['BANISH', 'BOUNCE', 'DOWN', 'FREEZE', 'GRANT_KEYWORD', 'POWER_MODIFY'].includes(a.type)) {
-              const withTgt = a as { target?: { owner?: string } };
+              const withTgt = a as unknown as { target?: { owner?: string; [k: string]: unknown }; [k: string]: unknown };
               if (withTgt.target && (withTgt.target.owner === 'self' || withTgt.target.owner === 'any')) {
-                return { ...a, target: { ...withTgt.target, owner: 'opponent' } };
+                return { ...withTgt, target: { ...withTgt.target, owner: 'opponent' } } as unknown as EffectAction;
               }
             }
             return a;
           };
-          const srcTOSOC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
-          const txtTOSOC = srcTOSOC ? (srcTOSOC.EffectText ?? '') + ' ' + (srcTOSOC.BurstText ?? '') : '';
-          const cntMTOSOC = txtTOSOC.match(/対戦相手のシグニ([０-９\d]+)体を対象とし/);
-          const targetCountTOSOC = cntMTOSOC ? parseInt(toHWTOSOC(cntMTOSOC[1])) : 1;
+          void toHWTOSOC; // count 解析は利用しない（execBanish/execBounce が自律的に候補を提示）
           const fixedThenTOSOC = fixOwnerTOSOC(conditional.then);
           const payLabelTOSOC = costColors.length > 0
             ? `対象選択して発動（${costColors.map(c => `《${c}》`).join('')}）`
