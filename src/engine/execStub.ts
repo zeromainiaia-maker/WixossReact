@@ -8186,7 +8186,6 @@ export function execStub(
       const newOwner = { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(penaltyCount), trash: [...ctx.ownerState.trash, ...toDiscard] };
       return done(addLog({ ...ctx, ownerState: newOwner }, `指定カードなし→ペナルティ手札${penaltyCount}枚捨て`));
     }
-    const discardMatchDOP: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
     return needsInteraction(addLog(ctx, `${labelDOP}か手札を${penaltyCount}枚捨てるか選択`), {
       type: 'CHOOSE', count: 1, options: [
         { id: 'specific', label: labelDOP, action: { type: 'STUB', id: 'INTERNAL_DISCARD_MATCHING_HAND_DOP' } as EffectAction, available: true },
