@@ -280,7 +280,7 @@
 | 1 | AUTO | ⚡ | POWER_MOD_DOUBLE_DIFF ※execStub: [複合パワー修正]（ログのみ） |
 | 1 | AUTO | ⚡ | SUPPRESS_CENTER_ON_PLAY ※execStub: ログのみ（プレイ抑制フラグ未実装） |
 | 1 | AUTO | ⚡ | TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE ※TARGET_OPP_SIGNI_ONLYと同ハンドラ: ログのみ（対象修飾子） |
-**合計: 212種**
+**合計: 249種**
 
 
 
