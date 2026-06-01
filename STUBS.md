@@ -546,10 +546,10 @@
 | 1 | CONT | ✅ | DYNAMIC_LEVEL_BY_ENERGY ※buildLevelModsにエナ枚数比例レベル変動追加 |
 | 1 | AUTO | ⚡ | EACH_PLAYER_DRAW_DISCARD |
 | 1 | AUTO | ⚡ | DRAW_AND_PUT_HAND_TO_DECK_BOTTOM |
-| 1 | CONT | ⚡ | ENERGY_COLOR_SUBSTITUTE_TRASH ※execStub: [エナ代替]（代替コスト未実装） |
-| 1 | CONT | ⚡ | ENERGY_SUBSTITUTE_TRASH_KEY ※execStub: [エナ代替]（代替コスト未実装） |
-| 1 | CONT | ⚡ | ENERGY_SUBSTITUTE_TRASH_SIGNI ※execStub: [エナ代替]（代替コスト未実装） |
-| 1 | CONT | ⚡ | ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI ※execStub: [エナ代替]（代替コスト未実装） |
+| 1 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_TRASH ※collectEnergyTrashSubstituteInfoで黒エナ→ワイルド |
+| 1 | CONT | ✅ | ENERGY_SUBSTITUTE_TRASH_KEY ※collectEnergyTrashSubstituteInfoでキーピース→エナ2代替UI |
+| 1 | CONT | ✅ | ENERGY_SUBSTITUTE_TRASH_SIGNI ※collectEnergyTrashSubstituteInfoでエナの自身→ルリグ色 |
+| 1 | CONT | ✅ | ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI ※collectEnergyTrashSubstituteInfoで美巧エナ→白 |
 | 1 | AUTO/ACTIVATED | ⚡ | ENERGY_LEVEL_CONDITION_CHOOSE |
 | 1 | AUTO | ✅ | ENERGY_TO_HAND_ON_DECK ※SELECT_TARGET(エナ)→手札へ実装済み |
 | 1 | AUTO | ✅ | ENERGY_TO_TRASH ※SELECT_TARGET(エナ)→トラッシュへ実装済み |
