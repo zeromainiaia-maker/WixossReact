@@ -4362,6 +4362,19 @@ export function execStub(
   if (stub.id === 'LIFE_TO_HAND_OPTIONAL') {
     const sLTH = ctx.ownerState;
     if (sLTH.life_cloth.length === 0) return done(addLog(ctx, 'ライフクロスなし'));
+    const doLTH: StubAction = { type: 'STUB', id: 'INTERNAL_LIFE_TO_HAND_DO' };
+    const skipLTH: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return needsInteraction(addLog(ctx, 'ライフクロス1枚を手札に加えてもよい'), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'do',   label: 'ライフクロスを手札に加える', action: doLTH   as EffectAction, available: true },
+        { id: 'skip', label: 'そうしない',                 action: skipLTH as EffectAction, available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_LIFE_TO_HAND_DO') {
+    const sLTH = ctx.ownerState;
+    if (sLTH.life_cloth.length === 0) return done(addLog(ctx, 'ライフクロスなし'));
     const topLife = sLTH.life_cloth[0];
     const newSLTH: PlayerState = { ...sLTH, life_cloth: sLTH.life_cloth.slice(1), hand: [...sLTH.hand, topLife] };
     return done(addLog({ ...ctx, ownerState: newSLTH }, 'ライフクロス1枚を手札に加えた'));
