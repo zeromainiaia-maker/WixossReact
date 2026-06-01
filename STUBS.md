@@ -70,7 +70,7 @@
 | 2 | ACTIVATED/CONT | ✅ | LIMIT_OPP_DRAW_COUNT ※v0.139: collectDrawLimits追加（CONTINUOUS LIMIT_OPP_DRAW_COUNT効果を動的検査）。BattleScreen UP フェイズのドロー計算に統合 |
 | 2 | AUTO | ✅ | LOOK_OPP_LIFE_TOP |
 | 2 | CONT | ✅ | LRIG_GROW_RESTRICT |
-| 2 | AUTO | ⚡ | MOVE_TO_ATTACKER_FRONT |
+| 2 | AUTO | ✅ | MOVE_TO_ATTACKER_FRONT ※v0.139: attacked_signi_ids の最終アタッカーからゾーンを動的取得。正面が空ならCHOOSE移動確認→INTERNAL_MOVE_TO_ZONE。stub.value後方互換保持 |
 | 2 | CONT | ✅ | MULTI_ZONE_ATTACK |
 | 2 | CONT | ✅ | ONE_ATTACK_PER_TURN ※effectEngine.calcContinuousBlockedActionsで実装 |
 | 2 | ACTIVATED | ⚡ | OPP_CHOOSE_OWN_SIGNI_TO_ENERGY |
