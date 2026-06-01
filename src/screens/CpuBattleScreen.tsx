@@ -346,7 +346,10 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const newAttkDown = [...(attacker.field.signi_down ?? [false,false,false])] as [boolean,boolean,boolean];
     newAttkDown[zoneIdx] = true;
     const newAttkAttackedIds = [...new Set([...(attacker.attacked_signi_ids ?? []), attkInstId])];
-    const newAttacker = { ...attacker, field: { ...attacker.field, signi_down: newAttkDown }, attacked_signi_ids: newAttkAttackedIds };
+    // OPP_SIGNI_ATTACK_COST: アタックにエナコストが必要な場合、エナを消費
+    const signiAtkCostCA = attacker.signi_attack_cost ?? 0;
+    const newEnergyCA = signiAtkCostCA > 0 ? attacker.energy.slice(signiAtkCostCA) : attacker.energy;
+    const newAttacker = { ...attacker, field: { ...attacker.field, signi_down: newAttkDown }, attacked_signi_ids: newAttkAttackedIds, energy: newEnergyCA };
 
     const defStack = defender.field.signi[zoneIdx];
     const defInstId = defStack?.at(-1);
