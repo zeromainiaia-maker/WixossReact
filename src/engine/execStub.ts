@@ -7363,8 +7363,8 @@ export function execStub(
     const bottom = deck[deck.length - 1];
     const newDeck = deck.slice(0, -1);
     const card = ctx.cardMap.get(bottom);
-    let newOwner = { ...ctx.ownerState, deck: newDeck, trash: [...ctx.ownerState.trash, bottom] };
-    let ctxIDBSM = addLog({ ...ctx, ownerState: newOwner }, `デッキ下(${card?.CardName ?? bottom})をトラッシュへ`);
+    const newOwner = { ...ctx.ownerState, deck: newDeck, trash: [...ctx.ownerState.trash, bottom] };
+    const ctxIDBSM = addLog({ ...ctx, ownerState: newOwner }, `デッキ下(${card?.CardName ?? bottom})をトラッシュへ`);
     if (card?.Type === 'シグニ') {
       const addField: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
       return exec(addField as EffectAction, { ...ctxIDBSM, lastProcessedCards: [bottom] });
