@@ -4792,7 +4792,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }).eq('room_id', roomId);
         return;
       }
-      await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+      // MULTI_DAMAGE_ON_LRIG_ATTACK: 人間攻撃側に残りアタック回数があれば再トリガー
+      let newHuStMD = huSt;
+      if (huSt.lrig_attack_remaining && huSt.lrig_attack_remaining > 0) {
+        const remMD = huSt.lrig_attack_remaining - 1;
+        newHuStMD = { ...huSt, lrig_attack_remaining: remMD > 0 ? remMD : undefined };
+        newCpuSt = { ...newCpuSt, field: { ...newCpuSt.field, lrig_attacked: true } };
+        appendBattleLogs([`[CPU] ルリグアタック継続（残り${remMD}回）`]);
+      }
+      await supabase.from('battle_states').update({ guest_state: newCpuSt, host_state: newHuStMD }).eq('room_id', roomId);
       return;
     }
 
@@ -5230,7 +5238,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return;
         }
       }
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      // MULTI_DAMAGE_ON_LRIG_ATTACK: 攻撃側に残りアタック回数があれば再トリガー
+      const oppStateKey = isHost ? 'guest_state' : 'host_state';
+      let newOpState = op;
+      if (op.lrig_attack_remaining && op.lrig_attack_remaining > 0) {
+        const rem = op.lrig_attack_remaining - 1;
+        newOpState = { ...op, lrig_attack_remaining: rem > 0 ? rem : undefined };
+        // バースト処理中でない場合は即座に再アタック、バースト中はcheck解消後に再表示
+        newMyState = { ...newMyState, field: { ...newMyState.field, lrig_attacked: true } };
+        appendBattleLogs([`ルリグアタック継続（残り${rem}回）`]);
+      }
+      await supabase.from('battle_states').update({ [stateKey]: newMyState, [oppStateKey]: newOpState }).eq('room_id', roomId);
     } finally {
       setLoading(false);
     }
@@ -7081,8 +7099,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
-      {/* ガード応答ダイアログ（自分が攻撃されたとき） */}
-      {my.field.lrig_attacked && createPortal(
+      {/* ガード応答ダイアログ（自分が攻撃されたとき・バースト処理中は非表示） */}
+      {my.field.lrig_attacked && !my.field.check && createPortal(
         <div style={{
           position: 'fixed', inset: 0, zIndex: 4500,
           backgroundColor: 'rgba(0,0,0,0.92)',
@@ -8943,7 +8961,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {srcCard?.CardName ?? pe.sourceCardNum}の効果
                 </p>
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
-                  カードを見て並べ替えてください（上がデッキトップ）
+                  {inter.destPosition === 'first_top_rest_bottom'
+                    ? '1枚目をデッキトップへ戻し、残りはデッキ下へ（上が優先）'
+                    : 'カードを見て並べ替えてください（上がデッキトップ）'}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {lookReorderOrder.map((cardNum, i) => {

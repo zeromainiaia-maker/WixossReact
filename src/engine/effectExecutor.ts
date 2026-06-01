@@ -2238,6 +2238,10 @@ export function resumeLookAndReorder(
     newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
   } else if (pending.destPosition === 'bottom') {
     newS = { ...state, deck: [...state.deck, ...keep], trash: [...state.trash, ...trashed] };
+  } else if (pending.destPosition === 'first_top_rest_bottom') {
+    // 1枚目→デッキトップ、残り→デッキ下
+    const [firstCard, ...restCards] = keep;
+    newS = { ...state, deck: [...(firstCard ? [firstCard] : []), ...state.deck, ...restCards], trash: [...state.trash, ...trashed] };
   } else {
     newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
   }

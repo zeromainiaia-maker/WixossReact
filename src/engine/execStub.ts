@@ -2545,10 +2545,23 @@ export function execStub(
     const maxMSE = maxMMSE ? parseInt(toHWMSE(maxMMSE[1])) : 2;
     const oppCandsMSE = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
     if (oppCandsMSE.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
-    const banishMSE: BanishAction = {
-      type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
-    };
-    return selectOrInteract(oppCandsMSE, maxMSE, false, 'opp_field', banishMSE as EffectAction, undefined, ctx);
+    const toEnergyMSE: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC' };
+    return selectOrInteract(oppCandsMSE, maxMSE, false, 'opp_field', toEnergyMSE as EffectAction, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC') {
+    const selectedIOSE = ctx.lastProcessedCards ?? [];
+    if (selectedIOSE.length === 0) return done(addLog(ctx, 'エナへ（対象なし）'));
+    let newOtherIOSE = ctx.otherState;
+    let countIOSE = 0;
+    for (const cn of selectedIOSE) {
+      if (!newOtherIOSE.field.signi.some(s => s?.at(-1) === cn)) continue;
+      const removedIOSE = removeFromField(cn, newOtherIOSE);
+      newOtherIOSE = { ...removedIOSE, energy: [...removedIOSE.energy, cn] };
+      countIOSE++;
+    }
+    const namesIOSE = selectedIOSE.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+    return done(addLog({ ...ctx, otherState: newOtherIOSE },
+      countIOSE > 0 ? `${namesIOSE}→相手エナゾーン` : 'エナへ（対象なし）'));
   }
   // 相手シグニをデッキに加えてシャッフル
   if (stub.id === 'OPP_SIGNI_TO_DECK_AND_SHUFFLE') {
@@ -4427,19 +4440,19 @@ export function execStub(
       { type: 'LOOK_AND_REORDER', cards: visLTN, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top' },
     );
   }
-  // LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を確認して残りをデッキ下に
+  // LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を確認し1枚をトップ・残りをデッキ下に
   if (stub.id === 'LOOK_TOP_ONE_RETURN_REST_BOTTOM') {
     const srcLTORB = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLTORB = srcLTORB ? (srcLTORB.EffectText ?? '') + ' ' + (srcLTORB.BurstText ?? '') : '';
     const toHWLTORB = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const mLTORB = txtLTORB.match(/デッキ(?:の上)?(?:から)?([０-９\d]+)枚/);
-    const countLTORB = mLTORB ? parseInt(toHWLTORB(mLTORB[1])) : 3;
+    const countLTORB = mLTORB ? parseInt(toHWLTORB(mLTORB[1])) : 2;
     const visLTORB = ctx.ownerState.deck.slice(0, Math.min(countLTORB, ctx.ownerState.deck.length));
     if (visLTORB.length === 0) return done(addLog(ctx, 'デッキなし'));
     const newSLTORB: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visLTORB.length) };
     return needsInteraction(
-      addLog({ ...ctx, ownerState: newSLTORB }, `デッキ上${visLTORB.length}枚を確認（残りをデッキ下へ）`),
-      { type: 'LOOK_AND_REORDER', cards: visLTORB, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'bottom' },
+      addLog({ ...ctx, ownerState: newSLTORB }, `デッキ上${visLTORB.length}枚を確認（1枚をトップへ・残りはデッキ下へ）`),
+      { type: 'LOOK_AND_REORDER', cards: visLTORB, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'first_top_rest_bottom' },
     );
   }
   // LOOK_TOP_SPELLS_TO_HAND: デッキ上N枚を確認してスペルを手札へ・残りをデッキへ
@@ -6938,8 +6951,19 @@ export function execStub(
     } as TransferToDeckAction;
     return selectOrInteract(candsORHOSB, 1, false, 'opp_hand', ttdActionORHOSB, undefined, ctx, true);
   }
+  // MULTI_DAMAGE_ON_LRIG_ATTACK: このターン、ルリグアタックをN回与える（lrig_attack_remainingフラグでBattleScreen側が管理）
+  if (stub.id === 'MULTI_DAMAGE_ON_LRIG_ATTACK') {
+    const srcMDALA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtMDALA = srcMDALA ? (srcMDALA.EffectText ?? '') + ' ' + (srcMDALA.BurstText ?? '') : '';
+    const toHWMDALA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const mMDALA = txtMDALA.match(/ダメージを([０-９\d]+)回与える/);
+    const totalMDALA = mMDALA ? parseInt(toHWMDALA(mMDALA[1])) : 3;
+    // 残り回数 = 合計 - 1（1回目は通常アタック扱い）
+    const newOwnerMDALA = { ...ctx.ownerState, lrig_attack_remaining: totalMDALA - 1 };
+    return done(addLog({ ...ctx, ownerState: newOwnerMDALA }, `このターン、ルリグが${totalMDALA}回アタックする（残り${totalMDALA - 1}回）`));
+  }
   // ダメージ特殊（engine: ダメージ処理拡張必要）
-  if (stub.id === 'MULTI_DAMAGE_ON_LRIG_ATTACK' || stub.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') {
+  if (stub.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') {
     return done(addLog(ctx, `[ダメージ/フェイズ特殊: ${stub.id}]`));
   }
   // ウェポン・プロテクション系（engine: 種族保護フラグ未実装）

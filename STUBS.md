@@ -608,7 +608,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_SIGNI_TO_FIELD ※デッキ上3枚から最初のシグニを空きゾーンに配置・残はトラッシュ（v0.148） |
 | 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_SORT ※LOOK_TOP_Nと同ハンドラ: デッキ上N枚LOOK_AND_REORDER（v0.148） |
 | 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_SPELLS_TO_HAND ※デッキ上N枚のスペルを自動で手札へ・非スペルはデッキ戻し（v0.148） |
-| 1 | AUTO | ⚡ | LOOK_TOP_ONE_RETURN_REST_BOTTOM |
+| 1 | AUTO | ✅ | LOOK_TOP_ONE_RETURN_REST_BOTTOM ※v0.161: first_top_rest_bottom destPosition追加。1枚→デッキトップ・残り→デッキ下 |
 | 1 | CONT | ✅ | LRIG_ALL_NAMES ※v0.129: collectLrigNameAliasesでLRIG_ALL_NAMES_SENTINEL追加。lrigNameMatchesで全ルリグ名マッチ。execStubのCONDITIONAL_MULTI_CHOOSE_BY_CENTERもruntime aliasesを考慮 |
 | 1 | AUTO/ACTIVATED | ⚡ | LRIG_GAIN_ABILITY ※done(addLog)のみ（ルリグシステムグループ: 未実装） |
 | 1 | CONT | ⚡ | LRIG_LIMIT_UP_AND_COLOR_GAIN ※v0.115: collectLrigColorAndLimitMods+lrigLimit計算に+limitDelta統合（色変更は部分的） |
@@ -618,9 +618,9 @@
 | 1 | AUTO | ⚡ | MOVE_ACCE_TO_SIGNI |
 | 1 | AUTO | ⚡ | MULTI_ACCE_FROM_HAND |
 | 1 | CONT | ⚡ | MULTI_ACCE_LIMIT ※v0.115: collectMultiAcceSigni実装（アクセ付け時のUI制限への統合は未実装） |
-| 1 | ACTIVATED | ⚡ | MULTI_DAMAGE_ON_LRIG_ATTACK |
+| 1 | ACTIVATED | ✅ | MULTI_DAMAGE_ON_LRIG_ATTACK ※v0.161: lrig_attack_remainingフラグ設置+BattleScreen handleGuardResponse/CPU側でマルチアタック実装 |
 | 1 | AUTO | ✅ | MULTI_SIGNI_POWER_UP_5000 |
-| 1 | AUTO | ⚡ | MULTI_SIGNI_TO_ENERGY |
+| 1 | AUTO | ✅ | MULTI_SIGNI_TO_ENERGY ※v0.161: BANISH→INTERNAL_OPP_SIGNI_TO_ENERGY_EXECに変更。選択した相手シグニを相手エナゾーンへ移動 |
 | 1 | AUTO | ⚡ | NAMED_SIGNI_ACCE_FROM_TRASH |
 | 6 | ACTIVATED | ⚡ | NEGATE_ALL_OPP_EFFECTS |
 | 3 | CONT | ✅ | NEGATE_ATTACK_ON_TRIGGER ※prevent_next_damageフラグ設置でアタック無効化実装済み |

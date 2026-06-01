@@ -196,6 +196,8 @@ export interface PlayerState {
   pending_lrig_limit_mod?: number;
   // OPP_SIGNI_ATTACK_COST: 自シグニのアタックに支払う無色コスト枚数（エナ消費）
   signi_attack_cost?: number;
+  // MULTI_DAMAGE_ON_LRIG_ATTACK: このターン残りN回ルリグアタックできる（1回目は通常アタック扱い）
+  lrig_attack_remaining?: number;
 }
 
 export interface GameLog {
@@ -253,7 +255,7 @@ export type PendingInteractionDef =
       canTrash: boolean;
       destLocation: 'deck';
       destOwner: 'self' | 'opponent';
-      destPosition: 'top' | 'bottom' | 'any';
+      destPosition: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom';
       continuation?: EffectAction;
     }
   | {
