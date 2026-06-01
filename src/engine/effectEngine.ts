@@ -118,6 +118,20 @@ export function checkActiveCondition(
       return ownerState.field.signi_armor?.[zoneIdx] ?? false;
     }
 
+    case 'IS_SELF_ACCED': {
+      // このシグニにアクセが付いているかぎり（フィールドのシグニに signi_acce が設定されている）
+      if (!sourceCardNum) return false;
+      const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
+      if (zoneIdx < 0) return false;
+      return (ownerState.field.signi_acce?.[zoneIdx] ?? null) !== null;
+    }
+
+    case 'IS_SELF_ACCE_CARD': {
+      // このカードがアクセスロットに装着されているかぎり
+      if (!sourceCardNum) return false;
+      return (ownerState.field.signi_acce ?? []).includes(sourceCardNum);
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers));
   }
