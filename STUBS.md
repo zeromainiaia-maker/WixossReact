@@ -53,7 +53,7 @@
 | 2 | ACTIVATED | ⚡ | CONDITIONAL_COST_REDUCTION_BY_FIELD |
 | 2 | ACTIVATED | ✅ | COPY_SIGNI ※v0.138: 2ステップSELECT_TARGET(フィールド→トラッシュ)+INTERNAL_COPY_SIGNI_APPLY。card_identity_overrides追加・effectEngine.calcFieldPowersでコピー元パワー参照 |
 | 2 | AUTO | ✅ | COPY_TARGET_POWER ※v0.137: lastProcessedCards未設定時にSELECT_TARGET→COPY_TARGET_POWER継続。パワー差分をtemp_power_modsに設定 |
-| 2 | CONT/AUTO | ⚡ | DEPLOY_RESTRICT |
+| 2 | CONT/AUTO | ⚡ | DEPLOY_RESTRICT ※v0.138: AUTO時に「パワーN以上場に出せない」→otherState.signi_deploy_power_limit設定。CONTINUOUS制限はログのみ |
 | 2 | AUTO | ✅ | DISCARD_IF_ATTACKED_THIS_TURN ※実装済み: attacked_signi_idsチェック+手札SELECT捨て |
 | 2 | AUTO | ✅ | DOUBLE_OWN_POWER_MINUS ※v0.137: SELECT_TARGET(相手シグニ)+double_power_minus_targets設定。effectEngine.applyTempModsで負デルタを2倍適用 |
 | 2 | ACTIVATED | ✅ | ENCORE |
