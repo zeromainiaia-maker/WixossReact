@@ -247,8 +247,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
-      // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（動的計算版）
-      if (tgt.owner === 'opponent' && c.otherProtectedZones?.includes('energy')) {
+      // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
+      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('energy') || c.otherState.prevent_opp_trash_from?.includes('energy'))) {
         return addLog(c, '相手エナ保護（PREVENT_ZONE_MOVE_BY_OPP）：エナ→トラッシュ阻止');
       }
       const newS: PlayerState = {
