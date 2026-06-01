@@ -6375,7 +6375,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
-                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, isBetting, isEncore, selectedArtsDiscard)}
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, isBetting, isEncore, selectedArtsDiscard, keySubstituteEnabled)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? (isEncore ? '#3377bb' : C.coin) : C.disabled,
