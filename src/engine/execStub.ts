@@ -6447,10 +6447,10 @@ export function execStub(
   if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白') {
     return done(addLog(ctx, '[ENERGY_COLOR_SUBSTITUTE: effectEngineで動的処理中]'));
   }
-  // エナ代替系（engine: コスト代替システム未実装）
+  // エナ代替系（effectEngine.collectEnergyTrashSubstituteInfoで動的計算）
   if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_TRASH' || stub.id === 'ENERGY_SUBSTITUTE_TRASH_SIGNI'
       || stub.id === 'ENERGY_SUBSTITUTE_TRASH_KEY' || stub.id === 'ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI') {
-    return done(addLog(ctx, `[エナ代替: ${stub.id}]`));
+    return done(addLog(ctx, `[エナ代替: ${stub.id}（UIで処理済み）]`));
   }
   // CLASS_CHANGE: シグニのクラスを一時変更
   if (stub.id === 'CLASS_CHANGE') {
