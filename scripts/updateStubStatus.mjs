@@ -518,10 +518,11 @@ const partialSection = [
 // 集計サマリーを更新
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// ✅ / ⚡ / 📝 の件数を全STUB一覧から再集計
+// ✅ / ⚡ / 📝 の件数を全STUB一覧から再集計（数字で始まるテーブル行のみ）
 let implemented = 0, partial = 0, notImpl = 0;
 for (const line of updatedLines) {
-  if (!line.startsWith('|')) continue;
+  // 数字（件数）で始まるテーブル行のみカウント
+  if (!line.match(/^\| *\d/)) continue;
   if (line.includes('| ✅ |')) implemented++;
   else if (line.includes('| ⚡ |')) partial++;
   else if (line.includes('| 📝 |')) notImpl++;
