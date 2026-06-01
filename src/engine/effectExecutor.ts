@@ -221,8 +221,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
     function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
-      // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（動的計算版）
-      if (tgt.owner === 'opponent' && c.otherProtectedZones?.includes('hand')) {
+      // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
+      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('hand') || c.otherState.prevent_opp_trash_from?.includes('hand'))) {
         return addLog(c, '相手手札保護（PREVENT_ZONE_MOVE_BY_OPP）：手札→トラッシュ阻止');
       }
       const remaining = [...s.hand];
