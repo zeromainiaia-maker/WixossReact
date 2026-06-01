@@ -26,7 +26,8 @@ export type EffectTiming =
   | 'ON_REVEALED_FROM_HAND' // このカードが効果によって手札から公開されたとき
   | 'ON_ENERGY_FROM_TRASH' // このカードがトラッシュからエナゾーンに置かれたとき
   | 'ON_BLOOD_CRYSTAL_ARMOR' // シグニが血晶武装状態になったとき
-  | 'ON_HEAVEN'; // このシグニが《ヘブン》したとき（ヘブンヘブン時）
+  | 'ON_HEAVEN'  // このシグニが《ヘブン》したとき（ヘブンヘブン時）
+  | 'ON_ACCE';   // シグニにアクセが付いたとき
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
