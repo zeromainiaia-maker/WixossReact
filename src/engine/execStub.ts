@@ -742,8 +742,8 @@ export function execStub(
       newVirusECRV[zi] -= take;
       removedECRV += take;
     }
-    let ctxECRV = { ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirusECRV } } };
-    if (removedECRV > 0) ctxECRV = addLog(ctxECRV, `ウイルス${removedECRV}個除去`);
+    let ctxECRV: typeof ctx = { ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirusECRV } } };
+    if (removedECRV > 0) ctxECRV = addLog(ctxECRV as import('./execUtils').ExecCtx, `ウイルス${removedECRV}個除去`) as typeof ctx;
     const chooseCount = removeN + 1;
     const srcECRV2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtECRV2 = srcECRV2 ? (srcECRV2.EffectText ?? '') + ' ' + (srcECRV2.BurstText ?? '') : '';
