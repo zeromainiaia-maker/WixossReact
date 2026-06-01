@@ -1072,6 +1072,32 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         }
         continue;
       }
+      // Pattern ⑦: REMOVE_VIRUS + TRANSFER_TO_HAND (好きな数取り除く → N枚手札へ)
+      if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'REMOVE_VIRUS') {
+        const nextRV7 = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
+        if (nextRV7?.type === 'TRANSFER_TO_HAND') {
+          const virusArrRV7 = cur.otherState.field.signi_virus ?? [0, 0, 0];
+          const totalRV7 = virusArrRV7.reduce((s, v) => s + v, 0);
+          const remainingRV7 = a.steps.slice(i + 2);
+          const contRV7: EffectAction | undefined = remainingRV7.length > 0
+            ? (remainingRV7.length === 1 ? remainingRV7[0] : { type: 'SEQUENCE', steps: remainingRV7 } as import('../types/effects').SequenceAction)
+            : undefined;
+          if (totalRV7 === 0) {
+            i++; // TRANSFER_TO_HAND もスキップ
+            cur = addLog(cur, 'ウイルスなし（REMOVE_VIRUS+TRANSFER スキップ）');
+            continue;
+          }
+          const optsRV7 = Array.from({ length: totalRV7 + 1 }, (_, n) => ({
+            id: `rv7_${n}`,
+            label: n === 0 ? '取り除かない' : `【ウィルス】${n}つ取り除く（シグニ${n}枚手札へ）`,
+            action: ({ type: 'STUB', id: 'INTERNAL_RV_BATCH_TRANSFER', value: n } as import('../types/effects').StubAction) as EffectAction,
+            available: true,
+          }));
+          return needsInteraction(addLog(cur, '取り除く【ウィルス】数を選択'), {
+            type: 'CHOOSE', options: optsRV7, count: 1, ...(contRV7 ? { continuation: contRV7 } : {}),
+          });
+        }
+      }
     }
     const result = executeAction(step, cur);
     if (!result.done) {
