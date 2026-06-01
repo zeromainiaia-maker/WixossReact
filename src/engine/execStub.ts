@@ -3189,17 +3189,35 @@ export function execStub(
         `全自シグニのパワー×2（${boostedPDA}体）`));
     return done(addLog(ctx, '自場にシグニなし（POWER_DOUBLE_ALL）'));
   }
-  // lastProcessedCards の先頭シグニのパワーを自シグニにコピー
+  // COPY_TARGET_POWER: 対象シグニのパワーを自シグニの基本パワーにする
   if (stub.id === 'COPY_TARGET_POWER') {
-    const targetCnCTP = (ctx.lastProcessedCards ?? [])[0];
     const selfCnCTP = ctx.sourceCardNum;
-    if (!targetCnCTP || !selfCnCTP) return done(addLog(ctx, 'パワーコピー不可（対象/自シグニなし）'));
+    const targetCnCTP = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn) ||
+      ctx.otherState.field.signi.some(s => s?.at(-1) === cn)
+    );
+    if (!selfCnCTP) return done(addLog(ctx, 'パワーコピー不可（自シグニなし）'));
+    if (!targetCnCTP) {
+      // ターゲット未選択 → SELECT_TARGET してからCOPY_TARGET_POWERを再実行
+      const allFieldCTP = [
+        ...[0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
+        ...[0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c),
+      ].filter(cn => cn !== selfCnCTP);
+      if (allFieldCTP.length === 0) return done(addLog(ctx, 'コピー対象シグニなし'));
+      const contCTP: StubAction = { type: 'STUB', id: 'COPY_TARGET_POWER' };
+      const noopCTP: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+      return needsInteraction(addLog(ctx, 'パワーをコピーするシグニを選択'), {
+        type: 'SELECT_TARGET', candidates: allFieldCTP, count: 1, optional: false,
+        targetScope: 'self_field', thenAction: noopCTP as EffectAction,
+        continuation: contCTP as EffectAction,
+      });
+    }
     const targetPwCTP = ctx.effectivePowers?.get(targetCnCTP) ?? parseInt(ctx.cardMap.get(targetCnCTP)?.Power ?? '0', 10);
     const selfPwCTP = ctx.effectivePowers?.get(selfCnCTP) ?? parseInt(ctx.cardMap.get(selfCnCTP)?.Power ?? '0', 10);
     const deltaCTP = targetPwCTP - selfPwCTP;
     const modsCTP = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: selfCnCTP, delta: deltaCTP }];
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsCTP } },
-      `パワー${targetPwCTP}をコピー（${ctx.cardMap.get(targetCnCTP)?.CardName ?? targetCnCTP}から）`));
+      `${ctx.cardMap.get(selfCnCTP)?.CardName ?? selfCnCTP}のパワーを${targetPwCTP}にコピー（${ctx.cardMap.get(targetCnCTP)?.CardName ?? targetCnCTP}から）`));
   }
   // 自パワーに合わせて相手シグニのパワーを設定
   if (stub.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER') {
