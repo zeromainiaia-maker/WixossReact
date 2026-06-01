@@ -488,7 +488,19 @@ function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<s
   return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
 }
 
-function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: string, keywordGrants?: Record<string, string[]>, allMulti?: boolean, colorlessOverrides?: string[], colorSubs?: { from: string[]; to: string }[], extraColorMap?: Map<string, string>): boolean {
+function canAffordGrowCost(
+  energyNums: string[],
+  cards: CardData[],
+  growCost: string,
+  keywordGrants?: Record<string, string[]>,
+  allMulti?: boolean,
+  colorlessOverrides?: string[],
+  colorSubs?: { from: string[]; to: string }[],
+  extraColorMap?: Map<string, string>,
+  trashSubWilds?: Set<string>,       // エナ代替ワイルド（任意色）
+  trashSubColors?: Map<string, string>, // エナ代替色指定（instId→色）
+  extraWildCount?: number,            // キー代替による追加ワイルド枚数
+): boolean {
   const costs = parseGrowCost(growCost);
   if (costs.length === 0) return true;
   // 色指定コストを先に処理し、マルチエナをワイルドカードとして温存する
@@ -498,8 +510,18 @@ function canAffordGrowCost(energyNums: string[], cards: CardData[], growCost: st
     const c = cards.find(cd => cd.CardNum === getCardNum(n));
     // colorless_card_overrides に含まれるカードは全ゾーンで無色扱い
     const isColorless = colorlessOverrides?.includes(getCardNum(n)) || colorlessOverrides?.includes(n);
-    return { color: isColorless ? '無' : (c?.Color ?? '無'), isWild: !isColorless && isMultiEna(n, cards, keywordGrants, allMulti), extraColor: extraColorMap?.get(n) };
+    const isTrashWild = trashSubWilds?.has(n) === true;
+    const extraColor = extraColorMap?.get(n) ?? trashSubColors?.get(n);
+    return {
+      color: isColorless ? '無' : (c?.Color ?? '無'),
+      isWild: (!isColorless && isMultiEna(n, cards, keywordGrants, allMulti)) || isTrashWild,
+      extraColor,
+    };
   });
+  // キーピース代替による追加ワイルド（エナ選択不要分）
+  if (extraWildCount) {
+    for (let i = 0; i < extraWildCount; i++) pool.push({ color: '無', isWild: true });
+  }
   for (const { color, count } of sorted) {
     let needed = count;
     // まず通常カードで充当（energy_color_substitutes・追加色も考慮）
