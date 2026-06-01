@@ -6326,9 +6326,24 @@ export function execStub(
   if (stub.id === 'CENTER_ZONE_CONDITION') {
     return done(addLog(ctx, 'センターゾーン条件'));
   }
-  // DEPLOY_RESTRICT: 配置制限（ログのみ）
+  // DEPLOY_RESTRICT: 配置制限（CONTINUOUSは動的処理、AUTOはフラグ設置）
   if (stub.id === 'DEPLOY_RESTRICT') {
-    return done(addLog(ctx, '配置制限'));
+    const srcDR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtDR = srcDR ? (srcDR.EffectText ?? '') : '';
+    const toHWDR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 「パワーN以上のシグニを新たに場に出せない」→ 相手に配置パワー上限を設定
+    const powerCapM = txtDR.match(/パワー([０-９\d万]+)以上.*(?:新たに)?場に出せない/);
+    if (powerCapM) {
+      const cap = parseInt(toHWDR(powerCapM[1]).replace('万', '0000'));
+      const newOtherDR = { ...ctx.otherState, signi_deploy_power_limit: cap };
+      return done(addLog({ ...ctx, otherState: newOtherDR },
+        `対戦相手はパワー${cap}以上のシグニを場に出せない（次ターンまで）`));
+    }
+    // 「〜の効果によってしか新たに場に出せない」→ 自分シグニへの配置制限（ログのみ）
+    if (txtDR.includes('効果によってしか') || txtDR.includes('効果以外')) {
+      return done(addLog(ctx, `配置制限（特定効果のみ）：${srcDR?.CardName ?? ''}は特定効果でのみ場に出せる`));
+    }
+    return done(addLog(ctx, '配置制限（パターン解析不可）'));
   }
   // DEFEAT: 敗北処理（ログのみ）
   if (stub.id === 'DEFEAT') {
