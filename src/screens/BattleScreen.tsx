@@ -5605,7 +5605,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // シグニ合計1回アタック制限チェック
       if (my.signi_attack_once_limit && (my.attacked_signi_ids?.length ?? 0) > 0) return [];
-      return [{ label: 'アタック', color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
+      // OPP_SIGNI_ATTACK_COST: アタックにエナコストが必要
+      const signiAtkCost = my.signi_attack_cost ?? 0;
+      if (signiAtkCost > 0 && my.energy.length < signiAtkCost) return []; // エナ不足でアタック不可
+      const atkLabel = signiAtkCost > 0 ? `アタック（《無》×${signiAtkCost}）` : 'アタック';
+      return [{ label: atkLabel, color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
     }
 
     return [];
