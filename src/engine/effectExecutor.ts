@@ -905,6 +905,49 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
         }
 
+        // REMOVE_VIRUS: ウイルスをN個取り除いてからconditional.thenを実行
+        if (stub.id === 'REMOVE_VIRUS') {
+          const toHWRV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+          const virusArrRV = cur.otherState.field.signi_virus ?? [0, 0, 0];
+          const totalVirusRV = virusArrRV.reduce((s, v) => s + v, 0);
+          const srcRV = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
+          const txtRV = srcRV ? (srcRV.EffectText ?? '') + ' ' + (srcRV.BurstText ?? '') : '';
+          const cntMRV = txtRV.match(/【ウィルス】([０-９\d]+)つを?取り除く/);
+          const removeCountRV = cntMRV ? parseInt(toHWRV(cntMRV[1])) : 1;
+          const isOptionalRV = !!(txtRV.match(/取り除いてもよい/));
+          // ウイルス除去スタブ + conditional.then を連結したアクション
+          const removeStubRV: import('../types/effects').StubAction = {
+            type: 'STUB', id: 'INTERNAL_REMOVE_VIRUS_N', value: removeCountRV,
+          };
+          const payActionRV: EffectAction = {
+            type: 'SEQUENCE', steps: [removeStubRV as EffectAction, conditional.then],
+          } as import('../types/effects').SequenceAction;
+          if (totalVirusRV < removeCountRV) {
+            // ウイルスが足りない場合はスキップ
+            if (cont) return executeAction(cont, cur);
+            return done(addLog(cur, `ウイルス不足（必要${removeCountRV}、実在${totalVirusRV}）`));
+          }
+          if (isOptionalRV) {
+            const optsRV = [
+              { id: 'pay', label: `【ウィルス】${removeCountRV}つを取り除く`, action: payActionRV, available: true },
+              { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+            ];
+            return needsInteraction(addLog(cur, '【ウィルス】を取り除きますか？'), {
+              type: 'CHOOSE', options: optsRV, count: 1, ...(cont ? { continuation: cont } : {}),
+            });
+          }
+          // 強制除去: ウイルス除去 → conditional.then
+          const mandRV = executeAction(payActionRV, cur);
+          if (!mandRV.done && cont) {
+            const ex = mandRV.pending.continuation;
+            mandRV.pending = { ...mandRV.pending, continuation: ex
+              ? { type: 'SEQUENCE', steps: [ex, cont] } as import('../types/effects').SequenceAction
+              : cont };
+          }
+          if (mandRV.done && cont) return executeAction(cont, { ...cur, ownerState: mandRV.ownerState, otherState: mandRV.otherState, logs: mandRV.logs });
+          return mandRV;
+        }
+
         // OPPONENT_PAY_OPTIONAL: 対戦相手がコストを支払う/支払わない
         // pay → 何も起きない（対戦相手のエナ消費）, skip → 効果発動（conditional.then）
         if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
