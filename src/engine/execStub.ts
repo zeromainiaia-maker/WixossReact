@@ -7378,8 +7378,8 @@ export function execStub(
     const bottomIDBLD = deckIDBLD[deckIDBLD.length - 1];
     const bottomCard = ctx.cardMap.get(bottomIDBLD);
     const newDeckIDBLD = deckIDBLD.slice(0, -1);
-    let newOwnerIDBLD = { ...ctx.ownerState, deck: newDeckIDBLD, trash: [...ctx.ownerState.trash, bottomIDBLD] };
-    let ctxIDBLD = addLog({ ...ctx, ownerState: newOwnerIDBLD }, `デッキ下(${bottomCard?.CardName ?? bottomIDBLD})をトラッシュへ`);
+    const newOwnerIDBLD = { ...ctx.ownerState, deck: newDeckIDBLD, trash: [...ctx.ownerState.trash, bottomIDBLD] };
+    const ctxIDBLD = addLog({ ...ctx, ownerState: newOwnerIDBLD }, `デッキ下(${bottomCard?.CardName ?? bottomIDBLD})をトラッシュへ`);
     if (bottomCard?.Type === 'シグニ') {
       const lv = parseInt(bottomCard.Level ?? '0');
       const targets = [0,1,2].map(zi => ctxIDBLD.otherState.field.signi[zi]?.at(-1))
