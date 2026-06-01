@@ -42,8 +42,11 @@ function assignInstanceIds(cards: string[]): string[] {
 }
 
 class InstanceMap<V> extends Map<string, V> {
-  override get(id: string): V | undefined { return super.get(getCardNum(id)); }
-  override has(id: string): boolean       { return super.has(getCardNum(id)); }
+  override get(id: string): V | undefined {
+    if (super.has(id)) return super.get(id);
+    return super.get(getCardNum(id));
+  }
+  override has(id: string): boolean { return super.has(id) || super.has(getCardNum(id)); }
 }
 
 function makeEmptyPlayerState(): PlayerState {
