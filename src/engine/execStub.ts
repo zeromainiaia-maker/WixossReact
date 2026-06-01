@@ -679,7 +679,7 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwner }, `登録者数＋${gain}万人（計${newCnt}万人）`));
   }
   // ウイルス除去：対戦相手のシグニに乗った最初のウイルスを取り除く
-  if (stub.id === 'REMOVE_VIRUS' || stub.id === 'EXTRA_COST_REMOVE_VIRUS') {
+  if (stub.id === 'REMOVE_VIRUS') {
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
     const zoneIdx = virusArr.findIndex(v => v > 0);
     if (zoneIdx < 0) return done(addLog(ctx, 'ウイルスなし'));
@@ -687,6 +687,121 @@ export function execStub(
     newVirus[zoneIdx] = 0;
     const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
     return done(addLog({ ...ctx, otherState: newOther }, `ウイルスを除去（ゾーン${zoneIdx + 1}）`));
+  }
+  // EXTRA_COST_REMOVE_VIRUS: ウイルスを任意数取り除いてからN+1択の効果を選ぶ
+  if (stub.id === 'EXTRA_COST_REMOVE_VIRUS') {
+    const virusArrECRV = ctx.otherState.field.signi_virus ?? [0, 0, 0];
+    const totalVirusECRV = virusArrECRV.reduce((s, v) => s + v, 0);
+    const srcECRV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtECRV = srcECRV ? (srcECRV.EffectText ?? '') + ' ' + (srcECRV.BurstText ?? '') : '';
+    const toHWECRV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 最大取り除き数を解析
+    const maxRemoveM = txtECRV.match(/【ウィルス】を([０-９\d]+)つまで取り除|好きな数取り除/);
+    const maxRemoveECRV = maxRemoveM
+      ? (maxRemoveM[1] ? parseInt(toHWECRV(maxRemoveM[1])) : totalVirusECRV)
+      : totalVirusECRV;
+    // 取り除く数を選択 (0 から min(max, totalVirus))
+    const removeOptions: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+    for (let n = 0; n <= Math.min(maxRemoveECRV, totalVirusECRV); n++) {
+      removeOptions.push({
+        id: `remove_${n}`,
+        label: n === 0 ? '取り除かない' : `ウイルス${n}つ取り除く`,
+        action: ({ type: 'STUB', id: 'INTERNAL_ECRV_APPLY', value: n } as StubAction) as EffectAction,
+        available: true,
+      });
+    }
+    return needsInteraction(addLog(ctx, `ウイルス取り除き（最大${Math.min(maxRemoveECRV, totalVirusECRV)}）`), {
+      type: 'CHOOSE', options: removeOptions, count: 1,
+    });
+  }
+  // INTERNAL_ECRV_APPLY: ウイルスN個除去→(N+1)択効果を選ぶ
+  if (stub.id === 'INTERNAL_ECRV_APPLY') {
+    const removeN = typeof stub.value === 'number' ? stub.value : 0;
+    // ウイルスをN個除去
+    const newVirusECRV = [...(ctx.otherState.field.signi_virus ?? [0, 0, 0])];
+    let removedECRV = 0;
+    for (let zi = 0; zi < 3 && removedECRV < removeN; zi++) {
+      const take = Math.min(newVirusECRV[zi], removeN - removedECRV);
+      newVirusECRV[zi] -= take;
+      removedECRV += take;
+    }
+    let ctxECRV = { ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirusECRV } } };
+    if (removedECRV > 0) ctxECRV = addLog(ctxECRV, `ウイルス${removedECRV}個除去`);
+    const chooseCount = removeN + 1;
+    const srcECRV2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtECRV2 = srcECRV2 ? (srcECRV2.EffectText ?? '') + ' ' + (srcECRV2.BurstText ?? '') : '';
+    const toHWECRV2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // ①②③④の効果オプションを解析（CONDITIONAL_MULTI_CHOOSE_BY_CENTERと同様のロジック）
+    const ecrPatterns = [
+      { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
+      { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
+    ];
+    const optsECRV: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+    for (const { m, idx } of ecrPatterns) {
+      const mat = txtECRV2.match(m);
+      if (!mat) continue;
+      const choiceTxtECRV = mat[1].replace(/。\s*$/, '').trim();
+      let choiceActECRV: EffectAction | null = null;
+      if (choiceTxtECRV.match(/トラッシュから.*黒.*シグニ.*手札/)) {
+        choiceActECRV = ({ type: 'STUB', id: 'SUMMON_FROM_TRASH_TO_HAND_BLACK' } as StubAction) as EffectAction;
+      } else if (choiceTxtECRV.match(/パワーを([－-][０-９\d]+)する/)) {
+        const delta = parseInt(toHWECRV2(choiceTxtECRV.match(/パワーを([－-][０-９\d]+)する/)![1]).replace('－', '-'));
+        choiceActECRV = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: delta } as StubAction) as EffectAction;
+      } else if (choiceTxtECRV.match(/すべてのシグニのパワーを([－-][０-９\d]+)/)) {
+        const delta = parseInt(toHWECRV2(choiceTxtECRV.match(/すべてのシグニのパワーを([－-][０-９\d]+)/)![1]).replace('－', '-'));
+        choiceActECRV = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_ALL_OPP', value: delta } as StubAction) as EffectAction;
+      } else if (choiceTxtECRV.match(/トラッシュにある.*ゲームから除外/)) {
+        choiceActECRV = ({ type: 'STUB', id: 'INTERNAL_EXILE_OPP_TRASH' } as StubAction) as EffectAction;
+      } else if (choiceTxtECRV.match(/デッキの上からカードを([０-９\d]+)枚トラッシュ/)) {
+        const cnt = parseInt(toHWECRV2(choiceTxtECRV.match(/デッキの上からカードを([０-９\d]+)枚トラッシュ/)![1]));
+        choiceActECRV = ({ type: 'STUB', id: 'INTERNAL_DECK_TRASH_BOTH', value: cnt } as StubAction) as EffectAction;
+      }
+      if (choiceActECRV) {
+        optsECRV.push({
+          id: `eff_${idx}`,
+          label: `${['①','②','③','④'][idx]}${choiceTxtECRV.slice(0, 20)}...`,
+          action: choiceActECRV,
+          available: true,
+        });
+      }
+    }
+    if (optsECRV.length > 0) {
+      return needsInteraction(addLog(ctxECRV, `効果を${chooseCount}つ選択`), {
+        type: 'CHOOSE', options: optsECRV, count: Math.min(chooseCount, optsECRV.length),
+      });
+    }
+    return done(addLog(ctxECRV, `ウイルス${removeN}個除去→効果${chooseCount}択（解析不可）`));
+  }
+  // SUMMON_FROM_TRASH_TO_HAND_BLACK: トラッシュから黒シグニを手札へ
+  if (stub.id === 'SUMMON_FROM_TRASH_TO_HAND_BLACK') {
+    const blackSigni = ctx.ownerState.trash.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && (c.Color ?? '').includes('黒');
+    });
+    if (blackSigni.length === 0) return done(addLog(ctx, 'トラッシュに黒シグニなし'));
+    const addHAct: AddToHandAction = { type: 'ADD_TO_HAND', owner: 'self' };
+    return selectOrInteract(blackSigni, 1, false, 'self_trash', addHAct as EffectAction, undefined, ctx);
+  }
+  // INTERNAL_POWER_MOD_ALL_OPP: 全相手シグニへのパワー修正
+  if (stub.id === 'INTERNAL_POWER_MOD_ALL_OPP') {
+    const deltaIAPMA = typeof stub.value === 'number' ? stub.value : -2000;
+    const modsIAPMA = [...(ctx.otherState.temp_power_mods ?? [])];
+    for (let zi = 0; zi < 3; zi++) {
+      const top = ctx.otherState.field.signi[zi]?.at(-1);
+      if (top) modsIAPMA.push({ cardNum: top, delta: deltaIAPMA });
+    }
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsIAPMA } },
+      `全相手シグニパワー${deltaIAPMA}`));
+  }
+  // INTERNAL_EXILE_OPP_TRASH: 相手トラッシュのカードをゲームから除外（2枚まで）
+  if (stub.id === 'INTERNAL_EXILE_OPP_TRASH') {
+    const oppTrashIEOT = ctx.otherState.trash;
+    if (oppTrashIEOT.length === 0) return done(addLog(ctx, '相手トラッシュにカードなし'));
+    const exileN = Math.min(2, oppTrashIEOT.length);
+    const exiled = oppTrashIEOT.slice(0, exileN);
+    const newOtherIEOT = { ...ctx.otherState, trash: oppTrashIEOT.slice(exileN) };
+    return done(addLog({ ...ctx, otherState: newOtherIEOT },
+      `相手トラッシュから${exiled.length}枚ゲーム除外（${exiled.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・')}）`));
   }
   // デッキトップを見て下に置いてもよい
   if (stub.id === 'TOP_TO_BOTTOM_OPTIONAL') {
