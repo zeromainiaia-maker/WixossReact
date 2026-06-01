@@ -46,9 +46,9 @@
 | 3 | CONT | ✅ | OPP_GUARD_COST_COLORLESS |
 | 3 | ACTIVATED/AUTO | ✅ | PLACE_CARD_UNDER_SIGNI |
 | 8 | ACTIVATED/AUTO/CONT | ✅ | BLOOD_CRYSTAL_ARMOR ※v0.110: 血晶武装状態管理・ON_BLOOD_CRYSTAL_ARMORトリガー・IS_SELF_ARMOREDアクティブ条件・isArmoredフィルタ・UIバッジ実装 |
-| 3 | CONT/AUTO | ⚡ | PREVENT_ZONE_MOVE_BY_OPP |
+| 3 | CONT/AUTO | ✅ | PREVENT_ZONE_MOVE_BY_OPP ※v0.137: AUTO時にprevent_opp_trash_fromフラグ設置。effectExecutorのapplyTrashHand/EnergyでotherState.prevent_opp_trash_fromも検査 |
 | 2 | CONT/AUTO | ✅ | ARTS_COST_REDUCTION_BY_EFFECT |
-| 2 | CONT | 📝 | ATTACK_PHASE_LEVEL_OVERRIDE |
+| 2 | CONT | ✅ | ATTACK_PHASE_LEVEL_OVERRIDE ※v0.137: collectAttackPhaseLevelOverrides追加・checkActiveCondition EICHI_LEVEL_SUM で ownerState.attack_phase_level_overrides を使用・BattleScreenアタックフェイズ時に ownerStateForCtx に設定 |
 
 | 2 | ACTIVATED | ⚡ | CONDITIONAL_COST_REDUCTION_BY_FIELD |
 | 2 | ACTIVATED | ⚡ | COPY_SIGNI |
