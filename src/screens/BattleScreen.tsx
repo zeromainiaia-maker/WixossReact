@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -1102,21 +1102,43 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     [battleCards],
   );
 
-  // granted_effects を加味した augmented 効果マップ
-  // instanceId キーで付与能力を優先取得、なければ CardNum フォールバック（InstanceMap）
+  // granted_effects + under-signi付与を加味した augmented 効果マップ
   const effectsMap = useMemo(() => {
     if (!bs) return baseEffectsMap;
     const localIsHost = user.id === bs.host_id;
-    const myGranted = (localIsHost ? bs.host_state : bs.guest_state).granted_effects ?? {};
-    const opGranted = (localIsHost ? bs.guest_state : bs.host_state).granted_effects ?? {};
-    if (Object.keys(myGranted).length === 0 && Object.keys(opGranted).length === 0) return baseEffectsMap;
+    const myS  = localIsHost ? bs.host_state  : bs.guest_state;
+    const opS  = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+
+    const myGranted = myS.granted_effects ?? {};
+    const opGranted = opS.granted_effects ?? {};
+    const hasGranted = Object.keys(myGranted).length > 0 || Object.keys(opGranted).length > 0;
+
+    // スタックあり（ライズ）ゾーンの有無チェック
+    const hasStack = [...myS.field.signi, ...opS.field.signi].some(s => s && s.length >= 2);
+
+    if (!hasGranted && !hasStack) return baseEffectsMap;
+
     const augMap = new Map<string, import('../types/effects').CardEffect[]>(baseEffectsMap);
+
+    // granted_effects の適用
     for (const [instanceId, granted] of [...Object.entries(myGranted), ...Object.entries(opGranted)]) {
       const base = baseEffectsMap.get(getCardNum(instanceId)) ?? [];
       augMap.set(instanceId, [...base, ...granted]);
     }
+
+    // under-signi → top-signi 効果付与（collectGrantedFromUnderSigni）
+    if (hasStack) {
+      const myUnder = collectGrantedFromUnderSigni(myS, opS, myTurn, augMap, battleCardMap);
+      const opUnder = collectGrantedFromUnderSigni(opS, myS, !myTurn, augMap, battleCardMap);
+      for (const [num, extra] of [...myUnder, ...opUnder]) {
+        const base = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
+        augMap.set(num, [...base, ...extra]);
+      }
+    }
+
     return new InstanceMap(augMap);
-  }, [bs, baseEffectsMap, user.id]);
+  }, [bs, baseEffectsMap, user.id, battleCardMap]);
 
   // フィールドシグニの有効パワー（CONTINUOUS 効果適用済み）
   const effectivePowers = useMemo(() => {
@@ -1146,14 +1168,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return collectSpecificCardCostReductions(myS, battleCardMap, effectsMap);
   }, [bs, effectsMap, battleCardMap, user.id]);
 
-  // フィールドのシグニ・キーピースが持つ GRANT_LRIG_ABILITY 効果でセンタールリグに付与された能力
+  // フィールドのシグニ・キーピース GRANT_LRIG_ABILITY + lrig_granted_auto_effects でルリグに付与された能力
   const grantedMyLrigEffects = useMemo(() => {
     if (!bs) return [];
     const localIsHost = user.id === bs.host_id;
     const myS  = localIsHost ? bs.host_state  : bs.guest_state;
     const opS  = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
-    return collectLrigGrantedEffects(myS, opS, myTurn, effectsMap, battleCardMap);
+    return [
+      ...collectLrigGrantedEffects(myS, opS, myTurn, effectsMap, battleCardMap),
+      ...(myS.lrig_granted_auto_effects ?? []),
+    ];
   }, [bs, effectsMap, battleCardMap, user.id]);
 
   // フィールド（シグニ＋センタールリグ）にCONTINUOUS GRANT_KEYWORD マルチエナ（count:ALL）効果があるか

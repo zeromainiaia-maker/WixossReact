@@ -271,6 +271,7 @@ export type EffectAction =
   | PreventNextDamageAction
   | TakeFromUnderSigniAction
   | GrantEffectAction
+  | GrantSigniAboveAbilityAction
   | StubAction
   | UnknownAction;
 
@@ -498,6 +499,13 @@ export interface GrantEffectAction {
   target: EffectTarget;
   effect: CardEffect;      // 付与するエフェクト（AUTO/ACTIVATED/CONTINUOUSなど）
   duration: EffectDuration;
+}
+
+// スタック下のカードから上のシグニへ能力を付与する（CONTINUOUS効果として宣言）
+export interface GrantSigniAboveAbilityAction {
+  type: 'GRANT_SIGNI_ABOVE_ABILITY';
+  filter?: TargetFilter;   // 上のシグニへのフィルタ（省略時は任意）
+  abilities: CardEffect[]; // 付与する能力
 }
 
 // トラッシュ/エナ/フィールドからデッキへ移動

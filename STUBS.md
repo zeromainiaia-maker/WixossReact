@@ -419,7 +419,7 @@
 | 2 | CONT | ⚡ | FIELD_ENERGY_SIGNI_GAIN_COLOR ※v0.113: collectFieldEnergySigniColorGains実装・エナ支払い追加色対応（《ディソナアイコン》フィルターは識別子未実装のため除外） |
 | 2 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
 | 2 | ACTIVATED/AUTO | ✅ | GRANT_CHOSEN_ABILITY ※v0.138: lastProcessedCardsに自シグニなければSELECT_TARGET→CHOOSE能力(アサシン/ランサー/ダブルクラッシュ/バニッシュ不可/ダウン不可/バウンス不可)。keyword_grantsに格納 |
-| 2 | CONT | ⚡ | GRANT_QUOTED_ACTIVATE_ABILITY ※v0.138: GRANT_QUOTED_AUTO_ABILITYブロックから分離。起動能力パターンログ改善（レベル比例/2倍-タイプ識別） |
+| 2 | CONT | ⚡ | GRANT_QUOTED_ACTIVATE_ABILITY ※WXK08-078はGRANT_SIGNI_ABOVE_ABILITY+POWER_MINUS_PER_OWN_LEVELに変更✅。WX13-058(ダイオ姫条件付きDOUBLE_POWER_MINUS)は未変換 |
 | 2 | AUTO/ACTIVATED | ✅ | HAND_REVEAL_CLASS_SIGNI ※手札クラスシグニSELECT_TARGET→lastProcessedCardsに格納（v0.148） |
 | 2 | AUTO | ✅ | HAND_TO_ENERGY_OPTIONAL ※v0.139: 重複ハンドラ削除。先行ハンドラ（maxHTE解析+INTERNAL_HAND_TO_ENERGY続行）が正しく動作 |
 | 2 | ACTIVATED/AUTO | ✅ | LAYER_ABILITY_COPY ※v0.139: SELECT_TARGET(怪異trash/field)+INTERNAL_LAYER_COPY_APPLY。《レイヤーアイコン》テキストからSランサー等を keyword_grants に付与 |
@@ -562,18 +562,18 @@
 | 1 | CONT | ⚡ | GAIN_ADDITIONAL_LRIG_TYPE ※execStub: [ルリグシステム]（lrig system未実装） |
 | 1 | AUTO | ⚡ | GAIN_COIN_AND_DISCARD |
 | 1 | CONT | ⚡ | GAIN_LRIG_COLOR ※v0.115: collectLrigColorInheritSigni実装（SHADOW統合は未実装） |
-| 1 | AUTO/ACTIVATED | ⚡ | GRANT_ABILITY_UNTIL_OPP_TURN ※execStub: [能力付与]（engine未実装） |
+| 1 | AUTO/ACTIVATED | ⚡ | GRANT_ABILITY_UNTIL_OPP_TURN ※execStub: [能力付与]（次の相手ターン終了まで期間追跡未実装） |
 | 1 | CONT | ⚡ | GRANT_CHOSEN_ABILITY_FROM_PLAY |
 | 1 | ACTIVATED | ⚡ | GRANT_CHOSEN_ABILITY_SELF |
 | 1 | ACTIVATED | ⚡ | GRANT_CONDITIONAL_ASSASSIN_ABILITY |
-| 1 | AUTO/ACTIVATED | ⚡ | GRANT_LRIG_ABILITY ※execStub: [能力付与]（engine未実装） |
-| 1 | CONT | ⚡ | GRANT_LRIG_TRASH_ACTIVATE_ABILITY ※execStub: [能力付与]（engine未実装） |
-| 1 | CONT | ⚡ | GRANT_SIGNI_CLASS ※execStub: [能力付与]（engine未実装） |
-| 1 | CONT | ⚡ | GRANT_UNDER_LRIG_ACTIVATE_ABILITY ※execStub: [能力付与]（engine未実装） |
-| 1 | CONT | ⚡ | GRANT_UNDER_LRIG_AUTO_ABILITY ※execStub: [能力付与]（engine未実装） |
-| 1 | CONT | ⚡ | GRANT_UNDER_SIGNI_ALL_ABILITIES ※execStub: [能力付与]（engine未実装） |
-| 1 | CONT | ⚡ | GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE ※execStub: [能力付与]（engine未実装） |
-| 1 | CONT | ⚡ | GRANT_UNDER_SIGNI_CONSTANT_ABILITY ※execStub: [能力付与]（engine未実装） |
+| 1 | AUTO/ACTIVATED | ✅ | GRANT_LRIG_ABILITY ※PR-317: effects.jsonをGRANT_LRIG_ABILITYアクション型に変更+lrig_granted_auto_effectsをgrantedMyLrigEffectsに統合 |
+| 1 | CONT | ✅ | GRANT_LRIG_TRASH_ACTIVATE_ABILITY ※WXEX2-12: collectLrigGrantedEffectsにlrig_trash名前フィルタ付き収集を追加 |
+| 1 | CONT | ⚡ | GRANT_SIGNI_CLASS ※クラス付与システム未実装（story_overrides相当の拡張が必要） |
+| 1 | CONT | ✅ | GRANT_UNDER_LRIG_ACTIVATE_ABILITY ※WX12-001: collectLrigGrantedEffectsにunder-lrig ACTIVATED収集を追加 |
+| 1 | CONT | ✅ | GRANT_UNDER_LRIG_AUTO_ABILITY ※WX21-003: collectLrigGrantedEffectsにunder-lrig AUTO収集を追加 |
+| 1 | CONT | ✅ | GRANT_UNDER_SIGNI_ALL_ABILITIES ※WX21-024: collectGrantedFromUnderSigniで下シグニの全効果をトップに付与 |
+| 1 | CONT | ✅ | GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE ※WXK08-048: collectGrantedFromUnderSigniでフィルタ付きAUTO収集 |
+| 1 | CONT | ✅ | GRANT_UNDER_SIGNI_CONSTANT_ABILITY ※WX19-027: collectGrantedFromUnderSigniで英知CONTINUOUS収集 |
 | 1 | AUTO | ⚡ | GRID_REVEAL_PLUS |
 | 1 | CONT | ⚡ | GROW_COST_SUBSTITUTE_TRASH_SIGNI ※execStub: [グロウコスト]（engine未実装） |
 | 1 | CONT | ⚡ | GUARD_ALTERNATIVE_COST ※execStub: [ガードコスト]（engine未実装） |
@@ -790,6 +790,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-06-02 v0.154 | 効果付与エンジン実装: collectGrantedFromUnderSigni追加（GRANT_UNDER_SIGNI_ALL/CONSTANT/AUTO_ATTACK_PHASE→✅）。collectLrigGrantedEffectsにGRANT_UNDER_LRIG_ACTIVATE/AUTO・GRANT_LRIG_TRASH_ACTIVATE_ABILITY追加（✅）。WXK08-078をGRANT_SIGNI_ABOVE_ABILITY+POWER_MINUS_PER_OWN_LEVEL（✅）。PR-317をGRANT_LRIG_ABILITYアクション型に変更+lrig_granted_auto_effectsをgrantedMyLrigEffectsに統合（✅）。BattleScreen effectsMapにunder-signi付与統合 | 7件✅ |
 | 2026-06-01 v0.153 | OPTIONAL_COST✅化: effectExecutorが338件のSTUB→CONDITIONAL(IS_MY_TURN)パターンをインターセプト済みであることを確認。execStub.tsのエッジケースハンドラを「自動支払い」→pay/skipのCHOOSE＋costColors付きオプション（エナ選択UI統合）に改善。📝件数0達成 | 1件 |
 | 2026-06-01 v0.152 | STUBS.md一括更新: 92件を📝→✅/⚡に再分類。✅化39件(TRASH_OWN_KEY_OPTIONAL/CHOOSE_COLOR_FROM_LIST/BLOCK_OPP_ZONE_PLACEMENT/NEGATE_ATTACK_ON_TRIGGER/PREVENT_DEFEAT/OPP_SIGNI_LEAVE_TO_TRASH/REVERSE_OPP_POWER_MINUS/REVEALED_SIGNI_TO_FIELD_REST_TRASH/REMOVE_OPP_MULTI_ENA系2件/PREVENT_DAMAGE系3件/PREVENT_OWN_ARTS_USE/LEAVE_FIELD_TO_DECK_BOTTOM/CONDITIONAL_KEYWORD_BY_CENTER_COLOR/CLASS_SIGNI_TO_ENERGY/COUNT_DISTINCT_NAMES/DECK_REVEAL_UNTIL_CLASS/CHOSEN_TO_ENERGY_OR_HAND/CONDITIONAL_ADD_HAND/CONDITIONAL_DISCARD/NO_ABILITY_SIGNI_TO_DECK_BOTTOM/PLACE_ACCE_SIGNI_TO_ENERGY/ACCE_BANISH_SELF_TRASH/ACCE_SIGNI_GRANT_ABILITY/CONDITIONAL_SEARCH_IF_FIELD/CONDITIONAL_SEARCH_IF_RESONA/INFECTED_SIGNI_POWER_DOWN_BY_LEVEL/LIFE_TO_HAND_OPTIONAL/PLACE_SIGNI_UNDER_SIGNI/POWER_MOD_BY_FIELD_CLASS_LEVEL/HAND_SIGNI_UNDER_SIGNI/REVEAL/REVEALED_CARD_COLOR_DISCARD/SELECT_NO_COMMON_COLOR/UPKEEP_OR_NO_UP/USE_SPELL_FROM_TRASH/PLAY_EFFECT_TARGET_CLASS_CHANGE)。⚡化53件(ログのみ確認済み) | 92件 |
 | 2026-06-01 v0.151 | 4件✅化: BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT(collectBlockLowCostSpellCount+castSpellでチャーム数以下スペルをブロック)・BLOCK_OPP_DECK_TO_ENERGY(calcContinuousBlockedActions+execEnergyChargeFromDeck)・BLOCK_OPP_ENCORE_AND_BET(既実装確認→✅)・BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT(calcContinuousBlockedActions+execAddToField) | 4件 |

@@ -6226,7 +6226,9 @@ export function execStub(
       targetScope: 'self_field', thenAction: contSGQCA as EffectAction,
     });
   }
-  // 能力付与系（engine: CardEffect付与システム未実装）
+  // 能力付与系（CONTINUOUS効果はeffectEngineで処理、AUTO/ACTIVATEDでも来た場合のフォールバック）
+  // GRANT_UNDER_SIGNI_*/GRANT_UNDER_LRIG_*/GRANT_LRIG_TRASH_ACTIVATE_ABILITY
+  // → collectGrantedFromUnderSigni / collectLrigGrantedEffectsで処理済み
   if (stub.id === 'GRANT_LRIG_ABILITY' || stub.id === 'GRANT_LRIG_TRASH_ACTIVATE_ABILITY'
       || stub.id === 'GRANT_UNDER_LRIG_ACTIVATE_ABILITY' || stub.id === 'GRANT_UNDER_LRIG_AUTO_ABILITY'
       || stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES' || stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY'
@@ -8360,6 +8362,29 @@ export function execStub(
     const newSGCAA: PlayerState = { ...ctx.ownerState, keyword_grants: kwGCAA };
     return done(addLog({ ...ctx, ownerState: newSGCAA },
       `${ctx.cardMap.get(cnGCAA)?.CardName ?? cnGCAA}にアサシン付与（条件付き）`));
+  }
+  // POWER_MINUS_PER_OWN_LEVEL: このシグニのレベル×2000だけ対戦相手シグニのパワーを下げる
+  // WXK08-078（弩書　エムショ）のGRANT_SIGNI_ABOVE_ABILITYで付与されるACTIVATED効果
+  if (stub.id === 'POWER_MINUS_PER_OWN_LEVEL') {
+    const srcCardPMPOL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const srcLevelPMPOL = srcCardPMPOL ? (parseInt(srcCardPMPOL.Level ?? '0') || 0) : 0;
+    const deltaPMPOL = -2000 * srcLevelPMPOL;
+    const targetPMPOL = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.otherState.field.signi.some(s => s?.at(-1) === cn),
+    );
+    if (targetPMPOL) {
+      const newMods = [...(ctx.otherState.temp_power_mods ?? []), { cardNum: targetPMPOL, delta: deltaPMPOL }];
+      const newOtherPMPOL: PlayerState = { ...ctx.otherState, temp_power_mods: newMods };
+      return done(addLog({ ...ctx, otherState: newOtherPMPOL },
+        `${ctx.cardMap.get(targetPMPOL)?.CardName ?? targetPMPOL} パワー${deltaPMPOL}（レベル${srcLevelPMPOL}×-2000）`));
+    }
+    const oppCandsPMPOL = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    if (oppCandsPMPOL.length === 0) return done(addLog(ctx, '対象相手シグニなし（POWER_MINUS_PER_OWN_LEVEL）'));
+    const thenPMPOL: StubAction = { type: 'STUB', id: 'POWER_MINUS_PER_OWN_LEVEL' };
+    return needsInteraction(ctx, {
+      type: 'SELECT_TARGET', candidates: oppCandsPMPOL, count: 1, optional: false,
+      targetScope: 'opp_field', thenAction: thenPMPOL as EffectAction,
+    });
   }
   // NEGATE_ABILITY: 対象シグニの能力を無効化（abilities_removedに追加）
   if (stub.id === 'NEGATE_ABILITY') {

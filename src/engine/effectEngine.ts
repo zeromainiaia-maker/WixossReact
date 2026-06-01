@@ -16,6 +16,7 @@ import type {
   TargetFilter,
   EnergyCost,
   GrantLrigAbilityAction,
+  GrantSigniAboveAbilityAction,
   ConditionalAction,
   Condition,
   GrantProtectionAction,
@@ -1008,6 +1009,54 @@ export function collectLrigGrantedEffects(
       if (effect.action.type === 'GRANT_LRIG_ABILITY') {
         const gla = effect.action as GrantLrigAbilityAction;
         granted.push(...gla.abilities);
+      }
+    }
+  }
+
+  // GRANT_UNDER_LRIG_ACTIVATE_ABILITY / GRANT_UNDER_LRIG_AUTO_ABILITY:
+  // センタールリグのスタック下カードの能力をトップルリグに付与する
+  const lrigStack = ownerState.field.lrig;
+  if (lrigStack.length >= 2) {
+    const topLrigNum = lrigStack[lrigStack.length - 1];
+    const underLrigs = lrigStack.slice(0, -1);
+    for (const eff of (effectsMap.get(topLrigNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topLrigNum)) continue;
+      if (eff.action.type !== 'STUB') continue;
+      const stub = eff.action as import('../types/effects').StubAction;
+      if (stub.id === 'GRANT_UNDER_LRIG_ACTIVATE_ABILITY') {
+        for (const un of underLrigs) {
+          granted.push(...(effectsMap.get(un) ?? []).filter(e => e.effectType === 'ACTIVATED'));
+        }
+      }
+      if (stub.id === 'GRANT_UNDER_LRIG_AUTO_ABILITY') {
+        for (const un of underLrigs) {
+          granted.push(...(effectsMap.get(un) ?? []).filter(e => e.effectType === 'AUTO'));
+        }
+      }
+    }
+  }
+
+  // GRANT_LRIG_TRASH_ACTIVATE_ABILITY:
+  // ルリグトラッシュにある名前一致ルリグのACTIVATED能力をトップルリグに付与する
+  const topLrig = lrigStack.at(-1);
+  if (topLrig) {
+    for (const eff of (effectsMap.get(topLrig) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topLrig)) continue;
+      if (eff.action.type !== 'STUB') continue;
+      const stub2 = eff.action as import('../types/effects').StubAction;
+      if (stub2.id === 'GRANT_LRIG_TRASH_ACTIVATE_ABILITY') {
+        const topCard = cardMap.get(topLrig);
+        const txt = topCard?.EffectText ?? '';
+        const nameM = txt.match(/カード名に《([^》]+)》を含む/);
+        const reqName = nameM?.[1];
+        for (const trashNum of (ownerState.lrig_trash ?? [])) {
+          const trashCard = cardMap.get(trashNum);
+          if (!trashCard) continue;
+          if (reqName && !(trashCard.CardName ?? '').includes(reqName)) continue;
+          granted.push(...(effectsMap.get(trashNum) ?? []).filter(e => e.effectType === 'ACTIVATED'));
+        }
       }
     }
   }
@@ -2485,6 +2534,120 @@ export function collectAllColorSigni(
       if (distinctNames.size >= required) result.add(top);
     }
   }
+  return result;
+}
+
+/**
+ * GRANT_UNDER_SIGNI_* / GRANT_SIGNI_ABOVE_ABILITY:
+ * スタック（ライズ状態）シグニ間の CONTINUOUS 能力付与を収集する。
+ * - トップシグニが GRANT_UNDER_SIGNI_* スタブを持つ → 下のカードの効果をトップに付与
+ * - 下のカードが GRANT_SIGNI_ABOVE_ABILITY アクションを持つ → 指定効果をトップに付与
+ * Returns: topSigniInstanceId → 追加 CardEffect[] のマップ
+ */
+export function collectGrantedFromUnderSigni(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Map<string, CardEffect[]> {
+  const result = new Map<string, CardEffect[]>();
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
+  for (let zi = 0; zi < 3; zi++) {
+    const stack = ownerState.field.signi[zi];
+    if (!stack || stack.length < 2) continue;
+
+    const topNum = stack[stack.length - 1];
+    const underNums = stack.slice(0, -1);
+    const topBaseNum = topNum.includes('#') ? topNum.slice(0, topNum.indexOf('#')) : topNum;
+    const topCard = cardMap.get(topBaseNum);
+    const txt = (topCard?.EffectText ?? '') + ' ' + (topCard?.BurstText ?? '');
+
+    // Pattern A: トップシグニの CONTINUOUS スタブ → 下のカードから効果を収集
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      if (eff.action.type !== 'STUB') continue;
+      const stub = eff.action as import('../types/effects').StubAction;
+
+      // GRANT_UNDER_SIGNI_ALL_ABILITIES: 下シグニの全効果（常/自/起）を付与
+      if (stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES') {
+        const excludeM = txt.match(/《([^》]+)》以外の/);
+        const excludeName = excludeM?.[1];
+        const classM = txt.match(/＜([^＞]+)＞のシグニの/);
+        const reqClass = classM?.[1];
+        const grantCont = txt.includes('【常】');
+        const grantAuto = txt.includes('【自】');
+        const grantAct  = txt.includes('【起】');
+        for (const un of underNums) {
+          const unBase = un.includes('#') ? un.slice(0, un.indexOf('#')) : un;
+          const unCard = cardMap.get(unBase);
+          if (!unCard) continue;
+          if (excludeName && unCard.CardName === excludeName) continue;
+          if (reqClass && !(unCard.CardClass ?? '').includes(reqClass)) continue;
+          const extra = (effectsMap.get(un) ?? []).filter(e => {
+            if (grantCont && e.effectType === 'CONTINUOUS') return true;
+            if (grantAuto && e.effectType === 'AUTO') return true;
+            if (grantAct  && e.effectType === 'ACTIVATED') return true;
+            return false;
+          });
+          const existing = result.get(topNum) ?? [];
+          result.set(topNum, [...existing, ...extra]);
+        }
+      }
+
+      // GRANT_UNDER_SIGNI_CONSTANT_ABILITY: 下シグニの CONTINUOUS 効果を付与
+      if (stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY') {
+        const eichiOnly = txt.includes('【英知】');
+        for (const un of underNums) {
+          const unBase = un.includes('#') ? un.slice(0, un.indexOf('#')) : un;
+          const extra = (effectsMap.get(unBase) ?? []).filter(e => {
+            if (e.effectType !== 'CONTINUOUS') return false;
+            if (eichiOnly && e.activeCondition?.type !== 'EICHI_LEVEL_SUM') return false;
+            return true;
+          });
+          const existing = result.get(topNum) ?? [];
+          result.set(topNum, [...existing, ...extra]);
+        }
+      }
+
+      // GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE: 下シグニの AUTO 効果を付与（フィルタあり）
+      if (stub.id === 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE') {
+        const lvM = txt.match(/レベル([０-９\d]+)以下/);
+        const maxLv = lvM ? parseInt(toHW(lvM[1])) : undefined;
+        const colorM = txt.match(/(黒|赤|青|緑|白)の＜/);
+        const reqColor = colorM?.[1];
+        const classM2 = txt.match(/(?:黒|赤|青|緑|白)の＜([^＞]+)＞/);
+        const reqClass2 = classM2?.[1];
+        for (const un of underNums) {
+          const unBase = un.includes('#') ? un.slice(0, un.indexOf('#')) : un;
+          const unCard = cardMap.get(unBase);
+          if (!unCard) continue;
+          if (maxLv !== undefined && parseInt(unCard.Level ?? '0') > maxLv) continue;
+          if (reqColor && !unCard.Color?.includes(reqColor)) continue;
+          if (reqClass2 && !(unCard.CardClass ?? '').includes(reqClass2)) continue;
+          const extra = (effectsMap.get(unBase) ?? []).filter(e => e.effectType === 'AUTO');
+          const existing = result.get(topNum) ?? [];
+          result.set(topNum, [...existing, ...extra]);
+        }
+      }
+    }
+
+    // Pattern B: 下のカードが GRANT_SIGNI_ABOVE_ABILITY → トップに指定効果を付与
+    for (const un of underNums) {
+      const unBase = un.includes('#') ? un.slice(0, un.indexOf('#')) : un;
+      for (const eff of (effectsMap.get(un) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        if (eff.action.type !== 'GRANT_SIGNI_ABOVE_ABILITY') continue;
+        const gsa = eff.action as GrantSigniAboveAbilityAction;
+        if (gsa.filter && !matchesFilter(topCard, gsa.filter)) continue;
+        const existing = result.get(topNum) ?? [];
+        result.set(topNum, [...existing, ...gsa.abilities]);
+      }
+    }
+  }
+
   return result;
 }
 
