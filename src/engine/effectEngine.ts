@@ -352,18 +352,30 @@ function buildLevelMods(
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'LEVEL_MOD_PER_COUNT') continue;
+      if (act.type !== 'STUB') continue;
       const card = cardMap.get(topNum);
       const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
       const baseLv = parseInt(card?.Level ?? '', 10);
       if (isNaN(baseLv)) continue;
-      // "対戦相手の場にある【チャーム】N枚につきN減る"
-      const m = txt.match(/対戦相手の場にある【チャーム】([０-９\d]*)枚?につき([０-９\d]+)減る/);
-      if (m) {
-        const divisor = parseInt(toHW(m[1] || '1')) || 1;
-        const delta = parseInt(toHW(m[2])) || 1;
-        const charmCount = (otherState.field.signi_charms ?? []).filter(c => c !== null).length;
-        levelMods.set(topNum, Math.max(0, baseLv - Math.floor(charmCount / divisor) * delta));
+      if (act.id === 'LEVEL_MOD_PER_COUNT') {
+        // "対戦相手の場にある【チャーム】N枚につきN減る"
+        const m = txt.match(/対戦相手の場にある【チャーム】([０-９\d]*)枚?につき([０-９\d]+)減る/);
+        if (m) {
+          const divisor = parseInt(toHW(m[1] || '1')) || 1;
+          const delta = parseInt(toHW(m[2])) || 1;
+          const charmCount = (otherState.field.signi_charms ?? []).filter(c => c !== null).length;
+          levelMods.set(topNum, Math.max(0, baseLv - Math.floor(charmCount / divisor) * delta));
+        }
+      } else if (act.id === 'DYNAMIC_LEVEL_BY_ENERGY') {
+        // "エナゾーンにあるシグニ/スペルNにつき+Y"
+        const mDelta = txt.match(/につき.*?＋([１-９\d]+)/);
+        const delta = mDelta ? parseInt(toHW(mDelta[1])) : 1;
+        const mType = txt.match(/エナゾーンにある(シグニ|スペル)/);
+        const energyCount = ownerState.energy.filter(cn => {
+          if (!mType) return true;
+          return cardMap.get(cn)?.Type === (mType[1] === 'シグニ' ? 'シグニ' : 'スペル');
+        }).length;
+        levelMods.set(topNum, baseLv + energyCount * delta);
       }
     }
   }
@@ -1479,6 +1491,32 @@ export function collectOppEnergyColorRestriction(
     }
   }
   return null;
+}
+
+/**
+ * EXTRA_GUARD_COST_FROM_HAND: ownerState のフィールドに
+ * 「手札からガードアイコンカードを追加で捨てないとガードできない」CONTINUOUS効果があれば true を返す。
+ */
+export function collectOppExtraGuardFromHand(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): boolean {
+  const candidates: string[] = [];
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig.at(-1)!);
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'EXTRA_GUARD_COST_FROM_HAND') return true;
+    }
+  }
+  void cardMap;
+  return false;
 }
 
 /**

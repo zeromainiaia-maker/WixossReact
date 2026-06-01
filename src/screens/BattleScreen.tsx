@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -4954,20 +4954,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const guardCardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
         // OPP_GUARD_COST_COLORLESS: 相手フィールドにアクティブな場合、追加で無色エナを1枚消費
         const needsExtraEnergy = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, !isMyTurn);
+        // EXTRA_GUARD_COST_FROM_HAND: 相手フィールドにアクティブな場合、手札から追加でガードカードを1枚捨てる
+        const needsExtraGuardCard = collectOppExtraGuardFromHand(op, battleCardMap, effectsMap);
         let energyAfterGuard = my.energy;
+        let extraTrash: string[] = [];
         if (needsExtraEnergy && my.energy.length > 0) {
           const removedEnergy = my.energy[my.energy.length - 1];
           energyAfterGuard = my.energy.slice(0, -1);
-          appendBattleLogs([`ガード（${guardCardName}）＋追加コスト《無》消費（${battleCardMap.get(removedEnergy)?.CardName ?? removedEnergy}）`]);
+          extraTrash.push(removedEnergy);
+        }
+        if (needsExtraGuardCard) {
+          const extraGuardIdx = my.hand.findIndex((cn, i) => i !== handIndex && (battleCardMap.get(cn)?.Guard === '1'));
+          if (extraGuardIdx >= 0) {
+            const extraGuardNum = my.hand[extraGuardIdx];
+            extraTrash.push(extraGuardNum);
+            appendBattleLogs([`ガード（${guardCardName}）＋追加コスト：手札ガードカード（${battleCardMap.get(extraGuardNum)?.CardName ?? extraGuardNum}）を捨てる`]);
+          } else {
+            appendBattleLogs([`ガード（${guardCardName}）（追加ガードカードなし）`]);
+          }
+        } else if (needsExtraEnergy && energyAfterGuard.length < my.energy.length) {
+          appendBattleLogs([`ガード（${guardCardName}）＋追加コスト《無》消費`]);
         } else {
           appendBattleLogs([`ガード（${guardCardName}）`]);
         }
+        const handAfterExtraGuard = needsExtraGuardCard
+          ? my.hand.filter((cn, i) => i !== handIndex && !extraTrash.slice(needsExtraEnergy && my.energy.length > 0 ? 1 : 0).includes(cn))
+          : my.hand.filter((_, i) => i !== handIndex);
         newMyState = {
           ...my,
-          hand: my.hand.filter((_, i) => i !== handIndex),
-          trash: needsExtraEnergy && my.energy.length > 0
-            ? [...my.trash, cardNum, my.energy[my.energy.length - 1]]
-            : [...my.trash, cardNum],
+          hand: handAfterExtraGuard,
+          trash: [...my.trash, cardNum, ...extraTrash],
           energy: energyAfterGuard,
           field: { ...my.field, lrig_attacked: false },
         };
@@ -6785,9 +6801,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const guardDisabledByOpp = op.prevent_opp_guard === true;
               // 相手フィールドのOPP_GUARD_COST_COLORLESS: 追加で無色エナ1枚必要
               const oppGuardExtraColorless = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, !isMyTurn);
+              // 相手フィールドのEXTRA_GUARD_COST_FROM_HAND: 追加でガードカードを手札から捨てる必要
+              const oppExtraGuardFromHand = collectOppExtraGuardFromHand(op, battleCardMap, effectsMap);
+              const guardCardCountInHand = my.hand.filter(cn => battleCardMap.get(cn)?.Guard === '1').length;
               // エナゾーンが空の場合はガード不可
               const guardBlockedByExtraCost = oppGuardExtraColorless && my.energy.length === 0;
-              const guardCards = (guardDisabledByOpp || guardBlockedByExtraCost) ? [] : my.hand
+              // 追加ガードカードが1枚しかない場合はガード不可（ガード用1枚＋追加コスト用1枚=2枚必要）
+              const guardBlockedByExtraGuard = oppExtraGuardFromHand && guardCardCountInHand < 2;
+              const guardCards = (guardDisabledByOpp || guardBlockedByExtraCost || guardBlockedByExtraGuard) ? [] : my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
                 .filter(({ num, card }) => {
                   // hand_signi_guard_enabled: 手札のシグニはすべてガード可能
@@ -6809,6 +6830,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       border: '1px solid rgba(240,160,48,0.3)' }}>
                       ⚠ 追加で《無》×1（エナ1枚）を支払わないとガードできません
                       {guardBlockedByExtraCost && '（エナゾーンが空のためガード不可）'}
+                    </p>
+                  )}
+                  {oppExtraGuardFromHand && (
+                    <p style={{ color: '#f0a030', fontSize: 12, margin: '0 0 6px',
+                      padding: '6px 10px', background: 'rgba(240,160,48,0.1)', borderRadius: 6,
+                      border: '1px solid rgba(240,160,48,0.3)' }}>
+                      ⚠ 追加でガードアイコンカードを1枚手札から捨てないとガードできません
+                      {guardBlockedByExtraGuard && `（ガードカード${guardCardCountInHand}枚では不足）`}
                     </p>
                   )}
                   {guardCards.length > 0 ? (

@@ -4290,6 +4290,20 @@ export function execStub(
     const newSDRW: PlayerState = { ...sDRW, hand: [...sDRW.hand, ...sDRW.deck.slice(0, canDrawDRW)], deck: sDRW.deck.slice(canDrawDRW) };
     return done(addLog({ ...ctx, ownerState: newSDRW }, `${drawCountDRW}枚ドロー`));
   }
+  // DRAW_DISCARD_COUNT_PLUS_N: 捨てた枚数+Nドロー
+  if (stub.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
+    const toHWDDCPN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const srcDDCPN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtDDCPN = srcDDCPN ? (srcDDCPN.EffectText ?? '') + ' ' + (srcDDCPN.BurstText ?? '') : '';
+    const mDDCPN = txtDDCPN.match(/枚数に([０-９\d]+)を加えた/);
+    const plusN = mDDCPN ? parseInt(toHWDDCPN(mDDCPN[1])) : 1;
+    const discardCount = ctx.lastProcessedCards?.length ?? 0;
+    const drawCount = discardCount + plusN;
+    const sDDCPN = ctx.ownerState;
+    const canDraw = Math.min(drawCount, sDDCPN.deck.length);
+    const newSDDCPN: PlayerState = { ...sDDCPN, hand: [...sDDCPN.hand, ...sDDCPN.deck.slice(0, canDraw)], deck: sDDCPN.deck.slice(canDraw) };
+    return done(addLog({ ...ctx, ownerState: newSDDCPN }, `捨て${discardCount}枚+${plusN}→${canDraw}枚ドロー`));
+  }
   // LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: デッキ上N枚を確認して並べ替え
   if (stub.id === 'LOOK_TOP_N' || stub.id === 'LOOK_TOP_SORT' || stub.id === 'LOOK_TOP_COLOR_SORT' || stub.id === 'LOOK_TOP_BY_LIFE_COUNT') {
     const srcLTN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
