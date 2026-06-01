@@ -418,7 +418,6 @@ const newLines = lines.map(line => {
   const count = match[1];
   const effectType = match[2].trim();
   const stubId = match[3].trim();
-  const rest = match[4].trim();
 
   const reclass = RECLASSIFY_MAP[stubId];
   if (!reclass) return line; // マップにないものはそのまま
@@ -426,7 +425,7 @@ const newLines = lines.map(line => {
   const newStatus = reclass.status;
   const newNote = reclass.note;
 
-  // 行を再構築
+  // 行を再構築（\r は除去して統一）
   const newLine = `| ${count} | ${effectType} | ${newStatus} | ${stubId} ${newNote} |`;
   changedCount++;
   return newLine;
