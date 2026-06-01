@@ -4059,6 +4059,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           contGrantedKeywords.add(gkA.keyword);
         }
       }
+      // アクセカードのCONTINUOUS GRANT_KEYWORD効果をホストシグニに適用
+      // 例: 「これにアクセされている＜調理＞のシグニは【ランサー】を得る」(WXEX1-70-E3等)
+      const myZoneIdx = my.field.signi.findIndex(s => s?.at(-1) === myTopNum);
+      if (myZoneIdx >= 0) {
+        const acceNum = my.field.signi_acce?.[myZoneIdx] ?? null;
+        if (acceNum) {
+          for (const eff of (effectsMap.get(acceNum) ?? [])) {
+            if (eff.effectType !== 'CONTINUOUS') continue;
+            if (eff.activeCondition && eff.activeCondition.type !== 'IS_SELF_ACCE_CARD') continue;
+            const gkA = eff.action.type === 'GRANT_KEYWORD'
+              ? eff.action as import('../types/effects').GrantKeywordAction
+              : null;
+            if (!gkA) continue;
+            if (gkA.target.owner === 'any' || gkA.target.owner === 'opponent') {
+              const hostCard = battleCardMap.get(myTopNum);
+              if (!hostCard || (gkA.target.filter && !(() => {
+                const f = gkA.target.filter!;
+                if (f.class && !hostCard.CardClass?.includes(f.class)) return false;
+                if (f.cardType && hostCard.Type !== f.cardType) return false;
+                return true;
+              })())) continue;
+              contGrantedKeywords.add(gkA.keyword);
+            }
+          }
+        }
+      }
       const hasGrantedKeyword = (kw: string) =>
         hasKeyword(myTopNum, kw, battleCardMap, myGrants) || contGrantedKeywords.has(kw);
       const isAssassin    = hasGrantedKeyword('アサシン');
