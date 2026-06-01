@@ -233,13 +233,13 @@
 | 1 | CONT | ✅ | BLOCK_ALL_OPP_ACTIVATE_ABILITY ※v0.131: calcContinuousBlockedActionsでUSE_ACTをforSelfに追加（相手ターン条件付き） |
 | 1 | CONT | ✅ | BLOCK_COLORLESS_PLAY ※v0.131: PLAY_COLORLESSをforSelfに追加。handleSummonSigni/castSpellでColor=無をガード |
 | 1 | CONT | ✅ | BLOCK_FRONT_SIGNI_ATTACK ※v0.115: calcContinuousBlockedActionsで正面シグニをcannotAttackSigniに追加 |
-| 1 | CONT | 📝 | BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT |
+| 1 | CONT | ✅ | BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT ※collectBlockLowCostSpellCount+castSpellでチャーム数≤コストのスペルをブロック |
 | 1 | CONT | ✅ | BLOCK_NON_WHITE_SPELL ※v0.131: BLOCK_NON_WHITE_SPELLを両者forSelf/forOtherに追加。castSpellで白以外をガード |
 | 1 | AUTO | ⚡ | BLOCK_OPP_ARTS_SPELL_ACT |
 | 1 | ACTIVATED | ⚡ | BLOCK_OPP_AUTO_ABILITY_EXTENDED |
-| 1 | CONT | 📝 | BLOCK_OPP_DECK_TO_ENERGY |
-| 1 | CONT | 📝 | BLOCK_OPP_ENCORE_AND_BET |
-| 1 | CONT | 📝 | BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT |
+| 1 | CONT | ✅ | BLOCK_OPP_DECK_TO_ENERGY ※calcContinuousBlockedActions+execEnergyChargeFromDeckでデッキ→エナをブロック |
+| 1 | CONT | ✅ | BLOCK_OPP_ENCORE_AND_BET ※calcContinuousBlockedActionsでENCORE/BET両方をforOther/forSelfに追加済み |
+| 1 | CONT | ✅ | BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT ※calcContinuousBlockedActions+execAddToFieldでシグニ効果による配置をブロック |
 | 1 | ACTIVATED | ⚡ | BLOCK_OPP_SPELL_ACT_NEXT_TURN |
 | 1 | ACTIVATED | ⚡ | BOTH_DISCARD_BY_CENTER_LEVEL |
 | 1 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |

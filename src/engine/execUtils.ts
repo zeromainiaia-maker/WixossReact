@@ -30,6 +30,10 @@ export interface ExecCtx {
   otherDownProtectedNums?: string[];
   // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手シグニのバウンス保護（場→手札に戻せないシグニ）
   otherBounceProtectedNums?: string[];
+  // BLOCK_OPP_DECK_TO_ENERGY: 相手CONTにより自分のデッキ→エナ効果がブロックされている
+  deckToEnergyBlocked?: boolean;
+  // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 相手CONTにより自分はシグニ効果でシグニを出せない
+  signiFieldPlaceByEffectBlocked?: boolean;
 }
 
 export type ExecResult =

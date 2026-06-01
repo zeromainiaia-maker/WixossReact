@@ -316,6 +316,10 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
 }
 
 function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): ExecResult {
+  // BLOCK_OPP_DECK_TO_ENERGY: 相手CONTがアクティブなら自分のデッキ→エナをブロック
+  if (a.owner === 'self' && ctx.deckToEnergyBlocked) {
+    return done(addLog(ctx, 'デッキ→エナ移動がブロックされた（CONT効果）'));
+  }
   const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
   const took = state.deck.slice(0, count);
@@ -390,6 +394,14 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.owner;
   const src = a.source;
+
+  // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: シグニ効果による自フィールドへのシグニ配置をブロック
+  if (tgtOwner === 'self' && ctx.signiFieldPlaceByEffectBlocked) {
+    const srcCard = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    if (srcCard?.Type === 'シグニ') {
+      return done(addLog(ctx, 'シグニ効果によるシグニ配置がブロックされた（CONT効果）'));
+    }
+  }
 
   // source未指定＝デッキトップのカードをプレイヤーが選んだゾーンに出す
   if (!src) {

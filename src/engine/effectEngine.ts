@@ -1120,6 +1120,54 @@ export function calcContinuousBlockedActions(
     if (hasBlock) { forSelf.add('ENCORE'); forSelf.add('BET'); }
   }
 
+  // BLOCK_OPP_DECK_TO_ENERGY: 自フィールドにあれば相手のデッキ→エナ効果を封じる
+  for (const stack of ownerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_OPP_DECK_TO_ENERGY' &&
+      checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap),
+    );
+    if (hasBlock) forOther.add('DECK_TO_ENERGY');
+  }
+  for (const stack of otherState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_OPP_DECK_TO_ENERGY' &&
+      checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap),
+    );
+    if (hasBlock) forSelf.add('DECK_TO_ENERGY');
+  }
+
+  // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 自フィールドにあれば相手はシグニ効果でシグニを出せない
+  for (const stack of ownerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT' &&
+      checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap),
+    );
+    if (hasBlock) forOther.add('SIGNI_FIELD_PLACE_BY_EFFECT');
+  }
+  for (const stack of otherState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const hasBlock = (effectsMap.get(topNum) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT' &&
+      checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap),
+    );
+    if (hasBlock) forSelf.add('SIGNI_FIELD_PLACE_BY_EFFECT');
+  }
+
   // ATTACK_COUNT_BY_POWER: 自シグニのパワー10000につき1回アタック制限
   for (const stack of ownerState.field.signi) {
     if (!stack?.length) continue;
@@ -1176,6 +1224,35 @@ export function calcContinuousBlockedActions(
   if (hasNonWhiteSpellBlock) { forSelf.add('BLOCK_NON_WHITE_SPELL'); forOther.add('BLOCK_NON_WHITE_SPELL'); }
 
   return { forSelf, forOther, cannotAttackSigni };
+}
+
+/**
+ * BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT: ownerState のフィールドに
+ * 「対戦相手はコストの合計が【チャーム】数以下のスペルを使用できない」CONTINUOUS効果があれば
+ * チャーム数（= ブロックされるコスト上限）を返す。0 なら制限なし。
+ */
+export function collectBlockLowCostSpellCount(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): number {
+  const candidates: string[] = [];
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig.at(-1)!);
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT') continue;
+      const charmCount = (ownerState.field.signi_charms ?? []).filter(c => c !== null).length;
+      if (charmCount > 0) return charmCount;
+    }
+  }
+  void cardMap;
+  return 0;
 }
 
 /**
