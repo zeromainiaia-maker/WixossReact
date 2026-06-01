@@ -7232,6 +7232,40 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           </button>
         )}
 
+        {/* MAINフェイズ: エナゾーンのアクセカード発動ボタン */}
+        {isMyTurn && bs.turn_phase === 'MAIN' && !loading && (() => {
+          const acceEffects: { cardNum: string; effect: import('../types/effects').CardEffect; alreadyDone: boolean }[] = [];
+          for (const energyCardNum of my.energy) {
+            for (const eff of (effectsMap.get(energyCardNum) ?? [])) {
+              if (eff.effectType !== 'ACTIVATED') continue;
+              if (!eff.timing?.includes('MAIN')) continue;
+              if (eff.action.type !== 'ATTACH_ACCE') continue;
+              const alreadyDone = my.actions_done?.includes(eff.effectId) ?? false;
+              acceEffects.push({ cardNum: energyCardNum, effect: eff, alreadyDone });
+            }
+          }
+          if (acceEffects.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {acceEffects.map(({ cardNum, effect, alreadyDone }) => {
+                const card = battleCardMap.get(cardNum);
+                const hasTarget = my.field.signi.some((s, i) => s?.length && !(my.field.signi_acce?.[i]));
+                return (
+                  <button key={cardNum + effect.effectId}
+                    onClick={() => { setPendingEnergyActivated({ cardNum, effect }); setSelectedEnergyActivatedCost(new Set()); }}
+                    disabled={alreadyDone || !hasTarget || loading}
+                    style={{ padding: '4px 8px', borderRadius: 4, border: 'none', fontSize: 10, fontWeight: 'bold',
+                      backgroundColor: (alreadyDone || !hasTarget) ? C.disabled : '#4caf50',
+                      color: C.text, cursor: (alreadyDone || !hasTarget || loading) ? 'default' : 'pointer',
+                      maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {card?.CardName ?? cardNum}【アクセ】
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+
       </div>
 
       {/* 盤面エリア */}
