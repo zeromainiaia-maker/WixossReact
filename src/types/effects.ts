@@ -902,9 +902,11 @@ export interface PlaceVirusAction {
 // エナゾーンのカードをシグニのアクセにする
 export interface AttachAcceAction {
   type: 'ATTACH_ACCE';
-  targetSigniOwner: Owner;     // アクセを付けるシグニのオーナー
-  sourceOwner: Owner;          // アクセカードのオーナー（エナゾーン）
-  signiFilter?: TargetFilter;  // 対象シグニのフィルター
+  targetSigniOwner: Owner;      // アクセを付けるシグニのオーナー
+  sourceOwner: Owner;           // アクセカードのオーナー（エナゾーン）
+  fromHand?: boolean;           // trueなら手札からアクセ（デコレ能力）
+  signiFilter?: TargetFilter;   // アクセカードのフィルター（手札から選ぶ場合に使用）
+  targetFilter?: TargetFilter;  // 対象シグニのフィルター（ホスト側のフィルター）
 }
 
 // 血晶武装：手札・トラッシュ・デッキから同名カードをシグニの下に重ねる
