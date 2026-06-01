@@ -2564,16 +2564,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isOwnerTurn = bs.active_user_id === entry.playerId;
       const who = entry.playerId === user.id ? '自分' : '相手';
       appendBattleLogs([`[${who}] ${entry.label}`], { defer: true });
-      const ctxPowers = calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, battleCardMap);
+      // ATTACK_PHASE_LEVEL_OVERRIDE: アタックフェイズ中は英知レベルオーバーライドを計算
+      const isAttackPhaseBS = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(bs.turn_phase ?? '');
+      const ownerLevelOverrides = isAttackPhaseBS ? collectAttackPhaseLevelOverrides(ownerState, effectsMap, battleCardMap) : {};
+      const ownerStateForCtx = Object.keys(ownerLevelOverrides).length > 0
+        ? { ...ownerState, attack_phase_level_overrides: ownerLevelOverrides } : ownerState;
+      const ctxPowers = calcFieldPowers(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap);
       // PREVENT_ZONE_MOVE_BY_OPP: 相手（otherState）の保護ゾーンを動的計算してctxに渡す
       const otherProtectedZones = collectProtectedZones(otherState, battleCardMap, effectsMap);
       // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手フィールドの能力保護シグニを動的計算してctxに渡す
       const otherProtectedSigniNums = collectAbilityProtectedSigni(otherState, battleCardMap, effectsMap);
       // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL: 相手フィールドのダウン保護シグニ
-      const otherDownProtectedNums = collectDownProtectedSigni(otherState, battleCardMap, effectsMap, ownerState, isOwnerTurn);
+      const otherDownProtectedNums = collectDownProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, isOwnerTurn);
       // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手フィールドのバウンス保護シグニ
-      const otherBounceProtectedNums = collectBounceProtectedSigni(otherState, battleCardMap, effectsMap, ownerState, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums, otherBounceProtectedNums };
+      const otherBounceProtectedNums = collectBounceProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, isOwnerTurn);
+      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums, otherBounceProtectedNums };
       let result = executeEffect(entry.effect, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
