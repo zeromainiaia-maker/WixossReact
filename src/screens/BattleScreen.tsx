@@ -48,8 +48,12 @@ function shuffle<T>(arr: T[]): T[] {
 
 // インスタンスIDを意識したMap：CardNum#N のキーに対して自動的にCardNum部分で検索する
 class InstanceMap<V> extends Map<string, V> {
-  override get(id: string): V | undefined { return super.get(getCardNum(id)); }
-  override has(id: string): boolean       { return super.has(getCardNum(id)); }
+  // instanceId キーが存在すれば優先（付与能力用）、なければ CardNum にフォールバック
+  override get(id: string): V | undefined {
+    if (super.has(id)) return super.get(id);
+    return super.get(getCardNum(id));
+  }
+  override has(id: string): boolean { return super.has(id) || super.has(getCardNum(id)); }
 }
 
 // デッキのカード配列にインスタンスIDを付与する（WD03-009 → WD03-009#1, WD03-009#2, ...）
