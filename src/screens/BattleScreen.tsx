@@ -1106,8 +1106,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // instanceId キーで付与能力を優先取得、なければ CardNum フォールバック（InstanceMap）
   const effectsMap = useMemo(() => {
     if (!bs) return baseEffectsMap;
-    const myGranted = (isHost ? bs.host_state : bs.guest_state).granted_effects ?? {};
-    const opGranted = (isHost ? bs.guest_state : bs.host_state).granted_effects ?? {};
+    const localIsHost = user.id === bs.host_id;
+    const myGranted = (localIsHost ? bs.host_state : bs.guest_state).granted_effects ?? {};
+    const opGranted = (localIsHost ? bs.guest_state : bs.host_state).granted_effects ?? {};
     if (Object.keys(myGranted).length === 0 && Object.keys(opGranted).length === 0) return baseEffectsMap;
     const augMap = new Map<string, import('../types/effects').CardEffect[]>(baseEffectsMap);
     for (const [instanceId, granted] of [...Object.entries(myGranted), ...Object.entries(opGranted)]) {
@@ -1115,7 +1116,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       augMap.set(instanceId, [...base, ...granted]);
     }
     return new InstanceMap(augMap);
-  }, [bs, baseEffectsMap, isHost]);
+  }, [bs, baseEffectsMap, user.id]);
 
   // フィールドシグニの有効パワー（CONTINUOUS 効果適用済み）
   const effectivePowers = useMemo(() => {
