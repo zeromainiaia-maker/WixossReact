@@ -2873,6 +2873,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...activeState,
             temp_power_mods:    [],
             keyword_grants:     {},
+            granted_effects:    {},
             blocked_actions:    [],
             actions_done:       [],
 
