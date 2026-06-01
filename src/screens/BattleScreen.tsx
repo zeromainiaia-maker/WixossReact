@@ -6182,8 +6182,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const costItems = parseGrowCost(effectiveCost);
               const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
-              const totalReq = costItems.reduce((s, c) => s + c.count, 0) +
+              const keySubCount = keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId ? 2 : 0;
+              const baseReq = costItems.reduce((s, c) => s + c.count, 0) +
                 (isEncore ? encoreExtraEna.reduce((s, e) => s + e.count, 0) : 0);
+              const totalReq = Math.max(0, baseReq - keySubCount);
               const selectedNums = [...selectedArtsCost].map(i => my.energy[i]);
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
@@ -6192,7 +6194,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);
