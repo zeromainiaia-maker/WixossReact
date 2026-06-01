@@ -61,8 +61,8 @@
 | 2 | ACTIVATED | ✅ | EXTRA_COST_REMOVE_VIRUS ※v0.138: ウイルス除去数CHOOSE(0〜N)→INTERNAL_ECRV_APPLY→除去実行+(N+1)択CHOOSE。①〜④テキスト解析で効果選択肢生成 |
 | 2 | CONT | ⚡ | FIELD_ENERGY_SIGNI_GAIN_COLOR ※v0.113: collectFieldEnergySigniColorGains実装・エナ支払い追加色対応（《ディソナアイコン》フィルターは識別子未実装のため除外） |
 | 2 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
-| 2 | ACTIVATED/AUTO | ⚡ | GRANT_CHOSEN_ABILITY |
-| 2 | CONT | 📝 | GRANT_QUOTED_ACTIVATE_ABILITY |
+| 2 | ACTIVATED/AUTO | ✅ | GRANT_CHOSEN_ABILITY ※v0.138: lastProcessedCardsに自シグニなければSELECT_TARGET→CHOOSE能力(アサシン/ランサー/ダブルクラッシュ/バニッシュ不可/ダウン不可/バウンス不可)。keyword_grantsに格納 |
+| 2 | CONT | ⚡ | GRANT_QUOTED_ACTIVATE_ABILITY ※v0.138: GRANT_QUOTED_AUTO_ABILITYブロックから分離。起動能力パターンログ改善（レベル比例/2倍-タイプ識別） |
 | 2 | CONT | ✅ | HAND_SIZE_INCREASE ※effectEngine.collectHandLimitsで動的計算に移行 |
 | 2 | AUTO | ⚡ | HAND_TO_ENERGY_OPTIONAL |
 | 2 | ACTIVATED/AUTO | ⚡ | LAYER_ABILITY_COPY |
