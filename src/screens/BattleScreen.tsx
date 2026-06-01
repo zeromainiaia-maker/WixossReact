@@ -597,8 +597,11 @@ function canAffordWithExtraCost(
   colorlessOverrides?: string[],
   colorSubs?: { from: string[]; to: string }[],
   extraColorMap?: Map<string, string>,
+  trashSubWilds?: Set<string>,
+  trashSubColors?: Map<string, string>,
+  extraWildCount?: number,
 ): boolean {
-  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs, extraColorMap);
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
   // 追加コスト分をプールから引いてから基本コストをチェック
   let pool = [...energyNums];
   for (const { color, count } of extraCosts) {
@@ -608,19 +611,23 @@ function canAffordWithExtraCost(
       if (needed > 0) {
         const cd = cards.find(c => c.CardNum === getCardNum(n));
         const isColorless = colorlessOverrides?.includes(getCardNum(n)) || colorlessOverrides?.includes(n);
+        const isTrashWild = trashSubWilds?.has(n) === true;
         const cardColor = isColorless ? '無' : (cd?.Color ?? '無');
-        const extraColor = extraColorMap?.get(n);
-        // color substitutes: to色が対象色と一致すれば代替可能
-        const colorMatches = color === '無' || cardColor.includes(color) || extraColor === color ||
+        const extraColor = extraColorMap?.get(n) ?? trashSubColors?.get(n);
+        const colorMatches = color === '無' || isTrashWild || cardColor.includes(color) || extraColor === color ||
           (colorSubs?.some(s => s.to === cardColor && s.from.includes(color)));
         if (colorMatches) { needed--; continue; }
       }
       rem.push(n);
     }
     pool = rem;
-    if (needed > 0) return false;
+    if (needed > 0) {
+      // extraWildCountで残りを補えるか
+      if (extraWildCount && extraWildCount >= needed) break;
+      return false;
+    }
   }
-  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs, extraColorMap);
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
 }
 
 // EnergyCost[] を growCost 文字列に変換（altCostOppTurn 用）
