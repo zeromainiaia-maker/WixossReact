@@ -2180,7 +2180,7 @@ export function execStub(
     const newSigniITP = [...ctx.ownerState.field.signi] as (string[] | null)[];
     newSigniITP[zone] = [trashCard, ...(newSigniITP[zone] ?? [])];
     const newOwnerITP = { ...ctx.ownerState, trash: newTrashITP, field: { ...ctx.ownerState.field, signi: newSigniITP } };
-    let ctxITP = addLog({ ...ctx, ownerState: newOwnerITP },
+    const ctxITP = addLog({ ...ctx, ownerState: newOwnerITP },
       `${ctx.cardMap.get(trashCard)?.CardName ?? trashCard}をゾーン${zone + 1}のシグニの下に配置`);
     // 残りのトラッシュカードがあれば次の選択へ
     if (restStr) {
