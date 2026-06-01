@@ -104,7 +104,8 @@ export type Condition =
   | { type: 'PAID_ADDITIONAL_COST' }
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }
-  | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number };  // lastProcessedCardsのシグニレベル合計=N
+  | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number }   // lastProcessedCardsのシグニレベル合計=N
+  | { type: 'OPPONENT_NOT_PAID' };                            // 相手が任意コストを支払わなかった場合
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 

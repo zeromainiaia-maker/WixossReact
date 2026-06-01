@@ -89,25 +89,25 @@
 | 5 | AUTO/ACTIVATED | ✅ | DECK_TOP_CHECK_LEVEL_HAND ※不一致時はデッキトップに留まる（移動なし）。宣言レベルはDECLARE_NUMBERで設定 |
 | 5 | AUTO | ✅ | MOVE_TO_OTHER_SIGNI_ZONE ※v0.135: INTERNAL_MOVE_TO_ZONEに移動後パワーブースト追加（「移動したとき.*パワーを＋」テキスト検出→temp_power_mods付与）。effects.json E2誤発修正（POWER_MODIFY→STUB noop） |
 | 5 | CONT | ✅ | OPP_GUARD_COST_COLORLESS |
-| 5 | AUTO/ACTIVATED | 📝 | OPTIONAL_DISCARD_CLASS_SIGNI |
-| 5 | AUTO/ACTIVATED | 📝 | POWER_MOD_BY_DISCARD_COUNT_HIGH |
-| 5 | AUTO/ACTIVATED | 📝 | POWER_MOD_PER_REVEALED |
-| 5 | AUTO/ACTIVATED | 📝 | REPEAT_N_TIMES |
-| 5 | AUTO/ACTIVATED | 📝 | REVEAL_CLASS_SIGNI_FROM_HAND |
-| 4 | AUTO/ACTIVATED | 📝 | CLASS_CHANGE |
-| 4 | ACTIVATED | 📝 | DECLARE_COLOR |
-| 4 | AUTO/ACTIVATED | 📝 | DECK_TOP_DECLARED_NUM_TRASH |
-| 4 | AUTO/ACTIVATED | 📝 | EFFECT_LIMIT |
-| 4 | AUTO/ACTIVATED | 📝 | FLIP_FACE_DOWN_SIGNI |
+| 5 | AUTO/ACTIVATED | ✅ | OPTIONAL_DISCARD_CLASS_SIGNI ※手札のクラスシグニを最大N枚selectOrInteractで任意捨て |
+| 5 | AUTO/ACTIVATED | ✅ | POWER_MOD_BY_DISCARD_COUNT_HIGH ※lastProcessedCards枚数×deltaPerCardでパワー修正 |
+| 5 | AUTO/ACTIVATED | ✅ | POWER_MOD_PER_REVEALED ※lastProcessedCards公開枚数×+1000（または効果テキスト値）で自シグニパワー修正 |
+| 5 | AUTO/ACTIVATED | ⚡ | REPEAT_N_TIMES ※パワー修正・デッキトラッシュパターンのみ対応、その他は後続ステップに委譲 |
+| 5 | AUTO/ACTIVATED | ✅ | REVEAL_CLASS_SIGNI_FROM_HAND ※手札のクラスシグニを任意枚数selectOrInteract（lastProcessedCardsに格納） |
+| 4 | AUTO/ACTIVATED | ✅ | CLASS_CHANGE ※card_class_overridesで一時クラス変更、全体/単体パターン対応 |
+| 4 | ACTIVATED | ✅ | DECLARE_COLOR ※5色CHOOSE→declared_colorに保存（v0.146実装） |
+| 4 | AUTO/ACTIVATED | ✅ | DECK_TOP_DECLARED_NUM_TRASH ※declared_guard_restrict_level枚のデッキ上カードをトラッシュ |
+| 4 | AUTO/ACTIVATED | ✅ | EFFECT_LIMIT ※効果テキストのN枚上限キャップをtemp_power_modsに適用 |
+| 4 | AUTO/ACTIVATED | ⚡ | FLIP_FACE_DOWN_SIGNI ※face_down_signi+abilities_removed追加（flip-back未実装）
 | 4 | AUTO/ACTIVATED | ✅ | GAIN_EXTRA_TURN |
 | 4 | AUTO | ⚡ | MAKE_SERVANT_ZERO |
-| 4 | AUTO/ACTIVATED | 📝 | MASS_TRASH |
+| 4 | AUTO/ACTIVATED | ✅ | MASS_TRASH ※相手エナ全枚+フィールド全シグニをトラッシュ |
 | 4 | AUTO/ACTIVATED | 📝 | OPEN_MAGIC_BOX |
-| 4 | AUTO/ACTIVATED | 📝 | OPPONENT_PAY_OPTIONAL |
-| 4 | AUTO/ACTIVATED | 📝 | OPP_CHOOSE_YOUR_HAND_DISCARD |
+| 4 | AUTO/ACTIVATED | ✅ | OPPONENT_PAY_OPTIONAL ※相手にCHOOSE提示→支払いでenergy消費+opponent_paid_optional_cost=trueフラグ→後続CONDITIONAL(OPPONENT_NOT_PAID)で結果効果スキップ（v0.146実装） |
+| 4 | AUTO/ACTIVATED | ✅ | OPP_CHOOSE_YOUR_HAND_DISCARD ※相手がこちらの手札から1枚をblind選択しトラッシュ |
 | 4 | ACTIVATED/AUTO | ✅ | PLAY_SPELL_FREE_IGNORE_RESTRICTION ※v0.140: グループから分離・SELECT_TARGET from hand(スペル/コスト上限フィルタ)追加 |
-| 4 | AUTO/ACTIVATED | 📝 | POWER_MOD_PER_REVEALED_LEVEL |
-| 4 | AUTO/ACTIVATED | 📝 | REVEAL_PICK_CLASS_TO_ENERGY |
+| 4 | AUTO/ACTIVATED | ✅ | POWER_MOD_PER_REVEALED_LEVEL ※lastProcessedCardsのシグニレベル合計×-1000で相手シグニパワー修正 |
+| 4 | AUTO/ACTIVATED | ✅ | REVEAL_PICK_CLASS_TO_ENERGY ※lastProcessedCardsのクラスシグニをエナへ、残りをデッキ上に戻す |
 | 4 | AUTO | ✅ | SEED_BLOOM ※v0.109: ON_PLAY効果トリガー実装・WXK04-060条件修正 |
 | 4 | AUTO/ACTIVATED | ⚡ | SIGNI_REPOSITION |
 | 4 | AUTO/ACTIVATED | ⚡ | TRAP_TO_HAND |

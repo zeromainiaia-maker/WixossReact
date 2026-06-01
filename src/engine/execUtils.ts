@@ -318,6 +318,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'PAID_ADDITIONAL_COST':  return false; // execSequence の look-ahead で処理済みのため通常到達しない
     case 'COND_STUB':             return true;
+    case 'OPPONENT_NOT_PAID':     return ctx.ownerState.opponent_paid_optional_cost !== true;
     case 'LAST_PROCESSED_LEVEL_SUM_EQ': {
       // lastProcessedCardsのシグニのレベル合計がvalue=Nか判定（WD21-012等）
       const processed = ctx.lastProcessedCards ?? [];

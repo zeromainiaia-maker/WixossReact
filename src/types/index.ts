@@ -183,6 +183,10 @@ export interface PlayerState {
   signi_deploy_power_limit?: number;
   // ACTIVATE_COST_ZERO_BLACK: このカードの次の起動能力コストを《黒×0》にする（CardNum）
   activate_cost_zero_signi?: string;
+  // DECLARE_COLOR: 宣言された色（白/赤/青/緑/黒）
+  declared_color?: string;
+  // OPPONENT_PAY_OPTIONAL: 相手が任意コストを支払ったかどうか（true=支払い済み）
+  opponent_paid_optional_cost?: boolean;
 }
 
 export interface GameLog {

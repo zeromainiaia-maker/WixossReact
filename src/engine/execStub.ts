@@ -52,9 +52,33 @@ export function execStub(
       stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
     return done(addLog(ctx, '任意コスト（自動支払い）'));
   }
-  // 対戦相手払い単独発動（SEQUENCEパターン外）：支払わないとして処理
+  // 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる）
   if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
-    return done(addLog(ctx, '対戦相手任意コスト（スキップ）'));
+    const costLen = stub.costColors?.length ?? 0;
+    if (costLen === 0 || ctx.otherState.energy.length < costLen) {
+      const newOwner = { ...ctx.ownerState, opponent_paid_optional_cost: false };
+      return done(addLog({ ...ctx, ownerState: newOwner }, `対戦相手任意コスト：支払不可（${costLen}無色不足）`));
+    }
+    const payAction: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_PAY_COST', value: costLen };
+    const skipAction: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SKIP_COST' };
+    const opts = [
+      { id: 'pay',  label: `支払う（無×${costLen}）`, action: payAction  as EffectAction, available: true },
+      { id: 'skip', label: '支払わない',               action: skipAction as EffectAction, available: true },
+    ];
+    return needsInteraction(addLog(ctx, `対戦相手：《無×${costLen}》を支払いますか？`), {
+      type: 'CHOOSE', options: opts, count: 1, opponentResponds: true,
+    });
+  }
+  if (stub.id === 'INTERNAL_OPP_PAY_COST') {
+    const costLen = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+    const newOther = { ...ctx.otherState, energy: ctx.otherState.energy.slice(costLen) };
+    const newOwner = { ...ctx.ownerState, opponent_paid_optional_cost: true };
+    return done(addLog({ ...ctx, ownerState: newOwner, otherState: newOther },
+      `対戦相手が《無×${costLen}》を支払った（結果効果スキップ）`));
+  }
+  if (stub.id === 'INTERNAL_OPP_SKIP_COST') {
+    const newOwner = { ...ctx.ownerState, opponent_paid_optional_cost: false };
+    return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手が支払わない→結果効果発動'));
   }
   // アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み）
   if (stub.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || stub.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
@@ -1592,8 +1616,23 @@ export function execStub(
     return done(addLog(setOwnerState(target, newSt, ctx), `ライフクロス上（${name}）を手札へ`));
   }
   // クラス/色宣言
-  if (stub.id === 'DECLARE_CLASS' || stub.id === 'DECLARE_COLOR') {
-    return done(addLog(ctx, 'クラス/色宣言（ログのみ）'));
+  if (stub.id === 'DECLARE_CLASS') {
+    return done(addLog(ctx, 'クラス宣言（ログのみ）'));
+  }
+  if (stub.id === 'DECLARE_COLOR') {
+    const colorsDC = ['白', '赤', '青', '緑', '黒'];
+    const setColorDC = (c: string): StubAction => ({ type: 'STUB', id: 'INTERNAL_SET_DECLARED_COLOR', value: c });
+    const optsDC = colorsDC.map(c => ({
+      id: `color_${c}`, label: `${c}を宣言`, action: setColorDC(c) as EffectAction, available: true,
+    }));
+    return needsInteraction(addLog(ctx, '色を宣言してください（白/赤/青/緑/黒）'), {
+      type: 'CHOOSE', options: optsDC, count: 1,
+    });
+  }
+  if (stub.id === 'INTERNAL_SET_DECLARED_COLOR') {
+    const colorSDC = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+    const newOwnerSDC = { ...ctx.ownerState, declared_color: colorSDC };
+    return done(addLog({ ...ctx, ownerState: newOwnerSDC }, `色「${colorSDC}」を宣言`));
   }
   // ターゲット選択のみ（lastProcessedCards に格納し後続ステップへ）
   if (stub.id === 'TARGET_ONLY') {
@@ -5637,10 +5676,7 @@ export function execStub(
   if (stub.id === 'BLOOM_CHOOSE') {
     return done(addLog(ctx, `[開花時選択効果: ${ctx.sourceCardNum}]`));
   }
-  // 裏向き系（engine: 裏向きゾーン未実装）
-  if (stub.id === 'SIGNI_FLIP_FACEDOWN' || stub.id === 'FLIP_FACE_DOWN_SIGNI' || stub.id === 'FACE_DOWN_OPP_SIGNI') {
-    return done(addLog(ctx, `[裏向き: ${stub.id}]`));
-  }
+  // 裏向き系（face_down_signi + abilities_removed で近似実装済み）
   // REMOVE_SIGNI_ZONE: 対戦相手のシグニゾーンを1つ削除
   if (stub.id === 'REMOVE_SIGNI_ZONE') {
     // 対戦相手のゾーン選択（CHOOSEインタラクション）
