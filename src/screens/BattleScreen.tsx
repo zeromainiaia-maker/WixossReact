@@ -3283,6 +3283,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!isMyTurn || loading) return;
     if ((my.field.signi[zoneIndex] ?? []).length > 0) return; // 空きゾーンにしか召喚できない
     if (isActionBlocked('PLAY_COLORLESS') && battleCardMap.get(my.hand[handIndex])?.Color === '無') return;
+    // OPP_ZONE_PLACEMENT_RESTRICT: 相手が中央ゾーン(index=1)にLv3+配置不可
+    const czRestrict = collectCenterZoneDeployRestrict(op, battleCardMap, effectsMap);
+    if (czRestrict !== undefined && zoneIndex === 1) {
+      const cardLvCZ = parseInt(battleCardMap.get(my.hand[handIndex])?.Level ?? '0') || 0;
+      if (cardLvCZ >= czRestrict) return;
+    }
     setLoading(true);
     setPendingSigniSummon(null);
     try {
