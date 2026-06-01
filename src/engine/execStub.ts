@@ -237,9 +237,26 @@ export function execStub(
   if (stub.id === 'BET_ALTERNATIVE' || stub.id === 'BET_CONDITION') {
     return done(addLog(ctx, 'ベット強化（BET_MECHANICで処理済み）'));
   }
+  // GRANT_QUOTED_ACTIVATE_ABILITY: 「【起】...」付与（CONTINUOUSはeffectEngineで処理、AUTOは即時設定）
+  if (stub.id === 'GRANT_QUOTED_ACTIVATE_ABILITY') {
+    const srcGQAA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtGQAA = srcGQAA ? (srcGQAA.EffectText ?? '') : '';
+    // 「シグニのレベル１につき－N000する」タイプ → POWER_MODIFY_PER_LEVEL_SUM系
+    const perLevelM = txtGQAA.match(/レベル[１1]につき([－-][０-９\d]+)/);
+    if (perLevelM) {
+      return done(addLog(ctx, `[GRANT_QUOTED_ACTIVATE_ABILITY: 起動能力付与（レベル比例パワー-）CONTINUOUSで処理]`));
+    }
+    // 「２倍－される」タイプ → DOUBLE_OWN_POWER_MINUS付与
+    if (txtGQAA.match(/代わりに２倍－/)) {
+      return done(addLog(ctx, `[GRANT_QUOTED_ACTIVATE_ABILITY: 2倍パワー-起動能力付与（CONTINUOUSで処理）]`));
+    }
+    // その他（ログのみ）
+    const quotedActM = txtGQAA.match(/「(【起】[^」]{1,30})/);
+    return done(addLog(ctx, `起動能力付与：「${quotedActM?.[1] ?? '?'}...」`));
+  }
   // 引用符付き能力付与（キーワードを keyword_grants に格納）
   if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
-      stub.id === 'GRANT_ABILITY_INNER_TEXT' || stub.id === 'GRANT_QUOTED_ACTIVATE_ABILITY') {
+      stub.id === 'GRANT_ABILITY_INNER_TEXT') {
     const srcGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGQ = srcGQ ? (srcGQ.EffectText ?? '') + ' ' + (srcGQ.BurstText ?? '') : '';
     // 付与するキーワードを抽出（ランサー、ダブルクラッシュ、貫通、マルチエナ等）
