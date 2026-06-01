@@ -270,6 +270,7 @@ export type EffectAction =
   | PlaceUnderSourceSigniAction
   | PreventNextDamageAction
   | TakeFromUnderSigniAction
+  | GrantEffectAction
   | StubAction
   | UnknownAction;
 
