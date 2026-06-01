@@ -1384,6 +1384,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]);
 
+  // ATTACH_ACCE完了後にacce_just_doneフラグを検出してON_ACCEトリガーを発火
+  useEffect(() => {
+    if (!bs || !user || !isMyTurn || loading) return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    const hostCardNum = my.acce_just_done;
+    if (!hostCardNum) return;
+    // フラグをクリアしてON_ACCEトリガーを処理
+    const stateKey = isHost ? 'host_state' : 'guest_state';
+    const cleared: PlayerState = { ...my, acce_just_done: null };
+    (async () => {
+      setLoading(true);
+      try {
+        await supabase.from('battle_states').update({ [stateKey]: cleared }).eq('room_id', roomId);
+        await checkAndFireOnAcceTriggersForOwner(cleared, hostCardNum);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [my?.acce_just_done, bs?.effect_stack, bs?.pending_effect, loading]);
+
   // ON_TURN_END 解決後の自動フェーズ進行
   useEffect(() => {
     if (!bs || !user) return;
