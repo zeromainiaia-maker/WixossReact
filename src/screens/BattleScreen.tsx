@@ -1317,6 +1317,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    
   }, [bs, battleCardMap, effectsMap, user.id]);
 
+  // エナ代替トラッシュ系CONTINUOUS効果（ENERGY_*_TRASH_*）情報
+  const myEnergyTrashSubInfo = useMemo(() => {
+    const empty = { wildcardInstIds: new Set<string>(), colorOverrideMap: new Map<string, string>(), keySubInstId: null as string | null };
+    if (!bs || bs.global_phase !== 'PLAYING') return empty;
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    return collectEnergyTrashSubstituteInfo(myS, battleCardMap, effectsMap);
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
   // FIELD_ENERGY_SIGNI_GAIN_COLOR: エナゾーンの追加色マップ（instId -> 追加色）
   // ALL_ZONE_BLACK / ALL_CARDS_COLOR_CHANGE_BLACK も考慮
   const myEnergyExtraColors = useMemo((): Map<string, string> => {
