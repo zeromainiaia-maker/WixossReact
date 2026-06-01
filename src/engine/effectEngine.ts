@@ -805,9 +805,12 @@ export function calcFieldPowers(
 
   // temp_power_mods（起動・自動効果によるターン内一時パワー修正）を適用
   const applyTempMods = (state: PlayerState) => {
+    const doublers = state.double_power_minus_targets ?? [];
     for (const mod of state.temp_power_mods ?? []) {
       if (powers.has(mod.cardNum)) {
-        powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + mod.delta);
+        // DOUBLE_OWN_POWER_MINUS: 特定シグニへの負デルタを2倍に
+        const delta = mod.delta < 0 && doublers.includes(mod.cardNum) ? mod.delta * 2 : mod.delta;
+        powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + delta);
       }
     }
   };
