@@ -1701,6 +1701,25 @@ export function collectAbilityProtectedSigni(
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
+
+      // GRANT_PROTECTION アクション: from に 'シグニ' を含み sourceOwner='opponent' → このシグニを保護
+      if (eff.action.type === 'GRANT_PROTECTION') {
+        const gp = eff.action as GrantProtectionAction;
+        if (gp.sourceOwner === 'opponent' && (gp.from.includes('シグニ') || gp.from.includes('any'))) {
+          // subjectFilter: フィルタ一致シグニを保護
+          if (gp.subjectFilter) {
+            for (const s2 of state.field.signi) {
+              const top2 = s2?.at(-1);
+              if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter)) protectedNums.add(top2);
+            }
+          } else {
+            // target/subjectFilter なし = このシグニ自身を保護（granted_effects 経由の場合）
+            protectedNums.add(topNum);
+          }
+        }
+        continue;
+      }
+
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
 
