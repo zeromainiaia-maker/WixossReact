@@ -1989,7 +1989,19 @@ export function resumeChoose(
   const opt = pending.options.find(o => o.id === choiceId);
   if (!opt) return done(ctx);
   const result = executeAction(opt.action, ctx);
-  if (!result.done) return result;
+  if (!result.done) {
+    // ネストしたインタラクション（SELECT_TARGET 等）の continuation に外側の continuation を合成
+    if (pending.continuation) {
+      const existing = result.pending.continuation;
+      result.pending = {
+        ...result.pending,
+        continuation: existing
+          ? ({ type: 'SEQUENCE', steps: [existing, pending.continuation] } as import('../types/effects').SequenceAction)
+          : pending.continuation,
+      };
+    }
+    return result;
+  }
   if (pending.continuation) {
     return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
   }
