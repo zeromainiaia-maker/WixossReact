@@ -198,6 +198,8 @@ export interface PlayerState {
   signi_attack_cost?: number;
   // MULTI_DAMAGE_ON_LRIG_ATTACK: このターン残りN回ルリグアタックできる（1回目は通常アタック扱い）
   lrig_attack_remaining?: number;
+  // ライドシステム：LRIGが現在乗っている乗機シグニのCardNum一覧（ターン終了時にクリア）
+  lrig_riding_signi?: string[];
 }
 
 export interface GameLog {

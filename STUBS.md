@@ -451,7 +451,7 @@
 | 2 | AUTO | ✅ | REACTIVE_POWER_UP ※相手temp_power_modsのマイナス合計を自パワーに加算 |
 | 3 | AUTO/ACTIVATED | ⚡ | REPEAT_EFFECT ※done(addLog)のみ（効果繰り返し未実装） |
 | 2 | AUTO/ACTIVATED | ✅ | REVEAL_OPP_HAND_CARD ※相手手札からランダム1枚をlastProcessedCardsに格納して公開（v0.148） |
-| 2 | AUTO | ⚡ | RIDE_ON |
+| 2 | AUTO | ✅ | RIDE_ON ※v0.163: ドライブ状態でない場合のみCHOOSE→SELECT乗機シグニ→lrig_riding_signi設定 |
 | 4 | AUTO/ACTIVATED | ⚡ | SIGNI_FLIP_FACEDOWN ※FLIP_FACE_DOWN_SIGNIと同ハンドラ: face_down_signi+abilities_removed設定 |
 | 2 | CONT | ✅ | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY ※v0.141: SELECT_TARGET(自フィールド)+keyword_grants付与(assassin/shadow/lancer等) |
 | 2 | AUTO | ✅ | SIGNI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装に統合 |
@@ -513,7 +513,7 @@
 | 2 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |
 | 1 | CONT | ⚡ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.115: collectLrigColorAndLimitModsで色変更収集（UI/コスト条件への統合は部分的） |
 | 1 | AUTO | ⚡ | CENTER_LRIG_DISMOUNT |
-| 1 | ACTIVATED | ⚡ | CENTER_LRIG_RIDES_ON_SIGNI |
+| 1 | ACTIVATED | ✅ | CENTER_LRIG_RIDES_ON_SIGNI ※v0.163: SELECT乗機シグニ→乗り換え対応（lrig_riding_signi設定） |
 | 1 | AUTO/ACTIVATED | ⚡ | CENTER_ZONE_CONDITION ※done(addLog)のみ（センターゾーン条件チェック未実装） |
 | 1 | AUTO | ✅ | CHANGE_BASE_LEVEL ※v0.142: CHOOSE(1-3,optional)→attack_phase_level_overrides設定 |
 | 1 | AUTO | ✅ | CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN ※v0.142: SELECT_TARGET(任意シグニ,optional)→レベル1に設定 |
@@ -612,7 +612,7 @@
 | 1 | CONT | ✅ | LRIG_ALL_NAMES ※v0.129: collectLrigNameAliasesでLRIG_ALL_NAMES_SENTINEL追加。lrigNameMatchesで全ルリグ名マッチ。execStubのCONDITIONAL_MULTI_CHOOSE_BY_CENTERもruntime aliasesを考慮 |
 | 1 | AUTO/ACTIVATED | ⚡ | LRIG_GAIN_ABILITY ※done(addLog)のみ（ルリグシステムグループ: 未実装） |
 | 1 | CONT | ⚡ | LRIG_LIMIT_UP_AND_COLOR_GAIN ※v0.115: collectLrigColorAndLimitMods+lrigLimit計算に+limitDelta統合（色変更は部分的） |
-| 1 | AUTO/ACTIVATED | ⚡ | LRIG_RIDE_SIGNI ※done(addLog)のみ（ルリグシステムグループ: 未実装） |
+| 1 | AUTO/ACTIVATED | ✅ | LRIG_RIDE_SIGNI ※v0.163: 自場の全乗機シグニにlrig_riding_signiを設定（ドライブ状態化） |
 | 2 | AUTO | ⚡ | LRIG_TRASH_KEY_TO_CENTER_UNDER |
 | 1 | ACTIVATED | ✅ | MAKE_MULTI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
 | 1 | AUTO | ⚡ | MOVE_ACCE_TO_SIGNI |

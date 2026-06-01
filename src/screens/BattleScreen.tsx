@@ -2485,6 +2485,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           attacked_signi_ids: undefined,            // アタック済みシグニIDリセット
           signi_attack_once_limit: undefined,       // シグニ1回アタック制限リセット
           signi_attack_cost: undefined,             // シグニアタックコストリセット
+          lrig_riding_signi: undefined,             // ドライブ状態（ライド）をリセット
+          lrig_attack_remaining: undefined,         // マルチダメージ残数リセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
@@ -4220,6 +4222,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           contGrantedKeywords.add(gkA.keyword);
         }
       }
+      // ドライブ常 GRANT_KEYWORD: このシグニがドライブ状態のとき有効なキーワード付与
+      if (my.lrig_riding_signi?.includes(myTopNum)) {
+        for (const eff of (effectsMap.get(myTopNum) ?? [])) {
+          if (eff.effectType !== 'CONTINUOUS') continue;
+          if (eff.activeCondition?.type !== 'IS_DRIVE_STATE') continue;
+          const gkDrive = eff.action.type === 'GRANT_KEYWORD'
+            ? eff.action as import('../types/effects').GrantKeywordAction
+            : null;
+          if (gkDrive) contGrantedKeywords.add(gkDrive.keyword);
+        }
+      }
       // アクセカードのCONTINUOUS GRANT_KEYWORD効果をホストシグニに適用
       // 例: 「これにアクセされている＜調理＞のシグニは【ランサー】を得る」(WXEX1-70-E3等)
       const myZoneIdx = my.field.signi.findIndex(s => s?.at(-1) === myTopNum);
@@ -4577,6 +4590,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_LRIG') return;
     if (my.field.lrig_down) return; // すでに攻撃済み
     if (op.field.lrig_attacked) return; // ガード応答待ち中
+    if ((my.lrig_riding_signi?.length ?? 0) > 0) return; // ドライブ状態：ルリグはアタックできない
     setLoading(true);
     try {
       const myKey = isHost ? 'host_state' : 'guest_state';
@@ -5673,6 +5687,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.turn_phase === 'ATTACK_LRIG') {
       if (my.field.lrig_down) return []; // 攻撃済み
       if (op.field.lrig_attacked) return []; // ガード応答待ち
+      if ((my.lrig_riding_signi?.length ?? 0) > 0) return [{ label: 'ドライブ中（攻撃不可）', color: C.textDim, onClick: () => {} }];
       return [{ label: 'アタック', color: C.danger, onClick: handleLrigAttack }];
     }
 

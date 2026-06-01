@@ -400,9 +400,16 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
       for (const cn of removedCards) delete newIdentityOverrides[cn];
     }
   }
+  // ドライブ状態クリーンアップ：乗られていたシグニが場を離れた場合
+  let newLrigRiding = state.lrig_riding_signi;
+  if (newLrigRiding?.includes(cardNum)) {
+    const filtered = newLrigRiding.filter(cn => cn !== cardNum);
+    newLrigRiding = filtered.length > 0 ? filtered : undefined;
+  }
   return {
     ...state,
     card_identity_overrides: newIdentityOverrides,
+    lrig_riding_signi: newLrigRiding,
     trash: extraTrash.length > 0 ? [...state.trash, ...extraTrash] : state.trash,
     lrig_trash: extraLrigTrash.length > 0 ? [...state.lrig_trash, ...extraLrigTrash] : state.lrig_trash,
     field: {

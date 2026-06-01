@@ -6537,8 +6537,47 @@ export function execStub(
     }
     return done(addLog(ctx, `${targetCardILCA?.CardName ?? targetILCA}のレイヤー能力をコピー（ログのみ）`));
   }
+  // RIDE_ON: ルリグが乗機シグニ1体に任意でライド（ドライブ状態でない場合のみ可）
+  if (stub.id === 'RIDE_ON') {
+    if ((ctx.ownerState.lrig_riding_signi?.length ?? 0) > 0) {
+      return done(addLog(ctx, 'ルリグ既にドライブ状態（RIDE_ON スキップ）'));
+    }
+    const selectedRO = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
+    if (selectedRO) {
+      const newOwnerRO = { ...ctx.ownerState, lrig_riding_signi: [selectedRO] };
+      const namRO = ctx.cardMap.get(selectedRO)?.CardName ?? selectedRO;
+      return done(addLog({ ...ctx, ownerState: newOwnerRO }, `ルリグが${namRO}に乗る（ドライブ状態）`));
+    }
+    const rideCandRO = [0, 1, 2].flatMap(zi => {
+      const top = ctx.ownerState.field.signi[zi]?.at(-1);
+      if (!top) return [];
+      return ctx.cardMap.get(top)?.CardClass?.includes('乗機') ? [top] : [];
+    });
+    if (rideCandRO.length === 0) return done(addLog(ctx, '乗機シグニなし（RIDE_ON）'));
+    const applyRO: StubAction = { type: 'STUB', id: 'INTERNAL_RIDE_ON_APPLY' };
+    const skipRO:  StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return needsInteraction(addLog(ctx, 'ルリグを乗機シグニに乗せてもよい'), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'ride', label: '乗る', action: applyRO as EffectAction, available: true },
+        { id: 'skip', label: 'しない', action: skipRO as EffectAction, available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_RIDE_ON_APPLY') {
+    const rideCandIROA = [0, 1, 2].flatMap(zi => {
+      const top = ctx.ownerState.field.signi[zi]?.at(-1);
+      if (!top) return [];
+      return ctx.cardMap.get(top)?.CardClass?.includes('乗機') ? [top] : [];
+    });
+    if (rideCandIROA.length === 0) return done(addLog(ctx, '乗機シグニなし（INTERNAL_RIDE_ON_APPLY）'));
+    const contIROA: StubAction = { type: 'STUB', id: 'RIDE_ON' };
+    const noopIROA: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return selectOrInteract(rideCandIROA, 1, false, 'self_field', noopIROA as EffectAction, contIROA as EffectAction, ctx);
+  }
   // ライズ/スタック系（engine: ライズシステム未実装）
-  if (stub.id === 'RIDE_ON' || stub.id === 'RISE_BANISH_SUBSTITUTE' || stub.id === 'RISE_LEAVE_DISCARD_STACK'
+  if (stub.id === 'RISE_BANISH_SUBSTITUTE' || stub.id === 'RISE_LEAVE_DISCARD_STACK'
       || stub.id === 'BANISH_SUBSTITUTE_RISE_STACK' || stub.id === 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE'
       || stub.id === 'COOKING_BANISH_SUBSTITUTE' || stub.id === 'BLACK_RISE_PLAY_STACK_FROM_TRASH') {
     return done(addLog(ctx, `[ライズ/スタック: ${stub.id}]`));
@@ -6805,9 +6844,39 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerSALU },
       `ルリグトラッシュ${lrigTrashSALU.length}枚をルリグスタック下に配置`));
   }
-  // ルリグデッキ/ライドシステム
-  if (stub.id === 'LRIG_RIDE_SIGNI' || stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI'
-      || stub.id === 'CENTER_LRIG_DISMOUNT' || stub.id === 'LRIG_GAIN_ABILITY' || stub.id === 'LRIG_ALL_NAMES'
+  // LRIG_RIDE_SIGNI: センタールリグがすべての乗機シグニに乗る（ドライブ状態）
+  if (stub.id === 'LRIG_RIDE_SIGNI') {
+    const ridingAllLRS = [0, 1, 2].flatMap(zi => {
+      const top = ctx.ownerState.field.signi[zi]?.at(-1);
+      if (!top) return [];
+      return ctx.cardMap.get(top)?.CardClass?.includes('乗機') ? [top] : [];
+    });
+    if (ridingAllLRS.length === 0) return done(addLog(ctx, '乗機シグニなし（LRIG_RIDE_SIGNI）'));
+    const newOwnerLRS = { ...ctx.ownerState, lrig_riding_signi: ridingAllLRS };
+    return done(addLog({ ...ctx, ownerState: newOwnerLRS },
+      `ルリグが${ridingAllLRS.length}体の乗機シグニに乗る（ドライブ状態）`));
+  }
+  // CENTER_LRIG_RIDES_ON_SIGNI: センタールリグが選択した1体の乗機シグニに乗る（乗り換え可）
+  if (stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI') {
+    const selectedCLR = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
+    if (selectedCLR) {
+      const newOwnerCLR = { ...ctx.ownerState, lrig_riding_signi: [selectedCLR] };
+      return done(addLog({ ...ctx, ownerState: newOwnerCLR },
+        `ルリグが${ctx.cardMap.get(selectedCLR)?.CardName ?? selectedCLR}に乗る（ドライブ状態）`));
+    }
+    const rideCandCLR = [0, 1, 2].flatMap(zi => {
+      const top = ctx.ownerState.field.signi[zi]?.at(-1);
+      if (!top) return [];
+      return ctx.cardMap.get(top)?.CardClass?.includes('乗機') ? [top] : [];
+    });
+    if (rideCandCLR.length === 0) return done(addLog(ctx, '乗機シグニなし（CENTER_LRIG_RIDES_ON_SIGNI）'));
+    const contCLR: StubAction = { type: 'STUB', id: 'CENTER_LRIG_RIDES_ON_SIGNI' };
+    const noopCLR: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return selectOrInteract(rideCandCLR, 1, false, 'self_field', noopCLR as EffectAction, contCLR as EffectAction, ctx);
+  }
+  // ルリグデッキ/ライドシステム（未実装残）
+  if (stub.id === 'CENTER_LRIG_DISMOUNT' || stub.id === 'LRIG_GAIN_ABILITY' || stub.id === 'LRIG_ALL_NAMES'
       || stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
     return done(addLog(ctx, `[ルリグシステム: ${stub.id}]`));
   }
@@ -7075,6 +7144,27 @@ export function execStub(
       type: 'SELECT_TARGET', candidates: driveCandsDSPD, count: 1, optional: false,
       targetScope: 'self_field', thenAction: applyDSPD as EffectAction,
     });
+  }
+  // DRIVE_CONT_BANISH_RESIST: ドライブ常→このシグニはバニッシュされない（effectEngineで処理）
+  if (stub.id === 'DRIVE_CONT_BANISH_RESIST') {
+    return done(addLog(ctx, '[ドライブ常：バニッシュ耐性（effectEngine動的処理）]'));
+  }
+  // DRIVE_AUTO_BANISH_ALL_OPP: ドライブ自→アタック時に相手全シグニをバニッシュ（IS_DRIVE_STATEチェック付き）
+  if (stub.id === 'DRIVE_AUTO_BANISH_ALL_OPP') {
+    if (!(ctx.ownerState.lrig_riding_signi?.includes(ctx.sourceCardNum ?? ''))) {
+      return done(addLog(ctx, 'ドライブ状態でない（DRIVE_AUTO_BANISH_ALL_OPP スキップ）'));
+    }
+    const oppAllDABA = [0, 1, 2].flatMap(zi => {
+      const top = ctx.otherState.field.signi[zi]?.at(-1);
+      return top ? [top] : [];
+    });
+    if (oppAllDABA.length === 0) return done(addLog(ctx, '相手シグニなし（DRIVE_AUTO_BANISH_ALL_OPP）'));
+    let newOtherDABA = ctx.otherState;
+    for (const cn of oppAllDABA) {
+      const removed = removeFromField(cn, newOtherDABA);
+      newOtherDABA = { ...removed, trash: [...removed.trash, cn] };
+    }
+    return done(addLog({ ...ctx, otherState: newOtherDABA }, `ドライブ自：相手全シグニ${oppAllDABA.length}体をバニッシュ`));
   }
   if (stub.id === 'WEAPON_SIGNI_PROTECT_DOWN'
       || stub.id === 'WEAPON_SIGNI_PROTECTION' || stub.id === 'ARM_SIGNI_LRIG_PROTECTION'

@@ -133,6 +133,11 @@ export function checkActiveCondition(
       return (ownerState.field.signi_acce ?? []).includes(sourceCardNum);
     }
 
+    case 'IS_DRIVE_STATE':
+      // このシグニがドライブ状態（LRIGが乗っている）であるかぎり
+      if (!sourceCardNum) return false;
+      return ownerState.lrig_riding_signi?.includes(sourceCardNum) ?? false;
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers));
   }
