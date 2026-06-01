@@ -296,31 +296,76 @@ export function execStub(
     const quotedActM = txtGQAA.match(/「(【起】[^」]{1,30})/);
     return done(addLog(ctx, `起動能力付与：「${quotedActM?.[1] ?? '?'}...」`));
   }
-  // 引用符付き能力付与（キーワードを keyword_grants に格納）
+  // 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects）
   if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
       stub.id === 'GRANT_ABILITY_INNER_TEXT') {
     const srcGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGQ = srcGQ ? (srcGQ.EffectText ?? '') + ' ' + (srcGQ.BurstText ?? '') : '';
-    // 付与するキーワードを抽出（ランサー、ダブルクラッシュ、貫通、マルチエナ等）
+    // 付与するキーワードを抽出（ランサー、ダブルクラッシュ等）
     const knownKeywords = ['Sランサー', 'ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'アサシン', 'バニッシュ無効', 'ライフバースト無効', '影', 'チャーム', 'シャドウ', 'ガードアイコン', 'アタックできない', 'フリーズ', 'ドライブ'];
-    // 引用符内のテキスト（「...」を得る）または直接記述（「…は...を得る」）を抽出
+    // 引用符内のテキストを抽出
     const quotedM = txtGQ.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/) ?? txtGQ.match(/【([^】]+)】を得る/);
     const quotedText = quotedM ? quotedM[1] : '';
     const grantedKws = knownKeywords.filter(kw => quotedText.includes(kw) || txtGQ.match(new RegExp(`【${kw}】を得`)));
-    // 対象シグニを決定（「このシグニ」→sourceCardNum、「あなたのシグニすべて」→全自シグニ）
+    // 対象シグニを決定（SELECT_TARGET後はlastProcessedCards、「このシグニ」→sourceCardNum、全体→全自シグニ）
     const allM = txtGQ.match(/あなたのシグニすべては|あなたの場にあるすべてのシグニ/);
-    const targetCardNums: string[] = allM
-      ? ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : [])
-      : (ctx.sourceCardNum ? [ctx.sourceCardNum] : []);
+    const targetCardNums: string[] = ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0
+      ? ctx.lastProcessedCards
+      : allM
+        ? ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : [])
+        : (ctx.sourceCardNum ? [ctx.sourceCardNum] : []);
+
+    // シンプルキーワード付与
     if (grantedKws.length > 0 && targetCardNums.length > 0) {
       const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
       for (const cn of targetCardNums) {
         grants[cn] = [...new Set([...(grants[cn] ?? []), ...grantedKws])];
       }
-      const newOwner = { ...ctx.ownerState, keyword_grants: grants };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `${grantedKws.join('・')}を付与（${targetCardNums.length}体）`));
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
+        `${grantedKws.join('・')}を付与（${targetCardNums.length}体）`));
     }
-    if (quotedText) return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 15)}...」（ログのみ）`));
+
+    // 既知のCONTINUOUS能力パターンを granted_effects に格納
+    if (targetCardNums.length > 0 && quotedText) {
+      // 「対戦相手のシグニの効果を受けない」→ GRANT_PROTECTION (CONTINUOUS)
+      if (quotedText.includes('対戦相手のシグニの効果を受けない')) {
+        const grantedEff: import('../types/effects').CardEffect = {
+          effectType: 'CONTINUOUS',
+          action: {
+            type: 'GRANT_PROTECTION',
+            from: ['シグニ'],
+            sourceOwner: 'opponent',
+            duration: 'UNTIL_END_OF_TURN',
+          } as import('../types/effects').GrantProtectionAction,
+        };
+        const grantedMap = { ...(ctx.ownerState.granted_effects ?? {}) };
+        for (const cn of targetCardNums) {
+          grantedMap[cn] = [...(grantedMap[cn] ?? []), grantedEff];
+        }
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMap } },
+          `相手シグニ効果耐性を付与（${targetCardNums.length}体）`));
+      }
+      // 「対戦相手の効果を受けない」（シグニ・スペル・アーツすべて）
+      if (quotedText.match(/対戦相手の(?:カードの)?効果を受けない/)) {
+        const grantedEff: import('../types/effects').CardEffect = {
+          effectType: 'CONTINUOUS',
+          action: {
+            type: 'GRANT_PROTECTION',
+            from: ['シグニ', 'スペル', 'アーツ'],
+            sourceOwner: 'opponent',
+            duration: 'UNTIL_END_OF_TURN',
+          } as import('../types/effects').GrantProtectionAction,
+        };
+        const grantedMap = { ...(ctx.ownerState.granted_effects ?? {}) };
+        for (const cn of targetCardNums) {
+          grantedMap[cn] = [...(grantedMap[cn] ?? []), grantedEff];
+        }
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMap } },
+          `相手効果耐性を付与（${targetCardNums.length}体）`));
+      }
+    }
+
+    if (quotedText) return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 20)}...」（ログのみ）`));
     return done(addLog(ctx, '能力を付与（effectEngine処理）'));
   }
   // ルリグデッキ下操作（多パターン）
