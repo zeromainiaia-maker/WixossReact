@@ -4098,12 +4098,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (!gkA) continue;
             if (gkA.target.owner === 'any' || gkA.target.owner === 'opponent') {
               const hostCard = battleCardMap.get(myTopNum);
-              if (!hostCard || (gkA.target.filter && !(() => {
-                const f = gkA.target.filter!;
-                if (f.class && !hostCard.CardClass?.includes(f.class)) return false;
-                if (f.cardType && hostCard.Type !== f.cardType) return false;
-                return true;
-              })())) continue;
+              if (!hostCard) continue;
+              // フィルター簡易チェック（story=クラス名のみ）
+              if (gkA.target.filter?.story) {
+                const stories = Array.isArray(gkA.target.filter.story)
+                  ? gkA.target.filter.story
+                  : [gkA.target.filter.story];
+                if (!stories.some(s => hostCard.CardClass?.includes(s))) continue;
+              }
+              if (gkA.target.filter?.cardType && hostCard.Type !== gkA.target.filter.cardType) continue;
               contGrantedKeywords.add(gkA.keyword);
             }
           }
