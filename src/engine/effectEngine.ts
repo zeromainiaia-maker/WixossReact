@@ -1271,6 +1271,35 @@ export function collectProtectedZones(
 }
 
 /**
+ * ATTACK_PHASE_LEVEL_OVERRIDE: アタックフェイズ中に英知レベルをオーバーライドするシグニを収集。
+ * CardNum → 使用するレベル（範囲の最大値）のマップを返す。
+ */
+export function collectAttackPhaseLevelOverrides(
+  state: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Record<string, number> {
+  const overrides: Record<string, number> = {};
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    const effs = effectsMap.get(top) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'ATTACK_PHASE_LEVEL_OVERRIDE') continue;
+      const txt = (cardMap.get(top)?.EffectText ?? '') + ' ' + (cardMap.get(top)?.BurstText ?? '');
+      const m = txt.match(/レベルは([０-９\d]+)～([０-９\d]+)であるとして扱う/);
+      if (m) {
+        overrides[top] = parseInt(toHW(m[2]));
+      }
+    }
+  }
+  return overrides;
+}
+
+/**
  * ENERGY_COLOR_SUBSTITUTE: フィールドのキーピース等がCONTINUOUSで色代替を持つ場合、
  * その代替ルール { from: string[], to: string }[] を動的に返す。
  */
