@@ -173,6 +173,10 @@ export interface PlayerState {
   opp_signi_attack_power_cap?: number;
   // 裏向きシグニのCardNum一覧（SIGNI_FLIP_FACEDOWN / FACE_DOWN_OPP_SIGNI）
   face_down_signi?: string[];
+  // このターン、自分の効果による特定シグニへのパワー-を2倍にする（DOUBLE_OWN_POWER_MINUS）
+  double_power_minus_targets?: string[];
+  // アタックフェイズ中の英知レベルオーバーライド（CardNum → 扱うレベル）
+  attack_phase_level_overrides?: Record<string, number>;
 }
 
 export interface GameLog {
