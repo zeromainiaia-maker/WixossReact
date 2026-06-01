@@ -6804,7 +6804,6 @@ export function execStub(
       type: 'SELECT_TARGET', candidates: eichiCandsCESBL, count: 1, optional: false,
       targetScope: 'self_field', thenAction: contCESBL as EffectAction,
     });
-    void toHWCESBL;
   }
   // TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 他の自シグニを選択し、その英知AUTO能力を発動させる
   if (stub.id === 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY') {
