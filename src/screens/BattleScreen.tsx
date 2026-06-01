@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -2447,15 +2447,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const cardNum = my.hand[handIndex];
       const name = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      const newMyState: PlayerState = {
-        ...my,
-        hand: my.hand.filter((_, i) => i !== handIndex),
-        energy: [...my.energy, cardNum],
-        actions_done: [...(my.actions_done ?? []), 'ENERGY'],
-      };
+      const colorRestrict = collectOppEnergyColorRestriction(op, battleCardMap, effectsMap);
+      const handWithout = my.hand.filter((_, i) => i !== handIndex);
+      let newMyState: PlayerState;
+      if (colorRestrict && !(battleCardMap.get(cardNum)?.Color ?? '').includes(colorRestrict)) {
+        newMyState = { ...my, hand: handWithout, trash: [...my.trash, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
+        appendBattleLogs([`エナチャージ→トラッシュ（${name}、${colorRestrict}色制限）`]);
+      } else {
+        newMyState = { ...my, hand: handWithout, energy: [...my.energy, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
+        appendBattleLogs([`エナチャージ（${name}）`]);
+      }
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
-      appendBattleLogs([`エナチャージ（${name}）`]);
     } finally {
       setLoading(false);
     }
@@ -2473,15 +2476,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newStack = signiStack.slice(0, -1);
       const newSigni = [...my.field.signi] as (string[] | null)[];
       newSigni[zoneIndex] = newStack.length > 0 ? newStack : null;
-      const newMyState: PlayerState = {
-        ...my,
-        field: { ...my.field, signi: newSigni },
-        energy: [...my.energy, cardNum],
-        actions_done: [...(my.actions_done ?? []), 'ENERGY'],
-      };
+      const colorRestrict = collectOppEnergyColorRestriction(op, battleCardMap, effectsMap);
+      let newMyState: PlayerState;
+      if (colorRestrict && !(battleCardMap.get(cardNum)?.Color ?? '').includes(colorRestrict)) {
+        newMyState = { ...my, field: { ...my.field, signi: newSigni }, trash: [...my.trash, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
+        appendBattleLogs([`エナチャージ→トラッシュ（${name}、${colorRestrict}色制限）`]);
+      } else {
+        newMyState = { ...my, field: { ...my.field, signi: newSigni }, energy: [...my.energy, cardNum], actions_done: [...(my.actions_done ?? []), 'ENERGY'] };
+        appendBattleLogs([`エナチャージ（${name}）`]);
+      }
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
-      appendBattleLogs([`エナチャージ（${name}）`]);
     } finally {
       setLoading(false);
     }

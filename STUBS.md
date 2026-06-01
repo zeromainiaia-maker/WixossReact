@@ -364,12 +364,12 @@
 | 1 | CONT | ✅ | ODD_LEVEL_SIGNI_CANT_ATTACK ※effectEngine.calcContinuousBlockedActionsで実装 |
 | 1 | AUTO | ⚡ | OPP_CHOOSE_EFFECT |
 | 1 | AUTO | ⚡ | OPP_CHOOSES_FOR_YOU |
-| 1 | AUTO/ACTIVATED | 📝 | OPP_DECK_REVEAL_UNTIL |
-| 1 | CONT | 📝 | OPP_ENERGY_COLOR_CONDITION_TRASH |
+| 1 | AUTO/ACTIVATED | ⚡ | OPP_DECK_REVEAL_UNTIL |
+| 1 | CONT | ⚡ | OPP_ENERGY_COLOR_CONDITION_TRASH ※collectOppEnergyColorRestriction+handleEnergyChargeFromHand/Signiでエナチャージ時に色制限チェック |
 | 1 | AUTO | ⚡ | OPP_ENERGY_EXCESS_TRASH |
 | 1 | ACTIVATED | ⚡ | OPP_ENERGY_OR_DISCARD_CONDITION |
 | 1 | AUTO | ⚡ | OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND |
-| 1 | AUTO/ACTIVATED | 📝 | OPP_HAND_TO_DECK_TOP |
+| 1 | AUTO/ACTIVATED | ⚡ | OPP_HAND_TO_DECK_TOP |
 | 1 | CONT | ✅ | OPP_LRIG_ATTACK_COST ※v0.114: collectOppLrigAttackExtraCost+handleLrigAttackに追加コスト支払い統合 |
 | 1 | AUTO | ⚡ | OPP_MAIN_PHASE_LIMIT_DOWN |
 | 1 | AUTO | ⚡ | OPP_RETURN_HAND_ON_SELF_BANISH |

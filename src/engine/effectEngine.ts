@@ -1451,6 +1451,37 @@ export function collectOppGuardExtraColorlessCost(
 }
 
 /**
+ * OPP_ENERGY_COLOR_CONDITION_TRASH: ownerState のフィールドに
+ * 「対戦相手のエナゾーンに[色]を持たず置かれる場合トラッシュ」CONTINUOUS効果があれば
+ * その必要色を返す（その色を持たないカードを相手がエナチャージしようとした場合トラッシュへ）。
+ */
+export function collectOppEnergyColorRestriction(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): string | null {
+  const candidates: string[] = [];
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (top) candidates.push(top);
+  }
+  if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig.at(-1)!);
+  for (const cn of candidates) {
+    const effs = effectsMap.get(cn) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'OPP_ENERGY_COLOR_CONDITION_TRASH') continue;
+      const card = cardMap.get(cn);
+      const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+      const m = txt.match(/(赤|青|緑|白|黒)/);
+      if (m) return m[1];
+    }
+  }
+  return null;
+}
+
+/**
  * HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT:
  * ownerState のターン終了時に適用される実効手札上限を返す。
  * - ownerState のフィールドにある HAND_SIZE_INCREASE 効果で上限を増加

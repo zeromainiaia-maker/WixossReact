@@ -4360,13 +4360,6 @@ export function execStub(
     const newSHNCE: PlayerState = { ...sHNCE, hand: remainHNCE, energy: [...sHNCE.energy, ...nonColorlessHNCE] };
     return done(addLog({ ...ctx, ownerState: newSHNCE }, `手札の無色以外${nonColorlessHNCE.length}枚をエナゾーンへ`));
   }
-  // OPP_HAND_TO_DECK_TOP: 相手の手札をデッキトップに戻す
-  if (stub.id === 'OPP_HAND_TO_DECK_TOP') {
-    const sOHTDT = ctx.otherState;
-    if (sOHTDT.hand.length === 0) return done(addLog(ctx, '相手手札なし'));
-    const newSOHTDT: PlayerState = { ...sOHTDT, deck: [...sOHTDT.hand, ...sOHTDT.deck], hand: [] };
-    return done(addLog({ ...ctx, otherState: newSOHTDT }, `相手の手札${ctx.otherState.hand.length}枚をデッキトップに戻した`));
-  }
   // OPP_TRASH_TO_DECK_TOP: 相手のトラッシュ最上段をデッキトップに
   if (stub.id === 'OPP_TRASH_TO_DECK_TOP') {
     const sOTTDT = ctx.otherState;
@@ -8096,23 +8089,6 @@ export function execStub(
       hand: [...sETHOD.hand, lastEnaETHOD],
     };
     return done(addLog({ ...ctx, ownerState: newSETHOD }, `${ctx.cardMap.get(lastEnaETHOD)?.CardName ?? lastEnaETHOD}をエナ→手札`));
-  }
-  // OPP_ENERGY_COLOR_CONDITION_TRASH: 相手エナの特定色をトラッシュ
-  if (stub.id === 'OPP_ENERGY_COLOR_CONDITION_TRASH') {
-    const srcOECCT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtOECCT = srcOECCT ? (srcOECCT.EffectText ?? '') + ' ' + (srcOECCT.BurstText ?? '') : '';
-    const mColorOECCT = txtOECCT.match(/(赤|青|緑|白|黒|無色)/);
-    const colorOECCT = mColorOECCT ? mColorOECCT[1] : '';
-    const removeOECCT = colorOECCT
-      ? ctx.otherState.energy.filter(cn => ctx.cardMap.get(cn)?.Color?.includes(colorOECCT))
-      : [];
-    if (removeOECCT.length === 0) return done(addLog(ctx, `相手エナに${colorOECCT || '対象'}色なし`));
-    const newOtherOECCT: PlayerState = {
-      ...ctx.otherState,
-      energy: ctx.otherState.energy.filter(cn => !removeOECCT.includes(cn)),
-      trash: [...ctx.otherState.trash, ...removeOECCT],
-    };
-    return done(addLog({ ...ctx, otherState: newOtherOECCT }, `相手${colorOECCT}エナ${removeOECCT.length}枚→トラッシュ`));
   }
   // COUNT_DISTINCT_NAMES: フィールドの異なる名称数を数えてパワー修正
   if (stub.id === 'COUNT_DISTINCT_NAMES') {
