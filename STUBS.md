@@ -64,10 +64,10 @@
 | 2 | ACTIVATED/AUTO | ✅ | GRANT_CHOSEN_ABILITY ※v0.138: lastProcessedCardsに自シグニなければSELECT_TARGET→CHOOSE能力(アサシン/ランサー/ダブルクラッシュ/バニッシュ不可/ダウン不可/バウンス不可)。keyword_grantsに格納 |
 | 2 | CONT | ⚡ | GRANT_QUOTED_ACTIVATE_ABILITY ※v0.138: GRANT_QUOTED_AUTO_ABILITYブロックから分離。起動能力パターンログ改善（レベル比例/2倍-タイプ識別） |
 | 2 | CONT | ✅ | HAND_SIZE_INCREASE ※effectEngine.collectHandLimitsで動的計算に移行 |
-| 2 | AUTO | ⚡ | HAND_TO_ENERGY_OPTIONAL |
-| 2 | ACTIVATED/AUTO | ⚡ | LAYER_ABILITY_COPY |
-| 2 | AUTO/ACTIVATED | ⚡ | LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END |
-| 2 | ACTIVATED/CONT | ⚡ | LIMIT_OPP_DRAW_COUNT |
+| 2 | AUTO | ✅ | HAND_TO_ENERGY_OPTIONAL ※v0.139: 重複ハンドラ削除。先行ハンドラ（maxHTE解析+INTERNAL_HAND_TO_ENERGY続行）が正しく動作 |
+| 2 | ACTIVATED/AUTO | ✅ | LAYER_ABILITY_COPY ※v0.139: SELECT_TARGET(怪異trash/field)+INTERNAL_LAYER_COPY_APPLY。《レイヤーアイコン》テキストからSランサー等を keyword_grants に付与 |
+| 2 | AUTO/ACTIVATED | ✅ | LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END ※v0.139: 「対戦相手のリミット－N」パターンを追加（otherState.lrig_limit_mod修正）。両プレイヤー対応 |
+| 2 | ACTIVATED/CONT | ✅ | LIMIT_OPP_DRAW_COUNT ※v0.139: collectDrawLimits追加（CONTINUOUS LIMIT_OPP_DRAW_COUNT効果を動的検査）。BattleScreen UP フェイズのドロー計算に統合 |
 | 2 | AUTO | ✅ | LOOK_OPP_LIFE_TOP |
 | 2 | CONT | ✅ | LRIG_GROW_RESTRICT |
 | 2 | AUTO | ⚡ | MOVE_TO_ATTACKER_FRONT |
