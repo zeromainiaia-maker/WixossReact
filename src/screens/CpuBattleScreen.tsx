@@ -233,6 +233,18 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       appendLog(`--- ${nextPlayer === 'player' ? 'プレイヤー' : 'CPU'} のターン ---`);
       return { ...g, phase: 'UP', turnPlayer: nextPlayer };
     }
+    // GROW→MAIN移行時: pending_lrig_limit_modをlrig_limit_modに適用（OPP_MAIN_PHASE_LIMIT_DOWN）
+    if (g.phase === 'GROW' && next === 'MAIN') {
+      const s = myState(g);
+      if (s.pending_lrig_limit_mod !== undefined) {
+        const newS: PlayerState = {
+          ...s,
+          lrig_limit_mod: (s.lrig_limit_mod ?? 0) + s.pending_lrig_limit_mod,
+          pending_lrig_limit_mod: undefined,
+        };
+        return { ...setMyState(g, newS), phase: next };
+      }
+    }
     return { ...g, phase: next };
   }, [appendLog]);
 
