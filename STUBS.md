@@ -673,23 +673,23 @@
 | 1 | CONT | ✅ | POWER_BY_CENTER_LRIG_TYPE_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
 | 1 | CONT | ✅ | POWER_BY_CHARM_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
 | 1 | CONT | ✅ | POWER_BY_ENERGY_COLOR_VARIETY ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
-| 1 | AUTO | ⚡ | POWER_BY_LEVEL_SUM_COMPARE |
+| 1 | AUTO | ✅ | POWER_BY_LEVEL_SUM_COMPARE ※v0.162: 条件修正(>→≦)・delta×levelSum・SELECT_TARGET実装 |
 | 1 | CONT | ✅ | POWER_BY_RISE_SIGNI_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装（スタック2枚以上判定） |
 | 1 | CONT | ✅ | POWER_CAP ※v0.114: calcFieldPowers後処理でパワー上限適用 |
-| 2 | ACTIVATED | ⚡ | POWER_DOUBLE_ALL |
-| 1 | AUTO | ⚡ | POWER_DOWN_BY_ZONE_CARD_COUNT |
-| 1 | AUTO | ⚡ | POWER_EQUALS_FRONT_SIGNI |
-| 1 | AUTO | ⚡ | POWER_MOD_BY_COLOR_VARIETY |
+| 2 | ACTIVATED | ✅ | POWER_DOUBLE_ALL ※既存実装正しく確認（全自シグニに現在effectivePower分のdelta追加でx2）|
+| 1 | AUTO | ✅ | POWER_DOWN_BY_ZONE_CARD_COUNT ※v0.162: SELECT_TARGET自己再帰で1体指定・ゾーン枚数×delta適用 |
+| 1 | AUTO | ✅ | POWER_EQUALS_FRONT_SIGNI ※既存実装正しく確認（正面シグニPower-selfPower=delta適用） |
+| 1 | AUTO | ✅ | POWER_MOD_BY_COLOR_VARIETY ※v0.162: 自場シグニ色種類数×delta・SELECT_TARGET自己再帰で1体指定 |
 | 1 | AUTO/ACTIVATED | ✅ | POWER_MOD_BY_FIELD_CLASS_LEVEL ※フィールドクラスシグニのレベル合計×deltaをtemp_power_modsに適用 |
 | 1 | CONT | ✅ | POWER_MOD_BY_FRONT_LEVEL ※v0.114: calcFieldPowers STUBハンドラで正面シグニLv×値パワーダウン実装 |
-| 1 | AUTO | ⚡ | POWER_MOD_BY_LRIG_LEVEL_SUM |
-| 1 | ACTIVATED | ⚡ | POWER_MOD_BY_TRASHED_SIGNI_LEVEL |
-| 1 | AUTO | ⚡ | POWER_MOD_BY_UNDER_COUNT |
-| 1 | AUTO/ACTIVATED | ⚡ | POWER_MOD_DISTRIBUTE ※done(addLog)のみ（複合パワー修正グループ: 未実装） |
-| 2 | ACTIVATED | ⚡ | POWER_MOD_MIRROR |
-| 1 | AUTO | ⚡ | POWER_MOD_ON_FRONT_PLACE |
-| 1 | AUTO | ⚡ | POWER_MOD_TARGET_AND_SELF |
-| 1 | ACTIVATED | ⚡ | POWER_UP_BY_DISCARDED_SIGNI_POWER |
+| 1 | AUTO | ✅ | POWER_MOD_BY_LRIG_LEVEL_SUM ※既存実装正しく確認（ルリグLv合計×delta・自シグニに適用） |
+| 1 | ACTIVATED | ✅ | POWER_MOD_BY_TRASHED_SIGNI_LEVEL ※v0.162: SELECT_TARGET→INTERNAL_PMBTSL_APPLY・1体指定・Lv×-2000 |
+| 1 | AUTO | ✅ | POWER_MOD_BY_UNDER_COUNT ※v0.162: SELECT_TARGET→INTERNAL_PMBUC_APPLY・2体まで・下枚数×delta |
+| 1 | AUTO/ACTIVATED | ✅ | POWER_MOD_DISTRIBUTE ※v0.162: SELECT自場最大3体→均等配分（+20000/count/1000*1000） |
+| 2 | ACTIVATED | ✅ | POWER_MOD_MIRROR ※v0.162: 捨てシグニのパワー→相手対象に-(opp)または自シグニに+(self)で適用 |
+| 1 | AUTO | ✅ | POWER_MOD_ON_FRONT_PLACE ※v0.162: 正面シグニに任意で-3000（CHOOSEダイアログ+INTERNAL_PMOP_APPLY） |
+| 1 | AUTO | ✅ | POWER_MOD_TARGET_AND_SELF ※v0.162: own signi(lastProcessedCards)+sourceCardNum両方にdelta適用修正 |
+| 1 | ACTIVATED | ✅ | POWER_UP_BY_DISCARDED_SIGNI_POWER ※v0.162: SELECT自場シグニ→捨てたシグニのパワー分+適用 |
 | 1 | CONT | ⚡ | PREVENT_ABILITY_CHANGE_BY_OPP ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
 | 1 | CONT | ⚡ | PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP ※done(addLog)のみ（effectEngineで動的処理予定） |
 | 1 | ACTIVATED | ⚡ | PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE |
