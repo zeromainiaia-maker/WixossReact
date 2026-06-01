@@ -492,6 +492,14 @@ export interface GrantKeywordAction {
   duration: EffectDuration;
 }
 
+// 複合能力（CardEffect）をシグニ/ルリグに付与する
+export interface GrantEffectAction {
+  type: 'GRANT_EFFECT';
+  target: EffectTarget;
+  effect: CardEffect;      // 付与するエフェクト（AUTO/ACTIVATED/CONTINUOUSなど）
+  duration: EffectDuration;
+}
+
 // トラッシュ/エナ/フィールドからデッキへ移動
 export interface TransferToDeckAction {
   type: 'TRANSFER_TO_DECK';
