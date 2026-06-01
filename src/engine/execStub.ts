@@ -2149,20 +2149,47 @@ export function execStub(
     const srcL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtL = srcL ? (srcL.EffectText ?? '') + ' ' + (srcL.BurstText ?? '') : '';
     const toHWL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const mL = txtL.match(/リミットを([＋+]?)([０-９\d]+)(?:にする|増やす|する)/);
-    const mLMinus = txtL.match(/リミットを([－-])([０-９\d]+)/);
-    let deltaL = 1;
-    if (mLMinus) {
-      deltaL = -parseInt(toHWL(mLMinus[2]));
-    } else if (mL) {
-      deltaL = parseInt(toHWL(mL[2]));
-    } else {
-      const mLPlus = txtL.match(/リミットを＋([０-９\d]+)/);
-      if (mLPlus) deltaL = parseInt(toHWL(mLPlus[1]));
+    let newCtxL = ctx;
+    const logs: string[] = [];
+    // 自分のリミット変更（「あなたの...リミットを＋N/－N」または単純に「リミットを」）
+    const selfMinusM = txtL.match(/(?:あなたの)?.*リミットを([－-])([０-９\d]+)/);
+    const selfPlusM = txtL.match(/(?:あなたの)?.*リミットを([＋+]?)([０-９\d]+)(?:にする|増やす|する|し)/);
+    const selfPlusM2 = txtL.match(/(?:あなたの)?.*リミットを＋([０-９\d]+)/);
+    // 相手のリミット変更（「対戦相手の...リミットを」）
+    const oppMinusM = txtL.match(/対戦相手.*リミットを([－-])([０-９\d]+)/);
+    const oppPlusM = txtL.match(/対戦相手.*リミットを＋([０-９\d]+)/);
+    // 自分側
+    if (!oppMinusM && !oppPlusM) {
+      let deltaOwn = 1;
+      if (selfMinusM && !selfMinusM[0].includes('対戦相手')) {
+        deltaOwn = -parseInt(toHWL(selfMinusM[2]));
+      } else if (selfPlusM && !selfPlusM[0].includes('対戦相手')) {
+        deltaOwn = parseInt(toHWL(selfPlusM[2]));
+      } else if (selfPlusM2 && !selfPlusM2[0].includes('対戦相手')) {
+        deltaOwn = parseInt(toHWL(selfPlusM2[1]));
+      }
+      const newModOwn = (newCtxL.ownerState.lrig_limit_mod ?? 0) + deltaOwn;
+      newCtxL = { ...newCtxL, ownerState: { ...newCtxL.ownerState, lrig_limit_mod: newModOwn } };
+      logs.push(`自リミット${deltaOwn > 0 ? '+' : ''}${deltaOwn}`);
     }
-    const newMod = (ctx.ownerState.lrig_limit_mod ?? 0) + deltaL;
-    const newOwner = { ...ctx.ownerState, lrig_limit_mod: newMod };
-    return done(addLog({ ...ctx, ownerState: newOwner }, `リミット${deltaL > 0 ? '+' : ''}${deltaL}（エナフェイズ終了まで）`));
+    // 相手側
+    if (oppMinusM) {
+      const deltaOpp = -parseInt(toHWL(oppMinusM[2]));
+      const newModOpp = (newCtxL.otherState.lrig_limit_mod ?? 0) + deltaOpp;
+      newCtxL = { ...newCtxL, otherState: { ...newCtxL.otherState, lrig_limit_mod: newModOpp } };
+      logs.push(`相手リミット${deltaOpp}`);
+    } else if (oppPlusM) {
+      const deltaOpp = parseInt(toHWL(oppPlusM[1]));
+      const newModOpp = (newCtxL.otherState.lrig_limit_mod ?? 0) + deltaOpp;
+      newCtxL = { ...newCtxL, otherState: { ...newCtxL.otherState, lrig_limit_mod: newModOpp } };
+      logs.push(`相手リミット+${deltaOpp}`);
+    }
+    if (logs.length === 0) {
+      // フォールバック: リミット+1
+      newCtxL = { ...newCtxL, ownerState: { ...newCtxL.ownerState, lrig_limit_mod: (newCtxL.ownerState.lrig_limit_mod ?? 0) + 1 } };
+      logs.push('リミット+1（デフォルト）');
+    }
+    return done(addLog(newCtxL, `${logs.join(' / ')}（エナフェイズ終了まで）`));
   }
   // 捨てた枚数基準パワー修正
   if (stub.id === 'POWER_MOD_BY_DISCARD_COUNT_HIGH') {
