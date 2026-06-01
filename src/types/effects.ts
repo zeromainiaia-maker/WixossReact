@@ -79,6 +79,8 @@ export type ActiveCondition =
   | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札と相手の手札の差
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
   | { type: 'IS_SELF_ARMORED' }                                 // このシグニが血晶武装状態であるかぎり
+  | { type: 'IS_SELF_ACCED' }                                   // このシグニにアクセが付いているかぎり
+  | { type: 'IS_SELF_ACCE_CARD' }                               // このカードがアクセとして装着されているかぎり（アクセカード側の条件）
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
