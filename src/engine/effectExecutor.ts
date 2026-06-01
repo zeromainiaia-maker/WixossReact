@@ -1941,6 +1941,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'BLOCK_ACTION':            return execBlockAction(action as BlockActionAction, ctx);
     case 'STORY_CHANGE':            return execStoryChange(action as StoryChangeAction, ctx);
     case 'GRANT_KEYWORD':           return execGrantKeyword(action as GrantKeywordAction, ctx);
+    case 'GRANT_EFFECT':            return execGrantEffect(action as GrantEffectAction, ctx);
     case 'SEARCH':                  return execSearch(action as SearchAction, ctx);
     case 'SEQUENCE':                return execSequence(action as SequenceAction, ctx);
     case 'RECOLLECT_GATE':         return done(addLog(ctx, 'リコレクトゲート（シーケンス外では常に通過）'));
