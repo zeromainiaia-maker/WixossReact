@@ -91,12 +91,14 @@ export function checkActiveCondition(
 
     case 'EICHI_LEVEL_SUM': {
       // 英知=N: 自分のフィールドの＜英知＞シグニのレベル合計
+      const eichiLevelOverrides = ownerState.attack_phase_level_overrides ?? {};
       const eichiSum = ownerState.field.signi.reduce((sum, stack) => {
         const top = stack?.at(-1);
         if (!top) return sum;
         const card = cardMap.get(top);
         if (!card?.CardClass?.includes('英知')) return sum;
-        return sum + (parseInt(card.Level ?? '0') || 0);
+        const level = eichiLevelOverrides[top] ?? (parseInt(card.Level ?? '0') || 0);
+        return sum + level;
       }, 0);
       switch (cond.operator) {
         case 'gte': return eichiSum >= cond.value;
