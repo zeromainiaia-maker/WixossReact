@@ -2379,9 +2379,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const acceAction = action as import('../types/effects').AttachAcceAction;
       const tgtState = ownerState(acceAction.targetSigniOwner, ctx);
       const srcState = ownerState(acceAction.sourceOwner, ctx);
+      // cardNum = SELECT_TARGETで選ばれたホストシグニ
       const zoneIdx  = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
-      const acceCardNum = ctx.sourceCardNum;
+      // acceカード = sourceCardNum（エナゾーンからの場合）または lastProcessedCards[0]（手札選択後）
+      const acceCardNum = ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
       if (!acceCardNum) return done(ctx);
       // エナゾーンまたは手札からアクセカードを除去
       let newSrc = { ...srcState };
@@ -2390,18 +2392,27 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       } else if (newSrc.hand.includes(acceCardNum)) {
         newSrc = { ...newSrc, hand: newSrc.hand.filter(n => n !== acceCardNum) };
       } else {
-        return done(ctx);
+        return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}がエナ/手札にない`));
       }
       let ctx2 = setOwnerState(acceAction.sourceOwner, newSrc, ctx);
       // signi_acce[zoneIdx] に設定
       const tgt2 = ownerState(acceAction.targetSigniOwner, ctx2);
       const newAcce = [...(tgt2.field.signi_acce ?? [null, null, null])];
       newAcce[zoneIdx] = acceCardNum;
-      const newTgt: PlayerState = { ...tgt2, field: { ...tgt2.field, signi_acce: newAcce } };
+      const newTgt: import('../types').PlayerState = { ...tgt2, field: { ...tgt2.field, signi_acce: newAcce } };
       ctx2 = setOwnerState(acceAction.targetSigniOwner, newTgt, ctx2);
       const acceCardName  = ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum;
       const signiCardName = ctx.cardMap.get(cardNum)?.CardName ?? cardNum;
-      return done(addLog(ctx2, `${acceCardName}を${signiCardName}にアクセ`));
+      // ON_ACCE トリガー: アクセしたことでフィールドシグニの ON_ACCE AUTO 効果を発火
+      // （BattleScreen側の queueCardEffects で ON_ACCE を処理）
+      const ctx3 = addLog(ctx2, `${acceCardName}を${signiCardName}にアクセ`);
+      // acce_just_done フラグ: BattleScreenで ON_ACCE トリガーを検出するために使用
+      const tgt3 = ownerState(acceAction.targetSigniOwner, ctx3);
+      const withFlag: import('../types').PlayerState = {
+        ...tgt3,
+        acce_just_done: cardNum, // ホストシグニのcardNum
+      };
+      return done(setOwnerState(acceAction.targetSigniOwner, withFlag, ctx3));
     }
     case 'SEQUENCE': {
       // SEARCH の thenAction が SEQUENCE[REVEAL, ADD_TO_HAND] 等の場合、
