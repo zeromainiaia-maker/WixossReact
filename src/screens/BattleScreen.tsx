@@ -1385,8 +1385,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]);
 
   // ATTACH_ACCE完了後にacce_just_doneフラグを検出してON_ACCEトリガーを発火
-  // my は後で定義されるため bs から直接参照
-  const acceJustDoneRef = isHost ? bs?.host_state?.acce_just_done : bs?.guest_state?.acce_just_done;
+  // my は後で定義されるため bs から直接参照（isHost も後定義のため bs から計算）
+  const acceJustDoneRef = (user && bs)
+    ? (user.id === bs.host_id ? bs.host_state?.acce_just_done : bs.guest_state?.acce_just_done)
+    : undefined;
   useEffect(() => {
     if (!bs || !user || !acceJustDoneRef || loading) return;
     if (bs.active_user_id !== user.id) return;
