@@ -2522,6 +2522,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       } else {
         update.turn_phase = PHASE_NEXT[phase];
+        // GROW→MAIN移行時: pending_lrig_limit_modをlrig_limit_modに適用（OPP_MAIN_PHASE_LIMIT_DOWN）
+        if (phase === 'GROW' && my.pending_lrig_limit_mod !== undefined) {
+          newMyState = {
+            ...newMyState,
+            lrig_limit_mod: (newMyState.lrig_limit_mod ?? 0) + my.pending_lrig_limit_mod,
+            pending_lrig_limit_mod: undefined,
+          };
+        }
       }
 
       await supabase.from('battle_states')
