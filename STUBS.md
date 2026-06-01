@@ -1,6 +1,6 @@
 # STUB実装状況メモ（全件）
 
-最終更新: 2026-06-01 (v0.153)
+最終更新: 2026-06-02 (v0.160)
 
 ## ステータス凡例
 
@@ -270,7 +270,17 @@
 | 1 | CONT | WEAPON_SIGNI_PREVENT_DOWN |
 | 1 | CONT | WEAPON_SIGNI_PROTECTION |
 
-**合計: 239種**
+| 1 | CONT | ⚡ | ADJACENT_SIGNI_POWER_MOD ※execStub: [隣接シグニパワー修正: effectEngineで動的処理] |
+| 1 | AUTO | ⚡ | COPY_ABILITY ※execStub: [能力付与: COPY_ABILITY]（ログのみ） |
+| 1 | AUTO | ⚡ | COPY_CARD ※execStub: [属性変更: COPY_CARD]（ログのみ） |
+| 1 | AUTO | ⚡ | CRASH_TO_TRASH_INSTEAD ※execStub: [移動リダイレクト]（ログのみ） |
+| 1 | AUTO | ⚡ | END_ATTACK_IF_EXTRA_TURN ※execStub: ログのみ（ターン終了処理への統合未実装） |
+| 2 | AUTO | ⚡ | NEGATE_NTH_ATTACK ※execStub: ログのみ（N回目アタック無効化未実装） |
+| 1 | AUTO | ⚡ | OPTIONAL_DISCARD_GUARD ※execStub: [任意捨てガード: ガードシステム未実装] |
+| 1 | AUTO | ⚡ | POWER_MOD_DOUBLE_DIFF ※execStub: [複合パワー修正]（ログのみ） |
+| 1 | AUTO | ⚡ | SUPPRESS_CENTER_ON_PLAY ※execStub: ログのみ（プレイ抑制フラグ未実装） |
+| 1 | AUTO | ⚡ | TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE ※TARGET_OPP_SIGNI_ONLYと同ハンドラ: ログのみ（対象修飾子） |
+**合計: 212種**
 
 
 
@@ -478,7 +488,6 @@
 | 1 | AUTO | ✅ | ALL_OPP_SIGNI_POWER_DOWN_HALF ※自パワー÷2だけ相手全シグニのtemp_power_modsに適用 |
 | 1 | ACTIVATED | ✅ | ALL_OPP_SIGNI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
 | 1 | CONT | ⚡ | ALL_ZONE_BLACK ※v0.141: effectEngine.collectAllZoneBlackCardNums追加・myEnergyExtraColorsでエナゾーン黒色反映 |
-| 1 | CONT | ⚡ | ARM_SIGNI_LRIG_PROTECTION ※done(addLog)のみ（種族保護グループに統合：effectEngine未対応） |
 | 1 | AUTO/ACTIVATED | ⚡ | ARTS_EXTRA_COST_CONDITION ※done(addLog)のみ（アーツ追加コスト条件未実装） |
 | 1 | ACTIVATED | ⚡ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR |
 | 1 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
@@ -703,7 +712,6 @@
 | 1 | CONT | ⚡ | PREVENT_OPP_POWER_PLUS ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
 | 1 | CONT | ⚡ | PREVENT_OPP_SIGNI_ABILITY_GAIN ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
 | 1 | CONT | ✅ | PREVENT_POWER_MINUS_BY_OPP ※v0.114: calcFieldPowers applyDeltaToStateで負delta時の保護チェック実装 |
-| 1 | CONT | ✅ | PREVENT_SELF_DOWN_BY_OPP ※v0.114: collectDownProtectedSigni+execDownに保護フィルター統合 |
 | 1 | CONT | ⚡ | PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
 | 1 | CONT | ✅ | PREVENT_SIGNI_DOWN_BY_OPP_ALL ※v0.114: collectDownProtectedSigni+execDownに保護フィルター統合 |
 | 1 | CONT | ⚡ | PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
@@ -756,20 +764,52 @@
 | 1 | AUTO | ✅ | UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS ※v0.142: ソースゾーン限定・エナ同クラス確認・正しい条件チェック |
 | 1 | AUTO/ACTIVATED | ✅ | UPKEEP_OR_NO_UP ※needsInteraction CHOOSE: アップキープ or アップなし選択実装済み |
 | 1 | AUTO/ACTIVATED | ✅ | USE_SPELL_FROM_TRASH ※PLAY_FREEグループに統合: lastProcessedCardsのスペルを無料使用 |
-| 1 | CONT | ⚡ | WEAPON_SIGNI_PREVENT_DOWN ※v0.142: effectEngine.collectDownProtectedSigniにウェポン保護追加（使用カードなし） |
-| 1 | CONT | ⚡ | WEAPON_SIGNI_PROTECTION ※done(addLog)のみ（種族保護グループ: effectEngine未対応） |
 | 1 | CONT | ✅ | WHITE_SIGNI_ABILITY_PROTECT ※v0.142: effectEngine.collectAbilityProtectedSigniに相手ターン中の白シグニ保護追加 |
 
+| 1 | CONT | ⚡ | ADJACENT_SIGNI_POWER_MOD ※execStub: [隣接シグニパワー修正: effectEngineで動的処理] |
+| 1 | AUTO | ✅ | ALL_PLAYER_MILL ※各プレイヤーがデッキ上N枚をトラッシュ実装済み |
+| 1 | AUTO | ⚡ | COPY_ABILITY ※execStub: [能力付与: COPY_ABILITY]（ログのみ） |
+| 1 | AUTO | ⚡ | COPY_CARD ※execStub: [属性変更: COPY_CARD]（ログのみ） |
+| 1 | AUTO | ✅ | CRASH_LIFE_TO_HAND ※ライフクロス上→手札追加実装済み |
+| 1 | AUTO | ⚡ | CRASH_TO_TRASH_INSTEAD ※execStub: [移動リダイレクト]（ログのみ） |
+| 1 | AUTO | ✅ | DECK_MILL_UNTIL_CLASS ※デッキ上からクラス一致まで公開トラッシュ実装済み |
+| 1 | AUTO | ✅ | DECLARE_CLASS ※クラスCHOOSE→declared_classに保存実装済み |
+| 1 | AUTO | ⚡ | END_ATTACK_IF_EXTRA_TURN ※execStub: ログのみ（ターン終了処理への統合未実装） |
+| 2 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 ※effectEngine.collectEnergyColorSubsで動的処理 |
+| 2 | CONT | ✅ | GROW_COST_ZERO ※グロウコスト0: CONDITIONAL_FREE_GROW同ハンドラ実装済み |
+| 1 | AUTO | ✅ | LIMIT_OPP_ATTACK_ONCE ※LIMIT_OPP_SIGNI_ATTACKS_ONCE/OPP_SIGNI_ONE_ATTACK_TOTALと同ハンドラ: 1回制限フラグ設置 |
+| 1 | CONT | ✅ | LRIG_LIMIT_MODIFY ※lrig_limit_modフィールドで修正量設定実装済み |
+| 1 | AUTO | ✅ | NEGATE_ABILITY ※SELECT_TARGET→INTERNAL_NEGATE_ABILITY→abilities_removed追加実装済み |
+| 2 | AUTO | ⚡ | NEGATE_NTH_ATTACK ※execStub: ログのみ（N回目アタック無効化未実装） |
+| 1 | AUTO | ⚡ | OPTIONAL_DISCARD_GUARD ※execStub: [任意捨てガード: ガードシステム未実装] |
+| 1 | CONT | ✅ | POWER_EQUAL_TO_SELF_POWER ※自シグニのパワーに等しくなるよう修正値計算実装済み |
+| 1 | AUTO | ✅ | POWER_MINUS_PER_OWN_LEVEL ※自レベル×値: SELECT_TARGET(相手シグニ)+temp_power_mods実装済み |
+| 1 | CONT | ✅ | POWER_MOD_BY_LRIG_LEVEL ※ルリグレベル×delta: effectEngine+execStub両方で実装済み |
+| 2 | AUTO | ✅ | POWER_MOD_BY_TRASH_CLASS_COUNT ※トラッシュクラス枚数×deltaをtemp_power_modsに適用実装済み |
+| 1 | AUTO | ⚡ | POWER_MOD_DOUBLE_DIFF ※execStub: [複合パワー修正]（ログのみ） |
+| 2 | CONT | ✅ | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP ※v0.111: collectAbilityProtectedSigni+otherProtectedSigniNumsでfilter |
+| 1 | CONT | ✅ | PREVENT_SIGNI_DOWN_BY_OPP ※PREVENT_SIGNI_DOWN_BY_OPP_ALL同グループ: collectDownProtectedSigni+execDownに保護フィルター統合 |
+| 1 | AUTO | ✅ | SEED_BLOOM_OPTIONAL ※v0.109: SEED_BLOOMと同ハンドラ（任意フラグON）実装済み |
+| 1 | AUTO | ✅ | SEED_FLOWER_OP ※別シード1枚開花+デッキ上をシード設置実装済み（ヤマレンゲ系） |
+| 1 | AUTO | ✅ | SEED_HAND_AND_BLOOM_FROM_DECK_TOP ※シード手札追加+デッキ上シード設置実装済み |
+| 1 | ACTIVATED | ✅ | SHUFFLE_DECK_POWER_HALF ※デッキシャッフル+自パワー半減適用実装済み |
+| 1 | AUTO | ✅ | SKIP_MAIN_PHASE ※blocked_actionsにMAIN_PHASEを追加実装済み |
+| 1 | AUTO | ⚡ | SUPPRESS_CENTER_ON_PLAY ※execStub: ログのみ（プレイ抑制フラグ未実装） |
+| 1 | CONT | ✅ | SUPPRESS_GAIN_ABILITY ※保護効果グループ: abilities_removed追加で能力無効化実装済み |
+| 1 | CONT | ✅ | SUPPRESS_LIFEBURST_COLOR_CONDITION ※ライフバースト色条件抑制実装済み |
+| 1 | ACTIVATED | ✅ | SUPPRESS_OPP_SIGNI_ABILITIES ※相手フィールド全シグニのabilities_removed追加実装済み |
+| 1 | AUTO | ⚡ | TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE ※TARGET_OPP_SIGNI_ONLYと同ハンドラ: ログのみ（対象修飾子） |
+| 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
 ---
 
-## 集計サマリー（v0.153）
+## 集計サマリー（v0.160）
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 235 |
-| ⚡ 部分実装 | 246 |
+| ✅ 実装済み | 307 |
+| ⚡ 部分実装 | 202 |
 | 📝 未実装 | **0** |
-| **合計** | **481** |
+| **合計** | **509** |
 
 **注意事項:**
 - `CONT` = CONTINUOUS STUB。effectEngineのcollect関数で動的処理するものは✅
@@ -790,6 +830,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-06-02 v0.160 | 34件新規追加: ✅化(ALL_PLAYER_MILL/CRASH_LIFE_TO_HAND/DECK_MILL_UNTIL_CLASS/DECLARE_CLASS/GROW_COST_ZERO/LIMIT_OPP_ATTACK_ONCE/LRIG_LIMIT_MODIFY/NEGATE_ABILITY/POWER_EQUAL_TO_SELF_POWER/POWER_MINUS_PER_OWN_LEVEL/POWER_MOD_BY_LRIG_LEVEL/POWER_MOD_BY_TRASH_CLASS_COUNT/PREVENT_SIGNI_ABILITY_LOSS_BY_OPP/PREVENT_SIGNI_DOWN_BY_OPP/SEED_BLOOM_OPTIONAL/SEED_FLOWER_OP/SEED_HAND_AND_BLOOM_FROM_DECK_TOP/SHUFFLE_DECK_POWER_HALF/SKIP_MAIN_PHASE/SUPPRESS_GAIN_ABILITY/SUPPRESS_LIFEBURST_COLOR_CONDITION/SUPPRESS_OPP_SIGNI_ABILITIES/TRAP_TO_SIGNI_IF_ZONE_EMPTY/ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白)。ENERGY_*_TRASH_*エナ代替4件✅。カウント70件更新。削除4件 | 38件 |
 | 2026-06-02 v0.159 | 18件✅化: DEFEAT(life_cloth=[]でゲーム終了誘発+prevent_defeat対応)/DISCARD_BY_POWER_MATCH(SELECT手札青シグニ→同パワー相手手札捨てさせる)/DRIVE_SIGNI_PREVENT_DOWN(SELECT_TARGET→PROTECTION:DOWN:opponent)/FROM_TRASH_TO_CENTER_ZONE(zone[1]に出す+既存シグニエナへ)。確認済み✅: ENERGY_TO_HAND_ON_DECK/ENERGY_TO_TRASH/DISCARD_IF_NO_CLASS_SIGNI/DRAW/DRAW_BY_CHARM_COUNT/DRAW_DISCARD_COUNT_PLUS_N/DECK_TOP_TO_LIFE/HAND_CARDS_UNDER_SIGNI/HAND_NONCOLORLESS_TO_ENERGY/LIFE_BURST_DOUBLE/LIMIT_OPP_SIGNI_ATTACKS_ONCE | 18件 |
 | 2026-06-02 v0.158 | 22件✅化: SET_LEVEL_RANGE(SELECT_TARGET→CHOOSE1-4→attack_phase_level_overrides)/SET_OPP_SIGNI_POWER_BY_SELF_POWER(delta=-selfPw+SELECT_TARGET)/SIGNI_LOSE_COLOR(SELECT_TARGET相手シグニ→color_overrides)/SIGNI_REPOSITION(自/相手+INTERNAL_REPOSITION_TO_ZONE全ゾーン対応)/SIGNI_UNDER_WEAPON_SIGNI(2-phase→INTERNAL_SIGNI_UNDER_WEAPON)/STACK_ALL_LRIG_UNDER(lrig_trash→lrigスタック)/TRASH_ACCE_AT_TURN_END(sourceゾーンのアクセのみ)/TRASH_ALL_OPP_CARDS(名前解析→相手エナ)/TRASH_CLASS_TO_HAND_OR_ENERGY(INTERNAL_TRASH_CLASS_SPLIT)/SELF_TO_DECK_TOP/SELF_TRASH_IF_NO_OPP_VIRUS/SET_HAND_CARD_AS_TRAP/SIGNI_GAIN_ONE_LRIG_COLOR/SIGNI_GRANT_CHOSEN_ABILITY/TOP_TO_BOTTOM_OPTIONAL/TRADE_SELF_AND_OPP_TO_ENERGY/TRASH_FROM_DECK_PER_SIGNI_LEVEL/TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY/SELECT_OTHER_SIGNI/SUPPRESS_LIFE_BURST_ON_CRASH(既実装確認) | 22件 |
 | 2026-06-02 v0.157 | サーバントZERO正式実装: card_identity_overrides['instanceId']='WXDi-P07-TK01-A'で4スタブ✅化（MAKE_SERVANT_ZERO/SIGNI_SERVANT_ZERO/ALL_OPP_SIGNI_SERVANT_ZERO/MAKE_MULTI_SERVANT_ZERO）。battleCardMap+effectsMapのcard_identity_overrides解決。removeFromFieldで自動クリア | 4件 |
