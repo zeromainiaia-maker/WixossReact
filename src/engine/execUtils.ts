@@ -390,8 +390,19 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
     }
     // ウィルスはゾーンに属するため、シグニが離れても除去しない
   }
+  // 場を離れたカードの card_identity_overrides エントリをクリア
+  let newIdentityOverrides = state.card_identity_overrides;
+  if (zoneIdx >= 0 && state.card_identity_overrides) {
+    const removedCards = (state.field.signi[zoneIdx] ?? []);
+    const hasEntry = removedCards.some(cn => state.card_identity_overrides![cn]);
+    if (hasEntry) {
+      newIdentityOverrides = { ...state.card_identity_overrides };
+      for (const cn of removedCards) delete newIdentityOverrides[cn];
+    }
+  }
   return {
     ...state,
+    card_identity_overrides: newIdentityOverrides,
     trash: extraTrash.length > 0 ? [...state.trash, ...extraTrash] : state.trash,
     lrig_trash: extraLrigTrash.length > 0 ? [...state.lrig_trash, ...extraLrigTrash] : state.lrig_trash,
     field: {

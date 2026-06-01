@@ -1085,13 +1085,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     };
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
     if (bs) { addState(bs.host_state); addState(bs.guest_state); }
+    nums.add('WXDi-P07-TK01-A'); // サーバントZEROトークン（常時ロード）
     return nums;
   }, [myDeckData, bs]);
 
-  const battleCardMap = useMemo(
-    () => new InstanceMap(cards.filter(c => battleCardNums.has(c.CardNum)).map(c => [c.CardNum, c] as [string, CardData])),
-    [cards, battleCardNums],
-  );
+  const battleCardMap = useMemo(() => {
+    const base = new InstanceMap(cards.filter(c => battleCardNums.has(c.CardNum)).map(c => [c.CardNum, c] as [string, CardData]));
+    if (!bs) return base;
+    const localIsHost = user.id === bs.host_id;
+    const myState = localIsHost ? bs.host_state : bs.guest_state;
+    const opState = localIsHost ? bs.guest_state : bs.host_state;
+    const allOverrides = { ...(myState.card_identity_overrides ?? {}), ...(opState.card_identity_overrides ?? {}) };
+    if (Object.keys(allOverrides).length === 0) return base;
+    // card_identity_overrides: instanceId → 差し替えCardNumのカードデータに解決
+    const resolved = new Map<string, CardData>(base as Map<string, CardData>);
+    for (const [instanceId, overrideNum] of Object.entries(allOverrides)) {
+      const overrideCard = base.get(overrideNum);
+      if (overrideCard) resolved.set(instanceId, overrideCard);
+    }
+    return new InstanceMap(resolved);
+  }, [cards, battleCardNums, bs, user.id]);
 
   // サブコンポーネントや既存ヘルパーに渡す配列（最大〜100枚）
   const battleCards = useMemo(() => [...battleCardMap.values()], [battleCardMap]);
@@ -1102,7 +1115,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     [battleCards],
   );
 
-  // granted_effects + under-signi付与を加味した augmented 効果マップ
+  // granted_effects + under-signi付与 + card_identity_overrides を加味した augmented 効果マップ
   const effectsMap = useMemo(() => {
     if (!bs) return baseEffectsMap;
     const localIsHost = user.id === bs.host_id;
@@ -1117,13 +1130,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // スタックあり（ライズ）ゾーンの有無チェック
     const hasStack = [...myS.field.signi, ...opS.field.signi].some(s => s && s.length >= 2);
 
-    if (!hasGranted && !hasStack) return baseEffectsMap;
+    // card_identity_overrides（サーバントZERO等）
+    const myOverrides = myS.card_identity_overrides ?? {};
+    const opOverrides = opS.card_identity_overrides ?? {};
+    const hasOverrides = Object.keys(myOverrides).length > 0 || Object.keys(opOverrides).length > 0;
+
+    if (!hasGranted && !hasStack && !hasOverrides) return baseEffectsMap;
 
     const augMap = new Map<string, import('../types/effects').CardEffect[]>(baseEffectsMap);
 
+    // card_identity_overrides: ZERO化されたシグニの効果を差し替えカードの効果に設定（通常は空）
+    for (const [instanceId, overrideNum] of [...Object.entries(myOverrides), ...Object.entries(opOverrides)]) {
+      const overrideEffects = baseEffectsMap.get(overrideNum) ?? [];
+      augMap.set(instanceId, overrideEffects);
+    }
+
     // granted_effects の適用
     for (const [instanceId, granted] of [...Object.entries(myGranted), ...Object.entries(opGranted)]) {
-      const base = baseEffectsMap.get(getCardNum(instanceId)) ?? [];
+      const base = augMap.get(getCardNum(instanceId)) ?? [];
       augMap.set(instanceId, [...base, ...granted]);
     }
 

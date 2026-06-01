@@ -4875,24 +4875,25 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: sFSBTDB }, `凍結シグニ${frozenSigniFSBTDB.length}枚をデッキ下へ`));
   }
   // ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO:
-  // 相手シグニをサーバントゼロ（Color='無色', CardClass='無', abilities_removed）にする
+  // 対象シグニをサーバントZERO（WXDi-P07-TK01-A: Lv1 精元 無色 1000 能力なし）に変換
   if (stub.id === 'ALL_OPP_SIGNI_SERVANT_ZERO' || stub.id === 'MAKE_SERVANT_ZERO' || stub.id === 'MAKE_MULTI_SERVANT_ZERO' || stub.id === 'SIGNI_SERVANT_ZERO') {
-    // MAKE_SERVANT_ZERO: 相手シグニ1体をSELECT_TARGETで選択してからサーバントゼロに
+    const SERVANT_ZERO_NUM = 'WXDi-P07-TK01-A';
+    // MAKE_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 相手シグニ1体を選択
     if ((stub.id === 'MAKE_SERVANT_ZERO' || stub.id === 'SIGNI_SERVANT_ZERO') && !ctx.lastProcessedCards?.length) {
       const oppSigniMSZ = [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
       if (oppSigniMSZ.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし（SERVANT_ZERO）'));
       const applyMSZ: StubAction = { type: 'STUB', id: stub.id };
       return selectOrInteract(oppSigniMSZ, 1, false, 'opp_field', applyMSZ as EffectAction, undefined, ctx);
     }
-    // サーバントゼロ: 相手フィールドのシグニを能力消去 + ストーリーをサーバント0に
     const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards :
       [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
     if (targets.length === 0) return done(addLog(ctx, '対象なし（SERVANT_ZERO）'));
-    const abilRemovedSZ = [...(ctx.otherState.abilities_removed ?? []), ...targets.filter(cn => !(ctx.otherState.abilities_removed ?? []).includes(cn))];
-    const storyOverridesSZ = { ...(ctx.otherState.story_overrides ?? {}) };
-    for (const cn of targets) { storyOverridesSZ[cn] = 'サーバント'; }
-    const newSOtherSZ: PlayerState = { ...ctx.otherState, abilities_removed: abilRemovedSZ, story_overrides: storyOverridesSZ };
-    return done(addLog({ ...ctx, otherState: newSOtherSZ }, `${targets.length}体をサーバントゼロに`));
+    // card_identity_overrides: instanceId → 'WXDi-P07-TK01-A' に設定
+    // battleCardMapがこれを解決し、power=1000/class=精元/color=無/abilities=なし が適用される
+    const identOverSZ = { ...(ctx.otherState.card_identity_overrides ?? {}) };
+    for (const cn of targets) identOverSZ[cn] = SERVANT_ZERO_NUM;
+    const newSOtherSZ: PlayerState = { ...ctx.otherState, card_identity_overrides: identOverSZ };
+    return done(addLog({ ...ctx, otherState: newSOtherSZ }, `${targets.length}体をサーバントZERO（WXDi-P07-TK01-A）に`));
   }
   // === バッチ7: バニッシュ・トラッシュ・条件効果 ===
   // BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ

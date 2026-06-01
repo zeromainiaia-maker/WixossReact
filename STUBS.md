@@ -362,7 +362,7 @@
 | 4 | AUTO/ACTIVATED | ✅ | EFFECT_LIMIT ※効果テキストのN枚上限キャップをtemp_power_modsに適用 |
 | 4 | AUTO/ACTIVATED | ⚡ | FLIP_FACE_DOWN_SIGNI ※face_down_signi+abilities_removed追加（flip-back未実装）
 | 4 | AUTO/ACTIVATED | ✅ | GAIN_EXTRA_TURN |
-| 4 | AUTO | ⚡ | MAKE_SERVANT_ZERO |
+| 4 | AUTO | ✅ | MAKE_SERVANT_ZERO ※v0.157: card_identity_overrides['instanceId']='WXDi-P07-TK01-A'に変更。battleCardMapとeffectsMapがZEROカードデータを解決し、power=1000/class=精元/color=無/abilities=なしが全システムで正確に反映 |
 | 4 | AUTO/ACTIVATED | ✅ | MASS_TRASH ※相手エナ全枚+フィールド全シグニをトラッシュ |
 | 4 | AUTO/ACTIVATED | ⚡ | OPEN_MAGIC_BOX ※done(addLog)のみ（マジックボックス未実装） |
 | 4 | AUTO/ACTIVATED | ✅ | OPPONENT_PAY_OPTIONAL ※相手にCHOOSE提示→支払いでenergy消費+opponent_paid_optional_cost=trueフラグ→後続CONDITIONAL(OPPONENT_NOT_PAID)で結果効果スキップ（v0.146実装） |
@@ -447,7 +447,7 @@
 | 2 | AUTO | ⚡ | RIDE_ON |
 | 2 | AUTO/ACTIVATED | ⚡ | SIGNI_FLIP_FACEDOWN ※FLIP_FACE_DOWN_SIGNIと同ハンドラ: face_down_signi+abilities_removed設定 |
 | 2 | CONT | ✅ | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY ※v0.141: SELECT_TARGET(自フィールド)+keyword_grants付与(assassin/shadow/lancer等) |
-| 2 | AUTO | ⚡ | SIGNI_SERVANT_ZERO |
+| 2 | AUTO | ✅ | SIGNI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装に統合 |
 | 2 | CONT | ✅ | SPECIFIC_CARD_COST_REDUCE ※v0.111: collectSpecificCardCostReductions+removeNColorFromCostでアーツコスト軽減 |
 | 2 | CONT | ✅ | SPELL_COST_REDUCTION_BY_TRASH_COUNT |
 | 2 | AUTO/ACTIVATED | ✅ | SUPPRESS_LIFE_BURST_ON_CARD ※suppress_life_burstフラグセット→BattleScreenのライフバースト発動抑制（v0.148） |
@@ -476,7 +476,7 @@
 | 1 | CONT | ✅ | ALL_CLASS ※v0.115: collectAllClassSigni実装（レゾナ条件等のfiltterに活用可） |
 | 1 | CONT | ⚡ | ALL_COLOR ※v0.141: effectEngine.collectAllColorSigni追加・myEnergyExtraColorsでの色追加（フィールドシグニへの全色適用は未） |
 | 1 | AUTO | ✅ | ALL_OPP_SIGNI_POWER_DOWN_HALF ※自パワー÷2だけ相手全シグニのtemp_power_modsに適用 |
-| 1 | ACTIVATED | ⚡ | ALL_OPP_SIGNI_SERVANT_ZERO |
+| 1 | ACTIVATED | ✅ | ALL_OPP_SIGNI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
 | 1 | CONT | ⚡ | ALL_ZONE_BLACK ※v0.141: effectEngine.collectAllZoneBlackCardNums追加・myEnergyExtraColorsでエナゾーン黒色反映 |
 | 1 | CONT | ⚡ | ARM_SIGNI_LRIG_PROTECTION ※done(addLog)のみ（種族保護グループに統合：effectEngine未対応） |
 | 1 | AUTO/ACTIVATED | ⚡ | ARTS_EXTRA_COST_CONDITION ※done(addLog)のみ（アーツ追加コスト条件未実装） |
@@ -608,7 +608,7 @@
 | 1 | CONT | ⚡ | LRIG_LIMIT_UP_AND_COLOR_GAIN ※v0.115: collectLrigColorAndLimitMods+lrigLimit計算に+limitDelta統合（色変更は部分的） |
 | 1 | AUTO/ACTIVATED | ⚡ | LRIG_RIDE_SIGNI ※done(addLog)のみ（ルリグシステムグループ: 未実装） |
 | 1 | AUTO | ⚡ | LRIG_TRASH_KEY_TO_CENTER_UNDER |
-| 1 | ACTIVATED | ⚡ | MAKE_MULTI_SERVANT_ZERO |
+| 1 | ACTIVATED | ✅ | MAKE_MULTI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
 | 1 | AUTO | ⚡ | MOVE_ACCE_TO_SIGNI |
 | 1 | AUTO | ⚡ | MULTI_ACCE_FROM_HAND |
 | 1 | CONT | ⚡ | MULTI_ACCE_LIMIT ※v0.115: collectMultiAcceSigni実装（アクセ付け時のUI制限への統合は未実装） |
