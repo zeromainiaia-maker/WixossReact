@@ -54,7 +54,7 @@ function makeEmptyPlayerState(): PlayerState {
     deck: [], lrig_deck: [], hand: [], life_cloth: [], trash: [], lrig_trash: [],
     energy: [], coins: 0,
     field: { lrig: [], signi: [null, null, null], signi_down: [false,false,false], signi_frozen: [false,false,false], lrig_down: false },
-    temp_power_mods: [], keyword_grants: {}, blocked_actions: [], actions_done: [],
+    temp_power_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
     pending_crashed_cards: [],
   };
 }
