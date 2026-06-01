@@ -5416,9 +5416,18 @@ export function execStub(
   if (stub.id === 'LEVEL_MOD_PER_COUNT' || stub.id === 'SET_LEVEL_RANGE') {
     return done(addLog(ctx, `[レベル修正: ${stub.id}]`));
   }
-  // PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS効果（effectEngine.collectProtectedZonesで動的計算）
+  // PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS→collectProtectedZones動的計算 / AUTO→prevent_opp_trash_fromフラグ設置
   if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
-    return done(addLog(ctx, '[PREVENT_ZONE_MOVE_BY_OPP: effectEngineで動的処理中]'));
+    const srcPZM = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtPZM = srcPZM ? (srcPZM.EffectText ?? '') : '';
+    const zones: ('hand' | 'energy')[] = [];
+    if (txtPZM.includes('エナゾーン') && txtPZM.includes('トラッシュに移動しない')) zones.push('energy');
+    if (txtPZM.includes('手札') && txtPZM.includes('トラッシュに移動しない')) zones.push('hand');
+    if (zones.length === 0) return done(addLog(ctx, '[PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUSで動的処理中]'));
+    const existing = ctx.ownerState.prevent_opp_trash_from ?? [];
+    const merged = [...new Set([...existing, ...zones])] as ('hand' | 'energy')[];
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_opp_trash_from: merged } },
+      `相手効果によるトラッシュ移動禁止設置: ${zones.join(',')}`));
   }
   // PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP: 相手によるシグニダウン防止
   if (stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL' || stub.id === 'PREVENT_SELF_DOWN_BY_OPP'
