@@ -57,7 +57,7 @@
 | 8 | ACTIVATED/AUTO/CONT | ✅ | BLOOD_CRYSTAL_ARMOR ※v0.110: 血晶武装状態管理・ON_BLOOD_CRYSTAL_ARMORトリガー・IS_SELF_ARMOREDアクティブ条件・isArmoredフィルタ・UIバッジ実装 |
 | 8 | AUTO | ✅ | COUNT_BASED_DRAW_OR_POWER ※v0.135: 手札をN枚まで捨てるインタラクティブ処理追加（SELECT_TARGET→INTERNAL_CBDOP_AFTER_DISCARD）。捨て枚数ドロー/パワー修正に対応 |
 | 8 | AUTO/ACTIVATED/CONT | ✅ | LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END ※v0.139: 「対戦相手のリミット－N」パターンを追加（otherState.lrig_limit_mod修正）。両プレイヤー対応 |
-| 8 | AUTO/ACTIVATED | 📝 | PLACE_SEED_FROM_REVEALED |
+| 8 | AUTO/ACTIVATED | ✅ | PLACE_SEED_FROM_REVEALED ※SEARCH(デッキ上N枚)+INTERNAL_SEED_FROM_DECK→ゾーン選択→INTERNAL_SET_SEEDの2段階インタラクション実装済み |
 | 8 | ACTIVATED | ✅ | REMOVE_VIRUS ※v0.144: effectExecutor専用ハンドラ追加(IS_MY_TURNパターン対応)。任意除去(CHOOSE)/強制除去/TRANSFER_TO_HAND連結パターン(好きな数→N枚手札)を実装。execStub側も「すべて」/「Nつ」/デフォルト全除去に修正。INTERNAL_REMOVE_VIRUS_N・INTERNAL_RV_BATCH_TRANSFER追加 |
 | 7 | ACTIVATED/AUTO | ⚡ | ACCE_FROM_HAND |
 | 7 | CONT | 📝 | CHOOSE_N_FROM_LIST |
