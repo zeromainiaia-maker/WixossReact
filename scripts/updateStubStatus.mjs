@@ -404,7 +404,7 @@ const RECLASSIFY_MAP = {
 // メイン処理
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const stubsMd = readFileSync(STUBS_PATH, 'utf8');
+const stubsMd = readFileSync(STUBS_PATH, 'utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 const lines = stubsMd.split('\n');
 
 let changedCount = 0;
