@@ -1209,19 +1209,64 @@ export function execStub(
     }
     return done(addLog(ctx, 'ルリグ名コピー（テキスト解析不可）'));
   }
-  // 条件付きアーツコスト（条件チェックのみ・タイミング変更はBattleScreen側未実装）
+  // 条件付きアーツコスト（コスト計算はcomputeArtsEffectiveCostで処理済み、ここでは条件確認のみ）
   if (stub.id === 'CONDITIONAL_ARTS_COST') {
     const srcCAC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCAC = srcCAC ? (srcCAC.EffectText ?? '') + ' ' + (srcCAC.BurstText ?? '') : '';
     const toHWCAC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const lifeM = txtCAC.match(/ライフクロスが([０-９\d]+)枚以下/);
-    if (lifeM) {
-      const threshold = parseInt(toHWCAC(lifeM[1]));
-      const myLife = ctx.ownerState.life_cloth.length;
-      const met = myLife <= threshold;
-      return done(addLog(ctx, `条件付きアーツ（ライフ${myLife}枚/閾値${threshold}以下: ${met ? '条件達成' : '未達成'}）`));
+    // Pattern 1: 対戦相手のセンタールリグ色条件（コスト上書き）
+    const oppColorMCAC = txtCAC.match(/対戦相手のセンタールリグが(.+?)の場合/);
+    if (oppColorMCAC) {
+      const oppLrigCard = ctx.otherState.field.lrig.at(-1);
+      const oppLrigColor = oppLrigCard ? (ctx.cardMap.get(oppLrigCard)?.Color ?? '') : '';
+      const colors = oppColorMCAC[1].split(/か|と/).map(c => c.trim()).filter(Boolean);
+      const condMet = colors.some(c => oppLrigColor.includes(c));
+      return done(addLog(ctx, `条件付きアーツコスト（相手ルリグ${colors.join('/')}：${condMet ? '条件達成・割引適用済み' : '未達成'}）`));
     }
-    return done(addLog(ctx, '条件付きアーツコスト'));
+    // Pattern 2: 自分のセンタールリグレベル条件
+    const myLvMCAC = txtCAC.match(/(?:あなたの)?センタールリグのレベルが([０-９\d]+)(以上|以下)/);
+    if (myLvMCAC) {
+      const threshold = parseInt(toHWCAC(myLvMCAC[1]));
+      const op = myLvMCAC[2];
+      const myLrigCard = ctx.ownerState.field.lrig.at(-1);
+      const myLevel = myLrigCard ? parseInt(ctx.cardMap.get(myLrigCard)?.Level ?? '0') : 0;
+      const condMet = op === '以上' ? myLevel >= threshold : myLevel <= threshold;
+      return done(addLog(ctx, `条件付きアーツコスト（センタールリグLv${myLevel}${op}${threshold}：${condMet ? '条件達成' : '未達成'}）`));
+    }
+    return done(addLog(ctx, '条件付きアーツコスト（確認完了）'));
+  }
+  // INTERNAL_OTEC_SELECT: エナゾーンから特定クラスのカードを選択してトラッシュ/手札へ
+  if (stub.id === 'INTERNAL_OTEC_SELECT') {
+    const paramsOTEC = String(stub.value ?? 'trash::1');
+    const [destOTEC, reqClassOTEC, cntStrOTEC] = paramsOTEC.split(':');
+    const pickCountOTEC = parseInt(cntStrOTEC || '1') || 1;
+    const energyCandsOTEC = ctx.ownerState.energy.filter(cn => {
+      if (!reqClassOTEC) return true;
+      return (ctx.cardMap.get(cn)?.CardClass ?? '').includes(reqClassOTEC);
+    });
+    if (energyCandsOTEC.length === 0) return done(addLog(ctx, `エナに${reqClassOTEC || 'カード'}なし（INTERNAL_OTEC_SELECT）`));
+    const moveStubOTEC: StubAction = { type: 'STUB', id: 'INTERNAL_OTEC_MOVE_SELECTED', value: destOTEC };
+    return needsInteraction(addLog(ctx, `エナゾーンから選択（${reqClassOTEC || 'カード'}）`), {
+      type: 'SELECT_TARGET', candidates: energyCandsOTEC,
+      count: Math.min(pickCountOTEC, energyCandsOTEC.length),
+      optional: true, targetScope: 'self_energy',
+      thenAction: moveStubOTEC as EffectAction,
+    });
+  }
+  // INTERNAL_OTEC_MOVE_SELECTED: applyDirectActionのdefault経由で呼ばれ、lastProcessedCards[0]を移動
+  if (stub.id === 'INTERNAL_OTEC_MOVE_SELECTED') {
+    const destMOTEC = String(stub.value ?? 'trash');
+    const selectedCardOTEC = ctx.lastProcessedCards?.[0];
+    if (!selectedCardOTEC) return done(addLog(ctx, 'INTERNAL_OTEC_MOVE_SELECTED: 対象なし'));
+    const newEnergyOTEC = ctx.ownerState.energy.filter(cn => cn !== selectedCardOTEC);
+    const cardNameOTEC = ctx.cardMap.get(selectedCardOTEC)?.CardName ?? selectedCardOTEC;
+    let newOwnerOTEC = { ...ctx.ownerState, energy: newEnergyOTEC };
+    if (destMOTEC === 'hand') {
+      newOwnerOTEC = { ...newOwnerOTEC, hand: [...newOwnerOTEC.hand, selectedCardOTEC] };
+      return done(addLog({ ...ctx, ownerState: newOwnerOTEC }, `${cardNameOTEC}をエナから手札へ`));
+    }
+    newOwnerOTEC = { ...newOwnerOTEC, trash: [...newOwnerOTEC.trash, selectedCardOTEC] };
+    return done(addLog({ ...ctx, ownerState: newOwnerOTEC }, `${cardNameOTEC}をエナからトラッシュへ`));
   }
   if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
     return done(addLog(ctx, 'センターレベル基準多択（ログのみ）'));
