@@ -187,6 +187,8 @@ export interface PlayerState {
   declared_color?: string;
   // OPPONENT_PAY_OPTIONAL: 相手が任意コストを支払ったかどうか（true=支払い済み）
   opponent_paid_optional_cost?: boolean;
+  // UNKNOWN_NESTED / BANISH_FROM_GAME: 任意効果（自トラッシュ・除外）を実行したかどうか
+  self_optional_effect_taken?: boolean;
 }
 
 export interface GameLog {

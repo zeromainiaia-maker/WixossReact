@@ -1205,25 +1205,69 @@ export function execStub(
     }
     return done(addLog({ ...ctx, otherState: newOther }, `相手手札${selectedHDT.length}枚をデッキトップへ`));
   }
-  // ゲームから除外：自分のシグニをフィールドからトラッシュへ（ゲーム除外の近似）
+  // UNKNOWN_NESTED: 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動）
+  if (stub.id === 'UNKNOWN_NESTED') {
+    const srcUN = ctx.sourceCardNum;
+    if (!srcUN || !ctx.ownerState.field.signi.some(s => s?.at(-1) === srcUN)) {
+      const newOwner = { ...ctx.ownerState, self_optional_effect_taken: false };
+      return done(addLog({ ...ctx, ownerState: newOwner }, 'UNKNOWN_NESTED: フィールドにソースなし'));
+    }
+    const trashSelf: StubAction = { type: 'STUB', id: 'INTERNAL_UNKNOWN_NESTED_TRASH' };
+    const skipSelf: StubAction = { type: 'STUB', id: 'INTERNAL_UNKNOWN_NESTED_SKIP' };
+    const optsUN = [
+      { id: 'trash', label: 'このシグニをトラッシュに置く', action: trashSelf as EffectAction, available: true },
+      { id: 'skip',  label: 'そうしない',                   action: skipSelf  as EffectAction, available: true },
+    ];
+    return needsInteraction(addLog(ctx, 'このシグニをトラッシュに置きますか？'), {
+      type: 'CHOOSE', options: optsUN, count: 1,
+    });
+  }
+  if (stub.id === 'INTERNAL_UNKNOWN_NESTED_TRASH') {
+    const srcIUNT = ctx.sourceCardNum;
+    if (!srcIUNT) return done(addLog(ctx, 'UNKNOWN_NESTED: ソースなし'));
+    const removed = removeFromField(srcIUNT, ctx.ownerState);
+    const newOwner = { ...removed, trash: [...removed.trash, srcIUNT], self_optional_effect_taken: true };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcIUNT)?.CardName ?? srcIUNT}をトラッシュ→後続効果発動`));
+  }
+  if (stub.id === 'INTERNAL_UNKNOWN_NESTED_SKIP') {
+    const newOwner = { ...ctx.ownerState, self_optional_effect_taken: false };
+    return done(addLog({ ...ctx, ownerState: newOwner }, 'トラッシュしない→後続効果スキップ'));
+  }
+  // ゲームから除外：トラッシュにある自シグニを任意で除外（後続効果条件）
   if (stub.id === 'BANISH_FROM_GAME') {
     const src = ctx.sourceCardNum;
-    if (!src) return done(addLog(ctx, 'BANISH_FROM_GAME: sourceCardNumなし'));
-    const inOwner = ctx.ownerState.field.signi.some(s => s?.at(-1) === src);
-    const inOther = ctx.otherState.field.signi.some(s => s?.at(-1) === src);
-    if (inOwner) {
-      const removed = removeFromField(src, ctx.ownerState);
-      const newOwner = { ...removed, trash: [...removed.trash, src] };
-      const name = ctx.cardMap.get(src)?.CardName ?? src;
-      return done(addLog({ ...ctx, ownerState: newOwner }, `${name}をゲームから除外`));
+    if (!src) {
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } },
+        'BANISH_FROM_GAME: sourceCardNumなし'));
     }
-    if (inOther) {
-      const removed = removeFromField(src, ctx.otherState);
-      const newOther = { ...removed, trash: [...removed.trash, src] };
-      const name = ctx.cardMap.get(src)?.CardName ?? src;
-      return done(addLog({ ...ctx, otherState: newOther }, `${name}をゲームから除外`));
+    const inTrash = ctx.ownerState.trash.includes(src);
+    if (!inTrash) {
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } },
+        `BANISH_FROM_GAME: ${ctx.cardMap.get(src)?.CardName ?? src}はトラッシュにない`));
     }
-    return done(addLog(ctx, 'BANISH_FROM_GAME: フィールドにカードなし'));
+    const banishSelf: StubAction = { type: 'STUB', id: 'INTERNAL_BANISH_FROM_GAME_DO' };
+    const skipBFG: StubAction  = { type: 'STUB', id: 'INTERNAL_BANISH_FROM_GAME_SKIP' };
+    const optsBFG = [
+      { id: 'banish', label: 'ゲームから除外する', action: banishSelf as EffectAction, available: true },
+      { id: 'skip',   label: 'そうしない',          action: skipBFG   as EffectAction, available: true },
+    ];
+    return needsInteraction(addLog(ctx, `${ctx.cardMap.get(src)?.CardName ?? src}をゲームから除外しますか？`), {
+      type: 'CHOOSE', options: optsBFG, count: 1,
+    });
+  }
+  if (stub.id === 'INTERNAL_BANISH_FROM_GAME_DO') {
+    const srcIBFG = ctx.sourceCardNum;
+    if (!srcIBFG) return done(ctx);
+    const newOwner = {
+      ...ctx.ownerState,
+      trash: ctx.ownerState.trash.filter(c => c !== srcIBFG),
+      self_optional_effect_taken: true,
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(srcIBFG)?.CardName ?? srcIBFG}をゲームから除外→後続効果発動`));
+  }
+  if (stub.id === 'INTERNAL_BANISH_FROM_GAME_SKIP') {
+    const newOwner = { ...ctx.ownerState, self_optional_effect_taken: false };
+    return done(addLog({ ...ctx, ownerState: newOwner }, '除外しない→後続効果スキップ'));
   }
   // 対戦相手が手札を1枚選んで捨てる
   if (stub.id === 'OPP_CHOOSE_YOUR_HAND_DISCARD') {
@@ -5734,9 +5778,25 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: newOtherBOZP }, `相手ゾーン${zoneIdxBOZP + 1}へのシグニ配置を禁止`));
   }
   // アーツ条件系（engine: アーツ使用条件未実装）
-  if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ARTS_USE_DISCARD_COLOR_HAND'
-      || stub.id === 'ARTS_EXTRA_COST_CONDITION' || stub.id === 'ACCE_COST_REDUCTION') {
+  if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ARTS_EXTRA_COST_CONDITION' || stub.id === 'ACCE_COST_REDUCTION') {
     return done(addLog(ctx, `[アーツ/アクセコスト: ${stub.id}]`));
+  }
+  // ARTS_USE_DISCARD_COLOR_HAND: 手札から特定色のカードを任意N枚まで捨て、コスト軽減（OPTIONAL_DISCARD_CLASS_SIGNI の色版）
+  if (stub.id === 'ARTS_USE_DISCARD_COLOR_HAND') {
+    const srcAUDCH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtAUDCH = srcAUDCH ? (srcAUDCH.EffectText ?? '') + ' ' + (srcAUDCH.BurstText ?? '') : '';
+    const toHWAUDCH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const colorMatchAUDCH = txtAUDCH.match(/手札から(白|赤|青|緑|黒)のカードを/);
+    const targetColor = colorMatchAUDCH?.[1];
+    const maxMAUDCH = txtAUDCH.match(/カードを([０-９\d]+)枚まで捨てる/);
+    const maxAUDCH = maxMAUDCH ? parseInt(toHWAUDCH(maxMAUDCH[1])) : 3;
+    const candsAUDCH = ctx.ownerState.hand.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return !targetColor || (c?.Color ?? '').includes(targetColor);
+    });
+    if (candsAUDCH.length === 0) return done(addLog(ctx, `手札に${targetColor ?? ''}カードなし（ARTS_USE_DISCARD_COLOR_HAND）`));
+    const discardAction: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
+    return selectOrInteract(candsAUDCH, maxAUDCH, true, 'self_hand', discardAction as EffectAction, undefined, ctx);
   }
   // PLAY_SPELL_FREE_IGNORE_RESTRICTION: 手札のスペルをコストなし・限定条件無視で使用
   if (stub.id === 'PLAY_SPELL_FREE_IGNORE_RESTRICTION') {
@@ -5874,14 +5934,21 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, face_down_signi: newFaceSFD, abilities_removed: newAbilSFD } },
       `${ctx.cardMap.get(srcSFD)?.CardName ?? srcSFD}を裏向きに`));
   }
-  // FACE_DOWN_OPP_SIGNI: 相手シグニを裏向きにする（対象選択後）
+  // FACE_DOWN_OPP_SIGNI: 相手シグニを対象選択→裏向きにする
   if (stub.id === 'FACE_DOWN_OPP_SIGNI') {
-    const tgtFDOS = ctx.lastProcessedCards?.[0];
-    if (!tgtFDOS) return done(addLog(ctx, '裏向き: 対象なし'));
-    const newFaceFDOS = [...new Set([...(ctx.otherState.face_down_signi ?? []), tgtFDOS])];
-    const newAbilFDOS = [...new Set([...(ctx.otherState.abilities_removed ?? []), tgtFDOS])];
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, face_down_signi: newFaceFDOS, abilities_removed: newAbilFDOS } },
-      `${ctx.cardMap.get(tgtFDOS)?.CardName ?? tgtFDOS}を裏向きに`));
+    // lastProcessedCardsが既にある場合はそれを使用（他STUBから連鎖）
+    const preselectedFDOS = ctx.lastProcessedCards?.[0];
+    if (preselectedFDOS && ctx.otherState.field.signi.some(s => s?.at(-1) === preselectedFDOS)) {
+      const newFaceFDOS = [...new Set([...(ctx.otherState.face_down_signi ?? []), preselectedFDOS])];
+      const newAbilFDOS = [...new Set([...(ctx.otherState.abilities_removed ?? []), preselectedFDOS])];
+      return done(addLog({ ...ctx, otherState: { ...ctx.otherState, face_down_signi: newFaceFDOS, abilities_removed: newAbilFDOS } },
+        `${ctx.cardMap.get(preselectedFDOS)?.CardName ?? preselectedFDOS}を裏向きに`));
+    }
+    // 相手シグニを選択
+    const candsFDOS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    if (candsFDOS.length === 0) return done(addLog(ctx, '裏向き対象なし（相手フィールド空）'));
+    const applyFDOS: StubAction = { type: 'STUB', id: 'FACE_DOWN_OPP_SIGNI' };
+    return selectOrInteract(candsFDOS, 1, false, 'opp_field', applyFDOS as EffectAction, undefined, ctx);
   }
   // 保護・移動防止系（engine: 各防止フラグシステム未実装）
   if (stub.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH'
@@ -6964,9 +7031,19 @@ export function execStub(
   if (stub.id === 'DISCARD_BY_POWER_MATCH') {
     return done(addLog(ctx, 'パワー一致で捨て（スキップ）'));
   }
-  // DECLARE_NUMBER_RANGE / DECLARE_NUMBER_POWER: 数字宣言（ログのみ）
-  if (stub.id === 'DECLARE_NUMBER_RANGE' || stub.id === 'DECLARE_NUMBER_POWER') {
-    return done(addLog(ctx, '数字宣言'));
+  // DECLARE_NUMBER_RANGE: 0〜5の数字宣言（DECLARE_NUMBERと同様だが0を含む）
+  if (stub.id === 'DECLARE_NUMBER_RANGE') {
+    const setDNR = (n: number): StubAction => ({ type: 'STUB', id: 'SET_DECLARED_NUMBER', value: n });
+    const optsDNR = [0, 1, 2, 3, 4, 5].map(n => ({
+      id: `dnr_${n}`, label: `${n}を宣言`, action: setDNR(n) as EffectAction, available: true,
+    }));
+    return needsInteraction(addLog(ctx, '数字を宣言してください（0〜5）'), {
+      type: 'CHOOSE', options: optsDNR, count: 1,
+    });
+  }
+  // DECLARE_NUMBER_POWER: 数字宣言（ログのみ）
+  if (stub.id === 'DECLARE_NUMBER_POWER') {
+    return done(addLog(ctx, '数字宣言（POWER参照）'));
   }
   // CONDITIONAL_ALTERNATE_EFFECT: 条件達成時にダウン済みシグニをトラッシュへ（代替効果）
   if (stub.id === 'CONDITIONAL_ALTERNATE_EFFECT') {
@@ -7123,14 +7200,19 @@ export function execStub(
       targetScope: 'self_hand', thenAction: noopCHC as EffectAction,
     });
   }
-  // CHOOSE_HAND_OR_ENERGY: 手札かエナから選択
+  // CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）
   if (stub.id === 'CHOOSE_HAND_OR_ENERGY') {
-    const candsCHOE = [...ctx.ownerState.hand, ...ctx.ownerState.energy];
-    if (candsCHOE.length === 0) return done(addLog(ctx, '手札もエナもなし'));
-    const noopCHOE: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: candsCHOE, count: 1, optional: true,
-      targetScope: 'self_hand', thenAction: noopCHOE as EffectAction,
+    const srcCHOE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtCHOE = srcCHOE ? (srcCHOE.EffectText ?? '') + ' ' + (srcCHOE.BurstText ?? '') : '';
+    const toHWCHOE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const countMCHOE = txtCHOE.match(/([０-９\d]+)枚見る/);
+    const revealCountCHOE = countMCHOE ? parseInt(toHWCHOE(countMCHOE[1])) : 3;
+    const topCardsCHOE = ctx.ownerState.deck.slice(0, revealCountCHOE);
+    if (topCardsCHOE.length === 0) return done(addLog(ctx, 'デッキなし（CHOOSE_HAND_OR_ENERGY）'));
+    const addToHandCHOE: import('../types/effects').AddToHandAction = { type: 'ADD_TO_HAND', owner: 'self' };
+    return needsInteraction(addLog(ctx, `デッキ上${topCardsCHOE.length}枚から手札に加えるカードを選択（残りはエナへ）`), {
+      type: 'SEARCH', visibleCards: topCardsCHOE, maxPick: topCardsCHOE.length,
+      thenAction: addToHandCHOE as EffectAction, restDest: 'energy',
     });
   }
   // OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
@@ -8043,18 +8125,56 @@ export function execStub(
     }
     return done(addLog(ctx, `異なる名称${countCDN}種`));
   }
-  // DISCARD_OR_PENALTY: 手札を1枚捨てるかペナルティを選ぶ
+  // DISCARD_OR_PENALTY: 特定カード1枚捨てるかペナルティ（N枚捨て）を選ぶ
   if (stub.id === 'DISCARD_OR_PENALTY') {
-    if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（ペナルティ）'));
-    const noopDOP: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    return needsInteraction(ctx, {
-      type: 'CHOOSE',
-      count: 1,
-      options: [
-        { id: 'discard', label: '手札を1枚捨てる', action: { type: 'STUB', id: 'INTERNAL_TRASH_CARD' } as EffectAction, available: ctx.ownerState.hand.length > 0 },
-        { id: 'penalty', label: 'ペナルティを受ける', action: noopDOP as EffectAction, available: true },
+    const srcDOP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtDOP = srcDOP ? (srcDOP.EffectText ?? '') + ' ' + (srcDOP.BurstText ?? '') : '';
+    const toHWDOP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const classMatchDOP = txtDOP.match(/手札から[<＜]([^>＞]+)[>＞]のシグニを１枚捨てないかぎり/);
+    const typeMatchDOP = !classMatchDOP ? txtDOP.match(/手札から(スペル|シグニ|アーツ)を１枚捨てないかぎり/) : null;
+    const penaltyMDOP = txtDOP.match(/かぎり手札を([２-９\d]+)枚捨てる/);
+    const penaltyCount = penaltyMDOP ? parseInt(toHWDOP(penaltyMDOP[1])) : 2;
+    const matchingDOP = ctx.ownerState.hand.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      if (classMatchDOP) return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(classMatchDOP[1]);
+      if (typeMatchDOP) return c?.Type === typeMatchDOP[1];
+      return false;
+    });
+    const labelDOP = classMatchDOP ? `＜${classMatchDOP[1]}＞シグニを1枚捨てる` : typeMatchDOP ? `${typeMatchDOP[1]}を1枚捨てる` : '指定カードを1枚捨てる';
+    const penaltyActionDOP: StubAction = { type: 'STUB', id: 'INTERNAL_DISCARD_PENALTY', value: penaltyCount };
+    if (matchingDOP.length === 0) {
+      const toDiscard = ctx.ownerState.hand.slice(0, penaltyCount);
+      const newOwner = { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(penaltyCount), trash: [...ctx.ownerState.trash, ...toDiscard] };
+      return done(addLog({ ...ctx, ownerState: newOwner }, `指定カードなし→ペナルティ手札${penaltyCount}枚捨て`));
+    }
+    const discardMatchDOP: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
+    return needsInteraction(addLog(ctx, `${labelDOP}か手札を${penaltyCount}枚捨てるか選択`), {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'specific', label: labelDOP, action: { type: 'STUB', id: 'INTERNAL_DISCARD_MATCHING_HAND_DOP' } as EffectAction, available: true },
+        { id: 'penalty',  label: `手札を${penaltyCount}枚捨てる`, action: penaltyActionDOP as EffectAction, available: ctx.ownerState.hand.length >= penaltyCount },
       ],
     });
+  }
+  if (stub.id === 'INTERNAL_DISCARD_MATCHING_HAND_DOP') {
+    const srcIDMD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtIDMD = srcIDMD ? (srcIDMD.EffectText ?? '') + ' ' + (srcIDMD.BurstText ?? '') : '';
+    const classMatchIDMD = txtIDMD.match(/手札から[<＜]([^>＞]+)[>＞]のシグニ/);
+    const typeMatchIDMD = !classMatchIDMD ? txtIDMD.match(/手札から(スペル|シグニ|アーツ)/) : null;
+    const candsIDMD = ctx.ownerState.hand.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      if (classMatchIDMD) return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(classMatchIDMD[1]);
+      if (typeMatchIDMD) return c?.Type === typeMatchIDMD[1];
+      return false;
+    });
+    if (candsIDMD.length === 0) return done(addLog(ctx, '該当カードなし'));
+    const trashOneIDMD: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
+    return selectOrInteract(candsIDMD, 1, false, 'self_hand', trashOneIDMD as EffectAction, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_DISCARD_PENALTY') {
+    const cntIDP = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '2'));
+    const toDiscardIDP = ctx.ownerState.hand.slice(0, cntIDP);
+    const newOwnerIDP = { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(cntIDP), trash: [...ctx.ownerState.trash, ...toDiscardIDP] };
+    return done(addLog({ ...ctx, ownerState: newOwnerIDP }, `ペナルティ：手札${cntIDP}枚捨て`));
   }
   // REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐
   if (stub.id === 'REVEAL_TOP_CONDITIONAL_ROUTE') {

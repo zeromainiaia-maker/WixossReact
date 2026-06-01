@@ -105,7 +105,8 @@ export type Condition =
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }
   | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number }   // lastProcessedCardsのシグニレベル合計=N
-  | { type: 'OPPONENT_NOT_PAID' };                            // 相手が任意コストを支払わなかった場合
+  | { type: 'OPPONENT_NOT_PAID' }                             // 相手が任意コストを支払わなかった場合
+  | { type: 'SELF_OPTIONAL_EFFECT_TAKEN' };                   // 自分が任意効果（自バニッシュ等）を実行した場合
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
