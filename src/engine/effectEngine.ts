@@ -2778,3 +2778,28 @@ export function hasAllCardsColorBlack(
   }
   return false;
 }
+
+/**
+ * OPP_ZONE_PLACEMENT_RESTRICT (CONTINUOUS): 相手が中央ゾーンに配置できないシグニの最低レベルを返す。
+ * opponentState = このCONTINUOUSを持つプレイヤーの状態（制限を受ける側の「相手」）
+ * 戻り値: 制限レベル下限（このレベル以上を中央ゾーンに配置不可）または undefined
+ */
+export function collectCenterZoneDeployRestrict(
+  opponentState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): number | undefined {
+  const candidates: string[] = [
+    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...(opponentState.field.lrig?.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
+  ];
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'OPP_ZONE_PLACEMENT_RESTRICT') continue;
+      return 3;
+    }
+  }
+  return undefined;
+}
