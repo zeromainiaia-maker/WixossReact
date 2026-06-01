@@ -7566,10 +7566,22 @@ export function execStub(
       thenAction: addToHandCHOE as EffectAction, restDest: 'energy',
     });
   }
+  // INTERNAL_OPP_DECK_TRASH_N: 相手デッキの上からN枚をトラッシュ
+  if (stub.id === 'INTERNAL_OPP_DECK_TRASH_N') {
+    const cntIODTN = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '4'));
+    const trashedIODTN = ctx.otherState.deck.slice(0, cntIODTN);
+    const newOtherIODTN: PlayerState = {
+      ...ctx.otherState,
+      deck: ctx.otherState.deck.slice(cntIODTN),
+      trash: [...ctx.otherState.trash, ...trashedIODTN],
+    };
+    return done(addLog({ ...ctx, otherState: newOtherIODTN }, `相手デッキ上から${trashedIODTN.length}枚トラッシュ`));
+  }
   // OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
   if (stub.id === 'OPP_DECLARE_CHOICE' || stub.id === 'OPP_CHOOSE_EFFECT' || stub.id === 'OPP_CHOOSES_FOR_YOU') {
     const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtODC = srcODC ? (srcODC.EffectText ?? '') + ' ' + (srcODC.BurstText ?? '') : '';
+    const toHWODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // ①②パターンを解析
     const choicePatsODC = [{ m: /①([^②③]+)/, idx: 0 }, { m: /②([^③④]+)/, idx: 1 }];
     const optsODC: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
@@ -7578,11 +7590,30 @@ export function execStub(
       if (!mat) continue;
       const ctxt = mat[1].replace(/。\s*$/, '').trim();
       let act: EffectAction | null = null;
-      if (ctxt.match(/デッキの上からカードを([０-９\d]+)枚トラッシュ/)) {
-        const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-        const cnt = parseInt(toHW(ctxt.match(/([０-９\d]+)枚/)![1]));
+      // 「対戦相手のデッキの上からN枚トラッシュ」→ 相手（otherState）のデッキをトラッシュ
+      if (!act && ctxt.match(/対戦相手のデッキの上からカードを([０-９\d]+)枚トラッシュ/)) {
+        const cnt = parseInt(toHWODC(ctxt.match(/([０-９\d]+)枚/)![1]));
+        act = ({ type: 'STUB', id: 'INTERNAL_OPP_DECK_TRASH_N', value: cnt } as StubAction) as EffectAction;
+      }
+      // 「デッキの上からN枚トラッシュ」（所有者不明 = 両者）
+      if (!act && ctxt.match(/デッキの上からカードを([０-９\d]+)枚トラッシュ/)) {
+        const cnt = parseInt(toHWODC(ctxt.match(/([０-９\d]+)枚/)![1]));
         act = ({ type: 'STUB', id: 'INTERNAL_DECK_TRASH_BOTH', value: cnt } as StubAction) as EffectAction;
       }
+      // 「カードをN枚引く」（相手が引く = opponentResponds文脈では自分が引くことが多い）
+      if (!act && ctxt.match(/カードを([０-９\d]+)枚引く/)) {
+        const cnt = parseInt(toHWODC(ctxt.match(/([０-９\d]+)枚/)![1]));
+        act = ({ type: 'DRAW', owner: stub.id === 'OPP_CHOOSE_EFFECT' ? 'opponent' : 'self', count: cnt } as DrawAction) as EffectAction;
+      }
+      // 「手札からシグニ1枚を場に出す」（対戦相手が出す）
+      if (!act && ctxt.match(/手札から.*シグニ.*場に出す/)) {
+        act = ({ type: 'ADD_TO_FIELD', owner: 'opponent', source: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as AddToFieldAction) as EffectAction;
+      }
+      // 「トラッシュからシグニ1枚を手札に加える」
+      if (!act && ctxt.match(/トラッシュから.*シグニ.*手札に加える/)) {
+        act = ({ type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } } as TransferToHandAction) as EffectAction;
+      }
+      // 旧フォールバック: 「手札を加える」系
       if (!act && ctxt.match(/手札.+を.+加える/)) act = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as TransferToHandAction;
       if (act) optsODC.push({ id: `odc_${idx}`, label: `${'①②'[idx]}${ctxt.slice(0, 20)}...`, action: act, available: true });
     }
