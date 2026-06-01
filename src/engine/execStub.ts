@@ -5774,6 +5774,64 @@ export function execStub(
       || stub.id === 'GRANT_LRIG_TYPE_GAME_WIDE') {
     return done(addLog(ctx, `[能力付与: ${stub.id}]`));
   }
+  // LAYER_ABILITY_COPY: ＜怪異＞シグニのレイヤー能力を自シグニにコピー
+  if (stub.id === 'LAYER_ABILITY_COPY') {
+    const srcLAC = ctx.sourceCardNum;
+    const srcCardLAC = srcLAC ? ctx.cardMap.get(srcLAC) : undefined;
+    const txtLAC = srcCardLAC ? (srcCardLAC.EffectText ?? '') : '';
+    const fromTrash = txtLAC.includes('トラッシュから');
+    const kaiClass = '怪異';
+    let candsLAC: string[];
+    let scopeLAC: TargetScope;
+    if (fromTrash) {
+      candsLAC = ctx.ownerState.trash.filter(cn => {
+        const c = ctx.cardMap.get(cn);
+        return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(kaiClass);
+      });
+      scopeLAC = 'self_trash';
+    } else {
+      candsLAC = [0, 1, 2]
+        .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+        .filter((cn): cn is string => !!cn && cn !== srcLAC && (ctx.cardMap.get(cn)?.CardClass ?? '').includes(kaiClass));
+      scopeLAC = 'self_field';
+    }
+    if (candsLAC.length === 0) return done(addLog(ctx, `＜${kaiClass}＞シグニなし（${fromTrash ? 'トラッシュ' : 'フィールド'}）`));
+    const noopLAC: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    const contLAC: StubAction = { type: 'STUB', id: 'INTERNAL_LAYER_COPY_APPLY' };
+    return needsInteraction(addLog(ctx, 'レイヤー能力をコピーするシグニを選択'), {
+      type: 'SELECT_TARGET', candidates: candsLAC, count: 1, optional: false,
+      targetScope: scopeLAC, thenAction: noopLAC as EffectAction, continuation: contLAC as EffectAction,
+    });
+  }
+  // INTERNAL_LAYER_COPY_APPLY: 選択シグニのレイヤー能力を自シグニに付与
+  if (stub.id === 'INTERNAL_LAYER_COPY_APPLY') {
+    const srcILCA = ctx.sourceCardNum;
+    const targetILCA = (ctx.lastProcessedCards ?? [])[0];
+    if (!srcILCA || !targetILCA) return done(addLog(ctx, 'レイヤーコピー失敗'));
+    const targetCardILCA = ctx.cardMap.get(targetILCA);
+    const targetTxtILCA = (targetCardILCA?.EffectText ?? '') + ' ' + (targetCardILCA?.BurstText ?? '');
+    // レイヤー能力部分を抽出（《レイヤーアイコン》以降）
+    const layerMatchILCA = targetTxtILCA.match(/《レイヤーアイコン》(.+)/);
+    const layerTxtILCA = layerMatchILCA?.[1] ?? '';
+    const knownKwsILCA = ['Sランサー', 'ランサー', 'ダブルクラッシュ', 'アサシン', 'シャドウ', 'マルチエナ'];
+    const copiedKwsILCA = knownKwsILCA.filter(kw => layerTxtILCA.includes(kw));
+    // Sランサー（パワー条件付き）
+    if (layerTxtILCA.match(/12000以上.*Sランサー|Sランサー.*12000以上/)) {
+      const srcPow = ctx.effectivePowers?.get(srcILCA) ?? parseInt(ctx.cardMap.get(srcILCA)?.Power ?? '0');
+      if (srcPow >= 12000) copiedKwsILCA.push('Sランサー');
+    }
+    if (copiedKwsILCA.length > 0) {
+      const grantsILCA = { ...(ctx.ownerState.keyword_grants ?? {}) };
+      grantsILCA[srcILCA] = [...new Set([...(grantsILCA[srcILCA] ?? []), ...copiedKwsILCA])];
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsILCA } },
+        `${targetCardILCA?.CardName ?? targetILCA}のレイヤー【${copiedKwsILCA.join('・')}】をコピー`));
+    }
+    // パワー保護など非キーワード系
+    if (layerTxtILCA.includes('パワーは増減しない')) {
+      return done(addLog(ctx, `${targetCardILCA?.CardName ?? targetILCA}のレイヤー（パワー保護）をコピー`));
+    }
+    return done(addLog(ctx, `${targetCardILCA?.CardName ?? targetILCA}のレイヤー能力をコピー（ログのみ）`));
+  }
   // ライズ/スタック系（engine: ライズシステム未実装）
   if (stub.id === 'RIDE_ON' || stub.id === 'RISE_BANISH_SUBSTITUTE' || stub.id === 'RISE_LEAVE_DISCARD_STACK'
       || stub.id === 'BANISH_SUBSTITUTE_RISE_STACK' || stub.id === 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE'
