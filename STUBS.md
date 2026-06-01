@@ -280,7 +280,7 @@
 
 | 件数 | effectType | 状態 | STUB ID |
 |-----:|-----------|:----:|---------|
-| 377 | ACTIVATED/CONT | 📝 | OPTIONAL_COST |
+| 377 | ACTIVATED/CONT | ✅ | OPTIONAL_COST ※effectExecutorがSEQUENCE内STUB→CONDITIONAL(IS_MY_TURN)パターンをインターセプト→pay/skipのCHOOSE＋エナ選択UI（338件）。Pattern④で離れた位置のIS_MY_TURNも対応。execStub.tsがエッジケース（SEQUENCE末尾33件）も同様のCHOOSEを提示（v0.153） |
 | 87 | CONT/AUTO | ✅ | ARTS_COST_REDUCTION_BY_EFFECT |
 | 52 | AUTO/ACTIVATED | ✅ | TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST ※v0.143: effectExecutor専用ハンドラ追加。パーサーバグ(target.owner='self')を'opponent'に修正。BANISH/BOUNCE/DOWN/POWER_MODIFY対応。canPayOptionalCostチェック+CHOOSE(pay/skip)提示 |
 | 50 | ACTIVATED/AUTO | ✅ | TARGET_AND_DISCARD_HAND |
