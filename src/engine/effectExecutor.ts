@@ -2564,6 +2564,30 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(frzOwner, { ...frzS, field: { ...frzS.field, signi_frozen: newFrz } }, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を凍結`));
     }
+    case 'GRANT_KEYWORD': {
+      const gkA = action as GrantKeywordAction;
+      let gkOwner: Owner | null = null;
+      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) gkOwner = 'self';
+      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) gkOwner = 'opponent';
+      if (!gkOwner) return done(ctx);
+      const gkS = ownerState(gkOwner, ctx);
+      const gkGrants = { ...(gkS.keyword_grants ?? {}) };
+      gkGrants[cardNum] = [...new Set([...(gkGrants[cardNum] ?? []), gkA.keyword])];
+      return done(addLog(setOwnerState(gkOwner, { ...gkS, keyword_grants: gkGrants }, ctx),
+        `【${gkA.keyword}】を付与（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}）`));
+    }
+    case 'GRANT_EFFECT': {
+      const geA = action as GrantEffectAction;
+      let geOwner: Owner | null = null;
+      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) geOwner = 'self';
+      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) geOwner = 'opponent';
+      if (!geOwner) return done(ctx);
+      const geS = ownerState(geOwner, ctx);
+      const geGranted = { ...(geS.granted_effects ?? {}) };
+      geGranted[cardNum] = [...(geGranted[cardNum] ?? []), geA.effect];
+      return done(addLog(setOwnerState(geOwner, { ...geS, granted_effects: geGranted }, ctx),
+        `能力付与（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}）`));
+    }
     case 'TAKE_FROM_UNDER_SIGNI': {
       const ta = action as import('../types/effects').TakeFromUnderSigniAction;
       // cardNum をシグニゾーンの下カードから除去
