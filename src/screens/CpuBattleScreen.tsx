@@ -739,8 +739,11 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       const stack = gs.player.field.signi[rawZoneIdx];
       const isDown = gs.player.field.signi_down?.[rawZoneIdx] ?? false;
       const attackLimitHit = gs.player.signi_attack_once_limit && (gs.player.attacked_signi_ids?.length ?? 0) > 0;
-      if (stack?.length && !isDown && !attackLimitHit) {
-        return [{ label: 'アタック', color: C.danger, onClick: () => handleSigniAttackAction(rawZoneIdx) }];
+      const signiAtkCostCpu = gs.player.signi_attack_cost ?? 0;
+      const canPayAtkCost = signiAtkCostCpu === 0 || gs.player.energy.length >= signiAtkCostCpu;
+      if (stack?.length && !isDown && !attackLimitHit && canPayAtkCost) {
+        const atkLabelCpu = signiAtkCostCpu > 0 ? `アタック（《無》×${signiAtkCostCpu}）` : 'アタック';
+        return [{ label: atkLabelCpu, color: C.danger, onClick: () => handleSigniAttackAction(rawZoneIdx) }];
       }
     }
     if (gs.phase === 'MAIN' && selectedHandIdx !== null) {
