@@ -6770,7 +6770,6 @@ export function execStub(
   }
   // CHANGE_EICHI_SIGNI_BASE_LEVEL: 英知シグニを選択→基本レベルを1～3に変更（ターン終了まで）
   if (stub.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL') {
-    const toHWCESBL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // stub.valueが数値かつlastProcessedCardsあり→適用
     if (typeof stub.value === 'number' && ctx.lastProcessedCards?.length) {
       const targetCESBL = ctx.lastProcessedCards[0];
