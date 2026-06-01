@@ -378,7 +378,7 @@
 | 3 | AUTO/ACTIVATED | ✅ | BANISH_FROM_GAME ※トラッシュより任意除外CHOOSE→self_optional_effect_taken設定。後続CONDITIONAL(SELF_OPTIONAL_EFFECT_TAKEN)で制御（v0.147） |
 | 3 | AUTO/ACTIVATED | ✅ | CHOOSE_HAND_CARD ※SELECT_TARGET on自手札→lastProcessedCardsに格納 |
 | 3 | ACTIVATED | ✅ | DECK_TOP_CHECK_LEVEL_ENERGY ※宣言レベル一致シグニならエナゾーンへ、不一致はデッキトップ留まり |
-| 3 | LIFE | ⚡ | DECK_TOP_TO_LIFE |
+| 3 | LIFE | ✅ | DECK_TOP_TO_LIFE ※デッキ上→ライフクロス追加実装済み（自/相手判定・枚数解析） |
 | 3 | AUTO/ACTIVATED | ✅ | DECLARE_NUMBER_RANGE ※0〜5のCHOOSE→declared_guard_restrict_levelに保存（v0.147） |
 | 3 | CONT | ⚡ | DEPLOY_RESTRICT ※v0.138: AUTO時に「パワーN以上場に出せない」→otherState.signi_deploy_power_limit設定。CONTINUOUS制限はログのみ |
 | 3 | AUTO/ACTIVATED | ✅ | DISCARD_OR_PENALTY ※特定クラス/タイプ1枚捨てるかペナルティN枚捨てるかCHOOSE（v0.147） |
@@ -531,18 +531,18 @@
 | 1 | AUTO/ACTIVATED | ⚡ | COST_COLOR_SELECT ※done(addLog)のみ（コスト色選択未実装） |
 | 1 | AUTO/ACTIVATED | ✅ | COUNT_DISTINCT_NAMES ※自フィールドシグニ名数×deltaをtemp_power_modsに適用 |
 | 1 | AUTO/ACTIVATED | ✅ | DECK_REVEAL_UNTIL_CLASS ※DECK_REVEAL_UNTILと同ハンドラ: クラスフィルタ付き完全実装 |
-| 1 | ACTIVATED | ⚡ | DECK_SIGNI_LEVEL_OVERRIDE |
-| 1 | LIFE | ⚡ | DECK_TOP_TO_LIFE |
+| 1 | ACTIVATED | ⚡ | DECK_SIGNI_LEVEL_OVERRIDE ※ログのみ（デッキ内シグニレベル参照の上書きは効果解析全体への伝搬が必要） |
+| 1 | LIFE | ✅ | DECK_TOP_TO_LIFE ※デッキ上→ライフクロス実装済み |
 | 1 | AUTO/ACTIVATED | ⚡ | DECLARE_COLOR_COND_ENERGY_TRASH ※done(addLog)のみ（色宣言→エナトラッシュ条件未実装） |
 | 1 | AUTO/ACTIVATED | ⚡ | DECLARE_NUMBER_POWER ※done(addLog)のみ（POWER参照数字宣言未実装） |
 | 1 | AUTO | ✅ | DECLARE_COLOR |
-| 1 | AUTO | ⚡ | DEFEAT |
-| 1 | ACTIVATED | ⚡ | DISCARD_BY_POWER_MATCH |
-| 1 | AUTO | ⚡ | DISCARD_IF_NO_CLASS_SIGNI |
-| 1 | AUTO/ACTIVATED | ⚡ | DRAW |
-| 1 | AUTO | ⚡ | DRAW_BY_CHARM_COUNT |
-| 1 | AUTO/ACTIVATED | ⚡ | DRAW_DISCARD_COUNT_PLUS_N |
-| 1 | AUTO | ⚡ | DRIVE_SIGNI_PREVENT_DOWN |
+| 1 | AUTO | ✅ | DEFEAT ※v0.159: prevent_defeatチェック→life_cloth=[]でゲーム終了誘発 |
+| 1 | ACTIVATED | ✅ | DISCARD_BY_POWER_MATCH ※v0.159: SELECT_TARGET(手札青シグニ)→捨て→相手手札同パワーシグニを捨てさせる |
+| 1 | AUTO | ✅ | DISCARD_IF_NO_CLASS_SIGNI ※クラスシグニなし判定→手札捨て実装済み |
+| 1 | AUTO/ACTIVATED | ✅ | DRAW ※テキスト解析→指定枚数ドロー実装済み |
+| 1 | AUTO | ✅ | DRAW_BY_CHARM_COUNT ※チャーム枚数ドロー実装済み |
+| 1 | AUTO/ACTIVATED | ✅ | DRAW_DISCARD_COUNT_PLUS_N ※捨て枚数+Nドロー実装済み |
+| 1 | AUTO | ✅ | DRIVE_SIGNI_PREVENT_DOWN ※v0.159: SELECT_TARGET→PROTECTION:DOWN:opponentをkeyword_grantsに設定 |
 | 1 | CONT | ✅ | DYNAMIC_LEVEL_BY_ENERGY ※buildLevelModsにエナ枚数比例レベル変動追加 |
 | 1 | AUTO | ⚡ | EACH_PLAYER_DRAW_DISCARD |
 | 1 | AUTO | ⚡ | DRAW_AND_PUT_HAND_TO_DECK_BOTTOM |
@@ -551,14 +551,14 @@
 | 1 | CONT | ⚡ | ENERGY_SUBSTITUTE_TRASH_SIGNI ※execStub: [エナ代替]（代替コスト未実装） |
 | 1 | CONT | ⚡ | ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI ※execStub: [エナ代替]（代替コスト未実装） |
 | 1 | AUTO/ACTIVATED | ⚡ | ENERGY_LEVEL_CONDITION_CHOOSE |
-| 1 | AUTO | ⚡ | ENERGY_TO_HAND_ON_DECK |
-| 1 | AUTO | ⚡ | ENERGY_TO_TRASH |
+| 1 | AUTO | ✅ | ENERGY_TO_HAND_ON_DECK ※SELECT_TARGET(エナ)→手札へ実装済み |
+| 1 | AUTO | ✅ | ENERGY_TO_TRASH ※SELECT_TARGET(エナ)→トラッシュへ実装済み |
 | 1 | CONT | ✅ | EXTRA_GUARD_COST_FROM_HAND ※collectOppExtraGuardFromHand+handleGuardResponse+ガードUI統合 |
 | 1 | AUTO/ACTIVATED | ⚡ | FIELD_COND_DRAW_REVEAL |
 | 1 | CONT | ⚡ | FIRST_SPELL_COST_UP ※execStub: [コストアップ]（BattleScreen未統合） |
-| 1 | ACTIVATED | ⚡ | FROM_TRASH_TO_CENTER_ZONE |
-| 1 | CONT | ⚡ | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM |
-| 1 | CONT | ⚡ | FROZEN_SIGNI_TO_TRASH_ON_LEAVE |
+| 1 | ACTIVATED | ✅ | FROM_TRASH_TO_CENTER_ZONE ※v0.159: トラッシュから中央シグニゾーン(zone[1])に出す（既存シグニはエナへ） |
+| 1 | CONT | ⚡ | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM ※CONTINUOUS置換効果（BattleScreenバトル解決への統合が必要） |
+| 1 | CONT | ⚡ | FROZEN_SIGNI_TO_TRASH_ON_LEAVE ※CONTINUOUS置換効果（BattleScreen退場処理への統合が必要） |
 | 1 | CONT | ⚡ | GAIN_ADDITIONAL_LRIG_TYPE ※execStub: [ルリグシステム]（lrig system未実装） |
 | 1 | AUTO | ⚡ | GAIN_COIN_AND_DISCARD |
 | 1 | CONT | ⚡ | GAIN_LRIG_COLOR ※v0.115: collectLrigColorInheritSigni実装（SHADOW統合は未実装） |
@@ -577,8 +577,8 @@
 | 1 | AUTO | ⚡ | GRID_REVEAL_PLUS |
 | 1 | CONT | ⚡ | GROW_COST_SUBSTITUTE_TRASH_SIGNI ※execStub: [グロウコスト]（engine未実装） |
 | 1 | CONT | ⚡ | GUARD_ALTERNATIVE_COST ※execStub: [ガードコスト]（engine未実装） |
-| 1 | AUTO | ⚡ | HAND_CARDS_UNDER_SIGNI |
-| 1 | AUTO | ⚡ | HAND_NONCOLORLESS_TO_ENERGY |
+| 1 | AUTO | ✅ | HAND_CARDS_UNDER_SIGNI ※手札からN枚このシグニの下に配置実装済み |
+| 1 | AUTO | ✅ | HAND_NONCOLORLESS_TO_ENERGY ※SELECT_TARGET(有色手札)→エナゾーンへ実装済み |
 | 1 | CONT | ✅ | HAND_SIGNI_HAS_GUARD_ICON ※v0.115: collectHandGuardIconClasses+ガードUI(myHandGuardClasses)に統合 |
 | 1 | AUTO/ACTIVATED | ✅ | HAND_SIGNI_UNDER_SIGNI ※needsInteraction SELECT_TARGET: 手札シグニを選択してシグニ下に配置 |
 | 1 | ACTIVATED | ⚡ | HASTARLIQ |
@@ -592,8 +592,8 @@
 | 1 | CONT | ⚡ | LEVEL_MOD_PER_COUNT ※done(addLog)のみ（カウント基準レベル修正未実装） |
 | 1 | CONT | ⚡ | LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT ※done(addLog)のみ（属性変更グループ: effectEngine未対応） |
 | 1 | AUTO/ACTIVATED | ✅ | LIFE_TO_HAND_OPTIONAL ※life_cloth先頭を手札へ移動実装済み |
-| 1 | AUTO | ⚡ | LIFE_BURST_DOUBLE |
-| 1 | AUTO | ⚡ | LIMIT_OPP_SIGNI_ATTACKS_ONCE |
+| 1 | AUTO | ✅ | LIFE_BURST_DOUBLE ※life_burst_double_nextフラグ設定→BattleScreenでバースト2回発動 |
+| 1 | AUTO | ✅ | LIMIT_OPP_SIGNI_ATTACKS_ONCE ※signi_attack_once_limitフラグ設定→アタック1回制限 |
 | 1 | AUTO | ✅ | LOOK_DECK_BOTTOM ※デッキ下1枚LOOK_AND_REORDER(destPosition:'bottom')（v0.148） |
 | 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_BOTTOM ※デッキ上下1枚ずつLOOK_AND_REORDER(destPosition:'any')（v0.148） |
 | 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_BY_LIFE_COUNT ※ライフ枚数分デッキ上をLOOK_AND_REORDER（v0.148） |
@@ -790,6 +790,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-06-02 v0.159 | 18件✅化: DEFEAT(life_cloth=[]でゲーム終了誘発+prevent_defeat対応)/DISCARD_BY_POWER_MATCH(SELECT手札青シグニ→同パワー相手手札捨てさせる)/DRIVE_SIGNI_PREVENT_DOWN(SELECT_TARGET→PROTECTION:DOWN:opponent)/FROM_TRASH_TO_CENTER_ZONE(zone[1]に出す+既存シグニエナへ)。確認済み✅: ENERGY_TO_HAND_ON_DECK/ENERGY_TO_TRASH/DISCARD_IF_NO_CLASS_SIGNI/DRAW/DRAW_BY_CHARM_COUNT/DRAW_DISCARD_COUNT_PLUS_N/DECK_TOP_TO_LIFE/HAND_CARDS_UNDER_SIGNI/HAND_NONCOLORLESS_TO_ENERGY/LIFE_BURST_DOUBLE/LIMIT_OPP_SIGNI_ATTACKS_ONCE | 18件 |
 | 2026-06-02 v0.158 | 22件✅化: SET_LEVEL_RANGE(SELECT_TARGET→CHOOSE1-4→attack_phase_level_overrides)/SET_OPP_SIGNI_POWER_BY_SELF_POWER(delta=-selfPw+SELECT_TARGET)/SIGNI_LOSE_COLOR(SELECT_TARGET相手シグニ→color_overrides)/SIGNI_REPOSITION(自/相手+INTERNAL_REPOSITION_TO_ZONE全ゾーン対応)/SIGNI_UNDER_WEAPON_SIGNI(2-phase→INTERNAL_SIGNI_UNDER_WEAPON)/STACK_ALL_LRIG_UNDER(lrig_trash→lrigスタック)/TRASH_ACCE_AT_TURN_END(sourceゾーンのアクセのみ)/TRASH_ALL_OPP_CARDS(名前解析→相手エナ)/TRASH_CLASS_TO_HAND_OR_ENERGY(INTERNAL_TRASH_CLASS_SPLIT)/SELF_TO_DECK_TOP/SELF_TRASH_IF_NO_OPP_VIRUS/SET_HAND_CARD_AS_TRAP/SIGNI_GAIN_ONE_LRIG_COLOR/SIGNI_GRANT_CHOSEN_ABILITY/TOP_TO_BOTTOM_OPTIONAL/TRADE_SELF_AND_OPP_TO_ENERGY/TRASH_FROM_DECK_PER_SIGNI_LEVEL/TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY/SELECT_OTHER_SIGNI/SUPPRESS_LIFE_BURST_ON_CRASH(既実装確認) | 22件 |
 | 2026-06-02 v0.157 | サーバントZERO正式実装: card_identity_overrides['instanceId']='WXDi-P07-TK01-A'で4スタブ✅化（MAKE_SERVANT_ZERO/SIGNI_SERVANT_ZERO/ALL_OPP_SIGNI_SERVANT_ZERO/MAKE_MULTI_SERVANT_ZERO）。battleCardMap+effectsMapのcard_identity_overrides解決。removeFromFieldで自動クリア | 4件 |
 | 2026-06-02 v0.154 | 効果付与エンジン実装: collectGrantedFromUnderSigni追加（GRANT_UNDER_SIGNI_ALL/CONSTANT/AUTO_ATTACK_PHASE→✅）。collectLrigGrantedEffectsにGRANT_UNDER_LRIG_ACTIVATE/AUTO・GRANT_LRIG_TRASH_ACTIVATE_ABILITY追加（✅）。WXK08-078をGRANT_SIGNI_ABOVE_ABILITY+POWER_MINUS_PER_OWN_LEVEL（✅）。PR-317をGRANT_LRIG_ABILITYアクション型に変更+lrig_granted_auto_effectsをgrantedMyLrigEffectsに統合（✅）。BattleScreen effectsMapにunder-signi付与統合 | 7件✅ |

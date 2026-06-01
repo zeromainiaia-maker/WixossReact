@@ -4642,17 +4642,27 @@ export function execStub(
     };
     return done(addLog({ ...ctx, ownerState: newSABST }, `アクセ${acceCardsABST.length}枚をトラッシュへ`));
   }
-  // FROM_TRASH_TO_CENTER_ZONE: トラッシュからカードをチェックゾーンへ
+  // FROM_TRASH_TO_CENTER_ZONE: トラッシュからカードを中央シグニゾーン（zone[1]）に出す
   if (stub.id === 'FROM_TRASH_TO_CENTER_ZONE') {
-    const cnFTCZ = ctx.lastProcessedCards?.[0] ?? ctx.ownerState.trash.at(-1);
-    if (!cnFTCZ) return done(addLog(ctx, 'トラッシュなし'));
+    const cnFTCZ = ctx.sourceCardNum
+      ? ctx.ownerState.trash.find(cn => cn === ctx.sourceCardNum)
+      : (ctx.lastProcessedCards?.[0] ?? ctx.ownerState.trash.at(-1));
+    if (!cnFTCZ) return done(addLog(ctx, 'トラッシュにカードなし（FROM_TRASH_TO_CENTER_ZONE）'));
     const sFTCZ = ctx.ownerState;
-    const newSFTCZ: PlayerState = {
+    const newTrashFTCZ = sFTCZ.trash.filter(c => c !== cnFTCZ);
+    const newSigniFTCZ = [...sFTCZ.field.signi] as (string[] | null)[];
+    // 中央ゾーン(index=1)に配置。既存シグニはバニッシュしてエナへ
+    const existingFTCZ = newSigniFTCZ[1]?.at(-1);
+    const newEnergyFTCZ = existingFTCZ ? [...sFTCZ.energy, existingFTCZ] : sFTCZ.energy;
+    newSigniFTCZ[1] = [cnFTCZ];
+    const newOwnerFTCZ: PlayerState = {
       ...sFTCZ,
-      trash: sFTCZ.trash.filter(c => c !== cnFTCZ),
-      field: { ...sFTCZ.field, check: cnFTCZ },
+      trash: newTrashFTCZ,
+      energy: newEnergyFTCZ,
+      field: { ...sFTCZ.field, signi: newSigniFTCZ },
     };
-    return done(addLog({ ...ctx, ownerState: newSFTCZ }, `${ctx.cardMap.get(cnFTCZ)?.CardName ?? cnFTCZ}をセンターゾーンへ`));
+    return done(addLog({ ...ctx, ownerState: newOwnerFTCZ },
+      `${ctx.cardMap.get(cnFTCZ)?.CardName ?? cnFTCZ}をトラッシュから中央ゾーン（zone2）に出す`));
   }
   // VIEW_AND_DISCARD_SPELL: 手札からスペルを選んでトラッシュへ
   if (stub.id === 'INTERNAL_TRASH_CARD') {
@@ -5075,7 +5085,48 @@ export function execStub(
   // PICK_FROM_TRASHED_CARDS の後半 / CONDITIONAL_ALTERNATE_EFFECT: 代替効果（スキップ）
   // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（log）
   // OPP_DECLARE_COLOR: 相手が色を宣言（log）
-  // SELECT_NO_COMMON_COLOR / DISCARD_OR_PENALTY / DISCARD_BY_POWER_MATCH: log
+  // DISCARD_BY_POWER_MATCH: 手札の青シグニを捨て→相手手札の同パワーシグニを捨てさせる
+  if (stub.id === 'DISCARD_BY_POWER_MATCH') {
+    const toHWDBPM = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const discardedDBPM = (ctx.lastProcessedCards ?? []).find(cn => ctx.ownerState.hand.includes(cn));
+    if (!discardedDBPM) {
+      // Phase 1: SELECT_TARGET 手札の青シグニ（コスト）
+      const blueHandDBPM = ctx.ownerState.hand.filter(cn => {
+        const c = ctx.cardMap.get(cn);
+        return c?.Type === 'シグニ' && (c.Color ?? '').includes('青');
+      });
+      if (blueHandDBPM.length === 0) return done(addLog(ctx, '手札に青シグニなし（DISCARD_BY_POWER_MATCH）'));
+      const noop: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+      const cont: StubAction = { type: 'STUB', id: 'DISCARD_BY_POWER_MATCH' };
+      return needsInteraction(addLog(ctx, '手札から青シグニを選択（捨てる）'), {
+        type: 'SELECT_TARGET', candidates: blueHandDBPM, count: 1, optional: false,
+        targetScope: 'self_hand', thenAction: noop as EffectAction, continuation: cont as EffectAction,
+      });
+    }
+    // Phase 2: 選択シグニを捨て、同パワーの相手手札シグニを捨てさせる
+    const discardedPwDBPM = parseInt(toHWDBPM(ctx.cardMap.get(discardedDBPM)?.Power ?? '0')) || 0;
+    const newOwnerDBPM: PlayerState = {
+      ...ctx.ownerState,
+      hand: ctx.ownerState.hand.filter(cn => cn !== discardedDBPM),
+      trash: [...ctx.ownerState.trash, discardedDBPM],
+    };
+    const matchingOppDBPM = ctx.otherState.hand.find(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && (parseInt(toHWDBPM(c.Power ?? '0')) || 0) === discardedPwDBPM;
+    });
+    if (matchingOppDBPM) {
+      const newOtherDBPM: PlayerState = {
+        ...ctx.otherState,
+        hand: ctx.otherState.hand.filter(cn => cn !== matchingOppDBPM),
+        trash: [...ctx.otherState.trash, matchingOppDBPM],
+      };
+      return done(addLog({ ...ctx, ownerState: newOwnerDBPM, otherState: newOtherDBPM },
+        `${ctx.cardMap.get(discardedDBPM)?.CardName ?? discardedDBPM}を捨て、相手の${ctx.cardMap.get(matchingOppDBPM)?.CardName ?? matchingOppDBPM}（パワー${discardedPwDBPM}）を捨てさせる`));
+    }
+    return done(addLog({ ...ctx, ownerState: newOwnerDBPM },
+      `${ctx.cardMap.get(discardedDBPM)?.CardName ?? discardedDBPM}を捨て（相手手札にパワー${discardedPwDBPM}のシグニなし）`));
+  }
+  // SELECT_NO_COMMON_COLOR / DISCARD_OR_PENALTY: log
   // === バッチ8: パワー修正（ルリグ・カウント系） ===
   // POWER_MOD_BY_LRIG_LEVEL: ルリグレベル×deltaを相手シグニに適用
   if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL') {
@@ -6879,7 +6930,29 @@ export function execStub(
     return done(addLog(ctx, `[ダメージ/フェイズ特殊: ${stub.id}]`));
   }
   // ウェポン・プロテクション系（engine: 種族保護フラグ未実装）
-  if (stub.id === 'DRIVE_SIGNI_PREVENT_DOWN' || stub.id === 'WEAPON_SIGNI_PROTECT_DOWN'
+  // DRIVE_SIGNI_PREVENT_DOWN: ドライブ状態のシグニに対戦相手の効果によるダウン防止を付与
+  if (stub.id === 'DRIVE_SIGNI_PREVENT_DOWN') {
+    const targetDSPD = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn),
+    );
+    if (targetDSPD) {
+      const grantsDSPD = { ...(ctx.ownerState.keyword_grants ?? {}) };
+      const prevDSPD = grantsDSPD[targetDSPD] ?? [];
+      const protKey = 'PROTECTION:DOWN:opponent';
+      if (!prevDSPD.includes(protKey)) grantsDSPD[targetDSPD] = [...prevDSPD, protKey];
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsDSPD } },
+        `${ctx.cardMap.get(targetDSPD)?.CardName ?? targetDSPD}→ターン終了時まで対戦相手効果によるダウン不可`));
+    }
+    const driveCandsDSPD = [0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+      .filter((cn): cn is string => !!cn);
+    if (driveCandsDSPD.length === 0) return done(addLog(ctx, '自フィールドにシグニなし（DRIVE_SIGNI_PREVENT_DOWN）'));
+    const applyDSPD: StubAction = { type: 'STUB', id: 'DRIVE_SIGNI_PREVENT_DOWN' };
+    return needsInteraction(ctx, {
+      type: 'SELECT_TARGET', candidates: driveCandsDSPD, count: 1, optional: false,
+      targetScope: 'self_field', thenAction: applyDSPD as EffectAction,
+    });
+  }
+  if (stub.id === 'WEAPON_SIGNI_PROTECT_DOWN'
       || stub.id === 'WEAPON_SIGNI_PROTECTION' || stub.id === 'ARM_SIGNI_LRIG_PROTECTION'
       || stub.id === 'WHITE_SIGNI_ABILITY_PROTECT' || stub.id === 'WEAPON_SIGNI_PREVENT_DOWN') {
     return done(addLog(ctx, `[種族保護: ${stub.id}]`));
@@ -7138,9 +7211,14 @@ export function execStub(
     }
     return done(addLog(ctx, '配置制限（パターン解析不可）'));
   }
-  // DEFEAT: 敗北処理（ログのみ）
+  // DEFEAT: 敗北処理 - ライフクロスを0にしてゲーム終了を誘発
   if (stub.id === 'DEFEAT') {
-    return done(addLog(ctx, '敗北処理（エンジン未実装）'));
+    if (ctx.ownerState.prevent_defeat) {
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_defeat: undefined } },
+        '敗北無効（PREVENT_DEFEAT発動）'));
+    }
+    const newOwnerDEFEAT: PlayerState = { ...ctx.ownerState, life_cloth: [] };
+    return done(addLog({ ...ctx, ownerState: newOwnerDEFEAT }, '敗北（ライフクロス0）'));
   }
   // REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す
   if (stub.id === 'REPEAT_N_TIMES' || stub.id === 'REPEAT_EFFECT') {
