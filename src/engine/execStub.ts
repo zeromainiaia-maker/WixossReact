@@ -3688,17 +3688,24 @@ export function execStub(
   }
   // 自パワーに合わせて相手シグニのパワーを設定
   if (stub.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER') {
+    // 対戦相手のシグニ1体のパワーを自シグニのパワーと同じだけ－する
     const selfPwSOSP = ctx.effectivePowers?.get(ctx.sourceCardNum ?? '')
       ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Power ?? '0', 10);
-    const targetsSOSP = (ctx.lastProcessedCards?.length ? ctx.lastProcessedCards
-      : [0, 1, 2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn));
-    const modsSOSP = [...(ctx.otherState.temp_power_mods ?? [])];
-    for (const cn of targetsSOSP) {
-      const oppPw = ctx.effectivePowers?.get(cn) ?? parseInt(ctx.cardMap.get(cn)?.Power ?? '0', 10);
-      if (selfPwSOSP !== oppPw) modsSOSP.push({ cardNum: cn, delta: selfPwSOSP - oppPw });
+    const targetSOSP = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.otherState.field.signi.some(s => s?.at(-1) === cn),
+    );
+    if (targetSOSP) {
+      const modsSOSP = [...(ctx.otherState.temp_power_mods ?? []), { cardNum: targetSOSP, delta: -selfPwSOSP }];
+      return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsSOSP } },
+        `${ctx.cardMap.get(targetSOSP)?.CardName ?? targetSOSP}のパワーを${selfPwSOSP}だけ減少`));
     }
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsSOSP } },
-      `相手シグニのパワーを${selfPwSOSP}に設定`));
+    const oppCandsSOSP = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
+    if (oppCandsSOSP.length === 0) return done(addLog(ctx, '相手シグニなし（SET_OPP_SIGNI_POWER_BY_SELF_POWER）'));
+    const applySOSP: StubAction = { type: 'STUB', id: 'SET_OPP_SIGNI_POWER_BY_SELF_POWER' };
+    return needsInteraction(ctx, {
+      type: 'SELECT_TARGET', candidates: oppCandsSOSP, count: 1, optional: false,
+      targetScope: 'opp_field', thenAction: applySOSP as EffectAction,
+    });
   }
   // クラスが出るまでデッキ上からトラッシュに置く
   if (stub.id === 'DECK_MILL_UNTIL_CLASS') {
@@ -4287,21 +4294,50 @@ export function execStub(
   }
   // トラッシュからクラスシグニを手札かエナへ選択
   if (stub.id === 'TRASH_CLASS_TO_HAND_OR_ENERGY') {
+    // トラッシュからクラスカードを複数選択 → 1枚まで手札、残りエナゾーンへ
     const srcTCTHOE2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtTCTHOE2 = srcTCTHOE2 ? (srcTCTHOE2.EffectText ?? '') + ' ' + (srcTCTHOE2.BurstText ?? '') : '';
-    const classMTCTHOE2 = txtTCTHOE2.match(/[<＜《]([^>＞》]+)[>＞»]/);
+    const toHWTCTHOE2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const classMTCTHOE2 = txtTCTHOE2.match(/＜([^＞]+)＞/);
     const targetClassTCTHOE2 = classMTCTHOE2?.[1];
+    const countMTCTHOE2 = txtTCTHOE2.match(/([０-９\d]+)枚まで対象/);
+    const maxCountTCTHOE2 = countMTCTHOE2 ? parseInt(toHWTCTHOE2(countMTCTHOE2[1])) : 1;
     const candsTCTHOE2 = ctx.ownerState.trash.filter(cn => {
       const c = ctx.cardMap.get(cn);
-      return c?.Type === 'シグニ' && (!targetClassTCTHOE2 || c.CardClass?.includes(targetClassTCTHOE2));
+      return (!targetClassTCTHOE2 || (c?.CardClass ?? '').includes(targetClassTCTHOE2));
     });
     if (candsTCTHOE2.length === 0) return done(addLog(ctx, 'トラッシュに対象なし（TRASH_CLASS_TO_HAND_OR_ENERGY）'));
-    const noopTCTHOE2: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    const contTCTHOE2: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_TO_HAND' };
-    return needsInteraction(addLog(ctx, `トラッシュから${targetClassTCTHOE2 ?? 'シグニ'}を選択`), {
-      type: 'SELECT_TARGET', candidates: candsTCTHOE2, count: 1, optional: false,
-      targetScope: 'self_trash', thenAction: noopTCTHOE2 as EffectAction, continuation: contTCTHOE2 as EffectAction,
+    const contTCTHOE2: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CLASS_SPLIT' };
+    return needsInteraction(addLog(ctx, `トラッシュから${targetClassTCTHOE2 ?? 'カード'}を${maxCountTCTHOE2}枚まで選択`), {
+      type: 'SELECT_TARGET', candidates: candsTCTHOE2, count: maxCountTCTHOE2, optional: false,
+      targetScope: 'self_trash', thenAction: contTCTHOE2 as EffectAction,
     });
+  }
+  // INTERNAL_TRASH_CLASS_SPLIT: 選択カードを手札（1枚）＋エナ（残り）に振り分け
+  if (stub.id === 'INTERNAL_TRASH_CLASS_SPLIT') {
+    const selectedITCS = ctx.lastProcessedCards ?? [];
+    if (selectedITCS.length === 0) return done(ctx);
+    let newOwnerITCS = ctx.ownerState;
+    const remaining = [...newOwnerITCS.trash];
+    const toProcess: string[] = [];
+    for (const cn of selectedITCS) {
+      const idx = remaining.indexOf(cn);
+      if (idx >= 0) { remaining.splice(idx, 1); toProcess.push(cn); }
+    }
+    newOwnerITCS = { ...newOwnerITCS, trash: remaining };
+    if (toProcess.length === 0) return done(addLog({ ...ctx, ownerState: newOwnerITCS }, '対象カードなし'));
+    // 1枚目→手札、残り→エナゾーン
+    const [handCard, ...enaCards] = toProcess;
+    newOwnerITCS = {
+      ...newOwnerITCS,
+      hand: [...newOwnerITCS.hand, handCard],
+      energy: [...newOwnerITCS.energy, ...enaCards],
+    };
+    const names = [
+      `${ctx.cardMap.get(handCard)?.CardName ?? handCard}→手札`,
+      ...enaCards.map(cn => `${ctx.cardMap.get(cn)?.CardName ?? cn}→エナ`),
+    ].join('、');
+    return done(addLog({ ...ctx, ownerState: newOwnerITCS }, names));
   }
   // ルリグデッキにカードを追加（非ルリグをルリグトラッシュへ）
   if (stub.id === 'NON_LRIG_TO_LRIG_TRASH') {
@@ -4824,9 +4860,11 @@ export function execStub(
   }
   // SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ
   if (stub.id === 'SELF_TRASH_IF_NO_OPP_VIRUS') {
-    const hasVirusSTINOV = (ctx.otherState.field.signi_virus ?? []).some(v => v > 0);
+    const hasVirusSTINOV = (ctx.otherState.field.signi_virus ?? []).some(v => (v ?? 0) > 0);
     if (hasVirusSTINOV) return done(addLog(ctx, '相手ウィルスあり（トラッシュなし）'));
     if (!ctx.sourceCardNum) return done(ctx);
+    if (!ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+      return done(addLog(ctx, 'フィールドにいない（SELF_TRASH_IF_NO_OPP_VIRUS）'));
     const removedSTINOV = removeFromField(ctx.sourceCardNum, ctx.ownerState);
     const newSSTINOV: PlayerState = { ...removedSTINOV, trash: [...removedSTINOV.trash, ctx.sourceCardNum] };
     return done(addLog({ ...ctx, ownerState: newSSTINOV }, '相手ウィルスなし→自トラッシュ'));
@@ -4948,17 +4986,35 @@ export function execStub(
     const newSBFG: PlayerState = { ...removedBFG, lrig_trash: [...removedBFG.lrig_trash, cnBFG] };
     return done(addLog(setOwnerState(ownerBFG, newSBFG, ctx), `${ctx.cardMap.get(cnBFG)?.CardName ?? cnBFG}をゲームから除外`));
   }
-  // TRASH_ALL_OPP_CARDS: 相手の全フィールドシグニと手札をトラッシュへ
+  // TRASH_ALL_OPP_CARDS: 相手エナから名前一致カードをすべてトラッシュへ
   if (stub.id === 'TRASH_ALL_OPP_CARDS') {
+    const srcTAOC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtTAOC = srcTAOC ? (srcTAOC.EffectText ?? '') + ' ' + (srcTAOC.BurstText ?? '') : '';
+    const nameMatchTAOC = txtTAOC.match(/《([^》]+)》を含むすべてのカードをトラッシュに置く/);
+    const targetNameTAOC = nameMatchTAOC?.[1];
+    if (targetNameTAOC) {
+      const toTrashTAOC = ctx.otherState.energy.filter(cn =>
+        (ctx.cardMap.get(cn)?.CardName ?? '').includes(targetNameTAOC),
+      );
+      if (toTrashTAOC.length === 0) return done(addLog(ctx, `相手エナに「${targetNameTAOC}」なし`));
+      const newOtherTAOC: PlayerState = {
+        ...ctx.otherState,
+        energy: ctx.otherState.energy.filter(cn => !(ctx.cardMap.get(cn)?.CardName ?? '').includes(targetNameTAOC)),
+        trash: [...ctx.otherState.trash, ...toTrashTAOC],
+      };
+      return done(addLog({ ...ctx, otherState: newOtherTAOC },
+        `相手エナから「${targetNameTAOC}」${toTrashTAOC.length}枚→トラッシュ`));
+    }
+    // フォールバック: 相手の全フィールド+手札をトラッシュへ
     let sOppTAOC = ctx.otherState;
-    const toTrashTAOC: string[] = [];
+    const toTrashFbTAOC: string[] = [];
     const newSigniTAOC = sOppTAOC.field.signi.map(stack => {
-      if (stack && stack.length > 0) { toTrashTAOC.push(...stack); return null; }
+      if (stack && stack.length > 0) { toTrashFbTAOC.push(...stack); return null; }
       return stack;
     }) as (string[] | null)[];
-    toTrashTAOC.push(...sOppTAOC.hand);
-    sOppTAOC = { ...sOppTAOC, field: { ...sOppTAOC.field, signi: newSigniTAOC }, hand: [], trash: [...sOppTAOC.trash, ...toTrashTAOC] };
-    return done(addLog({ ...ctx, otherState: sOppTAOC }, `相手の${toTrashTAOC.length}枚をトラッシュへ`));
+    toTrashFbTAOC.push(...sOppTAOC.hand);
+    sOppTAOC = { ...sOppTAOC, field: { ...sOppTAOC.field, signi: newSigniTAOC }, hand: [], trash: [...sOppTAOC.trash, ...toTrashFbTAOC] };
+    return done(addLog({ ...ctx, otherState: sOppTAOC }, `相手の${toTrashFbTAOC.length}枚をトラッシュへ`));
   }
   // ABILITY_CHECK_ELSE_TRASH: 能力なしなら自トラッシュ
   if (stub.id === 'ABILITY_CHECK_ELSE_TRASH') {
@@ -5981,8 +6037,41 @@ export function execStub(
     return done(addLog(ctx, `[複合パワー修正: ${stub.id}]`));
   }
   // レベル修正（engine: ベースレベル変更システム未実装）
-  if (stub.id === 'LEVEL_MOD_PER_COUNT' || stub.id === 'SET_LEVEL_RANGE') {
-    return done(addLog(ctx, `[レベル修正: ${stub.id}]`));
+  if (stub.id === 'LEVEL_MOD_PER_COUNT') {
+    return done(addLog(ctx, '[LEVEL_MOD_PER_COUNT: effectEngineで処理]'));
+  }
+  // SET_LEVEL_RANGE: 自シグニ1体を選んでレベル1～4に変更（ターン終了時まで）
+  if (stub.id === 'SET_LEVEL_RANGE') {
+    const targetSLR = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.ownerState.field.signi.some(s => s?.at(-1) === cn),
+    );
+    if (targetSLR) {
+      // Phase 2: レベル選択
+      const optsSLR = [1,2,3,4].map(lv => ({
+        id: `lv_${lv}`, label: `レベル${lv}にする`,
+        action: ({ type: 'STUB', id: 'INTERNAL_SET_LEVEL_RANGE', value: `${targetSLR}:${lv}` } as StubAction) as EffectAction,
+        available: true,
+      }));
+      return needsInteraction(addLog(ctx, 'レベルを選択（1～4）'), { type: 'CHOOSE', options: optsSLR, count: 1 });
+    }
+    // Phase 1: 対象シグニ選択
+    const ownSigniSLR = [0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
+    if (ownSigniSLR.length === 0) return done(addLog(ctx, '対象シグニなし（SET_LEVEL_RANGE）'));
+    const noop: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    const cont: StubAction = { type: 'STUB', id: 'SET_LEVEL_RANGE' };
+    return needsInteraction(addLog(ctx, 'レベルを変更するシグニを選択'), {
+      type: 'SELECT_TARGET', candidates: ownSigniSLR, count: 1, optional: false,
+      targetScope: 'self_field', thenAction: noop as EffectAction, continuation: cont as EffectAction,
+    });
+  }
+  if (stub.id === 'INTERNAL_SET_LEVEL_RANGE') {
+    const valISLR = typeof stub.value === 'string' ? stub.value : '';
+    const [tgtISLR, lvStrISLR] = valISLR.split(':');
+    const lvISLR = parseInt(lvStrISLR);
+    if (!tgtISLR || isNaN(lvISLR)) return done(addLog(ctx, '引数不正（INTERNAL_SET_LEVEL_RANGE）'));
+    const overridesISLR = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [tgtISLR]: lvISLR };
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: overridesISLR } },
+      `${ctx.cardMap.get(tgtISLR)?.CardName ?? tgtISLR}の基本レベルを${lvISLR}に変更`));
   }
   // PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS→collectProtectedZones動的計算 / AUTO→prevent_opp_trash_fromフラグ設置
   if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
@@ -6428,19 +6517,23 @@ export function execStub(
     return selectOrInteract(oppSigniCSC, 1, false, 'opp_field', applyCSC as EffectAction, undefined, ctx);
   }
   // カード属性変更系（engine: 属性変更システム未実装）
-  // SIGNI_LOSE_COLOR: このシグニが色を失う（ターン終了時まで）
+  // SIGNI_LOSE_COLOR: 対戦相手のシグニ1体が色を失う（ターン終了時まで）
   if (stub.id === 'SIGNI_LOSE_COLOR') {
-    const srcSLC = ctx.sourceCardNum;
-    if (!srcSLC) return done(addLog(ctx, 'SIGNI_LOSE_COLOR: ソースなし'));
-    const ownerHasSLC = ctx.ownerState.field.signi.some(s => s?.includes(srcSLC));
-    if (ownerHasSLC) {
-      const overridesSLC = { ...(ctx.ownerState.signi_color_overrides ?? {}), [srcSLC]: '無' };
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, signi_color_overrides: overridesSLC } },
-        `${ctx.cardMap.get(srcSLC)?.CardName ?? srcSLC}が色を失う`));
+    const targetSLC = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.otherState.field.signi.some(s => s?.at(-1) === cn),
+    );
+    if (targetSLC) {
+      const oppOverridesSLC = { ...(ctx.otherState.signi_color_overrides ?? {}), [targetSLC]: '無' };
+      return done(addLog({ ...ctx, otherState: { ...ctx.otherState, signi_color_overrides: oppOverridesSLC } },
+        `${ctx.cardMap.get(targetSLC)?.CardName ?? targetSLC}が色を失う`));
     }
-    const oppOverridesSLC = { ...(ctx.otherState.signi_color_overrides ?? {}), [srcSLC]: '無' };
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, signi_color_overrides: oppOverridesSLC } },
-      `${ctx.cardMap.get(srcSLC)?.CardName ?? srcSLC}が色を失う`));
+    const oppCandsSLC = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
+    if (oppCandsSLC.length === 0) return done(addLog(ctx, '相手シグニなし（SIGNI_LOSE_COLOR）'));
+    const applySLC: StubAction = { type: 'STUB', id: 'SIGNI_LOSE_COLOR' };
+    return needsInteraction(ctx, {
+      type: 'SELECT_TARGET', candidates: oppCandsSLC, count: 1, optional: false,
+      targetScope: 'opp_field', thenAction: applySLC as EffectAction,
+    });
   }
   // COPY_SIGNI: 自フィールドシグニ1体をトラッシュのシグニと同じカードにする（ターン終了時まで）
   if (stub.id === 'COPY_SIGNI') {
@@ -6548,8 +6641,21 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, signi_color_overrides: overridesSGOLC } },
       `${origCardSGOLC?.CardName ?? srcSGOLC}が${lrigColorSGOLC}を得る`));
   }
+  // STACK_ALL_LRIG_UNDER: ルリグトラッシュ全ルリグをこのカードの下に置く
+  if (stub.id === 'STACK_ALL_LRIG_UNDER') {
+    const lrigTrashSALU = ctx.ownerState.lrig_trash ?? [];
+    if (lrigTrashSALU.length === 0) return done(addLog(ctx, 'ルリグトラッシュなし（STACK_ALL_LRIG_UNDER）'));
+    const newLrigStack = [...lrigTrashSALU, ...ctx.ownerState.field.lrig];
+    const newOwnerSALU: PlayerState = {
+      ...ctx.ownerState,
+      lrig_trash: [],
+      field: { ...ctx.ownerState.field, lrig: newLrigStack },
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerSALU },
+      `ルリグトラッシュ${lrigTrashSALU.length}枚をルリグスタック下に配置`));
+  }
   // ルリグデッキ/ライドシステム
-  if (stub.id === 'STACK_ALL_LRIG_UNDER' || stub.id === 'LRIG_RIDE_SIGNI' || stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI'
+  if (stub.id === 'LRIG_RIDE_SIGNI' || stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI'
       || stub.id === 'CENTER_LRIG_DISMOUNT' || stub.id === 'LRIG_GAIN_ABILITY' || stub.id === 'LRIG_ALL_NAMES'
       || stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
     return done(addLog(ctx, `[ルリグシステム: ${stub.id}]`));
@@ -6609,8 +6715,46 @@ export function execStub(
     // トラッシュからシグニをビートゾーンへ（target未実装: ログのみ）
     return done(addLog(ctx, '[トラッシュ→ビートゾーン: 未実装]'));
   }
-  if (stub.id === 'SIGNI_UNDER_WEAPON_SIGNI'
-      || stub.id === 'PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON' || stub.id === 'PLACE_DECK_TOP_UNDER_WEAPON_SIGNI'
+  // SIGNI_UNDER_WEAPON_SIGNI: 自シグニ1体を自＜ウェポン＞シグニの下に置く
+  if (stub.id === 'SIGNI_UNDER_WEAPON_SIGNI') {
+    const ownFieldSUWS = [0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
+    const sourceSUWS = (ctx.lastProcessedCards ?? []).find(cn => ownFieldSUWS.includes(cn));
+    if (!sourceSUWS) {
+      if (ownFieldSUWS.length === 0) return done(addLog(ctx, '自シグニなし（SIGNI_UNDER_WEAPON_SIGNI）'));
+      const noop: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+      const cont: StubAction = { type: 'STUB', id: 'SIGNI_UNDER_WEAPON_SIGNI' };
+      return needsInteraction(addLog(ctx, '下に置くシグニを選択'), {
+        type: 'SELECT_TARGET', candidates: ownFieldSUWS, count: 1, optional: false,
+        targetScope: 'self_field', thenAction: noop as EffectAction, continuation: cont as EffectAction,
+      });
+    }
+    const weaponCandsSUWS = [0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
+      .filter((cn): cn is string => !!cn && cn !== sourceSUWS &&
+        (ctx.cardMap.get(cn)?.CardClass ?? '').includes('ウェポン'));
+    if (weaponCandsSUWS.length === 0) return done(addLog(ctx, 'ウェポンシグニなし（SIGNI_UNDER_WEAPON_SIGNI）'));
+    const applyStubSUWS: StubAction = { type: 'STUB', id: 'INTERNAL_SIGNI_UNDER_WEAPON', value: sourceSUWS };
+    return needsInteraction(addLog(ctx, '下に置く先の＜ウェポン＞シグニを選択'), {
+      type: 'SELECT_TARGET', candidates: weaponCandsSUWS, count: 1, optional: false,
+      targetScope: 'self_field', thenAction: applyStubSUWS as EffectAction,
+    });
+  }
+  // INTERNAL_SIGNI_UNDER_WEAPON: 選択シグニを＜ウェポン＞の下に配置
+  if (stub.id === 'INTERNAL_SIGNI_UNDER_WEAPON') {
+    const srcSUWI = typeof stub.value === 'string' ? stub.value : '';
+    const weaponSUWI = ctx.lastProcessedCards?.[0];
+    if (!srcSUWI || !weaponSUWI) return done(addLog(ctx, '対象なし（INTERNAL_SIGNI_UNDER_WEAPON）'));
+    const signiSUWI = [...(ctx.ownerState.field.signi ?? [])] as (string[] | null)[];
+    const srcZoneSUWI = signiSUWI.findIndex(s => s?.at(-1) === srcSUWI);
+    const weaponZoneSUWI = signiSUWI.findIndex(s => s?.at(-1) === weaponSUWI);
+    if (srcZoneSUWI < 0 || weaponZoneSUWI < 0) return done(addLog(ctx, 'ゾーン特定不可（INTERNAL_SIGNI_UNDER_WEAPON）'));
+    const srcStackSUWI = [...(signiSUWI[srcZoneSUWI] ?? [])];
+    signiSUWI[srcZoneSUWI] = srcStackSUWI.length > 1 ? srcStackSUWI.slice(0, -1) : null;
+    signiSUWI[weaponZoneSUWI] = [srcSUWI, ...(signiSUWI[weaponZoneSUWI] ?? [])];
+    const newOwnerSUWI = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: signiSUWI } };
+    return done(addLog({ ...ctx, ownerState: newOwnerSUWI },
+      `${ctx.cardMap.get(srcSUWI)?.CardName ?? srcSUWI}を${ctx.cardMap.get(weaponSUWI)?.CardName ?? weaponSUWI}の下に配置`));
+  }
+  if (stub.id === 'PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON' || stub.id === 'PLACE_DECK_TOP_UNDER_WEAPON_SIGNI'
       || stub.id === 'CONDITIONAL_TRASH_UNDER_SIGNI') {
     return done(addLog(ctx, `[ビートゾーン: ${stub.id}]`));
   }
@@ -7281,17 +7425,25 @@ export function execStub(
       `${ctx.cardMap.get(targetSigniASAC)?.CardName ?? targetSigniASAC}が全色を持つ`));
   }
   // TRASH_ACCE_AT_TURN_END: アクセカードをターン終了時にトラッシュ（即座に処理）
+  // TRASH_ACCE_AT_TURN_END: このシグニに付いているアクセ1枚をトラッシュへ
   if (stub.id === 'TRASH_ACCE_AT_TURN_END') {
-    const accesTATE = ctx.ownerState.field.signi_acce ?? [null, null, null];
-    const acceCardsToTrash = accesTATE.filter((cn): cn is string => cn !== null);
-    if (acceCardsToTrash.length === 0) return done(addLog(ctx, 'アクセなし（トラッシュ対象なし）'));
-    const newAcceTATE = [null, null, null] as (string | null)[];
+    const srcTATE = ctx.sourceCardNum;
+    const zoneIdxTATE = srcTATE
+      ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcTATE)
+      : -1;
+    const acceTATE = zoneIdxTATE >= 0
+      ? (ctx.ownerState.field.signi_acce ?? [null, null, null])[zoneIdxTATE]
+      : null;
+    if (!acceTATE) return done(addLog(ctx, 'アクセなし（TRASH_ACCE_AT_TURN_END）'));
+    const newAcceTATE = [...(ctx.ownerState.field.signi_acce ?? [null, null, null])] as (string | null)[];
+    newAcceTATE[zoneIdxTATE] = null;
     const newSTATE: PlayerState = {
       ...ctx.ownerState,
-      trash: [...ctx.ownerState.trash, ...acceCardsToTrash],
+      trash: [...ctx.ownerState.trash, acceTATE],
       field: { ...ctx.ownerState.field, signi_acce: newAcceTATE },
     };
-    return done(addLog({ ...ctx, ownerState: newSTATE }, `アクセ${acceCardsToTrash.length}枚→トラッシュ（ターン終了）`));
+    return done(addLog({ ...ctx, ownerState: newSTATE },
+      `${ctx.cardMap.get(acceTATE)?.CardName ?? acceTATE}（アクセ）→トラッシュ`));
   }
   // MULTI_ACCE_LIMIT: アクセを特定枚数に制限（ログのみ）
   if (stub.id === 'MULTI_ACCE_LIMIT') {
@@ -8325,20 +8477,40 @@ export function execStub(
       targetScope: 'self_field', thenAction: attachAFTR as EffectAction,
     });
   }
-  // SIGNI_REPOSITION: 自分のシグニ1体を空きゾーンに移動
+  // SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体）
   if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'SWAP_OPTIONAL') {
-    const signiSR = ctx.ownerState.field.signi ?? [];
-    const emptyIdxSR = signiSR.findIndex(s => !s || s.length === 0);
-    if (emptyIdxSR < 0) return done(addLog(ctx, '空きゾーンなし（配置替え不可）'));
-    const candidatesSR = signiSR.flatMap(stack => (stack && stack.length > 0 ? [stack[stack.length - 1]] : []));
-    if (candidatesSR.length === 0) return done(addLog(ctx, 'シグニなし'));
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: candidatesSR, count: 1, optional: stub.id === 'SWAP_OPTIONAL',
-      targetScope: 'self_field',
-      thenAction: { type: 'STUB', id: 'INTERNAL_REPOSITION_MOVE' } as EffectAction,
-    });
+    const srcCardSR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtSR = srcCardSR ? (srcCardSR.EffectText ?? '') + ' ' + (srcCardSR.BurstText ?? '') : '';
+    const isOppSR = txtSR.includes('対戦相手のシグニ');
+    const isAllSR = txtSR.includes('すべてのシグニを') && !isOppSR;
+    const targetStateSR = isOppSR ? ctx.otherState : ctx.ownerState;
+    const targetScopeSR: TargetScope = isOppSR ? 'opp_field' : 'self_field';
+    if (isAllSR) return done(addLog(ctx, '[全シグニ配置替え: 複雑効果ログのみ]'));
+    // 対象シグニ選択
+    const selectedSR = (ctx.lastProcessedCards ?? []).find(cn =>
+      targetStateSR.field.signi.some(s => s?.at(-1) === cn),
+    );
+    if (!selectedSR) {
+      const candsSR = targetStateSR.field.signi.flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+      if (candsSR.length === 0) return done(addLog(ctx, 'シグニなし（SIGNI_REPOSITION）'));
+      const noopSR: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+      const contSR: StubAction = { type: 'STUB', id: stub.id };
+      return needsInteraction(addLog(ctx, '配置替えするシグニを選択'), {
+        type: 'SELECT_TARGET', candidates: candsSR, count: 1, optional: stub.id === 'SWAP_OPTIONAL',
+        targetScope: targetScopeSR, thenAction: noopSR as EffectAction, continuation: contSR as EffectAction,
+      });
+    }
+    // 移動先ゾーン選択
+    const currentZoneSR = targetStateSR.field.signi.findIndex(s => s?.at(-1) === selectedSR);
+    const zoneOptsSR = [0,1,2].filter(i => i !== currentZoneSR).map(zi => ({
+      id: `zone_${zi}`, label: `ゾーン${zi+1}へ移動`,
+      action: ({ type: 'STUB', id: 'INTERNAL_REPOSITION_TO_ZONE',
+        value: `${selectedSR}:${zi}:${isOppSR}` } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, '移動先ゾーンを選択'), { type: 'CHOOSE', options: zoneOptsSR, count: 1 });
   }
-  // INTERNAL_REPOSITION_MOVE: 選択シグニを空きゾーンへ移動（SIGNI_REPOSITIONの後半）
+  // INTERNAL_REPOSITION_MOVE: 選択シグニを空きゾーンへ移動（後方互換）
   if (stub.id === 'INTERNAL_REPOSITION_MOVE') {
     const cnIRM = ctx.lastProcessedCards?.[0];
     if (!cnIRM) return done(addLog(ctx, '対象なし'));
@@ -8352,6 +8524,37 @@ export function execStub(
     const newSIRM: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: signiIRM } };
     return done(addLog({ ...ctx, ownerState: newSIRM },
       `${ctx.cardMap.get(cnIRM)?.CardName ?? cnIRM}をゾーン${srcIdxIRM + 1}→${dstIdxIRM + 1}に移動`));
+  }
+  // INTERNAL_REPOSITION_TO_ZONE: 選択シグニを指定ゾーンへ移動（SIGNI_REPOSITIONの後半）
+  if (stub.id === 'INTERNAL_REPOSITION_TO_ZONE') {
+    const valIRTZ = typeof stub.value === 'string' ? stub.value : '';
+    const [cnIRTZ, dstStrIRTZ, isOppStrIRTZ] = valIRTZ.split(':');
+    const dstIdxIRTZ = parseInt(dstStrIRTZ);
+    const isOppIRTZ = isOppStrIRTZ === 'true';
+    if (!cnIRTZ || isNaN(dstIdxIRTZ)) return done(addLog(ctx, '引数不正（INTERNAL_REPOSITION_TO_ZONE）'));
+    const targetStateIRTZ = isOppIRTZ ? ctx.otherState : ctx.ownerState;
+    const signiIRTZ = [...targetStateIRTZ.field.signi] as (string[] | null)[];
+    const srcIdxIRTZ = signiIRTZ.findIndex(s => s?.at(-1) === cnIRTZ);
+    if (srcIdxIRTZ < 0) return done(addLog(ctx, 'ゾーン特定不可（INTERNAL_REPOSITION_TO_ZONE）'));
+    // 移動先が空きなら移動、占有なら入れ替え
+    const stackSrcIRTZ = signiIRTZ[srcIdxIRTZ]!;
+    const stackDstIRTZ = signiIRTZ[dstIdxIRTZ];
+    if (!stackDstIRTZ || stackDstIRTZ.length === 0) {
+      signiIRTZ[srcIdxIRTZ] = stackSrcIRTZ.length > 1 ? stackSrcIRTZ.slice(0, -1) : null;
+      signiIRTZ[dstIdxIRTZ] = [cnIRTZ];
+    } else {
+      const topDstIRTZ = stackDstIRTZ[stackDstIRTZ.length - 1];
+      signiIRTZ[srcIdxIRTZ] = stackSrcIRTZ.length > 1
+        ? [...stackSrcIRTZ.slice(0, -1), topDstIRTZ] : [topDstIRTZ];
+      signiIRTZ[dstIdxIRTZ] = stackDstIRTZ.length > 1
+        ? [...stackDstIRTZ.slice(0, -1), cnIRTZ] : [cnIRTZ];
+    }
+    const newStateIRTZ = { ...targetStateIRTZ, field: { ...targetStateIRTZ.field, signi: signiIRTZ } };
+    const newCtxIRTZ = isOppIRTZ
+      ? { ...ctx, otherState: newStateIRTZ }
+      : { ...ctx, ownerState: newStateIRTZ };
+    return done(addLog(newCtxIRTZ,
+      `${ctx.cardMap.get(cnIRTZ)?.CardName ?? cnIRTZ}をゾーン${srcIdxIRTZ+1}→${dstIdxIRTZ+1}に移動`));
   }
   // GRANT_CONDITIONAL_ASSASSIN_ABILITY: 条件付きアサシンをkeyword_grantsに付与
   if (stub.id === 'GRANT_CONDITIONAL_ASSASSIN_ABILITY') {
