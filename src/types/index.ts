@@ -181,6 +181,8 @@ export interface PlayerState {
   card_identity_overrides?: Record<string, string>;
   // DEPLOY_RESTRICT: このターンと次のターン、このパワー以上のシグニを場に出せない（自ターン基準）
   signi_deploy_power_limit?: number;
+  // ACTIVATE_COST_ZERO_BLACK: このカードの次の起動能力コストを《黒×0》にする（CardNum）
+  activate_cost_zero_signi?: string;
 }
 
 export interface GameLog {

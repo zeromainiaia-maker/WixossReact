@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits } from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, collectAllColorSigni, hasAllCardsColorBlack } from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -1217,13 +1217,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // FIELD_ENERGY_SIGNI_GAIN_COLOR: エナゾーンの追加色マップ（instId -> 追加色）
+  // ALL_ZONE_BLACK / ALL_CARDS_COLOR_CHANGE_BLACK も考慮
   const myEnergyExtraColors = useMemo((): Map<string, string> => {
     const map = new Map<string, string>();
     if (!bs || bs.global_phase !== 'PLAYING') return map;
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
     for (const { gainColor, instIds } of collectFieldEnergySigniColorGains(myS, battleCardMap, effectsMap)) {
       for (const id of instIds) map.set(id, gainColor);
+    }
+    // ALL_ZONE_BLACK: 全ゾーンで黒でもあるカードをエナ内で黒追加
+    const allZoneBlackNums = collectAllZoneBlackCardNums(effectsMap);
+    const allMyCardsBlack = hasAllCardsColorBlack(myS, opS, myTurn, effectsMap, battleCardMap);
+    if (allZoneBlackNums.size > 0 || allMyCardsBlack) {
+      for (const instId of myS.energy) {
+        const baseNum = getCardNum(instId);
+        const card = battleCardMap.get(baseNum);
+        const currentColor = card?.Color ?? '無';
+        if (!currentColor.includes('黒') && !map.has(instId)) {
+          if (allMyCardsBlack || allZoneBlackNums.has(baseNum)) map.set(instId, '黒');
+        }
+      }
     }
     return map;
   }, [bs, battleCardMap, effectsMap, user.id]);

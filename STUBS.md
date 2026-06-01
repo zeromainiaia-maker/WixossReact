@@ -82,35 +82,35 @@
 | 2 | AUTO | ✅ | POWER_MOD_BY_ATTACKER_LEVEL ※v0.140: SELECT_TARGET(奇数/偶数フィルタ)追加・重複ハンドラ削除 |
 | 2 | AUTO | ✅ | POWER_MOD_BY_HAND_COUNT |
 | 2 | AUTO | ✅ | POWER_MOD_BY_LRIG_TRASH_ARTS ※v0.140: SELECT_TARGET追加・重複ハンドラ削除 |
-| 2 | ACTIVATED/LIFE | ⚡ | PREVENT_LRIG_DAMAGE_THIS_TURN |
+| 2 | ACTIVATED/LIFE | ✅ | PREVENT_LRIG_DAMAGE_THIS_TURN ※prevent_lrig_damageフラグ設置・BattleScreenで完全実装済み |
 | 2 | CONT | ✅ | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP ※v0.111: collectAbilityProtectedSigni+ExecCtx.otherProtectedSigniNums |
-| 2 | AUTO | ⚡ | REACTIVE_POWER_UP |
-| 2 | AUTO/ACTIVATED | ⚡ | REMOVE_SIGNI_ZONE |
+| 2 | AUTO | ✅ | REACTIVE_POWER_UP ※相手temp_power_modsのマイナス合計を自パワーに加算 |
+| 2 | AUTO/ACTIVATED | ✅ | REMOVE_SIGNI_ZONE ※CHOOSE+INTERNAL_REMOVE_SIGNI_ZONEで実装済み |
 | 2 | AUTO | ⚡ | RIDE_ON |
 | 2 | ACTIVATED/LIFE | ⚡ | SET_OPP_SIGNI_AS_TRAP |
-| 2 | ACTIVATED | ⚡ | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY |
+| 2 | ACTIVATED | ✅ | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY ※v0.141: SELECT_TARGET(自フィールド)+keyword_grants付与(assassin/shadow/lancer等) |
 | 2 | AUTO | ⚡ | SIGNI_SERVANT_ZERO |
 | 2 | CONT | ✅ | SPECIFIC_CARD_COST_REDUCE ※v0.111: collectSpecificCardCostReductions+removeNColorFromCost |
 | 2 | AUTO/ACTIVATED | ⚡ | TRAP_TO_HAND |
-| 2 | AUTO | ⚡ | VIEW_AND_DISCARD_SPELL |
+| 2 | AUTO | ✅ | VIEW_AND_DISCARD_SPELL ※相手手札スペル選択+TRASH実装済み・重複ハンドラ削除 |
 | 1 | CONT | 📝 | ACCE_BANISH_SELF_TRASH |
 | 1 | CONT | 📝 | ACCE_COST_REDUCTION |
 | 1 | AUTO | ⚡ | ACCE_FROM_TRASH |
 | 1 | CONT | 📝 | ACCE_SIGNI_ALL_COLOR |
 | 1 | CONT | 📝 | ACCE_SIGNI_GRANT_ABILITY |
 | 1 | AUTO | ⚡ | ACCE_TO_ENERGY |
-| 1 | AUTO | ⚡ | ACTIVATE_COST_ZERO_BLACK |
+| 1 | AUTO | ⚡ | ACTIVATE_COST_ZERO_BLACK ※v0.141: SELECT_TARGET(トラッシュシグニ)+activate_cost_zero_signiフラグ設置 |
 | 1 | ACTIVATED | ⚡ | ACTIVATE_EICHI_ABILITY |
-| 1 | AUTO | ⚡ | ADD_CARD_TO_LRIG_DECK |
+| 1 | AUTO | ⚡ | ADD_CARD_TO_LRIG_DECK ※v0.141: lastProcessedCardsなし時は《カード名》テキスト解析→デッキ/手札から移動 |
 | 1 | CONT | 📝 | ADD_RESONANCE_CONDITION |
 | 1 | CONT | ✅ | ADJACENT_ZONE_ATTACK ※v0.116: 英知=10条件付き・隣ゾーン1つ追加バトル（有利な方を自動選択） |
-| 1 | CONT | 📝 | ALL_CARDS_COLOR_CHANGE_BLACK |
-| 1 | ACTIVATED | ⚡ | ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE |
-| 1 | CONT | ⚡ | ALL_CLASS ※v0.115: collectAllClassSigni実装（レゾナ条件等のfiltterに活用可） |
-| 1 | CONT | 📝 | ALL_COLOR |
-| 1 | AUTO | ⚡ | ALL_OPP_SIGNI_POWER_DOWN_HALF |
+| 1 | CONT | ⚡ | ALL_CARDS_COLOR_CHANGE_BLACK ※v0.141: effectEngine.hasAllCardsColorBlack追加・myEnergyExtraColorsに黒色反映 |
+| 1 | ACTIVATED | ⚡ | ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE ※ログのみ改善 |
+| 1 | CONT | ✅ | ALL_CLASS ※v0.115: collectAllClassSigni実装（レゾナ条件等のfiltterに活用可） |
+| 1 | CONT | ⚡ | ALL_COLOR ※v0.141: effectEngine.collectAllColorSigni追加・myEnergyExtraColorsでの色追加（フィールドシグニへの全色適用は未） |
+| 1 | AUTO | ✅ | ALL_OPP_SIGNI_POWER_DOWN_HALF ※自パワー÷2だけ相手全シグニのtemp_power_modsに適用 |
 | 1 | ACTIVATED | ⚡ | ALL_OPP_SIGNI_SERVANT_ZERO |
-| 1 | CONT | 📝 | ALL_ZONE_BLACK |
+| 1 | CONT | ⚡ | ALL_ZONE_BLACK ※v0.141: effectEngine.collectAllZoneBlackCardNums追加・myEnergyExtraColorsでエナゾーン黒色反映 |
 | 1 | CONT | 📝 | ARM_SIGNI_LRIG_PROTECTION |
 | 1 | ACTIVATED | ⚡ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR |
 | 1 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
@@ -389,6 +389,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-06-01 v0.141 | 17件処理: PREVENT_LRIG_DAMAGE_THIS_TURN/REACTIVE_POWER_UP/REMOVE_SIGNI_ZONE/VIEW_AND_DISCARD_SPELL/ALL_OPP_SIGNI_POWER_DOWN_HALF(✅確認)。SIGNI_GRANT_QUOTED_CONSTANT_ABILITY(SELECT+keyword_grants)。ACTIVATE_COST_ZERO_BLACK/ADD_CARD_TO_LRIG_DECK(⚡改善)。effectEngine: collectAllZoneBlackCardNums/collectAllColorSigni/hasAllCardsColorBlack追加。BattleScreen myEnergyExtraColorsにALL_ZONE_BLACK+ALL_CARDS_COLOR_CHANGE_BLACK反映 | 17件 |
 | 2026-06-01 v0.140 | 8件✅化: OPP_CHOOSE_OWN_SIGNI_TO_ENERGY(field→energy修正)/OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL(excess1枚固定)/OPP_SIGNI_ATTACK_POWER_RESTRICT(BattleScreenパワー上限チェック)/PLACE_SIGNI_UNDER_SELF_OPT(exactLevel/fieldソース)/PLAY_SPELL_FREE_IGNORE_RESTRICTION(SELECT+分離)/POWER_MOD_BY_ATTACKER_LEVEL(SELECT+奇偶フィルタ)/POWER_MOD_BY_LRIG_TRASH_ARTS(SELECT追加)/effects.ts+effectExecutor.ts(fromLocation:'field'追加) | 8件 |
 | 2026-05-31 v0.126 | POWER_MOD_PER_COUNT (AUTO/ACTIVATED 51件): 手札/エナ/登録者数N枚につきパターン追加・正デルタ時ソースシグニへ適用 | POWER_MOD_PER_COUNT |
 | 2026-05-31 v0.126 | COUNT_BASED_DRAW_OR_POWER (スタンドアロン5件): エナ/手札/登録者数/フィールド体数ベースのドロー・パワー修正パターン追加 | COUNT_BASED_DRAW_OR_POWER |

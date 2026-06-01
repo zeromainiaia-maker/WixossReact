@@ -2209,3 +2209,81 @@ export function collectBounceProtectedSigni(
   }
   return [...protected_];
 }
+
+/**
+ * ALL_ZONE_BLACK: effectsMap 中のすべてのカードを走査し、
+ * CONTINUOUS STUB 'ALL_ZONE_BLACK' を持つカードの CardNum 集合を返す。
+ * これらのカードはすべての領域（手札・エナ・トラッシュ等）で黒でもある。
+ */
+export function collectAllZoneBlackCardNums(
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): Set<string> {
+  const result = new Set<string>();
+  for (const [cardNum, effs] of effectsMap) {
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ALL_ZONE_BLACK') { result.add(cardNum); break; }
+    }
+  }
+  return result;
+}
+
+/**
+ * ALL_COLOR: フィールド上のシグニが ALL_COLOR CONTINUOUS 効果を持ち、かつ条件（トラッシュ内の種類数）を満たすなら
+ * そのシグニ CardNum のセットを返す。これらのシグニはすべての色を持つ。
+ */
+export function collectAllColorSigni(
+  ownerState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Set<string> {
+  const result = new Set<string>();
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    const effs = effectsMap.get(top) ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'ALL_COLOR') continue;
+      const txt = (cardMap.get(top)?.EffectText ?? '') + ' ' + (cardMap.get(top)?.BurstText ?? '');
+      const reqM = txt.match(/([０-９\d]+)種類以上/);
+      const required = reqM ? parseInt(toHW(reqM[1])) : 10;
+      const nameFilterM = txt.match(/カード名に《([^》]+)》を含む/);
+      const nameFilter = nameFilterM?.[1] ?? '';
+      const distinctNames = new Set(ownerState.trash.filter(cn => {
+        const c = cardMap.get(cn);
+        if (!c || c.Type !== 'シグニ') return false;
+        return !nameFilter || (c.CardName ?? '').includes(nameFilter);
+      }).map(cn => cardMap.get(cn)?.CardName ?? cn));
+      if (distinctNames.size >= required) result.add(top);
+    }
+  }
+  return result;
+}
+
+/**
+ * ALL_CARDS_COLOR_CHANGE_BLACK: フィールド上のシグニが ALL_CARDS_COLOR_CHANGE_BLACK CONTINUOUS 効果を
+ * 持ちアクティブであれば true を返す。そのプレイヤーのすべてのカードは黒でもある。
+ */
+export function hasAllCardsColorBlack(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): boolean {
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'ALL_CARDS_COLOR_CHANGE_BLACK') continue;
+      if (checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, top)) return true;
+    }
+  }
+  return false;
+}

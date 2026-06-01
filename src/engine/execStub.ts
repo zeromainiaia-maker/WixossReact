@@ -4259,17 +4259,43 @@ export function execStub(
   // ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える
   if (stub.id === 'ADD_CARD_TO_LRIG_DECK' || stub.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN') {
     const cardsACLD = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards : [];
-    if (cardsACLD.length === 0) return done(addLog(ctx, '対象カードなし'));
-    let sACLD = ctx.ownerState;
-    for (const cn of cardsACLD) {
-      sACLD = {
-        ...sACLD,
-        hand: sACLD.hand.filter(c => c !== cn),
-        trash: sACLD.trash.filter(c => c !== cn),
-        lrig_deck: [...sACLD.lrig_deck, cn],
-      };
+    if (cardsACLD.length > 0) {
+      let sACLD = ctx.ownerState;
+      for (const cn of cardsACLD) {
+        sACLD = {
+          ...sACLD,
+          hand: sACLD.hand.filter(c => c !== cn),
+          trash: sACLD.trash.filter(c => c !== cn),
+          lrig_deck: [...sACLD.lrig_deck, cn],
+        };
+      }
+      return done(addLog({ ...ctx, ownerState: sACLD }, `${cardsACLD.length}枚をルリグデッキに加えた`));
     }
-    return done(addLog({ ...ctx, ownerState: sACLD }, `${cardsACLD.length}枚をルリグデッキに加えた`));
+    // lastProcessedCards なし：テキストから《カード名》を解析してデッキ/手札/トラッシュから移動
+    const srcACLD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtACLD = srcACLD ? (srcACLD.EffectText ?? '') + ' ' + (srcACLD.BurstText ?? '') : '';
+    const nameMatchesACLD = [...txtACLD.matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    if (nameMatchesACLD.length === 0) return done(addLog(ctx, '[ADD_CARD_TO_LRIG_DECK: カード名解析不可]'));
+    let sACLD2 = ctx.ownerState;
+    let addedACLD = 0;
+    for (const name of nameMatchesACLD) {
+      // デッキ→手札→トラッシュの順で探す
+      const deckIdx = sACLD2.deck.findIndex(cn => ctx.cardMap.get(cn)?.CardName === name);
+      if (deckIdx >= 0) {
+        const cn = sACLD2.deck[deckIdx];
+        sACLD2 = { ...sACLD2, deck: sACLD2.deck.filter((_, i) => i !== deckIdx), lrig_deck: [...sACLD2.lrig_deck, cn] };
+        addedACLD++;
+        continue;
+      }
+      const handIdx = sACLD2.hand.findIndex(cn => ctx.cardMap.get(cn)?.CardName === name);
+      if (handIdx >= 0) {
+        const cn = sACLD2.hand[handIdx];
+        sACLD2 = { ...sACLD2, hand: sACLD2.hand.filter((_, i) => i !== handIdx), lrig_deck: [...sACLD2.lrig_deck, cn] };
+        addedACLD++;
+      }
+    }
+    return done(addLog({ ...ctx, ownerState: sACLD2 },
+      `ルリグデッキに${addedACLD}枚加えた（${nameMatchesACLD.join('・')}）`));
   }
   // PREVENT_LOW_LEVEL_LRIG_DAMAGE / PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ
   if (stub.id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' || stub.id === 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP') {
@@ -4319,15 +4345,6 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSFTCZ }, `${ctx.cardMap.get(cnFTCZ)?.CardName ?? cnFTCZ}をセンターゾーンへ`));
   }
   // VIEW_AND_DISCARD_SPELL: 手札からスペルを選んでトラッシュへ
-  if (stub.id === 'VIEW_AND_DISCARD_SPELL') {
-    const spellsVADS = ctx.ownerState.hand.filter(cn => ctx.cardMap.get(cn)?.Type === 'スペル');
-    if (spellsVADS.length === 0) return done(addLog(ctx, '手札にスペルなし'));
-    const thenVADS: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: spellsVADS, count: 1, optional: false,
-      targetScope: 'self_hand', thenAction: thenVADS,
-    });
-  }
   if (stub.id === 'INTERNAL_TRASH_CARD') {
     const cnITC = ctx.lastProcessedCards?.[0];
     if (!cnITC) return done(ctx);
@@ -5850,13 +5867,49 @@ export function execStub(
   if (stub.id === 'GRANT_CHOSEN_ABILITY_FROM_PLAY') {
     return done(addLog(ctx, '[能力付与（プレイ時選択）: 複雑効果スキップ]'));
   }
+  // SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 引用常在能力を自シグニに付与（SELECT_TARGET→keyword_grants）
+  if (stub.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY') {
+    const srcSGQCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtSGQCA = srcSGQCA ? (srcSGQCA.EffectText ?? '') + ' ' + (srcSGQCA.BurstText ?? '') : '';
+    const toHWSGQCA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 付与するキーワードを引用文から解析
+    let kwSGQCA: string | null = null;
+    if (txtSGQCA.includes('アサシン')) kwSGQCA = 'assassin';
+    else if (txtSGQCA.includes('シャドウ')) kwSGQCA = 'shadow';
+    else if (txtSGQCA.includes('ランサー')) kwSGQCA = 'lancer';
+    else if (txtSGQCA.includes('ダブルクラッシュ')) kwSGQCA = 'double_crush';
+    else if (txtSGQCA.includes('ガード')) kwSGQCA = 'guard';
+    // 対象シグニ数
+    const countMSGQCA = txtSGQCA.match(/シグニを([０-９\d]+)体まで/);
+    const maxCntSGQCA = countMSGQCA ? parseInt(toHWSGQCA(countMSGQCA[1])) : 1;
+    // 対象選択済みならキーワードを付与
+    if (ctx.lastProcessedCards?.length) {
+      if (!kwSGQCA) return done(addLog(ctx, '[SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: キーワード解析不可]'));
+      const newGrants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+      for (const cn of ctx.lastProcessedCards) {
+        const prev = newGrants[cn] ?? [];
+        if (!prev.includes(kwSGQCA)) newGrants[cn] = [...prev, kwSGQCA];
+      }
+      const names = ctx.lastProcessedCards.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: newGrants } },
+        `${names}→【${kwSGQCA}】付与`));
+    }
+    // 自フィールドからSELECT_TARGET
+    const fieldCandsSGQCA = ctx.ownerState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+    if (fieldCandsSGQCA.length === 0) return done(addLog(ctx, '自フィールドにシグニなし'));
+    const contSGQCA: StubAction = { type: 'STUB', id: 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY' };
+    return needsInteraction(addLog(ctx, `シグニを選択（引用常在能力付与: ${kwSGQCA ?? '?'}）`), {
+      type: 'SELECT_TARGET', candidates: fieldCandsSGQCA, count: maxCntSGQCA, optional: true,
+      targetScope: 'self_field', thenAction: contSGQCA as EffectAction,
+    });
+  }
   // 能力付与系（engine: CardEffect付与システム未実装）
   if (stub.id === 'GRANT_LRIG_ABILITY' || stub.id === 'GRANT_LRIG_TRASH_ACTIVATE_ABILITY'
       || stub.id === 'GRANT_UNDER_LRIG_ACTIVATE_ABILITY' || stub.id === 'GRANT_UNDER_LRIG_AUTO_ABILITY'
       || stub.id === 'GRANT_UNDER_SIGNI_ALL_ABILITIES' || stub.id === 'GRANT_UNDER_SIGNI_CONSTANT_ABILITY'
       || stub.id === 'GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE' || stub.id === 'GRANT_ABILITY_UNTIL_OPP_TURN'
       || stub.id === 'GRANT_SIGNI_CLASS' || stub.id === 'COPY_ABILITY'
-      || stub.id === 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY' || stub.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY'
+      || stub.id === 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY'
       || stub.id === 'GRANT_LRIG_TYPE_GAME_WIDE') {
     return done(addLog(ctx, `[能力付与: ${stub.id}]`));
   }
@@ -6093,12 +6146,20 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerICSA },
       `${fieldName}が${trashName}と同じカードになる（ターン終了時まで）`));
   }
+  // ALL_CLASS: CONTINUOUS→effectEngine.collectAllClassSigniで動的処理済み
+  if (stub.id === 'ALL_CLASS') return done(addLog(ctx, '[ALL_CLASS: effectEngineで処理]'));
+  // ALL_COLOR: CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み
+  if (stub.id === 'ALL_COLOR') return done(addLog(ctx, '[ALL_COLOR: effectEngineで処理]'));
+  // ALL_ZONE_BLACK: CONTINUOUS→effectEngine.collectAllZoneBlackCardNumsで動的処理済み
+  if (stub.id === 'ALL_ZONE_BLACK') return done(addLog(ctx, '[ALL_ZONE_BLACK: effectEngineで処理]'));
+  // ALL_CARDS_COLOR_CHANGE_BLACK: CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み
+  if (stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK') return done(addLog(ctx, '[ALL_CARDS_COLOR_CHANGE_BLACK: effectEngineで処理]'));
+  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（ログのみ）
+  if (stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') return done(addLog(ctx, '[ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体効果ログ]'));
   if (stub.id === 'COPY_CARD'
       || stub.id === 'CHANGE_BASE_LEVEL' || stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN'
       || stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
       || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
-      || stub.id === 'ALL_CLASS' || stub.id === 'ALL_COLOR' || stub.id === 'ALL_ZONE_BLACK'
-      || stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK' || stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE'
       || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK'
       || stub.id === 'INHERIT_OPP_LRIG_TYPE' || stub.id === 'INHERIT_UNDER_SIGNI_COLOR') {
     return done(addLog(ctx, `[属性変更: ${stub.id}]`));
@@ -6660,9 +6721,21 @@ export function execStub(
   if (stub.id === 'UPKEEP_OR_NO_UP') {
     return done(addLog(ctx, 'アップキープかアップなし'));
   }
-  // ACTIVATE_COST_ZERO_BLACK: 黒の起動コスト0（ログのみ）
+  // ACTIVATE_COST_ZERO_BLACK: トラッシュのシグニを選択→次の起動コストを《黒×0》に
   if (stub.id === 'ACTIVATE_COST_ZERO_BLACK') {
-    return done(addLog(ctx, '黒の起動コスト0'));
+    if (!ctx.lastProcessedCards?.length) {
+      const trashSigniACZB = ctx.ownerState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+      if (trashSigniACZB.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし（ACTIVATE_COST_ZERO_BLACK）'));
+      const contACZB: StubAction = { type: 'STUB', id: 'ACTIVATE_COST_ZERO_BLACK' };
+      return needsInteraction(addLog(ctx, 'コスト0にするシグニを選択（トラッシュから）'), {
+        type: 'SELECT_TARGET', candidates: trashSigniACZB, count: 1, optional: false,
+        targetScope: 'self_trash', thenAction: contACZB as EffectAction,
+      });
+    }
+    const targetACZB = ctx.lastProcessedCards[0];
+    const newOwnerACZB = { ...ctx.ownerState, activate_cost_zero_signi: targetACZB };
+    return done(addLog({ ...ctx, ownerState: newOwnerACZB },
+      `${ctx.cardMap.get(targetACZB)?.CardName ?? targetACZB}の次の起動コスト→《黒×0》`));
   }
   // BET_CONDITION: ベット条件（ログのみ）
   if (stub.id === 'BET_CONDITION') {
