@@ -7354,6 +7354,48 @@ export function execStub(
       if (!choiceAction && choiceTxt.match(/デッキの一番下.*トラッシュ.*同じレベル.*ダウン/)) {
         choiceAction = ({ type: 'STUB', id: 'INTERNAL_DECK_BOTTOM_LEVEL_DOWN' } as StubAction) as EffectAction;
       }
+      // 「シグニをエナゾーンに置く」→ バニッシュ（エナゾーンへ移動）
+      if (!choiceAction && choiceTxt.match(/対戦相手のシグニ[１1]体.*エナゾーンに置く/)) {
+        choiceAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction as EffectAction;
+      }
+      // 「凍結する」→ FREEZE（単独またはダウンと組み合わせ）
+      if (!choiceAction && choiceTxt.match(/凍結する/)) {
+        if (choiceTxt.match(/ダウンし.*凍結/)) {
+          // DOWN + FREEZE ALL
+          choiceAction = ({ type: 'STUB', id: 'INTERNAL_DOWN_AND_FREEZE_OPP' } as StubAction) as EffectAction;
+        } else {
+          choiceAction = { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').FreezeAction as EffectAction;
+        }
+      }
+      // 「スペルの効果を打ち消す」→ ログのみ（解決インタラクション未実装）
+      if (!choiceAction && choiceTxt.match(/スペル.*効果を打ち消す|スペル.*打ち消す/)) {
+        choiceAction = ({ type: 'STUB', id: 'NEGATE_SPELL_EFFECT' } as StubAction) as EffectAction;
+      }
+      // 「トラッシュからシグニ1枚を手札に加える」→ ADD_TO_HAND from trash
+      if (!choiceAction && choiceTxt.match(/トラッシュから.*シグニ[１1]枚.*手札に加える/)) {
+        choiceAction = ({ type: 'STUB', id: 'INTERNAL_TRASH_SIGNI_TO_HAND' } as StubAction) as EffectAction;
+      }
+      // 「バニッシュする」（パワー制限なし、または以上）
+      if (!choiceAction && choiceTxt.match(/シグニ[１1]体.*バニッシュする/)) {
+        const gte = choiceTxt.match(/パワー([０-９\d万]+)以上.*バニッシュ/);
+        if (gte) {
+          // パワー以上バニッシュは選択インタラクション（簡易実装：対象選択なし）
+          const minPwr = parseInt(toHWCMCBC(gte[1]).replace('万', '0000'));
+          choiceAction = ({ type: 'STUB', id: 'INTERNAL_BANISH_OPP_POWER_GTE', value: minPwr } as StubAction) as EffectAction;
+        } else if (!choiceTxt.match(/パワー/)) {
+          choiceAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction as EffectAction;
+        }
+      }
+      // 「ダブルクラッシュ/ランサー等のキーワードを得る」
+      if (!choiceAction && choiceTxt.match(/【ダブルクラッシュ】を得る|【ランサー】を得る|【アサシン】を得る/)) {
+        const kw = choiceTxt.includes('ダブルクラッシュ') ? 'double_crush'
+          : choiceTxt.includes('ランサー') ? 'lancer' : 'assassin';
+        choiceAction = ({ type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: kw, duration: 'UNTIL_END_OF_TURN' } as import('../types/effects').GrantKeywordAction) as EffectAction;
+      }
+      // 「シグニを手札に戻す」→ BOUNCE
+      if (!choiceAction && choiceTxt.match(/シグニ[１1]体.*手札に戻す/)) {
+        choiceAction = { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BounceAction as EffectAction;
+      }
       if (choiceAction) {
         optionsCMCBC.push({
           id: `choice_${idx}`,
@@ -7364,13 +7406,52 @@ export function execStub(
       }
     }
     if (optionsCMCBC.length > 0) {
-      return needsInteraction(addLog(ctx, `効果を最大${maxChooseCount}つ選択してください`), {
+      const condLogCMCBC = centerCondM
+        ? `（${condMetCMCBC ? '条件達成' : 'ベース選択'}：最大${maxChooseCount}択）`
+        : `（最大${maxChooseCount}択）`;
+      return needsInteraction(addLog(ctx, `効果を最大${maxChooseCount}つ選択してください${condLogCMCBC}`), {
         type: 'CHOOSE', options: optionsCMCBC, count: maxChooseCount,
       });
     }
     const centerCMCBC2 = ctx.ownerState.field.lrig.at(-1);
     const centerCardCMCBC2 = centerCMCBC2 ? ctx.cardMap.get(centerCMCBC2) : undefined;
     return done(addLog(ctx, `センター（${centerCardCMCBC2?.CardName ?? 'なし'}）による複数選択（解析不可）`));
+  }
+  // INTERNAL_DOWN_AND_FREEZE_OPP: 相手シグニ1体をダウン+全シグニを凍結
+  if (stub.id === 'INTERNAL_DOWN_AND_FREEZE_OPP') {
+    const downCandsDFO = ctx.otherState.field.signi.flatMap((s, zi) => s?.at(-1) ? [{ cn: s.at(-1)!, zi }] : []);
+    if (downCandsDFO.length === 0) return done(addLog(ctx, '相手シグニなし'));
+    // 1体ダウン（最初の1体、インタラクティブ選択は省略）
+    const targetDFO = downCandsDFO[0];
+    const newDownDFO = [...(ctx.otherState.field.signi_down ?? [false, false, false])];
+    newDownDFO[targetDFO.zi] = true;
+    // 全シグニ凍結
+    const newFrozenDFO = [true, true, true];
+    const newOtherDFO = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_down: newDownDFO, signi_frozen: newFrozenDFO } };
+    return done(addLog({ ...ctx, otherState: newOtherDFO },
+      `${ctx.cardMap.get(targetDFO.cn)?.CardName ?? targetDFO.cn}をダウン + 全シグニ凍結`));
+  }
+  // INTERNAL_BANISH_OPP_POWER_GTE: 相手のパワーN以上のシグニ1体をバニッシュ
+  if (stub.id === 'INTERNAL_BANISH_OPP_POWER_GTE') {
+    const minPwr = typeof stub.value === 'number' ? stub.value : 0;
+    const candsBOPG = ctx.otherState.field.signi.flatMap((s, zi) => {
+      const top = s?.at(-1);
+      if (!top) return [];
+      const pwr = (ctx.effectivePowers ?? {})[top] ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0');
+      return pwr >= minPwr ? [{ cn: top, zi }] : [];
+    });
+    if (candsBOPG.length === 0) return done(addLog(ctx, `パワー${minPwr}以上の相手シグニなし`));
+    const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { power_gte: minPwr } } };
+    return exec(banishAct as EffectAction, ctx);
+  }
+  // INTERNAL_TRASH_SIGNI_TO_HAND: トラッシュからシグニ1枚を手札へ（CONDITIONAL_MULTI_CHOOSE系）
+  if (stub.id === 'INTERNAL_TRASH_SIGNI_TO_HAND') {
+    const signiTrashTSTH = ctx.ownerState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+    if (signiTrashTSTH.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし'));
+    const addHandTSTH: AddToHandAction = { type: 'ADD_TO_HAND', owner: 'self' };
+    return needsInteraction(addLog(ctx, 'トラッシュからシグニを手札に加える'), {
+      type: 'SEARCH', visibleCards: signiTrashTSTH, maxPick: 1, thenAction: addHandTSTH as EffectAction,
+    });
   }
   // INTERNAL_DECK_TRASH_BOTH: 両プレイヤーのデッキ上N枚をトラッシュ
   if (stub.id === 'INTERNAL_DECK_TRASH_BOTH') {
