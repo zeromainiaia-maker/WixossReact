@@ -6712,7 +6712,7 @@ export function execStub(
     return done(addLog(ctx, `[ルリグシステム: ${stub.id}]`));
   }
   // ドロー枚数制限（次のターン）
-  if (stub.id === 'LIMIT_OPP_DRAW_COUNT' || stub.id === 'OPP_MAIN_PHASE_LIMIT_DOWN') {
+  if (stub.id === 'LIMIT_OPP_DRAW_COUNT') {
     const srcLODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLODC = srcLODC ? (srcLODC.EffectText ?? '') + ' ' + (srcLODC.BurstText ?? '') : '';
     const toHWLODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
