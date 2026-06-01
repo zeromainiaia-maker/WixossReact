@@ -2808,10 +2808,8 @@ export function execStub(
     }
     const name = topData?.CardName ?? topCard;
     const lv = topData?.Level ?? '?';
-    const newDeck2 = ctx.ownerState.deck.slice(1);
-    const newOwner2 = { ...ctx.ownerState, deck: [...newDeck2, topCard] };
-    return done(addLog({ ...ctx, ownerState: newOwner2 },
-      `デッキトップ公開：${name}（Lv${lv}）→不一致、デッキ下へ`));
+    // 一致しない場合はデッキトップに戻す（移動なし）
+    return done(addLog(ctx, `デッキトップ公開：${name}（Lv${lv}）→不一致、デッキトップに戻す`));
   }
   // 相手の手札のシグニを見て捨てさせる（宣言数字フィルタ or 有色フィルタ）
   if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
