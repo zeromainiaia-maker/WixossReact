@@ -3158,20 +3158,28 @@ export function execStub(
     return done(addLog(ctx, `パワー修正（ウイルスシグニLv合計${virusLvSumISPDL}）`));
   }
   // 自シグニパワーの2倍を全相手シグニにマイナス
+  // DOUBLE_OWN_POWER_MINUS: 対象シグニへの自分効果パワー-を2倍にする（SELECT_TARGET + フラグ設置）
   if (stub.id === 'DOUBLE_OWN_POWER_MINUS') {
-    const selfPwDOPM = ctx.effectivePowers?.get(ctx.sourceCardNum ?? '')
-      ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Power ?? '0', 10);
-    const deltaDOPM = -(selfPwDOPM * 2);
-    if (deltaDOPM !== 0) {
-      const modsDOPM = [...(ctx.otherState.temp_power_mods ?? [])];
-      for (let zi = 0; zi < 3; zi++) {
-        const top = ctx.otherState.field.signi[zi]?.at(-1);
-        if (top) modsDOPM.push({ cardNum: top, delta: deltaDOPM });
-      }
-      return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsDOPM } },
-        `全相手シグニパワー${deltaDOPM}（自パワー${selfPwDOPM}×2）`));
+    const targetDOPM = (ctx.lastProcessedCards ?? []).find(cn =>
+      ctx.otherState.field.signi.some(s => s?.at(-1) === cn)
+    );
+    if (!targetDOPM) {
+      const oppSigniDOPM = [0,1,2]
+        .map(zi => ctx.otherState.field.signi[zi]?.at(-1))
+        .filter((cn): cn is string => !!cn);
+      if (oppSigniDOPM.length === 0) return done(addLog(ctx, '2倍パワー-：相手シグニなし'));
+      const noopDOPM: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+      const contDOPM: StubAction = { type: 'STUB', id: 'DOUBLE_OWN_POWER_MINUS' };
+      return needsInteraction(addLog(ctx, 'このターン自分効果でパワー-を2倍にするシグニを選択'), {
+        type: 'SELECT_TARGET', candidates: oppSigniDOPM, count: 1, optional: false,
+        targetScope: 'opp_field', thenAction: noopDOPM as EffectAction,
+        continuation: contDOPM as EffectAction,
+      });
     }
-    return done(addLog(ctx, '全相手シグニパワー-0'));
+    const existingDOPM = ctx.ownerState.double_power_minus_targets ?? [];
+    const newOwnerDOPM = { ...ctx.ownerState, double_power_minus_targets: [...new Set([...existingDOPM, targetDOPM])] };
+    return done(addLog({ ...ctx, ownerState: newOwnerDOPM },
+      `${ctx.cardMap.get(targetDOPM)?.CardName ?? targetDOPM}へのパワー-を2倍に設定`));
   }
   // 全自シグニのパワーを2倍にする（現在値と同量をデルタ追加）
   if (stub.id === 'POWER_DOUBLE_ALL') {
