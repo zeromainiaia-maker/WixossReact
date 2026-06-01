@@ -4191,7 +4191,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
       newSigniDown[zoneIndex] = true;
       const newAttackedIds = [...(my.attacked_signi_ids ?? []), myTopNum];
-      const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds };
+      // OPP_SIGNI_ATTACK_COST: アタックにエナコストが必要な場合、エナを消費
+      const signiAtkCostSA = my.signi_attack_cost ?? 0;
+      const newEnergySA = signiAtkCostSA > 0 ? my.energy.slice(signiAtkCostSA) : my.energy;
+      const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds, energy: newEnergySA };
       let newOpState = op;
       let banishedOpCardNum: string | null = null; // バニッシュされた相手シグニ
 
