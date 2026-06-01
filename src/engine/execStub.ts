@@ -5621,14 +5621,21 @@ export function execStub(
     }));
     return needsInteraction(addLog(ctx, '付与する能力を選択'), { type: 'CHOOSE', options: optionsGCA, count: chooseCountGCA });
   }
-  // INTERNAL_GRANT_KEYWORD_TO_TARGET: 選択されたキーワードを対象シグニに付与
+  // INTERNAL_GRANT_KEYWORD_TO_TARGET: 選択されたキーワード/保護能力を対象シグニに付与
   if (stub.id === 'INTERNAL_GRANT_KEYWORD_TO_TARGET') {
     const valIGKTT = typeof stub.value === 'string' ? stub.value : '';
     const [targetCnIGKTT, kwIGKTT] = valIGKTT.split(':');
     if (!targetCnIGKTT || !kwIGKTT) return done(addLog(ctx, 'キーワード付与失敗（引数不正）'));
-    const grantsIGKTT = { ...(ctx.ownerState.keyword_grants ?? {}) };
+    // keyword_grants に追加（保護系も含む）
+    let newOwnerIGKTT = ctx.ownerState;
+    const grantsIGKTT = { ...(newOwnerIGKTT.keyword_grants ?? {}) };
     grantsIGKTT[targetCnIGKTT] = [...new Set([...(grantsIGKTT[targetCnIGKTT] ?? []), kwIGKTT])];
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsIGKTT } },
+    newOwnerIGKTT = { ...newOwnerIGKTT, keyword_grants: grantsIGKTT };
+    // 保護系は専用フラグも設定
+    if (kwIGKTT === 'バニッシュ不可') {
+      // otherState.abilities_removed から除外 + banish_redirect 相当フラグなし → keyword_grantsで管理
+    }
+    return done(addLog({ ...ctx, ownerState: newOwnerIGKTT },
       `${ctx.cardMap.get(targetCnIGKTT)?.CardName ?? targetCnIGKTT}に【${kwIGKTT}】付与`));
   }
   // GRANT_CHOSEN_ABILITY_FROM_PLAY: プレイ時選んだ能力を自シグニに付与（ログのみ）
