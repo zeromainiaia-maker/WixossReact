@@ -58,7 +58,7 @@
 | 2 | AUTO | ✅ | DOUBLE_OWN_POWER_MINUS ※v0.137: SELECT_TARGET(相手シグニ)+double_power_minus_targets設定。effectEngine.applyTempModsで負デルタを2倍適用 |
 | 2 | ACTIVATED | ✅ | ENCORE |
 | 2 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
-| 2 | ACTIVATED | ⚡ | EXTRA_COST_REMOVE_VIRUS |
+| 2 | ACTIVATED | ✅ | EXTRA_COST_REMOVE_VIRUS ※v0.138: ウイルス除去数CHOOSE(0〜N)→INTERNAL_ECRV_APPLY→除去実行+(N+1)択CHOOSE。①〜④テキスト解析で効果選択肢生成 |
 | 2 | CONT | ⚡ | FIELD_ENERGY_SIGNI_GAIN_COLOR ※v0.113: collectFieldEnergySigniColorGains実装・エナ支払い追加色対応（《ディソナアイコン》フィルターは識別子未実装のため除外） |
 | 2 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
 | 2 | ACTIVATED/AUTO | ⚡ | GRANT_CHOSEN_ABILITY |
