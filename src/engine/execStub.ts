@@ -7442,7 +7442,7 @@ export function execStub(
       return pwr >= minPwr ? [{ cn: top, zi }] : [];
     });
     if (candsBOPG.length === 0) return done(addLog(ctx, `パワー${minPwr}以上の相手シグニなし`));
-    const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { power_gte: minPwr } } };
+    const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { powerRange: { min: minPwr } } } };
     return exec(banishAct as EffectAction, ctx);
   }
   // INTERNAL_TRASH_SIGNI_TO_HAND: トラッシュからシグニ1枚を手札へ（CONDITIONAL_MULTI_CHOOSE系）
