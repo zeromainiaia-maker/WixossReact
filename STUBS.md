@@ -359,7 +359,7 @@
 | 6 | AUTO | ⚡ | NEGATE_COIN_ABILITY |
 | 6 | AUTO | ⚡ | NEGATE_THAT_ATTACK |
 | 1 | CONT | ✅ | NO_ABILITY_SIGNI_TO_DECK_BOTTOM ※能力テキスト有無チェック+removeFromField+デッキ下移動実装済み |
-| 1 | AUTO | ⚡ | NON_GUARD_DISCARD_TO_ENERGY |
+| 1 | AUTO | ✅ | NON_GUARD_DISCARD_TO_ENERGY ※v0.169: ガードアイコンなし確認→エナゾーンへ移動（line 8775） |
 | 1 | ACTIVATED | ⚡ | NON_LRIG_TO_LRIG_TRASH |
 | 1 | CONT | ✅ | ODD_LEVEL_SIGNI_CANT_ATTACK ※effectEngine.calcContinuousBlockedActionsで実装 |
 | 1 | AUTO | ⚡ | OPP_CHOOSE_EFFECT ※v0.161: opponentResponds CHOOSE+テキスト解析改善（①ドロー/②手札シグニ配置パターン追加） |
