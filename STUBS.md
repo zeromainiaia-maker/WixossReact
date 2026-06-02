@@ -291,7 +291,7 @@
 | 1 | AUTO | ✅ | ENERGY_TO_HAND_ON_DECK ※SELECT_TARGET(エナ)→手札へ実装済み |
 | 1 | AUTO | ✅ | ENERGY_TO_TRASH ※SELECT_TARGET(エナ)→トラッシュへ実装済み |
 | 2 | CONT | ✅ | EXTRA_GUARD_COST_FROM_HAND ※collectOppExtraGuardFromHand+handleGuardResponse+ガードUI統合 |
-| 1 | AUTO/ACTIVATED | ⚡ | FIELD_COND_DRAW_REVEAL |
+| 1 | AUTO/ACTIVATED | ✅ | FIELD_COND_DRAW_REVEAL ※v0.169: フィールドクラス条件→デッキ上公開→クラス一致なら手札/不一致ならトラッシュ（line 8532） |
 | 1 | CONT | ⚡ | FIRST_SPELL_COST_UP ※execStub: [コストアップ]（BattleScreen未統合） |
 | 1 | ACTIVATED | ✅ | FROM_TRASH_TO_CENTER_ZONE ※v0.159: トラッシュから中央シグニゾーン(zone[1])に出す（既存シグニはエナへ） |
 | 1 | CONT | ✅ | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で防御側CONTチェック→凍結シグニをデッキ下へ |
