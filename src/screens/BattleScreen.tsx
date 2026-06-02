@@ -2348,6 +2348,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (myLrigNum) {
       for (const eff of (effectsMap.get(myLrigNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, myState, opState, true, battleCardMap, myLrigNum)) continue;
         const cardName = battleCardMap.get(myLrigNum)?.CardName ?? myLrigNum;
         entries.push({
           id: generateUUID(),
