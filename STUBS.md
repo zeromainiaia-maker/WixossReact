@@ -345,7 +345,7 @@
 | 1 | AUTO/ACTIVATED | ⚡ | LRIG_GAIN_ABILITY ※done(addLog)のみ（ルリグシステムグループ: 未実装） |
 | 1 | CONT | ⚡ | LRIG_LIMIT_UP_AND_COLOR_GAIN ※v0.115: collectLrigColorAndLimitMods+lrigLimit計算に+limitDelta統合（色変更は部分的） |
 | 1 | AUTO/ACTIVATED | ✅ | LRIG_RIDE_SIGNI ※v0.163: 自場の全乗機シグニにlrig_riding_signiを設定（ドライブ状態化） |
-| 2 | AUTO | ⚡ | LRIG_TRASH_KEY_TO_CENTER_UNDER |
+| 2 | AUTO | ✅ | LRIG_TRASH_KEY_TO_CENTER_UNDER ※v0.169: lrig_trashのキーをセンタールリグの下に挿入実装済み（line 4793） |
 | 1 | ACTIVATED | ✅ | MAKE_MULTI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
 | 1 | AUTO | ⚡ | MOVE_ACCE_TO_SIGNI |
 | 1 | AUTO | ⚡ | MULTI_ACCE_FROM_HAND |
