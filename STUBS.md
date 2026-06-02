@@ -475,7 +475,7 @@
 | 2 | ACTIVATED | ✅ | SPELL_COST_REDUCTION_BY_TRASH_COUNT ※v0.169: computeArtsEffectiveCostにtarsh引数追加+クラスシグニN枚につき色コスト軽減ロジック実装 |
 | 1 | AUTO | ✅ | STACK_ALL_LRIG_UNDER ※v0.158: lrig_trash全ルリグをfield.lrigスタック下に配置 |
 | 1 | CONT | ⚡ | SUBSTITUTE_DAMAGE_WITH_SELF_TRASH ※done(addLog)のみ（ダメージ代替未実装） |
-| 7 | CONT | ⚡ | SUPPRESS_LIFE_BURST_ON_CRASH ※collectEichiStubEffectsで英知=8条件付き実装済み |
+| 7 | CONT | ✅ | SUPPRESS_LIFE_BURST_ON_CRASH ※v0.169: collectEichiStubEffects+BattleScreen line 1307でEICHI_LEVEL_SUM=8条件→eichiSuppressActive→LBボタン非表示 |
 | 1 | AUTO | ✅ | TOP_TO_BOTTOM_OPTIONAL ※デッキトップ公開→CHOOSE(デッキ下/スキップ)実装済み |
 | 1 | AUTO | ✅ | TRADE_SELF_AND_OPP_TO_ENERGY ※自シグニ→エナ後SELECT_TARGET(相手シグニ)→エナ |
 | 2 | AUTO/ACTIVATED | ✅ | TRASH_FROM_DECK_PER_SIGNI_LEVEL ※自場シグニのレベル合計分デッキトラッシュ実装済み |
