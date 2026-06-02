@@ -147,7 +147,7 @@
 | 2 | AUTO/ACTIVATED | ⚡ | CONDITIONAL_PER_TRASH ※トラッシュ枚数閾値達成→1枚ドロー（一部パターン） |
 | 2 | ACTIVATED | ✅ | COPY_SIGNI ※v0.138: 2ステップSELECT_TARGET(フィールド→トラッシュ)+INTERNAL_COPY_SIGNI_APPLY。card_identity_overrides追加・effectEngine.calcFieldPowersでコピー元パワー参照 |
 | 2 | AUTO | ✅ | COPY_TARGET_POWER ※v0.137: lastProcessedCards未設定時にSELECT_TARGET→COPY_TARGET_POWER継続。パワー差分をtemp_power_modsに設定 |
-| 3 | CONT | ⚡ | DEPLOY_RESTRICT ※AUTO時はsigni_deploy_power_limitフラグ設置。CONTINUOUS制限はログのみ |
+| 3 | CONT | ✅ | DEPLOY_RESTRICT ※v0.169: signi_deploy_power_limit統合済み（AUTO設定+BattleScreen検査） |
 | 2 | AUTO | ✅ | DISCARD_IF_ATTACKED_THIS_TURN ※実装済み: attacked_signi_idsチェック+手札SELECT捨て |
 | 2 | AUTO/ACTIVATED | ✅ | DISONA_RESTRICTION ※使用条件チェック（BattleScreen側で処理済み）、実行時はログのみ |
 | 1 | AUTO | ✅ | DRAW_AND_PUT_HAND_TO_DECK_BOTTOM |
