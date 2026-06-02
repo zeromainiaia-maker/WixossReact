@@ -7505,9 +7505,14 @@ export function execStub(
   }
   // OPP_TURN_NO_ENERGY_COST: 対戦相手の次のターン中、対戦相手はエナコストを支払えない
   if (stub.id === 'OPP_TURN_NO_ENERGY_COST') {
-    const newBlockedOTNEC = [...(ctx.otherState.blocked_actions ?? []), 'USE_ARTS:NEXT_TURN', 'USE_SPELL:NEXT_TURN'];
+    // エナコストを必要とする全アクションをブロック（アーツ/スペル/グロウ/起動能力）
+    const newBlockedOTNEC = [
+      ...(ctx.otherState.blocked_actions ?? []),
+      'USE_ARTS:NEXT_TURN', 'USE_SPELL:NEXT_TURN',
+      'GROW:NEXT_TURN', 'USE_ACT:NEXT_TURN',
+    ];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedOTNEC } },
-      '対戦相手の次のターン中、対戦相手はエナコストを支払えない'));
+      '対戦相手の次のターン中、対戦相手はエナコストを支払えない（アーツ/スペル/グロウ/起動能力すべて）'));
   }
   // OPP_MAIN_PHASE_LIMIT_DOWN: 次の相手メインフェイズの間、センタールリグのリミット-2
   if (stub.id === 'OPP_MAIN_PHASE_LIMIT_DOWN') {
