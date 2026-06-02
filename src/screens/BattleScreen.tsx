@@ -7366,25 +7366,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               {([0, 1, 2] as const).map(zi => {
                 const summonCard = battleCardMap.get(pendingSigniSummon.cardNum);
                 const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
+                const signiPower = parseInt(summonCard?.Power ?? '0') || 0;
                 const isOccupied = (my.field.signi[zi] ?? []).length > 0;
                 const afterTotal = fieldSigniTotal + signiLevel;
                 const overLimit = afterTotal > lrigLimit;
-                const isDisabled = loading || overLimit || isOccupied;
+                // DEPLOY_RESTRICT: signi_deploy_power_limit が設定されている場合
+                const overPowerLimit = my.signi_deploy_power_limit !== undefined && signiPower >= my.signi_deploy_power_limit;
+                const isDisabled = loading || overLimit || isOccupied || overPowerLimit;
                 return (
                   <button key={zi}
                     onClick={() => !isDisabled && handleSummonSigni(pendingSigniSummon.handIndex, zi)}
                     disabled={isDisabled}
                     style={{
                       flex: 1, padding: '12px 0', borderRadius: 8,
-                      border: isOccupied ? `1px solid ${C.textFaint}` : overLimit ? `1px solid ${C.danger}` : C.borderUI,
+                      border: isOccupied ? `1px solid ${C.textFaint}` : (overLimit || overPowerLimit) ? `1px solid ${C.danger}` : C.borderUI,
                       backgroundColor: isDisabled ? C.disabled : C.bgButton,
                       color: isDisabled ? C.textFaint : C.text,
                       fontSize: 13, cursor: isDisabled ? 'default' : 'pointer',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     }}>
                     <span>ゾーン{zi + 1}{isOccupied ? ' (使用中)' : ''}</span>
-                    <span style={{ fontSize: 11, color: isOccupied ? C.textFaint : overLimit ? C.danger : C.textDim }}>
-                      {isOccupied ? '—' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit}`}
+                    <span style={{ fontSize: 11, color: isOccupied ? C.textFaint : (overLimit || overPowerLimit) ? C.danger : C.textDim }}>
+                      {isOccupied ? '—' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit}`}
                     </span>
                   </button>
                 );
