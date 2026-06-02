@@ -460,6 +460,8 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     if (!attacker.field.lrig.length) return g;
 
     const lrigInstId = attacker.field.lrig.at(-1)!;
+    // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: negated_attacks にルリグIDがある場合アタック不可
+    if ((attacker.negated_attacks ?? []).includes(lrigInstId)) return g;
     const lrigCard = cardMap.get(lrigInstId);
     const newAttacker = { ...attacker, field: { ...attacker.field, lrig_down: true } };
 
