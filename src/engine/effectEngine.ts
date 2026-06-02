@@ -2833,7 +2833,7 @@ export function collectCenterZoneDeployRestrict(
  */
 export function collectFrozenBanishOverrides(
   state: PlayerState,
-  cardMap: Map<string, CardData>,
+  _cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): { frozenBanishToDeckBottom: boolean; frozenLeaveToTrash: boolean } {
   let frozenBanishToDeckBottom = false;
