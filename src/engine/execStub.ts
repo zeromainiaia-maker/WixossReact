@@ -7955,7 +7955,7 @@ export function execStub(
   }
   // INTERNAL_SET_MAGIC_BOX: ゾーン確定後の実設置処理
   if (stub.id === 'INTERNAL_SET_MAGIC_BOX') {
-    const zoneIdxSMB: number = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+    const zoneIdxSMB: number = (typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'))) as number;
     const cardSMB = ctx.lastProcessedCards?.[0] ?? null;
     if (!cardSMB) return done(addLog(ctx, 'INTERNAL_SET_MAGIC_BOX：カードなし'));
     const currentMBs = [...(ctx.ownerState.field.signi_magic_boxes ?? [null, null, null])] as (string | null)[];
