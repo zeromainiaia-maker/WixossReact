@@ -4910,23 +4910,6 @@ export function execStub(
     }
     return done(addLog(ctx, `パワーミラー（対象なし / 捨てパワー${discardedPwPMM}）`));
   }
-  // [DEAD CODE LEGACY] POWER_MOD_MIRROR旧実装（参照のみ保持）
-  if (false && stub.id === 'POWER_MOD_MIRROR_LEGACY') {
-    if (!ctx.sourceCardNum) return done(ctx);
-    let selfZonePMM = -1;
-    for (let zi = 0; zi < 3; zi++) {
-      if (ctx.ownerState.field.signi[zi]?.at(-1) === ctx.sourceCardNum) { selfZonePMM = zi; break; }
-    }
-    if (selfZonePMM < 0) return done(addLog(ctx, '自ゾーン不明'));
-    const oppCnPMM = ctx.otherState.field.signi[selfZonePMM]?.at(-1);
-    const oppPowerPMM = oppCnPMM ? (ctx.effectivePowers?.get(oppCnPMM) ?? 0) : 0;
-    const selfPowerPMM = ctx.effectivePowers?.get(ctx.sourceCardNum) ?? 0;
-    const deltaPMM = oppPowerPMM - selfPowerPMM;
-    if (deltaPMM === 0) return done(addLog(ctx, 'パワー同じ（POWER_MOD_MIRROR）'));
-    const modsPMM = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaPMM }];
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPMM } },
-      `パワーミラー: 相手${oppPowerPMM}に合わせ（${deltaPMM > 0 ? '+' : ''}${deltaPMM}）`));
-  }
   // PLACE_VIRUS_CENTER: 相手の全シグニゾーンにウィルスを設置
   if (stub.id === 'PLACE_VIRUS_CENTER') {
     const sOtherPVC = ctx.otherState;
