@@ -144,7 +144,7 @@
 | 2 | AUTO/ACTIVATED | ⚡ | COIN_USE_RESTRICTION ※done(addLog)のみ（コイン使用制限未実装） |
 | 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_ALTERNATE_EFFECT |
 | 2 | AUTO/ACTIVATED | ⚡ | CONDITIONAL_ALT_POWER_BOOST ※done(addLog)のみ（条件付き代替パワーブースト未実装） |
-| 2 | AUTO/ACTIVATED | ⚡ | CONDITIONAL_PER_TRASH ※トラッシュ枚数閾値達成→1枚ドロー（一部パターン） |
+| 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_PER_TRASH ※v0.169: テキスト解析でN枚閾値→1枚ドロー。主要パターン実装済み |
 | 2 | ACTIVATED | ✅ | COPY_SIGNI ※v0.138: 2ステップSELECT_TARGET(フィールド→トラッシュ)+INTERNAL_COPY_SIGNI_APPLY。card_identity_overrides追加・effectEngine.calcFieldPowersでコピー元パワー参照 |
 | 2 | AUTO | ✅ | COPY_TARGET_POWER ※v0.137: lastProcessedCards未設定時にSELECT_TARGET→COPY_TARGET_POWER継続。パワー差分をtemp_power_modsに設定 |
 | 3 | CONT | ✅ | DEPLOY_RESTRICT ※v0.169: signi_deploy_power_limit統合済み（AUTO設定+BattleScreen検査） |
