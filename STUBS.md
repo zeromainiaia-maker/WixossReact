@@ -431,7 +431,7 @@
 | 1 | ACTIVATED | ⚡ | PREVENT_DAMAGE_UNTIL_OPP_TURN_END |
 | 1 | AUTO/ACTIVATED | ✅ | PREVENT_DEFEAT ※prevent_defeatフラグ設置: 敗北無効実装済み |
 | 1 | AUTO | ✅ | PREVENT_DEFEAT_THIS_TURN ※v0.169: prevent_defeatフラグ設置（ターン開始時リセット）。PREVENT_DEFEATと同ハンドラ |
-| 1 | AUTO | ⚡ | PREVENT_DEFEAT_UNTIL_NEXT_TURN |
+| 1 | AUTO | ✅ | PREVENT_DEFEAT_UNTIL_NEXT_TURN ※v0.169: prevent_defeatフラグ設置（次ターン開始まで有効）。PREVENT_DEFEATと同ハンドラ |
 | 1 | ACTIVATED | ⚡ | PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN |
 | 1 | CONT | ⚡ | PREVENT_INFECTED_SIGNI_ACTIVATE ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
 | 1 | CONT | ✅ | PREVENT_LOW_LEVEL_LRIG_DAMAGE ※prevent_lrig_damageフラグ設置実装済み |
