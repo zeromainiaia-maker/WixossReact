@@ -202,6 +202,12 @@ export interface PlayerState {
   lrig_attack_remaining?: number;
   // ライドシステム：LRIGが現在乗っている乗機シグニのCardNum一覧（ターン終了時にクリア）
   lrig_riding_signi?: string[];
+  // SUPPRESS_CENTER_ON_PLAY: このターン自分のセンタールリグの【出】効果は発動しない
+  suppress_center_on_play?: boolean;
+  // CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスがクラッシュされた場合エナではなくトラッシュへ
+  crash_to_trash_instead?: boolean;
+  // NEGATE_NTH_ATTACK: このターン、相手シグニアタックをN回目まで自動無効化する残り回数
+  negate_opp_signi_attacks_until?: number;
 }
 
 export interface GameLog {

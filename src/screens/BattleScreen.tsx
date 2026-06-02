@@ -2487,6 +2487,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_attack_cost: undefined,             // シグニアタックコストリセット
           lrig_riding_signi: undefined,             // ドライブ状態（ライド）をリセット
           lrig_attack_remaining: undefined,         // マルチダメージ残数リセット
+          suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
+          crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
+          negate_opp_signi_attacks_until: undefined, // N回目シグニアタック自動無効化フラグをリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
@@ -3535,9 +3538,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // ルリグの ON_PLAY 効果を確認（COPY_LRIG_NAME_ABILITYコピー効果も含む）
       const ownEffects = effectsMap.get(cardNum) ?? [];
-      const copiedOnPlayEffects = collectCopiedLrigAutoEffects(newMyState, battleCardMap, effectsMap, op, isMyTurn)
+      // SUPPRESS_CENTER_ON_PLAY: このターンセンタールリグの【出】能力を抑制
+      const suppressLrigPlay = newMyState.suppress_center_on_play === true;
+      const copiedOnPlayEffects = suppressLrigPlay ? [] : collectCopiedLrigAutoEffects(newMyState, battleCardMap, effectsMap, op, isMyTurn)
         .filter(e => e.timing?.includes('ON_PLAY'));
-      const allOnPlayEffects = [...ownEffects, ...copiedOnPlayEffects];
+      const allOnPlayEffects = suppressLrigPlay ? [] : [...ownEffects, ...copiedOnPlayEffects];
       const mandatoryOnPlay = allOnPlayEffects.filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
@@ -3549,6 +3554,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.mandatory === false &&
         e.cost,
       );
+      if (suppressLrigPlay) appendBattleLogs(['センタールリグの【出】能力は抑制されました']);
 
       // コスト付き任意【出】効果があればモーダルで確認
       if (costOnPlay.length > 0) {
@@ -4268,6 +4274,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isLancer      = hasGrantedKeyword('ランサー');
       const isSLancer     = hasGrantedKeyword('Sランサー');
       const isDoubleCrush = hasGrantedKeyword('ダブルクラッシュ');
+
+      // NEGATE_NTH_ATTACK: 相手（防御側）がN回目まで自動無効化フラグを持つ場合
+      if ((op.negate_opp_signi_attacks_until ?? 0) > 0) {
+        const remaining = (op.negate_opp_signi_attacks_until ?? 1) - 1;
+        const newOpForNegate: PlayerState = { ...op, negate_opp_signi_attacks_until: remaining > 0 ? remaining : undefined };
+        appendBattleLogs([`${myCardName}のアタックは無効化された（残り${remaining}回）`]);
+        await supabase.from('battle_states')
+          .update({ [myKey]: newMyState, [opKey]: newOpForNegate })
+          .eq('room_id', roomId);
+        return;
+      }
 
       // アサシン：正面シグニを無視してライフへ直接アタック
       const effectivelyEmpty = !opTopCardNum || isAssassin;
@@ -5274,12 +5291,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     try {
       const cardNum = my.field.check;
-      // チェックゾーンをクリアしてエナへ移動した状態を基点にする
+      // CRASH_TO_TRASH_INSTEAD: 相手（攻撃側）がフラグを持つ場合エナではなくトラッシュへ
+      const crashToTrash = op.crash_to_trash_instead === true;
+      // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
       const baseState: PlayerState = {
         ...my,
-        energy: [...my.energy, cardNum],
+        energy: crashToTrash ? my.energy : [...my.energy, cardNum],
+        trash: crashToTrash ? [...my.trash, cardNum] : my.trash,
         field: { ...my.field, check: null },
       };
+      if (crashToTrash) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}はトラッシュに置かれた（CRASH_TO_TRASH_INSTEAD）`]);
       if (!activate) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await supabase.from('battle_states')

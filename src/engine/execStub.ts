@@ -6183,9 +6183,21 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsIPMOP } },
       `${ctx.cardMap.get(frontCnIPMOP)?.CardName ?? frontCnIPMOP}のパワー-3000`));
   }
+  // POWER_MOD_DOUBLE_DIFF: 対象シグニの基本パワーと自分の基本パワーとの差の2倍でマイナス
+  if (stub.id === 'POWER_MOD_DOUBLE_DIFF') {
+    const targetNum = ctx.lastProcessedCards?.[0];
+    if (!targetNum) return done(addLog(ctx, 'POWER_MOD_DOUBLE_DIFF: 対象なし'));
+    const pSelf = parseInt(String(ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum)?.Power ?? '0' : '0')) || 0;
+    const pTarget = parseInt(String(ctx.cardMap.get(targetNum)?.Power ?? '0')) || 0;
+    if (pTarget <= pSelf) return done(addLog(ctx, `POWER_MOD_DOUBLE_DIFF: 対象パワー${pTarget}≦自パワー${pSelf}、効果なし`));
+    const delta = -(pTarget - pSelf) * 2;
+    const mods = [...(ctx.otherState.temp_power_mods ?? []), { cardNum: targetNum, delta }];
+    const newOther = { ...ctx.otherState, temp_power_mods: mods };
+    return done(addLog({ ...ctx, otherState: newOther }, `${ctx.cardMap.get(targetNum)?.CardName ?? targetNum}パワー${delta}`));
+  }
   // 複雑パワー修正（engine: コンテキスト/配置情報必要）
-  if (stub.id === 'POWER_MOD_DOUBLE_DIFF' || stub.id === 'CONDITIONAL_ALT_POWER_BOOST') {
-    return done(addLog(ctx, `[複合パワー修正: ${stub.id}]`));
+  if (stub.id === 'CONDITIONAL_ALT_POWER_BOOST') {
+    return done(addLog(ctx, `[複合パワー修正: CONDITIONAL_ALT_POWER_BOOST]`));
   }
   // レベル修正（engine: ベースレベル変更システム未実装）
   if (stub.id === 'LEVEL_MOD_PER_COUNT') {
@@ -7086,9 +7098,13 @@ export function execStub(
     });
   }
   if (stub.id === 'FORCE_TARGET_SELF' || stub.id === 'BANISH_BY_SELF_GOES_TO_TRASH'
-      || stub.id === 'CRASH_TO_TRASH_INSTEAD'
       || stub.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS') {
     return done(addLog(ctx, `[移動リダイレクト: ${stub.id}]`));
+  }
+  // CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスクラッシュ時、エナではなくトラッシュへ
+  if (stub.id === 'CRASH_TO_TRASH_INSTEAD') {
+    const newOwner = { ...ctx.ownerState, crash_to_trash_instead: true };
+    return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、クラッシュされたカードはトラッシュに置かれる'));
   }
   // BANISH_REDIRECT_TO_HAND: このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る
   if (stub.id === 'BANISH_REDIRECT_TO_HAND') {
@@ -7189,14 +7205,19 @@ export function execStub(
     }
     return done(addLog(ctx, 'アタック無効化（対象不明）'));
   }
-  // NEGATE_NTH_ATTACK: N回目のアタックを無効化（ログのみ）
+  // NEGATE_NTH_ATTACK: このターン、相手シグニのアタックをN回目まで自動無効化
   if (stub.id === 'NEGATE_NTH_ATTACK') {
     const toHWNNA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const srcNNA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtNNA = srcNNA ? (srcNNA.EffectText ?? '') : '';
-    const mNNA = txtNNA.match(/([０-９\d]+)回目/);
-    const nNNA = mNNA ? parseInt(toHWNNA(mNNA[1])) : 1;
-    return done(addLog(ctx, `${nNNA}回目のアタックを無効化`));
+    const txtNNA = srcNNA ? (srcNNA.EffectText ?? '') + ' ' + (srcNNA.BurstText ?? '') : '';
+    // 「一度目か二度目」→2, 「一度目」→1, テキスト不明→1
+    let nNNA = 1;
+    if (txtNNA.match(/[一1１]度目か[二2２]度目/)) nNNA = 2;
+    else if (txtNNA.match(/[一1１]度目か[二2２]度目か[三3３]度目/)) nNNA = 3;
+    else { const m = txtNNA.match(/([０-９\d一二三四五六七八九十]+)回目/); if (m) nNNA = parseInt(toHWNNA(m[1])) || 1; }
+    const cur = ctx.ownerState.negate_opp_signi_attacks_until ?? 0;
+    const newOwner = { ...ctx.ownerState, negate_opp_signi_attacks_until: Math.max(cur, nNNA) };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、相手シグニアタックを${nNNA}回目まで自動無効化`));
   }
   // NEGATE_COIN_ABILITY: コイン能力を無効化（ログのみ）
   if (stub.id === 'NEGATE_COIN_ABILITY') {
@@ -7553,9 +7574,10 @@ export function execStub(
       targetScope: 'self_field', thenAction: contTOSEA as EffectAction,
     });
   }
-  // SUPPRESS_CENTER_ON_PLAY: プレイ時センター抑制（ログのみ）
+  // SUPPRESS_CENTER_ON_PLAY: このターン自分のセンタールリグの【出】効果を抑制
   if (stub.id === 'SUPPRESS_CENTER_ON_PLAY') {
-    return done(addLog(ctx, 'プレイ時センター抑制'));
+    const newOwner = { ...ctx.ownerState, suppress_center_on_play: true };
+    return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、センタールリグの【出】能力は発動しない'));
   }
   // SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: ダメージを自トラッシュで代替（ログのみ）
   if (stub.id === 'SUBSTITUTE_DAMAGE_WITH_SELF_TRASH') {
