@@ -380,8 +380,8 @@
 | 1 | AUTO | ✅ | OPP_SIGNI_ONE_ATTACK_TOTAL ※v0.168: CpuBattleScreen CPU側のATTACK_SIGNIフェイズにsigni_attack_once_limitチェック追加 |
 | 2 | AUTO | ✅ | OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL ※v0.168: SELECT_TARGETのthenActionバグ修正。noopをthenAction、INTERNAL_APPLY_POWER_DELTA_OPP(delta=stub.value)をcontinuationに変更 |
 | 1 | ACTIVATED | ✅ | OPP_SIGNI_TO_DECK_AND_SHUFFLE ※v0.167以前のline 2567ハンドラが正実装（SELECT_TARGET+INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE）。dead code除去 |
-| 1 | ACTIVATED | ⚡ | OPP_SIGNI_TO_DECK_BY_GATE |
-| 1 | ACTIVATED | ⚡ | OPP_SIGNI_TO_DECK_NTH |
+| 1 | ACTIVATED | ✅ | OPP_SIGNI_TO_DECK_BY_GATE ※v0.169: lastProcessedCards→removeFromField+デッキ下配置（line 4171） |
+| 1 | ACTIVATED | ✅ | OPP_SIGNI_TO_DECK_NTH ※v0.169: N番目テキスト解析→デッキN番目に挿入（line 4072） |
 | 2 | AUTO | ✅ | OPP_TRASH_FIELD_SIGNI_AND_ENERGY ※v0.169: 相手フィールド全シグニ+全エナをトラッシュ実装済み（line 3811） |
 | 2 | CONT | ⚡ | OPP_TRASH_LOSE_COLOR_AND_CLASS ※done(addLog)のみ（移動リダイレクトグループ: effectEngine未対応） |
 | 1 | AUTO | ✅ | OPP_TRASH_TO_DECK_TOP ※v0.168: line 1211の正実装（SELECT_TARGET+INTERNAL_OPP_TRASH_TO_DECK_TOP）を確認・dead code除去 |
