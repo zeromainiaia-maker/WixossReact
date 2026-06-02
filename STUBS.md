@@ -473,7 +473,7 @@
 | 1 | CONT | ⚡ | SIGNI_PROTECT_MOVE_EXCEPT_ENERGY ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
 | 4 | AUTO | ✅ | SIGNI_REPOSITION ※v0.158: INTERNAL_REPOSITION_TO_ZONEで統合（自/相手・スワップ対応）|
 | 1 | ACTIVATED | ✅ | SIGNI_UNDER_WEAPON_SIGNI ※v0.158: SELECT_TARGET(源)→SELECT_TARGET(ウェポン)→INTERNAL_SIGNI_UNDER_WEAPONでスタック下配置 |
-| 2 | ACTIVATED | ⚡ | SPELL_COST_REDUCTION_BY_TRASH_COUNT ※BattleScreen側スペルコスト計算への統合が必要 |
+| 2 | ACTIVATED | ✅ | SPELL_COST_REDUCTION_BY_TRASH_COUNT ※v0.169: computeArtsEffectiveCostにtarsh引数追加+クラスシグニN枚につき色コスト軽減ロジック実装 |
 | 1 | AUTO | ✅ | STACK_ALL_LRIG_UNDER ※v0.158: lrig_trash全ルリグをfield.lrigスタック下に配置 |
 | 1 | CONT | ⚡ | SUBSTITUTE_DAMAGE_WITH_SELF_TRASH ※done(addLog)のみ（ダメージ代替未実装） |
 | 7 | CONT | ⚡ | SUPPRESS_LIFE_BURST_ON_CRASH ※collectEichiStubEffectsで英知=8条件付き実装済み |
