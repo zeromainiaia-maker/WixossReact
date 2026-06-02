@@ -3268,20 +3268,30 @@ export function execStub(
         // 「対戦相手のシグニ１体を対象とし」の場合 SELECT_TARGET で1体選択
         const isSingleTarget = txtPDTL.includes('対戦相手のシグニ１体を対象とし');
         const oppCandsPDTL = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter((c): c is string => !!c);
-        if (isSingleTarget && oppCandsPDTL.length > 0 && !ctx.lastProcessedCards?.some(cn => oppCandsPDTL.includes(cn))) {
-          // 対象選択が未済なら SELECT_TARGET
-          const applyPDTL: StubAction = { type: 'STUB', id: 'OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL' };
-          return selectOrInteract(oppCandsPDTL, 1, false, 'opp_field', applyPDTL as EffectAction, undefined, ctx);
+        if (isSingleTarget && oppCandsPDTL.length > 0) {
+          // pre-calculated delta を continuation stub の value に埋め込む（thenAction=STUB は applyDirectAction で無視されるため continuation を使用）
+          const noopPDTL: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+          const applyPDTL: StubAction = { type: 'STUB', id: 'INTERNAL_APPLY_POWER_DELTA_OPP', value: totalDeltaPDTL };
+          return selectOrInteract(oppCandsPDTL, 1, false, 'opp_field', noopPDTL as EffectAction, applyPDTL as EffectAction, ctx);
         }
-        // 選択済みまたは全体対象: 適用
+        // 全体対象: 全シグニに適用
         const modsPDTL = [...(ctx.otherState.temp_power_mods ?? [])];
-        const targetsPDTL = isSingleTarget && ctx.lastProcessedCards?.length ? ctx.lastProcessedCards : oppCandsPDTL;
-        for (const cn of targetsPDTL) modsPDTL.push({ cardNum: cn, delta: totalDeltaPDTL });
+        for (const cn of oppCandsPDTL) modsPDTL.push({ cardNum: cn, delta: totalDeltaPDTL });
         return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPDTL } },
           `パワー${totalDeltaPDTL > 0 ? '+' : ''}${totalDeltaPDTL}（トラッシュ済みLv合計${lvSumTrashedPDTL}）`));
       }
     }
     return done(addLog(ctx, `パワー修正（トラッシュシグニLv合計${lvSumTrashedPDTL}）`));
+  }
+  // INTERNAL_APPLY_POWER_DELTA_OPP: SELECT_TARGET後に対象シグニへparent deltaを適用
+  if (stub.id === 'INTERNAL_APPLY_POWER_DELTA_OPP') {
+    const deltaIAPDO = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+    const targetIAPDO = ctx.lastProcessedCards ?? [];
+    if (targetIAPDO.length === 0 || deltaIAPDO === 0) return done(addLog(ctx, 'パワー修正: 対象なし'));
+    const modsIAPDO = [...(ctx.otherState.temp_power_mods ?? [])];
+    for (const cn of targetIAPDO) modsIAPDO.push({ cardNum: cn, delta: deltaIAPDO });
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsIAPDO } },
+      `パワー${deltaIAPDO > 0 ? '+' : ''}${deltaIAPDO}`));
   }
   // アタックしたシグニのレベルに基づくパワー修正
   if (stub.id === 'POWER_MOD_BY_ATTACKER_LEVEL') {
@@ -4082,16 +4092,32 @@ export function execStub(
   if (stub.id === 'OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND') {
     const selfHandCntOHTDB = ctx.ownerState.hand.length;
     const oppHandCntOHTDB = ctx.otherState.hand.length;
-    if (oppHandCntOHTDB > selfHandCntOHTDB) {
-      const newOtherOHTDB = {
-        ...ctx.otherState,
-        hand: [],
-        deck: [...ctx.otherState.deck, ...ctx.otherState.hand],
-      };
-      return done(addLog({ ...ctx, otherState: newOtherOHTDB },
-        `相手手札${oppHandCntOHTDB}枚→デッキ下（自手札${selfHandCntOHTDB}枚＜相手）`));
+    const excessOHTDB = oppHandCntOHTDB - selfHandCntOHTDB;
+    if (excessOHTDB <= 0) return done(addLog(ctx, `相手手札${oppHandCntOHTDB}枚≤自手札${selfHandCntOHTDB}枚（条件未達）`));
+    // 相手は超過枚数分を選択してデッキ下へ（1枚なら自動）
+    if (excessOHTDB >= oppHandCntOHTDB) {
+      // 全手札→デッキ下（超過が手札枚数以上の場合）
+      const newOtherOHTDB = { ...ctx.otherState, hand: [], deck: [...ctx.otherState.deck, ...ctx.otherState.hand] };
+      return done(addLog({ ...ctx, otherState: newOtherOHTDB }, `相手手札全${oppHandCntOHTDB}枚→デッキ下`));
     }
-    return done(addLog(ctx, `相手手札${oppHandCntOHTDB}枚≤自手札${selfHandCntOHTDB}枚（条件未達）`));
+    return needsInteraction(addLog(ctx, `相手は手札を${excessOHTDB}枚選んでデッキ下に置く`), {
+      type: 'SELECT_TARGET',
+      candidates: ctx.otherState.hand,
+      count: excessOHTDB,
+      optional: false,
+      targetScope: 'opp_hand',
+      opponentResponds: true,
+      thenAction: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
+      continuation: ({ type: 'STUB', id: 'INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N' } as StubAction) as EffectAction,
+    });
+  }
+  // INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N: 選択した相手手札をデッキ下へ
+  if (stub.id === 'INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N') {
+    const selectedIOHTDBN = ctx.lastProcessedCards ?? [];
+    if (selectedIOHTDBN.length === 0) return done(addLog(ctx, 'スキップ'));
+    const newHandIOHTDBN = ctx.otherState.hand.filter(c => !selectedIOHTDBN.includes(c));
+    const newOtherIOHTDBN = { ...ctx.otherState, hand: newHandIOHTDBN, deck: [...ctx.otherState.deck, ...selectedIOHTDBN] };
+    return done(addLog({ ...ctx, otherState: newOtherIOHTDBN }, `相手手札${selectedIOHTDBN.length}枚→デッキ下`));
   }
   // トラッシュから3ゾーンへ分配（lastProcessedCards→各ゾーンへ）
   // TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH: トラッシュから3枚選んでエナ/手札/デッキ下に分配
@@ -4519,15 +4545,7 @@ export function execStub(
     const newSHNCE: PlayerState = { ...sHNCE, hand: remainHNCE, energy: [...sHNCE.energy, ...nonColorlessHNCE] };
     return done(addLog({ ...ctx, ownerState: newSHNCE }, `手札の無色以外${nonColorlessHNCE.length}枚をエナゾーンへ`));
   }
-  // OPP_TRASH_TO_DECK_TOP: 相手のトラッシュ最上段をデッキトップに
-  if (stub.id === 'OPP_TRASH_TO_DECK_TOP') {
-    const sOTTDT = ctx.otherState;
-    if (sOTTDT.trash.length === 0) return done(addLog(ctx, '相手トラッシュなし'));
-    const topTrashOTTDT = sOTTDT.trash.at(-1)!;
-    const newSOTTDT: PlayerState = { ...sOTTDT, trash: sOTTDT.trash.slice(0, -1), deck: [topTrashOTTDT, ...sOTTDT.deck] };
-    return done(addLog({ ...ctx, otherState: newSOTTDT },
-      `${ctx.cardMap.get(topTrashOTTDT)?.CardName ?? topTrashOTTDT}を相手デッキトップに戻した`));
-  }
+  // OPP_TRASH_TO_DECK_TOP は line 1211 の handler で処理済み（dead code 削除）
   // REMOVE_OPP_MULTI_ENA / REMOVE_OPP_MULTI_ENA_ONLY: 相手の複数色エナをトラッシュへ
   if (stub.id === 'REMOVE_OPP_MULTI_ENA' || stub.id === 'REMOVE_OPP_MULTI_ENA_ONLY') {
     const sROME = ctx.otherState;
@@ -5430,22 +5448,43 @@ export function execStub(
   }
   // VIEW_AND_DISCARD_SPELL (STUB版): 手札か場のカードを見てスペルを捨てる → 手札からスペルを1枚捨てる
   // (already implemented by batch 5 VIEW_AND_DISCARD_SPELL)
-  // OPP_TRASH_TO_OPP_SIGNI_UNDER: 相手トラッシュから相手シグニ下にカードを置く
+  // OPP_TRASH_TO_OPP_SIGNI_UNDER: 相手トラッシュ最上段を相手シグニ下にカードを置く
   if (stub.id === 'OPP_TRASH_TO_OPP_SIGNI_UNDER') {
     const sOTTOSU = ctx.otherState;
     if (sOTTOSU.trash.length === 0) return done(addLog(ctx, '相手トラッシュなし'));
     const topTrashOTTOSU = sOTTOSU.trash.at(-1)!;
-    // 相手の最初のシグニのゾーン下に置く
-    let targetZoneOTTOSU = -1;
-    for (let zi = 0; zi < 3; zi++) { if (sOTTOSU.field.signi[zi]?.at(-1)) { targetZoneOTTOSU = zi; break; } }
-    if (targetZoneOTTOSU < 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
-    const newSigniOTTOSU = sOTTOSU.field.signi.map((stack, i) => {
-      if (i !== targetZoneOTTOSU) return stack;
-      return [topTrashOTTOSU, ...(stack ?? [])];
+    // トラッシュからカードを取り出し、lastProcessedCardsに保持
+    const newTrashOTTOSU = sOTTOSU.trash.slice(0, -1);
+    const ctx1OTTBSU = { ...ctx, otherState: { ...sOTTOSU, trash: newTrashOTTOSU }, lastProcessedCards: [topTrashOTTOSU] };
+    const oppZonesOTTOSU = [0, 1, 2].filter(zi => sOTTOSU.field.signi[zi]?.at(-1));
+    if (oppZonesOTTOSU.length === 0) return done(addLog(ctx1OTTBSU, '相手フィールドにシグニなし'));
+    if (oppZonesOTTOSU.length === 1) {
+      // 1体のみ → 自動決定
+      return exec({ type: 'STUB', id: 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE', value: oppZonesOTTOSU[0] } as StubAction as EffectAction, ctx1OTTBSU);
+    }
+    // 複数シグニ → ゾーン選択（オーナー側が選ぶ）
+    const zoneOptsOTTOSU = oppZonesOTTOSU.map(zi => ({
+      id: `ottbsu_zone_${zi}`,
+      label: `ゾーン${zi + 1}のシグニの下に置く`,
+      action: ({ type: 'STUB', id: 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE', value: zi } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx1OTTBSU, `${ctx.cardMap.get(topTrashOTTOSU)?.CardName ?? topTrashOTTOSU}：どのシグニの下に置く？`), {
+      type: 'CHOOSE', options: zoneOptsOTTOSU, count: 1,
+    });
+  }
+  // INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: stub.value=ゾーン番号、lastProcessedCards[0]=置くカード
+  if (stub.id === 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE') {
+    const zoneIdxOTUSZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+    const cardToPlaceOTUSZ = ctx.lastProcessedCards?.[0] ?? null;
+    if (!cardToPlaceOTUSZ) return done(addLog(ctx, 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: カードなし'));
+    const newSigniOTUSZ = ctx.otherState.field.signi.map((stack, i) => {
+      if (i !== zoneIdxOTUSZ) return stack;
+      return [cardToPlaceOTUSZ, ...(stack ?? [])];
     }) as (string[] | null)[];
-    const newSOTTOSU: PlayerState = { ...sOTTOSU, trash: sOTTOSU.trash.slice(0, -1), field: { ...sOTTOSU.field, signi: newSigniOTTOSU } };
-    return done(addLog({ ...ctx, otherState: newSOTTOSU },
-      `${ctx.cardMap.get(topTrashOTTOSU)?.CardName ?? topTrashOTTOSU}を相手シグニ下へ`));
+    const newOtherOTUSZ = { ...ctx.otherState, field: { ...ctx.otherState.field, signi: newSigniOTUSZ } };
+    return done(addLog({ ...ctx, otherState: newOtherOTUSZ },
+      `${ctx.cardMap.get(cardToPlaceOTUSZ)?.CardName ?? cardToPlaceOTUSZ}→相手ゾーン${zoneIdxOTUSZ + 1}のシグニ下へ`));
   }
   // POWER_MOD_BY_FIELD_CLASS_LEVEL: フィールドのクラスシグニレベル合計×deltaをパワー修正
   if (stub.id === 'POWER_MOD_BY_FIELD_CLASS_LEVEL') {
@@ -8627,17 +8666,7 @@ export function execStub(
     return done(addLog(ctx, `相手の手札（${handNames || 'なし'}）+ルリグデッキ（${lrigNames || 'なし'}）を公開`));
   }
   // === バッチ14: シグニ移動・エナ操作・複数対象系 ===
-  // OPP_SIGNI_TO_DECK_AND_SHUFFLE / OPP_SIGNI_TO_DECK_BY_GATE / OPP_SIGNI_TO_DECK_NTH:
-  //   相手シグニをデッキに混ぜる
-  if (stub.id === 'OPP_SIGNI_TO_DECK_AND_SHUFFLE' || stub.id === 'OPP_SIGNI_TO_DECK_BY_GATE' || stub.id === 'OPP_SIGNI_TO_DECK_NTH') {
-    const candidatesOSTDS = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
-    if (candidatesOSTDS.length === 0) return done(addLog(ctx, '相手シグニなし'));
-    const thenOSTDS: StubAction = { type: 'STUB', id: 'INTERNAL_BOUNCE_TO_DECK' };
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: candidatesOSTDS, count: 1, optional: false,
-      targetScope: 'opp_field', thenAction: thenOSTDS as EffectAction,
-    });
-  }
+  // OPP_SIGNI_TO_DECK_AND_SHUFFLE / OPP_SIGNI_TO_DECK_BY_GATE / OPP_SIGNI_TO_DECK_NTH は line 2567 の handler で処理済み（dead code 削除）
   // INTERNAL_BOUNCE_TO_DECK: 選択シグニをデッキにランダム挿入
   if (stub.id === 'INTERNAL_BOUNCE_TO_DECK') {
     const cnIBTD = ctx.lastProcessedCards?.[0];

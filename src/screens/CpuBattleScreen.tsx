@@ -635,7 +635,9 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       case 'ATTACK_ARTS_OP':
         return advancePhase(g);
       case 'ATTACK_SIGNI': {
-        const upZones = [0, 1, 2].filter(i => {
+        // OPP_SIGNI_ONE_ATTACK_TOTAL: CPUの合計1回アタック制限チェック
+        const cpuAttackLimitHit = cpu.signi_attack_once_limit && (cpu.attacked_signi_ids?.length ?? 0) > 0;
+        const upZones = cpuAttackLimitHit ? [] : [0, 1, 2].filter(i => {
           const stack = cpu.field.signi[i];
           if (!stack?.length) return false;
           return !(cpu.field.signi_down?.[i] ?? false);
@@ -643,7 +645,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
         if (upZones.length > 0) {
           return signiAttack(g, upZones[0]);
         }
-        appendLog('[CPU] シグニアタック終了');
+        appendLog(`[CPU] シグニアタック終了${cpuAttackLimitHit ? '（合計1回制限）' : ''}`);
         return advancePhase(g);
       }
       case 'ATTACK_LRIG': {
