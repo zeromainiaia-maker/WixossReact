@@ -4560,10 +4560,13 @@ export function execStub(
   }
   // BOTH_DISCARD_BY_CENTER_LEVEL: 両者センタールリグのレベル分捨て
   if (stub.id === 'BOTH_DISCARD_BY_CENTER_LEVEL') {
-    const centerNumBDCL = ctx.ownerState.field.lrig.at(-1);
-    const centerCardBDCL = centerNumBDCL ? ctx.cardMap.get(centerNumBDCL) : undefined;
     const toHWBDCL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const centerLevelBDCL = centerCardBDCL ? parseInt(toHWBDCL(centerCardBDCL.Level ?? '0')) || 0 : 0;
+    const getLevel = (state: PlayerState) => {
+      const cn = state.field.lrig.at(-1);
+      return cn ? parseInt(toHWBDCL(ctx.cardMap.get(cn)?.Level ?? '0')) || 0 : 0;
+    };
+    // 「場にある最も高いレベルを持つセンタールリグのレベル」= 両者のルリグレベルの最大値
+    const centerLevelBDCL = Math.max(getLevel(ctx.ownerState), getLevel(ctx.otherState));
     const selfDiscardBDCL = Math.min(centerLevelBDCL, ctx.ownerState.hand.length);
     const otherDiscardBDCL = Math.min(centerLevelBDCL, ctx.otherState.hand.length);
     const newCtxBDCL: ExecCtx = {
