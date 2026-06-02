@@ -5709,9 +5709,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!isMyTurn || loading) return [];
     if (my.field.lrig.length === 0) return [];
 
-    // MAINフェイズ：付与された ACTIVATED 能力を表示
+    // MAINフェイズ：センタールリグのACTIVATED能力 + 付与されたACTIVATED能力を表示
     if (bs.turn_phase === 'MAIN') {
-      return grantedMyLrigEffects
+      const lrigTopMA = my.field.lrig.at(-1) ?? '';
+      const lrigActionsMA: CardAction[] = [];
+
+      // センタールリグ本来のACTIVATED効果（SONG_FRAGMENT等）
+      if (lrigTopMA && !isActionBlocked('USE_ACT')) {
+        const lrigEffsMA = effectsMap.get(lrigTopMA) ?? [];
+        for (const eff of lrigEffsMA) {
+          if (eff.effectType !== 'ACTIVATED') continue;
+          if (!eff.timing?.includes('MAIN')) continue;
+          if (my.actions_done?.includes(eff.effectId)) continue;
+          if (my.blocked_actions?.includes(eff.effectId)) continue;
+          // SONG_FRAGMENT: エナゾーンに歌のカケラがある場合のみ表示
+          const actMA = eff.action as import('../types/effects').StubAction;
+          if (actMA?.type === 'STUB' && actMA.id === 'SONG_FRAGMENT') {
+            const hasSongCardMA = my.energy.some(cn => battleCardMap.get(cn)?.EffectText?.includes('【歌のカケラ】'));
+            if (!hasSongCardMA) continue;
+          }
+          lrigActionsMA.push({
+            label: '【起】歌のカケラ',
+            color: '#cc66ff',
+            onClick: () => {
+              setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
+              setSelectedLrigGrantedCost(new Set());
+            },
+          });
+        }
+      }
+
+      // 付与された ACTIVATED 能力
+      const grantedActionsMA = grantedMyLrigEffects
         .filter(e =>
           e.effectType === 'ACTIVATED' &&
           !(my.actions_done?.includes(e.effectId)) &&
@@ -5729,12 +5758,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             label: `【起】${costLabel}`,
             color: C.coin,
             onClick: () => {
-              const lrigTop = my.field.lrig.at(-1) ?? '';
-              setPendingLrigGranted({ sourceCardNum: lrigTop, effect: eff });
+              setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
               setSelectedLrigGrantedCost(new Set());
             },
           };
         });
+
+      return [...lrigActionsMA, ...grantedActionsMA];
     }
 
     // ATTACK_LRIGフェイズ：ルリグアタック
