@@ -2762,7 +2762,7 @@ export function collectGrantedFromUnderSigni(
     // Pattern B: 下のカードが GRANT_SIGNI_ABOVE_ABILITY → トップに指定効果を付与
     for (const un of underNums) {
       const unBase = un.includes('#') ? un.slice(0, un.indexOf('#')) : un;
-      for (const eff of (effectsMap.get(un) ?? [])) {
+      for (const eff of (effectsMap.get(unBase) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS') continue;
         if (eff.action.type !== 'GRANT_SIGNI_ABOVE_ABILITY') continue;
         const gsa = eff.action as GrantSigniAboveAbilityAction;
