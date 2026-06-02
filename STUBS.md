@@ -459,7 +459,7 @@
 | 1 | CONT | ⚡ | RISE_LEAVE_DISCARD_STACK ※done(addLog)のみ（ライズ退場スタック捨てグループ: 未実装） |
 | 1 | AUTO | ⚡ | RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY |
 | 1 | AUTO/ACTIVATED | ✅ | SELECT_NO_COMMON_COLOR ※CHOOSE選択で共通色なしパターン実装済み |
-| 1 | AUTO | ⚡ | SELECT_OTHER_SIGNI |
+| 1 | AUTO | ✅ | SELECT_OTHER_SIGNI ※v0.169: ソース以外の自場シグニをoptionalでSELECT_TARGET→lastProcessedCardsへ（line 7412） |
 | 1 | ACTIVATED | ✅ | SELF_TO_DECK_TOP ※複数ハンドラ確認済み（フィールド→デッキトップ） |
 | 2 | AUTO | ✅ | SELF_TRASH_IF_NO_OPP_VIRUS ※フィールド在籍チェック追加 |
 | 1 | AUTO | ✅ | SET_HAND_CARD_AS_TRAP ※PLACE_TRAP_OPTIONALと共有実装 |
