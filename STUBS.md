@@ -383,7 +383,7 @@
 | 1 | ACTIVATED | ✅ | OPP_SIGNI_TO_DECK_AND_SHUFFLE ※v0.167以前のline 2567ハンドラが正実装（SELECT_TARGET+INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE）。dead code除去 |
 | 1 | ACTIVATED | ⚡ | OPP_SIGNI_TO_DECK_BY_GATE |
 | 1 | ACTIVATED | ⚡ | OPP_SIGNI_TO_DECK_NTH |
-| 2 | AUTO | ⚡ | OPP_TRASH_FIELD_SIGNI_AND_ENERGY |
+| 2 | AUTO | ✅ | OPP_TRASH_FIELD_SIGNI_AND_ENERGY ※v0.169: 相手フィールド全シグニ+全エナをトラッシュ実装済み（line 3811） |
 | 2 | CONT | ⚡ | OPP_TRASH_LOSE_COLOR_AND_CLASS ※done(addLog)のみ（移動リダイレクトグループ: effectEngine未対応） |
 | 1 | AUTO | ✅ | OPP_TRASH_TO_DECK_TOP ※v0.168: line 1211の正実装（SELECT_TARGET+INTERNAL_OPP_TRASH_TO_DECK_TOP）を確認・dead code除去 |
 | 2 | AUTO | ✅ | OPP_TRASH_TO_OPP_SIGNI_UNDER ※v0.168: CHOOSE for zone selection+INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE（lastProcessedCards経由でカード情報保持） |
