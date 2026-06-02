@@ -8939,7 +8939,33 @@ export function execStub(
     const isAllSR = txtSR.includes('すべてのシグニを') && !isOppSR;
     const targetStateSR = isOppSR ? ctx.otherState : ctx.ownerState;
     const targetScopeSR: TargetScope = isOppSR ? 'opp_field' : 'self_field';
-    if (isAllSR) return done(addLog(ctx, '[全シグニ配置替え: 複雑効果ログのみ]'));
+    // 全シグニ配置替え: フィールドのシグニ全体をゾーン選択で入れ替える
+    if (isAllSR) {
+      const candsSRAll = ctx.ownerState.field.signi.flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
+      if (candsSRAll.length < 2) return done(addLog(ctx, '配置替え不可（シグニ1体以下）'));
+      // 1体ずつ選択して移動先を決める（任意）
+      const selectedSRAll = (ctx.lastProcessedCards ?? []).find(cn =>
+        ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
+      if (!selectedSRAll) {
+        const noopSRAll: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+        const contSRAll: StubAction = { type: 'STUB', id: 'SIGNI_REPOSITION' };
+        return needsInteraction(addLog(ctx, '配置替えするシグニを選択（任意）'), {
+          type: 'SELECT_TARGET', candidates: candsSRAll, count: 1, optional: true,
+          targetScope: 'self_field', thenAction: noopSRAll as EffectAction, continuation: contSRAll as EffectAction,
+        });
+      }
+      const curZoneSRAll = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === selectedSRAll);
+      const zoneOptsSRAll = [0,1,2].filter(i => i !== curZoneSRAll).map(zi => ({
+        id: `zone_${zi}`, label: `ゾーン${zi+1}へ移動`,
+        action: ({ type: 'STUB', id: 'INTERNAL_REPOSITION_TO_ZONE',
+          value: `${selectedSRAll}:${zi}:false` } as StubAction) as EffectAction,
+        available: true,
+      }));
+      zoneOptsSRAll.push({ id: 'skip', label: '終了',
+        action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction,
+        available: true });
+      return needsInteraction(addLog(ctx, '移動先ゾーンを選択'), { type: 'CHOOSE', options: zoneOptsSRAll, count: 1 });
+    }
     // 対象シグニ選択
     const selectedSR = (ctx.lastProcessedCards ?? []).find(cn =>
       targetStateSR.field.signi.some(s => s?.at(-1) === cn),
