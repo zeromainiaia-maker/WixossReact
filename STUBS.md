@@ -443,7 +443,7 @@
 | 1 | CONT | ⚡ | PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
 | 1 | CONT | ✅ | PREVENT_SIGNI_DOWN_BY_OPP_ALL ※v0.114: collectDownProtectedSigni+execDownに保護フィルター統合 |
 | 1 | CONT | ⚡ | PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
-| 1 | ACTIVATED | ⚡ | PREVENT_TARGET_LRIG_ATTACK_THIS_TURN |
+| 1 | ACTIVATED | ✅ | PREVENT_TARGET_LRIG_ATTACK_THIS_TURN ※v0.169: negated_attacksにルリグIDを設定。BattleScreen/CpuBattleScreenのhandleLrigAttackでチェック |
 | 1 | CONT | ✅ | REDUCE_OPP_HAND_LIMIT ※effectEngine.collectHandLimitsで実装 |
 | 1 | ACTIVATED | ⚡ | REDUCE_PLAY_ABILITY_COST |
 | 1 | CONT | ✅ | REMOVE_OPP_MULTI_ENA ※相手エナの複数色カードをフィルタしてトラッシュへ移動実装済み |
