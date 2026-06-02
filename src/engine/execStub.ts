@@ -7982,7 +7982,7 @@ export function execStub(
     const mbsOMB = ctx.ownerState.field.signi_magic_boxes ?? [null, null, null];
     const mbCardOMB = zoneIdxOMB >= 0 ? (mbsOMB[zoneIdxOMB] ?? null) : null;
     if (!mbCardOMB) return done(addLog(ctx, `ゾーン${zoneIdxOMB >= 0 ? zoneIdxOMB + 1 : '?'}にMBなし`));
-    const mbNameOMB = ctx.cardMap.get(mbCardOMB)?.CardName ?? mbCardOMB;
+    const mbNameOMB = ctx.cardMap.get(mbCardOMB ?? '')?.CardName ?? (mbCardOMB ?? '');
     const noopOMB: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
     return needsInteraction(addLog(ctx, `【マジックボックス】（${mbNameOMB}）を表向きにしますか？`), {
       type: 'CHOOSE',
