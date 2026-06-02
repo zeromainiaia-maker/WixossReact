@@ -363,7 +363,7 @@
 | 1 | CONT | ✅ | ODD_LEVEL_SIGNI_CANT_ATTACK ※effectEngine.calcContinuousBlockedActionsで実装 |
 | 1 | AUTO | ⚡ | OPP_CHOOSE_EFFECT ※v0.161: opponentResponds CHOOSE+テキスト解析改善（①ドロー/②手札シグニ配置パターン追加） |
 | 1 | AUTO | ⚡ | OPP_CHOOSES_FOR_YOU ※v0.161: INTERNAL_OPP_DECK_TRASH_N追加（相手デッキのみトラッシュ）+②トラッシュからシグニ手札パターン |
-| 1 | AUTO/ACTIVATED | ⚡ | OPP_DECK_REVEAL_UNTIL |
+| 1 | AUTO/ACTIVATED | ✅ | OPP_DECK_REVEAL_UNTIL ※v0.169: DECK_REVEAL_UNTILと同ハンドラ。相手デッキを条件まで公開→トラッシュ/デッキ下（line 1567） |
 | 2 | CONT | ⚡ | OPP_ENERGY_COLOR_CONDITION_TRASH ※collectOppEnergyColorRestriction+handleEnergyChargeFromHand/Signiでエナチャージ時に色制限チェック |
 | 2 | AUTO | ✅ | OPP_ENERGY_EXCESS_TRASH ※v0.169: 閾値チェック+相手opponentResponds SELECT_TARGET→INTERNAL_OPP_ENERGY_TO_TRASH（line 1071） |
 | 1 | ACTIVATED | ⚡ | OPP_ENERGY_OR_DISCARD_CONDITION |
