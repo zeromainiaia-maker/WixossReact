@@ -5228,7 +5228,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // EXTRA_GUARD_COST_FROM_HAND: 相手フィールドにアクティブな場合、手札から追加でガードカードを1枚捨てる
         const needsExtraGuardCard = collectOppExtraGuardFromHand(op, battleCardMap, effectsMap);
         let energyAfterGuard = my.energy;
-        let extraTrash: string[] = [];
+        const extraTrash: string[] = [];
         if (needsExtraEnergy && my.energy.length > 0) {
           const removedEnergy = my.energy[my.energy.length - 1];
           energyAfterGuard = my.energy.slice(0, -1);
