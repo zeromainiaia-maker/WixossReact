@@ -249,6 +249,17 @@ function computeArtsEffectiveCost(
     }
   }
 
+  // SPELL_COST_REDUCTION_BY_TRASH_COUNT: トラッシュのクラスシグニN枚につき色コスト×1軽減
+  if (myState.trash && cardMap) {
+    m = text.match(/トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき《([^》]+)》×?([０-９\d]*)減る/);
+    if (m) {
+      const cls = m[1]; const perN = parseInt(toHalfWidth(m[2])); const col = m[3]; const perRed = parseInt(toHalfWidth(m[4] || '1')) || 1;
+      const cnt = myState.trash.filter(cn => (cardMap.get(cn)?.CardClass ?? '').includes(cls) && cardMap.get(cn)?.Type === 'シグニ').length;
+      const reduction = Math.floor(cnt / perN) * perRed;
+      if (reduction > 0) return removeNColorFromCost(base, col, reduction);
+    }
+  }
+
   // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト合計がN以上なら色コスト軽減
   if (artsThresholdReductions && artsThresholdReductions.length > 0) {
     const totalCost = parseGrowCost(base).reduce((s, c) => s + c.count, 0);
