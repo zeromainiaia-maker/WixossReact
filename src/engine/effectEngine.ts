@@ -492,6 +492,9 @@ export function calcFieldPowers(
 
   // フィールド上のすべてのカードの CONTINUOUS POWER_MODIFY を適用
   const applyEffects = (ownerState: PlayerState, otherState: PlayerState, isOwnerTurn: boolean) => {
+    // NEGATE_ALL_OPP_EFFECTS: all_cont_effects_negated フラグがあれば全CONT効果をスキップ
+    if (ownerState.all_cont_effects_negated) return;
+
     // PREVENT_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化するシグニ
     const otherPowerProtected = new Set<string>();
     for (const stack of otherState.field.signi) {

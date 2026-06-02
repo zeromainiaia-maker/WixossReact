@@ -357,6 +357,14 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const newEnergyCA = signiAtkCostCA > 0 ? attacker.energy.slice(signiAtkCostCA) : attacker.energy;
     const newAttacker = { ...attacker, field: { ...attacker.field, signi_down: newAttkDown }, attacked_signi_ids: newAttkAttackedIds, energy: newEnergyCA };
 
+    // NEGATE_THAT_ATTACK: 防御側がこのアタッカーのIDをnegated_attacksに登録していた場合、無効化
+    if ((defender.negated_attacks ?? []).includes(attkInstId)) {
+      const clearedNA = (defender.negated_attacks ?? []).filter(id => id !== attkInstId);
+      const newDef = { ...defender, negated_attacks: clearedNA.length ? clearedNA : undefined };
+      appendLog(`${attkCard.CardName}のアタックは無効化された`);
+      return setMyState(setOppState(g, newDef), newAttacker);
+    }
+
     const defStack = defender.field.signi[zoneIdx];
     const defInstId = defStack?.at(-1);
 

@@ -398,11 +398,13 @@ export interface StackedSigniSlotProps {
   isMe?: boolean;
   trapCardNum?: string | null;
   seedCardNum?: string | null;
+  magicBoxCardNum?: string | null;
 }
 
-export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, isMe, trapCardNum, seedCardNum }: StackedSigniSlotProps) {
+export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, isMe, trapCardNum, seedCardNum, magicBoxCardNum }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
+  const [showMBPeek, setShowMBPeek] = useState(false);
   const touchPos = useRef<{ x: number; y: number } | null>(null);
 
   const n = stack?.length ?? 0;
@@ -424,17 +426,30 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
   if (!n) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{
-          width, height, flexShrink: 0, borderRadius: charmCardNum ? '4px 4px 0 0' : 4,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative',
-          border: trapCardNum ? '1px dashed #ffd700' : seedCardNum ? '1px dashed #44ff88' : C.borderEmpty,
-          backgroundColor: trapCardNum ? 'rgba(40,30,0,0.6)' : seedCardNum ? 'rgba(0,40,20,0.6)' : C.bgCardEmpty,
-        }}>
+        <div
+          style={{
+            width, height, flexShrink: 0, borderRadius: charmCardNum ? '4px 4px 0 0' : 4,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative',
+            border: trapCardNum ? '1px dashed #ffd700'
+              : magicBoxCardNum ? '1px dashed #bb88ff'
+              : seedCardNum ? '1px dashed #44ff88' : C.borderEmpty,
+            backgroundColor: trapCardNum ? 'rgba(40,30,0,0.6)'
+              : magicBoxCardNum ? 'rgba(40,0,80,0.6)'
+              : seedCardNum ? 'rgba(0,40,20,0.6)' : C.bgCardEmpty,
+            cursor: magicBoxCardNum && isMe ? 'pointer' : undefined,
+          }}
+          onClick={() => { if (magicBoxCardNum && isMe) setShowMBPeek(true); }}
+        >
           {trapCardNum ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>🪤</span>
               <span style={{ fontSize: 7, color: '#ffd700', fontWeight: 'bold', lineHeight: 1 }}>TRAP</span>
+            </div>
+          ) : magicBoxCardNum ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>📦</span>
+              <span style={{ fontSize: 7, color: '#bb88ff', fontWeight: 'bold', lineHeight: 1 }}>M.BOX</span>
             </div>
           ) : seedCardNum ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -451,6 +466,10 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
         {showCharmModal && charmCardNum && (
           <CharmModal cardNum={charmCardNum} cards={cards} isMe={!!isMe} onClose={() => setShowCharmModal(false)} />
         )}
+        {showMBPeek && magicBoxCardNum && isMe && (() => {
+          const mbCardData = cards.find(c => c.CardNum === magicBoxCardNum.split('#')[0]);
+          return mbCardData ? <CardModal card={mbCardData} onClose={() => setShowMBPeek(false)} /> : null;
+        })()}
       </div>
     );
   }
@@ -608,6 +627,20 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             SEED
           </div>
         )}
+        {magicBoxCardNum && (
+          <div
+            style={{
+              position: 'absolute', top: 2, right: 2,
+              backgroundColor: 'rgba(60,0,120,0.9)', color: '#bb88ff',
+              fontSize: 7, fontWeight: 'bold', borderRadius: 3,
+              padding: '1px 3px', lineHeight: 1, zIndex: n + 3,
+              cursor: isMe ? 'pointer' : 'default',
+            }}
+            onClick={(e) => { if (isMe) { e.stopPropagation(); setShowMBPeek(true); } }}
+          >
+            MB
+          </div>
+        )}
       </div>
       {charmCardNum && (
         <CharmPeek width={width}
@@ -616,6 +649,9 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
       </div>
       {showModal && stack && (
         <CardStackModal stack={stack} cards={cards} onClose={() => setShowModal(false)} actions={actions} />
+      )}
+      {showMBPeek && magicBoxCardNum && isMe && (
+        <CardModal cardNum={magicBoxCardNum} cards={cards} onClose={() => setShowMBPeek(false)} label="【マジックボックス】中身確認" />
       )}
       {showCharmModal && charmCardNum && (
         <CharmModal cardNum={charmCardNum} cards={cards} isMe={!!isMe} onClose={() => setShowCharmModal(false)} />
@@ -910,6 +946,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             virusCount={state.field.signi_virus?.[rawIdx] ?? 0}
             trapCardNum={state.field.signi_traps?.[rawIdx] ?? null}
             seedCardNum={state.field.signi_seeds?.[rawIdx] ?? null}
+            magicBoxCardNum={state.field.signi_magic_boxes?.[rawIdx] ?? null}
             isMe={isMe} />
         );
       })}

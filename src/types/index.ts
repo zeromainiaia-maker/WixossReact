@@ -78,7 +78,8 @@ export interface PlayerState {
     signi_acce?:   (string | null)[]; // [zone0, zone1, zone2] アクセカードのCardNum or null
     signi_virus?:  number[];          // [zone0, zone1, zone2] ウィルス数（0 or 1）
     signi_soul?:   (string | null)[]; // [zone0, zone1, zone2] ソウルカードのCardNum（場を離れるとlrig_trashへ）
-    signi_traps?:  (string | null)[]; // [zone0, zone1, zone2] 裏向きトラップのCardNum（設置済み・未発動）
+    signi_traps?:       (string | null)[]; // [zone0, zone1, zone2] 裏向きトラップのCardNum（設置済み・未発動）
+    signi_magic_boxes?: (string | null)[]; // [zone0, zone1, zone2] 【マジックボックス】のCardNum（裏向き設置中）
     signi_seeds?:  (string | null)[]; // [zone0, zone1, zone2] 【シード】のCardNum（設置済み・未開花）
     signi_armor?:  boolean[];         // [zone0, zone1, zone2] true=血晶武装状態（場を離れるまで維持）
     free_zone?:    string[];          // フリーゾーン（チアガール等を置く汎用ゾーン）
@@ -208,6 +209,12 @@ export interface PlayerState {
   crash_to_trash_instead?: boolean;
   // NEGATE_NTH_ATTACK: このターン、相手シグニアタックをN回目まで自動無効化する残り回数
   negate_opp_signi_attacks_until?: number;
+  // NEGATE_ALL_OPP_EFFECTS: このターン、自分のCONTINUOUS効果は何もしない（相手が効果無効化）
+  all_cont_effects_negated?: boolean;
+  // BANISH_BY_SELF_GOES_TO_TRASH: このシグニによってバニッシュされたシグニはエナでなくトラッシュへ
+  banish_to_trash_by_self?: string[];
+  // GROW_COST_ZERO / CONDITIONAL_FREE_GROW: 次のグロウコストを0にする
+  free_grow_this_turn?: boolean;
 }
 
 export interface GameLog {

@@ -2502,6 +2502,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
           negate_opp_signi_attacks_until: undefined, // N回目シグニアタック自動無効化フラグをリセット
+          all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
+          banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
@@ -3541,6 +3543,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: [...my.trash, ...paidNums],
         actions_done: [...(my.actions_done ?? []), 'GROW'],
         coins: Math.min(5, Math.max(0, my.coins - growCoinCost) + coinGain),
+        free_grow_this_turn: undefined,
       };
       // グロウ条件の追加効果（ルリグをデッキから下に置く・除外する等）
       const growCond = extractGrowCondition(card.EffectText);
@@ -3700,6 +3703,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: [...my.trash, ...paidNums, ...discardNums],
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
         field: keySub ? { ...my.field, key_piece: null } : my.field,
+        actions_done: [...(my.actions_done ?? []), 'USE_ARTS'],
       };
       if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
@@ -4304,6 +4308,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           .eq('room_id', roomId);
         return;
       }
+      // NEGATE_THAT_ATTACK: 相手がop.negated_attacksにmyTopNumを登録していた場合、このアタックを無効化
+      if ((op.negated_attacks ?? []).includes(myTopNum)) {
+        const clearedNA = (op.negated_attacks ?? []).filter(id => id !== myTopNum);
+        const newOpNA: PlayerState = { ...op, negated_attacks: clearedNA.length ? clearedNA : undefined };
+        appendBattleLogs([`${myCardName}のアタックは無効化された`]);
+        await supabase.from('battle_states')
+          .update({ [myKey]: newMyState, [opKey]: newOpNA })
+          .eq('room_id', roomId);
+        return;
+      }
 
       // アサシン：正面シグニを無視してライフへ直接アタック
       const effectivelyEmpty = !opTopCardNum || isAssassin;
@@ -4335,19 +4349,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ウィルスはゾーンに属するため、シグニがバニッシュされても除去しない
           const redirectBanish = my.banish_redirect === true;
           const redirectBanishToHand = my.banish_redirect_to_hand === true;
+          // BANISH_BY_SELF_GOES_TO_TRASH: この攻撃シグニが banish_to_trash_by_self を持つ場合、バニッシュ先はトラッシュ
+          const banishBySelftToTrash = (my.banish_to_trash_by_self ?? []).includes(myTopNum);
           // FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 防御側CONTが有効なら凍結シグニはデッキ下へ
           // FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 攻撃側CONTが有効なら相手凍結シグニはトラッシュへ
           const opFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(op, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
           const myFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(my, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
           const frozenToDeckBottom = opFrozenOvr.frozenBanishToDeckBottom;
           const frozenToTrash = !frozenToDeckBottom && myFrozenOvr.frozenLeaveToTrash;
-          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash;
+          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash;
           newOpState = {
             ...op,
             hand: redirectBanishToHand ? [...op.hand, ...opStack] : op.hand,
             deck: frozenToDeckBottom ? [...op.deck, ...opStack] : op.deck,
             energy: anyRedirect ? op.energy : [...op.energy, ...opStack],
-            trash: (redirectBanish || frozenToTrash)
+            trash: (redirectBanish || frozenToTrash || banishBySelftToTrash)
               ? [...op.trash, ...opStack, ...banishExtraTrash]
               : (banishExtraTrash.length > 0 ? [...op.trash, ...banishExtraTrash] : op.trash),
             field: {
@@ -5387,6 +5403,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...my,
         hand: newHand,
         energy: newEnergy,
+        activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
         trash: [...my.trash, ...paidNums, ...discardedCards],
         lrig_trash: newLrigTrash,
         field: newField,
@@ -6071,9 +6088,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     <p style={{ color: C.textFaint, textAlign: 'center', margin: '12px 0' }}>候補なし</p>
                   ) : growCandidates.map(card => {
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
-                    const canAfford = (growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
-                      canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
-                    const totalReq = parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
+                    const isFreeGrow = my.free_grow_this_turn === true;
+                    const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
+                      canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
+                    const totalReq = isFreeGrow ? 0 : parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
                         onClick={() => {
@@ -8049,10 +8067,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             {(() => {
               const card = battleCardMap.get(pendingSigniActivated.cardNum);
               const eff  = pendingSigniActivated.effect;
-              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const isCostZeroByEffect = my.activate_cost_zero_signi === pendingSigniActivated.cardNum;
+              const energyTotal = isCostZeroByEffect ? 0 : (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
-              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
-              const keySubCount = keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId ? 2 : 0;
+              const costStr = isCostZeroByEffect ? '' : ((eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '');
+              const keySubCount = (!isCostZeroByEffect && keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId) ? 2 : 0;
               const adjustedTotal = Math.max(0, energyTotal - keySubCount);
               const selectedNums = [...selectedSigniActivatedCost].map(i => my.energy[i]);
               const energyOk = energyTotal === 0
