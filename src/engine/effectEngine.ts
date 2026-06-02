@@ -2807,7 +2807,7 @@ export function hasAllCardsColorBlack(
  */
 export function collectCenterZoneDeployRestrict(
   opponentState: PlayerState,
-  cardMap: Map<string, CardData>,
+  _cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): number | undefined {
   const candidates: string[] = [
