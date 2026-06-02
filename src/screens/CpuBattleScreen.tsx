@@ -725,6 +725,9 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const isDown = gs.player.field.signi_down?.[zoneIdx] ?? false;
     const stack = gs.player.field.signi[zoneIdx];
     if (!stack?.length || isDown) return;
+    // GATE: blocked_actions に 'ATTACK:cardId' があればアタック不可
+    const topId = stack[stack.length - 1];
+    if (gs.player.blocked_actions?.includes(`ATTACK:${topId}`)) return;
     setGs(prev => prev ? signiAttack(prev, zoneIdx) : prev);
   };
 
