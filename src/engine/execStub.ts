@@ -9753,8 +9753,8 @@ export function execStub(
     const txtDDCPN = srcDDCPN ? (srcDDCPN.EffectText ?? '') + ' ' + (srcDDCPN.BurstText ?? '') : '';
     const mDrawDDCPN = txtDDCPN.match(/([０-９\d]+)枚引く/);
     const mDiscDDCPN = txtDDCPN.match(/([０-９\d]+)枚捨てる/);
-    const drawNDDCPN = mDrawDDCPN ? parseInt(toHWDDCPN(mDrawDDCPN[1])) : 1;
-    const discNDDCPN = mDiscDDCPN ? parseInt(toHWDDCPN(mDiscDDCPN[1])) : 1;
+    const drawNDDCPN = mDrawDDCPN ? parseInt(toHWDDCPN(mDrawDDCPN[1] ?? '1')) : 1;
+    const discNDDCPN = mDiscDDCPN ? parseInt(toHWDDCPN(mDiscDDCPN[1] ?? '1')) : 1;
     let sDDCPN = ctx.ownerState;
     const canDrawDDCPN = Math.min(drawNDDCPN, sDDCPN.deck.length);
     sDDCPN = { ...sDDCPN, hand: [...sDDCPN.hand, ...sDDCPN.deck.slice(0, canDrawDDCPN)], deck: sDDCPN.deck.slice(canDrawDDCPN) };
@@ -9910,4 +9910,5 @@ export function execStub(
   }
 
   return done(addLog(ctx, `[STUB: ${stub.id}]`));
+}
 }
