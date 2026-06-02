@@ -83,7 +83,7 @@
 | 13 | AUTO | ✅ | TRAP_OPERATION ※v0.167: チェックゾーンパターン追加（txtにチェックゾーンに置く→field.check設定）。lastProcessedCards/デッキ上パターン継続 |
 | 2 | AUTO/ACTIVATED | ✅ | TRASH_OWN_KEY_OPTIONAL ※needsInteraction CHOOSE: キーをルリグトラッシュに置く/スキップ |
 | 5 | AUTO/ACTIVATED | ⚡ | ADD_CARD_TO_LRIG_DECK_HIDDEN ※lastProcessedCardsのカードをルリグデッキへ追加(カード名解決は部分的) |
-| 5 | CONT | ⚡ | ARTS_IMMOVABLE ※executor直接チェック |
+| 5 | CONT | ✅ | ARTS_IMMOVABLE ※v0.169: execStub内ARTS_USE_DISCARD_LRIG_DECKが不動アーツをフィルタ（line 2271）。配置不可は実質防止済み |
 | 5 | AUTO/ACTIVATED | ✅ | CHOOSE_COLOR_FROM_LIST ※needsInteraction CHOOSE: エナの色一覧から選択実装済み |
 | 5 | CONT/AUTO | ⚡ | COLLAB |
 | 5 | AUTO/ACTIVATED | ✅ | CONDITIONAL_CARD_COST_BY_OPP_LRIG |
