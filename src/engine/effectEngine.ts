@@ -144,6 +144,18 @@ export function checkActiveCondition(
       return ownerState.bonds?.includes(name) ?? false;
     }
 
+    case 'SUBSCRIBER_COUNT': {
+      const cnt = ownerState.subscriber_count ?? 0;
+      switch (cond.operator) {
+        case 'gte': return cnt >= cond.value;
+        case 'lte': return cnt <= cond.value;
+        case 'eq':  return cnt === cond.value;
+        case 'gt':  return cnt > cond.value;
+        case 'lt':  return cnt < cond.value;
+        default:    return false;
+      }
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers));
   }
