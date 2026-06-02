@@ -7972,7 +7972,7 @@ export function execStub(
       trash: newTrashSMB,
       field: { ...ctx.ownerState.field, signi_magic_boxes: currentMBs },
     };
-    return done(addLog({ ...ctx, ownerState: newOwnerSMB }, `【マジックボックス】設置: ゾーン${zoneIdxSMB + 1}（${ctx.cardMap.get(cardSMB)?.CardName ?? cardSMB}）`));
+    return done(addLog({ ...ctx, ownerState: newOwnerSMB }, `【マジックボックス】設置: ゾーン${zoneIdxSMB + 1}（${ctx.cardMap.get(cardSMB ?? '')?.CardName ?? cardSMB}）`));
   }
   // OPEN_MAGIC_BOX: このシグニと同ゾーンのMBを表向きにしてトラッシュへ（任意）
   if (stub.id === 'OPEN_MAGIC_BOX') {
