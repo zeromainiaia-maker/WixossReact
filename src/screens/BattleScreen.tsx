@@ -4185,6 +4185,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const myTopNum = (my.field.signi[zoneIndex] ?? []).at(-1);
       if (!myTopNum) return;
+      // GATE: blocked_actions に 'ATTACK:cardId' があればアタック不可
+      if (my.blocked_actions?.includes(`ATTACK:${myTopNum}`)) return;
 
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
       const opZoneIndex = 2 - zoneIndex; // 正面ゾーン（表示反転を考慮）
