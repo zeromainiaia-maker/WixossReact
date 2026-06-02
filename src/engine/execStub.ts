@@ -7046,8 +7046,22 @@ export function execStub(
     return done(addLog(ctx, '[ビートゾーン移動: 対象選択未実装]'));
   }
   if (stub.id === 'TRASH_SIGNI_TO_BEAT') {
-    // トラッシュからシグニをビートゾーンへ（target未実装: ログのみ）
-    return done(addLog(ctx, '[トラッシュ→ビートゾーン: 未実装]'));
+    const selectedTSTB = ctx.lastProcessedCards ?? [];
+    if (selectedTSTB.length > 0) {
+      const newBeatTSTB = [...(ctx.ownerState.field.beat_zone ?? []), ...selectedTSTB];
+      const newTrashTSTB = ctx.ownerState.trash.filter(cn => !selectedTSTB.includes(cn));
+      const newOwnerTSTB: PlayerState = { ...ctx.ownerState, trash: newTrashTSTB, field: { ...ctx.ownerState.field, beat_zone: newBeatTSTB } };
+      const namesTSTB = selectedTSTB.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+      return done(addLog({ ...ctx, ownerState: newOwnerTSTB }, `${namesTSTB}をビートゾーンへ`));
+    }
+    const candsTSTB = ctx.ownerState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+    if (candsTSTB.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし（TRASH_SIGNI_TO_BEAT）'));
+    const noopTSTB: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    const contTSTB: StubAction = { type: 'STUB', id: 'TRASH_SIGNI_TO_BEAT' };
+    return needsInteraction(addLog(ctx, 'ビートにするシグニを最大2枚選択'), {
+      type: 'SELECT_TARGET', candidates: candsTSTB, count: Math.min(2, candsTSTB.length), optional: true,
+      targetScope: 'self_trash', thenAction: noopTSTB as EffectAction, continuation: contTSTB as EffectAction,
+    });
   }
   // SIGNI_UNDER_WEAPON_SIGNI: 自シグニ1体を自＜ウェポン＞シグニの下に置く
   if (stub.id === 'SIGNI_UNDER_WEAPON_SIGNI') {
