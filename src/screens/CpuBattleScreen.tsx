@@ -640,7 +640,11 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
         const upZones = cpuAttackLimitHit ? [] : [0, 1, 2].filter(i => {
           const stack = cpu.field.signi[i];
           if (!stack?.length) return false;
-          return !(cpu.field.signi_down?.[i] ?? false);
+          if (cpu.field.signi_down?.[i] ?? false) return false;
+          // GATE: blocked_actions に 'ATTACK:cardId' があればアタック不可
+          const topId = stack[stack.length - 1];
+          if (cpu.blocked_actions?.includes(`ATTACK:${topId}`)) return false;
+          return true;
         });
         if (upZones.length > 0) {
           return signiAttack(g, upZones[0]);
