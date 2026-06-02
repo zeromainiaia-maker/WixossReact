@@ -282,8 +282,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | DRAW_DISCARD_COUNT_PLUS_N ※捨て枚数+Nドロー実装済み |
 | 1 | AUTO | ✅ | DRIVE_SIGNI_PREVENT_DOWN ※v0.159: SELECT_TARGET→PROTECTION:DOWN:opponentをkeyword_grantsに設定 |
 | 1 | CONT | ✅ | DYNAMIC_LEVEL_BY_ENERGY ※buildLevelModsにエナ枚数比例レベル変動追加 |
-| 1 | AUTO | ⚡ | EACH_PLAYER_DRAW_DISCARD |
-| 1 | AUTO | ⚡ | DRAW_AND_PUT_HAND_TO_DECK_BOTTOM |
+| 1 | AUTO | ⚡ | EACH_PLAYER_DRAW_DISCARD ※両者ドロー実装済み、相手の捨て選択は未実装 |
 | 2 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_TRASH ※collectEnergyTrashSubstituteInfoで黒エナ→ワイルド |
 | 2 | CONT | ✅ | ENERGY_SUBSTITUTE_TRASH_KEY ※collectEnergyTrashSubstituteInfoでキーピース→エナ2代替UI |
 | 2 | CONT | ✅ | ENERGY_SUBSTITUTE_TRASH_SIGNI ※collectEnergyTrashSubstituteInfoでエナの自身→ルリグ色 |
