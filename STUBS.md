@@ -119,7 +119,7 @@
 | 3 | ACTIVATED | ✅ | DECK_TOP_CHECK_LEVEL_ENERGY ※宣言レベル一致シグニならエナゾーンへ、不一致はデッキトップ留まり |
 | 5 | LIFE | ✅ | DECK_TOP_TO_LIFE ※デッキ上→ライフクロス追加実装済み（自/相手判定・枚数解析） |
 | 3 | AUTO/ACTIVATED | ✅ | DECLARE_NUMBER_RANGE ※0〜5のCHOOSE→declared_guard_restrict_levelに保存（v0.147） |
-| 3 | CONT | ⚡ | DEPLOY_RESTRICT ※v0.138: AUTO時に「パワーN以上場に出せない」→otherState.signi_deploy_power_limit設定。CONTINUOUS制限はログのみ |
+| 3 | CONT | ✅ | DEPLOY_RESTRICT ※v0.169: signi_deploy_power_limitをBattleScreen/CpuBattleScreenのhandleSummonSigni+CPUメインフェイズで検査。UIでも「パワー制限」表示 |
 | 3 | AUTO/ACTIVATED | ✅ | DISCARD_OR_PENALTY ※特定クラス/タイプ1枚捨てるかペナルティN枚捨てるかCHOOSE（v0.147） |
 | 4 | CONT | ✅ | DOUBLE_OWN_POWER_MINUS ※v0.137: SELECT_TARGET(相手シグニ)+double_power_minus_targets設定。effectEngine.applyTempModsで負デルタを2倍適用 |
 | 3 | CONT | ✅ | FORCE_TARGET_SELF |
