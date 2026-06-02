@@ -7441,7 +7441,7 @@ export function execStub(
       optional: true,
       targetScope: 'self_field',
       thenAction: ({ type: 'STUB', id: 'INTERNAL_TRASH_UNDER_SIGNI' } as StubAction) as EffectAction,
-      noSelectionAction: noopCTUS as EffectAction,
+      continuation: noopCTUS as EffectAction,
     });
   }
   // INTERNAL_TRASH_UNDER_SIGNI: シグニ下カードをトラッシュへ移動
