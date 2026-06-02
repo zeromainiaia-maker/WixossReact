@@ -395,7 +395,7 @@
 | 1 | ACTIVATED | ✅ | PLACE_LRIG_FROM_DECK_ON_TOP ※v0.169: lrig_deck先頭をfield.lrigに追加（line 5319） |
 | 2 | AUTO/ACTIVATED | ✅ | PLACE_SIGNI_UNDER_SIGNI ※lastProcessedCardsのシグニをsourceCardNumの下に配置実装済み |
 | 2 | AUTO | ⚡ | PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON |
-| 1 | AUTO | ⚡ | PLACE_VIRUS_CENTER |
+| 1 | AUTO | ✅ | PLACE_VIRUS_CENTER ※v0.169: 相手の全シグニゾーン（シグニ在中）にウィルス1を設置（line 4930） |
 | 4 | CONT | ✅ | PLAY_EFFECT_TARGET_CLASS_CHANGE ※PLAY_FREEグループに統合: スペル/アーツ効果を実行 |
 | 1 | AUTO | ✅ | PLAY_SPELL_FROM_HAND |
 | 1 | AUTO | ✅ | PLAY_SPELL_FROM_HAND_FREE ※v0.169: PLAY_FREEグループに統合: lastProcessedCardsのスペルを無料プレイ（line 6210） |
