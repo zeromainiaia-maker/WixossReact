@@ -366,7 +366,7 @@
 | 1 | AUTO | ⚡ | OPP_CHOOSES_FOR_YOU ※v0.161: INTERNAL_OPP_DECK_TRASH_N追加（相手デッキのみトラッシュ）+②トラッシュからシグニ手札パターン |
 | 1 | AUTO/ACTIVATED | ⚡ | OPP_DECK_REVEAL_UNTIL |
 | 2 | CONT | ⚡ | OPP_ENERGY_COLOR_CONDITION_TRASH ※collectOppEnergyColorRestriction+handleEnergyChargeFromHand/Signiでエナチャージ時に色制限チェック |
-| 2 | AUTO | ⚡ | OPP_ENERGY_EXCESS_TRASH |
+| 2 | AUTO | ✅ | OPP_ENERGY_EXCESS_TRASH ※v0.169: 閾値チェック+相手opponentResponds SELECT_TARGET→INTERNAL_OPP_ENERGY_TO_TRASH（line 1071） |
 | 1 | ACTIVATED | ⚡ | OPP_ENERGY_OR_DISCARD_CONDITION |
 | 1 | AUTO | ✅ | OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND ※v0.168: excess枚数分のみ移動（全移動→超過分）。相手opponentResponds SELECT_TARGET→INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N |
 | 1 | AUTO/ACTIVATED | ✅ | OPP_HAND_TO_DECK_TOP ※v0.168: SELECT_TARGET(opponentResponds)+INTERNAL_OPP_HAND_TO_DECK_TOP。枚数テキスト解析対応 |
