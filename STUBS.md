@@ -241,7 +241,7 @@
 | 1 | CONT | ✅ | BLOCK_OPP_ENCORE_AND_BET ※calcContinuousBlockedActionsでENCORE/BET両方をforOther/forSelfに追加済み |
 | 1 | CONT | ✅ | BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT ※calcContinuousBlockedActions+execAddToFieldでシグニ効果による配置をブロック |
 | 1 | ACTIVATED | ⚡ | BLOCK_OPP_SPELL_ACT_NEXT_TURN |
-| 1 | ACTIVATED | ⚡ | BOTH_DISCARD_BY_CENTER_LEVEL |
+| 1 | ACTIVATED | ✅ | BOTH_DISCARD_BY_CENTER_LEVEL ※v0.169: 両者センターLv分自動捨て（先頭N枚、非インタラクティブ）（line 4561） |
 | 2 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |
 | 1 | CONT | ⚡ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.115: collectLrigColorAndLimitModsで色変更収集（UI/コスト条件への統合は部分的） |
 | 1 | AUTO | ⚡ | CENTER_LRIG_DISMOUNT |
