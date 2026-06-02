@@ -444,9 +444,15 @@ export function selectOrInteract(
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
   let filteredCands = candidates;
   if (scope === 'opp_field') {
-    filteredCands = candidates.filter(
-      n => !hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds),
-    );
+    // sourceCardNumがルリグの場合はシャドウ(ルリグ)も除外
+    const sourceIsLrig = ctx.sourceCardNum
+      ? ctx.cardMap.get(ctx.sourceCardNum)?.Type === 'ルリグ'
+      : false;
+    filteredCands = candidates.filter(n => {
+      if (hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds)) return false;
+      if (sourceIsLrig && hasShadowLrig(n, ctx.cardMap, ctx.otherState.keyword_grants)) return false;
+      return true;
+    });
   }
   if (filteredCands.length === 0) return done(ctx);
   return needsInteraction(ctx, {
