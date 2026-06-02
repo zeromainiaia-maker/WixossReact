@@ -621,7 +621,17 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       case 'MAIN': {
         const emptyZones = [0, 1, 2].filter(i => !cpu.field.signi[i]?.length);
         const signiInHand = cpu.hand.map((h, i) => ({ h, i }))
-          .filter(({ h }) => cardMap.get(h)?.Type === 'シグニ' && canPayCost(cpu.energy, cardMap.get(h)?.Cost ?? '', cardMap));
+          .filter(({ h }) => {
+            const c = cardMap.get(h);
+            if (c?.Type !== 'シグニ') return false;
+            if (!canPayCost(cpu.energy, c.Cost ?? '', cardMap)) return false;
+            // DEPLOY_RESTRICT: signi_deploy_power_limit チェック
+            if (cpu.signi_deploy_power_limit !== undefined) {
+              const pwr = parseInt(c.Power ?? '0') || 0;
+              if (pwr >= cpu.signi_deploy_power_limit) return false;
+            }
+            return true;
+          });
         if (emptyZones.length > 0 && signiInHand.length > 0) {
           const zone = emptyZones[Math.floor(Math.random() * emptyZones.length)];
           const { i } = signiInHand[Math.floor(Math.random() * signiInHand.length)];
