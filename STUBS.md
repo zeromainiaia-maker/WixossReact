@@ -77,7 +77,7 @@
 | 6 | ACTIVATED | ⚡ | CONDITIONAL_COST_REDUCTION_BY_FIELD |
 | 6 | ACTIVATED | ⚡ | CRAFT_TO_LRIG_DECK |
 | 6 | CONT | ✅ | DOUBLE_POWER_MINUS ※v0.115: calcFieldPowers applyEffectsで相手シグニへの負デルタを2倍に実装 |
-| 6 | ACTIVATED/AUTO | ⚡ | GATE |
+| 6 | ACTIVATED/AUTO | ✅ | GATE ※v0.169: INTERNAL_SET_GATEがblocked_actions['ATTACK:signiId']を設定。BattleScreen/CpuBattleScreenのアタック処理でチェック追加 |
 | 6 | ACTIVATED/AUTO | ✅ | POWER_MOD_BY_HAND_COUNT |
 | 7 | AUTO | ✅ | TRAP_OP ※v0.167: トラップアイコン発動パターン追加（parseCardEffects+exec）。「その中から」パターン追加（lastProcessedCards→CHOOSE_TRAP_ZONE） |
 | 13 | AUTO | ✅ | TRAP_OPERATION ※v0.167: チェックゾーンパターン追加（txtにチェックゾーンに置く→field.check設定）。lastProcessedCards/デッキ上パターン継続 |
