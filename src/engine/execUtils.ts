@@ -1,5 +1,5 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope } from '../types';
-import { hasShadow } from '../utils/keywords';
+import { hasShadow, hasShadowLrig } from '../utils/keywords';
 import { checkBeatCondition } from './effectEngine';
 import type {
   EffectAction,
