@@ -5664,6 +5664,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (op.field.check) return []; // 相手のライフバースト処理待ち
       const topNum = stack[stack.length - 1];
       if (contBlocked.cannotAttackSigni.has(topNum)) return []; // アタック不可シグニ
+      // GATE: blocked_actions に 'ATTACK:cardId' があればアタックボタンを非表示
+      if (my.blocked_actions?.includes(`ATTACK:${topNum}`)) return [];
       // OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手側が設定したパワー上限でアタック制限
       const oppPowerCap = op.opp_signi_attack_power_cap;
       if (oppPowerCap !== undefined) {
