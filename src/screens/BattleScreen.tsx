@@ -4635,6 +4635,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (my.field.lrig_down) return; // すでに攻撃済み
     if (op.field.lrig_attacked) return; // ガード応答待ち中
     if ((my.lrig_riding_signi?.length ?? 0) > 0) return; // ドライブ状態：ルリグはアタックできない
+    // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: negated_attacks にルリグIDがある場合アタック不可
+    const myLrigNumLA = my.field.lrig.at(-1);
+    if (myLrigNumLA && (my.negated_attacks ?? []).includes(myLrigNumLA)) return;
     setLoading(true);
     try {
       const myKey = isHost ? 'host_state' : 'guest_state';
