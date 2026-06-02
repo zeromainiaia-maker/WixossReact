@@ -913,7 +913,31 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             isMe={isMe} />
         );
       })}
-      <div style={{ width: freeZoneW, flexShrink: 0 }} />
+      {/* 登録者数カウンター（にじさんじシリーズ用） */}
+      {(() => {
+        const subCnt = state.subscriber_count ?? 0;
+        if (subCnt === 0) return <div style={{ width: freeZoneW, flexShrink: 0 }} />;
+        return (
+          <div style={{
+            width: freeZoneW, height: freeZoneH, borderRadius: 6, flexShrink: 0,
+            border: '1px solid #cc77dd',
+            backgroundColor: 'rgba(100,40,120,0.45)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: 2,
+          }}>
+            <div style={{ fontSize: 7, color: '#dd99ee', fontWeight: 'bold', textAlign: 'center', lineHeight: 1.2 }}>
+              登録者数
+            </div>
+            <div style={{
+              fontSize: subCnt >= 1000 ? 10 : 12,
+              color: '#ffffff', fontWeight: 'bold', textAlign: 'center',
+            }}>
+              {subCnt.toLocaleString()}
+            </div>
+            <div style={{ fontSize: 7, color: '#cc88ee' }}>万人</div>
+          </div>
+        );
+      })()}
     </div>
   );
 
