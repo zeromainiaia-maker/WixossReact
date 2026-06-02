@@ -650,9 +650,10 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
       {showModal && stack && (
         <CardStackModal stack={stack} cards={cards} onClose={() => setShowModal(false)} actions={actions} />
       )}
-      {showMBPeek && magicBoxCardNum && isMe && (
-        <CardModal cardNum={magicBoxCardNum} cards={cards} onClose={() => setShowMBPeek(false)} label="【マジックボックス】中身確認" />
-      )}
+      {showMBPeek && magicBoxCardNum && isMe && (() => {
+        const mbCard = cards.find(c => c.CardNum === getCardNum(magicBoxCardNum));
+        return mbCard ? <CardModal card={mbCard} onClose={() => setShowMBPeek(false)} /> : null;
+      })()}
       {showCharmModal && charmCardNum && (
         <CharmModal cardNum={charmCardNum} cards={cards} isMe={!!isMe} onClose={() => setShowCharmModal(false)} />
       )}
