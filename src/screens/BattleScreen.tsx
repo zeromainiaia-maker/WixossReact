@@ -3303,6 +3303,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cardLvCZ = parseInt(battleCardMap.get(my.hand[handIndex])?.Level ?? '0') || 0;
       if (cardLvCZ >= czRestrict) return;
     }
+    // DEPLOY_RESTRICT: signi_deploy_power_limit が設定されている場合、パワー上限以上のシグニ配置不可
+    if (my.signi_deploy_power_limit !== undefined) {
+      const cardPwr = parseInt(battleCardMap.get(my.hand[handIndex])?.Power ?? '0') || 0;
+      if (cardPwr >= my.signi_deploy_power_limit) return;
+    }
     setLoading(true);
     setPendingSigniSummon(null);
     try {
