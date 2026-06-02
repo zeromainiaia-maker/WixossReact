@@ -315,6 +315,11 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const card = cardMap.get(cardInstId);
     if (!card || card.Type !== 'シグニ') return g;
     if (!canPayCost(s.energy, card.Cost, cardMap)) return g;
+    // DEPLOY_RESTRICT: signi_deploy_power_limit チェック
+    if (s.signi_deploy_power_limit !== undefined) {
+      const pwr = parseInt(card.Power ?? '0') || 0;
+      if (pwr >= s.signi_deploy_power_limit) return g;
+    }
     const { paid, remaining } = payCost(s.energy, card.Cost, cardMap);
     const newHand = s.hand.filter((_, i) => i !== handIdx);
     const newSigni = [...s.field.signi] as (string[] | null)[];
