@@ -352,7 +352,7 @@
 | 1 | ACTIVATED | ✅ | MULTI_DAMAGE_ON_LRIG_ATTACK ※v0.161: lrig_attack_remainingフラグ設置+BattleScreen handleGuardResponse/CPU側でマルチアタック実装 |
 | 1 | AUTO | ✅ | MULTI_SIGNI_POWER_UP_5000 |
 | 1 | AUTO | ✅ | MULTI_SIGNI_TO_ENERGY ※v0.161: BANISH→INTERNAL_OPP_SIGNI_TO_ENERGY_EXECに変更。選択した相手シグニを相手エナゾーンへ移動 |
-| 1 | AUTO | ⚡ | NAMED_SIGNI_ACCE_FROM_TRASH |
+| 1 | AUTO | ✅ | NAMED_SIGNI_ACCE_FROM_TRASH ※v0.169: ACCE_FROM_TRASHと同ハンドラ（line 8911） |
 | 6 | ACTIVATED | ⚡ | NEGATE_ALL_OPP_EFFECTS |
 | 3 | CONT | ✅ | NEGATE_ATTACK_ON_TRIGGER ※prevent_next_damageフラグ設置でアタック無効化実装済み |
 | 6 | AUTO | ⚡ | NEGATE_COIN_ABILITY |
