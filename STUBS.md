@@ -399,7 +399,7 @@
 | 4 | CONT | ✅ | PLAY_EFFECT_TARGET_CLASS_CHANGE ※PLAY_FREEグループに統合: スペル/アーツ効果を実行 |
 | 1 | AUTO | ✅ | PLAY_SPELL_FROM_HAND |
 | 1 | AUTO | ✅ | PLAY_SPELL_FROM_HAND_FREE ※v0.169: PLAY_FREEグループに統合: lastProcessedCardsのスペルを無料プレイ（line 6210） |
-| 1 | AUTO | ⚡ | POWER_BOOST_PER_SIGNI_WITH_ICON |
+| 1 | AUTO | ✅ | POWER_BOOST_PER_SIGNI_WITH_ICON ※v0.169: キーワード持ち自シグニ体数×delta→相手全シグニに適用（line 4866） |
 | 1 | CONT | ✅ | POWER_BY_ACCE_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
 | 1 | CONT | ✅ | POWER_BY_CENTER_LRIG_TYPE_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
 | 1 | CONT | ✅ | POWER_BY_CHARM_COUNT ※v0.114: calcFieldPowersのSTUBハンドラで実装 |
