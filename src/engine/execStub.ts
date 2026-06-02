@@ -1608,14 +1608,17 @@ export function execStub(
     return done(addLog(newCtxRU, `デッキ公開 ${revealedRU.length}枚 → ヒット: ${hitNameRU}`));
   }
   // SONG_FRAGMENT: エナゾーンから【歌のカケラ】持ちカードをトラッシュに置き、その効果を発動
+  // 「このルリグはそのカードの【歌のカケラ】を使用する」= ルリグ効果として扱う
   if (stub.id === 'SONG_FRAGMENT') {
+    const lrigCardNumSF = ctx.sourceCardNum; // 発動元ルリグ
     const songCardsInEnergy = ctx.ownerState.energy.filter(cn => {
       const c = ctx.cardMap.get(cn);
       return c?.EffectText?.includes('【歌のカケラ】');
     });
     if (songCardsInEnergy.length === 0) return done(addLog(ctx, '歌のカケラ：エナゾーンにカードなし'));
     if (songCardsInEnergy.length > 1) {
-      const internalSF: StubAction = { type: 'STUB', id: 'INTERNAL_SONG_FRAGMENT' };
+      // 複数ある場合はSELECT_TARGETで選択 → INTERNAL_SONG_FRAGMENTで処理
+      const internalSF: StubAction = { type: 'STUB', id: 'INTERNAL_SONG_FRAGMENT', value: lrigCardNumSF };
       const pendingSF: PendingInteractionDef = {
         type: 'SELECT_TARGET',
         candidates: songCardsInEnergy,
@@ -1636,14 +1639,17 @@ export function execStub(
     const songEffects = parseCardEffects(songCardData!);
     const songEff = songEffects.find(e => e.effectType === 'SONG_ICON');
     if (songEff) {
-      const songCtx = { ...ctx, ownerState: newOwnerSF, sourceCardNum: songCard };
-      return exec(songEff.action, addLog(songCtx, `【歌のカケラ】発動：${songCardData?.CardName ?? songCard}`));
+      // sourceCardNum をルリグのCardNumに設定（ルリグ効果として扱うため）
+      const songCtx = { ...ctx, ownerState: newOwnerSF, sourceCardNum: lrigCardNumSF };
+      return exec(songEff.action, addLog(songCtx, `【歌のカケラ】発動（${songCardData?.CardName ?? songCard}）：ルリグ効果として処理`));
     }
     return done(addLog({ ...ctx, ownerState: newOwnerSF }, `歌のカケラ（${songCardData?.CardName ?? songCard}）：効果なし`));
   }
   // INTERNAL_SONG_FRAGMENT: SELECT_TARGETで選択されたカードで歌のカケラ発動
   if (stub.id === 'INTERNAL_SONG_FRAGMENT') {
     const selectedSF = ctx.lastProcessedCards?.[0];
+    // stub.value にルリグCardNumが格納されている（SONG_FRAGMENTから渡される）
+    const lrigCardNumISF = typeof stub.value === 'string' ? stub.value : ctx.sourceCardNum;
     if (!selectedSF) return done(addLog(ctx, 'INTERNAL_SONG_FRAGMENT: 選択なし'));
     const songCardDataISF = ctx.cardMap.get(selectedSF);
     const newOwnerISF: PlayerState = {
@@ -1654,8 +1660,9 @@ export function execStub(
     const songEffsISF = parseCardEffects(songCardDataISF!);
     const songEffISF = songEffsISF.find(e => e.effectType === 'SONG_ICON');
     if (songEffISF) {
-      const songCtxISF = { ...ctx, ownerState: newOwnerISF, sourceCardNum: selectedSF };
-      return exec(songEffISF.action, addLog(songCtxISF, `【歌のカケラ】発動：${songCardDataISF?.CardName ?? selectedSF}`));
+      // sourceCardNum をルリグのCardNumに設定（ルリグ効果として扱うため）
+      const songCtxISF = { ...ctx, ownerState: newOwnerISF, sourceCardNum: lrigCardNumISF };
+      return exec(songEffISF.action, addLog(songCtxISF, `【歌のカケラ】発動（${songCardDataISF?.CardName ?? selectedSF}）：ルリグ効果として処理`));
     }
     return done(addLog({ ...ctx, ownerState: newOwnerISF }, `歌のカケラ（${songCardDataISF?.CardName ?? selectedSF}）：効果なし`));
   }
