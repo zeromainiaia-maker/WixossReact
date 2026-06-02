@@ -301,7 +301,7 @@
 | 1 | CONT | ⚡ | GAIN_LRIG_COLOR ※v0.115: collectLrigColorInheritSigni実装（SHADOW統合は未実装） |
 | 1 | AUTO/ACTIVATED | ⚡ | GRANT_ABILITY_UNTIL_OPP_TURN ※execStub: [能力付与]（次の相手ターン終了まで期間追跡未実装） |
 | 2 | CONT | ⚡ | GRANT_CHOSEN_ABILITY_FROM_PLAY |
-| 1 | ACTIVATED | ⚡ | GRANT_CHOSEN_ABILITY_SELF |
+| 1 | ACTIVATED | ✅ | GRANT_CHOSEN_ABILITY_SELF ※v0.169: GRANT_CHOSEN_ABILITYと同ハンドラ: SELECT_TARGET(自フィールド)+CHOOSE能力→keyword_grants付与 |
 | 1 | ACTIVATED | ⚡ | GRANT_CONDITIONAL_ASSASSIN_ABILITY |
 | 1 | AUTO/ACTIVATED | ✅ | GRANT_LRIG_ABILITY ※PR-317: effects.jsonをGRANT_LRIG_ABILITYアクション型に変更+lrig_granted_auto_effectsをgrantedMyLrigEffectsに統合 |
 | 2 | CONT | ✅ | GRANT_LRIG_TRASH_ACTIVATE_ABILITY ※WXEX2-12: collectLrigGrantedEffectsにlrig_trash名前フィルタ付き収集を追加 |
