@@ -74,7 +74,7 @@
 | 2 | AUTO/ACTIVATED | ✅ | TRASH_SIGNI_UNDER_FIELD_SIGNI ※v0.136: 2ステップ実装（SELECT_TARGET[トラッシュ]→INTERNAL_TSU_CHOOSE_ZONE→INTERNAL_TSU_DO_PLACE）複数枚連続配置対応 |
 | 6 | ACTIVATED/AUTO | ✅ | ACTIVATE_TRAP ※v0.167: parseCardEffects+execでTRAP_ICONを発動。lastProcessedCards[0]でトラップ指定対応 |
 | 2 | ACTIVATED | ⚡ | CAST_FROM_OPP_TRASH |
-| 6 | ACTIVATED | ⚡ | CONDITIONAL_COST_REDUCTION_BY_FIELD |
+| 6 | ACTIVATED | ✅ | CONDITIONAL_COST_REDUCTION_BY_FIELD ※v0.169: computeArtsEffectiveCostで「パワーN以上のシグニ」「クラスシグニ」フィールド条件コスト軽減実装済み（line 223-249） |
 | 6 | ACTIVATED | ⚡ | CRAFT_TO_LRIG_DECK |
 | 6 | CONT | ✅ | DOUBLE_POWER_MINUS ※v0.115: calcFieldPowers applyEffectsで相手シグニへの負デルタを2倍に実装 |
 | 6 | ACTIVATED/AUTO | ✅ | GATE ※v0.169: INTERNAL_SET_GATEがblocked_actions['ATTACK:signiId']を設定。BattleScreen/CpuBattleScreenのアタック処理でチェック追加 |
