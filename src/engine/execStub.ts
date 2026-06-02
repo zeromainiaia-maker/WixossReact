@@ -9098,7 +9098,35 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, story_overrides: newOv } }, `《${colISC}》を選択`));
   }
   if (stub.id === 'CHOOSE_SAME_OPTION_TWICE' || stub.id === 'CHOOSE_SAME_OPTION_MULTIPLE') {
-    return done(addLog(ctx, `選択効果（${stub.id}）`));
+    const srcCSO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
+    const toHWCSO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const cntMCSO = txtCSO.match(/以下の.*?から([２-９\d])つまで選ぶ/);
+    const maxRoundsCSO = cntMCSO ? parseInt(toHWCSO(cntMCSO[1])) : 2;
+    const remainingCSO = typeof stub.value === 'number' ? stub.value : maxRoundsCSO;
+    if (remainingCSO <= 0) return done(addLog(ctx, '選択完了'));
+    const optsCSO: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+    // ①バウンス: 相手シグニを手札に戻す
+    if (txtCSO.match(/①.*手札に戻す/)) {
+      optsCSO.push({
+        id: 'cso_bounce', label: '①相手シグニを手札に戻す',
+        action: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction,
+        available: ctx.otherState.field.signi.some(s => s && s.length > 0),
+      });
+    }
+    // ②サーチ: デッキからシグニを手札に加える
+    if (txtCSO.match(/②.*デッキ.*シグニ.*(?:手札|探して)/)) {
+      optsCSO.push({
+        id: 'cso_search', label: '②デッキからシグニを手札に加える',
+        action: { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ' }, maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } } as EffectAction,
+        available: ctx.ownerState.deck.some(cn => ctx.cardMap.get(cn)?.Type === 'シグニ'),
+      });
+    }
+    if (optsCSO.length === 0) return done(addLog(ctx, `[CHOOSE_SAME_OPTION: 選択肢解析失敗]`));
+    const contCSO: StubAction = { type: 'STUB', id: stub.id, value: remainingCSO - 1 };
+    return needsInteraction(addLog(ctx, `選択（残り${remainingCSO}回、同一選択肢可）`), {
+      type: 'CHOOSE', options: optsCSO, count: 1, continuation: contCSO as EffectAction,
+    });
   }
   // === バッチ15: 公開・アクセ応用・条件ドロー系 ===
   // FIELD_COND_DRAW_REVEAL: フィールド条件達成時にデッキ上を公開し同クラスなら手札へ
@@ -9875,4 +9903,6 @@ export function execStub(
   }
 
   return done(addLog(ctx, `[STUB: ${stub.id}]`));
+}
+
 }
