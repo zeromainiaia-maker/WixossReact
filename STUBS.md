@@ -500,7 +500,7 @@
 | 1 | AUTO | ⚡ | COPY_ABILITY ※execStub: [能力付与: COPY_ABILITY]（ログのみ） |
 | 1 | AUTO | ⚡ | COPY_CARD ※execStub: [属性変更: COPY_CARD]（ログのみ） |
 | 1 | AUTO | ✅ | CRASH_LIFE_TO_HAND ※ライフクロス上→手札追加実装済み |
-| 2 | AUTO | ⚡ | CRASH_TO_TRASH_INSTEAD ※execStub: [移動リダイレクト]（ログのみ） |
+| 2 | AUTO | ✅ | CRASH_TO_TRASH_INSTEAD ※v0.166: crash_to_trash_insteadフラグ追加。handleBurstActivateでop側フラグをチェック→エナ→トラッシュへ（WX19-034） |
 | 1 | AUTO | ✅ | DECK_MILL_UNTIL_CLASS ※デッキ上からクラス一致まで公開トラッシュ実装済み |
 | 1 | AUTO | ✅ | DECLARE_CLASS ※クラスCHOOSE→declared_classに保存実装済み |
 | 1 | AUTO | ⚡ | END_ATTACK_IF_EXTRA_TURN ※execStub: ログのみ（ターン終了処理への統合未実装） |
@@ -509,13 +509,13 @@
 | 1 | AUTO | ✅ | LIMIT_OPP_ATTACK_ONCE ※LIMIT_OPP_SIGNI_ATTACKS_ONCE/OPP_SIGNI_ONE_ATTACK_TOTALと同ハンドラ: 1回制限フラグ設置 |
 | 1 | CONT | ✅ | LRIG_LIMIT_MODIFY ※lrig_limit_modフィールドで修正量設定実装済み |
 | 1 | AUTO | ✅ | NEGATE_ABILITY ※SELECT_TARGET→INTERNAL_NEGATE_ABILITY→abilities_removed追加実装済み |
-| 6 | AUTO | ⚡ | NEGATE_NTH_ATTACK ※execStub: ログのみ（N回目アタック無効化未実装） |
+| 2 | AUTO | ✅ | NEGATE_NTH_ATTACK ※v0.166: negate_opp_signi_attacks_untilフラグ追加。handleSigniAttackでop側フラグをチェック→アタック自動無効化（WX17-006） |
 | 1 | AUTO | ⚡ | OPTIONAL_DISCARD_GUARD ※execStub: [任意捨てガード: ガードシステム未実装] |
 | 1 | CONT | ✅ | POWER_EQUAL_TO_SELF_POWER ※自シグニのパワーに等しくなるよう修正値計算実装済み |
 | 1 | AUTO | ✅ | POWER_MINUS_PER_OWN_LEVEL ※自レベル×値: SELECT_TARGET(相手シグニ)+temp_power_mods実装済み |
 | 1 | CONT | ✅ | POWER_MOD_BY_LRIG_LEVEL ※ルリグレベル×delta: effectEngine+execStub両方で実装済み |
 | 2 | AUTO | ✅ | POWER_MOD_BY_TRASH_CLASS_COUNT ※トラッシュクラス枚数×deltaをtemp_power_modsに適用実装済み |
-| 1 | AUTO | ⚡ | POWER_MOD_DOUBLE_DIFF ※execStub: [複合パワー修正]（ログのみ） |
+| 1 | AUTO | ✅ | POWER_MOD_DOUBLE_DIFF ※v0.166: lastProcessedCards[0]の基本パワーと自パワーの差×2でマイナス（WX24-P4-054） |
 | 2 | CONT | ✅ | PREVENT_SIGNI_ABILITY_LOSS_BY_OPP ※v0.111: collectAbilityProtectedSigni+otherProtectedSigniNumsでfilter |
 | 1 | CONT | ✅ | PREVENT_SIGNI_DOWN_BY_OPP ※PREVENT_SIGNI_DOWN_BY_OPP_ALL同グループ: collectDownProtectedSigni+execDownに保護フィルター統合 |
 | 1 | AUTO | ✅ | SEED_BLOOM_OPTIONAL ※v0.109: SEED_BLOOMと同ハンドラ（任意フラグON）実装済み |
@@ -523,22 +523,12 @@
 | 1 | AUTO | ✅ | SEED_HAND_AND_BLOOM_FROM_DECK_TOP ※シード手札追加+デッキ上シード設置実装済み |
 | 1 | ACTIVATED | ✅ | SHUFFLE_DECK_POWER_HALF ※デッキシャッフル+自パワー半減適用実装済み |
 | 1 | AUTO | ✅ | SKIP_MAIN_PHASE ※blocked_actionsにMAIN_PHASEを追加実装済み |
-| 1 | AUTO | ⚡ | SUPPRESS_CENTER_ON_PLAY ※execStub: ログのみ（プレイ抑制フラグ未実装） |
+| 1 | AUTO | ✅ | SUPPRESS_CENTER_ON_PLAY ※v0.166: suppress_center_on_playフラグ追加。グロウ時のルリグ【出】効果発動を抑制（WX12-011） |
 | 1 | CONT | ✅ | SUPPRESS_GAIN_ABILITY ※保護効果グループ: abilities_removed追加で能力無効化実装済み |
 | 1 | CONT | ✅ | SUPPRESS_LIFEBURST_COLOR_CONDITION ※ライフバースト色条件抑制実装済み |
 | 1 | ACTIVATED | ✅ | SUPPRESS_OPP_SIGNI_ABILITIES ※相手フィールド全シグニのabilities_removed追加実装済み |
 | 1 | AUTO | ⚡ | TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE ※TARGET_OPP_SIGNI_ONLYと同ハンドラ: ログのみ（対象修飾子） |
 | 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
-
-| 1 | AUTO | ⚡ | COPY_ABILITY ※execStub: [能力付与: COPY_ABILITY]（ログのみ） |
-| 1 | AUTO | ⚡ | COPY_CARD ※execStub: [属性変更: COPY_CARD]（ログのみ） |
-| 2 | AUTO | ✅ | CRASH_TO_TRASH_INSTEAD ※v0.166: crash_to_trash_insteadフラグ追加。handleBurstActivateでop側フラグをチェック→エナ→トラッシュへ（WX19-034） |
-| 1 | AUTO | ⚡ | END_ATTACK_IF_EXTRA_TURN ※execStub: ログのみ（ターン終了処理への統合未実装） |
-| 2 | AUTO | ✅ | NEGATE_NTH_ATTACK ※v0.166: negate_opp_signi_attacks_untilフラグ追加。handleSigniAttackでop側フラグをチェック→アタック自動無効化（WX17-006） |
-| 1 | AUTO | ⚡ | OPTIONAL_DISCARD_GUARD ※execStub: [任意捨てガード: ガードシステム未実装] |
-| 1 | AUTO | ✅ | POWER_MOD_DOUBLE_DIFF ※v0.166: lastProcessedCards[0]の基本パワーと自パワーの差×2でマイナス（WX24-P4-054） |
-| 1 | AUTO | ✅ | SUPPRESS_CENTER_ON_PLAY ※v0.166: suppress_center_on_playフラグ追加。グロウ時のルリグ【出】効果発動を抑制（WX12-011） |
-| 1 | AUTO | ⚡ | TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE ※TARGET_OPP_SIGNI_ONLYと同ハンドラ: ログのみ（対象修飾子） |
 ---
 
 ## 集計サマリー（v0.169）
