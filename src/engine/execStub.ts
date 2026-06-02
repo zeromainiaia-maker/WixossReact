@@ -9909,5 +9909,3 @@ export function execStub(
 
   return done(addLog(ctx, `[STUB: ${stub.id}]`));
 }
-
-}
