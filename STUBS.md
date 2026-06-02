@@ -263,7 +263,7 @@
 | 4 | ACTIVATED | ✅ | CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE |
 | 1 | AUTO/ACTIVATED | ✅ | CONDITIONAL_SEARCH_IF_FIELD ※フィールドシグニ有無チェック+デッキ上3枚からシグニ手札追加実装済み |
 | 1 | AUTO/ACTIVATED | ✅ | CONDITIONAL_SEARCH_IF_RESONA ※レゾナ有無チェック+needsInteractionでデッキから手札追加実装済み |
-| 2 | AUTO | ⚡ | CONDITIONAL_TRASH_TO_ENERGY |
+| 2 | AUTO | ✅ | CONDITIONAL_TRASH_TO_ENERGY ※v0.169: センタールリグクラス条件チェック+トラッシュ→エナ実装済み（line 4328） |
 | 1 | AUTO/ACTIVATED | ⚡ | CONDITIONAL_TRASH_UNDER_SIGNI ※done(addLog)のみ（条件付きシグニ下トラッシュ未実装） |
 | 2 | CONT | ⚡ | COOKING_BANISH_SUBSTITUTE ※done(addLog)のみ（料理系バニッシュ置換未実装） |
 | 1 | AUTO/ACTIVATED | ⚡ | COST_COLOR_SELECT ※done(addLog)のみ（コスト色選択未実装） |
