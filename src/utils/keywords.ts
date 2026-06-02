@@ -40,6 +40,18 @@ export function hasShadow(
 }
 
 /**
+ * シグニがシャドウ(ルリグ)を持つかチェックする。
+ * 「ルリグの効果によっては対象にされない」キーワード。
+ */
+export function hasShadowLrig(
+  cardNum: string,
+  cardMap: Map<string, CardData>,
+  keywordGrants?: Record<string, string[]>,
+): boolean {
+  return hasKeyword(cardNum, 'シャドウ（ルリグ）', cardMap, keywordGrants);
+}
+
+/**
  * シグニがバニッシュ耐性（バニッシュされない）を持つかチェックする。
  * effects.json 未登録カードは EffectText の直接検索でフォールバックする。
  */
