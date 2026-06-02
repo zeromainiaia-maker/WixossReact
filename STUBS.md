@@ -347,7 +347,7 @@
 | 2 | AUTO | ✅ | LRIG_TRASH_KEY_TO_CENTER_UNDER ※v0.169: lrig_trashのキーをセンタールリグの下に挿入実装済み（line 4793） |
 | 1 | ACTIVATED | ✅ | MAKE_MULTI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
 | 1 | AUTO | ✅ | MOVE_ACCE_TO_SIGNI ※v0.169: sourceゾーンのアクセを別の空きゾーンへ自動移動（line 8624） |
-| 1 | AUTO | ⚡ | MULTI_ACCE_FROM_HAND |
+| 1 | AUTO | ✅ | MULTI_ACCE_FROM_HAND ※v0.169: ACCE_FROM_HANDと同ハンドラ（line 8894） |
 | 1 | CONT | ⚡ | MULTI_ACCE_LIMIT ※v0.115: collectMultiAcceSigni実装（アクセ付け時のUI制限への統合は未実装） |
 | 1 | ACTIVATED | ✅ | MULTI_DAMAGE_ON_LRIG_ATTACK ※v0.161: lrig_attack_remainingフラグ設置+BattleScreen handleGuardResponse/CPU側でマルチアタック実装 |
 | 1 | AUTO | ✅ | MULTI_SIGNI_POWER_UP_5000 |
