@@ -1044,12 +1044,14 @@ export function execStub(
     const ctxDrawnEPDD0 = addLog({ ...ctx, ownerState: newOwner, otherState: newOther }, `両者${drawN}枚ドロー`);
     // 自分の捨て（インタラクション）→ continuation で相手の捨て（opponentResponds）
     if (newOwner.hand.length === 0) return done(ctxDrawnEPDD0);
-    const oppDiscardEPDD0: import('../types/effects').SelectTargetAction = {
+    const oppDiscardEPDD0: PendingInteractionDef = {
       type: 'SELECT_TARGET',
-      targetSpec: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+      candidates: newOther.hand,
+      count: 1,
+      optional: false,
+      targetScope: 'opp_hand',
       thenAction: ({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction) as EffectAction,
       opponentResponds: true,
-      optional: false,
     };
     return selectOrInteract(
       newOwner.hand, 1, false, 'self_hand',
@@ -9908,4 +9910,5 @@ export function execStub(
   }
 
   return done(addLog(ctx, `[STUB: ${stub.id}]`));
+}
 }
