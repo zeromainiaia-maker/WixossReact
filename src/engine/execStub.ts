@@ -5541,25 +5541,64 @@ export function execStub(
     const newOwnerIST = { ...ctx.ownerState, hand: newHandIST, trash: newTrashIST, field: { ...ctx.ownerState.field, signi_traps: currentTrapsIST } };
     return done(addLog({ ...ctx, ownerState: newOwnerIST }, `トラップ設置: ゾーン${zoneIdxIST + 1}`));
   }
-  // TRAP_TO_HAND: signi_trapsの全カードを手札へ
+  // TRAP_TO_HAND: signi_trapsのカードを手札へ（全枚または選択）
   if (stub.id === 'TRAP_TO_HAND') {
-    const trapsToHandTTH = (ctx.ownerState.field.signi_traps ?? [null, null, null]).filter(Boolean) as string[];
+    const allTrapsTTH = (ctx.ownerState.field.signi_traps ?? [null, null, null]);
+    const trapsToHandTTH = allTrapsTTH.filter(Boolean) as string[];
     if (trapsToHandTTH.length === 0) return done(addLog(ctx, 'トラップなし'));
-    const newHandTTH = [...ctx.ownerState.hand, ...trapsToHandTTH];
-    const newTrapsTTH: (string | null)[] = [null, null, null];
-    const newOwnerTTH = { ...ctx.ownerState, hand: newHandTTH, field: { ...ctx.ownerState.field, signi_traps: newTrapsTTH } };
-    return done(addLog({ ...ctx, ownerState: newOwnerTTH }, `トラップ${trapsToHandTTH.length}枚を手札へ`));
+    // テキストで枚数制限を確認
+    const srcTTH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtTTH = srcTTH ? (srcTTH.EffectText ?? '') + ' ' + (srcTTH.BurstText ?? '') : '';
+    const toHWTTH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const cntMTTH = txtTTH.match(/【トラップ】を([０-９\d]+)枚まで手札に加える/);
+    const maxCountTTH = cntMTTH ? parseInt(toHWTTH(cntMTTH[1])) : trapsToHandTTH.length;
+    // 「N枚まで」指定があり複数トラップがある場合は選択UI
+    if (maxCountTTH < trapsToHandTTH.length && trapsToHandTTH.length > 1) {
+      return needsInteraction(addLog(ctx, `手札に加えるトラップを${maxCountTTH}枚まで選択`), {
+        type: 'SELECT_TARGET',
+        candidates: trapsToHandTTH,
+        count: maxCountTTH,
+        optional: true,
+        targetScope: 'self_field',
+        thenAction: ({ type: 'STUB', id: 'INTERNAL_TTH_APPLY' } as StubAction) as EffectAction,
+      });
+    }
+    const takeTTH = trapsToHandTTH.slice(0, maxCountTTH);
+    const newTrapsTTH = allTrapsTTH.map(t => (t && takeTTH.includes(t) ? null : t)) as (string | null)[];
+    const newOwnerTTH = { ...ctx.ownerState, hand: [...ctx.ownerState.hand, ...takeTTH], field: { ...ctx.ownerState.field, signi_traps: newTrapsTTH } };
+    return done(addLog({ ...ctx, ownerState: newOwnerTTH }, `トラップ${takeTTH.length}枚を手札へ`));
   }
-  // ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: スペル等でトラップを強制発動
+  // INTERNAL_TTH_APPLY: TRAP_TO_HAND選択完了後の適用
+  if (stub.id === 'INTERNAL_TTH_APPLY') {
+    const selectedTTH = ctx.lastProcessedCards ?? [];
+    if (selectedTTH.length === 0) return done(addLog(ctx, 'トラップ未選択'));
+    const currentTrapsTTH = ctx.ownerState.field.signi_traps ?? [null, null, null];
+    const newTrapsTTH2 = currentTrapsTTH.map(t => (t && selectedTTH.includes(t) ? null : t)) as (string | null)[];
+    const newOwnerTTH2 = { ...ctx.ownerState, hand: [...ctx.ownerState.hand, ...selectedTTH], field: { ...ctx.ownerState.field, signi_traps: newTrapsTTH2 } };
+    return done(addLog({ ...ctx, ownerState: newOwnerTTH2 }, `トラップ${selectedTTH.length}枚を手札へ`));
+  }
+  // ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: トラップを表向きにしてTRAP_ICON効果を発動
   if (stub.id === 'ACTIVATE_TRAP' || stub.id === 'ACTIVATE_TRAP_IN_FIELD') {
     const trapsAT: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
-    const firstTrapIdxAT = trapsAT.findIndex((t: string | null) => t !== null);
+    // lastProcessedCardsに指定があればそのトラップを優先、なければ最初のトラップ
+    const selectedAT = ctx.lastProcessedCards?.[0];
+    let firstTrapIdxAT = selectedAT ? trapsAT.findIndex(t => t === selectedAT) : -1;
+    if (firstTrapIdxAT < 0) firstTrapIdxAT = trapsAT.findIndex((t: string | null) => t !== null);
     if (firstTrapIdxAT < 0) return done(addLog(ctx, 'トラップなし'));
     const trapCardAT = trapsAT[firstTrapIdxAT]!;
     const newTrapsAT = [...trapsAT] as (string | null)[];
     newTrapsAT[firstTrapIdxAT] = null;
+    // トラップカードをトラッシュへ移動した状態を基点に
     const newOwnerAT = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, trapCardAT], field: { ...ctx.ownerState.field, signi_traps: newTrapsAT } };
-    return done(addLog({ ...ctx, ownerState: newOwnerAT }, `トラップ発動: ゾーン${firstTrapIdxAT + 1}`));
+    const loggedCtxAT = addLog({ ...ctx, ownerState: newOwnerAT, sourceCardNum: trapCardAT }, `トラップ発動: ゾーン${firstTrapIdxAT + 1}（${ctx.cardMap.get(trapCardAT)?.CardName ?? trapCardAT}）`);
+    // TRAP_ICON効果を解析して実行
+    const trapDataAT = ctx.cardMap.get(trapCardAT);
+    if (trapDataAT) {
+      const trapEffsAT = parseCardEffects(trapDataAT);
+      const trapIconEffAT = trapEffsAT.find(e => e.effectType === 'TRAP_ICON');
+      if (trapIconEffAT) return exec(trapIconEffAT.action, loggedCtxAT);
+    }
+    return done(loggedCtxAT);
   }
   // SET_OPP_SIGNI_AS_TRAP: 相手のシグニ1体をトラップとして設置
   if (stub.id === 'SET_OPP_SIGNI_AS_TRAP') {
@@ -5660,6 +5699,24 @@ export function execStub(
   if (stub.id === 'TRAP_OP') {
     const srcTRAPOP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtTRAPOP = srcTRAPOP ? (srcTRAPOP.EffectText ?? '') + ' ' + (srcTRAPOP.BurstText ?? '') : '';
+    // トラップアイコン発動：ACTIVATE_TRAPと同一ロジック（parseCardEffects経由でTRAP_ICON実行）
+    if (txtTRAPOP.includes('トラップアイコン') && (txtTRAPOP.includes('発動') || txtTRAPOP.includes('発動させる'))) {
+      const trapsIconAT: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
+      const firstIdxIconAT = trapsIconAT.findIndex((t: string | null) => t !== null);
+      if (firstIdxIconAT < 0) return done(addLog(ctx, 'トラップなし（トラップアイコン発動）'));
+      const trapCardIconAT = trapsIconAT[firstIdxIconAT]!;
+      const newTrapsIconAT = [...trapsIconAT] as (string | null)[];
+      newTrapsIconAT[firstIdxIconAT] = null;
+      const newOwnerIconAT = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, trapCardIconAT], field: { ...ctx.ownerState.field, signi_traps: newTrapsIconAT } };
+      const loggedIconAT = addLog({ ...ctx, ownerState: newOwnerIconAT, sourceCardNum: trapCardIconAT }, `トラップアイコン発動: ${ctx.cardMap.get(trapCardIconAT)?.CardName ?? trapCardIconAT}`);
+      const trapDataIconAT = ctx.cardMap.get(trapCardIconAT);
+      if (trapDataIconAT) {
+        const trapEffsIconAT = parseCardEffects(trapDataIconAT);
+        const trapIconEffAT = trapEffsIconAT.find(e => e.effectType === 'TRAP_ICON');
+        if (trapIconEffAT) return exec(trapIconEffAT.action, loggedIconAT);
+      }
+      return done(loggedIconAT);
+    }
     if (txtTRAPOP.includes('トラッシュに置く') || txtTRAPOP.includes('トラッシュへ置く')) {
       const trapsTO: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
       const firstIdxTO = trapsTO.findIndex((t: string | null) => t !== null);
@@ -5688,10 +5745,33 @@ export function execStub(
         continuation: ({ type: 'CHOOSE', choose_count: 1, from_count: 3, choices: zoneOptsTRAPOP.map(o => ({ choiceId: o.id, label: o.label, action: o.action })) } as ChooseAction) as EffectAction,
       });
     }
+    // 「その中から」パターン: lastProcessedCardsのカードをトラップとして設置
+    if (ctx.lastProcessedCards?.length) {
+      const zoneOptsTRAPOP3 = [0, 1, 2].map(zi => ({
+        id: `trapop3_zone_${zi}`,
+        label: `ゾーン${zi + 1}にトラップ設置`,
+        action: ({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: zi } as StubAction) as EffectAction,
+        available: true,
+      }));
+      return needsInteraction(addLog(ctx, `${ctx.cardMap.get(ctx.lastProcessedCards[0])?.CardName ?? ctx.lastProcessedCards[0]}をトラップとして設置するゾーンを選択`), {
+        type: 'CHOOSE', options: zoneOptsTRAPOP3, count: 1,
+      });
+    }
     return done(addLog(ctx, '[トラップ操作]'));
   }
-  // TRAP_OPERATION: lastProcessedCardsがあればそのカードをトラップ設置、なければデッキ上1枚から設置
+  // TRAP_OPERATION: トラップ/チェックゾーン操作の統合ハンドラ
   if (stub.id === 'TRAP_OPERATION') {
+    const srcTRAPOPER = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtTRAPOPER = srcTRAPOPER ? (srcTRAPOPER.EffectText ?? '') + ' ' + (srcTRAPOPER.BurstText ?? '') : '';
+    // チェックゾーンに置く: lastProcessedCards[0] を field.check に設置
+    if (txtTRAPOPER.includes('チェックゾーンに置') || txtTRAPOPER.includes('チェックゾーンへ')) {
+      const cardToCheckTO = ctx.lastProcessedCards?.[0] ?? (ctx.ownerState.deck.length > 0 ? ctx.ownerState.deck[0] : null);
+      if (!cardToCheckTO) return done(addLog(ctx, '[チェックゾーン：対象カードなし]'));
+      const newDeckCKTO = ctx.ownerState.deck[0] === cardToCheckTO ? ctx.ownerState.deck.slice(1) : ctx.ownerState.deck;
+      const newHandCKTO = ctx.ownerState.hand.filter(c => c !== cardToCheckTO);
+      const newOwnerCKTO = { ...ctx.ownerState, deck: newDeckCKTO, hand: newHandCKTO, field: { ...ctx.ownerState.field, check: cardToCheckTO } };
+      return done(addLog({ ...ctx, ownerState: newOwnerCKTO }, `${ctx.cardMap.get(cardToCheckTO)?.CardName ?? cardToCheckTO}をチェックゾーンへ`));
+    }
     const cardToTrapTO = ctx.lastProcessedCards?.[0];
     if (cardToTrapTO) {
       // lastProcessedCards[0] をトラップとして設置（ゾーン選択）

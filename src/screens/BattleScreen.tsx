@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -4307,6 +4307,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const newOpFrozen = [...(op.field.signi_frozen  ?? [false, false, false])];
           const newOpCharms = [...(op.field.signi_charms  ?? [null, null, null])];
           const newOpAcce   = [...(op.field.signi_acce    ?? [null, null, null])];
+          const wasOpFrozen = newOpFrozen[opZoneIndex] ?? false;
           newOpDown[opZoneIndex]   = false;
           newOpFrozen[opZoneIndex] = false;
           const banishExtraTrash: string[] = [];
@@ -4315,11 +4316,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ウィルスはゾーンに属するため、シグニがバニッシュされても除去しない
           const redirectBanish = my.banish_redirect === true;
           const redirectBanishToHand = my.banish_redirect_to_hand === true;
+          // FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 防御側CONTが有効なら凍結シグニはデッキ下へ
+          // FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 攻撃側CONTが有効なら相手凍結シグニはトラッシュへ
+          const opFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(op, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
+          const myFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(my, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
+          const frozenToDeckBottom = opFrozenOvr.frozenBanishToDeckBottom;
+          const frozenToTrash = !frozenToDeckBottom && myFrozenOvr.frozenLeaveToTrash;
+          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash;
           newOpState = {
             ...op,
             hand: redirectBanishToHand ? [...op.hand, ...opStack] : op.hand,
-            energy: (redirectBanish || redirectBanishToHand) ? op.energy : [...op.energy, ...opStack],
-            trash: redirectBanish
+            deck: frozenToDeckBottom ? [...op.deck, ...opStack] : op.deck,
+            energy: anyRedirect ? op.energy : [...op.energy, ...opStack],
+            trash: (redirectBanish || frozenToTrash)
               ? [...op.trash, ...opStack, ...banishExtraTrash]
               : (banishExtraTrash.length > 0 ? [...op.trash, ...banishExtraTrash] : op.trash),
             field: {
@@ -4331,7 +4340,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_acce:   newOpAcce,
             },
           };
-          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : ''}`]);
+          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : ''}`]);
 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer || isSLancer) {

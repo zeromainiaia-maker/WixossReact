@@ -2824,3 +2824,33 @@ export function collectCenterZoneDeployRestrict(
   }
   return undefined;
 }
+
+/**
+ * FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM / FROZEN_SIGNI_TO_TRASH_ON_LEAVE:
+ * フィールド上のCONT効果を検査し、凍結シグニバニッシュの置換先を返す。
+ * - frozenBanishToDeckBottom: 凍結シグニのバニッシュ先をデッキ下に変更（state自身のCONT）
+ * - frozenLeaveToTrash: 相手の凍結シグニが場を離れる場合トラッシュへ（stateが持つ攻撃側CONT）
+ */
+export function collectFrozenBanishOverrides(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { frozenBanishToDeckBottom: boolean; frozenLeaveToTrash: boolean } {
+  let frozenBanishToDeckBottom = false;
+  let frozenLeaveToTrash = false;
+  const candidates: string[] = [
+    ...state.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
+    ...(state.field.key_piece ? [state.field.key_piece] : []),
+  ];
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB') continue;
+      if (act.id === 'FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM') frozenBanishToDeckBottom = true;
+      if (act.id === 'FROZEN_SIGNI_TO_TRASH_ON_LEAVE') frozenLeaveToTrash = true;
+    }
+  }
+  return { frozenBanishToDeckBottom, frozenLeaveToTrash };
+}

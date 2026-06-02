@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { CardData, PlayerState, TurnPhase, Deck } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { executeEffect, getCardNum, resumeSelectTarget, resumeDeclareBond } from '../engine/effectExecutor';
-import { calcFieldPowers } from '../engine/effectEngine';
+import { calcFieldPowers, collectFrozenBanishOverrides } from '../engine/effectEngine';
 import { hasKeyword } from '../utils/keywords';
 import type { ExecCtx } from '../engine/effectExecutor';
 import type { PendingInteractionDef } from '../types';
@@ -396,9 +396,24 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       const newDefSigni = [...defender.field.signi] as (string[] | null)[];
       const banished = newDefSigni[zoneIdx] ?? [];
       newDefSigni[zoneIdx] = null;
-      const newDefender = { ...defender, field: { ...defender.field, signi: newDefSigni }, trash: [...defender.trash, ...banished] };
+      // 凍結シグニのバニッシュ先置換チェック
+      const wasFrozen = defender.field.signi_frozen?.[zoneIdx] ?? false;
+      const newDefFrozen = [...(defender.field.signi_frozen ?? [false, false, false])];
+      newDefFrozen[zoneIdx] = false;
+      const defFrozenOvr = wasFrozen ? collectFrozenBanishOverrides(defender, cardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
+      const attFrozenOvr = wasFrozen ? collectFrozenBanishOverrides(attacker, cardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
+      const frozenToDeckBottom = defFrozenOvr.frozenBanishToDeckBottom;
+      const frozenToTrash = !frozenToDeckBottom && attFrozenOvr.frozenLeaveToTrash;
+      const newDefender: PlayerState = {
+        ...defender,
+        field: { ...defender.field, signi: newDefSigni, signi_frozen: newDefFrozen },
+        deck: frozenToDeckBottom ? [...defender.deck, ...banished] : defender.deck,
+        trash: !frozenToDeckBottom ? [...defender.trash, ...banished] : defender.trash,
+      };
+      // frozenToTrash は CPU戦ではbanishedが既にtrashへ行くため実質同じ（エナへ行かない）
+      void frozenToTrash;
       ng = setOppState(ng, newDefender);
-      appendLog(`${attkCard.CardName} の勝利`);
+      appendLog(`${attkCard.CardName} の勝利${frozenToDeckBottom ? '（凍結→デッキ下）' : ''}`);
 
       // ランサー/Sランサー：バトル勝利後に追加ライフクラッシュ
       const isLancer  = hasKeyword(attkInstId, 'ランサー',  cardMap, attacker.keyword_grants ?? {});

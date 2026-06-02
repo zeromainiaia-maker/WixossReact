@@ -1,6 +1,6 @@
 # STUB実装状況メモ（全件）
 
-最終更新: 2026-06-02 (v0.166)
+最終更新: 2026-06-02 (v0.167)
 
 ## ステータス凡例
 
@@ -30,13 +30,10 @@
 
 | 件数 | effectType | STUB ID |
 |-----:|-----------|---------|
-| 6 | ACTIVATED/AUTO | ACTIVATE_TRAP |
 | 6 | ACTIVATED | CAST_FROM_OPP_TRASH |
 | 6 | ACTIVATED | CONDITIONAL_COST_REDUCTION_BY_FIELD |
 | 6 | ACTIVATED | CRAFT_TO_LRIG_DECK |
 | 6 | ACTIVATED/AUTO | GATE |
-| 7 | AUTO | TRAP_OP |
-| 13 | AUTO | TRAP_OPERATION |
 | 5 | AUTO/ACTIVATED | ADD_CARD_TO_LRIG_DECK_HIDDEN |
 | 5 | CONT | ARTS_IMMOVABLE |
 | 5 | CONT/AUTO | COLLAB |
@@ -45,13 +42,11 @@
 | 4 | AUTO | MAKE_SERVANT_ZERO |
 | 5 | AUTO/ACTIVATED | OPEN_MAGIC_BOX |
 | 4 | AUTO/ACTIVATED | SIGNI_REPOSITION |
-| 5 | AUTO/ACTIVATED | TRAP_TO_HAND |
 | 3 | AUTO/ACTIVATED | ADD_CRAFT_TO_LRIG_DECK |
 | 5 | LIFE | DECK_TOP_TO_LIFE |
 | 3 | CONT | DEPLOY_RESTRICT |
 | 3 | AUTO | NEGATE_ATTACK_ON_TRIGGER |
 | 3 | AUTO/ACTIVATED | OPP_DECLARE_CHOICE |
-| 3 | ACTIVATED/LIFE | SET_OPP_SIGNI_AS_TRAP |
 | 3 | AUTO/ACTIVATED | TRIGGER_LIFE_BURST |
 | 2 | AUTO/ACTIVATED | BET_CONDITION |
 | 2 | AUTO | CHOOSE_SAME_OPTION_TWICE |
@@ -124,8 +119,6 @@
 | 1 | AUTO/ACTIVATED | FIELD_COND_DRAW_REVEAL |
 | 1 | CONT | FIRST_SPELL_COST_UP |
 | 1 | ACTIVATED | FROM_TRASH_TO_CENTER_ZONE |
-| 1 | CONT | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM |
-| 1 | CONT | FROZEN_SIGNI_TO_TRASH_ON_LEAVE |
 | 1 | CONT | GAIN_ADDITIONAL_LRIG_TYPE |
 | 1 | AUTO | GAIN_COIN_AND_DISCARD |
 | 1 | CONT | GAIN_LRIG_COLOR |
@@ -327,15 +320,15 @@
 | 7 | AUTO/ACTIVATED | ✅ | PLACE_LIMIT_UPPER ※lrig_limit_mod+1でリミット上限を増加済み |
 | 7 | AUTO/ACTIVATED | ✅ | PLACE_TRAP_OPTIONAL ※手札選択→ゾーン選択→INTERNAL_SET_TRAPで設置済み |
 | 2 | AUTO/ACTIVATED | ✅ | TRASH_SIGNI_UNDER_FIELD_SIGNI ※v0.136: 2ステップ実装（SELECT_TARGET[トラッシュ]→INTERNAL_TSU_CHOOSE_ZONE→INTERNAL_TSU_DO_PLACE）複数枚連続配置対応 |
-| 6 | ACTIVATED/AUTO | ⚡ | ACTIVATE_TRAP |
+| 6 | ACTIVATED/AUTO | ✅ | ACTIVATE_TRAP ※v0.167: parseCardEffects+execでTRAP_ICONを発動。lastProcessedCards[0]でトラップ指定対応 |
 | 2 | ACTIVATED | ⚡ | CAST_FROM_OPP_TRASH |
 | 6 | ACTIVATED | ⚡ | CONDITIONAL_COST_REDUCTION_BY_FIELD |
 | 6 | ACTIVATED | ⚡ | CRAFT_TO_LRIG_DECK |
 | 6 | CONT | ✅ | DOUBLE_POWER_MINUS ※v0.115: calcFieldPowers applyEffectsで相手シグニへの負デルタを2倍に実装 |
 | 6 | ACTIVATED/AUTO | ⚡ | GATE |
 | 6 | ACTIVATED/AUTO | ✅ | POWER_MOD_BY_HAND_COUNT |
-| 7 | AUTO | ⚡ | TRAP_OP |
-| 13 | AUTO | ⚡ | TRAP_OPERATION |
+| 7 | AUTO | ✅ | TRAP_OP ※v0.167: トラップアイコン発動パターン追加（parseCardEffects+exec）。「その中から」パターン追加（lastProcessedCards→CHOOSE_TRAP_ZONE） |
+| 13 | AUTO | ✅ | TRAP_OPERATION ※v0.167: チェックゾーンパターン追加（txtにチェックゾーンに置く→field.check設定）。lastProcessedCards/デッキ上パターン継続 |
 | 2 | AUTO/ACTIVATED | ✅ | TRASH_OWN_KEY_OPTIONAL ※needsInteraction CHOOSE: キーをルリグトラッシュに置く/スキップ |
 | 5 | AUTO/ACTIVATED | ⚡ | ADD_CARD_TO_LRIG_DECK_HIDDEN ※lastProcessedCardsのカードをルリグデッキへ追加(カード名解決は部分的) |
 | 5 | CONT | ⚡ | ARTS_IMMOVABLE ※executor直接チェック |
@@ -366,7 +359,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | REVEAL_PICK_CLASS_TO_ENERGY ※lastProcessedCardsのクラスシグニをエナへ、残りをデッキ上に戻す |
 | 5 | AUTO | ✅ | SEED_BLOOM ※v0.109: ON_PLAY効果トリガー実装・WXK04-060条件修正 |
 | 4 | AUTO/ACTIVATED | ✅ | SIGNI_REPOSITION ※v0.158: 自/相手シグニ対応+INTERNAL_REPOSITION_TO_ZONEでゾーン選択→スワップ実装 |
-| 5 | AUTO/ACTIVATED | ⚡ | TRAP_TO_HAND |
+| 5 | AUTO/ACTIVATED | ✅ | TRAP_TO_HAND ※v0.167: N枚まで指定時は SELECT_TARGET→INTERNAL_TTH_APPLY。全枚取得もそのまま対応 |
 | 4 | AUTO/ACTIVATED | ✅ | UNKNOWN_NESTED ※自シグニを任意トラッシュCHOOSE→self_optional_effect_taken設定。後続CONDITIONAL(SELF_OPTIONAL_EFFECT_TAKEN)で制御（v0.147） |
 | 3 | AUTO/ACTIVATED | ⚡ | ADD_CRAFT_TO_LRIG_DECK ※sourceCardNumをルリグデッキへ追加（特定クラフト名解決は未実装） |
 | 2 | AUTO/ACTIVATED | ✅ | BANISH_FROM_GAME ※トラッシュより任意除外CHOOSE→self_optional_effect_taken設定。後続CONDITIONAL(SELF_OPTIONAL_EFFECT_TAKEN)で制御（v0.147） |
@@ -386,7 +379,7 @@
 | 3 | CONT | ✅ | PREVENT_ZONE_MOVE_BY_OPP ※v0.137: AUTO時にprevent_opp_trash_fromフラグ設置。effectExecutorのapplyTrashHand/EnergyでotherState.prevent_opp_trash_fromも検査 |
 | 4 | AUTO/ACTIVATED | ✅ | REMOVE_SIGNI_ZONE ※CHOOSE+INTERNAL_REMOVE_SIGNI_ZONEで実装済み |
 | 1 | AUTO/ACTIVATED | ✅ | REVEAL_TOP_CONDITIONAL_ROUTE ※デッキ上公開→レベル条件判定→トラッシュ |
-| 3 | ACTIVATED/LIFE | ⚡ | SET_OPP_SIGNI_AS_TRAP |
+| 3 | ACTIVATED/LIFE | ✅ | SET_OPP_SIGNI_AS_TRAP ※v0.167: SELECT_TARGET(相手シグニ)→INTERNAL_OPP_SIGNI_TO_TRAP（同ゾーンにトラップ設置）。ACTIVATED/LIFEどちらも対応 |
 | 3 | AUTO/ACTIVATED | ⚡ | TRIGGER_LIFE_BURST ※done(addLog)のみ（ライフバースト特殊トリガー未実装） |
 | 2 | AUTO/ACTIVATED | ✅ | ABILITY_CHECK_ELSE_TRASH ※sourceCardNumに能力テキストあり→スキップ、なし→フィールドからトラッシュへ |
 | 2 | ACTIVATED/AUTO | ✅ | ARTS_USE_DISCARD_COLOR_HAND ※手札の特定色カードを任意N枚selectOrInteractで捨て（v0.147） |
@@ -550,8 +543,8 @@
 | 1 | AUTO/ACTIVATED | ⚡ | FIELD_COND_DRAW_REVEAL |
 | 1 | CONT | ⚡ | FIRST_SPELL_COST_UP ※execStub: [コストアップ]（BattleScreen未統合） |
 | 1 | ACTIVATED | ✅ | FROM_TRASH_TO_CENTER_ZONE ※v0.159: トラッシュから中央シグニゾーン(zone[1])に出す（既存シグニはエナへ） |
-| 1 | CONT | ⚡ | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM ※CONTINUOUS置換効果（BattleScreenバトル解決への統合が必要） |
-| 2 | CONT | ⚡ | FROZEN_SIGNI_TO_TRASH_ON_LEAVE ※CONTINUOUS置換効果（BattleScreen退場処理への統合が必要） |
+| 1 | CONT | ✅ | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で防御側CONTチェック→凍結シグニをデッキ下へ |
+| 2 | CONT | ✅ | FROZEN_SIGNI_TO_TRASH_ON_LEAVE ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で攻撃側CONTチェック→相手凍結シグニをトラッシュへ |
 | 1 | CONT | ⚡ | GAIN_ADDITIONAL_LRIG_TYPE ※execStub: [ルリグシステム]（lrig system未実装） |
 | 1 | AUTO | ⚡ | GAIN_COIN_AND_DISCARD |
 | 1 | CONT | ⚡ | GAIN_LRIG_COLOR ※v0.115: collectLrigColorInheritSigni実装（SHADOW統合は未実装） |
