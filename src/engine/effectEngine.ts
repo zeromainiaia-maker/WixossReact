@@ -138,6 +138,12 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       return ownerState.lrig_riding_signi?.includes(sourceCardNum) ?? false;
 
+    case 'HAS_BOND': {
+      const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);
+      if (!name) return false;
+      return ownerState.bonds?.includes(name) ?? false;
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers));
   }
@@ -259,6 +265,11 @@ function evalConditionForContinuous(
       const top = lrig[lrig.length - 1];
       if (!top) return false;
       return cardMap.get(top)?.CardClass?.includes(cond.story) ?? false;
+    }
+    case 'HAS_BOND': {
+      const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);
+      if (!name) return false;
+      return ownerState.bonds?.includes(name) ?? false;
     }
     case 'AND':
       return cond.conditions.every(c => evalConditionForContinuous(c, ownerState, otherState, cardMap, sourceCardNum));
@@ -555,6 +566,11 @@ export function calcFieldPowers(
         if (effect.crossOnly) {
           const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum || s?.includes(topNum));
           if (zoneIdx === -1 || !getCrossStates()[zoneIdx]) continue;
+        }
+        // 絆アイコン効果: このカード名との絆を獲得していなければスキップ
+        if (effect.kizunaIcon) {
+          const cardName = cardMap.get(topNum)?.CardName;
+          if (!cardName || !(ownerState.bonds?.includes(cardName))) continue;
         }
 
         // POWER_SET: 基本パワーを指定値に変更（POWER_MODIFYより先に適用）

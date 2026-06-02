@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { User } from '@supabase/supabase-js';
 import type { CardData, PlayerState, TurnPhase, Deck } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { executeEffect, getCardNum, resumeSelectTarget } from '../engine/effectExecutor';
+import { executeEffect, getCardNum, resumeSelectTarget, resumeDeclareBond } from '../engine/effectExecutor';
 import { calcFieldPowers } from '../engine/effectEngine';
 import { hasKeyword } from '../utils/keywords';
 import type { ExecCtx } from '../engine/effectExecutor';
@@ -149,6 +149,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
   const [logExpanded, setLogExpanded] = useState(false);
   const [selectedHandIdx, setSelectedHandIdx] = useState<number | null>(null);
   const [effectSelNums, setEffectSelNums] = useState<string[]>([]);
+  const [bondSelCard, setBondSelCard] = useState<string | null>(null);
   const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gsRef = useRef<CpuGameState | null>(null);
   gsRef.current = gs;
@@ -566,6 +567,11 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
       const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: '' };
       result = resumeSelectTarget(selectedNums, inter, ctx);
+    } else if (inter.type === 'DECLARE_BOND') {
+      if (selectedNums.length === 0) return { ...g, pendingInteraction: null, pendingOwner: null };
+      const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
+      const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: '' };
+      result = resumeDeclareBond(selectedNums[0], inter, ctx);
     } else {
       return { ...g, pendingInteraction: null, pendingOwner: null };
     }
@@ -729,6 +735,12 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
         const selected = effectSelNums;
         setEffectSelNums([]);
         return resolveInteraction(prev, selected);
+      }
+      if (prev.pendingInteraction.type === 'DECLARE_BOND') {
+        const sel = bondSelCard;
+        setBondSelCard(null);
+        if (!sel) return prev;
+        return resolveInteraction(prev, [sel]);
       }
       return { ...prev, pendingInteraction: null, pendingOwner: null };
     });
@@ -1041,6 +1053,44 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
             </div>
             <button onClick={handleEffectConfirm}
               style={{ padding: '10px 0', backgroundColor: C.accent, color: C.text, border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14 }}>
+              決定
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* 効果インタラクション（DECLARE_BOND） */}
+      {gs.pendingInteraction?.type === 'DECLARE_BOND' && gs.pendingOwner === 'player' && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, backgroundColor: 'rgba(0,0,0,0.9)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12, padding: '20px 16px', width: 'min(95vw,400px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ color: C.textAlt, fontSize: 13, textAlign: 'center', margin: 0 }}>
+              絆を獲得する生徒を選んでください
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 320, overflowY: 'auto' }}>
+              {(gs.pendingInteraction as { type: 'DECLARE_BOND'; deckCards: string[] }).deckCards
+                .filter((cn, i, arr) => arr.findIndex(x => getCardNum(x) === getCardNum(cn)) === i)
+                .map((cn) => {
+                  const baseNum = getCardNum(cn);
+                  const isSel = bondSelCard === cn;
+                  const c = cards.find(cd => cd.CardNum === baseNum);
+                  return (
+                    <div key={cn}
+                      onClick={() => setBondSelCard(isSel ? null : cn)}
+                      style={{ width: 52, height: 72, borderRadius: 4, overflow: 'hidden', cursor: 'pointer',
+                        border: isSel ? `2px solid ${C.accent}` : C.borderCard, position: 'relative' }}>
+                      {c ? <img src={c.ImgURL} alt={c.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} /> : null}
+                      {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(100,181,246,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ color: C.text, fontSize: 18 }}>✓</span>
+                      </div>}
+                    </div>
+                  );
+                })}
+            </div>
+            <button onClick={handleEffectConfirm} disabled={!bondSelCard}
+              style={{ padding: '10px 0', backgroundColor: bondSelCard ? C.accent : '#555', color: C.text, border: 'none', borderRadius: 8, cursor: bondSelCard ? 'pointer' : 'default', fontSize: 14 }}>
               決定
             </button>
           </div>

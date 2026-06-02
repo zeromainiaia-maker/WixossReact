@@ -83,6 +83,7 @@ export type ActiveCondition =
   | { type: 'IS_SELF_ACCED' }                                   // このシグニにアクセが付いているかぎり
   | { type: 'IS_SELF_ACCE_CARD' }                               // このカードがアクセとして装着されているかぎり（アクセカード側の条件）
   | { type: 'IS_DRIVE_STATE' }                                  // このシグニがドライブ状態（ルリグに乗られている）であるかぎり
+  | { type: 'HAS_BOND'; cardName?: string }                    // 絆アイコン：このカード名との絆を獲得している（cardName省略=このカード自身）
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
@@ -110,7 +111,8 @@ export type Condition =
   | { type: 'COND_STUB'; raw: string }
   | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number }   // lastProcessedCardsのシグニレベル合計=N
   | { type: 'OPPONENT_NOT_PAID' }                             // 相手が任意コストを支払わなかった場合
-  | { type: 'SELF_OPTIONAL_EFFECT_TAKEN' };                   // 自分が任意効果（自バニッシュ等）を実行した場合
+  | { type: 'SELF_OPTIONAL_EFFECT_TAKEN' }                    // 自分が任意効果（自バニッシュ等）を実行した場合
+  | { type: 'HAS_BOND'; cardName?: string };                  // 絆アイコン：このカード名との絆を獲得している
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
@@ -274,6 +276,7 @@ export type EffectAction =
   | GrantEffectAction
   | GrantSigniAboveAbilityAction
   | StubAction
+  | GainBondAction
   | UnknownAction;
 
 export interface DrawAction {
@@ -976,6 +979,14 @@ export interface StubAction {
   value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）
 }
 
+// 生徒との絆を獲得する（ブルアカ絆メカニクス）
+export interface GainBondAction {
+  type: 'GAIN_BOND';
+  // 'last_found': 直前のREVEAL_AND_PICK/SEARCHで見つかったカード名と絆を獲得
+  // 'declared': デッキからカードを選び、そのカード名と絆を獲得（UIインタラクション要）
+  source: 'last_found' | 'declared';
+}
+
 // このターン特定カードを使用禁止にする
 export interface BlockCardUseAction {
   type: 'BLOCK_CARD_USE';
@@ -1051,4 +1062,6 @@ export interface CardEffect {
   parseStatus?: 'AUTO' | 'MANUAL' | 'PARTIAL' | 'UNKNOWN';
   // クロス状態のときのみ有効（【クロス常】【クロス出】【クロス起】【クロス自】）
   crossOnly?: boolean;
+  // 絆アイコン有効時のみ発動（【絆常】【絆出】【絆自】【絆起】）: 表示フラグ兼ロジックフラグ
+  kizunaIcon?: boolean;
 }

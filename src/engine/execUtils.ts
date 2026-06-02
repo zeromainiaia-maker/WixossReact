@@ -324,6 +324,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'COND_STUB':             return true;
     case 'OPPONENT_NOT_PAID':            return ctx.ownerState.opponent_paid_optional_cost !== true;
     case 'SELF_OPTIONAL_EFFECT_TAKEN':  return ctx.ownerState.self_optional_effect_taken === true;
+    case 'HAS_BOND': {
+      const name = cond.cardName ?? (ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum)?.CardName : undefined);
+      if (!name) return false;
+      return ctx.ownerState.bonds?.includes(name) ?? false;
+    }
     case 'LAST_PROCESSED_LEVEL_SUM_EQ': {
       // lastProcessedCardsのシグニのレベル合計がvalue=Nか判定（WD21-012等）
       const processed = ctx.lastProcessedCards ?? [];
@@ -440,7 +445,7 @@ export function selectOrInteract(
   let filteredCands = candidates;
   if (scope === 'opp_field') {
     filteredCands = candidates.filter(
-      n => !hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants),
+      n => !hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds),
     );
   }
   if (filteredCands.length === 0) return done(ctx);

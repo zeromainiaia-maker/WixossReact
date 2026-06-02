@@ -11,17 +11,19 @@ export function hasKeyword(
   keyword: string,
   cardMap: Map<string, CardData>,
   keywordGrants?: Record<string, string[]>,
+  bonds?: string[], // 絆アイコン効果チェック用（プレイヤーが絆獲得済みのカード名一覧）
 ): boolean {
   const card = cardMap.get(cardNum);
-  if (
-    card?.effects?.some(
-      e =>
-        e.effectType === 'CONTINUOUS' &&
-        e.action.type === 'GRANT_KEYWORD' &&
-        (e.action as { keyword: string }).keyword === keyword,
-    )
-  )
+  if (card?.effects?.some(e => {
+    if (e.effectType !== 'CONTINUOUS') return false;
+    if (e.action.type !== 'GRANT_KEYWORD') return false;
+    if ((e.action as { keyword: string }).keyword !== keyword) return false;
+    if (e.kizunaIcon) {
+      if (!bonds) return false;
+      if (!bonds.includes(card?.CardName ?? '')) return false;
+    }
     return true;
+  })) return true;
   return keywordGrants?.[cardNum]?.includes(keyword) ?? false;
 }
 
@@ -32,8 +34,9 @@ export function hasShadow(
   cardNum: string,
   cardMap: Map<string, CardData>,
   keywordGrants?: Record<string, string[]>,
+  bonds?: string[],
 ): boolean {
-  return hasKeyword(cardNum, 'シャドウ', cardMap, keywordGrants);
+  return hasKeyword(cardNum, 'シャドウ', cardMap, keywordGrants, bonds);
 }
 
 /**

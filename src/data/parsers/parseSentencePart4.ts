@@ -832,9 +832,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/《[^》]+》[１-９\d０-９]*枚と《[^》]+》[１-９\d０-９]*枚を公開する/))
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
-  // ---- 好きな生徒との絆を獲得する ----
+  // ---- 好きな生徒との絆を獲得する（デッキからカード選択） ----
   if (t.match(/好きな生徒.+との絆を獲得する/))
-    return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
+    return { type: 'GAIN_BOND', source: 'declared' } as import('../../types/effects').GainBondAction;
+
+  // ---- この方法で公開した生徒との絆を獲得する ----
+  if (t.match(/この方法で公開した生徒との絆を獲得する/))
+    return { type: 'GAIN_BOND', source: 'last_found' } as import('../../types/effects').GainBondAction;
 
   // ---- あなたの場に他の〈クラス〉のシグニがある場合、対戦相手のシグニをトラッシュ ----
   if (t.match(/あなたの場に他の[＜〈<].+[＞〉>]のシグニがある場合、対戦相手のレベル.+のシグニ.+対象とし、それをトラッシュに置く/))

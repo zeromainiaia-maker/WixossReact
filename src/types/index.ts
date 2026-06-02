@@ -166,6 +166,8 @@ export interface PlayerState {
   energy_color_substitutes?: { from: string[]; to: string }[];
   // このターンにアタックしたシグニのCardNum一覧（ターン終了時リセット）
   attacked_signi_ids?: string[];
+  // 絆を獲得したカード名一覧（ゲーム中に失われない。【絆】アイコン能力の発動条件として参照）
+  bonds?: string[];
   // このターン、自分のシグニは合計1回しかアタックできない（LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL）
   signi_attack_once_limit?: boolean;
   // 相手効果による自シグニのダウンを防ぐ（PREVENT_SIGNI_DOWN_BY_OPP_ALL）
@@ -264,6 +266,11 @@ export type PendingInteractionDef =
       type: 'SELECT_ZONE';
       cardNum: string;          // 場に出すカードのCardNum（instance ID含む）
       owner: 'self' | 'opponent';
+      continuation?: EffectAction;
+    }
+  | {
+      type: 'DECLARE_BOND';
+      deckCards: string[];       // デッキのCardNum一覧（全枚数表示）
       continuation?: EffectAction;
     };
 

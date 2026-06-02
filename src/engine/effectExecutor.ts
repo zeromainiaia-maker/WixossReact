@@ -1678,6 +1678,26 @@ function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, newS, ctx), `コイン${gained}枚獲得（計${newS.coins}枚）`));
 }
 
+function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx): ExecResult {
+  if (a.source === 'last_found') {
+    const lastCard = ctx.lastProcessedCards?.[ctx.lastProcessedCards.length - 1];
+    const cardName = lastCard ? ctx.cardMap.get(lastCard)?.CardName : undefined;
+    if (!cardName) return done(addLog(ctx, '絆獲得: 対象カードが見つかりません'));
+    const current = ctx.ownerState.bonds ?? [];
+    if (current.includes(cardName)) return done(addLog(ctx, `${cardName}との絆は既に獲得済み`));
+    const newOwner: PlayerState = { ...ctx.ownerState, bonds: [...current, cardName] };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName}との絆を獲得`));
+  }
+  // 'declared': デッキからカードを選択させる
+  const deckCards = [...ctx.ownerState.deck];
+  if (deckCards.length === 0) return done(addLog(ctx, '絆獲得: デッキが空'));
+  return needsInteraction(ctx, {
+    type: 'DECLARE_BOND',
+    deckCards,
+    continuation: a.source === 'declared' ? undefined : undefined,
+  });
+}
+
 function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
   const s = ownerState(a.targetOwner, ctx);
   const charms = [...(s.field.signi_charms ?? [null, null, null])];
@@ -2014,6 +2034,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
       return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、次の${pnd.count ?? 1}回のダメージを無効`));
     }
+    case 'GAIN_BOND':               return execGainBond(action as import('../types/effects').GainBondAction, ctx);
     case 'STUB': return execStub(action as StubAction, ctx, executeAction);
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
     default:                        return done(ctx);
@@ -2263,6 +2284,23 @@ export function resumeSelectZone(
   const newS: PlayerState = { ...state, field: { ...state.field, signi } };
   const cur = addLog(setOwnerState(pending.owner, newS, ctx),
     `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}を場に出す`);
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
+}
+
+// DECLARE_BOND: プレイヤーがデッキからカードを選んで絆を獲得する
+export function resumeDeclareBond(
+  selectedCardNum: string,
+  pending: PendingInteractionDef & { type: 'DECLARE_BOND' },
+  ctx: ExecCtx,
+): ExecResult {
+  const cardName = ctx.cardMap.get(selectedCardNum)?.CardName;
+  if (!cardName) return done(addLog(ctx, '絆獲得: 選択カードが見つかりません'));
+  const current = ctx.ownerState.bonds ?? [];
+  const newBonds = current.includes(cardName) ? current : [...current, cardName];
+  const shuffled = shuffle([...ctx.ownerState.deck]);
+  const newOwner: PlayerState = { ...ctx.ownerState, bonds: newBonds, deck: shuffled };
+  const cur = addLog({ ...ctx, ownerState: newOwner }, `${cardName}との絆を獲得（デッキをシャッフル）`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
