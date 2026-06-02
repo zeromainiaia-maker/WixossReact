@@ -204,7 +204,7 @@
 | 2 | AUTO/ACTIVATED | ⚡ | ACCE_OP ※done(addLog)のみ（アクセカウント確認のみ） |
 | 1 | CONT | ⚡ | ACCE_SIGNI_ALL_COLOR ※done(addLog)のみ（アクセシグニ全色化未実装） |
 | 1 | CONT | ✅ | ACCE_SIGNI_GRANT_ABILITY ※アクセゾーン対象シグニにkeyword_grants付与実装済み |
-| 1 | AUTO | ⚡ | ACCE_TO_ENERGY |
+| 1 | AUTO | ✅ | ACCE_TO_ENERGY ※v0.169: signi_acceの全アクセをエナゾーンへ移動（PLACE_ACCE_SIGNI_TO_ENERGYと同ハンドラ） |
 | 1 | AUTO | ⚡ | ACTIVATE_COST_ZERO_BLACK ※v0.141: SELECT_TARGET(トラッシュシグニ)+activate_cost_zero_signiフラグ設置 |
 | 1 | ACTIVATED | ⚡ | ACTIVATE_EICHI_ABILITY |
 | 1 | AUTO | ⚡ | ADD_CARD_TO_LRIG_DECK ※v0.141: lastProcessedCardsなし時は《カード名》テキスト解析→デッキ/手札から移動 |
