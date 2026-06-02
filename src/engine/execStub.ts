@@ -7928,7 +7928,7 @@ export function execStub(
     });
   }
   if (stub.id === 'INTERNAL_SET_GATE') {
-    const gateZoneIdx: number = typeof stub.value === 'number' ? stub.value : 0;
+    const gateZoneIdx: number = (typeof stub.value === 'number' ? stub.value : 0) as number;
     const currentGates = [...(ctx.otherState.signi_gate_zones ?? [])];
     if (!currentGates.includes(gateZoneIdx)) currentGates.push(gateZoneIdx);
     // ゲートゾーンの相手シグニを blocked_actions に追加（アタック不可）
