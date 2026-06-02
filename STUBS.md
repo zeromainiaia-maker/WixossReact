@@ -373,9 +373,9 @@
 | 1 | CONT | ✅ | OPP_LRIG_ATTACK_COST ※v0.114: collectOppLrigAttackExtraCost+handleLrigAttackに追加コスト支払い統合 |
 | 2 | AUTO | ✅ | OPP_MAIN_PHASE_LIMIT_DOWN ※v0.161: pending_lrig_limit_mod(-2)フラグ設定→GROW→MAIN移行時にlrig_limit_modへ適用（誤実装draw_limit→修正） |
 | 1 | AUTO | ⚡ | OPP_RETURN_HAND_ON_SELF_BANISH |
-| 1 | ACTIVATED | ⚡ | OPP_REVEAL_HAND_AND_LRIG_DECK |
-| 1 | ACTIVATED | ⚡ | OPP_REVEAL_LRIG_DECK |
-| 1 | ACTIVATED | ⚡ | OPP_REVEAL_TOP_AND_HAND |
+| 1 | ACTIVATED | ✅ | OPP_REVEAL_HAND_AND_LRIG_DECK ※v0.169: 相手手札+ルリグデッキ名一覧をログ表示（line 8656） |
+| 1 | ACTIVATED | ✅ | OPP_REVEAL_LRIG_DECK ※v0.169: 相手ルリグデッキ名一覧をログ表示（line 8659） |
+| 1 | ACTIVATED | ✅ | OPP_REVEAL_TOP_AND_HAND ※v0.169: 相手デッキトップ+手札名一覧をログ表示（line 8662） |
 | 2 | ACTIVATED | ✅ | OPP_SIGNI_ATTACK_COST ※v0.161: signi_attack_costフラグ(=2)設定+BattleScreen/CpuBattleScreenのシグニアタック時にエナ消費・不足時アタック不可 |
 | 1 | CONT | ✅ | OPP_SIGNI_LEAVE_TO_TRASH ※banish_redirectフラグ設置: BattleScreenのバニッシュ先変更に統合 |
 | 1 | AUTO | ✅ | OPP_SIGNI_ONE_ATTACK_TOTAL ※v0.168: CpuBattleScreen CPU側のATTACK_SIGNIフェイズにsigni_attack_once_limitチェック追加 |
