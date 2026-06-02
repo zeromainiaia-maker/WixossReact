@@ -9148,9 +9148,34 @@ export function execStub(
   if (stub.id === 'OPTIONAL_DISCARD_GUARD') {
     return done(addLog(ctx, '[任意捨てガード: ガードシステム側未実装]'));
   }
-  // ADJACENT_SIGNI_POWER_MOD: 隣接シグニのパワー修正（effectEngine側で動的処理）
+  // ADJACENT_SIGNI_POWER_MOD: このシグニと隣接するシグニ最大2体のパワーを修正
   if (stub.id === 'ADJACENT_SIGNI_POWER_MOD') {
-    return done(addLog(ctx, '[隣接シグニパワー修正: effectEngineで動的処理]'));
+    const zoneIdxADJ = ctx.sourceCardNum
+      ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum)
+      : -1;
+    if (zoneIdxADJ === -1) return done(addLog(ctx, 'ADJACENT_SIGNI_POWER_MOD: ゾーンが見つかりません'));
+    const adjNumsADJ: string[] = [];
+    if (zoneIdxADJ > 0) {
+      const adj = ctx.ownerState.field.signi[zoneIdxADJ - 1]?.at(-1);
+      if (adj) adjNumsADJ.push(adj);
+    }
+    if (zoneIdxADJ < 2) {
+      const adj = ctx.ownerState.field.signi[zoneIdxADJ + 1]?.at(-1);
+      if (adj) adjNumsADJ.push(adj);
+    }
+    if (adjNumsADJ.length === 0) return done(addLog(ctx, '隣接シグニなし（ADJACENT_SIGNI_POWER_MOD）'));
+    // deltaをカードテキストから取得（未記述なら+3000デフォルト）
+    const srcADJ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtADJ = srcADJ ? (srcADJ.EffectText ?? '') : '';
+    const toHWADJ = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const mADJ = txtADJ.match(/[＋+]([０-９\d]+)/);
+    const deltaADJ = mADJ ? parseInt(toHWADJ(mADJ[1])) : 3000;
+    const modsADJ = [
+      ...(ctx.ownerState.temp_power_mods ?? []),
+      ...adjNumsADJ.map(cn => ({ cardNum: cn, delta: deltaADJ })),
+    ];
+    const newOwnerADJ = { ...ctx.ownerState, temp_power_mods: modsADJ };
+    return done(addLog({ ...ctx, ownerState: newOwnerADJ }, `隣接${adjNumsADJ.length}体パワー+${deltaADJ}`));
   }
 
   return done(addLog(ctx, `[STUB: ${stub.id}]`));

@@ -255,7 +255,6 @@
 | 1 | ACTIVATED | TRASH_CLASS_TO_HAND_OR_ENERGY |
 | 1 | AUTO | TRASH_SIGNI_TO_BEAT |
 
-| 1 | CONT | ⚡ | ADJACENT_SIGNI_POWER_MOD ※execStub: [隣接シグニパワー修正: effectEngineで動的処理] |
 | 1 | AUTO | ⚡ | COPY_ABILITY ※execStub: [能力付与: COPY_ABILITY]（ログのみ） |
 | 1 | AUTO | ⚡ | COPY_CARD ※execStub: [属性変更: COPY_CARD]（ログのみ） |
 | 2 | AUTO | ✅ | CRASH_TO_TRASH_INSTEAD ※v0.166: crash_to_trash_insteadフラグ追加。handleBurstActivateでop側フラグをチェック→エナ→トラッシュへ（WX19-034） |
@@ -751,7 +750,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | USE_SPELL_FROM_TRASH ※PLAY_FREEグループに統合: lastProcessedCardsのスペルを無料使用 |
 | 1 | CONT | ✅ | WHITE_SIGNI_ABILITY_PROTECT ※v0.142: effectEngine.collectAbilityProtectedSigniに相手ターン中の白シグニ保護追加 |
 
-| 1 | CONT | ⚡ | ADJACENT_SIGNI_POWER_MOD ※execStub: [隣接シグニパワー修正: effectEngineで動的処理] |
+| 1 | CONT | ✅ | ADJACENT_SIGNI_POWER_MOD ※v0.167: sourceCardNumのゾーンから隣接ゾーンを特定、temp_power_modsに+delta追加（WXK01-060） |
 | 1 | AUTO | ✅ | ALL_PLAYER_MILL ※各プレイヤーがデッキ上N枚をトラッシュ実装済み |
 | 1 | AUTO | ⚡ | COPY_ABILITY ※execStub: [能力付与: COPY_ABILITY]（ログのみ） |
 | 1 | AUTO | ⚡ | COPY_CARD ※execStub: [属性変更: COPY_CARD]（ログのみ） |
