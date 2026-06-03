@@ -242,6 +242,7 @@ export default function App() {
           deck={currentDeck}
           cards={cards}
           variantCards={variantCards}
+          tkCards={tkCards}
           onUpdate={handleUpdateDeck}
           onDelete={handleDeleteDeck}
           onBack={() => setViewMode('DECK_LIST')}
