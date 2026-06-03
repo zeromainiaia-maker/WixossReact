@@ -54,6 +54,7 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
   const [nameInput, setNameInput] = useState(deck.name);
   const [expandedCardNum, setExpandedCardNum] = useState<string | null>(null);
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
+  const [variantPickerFor, setVariantPickerFor] = useState<{ cardNum: string; from: 'main' | 'lrig' } | null>(null);
 
   const cardMap = useMemo(() => {
     const map = new Map<string, CardData>();
