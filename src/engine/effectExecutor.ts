@@ -347,7 +347,8 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   for (let i = 0; i < count && life.length > 0; i++) {
     crashed.push(life.pop()!);
   }
-  // check  const checkCard = crashed[0] ?? null;
+  // check
+  const checkCard = crashed[0] ?? null;
   const newS: PlayerState = {
     ...state,
     life_cloth: life,
@@ -440,7 +441,8 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     return done(ctx);
   }
 
-  //   const srcDefined = src!;
+  //
+   const srcDefined = src!;
   function applyToField(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const n of selected) {
@@ -593,7 +595,7 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   const id = a.until === 'NEXT_TURN' ? `${a.actionId}:NEXT_TURN` : a.actionId;
   const blocked = [...(state.blocked_actions ?? []), id];
   const newS: PlayerState = { ...state, blocked_actions: blocked };
-  return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${a.actionId})`);
+  return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${a.actionId}`));
 }
 
 function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
@@ -675,7 +677,8 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   const fromDeck = a.from.location === 'deck';
   const pool = fromDeck ? state.deck : state.trash;
 
-  // '__lastRevealed__' :   const resolvedFilter = { ...a.filter };
+  // '__lastRevealed__' :
+   const resolvedFilter = { ...a.filter };
   if (resolvedFilter.cardName === '__lastRevealed__') {
     const revealedNum = ctx.lastProcessedCards?.[0];
     const revealedName = revealedNum ? ctx.cardMap.get(revealedNum)?.CardName : undefined;
@@ -683,13 +686,15 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     else delete resolvedFilter.cardName;
   }
 
-  // 1  const hasVisible = pool.some(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
+  // 1
+  const hasVisible = pool.some(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
   if (!hasVisible) {
     if (a.afterSearch) return executeAction(a.afterSearch, ctx);
     return done(ctx);
   }
 
-  //   const visibleCards = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
+  //
+   const visibleCards = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
 
   return needsInteraction(ctx, {
     type: 'SEARCH',
@@ -1169,7 +1174,8 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
   const count = resolveNum(a.count);
   const cards = state.deck.slice(0, count);
   if (cards.length === 0) return done(ctx);
-  //   const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
+  //
+   const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
   const newCtx = setOwnerState(a.source.owner as Owner, newS, ctx);
   return needsInteraction(newCtx, {
     type: 'LOOK_AND_REORDER',
@@ -1253,7 +1259,8 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
     return done(addLog(ctx, `{a.from.join('/')})`);
   }
   if (!a.target) return done(ctx);
-  //   const tgt = a.target;
+  //
+   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const keyword = `PROTECTION:${a.from.join(',')}:${a.sourceOwner}`;
@@ -1277,7 +1284,8 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   const charmSrc   = ownerState(charmOwner, ctx);
   const toState    = ownerState(toOwner, ctx);
 
-  // //  let charmCands: string[];
+  // //
+  let charmCands: string[];
   let charmFromLocation: 'hand' | 'energy' | 'trash' | 'deck';
   if (a.charm.type === 'DECK_CARD') {
     charmCands = charmSrc.deck.slice(0, 1);
@@ -1294,7 +1302,8 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   }
   if (charmCands.length === 0) return done(addLog(ctx, ''));
 
-  //   const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
+  //
+   const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   if (toCands.length === 0) return done(addLog(ctx, ''));
 
   const charmNum = charmCands[0];
@@ -1334,12 +1343,14 @@ function getLevelReferenceOverride(card: import('../types').CardData | undefined
   const txt = card?.EffectText ?? '';
   if (!txt.includes(')) return null;'
   const toHW = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-  //   const single = txt.match(/([d]+));
+  //
+   const single = txt.match(/([d]+));
   if (single) {
     const lv = parseInt(toHW(single[1]));
     return { min: lv, max: lv };
   }
-  //   const range = txt.match(/[d]+)[d]+)/);
+  //
+   const range = txt.match(/[d]+)[d]+)/);
   if (range) {
     return { min: parseInt(toHW(range[1])), max: parseInt(toHW(range[2])) };
   }
@@ -1419,7 +1430,8 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
 
   if (cands.length === 0) return done(addLog(ctx, 'PlayFree: '));
 
-  // BattleScreen  return needsInteraction(ctx, {
+  // BattleScreen
+  return needsInteraction(ctx, {
     type: 'SEARCH',
     visibleCards: cands,
     maxPick: 1,
@@ -1444,7 +1456,8 @@ function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
 }
 
 function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): ExecResult {
-  // cardNumxcludeSelf  const tgtOwnerForExclude = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  // cardNumxcludeSelf
+  const tgtOwnerForExclude = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const tgtStatePre = ownerState(tgtOwnerForExclude, ctx);
   const tgtCandsPre = a.target.count !== 'ALL'
     ? fieldCandidates(tgtStatePre, a.target.filter, ctx.cardMap, ctx.effectivePowers)
@@ -1487,7 +1500,8 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
   const sourceCardNum = ctx.sourceCardNum;
   if (!sourceCardNum) return done(ctx);
 
-  //   const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCardNum));
+  //
+   const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCardNum));
   if (zoneIdx === -1) return done(ctx);
 
   if (a.source === 'deck_top') {
@@ -1606,7 +1620,8 @@ function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult
   //  BattleScreen   // 
   const keyword = `CHARM_PROTECTION:${JSON.stringify(a.signiFilter)}`;
   const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-  //   const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap, ctx.effectivePowers);
+  //
+   const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap, ctx.effectivePowers);
   for (const n of cands) grants[n] = [...(grants[n] ?? []), keyword];
   const newOwner: PlayerState = { ...ctx.ownerState, keyword_grants: grants };
   return done(addLog({ ...ctx, ownerState: newOwner }, ''));
@@ -1791,7 +1806,8 @@ function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
   const tgtState = a.targetOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
   const ZONE_COUNT = 3;
   const virus = [...(tgtState.field.signi_virus ?? [0, 0, 0])];
-  //   const available = [0, 1, 2].filter(i => virus[i] === 0);
+  //
+   const available = [0, 1, 2].filter(i => virus[i] === 0);
 
   let placed = 0;
   if (a.zoneCount === 'ALL') {
@@ -1818,7 +1834,8 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
   const tgtState = a.targetSigniOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
   const acce = tgtState.field.signi_acce ?? [null, null, null];
 
-  // romHand   if (a.fromHand) {
+  // romHand
+   if (a.fromHand) {
     const handCands = srcState.hand.filter(cn => {
       const card = ctx.cardMap.get(cn);
       return card && card.Type === ' && (!a.signiFilter || matchesFilter(card, a.signiFilter'));
@@ -2023,7 +2040,8 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
 
 // ===== I=====
 
-// SELECT_TARGET: selected[] export function resumeSelectTarget(
+// SELECT_TARGET: selected[] export
+ function resumeSelectTarget(
   selected: string[],
   pending: PendingInteractionDef & { type: 'SELECT_TARGET' },
   ctx: ExecCtx,
@@ -2052,7 +2070,8 @@ export function resumeSearch(
     if (!result.done) return result;
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
   }
-  // EVEAL_PICK_HAND_SHUFFLE_BOTTOM   if (pending.restDest) {
+  // EVEAL_PICK_HAND_SHUFFLE_BOTTOM
+   if (pending.restDest) {
     const remaining = pending.visibleCards.filter(n => !picked.includes(n));
     let logMsg = '';
     for (const cardNum of remaining) {
@@ -2083,7 +2102,8 @@ export function resumeSearch(
   return done(cur);
 }
 
-// CHOOSE: choiceId export function resumeChoose(
+// CHOOSE: choiceId export
+ function resumeChoose(
   choiceId: string,
   pending: PendingInteractionDef & { type: 'CHOOSE' },
   ctx: ExecCtx,
@@ -2131,7 +2151,8 @@ export function resumeOptionalCost(
     return result;
   }
 
-  // :     const costColors = [...(payOpt?.costColors ?? [])];
+  // :
+     const costColors = [...(payOpt?.costColors ?? [])];
   for (const n of energyNums) {
     const color = ctx.cardMap.get(n)?.Color ?? '';
     const idx = costColors.findIndex(c => c === color || c === '');
@@ -2164,7 +2185,8 @@ export function resumeOptionalCost(
   return result;
 }
 
-// OPPONENT_PAY_OPTIONAL: // pay therState skip export function resumeOpponentPayOptional(
+// OPPONENT_PAY_OPTIONAL: // pay therState skip export
+ function resumeOpponentPayOptional(
   choiceId: string,
   energyNums: string[], // CardNum
   pending: PendingInteractionDef & { type: 'CHOOSE' },
@@ -2192,7 +2214,8 @@ export function resumeOptionalCost(
     return result;
   }
 
-  //  otherState   const costColors = [...(payOpt?.costColors ?? [])];
+  //  otherState
+   const costColors = [...(payOpt?.costColors ?? [])];
   for (const n of energyNums) {
     const color = ctx.cardMap.get(n)?.Color ?? '';
     const idx = costColors.findIndex(c => c === color || c === '');
@@ -2211,7 +2234,8 @@ export function resumeOptionalCost(
   return done(cur);
 }
 
-// LOOK_AND_REORDER: reordered[] =export function resumeLookAndReorder(
+// LOOK_AND_REORDER: reordered[] =export
+ function resumeLookAndReorder(
   reordered: string[],
   trashed: string[],
   pending: PendingInteractionDef & { type: 'LOOK_AND_REORDER' },
@@ -2254,7 +2278,8 @@ export function resumeSelectZone(
   return done(cur);
 }
 
-// DECLARE_BOND: export function resumeDeclareBond(
+// DECLARE_BOND: export
+ function resumeDeclareBond(
   selectedCardNum: string,
   pending: PendingInteractionDef & { type: 'DECLARE_BOND' },
   ctx: ExecCtx,
