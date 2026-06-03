@@ -59,9 +59,10 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
 
   const cardMap = useMemo(() => {
     const map = new Map<string, CardData>();
-    cards.forEach(c => map.set(c.CardNum, c));
+    // variantCards を先に登録し、通常cardsで上書き（通常版を優先）
+    [...variantCards, ...cards].forEach(c => map.set(c.CardNum, c));
     return map;
-  }, [cards]);
+  }, [cards, variantCards]);
 
   // 同名カード（絵柄違い）のグループ: CardName → CardData[]（通常cards + variantCards）
   const variantMap = useMemo(() => {
