@@ -169,7 +169,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
 
     await supabase.from('rooms').update({ status: 'PLAYING' }).eq('id', room.id);
     setLoading(false);
-    onBattleStart(room.id, selectedDeckId);
+    onBattleStart(room.id, selectedDeckId, (room as Room).guest_art_overrides);
   };
 
   if (step === 'SELECT_DECK') return (
