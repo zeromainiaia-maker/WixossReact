@@ -1,12 +1,9 @@
-"""
-effectExecutor.ts の閉じバッククォートが消えている行を一括修正するスクリプト。
-バッククォートが奇数個の行で、行末が ); または ), の場合、直前にバッククォートを挿入する。
-"""
+import sys
 
 with open('src/engine/effectExecutor.ts', 'rb') as f:
     raw = f.read()
 
-bt = 96  # backtick 0x60
+bt = 96
 lines = raw.split(b'\n')
 fixed_count = 0
 result_lines = []
@@ -15,25 +12,25 @@ for i, line in enumerate(lines):
     bt_count = line.count(bytes([bt]))
     if bt_count % 2 == 1:
         stripped = line.rstrip(b'\r\n')
-        appended = line[len(stripped):]  # CR/LF部分
+        appended = line[len(stripped):]
         if stripped.endswith(b');'):
             fixed_line = stripped[:-2] + bytes([bt]) + b');' + appended
             result_lines.append(fixed_line)
             fixed_count += 1
-            print(f'Fixed L{i+1}: ...{stripped[-40:].decode("utf-8", errors="replace")}')
+            sys.stdout.buffer.write(b'Fixed L' + str(i+1).encode() + b'\n')
             continue
         elif stripped.endswith(b'),'):
             fixed_line = stripped[:-2] + bytes([bt]) + b'),' + appended
             result_lines.append(fixed_line)
             fixed_count += 1
-            print(f'Fixed L{i+1}: ...{stripped[-40:].decode("utf-8", errors="replace")}')
+            sys.stdout.buffer.write(b'Fixed L' + str(i+1).encode() + b'\n')
             continue
         else:
-            print(f'SKIP L{i+1} (bt={bt_count}, ends={stripped[-10:]}): needs manual check')
+            sys.stdout.buffer.write(b'SKIP L' + str(i+1).encode() + b' ends=' + stripped[-10:] + b'\n')
     result_lines.append(line)
 
-print(f'\n合計修正: {fixed_count}行')
+sys.stdout.buffer.write(b'Total fixed: ' + str(fixed_count).encode() + b'\n')
 
 with open('src/engine/effectExecutor.ts', 'wb') as f:
     f.write(b'\n'.join(result_lines))
-print('書き込み完了')
+sys.stdout.buffer.write(b'Done\n')
