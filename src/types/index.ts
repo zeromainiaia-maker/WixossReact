@@ -224,6 +224,10 @@ export interface PlayerState {
   replace_opp_power_plus?: boolean;
   // COIN_USE_RESTRICTION: コイン使用先制限（'spell_signi_only'=スペルとシグニにしか使えない）
   coin_use_restriction?: string;
+  // NEGATE_COIN_ABILITY: このターン、このプレイヤーはコイン能力（ベット）を発動できない
+  negate_coin_abilities?: boolean;
+  // MULTI_ACCE_LIMIT: このシグニには複数のアクセを付けられない（最大1個）
+  multi_acce_limit?: boolean;
 }
 
 export interface GameLog {

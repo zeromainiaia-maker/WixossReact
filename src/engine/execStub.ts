@@ -233,7 +233,9 @@ export function execStub(
     if (optsBET.length === 0) return done(addLog(ctx, 'ベット（選択肢解析不可）'));
     // COIN_USE_RESTRICTION: コインをスペルとシグニにしか使えない場合、アーツBETは不可
     const coinRestricted = ctx.ownerState.coin_use_restriction === 'spell_signi_only';
-    const hasCoins = ctx.ownerState.coins > 0 && !coinRestricted;
+    // NEGATE_COIN_ABILITY: このターン自分のコイン能力は使えない
+    const coinNegated = ctx.ownerState.negate_coin_abilities === true;
+    const hasCoins = ctx.ownerState.coins > 0 && !coinRestricted && !coinNegated;
     // コインがある場合はベット選択を提示
     if (hasCoins) {
       const noopBET: SequenceAction = { type: 'SEQUENCE', steps: [] };
@@ -6323,10 +6325,17 @@ export function execStub(
       const newCtxPF = { ...ctx, sourceCardNum: cnPF };
       // カードをトラッシュ/使用済みへ移動してから効果実行
       let stateAfterPF = ctx.ownerState;
-      if (cardPF.Type === 'スペル') {
+      let otherAfterPF = ctx.otherState;
+      if (stub.id === 'CAST_FROM_OPP_TRASH') {
+        // 相手トラッシュからカードを除去して自トラッシュへ（使用後）
+        otherAfterPF = { ...otherAfterPF, trash: otherAfterPF.trash.filter(c => c !== cnPF) };
+        if (cardPF.Type === 'スペル') {
+          stateAfterPF = { ...stateAfterPF, trash: [...stateAfterPF.trash, cnPF] };
+        }
+      } else if (cardPF.Type === 'スペル') {
         stateAfterPF = { ...stateAfterPF, trash: [...stateAfterPF.trash, cnPF], hand: stateAfterPF.hand.filter(c => c !== cnPF) };
       }
-      const execCtxPF = { ...newCtxPF, ownerState: stateAfterPF };
+      const execCtxPF = { ...newCtxPF, ownerState: stateAfterPF, otherState: otherAfterPF };
       const resPF = exec(mainEffPF.action, addLog(execCtxPF, `${cardPF.CardName}をコストなしで使用`));
       return resPF;
     }
@@ -7797,9 +7806,10 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, negate_opp_signi_attacks_until: Math.max(cur, nNNA) };
     return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、相手シグニアタックを${nNNA}回目まで自動無効化`));
   }
-  // NEGATE_COIN_ABILITY: コイン能力を無効化（ログのみ）
+  // NEGATE_COIN_ABILITY: このターン、対戦相手はコイン能力（ベット）を発動できない
   if (stub.id === 'NEGATE_COIN_ABILITY') {
-    return done(addLog(ctx, 'コイン能力を無効化'));
+    const newOtherNCA: PlayerState = { ...ctx.otherState, negate_coin_abilities: true };
+    return done(addLog({ ...ctx, otherState: newOtherNCA }, 'このターン対戦相手はコイン能力を発動できない'));
   }
   // NEGATE_ALL_OPP_EFFECTS: 相手のCONTINUOUS効果を全て無効化（all_cont_effects_negatedフラグ）
   if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {
@@ -8163,8 +8173,21 @@ export function execStub(
     const srcRNT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtRNT = srcRNT ? (srcRNT.EffectText ?? '') + ' ' + (srcRNT.BurstText ?? '') : '';
     const toHWRNT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const nM = txtRNT.match(/以下を([２-９\d]+)回行う/);
-    const nRNT = nM ? parseInt(toHWRNT(nM[1])) : 1;
+    const nMBase = txtRNT.match(/以下を([２-９\d]+)回行う/);
+    // "この効果をN回繰り返す" / "あとN回" パターン対応
+    const nMRepeat = txtRNT.match(/この効果を([２-９\d]+)回繰り返す|あと([２-９\d]+)回(?:使用|繰り返)/);
+    let nRNT = nMBase ? parseInt(toHWRNT(nMBase[1])) : (nMRepeat ? parseInt(toHWRNT(nMRepeat[1] ?? nMRepeat[2])) : 1);
+    // stub.value があれば残り回数として使う（連鎖再実行時）
+    if (typeof stub.value === 'number') nRNT = stub.value;
+
+    // REPEAT_EFFECT: デッキ公開→シグニ場に出すパターン（WX04-093系）
+    if (stub.id === 'REPEAT_EFFECT' && nRNT > 0 && txtRNT.includes('シグニがめくれるまで')) {
+      const deckRevealS: StubAction = { type: 'STUB', id: 'DECK_REVEAL_UNTIL' };
+      const toFieldS: StubAction = { type: 'STUB', id: 'REVEALED_SIGNI_TO_FIELD_REST_TRASH' };
+      const nextRepeatS: StubAction = { type: 'STUB', id: 'REPEAT_EFFECT', value: nRNT - 1 };
+      const repeatSeq: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [deckRevealS as EffectAction, toFieldS as EffectAction, nextRepeatS as EffectAction] };
+      return exec(repeatSeq, addLog(ctx, `繰り返し残り${nRNT}回：デッキ公開→場に出す`));
+    }
     // パワー修正パターン
     const pwMRNT = txtRNT.match(/パワーを([－-][０-９\d]+)する/);
     if (pwMRNT) {
@@ -8293,9 +8316,16 @@ export function execStub(
   if (stub.id === 'HASTARLIQ') {
     return done(addLog(ctx, 'ハスタルリク効果'));
   }
-  // ACTIVATE_EICHI_ABILITY: コイン能力でエイチ能力を発動（ログのみ）
+  // ACTIVATE_EICHI_ABILITY: コイン能力でこのシグニの【出】効果を再発動
   if (stub.id === 'ACTIVATE_EICHI_ABILITY') {
-    return done(addLog(ctx, 'エイチ能力発動（ACTIVATE_EICHI_ABILITY）'));
+    const srcAEA = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
+    if (!srcAEA) return done(addLog(ctx, 'エイチ能力：ソースカードなし'));
+    const eichiEffs = parseCardEffects(srcAEA);
+    const onPlayAEA = eichiEffs.find(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'));
+    if (onPlayAEA) {
+      return exec(onPlayAEA.action, addLog(ctx, `エイチ能力：${srcAEA.CardName}の【出】効果を発動`));
+    }
+    return done(addLog(ctx, `エイチ能力発動（${srcAEA.CardName}）`));
   }
   // CHANGE_EICHI_SIGNI_BASE_LEVEL: 英知シグニを選択→基本レベルを1～3に変更（ターン終了まで）
   if (stub.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL') {

@@ -34,6 +34,12 @@ export interface ExecCtx {
   deckToEnergyBlocked?: boolean;
   // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 相手CONTにより自分はシグニ効果でシグニを出せない
   signiFieldPlaceByEffectBlocked?: boolean;
+  // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY:
+  // 相手効果でフィールドから移動（バウンス/トラッシュ）できないシグニ番号
+  otherTrashFieldProtectedNums?: string[];
+  // PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP:
+  // 相手効果でキーワード能力を付与できないシグニ番号
+  otherAbilityGainProtectedNums?: string[];
 }
 
 export type ExecResult =
@@ -189,7 +195,14 @@ export function fieldCandidates(
     }
     // card_class_overridesによるクラス上書きを考慮してフィルター適用
     const classOverride = state.card_class_overrides?.[cardNum];
-    if (!matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride)) return [];
+    // ACCE_SIGNI_ALL_COLOR: story_overrides 'ALL_COLOR' なら色フィルターをバイパス
+    const isAllColor = state.story_overrides?.[cardNum] === 'ALL_COLOR';
+    if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride)) return [];
+    if (isAllColor) {
+      // 色フィルター以外のフィルターは通常通りチェック
+      const filterNoColor = filter ? { ...filter, color: undefined } : undefined;
+      if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride)) return [];
+    }
     return [cardNum];
   });
 }

@@ -516,6 +516,21 @@ export function calcFieldPowers(
       }
     }
 
+    // PREVENT_OPP_POWER_PLUS: 相手（ownerState）のCONT効果による正パワー修正を、otherState側がブロック
+    // otherStateのシグニがPREVENT_OPP_POWER_PLUSを持つ場合、ownerState由来の正デルタをブロック
+    let blockOwnerPosDelta = false;
+    for (const stack of otherState.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      for (const eff of (effectsMap.get(top) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, top)) continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type === 'STUB' && act.id === 'PREVENT_OPP_POWER_PLUS') { blockOwnerPosDelta = true; break; }
+      }
+      if (blockOwnerPosDelta) break;
+    }
+
     // DOUBLE_POWER_MINUS: 自分のフィールドにこの効果があれば相手シグニへの負デルタを2倍にする
     const hasDoublePowerMinus = ownerState.field.signi.some(stack => {
       const top = stack?.at(-1);
@@ -651,11 +666,16 @@ export function calcFieldPowers(
           const targetIsOwner = target.owner === 'self' || target.owner === 'any';
           const targetIsOther  = target.owner === 'opponent' || target.owner === 'any';
 
-          if (targetIsOwner) {
-            applyDeltaToState(ownerState, delta, target.filter, cardMap, powers);
-          }
-          if (targetIsOther) {
-            applyDeltaToState(otherState, delta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
+          // PREVENT_OPP_POWER_PLUS: otherState（相手）のCONTによる正デルタをブロック
+          const effectiveDelta = (blockOwnerPosDelta && delta > 0) ? 0 : delta;
+          if (effectiveDelta === 0 && delta !== 0) { /* ブロックされた正デルタ */ }
+          else {
+            if (targetIsOwner) {
+              applyDeltaToState(ownerState, effectiveDelta, target.filter, cardMap, powers);
+            }
+            if (targetIsOther) {
+              applyDeltaToState(otherState, effectiveDelta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
+            }
           }
         }
 
@@ -1518,16 +1538,25 @@ export function collectProtectedZones(
     if (top) candidates.push(top);
   }
   if (state.field.key_piece) candidates.push(state.field.key_piece);
+  // ルリグフィールドも対象（WXEX2-22等のルリグ常時効果）
+  if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
   for (const cn of candidates) {
     const effs = effectsMap.get(cn) ?? [];
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'PREVENT_ZONE_MOVE_BY_OPP') continue;
-      const card = cardMap.get(cn);
-      const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
-      if (txt.includes('エナゾーン') && txt.includes('トラッシュに移動しない')) result.add('energy');
-      if (txt.includes('手札') && txt.includes('トラッシュに移動しない')) result.add('hand');
+      if (act.type !== 'STUB') continue;
+      if (act.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
+        const card = cardMap.get(cn);
+        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+        if (txt.includes('エナゾーン') && txt.includes('トラッシュに移動しない')) result.add('energy');
+        if (txt.includes('手札') && txt.includes('トラッシュに移動しない')) result.add('hand');
+      }
+      // PREVENT_NON_FIELD_MOVE_BY_OPP: 場以外の全領域（手札・エナ等）を保護
+      if (act.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP') {
+        result.add('hand');
+        result.add('energy');
+      }
     }
   }
   return [...result];
@@ -2622,28 +2651,266 @@ export function collectBounceProtectedSigni(
   isOwnerTurn: boolean,
 ): string[] {
   const protected_ = new Set<string>();
+
+  // ルリグ含む全候補
+  const candidates: string[] = [];
+  for (const stack of state.field.signi) {
+    if (stack?.length) candidates.push(stack[stack.length - 1]);
+  }
+  if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
+
+  for (const topNum of candidates) {
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB') continue;
+
+      if (act.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') {
+        const card = cardMap.get(topNum);
+        const txt = card?.EffectText ?? '';
+        const classM = txt.match(/あなたの＜([^＞]+)＞のシグニは場から手札に戻らない/);
+        const protectedClass = classM?.[1];
+        for (const s of state.field.signi) {
+          if (!s?.length) continue;
+          const sTop = s[s.length - 1];
+          if (!protectedClass || cardMap.get(sTop)?.CardClass?.includes(protectedClass)) {
+            protected_.add(sTop);
+          }
+        }
+      }
+
+      // PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH: このシグニ自身がバウンス不可
+      if (act.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH') {
+        const inSigniField = state.field.signi.some(s => s?.at(-1) === topNum);
+        if (inSigniField) protected_.add(topNum);
+      }
+
+      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH: 同クラスの全シグニがバウンス不可
+      if (act.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH') {
+        const card = cardMap.get(topNum);
+        const cls = card?.CardClass ?? '';
+        // テキストから保護クラスを抽出（"あなたの＜宇宙＞のシグニを場から移動させない"）
+        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+        const classM = txt.match(/あなたの＜([^＞]+)＞のシグニを場から移動させない/) ?? txt.match(/あなたの＜([^＞]+)＞/);
+        const protectedClass = classM?.[1] ?? cls;
+        for (const s of state.field.signi) {
+          if (!s?.length) continue;
+          const sTop = s[s.length - 1];
+          if (cardMap.get(sTop)?.CardClass?.includes(protectedClass)) {
+            protected_.add(sTop);
+          }
+        }
+      }
+
+      // SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: このシグニ自身がバウンス不可（エナへは移動可）
+      if (act.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY') {
+        const inSigniField = state.field.signi.some(s => s?.at(-1) === topNum);
+        if (inSigniField) protected_.add(topNum);
+      }
+    }
+  }
+  return [...protected_];
+}
+
+/**
+ * PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH /
+ * SIGNI_PROTECT_MOVE_EXCEPT_ENERGY:
+ * 相手効果によってフィールドからトラッシュへ移動できないシグニを返す。
+ */
+export function collectTrashFieldProtectedSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const protected_ = new Set<string>();
   for (const stack of state.field.signi) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'SIGNI_CANT_BOUNCE_FROM_FIELD') continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
-      const card = cardMap.get(topNum);
-      const txt = card?.EffectText ?? '';
-      const classM = txt.match(/あなたの＜([^＞]+)＞のシグニは場から手札に戻らない/);
-      const protectedClass = classM?.[1];
-      for (const s of state.field.signi) {
-        if (!s?.length) continue;
-        const sTop = s[s.length - 1];
-        if (!protectedClass || cardMap.get(sTop)?.CardClass?.includes(protectedClass)) {
-          protected_.add(sTop);
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB') continue;
+
+      if (act.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH') {
+        protected_.add(topNum);
+      }
+
+      if (act.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH') {
+        const card = cardMap.get(topNum);
+        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+        const classM = txt.match(/あなたの＜([^＞]+)＞のシグニを場から移動させない/) ?? txt.match(/あなたの＜([^＞]+)＞/);
+        const protectedClass = classM?.[1] ?? (card?.CardClass ?? '');
+        for (const s of state.field.signi) {
+          if (!s?.length) continue;
+          const sTop = s[s.length - 1];
+          if (cardMap.get(sTop)?.CardClass?.includes(protectedClass)) protected_.add(sTop);
+        }
+      }
+
+      // SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: エナ以外への移動不可（トラッシュも不可）
+      if (act.id === 'SIGNI_PROTECT_MOVE_EXCEPT_ENERGY') {
+        protected_.add(topNum);
+      }
+    }
+  }
+  return [...protected_];
+}
+
+/**
+ * PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP:
+ * 相手効果によって能力を得られないシグニ番号を返す。
+ * ownerState = 保護される側（自分）、otherState = 保護する効果を持つ側 or 効果を使う側
+ * perspective: 'protect_opp' (相手シグニを保護, WX14-023) or 'protect_self' (自シグニを保護, WXEX2-49)
+ */
+export function collectAbilityGainProtectedSigni(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn: boolean,
+): string[] {
+  const protected_ = new Set<string>();
+
+  // otherState（相手）がPREVENT_OPP_SIGNI_ABILITY_GAIN CONTを持つ場合、ownerState（自分）の全シグニが対象
+  const otherCands: string[] = [];
+  for (const stack of otherState.field.signi) { if (stack?.length) otherCands.push(stack[stack.length - 1]); }
+  if (otherState.field.lrig.length) otherCands.push(otherState.field.lrig[otherState.field.lrig.length - 1]);
+  for (const cn of otherCands) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, cn)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'PREVENT_OPP_SIGNI_ABILITY_GAIN') {
+        for (const s of ownerState.field.signi) {
+          const top = s?.at(-1); if (top) protected_.add(top);
+        }
+      }
+    }
+  }
+
+  // ownerState（自分）がPREVENT_ABILITY_CHANGE_BY_OPP CONTを持つ場合、自分の対象クラスシグニが保護
+  const selfCands: string[] = [];
+  for (const stack of ownerState.field.signi) { if (stack?.length) selfCands.push(stack[stack.length - 1]); }
+  for (const cn of selfCands) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'PREVENT_ABILITY_CHANGE_BY_OPP') {
+        // テキストからクラスを抽出（"あなたの＜古代兵器＞のシグニは"）
+        const txt = (cardMap.get(cn)?.EffectText ?? '');
+        const classM = txt.match(/あなたの＜([^＞]+)＞のシグニは/);
+        const protectedClass = classM?.[1] ?? '';
+        for (const s of ownerState.field.signi) {
+          const top = s?.at(-1);
+          if (top && (!protectedClass || cardMap.get(top)?.CardClass?.includes(protectedClass))) {
+            protected_.add(top);
+          }
         }
       }
     }
   }
   return [...protected_];
+}
+
+/**
+ * PREVENT_INFECTED_SIGNI_ACTIVATE:
+ * 感染状態（ウィルス数 > 0）のシグニのうち、相手の CONT 効果でアクティブ能力を使えないシグニを返す。
+ */
+export function collectInfectedActivateBlockedSigni(
+  infectedState: PlayerState,
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn: boolean,
+): string[] {
+  // ownerState（相手）がPREVENT_INFECTED_SIGNI_ACTIVATEを持つかチェック
+  let hasBlock = false;
+  const ownerCands: string[] = [];
+  for (const stack of ownerState.field.signi) { if (stack?.length) ownerCands.push(stack[stack.length - 1]); }
+  for (const cn of ownerCands) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, infectedState, isOwnerTurn, cardMap, cn)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'PREVENT_INFECTED_SIGNI_ACTIVATE') { hasBlock = true; break; }
+    }
+    if (hasBlock) break;
+  }
+  if (!hasBlock) return [];
+
+  // 感染状態（virusCount > 0）のシグニを返す
+  const virusCounts = infectedState.field.signi_virus ?? [0, 0, 0];
+  const result: string[] = [];
+  for (let zi = 0; zi < 3; zi++) {
+    if ((virusCounts[zi] ?? 0) > 0) {
+      const top = infectedState.field.signi[zi]?.at(-1);
+      if (top) result.push(top);
+    }
+  }
+  return result;
+}
+
+/**
+ * PREVENT_OPP_POWER_PLUS:
+ * 相手の CONT 効果によるシグニへの正パワー修正がブロックされているかを返す。
+ * 返り値 true の場合、applyEffects で相手 CONT の正デルタをスキップ。
+ * protectedState = 保護される側、opponentState = 保護効果を持つ側
+ */
+export function hasPowerPlusBlocked(
+  protectedState: PlayerState,
+  opponentState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isProtectedTurn: boolean,
+): boolean {
+  const cands: string[] = [];
+  for (const stack of opponentState.field.signi) { if (stack?.length) cands.push(stack[stack.length - 1]); }
+  for (const cn of cands) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, opponentState, protectedState, !isProtectedTurn, cardMap, cn)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'PREVENT_OPP_POWER_PLUS') return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * RISE_BANISH_SUBSTITUTE / BANISH_SUBSTITUTE_RISE_STACK:
+ * このシグニがライズスタック（複数枚スタック）かつ、バニッシュ代替 CONT が有効かチェックする。
+ * 有効であれば、バニッシュ時に下2枚をトラッシュしてバニッシュを回避できる。
+ * stateがこのシグニのオーナー側（保護される側）。
+ */
+export function collectRiseBanishSubstituteSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  const result: string[] = [];
+  for (let zi = 0; zi < state.field.signi.length; zi++) {
+    const stack = state.field.signi[zi];
+    if (!stack || stack.length < 2) continue; // ライズスタックのみ対象
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' &&
+          (act.id === 'RISE_BANISH_SUBSTITUTE' || act.id === 'BANISH_SUBSTITUTE_RISE_STACK')) {
+        result.push(topNum);
+        break;
+      }
+    }
+  }
+  return result;
 }
 
 /**

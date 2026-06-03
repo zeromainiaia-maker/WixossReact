@@ -5,7 +5,7 @@ import type { CardData, PlayerState, TurnPhase, Deck } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { executeEffect, getCardNum, resumeSelectTarget, resumeDeclareBond } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
-import { calcFieldPowers, collectFrozenBanishOverrides } from '../engine/effectEngine';
+import { calcFieldPowers, collectFrozenBanishOverrides, collectRiseBanishSubstituteSigni } from '../engine/effectEngine';
 import { hasKeyword } from '../utils/keywords';
 import type { ExecCtx } from '../engine/effectExecutor';
 import type { PendingInteractionDef } from '../types';
@@ -434,7 +434,24 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       const attFrozenOvr = wasFrozen ? collectFrozenBanishOverrides(attacker, cardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
       const frozenToDeckBottom = defFrozenOvr.frozenBanishToDeckBottom;
       const frozenToTrash = !frozenToDeckBottom && attFrozenOvr.frozenLeaveToTrash;
-      const newDefender: PlayerState = {
+      // RISE_BANISH_SUBSTITUTE: ライズスタックのバニッシュ代替
+      const isAttackerTurn = g.turnPlayer === 'player';
+      const riseBanishSubSigniCPU = collectRiseBanishSubstituteSigni(defender, cardMap, effectsMap, attacker, isAttackerTurn);
+      const defTopCardNum = banished.at(-1) ?? '';
+      const riseBanishSubAppliedCPU = riseBanishSubSigniCPU.includes(defTopCardNum) && banished.length >= 2;
+      let newDefender: PlayerState;
+      if (riseBanishSubAppliedCPU) {
+        const bottomCards = banished.slice(0, -1);
+        const topCard = banished.at(-1)!;
+        newDefSigni[zoneIdx] = [topCard];
+        newDefender = {
+          ...defender,
+          field: { ...defender.field, signi: newDefSigni, signi_frozen: newDefFrozen },
+          trash: [...defender.trash, ...bottomCards],
+        };
+        appendLog(`${defTopCardNum}（ライズ代替）バニッシュ回避`);
+      } else {
+      newDefender = {
         ...defender,
         field: { ...defender.field, signi: newDefSigni, signi_frozen: newDefFrozen },
         deck: frozenToDeckBottom ? [...defender.deck, ...banished] : defender.deck,
@@ -442,6 +459,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       };
       // frozenToTrash は CPU戦ではbanishedが既にtrashへ行くため実質同じ（エナへ行かない）
       void frozenToTrash;
+      }
       ng = setOppState(ng, newDefender);
       appendLog(`${attkCard.CardName} の勝利${frozenToDeckBottom ? '（凍結→デッキ下）' : ''}`);
 

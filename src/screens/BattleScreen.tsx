@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -2505,6 +2505,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           negate_opp_signi_attacks_until: undefined, // N回目シグニアタック自動無効化フラグをリセット
           all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
+          negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
@@ -2772,9 +2773,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const otherDownProtectedNums = collectDownProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, isOwnerTurn);
       // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手フィールドのバウンス保護シグニ
       const otherBounceProtectedNums = collectBounceProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, isOwnerTurn);
+      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: 相手フィールドのトラッシュ保護シグニ
+      const otherTrashFieldProtectedNums = collectTrashFieldProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, isOwnerTurn);
+      // PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP: 能力付与保護シグニ
+      const otherAbilityGainProtectedNums = collectAbilityGainProtectedSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, isOwnerTurn);
       // BLOCK_OPP_DECK_TO_ENERGY / BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT
       const contBlockedCtx = calcContinuousBlockedActions(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap);
-      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums, otherBounceProtectedNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT') };
+      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums, otherBounceProtectedNums, otherTrashFieldProtectedNums, otherAbilityGainProtectedNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT') };
       let result = executeEffect(entry.effect, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
@@ -4383,6 +4388,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const myFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(my, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
           const frozenToDeckBottom = opFrozenOvr.frozenBanishToDeckBottom;
           const frozenToTrash = !frozenToDeckBottom && myFrozenOvr.frozenLeaveToTrash;
+          // RISE_BANISH_SUBSTITUTE / BANISH_SUBSTITUTE_RISE_STACK:
+          // ライズスタック（複数枚）のシグニがバニッシュされる場合、スタック下のカードをトラッシュに置いてバニッシュを回避
+          const riseBanishSubSigni = collectRiseBanishSubstituteSigni(op, battleCardMap, effectsMap, my, !isMyTurn);
+          const opTopHasRiseSub = riseBanishSubSigni.includes(opTopCardNum ?? '');
+          const riseSubStack = opTopHasRiseSub ? (op.field.signi[opZoneIndex] ?? []) : [];
+          const riseSubApplied = opTopHasRiseSub && riseSubStack.length >= 2;
+          if (riseSubApplied) {
+            // バニッシュ代替: スタック下2枚をトラッシュ、トップカードは残る
+            const bottomCards = riseSubStack.slice(0, -1);
+            const topCard = riseSubStack.at(-1)!;
+            const newOpSigniRiseSub = [...newOpSigni] as (string[] | null)[];
+            newOpSigniRiseSub[opZoneIndex] = [topCard]; // トップカードのみ残す
+            newOpState = {
+              ...op,
+              trash: [...op.trash, ...bottomCards, ...banishExtraTrash],
+              field: { ...op.field, signi: newOpSigniRiseSub, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
+            };
+            appendBattleLogs([`${opCardName}（ライズ代替）スタック下${bottomCards.length}枚をトラッシュしてバニッシュ回避`]);
+          } else {
           const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash;
           newOpState = {
             ...op,
@@ -4402,6 +4426,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             },
           };
           appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : ''}`]);
+          }
 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer || isSLancer) {
@@ -5692,12 +5717,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!stack || stack.length === 0) return [];
       const topNum = stack[stack.length - 1];
       const effects = effectsMap.get(topNum) ?? [];
+      // PREVENT_INFECTED_SIGNI_ACTIVATE: 感染状態のシグニの起動能力をブロック
+      const infectedBlocked = collectInfectedActivateBlockedSigni(my, op, battleCardMap, effectsMap, true);
+      const isInfectedBlocked = infectedBlocked.includes(topNum);
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
         (e.timing === undefined || e.timing.includes('MAIN')) &&
         !(my.actions_done?.includes(e.effectId)) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
         !isActionBlocked('USE_ACT') &&
+        !isInfectedBlocked &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
       );
       if (activatable.length === 0) return [];
@@ -7614,7 +7643,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {acceEffects.map(({ cardNum, effect, alreadyDone }) => {
                 const card = battleCardMap.get(cardNum);
-                const hasTarget = my.field.signi.some((s, i) => s?.length && !(my.field.signi_acce?.[i]));
+                // MULTI_ACCE_LIMIT: 多アクセ可能シグニ（max2個）を考慮したターゲット判定
+                const multiAcceSigni = collectMultiAcceSigni(my, effectsMap, battleCardMap, op, true);
+                const hasTarget = my.field.signi.some((s, i) => {
+                  if (!s?.length) return false;
+                  const topCn = s.at(-1)!;
+                  const currentAcce = my.field.signi_acce?.[i];
+                  if (!currentAcce) return true; // 空きスロット
+                  // MULTI_ACCE_LIMIT: このシグニが多アクセ可で既に1個ついている場合は追加可
+                  return multiAcceSigni.includes(topCn);
+                });
                 return (
                   <button key={cardNum + effect.effectId}
                     onClick={() => { setPendingEnergyActivated({ cardNum, effect }); setSelectedEnergyActivatedCost(new Set()); }}
