@@ -716,7 +716,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         n => cur.cardMap.get(n)?.Type === ''
       ).length;
       if (artsInLrigTrash < gate.minArts) {
-        return done(addLog(cur, `{artsInLrigTrash}/ {gate.minArts})`);
+        return done(addLog(cur, `{artsInLrigTrash}/ {gate.minArts}`);
       }
       cur = addLog(cur, `{artsInLrigTrash}`);
       continue;
@@ -910,7 +910,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
           if (energyCandsOTEC.length === 0) {
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, `${reqClassOTEC || '繧ｫ繝ｼ繝・}PTIONAL_TRASH_ENERGY_CLASS)`);
+            return done(addLog(cur, `${reqClassOTEC || '繧ｫ繝ｼ繝・}PTIONAL_TRASH_ENERGY_CLASS`);
           }
           const toHandOTEC = !!(txtOTEC.match(/縺昴ｌ繧呈焔譛ｭ縺ｫ蜉縺医ｋ/) || conditional.then.type === 'TRANSFER_TO_HAND');
           // conditional.then  BOUNCE/BANISH/DOWN  target.owner='self' 'opponent' 
@@ -962,7 +962,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           if (totalVirusRV < removeCountRV) {
             // 
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, `{removeCountRV}${totalVirusRV})`);
+            return done(addLog(cur, `{removeCountRV}${totalVirusRV}`);
           }
           if (isOptionalRV) {
             const optsRV = [
@@ -1256,7 +1256,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult {
   // subjectFilter  CONTINUOUS ffectEngine  no-op
   if (!a.target && a.subjectFilter) {
-    return done(addLog(ctx, `{a.from.join('/')})`);
+    return done(addLog(ctx, `{a.from.join('/')}`);
   }
   if (!a.target) return done(ctx);
   //
@@ -1333,7 +1333,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
 
   const cardName = ctx.cardMap.get(charmNum)?.CardName ?? charmNum;
   const targetName = ctx.cardMap.get(targetNum)?.CardName ?? targetNum;
-  return done(addLog(ctx2, `${cardName}{targetName})`);
+  return done(addLog(ctx2, `${cardName}{targetName}`);
 }
 
 /** LEVEL_REFERENCE_OVERRIDE: 繧ｫ繝ｼ繝峨ユ繧ｭ繧ｹ繝医°繧芽ｨｱ螳ｹ繝ｬ繝吶Ν遽・峇繧定ｧ｣譫舌＠縺ｦ霑斐☆縲・ * 縲後Ξ繝吶Ν繧貞盾辣ｧ縺吶ｋ蝣ｴ蜷医√Ξ繝吶Ν・斐→縺励※謇ｱ縺｣縺ｦ繧ゅｈ縺・坂・ { min:4, max:4 }
@@ -1388,7 +1388,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
           ? [...state.deck.slice(count), ...visible]
           : state.deck,
       };
-      return done(addLog(setOwnerState(a.owner, newS, ctx), `${count})`);
+      return done(addLog(setOwnerState(a.owner, newS, ctx), `${count}`);
     }
     return done(ctx);
   }
@@ -1564,7 +1564,7 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
     const s = ownerState(tgtOwner, ctx);
     const negated = [...(s.negated_attacks ?? []), ...cands];
     const newS = { ...s, negated_attacks: negated };
-    return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length})`);
+    return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}`);
   }
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
@@ -1576,7 +1576,7 @@ function execAwakenSigni(ctx: ExecCtx): ExecResult {
   const awakened = [...(ctx.ownerState.awakened_signi ?? [])];
   if (!awakened.includes(ctx.sourceCardNum)) awakened.push(ctx.sourceCardNum);
   const newOwner = { ...ctx.ownerState, awakened_signi: awakened };
-  return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.sourceCardNum} )`);
+  return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.sourceCardNum} `);
 }
 
 function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAction, ctx: ExecCtx): ExecResult {
@@ -1674,7 +1674,7 @@ function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
   const s = ownerState(a.owner, ctx);
   const gained = Math.min(a.count, 5 - s.coins);
   const newS: PlayerState = { ...s, coins: Math.min(5, s.coins + a.count) };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `${gained}{newS.coins})`);
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `${gained}{newS.coins}`);
 }
 
 function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx): ExecResult {
@@ -1685,7 +1685,7 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
     const current = ctx.ownerState.bonds ?? [];
     if (current.includes(cardName)) return done(addLog(ctx, `${cardName}`));
     const newOwner: PlayerState = { ...ctx.ownerState, bonds: [...current, cardName] };
-    return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName})`);
+    return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName}`);
   }
   // 'declared': 
   const deckCards = [...ctx.ownerState.deck];
@@ -1727,7 +1727,7 @@ function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResu
   const s = ownerState(a.targetOwner, ctx);
   const newS: PlayerState = { ...s, must_attack_signi: true };
   const ctx2 = setOwnerState(a.targetOwner, newS, ctx);
-  return done(addLog(ctx2, `${a.targetOwner === 'opponent' ? '蟇ｾ謌ｦ逶ｸ謇・ : '閾ｪ蛻・})`);
+  return done(addLog(ctx2, `${a.targetOwner === 'opponent' ? '蟇ｾ謌ｦ逶ｸ謇・ : '閾ｪ蛻・}`);
 }
 
 function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: ExecCtx): ExecResult {
@@ -2004,7 +2004,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ATTACH_ACCE':                  return execAttachAcce(action as AttachAcceAction, ctx);
     case 'BLOOD_CRYSTAL_ARMOR':          return execBloodCrystalArmor(action as BloodCrystalArmorAction, ctx);
     case 'POWER_MODIFY_PER_VIRUS_COUNT': return done(addLog(ctx, 'ffectEngine'));
-    case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `{(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}I)`);
+    case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `{(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}I`);
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
     //  CONTINUOUS ffectEngine     case 'BANISH_REDIRECT': {
       const newOwner: PlayerState = { ...ctx.ownerState, banish_redirect: true };
@@ -2156,7 +2156,7 @@ export function resumeOptionalCost(
   for (const n of energyNums) {
     const color = ctx.cardMap.get(n)?.Color ?? '';
     const idx = costColors.findIndex(c => c === color || c === '');
-    if (idx === -1) return done(addLog(ctx, `: ${color})`);
+    if (idx === -1) return done(addLog(ctx, `: ${color}`);
     costColors.splice(idx, 1);
   }
   if (costColors.length > 0) return done(addLog(ctx, `: `));
@@ -2219,7 +2219,7 @@ export function resumeOptionalCost(
   for (const n of energyNums) {
     const color = ctx.cardMap.get(n)?.Color ?? '';
     const idx = costColors.findIndex(c => c === color || c === '');
-    if (idx === -1) return done(addLog(ctx, `: ${color})`);
+    if (idx === -1) return done(addLog(ctx, `: ${color}`);
     costColors.splice(idx, 1);
   }
   if (costColors.length > 0) return done(addLog(ctx, ': '));
@@ -2320,7 +2320,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const removed = removeFromField(cardNum, s);
       const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum] };
       return done(addLog(setOwnerState(found, withHand, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum})`);
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`);
     }
     case 'TRASH': {
       const trashAction = action as TrashAction;
@@ -2426,7 +2426,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const emptyIdx = signi.findIndex(z => !z || z.length === 0);
       if (emptyIdx >= 0) signi[emptyIdx] = [cardNum];
       newS = { ...newS, field: { ...newS.field, signi } };
-      return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum})`);
+      return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`);
     }
     case 'ATTACH_ACCE': {
       // cardNum = SELECT_TARGET 
@@ -2446,7 +2446,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       } else if (newSrc.hand.includes(acceCardNum)) {
         newSrc = { ...newSrc, hand: newSrc.hand.filter(n => n !== acceCardNum) };
       } else {
-        return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum})`);
+        return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}`);
       }
       let ctx2 = setOwnerState(acceAction.sourceOwner, newSrc, ctx);
       // signi_acce[zoneIdx] 
@@ -2487,7 +2487,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const negated = [...(s.negated_attacks ?? []), cardNum];
       const newS = { ...s, negated_attacks: negated };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum})`);
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`);
     }
     case 'BLOOD_CRYSTAL_ARMOR': {
       // cardNum = ELECT_TARGET
@@ -2515,7 +2515,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           if (idx >= 0) { foundCard = newState.deck[idx]; newState = { ...newState, deck: newState.deck.filter((_, i) => i !== idx) }; shuffleNeeded = true; break; }
         }
       }
-      if (!foundCard) return done(addLog({ ...ctx, ownerState: newState }, `{sameName})`);
+      if (!foundCard) return done(addLog({ ...ctx, ownerState: newState }, `{sameName}`);
 
       // 
       const newSigni = newState.field.signi.map((stack, i) => {
@@ -2592,7 +2592,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const newFrz = [...(frzS.field.signi_frozen ?? [false, false, false])] as boolean[];
       newFrz[frzIdx] = true;
       return done(addLog(setOwnerState(frzOwner, { ...frzS, field: { ...frzS.field, signi_frozen: newFrz } }, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum})`);
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`);
     }
     case 'GRANT_KEYWORD': {
       const gkA = action as GrantKeywordAction;
@@ -2604,7 +2604,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const gkGrants = { ...(gkS.keyword_grants ?? {}) };
       gkGrants[cardNum] = [...new Set([...(gkGrants[cardNum] ?? []), gkA.keyword])];
       return done(addLog(setOwnerState(gkOwner, { ...gkS, keyword_grants: gkGrants }, ctx),
-        `{gkA.keyword}{ctx.cardMap.get(cardNum)?.CardName ?? cardNum})`);
+        `{gkA.keyword}{ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`);
     }
     case 'GRANT_EFFECT': {
       const geA = action as GrantEffectAction;
@@ -2616,7 +2616,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const geGranted = { ...(geS.granted_effects ?? {}) };
       geGranted[cardNum] = [...(geGranted[cardNum] ?? []), geA.effect];
       return done(addLog(setOwnerState(geOwner, { ...geS, granted_effects: geGranted }, ctx),
-        `{ctx.cardMap.get(cardNum)?.CardName ?? cardNum})`);
+        `{ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`);
     }
     case 'TAKE_FROM_UNDER_SIGNI': {
       const ta = action as import('../types/effects').TakeFromUnderSigniAction;
@@ -2637,7 +2637,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         newOwner = { ...newOwner, trash: [...newOwner.trash, cardNum] };
       }
       return done(addLog({ ...ctx, ownerState: newOwner },
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}{destLabel})`);
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}{destLabel}`);
     }
     default:
       // STUB  cardNum lastProcessedCards 
