@@ -42,7 +42,7 @@ const getCardBg = (color: string) => COLOR_BG[color] ?? '#f5f0fb';
 
 const LRIG_TYPE_ORDER = ['ルリグ', 'アシストルリグ', 'アーツ', 'レゾナ', 'キー', 'ピース'];
 
-export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBack }: Props) {
+export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpdate, onDelete, onBack }: Props) {
   const [current, setCurrent] = useState<Deck>(deck);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
