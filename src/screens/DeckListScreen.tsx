@@ -110,9 +110,13 @@ export default function DeckListScreen({ decks, cards, onCreateDeck, onEditDeck,
   };
 
   // 親からdecksが更新されたら同期（新規作成・削除後）
-  if (decks.length !== localDecks.length || decks.some((d, i) => d.id !== localDecks[i]?.id && !localDecks.find(l => l.id === d.id))) {
-    setLocalDecks(decks);
-  }
+  useEffect(() => {
+    const localIds = new Set(localDecks.map(d => d.id));
+    const parentIds = new Set(decks.map(d => d.id));
+    const added = decks.some(d => !localIds.has(d.id));
+    const removed = localDecks.some(d => !parentIds.has(d.id));
+    if (added || removed) setLocalDecks(decks);
+  }, [decks]);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0f', color: '#fff', padding: '24px' }}>
