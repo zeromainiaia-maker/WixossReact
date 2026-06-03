@@ -126,7 +126,7 @@
 | 3 | AUTO | ✅ | HAND_SIZE_INCREASE ※effectEngine.collectHandLimitsで動的計算に移行 |
 | 3 | AUTO/ACTIVATED | ✅ | MOVE_TO_ATTACKER_FRONT ※v0.139: attacked_signi_ids の最終アタッカーからゾーンを動的取得。正面が空ならCHOOSE移動確認→INTERNAL_MOVE_TO_ZONE。stub.value後方互換保持 |
 | 3 | AUTO | ✅ | NEGATE_ATTACK_ON_TRIGGER ※line 41でprevent_next_damage+1設定。CONT版と同実装（v0.171確認） |
-| 3 | AUTO/ACTIVATED | ⚡ | OPP_DECLARE_CHOICE ※①②テキスト解析→相手がopponentResponds CHOOSEで選択（一部パターンのみ対応） |
+| 3 | AUTO/ACTIVATED | ✅ | OPP_DECLARE_CHOICE ※v0.174: 色宣言パターン追加（ウリス系）: 対戦相手が6色CHOOSEで宣言→INTERNAL_ODC_COLOR_CHECK（カード色と比較→不一致なら相手全シグニバニッシュ）。①②パターンも継続対応 |
 | 1 | CONT/AUTO | ✅ | PREVENT_LRIG_DAMAGE_THIS_TURN ※prevent_lrig_damageフラグ設置・BattleScreenで完全実装済み |
 | 3 | CONT | ✅ | PREVENT_ZONE_MOVE_BY_OPP ※v0.137: AUTO時にprevent_opp_trash_fromフラグ設置。effectExecutorのapplyTrashHand/EnergyでotherState.prevent_opp_trash_fromも検査 |
 | 4 | AUTO/ACTIVATED | ✅ | REMOVE_SIGNI_ZONE ※CHOOSE+INTERNAL_REMOVE_SIGNI_ZONEで実装済み |
@@ -176,7 +176,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | PLACE_ACCE_SIGNI_TO_ENERGY ※signi_acceの全アクセをエナゾーンへ移動実装済み(ACCE_TO_ENERGYと同ハンドラ) |
 | 2 | AUTO/ACTIVATED | ✅ | PLACE_MAGIC_BOX ※v0.170: lastProcessedCards[0]のゾーン選択→INTERNAL_SET_MAGIC_BOX（既存MBトラッシュ→設置） |
 | 2 | AUTO | ✅ | PLACE_SIGNI_UNDER_SELF_OPT ※v0.140: レベル完全一致フィルタ追加・フィールドソース対応（手札からなし→場から選択） |
-| 2 | ACTIVATED/AUTO | ⚡ | POWER_COPY_FROM_DOWNED |
+| 2 | ACTIVATED/AUTO | ✅ | POWER_COPY_FROM_DOWNED ※v0.174: lastProcessedCards[0]（起動コストでダウンした自シグニ）のパワーを+delta。フォールバック: 自フィールドのダウンシグニ |
 | 2 | AUTO | ✅ | POWER_MOD_BY_ATTACKER_LEVEL ※v0.140: SELECT_TARGET(奇数/偶数フィルタ)追加・重複ハンドラ削除 |
 | 2 | AUTO | ✅ | POWER_MOD_BY_LRIG_TRASH_ARTS ※v0.140: SELECT_TARGET追加・重複ハンドラ削除 |
 | 2 | AUTO/ACTIVATED | ✅ | PREVENT_OWN_ARTS_USE ※blocked_actionsにUSE_ARTS追加でアーツ使用禁止実装済み |
@@ -534,12 +534,12 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 445 |
-| ⚡ 部分実装 | 67 |
+| ✅ 実装済み | 447 |
+| ⚡ 部分実装 | 65 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
-※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
+※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）, POWER_COPY_FROM_DOWNED（lastProcessedCards優先で自ダウンシグニパワー+）, OPP_DECLARE_CHOICE（色宣言パターン追加→INTERNAL_ODC_COLOR_CHECK）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
 
 ※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》Story=Dissona判定追加。CardData_Sheet8.csvでDissonaを設定）, CHOOSE_SAME_OPTION_TWICE（①バウンス+手札捨て/②アタック不可/③クラスサーチパターン追加・INTERNAL_GRANT_NO_ATTACK_LRIG実装）
 

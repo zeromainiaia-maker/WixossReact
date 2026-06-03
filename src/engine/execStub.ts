@@ -4917,24 +4917,28 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPC } },
       `パワー上限${capPC}に制限（${deltaPC}）`));
   }
-  // POWER_COPY_FROM_DOWNED: ダウン状態のシグニのパワーをコピー
+  // POWER_COPY_FROM_DOWNED: ダウンしたシグニのパワーを自シグニに加算
   if (stub.id === 'POWER_COPY_FROM_DOWNED') {
     if (!ctx.sourceCardNum) return done(ctx);
     let targetPowerPCFD = 0;
-    // 相手のダウンシグニから探す
-    for (let zi = 0; zi < 3; zi++) {
-      if (ctx.otherState.field.signi_down?.[zi]) {
-        const dn = ctx.otherState.field.signi[zi]?.at(-1);
-        if (dn) { targetPowerPCFD = ctx.effectivePowers?.get(dn) ?? 0; break; }
+    // 優先: lastProcessedCards[0] (起動コストでダウンした自シグニ)
+    const costDownedPCFD = ctx.lastProcessedCards?.[0];
+    if (costDownedPCFD) {
+      targetPowerPCFD = ctx.effectivePowers?.get(costDownedPCFD) ?? parseInt(ctx.cardMap.get(getCardNum(costDownedPCFD))?.Power ?? '0') || 0;
+    }
+    // フォールバック: 自フィールドのダウンシグニ
+    if (!targetPowerPCFD) {
+      for (let zi = 0; zi < 3; zi++) {
+        if (ctx.ownerState.field.signi_down?.[zi]) {
+          const dn = ctx.ownerState.field.signi[zi]?.at(-1);
+          if (dn && dn !== ctx.sourceCardNum) { targetPowerPCFD = ctx.effectivePowers?.get(dn) ?? parseInt(ctx.cardMap.get(getCardNum(dn))?.Power ?? '0') || 0; break; }
+        }
       }
     }
-    if (targetPowerPCFD === 0) return done(addLog(ctx, 'ダウンシグニなし'));
-    const selfPowerPCFD = ctx.effectivePowers?.get(ctx.sourceCardNum) ?? 0;
-    const deltaPCFD = targetPowerPCFD - selfPowerPCFD;
-    if (deltaPCFD === 0) return done(addLog(ctx, 'パワー差なし'));
-    const modsPCFD = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaPCFD }];
+    if (!targetPowerPCFD) return done(addLog(ctx, 'ダウンシグニなし（POWER_COPY_FROM_DOWNED）'));
+    const modsPCFD = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: targetPowerPCFD }];
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPCFD } },
-      `ダウンシグニパワー${targetPowerPCFD}をコピー（${deltaPCFD > 0 ? '+' : ''}${deltaPCFD}）`));
+      `ダウンシグニパワー+${targetPowerPCFD}`));
   }
   // CHARM_CONDITIONAL_POWER: チャームがある場合パワー修正
   if (stub.id === 'CHARM_CONDITIONAL_POWER') {
@@ -8615,11 +8619,48 @@ export function execStub(
     };
     return done(addLog({ ...ctx, otherState: newOtherIODTN }, `相手デッキ上から${trashedIODTN.length}枚トラッシュ`));
   }
+  // INTERNAL_ODC_COLOR_CHECK: 色宣言後、lastProcessedCards[0]の色を確認してペナルティ適用
+  if (stub.id === 'INTERNAL_ODC_COLOR_CHECK') {
+    const declaredColor = typeof stub.value === 'string' ? stub.value : '';
+    const targetInstIOCC = ctx.lastProcessedCards?.[0];
+    const targetCardIOCC = targetInstIOCC ? ctx.cardMap.get(getCardNum(targetInstIOCC)) : undefined;
+    const cardColorIOCC = targetCardIOCC?.Color ?? '';
+    const revealName = targetCardIOCC?.CardName ?? targetInstIOCC ?? '?';
+    // 宣言色と一致しないか確認（カードの色が宣言を含まない → 対戦相手の全シグニバニッシュ）
+    const colorMatchIOCC = cardColorIOCC.includes(declaredColor);
+    const logMsg = `公開: ${revealName}（色: ${cardColorIOCC}）/ 宣言: ${declaredColor} → ${colorMatchIOCC ? '一致（ペナルティなし）' : '不一致→相手全シグニバニッシュ'}`;
+    if (!colorMatchIOCC) {
+      // 相手の全シグニをトラッシュへ
+      let newOtherIOCC = ctx.otherState;
+      const newSigniIOCC = [...newOtherIOCC.field.signi] as (string[] | null)[];
+      const banishedIOCC: string[] = [];
+      for (let zi = 0; zi < 3; zi++) {
+        const top = newSigniIOCC[zi]?.at(-1);
+        if (top) { banishedIOCC.push(top); newSigniIOCC[zi] = null; }
+      }
+      newOtherIOCC = { ...newOtherIOCC, field: { ...newOtherIOCC.field, signi: newSigniIOCC }, energy: [...newOtherIOCC.energy, ...banishedIOCC] };
+      return done(addLog({ ...ctx, otherState: newOtherIOCC }, logMsg));
+    }
+    return done(addLog(ctx, logMsg));
+  }
   // OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
   if (stub.id === 'OPP_DECLARE_CHOICE' || stub.id === 'OPP_CHOOSE_EFFECT' || stub.id === 'OPP_CHOOSES_FOR_YOU') {
     const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtODC = srcODC ? (srcODC.EffectText ?? '') + ' ' + (srcODC.BurstText ?? '') : '';
     const toHWODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 色宣言パターン（ウリス系）: 「対戦相手は《白》《赤》...から１つを宣言する」
+    if (txtODC.match(/対戦相手は.*から１つを宣言する/) && txtODC.match(/《白[^》]*》.*《赤[^》]*》/)) {
+      const colorList = ['白', '赤', '青', '緑', '黒', '無'];
+      const colorOpts = colorList.map(color => ({
+        id: `odc_color_${color}`,
+        label: `《${color}》を宣言`,
+        action: ({ type: 'STUB', id: 'INTERNAL_ODC_COLOR_CHECK', value: color } as StubAction) as EffectAction,
+        available: true,
+      }));
+      return needsInteraction(addLog(ctx, `対戦相手が色を宣言（対象カード: ${ctx.lastProcessedCards?.[0] ? ctx.cardMap.get(getCardNum(ctx.lastProcessedCards[0]))?.CardName ?? '?' : '未選択'}）`), {
+        type: 'CHOOSE', options: colorOpts, count: 1, opponentResponds: true,
+      });
+    }
     // ①②パターンを解析
     const choicePatsODC = [{ m: /①([^②③]+)/, idx: 0 }, { m: /②([^③④]+)/, idx: 1 }];
     const optsODC: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
