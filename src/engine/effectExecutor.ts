@@ -901,8 +901,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         if (stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
           const srcOTEC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
           const txtOTEC = srcOTEC ? (srcOTEC.EffectText ?? '') + ' ' + (srcOTEC.BurstText ?? '') : '';
-          const toHWOTEC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-          const classMOTEC = txtOTEC.match(/繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ(?:縺ゅ↑縺溘・)?(?:・・[^・枉+)・槭・)?(?:繧ｷ繧ｰ繝弓繧ｫ繝ｼ繝・/);
+          const toHWOTEC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+          const classMOTEC = txtOTEC.match(/エナゾーンからあ(?:なたの)?(?:《([^《》]+)》)?/);
           const reqClassOTEC = classMOTEC?.[1] ?? '';
           const energyCandsOTEC = cur.ownerState.energy.filter(cn => {
             if (!reqClassOTEC) return true;
