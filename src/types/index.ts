@@ -39,6 +39,7 @@ export interface Deck {
   mainDeck: string[];
   lrigDeck: string[];
   thumbnailCardNum?: string;
+  sortOrder?: number;
 }
 
 export interface Room {
