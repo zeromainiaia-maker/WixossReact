@@ -6542,6 +6542,15 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, negated_attacks: newNegatedPTLAT } },
       `${ctx.cardMap.get(tgtPTLAT)?.CardName ?? tgtPTLAT}はこのターンアタックできない`));
   }
+  // INTERNAL_GRANT_NO_ATTACK_LRIG: CHOOSE_SAME_OPTION_TWICEから呼ばれる内部ハンドラ
+  // 相手センタールリグにアタック不可（negated_attacks）を付与
+  if (stub.id === 'INTERNAL_GRANT_NO_ATTACK_LRIG') {
+    const lrigIGNAL = ctx.otherState.field.lrig.at(-1);
+    if (!lrigIGNAL) return done(addLog(ctx, 'INTERNAL_GRANT_NO_ATTACK_LRIG: ルリグなし'));
+    const newNegIGNAL = [...new Set([...(ctx.otherState.negated_attacks ?? []), lrigIGNAL])];
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, negated_attacks: newNegIGNAL } },
+      `${ctx.cardMap.get(lrigIGNAL)?.CardName ?? lrigIGNAL}はこのターンアタックできない`));
+  }
   // BLOCK_OPP_ENCORE_AND_BET: 相手のアンコール/ベット封じ
   if (stub.id === 'BLOCK_OPP_ENCORE_AND_BET') {
     const newBlockedBOEB = [...(ctx.otherState.blocked_actions ?? []), 'ENCORE', 'BET'];
@@ -9115,12 +9124,27 @@ export function execStub(
     const remainingCSO = typeof stub.value === 'number' ? stub.value : maxRoundsCSO;
     if (remainingCSO <= 0) return done(addLog(ctx, '選択完了'));
     const optsCSO: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
-    // ①バウンス: 相手シグニを手札に戻す
+    // ①バウンス: 相手シグニを手札に戻す（手札捨てセットも含む）
     if (txtCSO.match(/①.*手札に戻す/)) {
+      const hasDiscard = /①[^②]*手札を[１1]枚捨てる/.test(txtCSO);
+      const bounceAct: EffectAction = hasDiscard
+        ? { type: 'SEQUENCE', steps: [
+            { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as BounceAction,
+            { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } as TrashAction,
+          ]} as import('../types/effects').SequenceAction
+        : { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as BounceAction;
       optsCSO.push({
-        id: 'cso_bounce', label: '①相手シグニを手札に戻す',
-        action: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction,
+        id: 'cso_bounce', label: '①相手シグニを手札に戻す' + (hasDiscard ? '（手札1枚捨て）' : ''),
+        action: bounceAct,
         available: ctx.otherState.field.signi.some(s => s && s.length > 0),
+      });
+    }
+    // ②アタックできない付与: センタールリグにアタック禁止を付与
+    if (txtCSO.match(/②.*アタックできない/)) {
+      optsCSO.push({
+        id: 'cso_no_attack', label: '②相手センタールリグにアタック不可を付与',
+        action: { type: 'STUB', id: 'INTERNAL_GRANT_NO_ATTACK_LRIG' } as StubAction as EffectAction,
+        available: !!ctx.otherState.field.lrig.at(-1),
       });
     }
     // ②サーチ: デッキからシグニを手札に加える
@@ -9129,6 +9153,19 @@ export function execStub(
         id: 'cso_search', label: '②デッキからシグニを手札に加える',
         action: { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ' }, maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } } as EffectAction,
         available: ctx.ownerState.deck.some(cn => ctx.cardMap.get(cn)?.Type === 'シグニ'),
+      });
+    }
+    // ③クラスサーチ: デッキから特定クラスのシグニをN枚手札に加える
+    if (txtCSO.match(/③.*デッキから.*＜([^＞]+)＞のシグニ([２-９\d]+)枚を探して/)) {
+      const mCS3 = txtCSO.match(/③.*＜([^＞]+)＞のシグニ([２-９\d]+)枚/);
+      const className3 = mCS3 ? mCS3[1] : '';
+      const cnt3 = mCS3 ? parseInt(toHWCSO(mCS3[2])) : 2;
+      optsCSO.push({
+        id: 'cso_class_search', label: `③デッキから＜${className3}＞を${cnt3}枚手札へ`,
+        action: { type: 'SEQUENCE', steps: [
+          { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ', story: className3 }, maxCount: cnt3, then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } },
+        ]} as import('../types/effects').SequenceAction as EffectAction,
+        available: ctx.ownerState.deck.some(cn => (ctx.cardMap.get(cn)?.CardClass ?? '').includes(className3)),
       });
     }
     if (optsCSO.length === 0) return done(addLog(ctx, `[CHOOSE_SAME_OPTION: 選択肢解析失敗]`));

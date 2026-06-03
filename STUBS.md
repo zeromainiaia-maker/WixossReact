@@ -140,7 +140,7 @@
 | 2 | AUTO/ACTIVATED | ⚡ | BET_CONDITION ※done(addLog)のみ（ベット条件チェック未実装） |
 | 3 | AUTO/ACTIVATED | ✅ | CHARM_CONDITIONAL_POWER ※同ゾーンにチャームがあればパワー修正 |
 | 2 | AUTO/ACTIVATED | ✅ | CHOOSE_HAND_OR_ENERGY ※LOOK_AND_REORDER後のデッキ上N枚をSEARCH→手札/残りエナ（v0.147） |
-| 2 | AUTO | ⚡ | CHOOSE_SAME_OPTION_TWICE |
+| 2 | AUTO | ✅ | CHOOSE_SAME_OPTION_TWICE ※v0.173: ①バウンス+手札捨てセット対応, ②アタック不可(INTERNAL_GRANT_NO_ATTACK_LRIG), ③クラスサーチ追加。WX17-003/WXK05-010の主要パターン対応 |
 | 2 | AUTO/ACTIVATED | ⚡ | COIN_USE_RESTRICTION ※done(addLog)のみ（コイン使用制限未実装） |
 | 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_ALTERNATE_EFFECT |
 | 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_ALT_POWER_BOOST ※v0.170: 「代わりに＋/－N」テキスト解析→sourceCardNumにtemp_power_mods適用 |
@@ -252,7 +252,7 @@
 | 1 | AUTO | ✅ | CHANGE_EICHI_SIGNI_BASE_LEVEL ※v0.142: SELECT_TARGET(英知シグニ)→CHOOSE(1-3)→attack_phase_level_overrides |
 | 1 | AUTO | ✅ | CHANGE_SIGNI_COLOR ※v0.142: レベルフィルタ追加（「レベルN以下」テキスト解析） |
 | 1 | AUTO/ACTIVATED | ⚡ | CHOOSE_SAME_OPTION_MULTIPLE ※done(addLog)のみ（同選択肢複数回選択未実装） |
-| 2 | AUTO | ⚡ | CHOOSE_SAME_OPTION_TWICE |
+| 2 | AUTO | ✅ | CHOOSE_SAME_OPTION_TWICE ※v0.173: CHOOSE_SAME_OPTION_TWICEと同ハンドラで処理済み |
 | 1 | AUTO/ACTIVATED | ✅ | CHOSEN_TO_ENERGY_OR_HAND ※needsInteraction CHOOSE: エナか手札への移動を選択 |
 | 1 | AUTO/ACTIVATED | ✅ | CLASS_SIGNI_TO_ENERGY ※デッキ上クラスシグニをフィルタしneedsInteraction SEARCHでエナへ |
 | 1 | AUTO/ACTIVATED | ⚡ | COIN_SPEND_CONDITION ※done(addLog)のみ（コイン消費条件チェック未実装） |
@@ -534,12 +534,12 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 437 |
-| ⚡ 部分実装 | 75 |
+| ✅ 実装済み | 439 |
+| ⚡ 部分実装 | 73 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
-※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》//ディソナ判定追加）
+※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》Story=Dissona判定追加。CardData_Sheet8.csvでDissonaを設定）, CHOOSE_SAME_OPTION_TWICE（①バウンス+手札捨て/②アタック不可/③クラスサーチパターン追加・INTERNAL_GRANT_NO_ATTACK_LRIG実装）
 
 ※v0.172で✅化: GROW_COST_ZERO/CONDITIONAL_FREE_GROW（free_grow_this_turn+BattleScreen統合）, CONDITIONAL_TRASH_UNDER_SIGNI（エナ条件チェック+シグニ下SELECT）, SUBSTITUTE_DAMAGE_WITH_SELF_TRASH（CHOOSE→INTERNAL_SDWT_DO）, COPY_CARD（card_identity_overrides）, BEAT_ZONE_OP（条件チェック+フィールドSELECT→INTERNAL_MOVE_TO_BEAT）, ADD_CRAFT_TO_LRIG_DECK（名前解決追加）, DECLARE_NUMBER_POWER/ENERGY_LEVEL_CONDITION_CHOOSE/OPTIONAL_DISCARD_CLASS_SIGNI（✅確認）, PREVENT_DAMAGE_UNTIL_OPP_TURN_END/PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN（既実装✅確認）
 
