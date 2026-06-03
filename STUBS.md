@@ -422,7 +422,7 @@
 | 1 | AUTO | ✅ | POWER_MOD_TARGET_AND_SELF ※v0.162: own signi(lastProcessedCards)+sourceCardNum両方にdelta適用修正 |
 | 1 | ACTIVATED | ✅ | POWER_UP_BY_DISCARDED_SIGNI_POWER ※v0.162: SELECT自場シグニ→捨てたシグニのパワー分+適用 |
 | 1 | CONT | ⚡ | PREVENT_ABILITY_CHANGE_BY_OPP ※done(addLog)のみ（保護効果グループ: effectEngine未対応） |
-| 1 | CONT | ⚡ | PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP ※done(addLog)のみ（effectEngineで動的処理予定） |
+| 1 | CONT | ✅ | PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP ※v0.174: effectEngine.applyEffectsにallOtherSigniProtectedフラグ追加→全フィールドシグニをotherPowerProtectedに追加 |
 | 1 | ACTIVATED | ✅ | PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE ※v0.170: blocked_actions['ATTACK:{cardId}']追加（GATE機構と同様） |
 | 1 | CONT | ✅ | PREVENT_BOUNCE_AND_DOWN_BY_OPP ※v0.114: collectDownProtectedSigni+execDownに保護フィルター統合 |
 | 1 | CONT | ✅ | PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP ※prevent_lrig_damageフラグ設置実装済み |
@@ -534,12 +534,12 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 449 |
-| ⚡ 部分実装 | 63 |
+| ✅ 実装済み | 450 |
+| ⚡ 部分実装 | 62 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
-※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）, POWER_COPY_FROM_DOWNED（lastProcessedCards優先で自ダウンシグニパワー+）, OPP_DECLARE_CHOICE（色宣言パターン追加→INTERNAL_ODC_COLOR_CHECK）, REPLACE_PLUS_N（replace_opp_power_plusフラグ+effectEngine置換）, COIN_USE_RESTRICTION（coin_use_restriction永続フラグ+BET_MECHANICチェック）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
+※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）, POWER_COPY_FROM_DOWNED（lastProcessedCards優先で自ダウンシグニパワー+）, OPP_DECLARE_CHOICE（色宣言パターン追加→INTERNAL_ODC_COLOR_CHECK）, REPLACE_PLUS_N（replace_opp_power_plusフラグ+effectEngine置換）, COIN_USE_RESTRICTION（coin_use_restriction永続フラグ+BET_MECHANICチェック）, PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP（effectEngine全シグニ保護）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
 
 ※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》Story=Dissona判定追加。CardData_Sheet8.csvでDissonaを設定）, CHOOSE_SAME_OPTION_TWICE（①バウンス+手札捨て/②アタック不可/③クラスサーチパターン追加・INTERNAL_GRANT_NO_ATTACK_LRIG実装）
 

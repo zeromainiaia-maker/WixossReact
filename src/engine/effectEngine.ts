@@ -495,8 +495,9 @@ export function calcFieldPowers(
     // NEGATE_ALL_OPP_EFFECTS: all_cont_effects_negated フラグがあれば全CONT効果をスキップ
     if (ownerState.all_cont_effects_negated) return;
 
-    // PREVENT_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化するシグニ
+    // PREVENT_POWER_MINUS_BY_OPP / PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化するシグニ
     const otherPowerProtected = new Set<string>();
+    let allOtherSigniProtected = false;
     for (const stack of otherState.field.signi) {
       if (!stack || stack.length === 0) continue;
       const topNum = stack[stack.length - 1];
@@ -505,6 +506,13 @@ export function calcFieldPowers(
         if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, topNum)) continue;
         const act = eff.action as import('../types/effects').StubAction;
         if (act.type === 'STUB' && act.id === 'PREVENT_POWER_MINUS_BY_OPP') otherPowerProtected.add(topNum);
+        if (act.type === 'STUB' && act.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') allOtherSigniProtected = true;
+      }
+    }
+    // PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: フィールド全シグニをprotectedセットに追加
+    if (allOtherSigniProtected) {
+      for (const stack of otherState.field.signi) {
+        const top = stack?.at(-1); if (top) otherPowerProtected.add(top);
       }
     }
 
