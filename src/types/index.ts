@@ -51,6 +51,8 @@ export interface Room {
   passcode: string | null;
   host_deck_id: string | null;
   guest_deck_id: string | null;
+  host_art_overrides: Record<string, string>;
+  guest_art_overrides: Record<string, string>;
   winner_id: string | null;
   created_at: string;
 }
