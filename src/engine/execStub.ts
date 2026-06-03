@@ -7890,8 +7890,27 @@ export function execStub(
   // COST_COLOR_SELECT: 繧ｳ繧ｹ繝郁牡繧帝∈謚橸ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'COST_COLOR_SELECT') {
     return done(addLog(ctx, '繧ｳ繧ｹ繝郁牡繧帝∈謚・));
   }
-  // HASTARLIQ: 繝上せ繧ｿ繝ｫ繝ｪ繧ｯ蜉ｹ譫懶ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'HASTARLIQ') {
-    return done(addLog(ctx, '繝上せ繧ｿ繝ｫ繝ｪ繧ｯ蜉ｹ譫・));
+  // HASTARLIQ: 対戦相手のシグニゾーン1つを選択し、そのゾーンのシグニにアタック禁止を設定
+  if (stub.id === 'HASTARLIQ') {
+    const selectedZoneHL = typeof stub.value === 'number' ? stub.value : -1;
+    if (selectedZoneHL >= 0) {
+      const gateZonesHL = [...(ctx.otherState.signi_gate_zones ?? [])];
+      if (!gateZonesHL.includes(selectedZoneHL)) gateZonesHL.push(selectedZoneHL);
+      const blockedHL = [...(ctx.otherState.blocked_actions ?? [])];
+      const topHL = ctx.otherState.field.signi[selectedZoneHL]?.at(-1);
+      if (topHL && !blockedHL.includes(`ATTACK:${topHL}`)) blockedHL.push(`ATTACK:${topHL}`);
+      const newOtherHL: PlayerState = { ...ctx.otherState, signi_gate_zones: gateZonesHL, blocked_actions: blockedHL };
+      return done(addLog({ ...ctx, otherState: newOtherHL }, `相手ゾーン${selectedZoneHL + 1}に【ハスターリク】設置`));
+    }
+    const zoneOptsHL = [0, 1, 2].map(zi => ({
+      id: `hastarliq_zone_${zi}`,
+      label: `相手ゾーン${zi + 1}に設置`,
+      action: ({ type: 'STUB', id: 'HASTARLIQ', value: zi } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, '【ハスターリク】を設置するゾーンを選択'), {
+      type: 'CHOOSE', options: zoneOptsHL, count: 1,
+    });
   }
   // ACTIVATE_EICHI_ABILITY: 繧ｳ繧､繝ｳ閭ｽ蜉帙〒縺薙・繧ｷ繧ｰ繝九・縲仙・縲大柑譫懊ｒ蜀咲匱蜍・  if (stub.id === 'ACTIVATE_EICHI_ABILITY') {
     const srcAEA = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;

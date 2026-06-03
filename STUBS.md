@@ -1,6 +1,6 @@
 # STUB実装状況メモ（全件）
 
-最終更新: 2026-06-03 (v0.185)
+最終更新: 2026-06-04 (v0.188)
 
 ## ステータス凡例
 
@@ -211,12 +211,12 @@
 | 1 | CONT | ⚡ | ADD_RESONANCE_CONDITION ※done(addLog)のみ（レゾナ条件追加未実装） |
 | 1 | CONT | ✅ | ADJACENT_ZONE_ATTACK ※v0.116: 英知=10条件付き・隣ゾーン1つ追加バトル（有利な方を自動選択） |
 | 1 | CONT | ⚡ | ALL_CARDS_COLOR_CHANGE_BLACK ※v0.141: effectEngine.hasAllCardsColorBlack追加・myEnergyExtraColorsに黒色反映 |
-| 1 | ACTIVATED | ⚡ | ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE ※ログのみ改善 |
+| 1 | ACTIVATED | ✅ | ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE ※v0.186: lrig_gained_types配列に付与タイプを追加。両プレイヤーに反映。collectLrigNameAliasesで参照 |
 | 1 | CONT | ✅ | ALL_CLASS ※v0.115: collectAllClassSigni実装（レゾナ条件等のfiltterに活用可） |
-| 1 | CONT | ⚡ | ALL_COLOR ※v0.141: effectEngine.collectAllColorSigni追加・myEnergyExtraColorsでの色追加（フィールドシグニへの全色適用は未） |
+| 1 | CONT | ✅ | ALL_COLOR ※v0.186: collectAllColorSigniForField追加+ExecCtx.allColorSigniNums接続→fieldCandidatesで全色バイパス実装 |
 | 1 | AUTO | ✅ | ALL_OPP_SIGNI_POWER_DOWN_HALF ※自パワー÷2だけ相手全シグニのtemp_power_modsに適用 |
 | 1 | ACTIVATED | ✅ | ALL_OPP_SIGNI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
-| 1 | CONT | ⚡ | ALL_ZONE_BLACK ※v0.141: effectEngine.collectAllZoneBlackCardNums追加・myEnergyExtraColorsでエナゾーン黒色反映 |
+| 1 | CONT | ✅ | ALL_ZONE_BLACK ※v0.187: collectFieldSigniExtraColors+ExecCtx.fieldSigniExtraColors接続→fieldCandidatesで追加色（黒）チェック実装 |
 | 1 | AUTO/ACTIVATED | ⚡ | ARTS_EXTRA_COST_CONDITION ※done(addLog)のみ（アーツ追加コスト条件未実装） |
 | 1 | ACTIVATED | ✅ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR ※v0.173: BattleScreen arts payment UにてARTS_COLORLESS_MUST_PAY_CENTER_COLOR検出→《無》をセンタールリグ色に置換してvalidation |
 | 14 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
@@ -243,7 +243,7 @@
 | 1 | ACTIVATED | ✅ | BLOCK_OPP_SPELL_ACT_NEXT_TURN ※execStub.tsで'USE_SPELL:NEXT_TURN'/'USE_ACT:NEXT_TURN'をblocked_actionsに追加済み（ターン移行時に変換） |
 | 1 | ACTIVATED | ✅ | BOTH_DISCARD_BY_CENTER_LEVEL ※v0.169: 両者センターLv分自動捨て（先頭N枚、非インタラクティブ）（line 4561） |
 | 2 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |
-| 1 | CONT | ⚡ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.115: collectLrigColorAndLimitModsで色変更収集（UI/コスト条件への統合は部分的） |
+| 1 | CONT | ✅ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.186: lrig_extra_colors['黒']設定。collectFieldSigniExtraColors(GAIN_LRIG_COLOR)でシグニへ伝播 |
 | 1 | AUTO | ✅ | CENTER_LRIG_DISMOUNT ※v0.173: CHOOSE(降りる/そのまま)→INTERNAL_DISMOUNT_DO(lrig_riding_signi=[])でドライブ解除実装 |
 | 1 | ACTIVATED | ✅ | CENTER_LRIG_RIDES_ON_SIGNI ※v0.163: SELECT乗機シグニ→乗り換え対応（lrig_riding_signi設定） |
 | 1 | AUTO/ACTIVATED | ✅ | CENTER_ZONE_CONDITION ※v0.170: field.signi[1]（中央ゾーン）にsourceCardNumがあるか確認。条件不成立時スキップ |
@@ -296,11 +296,11 @@
 | 1 | ACTIVATED | ✅ | FROM_TRASH_TO_CENTER_ZONE ※v0.159: トラッシュから中央シグニゾーン(zone[1])に出す（既存シグニはエナへ） |
 | 1 | CONT | ✅ | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で防御側CONTチェック→凍結シグニをデッキ下へ |
 | 2 | CONT | ✅ | FROZEN_SIGNI_TO_TRASH_ON_LEAVE ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で攻撃側CONTチェック→相手凍結シグニをトラッシュへ |
-| 1 | CONT | ⚡ | GAIN_ADDITIONAL_LRIG_TYPE ※execStub: [ルリグシステム]（lrig system未実装） |
+| 1 | CONT | ✅ | GAIN_ADDITIONAL_LRIG_TYPE ※v0.186: collectLrigNameAliasesにkey_piece/signiフィールド対応追加。条件付きタイプ付与実装 |
 | 1 | AUTO | ✅ | GAIN_COIN_AND_DISCARD ※v0.170: コイン付与後にSELECT_TARGETでインタラクティブ手札捨て |
-| 1 | CONT | ⚡ | GAIN_LRIG_COLOR ※v0.115: collectLrigColorInheritSigni実装（SHADOW統合は未実装） |
+| 1 | CONT | ✅ | GAIN_LRIG_COLOR ※v0.187: collectFieldSigniExtraColors+ExecCtx.fieldSigniExtraColors接続→ルリグ色+lrig_extra_colorsをシグニ追加色として適用 |
 | 1 | AUTO/ACTIVATED | ✅ | GRANT_ABILITY_UNTIL_OPP_TURN ※v0.171: テキスト解析→keyword_grants付与（相手ターン終了=次の自分ターン開始でリセット） |
-| 2 | CONT | ⚡ | GRANT_CHOSEN_ABILITY_FROM_PLAY |
+| 2 | CONT | ✅ | GRANT_CHOSEN_ABILITY_FROM_PLAY ※ON_PLAYのGRANT_QUOTED_ABILITYでkeyword_grants設定済み。CONTはdone(ctx)で正しく動作 |
 | 1 | ACTIVATED | ✅ | GRANT_CHOSEN_ABILITY_SELF ※v0.169: GRANT_CHOSEN_ABILITYと同ハンドラ: SELECT_TARGET(自フィールド)+CHOOSE能力→keyword_grants付与 |
 | 1 | ACTIVATED | ✅ | GRANT_CONDITIONAL_ASSASSIN_ABILITY ※v0.169: sourceCardNumにアサシンをkeyword_grants付与（line 9013） |
 | 1 | AUTO/ACTIVATED | ✅ | GRANT_LRIG_ABILITY ※PR-317: effects.jsonをGRANT_LRIG_ABILITYアクション型に変更+lrig_granted_auto_effectsをgrantedMyLrigEffectsに統合 |
@@ -318,12 +318,12 @@
 | 1 | AUTO | ✅ | HAND_NONCOLORLESS_TO_ENERGY ※SELECT_TARGET(有色手札)→エナゾーンへ実装済み |
 | 1 | CONT | ✅ | HAND_SIGNI_HAS_GUARD_ICON ※v0.115: collectHandGuardIconClasses+ガードUI(myHandGuardClasses)に統合 |
 | 1 | AUTO/ACTIVATED | ✅ | HAND_SIGNI_UNDER_SIGNI ※needsInteraction SELECT_TARGET: 手札シグニを選択してシグニ下に配置 |
-| 1 | ACTIVATED | ⚡ | HASTARLIQ |
-| 1 | CONT | ⚡ | IGNORE_LRIG_RESTRICTION_ARTS ※done(addLog)のみ（ルリグ制限無視フラグ未実装） |
+| 1 | ACTIVATED | ✅ | HASTARLIQ ※v0.189: CHOOSE(ゾーン1/2/3)→signi_gate_zones+blocked_actions[ATTACK:topCard]設定でアタック禁止 |
+| 1 | CONT | ✅ | IGNORE_LRIG_RESTRICTION_ARTS ※v0.188: lrig_gained_types['__ignore_lrig_restriction__']設定+BattleScreen meetsRestriction/ignoreRestrictionで全制限バイパス |
 | 1 | CONT | ✅ | INCREASE_ACT_ABILITY_COST ※v0.173: collectIncreaseActCost追加。BattleScreen起動能力コストUIに統合（自分のターン中に+《無×1》）。adjustedTotal+actExtraCosts対応 |
 | 1 | CONT | ✅ | INFECTED_SIGNI_POWER_DOWN_BY_LEVEL ※ウイルスレベル合計×-1000をtemp_power_modsに適用実装済み |
-| 2 | CONT | ⚡ | INHERIT_OPP_LRIG_TYPE ※done(addLog)のみ（属性変更グループ: effectEngine未対応） |
-| 1 | CONT | ⚡ | INHERIT_UNDER_SIGNI_COLOR ※done(addLog)のみ（属性変更グループ: effectEngine未対応） |
+| 2 | CONT | ✅ | INHERIT_OPP_LRIG_TYPE ※v0.186: collectLrigNameAliasesに追加。otherState引数を渡して相手センタールリグのCardClass/CardNameをエイリアスに追加 |
+| 1 | CONT | ✅ | INHERIT_UNDER_SIGNI_COLOR ※v0.187: collectFieldSigniExtraColors+ExecCtx.fieldSigniExtraColors接続→スタック下の対象クラスシグニ色を継承 |
 | 1 | CONT | ✅ | LEAVE_FIELD_TO_DECK_BOTTOM ※removeFromField+deckへ追加でデッキ下移動実装済み |
 | 1 | AUTO/ACTIVATED | ✅ | LEVEL_BASED_CONDITIONAL ※v0.170: lastProcessedCards[0]のLvN枚だけSELECT_TARGET手札捨て |
 | 1 | CONT | ⚡ | LEVEL_MOD_PER_COUNT ※done(addLog)のみ（カウント基準レベル修正未実装） |
@@ -341,8 +341,8 @@
 | 1 | AUTO/ACTIVATED | ✅ | LOOK_TOP_SPELLS_TO_HAND ※デッキ上N枚のスペルを自動で手札へ・非スペルはデッキ戻し（v0.148） |
 | 1 | AUTO | ✅ | LOOK_TOP_ONE_RETURN_REST_BOTTOM ※v0.161: first_top_rest_bottom destPosition追加。1枚→デッキトップ・残り→デッキ下 |
 | 1 | CONT | ✅ | LRIG_ALL_NAMES ※v0.129: collectLrigNameAliasesでLRIG_ALL_NAMES_SENTINEL追加。lrigNameMatchesで全ルリグ名マッチ。execStubのCONDITIONAL_MULTI_CHOOSE_BY_CENTERもruntime aliasesを考慮 |
-| 1 | AUTO/ACTIVATED | ⚡ | LRIG_GAIN_ABILITY ※done(addLog)のみ（ルリグシステムグループ: 未実装） |
-| 1 | CONT | ⚡ | LRIG_LIMIT_UP_AND_COLOR_GAIN ※v0.115: collectLrigColorAndLimitMods+lrigLimit計算に+limitDelta統合（色変更は部分的） |
+| 1 | AUTO/ACTIVATED | ✅ | LRIG_GAIN_ABILITY ※v0.186: lastProcessedCards[0]をCHOOSEで選択した能力としてセンタールリグのkeyword_grantsに付与 |
+| 1 | CONT | ✅ | LRIG_LIMIT_UP_AND_COLOR_GAIN ※v0.186: collectLrigNameAliasesに「追加で＜タイプ＞を得る」テキスト解析追加。リミット増加はv0.115済み |
 | 1 | AUTO/ACTIVATED | ✅ | LRIG_RIDE_SIGNI ※v0.163: 自場の全乗機シグニにlrig_riding_signiを設定（ドライブ状態化） |
 | 2 | AUTO | ✅ | LRIG_TRASH_KEY_TO_CENTER_UNDER ※v0.169: lrig_trashのキーをセンタールリグの下に挿入実装済み（line 4793） |
 | 1 | ACTIVATED | ✅ | MAKE_MULTI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
@@ -530,12 +530,12 @@
 | 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
 ---
 
-## 集計サマリー（v0.185）
+## 集計サマリー（v0.188）
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 476 |
-| ⚡ 部分実装 | 36 |
+| ✅ 実装済み | 490 |
+| ⚡ 部分実装 | 22 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
