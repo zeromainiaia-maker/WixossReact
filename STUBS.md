@@ -228,7 +228,7 @@
 | 2 | AUTO/ACTIVATED | ✅ | BANISH_MULTI_COLOR_SIGNI ※相手フィールドの複数色(2色以上)シグニを全体自動バニッシュ（v0.148） |
 | 2 | AUTO | ✅ | BATTLE_BANISH_LIFE_BURST ※v0.170: バトルバニッシュカードのLBをotherState.field.checkにセット→相手LB発動 |
 | 1 | CONT | ✅ | BEAT_ZONE_OP ※v0.172: 条件チェック（N枚以下）+フィールドSELECT→INTERNAL_MOVE_TO_BEAT実装 |
-| 1 | AUTO | ⚡ | BLACK_RISE_PLAY_STACK_FROM_TRASH |
+| 1 | AUTO | ✅ | BLACK_RISE_PLAY_STACK_FROM_TRASH ※v0.189: 3フェーズ実装（トラッシュシグニ最大2枚選択→ウェポン2体選択→スタック下配置+下カード数ドロー） |
 | 1 | CONT | ✅ | BLOCK_OPP_ZONE_PLACEMENT ※disabled_signi_zones配列に指定ゾーンを追加実装済み |
 | 1 | CONT | ✅ | BLOCK_ALL_OPP_ACTIVATE_ABILITY ※v0.131: calcContinuousBlockedActionsでUSE_ACTをforSelfに追加（相手ターン条件付き） |
 | 1 | CONT | ✅ | BLOCK_COLORLESS_PLAY ※v0.131: PLAY_COLORLESSをforSelfに追加。handleSummonSigni/castSpellでColor=無をガード |
@@ -483,7 +483,7 @@
 | 2 | AUTO | ✅ | TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY ※名前解析→相手フィールド+エナから全削除 |
 | 2 | ACTIVATED | ✅ | TRASH_ALL_OPP_CARDS ※v0.158: テキスト解析で名前一致を相手エナからトラッシュ |
 | 1 | ACTIVATED | ✅ | TRASH_CLASS_TO_HAND_OR_ENERGY ※v0.158: SELECT(複数)→INTERNAL_TRASH_CLASS_SPLIT(1手札+残エナ) |
-| 1 | AUTO | ⚡ | TRASH_SIGNI_TO_BEAT ※v0.112: 《ビートアイコン》[条件]解析・beat_zone状態管理・ターン終了クリーンアップ実装済み。対象選択(インタラクティブコスト)は未実装 |
+| 1 | AUTO | ✅ | TRASH_SIGNI_TO_BEAT ※v0.112: beat_zone状態管理実装済み。SELECT_TARGET(トラッシュシグニ最大2枚optional)→beat_zone追加も実装済み |
 | 1 | ACTIVATED/AUTO | ✅ | BEAT_ZONE_OP ※v0.172: CONT版と同ハンドラ実装済み（→INTERNAL_MOVE_TO_BEAT）|
 | 1 | ACTIVATED | ✅ | TRASH_SPELL_FREE_USE_LIMIT ※v0.142: SELECT_TARGET(トラッシュスペル,コスト上限フィルタ)+コストなし使用 |
 | 1 | AUTO | ✅ | TRIGGER_OTHER_SIGNI_EICHI_ABILITY ※v0.142: SELECT_TARGET(他自シグニ)+英知AUTO効果を発動 |
@@ -534,8 +534,8 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 490 |
-| ⚡ 部分実装 | 22 |
+| ✅ 実装済み | 493 |
+| ⚡ 部分実装 | 19 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 

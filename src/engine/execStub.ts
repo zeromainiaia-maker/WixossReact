@@ -6625,8 +6625,55 @@ export function execStub(
   }
   // 繝ｩ繧､繧ｺ/繧ｹ繧ｿ繝・け邉ｻ・・ngine: 繝ｩ繧､繧ｺ繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・  if (stub.id === 'RISE_BANISH_SUBSTITUTE' || stub.id === 'RISE_LEAVE_DISCARD_STACK'
       || stub.id === 'BANISH_SUBSTITUTE_RISE_STACK' || stub.id === 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE'
-      || stub.id === 'COOKING_BANISH_SUBSTITUTE' || stub.id === 'BLACK_RISE_PLAY_STACK_FROM_TRASH') {
-    return done(addLog(ctx, `[繝ｩ繧､繧ｺ/繧ｹ繧ｿ繝・け: ${stub.id}]`));
+      || stub.id === 'COOKING_BANISH_SUBSTITUTE') {
+    return done(addLog(ctx, `[ライズ/スタック: ${stub.id}]`));
+  }
+  // BLACK_RISE_PLAY_STACK_FROM_TRASH: トラッシュからシグニ2枚まで、ウェポンシグニ2体の下に置き、下にカードのあるシグニ数ドロー
+  if (stub.id === 'BLACK_RISE_PLAY_STACK_FROM_TRASH') {
+    // Phase 3: stub.value=csv(trashCards), lastProcessedCards=weaponSigni → 配置してドロー
+    if (typeof stub.value === 'string' && stub.value && ctx.lastProcessedCards?.length) {
+      const trashCardsBRSF = stub.value.split(',').filter(Boolean);
+      const weaponSigniBRSF = ctx.lastProcessedCards;
+      const newSigniBRSF = [...ctx.ownerState.field.signi] as (string[] | null)[];
+      const newTrashBRSF = [...ctx.ownerState.trash].filter(cn => !trashCardsBRSF.includes(cn));
+      // ウェポンシグニの下に順番に配置
+      for (let i = 0; i < Math.min(trashCardsBRSF.length, weaponSigniBRSF.length); i++) {
+        const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === weaponSigniBRSF[i]);
+        if (zi >= 0) {
+          newSigniBRSF[zi] = [trashCardsBRSF[i], ...(newSigniBRSF[zi] ?? [])];
+        }
+      }
+      // 下にカードがあるシグニ数ドロー
+      const underCountBRSF = newSigniBRSF.filter(s => s && s.length > 1).length;
+      let ctxBRSF: ExecCtx = { ...ctx, ownerState: { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniBRSF }, trash: newTrashBRSF } };
+      const namesPlaced = trashCardsBRSF.slice(0, weaponSigniBRSF.length).map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+      ctxBRSF = addLog(ctxBRSF, `トラッシュ→ウェポン下配置: ${namesPlaced || 'なし'}`);
+      if (underCountBRSF > 0) {
+        const newDeckBRSF = ctxBRSF.ownerState.deck.slice(underCountBRSF);
+        const newHandBRSF = [...ctxBRSF.ownerState.hand, ...ctxBRSF.ownerState.deck.slice(0, underCountBRSF)];
+        ctxBRSF = addLog({ ...ctxBRSF, ownerState: { ...ctxBRSF.ownerState, deck: newDeckBRSF, hand: newHandBRSF } }, `${underCountBRSF}枚ドロー`);
+      }
+      return done(ctxBRSF);
+    }
+    // Phase 2: lastProcessedCards=選んだトラッシュカード → ウェポンシグニ選択
+    if (ctx.lastProcessedCards?.length) {
+      const trashSelBRSF = ctx.lastProcessedCards.slice(0, 2);
+      const weaponCandsB = [0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((cn): cn is string => {
+        if (!cn) return false;
+        const c = ctx.cardMap.get(cn);
+        return !!(c?.CardClass?.includes('ウェポン') || c?.CardClass?.includes('武器'));
+      });
+      if (weaponCandsB.length === 0) return done(addLog(ctx, 'ウェポンシグニなし（BLACK_RISE_PLAY_STACK_FROM_TRASH）'));
+      const contB: StubAction = { type: 'STUB', id: 'BLACK_RISE_PLAY_STACK_FROM_TRASH', value: trashSelBRSF.join(',') };
+      const noopB: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+      return selectOrInteract(weaponCandsB, Math.min(2, weaponCandsB.length), true, 'self_field', noopB as EffectAction, contB as EffectAction, ctx);
+    }
+    // Phase 1: トラッシュからシグニを最大2枚選択
+    const trashSigniBRSF = ctx.ownerState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+    if (trashSigniBRSF.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし（BLACK_RISE_PLAY_STACK_FROM_TRASH）'));
+    const cont1BRSF: StubAction = { type: 'STUB', id: 'BLACK_RISE_PLAY_STACK_FROM_TRASH' };
+    const noop1BRSF: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return selectOrInteract(trashSigniBRSF, 2, true, 'self_trash', noop1BRSF as EffectAction, cont1BRSF as EffectAction, ctx);
   }
   // ENERGY_COLOR_SUBSTITUTE_襍､_OR_髱胆TO_逋ｽ: CONTINUOUS蜉ｹ譫懶ｼ・ffectEngine.collectEnergyColorSubs縺ｧ蜍慕噪險育ｮ暦ｼ・  if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_襍､_OR_髱胆TO_逋ｽ') {
     return done(addLog(ctx, '[ENERGY_COLOR_SUBSTITUTE: effectEngine縺ｧ蜍慕噪蜃ｦ逅・ｸｭ]'));
