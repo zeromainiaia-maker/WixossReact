@@ -4926,7 +4926,7 @@ export function execStub(
     // 優先: lastProcessedCards[0] (起動コストでダウンした自シグニ)
     const costDownedPCFD = ctx.lastProcessedCards?.[0];
     if (costDownedPCFD) {
-      targetPowerPCFD = ctx.effectivePowers?.get(costDownedPCFD) ?? parseInt(ctx.cardMap.get(getCardNum(costDownedPCFD))?.Power ?? '0') || 0;
+      targetPowerPCFD = ctx.effectivePowers?.get(costDownedPCFD) ?? (parseInt(ctx.cardMap.get(getCardNum(costDownedPCFD))?.Power ?? '0') || 0);
     }
     // フォールバック: 自フィールドのダウンシグニ
     if (!targetPowerPCFD) {
