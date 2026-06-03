@@ -2214,21 +2214,29 @@ export function collectFieldEnergySigniColorGains(
 
       const card = cardMap.get(cn);
       const txt = card?.EffectText ?? '';
-      // 《ディソナアイコン》など識別不可なフィルターはスキップ
-      if (/《[^》]+》のシグニ/.test(txt)) continue;
       // 得る色を解析: "追加で黒を得る"
       const colorM = txt.match(/追加で([白赤青緑黒])を得る/);
       if (!colorM) continue;
       const gainColor = colorM[1];
 
+      // フィルター判定: 《ディソナアイコン》のシグニ → //ディソナ を含むシグニのみ対象
+      const isDisonaFilter = /《ディソナアイコン》のシグニ/.test(txt);
+      // その他の特殊アイコンフィルターは未対応のためスキップ
+      if (/《[^》]+》のシグニ/.test(txt) && !isDisonaFilter) continue;
+
       const instIds: string[] = [];
       for (const stack of ownerState.field.signi) {
         const top = stack?.at(-1);
-        if (top) instIds.push(top);
+        if (!top) continue;
+        if (isDisonaFilter && !(cardMap.get(top)?.CardName ?? '').includes('//ディソナ')) continue;
+        instIds.push(top);
       }
       for (const instId of ownerState.energy) {
         const baseNum = instId.includes('#') ? instId.slice(0, instId.indexOf('#')) : instId;
-        if (cardMap.get(baseNum)?.Type === 'シグニ') instIds.push(instId);
+        const signiCard = cardMap.get(baseNum);
+        if (signiCard?.Type !== 'シグニ') continue;
+        if (isDisonaFilter && !(signiCard.CardName ?? '').includes('//ディソナ')) continue;
+        instIds.push(instId);
       }
       results.push({ gainColor, instIds });
     }
