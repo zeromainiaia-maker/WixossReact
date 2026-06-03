@@ -802,7 +802,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const optionsSO = [
             {
               id: 'pay', available: hasSoul,
-              label: soulName ? `${soulName} : ',`
+              label: soulName ? `${soulName}` : '',
               action: payActionSO,
             },
             { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
