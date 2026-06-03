@@ -218,7 +218,7 @@
 | 1 | ACTIVATED | ✅ | ALL_OPP_SIGNI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
 | 1 | CONT | ⚡ | ALL_ZONE_BLACK ※v0.141: effectEngine.collectAllZoneBlackCardNums追加・myEnergyExtraColorsでエナゾーン黒色反映 |
 | 1 | AUTO/ACTIVATED | ⚡ | ARTS_EXTRA_COST_CONDITION ※done(addLog)のみ（アーツ追加コスト条件未実装） |
-| 1 | ACTIVATED | ⚡ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR |
+| 1 | ACTIVATED | ✅ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR ※v0.173: BattleScreen arts payment UにてARTS_COLORLESS_MUST_PAY_CENTER_COLOR検出→《無》をセンタールリグ色に置換してvalidation |
 | 14 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
 | 1 | CONT | ✅ | ARTS_COST_REDUCTION_BY_COST_THRESHOLD ※v0.114: collectArtsThresholdCostReductions+computeArtsEffectiveCostに統合 |
 | 1 | CONT | ✅ | ATTACK_COUNT_BY_POWER ※v0.117: calcContinuousBlockedActionsでパワー/10000回数上限・attacked_signi_idsをバッグ化 |
@@ -534,8 +534,8 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 440 |
-| ⚡ 部分実装 | 72 |
+| ✅ 実装済み | 441 |
+| ⚡ 部分実装 | 71 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 

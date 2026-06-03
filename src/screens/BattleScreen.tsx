@@ -6336,7 +6336,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               </>
             ) : (() => {
               /* Phase 2: コスト支払いカード選択 */
-              const effectiveCost = pendingArtsEffectiveCost ?? pendingArtsCard.Cost;
+              const rawEffectiveCost = pendingArtsEffectiveCost ?? pendingArtsCard.Cost;
+              // ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 《無》コストをセンタールリグ色で支払わなければならない
+              const hasColorlessRestriction = (effectsMap.get(pendingArtsCard.CardNum) ?? [])
+                .some(e => e.effectType === 'ACTIVATED' && JSON.stringify(e.action).includes('ARTS_COLORLESS_MUST_PAY_CENTER_COLOR'));
+              const centerColorForRestr = hasColorlessRestriction
+                ? (battleCardMap.get(my.field.lrig.at(-1) ?? '')?.Color ?? '').split('/')[0] ?? ''
+                : '';
+              const effectiveCost = hasColorlessRestriction && centerColorForRestr
+                ? rawEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
+                : rawEffectiveCost;
               const costItems = parseGrowCost(effectiveCost);
               const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
