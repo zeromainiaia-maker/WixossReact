@@ -193,7 +193,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
     function applyTrashField(selected: string[], c: ExecCtx): ExecCtx {
       let cur = c;
-      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH遲峨・菫晁ｭｷ繝√ぉ繝・け・育嶌謇九す繧ｰ繝九ｒ繝医Λ繝・す繝･遘ｻ蜍輔☆繧句ｴ蜷茨ｼ・      const trashFieldProtected = tgt.owner === 'opponent'
+      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH遲峨・菫晁ｭｷ繝√ぉ繝・け・育嶌謇九す繧ｰ繝九ｒ繝医Λ繝・す繝･遘ｻ蜍輔☆繧句ｴ蜷茨ｼ・
+      const trashFieldProtected = tgt.owner === 'opponent'
         ? new Set(c.otherTrashFieldProtectedNums ?? [])
         : new Set<string>();
       for (const num of selected) {
