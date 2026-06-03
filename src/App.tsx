@@ -19,6 +19,7 @@ export default function App() {
   const [cards, setCards] = useState<CardData[]>([]);          // デッキ編集用（トークン除外）
   const [allCards, setAllCards] = useState<CardData[]>([]);   // バトル用（トークン含む）
   const [variantCards, setVariantCards] = useState<CardData[]>([]); // 絵柄違いカード
+  const [tkCards, setTkCards] = useState<CardData[]>([]);     // トークンカード（デッキ設定用）
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [battleRoomId, setBattleRoomId] = useState<string | null>(null);
