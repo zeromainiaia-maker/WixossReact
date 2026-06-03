@@ -7,7 +7,7 @@ interface Props {
   user: User;
   decks: Deck[];
   cards: CardData[];
-  onBattleStart: (roomId: string, deckId: string) => void;
+  onBattleStart: (roomId: string, deckId: string, oppArtOverrides?: Record<string, string>) => void;
   onBack: () => void;
 }
 
