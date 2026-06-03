@@ -326,7 +326,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const newSigni = [...s.field.signi] as (string[] | null)[];
     const riseFilter = getRiseFilter(card.EffectText ?? '');
     let trashed = s.trash;
-    let extraTrashZone: string[] = [];
+    const extraTrashZone: string[] = [];
     if (riseFilter) {
       // ライズ条件チェック
       const existingTop = s.field.signi[zoneIdx]?.at(-1);
