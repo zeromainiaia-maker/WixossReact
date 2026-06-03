@@ -174,6 +174,7 @@ export default function App() {
       main_deck: updated.mainDeck,
       lrig_deck: updated.lrigDeck,
       thumbnail_card_num: updated.thumbnailCardNum,
+      art_overrides: updated.artOverrides ?? {},
     }).eq('id', updated.id);
     if (!error) {
       setDecks(prev => prev.map(d => d.id === updated.id ? updated : d));
