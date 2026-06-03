@@ -844,16 +844,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
           const srcOHRN = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
           const txtOHRN = srcOHRN ? (srcOHRN.EffectText ?? '') + ' ' + (srcOHRN.BurstText ?? '') : '';
-          const nameM = txtOHRN.match(/縲・[^縲犠+)縲擬・・]譫壹ｒ蜈ｬ髢九＠縺ｦ繧ゅｈ縺・);
+          const nameM = txtOHRN.match(/《([^《》]+)》を公開/);
           const targetName = nameM ? nameM[1] : '';
           const hasCard = targetName
             ? cur.ownerState.hand.some(cn => cur.cardMap.get(cn)?.CardName === targetName)
             : false;
           const optionsOHRN = [
             { id: 'reveal', available: hasCard,
-              label: targetName ? `${targetName} : ',`
+              label: targetName ? `${targetName}` : '',
               action: conditional.then },
-            { id: 'skip', label: ', action: (conditional.else ?? noopAction) as EffectAction, available: true },'
+            { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
           const pendingOHRN: PendingInteractionDef = {
             type: 'CHOOSE', options: optionsOHRN, count: 1,
