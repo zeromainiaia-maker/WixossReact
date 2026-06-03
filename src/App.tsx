@@ -209,11 +209,16 @@ export default function App() {
     });
   };
 
-  // バトル用カード配列（自分のデッキの artOverrides を適用）
-  const battleCards = useMemo(
-    () => applyOverrides(allCards, battleDeckId),
-    [allCards, battleDeckId, decks, variantCardMap], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  // バトル用カード配列（自分 + 相手 両デッキの artOverrides を適用）
+  const battleCards = useMemo(() => {
+    const myDeck = decks.find(d => d.id === battleDeckId);
+    const merged = { ...(myDeck?.artOverrides ?? {}), ...battleOppArtOverrides };
+    if (Object.keys(merged).length === 0) return allCards;
+    return allCards.map(c => {
+      const vCard = variantCardMap.get(merged[c.CardNum] ?? '');
+      return vCard ? { ...c, ImgURL: vCard.ImgURL } : c;
+    });
+  }, [allCards, battleDeckId, decks, battleOppArtOverrides, variantCardMap]);
 
   // CPU対戦用カード配列（自分 + CPU 両デッキの artOverrides を適用）
   const cpuBattleCards = useMemo(
