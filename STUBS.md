@@ -1,6 +1,6 @@
 # STUB実装状況メモ（全件）
 
-最終更新: 2026-06-02 (v0.172)
+最終更新: 2026-06-03 (v0.173)
 
 ## ステータス凡例
 
@@ -140,7 +140,7 @@
 | 2 | AUTO/ACTIVATED | ⚡ | BET_CONDITION ※done(addLog)のみ（ベット条件チェック未実装） |
 | 3 | AUTO/ACTIVATED | ✅ | CHARM_CONDITIONAL_POWER ※同ゾーンにチャームがあればパワー修正 |
 | 2 | AUTO/ACTIVATED | ✅ | CHOOSE_HAND_OR_ENERGY ※LOOK_AND_REORDER後のデッキ上N枚をSEARCH→手札/残りエナ（v0.147） |
-| 2 | AUTO | ⚡ | CHOOSE_SAME_OPTION_TWICE |
+| 2 | AUTO | ✅ | CHOOSE_SAME_OPTION_TWICE ※v0.173: ①バウンス+手札捨てセット対応, ②アタック不可(INTERNAL_GRANT_NO_ATTACK_LRIG), ③クラスサーチ追加。WX17-003/WXK05-010の主要パターン対応 |
 | 2 | AUTO/ACTIVATED | ⚡ | COIN_USE_RESTRICTION ※done(addLog)のみ（コイン使用制限未実装） |
 | 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_ALTERNATE_EFFECT |
 | 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_ALT_POWER_BOOST ※v0.170: 「代わりに＋/－N」テキスト解析→sourceCardNumにtemp_power_mods適用 |
@@ -155,7 +155,7 @@
 | 2 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
 | 2 | ACTIVATED | ✅ | EXTRA_COST_REMOVE_VIRUS ※v0.138: ウイルス除去数CHOOSE(0〜N)→INTERNAL_ECRV_APPLY→除去実行+(N+1)択CHOOSE。①〜④テキスト解析で効果選択肢生成 |
 | 2 | AUTO/ACTIVATED | ✅ | FACE_DOWN_OPP_SIGNI ※相手シグニSELECT_TARGET→face_down_signi+abilities_removed追加（v0.147） |
-| 2 | CONT | ⚡ | FIELD_ENERGY_SIGNI_GAIN_COLOR ※v0.113: collectFieldEnergySigniColorGains実装・エナ支払い追加色対応（《ディソナアイコン》フィルターは識別子未実装のため除外） |
+| 2 | CONT | ✅ | FIELD_ENERGY_SIGNI_GAIN_COLOR ※v0.173: 《ディソナアイコン》フィルター対応追加（CardName//ディソナで判定）。他の特殊アイコンフィルターは未対応だが主要2件✅ |
 | 14 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
 | 2 | ACTIVATED/AUTO | ✅ | GRANT_CHOSEN_ABILITY ※v0.138: lastProcessedCardsに自シグニなければSELECT_TARGET→CHOOSE能力(アサシン/ランサー/ダブルクラッシュ/バニッシュ不可/ダウン不可/バウンス不可)。keyword_grantsに格納 |
 | 1 | CONT | ⚡ | GRANT_QUOTED_ACTIVATE_ABILITY ※WXK08-078はGRANT_SIGNI_ABOVE_ABILITY+POWER_MINUS_PER_OWN_LEVELに変更✅。WX13-058(ダイオ姫条件付きDOUBLE_POWER_MINUS)は未変換 |
@@ -199,7 +199,7 @@
 | 2 | AUTO/ACTIVATED | ✅ | USE_CONDITION_ARTS_USED ※v0.170: executeArts時にactions_done['USE_ARTS']を追加。execStubがactions_done確認→使用可否判定 |
 | 2 | AUTO | ✅ | VIEW_AND_DISCARD_SPELL ※相手手札スペル選択+TRASH実装済み・重複ハンドラ削除 |
 | 2 | CONT | ✅ | ACCE_BANISH_SELF_TRASH ※signi_acceの全アクセをトラッシュへ移動+field更新実装済み |
-| 1 | CONT | ⚡ | ACCE_COST_REDUCTION ※done(addLog)のみ（アクセコスト軽減未実装） |
+| 1 | CONT | ✅ | ACCE_COST_REDUCTION ※v0.173: collectAcceCostReduction追加。BattleScreenエナアクセUIでreducedCostItems計算→緑コスト1軽減実装 |
 | 1 | AUTO | ✅ | ACCE_FROM_TRASH ※v0.169: トラッシュのアクセを手札経由でSELECT_TARGET→ATTACH_ACCE（line 8910）。NAMED_SIGNI_ACCE_FROM_TRASHと同ハンドラ |
 | 2 | AUTO/ACTIVATED | ⚡ | ACCE_OP ※done(addLog)のみ（アクセカウント確認のみ） |
 | 1 | CONT | ⚡ | ACCE_SIGNI_ALL_COLOR ※done(addLog)のみ（アクセシグニ全色化未実装） |
@@ -218,7 +218,7 @@
 | 1 | ACTIVATED | ✅ | ALL_OPP_SIGNI_SERVANT_ZERO ※v0.157: MAKE_SERVANT_ZEROと同一実装 |
 | 1 | CONT | ⚡ | ALL_ZONE_BLACK ※v0.141: effectEngine.collectAllZoneBlackCardNums追加・myEnergyExtraColorsでエナゾーン黒色反映 |
 | 1 | AUTO/ACTIVATED | ⚡ | ARTS_EXTRA_COST_CONDITION ※done(addLog)のみ（アーツ追加コスト条件未実装） |
-| 1 | ACTIVATED | ⚡ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR |
+| 1 | ACTIVATED | ✅ | ARTS_COLORLESS_MUST_PAY_CENTER_COLOR ※v0.173: BattleScreen arts payment UにてARTS_COLORLESS_MUST_PAY_CENTER_COLOR検出→《無》をセンタールリグ色に置換してvalidation |
 | 14 | ACTIVATED | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
 | 1 | CONT | ✅ | ARTS_COST_REDUCTION_BY_COST_THRESHOLD ※v0.114: collectArtsThresholdCostReductions+computeArtsEffectiveCostに統合 |
 | 1 | CONT | ✅ | ATTACK_COUNT_BY_POWER ※v0.117: calcContinuousBlockedActionsでパワー/10000回数上限・attacked_signi_idsをバッグ化 |
@@ -240,11 +240,11 @@
 | 1 | CONT | ✅ | BLOCK_OPP_DECK_TO_ENERGY ※calcContinuousBlockedActions+execEnergyChargeFromDeckでデッキ→エナをブロック |
 | 1 | CONT | ✅ | BLOCK_OPP_ENCORE_AND_BET ※calcContinuousBlockedActionsでENCORE/BET両方をforOther/forSelfに追加済み |
 | 1 | CONT | ✅ | BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT ※calcContinuousBlockedActions+execAddToFieldでシグニ効果による配置をブロック |
-| 1 | ACTIVATED | ⚡ | BLOCK_OPP_SPELL_ACT_NEXT_TURN |
+| 1 | ACTIVATED | ✅ | BLOCK_OPP_SPELL_ACT_NEXT_TURN ※execStub.tsで'USE_SPELL:NEXT_TURN'/'USE_ACT:NEXT_TURN'をblocked_actionsに追加済み（ターン移行時に変換） |
 | 1 | ACTIVATED | ✅ | BOTH_DISCARD_BY_CENTER_LEVEL ※v0.169: 両者センターLv分自動捨て（先頭N枚、非インタラクティブ）（line 4561） |
 | 2 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |
 | 1 | CONT | ⚡ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.115: collectLrigColorAndLimitModsで色変更収集（UI/コスト条件への統合は部分的） |
-| 1 | AUTO | ⚡ | CENTER_LRIG_DISMOUNT |
+| 1 | AUTO | ✅ | CENTER_LRIG_DISMOUNT ※v0.173: CHOOSE(降りる/そのまま)→INTERNAL_DISMOUNT_DO(lrig_riding_signi=[])でドライブ解除実装 |
 | 1 | ACTIVATED | ✅ | CENTER_LRIG_RIDES_ON_SIGNI ※v0.163: SELECT乗機シグニ→乗り換え対応（lrig_riding_signi設定） |
 | 1 | AUTO/ACTIVATED | ✅ | CENTER_ZONE_CONDITION ※v0.170: field.signi[1]（中央ゾーン）にsourceCardNumがあるか確認。条件不成立時スキップ |
 | 1 | AUTO | ✅ | CHANGE_BASE_LEVEL ※v0.142: CHOOSE(1-3,optional)→attack_phase_level_overrides設定 |
@@ -252,7 +252,7 @@
 | 1 | AUTO | ✅ | CHANGE_EICHI_SIGNI_BASE_LEVEL ※v0.142: SELECT_TARGET(英知シグニ)→CHOOSE(1-3)→attack_phase_level_overrides |
 | 1 | AUTO | ✅ | CHANGE_SIGNI_COLOR ※v0.142: レベルフィルタ追加（「レベルN以下」テキスト解析） |
 | 1 | AUTO/ACTIVATED | ⚡ | CHOOSE_SAME_OPTION_MULTIPLE ※done(addLog)のみ（同選択肢複数回選択未実装） |
-| 2 | AUTO | ⚡ | CHOOSE_SAME_OPTION_TWICE |
+| 2 | AUTO | ✅ | CHOOSE_SAME_OPTION_TWICE ※v0.173: CHOOSE_SAME_OPTION_TWICEと同ハンドラで処理済み |
 | 1 | AUTO/ACTIVATED | ✅ | CHOSEN_TO_ENERGY_OR_HAND ※needsInteraction CHOOSE: エナか手札への移動を選択 |
 | 1 | AUTO/ACTIVATED | ✅ | CLASS_SIGNI_TO_ENERGY ※デッキ上クラスシグニをフィルタしneedsInteraction SEARCHでエナへ |
 | 1 | AUTO/ACTIVATED | ⚡ | COIN_SPEND_CONDITION ※done(addLog)のみ（コイン消費条件チェック未実装） |
@@ -292,7 +292,7 @@
 | 1 | AUTO | ✅ | ENERGY_TO_TRASH ※SELECT_TARGET(エナ)→トラッシュへ実装済み |
 | 2 | CONT | ✅ | EXTRA_GUARD_COST_FROM_HAND ※collectOppExtraGuardFromHand+handleGuardResponse+ガードUI統合 |
 | 1 | AUTO/ACTIVATED | ✅ | FIELD_COND_DRAW_REVEAL ※v0.169: フィールドクラス条件→デッキ上公開→クラス一致なら手札/不一致ならトラッシュ（line 8532） |
-| 1 | CONT | ⚡ | FIRST_SPELL_COST_UP ※execStub: [コストアップ]（BattleScreen未統合） |
+| 1 | CONT | ✅ | FIRST_SPELL_COST_UP ※v0.173: collectFirstSpellCostUp追加。BattleScreenスペルコストUIに統合（初回のみ+《無×1》）。castSpellで'USE_SPELL'をactions_doneに記録 |
 | 1 | ACTIVATED | ✅ | FROM_TRASH_TO_CENTER_ZONE ※v0.159: トラッシュから中央シグニゾーン(zone[1])に出す（既存シグニはエナへ） |
 | 1 | CONT | ✅ | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で防御側CONTチェック→凍結シグニをデッキ下へ |
 | 2 | CONT | ✅ | FROZEN_SIGNI_TO_TRASH_ON_LEAVE ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で攻撃側CONTチェック→相手凍結シグニをトラッシュへ |
@@ -305,7 +305,7 @@
 | 1 | ACTIVATED | ✅ | GRANT_CONDITIONAL_ASSASSIN_ABILITY ※v0.169: sourceCardNumにアサシンをkeyword_grants付与（line 9013） |
 | 1 | AUTO/ACTIVATED | ✅ | GRANT_LRIG_ABILITY ※PR-317: effects.jsonをGRANT_LRIG_ABILITYアクション型に変更+lrig_granted_auto_effectsをgrantedMyLrigEffectsに統合 |
 | 2 | CONT | ✅ | GRANT_LRIG_TRASH_ACTIVATE_ABILITY ※WXEX2-12: collectLrigGrantedEffectsにlrig_trash名前フィルタ付き収集を追加 |
-| 1 | CONT | ⚡ | GRANT_SIGNI_CLASS ※v0.171: card_class_overridesにクラス追加設定済み。effectEngineでの参照は未統合 |
+| 1 | CONT | ✅ | GRANT_SIGNI_CLASS ※v0.173: execUtils.matchesFilterにclassOverride引数追加。fieldCandidatesがcard_class_overrides[cardNum]をmatchesFilterに渡し、story(class)フィルターで上書きクラスを考慮 |
 | 1 | CONT | ✅ | GRANT_UNDER_LRIG_ACTIVATE_ABILITY ※WX12-001: collectLrigGrantedEffectsにunder-lrig ACTIVATED収集を追加 |
 | 1 | CONT | ✅ | GRANT_UNDER_LRIG_AUTO_ABILITY ※WX21-003: collectLrigGrantedEffectsにunder-lrig AUTO収集を追加 |
 | 1 | CONT | ✅ | GRANT_UNDER_SIGNI_ALL_ABILITIES ※WX21-024: collectGrantedFromUnderSigniで下シグニの全効果をトップに付与 |
@@ -320,7 +320,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | HAND_SIGNI_UNDER_SIGNI ※needsInteraction SELECT_TARGET: 手札シグニを選択してシグニ下に配置 |
 | 1 | ACTIVATED | ⚡ | HASTARLIQ |
 | 1 | CONT | ⚡ | IGNORE_LRIG_RESTRICTION_ARTS ※done(addLog)のみ（ルリグ制限無視フラグ未実装） |
-| 1 | CONT | ⚡ | INCREASE_ACT_ABILITY_COST ※done(addLog)のみ（起動能力コスト増加未実装） |
+| 1 | CONT | ✅ | INCREASE_ACT_ABILITY_COST ※v0.173: collectIncreaseActCost追加。BattleScreen起動能力コストUIに統合（自分のターン中に+《無×1》）。adjustedTotal+actExtraCosts対応 |
 | 1 | CONT | ✅ | INFECTED_SIGNI_POWER_DOWN_BY_LEVEL ※ウイルスレベル合計×-1000をtemp_power_modsに適用実装済み |
 | 2 | CONT | ⚡ | INHERIT_OPP_LRIG_TYPE ※done(addLog)のみ（属性変更グループ: effectEngine未対応） |
 | 1 | CONT | ⚡ | INHERIT_UNDER_SIGNI_COLOR ※done(addLog)のみ（属性変更グループ: effectEngine未対応） |
@@ -386,7 +386,7 @@
 | 2 | CONT | ⚡ | OPP_TRASH_LOSE_COLOR_AND_CLASS ※done(addLog)のみ（移動リダイレクトグループ: effectEngine未対応） |
 | 1 | AUTO | ✅ | OPP_TRASH_TO_DECK_TOP ※v0.168: line 1211の正実装（SELECT_TARGET+INTERNAL_OPP_TRASH_TO_DECK_TOP）を確認・dead code除去 |
 | 2 | AUTO | ✅ | OPP_TRASH_TO_OPP_SIGNI_UNDER ※v0.168: CHOOSE for zone selection+INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE（lastProcessedCards経由でカード情報保持） |
-| 1 | AUTO | ⚡ | OPP_TURN_NO_ENERGY_COST |
+| 1 | AUTO | ✅ | OPP_TURN_NO_ENERGY_COST |
 | 1 | CONT | ✅ | OPP_ZONE_PLACEMENT_RESTRICT ※v0.161: collectCenterZoneDeployRestrict(effectEngine)+handleSummonSigniで中央ゾーンLv3+配置禁止 |
 | 1 | AUTO | ✅ | OPTIONAL_HAND_REVEAL_NAMED |
 | 5 | AUTO | ✅ | OPTIONAL_DISCARD_CLASS_SIGNI ※line 93と同一実装（重複エントリ）→✅確認 |
@@ -530,14 +530,16 @@
 | 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
 ---
 
-## 集計サマリー（v0.172）
+## 集計サマリー（v0.173）
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 432 |
-| ⚡ 部分実装 | 80 |
+| ✅ 実装済み | 443 |
+| ⚡ 部分実装 | 69 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
+
+※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》Story=Dissona判定追加。CardData_Sheet8.csvでDissonaを設定）, CHOOSE_SAME_OPTION_TWICE（①バウンス+手札捨て/②アタック不可/③クラスサーチパターン追加・INTERNAL_GRANT_NO_ATTACK_LRIG実装）
 
 ※v0.172で✅化: GROW_COST_ZERO/CONDITIONAL_FREE_GROW（free_grow_this_turn+BattleScreen統合）, CONDITIONAL_TRASH_UNDER_SIGNI（エナ条件チェック+シグニ下SELECT）, SUBSTITUTE_DAMAGE_WITH_SELF_TRASH（CHOOSE→INTERNAL_SDWT_DO）, COPY_CARD（card_identity_overrides）, BEAT_ZONE_OP（条件チェック+フィールドSELECT→INTERNAL_MOVE_TO_BEAT）, ADD_CRAFT_TO_LRIG_DECK（名前解決追加）, DECLARE_NUMBER_POWER/ENERGY_LEVEL_CONDITION_CHOOSE/OPTIONAL_DISCARD_CLASS_SIGNI（✅確認）, PREVENT_DAMAGE_UNTIL_OPP_TURN_END/PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN（既実装✅確認）
 
@@ -564,6 +566,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-06-03 v0.173 | 5件✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp追加・BattleScreenスペルUIにtotalReq+firstSpellExtra統合・castSpellでactions_done['USE_SPELL']記録）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost追加・BattleScreen起動能力UIにadjustedTotal+actExtraCosts統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認→✅）, OPP_TURN_NO_ENERGY_COST（execStub済み確認→✅）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》フィルター追加） | 5件 |
 | 2026-06-02 v0.169 | 実装+確認多数✅化: GATE(blocked_actions ATTACK:id)/DEPLOY_RESTRICT(signi_deploy_power_limit統合)/ARTS_IMMOVABLE/CONDITIONAL_PER_TRASH/LRIG_TRASH_KEY_TO_CENTER_UNDER/CONDITIONAL_TRASH_TO_ENERGY/OPP_TRASH_FIELD_SIGNI_AND_ENERGY/PREVENT_DEFEAT_THIS_TURN&UNTIL_NEXT_TURN/ACCE_TO_ENERGY/PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN/OPP_ENERGY_EXCESS_TRASH/NON_GUARD_DISCARD_TO_ENERGY/CONDITIONAL_COST_REDUCTION_BY_FIELD/SPELL_COST_REDUCTION_BY_TRASH_COUNT(computeArtsEffectiveCostにtrash引数+ロジック)/ACCE_FROM_TRASH/OPP_REVEAL系3件/RESONANCE_COST_CARDS_TO_ENERGY/GRANT_CHOSEN_ABILITY_SELF/GRANT_CONDITIONAL_ASSASSIN_ABILITY/FIELD_COND_DRAW_REVEAL/PLACE_LRIG_FROM_DECK_ON_TOP/OPP_RETURN_HAND_ON_SELF_BANISH/PREVENT_TARGET_LRIG_ATTACK_THIS_TURN(lrigAttackでnegated_attacks検査)/NON_LRIG_TO_LRIG_TRASH/BLOCK_OPP_ARTS_SPELL_ACT + 重複エントリ整理 | 26種+ |
 | 2026-06-02 v0.161 | 4件✅化: OPP_MAIN_PHASE_LIMIT_DOWN(pending_lrig_limit_mod-2→GROW→MAIN移行時適用・誤実装draw_limit修正)・OPP_SIGNI_ATTACK_COST(signi_attack_cost=2フラグ+アタック時エナ消費・不足アタック不可)・OPP_ZONE_PLACEMENT_RESTRICT(collectCenterZoneDeployRestrict+handleSummonSigniで中央ゾーンLv3+配置禁止)。⚡改善: OPP_CHOOSE_EFFECT/OPP_CHOOSES_FOR_YOU(テキスト解析+INTERNAL_OPP_DECK_TRASH_N追加) | 3件✅+2件⚡改善 |
 | 2026-06-02 v0.160 | 34件新規追加: ✅化(ALL_PLAYER_MILL/CRASH_LIFE_TO_HAND/DECK_MILL_UNTIL_CLASS/DECLARE_CLASS/GROW_COST_ZERO/LIMIT_OPP_ATTACK_ONCE/LRIG_LIMIT_MODIFY/NEGATE_ABILITY/POWER_EQUAL_TO_SELF_POWER/POWER_MINUS_PER_OWN_LEVEL/POWER_MOD_BY_LRIG_LEVEL/POWER_MOD_BY_TRASH_CLASS_COUNT/PREVENT_SIGNI_ABILITY_LOSS_BY_OPP/PREVENT_SIGNI_DOWN_BY_OPP/SEED_BLOOM_OPTIONAL/SEED_FLOWER_OP/SEED_HAND_AND_BLOOM_FROM_DECK_TOP/SHUFFLE_DECK_POWER_HALF/SKIP_MAIN_PHASE/SUPPRESS_GAIN_ABILITY/SUPPRESS_LIFEBURST_COLOR_CONDITION/SUPPRESS_OPP_SIGNI_ABILITIES/TRAP_TO_SIGNI_IF_ZONE_EMPTY/ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白)。ENERGY_*_TRASH_*エナ代替4件✅。カウント70件更新。削除4件 | 38件 |

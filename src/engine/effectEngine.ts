@@ -2214,21 +2214,29 @@ export function collectFieldEnergySigniColorGains(
 
       const card = cardMap.get(cn);
       const txt = card?.EffectText ?? '';
-      // 《ディソナアイコン》など識別不可なフィルターはスキップ
-      if (/《[^》]+》のシグニ/.test(txt)) continue;
       // 得る色を解析: "追加で黒を得る"
       const colorM = txt.match(/追加で([白赤青緑黒])を得る/);
       if (!colorM) continue;
       const gainColor = colorM[1];
 
+      // フィルター判定: 《ディソナアイコン》のシグニ → Story='Dissona' のシグニのみ対象
+      const isDisonaFilter = /《ディソナアイコン》のシグニ/.test(txt);
+      // その他の特殊アイコンフィルターは未対応のためスキップ
+      if (/《[^》]+》のシグニ/.test(txt) && !isDisonaFilter) continue;
+
       const instIds: string[] = [];
       for (const stack of ownerState.field.signi) {
         const top = stack?.at(-1);
-        if (top) instIds.push(top);
+        if (!top) continue;
+        if (isDisonaFilter && (cardMap.get(top)?.Story ?? '') !== 'Dissona') continue;
+        instIds.push(top);
       }
       for (const instId of ownerState.energy) {
         const baseNum = instId.includes('#') ? instId.slice(0, instId.indexOf('#')) : instId;
-        if (cardMap.get(baseNum)?.Type === 'シグニ') instIds.push(instId);
+        const signiCard = cardMap.get(baseNum);
+        if (signiCard?.Type !== 'シグニ') continue;
+        if (isDisonaFilter && (signiCard.Story ?? '') !== 'Dissona') continue;
+        instIds.push(instId);
       }
       results.push({ gainColor, instIds });
     }
@@ -2868,4 +2876,79 @@ export function collectFrozenBanishOverrides(
     }
   }
   return { frozenBanishToDeckBottom, frozenLeaveToTrash };
+}
+
+/**
+ * ACCE_COST_REDUCTION: フィールド上にACCE_COST_REDUCTION効果を持つシグニがある場合、
+ * アクセ取り付けコストの緑エナを1枚減らす。
+ * ownerState のフィールドを走査して軽減量（緑色N枚分）を返す。
+ */
+export function collectAcceCostReduction(
+  ownerState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): number {
+  let reduction = 0;
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ACCE_COST_REDUCTION') reduction += 1;
+    }
+  }
+  return reduction;
+}
+
+/**
+ * FIRST_SPELL_COST_UP: 各ターン、対戦相手が最初に使用するスペルの使用コストを《無×N》増加。
+ * opponentState のフィールドを走査して合計増加量を返す。
+ * 呼び出し側で ownerState.actions_done に 'USE_SPELL' がなければ適用する。
+ */
+export function collectFirstSpellCostUp(
+  opponentState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): number {
+  const candidates: string[] = [
+    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...(opponentState.field.lrig.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
+    ...(opponentState.field.key_piece ? [opponentState.field.key_piece] : []),
+  ];
+  let extra = 0;
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'FIRST_SPELL_COST_UP') extra += 1;
+    }
+  }
+  return extra;
+}
+
+/**
+ * INCREASE_ACT_ABILITY_COST: 相手ターン中（= 自分のターン中）、
+ * 対戦相手（= 自分）のセンタールリグとシグニの【起】能力の使用コストを《無×N》増加。
+ * opponentState（カード所有者 = 相手）のフィールドを走査して合計増加量を返す。
+ * isMyTurn=true（自分のターン中）のときのみ適用。
+ */
+export function collectIncreaseActCost(
+  opponentState: PlayerState,
+  isMyTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): number {
+  if (!isMyTurn) return 0; // カードの「相手ターン」条件 = 自分のターン中のみ
+  const candidates: string[] = [
+    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...(opponentState.field.lrig.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
+    ...(opponentState.field.key_piece ? [opponentState.field.key_piece] : []),
+  ];
+  let extra = 0;
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'INCREASE_ACT_ABILITY_COST') extra += 1;
+    }
+  }
+  return extra;
 }

@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -3918,6 +3918,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: my.hand.filter((_, i) => i !== handIdx),
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
+        actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       // handからはインスタンスIDで正確な1枚を参照する
@@ -6335,7 +6336,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               </>
             ) : (() => {
               /* Phase 2: コスト支払いカード選択 */
-              const effectiveCost = pendingArtsEffectiveCost ?? pendingArtsCard.Cost;
+              const rawEffectiveCost = pendingArtsEffectiveCost ?? pendingArtsCard.Cost;
+              // ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 《無》コストをセンタールリグ色で支払わなければならない
+              const hasColorlessRestriction = (effectsMap.get(pendingArtsCard.CardNum) ?? [])
+                .some(e => e.effectType === 'ACTIVATED' && JSON.stringify(e.action).includes('ARTS_COLORLESS_MUST_PAY_CENTER_COLOR'));
+              const centerColorForRestr = hasColorlessRestriction
+                ? (battleCardMap.get(my.field.lrig.at(-1) ?? '')?.Color ?? '').split('/')[0] ?? ''
+                : '';
+              const effectiveCost = hasColorlessRestriction && centerColorForRestr
+                ? rawEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
+                : rawEffectiveCost;
               const costItems = parseGrowCost(effectiveCost);
               const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
@@ -6567,14 +6577,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const myLrigCardSP = battleCardMap.get(my.field.lrig.at(-1) ?? '');
               const effSpellCost = computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases);
               const costItems = parseGrowCost(effSpellCost);
-              const totalReq = costItems.reduce((s, c) => s + c.count, 0);
+              const baseSpellReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);
               const extraSpellCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'スペル')
                 .flatMap(m => m.amount);
+              // FIRST_SPELL_COST_UP: 相手フィールドが持つ場合、最初のスペルに《無×1》追加
+              const firstSpellExtra = !my.actions_done?.includes('USE_SPELL')
+                ? collectFirstSpellCostUp(op, effectsMap)
+                : 0;
+              const firstSpellExtraCosts: { color: string; count: number }[] =
+                firstSpellExtra > 0 ? [{ color: '無', count: firstSpellExtra }] : [];
+              const allExtraSpellCosts = [...extraSpellCosts, ...firstSpellExtraCosts];
+              const totalReq = baseSpellReq + firstSpellExtra;
               const isValid = totalReq === 0 ||
                 (selectedSpellCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, extraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                  canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, allExtraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6603,6 +6621,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         {costItems.map((c, i) => (
                           <span key={i} style={{ marginLeft: 6, color: C.textDim }}>({c.color}×{c.count})</span>
                         ))}
+                        {firstSpellExtra > 0 && (
+                          <span style={{ marginLeft: 6, color: C.warn }}>(+《無》×{firstSpellExtra} 初回)</span>
+                        )}
                       </p>
                       <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
                         {my.energy.map((num, i) => {
@@ -8072,12 +8093,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = isCostZeroByEffect ? '' : ((eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '');
               const keySubCount = (!isCostZeroByEffect && keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId) ? 2 : 0;
-              const adjustedTotal = Math.max(0, energyTotal - keySubCount);
+              // INCREASE_ACT_ABILITY_COST: 相手フィールドが持つ場合、自分のターン中に起動能力コスト+1
+              const actCostExtra = isCostZeroByEffect ? 0 : collectIncreaseActCost(op, isMyTurn, effectsMap);
+              const actExtraCosts: { color: string; count: number }[] =
+                actCostExtra > 0 ? [{ color: '無', count: actCostExtra }] : [];
+              const adjustedTotal = Math.max(0, energyTotal + actCostExtra - keySubCount);
               const selectedNums = [...selectedSigniActivatedCost].map(i => my.energy[i]);
-              const energyOk = energyTotal === 0
+              const energyOk = energyTotal === 0 && actCostExtra === 0
                 ? true
                 : selectedSigniActivatedCost.size === adjustedTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount);
+                  (actCostExtra > 0
+                    ? canAffordWithExtraCost(selectedNums, battleCards, costStr, actExtraCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount)
+                    : canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount));
               const discardOk = selectedSigniActivatedDiscard.size >= discardNeeded;
               const canAfford = energyOk && discardOk;
 
@@ -8117,10 +8144,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </button>
                   )}
 
-                  {energyTotal > 0 && (
+                  {(energyTotal > 0 || actCostExtra > 0) && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         エナゾーンから選択: {selectedSigniActivatedCost.size} / {adjustedTotal}枚
+                        {actCostExtra > 0 && (
+                          <span style={{ marginLeft: 6, color: C.warn }}>(+《無》×{actCostExtra})</span>
+                        )}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {my.energy.map((num, i) => {
@@ -8263,8 +8293,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             {(() => {
               const card = battleCardMap.get(pendingEnergyActivated.cardNum);
               const eff = pendingEnergyActivated.effect;
-              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
-              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              // ACCE_COST_REDUCTION: WX16-044等が場にある場合、緑コストを1軽減
+              const acceGreenReduction = collectAcceCostReduction(my, effectsMap);
+              const baseCostItems = eff.cost?.energy ?? [];
+              const reducedCostItems = acceGreenReduction > 0
+                ? (() => {
+                    let rem = acceGreenReduction;
+                    return baseCostItems.map(c => {
+                      if (rem > 0 && c.color === '緑' && c.count > 0) {
+                        const reduce = Math.min(rem, c.count);
+                        rem -= reduce;
+                        return { ...c, count: c.count - reduce };
+                      }
+                      return c;
+                    }).filter(c => c.count > 0);
+                  })()
+                : baseCostItems;
+              const energyTotal = reducedCostItems.reduce((s, c) => s + c.count, 0);
+              const costStr = reducedCostItems.map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedEnergyActivatedCost].map(i => my.energy[i]);
               const canAfford = energyTotal === 0
                 ? true
@@ -8286,6 +8332,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         </p>
                         <p style={{ color: C.textFaint, fontSize: 11, margin: '2px 0 0' }}>
                           コスト: {energyTotal > 0 ? `エナ${energyTotal}枚` : 'なし'}
+                          {acceGreenReduction > 0 && (
+                            <span style={{ color: C.success, marginLeft: 4 }}>(《緑》×{acceGreenReduction}軽減)</span>
+                          )}
                         </p>
                       </div>
                     </div>
