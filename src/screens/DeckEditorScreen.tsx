@@ -134,12 +134,14 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
     onUpdate(updated);
   };
 
-  const switchVariant = (oldCardNum: string, newCardNum: string, from: 'main' | 'lrig') => {
-    const list = from === 'main' ? current.mainDeck : current.lrigDeck;
-    const next = list.map(n => n === oldCardNum ? newCardNum : n);
-    const updated = from === 'main'
-      ? { ...current, mainDeck: next }
-      : { ...current, lrigDeck: next };
+  const switchVariant = (canonicalCardNum: string, variantCardNum: string) => {
+    const overrides = { ...(current.artOverrides ?? {}) };
+    if (variantCardNum === canonicalCardNum) {
+      delete overrides[canonicalCardNum]; // 正規版に戻す
+    } else {
+      overrides[canonicalCardNum] = variantCardNum;
+    }
+    const updated = { ...current, artOverrides: overrides };
     setCurrent(updated);
     onUpdate(updated);
   };
