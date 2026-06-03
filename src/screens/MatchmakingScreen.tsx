@@ -171,32 +171,52 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
   };
 
   if (step === 'SELECT_DECK') return (
-    <div style={wrap}>
-      <h2 style={{ color: '#fff', margin: 0 }}>使用デッキを選択</h2>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0a0f', color: '#ccc' }}>
+      <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid #222' }}>
+        <h2 style={{ color: '#fff', margin: 0 }}>使用デッキを選択</h2>
+      </div>
       {validDecks.length === 0 ? (
-        <p style={{ color: '#888', textAlign: 'center', maxWidth: 280, lineHeight: 1.6 }}>
-          使用可能なデッキがありません。<br />
-          メインデッキ40枚・ルリグデッキにLv.0ルリグが入ったデッキを作成してください。
-        </p>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: '#888', textAlign: 'center', maxWidth: 280, lineHeight: 1.6 }}>
+            使用可能なデッキがありません。<br />
+            メインデッキ40枚・ルリグデッキにLv.0ルリグが入ったデッキを作成してください。
+          </p>
+        </div>
       ) : (
-        <select
-          value={selectedDeckId}
-          onChange={e => setSelectedDeckId(e.target.value)}
-          style={{
-            width: 260, padding: '12px 16px', borderRadius: 8,
-            border: '1px solid #444', backgroundColor: '#111',
-            color: '#fff', fontSize: 15, cursor: 'pointer', appearance: 'auto',
-          }}
-        >
-          {validDecks.map(deck => (
-            <option key={deck.id} value={deck.id}>{deck.name}</option>
-          ))}
-        </select>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {validDecks.map(deck => {
+              const thumbnail = deck.thumbnailCardNum ? cardMap.get(deck.thumbnailCardNum) : null;
+              const isSelected = selectedDeckId === deck.id;
+              return (
+                <div
+                  key={deck.id}
+                  onClick={() => setSelectedDeckId(deck.id)}
+                  style={{
+                    cursor: 'pointer', backgroundColor: '#111', borderRadius: 8, padding: 8,
+                    border: `2px solid ${isSelected ? '#007bff' : '#222'}`,
+                  }}
+                >
+                  <div style={{ width: '100%', aspectRatio: '3/4', backgroundColor: '#1a1a2e', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                    {thumbnail ? (
+                      <img src={thumbnail.ImgURL} alt={thumbnail.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: 12 }}>NO IMAGE</div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12, fontWeight: 'bold', margin: '0 0 4px', color: isSelected ? '#007bff' : '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deck.name}</p>
+                  <p style={{ fontSize: 10, color: '#555', margin: 0 }}>メイン {deck.mainDeck.length}/40 &nbsp; ルリグ {deck.lrigDeck.length}/10</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
-      <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 280, boxSizing: 'border-box' }}>
-        <button style={{ ...ghostBtn, maxWidth: '46%' }} onClick={onBack}>戻る</button>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid #222', display: 'flex', gap: 10 }}>
+        <button style={{ ...ghostBtn, flex: 1, maxWidth: 'none' }} onClick={onBack}>戻る</button>
         <button
-          style={{ ...primaryBtn, maxWidth: '54%', opacity: selectedDeckId ? 1 : 0.4 }}
+          style={{ ...primaryBtn, flex: 1.2, maxWidth: 'none', opacity: selectedDeckId ? 1 : 0.4 }}
           disabled={!selectedDeckId}
           onClick={() => setStep('SELECT_MODE')}
         >
