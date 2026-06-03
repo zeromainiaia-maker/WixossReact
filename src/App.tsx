@@ -190,6 +190,36 @@ export default function App() {
 
   const currentDeck = decks.find(d => d.id === selectedDeckId);
 
+  // variantCards を CardNum で引けるマップ
+  const variantCardMap = useMemo(() => new Map(variantCards.map(c => [c.CardNum, c])), [variantCards]);
+
+  // artOverrides を allCards の ImgURL に適用したカード配列を返すヘルパー
+  const applyOverrides = (baseCards: CardData[], ...deckIds: (string | null | undefined)[]): CardData[] => {
+    const merged: Record<string, string> = {};
+    deckIds.forEach(id => {
+      const d = decks.find(dk => dk.id === id);
+      Object.assign(merged, d?.artOverrides ?? {});
+    });
+    if (Object.keys(merged).length === 0) return baseCards;
+    return baseCards.map(c => {
+      const vNum = merged[c.CardNum];
+      const vCard = vNum ? variantCardMap.get(vNum) : undefined;
+      return vCard ? { ...c, ImgURL: vCard.ImgURL } : c;
+    });
+  };
+
+  // バトル用カード配列（自分のデッキの artOverrides を適用）
+  const battleCards = useMemo(
+    () => applyOverrides(allCards, battleDeckId),
+    [allCards, battleDeckId, decks, variantCardMap], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // CPU対戦用カード配列（自分 + CPU 両デッキの artOverrides を適用）
+  const cpuBattleCards = useMemo(
+    () => applyOverrides(allCards, cpuBattleDeckId, decks.find(d => d.id !== cpuBattleDeckId)?.id),
+    [allCards, cpuBattleDeckId, decks, variantCardMap], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   if (loading) return null;
 
   return (
