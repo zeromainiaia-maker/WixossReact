@@ -837,7 +837,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'CHOOSE', options: optionsLUCO, count: 1,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, '), pendingLUCO');
+          return needsInteraction(addLog(cur, ''), pendingLUCO);
         }
 
         // OPTIONAL_HAND_REVEAL_NAMED: conditional.then
