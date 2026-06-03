@@ -196,6 +196,7 @@ export default function App() {
           onCreateDeck={cpuBattleMode ? undefined : handleCreateDeck}
           onEditDeck={cpuBattleMode ? undefined : (id => { setSelectedDeckId(id); setViewMode('DECK_EDITOR'); })}
           onCpuSelect={cpuBattleMode ? (id => { setCpuBattleDeckId(id); setCpuBattleMode(false); setViewMode('CPU_BATTLE'); }) : undefined}
+          onReorderDecks={cpuBattleMode ? undefined : handleReorderDecks}
           onBack={() => { setCpuBattleMode(false); setViewMode('START'); }}
         />
       )}
