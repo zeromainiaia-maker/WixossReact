@@ -10,6 +10,12 @@ const LRIG_COPY_MAX = 1;
 
 const SPECIAL_EXTRA_CARD_NUMS = ['PR-470B', 'WX13-005B', 'WX13-006B', 'WX14-006B'];
 
+// ImageKit URLにサムネイル変換パラメータを挿入する
+// 例: https://ik.imagekit.io/xxxx/WX01-001.webp
+//  → https://ik.imagekit.io/xxxx/tr:w-72,h-100,q-40/WX01-001.webp
+const getThumbUrl = (imgUrl: string) =>
+  imgUrl.replace(/(https:\/\/ik\.imagekit\.io\/[^/]+\/)/, '$1tr:w-72,h-100,q-40/');
+
 const isExtraLrigCard = (card: CardData) =>
   card.Type === 'ピース' || SPECIAL_EXTRA_CARD_NUMS.includes(card.CardNum);
 
