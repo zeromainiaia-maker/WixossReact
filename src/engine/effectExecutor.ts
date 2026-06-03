@@ -759,7 +759,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ? (afterRemaining.length === 1 ? afterRemaining[0] : { type: 'SEQUENCE', steps: afterRemaining } as SequenceAction)
             : undefined;
           const opts = uniqueColors.map(c => ({
-            id: c, label: `${c}, available: true,`
+            id: c, label: `${c}`, available: true,
             action: (() => {
               const cs: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: c } };
               return afterCont ? { type: 'SEQUENCE', steps: [cs as EffectAction, afterCont] } as SequenceAction : cs as EffectAction;
