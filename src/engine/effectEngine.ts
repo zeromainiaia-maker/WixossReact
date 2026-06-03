@@ -2879,6 +2879,28 @@ export function collectFrozenBanishOverrides(
 }
 
 /**
+ * ACCE_COST_REDUCTION: フィールド上にACCE_COST_REDUCTION効果を持つシグニがある場合、
+ * アクセ取り付けコストの緑エナを1枚減らす。
+ * ownerState のフィールドを走査して軽減量（緑色N枚分）を返す。
+ */
+export function collectAcceCostReduction(
+  ownerState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): number {
+  let reduction = 0;
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ACCE_COST_REDUCTION') reduction += 1;
+    }
+  }
+  return reduction;
+}
+
+/**
  * FIRST_SPELL_COST_UP: 各ターン、対戦相手が最初に使用するスペルの使用コストを《無×N》増加。
  * opponentState のフィールドを走査して合計増加量を返す。
  * 呼び出し側で ownerState.actions_done に 'USE_SPELL' がなければ適用する。

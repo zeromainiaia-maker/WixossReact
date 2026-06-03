@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -8293,8 +8293,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             {(() => {
               const card = battleCardMap.get(pendingEnergyActivated.cardNum);
               const eff = pendingEnergyActivated.effect;
-              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
-              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              // ACCE_COST_REDUCTION: WX16-044等が場にある場合、緑コストを1軽減
+              const acceGreenReduction = collectAcceCostReduction(my, effectsMap);
+              const baseCostItems = eff.cost?.energy ?? [];
+              const reducedCostItems = acceGreenReduction > 0
+                ? (() => {
+                    let rem = acceGreenReduction;
+                    return baseCostItems.map(c => {
+                      if (rem > 0 && c.color === '緑' && c.count > 0) {
+                        const reduce = Math.min(rem, c.count);
+                        rem -= reduce;
+                        return { ...c, count: c.count - reduce };
+                      }
+                      return c;
+                    }).filter(c => c.count > 0);
+                  })()
+                : baseCostItems;
+              const energyTotal = reducedCostItems.reduce((s, c) => s + c.count, 0);
+              const costStr = reducedCostItems.map(e => `${e.color}${e.count}`).join('') || '';
               const selectedNums = [...selectedEnergyActivatedCost].map(i => my.energy[i]);
               const canAfford = energyTotal === 0
                 ? true
@@ -8316,6 +8332,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         </p>
                         <p style={{ color: C.textFaint, fontSize: 11, margin: '2px 0 0' }}>
                           コスト: {energyTotal > 0 ? `エナ${energyTotal}枚` : 'なし'}
+                          {acceGreenReduction > 0 && (
+                            <span style={{ color: C.success, marginLeft: 4 }}>(《緑》×{acceGreenReduction}軽減)</span>
+                          )}
                         </p>
                       </div>
                     </div>

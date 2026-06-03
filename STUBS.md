@@ -199,7 +199,7 @@
 | 2 | AUTO/ACTIVATED | ✅ | USE_CONDITION_ARTS_USED ※v0.170: executeArts時にactions_done['USE_ARTS']を追加。execStubがactions_done確認→使用可否判定 |
 | 2 | AUTO | ✅ | VIEW_AND_DISCARD_SPELL ※相手手札スペル選択+TRASH実装済み・重複ハンドラ削除 |
 | 2 | CONT | ✅ | ACCE_BANISH_SELF_TRASH ※signi_acceの全アクセをトラッシュへ移動+field更新実装済み |
-| 1 | CONT | ⚡ | ACCE_COST_REDUCTION ※done(addLog)のみ（アクセコスト軽減未実装） |
+| 1 | CONT | ✅ | ACCE_COST_REDUCTION ※v0.173: collectAcceCostReduction追加。BattleScreenエナアクセUIでreducedCostItems計算→緑コスト1軽減実装 |
 | 1 | AUTO | ✅ | ACCE_FROM_TRASH ※v0.169: トラッシュのアクセを手札経由でSELECT_TARGET→ATTACH_ACCE（line 8910）。NAMED_SIGNI_ACCE_FROM_TRASHと同ハンドラ |
 | 2 | AUTO/ACTIVATED | ⚡ | ACCE_OP ※done(addLog)のみ（アクセカウント確認のみ） |
 | 1 | CONT | ⚡ | ACCE_SIGNI_ALL_COLOR ※done(addLog)のみ（アクセシグニ全色化未実装） |
@@ -534,8 +534,8 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 441 |
-| ⚡ 部分実装 | 71 |
+| ✅ 実装済み | 442 |
+| ⚡ 部分実装 | 70 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
