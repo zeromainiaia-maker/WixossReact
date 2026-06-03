@@ -230,7 +230,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
     function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
-      // PREVENT_ZONE_MOVE_BY_OPP: 逶ｸ謇句柑譫懊〒謇区惆繧偵ヨ繝ｩ繝・す繝･縺ｫ遘ｻ蜍輔＆縺帙↑縺・ｼ亥虚逧・ｨ育ｮ礼沿 + AUTO險ｭ鄂ｮ繝輔Λ繧ｰ・・      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('hand') || c.otherState.prevent_opp_trash_from?.includes('hand'))) {
+      // PREVENT_ZONE_MOVE_BY_OPP: 逶ｸ謇句柑譫懊〒謇区惆繧偵ヨ繝ｩ繝・す繝･縺ｫ遘ｻ蜍輔＆縺帙↑縺・ｼ亥虚逧・ｨ育ｮ礼沿 + AUTO險ｭ鄂ｮ繝輔Λ繧ｰ・・
+      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('hand') || c.otherState.prevent_opp_trash_from?.includes('hand'))) {
         return addLog(c, '逶ｸ謇区焔譛ｭ菫晁ｭｷ・・REVENT_ZONE_MOVE_BY_OPP・会ｼ壽焔譛ｭ竊偵ヨ繝ｩ繝・す繝･髦ｻ豁｢');
       }
       const remaining = [...s.hand];
@@ -244,7 +245,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     if (tgt.count === 'ALL') return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
-    // actingPlayerSelects=true: 縲梧焔譛ｭ繧定ｦ九※N譫夐∈縺ｳ謐ｨ縺ｦ縺輔○繧九・ 閾ｪ蛻・′驕ｸ謚・    // 縺昴ｌ莉･螟悶・ opponent 謇区惆: 縲悟ｯｾ謌ｦ逶ｸ謇九・謇区惆繧誰譫壽昏縺ｦ繧九・ 逶ｸ謇玖・霄ｫ縺碁∈謚・    const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
+    // actingPlayerSelects=true: 縲梧焔譛ｭ繧定ｦ九※N譫夐∈縺ｳ謐ｨ縺ｦ縺輔○繧九・ 閾ｪ蛻・′驕ｸ謚・    // 縺昴ｌ莉･螟悶・ opponent 謇区惆: 縲悟ｯｾ謌ｦ逶ｸ謇九・謇区惆繧誰譫壽昏縺ｦ繧九・ 逶ｸ謇玖・霄ｫ縺碁∈謚・
+    const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
     return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, opponentResponds);
   }
 
@@ -253,7 +255,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
-      // PREVENT_ZONE_MOVE_BY_OPP: 逶ｸ謇句柑譫懊〒繧ｨ繝翫ｒ繝医Λ繝・す繝･縺ｫ遘ｻ蜍輔＆縺帙↑縺・ｼ亥虚逧・ｨ育ｮ礼沿 + AUTO險ｭ鄂ｮ繝輔Λ繧ｰ・・      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('energy') || c.otherState.prevent_opp_trash_from?.includes('energy'))) {
+      // PREVENT_ZONE_MOVE_BY_OPP: 逶ｸ謇句柑譫懊〒繧ｨ繝翫ｒ繝医Λ繝・す繝･縺ｫ遘ｻ蜍輔＆縺帙↑縺・ｼ亥虚逧・ｨ育ｮ礼沿 + AUTO險ｭ鄂ｮ繝輔Λ繧ｰ・・
+      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('energy') || c.otherState.prevent_opp_trash_from?.includes('energy'))) {
         return addLog(c, '逶ｸ謇九お繝贋ｿ晁ｭｷ・・REVENT_ZONE_MOVE_BY_OPP・会ｼ壹お繝岩・繝医Λ繝・す繝･髦ｻ豁｢');
       }
       const newS: PlayerState = {
@@ -623,7 +626,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     }
     let newS: PlayerState = { ...s, keyword_grants: grants };
 
-    // 繝√い繧ｬ繝ｼ繝ｫ縺ｯ繝輔Μ繝ｼ繧ｾ繝ｼ繝ｳ縺ｸ遘ｻ蜍・    if (a.keyword === '繝√い繧ｬ繝ｼ繝ｫ') {
+    // 繝√い繧ｬ繝ｼ繝ｫ縺ｯ繝輔Μ繝ｼ繧ｾ繝ｼ繝ｳ縺ｸ遘ｻ蜍・
+    if (a.keyword === '繝√い繧ｬ繝ｼ繝ｫ') {
       for (const n of selected) {
         const zoneIdx = newS.field.signi.findIndex(stack => stack?.at(-1) === n);
         if (zoneIdx >= 0) {
@@ -738,11 +742,13 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const afterRemaining = a.steps.slice(i + 2);
         const uniqueColors = [...new Set(colors)];
         if (uniqueColors.length === 1) {
-          // 濶ｲ縺・遞ｮ鬘・ 濶ｲ繝輔ぅ繝ｫ繧ｿ莉倥″SEARCH繧堤峩謗･螳溯｡・          const coloredSearch: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: uniqueColors[0] } };
+          // 濶ｲ縺・遞ｮ鬘・ 濶ｲ繝輔ぅ繝ｫ繧ｿ莉倥″SEARCH繧堤峩謗･螳溯｡・
+      const coloredSearch: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: uniqueColors[0] } };
           const newSteps = [coloredSearch as EffectAction, ...afterRemaining];
           return execSequence({ type: 'SEQUENCE', steps: newSteps } as SequenceAction, addLog(cur, `繧ｳ繧ｹ繝郁牡驕ｸ謚橸ｼ・{uniqueColors[0]}`));
         } else {
-          // 濶ｲ縺瑚､・焚: CHOOSE縺ｧ濶ｲ繧帝∈謚槭＆縺帙∝推濶ｲ縺ｮSEARCH繧貞ｮ溯｡・          const afterCont: EffectAction | undefined = afterRemaining.length > 0
+          // 濶ｲ縺瑚､・焚: CHOOSE縺ｧ濶ｲ繧帝∈謚槭＆縺帙∝推濶ｲ縺ｮSEARCH繧貞ｮ溯｡・
+      const afterCont: EffectAction | undefined = afterRemaining.length > 0
             ? (afterRemaining.length === 1 ? afterRemaining[0] : { type: 'SEQUENCE', steps: afterRemaining } as SequenceAction)
             : undefined;
           const opts = uniqueColors.map(c => ({
@@ -775,7 +781,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const stub = step as import('../types/effects').StubAction;
         const costColors = stub.costColors ?? [];
 
-        // SOUL_OP: 繧ｽ繧ｦ繝ｫ繧ｫ繝ｼ繝峨ｒ豸郁ｲｻ縺励※繧ｳ繧ｹ繝域髪謇輔＞・・XDi繧ｷ繝ｪ繝ｼ繧ｺ・・        if (stub.id === 'SOUL_OP') {
+        // SOUL_OP: 繧ｽ繧ｦ繝ｫ繧ｫ繝ｼ繝峨ｒ豸郁ｲｻ縺励※繧ｳ繧ｹ繝域髪謇輔＞・・XDi繧ｷ繝ｪ繝ｼ繧ｺ・・
+      if (stub.id === 'SOUL_OP') {
           const srcZoneSO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);
           const stackSO = srcZoneSO >= 0 ? cur.ownerState.field.signi[srcZoneSO] : null;
           const hasSoul = stackSO != null && stackSO.length >= 2;
@@ -800,7 +807,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, '繧ｽ繧ｦ繝ｫ繧剃ｽｿ逕ｨ縺励※逋ｺ蜍輔＠縺ｾ縺吶°・・), pendingSO);
         }
 
-        // LRIG_UNDER_CARD_OP: 繧ｷ繧ｰ繝倶ｸ九・繧ｫ繝ｼ繝峨ｒ豸郁ｲｻ縺励※繧ｳ繧ｹ繝域髪謇輔＞・・X24/WX25/WXDi繧ｷ繝ｪ繝ｼ繧ｺ・・        if (stub.id === 'LRIG_UNDER_CARD_OP') {
+        // LRIG_UNDER_CARD_OP: 繧ｷ繧ｰ繝倶ｸ九・繧ｫ繝ｼ繝峨ｒ豸郁ｲｻ縺励※繧ｳ繧ｹ繝域髪謇輔＞・・X24/WX25/WXDi繧ｷ繝ｪ繝ｼ繧ｺ・・
+      if (stub.id === 'LRIG_UNDER_CARD_OP') {
           const srcZoneLUCO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);
           const stackLUCO = srcZoneLUCO >= 0 ? cur.ownerState.field.signi[srcZoneLUCO] : null;
           const hasUnder = stackLUCO != null && stackLUCO.length >= 2;
@@ -872,7 +880,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const payLabelTOSOC = costColors.length > 0
             ? `蟇ｾ雎｡驕ｸ謚槭＠縺ｦ逋ｺ蜍包ｼ・{costColors.map(c => `縲・{c}縲義).join('')}・荏
             : '蟇ｾ雎｡驕ｸ謚槭＠縺ｦ逋ｺ蜍・;
-          // BANISH/BOUNCE遲峨・ opponent 菫ｮ豁｣縺ｫ繧医ｊ execBanish 縺ｧ逶ｸ謇九ヵ繧｣繝ｼ繝ｫ繝峨°繧・selectOrInteract 縺瑚ｵｰ繧・          const optsTOSOC = [
+          // BANISH/BOUNCE遲峨・ opponent 菫ｮ豁｣縺ｫ繧医ｊ execBanish 縺ｧ逶ｸ謇九ヵ繧｣繝ｼ繝ｫ繝峨°繧・selectOrInteract 縺瑚ｵｰ繧・
+      const optsTOSOC = [
             { id: 'pay', label: payLabelTOSOC, action: fixedThenTOSOC, available: canAffordTOSOC, ...(costColors.length ? { costColors } : {}) },
             { id: 'skip', label: '繧ｹ繧ｭ繝・・', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
@@ -910,7 +919,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'STUB', id: 'INTERNAL_OTEC_SELECT',
             value: `${destOTEC}:${reqClassOTEC}:${pickCountOTEC}`,
           };
-          // "謇区惆縺ｸ" 繝代ち繝ｼ繝ｳ: 繧ｨ繝翫き繝ｼ繝臥ｧｻ蜍輔′繝｡繧､繝ｳ蜉ｹ譫・ conditional.then 繧定ｿｽ蜉縺励↑縺・          // "繝医Λ繝・す繝･" 繝代ち繝ｼ繝ｳ: 繧ｨ繝翫き繝ｼ繝臥ｧｻ蜍・+ conditional.then・郁ｿｽ蜉蜉ｹ譫懶ｼ・          const payStepsOTEC: EffectAction[] = [selectStubOTEC as EffectAction];
+          // "謇区惆縺ｸ" 繝代ち繝ｼ繝ｳ: 繧ｨ繝翫き繝ｼ繝臥ｧｻ蜍輔′繝｡繧､繝ｳ蜉ｹ譫・ conditional.then 繧定ｿｽ蜉縺励↑縺・          // "繝医Λ繝・す繝･" 繝代ち繝ｼ繝ｳ: 繧ｨ繝翫き繝ｼ繝臥ｧｻ蜍・+ conditional.then・郁ｿｽ蜉蜉ｹ譫懶ｼ・
+      const payStepsOTEC: EffectAction[] = [selectStubOTEC as EffectAction];
           if (!toHandOTEC) payStepsOTEC.push(thenOTEC);
           const payActionOTEC: EffectAction = payStepsOTEC.length === 1
             ? payStepsOTEC[0]
@@ -925,7 +935,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
         }
 
-        // REMOVE_VIRUS: 繧ｦ繧､繝ｫ繧ｹ繧誰蛟句叙繧企勁縺・※縺九ｉconditional.then繧貞ｮ溯｡・        if (stub.id === 'REMOVE_VIRUS') {
+        // REMOVE_VIRUS: 繧ｦ繧､繝ｫ繧ｹ繧誰蛟句叙繧企勁縺・※縺九ｉconditional.then繧貞ｮ溯｡・
+      if (stub.id === 'REMOVE_VIRUS') {
           const toHWRV = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           const virusArrRV = cur.otherState.field.signi_virus ?? [0, 0, 0];
           const totalVirusRV = virusArrRV.reduce((s, v) => s + v, 0);
@@ -967,7 +978,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return mandRV;
         }
 
-        // OPPONENT_PAY_OPTIONAL: 蟇ｾ謌ｦ逶ｸ謇九′繧ｳ繧ｹ繝医ｒ謾ｯ謇輔≧/謾ｯ謇輔ｏ縺ｪ縺・        // pay 竊・菴輔ｂ襍ｷ縺阪↑縺・ｼ亥ｯｾ謌ｦ逶ｸ謇九・繧ｨ繝頑ｶ郁ｲｻ・・ skip 竊・蜉ｹ譫懃匱蜍包ｼ・onditional.then・・        if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
+        // OPPONENT_PAY_OPTIONAL: 蟇ｾ謌ｦ逶ｸ謇九′繧ｳ繧ｹ繝医ｒ謾ｯ謇輔≧/謾ｯ謇輔ｏ縺ｪ縺・        // pay 竊・菴輔ｂ襍ｷ縺阪↑縺・ｼ亥ｯｾ謌ｦ逶ｸ謇九・繧ｨ繝頑ｶ郁ｲｻ・・ skip 竊・蜉ｹ譫懃匱蜍包ｼ・onditional.then・・
+      if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
           const canOppAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.otherState, cur.cardMap);
           const payLabel = costColors.length > 0
             ? `謾ｯ謇輔≧・医さ繧ｹ繝・ ${costColors.map(c => `縲・{c}縲義).join('')}・荏
@@ -1071,7 +1083,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         }
       }
       // Pattern 竭･: TARGET_AND_DISCARD_HAND
-      // 謇区惆1譫壹ｒ閾ｪ蜍墓昏縺ｦ 竊・谿九ｊ繧ｹ繝・ャ繝励∈邯夊｡鯉ｼ医ち繝ｼ繧ｲ繝・ヨ縺ｯ蠕檎ｶ壹せ繝・ャ繝励′迢ｬ遶九＠縺ｦ驕ｸ謚橸ｼ・      if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'TARGET_AND_DISCARD_HAND') {
+      // 謇区惆1譫壹ｒ閾ｪ蜍墓昏縺ｦ 竊・谿九ｊ繧ｹ繝・ャ繝励∈邯夊｡鯉ｼ医ち繝ｼ繧ｲ繝・ヨ縺ｯ蠕檎ｶ壹せ繝・ャ繝励′迢ｬ遶九＠縺ｦ驕ｸ謚橸ｼ・
+      if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'TARGET_AND_DISCARD_HAND') {
         if (cur.ownerState.hand.length > 0) {
           const discardIdx = cur.ownerState.hand.length - 1;
           const discarded = cur.ownerState.hand[discardIdx];
@@ -1271,7 +1284,8 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
     charmCands = charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
     charmFromLocation = 'trash';
   } else {
-    // 繝・ヵ繧ｩ繝ｫ繝医・謇区惆 or 繧ｨ繝奇ｼ・ilter謖・ｮ壹′縺ゅｌ縺ｰ繧ｨ繝翫°繧会ｼ・    const fromEnergy = charmSrc.energy.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+    // 繝・ヵ繧ｩ繝ｫ繝医・謇区惆 or 繧ｨ繝奇ｼ・ilter謖・ｮ壹′縺ゅｌ縺ｰ繧ｨ繝翫°繧会ｼ・
+    const fromEnergy = charmSrc.energy.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
     const fromHand = charmSrc.hand.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
     if (fromEnergy.length > 0) { charmCands = fromEnergy; charmFromLocation = 'energy'; }
     else { charmCands = fromHand; charmFromLocation = 'hand'; }
@@ -1849,10 +1863,12 @@ function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecRe
     if (a.targetFilter && !matchesFilter(card, a.targetFilter)) return [];
     const sameName = card?.CardName;
     if (!sameName) return [];
-    // 譌｢縺ｫ陦譎ｶ豁ｦ陬・憾諷九〒繧る∈謚槫庄閭ｽ・医＆繧峨↓驥阪・繧九％縺ｨ縺後〒縺阪ｋ・・    const inHand  = a.source.includes('hand')  && ctx.ownerState.hand.some(n => ctx.cardMap.get(n)?.CardName === sameName);
+    // 譌｢縺ｫ陦譎ｶ豁ｦ陬・憾諷九〒繧る∈謚槫庄閭ｽ・医＆繧峨↓驥阪・繧九％縺ｨ縺後〒縺阪ｋ・・
+    const inHand  = a.source.includes('hand')  && ctx.ownerState.hand.some(n => ctx.cardMap.get(n)?.CardName === sameName);
     const inTrash = a.source.includes('trash') && ctx.ownerState.trash.some(n => ctx.cardMap.get(n)?.CardName === sameName);
     const inDeck  = a.source.includes('deck')  && ctx.ownerState.deck.some(n => ctx.cardMap.get(n)?.CardName === sameName);
-    // 閾ｪ霄ｫ縺ｨ蜷悟錐縺ｮ繧ｫ繝ｼ繝峨ｒ繧ｫ繧ｦ繝ｳ繝医☆繧矩圀縲√ヵ繧｣繝ｼ繝ｫ繝峨↓縺ゅｋ閾ｪ霄ｫ縺ｯ髯､縺・    const fieldSelf = stack[stack.length - 1];
+    // 閾ｪ霄ｫ縺ｨ蜷悟錐縺ｮ繧ｫ繝ｼ繝峨ｒ繧ｫ繧ｦ繝ｳ繝医☆繧矩圀縲√ヵ繧｣繝ｼ繝ｫ繝峨↓縺ゅｋ閾ｪ霄ｫ縺ｯ髯､縺・
+    const fieldSelf = stack[stack.length - 1];
     const inHandExcSelf  = a.source.includes('hand')  && ctx.ownerState.hand.some(n => { const cn = ctx.cardMap.get(n)?.CardName; return cn === sameName && n !== fieldSelf; });
     const inTrashExcSelf = a.source.includes('trash') && ctx.ownerState.trash.some(n => ctx.cardMap.get(n)?.CardName === sameName);
     const inDeckExcSelf  = a.source.includes('deck')  && ctx.ownerState.deck.some(n => ctx.cardMap.get(n)?.CardName === sameName);
@@ -2074,7 +2090,8 @@ export function resumeSearch(
   if (!opt) return done(ctx);
   const result = executeAction(opt.action, ctx);
   if (!result.done) {
-    // 繝阪せ繝医＠縺溘う繝ｳ繧ｿ繝ｩ繧ｯ繧ｷ繝ｧ繝ｳ・・ELECT_TARGET 遲会ｼ峨・ continuation 縺ｫ螟門・縺ｮ continuation 繧貞粋謌・    if (pending.continuation) {
+    // 繝阪せ繝医＠縺溘う繝ｳ繧ｿ繝ｩ繧ｯ繧ｷ繝ｧ繝ｳ・・ELECT_TARGET 遲会ｼ峨・ continuation 縺ｫ螟門・縺ｮ continuation 繧貞粋謌・
+    if (pending.continuation) {
       const existing = result.pending.continuation;
       result.pending = {
         ...result.pending,
@@ -2130,7 +2147,8 @@ export function resumeOptionalCost(
 
   const result = executeAction(payOpt?.action ?? noopAction, cur);
   if (!result.done) {
-    // continuation繧・result.pending 縺ｫ莉倥￠雜ｳ縺・    if (pending.continuation) {
+    // continuation繧・result.pending 縺ｫ莉倥￠雜ｳ縺・
+    if (pending.continuation) {
       const merged: EffectAction = result.pending.continuation
         ? { type: 'SEQUENCE', steps: [result.pending.continuation, pending.continuation] } as SequenceAction
         : pending.continuation;
@@ -2155,7 +2173,8 @@ export function resumeOptionalCost(
   const skipOpt = pending.options.find(o => o.id === 'skip');
 
   if (choiceId !== 'pay') {
-    // 蟇ｾ謌ｦ逶ｸ謇九′謾ｯ謇輔ｏ縺ｪ縺・竊・蜉ｹ譫懃匱蜍・    const result = executeAction(skipOpt?.action ?? noopAction, ctx);
+    // 蟇ｾ謌ｦ逶ｸ謇九′謾ｯ謇輔ｏ縺ｪ縺・竊・蜉ｹ譫懃匱蜍・
+    const result = executeAction(skipOpt?.action ?? noopAction, ctx);
     if (!result.done) {
       if (pending.continuation) {
         const merged: EffectAction = result.pending.continuation
@@ -2205,7 +2224,8 @@ export function resumeOptionalCost(
   } else if (pending.destPosition === 'bottom') {
     newS = { ...state, deck: [...state.deck, ...keep], trash: [...state.trash, ...trashed] };
   } else if (pending.destPosition === 'first_top_rest_bottom') {
-    // 1譫夂岼竊偵ョ繝・く繝医ャ繝励∵ｮ九ｊ竊偵ョ繝・く荳・    const [firstCard, ...restCards] = keep;
+    // 1譫夂岼竊偵ョ繝・く繝医ャ繝励∵ｮ九ｊ竊偵ョ繝・く荳・
+    const [firstCard, ...restCards] = keep;
     newS = { ...state, deck: [...(firstCard ? [firstCard] : []), ...state.deck, ...restCards], trash: [...state.trash, ...trashed] };
   } else {
     newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
@@ -2290,7 +2310,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
         return done(ctx);
       }
-      // HAND_CARD: hand 縺九ｉ繝医Λ繝・す繝･・亥酔蜷阪き繝ｼ繝峨′隍・焚縺ゅｋ蝣ｴ蜷医・蜈磯ｭ縺ｮ1譫壹・縺ｿ・・      for (const owner of ['self', 'opponent'] as Owner[]) {
+      // HAND_CARD: hand 縺九ｉ繝医Λ繝・す繝･・亥酔蜷阪き繝ｼ繝峨′隍・焚縺ゅｋ蝣ｴ蜷医・蜈磯ｭ縺ｮ1譫壹・縺ｿ・・
+      for (const owner of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(owner, ctx);
         const hi = s.hand.indexOf(cardNum);
         if (hi >= 0) {
@@ -2381,12 +2402,15 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧貞ｴ縺ｫ蜃ｺ縺兪)`);
     }
     case 'ATTACH_ACCE': {
-      // cardNum = SELECT_TARGET 縺ｧ驕ｸ縺ｰ繧後◆繧ｷ繧ｰ繝・      const acceAction = action as import('../types/effects').AttachAcceAction;
+      // cardNum = SELECT_TARGET 縺ｧ驕ｸ縺ｰ繧後◆繧ｷ繧ｰ繝・
+      const acceAction = action as import('../types/effects').AttachAcceAction;
       const tgtState = ownerState(acceAction.targetSigniOwner, ctx);
       const srcState = ownerState(acceAction.sourceOwner, ctx);
-      // cardNum = SELECT_TARGET縺ｧ驕ｸ縺ｰ繧後◆繝帙せ繝医す繧ｰ繝・      const zoneIdx  = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum);
+      // cardNum = SELECT_TARGET縺ｧ驕ｸ縺ｰ繧後◆繝帙せ繝医す繧ｰ繝・
+      const zoneIdx  = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
-      // acce繧ｫ繝ｼ繝・= sourceCardNum・医お繝翫だ繝ｼ繝ｳ縺九ｉ縺ｮ蝣ｴ蜷茨ｼ峨∪縺溘・ lastProcessedCards[0]・域焔譛ｭ驕ｸ謚槫ｾ鯉ｼ・      const acceCardNum = ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
+      // acce繧ｫ繝ｼ繝・= sourceCardNum・医お繝翫だ繝ｼ繝ｳ縺九ｉ縺ｮ蝣ｴ蜷茨ｼ峨∪縺溘・ lastProcessedCards[0]・域焔譛ｭ驕ｸ謚槫ｾ鯉ｼ・
+      const acceCardNum = ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
       if (!acceCardNum) return done(ctx);
       // 繧ｨ繝翫だ繝ｼ繝ｳ縺ｾ縺溘・謇区惆縺九ｉ繧｢繧ｯ繧ｻ繧ｫ繝ｼ繝峨ｒ髯､蜴ｻ
       let newSrc = { ...srcState };
@@ -2398,7 +2422,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}縺後お繝・謇区惆縺ｫ縺ｪ縺Я)`);
       }
       let ctx2 = setOwnerState(acceAction.sourceOwner, newSrc, ctx);
-      // signi_acce[zoneIdx] 縺ｫ險ｭ螳・      const tgt2 = ownerState(acceAction.targetSigniOwner, ctx2);
+      // signi_acce[zoneIdx] 縺ｫ險ｭ螳・
+      const tgt2 = ownerState(acceAction.targetSigniOwner, ctx2);
       const newAcce = [...(tgt2.field.signi_acce ?? [null, null, null])];
       newAcce[zoneIdx] = acceCardNum;
       const newTgt: import('../types').PlayerState = { ...tgt2, field: { ...tgt2.field, signi_acce: newAcce } };
@@ -2406,7 +2431,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const acceCardName  = ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum;
       const signiCardName = ctx.cardMap.get(cardNum)?.CardName ?? cardNum;
       // ON_ACCE 繝医Μ繧ｬ繝ｼ: 繧｢繧ｯ繧ｻ縺励◆縺薙→縺ｧ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝九・ ON_ACCE AUTO 蜉ｹ譫懊ｒ逋ｺ轣ｫ
-      // ・・attleScreen蛛ｴ縺ｮ queueCardEffects 縺ｧ ON_ACCE 繧貞・逅・ｼ・      const ctx3 = addLog(ctx2, `${acceCardName}繧・{signiCardName}縺ｫ繧｢繧ｯ繧ｻ`);
+      // ・・attleScreen蛛ｴ縺ｮ queueCardEffects 縺ｧ ON_ACCE 繧貞・逅・ｼ・
+      const ctx3 = addLog(ctx2, `${acceCardName}繧・{signiCardName}縺ｫ繧｢繧ｯ繧ｻ`);
       // acce_just_done 繝輔Λ繧ｰ: BattleScreen縺ｧ ON_ACCE 繝医Μ繧ｬ繝ｼ繧呈､懷・縺吶ｋ縺溘ａ縺ｫ菴ｿ逕ｨ
       const tgt3 = ownerState(acceAction.targetSigniOwner, ctx3);
       const withFlag: import('../types').PlayerState = {
@@ -2416,7 +2442,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(setOwnerState(acceAction.targetSigniOwner, withFlag, ctx3));
     }
     case 'SEQUENCE': {
-      // SEARCH 縺ｮ thenAction 縺・SEQUENCE[REVEAL, ADD_TO_HAND] 遲峨・蝣ｴ蜷医・      // cardNum 繧貞推繧ｹ繝・ャ繝励↓蠑輔″邯吶＞縺ｧ螳溯｡後☆繧・      const steps = (action as import('../types/effects').SequenceAction).steps;
+      // SEARCH 縺ｮ thenAction 縺・SEQUENCE[REVEAL, ADD_TO_HAND] 遲峨・蝣ｴ蜷医・      // cardNum 繧貞推繧ｹ繝・ャ繝励↓蠑輔″邯吶＞縺ｧ螳溯｡後☆繧・
+      const steps = (action as import('../types/effects').SequenceAction).steps;
       let cur = ctx;
       for (const step of steps) {
         const r = applyDirectAction(step, cardNum, cur);
@@ -2436,7 +2463,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}縺ｮ繧｢繧ｿ繝・け繧堤┌蜉ｹ蛹冒)`);
     }
     case 'BLOOD_CRYSTAL_ARMOR': {
-      // cardNum = 陦譎ｶ豁ｦ陬・☆繧句ｯｾ雎｡繧ｷ繧ｰ繝具ｼ・ELECT_TARGET縺ｧ驕ｸ縺ｰ繧後◆繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝具ｼ・      const bcaA = action as import('../types/effects').BloodCrystalArmorAction;
+      // cardNum = 陦譎ｶ豁ｦ陬・☆繧句ｯｾ雎｡繧ｷ繧ｰ繝具ｼ・ELECT_TARGET縺ｧ驕ｸ縺ｰ繧後◆繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝具ｼ・
+      const bcaA = action as import('../types/effects').BloodCrystalArmorAction;
       const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
       const targetCard = ctx.cardMap.get(cardNum);
@@ -2447,7 +2475,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       let foundCard: string | null = null;
       let shuffleNeeded = false;
 
-      // hand / trash 縺九ｉ蜷悟錐繧ｫ繝ｼ繝峨ｒ謗｢縺呻ｼ・eck 縺ｯ譛蠕後↓・・      for (const src of bcaA.source) {
+      // hand / trash 縺九ｉ蜷悟錐繧ｫ繝ｼ繝峨ｒ謗｢縺呻ｼ・eck 縺ｯ譛蠕後↓・・
+      for (const src of bcaA.source) {
         if (src === 'hand') {
           const idx = newState.hand.findIndex(n => ctx.cardMap.get(n)?.CardName === sameName);
           if (idx >= 0) { foundCard = newState.hand[idx]; newState = { ...newState, hand: newState.hand.filter((_, i) => i !== idx) }; break; }
@@ -2461,12 +2490,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       if (!foundCard) return done(addLog({ ...ctx, ownerState: newState }, `陦譎ｶ豁ｦ陬・ｯｾ雎｡縺ｪ縺暦ｼ・{sameName}・荏)`);
 
-      // 繧ｷ繧ｰ繝九せ繧ｿ繝・け縺ｮ蜈磯ｭ縺ｫ霑ｽ蜉・井ｸ九↓鄂ｮ縺擾ｼ・      const newSigni = newState.field.signi.map((stack, i) => {
+      // 繧ｷ繧ｰ繝九せ繧ｿ繝・け縺ｮ蜈磯ｭ縺ｫ霑ｽ蜉・井ｸ九↓鄂ｮ縺擾ｼ・
+      const newSigni = newState.field.signi.map((stack, i) => {
         if (i !== zoneIdx) return stack;
         return [foundCard!, ...(stack ?? [])];
       }) as (string[] | null)[];
 
-      // 陦譎ｶ豁ｦ陬・ヵ繝ｩ繧ｰ繧堤ｫ九※繧具ｼ域里縺ｫtrue縺ｧ繧Ｕrue縺ｮ縺ｾ縺ｾ・・      const wasAlreadyArmored = newState.field.signi_armor?.[zoneIdx] ?? false;
+      // 陦譎ｶ豁ｦ陬・ヵ繝ｩ繧ｰ繧堤ｫ九※繧具ｼ域里縺ｫtrue縺ｧ繧Ｕrue縺ｮ縺ｾ縺ｾ・・
+      const wasAlreadyArmored = newState.field.signi_armor?.[zoneIdx] ?? false;
       const newArmor = [...(newState.field.signi_armor ?? [false, false, false])];
       newArmor[zoneIdx] = true;
 
@@ -2505,7 +2536,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }) as (string[] | null)[];
         newState = { ...newState, field: { ...newState.field, signi: newSigniWithRemoval } };
       }
-      // 繧ｾ繝ｼ繝ｳ縺ｮ蜈磯ｭ縺ｫ霑ｽ蜉・井ｸ九↓鄂ｮ縺擾ｼ・      const newSigni = newState.field.signi.map((stack, i) => {
+      // 繧ｾ繝ｼ繝ｳ縺ｮ蜈磯ｭ縺ｫ霑ｽ蜉・井ｸ九↓鄂ｮ縺擾ｼ・
+      const newSigni = newState.field.signi.map((stack, i) => {
         if (i !== zoneIdx) return stack;
         return [cardNum, ...(stack ?? [])];
       }) as (string[] | null)[];
@@ -2581,7 +2613,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧偵す繧ｰ繝九・荳九°繧・{destLabel}縺ｫ遘ｻ蜍描)`);
     }
     default:
-      // STUB 遲峨・蝣ｴ蜷医・∈謚樔ｸｭ縺ｮ cardNum 繧・lastProcessedCards 縺ｧ蠑輔″貂｡縺・      return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
+      // STUB 遲峨・蝣ｴ蜷医・∈謚樔ｸｭ縺ｮ cardNum 繧・lastProcessedCards 縺ｧ蠑輔″貂｡縺・
+      return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
   }
 }
 
