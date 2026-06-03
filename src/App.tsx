@@ -194,17 +194,11 @@ export default function App() {
   // variantCards を CardNum で引けるマップ
   const variantCardMap = useMemo(() => new Map(variantCards.map(c => [c.CardNum, c])), [variantCards]);
 
-  // artOverrides を allCards の ImgURL に適用したカード配列を返すヘルパー
-  const applyOverrides = (baseCards: CardData[], ...deckIds: (string | null | undefined)[]): CardData[] => {
-    const merged: Record<string, string> = {};
-    deckIds.forEach(id => {
-      const d = decks.find(dk => dk.id === id);
-      Object.assign(merged, d?.artOverrides ?? {});
-    });
+  // artOverrides を allCards の ImgURL に適用するユーティリティ
+  const applyArtOverrides = (baseCards: CardData[], merged: Record<string, string>): CardData[] => {
     if (Object.keys(merged).length === 0) return baseCards;
     return baseCards.map(c => {
-      const vNum = merged[c.CardNum];
-      const vCard = vNum ? variantCardMap.get(vNum) : undefined;
+      const vCard = variantCardMap.get(merged[c.CardNum] ?? '');
       return vCard ? { ...c, ImgURL: vCard.ImgURL } : c;
     });
   };
@@ -213,18 +207,16 @@ export default function App() {
   const battleCards = useMemo(() => {
     const myDeck = decks.find(d => d.id === battleDeckId);
     const merged = { ...(myDeck?.artOverrides ?? {}), ...battleOppArtOverrides };
-    if (Object.keys(merged).length === 0) return allCards;
-    return allCards.map(c => {
-      const vCard = variantCardMap.get(merged[c.CardNum] ?? '');
-      return vCard ? { ...c, ImgURL: vCard.ImgURL } : c;
-    });
-  }, [allCards, battleDeckId, decks, battleOppArtOverrides, variantCardMap]);
+    return applyArtOverrides(allCards, merged);
+  }, [allCards, battleDeckId, decks, battleOppArtOverrides, variantCardMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CPU対戦用カード配列（自分 + CPU 両デッキの artOverrides を適用）
-  const cpuBattleCards = useMemo(
-    () => applyOverrides(allCards, cpuBattleDeckId, decks.find(d => d.id !== cpuBattleDeckId)?.id),
-    [allCards, cpuBattleDeckId, decks, variantCardMap], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const cpuBattleCards = useMemo(() => {
+    const myDeck = decks.find(d => d.id === cpuBattleDeckId);
+    const cpuDeck = decks.find(d => d.id !== cpuBattleDeckId);
+    const merged = { ...(cpuDeck?.artOverrides ?? {}), ...(myDeck?.artOverrides ?? {}) };
+    return applyArtOverrides(allCards, merged);
+  }, [allCards, cpuBattleDeckId, decks, variantCardMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return null;
 
