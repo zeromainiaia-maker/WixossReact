@@ -140,6 +140,7 @@ export default function App() {
         lrigDeck: d.lrig_deck ?? [],
         thumbnailCardNum: d.thumbnail_card_num,
         sortOrder: d.sort_order ?? 0,
+        artOverrides: d.art_overrides ?? {},
       })));
     });
   }, [user]);
