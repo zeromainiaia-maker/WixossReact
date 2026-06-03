@@ -68,16 +68,16 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
     return map;
   }, [cards, variantCards, tkCards]);
 
-  // 同名カード（絵柄違い）のグループ: CardName → CardData[]（通常cards + variantCards）
+  // 同名カード（絵柄違い）のグループ: CardName → CardData[]（通常cards + variantCards + tkCards）
   const variantMap = useMemo(() => {
     const map = new Map<string, CardData[]>();
-    [...cards, ...variantCards].forEach(c => {
+    [...cards, ...variantCards, ...tkCards].forEach(c => {
       const group = map.get(c.CardName) ?? [];
       group.push(c);
       map.set(c.CardName, group);
     });
     return map;
-  }, [cards, variantCards]);
+  }, [cards, variantCards, tkCards]);
 
   const extraLrigCount = useMemo(() =>
     current.lrigDeck.filter(n => { const c = cardMap.get(n); return c && isExtraLrigCard(c); }).length,
