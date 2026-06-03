@@ -311,7 +311,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
         ) : (
           <h2 onClick={() => setEditingName(true)} style={{ fontSize: '16px', cursor: 'pointer', borderBottom: '1px dashed #999', margin: 0, color: '#333' }}>{current.name}</h2>
         )}
-        <button onClick={() => setShowThumbnailModal(true)} style={{ ...iconButtonStyle, marginLeft: 'auto' }}>🖼 サムネイル</button>
+        <button onClick={() => setShowDeckSettingsMenu(true)} style={{ ...iconButtonStyle, marginLeft: 'auto' }}>⚙ デッキ設定</button>
         <button onClick={() => { if (confirm('このデッキを削除しますか？')) onDelete(current.id); }} style={{ ...iconButtonStyle, color: '#cc2222' }}>削除</button>
       </div>
 
