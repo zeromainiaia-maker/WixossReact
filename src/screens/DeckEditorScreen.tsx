@@ -220,7 +220,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
     const canAdd = card != null && nameCount < copyMax && (
       lrig
         ? (extra ? extraLrigCount < LRIG_EXTRA_MAX : regularLrigCount < LRIG_MAX)
-        : current.mainDeck.length < MAIN_MAX
+        : current.mainDeck.length < MAIN_MAX && !(hasLB && lbCount >= LB_MAX)
     );
     const variants = card ? (variantMap.get(card.CardName) ?? []) : [];
     const hasVariants = variants.length > 1;
