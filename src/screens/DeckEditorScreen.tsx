@@ -309,6 +309,12 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
                   onClick={() => setExpandedCardNum(card.CardNum)}
                   style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px', borderBottom: '1px solid rgba(0,0,0,0.07)', cursor: 'pointer', backgroundColor: bg, borderRadius: '6px', marginBottom: '3px' }}
                 >
+                  <img
+                    src={getThumbUrl(card.ImgURL)}
+                    alt={card.CardName}
+                    style={{ width: '44px', height: '62px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }}
+                    onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
+                  />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
                       <p style={{ fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#111', fontWeight: '500', margin: 0 }}>{card.CardName}</p>
