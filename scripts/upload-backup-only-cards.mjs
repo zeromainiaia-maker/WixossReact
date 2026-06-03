@@ -109,6 +109,7 @@ if (DRY_RUN) {
 }
 
 async function downloadAsWebp(url) {
+  const { default: sharp } = await import('sharp');
   const res = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
