@@ -196,6 +196,10 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
     );
     const variants = card ? (variantMap.get(card.CardName) ?? []) : [];
     const hasVariants = variants.length > 1;
+    // 表示用カード（artOverridesで絵柄が差し替えられている場合はそちらを使用）
+    const displayCardNum = current.artOverrides?.[cardNum] ?? cardNum;
+    const displayCard = cardMap.get(displayCardNum) ?? card;
+    const hasOverride = !!current.artOverrides?.[cardNum];
     return (
       <div
         key={cardNum}
@@ -203,10 +207,10 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
         style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 10px', borderBottom: '1px solid rgba(0,0,0,0.07)', backgroundColor: bg, borderRadius: '6px', marginBottom: '3px', cursor: 'pointer' }}
       >
         <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '3px', width: '44px' }}>
-          {card && (
+          {displayCard && (
             <img
-              src={getThumbUrl(card.ImgURL)}
-              alt={card.CardName}
+              src={getThumbUrl(displayCard.ImgURL)}
+              alt={displayCard.CardName}
               style={{ width: '44px', height: '62px', objectFit: 'cover', borderRadius: '4px', display: 'block' }}
               onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
             />
@@ -215,10 +219,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
             <button
               onClick={e => { e.stopPropagation(); setVariantPickerFor({ cardNum, from }); }}
               style={{
-                width: '100%', backgroundColor: '#5533aa', border: 'none', borderRadius: '3px',
+                width: '100%', border: 'none', borderRadius: '3px',
+                backgroundColor: hasOverride ? '#2266cc' : '#5533aa',
                 color: '#fff', fontSize: '10px', padding: '3px 0', cursor: 'pointer', fontWeight: 'bold',
               }}
-            >絵柄</button>
+            >{hasOverride ? '絵柄★' : '絵柄'}</button>
           )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
