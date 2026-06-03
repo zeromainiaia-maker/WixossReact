@@ -200,7 +200,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
         onClick={() => setExpandedCardNum(cardNum)}
         style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 10px', borderBottom: '1px solid rgba(0,0,0,0.07)', backgroundColor: bg, borderRadius: '6px', marginBottom: '3px', cursor: 'pointer' }}
       >
-        <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '3px', width: '44px' }}>
           {card && (
             <img
               src={getThumbUrl(card.ImgURL)}
@@ -212,11 +212,9 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
           {hasVariants && (
             <button
               onClick={e => { e.stopPropagation(); setVariantPickerFor({ cardNum, from }); }}
-              title="絵柄を変更"
               style={{
-                position: 'absolute', bottom: 2, right: 2,
-                backgroundColor: 'rgba(80,40,180,0.85)', border: 'none', borderRadius: '3px',
-                color: '#fff', fontSize: '9px', padding: '1px 3px', cursor: 'pointer', lineHeight: 1.2,
+                width: '100%', backgroundColor: '#5533aa', border: 'none', borderRadius: '3px',
+                color: '#fff', fontSize: '10px', padding: '3px 0', cursor: 'pointer', fontWeight: 'bold',
               }}
             >絵柄</button>
           )}
