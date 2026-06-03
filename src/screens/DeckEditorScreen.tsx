@@ -441,6 +441,73 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
         </div>
       )}
 
+      {/* デッキ設定メニュー */}
+      {showDeckSettingsMenu && (
+        <div
+          onClick={() => setShowDeckSettingsMenu(false)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '20px', width: 'min(80vw, 280px)', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid #444' }}>
+            <h3 style={{ color: '#fff', fontSize: '15px', margin: 0, textAlign: 'center' }}>デッキ設定</h3>
+            <button
+              onClick={() => { setShowDeckSettingsMenu(false); setShowThumbnailModal(true); }}
+              style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#3a3a5a', color: '#fff', fontSize: '14px', cursor: 'pointer', textAlign: 'left' }}
+            >🖼 サムネイル設定</button>
+            <button
+              onClick={() => { setShowDeckSettingsMenu(false); setShowTokenModal(true); }}
+              style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: '#3a3a5a', color: '#fff', fontSize: '14px', cursor: 'pointer', textAlign: 'left' }}
+            >🃏 トークン設定</button>
+          </div>
+        </div>
+      )}
+
+      {/* トークン設定モーダル */}
+      {showTokenModal && (() => {
+        const tkWithVariants = tkCards.filter(tk => (variantMap.get(tk.CardName) ?? []).length > 1);
+        return (
+          <div
+            onClick={() => setShowTokenModal(false)}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '20px', width: 'min(90vw, 480px)', maxHeight: '80vh', display: 'flex', flexDirection: 'column', border: '1px solid #444' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px', flexShrink: 0 }}>
+                <h3 style={{ color: '#fff', fontSize: '15px', margin: 0 }}>トークン設定</h3>
+                <button onClick={() => setShowTokenModal(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#888', fontSize: '20px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+              </div>
+              {tkWithVariants.length === 0 ? (
+                <p style={{ color: '#666', textAlign: 'center', padding: '24px' }}>絵柄違いのトークンはありません</p>
+              ) : (
+                <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {tkWithVariants.map(tk => {
+                    const currentDisplayNum = current.artOverrides?.[tk.CardNum] ?? tk.CardNum;
+                    const displayCard = cardMap.get(currentDisplayNum) ?? tk;
+                    const group = variantMap.get(tk.CardName) ?? [];
+                    return (
+                      <div key={tk.CardNum} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                        <img
+                          src={getThumbUrl(displayCard.ImgURL)}
+                          alt={tk.CardName}
+                          style={{ width: '44px', height: '62px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }}
+                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ color: '#fff', fontSize: '13px', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tk.CardName}</p>
+                          <p style={{ color: '#aaa', fontSize: '11px', margin: 0 }}>{group.length}種類の絵柄</p>
+                        </div>
+                        <button
+                          onClick={() => { setShowTokenModal(false); setVariantPickerFor({ cardNum: tk.CardNum, from: 'token' }); }}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', backgroundColor: '#7755dd', color: '#fff', fontSize: '12px', cursor: 'pointer', flexShrink: 0 }}
+                        >絵柄変更</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* サムネイル選択モーダル */}
       {showThumbnailModal && (() => {
         const allNums = [...new Set([...current.mainDeck, ...current.lrigDeck])];
