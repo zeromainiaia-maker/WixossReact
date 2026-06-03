@@ -54,20 +54,20 @@ export function execStub(
     const costColorsOC = stub.costColors ?? [];
     const canAffordOC = costColorsOC.length === 0 || canPayOptionalCost(costColorsOC, ctx.ownerState, ctx.cardMap);
     const payLabelOC = costColorsOC.length > 0
-      ? `逋ｺ蜍輔☆繧具ｼ・{costColorsOC.map(c => `縲・{c}縲義).join('')}・荏
-      : '逋ｺ蜍輔☆繧・;
+      ? `発動する（${costColorsOC.map(c => `《${c}》`).join('')}）`
+      : '発動する';
     const noopOC: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
-    return needsInteraction(addLog(ctx, '莉ｻ諢上さ繧ｹ繝茨ｼ夂匱蜍輔＠縺ｾ縺吶°・・), {
+    return needsInteraction(addLog(ctx, '任意コスト：発動しますか？'), {
       type: 'CHOOSE', count: 1,
       options: [
         { id: 'pay',  label: payLabelOC, action: noopOC as EffectAction, available: canAffordOC,
           ...(costColorsOC.length ? { costColors: costColorsOC } : {}) },
-        { id: 'skip', label: '繧ｹ繧ｭ繝・・',  action: noopOC as EffectAction, available: true },
+        { id: 'skip', label: 'スキップ',  action: noopOC as EffectAction, available: true },
       ],
     });
   }
   // 莉悶・莉ｻ諢上さ繧ｹ繝育ｳｻ・・EQUENCE繝代ち繝ｼ繝ｳ螟悶・繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ・・  if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
-    return done(addLog(ctx, `莉ｻ諢上さ繧ｹ繝茨ｼ・{stub.id}・壼ｾ檎ｶ壹せ繝・ャ繝励〒蜃ｦ逅・ｼ荏));
+    return done(addLog(ctx, `任意コスト（${stub.id}：後続ステップで処理）`));
   }
   // 蟇ｾ謌ｦ逶ｸ謇倶ｻｻ諢上さ繧ｹ繝茨ｼ育嶌謇九↓CHOOSE繧呈署遉ｺ縺励∵髪謇輔≧縺ｨ繝輔Λ繧ｰ繧堤ｫ九※繧具ｼ・  if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
     const costLen = stub.costColors?.length ?? 0;

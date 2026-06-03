@@ -3317,8 +3317,8 @@ export function collectAllColorSigniForField(
   state: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
-  otherState: PlayerState,
-  isOwnerTurn: boolean,
+  _otherState: PlayerState,
+  _isOwnerTurn: boolean,
 ): Set<string> {
   const result = new Set<string>();
 

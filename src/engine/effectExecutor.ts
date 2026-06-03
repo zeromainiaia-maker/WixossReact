@@ -885,14 +885,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           };
           void toHWTOSOC; // count xecBanish/execBounce           const fixedThenTOSOC = fixOwnerTOSOC(conditional.then);
           const payLabelTOSOC = costColors.length > 0
-            ? `${costColors.map(c => `縲・{c}縲義).join('')}・荏
-            : ';'
+            ? `対象選択して発動（${costColors.map(c => `《${c}》`).join('')}）`
+            : '対象選択して発動';
           // BANISH/BOUNCE opponent  execBanish selectOrInteract 
       const optsTOSOC = [
             { id: 'pay', label: payLabelTOSOC, action: fixedThenTOSOC, available: canAffordTOSOC, ...(costColors.length ? { costColors } : {}) },
-            { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
-          return needsInteraction(addLog(cur, ''), {
+          return needsInteraction(addLog(cur, '任意コスト：対象シグニを選んで発動しますか？'), {
             type: 'CHOOSE', options: optsTOSOC, count: 1, ...(cont ? { continuation: cont } : {}),
           });
         }
@@ -932,7 +932,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const payActionOTEC: EffectAction = payStepsOTEC.length === 1
             ? payStepsOTEC[0]
             : { type: 'SEQUENCE', steps: payStepsOTEC } as import('../types/effects').SequenceAction;
-          const payLabelOTEC = reqClassOTEC ? `${reqClassOTEC} : ';`
+          const payLabelOTEC = reqClassOTEC ? `エナ＜${reqClassOTEC}＞を選択して発動` : 'エナから選択して発動';
           const optsOTEC = [
             { id: 'pay', label: payLabelOTEC, action: payActionOTEC, available: true },
             { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
@@ -989,26 +989,26 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
           const canOppAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.otherState, cur.cardMap);
           const payLabel = costColors.length > 0
-            ? ` ${costColors.map(c => `縲・{c}縲義).join('')}`
-            : '';
+            ? `支払う（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
+            : '支払う';
           const options = [
             { id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, ...(costColors.length ? { costColors } : {}) },
-            { id: 'skip', label: ', action: conditional.then, available: true },'
+            { id: 'skip', label: '支払わない', action: conditional.then, available: true },
           ];
           const pending: PendingInteractionDef = {
             type: 'CHOOSE', options, count: 1, opponentResponds: true,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, '), pending');
+          return needsInteraction(addLog(cur, '対戦相手：コストを支払いますか？'), pending);
         }
 
         const canAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
         const payLabel = costColors.length > 0
-          ? ` ${costColors.map(c => `縲・${c}縲義).join('')}`
-          : ';'
+          ? `発動する（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
+          : '発動する';
         const options = [
           { id: 'pay', label: payLabel, action: conditional.then, available: canAfford, ...(costColors.length ? { costColors } : {}) },
-          { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
         ];
         const pending: PendingInteractionDef = {
           type: 'CHOOSE',
@@ -1016,7 +1016,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           count: 1,
           ...(cont ? { continuation: cont } : {}),
         };
-        return needsInteraction(addLog(cur, '), pending');
+        return needsInteraction(addLog(cur, '任意コスト：発動しますか？'), pending);
       }
 
       // Pattern   STUB ... BASE_STEPS ... CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)
@@ -1051,17 +1051,17 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             const costColors4 = stub4.costColors ?? [];
             const canAfford4 = costColors4.length === 0 || canPayOptionalCost(costColors4, cur.ownerState, cur.cardMap);
             const payLabel4 = costColors4.length > 0
-              ? `${costColors4.map(c => `縲・{c}縲義).join('')}・荏
-              : '';
+              ? `追加コスト支払う（${costColors4.map(c => `《${c}》`).join('')}）`
+              : '追加コストを支払う';
             const opts4 = [
               { id: 'pay', label: payLabel4, action: payAction4, available: canAfford4, ...(costColors4.length ? { costColors: costColors4 } : {}) },
-              { id: 'skip', label: ', action: baseAction4, available: true },'
+              { id: 'skip', label: 'スキップ（基本効果のみ）', action: baseAction4, available: true },
             ];
             const pending4: PendingInteractionDef = {
               type: 'CHOOSE', options: opts4, count: 1,
               ...(cont4 ? { continuation: cont4 } : {}),
             };
-            return needsInteraction(addLog(cur, '), pending4');
+            return needsInteraction(addLog(cur, '追加コスト：支払いますか？'), pending4);
           }
         }
       }
@@ -1079,14 +1079,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const costColors5 = stub5.costColors ?? [];
           const canAfford5 = costColors5.length === 0 || canPayOptionalCost(costColors5, cur.ownerState, cur.cardMap);
           const payLabel5 = costColors5.length > 0
-            ? `${costColors5.map(c => `縲・{c}縲義).join('')}・荏
-            : '';
+            ? `支払う（${costColors5.map(c => `《${c}》`).join('')}）`
+            : '支払う';
           const options5 = [
             { id: 'pay', label: payLabel5, action: cont5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}) },
             { id: 'skip', label: '', action: noopAction5 as EffectAction, available: true },
           ];
           const pending5: PendingInteractionDef = { type: 'CHOOSE', options: options5, count: 1 };
-          return needsInteraction(addLog(cur, '), pending5');
+          return needsInteraction(addLog(cur, '任意コスト：支払いますか？'), pending5);
         }
       }
       // Pattern : TARGET_AND_DISCARD_HAND
