@@ -261,7 +261,7 @@ export default function App() {
           user={user}
           roomId={battleRoomId}
           myDeckId={battleDeckId}
-          cards={allCards}
+          cards={battleCards}
           onBack={() => { setBattleRoomId(null); setBattleDeckId(null); setViewMode('START'); }}
         />
       )}
@@ -270,7 +270,7 @@ export default function App() {
           user={user}
           myDeckId={cpuBattleDeckId}
           decks={decks}
-          cards={allCards}
+          cards={cpuBattleCards}
           onBack={() => { setCpuBattleDeckId(null); setViewMode('START'); }}
         />
       )}
