@@ -471,8 +471,8 @@ function lrigClassesCompatible(fromClass: string, toClass: string): boolean {
 // 例: Restriction="タマ限定", lrigClass="タマ" → true
 //     Restriction="タマ限定", lrigClass="タマ/イオナ" → true
 //     Restriction="タマ限定", lrigClass="花代" → false
-function meetsRestriction(restriction: string, lrigClass: string): boolean {
-  if (!restriction || restriction === '-') return true;
+function meetsRestriction(restriction: string, lrigClass: string, ignoreRestriction = false): boolean {
+  if (ignoreRestriction || !restriction || restriction === '-') return true;
   return lrigClass.split('/').map(s => s.trim()).some(cls => restriction.includes(cls));
 }
 
@@ -1373,7 +1373,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!bs || bs.global_phase !== 'PLAYING') return [];
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
-    return collectLrigNameAliases(myS, battleCardMap, effectsMap);
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    return collectLrigNameAliases(myS, battleCardMap, effectsMap, opS);
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト閾値によるアーツコスト軽減
@@ -3487,6 +3488,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ルリグのクラス（制限チェック共通）
   const lrigClass = currentLrig?.CardClass ?? '';
+  const ignoreRestriction = my.lrig_gained_types?.includes('__ignore_lrig_restriction__') ?? false;
 
   // シグニ召喚: リミット計算（アシストルリグ+1ずつ、lrig_limit_mod加算、LRIG_LIMIT_UP_AND_COLOR_GAIN加算）
   const lrigLimit = (parseInt(currentLrig?.Limit ?? '0') || 0)
@@ -3544,7 +3546,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     .filter((c): c is CardData =>
       !!c &&
       c.Timing.includes('スペルカットイン') &&
-      meetsRestriction(c.Restriction, lrigClass)
+      meetsRestriction(c.Restriction, lrigClass, ignoreRestriction)
     );
 
   const toggleGrowCostCard = (idx: number) => {
@@ -4123,7 +4125,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return isEmpty && (fieldSigniTotal + signiLevel) <= lrigLimit;
         });
         // Restriction チェック
-        const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass);
+        const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction);
         if (levelOk && canFitSomewhere && restrictionOk) {
           actionList.push({
             label: '召喚',
@@ -4132,7 +4134,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         }
       }
-      if (cardData?.Type === 'スペル' && meetsRestriction(cardData.Restriction, lrigClass) &&
+      if (cardData?.Type === 'スペル' && meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction) &&
           !my.blocked_card_names?.includes(cardData.CardName)) {
         // pending_spell がある間は新たにスペルを発動できない
         const spellBlocked = !!bs.pending_spell;
@@ -4156,7 +4158,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (loading) return [];
     const cardData = battleCardMap.get(cardNum);
     if (!cardData) return [];
-    if (!meetsRestriction(cardData.Restriction, lrigClass)) return [];
+    if (!meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction)) return [];
 
     const phase = bs.turn_phase;
     const actions: CardAction[] = [];
