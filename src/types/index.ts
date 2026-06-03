@@ -218,6 +218,8 @@ export interface PlayerState {
   free_grow_this_turn?: boolean;
   // REPLACE_PLUS_N: このターン、相手シグニへの正のパワー修正を負に置換する
   replace_opp_power_plus?: boolean;
+  // COIN_USE_RESTRICTION: コイン使用先制限（'spell_signi_only'=スペルとシグニにしか使えない）
+  coin_use_restriction?: string;
 }
 
 export interface GameLog {

@@ -231,7 +231,9 @@ export function execStub(
     };
     const optsBET = parseChoiceBET(txtBET);
     if (optsBET.length === 0) return done(addLog(ctx, 'ベット（選択肢解析不可）'));
-    const hasCoins = ctx.ownerState.coins > 0;
+    // COIN_USE_RESTRICTION: コインをスペルとシグニにしか使えない場合、アーツBETは不可
+    const coinRestricted = ctx.ownerState.coin_use_restriction === 'spell_signi_only';
+    const hasCoins = ctx.ownerState.coins > 0 && !coinRestricted;
     // コインがある場合はベット選択を提示
     if (hasCoins) {
       const noopBET: SequenceAction = { type: 'SEQUENCE', steps: [] };
@@ -7825,9 +7827,14 @@ export function execStub(
   if (stub.id === 'DISONA_RESTRICTION') {
     return done(addLog(ctx, 'DISONA制限'));
   }
-  // COIN_SPEND_CONDITION / COIN_USE_RESTRICTION: コイン関連制限
-  if (stub.id === 'COIN_SPEND_CONDITION' || stub.id === 'COIN_USE_RESTRICTION') {
-    return done(addLog(ctx, stub.id === 'COIN_SPEND_CONDITION' ? 'コイン消費条件' : 'コイン使用制限'));
+  // COIN_SPEND_CONDITION ※ログのみ
+  if (stub.id === 'COIN_SPEND_CONDITION') {
+    return done(addLog(ctx, 'コイン消費条件'));
+  }
+  // COIN_USE_RESTRICTION: コイン使用先をスペルとシグニに限定（ゲーム中永続）
+  if (stub.id === 'COIN_USE_RESTRICTION') {
+    const newOwnerCUR: PlayerState = { ...ctx.ownerState, coin_use_restriction: 'spell_signi_only' };
+    return done(addLog({ ...ctx, ownerState: newOwnerCUR }, 'このゲームの間：コインはスペルとシグニにしか支払えない'));
   }
   // INCREASE_ACT_ABILITY_COST: 起動能力のコストを増加（ログのみ）
   if (stub.id === 'INCREASE_ACT_ABILITY_COST') {

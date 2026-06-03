@@ -141,7 +141,7 @@
 | 3 | AUTO/ACTIVATED | ✅ | CHARM_CONDITIONAL_POWER ※同ゾーンにチャームがあればパワー修正 |
 | 2 | AUTO/ACTIVATED | ✅ | CHOOSE_HAND_OR_ENERGY ※LOOK_AND_REORDER後のデッキ上N枚をSEARCH→手札/残りエナ（v0.147） |
 | 2 | AUTO | ✅ | CHOOSE_SAME_OPTION_TWICE ※v0.173: ①バウンス+手札捨てセット対応, ②アタック不可(INTERNAL_GRANT_NO_ATTACK_LRIG), ③クラスサーチ追加。WX17-003/WXK05-010の主要パターン対応 |
-| 2 | AUTO/ACTIVATED | ⚡ | COIN_USE_RESTRICTION ※done(addLog)のみ（コイン使用制限未実装） |
+| 2 | AUTO/ACTIVATED | ✅ | COIN_USE_RESTRICTION ※v0.174: coin_use_restriction='spell_signi_only'フラグ設定。BET_MECHANICでcoinRestricted確認→アーツBET不可 |
 | 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_ALTERNATE_EFFECT |
 | 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_ALT_POWER_BOOST ※v0.170: 「代わりに＋/－N」テキスト解析→sourceCardNumにtemp_power_mods適用 |
 | 2 | AUTO/ACTIVATED | ✅ | CONDITIONAL_PER_TRASH ※v0.169: テキスト解析でN枚閾値→1枚ドロー。主要パターン実装済み |
@@ -534,12 +534,12 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 448 |
-| ⚡ 部分実装 | 64 |
+| ✅ 実装済み | 449 |
+| ⚡ 部分実装 | 63 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
-※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）, POWER_COPY_FROM_DOWNED（lastProcessedCards優先で自ダウンシグニパワー+）, OPP_DECLARE_CHOICE（色宣言パターン追加→INTERNAL_ODC_COLOR_CHECK）, REPLACE_PLUS_N（replace_opp_power_plusフラグ+effectEngine置換）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
+※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）, POWER_COPY_FROM_DOWNED（lastProcessedCards優先で自ダウンシグニパワー+）, OPP_DECLARE_CHOICE（色宣言パターン追加→INTERNAL_ODC_COLOR_CHECK）, REPLACE_PLUS_N（replace_opp_power_plusフラグ+effectEngine置換）, COIN_USE_RESTRICTION（coin_use_restriction永続フラグ+BET_MECHANICチェック）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
 
 ※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》Story=Dissona判定追加。CardData_Sheet8.csvでDissonaを設定）, CHOOSE_SAME_OPTION_TWICE（①バウンス+手札捨て/②アタック不可/③クラスサーチパターン追加・INTERNAL_GRANT_NO_ATTACK_LRIG実装）
 
