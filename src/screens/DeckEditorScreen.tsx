@@ -142,6 +142,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
     } else {
       if (current.mainDeck.length >= MAIN_MAX) return;
       if (countInMainByName(card.CardName) >= COPY_MAX) return;
+      if (card.LifeBurst === '1' && lbCount >= LB_MAX) return;
       const updated = { ...current, mainDeck: [...current.mainDeck, card.CardNum] };
       setCurrent(updated);
       onUpdate(updated);
