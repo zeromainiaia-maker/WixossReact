@@ -82,8 +82,29 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
   const regularLrigCount = current.lrigDeck.length - extraLrigCount;
 
   const types = useMemo(() => [...new Set(cards.map(c => c.Type).filter(Boolean))].sort(), [cards]);
-  const colors = useMemo(() => [...new Set(cards.map(c => c.Color).filter(Boolean))].sort(), [cards]);
-  const levels = useMemo(() => [...new Set(cards.map(c => c.Level).filter(Boolean))].sort((a, b) => Number(a) - Number(b)), [cards]);
+  const colors = useMemo(() => {
+    const COLOR_ORDER = ['無', '白', '緑', '赤', '青', '黒'];
+    const all = [...new Set(cards.map(c => c.Color).filter(Boolean))];
+    return all.sort((a, b) => {
+      const ai = COLOR_ORDER.indexOf(a);
+      const bi = COLOR_ORDER.indexOf(b);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.localeCompare(b, 'ja');
+    });
+  }, [cards]);
+  const levels = useMemo(() => {
+    const all = [...new Set(cards.map(c => c.Level).filter(Boolean))];
+    return all.sort((a, b) => {
+      const an = Number(a), bn = Number(b);
+      const aNum = !isNaN(an), bNum = !isNaN(bn);
+      if (aNum && bNum) return an - bn;
+      if (aNum) return -1;
+      if (bNum) return 1;
+      return a.localeCompare(b);
+    });
+  }, [cards]);
   const classes = useMemo(() => [...new Set(cards.map(c => c.CardClass).filter(Boolean))].sort(), [cards]);
 
   const filteredCards = useMemo(() => cards.filter(c => {
