@@ -97,6 +97,7 @@ export function matchesFilter(
   card: CardData | undefined,
   filter: TargetFilter | undefined,
   effectivePower?: number,  // 実効パワー（未指定時はcard.Powerを使用）
+  classOverride?: string,   // card_class_overridesによるクラス上書き
 ): boolean {
   if (!card) return false;
   if (!filter) return true;
@@ -125,7 +126,9 @@ export function matchesFilter(
   }
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
-    if (!stories.some(s => card.CardClass?.includes(s))) return false;
+    // card_class_overridesによるクラス上書きを考慮
+    const effectiveClass = classOverride ?? card.CardClass ?? '';
+    if (!stories.some(s => effectiveClass.includes(s))) return false;
   }
   if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
   if (filter.cardNames && !filter.cardNames.includes(card.CardName ?? '')) return false;
@@ -184,7 +187,9 @@ export function fieldCandidates(
       const isArmored = state.field.signi_armor?.[zoneIdx] ?? false;
       if (filter.isArmored !== isArmored) return [];
     }
-    if (!matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum))) return [];
+    // card_class_overridesによるクラス上書きを考慮してフィルター適用
+    const classOverride = state.card_class_overrides?.[cardNum];
+    if (!matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride)) return [];
     return [cardNum];
   });
 }

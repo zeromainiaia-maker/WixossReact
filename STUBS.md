@@ -305,7 +305,7 @@
 | 1 | ACTIVATED | ✅ | GRANT_CONDITIONAL_ASSASSIN_ABILITY ※v0.169: sourceCardNumにアサシンをkeyword_grants付与（line 9013） |
 | 1 | AUTO/ACTIVATED | ✅ | GRANT_LRIG_ABILITY ※PR-317: effects.jsonをGRANT_LRIG_ABILITYアクション型に変更+lrig_granted_auto_effectsをgrantedMyLrigEffectsに統合 |
 | 2 | CONT | ✅ | GRANT_LRIG_TRASH_ACTIVATE_ABILITY ※WXEX2-12: collectLrigGrantedEffectsにlrig_trash名前フィルタ付き収集を追加 |
-| 1 | CONT | ⚡ | GRANT_SIGNI_CLASS ※v0.171: card_class_overridesにクラス追加設定済み。effectEngineでの参照は未統合 |
+| 1 | CONT | ✅ | GRANT_SIGNI_CLASS ※v0.173: execUtils.matchesFilterにclassOverride引数追加。fieldCandidatesがcard_class_overrides[cardNum]をmatchesFilterに渡し、story(class)フィルターで上書きクラスを考慮 |
 | 1 | CONT | ✅ | GRANT_UNDER_LRIG_ACTIVATE_ABILITY ※WX12-001: collectLrigGrantedEffectsにunder-lrig ACTIVATED収集を追加 |
 | 1 | CONT | ✅ | GRANT_UNDER_LRIG_AUTO_ABILITY ※WX21-003: collectLrigGrantedEffectsにunder-lrig AUTO収集を追加 |
 | 1 | CONT | ✅ | GRANT_UNDER_SIGNI_ALL_ABILITIES ※WX21-024: collectGrantedFromUnderSigniで下シグニの全効果をトップに付与 |
@@ -534,8 +534,8 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 442 |
-| ⚡ 部分実装 | 70 |
+| ✅ 実装済み | 443 |
+| ⚡ 部分実装 | 69 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
