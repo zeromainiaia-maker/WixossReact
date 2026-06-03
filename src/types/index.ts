@@ -40,6 +40,7 @@ export interface Deck {
   lrigDeck: string[];
   thumbnailCardNum?: string;
   sortOrder?: number;
+  artOverrides?: Record<string, string>; // canonicalCardNum → variantCardNum（表示のみ）
 }
 
 export interface Room {
