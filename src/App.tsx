@@ -127,13 +127,14 @@ export default function App() {
   // デッキ一覧の取得
   useEffect(() => {
     if (!user) return;
-    supabase.from('decks').select('*').eq('user_id', user.id).then(({ data }) => {
+    supabase.from('decks').select('*').eq('user_id', user.id).order('sort_order', { ascending: true }).then(({ data }) => {
       if (data) setDecks(data.map(d => ({
         id: d.id,
         name: d.name,
         mainDeck: d.main_deck ?? [],
         lrigDeck: d.lrig_deck ?? [],
         thumbnailCardNum: d.thumbnail_card_num,
+        sortOrder: d.sort_order ?? 0,
       })));
     });
   }, [user]);
