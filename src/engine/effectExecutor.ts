@@ -123,7 +123,7 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
       const removed = removeFromField(num, s);
       const withHand: PlayerState = { ...removed, hand: [...removed.hand, num] };
       cur = addLog(setOwnerState(tgt.owner, withHand, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}繧呈焔譛ｭ縺ｫ謌ｻ縺兪);
+        `${cur.cardMap.get(num)?.CardName ?? num}繧呈焔譛ｭ縺ｫ謌ｻ縺兪`);
     }
     return cur;
   }
@@ -198,7 +198,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         : new Set<string>();
       for (const num of selected) {
         if (trashFieldProtected.has(num)) {
-          cur = addLog(cur, `${cur.cardMap.get(num)?.CardName ?? num}縺ｯ菫晁ｭｷ荳ｭ・医ヨ繝ｩ繝・す繝･遘ｻ蜍輔ｒ髦ｻ豁｢・荏);
+          cur = addLog(cur, `${cur.cardMap.get(num)?.CardName ?? num}縺ｯ菫晁ｭｷ荳ｭ・医ヨ繝ｩ繝・す繝･遘ｻ蜍輔ｒ髦ｻ豁｢・荏`);
           continue;
         }
         const s = ownerState(tgt.owner, cur);
@@ -239,7 +239,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         if (idx >= 0) { remaining.splice(idx, 1); toTrash.push(n); }
       }
       const newS: PlayerState = { ...s, hand: remaining, trash: [...s.trash, ...toTrash] };
-      return addLog(setOwnerState(tgt.owner, newS, c), `謇区惆${toTrash.length}譫壽昏縺ｦ繧義);
+      return addLog(setOwnerState(tgt.owner, newS, c), `謇区惆${toTrash.length}譫壽昏縺ｦ繧義`);
     }
     if (tgt.count === 'ALL') return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
@@ -311,7 +311,7 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
         newS = { ...removed, energy: [...removed.energy, n] };
       }
     }
-    return addLog(setOwnerState(tgt.owner, newS, c), `繧ｨ繝翫メ繝｣繝ｼ繧ｸ${selected.length}譫啻);
+    return addLog(setOwnerState(tgt.owner, newS, c), `繧ｨ繝翫メ繝｣繝ｼ繧ｸ${selected.length}譫啻`);
   }
 
   const count = tgt.count === 'ALL' ? cands.length : resolveNum(tgt.count);
@@ -332,7 +332,7 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
     deck: state.deck.slice(count),
     energy: [...state.energy, ...took],
   };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `繧ｨ繝翫メ繝｣繝ｼ繧ｸ${count}譫夲ｼ医ョ繝・く縺九ｉ・荏));
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `繧ｨ繝翫メ繝｣繝ｼ繧ｸ${count}譫夲ｼ医ョ繝・く縺九ｉ・荏)`);
 }
 
 function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
@@ -452,7 +452,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       if (emptyIdx >= 0) signi[emptyIdx] = [n];
       newS = { ...newS, field: { ...newS.field, signi } };
       cur = addLog(setOwnerState(tgtOwner, newS, cur),
-        `${cur.cardMap.get(n)?.CardName ?? n}繧貞ｴ縺ｫ蜃ｺ縺兪);
+        `${cur.cardMap.get(n)?.CardName ?? n}繧貞ｴ縺ｫ蜃ｺ縺兪`);
     }
     return cur;
   }
@@ -472,7 +472,7 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
     deck: state.deck.slice(count),
     life_cloth: [...state.life_cloth, ...took],
   };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `繝ｩ繧､繝輔け繝ｭ繧ｹ+${count}譫啻));
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `繝ｩ繧､繝輔け繝ｭ繧ｹ+${count}譫啻)`);
 }
 
 function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
@@ -491,7 +491,7 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
       newFrozen[zoneIdx] = true;
       newDown[zoneIdx]   = true; // 蜃咲ｵ舌・繝繧ｦ繝ｳ迥ｶ諷九ｂ莨ｴ縺・      const newS: PlayerState = { ...s, field: { ...s.field, signi_frozen: newFrozen, signi_down: newDown } };
       cur = addLog(setOwnerState(a.target.owner, newS, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}繧貞㍾邨秦);
+        `${cur.cardMap.get(num)?.CardName ?? num}繧貞㍾邨秦`);
     }
     return cur;
   }
@@ -587,7 +587,7 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   const id = a.until === 'NEXT_TURN' ? `${a.actionId}:NEXT_TURN` : a.actionId;
   const blocked = [...(state.blocked_actions ?? []), id];
   const newS: PlayerState = { ...state, blocked_actions: blocked };
-  return done(addLog(setOwnerState(a.target.owner, newS, ctx), `繧｢繧ｯ繧ｷ繝ｧ繝ｳ${a.actionId}繧貞ｰ√§繧義));
+  return done(addLog(setOwnerState(a.target.owner, newS, ctx), `繧｢繧ｯ繧ｷ繝ｧ繝ｳ${a.actionId}繧貞ｰ√§繧義)`);
 }
 
 function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
@@ -634,7 +634,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       }
     }
 
-    return addLog(setOwnerState(tgt.owner, newS, c), `縲・{a.keyword}縲代ｒ莉倅ｸ餐);
+    return addLog(setOwnerState(tgt.owner, newS, c), `縲・{a.keyword}縲代ｒ莉倅ｸ餐`);
   }
 
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
@@ -654,7 +654,7 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
     for (const n of selected) {
       granted[n] = [...(granted[n] ?? []), a.effect];
     }
-    return addLog(setOwnerState(tgt.owner, { ...s, granted_effects: granted }, c), `閭ｽ蜉帑ｻ倅ｸ趣ｼ・{selected.length}菴難ｼ荏);
+    return addLog(setOwnerState(tgt.owner, { ...s, granted_effects: granted }, c), `閭ｽ蜉帑ｻ倅ｸ趣ｼ・{selected.length}菴難ｼ荏`);
   }
 
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
@@ -704,9 +704,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         n => cur.cardMap.get(n)?.Type === '繧｢繝ｼ繝・
       ).length;
       if (artsInLrigTrash < gate.minArts) {
-        return done(addLog(cur, `繝ｪ繧ｳ繝ｬ繧ｯ繝域擅莉ｶ譛ｪ驕費ｼ医い繝ｼ繝・{artsInLrigTrash}譫・/ 蠢・ｦ・{gate.minArts}譫壻ｻ･荳奇ｼ荏));
+        return done(addLog(cur, `繝ｪ繧ｳ繝ｬ繧ｯ繝域擅莉ｶ譛ｪ驕費ｼ医い繝ｼ繝・{artsInLrigTrash}譫・/ 蠢・ｦ・{gate.minArts}譫壻ｻ･荳奇ｼ荏)`);
       }
-      cur = addLog(cur, `繝ｪ繧ｳ繝ｬ繧ｯ繝域擅莉ｶ驕疲・・医い繝ｼ繝・{artsInLrigTrash}譫夲ｼ荏);
+      cur = addLog(cur, `繝ｪ繧ｳ繝ｬ繧ｯ繝域擅莉ｶ驕疲・・医い繝ｼ繝・{artsInLrigTrash}譫夲ｼ荏`);
       continue;
     }
     // TARGET_AND_DISCARD_HAND: 蟇ｾ謌ｦ逶ｸ謇九す繧ｰ繝九ｒ蟇ｾ雎｡縺ｨ縺玲焔譛ｭ繧呈昏縺ｦ縺ｦ繝舌ル繝・す繝･/繝舌え繝ｳ繧ｹ/繝代Ρ繝ｼ螟画峩
@@ -843,7 +843,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'CHOOSE', options: optionsOHRN, count: 1,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, `縲・{targetName}縲九ｒ蜈ｬ髢九＠縺ｾ縺吶°・歔), pendingOHRN);
+          return needsInteraction(addLog(cur, `縲・{targetName}縲九ｒ蜈ｬ髢九＠縺ｾ縺吶°・歔), pendingOHRN`);
         }
 
         // TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST: 逶ｸ謇九す繧ｰ繝九ｒ蟇ｾ雎｡縺ｫ縺励※莉ｻ諢剰牡繧ｳ繧ｹ繝域髪謇輔＞
@@ -893,7 +893,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
           if (energyCandsOTEC.length === 0) {
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, `繧ｨ繝翫↓${reqClassOTEC || '繧ｫ繝ｼ繝・}縺ｪ縺暦ｼ・PTIONAL_TRASH_ENERGY_CLASS・荏));
+            return done(addLog(cur, `繧ｨ繝翫↓${reqClassOTEC || '繧ｫ繝ｼ繝・}縺ｪ縺暦ｼ・PTIONAL_TRASH_ENERGY_CLASS・荏)`);
           }
           const toHandOTEC = !!(txtOTEC.match(/縺昴ｌ繧呈焔譛ｭ縺ｫ蜉縺医ｋ/) || conditional.then.type === 'TRANSFER_TO_HAND');
           // conditional.then 縺ｮ BOUNCE/BANISH/DOWN 縺ｮ target.owner='self' 竊・'opponent' 菫ｮ豁｣
@@ -943,7 +943,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           if (totalVirusRV < removeCountRV) {
             // 繧ｦ繧､繝ｫ繧ｹ縺瑚ｶｳ繧翫↑縺・ｴ蜷医・繧ｹ繧ｭ繝・・
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, `繧ｦ繧､繝ｫ繧ｹ荳崎ｶｳ・亥ｿ・ｦ・{removeCountRV}縲∝ｮ溷惠${totalVirusRV}・荏));
+            return done(addLog(cur, `繧ｦ繧､繝ｫ繧ｹ荳崎ｶｳ・亥ｿ・ｦ・{removeCountRV}縲∝ｮ溷惠${totalVirusRV}・荏)`);
           }
           if (isOptionalRV) {
             const optsRV = [
@@ -1181,7 +1181,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     const cands = trashCandidates(state, src.filter, ctx.cardMap);
     const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
     const newS = insertToDeck({ ...state, trash: state.trash.filter(n => !cards.includes(n)) }, cards);
-    return done({ ...addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}譫壹ｒ繝・ャ繧ｭ縺ｫ謌ｻ縺兪), lastProcessedCards: cards });
+    return done({ ...addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}譫壹ｒ繝・ャ繧ｭ縺ｫ謌ｻ縺兪), lastProcessedCards: cards }`);
   }
 
   if (src.type === 'HAND_CARD') {
@@ -1200,7 +1200,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       }
       const newS = insertToDeck({ ...s, hand: remaining }, toMove);
       return addLog(setOwnerState(src.owner, newS, cur),
-        `謇区惆${toMove.length}譫壹ｒ繝・ャ繧ｭ${toBottom ? '荳・ : '荳・}縺ｫ鄂ｮ縺汁);
+        `謇区惆${toMove.length}譫壹ｒ繝・ャ繧ｭ${toBottom ? '荳・ : '荳・}縺ｫ鄂ｮ縺汁`);
     }
 
     if (src.count === 'ALL') return done({ ...applyHandToDeck(cands, ctx), lastProcessedCards: cands });
@@ -1234,7 +1234,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult {
   // subjectFilter 縺ｮ縺ｿ縺ｮ蝣ｴ蜷医・ CONTINUOUS 逕ｨ螳｣險・・ffectEngine 蛛ｴ縺ｧ蜃ｦ逅・ｼ俄・ no-op
   if (!a.target && a.subjectFilter) {
-    return done(addLog(ctx, `蜉ｹ譫懆先ｧ螳｣險・・{a.from.join('/')}菫晁ｭｷ・荏));
+    return done(addLog(ctx, `蜉ｹ譫懆先ｧ螳｣險・・{a.from.join('/')}菫晁ｭｷ・荏)`);
   }
   if (!a.target) return done(ctx);
   // 蜉ｹ譫懆先ｧ縺ｯ繧ｭ繝ｼ繝ｯ繝ｼ繝我ｻ倅ｸ弱→縺励※謇ｱ縺・  const tgt = a.target;
@@ -1307,7 +1307,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
 
   const cardName = ctx.cardMap.get(charmNum)?.CardName ?? charmNum;
   const targetName = ctx.cardMap.get(targetNum)?.CardName ?? targetNum;
-  return done(addLog(ctx2, `${cardName}繧・{targetName}縺ｫ繝√Ε繝ｼ繝縺ｨ縺励※莉倅ｸ餐));
+  return done(addLog(ctx2, `${cardName}繧・{targetName}縺ｫ繝√Ε繝ｼ繝縺ｨ縺励※莉倅ｸ餐)`);
 }
 
 /** LEVEL_REFERENCE_OVERRIDE: 繧ｫ繝ｼ繝峨ユ繧ｭ繧ｹ繝医°繧芽ｨｱ螳ｹ繝ｬ繝吶Ν遽・峇繧定ｧ｣譫舌＠縺ｦ霑斐☆縲・ * 縲後Ξ繝吶Ν繧貞盾辣ｧ縺吶ｋ蝣ｴ蜷医√Ξ繝吶Ν・斐→縺励※謇ｱ縺｣縺ｦ繧ゅｈ縺・坂・ { min:4, max:4 }
@@ -1360,7 +1360,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
           ? [...state.deck.slice(count), ...visible]
           : state.deck,
       };
-      return done(addLog(setOwnerState(a.owner, newS, ctx), `繝・ャ繧ｭ${count}譫壼・髢具ｼ壼ｯｾ雎｡縺ｪ縺輿));
+      return done(addLog(setOwnerState(a.owner, newS, ctx), `繝・ャ繧ｭ${count}譫壼・髢具ｼ壼ｯｾ雎｡縺ｪ縺輿)`);
     }
     return done(ctx);
   }
@@ -1457,7 +1457,7 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
     const s = ownerState(tgtOwner, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: mods }, c),
-      `繝代Ρ繝ｼ${delta > 0 ? '+' : ''}${delta}・医ヵ繧｣繝ｼ繝ｫ繝嘉・{fieldCount}菴難ｼ荏);
+      `繝代Ρ繝ｼ${delta > 0 ? '+' : ''}${delta}・医ヵ繧｣繝ｼ繝ｫ繝嘉・{fieldCount}菴難ｼ荏`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
@@ -1533,7 +1533,7 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
     const s = ownerState(tgtOwner, ctx);
     const negated = [...(s.negated_attacks ?? []), ...cands];
     const newS = { ...s, negated_attacks: negated };
-    return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}菴薙・繧ｷ繧ｰ繝九・繧｢繧ｿ繝・け繧堤┌蜉ｹ蛹冒));
+    return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}菴薙・繧ｷ繧ｰ繝九・繧｢繧ｿ繝・け繧堤┌蜉ｹ蛹冒)`);
   }
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
@@ -1545,7 +1545,7 @@ function execAwakenSigni(ctx: ExecCtx): ExecResult {
   const awakened = [...(ctx.ownerState.awakened_signi ?? [])];
   if (!awakened.includes(ctx.sourceCardNum)) awakened.push(ctx.sourceCardNum);
   const newOwner = { ...ctx.ownerState, awakened_signi: awakened };
-  return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.sourceCardNum} 縺瑚ｦ夐・迥ｶ諷九↓縺ｪ縺｣縺歔));
+  return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.sourceCardNum} 縺瑚ｦ夐・迥ｶ諷九↓縺ｪ縺｣縺歔)`);
 }
 
 function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAction, ctx: ExecCtx): ExecResult {
@@ -1576,7 +1576,7 @@ function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: Exec
     const s = ownerState(tgtOwner, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: mods }, c),
-      `繝代Ρ繝ｼ${delta > 0 ? '+' : ''}${delta}・医Ν繝ｪ繧ｰlv${lv}ﾃ・{a.deltaPerLevel}・荏);
+      `繝代Ρ繝ｼ${delta > 0 ? '+' : ''}${delta}・医Ν繝ｪ繧ｰlv${lv}ﾃ・{a.deltaPerLevel}・荏`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
@@ -1606,7 +1606,7 @@ function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): 
     ownerState: { ...ctx.ownerState, hand: [], trash: [...ctx.ownerState.trash, ...ctx.ownerState.hand] },
     otherState: { ...ctx.otherState, hand: [], trash: [...ctx.otherState.trash, ...ctx.otherState.hand] },
   };
-  cur = addLog(cur, `荳｡閠・焔譛ｭ蜈ｨ謐ｨ縺ｦ・・{selfCount}譫・${otherCount}譫夲ｼ荏);
+  cur = addLog(cur, `荳｡閠・焔譛ｭ蜈ｨ謐ｨ縺ｦ・・{selfCount}譫・${otherCount}譫夲ｼ荏`);
 
   if (!a.drawMax || maxCount === 0) return done(cur);
 
@@ -1642,7 +1642,7 @@ function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
   const s = ownerState(a.owner, ctx);
   const gained = Math.min(a.count, 5 - s.coins);
   const newS: PlayerState = { ...s, coins: Math.min(5, s.coins + a.count) };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `繧ｳ繧､繝ｳ${gained}譫夂佐蠕暦ｼ郁ｨ・{newS.coins}譫夲ｼ荏));
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `繧ｳ繧､繝ｳ${gained}譫夂佐蠕暦ｼ郁ｨ・{newS.coins}譫夲ｼ荏)`);
 }
 
 function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx): ExecResult {
@@ -1653,7 +1653,7 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
     const current = ctx.ownerState.bonds ?? [];
     if (current.includes(cardName)) return done(addLog(ctx, `${cardName}縺ｨ縺ｮ邨・・譌｢縺ｫ迯ｲ蠕玲ｸ医∩`));
     const newOwner: PlayerState = { ...ctx.ownerState, bonds: [...current, cardName] };
-    return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName}縺ｨ縺ｮ邨・ｒ迯ｲ蠕輿));
+    return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName}縺ｨ縺ｮ邨・ｒ迯ｲ蠕輿)`);
   }
   // 'declared': 繝・ャ繧ｭ縺九ｉ繧ｫ繝ｼ繝峨ｒ驕ｸ謚槭＆縺帙ｋ
   const deckCards = [...ctx.ownerState.deck];
@@ -1695,7 +1695,7 @@ function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResu
   const s = ownerState(a.targetOwner, ctx);
   const newS: PlayerState = { ...s, must_attack_signi: true };
   const ctx2 = setOwnerState(a.targetOwner, newS, ctx);
-  return done(addLog(ctx2, `${a.targetOwner === 'opponent' ? '蟇ｾ謌ｦ逶ｸ謇・ : '閾ｪ蛻・}縺ｮ繧ｷ繧ｰ繝九・蜿ｯ閭ｽ縺ｪ繧峨・繧｢繧ｿ繝・け縺励↑縺代ｌ縺ｰ縺ｪ繧峨↑縺Я));
+  return done(addLog(ctx2, `${a.targetOwner === 'opponent' ? '蟇ｾ謌ｦ逶ｸ謇・ : '閾ｪ蛻・}縺ｮ繧ｷ繧ｰ繝九・蜿ｯ閭ｽ縺ｪ繧峨・繧｢繧ｿ繝・け縺励↑縺代ｌ縺ｰ縺ｪ繧峨↑縺Я)`);
 }
 
 function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: ExecCtx): ExecResult {
@@ -1727,7 +1727,7 @@ function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: Ex
     const s = ownerState(tgtO, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtO, { ...s, temp_power_mods: mods }, c),
-      `繝代Ρ繝ｼ${delta > 0 ? '+' : ''}${delta}・医ヨ繝ｩ繝・す繝･${count}譫堙・{a.deltaPerUnit}/${a.unitSize}・荏);
+      `繝代Ρ繝ｼ${delta > 0 ? '+' : ''}${delta}・医ヨ繝ｩ繝・す繝･${count}譫堙・{a.deltaPerUnit}/${a.unitSize}・荏`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
@@ -1750,7 +1750,7 @@ function execPowerModifyPerLifeCount(a: PowerModifyPerLifeCountAction, ctx: Exec
     const s = ownerState(tgtO, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtO, { ...s, temp_power_mods: mods }, c),
-      `繝代Ρ繝ｼ${delta > 0 ? '+' : ''}${delta}・医Λ繧､繝・{count}譫堙・{a.deltaPerLife}・荏);
+      `繝代Ρ繝ｼ${delta > 0 ? '+' : ''}${delta}・医Λ繧､繝・{count}譫堙・{a.deltaPerLife}・荏`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
@@ -1968,7 +1968,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ATTACH_ACCE':                  return execAttachAcce(action as AttachAcceAction, ctx);
     case 'BLOOD_CRYSTAL_ARMOR':          return execBloodCrystalArmor(action as BloodCrystalArmorAction, ctx);
     case 'POWER_MODIFY_PER_VIRUS_COUNT': return done(addLog(ctx, '繧ｦ繧｣繝ｫ繧ｹ謨ｰ豈比ｾ九ヱ繝ｯ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・));
-    case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `繝ｪ繝溘ャ繝・{(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}・・I蜃ｦ逅・ｼ荏));
+    case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `繝ｪ繝溘ャ繝・{(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}・・I蜃ｦ逅・ｼ荏)`);
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
     // 莉･荳九・ CONTINUOUS 蜉ｹ譫懷ｰら畑・・ffectEngine 蛛ｴ縺ｧ蜃ｦ逅・ｼ・    case 'BANISH_REDIRECT': {
       const newOwner: PlayerState = { ...ctx.ownerState, banish_redirect: true };
@@ -2115,7 +2115,7 @@ export function resumeOptionalCost(
   for (const n of energyNums) {
     const color = ctx.cardMap.get(n)?.Color ?? '辟｡';
     const idx = costColors.findIndex(c => c === color || c === '辟｡');
-    if (idx === -1) return done(addLog(ctx, `繧ｳ繧ｹ繝域髪謇輔＞繧ｨ繝ｩ繝ｼ: ${color}縺ｯ荳崎ｦ～));
+    if (idx === -1) return done(addLog(ctx, `繧ｳ繧ｹ繝域髪謇輔＞繧ｨ繝ｩ繝ｼ: ${color}縺ｯ荳崎ｦ～)`);
     costColors.splice(idx, 1);
   }
   if (costColors.length > 0) return done(addLog(ctx, `繧ｳ繧ｹ繝域髪謇輔＞繧ｨ繝ｩ繝ｼ: 繧ｨ繝贋ｸ崎ｶｳ`));
@@ -2174,7 +2174,7 @@ export function resumeOptionalCost(
   for (const n of energyNums) {
     const color = ctx.cardMap.get(n)?.Color ?? '辟｡';
     const idx = costColors.findIndex(c => c === color || c === '辟｡');
-    if (idx === -1) return done(addLog(ctx, `繧ｳ繧ｹ繝域髪謇輔＞繧ｨ繝ｩ繝ｼ: ${color}縺ｯ荳崎ｦ～));
+    if (idx === -1) return done(addLog(ctx, `繧ｳ繧ｹ繝域髪謇輔＞繧ｨ繝ｩ繝ｼ: ${color}縺ｯ荳崎ｦ～)`);
     costColors.splice(idx, 1);
   }
   if (costColors.length > 0) return done(addLog(ctx, '繧ｳ繧ｹ繝域髪謇輔＞繧ｨ繝ｩ繝ｼ: 繧ｨ繝贋ｸ崎ｶｳ'));
@@ -2209,7 +2209,7 @@ export function resumeOptionalCost(
   } else {
     newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
   }
-  const cur = addLog(setOwnerState(destOwner, newS, ctx), `繝・ャ繧ｭ繧剃ｸｦ縺ｹ譖ｿ縺・);
+  const cur = addLog(setOwnerState(destOwner, newS, ctx), `繝・ャ繧ｭ繧剃ｸｦ縺ｹ譖ｿ縺・`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
@@ -2226,7 +2226,7 @@ export function resumeSelectZone(
   signi[zoneIndex] = [pending.cardNum];
   const newS: PlayerState = { ...state, field: { ...state.field, signi } };
   const cur = addLog(setOwnerState(pending.owner, newS, ctx),
-    `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}繧貞ｴ縺ｫ蜃ｺ縺兪);
+    `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}繧貞ｴ縺ｫ蜃ｺ縺兪`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
@@ -2242,7 +2242,7 @@ export function resumeSelectZone(
   const newBonds = current.includes(cardName) ? current : [...current, cardName];
   const shuffled = shuffle([...ctx.ownerState.deck]);
   const newOwner: PlayerState = { ...ctx.ownerState, bonds: newBonds, deck: shuffled };
-  const cur = addLog({ ...ctx, ownerState: newOwner }, `${cardName}縺ｨ縺ｮ邨・ｒ迯ｲ蠕暦ｼ医ョ繝・く繧偵す繝｣繝・ヵ繝ｫ・荏);
+  const cur = addLog({ ...ctx, ownerState: newOwner }, `${cardName}縺ｨ縺ｮ邨・ｒ迯ｲ蠕暦ｼ医ョ繝・く繧偵す繝｣繝・ヵ繝ｫ・荏`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
@@ -2272,7 +2272,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const removed = removeFromField(cardNum, s);
       const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum] };
       return done(addLog(setOwnerState(found, withHand, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧呈焔譛ｭ縺ｫ謌ｻ縺兪));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧呈焔譛ｭ縺ｫ謌ｻ縺兪)`);
     }
     case 'TRASH': {
       const trashAction = action as TrashAction;
@@ -2377,7 +2377,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const emptyIdx = signi.findIndex(z => !z || z.length === 0);
       if (emptyIdx >= 0) signi[emptyIdx] = [cardNum];
       newS = { ...newS, field: { ...newS.field, signi } };
-      return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧貞ｴ縺ｫ蜃ｺ縺兪));
+      return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧貞ｴ縺ｫ蜃ｺ縺兪)`);
     }
     case 'ATTACH_ACCE': {
       // cardNum = SELECT_TARGET 縺ｧ驕ｸ縺ｰ繧後◆繧ｷ繧ｰ繝・      const acceAction = action as import('../types/effects').AttachAcceAction;
@@ -2394,7 +2394,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       } else if (newSrc.hand.includes(acceCardNum)) {
         newSrc = { ...newSrc, hand: newSrc.hand.filter(n => n !== acceCardNum) };
       } else {
-        return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}縺後お繝・謇区惆縺ｫ縺ｪ縺Я));
+        return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}縺後お繝・謇区惆縺ｫ縺ｪ縺Я)`);
       }
       let ctx2 = setOwnerState(acceAction.sourceOwner, newSrc, ctx);
       // signi_acce[zoneIdx] 縺ｫ險ｭ螳・      const tgt2 = ownerState(acceAction.targetSigniOwner, ctx2);
@@ -2432,7 +2432,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const negated = [...(s.negated_attacks ?? []), cardNum];
       const newS = { ...s, negated_attacks: negated };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}縺ｮ繧｢繧ｿ繝・け繧堤┌蜉ｹ蛹冒));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}縺ｮ繧｢繧ｿ繝・け繧堤┌蜉ｹ蛹冒)`);
     }
     case 'BLOOD_CRYSTAL_ARMOR': {
       // cardNum = 陦譎ｶ豁ｦ陬・☆繧句ｯｾ雎｡繧ｷ繧ｰ繝具ｼ・ELECT_TARGET縺ｧ驕ｸ縺ｰ繧後◆繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝具ｼ・      const bcaA = action as import('../types/effects').BloodCrystalArmorAction;
@@ -2458,7 +2458,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           if (idx >= 0) { foundCard = newState.deck[idx]; newState = { ...newState, deck: newState.deck.filter((_, i) => i !== idx) }; shuffleNeeded = true; break; }
         }
       }
-      if (!foundCard) return done(addLog({ ...ctx, ownerState: newState }, `陦譎ｶ豁ｦ陬・ｯｾ雎｡縺ｪ縺暦ｼ・{sameName}・荏));
+      if (!foundCard) return done(addLog({ ...ctx, ownerState: newState }, `陦譎ｶ豁ｦ陬・ｯｾ雎｡縺ｪ縺暦ｼ・{sameName}・荏)`);
 
       // 繧ｷ繧ｰ繝九せ繧ｿ繝・け縺ｮ蜈磯ｭ縺ｫ霑ｽ蜉・井ｸ九↓鄂ｮ縺擾ｼ・      const newSigni = newState.field.signi.map((stack, i) => {
         if (i !== zoneIdx) return stack;
@@ -2532,7 +2532,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const newFrz = [...(frzS.field.signi_frozen ?? [false, false, false])] as boolean[];
       newFrz[frzIdx] = true;
       return done(addLog(setOwnerState(frzOwner, { ...frzS, field: { ...frzS.field, signi_frozen: newFrz } }, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧貞㍾邨秦));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧貞㍾邨秦)`);
     }
     case 'GRANT_KEYWORD': {
       const gkA = action as GrantKeywordAction;
@@ -2544,7 +2544,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const gkGrants = { ...(gkS.keyword_grants ?? {}) };
       gkGrants[cardNum] = [...new Set([...(gkGrants[cardNum] ?? []), gkA.keyword])];
       return done(addLog(setOwnerState(gkOwner, { ...gkS, keyword_grants: gkGrants }, ctx),
-        `縲・{gkA.keyword}縲代ｒ莉倅ｸ趣ｼ・{ctx.cardMap.get(cardNum)?.CardName ?? cardNum}・荏));
+        `縲・{gkA.keyword}縲代ｒ莉倅ｸ趣ｼ・{ctx.cardMap.get(cardNum)?.CardName ?? cardNum}・荏)`);
     }
     case 'GRANT_EFFECT': {
       const geA = action as GrantEffectAction;
@@ -2556,7 +2556,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const geGranted = { ...(geS.granted_effects ?? {}) };
       geGranted[cardNum] = [...(geGranted[cardNum] ?? []), geA.effect];
       return done(addLog(setOwnerState(geOwner, { ...geS, granted_effects: geGranted }, ctx),
-        `閭ｽ蜉帑ｻ倅ｸ趣ｼ・{ctx.cardMap.get(cardNum)?.CardName ?? cardNum}・荏));
+        `閭ｽ蜉帑ｻ倅ｸ趣ｼ・{ctx.cardMap.get(cardNum)?.CardName ?? cardNum}・荏)`);
     }
     case 'TAKE_FROM_UNDER_SIGNI': {
       const ta = action as import('../types/effects').TakeFromUnderSigniAction;
@@ -2577,7 +2577,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         newOwner = { ...newOwner, trash: [...newOwner.trash, cardNum] };
       }
       return done(addLog({ ...ctx, ownerState: newOwner },
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧偵す繧ｰ繝九・荳九°繧・{destLabel}縺ｫ遘ｻ蜍描));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}繧偵す繧ｰ繝九・荳九°繧・{destLabel}縺ｫ遘ｻ蜍描)`);
     }
     default:
       // STUB 遲峨・蝣ｴ蜷医・∈謚樔ｸｭ縺ｮ cardNum 繧・lastProcessedCards 縺ｧ蠑輔″貂｡縺・      return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
