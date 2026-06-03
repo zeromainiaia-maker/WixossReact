@@ -254,6 +254,10 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
   };
 
   const expandedCard = expandedCardNum ? cardMap.get(expandedCardNum) : null;
+  // 拡大表示用の画像：artOverridesがあればvariant画像を使用
+  const expandedDisplayImgUrl = expandedCardNum
+    ? (cardMap.get(current.artOverrides?.[expandedCardNum] ?? '')?.ImgURL ?? expandedCard?.ImgURL)
+    : null;
 
   const mainEntries = deckSummary(current.mainDeck);
   const mainLbYes = sortMainEntries(mainEntries.filter(([num]) => cardMap.get(num)?.LifeBurst === '1'));
