@@ -326,7 +326,7 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
 function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): ExecResult {
   // BLOCK_OPP_DECK_TO_ENERGY: 逶ｸ謇気ONT縺後い繧ｯ繝・ぅ繝悶↑繧芽・蛻・・繝・ャ繧ｭ竊偵お繝翫ｒ繝悶Ο繝・け
   if (a.owner === 'self' && ctx.deckToEnergyBlocked) {
-    return done(addLog(ctx, '繝・ャ繧ｭ竊偵お繝顔ｧｻ蜍輔′繝悶Ο繝・け縺輔ｌ縺滂ｼ・ONT蜉ｹ譫懶ｼ・));
+    return done(addLog(ctx, '繝・ャ繧ｭ竊偵お繝顔ｧｻ蜍輔′繝悶Ο繝・け縺輔ｌ縺滂ｼ・ONT蜉ｹ譫懶ｼ・'));
   }
   const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
@@ -406,7 +406,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   if (tgtOwner === 'self' && ctx.signiFieldPlaceByEffectBlocked) {
     const srcCard = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     if (srcCard?.Type === '繧ｷ繧ｰ繝・) {
-      return done(addLog(ctx, '繧ｷ繧ｰ繝句柑譫懊↓繧医ｋ繧ｷ繧ｰ繝矩・鄂ｮ縺後ヶ繝ｭ繝・け縺輔ｌ縺滂ｼ・ONT蜉ｹ譫懶ｼ・));
+      return done(addLog(ctx, '繧ｷ繧ｰ繝句柑譫懊↓繧医ｋ繧ｷ繧ｰ繝矩・鄂ｮ縺後ヶ繝ｭ繝・け縺輔ｌ縺滂ｼ・ONT蜉ｹ譫懶ｼ・'));
     }
   }
 
@@ -516,7 +516,7 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   }
   // PREVENT_SIGNI_DOWN_BY_OPP (state flag) 縺ｾ縺溘・ CONT菫晁ｭｷ蜉ｹ譫懊↓繧医ｊ繝繧ｦ繝ｳ辟｡蜉ｹ
   if (a.target.owner === 'opponent' && ctx.otherState.prevent_signi_down_by_opp) {
-    return done(addLog(ctx, '逶ｸ謇九す繧ｰ繝九ム繧ｦ繝ｳ辟｡蜉ｹ・医ム繧ｦ繝ｳ髦ｲ豁｢蜉ｹ譫懶ｼ・));
+    return done(addLog(ctx, '逶ｸ謇九す繧ｰ繝九ム繧ｦ繝ｳ辟｡蜉ｹ・医ム繧ｦ繝ｳ髦ｲ豁｢蜉ｹ譫懶ｼ・'));
   }
   const state = ownerState(a.target.owner, ctx);
   const downProtected = a.target.owner === 'opponent' ? new Set(ctx.otherDownProtectedNums ?? []) : new Set<string>();
@@ -721,7 +721,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining } as SequenceAction)
         : undefined;
       const oppState = cur.otherState;
-      const cands = fieldCandidates(oppState, { cardType: '繧ｷ繧ｰ繝・ }, cur.cardMap, cur.effectivePowers);
+      const cands = fieldCandidates(oppState, { cardType: '繧ｷ繧ｰ繝・ }, cur.cardMap, cur.effectivePowers');
       // 蟇ｾ謌ｦ逶ｸ謇九す繧ｰ繝九ｒ繝舌ル繝・す繝･・・pplyDirectAction縺梧ｭ｣縺励＞繧ｫ繝ｼ繝峨ｒ迚ｹ螳夲ｼ峨√◎縺ｮ蠕梧焔譛ｭ1譫壽昏縺ｦ
       const banishAction: import('../types/effects').BanishAction = {
         type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
@@ -763,7 +763,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
         }
       }
-      cur = addLog(cur, '繧ｳ繧ｹ繝郁牡驕ｸ謚橸ｼ医せ繧ｭ繝・・・・);
+      cur = addLog(cur, '繧ｳ繧ｹ繝郁牡驕ｸ謚橸ｼ医せ繧ｭ繝・・・・');
       continue;
     }
     // 莉ｻ諢上さ繧ｹ繝医ヱ繧ｿ繝ｼ繝ｳ: STUB(蜷・ｨｮ莉ｻ諢上さ繧ｹ繝・ 竊・CONDITIONAL(IS_MY_TURN)
@@ -804,7 +804,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'CHOOSE', options: optionsSO, count: 1,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, '繧ｽ繧ｦ繝ｫ繧剃ｽｿ逕ｨ縺励※逋ｺ蜍輔＠縺ｾ縺吶°・・), pendingSO);
+          return needsInteraction(addLog(cur, '繧ｽ繧ｦ繝ｫ繧剃ｽｿ逕ｨ縺励※逋ｺ蜍輔＠縺ｾ縺吶°・・), pendingSO');
         }
 
         // LRIG_UNDER_CARD_OP: 繧ｷ繧ｰ繝倶ｸ九・繧ｫ繝ｼ繝峨ｒ豸郁ｲｻ縺励※繧ｳ繧ｹ繝域髪謇輔＞・・X24/WX25/WXDi繧ｷ繝ｪ繝ｼ繧ｺ・・
@@ -830,7 +830,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'CHOOSE', options: optionsLUCO, count: 1,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, '繧ｷ繧ｰ繝倶ｸ九・繧ｫ繝ｼ繝峨ｒ菴ｿ逕ｨ縺励※逋ｺ蜍輔＠縺ｾ縺吶°・・), pendingLUCO);
+          return needsInteraction(addLog(cur, '繧ｷ繧ｰ繝倶ｸ九・繧ｫ繝ｼ繝峨ｒ菴ｿ逕ｨ縺励※逋ｺ蜍輔＠縺ｾ縺吶°・・), pendingLUCO');
         }
 
         // OPTIONAL_HAND_REVEAL_NAMED: 蜷榊燕謖・ｮ壹き繝ｼ繝峨ｒ謇区惆縺九ｉ莉ｻ諢丞・髢・竊・縺昴≧縺励◆蝣ｴ蜷・conditional.then
@@ -859,10 +859,10 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // 繝代・繧ｵ繝ｼ縺・conditional.then 縺ｮ target.owner 繧・'self' 縺ｨ隱､逕滓・縺吶ｋ縺溘ａ菫ｮ豁｣縺吶ｋ
         if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
           const toHWTOSOC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-          const oppCandsTOSOC = fieldCandidates(cur.otherState, { cardType: '繧ｷ繧ｰ繝・ }, cur.cardMap, cur.effectivePowers);
+          const oppCandsTOSOC = fieldCandidates(cur.otherState, { cardType: '繧ｷ繧ｰ繝・ }, cur.cardMap, cur.effectivePowers');
           if (oppCandsTOSOC.length === 0) {
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, '蟇ｾ雎｡繧ｷ繧ｰ繝九↑縺暦ｼ・ARGET_OPP_SIGNI_OPTIONAL_COLOR_COST・・));
+            return done(addLog(cur, '蟇ｾ雎｡繧ｷ繧ｰ繝九↑縺暦ｼ・ARGET_OPP_SIGNI_OPTIONAL_COLOR_COST・・'));
           }
           const canAffordTOSOC = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
           // 繝代・繧ｵ繝ｼ繝舌げ菫ｮ豁｣: conditional.then 縺ｮ target.owner='self'/'any' 竊・'opponent'
@@ -992,7 +992,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'CHOOSE', options, count: 1, opponentResponds: true,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, '蟇ｾ謌ｦ逶ｸ謇具ｼ壹さ繧ｹ繝医ｒ謾ｯ謇輔＞縺ｾ縺吶°・・), pending);
+          return needsInteraction(addLog(cur, '蟇ｾ謌ｦ逶ｸ謇具ｼ壹さ繧ｹ繝医ｒ謾ｯ謇輔＞縺ｾ縺吶°・・), pending');
         }
 
         const canAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
@@ -1009,7 +1009,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           count: 1,
           ...(cont ? { continuation: cont } : {}),
         };
-        return needsInteraction(addLog(cur, '莉ｻ諢上さ繧ｹ繝茨ｼ夂匱蜍輔＠縺ｾ縺吶°・・), pending);
+        return needsInteraction(addLog(cur, '莉ｻ諢上さ繧ｹ繝茨ｼ夂匱蜍輔＠縺ｾ縺吶°・・), pending');
       }
 
       // Pattern 竭｣ 霑ｽ蜉繧ｳ繧ｹ繝亥ｼｷ蛹・ STUB ... BASE_STEPS ... CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)
@@ -1054,7 +1054,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               type: 'CHOOSE', options: opts4, count: 1,
               ...(cont4 ? { continuation: cont4 } : {}),
             };
-            return needsInteraction(addLog(cur, '霑ｽ蜉繧ｳ繧ｹ繝茨ｼ壽髪謇輔＞縺ｾ縺吶°・・), pending4);
+            return needsInteraction(addLog(cur, '霑ｽ蜉繧ｳ繧ｹ繝茨ｼ壽髪謇輔＞縺ｾ縺吶°・・), pending4');
           }
         }
       }
@@ -1079,7 +1079,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             { id: 'skip', label: '繧ｹ繧ｭ繝・・', action: noopAction5 as EffectAction, available: true },
           ];
           const pending5: PendingInteractionDef = { type: 'CHOOSE', options: options5, count: 1 };
-          return needsInteraction(addLog(cur, '莉ｻ諢上さ繧ｹ繝茨ｼ壽髪謇輔＞縺ｾ縺吶°・・), pending5);
+          return needsInteraction(addLog(cur, '莉ｻ諢上さ繧ｹ繝茨ｼ壽髪謇輔＞縺ｾ縺吶°・・), pending5');
         }
       }
       // Pattern 竭･: TARGET_AND_DISCARD_HAND
@@ -1113,7 +1113,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             : undefined;
           if (totalRV7 === 0) {
             i++; // TRANSFER_TO_HAND 繧ゅせ繧ｭ繝・・
-            cur = addLog(cur, '繧ｦ繧､繝ｫ繧ｹ縺ｪ縺暦ｼ・EMOVE_VIRUS+TRANSFER 繧ｹ繧ｭ繝・・・・);
+            cur = addLog(cur, '繧ｦ繧､繝ｫ繧ｹ縺ｪ縺暦ｼ・EMOVE_VIRUS+TRANSFER 繧ｹ繧ｭ繝・・・・');
             continue;
           }
           const optsRV7 = Array.from({ length: totalRV7 + 1 }, (_, n) => ({
@@ -1260,7 +1260,7 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
     const s = ownerState(tgt.owner, c);
     const grants = { ...(s.keyword_grants ?? {}) };
     for (const n of selected) grants[n] = [...(grants[n] ?? []), keyword];
-    return addLog(setOwnerState(tgt.owner, { ...s, keyword_grants: grants }, c), '蜉ｹ譫懆先ｧ莉倅ｸ・);
+    return addLog(setOwnerState(tgt.owner, { ...s, keyword_grants: grants }, c), '蜉ｹ譫懆先ｧ莉倅ｸ・');
   }
 
   if (tgt.count === 'ALL') return done(applyProtection(cands, ctx));
@@ -1290,10 +1290,10 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
     if (fromEnergy.length > 0) { charmCands = fromEnergy; charmFromLocation = 'energy'; }
     else { charmCands = fromHand; charmFromLocation = 'hand'; }
   }
-  if (charmCands.length === 0) return done(addLog(ctx, '繝√Ε繝ｼ繝蟇ｾ雎｡縺ｪ縺・));
+  if (charmCands.length === 0) return done(addLog(ctx, '繝√Ε繝ｼ繝蟇ｾ雎｡縺ｪ縺・'));
 
   // 蟇ｾ雎｡繧ｷ繧ｰ繝九・繧ｾ繝ｼ繝ｳ繧呈爾縺・  const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
-  if (toCands.length === 0) return done(addLog(ctx, '繝√Ε繝ｼ繝莉倅ｸ主ｯｾ雎｡繧ｷ繧ｰ繝九↑縺・));
+  if (toCands.length === 0) return done(addLog(ctx, '繝√Ε繝ｼ繝莉倅ｸ主ｯｾ雎｡繧ｷ繧ｰ繝九↑縺・'));
 
   const charmNum = charmCands[0];
   const targetNum = toCands[0];
@@ -1415,7 +1415,7 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
     // lrig_deck: 繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ縺ｮ蜈磯ｭ縺九ｉ蟇ｾ雎｡繧呈爾縺・    cands = (ctx.ownerState.lrig_deck ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
   }
 
-  if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 蟇ｾ雎｡縺ｪ縺・));
+  if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 蟇ｾ雎｡縺ｪ縺・'));
 
   // 繧､繝ｳ繧ｿ繝ｩ繧ｯ繧ｷ繝ｧ繝ｳ縺ｧ繧ｫ繝ｼ繝峨ｒ驕ｸ縺ｰ縺帙ｋ・磯∈謚槫ｾ後・螳滄圀縺ｮ菴ｿ逕ｨ縺ｯBattleScreen縺梧球蠖難ｼ・  return needsInteraction(ctx, {
     type: 'SEARCH',
@@ -1607,7 +1607,7 @@ function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult
   // 繝輔ぅ繝ｼ繝ｫ繝峨・蟇ｾ雎｡繧ｷ繧ｰ繝句・菴薙↓莉倅ｸ・  const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap, ctx.effectivePowers);
   for (const n of cands) grants[n] = [...(grants[n] ?? []), keyword];
   const newOwner: PlayerState = { ...ctx.ownerState, keyword_grants: grants };
-  return done(addLog({ ...ctx, ownerState: newOwner }, '繝√Ε繝ｼ繝菫晁ｭｷ莉倅ｸ・));
+  return done(addLog({ ...ctx, ownerState: newOwner }, '繝√Ε繝ｼ繝菫晁ｭｷ莉倅ｸ・'));
 }
 
 function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): ExecResult {
@@ -1819,9 +1819,9 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
   // 繝・さ繝ｬ・・romHand・・ 縺ｾ縺壽焔譛ｭ縺九ｉ繧｢繧ｯ繧ｻ繧ｫ繝ｼ繝蛾∈謚・竊・谺｡縺ｫ繝帙せ繝医す繧ｰ繝矩∈謚・  if (a.fromHand) {
     const handCands = srcState.hand.filter(cn => {
       const card = ctx.cardMap.get(cn);
-      return card && card.Type === '繧ｷ繧ｰ繝・ && (!a.signiFilter || matchesFilter(card, a.signiFilter));
+      return card && card.Type === '繧ｷ繧ｰ繝・ && (!a.signiFilter || matchesFilter(card, a.signiFilter'));
     });
-    if (handCands.length === 0) return done(addLog(ctx, '繧｢繧ｯ繧ｻ蜿ｯ閭ｽ縺ｪ謇区惆繧ｷ繧ｰ繝九↑縺・));
+    if (handCands.length === 0) return done(addLog(ctx, '繧｢繧ｯ繧ｻ蜿ｯ閭ｽ縺ｪ謇区惆繧ｷ繧ｰ繝九↑縺・'));
     // 繧ｹ繝・ャ繝・: 謇区惆縺九ｉ繧｢繧ｯ繧ｻ繧ｫ繝ｼ繝峨ｒ驕ｸ謚・竊・繧ｹ繝・ャ繝・: 繝帙せ繝医す繧ｰ繝矩∈謚槭∈
     const selectHostAction: AttachAcceAction = { ...a, fromHand: false };
     return needsInteraction(addLog(ctx, '謇区惆縺九ｉ繧｢繧ｯ繧ｻ縺吶ｋ繧ｷ繧ｰ繝九ｒ驕ｸ謚・), {
@@ -1841,7 +1841,7 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
     if (a.targetFilter && !matchesFilter(ctx.cardMap.get(top), a.targetFilter)) return [];
     return [top];
   });
-  if (hostCands.length === 0) return done(addLog(ctx, '繧｢繧ｯ繧ｻ蟇ｾ雎｡縺ｪ縺・));
+  if (hostCands.length === 0) return done(addLog(ctx, '繧｢繧ｯ繧ｻ蟇ｾ雎｡縺ｪ縺・'));
 
   const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
   return needsInteraction(addLog(ctx, '縺ｩ縺ｮ繧ｷ繧ｰ繝九↓繧｢繧ｯ繧ｻ縺励∪縺吶°・・), {
@@ -1876,7 +1876,7 @@ function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecRe
     if (!inHandExcSelf && !inTrashExcSelf && !inDeckExcSelf) return [];
     return [top];
   });
-  if (candidates.length === 0) return done(addLog(ctx, '陦譎ｶ豁ｦ陬・ｯｾ雎｡縺ｪ縺・));
+  if (candidates.length === 0) return done(addLog(ctx, '陦譎ｶ豁ｦ陬・ｯｾ雎｡縺ｪ縺・'));
 
   return {
     done: false,
@@ -1927,7 +1927,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ENERGY_CHARGE_FROM_DECK': return execEnergyChargeFromDeck(action as EnergyChargeFromDeckAction, ctx);
     case 'LIFE_CRASH':              return execLifeCrash(action as LifeCrashAction, ctx);
     case 'SHUFFLE_DECK':            return execShuffleDeck(action as ShuffleDeckAction, ctx);
-    case 'REVEAL':                  return done(addLog(ctx, '繧ｫ繝ｼ繝峨ｒ蜈ｬ髢・));
+    case 'REVEAL':                  return done(addLog(ctx, '繧ｫ繝ｼ繝峨ｒ蜈ｬ髢・'));
     case 'ADD_TO_HAND':             return done(addLog(ctx, '繧ｫ繝ｼ繝峨ｒ謇区惆縺ｫ蜉縺医ｋ')); // SEARCH蜀・〒蜃ｦ逅・    case 'TRANSFER_TO_HAND':        return execTransferToHand(action as TransferToHandAction, ctx);
     case 'ADD_TO_FIELD':            return execAddToField(action as AddToFieldAction, ctx);
     case 'ADD_TO_LIFE':             return execAddToLife(action as AddToLifeAction, ctx);
@@ -1940,13 +1940,13 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GRANT_EFFECT':            return execGrantEffect(action as GrantEffectAction, ctx);
     case 'SEARCH':                  return execSearch(action as SearchAction, ctx);
     case 'SEQUENCE':                return execSequence(action as SequenceAction, ctx);
-    case 'RECOLLECT_GATE':         return done(addLog(ctx, '繝ｪ繧ｳ繝ｬ繧ｯ繝医ご繝ｼ繝茨ｼ医す繝ｼ繧ｱ繝ｳ繧ｹ螟悶〒縺ｯ蟶ｸ縺ｫ騾夐℃・・));
+    case 'RECOLLECT_GATE':         return done(addLog(ctx, '繝ｪ繧ｳ繝ｬ繧ｯ繝医ご繝ｼ繝茨ｼ医す繝ｼ繧ｱ繝ｳ繧ｹ螟悶〒縺ｯ蟶ｸ縺ｫ騾夐℃・・'));
     case 'CHOOSE':                  return execChoose(action as ChooseAction, ctx);
     case 'CONDITIONAL':             return execConditional(action as ConditionalAction, ctx);
     case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
     case 'TRANSFER_TO_DECK':        return execTransferToDeck(action as TransferToDeckAction, ctx);
     case 'COUNTER_SPELL':           return done(addLog(ctx, '繧ｹ繝壹Ν/繧｢繝ｼ繝・遠縺｡豸医＠'));
-    case 'COST_REDUCTION':          return done(addLog(ctx, '繧ｳ繧ｹ繝域ｸ帛ｰ大柑譫懶ｼ域ｬ｡縺ｮ繧ｫ繝ｼ繝我ｽｿ逕ｨ譎る←逕ｨ・・));
+    case 'COST_REDUCTION':          return done(addLog(ctx, '繧ｳ繧ｹ繝域ｸ帛ｰ大柑譫懶ｼ域ｬ｡縺ｮ繧ｫ繝ｼ繝我ｽｿ逕ｨ譎る←逕ｨ・・'));
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
     case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
     case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);
@@ -1957,9 +1957,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'AWAKEN_SIGNI':               return execAwakenSigni(ctx);
     case 'NEGATE_ATTACK':              return execNegateAttack(action as import('../types/effects').NegateAttackAction, ctx);
     case 'PLACE_UNDER_SIGNI':          return execPlaceUnderSigni(action as import('../types/effects').PlaceUnderSigniAction, ctx);
-    case 'PLACE_UNDER_SOURCE_SIGNI':   return done(addLog(ctx, '繧ｷ繧ｰ繝九・荳九↓鄂ｮ縺擾ｼ育峩謗･蜻ｼ蜃ｺ・・)); // applyDirectAction蜀・〒蜃ｦ逅・    case 'TAKE_FROM_UNDER_SIGNI':      return execTakeFromUnderSigni(action as import('../types/effects').TakeFromUnderSigniAction, ctx);
+    case 'PLACE_UNDER_SOURCE_SIGNI':   return done(addLog(ctx, '繧ｷ繧ｰ繝九・荳九↓鄂ｮ縺擾ｼ育峩謗･蜻ｼ蜃ｺ・・)); // applyDirectAction蜀・〒蜃ｦ逅・    case 'TAKE_FROM_UNDER_SIGNI':      return execTakeFromUnderSigni(action as import('../types/effects').TakeFromUnderSigniAction, ctx');
     case 'POWER_MODIFY_PER_LRIG_LEVEL': return execPowerModifyPerLrigLevel(action as PowerModifyPerLrigLevelAction, ctx);
-    case 'FORCE_END_TURN':             return done(addLog({ ...ctx, forceEndTurn: true }, '繧ｿ繝ｼ繝ｳ繧貞ｼｷ蛻ｶ邨ゆｺ・));
+    case 'FORCE_END_TURN':             return done(addLog({ ...ctx, forceEndTurn: true }, '繧ｿ繝ｼ繝ｳ繧貞ｼｷ蛻ｶ邨ゆｺ・'));
     case 'CHARM_PROTECTION':           return execCharmProtection(action as CharmProtectionAction, ctx);
     case 'MUTUAL_DISCARD_AND_DRAW': return execMutualDiscardAndDraw(action as MutualDiscardAndDrawAction, ctx);
     case 'REMOVE_ABILITIES':        return execRemoveAbilities(action as RemoveAbilitiesAction, ctx);
@@ -1984,20 +1984,20 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'PLACE_VIRUS':                  return execPlaceVirus(action as PlaceVirusAction, ctx);
     case 'ATTACH_ACCE':                  return execAttachAcce(action as AttachAcceAction, ctx);
     case 'BLOOD_CRYSTAL_ARMOR':          return execBloodCrystalArmor(action as BloodCrystalArmorAction, ctx);
-    case 'POWER_MODIFY_PER_VIRUS_COUNT': return done(addLog(ctx, '繧ｦ繧｣繝ｫ繧ｹ謨ｰ豈比ｾ九ヱ繝ｯ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・));
+    case 'POWER_MODIFY_PER_VIRUS_COUNT': return done(addLog(ctx, '繧ｦ繧｣繝ｫ繧ｹ謨ｰ豈比ｾ九ヱ繝ｯ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・'));
     case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `繝ｪ繝溘ャ繝・{(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}・・I蜃ｦ逅・ｼ荏)`);
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
     // 莉･荳九・ CONTINUOUS 蜉ｹ譫懷ｰら畑・・ffectEngine 蛛ｴ縺ｧ蜃ｦ逅・ｼ・    case 'BANISH_REDIRECT': {
       const newOwner: PlayerState = { ...ctx.ownerState, banish_redirect: true };
       return done(addLog({ ...ctx, ownerState: newOwner }, '蟇ｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝九・繝舌ル繝・す繝･蜈医ｒ繝医Λ繝・す繝･縺ｸ螟画峩'));
     }
-    case 'REARRANGE_SIGNI':                return done(addLog(ctx, '繧ｷ繧ｰ繝倶ｸｦ縺ｳ譖ｿ縺茨ｼ・attleScreen蛛ｴ縺ｧ蜃ｦ逅・ｼ・));
-    case 'GROW_FREE':                      return done(addLog(ctx, '繝輔Μ繝ｼ繧ｰ繝ｭ繧ｦ・・attleScreen蜃ｦ逅・ｼ・));
-    case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, '繧ｹ繧ｿ繝・け蜿ら・繝代Ρ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・));
-    case 'POWER_MODIFY_PER_DECK_COUNT':    return done(addLog(ctx, '繝・ャ繧ｭ譫壽焚豈比ｾ九ヱ繝ｯ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・));
-    case 'POWER_MODIFY_PER_ENERGY_COLOR':  return done(addLog(ctx, '繧ｨ繝願牡遞ｮ鬘樊ｯ比ｾ九ヱ繝ｯ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・));
+    case 'REARRANGE_SIGNI':                return done(addLog(ctx, '繧ｷ繧ｰ繝倶ｸｦ縺ｳ譖ｿ縺茨ｼ・attleScreen蛛ｴ縺ｧ蜃ｦ逅・ｼ・'));
+    case 'GROW_FREE':                      return done(addLog(ctx, '繝輔Μ繝ｼ繧ｰ繝ｭ繧ｦ・・attleScreen蜃ｦ逅・ｼ・'));
+    case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, '繧ｹ繧ｿ繝・け蜿ら・繝代Ρ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・'));
+    case 'POWER_MODIFY_PER_DECK_COUNT':    return done(addLog(ctx, '繝・ャ繧ｭ譫壽焚豈比ｾ九ヱ繝ｯ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・'));
+    case 'POWER_MODIFY_PER_ENERGY_COLOR':  return done(addLog(ctx, '繧ｨ繝願牡遞ｮ鬘樊ｯ比ｾ九ヱ繝ｯ繝ｼ・・ffectEngine蜃ｦ逅・ｼ・'));
     case 'ALT_COST_OPP_TURN':
-      return done(addLog(ctx, '蟇ｾ謌ｦ逶ｸ謇九ち繝ｼ繝ｳ髢薙さ繧ｹ繝亥､牙虚・亥ｱ暮幕繝輔ぉ繧､繧ｺ縺ｧ驕ｩ逕ｨ貂医∩・・));
+      return done(addLog(ctx, '蟇ｾ謌ｦ逶ｸ謇九ち繝ｼ繝ｳ髢薙さ繧ｹ繝亥､牙虚・亥ｱ暮幕繝輔ぉ繧､繧ｺ縺ｧ驕ｩ逕ｨ貂医∩・・'));
     case 'BLOCK_CARD_USE': {
       const bcu = action as import('../types/effects').BlockCardUseAction;
       const newOwner = { ...ctx.ownerState, blocked_card_names: [...(ctx.ownerState.blocked_card_names ?? []), bcu.cardName] };
