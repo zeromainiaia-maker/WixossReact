@@ -5,7 +5,7 @@ import type { CardData, PlayerState, TurnPhase, Deck } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { executeEffect, getCardNum, resumeSelectTarget, resumeDeclareBond } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
-import { calcFieldPowers, collectFrozenBanishOverrides, collectRiseBanishSubstituteSigni, collectAllColorSigniForField } from '../engine/effectEngine';
+import { calcFieldPowers, collectFrozenBanishOverrides, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors } from '../engine/effectEngine';
 import { hasKeyword } from '../utils/keywords';
 import type { ExecCtx } from '../engine/effectExecutor';
 import type { PendingInteractionDef } from '../types';
@@ -543,7 +543,8 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const other   = burstOwner === 'player' ? cleared.cpu    : cleared.player;
     const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
     const allColorSigniNums = new Set([...collectAllColorSigniForField(owner, cardMap, effectsMap, other, false), ...collectAllColorSigniForField(other, cardMap, effectsMap, owner, true)]);
-    const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: burstCard, allColorSigniNums };
+    const fieldSigniExtraColors = new Map([...collectFieldSigniExtraColors(owner, cardMap, effectsMap, other, false), ...collectFieldSigniExtraColors(other, cardMap, effectsMap, owner, true)]);
+    const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: burstCard, allColorSigniNums, fieldSigniExtraColors };
     const result = executeEffect(burstEff, ctx);
     for (const l of result.logs) appendLog(l);
 
@@ -574,7 +575,8 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
         const other = defenderSide === 'player' ? ng.cpu : ng.player;
         const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
         const trapAllColorSigniNums = new Set([...collectAllColorSigniForField(owner, cardMap, effectsMap, other, false), ...collectAllColorSigniForField(other, cardMap, effectsMap, owner, true)]);
-        const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: trapCard, allColorSigniNums: trapAllColorSigniNums };
+        const trapExtraColors = new Map([...collectFieldSigniExtraColors(owner, cardMap, effectsMap, other, false), ...collectFieldSigniExtraColors(other, cardMap, effectsMap, owner, true)]);
+        const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: trapCard, allColorSigniNums: trapAllColorSigniNums, fieldSigniExtraColors: trapExtraColors };
         const result = executeEffect(trapEff, ctx);
         for (const l of result.logs) appendLog(l);
         ng = defenderSide === 'player'
@@ -633,13 +635,15 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     if (inter.type === 'SELECT_TARGET') {
       const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
       const interAllColorSigniNums = new Set([...collectAllColorSigniForField(owner, cardMap, effectsMap, other, false), ...collectAllColorSigniForField(other, cardMap, effectsMap, owner, true)]);
-      const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: '', allColorSigniNums: interAllColorSigniNums };
+      const interExtraColors = new Map([...collectFieldSigniExtraColors(owner, cardMap, effectsMap, other, false), ...collectFieldSigniExtraColors(other, cardMap, effectsMap, owner, true)]);
+      const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: '', allColorSigniNums: interAllColorSigniNums, fieldSigniExtraColors: interExtraColors };
       result = resumeSelectTarget(selectedNums, inter, ctx);
     } else if (inter.type === 'DECLARE_BOND') {
       if (selectedNums.length === 0) return { ...g, pendingInteraction: null, pendingOwner: null };
       const ctxPowers = calcFieldPowers(owner, other, false, effectsMap, cardMap);
       const bondAllColorSigniNums = new Set([...collectAllColorSigniForField(owner, cardMap, effectsMap, other, false), ...collectAllColorSigniForField(other, cardMap, effectsMap, owner, true)]);
-      const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: '', allColorSigniNums: bondAllColorSigniNums };
+      const bondExtraColors = new Map([...collectFieldSigniExtraColors(owner, cardMap, effectsMap, other, false), ...collectFieldSigniExtraColors(other, cardMap, effectsMap, owner, true)]);
+      const ctx: ExecCtx = { ownerState: owner, otherState: other, cardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: '', allColorSigniNums: bondAllColorSigniNums, fieldSigniExtraColors: bondExtraColors };
       result = resumeDeclareBond(selectedNums[0], inter, ctx);
     } else {
       return { ...g, pendingInteraction: null, pendingOwner: null };

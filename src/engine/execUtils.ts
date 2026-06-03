@@ -42,6 +42,8 @@ export interface ExecCtx {
   otherAbilityGainProtectedNums?: string[];
   // ALL_COLOR / ALL_ZONE_BLACK / ACCE_SIGNI_ALL_COLOR など: すべての色を持つシグニ番号
   allColorSigniNums?: Set<string>;
+  // ALL_ZONE_BLACK / GAIN_LRIG_COLOR / INHERIT_UNDER_SIGNI_COLOR など: 追加色を持つシグニ番号→色配列
+  fieldSigniExtraColors?: Map<string, string[]>;
 }
 
 export type ExecResult =
@@ -167,6 +169,7 @@ export function fieldCandidates(
   cardMap: Map<string, CardData>,
   effectivePowers?: Map<string, number>,
   allColorSigniNums?: Set<string>,
+  fieldSigniExtraColors?: Map<string, string[]>,
 ): string[] {
   return state.field.signi.flatMap((stack, zoneIdx) => {
     if (!stack || stack.length === 0) return [];
@@ -200,7 +203,16 @@ export function fieldCandidates(
     const classOverride = state.card_class_overrides?.[cardNum];
     // ACCE_SIGNI_ALL_COLOR / ALL_COLOR / ALL_ZONE_BLACK: 全色を持つシグニは色フィルターをバイパス
     const isAllColor = state.story_overrides?.[cardNum] === 'ALL_COLOR' || allColorSigniNums?.has(cardNum);
-    if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride)) return [];
+    const extraColors = fieldSigniExtraColors?.get(cardNum);
+    if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride)) {
+      // 追加色がある場合: 色フィルターだけ追加色でも再チェック
+      if (!extraColors || !filter?.color) return [];
+      const filterColors = Array.isArray(filter.color) ? filter.color : [filter.color];
+      if (!filterColors.some(c => extraColors.includes(c))) return [];
+      // 色フィルター以外のフィルターを通常チェック
+      const filterNoColor = { ...filter, color: undefined };
+      if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride)) return [];
+    }
     if (isAllColor) {
       // 色フィルター以外のフィルターは通常通りチェック
       const filterNoColor = filter ? { ...filter, color: undefined } : undefined;
