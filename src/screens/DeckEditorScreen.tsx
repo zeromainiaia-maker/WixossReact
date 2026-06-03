@@ -190,20 +190,35 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
         ? (extra ? extraLrigCount < LRIG_EXTRA_MAX : regularLrigCount < LRIG_MAX)
         : current.mainDeck.length < MAIN_MAX
     );
+    const variants = card ? (variantMap.get(card.CardName) ?? []) : [];
+    const hasVariants = variants.length > 1;
     return (
       <div
         key={cardNum}
         onClick={() => setExpandedCardNum(cardNum)}
         style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 10px', borderBottom: '1px solid rgba(0,0,0,0.07)', backgroundColor: bg, borderRadius: '6px', marginBottom: '3px', cursor: 'pointer' }}
       >
-        {card && (
-          <img
-            src={getThumbUrl(card.ImgURL)}
-            alt={card.CardName}
-            style={{ width: '44px', height: '62px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }}
-            onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
-          />
-        )}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          {card && (
+            <img
+              src={getThumbUrl(card.ImgURL)}
+              alt={card.CardName}
+              style={{ width: '44px', height: '62px', objectFit: 'cover', borderRadius: '4px', display: 'block' }}
+              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
+            />
+          )}
+          {hasVariants && (
+            <button
+              onClick={e => { e.stopPropagation(); setVariantPickerFor({ cardNum, from }); }}
+              title="絵柄を変更"
+              style={{
+                position: 'absolute', bottom: 2, right: 2,
+                backgroundColor: 'rgba(80,40,180,0.85)', border: 'none', borderRadius: '3px',
+                color: '#fff', fontSize: '9px', padding: '1px 3px', cursor: 'pointer', lineHeight: 1.2,
+              }}
+            >絵柄</button>
+          )}
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
             <p style={{ fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#111', fontWeight: '500', margin: 0 }}>{card?.CardName ?? cardNum}</p>
