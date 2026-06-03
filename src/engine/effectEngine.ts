@@ -2141,11 +2141,14 @@ export function collectLrigNameAliases(
   ownerState: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState?: PlayerState,
 ): string[] {
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   const aliases: string[] = [];
   const lrigTop = ownerState.field.lrig.at(-1);
   if (!lrigTop) return aliases;
+
+  const lrigCard = cardMap.get(lrigTop);
 
   for (const eff of (effectsMap.get(lrigTop) ?? [])) {
     if (eff.effectType !== 'CONTINUOUS') continue;
@@ -2158,10 +2161,35 @@ export function collectLrigNameAliases(
       continue;
     }
 
+    // INHERIT_OPP_LRIG_TYPE: 対戦相手のセンタールリグのタイプを追加で得る
+    if (act.id === 'INHERIT_OPP_LRIG_TYPE' && otherState) {
+      const oppLrigTop = otherState.field.lrig.at(-1);
+      if (oppLrigTop) {
+        const oppClass = cardMap.get(oppLrigTop)?.CardClass ?? '';
+        for (const cls of oppClass.split('/').map(c => c.trim()).filter(Boolean)) {
+          if (!aliases.includes(cls)) aliases.push(cls);
+        }
+        // CardName にも追加（名前条件チェック用）
+        const oppName = cardMap.get(oppLrigTop)?.CardName ?? '';
+        if (oppName && !aliases.includes(oppName)) aliases.push(oppName);
+      }
+      continue;
+    }
+
+    // LRIG_LIMIT_UP_AND_COLOR_GAIN: ルリグが追加でタイプを得る（例：＜タウィル＞）
+    if (act.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
+      const txt = lrigCard?.EffectText ?? '';
+      const typeMatches = [...txt.matchAll(/追加で(?:[白赤青緑黒]と)?＜([^＞]+)＞を得る/g)];
+      for (const m of typeMatches) {
+        const t = m[1];
+        if (t && !aliases.includes(t)) aliases.push(t);
+      }
+      continue;
+    }
+
     if (act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
 
-    const card = cardMap.get(lrigTop);
-    const txt = card?.EffectText ?? '';
+    const txt = lrigCard?.EffectText ?? '';
     // "ルリグトラッシュにある(レベルNの)?＜ストーリー名＞と同じカード名"
     const m = txt.match(/ルリグトラッシュにある(?:レベル([０-９\d]+)の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名/);
     if (!m) continue;
@@ -2181,6 +2209,51 @@ export function collectLrigNameAliases(
       if (aliasName && !aliases.includes(aliasName)) aliases.push(aliasName);
     }
   }
+
+  // key_piece の GAIN_ADDITIONAL_LRIG_TYPE: キー効果でルリグがタイプを得る
+  const keyPiece = ownerState.field.key_piece;
+  if (keyPiece) {
+    for (const eff of (effectsMap.get(keyPiece) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'GAIN_ADDITIONAL_LRIG_TYPE') continue;
+      const keyCard = cardMap.get(keyPiece);
+      const txt = keyCard?.EffectText ?? '';
+      // "センタールリグが＜タウィル＞か＜ウムル＞であるかぎり、それは追加で＜タウィル/ウムル＞を得る"
+      const condM = [...txt.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]);
+      // 条件クラス（最初のN個）と得るタイプ（最後の1個）を分離
+      const gainM = txt.match(/追加で＜([^＞]+)＞を得る/);
+      if (gainM) {
+        const gainType = gainM[1];
+        const condClasses = condM.filter(c => c !== gainType);
+        const lrigClass = lrigCard?.CardClass ?? '';
+        const lrigName = lrigCard?.CardName ?? '';
+        const condMet = condClasses.length === 0 ||
+          condClasses.some(c => lrigClass.includes(c) || lrigName.includes(c) || aliases.includes(c));
+        if (condMet && !aliases.includes(gainType)) aliases.push(gainType);
+      }
+    }
+  }
+
+  // シグニフィールドのキー/ピース（key_piece 以外の場所に置かれている場合）
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'GAIN_ADDITIONAL_LRIG_TYPE') continue;
+      const txt = cardMap.get(top)?.EffectText ?? '';
+      const gainM = txt.match(/追加で＜([^＞]+)＞を得る/);
+      if (gainM && !aliases.includes(gainM[1])) aliases.push(gainM[1]);
+    }
+  }
+
+  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム中全センタールリグが得たタイプ（PR-471等）
+  for (const t of (ownerState.lrig_gained_types ?? [])) {
+    if (!aliases.includes(t)) aliases.push(t);
+  }
+
   return aliases;
 }
 
@@ -3233,4 +3306,117 @@ export function collectIncreaseActCost(
     }
   }
   return extra;
+}
+
+/**
+ * ALL_COLOR / ALL_ZONE_BLACK / ACCE_SIGNI_ALL_COLOR / INHERIT_UNDER_SIGNI_COLOR:
+ * フィールド上のシグニで「すべての色を持つ（色フィルターをバイパスできる）」シグニのCardNum集合を返す。
+ * BattleScreenがExecCtxのallColorSigniNumsに渡すことで、effectExecutor/execStubのfieldCandidatesに反映。
+ */
+export function collectAllColorSigniForField(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): Set<string> {
+  const result = new Set<string>();
+
+  // ALL_COLOR CONT: 条件付き全色（collectAllColorSigniと同ロジック）
+  const allColorSigni = collectAllColorSigni(state, effectsMap, cardMap);
+  for (const cn of allColorSigni) result.add(cn);
+
+  // ALL_ZONE_BLACK CONT: このシグニはすべての領域で黒でもある（フィールドでも黒として扱う）
+  // → 黒シグニ候補扱いだが「すべての色」ではない。フィールドフィルターでは黒として扱えばよい
+  // （完全全色ではなく黒追加なので別扱い。ここでは all-color バイパスには含めない）
+
+  // story_overrides 'ALL_COLOR': ACCE_SIGNI_ALL_COLOR で既にセット済み
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top && state.story_overrides?.[top] === 'ALL_COLOR') result.add(top);
+  }
+
+  // INHERIT_UNDER_SIGNI_COLOR: スタック下の天使シグニの色を得る（色は固定ではないので全色バイパスではない）
+  // → 特定色継承のため here では all-color バイパスに含めない（色条件に応じた別処理が必要）
+
+  return result;
+}
+
+/**
+ * collectAllZoneBlackSigniColors:
+ * ALL_ZONE_BLACK CONTを持つカードのCardNumと黒マッピングを返す（フィールド上）。
+ * シグニの色として'黒'を追加すべき対象を返す。
+ */
+export function collectFieldSigniExtraColors(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+
+  for (let zi = 0; zi < state.field.signi.length; zi++) {
+    const stack = state.field.signi[zi];
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    const extraColors: string[] = [];
+
+    // ALL_ZONE_BLACK: すべての領域で黒でもある
+    const allZoneBlack = [...(effectsMap.get(topNum) ?? [])].some(eff => {
+      if (eff.effectType !== 'CONTINUOUS') return false;
+      const act = eff.action as import('../types/effects').StubAction;
+      return act.type === 'STUB' && act.id === 'ALL_ZONE_BLACK';
+    });
+    if (allZoneBlack) extraColors.push('黒');
+
+    // GAIN_LRIG_COLOR: ルリグの色を得る
+    const hasGainLrigColor = [...(effectsMap.get(topNum) ?? [])].some(eff => {
+      if (eff.effectType !== 'CONTINUOUS') return false;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) return false;
+      const act = eff.action as import('../types/effects').StubAction;
+      return act.type === 'STUB' && act.id === 'GAIN_LRIG_COLOR';
+    });
+    if (hasGainLrigColor) {
+      const lrigTop = state.field.lrig.at(-1);
+      if (lrigTop) {
+        const lrigColor = cardMap.get(lrigTop)?.Color ?? '';
+        // ルリグの色（/区切り）をすべて追加
+        for (const c of lrigColor.split('/').map(s => s.trim()).filter(Boolean)) {
+          // lrig_extra_colors も含める
+          if (!extraColors.includes(c)) extraColors.push(c);
+        }
+        for (const c of (state.lrig_extra_colors ?? [])) {
+          if (!extraColors.includes(c)) extraColors.push(c);
+        }
+      }
+    }
+
+    // INHERIT_UNDER_SIGNI_COLOR: スタック下の天使シグニの色を得る
+    const hasInheritUnder = [...(effectsMap.get(topNum) ?? [])].some(eff => {
+      if (eff.effectType !== 'CONTINUOUS') return false;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) return false;
+      const act = eff.action as import('../types/effects').StubAction;
+      return act.type === 'STUB' && act.id === 'INHERIT_UNDER_SIGNI_COLOR';
+    });
+    if (hasInheritUnder && stack.length > 1) {
+      // スタック下のカード（天使）の色を得る
+      const card = cardMap.get(topNum);
+      const txt = card?.EffectText ?? '';
+      const classM = txt.match(/この下にある＜([^＞]+)＞のシグニが持つ色を得る/);
+      const targetClass = classM?.[1] ?? '';
+      for (const underCn of stack.slice(0, -1)) {
+        const underCard = cardMap.get(underCn);
+        if (!targetClass || (underCard?.CardClass ?? '').includes(targetClass)) {
+          const underColor = underCard?.Color ?? '';
+          for (const c of underColor.split('/').map(s => s.trim()).filter(Boolean)) {
+            if (!extraColors.includes(c)) extraColors.push(c);
+          }
+        }
+      }
+    }
+
+    if (extraColors.length > 0) result.set(topNum, extraColors);
+  }
+  return result;
 }

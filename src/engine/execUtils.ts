@@ -40,6 +40,8 @@ export interface ExecCtx {
   // PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP:
   // 相手効果でキーワード能力を付与できないシグニ番号
   otherAbilityGainProtectedNums?: string[];
+  // ALL_COLOR / ALL_ZONE_BLACK / ACCE_SIGNI_ALL_COLOR など: すべての色を持つシグニ番号
+  allColorSigniNums?: Set<string>;
 }
 
 export type ExecResult =
@@ -164,6 +166,7 @@ export function fieldCandidates(
   filter: TargetFilter | undefined,
   cardMap: Map<string, CardData>,
   effectivePowers?: Map<string, number>,
+  allColorSigniNums?: Set<string>,
 ): string[] {
   return state.field.signi.flatMap((stack, zoneIdx) => {
     if (!stack || stack.length === 0) return [];
@@ -195,8 +198,8 @@ export function fieldCandidates(
     }
     // card_class_overridesによるクラス上書きを考慮してフィルター適用
     const classOverride = state.card_class_overrides?.[cardNum];
-    // ACCE_SIGNI_ALL_COLOR: story_overrides 'ALL_COLOR' なら色フィルターをバイパス
-    const isAllColor = state.story_overrides?.[cardNum] === 'ALL_COLOR';
+    // ACCE_SIGNI_ALL_COLOR / ALL_COLOR / ALL_ZONE_BLACK: 全色を持つシグニは色フィルターをバイパス
+    const isAllColor = state.story_overrides?.[cardNum] === 'ALL_COLOR' || allColorSigniNums?.has(cardNum);
     if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride)) return [];
     if (isAllColor) {
       // 色フィルター以外のフィルターは通常通りチェック

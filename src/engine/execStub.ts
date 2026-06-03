@@ -473,7 +473,7 @@ export function execStub(
     const selfSigni = ctx.ownerState.field.signi
       .map((stack, zi) => stack?.at(-1) ? { cn: stack.at(-1)!, zi } : null)
       .filter(Boolean) as { cn: string; zi: number }[];
-    const oppSigni = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppSigni = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (selfSigni.length === 0 || oppSigni.length === 0) {
       return done(addLog(ctx, 'トレード条件未達（シグニなし）'));
     }
@@ -489,7 +489,7 @@ export function execStub(
   }
   // 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ）
   if (stub.id === 'TARGET_AND_DISCARD_HAND') {
-    const oppCandsTADH = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsTADH = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsTADH.length === 0 || ctx.ownerState.hand.length === 0)
       return done(addLog(ctx, '対戦相手シグニまたは手札なし（TARGET_AND_DISCARD_HAND）'));
     // 手札を1枚自動捨て（末尾）→ 相手シグニをlastProcessedCardsへ
@@ -1781,7 +1781,7 @@ export function execStub(
       && !txtTO.match(/対戦相手.{0,5}シグニ/);
     const stateTO = isOwnTO ? ctx.ownerState : ctx.otherState;
     const scopeTO: TargetScope = isOwnTO ? 'self_field' : 'opp_field';
-    const candsTO = fieldCandidates(stateTO, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const candsTO = fieldCandidates(stateTO, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (candsTO.length === 0) return done(addLog(ctx, '対象シグニなし（TARGET_ONLY）'));
     const noopTO: SequenceAction = { type: 'SEQUENCE', steps: [] };
     return selectOrInteract(candsTO, 1, false, scopeTO, noopTO as EffectAction, undefined, ctx);
@@ -2570,7 +2570,7 @@ export function execStub(
     const toHWMSE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const maxMMSE = txtMSE.match(/シグニ([０-９\d]+)体まで/);
     const maxMSE = maxMMSE ? parseInt(toHWMSE(maxMMSE[1])) : 2;
-    const oppCandsMSE = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsMSE = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsMSE.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
     const toEnergyMSE: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC' };
     return selectOrInteract(oppCandsMSE, maxMSE, false, 'opp_field', toEnergyMSE as EffectAction, undefined, ctx);
@@ -2592,7 +2592,7 @@ export function execStub(
   }
   // 相手シグニをデッキに加えてシャッフル
   if (stub.id === 'OPP_SIGNI_TO_DECK_AND_SHUFFLE') {
-    const oppCandsSDS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsSDS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsSDS.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
     const noopSDS: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     const contSDS: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE' };
@@ -3181,7 +3181,7 @@ export function execStub(
       return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMCV } },
         `${ctx.cardMap.get(existPMCV)?.CardName ?? existPMCV}のパワー${totalDeltaPMCV}（色${varietyPMCV}種）`));
     }
-    const oppCandsPMCV = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsPMCV = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsPMCV.length === 0) return done(addLog(ctx, '相手シグニなし（POWER_MOD_BY_COLOR_VARIETY）'));
     const contPMCV: StubAction = { type: 'STUB', id: 'POWER_MOD_BY_COLOR_VARIETY' };
     const noopPMCV: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
@@ -3230,7 +3230,7 @@ export function execStub(
     if (!mPMUC) return done(addLog(ctx, '解析失敗（POWER_MOD_BY_UNDER_COUNT）'));
     const maxMPMUC = txtPMUC.match(/シグニ([０-９\d]*)体まで/);
     const maxTargetsPMUC = maxMPMUC ? parseInt(toHWPMUC(maxMPMUC[1])) : 2;
-    const oppCandsPMUC = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsPMUC = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsPMUC.length === 0) return done(addLog(ctx, '相手シグニなし（POWER_MOD_BY_UNDER_COUNT）'));
     const noopPMUC: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     const contPMUC: StubAction = { type: 'STUB', id: 'INTERNAL_PMBUC_APPLY' };
@@ -3271,7 +3271,7 @@ export function execStub(
       return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPDZCC } },
         `${ctx.cardMap.get(existPDZCC)?.CardName ?? existPDZCC}のパワー${totalDeltaPDZCC}（ゾーン${totalCardsPDZCC}枚）`));
     }
-    const oppCandsPDZCC = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsPDZCC = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsPDZCC.length === 0) return done(addLog(ctx, '相手シグニなし（POWER_DOWN_BY_ZONE_CARD_COUNT）'));
     const contPDZCC: StubAction = { type: 'STUB', id: 'POWER_DOWN_BY_ZONE_CARD_COUNT' };
     const noopPDZCC: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
@@ -3426,7 +3426,7 @@ export function execStub(
     const lastTrashedPMTSL = ctx.ownerState.trash.at(-1) ?? '';
     const lvPMTSL = parseInt(ctx.cardMap.get(lastTrashedPMTSL)?.Level ?? '0') || 0;
     if (lvPMTSL === 0) return done(addLog(ctx, 'パワー修正（トラッシュシグニLv0）'));
-    const oppCandsPMTSL = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsPMTSL = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsPMTSL.length === 0) return done(addLog(ctx, '相手シグニなし（POWER_MOD_BY_TRASHED_SIGNI_LEVEL）'));
     const noopPMTSL: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     const contPMTSL: StubAction = { type: 'STUB', id: 'INTERNAL_PMBTSL_APPLY' };
@@ -4013,7 +4013,7 @@ export function execStub(
       return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPBLSC } },
         `${ctx.cardMap.get(existPBLSC)?.CardName ?? existPBLSC}のパワー${totalDeltaPBLSC}（Lv合計${selfLvSumPBLSC}≦${oppLvSumPBLSC}）`));
     }
-    const oppCandsPBLSC = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsPBLSC = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsPBLSC.length === 0) return done(addLog(ctx, '相手シグニなし（POWER_BY_LEVEL_SUM_COMPARE）'));
     const contPBLSC: StubAction = { type: 'STUB', id: 'POWER_BY_LEVEL_SUM_COMPARE' };
     const noopPBLSC: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
@@ -6559,7 +6559,7 @@ export function execStub(
         `${ctx.cardMap.get(preselectedFDOS)?.CardName ?? preselectedFDOS}を裏向きに`));
     }
     // 相手シグニを選択
-    const candsFDOS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const candsFDOS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (candsFDOS.length === 0) return done(addLog(ctx, '裏向き対象なし（相手フィールド空）'));
     const applyFDOS: StubAction = { type: 'STUB', id: 'FACE_DOWN_OPP_SIGNI' };
     return selectOrInteract(candsFDOS, 1, false, 'opp_field', applyFDOS as EffectAction, undefined, ctx);
@@ -7153,8 +7153,16 @@ export function execStub(
   if (stub.id === 'ALL_ZONE_BLACK') return done(addLog(ctx, '[ALL_ZONE_BLACK: effectEngineで処理]'));
   // ALL_CARDS_COLOR_CHANGE_BLACK: CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み
   if (stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK') return done(addLog(ctx, '[ALL_CARDS_COLOR_CHANGE_BLACK: effectEngineで処理]'));
-  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（ログのみ）
-  if (stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') return done(addLog(ctx, '[ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体効果ログ]'));
+  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: このゲーム中、全センタールリグは指定タイプを追加で得る
+  if (stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') {
+    const srcACLGT = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
+    const txtACLGT = srcACLGT ? (srcACLGT.EffectText ?? '') : '';
+    const typeMACLGT = txtACLGT.match(/すべての場にあるセンタールリグは＜([^＞]+)＞を追加で得る/);
+    const gainTypeACLGT = typeMACLGT?.[1] ?? 'ぶくぶタマ';
+    const newOwnerACLGT: PlayerState = { ...ctx.ownerState, lrig_gained_types: [...new Set([...(ctx.ownerState.lrig_gained_types ?? []), gainTypeACLGT])] };
+    const newOtherACLGT: PlayerState = { ...ctx.otherState, lrig_gained_types: [...new Set([...(ctx.otherState.lrig_gained_types ?? []), gainTypeACLGT])] };
+    return done(addLog({ ...ctx, ownerState: newOwnerACLGT, otherState: newOtherACLGT }, `このゲーム中: 全センタールリグは＜${gainTypeACLGT}＞を得る`));
+  }
   // CHANGE_BASE_LEVEL: このシグニの基本レベルを1～3にしてもよい（ターン終了まで）
   if (stub.id === 'CHANGE_BASE_LEVEL') {
     const srcCBL = ctx.sourceCardNum;
@@ -7202,9 +7210,17 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerCC2 },
       `${ctx.cardMap.get(srcCC)?.CardName ?? srcCC}が${ctx.cardMap.get(targetCC)?.CardName ?? targetCC}のコピーになる`));
   }
+  // CENTER_LRIG_COLOR_CHANGE_BLACK: このターン、センタールリグは黒を得る（ACTIVATED効果）
+  if (stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK') {
+    const curExtraCLCB = ctx.ownerState.lrig_extra_colors ?? [];
+    if (!curExtraCLCB.includes('黒')) {
+      const newOwnerCLCB: PlayerState = { ...ctx.ownerState, lrig_extra_colors: [...curExtraCLCB, '黒'] };
+      return done(addLog({ ...ctx, ownerState: newOwnerCLCB }, 'このターン、センタールリグは黒を得る'));
+    }
+    return done(addLog(ctx, 'センタールリグはすでに黒を持つ'));
+  }
   if (stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
       || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
-      || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK'
       || stub.id === 'INHERIT_OPP_LRIG_TYPE' || stub.id === 'INHERIT_UNDER_SIGNI_COLOR') {
     return done(addLog(ctx, `[属性変更: ${stub.id}]`));
   }
@@ -7285,10 +7301,28 @@ export function execStub(
     const newOwnerDM = { ...ctx.ownerState, lrig_riding_signi: [] };
     return done(addLog({ ...ctx, ownerState: newOwnerDM }, 'センタールリグが降りた（ドライブ解除）'));
   }
-  // ルリグシステム（未実装残）
-  if (stub.id === 'LRIG_GAIN_ABILITY' || stub.id === 'LRIG_ALL_NAMES'
-      || stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
-    return done(addLog(ctx, `[ルリグシステム: ${stub.id}]`));
+  // LRIG_GAIN_ABILITY: ターン終了時まで、センタールリグは直前に選択した能力を得る
+  if (stub.id === 'LRIG_GAIN_ABILITY') {
+    const selectedAbilityLGA = ctx.lastProcessedCards?.[0]; // CHOOSE で選択された能力ID
+    if (!selectedAbilityLGA) return done(addLog(ctx, 'LRIG_GAIN_ABILITY: 選択能力なし'));
+    // keyword_grants に付与（ルリグのCardNumをキーとして）
+    const lrigCnLGA = ctx.ownerState.field.lrig.at(-1);
+    if (!lrigCnLGA) return done(addLog(ctx, 'LRIG_GAIN_ABILITY: センタールリグなし'));
+    const grantMapLGA = { ...(ctx.ownerState.keyword_grants ?? {}) };
+    const existingLGA = grantMapLGA[lrigCnLGA] ?? [];
+    if (!existingLGA.includes(selectedAbilityLGA)) {
+      grantMapLGA[lrigCnLGA] = [...existingLGA, selectedAbilityLGA];
+    }
+    const newOwnerLGA: PlayerState = { ...ctx.ownerState, keyword_grants: grantMapLGA };
+    return done(addLog({ ...ctx, ownerState: newOwnerLGA }, `センタールリグが能力「${selectedAbilityLGA}」を得る`));
+  }
+  // GAIN_ADDITIONAL_LRIG_TYPE / GAIN_LRIG_COLOR: CONT効果（effectEngine/collectLrigNameAliasesで動的処理）
+  if (stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
+    return done(addLog(ctx, `[ルリグシステム: ${stub.id}（effectEngineで動的処理）]`));
+  }
+  // LRIG_ALL_NAMES: CONT効果（collectLrigNameAliasesで処理済み）
+  if (stub.id === 'LRIG_ALL_NAMES') {
+    return done(addLog(ctx, '[LRIG_ALL_NAMES: effectEngineで処理済み]'));
   }
   // ドロー枚数制限（次のターン）
   if (stub.id === 'LIMIT_OPP_DRAW_COUNT') {
@@ -8304,9 +8338,10 @@ export function execStub(
   if (stub.id === 'ADD_RESONANCE_CONDITION') {
     return done(addLog(ctx, 'レゾナ条件追加'));
   }
-  // IGNORE_LRIG_RESTRICTION_ARTS: ルリグ制限アーツを無視（ログのみ）
+  // IGNORE_LRIG_RESTRICTION_ARTS: ルリグ制限アーツを無視（フラグ設定）
   if (stub.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
-    return done(addLog(ctx, 'ルリグ制限アーツを無視'));
+    const newOwnerILRA: PlayerState = { ...ctx.ownerState, lrig_gained_types: [...(ctx.ownerState.lrig_gained_types ?? []), '__ignore_lrig_restriction__'] };
+    return done(addLog({ ...ctx, ownerState: newOwnerILRA }, 'このゲームの間、ルリグ制限アーツを無視'));
   }
   // COST_COLOR_SELECT: コスト色を選択（ログのみ）
   if (stub.id === 'COST_COLOR_SELECT') {
@@ -9902,7 +9937,7 @@ export function execStub(
       return done(addLog({ ...ctx, otherState: newOtherPMPOL },
         `${ctx.cardMap.get(targetPMPOL)?.CardName ?? targetPMPOL} パワー${deltaPMPOL}（レベル${srcLevelPMPOL}×-2000）`));
     }
-    const oppCandsPMPOL = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    const oppCandsPMPOL = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums);
     if (oppCandsPMPOL.length === 0) return done(addLog(ctx, '対象相手シグニなし（POWER_MINUS_PER_OWN_LEVEL）'));
     const thenPMPOL: StubAction = { type: 'STUB', id: 'POWER_MINUS_PER_OWN_LEVEL' };
     return needsInteraction(ctx, {

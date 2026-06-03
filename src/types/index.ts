@@ -228,6 +228,10 @@ export interface PlayerState {
   negate_coin_abilities?: boolean;
   // MULTI_ACCE_LIMIT: このシグニには複数のアクセを付けられない（最大1個）
   multi_acce_limit?: boolean;
+  // CENTER_LRIG_COLOR_CHANGE_BLACK: このターン、センタールリグが追加で得た色（ACTIVATED効果）
+  lrig_extra_colors?: string[];
+  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: このゲーム中全センタールリグが得たタイプ
+  lrig_gained_types?: string[];
 }
 
 export interface GameLog {
