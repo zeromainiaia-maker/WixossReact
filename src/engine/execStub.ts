@@ -4933,7 +4933,7 @@ export function execStub(
       for (let zi = 0; zi < 3; zi++) {
         if (ctx.ownerState.field.signi_down?.[zi]) {
           const dn = ctx.ownerState.field.signi[zi]?.at(-1);
-          if (dn && dn !== ctx.sourceCardNum) { targetPowerPCFD = ctx.effectivePowers?.get(dn) ?? parseInt(ctx.cardMap.get(getCardNum(dn))?.Power ?? '0') || 0; break; }
+          if (dn && dn !== ctx.sourceCardNum) { targetPowerPCFD = ctx.effectivePowers?.get(dn) ?? (parseInt(ctx.cardMap.get(getCardNum(dn))?.Power ?? '0') || 0); break; }
         }
       }
     }
