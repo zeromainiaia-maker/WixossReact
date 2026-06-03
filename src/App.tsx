@@ -209,6 +209,7 @@ export default function App() {
         <DeckEditorScreen
           deck={currentDeck}
           cards={cards}
+          variantCards={variantCards}
           onUpdate={handleUpdateDeck}
           onDelete={handleDeleteDeck}
           onBack={() => setViewMode('DECK_LIST')}
