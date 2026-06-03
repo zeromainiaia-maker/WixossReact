@@ -859,7 +859,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'CHOOSE', options: optionsOHRN, count: 1,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, `${targetName}, pendingOHRN`);
+          return needsInteraction(addLog(cur, `${targetName}`), pendingOHRN);
         }
 
         // TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST: 
