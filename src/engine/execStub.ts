@@ -7578,8 +7578,17 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: blockedBOSANT } },
       '次の対戦相手のターン中、相手はスペルと起動能力を使用できない'));
   }
-  if (stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED'
-      || stub.id === 'BLOCK_NON_WHITE_SPELL'
+  // BLOCK_OPP_AUTO_ABILITY_EXTENDED: このターンと次のターン、相手シグニの【自】能力は発動しない
+  if (stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED') {
+    const newBlocedBOAE = [
+      ...(ctx.ownerState.blocked_actions ?? []),
+      'BLOCK_OPP_SIGNI_AUTO',
+      'BLOCK_OPP_SIGNI_AUTO:NEXT_TURN',
+    ];
+    const newOwnerBOAE: PlayerState = { ...ctx.ownerState, blocked_actions: newBlocedBOAE };
+    return done(addLog({ ...ctx, ownerState: newOwnerBOAE }, 'このターンと次のターン: 相手シグニの【自】能力は発動しない'));
+  }
+  if (stub.id === 'BLOCK_NON_WHITE_SPELL'
       || stub.id === 'BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT' || stub.id === 'BLOCK_OPP_DECK_TO_ENERGY'
       || stub.id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT') {
     return done(addLog(ctx, `[ブロック効果: ${stub.id}]`));

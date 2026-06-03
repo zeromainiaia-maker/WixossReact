@@ -3251,6 +3251,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     // 相手のフィールド：'any_opp' または 'any' トリガー（相手のシグニが自分の召喚に反応）
+    // BLOCK_OPP_SIGNI_AUTO: 自分の blocked_actions に設定済みの場合、相手シグニAUTOをスキップ
+    const oppAutoBlocked = myState.blocked_actions?.includes('BLOCK_OPP_SIGNI_AUTO');
     for (const stack of opState.field.signi) {
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
@@ -3258,6 +3260,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const eff of effects) {
         if (eff.effectType !== 'AUTO') continue;
         if (!eff.timing?.includes(event)) continue;
+        if (oppAutoBlocked) continue; // BLOCK_OPP_AUTO_ABILITY_EXTENDED
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any' && scope !== 'any_opp') continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
