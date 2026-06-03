@@ -892,7 +892,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             { id: 'pay', label: payLabelTOSOC, action: fixedThenTOSOC, available: canAffordTOSOC, ...(costColors.length ? { costColors } : {}) },
             { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
-          return needsInteraction(addLog(cur, '), {'
+          return needsInteraction(addLog(cur, ''), {
             type: 'CHOOSE', options: optsTOSOC, count: 1, ...(cont ? { continuation: cont } : {}),
           });
         }
