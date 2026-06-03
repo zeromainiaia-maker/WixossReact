@@ -452,6 +452,52 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
         );
       })()}
 
+      {/* 絵柄変更モーダル */}
+      {variantPickerFor && (() => {
+        const { cardNum, from } = variantPickerFor;
+        const card = cardMap.get(cardNum);
+        if (!card) return null;
+        const variants = variantMap.get(card.CardName) ?? [];
+        return (
+          <div
+            onClick={() => setVariantPickerFor(null)}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '20px', width: 'min(90vw, 480px)', maxHeight: '80vh', display: 'flex', flexDirection: 'column', border: '1px solid #555' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+                <h3 style={{ color: '#fff', fontSize: '15px', margin: 0 }}>{card.CardName} — 絵柄を選択</h3>
+                <button onClick={() => setVariantPickerFor(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#888', fontSize: '20px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+              </div>
+              <div style={{ overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
+                {variants.map(v => {
+                  const isSelected = v.CardNum === cardNum;
+                  return (
+                    <div
+                      key={v.CardNum}
+                      onClick={() => { switchVariant(cardNum, v.CardNum, from); setVariantPickerFor(null); }}
+                      style={{ cursor: 'pointer', borderRadius: '6px', overflow: 'hidden', border: isSelected ? '2px solid #7755dd' : '2px solid transparent', position: 'relative' }}
+                    >
+                      <img
+                        src={v.ImgURL}
+                        alt={v.CardNum}
+                        style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', display: 'block' }}
+                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
+                      />
+                      {isSelected && (
+                        <div style={{ position: 'absolute', top: 4, right: 4, backgroundColor: '#7755dd', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 'bold' }}>✓</div>
+                      )}
+                      <div style={{ padding: '3px 5px', backgroundColor: 'rgba(0,0,0,0.7)', position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+                        <p style={{ fontSize: '10px', color: '#ddd', margin: 0, textAlign: 'center' }}>{v.CardNum}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* カード画像拡大モーダル */}
       {expandedCardNum && expandedCard && (() => {
         const card = expandedCard;
