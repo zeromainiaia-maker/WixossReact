@@ -3,6 +3,7 @@ import type { CardData, Deck } from '../types';
 import { isLrigCard } from '../types';
 
 const MAIN_MAX = 40;
+const LB_MAX = 20;
 const LRIG_MAX = 10;
 const LRIG_EXTRA_MAX = 2;
 const COPY_MAX = 4;
