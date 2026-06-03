@@ -7208,8 +7208,27 @@ export function execStub(
     const noopCLR: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(rideCandCLR, 1, false, 'self_field', noopCLR as EffectAction, contCLR as EffectAction, ctx);
   }
-  // ルリグデッキ/ライドシステム（未実装残）
-  if (stub.id === 'CENTER_LRIG_DISMOUNT' || stub.id === 'LRIG_GAIN_ABILITY' || stub.id === 'LRIG_ALL_NAMES'
+  // CENTER_LRIG_DISMOUNT: センタールリグがすべての乗機シグニから降りる（ドライブ解除・任意）
+  if (stub.id === 'CENTER_LRIG_DISMOUNT') {
+    if (!ctx.ownerState.lrig_riding_signi?.length) {
+      return done(addLog(ctx, 'ドライブ状態ではない（CENTER_LRIG_DISMOUNT スキップ）'));
+    }
+    const dismountOpt: StubAction = { type: 'STUB', id: 'INTERNAL_DISMOUNT_DO' };
+    const skipOpt: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return needsInteraction(addLog(ctx, 'センタールリグが乗機シグニから降りますか？'), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'dismount', label: '降りる（ドライブ解除）', action: dismountOpt as EffectAction, available: true },
+        { id: 'stay',     label: 'そのまま',              action: skipOpt as EffectAction,     available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_DISMOUNT_DO') {
+    const newOwnerDM = { ...ctx.ownerState, lrig_riding_signi: [] };
+    return done(addLog({ ...ctx, ownerState: newOwnerDM }, 'センタールリグが降りた（ドライブ解除）'));
+  }
+  // ルリグシステム（未実装残）
+  if (stub.id === 'LRIG_GAIN_ABILITY' || stub.id === 'LRIG_ALL_NAMES'
       || stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
     return done(addLog(ctx, `[ルリグシステム: ${stub.id}]`));
   }

@@ -244,7 +244,7 @@
 | 1 | ACTIVATED | ✅ | BOTH_DISCARD_BY_CENTER_LEVEL ※v0.169: 両者センターLv分自動捨て（先頭N枚、非インタラクティブ）（line 4561） |
 | 2 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |
 | 1 | CONT | ⚡ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.115: collectLrigColorAndLimitModsで色変更収集（UI/コスト条件への統合は部分的） |
-| 1 | AUTO | ⚡ | CENTER_LRIG_DISMOUNT |
+| 1 | AUTO | ✅ | CENTER_LRIG_DISMOUNT ※v0.173: CHOOSE(降りる/そのまま)→INTERNAL_DISMOUNT_DO(lrig_riding_signi=[])でドライブ解除実装 |
 | 1 | ACTIVATED | ✅ | CENTER_LRIG_RIDES_ON_SIGNI ※v0.163: SELECT乗機シグニ→乗り換え対応（lrig_riding_signi設定） |
 | 1 | AUTO/ACTIVATED | ✅ | CENTER_ZONE_CONDITION ※v0.170: field.signi[1]（中央ゾーン）にsourceCardNumがあるか確認。条件不成立時スキップ |
 | 1 | AUTO | ✅ | CHANGE_BASE_LEVEL ※v0.142: CHOOSE(1-3,optional)→attack_phase_level_overrides設定 |
@@ -534,8 +534,8 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 439 |
-| ⚡ 部分実装 | 73 |
+| ✅ 実装済み | 440 |
+| ⚡ 部分実装 | 72 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
