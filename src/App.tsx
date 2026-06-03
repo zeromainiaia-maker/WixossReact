@@ -141,15 +141,25 @@ export default function App() {
 
   const handleCreateDeck = async (name: string) => {
     if (!user) return;
+    const nextOrder = decks.length;
     const { data, error } = await supabase
       .from('decks')
-      .insert([{ user_id: user.id, name, main_deck: [], lrig_deck: [] }])
+      .insert([{ user_id: user.id, name, main_deck: [], lrig_deck: [], sort_order: nextOrder }])
       .select().single();
     if (error || !data) { alert('デッキ作成エラー: ' + (error?.message ?? '不明')); return; }
-    const newDeck: Deck = { id: data.id, name: data.name, mainDeck: [], lrigDeck: [] };
+    const newDeck: Deck = { id: data.id, name: data.name, mainDeck: [], lrigDeck: [], sortOrder: nextOrder };
     setDecks(prev => [...prev, newDeck]);
     setSelectedDeckId(data.id);
     setViewMode('DECK_EDITOR');
+  };
+
+  const handleReorderDecks = async (reordered: Deck[]) => {
+    setDecks(reordered);
+    await Promise.all(
+      reordered.map((deck, index) =>
+        supabase.from('decks').update({ sort_order: index }).eq('id', deck.id)
+      )
+    );
   };
 
   const handleUpdateDeck = async (updated: Deck) => {
