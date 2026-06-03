@@ -117,6 +117,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
     return true;
   }), [cards, search, filterType, filterColor, filterLevel, filterClass]);
 
+  const lbCount = useMemo(
+    () => current.mainDeck.filter(n => cardMap.get(n)?.LifeBurst === '1').length,
+    [current.mainDeck, cardMap],
+  );
+
   const countInMainByName = (cardName: string) =>
     current.mainDeck.filter(n => cardMap.get(n)?.CardName === cardName).length;
 
