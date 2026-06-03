@@ -910,9 +910,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
           if (energyCandsOTEC.length === 0) {
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, `${reqClassOTEC || '繧ｫ繝ｼ繝・}PTIONAL_TRASH_ENERGY_CLASS``));
+            return done(addLog(cur, `${reqClassOTEC || 'カード'}OPTIONAL_TRASH_ENERGY_CLASS`));
           }
-          const toHandOTEC = !!(txtOTEC.match(/縺昴ｌ繧呈焔譛ｭ縺ｫ蜉縺医ｋ/) || conditional.then.type === 'TRANSFER_TO_HAND');
+          const toHandOTEC = !!(txtOTEC.match(/それを手札に加える/) || conditional.then.type === 'TRANSFER_TO_HAND');
           // conditional.then  BOUNCE/BANISH/DOWN  target.owner='self' 'opponent' 
           let thenOTEC = conditional.then;
           if (['BOUNCE', 'BANISH', 'DOWN', 'POWER_MODIFY'].includes(thenOTEC.type)) {
