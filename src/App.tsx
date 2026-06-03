@@ -258,7 +258,7 @@ export default function App() {
           user={user}
           decks={decks}
           cards={cards}
-          onBattleStart={(roomId, deckId) => { setBattleRoomId(roomId); setBattleDeckId(deckId); setViewMode('BATTLE'); }}
+          onBattleStart={(roomId, deckId, oppArtOverrides) => { setBattleRoomId(roomId); setBattleDeckId(deckId); setBattleOppArtOverrides(oppArtOverrides ?? {}); setViewMode('BATTLE'); }}
           onBack={() => setViewMode('START')}
         />
       )}
