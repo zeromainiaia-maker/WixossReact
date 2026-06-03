@@ -519,7 +519,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
           >
             <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', width: 'min(90vw, 360px)' }}>
               <img
-                src={card.ImgURL}
+                src={expandedDisplayImgUrl ?? card.ImgURL}
                 alt={card.CardName}
                 style={{ maxWidth: '80vw', maxHeight: '55vh', objectFit: 'contain', borderRadius: '8px' }}
                 onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
