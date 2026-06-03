@@ -6,6 +6,7 @@ import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, Pe
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
@@ -3309,7 +3310,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleSummonSigni = async (handIndex: number, zoneIndex: number) => {
     console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
     if (!isMyTurn || loading) return;
-    if ((my.field.signi[zoneIndex] ?? []).length > 0) return; // 空きゾーンにしか召喚できない
+    const summonCardNum = my.hand[handIndex];
+    const summonCardData = battleCardMap.get(summonCardNum);
+    const riseFilter = summonCardData ? getRiseFilter(summonCardData.EffectText ?? '') : null;
+    const existingZoneStack = my.field.signi[zoneIndex] ?? [];
+    // ライズ条件チェック
+    if (riseFilter) {
+      // ライズシグニ: 空きゾーンには出せない、条件不一致ゾーンにも出せない
+      const existingTop = existingZoneStack.at(-1);
+      if (!existingTop) return; // 空きゾーン不可
+      const existingTopNum = getCardNum(existingTop);
+      if (!matchesRiseFilter(existingTopNum, riseFilter, battleCardMap)) return;
+    } else {
+      // 通常シグニ: 空きゾーンにしか召喚できない
+      if (existingZoneStack.length > 0) return;
+    }
     if (isActionBlocked('PLAY_COLORLESS') && battleCardMap.get(my.hand[handIndex])?.Color === '無') return;
     // OPP_ZONE_PLACEMENT_RESTRICT: 相手が中央ゾーン(index=1)にLv3+配置不可
     const czRestrict = collectCenterZoneDeployRestrict(op, battleCardMap, effectsMap);
@@ -3326,17 +3341,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setPendingSigniSummon(null);
     try {
       const cardNum = my.hand[handIndex];
-      const existingStack: string[] = [];
       const newSigni = [...my.field.signi] as (string[] | null)[];
-      newSigni[zoneIndex] = [cardNum];
-      // 入れ替え召喚時はそのゾーンのダウン・凍結・チャーム・アクセをリセット（ウィルスはゾーンに残る）
+      const isRise = !!riseFilter;
+      if (isRise) {
+        // ライズ: 既存スタックの上に積む（下カードはそのまま）
+        newSigni[zoneIndex] = [...(existingZoneStack), cardNum];
+      } else {
+        newSigni[zoneIndex] = [cardNum];
+      }
+      // ライズ配置: ダウン・凍結状態は引き継がない（ルール：新たに場に出たシグニ）
+      // 通常配置: ゾーンのダウン・凍結をリセット
       const newSigniDown   = [...(my.field.signi_down   ?? [false, false, false])];
       const newSigniFrozen = [...(my.field.signi_frozen  ?? [false, false, false])];
       const newCharms      = [...(my.field.signi_charms  ?? [null, null, null])];
       const newAcce        = [...(my.field.signi_acce    ?? [null, null, null])];
       newSigniDown[zoneIndex]   = false;
       newSigniFrozen[zoneIndex] = false;
-      const zoneExtraTrash: string[] = [...existingStack];
+      const zoneExtraTrash: string[] = [];
+      // ライズ時: チャームはルール処理でトラッシュへ（アクセもリセット）
       if (newCharms[zoneIndex]) { zoneExtraTrash.push(newCharms[zoneIndex]!); newCharms[zoneIndex] = null; }
       if (newAcce[zoneIndex])   { zoneExtraTrash.push(newAcce[zoneIndex]!);   newAcce[zoneIndex]   = null; }
       const placed: PlayerState = {
@@ -7451,27 +7473,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 const summonCard = battleCardMap.get(pendingSigniSummon.cardNum);
                 const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
                 const signiPower = parseInt(summonCard?.Power ?? '0') || 0;
-                const isOccupied = (my.field.signi[zi] ?? []).length > 0;
-                const afterTotal = fieldSigniTotal + signiLevel;
+                const zoneStack = my.field.signi[zi] ?? [];
+                const isOccupied = zoneStack.length > 0;
+                const pendingRiseFilter = summonCard ? getRiseFilter(summonCard.EffectText ?? '') : null;
+                // ライズカード: 条件を満たす占有ゾーンのみ有効
+                const riseConditionMet = pendingRiseFilter
+                  ? (isOccupied && matchesRiseFilter(getCardNum(zoneStack.at(-1)!), pendingRiseFilter, battleCardMap))
+                  : false;
+                // ライズ: 既存シグニの分を引いて新シグニ分を加算
+                const existingTopLevel = pendingRiseFilter && isOccupied
+                  ? parseInt(battleCardMap.get(getCardNum(zoneStack.at(-1)!))?.Level ?? '0') || 0
+                  : 0;
+                const afterTotal = fieldSigniTotal - existingTopLevel + signiLevel;
                 const overLimit = afterTotal > lrigLimit;
                 // DEPLOY_RESTRICT: signi_deploy_power_limit が設定されている場合
                 const overPowerLimit = my.signi_deploy_power_limit !== undefined && signiPower >= my.signi_deploy_power_limit;
-                const isDisabled = loading || overLimit || isOccupied || overPowerLimit;
+                const isDisabled = loading || overLimit || overPowerLimit ||
+                  (pendingRiseFilter ? !riseConditionMet : isOccupied);
                 return (
                   <button key={zi}
                     onClick={() => !isDisabled && handleSummonSigni(pendingSigniSummon.handIndex, zi)}
                     disabled={isDisabled}
                     style={{
                       flex: 1, padding: '12px 0', borderRadius: 8,
-                      border: isOccupied ? `1px solid ${C.textFaint}` : (overLimit || overPowerLimit) ? `1px solid ${C.danger}` : C.borderUI,
+                      border: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? `1px solid ${C.textFaint}` : (overLimit || overPowerLimit) ? `1px solid ${C.danger}` : C.borderUI,
                       backgroundColor: isDisabled ? C.disabled : C.bgButton,
                       color: isDisabled ? C.textFaint : C.text,
                       fontSize: 13, cursor: isDisabled ? 'default' : 'pointer',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     }}>
-                    <span>ゾーン{zi + 1}{isOccupied ? ' (使用中)' : ''}</span>
-                    <span style={{ fontSize: 11, color: isOccupied ? C.textFaint : (overLimit || overPowerLimit) ? C.danger : C.textDim }}>
-                      {isOccupied ? '—' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit}`}
+                    <span>ゾーン{zi + 1}{pendingRiseFilter ? (riseConditionMet ? ' (ライズ可)' : ' (条件不一致)') : (isOccupied ? ' (使用中)' : '')}</span>
+                    <span style={{ fontSize: 11, color: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? C.textFaint : (overLimit || overPowerLimit) ? C.danger : C.textDim }}>
+                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (isOccupied ? '—' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit}`)}
                     </span>
                   </button>
                 );

@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { CardData, PlayerState, TurnPhase, Deck } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { executeEffect, getCardNum, resumeSelectTarget, resumeDeclareBond } from '../engine/effectExecutor';
+import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
 import { calcFieldPowers, collectFrozenBanishOverrides } from '../engine/effectEngine';
 import { hasKeyword } from '../utils/keywords';
 import type { ExecCtx } from '../engine/effectExecutor';
@@ -323,15 +324,31 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const { paid, remaining } = payCost(s.energy, card.Cost, cardMap);
     const newHand = s.hand.filter((_, i) => i !== handIdx);
     const newSigni = [...s.field.signi] as (string[] | null)[];
-    const prev = newSigni[zoneIdx];
-    const trashed = prev ? [...s.trash, ...prev] : s.trash;
-    newSigni[zoneIdx] = [cardInstId];
+    const riseFilter = getRiseFilter(card.EffectText ?? '');
+    let trashed = s.trash;
+    let extraTrashZone: string[] = [];
+    if (riseFilter) {
+      // ライズ条件チェック
+      const existingTop = s.field.signi[zoneIdx]?.at(-1);
+      if (!existingTop || !matchesRiseFilter(getCardNum(existingTop), riseFilter, cardMap)) return g;
+      // ライズ: スタックの上に積む
+      newSigni[zoneIdx] = [...(s.field.signi[zoneIdx] ?? []), cardInstId];
+      // チャーム・アクセをトラッシュへ
+      const newCharms = [...(s.field.signi_charms ?? [null, null, null])];
+      const newAcce   = [...(s.field.signi_acce   ?? [null, null, null])];
+      if (newCharms[zoneIdx]) { extraTrashZone.push(newCharms[zoneIdx]!); newCharms[zoneIdx] = null; }
+      if (newAcce[zoneIdx])   { extraTrashZone.push(newAcce[zoneIdx]!);   newAcce[zoneIdx]   = null; }
+    } else {
+      const prev = newSigni[zoneIdx];
+      if (prev) trashed = [...s.trash, ...prev];
+      newSigni[zoneIdx] = [cardInstId];
+    }
     const newS: PlayerState = {
       ...s, hand: newHand, energy: remaining,
-      trash: [...trashed, ...paid],
+      trash: [...trashed, ...paid, ...extraTrashZone],
       field: { ...s.field, signi: newSigni },
     };
-    appendLog(`[${g.turnPlayer === 'player' ? 'P' : 'CPU'}] ${card.CardName} を配置`);
+    appendLog(`[${g.turnPlayer === 'player' ? 'P' : 'CPU'}] ${card.CardName} を配置${riseFilter ? '（ライズ）' : ''}`);
     return setMyState(g, newS);
   }, [cardMap, appendLog]);
 
@@ -647,9 +664,26 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
             }
             return true;
           });
-        if (emptyZones.length > 0 && signiInHand.length > 0) {
+        // ライズカードの配置を先に試みる
+        const riseInHand = signiInHand.filter(({ h }) => {
+          const c = cardMap.get(h);
+          return c && !!getRiseFilter(c.EffectText ?? '');
+        });
+        if (riseInHand.length > 0) {
+          for (const { h, i } of riseInHand) {
+            const c = cardMap.get(h)!;
+            const rf = getRiseFilter(c.EffectText ?? '')!;
+            const validZone = [0, 1, 2].find(zi => {
+              const top = cpu.field.signi[zi]?.at(-1);
+              return top && matchesRiseFilter(getCardNum(top), rf, cardMap);
+            });
+            if (validZone !== undefined) return placeSigni(g, i, validZone);
+          }
+        }
+        if (emptyZones.length > 0 && signiInHand.filter(({ h }) => !getRiseFilter(cardMap.get(h)?.EffectText ?? '')).length > 0) {
+          const nonRise = signiInHand.filter(({ h }) => !getRiseFilter(cardMap.get(h)?.EffectText ?? ''));
           const zone = emptyZones[Math.floor(Math.random() * emptyZones.length)];
-          const { i } = signiInHand[Math.floor(Math.random() * signiInHand.length)];
+          const { i } = nonRise[Math.floor(Math.random() * nonRise.length)];
           return placeSigni(g, i, zone);
         }
         appendLog('[CPU] メインフェイズ終了');

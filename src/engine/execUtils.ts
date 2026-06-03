@@ -472,3 +472,58 @@ export function selectOrInteract(
   });
 }
 
+/**
+ * カードの EffectText から【ライズ】条件フィルターを取得する。
+ * ライズカードでない場合は null を返す。
+ */
+export function getRiseFilter(effectText: string): TargetFilter | null {
+  const m = effectText.match(/【ライズ】(.+?)（この条件/s);
+  if (!m) return null;
+  const cond = m[1];
+  const filter: TargetFilter = { cardType: 'シグニ' };
+
+  // ＜クラス＞フィルター
+  const classM = cond.match(/＜([^＞]+)＞/);
+  if (classM) filter.story = classM[1];
+
+  // 《ディソナアイコン》→ Story=Dissona
+  if (cond.includes('《ディソナアイコン》')) filter.story = 'Dissona';
+
+  // 色フィルター（「赤の」「青の」等）
+  const colorM = cond.match(/^あなたの(白|赤|青|緑|黒)の/);
+  if (colorM) filter.color = colorM[1];
+
+  // レベルフィルター（「レベルN以上の」）
+  const lvM = cond.match(/レベル([０-９\d])以上/);
+  if (lvM) {
+    const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    filter.level = { min: parseInt(toHW(lvM[1])) };
+  }
+
+  // 《ライズアイコン》を持つ → hasRiseIcon フラグ（matchesFilter拡張なしでは使えないので特殊扱い）
+  if (cond.includes('《ライズアイコン》')) {
+    // 特別フラグ: matchesFilter では処理不可→呼び出し側でカードテキストを直接確認する必要あり
+    // filter.__hasRiseIcon = true; ← 拡張不可なのでstoryに特殊値を入れる
+    (filter as Record<string, unknown>).__requiresRiseIcon = true;
+  }
+
+  return filter;
+}
+
+/**
+ * ライズ条件フィルターに対して既存シグニがRISE配置先として有効かチェック。
+ */
+export function matchesRiseFilter(
+  existingCardNum: string,
+  filter: TargetFilter,
+  cardMap: Map<string, CardData>,
+): boolean {
+  const card = cardMap.get(existingCardNum);
+  if (!card) return false;
+  // 《ライズアイコン》 → EffectText に【ライズ】があるか確認
+  if ((filter as Record<string, unknown>).__requiresRiseIcon) {
+    return !!(card.EffectText?.includes('【ライズ】'));
+  }
+  return matchesFilter(card, filter);
+}
+
