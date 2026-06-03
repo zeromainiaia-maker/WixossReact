@@ -8497,9 +8497,10 @@ export function execStub(
   if (stub.id === 'DISABLE_FIRST_ABILITY_ON_ATTACK') {
     return done(addLog(ctx, 'アタック時最初の能力を無効化'));
   }
-  // REPLACE_PLUS_N: +N置換（ログのみ）
+  // REPLACE_PLUS_N: このターン、相手シグニへの正パワー修正を負に置換
   if (stub.id === 'REPLACE_PLUS_N') {
-    return done(addLog(ctx, '+N置換'));
+    const newOwnerRPN: PlayerState = { ...ctx.ownerState, replace_opp_power_plus: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerRPN }, 'このターン相手シグニへの+パワー修正を-に置換'));
   }
   // CONDITIONAL_KEYWORD_BY_CENTER_COLOR already handled above
   // === バッチ16: アクセ・公開・汎用選択系 ===

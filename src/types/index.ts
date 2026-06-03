@@ -216,6 +216,8 @@ export interface PlayerState {
   banish_to_trash_by_self?: string[];
   // GROW_COST_ZERO / CONDITIONAL_FREE_GROW: 次のグロウコストを0にする
   free_grow_this_turn?: boolean;
+  // REPLACE_PLUS_N: このターン、相手シグニへの正のパワー修正を負に置換する
+  replace_opp_power_plus?: boolean;
 }
 
 export interface GameLog {

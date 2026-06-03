@@ -893,18 +893,25 @@ export function calcFieldPowers(
   applyEffects(opState, myState, !isMyTurn);
 
   // temp_power_mods（起動・自動効果によるターン内一時パワー修正）を適用
-  const applyTempMods = (state: PlayerState) => {
+  // negatePositiveFor: このセットにあるシグニへの正デルタを負に置換（REPLACE_PLUS_N）
+  const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>) => {
     const doublers = state.double_power_minus_targets ?? [];
     for (const mod of state.temp_power_mods ?? []) {
       if (powers.has(mod.cardNum)) {
         // DOUBLE_OWN_POWER_MINUS: 特定シグニへの負デルタを2倍に
-        const delta = mod.delta < 0 && doublers.includes(mod.cardNum) ? mod.delta * 2 : mod.delta;
+        let delta = mod.delta < 0 && doublers.includes(mod.cardNum) ? mod.delta * 2 : mod.delta;
+        // REPLACE_PLUS_N: 対象シグニへの正デルタを負に置換
+        if (negatePositiveFor?.has(mod.cardNum) && delta > 0) delta = -delta;
         powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + delta);
       }
     }
   };
-  applyTempMods(myState);
-  applyTempMods(opState);
+  // myState.replace_opp_power_plus が true の場合、相手シグニへの正デルタを負に置換
+  const opSigniNums = new Set<string>();
+  for (const stack of opState.field.signi) { const top = stack?.at(-1); if (top) opSigniNums.add(top); }
+  const negateForOp = myState.replace_opp_power_plus ? opSigniNums : undefined;
+  applyTempMods(myState, negateForOp);
+  applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined);
 
   // POWER_CAP: パワー上限の適用（全パワー修正後に上限を適用）
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));

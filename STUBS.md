@@ -448,7 +448,7 @@
 | 1 | ACTIVATED | ⚡ | REDUCE_PLAY_ABILITY_COST |
 | 1 | CONT | ✅ | REMOVE_OPP_MULTI_ENA ※相手エナの複数色カードをフィルタしてトラッシュへ移動実装済み |
 | 1 | CONT | ✅ | REMOVE_OPP_MULTI_ENA_ONLY ※REMOVE_OPP_MULTI_ENAと同ハンドラ: 複数色エナ削除実装済み |
-| 1 | AUTO/ACTIVATED | ⚡ | REPLACE_PLUS_N ※done(addLog)のみ（+N置換パターン未実装） |
+| 1 | AUTO/ACTIVATED | ✅ | REPLACE_PLUS_N ※v0.174: replace_opp_power_plusフラグ+effectEngine.applyTempModsで対象シグニへの正デルタを負に置換 |
 | 1 | AUTO/ACTIVATED | ✅ | REVEAL ※デッキ上1枚をlastProcessedCardsに格納してログ表示実装済み |
 | 1 | AUTO/ACTIVATED | ✅ | REVEALED_CARD_COLOR_DISCARD ※needsInteraction: 公開カードの色と同色手札を選択して捨て実装済み |
 | 2 | AUTO/ACTIVATED | ✅ | REVEALED_SIGNI_TO_FIELD_REST_TRASH ※lastProcessedCardsのシグニを空きゾーンに配置+残りトラッシュ実装済み |
@@ -534,12 +534,12 @@
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 447 |
-| ⚡ 部分実装 | 65 |
+| ✅ 実装済み | 448 |
+| ⚡ 部分実装 | 64 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
 
-※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）, POWER_COPY_FROM_DOWNED（lastProcessedCards優先で自ダウンシグニパワー+）, OPP_DECLARE_CHOICE（色宣言パターン追加→INTERNAL_ODC_COLOR_CHECK）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
+※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）, POWER_COPY_FROM_DOWNED（lastProcessedCards優先で自ダウンシグニパワー+）, OPP_DECLARE_CHOICE（色宣言パターン追加→INTERNAL_ODC_COLOR_CHECK）, REPLACE_PLUS_N（replace_opp_power_plusフラグ+effectEngine置換）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
 
 ※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》Story=Dissona判定追加。CardData_Sheet8.csvでDissonaを設定）, CHOOSE_SAME_OPTION_TWICE（①バウンス+手札捨て/②アタック不可/③クラスサーチパターン追加・INTERNAL_GRANT_NO_ATTACK_LRIG実装）
 
