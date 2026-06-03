@@ -138,8 +138,9 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
       .eq('passcode', passcodeInput).eq('status', 'WAITING').maybeSingle();
     if (!found) { setError('ルームが見つかりません'); setLoading(false); return; }
     if ((found as Room).host_id === user.id) { setError('自分のルームには参加できません'); setLoading(false); return; }
+    const myArtOverrides = validDecks.find(d => d.id === selectedDeckId)?.artOverrides ?? {};
     const { data, error: e } = await supabase
-      .from('rooms').update({ guest_id: user.id, guest_deck_id: selectedDeckId })
+      .from('rooms').update({ guest_id: user.id, guest_deck_id: selectedDeckId, guest_art_overrides: myArtOverrides })
       .eq('id', (found as Room).id).select().single();
     setLoading(false);
     if (e || !data) { setError(e?.message ?? '参加失敗'); return; }
