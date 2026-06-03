@@ -82,7 +82,7 @@
 | 7 | AUTO | ✅ | TRAP_OP ※v0.167: トラップアイコン発動パターン追加（parseCardEffects+exec）。「その中から」パターン追加（lastProcessedCards→CHOOSE_TRAP_ZONE） |
 | 13 | AUTO | ✅ | TRAP_OPERATION ※v0.167: チェックゾーンパターン追加（txtにチェックゾーンに置く→field.check設定）。lastProcessedCards/デッキ上パターン継続 |
 | 2 | AUTO/ACTIVATED | ✅ | TRASH_OWN_KEY_OPTIONAL ※needsInteraction CHOOSE: キーをルリグトラッシュに置く/スキップ |
-| 5 | AUTO/ACTIVATED | ⚡ | ADD_CARD_TO_LRIG_DECK_HIDDEN ※lastProcessedCardsのカードをルリグデッキへ追加(カード名解決は部分的) |
+| 5 | AUTO/ACTIVATED | ✅ | ADD_CARD_TO_LRIG_DECK_HIDDEN ※v0.174: 2候補をCHOOSE提示→選択されたほうをルリグデッキへ（INTERNAL_ACLDH_APPLY）。1候補は自動選択 |
 | 5 | CONT | ✅ | ARTS_IMMOVABLE ※v0.169: execStub内ARTS_USE_DISCARD_LRIG_DECKが不動アーツをフィルタ（line 2271）。配置不可は実質防止済み |
 | 5 | AUTO/ACTIVATED | ✅ | CHOOSE_COLOR_FROM_LIST ※needsInteraction CHOOSE: エナの色一覧から選択実装済み |
 | 5 | CONT/AUTO | ⚡ | COLLAB ※v0.171: 「コラボしてもよい」でINTERNAL_DO_COLLABによる任意アシスト召喚追加。「コラボライバーN人を呼ぶ」は✅ |
@@ -93,7 +93,7 @@
 | 5 | AUTO/ACTIVATED | ✅ | OPTIONAL_DISCARD_CLASS_SIGNI ※手札のクラスシグニを最大N枚selectOrInteractで任意捨て |
 | 5 | AUTO/ACTIVATED | ✅ | POWER_MOD_BY_DISCARD_COUNT_HIGH ※lastProcessedCards枚数×deltaPerCardでパワー修正 |
 | 5 | AUTO/ACTIVATED | ✅ | POWER_MOD_PER_REVEALED ※lastProcessedCards公開枚数×+1000（または効果テキスト値）で自シグニパワー修正 |
-| 5 | AUTO/ACTIVATED | ⚡ | REPEAT_N_TIMES ※v0.171: ドロー/パワーアップ/バウンスパターン追加。パワー修正・デッキトラッシュ・ドロー・バウンス対応 |
+| 5 | AUTO/ACTIVATED | ⚡ | REPEAT_N_TIMES ※v0.174: パワーダウン+デッキミル複合（銀鏡イオリ系）・両者デッキミル（「あなたか対戦相手」）パターン追加。主要5パターン対応 |
 | 5 | AUTO/ACTIVATED | ✅ | REVEAL_CLASS_SIGNI_FROM_HAND ※手札のクラスシグニを任意枚数selectOrInteract（lastProcessedCardsに格納） |
 | 4 | AUTO/ACTIVATED | ✅ | CLASS_CHANGE ※card_class_overridesで一時クラス変更、全体/単体パターン対応 |
 | 4 | ACTIVATED | ✅ | DECLARE_COLOR ※5色CHOOSE→declared_colorに保存（v0.146実装） |
@@ -390,7 +390,7 @@
 | 1 | CONT | ✅ | OPP_ZONE_PLACEMENT_RESTRICT ※v0.161: collectCenterZoneDeployRestrict(effectEngine)+handleSummonSigniで中央ゾーンLv3+配置禁止 |
 | 1 | AUTO | ✅ | OPTIONAL_HAND_REVEAL_NAMED |
 | 5 | AUTO | ✅ | OPTIONAL_DISCARD_CLASS_SIGNI ※line 93と同一実装（重複エントリ）→✅確認 |
-| 1 | AUTO | ⚡ | PLACE_CHOKKIN |
+| 1 | AUTO | ✅ | PLACE_CHOKKIN ※v0.174: sourceCardNumのゾーンにsigni_chokkinカウンター+1。BoardComponentsで「菌×N」バッジをパワー上に表示 |
 | 1 | AUTO | ✅ | PLACE_DECK_TOP_UNDER_WEAPON_SIGNI ※v0.170: ウェポンシグニゾーンを検索→デッキ上カードをスタック底に追加 |
 | 1 | ACTIVATED | ✅ | PLACE_LRIG_FROM_DECK_ON_TOP ※v0.169: lrig_deck先頭をfield.lrigに追加（line 5319） |
 | 2 | AUTO/ACTIVATED | ✅ | PLACE_SIGNI_UNDER_SIGNI ※lastProcessedCardsのシグニをsourceCardNumの下に配置実装済み |
@@ -530,14 +530,16 @@
 | 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
 ---
 
-## 集計サマリー（v0.173）
+## 集計サマリー（v0.174）
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 443 |
-| ⚡ 部分実装 | 69 |
+| ✅ 実装済み | 445 |
+| ⚡ 部分実装 | 67 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
+
+※v0.174で✅化: PLACE_CHOKKIN（signi_chokkinカウンター+BoardComponents「菌×N」バッジ表示）, ADD_CARD_TO_LRIG_DECK_HIDDEN（2候補CHOOSE→INTERNAL_ACLDH_APPLY）。⚡改善: REPEAT_N_TIMES（パワーダウン+ミル複合・両者ミルパターン追加）
 
 ※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）, FIELD_ENERGY_SIGNI_GAIN_COLOR（《ディソナアイコン》Story=Dissona判定追加。CardData_Sheet8.csvでDissonaを設定）, CHOOSE_SAME_OPTION_TWICE（①バウンス+手札捨て/②アタック不可/③クラスサーチパターン追加・INTERNAL_GRANT_NO_ATTACK_LRIG実装）
 

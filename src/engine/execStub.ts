@@ -2713,15 +2713,16 @@ export function execStub(
     const newFrozen = copyArr(ctx.ownerState.field.signi_frozen, false);
     const newCharms = copyArr(ctx.ownerState.field.signi_charms as (null | string)[], null);
     const newAcce   = copyArr(ctx.ownerState.field.signi_acce as (null | string)[], null);
-    const newVirus  = copyArr(ctx.ownerState.field.signi_virus, 0);
-    [newDown[targetZoneNum], newFrozen[targetZoneNum], newCharms[targetZoneNum], newAcce[targetZoneNum], newVirus[targetZoneNum]] =
-      [newDown[curZone], newFrozen[curZone], newCharms[curZone], newAcce[curZone], newVirus[curZone]];
+    const newVirus   = copyArr(ctx.ownerState.field.signi_virus, 0);
+    const newChokkin = copyArr(ctx.ownerState.field.signi_chokkin, 0);
+    [newDown[targetZoneNum], newFrozen[targetZoneNum], newCharms[targetZoneNum], newAcce[targetZoneNum], newVirus[targetZoneNum], newChokkin[targetZoneNum]] =
+      [newDown[curZone], newFrozen[curZone], newCharms[curZone], newAcce[curZone], newVirus[curZone], newChokkin[curZone]];
     newDown[curZone] = false; newFrozen[curZone] = false;
-    newCharms[curZone] = null; newAcce[curZone] = null; newVirus[curZone] = 0;
+    newCharms[curZone] = null; newAcce[curZone] = null; newVirus[curZone] = 0; newChokkin[curZone] = 0;
     const newFieldMov = {
       ...ctx.ownerState.field, signi: newSigniMov,
       signi_down: newDown as boolean[], signi_frozen: newFrozen as boolean[],
-      signi_charms: newCharms, signi_acce: newAcce, signi_virus: newVirus,
+      signi_charms: newCharms, signi_acce: newAcce, signi_virus: newVirus, signi_chokkin: newChokkin,
     };
     let ctxMov = addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: newFieldMov } },
       `${ctx.cardMap.get(srcZ)?.CardName ?? srcZ}をゾーン${curZone + 1}→ゾーン${targetZoneNum + 1}に移動`);
@@ -4677,31 +4678,73 @@ export function execStub(
       }
       return done(addLog({ ...ctx, ownerState: sACLD }, `${cardsACLD.length}枚をルリグデッキに加えた`));
     }
-    // lastProcessedCards なし：テキストから《カード名》を解析してデッキ/手札/トラッシュから移動
+    // lastProcessedCards なし：テキストから《カード名》を解析して候補を収集
     const srcACLD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtACLD = srcACLD ? (srcACLD.EffectText ?? '') + ' ' + (srcACLD.BurstText ?? '') : '';
     const nameMatchesACLD = [...txtACLD.matchAll(/《([^》]+)》/g)].map(m => m[1]);
     if (nameMatchesACLD.length === 0) return done(addLog(ctx, '[ADD_CARD_TO_LRIG_DECK: カード名解析不可]'));
+    // 各カード名に対応するインスタンスを lrig_deck → deck → hand → lrig_trash の順で探す
+    const findInstance = (s: PlayerState, name: string): string | undefined => {
+      const fromLrigDeck = s.lrig_deck.find(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === name);
+      if (fromLrigDeck) return fromLrigDeck;
+      const fromDeck = s.deck.find(cn => ctx.cardMap.get(cn)?.CardName === name);
+      if (fromDeck) return fromDeck;
+      const fromHand = s.hand.find(cn => ctx.cardMap.get(cn)?.CardName === name);
+      if (fromHand) return fromHand;
+      return s.lrig_trash.find(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === name);
+    };
+    const moveToLrigDeck = (s: PlayerState, inst: string): PlayerState => ({
+      ...s,
+      deck: s.deck.filter(c => c !== inst),
+      hand: s.hand.filter(c => c !== inst),
+      trash: s.trash.filter(c => c !== inst),
+      lrig_trash: s.lrig_trash.filter(c => c !== inst),
+      lrig_deck: s.lrig_deck.includes(inst) ? s.lrig_deck : [...s.lrig_deck, inst],
+    });
+    // HIDDEN かつ 2候補ある場合：CHOOSE を提示
+    if (stub.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN' && nameMatchesACLD.length >= 2) {
+      const instA = findInstance(ctx.ownerState, nameMatchesACLD[0]);
+      const instB = findInstance(ctx.ownerState, nameMatchesACLD[1]);
+      const opts = [
+        ...(instA ? [{ id: 'acldh_a', label: nameMatchesACLD[0], action: ({ type: 'STUB', id: 'INTERNAL_ACLDH_APPLY', value: instA } as StubAction) as EffectAction, available: true }] : []),
+        ...(instB ? [{ id: 'acldh_b', label: nameMatchesACLD[1], action: ({ type: 'STUB', id: 'INTERNAL_ACLDH_APPLY', value: instB } as StubAction) as EffectAction, available: true }] : []),
+      ];
+      if (opts.length === 0) return done(addLog(ctx, `[ADD_CARD_TO_LRIG_DECK_HIDDEN: 対象なし]`));
+      if (opts.length === 1) {
+        const inst = (opts[0].action as StubAction).value as string;
+        return done(addLog({ ...ctx, ownerState: moveToLrigDeck(ctx.ownerState, inst) }, `裏向きルリグデッキへ: ${opts[0].label}`));
+      }
+      return needsInteraction(addLog(ctx, `どちらを裏向きでルリグデッキに加えますか？`), {
+        type: 'CHOOSE', count: 1, options: opts,
+      });
+    }
+    // ADD_CARD_TO_LRIG_DECK（非HIDDEN）または1候補：全て追加
     let sACLD2 = ctx.ownerState;
     let addedACLD = 0;
     for (const name of nameMatchesACLD) {
-      // デッキ→手札→トラッシュの順で探す
-      const deckIdx = sACLD2.deck.findIndex(cn => ctx.cardMap.get(cn)?.CardName === name);
-      if (deckIdx >= 0) {
-        const cn = sACLD2.deck[deckIdx];
-        sACLD2 = { ...sACLD2, deck: sACLD2.deck.filter((_, i) => i !== deckIdx), lrig_deck: [...sACLD2.lrig_deck, cn] };
-        addedACLD++;
-        continue;
-      }
-      const handIdx = sACLD2.hand.findIndex(cn => ctx.cardMap.get(cn)?.CardName === name);
-      if (handIdx >= 0) {
-        const cn = sACLD2.hand[handIdx];
-        sACLD2 = { ...sACLD2, hand: sACLD2.hand.filter((_, i) => i !== handIdx), lrig_deck: [...sACLD2.lrig_deck, cn] };
+      const inst = findInstance(sACLD2, name);
+      if (inst) {
+        sACLD2 = moveToLrigDeck(sACLD2, inst);
         addedACLD++;
       }
     }
     return done(addLog({ ...ctx, ownerState: sACLD2 },
       `ルリグデッキに${addedACLD}枚加えた（${nameMatchesACLD.join('・')}）`));
+  }
+  // INTERNAL_ACLDH_APPLY: ADD_CARD_TO_LRIG_DECK_HIDDEN の選択後処理
+  if (stub.id === 'INTERNAL_ACLDH_APPLY') {
+    const inst = typeof stub.value === 'string' ? stub.value : '';
+    if (!inst) return done(addLog(ctx, '[INTERNAL_ACLDH_APPLY: インスタンスなし]'));
+    const moveToLD = (s: PlayerState, id: string): PlayerState => ({
+      ...s,
+      deck: s.deck.filter(c => c !== id),
+      hand: s.hand.filter(c => c !== id),
+      trash: s.trash.filter(c => c !== id),
+      lrig_trash: s.lrig_trash.filter(c => c !== id),
+      lrig_deck: s.lrig_deck.includes(id) ? s.lrig_deck : [...s.lrig_deck, id],
+    });
+    const name = ctx.cardMap.get(getCardNum(inst))?.CardName ?? inst;
+    return done(addLog({ ...ctx, ownerState: moveToLD(ctx.ownerState, inst) }, `裏向きルリグデッキへ: ${name}`));
   }
   // PREVENT_LOW_LEVEL_LRIG_DAMAGE / PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ
   if (stub.id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' || stub.id === 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP') {
@@ -8164,11 +8207,55 @@ export function execStub(
         return done(addLog({ ...ctx, otherState: newOtherBounce }, `${nRNT}回繰り返し: バウンス${toBounce.length}体`));
       }
     }
+    // パワーダウン＋デッキミル複合パターン（例：銀鏡イオリ「－5000＋デッキ2枚」×N）
+    const pwDownMillM = txtRNT.match(/パワーを([－-][０-９\d]+)する.*?デッキの上からカードを([０-９\d]+)枚トラッシュ/);
+    if (pwDownMillM) {
+      const deltaPDM = parseInt(toHWRNT(pwDownMillM[1]).replace('－', '-'));
+      const millPerPDM = parseInt(toHWRNT(pwDownMillM[2]));
+      // 相手シグニに1体ずつパワーダウン（nRNT回、ランダムに振り分け）
+      const modsRNTPDM = [...(ctx.otherState.temp_power_mods ?? [])];
+      const oppSigniListPDM = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter(Boolean) as string[];
+      for (let i = 0; i < nRNT; i++) {
+        const target = oppSigniListPDM[i % Math.max(1, oppSigniListPDM.length)];
+        if (target) modsRNTPDM.push({ cardNum: target, delta: deltaPDM });
+      }
+      const totalMillPDM = millPerPDM * nRNT;
+      const toTrashPDM = ctx.otherState.deck.slice(0, Math.min(totalMillPDM, ctx.otherState.deck.length));
+      const newOtherPDM = {
+        ...ctx.otherState,
+        temp_power_mods: modsRNTPDM,
+        deck: ctx.otherState.deck.slice(toTrashPDM.length),
+        trash: [...ctx.otherState.trash, ...toTrashPDM],
+      };
+      return done(addLog({ ...ctx, otherState: newOtherPDM },
+        `${nRNT}回繰り返し: パワー${deltaPDM}×${nRNT}＋デッキ${toTrashPDM.length}枚トラッシュ`));
+    }
+    // 両者デッキミルパターン（例：「あなたか対戦相手のデッキの上からN枚トラッシュ」→両者にmill）
+    const bothMillM = txtRNT.match(/あなたか対戦相手のデッキの上からカードを([０-９\d]+)枚トラッシュ/);
+    if (bothMillM) {
+      const millPerBMRNT = parseInt(toHWRNT(bothMillM[1]));
+      const totalBMRNT = millPerBMRNT * nRNT;
+      const toTrashOwnerBM = ctx.ownerState.deck.slice(0, Math.min(totalBMRNT, ctx.ownerState.deck.length));
+      const toTrashOtherBM = ctx.otherState.deck.slice(0, Math.min(totalBMRNT, ctx.otherState.deck.length));
+      const newOwnerBM = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(toTrashOwnerBM.length), trash: [...ctx.ownerState.trash, ...toTrashOwnerBM] };
+      const newOtherBM = { ...ctx.otherState, deck: ctx.otherState.deck.slice(toTrashOtherBM.length), trash: [...ctx.otherState.trash, ...toTrashOtherBM] };
+      return done(addLog({ ...ctx, ownerState: newOwnerBM, otherState: newOtherBM },
+        `${nRNT}回繰り返し: 両者デッキ${millPerBMRNT}枚×${nRNT}トラッシュ`));
+    }
     return done(addLog(ctx, `${nRNT}回繰り返し効果（後続ステップで処理）`));
   }
-  // PLACE_CHOKKIN: チョッキン設置（ログのみ）
+  // PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1
   if (stub.id === 'PLACE_CHOKKIN') {
-    return done(addLog(ctx, 'チョッキン設置'));
+    if (!ctx.sourceCardNum) return done(addLog(ctx, 'チョッキン設置先不明'));
+    let ziPC = -1;
+    for (let i = 0; i < 3; i++) {
+      if (ctx.ownerState.field.signi[i]?.at(-1) === ctx.sourceCardNum) { ziPC = i; break; }
+    }
+    if (ziPC < 0) return done(addLog(ctx, 'チョッキン設置先シグニなし'));
+    const chokkinPC = [...(ctx.ownerState.field.signi_chokkin ?? [0, 0, 0])];
+    chokkinPC[ziPC] = (chokkinPC[ziPC] ?? 0) + 1;
+    const newOwnerPC: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_chokkin: chokkinPC } };
+    return done(addLog({ ...ctx, ownerState: newOwnerPC }, `【貯菌】×${chokkinPC[ziPC]}（ゾーン${ziPC + 1}）`));
   }
   // ADD_RESONANCE_CONDITION: レゾナ条件追加（ログのみ）
   if (stub.id === 'ADD_RESONANCE_CONDITION') {

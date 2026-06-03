@@ -77,6 +77,7 @@ export interface PlayerState {
     signi_charms?: (string | null)[]; // [zone0, zone1, zone2] チャームカードのCardNum or null
     signi_acce?:   (string | null)[]; // [zone0, zone1, zone2] アクセカードのCardNum or null
     signi_virus?:  number[];          // [zone0, zone1, zone2] ウィルス数（0 or 1）
+    signi_chokkin?: number[];         // [zone0, zone1, zone2] 貯菌カウンター数
     signi_soul?:   (string | null)[]; // [zone0, zone1, zone2] ソウルカードのCardNum（場を離れるとlrig_trashへ）
     signi_traps?:       (string | null)[]; // [zone0, zone1, zone2] 裏向きトラップのCardNum（設置済み・未発動）
     signi_magic_boxes?: (string | null)[]; // [zone0, zone1, zone2] 【マジックボックス】のCardNum（裏向き設置中）

@@ -395,13 +395,14 @@ export interface StackedSigniSlotProps {
   charmCardNum?: string | null;
   acceCardNum?: string | null;
   virusCount?: number;
+  chokkinCount?: number;
   isMe?: boolean;
   trapCardNum?: string | null;
   seedCardNum?: string | null;
   magicBoxCardNum?: string | null;
 }
 
-export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, isMe, trapCardNum, seedCardNum, magicBoxCardNum }: StackedSigniSlotProps) {
+export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, magicBoxCardNum }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
   const [showMBPeek, setShowMBPeek] = useState(false);
@@ -595,6 +596,17 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
           }}>
             V
+          </div>
+        )}
+        {chokkinCount > 0 && (
+          <div style={{
+            position: 'absolute', bottom: extraH + 18, left: '50%', transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(0,120,30,0.90)', color: '#fff',
+            fontSize: 8, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 4px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
+            whiteSpace: 'nowrap',
+          }}>
+            菌×{chokkinCount}
           </div>
         )}
         {acceCardNum && (
@@ -945,6 +957,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             charmCardNum={state.field.signi_charms?.[rawIdx] ?? null}
             acceCardNum={state.field.signi_acce?.[rawIdx] ?? null}
             virusCount={state.field.signi_virus?.[rawIdx] ?? 0}
+            chokkinCount={state.field.signi_chokkin?.[rawIdx] ?? 0}
             trapCardNum={state.field.signi_traps?.[rawIdx] ?? null}
             seedCardNum={state.field.signi_seeds?.[rawIdx] ?? null}
             magicBoxCardNum={state.field.signi_magic_boxes?.[rawIdx] ?? null}
