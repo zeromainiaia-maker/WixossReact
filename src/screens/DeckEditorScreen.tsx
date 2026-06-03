@@ -62,6 +62,17 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
     return map;
   }, [cards]);
 
+  // 同名カード（絵柄違い）のグループ: CardName → CardData[]
+  const variantMap = useMemo(() => {
+    const map = new Map<string, CardData[]>();
+    cards.forEach(c => {
+      const group = map.get(c.CardName) ?? [];
+      group.push(c);
+      map.set(c.CardName, group);
+    });
+    return map;
+  }, [cards]);
+
   const extraLrigCount = useMemo(() =>
     current.lrigDeck.filter(n => { const c = cardMap.get(n); return c && isExtraLrigCard(c); }).length,
     [current.lrigDeck, cardMap]);
