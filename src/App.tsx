@@ -82,12 +82,14 @@ export default function App() {
       fetch(`/data/CardData_Sheet${i + 1}.csv`).then(r => r.ok ? r.text() : null)
     );
     const tkFetch = fetch('/data/CardData_TK.csv').then(r => r.ok ? r.text() : null);
+    const variantsFetch = fetch('/data/CardData_Variants.csv').then(r => r.ok ? r.text() : null);
     Promise.all([
       Promise.all(sheetFetches),
       tkFetch,
       fetch('/data/effects.json').then(r => r.json() as Promise<Record<string, CardEffect[]>>),
+      variantsFetch,
     ])
-      .then(([csvResults, tkCsv, effectsJson]) => {
+      .then(([csvResults, tkCsv, effectsJson, variantsCsv]) => {
         const parseRows = (csv: string) =>
           Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true }).data;
         const storageBase = import.meta.env.VITE_CARD_IMAGE_BASE;
@@ -119,8 +121,10 @@ export default function App() {
           .flatMap(parseRows)
           .map(toCardData);
         const tokenCards = tkCsv ? parseRows(tkCsv).map(toCardData) : [];
+        const variants = variantsCsv ? parseRows(variantsCsv).map(toCardData) : [];
         setCards(sheetCards);
         setAllCards([...sheetCards, ...tokenCards]);
+        setVariantCards(variants);
       })
       .catch(e => console.error('カードデータ読み込み失敗:', e));
   }, []);
