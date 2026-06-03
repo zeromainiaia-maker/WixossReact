@@ -865,8 +865,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST: 
         // conditional.then  target.owner 'self' 
         if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
-          const toHWTOSOC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-          const oppCandsTOSOC = fieldCandidates(cur.otherState, { cardType: ' }, cur.cardMap, cur.effectivePowers');
+          const toHWTOSOC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+          const oppCandsTOSOC = fieldCandidates(cur.otherState, { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors);
           if (oppCandsTOSOC.length === 0) {
             if (cont) return executeAction(cont, cur);
             return done(addLog(cur, 'ARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'));
