@@ -22,6 +22,7 @@ const isExtraLrigCard = (card: CardData) =>
 interface Props {
   deck: Deck;
   cards: CardData[];
+  variantCards?: CardData[];
   onUpdate: (deck: Deck) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
