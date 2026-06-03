@@ -1,6 +1,6 @@
 # STUB実装状況メモ（全件）
 
-最終更新: 2026-06-02 (v0.172)
+最終更新: 2026-06-03 (v0.173)
 
 ## ステータス凡例
 
@@ -240,7 +240,7 @@
 | 1 | CONT | ✅ | BLOCK_OPP_DECK_TO_ENERGY ※calcContinuousBlockedActions+execEnergyChargeFromDeckでデッキ→エナをブロック |
 | 1 | CONT | ✅ | BLOCK_OPP_ENCORE_AND_BET ※calcContinuousBlockedActionsでENCORE/BET両方をforOther/forSelfに追加済み |
 | 1 | CONT | ✅ | BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT ※calcContinuousBlockedActions+execAddToFieldでシグニ効果による配置をブロック |
-| 1 | ACTIVATED | ⚡ | BLOCK_OPP_SPELL_ACT_NEXT_TURN |
+| 1 | ACTIVATED | ✅ | BLOCK_OPP_SPELL_ACT_NEXT_TURN ※execStub.tsで'USE_SPELL:NEXT_TURN'/'USE_ACT:NEXT_TURN'をblocked_actionsに追加済み（ターン移行時に変換） |
 | 1 | ACTIVATED | ✅ | BOTH_DISCARD_BY_CENTER_LEVEL ※v0.169: 両者センターLv分自動捨て（先頭N枚、非インタラクティブ）（line 4561） |
 | 2 | AUTO | ⚡ | CAST_FROM_OPP_TRASH |
 | 1 | CONT | ⚡ | CENTER_LRIG_COLOR_CHANGE_BLACK ※v0.115: collectLrigColorAndLimitModsで色変更収集（UI/コスト条件への統合は部分的） |
@@ -292,7 +292,7 @@
 | 1 | AUTO | ✅ | ENERGY_TO_TRASH ※SELECT_TARGET(エナ)→トラッシュへ実装済み |
 | 2 | CONT | ✅ | EXTRA_GUARD_COST_FROM_HAND ※collectOppExtraGuardFromHand+handleGuardResponse+ガードUI統合 |
 | 1 | AUTO/ACTIVATED | ✅ | FIELD_COND_DRAW_REVEAL ※v0.169: フィールドクラス条件→デッキ上公開→クラス一致なら手札/不一致ならトラッシュ（line 8532） |
-| 1 | CONT | ⚡ | FIRST_SPELL_COST_UP ※execStub: [コストアップ]（BattleScreen未統合） |
+| 1 | CONT | ✅ | FIRST_SPELL_COST_UP ※v0.173: collectFirstSpellCostUp追加。BattleScreenスペルコストUIに統合（初回のみ+《無×1》）。castSpellで'USE_SPELL'をactions_doneに記録 |
 | 1 | ACTIVATED | ✅ | FROM_TRASH_TO_CENTER_ZONE ※v0.159: トラッシュから中央シグニゾーン(zone[1])に出す（既存シグニはエナへ） |
 | 1 | CONT | ✅ | FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で防御側CONTチェック→凍結シグニをデッキ下へ |
 | 2 | CONT | ✅ | FROZEN_SIGNI_TO_TRASH_ON_LEAVE ※v0.167: collectFrozenBanishOverrides追加。BattleScreen/CpuBattleScreenバトル解決で攻撃側CONTチェック→相手凍結シグニをトラッシュへ |
@@ -320,7 +320,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | HAND_SIGNI_UNDER_SIGNI ※needsInteraction SELECT_TARGET: 手札シグニを選択してシグニ下に配置 |
 | 1 | ACTIVATED | ⚡ | HASTARLIQ |
 | 1 | CONT | ⚡ | IGNORE_LRIG_RESTRICTION_ARTS ※done(addLog)のみ（ルリグ制限無視フラグ未実装） |
-| 1 | CONT | ⚡ | INCREASE_ACT_ABILITY_COST ※done(addLog)のみ（起動能力コスト増加未実装） |
+| 1 | CONT | ✅ | INCREASE_ACT_ABILITY_COST ※v0.173: collectIncreaseActCost追加。BattleScreen起動能力コストUIに統合（自分のターン中に+《無×1》）。adjustedTotal+actExtraCosts対応 |
 | 1 | CONT | ✅ | INFECTED_SIGNI_POWER_DOWN_BY_LEVEL ※ウイルスレベル合計×-1000をtemp_power_modsに適用実装済み |
 | 2 | CONT | ⚡ | INHERIT_OPP_LRIG_TYPE ※done(addLog)のみ（属性変更グループ: effectEngine未対応） |
 | 1 | CONT | ⚡ | INHERIT_UNDER_SIGNI_COLOR ※done(addLog)のみ（属性変更グループ: effectEngine未対応） |
@@ -386,7 +386,7 @@
 | 2 | CONT | ⚡ | OPP_TRASH_LOSE_COLOR_AND_CLASS ※done(addLog)のみ（移動リダイレクトグループ: effectEngine未対応） |
 | 1 | AUTO | ✅ | OPP_TRASH_TO_DECK_TOP ※v0.168: line 1211の正実装（SELECT_TARGET+INTERNAL_OPP_TRASH_TO_DECK_TOP）を確認・dead code除去 |
 | 2 | AUTO | ✅ | OPP_TRASH_TO_OPP_SIGNI_UNDER ※v0.168: CHOOSE for zone selection+INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE（lastProcessedCards経由でカード情報保持） |
-| 1 | AUTO | ⚡ | OPP_TURN_NO_ENERGY_COST |
+| 1 | AUTO | ✅ | OPP_TURN_NO_ENERGY_COST |
 | 1 | CONT | ✅ | OPP_ZONE_PLACEMENT_RESTRICT ※v0.161: collectCenterZoneDeployRestrict(effectEngine)+handleSummonSigniで中央ゾーンLv3+配置禁止 |
 | 1 | AUTO | ✅ | OPTIONAL_HAND_REVEAL_NAMED |
 | 5 | AUTO | ✅ | OPTIONAL_DISCARD_CLASS_SIGNI ※line 93と同一実装（重複エントリ）→✅確認 |
@@ -530,14 +530,16 @@
 | 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
 ---
 
-## 集計サマリー（v0.172）
+## 集計サマリー（v0.173）
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 432 |
-| ⚡ 部分実装 | 80 |
+| ✅ 実装済み | 436 |
+| ⚡ 部分実装 | 76 |
 | 📝 未実装 | **0** |
 | **合計** | **512** |
+
+※v0.173で✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp+BattleScreenスペルコスト統合+USE_SPELLトラッキング）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost+BattleScreen起動能力コスト統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認）, OPP_TURN_NO_ENERGY_COST（execStub済み確認）
 
 ※v0.172で✅化: GROW_COST_ZERO/CONDITIONAL_FREE_GROW（free_grow_this_turn+BattleScreen統合）, CONDITIONAL_TRASH_UNDER_SIGNI（エナ条件チェック+シグニ下SELECT）, SUBSTITUTE_DAMAGE_WITH_SELF_TRASH（CHOOSE→INTERNAL_SDWT_DO）, COPY_CARD（card_identity_overrides）, BEAT_ZONE_OP（条件チェック+フィールドSELECT→INTERNAL_MOVE_TO_BEAT）, ADD_CRAFT_TO_LRIG_DECK（名前解決追加）, DECLARE_NUMBER_POWER/ENERGY_LEVEL_CONDITION_CHOOSE/OPTIONAL_DISCARD_CLASS_SIGNI（✅確認）, PREVENT_DAMAGE_UNTIL_OPP_TURN_END/PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN（既実装✅確認）
 
@@ -564,6 +566,7 @@ node -e "const d=JSON.parse(require('fs').readFileSync('public/data/effects.json
 
 | 日付 | 実装内容 | 対象STUB |
 |------|---------|---------|
+| 2026-06-03 v0.173 | 4件✅化: FIRST_SPELL_COST_UP（collectFirstSpellCostUp追加・BattleScreenスペルUIにtotalReq+firstSpellExtra統合・castSpellでactions_done['USE_SPELL']記録）, INCREASE_ACT_ABILITY_COST（collectIncreaseActCost追加・BattleScreen起動能力UIにadjustedTotal+actExtraCosts統合）, BLOCK_OPP_SPELL_ACT_NEXT_TURN（execStub済み確認→✅）, OPP_TURN_NO_ENERGY_COST（execStub済み確認→✅） | 4件 |
 | 2026-06-02 v0.169 | 実装+確認多数✅化: GATE(blocked_actions ATTACK:id)/DEPLOY_RESTRICT(signi_deploy_power_limit統合)/ARTS_IMMOVABLE/CONDITIONAL_PER_TRASH/LRIG_TRASH_KEY_TO_CENTER_UNDER/CONDITIONAL_TRASH_TO_ENERGY/OPP_TRASH_FIELD_SIGNI_AND_ENERGY/PREVENT_DEFEAT_THIS_TURN&UNTIL_NEXT_TURN/ACCE_TO_ENERGY/PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN/OPP_ENERGY_EXCESS_TRASH/NON_GUARD_DISCARD_TO_ENERGY/CONDITIONAL_COST_REDUCTION_BY_FIELD/SPELL_COST_REDUCTION_BY_TRASH_COUNT(computeArtsEffectiveCostにtrash引数+ロジック)/ACCE_FROM_TRASH/OPP_REVEAL系3件/RESONANCE_COST_CARDS_TO_ENERGY/GRANT_CHOSEN_ABILITY_SELF/GRANT_CONDITIONAL_ASSASSIN_ABILITY/FIELD_COND_DRAW_REVEAL/PLACE_LRIG_FROM_DECK_ON_TOP/OPP_RETURN_HAND_ON_SELF_BANISH/PREVENT_TARGET_LRIG_ATTACK_THIS_TURN(lrigAttackでnegated_attacks検査)/NON_LRIG_TO_LRIG_TRASH/BLOCK_OPP_ARTS_SPELL_ACT + 重複エントリ整理 | 26種+ |
 | 2026-06-02 v0.161 | 4件✅化: OPP_MAIN_PHASE_LIMIT_DOWN(pending_lrig_limit_mod-2→GROW→MAIN移行時適用・誤実装draw_limit修正)・OPP_SIGNI_ATTACK_COST(signi_attack_cost=2フラグ+アタック時エナ消費・不足アタック不可)・OPP_ZONE_PLACEMENT_RESTRICT(collectCenterZoneDeployRestrict+handleSummonSigniで中央ゾーンLv3+配置禁止)。⚡改善: OPP_CHOOSE_EFFECT/OPP_CHOOSES_FOR_YOU(テキスト解析+INTERNAL_OPP_DECK_TRASH_N追加) | 3件✅+2件⚡改善 |
 | 2026-06-02 v0.160 | 34件新規追加: ✅化(ALL_PLAYER_MILL/CRASH_LIFE_TO_HAND/DECK_MILL_UNTIL_CLASS/DECLARE_CLASS/GROW_COST_ZERO/LIMIT_OPP_ATTACK_ONCE/LRIG_LIMIT_MODIFY/NEGATE_ABILITY/POWER_EQUAL_TO_SELF_POWER/POWER_MINUS_PER_OWN_LEVEL/POWER_MOD_BY_LRIG_LEVEL/POWER_MOD_BY_TRASH_CLASS_COUNT/PREVENT_SIGNI_ABILITY_LOSS_BY_OPP/PREVENT_SIGNI_DOWN_BY_OPP/SEED_BLOOM_OPTIONAL/SEED_FLOWER_OP/SEED_HAND_AND_BLOOM_FROM_DECK_TOP/SHUFFLE_DECK_POWER_HALF/SKIP_MAIN_PHASE/SUPPRESS_GAIN_ABILITY/SUPPRESS_LIFEBURST_COLOR_CONDITION/SUPPRESS_OPP_SIGNI_ABILITIES/TRAP_TO_SIGNI_IF_ZONE_EMPTY/ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白)。ENERGY_*_TRASH_*エナ代替4件✅。カウント70件更新。削除4件 | 38件 |
