@@ -120,8 +120,9 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
     if (!selectedDeckId) return;
     setLoading(true); setError(null);
     const passcode = Math.floor(1000 + Math.random() * 9000).toString();
+    const myArtOverrides = validDecks.find(d => d.id === selectedDeckId)?.artOverrides ?? {};
     const { data, error: e } = await supabase
-      .from('rooms').insert({ host_id: user.id, host_deck_id: selectedDeckId, passcode })
+      .from('rooms').insert({ host_id: user.id, host_deck_id: selectedDeckId, passcode, host_art_overrides: myArtOverrides })
       .select().single();
     setLoading(false);
     if (e || !data) { setError(e?.message ?? '作成失敗'); return; }
