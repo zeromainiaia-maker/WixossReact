@@ -405,12 +405,13 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 
   if (tgtOwner === 'self' && ctx.signiFieldPlaceByEffectBlocked) {
     const srcCard = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    if (srcCard?.Type === ') {'
+    if (srcCard?.Type === 'シグニ') {
       return done(addLog(ctx, 'ONT'));
     }
   }
 
-  // source  if (!src) {
+  // source
+  if (!src) {
     const state = ownerState(tgtOwner, ctx);
     if (state.deck.length === 0) return done(ctx);
     // 
