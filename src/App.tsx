@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Papa from 'papaparse';
 import { supabase } from './supabaseClient';
 import type { User } from '@supabase/supabase-js';
