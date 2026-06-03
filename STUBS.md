@@ -224,7 +224,7 @@
 | 1 | CONT | ✅ | ATTACK_COUNT_BY_POWER ※v0.117: calcContinuousBlockedActionsでパワー/10000回数上限・attacked_signi_idsをバッグ化 |
 | 2 | CONT | ✅ | BANISH_BY_SELF_GOES_TO_TRASH ※v0.171: banish_to_trash_by_selfフラグ+BattleScreen banishBySelftToTrashチェック+ターン終了リセット |
 | 1 | CONT | ✅ | BANISH_REDIRECT_TO_HAND ※banish_redirect_to_handフラグ→BattleScreenのバニッシュ先変更に統合（v0.148） |
-| 2 | CONT | ⚡ | BANISH_SUBSTITUTE_RISE_STACK ※ログのみ（ライズ/スタック置換効果・ライズシステム未実装）（v0.148） |
+| 2 | CONT | ⚡ | BANISH_SUBSTITUTE_RISE_STACK ※ライズ配置実装(v0.174)でスタック基盤は完成。バニッシュ代替インタラクション（CHOOSE）はBattleScreen統合未実装 |
 | 2 | AUTO/ACTIVATED | ✅ | BANISH_MULTI_COLOR_SIGNI ※相手フィールドの複数色(2色以上)シグニを全体自動バニッシュ（v0.148） |
 | 2 | AUTO | ✅ | BATTLE_BANISH_LIFE_BURST ※v0.170: バトルバニッシュカードのLBをotherState.field.checkにセット→相手LB発動 |
 | 1 | CONT | ✅ | BEAT_ZONE_OP ※v0.172: 条件チェック（N枚以下）+フィールドSELECT→INTERNAL_MOVE_TO_BEAT実装 |
@@ -455,8 +455,8 @@
 | 1 | AUTO | ✅ | RESONANCE_COST_CARDS_TO_ENERGY ※v0.169: lastProcessedCardsのカードをトラッシュ→エナゾーンへ（line 9092） |
 | 2 | CONT | ⚡ | RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE ※done(addLog)のみ（ライズ/レゾナ退場置換グループ: 未実装） |
 | 1 | CONT | ✅ | REVERSE_OPP_POWER_MINUS ※temp_power_modsの負デルタを正に反転する実装済み |
-| 2 | CONT | ⚡ | RISE_BANISH_SUBSTITUTE ※done(addLog)のみ（ライズバニッシュ置換未実装） |
-| 1 | CONT | ⚡ | RISE_LEAVE_DISCARD_STACK ※done(addLog)のみ（ライズ退場スタック捨てグループ: 未実装） |
+| 2 | CONT | ⚡ | RISE_BANISH_SUBSTITUTE ※v0.174: ライズ配置基盤完成。バニッシュ代替（下2枚トラッシュ）はBattleScreen統合未実装 |
+| 1 | CONT | ⚡ | RISE_LEAVE_DISCARD_STACK ※v0.174: ライズ退場時スタックトラッシュはremoveFromFieldで実装済み（rule処理）。任意代替（下全捨て）はBattleScreen統合未実装 |
 | 1 | AUTO | ✅ | RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY ※v0.171: テキスト解析→lastProcessedCards[0]にkeyword_grants付与 |
 | 1 | AUTO/ACTIVATED | ✅ | SELECT_NO_COMMON_COLOR ※CHOOSE選択で共通色なしパターン実装済み |
 | 1 | AUTO | ✅ | SELECT_OTHER_SIGNI ※v0.169: ソース以外の自場シグニをoptionalでSELECT_TARGET→lastProcessedCardsへ（line 7412） |
