@@ -170,7 +170,7 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
       const base = parseInt(c.cardMap.get(cardNum)?.Power ?? '0') || 0;
       return { cardNum, delta: value - base };
     });
-    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: [...filtered, ...setMods] }, c), `繝代Ρ繝ｼ繧・{value}縺ｫ繧ｻ繝・ヨ`);
+    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: [...filtered, ...setMods] }, c), 'パワーを' + value + 'にセット');
   }
 
   if (a.target.count === 'ALL') return done(applyPowerSet(cands, ctx));
