@@ -902,7 +902,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const srcOTEC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
           const txtOTEC = srcOTEC ? (srcOTEC.EffectText ?? '') + ' ' + (srcOTEC.BurstText ?? '') : '';
           const toHWOTEC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-          const classMOTEC = txtOTEC.match(/エナゾーンからあ(?:なたの)?(?:《([^《》]+)》)?/);
+          const classMOTEC = txtOTEC.match(/\u30A8\u30CA\u30BE\u30FC\u30F3\u304B\u3089(?:\u3042\u306A\u305F\u306E)?(?:\u300A([^\u300A\u300B]+)\u300B)?/);
           const reqClassOTEC = classMOTEC?.[1] ?? '';
           const energyCandsOTEC = cur.ownerState.energy.filter(cn => {
             if (!reqClassOTEC) return true;
