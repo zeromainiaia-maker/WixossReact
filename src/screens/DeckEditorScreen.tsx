@@ -57,7 +57,9 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const [nameInput, setNameInput] = useState(deck.name);
   const [expandedCardNum, setExpandedCardNum] = useState<string | null>(null);
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
-  const [variantPickerFor, setVariantPickerFor] = useState<{ cardNum: string; from: 'main' | 'lrig' } | null>(null);
+  const [showDeckSettingsMenu, setShowDeckSettingsMenu] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [variantPickerFor, setVariantPickerFor] = useState<{ cardNum: string; from: 'main' | 'lrig' | 'token' } | null>(null);
 
   const cardMap = useMemo(() => {
     const map = new Map<string, CardData>();
