@@ -34,9 +34,10 @@ const wrap: React.CSSProperties = {
 };
 
 export default function MatchmakingScreen({ user, decks, cards, onBattleStart, onBack }: Props) {
+  const cardMap = useMemo(() => new Map(cards.map(c => [c.CardNum, c])), [cards]);
+
   // メインデッキ40枚 かつ ルリグデッキにLv.0ルリグが存在するデッキのみ表示
   const validDecks = useMemo(() => {
-    const cardMap = new Map(cards.map(c => [c.CardNum, c]));
     return decks.filter(deck => {
       if (deck.mainDeck.length !== 40) return false;
       return deck.lrigDeck.some(num => {
@@ -44,7 +45,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
         return c?.Type === 'ルリグ' && c.Level === '0';
       });
     });
-  }, [decks, cards]);
+  }, [decks, cardMap]);
 
   const [step, setStep] = useState<Step>('SELECT_DECK');
   const [selectedDeckId, setSelectedDeckId] = useState<string>(validDecks[0]?.id ?? '');
