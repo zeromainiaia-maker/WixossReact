@@ -461,10 +461,12 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
 
       {/* 絵柄変更モーダル */}
       {variantPickerFor && (() => {
-        const { cardNum, from } = variantPickerFor;
+        const { cardNum } = variantPickerFor;
         const card = cardMap.get(cardNum);
         if (!card) return null;
         const variants = variantMap.get(card.CardName) ?? [];
+        // 現在表示中の絵柄（artOverrides優先、なければ正規CardNum）
+        const currentDisplayNum = current.artOverrides?.[cardNum] ?? cardNum;
         return (
           <div
             onClick={() => setVariantPickerFor(null)}
@@ -477,11 +479,11 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], onUpd
               </div>
               <div style={{ overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
                 {variants.map(v => {
-                  const isSelected = v.CardNum === cardNum;
+                  const isSelected = v.CardNum === currentDisplayNum;
                   return (
                     <div
                       key={v.CardNum}
-                      onClick={() => { switchVariant(cardNum, v.CardNum, from); setVariantPickerFor(null); }}
+                      onClick={() => { switchVariant(cardNum, v.CardNum); setVariantPickerFor(null); }}
                       style={{ cursor: 'pointer', borderRadius: '6px', overflow: 'hidden', border: isSelected ? '2px solid #7755dd' : '2px solid transparent', position: 'relative' }}
                     >
                       <img
