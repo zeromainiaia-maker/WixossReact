@@ -64,7 +64,7 @@ export default function MatchmakingScreen({ user, decks, cards, onBattleStart, o
       }, (payload) => {
         const updated = payload.new as Room;
         setRoom(updated);
-        if (updated.status === 'PLAYING') onBattleStart(room.id, selectedDeckId);
+        if (updated.status === 'PLAYING') onBattleStart(room.id, selectedDeckId, updated.host_art_overrides);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
