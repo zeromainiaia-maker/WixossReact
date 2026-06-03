@@ -132,6 +132,16 @@ export default function DeckEditorScreen({ deck, cards, onUpdate, onDelete, onBa
     onUpdate(updated);
   };
 
+  const switchVariant = (oldCardNum: string, newCardNum: string, from: 'main' | 'lrig') => {
+    const list = from === 'main' ? current.mainDeck : current.lrigDeck;
+    const next = list.map(n => n === oldCardNum ? newCardNum : n);
+    const updated = from === 'main'
+      ? { ...current, mainDeck: next }
+      : { ...current, lrigDeck: next };
+    setCurrent(updated);
+    onUpdate(updated);
+  };
+
   const saveName = () => {
     const updated = { ...current, name: nameInput };
     setCurrent(updated);
