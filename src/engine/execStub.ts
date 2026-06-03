@@ -50,7 +50,8 @@ export function execStub(
     return done(ctx);
   }
   // OPTIONAL_COST: 莉ｻ諢上さ繧ｹ繝茨ｼ・ffectExecutor縺ｮSEQUENCE繧､繝ｳ繧ｿ繝ｼ繧ｻ繝励ヨ蟇ｾ雎｡螟悶・繧ｨ繝・ず繧ｱ繝ｼ繧ｹ・・  // 荳ｻ縺ｪ338莉ｶ縺ｯeffectExecutor.ts縺郡TUB竊辰ONDITIONAL(IS_MY_TURN)繝代ち繝ｼ繝ｳ繧貞・逅・ｸ医∩
-  // 縺薙％縺ｯSEQUENCE譛ｫ蟆ｾ繧・撼IS_MY_TURN繝代ち繝ｼ繝ｳ縺ｮ33莉ｶ縺ｻ縺ｩ繧呈球蠖・  if (stub.id === 'OPTIONAL_COST') {
+  // 縺薙％縺ｯSEQUENCE譛ｫ蟆ｾ繧・撼IS_MY_TURN繝代ち繝ｼ繝ｳ縺ｮ33莉ｶ縺ｻ縺ｩ繧呈球蠖・
+  if (stub.id === 'OPTIONAL_COST') {
     const costColorsOC = stub.costColors ?? [];
     const canAffordOC = costColorsOC.length === 0 || canPayOptionalCost(costColorsOC, ctx.ownerState, ctx.cardMap);
     const payLabelOC = costColorsOC.length > 0
@@ -66,22 +67,24 @@ export function execStub(
       ],
     });
   }
-  // 莉悶・莉ｻ諢上さ繧ｹ繝育ｳｻ・・EQUENCE繝代ち繝ｼ繝ｳ螟悶・繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ・・  if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
+  // 莉悶・莉ｻ諢上さ繧ｹ繝育ｳｻ・・EQUENCE繝代ち繝ｼ繝ｳ螟悶・繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ・・
+  if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
     return done(addLog(ctx, `任意コスト（${stub.id}：後続ステップで処理）`));
   }
-  // 蟇ｾ謌ｦ逶ｸ謇倶ｻｻ諢上さ繧ｹ繝茨ｼ育嶌謇九↓CHOOSE繧呈署遉ｺ縺励∵髪謇輔≧縺ｨ繝輔Λ繧ｰ繧堤ｫ九※繧具ｼ・  if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
+  // 蟇ｾ謌ｦ逶ｸ謇倶ｻｻ諢上さ繧ｹ繝茨ｼ育嶌謇九↓CHOOSE繧呈署遉ｺ縺励∵髪謇輔≧縺ｨ繝輔Λ繧ｰ繧堤ｫ九※繧具ｼ・
+  if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
     const costLen = stub.costColors?.length ?? 0;
     if (costLen === 0 || ctx.otherState.energy.length < costLen) {
       const newOwner = { ...ctx.ownerState, opponent_paid_optional_cost: false };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `蟇ｾ謌ｦ逶ｸ謇倶ｻｻ諢上さ繧ｹ繝茨ｼ壽髪謇穂ｸ榊庄・・{costLen}辟｡濶ｲ荳崎ｶｳ・荏));
+      return done(addLog({ ...ctx, ownerState: newOwner }, `対戦相手任意コスト：支払不可（${costLen}無色不足）`));
     }
     const payAction: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_PAY_COST', value: costLen };
     const skipAction: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SKIP_COST' };
     const opts = [
-      { id: 'pay',  label: `謾ｯ謇輔≧・育┌ﾃ・{costLen}・荏, action: payAction  as EffectAction, available: true },
-      { id: 'skip', label: '謾ｯ謇輔ｏ縺ｪ縺・,               action: skipAction as EffectAction, available: true },
+      { id: 'pay',  label: `支払う（無×${costLen}）`, action: payAction  as EffectAction, available: true },
+      { id: 'skip', label: '支払わない',               action: skipAction as EffectAction, available: true },
     ];
-    return needsInteraction(addLog(ctx, `蟇ｾ謌ｦ逶ｸ謇具ｼ壹顔┌ﾃ・{costLen}縲九ｒ謾ｯ謇輔＞縺ｾ縺吶°・歔), {
+    return needsInteraction(addLog(ctx, `対戦相手：《無×${costLen}》を支払いますか？`), {
       type: 'CHOOSE', options: opts, count: 1, opponentResponds: true,
     });
   }
@@ -90,13 +93,14 @@ export function execStub(
     const newOther = { ...ctx.otherState, energy: ctx.otherState.energy.slice(costLen) };
     const newOwner = { ...ctx.ownerState, opponent_paid_optional_cost: true };
     return done(addLog({ ...ctx, ownerState: newOwner, otherState: newOther },
-      `蟇ｾ謌ｦ逶ｸ謇九′縲顔┌ﾃ・{costLen}縲九ｒ謾ｯ謇輔▲縺滂ｼ育ｵ先棡蜉ｹ譫懊せ繧ｭ繝・・・荏));
+      `対戦相手が《無×${costLen}》を支払った（結果効果スキップ）`));
   }
   if (stub.id === 'INTERNAL_OPP_SKIP_COST') {
     const newOwner = { ...ctx.ownerState, opponent_paid_optional_cost: false };
-    return done(addLog({ ...ctx, ownerState: newOwner }, '蟇ｾ謌ｦ逶ｸ謇九′謾ｯ謇輔ｏ縺ｪ縺・・邨先棡蜉ｹ譫懃匱蜍・));
+    return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手が支払わない→結果効果発動'));
   }
-  // 繧｢繝ｼ繝・さ繧ｹ繝郁ｻｽ貂帙・繝ｼ繧ｫ繝ｼ・医さ繧ｹ繝医・BattleScreen菴ｿ逕ｨ譎ゅ↓邂怜・貂医∩・・  if (stub.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || stub.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
+  // 繧｢繝ｼ繝・さ繧ｹ繝郁ｻｽ貂帙・繝ｼ繧ｫ繝ｼ・医さ繧ｹ繝医・BattleScreen菴ｿ逕ｨ譎ゅ↓邂怜・貂医∩・・
+  if (stub.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || stub.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
     return done(ctx); // 繧ｳ繧ｹ繝医・謾ｯ謇輔＞譎らせ縺ｧ險育ｮ玲ｸ医∩縲√％縺薙〒縺ｯ菴輔ｂ縺励↑縺・  }
   // 謨ｰ蟄怜ｮ｣險・夂樟蝨ｨ縺ｯ繝ｩ繝ｳ繝繝蛟､縺ｧ莉｣逕ｨ
   if (stub.id === 'DECLARE_NUMBER') {
@@ -108,14 +112,16 @@ export function execStub(
       id: `num_${n}`, label: `${n}繧貞ｮ｣險`, action: setAction(n) as EffectAction, available: true,
     }));
     const pending: PendingInteractionDef = { type: 'CHOOSE', options, count: 1 };
-    return needsInteraction(addLog(ctx, '謨ｰ蟄励ｒ螳｣險縺励※縺上□縺輔＞・・縲・・・), pending);
+    return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), pending);
   }
-  // DECLARE_NUMBER 縺ｮ螳｣險蛟､繧・PlayerState 縺ｫ譬ｼ邏・  if (stub.id === 'SET_DECLARED_NUMBER') {
+  // DECLARE_NUMBER 縺ｮ螳｣險蛟､繧・PlayerState 縺ｫ譬ｼ邏・
+  if (stub.id === 'SET_DECLARED_NUMBER') {
     const val = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
     const newOwner = { ...ctx.ownerState, declared_guard_restrict_level: val };
     return done(addLog({ ...ctx, ownerState: newOwner }, `謨ｰ蟄励・{val}縲阪ｒ螳｣險・育嶌謇九・Lv${val}繧ｷ繧ｰ繝九〒繧ｬ繝ｼ繝我ｸ榊庄・荏));
   }
-  // 繧ｫ繝ｼ繝牙錐螳｣險・域焔譛ｭ縺ｮ繧ｫ繝ｼ繝牙錐縺九ｉ驕ｸ謚橸ｼ・  if (stub.id === 'DECLARE_CARD_NAME') {
+  // 繧ｫ繝ｼ繝牙錐螳｣險・域焔譛ｭ縺ｮ繧ｫ繝ｼ繝牙錐縺九ｉ驕ｸ謚橸ｼ・
+  if (stub.id === 'DECLARE_CARD_NAME') {
     const handNames = [...new Set(
       ctx.ownerState.hand.map(cn => ctx.cardMap.get(cn)?.CardName).filter(Boolean) as string[]
     )];
@@ -135,9 +141,10 @@ export function execStub(
   if (stub.id === 'INTERNAL_DECLARE_CARD_NAME') {
     const nameDCN = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
     const newOwnerIDCN = { ...ctx.ownerState, declared_card_name: nameDCN };
-    return done(addLog({ ...ctx, ownerState: newOwnerIDCN }, `縲・{nameDCN}縲阪ｒ螳｣險`));
+    return done(addLog({ ...ctx, ownerState: newOwnerIDCN }, `「${nameDCN}」を宣言`));
   }
-  // 繧ｷ繧ｰ繝九・荳九↓繧ｫ繝ｼ繝峨ｒ鄂ｮ縺・  if (stub.id === 'PLACE_CARD_UNDER_SIGNI' || stub.id === 'STACK_SIGNI_UNDER') {
+  // 繧ｷ繧ｰ繝九・荳九↓繧ｫ繝ｼ繝峨ｒ鄂ｮ縺・
+  if (stub.id === 'PLACE_CARD_UNDER_SIGNI' || stub.id === 'STACK_SIGNI_UNDER') {
     const srcPCUS = ctx.sourceCardNum;
     const effPCUS = srcPCUS ? ctx.cardMap.get(srcPCUS) : undefined;
     const txtPCUS = effPCUS ? (effPCUS.EffectText ?? '') + ' ' + (effPCUS.BurstText ?? '') : '';
@@ -169,7 +176,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繧ｫ繝ｼ繝峨ｒ繧ｷ繧ｰ繝九・荳九↓鄂ｮ縺擾ｼ医せ繧ｭ繝・・・・));
   }
-  // INTERNAL_PLACE_SELF_UNDER_SIGNI: 閾ｪ繧ｷ繧ｰ繝九ｒ驕ｸ謚槭す繧ｰ繝九・繧ｹ繧ｿ繝・け荳九↓遘ｻ蜍・  if (stub.id === 'INTERNAL_PLACE_SELF_UNDER_SIGNI') {
+  // INTERNAL_PLACE_SELF_UNDER_SIGNI: 閾ｪ繧ｷ繧ｰ繝九ｒ驕ｸ謚槭す繧ｰ繝九・繧ｹ繧ｿ繝・け荳九↓遘ｻ蜍・
+  if (stub.id === 'INTERNAL_PLACE_SELF_UNDER_SIGNI') {
     const targetCnIPSUS = ctx.lastProcessedCards?.[0];
     const srcCnIPSUS = ctx.sourceCardNum;
     if (!targetCnIPSUS || !srcCnIPSUS) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺・));
@@ -185,10 +193,12 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerIPSUS },
       `${ctx.cardMap.get(srcCnIPSUS)?.CardName ?? srcCnIPSUS}繧・{ctx.cardMap.get(targetCnIPSUS)?.CardName ?? targetCnIPSUS}縺ｮ荳九↓驟咲ｽｮ`));
   }
-  // 隕夐・繝｡繧ｫ繝九け繧ｹ・医Ν繝ｪ繧ｰ螟芽ｺｫ・・  if (stub.id === 'AWAKEN') {
+  // 隕夐・繝｡繧ｫ繝九け繧ｹ・医Ν繝ｪ繧ｰ螟芽ｺｫ・・
+  if (stub.id === 'AWAKEN') {
     return done(addLog(ctx, '縲占ｦ夐・縲醍匱蜍包ｼ・attleScreen蛛ｴ蜃ｦ逅・ｼ・));
   }
-  // BET_MECHANIC: 繧ｳ繧､繝ｳ繧呈ｶ郁ｲｻ縺励※繝吶ャ繝遺・蠑ｷ蛹夜∈謚橸ｼ遺蔵竭｡竭｢竭｣縺九ｉ2縺､縲√・繝・ヨ譎・縺､・・  if (stub.id === 'BET_MECHANIC') {
+  // BET_MECHANIC: 繧ｳ繧､繝ｳ繧呈ｶ郁ｲｻ縺励※繝吶ャ繝遺・蠑ｷ蛹夜∈謚橸ｼ遺蔵竭｡竭｢竭｣縺九ｉ2縺､縲√・繝・ヨ譎・縺､・・
+  if (stub.id === 'BET_MECHANIC') {
     const srcBET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtBET = srcBET ? (srcBET.EffectText ?? '') + ' ' + (srcBET.BurstText ?? '') : '';
     const toHWBET = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -264,10 +274,12 @@ export function execStub(
       type: 'CHOOSE', options: optsIBET, count: Math.min(4, optsIBET.length),
     });
   }
-  // BET_ALTERNATIVE: 繝吶ャ繝亥ｼｷ蛹匁ｸ医∩縺ｪ縺ｮ縺ｧ繧ｹ繧ｭ繝・・・・ET_MECHANIC縺ｧ蜃ｦ逅・ｸ医∩・・  if (stub.id === 'BET_ALTERNATIVE' || stub.id === 'BET_CONDITION') {
+  // BET_ALTERNATIVE: 繝吶ャ繝亥ｼｷ蛹匁ｸ医∩縺ｪ縺ｮ縺ｧ繧ｹ繧ｭ繝・・・・ET_MECHANIC縺ｧ蜃ｦ逅・ｸ医∩・・
+  if (stub.id === 'BET_ALTERNATIVE' || stub.id === 'BET_CONDITION') {
     return done(addLog(ctx, '繝吶ャ繝亥ｼｷ蛹厄ｼ・ET_MECHANIC縺ｧ蜃ｦ逅・ｸ医∩・・));
   }
-  // GRANT_QUOTED_ACTIVATE_ABILITY: 縲後占ｵｷ縲・..縲堺ｻ倅ｸ趣ｼ・ONTINUOUS縺ｯeffectEngine縺ｧ蜃ｦ逅・、UTO縺ｯ蜊ｳ譎りｨｭ螳夲ｼ・  if (stub.id === 'GRANT_QUOTED_ACTIVATE_ABILITY') {
+  // GRANT_QUOTED_ACTIVATE_ABILITY: 縲後占ｵｷ縲・..縲堺ｻ倅ｸ趣ｼ・ONTINUOUS縺ｯeffectEngine縺ｧ蜃ｦ逅・、UTO縺ｯ蜊ｳ譎りｨｭ螳夲ｼ・
+  if (stub.id === 'GRANT_QUOTED_ACTIVATE_ABILITY') {
     const srcGQAA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGQAA = srcGQAA ? (srcGQAA.EffectText ?? '') : '';
     // 縲後す繧ｰ繝九・繝ｬ繝吶Ν・代↓縺､縺搾ｼ康000縺吶ｋ縲阪ち繧､繝・竊・POWER_MODIFY_PER_LEVEL_SUM邉ｻ
@@ -281,7 +293,8 @@ export function execStub(
     // 縺昴・莉厄ｼ医Ο繧ｰ縺ｮ縺ｿ・・    const quotedActM = txtGQAA.match(/縲・縲占ｵｷ縲措^縲江{1,30})/);
     return done(addLog(ctx, `襍ｷ蜍戊・蜉帑ｻ倅ｸ趣ｼ壹・{quotedActM?.[1] ?? '?'}...縲港));
   }
-  // 蠑慕畑隨ｦ莉倥″閭ｽ蜉帑ｻ倅ｸ趣ｼ医く繝ｼ繝ｯ繝ｼ繝・竊・keyword_grants縲∬､・粋閭ｽ蜉・竊・granted_effects・・  if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
+  // 蠑慕畑隨ｦ莉倥″閭ｽ蜉帑ｻ倅ｸ趣ｼ医く繝ｼ繝ｯ繝ｼ繝・竊・keyword_grants縲∬､・粋閭ｽ蜉・竊・granted_effects・・
+  if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
       stub.id === 'GRANT_ABILITY_INNER_TEXT') {
     const srcGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGQ = srcGQ ? (srcGQ.EffectText ?? '') + ' ' + (srcGQ.BurstText ?? '') : '';
@@ -351,7 +364,8 @@ export function execStub(
     if (quotedText) return done(addLog(ctx, `閭ｽ蜉帑ｻ倅ｸ趣ｼ壹・{quotedText.slice(0, 20)}...縲搾ｼ医Ο繧ｰ縺ｮ縺ｿ・荏));
     return done(addLog(ctx, '閭ｽ蜉帙ｒ莉倅ｸ趣ｼ・ffectEngine蜃ｦ逅・ｼ・));
   }
-  // 繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ荳区桃菴懶ｼ亥､壹ヱ繧ｿ繝ｼ繝ｳ・・  if (stub.id === 'LRIG_UNDER_CARD_OP') {
+  // 繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ荳区桃菴懶ｼ亥､壹ヱ繧ｿ繝ｼ繝ｳ・・
+  if (stub.id === 'LRIG_UNDER_CARD_OP') {
     const srcLrig = ctx.sourceCardNum;
     const effLrigTxt = srcLrig ? (ctx.cardMap.get(srcLrig)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(srcLrig)?.BurstText ?? '') : '';
     // 縲後お繝翫だ繝ｼ繝ｳ縺九ｉ繧ｷ繧ｰ繝九ｒ繝・ャ繧ｭ縺ｮ荳逡ｪ荳翫↓鄂ｮ縺上坂・ 繧ｨ繝岩・繝・ャ繧ｭ蜈磯ｭ
@@ -397,7 +411,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ荳九・繧ｫ繝ｼ繝画桃菴・));
   }
-  // 繧｢繝ｳ繧ｳ繝ｼ繝ｫ繝｡繧ｫ繝九け繧ｹ・医Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｮ繧｢繝ｼ繝・ｒ繧ｳ繧ｹ繝医↑縺励〒菴ｿ逕ｨ・・  if (stub.id === 'ENCORE') {
+  // 繧｢繝ｳ繧ｳ繝ｼ繝ｫ繝｡繧ｫ繝九け繧ｹ・医Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｮ繧｢繝ｼ繝・ｒ繧ｳ繧ｹ繝医↑縺励〒菴ｿ逕ｨ・・
+  if (stub.id === 'ENCORE') {
     const artsEN = (ctx.ownerState.lrig_trash ?? [])
       .filter(cn => ctx.cardMap.get(cn)?.Type === '繧｢繝ｼ繝・);
     if (artsEN.length === 0) return done(addLog(ctx, '繧｢繝ｳ繧ｳ繝ｼ繝ｫ・壹Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｫ繧｢繝ｼ繝・↑縺・));
@@ -409,7 +424,8 @@ export function execStub(
     }));
     return needsInteraction(addLog(ctx, '繧｢繝ｳ繧ｳ繝ｼ繝ｫ・壻ｽｿ逕ｨ縺吶ｋ繧｢繝ｼ繝・ｒ驕ｸ謚・), { type: 'CHOOSE', options: optsEN, count: 1 });
   }
-  // INTERNAL_ENCORE_USE: 驕ｸ謚槭＠縺溘い繝ｼ繝・ｒ繧ｳ繧ｹ繝医↑縺励〒螳溯｡・  if (stub.id === 'INTERNAL_ENCORE_USE') {
+  // INTERNAL_ENCORE_USE: 驕ｸ謚槭＠縺溘い繝ｼ繝・ｒ繧ｳ繧ｹ繝医↑縺励〒螳溯｡・
+  if (stub.id === 'INTERNAL_ENCORE_USE') {
     const encoreCN = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
     const encoreCard = ctx.cardMap.get(encoreCN);
     if (!encoreCard) return done(addLog(ctx, '繧｢繝ｳ繧ｳ繝ｼ繝ｫ・壹き繝ｼ繝峨ョ繝ｼ繧ｿ縺ｪ縺・));
@@ -419,7 +435,8 @@ export function execStub(
     return exec(mainEncoreEff.action,
       addLog({ ...ctx, sourceCardNum: encoreCN }, `${encoreCard.CardName}繧偵い繝ｳ繧ｳ繝ｼ繝ｫ・医さ繧ｹ繝医↑縺暦ｼ荏));
   }
-  // 蟇ｾ謌ｦ逶ｸ謇九・繝ｩ繧､繝輔け繝ｭ繧ｹ荳翫ｒ隕九ｋ・郁､・焚譫壹ヱ繧ｿ繝ｼ繝ｳ蟇ｾ蠢懶ｼ・  if (stub.id === 'LOOK_OPP_LIFE_TOP') {
+  // 蟇ｾ謌ｦ逶ｸ謇九・繝ｩ繧､繝輔け繝ｭ繧ｹ荳翫ｒ隕九ｋ・郁､・焚譫壹ヱ繧ｿ繝ｼ繝ｳ蟇ｾ蠢懶ｼ・
+  if (stub.id === 'LOOK_OPP_LIFE_TOP') {
     const srcLT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLT = srcLT ? (srcLT.EffectText ?? '') + ' ' + (srcLT.BurstText ?? '') : '';
     const toHWLT = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -456,7 +473,8 @@ export function execStub(
     };
     return selectOrInteract(selfCands, 1, false, 'self_field', trashSelfAction, banishOppAction, ctx);
   }
-  // 謇区惆繧呈昏縺ｦ縺ｦ蟇ｾ謌ｦ逶ｸ謇九す繧ｰ繝九ｒ蟇ｾ雎｡縺ｨ縺吶ｋ蜉ｹ譫懶ｼ医せ繧ｿ繝ｳ繝峨い繝ｭ繝ｳ譎ゑｼ壽焔譛ｭ1譫壽昏縺ｦ+逶ｸ謇九す繧ｰ繝九ｒlastProcessedCards縺ｸ・・  if (stub.id === 'TARGET_AND_DISCARD_HAND') {
+  // 謇区惆繧呈昏縺ｦ縺ｦ蟇ｾ謌ｦ逶ｸ謇九す繧ｰ繝九ｒ蟇ｾ雎｡縺ｨ縺吶ｋ蜉ｹ譫懶ｼ医せ繧ｿ繝ｳ繝峨い繝ｭ繝ｳ譎ゑｼ壽焔譛ｭ1譫壽昏縺ｦ+逶ｸ謇九す繧ｰ繝九ｒlastProcessedCards縺ｸ・・
+  if (stub.id === 'TARGET_AND_DISCARD_HAND') {
     const oppCandsTADH = fieldCandidates(ctx.otherState, { cardType: '繧ｷ繧ｰ繝・ }, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     if (oppCandsTADH.length === 0 || ctx.ownerState.hand.length === 0)
       return done(addLog(ctx, '蟇ｾ謌ｦ逶ｸ謇九す繧ｰ繝九∪縺溘・謇区惆縺ｪ縺暦ｼ・ARGET_AND_DISCARD_HAND・・));
@@ -471,7 +489,8 @@ export function execStub(
     return selectOrInteract(oppCandsTADH, 1, false, 'opp_field', noopTADH as EffectAction, undefined,
       addLog({ ...ctx, ownerState: newOwnerTADH }, `謇区惆・・{ctx.cardMap.get(discardedTADH)?.CardName ?? discardedTADH}・峨ｒ謐ｨ縺ｦ蟇ｾ雎｡驕ｸ謚杼));
   }
-  // 蜍慕噪繝代Ρ繝ｼ菫ｮ豁｣・・OUNT萓晏ｭ假ｼ・  if (stub.id === 'POWER_MOD_PER_COUNT') {
+  // 蜍慕噪繝代Ρ繝ｼ菫ｮ豁｣・・OUNT萓晏ｭ假ｼ・
+  if (stub.id === 'POWER_MOD_PER_COUNT') {
     const src = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const effText = src ? (src.EffectText ?? '') + ' ' + (src.BurstText ?? '') : '';
     const toHW = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -745,7 +764,8 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, subscriber_count: newCnt };
     return done(addLog({ ...ctx, ownerState: newOwner }, `逋ｻ骭ｲ閠・焚・・{gain}荳・ｺｺ・郁ｨ・{newCnt}荳・ｺｺ・荏));
   }
-  // 繧ｦ繧､繝ｫ繧ｹ髯､蜴ｻ・壹ユ繧ｭ繧ｹ繝医ｒ隗｣譫舌＠縺ｦ驕ｩ蛻・↑謨ｰ縺ｮ繧ｦ繧､繝ｫ繧ｹ繧貞叙繧企勁縺・  if (stub.id === 'REMOVE_VIRUS') {
+  // 繧ｦ繧､繝ｫ繧ｹ髯､蜴ｻ・壹ユ繧ｭ繧ｹ繝医ｒ隗｣譫舌＠縺ｦ驕ｩ蛻・↑謨ｰ縺ｮ繧ｦ繧､繝ｫ繧ｹ繧貞叙繧企勁縺・
+  if (stub.id === 'REMOVE_VIRUS') {
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
     const totalVirus = virusArr.reduce((s, v) => s + v, 0);
     if (totalVirus === 0) return done(addLog(ctx, '繧ｦ繧､繝ｫ繧ｹ縺ｪ縺・));
@@ -765,7 +785,8 @@ export function execStub(
     const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
     return done(addLog({ ...ctx, otherState: newOther }, `繧ｦ繧､繝ｫ繧ｹ${removed}縺､繧貞叙繧企勁縺汁));
   }
-  // INTERNAL_REMOVE_VIRUS_N: N蛟九え繧､繝ｫ繧ｹ繧帝勁蜴ｻ・・ffectExecutor縺ｮREMOVE_VIRUS+IS_MY_TURN繝上Φ繝峨Λ縺九ｉ菴ｿ逕ｨ・・  if (stub.id === 'INTERNAL_REMOVE_VIRUS_N') {
+  // INTERNAL_REMOVE_VIRUS_N: N蛟九え繧､繝ｫ繧ｹ繧帝勁蜴ｻ・・ffectExecutor縺ｮREMOVE_VIRUS+IS_MY_TURN繝上Φ繝峨Λ縺九ｉ菴ｿ逕ｨ・・
+  if (stub.id === 'INTERNAL_REMOVE_VIRUS_N') {
     const n = typeof stub.value === 'number' ? stub.value : 0;
     if (n === 0) return done(ctx);
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
@@ -779,7 +800,8 @@ export function execStub(
     const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
     return done(addLog({ ...ctx, otherState: newOther }, `繧ｦ繧､繝ｫ繧ｹ${removed}縺､繧貞叙繧企勁縺汁));
   }
-  // INTERNAL_RV_BATCH_TRANSFER: N蛟九え繧､繝ｫ繧ｹ髯､蜴ｻ + 繝医Λ繝・す繝･縺九ｉ繧ｷ繧ｰ繝起譫壹ｒ謇区惆縺ｸ・・X15-028蝙具ｼ・  if (stub.id === 'INTERNAL_RV_BATCH_TRANSFER') {
+  // INTERNAL_RV_BATCH_TRANSFER: N蛟九え繧､繝ｫ繧ｹ髯､蜴ｻ + 繝医Λ繝・す繝･縺九ｉ繧ｷ繧ｰ繝起譫壹ｒ謇区惆縺ｸ・・X15-028蝙具ｼ・
+  if (stub.id === 'INTERNAL_RV_BATCH_TRANSFER') {
     const n = typeof stub.value === 'number' ? stub.value : 0;
     if (n === 0) return done(addLog(ctx, '繧ｦ繧､繝ｫ繧ｹ蜿悶ｊ髯､縺九↑縺・));
     const virusArr = ctx.otherState.field.signi_virus ?? [0, 0, 0];
@@ -907,7 +929,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsIAPMA } },
       `蜈ｨ逶ｸ謇九す繧ｰ繝九ヱ繝ｯ繝ｼ${deltaIAPMA}`));
   }
-  // INTERNAL_EXILE_OPP_TRASH: 逶ｸ謇九ヨ繝ｩ繝・す繝･縺ｮ繧ｫ繝ｼ繝峨ｒ繧ｲ繝ｼ繝縺九ｉ髯､螟厄ｼ・譫壹∪縺ｧ・・  if (stub.id === 'INTERNAL_EXILE_OPP_TRASH') {
+  // INTERNAL_EXILE_OPP_TRASH: 逶ｸ謇九ヨ繝ｩ繝・す繝･縺ｮ繧ｫ繝ｼ繝峨ｒ繧ｲ繝ｼ繝縺九ｉ髯､螟厄ｼ・譫壹∪縺ｧ・・
+  if (stub.id === 'INTERNAL_EXILE_OPP_TRASH') {
     const oppTrashIEOT = ctx.otherState.trash;
     if (oppTrashIEOT.length === 0) return done(addLog(ctx, '逶ｸ謇九ヨ繝ｩ繝・す繝･縺ｫ繧ｫ繝ｼ繝峨↑縺・));
     const exileN = Math.min(2, oppTrashIEOT.length);
@@ -916,7 +939,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: newOtherIEOT },
       `逶ｸ謇九ヨ繝ｩ繝・す繝･縺九ｉ${exiled.length}譫壹ご繝ｼ繝髯､螟厄ｼ・{exiled.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('繝ｻ')}・荏));
   }
-  // 繝・ャ繧ｭ繝医ャ繝励ｒ隕九※荳九↓鄂ｮ縺・※繧ゅｈ縺・  if (stub.id === 'TOP_TO_BOTTOM_OPTIONAL') {
+  // 繝・ャ繧ｭ繝医ャ繝励ｒ隕九※荳九↓鄂ｮ縺・※繧ゅｈ縺・
+  if (stub.id === 'TOP_TO_BOTTOM_OPTIONAL') {
     if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, '繝・ャ繧ｭ縺ｪ縺・));
     const topTTB = ctx.ownerState.deck[0];
     const topNameTTB = ctx.cardMap.get(topTTB)?.CardName ?? topTTB;
@@ -940,7 +964,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerITTB },
       `${ctx.cardMap.get(topITTB)?.CardName ?? topITTB}繧偵ョ繝・く荳九∈`));
   }
-  // 蜷・・繝ｬ繧､繝､繝ｼ縺後き繝ｼ繝峨ｒ1譫壼ｼ輔″謇区惆繧・譫壹ョ繝・く荳九↓鄂ｮ縺・  if (stub.id === 'DRAW_AND_PUT_HAND_TO_DECK_BOTTOM') {
+  // 蜷・・繝ｬ繧､繝､繝ｼ縺後き繝ｼ繝峨ｒ1譫壼ｼ輔″謇区惆繧・譫壹ョ繝・く荳九↓鄂ｮ縺・
+  if (stub.id === 'DRAW_AND_PUT_HAND_TO_DECK_BOTTOM') {
     let newOwnerDAPH = { ...ctx.ownerState };
     let newOtherDAPH = { ...ctx.otherState };
     if (newOwnerDAPH.deck.length > 0) {
@@ -977,7 +1002,8 @@ export function execStub(
     }
     return done(addLog({ ...ctx, ownerState: newOwnerHDB }, `謇区惆${selectedHDB.length}譫壹ｒ繝・ャ繧ｭ荳九∈`));
   }
-  // 蜷・・繝ｬ繧､繝､繝ｼ縺後き繝ｼ繝峨ｒ1譫壼ｼ輔″縲・譫壽昏縺ｦ繧・  if (stub.id === 'EACH_PLAYER_DRAW_DISCARD') {
+  // 蜷・・繝ｬ繧､繝､繝ｼ縺後き繝ｼ繝峨ｒ1譫壼ｼ輔″縲・譫壽昏縺ｦ繧・
+  if (stub.id === 'EACH_PLAYER_DRAW_DISCARD') {
     const toHWEPDD0 = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const srcEPDD0 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtEPDD0 = srcEPDD0 ? (srcEPDD0.EffectText ?? '') + ' ' + (srcEPDD0.BurstText ?? '') : '';
@@ -1008,7 +1034,8 @@ export function execStub(
       ctxDrawnEPDD0,
     );
   }
-  // 謇区惆縺九ｉ辟｡濶ｲ縺ｧ縺ｪ縺・き繝ｼ繝峨ｒ繧ｨ繝翫↓鄂ｮ縺・  if (stub.id === 'HAND_NONCOLORLESS_TO_ENERGY') {
+  // 謇区惆縺九ｉ辟｡濶ｲ縺ｧ縺ｪ縺・き繝ｼ繝峨ｒ繧ｨ繝翫↓鄂ｮ縺・
+  if (stub.id === 'HAND_NONCOLORLESS_TO_ENERGY') {
     const nonColorless = ctx.ownerState.hand.filter(cn => {
       const c = ctx.cardMap.get(cn);
       const color = c?.Color ?? '';
@@ -1066,7 +1093,8 @@ export function execStub(
     const namesOET = selectedOET.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('繝ｻ');
     return done(addLog({ ...ctx, otherState: newOther }, `${namesOET}繧堤嶌謇九お繝翫°繧峨ヨ繝ｩ繝・す繝･縺ｸ`));
   }
-  // 繝輔ぅ繝ｼ繝ｫ繝峨↓莉悶・繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九′縺ｪ縺・ｴ蜷医∵焔譛ｭ繧呈昏縺ｦ繧・  if (stub.id === 'DISCARD_IF_NO_CLASS_SIGNI') {
+  // 繝輔ぅ繝ｼ繝ｫ繝峨↓莉悶・繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九′縺ｪ縺・ｴ蜷医∵焔譛ｭ繧呈昏縺ｦ繧・
+  if (stub.id === 'DISCARD_IF_NO_CLASS_SIGNI') {
     const srcDINC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDINC = srcDINC ? (srcDINC.EffectText ?? '') + ' ' + (srcDINC.BurstText ?? '') : '';
     const classMatchDINC = txtDINC.match(/莉悶・[<・彎([^>・枉+)[>・枉縺ｮ繧ｷ繧ｰ繝九′縺ｪ縺・ｴ蜷・);
@@ -1085,7 +1113,8 @@ export function execStub(
     };
     return selectOrInteract(ctx.ownerState.hand, 1, false, 'self_hand', discardDINC as EffectAction, undefined, ctx);
   }
-  // 縺薙・繧ｿ繝ｼ繝ｳ縺ｫ縺薙・繧ｷ繧ｰ繝九′繧｢繧ｿ繝・け縺励※縺・◆蝣ｴ蜷医∵焔譛ｭ繧・譫壽昏縺ｦ繧・  if (stub.id === 'DISCARD_IF_ATTACKED_THIS_TURN') {
+  // 縺薙・繧ｿ繝ｼ繝ｳ縺ｫ縺薙・繧ｷ繧ｰ繝九′繧｢繧ｿ繝・け縺励※縺・◆蝣ｴ蜷医∵焔譛ｭ繧・譫壽昏縺ｦ繧・
+  if (stub.id === 'DISCARD_IF_ATTACKED_THIS_TURN') {
     if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '謇区惆縺ｪ縺暦ｼ域昏縺ｦ繧ｹ繧ｭ繝・・・・));
     const srcDAT = ctx.sourceCardNum;
     const didAttack = srcDAT ? (ctx.ownerState.attacked_signi_ids ?? []).includes(srcDAT) : false;
@@ -1095,7 +1124,8 @@ export function execStub(
     };
     return selectOrInteract(ctx.ownerState.hand, 1, false, 'self_hand', discardDAT as EffectAction, undefined, ctx);
   }
-  // 謇区惆縺九ｉ莉ｻ諢上〒繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ鄂ｮ縺・  if (stub.id === 'HAND_TO_ENERGY_OPTIONAL') {
+  // 謇区惆縺九ｉ莉ｻ諢上〒繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ鄂ｮ縺・
+  if (stub.id === 'HAND_TO_ENERGY_OPTIONAL') {
     const srcHTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtHTE = srcHTE ? (srcHTE.EffectText ?? '') + ' ' + (srcHTE.BurstText ?? '') : '';
     const toHWHTE = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -1115,7 +1145,8 @@ export function execStub(
     };
     return needsInteraction(addLog(ctx, '謇区惆縺九ｉ繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ鄂ｮ縺・※繧ゅｈ縺・), pendingHTE);
   }
-  // INTERNAL: lastProcessedCards縺ｮ謇区惆繧ｫ繝ｼ繝峨ｒ繧ｨ繝翫∈遘ｻ蜍・  if (stub.id === 'INTERNAL_HAND_TO_ENERGY') {
+  // INTERNAL: lastProcessedCards縺ｮ謇区惆繧ｫ繝ｼ繝峨ｒ繧ｨ繝翫∈遘ｻ蜍・
+  if (stub.id === 'INTERNAL_HAND_TO_ENERGY') {
     const selected = ctx.lastProcessedCards ?? [];
     let newOwnerHTE = { ...ctx.ownerState };
     for (const cn of selected) {
@@ -1129,7 +1160,8 @@ export function execStub(
     const names = selected.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('繝ｻ');
     return done(addLog({ ...ctx, ownerState: newOwnerHTE }, `${names || '縺ｪ縺・}繧偵お繝翫だ繝ｼ繝ｳ縺ｸ`));
   }
-  // 逶ｸ謇九・謇区惆繧定ｦ九※繧ｹ繝壹Ν繧呈昏縺ｦ縺輔○繧・  if (stub.id === 'VIEW_AND_DISCARD_SPELL') {
+  // 逶ｸ謇九・謇区惆繧定ｦ九※繧ｹ繝壹Ν繧呈昏縺ｦ縺輔○繧・
+  if (stub.id === 'VIEW_AND_DISCARD_SPELL') {
     const srcVDS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtVDS = srcVDS ? (srcVDS.EffectText ?? '') + ' ' + (srcVDS.BurstText ?? '') : '';
     const toHWVDS = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -1151,7 +1183,8 @@ export function execStub(
     };
     return selectOrInteract(spellCands, maxVDS, false, 'opp_hand', discardVDS as EffectAction, undefined, ctx);
   }
-  // 閾ｪ繧ｷ繧ｰ繝九ｒ繝・ャ繧ｭ繝医ャ繝励↓鄂ｮ縺・  if (stub.id === 'SELF_TO_DECK_TOP') {
+  // 閾ｪ繧ｷ繧ｰ繝九ｒ繝・ャ繧ｭ繝医ャ繝励↓鄂ｮ縺・
+  if (stub.id === 'SELF_TO_DECK_TOP') {
     const srcSTD = ctx.sourceCardNum;
     if (!srcSTD || !ctx.ownerState.field.signi.some(s => s?.at(-1) === srcSTD)) {
       return done(addLog(ctx, 'SELF_TO_DECK_TOP: 繝輔ぅ繝ｼ繝ｫ繝峨↓縺・↑縺・));
@@ -1161,7 +1194,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerSTD },
       `${ctx.cardMap.get(srcSTD)?.CardName ?? srcSTD}繧偵ョ繝・く繝医ャ繝励∈`));
   }
-  // 逶ｸ謇九・繝医Λ繝・す繝･縺九ｉ繧ｫ繝ｼ繝峨ｒ繝・ャ繧ｭ繝医ャ繝励↓・医ｂ繧医＞・・  if (stub.id === 'OPP_TRASH_TO_DECK_TOP') {
+  // 逶ｸ謇九・繝医Λ繝・す繝･縺九ｉ繧ｫ繝ｼ繝峨ｒ繝・ャ繧ｭ繝医ャ繝励↓・医ｂ繧医＞・・
+  if (stub.id === 'OPP_TRASH_TO_DECK_TOP') {
     if (ctx.otherState.trash.length === 0) return done(addLog(ctx, '逶ｸ謇九ヨ繝ｩ繝・す繝･縺ｪ縺・));
     const noopOTT: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     const contOTT: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_TRASH_TO_DECK_TOP' };
@@ -1190,7 +1224,8 @@ export function execStub(
     const namesOTT = selectedOTT.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('繝ｻ');
     return done(addLog({ ...ctx, otherState: newOther }, `${namesOTT}繧堤嶌謇九ョ繝・く繝医ャ繝励∈`));
   }
-  // 逶ｸ謇九・謇区惆繧偵ョ繝・く繝医ャ繝励↓鄂ｮ縺・  if (stub.id === 'OPP_HAND_TO_DECK_TOP') {
+  // 逶ｸ謇九・謇区惆繧偵ョ繝・く繝医ャ繝励↓鄂ｮ縺・
+  if (stub.id === 'OPP_HAND_TO_DECK_TOP') {
     const srcHDT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtHDT = srcHDT ? (srcHDT.EffectText ?? '') + ' ' + (srcHDT.BurstText ?? '') : '';
     const toHWHDT = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -1224,7 +1259,8 @@ export function execStub(
     }
     return done(addLog({ ...ctx, otherState: newOther }, `逶ｸ謇区焔譛ｭ${selectedHDT.length}譫壹ｒ繝・ャ繧ｭ繝医ャ繝励∈`));
   }
-  // UNKNOWN_NESTED: 閾ｪ繧ｷ繧ｰ繝九ｒ莉ｻ諢上〒繝医Λ繝・す繝･縺ｫ鄂ｮ縺擾ｼ医◎縺・＠縺溷ｴ蜷医↓蠕檎ｶ壼柑譫懊′逋ｺ蜍包ｼ・  if (stub.id === 'UNKNOWN_NESTED') {
+  // UNKNOWN_NESTED: 閾ｪ繧ｷ繧ｰ繝九ｒ莉ｻ諢上〒繝医Λ繝・す繝･縺ｫ鄂ｮ縺擾ｼ医◎縺・＠縺溷ｴ蜷医↓蠕檎ｶ壼柑譫懊′逋ｺ蜍包ｼ・
+  if (stub.id === 'UNKNOWN_NESTED') {
     const srcUN = ctx.sourceCardNum;
     if (!srcUN || !ctx.ownerState.field.signi.some(s => s?.at(-1) === srcUN)) {
       const newOwner = { ...ctx.ownerState, self_optional_effect_taken: false };
@@ -1251,7 +1287,8 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, self_optional_effect_taken: false };
     return done(addLog({ ...ctx, ownerState: newOwner }, '繝医Λ繝・す繝･縺励↑縺・・蠕檎ｶ壼柑譫懊せ繧ｭ繝・・'));
   }
-  // 繧ｲ繝ｼ繝縺九ｉ髯､螟厄ｼ壹ヨ繝ｩ繝・す繝･縺ｫ縺ゅｋ閾ｪ繧ｷ繧ｰ繝九ｒ莉ｻ諢上〒髯､螟厄ｼ亥ｾ檎ｶ壼柑譫懈擅莉ｶ・・  if (stub.id === 'BANISH_FROM_GAME') {
+  // 繧ｲ繝ｼ繝縺九ｉ髯､螟厄ｼ壹ヨ繝ｩ繝・す繝･縺ｫ縺ゅｋ閾ｪ繧ｷ繧ｰ繝九ｒ莉ｻ諢上〒髯､螟厄ｼ亥ｾ檎ｶ壼柑譫懈擅莉ｶ・・
+  if (stub.id === 'BANISH_FROM_GAME') {
     const src = ctx.sourceCardNum;
     if (!src) {
       return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } },
@@ -1286,7 +1323,8 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, self_optional_effect_taken: false };
     return done(addLog({ ...ctx, ownerState: newOwner }, '髯､螟悶＠縺ｪ縺・・蠕檎ｶ壼柑譫懊せ繧ｭ繝・・'));
   }
-  // 蟇ｾ謌ｦ逶ｸ謇九′謇区惆繧・譫夐∈繧薙〒謐ｨ縺ｦ繧・  if (stub.id === 'OPP_CHOOSE_YOUR_HAND_DISCARD') {
+  // 蟇ｾ謌ｦ逶ｸ謇九′謇区惆繧・譫夐∈繧薙〒謐ｨ縺ｦ繧・
+  if (stub.id === 'OPP_CHOOSE_YOUR_HAND_DISCARD') {
     const cands = ctx.ownerState.hand;
     if (cands.length === 0) return done(addLog(ctx, '謇区惆縺ｪ縺暦ｼ・PP_CHOOSE_YOUR_HAND_DISCARD・・));
     const trashAction: TrashAction = {
@@ -1318,7 +1356,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繝√ぉ繝・け繧ｾ繝ｼ繝ｳ縺ｫ繧ｫ繝ｼ繝峨↑縺・));
   }
-  // 縺昴・莉悶だ繝ｼ繝ｳ/繝ｬ繝吶Ν/繝輔ぉ繧､繧ｺ蛻ｶ髯・  if (stub.id === 'LRIG_ZONE_RESTRICT' || stub.id === 'LRIG_LEVEL_RESTRICT' || stub.id === 'EXTRA_PHASE_RESTRICT') {
+  // 縺昴・莉悶だ繝ｼ繝ｳ/繝ｬ繝吶Ν/繝輔ぉ繧､繧ｺ蛻ｶ髯・
+  if (stub.id === 'LRIG_ZONE_RESTRICT' || stub.id === 'LRIG_LEVEL_RESTRICT' || stub.id === 'EXTRA_PHASE_RESTRICT') {
     return done(addLog(ctx, '繝ｫ繝ｪ繧ｰ蛻ｶ髯仙柑譫懶ｼ医Ο繧ｰ縺ｮ縺ｿ・・));
   }
   // 繧ｫ繝ｼ繝牙錐繧ｳ繝斐・邉ｻ
@@ -1343,7 +1382,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繝ｫ繝ｪ繧ｰ蜷阪さ繝斐・・医ユ繧ｭ繧ｹ繝郁ｧ｣譫蝉ｸ榊庄・・));
   }
-  // 譚｡莉ｶ莉倥″繧｢繝ｼ繝・さ繧ｹ繝茨ｼ医さ繧ｹ繝郁ｨ育ｮ励・computeArtsEffectiveCost縺ｧ蜃ｦ逅・ｸ医∩縲√％縺薙〒縺ｯ譚｡莉ｶ遒ｺ隱阪・縺ｿ・・  if (stub.id === 'CONDITIONAL_ARTS_COST') {
+  // 譚｡莉ｶ莉倥″繧｢繝ｼ繝・さ繧ｹ繝茨ｼ医さ繧ｹ繝郁ｨ育ｮ励・computeArtsEffectiveCost縺ｧ蜃ｦ逅・ｸ医∩縲√％縺薙〒縺ｯ譚｡莉ｶ遒ｺ隱阪・縺ｿ・・
+  if (stub.id === 'CONDITIONAL_ARTS_COST') {
     const srcCAC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCAC = srcCAC ? (srcCAC.EffectText ?? '') + ' ' + (srcCAC.BurstText ?? '') : '';
     const toHWCAC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -1385,7 +1425,8 @@ export function execStub(
       thenAction: moveStubOTEC as EffectAction,
     });
   }
-  // INTERNAL_OTEC_MOVE_SELECTED: applyDirectAction縺ｮdefault邨檎罰縺ｧ蜻ｼ縺ｰ繧後〕astProcessedCards[0]繧堤ｧｻ蜍・  if (stub.id === 'INTERNAL_OTEC_MOVE_SELECTED') {
+  // INTERNAL_OTEC_MOVE_SELECTED: applyDirectAction縺ｮdefault邨檎罰縺ｧ蜻ｼ縺ｰ繧後〕astProcessedCards[0]繧堤ｧｻ蜍・
+  if (stub.id === 'INTERNAL_OTEC_MOVE_SELECTED') {
     const destMOTEC = String(stub.value ?? 'trash');
     const selectedCardOTEC = ctx.lastProcessedCards?.[0];
     if (!selectedCardOTEC) return done(addLog(ctx, 'INTERNAL_OTEC_MOVE_SELECTED: 蟇ｾ雎｡縺ｪ縺・));
@@ -1439,7 +1480,8 @@ export function execStub(
     return done(addLog(setOwnerState(target, newSt, ctx),
       `繧ｷ繧ｰ繝・{signiAll.length}菴・{keyCard ? '+繧ｭ繝ｼ' : ''}繧偵ヨ繝ｩ繝・す繝･縺ｸ`));
   }
-  // 繝・ャ繧ｭ蜈ｬ髢九＠縺ｦ繧ｷ繧ｰ繝九ｒ蝣ｴ縺ｫ蜃ｺ縺・  if (stub.id === 'REVEAL_PICK_PLAY') {
+  // 繝・ャ繧ｭ蜈ｬ髢九＠縺ｦ繧ｷ繧ｰ繝九ｒ蝣ｴ縺ｫ蜃ｺ縺・
+  if (stub.id === 'REVEAL_PICK_PLAY') {
     const srcRPP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtRPP = srcRPP ? (srcRPP.EffectText ?? '') + ' ' + (srcRPP.BurstText ?? '') : '';
     // 縲舌す繝ｼ繝峨代→縺励※險ｭ鄂ｮ縺吶ｋ繝代ち繝ｼ繝ｳ・医後◎繧後ｒ縲舌す繝ｼ繝峨代→縺励※...縲咲ｭ会ｼ・    if (txtRPP.match(/縲舌す繝ｼ繝峨代→縺励※.*繧ｷ繧ｰ繝九だ繝ｼ繝ｳ縺ｫ蜃ｺ縺励※繧ゅｈ縺・) || txtRPP.match(/縲舌す繝ｼ繝峨代→縺励※.*繧ｷ繧ｰ繝九だ繝ｼ繝ｳ縺ｫ蜃ｺ縺吶°/)) {
@@ -1479,7 +1521,8 @@ export function execStub(
       pending,
     );
   }
-  // 繝・ャ繧ｭ縺九ｉ謗｢縺励※繧ゅｈ縺・ｼ・EVEAL_AND_PICK: 繧ｷ繧ｰ繝区､懃ｴ｢竊呈焔譛ｭor蝣ｴ・・  if (stub.id === 'REVEAL_AND_PICK') {
+  // 繝・ャ繧ｭ縺九ｉ謗｢縺励※繧ゅｈ縺・ｼ・EVEAL_AND_PICK: 繧ｷ繧ｰ繝区､懃ｴ｢竊呈焔譛ｭor蝣ｴ・・
+  if (stub.id === 'REVEAL_AND_PICK') {
     const srcRAP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtRAP = srcRAP ? (srcRAP.EffectText ?? '') + ' ' + (srcRAP.BurstText ?? '') : '';
     const toHWRAP = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -1502,7 +1545,8 @@ export function execStub(
     };
     return needsInteraction(addLog(ctx, `繝・ャ繧ｭ縺九ｉ繧ｷ繧ｰ繝九ｒ${pickCount}譫壹∪縺ｧ讀懃ｴ｢`), pending);
   }
-  // 繝・ャ繧ｭ繧呈擅莉ｶ縺梧ｺ縺溘＆繧後ｋ縺ｾ縺ｧ蜈ｬ髢九☆繧・  if (stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
+  // 繝・ャ繧ｭ繧呈擅莉ｶ縺梧ｺ縺溘＆繧後ｋ縺ｾ縺ｧ蜈ｬ髢九☆繧・
+  if (stub.id === 'DECK_REVEAL_UNTIL' || stub.id === 'DECK_REVEAL_UNTIL_CLASS' || stub.id === 'OPP_DECK_REVEAL_UNTIL') {
     const isOpp = stub.id === 'OPP_DECK_REVEAL_UNTIL';
     const stateRU = isOpp ? ctx.otherState : ctx.ownerState;
     const srcRU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
@@ -1543,7 +1587,8 @@ export function execStub(
     const hitNameRU = hitCardRU ? ctx.cardMap.get(hitCardRU)?.CardName ?? hitCardRU : '繝偵ャ繝医↑縺・;
     return done(addLog(newCtxRU, `繝・ャ繧ｭ蜈ｬ髢・${revealedRU.length}譫・竊・繝偵ャ繝・ ${hitNameRU}`));
   }
-  // SONG_FRAGMENT: 繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ縲先ｭ後・繧ｫ繧ｱ繝ｩ縲第戟縺｡繧ｫ繝ｼ繝峨ｒ繝医Λ繝・す繝･縺ｫ鄂ｮ縺阪√◎縺ｮ蜉ｹ譫懊ｒ逋ｺ蜍・  // 縲後％縺ｮ繝ｫ繝ｪ繧ｰ縺ｯ縺昴・繧ｫ繝ｼ繝峨・縲先ｭ後・繧ｫ繧ｱ繝ｩ縲代ｒ菴ｿ逕ｨ縺吶ｋ縲・ 繝ｫ繝ｪ繧ｰ蜉ｹ譫懊→縺励※謇ｱ縺・  if (stub.id === 'SONG_FRAGMENT') {
+  // SONG_FRAGMENT: 繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ縲先ｭ後・繧ｫ繧ｱ繝ｩ縲第戟縺｡繧ｫ繝ｼ繝峨ｒ繝医Λ繝・す繝･縺ｫ鄂ｮ縺阪√◎縺ｮ蜉ｹ譫懊ｒ逋ｺ蜍・  // 縲後％縺ｮ繝ｫ繝ｪ繧ｰ縺ｯ縺昴・繧ｫ繝ｼ繝峨・縲先ｭ後・繧ｫ繧ｱ繝ｩ縲代ｒ菴ｿ逕ｨ縺吶ｋ縲・ 繝ｫ繝ｪ繧ｰ蜉ｹ譫懊→縺励※謇ｱ縺・
+  if (stub.id === 'SONG_FRAGMENT') {
     const lrigCardNumSF = ctx.sourceCardNum; // 逋ｺ蜍募・繝ｫ繝ｪ繧ｰ
     const songCardsInEnergy = ctx.ownerState.energy.filter(cn => {
       const c = ctx.cardMap.get(cn);
@@ -1577,7 +1622,8 @@ export function execStub(
     }
     return done(addLog({ ...ctx, ownerState: newOwnerSF }, `豁後・繧ｫ繧ｱ繝ｩ・・{songCardData?.CardName ?? songCard}・会ｼ壼柑譫懊↑縺輿));
   }
-  // INTERNAL_SONG_FRAGMENT: SELECT_TARGET縺ｧ驕ｸ謚槭＆繧後◆繧ｫ繝ｼ繝峨〒豁後・繧ｫ繧ｱ繝ｩ逋ｺ蜍・  if (stub.id === 'INTERNAL_SONG_FRAGMENT') {
+  // INTERNAL_SONG_FRAGMENT: SELECT_TARGET縺ｧ驕ｸ謚槭＆繧後◆繧ｫ繝ｼ繝峨〒豁後・繧ｫ繧ｱ繝ｩ逋ｺ蜍・
+  if (stub.id === 'INTERNAL_SONG_FRAGMENT') {
     const selectedSF = ctx.lastProcessedCards?.[0];
     // stub.value 縺ｫ繝ｫ繝ｪ繧ｰCardNum縺梧ｼ邏阪＆繧後※縺・ｋ・・ONG_FRAGMENT縺九ｉ貂｡縺輔ｌ繧具ｼ・    const lrigCardNumISF = typeof stub.value === 'string' ? stub.value : ctx.sourceCardNum;
     if (!selectedSF) return done(addLog(ctx, 'INTERNAL_SONG_FRAGMENT: 驕ｸ謚槭↑縺・));
@@ -1595,7 +1641,8 @@ export function execStub(
     }
     return done(addLog({ ...ctx, ownerState: newOwnerISF }, `豁後・繧ｫ繧ｱ繝ｩ・・{songCardDataISF?.CardName ?? selectedSF}・会ｼ壼柑譫懊↑縺輿));
   }
-  // 繧ｲ繝ｼ繝蜈ｨ菴楢・蜉帑ｻ倅ｸ・  if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
+  // 繧ｲ繝ｼ繝蜈ｨ菴楢・蜉帑ｻ倅ｸ・
+  if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
     const srcGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGA = srcGA ? (srcGA.EffectText ?? '') + ' ' + (srcGA.BurstText ?? '') : '';
     let ctxGA = ctx;
@@ -1635,7 +1682,8 @@ export function execStub(
     if (logsGA.length > 0) return done(addLog(ctxGA, logsGA.join('繝ｻ')));
     return done(addLog(ctx, '縺薙・繧ｲ繝ｼ繝縺ｮ髢難ｼ夊・蜉帑ｻ倅ｸ趣ｼ医Ο繧ｰ縺ｮ縺ｿ・・));
   }
-  // 繝｡繧､繝ｳ繝輔ぉ繧､繧ｺ邨ゆｺ・  if (stub.id === 'SKIP_MAIN_PHASE') {
+  // 繝｡繧､繝ｳ繝輔ぉ繧､繧ｺ邨ゆｺ・
+  if (stub.id === 'SKIP_MAIN_PHASE') {
     return done(addLog(ctx, '繝｡繧､繝ｳ繝輔ぉ繧､繧ｺ邨ゆｺ・ｼ・attleScreen蛛ｴ蜃ｦ逅・ｼ・));
   }
   // 繝ｩ繧､繝輔け繝ｭ繧ｹ縺ｮ荳逡ｪ荳翫ｒ謇区惆縺ｫ蜉縺医ｋ
@@ -1674,7 +1722,8 @@ export function execStub(
     const newOwnerSDC = { ...ctx.ownerState, declared_color: colorSDC };
     return done(addLog({ ...ctx, ownerState: newOwnerSDC }, `濶ｲ縲・{colorSDC}縲阪ｒ螳｣險`));
   }
-  // 繧ｿ繝ｼ繧ｲ繝・ヨ驕ｸ謚槭・縺ｿ・・astProcessedCards 縺ｫ譬ｼ邏阪＠蠕檎ｶ壹せ繝・ャ繝励∈・・  if (stub.id === 'TARGET_ONLY') {
+  // 繧ｿ繝ｼ繧ｲ繝・ヨ驕ｸ謚槭・縺ｿ・・astProcessedCards 縺ｫ譬ｼ邏阪＠蠕檎ｶ壹せ繝・ャ繝励∈・・
+  if (stub.id === 'TARGET_ONLY') {
     const srcTO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtTO = srcTO ? (srcTO.EffectText ?? '') + ' ' + (srcTO.BurstText ?? '') : '';
     // 繝・く繧ｹ繝医°繧芽・蛻・逶ｸ謇九←縺｡繧峨・繧ｷ繧ｰ繝九ｒ驕ｸ縺ｶ縺句愛譁ｭ
@@ -1710,7 +1759,8 @@ export function execStub(
     };
     return needsInteraction(addLog(ctx, `繝・ャ繧ｭ荳・{deckCards.length}譫壼・髢具ｼ・{maxPick}譫壹∪縺ｧ謇区惆縺ｫ・荏), pending);
   }
-  // 繧ｽ繧ｦ繝ｫ/繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ謫堺ｽ・  if (stub.id === 'SOUL_OP') {
+  // 繧ｽ繧ｦ繝ｫ/繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ謫堺ｽ・
+  if (stub.id === 'SOUL_OP') {
     const srcSO = ctx.sourceCardNum;
     const effSOtxt = srcSO ? (ctx.cardMap.get(srcSO)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(srcSO)?.BurstText ?? '') : '';
     const processed = ctx.lastProcessedCards ?? [];
@@ -1925,7 +1975,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerICS },
       `繧ｽ繧ｦ繝ｫ・・{ctx.cardMap.get(soulCardICS)?.CardName ?? soulCardICS}・峨ｒ豸郁ｲｻ縺励※繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ`));
   }
-  // INTERNAL_CONSUME_LRIG_UNDER: 繝ｫ繝ｪ繧ｰ縺ｮ荳九°繧丑譫壹ｒ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ・・OUL_OP optional豸郁ｲｻ縺ｮ螳溯｡碁Κ・・  if (stub.id === 'INTERNAL_CONSUME_LRIG_UNDER') {
+  // INTERNAL_CONSUME_LRIG_UNDER: 繝ｫ繝ｪ繧ｰ縺ｮ荳九°繧丑譫壹ｒ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ・・OUL_OP optional豸郁ｲｻ縺ｮ螳溯｡碁Κ・・
+  if (stub.id === 'INTERNAL_CONSUME_LRIG_UNDER') {
     const countICLU = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '1'));
     const lrigStackICLU = ctx.ownerState.field.lrig;
     if (lrigStackICLU.length <= 1) return done(addLog(ctx, '繝ｫ繝ｪ繧ｰ縺ｮ荳九↓繧ｫ繝ｼ繝峨↑縺・));
@@ -1956,7 +2007,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerIPLUC },
       `${ctx.cardMap.get(cnIPLUC)?.CardName ?? cnIPLUC}繧偵そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ荳九↓驟咲ｽｮ`));
   }
-  // 繝・ャ繧ｭ繧定ｦ九※荳ｦ縺ｹ譖ｿ縺茨ｼ・TUB迚茨ｼ壼虚逧・ヱ繝ｼ繧ｹ・・  if (stub.id === 'LOOK_AND_REORDER') {
+  // 繝・ャ繧ｭ繧定ｦ九※荳ｦ縺ｹ譖ｿ縺茨ｼ・TUB迚茨ｼ壼虚逧・ヱ繝ｼ繧ｹ・・
+  if (stub.id === 'LOOK_AND_REORDER') {
     const srcLOR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLOR = srcLOR ? (srcLOR.EffectText ?? '') + ' ' + (srcLOR.BurstText ?? '') : '';
     const toHWL = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2002,7 +2054,8 @@ export function execStub(
     };
     return done(addLog(setOwnerState(owner, newS, ctx), `繝・ャ繧ｭ荳・{toAdd.length}譫壹ｒ繝ｩ繧､繝輔け繝ｭ繧ｹ縺ｫ蜉縺医◆`));
   }
-  // 繧ｫ繧ｦ繝ｳ繝亥渕貅悶ラ繝ｭ繝ｼ/繝代Ρ繝ｼ・・astProcessedCards縺ｮ譫壽焚縺縺代ラ繝ｭ繝ｼ or 繝代Ρ繝ｼ菫ｮ豁｣・・  if (stub.id === 'COUNT_BASED_DRAW_OR_POWER') {
+  // 繧ｫ繧ｦ繝ｳ繝亥渕貅悶ラ繝ｭ繝ｼ/繝代Ρ繝ｼ・・astProcessedCards縺ｮ譫壽焚縺縺代ラ繝ｭ繝ｼ or 繝代Ρ繝ｼ菫ｮ豁｣・・
+  if (stub.id === 'COUNT_BASED_DRAW_OR_POWER') {
     const srcCBDP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCBDP = srcCBDP ? (srcCBDP.EffectText ?? '') + ' ' + (srcCBDP.BurstText ?? '') : '';
     const toHWCBDP = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2117,7 +2170,8 @@ export function execStub(
     }
     return done(addLog(ctx, `繧ｫ繧ｦ繝ｳ繝亥渕貅門柑譫懶ｼ亥・逅・{count}譫夲ｼ荏));
   }
-  // INTERNAL: 謇区惆謐ｨ縺ｦ蠕後・蜉ｹ譫懶ｼ・OUNT_BASED_DRAW_OR_POWER 縺九ｉ邯咏ｶ夲ｼ・  if (stub.id === 'INTERNAL_CBDOP_AFTER_DISCARD') {
+  // INTERNAL: 謇区惆謐ｨ縺ｦ蠕後・蜉ｹ譫懶ｼ・OUNT_BASED_DRAW_OR_POWER 縺九ｉ邯咏ｶ夲ｼ・
+  if (stub.id === 'INTERNAL_CBDOP_AFTER_DISCARD') {
     const selectedICD = ctx.lastProcessedCards ?? [];
     const countICD = selectedICD.length;
     // 驕ｸ謚槭き繝ｼ繝峨ｒ謇区惆縺九ｉ繝医Λ繝・す繝･縺ｸ
@@ -2189,7 +2243,8 @@ export function execStub(
     const pending: PendingInteractionDef = { type: 'CHOOSE', options, count: 1 };
     return needsInteraction(addLog(ctx, '繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ縺九ｉ繧｢繝ｼ繝・ｒ謐ｨ縺ｦ縺ｾ縺吶°・・), pending);
   }
-  // INTERNAL: 繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ縺九ｉ繧｢繝ｼ繝・ｒ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ・・HOOSE縺ｮ邯壹″・・  if (stub.id === 'INTERNAL_DISCARD_LRIG_DECK_ARTS') {
+  // INTERNAL: 繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ縺九ｉ繧｢繝ｼ繝・ｒ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ・・HOOSE縺ｮ邯壹″・・
+  if (stub.id === 'INTERNAL_DISCARD_LRIG_DECK_ARTS') {
     const cnArt = String(stub.value ?? '');
     if (!cnArt) return done(addLog(ctx, 'INTERNAL_DISCARD_LRIG_DECK_ARTS: value 縺ｪ縺・));
     const lrigDeck = ctx.ownerState.lrig_deck ?? [];
@@ -2198,11 +2253,13 @@ export function execStub(
     const artName = ctx.cardMap.get(cnArt)?.CardName ?? cnArt;
     return done(addLog({ ...ctx, ownerState: newOwner }, `${artName}繧偵Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ`));
   }
-  // 謇区惆縺ｮ繧ｷ繧ｰ繝九↓繧ｬ繝ｼ繝峨い繧､繧ｳ繝ｳ繧剃ｻ倅ｸ趣ｼ医％縺ｮ繧ｿ繝ｼ繝ｳ・・  if (stub.id === 'GRANT_GUARD_ICON_HAND_SIGNI') {
+  // 謇区惆縺ｮ繧ｷ繧ｰ繝九↓繧ｬ繝ｼ繝峨い繧､繧ｳ繝ｳ繧剃ｻ倅ｸ趣ｼ医％縺ｮ繧ｿ繝ｼ繝ｳ・・
+  if (stub.id === 'GRANT_GUARD_ICON_HAND_SIGNI') {
     const newOwner = { ...ctx.ownerState, hand_signi_guard_enabled: true };
     return done(addLog({ ...ctx, ownerState: newOwner }, '縺薙・繧ｿ繝ｼ繝ｳ謇区惆縺ｮ繧ｷ繧ｰ繝九・繧ｬ繝ｼ繝峨↓菴ｿ縺医ｋ'));
   }
-  // 繝医Λ繝・す繝･縺九ｉ繧ｷ繧ｰ繝九ｒ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝九・荳九↓鄂ｮ縺擾ｼ医Λ繧､繧ｺ陬懷・・・  if (stub.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
+  // 繝医Λ繝・す繝･縺九ｉ繧ｷ繧ｰ繝九ｒ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝九・荳九↓鄂ｮ縺擾ｼ医Λ繧､繧ｺ陬懷・・・
+  if (stub.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
     const srcCardT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtT = srcCardT ? (srcCardT.EffectText ?? '') + ' ' + (srcCardT.BurstText ?? '') : '';
     const toHWT = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2233,7 +2290,8 @@ export function execStub(
       thenAction: noopTSU as EffectAction, continuation: contTSU as EffectAction,
     });
   }
-  // INTERNAL_TSU_CHOOSE_ZONE: 驕ｸ謚槭ヨ繝ｩ繝・す繝･繧ｷ繧ｰ繝九ｒ縺ｩ縺ｮ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝九・荳九↓鄂ｮ縺上°驕ｸ謚・  if (stub.id === 'INTERNAL_TSU_CHOOSE_ZONE') {
+  // INTERNAL_TSU_CHOOSE_ZONE: 驕ｸ謚槭ヨ繝ｩ繝・す繝･繧ｷ繧ｰ繝九ｒ縺ｩ縺ｮ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝九・荳九↓鄂ｮ縺上°驕ｸ謚・
+  if (stub.id === 'INTERNAL_TSU_CHOOSE_ZONE') {
     const rawTrash = stub.value ? String(stub.value).split(',') : (ctx.lastProcessedCards ?? []);
     if (rawTrash.length === 0) return done(addLog(ctx, '繧ｭ繝｣繝ｳ繧ｻ繝ｫ・井ｸ狗ｽｮ縺阪せ繧ｭ繝・・・・));
     const [firstTrash, ...restTrash] = rawTrash;
@@ -2265,7 +2323,8 @@ export function execStub(
       { type: 'CHOOSE', options: opts, count: 1 },
     );
   }
-  // INTERNAL_TSU_DO_PLACE: 繝医Λ繝・す繝･竊偵ヵ繧｣繝ｼ繝ｫ繝我ｸ矩・鄂ｮ螳溯｡後∵ｮ九ｊ縺後≠繧後・邯咏ｶ・  if (stub.id === 'INTERNAL_TSU_DO_PLACE') {
+  // INTERNAL_TSU_DO_PLACE: 繝医Λ繝・す繝･竊偵ヵ繧｣繝ｼ繝ｫ繝我ｸ矩・鄂ｮ螳溯｡後∵ｮ九ｊ縺後≠繧後・邯咏ｶ・
+  if (stub.id === 'INTERNAL_TSU_DO_PLACE') {
     const valStr = String(stub.value ?? '');
     const colonIdx = valStr.indexOf(':');
     const colonIdx2 = valStr.indexOf(':', colonIdx + 1);
@@ -2289,7 +2348,8 @@ export function execStub(
     }
     return done(ctxITP);
   }
-  // 繝ｫ繝ｪ繧ｰ繝ｪ繝溘ャ繝井ｿｮ豁｣・医お繝翫ヵ繧ｧ繧､繧ｺ邨ゆｺ・∪縺ｧ・・  if (stub.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
+  // 繝ｫ繝ｪ繧ｰ繝ｪ繝溘ャ繝井ｿｮ豁｣・医お繝翫ヵ繧ｧ繧､繧ｺ邨ゆｺ・∪縺ｧ・・
+  if (stub.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
     const srcL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtL = srcL ? (srcL.EffectText ?? '') + ' ' + (srcL.BurstText ?? '') : '';
     const toHWL = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2430,7 +2490,8 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, trash: newTrash, energy: [...ctx.ownerState.energy, target] };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(target)?.CardName ?? target}繧偵お繝翫だ繝ｼ繝ｳ縺ｫ`));
   }
-  // 逶ｸ謇九す繧ｰ繝玖､・焚繧偵お繝翫↓鄂ｮ縺・  if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
+  // 逶ｸ謇九す繧ｰ繝玖､・焚繧偵お繝翫↓鄂ｮ縺・
+  if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
     const srcMSE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtMSE = srcMSE ? (srcMSE.EffectText ?? '') + ' ' + (srcMSE.BurstText ?? '') : '';
     const toHWMSE = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2485,7 +2546,8 @@ export function execStub(
     const names = selected.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('繝ｻ');
     return done(addLog({ ...ctx, otherState: newOther }, `${names}繧偵ョ繝・く縺ｫ蜉縺医※繧ｷ繝｣繝・ヵ繝ｫ`));
   }
-  // 謇区惆縺ｮ繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ螂ｽ縺阪↑譫壽焚蜈ｬ髢具ｼ亥・髢具ｼ抓ELECT_TARGET縲√ョ繝・く縺ｫ隗ｦ繧後↑縺・ｼ・  if (stub.id === 'REVEAL_CLASS_SIGNI_FROM_HAND') {
+  // 謇区惆縺ｮ繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ螂ｽ縺阪↑譫壽焚蜈ｬ髢具ｼ亥・髢具ｼ抓ELECT_TARGET縲√ョ繝・く縺ｫ隗ｦ繧後↑縺・ｼ・
+  if (stub.id === 'REVEAL_CLASS_SIGNI_FROM_HAND') {
     const srcRev = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtRev = srcRev ? (srcRev.EffectText ?? '') + ' ' + (srcRev.BurstText ?? '') : '';
     const classMatchRev = txtRev.match(/謇区惆縺九ｉ(?:縺昴ｌ縺槭ｌ蜷榊燕縺ｮ逡ｰ縺ｪ繧・?[<・彎([^>・枉+)[>・枉縺ｮ繧ｷ繧ｰ繝・);
@@ -2500,7 +2562,8 @@ export function execStub(
     const noopAction: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(handCands, handCands.length, true, 'self_hand', noopAction as EffectAction, undefined, ctx);
   }
-  // 蟇ｾ謌ｦ逶ｸ謇九′閾ｪ蛻・・繧ｷ繧ｰ繝九ｒ驕ｸ繧薙〒繧ｨ繝翫↓鄂ｮ縺・  if (stub.id === 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY') {
+  // 蟇ｾ謌ｦ逶ｸ謇九′閾ｪ蛻・・繧ｷ繧ｰ繝九ｒ驕ｸ繧薙〒繧ｨ繝翫↓鄂ｮ縺・
+  if (stub.id === 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY') {
     const srcOCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtOCS = srcOCS ? (srcOCS.EffectText ?? '') + ' ' + (srcOCS.BurstText ?? '') : '';
     const toHWOCS = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2526,7 +2589,8 @@ export function execStub(
     };
     return needsInteraction(addLog(ctx, `蟇ｾ謌ｦ逶ｸ謇九・繝代Ρ繝ｼ${powerLimit}莉･荳翫・繧ｷ繧ｰ繝・菴薙ｒ繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ鄂ｮ縺汁), pendingOCS);
   }
-  // INTERNAL_OPP_FIELD_TO_ENERGY: lastProcessedCards[0]繧堤嶌謇九ヵ繧｣繝ｼ繝ｫ繝峨°繧峨お繝翫だ繝ｼ繝ｳ縺ｸ遘ｻ蜍・  if (stub.id === 'INTERNAL_OPP_FIELD_TO_ENERGY') {
+  // INTERNAL_OPP_FIELD_TO_ENERGY: lastProcessedCards[0]繧堤嶌謇九ヵ繧｣繝ｼ繝ｫ繝峨°繧峨お繝翫だ繝ｼ繝ｳ縺ｸ遘ｻ蜍・
+  if (stub.id === 'INTERNAL_OPP_FIELD_TO_ENERGY') {
     const targetIOFTE = ctx.lastProcessedCards?.[0];
     if (!targetIOFTE) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺暦ｼ・NTERNAL_OPP_FIELD_TO_ENERGY・・));
     const newSigniIOFTE = ctx.otherState.field.signi.map(stack => {
@@ -2542,7 +2606,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: newOtherIOFTE },
       `${ctx.cardMap.get(targetIOFTE)?.CardName ?? targetIOFTE}竊堤嶌謇九お繝翫だ繝ｼ繝ｳ縺ｸ`));
   }
-  // 閾ｪ繧ｷ繧ｰ繝九ｒ莉悶・遨ｺ縺阪す繧ｰ繝九だ繝ｼ繝ｳ縺ｫ遘ｻ蜍包ｼ医＠縺ｦ繧ゅｈ縺・ｼ・  if (stub.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
+  // 閾ｪ繧ｷ繧ｰ繝九ｒ莉悶・遨ｺ縺阪す繧ｰ繝九だ繝ｼ繝ｳ縺ｫ遘ｻ蜍包ｼ医＠縺ｦ繧ゅｈ縺・ｼ・
+  if (stub.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
     const srcMov = ctx.sourceCardNum;
     if (!srcMov) return done(addLog(ctx, '繧ｾ繝ｼ繝ｳ遘ｻ蜍包ｼ壹た繝ｼ繧ｹ繧ｫ繝ｼ繝峨↑縺・));
     const currentZone = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcMov);
@@ -2604,7 +2669,8 @@ export function execStub(
     }
     return done(ctxMov);
   }
-  // 繧ｽ繧ｦ繝ｫ莉倅ｸ趣ｼ医Ν繝ｪ繧ｰ縺ｮ荳九き繝ｼ繝峨ｒ驕ｸ謚槭す繧ｰ繝九↓莉倅ｸ趣ｼ・  if (stub.id === 'INTERNAL_ATTACH_SOUL_FROM_LRIG') {
+  // 繧ｽ繧ｦ繝ｫ莉倅ｸ趣ｼ医Ν繝ｪ繧ｰ縺ｮ荳九き繝ｼ繝峨ｒ驕ｸ謚槭す繧ｰ繝九↓莉倅ｸ趣ｼ・
+  if (stub.id === 'INTERNAL_ATTACH_SOUL_FROM_LRIG') {
     const targetSigniAS = (ctx.lastProcessedCards ?? [])[0];
     const soulCardAS = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
     if (!targetSigniAS || !soulCardAS) return done(addLog(ctx, '繧ｽ繧ｦ繝ｫ莉倅ｸ趣ｼ壼ｯｾ雎｡縺ｾ縺溘・繧ｫ繝ｼ繝峨↑縺・));
@@ -2625,7 +2691,8 @@ export function execStub(
     const soulName = ctx.cardMap.get(soulCardAS)?.CardName ?? soulCardAS;
     return done(addLog({ ...ctx, ownerState: newOwnerAS }, `${soulName}繧・{signName}縺ｮ縲舌た繧ｦ繝ｫ縲代↓莉倅ｸ餐));
   }
-  // 繧ｽ繧ｦ繝ｫ莉倅ｸ趣ｼ医Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺九ｉ繝ｫ繝ｪ繧ｰ繧帝∈謚槭す繧ｰ繝九↓莉倅ｸ趣ｼ・  if (stub.id === 'INTERNAL_CHOOSE_SOUL_LRIG') {
+  // 繧ｽ繧ｦ繝ｫ莉倅ｸ趣ｼ医Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺九ｉ繝ｫ繝ｪ繧ｰ繧帝∈謚槭す繧ｰ繝九↓莉倅ｸ趣ｼ・
+  if (stub.id === 'INTERNAL_CHOOSE_SOUL_LRIG') {
     const targetSigniCSL = (ctx.lastProcessedCards ?? [])[0];
     if (!targetSigniCSL) return done(addLog(ctx, '繧ｽ繧ｦ繝ｫ莉倅ｸ趣ｼ医Ν繝ｪ繧ｰ繝医Λ繝・す繝･・会ｼ壼ｯｾ雎｡繧ｷ繧ｰ繝九↑縺・));
     const zoneIdxCSL = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === targetSigniCSL);
@@ -2647,7 +2714,8 @@ export function execStub(
     };
     return needsInteraction(addLog(ctx, '繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺九ｉ繝ｫ繝ｪ繧ｰ繧帝∈謚橸ｼ医た繧ｦ繝ｫ莉倅ｸ趣ｼ・), pendingCSL);
   }
-  // 繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･驕ｸ謚槫ｾ後た繧ｦ繝ｫ莉倅ｸ・  if (stub.id === 'INTERNAL_SET_SOUL_FROM_LRIG_TRASH_RESULT') {
+  // 繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･驕ｸ謚槫ｾ後た繧ｦ繝ｫ莉倅ｸ・
+  if (stub.id === 'INTERNAL_SET_SOUL_FROM_LRIG_TRASH_RESULT') {
     const targetSigniSFLTR = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
     const soulCardSFLTR = (ctx.lastProcessedCards ?? [])[0];
     if (!targetSigniSFLTR || !soulCardSFLTR) return done(addLog(ctx, '繧ｽ繧ｦ繝ｫ莉倅ｸ守ｵ先棡・壼ｯｾ雎｡縺ｾ縺溘・繧ｫ繝ｼ繝峨↑縺・));
@@ -2687,11 +2755,13 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwner },
       `${ctx.cardMap.get(targetCnPR)?.CardName ?? targetCnPR}繝代Ρ繝ｼ${totalDelta > 0 ? '+' : ''}${totalDelta}・・{revCount}譫壼・髢具ｼ荏));
   }
-  // 縺薙・繧ｿ繝ｼ繝ｳ逶ｸ謇九・繧ｬ繝ｼ繝峨〒縺阪↑縺・ｼ医ぎ繝ｼ繝峨さ繧ｹ繝育┌濶ｲ迚・or 繧ｬ繝ｼ繝臥ｦ∵ｭ｢・・  if (stub.id === 'OPP_GUARD_COST_COLORLESS' || stub.id === 'PREVENT_OPP_GUARD_THIS_TURN') {
+  // 縺薙・繧ｿ繝ｼ繝ｳ逶ｸ謇九・繧ｬ繝ｼ繝峨〒縺阪↑縺・ｼ医ぎ繝ｼ繝峨さ繧ｹ繝育┌濶ｲ迚・or 繧ｬ繝ｼ繝臥ｦ∵ｭ｢・・
+  if (stub.id === 'OPP_GUARD_COST_COLORLESS' || stub.id === 'PREVENT_OPP_GUARD_THIS_TURN') {
     const newOwner = { ...ctx.ownerState, prevent_opp_guard: true };
     return done(addLog({ ...ctx, ownerState: newOwner }, '縺薙・繧ｿ繝ｼ繝ｳ蟇ｾ謌ｦ逶ｸ謇九・繧ｬ繝ｼ繝峨〒縺阪↑縺・));
   }
-  // 繧ｭ繝ｼ・第椢繧剃ｻｻ諢上〒繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｫ鄂ｮ縺擾ｼ郁ｿｽ蜉蜉ｹ譫懈擅莉ｶ・・  if (stub.id === 'TRASH_OWN_KEY_OPTIONAL') {
+  // 繧ｭ繝ｼ・第椢繧剃ｻｻ諢上〒繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｫ鄂ｮ縺擾ｼ郁ｿｽ蜉蜉ｹ譫懈擅莉ｶ・・
+  if (stub.id === 'TRASH_OWN_KEY_OPTIONAL') {
     const keyPiece = ctx.ownerState.field.key_piece;
     if (!keyPiece) return done(addLog(ctx, '繧ｭ繝ｼ縺ｪ縺暦ｼ郁ｿｽ蜉蜉ｹ譫懊せ繧ｭ繝・・・・));
     const keyName = ctx.cardMap.get(keyPiece)?.CardName ?? keyPiece;
@@ -2717,7 +2787,8 @@ export function execStub(
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(key)?.CardName ?? key}繧偵Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ`));
   }
-  // 謇区惆縺九ｉ繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ莉ｻ諢乗椢謨ｰ謐ｨ縺ｦ繧・  if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
+  // 謇区惆縺九ｉ繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ莉ｻ諢乗椢謨ｰ謐ｨ縺ｦ繧・
+  if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
     const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtODC = srcODC ? (srcODC.EffectText ?? '') + ' ' + (srcODC.BurstText ?? '') : '';
     const toHWODC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2737,7 +2808,8 @@ export function execStub(
     };
     return selectOrInteract(handCands, maxODC, true, 'self_hand', discardActionODC as EffectAction, undefined, ctx);
   }
-  // 謇区惆縺ｮ繧ｷ繧ｰ繝九ｒ縺薙・繧ｷ繧ｰ繝九・荳九↓鄂ｮ縺・  if (stub.id === 'HAND_SIGNI_UNDER_SIGNI') {
+  // 謇区惆縺ｮ繧ｷ繧ｰ繝九ｒ縺薙・繧ｷ繧ｰ繝九・荳九↓鄂ｮ縺・
+  if (stub.id === 'HAND_SIGNI_UNDER_SIGNI') {
     const srcHSU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtHSU = srcHSU ? (srcHSU.EffectText ?? '') + ' ' + (srcHSU.BurstText ?? '') : '';
     const toHWHSU = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2755,7 +2827,8 @@ export function execStub(
     const placeAction: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
     return selectOrInteract(handSigHSU, maxHSU, false, 'self_hand', placeAction as EffectAction, undefined, ctx);
   }
-  // 謇区惆縺九ｉ繧ｫ繝ｼ繝峨ｒ縺薙・繧ｷ繧ｰ繝九・荳九↓鄂ｮ縺擾ｼ・AND_CARDS_UNDER_SIGNI / PLACE_SIGNI_UNDER_SELF_OPT・・  if (stub.id === 'HAND_CARDS_UNDER_SIGNI' || stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT') {
+  // 謇区惆縺九ｉ繧ｫ繝ｼ繝峨ｒ縺薙・繧ｷ繧ｰ繝九・荳九↓鄂ｮ縺擾ｼ・AND_CARDS_UNDER_SIGNI / PLACE_SIGNI_UNDER_SELF_OPT・・
+  if (stub.id === 'HAND_CARDS_UNDER_SIGNI' || stub.id === 'PLACE_SIGNI_UNDER_SELF_OPT') {
     const srcHCU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtHCU = srcHCU ? (srcHCU.EffectText ?? '') + ' ' + (srcHCU.BurstText ?? '') : '';
     const toHWHCU = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2793,7 +2866,8 @@ export function execStub(
     const placeActionHCU: PlaceUnderSourceSigniAction = { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: 'hand' };
     return selectOrInteract(handCandsHCU, maxHCU, optHCU, 'self_hand', placeActionHCU as EffectAction, undefined, ctx);
   }
-  // 繧ｷ繧ｰ繝九・荳九・繧ｫ繝ｼ繝峨ｒ繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ鄂ｮ縺・  if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
+  // 繧ｷ繧ｰ繝九・荳九・繧ｫ繝ｼ繝峨ｒ繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ鄂ｮ縺・
+  if (stub.id === 'UNDER_SIGNI_TO_ENERGY') {
     // SELECT_TARGET蠕後・蜃ｦ逅・ｼ嗟astProcessedCards縺ｫ繧ｫ繝ｼ繝峨′縺ゅｋ蝣ｴ蜷・    if (ctx.lastProcessedCards?.length) {
       const movedUTE = ctx.lastProcessedCards[0];
       const newSigniUTE2 = ctx.ownerState.field.signi.map(stack => {
@@ -2846,7 +2920,8 @@ export function execStub(
     const lv = topData?.Level ?? '?';
     // 荳閾ｴ縺励↑縺・ｴ蜷医・繝・ャ繧ｭ繝医ャ繝励↓謌ｻ縺呻ｼ育ｧｻ蜍輔↑縺暦ｼ・    return done(addLog(ctx, `繝・ャ繧ｭ繝医ャ繝怜・髢具ｼ・{name}・・v${lv}・俄・荳堺ｸ閾ｴ縲√ョ繝・く繝医ャ繝励↓謌ｻ縺兪));
   }
-  // 逶ｸ謇九・謇区惆縺ｮ繧ｷ繧ｰ繝九ｒ隕九※謐ｨ縺ｦ縺輔○繧具ｼ亥ｮ｣險謨ｰ蟄励ヵ繧｣繝ｫ繧ｿ or 譛芽牡繝輔ぅ繝ｫ繧ｿ・・  if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
+  // 逶ｸ謇九・謇区惆縺ｮ繧ｷ繧ｰ繝九ｒ隕九※謐ｨ縺ｦ縺輔○繧具ｼ亥ｮ｣險謨ｰ蟄励ヵ繧｣繝ｫ繧ｿ or 譛芽牡繝輔ぅ繝ｫ繧ｿ・・
+  if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
     const declaredLvLOD = ctx.ownerState.declared_guard_restrict_level;
     const oppHandLOD = ctx.otherState.hand;
     const candsLOD = oppHandLOD.filter(cn => {
@@ -2880,7 +2955,8 @@ export function execStub(
     }
     return done(addLog(ctx, `繝・ャ繧ｭ繝医ャ繝怜・髢具ｼ・{topNameDTE}・・v${topDataDTE?.Level ?? '?'}・俄・譚｡莉ｶ荳堺ｸ閾ｴ`));
   }
-  // 繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｮ繧｢繝ｼ繝・椢謨ｰ縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・亥ｯｾ雎｡1菴薙ｒ蜈医↓SELECT_TARGET縺ｧ驕ｸ縺ｶ・・  if (stub.id === 'POWER_MOD_BY_LRIG_TRASH_ARTS') {
+  // 繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｮ繧｢繝ｼ繝・椢謨ｰ縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・亥ｯｾ雎｡1菴薙ｒ蜈医↓SELECT_TARGET縺ｧ驕ｸ縺ｶ・・
+  if (stub.id === 'POWER_MOD_BY_LRIG_TRASH_ARTS') {
     const srcPMLTA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMLTA = srcPMLTA ? (srcPMLTA.EffectText ?? '') + ' ' + (srcPMLTA.BurstText ?? '') : '';
     const toHWPMLTA = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2905,7 +2981,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMLTA } },
       `繝代Ρ繝ｼ${totalDeltaPMLTA > 0 ? '+' : ''}${totalDeltaPMLTA}・医Ν繝ｪ繧ｰ繝医Λ繝・す繝･繧｢繝ｼ繝・{artsCountPMLTA}譫夲ｼ荏));
   }
-  // 繝ｫ繝ｪ繧ｰ繝ｬ繝吶Ν縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・育嶌謇九そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｮ繝ｬ繝吶Ν繧貞盾辣ｧ・・  if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL') {
+  // 繝ｫ繝ｪ繧ｰ繝ｬ繝吶Ν縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・育嶌謇九そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｮ繝ｬ繝吶Ν繧貞盾辣ｧ・・
+  if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL') {
     const srcPMLV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMLV = srcPMLV ? (srcPMLV.EffectText ?? '') + ' ' + (srcPMLV.BurstText ?? '') : '';
     const toHWPMLV = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2933,7 +3010,8 @@ export function execStub(
     }
     return done(addLog(ctx, `繝代Ρ繝ｼ菫ｮ豁｣・育嶌謇九Ν繝ｪ繧ｰLv${oppLrigLv}・荏));
   }
-  // 繝ｫ繝ｪ繧ｰ繝ｬ繝吶Ν蜷郁ｨ医↓蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・郁・蛻・・繝ｫ繝ｪ繧ｰ蜈ｨ菴薙・繝ｬ繝吶Ν蜷郁ｨ医ｒ蜿ら・・・  if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM') {
+  // 繝ｫ繝ｪ繧ｰ繝ｬ繝吶Ν蜷郁ｨ医↓蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・郁・蛻・・繝ｫ繝ｪ繧ｰ蜈ｨ菴薙・繝ｬ繝吶Ν蜷郁ｨ医ｒ蜿ら・・・
+  if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM') {
     const srcPMLS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMLS = srcPMLS ? (srcPMLS.EffectText ?? '') + ' ' + (srcPMLS.BurstText ?? '') : '';
     const toHWPMLS = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -2995,7 +3073,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繝代Ρ繝ｼ菫ｮ豁｣・医ヨ繝ｩ繝・す繝･繧ｯ繝ｩ繧ｹ謨ｰ・・));
   }
-  // 閾ｪ蝣ｴ繧ｷ繧ｰ繝九・濶ｲ縺ｮ遞ｮ鬘樊焚ﾃ妖elta 竊・1菴鍋嶌謇九す繧ｰ繝九ヱ繝ｯ繝ｼ菫ｮ豁｣・・ELECT_TARGET竊定・蟾ｱ蜀榊ｸｰ・・  if (stub.id === 'POWER_MOD_BY_COLOR_VARIETY') {
+  // 閾ｪ蝣ｴ繧ｷ繧ｰ繝九・濶ｲ縺ｮ遞ｮ鬘樊焚ﾃ妖elta 竊・1菴鍋嶌謇九す繧ｰ繝九ヱ繝ｯ繝ｼ菫ｮ豁｣・・ELECT_TARGET竊定・蟾ｱ蜀榊ｸｰ・・
+  if (stub.id === 'POWER_MOD_BY_COLOR_VARIETY') {
     const toHWPMCV = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const colorSetPMCV = new Set<string>();
     for (let zi = 0; zi < 3; zi++) {
@@ -3059,7 +3138,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繝代Ρ繝ｼ菫ｮ豁｣・医ヵ繧｣繝ｼ繝ｫ繝峨け繝ｩ繧ｹ繝ｬ繝吶Ν・・));
   }
-  // 繧ｷ繧ｰ繝倶ｸ九・繧ｫ繝ｼ繝画椢謨ｰﾃ妖elta 竊・2菴薙∪縺ｧ逶ｸ謇九す繧ｰ繝九ヱ繝ｯ繝ｼ菫ｮ豁｣・・ELECT竊棚NTERNAL・・  if (stub.id === 'POWER_MOD_BY_UNDER_COUNT') {
+  // 繧ｷ繧ｰ繝倶ｸ九・繧ｫ繝ｼ繝画椢謨ｰﾃ妖elta 竊・2菴薙∪縺ｧ逶ｸ謇九す繧ｰ繝九ヱ繝ｯ繝ｼ菫ｮ豁｣・・ELECT竊棚NTERNAL・・
+  if (stub.id === 'POWER_MOD_BY_UNDER_COUNT') {
     const toHWPMUC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const srcPMUC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMUC = srcPMUC ? (srcPMUC.EffectText ?? '') + ' ' + (srcPMUC.BurstText ?? '') : '';
@@ -3092,7 +3172,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsUC2 } },
       `${selected.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('繝ｻ')}縺ｮ繝代Ρ繝ｼ${totalDeltaUC2}・井ｸ・{underCntUC2}譫夲ｼ荏));
   }
-  // 繧ｷ繧ｰ繝九だ繝ｼ繝ｳ縺ｮ繧ｫ繝ｼ繝臥ｷ乗焚ﾃ妖elta 竊・1菴鍋嶌謇九す繧ｰ繝九ヱ繝ｯ繝ｼ菫ｮ豁｣・・ELECT_TARGET竊定・蟾ｱ蜀榊ｸｰ・・  if (stub.id === 'POWER_DOWN_BY_ZONE_CARD_COUNT') {
+  // 繧ｷ繧ｰ繝九だ繝ｼ繝ｳ縺ｮ繧ｫ繝ｼ繝臥ｷ乗焚ﾃ妖elta 竊・1菴鍋嶌謇九す繧ｰ繝九ヱ繝ｯ繝ｼ菫ｮ豁｣・・ELECT_TARGET竊定・蟾ｱ蜀榊ｸｰ・・
+  if (stub.id === 'POWER_DOWN_BY_ZONE_CARD_COUNT') {
     const toHWPDZCC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const srcPDZCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPDZCC = srcPDZCC ? (srcPDZCC.EffectText ?? '') + ' ' + (srcPDZCC.BurstText ?? '') : '';
@@ -3113,7 +3194,8 @@ export function execStub(
     const noopPDZCC: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(oppCandsPDZCC, 1, false, 'opp_field', noopPDZCC as EffectAction, contPDZCC as EffectAction, ctx);
   }
-  // 繝医Λ繝・す繝･縺ｫ鄂ｮ縺九ｌ縺溘す繧ｰ繝九・繝ｬ繝吶Ν縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・・菴灘ｯｾ雎｡ or 蜈ｨ菴難ｼ・  if (stub.id === 'OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL') {
+  // 繝医Λ繝・す繝･縺ｫ鄂ｮ縺九ｌ縺溘す繧ｰ繝九・繝ｬ繝吶Ν縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・・菴灘ｯｾ雎｡ or 蜈ｨ菴難ｼ・
+  if (stub.id === 'OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL') {
     const srcPDTL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPDTL = srcPDTL ? (srcPDTL.EffectText ?? '') + ' ' + (srcPDTL.BurstText ?? '') : '';
     const toHWPDTL = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -3190,7 +3272,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPMAL } },
       `繝代Ρ繝ｼ${totalDeltaPMAL > 0 ? '+' : ''}${totalDeltaPMAL}・医い繧ｿ繝・き繝ｼLv${attackerLvPMAL}・荏));
   }
-  // 蜈ｬ髢九＠縺溘す繧ｰ繝九・繝ｬ繝吶Ν縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・・astProcessedCards菴ｿ逕ｨ・・  if (stub.id === 'POWER_MOD_PER_REVEALED_LEVEL') {
+  // 蜈ｬ髢九＠縺溘す繧ｰ繝九・繝ｬ繝吶Ν縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・・astProcessedCards菴ｿ逕ｨ・・
+  if (stub.id === 'POWER_MOD_PER_REVEALED_LEVEL') {
     const srcPMRL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMRL = srcPMRL ? (srcPMRL.EffectText ?? '') + ' ' + (srcPMRL.BurstText ?? '') : '';
     const toHWPMRL = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -3216,7 +3299,8 @@ export function execStub(
     }
     return done(addLog(ctx, `繝代Ρ繝ｼ菫ｮ豁｣・亥・髢九す繧ｰ繝九Ξ繝吶Ν${lvSumPMRL}・荏));
   }
-  // 隍・焚縺ｮ閾ｪ繧ｷ繧ｰ繝九↓繝代Ρ繝ｼ+5000・・ELECT_TARGET竊棚NTERNAL_POWER_UP_SELECTED・・  if (stub.id === 'MULTI_SIGNI_POWER_UP_5000') {
+  // 隍・焚縺ｮ閾ｪ繧ｷ繧ｰ繝九↓繝代Ρ繝ｼ+5000・・ELECT_TARGET竊棚NTERNAL_POWER_UP_SELECTED・・
+  if (stub.id === 'MULTI_SIGNI_POWER_UP_5000') {
     const srcMSPU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtMSPU = srcMSPU ? (srcMSPU.EffectText ?? '') + ' ' + (srcMSPU.BurstText ?? '') : '';
     const toHWMSPU = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -3251,7 +3335,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsIPU } },
       `${namesIPU}縺ｮ繝代Ρ繝ｼ${deltaIPU > 0 ? '+' : ''}${deltaIPU}`));
   }
-  // 繝医Λ繝・す繝･縺励◆繧ｷ繧ｰ繝九・繝ｬ繝吶Νﾃ・2000 竊・1菴鍋嶌謇九す繧ｰ繝九ヱ繝ｯ繝ｼ菫ｮ豁｣・・ELECT竊棚NTERNAL・・  if (stub.id === 'POWER_MOD_BY_TRASHED_SIGNI_LEVEL') {
+  // 繝医Λ繝・す繝･縺励◆繧ｷ繧ｰ繝九・繝ｬ繝吶Νﾃ・2000 竊・1菴鍋嶌謇九す繧ｰ繝九ヱ繝ｯ繝ｼ菫ｮ豁｣・・ELECT竊棚NTERNAL・・
+  if (stub.id === 'POWER_MOD_BY_TRASHED_SIGNI_LEVEL') {
     const lastTrashedPMTSL = ctx.ownerState.trash.at(-1) ?? '';
     const lvPMTSL = parseInt(ctx.cardMap.get(lastTrashedPMTSL)?.Level ?? '0') || 0;
     if (lvPMTSL === 0) return done(addLog(ctx, '繝代Ρ繝ｼ菫ｮ豁｣・医ヨ繝ｩ繝・す繝･繧ｷ繧ｰ繝記v0・・));
@@ -3289,7 +3374,8 @@ export function execStub(
     }
     return done(addLog(ctx, '蜈ｨ逶ｸ謇九す繧ｰ繝九ヱ繝ｯ繝ｼ蜊頑ｸ幢ｼ郁・繝代Ρ繝ｼ0・・));
   }
-  // 繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｫ繝ｼ繝・譫夐∈繧薙〒繝医Λ繝・す繝･・・ELECT竊棚NTERNAL・・  if (stub.id === 'ENERGY_TO_TRASH') {
+  // 繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｫ繝ｼ繝・譫夐∈繧薙〒繝医Λ繝・す繝･・・ELECT竊棚NTERNAL・・
+  if (stub.id === 'ENERGY_TO_TRASH') {
     const selfEnergyETT = ctx.ownerState.energy;
     if (selfEnergyETT.length === 0) return done(addLog(ctx, '繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ繧ｫ繝ｼ繝峨↑縺暦ｼ・NERGY_TO_TRASH・・));
     const noopETT: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
@@ -3309,7 +3395,8 @@ export function execStub(
     const nameETT = selectedETT.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('繝ｻ');
     return done(addLog({ ...ctx, ownerState: newOwnerETT }, `繧ｨ繝翫だ繝ｼ繝ｳ・・{nameETT}竊偵ヨ繝ｩ繝・す繝･`));
   }
-  // 繝・ャ繧ｭ荳翫・繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ譛螟ｧ2譫夐∈繧薙〒繧ｨ繝翫だ繝ｼ繝ｳ縺ｸ・・OOK_AND_REORDER蠕鯉ｼ・  if (stub.id === 'CLASS_SIGNI_TO_ENERGY') {
+  // 繝・ャ繧ｭ荳翫・繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ譛螟ｧ2譫夐∈繧薙〒繧ｨ繝翫だ繝ｼ繝ｳ縺ｸ・・OOK_AND_REORDER蠕鯉ｼ・
+  if (stub.id === 'CLASS_SIGNI_TO_ENERGY') {
     const srcCSTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCSTE = srcCSTE ? (srcCSTE.EffectText ?? '') + ' ' + (srcCSTE.BurstText ?? '') : '';
     const toHWCSTE = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -3414,7 +3501,8 @@ export function execStub(
     }
     return done(addLog(ctx, `繝代Ρ繝ｼ菫ｮ豁｣・医お繝願牡遞ｮ鬘・{varietyPBECV}・荏));
   }
-  // 閾ｪ蝣ｴ繝ｩ繧､繧ｺ繧ｷ繧ｰ繝区焚縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・医せ繧ｿ繝・け2譫壻ｻ･荳翫・繧ｷ繧ｰ繝具ｼ・  if (stub.id === 'POWER_BY_RISE_SIGNI_COUNT') {
+  // 閾ｪ蝣ｴ繝ｩ繧､繧ｺ繧ｷ繧ｰ繝区焚縺ｫ蝓ｺ縺･縺上ヱ繝ｯ繝ｼ菫ｮ豁｣・医せ繧ｿ繝・け2譫壻ｻ･荳翫・繧ｷ繧ｰ繝具ｼ・
+  if (stub.id === 'POWER_BY_RISE_SIGNI_COUNT') {
     const srcPBRSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPBRSC = srcPBRSC ? (srcPBRSC.EffectText ?? '') + ' ' + (srcPBRSC.BurstText ?? '') : '';
     const toHWPBRSC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -3492,7 +3580,8 @@ export function execStub(
     return done(addLog(ctx, `繝代Ρ繝ｼ菫ｮ豁｣・医え繧､繝ｫ繧ｹ繧ｷ繧ｰ繝記v蜷郁ｨ・{virusLvSumISPDL}・荏));
   }
   // 閾ｪ繧ｷ繧ｰ繝九ヱ繝ｯ繝ｼ縺ｮ2蛟阪ｒ蜈ｨ逶ｸ謇九す繧ｰ繝九↓繝槭う繝翫せ
-  // DOUBLE_OWN_POWER_MINUS: 蟇ｾ雎｡繧ｷ繧ｰ繝九∈縺ｮ閾ｪ蛻・柑譫懊ヱ繝ｯ繝ｼ-繧・蛟阪↓縺吶ｋ・・ELECT_TARGET + 繝輔Λ繧ｰ險ｭ鄂ｮ・・  if (stub.id === 'DOUBLE_OWN_POWER_MINUS') {
+  // DOUBLE_OWN_POWER_MINUS: 蟇ｾ雎｡繧ｷ繧ｰ繝九∈縺ｮ閾ｪ蛻・柑譫懊ヱ繝ｯ繝ｼ-繧・蛟阪↓縺吶ｋ・・ELECT_TARGET + 繝輔Λ繧ｰ險ｭ鄂ｮ・・
+  if (stub.id === 'DOUBLE_OWN_POWER_MINUS') {
     const targetDOPM = (ctx.lastProcessedCards ?? []).find(cn =>
       ctx.otherState.field.signi.some(s => s?.at(-1) === cn)
     );
@@ -3514,7 +3603,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerDOPM },
       `${ctx.cardMap.get(targetDOPM)?.CardName ?? targetDOPM}縺ｸ縺ｮ繝代Ρ繝ｼ-繧・蛟阪↓險ｭ螳啻));
   }
-  // 蜈ｨ閾ｪ繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧・蛟阪↓縺吶ｋ・育樟蝨ｨ蛟､縺ｨ蜷碁㍼繧偵ョ繝ｫ繧ｿ霑ｽ蜉・・  if (stub.id === 'POWER_DOUBLE_ALL') {
+  // 蜈ｨ閾ｪ繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧・蛟阪↓縺吶ｋ・育樟蝨ｨ蛟､縺ｨ蜷碁㍼繧偵ョ繝ｫ繧ｿ霑ｽ蜉・・
+  if (stub.id === 'POWER_DOUBLE_ALL') {
     const modsPDA = [...(ctx.ownerState.temp_power_mods ?? [])];
     let boostedPDA = 0;
     for (let zi = 0; zi < 3; zi++) {
@@ -3558,7 +3648,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsCTP } },
       `${ctx.cardMap.get(selfCnCTP)?.CardName ?? selfCnCTP}縺ｮ繝代Ρ繝ｼ繧・{targetPwCTP}縺ｫ繧ｳ繝斐・・・{ctx.cardMap.get(targetCnCTP)?.CardName ?? targetCnCTP}縺九ｉ・荏));
   }
-  // 閾ｪ繝代Ρ繝ｼ縺ｫ蜷医ｏ縺帙※逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ繧定ｨｭ螳・  if (stub.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER') {
+  // 閾ｪ繝代Ρ繝ｼ縺ｫ蜷医ｏ縺帙※逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ繧定ｨｭ螳・
+  if (stub.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER') {
     // 蟇ｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝・菴薙・繝代Ρ繝ｼ繧定・繧ｷ繧ｰ繝九・繝代Ρ繝ｼ縺ｨ蜷後§縺縺托ｼ阪☆繧・    const selfPwSOSP = ctx.effectivePowers?.get(ctx.sourceCardNum ?? '')
       ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Power ?? '0', 10);
     const targetSOSP = (ctx.lastProcessedCards ?? []).find(cn =>
@@ -3577,7 +3668,8 @@ export function execStub(
       targetScope: 'opp_field', thenAction: applySOSP as EffectAction,
     });
   }
-  // 繧ｯ繝ｩ繧ｹ縺悟・繧九∪縺ｧ繝・ャ繧ｭ荳翫°繧峨ヨ繝ｩ繝・す繝･縺ｫ鄂ｮ縺・  if (stub.id === 'DECK_MILL_UNTIL_CLASS') {
+  // 繧ｯ繝ｩ繧ｹ縺悟・繧九∪縺ｧ繝・ャ繧ｭ荳翫°繧峨ヨ繝ｩ繝・す繝･縺ｫ鄂ｮ縺・
+  if (stub.id === 'DECK_MILL_UNTIL_CLASS') {
     const srcDMUC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDMUC = srcDMUC ? (srcDMUC.EffectText ?? '') + ' ' + (srcDMUC.BurstText ?? '') : '';
     const classMatchDMUC = txtDMUC.match(/[<・懊馨([^>・槭犠+)[>・楪ｻ].*?(?:縺悟・繧弓縺悟・迴ｾ|縺ｮ繧ｷ繧ｰ繝九′迴ｾ繧後ｋ)縺ｾ縺ｧ/);
@@ -3677,12 +3769,14 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...removedLFDB, deck: [...removedLFDB.deck, srcCnLFDB] } },
       `${ctx.cardMap.get(srcCnLFDB)?.CardName ?? srcCnLFDB}繧偵ョ繝・く荳九∈`));
   }
-  // 繝ｫ繝ｪ繧ｰ繝繝｡繝ｼ繧ｸ辟｡蜉ｹ繝輔Λ繧ｰ繧定ｨｭ螳・  if (stub.id === 'PREVENT_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_UNTIL_OPP_TURN_END'
+  // 繝ｫ繝ｪ繧ｰ繝繝｡繝ｼ繧ｸ辟｡蜉ｹ繝輔Λ繧ｰ繧定ｨｭ螳・
+  if (stub.id === 'PREVENT_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_UNTIL_OPP_TURN_END'
       || stub.id === 'PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_lrig_damage: true } },
       '縺薙・繧ｿ繝ｼ繝ｳ繝ｫ繝ｪ繧ｰ繝繝｡繝ｼ繧ｸ辟｡蜉ｹ'));
   }
-  // 濶ｲ譚｡莉ｶ縺ｫ繧医ｋ繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝域椛蛻ｶ・育嶌謇九↓ suppress_life_burst 繝輔Λ繧ｰ・・  if (stub.id === 'SUPPRESS_LIFEBURST_COLOR_CONDITION') {
+  // 濶ｲ譚｡莉ｶ縺ｫ繧医ｋ繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝域椛蛻ｶ・育嶌謇九↓ suppress_life_burst 繝輔Λ繧ｰ・・
+  if (stub.id === 'SUPPRESS_LIFEBURST_COLOR_CONDITION') {
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, suppress_life_burst: true } },
       '繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝育匱蜍墓椛蛻ｶ・郁牡譚｡莉ｶ・・));
   }
@@ -3707,7 +3801,8 @@ export function execStub(
     }
     return done(addLog(ctx, `逶ｸ謇九お繝・{oppEnaCountOEOTC}譫夲ｼ域擅莉ｶ${maxEnaOEOTC}譫壻ｻ･荳奇ｼ壽悴驕費ｼ荏));
   }
-  // 繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｫ繝ｼ繝峨ｒ謇区惆縺ｸ・・ELECT竊棚NTERNAL・・  if (stub.id === 'ENERGY_TO_HAND_ON_DECK') {
+  // 繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｫ繝ｼ繝峨ｒ謇区惆縺ｸ・・ELECT竊棚NTERNAL・・
+  if (stub.id === 'ENERGY_TO_HAND_ON_DECK') {
     const selfEnaETHOD = ctx.ownerState.energy;
     if (selfEnaETHOD.length === 0) return done(addLog(ctx, '繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ繧ｫ繝ｼ繝峨↑縺暦ｼ・NERGY_TO_HAND_ON_DECK・・));
     const noopETHOD: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
@@ -3729,7 +3824,8 @@ export function execStub(
     const nameETH = selectedETH.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('繝ｻ');
     return done(addLog({ ...ctx, ownerState: newOwnerETH }, `繧ｨ繝翫だ繝ｼ繝ｳ・・{nameETH}竊呈焔譛ｭ`));
   }
-  // 繧ｳ繧､繝ｳ迯ｲ蠕・謇区惆縺九ｉ謐ｨ縺ｦ・亥・鬆ｭN譫壹ｒ閾ｪ蜍墓昏縺ｦ・・  if (stub.id === 'GAIN_COIN_AND_DISCARD') {
+  // 繧ｳ繧､繝ｳ迯ｲ蠕・謇区惆縺九ｉ謐ｨ縺ｦ・亥・鬆ｭN譫壹ｒ閾ｪ蜍墓昏縺ｦ・・
+  if (stub.id === 'GAIN_COIN_AND_DISCARD') {
     const srcGCAD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGCAD = srcGCAD ? (srcGCAD.EffectText ?? '') + ' ' + (srcGCAD.BurstText ?? '') : '';
     const toHWGCAD = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -3743,7 +3839,8 @@ export function execStub(
     const discardActionGCAD: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: actualDiscardGCAD } };
     return selectOrInteract(ctxCoinGCAD.ownerState.hand, actualDiscardGCAD, false, 'self_hand', discardActionGCAD as EffectAction, undefined, ctxCoinGCAD);
   }
-  // 蟇ｾ雎｡繧ｷ繧ｰ繝九→閾ｪ繧ｷ繧ｰ繝九・荳｡譁ｹ縺ｫ繝代Ρ繝ｼ菫ｮ豁｣・郁・蝣ｴ繧ｷ繧ｰ繝九ｒ蟇ｾ雎｡縺ｨ縺吶ｋ・・  if (stub.id === 'POWER_MOD_TARGET_AND_SELF') {
+  // 蟇ｾ雎｡繧ｷ繧ｰ繝九→閾ｪ繧ｷ繧ｰ繝九・荳｡譁ｹ縺ｫ繝代Ρ繝ｼ菫ｮ豁｣・郁・蝣ｴ繧ｷ繧ｰ繝九ｒ蟇ｾ雎｡縺ｨ縺吶ｋ・・
+  if (stub.id === 'POWER_MOD_TARGET_AND_SELF') {
     const srcPMTS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMTS = srcPMTS ? (srcPMTS.EffectText ?? '') + ' ' + (srcPMTS.BurstText ?? '') : '';
     const toHWPMTS = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -3771,7 +3868,8 @@ export function execStub(
     }
     return done(addLog(newCtxPMTS, `蟇ｾ雎｡+閾ｪ繧ｷ繧ｰ繝九ヱ繝ｯ繝ｼ${deltaPMTS > 0 ? '+' : ''}${deltaPMTS}`));
   }
-  // 閾ｪ繧ｷ繧ｰ繝九・繝代Ρ繝ｼ縺ｫ遲峨＠縺冗嶌謇九す繧ｰ繝九・繝代Ρ繝ｼ繧定ｨｭ螳・  if (stub.id === 'POWER_EQUAL_TO_SELF_POWER') {
+  // 閾ｪ繧ｷ繧ｰ繝九・繝代Ρ繝ｼ縺ｫ遲峨＠縺冗嶌謇九す繧ｰ繝九・繝代Ρ繝ｼ繧定ｨｭ螳・
+  if (stub.id === 'POWER_EQUAL_TO_SELF_POWER') {
     const selfPwPETS = ctx.effectivePowers?.get(ctx.sourceCardNum ?? '')
       ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Power ?? '0', 10);
     const targets = ctx.lastProcessedCards?.length ? ctx.lastProcessedCards
@@ -3784,7 +3882,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsPETS } },
       `逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ繧・{selfPwPETS}縺ｫ險ｭ螳啻));
   }
-  // 蜑阪・繧ｷ繧ｰ繝九・繝代Ρ繝ｼ縺ｨ遲峨＠縺剰ｨｭ螳夲ｼ郁・繧ｷ繧ｰ繝九ｒ蜑阪す繧ｰ繝九・繝代Ρ繝ｼ縺ｫ・・  if (stub.id === 'POWER_EQUALS_FRONT_SIGNI') {
+  // 蜑阪・繧ｷ繧ｰ繝九・繝代Ρ繝ｼ縺ｨ遲峨＠縺剰ｨｭ螳夲ｼ郁・繧ｷ繧ｰ繝九ｒ蜑阪す繧ｰ繝九・繝代Ρ繝ｼ縺ｫ・・
+  if (stub.id === 'POWER_EQUALS_FRONT_SIGNI') {
     const srcZonePEFS = ctx.sourceCardNum
       ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum)
       : -1;
@@ -3828,7 +3927,8 @@ export function execStub(
     const noopPBLSC: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(oppCandsPBLSC, 1, false, 'opp_field', noopPBLSC as EffectAction, contPBLSC as EffectAction, ctx);
   }
-  // 謐ｨ縺ｦ縺溘す繧ｰ繝九・繝代Ρ繝ｼ縺縺題・蝣ｴ繧ｷ繧ｰ繝・菴薙ｒ繝代Ρ繝ｼ繧｢繝・・・・ELECT閾ｪ蝣ｴ竊定・蟾ｱ蜀榊ｸｰ・・  if (stub.id === 'POWER_UP_BY_DISCARDED_SIGNI_POWER') {
+  // 謐ｨ縺ｦ縺溘す繧ｰ繝九・繝代Ρ繝ｼ縺縺題・蝣ｴ繧ｷ繧ｰ繝・菴薙ｒ繝代Ρ繝ｼ繧｢繝・・・・ELECT閾ｪ蝣ｴ竊定・蟾ｱ蜀榊ｸｰ・・
+  if (stub.id === 'POWER_UP_BY_DISCARDED_SIGNI_POWER') {
     const trashedCnPUBDP = ctx.ownerState.trash.at(-1) ?? '';
     const trashedPwPUBDP = parseInt(ctx.cardMap.get(trashedCnPUBDP)?.Power ?? '0') || 0;
     if (trashedPwPUBDP <= 0) return done(addLog(ctx, `繝代Ρ繝ｼ繧｢繝・・荳榊庄・医ヨ繝ｩ繝・す繝･繧ｷ繧ｰ繝九ヱ繝ｯ繝ｼ${trashedPwPUBDP}・荏));
@@ -3850,7 +3950,8 @@ export function execStub(
     const noopPUBDP: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(ownCandsPUBDP, 1, false, 'self_field', noopPUBDP as EffectAction, contPUBDP as EffectAction, ctx);
   }
-  // 繧ｷ繝｣繝・ヵ繝ｫ蠕後↓蜈ｨ繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧貞濠貂・  if (stub.id === 'SHUFFLE_DECK_POWER_HALF') {
+  // 繧ｷ繝｣繝・ヵ繝ｫ蠕後↓蜈ｨ繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧貞濠貂・
+  if (stub.id === 'SHUFFLE_DECK_POWER_HALF') {
     const shuffledSDP = [...ctx.ownerState.deck].sort(() => Math.random() - 0.5);
     const modsSDHP = [...(ctx.otherState.temp_power_mods ?? [])];
     for (let zi = 0; zi < 3; zi++) {
@@ -3913,7 +4014,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...removedOSTDN, deck: newOtherDeckOSTDN } },
       `${ctx.cardMap.get(targetOSTDN)?.CardName ?? targetOSTDN}竊堤嶌謇九ョ繝・く荳翫°繧・{nthOSTDN + 1}逡ｪ逶ｮ`));
   }
-  // 逶ｸ謇九す繧ｰ繝九′騾蝣ｴ譎ゅ↓繧ｨ繝翫〒縺ｯ縺ｪ縺上ヨ繝ｩ繝・す繝･縺ｸ・医ヵ繝ｩ繧ｰ險ｭ螳夲ｼ・  if (stub.id === 'OPP_SIGNI_LEAVE_TO_TRASH') {
+  // 逶ｸ謇九す繧ｰ繝九′騾蝣ｴ譎ゅ↓繧ｨ繝翫〒縺ｯ縺ｪ縺上ヨ繝ｩ繝・す繝･縺ｸ・医ヵ繝ｩ繧ｰ險ｭ螳夲ｼ・
+  if (stub.id === 'OPP_SIGNI_LEAVE_TO_TRASH') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, banish_redirect: true } },
       '逶ｸ謇九す繧ｰ繝九・繝舌ル繝・す繝･蜈遺・繝医Λ繝・す繝･縺ｫ螟画峩'));
   }
@@ -3966,7 +4068,8 @@ export function execStub(
       targetScope: 'self_trash', thenAction: contTZDFT as EffectAction,
     });
   }
-  // 閾ｪ繝ｻ逶ｸ謇九ｒ荳｡譁ｹ繧ｨ繝翫∈・医だ繝ｼ繝ｳ莠､謠帷ｳｻ・・  if (stub.id === 'TRADE_SELF_AND_OPP_TO_ENERGY') {
+  // 閾ｪ繝ｻ逶ｸ謇九ｒ荳｡譁ｹ繧ｨ繝翫∈・医だ繝ｼ繝ｳ莠､謠帷ｳｻ・・
+  if (stub.id === 'TRADE_SELF_AND_OPP_TO_ENERGY') {
     const selfCnTSAOTE = ctx.sourceCardNum;
     const oppTargetTSAOTE = (ctx.lastProcessedCards ?? [])[0];
     if (!selfCnTSAOTE) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺暦ｼ・RADE_SELF_AND_OPP_TO_ENERGY・・));
@@ -3983,7 +4086,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerTSAOTE, otherState: newOtherTSAOTE },
       `閾ｪ繝ｻ逶ｸ謇九す繧ｰ繝九ｒ繧ｨ繝翫だ繝ｼ繝ｳ縺ｸ`));
   }
-  // 閾ｪ繧ｷ繧ｰ繝九ｒ繝・ャ繧ｭ繝医ャ繝励∈・医ヵ繧｣繝ｼ繝ｫ繝峨°繧蛾蝣ｴ・・  if (stub.id === 'SELF_TO_DECK_TOP') {
+  // 閾ｪ繧ｷ繧ｰ繝九ｒ繝・ャ繧ｭ繝医ャ繝励∈・医ヵ繧｣繝ｼ繝ｫ繝峨°繧蛾蝣ｴ・・
+  if (stub.id === 'SELF_TO_DECK_TOP') {
     const selfCnSTDT = ctx.sourceCardNum;
     if (!selfCnSTDT || !ctx.ownerState.field.signi.some(s => s?.at(-1) === selfCnSTDT))
       return done(addLog(ctx, '蟇ｾ雎｡縺後ヵ繧｣繝ｼ繝ｫ繝峨↓縺・↑縺・ｼ・ELF_TO_DECK_TOP・・));
@@ -3991,7 +4095,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...removedSTDT, deck: [selfCnSTDT, ...removedSTDT.deck] } },
       `${ctx.cardMap.get(selfCnSTDT)?.CardName ?? selfCnSTDT}繧偵ョ繝・く繝医ャ繝励∈`));
   }
-  // 逶ｸ謇九す繧ｰ繝九ｒ繧ｲ繝ｼ繝医ｒ騾壹§縺ｦ繝・ャ繧ｭ縺ｸ・医ヰ繧ｦ繝ｳ繧ｹ・・  if (stub.id === 'OPP_SIGNI_TO_DECK_BY_GATE') {
+  // 逶ｸ謇九す繧ｰ繝九ｒ繧ｲ繝ｼ繝医ｒ騾壹§縺ｦ繝・ャ繧ｭ縺ｸ・医ヰ繧ｦ繝ｳ繧ｹ・・
+  if (stub.id === 'OPP_SIGNI_TO_DECK_BY_GATE') {
     const targetOSTDBG = (ctx.lastProcessedCards ?? [])[0];
     if (!targetOSTDBG) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺暦ｼ・PP_SIGNI_TO_DECK_BY_GATE・・));
     const removedOSTDBG = removeFromField(targetOSTDBG, ctx.otherState);
@@ -3999,7 +4104,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...removedOSTDBG, deck: newDeckOSTDBG } },
       `${ctx.cardMap.get(targetOSTDBG)?.CardName ?? targetOSTDBG}竊堤嶌謇九ョ繝・く荳義));
   }
-  // 繝・ャ繧ｭ荳翫・繧ｷ繧ｰ繝九ｒ繝輔ぅ繝ｼ繝ｫ繝峨∈・域怙蛻昴・繧ｷ繧ｰ繝九ｒ驟咲ｽｮ・・  if (stub.id === 'LOOK_TOP_SIGNI_TO_FIELD') {
+  // 繝・ャ繧ｭ荳翫・繧ｷ繧ｰ繝九ｒ繝輔ぅ繝ｼ繝ｫ繝峨∈・域怙蛻昴・繧ｷ繧ｰ繝九ｒ驟咲ｽｮ・・
+  if (stub.id === 'LOOK_TOP_SIGNI_TO_FIELD') {
     const topNLTSTF = 3;
     const topCardsLTSTF = ctx.ownerState.deck.slice(0, topNLTSTF);
     const firstSigniLTSTF = topCardsLTSTF.find(cn => ctx.cardMap.get(cn)?.Type === '繧ｷ繧ｰ繝・);
@@ -4017,15 +4123,18 @@ export function execStub(
       field: { ...ctx.ownerState.field, signi: newFieldLTSTF },
     }}, `繝・ャ繧ｭ荳翫°繧・{ctx.cardMap.get(firstSigniLTSTF)?.CardName ?? firstSigniLTSTF}竊偵ヵ繧｣繝ｼ繝ｫ繝荏));
   }
-  // 霑ｽ蜉繧ｿ繝ｼ繝ｳ繧堤佐蠕暦ｼ医Ο繧ｰ縺ｮ縺ｿ縲√ご繝ｼ繝繧ｨ繝ｳ繧ｸ繝ｳ螳溯｣・′蠢・ｦ・ｼ・  // GAIN_EXTRA_TURN: 霑ｽ蜉繧ｿ繝ｼ繝ｳ繝輔Λ繧ｰ繧偵そ繝・ヨ・・attleScreen蛛ｴ縺ｧ繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｫ霑ｽ蜉繧ｿ繝ｼ繝ｳ繧剃ｻ倅ｸ趣ｼ・  if (stub.id === 'GAIN_EXTRA_TURN') {
+  // 霑ｽ蜉繧ｿ繝ｼ繝ｳ繧堤佐蠕暦ｼ医Ο繧ｰ縺ｮ縺ｿ縲√ご繝ｼ繝繧ｨ繝ｳ繧ｸ繝ｳ螳溯｣・′蠢・ｦ・ｼ・  // GAIN_EXTRA_TURN: 霑ｽ蜉繧ｿ繝ｼ繝ｳ繝輔Λ繧ｰ繧偵そ繝・ヨ・・attleScreen蛛ｴ縺ｧ繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｫ霑ｽ蜉繧ｿ繝ｼ繝ｳ繧剃ｻ倅ｸ趣ｼ・
+  if (stub.id === 'GAIN_EXTRA_TURN') {
     const newOwnerET = { ...ctx.ownerState, extra_turn: true };
     return done(addLog({ ...ctx, ownerState: newOwnerET }, '霑ｽ蜉繧ｿ繝ｼ繝ｳ繧堤佐蠕暦ｼ域ｬ｡縺ｮ繧ｿ繝ｼ繝ｳ邨ゆｺ・ｾ後↓繧ゅ≧1繧ｿ繝ｼ繝ｳ・・));
   }
-  // 繧ｬ繝ｼ繝峨い繧､繧ｳ繝ｳ莉倅ｸ趣ｼ域焔譛ｭ縺ｮ繧ｷ繧ｰ繝九↓莉倅ｸ・ 繝輔Λ繧ｰ險ｭ螳夲ｼ・  if (stub.id === 'HAND_SIGNI_HAS_GUARD_ICON') {
+  // 繧ｬ繝ｼ繝峨い繧､繧ｳ繝ｳ莉倅ｸ趣ｼ域焔譛ｭ縺ｮ繧ｷ繧ｰ繝九↓莉倅ｸ・ 繝輔Λ繧ｰ險ｭ螳夲ｼ・
+  if (stub.id === 'HAND_SIGNI_HAS_GUARD_ICON') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, hand_signi_guard_enabled: true } },
       '謇区惆縺ｮ繧ｷ繧ｰ繝九☆縺ｹ縺ｦ縺ｫ繧ｬ繝ｼ繝峨い繧､繧ｳ繝ｳ莉倅ｸ・));
   }
-  // 繝輔ぅ繝ｼ繝ｫ繝峨・繧ｨ繝翫す繧ｰ繝九′濶ｲ繧堤佐蠕暦ｼ医Ο繧ｰ縺ｮ縺ｿ繝ｻ繧ｹ繧ｭ繝・・・・  if (stub.id === 'FIELD_ENERGY_SIGNI_GAIN_COLOR') {
+  // 繝輔ぅ繝ｼ繝ｫ繝峨・繧ｨ繝翫す繧ｰ繝九′濶ｲ繧堤佐蠕暦ｼ医Ο繧ｰ縺ｮ縺ｿ繝ｻ繧ｹ繧ｭ繝・・・・
+  if (stub.id === 'FIELD_ENERGY_SIGNI_GAIN_COLOR') {
     return done(addLog(ctx, '繧ｨ繝翫だ繝ｼ繝ｳ縺ｮ繧ｷ繧ｰ繝九′濶ｲ繧堤佐蠕暦ｼ医せ繧ｭ繝・・・・));
   }
   // 逶ｸ謇九′螳｣險縺励◆濶ｲ縺ｫ蠢懊§縺ｦ繧ｨ繝翫ｒ繝医Λ繝・す繝･・育嶌謇九・螳｣險縺悟ｿ・ｦ≫・繧ｹ繧ｭ繝・・・・  // DECLARE_COLOR_COND_ENERGY_TRASH: 濶ｲ繧貞ｮ｣險縺励√お繝翫°繧牙ｮ｣險濶ｲ縺ｮ繧ｫ繝ｼ繝峨ｒ莉ｻ諢上〒繝医Λ繝・す繝･
@@ -4085,7 +4194,8 @@ export function execStub(
     }
     return done(addLog(ctx, `繧ｨ繝貝v蜷郁ｨ・{enaLvSumEBLSL}・井ｸ企剞${maxLvEBLSL}莉･蜀・ｼ荏));
   }
-  // 逶ｸ謇九お繝翫・繧ｫ繝ｼ繝・譫壹ｒ濶ｲ譚｡莉ｶ縺ｧ繝医Λ繝・す繝･・育嶌謇九′驕ｸ謚樞・繧ｹ繧ｭ繝・・・・  if (stub.id === 'OPP_ENERGY_COLOR_CONDITION_TRASH') {
+  // 逶ｸ謇九お繝翫・繧ｫ繝ｼ繝・譫壹ｒ濶ｲ譚｡莉ｶ縺ｧ繝医Λ繝・す繝･・育嶌謇九′驕ｸ謚樞・繧ｹ繧ｭ繝・・・・
+  if (stub.id === 'OPP_ENERGY_COLOR_CONDITION_TRASH') {
     // 逶ｸ謇九お繝翫°繧芽牡譚｡莉ｶ縺ｫ蜷医≧繧ｫ繝ｼ繝峨ｒ1譫夊・蜍輔ヨ繝ｩ繝・す繝･・域怙蠕後・1譫夲ｼ・    const srcOECCT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtOECCT = srcOECCT ? (srcOECCT.EffectText ?? '') + ' ' + (srcOECCT.BurstText ?? '') : '';
     const colorMOECCT = txtOECCT.match(/([襍､髱堤ｷ鷹ｻ堤區辟｡])縺ｮ繧ｫ繝ｼ繝・);
@@ -4102,7 +4212,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: newOtherOECCT },
       `逶ｸ謇九お繝奇ｼ・{ctx.cardMap.get(targetCardOECCT)?.CardName ?? targetCardOECCT}竊偵ヨ繝ｩ繝・す繝･`));
   }
-  // TRASHED_CARD_TO_HAND_OR_ENERGY 竊・謇区惆驕ｸ謚槫ｾ悟・逅・  if (stub.id === 'INTERNAL_TRASH_TO_HAND') {
+  // TRASHED_CARD_TO_HAND_OR_ENERGY 竊・謇区惆驕ｸ謚槫ｾ悟・逅・
+  if (stub.id === 'INTERNAL_TRASH_TO_HAND') {
     const targetITTH = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
     if (!targetITTH) return done(ctx);
     const ti = ctx.ownerState.trash.indexOf(targetITTH);
@@ -4111,7 +4222,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, trash: newTrashITTH, hand: [...ctx.ownerState.hand, targetITTH] } },
       `繝医Λ繝・す繝･・・{ctx.cardMap.get(targetITTH)?.CardName ?? targetITTH}竊呈焔譛ｭ`));
   }
-  // TRASHED_CARD_TO_HAND_OR_ENERGY 竊・繧ｨ繝企∈謚槫ｾ悟・逅・  if (stub.id === 'INTERNAL_TRASH_TO_ENERGY') {
+  // TRASHED_CARD_TO_HAND_OR_ENERGY 竊・繧ｨ繝企∈謚槫ｾ悟・逅・
+  if (stub.id === 'INTERNAL_TRASH_TO_ENERGY') {
     const targetITTE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
     if (!targetITTE) return done(ctx);
     const ti = ctx.ownerState.trash.indexOf(targetITTE);
@@ -4120,7 +4232,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, trash: newTrashITTE, energy: [...ctx.ownerState.energy, targetITTE] } },
       `繝医Λ繝・す繝･・・{ctx.cardMap.get(targetITTE)?.CardName ?? targetITTE}竊偵お繝翫だ繝ｼ繝ｳ`));
   }
-  // 隍・焚繧ｷ繧ｰ繝九ｒ繧ｨ繝翫∈・・astProcessedCards or 蜈ｨ閾ｪ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝具ｼ・  if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
+  // 隍・焚繧ｷ繧ｰ繝九ｒ繧ｨ繝翫∈・・astProcessedCards or 蜈ｨ閾ｪ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝具ｼ・
+  if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
     const targetsMSTE = ctx.lastProcessedCards?.length
       ? ctx.lastProcessedCards
       : [0, 1, 2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
@@ -4150,7 +4263,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繧ｬ繝ｼ繝峨き繝ｼ繝会ｼ・ON_GUARD_DISCARD_TO_ENERGY・・));
   }
-  // 繧ｾ繝ｼ繝ｳ縺檎ｩｺ縺・※縺・ｋ縺ｨ縺阪ヨ繝ｩ繝・す繝･・域擅莉ｶ莉倥″・・  if (stub.id === 'TRASH_IF_ZONE_OCCUPIED') {
+  // 繧ｾ繝ｼ繝ｳ縺檎ｩｺ縺・※縺・ｋ縺ｨ縺阪ヨ繝ｩ繝・す繝･・域擅莉ｶ莉倥″・・
+  if (stub.id === 'TRASH_IF_ZONE_OCCUPIED') {
     const emptyZoneTIZO = ctx.ownerState.field.signi.findIndex(z => !z || z.length === 0);
     if (emptyZoneTIZO < 0 && ctx.sourceCardNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)) {
       const removedTIZO = removeFromField(ctx.sourceCardNum, ctx.ownerState);
@@ -4159,7 +4273,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繧ｾ繝ｼ繝ｳ遨ｺ縺阪≠繧奇ｼ・RASH_IF_ZONE_OCCUPIED・・));
   }
-  // 譚｡莉ｶ莉倥″繝医Λ繝・す繝･竊偵お繝奇ｼ医そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ蜷肴擅莉ｶ莉倥″・・  if (stub.id === 'CONDITIONAL_TRASH_TO_ENERGY') {
+  // 譚｡莉ｶ莉倥″繝医Λ繝・す繝･竊偵お繝奇ｼ医そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ蜷肴擅莉ｶ莉倥″・・
+  if (stub.id === 'CONDITIONAL_TRASH_TO_ENERGY') {
     const srcCTTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCTTE = srcCTTE ? (srcCTTE.EffectText ?? '') + ' ' + (srcCTTE.BurstText ?? '') : '';
     // 縲後そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺鯉ｼ弭・槭・蝣ｴ蜷医肴擅莉ｶ繝√ぉ繝・け
@@ -4181,7 +4296,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, trash: newTrashCTTE, energy: [...ctx.ownerState.energy, targetCTTE] } },
       `繝医Λ繝・す繝･・・{ctx.cardMap.get(targetCTTE)?.CardName ?? targetCTTE}竊偵お繝翫だ繝ｼ繝ｳ`));
   }
-  // 繝医Λ繝・す繝･縺九ｉ繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ謇区惆縺九お繝翫∈驕ｸ謚・  if (stub.id === 'TRASH_CLASS_TO_HAND_OR_ENERGY') {
+  // 繝医Λ繝・す繝･縺九ｉ繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ謇区惆縺九お繝翫∈驕ｸ謚・
+  if (stub.id === 'TRASH_CLASS_TO_HAND_OR_ENERGY') {
     // 繝医Λ繝・す繝･縺九ｉ繧ｯ繝ｩ繧ｹ繧ｫ繝ｼ繝峨ｒ隍・焚驕ｸ謚・竊・1譫壹∪縺ｧ謇区惆縲∵ｮ九ｊ繧ｨ繝翫だ繝ｼ繝ｳ縺ｸ
     const srcTCTHOE2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtTCTHOE2 = srcTCTHOE2 ? (srcTCTHOE2.EffectText ?? '') + ' ' + (srcTCTHOE2.BurstText ?? '') : '';
@@ -4201,7 +4317,8 @@ export function execStub(
       targetScope: 'self_trash', thenAction: contTCTHOE2 as EffectAction,
     });
   }
-  // INTERNAL_TRASH_CLASS_SPLIT: 驕ｸ謚槭き繝ｼ繝峨ｒ謇区惆・・譫夲ｼ会ｼ九お繝奇ｼ域ｮ九ｊ・峨↓謖ｯ繧雁・縺・  if (stub.id === 'INTERNAL_TRASH_CLASS_SPLIT') {
+  // INTERNAL_TRASH_CLASS_SPLIT: 驕ｸ謚槭き繝ｼ繝峨ｒ謇区惆・・譫夲ｼ会ｼ九お繝奇ｼ域ｮ九ｊ・峨↓謖ｯ繧雁・縺・
+  if (stub.id === 'INTERNAL_TRASH_CLASS_SPLIT') {
     const selectedITCS = ctx.lastProcessedCards ?? [];
     if (selectedITCS.length === 0) return done(ctx);
     let newOwnerITCS = ctx.ownerState;
@@ -4226,7 +4343,8 @@ export function execStub(
     ].join('縲・);
     return done(addLog({ ...ctx, ownerState: newOwnerITCS }, names));
   }
-  // 繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ縺ｫ繧ｫ繝ｼ繝峨ｒ霑ｽ蜉・磯撼繝ｫ繝ｪ繧ｰ繧偵Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ・・  if (stub.id === 'NON_LRIG_TO_LRIG_TRASH') {
+  // 繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ縺ｫ繧ｫ繝ｼ繝峨ｒ霑ｽ蜉・磯撼繝ｫ繝ｪ繧ｰ繧偵Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ・・
+  if (stub.id === 'NON_LRIG_TO_LRIG_TRASH') {
     const target = (ctx.lastProcessedCards ?? [])[0];
     if (!target) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺暦ｼ・ON_LRIG_TO_LRIG_TRASH・・));
     // 繝輔ぅ繝ｼ繝ｫ繝峨∪縺溘・繝医Λ繝・す繝･縺九ｉ髯､蜴ｻ縺励※繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ
@@ -4291,7 +4409,8 @@ export function execStub(
     const newSDDCPN: PlayerState = { ...sDDCPN, hand: [...sDDCPN.hand, ...sDDCPN.deck.slice(0, canDraw)], deck: sDDCPN.deck.slice(canDraw) };
     return done(addLog({ ...ctx, ownerState: newSDDCPN }, `謐ｨ縺ｦ${discardCount}譫・${plusN}竊・{canDraw}譫壹ラ繝ｭ繝ｼ`));
   }
-  // LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: 繝・ャ繧ｭ荳劾譫壹ｒ遒ｺ隱阪＠縺ｦ荳ｦ縺ｹ譖ｿ縺・  if (stub.id === 'LOOK_TOP_N' || stub.id === 'LOOK_TOP_SORT' || stub.id === 'LOOK_TOP_COLOR_SORT' || stub.id === 'LOOK_TOP_BY_LIFE_COUNT') {
+  // LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: 繝・ャ繧ｭ荳劾譫壹ｒ遒ｺ隱阪＠縺ｦ荳ｦ縺ｹ譖ｿ縺・
+  if (stub.id === 'LOOK_TOP_N' || stub.id === 'LOOK_TOP_SORT' || stub.id === 'LOOK_TOP_COLOR_SORT' || stub.id === 'LOOK_TOP_BY_LIFE_COUNT') {
     const srcLTN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLTN = srcLTN ? (srcLTN.EffectText ?? '') + ' ' + (srcLTN.BurstText ?? '') : '';
     const toHWLTN = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -4510,7 +4629,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: sACLD2 },
       `繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ縺ｫ${addedACLD}譫壼刈縺医◆・・{nameMatchesACLD.join('繝ｻ')}・荏));
   }
-  // INTERNAL_ACLDH_APPLY: ADD_CARD_TO_LRIG_DECK_HIDDEN 縺ｮ驕ｸ謚槫ｾ悟・逅・  if (stub.id === 'INTERNAL_ACLDH_APPLY') {
+  // INTERNAL_ACLDH_APPLY: ADD_CARD_TO_LRIG_DECK_HIDDEN 縺ｮ驕ｸ謚槫ｾ悟・逅・
+  if (stub.id === 'INTERNAL_ACLDH_APPLY') {
     const inst = typeof stub.value === 'string' ? stub.value : '';
     if (!inst) return done(addLog(ctx, '[INTERNAL_ACLDH_APPLY: 繧､繝ｳ繧ｹ繧ｿ繝ｳ繧ｹ縺ｪ縺余'));
     const moveToLD = (s: PlayerState, id: string): PlayerState => ({
@@ -4559,7 +4679,8 @@ export function execStub(
     };
     return done(addLog({ ...ctx, ownerState: newSABST }, `繧｢繧ｯ繧ｻ${acceCardsABST.length}譫壹ｒ繝医Λ繝・す繝･縺ｸ`));
   }
-  // FROM_TRASH_TO_CENTER_ZONE: 繝医Λ繝・す繝･縺九ｉ繧ｫ繝ｼ繝峨ｒ荳ｭ螟ｮ繧ｷ繧ｰ繝九だ繝ｼ繝ｳ・・one[1]・峨↓蜃ｺ縺・  if (stub.id === 'FROM_TRASH_TO_CENTER_ZONE') {
+  // FROM_TRASH_TO_CENTER_ZONE: 繝医Λ繝・す繝･縺九ｉ繧ｫ繝ｼ繝峨ｒ荳ｭ螟ｮ繧ｷ繧ｰ繝九だ繝ｼ繝ｳ・・one[1]・峨↓蜃ｺ縺・
+  if (stub.id === 'FROM_TRASH_TO_CENTER_ZONE') {
     const cnFTCZ = ctx.sourceCardNum
       ? ctx.ownerState.trash.find(cn => cn === ctx.sourceCardNum)
       : (ctx.lastProcessedCards?.[0] ?? ctx.ownerState.trash.at(-1));
@@ -4677,7 +4798,8 @@ export function execStub(
       `${ctx.cardMap.get(keyCardLTKCU)?.CardName ?? keyCardLTKCU}繧偵そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｮ荳九↓`));
   }
   // === 繝舌ャ繝・: 繝代Ρ繝ｼ陬懆ｶｳ繝ｻ繧ｦ繧｣繝ｫ繧ｹ繝ｻ譚｡莉ｶ遘ｻ蜍・===
-  // POWER_CAP: 繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧誰莉･荳九↓蛻ｶ髯・  if (stub.id === 'POWER_CAP') {
+  // POWER_CAP: 繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧誰莉･荳九↓蛻ｶ髯・
+  if (stub.id === 'POWER_CAP') {
     const srcPC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPC = srcPC ? (srcPC.EffectText ?? '') + ' ' + (srcPC.BurstText ?? '') : '';
     const toHWPC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -4691,7 +4813,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPC } },
       `繝代Ρ繝ｼ荳企剞${capPC}縺ｫ蛻ｶ髯撰ｼ・{deltaPC}・荏));
   }
-  // POWER_COPY_FROM_DOWNED: 繝繧ｦ繝ｳ縺励◆繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧定・繧ｷ繧ｰ繝九↓蜉邂・  if (stub.id === 'POWER_COPY_FROM_DOWNED') {
+  // POWER_COPY_FROM_DOWNED: 繝繧ｦ繝ｳ縺励◆繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧定・繧ｷ繧ｰ繝九↓蜉邂・
+  if (stub.id === 'POWER_COPY_FROM_DOWNED') {
     if (!ctx.sourceCardNum) return done(ctx);
     let targetPowerPCFD = 0;
     // 蜆ｪ蜈・ lastProcessedCards[0] (襍ｷ蜍輔さ繧ｹ繝医〒繝繧ｦ繝ｳ縺励◆閾ｪ繧ｷ繧ｰ繝・
@@ -4896,7 +5019,8 @@ export function execStub(
     }
     return done(addLog(ctx, `${ctx.cardMap.get(cnTRS)?.CardName ?? cnTRS}・・RASH STUB・荏));
   }
-  // BANISH_FROM_GAME: 繧ｲ繝ｼ繝縺九ｉ髯､螟厄ｼ医Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ・・  if (stub.id === 'BANISH_FROM_GAME') {
+  // BANISH_FROM_GAME: 繧ｲ繝ｼ繝縺九ｉ髯､螟厄ｼ医Ν繝ｪ繧ｰ繝医Λ繝・す繝･縺ｸ・・
+  if (stub.id === 'BANISH_FROM_GAME') {
     const cnBFG = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!cnBFG) return done(addLog(ctx, '髯､螟門ｯｾ雎｡縺ｪ縺・));
     const foundOppBFG = ctx.otherState.field.signi.some(s => s?.at(-1) === cnBFG);
@@ -4945,7 +5069,8 @@ export function execStub(
     const removedACET = removeFromField(ctx.sourceCardNum, ctx.ownerState);
     return done(addLog({ ...ctx, ownerState: { ...removedACET, trash: [...removedACET.trash, ctx.sourceCardNum] } }, '閭ｽ蜉帙↑縺冷・繝医Λ繝・す繝･'));
   }
-  // OPTIONAL_DISCARD_CLASS_SIGNI: 繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ莉ｻ諢上〒謐ｨ縺ｦ繧・  if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
+  // OPTIONAL_DISCARD_CLASS_SIGNI: 繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ莉ｻ諢上〒謐ｨ縺ｦ繧・
+  if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
     const srcODCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtODCS = srcODCS ? (srcODCS.EffectText ?? '') + ' ' + (srcODCS.BurstText ?? '') : '';
     const classMatchODCS = txtODCS.match(/縲・[^縲曽+)縲・);
@@ -4991,7 +5116,8 @@ export function execStub(
       targetScope: 'self_hand', thenAction: thenCD,
     });
   }
-  // PICK_FROM_TRASHED_CARDS 縺ｮ蠕悟濠 / CONDITIONAL_ALTERNATE_EFFECT: 莉｣譖ｿ蜉ｹ譫懶ｼ医せ繧ｭ繝・・・・  // TRASH_SPELL_FREE_USE_LIMIT: 繝医Λ繝・す繝･繧ｹ繝壹Ν辟｡譁吩ｽｿ逕ｨ蛻ｶ髯撰ｼ・og・・  // OPP_DECLARE_COLOR: 逶ｸ謇九′濶ｲ繧貞ｮ｣險・・og・・  // DISCARD_BY_POWER_MATCH: 謇区惆縺ｮ髱偵す繧ｰ繝九ｒ謐ｨ縺ｦ竊堤嶌謇区焔譛ｭ縺ｮ蜷後ヱ繝ｯ繝ｼ繧ｷ繧ｰ繝九ｒ謐ｨ縺ｦ縺輔○繧・  if (stub.id === 'DISCARD_BY_POWER_MATCH') {
+  // PICK_FROM_TRASHED_CARDS 縺ｮ蠕悟濠 / CONDITIONAL_ALTERNATE_EFFECT: 莉｣譖ｿ蜉ｹ譫懶ｼ医せ繧ｭ繝・・・・  // TRASH_SPELL_FREE_USE_LIMIT: 繝医Λ繝・す繝･繧ｹ繝壹Ν辟｡譁吩ｽｿ逕ｨ蛻ｶ髯撰ｼ・og・・  // OPP_DECLARE_COLOR: 逶ｸ謇九′濶ｲ繧貞ｮ｣險・・og・・  // DISCARD_BY_POWER_MATCH: 謇区惆縺ｮ髱偵す繧ｰ繝九ｒ謐ｨ縺ｦ竊堤嶌謇区焔譛ｭ縺ｮ蜷後ヱ繝ｯ繝ｼ繧ｷ繧ｰ繝九ｒ謐ｨ縺ｦ縺輔○繧・
+  if (stub.id === 'DISCARD_BY_POWER_MATCH') {
     const toHWDBPM = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const discardedDBPM = (ctx.lastProcessedCards ?? []).find(cn => ctx.ownerState.hand.includes(cn));
     if (!discardedDBPM) {
@@ -5182,11 +5308,13 @@ export function execStub(
     };
     return done(addLog({ ...ctx, ownerState: newSPLFDOT }, `${ctx.cardMap.get(topLrigPLFDOT)?.CardName ?? topLrigPLFDOT}繧偵ヵ繧｣繝ｼ繝ｫ繝峨∈`));
   }
-  // LRIG_LIMIT_UP_AND_COLOR_GAIN: 繝ｫ繝ｪ繧ｰ繝ｪ繝溘ャ繝亥｢怜刈・・1・峨→濶ｲ迯ｲ蠕暦ｼ・og・・  if (stub.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
+  // LRIG_LIMIT_UP_AND_COLOR_GAIN: 繝ｫ繝ｪ繧ｰ繝ｪ繝溘ャ繝亥｢怜刈・・1・峨→濶ｲ迯ｲ蠕暦ｼ・og・・
+  if (stub.id === 'LRIG_LIMIT_UP_AND_COLOR_GAIN') {
     const newSLLUACG: PlayerState = { ...ctx.ownerState, lrig_limit_mod: (ctx.ownerState.lrig_limit_mod ?? 0) + 1 };
     return done(addLog({ ...ctx, ownerState: newSLLUACG }, '繝ｫ繝ｪ繧ｰ繝ｪ繝溘ャ繝・1・郁牡迯ｲ蠕励・繧ｨ繝ｳ繧ｸ繝ｳ蜃ｦ逅・ｼ・));
   }
-  // CONDITIONAL_SEARCH_IF_FIELD: 繝輔ぅ繝ｼ繝ｫ繝峨↓繧ｷ繧ｰ繝九′縺ゅｋ蝣ｴ蜷医し繝ｼ繝・  if (stub.id === 'CONDITIONAL_SEARCH_IF_FIELD') {
+  // CONDITIONAL_SEARCH_IF_FIELD: 繝輔ぅ繝ｼ繝ｫ繝峨↓繧ｷ繧ｰ繝九′縺ゅｋ蝣ｴ蜷医し繝ｼ繝・
+  if (stub.id === 'CONDITIONAL_SEARCH_IF_FIELD') {
     const hasSigniCSIF = ctx.ownerState.field.signi.some(s => s && s.length > 0);
     if (!hasSigniCSIF) return done(addLog(ctx, '繝輔ぅ繝ｼ繝ｫ繝峨↓繧ｷ繧ｰ繝九↑縺暦ｼ医し繝ｼ繝√↑縺暦ｼ・));
     // 繝・ャ繧ｭ荳・譫壹°繧峨す繧ｰ繝九ｒ驕ｸ謚・    const deckCSIF = ctx.ownerState.deck;
@@ -5197,7 +5325,8 @@ export function execStub(
     const newSCSIF: PlayerState = { ...ctx.ownerState, deck: deckCSIF.slice(topCSIF.length), hand: [...ctx.ownerState.hand, signiTopCSIF[0]] };
     return done(addLog({ ...ctx, ownerState: newSCSIF }, `繝輔ぅ繝ｼ繝ｫ繝峨≠繧岩・${ctx.cardMap.get(signiTopCSIF[0])?.CardName ?? signiTopCSIF[0]}繧呈焔譛ｭ縺ｸ`));
   }
-  // CONDITIONAL_SEARCH_IF_RESONA: 繝輔ぅ繝ｼ繝ｫ繝峨↓繝ｬ繧ｾ繝翫′縺ゅｋ蝣ｴ蜷医し繝ｼ繝・  if (stub.id === 'CONDITIONAL_SEARCH_IF_RESONA') {
+  // CONDITIONAL_SEARCH_IF_RESONA: 繝輔ぅ繝ｼ繝ｫ繝峨↓繝ｬ繧ｾ繝翫′縺ゅｋ蝣ｴ蜷医し繝ｼ繝・
+  if (stub.id === 'CONDITIONAL_SEARCH_IF_RESONA') {
     const hasResonaCSIR = ctx.ownerState.field.signi.some(s => s && s.some(cn => ctx.cardMap.get(cn)?.Type === '繝ｬ繧ｾ繝・));
     if (!hasResonaCSIR) return done(addLog(ctx, '繝ｬ繧ｾ繝翫↑縺暦ｼ医し繝ｼ繝√↑縺暦ｼ・));
     const deckCSIR = ctx.ownerState.deck;
@@ -5223,7 +5352,8 @@ export function execStub(
       ],
     });
   }
-  // OPP_ENERGY_OR_DISCARD_CONDITION: 逶ｸ謇九・繧ｨ繝翫だ繝ｼ繝ｳ縺九ヨ繝ｩ繝・す繝･縺矩∈謚・  if (stub.id === 'OPP_ENERGY_OR_DISCARD_CONDITION') {
+  // OPP_ENERGY_OR_DISCARD_CONDITION: 逶ｸ謇九・繧ｨ繝翫だ繝ｼ繝ｳ縺九ヨ繝ｩ繝・す繝･縺矩∈謚・
+  if (stub.id === 'OPP_ENERGY_OR_DISCARD_CONDITION') {
     const toEnaOEODC: EnergyChargeAction = { type: 'ENERGY_CHARGE', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } };
     const toTrashOEODC: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
     return needsInteraction(ctx, {
@@ -5234,7 +5364,8 @@ export function execStub(
       ],
     });
   }
-  // PLACE_SIGNI_UNDER_SIGNI: 繧ｷ繧ｰ繝九ｒ繧ｷ繧ｰ繝倶ｸ九↓險ｭ鄂ｮ・・astProcessed竊痴ourceCardNum縺ｮ繧ｾ繝ｼ繝ｳ荳具ｼ・  if (stub.id === 'PLACE_SIGNI_UNDER_SIGNI') {
+  // PLACE_SIGNI_UNDER_SIGNI: 繧ｷ繧ｰ繝九ｒ繧ｷ繧ｰ繝倶ｸ九↓險ｭ鄂ｮ・・astProcessed竊痴ourceCardNum縺ｮ繧ｾ繝ｼ繝ｳ荳具ｼ・
+  if (stub.id === 'PLACE_SIGNI_UNDER_SIGNI') {
     const cardToPlacePSUS = ctx.lastProcessedCards?.[0];
     if (!cardToPlacePSUS || !ctx.sourceCardNum) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺暦ｼ・LACE_SIGNI_UNDER_SIGNI・・));
     let selfZonePSUS = -1;
@@ -5249,7 +5380,8 @@ export function execStub(
     sPSUS = { ...sPSUS, field: { ...sPSUS.field, signi: newSigniPSUS } };
     return done(addLog({ ...ctx, ownerState: sPSUS }, `${ctx.cardMap.get(cardToPlacePSUS)?.CardName ?? cardToPlacePSUS}繧偵す繧ｰ繝倶ｸ九↓險ｭ鄂ｮ`));
   }
-  // CONDITIONAL_PER_TRASH: 繝医Λ繝・す繝･譫壽焚縺ｫ繧医ｋ譚｡莉ｶ・・譫壻ｻ･荳翫〒X・・  if (stub.id === 'CONDITIONAL_PER_TRASH') {
+  // CONDITIONAL_PER_TRASH: 繝医Λ繝・す繝･譫壽焚縺ｫ繧医ｋ譚｡莉ｶ・・譫壻ｻ･荳翫〒X・・
+  if (stub.id === 'CONDITIONAL_PER_TRASH') {
     const srcCPT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCPT = srcCPT ? (srcCPT.EffectText ?? '') + ' ' + (srcCPT.BurstText ?? '') : '';
     const toHWCPT = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -5265,7 +5397,8 @@ export function execStub(
       `繝医Λ繝・す繝･${trashCountCPT}譫壽擅莉ｶ驕疲・竊・譫壹ラ繝ｭ繝ｼ`));
   }
   // === 繝舌ャ繝・0: 蜈ｬ髢九・謇区惆繝ｻ逶ｸ謇区焔譛ｭ謫堺ｽ・===
-  // LOOK_OPP_HAND_DISCARD_SIGNI: 逶ｸ謇九・謇区惆繧定ｦ九※繧ｷ繧ｰ繝・譫壹ｒ謐ｨ縺ｦ縺輔○繧・  if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
+  // LOOK_OPP_HAND_DISCARD_SIGNI: 逶ｸ謇九・謇区惆繧定ｦ九※繧ｷ繧ｰ繝・譫壹ｒ謐ｨ縺ｦ縺輔○繧・
+  if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
     const signiInOppLOHDS = ctx.otherState.hand.filter(cn => ctx.cardMap.get(cn)?.Type === '繧ｷ繧ｰ繝・);
     if (signiInOppLOHDS.length === 0) return done(addLog(ctx, '逶ｸ謇区焔譛ｭ縺ｫ繧ｷ繧ｰ繝九↑縺・));
     const thenLOHDS: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
@@ -5274,7 +5407,8 @@ export function execStub(
       targetScope: 'opp_hand', thenAction: thenLOHDS,
     });
   }
-  // REVEALED_CARD_COLOR_DISCARD: 蜈ｬ髢九き繝ｼ繝峨・濶ｲ縺ｨ蜷後§濶ｲ縺ｮ謇区惆繧ｫ繝ｼ繝峨ｒ謐ｨ縺ｦ繧・  if (stub.id === 'REVEALED_CARD_COLOR_DISCARD') {
+  // REVEALED_CARD_COLOR_DISCARD: 蜈ｬ髢九き繝ｼ繝峨・濶ｲ縺ｨ蜷後§濶ｲ縺ｮ謇区惆繧ｫ繝ｼ繝峨ｒ謐ｨ縺ｦ繧・
+  if (stub.id === 'REVEALED_CARD_COLOR_DISCARD') {
     const revCardRCCD = ctx.lastProcessedCards?.[0];
     if (!revCardRCCD) return done(addLog(ctx, '蜈ｬ髢九き繝ｼ繝峨↑縺・));
     const revColorRCCD = ctx.cardMap.get(revCardRCCD)?.Color ?? '';
@@ -5292,7 +5426,8 @@ export function execStub(
     });
   }
   // VIEW_AND_DISCARD_SPELL (STUB迚・: 謇区惆縺句ｴ縺ｮ繧ｫ繝ｼ繝峨ｒ隕九※繧ｹ繝壹Ν繧呈昏縺ｦ繧・竊・謇区惆縺九ｉ繧ｹ繝壹Ν繧・譫壽昏縺ｦ繧・  // (already implemented by batch 5 VIEW_AND_DISCARD_SPELL)
-  // OPP_TRASH_TO_OPP_SIGNI_UNDER: 逶ｸ謇九ヨ繝ｩ繝・す繝･譛荳頑ｮｵ繧堤嶌謇九す繧ｰ繝倶ｸ九↓繧ｫ繝ｼ繝峨ｒ鄂ｮ縺・  if (stub.id === 'OPP_TRASH_TO_OPP_SIGNI_UNDER') {
+  // OPP_TRASH_TO_OPP_SIGNI_UNDER: 逶ｸ謇九ヨ繝ｩ繝・す繝･譛荳頑ｮｵ繧堤嶌謇九す繧ｰ繝倶ｸ九↓繧ｫ繝ｼ繝峨ｒ鄂ｮ縺・
+  if (stub.id === 'OPP_TRASH_TO_OPP_SIGNI_UNDER') {
     const sOTTOSU = ctx.otherState;
     if (sOTTOSU.trash.length === 0) return done(addLog(ctx, '逶ｸ謇九ヨ繝ｩ繝・す繝･縺ｪ縺・));
     const topTrashOTTOSU = sOTTOSU.trash.at(-1)!;
@@ -5314,7 +5449,8 @@ export function execStub(
       type: 'CHOOSE', options: zoneOptsOTTOSU, count: 1,
     });
   }
-  // INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: stub.value=繧ｾ繝ｼ繝ｳ逡ｪ蜿ｷ縲〕astProcessedCards[0]=鄂ｮ縺上き繝ｼ繝・  if (stub.id === 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE') {
+  // INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: stub.value=繧ｾ繝ｼ繝ｳ逡ｪ蜿ｷ縲〕astProcessedCards[0]=鄂ｮ縺上き繝ｼ繝・
+  if (stub.id === 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE') {
     const zoneIdxOTUSZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
     const cardToPlaceOTUSZ = ctx.lastProcessedCards?.[0] ?? null;
     if (!cardToPlaceOTUSZ) return done(addLog(ctx, 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: 繧ｫ繝ｼ繝峨↑縺・));
@@ -5395,7 +5531,8 @@ export function execStub(
       continuation: ({ type: 'CHOOSE', choose_count: 1, from_count: 3, choices: zoneOptsPTO.map(o => ({ choiceId: o.id, label: o.label, action: o.action })) } as ChooseAction) as EffectAction,
     });
   }
-  // CHOOSE_TRAP_ZONE: 驕ｸ謚樊ｸ医∩繧ｫ繝ｼ繝峨・繧ｾ繝ｼ繝ｳ驕ｸ謚・  if (stub.id === 'CHOOSE_TRAP_ZONE') {
+  // CHOOSE_TRAP_ZONE: 驕ｸ謚樊ｸ医∩繧ｫ繝ｼ繝峨・繧ｾ繝ｼ繝ｳ驕ｸ謚・
+  if (stub.id === 'CHOOSE_TRAP_ZONE') {
     const zoneOptsCTZ = [0, 1, 2].map(zi => ({
       id: `zone_${zi}`,
       label: `繧ｾ繝ｼ繝ｳ${zi + 1}縺ｫ險ｭ鄂ｮ`,
@@ -5419,7 +5556,8 @@ export function execStub(
     const newOwnerIST = { ...ctx.ownerState, hand: newHandIST, trash: newTrashIST, field: { ...ctx.ownerState.field, signi_traps: currentTrapsIST } };
     return done(addLog({ ...ctx, ownerState: newOwnerIST }, `繝医Λ繝・・險ｭ鄂ｮ: 繧ｾ繝ｼ繝ｳ${zoneIdxIST + 1}`));
   }
-  // TRAP_TO_HAND: signi_traps縺ｮ繧ｫ繝ｼ繝峨ｒ謇区惆縺ｸ・亥・譫壹∪縺溘・驕ｸ謚橸ｼ・  if (stub.id === 'TRAP_TO_HAND') {
+  // TRAP_TO_HAND: signi_traps縺ｮ繧ｫ繝ｼ繝峨ｒ謇区惆縺ｸ・亥・譫壹∪縺溘・驕ｸ謚橸ｼ・
+  if (stub.id === 'TRAP_TO_HAND') {
     const allTrapsTTH = (ctx.ownerState.field.signi_traps ?? [null, null, null]);
     const trapsToHandTTH = allTrapsTTH.filter(Boolean) as string[];
     if (trapsToHandTTH.length === 0) return done(addLog(ctx, '繝医Λ繝・・縺ｪ縺・));
@@ -5453,7 +5591,8 @@ export function execStub(
     const newOwnerTTH2 = { ...ctx.ownerState, hand: [...ctx.ownerState.hand, ...selectedTTH], field: { ...ctx.ownerState.field, signi_traps: newTrapsTTH2 } };
     return done(addLog({ ...ctx, ownerState: newOwnerTTH2 }, `繝医Λ繝・・${selectedTTH.length}譫壹ｒ謇区惆縺ｸ`));
   }
-  // ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: 繝医Λ繝・・繧定｡ｨ蜷代″縺ｫ縺励※TRAP_ICON蜉ｹ譫懊ｒ逋ｺ蜍・  if (stub.id === 'ACTIVATE_TRAP' || stub.id === 'ACTIVATE_TRAP_IN_FIELD') {
+  // ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: 繝医Λ繝・・繧定｡ｨ蜷代″縺ｫ縺励※TRAP_ICON蜉ｹ譫懊ｒ逋ｺ蜍・
+  if (stub.id === 'ACTIVATE_TRAP' || stub.id === 'ACTIVATE_TRAP_IN_FIELD') {
     const trapsAT: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];
     // lastProcessedCards縺ｫ謖・ｮ壹′縺ゅｌ縺ｰ縺昴・繝医Λ繝・・繧貞━蜈医√↑縺代ｌ縺ｰ譛蛻昴・繝医Λ繝・・
     const selectedAT = ctx.lastProcessedCards?.[0];
@@ -5551,7 +5690,8 @@ export function execStub(
       },
     );
   }
-  // INTERNAL_PTFR_CHOOSE_ZONE: PLACE_TRAP_FROM_REVEALED逕ｨ縺ｮ繧ｾ繝ｼ繝ｳ驕ｸ謚・  if (stub.id === 'INTERNAL_PTFR_CHOOSE_ZONE') {
+  // INTERNAL_PTFR_CHOOSE_ZONE: PLACE_TRAP_FROM_REVEALED逕ｨ縺ｮ繧ｾ繝ｼ繝ｳ驕ｸ謚・
+  if (stub.id === 'INTERNAL_PTFR_CHOOSE_ZONE') {
     const selectedPTFR = ctx.lastProcessedCards?.[0];
     if (!selectedPTFR) return done(addLog(ctx, '繝医Λ繝・・險ｭ鄂ｮ繧ｹ繧ｭ繝・・・磯∈謚槭↑縺暦ｼ・));
     const zoneOptsPTFR = [0, 1, 2].map(zi => ({
@@ -5566,7 +5706,8 @@ export function execStub(
       { type: 'CHOOSE', options: zoneOptsPTFR, count: 1 },
     );
   }
-  // TRAP_OP: 繧ｽ繝ｼ繧ｹ繧ｫ繝ｼ繝峨・繝・く繧ｹ繝医↓蠢懊§縺ｦ謫堺ｽ懷愛螳・  if (stub.id === 'TRAP_OP') {
+  // TRAP_OP: 繧ｽ繝ｼ繧ｹ繧ｫ繝ｼ繝峨・繝・く繧ｹ繝医↓蠢懊§縺ｦ謫堺ｽ懷愛螳・
+  if (stub.id === 'TRAP_OP') {
     const srcTRAPOP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtTRAPOP = srcTRAPOP ? (srcTRAPOP.EffectText ?? '') + ' ' + (srcTRAPOP.BurstText ?? '') : '';
     // 繝医Λ繝・・繧｢繧､繧ｳ繝ｳ逋ｺ蜍包ｼ哂CTIVATE_TRAP縺ｨ蜷御ｸ繝ｭ繧ｸ繝・け・・arseCardEffects邨檎罰縺ｧTRAP_ICON螳溯｡鯉ｼ・    if (txtTRAPOP.includes('繝医Λ繝・・繧｢繧､繧ｳ繝ｳ') && (txtTRAPOP.includes('逋ｺ蜍・) || txtTRAPOP.includes('逋ｺ蜍輔＆縺帙ｋ'))) {
@@ -5688,7 +5829,8 @@ export function execStub(
       continuation: ({ type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK' } as StubAction) as EffectAction,
     });
   }
-  // INTERNAL_SEED_FROM_DECK: SEARCH縺ｧ驕ｸ謚槭＠縺溘き繝ｼ繝峨ｒ繝・ャ繧ｭ縺九ｉ蜿悶ｊ蜃ｺ縺励※繧ｾ繝ｼ繝ｳ驕ｸ謚・  if (stub.id === 'INTERNAL_SEED_FROM_DECK') {
+  // INTERNAL_SEED_FROM_DECK: SEARCH縺ｧ驕ｸ謚槭＠縺溘き繝ｼ繝峨ｒ繝・ャ繧ｭ縺九ｉ蜿悶ｊ蜃ｺ縺励※繧ｾ繝ｼ繝ｳ驕ｸ謚・
+  if (stub.id === 'INTERNAL_SEED_FROM_DECK') {
     const pickedISD = ctx.lastProcessedCards?.[0];
     if (!pickedISD) return done(addLog(ctx, '繧ｷ繝ｼ繝芽ｨｭ鄂ｮ・壽悴驕ｸ謚・));
     const newDeckISD = ctx.ownerState.deck.filter(c => c !== pickedISD);
@@ -5865,7 +6007,8 @@ export function execStub(
       type: 'CHOOSE', options: zoneOptsISTH, count: 1,
     });
   }
-  // SEED_FLOWER_OP: 蛻･繧ｷ繝ｼ繝・譫壹ｒ髢玖干縺励※繝・ャ繧ｭ荳翫ｒ繧ｷ繝ｼ繝芽ｨｭ鄂ｮ・医Ζ繝槭Ξ繝ｳ繧ｲ邉ｻ・・  if (stub.id === 'SEED_FLOWER_OP') {
+  // SEED_FLOWER_OP: 蛻･繧ｷ繝ｼ繝・譫壹ｒ髢玖干縺励※繝・ャ繧ｭ荳翫ｒ繧ｷ繝ｼ繝芽ｨｭ鄂ｮ・医Ζ繝槭Ξ繝ｳ繧ｲ邉ｻ・・
+  if (stub.id === 'SEED_FLOWER_OP') {
     const seedsSFO = ctx.ownerState.field.signi_seeds ?? [null, null, null];
     const availSFO = [0, 1, 2].filter(zi => seedsSFO[zi] !== null);
     if (availSFO.length === 0) return done(addLog(ctx, 'SEED_FLOWER_OP: 繧ｷ繝ｼ繝峨↑縺・));
@@ -5902,7 +6045,8 @@ export function execStub(
       type: 'CHOOSE', options: zoneOptsSFDTP, count: 1,
     });
   }
-  // BLOOM_CHOOSE: 髢玖干縺励◆縺ｨ縺埼∈謚槫柑譫懶ｼ亥句挨蜉ｹ譫懊ユ繧ｭ繧ｹ繝井ｾ晏ｭ假ｼ・  if (stub.id === 'BLOOM_CHOOSE') {
+  // BLOOM_CHOOSE: 髢玖干縺励◆縺ｨ縺埼∈謚槫柑譫懶ｼ亥句挨蜉ｹ譫懊ユ繧ｭ繧ｹ繝井ｾ晏ｭ假ｼ・
+  if (stub.id === 'BLOOM_CHOOSE') {
     return done(addLog(ctx, `[髢玖干譎る∈謚槫柑譫・ ${ctx.sourceCardNum}]`));
   }
   // 陬丞髄縺咲ｳｻ・・ace_down_signi + abilities_removed 縺ｧ霑台ｼｼ螳溯｣・ｸ医∩・・  // REMOVE_SIGNI_ZONE: 蟇ｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝九だ繝ｼ繝ｳ繧・縺､蜑企勁
@@ -5933,7 +6077,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: newOtherIRSZ },
       `逶ｸ謇九だ繝ｼ繝ｳ${zoneIdxIRSZ + 1}繧貞炎髯､・・{oppStackIRSZ.length}菴薙ヨ繝ｩ繝・す繝･・荏));
   }
-  // DESIGNATE_SIGNI_ZONE: 逶ｸ謇九す繧ｰ繝九だ繝ｼ繝ｳ繧・縺､謖・ｮ壹☆繧・  if (stub.id === 'DESIGNATE_SIGNI_ZONE') {
+  // DESIGNATE_SIGNI_ZONE: 逶ｸ謇九す繧ｰ繝九だ繝ｼ繝ｳ繧・縺､謖・ｮ壹☆繧・
+  if (stub.id === 'DESIGNATE_SIGNI_ZONE') {
     const zoneOptsDSZ = [0, 1, 2].map(zi => ({
       id: `zone_${zi}`,
       label: `繧ｾ繝ｼ繝ｳ${zi + 1}繧呈欠螳啻,
@@ -5944,22 +6089,26 @@ export function execStub(
       type: 'CHOOSE', options: zoneOptsDSZ, count: 1,
     });
   }
-  // INTERNAL_DESIGNATE_ZONE: 驕ｸ謚槭＠縺溘だ繝ｼ繝ｳ繧堤嶌謇鬼tate縺ｫ菫晏ｭ・  if (stub.id === 'INTERNAL_DESIGNATE_ZONE') {
+  // INTERNAL_DESIGNATE_ZONE: 驕ｸ謚槭＠縺溘だ繝ｼ繝ｳ繧堤嶌謇鬼tate縺ｫ菫晏ｭ・
+  if (stub.id === 'INTERNAL_DESIGNATE_ZONE') {
     const zoneIdxIDZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
     const newOtherIDZ = { ...ctx.otherState, designated_zone: zoneIdxIDZ };
     return done(addLog({ ...ctx, otherState: newOtherIDZ }, `逶ｸ謇九だ繝ｼ繝ｳ${zoneIdxIDZ + 1}繧呈欠螳啻));
   }
-  // BLOCK_OPP_ZONE_PLACEMENT: 謖・ｮ壹だ繝ｼ繝ｳ縺ｸ縺ｮ驟咲ｽｮ繧堤ｦ∵ｭ｢・・isabled_signi_zones 縺ｫ霑ｽ蜉・・  if (stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
+  // BLOCK_OPP_ZONE_PLACEMENT: 謖・ｮ壹だ繝ｼ繝ｳ縺ｸ縺ｮ驟咲ｽｮ繧堤ｦ∵ｭ｢・・isabled_signi_zones 縺ｫ霑ｽ蜉・・
+  if (stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
     const zoneIdxBOZP = ctx.otherState.designated_zone ?? 0;
     const currentDisabledBOZP = [...(ctx.otherState.disabled_signi_zones ?? [])];
     if (!currentDisabledBOZP.includes(zoneIdxBOZP)) currentDisabledBOZP.push(zoneIdxBOZP);
     const newOtherBOZP = { ...ctx.otherState, disabled_signi_zones: currentDisabledBOZP };
     return done(addLog({ ...ctx, otherState: newOtherBOZP }, `逶ｸ謇九だ繝ｼ繝ｳ${zoneIdxBOZP + 1}縺ｸ縺ｮ繧ｷ繧ｰ繝矩・鄂ｮ繧堤ｦ∵ｭ｢`));
   }
-  // 繧｢繝ｼ繝・擅莉ｶ邉ｻ・・ngine: 繧｢繝ｼ繝・ｽｿ逕ｨ譚｡莉ｶ譛ｪ螳溯｣・ｼ・  if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ARTS_EXTRA_COST_CONDITION' || stub.id === 'ACCE_COST_REDUCTION') {
+  // 繧｢繝ｼ繝・擅莉ｶ邉ｻ・・ngine: 繧｢繝ｼ繝・ｽｿ逕ｨ譚｡莉ｶ譛ｪ螳溯｣・ｼ・
+  if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ARTS_EXTRA_COST_CONDITION' || stub.id === 'ACCE_COST_REDUCTION') {
     return done(addLog(ctx, `[繧｢繝ｼ繝・繧｢繧ｯ繧ｻ繧ｳ繧ｹ繝・ ${stub.id}]`));
   }
-  // ARTS_USE_DISCARD_COLOR_HAND: 謇区惆縺九ｉ迚ｹ螳夊牡縺ｮ繧ｫ繝ｼ繝峨ｒ莉ｻ諢蒐譫壹∪縺ｧ謐ｨ縺ｦ縲√さ繧ｹ繝郁ｻｽ貂幢ｼ・PTIONAL_DISCARD_CLASS_SIGNI 縺ｮ濶ｲ迚茨ｼ・  if (stub.id === 'ARTS_USE_DISCARD_COLOR_HAND') {
+  // ARTS_USE_DISCARD_COLOR_HAND: 謇区惆縺九ｉ迚ｹ螳夊牡縺ｮ繧ｫ繝ｼ繝峨ｒ莉ｻ諢蒐譫壹∪縺ｧ謐ｨ縺ｦ縲√さ繧ｹ繝郁ｻｽ貂幢ｼ・PTIONAL_DISCARD_CLASS_SIGNI 縺ｮ濶ｲ迚茨ｼ・
+  if (stub.id === 'ARTS_USE_DISCARD_COLOR_HAND') {
     const srcAUDCH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtAUDCH = srcAUDCH ? (srcAUDCH.EffectText ?? '') + ' ' + (srcAUDCH.BurstText ?? '') : '';
     const toHWAUDCH = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -6053,7 +6202,8 @@ export function execStub(
     }
     return done(addLog(ctx, `[繝輔Μ繝ｼ繝励Ξ繧､: ${cardPF.CardName} (蜉ｹ譫懷ｮ溯｡御ｸ榊庄)]`));
   }
-  // REACTIVE_POWER_UP: 縺ゅ↑縺溘・蜉ｹ譫懊〒逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ縺梧ｸ帙▲縺溘→縺阪√◎縺ｮ蛻・□縺題・繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧剃ｸ翫￡繧・  if (stub.id === 'REACTIVE_POWER_UP') {
+  // REACTIVE_POWER_UP: 縺ゅ↑縺溘・蜉ｹ譫懊〒逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ縺梧ｸ帙▲縺溘→縺阪√◎縺ｮ蛻・□縺題・繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧剃ｸ翫￡繧・
+  if (stub.id === 'REACTIVE_POWER_UP') {
     const srcRPU = ctx.sourceCardNum;
     if (!srcRPU) return done(addLog(ctx, '[REACTIVE_POWER_UP: 繧ｽ繝ｼ繧ｹ縺ｪ縺余'));
     // 逶ｸ謇九す繧ｰ繝九・ temp_power_mods 縺ｮ繝槭う繝翫せ蛻・ｒ蜷郁ｨ茨ｼ医％縺ｮ繧ｿ繝ｼ繝ｳ縺ｫ蜉縺医ｉ繧後◆蜈ｨ繝槭う繝翫せ・・    const oppMods = ctx.otherState.temp_power_mods ?? [];
@@ -6064,7 +6214,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: selfMods } },
       `繝ｪ繧｢繧ｯ繝・ぅ繝悶ヱ繝ｯ繝ｼ繧｢繝・・・・${totalMinus}・育嶌謇九・繧､繝翫せ蜷郁ｨ亥・・荏));
   }
-  // POWER_MOD_DISTRIBUTE: 蜷郁ｨ医ヱ繝ｯ繝ｼ繧帝∈謚槭す繧ｰ繝九↓蝮・ｭ蛾・蛻・ｼ郁・蝣ｴ繧ｷ繧ｰ繝区怙螟ｧ3菴難ｼ・  if (stub.id === 'POWER_MOD_DISTRIBUTE') {
+  // POWER_MOD_DISTRIBUTE: 蜷郁ｨ医ヱ繝ｯ繝ｼ繧帝∈謚槭す繧ｰ繝九↓蝮・ｭ蛾・蛻・ｼ郁・蝣ｴ繧ｷ繧ｰ繝区怙螟ｧ3菴難ｼ・
+  if (stub.id === 'POWER_MOD_DISTRIBUTE') {
     const toHWPMD = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const srcPMD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtPMD = srcPMD ? (srcPMD.EffectText ?? '') + ' ' + (srcPMD.BurstText ?? '') : '';
@@ -6127,7 +6278,8 @@ export function execStub(
     const newOther = { ...ctx.otherState, temp_power_mods: mods };
     return done(addLog({ ...ctx, otherState: newOther }, `${ctx.cardMap.get(targetNum)?.CardName ?? targetNum}繝代Ρ繝ｼ${delta}`));
   }
-  // 隍・尅繝代Ρ繝ｼ菫ｮ豁｣・・ngine: 繧ｳ繝ｳ繝・く繧ｹ繝・驟咲ｽｮ諠・ｱ蠢・ｦ・ｼ・  // CONDITIONAL_ALT_POWER_BOOST: 譚｡莉ｶ謌千ｫ区凾縺ｫ莉｣繧上ｊ縺ｫ繝代Ρ繝ｼ菫ｮ豁｣・・UTO/ACTIVATED: temp_power_mods・・  if (stub.id === 'CONDITIONAL_ALT_POWER_BOOST') {
+  // 隍・尅繝代Ρ繝ｼ菫ｮ豁｣・・ngine: 繧ｳ繝ｳ繝・く繧ｹ繝・驟咲ｽｮ諠・ｱ蠢・ｦ・ｼ・  // CONDITIONAL_ALT_POWER_BOOST: 譚｡莉ｶ謌千ｫ区凾縺ｫ莉｣繧上ｊ縺ｫ繝代Ρ繝ｼ菫ｮ豁｣・・UTO/ACTIVATED: temp_power_mods・・
+  if (stub.id === 'CONDITIONAL_ALT_POWER_BOOST') {
     if (!ctx.sourceCardNum) return done(addLog(ctx, 'CONDITIONAL_ALT_POWER_BOOST: sourceCardNum荳肴・'));
     const srcCAPB = ctx.cardMap.get(ctx.sourceCardNum);
     const txtCAPB = srcCAPB ? (srcCAPB.EffectText ?? '') + ' ' + (srcCAPB.BurstText ?? '') : '';
@@ -6141,10 +6293,12 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsCAPB } },
       `莉｣譖ｿ繝代Ρ繝ｼ菫ｮ豁｣: ${deltaCAPB > 0 ? '+' : ''}${deltaCAPB}`));
   }
-  // 繝ｬ繝吶Ν菫ｮ豁｣・・ngine: 繝吶・繧ｹ繝ｬ繝吶Ν螟画峩繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・  if (stub.id === 'LEVEL_MOD_PER_COUNT') {
+  // 繝ｬ繝吶Ν菫ｮ豁｣・・ngine: 繝吶・繧ｹ繝ｬ繝吶Ν螟画峩繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・
+  if (stub.id === 'LEVEL_MOD_PER_COUNT') {
     return done(addLog(ctx, '[LEVEL_MOD_PER_COUNT: effectEngine縺ｧ蜃ｦ逅・'));
   }
-  // SET_LEVEL_RANGE: 閾ｪ繧ｷ繧ｰ繝・菴薙ｒ驕ｸ繧薙〒繝ｬ繝吶Ν1・・縺ｫ螟画峩・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・  if (stub.id === 'SET_LEVEL_RANGE') {
+  // SET_LEVEL_RANGE: 閾ｪ繧ｷ繧ｰ繝・菴薙ｒ驕ｸ繧薙〒繝ｬ繝吶Ν1・・縺ｫ螟画峩・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・
+  if (stub.id === 'SET_LEVEL_RANGE') {
     const targetSLR = (ctx.lastProcessedCards ?? []).find(cn =>
       ctx.ownerState.field.signi.some(s => s?.at(-1) === cn),
     );
@@ -6193,7 +6347,8 @@ export function execStub(
     const newOwnerPSD: PlayerState = { ...ctx.ownerState, prevent_signi_down_by_opp: true };
     return done(addLog({ ...ctx, ownerState: newOwnerPSD }, '逶ｸ謇九・閾ｪ繧ｷ繧ｰ繝九ｒ繝繧ｦ繝ｳ縺ｧ縺阪↑縺・));
   }
-  // OPP_SIGNI_ATTACK_POWER_RESTRICT: 逶ｸ謇九す繧ｰ繝九い繧ｿ繝・け譎ゅヱ繝ｯ繝ｼ蛻ｶ髯・  if (stub.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
+  // OPP_SIGNI_ATTACK_POWER_RESTRICT: 逶ｸ謇九す繧ｰ繝九い繧ｿ繝・け譎ゅヱ繝ｯ繝ｼ蛻ｶ髯・
+  if (stub.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
     const srcOSAPR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtOSAPR = srcOSAPR ? (srcOSAPR.EffectText ?? '') + ' ' + (srcOSAPR.BurstText ?? '') : '';
     const toHWOSAPR = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -6219,7 +6374,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, face_down_signi: newFaceOppSFD, abilities_removed: newAbilOppSFD } },
       `${ctx.cardMap.get(srcSFD)?.CardName ?? srcSFD}繧定｣丞髄縺阪↓`));
   }
-  // FLIP_FACE_DOWN_SIGNI: 陬丞髄縺阪す繧ｰ繝九ｒ陦ｨ蜷代″縺ｫ謌ｻ縺呻ｼ・縺薙・譁ｹ豕輔〒陬丞髄縺阪↓縺励◆繧ｷ繧ｰ繝九ｒ陦ｨ蜷代″縺ｫ縺吶ｋ"・・  if (stub.id === 'FLIP_FACE_DOWN_SIGNI') {
+  // FLIP_FACE_DOWN_SIGNI: 陬丞髄縺阪す繧ｰ繝九ｒ陦ｨ蜷代″縺ｫ謌ｻ縺呻ｼ・縺薙・譁ｹ豕輔〒陬丞髄縺阪↓縺励◆繧ｷ繧ｰ繝九ｒ陦ｨ蜷代″縺ｫ縺吶ｋ"・・
+  if (stub.id === 'FLIP_FACE_DOWN_SIGNI') {
     const faceDownFBSFD = ctx.ownerState.face_down_signi ?? [];
     const oppFaceDownFBSFD = ctx.otherState.face_down_signi ?? [];
     if (faceDownFBSFD.length === 0 && oppFaceDownFBSFD.length === 0) {
@@ -6258,7 +6414,8 @@ export function execStub(
     const applyFDOS: StubAction = { type: 'STUB', id: 'FACE_DOWN_OPP_SIGNI' };
     return selectOrInteract(candsFDOS, 1, false, 'opp_field', applyFDOS as EffectAction, undefined, ctx);
   }
-  // 菫晁ｭｷ繝ｻ遘ｻ蜍暮亟豁｢邉ｻ・・ngine: 蜷・亟豁｢繝輔Λ繧ｰ繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・  if (stub.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH'
+  // 菫晁ｭｷ繝ｻ遘ｻ蜍暮亟豁｢邉ｻ・・ngine: 蜷・亟豁｢繝輔Λ繧ｰ繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・
+  if (stub.id === 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH'
       || stub.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH' || stub.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP'
       || stub.id === 'PREVENT_OPP_SIGNI_ABILITY_GAIN'
       || stub.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP' || stub.id === 'PREVENT_POWER_MINUS_BY_OPP'
@@ -6284,7 +6441,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedOtherPAUOAP } },
       `${ctx.cardMap.get(srcPAUOAP)?.CardName ?? srcPAUOAP}縺ｯ谺｡縺ｮ逶ｸ謇帰TK繝輔ぉ繧､繧ｺ荳ｭ繧｢繧ｿ繝・け荳榊庄`));
   }
-  // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: 縺薙・繧ｿ繝ｼ繝ｳ蟇ｾ雎｡繝ｫ繝ｪ繧ｰ縺ｮ繧｢繧ｿ繝・け繧帝亟縺・  if (stub.id === 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN') {
+  // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: 縺薙・繧ｿ繝ｼ繝ｳ蟇ｾ雎｡繝ｫ繝ｪ繧ｰ縺ｮ繧｢繧ｿ繝・け繧帝亟縺・
+  if (stub.id === 'PREVENT_TARGET_LRIG_ATTACK_THIS_TURN') {
     const tgtPTLAT = ctx.lastProcessedCards?.[0]
       ?? ctx.otherState.field.lrig.at(-1);
     if (!tgtPTLAT) return done(addLog(ctx, '繝ｫ繝ｪ繧ｰ繧｢繧ｿ繝・け髦ｲ豁｢: 蟇ｾ雎｡縺ｪ縺・));
@@ -6293,7 +6451,8 @@ export function execStub(
       `${ctx.cardMap.get(tgtPTLAT)?.CardName ?? tgtPTLAT}縺ｯ縺薙・繧ｿ繝ｼ繝ｳ繧｢繧ｿ繝・け縺ｧ縺阪↑縺Я));
   }
   // INTERNAL_GRANT_NO_ATTACK_LRIG: CHOOSE_SAME_OPTION_TWICE縺九ｉ蜻ｼ縺ｰ繧後ｋ蜀・Κ繝上Φ繝峨Λ
-  // 逶ｸ謇九そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｫ繧｢繧ｿ繝・け荳榊庄・・egated_attacks・峨ｒ莉倅ｸ・  if (stub.id === 'INTERNAL_GRANT_NO_ATTACK_LRIG') {
+  // 逶ｸ謇九そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｫ繧｢繧ｿ繝・け荳榊庄・・egated_attacks・峨ｒ莉倅ｸ・
+  if (stub.id === 'INTERNAL_GRANT_NO_ATTACK_LRIG') {
     const lrigIGNAL = ctx.otherState.field.lrig.at(-1);
     if (!lrigIGNAL) return done(addLog(ctx, 'INTERNAL_GRANT_NO_ATTACK_LRIG: 繝ｫ繝ｪ繧ｰ縺ｪ縺・));
     const newNegIGNAL = [...new Set([...(ctx.otherState.negated_attacks ?? []), lrigIGNAL])];
@@ -6312,10 +6471,12 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, blocked_actions: newBlockedPOAU } },
       '閾ｪ蛻・・繧｢繝ｼ繝・ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・));
   }
-  // PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: 蜈ｨ繧ｷ繧ｰ繝九・逶ｸ謇九ヱ繝ｯ繝ｼ繝槭う繝翫せ髦ｲ豁｢・・ffectEngine縺ｧ蜍慕噪蜃ｦ逅・ｼ・  if (stub.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') {
+  // PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: 蜈ｨ繧ｷ繧ｰ繝九・逶ｸ謇九ヱ繝ｯ繝ｼ繝槭う繝翫せ髦ｲ豁｢・・ffectEngine縺ｧ蜍慕噪蜃ｦ逅・ｼ・
+  if (stub.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') {
     return done(addLog(ctx, '[蜈ｨ繧ｷ繧ｰ繝九ヱ繝ｯ繝ｼ繝槭う繝翫せ髦ｲ豁｢: effectEngine縺ｧ蜍慕噪蜃ｦ逅・'));
   }
-  // 繧ｰ繝ｭ繧ｦ繧ｳ繧ｹ繝亥､画峩・・ngine: 繧ｰ繝ｭ繧ｦ繧ｳ繧ｹ繝亥・逅・悴螳溯｣・ｼ・  if (stub.id === 'GROW_COST_ZERO' || stub.id === 'CONDITIONAL_FREE_GROW') {
+  // 繧ｰ繝ｭ繧ｦ繧ｳ繧ｹ繝亥､画峩・・ngine: 繧ｰ繝ｭ繧ｦ繧ｳ繧ｹ繝亥・逅・悴螳溯｣・ｼ・
+  if (stub.id === 'GROW_COST_ZERO' || stub.id === 'CONDITIONAL_FREE_GROW') {
     const newOwnerGCZ: PlayerState = { ...ctx.ownerState, free_grow_this_turn: true };
     return done(addLog({ ...ctx, ownerState: newOwnerGCZ }, '繧ｰ繝ｭ繧ｦ繧ｳ繧ｹ繝・・域ｬ｡縺ｮ繧ｰ繝ｭ繧ｦ縺ｯ辟｡譁呻ｼ・));
   }
@@ -6355,10 +6516,12 @@ export function execStub(
       || stub.id === 'ARTS_COST_REDUCTION_BY_COST_THRESHOLD' || stub.id === 'REDUCE_PLAY_ABILITY_COST') {
     return done(addLog(ctx, `[繧ｳ繧ｹ繝郁ｻｽ貂・ ${stub.id}]`));
   }
-  // 繧ｬ繝ｼ繝臥ｳｻ・・ngine: 繧ｬ繝ｼ繝峨さ繧ｹ繝亥・逅・悴螳溯｣・ｼ・  if (stub.id === 'GUARD_ALTERNATIVE_COST' || stub.id === 'EXTRA_GUARD_COST_FROM_HAND' || stub.id === 'OPTIONAL_TRADE_GUARD_SIGNI') {
+  // 繧ｬ繝ｼ繝臥ｳｻ・・ngine: 繧ｬ繝ｼ繝峨さ繧ｹ繝亥・逅・悴螳溯｣・ｼ・
+  if (stub.id === 'GUARD_ALTERNATIVE_COST' || stub.id === 'EXTRA_GUARD_COST_FROM_HAND' || stub.id === 'OPTIONAL_TRADE_GUARD_SIGNI') {
     return done(addLog(ctx, `[繧ｬ繝ｼ繝峨さ繧ｹ繝・ ${stub.id}]`));
   }
-  // 驕ｸ繧薙□繧ｭ繝ｼ繝ｯ繝ｼ繝・菫晁ｭｷ閭ｽ蜉帑ｻ倅ｸ趣ｼ医す繧ｰ繝句ｯｾ雎｡繝ｻSELECT_TARGET竊辰HOOSE繧､繝ｳ繧ｿ繝ｩ繧ｯ繧ｷ繝ｧ繝ｳ・・  if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF'
+  // 驕ｸ繧薙□繧ｭ繝ｼ繝ｯ繝ｼ繝・菫晁ｭｷ閭ｽ蜉帑ｻ倅ｸ趣ｼ医す繧ｰ繝句ｯｾ雎｡繝ｻSELECT_TARGET竊辰HOOSE繧､繝ｳ繧ｿ繝ｩ繧ｯ繧ｷ繝ｧ繝ｳ・・
+  if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF'
       || stub.id === 'SIGNI_GRANT_CHOSEN_ABILITY') {
     const srcGCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGCA = srcGCA ? (srcGCA.EffectText ?? '') + ' ' + (srcGCA.BurstText ?? '') : '';
@@ -6406,7 +6569,8 @@ export function execStub(
     }));
     return needsInteraction(addLog(ctx, '莉倅ｸ弱☆繧玖・蜉帙ｒ驕ｸ謚・), { type: 'CHOOSE', options: optionsGCA, count: chooseCountGCA });
   }
-  // INTERNAL_GRANT_KEYWORD_TO_TARGET: 驕ｸ謚槭＆繧後◆繧ｭ繝ｼ繝ｯ繝ｼ繝・菫晁ｭｷ閭ｽ蜉帙ｒ蟇ｾ雎｡繧ｷ繧ｰ繝九↓莉倅ｸ・  if (stub.id === 'INTERNAL_GRANT_KEYWORD_TO_TARGET') {
+  // INTERNAL_GRANT_KEYWORD_TO_TARGET: 驕ｸ謚槭＆繧後◆繧ｭ繝ｼ繝ｯ繝ｼ繝・菫晁ｭｷ閭ｽ蜉帙ｒ蟇ｾ雎｡繧ｷ繧ｰ繝九↓莉倅ｸ・
+  if (stub.id === 'INTERNAL_GRANT_KEYWORD_TO_TARGET') {
     const valIGKTT = typeof stub.value === 'string' ? stub.value : '';
     const [targetCnIGKTT, kwIGKTT] = valIGKTT.split(':');
     if (!targetCnIGKTT || !kwIGKTT) return done(addLog(ctx, '繧ｭ繝ｼ繝ｯ繝ｼ繝我ｻ倅ｸ主､ｱ謨暦ｼ亥ｼ墓焚荳肴ｭ｣・・));
@@ -6420,10 +6584,12 @@ export function execStub(
       `${ctx.cardMap.get(targetCnIGKTT)?.CardName ?? targetCnIGKTT}縺ｫ縲・{kwIGKTT}縲台ｻ倅ｸ餐));
   }
   // GRANT_CHOSEN_ABILITY_FROM_PLAY: 縲仙・縲代〒驕ｸ繧薙□閭ｽ蜉幢ｼ・eyword_grants險倬鹸貂医∩・峨ｒ蟶ｸ蝨ｨ縺ｧ蜿ら・
-  // 縺薙・CONTINUOUS蜉ｹ譫懊・execStub縺ｧ縺ｯ縺ｪ縺銃ffectEngine蛛ｴ縺ｧkeyword_grants繧貞盾辣ｧ縺吶ｋ縺溘ａ縲√％縺薙〒縺ｯ菴輔ｂ縺励↑縺・  if (stub.id === 'GRANT_CHOSEN_ABILITY_FROM_PLAY') {
+  // 縺薙・CONTINUOUS蜉ｹ譫懊・execStub縺ｧ縺ｯ縺ｪ縺銃ffectEngine蛛ｴ縺ｧkeyword_grants繧貞盾辣ｧ縺吶ｋ縺溘ａ縲√％縺薙〒縺ｯ菴輔ｂ縺励↑縺・
+  if (stub.id === 'GRANT_CHOSEN_ABILITY_FROM_PLAY') {
     // keyword_grants 縺ｫ蜷後き繝ｼ繝峨・莉倅ｸ取ｸ医∩繧ｭ繝ｼ繝ｯ繝ｼ繝峨′縺ゅｌ縺ｰ邯咏ｶ夲ｼ・ffectEngine縺ｧ蜍慕噪蜿ら・・・    return done(ctx);
   }
-  // SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 蠑慕畑蟶ｸ蝨ｨ閭ｽ蜉帙ｒ閾ｪ繧ｷ繧ｰ繝九↓莉倅ｸ趣ｼ・ELECT_TARGET竊談eyword_grants・・  if (stub.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY') {
+  // SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 蠑慕畑蟶ｸ蝨ｨ閭ｽ蜉帙ｒ閾ｪ繧ｷ繧ｰ繝九↓莉倅ｸ趣ｼ・ELECT_TARGET竊談eyword_grants・・
+  if (stub.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY') {
     const srcSGQCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtSGQCA = srcSGQCA ? (srcSGQCA.EffectText ?? '') + ' ' + (srcSGQCA.BurstText ?? '') : '';
     const toHWSGQCA = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -6479,7 +6645,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerCA },
       `${ctx.cardMap.get(targetCA)?.CardName ?? targetCA}縺・{copiedCardCA.CardName}縺ｮ閭ｽ蜉帙ｒ繧ｳ繝斐・`));
   }
-  // GRANT_ABILITY_UNTIL_OPP_TURN: 谺｡縺ｮ蟇ｾ謌ｦ逶ｸ謇九・繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ竭縺ｮ閭ｽ蜉帙ｒ莉倅ｸ・  if (stub.id === 'GRANT_ABILITY_UNTIL_OPP_TURN') {
+  // GRANT_ABILITY_UNTIL_OPP_TURN: 谺｡縺ｮ蟇ｾ謌ｦ逶ｸ謇九・繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ竭縺ｮ閭ｽ蜉帙ｒ莉倅ｸ・
+  if (stub.id === 'GRANT_ABILITY_UNTIL_OPP_TURN') {
     const srcGAUOT = ctx.sourceCardNum;
     if (!srcGAUOT) return done(addLog(ctx, 'GRANT_ABILITY_UNTIL_OPP_TURN: 繧ｽ繝ｼ繧ｹ縺ｪ縺・));
     const srcCardGAUOT = ctx.cardMap.get(srcGAUOT);
@@ -6498,7 +6665,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsGAUOT } },
       `${ctx.cardMap.get(srcGAUOT)?.CardName ?? srcGAUOT}縺ｫ${kwGAUOT}・域ｬ｡縺ｮ逶ｸ謇九ち繝ｼ繝ｳ邨ゆｺ・∪縺ｧ・荏));
   }
-  // RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: 繝ｩ繧､繧ｺ蟇ｾ雎｡繧ｷ繧ｰ繝九↓蠑慕畑蟶ｸ蝨ｨ閭ｽ蜉帙ｒ莉倅ｸ・  if (stub.id === 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY') {
+  // RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: 繝ｩ繧､繧ｺ蟇ｾ雎｡繧ｷ繧ｰ繝九↓蠑慕畑蟶ｸ蝨ｨ閭ｽ蜉帙ｒ莉倅ｸ・
+  if (stub.id === 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY') {
     const targetRTSGA = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!targetRTSGA) return done(addLog(ctx, 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: 蟇ｾ雎｡縺ｪ縺・));
     const riseCardRTSGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
@@ -6516,7 +6684,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsRTSGA } },
       `${ctx.cardMap.get(targetRTSGA)?.CardName ?? targetRTSGA}縺・{kwRTSGA}繧貞ｾ励ｋ`));
   }
-  // GRANT_SIGNI_CLASS: 縺薙・繧ｷ繧ｰ繝九↓・弭・槭け繝ｩ繧ｹ繧剃ｻ倅ｸ・  if (stub.id === 'GRANT_SIGNI_CLASS') {
+  // GRANT_SIGNI_CLASS: 縺薙・繧ｷ繧ｰ繝九↓・弭・槭け繝ｩ繧ｹ繧剃ｻ倅ｸ・
+  if (stub.id === 'GRANT_SIGNI_CLASS') {
     const srcGSC = ctx.sourceCardNum;
     if (!srcGSC) return done(addLog(ctx, 'GRANT_SIGNI_CLASS: 繧ｽ繝ｼ繧ｹ縺ｪ縺・));
     const srcCardGSC = ctx.cardMap.get(srcGSC);
@@ -6559,7 +6728,8 @@ export function execStub(
       targetScope: scopeLAC, thenAction: noopLAC as EffectAction, continuation: contLAC as EffectAction,
     });
   }
-  // INTERNAL_LAYER_COPY_APPLY: 驕ｸ謚槭す繧ｰ繝九・繝ｬ繧､繝､繝ｼ閭ｽ蜉帙ｒ閾ｪ繧ｷ繧ｰ繝九↓莉倅ｸ・  if (stub.id === 'INTERNAL_LAYER_COPY_APPLY') {
+  // INTERNAL_LAYER_COPY_APPLY: 驕ｸ謚槭す繧ｰ繝九・繝ｬ繧､繝､繝ｼ閭ｽ蜉帙ｒ閾ｪ繧ｷ繧ｰ繝九↓莉倅ｸ・
+  if (stub.id === 'INTERNAL_LAYER_COPY_APPLY') {
     const srcILCA = ctx.sourceCardNum;
     const targetILCA = (ctx.lastProcessedCards ?? [])[0];
     if (!srcILCA || !targetILCA) return done(addLog(ctx, '繝ｬ繧､繝､繝ｼ繧ｳ繝斐・螟ｱ謨・));
@@ -6585,7 +6755,8 @@ export function execStub(
     }
     return done(addLog(ctx, `${targetCardILCA?.CardName ?? targetILCA}縺ｮ繝ｬ繧､繝､繝ｼ閭ｽ蜉帙ｒ繧ｳ繝斐・・医Ο繧ｰ縺ｮ縺ｿ・荏));
   }
-  // RIDE_ON: 繝ｫ繝ｪ繧ｰ縺御ｹ玲ｩ溘す繧ｰ繝・菴薙↓莉ｻ諢上〒繝ｩ繧､繝会ｼ医ラ繝ｩ繧､繝也憾諷九〒縺ｪ縺・ｴ蜷医・縺ｿ蜿ｯ・・  if (stub.id === 'RIDE_ON') {
+  // RIDE_ON: 繝ｫ繝ｪ繧ｰ縺御ｹ玲ｩ溘す繧ｰ繝・菴薙↓莉ｻ諢上〒繝ｩ繧､繝会ｼ医ラ繝ｩ繧､繝也憾諷九〒縺ｪ縺・ｴ蜷医・縺ｿ蜿ｯ・・
+  if (stub.id === 'RIDE_ON') {
     if ((ctx.ownerState.lrig_riding_signi?.length ?? 0) > 0) {
       return done(addLog(ctx, '繝ｫ繝ｪ繧ｰ譌｢縺ｫ繝峨Λ繧､繝也憾諷具ｼ・IDE_ON 繧ｹ繧ｭ繝・・・・));
     }
@@ -6623,7 +6794,8 @@ export function execStub(
     const noopIROA: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(rideCandIROA, 1, false, 'self_field', noopIROA as EffectAction, contIROA as EffectAction, ctx);
   }
-  // 繝ｩ繧､繧ｺ/繧ｹ繧ｿ繝・け邉ｻ・・ngine: 繝ｩ繧､繧ｺ繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・  if (stub.id === 'RISE_BANISH_SUBSTITUTE' || stub.id === 'RISE_LEAVE_DISCARD_STACK'
+  // 繝ｩ繧､繧ｺ/繧ｹ繧ｿ繝・け邉ｻ・・ngine: 繝ｩ繧､繧ｺ繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・
+  if (stub.id === 'RISE_BANISH_SUBSTITUTE' || stub.id === 'RISE_LEAVE_DISCARD_STACK'
       || stub.id === 'BANISH_SUBSTITUTE_RISE_STACK' || stub.id === 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE'
       || stub.id === 'COOKING_BANISH_SUBSTITUTE') {
     return done(addLog(ctx, `[ライズ/スタック: ${stub.id}]`));
@@ -6675,10 +6847,12 @@ export function execStub(
     const noop1BRSF: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(trashSigniBRSF, 2, true, 'self_trash', noop1BRSF as EffectAction, cont1BRSF as EffectAction, ctx);
   }
-  // ENERGY_COLOR_SUBSTITUTE_襍､_OR_髱胆TO_逋ｽ: CONTINUOUS蜉ｹ譫懶ｼ・ffectEngine.collectEnergyColorSubs縺ｧ蜍慕噪險育ｮ暦ｼ・  if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_襍､_OR_髱胆TO_逋ｽ') {
+  // ENERGY_COLOR_SUBSTITUTE_襍､_OR_髱胆TO_逋ｽ: CONTINUOUS蜉ｹ譫懶ｼ・ffectEngine.collectEnergyColorSubs縺ｧ蜍慕噪險育ｮ暦ｼ・
+  if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_襍､_OR_髱胆TO_逋ｽ') {
     return done(addLog(ctx, '[ENERGY_COLOR_SUBSTITUTE: effectEngine縺ｧ蜍慕噪蜃ｦ逅・ｸｭ]'));
   }
-  // 繧ｨ繝贋ｻ｣譖ｿ邉ｻ・・ffectEngine.collectEnergyTrashSubstituteInfo縺ｧ蜍慕噪險育ｮ暦ｼ・  if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_TRASH' || stub.id === 'ENERGY_SUBSTITUTE_TRASH_SIGNI'
+  // 繧ｨ繝贋ｻ｣譖ｿ邉ｻ・・ffectEngine.collectEnergyTrashSubstituteInfo縺ｧ蜍慕噪險育ｮ暦ｼ・
+  if (stub.id === 'ENERGY_COLOR_SUBSTITUTE_TRASH' || stub.id === 'ENERGY_SUBSTITUTE_TRASH_SIGNI'
       || stub.id === 'ENERGY_SUBSTITUTE_TRASH_KEY' || stub.id === 'ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI') {
     return done(addLog(ctx, `[繧ｨ繝贋ｻ｣譖ｿ: ${stub.id}・・I縺ｧ蜃ｦ逅・ｸ医∩・云`));
   }
@@ -6753,10 +6927,12 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, card_class_overrides: overridesIACCOp } },
       `${ctx.cardMap.get(targetCnIACC)?.CardName ?? targetCnIACC}縺ｮ繧ｯ繝ｩ繧ｹ繧抵ｼ・{newClassIACC}・槭↓螟画峩`));
   }
-  // LOSE_COLOR_ALL_ZONES: CONTINUOUS蜉ｹ譫懶ｼ・ffectEngine.collectColorlessOverrides縺ｧ蜍慕噪險育ｮ暦ｼ・  if (stub.id === 'LOSE_COLOR_ALL_ZONES') {
+  // LOSE_COLOR_ALL_ZONES: CONTINUOUS蜉ｹ譫懶ｼ・ffectEngine.collectColorlessOverrides縺ｧ蜍慕噪險育ｮ暦ｼ・
+  if (stub.id === 'LOSE_COLOR_ALL_ZONES') {
     return done(addLog(ctx, '[LOSE_COLOR_ALL_ZONES: effectEngine縺ｧ蜍慕噪蜃ｦ逅・ｸｭ]'));
   }
-  // CHANGE_SIGNI_COLOR: 蟇ｾ雎｡繧ｷ繧ｰ繝九・濶ｲ繧呈欠螳夊牡縺ｫ螟画峩・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・  if (stub.id === 'CHANGE_SIGNI_COLOR') {
+  // CHANGE_SIGNI_COLOR: 蟇ｾ雎｡繧ｷ繧ｰ繝九・濶ｲ繧呈欠螳夊牡縺ｫ螟画峩・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・
+  if (stub.id === 'CHANGE_SIGNI_COLOR') {
     // value 縺後≠繧句ｴ蜷茨ｼ售ELECT_TARGET 縺ｮ蠕悟・逅・ｼ亥ｯｾ雎｡ = lastProcessedCards[0]・・    if (typeof stub.value === 'string' && ctx.lastProcessedCards?.length) {
       const targetCSC2 = ctx.lastProcessedCards[0];
       const newColorCSC2 = stub.value as string;
@@ -6787,7 +6963,8 @@ export function execStub(
     // 蟇ｾ雎｡驕ｸ謚・    const applyCSC: StubAction = { type: 'STUB', id: 'CHANGE_SIGNI_COLOR', value: newColorCSC };
     return selectOrInteract(oppSigniCSC, 1, false, 'opp_field', applyCSC as EffectAction, undefined, ctx);
   }
-  // 繧ｫ繝ｼ繝牙ｱ樊ｧ螟画峩邉ｻ・・ngine: 螻樊ｧ螟画峩繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・  // SIGNI_LOSE_COLOR: 蟇ｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝・菴薙′濶ｲ繧貞､ｱ縺・ｼ医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・  if (stub.id === 'SIGNI_LOSE_COLOR') {
+  // 繧ｫ繝ｼ繝牙ｱ樊ｧ螟画峩邉ｻ・・ngine: 螻樊ｧ螟画峩繧ｷ繧ｹ繝・Β譛ｪ螳溯｣・ｼ・  // SIGNI_LOSE_COLOR: 蟇ｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝・菴薙′濶ｲ繧貞､ｱ縺・ｼ医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・
+  if (stub.id === 'SIGNI_LOSE_COLOR') {
     const targetSLC = (ctx.lastProcessedCards ?? []).find(cn =>
       ctx.otherState.field.signi.some(s => s?.at(-1) === cn),
     );
@@ -6804,7 +6981,8 @@ export function execStub(
       targetScope: 'opp_field', thenAction: applySLC as EffectAction,
     });
   }
-  // COPY_SIGNI: 閾ｪ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝・菴薙ｒ繝医Λ繝・す繝･縺ｮ繧ｷ繧ｰ繝九→蜷後§繧ｫ繝ｼ繝峨↓縺吶ｋ・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・  if (stub.id === 'COPY_SIGNI') {
+  // COPY_SIGNI: 閾ｪ繝輔ぅ繝ｼ繝ｫ繝峨す繧ｰ繝・菴薙ｒ繝医Λ繝・す繝･縺ｮ繧ｷ繧ｰ繝九→蜷後§繧ｫ繝ｼ繝峨↓縺吶ｋ・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・
+  if (stub.id === 'COPY_SIGNI') {
     const fieldSigniCS = [0,1,2]
       .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
       .filter((cn): cn is string => !!cn);
@@ -6857,7 +7035,8 @@ export function execStub(
     const newOtherACLGT: PlayerState = { ...ctx.otherState, lrig_gained_types: [...new Set([...(ctx.otherState.lrig_gained_types ?? []), gainTypeACLGT])] };
     return done(addLog({ ...ctx, ownerState: newOwnerACLGT, otherState: newOtherACLGT }, `縺薙・繧ｲ繝ｼ繝荳ｭ: 蜈ｨ繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｯ・・{gainTypeACLGT}・槭ｒ蠕励ｋ`));
   }
-  // CHANGE_BASE_LEVEL: 縺薙・繧ｷ繧ｰ繝九・蝓ｺ譛ｬ繝ｬ繝吶Ν繧・・・縺ｫ縺励※繧ゅｈ縺・ｼ医ち繝ｼ繝ｳ邨ゆｺ・∪縺ｧ・・  if (stub.id === 'CHANGE_BASE_LEVEL') {
+  // CHANGE_BASE_LEVEL: 縺薙・繧ｷ繧ｰ繝九・蝓ｺ譛ｬ繝ｬ繝吶Ν繧・・・縺ｫ縺励※繧ゅｈ縺・ｼ医ち繝ｼ繝ｳ邨ゆｺ・∪縺ｧ・・
+  if (stub.id === 'CHANGE_BASE_LEVEL') {
     const srcCBL = ctx.sourceCardNum;
     if (!srcCBL) return done(addLog(ctx, 'CHANGE_BASE_LEVEL: 繧ｽ繝ｼ繧ｹ縺ｪ縺・));
     if (typeof stub.value === 'number') {
@@ -6876,7 +7055,8 @@ export function execStub(
       type: 'CHOOSE', options: optsCBL, count: 1,
     });
   }
-  // CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN: 繧ｷ繧ｰ繝・菴薙・蝓ｺ譛ｬ繝ｬ繝吶Ν繧・縺ｫ縺励※繧ゅｈ縺・ｼ域ｬ｡縺ｮ閾ｪ繧ｿ繝ｼ繝ｳ邨ゆｺ・∪縺ｧ・・  if (stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN') {
+  // CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN: 繧ｷ繧ｰ繝・菴薙・蝓ｺ譛ｬ繝ｬ繝吶Ν繧・縺ｫ縺励※繧ゅｈ縺・ｼ域ｬ｡縺ｮ閾ｪ繧ｿ繝ｼ繝ｳ邨ゆｺ・∪縺ｧ・・
+  if (stub.id === 'CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN') {
     if (ctx.lastProcessedCards?.length) {
       const targetCBLUNT = ctx.lastProcessedCards[0];
       const newOvCBLUNT = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [targetCBLUNT]: 1 };
@@ -6892,7 +7072,8 @@ export function execStub(
       targetScope: 'self_field', thenAction: contCBLUNT as EffectAction,
     });
   }
-  // COPY_CARD: 縺薙・繧ｷ繧ｰ繝九・lastProcessed[0]縺ｮ繧ｫ繝ｼ繝峨→繝ｬ繝吶Ν莉･螟門酔縺倥↓縺ｪ繧具ｼ・ard_identity_overrides・・  if (stub.id === 'COPY_CARD') {
+  // COPY_CARD: 縺薙・繧ｷ繧ｰ繝九・lastProcessed[0]縺ｮ繧ｫ繝ｼ繝峨→繝ｬ繝吶Ν莉･螟門酔縺倥↓縺ｪ繧具ｼ・ard_identity_overrides・・
+  if (stub.id === 'COPY_CARD') {
     const srcCC = ctx.sourceCardNum;
     const targetCC = ctx.lastProcessedCards?.[0];
     if (!srcCC || !targetCC) return done(addLog(ctx, 'COPY_CARD: 繧ｽ繝ｼ繧ｹ縺ｾ縺溘・繧ｳ繝斐・蜈・↑縺・));
@@ -6901,7 +7082,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerCC2 },
       `${ctx.cardMap.get(srcCC)?.CardName ?? srcCC}縺・{ctx.cardMap.get(targetCC)?.CardName ?? targetCC}縺ｮ繧ｳ繝斐・縺ｫ縺ｪ繧義));
   }
-  // CENTER_LRIG_COLOR_CHANGE_BLACK: 縺薙・繧ｿ繝ｼ繝ｳ縲√そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｯ鮟偵ｒ蠕励ｋ・・CTIVATED蜉ｹ譫懶ｼ・  if (stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK') {
+  // CENTER_LRIG_COLOR_CHANGE_BLACK: 縺薙・繧ｿ繝ｼ繝ｳ縲√そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｯ鮟偵ｒ蠕励ｋ・・CTIVATED蜉ｹ譫懶ｼ・
+  if (stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK') {
     const curExtraCLCB = ctx.ownerState.lrig_extra_colors ?? [];
     if (!curExtraCLCB.includes('鮟・)) {
       const newOwnerCLCB: PlayerState = { ...ctx.ownerState, lrig_extra_colors: [...curExtraCLCB, '鮟・] };
@@ -6914,7 +7096,8 @@ export function execStub(
       || stub.id === 'INHERIT_OPP_LRIG_TYPE' || stub.id === 'INHERIT_UNDER_SIGNI_COLOR') {
     return done(addLog(ctx, `[螻樊ｧ螟画峩: ${stub.id}]`));
   }
-  // SIGNI_GAIN_ONE_LRIG_COLOR: 縺薙・繧ｷ繧ｰ繝九′繝ｫ繝ｪ繧ｰ縺ｮ濶ｲ繧・縺､蠕励ｋ・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・  if (stub.id === 'SIGNI_GAIN_ONE_LRIG_COLOR') {
+  // SIGNI_GAIN_ONE_LRIG_COLOR: 縺薙・繧ｷ繧ｰ繝九′繝ｫ繝ｪ繧ｰ縺ｮ濶ｲ繧・縺､蠕励ｋ・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・
+  if (stub.id === 'SIGNI_GAIN_ONE_LRIG_COLOR') {
     const srcSGOLC = ctx.sourceCardNum;
     if (!srcSGOLC) return done(addLog(ctx, 'SIGNI_GAIN_ONE_LRIG_COLOR: 繧ｽ繝ｼ繧ｹ縺ｪ縺・));
     const lrigCnSGOLC = ctx.ownerState.field.lrig.at(-1);
@@ -6927,7 +7110,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, signi_color_overrides: overridesSGOLC } },
       `${origCardSGOLC?.CardName ?? srcSGOLC}縺・{lrigColorSGOLC}繧貞ｾ励ｋ`));
   }
-  // STACK_ALL_LRIG_UNDER: 繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･蜈ｨ繝ｫ繝ｪ繧ｰ繧偵％縺ｮ繧ｫ繝ｼ繝峨・荳九↓鄂ｮ縺・  if (stub.id === 'STACK_ALL_LRIG_UNDER') {
+  // STACK_ALL_LRIG_UNDER: 繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･蜈ｨ繝ｫ繝ｪ繧ｰ繧偵％縺ｮ繧ｫ繝ｼ繝峨・荳九↓鄂ｮ縺・
+  if (stub.id === 'STACK_ALL_LRIG_UNDER') {
     const lrigTrashSALU = ctx.ownerState.lrig_trash ?? [];
     if (lrigTrashSALU.length === 0) return done(addLog(ctx, '繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｪ縺暦ｼ・TACK_ALL_LRIG_UNDER・・));
     const newLrigStack = [...lrigTrashSALU, ...ctx.ownerState.field.lrig];
@@ -6939,7 +7123,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerSALU },
       `繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･${lrigTrashSALU.length}譫壹ｒ繝ｫ繝ｪ繧ｰ繧ｹ繧ｿ繝・け荳九↓驟咲ｽｮ`));
   }
-  // LRIG_RIDE_SIGNI: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺後☆縺ｹ縺ｦ縺ｮ荵玲ｩ溘す繧ｰ繝九↓荵励ｋ・医ラ繝ｩ繧､繝也憾諷具ｼ・  if (stub.id === 'LRIG_RIDE_SIGNI') {
+  // LRIG_RIDE_SIGNI: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺後☆縺ｹ縺ｦ縺ｮ荵玲ｩ溘す繧ｰ繝九↓荵励ｋ・医ラ繝ｩ繧､繝也憾諷具ｼ・
+  if (stub.id === 'LRIG_RIDE_SIGNI') {
     const ridingAllLRS = [0, 1, 2].flatMap(zi => {
       const top = ctx.ownerState.field.signi[zi]?.at(-1);
       if (!top) return [];
@@ -6950,7 +7135,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerLRS },
       `繝ｫ繝ｪ繧ｰ縺・{ridingAllLRS.length}菴薙・荵玲ｩ溘す繧ｰ繝九↓荵励ｋ・医ラ繝ｩ繧､繝也憾諷具ｼ荏));
   }
-  // CENTER_LRIG_RIDES_ON_SIGNI: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺碁∈謚槭＠縺・菴薙・荵玲ｩ溘す繧ｰ繝九↓荵励ｋ・井ｹ励ｊ謠帙∴蜿ｯ・・  if (stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI') {
+  // CENTER_LRIG_RIDES_ON_SIGNI: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺碁∈謚槭＠縺・菴薙・荵玲ｩ溘す繧ｰ繝九↓荵励ｋ・井ｹ励ｊ謠帙∴蜿ｯ・・
+  if (stub.id === 'CENTER_LRIG_RIDES_ON_SIGNI') {
     const selectedCLR = (ctx.lastProcessedCards ?? []).find(cn =>
       ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
     if (selectedCLR) {
@@ -6968,7 +7154,8 @@ export function execStub(
     const noopCLR: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return selectOrInteract(rideCandCLR, 1, false, 'self_field', noopCLR as EffectAction, contCLR as EffectAction, ctx);
   }
-  // CENTER_LRIG_DISMOUNT: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺後☆縺ｹ縺ｦ縺ｮ荵玲ｩ溘す繧ｰ繝九°繧蛾剄繧翫ｋ・医ラ繝ｩ繧､繝冶ｧ｣髯､繝ｻ莉ｻ諢擾ｼ・  if (stub.id === 'CENTER_LRIG_DISMOUNT') {
+  // CENTER_LRIG_DISMOUNT: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺後☆縺ｹ縺ｦ縺ｮ荵玲ｩ溘す繧ｰ繝九°繧蛾剄繧翫ｋ・医ラ繝ｩ繧､繝冶ｧ｣髯､繝ｻ莉ｻ諢擾ｼ・
+  if (stub.id === 'CENTER_LRIG_DISMOUNT') {
     if (!ctx.ownerState.lrig_riding_signi?.length) {
       return done(addLog(ctx, '繝峨Λ繧､繝也憾諷九〒縺ｯ縺ｪ縺・ｼ・ENTER_LRIG_DISMOUNT 繧ｹ繧ｭ繝・・・・));
     }
@@ -7000,13 +7187,16 @@ export function execStub(
     const newOwnerLGA: PlayerState = { ...ctx.ownerState, keyword_grants: grantMapLGA };
     return done(addLog({ ...ctx, ownerState: newOwnerLGA }, `繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺瑚・蜉帙・{selectedAbilityLGA}縲阪ｒ蠕励ｋ`));
   }
-  // GAIN_ADDITIONAL_LRIG_TYPE / GAIN_LRIG_COLOR: CONT蜉ｹ譫懶ｼ・ffectEngine/collectLrigNameAliases縺ｧ蜍慕噪蜃ｦ逅・ｼ・  if (stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
+  // GAIN_ADDITIONAL_LRIG_TYPE / GAIN_LRIG_COLOR: CONT蜉ｹ譫懶ｼ・ffectEngine/collectLrigNameAliases縺ｧ蜍慕噪蜃ｦ逅・ｼ・
+  if (stub.id === 'GAIN_ADDITIONAL_LRIG_TYPE' || stub.id === 'GAIN_LRIG_COLOR') {
     return done(addLog(ctx, `[繝ｫ繝ｪ繧ｰ繧ｷ繧ｹ繝・Β: ${stub.id}・・ffectEngine縺ｧ蜍慕噪蜃ｦ逅・ｼ云`));
   }
-  // LRIG_ALL_NAMES: CONT蜉ｹ譫懶ｼ・ollectLrigNameAliases縺ｧ蜃ｦ逅・ｸ医∩・・  if (stub.id === 'LRIG_ALL_NAMES') {
+  // LRIG_ALL_NAMES: CONT蜉ｹ譫懶ｼ・ollectLrigNameAliases縺ｧ蜃ｦ逅・ｸ医∩・・
+  if (stub.id === 'LRIG_ALL_NAMES') {
     return done(addLog(ctx, '[LRIG_ALL_NAMES: effectEngine縺ｧ蜃ｦ逅・ｸ医∩]'));
   }
-  // 繝峨Ο繝ｼ譫壽焚蛻ｶ髯撰ｼ域ｬ｡縺ｮ繧ｿ繝ｼ繝ｳ・・  if (stub.id === 'LIMIT_OPP_DRAW_COUNT') {
+  // 繝峨Ο繝ｼ譫壽焚蛻ｶ髯撰ｼ域ｬ｡縺ｮ繧ｿ繝ｼ繝ｳ・・
+  if (stub.id === 'LIMIT_OPP_DRAW_COUNT') {
     const srcLODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLODC = srcLODC ? (srcLODC.EffectText ?? '') + ' ' + (srcLODC.BurstText ?? '') : '';
     const toHWLODC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -7015,7 +7205,8 @@ export function execStub(
     const newOtherLODC: PlayerState = { ...ctx.otherState, draw_limit: limitVal };
     return done(addLog({ ...ctx, otherState: newOtherLODC }, `蟇ｾ謌ｦ逶ｸ謇九・谺｡繧ｿ繝ｼ繝ｳ縺ｮ繝峨Ο繝ｼ荳企剞${limitVal}譫壹↓蛻ｶ髯秦));
   }
-  // 謇区惆荳企剞蠅怜刈・・ONTINUOUS・壹す繧ｰ繝九′繝輔ぅ繝ｼ繝ｫ繝峨↓縺ゅｋ髢難ｼ・  // HAND_SIZE_INCREASE: 謇区惆荳企剞繧貞｢励ｄ縺・/ REDUCE_OPP_HAND_LIMIT: 逶ｸ謇九・謇区惆荳企剞繧呈ｸ帙ｉ縺・  if (stub.id === 'HAND_SIZE_INCREASE' || stub.id === 'REDUCE_OPP_HAND_LIMIT') {
+  // 謇区惆荳企剞蠅怜刈・・ONTINUOUS・壹す繧ｰ繝九′繝輔ぅ繝ｼ繝ｫ繝峨↓縺ゅｋ髢難ｼ・  // HAND_SIZE_INCREASE: 謇区惆荳企剞繧貞｢励ｄ縺・/ REDUCE_OPP_HAND_LIMIT: 逶ｸ謇九・謇区惆荳企剞繧呈ｸ帙ｉ縺・
+  if (stub.id === 'HAND_SIZE_INCREASE' || stub.id === 'REDUCE_OPP_HAND_LIMIT') {
     const srcHSI = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtHSI = srcHSI ? (srcHSI.EffectText ?? '') + ' ' + (srcHSI.BurstText ?? '') : '';
     const toHWHSI = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -7038,11 +7229,13 @@ export function execStub(
     }
     return done(addLog(ctx, `[謇区惆蛻ｶ髯・ ${stub.id}]`));
   }
-  // 繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝育音谿奇ｼ・ngine: 逋ｺ蜍輔す繧ｹ繝・Β謾ｹ菫ｮ蠢・ｦ・ｼ・  // LIFE_BURST_DOUBLE: 縺薙・繧ｿ繝ｼ繝ｳ縲∵ｬ｡縺ｮ繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝医・2蝗樒匱蜍輔☆繧・  if (stub.id === 'LIFE_BURST_DOUBLE') {
+  // 繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝育音谿奇ｼ・ngine: 逋ｺ蜍輔す繧ｹ繝・Β謾ｹ菫ｮ蠢・ｦ・ｼ・  // LIFE_BURST_DOUBLE: 縺薙・繧ｿ繝ｼ繝ｳ縲∵ｬ｡縺ｮ繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝医・2蝗樒匱蜍輔☆繧・
+  if (stub.id === 'LIFE_BURST_DOUBLE') {
     const newOwnerLBD: PlayerState = { ...ctx.ownerState, life_burst_double_next: true };
     return done(addLog({ ...ctx, ownerState: newOwnerLBD }, '縺薙・繧ｿ繝ｼ繝ｳ谺｡縺ｮ繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝医・2蝗樒匱蜍輔☆繧・));
   }
-  // TRIGGER_LIFE_BURST: lastProcessedCards[0] 縺ｮLB繧堤匱蜍包ｼ・ield.check縺ｫ繧ｻ繝・ヨ・・  if (stub.id === 'TRIGGER_LIFE_BURST') {
+  // TRIGGER_LIFE_BURST: lastProcessedCards[0] 縺ｮLB繧堤匱蜍包ｼ・ield.check縺ｫ繧ｻ繝・ヨ・・
+  if (stub.id === 'TRIGGER_LIFE_BURST') {
     const cardTLB = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!cardTLB) return done(addLog(ctx, 'TRIGGER_LIFE_BURST: 繧ｫ繝ｼ繝峨↑縺・));
     const dataTLB = ctx.cardMap.get(cardTLB);
@@ -7051,7 +7244,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerTLB },
       `繝ｩ繧､繝輔ヰ繝ｼ繧ｹ繝育匱蜍・ ${dataTLB.CardName}`));
   }
-  // BATTLE_BANISH_LIFE_BURST: 繝舌ヨ繝ｫ繝舌ル繝・す繝･蠕後↓逶ｸ謇句・LB繧堤匱蜍・  if (stub.id === 'BATTLE_BANISH_LIFE_BURST') {
+  // BATTLE_BANISH_LIFE_BURST: 繝舌ヨ繝ｫ繝舌ル繝・す繝･蠕後↓逶ｸ謇句・LB繧堤匱蜍・
+  if (stub.id === 'BATTLE_BANISH_LIFE_BURST') {
     const cardBBLB = ctx.lastProcessedCards?.[0];
     if (!cardBBLB) return done(addLog(ctx, 'BATTLE_BANISH_LIFE_BURST: 繧ｫ繝ｼ繝峨↑縺・));
     const dataBBLB = ctx.cardMap.get(cardBBLB);
@@ -7060,7 +7254,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: newOtherBBLB },
       `繝舌ヨ繝ｫ繝舌ル繝・す繝･LB: ${dataBBLB.CardName}`));
   }
-  // BEAT_ZONE_OP: 繝薙・繝医だ繝ｼ繝ｳ謫堺ｽ懶ｼ医後舌ン繝ｼ繝医代↓縺吶ｋ縲阪∪縺溘・縲後舌ン繝ｼ繝医代′N譫壻ｻ･荳九肴擅莉ｶ繝√ぉ繝・け・・  if (stub.id === 'BEAT_ZONE_OP') {
+  // BEAT_ZONE_OP: 繝薙・繝医だ繝ｼ繝ｳ謫堺ｽ懶ｼ医後舌ン繝ｼ繝医代↓縺吶ｋ縲阪∪縺溘・縲後舌ン繝ｼ繝医代′N譫壻ｻ･荳九肴擅莉ｶ繝√ぉ繝・け・・
+  if (stub.id === 'BEAT_ZONE_OP') {
     const srcBZO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtBZO = srcBZO ? (srcBZO.EffectText ?? '') + ' ' + (srcBZO.BurstText ?? '') : '';
     const toHWBZO = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -7082,7 +7277,8 @@ export function execStub(
       thenAction: ({ type: 'STUB', id: 'INTERNAL_MOVE_TO_BEAT' } as StubAction) as EffectAction,
     });
   }
-  // INTERNAL_MOVE_TO_BEAT: 驕ｸ謚槭す繧ｰ繝九ｒ繝薙・繝医だ繝ｼ繝ｳ縺ｸ遘ｻ蜍・  if (stub.id === 'INTERNAL_MOVE_TO_BEAT') {
+  // INTERNAL_MOVE_TO_BEAT: 驕ｸ謚槭す繧ｰ繝九ｒ繝薙・繝医だ繝ｼ繝ｳ縺ｸ遘ｻ蜍・
+  if (stub.id === 'INTERNAL_MOVE_TO_BEAT') {
     const cardIMTB = ctx.lastProcessedCards?.[0];
     if (!cardIMTB) return done(addLog(ctx, 'INTERNAL_MOVE_TO_BEAT: 繧ｫ繝ｼ繝峨↑縺・));
     const newSigniIMTB = ctx.ownerState.field.signi.map(s => {
@@ -7113,7 +7309,8 @@ export function execStub(
       targetScope: 'self_trash', thenAction: noopTSTB as EffectAction, continuation: contTSTB as EffectAction,
     });
   }
-  // SIGNI_UNDER_WEAPON_SIGNI: 閾ｪ繧ｷ繧ｰ繝・菴薙ｒ閾ｪ・懊え繧ｧ繝昴Φ・槭す繧ｰ繝九・荳九↓鄂ｮ縺・  if (stub.id === 'SIGNI_UNDER_WEAPON_SIGNI') {
+  // SIGNI_UNDER_WEAPON_SIGNI: 閾ｪ繧ｷ繧ｰ繝・菴薙ｒ閾ｪ・懊え繧ｧ繝昴Φ・槭す繧ｰ繝九・荳九↓鄂ｮ縺・
+  if (stub.id === 'SIGNI_UNDER_WEAPON_SIGNI') {
     const ownFieldSUWS = [0,1,2].map(zi => ctx.ownerState.field.signi[zi]?.at(-1)).filter((cn): cn is string => !!cn);
     const sourceSUWS = (ctx.lastProcessedCards ?? []).find(cn => ownFieldSUWS.includes(cn));
     if (!sourceSUWS) {
@@ -7151,7 +7348,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerSUWI },
       `${ctx.cardMap.get(srcSUWI)?.CardName ?? srcSUWI}繧・{ctx.cardMap.get(weaponSUWI)?.CardName ?? weaponSUWI}縺ｮ荳九↓驟咲ｽｮ`));
   }
-  // PLACE_DECK_TOP_UNDER_WEAPON_SIGNI: 繧ｦ繧ｧ繝昴Φ繧ｷ繧ｰ繝九・荳九↓繝・ャ繧ｭ荳翫ｒ鄂ｮ縺・  if (stub.id === 'PLACE_DECK_TOP_UNDER_WEAPON_SIGNI') {
+  // PLACE_DECK_TOP_UNDER_WEAPON_SIGNI: 繧ｦ繧ｧ繝昴Φ繧ｷ繧ｰ繝九・荳九↓繝・ャ繧ｭ荳翫ｒ鄂ｮ縺・
+  if (stub.id === 'PLACE_DECK_TOP_UNDER_WEAPON_SIGNI') {
     if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, '繝・ャ繧ｭ縺ｪ縺・));
     const newSigniPDTUW = [...ctx.ownerState.field.signi] as (string[] | null)[];
     const topCardPDTUW = ctx.ownerState.deck[0];
@@ -7171,7 +7369,8 @@ export function execStub(
     const newOwnerPDTUW: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(1), field: { ...ctx.ownerState.field, signi: newSigniPDTUW } };
     return done(addLog({ ...ctx, ownerState: newOwnerPDTUW }, `繧ｦ繧ｧ繝昴Φ荳九↓繝・ャ繧ｭ荳企・鄂ｮ: ${ctx.cardMap.get(topCardPDTUW)?.CardName ?? topCardPDTUW}`));
   }
-  // PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON: 蜈ｨ繧ｦ繧ｧ繝昴Φ繧ｷ繧ｰ繝九・荳九↓繝医Λ繝・す繝･縺九ｉ繧ｷ繧ｰ繝九ｒ1譫壹★縺､鄂ｮ縺・  if (stub.id === 'PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON') {
+  // PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON: 蜈ｨ繧ｦ繧ｧ繝昴Φ繧ｷ繧ｰ繝九・荳九↓繝医Λ繝・す繝･縺九ｉ繧ｷ繧ｰ繝九ｒ1譫壹★縺､鄂ｮ縺・
+  if (stub.id === 'PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON') {
     const weaponZonesPTSUAW: number[] = [];
     for (let zi = 0; zi < 3; zi++) {
       const top = ctx.ownerState.field.signi[zi]?.at(-1);
@@ -7193,7 +7392,8 @@ export function execStub(
       thenAction: ({ type: 'STUB', id: 'INTERNAL_PTSUAW_PLACE', value: tgtZonePTSUAW } as StubAction) as EffectAction,
     });
   }
-  // INTERNAL_PTSUAW_PLACE: 繧ｦ繧ｧ繝昴Φ荳九す繧ｰ繝矩・鄂ｮ縺ｮ螳溯｡・  if (stub.id === 'INTERNAL_PTSUAW_PLACE') {
+  // INTERNAL_PTSUAW_PLACE: 繧ｦ繧ｧ繝昴Φ荳九す繧ｰ繝矩・鄂ｮ縺ｮ螳溯｡・
+  if (stub.id === 'INTERNAL_PTSUAW_PLACE') {
     const zoneIdxIPTSUAW = typeof stub.value === 'number' ? stub.value : 0;
     const cardIPTSUAW = ctx.lastProcessedCards?.[0];
     if (!cardIPTSUAW) return done(addLog(ctx, 'INTERNAL_PTSUAW_PLACE: 繧ｫ繝ｼ繝峨↑縺・));
@@ -7230,7 +7430,8 @@ export function execStub(
       continuation: noopCTUS as EffectAction,
     });
   }
-  // INTERNAL_TRASH_UNDER_SIGNI: 繧ｷ繧ｰ繝倶ｸ九き繝ｼ繝峨ｒ繝医Λ繝・す繝･縺ｸ遘ｻ蜍・  if (stub.id === 'INTERNAL_TRASH_UNDER_SIGNI') {
+  // INTERNAL_TRASH_UNDER_SIGNI: 繧ｷ繧ｰ繝倶ｸ九き繝ｼ繝峨ｒ繝医Λ繝・す繝･縺ｸ遘ｻ蜍・
+  if (stub.id === 'INTERNAL_TRASH_UNDER_SIGNI') {
     const cardITUS = ctx.lastProcessedCards?.[0];
     if (!cardITUS) return done(addLog(ctx, 'INTERNAL_TRASH_UNDER_SIGNI: 繧ｫ繝ｼ繝峨↑縺・));
     const newSigniITUS = ctx.ownerState.field.signi.map(stack => {
@@ -7247,22 +7448,26 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerITUS },
       `${ctx.cardMap.get(cardITUS)?.CardName ?? cardITUS}繧偵す繧ｰ繝倶ｸ九°繧峨ヨ繝ｩ繝・す繝･縺ｸ`));
   }
-  // LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 逶ｸ謇九す繧ｰ繝句粋險・蝗槭い繧ｿ繝・け蛻ｶ髯・  if (stub.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || stub.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL' || stub.id === 'LIMIT_OPP_ATTACK_ONCE') {
+  // LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 逶ｸ謇九す繧ｰ繝句粋險・蝗槭い繧ｿ繝・け蛻ｶ髯・
+  if (stub.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || stub.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL' || stub.id === 'LIMIT_OPP_ATTACK_ONCE') {
     const newOtherOSA: PlayerState = { ...ctx.otherState, signi_attack_once_limit: true };
     return done(addLog({ ...ctx, otherState: newOtherOSA }, '逶ｸ謇九す繧ｰ繝九・蜷郁ｨ・蝗槭＠縺九い繧ｿ繝・け縺ｧ縺阪↑縺・));
   }
-  // 繧｢繧ｿ繝・け蛻ｶ髯千ｳｻ・・ngine: 繧｢繧ｿ繝・け蛻ｶ髯舌す繧ｹ繝・Β譛ｪ螳溯｣・ｼ・  if (stub.id === 'ONE_ATTACK_PER_TURN' || stub.id === 'ODD_LEVEL_SIGNI_CANT_ATTACK'
+  // 繧｢繧ｿ繝・け蛻ｶ髯千ｳｻ・・ngine: 繧｢繧ｿ繝・け蛻ｶ髯舌す繧ｹ繝・Β譛ｪ螳溯｣・ｼ・
+  if (stub.id === 'ONE_ATTACK_PER_TURN' || stub.id === 'ODD_LEVEL_SIGNI_CANT_ATTACK'
       || stub.id === 'ATTACK_COUNT_BY_POWER'
       || stub.id === 'ADJACENT_ZONE_ATTACK'
       || stub.id === 'MULTI_ZONE_ATTACK' || stub.id === 'BLOCK_FRONT_SIGNI_ATTACK') {
     return done(addLog(ctx, `[繧｢繧ｿ繝・け蛻ｶ髯・ ${stub.id}]`));
   }
-  // BLOCK_OPP_ARTS_SPELL_ACT: 縺薙・繧ｿ繝ｼ繝ｳ蟇ｾ謌ｦ逶ｸ謇九・繧｢繝ｼ繝・・繧ｹ繝壹Ν繝ｻ襍ｷ蜍戊・蜉帙ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・  if (stub.id === 'BLOCK_OPP_ARTS_SPELL_ACT') {
+  // BLOCK_OPP_ARTS_SPELL_ACT: 縺薙・繧ｿ繝ｼ繝ｳ蟇ｾ謌ｦ逶ｸ謇九・繧｢繝ｼ繝・・繧ｹ繝壹Ν繝ｻ襍ｷ蜍戊・蜉帙ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・
+  if (stub.id === 'BLOCK_OPP_ARTS_SPELL_ACT') {
     const newBlockedBOASA = [...(ctx.otherState.blocked_actions ?? []), 'USE_ARTS', 'USE_SPELL', 'USE_ACT'];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOASA } },
       '縺薙・繧ｿ繝ｼ繝ｳ縲∝ｯｾ謌ｦ逶ｸ謇九・繧｢繝ｼ繝・・繧ｹ繝壹Ν繝ｻ襍ｷ蜍戊・蜉帙ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・));
   }
-  // BLOCK_COLORLESS_PLAY: 逶ｸ謇九・辟｡濶ｲ繝励Ξ繧､繧貞ｰ√§繧・  if (stub.id === 'BLOCK_COLORLESS_PLAY') {
+  // BLOCK_COLORLESS_PLAY: 逶ｸ謇九・辟｡濶ｲ繝励Ξ繧､繧貞ｰ√§繧・
+  if (stub.id === 'BLOCK_COLORLESS_PLAY') {
     const newBlockedBCP = [...(ctx.otherState.blocked_actions ?? []), 'PLAY_COLORLESS'];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBCP } },
       '逶ｸ謇九・辟｡濶ｲ繧ｫ繝ｼ繝峨ｒ繝励Ξ繧､縺ｧ縺阪↑縺・));
@@ -7273,12 +7478,14 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBAAA } },
       '逶ｸ謇九・襍ｷ蜍戊・蜉帙ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・));
   }
-  // 繝悶Ο繝・け邉ｻ・・ngine: 陦悟虚繝悶Ο繝・け譛ｪ螳溯｣・ｼ・  // BLOCK_OPP_SPELL_ACT_NEXT_TURN: 谺｡縺ｮ蟇ｾ謌ｦ逶ｸ謇九・繧ｿ繝ｼ繝ｳ荳ｭ縲√せ繝壹Ν縺ｨ襍ｷ蜍戊・蜉帙ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・  if (stub.id === 'BLOCK_OPP_SPELL_ACT_NEXT_TURN') {
+  // 繝悶Ο繝・け邉ｻ・・ngine: 陦悟虚繝悶Ο繝・け譛ｪ螳溯｣・ｼ・  // BLOCK_OPP_SPELL_ACT_NEXT_TURN: 谺｡縺ｮ蟇ｾ謌ｦ逶ｸ謇九・繧ｿ繝ｼ繝ｳ荳ｭ縲√せ繝壹Ν縺ｨ襍ｷ蜍戊・蜉帙ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・
+  if (stub.id === 'BLOCK_OPP_SPELL_ACT_NEXT_TURN') {
     const blockedBOSANT = [...(ctx.otherState.blocked_actions ?? []), 'USE_SPELL:NEXT_TURN', 'USE_ACT:NEXT_TURN'];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: blockedBOSANT } },
       '谺｡縺ｮ蟇ｾ謌ｦ逶ｸ謇九・繧ｿ繝ｼ繝ｳ荳ｭ縲∫嶌謇九・繧ｹ繝壹Ν縺ｨ襍ｷ蜍戊・蜉帙ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・));
   }
-  // BLOCK_OPP_AUTO_ABILITY_EXTENDED: 縺薙・繧ｿ繝ｼ繝ｳ縺ｨ谺｡縺ｮ繧ｿ繝ｼ繝ｳ縲∫嶌謇九す繧ｰ繝九・縲占・縲題・蜉帙・逋ｺ蜍輔＠縺ｪ縺・  if (stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED') {
+  // BLOCK_OPP_AUTO_ABILITY_EXTENDED: 縺薙・繧ｿ繝ｼ繝ｳ縺ｨ谺｡縺ｮ繧ｿ繝ｼ繝ｳ縲∫嶌謇九す繧ｰ繝九・縲占・縲題・蜉帙・逋ｺ蜍輔＠縺ｪ縺・
+  if (stub.id === 'BLOCK_OPP_AUTO_ABILITY_EXTENDED') {
     const newBlocedBOAE = [
       ...(ctx.ownerState.blocked_actions ?? []),
       'BLOCK_OPP_SIGNI_AUTO',
@@ -7292,7 +7499,8 @@ export function execStub(
       || stub.id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT') {
     return done(addLog(ctx, `[繝悶Ο繝・け蜉ｹ譫・ ${stub.id}]`));
   }
-  // OPP_TURN_NO_ENERGY_COST: 蟇ｾ謌ｦ逶ｸ謇九・谺｡縺ｮ繧ｿ繝ｼ繝ｳ荳ｭ縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｨ繝翫さ繧ｹ繝医ｒ謾ｯ謇輔∴縺ｪ縺・  if (stub.id === 'OPP_TURN_NO_ENERGY_COST') {
+  // OPP_TURN_NO_ENERGY_COST: 蟇ｾ謌ｦ逶ｸ謇九・谺｡縺ｮ繧ｿ繝ｼ繝ｳ荳ｭ縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｨ繝翫さ繧ｹ繝医ｒ謾ｯ謇輔∴縺ｪ縺・
+  if (stub.id === 'OPP_TURN_NO_ENERGY_COST') {
     // 繧ｨ繝翫さ繧ｹ繝医ｒ蠢・ｦ√→縺吶ｋ蜈ｨ繧｢繧ｯ繧ｷ繝ｧ繝ｳ繧偵ヶ繝ｭ繝・け・医い繝ｼ繝・繧ｹ繝壹Ν/繧ｰ繝ｭ繧ｦ/襍ｷ蜍戊・蜉幢ｼ・    const newBlockedOTNEC = [
       ...(ctx.otherState.blocked_actions ?? []),
       'USE_ARTS:NEXT_TURN', 'USE_SPELL:NEXT_TURN',
@@ -7306,18 +7514,22 @@ export function execStub(
     const newOtherMPLD: PlayerState = { ...ctx.otherState, pending_lrig_limit_mod: (ctx.otherState.pending_lrig_limit_mod ?? 0) - 2 };
     return done(addLog({ ...ctx, otherState: newOtherMPLD }, '谺｡縺ｮ逶ｸ謇九Γ繧､繝ｳ繝輔ぉ繧､繧ｺ荳ｭ縲∫嶌謇九Μ繝溘ャ繝・2'));
   }
-  // OPP_SIGNI_ATTACK_COST: 繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ縲∫嶌謇九す繧ｰ繝九・繧｢繧ｿ繝・け縺ｫ縲顔┌縲凝・繧ｳ繧ｹ繝・  if (stub.id === 'OPP_SIGNI_ATTACK_COST') {
+  // OPP_SIGNI_ATTACK_COST: 繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ縲∫嶌謇九す繧ｰ繝九・繧｢繧ｿ繝・け縺ｫ縲顔┌縲凝・繧ｳ繧ｹ繝・
+  if (stub.id === 'OPP_SIGNI_ATTACK_COST') {
     const newOtherSAC: PlayerState = { ...ctx.otherState, signi_attack_cost: 2 };
     return done(addLog({ ...ctx, otherState: newOtherSAC }, '繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ縲∝ｯｾ謌ｦ逶ｸ謇九す繧ｰ繝九い繧ｿ繝・け縺ｫ縲顔┌縲凝・繧ｳ繧ｹ繝・));
   }
-  // OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS蜉ｹ譫懶ｼ・ffectEngine縺ｧ蜍慕噪蛻､螳夲ｼ・  if (stub.id === 'OPP_ZONE_PLACEMENT_RESTRICT') {
+  // OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS蜉ｹ譫懶ｼ・ffectEngine縺ｧ蜍慕噪蛻､螳夲ｼ・
+  if (stub.id === 'OPP_ZONE_PLACEMENT_RESTRICT') {
     return done(addLog(ctx, '[驟咲ｽｮ蛻ｶ髯・ OPP_ZONE_PLACEMENT_RESTRICT・・ONTINUOUS・云'));
   }
-  // 繧ｳ繧ｹ繝医い繝・・邉ｻ・・ngine: 繧ｳ繧ｹ繝郁ｨ育ｮ玲悴螳溯｣・ｼ・  if (stub.id === 'FIRST_SPELL_COST_UP' || stub.id === 'OPP_LRIG_ATTACK_COST'
+  // 繧ｳ繧ｹ繝医い繝・・邉ｻ・・ngine: 繧ｳ繧ｹ繝郁ｨ育ｮ玲悴螳溯｣・ｼ・
+  if (stub.id === 'FIRST_SPELL_COST_UP' || stub.id === 'OPP_LRIG_ATTACK_COST'
       || stub.id === 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR') {
     return done(addLog(ctx, `[繧ｳ繧ｹ繝医い繝・・/蛻ｶ髯・ ${stub.id}]`));
   }
-  // 繧ｷ繧ｰ繝狗ｧｻ蜍・繝ｪ繝繧､繝ｬ繧ｯ繝育ｳｻ・・ngine: 遘ｻ蜍募・螟画峩譛ｪ螳溯｣・ｼ・  // MOVE_TO_ATTACKER_FRONT: 逶ｸ謇九す繧ｰ繝九い繧ｿ繝・け譎ゅ∵ｭ｣髱｢縺檎ｩｺ縺ｪ繧芽・蛻・ｒ縺昴・豁｣髱｢縺ｫ遘ｻ蜍包ｼ医＠縺ｦ繧ゅｈ縺・ｼ・  if (stub.id === 'MOVE_TO_ATTACKER_FRONT') {
+  // 繧ｷ繧ｰ繝狗ｧｻ蜍・繝ｪ繝繧､繝ｬ繧ｯ繝育ｳｻ・・ngine: 遘ｻ蜍募・螟画峩譛ｪ螳溯｣・ｼ・  // MOVE_TO_ATTACKER_FRONT: 逶ｸ謇九す繧ｰ繝九い繧ｿ繝・け譎ゅ∵ｭ｣髱｢縺檎ｩｺ縺ｪ繧芽・蛻・ｒ縺昴・豁｣髱｢縺ｫ遘ｻ蜍包ｼ医＠縺ｦ繧ゅｈ縺・ｼ・
+  if (stub.id === 'MOVE_TO_ATTACKER_FRONT') {
     const srcMTAF = ctx.sourceCardNum;
     if (!srcMTAF) return done(addLog(ctx, '繧｢繧ｿ繝・き繝ｼ蜑咲ｧｻ蜍包ｼ壹た繝ｼ繧ｹ縺ｪ縺・));
     // 繧｢繧ｿ繝・き繝ｼ繧ｾ繝ｼ繝ｳ繧堤音螳夲ｼ・tub.value 蜆ｪ蜈医√↑縺代ｌ縺ｰ attacked_signi_ids 縺九ｉ蜍慕噪蜿門ｾ暦ｼ・    let targetZoneMTAF: number;
@@ -7355,7 +7567,8 @@ export function execStub(
   if (stub.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS') {
     return done(addLog(ctx, `[遘ｻ蜍輔Μ繝繧､繝ｬ繧ｯ繝・ ${stub.id}]`));
   }
-  // FORCE_TARGET_SELF: 縺薙・繧ｷ繧ｰ繝九＠縺句ｯｾ雎｡縺ｫ縺ｧ縺阪↑縺・ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'FORCE_TARGET_SELF') {
+  // FORCE_TARGET_SELF: 縺薙・繧ｷ繧ｰ繝九＠縺句ｯｾ雎｡縺ｫ縺ｧ縺阪↑縺・ｼ医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'FORCE_TARGET_SELF') {
     return done(addLog(ctx, `[蠑ｷ蛻ｶ閾ｪ蟾ｱ蟇ｾ雎｡: ${stub.id}]`));
   }
   // BANISH_BY_SELF_GOES_TO_TRASH: 縺薙・繧ｷ繧ｰ繝九↓繧医ｋ繝舌ル繝・す繝･縺ｯ繧ｨ繝翫〒縺ｪ縺上ヨ繝ｩ繝・す繝･縺ｸ
@@ -7373,11 +7586,13 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, crash_to_trash_instead: true };
     return done(addLog({ ...ctx, ownerState: newOwner }, '縺薙・繧ｿ繝ｼ繝ｳ縲√け繝ｩ繝・す繝･縺輔ｌ縺溘き繝ｼ繝峨・繝医Λ繝・す繝･縺ｫ鄂ｮ縺九ｌ繧・));
   }
-  // BANISH_REDIRECT_TO_HAND: 縺薙・繧ｿ繝ｼ繝ｳ縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝九′繝舌ル繝・す繝･縺輔ｌ繧句ｴ蜷医お繝翫だ繝ｼ繝ｳ縺ｧ縺ｯ縺ｪ縺乗焔譛ｭ縺ｫ謌ｻ繧・  if (stub.id === 'BANISH_REDIRECT_TO_HAND') {
+  // BANISH_REDIRECT_TO_HAND: 縺薙・繧ｿ繝ｼ繝ｳ縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝九′繝舌ル繝・す繝･縺輔ｌ繧句ｴ蜷医お繝翫だ繝ｼ繝ｳ縺ｧ縺ｯ縺ｪ縺乗焔譛ｭ縺ｫ謌ｻ繧・
+  if (stub.id === 'BANISH_REDIRECT_TO_HAND') {
     const newOwnerBRTH: PlayerState = { ...ctx.ownerState, banish_redirect_to_hand: true };
     return done(addLog({ ...ctx, ownerState: newOwnerBRTH }, '縺薙・繧ｿ繝ｼ繝ｳ縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝九ヰ繝九ャ繧ｷ繝･蜈遺・謇区惆'));
   }
-  // OPP_RETURN_HAND_ON_SELF_BANISH: 繝舌ル繝・す繝･縺輔ｌ縺溘→縺阪∝ｯｾ謌ｦ逶ｸ謇九・謇区惆繧・譫壹ョ繝・く縺ｮ荳逡ｪ荳翫↓鄂ｮ縺・  if (stub.id === 'OPP_RETURN_HAND_ON_SELF_BANISH') {
+  // OPP_RETURN_HAND_ON_SELF_BANISH: 繝舌ル繝・す繝･縺輔ｌ縺溘→縺阪∝ｯｾ謌ｦ逶ｸ謇九・謇区惆繧・譫壹ョ繝・く縺ｮ荳逡ｪ荳翫↓鄂ｮ縺・
+  if (stub.id === 'OPP_RETURN_HAND_ON_SELF_BANISH') {
     const candsORHOSB = ctx.otherState.hand;
     if (candsORHOSB.length === 0) return done(addLog(ctx, '蟇ｾ謌ｦ逶ｸ謇九・謇区惆縺ｪ縺暦ｼ・PP_RETURN_HAND_ON_SELF_BANISH・・));
     const ttdActionORHOSB: EffectAction = {
@@ -7388,7 +7603,8 @@ export function execStub(
     } as TransferToDeckAction;
     return selectOrInteract(candsORHOSB, 1, false, 'opp_hand', ttdActionORHOSB, undefined, ctx, true);
   }
-  // MULTI_DAMAGE_ON_LRIG_ATTACK: 縺薙・繧ｿ繝ｼ繝ｳ縲√Ν繝ｪ繧ｰ繧｢繧ｿ繝・け繧誰蝗樔ｸ弱∴繧具ｼ・rig_attack_remaining繝輔Λ繧ｰ縺ｧBattleScreen蛛ｴ縺檎ｮ｡逅・ｼ・  if (stub.id === 'MULTI_DAMAGE_ON_LRIG_ATTACK') {
+  // MULTI_DAMAGE_ON_LRIG_ATTACK: 縺薙・繧ｿ繝ｼ繝ｳ縲√Ν繝ｪ繧ｰ繧｢繧ｿ繝・け繧誰蝗樔ｸ弱∴繧具ｼ・rig_attack_remaining繝輔Λ繧ｰ縺ｧBattleScreen蛛ｴ縺檎ｮ｡逅・ｼ・
+  if (stub.id === 'MULTI_DAMAGE_ON_LRIG_ATTACK') {
     const srcMDALA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtMDALA = srcMDALA ? (srcMDALA.EffectText ?? '') + ' ' + (srcMDALA.BurstText ?? '') : '';
     const toHWMDALA = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -7397,10 +7613,12 @@ export function execStub(
     // 谿九ｊ蝗樊焚 = 蜷郁ｨ・- 1・・蝗樒岼縺ｯ騾壼ｸｸ繧｢繧ｿ繝・け謇ｱ縺・ｼ・    const newOwnerMDALA = { ...ctx.ownerState, lrig_attack_remaining: totalMDALA - 1 };
     return done(addLog({ ...ctx, ownerState: newOwnerMDALA }, `縺薙・繧ｿ繝ｼ繝ｳ縲√Ν繝ｪ繧ｰ縺・{totalMDALA}蝗槭い繧ｿ繝・け縺吶ｋ・域ｮ九ｊ${totalMDALA - 1}蝗橸ｼ荏));
   }
-  // 繝繝｡繝ｼ繧ｸ迚ｹ谿奇ｼ・ngine: 繝繝｡繝ｼ繧ｸ蜃ｦ逅・僑蠑ｵ蠢・ｦ・ｼ・  if (stub.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') {
+  // 繝繝｡繝ｼ繧ｸ迚ｹ谿奇ｼ・ngine: 繝繝｡繝ｼ繧ｸ蜃ｦ逅・僑蠑ｵ蠢・ｦ・ｼ・
+  if (stub.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') {
     return done(addLog(ctx, `[繝繝｡繝ｼ繧ｸ/繝輔ぉ繧､繧ｺ迚ｹ谿・ ${stub.id}]`));
   }
-  // 繧ｦ繧ｧ繝昴Φ繝ｻ繝励Ο繝・け繧ｷ繝ｧ繝ｳ邉ｻ・・ngine: 遞ｮ譌丈ｿ晁ｭｷ繝輔Λ繧ｰ譛ｪ螳溯｣・ｼ・  // DRIVE_SIGNI_PREVENT_DOWN: 繝峨Λ繧､繝也憾諷九・繧ｷ繧ｰ繝九↓蟇ｾ謌ｦ逶ｸ謇九・蜉ｹ譫懊↓繧医ｋ繝繧ｦ繝ｳ髦ｲ豁｢繧剃ｻ倅ｸ・  if (stub.id === 'DRIVE_SIGNI_PREVENT_DOWN') {
+  // 繧ｦ繧ｧ繝昴Φ繝ｻ繝励Ο繝・け繧ｷ繝ｧ繝ｳ邉ｻ・・ngine: 遞ｮ譌丈ｿ晁ｭｷ繝輔Λ繧ｰ譛ｪ螳溯｣・ｼ・  // DRIVE_SIGNI_PREVENT_DOWN: 繝峨Λ繧､繝也憾諷九・繧ｷ繧ｰ繝九↓蟇ｾ謌ｦ逶ｸ謇九・蜉ｹ譫懊↓繧医ｋ繝繧ｦ繝ｳ髦ｲ豁｢繧剃ｻ倅ｸ・
+  if (stub.id === 'DRIVE_SIGNI_PREVENT_DOWN') {
     const targetDSPD = (ctx.lastProcessedCards ?? []).find(cn =>
       ctx.ownerState.field.signi.some(s => s?.at(-1) === cn),
     );
@@ -7421,10 +7639,12 @@ export function execStub(
       targetScope: 'self_field', thenAction: applyDSPD as EffectAction,
     });
   }
-  // DRIVE_CONT_BANISH_RESIST: 繝峨Λ繧､繝門ｸｸ竊偵％縺ｮ繧ｷ繧ｰ繝九・繝舌ル繝・す繝･縺輔ｌ縺ｪ縺・ｼ・ffectEngine縺ｧ蜃ｦ逅・ｼ・  if (stub.id === 'DRIVE_CONT_BANISH_RESIST') {
+  // DRIVE_CONT_BANISH_RESIST: 繝峨Λ繧､繝門ｸｸ竊偵％縺ｮ繧ｷ繧ｰ繝九・繝舌ル繝・す繝･縺輔ｌ縺ｪ縺・ｼ・ffectEngine縺ｧ蜃ｦ逅・ｼ・
+  if (stub.id === 'DRIVE_CONT_BANISH_RESIST') {
     return done(addLog(ctx, '[繝峨Λ繧､繝門ｸｸ・壹ヰ繝九ャ繧ｷ繝･閠先ｧ・・ffectEngine蜍慕噪蜃ｦ逅・ｼ云'));
   }
-  // DRIVE_AUTO_BANISH_ALL_OPP: 繝峨Λ繧､繝冶・竊偵い繧ｿ繝・け譎ゅ↓逶ｸ謇句・繧ｷ繧ｰ繝九ｒ繝舌ル繝・す繝･・・S_DRIVE_STATE繝√ぉ繝・け莉倥″・・  if (stub.id === 'DRIVE_AUTO_BANISH_ALL_OPP') {
+  // DRIVE_AUTO_BANISH_ALL_OPP: 繝峨Λ繧､繝冶・竊偵い繧ｿ繝・け譎ゅ↓逶ｸ謇句・繧ｷ繧ｰ繝九ｒ繝舌ル繝・す繝･・・S_DRIVE_STATE繝√ぉ繝・け莉倥″・・
+  if (stub.id === 'DRIVE_AUTO_BANISH_ALL_OPP') {
     if (!(ctx.ownerState.lrig_riding_signi?.includes(ctx.sourceCardNum ?? ''))) {
       return done(addLog(ctx, '繝峨Λ繧､繝也憾諷九〒縺ｪ縺・ｼ・RIVE_AUTO_BANISH_ALL_OPP 繧ｹ繧ｭ繝・・・・));
     }
@@ -7446,12 +7666,14 @@ export function execStub(
     return done(addLog(ctx, `[遞ｮ譌丈ｿ晁ｭｷ: ${stub.id}]`));
   }
   // === 繝舌ャ繝・7: 繝代Ρ繝ｼ蜿崎ｻ｢繝ｻ譚｡莉ｶ蛻・ｲ舌・繧ｿ繝ｼ繧ｲ繝・ヨ邉ｻ ===
-  // REVERSE_OPP_POWER_MINUS: 逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ繝槭う繝翫せ菫ｮ豁｣繧貞渚霆｢・医・繝ｩ繧ｹ縺ｫ・・  if (stub.id === 'REVERSE_OPP_POWER_MINUS') {
+  // REVERSE_OPP_POWER_MINUS: 逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ繝槭う繝翫せ菫ｮ豁｣繧貞渚霆｢・医・繝ｩ繧ｹ縺ｫ・・
+  if (stub.id === 'REVERSE_OPP_POWER_MINUS') {
     const modsRPM = (ctx.otherState.temp_power_mods ?? []).map(m => m.delta < 0 ? { ...m, delta: Math.abs(m.delta) } : m);
     const newOtherRPM: PlayerState = { ...ctx.otherState, temp_power_mods: modsRPM };
     return done(addLog({ ...ctx, otherState: newOtherRPM }, '逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ繝槭う繝翫せ繧貞渚霆｢・医・繝ｩ繧ｹ縺ｫ・・));
   }
-  // NEGATE_THAT_ATTACK: 迴ｾ蝨ｨ縺ｮ繧｢繧ｿ繝・け繧堤┌蜉ｹ蛹・  if (stub.id === 'NEGATE_THAT_ATTACK') {
+  // NEGATE_THAT_ATTACK: 迴ｾ蝨ｨ縺ｮ繧｢繧ｿ繝・け繧堤┌蜉ｹ蛹・
+  if (stub.id === 'NEGATE_THAT_ATTACK') {
     // lastProcessedCards 縺ｮ1譫夂岼繧呈判謦・ｸｭ縺ｮ繧ｷ繧ｰ繝九→縺励※辟｡蜉ｹ蛹・    const attackerNTA = ctx.lastProcessedCards?.[0];
     if (attackerNTA) {
       const negatedNTA = [...(ctx.ownerState.negated_attacks ?? []), attackerNTA];
@@ -7460,7 +7682,8 @@ export function execStub(
     }
     return done(addLog(ctx, '繧｢繧ｿ繝・け辟｡蜉ｹ蛹厄ｼ亥ｯｾ雎｡荳肴・・・));
   }
-  // NEGATE_NTH_ATTACK: 縺薙・繧ｿ繝ｼ繝ｳ縲∫嶌謇九す繧ｰ繝九・繧｢繧ｿ繝・け繧誰蝗樒岼縺ｾ縺ｧ閾ｪ蜍慕┌蜉ｹ蛹・  if (stub.id === 'NEGATE_NTH_ATTACK') {
+  // NEGATE_NTH_ATTACK: 縺薙・繧ｿ繝ｼ繝ｳ縲∫嶌謇九す繧ｰ繝九・繧｢繧ｿ繝・け繧誰蝗樒岼縺ｾ縺ｧ閾ｪ蜍慕┌蜉ｹ蛹・
+  if (stub.id === 'NEGATE_NTH_ATTACK') {
     const toHWNNA = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const srcNNA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtNNA = srcNNA ? (srcNNA.EffectText ?? '') + ' ' + (srcNNA.BurstText ?? '') : '';
@@ -7473,16 +7696,19 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, negate_opp_signi_attacks_until: Math.max(cur, nNNA) };
     return done(addLog({ ...ctx, ownerState: newOwner }, `縺薙・繧ｿ繝ｼ繝ｳ縲∫嶌謇九す繧ｰ繝九い繧ｿ繝・け繧・{nNNA}蝗樒岼縺ｾ縺ｧ閾ｪ蜍慕┌蜉ｹ蛹冒));
   }
-  // NEGATE_COIN_ABILITY: 縺薙・繧ｿ繝ｼ繝ｳ縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｳ繧､繝ｳ閭ｽ蜉幢ｼ医・繝・ヨ・峨ｒ逋ｺ蜍輔〒縺阪↑縺・  if (stub.id === 'NEGATE_COIN_ABILITY') {
+  // NEGATE_COIN_ABILITY: 縺薙・繧ｿ繝ｼ繝ｳ縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｳ繧､繝ｳ閭ｽ蜉幢ｼ医・繝・ヨ・峨ｒ逋ｺ蜍輔〒縺阪↑縺・
+  if (stub.id === 'NEGATE_COIN_ABILITY') {
     const newOtherNCA: PlayerState = { ...ctx.otherState, negate_coin_abilities: true };
     return done(addLog({ ...ctx, otherState: newOtherNCA }, '縺薙・繧ｿ繝ｼ繝ｳ蟇ｾ謌ｦ逶ｸ謇九・繧ｳ繧､繝ｳ閭ｽ蜉帙ｒ逋ｺ蜍輔〒縺阪↑縺・));
   }
-  // NEGATE_ALL_OPP_EFFECTS: 逶ｸ謇九・CONTINUOUS蜉ｹ譫懊ｒ蜈ｨ縺ｦ辟｡蜉ｹ蛹厄ｼ・ll_cont_effects_negated繝輔Λ繧ｰ・・  if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {
+  // NEGATE_ALL_OPP_EFFECTS: 逶ｸ謇九・CONTINUOUS蜉ｹ譫懊ｒ蜈ｨ縺ｦ辟｡蜉ｹ蛹厄ｼ・ll_cont_effects_negated繝輔Λ繧ｰ・・
+  if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {
     const newOtherNAOE: PlayerState = { ...ctx.otherState, all_cont_effects_negated: true };
     return done(addLog({ ...ctx, otherState: newOtherNAOE },
       '逶ｸ謇九・CONTINUOUS蜉ｹ譫懊ｒ蜈ｨ縺ｦ辟｡蜉ｹ蛹厄ｼ医％縺ｮ繧ｿ繝ｼ繝ｳ・・));
   }
-  // EFFECT_LIMIT: 騾｣邯壼柑譫懊・荳企剞譫壽焚繧偵く繝｣繝・・・育峩蜑阪・繝代Ρ繝ｼ菫ｮ豁｣繧剃ｸ企剞蛟､縺ｧ繧ｭ繝｣繝・・・・  if (stub.id === 'EFFECT_LIMIT') {
+  // EFFECT_LIMIT: 騾｣邯壼柑譫懊・荳企剞譫壽焚繧偵く繝｣繝・・・育峩蜑阪・繝代Ρ繝ｼ菫ｮ豁｣繧剃ｸ企剞蛟､縺ｧ繧ｭ繝｣繝・・・・
+  if (stub.id === 'EFFECT_LIMIT') {
     const srcEL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtEL = srcEL ? (srcEL.EffectText ?? '') + ' ' + (srcEL.BurstText ?? '') : '';
     const toHWEL = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -7504,21 +7730,25 @@ export function execStub(
     }
     return done(addLog(ctx, '蜉ｹ譫懷宛髯・));
   }
-  // DISONA_RESTRICTION: DISONA蛻ｶ髯撰ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'DISONA_RESTRICTION') {
+  // DISONA_RESTRICTION: DISONA蛻ｶ髯撰ｼ医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'DISONA_RESTRICTION') {
     return done(addLog(ctx, 'DISONA蛻ｶ髯・));
   }
   // COIN_SPEND_CONDITION 窶ｻ繝ｭ繧ｰ縺ｮ縺ｿ
   if (stub.id === 'COIN_SPEND_CONDITION') {
     return done(addLog(ctx, '繧ｳ繧､繝ｳ豸郁ｲｻ譚｡莉ｶ'));
   }
-  // COIN_USE_RESTRICTION: 繧ｳ繧､繝ｳ菴ｿ逕ｨ蜈医ｒ繧ｹ繝壹Ν縺ｨ繧ｷ繧ｰ繝九↓髯仙ｮ夲ｼ医ご繝ｼ繝荳ｭ豌ｸ邯夲ｼ・  if (stub.id === 'COIN_USE_RESTRICTION') {
+  // COIN_USE_RESTRICTION: 繧ｳ繧､繝ｳ菴ｿ逕ｨ蜈医ｒ繧ｹ繝壹Ν縺ｨ繧ｷ繧ｰ繝九↓髯仙ｮ夲ｼ医ご繝ｼ繝荳ｭ豌ｸ邯夲ｼ・
+  if (stub.id === 'COIN_USE_RESTRICTION') {
     const newOwnerCUR: PlayerState = { ...ctx.ownerState, coin_use_restriction: 'spell_signi_only' };
     return done(addLog({ ...ctx, ownerState: newOwnerCUR }, '縺薙・繧ｲ繝ｼ繝縺ｮ髢難ｼ壹さ繧､繝ｳ縺ｯ繧ｹ繝壹Ν縺ｨ繧ｷ繧ｰ繝九↓縺励°謾ｯ謇輔∴縺ｪ縺・));
   }
-  // INCREASE_ACT_ABILITY_COST: 襍ｷ蜍戊・蜉帙・繧ｳ繧ｹ繝医ｒ蠅怜刈・医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'INCREASE_ACT_ABILITY_COST') {
+  // INCREASE_ACT_ABILITY_COST: 襍ｷ蜍戊・蜉帙・繧ｳ繧ｹ繝医ｒ蠅怜刈・医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'INCREASE_ACT_ABILITY_COST') {
     return done(addLog(ctx, '襍ｷ蜍戊・蜉帙さ繧ｹ繝亥｢怜刈'));
   }
-  // CONDITIONAL_KEYWORD_BY_CENTER_COLOR: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｮ濶ｲ縺ｫ蠢懊§縺ｦ繧ｭ繝ｼ繝ｯ繝ｼ繝我ｻ倅ｸ・  if (stub.id === 'CONDITIONAL_KEYWORD_BY_CENTER_COLOR') {
+  // CONDITIONAL_KEYWORD_BY_CENTER_COLOR: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｮ濶ｲ縺ｫ蠢懊§縺ｦ繧ｭ繝ｼ繝ｯ繝ｼ繝我ｻ倅ｸ・
+  if (stub.id === 'CONDITIONAL_KEYWORD_BY_CENTER_COLOR') {
     const centerCKBC = ctx.ownerState.field.lrig.at(-1);
     const centerCardCKBC = centerCKBC ? ctx.cardMap.get(centerCKBC) : undefined;
     const centerColorCKBC = centerCardCKBC?.Color ?? '';
@@ -7542,7 +7772,8 @@ export function execStub(
     const newSCKBC: PlayerState = { ...ctx.ownerState, keyword_grants: kwGrantsCKBC };
     return done(addLog({ ...ctx, ownerState: newSCKBC }, `繧ｻ繝ｳ繧ｿ繝ｼ濶ｲ${centerColorCKBC}竊貞・繧ｷ繧ｰ繝九↓縲・{kwCKBC}縲台ｻ倅ｸ餐));
   }
-  // SELECT_OTHER_SIGNI: 繧ｽ繝ｼ繧ｹ莉･螟悶・繧ｷ繧ｰ繝九ｒ驕ｸ謚・  if (stub.id === 'SELECT_OTHER_SIGNI') {
+  // SELECT_OTHER_SIGNI: 繧ｽ繝ｼ繧ｹ莉･螟悶・繧ｷ繧ｰ繝九ｒ驕ｸ謚・
+  if (stub.id === 'SELECT_OTHER_SIGNI') {
     const srcSOS = ctx.sourceCardNum;
     const candsSOS = (ctx.ownerState.field.signi ?? []).flatMap(s => {
       if (!s || s.length === 0) return [];
@@ -7570,7 +7801,8 @@ export function execStub(
     if (!hasLevelELCC) return done(addLog(ctx, `繧ｨ繝翫↓Lv${threshELCC}莉･荳翫↑縺暦ｼ域擅莉ｶ荳埼＃謌撰ｼ荏));
     return done(addLog(ctx, `繧ｨ繝翫↓Lv${threshELCC}莉･荳翫≠繧奇ｼ域擅莉ｶ驕疲・・俄・驕ｸ謚槫柑譫彖));
   }
-  // LEVEL_BASED_CONDITIONAL: 蜈ｬ髢九＠縺溘す繧ｰ繝九・繝ｬ繝吶ΝN譫壹□縺第焔譛ｭ繧呈昏縺ｦ繧・  if (stub.id === 'LEVEL_BASED_CONDITIONAL') {
+  // LEVEL_BASED_CONDITIONAL: 蜈ｬ髢九＠縺溘す繧ｰ繝九・繝ｬ繝吶ΝN譫壹□縺第焔譛ｭ繧呈昏縺ｦ繧・
+  if (stub.id === 'LEVEL_BASED_CONDITIONAL') {
     const toHWLBC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const revealedLBC = ctx.lastProcessedCards?.[0];
     const revealedCardLBC = revealedLBC ? ctx.cardMap.get(revealedLBC) : undefined;
@@ -7583,7 +7815,8 @@ export function execStub(
     return selectOrInteract(ctx.ownerState.hand, discardNLBC, false, 'self_hand', discardActionLBC as EffectAction, undefined,
       addLog(ctx, `繝ｬ繝吶Ν${levelLBC}縺ｮ繧ｷ繧ｰ繝・竊・謇区惆${discardNLBC}譫壽昏縺ｦ`));
   }
-  // OPP_DECLARE_COLOR: 逶ｸ謇九′濶ｲ繧貞ｮ｣險・・濶ｲCHOOSE opponentResponds竊棚NTERNAL_SET_OPP_DECLARED_COLOR・・  if (stub.id === 'OPP_DECLARE_COLOR') {
+  // OPP_DECLARE_COLOR: 逶ｸ謇九′濶ｲ繧貞ｮ｣險・・濶ｲCHOOSE opponentResponds竊棚NTERNAL_SET_OPP_DECLARED_COLOR・・
+  if (stub.id === 'OPP_DECLARE_COLOR') {
     const colorsODC = ['逋ｽ', '襍､', '髱・, '邱・, '鮟・];
     const setColorODC = (c: string): StubAction => ({ type: 'STUB', id: 'INTERNAL_SET_OPP_DECLARED_COLOR', value: c });
     const optsODC = colorsODC.map(c => ({
@@ -7598,7 +7831,8 @@ export function execStub(
     const newOtherSODC = { ...ctx.otherState, declared_color: colorSODC };
     return done(addLog({ ...ctx, otherState: newOtherSODC }, `蟇ｾ謌ｦ逶ｸ謇九′濶ｲ縲・{colorSODC}縲阪ｒ螳｣險`));
   }
-  // COLLAB: 繧ｳ繝ｩ繝懷柑譫・  if (stub.id === 'COLLAB') {
+  // COLLAB: 繧ｳ繝ｩ繝懷柑譫・
+  if (stub.id === 'COLLAB') {
     const srcCL = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
     const txtCL = (srcCL?.EffectText ?? '') + ' ' + (srcCL?.BurstText ?? '');
     // 縲後さ繝ｩ繝懊Λ繧､繝舌・N莠ｺ繧貞他縺ｶ縲・ 繝ｫ繝ｪ繧ｰ繝・ャ繧ｭ縺九ｉ繧｢繧ｷ繧ｹ繝医Ν繝ｪ繧ｰ繧偵い繧ｷ繧ｹ繝医だ繝ｼ繝ｳ縺ｫ驟咲ｽｮ
@@ -7651,7 +7885,8 @@ export function execStub(
       ],
     });
   }
-  // INTERNAL_DO_COLLAB: 繧ｳ繝ｩ繝懷ｮ溯｡鯉ｼ医い繧ｷ繧ｹ繝医Ν繝ｪ繧ｰ1莠ｺ繧帝・鄂ｮ・・  if (stub.id === 'INTERNAL_DO_COLLAB') {
+  // INTERNAL_DO_COLLAB: 繧ｳ繝ｩ繝懷ｮ溯｡鯉ｼ医い繧ｷ繧ｹ繝医Ν繝ｪ繧ｰ1莠ｺ繧帝・鄂ｮ・・
+  if (stub.id === 'INTERNAL_DO_COLLAB') {
     const assistInDkIDC = ctx.ownerState.lrig_deck.filter(cn => {
       const c = ctx.cardMap.get(getCardNum(cn));
       return c?.Type === '繧｢繧ｷ繧ｹ繝医Ν繝ｪ繧ｰ';
@@ -7668,7 +7903,8 @@ export function execStub(
     const newOwnerIDC: PlayerState = { ...ctx.ownerState, lrig_deck: newDkIDC, field: newFieldIDC };
     return done(addLog({ ...ctx, ownerState: newOwnerIDC },
       `繧ｳ繝ｩ繝・ ${ctx.cardMap.get(getCardNum(toPlaceIDC))?.CardName ?? toPlaceIDC}繧貞小蝟啻));
-  // GATE: 繧ｲ繝ｼ繝亥柑譫懶ｼ医Ο繧ｰ縺ｮ縺ｿ・・  // GATE: 逶ｸ謇九・繧ｷ繧ｰ繝九だ繝ｼ繝ｳ1縺､縺ｫ縲舌ご繝ｼ繝医代ｒ險ｭ鄂ｮ・域ｬ｡縺ｮ繧｢繧ｿ繝・け繝輔ぉ繧､繧ｺ縺ｫ譚｡莉ｶ莉倥″縺ｧ繧｢繧ｿ繝・け荳榊庄・・  if (stub.id === 'GATE') {
+  // GATE: 繧ｲ繝ｼ繝亥柑譫懶ｼ医Ο繧ｰ縺ｮ縺ｿ・・  // GATE: 逶ｸ謇九・繧ｷ繧ｰ繝九だ繝ｼ繝ｳ1縺､縺ｫ縲舌ご繝ｼ繝医代ｒ險ｭ鄂ｮ・域ｬ｡縺ｮ繧｢繧ｿ繝・け繝輔ぉ繧､繧ｺ縺ｫ譚｡莉ｶ莉倥″縺ｧ繧｢繧ｿ繝・け荳榊庄・・
+  if (stub.id === 'GATE') {
     const zoneOptsGATE = [0, 1, 2].map(zi => ({
       id: `gate_zone_${zi}`,
       label: `逶ｸ謇九だ繝ｼ繝ｳ${zi + 1}縺ｫ縲舌ご繝ｼ繝医題ｨｭ鄂ｮ`,
@@ -7689,7 +7925,8 @@ export function execStub(
     const newOtherGATE = { ...ctx.otherState, signi_gate_zones: currentGates, blocked_actions: blocked };
     return done(addLog({ ...ctx, otherState: newOtherGATE }, `逶ｸ謇九だ繝ｼ繝ｳ${gateZoneIdx + 1}縺ｫ縲舌ご繝ｼ繝医題ｨｭ鄂ｮ`));
   }
-  // PLACE_MAGIC_BOX: lastProcessedCards[0]縺ｮ繧ｫ繝ｼ繝峨ｒMB縺ｨ縺励※險ｭ鄂ｮ・医だ繝ｼ繝ｳ驕ｸ謚樞・INTERNAL_SET_MAGIC_BOX・・  if (stub.id === 'PLACE_MAGIC_BOX') {
+  // PLACE_MAGIC_BOX: lastProcessedCards[0]縺ｮ繧ｫ繝ｼ繝峨ｒMB縺ｨ縺励※險ｭ鄂ｮ・医だ繝ｼ繝ｳ驕ｸ謚樞・INTERNAL_SET_MAGIC_BOX・・
+  if (stub.id === 'PLACE_MAGIC_BOX') {
     const cardPMB = ctx.lastProcessedCards?.[0] ?? null;
     if (!cardPMB) return done(addLog(ctx, '縲舌・繧ｸ繝・け繝懊ャ繧ｯ繧ｹ縲題ｨｭ鄂ｮ・壹き繝ｼ繝峨↑縺・));
     const zoneLabelsPMB = [0, 1, 2].map(zi => {
@@ -7703,7 +7940,8 @@ export function execStub(
       type: 'CHOOSE', options: zoneLabelsPMB, count: 1,
     });
   }
-  // INTERNAL_SET_MAGIC_BOX: 繧ｾ繝ｼ繝ｳ遒ｺ螳壼ｾ後・螳溯ｨｭ鄂ｮ蜃ｦ逅・  if (stub.id === 'INTERNAL_SET_MAGIC_BOX') {
+  // INTERNAL_SET_MAGIC_BOX: 繧ｾ繝ｼ繝ｳ遒ｺ螳壼ｾ後・螳溯ｨｭ鄂ｮ蜃ｦ逅・
+  if (stub.id === 'INTERNAL_SET_MAGIC_BOX') {
     const zoneIdxSMB: number = (typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'))) as number;
     const cardSMB = ctx.lastProcessedCards?.[0] ?? null;
     if (!cardSMB) return done(addLog(ctx, 'INTERNAL_SET_MAGIC_BOX・壹き繝ｼ繝峨↑縺・));
@@ -7722,7 +7960,8 @@ export function execStub(
     };
     return done(addLog({ ...ctx, ownerState: newOwnerSMB }, `縲舌・繧ｸ繝・け繝懊ャ繧ｯ繧ｹ縲題ｨｭ鄂ｮ: 繧ｾ繝ｼ繝ｳ${zoneIdxSMB + 1}・・{ctx.cardMap.get(cardSMB ?? '')?.CardName ?? cardSMB}・荏));
   }
-  // OPEN_MAGIC_BOX: 縺薙・繧ｷ繧ｰ繝九→蜷後だ繝ｼ繝ｳ縺ｮMB繧定｡ｨ蜷代″縺ｫ縺励※繝医Λ繝・す繝･縺ｸ・井ｻｻ諢擾ｼ・  if (stub.id === 'OPEN_MAGIC_BOX') {
+  // OPEN_MAGIC_BOX: 縺薙・繧ｷ繧ｰ繝九→蜷後だ繝ｼ繝ｳ縺ｮMB繧定｡ｨ蜷代″縺ｫ縺励※繝医Λ繝・す繝･縺ｸ・井ｻｻ諢擾ｼ・
+  if (stub.id === 'OPEN_MAGIC_BOX') {
     const srcOMB = ctx.sourceCardNum;
     const signiFieldOMB = ctx.ownerState.field.signi;
     const zoneIdxOMB = signiFieldOMB.findIndex(stack => stack?.includes(srcOMB ?? ''));
@@ -7744,7 +7983,8 @@ export function execStub(
       count: 1,
     });
   }
-  // INTERNAL_OPEN_MB_DO: MB陦ｨ蜷代″遒ｺ螳壼ｾ後・繝医Λ繝・す繝･遘ｻ蜍・  if (stub.id === 'INTERNAL_OPEN_MB_DO') {
+  // INTERNAL_OPEN_MB_DO: MB陦ｨ蜷代″遒ｺ螳壼ｾ後・繝医Λ繝・す繝･遘ｻ蜍・
+  if (stub.id === 'INTERNAL_OPEN_MB_DO') {
     const zoneIdxOD = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
     const mbsOD = [...(ctx.ownerState.field.signi_magic_boxes ?? [null, null, null])] as (string | null)[];
     const mbCardOD = mbsOD[zoneIdxOD];
@@ -7760,18 +8000,21 @@ export function execStub(
       `縲舌・繧ｸ繝・け繝懊ャ繧ｯ繧ｹ縲大・髢・ ${ctx.cardMap.get(mbCardOD)?.CardName ?? mbCardOD}竊偵ヨ繝ｩ繝・す繝･`,
     ));
   }
-  // TARGET_OPP_SIGNI_ONLY / TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: 蟇ｾ雎｡菫ｮ鬟ｾ蟄撰ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'TARGET_OPP_SIGNI_ONLY' || stub.id === 'TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE') {
+  // TARGET_OPP_SIGNI_ONLY / TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: 蟇ｾ雎｡菫ｮ鬟ｾ蟄撰ｼ医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'TARGET_OPP_SIGNI_ONLY' || stub.id === 'TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE') {
     return done(addLog(ctx, '逶ｸ謇九す繧ｰ繝九ｒ蟇ｾ雎｡縺ｨ縺吶ｋ'));
   }
   // USE_CONDITION_ARTS_USED: 縺薙・繧ｿ繝ｼ繝ｳ縺ｫ繧｢繝ｼ繝・ｒ菴ｿ逕ｨ縺励※縺・◆蝣ｴ蜷医√％縺ｮ繧ｫ繝ｼ繝峨・菴ｿ逕ｨ荳榊庄
-  // actions_done 縺ｫ 'USE_ARTS' 縺悟性縺ｾ繧後ｋ縺九メ繧ｧ繝・け・・attleScreen縺径rtsUse譎ゅ↓霑ｽ蜉・・  if (stub.id === 'USE_CONDITION_ARTS_USED') {
+  // actions_done 縺ｫ 'USE_ARTS' 縺悟性縺ｾ繧後ｋ縺九メ繧ｧ繝・け・・attleScreen縺径rtsUse譎ゅ↓霑ｽ蜉・・
+  if (stub.id === 'USE_CONDITION_ARTS_USED') {
     const usedArtsUCU = ctx.ownerState.actions_done?.includes('USE_ARTS') ?? false;
     if (usedArtsUCU) {
       return done(addLog(ctx, '縺薙・繧ｿ繝ｼ繝ｳ縺吶〒縺ｫ繧｢繝ｼ繝・ｒ菴ｿ逕ｨ貂医∩ 竊・菴ｿ逕ｨ荳榊庄'));
     }
     return done(addLog(ctx, '繧｢繝ｼ繝・悴菴ｿ逕ｨ 竊・菴ｿ逕ｨ蜿ｯ'));
   }
-  // CENTER_ZONE_CONDITION: 縺薙・繧ｷ繧ｰ繝九′荳ｭ螟ｮ繧ｾ繝ｼ繝ｳ・・one[1]・峨↓縺ゅｋ蝣ｴ蜷医・縺ｿ邯夊｡・  if (stub.id === 'CENTER_ZONE_CONDITION') {
+  // CENTER_ZONE_CONDITION: 縺薙・繧ｷ繧ｰ繝九′荳ｭ螟ｮ繧ｾ繝ｼ繝ｳ・・one[1]・峨↓縺ゅｋ蝣ｴ蜷医・縺ｿ邯夊｡・
+  if (stub.id === 'CENTER_ZONE_CONDITION') {
     const srcCZC = ctx.sourceCardNum;
     if (srcCZC) {
       const centerStack = ctx.ownerState.field.signi[1];
@@ -7780,7 +8023,8 @@ export function execStub(
     }
     return done(addLog(ctx, '荳ｭ螟ｮ繧ｾ繝ｼ繝ｳ譚｡莉ｶ: 謌千ｫ・));
   }
-  // DEPLOY_RESTRICT: 驟咲ｽｮ蛻ｶ髯撰ｼ・ONTINUOUS縺ｯ蜍慕噪蜃ｦ逅・、UTO縺ｯ繝輔Λ繧ｰ險ｭ鄂ｮ・・  if (stub.id === 'DEPLOY_RESTRICT') {
+  // DEPLOY_RESTRICT: 驟咲ｽｮ蛻ｶ髯撰ｼ・ONTINUOUS縺ｯ蜍慕噪蜃ｦ逅・、UTO縺ｯ繝輔Λ繧ｰ險ｭ鄂ｮ・・
+  if (stub.id === 'DEPLOY_RESTRICT') {
     const srcDR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDR = srcDR ? (srcDR.EffectText ?? '') : '';
     const toHWDR = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -7927,14 +8171,17 @@ export function execStub(
     const newOwnerPC: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_chokkin: chokkinPC } };
     return done(addLog({ ...ctx, ownerState: newOwnerPC }, `縲占ｲｯ闖後妥・{chokkinPC[ziPC]}・医だ繝ｼ繝ｳ${ziPC + 1}・荏));
   }
-  // ADD_RESONANCE_CONDITION: 繝ｬ繧ｾ繝頑擅莉ｶ霑ｽ蜉・医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'ADD_RESONANCE_CONDITION') {
+  // ADD_RESONANCE_CONDITION: 繝ｬ繧ｾ繝頑擅莉ｶ霑ｽ蜉・医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'ADD_RESONANCE_CONDITION') {
     return done(addLog(ctx, '繝ｬ繧ｾ繝頑擅莉ｶ霑ｽ蜉'));
   }
-  // IGNORE_LRIG_RESTRICTION_ARTS: 繝ｫ繝ｪ繧ｰ蛻ｶ髯舌い繝ｼ繝・ｒ辟｡隕厄ｼ医ヵ繝ｩ繧ｰ險ｭ螳夲ｼ・  if (stub.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
+  // IGNORE_LRIG_RESTRICTION_ARTS: 繝ｫ繝ｪ繧ｰ蛻ｶ髯舌い繝ｼ繝・ｒ辟｡隕厄ｼ医ヵ繝ｩ繧ｰ險ｭ螳夲ｼ・
+  if (stub.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
     const newOwnerILRA: PlayerState = { ...ctx.ownerState, lrig_gained_types: [...(ctx.ownerState.lrig_gained_types ?? []), '__ignore_lrig_restriction__'] };
     return done(addLog({ ...ctx, ownerState: newOwnerILRA }, '縺薙・繧ｲ繝ｼ繝縺ｮ髢薙√Ν繝ｪ繧ｰ蛻ｶ髯舌い繝ｼ繝・ｒ辟｡隕・));
   }
-  // COST_COLOR_SELECT: 繧ｳ繧ｹ繝郁牡繧帝∈謚橸ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'COST_COLOR_SELECT') {
+  // COST_COLOR_SELECT: 繧ｳ繧ｹ繝郁牡繧帝∈謚橸ｼ医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'COST_COLOR_SELECT') {
     return done(addLog(ctx, '繧ｳ繧ｹ繝郁牡繧帝∈謚・));
   }
   // HASTARLIQ: 対戦相手のシグニゾーン1つを選択し、そのゾーンのシグニにアタック禁止を設定
@@ -7959,7 +8206,8 @@ export function execStub(
       type: 'CHOOSE', options: zoneOptsHL, count: 1,
     });
   }
-  // ACTIVATE_EICHI_ABILITY: 繧ｳ繧､繝ｳ閭ｽ蜉帙〒縺薙・繧ｷ繧ｰ繝九・縲仙・縲大柑譫懊ｒ蜀咲匱蜍・  if (stub.id === 'ACTIVATE_EICHI_ABILITY') {
+  // ACTIVATE_EICHI_ABILITY: 繧ｳ繧､繝ｳ閭ｽ蜉帙〒縺薙・繧ｷ繧ｰ繝九・縲仙・縲大柑譫懊ｒ蜀咲匱蜍・
+  if (stub.id === 'ACTIVATE_EICHI_ABILITY') {
     const srcAEA = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
     if (!srcAEA) return done(addLog(ctx, '繧ｨ繧､繝∬・蜉幢ｼ壹た繝ｼ繧ｹ繧ｫ繝ｼ繝峨↑縺・));
     const eichiEffs = parseCardEffects(srcAEA);
@@ -7969,7 +8217,8 @@ export function execStub(
     }
     return done(addLog(ctx, `繧ｨ繧､繝∬・蜉帷匱蜍包ｼ・{srcAEA.CardName}・荏));
   }
-  // CHANGE_EICHI_SIGNI_BASE_LEVEL: 闍ｱ遏･繧ｷ繧ｰ繝九ｒ驕ｸ謚樞・蝓ｺ譛ｬ繝ｬ繝吶Ν繧・・・縺ｫ螟画峩・医ち繝ｼ繝ｳ邨ゆｺ・∪縺ｧ・・  if (stub.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL') {
+  // CHANGE_EICHI_SIGNI_BASE_LEVEL: 闍ｱ遏･繧ｷ繧ｰ繝九ｒ驕ｸ謚樞・蝓ｺ譛ｬ繝ｬ繝吶Ν繧・・・縺ｫ螟画峩・医ち繝ｼ繝ｳ邨ゆｺ・∪縺ｧ・・
+  if (stub.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL') {
     // stub.value縺梧焚蛟､縺九▽lastProcessedCards縺ゅｊ竊帝←逕ｨ
     if (typeof stub.value === 'number' && ctx.lastProcessedCards?.length) {
       const targetCESBL = ctx.lastProcessedCards[0];
@@ -8033,7 +8282,8 @@ export function execStub(
     const newOwner = { ...ctx.ownerState, suppress_center_on_play: true };
     return done(addLog({ ...ctx, ownerState: newOwner }, '縺薙・繧ｿ繝ｼ繝ｳ縲√そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｮ縲仙・縲題・蜉帙・逋ｺ蜍輔＠縺ｪ縺・));
   }
-  // SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: 縺薙・繧ｷ繧ｰ繝九ｒ繝医Λ繝・す繝･縺ｫ鄂ｮ縺丈ｻ｣繧上ｊ縺ｫ繝繝｡繝ｼ繧ｸ辟｡蜉ｹ・井ｻｻ諢擾ｼ・  if (stub.id === 'SUBSTITUTE_DAMAGE_WITH_SELF_TRASH') {
+  // SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: 縺薙・繧ｷ繧ｰ繝九ｒ繝医Λ繝・す繝･縺ｫ鄂ｮ縺丈ｻ｣繧上ｊ縺ｫ繝繝｡繝ｼ繧ｸ辟｡蜉ｹ・井ｻｻ諢擾ｼ・
+  if (stub.id === 'SUBSTITUTE_DAMAGE_WITH_SELF_TRASH') {
     const srcSDWT = ctx.sourceCardNum;
     if (!srcSDWT) return done(addLog(ctx, 'SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: 繧ｽ繝ｼ繧ｹ縺ｪ縺・));
     const inFieldSDWT = ctx.ownerState.field.signi.some(s => s?.includes(srcSDWT));
@@ -8050,7 +8300,8 @@ export function execStub(
       ],
     });
   }
-  // INTERNAL_SDWT_DO: 繧ｷ繧ｰ繝九ヨ繝ｩ繝・す繝･+繝繝｡繝ｼ繧ｸ辟｡蜉ｹ螳溯｡・  if (stub.id === 'INTERNAL_SDWT_DO') {
+  // INTERNAL_SDWT_DO: 繧ｷ繧ｰ繝九ヨ繝ｩ繝・す繝･+繝繝｡繝ｼ繧ｸ辟｡蜉ｹ螳溯｡・
+  if (stub.id === 'INTERNAL_SDWT_DO') {
     const srcISDWT = ctx.sourceCardNum;
     if (!srcISDWT) return done(addLog(ctx, 'INTERNAL_SDWT_DO: 繧ｽ繝ｼ繧ｹ縺ｪ縺・));
     const newSigniISDWT = ctx.ownerState.field.signi.map(s => {
@@ -8067,13 +8318,16 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerISDWT },
       `${ctx.cardMap.get(srcISDWT)?.CardName ?? srcISDWT}繧偵ヨ繝ｩ繝・す繝･竊偵ム繝｡繝ｼ繧ｸ辟｡蜉ｹ`));
   }
-  // SELECT_NO_COMMON_COLOR: 蜈ｱ騾夊牡縺ｪ縺励ｒ驕ｸ謚橸ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'SELECT_NO_COMMON_COLOR') {
+  // SELECT_NO_COMMON_COLOR: 蜈ｱ騾夊牡縺ｪ縺励ｒ驕ｸ謚橸ｼ医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'SELECT_NO_COMMON_COLOR') {
     return done(addLog(ctx, '蜈ｱ騾夊牡縺ｪ縺励ｒ驕ｸ謚・));
   }
-  // DISCARD_BY_POWER_MATCH: 繝代Ρ繝ｼ荳閾ｴ縺ｧ謐ｨ縺ｦ・医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'DISCARD_BY_POWER_MATCH') {
+  // DISCARD_BY_POWER_MATCH: 繝代Ρ繝ｼ荳閾ｴ縺ｧ謐ｨ縺ｦ・医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'DISCARD_BY_POWER_MATCH') {
     return done(addLog(ctx, '繝代Ρ繝ｼ荳閾ｴ縺ｧ謐ｨ縺ｦ・医せ繧ｭ繝・・・・));
   }
-  // DECLARE_NUMBER_RANGE: 0縲・縺ｮ謨ｰ蟄怜ｮ｣險・・ECLARE_NUMBER縺ｨ蜷梧ｧ倥□縺・繧貞性繧・・  if (stub.id === 'DECLARE_NUMBER_RANGE') {
+  // DECLARE_NUMBER_RANGE: 0縲・縺ｮ謨ｰ蟄怜ｮ｣險・・ECLARE_NUMBER縺ｨ蜷梧ｧ倥□縺・繧貞性繧・・
+  if (stub.id === 'DECLARE_NUMBER_RANGE') {
     const setDNR = (n: number): StubAction => ({ type: 'STUB', id: 'SET_DECLARED_NUMBER', value: n });
     const optsDNR = [0, 1, 2, 3, 4, 5].map(n => ({
       id: `dnr_${n}`, label: `${n}繧貞ｮ｣險`, action: setDNR(n) as EffectAction, available: true,
@@ -8082,7 +8336,8 @@ export function execStub(
       type: 'CHOOSE', options: optsDNR, count: 1,
     });
   }
-  // DECLARE_NUMBER_POWER: 繝代Ρ繝ｼ蛟､螳｣險・・000縲・5000・俄・ declared_guard_restrict_level 縺ｫ菫晏ｭ・  if (stub.id === 'DECLARE_NUMBER_POWER') {
+  // DECLARE_NUMBER_POWER: 繝代Ρ繝ｼ蛟､螳｣險・・000縲・5000・俄・ declared_guard_restrict_level 縺ｫ菫晏ｭ・
+  if (stub.id === 'DECLARE_NUMBER_POWER') {
     const setDNP = (n: number): StubAction => ({ type: 'STUB', id: 'SET_DECLARED_NUMBER', value: n });
     const optsDNP = [3000, 5000, 7000, 10000, 12000, 15000].map(n => ({
       id: `pwr_${n}`, label: `${n.toLocaleString()}繧貞ｮ｣險`, action: setDNP(n) as EffectAction, available: true,
@@ -8091,7 +8346,8 @@ export function execStub(
       type: 'CHOOSE', options: optsDNP, count: 1,
     });
   }
-  // CONDITIONAL_ALTERNATE_EFFECT: 譚｡莉ｶ驕疲・譎ゅ↓繝繧ｦ繝ｳ貂医∩繧ｷ繧ｰ繝九ｒ繝医Λ繝・す繝･縺ｸ・井ｻ｣譖ｿ蜉ｹ譫懶ｼ・  if (stub.id === 'CONDITIONAL_ALTERNATE_EFFECT') {
+  // CONDITIONAL_ALTERNATE_EFFECT: 譚｡莉ｶ驕疲・譎ゅ↓繝繧ｦ繝ｳ貂医∩繧ｷ繧ｰ繝九ｒ繝医Λ繝・す繝･縺ｸ・井ｻ｣譖ｿ蜉ｹ譫懶ｼ・
+  if (stub.id === 'CONDITIONAL_ALTERNATE_EFFECT') {
     const srcCAE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCAE = srcCAE ? (srcCAE.EffectText ?? '') + ' ' + (srcCAE.BurstText ?? '') : '';
     // 縲後≠縺ｪ縺溘・蝣ｴ縺ｫ・廚LASS・槭・繧ｷ繧ｰ繝九′縺ゅｋ蝣ｴ蜷医∽ｻ｣繧上ｊ縺ｫ縲阪ヱ繧ｿ繝ｼ繝ｳ
@@ -8144,7 +8400,8 @@ export function execStub(
       addLog({ ...ctx, sourceCardNum: cnTSFUL, lastProcessedCards: [] },
         `${cardTSFUL.CardName}繧偵ヨ繝ｩ繝・す繝･縺九ｉ繧ｳ繧ｹ繝医↑縺励〒菴ｿ逕ｨ`));
   }
-  // UPKEEP_OR_NO_UP: 繧｢繝・・繧ｭ繝ｼ繝励°繧｢繝・・縺ｪ縺暦ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'UPKEEP_OR_NO_UP') {
+  // UPKEEP_OR_NO_UP: 繧｢繝・・繧ｭ繝ｼ繝励°繧｢繝・・縺ｪ縺暦ｼ医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'UPKEEP_OR_NO_UP') {
     return done(addLog(ctx, '繧｢繝・・繧ｭ繝ｼ繝励°繧｢繝・・縺ｪ縺・));
   }
   // ACTIVATE_COST_ZERO_BLACK: 繝医Λ繝・す繝･縺ｮ繧ｷ繧ｰ繝九ｒ驕ｸ謚樞・谺｡縺ｮ襍ｷ蜍輔さ繧ｹ繝医ｒ縲企ｻ津・縲九↓
@@ -8163,19 +8420,23 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerACZB },
       `${ctx.cardMap.get(targetACZB)?.CardName ?? targetACZB}縺ｮ谺｡縺ｮ襍ｷ蜍輔さ繧ｹ繝遺・縲企ｻ津・縲義));
   }
-  // BET_CONDITION: 繝吶ャ繝域擅莉ｶ・医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'BET_CONDITION') {
+  // BET_CONDITION: 繝吶ャ繝域擅莉ｶ・医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'BET_CONDITION') {
     return done(addLog(ctx, '繝吶ャ繝域擅莉ｶ'));
   }
-  // DISABLE_FIRST_ABILITY_ON_ATTACK: 繧｢繧ｿ繝・け譎よ怙蛻昴・閭ｽ蜉帙ｒ辟｡蜉ｹ蛹厄ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'DISABLE_FIRST_ABILITY_ON_ATTACK') {
+  // DISABLE_FIRST_ABILITY_ON_ATTACK: 繧｢繧ｿ繝・け譎よ怙蛻昴・閭ｽ蜉帙ｒ辟｡蜉ｹ蛹厄ｼ医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'DISABLE_FIRST_ABILITY_ON_ATTACK') {
     return done(addLog(ctx, '繧｢繧ｿ繝・け譎よ怙蛻昴・閭ｽ蜉帙ｒ辟｡蜉ｹ蛹・));
   }
-  // REPLACE_PLUS_N: 縺薙・繧ｿ繝ｼ繝ｳ縲∫嶌謇九す繧ｰ繝九∈縺ｮ豁｣繝代Ρ繝ｼ菫ｮ豁｣繧定ｲ縺ｫ鄂ｮ謠・  if (stub.id === 'REPLACE_PLUS_N') {
+  // REPLACE_PLUS_N: 縺薙・繧ｿ繝ｼ繝ｳ縲∫嶌謇九す繧ｰ繝九∈縺ｮ豁｣繝代Ρ繝ｼ菫ｮ豁｣繧定ｲ縺ｫ鄂ｮ謠・
+  if (stub.id === 'REPLACE_PLUS_N') {
     const newOwnerRPN: PlayerState = { ...ctx.ownerState, replace_opp_power_plus: true };
     return done(addLog({ ...ctx, ownerState: newOwnerRPN }, '縺薙・繧ｿ繝ｼ繝ｳ逶ｸ謇九す繧ｰ繝九∈縺ｮ+繝代Ρ繝ｼ菫ｮ豁｣繧・縺ｫ鄂ｮ謠・));
   }
   // CONDITIONAL_KEYWORD_BY_CENTER_COLOR already handled above
   // === 繝舌ャ繝・6: 繧｢繧ｯ繧ｻ繝ｻ蜈ｬ髢九・豎守畑驕ｸ謚樒ｳｻ ===
-  // GRID_REVEAL_PLUS: 繧ｰ繝ｪ繝・ラ蜈ｬ髢具ｼ医ョ繝・く荳翫ｒ蜈ｬ髢九＠邨先棡縺ｫ蠢懊§縺ｦ繝峨Ο繝ｼ遲会ｼ・  if (stub.id === 'GRID_REVEAL_PLUS') {
+  // GRID_REVEAL_PLUS: 繧ｰ繝ｪ繝・ラ蜈ｬ髢具ｼ医ョ繝・く荳翫ｒ蜈ｬ髢九＠邨先棡縺ｫ蠢懊§縺ｦ繝峨Ο繝ｼ遲会ｼ・
+  if (stub.id === 'GRID_REVEAL_PLUS') {
     const sGRP = ctx.ownerState;
     if (sGRP.deck.length === 0) return done(addLog(ctx, '繝・ャ繧ｭ縺ｪ縺暦ｼ医げ繝ｪ繝・ラ蜈ｬ髢九〒縺阪★・・));
     const topGRP = sGRP.deck[0];
@@ -8184,7 +8445,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSGRP, lastProcessedCards: [topGRP] },
       `繧ｰ繝ｪ繝・ラ蜈ｬ髢具ｼ・{cardGRP?.CardName ?? topGRP}竊偵ヨ繝ｩ繝・す繝･`));
   }
-  // MAGIC_BOX_REVEAL: 蝣ｴ縺ｮMB繧定｡ｨ蜷代″縺ｫ縺励※繧ｷ繧ｰ繝九↓縺吶ｋ・亥・MB繧偵す繧ｰ繝九→縺励※驟咲ｽｮ・・  if (stub.id === 'MAGIC_BOX_REVEAL') {
+  // MAGIC_BOX_REVEAL: 蝣ｴ縺ｮMB繧定｡ｨ蜷代″縺ｫ縺励※繧ｷ繧ｰ繝九↓縺吶ｋ・亥・MB繧偵す繧ｰ繝九→縺励※驟咲ｽｮ・・
+  if (stub.id === 'MAGIC_BOX_REVEAL') {
     const mbsReveal = ctx.ownerState.field.signi_magic_boxes ?? [null, null, null];
     const newSigniReveal = [...ctx.ownerState.field.signi] as (string[] | null)[];
     const newMBsReveal = [...mbsReveal] as (string | null)[];
@@ -8207,7 +8469,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerReveal, lastProcessedCards: revealedCards },
       `縲舌・繧ｸ繝・け繝懊ャ繧ｯ繧ｹ縲題｡ｨ蜷代″竊偵す繧ｰ繝具ｼ・{names}`));
   }
-  // ACCE_OP: 繧｢繧ｯ繧ｻ謫堺ｽ懶ｼ域ｱ守畑繝ｭ繧ｰ・・  if (stub.id === 'ACCE_OP') {
+  // ACCE_OP: 繧｢繧ｯ繧ｻ謫堺ｽ懶ｼ域ｱ守畑繝ｭ繧ｰ・・
+  if (stub.id === 'ACCE_OP') {
     const acceCountAO = (ctx.ownerState.field.signi_acce ?? []).filter(cn => cn !== null).length;
     return done(addLog(ctx, `繧｢繧ｯ繧ｻ謫堺ｽ懶ｼ育樟蝨ｨ${acceCountAO}蛟九・繧｢繧ｯ繧ｻ・荏));
   }
@@ -8244,11 +8507,13 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSTATE },
       `${ctx.cardMap.get(acceTATE)?.CardName ?? acceTATE}・医い繧ｯ繧ｻ・俄・繝医Λ繝・す繝･`));
   }
-  // MULTI_ACCE_LIMIT: 繧｢繧ｯ繧ｻ繧堤音螳壽椢謨ｰ縺ｫ蛻ｶ髯撰ｼ医Ο繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'MULTI_ACCE_LIMIT') {
+  // MULTI_ACCE_LIMIT: 繧｢繧ｯ繧ｻ繧堤音螳壽椢謨ｰ縺ｫ蛻ｶ髯撰ｼ医Ο繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'MULTI_ACCE_LIMIT') {
     const acceCountMAL = (ctx.ownerState.field.signi_acce ?? []).filter(cn => cn !== null).length;
     return done(addLog(ctx, `繝槭Ν繝√い繧ｯ繧ｻ蛻ｶ髯撰ｼ育樟蝨ｨ${acceCountMAL}蛟具ｼ荏));
   }
-  // CHOOSE_HAND_CARD: 謇区惆縺九ｉ1譫夐∈謚橸ｼ・astProcessedCards縺ｫ險ｭ螳夲ｼ・  if (stub.id === 'CHOOSE_HAND_CARD') {
+  // CHOOSE_HAND_CARD: 謇区惆縺九ｉ1譫夐∈謚橸ｼ・astProcessedCards縺ｫ險ｭ螳夲ｼ・
+  if (stub.id === 'CHOOSE_HAND_CARD') {
     const handCHC = ctx.ownerState.hand;
     if (handCHC.length === 0) return done(addLog(ctx, '謇区惆縺ｪ縺・));
     const noopCHC: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
@@ -8257,7 +8522,8 @@ export function execStub(
       targetScope: 'self_hand', thenAction: noopCHC as EffectAction,
     });
   }
-  // CHOOSE_HAND_OR_ENERGY: 繝・ャ繧ｭ荳劾譫壹°繧我ｻｻ諢乗椢謨ｰ繧呈焔譛ｭ縺ｫ蜉縺医∵ｮ九ｊ繧偵お繝翫∈・・OOK_AND_REORDER蠕鯉ｼ・  if (stub.id === 'CHOOSE_HAND_OR_ENERGY') {
+  // CHOOSE_HAND_OR_ENERGY: 繝・ャ繧ｭ荳劾譫壹°繧我ｻｻ諢乗椢謨ｰ繧呈焔譛ｭ縺ｫ蜉縺医∵ｮ九ｊ繧偵お繝翫∈・・OOK_AND_REORDER蠕鯉ｼ・
+  if (stub.id === 'CHOOSE_HAND_OR_ENERGY') {
     const srcCHOE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCHOE = srcCHOE ? (srcCHOE.EffectText ?? '') + ' ' + (srcCHOE.BurstText ?? '') : '';
     const toHWCHOE = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -8359,7 +8625,8 @@ export function execStub(
     }
     return done(addLog(ctx, `逶ｸ謇矩∈謚橸ｼ郁ｧ｣譫蝉ｸ榊庄: ${stub.id}・荏));
   }
-  // DO_THREE_THINGS: 3縲・縺､縺ｮ蜃ｦ逅・ｒ蜍慕噪隗｣譫舌＠縺ｦ螳溯｡・  if (stub.id === 'DO_THREE_THINGS') {
+  // DO_THREE_THINGS: 3縲・縺､縺ｮ蜃ｦ逅・ｒ蜍慕噪隗｣譫舌＠縺ｦ螳溯｡・
+  if (stub.id === 'DO_THREE_THINGS') {
     const srcDTT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDTT = srcDTT ? (srcDTT.EffectText ?? '') + ' ' + (srcDTT.BurstText ?? '') : '';
     let ctxDTT = ctx;
@@ -8478,7 +8745,8 @@ export function execStub(
     if (logsDTT.length > 0) return done(addLog(ctxDTT, logsDTT.join(' / ')));
     return done(addLog(ctx, '3縺､縺ｮ蜃ｦ逅・ｼ亥句挨隗｣譫蝉ｸ榊庄・・));
   }
-  // CONDITIONAL_MULTI_CHOOSE_BY_CENTER: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｫ繧医ｋ隍・焚驕ｸ謚・  if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER') {
+  // CONDITIONAL_MULTI_CHOOSE_BY_CENTER: 繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｫ繧医ｋ隍・焚驕ｸ謚・
+  if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER') {
     const srcCMCBC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCMCBC = srcCMCBC ? (srcCMCBC.EffectText ?? '') + ' ' + (srcCMCBC.BurstText ?? '') : '';
     const toHWCMCBC = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -8622,7 +8890,8 @@ export function execStub(
     const centerCardCMCBC2 = centerCMCBC2 ? ctx.cardMap.get(centerCMCBC2) : undefined;
     return done(addLog(ctx, `繧ｻ繝ｳ繧ｿ繝ｼ・・{centerCardCMCBC2?.CardName ?? '縺ｪ縺・}・峨↓繧医ｋ隍・焚驕ｸ謚橸ｼ郁ｧ｣譫蝉ｸ榊庄・荏));
   }
-  // INTERNAL_DOWN_AND_FREEZE_OPP: 逶ｸ謇九す繧ｰ繝・菴薙ｒ繝繧ｦ繝ｳ+蜈ｨ繧ｷ繧ｰ繝九ｒ蜃咲ｵ・  if (stub.id === 'INTERNAL_DOWN_AND_FREEZE_OPP') {
+  // INTERNAL_DOWN_AND_FREEZE_OPP: 逶ｸ謇九す繧ｰ繝・菴薙ｒ繝繧ｦ繝ｳ+蜈ｨ繧ｷ繧ｰ繝九ｒ蜃咲ｵ・
+  if (stub.id === 'INTERNAL_DOWN_AND_FREEZE_OPP') {
     const downCandsDFO = ctx.otherState.field.signi.flatMap((s, zi) => s?.at(-1) ? [{ cn: s.at(-1)!, zi }] : []);
     if (downCandsDFO.length === 0) return done(addLog(ctx, '逶ｸ謇九す繧ｰ繝九↑縺・));
     // 1菴薙ム繧ｦ繝ｳ・域怙蛻昴・1菴薙√う繝ｳ繧ｿ繝ｩ繧ｯ繝・ぅ繝夜∈謚槭・逵∫払・・    const targetDFO = downCandsDFO[0];
@@ -8647,7 +8916,8 @@ export function execStub(
     const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { powerRange: { min: minPwr } } } };
     return exec(banishAct as EffectAction, ctx);
   }
-  // INTERNAL_TRASH_SIGNI_TO_HAND: 繝医Λ繝・す繝･縺九ｉ繧ｷ繧ｰ繝・譫壹ｒ謇区惆縺ｸ・・ONDITIONAL_MULTI_CHOOSE邉ｻ・・  if (stub.id === 'INTERNAL_TRASH_SIGNI_TO_HAND') {
+  // INTERNAL_TRASH_SIGNI_TO_HAND: 繝医Λ繝・す繝･縺九ｉ繧ｷ繧ｰ繝・譫壹ｒ謇区惆縺ｸ・・ONDITIONAL_MULTI_CHOOSE邉ｻ・・
+  if (stub.id === 'INTERNAL_TRASH_SIGNI_TO_HAND') {
     const signiTrashTSTH = ctx.ownerState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === '繧ｷ繧ｰ繝・);
     if (signiTrashTSTH.length === 0) return done(addLog(ctx, '繝医Λ繝・す繝･縺ｫ繧ｷ繧ｰ繝九↑縺・));
     const addHandTSTH: AddToHandAction = { type: 'ADD_TO_HAND', owner: 'self' };
@@ -8677,7 +8947,8 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsIPMOO } },
       `${ctx.cardMap.get(targetIPMOO)?.CardName ?? targetIPMOO}繝代Ρ繝ｼ${deltaIPMOO}`));
   }
-  // INTERNAL_BANISH_OPP_POWER_LTE: 繝代Ρ繝ｼN莉･荳九・逶ｸ謇九す繧ｰ繝九ｒ繝舌ル繝・す繝･・亥ｯｾ雎｡驕ｸ謚橸ｼ・  if (stub.id === 'INTERNAL_BANISH_OPP_POWER_LTE') {
+  // INTERNAL_BANISH_OPP_POWER_LTE: 繝代Ρ繝ｼN莉･荳九・逶ｸ謇九す繧ｰ繝九ｒ繝舌ル繝・す繝･・亥ｯｾ雎｡驕ｸ謚橸ｼ・
+  if (stub.id === 'INTERNAL_BANISH_OPP_POWER_LTE') {
     const maxPwrIBOPL = typeof stub.value === 'number' ? stub.value : 7000;
     const candsIBOPL = [0,1,2]
       .map(zi => ctx.otherState.field.signi[zi]?.at(-1))
@@ -8690,7 +8961,8 @@ export function execStub(
     const banishIBOPL: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
     return selectOrInteract(candsIBOPL, 1, false, 'opp_field', banishIBOPL as EffectAction, undefined, ctx);
   }
-  // SUMMON_FROM_ENERGY: 繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｷ繧ｰ繝九ｒ蝣ｴ縺ｫ蜃ｺ縺呻ｼ医す繧ｰ繝矩剞螳夲ｼ・  if (stub.id === 'SUMMON_FROM_ENERGY') {
+  // SUMMON_FROM_ENERGY: 繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｷ繧ｰ繝九ｒ蝣ｴ縺ｫ蜃ｺ縺呻ｼ医す繧ｰ繝矩剞螳夲ｼ・
+  if (stub.id === 'SUMMON_FROM_ENERGY') {
     const srcSFE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtSFE = srcSFE ? (srcSFE.EffectText ?? '') : '';
     const lvMSFE = txtSFE.match(/繝ｬ繝吶Ν([・・・兔d]+)莉･荳九・/);
@@ -8719,7 +8991,8 @@ export function execStub(
     };
     return done(addLog({ ...ctx, ownerState: finalOwner }, `謇区惆縺吶∋縺ｦ謐ｨ縺ｦ竊・{drawNIDADN}譫壹ラ繝ｭ繝ｼ`));
   }
-  // INTERNAL_DECK_BOTTOM_SUMMON: 繝・ャ繧ｭ荳・譫壹ヨ繝ｩ繝・す繝･竊偵す繧ｰ繝九↑繧牙ｴ縺ｫ蜃ｺ縺・  if (stub.id === 'INTERNAL_DECK_BOTTOM_SUMMON') {
+  // INTERNAL_DECK_BOTTOM_SUMMON: 繝・ャ繧ｭ荳・譫壹ヨ繝ｩ繝・す繝･竊偵す繧ｰ繝九↑繧牙ｴ縺ｫ蜃ｺ縺・
+  if (stub.id === 'INTERNAL_DECK_BOTTOM_SUMMON') {
     const deck = ctx.ownerState.deck;
     if (deck.length === 0) return done(addLog(ctx, '繝・ャ繧ｭ縺ｪ縺・));
     const bottom = deck[deck.length - 1];
@@ -8758,14 +9031,16 @@ export function execStub(
     }
     return done(ctxIDBLD);
   }
-  // INTERNAL_BLOCK_ATTACK_THIS_TURN: 蟇ｾ雎｡縺後い繧ｿ繝・け縺ｧ縺阪↑縺・  if (stub.id === 'INTERNAL_BLOCK_ATTACK_THIS_TURN') {
+  // INTERNAL_BLOCK_ATTACK_THIS_TURN: 蟇ｾ雎｡縺後い繧ｿ繝・け縺ｧ縺阪↑縺・
+  if (stub.id === 'INTERNAL_BLOCK_ATTACK_THIS_TURN') {
     const targetIBAC = ctx.lastProcessedCards?.[0];
     if (!targetIBAC) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺・));
     const blockedIBAC = [...(ctx.otherState.blocked_actions ?? []), `ATTACK:${targetIBAC}`];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: blockedIBAC } },
       `${ctx.cardMap.get(targetIBAC)?.CardName ?? targetIBAC}縺ｯ繧｢繧ｿ繝・け縺ｧ縺阪↑縺Я));
   }
-  // DOWN_UP_SIGNI_AND_CHOOSE: 繧ｷ繧ｰ繝九ｒ繝繧ｦ繝ｳ/繧｢繝・・縺励※驕ｸ謚・  // DOWN_UP_SIGNI_AND_CHOOSE: 繧｢繝・・迥ｶ諷九・迚ｹ螳壹け繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ螂ｽ縺阪↑謨ｰ繝繧ｦ繝ｳ・医さ繧ｹ繝郁ｻｽ貂帷ｴ譚撰ｼ・  if (stub.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {
+  // DOWN_UP_SIGNI_AND_CHOOSE: 繧ｷ繧ｰ繝九ｒ繝繧ｦ繝ｳ/繧｢繝・・縺励※驕ｸ謚・  // DOWN_UP_SIGNI_AND_CHOOSE: 繧｢繝・・迥ｶ諷九・迚ｹ螳壹け繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ螂ｽ縺阪↑謨ｰ繝繧ｦ繝ｳ・医さ繧ｹ繝郁ｻｽ貂帷ｴ譚撰ｼ・
+  if (stub.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {
     const srcDUSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDUSC = srcDUSC ? (srcDUSC.EffectText ?? '') + ' ' + (srcDUSC.BurstText ?? '') : '';
     // 蟇ｾ雎｡繧ｯ繝ｩ繧ｹ繧呈歓蜃ｺ・医後い繝・・迥ｶ諷九・・懊け繝ｩ繧ｹ・槭・繧ｷ繧ｰ繝九搾ｼ・    const classM = txtDUSC.match(/繧｢繝・・迥ｶ諷九・・・[^・枉+)・槭・繧ｷ繧ｰ繝・);
@@ -8805,7 +9080,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerIDSBZ, lastProcessedCards: topIDSBZ ? [topIDSBZ] : [] },
       `${topIDSBZ ? ctx.cardMap.get(topIDSBZ)?.CardName : '繧ｷ繧ｰ繝・}繧偵ム繧ｦ繝ｳ・医さ繧ｹ繝郁ｻｽ貂幢ｼ荏));
   }
-  // CHOOSE_N_FROM_LIST: 莉･荳九・竭竭｡竭｢竭｣縺九ｉN蛟矩∈謚槭＠縺ｦ螳溯｡・  if (stub.id === 'CHOOSE_N_FROM_LIST') {
+  // CHOOSE_N_FROM_LIST: 莉･荳九・竭竭｡竭｢竭｣縺九ｉN蛟矩∈謚槭＠縺ｦ螳溯｡・
+  if (stub.id === 'CHOOSE_N_FROM_LIST') {
     const srcCNFL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCNFL = srcCNFL ? (srcCNFL.EffectText ?? '') + ' ' + (srcCNFL.BurstText ?? '') : '';
     const toHWCNFL = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -8845,7 +9121,8 @@ export function execStub(
     return done(addLog(ctx, `繝ｪ繧ｹ繝医°繧丑蛟矩∈謚橸ｼ郁ｧ｣譫蝉ｸ榊庄: ${txtCNFL.slice(0,30)}・荏));
   }
   // CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE
-  // CHOOSE_COLOR_FROM_LIST: 繧ｨ繝翫だ繝ｼ繝ｳ縺ｮ濶ｲ縺九ｉ驕ｸ縺ｶ・域怙螟ｧN濶ｲ・俄・ selectedColors 縺ｫ菫晏ｭ・  if (stub.id === 'CHOOSE_COLOR_FROM_LIST') {
+  // CHOOSE_COLOR_FROM_LIST: 繧ｨ繝翫だ繝ｼ繝ｳ縺ｮ濶ｲ縺九ｉ驕ｸ縺ｶ・域怙螟ｧN濶ｲ・俄・ selectedColors 縺ｫ菫晏ｭ・
+  if (stub.id === 'CHOOSE_COLOR_FROM_LIST') {
     const colorNames = ['逋ｽ', '襍､', '髱・, '邱・, '鮟・];
     // 繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ縺ゅｋ濶ｲ繧貞庶髮・    const enaColorsCCL = new Set<string>();
     ctx.ownerState.energy.forEach(cn => {
@@ -8954,14 +9231,16 @@ export function execStub(
     const newSFCDR2: PlayerState = { ...sFCDR, deck: sFCDR.deck.slice(1), trash: [...sFCDR.trash, topFCDR] };
     return done(addLog({ ...ctx, ownerState: newSFCDR2 }, `蜈ｬ髢・{topCardFCDR?.CardName ?? topFCDR}(荳堺ｸ閾ｴ)竊偵ヨ繝ｩ繝・す繝･`));
   }
-  // REVEAL: 繝・ャ繧ｭ荳翫ｒ蜈ｬ髢具ｼ亥錐蜑阪Ο繧ｰ・・  if (stub.id === 'REVEAL') {
+  // REVEAL: 繝・ャ繧ｭ荳翫ｒ蜈ｬ髢具ｼ亥錐蜑阪Ο繧ｰ・・
+  if (stub.id === 'REVEAL') {
     const sREV = ctx.ownerState;
     if (sREV.deck.length === 0) return done(addLog(ctx, '繝・ャ繧ｭ縺ｪ縺暦ｼ亥・髢九〒縺阪★・・));
     const topREV = sREV.deck[0];
     const cardREV = ctx.cardMap.get(topREV);
     return done(addLog({ ...ctx, lastProcessedCards: [topREV] }, `蜈ｬ髢具ｼ・{cardREV?.CardName ?? topREV}`));
   }
-  // HAND_REVEAL_CLASS_SIGNI: 謇区惆縺ｮ繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ驕ｸ謚槭＠縺ｦ蜈ｬ髢具ｼ・ELECT_TARGET・・  if (stub.id === 'HAND_REVEAL_CLASS_SIGNI') {
+  // HAND_REVEAL_CLASS_SIGNI: 謇区惆縺ｮ繧ｯ繝ｩ繧ｹ繧ｷ繧ｰ繝九ｒ驕ｸ謚槭＠縺ｦ蜈ｬ髢具ｼ・ELECT_TARGET・・
+  if (stub.id === 'HAND_REVEAL_CLASS_SIGNI') {
     const srcHRCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtHRCS = srcHRCS ? (srcHRCS.EffectText ?? '') + ' ' + (srcHRCS.BurstText ?? '') : '';
     // 繧ｯ繝ｩ繧ｹ蜷阪ｒ謚ｽ蜃ｺ・井ｾ・ ・懊い繝ｼ繝・槭・ｼ懈ｰｴ迯｣・橸ｼ・    const classMatchHRCS = txtHRCS.match(/謇区惆縺九ｉ(?:螂ｽ縺阪↑譫壽焚縺ｮ?)?[・懊馨([^・槭犠+)[・槭犠/);
@@ -8990,7 +9269,8 @@ export function execStub(
       }
     );
   }
-  // OPTIONAL_HAND_REVEAL_NAMED: 蜷咲ｧｰ謖・ｮ壹〒謇区惆繧ｫ繝ｼ繝峨ｒ莉ｻ諢丞・髢・  if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
+  // OPTIONAL_HAND_REVEAL_NAMED: 蜷咲ｧｰ謖・ｮ壹〒謇区惆繧ｫ繝ｼ繝峨ｒ莉ｻ諢丞・髢・
+  if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
     const srcOHRN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtOHRN = srcOHRN ? (srcOHRN.EffectText ?? '') + ' ' + (srcOHRN.BurstText ?? '') : '';
     const mNameOHRN = txtOHRN.match(/縲・[^縲江+)縲・);
@@ -9000,7 +9280,8 @@ export function execStub(
     return done(addLog({ ...ctx, lastProcessedCards: matchingOHRN },
       `謇区惆縲・{nameOHRN}縲阪ｒ蜈ｬ髢具ｼ・{matchingOHRN.length}譫夲ｼ荏));
   }
-  // ACCE_SIGNI_GRANT_ABILITY: 繧｢繧ｯ繧ｻ荳ｭ縺ｮ繧ｷ繧ｰ繝九↓繧ｭ繝ｼ繝ｯ繝ｼ繝芽・蜉帙ｒ莉倅ｸ・  if (stub.id === 'ACCE_SIGNI_GRANT_ABILITY') {
+  // ACCE_SIGNI_GRANT_ABILITY: 繧｢繧ｯ繧ｻ荳ｭ縺ｮ繧ｷ繧ｰ繝九↓繧ｭ繝ｼ繝ｯ繝ｼ繝芽・蜉帙ｒ莉倅ｸ・
+  if (stub.id === 'ACCE_SIGNI_GRANT_ABILITY') {
     const srcAcceAGSA = ctx.sourceCardNum;
     const acceAGSA = ctx.ownerState.field.signi_acce ?? [null, null, null];
     const zoneIdxAGSA = acceAGSA.findIndex(cn => cn === srcAcceAGSA);
@@ -9018,7 +9299,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSAGSA },
       `${ctx.cardMap.get(targetSigniAGSA)?.CardName ?? targetSigniAGSA}縺ｫ縲・{kwAGSA}縲台ｻ倅ｸ餐));
   }
-  // MOVE_ACCE_TO_SIGNI: 繧｢繧ｯ繧ｻ繧貞挨縺ｮ繧ｷ繧ｰ繝九↓莉倥￠譖ｿ縺・  if (stub.id === 'MOVE_ACCE_TO_SIGNI') {
+  // MOVE_ACCE_TO_SIGNI: 繧｢繧ｯ繧ｻ繧貞挨縺ｮ繧ｷ繧ｰ繝九↓莉倥￠譖ｿ縺・
+  if (stub.id === 'MOVE_ACCE_TO_SIGNI') {
     const srcAcceMATS = ctx.sourceCardNum;
     const acceMATS = [...(ctx.ownerState.field.signi_acce ?? [null, null, null])];
     const srcZoneMATS = acceMATS.findIndex(cn => cn === srcAcceMATS);
@@ -9033,12 +9315,14 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSMATS },
       `${ctx.cardMap.get(srcAcceMATS ?? '')?.CardName ?? '繧｢繧ｯ繧ｻ'}繧・{dstSigniName}縺ｸ遘ｻ蜍描));
   }
-  // PEEP_HAND: 逶ｸ謇九・謇区惆繧定ｦ励″隕具ｼ医Ο繧ｰ縺ｫ譫壽焚縺ｨ蜷榊燕繧定｡ｨ遉ｺ・・  if (stub.id === 'PEEP_HAND') {
+  // PEEP_HAND: 逶ｸ謇九・謇区惆繧定ｦ励″隕具ｼ医Ο繧ｰ縺ｫ譫壽焚縺ｨ蜷榊燕繧定｡ｨ遉ｺ・・
+  if (stub.id === 'PEEP_HAND') {
     const oppHandPH = ctx.otherState.hand;
     const namesPH = oppHandPH.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('縲・);
     return done(addLog(ctx, `逶ｸ謇九・謇区惆繧堤｢ｺ隱搾ｼ・{oppHandPH.length}譫夲ｼ会ｼ・{namesPH || '縺ｪ縺・}`));
   }
-  // REVEAL_OPP_HAND_CARD: 逶ｸ謇九・謇区惆縺ｮ繧ｫ繝ｼ繝峨ｒ1譫壼・髢・  if (stub.id === 'REVEAL_OPP_HAND_CARD') {
+  // REVEAL_OPP_HAND_CARD: 逶ｸ謇九・謇区惆縺ｮ繧ｫ繝ｼ繝峨ｒ1譫壼・髢・
+  if (stub.id === 'REVEAL_OPP_HAND_CARD') {
     const oppHandROHC = ctx.otherState.hand;
     if (oppHandROHC.length === 0) return done(addLog(ctx, '逶ｸ謇九・謇区惆縺ｪ縺・));
     const randROHC = oppHandROHC[Math.floor(Math.random() * oppHandROHC.length)];
@@ -9074,7 +9358,8 @@ export function execStub(
     return done(addLog(setOwnerState(ownerIBTD, newSIBTD, ctx),
       `${ctx.cardMap.get(cnIBTD)?.CardName ?? cnIBTD}繧偵ョ繝・く縺ｫ豺ｷ縺懊◆・医す繝｣繝・ヵ繝ｫ・荏));
   }
-  // OPP_SIGNI_LEAVE_TO_TRASH: 逶ｸ謇九す繧ｰ繝矩蝣ｴ竊偵ヨ繝ｩ繝・す繝･・医お繝翫〒縺ｯ縺ｪ縺擾ｼ・  if (stub.id === 'OPP_SIGNI_LEAVE_TO_TRASH') {
+  // OPP_SIGNI_LEAVE_TO_TRASH: 逶ｸ謇九す繧ｰ繝矩蝣ｴ竊偵ヨ繝ｩ繝・す繝･・医お繝翫〒縺ｯ縺ｪ縺擾ｼ・
+  if (stub.id === 'OPP_SIGNI_LEAVE_TO_TRASH') {
     const candidatesOSLT = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
     if (candidatesOSLT.length === 0) return done(addLog(ctx, '逶ｸ謇九す繧ｰ繝九↑縺・));
     const thenOSLT: StubAction = { type: 'STUB', id: 'INTERNAL_LEAVE_TO_TRASH' };
@@ -9083,7 +9368,8 @@ export function execStub(
       targetScope: 'opp_field', thenAction: thenOSLT as EffectAction,
     });
   }
-  // INTERNAL_LEAVE_TO_TRASH: 驕ｸ謚槭す繧ｰ繝九ｒ繝医Λ繝・す繝･縺ｫ鄂ｮ縺・  if (stub.id === 'INTERNAL_LEAVE_TO_TRASH') {
+  // INTERNAL_LEAVE_TO_TRASH: 驕ｸ謚槭す繧ｰ繝九ｒ繝医Λ繝・す繝･縺ｫ鄂ｮ縺・
+  if (stub.id === 'INTERNAL_LEAVE_TO_TRASH') {
     const cnILT = ctx.lastProcessedCards?.[0];
     if (!cnILT) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺・));
     const inOwnILT = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnILT);
@@ -9094,7 +9380,8 @@ export function execStub(
     return done(addLog(setOwnerState(ownerILT, newSILT, ctx),
       `${ctx.cardMap.get(cnILT)?.CardName ?? cnILT}繧偵ヨ繝ｩ繝・す繝･縺ｸ騾蝣ｴ`));
   }
-  // TRADE_SELF_AND_OPP_TO_ENERGY: 閾ｪ繧ｷ繧ｰ繝・逶ｸ謇九す繧ｰ繝・菴凪・荳｡閠・お繝・  if (stub.id === 'TRADE_SELF_AND_OPP_TO_ENERGY') {
+  // TRADE_SELF_AND_OPP_TO_ENERGY: 閾ｪ繧ｷ繧ｰ繝・逶ｸ謇九す繧ｰ繝・菴凪・荳｡閠・お繝・
+  if (stub.id === 'TRADE_SELF_AND_OPP_TO_ENERGY') {
     const srcTSAOTE = ctx.sourceCardNum;
     let ctxTSAOTE = ctx;
     if (srcTSAOTE && ctx.ownerState.field.signi.some(s => s?.at(-1) === srcTSAOTE)) {
@@ -9175,7 +9462,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSNGDTE }, `髱槭ぎ繝ｼ繝画昏縺ｦ迚娯・繧ｨ繝翫だ繝ｼ繝ｳ縺ｸ`));
   }
   // === 繝舌ャ繝・3: 繧ｨ繝頑桃菴懊・繧ｫ繧ｦ繝ｳ繝医・譚｡莉ｶ蛻・ｲ千ｳｻ ===
-  // ENERGY_TO_HAND_ON_DECK: 繧ｨ繝翫だ繝ｼ繝ｳ縺ｮ譛ｫ蟆ｾ竊呈焔譛ｭ・医ョ繝・く邨檎罰繧堤怐逡･・・  if (stub.id === 'ENERGY_TO_HAND_ON_DECK') {
+  // ENERGY_TO_HAND_ON_DECK: 繧ｨ繝翫だ繝ｼ繝ｳ縺ｮ譛ｫ蟆ｾ竊呈焔譛ｭ・医ョ繝・く邨檎罰繧堤怐逡･・・
+  if (stub.id === 'ENERGY_TO_HAND_ON_DECK') {
     const sETHOD = ctx.ownerState;
     if (sETHOD.energy.length === 0) return done(addLog(ctx, '繧ｨ繝翫だ繝ｼ繝ｳ縺ｪ縺・));
     const lastEnaETHOD = sETHOD.energy.at(-1)!;
@@ -9259,7 +9547,8 @@ export function execStub(
     const newOwnerIDP = { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(cntIDP), trash: [...ctx.ownerState.trash, ...toDiscardIDP] };
     return done(addLog({ ...ctx, ownerState: newOwnerIDP }, `繝壹リ繝ｫ繝・ぅ・壽焔譛ｭ${cntIDP}譫壽昏縺ｦ`));
   }
-  // REVEAL_TOP_CONDITIONAL_ROUTE: 繝・ャ繧ｭ荳翫ｒ蜈ｬ髢九＠繝ｬ繝吶Ν譚｡莉ｶ縺ｧ蛻・ｲ・  if (stub.id === 'REVEAL_TOP_CONDITIONAL_ROUTE') {
+  // REVEAL_TOP_CONDITIONAL_ROUTE: 繝・ャ繧ｭ荳翫ｒ蜈ｬ髢九＠繝ｬ繝吶Ν譚｡莉ｶ縺ｧ蛻・ｲ・
+  if (stub.id === 'REVEAL_TOP_CONDITIONAL_ROUTE') {
     const toHWRTCR = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const sRTCR = ctx.ownerState;
     if (sRTCR.deck.length === 0) return done(addLog(ctx, '繝・ャ繧ｭ縺ｪ縺・));
@@ -9276,7 +9565,8 @@ export function execStub(
       `蜈ｬ髢・{cardRTCR?.CardName ?? topRTCR}(Lv${topLevelRTCR})・壽擅莉ｶ${condMetRTCR ? '驕疲・' : '譛ｪ驕疲・'}竊偵ヨ繝ｩ繝・す繝･`));
   }
   // === 繝舌ャ繝・2: 繧｢繧ｯ繧ｻ繝ｻ繧ｷ繧ｰ繝矩・鄂ｮ繝ｻ閭ｽ蜉帑ｻ倅ｸ弱・辟｡蜉ｹ邉ｻ ===
-  // ACCE_FROM_HAND: 謇区惆縺ｮ繧｢繧ｯ繧ｻ繧ｫ繝ｼ繝峨ｒ閾ｪ蛻・・繧ｷ繧ｰ繝九↓莉倥￠繧・  if (stub.id === 'ACCE_FROM_HAND' || stub.id === 'MULTI_ACCE_FROM_HAND') {
+  // ACCE_FROM_HAND: 謇区惆縺ｮ繧｢繧ｯ繧ｻ繧ｫ繝ｼ繝峨ｒ閾ｪ蛻・・繧ｷ繧ｰ繝九↓莉倥￠繧・
+  if (stub.id === 'ACCE_FROM_HAND' || stub.id === 'MULTI_ACCE_FROM_HAND') {
     const srcAFH = ctx.sourceCardNum;
     if (!srcAFH || !ctx.ownerState.hand.includes(srcAFH)) return done(addLog(ctx, '繧｢繧ｯ繧ｻ繧ｫ繝ｼ繝峨′謇区惆縺ｫ縺ｪ縺・));
     const acceAFH = ctx.ownerState.field.signi_acce ?? [null, null, null];
@@ -9292,7 +9582,8 @@ export function execStub(
       targetScope: 'self_field', thenAction: attachAFH as EffectAction,
     });
   }
-  // ACCE_FROM_TRASH: 繝医Λ繝・す繝･縺ｮ繧｢繧ｯ繧ｻ繧ｫ繝ｼ繝峨ｒ閾ｪ蛻・・繧ｷ繧ｰ繝九↓莉倥￠繧・  if (stub.id === 'ACCE_FROM_TRASH' || stub.id === 'NAMED_SIGNI_ACCE_FROM_TRASH') {
+  // ACCE_FROM_TRASH: 繝医Λ繝・す繝･縺ｮ繧｢繧ｯ繧ｻ繧ｫ繝ｼ繝峨ｒ閾ｪ蛻・・繧ｷ繧ｰ繝九↓莉倥￠繧・
+  if (stub.id === 'ACCE_FROM_TRASH' || stub.id === 'NAMED_SIGNI_ACCE_FROM_TRASH') {
     const acceAFTR = ctx.ownerState.field.signi_acce ?? [null, null, null];
     const candidatesAFTR = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
       if (!stack || stack.length === 0) return [];
@@ -9314,7 +9605,8 @@ export function execStub(
       targetScope: 'self_field', thenAction: attachAFTR as EffectAction,
     });
   }
-  // SIGNI_REPOSITION: 繧ｷ繧ｰ繝九ｒ蛻･縺ｮ繧ｾ繝ｼ繝ｳ縺ｫ遘ｻ蜍包ｼ郁・or逶ｸ謇九・菴・or 蜈ｨ菴難ｼ・  if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'SWAP_OPTIONAL') {
+  // SIGNI_REPOSITION: 繧ｷ繧ｰ繝九ｒ蛻･縺ｮ繧ｾ繝ｼ繝ｳ縺ｫ遘ｻ蜍包ｼ郁・or逶ｸ謇九・菴・or 蜈ｨ菴難ｼ・
+  if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'SWAP_OPTIONAL') {
     const srcCardSR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtSR = srcCardSR ? (srcCardSR.EffectText ?? '') + ' ' + (srcCardSR.BurstText ?? '') : '';
     const isOppSR = txtSR.includes('蟇ｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝・);
@@ -9369,7 +9661,8 @@ export function execStub(
     }));
     return needsInteraction(addLog(ctx, '遘ｻ蜍募・繧ｾ繝ｼ繝ｳ繧帝∈謚・), { type: 'CHOOSE', options: zoneOptsSR, count: 1 });
   }
-  // INTERNAL_REPOSITION_MOVE: 驕ｸ謚槭す繧ｰ繝九ｒ遨ｺ縺阪だ繝ｼ繝ｳ縺ｸ遘ｻ蜍包ｼ亥ｾ梧婿莠呈鋤・・  if (stub.id === 'INTERNAL_REPOSITION_MOVE') {
+  // INTERNAL_REPOSITION_MOVE: 驕ｸ謚槭す繧ｰ繝九ｒ遨ｺ縺阪だ繝ｼ繝ｳ縺ｸ遘ｻ蜍包ｼ亥ｾ梧婿莠呈鋤・・
+  if (stub.id === 'INTERNAL_REPOSITION_MOVE') {
     const cnIRM = ctx.lastProcessedCards?.[0];
     if (!cnIRM) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺・));
     const signiIRM = [...(ctx.ownerState.field.signi ?? [])] as (string[] | null)[];
@@ -9383,7 +9676,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSIRM },
       `${ctx.cardMap.get(cnIRM)?.CardName ?? cnIRM}繧偵だ繝ｼ繝ｳ${srcIdxIRM + 1}竊・{dstIdxIRM + 1}縺ｫ遘ｻ蜍描));
   }
-  // INTERNAL_REPOSITION_TO_ZONE: 驕ｸ謚槭す繧ｰ繝九ｒ謖・ｮ壹だ繝ｼ繝ｳ縺ｸ遘ｻ蜍包ｼ・IGNI_REPOSITION縺ｮ蠕悟濠・・  if (stub.id === 'INTERNAL_REPOSITION_TO_ZONE') {
+  // INTERNAL_REPOSITION_TO_ZONE: 驕ｸ謚槭す繧ｰ繝九ｒ謖・ｮ壹だ繝ｼ繝ｳ縺ｸ遘ｻ蜍包ｼ・IGNI_REPOSITION縺ｮ蠕悟濠・・
+  if (stub.id === 'INTERNAL_REPOSITION_TO_ZONE') {
     const valIRTZ = typeof stub.value === 'string' ? stub.value : '';
     const [cnIRTZ, dstStrIRTZ, isOppStrIRTZ] = valIRTZ.split(':');
     const dstIdxIRTZ = parseInt(dstStrIRTZ);
@@ -9412,7 +9706,8 @@ export function execStub(
     return done(addLog(newCtxIRTZ,
       `${ctx.cardMap.get(cnIRTZ)?.CardName ?? cnIRTZ}繧偵だ繝ｼ繝ｳ${srcIdxIRTZ+1}竊・{dstIdxIRTZ+1}縺ｫ遘ｻ蜍描));
   }
-  // GRANT_CONDITIONAL_ASSASSIN_ABILITY: 譚｡莉ｶ莉倥″繧｢繧ｵ繧ｷ繝ｳ繧談eyword_grants縺ｫ莉倅ｸ・  if (stub.id === 'GRANT_CONDITIONAL_ASSASSIN_ABILITY') {
+  // GRANT_CONDITIONAL_ASSASSIN_ABILITY: 譚｡莉ｶ莉倥″繧｢繧ｵ繧ｷ繝ｳ繧談eyword_grants縺ｫ莉倅ｸ・
+  if (stub.id === 'GRANT_CONDITIONAL_ASSASSIN_ABILITY') {
     const cnGCAA = ctx.sourceCardNum;
     if (!cnGCAA) return done(addLog(ctx, '繧ｽ繝ｼ繧ｹ繧ｫ繝ｼ繝峨↑縺・));
     const kwGCAA = { ...(ctx.ownerState.keyword_grants ?? {}) };
@@ -9422,7 +9717,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSGCAA },
       `${ctx.cardMap.get(cnGCAA)?.CardName ?? cnGCAA}縺ｫ繧｢繧ｵ繧ｷ繝ｳ莉倅ｸ趣ｼ域擅莉ｶ莉倥″・荏));
   }
-  // POWER_MINUS_PER_OWN_LEVEL: 縺薙・繧ｷ繧ｰ繝九・繝ｬ繝吶Νﾃ・000縺縺大ｯｾ謌ｦ逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ繧剃ｸ九￡繧・  // WXK08-078・亥ｼｩ譖ｸ縲繧ｨ繝繧ｷ繝ｧ・峨・GRANT_SIGNI_ABOVE_ABILITY縺ｧ莉倅ｸ弱＆繧後ｋACTIVATED蜉ｹ譫・  if (stub.id === 'POWER_MINUS_PER_OWN_LEVEL') {
+  // POWER_MINUS_PER_OWN_LEVEL: 縺薙・繧ｷ繧ｰ繝九・繝ｬ繝吶Νﾃ・000縺縺大ｯｾ謌ｦ逶ｸ謇九す繧ｰ繝九・繝代Ρ繝ｼ繧剃ｸ九￡繧・  // WXK08-078・亥ｼｩ譖ｸ縲繧ｨ繝繧ｷ繝ｧ・峨・GRANT_SIGNI_ABOVE_ABILITY縺ｧ莉倅ｸ弱＆繧後ｋACTIVATED蜉ｹ譫・
+  if (stub.id === 'POWER_MINUS_PER_OWN_LEVEL') {
     const srcCardPMPOL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const srcLevelPMPOL = srcCardPMPOL ? (parseInt(srcCardPMPOL.Level ?? '0') || 0) : 0;
     const deltaPMPOL = -2000 * srcLevelPMPOL;
@@ -9443,7 +9739,8 @@ export function execStub(
       targetScope: 'opp_field', thenAction: thenPMPOL as EffectAction,
     });
   }
-  // NEGATE_ABILITY: 蟇ｾ雎｡繧ｷ繧ｰ繝九・閭ｽ蜉帙ｒ辟｡蜉ｹ蛹厄ｼ・bilities_removed縺ｫ霑ｽ蜉・・  if (stub.id === 'NEGATE_ABILITY') {
+  // NEGATE_ABILITY: 蟇ｾ雎｡繧ｷ繧ｰ繝九・閭ｽ蜉帙ｒ辟｡蜉ｹ蛹厄ｼ・bilities_removed縺ｫ霑ｽ蜉・・
+  if (stub.id === 'NEGATE_ABILITY') {
     const targetNA = ctx.lastProcessedCards?.[0];
     if (targetNA) {
       // 蟇ｾ雎｡縺後＞縺壹ｌ縺九・繝輔ぅ繝ｼ繝ｫ繝峨↓蟄伜惠縺吶ｋ縺狗｢ｺ隱・      const inOwnNA = ctx.ownerState.field.signi.some(s => s?.at(-1) === targetNA);
@@ -9469,7 +9766,8 @@ export function execStub(
       targetScope: 'opp_field', thenAction: thenNA as EffectAction,
     });
   }
-  // INTERNAL_NEGATE_ABILITY: 驕ｸ謚槭す繧ｰ繝九・閭ｽ蜉帙ｒ辟｡蜉ｹ蛹・  if (stub.id === 'INTERNAL_NEGATE_ABILITY') {
+  // INTERNAL_NEGATE_ABILITY: 驕ｸ謚槭す繧ｰ繝九・閭ｽ蜉帙ｒ辟｡蜉ｹ蛹・
+  if (stub.id === 'INTERNAL_NEGATE_ABILITY') {
     const cnINA = ctx.lastProcessedCards?.[0];
     if (!cnINA) return done(addLog(ctx, '蟇ｾ雎｡縺ｪ縺・));
     const inOwnINA = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnINA);
@@ -9508,7 +9806,8 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newSETT }, `${ctx.cardMap.get(lastEnaETT)?.CardName ?? lastEnaETT}繧偵お繝岩・繝医Λ繝・す繝･`));
   }
   // EACH_PLAYER_DRAW_DISCARD 縺ｯ荳贋ｽ阪ワ繝ｳ繝峨Λ・・ine 1031・峨〒蜃ｦ逅・ｸ医∩
-  // DRAW_DISCARD_COUNT_PLUS_N: N譫壼ｼ輔＞縺ｦM譫壽昏縺ｦ繧・  if (stub.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
+  // DRAW_DISCARD_COUNT_PLUS_N: N譫壼ｼ輔＞縺ｦM譫壽昏縺ｦ繧・
+  if (stub.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
     const toHWDDCPN = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const srcDDCPN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDDCPN = srcDDCPN ? (srcDDCPN.EffectText ?? '') + ' ' + (srcDDCPN.BurstText ?? '') : '';
@@ -9538,7 +9837,8 @@ export function execStub(
     const newSPLU: PlayerState = { ...ctx.ownerState, lrig_limit_mod: (ctx.ownerState.lrig_limit_mod ?? 0) + 1 };
     return done(addLog({ ...ctx, ownerState: newSPLU }, '繝ｪ繝溘ャ繝井ｸ企剞+1'));
   }
-  // LOOK_DECK_BOTTOM: 繝・ャ繧ｭ荳九ｒ1譫夂｢ｺ隱・  if (stub.id === 'LOOK_DECK_BOTTOM') {
+  // LOOK_DECK_BOTTOM: 繝・ャ繧ｭ荳九ｒ1譫夂｢ｺ隱・
+  if (stub.id === 'LOOK_DECK_BOTTOM') {
     const sLDB = ctx.ownerState;
     if (sLDB.deck.length === 0) return done(addLog(ctx, '繝・ャ繧ｭ縺ｪ縺・));
     const bottomLDB = sLDB.deck.at(-1)!;
@@ -9551,7 +9851,8 @@ export function execStub(
       destPosition: 'bottom',
     });
   }
-  // LOOK_TOP_BOTTOM: 繝・ャ繧ｭ荳・譫壹→繝・ャ繧ｭ荳・譫壹ｒ遒ｺ隱・  if (stub.id === 'LOOK_TOP_BOTTOM') {
+  // LOOK_TOP_BOTTOM: 繝・ャ繧ｭ荳・譫壹→繝・ャ繧ｭ荳・譫壹ｒ遒ｺ隱・
+  if (stub.id === 'LOOK_TOP_BOTTOM') {
     const sLTB = ctx.ownerState;
     if (sLTB.deck.length === 0) return done(addLog(ctx, '繝・ャ繧ｭ縺ｪ縺・));
     const topLTB = sLTB.deck[0];
@@ -9611,26 +9912,31 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, abilities_removed: newRemovedSOS } },
       '逶ｸ謇九ヵ繧｣繝ｼ繝ｫ繝峨・蜈ｨ繧ｷ繧ｰ繝九・閭ｽ蜉帙ｒ豸亥悉'));
   }
-  // END_ATTACK_IF_EXTRA_TURN: 霑ｽ蜉繧ｿ繝ｼ繝ｳ縺ｪ繧峨い繧ｿ繝・け繝輔ぉ繧､繧ｺ繧堤ｵゆｺ・ｼ・TTACK_SIGNI/LRIG蟆√§・・  if (stub.id === 'END_ATTACK_IF_EXTRA_TURN') {
+  // END_ATTACK_IF_EXTRA_TURN: 霑ｽ蜉繧ｿ繝ｼ繝ｳ縺ｪ繧峨い繧ｿ繝・け繝輔ぉ繧､繧ｺ繧堤ｵゆｺ・ｼ・TTACK_SIGNI/LRIG蟆√§・・
+  if (stub.id === 'END_ATTACK_IF_EXTRA_TURN') {
     if (!ctx.ownerState.extra_turn) return done(addLog(ctx, '霑ｽ蜉繧ｿ繝ｼ繝ｳ縺ｧ縺ｪ縺・竊・繧ｹ繧ｭ繝・・'));
     const newBlockedEAIET = [...new Set([...(ctx.ownerState.blocked_actions ?? []), 'ATTACK_SIGNI', 'ATTACK_LRIG'])];
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, blocked_actions: newBlockedEAIET } },
       '霑ｽ蜉繧ｿ繝ｼ繝ｳ荳ｭ縺ｮ繧｢繧ｿ繝・け繧貞・蟆√§・医い繧ｿ繝・け繝輔ぉ繧､繧ｺ邨ゆｺ・ｼ・));
   }
-  // BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: 逶ｸ謇九ち繝ｼ繝ｳ荳ｭ縲∫嶌謇九・繧ｷ繧ｰ繝九ｒ驟咲ｽｮ縺ｧ縺阪↑縺・  if (stub.id === 'BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN') {
+  // BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: 逶ｸ謇九ち繝ｼ繝ｳ荳ｭ縲∫嶌謇九・繧ｷ繧ｰ繝九ｒ驟咲ｽｮ縺ｧ縺阪↑縺・
+  if (stub.id === 'BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN') {
     const newBlockedBOSP = [...(ctx.otherState.blocked_actions ?? []), 'PLACE_SIGNI'];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOSP } },
       '逶ｸ謇九・繧ｷ繧ｰ繝九ｒ驟咲ｽｮ縺ｧ縺阪↑縺・));
   }
-  // PREVENT_OPP_UPKEEP: 逶ｸ謇九・繧｢繝・・繧ｭ繝ｼ繝暦ｼ医い繝・・・峨ｒ髦ｲ縺・  if (stub.id === 'PREVENT_OPP_UPKEEP') {
+  // PREVENT_OPP_UPKEEP: 逶ｸ謇九・繧｢繝・・繧ｭ繝ｼ繝暦ｼ医い繝・・・峨ｒ髦ｲ縺・
+  if (stub.id === 'PREVENT_OPP_UPKEEP') {
     const newBlockedPOU = [...(ctx.otherState.blocked_actions ?? []), 'UPKEEP'];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedPOU } },
       '逶ｸ謇九・繧｢繝・・繧ｭ繝ｼ繝励〒縺阪↑縺・));
   }
-  // DRAW_IF_OPP_DISCARDED_HAND: 逶ｸ謇九′謇区惆繧呈昏縺ｦ縺溘→縺阪ラ繝ｭ繝ｼ・医ヨ繝ｪ繧ｬ繝ｼ邉ｻ繝ｻ繝ｭ繧ｰ縺ｮ縺ｿ・・  if (stub.id === 'DRAW_IF_OPP_DISCARDED_HAND') {
+  // DRAW_IF_OPP_DISCARDED_HAND: 逶ｸ謇九′謇区惆繧呈昏縺ｦ縺溘→縺阪ラ繝ｭ繝ｼ・医ヨ繝ｪ繧ｬ繝ｼ邉ｻ繝ｻ繝ｭ繧ｰ縺ｮ縺ｿ・・
+  if (stub.id === 'DRAW_IF_OPP_DISCARDED_HAND') {
     return done(addLog(ctx, '[逶ｸ謇区焔譛ｭ謐ｨ縺ｦ譎ゅラ繝ｭ繝ｼ繝医Μ繧ｬ繝ｼ: BattleScreen蛛ｴ譛ｪ螳溯｣・'));
   }
-  // OPTIONAL_DISCARD_GUARD: 謇区惆繧呈昏縺ｦ縺ｦ繧ｬ繝ｼ繝会ｼ井ｻｻ諢擾ｼ・  if (stub.id === 'OPTIONAL_DISCARD_GUARD') {
+  // OPTIONAL_DISCARD_GUARD: 謇区惆繧呈昏縺ｦ縺ｦ繧ｬ繝ｼ繝会ｼ井ｻｻ諢擾ｼ・
+  if (stub.id === 'OPTIONAL_DISCARD_GUARD') {
     return done(addLog(ctx, '[莉ｻ諢乗昏縺ｦ繧ｬ繝ｼ繝・ 繧ｬ繝ｼ繝峨す繧ｹ繝・Β蛛ｴ譛ｪ螳溯｣・'));
   }
   // ADJACENT_SIGNI_POWER_MOD: 縺薙・繧ｷ繧ｰ繝九→髫｣謗･縺吶ｋ繧ｷ繧ｰ繝区怙螟ｧ2菴薙・繝代Ρ繝ｼ繧剃ｿｮ豁｣

@@ -937,21 +937,21 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             { id: 'pay', label: payLabelOTEC, action: payActionOTEC, available: true },
             { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
-          return needsInteraction(addLog(cur, `, {`
+          return needsInteraction(addLog(cur, `エナゾーンのカードを選択しますか？`), {
             type: 'CHOOSE', options: optsOTEC, count: 1, ...(cont ? { continuation: cont } : {}),
           });
         }
 
         // REMOVE_VIRUS: conditional.then
       if (stub.id === 'REMOVE_VIRUS') {
-          const toHWRV = (s: string) => s.replace(/[・・・兢/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+          const toHWRV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           const virusArrRV = cur.otherState.field.signi_virus ?? [0, 0, 0];
           const totalVirusRV = virusArrRV.reduce((s, v) => s + v, 0);
           const srcRV = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
           const txtRV = srcRV ? (srcRV.EffectText ?? '') + ' ' + (srcRV.BurstText ?? '') : '';
-          const cntMRV = txtRV.match(/縲舌え繧｣繝ｫ繧ｹ縲・[・・・兔d]+)縺､繧・蜿悶ｊ髯､縺・);
+          const cntMRV = txtRV.match(/【ウィルス】([０-９d]+)つを?取り除く/);
           const removeCountRV = cntMRV ? parseInt(toHWRV(cntMRV[1])) : 1;
-          const isOptionalRV = !!(txtRV.match(/蜿悶ｊ髯､縺・※繧ゅｈ縺・));
+          const isOptionalRV = !!(txtRV.match(/取り除いてもよい/));
           // + conditional.then 
           const removeStubRV: import('../types/effects').StubAction = {
             type: 'STUB', id: 'INTERNAL_REMOVE_VIRUS_N', value: removeCountRV,
@@ -966,10 +966,10 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           }
           if (isOptionalRV) {
             const optsRV = [
-              { id: 'pay', label: `${removeCountRV}, action: payActionRV, available: true },`
+              { id: 'pay', label: `【ウィルス】${removeCountRV}つを取り除く`, action: payActionRV, available: true },
               { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
             ];
-            return needsInteraction(addLog(cur, '), {'
+            return needsInteraction(addLog(cur, '【ウィルス】を取り除きますか？'), {
               type: 'CHOOSE', options: optsRV, count: 1, ...(cont ? { continuation: cont } : {}),
             });
           }
