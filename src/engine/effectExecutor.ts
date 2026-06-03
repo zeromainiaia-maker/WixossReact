@@ -279,7 +279,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       deck: state.deck.slice(count),
       trash: [...state.trash, ...took],
     };
-    return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `{count}`), lastProcessedCards: took });
+    return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `${count}`), lastProcessedCards: took });
   }
 
   return done(ctx);
@@ -608,7 +608,7 @@ function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
     const overrides = { ...(s.story_overrides ?? {}) };
     for (const n of selected) overrides[n] = a.newStory;
     return addLog(setOwnerState(tgt.owner, { ...s, story_overrides: overrides }, c),
-      `{a.newStory}`);
+      `${a.newStory}`);
   }
 
   if (tgt.count === 'ALL') return done(applyStory(cands, ctx));
@@ -643,7 +643,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       }
     }
 
-    return addLog(setOwnerState(tgt.owner, newS, c), `{a.keyword}`);
+    return addLog(setOwnerState(tgt.owner, newS, c), `${a.keyword}`);
   }
 
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
@@ -663,7 +663,7 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
     for (const n of selected) {
       granted[n] = [...(granted[n] ?? []), a.effect];
     }
-    return addLog(setOwnerState(tgt.owner, { ...s, granted_effects: granted }, c), `{selected.length}`);
+    return addLog(setOwnerState(tgt.owner, { ...s, granted_effects: granted }, c), `${selected.length}`);
   }
 
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
@@ -716,9 +716,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         n => cur.cardMap.get(n)?.Type === ''
       ).length;
       if (artsInLrigTrash < gate.minArts) {
-        return done(addLog(cur, `{artsInLrigTrash}/ {gate.minArts}`);
+        return done(addLog(cur, `${artsInLrigTrash}/ ${gate.minArts}`));
       }
-      cur = addLog(cur, `{artsInLrigTrash}`);
+      cur = addLog(cur, `${artsInLrigTrash}`);
       continue;
     }
     // TARGET_AND_DISCARD_HAND: //
@@ -752,14 +752,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           //  SEARCH
       const coloredSearch: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: uniqueColors[0] } };
           const newSteps = [coloredSearch as EffectAction, ...afterRemaining];
-          return execSequence({ type: 'SEQUENCE', steps: newSteps } as SequenceAction, addLog(cur, `{uniqueColors[0]}`));
+          return execSequence({ type: 'SEQUENCE', steps: newSteps } as SequenceAction, addLog(cur, `${uniqueColors[0]}`));
         } else {
           // : CHOOSESEARCH
       const afterCont: EffectAction | undefined = afterRemaining.length > 0
             ? (afterRemaining.length === 1 ? afterRemaining[0] : { type: 'SEQUENCE', steps: afterRemaining } as SequenceAction)
             : undefined;
           const opts = uniqueColors.map(c => ({
-            id: c, label: `{c}, available: true,`
+            id: c, label: `${c}, available: true,`
             action: (() => {
               const cs: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: c } };
               return afterCont ? { type: 'SEQUENCE', steps: [cs as EffectAction, afterCont] } as SequenceAction : cs as EffectAction;
@@ -802,7 +802,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const optionsSO = [
             {
               id: 'pay', available: hasSoul,
-              label: soulName ? `{soulName} : ',`
+              label: soulName ? `${soulName} : ',`
               action: payActionSO,
             },
             { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
@@ -828,7 +828,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const optionsLUCO = [
             {
               id: 'pay', available: hasUnder,
-              label: underName ? `{underName} : ',`
+              label: underName ? `${underName} : ',`
               action: payActionLUCO,
             },
             { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
@@ -851,7 +851,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             : false;
           const optionsOHRN = [
             { id: 'reveal', available: hasCard,
-              label: targetName ? `{targetName} : ',`
+              label: targetName ? `${targetName} : ',`
               action: conditional.then },
             { id: 'skip', label: ', action: (conditional.else ?? noopAction) as EffectAction, available: true },'
           ];
@@ -859,7 +859,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'CHOOSE', options: optionsOHRN, count: 1,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, `{targetName}), pendingOHRN`);
+          return needsInteraction(addLog(cur, `${targetName}), pendingOHRN`);
         }
 
         // TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST: 
@@ -885,7 +885,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           };
           void toHWTOSOC; // count xecBanish/execBounce           const fixedThenTOSOC = fixOwnerTOSOC(conditional.then);
           const payLabelTOSOC = costColors.length > 0
-            ? `{costColors.map(c => `縲・{c}縲義).join('')}・荏
+            ? `${costColors.map(c => `縲・{c}縲義).join('')}・荏
             : ';'
           // BANISH/BOUNCE opponent  execBanish selectOrInteract 
       const optsTOSOC = [
@@ -932,7 +932,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const payActionOTEC: EffectAction = payStepsOTEC.length === 1
             ? payStepsOTEC[0]
             : { type: 'SEQUENCE', steps: payStepsOTEC } as import('../types/effects').SequenceAction;
-          const payLabelOTEC = reqClassOTEC ? `{reqClassOTEC} : ';`
+          const payLabelOTEC = reqClassOTEC ? `${reqClassOTEC} : ';`
           const optsOTEC = [
             { id: 'pay', label: payLabelOTEC, action: payActionOTEC, available: true },
             { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
@@ -962,11 +962,11 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           if (totalVirusRV < removeCountRV) {
             // 
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, `{removeCountRV}${totalVirusRV}`);
+            return done(addLog(cur, `${removeCountRV}${totalVirusRV}`);
           }
           if (isOptionalRV) {
             const optsRV = [
-              { id: 'pay', label: `{removeCountRV}, action: payActionRV, available: true },`
+              { id: 'pay', label: `${removeCountRV}, action: payActionRV, available: true },`
               { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
             ];
             return needsInteraction(addLog(cur, '), {'
@@ -1004,7 +1004,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
 
         const canAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
         const payLabel = costColors.length > 0
-          ? ` ${costColors.map(c => `縲・{c}縲義).join('')}`
+          ? ` ${costColors.map(c => `縲・${c}縲義).join('')}`
           : ';'
         const options = [
           { id: 'pay', label: payLabel, action: conditional.then, available: canAfford, ...(costColors.length ? { costColors } : {}) },
@@ -1051,7 +1051,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             const costColors4 = stub4.costColors ?? [];
             const canAfford4 = costColors4.length === 0 || canPayOptionalCost(costColors4, cur.ownerState, cur.cardMap);
             const payLabel4 = costColors4.length > 0
-              ? `{costColors4.map(c => `縲・{c}縲義).join('')}・荏
+              ? `${costColors4.map(c => `縲・{c}縲義).join('')}・荏
               : '';
             const opts4 = [
               { id: 'pay', label: payLabel4, action: payAction4, available: canAfford4, ...(costColors4.length ? { costColors: costColors4 } : {}) },
@@ -1079,7 +1079,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const costColors5 = stub5.costColors ?? [];
           const canAfford5 = costColors5.length === 0 || canPayOptionalCost(costColors5, cur.ownerState, cur.cardMap);
           const payLabel5 = costColors5.length > 0
-            ? `{costColors5.map(c => `縲・{c}縲義).join('')}・荏
+            ? `${costColors5.map(c => `縲・{c}縲義).join('')}・荏
             : '';
           const options5 = [
             { id: 'pay', label: payLabel5, action: cont5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}) },
@@ -1101,7 +1101,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           cur = {
             ...cur,
             ownerState: { ...cur.ownerState, hand: newOwnerHand, trash: newOwnerTrash },
-            logs: [...cur.logs, `{discardName}],`
+            logs: [...cur.logs, `${discardName}],`
           };
         } else {
           cur = { ...cur, logs: [...cur.logs, 'ARGET_AND_DISCARD_HAND] };'
@@ -1125,7 +1125,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           }
           const optsRV7 = Array.from({ length: totalRV7 + 1 }, (_, n) => ({
             id: `rv7_${n}`,
-            label: n === 0 ? ' : `{n}{n},'
+            label: n === 0 ? ' : `${n}${n},'
             action: ({ type: 'STUB', id: 'INTERNAL_RV_BATCH_TRANSFER', value: n } as import('../types/effects').StubAction) as EffectAction,
             available: true,
           }));
@@ -2165,7 +2165,7 @@ export function resumeOptionalCost(
   const newTrash  = [...ctx.ownerState.trash, ...energyNums];
   const cur = addLog(
     { ...ctx, ownerState: { ...ctx.ownerState, energy: newEnergy, trash: newTrash } },
-    `: ${(payOpt?.costColors ?? []).map(c => `縲・{c}縲義).join('')}`,
+    `: ${(payOpt?.costColors ?? []).map(c => `縲・${c}縲義).join('')}`,
   );
 
   const result = executeAction(payOpt?.action ?? noopAction, cur);
