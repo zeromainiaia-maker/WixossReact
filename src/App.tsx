@@ -127,6 +127,7 @@ export default function App() {
         setCards(sheetCards);
         setAllCards([...sheetCards, ...tokenCards]);
         setVariantCards(variants);
+        setTkCards(tokenCards);
       })
       .catch(e => console.error('カードデータ読み込み失敗:', e));
   }, []);
