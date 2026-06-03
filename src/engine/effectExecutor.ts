@@ -828,7 +828,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const optionsLUCO = [
             {
               id: 'pay', available: hasUnder,
-              label: underName ? `${underName} : ',`
+              label: underName ? `${underName}` : '',
               action: payActionLUCO,
             },
             { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
