@@ -142,6 +142,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const addCard = (card: CardData) => {
     if (isLrigCard(card)) {
       if (countInLrigByName(card.CardName) >= LRIG_COPY_MAX) return;
+      if (isTeamPieceCard(card) && teamPieceCount >= TEAM_PIECE_MAX) return;
       if (isExtraLrigCard(card)) {
         if (extraLrigCount >= LRIG_EXTRA_MAX) return;
       } else {
