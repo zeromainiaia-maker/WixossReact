@@ -164,6 +164,8 @@ export interface PlayerState {
   hastarliq_zones?: number[];
   // このターン、対戦相手シグニのパワーが0以下になったときカード1枚引く（WX13-060①）
   draw_on_opp_power_zero?: boolean;
+  // 宣言したクラス（DECLARE_CLASS効果）
+  declared_class?: string;
   // このターン指定された相手シグニゾーン番号（DESIGNATE_SIGNI_ZONE効果）
   designated_zone?: number;
   // 全ゾーンで色を失うカードのCardNum一覧（LOSE_COLOR_ALL_ZONES: チームルリグ3体未満時）
