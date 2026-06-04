@@ -89,6 +89,10 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
 
   const regularLrigCount = current.lrigDeck.length - extraLrigCount;
 
+  const teamPieceCount = useMemo(() =>
+    current.lrigDeck.filter(n => { const c = cardMap.get(n); return c && isTeamPieceCard(c); }).length,
+    [current.lrigDeck, cardMap]);
+
   const types = useMemo(() => [...new Set(cards.map(c => c.Type).filter(Boolean))].sort(), [cards]);
   const colors = useMemo(() => {
     const COLOR_ORDER = ['無', '白', '緑', '赤', '青', '黒'];
