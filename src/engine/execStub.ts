@@ -7381,8 +7381,9 @@ export function execStub(
   if (stub.id === 'CLASS_CHANGE') {
     const srcCC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCC = srcCC ? (srcCC.EffectText ?? '') + ' ' + (srcCC.BurstText ?? '') : '';
-    // 変更先クラスを抽出（＜怪異＞など）。lastProcessedCardsに宣言クラスが格納される場合もあり
-    const declaredClassCC = (ctx.lastProcessedCards ?? []).find(s => !s.match(/^WX|^WD|^WXD|^WXK|^SPDi/));
+    // 変更先クラスを抽出: declared_class → lastProcessedCards → テキスト解析の優先順
+    const declaredClassCC = ctx.ownerState.declared_class
+      ?? (ctx.lastProcessedCards ?? []).find(s => !s.match(/^WX|^WD|^WXD|^WXK|^SPDi/));
     const newClassMCC = txtCC.match(/＜([^＞]+)＞を得る/);
     const newClass = declaredClassCC ?? (newClassMCC ? newClassMCC[1] : null);
     if (!newClass) return done(addLog(ctx, 'クラス変更先不明'));
