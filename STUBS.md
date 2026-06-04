@@ -210,7 +210,7 @@
 | 1 | AUTO | ⚡ | ADD_CARD_TO_LRIG_DECK ※v0.141: lastProcessedCardsなし時は《カード名》テキスト解析→デッキ/手札から移動 |
 | 1 | CONT | ⚡ | ADD_RESONANCE_CONDITION ※done(addLog)のみ（レゾナ条件追加未実装） |
 | 1 | CONT | ✅ | ADJACENT_ZONE_ATTACK ※v0.116: 英知=10条件付き・隣ゾーン1つ追加バトル（有利な方を自動選択） |
-| 1 | CONT | ⚡ | ALL_CARDS_COLOR_CHANGE_BLACK ※v0.141: effectEngine.hasAllCardsColorBlack追加・myEnergyExtraColorsに黒色反映 |
+| 1 | CONT | ✅ | ALL_CARDS_COLOR_CHANGE_BLACK ※v0.195確認: effectEngine.hasAllCardsColorBlack+myEnergyExtraColorsで黒色をエナに反映済み ✅ |
 | 1 | ACTIVATED | ✅ | ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE ※v0.186: lrig_gained_types配列に付与タイプを追加。両プレイヤーに反映。collectLrigNameAliasesで参照 |
 | 1 | CONT | ✅ | ALL_CLASS ※v0.115: collectAllClassSigni実装（レゾナ条件等のfiltterに活用可） |
 | 1 | CONT | ✅ | ALL_COLOR ※v0.186: collectAllColorSigniForField追加+ExecCtx.allColorSigniNums接続→fieldCandidatesで全色バイパス実装 |
