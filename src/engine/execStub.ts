@@ -8542,9 +8542,16 @@ export function execStub(
     return done(addLog({ ...ctx, otherState: newOtherHLB },
       `【ハスターリク】：${ctx.cardMap.get(topHLB)?.CardName ?? topHLB}をバニッシュ（エナへ）`));
   }
-  // ACTIVATE_EICHI_ABILITY: コイン能力でエイチ能力を発動（ログのみ）
+  // ACTIVATE_EICHI_ABILITY: コイン能力でこのシグニの【出】効果を再発動
   if (stub.id === 'ACTIVATE_EICHI_ABILITY') {
-    return done(addLog(ctx, 'エイチ能力発動（ACTIVATE_EICHI_ABILITY）'));
+    const srcAEA = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
+    if (!srcAEA) return done(addLog(ctx, 'エイチ能力発動：ソースカードなし'));
+    const eichiEffs = parseCardEffects(srcAEA);
+    const onPlayAEA = eichiEffs.find(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'));
+    if (onPlayAEA) {
+      return exec(onPlayAEA.action, addLog(ctx, `エイチ能力発動：${srcAEA.CardName}の【出】効果を再発動`));
+    }
+    return done(addLog(ctx, `エイチ能力発動（${srcAEA.CardName}）：ON_PLAYなし`));
   }
   // CHANGE_EICHI_SIGNI_BASE_LEVEL: 英知シグニを選択→基本レベルを1～3に変更（ターン終了まで）
   if (stub.id === 'CHANGE_EICHI_SIGNI_BASE_LEVEL') {
