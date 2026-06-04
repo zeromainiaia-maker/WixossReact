@@ -540,7 +540,7 @@
 | 5 | CONT | 📝 | BANISH_TO_LRIG_TRASH_INSTEAD ※ログのみ（バニッシュ時ルリグデッキ戻らずルリグトラッシュへ: 未実装）（WX10-008/020/024/WX11-013/WX13-028） |
 | 1 | CONT | 📝 | CARDS_OUTSIDE_ENERGY_BECOME_WHITE ※ログのみ（エナゾーン以外のカードは白になる: 未実装）（WX08-005） |
 | 1 | CONT | ✅ | RESTRICT_CHARMED_SIGNI_ACTIVATED ※v0.194: BattleScreen getMySigniZoneActionsでsigni_charms[zoneIdx]存在チェック+相手フィールド走査→チャーム付きゾーンの【起】能力をactivatableフィルタで除外（WX08-006） |
-| 1 | CONT | 📝 | ENERGY_NON_COLORLESS_ALL_COLORS ※ログのみ（エナの無色以外カードはすべての色を持つ: 未実装）（WX14-017） |
+| 1 | CONT | ✅ | ENERGY_NON_COLORLESS_ALL_COLORS ※v0.195: collectEnergyTrashSubstituteInfoでSTUB検出時、非無色エナinstIdをwildcardInstIdsに追加→任意色として使用可（WX14-017） |
 | 1 | CONT | ✅ | OPP_CENTER_LRIG_LIMIT_SET_5 ※v0.194: BattleScreen lrigLimit計算でop.field.signiを走査→このSTUBが有効ならoppBasicLimitOverride=5で基本リミット上書き（WXEX1-26） |
 ---
 
