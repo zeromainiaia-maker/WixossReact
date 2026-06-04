@@ -42,7 +42,7 @@ const COLOR_BG: Record<string, string> = {
 
 const getCardBg = (color: string) => COLOR_BG[color] ?? '#f5f0fb';
 
-const LRIG_TYPE_ORDER = ['ルリグ', 'アシストルリグ', 'アーツ', 'レゾナ', 'キー', 'ピース'];
+const LRIG_TYPE_ORDER = ['ルリグ', 'アシストルリグ', 'アーツ', 'レゾナ', 'キー', 'ピース', 'リレーピース'];
 
 export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCards = [], onUpdate, onDelete, onBack }: Props) {
   const [current, setCurrent] = useState<Deck>(deck);
