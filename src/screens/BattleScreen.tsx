@@ -2590,7 +2590,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             effect: {
               effectId: `HASTARLIQ_TRIGGER_Z${zi}`,
               effectType: 'AUTO' as const,
-              action: { type: 'STUB', id: 'HASTARLIQ_TRIGGER', value: zi } as import('./types/effects').StubAction,
+              action: { type: 'STUB', id: 'HASTARLIQ_TRIGGER', value: zi } as import('../types/effects').StubAction,
               duration: 'INSTANT' as const,
               mandatory: true,
               parseStatus: 'MANUAL' as const,
