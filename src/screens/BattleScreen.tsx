@@ -4466,12 +4466,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             };
             appendBattleLogs([`${opCardName}（ライズ代替）スタック下${bottomCards.length}枚をトラッシュしてバニッシュ回避`]);
           } else {
-          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash;
+          // BANISH_TO_LRIG_TRASH_INSTEAD: レゾナシグニはエナ代わりにlrig_trashへ（ルリグデッキ返却の近似）
+          const banishToLrigTrash = !redirectBanish && !redirectBanishToHand && !frozenToDeckBottom && !frozenToTrash && !banishBySelftToTrash &&
+            (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
+              eff.effectType === 'CONTINUOUS' &&
+              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+              (eff.action as import('../types/effects').StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD',
+            );
+          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash;
           newOpState = {
             ...op,
             hand: redirectBanishToHand ? [...op.hand, ...opStack] : op.hand,
             deck: frozenToDeckBottom ? [...op.deck, ...opStack] : op.deck,
             energy: anyRedirect ? op.energy : [...op.energy, ...opStack],
+            lrig_trash: banishToLrigTrash ? [...op.lrig_trash, ...opStack] : op.lrig_trash,
             trash: (redirectBanish || frozenToTrash || banishBySelftToTrash)
               ? [...op.trash, ...opStack, ...banishExtraTrash]
               : (banishExtraTrash.length > 0 ? [...op.trash, ...banishExtraTrash] : op.trash),
@@ -4484,8 +4492,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_acce:   newOpAcce,
             },
           };
-          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : ''}`]);
+          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : ''}`]);
           }
+          } // end cookingBanishSub else
+          } // end leaveReplaceDown else
 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer || isSLancer) {
