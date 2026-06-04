@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectResonanceExtraAttackPhaseCondition} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -2464,12 +2464,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           myHandEND  = my.hand.slice(0, handLimitEND);
           appendBattleLogs([`手札上限超過（${my.hand.length}枚→${handLimitEND}枚）：${excessEND}枚捨て`]);
         }
+        // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
+        let myFieldAfterCoinCheck = { ...my.field, beat_zone: myBeatEND };
+        let myTrashAfterCoinCheck = myTrashEND;
+        if ((my.coin_condition_signi_instances ?? []).length > 0) {
+          const coinSpent = (my.actions_done ?? []).includes('COIN_SPENT');
+          if (!coinSpent) {
+            // コイン未消費 → coin_condition_signi_instances のシグニをトラッシュ
+            const newSigniField = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
+            for (const instId of my.coin_condition_signi_instances ?? []) {
+              for (let zi = 0; zi < 3; zi++) {
+                if (newSigniField[zi]?.includes(instId)) {
+                  myTrashAfterCoinCheck = [...myTrashAfterCoinCheck, ...newSigniField[zi]!];
+                  newSigniField[zi] = null;
+                  appendBattleLogs([`コイン消費なし → ${battleCardMap.get(instId)?.CardName ?? instId}をトラッシュ`]);
+                }
+              }
+            }
+            myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newSigniField };
+          }
+        }
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         newMyState = {
           ...my,
           hand: myHandEND,
-          trash: myTrashEND,
-          field: { ...my.field, beat_zone: myBeatEND },
+          trash: myTrashAfterCoinCheck,
+          field: myFieldAfterCoinCheck,
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
           granted_effects:    {},   // ターン内付与能力をリセット
@@ -2507,6 +2527,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
           negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
+          coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
+          grid_reveal_plus_one_this_turn: undefined,  // グリッド公開+1フラグをリセット
+          deck_signi_level_override: undefined,       // デッキシグニレベルオーバーライドをリセット
+          reduce_next_on_play_cost: undefined,        // 【出】コスト軽減フラグをリセット
+          optional_discard_guard_enabled: undefined,  // 任意捨てガードフラグをリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
@@ -3750,7 +3775,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: [...my.trash, ...paidNums, ...discardNums],
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
         field: keySub ? { ...my.field, key_piece: null } : my.field,
-        actions_done: [...(my.actions_done ?? []), 'USE_ARTS'],
+        actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
       };
       if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
@@ -5409,6 +5434,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
   cpuTurnRef.current = cpuTurnAction;
 
+  // GUARD_ALTERNATIVE_COST: エナゾーンから指定クラスのシグニをトラッシュしてガード
+  const handleGuardWithEnergyAlternative = async () => {
+    if (!my.field.lrig_attacked || loading) return;
+    const altCost = collectGuardAlternativeCost(my, battleCardMap, effectsMap);
+    if (!altCost) return;
+    const energySigni = my.energy.filter(cn => {
+      const c = battleCardMap.get(cn);
+      return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(altCost.signiClass);
+    });
+    if (energySigni.length === 0) return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const trashTarget = energySigni[0]; // 最初の該当シグニをトラッシュ
+      const newMyState: PlayerState = {
+        ...my,
+        energy: my.energy.filter(cn => cn !== trashTarget),
+        trash: [...my.trash, trashTarget],
+        field: { ...my.field, lrig_attacked: false },
+      };
+      appendBattleLogs([`ガード代替コスト：エナ＜${altCost.signiClass}＞（${battleCardMap.get(trashTarget)?.CardName ?? trashTarget}）をトラッシュ`]);
+      await updateState({ [stateKey]: newMyState });
+    } finally { setLoading(false); }
+  };
+
   // ガード応答: handIndex=ガードカードのインデックス、null=ガードしない
   const handleGuardResponse = async (handIndex: number | null) => {
     if (!my.field.lrig_attacked || loading) return;
@@ -6344,6 +6394,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const selectedNums = [...selectedGrowCost].map(i => my.energy[i]);
               const isValid = selectedGrowCost.size === totalReq &&
                 canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+              // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 代替コスト情報
+              const growSubInfo = collectGrowCostSubstitute(my, battleCardMap, effectsMap);
+              const growSubEnaSigni = growSubInfo ? my.energy.filter(cn => {
+                const c = battleCardMap.get(cn);
+                return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(growSubInfo.signiClass);
+              }) : [];
+              const canUseGrowSub = growSubInfo && growSubEnaSigni.length > 0 &&
+                costItems.some(ci => ci.color === growSubInfo.substituteColor && ci.count > 0);
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6417,6 +6475,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       );
                     })}
                   </div>
+                  {canUseGrowSub && growSubInfo && (
+                    <p style={{ color: '#4caf50', fontSize: 11, margin: 0, textAlign: 'center',
+                      padding: '4px 8px', background: 'rgba(76,175,80,0.1)', borderRadius: 6 }}>
+                      ※ 代替: エナ＜{growSubInfo.signiClass}＞1枚をトラッシュで《{growSubInfo.substituteColor}》代替可
+                      （自動適用：追加で{growSubInfo.substituteColor}のエナカードを選ばなくてOK）
+                    </p>
+                  )}
                   <button onClick={() => executeGrow(pendingGrowCard, selectedGrowCost)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
@@ -7470,9 +7535,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const guardBlockedByExtraCost = oppGuardExtraColorless && my.energy.length === 0;
               // 追加ガードカードが1枚しかない場合はガード不可（ガード用1枚＋追加コスト用1枚=2枚必要）
               const guardBlockedByExtraGuard = oppExtraGuardFromHand && guardCardCountInHand < 2;
+              // GUARD_ALTERNATIVE_COST: エナゾーンから指定クラスシグニをトラッシュしてガード可能
+              const guardAltCost = !guardDisabledByOpp ? collectGuardAlternativeCost(my, battleCardMap, effectsMap) : null;
+              const guardAltEnergySigni = guardAltCost ? my.energy.filter(cn => {
+                const c = battleCardMap.get(cn);
+                return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(guardAltCost.signiClass);
+              }) : [];
               const guardCards = (guardDisabledByOpp || guardBlockedByExtraCost || guardBlockedByExtraGuard) ? [] : my.hand
                 .map((num, i) => ({ num, i, card: battleCardMap.get(num) }))
                 .filter(({ num, card }) => {
+                  // OPTIONAL_DISCARD_GUARD: 手札から任意カードを捨ててガード可能
+                  if (my.optional_discard_guard_enabled) return true;
                   // hand_signi_guard_enabled: 手札のシグニはすべてガード可能
                   // myHandGuardClasses: 特定クラスの手札シグニがガード可能 (HAND_SIGNI_HAS_GUARD_ICON)
                   const classGuardable = myHandGuardClasses.length > 0 && card?.Type === 'シグニ' &&
@@ -7501,6 +7574,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       ⚠ 追加でガードアイコンカードを1枚手札から捨てないとガードできません
                       {guardBlockedByExtraGuard && `（ガードカード${guardCardCountInHand}枚では不足）`}
                     </p>
+                  )}
+                  {guardAltCost && guardAltEnergySigni.length > 0 && (
+                    <button onClick={handleGuardWithEnergyAlternative} disabled={loading}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4caf50',
+                        backgroundColor: 'rgba(76,175,80,0.15)', color: '#4caf50', cursor: 'pointer',
+                        fontSize: 13, marginBottom: 8 }}>
+                      代替ガード：エナ＜{guardAltCost.signiClass}＞1枚をトラッシュ
+                    </button>
                   )}
                   {guardCards.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: '40vh' }}>

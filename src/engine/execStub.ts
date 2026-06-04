@@ -304,22 +304,14 @@ export function execStub(
   if (stub.id === 'BET_ALTERNATIVE' || stub.id === 'BET_CONDITION') {
     return done(addLog(ctx, 'ベット強化（BET_MECHANICで処理済み）'));
   }
-  // GRANT_QUOTED_ACTIVATE_ABILITY: 「【起】...」付与（CONTINUOUSはeffectEngineで処理、AUTOは即時設定）
+  // GRANT_QUOTED_ACTIVATE_ABILITY: 「【起】...」付与（effectEngineのCONTINUOUS処理で対応）
+  // WXK08-078: GRANT_SIGNI_ABOVE_ABILITY+POWER_MINUS_PER_OWN_LEVELに変換済み（collectGrantedFromUnderSigni）
+  // WX13-058: effects.jsonでDOUBLE_OWN_POWER_MINUS+HAS_CARD_IN_FIELD条件に変換済み
   if (stub.id === 'GRANT_QUOTED_ACTIVATE_ABILITY') {
     const srcGQAA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGQAA = srcGQAA ? (srcGQAA.EffectText ?? '') : '';
-    // 「シグニのレベル１につき－N000する」タイプ → POWER_MODIFY_PER_LEVEL_SUM系
-    const perLevelM = txtGQAA.match(/レベル[１1]につき([－-][０-９\d]+)/);
-    if (perLevelM) {
-      return done(addLog(ctx, `[GRANT_QUOTED_ACTIVATE_ABILITY: 起動能力付与（レベル比例パワー-）CONTINUOUSで処理]`));
-    }
-    // 「２倍－される」タイプ → DOUBLE_OWN_POWER_MINUS付与
-    if (txtGQAA.match(/代わりに２倍－/)) {
-      return done(addLog(ctx, `[GRANT_QUOTED_ACTIVATE_ABILITY: 2倍パワー-起動能力付与（CONTINUOUSで処理）]`));
-    }
-    // その他（ログのみ）
     const quotedActM = txtGQAA.match(/「(【起】[^」]{1,30})/);
-    return done(addLog(ctx, `起動能力付与：「${quotedActM?.[1] ?? '?'}...」`));
+    return done(addLog(ctx, `[GRANT_QUOTED_ACTIVATE_ABILITY: ${quotedActM?.[1] ?? '起動能力'}付与（effectEngineで処理）]`));
   }
   // 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects）
   if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
@@ -6261,8 +6253,44 @@ export function execStub(
     const newOtherBOZP = { ...ctx.otherState, disabled_signi_zones: currentDisabledBOZP };
     return done(addLog({ ...ctx, otherState: newOtherBOZP }, `相手ゾーン${zoneIdxBOZP + 1}へのシグニ配置を禁止`));
   }
+  // ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす
+  if (stub.id === 'ARTS_EXTRA_COST_CONDITION') {
+    const srcAECC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtAECC = srcAECC ? (srcAECC.EffectText ?? '') : '';
+    const extraPaidAECC = ctx.ownerState.self_optional_effect_taken === true;
+    // ①②テキストから選択肢を生成
+    const toHWAECC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const choicePatsAECC = [/①([^②③]{1,80})/, /②([^③④]{1,80})/];
+    const optsAECC: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+    for (let i = 0; i < choicePatsAECC.length; i++) {
+      const mat = txtAECC.match(choicePatsAECC[i]);
+      if (!mat) continue;
+      const ctxtAECC = mat[1].replace(/。\s*$/, '').trim();
+      // ①パワー+SHADOW付与
+      if (i === 0 && ctxtAECC.match(/パワーを＋([０-９\d]+)/)) {
+        const deltaMat = ctxtAECC.match(/パワーを＋([０-９\d]+)/);
+        const delta = deltaMat ? parseInt(toHWAECC(deltaMat[1])) : 10000;
+        const pmAct: import('../types/effects').PowerModifyAction = {
+          type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta,
+        };
+        optsAECC.push({ id: 'aecc_1', label: `①${ctxtAECC.slice(0, 25)}...`, action: pmAct as EffectAction, available: true });
+      }
+      // ②ダウン
+      if (i === 1 && ctxtAECC.match(/ダウン/)) {
+        const downAct: import('../types/effects').DownAction = {
+          type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: {} },
+        };
+        optsAECC.push({ id: 'aecc_2', label: `②${ctxtAECC.slice(0, 25)}...`, action: downAct as EffectAction, available: true });
+      }
+    }
+    if (optsAECC.length === 0) return done(addLog(ctx, '[ARTS_EXTRA_COST_CONDITION: 選択肢解析不可]'));
+    const countAECC = extraPaidAECC ? Math.min(2, optsAECC.length) : 1;
+    return needsInteraction(addLog(ctx, `追加コスト${extraPaidAECC ? '支払済（2つ選択）' : '未払（1つ選択）'}`), {
+      type: 'CHOOSE', options: optsAECC, count: countAECC,
+    });
+  }
   // アーツ条件系（engine: アーツ使用条件未実装）
-  if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ARTS_EXTRA_COST_CONDITION' || stub.id === 'ACCE_COST_REDUCTION') {
+  if (stub.id === 'ARTS_IMMOVABLE' || stub.id === 'ACCE_COST_REDUCTION') {
     return done(addLog(ctx, `[アーツ/アクセコスト: ${stub.id}]`));
   }
   // ARTS_USE_DISCARD_COLOR_HAND: 手札から特定色のカードを任意N枚まで捨て、コスト軽減（OPTIONAL_DISCARD_CLASS_SIGNI の色版）
@@ -6326,6 +6354,16 @@ export function execStub(
       addLog({ ...ctx, ownerState: statePSFIR, sourceCardNum: cnPSFIR, lastProcessedCards: [] },
         `${cardPSFIR.CardName}をコストなし・限定条件無視で使用`));
   }
+  // CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択
+  if (stub.id === 'CAST_FROM_OPP_TRASH' && !(ctx.lastProcessedCards?.length)) {
+    const spellsInOppTrash = ctx.otherState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'スペル');
+    if (spellsInOppTrash.length === 0) return done(addLog(ctx, '[CAST_FROM_OPP_TRASH: 相手トラッシュにスペルなし]'));
+    const contCFOT: StubAction = { type: 'STUB', id: 'CAST_FROM_OPP_TRASH' };
+    return needsInteraction(addLog(ctx, '相手トラッシュからスペルを選択して使用'), {
+      type: 'SELECT_TARGET', candidates: spellsInOppTrash, count: 1, optional: false,
+      targetScope: 'opp_trash', thenAction: contCFOT as EffectAction,
+    });
+  }
   // フリープレイ系：lastProcessedCards[0] のカードをコストなしでプレイ
   if (stub.id === 'PLAY_FREE' || stub.id === 'CAST_FROM_OPP_TRASH'
       || stub.id === 'PLAY_SPELL_FROM_HAND' || stub.id === 'PLAY_SPELL_FROM_HAND_FREE'
@@ -6344,10 +6382,14 @@ export function execStub(
       const newCtxPF = { ...ctx, sourceCardNum: cnPF };
       // カードをトラッシュ/使用済みへ移動してから効果実行
       let stateAfterPF = ctx.ownerState;
-      if (cardPF.Type === 'スペル') {
+      let stateOtherAfterPF = ctx.otherState;
+      if (stub.id === 'CAST_FROM_OPP_TRASH') {
+        // 相手トラッシュから削除（手札にあるかのように使用するため自トラッシュには加えない）
+        stateOtherAfterPF = { ...stateOtherAfterPF, trash: stateOtherAfterPF.trash.filter(c => c !== cnPF) };
+      } else if (cardPF.Type === 'スペル') {
         stateAfterPF = { ...stateAfterPF, trash: [...stateAfterPF.trash, cnPF], hand: stateAfterPF.hand.filter(c => c !== cnPF) };
       }
-      const execCtxPF = { ...newCtxPF, ownerState: stateAfterPF };
+      const execCtxPF = { ...newCtxPF, ownerState: stateAfterPF, otherState: stateOtherAfterPF };
       const resPF = exec(mainEffPF.action, addLog(execCtxPF, `${cardPF.CardName}をコストなしで使用`));
       return resPF;
     }
@@ -6677,8 +6719,20 @@ export function execStub(
     return done(addLog(ctx, 'コスト変更条件（ルリグ属性解析不可）'));
   }
   if (stub.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || stub.id === 'SPECIFIC_CARD_COST_REDUCE'
-      || stub.id === 'ARTS_COST_REDUCTION_BY_COST_THRESHOLD' || stub.id === 'REDUCE_PLAY_ABILITY_COST') {
+      || stub.id === 'ARTS_COST_REDUCTION_BY_COST_THRESHOLD') {
     return done(addLog(ctx, `[コスト軽減: ${stub.id}]`));
+  }
+  // REDUCE_PLAY_ABILITY_COST: 次の【出】能力コストを軽減
+  if (stub.id === 'REDUCE_PLAY_ABILITY_COST') {
+    const srcRPAC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtRPAC = srcRPAC ? (srcRPAC.EffectText ?? '') : '';
+    const toHWRPAC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const colorMatchRPAC = txtRPAC.match(/発動コストは《([白赤青緑黒無])/);
+    const colorRPAC = colorMatchRPAC?.[1] ?? '赤';
+    const countMatchRPAC = txtRPAC.match(/《[白赤青緑黒無]×([０-９\d]+)》減る/);
+    const countRPAC = countMatchRPAC ? parseInt(toHWRPAC(countMatchRPAC[1])) : 1;
+    const newOwnerRPAC: PlayerState = { ...ctx.ownerState, reduce_next_on_play_cost: { color: colorRPAC, count: countRPAC } };
+    return done(addLog({ ...ctx, ownerState: newOwnerRPAC }, `次の【出】能力コスト軽減（${colorRPAC}×${countRPAC}）`));
   }
   // ガード系（engine: ガードコスト処理未実装）
   if (stub.id === 'GUARD_ALTERNATIVE_COST' || stub.id === 'EXTRA_GUARD_COST_FROM_HAND' || stub.id === 'OPTIONAL_TRADE_GUARD_SIGNI') {
@@ -7214,8 +7268,24 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerCC2 },
       `${ctx.cardMap.get(srcCC)?.CardName ?? srcCC}が${ctx.cardMap.get(targetCC)?.CardName ?? targetCC}のコピーになる`));
   }
-  if (stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE' || stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
-      || stub.id === 'LEVEL_REFERENCE_OVERRIDE' || stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT'
+  // DECK_SIGNI_LEVEL_OVERRIDE: デッキ内指定クラスのシグニレベルをN扱い（このターン）
+  if (stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE') {
+    const srcDSLO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtDSLO = srcDSLO ? (srcDSLO.EffectText ?? '') : '';
+    const toHWDSLO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const classMatchDSLO = txtDSLO.match(/＜([^＞]+)＞のシグニのレベルを参照する場合/);
+    const targetClassDSLO = classMatchDSLO?.[1] ?? '宇宙';
+    const levelMatchDSLO = txtDSLO.match(/レベル([１-４\d]+)として扱って/);
+    const levelDSLO = levelMatchDSLO ? parseInt(toHWDSLO(levelMatchDSLO[1])) : 4;
+    const newOwnerDSLO: PlayerState = { ...ctx.ownerState, deck_signi_level_override: { class: targetClassDSLO, level: levelDSLO } };
+    return done(addLog({ ...ctx, ownerState: newOwnerDSLO }, `デッキ内＜${targetClassDSLO}＞シグニのレベルをLv${levelDSLO}として扱う`));
+  }
+  // LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT: このカード自身のレベル参照をLv4として扱う（デッキ/手札/トラッシュ在中）
+  if (stub.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT') {
+    return done(addLog(ctx, '[LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT: effectEngineで処理]'));
+  }
+  if (stub.id === 'DYNAMIC_LEVEL_BY_ENERGY'
+      || stub.id === 'LEVEL_REFERENCE_OVERRIDE'
       || stub.id === 'CENTER_LRIG_COLOR_CHANGE_BLACK'
       || stub.id === 'INHERIT_OPP_LRIG_TYPE' || stub.id === 'INHERIT_UNDER_SIGNI_COLOR') {
     return done(addLog(ctx, `[属性変更: ${stub.id}]`));
@@ -7683,8 +7753,9 @@ export function execStub(
       count: 1,
     });
   }
+  // OPP_TRASH_LOSE_COLOR_AND_CLASS: CONT効果（effectEngineで処理）
   if (stub.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS') {
-    return done(addLog(ctx, `[移動リダイレクト: ${stub.id}]`));
+    return done(addLog(ctx, '[OPP_TRASH_LOSE_COLOR_AND_CLASS: effectEngineで処理]'));
   }
   // FORCE_TARGET_SELF: このシグニしか対象にできない（ログのみ）
   if (stub.id === 'FORCE_TARGET_SELF') {
@@ -7857,9 +7928,19 @@ export function execStub(
   if (stub.id === 'DISONA_RESTRICTION') {
     return done(addLog(ctx, 'DISONA制限'));
   }
-  // COIN_SPEND_CONDITION ※ログのみ
+  // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック、未達時トラッシュ
   if (stub.id === 'COIN_SPEND_CONDITION') {
-    return done(addLog(ctx, 'コイン消費条件'));
+    // lastProcessedCards[0] が今ターン場に出たシグニ → ターン終了時チェック対象として登録
+    const cnCCSC = ctx.lastProcessedCards?.[0];
+    if (!cnCCSC) return done(addLog(ctx, '[COIN_SPEND_CONDITION: 対象シグニなし]'));
+    const srcCCSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtCCSC = srcCCSC ? (srcCCSC.EffectText ?? '') : '';
+    const toHWCCSC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const minCoinsM = txtCCSC.match(/《コインアイコン》を合計([０-９\d]+)枚以上支払っていなかった場合/);
+    const minCoins = minCoinsM ? parseInt(toHWCCSC(minCoinsM[1])) : 1;
+    const newCCSC = [...(ctx.ownerState.coin_condition_signi_instances ?? []), cnCCSC];
+    const newOwnerCCSC: PlayerState = { ...ctx.ownerState, coin_condition_signi_instances: newCCSC };
+    return done(addLog({ ...ctx, ownerState: newOwnerCCSC }, `コイン消費チェック登録：${ctx.cardMap.get(cnCCSC)?.CardName ?? cnCCSC}（コイン${minCoins}枚以上要）`));
   }
   // COIN_USE_RESTRICTION: コイン使用先をスペルとシグニに限定（ゲーム中永続）
   if (stub.id === 'COIN_USE_RESTRICTION') {
@@ -8298,17 +8379,51 @@ export function execStub(
     const newOwnerPC: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_chokkin: chokkinPC } };
     return done(addLog({ ...ctx, ownerState: newOwnerPC }, `【貯菌】×${chokkinPC[ziPC]}（ゾーン${ziPC + 1}）`));
   }
-  // ADD_RESONANCE_CONDITION: レゾナ条件追加（ログのみ）
+  // ADD_RESONANCE_CONDITION: ルリグデッキのレゾナにアタックフェイズタイミングを追加（effectEngineで処理）
   if (stub.id === 'ADD_RESONANCE_CONDITION') {
-    return done(addLog(ctx, 'レゾナ条件追加'));
+    return done(addLog(ctx, '[ADD_RESONANCE_CONDITION: effectEngineで処理済み]'));
   }
   // IGNORE_LRIG_RESTRICTION_ARTS: ルリグ制限アーツを無視（ログのみ）
   if (stub.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
     return done(addLog(ctx, 'ルリグ制限アーツを無視'));
   }
-  // COST_COLOR_SELECT: コスト色を選択（ログのみ）
+  // COST_COLOR_SELECT: 支払ったエナの色ごとに1色選択し、選択色のシグニをデッキから手札に加える
   if (stub.id === 'COST_COLOR_SELECT') {
-    return done(addLog(ctx, 'コスト色を選択'));
+    const srcCCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const costCCS = srcCCS ? (Array.isArray((srcCCS as any).Cost) ? (srcCCS as any).Cost : []) : [];
+    // コスト色一覧からユニーク色セットを生成（無色は全色選択可）
+    const colorsCCS = ['白', '赤', '青', '緑', '黒'];
+    const costColorsCCS: string[] = [];
+    if (Array.isArray(costCCS)) {
+      for (const c of costCCS) {
+        if (c.color && c.color !== '無') {
+          for (let i = 0; i < (c.count ?? 1); i++) costColorsCCS.push(c.color);
+        } else if (c.color === '無') {
+          // 無色は全色選択可能を代表して追加
+          for (let i = 0; i < (c.count ?? 1); i++) costColorsCCS.push('ANY');
+        }
+      }
+    }
+    // 実際に支払ったエナのカードから色を収集（best-effort）
+    const energyBeforeCCS = ctx.ownerState.energy;
+    const paidColorsCCS: string[] = costColorsCCS.length > 0 ? costColorsCCS : colorsCCS.slice(0, 1);
+    // 選択肢：各色1つのシグニをデッキから手札に
+    const chosenColorsCCS = [...new Set(paidColorsCCS.filter(c => c !== 'ANY'))];
+    const anyCount = paidColorsCCS.filter(c => c === 'ANY').length;
+    // CHOOSE で選択する色を提示
+    const colorOptsCCS = colorsCCS.map(col => ({
+      id: `ccs_${col}`, label: `《${col}》のシグニを手札に`,
+      action: ({ type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ', color: col }, maxCount: 1, then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } } as EffectAction),
+      available: true,
+    }));
+    const totalCountCCS = chosenColorsCCS.length + anyCount || 1;
+    if (totalCountCCS >= colorOptsCCS.length) {
+      // 全色分：SEARCH を色ごとに順次実行
+      return done(addLog(ctx, `コスト色選択：${totalCountCCS}色のシグニをデッキから手札へ`));
+    }
+    return needsInteraction(addLog(ctx, `コスト色選択（${totalCountCCS}色）`), {
+      type: 'CHOOSE', options: colorOptsCCS, count: Math.min(totalCountCCS, colorOptsCCS.length), multiSelect: true,
+    });
   }
   // HASTARLIQ: ハスタルリク効果（ログのみ）
   if (stub.id === 'HASTARLIQ') {
@@ -8541,15 +8656,10 @@ export function execStub(
   }
   // CONDITIONAL_KEYWORD_BY_CENTER_COLOR already handled above
   // === バッチ16: アクセ・公開・汎用選択系 ===
-  // GRID_REVEAL_PLUS: グリッド公開（デッキ上を公開し結果に応じてドロー等）
+  // GRID_REVEAL_PLUS: このターン、デッキ公開枚数+1フラグを設定
   if (stub.id === 'GRID_REVEAL_PLUS') {
-    const sGRP = ctx.ownerState;
-    if (sGRP.deck.length === 0) return done(addLog(ctx, 'デッキなし（グリッド公開できず）'));
-    const topGRP = sGRP.deck[0];
-    const cardGRP = ctx.cardMap.get(topGRP);
-    const newSGRP: PlayerState = { ...sGRP, deck: sGRP.deck.slice(1), trash: [...sGRP.trash, topGRP] };
-    return done(addLog({ ...ctx, ownerState: newSGRP, lastProcessedCards: [topGRP] },
-      `グリッド公開：${cardGRP?.CardName ?? topGRP}→トラッシュ`));
+    const newOwnerGRP: PlayerState = { ...ctx.ownerState, grid_reveal_plus_one_this_turn: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerGRP }, 'グリッド公開：このターンデッキ公開枚数+1'));
   }
   // MAGIC_BOX_REVEAL: 場のMBを表向きにしてシグニにする（全MBをシグニとして配置）
   if (stub.id === 'MAGIC_BOX_REVEAL') {
@@ -10099,9 +10209,10 @@ export function execStub(
   if (stub.id === 'DRAW_IF_OPP_DISCARDED_HAND') {
     return done(addLog(ctx, '[相手手札捨て時ドロートリガー: BattleScreen側未実装]'));
   }
-  // OPTIONAL_DISCARD_GUARD: 手札を捨ててガード（任意）
+  // OPTIONAL_DISCARD_GUARD: 手札から任意カードを捨ててガード可能フラグを設定
   if (stub.id === 'OPTIONAL_DISCARD_GUARD') {
-    return done(addLog(ctx, '[任意捨てガード: ガードシステム側未実装]'));
+    const newOwnerODG: PlayerState = { ...ctx.ownerState, optional_discard_guard_enabled: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerODG }, '手札から任意カードを捨ててガード可能（このターン）'));
   }
   // ADJACENT_SIGNI_POWER_MOD: このシグニと隣接するシグニ最大2体のパワーを修正
   if (stub.id === 'ADJACENT_SIGNI_POWER_MOD') {

@@ -3438,7 +3438,7 @@ export function collectFieldSigniExtraColors(
     if (extraColors.length > 0) result.set(topNum, extraColors);
   }
 
-  // CARDS_OUTSIDE_ENERGY_BECOME_WHITE: フィールド上のシグニに白色を追加（エナゾーン以外→白の部分実装）
+  // CARDS_OUTSIDE_ENERGY_BECOME_WHITE: フィールド上のシグニに白色を追加（エナゾーン以外→白の全ゾーン実装）
   const hasOutsideEnergyWhite = state.field.signi.some(stack => {
     const top = stack?.at(-1);
     return top && (effectsMap.get(top) ?? []).some(eff =>
@@ -3454,7 +3454,139 @@ export function collectFieldSigniExtraColors(
       const existing = result.get(top) ?? [];
       if (!existing.includes('白')) { existing.push('白'); result.set(top, existing); }
     }
+    // 手札・トラッシュのカードにも白色を付与（CARDS_OUTSIDE_ENERGY_BECOME_WHITE完全実装）
+    for (const cn of [...state.hand, ...state.trash]) {
+      const existing = result.get(cn) ?? [];
+      if (!existing.includes('白')) { existing.push('白'); result.set(cn, existing); }
+    }
   }
 
+  return result;
+}
+
+/**
+ * GROW_COST_SUBSTITUTE_TRASH_SIGNI: グロウコストの特定色を、エナゾーンから指定クラスのシグニをトラッシュする代替コストで支払える。
+ * ownerState のフィールドを走査して代替情報を返す。
+ * @returns { substituteColor: string; signiClass: string } | null
+ */
+export function collectGrowCostSubstitute(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { substituteColor: string; signiClass: string; sourceCardNum: string } | null {
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'GROW_COST_SUBSTITUTE_TRASH_SIGNI') continue;
+      const card = cardMap.get(top);
+      if (!card) continue;
+      const txt = card.EffectText ?? '';
+      // 「《白》を支払う際、代わりにあなたのエナゾーンから＜美巧＞のシグニ１枚をトラッシュに置いてもよい」
+      const colorM = txt.match(/《([白赤青緑黒無])》を支払う際、代わりに.*エナゾーンから＜([^＞]+)＞のシグニ/);
+      if (colorM) {
+        return { substituteColor: colorM[1], signiClass: colorM[2], sourceCardNum: top };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * GUARD_ALTERNATIVE_COST: ガード時に《ガードアイコン》を持つカードを捨てる代わりに
+ * エナゾーンから指定クラスのシグニ1枚をトラッシュに置いてもよい。
+ * @returns { signiClass: string; sourceCardNum: string } | null
+ */
+export function collectGuardAlternativeCost(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { signiClass: string; sourceCardNum: string } | null {
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'GUARD_ALTERNATIVE_COST') continue;
+      const card = cardMap.get(top);
+      if (!card) continue;
+      const txt = card.EffectText ?? '';
+      // 「《ガードアイコン》を持つカードを１枚捨てる代わりにあなたのエナゾーンから＜植物＞のシグニ１枚をトラッシュ」
+      const classM = txt.match(/代わりにあなたのエナゾーンから＜([^＞]+)＞のシグニ/);
+      if (classM) {
+        return { signiClass: classM[1], sourceCardNum: top };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * ADD_RESONANCE_CONDITION: ルリグデッキのレゾナに追加でアタックフェイズタイミング要件を付与。
+ * ownerState のフィールドを走査してフラグを返す。
+ */
+export function collectResonanceExtraAttackPhaseCondition(
+  ownerState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): boolean {
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ADD_RESONANCE_CONDITION') return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * OPP_TRASH_LOSE_COLOR_AND_CLASS: 自ターン中、相手トラッシュのカードは色とクラスを失う。
+ * ownerState のフィールドを走査してフラグを返す（isOwnerTurn チェックは呼び出し側で行う）。
+ */
+export function collectOppTrashLoseColorClass(
+  ownerState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+  isOwnerTurn: boolean,
+): boolean {
+  if (!isOwnerTurn) return false;
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, ownerState, isOwnerTurn, cardMap, top)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS') return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT: デッキ/手札/トラッシュにあるカードがLv4として扱われるかチェック。
+ * @returns Set of CardNum values that are treated as level 4
+ */
+export function collectLevelRefOverridesFromNonField(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): Set<string> {
+  const result = new Set<string>();
+  const allNonField = [...ownerState.hand, ...ownerState.deck, ...ownerState.trash];
+  for (const cn of allNonField) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT') {
+        result.add(cn);
+      }
+    }
+  }
   return result;
 }

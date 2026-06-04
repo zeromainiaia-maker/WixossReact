@@ -232,6 +232,16 @@ export interface PlayerState {
   lrig_extra_colors?: string[];
   // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: このゲーム中全センタールリグが得たタイプ
   lrig_gained_types?: string[];
+  // GRID_REVEAL_PLUS: このターン、デッキ公開枚数+1できる
+  grid_reveal_plus_one_this_turn?: boolean;
+  // DECK_SIGNI_LEVEL_OVERRIDE: このターン、指定クラスのデッキシグニのレベルをN扱い
+  deck_signi_level_override?: { class: string; level: number };
+  // REDUCE_PLAY_ABILITY_COST: 次の【出】能力コスト軽減（color×count）
+  reduce_next_on_play_cost?: { color: string; count: number };
+  // OPTIONAL_DISCARD_GUARD: 手札から任意カードを捨ててガード可能フラグ
+  optional_discard_guard_enabled?: boolean;
+  // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェックが必要なシグニinstanceId一覧
+  coin_condition_signi_instances?: string[];
 }
 
 export interface GameLog {

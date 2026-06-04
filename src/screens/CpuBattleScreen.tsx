@@ -451,11 +451,19 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
         };
         appendLog(`${defTopCardNum}（ライズ代替）バニッシュ回避`);
       } else {
+      // BANISH_TO_LRIG_TRASH_INSTEAD: レゾナシグニはlrig_trashへ（ルリグデッキ返却の近似）
+      const defTopCnCPU = banished.at(-1) ?? '';
+      const banishToLrigTrashCPU = (effectsMap.get(defTopCnCPU) ?? []).some(eff =>
+        eff.effectType === 'CONTINUOUS' &&
+        (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+        (eff.action as import('../types/effects').StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD',
+      );
       newDefender = {
         ...defender,
         field: { ...defender.field, signi: newDefSigni, signi_frozen: newDefFrozen },
         deck: frozenToDeckBottom ? [...defender.deck, ...banished] : defender.deck,
-        trash: !frozenToDeckBottom ? [...defender.trash, ...banished] : defender.trash,
+        lrig_trash: banishToLrigTrashCPU ? [...defender.lrig_trash, ...banished] : defender.lrig_trash,
+        trash: !frozenToDeckBottom && !banishToLrigTrashCPU ? [...defender.trash, ...banished] : defender.trash,
       };
       // frozenToTrash は CPU戦ではbanishedが既にtrashへ行くため実質同じ（エナへ行かない）
       void frozenToTrash;
