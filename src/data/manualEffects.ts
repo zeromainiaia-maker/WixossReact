@@ -512,6 +512,81 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX25-P2-TK05 蒼穹将姫　ニヴルヘイム（シグニ/レゾナクラフト）
+  // 【常】：対戦相手はドローフェイズの間にカードを合計１枚までしか引けない。
+  // 【自】：このシグニが場を離れたとき、カードを２枚引くか、対戦相手は手札を２枚捨てる。
+  'WX25-P2-TK05': [
+    {
+      effectId: 'WX25-P2-TK05-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'OPP_DRAW_LIMIT_PER_TURN' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX25-P2-TK05-E2',
+      effectType: 'AUTO',
+      timing: ['ON_BANISH'],
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          {
+            choiceId: 'draw2',
+            label: 'カードを２枚引く',
+            action: { type: 'DRAW', owner: 'self', count: 2 } as import('../types/effects').DrawAction,
+          },
+          {
+            choiceId: 'opp_discard2',
+            label: '対戦相手は手札を２枚捨てる',
+            action: {
+              type: 'TRASH',
+              target: { type: 'HAND_CARD', owner: 'opponent', count: 2 },
+            } as import('../types/effects').TrashAction,
+          },
+        ],
+      } as ChooseAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-CP02-TK01A ペロロ人形（シグニ/クラフト）
+  // 【常】：対戦相手のシグニが正面にアタックする場合、代わりにこのシグニのあるシグニゾーンにアタックする。
+  // 【常】：アップ状態のこのシグニがバトルか対戦相手の効果によって場を離れる場合、代わりにこのシグニをダウンしてもよい。
+  // 【自】：対戦相手のターン終了時、このシグニをゲームから除外する。
+  'WXDi-CP02-TK01A': [
+    {
+      effectId: 'WXDi-CP02-TK01A-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'REDIRECT_ATTACK_TO_SELF_ZONE' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-CP02-TK01A-E2',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'BATTLE_LEAVE_REPLACE_WITH_DOWN' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-CP02-TK01A-E3',
+      effectType: 'AUTO',
+      timing: ['ON_TURN_END'],
+      activeCondition: { type: 'TURN_OWNER', owner: 'opponent' },
+      action: { type: 'STUB', id: 'REMOVE_SELF_SIGNI_FROM_GAME' } as import('../types/effects').StubAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**

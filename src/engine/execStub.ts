@@ -10133,6 +10133,28 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwnerADJ }, `隣接${adjNumsADJ.length}体パワー+${deltaADJ}`));
   }
 
+  // OPP_DRAW_LIMIT_PER_TURN: ドローフェイズ中の相手ドローを1枚に制限（BattleScreen側処理）
+  if (stub.id === 'OPP_DRAW_LIMIT_PER_TURN') {
+    return done(addLog(ctx, '対戦相手のドローフェイズのドロー上限：１枚（BattleScreen側処理）'));
+  }
+  // REDIRECT_ATTACK_TO_SELF_ZONE: 相手シグニの直接アタックをこのシグニゾーンにリダイレクト（BattleScreen側処理）
+  if (stub.id === 'REDIRECT_ATTACK_TO_SELF_ZONE') {
+    return done(addLog(ctx, '正面アタックをこのシグニゾーンへリダイレクト（BattleScreen側処理）'));
+  }
+  // BATTLE_LEAVE_REPLACE_WITH_DOWN: バトル・相手効果による場離れをダウンに置換（任意）（BattleScreen側処理）
+  if (stub.id === 'BATTLE_LEAVE_REPLACE_WITH_DOWN') {
+    return done(addLog(ctx, '場離れ代替ダウン（BattleScreen側処理）'));
+  }
+  // REMOVE_SELF_SIGNI_FROM_GAME: このシグニをゲームから除外する（クラフトルール適用）
+  if (stub.id === 'REMOVE_SELF_SIGNI_FROM_GAME') {
+    const srcCnRSG = ctx.sourceCardNum;
+    if (!srcCnRSG) return done(addLog(ctx, 'REMOVE_SELF_SIGNI_FROM_GAME: ソースなし'));
+    const removedRSG = removeFromField(srcCnRSG, ctx.ownerState);
+    const newOwnerRSG: PlayerState = { ...removedRSG, trash: [...removedRSG.trash, srcCnRSG] };
+    return done(addLog({ ...ctx, ownerState: newOwnerRSG },
+      `${ctx.cardMap.get(srcCnRSG)?.CardName ?? srcCnRSG}をゲームから除外`));
+  }
+
   return done(addLog(ctx, `[STUB: ${stub.id}]`));
 }
 }
