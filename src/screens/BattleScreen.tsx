@@ -4551,7 +4551,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           };
           appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : ''}`]);
           }
-          } // end cookingBanishSub else
+          } // end resonaSubCardNum else
+          } // end cookingBanishSub/acceBanishSub/resonaSub else
           } // end leaveReplaceDown else
 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
