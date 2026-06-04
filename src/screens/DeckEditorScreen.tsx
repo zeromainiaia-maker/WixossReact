@@ -392,10 +392,13 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
               const nameCount = lrig ? countInLrigByName(card.CardName) : countInMainByName(card.CardName);
               const copyMax = lrig ? LRIG_COPY_MAX : COPY_MAX;
               const extra = lrig && isExtraLrigCard(card);
+              const teamPiece = lrig && isTeamPieceCard(card);
               const canAdd = nameCount < copyMax && (
                 lrig
-                  ? (extra ? extraLrigCount < LRIG_EXTRA_MAX : regularLrigCount < LRIG_MAX)
-                  : current.mainDeck.length < MAIN_MAX
+                  ? (teamPiece ? teamPieceCount < TEAM_PIECE_MAX : true) &&
+                    (extra ? extraLrigCount < LRIG_EXTRA_MAX : regularLrigCount < LRIG_MAX)
+                  : current.mainDeck.length < MAIN_MAX &&
+                    (!card.LifeBurst || card.LifeBurst !== '1' || lbCount < LB_MAX)
               );
               const bg = getCardBg(card.Color);
               const hasLB = card.LifeBurst === '1';
