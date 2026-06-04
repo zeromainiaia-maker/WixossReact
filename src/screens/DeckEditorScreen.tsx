@@ -21,6 +21,9 @@ const getThumbUrl = (imgUrl: string) =>
 const isExtraLrigCard = (card: CardData) =>
   card.Type === 'ピース' || card.Type === 'リレーピース' || SPECIAL_EXTRA_CARD_NUMS.includes(card.CardNum);
 
+const isTeamPieceCard = (card: CardData) =>
+  /^【使用条件】【(ドリーム)?チーム】/.test(card.EffectText ?? '');
+
 interface Props {
   deck: Deck;
   cards: CardData[];
