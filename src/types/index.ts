@@ -160,6 +160,8 @@ export interface PlayerState {
   disabled_signi_zones?: number[];
   // ゲート設置済みゾーン番号（GATE効果：条件付きアタック不可）
   signi_gate_zones?: number[];
+  // ハスターリク設置済みゾーン番号（WXDi-P05-TK01A：アタックフェイズ開始時に相手が捨て/払いしないとバニッシュ）
+  hastarliq_zones?: number[];
   // このターン指定された相手シグニゾーン番号（DESIGNATE_SIGNI_ZONE効果）
   designated_zone?: number;
   // 全ゾーンで色を失うカードのCardNum一覧（LOSE_COLOR_ALL_ZONES: チームルリグ3体未満時）
