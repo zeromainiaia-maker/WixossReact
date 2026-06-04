@@ -326,7 +326,7 @@
 | 1 | CONT | ✅ | INHERIT_UNDER_SIGNI_COLOR ※v0.187: collectFieldSigniExtraColors+ExecCtx.fieldSigniExtraColors接続→スタック下の対象クラスシグニ色を継承 |
 | 1 | CONT | ✅ | LEAVE_FIELD_TO_DECK_BOTTOM ※removeFromField+deckへ追加でデッキ下移動実装済み |
 | 1 | AUTO/ACTIVATED | ✅ | LEVEL_BASED_CONDITIONAL ※v0.170: lastProcessedCards[0]のLvN枚だけSELECT_TARGET手札捨て |
-| 1 | CONT | ⚡ | LEVEL_MOD_PER_COUNT ※done(addLog)のみ（カウント基準レベル修正未実装） |
+| 1 | CONT | ✅ | LEVEL_MOD_PER_COUNT ※v0.196確認: effectEngine.buildLevelModsで「対戦相手の場のチャームN枚につきN減る」実装済み ✅ |
 | 1 | CONT | ⚡ | LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT ※done(addLog)のみ（属性変更グループ: effectEngine未対応） |
 | 1 | AUTO/ACTIVATED | ✅ | LIFE_TO_HAND_OPTIONAL ※life_cloth先頭を手札へ移動実装済み |
 | 2 | AUTO | ✅ | LIFE_BURST_DOUBLE ※life_burst_double_nextフラグ設定→BattleScreenでバースト2回発動 |
