@@ -475,7 +475,6 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
 
       {/* トークン設定モーダル */}
       {showTokenModal && (() => {
-        const tkWithVariants = tkCards.filter(tk => (variantMap.get(tk.CardName) ?? []).length > 1);
         return (
           <div
             onClick={() => setShowTokenModal(false)}
@@ -486,14 +485,16 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                 <h3 style={{ color: '#fff', fontSize: '15px', margin: 0 }}>トークン設定</h3>
                 <button onClick={() => setShowTokenModal(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#888', fontSize: '20px', cursor: 'pointer', lineHeight: 1 }}>×</button>
               </div>
-              {tkWithVariants.length === 0 ? (
-                <p style={{ color: '#666', textAlign: 'center', padding: '24px' }}>絵柄違いのトークンはありません</p>
+              {tkCards.length === 0 ? (
+                <p style={{ color: '#666', textAlign: 'center', padding: '24px' }}>トークンデータがありません</p>
               ) : (
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {tkWithVariants.map(tk => {
+                  {tkCards.map(tk => {
                     const currentDisplayNum = current.artOverrides?.[tk.CardNum] ?? tk.CardNum;
                     const displayCard = cardMap.get(currentDisplayNum) ?? tk;
-                    const group = variantMap.get(tk.CardName) ?? [];
+                    // CardNum でdedup（TKCSVとVariantsCSVに同じCardNumが重複する場合がある）
+                    const group = [...new Map((variantMap.get(tk.CardName) ?? []).map(c => [c.CardNum, c])).values()];
+                    const hasVariants = group.length > 1;
                     return (
                       <div key={tk.CardNum} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
                         <img
@@ -504,11 +505,12 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                         />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ color: '#fff', fontSize: '13px', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tk.CardName}</p>
-                          <p style={{ color: '#aaa', fontSize: '11px', margin: 0 }}>{group.length}種類の絵柄</p>
+                          <p style={{ color: '#aaa', fontSize: '11px', margin: 0 }}>{hasVariants ? `${group.length}種類の絵柄` : '絵柄違いなし'}</p>
                         </div>
                         <button
-                          onClick={() => { setShowTokenModal(false); setVariantPickerFor({ cardNum: tk.CardNum, from: 'token' }); }}
-                          style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', backgroundColor: '#7755dd', color: '#fff', fontSize: '12px', cursor: 'pointer', flexShrink: 0 }}
+                          onClick={() => { if (hasVariants) { setShowTokenModal(false); setVariantPickerFor({ cardNum: tk.CardNum, from: 'token' }); } }}
+                          disabled={!hasVariants}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', backgroundColor: hasVariants ? '#7755dd' : '#555', color: hasVariants ? '#fff' : '#999', fontSize: '12px', cursor: hasVariants ? 'pointer' : 'default', flexShrink: 0 }}
                         >絵柄変更</button>
                       </div>
                     );
