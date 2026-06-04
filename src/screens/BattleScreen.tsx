@@ -2548,6 +2548,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         update[opKey] = {
           ...opState,
           blocked_actions: convertedOpBlocked,
+          negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           field: {
             ...opState.field,
             signi_down:   newSigniDown,
