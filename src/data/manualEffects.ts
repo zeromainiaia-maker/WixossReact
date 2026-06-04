@@ -554,6 +554,147 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX08-005 エナゾーン以外の領域にあるカードは白になる（CONTINUOUS）
+  'WX08-005': [
+    {
+      effectId: 'WX08-005-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'CARDS_OUTSIDE_ENERGY_BECOME_WHITE' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX08-006 対戦相手は【チャーム】が付いているシグニの【起】能力を使用できない（CONTINUOUS）
+  'WX08-006': [
+    {
+      effectId: 'WX08-006-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'RESTRICT_CHARMED_SIGNI_ACTIVATED' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX08-029 （クロス時）あなたのエナゾーンからカード１枚を手札に加えてもよい（AUTO / ON_HEAVEN）
+  'WX08-029': [
+    {
+      effectId: 'WX08-029-E3',
+      effectType: 'AUTO',
+      timing: ['ON_HEAVEN'],
+      action: {
+        type: 'TRANSFER_TO_HAND',
+        source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true },
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+      crossOnly: true,
+    },
+  ],
+
+  // WX10-006 このシグニがアタックしたとき、あなたのエナゾーンからカード１枚を手札に加えてもよい（AUTO / ON_ATTACK_SIGNI）
+  'WX10-006': [
+    {
+      effectId: 'WX10-006-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      action: {
+        type: 'TRANSFER_TO_HAND',
+        source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true },
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX10-008 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
+  'WX10-008': [
+    {
+      effectId: 'WX10-008-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX10-020 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
+  'WX10-020': [
+    {
+      effectId: 'WX10-020-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX10-024 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
+  'WX10-024': [
+    {
+      effectId: 'WX10-024-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX11-013 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
+  'WX11-013': [
+    {
+      effectId: 'WX11-013-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX13-028 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
+  'WX13-028': [
+    {
+      effectId: 'WX13-028-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX14-017 あなたのエナゾーンにある無色ではないカードはすべての色を持つ（CONTINUOUS）
+  'WX14-017': [
+    {
+      effectId: 'WX14-017-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'ENERGY_NON_COLORLESS_ALL_COLORS' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXEX1-26 対戦相手のセンタールリグの基本リミットは５になる（CONTINUOUS）
+  'WXEX1-26': [
+    {
+      effectId: 'WXEX1-26-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'OPP_CENTER_LRIG_LIMIT_SET_5' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-CP02-TK01A ペロロ人形（シグニ/クラフト）
   // 【常】：対戦相手のシグニが正面にアタックする場合、代わりにこのシグニのあるシグニゾーンにアタックする。
   // 【常】：アップ状態のこのシグニがバトルか対戦相手の効果によって場を離れる場合、代わりにこのシグニをダウンしてもよい。
