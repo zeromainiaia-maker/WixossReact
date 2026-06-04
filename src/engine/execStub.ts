@@ -520,12 +520,18 @@ export function execStub(
     const effText = src ? (src.EffectText ?? '') + ' ' + (src.BurstText ?? '') : '';
     const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const toSigned = (s: string) => parseInt(toHW(s).replace('－', '-').replace('＋', '+'));
-    // パターン1: "N体/枚につき±X" → count × deltaPerUnit
-    const perM = effText.match(/([０-９\d]+)[体枚]?につき([－＋][０-９\d]+)/);
+    // パターン1: "N体/枚/つ/個につき±X" → count × deltaPerUnit
+    const perM = effText.match(/([０-９\d]+)[体枚つ個]?につき([－＋][０-９\d]+)/);
     // パターン2: "レベル1につき±X" → sum(level) × deltaPerUnit
     const lvlM = !perM ? effText.match(/レベル([０-９\d]+)につき([－＋][０-９\d]+)/) : null;
     // パターン3: "合計で±X" （固定合計値）
     const totalM = (!perM && !lvlM) ? effText.match(/合計で([－＋][０-９\d]+)/) : null;
+    // パターン4: "自身の下にあるすべてのシグニのパワーの合計と同じだけ+" (WXDi-P07-065 ライズ系)
+    const stackPwM = (!perM && !lvlM && !totalM) ? effText.match(/自身の下にある.*シグニのパワー.*合計/) : null;
+    // パターン5: "この方法で〜したシグニのパワーと同じだけ-" (WXDi-P14-037, WXK10-026)
+    const lastPwM = (!perM && !lvlM && !totalM && !stackPwM)
+      ? effText.match(/(?:この方法で|ターン終了時まで、|そうした場合、).*シグニのパワーと同じだけ([－＋])/)
+      : null;
 
     let totalDelta = 0;
     const processed = ctx.lastProcessedCards ?? [];
