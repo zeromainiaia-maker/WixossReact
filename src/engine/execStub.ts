@@ -9052,8 +9052,120 @@ export function execStub(
       `${ctx.cardMap.get(srcISDWT)?.CardName ?? srcISDWT}をトラッシュ→ダメージ無効`));
   }
   // SELECT_NO_COMMON_COLOR: 共通色なしを選択（ログのみ）
+  // SELECT_NO_COMMON_COLOR: WX22-050 エンジェル・アウェイク
+  // LOOK_AND_REORDER後のlastProcessedCards（デッキ上3枚）から天使シグニを選択
+  // 「それぞれ共通する色を持たないように」: プレイヤーが手動でルールを守る前提
+  // 選択したカードは「手札 or エナ」を1枚ずつ選択、非選択はトラッシュへ
   if (stub.id === 'SELECT_NO_COMMON_COLOR') {
-    return done(addLog(ctx, '共通色なしを選択'));
+    const revealedSNC = ctx.lastProcessedCards ?? [];
+
+    // Phase 2: 選択後の個別行き先CHOOSE（stub.valueにJSON配列で残カード一覧）
+    if (typeof stub.value === 'string' && stub.value.startsWith('SNC_DIST:')) {
+      const queueSNC: string[] = JSON.parse(stub.value.slice('SNC_DIST:'.length));
+      if (queueSNC.length === 0) return done(addLog(ctx, '選択処理完了'));
+      const [firstSNC, ...restSNC] = queueSNC;
+      const cardNameSNC = ctx.cardMap.get(firstSNC)?.CardName ?? firstSNC;
+      const contNextSNC: StubAction | null = restSNC.length > 0
+        ? { type: 'STUB', id: 'SELECT_NO_COMMON_COLOR', value: `SNC_DIST:${JSON.stringify(restSNC)}` }
+        : null;
+      const toHandContSNC: EffectAction = contNextSNC
+        ? { type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'INTERNAL_SNC_MOVE_TO_HAND', value: firstSNC } as StubAction, contNextSNC] as EffectAction[] } as import('../types/effects').SequenceAction
+        : { type: 'STUB', id: 'INTERNAL_SNC_MOVE_TO_HAND', value: firstSNC } as StubAction;
+      const toEnaContSNC: EffectAction = contNextSNC
+        ? { type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'INTERNAL_SNC_MOVE_TO_ENERGY', value: firstSNC } as StubAction, contNextSNC] as EffectAction[] } as import('../types/effects').SequenceAction
+        : { type: 'STUB', id: 'INTERNAL_SNC_MOVE_TO_ENERGY', value: firstSNC } as StubAction;
+      return needsInteraction(addLog(ctx, `${cardNameSNC}の行き先を選択`), {
+        type: 'CHOOSE', count: 1, options: [
+          { id: 'hand', label: `手札へ（${cardNameSNC}）`, action: toHandContSNC, available: true },
+          { id: 'energy', label: `エナゾーンへ（${cardNameSNC}）`, action: toEnaContSNC, available: true },
+        ],
+      });
+    }
+
+    // Phase 1: 天使シグニを抽出し、非天使は即トラッシュ、天使はSEARCHで選択
+    const toHWCMCBC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    const isAngelSNC = (cn: string) => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && !!(c.CardClass?.includes('天使'));
+    };
+    const angelSNC   = revealedSNC.filter(isAngelSNC);
+    const nonAngelSNC = revealedSNC.filter(cn => !isAngelSNC(cn));
+
+    // 非天使をデッキからトラッシュへ
+    let curSNC = ctx;
+    for (const cn of nonAngelSNC) {
+      const di = curSNC.ownerState.deck.indexOf(cn);
+      if (di < 0) continue;
+      const newDeck = [...curSNC.ownerState.deck]; newDeck.splice(di, 1);
+      curSNC = { ...curSNC, ownerState: { ...curSNC.ownerState, deck: newDeck, trash: [...curSNC.ownerState.trash, cn] } };
+    }
+
+    if (angelSNC.length === 0) {
+      return done(addLog(curSNC, '天使シグニなし→全カードをトラッシュへ'));
+    }
+
+    // ヒント: 選んだカードは互いに共通する色を持たないように（ルール上の制約・表示のみ）
+    const colorHintSNC = angelSNC.map(cn => {
+      const c = ctx.cardMap.get(cn);
+      return `${c?.CardName ?? cn}(${c?.Color ?? '?'})`;
+    }).join('、');
+
+    // 天使シグニ選択 → continuation でエナ/手札振り分け
+    const contSNC: StubAction = { type: 'STUB', id: 'INTERNAL_SNC_AFTER_SEARCH' };
+    return needsInteraction(addLog(curSNC, `天使シグニを選ぶ（共通色を持たないように）: ${colorHintSNC}`), {
+      type: 'SEARCH',
+      visibleCards: angelSNC,
+      maxPick: angelSNC.length,
+      thenAction: { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as EffectAction,
+      restDest: 'trash',
+      continuation: contSNC as EffectAction,
+    });
+  }
+  // INTERNAL_SNC_AFTER_SEARCH: SEARCHで非選択→trash済み、選択カードはまだdeckに残っている
+  // SEARCH+restDestがdeck上カードをtrashに移動済み（非選択分）
+  // 選択分はdeck内に残っているので、LOOK_AND_REORDER前後のdeckを比較して特定するか
+  // SEARCH.visibleCardsの中で今もdeckにあるカードを選択済みとみなす
+  // → lastProcessedCards で拾えないのでdeckを走査して特定
+  // ここでは: SNC_AFTER_SEARCH stateを受け取って振り分けへ
+  if (stub.id === 'INTERNAL_SNC_AFTER_SEARCH') {
+    // lastProcessedCardsはSEARCH後に更新されないため、deck内に残っている天使シグニを探す
+    // (非選択分はrestDest:'trash'でtrash済み, 選択分はまだdeckにある)
+    // ctx.lastProcessedCardsには選択カードが入っているはず（applyDirectAction経由で更新）
+    // RULE_REMINDER_TEXT は done(ctx) なので lastProcessedCards は変わらない
+    // → SEARCHのvisibleCards情報は失われているが、continuation実行時の ctx.lastProcessedCards は
+    //   resumeSearch前の値のままのはず(top3)なのでそこから天使でdeck内のものを抽出
+    const deckSNC = ctx.ownerState.deck;
+    const revSNC = ctx.lastProcessedCards ?? [];
+    const selectedSNC = revSNC.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && c.CardClass?.includes('天使') && deckSNC.includes(cn);
+    });
+    if (selectedSNC.length === 0) return done(addLog(ctx, '天使シグニ選択なし'));
+    // Phase 2 へ: カードを1枚ずつ手札 or エナへ
+    const queuePayload = `SNC_DIST:${JSON.stringify(selectedSNC)}`;
+    return exec({ type: 'STUB', id: 'SELECT_NO_COMMON_COLOR', value: queuePayload } as StubAction as EffectAction, ctx);
+  }
+  // INTERNAL_SNC_MOVE_TO_HAND: 指定カードをデッキから手札へ
+  if (stub.id === 'INTERNAL_SNC_MOVE_TO_HAND') {
+    const cnSMTH = typeof stub.value === 'string' ? stub.value : (ctx.lastProcessedCards?.[0] ?? '');
+    if (!cnSMTH) return done(addLog(ctx, '対象カードなし'));
+    const diSMTH = ctx.ownerState.deck.indexOf(cnSMTH);
+    if (diSMTH < 0) return done(addLog(ctx, `${ctx.cardMap.get(cnSMTH)?.CardName ?? cnSMTH}はデッキにない`));
+    const newDeckSMTH = [...ctx.ownerState.deck]; newDeckSMTH.splice(diSMTH, 1);
+    const newOwnerSMTH: PlayerState = { ...ctx.ownerState, deck: newDeckSMTH, hand: [...ctx.ownerState.hand, cnSMTH] };
+    return done(addLog({ ...ctx, ownerState: newOwnerSMTH },
+      `${ctx.cardMap.get(cnSMTH)?.CardName ?? cnSMTH}→手札`));
+  }
+  // INTERNAL_SNC_MOVE_TO_ENERGY: 指定カードをデッキからエナゾーンへ
+  if (stub.id === 'INTERNAL_SNC_MOVE_TO_ENERGY') {
+    const cnSMTE = typeof stub.value === 'string' ? stub.value : (ctx.lastProcessedCards?.[0] ?? '');
+    if (!cnSMTE) return done(addLog(ctx, '対象カードなし'));
+    const diSMTE = ctx.ownerState.deck.indexOf(cnSMTE);
+    if (diSMTE < 0) return done(addLog(ctx, `${ctx.cardMap.get(cnSMTE)?.CardName ?? cnSMTE}はデッキにない`));
+    const newDeckSMTE = [...ctx.ownerState.deck]; newDeckSMTE.splice(diSMTE, 1);
+    const newOwnerSMTE: PlayerState = { ...ctx.ownerState, deck: newDeckSMTE, energy: [...ctx.ownerState.energy, cnSMTE] };
+    return done(addLog({ ...ctx, ownerState: newOwnerSMTE },
+      `${ctx.cardMap.get(cnSMTE)?.CardName ?? cnSMTE}→エナゾーン`));
   }
   // DISCARD_BY_POWER_MATCH: パワー一致で捨て（ログのみ）
   if (stub.id === 'DISCARD_BY_POWER_MATCH') {
