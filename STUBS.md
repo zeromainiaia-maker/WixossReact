@@ -453,7 +453,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | REVEALED_CARD_COLOR_DISCARD ※needsInteraction: 公開カードの色と同色手札を選択して捨て実装済み |
 | 2 | AUTO/ACTIVATED | ✅ | REVEALED_SIGNI_TO_FIELD_REST_TRASH ※lastProcessedCardsのシグニを空きゾーンに配置+残りトラッシュ実装済み |
 | 1 | AUTO | ✅ | RESONANCE_COST_CARDS_TO_ENERGY ※v0.169: lastProcessedCardsのカードをトラッシュ→エナゾーンへ（line 9092） |
-| 2 | CONT | ⚡ | RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE ※done(addLog)のみ（ライズ/レゾナ退場置換グループ: 未実装） |
+| 2 | CONT | ✅ | RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE ※v0.196: バトルバニッシュで宇宙レゾナ検出+フィールド走査→代替シグニをremoveFromField+trash（WXEX2-32） |
 | 1 | CONT | ✅ | REVERSE_OPP_POWER_MINUS ※temp_power_modsの負デルタを正に反転する実装済み |
 | 2 | CONT | ✅ | RISE_BANISH_SUBSTITUTE ※v0.185: collectRiseBanishSubstituteSigni+BattleScreen/CpuBattleScreenのバニッシュ解決でスタック下カードをトラッシュしてバニッシュ回避（自動） |
 | 1 | CONT | ✅ | RISE_LEAVE_DISCARD_STACK ※v0.185: removeFromField既実装確認（スタック下全カードを自動トラッシュ）→✅ |
