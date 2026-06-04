@@ -5328,6 +5328,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
       }
 
+      // HASTARLIQ: CPUのMAIN→ATTACK_ARTS移行時、相手(人間)の hastarliq_zones があれば発動
+      const huStForHL = isHost ? bs.guest_state : bs.host_state;
+      const huKeyForHL = isHost ? 'guest_state' : 'host_state';
+      const hlZonesCpu = huStForHL.hastarliq_zones ?? [];
+      if (hlZonesCpu.length > 0) {
+        const cpuTurnPlayerId = bs.active_user_id ?? CPU_PLAYER_ID;
+        const hlEntriesCpu: StackEntry[] = hlZonesCpu.map(zi => ({
+          id: generateUUID(),
+          playerId: cpuTurnPlayerId,
+          cardNum: 'WXDi-P05-TK01A',
+          effectId: `HASTARLIQ_TRIGGER_Z${zi}_${Date.now()}`,
+          label: `【ハスターリク】ゾーン${zi + 1}発動`,
+          effect: {
+            effectId: `HASTARLIQ_TRIGGER_Z${zi}`,
+            effectType: 'AUTO' as const,
+            action: { type: 'STUB', id: 'HASTARLIQ_TRIGGER', value: zi } as import('../types/effects').StubAction,
+            duration: 'INSTANT' as const,
+            mandatory: true,
+            parseStatus: 'MANUAL' as const,
+          },
+        }));
+        const newHuStForHL = { ...huStForHL, hastarliq_zones: undefined };
+        const existingStackHLCpu = bs.effect_stack ?? null;
+        const newStackHLCpu = existingStackHLCpu
+          ? pushToStack(existingStackHLCpu, hlEntriesCpu)
+          : initStack(cpuTurnPlayerId, hlEntriesCpu);
+        await supabase.from('battle_states').update({
+          turn_phase: 'ATTACK_ARTS',
+          [huKeyForHL]: newHuStForHL,
+          effect_stack: newStackHLCpu,
+        }).eq('room_id', roomId);
+        return;
+      }
       await supabase.from('battle_states').update({ turn_phase: 'ATTACK_ARTS' }).eq('room_id', roomId);
       return;
     }
