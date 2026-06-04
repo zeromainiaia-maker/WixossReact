@@ -2106,6 +2106,60 @@ export function execStub(
       type: 'CHOOSE', options: optsDCLS, count: 1,
     });
   }
+  // INTERNAL_DC_TRASH_RETRIEVE: WXDi-P09-004用
+  // 宣言クラスを持ち《ガードアイコン》を持たないLv1/Lv2/Lv3のシグニをトラッシュから各1枚まで手札へ
+  if (stub.id === 'INTERNAL_DC_TRASH_RETRIEVE') {
+    const cls = ctx.ownerState.declared_class ?? '';
+    if (!cls) return done(addLog(ctx, 'クラス未宣言（スキップ）'));
+    const matchTR = (cn: string, lv: number) => {
+      const c = ctx.cardMap.get(cn);
+      if (!c || c.Type !== 'シグニ') return false;
+      if (!c.CardClass?.includes(cls)) return false;
+      if (c.GuardIcon && c.GuardIcon !== '-' && c.GuardIcon !== '') return false;
+      return (parseInt(c.Level ?? '-1') || -1) === lv;
+    };
+    const retrieved: string[] = [];
+    let newOwnerTR = ctx.ownerState;
+    for (const lv of [1, 2, 3]) {
+      const cand = newOwnerTR.trash.find(cn => matchTR(cn, lv));
+      if (!cand) continue;
+      newOwnerTR = {
+        ...newOwnerTR,
+        trash: newOwnerTR.trash.filter(c => c !== cand),
+        hand: [...newOwnerTR.hand, cand],
+      };
+      retrieved.push(cand);
+    }
+    if (retrieved.length === 0) return done(addLog(ctx, `＜${cls}＞の対象シグニなし（スキップ）`));
+    return done(addLog({ ...ctx, ownerState: newOwnerTR },
+      `トラッシュから＜${cls}＞のLv1/2/3シグニを各1枚手札に加えた（${retrieved.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、')}）`));
+  }
+  // INTERNAL_DC_DECK_PICK: WX24-P1-035用
+  // デッキ上3枚から宣言クラスのシグニを好きな枚数手札/エナに振り分け、残りをデッキ下へ
+  if (stub.id === 'INTERNAL_DC_DECK_PICK') {
+    const clsDP = ctx.ownerState.declared_class ?? '';
+    if (!clsDP) return done(addLog(ctx, 'クラス未宣言（スキップ）'));
+    const top3DP = ctx.ownerState.deck.slice(0, 3);
+    const restDP = ctx.ownerState.deck.slice(3);
+    const matchDP = top3DP.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && c.CardClass?.includes(clsDP);
+    });
+    const nonMatchDP = top3DP.filter(cn => !matchDP.includes(cn));
+    if (matchDP.length === 0) {
+      // 宣言クラスのシグニなし: 全部デッキ下へ
+      const newOwnerDP: PlayerState = { ...ctx.ownerState, deck: [...restDP, ...top3DP] };
+      return done(addLog({ ...ctx, ownerState: newOwnerDP }, `＜${clsDP}＞シグニなし→デッキ上3枚をデッキ下へ`));
+    }
+    // 宣言クラスのシグニを手札に加え、残りをデッキ下へ（簡易: 全て手札に加える）
+    const newOwnerDP: PlayerState = {
+      ...ctx.ownerState,
+      deck: [...restDP, ...nonMatchDP],
+      hand: [...ctx.ownerState.hand, ...matchDP],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerDP },
+      `デッキ上3枚から＜${clsDP}＞シグニ${matchDP.length}枚を手札に加えた（${matchDP.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、')}）、残り${nonMatchDP.length}枚はデッキ下へ`));
+  }
   if (stub.id === 'DECLARE_COLOR') {
     const colorsDC = ['白', '赤', '青', '緑', '黒'];
     const setColorDC = (c: string): StubAction => ({ type: 'STUB', id: 'INTERNAL_SET_DECLARED_COLOR', value: c });
