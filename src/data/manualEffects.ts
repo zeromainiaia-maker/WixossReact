@@ -398,6 +398,27 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXK09-TK-01A 改造素材（アーツ/クラフト）
+  // このターン改造素材使用不可 + 電機シグニ対象に①+4000 ②起動能力付与 ③自動能力付与 から1つ選択
+  'WXK09-TK-01A': [
+    {
+      effectId: 'WXK09-TK-01A-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '緑', count: 0 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'BLOCK_CARD_USE', cardName: '改造素材' },
+          { type: 'STUB', id: 'DO_THREE_THINGS' },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P11-TK01 白羅星姫　サタン（レゾナクラフト）
   // 【常】あなたのターンの間、対戦相手はシグニを２体までしか場に出すことができない
   'WXDi-P11-TK01': [
