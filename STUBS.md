@@ -535,7 +535,7 @@
 | 1 | AUTO | ✅ | REMOVE_SELF_SIGNI_FROM_GAME ※v0.193: sourceCardNumをフィールドから除去→trash追加（WXDi-CP02-TK01A） |
 | 1 | CONT | 📝 | ACCE_BANISH_SUBSTITUTE ※ログのみ（アクセ代替バニッシュ: BattleScreen未実装）（WXDi-P09-TK03A） |
 | 1 | CONT | ✅ | OPP_DRAW_LIMIT_PER_TURN ※v0.194: collectDrawLimitsにLIMIT_OPP_DRAW_COUNTと同一IDチェックを追加。相手UPフェイズで自フィールド走査→ドロー上限1枚に制限（WX25-P2-TK05） |
-| 1 | CONT | 📝 | REDIRECT_ATTACK_TO_SELF_ZONE ※ログのみ（相手シグニアタックをこのゾーンへリダイレクト: BattleScreen未実装）（WXDi-CP02-TK01A） |
+| 1 | CONT | ✅ | REDIRECT_ATTACK_TO_SELF_ZONE ※v0.196: handleSigniAttackでopZoneIndex/opStack/opTopCardNumをletに変更→空ゾーンアタック時にこのSTUBのシグニゾーンへリダイレクト（WXDi-CP02-TK01A） |
 | 1 | CONT | ✅ | BATTLE_LEAVE_REPLACE_WITH_DOWN ※v0.195: バトル勝利処理でSTUB検出+アップ状態確認→newOpDown[zone]=trueでダウン置換（WXDi-CP02-TK01A） |
 | 5 | CONT | ⚡ | BANISH_TO_LRIG_TRASH_INSTEAD ※v0.195: バトルバニッシュ時にlrig_trashへルーティング（レゾナのルリグデッキ返却の近似実装）（WX10-008/020/024/WX11-013/WX13-028） |
 | 1 | CONT | 📝 | CARDS_OUTSIDE_ENERGY_BECOME_WHITE ※ログのみ（エナゾーン以外のカードは白になる: 未実装）（WX08-005） |
