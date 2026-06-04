@@ -496,7 +496,8 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
       const newFrozen = [...(s.field.signi_frozen ?? [false, false, false])] as boolean[];
       const newDown   = [...(s.field.signi_down   ?? [false, false, false])] as boolean[];
       newFrozen[zoneIdx] = true;
-      newDown[zoneIdx]   = true; //       const newS: PlayerState = { ...s, field: { ...s.field, signi_frozen: newFrozen, signi_down: newDown } };
+      newDown[zoneIdx]   = true;
+      const newS: PlayerState = { ...s, field: { ...s.field, signi_frozen: newFrozen, signi_down: newDown } };
       cur = addLog(setOwnerState(a.target.owner, newS, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}`);
     }
@@ -1417,7 +1418,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
 }
 
 function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
-  let cands: string[];
+  let cands: string[] = [];
 
   if (a.source === 'hand') {
     cands = handCandidates(ctx.ownerState, a.filter, ctx.cardMap);
@@ -1508,7 +1509,8 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
   if (a.source === 'deck_top') {
     const count = Math.min(a.count, ctx.ownerState.deck.length);
     if (count === 0) return done(ctx);
-    const cards = ctx.ownerState.deck.slice(0, count);  //     const newDeck = ctx.ownerState.deck.slice(count);
+    const cards = ctx.ownerState.deck.slice(0, count);
+    const newDeck = ctx.ownerState.deck.slice(count);
     const newSigni = ctx.ownerState.field.signi.map((stack, i) => {
       if (i !== zoneIdx) return stack;
       return [...cards, ...(stack ?? [])];
@@ -1857,7 +1859,8 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
   // /:   // targetFilter igniFilter 
   const hostCands = (tgtState.field.signi ?? []).flatMap((stack, i) => {
     if (!stack || stack.length === 0) return [];
-    if (acce[i] !== null) return []; //     const top = stack[stack.length - 1];
+    if (acce[i] !== null) return [];
+    const top = stack[stack.length - 1];
     if (a.targetFilter && !matchesFilter(ctx.cardMap.get(top), a.targetFilter)) return [];
     return [top];
   });
