@@ -18,7 +18,7 @@ const getThumbUrl = (imgUrl: string) =>
   imgUrl.replace(/(https:\/\/ik\.imagekit\.io\/[^/]+\/)/, '$1tr:w-72,h-100,q-40/');
 
 const isExtraLrigCard = (card: CardData) =>
-  card.Type === 'ピース' || SPECIAL_EXTRA_CARD_NUMS.includes(card.CardNum);
+  card.Type === 'ピース' || card.Type === 'リレーピース' || SPECIAL_EXTRA_CARD_NUMS.includes(card.CardNum);
 
 interface Props {
   deck: Deck;
