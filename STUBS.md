@@ -318,7 +318,7 @@
 | 1 | AUTO | ✅ | HAND_NONCOLORLESS_TO_ENERGY ※SELECT_TARGET(有色手札)→エナゾーンへ実装済み |
 | 1 | CONT | ✅ | HAND_SIGNI_HAS_GUARD_ICON ※v0.115: collectHandGuardIconClasses+ガードUI(myHandGuardClasses)に統合 |
 | 1 | AUTO/ACTIVATED | ✅ | HAND_SIGNI_UNDER_SIGNI ※needsInteraction SELECT_TARGET: 手札シグニを選択してシグニ下に配置 |
-| 1 | ACTIVATED | ✅ | HASTARLIQ ※v0.189: CHOOSE(ゾーン1/2/3)→signi_gate_zones+blocked_actions[ATTACK:topCard]設定でアタック禁止 |
+| 1 | ACTIVATED | ✅ | HASTARLIQ ※v0.198: CHOOSE(ゾーン1/2/3)→otherState.hastarliq_zones設定。BattleScreen MAIN→ATTACK_ARTS移行時にHASTARLIQ_TRIGGERをスタックに積み、相手が手札捨て/《無》払い/どちらもしない（バニッシュ）を選択 |
 | 1 | CONT | ✅ | IGNORE_LRIG_RESTRICTION_ARTS ※v0.188: lrig_gained_types['__ignore_lrig_restriction__']設定+BattleScreen meetsRestriction/ignoreRestrictionで全制限バイパス |
 | 1 | CONT | ✅ | INCREASE_ACT_ABILITY_COST ※v0.173: collectIncreaseActCost追加。BattleScreen起動能力コストUIに統合（自分のターン中に+《無×1》）。adjustedTotal+actExtraCosts対応 |
 | 1 | CONT | ✅ | INFECTED_SIGNI_POWER_DOWN_BY_LEVEL ※ウイルスレベル合計×-1000をtemp_power_modsに適用実装済み |
