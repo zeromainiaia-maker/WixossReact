@@ -3437,5 +3437,24 @@ export function collectFieldSigniExtraColors(
 
     if (extraColors.length > 0) result.set(topNum, extraColors);
   }
+
+  // CARDS_OUTSIDE_ENERGY_BECOME_WHITE: フィールド上のシグニに白色を追加（エナゾーン以外→白の部分実装）
+  const hasOutsideEnergyWhite = state.field.signi.some(stack => {
+    const top = stack?.at(-1);
+    return top && (effectsMap.get(top) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'CARDS_OUTSIDE_ENERGY_BECOME_WHITE',
+    );
+  });
+  if (hasOutsideEnergyWhite) {
+    for (const stack of state.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      const existing = result.get(top) ?? [];
+      if (!existing.includes('白')) { existing.push('白'); result.set(top, existing); }
+    }
+  }
+
   return result;
 }
