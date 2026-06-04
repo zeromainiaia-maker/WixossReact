@@ -537,7 +537,7 @@
 | 1 | CONT | ✅ | OPP_DRAW_LIMIT_PER_TURN ※v0.194: collectDrawLimitsにLIMIT_OPP_DRAW_COUNTと同一IDチェックを追加。相手UPフェイズで自フィールド走査→ドロー上限1枚に制限（WX25-P2-TK05） |
 | 1 | CONT | 📝 | REDIRECT_ATTACK_TO_SELF_ZONE ※ログのみ（相手シグニアタックをこのゾーンへリダイレクト: BattleScreen未実装）（WXDi-CP02-TK01A） |
 | 1 | CONT | 📝 | BATTLE_LEAVE_REPLACE_WITH_DOWN ※ログのみ（場離れをダウンに置換: BattleScreen未実装）（WXDi-CP02-TK01A） |
-| 5 | CONT | 📝 | BANISH_TO_LRIG_TRASH_INSTEAD ※ログのみ（バニッシュ時ルリグデッキ戻らずルリグトラッシュへ: 未実装）（WX10-008/020/024/WX11-013/WX13-028） |
+| 5 | CONT | ⚡ | BANISH_TO_LRIG_TRASH_INSTEAD ※v0.195: バトルバニッシュ時にlrig_trashへルーティング（レゾナのルリグデッキ返却の近似実装）（WX10-008/020/024/WX11-013/WX13-028） |
 | 1 | CONT | 📝 | CARDS_OUTSIDE_ENERGY_BECOME_WHITE ※ログのみ（エナゾーン以外のカードは白になる: 未実装）（WX08-005） |
 | 1 | CONT | ✅ | RESTRICT_CHARMED_SIGNI_ACTIVATED ※v0.194: BattleScreen getMySigniZoneActionsでsigni_charms[zoneIdx]存在チェック+相手フィールド走査→チャーム付きゾーンの【起】能力をactivatableフィルタで除外（WX08-006） |
 | 1 | CONT | ✅ | ENERGY_NON_COLORLESS_ALL_COLORS ※v0.195: collectEnergyTrashSubstituteInfoでSTUB検出時、非無色エナinstIdをwildcardInstIdsに追加→任意色として使用可（WX14-017） |
