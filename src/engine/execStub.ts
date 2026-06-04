@@ -7891,7 +7891,8 @@ export function execStub(
   }
   // NEGATE_COIN_ABILITY: コイン能力を無効化（ログのみ）
   if (stub.id === 'NEGATE_COIN_ABILITY') {
-    return done(addLog(ctx, 'コイン能力を無効化'));
+    const newOtherNCA: PlayerState = { ...ctx.otherState, negate_coin_abilities: true };
+    return done(addLog({ ...ctx, otherState: newOtherNCA }, 'このターン、対戦相手のコイン能力（ベット）を発動できない'));
   }
   // NEGATE_ALL_OPP_EFFECTS: 相手のCONTINUOUS効果を全て無効化（all_cont_effects_negatedフラグ）
   if (stub.id === 'NEGATE_ALL_OPP_EFFECTS') {
