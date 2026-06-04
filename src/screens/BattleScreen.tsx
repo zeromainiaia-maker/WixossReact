@@ -4448,7 +4448,43 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const newOpSigniCBS = [...op.field.signi] as (string[] | null)[];
             newOpState = { ...op, trash: [...op.trash, acceTrash], field: { ...op.field, signi: newOpSigniCBS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（調理バニッシュ代替）アクセをトラッシュしてバニッシュ回避`]);
+          } else if (newOpAcce[opZoneIndex] && (effectsMap.get(newOpAcce[opZoneIndex]!) ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'ACCE_BANISH_SUBSTITUTE')) {
+            // ACCE_BANISH_SUBSTITUTE: アクセをゲームから除外してシグニをダウン（バニッシュ回避）
+            const exiledAcce = newOpAcce[opZoneIndex]!;
+            newOpAcce[opZoneIndex] = null;
+            newOpDown[opZoneIndex] = true;
+            newOpFrozen[opZoneIndex] = false;
+            const newOpSigniABS = [...op.field.signi] as (string[] | null)[];
+            newOpState = { ...op, trash: [...op.trash, exiledAcce], field: { ...op.field, signi: newOpSigniABS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            appendBattleLogs([`${opCardName}（アクセ代替バニッシュ）アクセをゲームから除外してダウン`]);
           } else {
+            // RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE: 宇宙レゾナ場離れを代替シグニのトラッシュで回避
+            const opTopCardData = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
+            const resonaSubCardNum = (opTopCardData?.Type === 'レゾナ' && (opTopCardData?.CardClass ?? '').includes('宇宙'))
+              ? (() => {
+                  for (const stack of op.field.signi) {
+                    const top = stack?.at(-1);
+                    if (!top || top === opTopCardNum) continue;
+                    const hasRLSSS = (effectsMap.get(top) ?? []).some(eff =>
+                      eff.effectType === 'CONTINUOUS' &&
+                      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+                      (eff.action as import('../types/effects').StubAction).id === 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE' &&
+                      checkActiveCondition(eff.activeCondition, op, my, false, battleCardMap, top),
+                    );
+                    if (hasRLSSS) return top;
+                  }
+                  return null;
+                })()
+              : null;
+            if (resonaSubCardNum) {
+              // 代替シグニをトラッシュ、レゾナを場に残す
+              const subRemoved = removeFromField(resonaSubCardNum, { ...op, field: { ...op.field, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } });
+              newOpState = { ...subRemoved, trash: [...subRemoved.trash, resonaSubCardNum] };
+              appendBattleLogs([`${opCardName}（レゾナ離脱代替）${battleCardMap.get(resonaSubCardNum)?.CardName ?? resonaSubCardNum}をトラッシュしてレゾナをフィールドに残す`]);
+            } else {
           banishedOpCardNum = opTopCardNum;
           const newOpSigni = [...op.field.signi] as (string[] | null)[];
           newOpSigni[opZoneIndex] = null;
