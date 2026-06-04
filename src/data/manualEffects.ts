@@ -398,6 +398,99 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P11-TK01 白羅星姫　サタン（レゾナクラフト）
+  // 【常】あなたのターンの間、対戦相手はシグニを２体までしか場に出すことができない
+  'WXDi-P11-TK01': [
+    {
+      effectId: 'WXDi-P11-TK01-E1',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'TURN_OWNER', owner: 'self' },
+      action: { type: 'STUB', id: 'OPP_ZONE_PLACEMENT_RESTRICT' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // PR-Di017A 白熱する黒白（スペル）
+  // カードを2枚引く。ライフクロスが1枚以下の場合、チェックゾーンのカードを裏返して場に出す（REV）
+  'PR-Di017A': [
+    {
+      effectId: 'PR-Di017A-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '無', count: 2 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'DRAW', owner: 'self', count: 2 },
+          { type: 'STUB', id: 'PLACE_REV_SIGNI', value: 'PR-Di017B' },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // PR-Di017B REV:アンコーリング（シグニ）
+  // 【自】アタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい→トラッシュ
+  'PR-Di017B': [
+    {
+      effectId: 'PR-Di017B-E1',
+      effectType: 'AUTO',
+      timing: ['ATTACK'],
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'TARGET_ONLY' },
+          {
+            type: 'STUB', id: 'OPTIONAL_COST',
+            costColors: [],
+            costText: '手札を３枚捨てる',
+          },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P14-TK04 フェゾーネマジック・深緑（スペル/クラフト）
+  // 【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを場に出す
+  'WXDi-P14-TK04': [
+    {
+      effectId: 'WXDi-P14-TK04-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '緑', count: 0 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+          { type: 'STUB', id: 'SUMMON_FROM_ENERGY' },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P09-TK03A コードイート　オンタマ（アクセクラフト）
+  // 『【常】：これにアクセされているシグニが場を離れる場合、代わりにこれをゲームから除外してもよい。そうした場合、そのシグニをダウンする。』
+  'WXDi-P09-TK03A': [
+    {
+      effectId: 'WXDi-P09-TK03A-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'ACCE_BANISH_SUBSTITUTE' } as import('../types/effects').StubAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**

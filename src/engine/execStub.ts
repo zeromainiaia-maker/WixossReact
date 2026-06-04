@@ -201,6 +201,27 @@ export function execStub(
   if (stub.id === 'AWAKEN') {
     return done(addLog(ctx, '【覚醒】発動（BattleScreen側処理）'));
   }
+  // PLACE_REV_SIGNI: REVメカニクス（ライフクロス1枚以下時に指定シグニを場に出す）
+  // PR-Di017A「白熱する黒白」のREV変身効果
+  if (stub.id === 'PLACE_REV_SIGNI') {
+    const revCardNum = typeof stub.value === 'string' ? stub.value : null;
+    if (!revCardNum) return done(addLog(ctx, 'PLACE_REV_SIGNI: カード番号なし'));
+    if (ctx.ownerState.life_cloth.length > 1) {
+      return done(addLog(ctx, `ライフクロス${ctx.ownerState.life_cloth.length}枚（REV条件不成立）`));
+    }
+    // 空きゾーンを探してREVシグニを配置
+    const emptyZone = ctx.ownerState.field.signi.findIndex(s => !s || s.length === 0);
+    if (emptyZone < 0) return done(addLog(ctx, `${revCardNum}を場に出す空きゾーンなし`));
+    const newSigniPRV = [...ctx.ownerState.field.signi] as (string[] | null)[];
+    newSigniPRV[emptyZone] = [revCardNum];
+    const newOwnerPRV: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniPRV } };
+    return done(addLog({ ...ctx, ownerState: newOwnerPRV }, `≪REV:アンコーリング≫(${revCardNum})を場に出した`));
+  }
+  // ACCE_BANISH_SUBSTITUTE: アクセクラフトによる場離れ代替（オンタマ等）
+  // アクセされているシグニが場を離れる場合、代わりにこのアクセをゲームから除外してシグニをダウン
+  if (stub.id === 'ACCE_BANISH_SUBSTITUTE') {
+    return done(addLog(ctx, 'アクセ代替バニッシュ（BattleScreen側処理）'));
+  }
   // BET_MECHANIC: コインを消費してベット→強化選択（①②③④から2つ、ベット時4つ）
   if (stub.id === 'BET_MECHANIC') {
     const srcBET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;

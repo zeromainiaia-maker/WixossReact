@@ -1072,14 +1072,15 @@ function parseBurstEffect(card: CardData): CardEffect | null {
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
 
-  if (card.Type === 'アーツ') {
+  const baseType = card.Type?.split('/')[0] ?? '';
+  if (baseType === 'アーツ' || baseType === 'ピース') {
     const e = parseArtsEffect(card);
     if (e) effects.push(e);
-  } else if (card.Type === 'スペル') {
+  } else if (baseType === 'スペル') {
     const e = parseSpellEffect(card);
     if (e) effects.push(e);
   } else {
-    // シグニ・ルリグ：EffectTextを複数ブロックに分割して解析
+    // シグニ・ルリグ・その他：EffectTextを複数ブロックに分割して解析
     if (card.EffectText && card.EffectText !== '-') {
       let effectText = card.EffectText;
       // クロスアイコン prefix の検出と除去
@@ -1088,6 +1089,12 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         const crossM = effectText.match(/^《クロスアイコン》([^【]+)/);
         if (crossM) card.crossConditionText = crossM[1].trim();
         effectText = effectText.replace(/^《クロスアイコン》[^【]*/, '');
+      }
+      // 『』ブラケット除去（アクセクラフト等の効果表記）
+      effectText = effectText.replace(/[『』]/g, '');
+      // 【出現条件】プレフィックス除去（レゾナクラフト等）
+      if (effectText.includes('【出現条件】')) {
+        effectText = effectText.replace(/^【出現条件】[^【]+/, '');
       }
       splitEffectBlocks(stripRuleParens(effectText)).forEach((block, i) => {
         const e = parseBlock(card.CardNum, block, i);
