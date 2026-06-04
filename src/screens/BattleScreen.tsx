@@ -2577,6 +2577,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             pending_lrig_limit_mod: undefined,
           };
         }
+        // HASTARLIQ: MAIN→ATTACK_ARTS移行時、相手の hastarliq_zones があれば発動
+        if (phase === 'MAIN' && (op.hastarliq_zones ?? []).length > 0) {
+          const opKey = isHost ? 'guest_state' : 'host_state';
+          const turnPlayerId = bs.active_user_id ?? user.id;
+          const hlEntries: StackEntry[] = (op.hastarliq_zones ?? []).map(zi => ({
+            id: generateUUID(),
+            playerId: turnPlayerId,
+            cardNum: 'WXDi-P05-TK01A',
+            effectId: `HASTARLIQ_TRIGGER_Z${zi}_${Date.now()}`,
+            label: `【ハスターリク】ゾーン${zi + 1}発動`,
+            effect: {
+              effectId: `HASTARLIQ_TRIGGER_Z${zi}`,
+              effectType: 'AUTO' as const,
+              action: { type: 'STUB', id: 'HASTARLIQ_TRIGGER', value: zi } as import('./types/effects').StubAction,
+              duration: 'INSTANT' as const,
+              mandatory: true,
+              parseStatus: 'MANUAL' as const,
+            },
+          }));
+          update[opKey] = { ...op, hastarliq_zones: undefined };
+          const existingStackHL = bs.effect_stack ?? null;
+          update.effect_stack = existingStackHL
+            ? pushToStack(existingStackHL, hlEntries)
+            : initStack(turnPlayerId, hlEntries);
+        }
       }
 
       await supabase.from('battle_states')
