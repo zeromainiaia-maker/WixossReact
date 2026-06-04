@@ -580,7 +580,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
         const { cardNum } = variantPickerFor;
         const card = cardMap.get(cardNum);
         if (!card) return null;
-        const variants = variantMap.get(card.CardName) ?? [];
+        const variants = [...new Map((variantMap.get(card.CardName) ?? []).map(c => [c.CardNum, c])).values()];
         const currentDisplayNum = current.artOverrides?.[cardNum] ?? cardNum;
         return (
           <div
