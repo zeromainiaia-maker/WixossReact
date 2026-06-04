@@ -3574,7 +3574,7 @@ export function collectOppTrashLoseColorClass(
  */
 export function collectLevelRefOverridesFromNonField(
   ownerState: PlayerState,
-  cardMap: Map<string, CardData>,
+  _cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): Set<string> {
   const result = new Set<string>();
