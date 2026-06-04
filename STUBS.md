@@ -544,14 +544,14 @@
 | 1 | CONT | 📝 | OPP_CENTER_LRIG_LIMIT_SET_5 ※ログのみ（相手センタールリグ基本リミットを5に設定: 未実装）（WXEX1-26） |
 ---
 
-## 集計サマリー（v0.188）
+## 集計サマリー（v0.193）
 
 | カテゴリ | 種数 |
 |---------|-----:|
-| ✅ 実装済み | 493 |
+| ✅ 実装済み | 498 |
 | ⚡ 部分実装 | 19 |
-| 📝 未実装 | **0** |
-| **合計** | **512** |
+| 📝 未実装 | **9** |
+| **合計** | **526** |
 
 ※v0.185で✅化（25件）: CAST_FROM_OPP_TRASH（相手トラッシュからカード除去して使用）, CRAFT_TO_LRIG_DECK（既実装確認）, COLLAB（CHOOSE+INTERNAL_DO_COLLAB✅確認）, BET_CONDITION（BET_ALTERNATIVEで処理済み確認）, REPEAT_N_TIMES/REPEAT_EFFECT（「この効果をN回繰り返す」regex+DECK_REVEAL連鎖）, TARGET_OPP_SIGNI_ONLY/TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE（後続SELECT_TARGETで処理），ACCE_OP（ログ✅）, ACCE_SIGNI_ALL_COLOR（story_overrides+fieldCandidates色バイパス）, ACTIVATE_EICHI_ABILITY（ON_PLAY効果再発動）, NEGATE_COIN_ABILITY（negate_coin_abilitiesフラグ+BET_MECHANICチェック）, PREVENT_INFECTED_SIGNI_ACTIVATE（collectInfectedActivateBlockedSigni+BattleScreen）, PREVENT_NON_FIELD_MOVE_BY_OPP（collectProtectedZonesにルリグ候補+全ゾーン保護）, PREVENT_OPP_POWER_PLUS（applyEffectsでblockOwnerPosDeltaチェック）, PREVENT_OPP_SIGNI_ABILITY_GAIN/PREVENT_ABILITY_CHANGE_BY_OPP（collectAbilityGainProtectedSigni+ExecCtx）, PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH/PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH（collectBounceProtectedSigni+collectTrashFieldProtectedSigni）, SIGNI_PROTECT_MOVE_EXCEPT_ENERGY（同上）, RISE_BANISH_SUBSTITUTE/BANISH_SUBSTITUTE_RISE_STACK（collectRiseBanishSubstituteSigni+BattleScreen/CpuBattleScreen統合）, RISE_LEAVE_DISCARD_STACK（removeFromField既実装確認）, CHOOSE_SAME_OPTION_MULTIPLE（TWICE同ハンドラ確認）, MULTI_ACCE_LIMIT（collectMultiAcceSigni+BattleScreenアクセUI統合）
 
