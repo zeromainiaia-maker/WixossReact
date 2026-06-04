@@ -1945,6 +1945,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'BANISH':                  return execBanish(action as BanishAction, ctx);
     case 'BOUNCE':                  return execBounce(action as BounceAction, ctx);
     case 'POWER_MODIFY':            return execPowerModify(action as PowerModifyAction, ctx);
+    case 'POWER_MULTIPLY':          return execPowerMultiply(action as import('../types/effects').PowerMultiplyAction, ctx);
     case 'POWER_SET':               return execPowerSet(action as PowerSetAction, ctx);
     case 'TRASH':                   return execTrash(action as TrashAction, ctx);
     case 'ENERGY_CHARGE':           return execEnergyCharge(action as EnergyChargeAction, ctx);
