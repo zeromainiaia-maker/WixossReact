@@ -5746,6 +5746,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // PREVENT_INFECTED_SIGNI_ACTIVATE: 感染状態のシグニの起動能力をブロック
       const infectedBlocked = collectInfectedActivateBlockedSigni(my, op, battleCardMap, effectsMap, true);
       const isInfectedBlocked = infectedBlocked.includes(topNum);
+      // RESTRICT_CHARMED_SIGNI_ACTIVATED: 相手フィールドにあれば、チャーム付きシグニの【起】能力を封じる
+      const hasCharmInZone = (my.field.signi_charms?.[rawZoneIdx] ?? null) !== null;
+      const isCharmActivateBlocked = hasCharmInZone && op.field.signi.some(stack => {
+        const top = stack?.at(-1);
+        return top && (effectsMap.get(top) ?? []).some(eff =>
+          eff.effectType === 'CONTINUOUS' &&
+          (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+          (eff.action as import('../types/effects').StubAction).id === 'RESTRICT_CHARMED_SIGNI_ACTIVATED'
+        );
+      });
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
         (e.timing === undefined || e.timing.includes('MAIN')) &&
@@ -5753,6 +5763,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         !(my.blocked_actions?.includes(e.effectId)) &&
         !isActionBlocked('USE_ACT') &&
         !isInfectedBlocked &&
+        !isCharmActivateBlocked &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
       );
       if (activatable.length === 0) return [];
