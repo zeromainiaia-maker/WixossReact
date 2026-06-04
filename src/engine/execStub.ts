@@ -1487,8 +1487,307 @@ export function execStub(
     newOwnerOTEC = { ...newOwnerOTEC, trash: [...newOwnerOTEC.trash, selectedCardOTEC] };
     return done(addLog({ ...ctx, ownerState: newOwnerOTEC }, `${cardNameOTEC}をエナからトラッシュへ`));
   }
+  // CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE
+  // 「以下のN つからM つ選ぶ。[条件]の場合、代わりにK つまで選ぶ。①...②...」
+  // stub.value: undefined=初回, 0=ベース選択, 1=強化選択
   if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
-    return done(addLog(ctx, 'センターレベル基準多択（ログのみ）'));
+    const srcCMCLG = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtCMCLG = srcCMCLG ? (srcCMCLG.EffectText ?? '') + ' ' + (srcCMCLG.BurstText ?? '') : '';
+    const toHWCMCLG = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // ベース選択数
+    const baseM = txtCMCLG.match(/以下の[２-９\d]つから([１-９\d1-9])つ(?:まで)?選ぶ/);
+    const baseCount = baseM ? parseInt(toHWCMCLG(baseM[1])) : 1;
+    // 強化選択数
+    const enhM = txtCMCLG.match(/代わりに([２-９\d])つ(?:まで)?選ぶ/);
+    const enhCount = enhM ? parseInt(toHWCMCLG(enhM[1])) : baseCount + 1;
+
+    // ─── 条件判定 ───
+    // (A) センタールリグのレベルがN以上
+    const lvCondM = txtCMCLG.match(/センタールリグのレベルが([１-９\d])以上/);
+    // (B) 追加コスト払い済み（任意コストまたはエクシード）
+    const optCostM = txtCMCLG.match(/追加で(?:エクシード([１-９\d])|((?:《[^》]+》)+))を支払(?:ってい)?た場合/);
+
+    let maxCount: number;
+    if (stub.value === 1) {
+      // 任意コスト支払い済み → 強化
+      maxCount = enhCount;
+    } else if (stub.value === 0) {
+      // スキップ → ベース
+      maxCount = baseCount;
+    } else if (lvCondM) {
+      // センターレベル条件: その場で判定
+      const threshold = parseInt(toHWCMCLG(lvCondM[1]));
+      const centerTop = ctx.ownerState.field.lrig.at(-1);
+      const centerLv = centerTop ? (parseInt(ctx.cardMap.get(centerTop)?.Level ?? '0') || 0) : 0;
+      maxCount = centerLv >= threshold ? enhCount : baseCount;
+    } else if (optCostM) {
+      // 任意コスト: 支払うか選択させる
+      const exceedN = optCostM[1] ? parseInt(toHWCMCLG(optCostM[1])) : 0;
+      let costColors: string[] = [];
+      if (exceedN > 0) {
+        // エクシード: 自分のエナから任意N枚
+        costColors = Array(exceedN).fill('無');
+      } else {
+        const colorBlock = optCostM[2] ?? '';
+        const colorMatches = [...colorBlock.matchAll(/《([^》]+)》/g)];
+        for (const cm of colorMatches) {
+          const parts = cm[1].split('×');
+          const col = parts[0].trim();
+          const cnt = parts[1] ? parseInt(toHWCMCLG(parts[1])) : 1;
+          for (let i = 0; i < cnt; i++) costColors.push(col);
+        }
+      }
+      const canAffordCMCLG = costColors.length === 0 || ctx.ownerState.energy.length >= costColors.length;
+      const payLabelCMCLG = costColors.length > 0
+        ? `追加コストを支払う（${costColors.map(c => `《${c}》`).join('')}）`
+        : '追加コストを支払う';
+      const paySeq: StubAction[] = costColors.length > 0
+        ? [{ type: 'STUB', id: 'INTERNAL_CMCLG_DEDUCT', value: JSON.stringify(costColors) } as StubAction,
+           { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE', value: 1 } as StubAction]
+        : [{ type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE', value: 1 } as StubAction];
+      const payActionCMCLG: EffectAction = paySeq.length === 1
+        ? paySeq[0] as EffectAction
+        : { type: 'SEQUENCE', steps: paySeq as EffectAction[] } as import('../types/effects').SequenceAction;
+      const skipActionCMCLG: EffectAction = { type: 'STUB', id: 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE', value: 0 } as StubAction;
+      const optsCMCLGPay = [
+        { id: 'pay', label: payLabelCMCLG, action: payActionCMCLG, available: canAffordCMCLG },
+        { id: 'skip', label: `スキップ（${baseCount}択のみ）`, action: skipActionCMCLG, available: true },
+      ];
+      return needsInteraction(addLog(ctx, '追加コストを支払いますか？'), { type: 'CHOOSE', options: optsCMCLGPay, count: 1 });
+    } else {
+      // 条件なし（常時）
+      maxCount = baseCount;
+    }
+
+    // ─── 選択肢を解析してCHOOSEを生成 ───
+    const chPatterns = [
+      { m: /①([^②③④⑤]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
+      { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
+    ];
+    const optsCMCLG: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
+    for (const { m, idx } of chPatterns) {
+      const mat = txtCMCLG.match(m);
+      if (!mat) continue;
+      const choiceTxtCMCLG = mat[1].replace(/。\s*$/, '').trim();
+      let act: EffectAction | null = null;
+
+      // カードを1枚引く
+      if (!act && choiceTxtCMCLG.match(/カードを[１1]枚引く/))
+        act = { type: 'DRAW', count: 1 } as DrawAction;
+      // トラッシュをデッキに戻しシャッフル→デッキ上をライフに加える
+      if (!act && choiceTxtCMCLG.match(/トラッシュにある.*カード.*デッキ.*シャッフル.*デッキ.*ライフ|トラッシュ.*デッキ.*シャッフル.*ライフクロス/))
+        act = { type: 'STUB', id: 'INTERNAL_CMCLG_TRASH_TO_DECK_LIFE' } as StubAction as EffectAction;
+      // 対戦相手: トラッシュをデッキに→ライフ1枚エナへ
+      if (!act && choiceTxtCMCLG.match(/対戦相手.*トラッシュ.*デッキ.*シャッフル.*ライフクロス.*エナ/))
+        act = { type: 'STUB', id: 'INTERNAL_CMCLG_OPP_TRASH_TO_DECK_LIFE_ENERGY' } as StubAction as EffectAction;
+      // 対戦相手のデッキ上N枚をトラッシュ
+      if (!act) {
+        const deckMillM = choiceTxtCMCLG.match(/対戦相手.*デッキの上からカードを([０-９\d]+)枚トラッシュ/);
+        if (deckMillM) act = { type: 'STUB', id: 'INTERNAL_CMCLG_MILL_OPP', value: parseInt(toHWCMCLG(deckMillM[1])) } as StubAction as EffectAction;
+      }
+      // 手札から＜CLASS＞のシグニを場に出す
+      if (!act) {
+        const playHandM = choiceTxtCMCLG.match(/手札から＜([^＞]+)＞のシグニ[１1]枚を場に出す/);
+        if (playHandM) act = { type: 'STUB', id: 'INTERNAL_CMCLG_PLAY_CLASS_FROM_HAND', value: playHandM[1] } as StubAction as EffectAction;
+      }
+      // トラッシュから＜CLASS＞のシグニをN枚まで場に出す
+      if (!act) {
+        const playTrashM = choiceTxtCMCLG.match(/トラッシュから＜([^＞]+)＞のシグニを([０-９\d１-９]+)枚まで場に出す/);
+        if (playTrashM) act = { type: 'STUB', id: 'INTERNAL_CMCLG_PLAY_CLASS_FROM_TRASH', value: JSON.stringify({ cls: playTrashM[1], n: parseInt(toHWCMCLG(playTrashM[2])) }) } as StubAction as EffectAction;
+      }
+      // ＜CLASS＞シグニに【Sランサー】を付与
+      if (!act && choiceTxtCMCLG.match(/【Ｓランサー】を得る|【Sランサー】を得る/))
+        act = { type: 'STUB', id: 'INTERNAL_CMCLG_GRANT_SLANCER' } as StubAction as EffectAction;
+      // すべてのシグニのパワーを+N（次の対戦相手ターン終了まで）
+      if (!act) {
+        const allPwM = choiceTxtCMCLG.match(/すべてのシグニのパワーを([＋\+][０-９\d万]+)/);
+        if (allPwM) {
+          const delta = parseInt(toHWCMCLG(allPwM[1].replace('＋','+').replace('万','0000')));
+          act = { type: 'STUB', id: 'INTERNAL_CMCLG_ALL_POWER_UP', value: delta } as StubAction as EffectAction;
+        }
+      }
+      // パワーをレベル合計×-1000する（WX13-060②）
+      if (!act && choiceTxtCMCLG.match(/パワーを.*レベル.*合計.*[－-]1000/))
+        act = { type: 'STUB', id: 'INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS' } as StubAction as EffectAction;
+      // このターン、対戦相手シグニのパワーが0以下になったとき引く（WX13-060①）
+      if (!act && choiceTxtCMCLG.match(/パワーが[０0]以下.*引く|引く.*パワーが[０0]以下/))
+        act = { type: 'STUB', id: 'INTERNAL_CMCLG_DRAW_ON_POWER_ZERO' } as StubAction as EffectAction;
+      // 【レイヤー】シグニに「場を離れたとき手札に戻す」を付与（SP26-005②）
+      if (!act && choiceTxtCMCLG.match(/【レイヤー】.*場を離れたとき|場を離れたとき.*手札に戻す/))
+        act = { type: 'STUB', id: 'INTERNAL_CMCLG_GRANT_LAYER_LEAVE_BOUNCE' } as StubAction as EffectAction;
+      // 既存パターン流用: バウンス
+      if (!act && choiceTxtCMCLG.match(/シグニ[１1]体.*手札に戻す/))
+        act = { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BounceAction as EffectAction;
+      // バニッシュ
+      if (!act && choiceTxtCMCLG.match(/シグニ[１1]体.*バニッシュ/))
+        act = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction as EffectAction;
+
+      if (act) {
+        optsCMCLG.push({ id: `cmclg_${idx}`, label: `${'①②③④'[idx]}${choiceTxtCMCLG.slice(0, 20)}...`, action: act, available: true });
+      }
+    }
+    if (optsCMCLG.length === 0) {
+      return done(addLog(ctx, `センター/任意コスト多択（${maxCount}択、解析不可）`));
+    }
+    const condInfoCMCLG = lvCondM
+      ? `センターLv${(() => { const t = ctx.ownerState.field.lrig.at(-1); return t ? (parseInt(ctx.cardMap.get(t)?.Level ?? '0') || 0) : 0; })()}`
+      : stub.value === 1 ? '追加コスト済み' : 'ベース';
+    return needsInteraction(addLog(ctx, `効果を最大${maxCount}つ選択（${condInfoCMCLG}）`), {
+      type: 'CHOOSE', options: optsCMCLG, count: maxCount, multiSelect: maxCount > 1,
+    });
+  }
+  // INTERNAL_CMCLG_DEDUCT: 任意コストのエナを消費
+  if (stub.id === 'INTERNAL_CMCLG_DEDUCT') {
+    const colorsArr: string[] = JSON.parse(typeof stub.value === 'string' ? stub.value : '[]');
+    let newEnergyDEDUCT = [...ctx.ownerState.energy];
+    for (const col of colorsArr) {
+      const idx = newEnergyDEDUCT.findIndex(en => {
+        const c = ctx.cardMap.get(en)?.Color ?? '無';
+        return col === '無' || c.includes(col);
+      });
+      if (idx >= 0) newEnergyDEDUCT.splice(idx, 1);
+    }
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, energy: newEnergyDEDUCT } },
+      `追加コスト消費（${colorsArr.map(c => `《${c}》`).join('')}）`));
+  }
+  // INTERNAL_CMCLG_TRASH_TO_DECK_LIFE: 自トラッシュ全→デッキにシャッフル+デッキ上→ライフ
+  if (stub.id === 'INTERNAL_CMCLG_TRASH_TO_DECK_LIFE') {
+    const trashTDL = ctx.ownerState.trash;
+    if (trashTDL.length === 0) return done(addLog(ctx, 'トラッシュなし（スキップ）'));
+    const shuffled = [...ctx.ownerState.deck, ...trashTDL].sort(() => Math.random() - 0.5);
+    const lifeTop = shuffled[0];
+    const newDeck = shuffled.slice(1);
+    const newOwnerTDL: PlayerState = {
+      ...ctx.ownerState,
+      trash: [],
+      deck: newDeck,
+      life_cloth: [...ctx.ownerState.life_cloth, lifeTop],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerTDL },
+      `トラッシュ${trashTDL.length}枚→デッキにシャッフル、デッキ上（${ctx.cardMap.get(lifeTop)?.CardName ?? lifeTop}）をライフに加える`));
+  }
+  // INTERNAL_CMCLG_OPP_TRASH_TO_DECK_LIFE_ENERGY: 相手トラッシュ全→デッキにシャッフル+相手ライフ1枚→エナ
+  if (stub.id === 'INTERNAL_CMCLG_OPP_TRASH_TO_DECK_LIFE_ENERGY') {
+    const oppTrashOTD = ctx.otherState.trash;
+    const oppShuffled = [...ctx.otherState.deck, ...oppTrashOTD].sort(() => Math.random() - 0.5);
+    let newOtherOTD = { ...ctx.otherState, trash: [], deck: oppShuffled };
+    let lifeLogOTD = `相手トラッシュ${oppTrashOTD.length}枚→デッキにシャッフル`;
+    if (ctx.otherState.life_cloth.length > 0) {
+      const lifeCard = ctx.otherState.life_cloth[ctx.otherState.life_cloth.length - 1];
+      newOtherOTD = {
+        ...newOtherOTD,
+        life_cloth: ctx.otherState.life_cloth.slice(0, -1),
+        energy: [...ctx.otherState.energy, lifeCard],
+      };
+      lifeLogOTD += `、ライフ（${ctx.cardMap.get(lifeCard)?.CardName ?? lifeCard}）→エナ`;
+    }
+    return done(addLog({ ...ctx, otherState: newOtherOTD }, lifeLogOTD));
+  }
+  // INTERNAL_CMCLG_MILL_OPP: 相手デッキ上N枚→トラッシュ
+  if (stub.id === 'INTERNAL_CMCLG_MILL_OPP') {
+    const millN = typeof stub.value === 'number' ? stub.value : 10;
+    const milled = ctx.otherState.deck.slice(0, millN);
+    const newOtherMill: PlayerState = {
+      ...ctx.otherState,
+      deck: ctx.otherState.deck.slice(millN),
+      trash: [...ctx.otherState.trash, ...milled],
+    };
+    return done(addLog({ ...ctx, otherState: newOtherMill }, `相手デッキ上${millN}枚→トラッシュ`));
+  }
+  // INTERNAL_CMCLG_PLAY_CLASS_FROM_HAND: 手札から＜CLASS＞のシグニを場に出す
+  if (stub.id === 'INTERNAL_CMCLG_PLAY_CLASS_FROM_HAND') {
+    const clsPCFH = typeof stub.value === 'string' ? stub.value : '';
+    const candsPCFH = ctx.ownerState.hand.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && (!clsPCFH || c.CardClass?.includes(clsPCFH));
+    });
+    if (candsPCFH.length === 0) return done(addLog(ctx, `手札に＜${clsPCFH}＞シグニなし`));
+    const addFieldPCFH: import('../types/effects').AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
+    return needsInteraction(addLog(ctx, `手札から＜${clsPCFH}＞シグニを選んで場に出す`), {
+      type: 'SEARCH', visibleCards: candsPCFH, maxPick: 1, thenAction: addFieldPCFH as EffectAction,
+    });
+  }
+  // INTERNAL_CMCLG_PLAY_CLASS_FROM_TRASH: トラッシュから＜CLASS＞のシグニをN枚まで場に出す
+  if (stub.id === 'INTERNAL_CMCLG_PLAY_CLASS_FROM_TRASH') {
+    const paramPCFT = JSON.parse(typeof stub.value === 'string' ? stub.value : '{"cls":"","n":1}') as { cls: string; n: number };
+    const candsPCFT = ctx.ownerState.trash.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && (!paramPCFT.cls || c.CardClass?.includes(paramPCFT.cls));
+    });
+    if (candsPCFT.length === 0) return done(addLog(ctx, `トラッシュに＜${paramPCFT.cls}＞シグニなし`));
+    const addFieldPCFT: import('../types/effects').AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
+    return needsInteraction(addLog(ctx, `トラッシュから＜${paramPCFT.cls}＞シグニを${paramPCFT.n}枚まで場に出す`), {
+      type: 'SEARCH', visibleCards: candsPCFT, maxPick: paramPCFT.n, thenAction: addFieldPCFT as EffectAction,
+    });
+  }
+  // INTERNAL_CMCLG_GRANT_SLANCER: 選択した＜CLASS＞シグニに【Sランサー】付与
+  if (stub.id === 'INTERNAL_CMCLG_GRANT_SLANCER') {
+    const mySigniGS = ctx.ownerState.field.signi.flatMap((s, zi) => s?.at(-1) ? [{ cn: s.at(-1)!, zi }] : []);
+    if (mySigniGS.length === 0) return done(addLog(ctx, 'フィールドにシグニなし'));
+    const grantKwGS: import('../types/effects').GrantKeywordAction = {
+      type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: 's_lancer', duration: 'UNTIL_END_OF_TURN',
+    };
+    return exec(grantKwGS as EffectAction, ctx);
+  }
+  // INTERNAL_CMCLG_ALL_POWER_UP: 自フィールド全シグニのパワーを+N（次の対戦相手ターン終了まで継続）
+  if (stub.id === 'INTERNAL_CMCLG_ALL_POWER_UP') {
+    const deltaCAPU = typeof stub.value === 'number' ? stub.value : 10000;
+    const modsCAPU = [...(ctx.ownerState.temp_power_mods ?? [])];
+    for (const stack of ctx.ownerState.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      const existing = modsCAPU.find(m => m.cardNum === top);
+      if (existing) existing.delta += deltaCAPU;
+      else modsCAPU.push({ cardNum: top, delta: deltaCAPU });
+    }
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsCAPU } },
+      `全シグニのパワー+${deltaCAPU}（ターン終了まで）`));
+  }
+  // INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS: ＜毒牙＞シグニのレベル合計×-1000で対象シグニのパワーを修正
+  if (stub.id === 'INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS') {
+    // どのクラスを参照するかをテキストから解析
+    const srcPMBCL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtPMBCL = srcPMBCL ? (srcPMBCL.EffectText ?? '') + ' ' + (srcPMBCL.BurstText ?? '') : '';
+    const clsMatchPMBCL = txtPMBCL.match(/＜([^＞]+)＞のシグニのレベルを合計/);
+    const clsPMBCL = clsMatchPMBCL ? clsMatchPMBCL[1] : '';
+    let levelSumPMBCL = 0;
+    for (const stack of ctx.ownerState.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      const c = ctx.cardMap.get(top);
+      if (!c || !c.CardClass?.includes(clsPMBCL)) continue;
+      levelSumPMBCL += parseInt(c.Level ?? '0') || 0;
+    }
+    const deltaPMBCL = -levelSumPMBCL * 1000;
+    const targetCandsPMBCL = ctx.otherState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+    if (targetCandsPMBCL.length === 0) return done(addLog(ctx, '相手シグニなし'));
+    const noopPMBCL: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    const contPMBCL: StubAction = { type: 'STUB', id: 'INTERNAL_CMCLG_APPLY_POWER_MOD', value: deltaPMBCL };
+    return needsInteraction(addLog(ctx, `＜${clsPMBCL}＞レベル合計${levelSumPMBCL}→対象シグニのパワーを${deltaPMBCL}`), {
+      type: 'SELECT_TARGET', candidates: targetCandsPMBCL, count: 1, optional: false,
+      targetScope: 'opp_field', thenAction: noopPMBCL as EffectAction, continuation: contPMBCL as EffectAction,
+    });
+  }
+  // INTERNAL_CMCLG_APPLY_POWER_MOD: POWER_MOD_BY_CLASS_LEVELS の続き
+  if (stub.id === 'INTERNAL_CMCLG_APPLY_POWER_MOD') {
+    const targetAPM = ctx.lastProcessedCards?.[0];
+    const deltaAPM = typeof stub.value === 'number' ? stub.value : 0;
+    if (!targetAPM || deltaAPM === 0) return done(addLog(ctx, 'パワー修正スキップ'));
+    const modsAPM = [...(ctx.otherState.temp_power_mods ?? [])];
+    const exAPM = modsAPM.find(m => m.cardNum === targetAPM);
+    if (exAPM) exAPM.delta += deltaAPM;
+    else modsAPM.push({ cardNum: targetAPM, delta: deltaAPM });
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsAPM } },
+      `${ctx.cardMap.get(targetAPM)?.CardName ?? targetAPM}のパワー${deltaAPM > 0 ? '+' : ''}${deltaAPM}`));
+  }
+  // INTERNAL_CMCLG_DRAW_ON_POWER_ZERO: このターン相手シグニのパワー≤0でドロー（フラグ設置）
+  if (stub.id === 'INTERNAL_CMCLG_DRAW_ON_POWER_ZERO') {
+    const newOwnerDPZ: PlayerState = { ...ctx.ownerState, draw_on_opp_power_zero: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerDPZ }, 'このターン、対戦相手のシグニのパワーが0以下になったとき、カードを1枚引く'));
+  }
+  // INTERNAL_CMCLG_GRANT_LAYER_LEAVE_BOUNCE: 【レイヤー】持ちシグニに「場を離れたとき手札に戻す」を付与
+  if (stub.id === 'INTERNAL_CMCLG_GRANT_LAYER_LEAVE_BOUNCE') {
+    return done(addLog(ctx, '【レイヤー】シグニに「場を離れたとき相手シグニ1体手札に戻す」を付与（effectEngine未対応・ログのみ）'));
   }
   // 大量トラッシュ: 相手エナ全体+相手シグニ全体、またはシグニ+キー
   if (stub.id === 'MASS_TRASH') {
