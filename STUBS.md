@@ -544,7 +544,7 @@
 | 1 | CONT | ✅ | OPP_CENTER_LRIG_LIMIT_SET_5 ※v0.194: BattleScreen lrigLimit計算でop.field.signiを走査→このSTUBが有効ならoppBasicLimitOverride=5で基本リミット上書き（WXEX1-26） |
 ---
 
-## 集計サマリー（v0.197）
+## 集計サマリー（v0.198）
 
 | カテゴリ | 種数 |
 |---------|-----:|
