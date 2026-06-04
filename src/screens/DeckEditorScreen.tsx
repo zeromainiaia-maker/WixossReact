@@ -10,6 +10,7 @@ const COPY_MAX = 4;
 const LRIG_COPY_MAX = 1;
 
 const SPECIAL_EXTRA_CARD_NUMS = ['PR-470B', 'WX13-005B', 'WX13-006B', 'WX14-006B'];
+const TEAM_PIECE_MAX = 1;
 
 // ImageKit URLにサムネイル変換パラメータを挿入する
 // 例: https://ik.imagekit.io/xxxx/WX01-001.webp
