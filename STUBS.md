@@ -265,7 +265,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | CONDITIONAL_SEARCH_IF_RESONA ※レゾナ有無チェック+needsInteractionでデッキから手札追加実装済み |
 | 2 | AUTO | ✅ | CONDITIONAL_TRASH_TO_ENERGY ※v0.169: センタールリグクラス条件チェック+トラッシュ→エナ実装済み（line 4328） |
 | 1 | AUTO/ACTIVATED | ✅ | CONDITIONAL_TRASH_UNDER_SIGNI ※v0.172: 相手エナN枚以上確認→シグニ下カードSELECT→INTERNAL_TRASH_UNDER_SIGNI |
-| 2 | CONT | ⚡ | COOKING_BANISH_SUBSTITUTE ※done(addLog)のみ（料理系バニッシュ置換未実装） |
+| 2 | CONT | ✅ | COOKING_BANISH_SUBSTITUTE ※v0.195: バトル勝利処理で調理クラス+アクセ存在+相手ターン確認→アクセをtrashへ、シグニを場に残す（WX17-048） |
 | 1 | AUTO/ACTIVATED | ⚡ | COST_COLOR_SELECT ※done(addLog)のみ（コスト色選択未実装） |
 | 1 | AUTO/ACTIVATED | ✅ | COUNT_DISTINCT_NAMES ※自フィールドシグニ名数×deltaをtemp_power_modsに適用 |
 | 1 | AUTO/ACTIVATED | ✅ | DECK_REVEAL_UNTIL_CLASS ※DECK_REVEAL_UNTILと同ハンドラ: クラスフィルタ付き完全実装 |
