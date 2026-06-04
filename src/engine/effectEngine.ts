@@ -1723,6 +1723,25 @@ export function collectEnergyTrashSubstituteInfo(
     }
   }
 
+  // ENERGY_NON_COLORLESS_ALL_COLORS: 自フィールドシグニにこのSTUBが有効なら非無色エナをワイルド化
+  const hasNonColorlessAllColors = [...state.field.signi, ...(state.field.key_piece ? [[state.field.key_piece]] : [])]
+    .some(stack => {
+      const top = Array.isArray(stack) ? stack.at(-1) : stack;
+      if (!top) return false;
+      return (effectsMap.get(top) ?? []).some(eff =>
+        eff.effectType === 'CONTINUOUS' &&
+        (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+        (eff.action as import('../types/effects').StubAction).id === 'ENERGY_NON_COLORLESS_ALL_COLORS',
+      );
+    });
+  if (hasNonColorlessAllColors) {
+    for (const instId of state.energy) {
+      const bn = baseNum(instId);
+      const c = cardMap.get(bn);
+      if (c && (c.Color ?? '無') !== '無') wildcardInstIds.add(instId);
+    }
+  }
+
   return { wildcardInstIds, colorOverrideMap, keySubInstId };
 }
 
