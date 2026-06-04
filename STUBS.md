@@ -528,7 +528,7 @@
 | 1 | ACTIVATED | ✅ | SUPPRESS_OPP_SIGNI_ABILITIES ※相手フィールド全シグニのabilities_removed追加実装済み |
 | 1 | AUTO | ✅ | TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE ※v0.185: TARGET_OPP_SIGNI_ONLYと同ハンドラ→修飾子ログのみで✅ |
 | 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
-| 1 | AUTO | ✅ | HASTARLIQ ※v0.189: CHOOSE(ゾーン1/2/3)→signi_gate_zones+blocked_actions[ATTACK:topCard]設定でアタック禁止 |
+| 1 | AUTO | ✅ | HASTARLIQ ※v0.198: BattleScreen MAIN→ATTACK_ARTS時にスタック積み+相手CHOOSE(手札捨て/払い/バニッシュ)。CpuBattleScreen: auto-decide |
 | 1 | AUTO | ✅ | BLACK_RISE_PLAY_STACK_FROM_TRASH ※v0.189: 3フェーズ実装（トラッシュシグニ最大2枚選択→ウェポン2体選択→スタック下配置+下カード数ドロー） |
 | 1 | AUTO | ✅ | PLACE_REV_SIGNI ※v0.193: ライフクロス1枚以下チェック→空きゾーンにREVシグニ配置（PR-Di017A） |
 | 1 | AUTO | ✅ | SUMMON_FROM_ENERGY ※v0.193: エナゾーンのシグニをSELECT_TARGET→ADD_TO_FIELD（レベル上限テキスト解析対応） |
