@@ -528,6 +528,20 @@
 | 1 | ACTIVATED | ✅ | SUPPRESS_OPP_SIGNI_ABILITIES ※相手フィールド全シグニのabilities_removed追加実装済み |
 | 1 | AUTO | ✅ | TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE ※v0.185: TARGET_OPP_SIGNI_ONLYと同ハンドラ→修飾子ログのみで✅ |
 | 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
+| 1 | AUTO | ✅ | HASTARLIQ ※v0.189: CHOOSE(ゾーン1/2/3)→signi_gate_zones+blocked_actions[ATTACK:topCard]設定でアタック禁止 |
+| 1 | AUTO | ✅ | BLACK_RISE_PLAY_STACK_FROM_TRASH ※v0.189: 3フェーズ実装（トラッシュシグニ最大2枚選択→ウェポン2体選択→スタック下配置+下カード数ドロー） |
+| 1 | AUTO | ✅ | PLACE_REV_SIGNI ※v0.193: ライフクロス1枚以下チェック→空きゾーンにREVシグニ配置（PR-Di017A） |
+| 1 | AUTO | ✅ | SUMMON_FROM_ENERGY ※v0.193: エナゾーンのシグニをSELECT_TARGET→ADD_TO_FIELD（レベル上限テキスト解析対応） |
+| 1 | AUTO | ✅ | REMOVE_SELF_SIGNI_FROM_GAME ※v0.193: sourceCardNumをフィールドから除去→trash追加（WXDi-CP02-TK01A） |
+| 1 | CONT | 📝 | ACCE_BANISH_SUBSTITUTE ※ログのみ（アクセ代替バニッシュ: BattleScreen未実装）（WXDi-P09-TK03A） |
+| 1 | CONT | 📝 | OPP_DRAW_LIMIT_PER_TURN ※ログのみ（ドローフェイズ相手ドロー1枚上限: BattleScreen未実装）（WX25-P2-TK05） |
+| 1 | CONT | 📝 | REDIRECT_ATTACK_TO_SELF_ZONE ※ログのみ（相手シグニアタックをこのゾーンへリダイレクト: BattleScreen未実装）（WXDi-CP02-TK01A） |
+| 1 | CONT | 📝 | BATTLE_LEAVE_REPLACE_WITH_DOWN ※ログのみ（場離れをダウンに置換: BattleScreen未実装）（WXDi-CP02-TK01A） |
+| 5 | CONT | 📝 | BANISH_TO_LRIG_TRASH_INSTEAD ※ログのみ（バニッシュ時ルリグデッキ戻らずルリグトラッシュへ: 未実装）（WX10-008/020/024/WX11-013/WX13-028） |
+| 1 | CONT | 📝 | CARDS_OUTSIDE_ENERGY_BECOME_WHITE ※ログのみ（エナゾーン以外のカードは白になる: 未実装）（WX08-005） |
+| 1 | CONT | 📝 | RESTRICT_CHARMED_SIGNI_ACTIVATED ※ログのみ（チャーム付きシグニの【起】能力使用不可: 未実装）（WX08-006） |
+| 1 | CONT | 📝 | ENERGY_NON_COLORLESS_ALL_COLORS ※ログのみ（エナの無色以外カードはすべての色を持つ: 未実装）（WX14-017） |
+| 1 | CONT | 📝 | OPP_CENTER_LRIG_LIMIT_SET_5 ※ログのみ（相手センタールリグ基本リミットを5に設定: 未実装）（WXEX1-26） |
 ---
 
 ## 集計サマリー（v0.188）
