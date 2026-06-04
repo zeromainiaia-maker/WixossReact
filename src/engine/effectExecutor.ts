@@ -2394,6 +2394,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const newS: PlayerState = { ...s, temp_power_mods: mods };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${delta > 0 ? '+' : ''}${delta}`));
     }
+    case 'POWER_MULTIPLY': {
+      const pmxAction = action as import('../types/effects').PowerMultiplyAction;
+      const tgtOwnerPMX = pmxAction.target.owner === 'any' ? 'self' : pmxAction.target.owner as Owner;
+      const sPMX = ownerState(tgtOwnerPMX, ctx);
+      const curPwPMX = ctx.effectivePowers?.get(cardNum) ?? parseInt(ctx.cardMap.get(cardNum)?.Power ?? '0') || 0;
+      const deltaPMX = curPwPMX * (pmxAction.multiplier - 1);
+      const modsPMX = [...(sPMX.temp_power_mods ?? []), { cardNum, delta: deltaPMX }];
+      const newSPMX: PlayerState = { ...sPMX, temp_power_mods: modsPMX };
+      return done(addLog(setOwnerState(tgtOwnerPMX, newSPMX, ctx), `×${pmxAction.multiplier}（+${deltaPMX}）`));
+    }
     case 'ADD_TO_HAND': {
       // ID1/
       const cn = getCardNum(cardNum);
