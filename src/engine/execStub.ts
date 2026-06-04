@@ -681,7 +681,20 @@ export function execStub(
           `パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（相手シグニ${oppCount}体）`));
       }
     } else if (doubleM) {
-      return done(addLog(ctx, 'パワー2倍修正（ログのみ）'));
+      // "パワーをN倍にする": 各自シグニに currentPower*(N-1) をdeltaとして適用
+      const multiplierDP = parseInt(toHWP(doubleM[1])) || 2;
+      const modsDP = [...(ctx.ownerState.temp_power_mods ?? [])];
+      let boostedDP = 0;
+      for (let zi = 0; zi < 3; zi++) {
+        const top = ctx.ownerState.field.signi[zi]?.at(-1);
+        if (!top) continue;
+        const curPwDP = ctx.effectivePowers?.get(top) ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0') || 0;
+        modsDP.push({ cardNum: top, delta: curPwDP * (multiplierDP - 1) });
+        boostedDP++;
+      }
+      if (boostedDP > 0)
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsDP } },
+          `全シグニのパワー×${multiplierDP}（${boostedDP}体）`));
     }
     return done(addLog(ctx, `パワー修正（相手${oppCount}体基準）`));
   }
