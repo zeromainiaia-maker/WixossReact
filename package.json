@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "typecheck": "tsc -b --noEmit",
     "build:effects": "tsx scripts/buildEffectsJson.ts",
     "wel": "tsx scripts/batchParseCards.ts --sheet Sheet1 --batch-size 5",
     "wel:dry": "tsx scripts/batchParseCards.ts --sheet Sheet1 --batch-size 5 --dry-run",
