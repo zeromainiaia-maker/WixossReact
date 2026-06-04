@@ -2064,8 +2064,47 @@ export function execStub(
     return done(addLog(setOwnerState(target, newSt, ctx), `ライフクロス上（${name}）を手札へ`));
   }
   // クラス/色宣言
+  // DECLARE_CLASS: クラスを宣言してownerState.declared_classに保存
   if (stub.id === 'DECLARE_CLASS') {
-    return done(addLog(ctx, 'クラス宣言（ログのみ）'));
+    // stub.valueに宣言クラスが入っている場合→保存して完了
+    if (typeof stub.value === 'string') {
+      const newOwnerDCLS: PlayerState = {
+        ...ctx.ownerState,
+        declared_class: stub.value,
+        lastProcessedCards: [...(ctx.lastProcessedCards ?? []), stub.value],
+      };
+      return done(addLog({ ...ctx, ownerState: newOwnerDCLS, lastProcessedCards: newOwnerDCLS.lastProcessedCards! },
+        `クラス「${stub.value}」を宣言`));
+    }
+    // クラス一覧を自トラッシュ・手札・相手フィールドから動的収集
+    const classSetDCLS = new Set<string>();
+    const addClassesDCLS = (cn: string) => {
+      const c = ctx.cardMap.get(cn);
+      if (c?.Type !== 'シグニ' || !c.CardClass) return;
+      c.CardClass.replace(/[＜＞]/g, '').split(/[・\/]/).forEach(cl => {
+        const t = cl.trim();
+        if (t && t !== '-') classSetDCLS.add(t);
+      });
+    };
+    [...ctx.ownerState.trash, ...ctx.ownerState.hand].forEach(addClassesDCLS);
+    ctx.ownerState.field.signi.forEach(s => s?.forEach(addClassesDCLS));
+    ctx.otherState.field.signi.forEach(s => s?.forEach(addClassesDCLS));
+    // クラスが見つからない場合は cardMap 全体から収集
+    if (classSetDCLS.size === 0) {
+      for (const [, card] of ctx.cardMap) addClassesDCLS(card.CardNum ?? '');
+    }
+    const sortedClassesDCLS = [...classSetDCLS].sort();
+    const setClassDCLS = (cls: string): StubAction => ({ type: 'STUB', id: 'DECLARE_CLASS', value: cls });
+    const optsDCLS = sortedClassesDCLS.map(cls => ({
+      id: `dcls_${cls}`,
+      label: `＜${cls}＞`,
+      action: setClassDCLS(cls) as EffectAction,
+      available: true,
+    }));
+    if (optsDCLS.length === 0) return done(addLog(ctx, 'クラス宣言：候補なし'));
+    return needsInteraction(addLog(ctx, 'クラスを宣言してください'), {
+      type: 'CHOOSE', options: optsDCLS, count: 1,
+    });
   }
   if (stub.id === 'DECLARE_COLOR') {
     const colorsDC = ['白', '赤', '青', '緑', '黒'];
