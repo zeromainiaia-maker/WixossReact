@@ -184,6 +184,32 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+// POWER_MULTIPLY: シグニのパワーをN倍にする（delta = currentPower × (multiplier-1)）
+function execPowerMultiply(a: import('../types/effects').PowerMultiplyAction, ctx: ExecCtx): ExecResult {
+  const tgtOwner: Owner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (cands.length === 0) return done(addLog(ctx, 'パワー倍増：対象シグニなし'));
+
+  const applyMultiply = (selected: string[], c: ExecCtx): ExecCtx => {
+    const s = ownerState(tgtOwner, c);
+    const mods = [...(s.temp_power_mods ?? [])];
+    for (const cn of selected) {
+      const curPw = c.effectivePowers?.get(cn) ?? parseInt(c.cardMap.get(cn)?.Power ?? '0') || 0;
+      mods.push({ cardNum: cn, delta: curPw * (a.multiplier - 1) });
+    }
+    const newS: PlayerState = { ...s, temp_power_mods: mods };
+    return addLog(setOwnerState(tgtOwner, newS, c),
+      `${selected.map(cn => c.cardMap.get(cn)?.CardName ?? cn).join('、')}のパワー×${a.multiplier}`);
+  };
+
+  if (a.target.count === 'ALL') return done(applyMultiply(cands, ctx));
+  const count = resolveNum(a.target.count as number);
+  if (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) return done(applyMultiply([ctx.sourceCardNum], ctx));
+  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+}
+
 function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
