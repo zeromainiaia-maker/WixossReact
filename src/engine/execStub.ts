@@ -550,6 +550,25 @@ export function execStub(
       totalDelta = Math.floor(sumLvl / unitLvl) * deltaPerLvl;
     } else if (totalM) {
       totalDelta = toSigned(totalM[1]);
+    } else if (stackPwM && ctx.sourceCardNum) {
+      // パターン4: 自身の下にあるシグニのパワー合計と同じだけ+（ライズスタック）
+      const srcCNSP = ctx.sourceCardNum;
+      for (const stack of ctx.ownerState.field.signi) {
+        const topIdx = stack?.indexOf(srcCNSP) ?? -1;
+        if (topIdx < 0) continue;
+        const underCards = stack!.slice(0, topIdx);
+        totalDelta = underCards.reduce((acc, cn) => {
+          const pw = ctx.effectivePowers?.get(cn) ?? parseInt(ctx.cardMap.get(cn)?.Power ?? '0') || 0;
+          return acc + pw;
+        }, 0);
+        break;
+      }
+    } else if (lastPwM && processed.length > 0) {
+      // パターン5: lastProcessedCards[0] のパワーと同じだけ±
+      const sign = lastPwM[1] === '－' ? -1 : 1;
+      const refCN = processed[0];
+      const refPw = ctx.effectivePowers?.get(refCN) ?? parseInt(ctx.cardMap.get(refCN)?.Power ?? '0') || 0;
+      totalDelta = sign * refPw;
     }
 
     // ドローパターン: "枚数に+Nを加えた枚数のカードを引く"
