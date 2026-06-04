@@ -361,6 +361,6 @@ export interface BattleStateRow {
 }
 
 // ルリグデッキに入るカードタイプ
-export const LRIG_TYPES = ['ルリグ', 'アーツ', 'キー', 'ピース','レゾナ','アシストルリグ'];
+export const LRIG_TYPES = ['ルリグ', 'アーツ', 'キー', 'ピース', 'リレーピース', 'レゾナ', 'アシストルリグ'];
 
 export const isLrigCard = (card: CardData) => LRIG_TYPES.includes(card.Type);
