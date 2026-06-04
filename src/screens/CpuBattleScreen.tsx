@@ -247,8 +247,51 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
         return { ...setMyState(g, newS), phase: next };
       }
     }
+    // HASTARLIQ: MAIN→ATTACK_ARTS移行時、相手フィールドの hastarliq_zones を処理
+    if (g.phase === 'MAIN' && next === 'ATTACK_ARTS') {
+      const oppS = oppState(g);
+      const hlZones = oppS.hastarliq_zones ?? [];
+      if (hlZones.length > 0) {
+        let gHL: CpuGameState = g;
+        // まず hastarliq_zones をクリア
+        const clearedOppS = { ...oppS, hastarliq_zones: undefined as number[] | undefined };
+        gHL = g.turnPlayer === 'player' ? { ...gHL, cpu: clearedOppS } : { ...gHL, player: clearedOppS };
+        for (const zi of hlZones) {
+          const oS = oppState(gHL);
+          const topHL = oS.field.signi[zi]?.at(-1);
+          if (!topHL) { appendLog(`【ハスターリク】ゾーン${zi + 1}: シグニなし（不発）`); continue; }
+          const topName = cardMap.get(topHL)?.CardName ?? topHL;
+          if (oS.energy.length >= 1) {
+            const newOppS: PlayerState = { ...oS, energy: oS.energy.slice(1) };
+            gHL = g.turnPlayer === 'player' ? { ...gHL, cpu: newOppS } : { ...gHL, player: newOppS };
+            appendLog(`【ハスターリク】ゾーン${zi + 1}：《無》を支払い→${topName}を守った`);
+          } else if (oS.hand.length >= 1) {
+            const discardedHL = oS.hand[oS.hand.length - 1];
+            const newOppS: PlayerState = {
+              ...oS,
+              hand:  oS.hand.filter(c => c !== discardedHL),
+              trash: [...oS.trash, discardedHL],
+            };
+            gHL = g.turnPlayer === 'player' ? { ...gHL, cpu: newOppS } : { ...gHL, player: newOppS };
+            appendLog(`【ハスターリク】ゾーン${zi + 1}：手札（${cardMap.get(discardedHL)?.CardName ?? discardedHL}）を捨て→${topName}を守った`);
+          } else {
+            const newFieldSig = [...oS.field.signi] as (string[] | null)[];
+            const stack = oS.field.signi[zi]!;
+            newFieldSig[zi] = stack.length > 1 ? stack.slice(0, -1) : null;
+            const newOppS: PlayerState = {
+              ...oS,
+              energy: [...oS.energy, topHL],
+              field: { ...oS.field, signi: newFieldSig },
+            };
+            gHL = g.turnPlayer === 'player' ? { ...gHL, cpu: newOppS } : { ...gHL, player: newOppS };
+            appendLog(`【ハスターリク】ゾーン${zi + 1}：支払い不可→${topName}がバニッシュ`);
+          }
+        }
+        return { ...gHL, phase: next };
+      }
+    }
     return { ...g, phase: next };
-  }, [appendLog]);
+  }, [appendLog, cardMap, oppState]);
 
   // ======= UP フェイズ処理 =======
   const processUp = useCallback((g: CpuGameState): CpuGameState => {
