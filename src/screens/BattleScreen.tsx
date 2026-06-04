@@ -4387,14 +4387,50 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         if (myPower >= opPower) {
           // バトル勝利：相手シグニをバニッシュ（チャームがあればトラッシュへ）
-          banishedOpCardNum = opTopCardNum;
-          const newOpSigni = [...op.field.signi] as (string[] | null)[];
-          newOpSigni[opZoneIndex] = null;
           const newOpDown   = [...(op.field.signi_down   ?? [false, false, false])];
           const newOpFrozen = [...(op.field.signi_frozen  ?? [false, false, false])];
           const newOpCharms = [...(op.field.signi_charms  ?? [null, null, null])];
           const newOpAcce   = [...(op.field.signi_acce    ?? [null, null, null])];
           const wasOpFrozen = newOpFrozen[opZoneIndex] ?? false;
+
+          // BATTLE_LEAVE_REPLACE_WITH_DOWN: アップ状態のシグニはバニッシュ代わりにダウン（任意→自動適用）
+          const opSigniWasUp = !(op.field.signi_down?.[opZoneIndex] === true);
+          const leaveReplaceDown = opSigniWasUp && (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_WITH_DOWN',
+          );
+          if (leaveReplaceDown) {
+            newOpDown[opZoneIndex] = true;
+            newOpFrozen[opZoneIndex] = false;
+            const newOpSigniLRD = [...op.field.signi] as (string[] | null)[];
+            newOpState = { ...op, field: { ...op.field, signi: newOpSigniLRD, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            appendBattleLogs([`${opCardName}（場離れ→ダウン代替）バニッシュ回避してダウン`]);
+          } else {
+          // COOKING_BANISH_SUBSTITUTE: 調理シグニにアクセがある場合、アクセをトラッシュしてバニッシュ回避（相手ターンのみ）
+          const opTopCardClass = opTopCardNum ? (battleCardMap.get(opTopCardNum)?.CardClass ?? '') : '';
+          const cookingBanishSub = isMyTurn && opTopCardClass.includes('調理') &&
+            (op.field.signi_acce?.[opZoneIndex] ?? null) !== null &&
+            op.field.signi.some(stack => {
+              const top = stack?.at(-1);
+              return top && (effectsMap.get(top) ?? []).some(eff =>
+                eff.effectType === 'CONTINUOUS' &&
+                (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+                (eff.action as import('../types/effects').StubAction).id === 'COOKING_BANISH_SUBSTITUTE' &&
+                checkActiveCondition(eff.activeCondition, op, my, false, battleCardMap, top),
+              );
+            });
+          if (cookingBanishSub) {
+            const acceTrash = newOpAcce[opZoneIndex]!;
+            newOpAcce[opZoneIndex] = null;
+            newOpFrozen[opZoneIndex] = false;
+            const newOpSigniCBS = [...op.field.signi] as (string[] | null)[];
+            newOpState = { ...op, trash: [...op.trash, acceTrash], field: { ...op.field, signi: newOpSigniCBS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            appendBattleLogs([`${opCardName}（調理バニッシュ代替）アクセをトラッシュしてバニッシュ回避`]);
+          } else {
+          banishedOpCardNum = opTopCardNum;
+          const newOpSigni = [...op.field.signi] as (string[] | null)[];
+          newOpSigni[opZoneIndex] = null;
           newOpDown[opZoneIndex]   = false;
           newOpFrozen[opZoneIndex] = false;
           const banishExtraTrash: string[] = [];
