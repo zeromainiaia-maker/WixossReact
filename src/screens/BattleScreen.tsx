@@ -4264,10 +4264,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (my.blocked_actions?.includes(`ATTACK:${myTopNum}`)) return;
 
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
-      const opZoneIndex = 2 - zoneIndex; // 正面ゾーン（表示反転を考慮）
-      const opStack = op.field.signi[opZoneIndex] ?? [];
-      const opTopCardNum = opStack.length > 0 ? opStack[opStack.length - 1] : null;
-      const opTopCard = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
+      let opZoneIndex = 2 - zoneIndex; // 正面ゾーン（表示反転を考慮）
+      let opStack = op.field.signi[opZoneIndex] ?? [];
+      let opTopCardNum: string | null = opStack.length > 0 ? opStack[opStack.length - 1] : null;
+      let opTopCard = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
+
+      // REDIRECT_ATTACK_TO_SELF_ZONE: 正面が空の場合、このSTUBを持つ相手シグニのゾーンへリダイレクト
+      if (!opTopCardNum) {
+        for (let zi = 0; zi < op.field.signi.length; zi++) {
+          const top = op.field.signi[zi]?.at(-1);
+          if (!top) continue;
+          const hasRedir = (effectsMap.get(top) ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'REDIRECT_ATTACK_TO_SELF_ZONE',
+          );
+          if (hasRedir) {
+            opZoneIndex = zi;
+            opStack = op.field.signi[zi]!;
+            opTopCardNum = top;
+            opTopCard = battleCardMap.get(top) ?? null;
+            appendBattleLogs([`${battleCardMap.get(top)?.CardName ?? top}がアタックをこのゾーンへリダイレクト`]);
+            break;
+          }
+        }
+      }
 
       const myKey = isHost ? 'host_state' : 'guest_state';
       const opKey = isHost ? 'guest_state' : 'host_state';
