@@ -96,17 +96,9 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     for (const num of selected) {
       const s = ownerState(tgt.owner, cur);
       const removed = removeFromField(num, s);
-      // BANISH_TO_LRIG_TRASH_INSTEAD: レゾナシグニはエナ代わりにlrig_trashへ
-      const hasLrigTrash = (c.effectsMap?.get(num) ?? []).some(eff =>
-        eff.effectType === 'CONTINUOUS' &&
-        (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
-        (eff.action as import('../types/effects').StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD',
-      );
-      const dest: PlayerState = hasLrigTrash
-        ? { ...removed, lrig_trash: [...removed.lrig_trash, num] }
-        : { ...removed, energy: [...removed.energy, num] };
-      cur = addLog(setOwnerState(tgt.owner, dest, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}${hasLrigTrash ? '（ルリグTへ）' : ''}`);
+      const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, num] };
+      cur = addLog(setOwnerState(tgt.owner, withEnergy, cur),
+        `${cur.cardMap.get(num)?.CardName ?? num}`);
     }
     return cur;
   }
