@@ -3491,7 +3491,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const ignoreRestriction = my.lrig_gained_types?.includes('__ignore_lrig_restriction__') ?? false;
 
   // シグニ召喚: リミット計算（アシストルリグ+1ずつ、lrig_limit_mod加算、LRIG_LIMIT_UP_AND_COLOR_GAIN加算）
-  const lrigLimit = (parseInt(currentLrig?.Limit ?? '0') || 0)
+  // OPP_CENTER_LRIG_LIMIT_SET_5: 相手フィールドにあれば基本リミットを5に上書き
+  const oppBasicLimitOverride = op.field.signi.some(stack => {
+    const top = stack?.at(-1);
+    return top && (effectsMap.get(top) ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' &&
+      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (eff.action as import('../types/effects').StubAction).id === 'OPP_CENTER_LRIG_LIMIT_SET_5'
+    );
+  }) ? 5 : undefined;
+  const lrigLimit = (oppBasicLimitOverride ?? (parseInt(currentLrig?.Limit ?? '0') || 0))
     + ((my.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((my.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
     + (my.lrig_limit_mod ?? 0)
