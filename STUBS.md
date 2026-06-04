@@ -534,7 +534,7 @@
 | 1 | AUTO | ✅ | SUMMON_FROM_ENERGY ※v0.193: エナゾーンのシグニをSELECT_TARGET→ADD_TO_FIELD（レベル上限テキスト解析対応） |
 | 1 | AUTO | ✅ | REMOVE_SELF_SIGNI_FROM_GAME ※v0.193: sourceCardNumをフィールドから除去→trash追加（WXDi-CP02-TK01A） |
 | 1 | CONT | 📝 | ACCE_BANISH_SUBSTITUTE ※ログのみ（アクセ代替バニッシュ: BattleScreen未実装）（WXDi-P09-TK03A） |
-| 1 | CONT | 📝 | OPP_DRAW_LIMIT_PER_TURN ※ログのみ（ドローフェイズ相手ドロー1枚上限: BattleScreen未実装）（WX25-P2-TK05） |
+| 1 | CONT | ✅ | OPP_DRAW_LIMIT_PER_TURN ※v0.194: collectDrawLimitsにLIMIT_OPP_DRAW_COUNTと同一IDチェックを追加。相手UPフェイズで自フィールド走査→ドロー上限1枚に制限（WX25-P2-TK05） |
 | 1 | CONT | 📝 | REDIRECT_ATTACK_TO_SELF_ZONE ※ログのみ（相手シグニアタックをこのゾーンへリダイレクト: BattleScreen未実装）（WXDi-CP02-TK01A） |
 | 1 | CONT | 📝 | BATTLE_LEAVE_REPLACE_WITH_DOWN ※ログのみ（場離れをダウンに置換: BattleScreen未実装）（WXDi-CP02-TK01A） |
 | 5 | CONT | 📝 | BANISH_TO_LRIG_TRASH_INSTEAD ※ログのみ（バニッシュ時ルリグデッキ戻らずルリグトラッシュへ: 未実装）（WX10-008/020/024/WX11-013/WX13-028） |
