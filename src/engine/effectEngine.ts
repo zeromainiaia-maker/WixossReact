@@ -1508,7 +1508,7 @@ export function collectDrawLimits(
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'LIMIT_OPP_DRAW_COUNT') continue;
+      if (act.type !== 'STUB' || (act.id !== 'LIMIT_OPP_DRAW_COUNT' && act.id !== 'OPP_DRAW_LIMIT_PER_TURN')) continue;
       // activeCondition チェック (レベル≥3 等)
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, opponentState, opponentState, isMyTurn, cardMap, cn)) continue;
       // 引けるカード上限をテキストから解析
