@@ -8425,9 +8425,121 @@ export function execStub(
       type: 'CHOOSE', options: colorOptsCCS, count: Math.min(totalCountCCS, colorOptsCCS.length), multiSelect: true,
     });
   }
-  // HASTARLIQ: ハスタルリク効果（ログのみ）
+  // HASTARLIQ: 【ハスターリク】(WXDi-P05-TK01A)を相手シグニゾーンに設置
   if (stub.id === 'HASTARLIQ') {
-    return done(addLog(ctx, 'ハスタルリク効果'));
+    const selectedZoneHL = typeof stub.value === 'number' ? stub.value : -1;
+    if (selectedZoneHL >= 0) {
+      const currentHL = [...(ctx.otherState.hastarliq_zones ?? [])];
+      if (!currentHL.includes(selectedZoneHL)) currentHL.push(selectedZoneHL);
+      const newOtherHL = { ...ctx.otherState, hastarliq_zones: currentHL };
+      return done(addLog({ ...ctx, otherState: newOtherHL }, `相手ゾーン${selectedZoneHL + 1}に【ハスターリク】設置`));
+    }
+    const setHLZone = (zi: number): StubAction => ({ type: 'STUB', id: 'HASTARLIQ', value: zi });
+    const zoneOptsHL = [0, 1, 2].map(zi => ({
+      id: `hastarliq_zone_${zi}`,
+      label: `相手ゾーン${zi + 1}に設置`,
+      action: setHLZone(zi) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, '【ハスターリク】を設置するゾーンを選択'), {
+      type: 'CHOOSE', options: zoneOptsHL, count: 1,
+    });
+  }
+  // HASTARLIQ_TRIGGER: アタックフェイズ開始時発動（BattleScreenがスタックに積む）
+  // 相手に「手札を1枚捨てる」か「《無》を支払う」か「どちらも行わない（→バニッシュ）」を選ばせる
+  if (stub.id === 'HASTARLIQ_TRIGGER') {
+    const zoneHL = typeof stub.value === 'number' ? stub.value : 0;
+    const signiStackHLT = ctx.otherState.field.signi[zoneHL];
+    if (!signiStackHLT || signiStackHLT.length === 0) {
+      return done(addLog(ctx, `【ハスターリク】ゾーン${zoneHL + 1}: シグニなし（不発）`));
+    }
+    const canPayHLT    = ctx.otherState.energy.length >= 1;
+    const canDiscardHLT = ctx.otherState.hand.length >= 1;
+    const optsHLT = [];
+    if (canDiscardHLT) {
+      optsHLT.push({
+        id: 'hl_discard',
+        label: '手札を1枚捨てる',
+        action: { type: 'STUB', id: 'INTERNAL_HL_SELECT_DISCARD', value: zoneHL } as EffectAction,
+        available: true,
+      });
+    }
+    if (canPayHLT) {
+      optsHLT.push({
+        id: 'hl_pay',
+        label: '《無》を1枚支払う',
+        action: { type: 'STUB', id: 'INTERNAL_HL_PAY', value: zoneHL } as EffectAction,
+        available: true,
+      });
+    }
+    optsHLT.push({
+      id: 'hl_neither',
+      label: 'どちらも行わない（シグニがバニッシュ）',
+      action: { type: 'STUB', id: 'INTERNAL_HL_BANISH', value: zoneHL } as EffectAction,
+      available: true,
+    });
+    const targetNameHLT = ctx.cardMap.get(signiStackHLT.at(-1)!)?.CardName ?? signiStackHLT.at(-1)!;
+    return needsInteraction(addLog(ctx, `【ハスターリク】発動：ゾーン${zoneHL + 1}の${targetNameHLT}を守りますか？`), {
+      type: 'CHOOSE', options: optsHLT, count: 1, opponentResponds: true,
+    });
+  }
+  // INTERNAL_HL_SELECT_DISCARD: 手札を1枚選んで捨てる（ハスターリク回避）
+  if (stub.id === 'INTERNAL_HL_SELECT_DISCARD') {
+    if (ctx.otherState.hand.length === 0) {
+      return done(addLog(ctx, '【ハスターリク】：手札なし（捨て不可）'));
+    }
+    const noopHLS: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    const contHLS: StubAction = { type: 'STUB', id: 'INTERNAL_HL_DO_DISCARD' };
+    return needsInteraction(addLog(ctx, '【ハスターリク】：手札から1枚捨てる'), {
+      type: 'SELECT_TARGET',
+      candidates: ctx.otherState.hand,
+      count: 1,
+      optional: false,
+      targetScope: 'opp_hand',
+      thenAction: noopHLS as EffectAction,
+      continuation: contHLS as EffectAction,
+      opponentResponds: true,
+    });
+  }
+  // INTERNAL_HL_DO_DISCARD: 選択した手札をトラッシュへ→バニッシュ回避
+  if (stub.id === 'INTERNAL_HL_DO_DISCARD') {
+    const discardedHLD = ctx.lastProcessedCards?.[0];
+    if (!discardedHLD) return done(addLog(ctx, '【ハスターリク】：手札捨て失敗'));
+    const newOtherHLD: PlayerState = {
+      ...ctx.otherState,
+      hand:  ctx.otherState.hand.filter(c => c !== discardedHLD),
+      trash: [...ctx.otherState.trash, discardedHLD],
+    };
+    return done(addLog({ ...ctx, otherState: newOtherHLD },
+      `【ハスターリク】：${ctx.cardMap.get(discardedHLD)?.CardName ?? discardedHLD}を捨てた→バニッシュ回避`));
+  }
+  // INTERNAL_HL_PAY: 《無》1枚支払い→バニッシュ回避
+  if (stub.id === 'INTERNAL_HL_PAY') {
+    if (ctx.otherState.energy.length < 1) {
+      return done(addLog(ctx, '【ハスターリク】：エナ不足（支払い不可）'));
+    }
+    const newOtherHLP: PlayerState = {
+      ...ctx.otherState,
+      energy: ctx.otherState.energy.slice(1),
+    };
+    return done(addLog({ ...ctx, otherState: newOtherHLP }, '【ハスターリク】：《無》1枚支払い→バニッシュ回避'));
+  }
+  // INTERNAL_HL_BANISH: どちらも行わない→そのゾーンのシグニをバニッシュ（エナへ）
+  if (stub.id === 'INTERNAL_HL_BANISH') {
+    const zoneHLB = typeof stub.value === 'number' ? stub.value : 0;
+    const signiStackHLB = ctx.otherState.field.signi[zoneHLB];
+    const topHLB = signiStackHLB?.at(-1);
+    if (!topHLB) return done(addLog(ctx, `【ハスターリク】ゾーン${zoneHLB + 1}: シグニなし（バニッシュ不要）`));
+    const newFieldSigHLB = [...ctx.otherState.field.signi] as (string[] | null)[];
+    const remaining = signiStackHLB!.slice(0, -1);
+    newFieldSigHLB[zoneHLB] = remaining.length > 0 ? remaining : null;
+    const newOtherHLB: PlayerState = {
+      ...ctx.otherState,
+      energy: [...ctx.otherState.energy, topHLB],
+      field: { ...ctx.otherState.field, signi: newFieldSigHLB },
+    };
+    return done(addLog({ ...ctx, otherState: newOtherHLB },
+      `【ハスターリク】：${ctx.cardMap.get(topHLB)?.CardName ?? topHLB}をバニッシュ（エナへ）`));
   }
   // ACTIVATE_EICHI_ABILITY: コイン能力でエイチ能力を発動（ログのみ）
   if (stub.id === 'ACTIVATE_EICHI_ABILITY') {
