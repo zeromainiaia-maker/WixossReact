@@ -2579,6 +2579,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             pending_lrig_limit_mod: undefined,
           };
         }
+        // GROW→MAIN（メインフェイズ開始時）: game_main_draw（手札5枚以下ならドロー）
+        if (phase === 'GROW' && newMyState.game_main_draw && newMyState.hand.length <= 5 && newMyState.deck.length > 0) {
+          const drawCard = newMyState.deck[newMyState.deck.length - 1];
+          newMyState = { ...newMyState, deck: newMyState.deck.slice(0, -1), hand: [...newMyState.hand, drawCard] };
+          appendBattleLogs(['メインフェイズ開始ドロー（このゲーム）']);
+        }
+        // DRAW→ENERGY（エナフェイズ開始時）: game_energy_phase_draw
+        if (phase === 'DRAW' && newMyState.game_energy_phase_draw && newMyState.deck.length > 0) {
+          const drawCard = newMyState.deck[newMyState.deck.length - 1];
+          newMyState = { ...newMyState, deck: newMyState.deck.slice(0, -1), hand: [...newMyState.hand, drawCard] };
+          appendBattleLogs(['エナフェイズ開始ドロー（このゲーム）']);
+        }
         // HASTARLIQ: MAIN→ATTACK_ARTS移行時、相手の hastarliq_zones があれば発動
         if (phase === 'MAIN' && (op.hastarliq_zones ?? []).length > 0) {
           const opKey = isHost ? 'guest_state' : 'host_state';
