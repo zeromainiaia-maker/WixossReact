@@ -248,6 +248,12 @@ export interface PlayerState {
   optional_discard_guard_enabled?: boolean;
   // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェックが必要なシグニinstanceId一覧
   coin_condition_signi_instances?: string[];
+  // GAIN_ABILITY_THIS_GAME で付与されたゲーム全体フラグ（ターンリセット対象外）
+  game_suppress_lb?: boolean;       // WXK08-028: このゲーム、ライフバーストは発動しない
+  game_main_draw?: boolean;         // WXDi-P11-004: メインフェイズ開始時、手札5枚以下ならドロー
+  game_grow_draw?: boolean;         // WX24-P4-036: グロウしたとき1枚ドロー
+  game_hand_size_bonus?: number;    // WX25-P2-005: 手札上限増加
+  game_energy_phase_draw?: boolean; // WX25-P2-005: エナフェイズ開始時1枚ドロー
 }
 
 export interface GameLog {
