@@ -2926,7 +2926,19 @@ export function collectAbilityGainProtectedSigni(
           }
         }
       }
+      // CONTINUOUS GRANT_ABILITY_INNER_TEXT: 「対戦相手の効果によって新たに能力を得られない」テキスト検出（シグニ自身）
+      if (act.type === 'STUB' && act.id === 'GRANT_ABILITY_INNER_TEXT') {
+        const card = cardMap.get(cn);
+        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+        const qm = txt.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/);
+        if (qm?.[1]?.match(/対戦相手の効果によって新たに能力を得られない/)) protected_.add(cn);
+      }
     }
+  }
+  // keyword_grants 経由の能力取得禁止（AUTO/ACTIVATED で付与）
+  for (const s of ownerState.field.signi) {
+    const top = s?.at(-1);
+    if (top && ownerState.keyword_grants?.[top]?.includes('__ability_gain_block__')) protected_.add(top);
   }
   return [...protected_];
 }
