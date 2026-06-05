@@ -2743,7 +2743,7 @@ export function collectPowerProtectedSigni(
         const card = cardMap.get(topNum);
         const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
         const qm = txt.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/);
-        if (qm?.[1]?.match(/対戦相手の効果によって.{0,15}パワーは?[－\-]/)) protected_.add(topNum);
+        if (qm?.[1]?.match(/対戦相手の効果によって.{0,15}パワーは?[－-]/)) protected_.add(topNum);
       }
     }
     // keyword_grants 経由のパワー弱体保護（AUTO/ACTIVATED で付与）
