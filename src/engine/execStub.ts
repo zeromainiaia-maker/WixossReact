@@ -384,6 +384,38 @@ export function execStub(
         return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMap } },
           `相手効果耐性を付与（${targetCardNums.length}体）`));
       }
+      // 「対戦相手の効果によってダウンしない」→ ダウン保護フラグ
+      if (quotedText.match(/対戦相手の効果によってダウンしない/)) {
+        const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+        for (const cn of targetCardNums) {
+          grants[cn] = [...new Set([...(grants[cn] ?? []), '__down_protect__'])];
+        }
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
+          `ダウン保護を付与（${targetCardNums.length}体）`));
+      }
+      // 「対戦相手の効果によって〜パワーは－されない」→ パワー弱体保護フラグ
+      if (quotedText.match(/対戦相手の効果によって.{0,15}パワーは?[－\-]/)) {
+        const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+        for (const cn of targetCardNums) {
+          grants[cn] = [...new Set([...(grants[cn] ?? []), '__power_minus_protect__'])];
+        }
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
+          `パワー弱体保護を付与（${targetCardNums.length}体）`));
+      }
+      // 「対戦相手の効果によってダメージを受けない」→ prevent_lrig_damage（ルリグへの付与）
+      if (quotedText.match(/対戦相手の効果によってダメージを受けない/)) {
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_lrig_damage: true } },
+          '相手効果ダメージ保護を付与'));
+      }
+      // 「対戦相手の効果によって新たに能力を得られない」→ 能力取得禁止フラグ
+      if (quotedText.match(/対戦相手の効果によって新たに能力を得られない/)) {
+        const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+        for (const cn of targetCardNums) {
+          grants[cn] = [...new Set([...(grants[cn] ?? []), '__ability_gain_block__'])];
+        }
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
+          `能力取得禁止を付与（${targetCardNums.length}体）`));
+      }
     }
 
     if (quotedText) return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 20)}...」（ログのみ）`));
