@@ -394,7 +394,7 @@ export function execStub(
           `ダウン保護を付与（${targetCardNums.length}体）`));
       }
       // 「対戦相手の効果によって〜パワーは－されない」→ パワー弱体保護フラグ
-      if (quotedText.match(/対戦相手の効果によって.{0,15}パワーは?[－\-]/)) {
+      if (quotedText.match(/対戦相手の効果によって.{0,15}パワーは?[－-]/)) {
         const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
         for (const cn of targetCardNums) {
           grants[cn] = [...new Set([...(grants[cn] ?? []), '__power_minus_protect__'])];
