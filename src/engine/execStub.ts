@@ -2108,6 +2108,34 @@ export function execStub(
       ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, blocked_card_names: [...(ctxGA.ownerState.blocked_card_names ?? []), blockMGA[1]] } };
       logsGA.push(`《${blockMGA[1]}》の使用をブロック`);
     }
+    // WXK08-028: ライフバーストは発動しない（このゲーム）
+    if (txtGA.match(/ライフバーストは発動しない/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_suppress_lb: true } };
+      logsGA.push('ライフバースト全無効（このゲーム）');
+    }
+    // WXDi-P11-004: メインフェイズ開始時、手札5枚以下ならドロー
+    if (txtGA.match(/メインフェイズ開始時.*手札.*5枚以下.*カードを.*引く/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_main_draw: true } };
+      logsGA.push('メインフェイズ開始時ドロー（手札5枚以下・このゲーム）');
+    }
+    // WX24-P4-036: グロウしたとき1枚ドロー
+    if (txtGA.match(/グロウしたとき.*カードを.*引く/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_grow_draw: true } };
+      logsGA.push('グロウ時ドロー（このゲーム）');
+    }
+    // WX25-P2-005: 手札上限増加
+    const handBonusM = txtGA.match(/手札の枚数の上限は([０-９\d]+)増える/);
+    if (handBonusM) {
+      const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const bonus = parseInt(toHW(handBonusM[1])) || 2;
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_hand_size_bonus: (ctxGA.ownerState.game_hand_size_bonus ?? 0) + bonus } };
+      logsGA.push(`手札上限+${bonus}（このゲーム）`);
+    }
+    // WX25-P2-005: エナフェイズ開始時1枚ドロー
+    if (txtGA.match(/エナフェイズ開始時.*カードを.*引く/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_energy_phase_draw: true } };
+      logsGA.push('エナフェイズ開始時ドロー（このゲーム）');
+    }
     if (logsGA.length > 0) return done(addLog(ctxGA, logsGA.join('・')));
     return done(addLog(ctx, 'このゲームの間：能力付与（ログのみ）'));
   }
