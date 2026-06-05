@@ -2699,7 +2699,20 @@ export function collectDownProtectedSigni(
           protected_.add(sourceNum);
         }
       }
+      // CONTINUOUS GRANT_ABILITY_INNER_TEXT: 「対戦相手の効果によってダウンしない」テキスト検出
+      if (act.id === 'GRANT_ABILITY_INNER_TEXT') {
+        const card = cardMap.get(sourceNum);
+        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+        const qm = txt.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/);
+        if (qm?.[1]?.match(/対戦相手の効果によってダウンしない/)) protected_.add(sourceNum);
+      }
     }
+  }
+  // keyword_grants 経由のダウン保護（AUTO/ACTIVATED で付与）
+  for (const stack of state.field.signi) {
+    if (!stack?.length) continue;
+    const top = stack[stack.length - 1];
+    if (state.keyword_grants?.[top]?.includes('__down_protect__')) protected_.add(top);
   }
   return [...protected_];
 }
