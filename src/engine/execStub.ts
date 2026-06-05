@@ -599,7 +599,7 @@ export function execStub(
       // パターン5: lastProcessedCards[0] のパワーと同じだけ±
       const sign = lastPwM[1] === '－' ? -1 : 1;
       const refCN = processed[0];
-      const refPw = ctx.effectivePowers?.get(refCN) ?? parseInt(ctx.cardMap.get(refCN)?.Power ?? '0') || 0;
+      const refPw = ctx.effectivePowers?.get(refCN) ?? (parseInt(ctx.cardMap.get(refCN)?.Power ?? '0') || 0);
       totalDelta = sign * refPw;
     }
 
