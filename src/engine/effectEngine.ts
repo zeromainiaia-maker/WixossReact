@@ -2738,7 +2738,16 @@ export function collectPowerProtectedSigni(
       if (act.type === 'STUB' && act.id === 'PREVENT_POWER_MINUS_BY_OPP') {
         protected_.add(topNum);
       }
+      // CONTINUOUS GRANT_ABILITY_INNER_TEXT: 「〜パワーは－されない」テキスト検出
+      if (act.type === 'STUB' && act.id === 'GRANT_ABILITY_INNER_TEXT') {
+        const card = cardMap.get(topNum);
+        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+        const qm = txt.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/);
+        if (qm?.[1]?.match(/対戦相手の効果によって.{0,15}パワーは?[－\-]/)) protected_.add(topNum);
+      }
     }
+    // keyword_grants 経由のパワー弱体保護（AUTO/ACTIVATED で付与）
+    if (state.keyword_grants?.[topNum]?.includes('__power_minus_protect__')) protected_.add(topNum);
   }
   return [...protected_];
 }
