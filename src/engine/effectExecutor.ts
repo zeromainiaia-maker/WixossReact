@@ -195,7 +195,7 @@ function execPowerMultiply(a: import('../types/effects').PowerMultiplyAction, ct
     const s = ownerState(tgtOwner, c);
     const mods = [...(s.temp_power_mods ?? [])];
     for (const cn of selected) {
-      const curPw = c.effectivePowers?.get(cn) ?? parseInt(c.cardMap.get(cn)?.Power ?? '0') || 0;
+      const curPw = c.effectivePowers?.get(cn) ?? (parseInt(c.cardMap.get(cn)?.Power ?? '0') || 0);
       mods.push({ cardNum: cn, delta: curPw * (a.multiplier - 1) });
     }
     const newS: PlayerState = { ...s, temp_power_mods: mods };
