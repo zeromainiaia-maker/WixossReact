@@ -7439,7 +7439,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </>
                   ) : (
                     <>
-                      {hasBurst && (my.suppress_life_burst || eichiSuppressActive) && (
+                      {hasBurst && (my.suppress_life_burst || eichiSuppressActive || my.game_suppress_lb) && (
                         <p style={{ color: C.textDim, fontSize: 12, margin: 0 }}>
                           ライフバースト抑制中
                         </p>
