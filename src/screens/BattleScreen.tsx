@@ -3653,6 +3653,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const coinLog = coinGain > 0 ? `（コイン+${coinGain}）` : '';
       const logs = [`${cardName}にグロウ${coinLog}`];
       if (growEffectLog) logs.push(growEffectLog);
+      // game_grow_draw: グロウ時ドロー（GAIN_ABILITY_THIS_GAME）
+      if (newMyState.game_grow_draw && newMyState.deck.length > 0) {
+        const drawCard = newMyState.deck[newMyState.deck.length - 1];
+        newMyState = { ...newMyState, deck: newMyState.deck.slice(0, -1), hand: [...newMyState.hand, drawCard] };
+        logs.push('グロウ時ドロー（このゲーム）');
+      }
       appendBattleLogs(logs);
 
       // ルリグの ON_PLAY 効果を確認（COPY_LRIG_NAME_ABILITYコピー効果も含む）
