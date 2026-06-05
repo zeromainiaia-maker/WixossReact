@@ -590,7 +590,7 @@ export function execStub(
         if (topIdx < 0) continue;
         const underCards = stack!.slice(0, topIdx);
         totalDelta = underCards.reduce((acc, cn) => {
-          const pw = ctx.effectivePowers?.get(cn) ?? parseInt(ctx.cardMap.get(cn)?.Power ?? '0') || 0;
+          const pw = ctx.effectivePowers?.get(cn) ?? (parseInt(ctx.cardMap.get(cn)?.Power ?? '0') || 0);
           return acc + pw;
         }, 0);
         break;
