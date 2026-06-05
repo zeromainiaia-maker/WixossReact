@@ -720,7 +720,7 @@ export function execStub(
       for (let zi = 0; zi < 3; zi++) {
         const top = ctx.ownerState.field.signi[zi]?.at(-1);
         if (!top) continue;
-        const curPwDP = ctx.effectivePowers?.get(top) ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0') || 0;
+        const curPwDP = ctx.effectivePowers?.get(top) ?? (parseInt(ctx.cardMap.get(top)?.Power ?? '0') || 0);
         modsDP.push({ cardNum: top, delta: curPwDP * (multiplierDP - 1) });
         boostedDP++;
       }
