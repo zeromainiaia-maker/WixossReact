@@ -1933,6 +1933,9 @@ export function collectHandLimits(
     limit -= reduceM ? parseInt(toHW(reduceM[1])) : 1;
   });
 
+  // game_hand_size_bonus: GAIN_ABILITY_THIS_GAME で付与された手札上限増加
+  limit += ownerState.game_hand_size_bonus ?? 0;
+
   return Math.max(0, limit);
 }
 
