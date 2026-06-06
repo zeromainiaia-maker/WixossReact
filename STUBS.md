@@ -35,7 +35,7 @@
 | 30 | ACTIVATED/AUTO | ✅ | SOUL_OP ※v0.133: +3パターン追加（ルリグ下N枚任意消費/固定消費/ルリグトラッシュ→ルリグ下配置）+INTERNAL_CONSUME_LRIG_UNDER/INTERNAL_PLACE_LRIG_UNDER_CENTER |
 | 21 | AUTO | ✅ | GAIN_SUBSCRIBER_COUNT |
 | 23 | AUTO/ACTIVATED | ✅ | LRIG_UNDER_CARD_OP |
-| 22 | CONT/AUTO/ACTIVATED | ⚡ | GRANT_ABILITY_INNER_TEXT ※v0.204: ダウン保護/パワー弱体保護/ダメージ保護/能力取得禁止の4パターン追加（WXDi-P03-060/WXDi-P07-085②③/WXDi-P13-052/WX25-CP1-044/WX25-P1-026/SPDi44-04）。残り: 相手シグニ自能力コスト化/ルリグパワー修正付与/攻撃行動変更/ガード代替等はログのみ |
+| 22 | CONT/AUTO/ACTIVATED | ✅ | GRANT_ABILITY_INNER_TEXT ※v0.208: 全シグニシャドウ付与/相手シグニ自能力ブロック・次ターン持続（BLOCK_OWN_SIGNI_AUTO:NEXT_TURN）/相手起動コスト増加（lrig_opp_act_cost_plus）/アタックフェイズ相手パワーダウン（lrig_attack_phase_power_down_per_signi）/相手シグニエナ→デッキ下（opp_signi_energy_to_deck_bottom）追加（WXDi-P16-044/SPDi43-01/WXDi-P15-033/WX24-P2-030/WX25-CP1-003/WXDi-P11-038）。攻撃行動変更（WXDi-P05-069/WX25-P2-004等）はログのみ |
 | 18 | AUTO/ACTIVATED | ✅ | BET_ALTERNATIVE ※BET_MECHANICで通常/ベット選択肢を一括処理済み。このSTUBはスキップ（正常動作） |
 | 18 | AUTO/ACTIVATED | ✅ | DECLARE_CARD_NAME |
 | 18 | AUTO/ACTIVATED | ✅ | LOOK_AND_REORDER |

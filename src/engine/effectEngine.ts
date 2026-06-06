@@ -3353,7 +3353,8 @@ export function collectIncreaseActCost(
     ...(opponentState.field.lrig.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
     ...(opponentState.field.key_piece ? [opponentState.field.key_piece] : []),
   ];
-  let extra = 0;
+  // lrig_opp_act_cost_plus: GRANT_ABILITY_INNER_TEXT で付与されたコスト増加
+  let extra = opponentState.lrig_opp_act_cost_plus ?? 0;
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;

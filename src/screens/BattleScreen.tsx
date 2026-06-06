@@ -1214,7 +1214,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const myS  = localIsHost ? bs.host_state  : bs.guest_state;
     const opS  = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
-    return calcFieldPowers(myS, opS, myTurn, effectsMap, battleCardMap);
+    const base = calcFieldPowers(myS, opS, myTurn, effectsMap, battleCardMap);
+    // lrig_attack_phase_power_down_per_signi: アタックフェイズ中に相手シグニのパワーを自シグニ数×N下げる
+    const isAttackPhase = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(bs.turn_phase);
+    if (isAttackPhase && (myS.lrig_attack_phase_power_down_per_signi ?? 0) > 0) {
+      const friendlyCount = myS.field.signi.filter(s => s?.length).length;
+      const penalty = -(myS.lrig_attack_phase_power_down_per_signi! * friendlyCount);
+      const result = new Map(base);
+      for (const stack of opS.field.signi) {
+        const top = stack?.at(-1);
+        if (top) result.set(top, (result.get(top) ?? 0) + penalty);
+      }
+      return result;
+    }
+    return base;
   }, [bs, effectsMap, battleCardMap, user.id]);
 
   // CONTINUOUS コスト修正（CostIncreaseAction 効果を集計）
@@ -2327,9 +2340,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時' : 'ターン終了時';
 
     // 自分のフィールドシグニ（self = このターンプレイヤーのカード）
+    // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ
+    const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
     for (const stack of myState.field.signi) {
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
+      if (ownAutoBlockedTurn) continue;
       for (const eff of (effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
         if ((eff.triggerScope ?? 'self') !== 'self') continue;
@@ -3324,10 +3340,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opId = isHost ? bs.guest_id : bs.host_id;
 
     // 自分のフィールド：'any_ally' または 'any' トリガー
+    // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ（GRANT_ABILITY_INNER_TEXT付与）
+    const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
     for (const stack of myState.field.signi) {
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
       if (topNum === triggeringCardNum) continue; // 自身は除く（ON_PLAYは queueCardEffects で処理）
+      if (ownAutoBlocked) continue;
       const effects = effectsMap.get(topNum) ?? [];
       for (const eff of effects) {
         if (eff.effectType !== 'AUTO') continue;

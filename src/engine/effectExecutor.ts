@@ -96,9 +96,13 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     for (const num of selected) {
       const s = ownerState(tgt.owner, cur);
       const removed = removeFromField(num, s);
-      const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, num] };
-      cur = addLog(setOwnerState(tgt.owner, withEnergy, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}`);
+      // opp_signi_energy_to_deck_bottom: 相手シグニがエナゾーンに置かれる代わりにデッキ下へ
+      const toBottom = tgt.owner === 'opponent' && (removed.opp_signi_energy_to_deck_bottom ?? false);
+      const dest: PlayerState = toBottom
+        ? { ...removed, deck: [num, ...removed.deck] }
+        : { ...removed, energy: [...removed.energy, num] };
+      cur = addLog(setOwnerState(tgt.owner, dest, cur),
+        `${cur.cardMap.get(num)?.CardName ?? num}${toBottom ? '→デッキ下' : ''}`);
     }
     return cur;
   }

@@ -334,12 +334,19 @@ export function execStub(
 
     // シンプルキーワード付与
     if (grantedKws.length > 0 && targetCardNums.length > 0) {
+      // 「あなたのシグニは【シャドウX】を得る」パターン: ルリグが対象でも全フィールドシグニへ
+      const allSigniShadowM = txtGQ.match(/あなたのシグニは【(シャドウ[^】]*)】を得る/);
+      const isLrigTarget = ctx.ownerState.field.lrig.includes(targetCardNums[0] ?? '');
+      let actualTargets = targetCardNums;
+      if (allSigniShadowM && isLrigTarget) {
+        actualTargets = ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
+      }
       const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-      for (const cn of targetCardNums) {
+      for (const cn of actualTargets) {
         grants[cn] = [...new Set([...(grants[cn] ?? []), ...grantedKws])];
       }
       return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
-        `${grantedKws.join('・')}を付与（${targetCardNums.length}体）`));
+        `${grantedKws.join('・')}を付与（${actualTargets.length}体）`));
     }
 
     // 既知のCONTINUOUS能力パターンを granted_effects に格納
@@ -418,7 +425,78 @@ export function execStub(
       }
     }
 
-    if (quotedText) return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 20)}...」（ログのみ）`));
+    // ---- 以下は quotedText ありだが既知パターン外のケース ----
+    if (quotedText) {
+      const toHWGQ = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
+      // 「あなたのシグニは【シャドウX】を得る」（quotedText で直接来るケース）
+      const allShadowQM = quotedText.match(/あなたのシグニは【(シャドウ[^】]*)】を得る/);
+      if (allShadowQM) {
+        const shadowKwQ = allShadowQM[1];
+        const grantsQ = { ...(ctx.ownerState.keyword_grants ?? {}) };
+        for (const stack of ctx.ownerState.field.signi) {
+          const top = stack?.at(-1);
+          if (top) grantsQ[top] = [...new Set([...(grantsQ[top] ?? []), shadowKwQ])];
+        }
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsQ } }, `全シグニに${shadowKwQ}付与`));
+      }
+
+      // 「対戦相手のシグニの【自】能力は発動しない」(WXDi-P16-044)
+      if (quotedText.match(/対戦相手のシグニの【自】能力は発動しない/)) {
+        const newMyBlocked = [...(ctx.ownerState.blocked_actions ?? []), 'BLOCK_OPP_SIGNI_AUTO'];
+        const newOtherBlocked = [...(ctx.otherState.blocked_actions ?? []), 'BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'];
+        return done(addLog({
+          ...ctx,
+          ownerState: { ...ctx.ownerState, blocked_actions: newMyBlocked },
+          otherState: { ...ctx.otherState, blocked_actions: newOtherBlocked },
+        }, '相手シグニ【自】能力ブロック（次ターンも）'));
+      }
+
+      // 「対戦相手のシグニの【自】能力が発動する場合、支払わないかぎり何もしない」(SPDi43-01)
+      if (quotedText.match(/対戦相手のシグニの【自】能力が発動する場合.*支払わないかぎり.*何もしない/)) {
+        const newMyBl = [...(ctx.ownerState.blocked_actions ?? []), 'BLOCK_OPP_SIGNI_AUTO'];
+        const newOtherBl = [...(ctx.otherState.blocked_actions ?? []), 'BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'];
+        return done(addLog({
+          ...ctx,
+          ownerState: { ...ctx.ownerState, blocked_actions: newMyBl },
+          otherState: { ...ctx.otherState, blocked_actions: newOtherBl },
+        }, '相手シグニ【自】能力（コスト払いなし時無効、次ターンも）'));
+      }
+
+      // 「対戦相手のカードの【起】能力の使用コストは《無×N》増える」(WXDi-P15-033)
+      const actCostM = quotedText.match(/対戦相手のカードの【起】能力の使用コストは《無[×x]([０-９\d]+)》増える/);
+      if (actCostM) {
+        const n = parseInt(toHWGQ(actCostM[1])) || 1;
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_opp_act_cost_plus: (ctx.ownerState.lrig_opp_act_cost_plus ?? 0) + n } },
+          `相手起動能力コスト《無×${n}》増加`));
+      }
+
+      // 「アタックフェイズの間、対戦相手のシグニのパワーをN体につき－Nする」(WX24-P2-030)
+      const atkPhaseM = quotedText.match(/アタックフェイズの間.*対戦相手のシグニのパワーを.*つき[－-]([０-９\d]+)する/);
+      if (atkPhaseM) {
+        const delta = parseInt(toHWGQ(atkPhaseM[1])) || 2000;
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_attack_phase_power_down_per_signi: delta } },
+          `アタックフェイズ中：相手シグニパワー自シグニ×-${delta}付与`));
+      }
+
+      // 「このシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる」(WX25-CP1-003)
+      if (quotedText.match(/このシグニがエナゾーンに置かれる場合、代わりにデッキの一番下に置かれる/)) {
+        return done(addLog({ ...ctx, otherState: { ...ctx.otherState, opp_signi_energy_to_deck_bottom: true } },
+          '相手シグニのエナゾーン配置→デッキ下に変更'));
+      }
+
+      // 「あなたがダメージを受ける場合、代わりに〜支払ってもよい」(WX24-P4-021)
+      if (quotedText.match(/あなたがダメージを受ける場合、代わりに.*支払ってもよい/)) {
+        return done(addLog(ctx, 'ダメージ代替コスト付与（ログのみ）'));
+      }
+
+      // 「あなたのシグニのパワーを＋Nする」(WXDi-P11-038): E1のPOWER_MODIFYで既処理のため参照のみ
+      if (quotedText.match(/あなたのシグニのパワーを＋([０-９\d]+)する/)) {
+        return done(addLog(ctx, 'ルリグへのシグニパワー付与能力（effectEngineで処理）'));
+      }
+
+      return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 24)}」（ログのみ）`));
+    }
     return done(addLog(ctx, '能力を付与（effectEngine処理）'));
   }
   // ルリグデッキ下操作（多パターン）

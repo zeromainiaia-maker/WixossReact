@@ -262,6 +262,10 @@ export interface PlayerState {
   game_lrig_limit_bonus?: number;                  // ゲーム通じて累積するリミット増加量（リセット対象外）
   game_declared_signi_level_zero?: boolean;        // WXK09-001: 宣言シグニのレベルを0に
   game_declared_signi_ignore_restriction?: boolean; // WXK09-001: 宣言シグニの限定条件無視
+  // GRANT_ABILITY_INNER_TEXT で付与されたルリグ能力（ターンリセット対象外の持続効果）
+  lrig_opp_act_cost_plus?: number;                 // WXDi-P15-033: 相手起動能力コスト増加
+  lrig_attack_phase_power_down_per_signi?: number; // WX24-P2-030: アタックフェイズ中の相手パワーダウン
+  opp_signi_energy_to_deck_bottom?: boolean;       // WX25-CP1-003: 相手シグニのエナ→デッキ下
 }
 
 export interface GameLog {
