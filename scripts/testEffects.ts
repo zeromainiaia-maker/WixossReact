@@ -13,7 +13,6 @@ import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import {
   executeEffect,
-  executeAction,
   resumeSelectTarget,
   resumeSearch,
   resumeChoose,
@@ -139,7 +138,7 @@ const baseOtherState = makePlayerState(
 
 const MAX_DEPTH = 10;
 
-const DEBUG_CARD = ''; // set to a cardNum to debug that card specifically
+const _DEBUG_CARD = ''; // set to a cardNum to debug that card specifically
 
 function autoResolve(result: ExecResult, ctx: ExecCtx, depth: number): ExecResult {
   if (result === undefined || result === null) {
@@ -316,7 +315,7 @@ for (const cardNum of cardNums) {
           throw new Error(`executeEffect returned undefined for action.type=${effect.action?.type} id=${actId} (retry also returned ${typeof _inner})`);
         } catch (inner) {
           if (inner instanceof Error && inner.message.startsWith('executeEffect returned undefined')) throw inner;
-          throw new Error(`executeEffect returned undefined for action.type=${effect.action?.type} id=${actId} | innerError: ${inner instanceof Error ? inner.message.slice(0,150) : String(inner)}`);
+          throw new Error(`executeEffect returned undefined for action.type=${effect.action?.type} id=${actId} | innerError: ${inner instanceof Error ? inner.message.slice(0,150) : String(inner)}`, { cause: inner });
         }
       }
       const final = autoResolve(initial, ctx, 0);
