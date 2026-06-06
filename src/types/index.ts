@@ -328,6 +328,7 @@ export type PendingInteractionDef =
       destLocation: 'deck';
       destOwner: 'self' | 'opponent';
       destPosition: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom';
+      private: boolean;       // true=自分だけ見る（見る）/ false=両者公開（公開する）
       continuation?: EffectAction;
     }
   | {

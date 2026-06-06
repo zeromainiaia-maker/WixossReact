@@ -1216,6 +1216,7 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     destLocation: 'deck',
     destOwner: (a.destination.owner === 'any' ? 'self' : a.destination.owner) as 'self' | 'opponent',
     destPosition: a.destination.position,
+    private: a.private,
   });
 }
 
