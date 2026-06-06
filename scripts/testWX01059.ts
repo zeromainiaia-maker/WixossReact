@@ -14,7 +14,7 @@ import {
   resumeSelectZone,
 } from '../src/engine/effectExecutor';
 import type { ExecCtx, ExecResult } from '../src/engine/execUtils';
-import type { CardData, PlayerState, PendingInteractionDef } from '../src/types';
+import type { CardData, PendingInteractionDef } from '../src/types';
 import type { CardEffect } from '../src/types/effects';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
