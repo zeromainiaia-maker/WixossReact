@@ -35,7 +35,7 @@
 | 30 | ACTIVATED/AUTO | ✅ | SOUL_OP ※v0.133: +3パターン追加（ルリグ下N枚任意消費/固定消費/ルリグトラッシュ→ルリグ下配置）+INTERNAL_CONSUME_LRIG_UNDER/INTERNAL_PLACE_LRIG_UNDER_CENTER |
 | 21 | AUTO | ✅ | GAIN_SUBSCRIBER_COUNT |
 | 23 | AUTO/ACTIVATED | ✅ | LRIG_UNDER_CARD_OP |
-| 22 | CONT/AUTO/ACTIVATED | ✅ | GRANT_ABILITY_INNER_TEXT ※v0.208: 全シグニシャドウ付与/相手シグニ自能力ブロック・次ターン持続（BLOCK_OWN_SIGNI_AUTO:NEXT_TURN）/相手起動コスト増加（lrig_opp_act_cost_plus）/アタックフェイズ相手パワーダウン（lrig_attack_phase_power_down_per_signi）/相手シグニエナ→デッキ下（opp_signi_energy_to_deck_bottom）追加（WXDi-P16-044/SPDi43-01/WXDi-P15-033/WX24-P2-030/WX25-CP1-003/WXDi-P11-038）。攻撃行動変更（WXDi-P05-069/WX25-P2-004等）はログのみ |
+| 22 | CONT/AUTO/ACTIVATED | ✅ | GRANT_ABILITY_INNER_TEXT ※v0.209: フリップアタック（WXDi-P05-069: collectAltAttackFlipSigni+handleFlipAttack+ターン終了復元）追加。v0.208: 全シグニシャドウ/相手シグニ自能力ブロック/相手起動コスト増加/アタックフェイズパワーダウン/相手シグニエナ→デッキ下追加。WX25-P2-004のリコレクト追加効果はログのみ |
 | 18 | AUTO/ACTIVATED | ✅ | BET_ALTERNATIVE ※BET_MECHANICで通常/ベット選択肢を一括処理済み。このSTUBはスキップ（正常動作） |
 | 18 | AUTO/ACTIVATED | ✅ | DECLARE_CARD_NAME |
 | 18 | AUTO/ACTIVATED | ✅ | LOOK_AND_REORDER |
@@ -44,7 +44,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | REVEAL_PICK_PLAY ※デッキ上N枚公開→シグニ選択→場に出すインタラクション実装済み |
 | 15 | AUTO/ACTIVATED | ✅ | TARGET_ONLY ※対象シグニ選択→lastProcessedCardsに格納→後続ステップへ続行 |
 | 14 | CONT | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
-| 14 | AUTO/ACTIVATED | ✅ | GAIN_ABILITY_THIS_GAME ※v0.206: デッキシグニレベルオーバーライド/コイン獲得禁止/宣言シグニLv0・限定条件無視/相手ガード追加コスト（手札か無）/ガード代替（手札N枚）/ターン終了時トラッシュ→手札/グロウフェイズ開始リミット累積追加（WXK07-056/WXDi-P07-006/WXK09-001/WXDi-P05-005/WXDi-P06-006/WXDi-P04-006/WXDi-P11-010A）。能力ブロック（『』）は後続スタブで処理。WXK03-003A/WX25-P2-009等の複合トリガーはログのみ |
+| 14 | AUTO/ACTIVATED | ✅ | GAIN_ABILITY_THIS_GAME ※v0.209: WXK03-003A: ルリグ起動回数カウント（lrig_activation_count）・5回目裏返しログ/レベル・リミット相手センタールリグコピー（lrig_copy_opp_level_limit）追加。v0.206: 各種ゲーム能力フラグ実装済み。能力ブロック（『』）は後続スタブで処理 |
 | 14 | ACTIVATED | ✅ | CONDITIONAL_ARTS_COST ※v0.143: 正しい条件チェックに修正。対戦相手ルリグ色条件/自ルリグレベル条件を確認。コスト計算はcomputeArtsEffectiveCostで処理済み |
 | 16 | AUTO/ACTIVATED/CONT | ✅ | GRANT_QUOTED_ABILITY |
 | 13 | AUTO/ACTIVATED | ✅ | REVEAL_AND_PICK ※デッキ上N枚→クラスフィルタ→手札/場に出すインタラクション実装済み |
@@ -100,7 +100,7 @@
 | 2 | AUTO/ACTIVATED | ✅ | DECK_TOP_DECLARED_NUM_TRASH ※declared_guard_restrict_level枚のデッキ上カードをトラッシュ |
 | 4 | AUTO/ACTIVATED | ✅ | EFFECT_LIMIT ※効果テキストのN枚上限キャップをtemp_power_modsに適用 |
 | 4 | AUTO/ACTIVATED | ✅ | FLIP_FACE_DOWN_SIGNI ※v0.170: flip-back実装済み（face_down_signi全解除+abilities_removed除去）。「この方法で裏向きにしたシグニを表向きにする」パターン対応
-| 4 | AUTO/ACTIVATED | ✅ | GAIN_EXTRA_TURN |
+| 4 | AUTO/ACTIVATED | ✅ | GAIN_EXTRA_TURN ※v0.209: SP26-006「対戦相手が追加ターン」パターン対応（otherState.extra_turn）/CpuBattleScreen追加ターンロジック追加 |
 | 4 | AUTO | ✅ | MAKE_SERVANT_ZERO ※v0.157: card_identity_overrides['instanceId']='WXDi-P07-TK01-A'に変更。battleCardMapとeffectsMapがZEROカードデータを解決し、power=1000/class=精元/color=無/abilities=なしが全システムで正確に反映 |
 | 2 | AUTO/ACTIVATED | ✅ | MASS_TRASH ※相手エナ全枚+フィールド全シグニをトラッシュ |
 | 5 | AUTO/ACTIVATED | ✅ | OPEN_MAGIC_BOX ※v0.170: 同ゾーンMBを「開ける/しない」CHOOSE→INTERNAL_OPEN_MB_DO（トラッシュ移動+lastProcessedCards設定） |

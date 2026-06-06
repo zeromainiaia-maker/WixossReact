@@ -231,6 +231,15 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
     const idx = phaseOrder.indexOf(g.phase);
     const next = phaseOrder[idx + 1] ?? 'UP';
     if (next === 'UP') {
+      const s = myState(g);
+      // GAIN_EXTRA_TURN: extra_turn フラグが設定されている場合は同プレイヤーが追加ターンを得る
+      if (s.extra_turn) {
+        appendLog(`--- 追加ターン（${g.turnPlayer === 'player' ? 'プレイヤー' : 'CPU'}）---`);
+        return { ...g, phase: 'UP', player: g.player, cpu: g.cpu,
+          ...(g.turnPlayer === 'player'
+            ? { player: { ...g.player, extra_turn: undefined } }
+            : { cpu: { ...g.cpu, extra_turn: undefined } }) };
+      }
       const nextPlayer = g.turnPlayer === 'player' ? 'cpu' : 'player';
       appendLog(`--- ${nextPlayer === 'player' ? 'プレイヤー' : 'CPU'} のターン ---`);
       return { ...g, phase: 'UP', turnPlayer: nextPlayer };

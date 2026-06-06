@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -2514,6 +2514,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`ターン終了時：トラッシュ＜${ttCls}＞シグニ${ttToHand.length}枚を手札へ（このゲーム）`]);
           }
         }
+        // flip_attack_signi_zones: フリップアタックで裏向きにしたシグニをターン終了時に表向きに戻す
+        if ((my.flip_attack_signi_zones ?? []).length > 0) {
+          const newSigniDownFA = [...(myFieldAfterCoinCheck.signi_down ?? [false, false, false])] as [boolean, boolean, boolean];
+          const unflipped: string[] = [];
+          for (const zi of my.flip_attack_signi_zones!) {
+            if (!(my.field.signi[zi]?.length)) { // ゾーンが空なら表向きに戻す
+              newSigniDownFA[zi] = false;
+              const topName = battleCardMap.get(my.field.signi[zi]?.at(-1) ?? '')?.CardName;
+              if (topName) unflipped.push(topName);
+            }
+          }
+          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi_down: newSigniDownFA };
+          if (unflipped.length > 0) appendBattleLogs([`フリップアタック復元：${unflipped.join('・')}を表向きに`]);
+        }
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         newMyState = {
           ...my,
@@ -2563,6 +2577,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           deck_signi_level_override: undefined,       // デッキシグニレベルオーバーライドをリセット
           reduce_next_on_play_cost: undefined,        // 【出】コスト軽減フラグをリセット
           optional_discard_guard_enabled: undefined,  // 任意捨てガードフラグをリセット
+          flip_attack_signi_zones: undefined,         // フリップアタックゾーンをリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
@@ -3603,7 +3618,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       (eff.action as import('../types/effects').StubAction).id === 'OPP_CENTER_LRIG_LIMIT_SET_5'
     );
   }) ? 5 : undefined;
-  const lrigLimit = (oppBasicLimitOverride ?? (parseInt(currentLrig?.Limit ?? '0') || 0))
+  // lrig_copy_opp_level_limit: WXK03-003A ルリグのリミットを相手センタールリグからコピー
+  const oppCenterLrig = battleCardMap.get(op.field.lrig.at(-1) ?? '');
+  const copyBaseLimitFromOpp = my.lrig_copy_opp_level_limit
+    ? (parseInt(oppCenterLrig?.Limit ?? '0') || 0)
+    : undefined;
+  const lrigLimit = (oppBasicLimitOverride ?? copyBaseLimitFromOpp ?? (parseInt(currentLrig?.Limit ?? '0') || 0))
     + ((my.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((my.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
     + (my.lrig_limit_mod ?? 0)
@@ -4360,6 +4380,53 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       },
       crashed,
     };
+  };
+
+  // WXDi-P05-069: フリップアタック（ロビンフッドが自シグニを裏向きにしてアタック）
+  const handleFlipAttack = async (attackZone: number, flipZones: number[]) => {
+    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
+      const flippedCards: string[] = [];
+      for (const zi of flipZones) {
+        const top = my.field.signi[zi]?.at(-1);
+        if (top && !my.field.signi_down?.[zi]) {
+          newSigniDown[zi] = true; // 裏向き = ダウン状態で表現
+          flippedCards.push(battleCardMap.get(top)?.CardName ?? top);
+        }
+      }
+      const attackerName = battleCardMap.get(my.field.signi[attackZone]?.at(-1) ?? '')?.CardName ?? '';
+      const newMyState: PlayerState = {
+        ...my,
+        field: { ...my.field, signi_down: newSigniDown as [boolean, boolean, boolean] },
+        flip_attack_signi_zones: flipZones,
+        attacked_signi_ids: [...(my.attacked_signi_ids ?? []), my.field.signi[attackZone]?.at(-1) ?? ''],
+      };
+      appendBattleLogs([`フリップアタック：${attackerName}がアタック（${flippedCards.join('・')}を裏向き）`]);
+      // 正面の相手シグニとバトル（通常アタックと同じ処理だがアサシン的に直接ダメージ）
+      const opZone = 2 - attackZone;
+      if (!(op.field.signi[opZone]?.length)) {
+        // 正面空き → ダメージ
+        const newOtherState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: false } };
+        if (op.life_cloth.length > 0) {
+          const crashed = op.life_cloth[op.life_cloth.length - 1];
+          const opKey = isHost ? 'guest_state' : 'host_state';
+          await supabase.from('battle_states')
+            .update({ [stateKey]: newMyState, [opKey]: { ...op, life_cloth: op.life_cloth.slice(0, -1), field: { ...op.field, check: crashed } } })
+            .eq('room_id', roomId);
+          appendBattleLogs([`シグニアタック：ライフクロスをクラッシュ`]);
+        } else {
+          const opKey = isHost ? 'guest_state' : 'host_state';
+          await supabase.from('battle_states').update({ [stateKey]: newMyState, [opKey]: newOtherState }).eq('room_id', roomId);
+        }
+      } else {
+        // 正面にシグニ → バトル（通常アタックへ委譲）
+        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+        await handleSigniAttack(attackZone);
+      }
+    } finally { setLoading(false); }
   };
 
   // シグニアタック処理（キーワード能力対応）
@@ -6115,7 +6182,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const signiAtkCost = my.signi_attack_cost ?? 0;
       if (signiAtkCost > 0 && my.energy.length < signiAtkCost) return []; // エナ不足でアタック不可
       const atkLabel = signiAtkCost > 0 ? `アタック（《無》×${signiAtkCost}）` : 'アタック';
-      return [{ label: atkLabel, color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
+      const actions: CardAction[] = [{ label: atkLabel, color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
+      // WXDi-P05-069: フリップアタック（ロビンフッド対象）
+      const altFlip = collectAltAttackFlipSigni(my, battleCardMap, effectsMap);
+      if (altFlip && (battleCardMap.get(topNum)?.CardName ?? '').includes(altFlip.targetSigniName)) {
+        const flipCandidates = [0, 1, 2].filter(zi => zi !== rawZoneIdx && (my.field.signi[zi]?.length ?? 0) > 0);
+        if (flipCandidates.length > 0) {
+          const flipZones = flipCandidates.slice(0, altFlip.maxFlip);
+          actions.push({ label: `フリップアタック（${flipZones.length}体裏向き）`, color: '#7c9e30', onClick: () => handleFlipAttack(rawZoneIdx, flipZones) });
+        }
+      }
+      return actions;
     }
 
     return [];

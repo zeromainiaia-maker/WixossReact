@@ -2274,13 +2274,25 @@ export function execStub(
     if (txtGA.match(/このゲームの間、あなたは以下の能力を得る/)) {
       logsGA.push('ゲーム能力ブロック付与');
     }
-    // WXK03-003A: この【起】を使用したのがN回目である場合
-    if (txtGA.match(/この【起】を使用したのが[０-９\d]+回目である場合/)) {
-      logsGA.push('ゲームN回目起動条件（ログのみ）');
+    // WXK03-003A: この【起】をN回目使用である場合、このルリグを裏返す
+    const nthUseM = txtGA.match(/この【起】を使用したのが([０-９\d]+)回目である場合/);
+    if (nthUseM) {
+      const toHWGA6 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const targetCount = parseInt(toHWGA6(nthUseM[1])) || 5;
+      const srcCardNumGA6 = ctx.sourceCardNum ?? '';
+      const countMap = { ...(ctxGA.ownerState.lrig_activation_count ?? {}) };
+      countMap[srcCardNumGA6] = (countMap[srcCardNumGA6] ?? 0) + 1;
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, lrig_activation_count: countMap } };
+      if (countMap[srcCardNumGA6] >= targetCount) {
+        logsGA.push(`このルリグを裏返す（${countMap[srcCardNumGA6]}/${targetCount}回目：裏返し実行ログのみ）`);
+      } else {
+        logsGA.push(`このゲームN回目起動（${countMap[srcCardNumGA6]}/${targetCount}回）`);
+      }
     }
-    // WXK03-003A: 基本レベルとリミットをセンタールリグと同じ値に
-    if (txtGA.match(/基本レベルと基本リミットは.*と同じ値になる/)) {
-      logsGA.push('レベル/リミットコピー（ログのみ）');
+    // WXK03-003A: 基本レベルとリミットをセンタールリグと同じ値にコピー
+    if (txtGA.match(/基本レベルと基本リミットは.*対象の対戦相手のセンタールリグ.*と同じ値になる/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, lrig_copy_opp_level_limit: true } };
+      logsGA.push('ルリグのレベル・リミットを相手センタールリグからコピー（このゲーム）');
     }
     // WXDi-P07-006: このゲームにコインを得ていない場合
     if (txtGA.match(/このゲームの間にあなたが《コインアイコン》を得ていない場合/)) {
@@ -4874,8 +4886,13 @@ export function execStub(
   // 追加ターンを獲得（ログのみ、ゲームエンジン実装が必要）
   // GAIN_EXTRA_TURN: 追加ターンフラグをセット（BattleScreen側でターン終了時に追加ターンを付与）
   if (stub.id === 'GAIN_EXTRA_TURN') {
-    const newOwnerET = { ...ctx.ownerState, extra_turn: true };
-    return done(addLog({ ...ctx, ownerState: newOwnerET }, '追加ターンを獲得（次のターン終了後にもう1ターン）'));
+    const srcET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtET = srcET ? (srcET.EffectText ?? '') + ' ' + (srcET.BurstText ?? '') : '';
+    // SP26-006: 「対戦相手はこのターンの次に、追加の１ターンを得る」→ otherState に付与
+    if (txtET.match(/対戦相手は.*追加の[１-９\d０-９]*ターンを得る/)) {
+      return done(addLog({ ...ctx, otherState: { ...ctx.otherState, extra_turn: true } }, '対戦相手が追加ターンを獲得'));
+    }
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, extra_turn: true } }, '追加ターンを獲得'));
   }
   // ガードアイコン付与（手札のシグニに付与: フラグ設定）
   if (stub.id === 'HAND_SIGNI_HAS_GUARD_ICON') {

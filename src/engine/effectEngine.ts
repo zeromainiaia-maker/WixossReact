@@ -3529,6 +3529,36 @@ export function collectFieldSigniExtraColors(
 }
 
 /**
+ * collectAltAttackFlipSigni: WXDi-P05-069 翠将　リトルジョン
+ * フィールドに「特定シグニがアタックする場合、代わりにシグニを裏向きにしてアタック」
+ * CONTINUOUS GRANT_ABILITY_INNER_TEXT があれば、対象シグニ名と最大フリ��プ数を返す。
+ */
+export function collectAltAttackFlipSigni(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { targetSigniName: string; maxFlip: number } | null {
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'GRANT_ABILITY_INNER_TEXT') continue;
+      const card = cardMap.get(top);
+      const txt = card?.EffectText ?? '';
+      // 「あなたの《X》は「...シグニをN体まで裏向きにしてアタック...」を得る」
+      const targetM = txt.match(/あなたの《([^》]+)》は「.*あなたのシグニを([０-９\d]+)体まで裏向きにしてアタック/);
+      if (targetM) {
+        const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        return { targetSigniName: targetM[1], maxFlip: parseInt(toHW(targetM[2])) || 2 };
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * GROW_COST_SUBSTITUTE_TRASH_SIGNI: グロウコストの特定色を、エナゾーンから指定クラスのシグニをトラッシュする代替コストで支払える。
  * ownerState のフィールドを走査して代替情報を返す。
  * @returns { substituteColor: string; signiClass: string } | null

@@ -266,6 +266,9 @@ export interface PlayerState {
   lrig_opp_act_cost_plus?: number;                 // WXDi-P15-033: 相手起動能力コスト増加
   lrig_attack_phase_power_down_per_signi?: number; // WX24-P2-030: アタックフェイズ中の相手パワーダウン
   opp_signi_energy_to_deck_bottom?: boolean;       // WX25-CP1-003: 相手シグニのエナ→デッキ下
+  lrig_copy_opp_level_limit?: boolean;             // WXK03-003A: ルリグのレベル・リミットを相手センタールリグからコピー
+  lrig_activation_count?: { [cardNum: string]: number }; // WXK03-003A: 特定ルリグ起動能力の使用回数
+  flip_attack_signi_zones?: number[];              // WXDi-P05-069: フリップアタックで裏向きにしたゾーン番号
 }
 
 export interface GameLog {
