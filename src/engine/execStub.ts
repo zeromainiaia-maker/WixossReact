@@ -7035,7 +7035,13 @@ export function execStub(
       e.effectType === 'ACTIVATED' ||
       (e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'))
     );
-    if (mainEffPF) {
+    const _containsStub = (a: any, sid: string): boolean => {
+      if (!a) return false;
+      if (a.type === 'STUB' && a.id === sid) return true;
+      if (a.type === 'SEQUENCE') return a.steps?.some((s: any) => _containsStub(s, sid));
+      return false;
+    };
+    if (mainEffPF && !_containsStub(mainEffPF.action, stub.id)) {
       const newCtxPF = { ...ctx, sourceCardNum: cnPF };
       // カードをトラッシュ/使用済みへ移動してから効果実行
       let stateAfterPF = ctx.ownerState;
@@ -8768,6 +8774,7 @@ export function execStub(
     const newOwnerIDC: PlayerState = { ...ctx.ownerState, lrig_deck: newDkIDC, field: newFieldIDC };
     return done(addLog({ ...ctx, ownerState: newOwnerIDC },
       `コラボ: ${ctx.cardMap.get(getCardNum(toPlaceIDC))?.CardName ?? toPlaceIDC}を召喚`));
+  }
   // GATE: ゲート効果（ログのみ）
   // GATE: 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可）
   if (stub.id === 'GATE') {
@@ -8868,9 +8875,46 @@ export function execStub(
       `【マジックボックス】公開: ${ctx.cardMap.get(mbCardOD)?.CardName ?? mbCardOD}→トラッシュ`,
     ));
   }
-  // TARGET_OPP_SIGNI_ONLY / TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: 対象修飾子（ログのみ）
-  if (stub.id === 'TARGET_OPP_SIGNI_ONLY' || stub.id === 'TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE') {
+  // TARGET_OPP_SIGNI_ONLY: 対象修飾子（ログのみ）
+  if (stub.id === 'TARGET_OPP_SIGNI_ONLY') {
     return done(addLog(ctx, '相手シグニを対象とする'));
+  }
+  // TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: 相手シグニ1体を対象とし、バウンスかトラッシュを選ぶ
+  // （WXDi-P10-033: デッキ5枚公開後の条件付き選択効果）
+  if (stub.id === 'TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE') {
+    const candsTOSFC = ctx.otherState.field.signi
+      .flatMap((s: string[] | null) => (s?.length ? [s[s.length - 1]] : []))
+      .filter(Boolean) as string[];
+    if (candsTOSFC.length === 0) return done(addLog(ctx, '対象シグニなし（TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE）'));
+    const internalT: StubAction = { type: 'STUB', id: 'INTERNAL_TOSFC_AFTER_SELECT' };
+    return selectOrInteract(candsTOSFC, 1, false, 'opp_field', internalT as EffectAction, undefined, ctx, true);
+  }
+  // INTERNAL_TOSFC_AFTER_SELECT: 選択後にバウンスかトラッシュを選択
+  if (stub.id === 'INTERNAL_TOSFC_AFTER_SELECT') {
+    const targetTN = ctx.lastProcessedCards?.[0];
+    if (!targetTN) return done(addLog(ctx, '[INTERNAL_TOSFC: 対象なし]'));
+    const tNameT = ctx.cardMap.get(targetTN)?.CardName ?? targetTN;
+    const optsT = [
+      { id: 'bounce', label: `${tNameT}を手札に戻す`, action: ({ type: 'STUB', id: 'INTERNAL_TOSFC_BOUNCE' }) as StubAction as EffectAction, available: true },
+      { id: 'trash',  label: `${tNameT}をトラッシュに置く`, action: ({ type: 'STUB', id: 'INTERNAL_TOSFC_TRASH' }) as StubAction as EffectAction, available: true },
+    ];
+    return needsInteraction(addLog(ctx, `${tNameT}への効果を選択`), { type: 'CHOOSE', options: optsT, count: 1 });
+  }
+  // INTERNAL_TOSFC_BOUNCE: 選択した相手シグニをバウンス
+  if (stub.id === 'INTERNAL_TOSFC_BOUNCE') {
+    const tnB = ctx.lastProcessedCards?.[0];
+    if (!tnB) return done(addLog(ctx, '[INTERNAL_TOSFC_BOUNCE: 対象なし]'));
+    const removedB = removeFromField(tnB, ctx.otherState);
+    const newOtherB: PlayerState = { ...removedB, hand: [...removedB.hand, tnB] };
+    return done(addLog({ ...ctx, otherState: newOtherB }, `${ctx.cardMap.get(tnB)?.CardName ?? tnB}を手札に戻す`));
+  }
+  // INTERNAL_TOSFC_TRASH: 選択した相手シグニをトラッシュ
+  if (stub.id === 'INTERNAL_TOSFC_TRASH') {
+    const tnTr = ctx.lastProcessedCards?.[0];
+    if (!tnTr) return done(addLog(ctx, '[INTERNAL_TOSFC_TRASH: 対象なし]'));
+    const removedTr = removeFromField(tnTr, ctx.otherState);
+    const newOtherTr: PlayerState = { ...removedTr, trash: [...removedTr.trash, tnTr] };
+    return done(addLog({ ...ctx, otherState: newOtherTr }, `${ctx.cardMap.get(tnTr)?.CardName ?? tnTr}をトラッシュに置く`));
   }
   // USE_CONDITION_ARTS_USED: このターンにアーツを使用していた場合、このカードは使用不可
   // actions_done に 'USE_ARTS' が含まれるかチェック（BattleScreenがartsUse時に追加）
@@ -11157,5 +11201,4 @@ export function execStub(
   }
 
   return done(addLog(ctx, `[STUB: ${stub.id}]`));
-}
 }

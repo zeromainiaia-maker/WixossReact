@@ -594,7 +594,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
         type: 'SEQUENCE',
         steps: [
           { type: 'DRAW', owner: 'self', count: parseNum(m[1]) },
-          { type: 'TRANSFER_TO_DECK', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(m[2]) }, position: 'bottom' },
+          { type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'self', count: parseNum(m[2]) }, position: 'bottom', shuffle: false } as TransferToDeckAction,
         ],
       } as SequenceAction;
     }
