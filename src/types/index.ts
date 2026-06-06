@@ -254,6 +254,14 @@ export interface PlayerState {
   game_grow_draw?: boolean;         // WX24-P4-036: グロウしたとき1枚ドロー
   game_hand_size_bonus?: number;    // WX25-P2-005: 手札上限増加
   game_energy_phase_draw?: boolean; // WX25-P2-005: エナフェイズ開始時1枚ドロー
+  game_no_coin_gain?: boolean;                     // WXDi-P07-006: このゲームコイン獲得禁止
+  game_opp_extra_guard_hand_or_colorless?: number; // WXDi-P05-005: 相手ガード時追加コスト（手札N枚か《無》）
+  game_guard_alt_hand?: number;                    // WXDi-P06-006: ガード代替（手札N枚捨て）
+  game_turn_end_trash_to_hand?: { class: string; count: number }; // WXDi-P04-006: ターン終了時トラッシュ→手札
+  game_grow_phase_limit_plus?: number;             // WXDi-P11-010A: グロウフェイズ開始時リミット+N（累積）
+  game_lrig_limit_bonus?: number;                  // ゲーム通じて累積するリミット増加量（リセット対象外）
+  game_declared_signi_level_zero?: boolean;        // WXK09-001: 宣言シグニのレベルを0に
+  game_declared_signi_ignore_restriction?: boolean; // WXK09-001: 宣言シグニの限定条件無視
 }
 
 export interface GameLog {

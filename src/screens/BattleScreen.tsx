@@ -2484,6 +2484,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newSigniField };
           }
         }
+        // game_turn_end_trash_to_hand: ターン終了時、トラッシュから特定クラスシグニを手札へ（GAIN_ABILITY_THIS_GAME）
+        if (my.game_turn_end_trash_to_hand) {
+          const { class: ttCls, count: ttCnt } = my.game_turn_end_trash_to_hand;
+          const ttMatches = myTrashAfterCoinCheck.filter(cn => {
+            const c = battleCardMap.get(cn);
+            return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(ttCls);
+          });
+          const ttToHand = ttMatches.slice(0, ttCnt);
+          if (ttToHand.length > 0) {
+            myTrashAfterCoinCheck = myTrashAfterCoinCheck.filter(cn => !ttToHand.includes(cn));
+            myHandEND = [...myHandEND, ...ttToHand];
+            appendBattleLogs([`ターン終了時：トラッシュ＜${ttCls}＞シグニ${ttToHand.length}枚を手札へ（このゲーム）`]);
+          }
+        }
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         newMyState = {
           ...my,
@@ -2571,6 +2585,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       } else {
         update.turn_phase = PHASE_NEXT[phase];
+        // ENERGY→GROW（グロウフェイズ開始時）: game_grow_phase_limit_plus で game_lrig_limit_bonus を累積
+        if (phase === 'ENERGY' && (newMyState.game_grow_phase_limit_plus ?? 0) > 0) {
+          const glp = newMyState.game_grow_phase_limit_plus!;
+          newMyState = { ...newMyState, game_lrig_limit_bonus: (newMyState.game_lrig_limit_bonus ?? 0) + glp };
+          appendBattleLogs([`グロウフェイズ開始：リミット+${glp}（このゲーム・累積${newMyState.game_lrig_limit_bonus}）`]);
+        }
         // GROW→MAIN移行時: pending_lrig_limit_modをlrig_limit_modに適用（OPP_MAIN_PHASE_LIMIT_DOWN）
         if (phase === 'GROW' && my.pending_lrig_limit_mod !== undefined) {
           newMyState = {
@@ -3568,6 +3588,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     + ((my.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((my.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
     + (my.lrig_limit_mod ?? 0)
+    + (my.game_lrig_limit_bonus ?? 0)
     + myLrigColorAndLimitMods.limitDelta;
   const fieldSigniTopLevels: number[] = my.field.signi.map(stack => {
     if (!stack || stack.length === 0) return 0;
@@ -5537,6 +5558,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally { setLoading(false); }
   };
 
+  // game_guard_alt_hand: 手札N枚を捨ててガード（ガードアイコン不要の代替）
+  const handleGuardWithHandAlternative = async () => {
+    if (!my.field.lrig_attacked || loading) return;
+    const altN = my.game_guard_alt_hand ?? 0;
+    if (altN <= 0 || my.hand.length < altN) return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      // 手札の末尾N枚を捨てる
+      const discarded = my.hand.slice(-altN);
+      const newMyState: PlayerState = {
+        ...my,
+        hand: my.hand.slice(0, -altN),
+        trash: [...my.trash, ...discarded],
+        field: { ...my.field, lrig_attacked: false },
+      };
+      appendBattleLogs([`ガード代替：手札${altN}枚を捨てる（${discarded.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）`]);
+      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+    } finally { setLoading(false); }
+  };
+
   // ガード応答: handIndex=ガードカードのインデックス、null=ガードしない
   const handleGuardResponse = async (handIndex: number | null) => {
     if (!my.field.lrig_attacked || loading) return;
@@ -5552,12 +5594,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const needsExtraEnergy = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, !isMyTurn);
         // EXTRA_GUARD_COST_FROM_HAND: 相手フィールドにアクティブな場合、手札から追加でガードカードを1枚捨てる
         const needsExtraGuardCard = collectOppExtraGuardFromHand(op, battleCardMap, effectsMap);
+        // game_opp_extra_guard_hand_or_colorless: 相手が能力付与→ガード時に追加でエナか手札捨て
+        const needsOppHandOrColorless = (op.game_opp_extra_guard_hand_or_colorless ?? 0) > 0;
         let energyAfterGuard = my.energy;
         const extraTrash: string[] = [];
         if (needsExtraEnergy && my.energy.length > 0) {
           const removedEnergy = my.energy[my.energy.length - 1];
           energyAfterGuard = my.energy.slice(0, -1);
           extraTrash.push(removedEnergy);
+        }
+        if (needsOppHandOrColorless) {
+          // エナがあれば消費、なければ手札を1枚捨てる
+          if (energyAfterGuard.length > 0) {
+            const removedEnHOC = energyAfterGuard[energyAfterGuard.length - 1];
+            energyAfterGuard = energyAfterGuard.slice(0, -1);
+            extraTrash.push(removedEnHOC);
+          } else {
+            const extraHandIdx = my.hand.findIndex((cn, i) => i !== handIndex);
+            if (extraHandIdx >= 0) extraTrash.push(my.hand[extraHandIdx]);
+          }
         }
         if (needsExtraGuardCard) {
           const extraGuardIdx = my.hand.findIndex((cn, i) => i !== handIndex && (battleCardMap.get(cn)?.Guard === '1'));
@@ -5568,14 +5623,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           } else {
             appendBattleLogs([`ガード（${guardCardName}）（追加ガードカードなし）`]);
           }
+        } else if (needsOppHandOrColorless) {
+          appendBattleLogs([`ガード（${guardCardName}）＋追加コスト（手札か《無》）消費`]);
         } else if (needsExtraEnergy && energyAfterGuard.length < my.energy.length) {
           appendBattleLogs([`ガード（${guardCardName}）＋追加コスト《無》消費`]);
         } else {
           appendBattleLogs([`ガード（${guardCardName}）`]);
         }
-        const handAfterExtraGuard = needsExtraGuardCard
-          ? my.hand.filter((cn, i) => i !== handIndex && !extraTrash.slice(needsExtraEnergy && my.energy.length > 0 ? 1 : 0).includes(cn))
-          : my.hand.filter((_, i) => i !== handIndex);
+        // 手札から除外: ガードカード本体 + extraTrash に含まれる手札カード
+        const handExtraTrashNums = new Set(extraTrash.filter(cn => my.hand.includes(cn)));
+        const handAfterExtraGuard = my.hand.filter((cn, i) => i !== handIndex && !handExtraTrashNums.has(cn));
         newMyState = {
           ...my,
           hand: handAfterExtraGuard,
@@ -7608,6 +7665,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const oppGuardExtraColorless = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, !isMyTurn);
               // 相手フィールドのEXTRA_GUARD_COST_FROM_HAND: 追加でガードカードを手札から捨てる必要
               const oppExtraGuardFromHand = collectOppExtraGuardFromHand(op, battleCardMap, effectsMap);
+              // game_opp_extra_guard_hand_or_colorless: 相手が能力付与→追加で手札1枚か《無》必要
+              const oppExtraHandOrColorless = (op.game_opp_extra_guard_hand_or_colorless ?? 0) > 0;
+              // game_guard_alt_hand: 自分が能力付与→ガードアイコン代わりに手札N枚捨てでガード可
+              const myGuardAltHand = my.game_guard_alt_hand ?? 0;
               const guardCardCountInHand = my.hand.filter(cn => battleCardMap.get(cn)?.Guard === '1').length;
               // エナゾーンが空の場合はガード不可
               const guardBlockedByExtraCost = oppGuardExtraColorless && my.energy.length === 0;
@@ -7653,12 +7714,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       {guardBlockedByExtraGuard && `（ガードカード${guardCardCountInHand}枚では不足）`}
                     </p>
                   )}
+                  {oppExtraHandOrColorless && (
+                    <p style={{ color: '#f0a030', fontSize: 12, margin: '0 0 6px',
+                      padding: '6px 10px', background: 'rgba(240,160,48,0.1)', borderRadius: 6,
+                      border: '1px solid rgba(240,160,48,0.3)' }}>
+                      ⚠ 追加で手札1枚か《無》×1を支払わないとガードできません（自動消費）
+                    </p>
+                  )}
                   {guardAltCost && guardAltEnergySigni.length > 0 && (
                     <button onClick={handleGuardWithEnergyAlternative} disabled={loading}
                       style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4caf50',
                         backgroundColor: 'rgba(76,175,80,0.15)', color: '#4caf50', cursor: 'pointer',
                         fontSize: 13, marginBottom: 8 }}>
                       代替ガード：エナ＜{guardAltCost.signiClass}＞1枚をトラッシュ
+                    </button>
+                  )}
+                  {myGuardAltHand > 0 && my.hand.length >= myGuardAltHand && (
+                    <button onClick={handleGuardWithHandAlternative} disabled={loading}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #7cb9e8',
+                        backgroundColor: 'rgba(124,185,232,0.15)', color: '#7cb9e8', cursor: 'pointer',
+                        fontSize: 13, marginBottom: 8 }}>
+                      代替ガード：手札{myGuardAltHand}枚を捨てる（ガードアイコン不要）
                     </button>
                   )}
                   {guardCards.length > 0 ? (

@@ -2136,8 +2136,80 @@ export function execStub(
       ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_energy_phase_draw: true } };
       logsGA.push('エナフェイズ開始時ドロー（このゲーム）');
     }
+    // WXK07-056: このターン、デッキ内指定クラスのシグニのレベルをN扱い
+    const deckLvMGA = txtGA.match(/デッキにある＜([^＞]+)＞のシグニのレベルは([０-９\d]+)になる/);
+    if (deckLvMGA) {
+      const toHWGA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const lvGA = parseInt(toHWGA(deckLvMGA[2])) || 4;
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, deck_signi_level_override: { class: deckLvMGA[1], level: lvGA } } };
+      logsGA.push(`デッキ内＜${deckLvMGA[1]}＞シグニのレベルをLv${lvGA}扱い（このゲーム）`);
+    }
+    // WXDi-P07-006: このゲームの間コイン獲得禁止
+    if (txtGA.match(/《コインアイコン》を得られない/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_no_coin_gain: true } };
+      logsGA.push('コイン獲得禁止（このゲーム）');
+    }
+    // WXK09-001: 宣言したシグニのレベルを0に
+    if (txtGA.match(/宣言したシグニの基本レベルは０になり/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_declared_signi_level_zero: true } };
+      logsGA.push('宣言シグニのレベル0（このゲーム）');
+    }
+    // WXK09-001: 宣言したシグニの限定条件無視
+    if (txtGA.match(/限定条件を無視して場に出せる/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_declared_signi_ignore_restriction: true } };
+      logsGA.push('宣言シグニの限定条件無視（このゲーム）');
+    }
+    // WXDi-P05-005: 相手ガード時に追加で手札N枚捨てるか《無》支払い
+    const oppGuardExtraM = txtGA.match(/対戦相手は追加で手札を([０-９\d]+)枚捨てるか《無》を支払わないかぎり【ガード】ができない/);
+    if (oppGuardExtraM) {
+      const toHWGA2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const nGA = parseInt(toHWGA2(oppGuardExtraM[1])) || 1;
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_opp_extra_guard_hand_or_colorless: nGA } };
+      logsGA.push(`相手ガード追加コスト（手札${nGA}枚か《無》・このゲーム）`);
+    }
+    // WXDi-P06-006: ガード代替（手札N枚捨て）
+    const guardAltM = txtGA.match(/【ガード】する際.*代わりに手札を([０-９\d]+)枚捨ててもよい/);
+    if (guardAltM) {
+      const toHWGA3 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const nGA3 = parseInt(toHWGA3(guardAltM[1])) || 3;
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_guard_alt_hand: nGA3 } };
+      logsGA.push(`ガード代替：手札${nGA3}枚捨て（このゲーム）`);
+    }
+    // WXDi-P04-006: ターン終了時、トラッシュから指定クラスのシグニを手札へ
+    const turnEndTTHM = txtGA.match(/ターン終了時、.*トラッシュから＜([^＞]+)＞のシグニ([０-９\d]*)枚.*を手札に加える/);
+    if (turnEndTTHM) {
+      const toHWGA4 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const cntGA4 = turnEndTTHM[2] ? (parseInt(toHWGA4(turnEndTTHM[2])) || 1) : 1;
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_turn_end_trash_to_hand: { class: turnEndTTHM[1], count: cntGA4 } } };
+      logsGA.push(`ターン終了時トラッシュ＜${turnEndTTHM[1]}＞シグニ→手札（このゲーム）`);
+    }
+    // WXDi-P11-010A: グロウフェイズ開始時リミット+N（累積）
+    const growLimitM = txtGA.match(/このゲームの間.*リミットを＋([０-９\d]+)する/);
+    if (growLimitM) {
+      const toHWGA5 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const nGA5 = parseInt(toHWGA5(growLimitM[1])) || 1;
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_grow_phase_limit_plus: nGA5 } };
+      logsGA.push(`グロウフェイズ開始時リミット+${nGA5}（このゲーム・累積）`);
+    }
+    // 以下のパターンは意図通り動作するため特定ログのみ
+    // このゲームの間、あなたは以下の能力を得る（能力ブロック：後続スタブで処理）
+    if (txtGA.match(/このゲームの間、あなたは以下の能力を得る/)) {
+      logsGA.push('ゲーム能力ブロック付与');
+    }
+    // WXK03-003A: この【起】を使用したのがN回目である場合
+    if (txtGA.match(/この【起】を使用したのが[０-９\d]+回目である場合/)) {
+      logsGA.push('ゲームN回目起動条件（ログのみ）');
+    }
+    // WXK03-003A: 基本レベルとリミットをセンタールリグと同じ値に
+    if (txtGA.match(/基本レベルと基本リミットは.*と同じ値になる/)) {
+      logsGA.push('レベル/リミットコピー（ログのみ）');
+    }
+    // WXDi-P07-006: このゲームにコインを得ていない場合
+    if (txtGA.match(/このゲームの間にあなたが《コインアイコン》を得ていない場合/)) {
+      logsGA.push('ゲームコイン未取得条件（ログのみ）');
+    }
     if (logsGA.length > 0) return done(addLog(ctxGA, logsGA.join('・')));
-    return done(addLog(ctx, 'このゲームの間：能力付与（ログのみ）'));
+    return done(addLog(ctx, 'このゲームの間：能力付与'));
   }
   // メインフェイズ終了
   if (stub.id === 'SKIP_MAIN_PHASE') {

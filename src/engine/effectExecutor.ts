@@ -1701,6 +1701,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
 
 function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
   const s = ownerState(a.owner, ctx);
+  if (s.game_no_coin_gain) return done(addLog(ctx, 'コイン獲得禁止（このゲーム）'));
   const gained = Math.min(a.count, 5 - s.coins);
   const newS: PlayerState = { ...s, coins: Math.min(5, s.coins + a.count) };
   return done(addLog(setOwnerState(a.owner, newS, ctx), `コイン${gained}枚獲得（計${newS.coins}枚）`));

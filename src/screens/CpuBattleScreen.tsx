@@ -235,6 +235,16 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       appendLog(`--- ${nextPlayer === 'player' ? 'プレイヤー' : 'CPU'} のターン ---`);
       return { ...g, phase: 'UP', turnPlayer: nextPlayer };
     }
+    // ENERGY→GROW（グロウフェイズ開始時）: game_grow_phase_limit_plus で game_lrig_limit_bonus を累積
+    if (g.phase === 'ENERGY' && next === 'GROW') {
+      const s = myState(g);
+      if ((s.game_grow_phase_limit_plus ?? 0) > 0) {
+        const glp = s.game_grow_phase_limit_plus!;
+        const newS: PlayerState = { ...s, game_lrig_limit_bonus: (s.game_lrig_limit_bonus ?? 0) + glp };
+        appendLog(`グロウフェイズ開始：リミット+${glp}（累積${newS.game_lrig_limit_bonus}）`);
+        return { ...setMyState(g, newS), phase: next };
+      }
+    }
     // GROW→MAIN移行時: pending_lrig_limit_modをlrig_limit_modに適用（OPP_MAIN_PHASE_LIMIT_DOWN）
     if (g.phase === 'GROW' && next === 'MAIN') {
       const s = myState(g);

@@ -44,7 +44,7 @@
 | 1 | AUTO/ACTIVATED | ✅ | REVEAL_PICK_PLAY ※デッキ上N枚公開→シグニ選択→場に出すインタラクション実装済み |
 | 15 | AUTO/ACTIVATED | ✅ | TARGET_ONLY ※対象シグニ選択→lastProcessedCardsに格納→後続ステップへ続行 |
 | 14 | CONT | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
-| 14 | AUTO/ACTIVATED | ⚡ | GAIN_ABILITY_THIS_GAME ※v0.205: LB全無効/メインフェイズ開始ドロー/グロウ時ドロー/手札上限増加/エナフェイズドロー追加（WXK08-028/WXDi-P11-004/WX24-P4-036/WX25-P2-005）。残り: ガード代替コスト系/複合トリガー/リフレッシュ変更等はログのみ |
+| 14 | AUTO/ACTIVATED | ✅ | GAIN_ABILITY_THIS_GAME ※v0.206: デッキシグニレベルオーバーライド/コイン獲得禁止/宣言シグニLv0・限定条件無視/相手ガード追加コスト（手札か無）/ガード代替（手札N枚）/ターン終了時トラッシュ→手札/グロウフェイズ開始リミット累積追加（WXK07-056/WXDi-P07-006/WXK09-001/WXDi-P05-005/WXDi-P06-006/WXDi-P04-006/WXDi-P11-010A）。能力ブロック（『』）は後続スタブで処理。WXK03-003A/WX25-P2-009等の複合トリガーはログのみ |
 | 14 | ACTIVATED | ✅ | CONDITIONAL_ARTS_COST ※v0.143: 正しい条件チェックに修正。対戦相手ルリグ色条件/自ルリグレベル条件を確認。コスト計算はcomputeArtsEffectiveCostで処理済み |
 | 16 | AUTO/ACTIVATED/CONT | ✅ | GRANT_QUOTED_ABILITY |
 | 13 | AUTO/ACTIVATED | ✅ | REVEAL_AND_PICK ※デッキ上N枚→クラスフィルタ→手札/場に出すインタラクション実装済み |
