@@ -55,7 +55,12 @@ export default function App() {
             return;
           }
         }
-        setViewMode('START');
+        if (sessionStorage.getItem('gotoMatchmaking')) {
+          sessionStorage.removeItem('gotoMatchmaking');
+          setViewMode('MATCHMAKING');
+        } else {
+          setViewMode('START');
+        }
       } else {
         setViewMode('LOGIN');
       }

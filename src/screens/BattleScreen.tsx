@@ -1638,16 +1638,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   const setupLeaveBtn = (
-    <button
-      onClick={() => setShowSetupLeaveConfirm(true)}
-      style={{
-        position: 'absolute', top: 14, right: 14,
-        padding: '5px 12px', borderRadius: 6, border: '1px solid #444',
-        backgroundColor: 'transparent', color: '#888', fontSize: 13, cursor: 'pointer',
-      }}
-    >
-      終了
-    </button>
+    <div style={{ position: 'absolute', top: 14, right: 14, display: 'flex', gap: 6 }}>
+      <button
+        onClick={() => window.location.reload()}
+        style={{
+          padding: '5px 12px', borderRadius: 6, border: '1px solid #444',
+          backgroundColor: 'transparent', color: '#888', fontSize: 13, cursor: 'pointer',
+        }}
+      >
+        ↺
+      </button>
+      <button
+        onClick={() => setShowSetupLeaveConfirm(true)}
+        style={{
+          padding: '5px 12px', borderRadius: 6, border: '1px solid #444',
+          backgroundColor: 'transparent', color: '#888', fontSize: 13, cursor: 'pointer',
+        }}
+      >
+        終了
+      </button>
+    </div>
   );
 
   const setupLeaveConfirmModal = showSetupLeaveConfirm && (
@@ -2658,7 +2668,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               action: { type: 'STUB', id: 'HASTARLIQ_TRIGGER', value: zi } as import('../types/effects').StubAction,
               duration: 'INSTANT' as const,
               mandatory: true,
-              parseStatus: 'MANUAL' as const,
+              parseStatus: 'AUTO' as const,
             },
           }));
           update[opKey] = { ...op, hastarliq_zones: undefined };
@@ -5473,7 +5483,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             action: { type: 'STUB', id: 'HASTARLIQ_TRIGGER', value: zi } as import('../types/effects').StubAction,
             duration: 'INSTANT' as const,
             mandatory: true,
-            parseStatus: 'MANUAL' as const,
+            parseStatus: 'AUTO' as const,
           },
         }));
         const newHuStForHL = { ...huStForHL, hastarliq_zones: undefined };
@@ -9844,21 +9854,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* 終了ボタン（常に最前面に固定 — エラーで画面が固まっても操作できる） */}
       {createPortal(
-        <button
-          onClick={() => setShowEndConfirm(true)}
-          style={{
-            position: 'fixed', top: 6, right: 8, zIndex: 9998,
-            padding: '4px 10px', borderRadius: 4,
-            border: '1px solid #444', backgroundColor: 'rgba(0,0,0,0.55)',
-            color: '#666', cursor: 'pointer', fontSize: 11,
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          終了
-        </button>,
+        <div style={{ position: 'fixed', top: 6, right: 8, zIndex: 9998, display: 'flex', gap: 6 }}>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              border: '1px solid #444', backgroundColor: 'rgba(0,0,0,0.55)',
+              color: '#666', cursor: 'pointer', fontSize: 11,
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            ↺
+          </button>
+          <button
+            onClick={() => setShowEndConfirm(true)}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              border: '1px solid #444', backgroundColor: 'rgba(0,0,0,0.55)',
+              color: '#666', cursor: 'pointer', fontSize: 11,
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            終了
+          </button>
+        </div>,
         document.body,
       )}
 
     </div>
   );
 }
+

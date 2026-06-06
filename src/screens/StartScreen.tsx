@@ -68,7 +68,7 @@ export default function StartScreen({ user, setViewMode, onCpuBattle: _onCpuBatt
         WIXOSS ONLINE
       </h1>
 
-      <button onClick={() => setViewMode('MATCHMAKING')} style={{
+      <button onClick={() => { sessionStorage.setItem('gotoMatchmaking', '1'); window.location.reload(); }} style={{
         width: '260px',
         padding: '16px',
         borderRadius: '8px',
