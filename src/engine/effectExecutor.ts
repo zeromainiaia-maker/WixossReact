@@ -2091,7 +2091,8 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
   for (const cardNum of selected) {
     // thenAction
     const result = applyDirectAction(pending.thenAction, cardNum, cur);
-    if (!result.done) return result; //     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+    if (!result.done) return result;
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
   }
   cur = { ...cur, lastProcessedCards: selected };
   if (pending.continuation) return executeAction(pending.continuation, cur);
