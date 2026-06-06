@@ -1,15 +1,15 @@
-﻿import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction } from '../types/effects';
+import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction } from '../types/effects';
 
 /**
- * 繝代・繧ｵ繝ｼ縺ｧ閾ｪ蜍戊ｧ｣譫舌〒縺阪↑縺・き繝ｼ繝牙崋譛峨・蜉ｹ譫懷ｮ夂ｾｩ縲・
- * buildEffectsMap 縺翫ｈ縺ｳ buildEffectsJson 縺ｧ閾ｪ蜍戊ｧ｣譫千ｵ先棡縺ｫ繝槭・繧ｸ縺輔ｌ繧九・
- * - 蜷後§ effectId 縺悟ｭ伜惠縺吶ｋ蝣ｴ蜷医・縺薙％縺ｮ螳夂ｾｩ縺ｧ荳頑嶌縺・
- * - 蟄伜惠縺励↑縺・effectId 縺ｯ譛ｫ蟆ｾ縺ｫ霑ｽ蜉
+ * パーサーで自動解析できないカード固有の効果定義。
+ * buildEffectsMap および buildEffectsJson で自動解析結果にマージされる。
+ * - 同じ effectId が存在する場合はここの定義で上書き
+ * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
-  // WX04-101 蟷ｻ豌ｴ縲螟ｧ繧ｦ繝翫ぐ・郁ｵｷ蜍包ｼ・
-  // 縲占ｵｷ縲代％縺ｮ繧ｷ繧ｰ繝九ｒ蝣ｴ縺九ｉ繝医Λ繝・す繝･縺ｫ鄂ｮ縺擾ｼ夂嶌謇九す繧ｰ繝具ｼ台ｽ薙・繝代Ρ繝ｼ繧定・繝ｫ繝ｪ繧ｰlvﾃ・1000・医ち繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ・・
+  // WX04-101 幻水　大ウナギ（起動）
+  // 【起】このシグニを場からトラッシュに置く：相手シグニ１体のパワーを自ルリグlv×-1000（ターン終了時まで）
   'WX04-101': [
     {
       effectId: 'WX04-101-E1',
@@ -28,9 +28,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX05-020 蟷ｻ豌ｴ縲繧ｷ繝｣繝・ｼ・UTO E2・・
-  // 縲占・縲代翫ち繝ｼ繝ｳ・大屓縲具ｼ壹≠縺ｪ縺溘・・憺桶遏ｳ・槭°・懷ｮ晉浹・槭・繧ｷ繧ｰ繝具ｼ台ｽ薙′蟇ｾ謌ｦ逶ｸ謇九・繧｢繝ｼ繝・・蜉ｹ譫懊ｒ蜿励￠縺溘→縺阪・
-  //   蟇ｾ謌ｦ逶ｸ謇九↓繝繝｡繝ｼ繧ｸ繧剃ｸ弱∴繧九ゑｼ郁ｿ台ｼｼ: 逶ｸ謇九′繧｢繝ｼ繝・ｒ菴ｿ逕ｨ縺励◆縺ｨ縺阪√ヵ繧｣繝ｼ繝ｫ繝峨↓隧ｲ蠖薙す繧ｰ繝九′縺・ｌ縺ｰ逋ｺ蜍包ｼ・
+  // WX05-020 幻水　シャチ（AUTO E2）
+  // 【自】《ターン１回》：あなたの＜鉱石＞か＜宝石＞のシグニ１体が対戦相手のアーツの効果を受けたとき、
+  //   対戦相手にダメージを与える。（近似: 相手がアーツを使用したとき、フィールドに該当シグニがいれば発動）
   'WX05-020': [
     {
       effectId: 'WX05-020-E2',
@@ -40,7 +40,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       activeCondition: {
         type: 'HAS_CARD_IN_FIELD',
         owner: 'self',
-        filter: { cardType: '繧ｷ繧ｰ繝・, story: ['驩ｱ遏ｳ', '螳晉浹'] },
+        filter: { cardType: 'シグニ', story: ['鉱石', '宝石'] },
       },
       action: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
       duration: 'INSTANT',
@@ -49,16 +49,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX06-019 蟷ｻ豌ｴ縲繧ｷ繝ｭ繝翫け繧ｸ
-  // 縲仙ｸｸ縲代≠縺ｪ縺溘・莉悶・・懈ｰｴ迯｣・槭・繧ｷ繧ｰ繝・菴薙′蟇ｾ謌ｦ逶ｸ謇九・蜉ｹ譫懊↓繧医▲縺ｦ蝣ｴ繧帝屬繧後ｋ蝣ｴ蜷医・
-  //   莉｣繧上ｊ縺ｫ繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ縲√％縺ｮ繧ｷ繧ｰ繝九・繝代Ρ繝ｼ繧抵ｼ・000縺励※繧ゅｈ縺・・
+  // WX06-019 幻水　シロナクジ
+  // 【常】あなたの他の＜水獣＞のシグニ1体が対戦相手の効果によって場を離れる場合、
+  //   代わりにターン終了時まで、このシグニのパワーを－6000してもよい。
   'WX06-019': [
     {
       effectId: 'WX06-019-E1',
       effectType: 'CONTINUOUS',
       action: {
         type: 'BANISH_SUBSTITUTE',
-        trigger: { type: 'SIGNI', owner: 'self', count: 1, filter: { story: '豌ｴ迯｣' } },
+        trigger: { type: 'SIGNI', owner: 'self', count: 1, filter: { story: '水獣' } },
         substituteCost: { powerReduction: 6000 },
         optional: true,
       },
@@ -68,9 +68,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX06-022 螟ｧ讒阪繝医Λ繧､繝・
-  // 縲仙ｸｸ縲代そ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺檎區縺九▽荳ｭ螟ｮ繧ｾ繝ｼ繝ｳ蝨ｨ邀阪°縺弱ｊ縲∝渕譛ｬ繝代Ρ繝ｼ縺ｯ10000縺ｫ縺ｪ繧翫・
-  //   縲悟ｯｾ謌ｦ逶ｸ謇九・蜉ｹ譫懊↓繧医▲縺ｦ繝舌ル繝・す繝･縺輔ｌ縺ｪ縺・阪ｒ蠕励ｋ縲ゑｼ域擅莉ｶ縺ｯPARTIAL・・
+  // WX06-022 大槍　トライデ
+  // 【常】センタールリグが白かつ中央ゾーン在籍かぎり、基本パワーは10000になり、
+  //   「対戦相手の効果によってバニッシュされない」を得る。（条件はPARTIAL）
   'WX06-022': [
     {
       effectId: 'WX06-022-E1',
@@ -82,7 +82,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
           {
             type: 'GRANT_PROTECTION',
             target: { type: 'SIGNI', owner: 'self', count: 1 },
-            from: ['繧ｷ繧ｰ繝・, '繧｢繝ｼ繝・, '繧ｹ繝壹Ν', '繝ｫ繝ｪ繧ｰ'],
+            from: ['シグニ', 'アーツ', 'スペル', 'ルリグ'],
             sourceOwner: 'opponent',
             duration: 'PERMANENT',
           },
@@ -94,9 +94,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX06-033 蜿榊ｾｩ縺吶ｋ迢ｬ閾ｪ諤ｧ縲繧ｰ繝ｪ繝・ラ
-  // 縲仙・縲代％縺ｮ繧ｿ繝ｼ繝ｳ縲√≠縺ｪ縺溘・蜉ｹ譫懊↓繧医▲縺ｦ繝・ャ繧ｭ荳翫°繧牙・髢九☆繧句ｴ蜷医∽ｻ｣繧上ｊ縺ｫ1譫壼､壹￥蜈ｬ髢九＠縺ｦ繧ゅｈ縺・・
-  //   ・域里蟄伜梛縺ｧ縺ｯ陦ｨ迴ｾ荳榊庄縺ｮ縺溘ａUNKNOWN繧｢繧ｯ繧ｷ繝ｧ繝ｳ・貴ANUAL繧ｹ繝・・繧ｿ繧ｹ・・
+  // WX06-033 反復する独自性　グリッド
+  // 【出】このターン、あなたの効果によってデッキ上から公開する場合、代わりに1枚多く公開してもよい。
+  //   （既存型では表現不可のためUNKNOWNアクション＋MANUALステータス）
   'WX06-033': [
     {
       effectId: 'WX06-033-E1',
@@ -109,9 +109,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX08-035 蠑ｩ遐ｲ縲繝医・繝斐・繝会ｼ・1縺ｮ縺ｿ・・
-  // 縲仙ｸｸ縲代≠縺ｪ縺溘・蝣ｴ縺ｫ縺ゅｋ縲翫け繝ｭ繧ｹ繧｢繧､繧ｳ繝ｳ縲九ｒ謖√▽繧ｷ繧ｰ繝・菴薙↓縺､縺搾ｼ・000縺輔ｌ繧九・
-  //   ・医い繧､繧ｳ繝ｳ繝輔ぅ繝ｫ繧ｿ譛ｪ蟇ｾ蠢懊・縺溘ａPARTIAL・壼・繧ｷ繧ｰ繝・菴薙＃縺ｨ+2000縺ｧ霑台ｼｼ・・
+  // WX08-035 弩砲　トーピード（E1のみ）
+  // 【常】あなたの場にある《クロスアイコン》を持つシグニ1体につき＋2000される。
+  //   （アイコンフィルタ未対応のためPARTIAL：全シグニ1体ごと+2000で近似）
   'WX08-035': [
     {
       effectId: 'WX08-035-E1',
@@ -120,7 +120,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         type: 'POWER_MODIFY_PER_FIELD',
         target: { type: 'SIGNI', owner: 'self', count: 1 },
         deltaPerUnit: 2000,
-        countFilter: { cardType: '繧ｷ繧ｰ繝・ },
+        countFilter: { cardType: 'シグニ' },
         countOwner: 'self',
       },
       duration: 'PERMANENT',
@@ -129,17 +129,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX09-CB02 邨よ忰縺ｮ蝗樊雷縲繝√ぉ繝ｭ繝ｳ・・1縺ｮ縺ｿ・・
-  // 縲仙ｸｸ縲代≠縺ｪ縺溘・縲翫け繝ｭ繧ｹ繧｢繧､繧ｳ繝ｳ縲九ｒ謖√▽・懃ｾ主ｷｧ・槭・繧ｷ繧ｰ繝九・蟇ｾ謌ｦ逶ｸ謇九・蜉ｹ譫懊↓繧医▲縺ｦ繝舌ル繝・す繝･縺輔ｌ縺ｪ縺・・
-  //   ・医い繧､繧ｳ繝ｳ繝輔ぅ繝ｫ繧ｿ譛ｪ蟇ｾ蠢懊・縺溘ａPARTIAL・夂ｾ主ｷｧ蜈ｨ菴薙↓菫晁ｭｷ縺ｧ霑台ｼｼ・・
+  // WX09-CB02 終末の回旋　チェロン（E1のみ）
+  // 【常】あなたの《クロスアイコン》を持つ＜美巧＞のシグニは対戦相手の効果によってバニッシュされない。
+  //   （アイコンフィルタ未対応のためPARTIAL：美巧全体に保護で近似）
   'WX09-CB02': [
     {
       effectId: 'WX09-CB02-E1',
       effectType: 'CONTINUOUS',
       action: {
         type: 'GRANT_PROTECTION',
-        target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { story: '鄒主ｷｧ' } },
-        from: ['繧ｷ繧ｰ繝・, '繧｢繝ｼ繝・, '繧ｹ繝壹Ν', '繝ｫ繝ｪ繧ｰ'],
+        target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { story: '美巧' } },
+        from: ['シグニ', 'アーツ', 'スペル', 'ルリグ'],
         sourceOwner: 'opponent',
         duration: 'PERMANENT',
       },
@@ -149,9 +149,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX10-018 證ｴ鬚ｨ隴ｦ蝣ｱ・医せ繝壹Ν・・
-  // 縺薙・繧ｿ繝ｼ繝ｳ縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝九°繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺後い繧ｿ繝・け縺励◆縺ｨ縺阪・
-  //   1蠎ｦ逶ｮ縺・蠎ｦ逶ｮ縺ｮ蝣ｴ蜷医√◎縺ｮ繧｢繧ｿ繝・け繧堤┌蜉ｹ縺ｫ縺吶ｋ縲ゑｼ・ARTIAL・壼・繧｢繧ｿ繝・け髦ｲ豁｢縺ｧ霑台ｼｼ・・
+  // WX10-018 暴風警報（スペル）
+  // このターン、対戦相手のシグニかセンタールリグがアタックしたとき、
+  //   1度目か2度目の場合、そのアタックを無効にする。（PARTIAL：全アタック防止で近似）
   'WX10-018': [
     {
       effectId: 'WX10-018-E1',
@@ -164,22 +164,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX10-053 髮・ｵ舌☆繧句ｮ郁ｭｷ・医せ繝壹Ν・・
-  // 繧ｳ繧ｹ繝医・繧ｵ繝ｼ繝舌Φ繝医す繧ｰ繝・菴薙↓縺､縺阪顔┌ﾃ・縲区ｸ帙ｋ・・ARTIAL霑台ｼｼ・峨・
-  // 竭繝医Λ繝・す繝･縺九ｉ繧ｵ繝ｼ繝舌Φ繝医す繧ｰ繝九ｒ2譫壹∪縺ｧ謇区惆縺ｫ縲や贈繧ｵ繝ｼ繝舌Φ繝亥・繧ｷ繧ｰ繝・5000+繝ｩ繝ｳ繧ｵ繝ｼ縲・
+  // WX10-053 集結する守護（スペル）
+  // コストはサーバントシグニ1体につき《無×2》減る（PARTIAL近似）。
+  // ①トラッシュからサーバントシグニを2枚まで手札に。②サーバント全シグニ+5000+ランサー。
   'WX10-053': [
     {
       effectId: 'WX10-053-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
-      cost: { energy: [{ color: '辟｡', count: 7 }] },
+      cost: { energy: [{ color: '無', count: 7 }] },
       action: {
         type: 'SEQUENCE',
         steps: [
           {
             type: 'COST_REDUCTION',
-            targetCardType: '繧ｹ繝壹Ν',
-            reduction: [{ color: '辟｡', count: 2 }],
+            targetCardType: 'スペル',
+            reduction: [{ color: '無', count: 2 }],
             duration: 'PERMANENT',
           },
           {
@@ -189,7 +189,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
             choices: [
               {
                 choiceId: 'c0',
-                label: '竭繧ｵ繝ｼ繝舌Φ繝医ｒ謇区惆縺ｸ',
+                label: '①サーバントを手札へ',
                 action: {
                   type: 'TRANSFER_TO_HAND',
                   source: { type: 'TRASH_CARD', owner: 'self', count: 2, upToCount: true },
@@ -197,12 +197,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
               },
               {
                 choiceId: 'c1',
-                label: '竭｡蜈ｨ繧ｵ繝ｼ繝舌Φ繝・5000+繝ｩ繝ｳ繧ｵ繝ｼ',
+                label: '②全サーバント+5000+ランサー',
                 action: {
                   type: 'SEQUENCE',
                   steps: [
                     { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, delta: 5000 },
-                    { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, keyword: '繝ｩ繝ｳ繧ｵ繝ｼ', duration: 'UNTIL_END_OF_TURN' },
+                    { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN' },
                   ],
                 } as SequenceAction,
               },
@@ -216,9 +216,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX11-024 繝ｪ繝輔Ξ繝・す繝･繝ｻ繧ｨ繝ｳ繝会ｼ医せ繝壹Ν・・
-  // 縺薙・繧ｿ繝ｼ繝ｳ縲∝ｯｾ謌ｦ逶ｸ謇九′谺｡縺ｫ繝ｪ繝輔Ξ繝・す繝･縺励◆蝣ｴ蜷医√◎縺ｮ蠕後〒縺薙・繧ｿ繝ｼ繝ｳ繧堤ｵゆｺ・☆繧九・
-  //   ・・ARTIAL・壹Μ繝輔Ξ繝・す繝･譚｡莉ｶ繧堤怐逡･縺友ORCE_END_TURN縺ｧ霑台ｼｼ・・
+  // WX11-024 リフレッシュ・エンド（スペル）
+  // このターン、対戦相手が次にリフレッシュした場合、その後でこのターンを終了する。
+  //   （PARTIAL：リフレッシュ条件を省略しFORCE_END_TURNで近似）
   'WX11-024': [
     {
       effectId: 'WX11-024-E1',
@@ -231,8 +231,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX05-016 繧ｸ繝｣繝・ず繝｡繝ｳ繝医・繧ｯ繝ｭ繧ｹ・医い繝ｼ繝・ｼ・
-  // 蜈ｨ5濶ｲ繧ｳ繧ｹ繝医〒菴ｿ逕ｨ 竊・縺薙・繧ｿ繝ｼ繝ｳ繧貞ｼｷ蛻ｶ邨ゆｺ・☆繧・
+  // WX05-016 ジャッジメント・クロス（アーツ）
+  // 全5色コストで使用 → このターンを強制終了する
   'WX05-016': [
     {
       effectId: 'WX05-016-E1',
@@ -240,11 +240,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       timing: ['SPELL_CUTIN'],
       cost: {
         energy: [
-          { color: '逋ｽ', count: 1 },
-          { color: '襍､', count: 1 },
-          { color: '髱・, count: 1 },
-          { color: '邱・, count: 1 },
-          { color: '鮟・, count: 1 },
+          { color: '白', count: 1 },
+          { color: '赤', count: 1 },
+          { color: '青', count: 1 },
+          { color: '緑', count: 1 },
+          { color: '黒', count: 1 },
         ],
       },
       action: { type: 'FORCE_END_TURN' },
@@ -254,16 +254,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX01-028 繧｢繝ｼ繧ｯ繝ｻ繧ｪ繝ｼ繝ｩ・医せ繝壹Ν縲√さ繧ｹ繝医顔區縲凝・縲√ち繝樣剞螳夲ｼ・
-  // 繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縺ｾ縺ｧ縲√≠縺ｪ縺溘・繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｯ
-  // 縲後占・縲托ｼ壹％縺ｮ繝ｫ繝ｪ繧ｰ縺後い繧ｿ繝・け縺励◆縺ｨ縺阪√≠縺ｪ縺溘・繧ｷ繧ｰ繝具ｼ台ｽ薙ｒ蝣ｴ縺九ｉ繝医Λ繝・す繝･縺ｫ鄂ｮ縺・※繧ゅｈ縺・・
-  //   縺昴≧縺励◆蝣ｴ蜷医√％縺ｮ繝ｫ繝ｪ繧ｰ繧偵い繝・・縺吶ｋ縲ゅ阪ｒ蠕励ｋ縲・
+  // WX01-028 アーク・オーラ（スペル、コスト《白》×5、タマ限定）
+  // ターン終了時まで、あなたのセンタールリグは
+  // 「【自】：このルリグがアタックしたとき、あなたのシグニ１体を場からトラッシュに置いてもよい。
+  //   そうした場合、このルリグをアップする。」を得る。
   'WX01-028': [
     {
       effectId: 'WX01-028-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
-      cost: { energy: [{ color: '逋ｽ', count: 5 }] },
+      cost: { energy: [{ color: '白', count: 5 }] },
       action: {
         type: 'GRANT_LRIG_ABILITY',
         abilities: [
@@ -278,7 +278,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
               choices: [
                 {
                   choiceId: 'trash_and_up',
-                  label: '繧ｷ繧ｰ繝具ｼ台ｽ薙ｒ繝医Λ繝・す繝･縺励※繝ｫ繝ｪ繧ｰ繧偵い繝・・',
+                  label: 'シグニ１体をトラッシュしてルリグをアップ',
                   action: {
                     type: 'SEQUENCE',
                     steps: [
@@ -289,7 +289,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
                 },
                 {
                   choiceId: 'skip',
-                  label: '繝医Λ繝・す繝･縺励↑縺・,
+                  label: 'トラッシュしない',
                   action: { type: 'SEQUENCE', steps: [] } as SequenceAction,
                 },
               ],
@@ -299,7 +299,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
             parseStatus: 'AUTO',
           },
         ] as CardEffect[],
-        rawText: '縺薙・繝ｫ繝ｪ繧ｰ縺後い繧ｿ繝・け縺励◆縺ｨ縺阪√す繧ｰ繝具ｼ台ｽ薙ｒ繝医Λ繝・す繝･縺励※繧ゅｈ縺・ゅ◎縺・＠縺溷ｴ蜷医√％縺ｮ繝ｫ繝ｪ繧ｰ繧偵い繝・・縺吶ｋ縲・,
+        rawText: 'このルリグがアタックしたとき、シグニ１体をトラッシュしてもよい。そうした場合、このルリグをアップする。',
       } as GrantLrigAbilityAction,
       duration: 'UNTIL_END_OF_TURN',
       mandatory: false,
@@ -307,9 +307,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX01-057 蜃ｺ蠑薙繧ｻ繝輔ぅ繝ｩ繝
-  // 縲仙・縲托ｼ壹≠縺ｪ縺溘・繝・ャ繧ｭ縺ｮ荳逡ｪ荳翫ｒ隕九ｋ縲・
-  //         縺昴ｌ縺鍬v.2莉･荳九・繧ｷ繧ｰ繝九〒閾ｪ蛻・・蝣ｴ縺ｫ莉悶・繧ｷ繧ｰ繝九′縺ｪ縺・ｴ蜷医√◎繧後ｒ蝣ｴ縺ｫ蜃ｺ縺励※繧ゅｈ縺・・
+  // WX01-057 出弓　セフィラム
+  // 【出】：あなたのデッキの一番上を見る。
+  //         それがLv.2以下のシグニで自分の場に他のシグニがない場合、それを場に出してもよい。
   'WX01-057': [
     {
       effectId: 'WX01-057-E1',
@@ -327,12 +327,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
             destination: { location: 'deck', owner: 'self', position: 'top' },
           },
           {
-            // 譚｡莉ｶ・壹ョ繝・く繝医ャ繝励′Lv.2莉･荳九・繧ｷ繧ｰ繝・縺九▽ 閾ｪ蛻・・蝣ｴ縺ｫ莉悶・繧ｷ繧ｰ繝九′縺ｪ縺・ｼ郁・霄ｫ縺ｮ縺ｿ=1菴難ｼ・
+            // 条件：デッキトップがLv.2以下のシグニ かつ 自分の場に他のシグニがない（自身のみ=1体）
             type: 'CONDITIONAL',
             condition: {
               type: 'AND',
               conditions: [
-                { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: '繧ｷ繧ｰ繝・, level: { max: 2 } } },
+                { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: { max: 2 } } },
                 { type: 'FIELD_COUNT', owner: 'self', operator: 'eq', value: 1 },
               ],
             },
@@ -342,12 +342,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
               choices: [
                 {
                   choiceId: 'yes',
-                  label: '繝・ャ繧ｭ繝医ャ繝励ｒ蝣ｴ縺ｫ蜃ｺ縺・,
+                  label: 'デッキトップを場に出す',
                   action: { type: 'ADD_TO_FIELD', owner: 'self' },
                 },
                 {
                   choiceId: 'no',
-                  label: '蝣ｴ縺ｫ蜃ｺ縺輔↑縺・,
+                  label: '場に出さない',
                   action: { type: 'SEQUENCE', steps: [] },
                 },
               ],
@@ -370,8 +370,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXK04-060 鄒・､・繧ｬ繧ｦ繝ｩ: ON_BANISH 縺ｯ縲悟ｯｾ謌ｦ逶ｸ謇九・繧ｿ繝ｼ繝ｳ縺ｮ髢薙阪・縺ｿ
-  // 繝代・繧ｵ繝ｼ縺・activeCondition 繧定ｧ｣譫舌〒縺阪↑縺・◆繧∵焔蜍輔〒險ｭ螳・
+  // WXK04-060 羅植 ガウラ: ON_BANISH は「対戦相手のターンの間」のみ
+  // パーサーが activeCondition を解析できないため手動で設定
   'WXK04-060': [
     {
       effectId: 'WXK04-060-E1',
@@ -398,18 +398,18 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXK09-TK-01A 謾ｹ騾邏譚撰ｼ医い繝ｼ繝・繧ｯ繝ｩ繝輔ヨ・・
-  // 縺薙・繧ｿ繝ｼ繝ｳ謾ｹ騾邏譚蝉ｽｿ逕ｨ荳榊庄 + 髮ｻ讖溘す繧ｰ繝句ｯｾ雎｡縺ｫ竭+4000 竭｡襍ｷ蜍戊・蜉帑ｻ倅ｸ・竭｢閾ｪ蜍戊・蜉帑ｻ倅ｸ・縺九ｉ1縺､驕ｸ謚・
+  // WXK09-TK-01A 改造素材（アーツ/クラフト）
+  // このターン改造素材使用不可 + 電機シグニ対象に①+4000 ②起動能力付与 ③自動能力付与 から1つ選択
   'WXK09-TK-01A': [
     {
       effectId: 'WXK09-TK-01A-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
-      cost: { energy: [{ color: '邱・, count: 0 }] },
+      cost: { energy: [{ color: '緑', count: 0 }] },
       action: {
         type: 'SEQUENCE',
         steps: [
-          { type: 'BLOCK_CARD_USE', cardName: '謾ｹ騾邏譚・ },
+          { type: 'BLOCK_CARD_USE', cardName: '改造素材' },
           { type: 'STUB', id: 'DO_THREE_THINGS' },
         ],
       } as SequenceAction,
@@ -419,8 +419,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXDi-P11-TK01 逋ｽ鄒・弌蟋ｫ縲繧ｵ繧ｿ繝ｳ・医Ξ繧ｾ繝翫け繝ｩ繝輔ヨ・・
-  // 縲仙ｸｸ縲代≠縺ｪ縺溘・繧ｿ繝ｼ繝ｳ縺ｮ髢薙∝ｯｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝九ｒ・剃ｽ薙∪縺ｧ縺励°蝣ｴ縺ｫ蜃ｺ縺吶％縺ｨ縺後〒縺阪↑縺・
+  // WXDi-P11-TK01 白羅星姫　サタン（レゾナクラフト）
+  // 【常】あなたのターンの間、対戦相手はシグニを２体までしか場に出すことができない
   'WXDi-P11-TK01': [
     {
       effectId: 'WXDi-P11-TK01-E1',
@@ -433,14 +433,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // PR-Di017A 逋ｽ辭ｱ縺吶ｋ鮟堤區・医せ繝壹Ν・・
-  // 繧ｫ繝ｼ繝峨ｒ2譫壼ｼ輔￥縲ゅΛ繧､繝輔け繝ｭ繧ｹ縺・譫壻ｻ･荳九・蝣ｴ蜷医√メ繧ｧ繝・け繧ｾ繝ｼ繝ｳ縺ｮ繧ｫ繝ｼ繝峨ｒ陬剰ｿ斐＠縺ｦ蝣ｴ縺ｫ蜃ｺ縺呻ｼ・EV・・
+  // PR-Di017A 白熱する黒白（スペル）
+  // カードを2枚引く。ライフクロスが1枚以下の場合、チェックゾーンのカードを裏返して場に出す（REV）
   'PR-Di017A': [
     {
       effectId: 'PR-Di017A-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
-      cost: { energy: [{ color: '辟｡', count: 2 }] },
+      cost: { energy: [{ color: '無', count: 2 }] },
       action: {
         type: 'SEQUENCE',
         steps: [
@@ -454,8 +454,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // PR-Di017B REV:繧｢繝ｳ繧ｳ繝ｼ繝ｪ繝ｳ繧ｰ・医す繧ｰ繝具ｼ・
-  // 縲占・縲代い繧ｿ繝・け繝輔ぉ繧､繧ｺ髢句ｧ区凾縲∝ｯｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝・菴薙ｒ蟇ｾ雎｡縺ｨ縺励∵焔譛ｭ繧・譫壽昏縺ｦ縺ｦ繧ゅｈ縺・・繝医Λ繝・す繝･
+  // PR-Di017B REV:アンコーリング（シグニ）
+  // 【自】アタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい→トラッシュ
   'PR-Di017B': [
     {
       effectId: 'PR-Di017B-E1',
@@ -468,7 +468,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
           {
             type: 'STUB', id: 'OPTIONAL_COST',
             costColors: [],
-            costText: '謇区惆繧抵ｼ捺椢謐ｨ縺ｦ繧・,
+            costText: '手札を３枚捨てる',
           },
         ],
       } as SequenceAction,
@@ -478,14 +478,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXDi-P14-TK04 繝輔ぉ繧ｾ繝ｼ繝阪・繧ｸ繝・け繝ｻ豺ｱ邱托ｼ医せ繝壹Ν/繧ｯ繝ｩ繝輔ヨ・・
-  // 縲舌お繝翫メ繝｣繝ｼ繧ｸ・代代ｒ縺吶ｋ縲ゅ◎縺ｮ蠕後√≠縺ｪ縺溘・繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｷ繧ｰ繝九ｒ・第椢縺ｾ縺ｧ蟇ｾ雎｡縺ｨ縺励√◎繧後ｒ蝣ｴ縺ｫ蜃ｺ縺・
+  // WXDi-P14-TK04 フェゾーネマジック・深緑（スペル/クラフト）
+  // 【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを場に出す
   'WXDi-P14-TK04': [
     {
       effectId: 'WXDi-P14-TK04-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
-      cost: { energy: [{ color: '邱・, count: 0 }] },
+      cost: { energy: [{ color: '緑', count: 0 }] },
       action: {
         type: 'SEQUENCE',
         steps: [
@@ -499,8 +499,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXDi-P09-TK03A 繧ｳ繝ｼ繝峨う繝ｼ繝医繧ｪ繝ｳ繧ｿ繝橸ｼ医い繧ｯ繧ｻ繧ｯ繝ｩ繝輔ヨ・・
-  // 縲弱仙ｸｸ縲托ｼ壹％繧後↓繧｢繧ｯ繧ｻ縺輔ｌ縺ｦ縺・ｋ繧ｷ繧ｰ繝九′蝣ｴ繧帝屬繧後ｋ蝣ｴ蜷医∽ｻ｣繧上ｊ縺ｫ縺薙ｌ繧偵ご繝ｼ繝縺九ｉ髯､螟悶＠縺ｦ繧ゅｈ縺・ゅ◎縺・＠縺溷ｴ蜷医√◎縺ｮ繧ｷ繧ｰ繝九ｒ繝繧ｦ繝ｳ縺吶ｋ縲ゅ・
+  // WXDi-P09-TK03A コードイート　オンタマ（アクセクラフト）
+  // 『【常】：これにアクセされているシグニが場を離れる場合、代わりにこれをゲームから除外してもよい。そうした場合、そのシグニをダウンする。』
   'WXDi-P09-TK03A': [
     {
       effectId: 'WXDi-P09-TK03A-E1',
@@ -512,9 +512,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX25-P2-TK05 闥ｼ遨ｹ蟆・ｧｫ縲繝九Χ繝ｫ繝倥う繝・医す繧ｰ繝・繝ｬ繧ｾ繝翫け繝ｩ繝輔ヨ・・
-  // 縲仙ｸｸ縲托ｼ壼ｯｾ謌ｦ逶ｸ謇九・繝峨Ο繝ｼ繝輔ぉ繧､繧ｺ縺ｮ髢薙↓繧ｫ繝ｼ繝峨ｒ蜷郁ｨ茨ｼ第椢縺ｾ縺ｧ縺励°蠑輔￠縺ｪ縺・・
-  // 縲占・縲托ｼ壹％縺ｮ繧ｷ繧ｰ繝九′蝣ｴ繧帝屬繧後◆縺ｨ縺阪√き繝ｼ繝峨ｒ・呈椢蠑輔￥縺九∝ｯｾ謌ｦ逶ｸ謇九・謇区惆繧抵ｼ呈椢謐ｨ縺ｦ繧九・
+  // WX25-P2-TK05 蒼穹将姫　ニヴルヘイム（シグニ/レゾナクラフト）
+  // 【常】：対戦相手はドローフェイズの間にカードを合計１枚までしか引けない。
+  // 【自】：このシグニが場を離れたとき、カードを２枚引くか、対戦相手は手札を２枚捨てる。
   'WX25-P2-TK05': [
     {
       effectId: 'WX25-P2-TK05-E1',
@@ -535,12 +535,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         choices: [
           {
             choiceId: 'draw2',
-            label: '繧ｫ繝ｼ繝峨ｒ・呈椢蠑輔￥',
+            label: 'カードを２枚引く',
             action: { type: 'DRAW', owner: 'self', count: 2 } as import('../types/effects').DrawAction,
           },
           {
             choiceId: 'opp_discard2',
-            label: '蟇ｾ謌ｦ逶ｸ謇九・謇区惆繧抵ｼ呈椢謐ｨ縺ｦ繧・,
+            label: '対戦相手は手札を２枚捨てる',
             action: {
               type: 'TRASH',
               target: { type: 'HAND_CARD', owner: 'opponent', count: 2 },
@@ -554,7 +554,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX08-005 繧ｨ繝翫だ繝ｼ繝ｳ莉･螟悶・鬆伜沺縺ｫ縺ゅｋ繧ｫ繝ｼ繝峨・逋ｽ縺ｫ縺ｪ繧具ｼ・ONTINUOUS・・
+  // WX08-005 エナゾーン以外の領域にあるカードは白になる（CONTINUOUS）
   'WX08-005': [
     {
       effectId: 'WX08-005-E1',
@@ -566,7 +566,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX08-006 蟇ｾ謌ｦ逶ｸ謇九・縲舌メ繝｣繝ｼ繝縲代′莉倥＞縺ｦ縺・ｋ繧ｷ繧ｰ繝九・縲占ｵｷ縲題・蜉帙ｒ菴ｿ逕ｨ縺ｧ縺阪↑縺・ｼ・ONTINUOUS・・
+  // WX08-006 対戦相手は【チャーム】が付いているシグニの【起】能力を使用できない（CONTINUOUS）
   'WX08-006': [
     {
       effectId: 'WX08-006-E1',
@@ -578,7 +578,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX08-029 ・医け繝ｭ繧ｹ譎ゑｼ峨≠縺ｪ縺溘・繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｫ繝ｼ繝会ｼ第椢繧呈焔譛ｭ縺ｫ蜉縺医※繧ゅｈ縺・ｼ・UTO / ON_HEAVEN・・
+  // WX08-029 （クロス時）あなたのエナゾーンからカード１枚を手札に加えてもよい（AUTO / ON_HEAVEN）
   'WX08-029': [
     {
       effectId: 'WX08-029-E3',
@@ -595,7 +595,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX10-006 縺薙・繧ｷ繧ｰ繝九′繧｢繧ｿ繝・け縺励◆縺ｨ縺阪√≠縺ｪ縺溘・繧ｨ繝翫だ繝ｼ繝ｳ縺九ｉ繧ｫ繝ｼ繝会ｼ第椢繧呈焔譛ｭ縺ｫ蜉縺医※繧ゅｈ縺・ｼ・UTO / ON_ATTACK_SIGNI・・
+  // WX10-006 このシグニがアタックしたとき、あなたのエナゾーンからカード１枚を手札に加えてもよい（AUTO / ON_ATTACK_SIGNI）
   'WX10-006': [
     {
       effectId: 'WX10-006-E1',
@@ -611,7 +611,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX10-008 縺薙・繧ｷ繧ｰ繝九′繝舌ル繝・す繝･縺輔ｌ繧句ｴ蜷医√Ν繝ｪ繧ｰ繝・ャ繧ｭ縺ｫ謌ｻ繧倶ｻ｣繧上ｊ縺ｫ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｫ鄂ｮ縺九ｌ繧具ｼ・ONTINUOUS・・
+  // WX10-008 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
   'WX10-008': [
     {
       effectId: 'WX10-008-E1',
@@ -623,7 +623,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX10-020 縺薙・繧ｷ繧ｰ繝九′繝舌ル繝・す繝･縺輔ｌ繧句ｴ蜷医√Ν繝ｪ繧ｰ繝・ャ繧ｭ縺ｫ謌ｻ繧倶ｻ｣繧上ｊ縺ｫ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｫ鄂ｮ縺九ｌ繧具ｼ・ONTINUOUS・・
+  // WX10-020 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
   'WX10-020': [
     {
       effectId: 'WX10-020-E1',
@@ -635,7 +635,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX10-024 縺薙・繧ｷ繧ｰ繝九′繝舌ル繝・す繝･縺輔ｌ繧句ｴ蜷医√Ν繝ｪ繧ｰ繝・ャ繧ｭ縺ｫ謌ｻ繧倶ｻ｣繧上ｊ縺ｫ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｫ鄂ｮ縺九ｌ繧具ｼ・ONTINUOUS・・
+  // WX10-024 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
   'WX10-024': [
     {
       effectId: 'WX10-024-E1',
@@ -647,7 +647,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX11-013 縺薙・繧ｷ繧ｰ繝九′繝舌ル繝・す繝･縺輔ｌ繧句ｴ蜷医√Ν繝ｪ繧ｰ繝・ャ繧ｭ縺ｫ謌ｻ繧倶ｻ｣繧上ｊ縺ｫ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｫ鄂ｮ縺九ｌ繧具ｼ・ONTINUOUS・・
+  // WX11-013 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
   'WX11-013': [
     {
       effectId: 'WX11-013-E1',
@@ -659,7 +659,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX13-028 縺薙・繧ｷ繧ｰ繝九′繝舌ル繝・す繝･縺輔ｌ繧句ｴ蜷医√Ν繝ｪ繧ｰ繝・ャ繧ｭ縺ｫ謌ｻ繧倶ｻ｣繧上ｊ縺ｫ繝ｫ繝ｪ繧ｰ繝医Λ繝・す繝･縺ｫ鄂ｮ縺九ｌ繧具ｼ・ONTINUOUS・・
+  // WX13-028 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
   'WX13-028': [
     {
       effectId: 'WX13-028-E1',
@@ -671,7 +671,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX14-017 縺ゅ↑縺溘・繧ｨ繝翫だ繝ｼ繝ｳ縺ｫ縺ゅｋ辟｡濶ｲ縺ｧ縺ｯ縺ｪ縺・き繝ｼ繝峨・縺吶∋縺ｦ縺ｮ濶ｲ繧呈戟縺､・・ONTINUOUS・・
+  // WX14-017 あなたのエナゾーンにある無色ではないカードはすべての色を持つ（CONTINUOUS）
   'WX14-017': [
     {
       effectId: 'WX14-017-E1',
@@ -683,7 +683,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXEX1-26 蟇ｾ謌ｦ逶ｸ謇九・繧ｻ繝ｳ繧ｿ繝ｼ繝ｫ繝ｪ繧ｰ縺ｮ蝓ｺ譛ｬ繝ｪ繝溘ャ繝医・・輔↓縺ｪ繧具ｼ・ONTINUOUS・・
+  // WXEX1-26 対戦相手のセンタールリグの基本リミットは５になる（CONTINUOUS）
   'WXEX1-26': [
     {
       effectId: 'WXEX1-26-E1',
@@ -695,10 +695,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXDi-CP02-TK01A 繝壹Ο繝ｭ莠ｺ蠖｢・医す繧ｰ繝・繧ｯ繝ｩ繝輔ヨ・・
-  // 縲仙ｸｸ縲托ｼ壼ｯｾ謌ｦ逶ｸ謇九・繧ｷ繧ｰ繝九′豁｣髱｢縺ｫ繧｢繧ｿ繝・け縺吶ｋ蝣ｴ蜷医∽ｻ｣繧上ｊ縺ｫ縺薙・繧ｷ繧ｰ繝九・縺ゅｋ繧ｷ繧ｰ繝九だ繝ｼ繝ｳ縺ｫ繧｢繧ｿ繝・け縺吶ｋ縲・
-  // 縲仙ｸｸ縲托ｼ壹い繝・・迥ｶ諷九・縺薙・繧ｷ繧ｰ繝九′繝舌ヨ繝ｫ縺句ｯｾ謌ｦ逶ｸ謇九・蜉ｹ譫懊↓繧医▲縺ｦ蝣ｴ繧帝屬繧後ｋ蝣ｴ蜷医∽ｻ｣繧上ｊ縺ｫ縺薙・繧ｷ繧ｰ繝九ｒ繝繧ｦ繝ｳ縺励※繧ゅｈ縺・・
-  // 縲占・縲托ｼ壼ｯｾ謌ｦ逶ｸ謇九・繧ｿ繝ｼ繝ｳ邨ゆｺ・凾縲√％縺ｮ繧ｷ繧ｰ繝九ｒ繧ｲ繝ｼ繝縺九ｉ髯､螟悶☆繧九・
+  // WXDi-CP02-TK01A ペロロ人形（シグニ/クラフト）
+  // 【常】：対戦相手のシグニが正面にアタックする場合、代わりにこのシグニのあるシグニゾーンにアタックする。
+  // 【常】：アップ状態のこのシグニがバトルか対戦相手の効果によって場を離れる場合、代わりにこのシグニをダウンしてもよい。
+  // 【自】：対戦相手のターン終了時、このシグニをゲームから除外する。
   'WXDi-CP02-TK01A': [
     {
       effectId: 'WXDi-CP02-TK01A-E1',
@@ -731,9 +731,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 };
 
 /**
- * 閾ｪ蜍戊ｧ｣譫千ｵ先棡縺ｨ繝槭ル繝･繧｢繝ｫ蜉ｹ譫懊ｒ繝槭・繧ｸ縺吶ｋ縲・
- * - manualEffects 蜀・・ effectId 縺御ｸ閾ｴ縺吶ｋ繧ゅ・縺ｯ荳頑嶌縺・
- * - 荳閾ｴ縺励↑縺・effectId 縺ｯ譛ｫ蟆ｾ縺ｫ霑ｽ蜉
+ * 自動解析結果とマニュアル効果をマージする。
+ * - manualEffects 内の effectId が一致するものは上書き
+ * - 一致しない effectId は末尾に追加
  */
 export function mergeManualEffects(
   cardNum: string,
@@ -749,4 +749,3 @@ export function mergeManualEffects(
   }
   return merged;
 }
-
