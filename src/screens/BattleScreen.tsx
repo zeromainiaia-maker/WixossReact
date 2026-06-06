@@ -5610,7 +5610,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             energyAfterGuard = energyAfterGuard.slice(0, -1);
             extraTrash.push(removedEnHOC);
           } else {
-            const extraHandIdx = my.hand.findIndex((cn, i) => i !== handIndex);
+            const extraHandIdx = my.hand.findIndex((_, i) => i !== handIndex);
             if (extraHandIdx >= 0) extraTrash.push(my.hand[extraHandIdx]);
           }
         }
