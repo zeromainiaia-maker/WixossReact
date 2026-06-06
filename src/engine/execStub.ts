@@ -4804,9 +4804,9 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, hand_signi_guard_enabled: true } },
       '手札のシグニすべてにガードアイコン付与'));
   }
-  // フィールドのエナシグニが色を獲得（ログのみ・スキップ）
+  // FIELD_ENERGY_SIGNI_GAIN_COLOR: CONTINUOUS効果はeffectEngineで処理済み（no-op）
   if (stub.id === 'FIELD_ENERGY_SIGNI_GAIN_COLOR') {
-    return done(addLog(ctx, 'エナゾーンのシグニが色を獲得（スキップ）'));
+    return done(ctx);
   }
   // 相手が宣言した色に応じてエナをトラッシュ（相手の宣言が必要→スキップ）
   // DECLARE_COLOR_COND_ENERGY_TRASH: 色を宣言し、エナから宣言色のカードを任意でトラッシュ

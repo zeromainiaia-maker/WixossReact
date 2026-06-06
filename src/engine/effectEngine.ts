@@ -3498,6 +3498,32 @@ export function collectFieldSigniExtraColors(
     }
   }
 
+  // FIELD_ENERGY_SIGNI_GAIN_COLOR: フィールド上のシグニが「場とエナゾーンにあるシグニは追加でX色を得る」を持つ場合
+  // fieldSigniExtraColors に対象フィールドシグニ分を追加する
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'FIELD_ENERGY_SIGNI_GAIN_COLOR') continue;
+      const card = cardMap.get(top);
+      const txt = card?.EffectText ?? '';
+      const colorM = txt.match(/追加で([白赤青緑黒])を得る/);
+      if (!colorM) continue;
+      const gainColor = colorM[1];
+      const isDisonaFilter = /《ディソナアイコン》のシグニ/.test(txt);
+      // フィールドの全シグニに追加色を付与（フィルタ付きは条件チェック）
+      for (const targetStack of state.field.signi) {
+        const t = targetStack?.at(-1);
+        if (!t) continue;
+        if (isDisonaFilter && (cardMap.get(t)?.Story ?? '') !== 'Dissona') continue;
+        const existing = result.get(t) ?? [];
+        if (!existing.includes(gainColor)) { existing.push(gainColor); result.set(t, existing); }
+      }
+    }
+  }
+
   return result;
 }
 

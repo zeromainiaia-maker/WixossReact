@@ -155,7 +155,7 @@
 | 2 | CONT | ✅ | ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白 |
 | 2 | ACTIVATED | ✅ | EXTRA_COST_REMOVE_VIRUS ※v0.138: ウイルス除去数CHOOSE(0〜N)→INTERNAL_ECRV_APPLY→除去実行+(N+1)択CHOOSE。①〜④テキスト解析で効果選択肢生成 |
 | 2 | AUTO/ACTIVATED | ✅ | FACE_DOWN_OPP_SIGNI ※相手シグニSELECT_TARGET→face_down_signi+abilities_removed追加（v0.147） |
-| 2 | CONT | ✅ | FIELD_ENERGY_SIGNI_GAIN_COLOR ※v0.173: 《ディソナアイコン》フィルター対応追加（CardName//ディソナで判定）。他の特殊アイコンフィルターは未対応だが主要2件✅ |
+| 2 | CONT | ✅ | FIELD_ENERGY_SIGNI_GAIN_COLOR ※v0.207: collectFieldSigniExtraColorsにFIELD_ENERGY_SIGNI_GAIN_COLORフィールド適用を追加（場シグニへの追加色がExecCtxに反映）。execStubはno-op化。《ディソナアイコン》フィルター対応済み（WXDi-P06-040/WXDi-P12-010） |
 | 14 | ACTIVATED/AUTO | ✅ | GAIN_ABILITY_THIS_GAME |
 | 2 | ACTIVATED/AUTO | ✅ | GRANT_CHOSEN_ABILITY ※v0.138: lastProcessedCardsに自シグニなければSELECT_TARGET→CHOOSE能力(アサシン/ランサー/ダブルクラッシュ/バニッシュ不可/ダウン不可/バウンス不可)。keyword_grantsに格納 |
 | 1 | CONT | ✅ | GRANT_QUOTED_ACTIVATE_ABILITY ※v0.197: WX13-058をeffects.jsonでDOUBLE_OWN_POWER_MINUS+HAS_CARD_IN_FIELD(ダイオ姫)条件に変換。WXK08-078はcollectGrantedFromUnderSigni経由で処理 |
