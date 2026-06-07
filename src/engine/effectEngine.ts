@@ -103,6 +103,23 @@ export function checkActiveCondition(
       break;
     }
 
+    case 'LRIG_LEVEL': {
+      const lrigState = cond.owner === 'self' ? ownerState : otherState;
+      const lrig = lrigState.field.lrig;
+      const top = lrig[lrig.length - 1];
+      if (!top) return false;
+      const lv = parseInt(cardMap.get(top)?.Level ?? '-1', 10);
+      switch (cond.operator) {
+        case 'gte': return lv >= cond.value;
+        case 'lte': return lv <= cond.value;
+        case 'gt':  return lv >  cond.value;
+        case 'lt':  return lv <  cond.value;
+        case 'eq':  return lv === cond.value;
+        case 'neq': return lv !== cond.value;
+      }
+      break;
+    }
+
     case 'EICHI_LEVEL_SUM': {
       // 英知=N: 自分のフィールドの＜英知＞シグニのレベル合計
       const eichiLevelOverrides = ownerState.attack_phase_level_overrides ?? {};
