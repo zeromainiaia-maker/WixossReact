@@ -11220,9 +11220,38 @@ export function execStub(
   if (stub.id === 'FROZEN_LOSES_ABILITIES') {
     return done(addLog(ctx, '凍結シグニは能力を失う（effectEngine側処理）'));
   }
-  // OPTIONAL_RETURN_TO_LRIG_DECK: 任意コストを支払ってルリグトラッシュからルリグデッキに戻す
+  // OPTIONAL_RETURN_TO_LRIG_DECK: 任意コストを支払ってルリグトラッシュからルリグをルリグデッキに戻す
   if (stub.id === 'OPTIONAL_RETURN_TO_LRIG_DECK') {
-    return done(addLog(ctx, 'ルリグトラッシュからルリグデッキへ返却（未実装・ログのみ）'));
+    const costColorsORL = stub.costColors ?? ['青'];
+    const lrigInTrashORL = ctx.ownerState.lrig_trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'ルリグ');
+    if (lrigInTrashORL.length === 0) {
+      return done(addLog(ctx, 'ルリグトラッシュにルリグなし→スキップ'));
+    }
+    const canAffordORL = canPayOptionalCost(costColorsORL, ctx.ownerState, ctx.cardMap);
+    const payLabelORL = `発動する（${costColorsORL.map(c => `《${c}》`).join('')}）`;
+    const payActionORL: StubAction = { type: 'STUB', id: 'INTERNAL_RETURN_LRIG_TO_DECK' };
+    const noopORL: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
+    return needsInteraction(addLog(ctx, 'ルリグをルリグデッキに戻しますか？'), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'pay',  label: payLabelORL, action: payActionORL as EffectAction, available: canAffordORL, costColors: costColorsORL },
+        { id: 'skip', label: 'スキップ', action: noopORL as EffectAction, available: true },
+      ],
+    });
+  }
+  // INTERNAL_RETURN_LRIG_TO_DECK: ルリグトラッシュの最初のルリグをlrig_deckへ移動
+  if (stub.id === 'INTERNAL_RETURN_LRIG_TO_DECK') {
+    const lrigInTrashIRL = ctx.ownerState.lrig_trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'ルリグ');
+    if (lrigInTrashIRL.length === 0) {
+      return done(addLog(ctx, 'ルリグトラッシュにルリグなし'));
+    }
+    const targetIRL = lrigInTrashIRL[0];
+    const newLrigTrash = ctx.ownerState.lrig_trash.filter(cn => cn !== targetIRL);
+    const newLrigDeck = [...(ctx.ownerState.lrig_deck ?? []), targetIRL];
+    const newOwner = { ...ctx.ownerState, lrig_trash: newLrigTrash, lrig_deck: newLrigDeck };
+    const cardName = ctx.cardMap.get(targetIRL)?.CardName ?? targetIRL;
+    return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: [targetIRL] },
+      `${cardName}をルリグデッキに戻した`));
   }
   // DECLARE_AND_MILL: 数字を宣言してデッキ上からその枚数をトラッシュに置く
   if (stub.id === 'DECLARE_AND_MILL') {
