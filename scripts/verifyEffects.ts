@@ -263,13 +263,14 @@ for (const row of rows) {
   const textActions = detectActionsFromText(effectText + ' ' + burstText);
   const jsonActions = collectActionsFromJson(effs);
 
-  for (const act of textActions) {
-    if (!jsonActions.has(act)) {
-      // STUBで代替実装されている可能性があるので、STUBがある場合は低優先度
-      const hasStub = [...jsonActions].some(a => a === 'STUB');
+  for (const { label, aliases } of textActions) {
+    // aliasのどれかがJSONに存在すればOK
+    const matched = aliases.some(a => jsonActions.has(a));
+    if (!matched) {
+      const hasStub = jsonActions.has('STUB');
       const severity = hasStub ? '[STUB代替?]' : '[要確認]';
       addIssue(cardNum, cardName, `アクション${severity}`,
-        `テキストから"${act}"が期待されるがJSONに存在しない (JSONアクション: ${[...jsonActions].filter(a=>a!=='SEQUENCE').join(', ')||'なし'})`);
+        `テキストから"${label}"が期待されるがJSONに存在しない (JSONアクション: ${[...jsonActions].filter(a=>a!=='SEQUENCE').join(', ')||'なし'})`);
     }
   }
 
