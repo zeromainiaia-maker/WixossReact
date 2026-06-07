@@ -299,10 +299,11 @@ for (const row of rows) {
   const stripCostParts = (t: string) => t.replace(/【[^】]+】[^：。]*：/g, '');
   // 「」内の付与能力引用文を除去（「【自】：ライフクロスをクラッシュしたとき...」等の誤検出対策）
   // 受動態バニッシュ（「バニッシュされたとき」等のトリガー条件・「バニッシュされない」保護）を除去
-  // 能動態バニッシュトリガー条件（「バニッシュしたとき」）を除去
+  // 能動態バニッシュ過去形・進行形（「バニッシュしたとき」「バニッシュしていた場合」等）を除去
+  // ただし「をバニッシュし、」（能動的BANISHアクション）は除去しない
   const stripBanishCtx = (t: string) => t
     .replace(/バニッシュされ(?:る|た|て|ない|ず)[^、。]*/g, '')
-    .replace(/バニッシュしたとき[^、。]*/g, '');
+    .replace(/バニッシュし(?:た|て|ていた|ている|ても)[^、。]*/g, '');
   // 「クラッシュしたとき」はライフクラッシュのトリガー条件なので除去（LIFE_CRASH誤検出対策）
   const stripCrashCtx = (t: string) => t.replace(/クラッシュしたとき[^、。]*/g, '');
   const effectBody = stripCostParts(stripCrashCtx(stripBanishCtx(stripQuoted(stripParens(effectText)))));
