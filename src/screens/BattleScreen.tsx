@@ -6234,9 +6234,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const hasSongCardMA = my.energy.some(cn => battleCardMap.get(cn)?.EffectText?.includes('【歌のカケラ】'));
             if (!hasSongCardMA) continue;
           }
+          const isSongFrag = actMA?.type === 'STUB' && actMA.id === 'SONG_FRAGMENT';
+          const energyTotalMA = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+          const exceedCostMA = eff.cost?.exceed ?? 0;
+          const costPartsMA: string[] = [];
+          if (exceedCostMA > 0) costPartsMA.push(`エクシード${exceedCostMA}`);
+          if (energyTotalMA > 0) costPartsMA.push(`エナ${energyTotalMA}`);
+          const lrigActLabel = isSongFrag ? '歌のカケラ' : (costPartsMA.join('・') || 'コストなし');
           lrigActionsMA.push({
-            label: '【起】歌のカケラ',
-            color: '#cc66ff',
+            label: `【起】${lrigActLabel}`,
+            color: isSongFrag ? '#cc66ff' : C.coin,
             onClick: () => {
               setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
               setSelectedLrigGrantedCost(new Set());
