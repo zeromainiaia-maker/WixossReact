@@ -2604,6 +2604,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           reduce_next_on_play_cost: undefined,        // 【出】コスト軽減フラグをリセット
           optional_discard_guard_enabled: undefined,  // 任意捨てガードフラグをリセット
           flip_attack_signi_zones: undefined,         // フリップアタックゾーンをリセット
+          turn_end_field_trash_targets: undefined,    // ターン終了時トラッシュ対象をリセット
+          spell_negated_this_turn: undefined,         // スペル打ち消しフラグをリセット
+          turn_trigger_3rd_plant_down: undefined,     // 植物3回目ダウントリガーをリセット
+          turn_plant_down_count: undefined,           // 植物ダウン回数をリセット
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
