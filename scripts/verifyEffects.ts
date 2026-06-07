@@ -333,9 +333,10 @@ if (issues.length === 0) {
 }
 
 // STUBリスト（--stubs フラグがある場合のみ詳細表示）
+// 注意: STUBアクションを含むカード数であり「未実装」を意味しない。実装状況はSTUBS.mdを参照。
 const showStubs = args.includes('--stubs');
 console.log(`\n${'='.repeat(70)}`);
-console.log(`STUB残り: ${stubCards.length}件${showStubs ? '' : '  (詳細: --stubs オプション)'}`);
+console.log(`STUBアクション参照カード数: ${stubCards.length}件${showStubs ? '' : '  (詳細: --stubs オプション)'}`);
 if (showStubs) {
   console.log();
   for (const s of stubCards) {
