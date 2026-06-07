@@ -292,7 +292,14 @@ for (const row of rows) {
   // 各効果ブロックのコスト部分（【起/出/自】...：の前）を除去して効果部分のみを残す
   const stripCostParts = (t: string) => t.replace(/【[^】]+】[^：。]*：/g, '');
   // 「」内の付与能力引用文を除去（「【自】：ライフクロスをクラッシュしたとき...」等の誤検出対策）
-  const effectBody = stripCostParts(stripQuoted(stripParens(effectText)));
+  // 受動態バニッシュ（「バニッシュされたとき」等のトリガー条件・「バニッシュされない」保護）を除去
+  // 能動態バニッシュトリガー条件（「バニッシュしたとき」）を除去
+  const stripBanishCtx = (t: string) => t
+    .replace(/バニッシュされ(?:る|た|て|ない|ず)[^、。]*/g, '')
+    .replace(/バニッシュしたとき[^、。]*/g, '');
+  // 「クラッシュしたとき」はライフクラッシュのトリガー条件なので除去（LIFE_CRASH誤検出対策）
+  const stripCrashCtx = (t: string) => t.replace(/クラッシュしたとき[^、。]*/g, '');
+  const effectBody = stripCostParts(stripCrashCtx(stripBanishCtx(stripQuoted(stripParens(effectText)))));
   const burstBody  = stripParens(burstText);
   const textActions = detectActionsFromText(effectBody + ' ' + burstBody);
   const jsonActions = collectActionsFromJson(effs);
