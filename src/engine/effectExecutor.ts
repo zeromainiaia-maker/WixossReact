@@ -102,7 +102,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
         ? { ...removed, deck: [num, ...removed.deck] }
         : { ...removed, energy: [...removed.energy, num] };
       cur = addLog(setOwnerState(tgt.owner, dest, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}${toBottom ? '→デッキ下' : ''}`);
+        `${cur.cardMap.get(num)?.CardName ?? num}${toBottom ? '→デッキ下' : 'をバニッシュ'}`);
     }
     return cur;
   }
