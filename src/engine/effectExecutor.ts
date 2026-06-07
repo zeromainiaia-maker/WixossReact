@@ -2656,7 +2656,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const gkGrants = { ...(gkS.keyword_grants ?? {}) };
       gkGrants[cardNum] = [...new Set([...(gkGrants[cardNum] ?? []), gkA.keyword])];
       return done(addLog(setOwnerState(gkOwner, { ...gkS, keyword_grants: gkGrants }, ctx),
-        `{gkA.keyword}{ctx.cardMap.getcardNum?.CardName ?? cardNum}`));
+        `${gkA.keyword}：${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
     case 'GRANT_EFFECT': {
       const geA = action as GrantEffectAction;
