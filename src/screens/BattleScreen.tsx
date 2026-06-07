@@ -3262,7 +3262,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
 
         // SEED_BLOOM: 開花したシグニのON_PLAY効果をスタックに積む（pending_effect経由の場合）
-        const bloomedCardsPE = result.lastProcessedCards ?? [];
+        // 元の効果が SEED_BLOOM 系の場合のみ処理（BANISH 等の通常選択で lastProcessedCards が入っても誤発動しないよう）
+        const peEffectForBloom = (effectsMap.get(pe.sourceCardNum) ?? []).find(e => e.effectId === pe.effectId);
+        const peStubId = (peEffectForBloom?.action as import('../types/effects').StubAction)?.id;
+        const isBloomActionPE = peStubId === 'INTERNAL_BLOOM_SEED' || peStubId === 'SEED_BLOOM' || peStubId === 'SEED_BLOOM_OPTIONAL';
+        const bloomedCardsPE = isBloomActionPE ? (result.lastProcessedCards ?? []) : [];
         const bloomOnPlayPE: StackEntry[] = [];
         for (const instanceId of bloomedCardsPE) {
           const cn = getCardNum(instanceId);
