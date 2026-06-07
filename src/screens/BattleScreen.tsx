@@ -2510,6 +2510,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newSigniField };
           }
         }
+        // turn_end_field_trash_targets: ターン終了時にフィールドのシグニをトラッシュへ（TRASH_AT_TURN_END）
+        if ((my.turn_end_field_trash_targets ?? []).length > 0) {
+          const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
+          const trashedTEFT: string[] = [];
+          for (const targetId of my.turn_end_field_trash_targets!) {
+            const zi = newFieldSigniTEFT.findIndex(stack => stack?.at(-1) === targetId);
+            if (zi < 0) continue;
+            newFieldSigniTEFT[zi] = null;
+            trashedTEFT.push(targetId);
+          }
+          if (trashedTEFT.length > 0) {
+            myTrashAfterCoinCheck = [...myTrashAfterCoinCheck, ...trashedTEFT];
+            myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newFieldSigniTEFT };
+            appendBattleLogs([`ターン終了時：${trashedTEFT.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`]);
+          }
+        }
         // game_turn_end_trash_to_hand: ターン終了時、トラッシュから特定クラスシグニを手札へ（GAIN_ABILITY_THIS_GAME）
         if (my.game_turn_end_trash_to_hand) {
           const { class: ttCls, count: ttCnt } = my.game_turn_end_trash_to_hand;
