@@ -361,6 +361,26 @@ function parseActiveCondition(text: string): ConditionParseResult {
   if (handZeroM) {
     return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: 'eq', value: 0 }, rest: text.slice(handZeroM[0].length), conditionFound: true };
   }
+
+  // パターン7: 「あなたの手札が対戦相手よりN枚以上多いかぎり、」（handGenMより先に評価）
+  const handDiffM = text.match(/^あなたの手札が対戦相手より([０-９\d]+)枚以上多いかぎり、/);
+  if (handDiffM) {
+    return {
+      condition: { type: 'HAND_DIFF', operator: 'gte', value: parseNum(handDiffM[1]) },
+      rest: text.slice(handDiffM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン8: 「あなたの手札が対戦相手より多いかぎり、」（枚数なし → ≥1、handGenMより先に評価）
+  if (text.startsWith('あなたの手札が対戦相手より多いかぎり、')) {
+    return {
+      condition: { type: 'HAND_DIFF', operator: 'gte', value: 1 },
+      rest: text.slice('あなたの手札が対戦相手より多いかぎり、'.length),
+      conditionFound: true,
+    };
+  }
+
   const handGenM = text.match(/^あなたの手札が.+かぎり、/);
   if (handGenM) {
     return { condition: undefined, rest: text.slice(handGenM[0].length), conditionFound: true };
@@ -382,25 +402,6 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return {
       condition: { type: 'IS_SELF_ARMORED' } as ActiveCondition,
       rest: text.slice(armorKagiriM[0].length),
-      conditionFound: true,
-    };
-  }
-
-  // パターン7: 「あなたの手札が対戦相手よりN枚以上多いかぎり、」
-  const handDiffM = text.match(/^あなたの手札が対戦相手より([０-９\d]+)枚以上多いかぎり、/);
-  if (handDiffM) {
-    return {
-      condition: { type: 'HAND_DIFF', operator: 'gte', value: parseNum(handDiffM[1]) },
-      rest: text.slice(handDiffM[0].length),
-      conditionFound: true,
-    };
-  }
-
-  // パターン8: 「あなたの手札が対戦相手より多いかぎり、」（枚数なし → ≥1）
-  if (text.startsWith('あなたの手札が対戦相手より多いかぎり、')) {
-    return {
-      condition: { type: 'HAND_DIFF', operator: 'gte', value: 1 },
-      rest: text.slice('あなたの手札が対戦相手より多いかぎり、'.length),
       conditionFound: true,
     };
   }
