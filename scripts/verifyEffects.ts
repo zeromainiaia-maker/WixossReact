@@ -285,7 +285,8 @@ for (const row of rows) {
   const stripParens = (t: string) => t.replace(/（[^（）]*）/g, '');
   // 各効果ブロックのコスト部分（【起/出/自】...：の前）を除去して効果部分のみを残す
   const stripCostParts = (t: string) => t.replace(/【[^】]+】[^：。]*：/g, '');
-  const effectBody = stripCostParts(stripParens(effectText));
+  // 「」内の付与能力引用文を除去（「【自】：ライフクロスをクラッシュしたとき...」等の誤検出対策）
+  const effectBody = stripCostParts(stripQuoted(stripParens(effectText)));
   const burstBody  = stripParens(burstText);
   const textActions = detectActionsFromText(effectBody + ' ' + burstBody);
   const jsonActions = collectActionsFromJson(effs);
