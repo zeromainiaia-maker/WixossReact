@@ -11200,5 +11200,34 @@ export function execStub(
       `${ctx.cardMap.get(srcCnRSG)?.CardName ?? srcCnRSG}をゲームから除外`));
   }
 
+  // MOVE_LRIG_TRASH_UNDER: ルリグトラッシュから全ルリグをセンタールリグの下に置く（effectEngineで管理）
+  if (stub.id === 'MOVE_LRIG_TRASH_UNDER') {
+    return done(addLog(ctx, 'ルリグトラッシュからすべてのルリグをこのカードの下に置き、白と黒のアーツをルリグデッキへ返却（BattleScreen側処理）'));
+  }
+  // INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュにあるルリグの起動能力を継承する（BattleScreen側処理）
+  if (stub.id === 'INHERIT_LRIG_TRASH_ABILITIES') {
+    return done(addLog(ctx, 'ルリグトラッシュにあるルリグの起動能力を継承（BattleScreen側処理）'));
+  }
+  // FORCE_COLOR_BLACK: エナゾーン以外の領域にあるシグニは黒になる（effectEngineで処理）
+  if (stub.id === 'FORCE_COLOR_BLACK') {
+    return done(addLog(ctx, 'エナゾーン以外のシグニは黒（effectEngine側処理）'));
+  }
+  // REORDER_LIFE_CLOTHS: ライフクロスを任意に並び替える
+  if (stub.id === 'REORDER_LIFE_CLOTHS') {
+    return done(addLog(ctx, 'ライフクロスを並び替え（未実装・ログのみ）'));
+  }
+  // FROZEN_LOSES_ABILITIES: 対戦相手の凍結状態のシグニは能力を失う（effectEngineで処理）
+  if (stub.id === 'FROZEN_LOSES_ABILITIES') {
+    return done(addLog(ctx, '凍結シグニは能力を失う（effectEngine側処理）'));
+  }
+  // OPTIONAL_RETURN_TO_LRIG_DECK: 任意コストを支払ってルリグトラッシュからルリグデッキに戻す
+  if (stub.id === 'OPTIONAL_RETURN_TO_LRIG_DECK') {
+    return done(addLog(ctx, 'ルリグトラッシュからルリグデッキへ返却（未実装・ログのみ）'));
+  }
+  // DECLARE_AND_MILL: 数字を宣言してデッキ上からその枚数をトラッシュに置く
+  if (stub.id === 'DECLARE_AND_MILL') {
+    return done(addLog(ctx, '宣言枚数ミル（未実装・ログのみ）'));
+  }
+
   return done(addLog(ctx, `[STUB: ${stub.id}]`));
 }
