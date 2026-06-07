@@ -221,7 +221,7 @@ for (const row of rows) {
   ] as const;
 
   for (const { marker, type, timing } of timingChecks) {
-    const count = (effectText.match(new RegExp(marker.replace('[', '\\[').replace(']','\\]').replace('【','【').replace('】','】'), 'g')) ?? []).length;
+    const count = (cleanEffectText.match(new RegExp(marker.replace('[', '\\[').replace(']','\\]').replace('【','【').replace('】','】'), 'g')) ?? []).length;
     if (count === 0) continue;
     const matchedEffs = effs.filter(e => {
       if (e.effectType !== type) return false;
