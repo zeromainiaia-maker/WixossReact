@@ -4133,6 +4133,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const casterIsHost = caster_id === bs.host_id;
       const casterState = casterIsHost ? bs.host_state : bs.guest_state;
       const nonCasterState = casterIsHost ? bs.guest_state : bs.host_state;
+      // NEGATE_SPELL: casterStateにspell_negated_this_turnがあればコスト合計5以下のスペルを打ち消す
+      if (casterState.spell_negated_this_turn) {
+        const spellCard = battleCardMap.get(card_num);
+        const spellTotalCostNS = parseGrowCost(spellCard?.Cost ?? '').reduce((s, c) => s + c.count, 0);
+        if (spellTotalCostNS <= 5) {
+          const spellNameNS = spellCard?.CardName ?? card_num;
+          const negatedCasterState: PlayerState = {
+            ...casterState,
+            trash: [...casterState.trash, card_num],
+            spell_negated_this_turn: undefined,
+          };
+          const hostStateNS  = casterIsHost ? negatedCasterState : nonCasterState;
+          const guestStateNS = casterIsHost ? nonCasterState : negatedCasterState;
+          appendBattleLogs([`[スペル打ち消し] ${spellNameNS}（コスト${spellTotalCostNS}）が打ち消された`]);
+          await supabase.from('battle_states')
+            .update({ host_state: hostStateNS, guest_state: guestStateNS, pending_spell: null, pending_effect: null })
+            .eq('room_id', roomId);
+          return;
+        }
+      }
+
       const resolved: PlayerState = { ...casterState, trash: [...casterState.trash, card_num] };
 
       // スペル効果を発火（casterがowner）
