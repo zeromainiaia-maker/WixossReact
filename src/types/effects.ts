@@ -165,6 +165,7 @@ export interface EffectTarget {
   type:
     | 'SIGNI'
     | 'LRIG'
+    | 'CENTER_LRIG_OR_SIGNI'
     | 'HAND_CARD'
     | 'DECK_CARD'
     | 'TRASH_CARD'
