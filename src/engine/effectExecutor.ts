@@ -82,7 +82,7 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
       life_cloth: topLife ? s.life_cloth.slice(0, -1) : s.life_cloth,
     };
   }
-  return done(addLog(setOwnerState(a.owner, s, ctx), `${count}`));
+  return done(addLog(setOwnerState(a.owner, s, ctx), `${count}枚ドロー`));
 }
 
 function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
