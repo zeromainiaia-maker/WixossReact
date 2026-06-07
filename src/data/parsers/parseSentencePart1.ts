@@ -1147,7 +1147,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const keyword = grantQuotedM[1].replace(/。$/, '');
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const target: EffectTarget = t.includes('シグニ') && t.includes('センタールリグ')
-      ? { type: 'SIGNI', owner, count: 1 } // ルリグかシグニ → 近似でSIGNI
+      ? { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 1 }
       : t.includes('シグニ')
         ? parseSigniTarget(t, owner)
         : { type: 'LRIG', owner, count: 1 };
