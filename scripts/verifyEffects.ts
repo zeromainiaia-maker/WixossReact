@@ -211,6 +211,7 @@ for (const row of rows) {
   // 【グロウ】条件テキスト（グロウ条件として書かれた非効果部分）を除去
   const stripGrow = (t: string) => t.replace(/【グロウ】[^【]*/g, '');
 
+  const cleanEffectText = stripGrow(stripQuoted(effectText));
   const timingChecks = [
     { marker: '【常】',   type: 'CONTINUOUS',  timing: null         },
     { marker: '【出】',   type: 'AUTO',         timing: 'ON_PLAY'    },
