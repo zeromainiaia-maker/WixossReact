@@ -115,16 +115,17 @@ function normTextCost(costs: { color: string; count: number }[]): string {
 }
 
 /** アクションタイプのキーワード照合 */
-const ACTION_KEYWORDS: { pattern: RegExp; type: string }[] = [
-  { pattern: /手札に戻す|バウンス/,                                    type: 'BOUNCE' },
-  { pattern: /バニッシュ(?!無効)/,                                     type: 'BANISH' },
-  { pattern: /カードを([１-９\d０-９]+枚)?引く|ドローする/,             type: 'DRAW' },
-  { pattern: /デッキから.+探して/,                                     type: 'SEARCH' },
-  { pattern: /エナゾーンに置く/,                                       type: 'MOVE_TO_ENERGY' },
-  { pattern: /手札から.+トラッシュ|手札から.+捨てる/,                  type: 'DISCARD' },
-  { pattern: /デッキの上.+トラッシュ|デッキから.+トラッシュ/,          type: 'MILL' },
-  { pattern: /パワーを[＋+][０-９\d]+する|パワーが[０-９\d]+になる/,   type: 'POWER_MODIFY' },
-  { pattern: /クラッシュ/,                                             type: 'CRASH_LIFE' },
+// aliases: テキストのキーワードが複数のJSONアクション名にマッピングされる場合
+const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
+  { pattern: /手札に戻す|バウンス/,                                    types: ['BOUNCE'] },
+  { pattern: /バニッシュ(?!無効)/,                                     types: ['BANISH'] },
+  { pattern: /カードを([１-９\d０-９]+枚)?引く|ドローする/,             types: ['DRAW'] },
+  { pattern: /デッキから.+探して/,                                     types: ['SEARCH'] },
+  { pattern: /エナゾーンに置く/,                                       types: ['MOVE_TO_ENERGY', 'ENERGY_CHARGE', 'ENERGY_CHARGE_FROM_DECK'] },
+  { pattern: /手札から.+トラッシュ|手札から.+捨てる/,                  types: ['DISCARD', 'TRASH'] },
+  { pattern: /デッキの上.+トラッシュ|デッキから.+トラッシュ/,          types: ['MILL', 'TRASH'] },
+  { pattern: /パワーを[＋+][０-９\d]+する|パワーが[０-９\d]+になる/,   types: ['POWER_MODIFY'] },
+  { pattern: /クラッシュ/,                                             types: ['LIFE_CRASH', 'CRASH_LIFE'] },
 ];
 
 function detectActionsFromText(text: string): Set<string> {
