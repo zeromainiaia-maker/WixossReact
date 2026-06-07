@@ -11229,5 +11229,59 @@ export function execStub(
     return done(addLog(ctx, '宣言枚数ミル（未実装・ログのみ）'));
   }
 
+  // RETURN_ANGEL_SIGNI_TO_DECK: トラッシュから天使シグニ7枚をデッキ下に置く（WX06-001 タウィル＝フィーラ E2）
+  if (stub.id === 'RETURN_ANGEL_SIGNI_TO_DECK') {
+    const angelCards = ctx.ownerState.trash.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && (c?.CardClass?.includes('天使') || c?.Story?.includes('天使'));
+    });
+    if (angelCards.length < 7) {
+      return done(addLog(ctx, `トラッシュの天使シグニが${angelCards.length}枚（7枚必要）→スキップ`));
+    }
+    const toReturn = angelCards.slice(0, 7);
+    const newTrash = ctx.ownerState.trash.filter(cn => !toReturn.includes(cn));
+    const newDeck = [...ctx.ownerState.deck, ...toReturn];
+    const newOwner = { ...ctx.ownerState, trash: newTrash, deck: newDeck };
+    return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: toReturn }, `天使シグニ${toReturn.length}枚をデッキ下に配置`));
+  }
+
+  // RETURN_UNIQUE_ANGEL_SIGNI_TO_DECK: トラッシュから名前の異なる天使シグニ7枚をデッキ下に置く（WX06-001 E3）
+  if (stub.id === 'RETURN_UNIQUE_ANGEL_SIGNI_TO_DECK') {
+    const angelCardsUA = ctx.ownerState.trash.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && (c?.CardClass?.includes('天使') || c?.Story?.includes('天使'));
+    });
+    const seenNamesUA = new Set<string>();
+    const uniqueUA = angelCardsUA.filter(cn => {
+      const name = ctx.cardMap.get(cn)?.CardName ?? cn;
+      if (seenNamesUA.has(name)) return false;
+      seenNamesUA.add(name);
+      return true;
+    });
+    if (uniqueUA.length < 7) {
+      return done(addLog(ctx, `名前の異なる天使シグニが${uniqueUA.length}枚（7枚必要）→スキップ`));
+    }
+    const toReturnUA = uniqueUA.slice(0, 7);
+    const newTrashUA = ctx.ownerState.trash.filter(cn => !toReturnUA.includes(cn));
+    const newDeckUA = [...ctx.ownerState.deck, ...toReturnUA];
+    const newOwnerUA = { ...ctx.ownerState, trash: newTrashUA, deck: newDeckUA };
+    return done(addLog({ ...ctx, ownerState: newOwnerUA, lastProcessedCards: toReturnUA }, `名前の異なる天使シグニ${toReturnUA.length}枚をデッキ下に配置`));
+  }
+
+  // NEGATE_SPELL: コスト合計5以下のスペルを打ち消す（WX11-017 ブルー・パニッシュ）
+  if (stub.id === 'NEGATE_SPELL') {
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, spell_negated_this_turn: true } },
+      'スペル打ち消し（BattleScreen側でアーツ使用を無効化）'));
+  }
+
+  // GRANT_TURN_TRIGGER_3RD_DOWN: このターン植物シグニ3回目ダウン時トリガー付与（WX05-042 増武）
+  if (stub.id === 'GRANT_TURN_TRIGGER_3RD_DOWN') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, turn_trigger_3rd_plant_down: true } },
+      'このターン、植物シグニが3回目ダウンになったときの効果を付与'));
+  }
+
+  // DECLARE_NUMBER: 数字を宣言する（DECLARE_AND_MILLの分離STUBとして使用）
+  // → execStub.tsではDECLARE_NUMBERが既に実装済み（STUBS.md ✅）のため不要
+
   return done(addLog(ctx, `[STUB: ${stub.id}]`));
 }
