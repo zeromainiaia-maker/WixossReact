@@ -366,7 +366,7 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
     deck: state.deck.slice(count),
     energy: [...state.energy, ...took],
   };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `${count}`));
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${count}`));
 }
 
 function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
