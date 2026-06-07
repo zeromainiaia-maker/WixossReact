@@ -650,18 +650,28 @@ function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
 
 function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
-  const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+
+  // CENTER_LRIG_OR_SIGNI: センタールリグとシグニ両方を候補に追加
+  let cands: string[];
+  if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
+    const lrigTop = state.field.lrig.at(-1);
+    const signiCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
+  } else {
+    cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  }
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
-    const s = ownerState(tgt.owner, c);
+    const s = ownerState(tgtOwner, c);
     const grants = { ...(s.keyword_grants ?? {}) };
     for (const n of selected) {
       grants[n] = [...(grants[n] ?? []), a.keyword];
     }
     let newS: PlayerState = { ...s, keyword_grants: grants };
 
-    // 
+    //
     if (a.keyword === '') {
       for (const n of selected) {
         const zoneIdx = newS.field.signi.findIndex(stack => stack?.at(-1) === n);
@@ -674,12 +684,12 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       }
     }
 
-    return addLog(setOwnerState(tgt.owner, newS, c), `${a.keyword}`);
+    return addLog(setOwnerState(tgtOwner, newS, c), `${a.keyword}`);
   }
 
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
   const count = resolveNum(tgt.count);
-  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
   return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
 
