@@ -281,6 +281,7 @@ export type EffectAction =
   | GrantSigniAboveAbilityAction
   | StubAction
   | GainBondAction
+  | MILLAction
   | UnknownAction;
 
 export interface DrawAction {
