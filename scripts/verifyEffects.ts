@@ -71,7 +71,6 @@ function splitEffects(text: string): string[] {
   // 【】で始まる効果ブロックを分割
   const blocks: string[] = [];
   const re = /【[常出起自ガ起出ドライブ][^】]*】/g;
-  let lastIdx = 0;
   let m: RegExpExecArray | null;
   const starts: number[] = [];
   while ((m = re.exec(text)) !== null) starts.push(m.index);
