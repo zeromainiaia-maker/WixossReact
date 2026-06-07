@@ -10,6 +10,7 @@
     "build:effects": "tsx scripts/buildEffectsJson.ts",
     "wel": "tsx scripts/batchParseCards.ts --sheet Sheet1 --batch-size 5",
     "wel:dry": "tsx scripts/batchParseCards.ts --sheet Sheet1 --batch-size 5 --dry-run",
+    "verify": "tsx scripts/verifyEffects.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
