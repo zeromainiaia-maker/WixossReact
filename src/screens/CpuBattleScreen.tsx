@@ -5,7 +5,7 @@ import type { CardData, PlayerState, TurnPhase, Deck } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { executeEffect, getCardNum, resumeSelectTarget, resumeDeclareBond } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
-import { calcFieldPowers, collectFrozenBanishOverrides, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors } from '../engine/effectEngine';
+import { calcFieldPowers, collectFrozenBanishOverrides, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, calcContinuousBlockedActions } from '../engine/effectEngine';
 import { hasKeyword } from '../utils/keywords';
 import type { ExecCtx } from '../engine/effectExecutor';
 import type { PendingInteractionDef } from '../types';
