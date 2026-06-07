@@ -9015,7 +9015,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 4px' }}>{card.CardName}</p>
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
                           コスト: {[
-                            energyTotal > 0 ? `エナ${energyTotal}枚` : null,
+                            energyTotal > 0 ? costStr : null,
                             discardNeeded > 0 ? `手札${discardNeeded}枚` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
