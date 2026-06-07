@@ -8896,7 +8896,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           このカードをエナゾーンからシグニのアクセにする
                         </p>
                         <p style={{ color: C.textFaint, fontSize: 11, margin: '2px 0 0' }}>
-                          コスト: {energyTotal > 0 ? `エナ${energyTotal}枚` : 'なし'}
+                          コスト: {energyTotal > 0 ? reducedCostItems.map(e => `《${e.color}》×${e.count}`).join('') : 'なし'}
                           {acceGreenReduction > 0 && (
                             <span style={{ color: C.success, marginLeft: 4 }}>(《緑》×{acceGreenReduction}軽減)</span>
                           )}
