@@ -949,7 +949,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       return [{ label: '配置', color: C.accent, onClick: () => handleZoneClick(rawZoneIdx) }];
     }
     return [];
-  }, [gs, selectedHandIdx]);
+  }, [gs, selectedHandIdx, effectsMap, cardMap]);
 
   const getPlayerLrigFieldActions = useCallback((): CardAction[] => {
     if (!gs || gs.turnPlayer !== 'player' || gs.winner || gs.burstCard || gs.pendingInteraction || gs.trapActivation) return [];
