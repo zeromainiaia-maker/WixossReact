@@ -316,7 +316,7 @@ const categories = [...new Set(issues.map(i => i.category))].sort();
 
 console.log('='.repeat(70));
 console.log(`  WixossReact 効果照合レポート — ${sheetArg}`);
-console.log(`  対象: ${rows.length}カード  issues: ${issues.length}件  STUB: ${stubCards.length}件`);
+console.log(`  対象: ${rows.length}カード  issues: ${issues.length}件  STUBアクション含有: ${stubCards.length}件`);
 console.log('='.repeat(70));
 
 if (issues.length === 0) {
