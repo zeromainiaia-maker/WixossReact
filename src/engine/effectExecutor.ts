@@ -2099,6 +2099,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return done(addLog({ ...ctx, ownerState: newOwner }, `${pnd.count ?? 1}`));
     }
     case 'GAIN_BOND':               return execGainBond(action as import('../types/effects').GainBondAction, ctx);
+    case 'MILL':                    return execMill(action as MILLAction, ctx);
     case 'STUB': return execStub(action as StubAction, ctx, executeAction);
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
     default:                        return done(ctx);
