@@ -985,6 +985,13 @@ export interface StubAction {
 }
 
 // 生徒との絆を獲得する（ブルアカ絆メカニクス）
+export interface MILLAction {
+  type: 'MILL';
+  owner: Owner;
+  count: number;
+  useDeclaredCount?: boolean;
+}
+
 export interface GainBondAction {
   type: 'GAIN_BOND';
   // 'last_found': 直前のREVEAL_AND_PICK/SEARCHで見つかったカード名と絆を獲得
