@@ -11363,6 +11363,51 @@ export function execStub(
       'このターン、植物シグニが3回目ダウンになったときの効果を付与'));
   }
 
+  // RETURN_ANGEL_SIGNI_TO_DECK: トラッシュの天使シグニ7枚をデッキ下へ（WX06-001）
+  // 条件達成時に lastProcessedCards を設定 → 後続の conditional:true BANISH が発動
+  if (stub.id === 'RETURN_ANGEL_SIGNI_TO_DECK') {
+    const angelNums = ctx.ownerState.trash.filter(cn =>
+      ctx.cardMap.get(cn)?.CardClass?.includes('天使'),
+    );
+    if (angelNums.length < 7) {
+      return done(addLog({ ...ctx, lastProcessedCards: [] },
+        `天使シグニが${angelNums.length}枚（7枚必要）→ 効果なし`));
+    }
+    const toBottom = angelNums.slice(0, 7);
+    const newTrash = ctx.ownerState.trash.filter(cn => !toBottom.includes(cn));
+    const newDeck = [...ctx.ownerState.deck, ...toBottom];
+    const newOwner = { ...ctx.ownerState, trash: newTrash, deck: newDeck };
+    return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: toBottom },
+      `トラッシュの天使シグニ${toBottom.length}枚をデッキ下へ`));
+  }
+
+  // RETURN_UNIQUE_ANGEL_SIGNI_TO_DECK: 名前の異なる天使シグニ7枚をデッキ下へ（WX06-001）
+  if (stub.id === 'RETURN_UNIQUE_ANGEL_SIGNI_TO_DECK') {
+    const angelByName = new Map<string, string>(); // name → first instance ID
+    for (const cn of ctx.ownerState.trash) {
+      const card = ctx.cardMap.get(cn);
+      if (!card?.CardClass?.includes('天使')) continue;
+      const name = card.CardName;
+      if (!angelByName.has(name)) angelByName.set(name, cn);
+    }
+    if (angelByName.size < 7) {
+      return done(addLog({ ...ctx, lastProcessedCards: [] },
+        `名前の異なる天使シグニが${angelByName.size}種（7種必要）→ 効果なし`));
+    }
+    const toBottom = [...angelByName.values()].slice(0, 7);
+    const newTrash = ctx.ownerState.trash.filter(cn => !toBottom.includes(cn));
+    const newDeck = [...ctx.ownerState.deck, ...toBottom];
+    const newOwner = { ...ctx.ownerState, trash: newTrash, deck: newDeck };
+    return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: toBottom },
+      `名前の異なる天使シグニ${toBottom.length}枚をデッキ下へ`));
+  }
+
+  // FROZEN_LOSES_ABILITIES: 対戦相手の凍結状態シグニは能力を失う（WX09-Re01 CONTINUOUS）
+  // applyEffects(effectEngine)でCONTINUOUSパワー修正をスキップ済み。execStub経由では no-op。
+  if (stub.id === 'FROZEN_LOSES_ABILITIES') {
+    return done(addLog(ctx, '対戦相手の凍結シグニは能力を失う（常在効果・effectEngineで適用）'));
+  }
+
   // DECLARE_NUMBER: 数字を宣言する（DECLARE_AND_MILLの分離STUBとして使用）
   // → execStub.tsではDECLARE_NUMBERが既に実装済み（STUBS.md ✅）のため不要
 

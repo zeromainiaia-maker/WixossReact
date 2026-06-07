@@ -833,6 +833,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動
   const [pendingLrigGranted, setPendingLrigGranted] = useState<{ sourceCardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedLrigGrantedCost, setSelectedLrigGrantedCost] = useState<Set<number>>(new Set());
+  const [selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard] = useState<Set<number>>(new Set());
   // ライフクロスクラッシュ時のカード拡大
   const [burstCardZoomed, setBurstCardZoomed] = useState(false);
   const [opCheckCardZoomed, setOpCheckCardZoomed] = useState(false); // 相手ライフクラッシュ拡大
@@ -3417,6 +3418,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // 相手のフィールド：'any_opp' または 'any' トリガー（相手のシグニが自分の召喚に反応）
     // BLOCK_OPP_SIGNI_AUTO: 自分の blocked_actions に設定済みの場合、相手シグニAUTOをスキップ
     const oppAutoBlocked = myState.blocked_actions?.includes('BLOCK_OPP_SIGNI_AUTO');
+    // FROZEN_LOSES_ABILITIES: 自ルリグにこの常在があれば相手の凍結シグニのAUTOをスキップ
+    const myLrigTop = myState.field.lrig.at(-1);
+    const frozenLosesAbilitiesOnMyLrig = myLrigTop
+      ? (effectsMap.get(myLrigTop) ?? []).some(e =>
+          e.effectType === 'CONTINUOUS' &&
+          (e.action as import('../types/effects').StubAction)?.type === 'STUB' &&
+          (e.action as import('../types/effects').StubAction)?.id === 'FROZEN_LOSES_ABILITIES',
+        )
+      : false;
     for (const stack of opState.field.signi) {
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
@@ -3425,6 +3435,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (eff.effectType !== 'AUTO') continue;
         if (!eff.timing?.includes(event)) continue;
         if (oppAutoBlocked) continue; // BLOCK_OPP_AUTO_ABILITY_EXTENDED
+        // FROZEN_LOSES_ABILITIES: 凍結中の相手シグニのAUTOをスキップ
+        if (frozenLosesAbilitiesOnMyLrig) {
+          const zi2 = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
+          if (zi2 >= 0 && (opState.field.signi_frozen?.[zi2] ?? false)) continue;
+        }
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any' && scope !== 'any_opp') continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
@@ -5930,7 +5945,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               effectId: `plant_3rd_down_${generateUUID()}`,
               effectType: 'ACTIVATED',
               duration: 'INSTANT',
-              action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').BanishAction,
+              action: {
+                type: 'SEQUENCE',
+                steps: [
+                  { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').BanishAction,
+                  { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 1 } } as import('../types/effects').TransferToHandAction,
+                  { type: 'DRAW', owner: 'self', count: 1 } as import('../types/effects').DrawAction,
+                ],
+              } as import('../types/effects').SequenceAction,
             };
             plant3rdDownTriggerEntry = {
               id: generateUUID(),
@@ -6126,11 +6148,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動：エクシードコスト＋エナコスト支払い
-  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set()) => {
     if (loading) return;
     setLoading(true);
     setPendingLrigGranted(null);
     setSelectedLrigGrantedCost(new Set());
+    setSelectedLrigGrantedHandDiscard(new Set());
     try {
       // エクシードコスト：センター → 左アシスト → 右アシストの順で下からN枚をルリグトラッシュへ
       const exceedCost = effect.cost?.exceed ?? 0;
@@ -6154,10 +6177,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // エナコスト支払い
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // 手札シグニ捨てコスト支払い
+      const discardedHandNums = [...handDiscardIndices].map(i => my.hand[i]);
+      const newHand = my.hand.filter((_, i) => !handDiscardIndices.has(i));
       const paid: import('../types').PlayerState = {
         ...my,
+        hand: newHand,
         energy: newEnergy,
-        trash: [...my.trash, ...paidNums],
+        trash: [...my.trash, ...paidNums, ...discardedHandNums],
         field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
@@ -6299,7 +6326,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const eff of lrigEffsMA) {
           if (eff.effectType !== 'ACTIVATED') continue;
           if (!eff.timing?.includes('MAIN')) continue;
-          if (my.actions_done?.includes(eff.effectId)) continue;
+          if (!eff.repeatable && my.actions_done?.includes(eff.effectId)) continue;
           if (my.blocked_actions?.includes(eff.effectId)) continue;
           // SONG_FRAGMENT: エナゾーンに歌のカケラがある場合のみ表示
           const actMA = eff.action as import('../types/effects').StubAction;
@@ -6310,9 +6337,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const isSongFrag = actMA?.type === 'STUB' && actMA.id === 'SONG_FRAGMENT';
           const energyTotalMA = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
           const exceedCostMA = eff.cost?.exceed ?? 0;
+          const hdSigniMA = eff.cost?.handDiscardSigni;
           const costPartsMA: string[] = [];
           if (exceedCostMA > 0) costPartsMA.push(`エクシード${exceedCostMA}`);
           if (energyTotalMA > 0) costPartsMA.push(`エナ${energyTotalMA}`);
+          if (hdSigniMA) costPartsMA.push(`手札${hdSigniMA.color}シグニ×${hdSigniMA.count}`);
           const lrigActLabel = isSongFrag ? '歌のカケラ' : (costPartsMA.join('・') || 'コストなし');
           lrigActionsMA.push({
             label: `【起】${lrigActLabel}`,
@@ -6320,6 +6349,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             onClick: () => {
               setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
               setSelectedLrigGrantedCost(new Set());
+              setSelectedLrigGrantedHandDiscard(new Set());
             },
           });
         }
@@ -6352,6 +6382,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 const inheritedEff = { ...eff, effectId: inheritedId, sourceCardNum: lrigTopMA };
                 setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: inheritedEff });
                 setSelectedLrigGrantedCost(new Set());
+                setSelectedLrigGrantedHandDiscard(new Set());
               },
             });
           }
@@ -6379,6 +6410,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             onClick: () => {
               setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
               setSelectedLrigGrantedCost(new Set());
+              setSelectedLrigGrantedHandDiscard(new Set());
             },
           };
         });
@@ -9261,7 +9293,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       {/* ===== ルリグ付与能力（GRANT_LRIG_ABILITY）発動モーダル ===== */}
       {pendingLrigGranted && createPortal(
         <div
-          onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); }}
+          onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -9274,6 +9306,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const eff = pendingLrigGranted.effect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const exceedCost = eff.cost?.exceed ?? 0;
+              const hdSigniCost = eff.cost?.handDiscardSigni;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedLrigGrantedCost].map(i => my.energy[i]);
               const canAffordEnergy = energyTotal === 0
@@ -9284,7 +9317,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
                 + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);
               const canAffordExceed = exceedCost === 0 || totalExceedAvail >= exceedCost;
-              const canAfford = canAffordEnergy && canAffordExceed;
+              const canAffordHandDiscard = !hdSigniCost || selectedLrigGrantedHandDiscard.size >= hdSigniCost.count;
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
@@ -9303,6 +9337,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           コスト: {[
                             exceedCost > 0 ? `エクシード${exceedCost}` : null,
                             energyTotal > 0 ? costStr : null,
+                            hdSigniCost ? `手札${hdSigniCost.color}シグニ×${hdSigniCost.count}` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {exceedCost > 0 && !canAffordExceed && (
@@ -9360,16 +9395,68 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </>
                   )}
 
+                  {hdSigniCost && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        手札から{hdSigniCost.color}シグニを選択: {selectedLrigGrantedHandDiscard.size} / {hdSigniCost.count}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.hand.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isValidTarget = c?.Color?.includes(hdSigniCost.color) && c?.Type === 'シグニ';
+                          const isSel = selectedLrigGrantedHandDiscard.has(i);
+                          if (!isValidTarget && !isSel) return null;
+                          return (
+                            <div key={i}
+                              onClick={() => {
+                                if (!isValidTarget) return;
+                                setSelectedLrigGrantedHandDiscard(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(i)) { next.delete(i); return next; }
+                                  if (next.size >= hdSigniCost.count) return prev;
+                                  next.add(i); return next;
+                                });
+                              }}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #2196f3' : C.borderCard,
+                                cursor: isValidTarget ? 'pointer' : 'default',
+                                opacity: isValidTarget ? 1 : 0.4, overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(33,150,243,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); }}
+                      onClick={() => { setPendingLrigGranted(null); setSelectedLrigGrantedCost(new Set()); setSelectedLrigGrantedHandDiscard(new Set()); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => executeLrigGranted(eff, selectedLrigGrantedCost)}
+                      onClick={() => executeLrigGranted(eff, selectedLrigGrantedCost, selectedLrigGrantedHandDiscard)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

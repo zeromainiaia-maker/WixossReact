@@ -612,11 +612,26 @@ export function calcFieldPowers(
       }
     }
 
+    // FROZEN_LOSES_ABILITIES: otherState の LRIG にこの CONT があれば ownerState の凍結シグニをスキップ
+    const frozenLosesAbilities = otherState.field.lrig.some(lrigNum => {
+      return (effectsMap.get(lrigNum) ?? []).some(eff =>
+        eff.effectType === 'CONTINUOUS' &&
+        (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+        (eff.action as import('../types/effects').StubAction).id === 'FROZEN_LOSES_ABILITIES' &&
+        checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap),
+      );
+    });
+
     // 同一CardNumが複数ゾーンに存在する場合、効果元として重複処理しない
     const seenSources = new Set<string>();
     for (const topNum of candidates) {
       if (seenSources.has(topNum)) continue;
       seenSources.add(topNum);
+      // FROZEN_LOSES_ABILITIES: 凍結中の自シグニのCONTINUOUS効果をスキップ
+      if (frozenLosesAbilities) {
+        const zi = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum);
+        if (zi >= 0 && (ownerState.field.signi_frozen?.[zi] ?? false)) continue;
+      }
       const effects = effectsMap.get(topNum);
       if (!effects) continue;
 

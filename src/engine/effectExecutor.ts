@@ -87,6 +87,10 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
 }
 
 function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
+  // conditional: true = 前ステップ（STUB等）がlastProcessedCardsを設定した場合のみ実行
+  if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
+    return done(addLog(ctx, '条件未達成 → BANISH スキップ'));
+  }
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);

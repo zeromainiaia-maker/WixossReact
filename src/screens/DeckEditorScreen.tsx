@@ -60,6 +60,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(deck.name);
   const [expandedCardNum, setExpandedCardNum] = useState<string | null>(null);
+  const [expandedTokenCardNum, setExpandedTokenCardNum] = useState<string | null>(null);
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
   const [showDeckSettingsMenu, setShowDeckSettingsMenu] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
@@ -500,7 +501,8 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                         <img
                           src={getThumbUrl(displayCard.ImgURL)}
                           alt={tk.CardName}
-                          style={{ width: '44px', height: '62px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }}
+                          onClick={() => setExpandedTokenCardNum(currentDisplayNum)}
+                          style={{ width: '44px', height: '62px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0, cursor: 'pointer' }}
                           onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
                         />
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -508,7 +510,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                           <p style={{ color: '#aaa', fontSize: '11px', margin: 0 }}>{hasVariants ? `${group.length}種類の絵柄` : '絵柄違いなし'}</p>
                         </div>
                         <button
-                          onClick={() => { if (hasVariants) { setShowTokenModal(false); setVariantPickerFor({ cardNum: tk.CardNum, from: 'token' }); } }}
+                          onClick={() => { if (hasVariants) { setVariantPickerFor({ cardNum: tk.CardNum, from: 'token' }); } }}
                           disabled={!hasVariants}
                           style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', backgroundColor: hasVariants ? '#7755dd' : '#555', color: hasVariants ? '#fff' : '#999', fontSize: '12px', cursor: hasVariants ? 'pointer' : 'default', flexShrink: 0 }}
                         >絵柄変更</button>
@@ -577,15 +579,16 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
 
       {/* 絵柄変更モーダル */}
       {variantPickerFor && (() => {
-        const { cardNum } = variantPickerFor;
+        const { cardNum, from } = variantPickerFor;
         const card = cardMap.get(cardNum);
         if (!card) return null;
         const variants = [...new Map((variantMap.get(card.CardName) ?? []).map(c => [c.CardNum, c])).values()];
         const currentDisplayNum = current.artOverrides?.[cardNum] ?? cardNum;
+        const pickerZIndex = from === 'token' ? 400 : 300;
         return (
           <div
             onClick={() => setVariantPickerFor(null)}
-            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: pickerZIndex }}
           >
             <div onClick={e => e.stopPropagation()} style={{ backgroundColor: '#1a1a2e', borderRadius: '12px', padding: '16px', width: 'min(92vw, 520px)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', border: '1px solid #555' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
@@ -655,6 +658,47 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
                 </div>
               )}
               <button onClick={() => setExpandedCardNum(null)} style={{ marginTop: '4px', padding: '8px 24px', border: 'none', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '13px', cursor: 'pointer' }}>閉じる</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* トークンカード拡大モーダル */}
+      {expandedTokenCardNum && (() => {
+        const card = cardMap.get(expandedTokenCardNum);
+        if (!card) return null;
+        const hasLB = card.LifeBurst === '1';
+        return (
+          <div
+            onClick={() => setExpandedTokenCardNum(null)}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 400, cursor: 'pointer', overflowY: 'auto', padding: '16px 0' }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', width: 'min(90vw, 360px)' }}>
+              <img
+                src={card.ImgURL}
+                alt={card.CardName}
+                style={{ maxWidth: '80vw', maxHeight: '55vh', objectFit: 'contain', borderRadius: '8px' }}
+                onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <p style={{ fontSize: '14px', fontWeight: 'bold', textAlign: 'center', color: '#fff', margin: 0 }}>{card.CardName}</p>
+                {hasLB && <span style={{ fontSize: '10px', backgroundColor: '#e05c00', color: '#fff', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }}>LB</span>}
+              </div>
+              <p style={{ fontSize: '11px', color: '#aaa', textAlign: 'center', margin: 0 }}>{card.CardNum} / {card.Type} / {card.Color}{card.Level ? ` / Lv.${card.Level}` : ''}</p>
+              {card.CardClass && <p style={{ fontSize: '11px', color: '#888', textAlign: 'center', margin: 0 }}>{card.CardClass}</p>}
+              {card.EffectText && card.EffectText !== '-' && (
+                <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: '6px', padding: '8px 10px', borderLeft: '3px solid #7755dd' }}>
+                  <p style={{ fontSize: '10px', color: '#bb99ff', fontWeight: 'bold', margin: '0 0 4px' }}>通常効果</p>
+                  <p style={{ fontSize: '11px', color: '#ddd', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{card.EffectText}</p>
+                </div>
+              )}
+              {hasLB && card.BurstText && card.BurstText !== '-' && (
+                <div style={{ width: '100%', backgroundColor: 'rgba(255,200,100,0.07)', borderRadius: '6px', padding: '8px 10px', borderLeft: '3px solid #e05c00' }}>
+                  <p style={{ fontSize: '10px', color: '#ff9955', fontWeight: 'bold', margin: '0 0 4px' }}>ライフバースト効果</p>
+                  <p style={{ fontSize: '11px', color: '#ddd', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{card.BurstText}</p>
+                </div>
+              )}
+              <button onClick={() => setExpandedTokenCardNum(null)} style={{ marginTop: '4px', padding: '8px 24px', border: 'none', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '13px', cursor: 'pointer' }}>閉じる</button>
             </div>
           </div>
         );

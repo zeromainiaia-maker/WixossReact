@@ -129,6 +129,7 @@ export interface EnergyCost {
 export interface EffectCost {
   energy?: EnergyCost[];
   discard?: number;       // 手札を任意のカードN枚トラッシュ
+  handDiscardSigni?: { color: string; count: number }; // 手札から指定色のシグニをN枚トラッシュ
   banish_self?: boolean;  // 自身をバニッシュ
   life_crash?: number;    // 自分のライフクロスをN枚クラッシュ
   down_self?: boolean;    // 自身をダウン
@@ -333,7 +334,8 @@ export interface BounceAction {
 export interface BanishAction {
   type: 'BANISH';
   target: EffectTarget;
-  optional?: boolean; // true = 「してもよい」（プレイヤーがスキップ可能）
+  optional?: boolean;    // true = 「してもよい」（プレイヤーがスキップ可能）
+  conditional?: boolean; // true = 前ステップ（STUB等）が成功した場合のみ実行
 }
 
 export interface PowerModifyAction {
@@ -1076,4 +1078,6 @@ export interface CardEffect {
   crossOnly?: boolean;
   // 絆アイコン有効時のみ発動（【絆常】【絆出】【絆自】【絆起】）: 表示フラグ兼ロジックフラグ
   kizunaIcon?: boolean;
+  // ターン1制限なし（デフォルトは1ターン1回）
+  repeatable?: boolean;
 }

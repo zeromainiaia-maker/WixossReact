@@ -59,8 +59,9 @@ function SortableDeckCard({ deck, cards, isCpuMode, isSortMode, onClick }: Sorta
       {isSortMode && (
         <div style={{
           position: 'absolute', top: 6, right: 6, zIndex: 1,
-          backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4,
-          padding: '2px 5px', fontSize: 12, color: '#aaa', pointerEvents: 'none',
+          backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6,
+          padding: '4px 8px', fontSize: 20, color: '#ccc', pointerEvents: 'none',
+          lineHeight: 1,
         }}>
           ⠿
         </div>
