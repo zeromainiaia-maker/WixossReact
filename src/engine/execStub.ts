@@ -11208,9 +11208,9 @@ export function execStub(
   if (stub.id === 'INHERIT_LRIG_TRASH_ABILITIES') {
     return done(addLog(ctx, 'ルリグトラッシュにあるルリグの起動能力を継承（BattleScreen側処理）'));
   }
-  // FORCE_COLOR_BLACK: エナゾーン以外の領域にあるシグニは黒になる（effectEngineで処理）
+  // FORCE_COLOR_BLACK: エナゾーン以外の領域にあるシグニは黒になる（collectFieldSigniExtraColorsで処理）
   if (stub.id === 'FORCE_COLOR_BLACK') {
-    return done(addLog(ctx, 'エナゾーン以外のシグニは黒（effectEngine側処理）'));
+    return done(addLog(ctx, 'エナゾーン以外のシグニは黒（effectEngine collectFieldSigniExtraColors処理）'));
   }
   // REORDER_LIFE_CLOTHS: ライフクロスを任意に並び替える
   if (stub.id === 'REORDER_LIFE_CLOTHS') {
