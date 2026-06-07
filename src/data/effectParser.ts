@@ -332,7 +332,7 @@ function parseActiveCondition(text: string): ConditionParseResult {
   // パターン5b: 「あなたのエナゾーンにあるカードが対戦相手よりN枚以上多いかぎり、」
   const enaDiffM = text.match(/^あなたのエナゾーンにあるカードが対戦相手より([０-９\d]+)枚以上多いかぎり、/);
   if (enaDiffM) {
-    return { condition: undefined, rest: text.slice(enaDiffM[0].length), conditionFound: true };
+    return { condition: { type: 'ENA_DIFF', operator: 'gte', value: parseNum(enaDiffM[1]) }, rest: text.slice(enaDiffM[0].length), conditionFound: true };
   }
 
   // パターン5c: 「あなたの手札がN枚以上/以下あるかぎり、」（「以上あるかぎり」も含む）
