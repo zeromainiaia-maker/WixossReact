@@ -3515,6 +3515,24 @@ export function collectFieldSigniExtraColors(
     if (extraColors.length > 0) result.set(topNum, extraColors);
   }
 
+  // FORCE_COLOR_BLACK: いずれかのプレイヤーのルリグがこの効果を持つ場合、フィールド全シグニに黒を追加
+  const hasForcedBlack = [...(state.field.lrig ?? []), ...(otherState.field.lrig ?? [])].some(lrigCn => {
+    return (effectsMap.get(lrigCn) ?? []).some(eff => {
+      if (eff.effectType !== 'CONTINUOUS') return false;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'FORCE_COLOR_BLACK') return false;
+      return checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, lrigCn);
+    });
+  });
+  if (hasForcedBlack) {
+    for (const stack of state.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      const existing = result.get(top) ?? [];
+      if (!existing.includes('黒')) { existing.push('黒'); result.set(top, existing); }
+    }
+  }
+
   // CARDS_OUTSIDE_ENERGY_BECOME_WHITE: フィールド上のシグニに白色を追加（エナゾーン以外→白の全ゾーン実装）
   const hasOutsideEnergyWhite = state.field.signi.some(stack => {
     const top = stack?.at(-1);
