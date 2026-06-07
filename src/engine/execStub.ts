@@ -11200,9 +11200,22 @@ export function execStub(
       `${ctx.cardMap.get(srcCnRSG)?.CardName ?? srcCnRSG}をゲームから除外`));
   }
 
-  // MOVE_LRIG_TRASH_UNDER: ルリグトラッシュから全ルリグをセンタールリグの下に置く（effectEngineで管理）
+  // MOVE_LRIG_TRASH_UNDER: ルリグトラッシュからルリグをセンタールリグの下に置き、白/黒アーツをルリグデッキへ
   if (stub.id === 'MOVE_LRIG_TRASH_UNDER') {
-    return done(addLog(ctx, 'ルリグトラッシュからすべてのルリグをこのカードの下に置き、白と黒のアーツをルリグデッキへ返却（BattleScreen側処理）'));
+    const lrigTrash = ctx.ownerState.lrig_trash;
+    const lrigsMLTU = lrigTrash.filter(cn => ctx.cardMap.get(cn)?.Type === 'ルリグ');
+    const whiteBlackArtsMLTU = lrigTrash.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      if (c?.Type !== 'アーツ') return false;
+      const color = c.Color ?? '';
+      return color.includes('白') || color.includes('黒');
+    });
+    const remaining = lrigTrash.filter(cn => !lrigsMLTU.includes(cn) && !whiteBlackArtsMLTU.includes(cn));
+    // ルリグをlrig_deckの末尾（スタック下）へ、アーツをlrig_deckの先頭へ
+    const newLrigDeck = [...whiteBlackArtsMLTU, ...(ctx.ownerState.lrig_deck ?? []), ...lrigsMLTU];
+    const newOwnerMLTU: PlayerState = { ...ctx.ownerState, lrig_trash: remaining, lrig_deck: newLrigDeck };
+    return done(addLog({ ...ctx, ownerState: newOwnerMLTU, lastProcessedCards: [...lrigsMLTU, ...whiteBlackArtsMLTU] },
+      `ルリグ${lrigsMLTU.length}枚をデッキ下に、白/黒アーツ${whiteBlackArtsMLTU.length}枚をルリグデッキに追加`));
   }
   // INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュにあるルリグの起動能力を継承する（BattleScreen側処理）
   if (stub.id === 'INHERIT_LRIG_TRASH_ABILITIES') {
