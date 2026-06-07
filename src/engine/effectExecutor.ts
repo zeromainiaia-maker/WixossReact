@@ -1756,7 +1756,7 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
     deck: state.deck.slice(actual),
     trash: [...state.trash, ...milled],
   };
-  const updatedCtx = setOwnerState(a.owner, ctx, newState);
+  const updatedCtx = setOwnerState(a.owner, newState, ctx);
   return done(addLog(
     { ...updatedCtx, lastProcessedCards: milled },
     `デッキ上から${actual}枚をトラッシュに置いた`
