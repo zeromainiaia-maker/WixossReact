@@ -1398,6 +1398,15 @@ export function calcContinuousBlockedActions(
     if (has) forSelf.add('PLAY_COLORLESS');
   }
 
+  // keyword_grants で付与された「アタックできない」のシグニをアタック不可に追加
+  for (const stack of ownerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    if ((ownerState.keyword_grants?.[topNum] ?? []).includes('アタックできない')) {
+      cannotAttackSigni.add(topNum);
+    }
+  }
+
   // BLOCK_NON_WHITE_SPELL: どちらかのフィールドにあれば両者の白以外スペル使用を封じる
   const hasNonWhiteSpellBlock = [...ownerState.field.signi, ...otherState.field.signi].some(stack => {
     if (!stack?.length) return false;
