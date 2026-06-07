@@ -11212,9 +11212,39 @@ export function execStub(
   if (stub.id === 'FORCE_COLOR_BLACK') {
     return done(addLog(ctx, 'エナゾーン以外のシグニは黒（effectEngine collectFieldSigniExtraColors処理）'));
   }
-  // REORDER_LIFE_CLOTHS: ライフクロスを任意に並び替える
+  // REORDER_LIFE_CLOTHS: ライフクロスを好きな枚数トラッシュに置き同数デッキ上から補充し並び替え
   if (stub.id === 'REORDER_LIFE_CLOTHS') {
-    return done(addLog(ctx, 'ライフクロスを並び替え（未実装・ログのみ）'));
+    // INTERNAL_REORDER_LIFE_APPLY で枚数を受け取り処理
+    const lifeCount = ctx.ownerState.life_cloth.length;
+    if (lifeCount === 0) return done(addLog(ctx, 'ライフクロスが0枚のためスキップ'));
+    // 0〜lifeCount枚の選択肢を提示
+    const optsRLC = Array.from({ length: lifeCount + 1 }, (_, i) => ({
+      id: `count_${i}`,
+      label: i === 0 ? '並び替えなし（0枚）' : `${i}枚をデッキ上と入れ替え`,
+      action: ({ type: 'STUB', id: 'INTERNAL_REORDER_LIFE_APPLY', value: i } as StubAction) as EffectAction,
+      available: i === 0 || ctx.ownerState.deck.length >= i,
+    }));
+    return needsInteraction(addLog(ctx, `ライフクロスを何枚入れ替えますか？（デッキ${ctx.ownerState.deck.length}枚）`), {
+      type: 'CHOOSE', count: 1, options: optsRLC,
+    });
+  }
+  // INTERNAL_REORDER_LIFE_APPLY: N枚のライフをトラッシュに置き、デッキ上からN枚をライフに追加
+  if (stub.id === 'INTERNAL_REORDER_LIFE_APPLY') {
+    const n = typeof stub.value === 'number' ? stub.value : 0;
+    if (n === 0) return done(addLog(ctx, 'ライフクロス入れ替えなし'));
+    const actual = Math.min(n, ctx.ownerState.life_cloth.length, ctx.ownerState.deck.length);
+    const toTrash = ctx.ownerState.life_cloth.slice(0, actual);
+    const newLife = ctx.ownerState.life_cloth.slice(actual);
+    const fromDeck = ctx.ownerState.deck.slice(0, actual);
+    const newDeck = ctx.ownerState.deck.slice(actual);
+    const newOwnerIRL: PlayerState = {
+      ...ctx.ownerState,
+      life_cloth: [...newLife, ...fromDeck],
+      trash: [...ctx.ownerState.trash, ...toTrash],
+      deck: newDeck,
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerIRL, lastProcessedCards: fromDeck },
+      `ライフクロス${actual}枚をトラッシュに置き、デッキ上${actual}枚をライフに追加`));
   }
   // FROZEN_LOSES_ABILITIES: 対戦相手の凍結状態のシグニは能力を失う（effectEngineで処理）
   if (stub.id === 'FROZEN_LOSES_ABILITIES') {
