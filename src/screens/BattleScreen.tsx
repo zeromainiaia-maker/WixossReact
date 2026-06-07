@@ -8300,7 +8300,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const eff = pendingKeyActivated.effect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
-              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedKeyActivatedCost].map(i => my.energy[i]);
               const energyOk = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && selectedKeyActivatedDiscard.size >= discardNeeded;
@@ -8531,7 +8531,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const eff = pendingAssistActivated.effect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
-              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedAssistActivatedCost].map(i => my.energy[i]);
               const energyOk = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded;
@@ -8981,7 +8981,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const eff  = pendingSigniOnPlayCost.costEffect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
-              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniOnPlayCost].map(i => my.energy[i]);
               const energyOk = energyTotal === 0
                 ? true
@@ -9159,7 +9159,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const eff = pendingLrigGranted.effect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const exceedCost = eff.cost?.exceed ?? 0;
-              const costStr = (eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '';
+              const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedLrigGrantedCost].map(i => my.energy[i]);
               const canAffordEnergy = energyTotal === 0
                 ? true
