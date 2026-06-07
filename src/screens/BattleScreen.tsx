@@ -5888,7 +5888,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? { ...my.field, signi_down: newSigniDown, key_piece: null }
         : { ...my.field, signi_down: newSigniDown };
       const newLrigTrash = keySub ? [...my.lrig_trash, myEnergyTrashSubInfo.keySubInstId!] : my.lrig_trash;
-      const paid: PlayerState = {
+      let paid: PlayerState = {
         ...my,
         hand: newHand,
         energy: newEnergy,
@@ -5898,6 +5898,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: newField,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
       };
+      // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
+      let plant3rdDownTriggerEntry: StackEntry | null = null;
+      if (effect.cost?.down_self && my.turn_trigger_3rd_plant_down) {
+        const signiCard3D = battleCardMap.get(cardNum);
+        if (signiCard3D?.CardClass?.includes('植物')) {
+          const newPlantDownCount = (my.turn_plant_down_count ?? 0) + 1;
+          paid = { ...paid, turn_plant_down_count: newPlantDownCount };
+          if (newPlantDownCount === 3) {
+            const banishEff3D: import('../types/effects').CardEffect = {
+              effectId: `plant_3rd_down_${generateUUID()}`,
+              effectType: 'ACTIVATED',
+              action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').BanishAction,
+            };
+            plant3rdDownTriggerEntry = {
+              id: generateUUID(),
+              playerId: user.id,
+              cardNum,
+              effectId: banishEff3D.effectId,
+              label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} 植物3回目ダウン：相手シグニ1体バニッシュ`,
+              effect: banishEff3D,
+            };
+          }
+        }
+      }
       // 効果をスタックに積む
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
@@ -5908,11 +5932,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         label: `${cardName} の【起】効果`,
         effect,
       };
+      const stackEntries: StackEntry[] = plant3rdDownTriggerEntry
+        ? [entry, plant3rdDownTriggerEntry]
+        : [entry];
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack
-        ? pushToStack(existingStack, [entry])
-        : initStack(turnPlayerId, [entry]);
+        ? pushToStack(existingStack, stackEntries)
+        : initStack(turnPlayerId, stackEntries);
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states')
         .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
