@@ -125,7 +125,8 @@ const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
   { pattern: /手札から.+トラッシュ|手札から.+捨てる/,                  types: ['DISCARD', 'TRASH'] },
   { pattern: /デッキの上.+トラッシュ|デッキから.+トラッシュ/,          types: ['MILL', 'TRASH'] },
   { pattern: /パワーを[＋+][０-９\d]+する|パワーが[０-９\d]+になる/,   types: ['POWER_MODIFY'] },
-  { pattern: /クラッシュ/,                                             types: ['LIFE_CRASH', 'CRASH_LIFE'] },
+  // 「ダブルクラッシュ」「クロスクラッシュ」等のキーワード名は除外し、ライフをクラッシュする文脈のみ
+  { pattern: /ライフクロスを.{0,6}クラッシュ|ライフを.{0,6}クラッシュ|クロスを.{0,6}クラッシュ/, types: ['LIFE_CRASH', 'CRASH_LIFE'] },
 ];
 
 // テキストから期待アクション候補セットを返す（aliasを考慮）
