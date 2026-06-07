@@ -11253,9 +11253,9 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: [targetIRL] },
       `${cardName}をルリグデッキに戻した`));
   }
-  // DECLARE_AND_MILL: 数字を宣言してデッキ上からその枚数をトラッシュに置く
+  // DECLARE_AND_MILL: effects.jsonではDECLARE_NUMBER+MILL(useDeclaredCount)に移行済み
   if (stub.id === 'DECLARE_AND_MILL') {
-    return done(addLog(ctx, '宣言枚数ミル（未実装・ログのみ）'));
+    return done(addLog(ctx, '宣言枚数ミル（effects.json側でDECLARE_NUMBER+MILLに移行済み）'));
   }
 
   // RETURN_ANGEL_SIGNI_TO_DECK: トラッシュから天使シグニ7枚をデッキ下に置く（WX06-001 タウィル＝フィーラ E2）
