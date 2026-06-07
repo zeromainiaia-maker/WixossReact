@@ -50,6 +50,7 @@ import type {
   GrantLrigAbilityAction,
   GrantEffectAction,
   StubAction,
+  MILLAction,
 } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
