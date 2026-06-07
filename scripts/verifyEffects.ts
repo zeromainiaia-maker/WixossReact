@@ -150,7 +150,11 @@ function collectActionsFromJson(effs: EffectDef[]): Set<string> {
     if (action.type) found.add(action.type as string);
     if (action.steps) (action.steps as Record<string, unknown>[]).forEach(walk);
     if (action.then) walk(action.then as Record<string, unknown>);
+    if (action.else) walk(action.else as Record<string, unknown>);
     if (action.thenAction) walk(action.thenAction as Record<string, unknown>);
+    // CHOOSE/CHOOSE_N_FROM_LIST の選択肢内部を再帰探索
+    if (action.options) (action.options as { action?: Record<string, unknown> }[])
+      .forEach(o => { if (o.action) walk(o.action); });
   }
   effs.forEach(e => walk(e.action));
   return found;
