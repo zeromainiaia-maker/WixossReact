@@ -269,6 +269,12 @@ export interface PlayerState {
   lrig_copy_opp_level_limit?: boolean;             // WXK03-003A: ルリグのレベル・リミットを相手センタールリグからコピー
   lrig_activation_count?: { [cardNum: string]: number }; // WXK03-003A: 特定ルリグ起動能力の使用回数
   flip_attack_signi_zones?: number[];              // WXDi-P05-069: フリップアタックで裏向きにしたゾーン番号
+  // NEGATE_SPELL: このターン、このプレイヤーのスペル（コスト合計5以下）が打ち消される
+  spell_negated_this_turn?: boolean;
+  // GRANT_TURN_TRIGGER_3RD_DOWN: このターン植物シグニが3回目ダウン時に効果を発動する
+  turn_trigger_3rd_plant_down?: boolean;
+  // このターンの植物シグニダウン回数（GRANT_TURN_TRIGGER_3RD_DOWN用）
+  turn_plant_down_count?: number;
 }
 
 export interface GameLog {
