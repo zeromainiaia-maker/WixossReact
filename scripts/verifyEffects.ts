@@ -100,11 +100,13 @@ function extractCostFromText(effectBlock: string): { color: string; count: numbe
   return result;
 }
 
-/** effects.jsonのコストを正規化 */
+/** effects.jsonのコストを正規化（同じ色を合算） */
 function normCost(energy: { color: string; count: number }[] | undefined): string {
   if (!energy?.length) return '';
-  return [...energy].sort((a, b) => a.color.localeCompare(b.color))
-    .map(e => `${e.color}×${e.count}`).join(',');
+  const merged: Record<string, number> = {};
+  for (const e of energy) merged[e.color] = (merged[e.color] ?? 0) + e.count;
+  return Object.entries(merged).sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([c, n]) => `${c}×${n}`).join(',');
 }
 
 /** テキストコストを正規化 */
