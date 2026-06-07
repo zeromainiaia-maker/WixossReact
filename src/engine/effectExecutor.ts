@@ -1743,6 +1743,25 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
   });
 }
 
+function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
+  const count = a.useDeclaredCount
+    ? (ctx.ownerState.declared_guard_restrict_level ?? 0)
+    : a.count;
+  const state = ownerState(a.owner, ctx);
+  const actual = Math.min(count, state.deck.length);
+  if (actual === 0) return done(addLog(ctx, 'デッキが空のためミルをスキップ'));
+  const milled = state.deck.slice(0, actual);
+  const newState: PlayerState = {
+    ...state,
+    deck: state.deck.slice(actual),
+    trash: [...state.trash, ...milled],
+  };
+  return done(addLog(
+    setOwnerState(a.owner, { ...ctx, lastProcessedCards: milled }, newState),
+    `デッキ上から${actual}枚をトラッシュに置いた`
+  ));
+}
+
 function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
   const s = ownerState(a.targetOwner, ctx);
   const charms = [...(s.field.signi_charms ?? [null, null, null])];
