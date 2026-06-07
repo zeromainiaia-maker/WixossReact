@@ -6256,6 +6256,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュにあるルリグの起動能力を継承
+      const hasInheritLrigTrash = (effectsMap.get(lrigTopMA) ?? []).some(eff =>
+        eff.effectType === 'CONTINUOUS' &&
+        (eff.action as import('../types/effects').StubAction)?.id === 'INHERIT_LRIG_TRASH_ABILITIES',
+      );
+      if (hasInheritLrigTrash) {
+        for (const trashLrigCn of my.lrig_trash) {
+          if ((battleCardMap.get(trashLrigCn)?.Type ?? '') !== 'ルリグ') continue;
+          for (const eff of (effectsMap.get(trashLrigCn) ?? [])) {
+            if (eff.effectType !== 'ACTIVATED') continue;
+            if (!eff.timing?.includes('MAIN')) continue;
+            const inheritedId = `inherited_${trashLrigCn}_${eff.effectId}`;
+            if (my.actions_done?.includes(inheritedId)) continue;
+            const energyCostILT = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+            const exceedILT = eff.cost?.exceed ?? 0;
+            const costPartsILT: string[] = [];
+            if (exceedILT > 0) costPartsILT.push(`エクシード${exceedILT}`);
+            if (energyCostILT > 0) costPartsILT.push(`エナ${energyCostILT}`);
+            const costLabelILT = costPartsILT.join('・') || 'コストなし';
+            const trashLrigName = battleCardMap.get(trashLrigCn)?.CardName ?? trashLrigCn;
+            lrigActionsMA.push({
+              label: `【継承起】${costLabelILT}（${trashLrigName.slice(0, 6)}）`,
+              color: '#9966cc',
+              onClick: () => {
+                const inheritedEff = { ...eff, effectId: inheritedId, sourceCardNum: lrigTopMA };
+                setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: inheritedEff });
+                setSelectedLrigGrantedCost(new Set());
+              },
+            });
+          }
+        }
+      }
+
       // 付与された ACTIVATED 能力
       const grantedActionsMA = grantedMyLrigEffects
         .filter(e =>
