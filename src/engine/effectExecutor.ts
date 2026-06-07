@@ -2351,7 +2351,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const removed = removeFromField(cardNum, s);
       const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, cardNum] };
       return done(addLog(setOwnerState(found, withEnergy, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をバニッシュ`));
     }
     case 'BOUNCE': {
       let found: Owner | null = null;
