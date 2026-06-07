@@ -792,7 +792,7 @@ export default function CpuBattleScreen({ user: _user, myDeckId, decks, cards, o
       case 'ATTACK_SIGNI': {
         // OPP_SIGNI_ONE_ATTACK_TOTAL: CPUの合計1回アタック制限チェック
         const cpuAttackLimitHit = cpu.signi_attack_once_limit && (cpu.attacked_signi_ids?.length ?? 0) > 0;
-        const cpuContBlocked = calcContinuousBlockedActions(cpu, player, true, effectsMap, cardMap);
+        const cpuContBlocked = calcContinuousBlockedActions(cpu, g.player, true, effectsMap, cardMap);
         const upZones = cpuAttackLimitHit ? [] : [0, 1, 2].filter(i => {
           const stack = cpu.field.signi[i];
           if (!stack?.length) return false;
