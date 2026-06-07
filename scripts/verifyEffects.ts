@@ -192,10 +192,13 @@ for (const row of rows) {
   const effs = effectsAll[cardNum] ?? [];
 
   // ─── 1. カード自体がeffects.jsonに存在しない（効果テキストあり） ───
-  if (effs.length === 0 && effectText && effectText !== '-') {
+  // 【ガード】のみの説明文はゲームエンジン不要（キーワード処理済み）なので除外
+  const isGuardOnly = effectText && effectText !== '-' && /^【ガード】/.test(effectText) && !effectText.includes('【常】') && !effectText.includes('【出】') && !effectText.includes('【起】') && !effectText.includes('【自】');
+  if (effs.length === 0 && effectText && effectText !== '-' && !isGuardOnly) {
     addIssue(cardNum, cardName, '定義なし', `効果テキストあり(${effectText.substring(0, 40)}...)だがeffects.jsonにエントリーなし`);
     continue;
   }
+  if (isGuardOnly && effs.length === 0) continue; // ガードのみ → 正常
 
   // ─── 2. ライフバースト照合 ───
   const hasBurstDef = effs.some(e => e.effectType === 'LIFE_BURST');
