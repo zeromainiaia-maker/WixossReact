@@ -206,8 +206,10 @@ for (const row of rows) {
   }
 
   // ─── 3. タイミング照合 ───
-  const textLower = effectText.toLowerCase();
-  void textLower;
+  // 「「〜」を得る」のような付与効果引用文内の【】は実際の効果ではないので除去
+  const stripQuoted = (t: string) => t.replace(/「[^「」]*」/g, '');
+  // 【グロウ】条件テキスト（グロウ条件として書かれた非効果部分）を除去
+  const stripGrow = (t: string) => t.replace(/【グロウ】[^【]*/g, '');
 
   const timingChecks = [
     { marker: '【常】',   type: 'CONTINUOUS',  timing: null         },
