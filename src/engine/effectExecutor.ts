@@ -2661,6 +2661,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       let gkOwner: Owner | null = null;
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) gkOwner = 'self';
       else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) gkOwner = 'opponent';
+      else if (ctx.ownerState.field.lrig.at(-1) === cardNum) gkOwner = 'self';
+      else if (ctx.otherState.field.lrig.at(-1) === cardNum) gkOwner = 'opponent';
       if (!gkOwner) return done(ctx);
       const gkS = ownerState(gkOwner, ctx);
       const gkGrants = { ...(gkS.keyword_grants ?? {}) };
