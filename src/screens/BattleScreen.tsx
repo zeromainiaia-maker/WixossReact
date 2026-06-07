@@ -5909,6 +5909,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const banishEff3D: import('../types/effects').CardEffect = {
               effectId: `plant_3rd_down_${generateUUID()}`,
               effectType: 'ACTIVATED',
+              duration: 'INSTANT',
               action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').BanishAction,
             };
             plant3rdDownTriggerEntry = {
