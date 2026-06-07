@@ -128,10 +128,11 @@ const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
   { pattern: /クラッシュ/,                                             types: ['LIFE_CRASH', 'CRASH_LIFE'] },
 ];
 
-function detectActionsFromText(text: string): Set<string> {
-  const found = new Set<string>();
-  for (const { pattern, type } of ACTION_KEYWORDS) {
-    if (pattern.test(text)) found.add(type);
+// テキストから期待アクション候補セットを返す（aliasを考慮）
+function detectActionsFromText(text: string): { label: string; aliases: string[] }[] {
+  const found: { label: string; aliases: string[] }[] = [];
+  for (const { pattern, types } of ACTION_KEYWORDS) {
+    if (pattern.test(text)) found.push({ label: types[0], aliases: types });
   }
   return found;
 }
