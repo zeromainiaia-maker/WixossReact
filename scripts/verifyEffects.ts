@@ -127,8 +127,9 @@ const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
   { pattern: /エナゾーンに置く/,                                       types: ['MOVE_TO_ENERGY', 'ENERGY_CHARGE', 'ENERGY_CHARGE_FROM_DECK'] },
   { pattern: /手札から.+トラッシュ|手札から.+捨てる/,                  types: ['DISCARD', 'TRASH'] },
   // MILLパターン: 受動態「トラッシュに置かれた」はトリガー条件なので除外（能動態「置く」のみ）
+  // [^。]+で同一センテンス内のみマッチ（別センテンスの「トラッシュに置く」の誤検出を防ぐ）
   // REVEAL_AND_PICK（デッキ上公開→選択→残りトラッシュ）もMILLエイリアス
-  { pattern: /デッキ(?:の上|から).+トラッシュに置く(?!の?[たとき])/,   types: ['MILL', 'TRASH', 'REVEAL_AND_PICK', 'LOOK_AND_REORDER'] },
+  { pattern: /デッキ(?:の上|から)[^。]+トラッシュに置く(?!の?[たとき])/,   types: ['MILL', 'TRASH', 'REVEAL_AND_PICK', 'LOOK_AND_REORDER'] },
   { pattern: /パワーを[＋+][０-９\d]+する|パワーが[０-９\d]+になる/,   types: ['POWER_MODIFY'] },
   // 「ダブルクラッシュ」「クロスクラッシュ」等のキーワード名は除外し、ライフをクラッシュする文脈のみ
   { pattern: /ライフクロスを.{0,6}クラッシュ|ライフを.{0,6}クラッシュ|クロスを.{0,6}クラッシュ/, types: ['LIFE_CRASH', 'CRASH_LIFE'] },
