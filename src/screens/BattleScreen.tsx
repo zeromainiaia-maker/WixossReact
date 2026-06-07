@@ -5020,6 +5020,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: negated_attacks にルリグIDがある場合アタック不可
     const myLrigNumLA = my.field.lrig.at(-1);
     if (myLrigNumLA && (my.negated_attacks ?? []).includes(myLrigNumLA)) return;
+    // keyword_grants で「アタックできない」が付与されている場合アタック不可
+    if (myLrigNumLA && (my.keyword_grants?.[myLrigNumLA] ?? []).includes('アタックできない')) return;
     setLoading(true);
     try {
       const myKey = isHost ? 'host_state' : 'guest_state';
