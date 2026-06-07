@@ -304,6 +304,44 @@ replaceEffect('WX10-052', 'WX10-052-E1', {
   parseStatus: 'MANUAL',
 });
 
+// ===== WX11-052 サーバントZ: E1をCONTINUOUS→AUTO/ON_PLAY に修正 =====
+replaceEffect('WX11-052', 'WX11-052-E1', {
+  effectId: 'WX11-052-E1',
+  effectType: 'AUTO',
+  timing: ['ON_PLAY'],
+  cost: {
+    energy: [
+      { color: '無', count: 1 },
+      { color: '無', count: 1 },
+      { color: '無', count: 1 },
+    ],
+  },
+  action: {
+    type: 'SEQUENCE',
+    steps: [
+      {
+        type: 'SEARCH',
+        from: { location: 'deck', owner: 'self' },
+        filter: { cardName: 'サーバント　Ｘ' },
+        maxCount: 1,
+        then: { type: 'ADD_TO_FIELD', owner: 'self' },
+        afterSearch: null,
+      },
+      {
+        type: 'SEARCH',
+        from: { location: 'deck', owner: 'self' },
+        filter: { cardName: 'サーバント　Ｙ' },
+        maxCount: 1,
+        then: { type: 'ADD_TO_FIELD', owner: 'self' },
+        afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
+      },
+    ],
+  },
+  duration: 'INSTANT',
+  mandatory: false,
+  parseStatus: 'MANUAL',
+});
+
 // ===== サーバントカードのマルチエナ: BattleScreen.tsxでフォールバック処理済みのため追加不要 =====
 // WD01-016, WD01-017, WX01-051, WX01-100, WX10-097/098/099/100, WX11-052
 
