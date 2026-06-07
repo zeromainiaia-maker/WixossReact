@@ -260,7 +260,11 @@ for (const row of rows) {
   }
 
   // ─── 5. 主要アクション照合 ───
-  const textActions = detectActionsFromText(effectText + ' ' + burstText);
+  // （）で囲まれたキーワード説明文を除去（ランサー説明の「クラッシュ」等の誤検出対策）
+  const stripParens = (t: string) => t.replace(/（[^（）]*）/g, '');
+  const effectBody = stripParens(effectText);
+  const burstBody  = stripParens(burstText);
+  const textActions = detectActionsFromText(effectBody + ' ' + burstBody);
   const jsonActions = collectActionsFromJson(effs);
 
   for (const { label, aliases } of textActions) {
