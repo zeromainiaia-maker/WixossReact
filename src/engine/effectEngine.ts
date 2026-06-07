@@ -90,6 +90,19 @@ export function checkActiveCondition(
       break;
     }
 
+    case 'ENA_DIFF': {
+      const enaDiff = ownerState.energy.length - otherState.energy.length;
+      switch (cond.operator) {
+        case 'gte': return enaDiff >= cond.value;
+        case 'lte': return enaDiff <= cond.value;
+        case 'gt':  return enaDiff >  cond.value;
+        case 'lt':  return enaDiff <  cond.value;
+        case 'eq':  return enaDiff === cond.value;
+        case 'neq': return enaDiff !== cond.value;
+      }
+      break;
+    }
+
     case 'EICHI_LEVEL_SUM': {
       // 英知=N: 自分のフィールドの＜英知＞シグニのレベル合計
       const eichiLevelOverrides = ownerState.attack_phase_level_overrides ?? {};
