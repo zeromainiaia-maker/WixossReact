@@ -11296,6 +11296,17 @@ export function execStub(
     return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: [targetIRL] },
       `${cardName}をルリグデッキに戻した`));
   }
+  // TRASH_AT_TURN_END: ターン終了時にlastProcessedCardsのシグニをフィールドからトラッシュに置く（WX02-005 ホワイト・ホープ）
+  if (stub.id === 'TRASH_AT_TURN_END') {
+    const targets = ctx.lastProcessedCards ?? [];
+    if (targets.length === 0) return done(addLog(ctx, 'ターン終了時トラッシュ対象なし'));
+    const existing = ctx.ownerState.turn_end_field_trash_targets ?? [];
+    const newTargets = [...new Set([...existing, ...targets])];
+    const newOwnerTATTE = { ...ctx.ownerState, turn_end_field_trash_targets: newTargets };
+    return done(addLog({ ...ctx, ownerState: newOwnerTATTE },
+      `ターン終了時にトラッシュ予定: ${targets.map(n => ctx.cardMap.get(n)?.CardName ?? n).join(', ')}`));
+  }
+
   // DECLARE_AND_MILL: effects.jsonではDECLARE_NUMBER+MILL(useDeclaredCount)に移行済み
   if (stub.id === 'DECLARE_AND_MILL') {
     return done(addLog(ctx, '宣言枚数ミル（effects.json側でDECLARE_NUMBER+MILLに移行済み）'));
