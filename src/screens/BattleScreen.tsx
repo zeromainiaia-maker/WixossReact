@@ -9196,7 +9196,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
                           コスト: {[
                             exceedCost > 0 ? `エクシード${exceedCost}` : null,
-                            energyTotal > 0 ? `エナ${energyTotal}枚` : null,
+                            energyTotal > 0 ? costStr : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {exceedCost > 0 && !canAffordExceed && (
