@@ -156,7 +156,8 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
       ...selected.map(cardNum => ({ cardNum, delta })),
     ];
     const newS: PlayerState = { ...s, temp_power_mods: mods };
-    return addLog(setOwnerState(tgtOwner, newS, c), '' + (delta > 0 ? '+' : '') + delta);
+    return addLog(setOwnerState(tgtOwner, newS, c),
+      `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}のパワー${delta > 0 ? '+' : ''}${delta}`);
   }
 
   if (a.target.count === 'ALL') return done(applyPowerMod(cands, ctx));
