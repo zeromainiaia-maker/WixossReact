@@ -1360,7 +1360,8 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
     const s = ownerState(tgt.owner, c);
     const grants = { ...(s.keyword_grants ?? {}) };
     for (const n of selected) grants[n] = [...(grants[n] ?? []), keyword];
-    return addLog(setOwnerState(tgt.owner, { ...s, keyword_grants: grants }, c), '');
+    return addLog(setOwnerState(tgt.owner, { ...s, keyword_grants: grants }, c),
+      `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に保護を付与`);
   }
 
   if (tgt.count === 'ALL') return done(applyProtection(cands, ctx));
