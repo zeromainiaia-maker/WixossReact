@@ -295,14 +295,15 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       const s = ownerState(tgt.owner, c);
       // PREVENT_ZONE_MOVE_BY_OPP:  + AUTO
       if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('energy') || c.otherState.prevent_opp_trash_from?.includes('energy'))) {
-        return addLog(c, 'REVENT_ZONE_MOVE_BY_OPP');
+        return addLog(c, 'エナ保護により効果なし');
       }
       const newS: PlayerState = {
         ...s,
         energy: s.energy.filter(n => !selected.includes(n)),
         trash: [...s.trash, ...selected],
       };
-      return addLog(setOwnerState(tgt.owner, newS, c), `${selected.length}`);
+      return addLog(setOwnerState(tgt.owner, newS, c),
+        `エナから${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
     }
     if (tgt.count === 'ALL') return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
