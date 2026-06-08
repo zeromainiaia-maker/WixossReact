@@ -450,7 +450,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
             )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* デッキ設定メニュー */}
       {showDeckSettingsMenu && (
