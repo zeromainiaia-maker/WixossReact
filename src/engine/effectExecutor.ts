@@ -589,7 +589,7 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
       newDown[zoneIdx] = true;
       cur = addLog(setOwnerState(a.target.owner,
         { ...s, field: { ...s.field, signi_down: newDown } }, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}`);
+        `${cur.cardMap.get(num)?.CardName ?? num}をダウン`);
     }
     return cur;
   }
