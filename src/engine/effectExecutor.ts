@@ -395,13 +395,13 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
     life_cloth: life,
     field: { ...state.field, check: checkCard },
   };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `${count}`));
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `ライフクロスを${count}枚クラッシュ`));
 }
 
 function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   const newS: PlayerState = { ...state, deck: shuffle([...state.deck]) };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), ''));
+  return done(addLog(setOwnerState(a.owner, newS, ctx), 'デッキをシャッフル'));
 }
 
 function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
