@@ -652,6 +652,26 @@ const BLOCK_ACTION_LABELS: Record<string, string> = {
 };
 
 function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
+  // シグニへのアタックブロック（ATTACK）は keyword_grants 経由で処理する。
+  // blocked_actions に 'ATTACK'（カードIDなし）で追加しても CPU の
+  // 'ATTACK:${topId}' チェックと一致しないため。また、CPU ターン開始の
+  // UPフェイズで otherState.blocked_actions がリセットされる問題も回避する。
+  if (a.target.type === 'SIGNI' && a.actionId === 'ATTACK') {
+    const tgtOwner: Owner = a.target.owner === 'self' ? 'self' : 'opponent';
+    const tgtState = ownerState(tgtOwner, ctx);
+    const targets = ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0
+      ? ctx.lastProcessedCards.filter(cn => tgtState.field.signi.some(s => s?.at(-1) === cn))
+      : tgtState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+    if (targets.length === 0) return done(ctx);
+    const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+    for (const cn of targets) {
+      grants[cn] = [...new Set([...(grants[cn] ?? []), 'アタックできない'])];
+    }
+    const until = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次の自分ターンまで）' : '';
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
+      `${targets.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・')}はアタックできない${until}`));
+  }
+
   const state = ownerState(a.target.owner, ctx);
   // NEXT_TURN  ':NEXT_TURN'
   const id = a.until === 'NEXT_TURN' ? `${a.actionId}:NEXT_TURN` : a.actionId;
