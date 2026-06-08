@@ -7733,26 +7733,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {allCrashCards.map((cardNum, idx) => {
                     const card = battleCardMap.get(cardNum);
                     const hasBurst = card?.LifeBurst === '1';
-                    const isActive = idx === 0;
                     const burstSuppressed = !!(my.suppress_life_burst || eichiSuppressActive || my.game_suppress_lb);
                     return (
                       <div key={cardNum + idx} style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                        flex: 1, opacity: isActive ? 1 : 0.45,
+                        flex: 1,
                         borderRadius: 8,
-                        border: isActive ? `1px solid ${C.life}` : '1px solid transparent',
+                        border: `1px solid ${C.borderUI}`,
                         padding: '8px 6px',
                       }}>
-                        {!isActive && (
-                          <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>次のクラッシュ</p>
-                        )}
                         {card ? (
                           <>
                             <img src={card.ImgURL} alt={card.CardName}
-                              onClick={() => isActive && setBurstCardZoomed(true)}
+                              onClick={() => setBurstCardZoomed(true)}
                               style={{ width: 72, height: 100, objectFit: 'cover', borderRadius: 6,
                                 boxShadow: hasBurst ? `0 0 12px ${C.accent}` : 'none',
-                                cursor: isActive ? 'pointer' : 'default' }}
+                                cursor: 'pointer' }}
                               onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                             <p style={{ color: C.textSub, fontSize: 11, fontWeight: 'bold', margin: 0 }}>
                               {card.CardName}
@@ -7766,20 +7762,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             <p style={{ color: C.accent, fontSize: 11, fontWeight: 'bold', margin: 0 }}>
                               ライフバーストあり
                             </p>
-                            <button onClick={() => isActive && handleLifeBurstResponse(true)}
-                              disabled={!isActive || loading}
+                            <button onClick={() => handleLifeBurstResponse(true, cardNum)}
+                              disabled={loading}
                               style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
-                                backgroundColor: (!isActive || loading) ? C.disabled : C.accent,
+                                backgroundColor: loading ? C.disabled : C.accent,
                                 color: C.text, fontSize: 12, fontWeight: 'bold',
-                                cursor: (!isActive || loading) ? 'default' : 'pointer' }}>
+                                cursor: loading ? 'default' : 'pointer' }}>
                               ライフバースト発動
                             </button>
-                            <button onClick={() => isActive && handleLifeBurstResponse(false)}
-                              disabled={!isActive || loading}
+                            <button onClick={() => handleLifeBurstResponse(false, cardNum)}
+                              disabled={loading}
                               style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: C.borderUI,
                                 backgroundColor: 'transparent',
                                 color: C.textDim, fontSize: 12,
-                                cursor: (!isActive || loading) ? 'default' : 'pointer' }}>
+                                cursor: loading ? 'default' : 'pointer' }}>
                               エナに送る
                             </button>
                           </>
@@ -7791,12 +7787,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             {!hasBurst && (
                               <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>ライフバーストなし</p>
                             )}
-                            <button onClick={() => isActive && handleLifeBurstResponse(false)}
-                              disabled={!isActive || loading}
+                            <button onClick={() => handleLifeBurstResponse(false, cardNum)}
+                              disabled={loading}
                               style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
-                                backgroundColor: (!isActive || loading) ? C.disabled : C.bgButton,
+                                backgroundColor: loading ? C.disabled : C.bgButton,
                                 color: C.text, fontSize: 12, fontWeight: 'bold',
-                                cursor: (!isActive || loading) ? 'default' : 'pointer' }}>
+                                cursor: loading ? 'default' : 'pointer' }}>
                               エナに送る
                             </button>
                           </>
