@@ -318,7 +318,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       deck: state.deck.slice(count),
       trash: [...state.trash, ...took],
     };
-    return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `${count}`), lastProcessedCards: took });
+    return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `デッキトップ${count}枚をトラッシュへ`), lastProcessedCards: took });
   }
 
   return done(ctx);
