@@ -354,7 +354,9 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
         newS = { ...removed, energy: [...removed.energy, n] };
       }
     }
-    return addLog(setOwnerState(tgt.owner, newS, c), `${selected.length}`);
+    const names = selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・');
+    const from = tgt.type === 'HAND_CARD' ? '手札' : tgt.type === 'TRASH_CARD' ? 'トラッシュ' : 'フィールド';
+    return addLog(setOwnerState(tgt.owner, newS, c), `${from}から${names}をエナゾーンへ`);
   }
 
   const count = tgt.count === 'ALL' ? cands.length : resolveNum(tgt.count);
