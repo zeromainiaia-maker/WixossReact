@@ -269,7 +269,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       const s = ownerState(tgt.owner, c);
       // PREVENT_ZONE_MOVE_BY_OPP:  + AUTO
       if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('hand') || c.otherState.prevent_opp_trash_from?.includes('hand'))) {
-        return addLog(c, 'REVENT_ZONE_MOVE_BY_OPP');
+        return addLog(c, '手札保護により効果なし');
       }
       const remaining = [...s.hand];
       const toTrash: string[] = [];
@@ -278,7 +278,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         if (idx >= 0) { remaining.splice(idx, 1); toTrash.push(n); }
       }
       const newS: PlayerState = { ...s, hand: remaining, trash: [...s.trash, ...toTrash] };
-      return addLog(setOwnerState(tgt.owner, newS, c), `${toTrash.length}`);
+      return addLog(setOwnerState(tgt.owner, newS, c),
+        `手札から${toTrash.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
     }
     if (tgt.count === 'ALL') return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
