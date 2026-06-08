@@ -2084,7 +2084,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
     case 'TRANSFER_TO_DECK':        return execTransferToDeck(action as TransferToDeckAction, ctx);
     case 'COUNTER_SPELL':           return done(addLog(ctx, '/'));
-    case 'COST_REDUCTION':          return done(addLog(ctx, ''));
+    case 'COST_REDUCTION':          return done(addLog(ctx, 'コスト軽減'));
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
     case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
     case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);
