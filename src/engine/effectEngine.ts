@@ -1414,10 +1414,13 @@ export function calcContinuousBlockedActions(
   }
 
   // keyword_grants で付与された「アタックできない」のシグニをアタック不可に追加
+  // ownerState（自分）と otherState（相手）の両方を確認する。
+  // 相手が付与した「アタックできない」は相手側の keyword_grants に格納されるため。
   for (const stack of ownerState.field.signi) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
-    if ((ownerState.keyword_grants?.[topNum] ?? []).includes('アタックできない')) {
+    if ((ownerState.keyword_grants?.[topNum] ?? []).includes('アタックできない') ||
+        (otherState.keyword_grants?.[topNum] ?? []).includes('アタックできない')) {
       cannotAttackSigni.add(topNum);
     }
   }
