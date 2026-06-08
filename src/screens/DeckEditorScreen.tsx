@@ -336,8 +336,7 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
       </div>
 
       {/* デッキ内容タブ */}
-      {screenTab === 'deck' && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: screenTab === 'deck' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ display: 'flex', borderBottom: '1px solid #c8bce8', flexShrink: 0, backgroundColor: '#ede8f5' }}>
             {(['main', 'lrig'] as const).map(tab => (
               <button key={tab} onClick={() => setDeckTab(tab)} style={{
