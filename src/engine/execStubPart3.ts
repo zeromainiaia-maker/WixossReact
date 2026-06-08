@@ -1741,7 +1741,6 @@ export function execStubPart3(
     }
 
     // Phase 1: 天使シグニを抽出し、非天使は即トラッシュ、天使はSEARCHで選択
-    const toHWCMCBC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const isAngelSNC = (cn: string) => {
       const c = ctx.cardMap.get(cn);
       return c?.Type === 'シグニ' && !!(c.CardClass?.includes('天使'));
