@@ -261,7 +261,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         hand: state.hand.filter(n => !picked.includes(n)),
         trash: [...state.trash, ...picked],
       };
-      return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `${count}`), lastProcessedCards: picked });
+      return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札からランダム${count}枚をトラッシュへ`), lastProcessedCards: picked });
     }
     const cands = handCandidates(state, tgt.filter, ctx.cardMap);
     const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
