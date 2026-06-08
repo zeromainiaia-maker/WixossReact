@@ -542,7 +542,7 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
       newDown[zoneIdx]   = true;
       const newS: PlayerState = { ...s, field: { ...s.field, signi_frozen: newFrozen, signi_down: newDown } };
       cur = addLog(setOwnerState(a.target.owner, newS, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}`);
+        `${cur.cardMap.get(num)?.CardName ?? num}をフリーズ`);
     }
     return cur;
   }
