@@ -362,7 +362,6 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
             )}
           </div>
         </div>
-      </div>
 
       {/* カード追加タブ */}
       <div style={{ flex: 1, display: screenTab === 'search' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
