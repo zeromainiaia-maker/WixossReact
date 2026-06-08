@@ -2568,11 +2568,14 @@ export function execStubPart3(
     return done(ctxIDBLD);
   }
   // INTERNAL_BLOCK_ATTACK_THIS_TURN: 対象がアタックできない
+  // 発動者（ownerState）の keyword_grants に格納する。相手ターン開始の UPフェイズで
+  // otherState.keyword_grants がリセットされても情報が失われないようにするため。
   if (stub.id === 'INTERNAL_BLOCK_ATTACK_THIS_TURN') {
     const targetIBAC = ctx.lastProcessedCards?.[0];
     if (!targetIBAC) return done(addLog(ctx, '対象なし'));
-    const blockedIBAC = [...(ctx.otherState.blocked_actions ?? []), `ATTACK:${targetIBAC}`];
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: blockedIBAC } },
+    const grantsIBAC = { ...(ctx.ownerState.keyword_grants ?? {}) };
+    grantsIBAC[targetIBAC] = [...new Set([...(grantsIBAC[targetIBAC] ?? []), 'アタックできない'])];
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsIBAC } },
       `${ctx.cardMap.get(targetIBAC)?.CardName ?? targetIBAC}はアタックできない`));
   }
   // DOWN_UP_SIGNI_AND_CHOOSE: シグニをダウン/アップして選択
