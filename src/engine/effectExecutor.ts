@@ -1392,7 +1392,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
     if (fromEnergy.length > 0) { charmCands = fromEnergy; charmFromLocation = 'energy'; }
     else { charmCands = fromHand; charmFromLocation = 'hand'; }
   }
-  if (charmCands.length === 0) return done(addLog(ctx, ''));
+  if (charmCands.length === 0) return done(addLog(ctx, 'チャームなし'));
 
   //
    const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
