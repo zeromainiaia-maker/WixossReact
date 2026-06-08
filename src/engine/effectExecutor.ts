@@ -180,7 +180,8 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
       const base = parseInt(c.cardMap.get(cardNum)?.Power ?? '0') || 0;
       return { cardNum, delta: value - base };
     });
-    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: [...filtered, ...setMods] }, c), '' + value + '');
+    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: [...filtered, ...setMods] }, c),
+      `${targets.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}のパワーを${value}に`);
   }
 
   if (a.target.count === 'ALL') return done(applyPowerSet(cands, ctx));
