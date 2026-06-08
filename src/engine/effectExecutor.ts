@@ -674,7 +674,7 @@ function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
     const overrides = { ...(s.story_overrides ?? {}) };
     for (const n of selected) overrides[n] = a.newStory;
     return addLog(setOwnerState(tgt.owner, { ...s, story_overrides: overrides }, c),
-      `${a.newStory}`);
+      `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}のストーリーを${a.newStory}に変更`);
   }
 
   if (tgt.count === 'ALL') return done(applyStory(cands, ctx));
