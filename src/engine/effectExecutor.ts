@@ -658,6 +658,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
 
+  const abilityGainBlocked = tgtOwner === 'opponent' ? new Set(ctx.otherAbilityGainProtectedNums ?? []) : new Set<string>();
+
   let cands: string[];
   if (tgt.type === 'LRIG') {
     // ルリグ対象：センタールリグトップを直接付与（ユーザー選択不要）
@@ -666,10 +668,12 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   } else if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
     // センタールリグとシグニ両方を候補に追加
     const lrigTop = state.field.lrig.at(-1);
-    const signiCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    const signiCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
+      .filter(n => !abilityGainBlocked.has(n));
     cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
   } else {
-    cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
+      .filter(n => !abilityGainBlocked.has(n));
   }
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
