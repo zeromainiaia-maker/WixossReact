@@ -236,14 +236,14 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         : new Set<string>();
       for (const num of selected) {
         if (trashFieldProtected.has(num)) {
-          cur = addLog(cur, `${cur.cardMap.get(num)?.CardName ?? num}`);
+          cur = addLog(cur, `${cur.cardMap.get(num)?.CardName ?? num}（移動保護）`);
           continue;
         }
         const s = ownerState(tgt.owner, cur);
         const removed = removeFromField(num, s);
         cur = addLog(setOwnerState(tgt.owner,
           { ...removed, trash: [...removed.trash, num] }, cur),
-          `${cur.cardMap.get(num)?.CardName ?? num}`);
+          `${cur.cardMap.get(num)?.CardName ?? num}をトラッシュへ`);
       }
       return cur;
     }
