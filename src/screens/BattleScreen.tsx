@@ -9747,7 +9747,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   )}
                   <button onClick={() => {
                     // インデックス文字列 → CardNum に変換してから渡す
-                    const selectedNums = effectSelectedNums.map(i => candidates[parseInt(i, 10)] ?? i);
+                    const selectedNums = effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)] ?? i);
                     handleEffectInteraction(selectedNums);
                   }}
                     disabled={loading || !canConfirm}
