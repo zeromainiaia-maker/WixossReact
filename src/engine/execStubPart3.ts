@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
+import type { PlayerState, TargetScope } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction,
