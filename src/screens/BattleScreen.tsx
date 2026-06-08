@@ -7712,85 +7712,98 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 20,
         }}>
-          <div style={{
-            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
-            padding: '24px 20px', width: 'min(88vw, 320px)',
-            display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center',
-          }}>
-            {(() => {
-              const checkCard = battleCardMap.get(my.field.check!);
-              const hasBurst = checkCard?.LifeBurst === '1';
-              return (
-                <>
-                  <p style={{ color: C.life, fontSize: 15, fontWeight: 'bold', margin: 0 }}>
-                    ライフクロスクラッシュ
-                  </p>
-                  {checkCard ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                      <img src={checkCard.ImgURL} alt={checkCard.CardName}
-                        onClick={() => setBurstCardZoomed(true)}
-                        style={{ width: 80, height: 112, objectFit: 'cover', borderRadius: 6,
-                          boxShadow: hasBurst ? `0 0 14px ${C.accent}` : 'none',
-                          cursor: 'pointer' }}
-                        onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
-                      <p style={{ color: C.textSub, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
-                        {checkCard.CardName}
-                      </p>
-                    </div>
-                  ) : (
-                    <div style={{ width: 80, height: 112, backgroundColor: C.bgButton,
-                      borderRadius: 6, margin: '0 auto' }} />
-                  )}
-                  {hasBurst && !my.suppress_life_burst && !eichiSuppressActive && !my.game_suppress_lb ? (
-                    <>
-                      <p style={{ color: C.accent, fontSize: 13, fontWeight: 'bold', margin: 0 }}>
-                        ライフバーストあり
-                      </p>
-                      <div style={{ display: 'flex', gap: 10 }}>
-                        <button onClick={() => handleLifeBurstResponse(true)}
-                          disabled={loading}
-                          style={{ flex: 1, padding: '11px 0', borderRadius: 8, border: 'none',
-                            backgroundColor: loading ? C.disabled : C.accent,
-                            color: C.text, fontSize: 13, fontWeight: 'bold',
-                            cursor: loading ? 'default' : 'pointer' }}>
-                          ライフバースト発動
-                        </button>
-                        <button onClick={() => handleLifeBurstResponse(false)}
-                          disabled={loading}
-                          style={{ flex: 1, padding: '11px 0', borderRadius: 8, border: C.borderUI,
-                            backgroundColor: 'transparent',
-                            color: C.textDim, fontSize: 13,
-                            cursor: loading ? 'default' : 'pointer' }}>
-                          スキップ
-                        </button>
+          {(() => {
+            const allCrashCards = [my.field.check!, ...(my.pending_crashed_cards ?? [])];
+            const cardCount = allCrashCards.length;
+            const modalWidth = cardCount === 1 ? 'min(88vw, 320px)' : `min(96vw, ${160 * cardCount + 40}px)`;
+            return (
+              <div style={{
+                backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                padding: '24px 20px', width: modalWidth,
+                display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center',
+              }}>
+                <p style={{ color: C.life, fontSize: 15, fontWeight: 'bold', margin: 0 }}>
+                  ライフクロスクラッシュ
+                </p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'flex-start' }}>
+                  {allCrashCards.map((cardNum, idx) => {
+                    const card = battleCardMap.get(cardNum);
+                    const hasBurst = card?.LifeBurst === '1';
+                    const isActive = idx === 0;
+                    const burstSuppressed = !!(my.suppress_life_burst || eichiSuppressActive || my.game_suppress_lb);
+                    return (
+                      <div key={cardNum + idx} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                        flex: 1, opacity: isActive ? 1 : 0.45,
+                        borderRadius: 8,
+                        border: isActive ? `1px solid ${C.life}` : '1px solid transparent',
+                        padding: '8px 6px',
+                      }}>
+                        {!isActive && (
+                          <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>次のクラッシュ</p>
+                        )}
+                        {card ? (
+                          <>
+                            <img src={card.ImgURL} alt={card.CardName}
+                              onClick={() => isActive && setBurstCardZoomed(true)}
+                              style={{ width: 72, height: 100, objectFit: 'cover', borderRadius: 6,
+                                boxShadow: hasBurst ? `0 0 12px ${C.accent}` : 'none',
+                                cursor: isActive ? 'pointer' : 'default' }}
+                              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                            <p style={{ color: C.textSub, fontSize: 11, fontWeight: 'bold', margin: 0 }}>
+                              {card.CardName}
+                            </p>
+                          </>
+                        ) : (
+                          <div style={{ width: 72, height: 100, backgroundColor: C.bgButton, borderRadius: 6 }} />
+                        )}
+                        {hasBurst && !burstSuppressed ? (
+                          <>
+                            <p style={{ color: C.accent, fontSize: 11, fontWeight: 'bold', margin: 0 }}>
+                              ライフバーストあり
+                            </p>
+                            <button onClick={() => isActive && handleLifeBurstResponse(true)}
+                              disabled={!isActive || loading}
+                              style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
+                                backgroundColor: (!isActive || loading) ? C.disabled : C.accent,
+                                color: C.text, fontSize: 12, fontWeight: 'bold',
+                                cursor: (!isActive || loading) ? 'default' : 'pointer' }}>
+                              ライフバースト発動
+                            </button>
+                            <button onClick={() => isActive && handleLifeBurstResponse(false)}
+                              disabled={!isActive || loading}
+                              style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: C.borderUI,
+                                backgroundColor: 'transparent',
+                                color: C.textDim, fontSize: 12,
+                                cursor: (!isActive || loading) ? 'default' : 'pointer' }}>
+                              エナに送る
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {hasBurst && burstSuppressed && (
+                              <p style={{ color: C.textDim, fontSize: 10, margin: 0 }}>バースト抑制中</p>
+                            )}
+                            {!hasBurst && (
+                              <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>ライフバーストなし</p>
+                            )}
+                            <button onClick={() => isActive && handleLifeBurstResponse(false)}
+                              disabled={!isActive || loading}
+                              style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
+                                backgroundColor: (!isActive || loading) ? C.disabled : C.bgButton,
+                                color: C.text, fontSize: 12, fontWeight: 'bold',
+                                cursor: (!isActive || loading) ? 'default' : 'pointer' }}>
+                              エナに送る
+                            </button>
+                          </>
+                        )}
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      {hasBurst && (my.suppress_life_burst || eichiSuppressActive || my.game_suppress_lb) && (
-                        <p style={{ color: C.textDim, fontSize: 12, margin: 0 }}>
-                          ライフバースト抑制中
-                        </p>
-                      )}
-                      {!hasBurst && (
-                        <p style={{ color: C.textFaint, fontSize: 12, margin: 0 }}>
-                          ライフバーストなし
-                        </p>
-                      )}
-                      <button onClick={() => handleLifeBurstResponse(false)}
-                        disabled={loading}
-                        style={{ padding: '11px 0', borderRadius: 8, border: 'none',
-                          backgroundColor: loading ? C.disabled : C.bgButton,
-                          color: C.text, fontSize: 13, fontWeight: 'bold',
-                          cursor: loading ? 'default' : 'pointer' }}>
-                        エナへ送る
-                      </button>
-                    </>
-                  )}
-                </>
-              );
-            })()}
-          </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>,
         document.body,
       )}
