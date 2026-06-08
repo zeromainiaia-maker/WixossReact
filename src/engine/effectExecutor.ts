@@ -1396,7 +1396,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
 
   //
    const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
-  if (toCands.length === 0) return done(addLog(ctx, ''));
+  if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
 
   const charmNum = charmCands[0];
   const targetNum = toCands[0];
