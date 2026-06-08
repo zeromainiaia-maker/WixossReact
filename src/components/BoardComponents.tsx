@@ -942,7 +942,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   );
 
   const signiRow = (
-    <div style={{ display: 'flex', gap: 5, alignItems: 'flex-start' }}>
+    <div style={{ display: 'flex', gap: 5, alignItems: 'flex-start', justifyContent: 'center' }}>
       {freeZoneSlot}
       {displaySigni.map((s, i) => {
         const rawIdx = isMe ? i : (rawSigni.length - 1 - i);
