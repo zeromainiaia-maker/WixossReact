@@ -559,11 +559,11 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     const lrigName = state.field.lrig?.length
       ? (ctx.cardMap.get(getCardNum(state.field.lrig.at(-1) ?? ''))?.CardName ?? '')
       : '';
-    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}`));
+    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`));
   }
   // PREVENT_SIGNI_DOWN_BY_OPP (state flag)  CONT
   if (a.target.owner === 'opponent' && ctx.otherState.prevent_signi_down_by_opp) {
-    return done(addLog(ctx, ''));
+    return done(addLog(ctx, 'シグニダウン防止（常時効果）'));
   }
   const state = ownerState(a.target.owner, ctx);
   const downProtected = a.target.owner === 'opponent' ? new Set(ctx.otherDownProtectedNums ?? []) : new Set<string>();
