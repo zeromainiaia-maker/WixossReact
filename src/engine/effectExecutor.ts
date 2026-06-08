@@ -432,7 +432,9 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
         newS = { ...newS, energy: newS.energy.filter(x => x !== n), hand: [...newS.hand, n] };
       }
     }
-    return addLog(setOwnerState(tgtOwner, newS, c), `${selected.length}`);
+    const names = selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・');
+    const from = src.type === 'TRASH_CARD' ? 'トラッシュ' : 'エナ';
+    return addLog(setOwnerState(tgtOwner, newS, c), `${from}から${names}を手札へ`);
   }
 
   const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
