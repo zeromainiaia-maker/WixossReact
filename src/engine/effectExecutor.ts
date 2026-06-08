@@ -658,9 +658,13 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
 
-  // CENTER_LRIG_OR_SIGNI: センタールリグとシグニ両方を候補に追加
   let cands: string[];
-  if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
+  if (tgt.type === 'LRIG') {
+    // ルリグ対象：センタールリグトップを直接付与（ユーザー選択不要）
+    const lrigTop = state.field.lrig.at(-1);
+    cands = lrigTop ? [lrigTop] : [];
+  } else if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
+    // センタールリグとシグニ両方を候補に追加
     const lrigTop = state.field.lrig.at(-1);
     const signiCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
