@@ -5,29 +5,20 @@ import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction,
   StubAction,
-  Owner,
   DrawAction,
   BanishAction,
   BounceAction,
-  PowerModifyAction,
   TrashAction,
-  EnergyChargeAction,
   ShuffleDeckAction,
-  TransferToHandAction,
-  TransferToDeckAction,
   AddToFieldAction,
   DownAction,
   SequenceAction,
-  ChooseAction,
-  AttachAcceAction,
-  AddToEnergyAction,
   AddToHandAction,
-  PlaceUnderSourceSigniAction,
 } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, getCardNum, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost,
+  removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 
