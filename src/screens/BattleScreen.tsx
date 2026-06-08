@@ -5823,10 +5823,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } else if (my.life_cloth.length > 0) {
           const crashed = my.life_cloth[my.life_cloth.length - 1];
           const crashedName = battleCardMap.get(crashed)?.CardName ?? crashed;
-          appendBattleLogs([`ルリグアタック：ライフクロスをクラッシュ（${crashedName}）`]);
+          let lifeAfterCrash = my.life_cloth.slice(0, -1);
+          let pendingAfterCrash = my.pending_crashed_cards ?? [];
+          if (opLrigHasDoubleCrush && lifeAfterCrash.length > 0) {
+            const secondCard = lifeAfterCrash[lifeAfterCrash.length - 1];
+            lifeAfterCrash = lifeAfterCrash.slice(0, -1);
+            pendingAfterCrash = [...pendingAfterCrash, secondCard];
+            appendBattleLogs([`ルリグアタック：ダブルクラッシュ（${crashedName}、${battleCardMap.get(secondCard)?.CardName ?? secondCard}）`]);
+          } else {
+            appendBattleLogs([`ルリグアタック：ライフクロスをクラッシュ（${crashedName}）`]);
+          }
           newMyState = {
             ...my,
-            life_cloth: my.life_cloth.slice(0, -1),
+            life_cloth: lifeAfterCrash,
+            pending_crashed_cards: pendingAfterCrash,
             field: { ...my.field, lrig_attacked: false, check: crashed },
           };
         } else if (my.prevent_defeat) {
