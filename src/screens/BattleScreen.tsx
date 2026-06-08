@@ -9635,21 +9635,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ? (inter.optional || effectSelectedNums.length >= maxPick)
             : effectSelectedNums.length <= maxPick;
 
-          // フィールド対象の場合: 候補のゾーンインデックス（0→2）を再構築
-          // candidates は zone 0→1→2 の順なので、フィールドを同順で走査してマッピングする
+          // 相手シグニ選択時はゾーン3→2→1の順（画面上の配置に合わせる）で表示
+          const sortedCandidates = (inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_field')
+            ? [...candidates].reverse()
+            : candidates;
+
+          // フィールド対象の場合: 各候補がどのゾーンに属するかをマッピング
           const fieldZoneInfo: number[] = (() => {
             if (inter.type !== 'SELECT_TARGET') return [];
             const scope = inter.targetScope;
             if (scope !== 'opp_field' && scope !== 'self_field') return [];
             const fieldState = scope === 'opp_field' ? op : my;
-            const result: number[] = [];
-            let ci = 0;
-            for (let zi = 0; zi < 3 && ci < candidates.length; zi++) {
-              const topNum = fieldState.field.signi[zi]?.at(-1);
-              if (!topNum) continue;
-              if (candidates[ci] === topNum) { result.push(zi); ci++; }
-            }
-            return result;
+            return sortedCandidates.map(rawId => {
+              for (let zi = 0; zi < 3; zi++) {
+                const top = fieldState.field.signi[zi]?.at(-1);
+                if (top === rawId || top === getCardNum(rawId)) return zi;
+              }
+              return -1;
+            });
           })();
 
           return createPortal(
