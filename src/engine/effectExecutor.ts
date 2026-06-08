@@ -522,7 +522,7 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
     deck: state.deck.slice(count),
     life_cloth: [...state.life_cloth, ...took],
   };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `+${count}`));
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `デッキトップ${count}枚をライフクロスに追加`));
 }
 
 function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
