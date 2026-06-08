@@ -20,7 +20,6 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost,
 } from './execUtils';
-import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 
 export function execStubPart1(
   stub: StubAction,
