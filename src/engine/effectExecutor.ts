@@ -727,7 +727,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       }
     }
 
-    return addLog(setOwnerState(tgtOwner, newS, c), `${a.keyword}`);
+    return addLog(setOwnerState(tgtOwner, newS, c),
+      `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に「${a.keyword}」を付与`);
   }
 
   // LRIGは選択UIを出さず自動付与
