@@ -502,7 +502,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       if (emptyIdx >= 0) signi[emptyIdx] = [n];
       newS = { ...newS, field: { ...newS.field, signi } };
       cur = addLog(setOwnerState(tgtOwner, newS, cur),
-        `${cur.cardMap.get(n)?.CardName ?? n}`);
+        `${cur.cardMap.get(n)?.CardName ?? n}をフィールドに出す`);
     }
     return cur;
   }
