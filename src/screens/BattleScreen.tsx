@@ -5674,7 +5674,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }};
       const cleanCpuSt: PlayerState = {
         ...cpuSt,
-        temp_power_mods: [], keyword_grants: {}, blocked_actions: [], actions_done: [],
+        temp_power_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
         pending_crashed_cards: [], must_attack_signi: undefined, prevent_next_damage: undefined,
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: undefined,
