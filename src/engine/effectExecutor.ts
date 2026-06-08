@@ -633,13 +633,35 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
 
+const BLOCK_ACTION_LABELS: Record<string, string> = {
+  ARTS: 'アーツ使用封じ',
+  USE_ARTS: 'アーツ使用封じ',
+  ARTS_AND_SPELL: 'アーツ・スペル使用封じ',
+  ARTS_LIMIT_1: 'アーツ使用1回制限',
+  USE_ARTS_EXCEPT_OPP_TURN: '自分のターン以外アーツ使用封じ',
+  GROW: 'グロウ封じ',
+  SELF_SIGNI_TRASH: '自シグニトラッシュ封じ',
+  ATTACK_SIGNI_SELF: 'シグニアタック封じ（自）',
+  SIGNI_ATTACK_PHASE: 'シグニアタックフェイズスキップ',
+  SIGNI_ATTACK_STEP: 'シグニアタックステップ封じ',
+  SIGNI_ACTIVATED_ABILITY: 'シグニ起動能力封じ',
+  PLAY_SIGNI_NOT_FROM_HAND: '手札以外からのシグニ出し封じ',
+  NEGATE_NEXT_SIGNI_ATTACK: '次のシグニアタック無効',
+  ENCORE: 'アンコール封じ',
+  BET: 'ベット封じ',
+};
+
 function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.target.owner, ctx);
-  // NEXT_TURN  ':NEXT_TURN' 
+  // NEXT_TURN  ':NEXT_TURN'
   const id = a.until === 'NEXT_TURN' ? `${a.actionId}:NEXT_TURN` : a.actionId;
   const blocked = [...(state.blocked_actions ?? []), id];
   const newS: PlayerState = { ...state, blocked_actions: blocked };
-  return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${a.actionId}`));
+  const baseId = a.actionId.replace(/^PLAY_SIGNI_POWER_(\d+)_OR_MORE$/, 'パワー$1以上のシグニ出し封じ');
+  const label = BLOCK_ACTION_LABELS[baseId] ?? baseId;
+  const who = a.target.owner === 'self' ? '自分' : '相手';
+  const until = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次の自分ターンまで）' : '';
+  return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${who}：${label}${until}`));
 }
 
 function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
