@@ -9671,7 +9671,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {label}
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-                  {candidates.map((rawId, idx) => {
+                  {sortedCandidates.map((rawId, idx) => {
                     // インスタンスID（CardNum#N）からCardNumを取り出して表示用データを取得
                     const cardNum = getCardNum(rawId);
                     const c = battleCardMap.get(cardNum);
