@@ -1717,7 +1717,8 @@ function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult
    const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap, ctx.effectivePowers);
   for (const n of cands) grants[n] = [...(grants[n] ?? []), keyword];
   const newOwner: PlayerState = { ...ctx.ownerState, keyword_grants: grants };
-  return done(addLog({ ...ctx, ownerState: newOwner }, ''));
+  return done(addLog({ ...ctx, ownerState: newOwner },
+    cands.length > 0 ? `${cands.map(n => ctx.cardMap.get(n)?.CardName ?? n).join('・')}にチャーム保護を付与` : 'チャーム保護対象なし'));
 }
 
 function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): ExecResult {
