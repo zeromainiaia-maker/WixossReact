@@ -5800,6 +5800,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         };
       } else {
         // ガードしない → ライフクロスをクラッシュ
+        // 攻撃側ルリグのダブルクラッシュ確認
+        const opLrigNum = op.field.lrig.at(-1);
+        const opLrigHasDoubleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ'));
         if ((my.prevent_next_damage ?? 0) > 0) {
           appendBattleLogs([`ルリグアタック：ダメージ無効`]);
           newMyState = { ...my, prevent_next_damage: (my.prevent_next_damage ?? 0) - 1, field: { ...my.field, lrig_attacked: false } };
