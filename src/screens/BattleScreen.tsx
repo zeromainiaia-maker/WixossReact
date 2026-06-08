@@ -5857,11 +5857,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ライフバースト確認後の処理
-  const handleLifeBurstResponse = async (activate: boolean) => {
+  // targetCardNum: 同時クラッシュ時に処理するカードを指定（省略時はfield.check）
+  const handleLifeBurstResponse = async (activate: boolean, targetCardNum?: string) => {
     if (!my.field.check || loading) return;
     setLoading(true);
     try {
-      const cardNum = my.field.check;
+      const allCrashCards = [my.field.check, ...(my.pending_crashed_cards ?? [])];
+      const cardNum = targetCardNum ?? my.field.check;
+      const remainingPending = allCrashCards.filter(c => c !== cardNum);
       // CRASH_TO_TRASH_INSTEAD: 相手（攻撃側）がフラグを持つ場合エナではなくトラッシュへ
       const crashToTrash = op.crash_to_trash_instead === true;
       // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
@@ -5870,6 +5873,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: crashToTrash ? my.energy : [...my.energy, cardNum],
         trash: crashToTrash ? [...my.trash, cardNum] : my.trash,
         field: { ...my.field, check: null },
+        pending_crashed_cards: remainingPending,
       };
       if (crashToTrash) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}はトラッシュに置かれた（CRASH_TO_TRASH_INSTEAD）`]);
       if (!activate) {
