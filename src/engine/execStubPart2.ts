@@ -5,11 +5,7 @@ import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction,
   StubAction,
-  DrawAction,
-  BanishAction,
-  BounceAction,
   TrashAction,
-  ShuffleDeckAction,
   AddToFieldAction,
   DownAction,
   SequenceAction,
@@ -20,7 +16,6 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost,
 } from './execUtils';
-import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 
 export function execStubPart2(
   stub: StubAction,
