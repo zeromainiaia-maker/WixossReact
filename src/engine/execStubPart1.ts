@@ -326,11 +326,16 @@ export function execStubPart1(
     const grantedKws = knownKeywords.filter(kw => quotedText.includes(kw) || txtGQ.match(new RegExp(`【${kw}】を得`)));
     // 対象シグニを決定（SELECT_TARGET後はlastProcessedCards、「このシグニ」→sourceCardNum、全体→全自シグニ）
     const allM = txtGQ.match(/あなたのシグニすべては|あなたの場にあるすべてのシグニ/);
-    const targetCardNums: string[] = ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0
+    const rawTargets: string[] = ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0
       ? ctx.lastProcessedCards
       : allM
         ? ctx.ownerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : [])
         : (ctx.sourceCardNum ? [ctx.sourceCardNum] : []);
+    // 相手効果による能力取得禁止（PREVENT_OPP_SIGNI_ABILITY_GAIN）の保護チェック
+    const abilityGainBlockedGQ = new Set(ctx.otherAbilityGainProtectedNums ?? []);
+    const targetCardNums: string[] = abilityGainBlockedGQ.size > 0
+      ? rawTargets.filter(cn => !abilityGainBlockedGQ.has(cn))
+      : rawTargets;
 
     // シンプルキーワード付与
     if (grantedKws.length > 0 && targetCardNums.length > 0) {
