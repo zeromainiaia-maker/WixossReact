@@ -607,7 +607,7 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
       ? (ctx.cardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardName ?? '')
       : '';
     const newS: PlayerState = { ...s, field: { ...s.field, lrig_down: false } };
-    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}`));
+    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をアップ`));
   }
   const state = ownerState(a.target.owner, ctx);
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
