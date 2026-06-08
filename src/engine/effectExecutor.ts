@@ -2078,7 +2078,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GRANT_EFFECT':            return execGrantEffect(action as GrantEffectAction, ctx);
     case 'SEARCH':                  return execSearch(action as SearchAction, ctx);
     case 'SEQUENCE':                return execSequence(action as SequenceAction, ctx);
-    case 'RECOLLECT_GATE':         return done(addLog(ctx, ''));
+    case 'RECOLLECT_GATE':         return done(addLog(ctx, 'レコレクトゲート'));
     case 'CHOOSE':                  return execChoose(action as ChooseAction, ctx);
     case 'CONDITIONAL':             return execConditional(action as ConditionalAction, ctx);
     case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
