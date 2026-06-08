@@ -9,7 +9,6 @@ import type {
   BanishAction,
   BounceAction,
   TrashAction,
-  ShuffleDeckAction,
   AddToFieldAction,
   DownAction,
   SequenceAction,
