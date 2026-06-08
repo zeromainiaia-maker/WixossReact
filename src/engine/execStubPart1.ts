@@ -2336,7 +2336,7 @@ export function execStubPart1(
     const addClassesDCLS = (cn: string) => {
       const c = ctx.cardMap.get(cn);
       if (c?.Type !== 'シグニ' || !c.CardClass) return;
-      c.CardClass.replace(/[＜＞]/g, '').split(/[・\/]/).forEach(cl => {
+      c.CardClass.replace(/[＜＞]/g, '').split(/[・/]/).forEach(cl => {
         const t = cl.trim();
         if (t && t !== '-') classSetDCLS.add(t);
       });
