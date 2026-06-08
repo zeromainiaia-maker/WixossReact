@@ -1458,7 +1458,6 @@ export function execStubPart3(
       }
     }
     // 実際に支払ったエナのカードから色を収集（best-effort）
-    const energyBeforeCCS = ctx.ownerState.energy;
     const paidColorsCCS: string[] = costColorsCCS.length > 0 ? costColorsCCS : colorsCCS.slice(0, 1);
     // 選択肢：各色1つのシグニをデッキから手札に
     const chosenColorsCCS = [...new Set(paidColorsCCS.filter(c => c !== 'ANY'))];
