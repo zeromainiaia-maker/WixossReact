@@ -750,7 +750,9 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
     for (const n of selected) {
       granted[n] = [...(granted[n] ?? []), a.effect];
     }
-    return addLog(setOwnerState(tgt.owner, { ...s, granted_effects: granted }, c), `${selected.length}`);
+    const effectLabel = (a.effect as { effectType?: string })?.effectType ?? '効果';
+    return addLog(setOwnerState(tgt.owner, { ...s, granted_effects: granted }, c),
+      `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に${effectLabel}を付与`);
   }
 
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
