@@ -2064,7 +2064,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ENERGY_CHARGE_FROM_DECK': return execEnergyChargeFromDeck(action as EnergyChargeFromDeckAction, ctx);
     case 'LIFE_CRASH':              return execLifeCrash(action as LifeCrashAction, ctx);
     case 'SHUFFLE_DECK':            return execShuffleDeck(action as ShuffleDeckAction, ctx);
-    case 'REVEAL':                  return done(addLog(ctx, ''));
+    case 'REVEAL':                  return done(addLog(ctx, 'カードを公開'));
     case 'ADD_TO_HAND':             return done(addLog(ctx, 'カードを手札に加える')); // SEARCH内で処理
     case 'TRANSFER_TO_HAND':        return execTransferToHand(action as TransferToHandAction, ctx);
     case 'ADD_TO_FIELD':            return execAddToField(action as AddToFieldAction, ctx);
