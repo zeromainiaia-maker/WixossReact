@@ -7,14 +7,12 @@ import type {
   StubAction,
   TrashAction,
   AddToFieldAction,
-  DownAction,
   SequenceAction,
-  AddToHandAction,
 } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost,
+  removeFromField, fieldCandidates, selectOrInteract,
 } from './execUtils';
 
 export function execStubPart2(
