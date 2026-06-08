@@ -1782,7 +1782,7 @@ export function execStubPart1(
   // INTERNAL_CMCLG_DEDUCT: 任意コストのエナを消費
   if (stub.id === 'INTERNAL_CMCLG_DEDUCT') {
     const colorsArr: string[] = JSON.parse(typeof stub.value === 'string' ? stub.value : '[]');
-    let newEnergyDEDUCT = [...ctx.ownerState.energy];
+    const newEnergyDEDUCT = [...ctx.ownerState.energy];
     for (const col of colorsArr) {
       const idx = newEnergyDEDUCT.findIndex(en => {
         const c = ctx.cardMap.get(en)?.Color ?? '無';
