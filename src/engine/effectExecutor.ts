@@ -132,7 +132,7 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
       const removed = removeFromField(num, s);
       const withHand: PlayerState = { ...removed, hand: [...removed.hand, num] };
       cur = addLog(setOwnerState(tgt.owner, withHand, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}`);
+        `${cur.cardMap.get(num)?.CardName ?? num}を手札に戻す`);
     }
     return cur;
   }
