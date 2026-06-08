@@ -1743,7 +1743,7 @@ export function execStubPart1(
         act = { type: 'STUB', id: 'INTERNAL_CMCLG_GRANT_SLANCER' } as StubAction as EffectAction;
       // すべてのシグニのパワーを+N（次の対戦相手ターン終了まで）
       if (!act) {
-        const allPwM = choiceTxtCMCLG.match(/すべてのシグニのパワーを([＋\+][０-９\d万]+)/);
+        const allPwM = choiceTxtCMCLG.match(/すべてのシグニのパワーを([＋+][０-９\d万]+)/);
         if (allPwM) {
           const delta = parseInt(toHWCMCLG(allPwM[1].replace('＋','+').replace('万','0000')));
           act = { type: 'STUB', id: 'INTERNAL_CMCLG_ALL_POWER_UP', value: delta } as StubAction as EffectAction;
