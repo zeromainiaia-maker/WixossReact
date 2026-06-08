@@ -362,11 +362,10 @@ export default function DeckEditorScreen({ deck, cards, variantCards = [], tkCar
             )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* カード追加タブ */}
-      {screenTab === 'search' && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: screenTab === 'search' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid #c8bce8', display: 'flex', gap: '8px', flexWrap: 'wrap', flexShrink: 0, backgroundColor: '#ede8f5' }}>
             <input placeholder="カード名・番号で検索" value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: '150px' }} />
             <select value={filterType} onChange={e => setFilterType(e.target.value)} style={selectStyle}>
