@@ -19,7 +19,7 @@ const CSV_PATH = path.resolve('public/data', `CardData_${sheetArg}.csv`);
 if (!fs.existsSync(CSV_PATH)) { console.error(`CSV not found: ${CSV_PATH}`); process.exit(1); }
 
 const EFFECT_FILES = [
-  'effects_WX.json', 'effects_WXDi.json', 'effects_WX24_25.json',
+  'effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
   'effects_WXK.json', 'effects_misc.json',
 ];
 const effectsAll: Record<string, EffectDef[]> = {};
