@@ -79771,8 +79771,8 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "このピースはあなたの場にルリグが３体いなくても使用できる"
+                        "type": "STUB",
+                        "id": "PIECE_USE_CONDITION_OVERRIDE"
                     },
                     {
                         "type": "STUB",
