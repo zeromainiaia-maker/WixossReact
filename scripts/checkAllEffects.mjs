@@ -252,6 +252,7 @@ for (const { json, csvs } of FILES) {
     }
     // 「してもよい」がないのにACTIVATED以外でmandatory:false
     // （ACTIVATEDは任意使用が基本なので除外）
+    // 除外: 全効果が 【出】(ON_PLAY) + コスト付き → コストを支払わないことを選べるため mandatory:false は正しい
     if (!hasOptional && !hasStub && !hasUnknown) {
       const nonActivatedNonBurst = efList.filter(ef =>
         ef.effectType !== 'ACTIVATED' && ef.effectType !== 'LIFE_BURST'
@@ -259,8 +260,17 @@ for (const { json, csvs } of FILES) {
       const allOptional = nonActivatedNonBurst.length > 0 &&
         nonActivatedNonBurst.every(ef => ef.mandatory === false);
       if (allOptional) {
-        report(json, cardId, name, 'OPTIONAL_SUSPICIOUS',
-          `CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false`, eff);
+        // 【出】コスト付き効果は「コストを支払わず発動しないことを選べる」ため mandatory:false は正しい
+        // → 全AUTO効果がON_PLAY(【出】) AND CSVに 【出】コストパターン(「【出】...：」)があれば除外
+        const allOnPlay = nonActivatedNonBurst.every(ef =>
+          ef.effectType === 'AUTO' &&
+          Array.isArray(ef.timing) && ef.timing.every(t => t === 'ON_PLAY')
+        );
+        const hasOnPlayCost = /【出】[^【\n]*：/.test(eff);
+        if (!(allOnPlay && hasOnPlayCost)) {
+          report(json, cardId, name, 'OPTIONAL_SUSPICIOUS',
+            `CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false`, eff);
+        }
       }
     }
 

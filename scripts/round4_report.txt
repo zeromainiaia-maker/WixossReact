@@ -1,0 +1,1017 @@
+
+=== 検出結果: 331件 ===
+
+
+─── OPTIONAL_SUSPICIOUS (308件) ───
+  [effects_misc.json] WDK05-T03 若月の巫女　タマヨリヒメ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK05-T12 師の遊　ケロパッチン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》他のシグニ１体を場からデッキの一番上に置く：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  [effects_misc.json] WDK05-R03 来夢の巫女　リメンバ・アフタ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK05-R04 来夢の巫女　リメンバ・アリモ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK06-R03 切先の記憶　リル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK06-R12 極装　トンファー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》《赤》：このターンにあなたが手札を１枚以上捨てていた場合、カードを２枚引く。
+  [effects_misc.json] WDK06-R14 大装　トレット
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜アーム＞のシグニを１枚捨てる：あなたのデッキから《ライズアイコン》を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_misc.json] WDK06-R17 小装　ヌンチャ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜アーム＞のシグニを１枚捨てる：対戦相手のパワー2000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_misc.json] WDK06-C02 カーニバル　†ＴＡ†
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：《コインアイコン》を得る。
+  [effects_misc.json] WDK06-C03 カーニバル　†ＳＡ†
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK06-C04 カーニバル　†ＰＡ†
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK06-C14 魏軍の赤弓　カコウエン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのトラッシュからレベル３以下の＜武勇＞のシグニ１枚を対象とし、あなたのターンの場合、それを場に出す。
+  [effects_misc.json] WDK07-Y13 羅植　クジャクソウ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜植物＞のシグニ２枚をトラッシュに置く：対戦相手のレベル３以下のシグニ１体を対象とし、あなたのターンの場合、それを手札に戻す。
+  [effects_misc.json] WDK08-Y03 爪牙　遊月・弐
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK08-Y17 幻水　ケロモドキ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：あなたの手札から＜水獣＞のシグニを３枚公開する。そうした場合、ターン終了時まで、このシグニのパワーを＋1000し、このシグニは【ランサー】を得る。（【ランサー】か【Ｓランサー】を持つシグ
+  [effects_misc.json] WDK08-L02 英血の器　優羽莉　Ｌｖ３
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：《コインアイコン》を得る。【起】《ターン１回》《赤×0》：あなたの＜紅蓮＞のシグニ１体を対象とし、それを血晶武装［手札］する。（指定された領域［手札］からシグニの下にそれと同名のカード１
+  [effects_misc.json] WDK08-L03 英血の器　優羽莉　Ｌｖ２
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。【起】《ターン１回》《赤×0》：あなたの＜紅蓮＞のシグニ１体を対象とし、それを血晶武装［手札］する。（指定された領域［手札］からシグニの下にそれと同名のカー
+  [effects_misc.json] WDK08-L04 英血の器　優羽莉　Ｌｖ１
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）【起】《ターン１回》《赤×0》：あなたの＜紅蓮＞のシグニ１体を対象
+  [effects_misc.json] WDK09-003 奏世の鍵主　ウムル＝トヴォ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK09-004 奏世の鍵主　ウムル＝エット
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK10-003 砕悩の閻魔　ウリス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK10-004 奇虐の閻魔　ウリス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK10-012 幻竜　ペイモン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのデッキの上からカードを４枚トラッシュに置く。その後、あなたのトラッシュから＜龍獣＞のシグニ１枚を対象とし、それを手札に加える。
+  [effects_misc.json] WDK11-004 エマ　レベル１
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK11-014 ＧＦ　ギルダ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。
+  [effects_misc.json] WDK11-017 ＧＦ　ナイラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜英知＞のシグニを１枚捨てる：あなたのデッキから白のスペル１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_misc.json] WDK12-002 メル＝カーディナル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：《コインアイコン》を得る。
+  [effects_misc.json] WDK12-003 メル＝バラライカソニック
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK13-003 ミュウ＝バック
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK13-004 ミュウ＝プル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK13-013 羅星　ハッブラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜宇宙＞のシグニを１枚捨てる：あなたのデッキからこの方法で捨てたシグニよりレベルが１つ高いシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_misc.json] WDK-F01-02 アロス・ピルルク　TRI
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：《コインアイコン》を得る。
+  [effects_misc.json] WDK-F01-03 アロス・ピルルク　DI
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK-F01-04 アロス・ピルルク　MONO
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK14-003 奏でし者　タウィル＝トヴォ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK14-004 奏でし者　タウィル＝エット
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK14-012 炎魔の陽杖　トービエ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《ビートアイコン》［４枚以下］このシグニと他のシグニ１体を【ビート】にする：あなたのトラッシュから《炎魔の陽杖　トービエ》以外の＜悪魔＞のシグニ１枚を対象とし、それを場に出す。（この能力はあなた
+  [effects_misc.json] WDK14-013 炎魔の聖墓　ナーキル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《ビートアイコン》［４枚以下］トラッシュから＜悪魔＞のシグニ１枚を【ビート】にする：この方法であなたの【ビート】が４枚になった場合、カードを１枚引く。（この能力はあなたの【ビート】が４枚以下であ
+  [effects_misc.json] WDK15-002 ナナシ　其ノ参ノ報
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：《コインアイコン》《コインアイコン》を得る。
+  [effects_misc.json] WDK15-003 ナナシ　其ノ爾ノ報
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK15-015 爆書　カゲシ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのシグニの下にある＜ウェポン＞のシグニ１枚を対象とし、それを手札に加える。
+  [effects_misc.json] WDK15-017 小書　インペ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのデッキから《ライズアイコン_黒》_blackを持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_misc.json] WDK17-003 暗転の舞姫　アルフォウ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_misc.json] WDK17-004 幕開の舞姫　アルフォウ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_misc.json] WDK17-014 舞踏の童話　キュルビウス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】他のシグニ１体を場からトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。この能力のコストで傀儡状態のシグニをトラッシュに置いた場合、代わりにターン
+  [effects_misc.json] SPK01-03 幻怪　カマイタチ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》ルリグデッキからアーツ１枚をルリグトラッシュに置く：対戦相手のレベル３以上のシグニ１体を対象とし、それをエナゾーンに置く。
+  [effects_misc.json] SPK25-01 金製の均整　アン＝ファースト
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を1枚捨てる：《コインアイコン》を得る。
+  [effects_misc.json] SPK25-02 ミルルン・オング
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を1枚捨てる：《コインアイコン》を得る。
+  [effects_misc.json] SPK25-03 金愛の使者　サシェ・クロワス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を1枚捨てる：《コインアイコン》を得る。
+  [effects_misc.json] SPK25-04 アイヤイ★チップ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を1枚捨てる：《コインアイコン》を得る。
+  [effects_misc.json] SPK25-05 黒金の冥者　ハナレ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を1枚捨てる：《コインアイコン》を得る。
+  [effects_misc.json] PR-384 コードイート　キリタン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：あなたのデッキから《アクセアイコン》を持つシグニ１枚を探してエナゾーンに置き、デッキをシャッフルする。【起】《アタックフェイズアイコン》このシグニを場からトラッシュに置く：対戦相手のパワ
+  [effects_misc.json] PR-K054 中装　ファイ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：【エナチャージ１】をする。次のあなたのターンまで、このシグニのパワーを＋5000する。【出】《無》《無》手札を２枚捨てる：対戦相手のシグニ１体を対象とし、あなたのターンの場合、
+  [effects_misc.json] PR-K064 コードアンチ　ラティナ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】アップ状態のセンタールリグ１体をダウンする：以下の３つから１つを選ぶ。①あなたのデッキからあなたのセンタールリグと共通する色を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②対
+  [effects_WX.json] WX01-007 月蝕の巫女　タマヨリヒメ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキからレベル２以下のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX01-009 新星の巫女　タマヨリヒメ　
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。
+  [effects_WX.json] WX01-011 熾炎舞　花代・参
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX.json] WX01-013 焔　花代・壱
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。
+  [effects_WX.json] WX01-015 コード　ピルルク・Γ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：対戦相手は手札を１枚捨てる。
+  [effects_WX.json] WX01-017 コード　ピルルク・Α
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。
+  [effects_WX.json] WX01-022 一型舞闘娘　緑姫　
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。
+  [effects_WX.json] WX02-001 金木犀の巫女　タマヨリヒメ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。【起】《白》《赤》：対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。【起】《白》《
+  [effects_WX.json] WX02-013 叫喚の閻魔　ウリス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WX.json] WX02-024 羅植姫　ゴーシュ・アグネス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：対戦相手のパワー15000以上のシグニ１体を対象とし、それをバニッシュする。【起】アップ状態の＜植物＞のシグニ１体をダウンする：あなたのデッキの一番上のカードをエナゾーンに置く。
+  [effects_WX.json] WX02-029 宝具　ミツルギ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜アーム＞か＜ウェポン＞のシグニを１枚捨てる：あなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX02-032 羅石　オパーラル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜鉱石＞か＜宝石＞のシグニを１枚捨てる：パワー7000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX.json] WX02-035 コードアート　Ｃ・Ｐ・Ｕ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜電機＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、それを凍結する。カードを１枚引く。（凍結されたシグニは次のアップフェイズにアップしない）
+  [effects_WX.json] WX02-038 幻獣　キジ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜空獣＞か＜地獣＞のシグニを１枚捨てる：あなたのデッキの上からカードを２枚エナゾーンに置く。
+  [effects_WX.json] WX02-068 悪魔の勇武　モリガ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜悪魔＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WX.json] WX03-011 創造の鍵主　ウムル＝トレ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのトラッシュから＜古代兵器＞のシグニ１枚を対象とし、それを場に出す。
+  [effects_WX.json] WX03-012 創造の鍵主　ウムル＝トヴォ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのデッキからカード１枚を探してトラッシュに置き、デッキをシャッフルする。
+  [effects_WX.json] WX03-013 創造の鍵主　ウムル＝エット
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。
+  [effects_WX.json] WX03-016 聖技の護り手　ラビエル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》ルリグデッキから白のアーツ１枚をルリグトラッシュに置く：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  [effects_WX.json] WX03-017 爆砲　ペンシルロケッツ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》《赤》ルリグデッキから赤のアーツ１枚をルリグトラッシュに置く：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX.json] WX03-018 幻水　カレイラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》ルリグデッキから青のアーツ１枚をルリグトラッシュに置く：カードを２枚引く。
+  [effects_WX.json] WX03-019 羅植　マリゴールド
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】ルリグデッキから緑のアーツ１枚をルリグトラッシュに置く：あなたのデッキの上からカードを２枚エナゾーンに置く。
+  [effects_WX.json] WX03-022 極剣　サミダレ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：あなたのデッキから＜ウェポン＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX03-025 羅石　シズク
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：あなたのデッキから＜植物＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX04-001 紅蓮の巫女　タマヨリヒメ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのルリグトラッシュから白のアーツ１枚を対象とし、それをルリグデッキに加える。【起】手札から＜アーム＞と＜ウェポン＞のシグニを合計２枚捨てる：対戦相手のシグニ１体を対象とし、それを手
+  [effects_WX.json] WX04-006 紅蓮の閻魔　ウリス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。【起】手札から黒のシグニを２枚捨てる：対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《ターン１回》エクシード
+  [effects_WX.json] WX04-007 十六夜の巫女　タマヨリヒメ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのデッキから白のスペル１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX04-011 コードピルルク・E
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：あなたのルリグデッキから、使用タイミングに《メインフェイズアイコン》を含むコストの合計が３以下の青のアーツ１枚をコストを支払わずに使用する。
+  [effects_WX.json] WX04-068 幻竜　ワイバーン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：対戦相手のエナゾーンから【マルチエナ】を持つカード１枚を対象とし、それをトラッシュに置く。
+  [effects_WX.json] WX05-061 羅原　Ｔｈ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜原子＞のシグニを１枚捨てる：あなたのデッキの上からカードを５枚公開する。その中から＜原子＞のシグニ１枚を手札に加える。残りを好きな順番でデッキの一番下に置く。
+  [effects_WX.json] WX05-068 方法論の対立　コラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜美巧＞のシグニを１枚捨てる：あなたのデッキの上からカードを２枚公開する。その中から＜美巧＞のシグニをすべて手札に加える。残りを好きな順番でデッキの一番下に置く。
+  [effects_WX.json] WX05-075 コードアンチ　アラハバキ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜古代兵器＞のシグニを１枚捨てる：あなたのトラッシュからレベル３以上の＜古代兵器＞のシグニ１枚を対象とし、それを場に出す。
+  [effects_WX.json] WX06-027 幻竜　ブラザウス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜龍獣＞のシグニを１枚捨てる：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。この能力は対戦相手のエナゾーンにあるカードが４枚以下の場合にしか使用できない。
+  [effects_WX.json] WX06-036 コードアンチ　ゴルスペ　
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】ルリグデッキから黒のアーツ１枚をルリグトラッシュに置く：あなたのトラッシュから＜古代兵器＞のシグニ１枚を対象とし、それを場に出す。
+  [effects_WX.json] WX07-034 羅星　アルフェカ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》《白》：対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。
+  [effects_WX.json] WX07-045 明滅の罪雅　ダエワ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】あなたの場にある【チャーム】を好きな数トラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこの方法でトラッシュに置いた【チャーム】１枚につき－7000する。【起】《
+  [effects_WX.json] WX07-050 羅星　アルヘナ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜宇宙＞のシグニを１枚捨てる：あなたのルリグデッキからレベル３以下の白のレゾナ１枚をその出現条件を無視して場に出す。ターン終了時、そのレゾナを場からルリグデッキに戻す。
+  [effects_WX.json] WX08-055 轟砲　プラスボム
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から《クロスアイコン》を持つシグニを１枚捨てる：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX.json] WX08-076 幻蟲　クマゼ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜凶蟲＞のシグニを１枚捨てる：【チャーム】が付いている対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。（パワーが０以下のシグニはルールによってバニッシュ
+  [effects_WX.json] WX09-008 導きし者　タウィル＝トレ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキからレベル３以下の＜天使＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX09-023 大剣　ハバキリ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたの場に＜アーム＞のシグニが３体ある場合、あなたのデッキから白のカード１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX09-025 羅石　カルコ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：対戦相手のパワー8000以下のシグニ１体を対象とし、あなたの場に＜鉱石＞か＜宝石＞のシグニが合計３体ある場合、それをバニッシュする。
+  [effects_WX.json] WX09-029 コードアート　Ｓ・Ｍ・Ｓ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：あなたの場に＜電機＞のシグニが３体ある場合、対戦相手の手札を１枚見ないで選び、捨てさせる。
+  [effects_WX.json] WX09-035 ドライ＝ソマナ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：対戦相手のシグニ１体を対象とし、あなたの場に＜毒牙＞のシグニが３体ある場合、ターン終了時まで、それのパワーを－7000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WX.json] WX10-039 大剣　ハチキュー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜アーム＞のシグニを１枚捨てる：あなたのデッキから＜アーム＞か＜ウェポン＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。【出】手札から＜ウェポン＞のシグニを１枚捨てる：対
+  [effects_WX.json] WX10-087 破戒の水辺　パルヴァ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。
+  [effects_WX.json] WX10-088 幻蟲　ジガバチ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒×0》：対戦相手の場にある対象の【チャーム】１枚をトラッシュに置く。そうした場合、あなたのトラッシュから対象のレベル２以下の黒のシグニ１枚を手札に加える。
+  [effects_WX.json] WX11-052 サーバント　Ｚ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【常】：【マルチエナ】【出】《無》《無》《無》：あなたのデッキから《サーバント　Ｘ》１枚と《サーバント　Ｙ》１枚を探して場に出し、デッキをシャッフルする。【起】エナゾーンから名前の異なる＜精元＞のシグ
+  [effects_WX.json] WX12-012 コードピルルク・Φ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：対戦相手は手札を１枚捨てる。【出】《黒》：あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。
+  [effects_WX.json] WX12-030 コードアート　Ｐ・Ｓ・Ｍ　
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札からスペルを１枚捨てる：あなたのデッキから、この方法で捨てたスペルと共通する色を持つスペル１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX12-040 コードメイズ　スパナクラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：能力を持たない対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。
+  [effects_WX.json] WX13-061 羅星　カプスフォー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキからレベル１のシグニを２枚まで探して場に出し、デッキをシャッフルする。
+  [effects_WX.json] WX13-063 羅星　カプススリー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》レゾナ１体を場からルリグトラッシュに置く：対戦相手のレベル３以下のシグニを２体まで対象とし、それらを手札に戻す。
+  [effects_WX.json] WX13-065 恵の梅雨　マルティエル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのトラッシュから無色ではないカード１枚を対象とし、それをデッキに加えてシャッフルする。
+  [effects_WX.json] WX13-079 幻獣　ウグイス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：あなたのデッキから《幻獣　ユリカモメ》１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX13-083 幻獣　メジロ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：あなたのデッキから《幻獣　ウグイス》１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX13-092 ツヴァイ＝チェボル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのトラッシュからレベル１の＜毒牙＞のシグニ１枚を対象とし、それを場に出す。
+  [effects_WX.json] WX14-008 染刻の巫女　タマヨリヒメ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX14-035 轟炎　フレイスロ中尉
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：あなたのデッキからカード名に《フレイスロ》を含むシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX14-040 羅植　ヤシ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。【出】《赤》：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。【出】《青》：対戦相手は手札を１
+  [effects_WX.json] WX14-045 千夜の五夜　シャフリ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】レベル１のシグニ１体とレベル２のシグニ１体を場からトラッシュに置く：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。
+  [effects_WX.json] WX14-059 小炎　フレイスロ一等兵
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのデッキからレベル２以下のカード名に《フレイスロ》を含むシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX15-014 ぱわふるあーや！Ⅰ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。
+  [effects_WX.json] WX15-020 メル＝カルア
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。
+  [effects_WX.json] WX15-025 ナナシ　其ノ壱ノ改
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。
+  [effects_WX.json] WX15-042 二刀の近習　ランマ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から《ライズアイコン》を持つシグニを１枚捨てる：あなたのデッキから＜武勇＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX15-062 似之遊　†チャッキー†
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのトラッシュからレベル３以下の＜遊具＞のシグニ１枚を対象とし、それをダウン状態で場に出す。
+  [effects_WX.json] WX15-063 異血之遊　†ワラニン†
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのトラッシュからレベル２以下の＜遊具＞のシグニ１枚を対象とし、それをダウン状態で場に出す。
+  [effects_WX.json] WX15-081 超罠　バナナン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【トラップアイコン】：対戦相手のシグニを２体まで対象とし、それらをダウンする。（対戦相手のシグニがアタックしたとき、その正面にシグニがない場合、そこにある【トラップ】を表向きにし《トラップアイコン》を
+  [effects_WX.json] WX15-085 中罠　シューピン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【トラップアイコン】：対戦相手のすべてのシグニを凍結する。（対戦相手のシグニがアタックしたとき、その正面にシグニがない場合、そこにある【トラップ】を表向きにし《トラップアイコン》を発動してもよい。その
+  [effects_WX.json] WX15-087 小罠　イテテ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【トラップアイコン】：対戦相手の手札を１枚見ないで選び、捨てさせる。（対戦相手のシグニがアタックしたとき、その正面にシグニがない場合、そこにある【トラップ】を表向きにし《トラップアイコン》を発動しても
+  [effects_WX.json] WX15-113 羅菌　メンタグロ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜微菌＞のシグニを１枚捨てる：カードを１枚引き、対戦相手のシグニゾーン１つに【ウィルス】１つを置く。（【ウィルス】はシグニゾーン１つにつき１つまでしか置けない）
+  [effects_WX.json] WX16-009 ドーナ　FIRST
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。
+  [effects_WX.json] WX16-013 とってもあーや！III
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：《コインアイコン》を得る。
+  [effects_WX.json] WX16-020 ママ♥１
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。
+  [effects_WX.json] WX16-041 大罠　アリババ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から《トラップアイコン》を持つカードを１枚捨てる：あなたのデッキから＜トリック＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。《トラップアイコン》：対戦相手のパワー15000
+  [effects_WX.json] WX16-055 復讐の円卓　モルドレ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《ライズアイコン》を持つシグニ１体を場からトラッシュに置く：対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX.json] WX16-056 血槍の円卓　ガラハッド
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜武勇＞のシグニを１枚捨てる：対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。【出】手札から《ライズアイコン》を持つシグニを１枚捨てる：対戦相手のパワー1000
+  [effects_WX.json] WX16-069 足英の文章　＃ツルカメ＃
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】英知=３：あなたのデッキからレベル１の＜英知＞のシグニ１枚を探して場に出し、デッキをシャッフルする。（あなたの場にある＜英知＞のシグニのレベルの合計がちょうど３であるかぎり有効になる）
+  [effects_WX.json] WX16-071 木英の文章　＃ウエキ＃
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】英知=１：あなたのデッキの一番上を公開する。それが＜英知＞のシグニの場合、手札に加える。（あなたの場にある＜英知＞のシグニのレベルの合計がちょうど１であるかぎり有効になる）
+  [effects_WX.json] WX16-077 羅菌　ススカビ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】対戦相手の場にある【ウィルス】１つを取り除く：あなたのデッキの一番上のカードをエナゾーンに置く。
+  [effects_WX.json] WX17-007 ドーナ　THIRD+
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：《コインアイコン》を得る。
+  [effects_WX.json] WX17-009 ドーナ　FIRST+
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：あなたのデッキの上からカードを２枚見て、その中から＜怪異＞のシグニ１枚を公開し手札に加える。残りを好きな順番でデッキの一番下に置く。
+  [effects_WX.json] WX17-013 カーニバル　―Ｐ―
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。
+  [effects_WX.json] WX17-037 野生の土躰　エンキド
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から《ライズアイコン》を持つシグニを１枚捨てる：カードを１枚引く。【出】《赤×0》：あなたのトラッシュから《ライズアイコン》を持つシグニ３枚をデッキに加えてシャッフルする。そうした場合、カー
+  [effects_WX.json] WX17-047 等英の双子　＃ゴウドウ＃
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】英知＝２：あなたのデッキの一番上のカードをエナゾーンに置く。（あなたの場にある＜英知＞のシグニのレベルの合計がちょうど２であるかぎり有効になる）【出】英知＝３：カードを１枚引く。（あなたの場にあ
+  [effects_WX.json] WX17-057 羅星　≡アルベド≡
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜宇宙＞のシグニを１枚捨てる：あなたのデッキからこの方法で捨てたシグニと同じレベルのシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX17-071 ＦＡＫＥ　ＤＯＬＬ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 対戦相手の＜精元＞のシグニ１体を対象とし、それをデッキの一番上に置く。【トラップアイコン】：どちらか１つを選ぶ。①あなたのトラッシュから無色のカード１枚を対象とし、それを手札に加える。②対戦相手の手札
+  [effects_WX.json] WX17-072 丸英の集合　＃ベンズ＃
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】英知＝７：ターン終了時まで、このシグニは「【常】：バニッシュされない。」を得る。（あなたの場にある＜英知＞のシグニのレベルの合計がちょうど７であるかぎり有効になる）
+  [effects_WX.json] WX17-Re14 コードアート　†Ａ・Ｌ・Ｃ・Ａ†
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜電機＞のシグニを１枚捨てる：以下の３つから１つを選ぶ。①対戦相手のシグニ２体を対象とし、ターン終了時まで、それらのパワーをそれぞれ－2000する。②あなたのデッキの上からカードを２枚ト
+  [effects_WX.json] WX18-011 凰雅炎　花代・参
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：《コインアイコン》《コインアイコン》《コインアイコン》を得る。
+  [effects_WX.json] WX18-014 コード・ピルルク　Ⅹ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》《青》：《コインアイコン》《コインアイコン》を得る。
+  [effects_WX.json] WX18-017 三型金娘　緑姫
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》《緑》：《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》を得る。
+  [effects_WX.json] WX18-023 来夢の駄姫　グズ子
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：《コインアイコン》を得る。
+  [effects_WX.json] WX18-025 一途の駄姫　グズ子
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：あなたのデッキの上からカードを３枚トラッシュに置き、カードを１枚引く。
+  [effects_WX.json] WX18-045 羅石　ラブスト
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】＜鉱石＞のシグニ１体を場からトラッシュに置く：あなたのデッキから＜宝石＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX18-049 幻蟲　§ビワコム§
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのトラッシュからレベル１の＜凶蟲＞のシグニ１枚を対象とし、それを場に出す。
+  [effects_WX.json] WX18-060 幻怪　イシナゲンジョ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキから【レイヤー】を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX19-015 黄金火　遊月・参
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：《コインアイコン》《コインアイコン》《コインアイコン》を得る。
+  [effects_WX.json] WX19-022 コードラビリンス　ノイヴァン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：能力を持たない対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。【起】《アタックフェイズアイコン》《ダウン》：対戦相手のシグニ１体を対象とし、それをダウンする。【起】《アタック
+  [effects_WX.json] WX19-038 幻水　ピラニア
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：対戦相手のデッキの一番上を見る。カードを１枚引く。
+  [effects_WX.json] WX19-039 ＷＩＬＹ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: あなたのデッキの上からカードを３枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置し、１枚を手札に加え、残りをデッキの一番上に戻す。【トラップアイコン】：対戦相手の手札を見て１
+  [effects_WX.json] WX19-068 溶英の食塩　＃ノウド＃
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】英知＝７：カードを１枚引く。（あなたの場にある＜英知＞のシグニのレベルの合計がちょうど７であるかぎり有効になる）【出】英知＝９：あなたのデッキの一番上のカードをエナゾーンに置くか、カードを１枚引
+  [effects_WX.json] WX19-Re19 幻蟲　キアハ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのトラッシュから《幻蟲　キアハ》以外の黒のシグニ１枚を対象とし、それを手札に加える。
+  [effects_WX.json] WX20-008 ドーナ　THIRD++
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのデッキから＜怪異＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX20-010 因果の記憶　リル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのデッキから《ライズアイコン》を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WX.json] WX20-013 メル＝ギムレット
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：あなたのデッキから《アクセアイコン》を持つカード１枚を探してエナゾーンに置き、デッキをシャッフルする。
+  [effects_WX.json] WX20-018 復活の駄姫　グズ子
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのデッキの上からカードを２枚トラッシュに置く。その後、あなたのトラッシュから＜遊具＞のシグニ１枚を対象とし、それを場に出す。
+  [effects_WX.json] WX20-058 羅石　イモイシ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜鉱石＞のシグニ１枚と＜宝石＞のシグニ１枚を捨てる：カードを３枚引く。
+  [effects_WX.json] WX21-069 羅菌　ヨウレン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】対戦相手の場にある【ウィルス】１つを取り除く：対戦相手のシグニゾーン１つに【ウィルス】１つを置く。（【ウィルス】はシグニゾーン１つにつき１つまでしか置けない）
+  [effects_WX24_26.json] WX24-P1-058 羅闘石　アメジスト
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜宝石＞のシグニを１枚捨てる：対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい
+  [effects_WX24_26.json] WX24-P1-060 コードアート　Sイハンキ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。このコストでスペルを捨てた場合、代わりに対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニ
+  [effects_WX24_26.json] WX24-P1-061 羅闘石　ヒスイ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》手札から＜宝石＞のシグニを１枚捨てる：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX24_26.json] WX24-P1-063 紅魔　フュール
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】他の＜悪魔＞のシグニ１体を場からトラッシュに置く：対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX24_26.json] WX24-P1-072 幻闘獣　ミャオ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：ターン終了時まで、このシグニは【ランサー（パワー5000以下のシグニ）】を得る。（【ランサー（パワー5000以下のシグニ）】を持つシグニがバトルでパワー5000以下のシグニをバニッシュし
+  [effects_WX24_26.json] WX24-P1-082 凶魔　モリガ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》他の＜悪魔＞のシグニ１体を場からトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。（【出】能力の：の左側はコストである。コストを支払わず発動
+  [effects_WX24_26.json] WX24-P2-069 小砲　パンジャン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】アップ状態のルリグ１体をダウンする：この方法でダウンしたルリグと共通する色を持つ対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX24_26.json] WX24-P2-070 幻竜　ズメイ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：あなたの場に他の＜龍獣＞のシグニがある場合、対戦相手のパワー8000以下のシグニ１体を対象とし、対戦相手が《無》《無》を支払わないかぎり、それをバニッシュする。（【出】能力の：の左側はコ
+  [effects_WX24_26.json] WX24-P3-044 エルドラ！クロス・ライフ・クロス！
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】ライフクロス１枚を手札に加える：あなたの手札からカードを１枚ライフクロスに加える。
+  [effects_WX24_26.json] WX24-P3-060 羅星　スペースデブリ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜宇宙＞のシグニを１枚捨てる：あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番上に戻す。
+  [effects_WX24_26.json] WX24-P3-074 幻水　ラッコ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜水獣＞のシグニを２枚まで捨てる：この方法で捨てたカード１枚につきカードを１枚引く。
+  [effects_WX24_26.json] WX24-P4-057 羅星　ソンブレロ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番上に戻す。
+  [effects_WX24_26.json] WX24-P4-062 羅石　シンシャ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から赤のカードを１枚捨てる：【エナチャージ１】
+  [effects_WX24_26.json] WX24-P4-071 幻水　カツオ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から青のカードを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WX24_26.json] WX25-P1-064 聖天　アラトロン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜天使＞のシグニを１枚捨てる：あなたのデッキの上からカードを５枚見る。その中からカードを１枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WX24_26.json] WX25-P1-066 小装　ブーツナイフ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのデッキの上からカードを５枚見る。その中から＜ウェポン＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WX24_26.json] WX25-P1-067 聖天　ベトール
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜天使＞のシグニを１枚捨てる：あなたのトラッシュに＜天使＞のシグニが５枚以上ある場合、対戦相手のレベル１のシグニ１体を対象とし、それを手札に戻す。（コストを支払った後で＜天使＞の枚数を数
+  [effects_WX24_26.json] WX25-P1-068 聖天　ナキールン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜天使＞のシグニ１枚をトラッシュに置く：あなたのデッキの上からカードを３枚見る。その中からカードを１枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WX24_26.json] WX25-P1-074 紅天　ファレグ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜天使＞のシグニを１枚捨てる：対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX24_26.json] WX25-P1-078 轟砲　パイソンガン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》《無》：対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。あなたの場にクロス状態のシグニがある場合、代わりに対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX24_26.json] WX25-P1-080 羅原　Pm
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜原子＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WX24_26.json] WX25-P1-091 コードアンチ　クサビモジ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜古代兵器＞のシグニを１枚捨てる：あなたのデッキの上からカードを３枚見る。その中からカードを１枚までエナゾーンに置き、カードを１枚までトラッシュに置き、残りを好きな順番でデッキの一番下に
+  [effects_WX24_26.json] WX25-P1-107 凶天　バイコーン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】デッキの上からカードを３枚トラッシュに置く：あなたの＜天使＞のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋3000する。
+  [effects_WX24_26.json] WX25-P2-065 羅闘星　ポラリス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜宇宙＞のシグニを１枚捨てる：あなたのデッキの上からカードを５枚見る。その中からレベル１のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WX24_26.json] WX25-P2-091 壱ノ遊　シシマイ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜遊具＞のシグニを１枚捨てる：あなたのデッキの上からカードを５枚見る。その中から＜遊具＞のシグニ１枚をエナゾーンに置き、残りを好きな順番でデッキの一番下に置く。
+  [effects_WX24_26.json] WX25-P2-098 幻蟲　イナゴ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜凶蟲＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。あなたの場に他の＜凶蟲＞のシグニがある場合、代わりにターン終了時まで、それの
+  [effects_WX24_26.json] WX25-P2-101 羅星　コルンバ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜宇宙＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。このコストでレベル１のシグニを捨てた場合、代わりにターン終了時まで、それのパ
+  [effects_WX24_26.json] WX25-P2-102 幻闘蟲　オオムラサキ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜凶蟲＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。それに【チャーム】が付いている場合、代わりにターン終了時まで、それのパワーを
+  [effects_WX24_26.json] WX25-P2-104 コードアート　Hイゼンネコ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜電機＞のシグニ１枚をトラッシュに置く：あなたのトラッシュから黒のスペル１枚を対象とし、それを手札に加える。
+  [effects_WX24_26.json] WX25-P2-107 幻蟲　カゲロウ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。それに【チャーム】が付いている場合、代わりにターン終了時まで、それのパワーを－15000する。（パ
+  [effects_WX24_26.json] WX25-P3-076 幻竜　オピオン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜龍獣＞のシグニ１枚をトラッシュに置く：対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。このコストで緑の＜龍獣＞のシグニをトラッシュに置いた場合、代わりに
+  [effects_WX24_26.json] WX25-P3-087 羅菌　フラボ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜微菌＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、対戦相手が手札を２枚捨てないかぎり、ターン終了時まで、それのパワーを－5000する。（パワーが０以下のシグニはルールによって
+  [effects_WX24_26.json] WX25-P3-101 アイン＝ヴェノムダガ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜毒牙＞のシグニ１枚をトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。
+  [effects_WX24_26.json] WX25-P3-103 ツヴァイ＝ドクヤ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜毒牙＞のシグニ１枚をトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。
+  [effects_WX24_26.json] WX25-P3-105 凶魔　ナベリウス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。あなたのトラッシュにカードが１５枚以上ある場合、代わりにターン終了時まで、それのパワーを－1200
+  [effects_WX24_26.json] WX25-P3-106 ドライ＝ドクマンジュウ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WX24_26.json] WX25-P3-116 凶魔　コオニ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から黒のカードを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。このターンにあなたが黒のアーツを使用していた場合、代わりにターン終了時まで、それの
+  [effects_WX24_26.json] WX25-CP1-068 空井サキ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》手札から＜ブルアカ＞のカードを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。（パワーが０以下のシグニはルールによってバニッシュされる）【絆自】
+  [effects_WX24_26.json] WX25-CP1-076 秋泉モミジ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜ブルアカ＞のカード１枚をトラッシュに置く：ターン終了時まで、このシグニは【ランサー（パワー5000以下のシグニ）】を得る。（【ランサー（パワー5000以下のシグニ）】を持つシグニ
+  [effects_WX24_26.json] WX25-CP1-084 鬼怒川カスミ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜ブルアカ＞のカードを１枚捨てる：対戦相手のレベル２以下のシグニ１体を対象とし、ターン終了時まで、それは能力を失い、それのパワーを－3000する。【絆自】：あなたのアタックフェイズ開始時
+  [effects_WX24_26.json] WX25-CP1-090 鬼方カヨコ(ドレス)
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたの場に他の＜ブルアカ＞のシグニがある場合、ターン終了時まで、このシグニは【アサシン（パワー5000以下のシグニ）】を得る。（【アサシン（パワー5000以下のシグニ）】を持つシグニが
+  [effects_WX24_26.json] WX25-CP1-093 近衛ミナ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜ブルアカ＞のカード１枚をトラッシュに置く：対戦相手のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それは能力を失い、それのパワーを－5000する。【絆自】：このシグニがア
+  [effects_WX24_26.json] WX26-CP1-060 古海える
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜プリオケ＞のカードを１枚捨てる：あなたのデッキの上からカードを５枚見る。その中からカード１枚を手札に加え、残りを好きな順番でデッキの一番下に置く。（【出】能力の：の左側はコストである。
+  [effects_WX24_26.json] WX26-CP1-069 日村みかん
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜プリオケ＞のカードを１枚捨てる：対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。【歌のカケラ】：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバ
+  [effects_WX24_26.json] WX26-CP1-072 プリンセス・ジール(熱情のリズム)
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜プリオケ＞のカード１枚をトラッシュに置く：対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。あなたの手札が０枚の場合、代わりに対戦相手のパワー8000以下
+  [effects_WX24_26.json] WX26-CP1-075 プリンセス・ジール(決意完了！)
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜プリオケ＞のカード１枚をトラッシュに置く：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。あなたの手札が０枚の場合、代わりに対戦相手のパワー10000以
+  [effects_WX24_26.json] WX26-CP1-093 諸星まいん
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜プリオケ＞のカードを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。あなたのトラッシュに＜プリオケ＞のカードが５枚以上ある場合、代わりにター
+  [effects_WX24_26.json] WX26-CP1-096 プリンセス・ヴィオラ(雪の花)
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜プリオケ＞のカード１枚をトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。（パワーが０以下のシグニはルールによってバニッシュされる
+  [effects_WX24_26.json] WX26-CP1-099 プリンセス・ヴィオラ(蕾を開き、花は咲く)
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜プリオケ＞のカード１枚をトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。（【出】能力の：の左側はコストである。コストを支払わず発
+  [effects_WX24_26.json] WX24-D2-20 羅輝石　ヴォルカノ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》《赤》：対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。《リコレクトアイコン》［５枚以上］代わりに対戦相手のシグニ１体を対象とし、それをバニッシュする。（あなた
+  [effects_WX24_26.json] WX24-D3-15 コードアート　Jユブナイル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から青のカードを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。対戦相手の手札が２枚以下の場合、代わりにターン終了時まで、それのパワーを－5000
+  [effects_WX24_26.json] WX24-D4-15 幻闘獣　ミスザク
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：ターン終了時まで、このシグニは【ランサー（パワー5000以下のシグニ）】を得る。（【ランサー（パワー5000以下のシグニ）】を持つシグニがバトルでパワー5000以下のシグニをバニッシュし
+  [effects_WX24_26.json] WX24-D4-20 幻獣神　セイリュ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》《緑》：ターン終了時まで、このシグニは【ランサー】を得る。《リコレクトアイコン》［５枚以上］代わりにターン終了時まで、このシグニは【Ｓランサー】を得る。（【Ｓランサー】を持つシグニがバトル
+  [effects_WXDi.json] WXDi-D01-017 翠天　アタランテ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンからそれぞれ異なるクラスを持つシグニ３枚をトラッシュに置く：対戦相手のパワー８０００以上のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WXDi.json] WXDi-D02-23 コード２４３４　御伽原江良
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》《無》：あなたの場に《コード２４３４　森中花咲》がある場合、あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。【出】《白》《白》《無》：あなたの場に＜
+  [effects_WXDi.json] WXDi-D03-012 小装　ローメイル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_WXDi.json] WXDi-D03-013 紅将　ランスロット
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WXDi.json] WXDi-D03-016 大得装　トレット
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》《無》：あなたのトラッシュからレベル１の赤のシグニ１枚を対象とし、それを手札に加える。
+  [effects_WXDi.json] WXDi-D04-015 聖天　アテナ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》《無》《無》：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_WXDi.json] WXDi-D05-016 蒼将　シンパチ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：カードを１枚引く。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）【起】《ターン１回》《青》《青》《青》：対戦相手のシグニ１体を対象とし、あなたの手札
+  [effects_WXDi.json] WXDi-D06-006 マドカ//フロート
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを３枚引く。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_WXDi.json] WXDi-D06-015 羅原　Ｇｅ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》《無》《無》：このコストでトラッシュに置いたカードが持つ色が合計３種類以上ある場合、対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。（無色は色に含まれない）
+  [effects_WXDi.json] WXDi-D06-017 凶魔　アンナ・ミラージュ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【ライズ】あなたのシグニ１体の上に置く（この条件を満たさなければ場に出せない）【出】《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。（パワーが０以下のシグニはル
+  [effects_WXDi.json] WXDi-D08-014 聖天　ハニエル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのデッキの上からカードを３枚見る。その中からレベル２以下のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-D09-H24 小装　サミダレ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》手札を１枚捨てる：あなたのトラッシュから＜ウェポン＞のシグニ１枚を対象とし、それを手札に加える。
+  [effects_WXDi.json] WXDi-P00-027 【アシスト】アンジュ　レベル１’
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：対戦相手のパワー１００００以下のシグニ１体を対象とし、それをトラッシュに置く。
+  [effects_WXDi.json] WXDi-P00-036 紅魔姫　シュブニグラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【チーム】＜アンシエント・サプライズ＞【チーム自】：このシグニがアタックしたとき、あなたの場にあるすべてのシグニが赤の場合、対戦相手のパワー１２０００以下のシグニ１体を対象とし、《赤》《赤》を支払って
+  [effects_WXDi.json] WXDi-P00-045 コード２４３４　童田明治
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキの上からカードを３枚見る。その中から＜バーチャル＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P00-056 羅石　カーネリー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》《無》：あなたのデッキの上からカードを３枚見る。その中から赤のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P00-062 蒼魔　スライムメイジ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》《青》《無》他のシグニ２体を場からトラッシュに置く：対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P00-067 翠魔　スカンダ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》《緑》《無》シグニ１体を場からトラッシュに置く：この方法でトラッシュに置いたシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WXDi.json] WXDi-P00-076 コード２４３４　郡道美玲
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュからレベル１の＜バーチャル＞のシグニ１枚を対象とし、それを場に出す。
+  [effects_WXDi.json] WXDi-P01-015 DJ.LOVIT-W-SCRACH
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》手札を１枚捨てる：あなたのシグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】を得る。（【ダブルクラッシュ】を持つシグニがアタックによってダメージを与えた場合ライフクロスを１
+  [effects_WXDi.json] WXDi-P01-021 ノヴァ＝ミュート
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》手札を１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。
+  [effects_WXDi.json] WXDi-P01-027 マドカ//スライド
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：対戦相手のレベル２以下のシグニ１体を対象とし、それをデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P01-035 コードハート　Ｐロマピ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【チーム】＜CardJockey＞【チーム常】：対戦相手は追加で《無》《無》を支払わないかぎり【ガード】ができない。【出】《白》：あなたのデッキの上からカードを３枚見る。その中からスペルと白のシグニを
+  [effects_WXDi.json] WXDi-P01-044 ドライ＝ランリョウオー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【チーム】＜DIAGRAM＞【チーム自】：このシグニがアタックしたとき、あなたか対戦相手のデッキの上からカードを５枚トラッシュに置く。【出】《黒》：対戦相手のシグニ１体を対象とし、ターン終了時まで、そ
+  [effects_WXDi.json] WXDi-P01-047 聖魔　アンドラス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのデッキの上からカードを５枚見る。その中から＜悪魔＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P01-058 中装　ショクダイキリ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのレベル３のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。」を得る
+  [effects_WXDi.json] WXDi-P01-061 蒼天　カロン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：カードを１枚引く。
+  [effects_WXDi.json] WXDi-P01-078 凶天　アズライール
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》《無》：あなたのトラッシュから＜天使＞のシグニ１枚を対象とし、それを手札に加える。
+  [effects_WXDi.json] WXDi-P01-081 小装　フラガラッハ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WXDi.json] WXDi-P01-084 中装　グラム
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WXDi.json] WXDi-P02-051 羅星　キルキヌス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのデッキの上からカードを５枚見る。その中からレベル１のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P02-057 紅魔　ゼパル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】他の赤のシグニ１体を場からトラッシュに置く：対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WXDi.json] WXDi-P02-087 羅星　トゥカナ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WXDi.json] WXDi-P03-019 DJ.LOVIT-RE-EDIT
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】すべてのシグニを場からトラッシュに置き、手札とエナゾーンにあるすべてのカードをトラッシュに置く：対戦相手のすべてのシグニをバニッシュする。
+  [effects_WXDi.json] WXDi-P03-038 紅天姫　ゼウシアス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【ライズ】あなたの＜天使＞のシグニ１体の上に置く【自】：このシグニがアタックしたとき、このシグニの下に白の＜天使＞がある場合、次の対戦相手のターン終了時まで、このシグニのパワーは＋3000されこのシグ
+  [effects_WXDi.json] WXDi-P03-048 聖魔　アクィエル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのデッキの上からカードを３枚見る。その中から＜悪魔＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P03-082 羅原　Ｐａ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜原子＞のシグニを２枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  [effects_WXDi.json] WXDi-P03-088 羅星　テレスコピウム
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：対戦相手のシグニ１体を対象とし、あなたのトラッシュにレベル１のシグニが５枚以上ある場合、ターン終了時まで、それのパワーを－5000する。１０枚以上ある場合、代わりにターン終了時まで、それ
+  [effects_WXDi.json] WXDi-P04-034 紅将姫　キントキ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【ハーモニー】黒のルリグ１体（このシグニが場に出たとき、あなたのアップ状態の黒のルリグ１体をダウンしないかぎり、これをダウンする）【自】：あなたのアタックフェイズ開始時、あなたの場に【ソウル】があり対
+  [effects_WXDi.json] WXDi-P04-061 羅星　キャンサー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札からレベル１のシグニを２枚捨てる：対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WXDi.json] WXDi-P04-071 翠天　サテュロス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜天使＞のシグニ３枚をトラッシュに置く：この方法でトラッシュに置いたカードが持つ色が合計３種類以上ある場合、あなたの＜天使＞のシグニ１体を対象とし、ターン終了時まで、それは【ランサ
+  [effects_WXDi.json] WXDi-P04-072 壱ノ遊　タカオニ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》：あなたのエナゾーンからレベル２のシグニ１枚を対象とし、それと場にあるこのシグニの場所を入れ替える。（それの【出】能力は発動する）
+  [effects_WXDi.json] WXDi-P05-046 コードアート　Ｈヤケマ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》《無》手札からスペルを１枚捨てる：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。
+  [effects_WXDi.json] WXDi-P05-053 紅天　ヘーメラー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：あなたの場に＜天使＞のシグニが２体ある場合、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。あなたの場に＜天使＞のシグニが３体以上ある場合、代わりに対戦相手のパ
+  [effects_WXDi.json] WXDi-P05-075 幻水　ポリプテルス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エクシード３（あなたのルリグの下からカードを合計３枚ルリグトラッシュに置く）：あなたのエナゾーンからシグニ１枚を対象とし、それを手札に加える。
+  [effects_WXDi.json] WXDi-P05-080 羅爆星　タイマーボム
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》《無》：あなたのトラッシュから＜宇宙＞のシグニ１枚を対象とし、それを手札に加える。
+  [effects_WXDi.json] WXDi-P05-084 羅原　ＢＰ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから＜原子＞のシグニ１枚をトラッシュに置き、手札から＜原子＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。（パワーが０以下のシ
+  [effects_WXDi.json] WXDi-P06-044 羅星　サシェ//メモリア
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜宇宙＞のシグニを１枚捨てる：あなたのデッキの上からカードを５枚見る。その中から＜宇宙＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P06-053 小装　ボーニャ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《無》《無》《無》：あなたのデッキの上からカードを５枚見る。その中から赤のシグニを１枚までと、白か青か緑か黒のシグニを１枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く。
+  [effects_WXDi.json] WXDi-P06-061 蒼将　ソウイ//メモリア
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を２枚まで捨てる：この方法で捨てたカード１枚につきカードを１枚引く。
+  [effects_WXDi.json] WXDi-P06-063 蒼魔　ジャックフロスト
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エクシード３（あなたのルリグの下からカードを合計３枚ルリグトラッシュに置く）：対戦相手のすべてのシグニを凍結する。（凍結されたシグニは次の自分のアップフェイズにアップしない）
+  [effects_WXDi.json] WXDi-P07-046 ドライ＝パトラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：あなたのエナゾーンからシグニ１枚を対象とし、それを手札に加える。【出】《黒》：あなたのトラッシュから緑のシグニ１枚を対象とし、それを場に出す。【起】《ターン１回》《無》ターン終了時まで、
+  [effects_WXDi.json] WXDi-P07-071 羅植　ヒヤシンス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：このターン終了時、【エナチャージ１】をする。（【出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）
+  [effects_WXDi.json] WXDi-P07-074 羅植　フジノハナ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  [effects_WXDi.json] WXDi-P07-081 爆砲　センチュリオン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》《コインアイコン》：【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）【起】《緑》《緑》このシグニを場からトラッシュに置く：対戦相手のレベル３以上のシグニ１
+  [effects_WXDi.json] WXDi-P07-090 凶天　タナトス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる＜天使＞のシグニ３枚をデッキに加えてシャッフルする。そうした場合、ターン終了時まで、それのパワーを－5000す
+  [effects_WXK.json] WXK08-014 刻みし者　タウィル＝エット
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。
+  [effects_WXK.json] WXK08-021 ナナシ　其ノ壱ノ聞
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。
+  [effects_WXK.json] WXK08-035 コードＶＬ　ドーラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：対戦相手のレベル２以下のシグニ１体を対象とし、それを手札に戻す。あなたの登録者数が１００万人を達成している場合、代わりに対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。
+  [effects_WXK.json] WXK08-043 炎魔の悪意　サマエル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《ビートアイコン》［４枚以下］《炎魔の悪意　サマエル》以外のシグニ１体を【ビート】にする：カードを１枚引く。
+  [effects_WXK.json] WXK08-044 炎魔の御者　ヘーリオス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《ビートアイコン》［１枚以上］：対戦相手のパワー2000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WXK.json] WXK08-051 爆書　ダリチュー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】あなたのシグニの下からカード１枚をトラッシュに置く：【エナチャージ１】
+  [effects_WXK.json] WXK08-056 コードＶＬ　飛鳥ひな
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキの上からカードを３枚見る。その中から１枚を手札に加え、１枚をデッキの一番上に置き、残りをデッキの一番下に置く。【起】《白》《無》このシグニを場からトラッシュに置く：あなたの
+  [effects_WXK.json] WXK08-060 コードＶＬ　町田ちま
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのデッキからレベル４の＜電機＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WXK.json] WXK08-062 コードＶＬ　安土桃
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキからレベル３の＜電機＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WXK.json] WXK08-065 コードＶＬ　遠北千南
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《白》：あなたのデッキの一番上を公開する。それが＜電機＞のシグニの場合、それを手札に加える。
+  [effects_WXK.json] WXK08-068 炎魔の尾火　アイトワラス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《ビートアイコン》［４枚以下］このシグニと他のシグニ１体を【ビート】にする：対戦相手のシグニ１体を対象とし、それをバニッシュする。（この能力はあなたの【ビート】が４枚以下であるかぎり有効になる。
+  [effects_WXK.json] WXK08-071 炎魔の愚火　イグニス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのトラッシュからレベル３以下の＜悪魔＞のシグニ１枚を対象とし、あなたのターンの場合、それを場に出す。
+  [effects_WXK.json] WXK08-075 炎魔の史実　リエル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《ビートアイコン》［４枚以下］他のシグニ１体を【ビート】にする：次のあなたのターンまで、このシグニのパワーは＋8000される。（この能力はあなたの【ビート】が４枚以下であるかぎり有効になる。コス
+  [effects_WXK.json] WXK08-076 炎魔の怪火　タウゴウ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：あなたのデッキの一番上を公開する。それが＜悪魔＞のシグニの場合、それを手札に加える。
+  [effects_WXK.json] WXK08-082 轟書　ゲンダ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】あなたのシグニの下からカードを２枚合計トラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それの基本パワーを０にする。
+  [effects_WXK.json] WXK08-087 小書　ゴエティア
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのデッキの一番上を公開する。それが＜ウェポン＞のシグニの場合、それを手札に加える。
+  [effects_WXK.json] WXK09-011 群青の巫女　タマヨリヒメ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《コインアイコン》：カードを１枚引く。
+  [effects_WXK.json] WXK09-012 浅縹の巫女　タマヨリヒメ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。
+  [effects_WXK.json] WXK09-021 コード・ピルルク　Ｆ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：《コインアイコン》を得る。
+  [effects_WXK.json] WXK09-027 陰打の舞姫　アルフォウ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：カードを１枚引く。
+  [effects_WXK.json] WXK09-032 コードハート　Ｏ・Ｐ・Ａ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】エナゾーンから共通する色を持つシグニ２枚をトラッシュに置く：この方法でトラッシュに置いたシグニのレベルの合計と同じレベルを持つ対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。【起】《ター
+  [effects_WXK.json] WXK09-043 切願の蒼天　アルペイオス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜天使＞のシグニを３枚エナゾーンに置く：カードを１枚引く。
+  [effects_WXK.json] WXK09-068 隔壁の蒼天　アルビオン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－4000する。対戦相手の手札が０枚の場合、代わりにターン終了時まで、それのパワーを－8000する。（パワーが０以下のシグ
+  [effects_WXK.json] WXK09-075 大蛇の蒼天　ヴァースキ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《青》：あなたのデッキの一番上を公開する。それが＜天使＞のシグニの場合、それを手札に加える。
+  [effects_WXK.json] WXK09-079 コードアート　Ｔ・Ｐ・Ｓ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜電機＞のシグニを１枚エナゾーンに置く：あなたのエナゾーンから＜電機＞のシグニ１枚を対象とし、それを手札に加える。
+  [effects_WXK.json] WXK09-088 コードアート　Ｌ・Ｅ・Ｄ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《緑》：あなたのデッキの一番上を公開する。それが＜電機＞のシグニの場合、それを手札に加える。
+  [effects_WXK.json] WXK09-093 楽隊の童話　ロバン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのトラッシュからレベル１の黒のシグニ１枚を対象とし、あなたのターンの場合、それを場に出す。
+  [effects_WXK.json] WXK09-098 菓子の童話　ヘンゼル
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのデッキからレベル２の黒のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WXK.json] WXK09-099 塔上の童話　フリン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》：あなたのデッキの一番上を公開する。それが＜美巧＞のシグニの場合、それを手札に加える。
+  [effects_WXK.json] WXK10-023 乗装　モンケーン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》手札から赤のシグニを１枚捨てる：あなたのデッキからこの方法で捨てたシグニと共通するクラスを持つレベル３以下の赤のシグニを２枚まで探して公開し手札に加え、デッキをシャッフルする。【起】《ター
+  [effects_WXK.json] WXK10-038 大装　ライブレラ
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札からシグニを１枚捨てる：あなたのトラッシュからこの方法で捨てたシグニと共通するクラスを持ち《ライズアイコン》を持つシグニ１枚を対象とし、それを手札に加える。【起】《ダウン》：《ライズアイコン
+  [effects_WXK.json] WXK10-067 コードアンチ　モンデス
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《赤》：あなたの他の＜古代兵器＞のシグニ１体を対象とし、あなたのデッキからそれと同じ名前のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  [effects_WXK.json] WXK10-071 魔海の金管　ベレト
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札から＜悪魔＞のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。（パワーが０以下のシグニはルールによってバニッシュされる）【出】手札から＜悪
+  [effects_WXK.json] WXK11-062 コードメイズ　アステカレンダー
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】手札を１枚捨てる：あなたのトラッシュからレベル１のシグニ１枚を対象とし、それを場に出す。
+  [effects_WXK.json] WXK11-074 羅星　サタン
+    CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false
+    CSV: 【出】《黒》《無》：このターン、対戦相手はシグニを２体までしか場に出すことができない。（すでに場に３体以上ある場合は２体になるようにシグニをトラッシュに置く）
+
+─── POWER_VALUE_MISMATCH (13件) ───
+  [effects_misc.json] WDK06-C11 魏軍の隻眼　カコウトン
+    JSONのdelta=-10000、CSV値=[-3000,-5000,-8000]
+    CSV: 【自】：あなたの＜武勇＞のシグニ１体がトラッシュから場に出たとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。【自】：このシグニがアタックしたとき、対戦相手のシグニ
+  [effects_misc.json] WDK10-011 幻竜　アン＝ミラ
+    JSONのdelta=-12000、CSV値=[-6000]
+    CSV: 【自】《ターン２回》：ガードステップ以外であなたが手札を１枚捨てたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－6000する。【出】手札から＜龍獣＞のシグニを１枚捨てる：あな
+  [effects_WX.json] WX17-049 羅菌　スポアー
+    JSONのdelta=-5000、CSV値=[-2000]
+    CSV: 【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。【起】対戦相手の場にある【ウィルス】２つを取り除く：このシグニをトラッシュから場に出す。（この能力はこのシグニが
+  [effects_WX24_26.json] WX25-P1-107 凶天　バイコーン
+    JSONのdelta=-8000、CSV値=[3000]
+    CSV: 【出】デッキの上からカードを３枚トラッシュに置く：あなたの＜天使＞のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋3000する。
+  [effects_WX24_26.json] WX25-P2-105 コードアート　Kボード
+    JSONのdelta=-8000、CSV値=[-2000]
+    CSV: 【自】：このシグニがアタックしたとき、以下の２つから１つを選ぶ。①あなたの場に青の＜電機＞のシグニがある場合、対戦相手のデッキの上からカードを４枚トラッシュに置く。②このターンにあなたがスペルを使用し
+  [effects_WX24_26.json] WX25-CP1-073 春日ツバキ(ガイド)
+    JSONのdelta=4000、CSV値=[3000]
+    CSV: 【出】：あなたの他の＜ブルアカ＞のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋3000する。【絆常】：このシグニのパワーは＋4000される。
+  [effects_WX24_26.json] WX25-CP1-087 朱城ルミ
+    JSONのdelta=4000、CSV値=[3000]
+    CSV: 【自】：あなたのターン終了時、あなたの他の＜ブルアカ＞のシグニを２体まで対象とし、それらのシグニ１体につきあなたのデッキの上からカードを１枚トラッシュに置いてもよい。そうした場合、次の対戦相手のターン
+  [effects_WXDi.json] WXDi-P02-086 凶魔　アガレス
+    JSONのdelta=-3000、CSV値=[2000]
+    CSV: 【起】《ターン１回》デッキの上からカードを２枚トラッシュに置く：ターン終了時まで、このシグニのパワーを＋2000する。
+  [effects_WXDi.json] WXDi-P04-050 聖将　コウチュウ
+    JSONのdelta=5000、CSV値=[3000]
+    CSV: 【常】：このシグニがアップ状態であるかぎり、このシグニのパワーは＋5000される。【常】：このシグニがアップ状態であるかぎり、このシグニの隣にあるあなたのシグニのパワーを＋3000する。
+  [effects_WXDi.json] WXDi-P07-088 羅油菌　ショウコカビ
+    JSONのdelta=2000、CSV値=[-2000]
+    CSV: 【常】：このシグニが覚醒状態であるかぎり、このシグニのパワーは＋2000され、このシグニは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－20
+  [effects_WXDi.json] WXDi-P07-093 凶魔　サユラギ
+    JSONのdelta=-12000、CSV値=[5000]
+    CSV: 【自】《ターン１回》：あなたのデッキからカード１枚がトラッシュに置かれたとき、ターン終了時まで、このシグニのパワーを＋5000する。【自】《ターン１回》：あなたがリフレッシュしたとき、【エナチャージ１
+  [effects_WXK.json] WXK08-049 轟書　キョウリ
+    JSONのdelta=-3000、CSV値=[-2000]
+    CSV: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。【起】《ターン１回》《黒×0》：対戦相手のシグニ１体を対象とし、ターン終了時まで
+  [effects_WXK.json] WXK11-075 轟書　ガブリエルト
+    JSONのdelta=-3000、CSV値=[-7000,-12000]
+    CSV: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのルリグトラッシュにカードが４枚以上ある場合、ターン終了時まで、それのパワーを－7000する。８枚以上ある場合、代わりにター
+
+─── EFFECT_TYPE_MISSING_ACTIVATED (4件) ───
+  [effects_misc.json] SP27-013 幻怪　ベンザイテン
+    CSV【起】あり、JSONにACTIVATEDなし (types:CONTINUOUS)
+    CSV: 【常】：対戦相手は場にあるシグニの【起】能力を使用できない。（効果を受けないシグニの能力も使用できない）
+  [effects_WX.json] WX12-029 羅石　アクアマリン
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO,LIFE_BURST)
+    CSV: 【自】《ターン１回》：あなたのシグニが【起】能力のコストとして場からトラッシュに置かれたとき、あなたのデッキの一番上のカードをエナゾーンに置く。（起動能力にある：の左側がコスト、右側が効果）
+  [effects_WX24_26.json] WX25-P3-071 羅菌　セレビシエ
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO,AUTO,LIFE_BURST)
+    CSV: 【出】：あなたの場に他の＜微菌＞のシグニがある場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。【自】：あなたの＜微菌＞のシグニの【出】【起】能力のコストとしてこのカードが捨て
+  [effects_WX24_26.json] WX25-P3-085 羅菌　ユーグレナ
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO,LIFE_BURST)
+    CSV: 【自】：あなたの＜微菌＞のシグニの【出】【起】能力のコストとしてこのカードが捨てられたとき、あなたの＜微菌＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニが対戦相手
+
+─── EFFECT_TYPE_MISSING_CONTINUOUS (2件) ───
+  [effects_WXDi.json] WXDi-D03-011 Glory　Grow
+    CSV【常】あり、JSONにCONTINUOUSなし (types:ACTIVATED)
+    CSV: 【使用条件】【チーム】＜NoLimit＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【常】：【ダブルクラッシュ】（アタックによるダメージでライ
+  [effects_WXDi.json] WXDi-P03-003 頂点布武
+    CSV【常】あり、JSONにCONTINUOUSなし (types:ACTIVATED)
+    CSV: 【使用条件】あなたのセンタールリグがレベル２以上このゲームの間、あなたは以下の能力を得る。『【常】：あなたの中央のシグニゾーンにある＜武勇＞のシグニのパワーを＋1000し、そのシグニは「【自】：あなた
+
+─── EFFECT_TYPE_MISSING_AUTO (3件) ───
+  [effects_WXDi.json] WXDi-D05-011 はんぱない★ディストラクション
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: 【使用条件】【チーム】＜うちゅうのはじまり＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】：このルリグがアタックしたとき、以下の２つから１
+  [effects_WXDi.json] WXDi-D06-011 salvage　the　future
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: 【使用条件】【チーム】＜DIAGRAM＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】：このルリグがアタックしたとき、以下の２つから１つを
+  [effects_WXDi.json] WXDi-P03-002 G-G-G
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: 【使用条件】あなたの場に緑のルリグがいるこのゲームの間、あなたは以下の能力を得る。『【自】：あなたのターンの間、あなたのルリグがグロウしたとき、それがそのターンであなたの最初のグロウである場合、【エナ
+
+─── DRAW_COUNT_MISMATCH (1件) ───
+  [effects_WXDi.json] WXDi-P02-030 VOGUE3　マドカ
+    CSV「1枚引く」、JSONのDRAW最大=3
+    CSV: 【チーム】＜DIAGRAM＞【チーム自】《ターン１回》：あなたの効果によって対戦相手が手札を１枚捨てたとき、カードを１枚引くか【エナチャージ１】をする。【出】：カードを３枚引き、手札を２枚捨てる。【起
+
+
+=== ファイル別サマリー ===
+  effects_misc.json: 57件
+  effects_WX.json: 112件
+  effects_WX24_26.json: 59件
+  effects_WXDi.json: 66件
+  effects_WXK.json: 37件
+  合計: 331件
