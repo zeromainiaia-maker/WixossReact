@@ -56210,15 +56210,15 @@
                             "type": "IS_MY_TURN"
                         },
                         "then": {
-                            "type": "UNKNOWN",
-                            "raw": "チェックゾーンにあるこのカードを裏返し、あなたのセンタールリグはこの《未知の巫女　マユ》にグロウコストを支払わずにグロウする"
+                            "type": "STUB",
+                            "id": "SPECIAL_GROW_FROM_CHECK_ZONE"
                         }
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P13-004A": [
