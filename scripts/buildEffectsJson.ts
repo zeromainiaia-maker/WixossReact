@@ -88,7 +88,26 @@ for (const r of rows) {
 const total = Object.values(result).flat().length;
 console.log(`効果あり: ${parsed}枚 / 合計${total}効果 / UNKNOWN: ${unknown}件`);
 
-// JSON出力
-const outPath = join(root, 'public/data/effects.json');
-writeFileSync(outPath, JSON.stringify(result), 'utf-8');
-console.log(`出力: ${outPath}`);
+// JSON出力（5ファイルに分割）
+const groups: Record<string, Record<string, ReturnType<typeof parseCardEffects>>> = {
+  WXDi: {}, WX24_25: {}, WXK: {}, WX: {}, misc: {},
+};
+for (const [cardNum, effects] of Object.entries(result)) {
+  if (/^WXDi/i.test(cardNum))         groups.WXDi[cardNum]    = effects;
+  else if (/^WX2[4-6]/.test(cardNum)) groups.WX24_25[cardNum] = effects;
+  else if (/^WXK/.test(cardNum))       groups.WXK[cardNum]     = effects;
+  else if (/^WX(0[0-9]|1[0-9]|2[0-3]|EX)/.test(cardNum)) groups.WX[cardNum] = effects;
+  else                                 groups.misc[cardNum]    = effects;
+}
+const fileMap: Record<string, string> = {
+  WX:      'effects_WX.json',
+  WXDi:    'effects_WXDi.json',
+  WX24_25: 'effects_WX24_25.json',
+  WXK:     'effects_WXK.json',
+  misc:    'effects_misc.json',
+};
+for (const [key, fname] of Object.entries(fileMap)) {
+  const outPath = join(root, 'public/data', fname);
+  writeFileSync(outPath, JSON.stringify(groups[key]), 'utf-8');
+  console.log(`出力: ${fname} (${Object.keys(groups[key]).length}件)`);
+}
