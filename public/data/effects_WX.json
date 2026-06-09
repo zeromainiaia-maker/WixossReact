@@ -37711,8 +37711,9 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "あなたの手札から青のスペル１枚を使用してもよい"
+                        "type": "STUB",
+                        "id": "OPTIONAL_USE_SPELL_FROM_HAND_COLORED",
+                        "color": "青"
                     },
                     {
                         "type": "STUB",
@@ -37722,7 +37723,7 @@
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "PARTIAL",
+            "parseStatus": "MANUAL",
             "crossOnly": true
         },
         {
