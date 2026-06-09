@@ -94,7 +94,7 @@ const groups: Record<string, Record<string, ReturnType<typeof parseCardEffects>>
 };
 for (const [cardNum, effects] of Object.entries(result)) {
   if (/^WXDi/i.test(cardNum))         groups.WXDi[cardNum]    = effects;
-  else if (/^WX2[4-6]/.test(cardNum)) groups.WX24_25[cardNum] = effects;
+  else if (/^WX2[4-6]/.test(cardNum)) groups.WX24_26[cardNum] = effects;
   else if (/^WXK/.test(cardNum))       groups.WXK[cardNum]     = effects;
   else if (/^WX(0[0-9]|1[0-9]|2[0-3]|EX)/.test(cardNum)) groups.WX[cardNum] = effects;
   else                                 groups.misc[cardNum]    = effects;
