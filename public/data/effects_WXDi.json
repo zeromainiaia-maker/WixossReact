@@ -18273,14 +18273,15 @@
                         "count": 3
                     },
                     {
-                        "type": "UNKNOWN",
-                        "raw": "次のあなたのターン終了時、手札を２枚捨てる"
+                        "type": "STUB",
+                        "id": "DELAYED_DISCARD_NEXT_TURN_END",
+                        "count": 2
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P03-002": [
