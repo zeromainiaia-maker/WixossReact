@@ -27217,8 +27217,8 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "以下の効果を１回行う"
+                        "type": "STUB",
+                        "id": "REPEAT_N_TIMES"
                     },
                     {
                         "type": "STUB",
@@ -27233,42 +27233,14 @@
                         }
                     },
                     {
-                        "type": "CONDITIONAL",
-                        "condition": {
-                            "type": "IS_MY_TURN"
-                        },
-                        "then": {
-                            "type": "ADD_TO_FIELD",
-                            "owner": "self",
-                            "source": {
-                                "type": "TRASH_CARD",
-                                "owner": "self",
-                                "count": 1,
-                                "upToCount": false,
-                                "filter": {
-                                    "cardType": "シグニ"
-                                }
-                            }
-                        }
-                    },
-                    {
-                        "type": "POWER_MODIFY",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "opponent",
-                            "count": 1,
-                            "filter": {
-                                "cardType": "シグニ"
-                            },
-                            "upToCount": false
-                        },
-                        "delta": -12000
+                        "type": "STUB",
+                        "id": "TRASHED_SIGNI_LEVEL_ODD_EVEN_BRANCH"
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXK08-001": [
