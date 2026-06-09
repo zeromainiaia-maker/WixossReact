@@ -133,18 +133,32 @@ for (const { json, csvs } of FILES) {
     const hasUnknown = allActs.some(a => a.type === 'UNKNOWN');
 
     // ── 1. effectType不一致 ──────────────────────────────────
+    // 「効果付与」パターン（「『【自】〜』を得る」「『【常】〜』を得る」）は除外
+    // 括弧内の説明文も除外
+    const effNoGrant = eff
+      .replace(/「【[常自起]】[^」]*」/g, '')   // 「【常】〜」 形式の付与効果
+      .replace(/（[^）]*）/g, '');              // （）内の説明文
+    const burstNoGrant = burst
+      .replace(/「【[常自起]】[^」]*」/g, '')
+      .replace(/（[^）]*）/g, '');
+    const effStripped = effNoGrant + ' ' + burstNoGrant;
+
     // 【常】がCSVにあるのにJSONにCONTINUOUSがない
-    if (/【常】/.test(eff) && !jsonTypes.includes('CONTINUOUS') && !hasStub) {
-      report(json, cardId, name, 'EFFECT_TYPE_MISSING_CONTINUOUS',
-        `CSV【常】あり、JSONにCONTINUOUSなし (types:${jsonTypes.join(',')})`, eff);
+    // ただし「ガード」「マルチエナ」のみの【常】は除外（通常LIFE_BURSTとして実装）
+    if (/【常】/.test(effStripped) && !jsonTypes.includes('CONTINUOUS') && !hasStub) {
+      const isGuardOrMultiEnaOnly = /【常】：【(マルチエナ|ガード)】/.test(eff) && (eff.match(/【常】/g)||[]).length === 1;
+      if (!isGuardOrMultiEnaOnly) {
+        report(json, cardId, name, 'EFFECT_TYPE_MISSING_CONTINUOUS',
+          `CSV【常】あり、JSONにCONTINUOUSなし (types:${jsonTypes.join(',')})`, eff);
+      }
     }
     // 【起】がCSVにあるのにJSONにACTIVATEDがない
-    if (/【起】/.test(eff) && !jsonTypes.includes('ACTIVATED') && !hasStub) {
+    if (/【起】/.test(effStripped) && !jsonTypes.includes('ACTIVATED') && !hasStub) {
       report(json, cardId, name, 'EFFECT_TYPE_MISSING_ACTIVATED',
         `CSV【起】あり、JSONにACTIVATEDなし (types:${jsonTypes.join(',')})`, eff);
     }
     // 【自】がCSVにあるのにJSONにAUTOがない
-    if (/【自】/.test(eff) && !jsonTypes.includes('AUTO') && !hasStub && !hasUnknown) {
+    if (/【自】/.test(effStripped) && !jsonTypes.includes('AUTO') && !hasStub && !hasUnknown) {
       report(json, cardId, name, 'EFFECT_TYPE_MISSING_AUTO',
         `CSV【自】あり、JSONにAUTOなし (types:${jsonTypes.join(',')})`, eff);
     }
