@@ -26595,14 +26595,14 @@
                         "duration": "PERMANENT"
                     },
                     {
-                        "type": "UNKNOWN",
-                        "raw": "この方法で打ち消されたピースはゲームから除外される"
+                        "type": "STUB",
+                        "id": "EXILE_CANCELLED_PIECE"
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P05-007": [
