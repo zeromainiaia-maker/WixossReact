@@ -40338,41 +40338,26 @@
             "timing": [
                 "ON_TURN_END"
             ],
-            "action": {
-                "type": "SEQUENCE",
-                "steps": [
-                    {
-                        "type": "POWER_MODIFY",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "self",
-                            "count": 1
-                        },
-                        "delta": 5000
-                    },
-                    {
-                        "type": "GRANT_KEYWORD",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "self",
-                            "count": 1
-                        },
-                        "keyword": "歌のカケラ",
-                        "duration": "PERMANENT"
-                    },
-                    {
-                        "type": "STUB",
-                        "id": "CONDITIONAL_POWER_BONUS"
-                    },
-                    {
-                        "type": "STUB",
-                        "id": "LOOK_AND_REORDER"
-                    }
-                ]
+            "condition": {
+                "type": "OTHER_STORY_SIGNI_ON_FIELD",
+                "story": "プリオケ",
+                "owner": "self"
             },
-            "duration": "UNTIL_END_OF_TURN",
+            "action": {
+                "type": "POWER_MODIFY",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "count": 1,
+                    "filter": {
+                        "isSelf": true
+                    }
+                },
+                "delta": 5000
+            },
+            "duration": "UNTIL_END_OF_OPPONENT_TURN",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX26-CP1-061-SONG",
@@ -40384,22 +40369,30 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "あなたのデッキの上からカードを１０枚見て、その中からシグニを２枚まで公開する"
+                        "type": "LOOK_AND_REORDER",
+                        "source": {
+                            "location": "deck",
+                            "owner": "self"
+                        },
+                        "count": 10,
+                        "private": true,
+                        "reorder": false,
+                        "canTrash": false,
+                        "destination": {
+                            "location": "deck",
+                            "owner": "self",
+                            "position": "top"
+                        }
                     },
                     {
                         "type": "STUB",
-                        "id": "CONDITIONAL_POWER_BONUS"
-                    },
-                    {
-                        "type": "STUB",
-                        "id": "LOOK_AND_REORDER"
+                        "id": "REVEAL_MATCH_NAME_HAND_SHUFFLE"
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX26-CP1-062": [
