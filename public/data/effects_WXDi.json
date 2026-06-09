@@ -60045,8 +60045,8 @@
                                     }
                                 },
                                 {
-                                    "type": "UNKNOWN",
-                                    "raw": "次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない"
+                                    "type": "STUB",
+                                    "id": "OPPONENT_TRASH_LOCK_NEXT_PHASE"
                                 }
                             ]
                         }
@@ -60055,7 +60055,7 @@
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P14-006": [
