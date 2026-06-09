@@ -1698,8 +1698,8 @@
                         }
                     },
                     {
-                        "type": "UNKNOWN",
-                        "raw": "その中から宣言したクラスを持つシグニを、好きな枚数公開し手札に加えて好きな枚数エナゾーンに置く"
+                        "type": "STUB",
+                        "id": "FILTER_REVEAL_CLASS_HAND_ENERGY"
                     },
                     {
                         "type": "LOOK_AND_REORDER",
@@ -1720,7 +1720,7 @@
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX24-P1-036": [
