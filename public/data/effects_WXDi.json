@@ -68023,14 +68023,16 @@
                         ]
                     },
                     {
-                        "type": "UNKNOWN",
-                        "raw": "次の対戦相手のドローフェイズの間、対戦相手はカードを合計１枚までしか引けない"
+                        "type": "STUB",
+                        "id": "LIMIT_OPP_DRAW_COUNT",
+                        "maxCount": 1,
+                        "phase": "DRAW_PHASE"
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P16-006": [
