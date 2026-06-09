@@ -102,7 +102,7 @@ for (const [cardNum, effects] of Object.entries(result)) {
 const fileMap: Record<string, string> = {
   WX:      'effects_WX.json',
   WXDi:    'effects_WXDi.json',
-  WX24_25: 'effects_WX24_25.json',
+  WX24_26: 'effects_WX24_26.json',
   WXK:     'effects_WXK.json',
   misc:    'effects_misc.json',
 };
