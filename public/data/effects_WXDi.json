@@ -48722,8 +48722,12 @@
                                 "choiceId": "c2",
                                 "label": "選択肢3",
                                 "action": {
-                                    "type": "UNKNOWN",
-                                    "raw": "あなたは自分のシグニ１体を選びトラッシュに置く"
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "FIELD_SIGNI",
+                                        "owner": "self",
+                                        "count": 1
+                                    }
                                 }
                             }
                         ]
