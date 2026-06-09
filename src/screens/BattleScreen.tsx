@@ -2710,6 +2710,168 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // エンドフェイズ手札捨て選択の確定処理
+  const confirmEndDiscard = async () => {
+    if (pendingEndDiscard === null || !bs || loading) return;
+    if (selectedEndDiscard.size !== pendingEndDiscard) return;
+    setLoading(true);
+    try {
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const update: Partial<BattleStateRow> = {};
+
+      // ビートゾーンをトラッシュへ（doPhaseAdvance と同じ処理）
+      const myBeatEND = my.field.beat_zone ?? [];
+      let myTrashBeat = my.trash;
+      if (myBeatEND.length > 0) {
+        myTrashBeat = [...my.trash, ...myBeatEND];
+        appendBattleLogs([`ビートゾーン（${myBeatEND.length}枚）をトラッシュへ`]);
+      }
+
+      // 選択されたカードを捨てる
+      const discardNums = [...selectedEndDiscard].map(i => my.hand[i]);
+      let myHandEND = my.hand.filter((_, i) => !selectedEndDiscard.has(i));
+      let myTrashEND = [...myTrashBeat, ...discardNums];
+      appendBattleLogs([`手札上限超過（${my.hand.length}枚→${myHandEND.length}枚）：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て`]);
+
+      // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
+      let myFieldAfterCoinCheck = { ...my.field, beat_zone: [] as string[] };
+      let myTrashAfterCoinCheck = myTrashEND;
+      if ((my.coin_condition_signi_instances ?? []).length > 0) {
+        const coinSpent = (my.actions_done ?? []).includes('COIN_SPENT');
+        if (!coinSpent) {
+          const newSigniField = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
+          for (const instId of my.coin_condition_signi_instances ?? []) {
+            for (let zi = 0; zi < 3; zi++) {
+              if (newSigniField[zi]?.includes(instId)) {
+                myTrashAfterCoinCheck = [...myTrashAfterCoinCheck, ...newSigniField[zi]!];
+                newSigniField[zi] = null;
+                appendBattleLogs([`コイン消費なし → ${battleCardMap.get(instId)?.CardName ?? instId}をトラッシュ`]);
+              }
+            }
+          }
+          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newSigniField };
+        }
+      }
+      // turn_end_field_trash_targets
+      if ((my.turn_end_field_trash_targets ?? []).length > 0) {
+        const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
+        const trashedTEFT: string[] = [];
+        for (const targetId of my.turn_end_field_trash_targets!) {
+          const zi = newFieldSigniTEFT.findIndex(stack => stack?.at(-1) === targetId);
+          if (zi < 0) continue;
+          newFieldSigniTEFT[zi] = null;
+          trashedTEFT.push(targetId);
+        }
+        if (trashedTEFT.length > 0) {
+          myTrashAfterCoinCheck = [...myTrashAfterCoinCheck, ...trashedTEFT];
+          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newFieldSigniTEFT };
+          appendBattleLogs([`ターン終了時：${trashedTEFT.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`]);
+        }
+      }
+      // game_turn_end_trash_to_hand
+      if (my.game_turn_end_trash_to_hand) {
+        const { class: ttCls, count: ttCnt } = my.game_turn_end_trash_to_hand;
+        const ttMatches = myTrashAfterCoinCheck.filter(cn => {
+          const c = battleCardMap.get(cn);
+          return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(ttCls);
+        });
+        const ttToHand = ttMatches.slice(0, ttCnt);
+        if (ttToHand.length > 0) {
+          myTrashAfterCoinCheck = myTrashAfterCoinCheck.filter(cn => !ttToHand.includes(cn));
+          myHandEND = [...myHandEND, ...ttToHand];
+          appendBattleLogs([`ターン終了時：トラッシュ＜${ttCls}＞シグニ${ttToHand.length}枚を手札へ（このゲーム）`]);
+        }
+      }
+      // flip_attack_signi_zones
+      if ((my.flip_attack_signi_zones ?? []).length > 0) {
+        const newSigniDownFA = [...(myFieldAfterCoinCheck.signi_down ?? [false, false, false])] as [boolean, boolean, boolean];
+        const unflipped: string[] = [];
+        for (const zi of my.flip_attack_signi_zones!) {
+          if (!(my.field.signi[zi]?.length)) {
+            newSigniDownFA[zi] = false;
+            const topName = battleCardMap.get(my.field.signi[zi]?.at(-1) ?? '')?.CardName;
+            if (topName) unflipped.push(topName);
+          }
+        }
+        myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi_down: newSigniDownFA };
+        if (unflipped.length > 0) appendBattleLogs([`フリップアタック復元：${unflipped.join('・')}を表向きに`]);
+      }
+      // ターン内一時状態をクリアして newMyState を確定
+      let newMyState: typeof my = {
+        ...my,
+        hand: myHandEND,
+        trash: myTrashAfterCoinCheck,
+        field: myFieldAfterCoinCheck,
+        temp_power_mods: [], keyword_grants: {}, granted_effects: {},
+        blocked_actions: [], blocked_card_names: [], actions_done: [],
+        pending_crashed_cards: [], must_attack_signi: undefined,
+        cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
+        prevent_next_damage: undefined, life_burst_double_next: undefined,
+        lrig_granted_auto_effects: undefined, banish_redirect: undefined,
+        banish_redirect_to_hand: undefined, no_grow: undefined,
+        suppress_life_burst: undefined, prevent_lrig_damage: undefined,
+        prevent_defeat: undefined, declared_guard_restrict_level: undefined,
+        declared_class: undefined, hand_signi_guard_enabled: undefined,
+        lrig_limit_mod: undefined, prevent_opp_guard: undefined,
+        draw_limit: undefined, card_class_overrides: undefined,
+        signi_color_overrides: undefined, disabled_signi_zones: undefined,
+        attacked_signi_ids: undefined, signi_attack_once_limit: undefined,
+        signi_attack_cost: undefined, lrig_riding_signi: undefined,
+        lrig_attack_remaining: undefined, suppress_center_on_play: undefined,
+        crash_to_trash_instead: undefined, negate_opp_signi_attacks_until: undefined,
+        all_cont_effects_negated: undefined, banish_to_trash_by_self: undefined,
+        negate_coin_abilities: undefined, coin_condition_signi_instances: undefined,
+        grid_reveal_plus_one_this_turn: undefined, deck_signi_level_override: undefined,
+        reduce_next_on_play_cost: undefined, optional_discard_guard_enabled: undefined,
+        flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
+        spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
+        turn_plant_down_count: undefined,
+      };
+      // 相手のアップ処理
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      const opState = isHost ? bs.guest_state : bs.host_state;
+      const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
+      const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
+      const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
+      const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
+      const convertedOpBlocked = (opState.blocked_actions ?? [])
+        .filter(a => a.endsWith(':NEXT_TURN'))
+        .map(a => a.replace(':NEXT_TURN', ''));
+      update[opKey] = {
+        ...opState,
+        blocked_actions: convertedOpBlocked,
+        negate_coin_abilities: undefined,
+        field: {
+          ...opState.field,
+          signi_down:   newSigniDown,
+          signi_frozen: [false, false, false],
+          lrig_down:    (opState.field.lrig_down ?? false) && curLrigFrozen,
+          lrig_frozen:  false,
+        },
+      };
+      // 追加ターン / ターンプレイヤー交代
+      if (my.extra_turn) {
+        newMyState = { ...newMyState, extra_turn: undefined };
+        update.turn_phase = 'UP';
+        update.turn_count = bs.turn_count + 1;
+        appendBattleLogs(['追加ターン取得！']);
+      } else {
+        update.turn_phase = 'UP';
+        update.active_user_id = (isHost ? bs.guest_id : bs.host_id) as string;
+        update.turn_count = bs.turn_count + 1;
+      }
+
+      await supabase.from('battle_states')
+        .update({ [stateKey]: newMyState, ...update })
+        .eq('room_id', roomId);
+
+      setPendingEndDiscard(null);
+      setSelectedEndDiscard(new Set());
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // フェイズ進行（エナフェイズ・グロウフェイズ未使用時は確認ポップアップ）
   const handlePhaseAdvance = () => {
     if (!iControlThisPhase || loading) return;
