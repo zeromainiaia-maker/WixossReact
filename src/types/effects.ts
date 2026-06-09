@@ -143,6 +143,7 @@ export interface TargetFilter {
   cardType?:  CardTypeFilter | CardTypeFilter[];
   cardName?:  string;      // 部分一致（cardName を含む）
   cardNames?: string[];    // いずれかの名前に一致（複数名指定用、完全一致）
+  excludeCardName?: string; // このカード名を除外（完全一致）
   cardNum?:   string;
   color?:     string | string[];
   level?:     number | { min?: number; max?: number };
