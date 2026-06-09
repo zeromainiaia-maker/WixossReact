@@ -63733,8 +63733,8 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "あなたのすべてのルリグは以下の能力を得る"
+                        "type": "STUB",
+                        "id": "GRANT_ALL_LRIG_ABILITY"
                     },
                     {
                         "type": "BANISH",
@@ -63757,7 +63757,7 @@
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P15-005": [
