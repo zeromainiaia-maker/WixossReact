@@ -61005,34 +61005,69 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "以下から２つまで選ぶ"
-                    },
-                    {
                         "type": "STUB",
-                        "id": "CHOOSE_SAME_OPTION_TWICE"
-                    },
-                    {
-                        "type": "STUB",
-                        "id": "BET_ALTERNATIVE"
-                    },
-                    {
-                        "type": "STUB",
-                        "id": "CHOOSE_SAME_OPTION_MULTIPLE"
-                    },
-                    {
-                        "type": "TRASH",
-                        "target": {
-                            "type": "HAND_CARD",
-                            "owner": "self",
-                            "count": 1
-                        }
+                        "id": "BET_MULTI_CHOOSE_UP_TO_2_OR_4",
+                        "betCost": 2,
+                        "normalCount": 2,
+                        "betCount": 4,
+                        "allowRepeat": true,
+                        "choices": [
+                            {
+                                "choiceId": "c0",
+                                "label": "①相手シグニ1体を手札に戻す・手札を1枚捨てる",
+                                "action": {
+                                    "type": "SEQUENCE",
+                                    "steps": [
+                                        {
+                                            "type": "RETURN_TO_HAND",
+                                            "target": {
+                                                "type": "SIGNI",
+                                                "owner": "opponent",
+                                                "count": 1
+                                            }
+                                        },
+                                        {
+                                            "type": "DISCARD",
+                                            "owner": "self",
+                                            "count": 1
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "choiceId": "c1",
+                                "label": "②相手センタールリグをターン終了時までアタック不可",
+                                "action": {
+                                    "type": "GRANT_ABILITY",
+                                    "target": {
+                                        "type": "LRIG",
+                                        "owner": "opponent",
+                                        "position": "center",
+                                        "count": 1
+                                    },
+                                    "ability": {
+                                        "type": "CANNOT_ATTACK"
+                                    },
+                                    "duration": "END_OF_TURN"
+                                }
+                            },
+                            {
+                                "choiceId": "c2",
+                                "label": "③デッキからレベルの異なる＜怪異＞シグニ2枚を手札に加える",
+                                "action": {
+                                    "type": "STUB",
+                                    "id": "SEARCH_DIFFERENT_LEVEL_CLASS_SIGNI_TO_HAND",
+                                    "class": "怪異",
+                                    "count": 2
+                                }
+                            }
+                        ]
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX17-004": [
