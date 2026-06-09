@@ -10376,8 +10376,24 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "カードを２枚引き、手札１枚をデッキの一番上に置く"
+                        "type": "SEQUENCE",
+                        "steps": [
+                            {
+                                "type": "DRAW",
+                                "owner": "self",
+                                "count": 2
+                            },
+                            {
+                                "type": "TRANSFER_TO_DECK",
+                                "source": {
+                                    "type": "HAND_CARD",
+                                    "owner": "self",
+                                    "count": 1
+                                },
+                                "position": "top",
+                                "shuffle": false
+                            }
+                        ]
                     },
                     {
                         "type": "ADD_TO_LIFE",
@@ -10389,7 +10405,7 @@
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WD23-022-E": [
@@ -14353,21 +14369,61 @@
                 ]
             },
             "action": {
-                "type": "BOUNCE",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "opponent",
-                    "count": 1,
-                    "upToCount": false,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "遊具"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "BOUNCE",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "opponent",
+                                        "count": 1,
+                                        "upToCount": false,
+                                        "filter": {
+                                            "cardType": "シグニ"
+                                        }
+                                    },
+                                    "optional": false
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
                     }
-                },
-                "optional": false
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK05-R01": [
@@ -14950,21 +15006,61 @@
                 ]
             },
             "action": {
-                "type": "BANISH",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "opponent",
-                    "count": 1,
-                    "filter": {
-                        "cardType": "シグニ",
-                        "isFrozen": true
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "英知"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "BANISH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "opponent",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "isFrozen": true
+                                        },
+                                        "upToCount": false
+                                    }
+                                }
+                            ]
+                        }
                     },
-                    "upToCount": false
-                }
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK06-R01": [
@@ -15411,13 +15507,66 @@
                 ]
             },
             "action": {
-                "type": "DRAW",
-                "owner": "self",
-                "count": 2
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "アーム"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "SEQUENCE",
+                                    "steps": [
+                                        {
+                                            "type": "TRASH",
+                                            "target": {
+                                                "type": "HAND_CARD",
+                                                "owner": "self",
+                                                "count": 1
+                                            }
+                                        },
+                                        {
+                                            "type": "DRAW",
+                                            "owner": "self",
+                                            "count": 2
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK06-C01": [
@@ -16010,27 +16159,67 @@
                 ]
             },
             "action": {
-                "type": "SEQUENCE",
-                "steps": [
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
                     {
-                        "type": "TRASH",
-                        "target": {
-                            "type": "DECK_CARD",
-                            "owner": "self",
-                            "count": 2
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "武勇"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "SEQUENCE",
+                                    "steps": [
+                                        {
+                                            "type": "TRASH",
+                                            "target": {
+                                                "type": "DECK_CARD",
+                                                "owner": "self",
+                                                "count": 2
+                                            }
+                                        },
+                                        {
+                                            "type": "ADD_TO_FIELD",
+                                            "owner": "self",
+                                            "source": {
+                                                "type": "TRASH_CARD",
+                                                "owner": "self",
+                                                "count": 1,
+                                                "upToCount": false,
+                                                "filter": {
+                                                    "cardType": "シグニ",
+                                                    "story": "武勇"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
                     },
                     {
-                        "type": "ADD_TO_FIELD",
-                        "owner": "self",
-                        "source": {
-                            "type": "TRASH_CARD",
-                            "owner": "self",
-                            "count": 1,
-                            "upToCount": false,
-                            "filter": {
-                                "cardType": "シグニ",
-                                "story": "武勇"
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
                             }
                         }
                     }
@@ -16038,7 +16227,7 @@
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK07-E01": [
@@ -16185,13 +16374,58 @@
                 ]
             },
             "action": {
-                "type": "NAME_BAN",
-                "targetSelf": true,
-                "duration": "GAME"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 3,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "相手シグニをダウン",
+                        "action": {
+                            "type": "DOWN",
+                            "target": {
+                                "type": "SIGNI",
+                                "owner": "opponent",
+                                "count": 1,
+                                "filter": {
+                                    "cardType": "シグニ"
+                                },
+                                "upToCount": false
+                            }
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "カードを2枚引く",
+                        "action": {
+                            "type": "DRAW",
+                            "owner": "self",
+                            "count": 2
+                        }
+                    },
+                    {
+                        "choiceId": "c2",
+                        "label": "スペル打消し+名前禁止",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "STUB",
+                                    "id": "NEGATE_SPELL_RETURN_TO_OPP_HAND"
+                                },
+                                {
+                                    "type": "NAME_BAN",
+                                    "targetSelf": false,
+                                    "duration": "TURN"
+                                }
+                            ]
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK07-E09": [
@@ -16480,12 +16714,55 @@
                 ]
             },
             "action": {
-                "type": "SHUFFLE_DECK",
-                "owner": "self"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "調理"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "STUB",
+                                    "id": "SEARCH_AND_ATTACH_ACCE",
+                                    "filter": {
+                                        "story": "調理"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK07-Y01": [
@@ -17332,8 +17609,15 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "手札からシグニ１枚を公開する"
+                        "type": "REVEAL",
+                        "source": {
+                            "type": "HAND_CARD",
+                            "owner": "self",
+                            "count": 1,
+                            "filter": {
+                                "cardType": "シグニ"
+                            }
+                        }
                     },
                     {
                         "type": "BANISH",
@@ -17356,7 +17640,7 @@
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK08-Y08": [
@@ -17788,20 +18072,52 @@
                 ]
             },
             "action": {
-                "type": "BANISH",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "opponent",
-                    "count": 1,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "水獣"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "STUB",
+                                    "id": "BANISH_OPP_SIGNI_BY_TRASHED_POWER"
+                                }
+                            ]
+                        }
                     },
-                    "upToCount": false
-                }
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK08-L01": [
@@ -18628,23 +18944,63 @@
                 ]
             },
             "action": {
-                "type": "BANISH",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "opponent",
-                    "count": 1,
-                    "filter": {
-                        "cardType": "シグニ",
-                        "powerRange": {
-                            "max": 12000
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "紅蓮"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "BANISH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "opponent",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "powerRange": {
+                                                "max": 12000
+                                            }
+                                        },
+                                        "upToCount": false
+                                    }
+                                }
+                            ]
                         }
                     },
-                    "upToCount": false
-                }
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK09-001": [
@@ -18959,7 +19315,7 @@
                         "type": "TRASH",
                         "target": {
                             "type": "DECK_CARD",
-                            "owner": "self",
+                            "owner": "opponent",
                             "count": 1
                         }
                     },
@@ -18972,7 +19328,7 @@
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WDK09-011-E2",
@@ -18989,18 +19345,16 @@
                 ]
             },
             "action": {
-                "type": "GRANT_KEYWORD",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "self",
-                    "count": 1
+                "type": "STUB",
+                "id": "OPP_SIGNI_TO_DECK_NTH",
+                "filter": {
+                    "hasGate": true
                 },
-                "keyword": "ゲート",
-                "duration": "PERMANENT"
+                "position": 3
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WDK09-011-BURST",
@@ -19035,7 +19389,7 @@
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK09-012": [
@@ -19273,20 +19627,61 @@
                 ]
             },
             "action": {
-                "type": "TRANSFER_TO_HAND",
-                "source": {
-                    "type": "TRASH_CARD",
-                    "owner": "self",
-                    "count": 1,
-                    "upToCount": false,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "迷宮"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "TRANSFER_TO_HAND",
+                                    "source": {
+                                        "type": "TRASH_CARD",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "upToCount": false,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "迷宮"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
                     }
-                }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK10-001": [
@@ -19935,20 +20330,61 @@
                 ]
             },
             "action": {
-                "type": "TRANSFER_TO_HAND",
-                "source": {
-                    "type": "TRASH_CARD",
-                    "owner": "self",
-                    "count": 1,
-                    "upToCount": false,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "龍獣"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "TRANSFER_TO_HAND",
+                                    "source": {
+                                        "type": "TRASH_CARD",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "upToCount": false,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "龍獣"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
                     }
-                }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK11-001": [
@@ -20064,27 +20500,42 @@
                         "type": "BLOCK_ACTION",
                         "target": {
                             "type": "SIGNI",
-                            "owner": "any",
-                            "count": 1
+                            "owner": "opponent",
+                            "count": 1,
+                            "filter": {
+                                "cardType": "シグニ"
+                            },
+                            "upToCount": false
                         },
                         "actionId": "ATTACK",
                         "until": "END_OF_TURN"
                     },
                     {
-                        "type": "BLOCK_ACTION",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "any",
-                            "count": 1
+                        "type": "CONDITIONAL",
+                        "condition": {
+                            "type": "HAS_KEY",
+                            "owner": "opponent"
                         },
-                        "actionId": "ATTACK",
-                        "until": "END_OF_TURN"
+                        "then": {
+                            "type": "BLOCK_ACTION",
+                            "target": {
+                                "type": "SIGNI",
+                                "owner": "opponent",
+                                "count": 1,
+                                "filter": {
+                                    "cardType": "シグニ"
+                                },
+                                "upToCount": false
+                            },
+                            "actionId": "ATTACK",
+                            "until": "END_OF_TURN"
+                        }
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK11-008": [
@@ -20477,36 +20928,76 @@
                 ]
             },
             "action": {
-                "type": "SEARCH",
-                "from": {
-                    "location": "deck",
-                    "owner": "self"
-                },
-                "filter": {
-                    "cardType": "シグニ",
-                    "story": "英知"
-                },
-                "maxCount": 1,
-                "then": {
-                    "type": "SEQUENCE",
-                    "steps": [
-                        {
-                            "type": "REVEAL"
-                        },
-                        {
-                            "type": "ADD_TO_HAND",
-                            "owner": "self"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "英知"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "SEARCH",
+                                    "from": {
+                                        "location": "deck",
+                                        "owner": "self"
+                                    },
+                                    "filter": {
+                                        "cardType": "シグニ",
+                                        "story": "英知"
+                                    },
+                                    "maxCount": 1,
+                                    "then": {
+                                        "type": "SEQUENCE",
+                                        "steps": [
+                                            {
+                                                "type": "REVEAL"
+                                            },
+                                            {
+                                                "type": "ADD_TO_HAND",
+                                                "owner": "self"
+                                            }
+                                        ]
+                                    },
+                                    "afterSearch": {
+                                        "type": "SHUFFLE_DECK",
+                                        "owner": "self"
+                                    }
+                                }
+                            ]
                         }
-                    ]
-                },
-                "afterSearch": {
-                    "type": "SHUFFLE_DECK",
-                    "owner": "self"
-                }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK12-001": [
@@ -21051,17 +21542,57 @@
                 ]
             },
             "action": {
-                "type": "TRANSFER_TO_HAND",
-                "source": {
-                    "type": "ENERGY_CARD",
-                    "owner": "self",
-                    "count": 1,
-                    "upToCount": false
-                }
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "微菌"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "TRANSFER_TO_HAND",
+                                    "source": {
+                                        "type": "ENERGY_CARD",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "upToCount": false
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK13-001": [
@@ -22418,13 +22949,66 @@
                 ]
             },
             "action": {
-                "type": "DRAW",
-                "owner": "self",
-                "count": 2
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "悪魔"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "SEQUENCE",
+                                    "steps": [
+                                        {
+                                            "type": "TRASH",
+                                            "target": {
+                                                "type": "HAND_CARD",
+                                                "owner": "self",
+                                                "count": 1
+                                            }
+                                        },
+                                        {
+                                            "type": "DRAW",
+                                            "owner": "self",
+                                            "count": 2
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK15-001": [
@@ -22960,20 +23544,61 @@
                 ]
             },
             "action": {
-                "type": "TRANSFER_TO_HAND",
-                "source": {
-                    "type": "TRASH_CARD",
-                    "owner": "self",
-                    "count": 1,
-                    "upToCount": false,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "ウェポン"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "TRANSFER_TO_HAND",
+                                    "source": {
+                                        "type": "TRASH_CARD",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "upToCount": false,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "ウェポン"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
                     }
-                }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK16-01T": [
@@ -24184,21 +24809,61 @@
                 ]
             },
             "action": {
-                "type": "BOUNCE",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "opponent",
-                    "count": 1,
-                    "upToCount": false,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "電機"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "BOUNCE",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "opponent",
+                                        "count": 1,
+                                        "upToCount": false,
+                                        "filter": {
+                                            "cardType": "シグニ"
+                                        }
+                                    },
+                                    "optional": false
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
                     }
-                },
-                "optional": false
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK17-001": [
@@ -24424,20 +25089,50 @@
                 ]
             },
             "action": {
-                "type": "TRANSFER_TO_DECK",
-                "source": {
-                    "type": "SIGNI",
-                    "owner": "self",
-                    "count": 1,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "STUB",
+                                    "id": "INHERIT_OPP_LRIG_TYPE"
+                                },
+                                {
+                                    "type": "STUB",
+                                    "id": "SOUL_OP"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "POWER_MODIFY",
+                            "target": {
+                                "type": "SIGNI",
+                                "owner": "opponent",
+                                "count": 2,
+                                "upToCount": true,
+                                "filter": {
+                                    "cardType": "シグニ"
+                                }
+                            },
+                            "delta": -15000,
+                            "duration": "UNTIL_END_OF_TURN"
+                        }
                     }
-                },
-                "shuffle": false
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK17-009": [
@@ -24821,20 +25516,61 @@
                 ]
             },
             "action": {
-                "type": "TRANSFER_TO_HAND",
-                "source": {
-                    "type": "TRASH_CARD",
-                    "owner": "self",
-                    "count": 1,
-                    "upToCount": false,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "美巧"
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "TRANSFER_TO_HAND",
+                                    "source": {
+                                        "type": "TRASH_CARD",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "upToCount": false,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "美巧"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
                     }
-                }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "SP01-001": [
@@ -26406,14 +27142,19 @@
                 "type": "POWER_MODIFY",
                 "target": {
                     "type": "SIGNI",
-                    "owner": "any",
-                    "count": 1
+                    "owner": "self",
+                    "count": "ALL",
+                    "filter": {
+                        "cardType": "シグニ",
+                        "color": "青",
+                        "isOther": true
+                    }
                 },
                 "delta": 2000
             },
             "duration": "PERMANENT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "SP27-014-E2",
@@ -26422,20 +27163,66 @@
                 "ON_TRASH"
             ],
             "action": {
-                "type": "BANISH",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "self",
-                    "count": 1,
-                    "filter": {
-                        "cardType": "シグニ"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 3,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "カードを1枚引く",
+                        "action": {
+                            "type": "DRAW",
+                            "owner": "self",
+                            "count": 1
+                        }
                     },
-                    "upToCount": false
-                }
+                    {
+                        "choiceId": "c1",
+                        "label": "エナチャージ1",
+                        "action": {
+                            "type": "ENERGY_CHARGE",
+                            "target": {
+                                "type": "DECK_CARD",
+                                "owner": "self",
+                                "count": 1
+                            }
+                        }
+                    },
+                    {
+                        "choiceId": "c2",
+                        "label": "手札を捨てて相手シグニバニッシュ",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "HAND_CARD",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "optional": true
+                                    }
+                                },
+                                {
+                                    "type": "BANISH",
+                                    "target": {
+                                        "type": "SIGNI",
+                                        "owner": "opponent",
+                                        "count": 1,
+                                        "filter": {
+                                            "cardType": "シグニ"
+                                        },
+                                        "upToCount": false
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "SP27-015": [
@@ -29008,22 +29795,63 @@
                 ]
             },
             "action": {
-                "type": "ADD_TO_FIELD",
-                "owner": "self",
-                "source": {
-                    "type": "TRASH_CARD",
-                    "owner": "self",
-                    "count": 2,
-                    "upToCount": true,
-                    "filter": {
-                        "cardType": "シグニ",
-                        "story": "毒牙"
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "選択肢1",
+                        "action": {
+                            "type": "TRANSFER_TO_HAND",
+                            "source": {
+                                "type": "TRASH_CARD",
+                                "owner": "self",
+                                "count": 2,
+                                "upToCount": true,
+                                "filter": {
+                                    "cardType": "シグニ",
+                                    "story": "毒牙"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "選択肢2",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "TRASH",
+                                    "target": {
+                                        "type": "HAND_CARD",
+                                        "owner": "self",
+                                        "count": "ALL"
+                                    }
+                                },
+                                {
+                                    "type": "ADD_TO_FIELD",
+                                    "owner": "self",
+                                    "source": {
+                                        "type": "TRASH_CARD",
+                                        "owner": "self",
+                                        "count": 2,
+                                        "upToCount": true,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "story": "毒牙"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
                     }
-                }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "PR-317": [
