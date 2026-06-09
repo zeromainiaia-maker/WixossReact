@@ -15,14 +15,21 @@ const cardFilter = args[includes(args, '--card') ? args.indexOf('--card') + 1 : 
 function includes(arr: string[], v: string) { return arr.includes(v); }
 
 // ======= 読み込み =======
-const CSV_PATH    = path.resolve('public/data', `CardData_${sheetArg}.csv`);
-const EFFECTS_PATH = path.resolve('public/data/effects.json');
+const CSV_PATH = path.resolve('public/data', `CardData_${sheetArg}.csv`);
+if (!fs.existsSync(CSV_PATH)) { console.error(`CSV not found: ${CSV_PATH}`); process.exit(1); }
 
-if (!fs.existsSync(CSV_PATH))    { console.error(`CSV not found: ${CSV_PATH}`); process.exit(1); }
-if (!fs.existsSync(EFFECTS_PATH)) { console.error(`effects.json not found`);    process.exit(1); }
+const EFFECT_FILES = [
+  'effects_WX.json', 'effects_WXDi.json', 'effects_WX24_25.json',
+  'effects_WXK.json', 'effects_misc.json',
+];
+const effectsAll: Record<string, EffectDef[]> = {};
+for (const fname of EFFECT_FILES) {
+  const p = path.resolve('public/data', fname);
+  if (!fs.existsSync(p)) { console.error(`${fname} not found`); process.exit(1); }
+  Object.assign(effectsAll, JSON.parse(fs.readFileSync(p, 'utf8')));
+}
 
-const csvRaw     = fs.readFileSync(CSV_PATH, 'utf8');
-const effectsAll = JSON.parse(fs.readFileSync(EFFECTS_PATH, 'utf8')) as Record<string, EffectDef[]>;
+const csvRaw = fs.readFileSync(CSV_PATH, 'utf8');
 
 // ======= 型定義（簡易） =======
 interface EffectDef {
