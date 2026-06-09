@@ -79827,7 +79827,7 @@
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-CP02-TK01A": [
