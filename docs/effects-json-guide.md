@@ -6,7 +6,7 @@
 |---|---|---|
 | `effects_WX.json` | WX01〜WX22, WXEX | 1,903件 |
 | `effects_WXDi.json` | WXDiシリーズ | 1,542件 |
-| `effects_WX24_25.json` | WX24〜WX26 | 864件 |
+| `effects_WX24_26.json` | WX24〜WX26 | 864件 |
 | `effects_WXK.json` | WXK01〜WXK11 | 894件 |
 | `effects_misc.json` | WD/WDK/PR/SP系 | 731件 |
 
