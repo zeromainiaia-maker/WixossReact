@@ -14188,7 +14188,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -14286,7 +14286,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -24742,7 +24742,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -31392,6 +31392,25 @@
             "duration": "INSTANT",
             "mandatory": true,
             "parseStatus": "AUTO"
+        },
+        {
+            "effectId": "PR-461-E2",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "GRANT_KEYWORD",
+                "keyword": "DOUBLE_CRUSH",
+                "target": {
+                    "type": "LRIG",
+                    "owner": "self",
+                    "isSelf": true
+                }
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "activeCondition": {
+                "type": "GROW_CONDITION_MET"
+            },
+            "parseStatus": "MANUAL"
         }
     ],
     "PR-464": [

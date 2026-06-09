@@ -28985,7 +28985,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -30303,7 +30303,7 @@
                 "owner": "self"
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -30444,7 +30444,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -39676,7 +39676,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -39928,7 +39928,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -43692,7 +43692,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -43707,7 +43707,7 @@
                 "count": 1
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -45005,6 +45005,25 @@
     ],
     "WXK11-053": [
         {
+            "effectId": "WXK11-053-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "GRANT_KEYWORD",
+                "keywords": [
+                    "ASSASSIN",
+                    "DOUBLE_CRUSH"
+                ],
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "isSelf": true
+                }
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WXK11-053-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -45686,7 +45705,7 @@
                 "delta": 3000
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -45700,7 +45719,7 @@
                 "owner": "self"
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],

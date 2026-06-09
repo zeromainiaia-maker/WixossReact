@@ -1643,7 +1643,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -2343,7 +2343,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -2441,7 +2441,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -6664,7 +6664,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -8872,7 +8872,7 @@
                 "optional": true
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -10640,7 +10640,7 @@
                 "value": 10000
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -10658,7 +10658,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -11003,7 +11003,7 @@
                 "optional": true
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -11026,7 +11026,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -11247,7 +11247,7 @@
                 "value": 7000
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -11265,7 +11265,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -12460,7 +12460,7 @@
                 "value": 12000
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -12611,7 +12611,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -13388,7 +13388,7 @@
                 "actionId": "USE_SPELL"
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "MANUAL"
         },
         {
@@ -17143,14 +17143,8 @@
                         "delta": -12000
                     },
                     {
-                        "type": "POWER_MODIFY",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "opponent",
-                            "count": 2,
-                            "upToCount": true
-                        },
-                        "delta": -15000
+                        "type": "STUB",
+                        "stubId": "CONDITIONAL_IF_BLACK_AND_LIFE_2_OR_LESS_POWER_MINUS_TARGET_2_SIGNI"
                     }
                 ]
             },
@@ -25238,7 +25232,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -26398,7 +26392,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -26450,7 +26444,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -27017,7 +27011,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -27035,7 +27029,7 @@
                 "maxCount": 1
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -30919,7 +30913,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -31435,7 +31429,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -32505,7 +32499,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -33172,7 +33166,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -34777,7 +34771,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -36501,7 +36495,7 @@
                 "triggerBurst": true
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -36547,7 +36541,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -37154,7 +37148,7 @@
                 "owner": "self"
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -39867,7 +39861,7 @@
                 "targetOwner": "opponent"
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -39886,7 +39880,7 @@
                 "delta": -2000
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -39917,7 +39911,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -40907,6 +40901,17 @@
     ],
     "WX12-025": [
         {
+            "effectId": "WX12-025-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "IF_CENTER_LRIG_NOT_サシェ_LOSE_GUARD"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX12-025-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -41168,7 +41173,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -41280,6 +41285,17 @@
     ],
     "WX12-034": [
         {
+            "effectId": "WX12-034-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "IF_CENTER_LRIG_NOT_アイヤイ_LOSE_GUARD"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX12-034-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -41346,6 +41362,17 @@
         }
     ],
     "WX12-036": [
+        {
+            "effectId": "WX12-036-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "IF_CENTER_LRIG_NOT_ミュウ_LOSE_GUARD"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WX12-036-BURST",
             "effectType": "LIFE_BURST",
@@ -45658,7 +45685,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -48153,7 +48180,7 @@
                 ]
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -48175,7 +48202,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -49014,7 +49041,7 @@
                 "triggerBurst": true
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -49047,7 +49074,7 @@
                 ]
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -49638,7 +49665,7 @@
                 "owner": "self"
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -49680,7 +49707,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -51727,7 +51754,7 @@
                 "duration": "PERMANENT"
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -51775,7 +51802,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -52905,6 +52932,17 @@
     ],
     "WX15-031": [
         {
+            "effectId": "WX15-031-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "LAYER_GRANT_PROTECTION_FROM_COST5_ARTS_SPELLS_TO_KAIKI"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX15-031-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -52929,6 +52967,25 @@
         }
     ],
     "WX15-032": [
+        {
+            "effectId": "WX15-032-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "GRANT_KEYWORD",
+                "keyword": "TRIPLE_CRUSH",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "isSelf": true
+                }
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "activeCondition": {
+                "type": "IN_CENTER_ZONE"
+            },
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WX15-032-E2",
             "effectType": "AUTO",
@@ -53260,7 +53317,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -53301,7 +53358,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -53535,7 +53592,7 @@
                 ]
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -53557,7 +53614,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -58310,6 +58367,17 @@
     ],
     "WX16-034": [
         {
+            "effectId": "WX16-034-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "LAYER_GRANT_PROTECTION_FROM_COST1_ARTS_TO_KAIKI"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX16-034-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -58571,7 +58639,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -59154,6 +59222,17 @@
     ],
     "WX16-051": [
         {
+            "effectId": "WX16-051-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "LAYER_GRANT_LANCER_WHEN_POWER_GE_8000_TO_KAIKI"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX16-051-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -59170,6 +59249,17 @@
         }
     ],
     "WX16-053": [
+        {
+            "effectId": "WX16-053-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "LAYER_GRANT_PROTECTION_FROM_LV2_SIGNI_EFFECT_TO_KAIKI"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WX16-053-BURST",
             "effectType": "LIFE_BURST",
@@ -59495,6 +59585,20 @@
             "duration": "INSTANT",
             "mandatory": false,
             "parseStatus": "MANUAL"
+        },
+        {
+            "effectId": "WX16-062-BURST",
+            "effectType": "LIFE_BURST",
+            "timing": [
+                "ON_LIFE_BURST"
+            ],
+            "action": {
+                "type": "STUB",
+                "stubId": "LIFE_BURST_WX16_062"
+            },
+            "duration": "INSTANT",
+            "mandatory": false,
+            "parseStatus": "MANUAL"
         }
     ],
     "WX16-063": [
@@ -59526,6 +59630,20 @@
             "action": {
                 "type": "STUB",
                 "stubId": "TRAP_BANISH_ALL_OPP_SIGNI_POWER_2000_OR_LESS"
+            },
+            "duration": "INSTANT",
+            "mandatory": false,
+            "parseStatus": "MANUAL"
+        },
+        {
+            "effectId": "WX16-064-BURST",
+            "effectType": "LIFE_BURST",
+            "timing": [
+                "ON_LIFE_BURST"
+            ],
+            "action": {
+                "type": "STUB",
+                "stubId": "LIFE_BURST_WX16_064"
             },
             "duration": "INSTANT",
             "mandatory": false,
@@ -59850,7 +59968,7 @@
                 "until": "UNTIL_END_OF_TURN"
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -62119,6 +62237,26 @@
     ],
     "WX17-025": [
         {
+            "effectId": "WX17-025-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "POWER_MODIFY",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "count": 1,
+                    "isSelf": true
+                },
+                "delta": 3000
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "activeCondition": {
+                "type": "OPPONENT_TURN"
+            },
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX17-025-E2",
             "effectType": "ACTIVATED",
             "timing": [
@@ -62217,6 +62355,17 @@
         }
     ],
     "WX17-026": [
+        {
+            "effectId": "WX17-026-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "CONTINUOUS_POWER_PLUS_1000_PER_UNDER_CARD"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WX17-026-E2",
             "effectType": "AUTO",
@@ -65072,7 +65221,7 @@
                 "optional": true
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -65117,7 +65266,7 @@
                 "optional": true
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -65885,7 +66034,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -65915,7 +66064,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -75544,7 +75693,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -75695,6 +75844,26 @@
     ],
     "WX20-038": [
         {
+            "effectId": "WX20-038-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "GRANT_KEYWORD",
+                "keywords": [
+                    "ASSASSIN",
+                    "DOUBLE_CRUSH",
+                    "CANT_BANISH_BY_OPP_EFFECT"
+                ],
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "isSelf": true
+                }
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX20-038-E2",
             "effectType": "AUTO",
             "timing": [
@@ -75768,7 +75937,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -76372,7 +76541,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -76402,7 +76571,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -76608,7 +76777,7 @@
                 "optional": true
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -77191,7 +77360,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -77240,7 +77409,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -77254,7 +77423,7 @@
                 "owner": "self"
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -77955,7 +78124,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -81896,7 +82065,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -82386,7 +82555,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -82409,7 +82578,7 @@
                 "delta": -5000
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],

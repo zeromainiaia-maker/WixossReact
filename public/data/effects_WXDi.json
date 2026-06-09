@@ -3949,7 +3949,7 @@
                     "owner": "any",
                     "count": 1
                 },
-                "delta": -15000
+                "delta": -6000
             },
             "duration": "INSTANT",
             "mandatory": false,
@@ -16146,7 +16146,7 @@
                 "count": 1
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -16161,7 +16161,7 @@
                 "count": 1
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -16177,7 +16177,7 @@
                 "triggerBurst": true
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -21508,7 +21508,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -24162,6 +24162,26 @@
             "duration": "INSTANT",
             "mandatory": true,
             "parseStatus": "AUTO"
+        },
+        {
+            "effectId": "WXDi-P04-036-E2",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "POWER_MODIFY",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "count": 1,
+                    "isSelf": true
+                },
+                "delta": 3000
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "activeCondition": {
+                "type": "LRIG_DECK_LE_1"
+            },
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P04-037": [
@@ -25415,7 +25435,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -27892,7 +27912,7 @@
                 }
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -27932,11 +27952,30 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
     "WXDi-P05-033": [
+        {
+            "effectId": "WXDi-P05-033-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "GRANT_KEYWORD",
+                "keyword": "SHADOW",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "isSelf": true
+                }
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "activeCondition": {
+                "type": "OPPONENT_TURN"
+            },
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WXDi-P05-033-E2",
             "effectType": "AUTO",
@@ -28191,6 +28230,20 @@
         }
     ],
     "WXDi-P05-038": [
+        {
+            "effectId": "WXDi-P05-038-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "OPP_TURN_REPLACEMENT_TRASH_UNDER_INSTEAD_OF_LEAVE_FIELD"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "activeCondition": {
+                "type": "OPPONENT_TURN"
+            },
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WXDi-P05-038-E2",
             "effectType": "AUTO",
@@ -31177,7 +31230,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -31199,7 +31252,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -32009,7 +32062,7 @@
                 "delta": 3000
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -32901,7 +32954,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -33174,6 +33227,17 @@
         }
     ],
     "WXDi-P06-057": [
+        {
+            "effectId": "WXDi-P06-057-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "CANT_GAIN_NEW_ABILITIES_BY_EFFECT"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WXDi-P06-057-E2",
             "effectType": "AUTO",

@@ -2222,6 +2222,17 @@
     ],
     "WX24-P1-043": [
         {
+            "effectId": "WX24-P1-043-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "STUB",
+                "stubId": "RISE_CONDITIONAL_ABILITIES_BY_UNDER_CARD_LEVEL"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX24-P1-043-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -2682,7 +2693,7 @@
                                 "owner": "any",
                                 "count": 1
                             },
-                            "delta": -15000
+                            "delta": -2000
                         }
                     },
                     {
@@ -3527,7 +3538,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -7658,7 +7669,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -7673,7 +7684,7 @@
                 "count": 1
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -7714,7 +7725,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -8627,7 +8638,7 @@
                     "owner": "any",
                     "count": 1
                 },
-                "delta": -15000
+                "delta": -3000
             },
             "duration": "INSTANT",
             "mandatory": false,
@@ -12151,7 +12162,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -15364,7 +15375,7 @@
                 "count": 2
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -15397,7 +15408,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -16324,7 +16335,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -16373,7 +16384,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -17262,7 +17273,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -18109,20 +18120,8 @@
                         "delta": -7000
                     },
                     {
-                        "type": "POWER_MODIFY",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "opponent",
-                            "count": 1,
-                            "filter": {
-                                "cardType": "シグニ",
-                                "level": {
-                                    "min": 4
-                                }
-                            },
-                            "upToCount": false
-                        },
-                        "delta": -2000
+                        "type": "STUB",
+                        "stubId": "CONDITIONAL_IF_LV4_LRIG_EXTRA_POWER_MINUS_20000_OPP_SIGNI"
                     }
                 ]
             },
@@ -18143,7 +18142,7 @@
                     "owner": "any",
                     "count": 1
                 },
-                "delta": -15000
+                "delta": -7000
             },
             "duration": "INSTANT",
             "mandatory": false,
@@ -18269,7 +18268,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -20239,7 +20238,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -20257,7 +20256,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -20323,7 +20322,7 @@
                 "optional": true
             },
             "duration": "PERMANENT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -21103,7 +21102,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -21126,7 +21125,7 @@
                 "optional": true
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -21736,7 +21735,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -21759,7 +21758,7 @@
                 "optional": true
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -22539,7 +22538,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -22793,7 +22792,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -23137,7 +23136,7 @@
                     "owner": "any",
                     "count": 1
                 },
-                "delta": -15000
+                "delta": -8000
             },
             "duration": "INSTANT",
             "mandatory": false,
@@ -25482,7 +25481,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -25524,7 +25523,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -27212,7 +27211,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -28479,7 +28478,7 @@
                     "owner": "any",
                     "count": 1
                 },
-                "delta": -15000
+                "delta": -10000
             },
             "duration": "INSTANT",
             "mandatory": false,
@@ -28621,7 +28620,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -31843,7 +31842,7 @@
                 ]
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -32068,7 +32067,7 @@
                 ]
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -32667,7 +32666,7 @@
                 ]
             },
             "duration": "UNTIL_END_OF_TURN",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -36911,7 +36910,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
@@ -37534,31 +37533,37 @@
                 "ON_PLAY"
             ],
             "action": {
-                "type": "SEQUENCE",
-                "steps": [
-                    {
-                        "type": "POWER_MODIFY",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "any",
-                            "count": 1
-                        },
-                        "delta": 3000
-                    },
-                    {
-                        "type": "POWER_MODIFY",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "self",
-                            "count": 1
-                        },
-                        "delta": 4000
-                    }
-                ]
+                "type": "POWER_MODIFY",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "any",
+                    "count": 1
+                },
+                "delta": 3000
             },
             "duration": "UNTIL_END_OF_TURN",
             "mandatory": true,
             "parseStatus": "AUTO"
+        },
+        {
+            "effectId": "WX25-CP1-073-E2",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "POWER_MODIFY",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "count": 1,
+                    "isSelf": true
+                },
+                "delta": 4000
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "activeCondition": {
+                "type": "KIZUNA_ACTIVE"
+            },
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX25-CP1-073-BURST",
@@ -37994,7 +37999,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -38292,21 +38297,32 @@
                             },
                             "delta": 3000
                         }
-                    },
-                    {
-                        "type": "POWER_MODIFY",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "self",
-                            "count": 1
-                        },
-                        "delta": 4000
                     }
                 ]
             },
             "duration": "UNTIL_END_OF_TURN",
             "mandatory": true,
             "parseStatus": "AUTO"
+        },
+        {
+            "effectId": "WX25-CP1-087-E2",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "POWER_MODIFY",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "count": 1,
+                    "isSelf": true
+                },
+                "delta": 4000
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "activeCondition": {
+                "type": "KIZUNA_ACTIVE"
+            },
+            "parseStatus": "MANUAL"
         }
     ],
     "WX25-CP1-088": [
@@ -40736,7 +40752,7 @@
                 }
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         },
         {
@@ -40764,7 +40780,7 @@
                 ]
             },
             "duration": "INSTANT",
-            "mandatory": true,
+            "mandatory": false,
             "parseStatus": "AUTO"
         }
     ],
