@@ -37239,18 +37239,18 @@
                         "destination": {
                             "location": "deck",
                             "owner": "self",
-                            "position": "top"
+                            "position": "bottom"
                         }
                     },
                     {
-                        "type": "UNKNOWN",
-                        "raw": "その中から宣言したカード１枚を手札に加え、残りを好きな順番でデッキの一番下に置く"
+                        "type": "STUB",
+                        "id": "PICK_DECLARED_CARD_TO_HAND_REST_BOTTOM"
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX11-037-E2",
