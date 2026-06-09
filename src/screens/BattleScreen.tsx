@@ -2485,15 +2485,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // ENDフェーズ：手札上限チェック（HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT 効果）
         const handLimitEND = myEffectiveHandLimit;
+        if (my.hand.length > handLimitEND) {
+          // プレイヤーに捨てるカードを選択させる
+          setPendingEndDiscard(my.hand.length - handLimitEND);
+          setSelectedEndDiscard(new Set());
+          return; // Supabase未更新 - ユーザー選択後に confirmEndDiscard で処理
+        }
         let myHandEND = my.hand;
         let myTrashEND = myTrashBeat;
-        if (my.hand.length > handLimitEND) {
-          const excessEND = my.hand.length - handLimitEND;
-          // 超過分をトラッシュへ（後ろから捨てる）
-          myTrashEND = [...myTrashEND, ...my.hand.slice(-excessEND)];
-          myHandEND  = my.hand.slice(0, handLimitEND);
-          appendBattleLogs([`手札上限超過（${my.hand.length}枚→${handLimitEND}枚）：${excessEND}枚捨て`]);
-        }
         // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
         let myFieldAfterCoinCheck = { ...my.field, beat_zone: myBeatEND };
         let myTrashAfterCoinCheck = myTrashEND;
