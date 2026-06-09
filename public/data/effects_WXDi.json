@@ -80296,14 +80296,15 @@
                         "id": "GAIN_EXTRA_TURN"
                     },
                     {
-                        "type": "UNKNOWN",
-                        "raw": "そのターンの間、あなたはシグニを１体までしか場に出せない"
+                        "type": "STUB",
+                        "id": "LIMIT_SELF_SIGNI_PLAY_COUNT",
+                        "maxCount": 1
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P13-004B": [
