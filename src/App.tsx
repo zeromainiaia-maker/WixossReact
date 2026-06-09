@@ -90,10 +90,14 @@ export default function App() {
     );
     const tkFetch = fetch('/data/CardData_TK.csv').then(r => r.ok ? r.text() : null);
     const variantsFetch = fetch('/data/CardData_Variants.csv').then(r => r.ok ? r.text() : null);
+    const effectFiles = ['effects_WX.json','effects_WXDi.json','effects_WX24_25.json','effects_WXK.json','effects_misc.json'];
+    const effectsFetch = Promise.all(
+      effectFiles.map(f => fetch(`/data/${f}`).then(r => r.json() as Promise<Record<string, CardEffect[]>>))
+    ).then(parts => Object.assign({}, ...parts) as Record<string, CardEffect[]>);
     Promise.all([
       Promise.all(sheetFetches),
       tkFetch,
-      fetch('/data/effects.json').then(r => r.json() as Promise<Record<string, CardEffect[]>>),
+      effectsFetch,
       variantsFetch,
     ])
       .then(([csvResults, tkCsv, effectsJson, variantsCsv]) => {
