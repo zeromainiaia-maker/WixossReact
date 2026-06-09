@@ -36389,8 +36389,8 @@
                 "type": "SEQUENCE",
                 "steps": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "対戦相手はあなたと握手をしてもよい"
+                        "type": "STUB",
+                        "id": "REAL_WORLD_HANDSHAKE"
                     },
                     {
                         "type": "DRAW",
