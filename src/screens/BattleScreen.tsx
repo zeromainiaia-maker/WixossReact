@@ -835,6 +835,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedLrigGrantedCost, setSelectedLrigGrantedCost] = useState<Set<number>>(new Set());
   const [selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard] = useState<Set<number>>(new Set());
   // ライフクロスクラッシュ時のカード拡大
+  // エンドフェイズ手札捨て選択UI
+  const [pendingEndDiscard, setPendingEndDiscard] = useState<number | null>(null);
+  const [selectedEndDiscard, setSelectedEndDiscard] = useState<Set<number>>(new Set());
   const [burstCardZoomed, setBurstCardZoomed] = useState(false);
   const [opCheckCardZoomed, setOpCheckCardZoomed] = useState(false); // 相手ライフクラッシュ拡大
   const [cutinSpellZoomed, setCutinSpellZoomed] = useState(false);   // スペルカットイン画面の拡大
