@@ -15142,42 +15142,61 @@
                 ]
             },
             "action": {
-                "type": "SEQUENCE",
-                "steps": [
+                "type": "GRANT_ABILITY_TO_ALL_LRIGS",
+                "target": {
+                    "type": "LRIG",
+                    "owner": "self",
+                    "count": "ALL"
+                },
+                "grantedAbilities": [
                     {
-                        "type": "UNKNOWN",
-                        "raw": "あなたのすべてのルリグは以下の能力を得る"
-                    },
-                    {
-                        "type": "ADD_TO_FIELD",
-                        "owner": "self",
-                        "source": {
-                            "type": "TRASH_CARD",
+                        "type": "ACTIVATED",
+                        "timing": ["MAIN"],
+                        "cost": {
+                            "down_self": true,
+                            "turnLimit": 1
+                        },
+                        "action": {
+                            "type": "ADD_TO_FIELD",
                             "owner": "self",
-                            "count": 1,
-                            "upToCount": false,
-                            "filter": {
-                                "cardType": "シグニ"
+                            "source": {
+                                "type": "TRASH_CARD",
+                                "owner": "self",
+                                "count": 1,
+                                "upToCount": false,
+                                "filter": {
+                                    "cardType": "シグニ",
+                                    "sharedColor": true
+                                }
                             }
                         }
                     },
                     {
-                        "type": "BANISH",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "opponent",
-                            "count": 1,
-                            "filter": {
-                                "cardType": "シグニ"
-                            },
-                            "upToCount": false
+                        "type": "ACTIVATED",
+                        "timing": ["MAIN"],
+                        "cost": {
+                            "down_self": true,
+                            "turnLimit": 1
+                        },
+                        "action": {
+                            "type": "BANISH",
+                            "target": {
+                                "type": "SIGNI",
+                                "owner": "opponent",
+                                "count": 1,
+                                "filter": {
+                                    "cardType": "シグニ",
+                                    "sameLevelAsLrig": true
+                                },
+                                "upToCount": false
+                            }
                         }
                     }
                 ]
             },
-            "duration": "INSTANT",
+            "duration": "UNTIL_END_OF_TURN",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX24-P4-039": [
