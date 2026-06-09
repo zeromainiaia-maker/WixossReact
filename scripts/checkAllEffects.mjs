@@ -34,7 +34,7 @@ function splitCSVLine(line) {
 }
 
 function loadCSV(filename) {
-  const lines = fs.readFileSync(path.join(root, 'public/data', filename), 'utf8').split('\n');
+  const lines = fs.readFileSync(path.join(root, 'public/data', filename), 'utf8').replace(/\r/g, '').split('\n');
   const h = splitCSVLine(lines[0]);
   const get = (row, col) => row[h.indexOf(col)] || '';
   const map = {};
