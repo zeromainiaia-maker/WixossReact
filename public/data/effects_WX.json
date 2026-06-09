@@ -53672,6 +53672,27 @@
     ],
     "WX15-041": [
         {
+            "effectId": "WX15-041-E1",
+            "effectType": "AUTO",
+            "timing": [
+                "ON_ATTACK_SIGNI"
+            ],
+            "action": {
+                "type": "BANISH",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 1,
+                    "filter": {
+                        "powerMax": 7000
+                    }
+                }
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WX15-041-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -57436,6 +57457,40 @@
         }
     ],
     "WX16-024": [
+        {
+            "effectId": "WX16-024-E1",
+            "effectType": "CONTINUOUS",
+            "action": {
+                "type": "GRANT_PROTECTION",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "count": 1,
+                    "isSelf": true
+                },
+                "sourceOwner": "opponent",
+                "sourceFilter": {
+                    "powerMin": 15000
+                }
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
+            "effectId": "WX16-024-E2",
+            "effectType": "AUTO",
+            "timing": [
+                "ON_LEAVE_FIELD"
+            ],
+            "action": {
+                "type": "STUB",
+                "stubId": "ON_OPP_EFFECT_LEAVE_FIELD_DRAW_2"
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WX16-024-BURST",
             "effectType": "LIFE_BURST",
@@ -63783,6 +63838,20 @@
             "duration": "INSTANT",
             "mandatory": false,
             "parseStatus": "AUTO"
+        },
+        {
+            "effectId": "WX17-045-E2",
+            "effectType": "AUTO",
+            "timing": [
+                "ON_HAND_DISCARDED"
+            ],
+            "action": {
+                "type": "STUB",
+                "stubId": "ON_HAND_DISCARDED_DOWN_OPP_SIGNI"
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
         }
     ],
     "WX17-046": [
@@ -64047,6 +64116,37 @@
         }
     ],
     "WX17-051": [
+        {
+            "effectId": "WX17-051-E1",
+            "effectType": "ACTIVATED",
+            "timing": [
+                "MAIN"
+            ],
+            "cost": {
+                "energy": [
+                    {
+                        "color": "白",
+                        "count": 1
+                    }
+                ],
+                "trash_self": true
+            },
+            "action": {
+                "type": "BOUNCE",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 1,
+                    "filter": {
+                        "sameLevelAsSelf": true
+                    }
+                },
+                "destination": "hand"
+            },
+            "duration": "INSTANT",
+            "mandatory": false,
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WX17-051-BURST",
             "effectType": "LIFE_BURST",
@@ -82216,6 +82316,20 @@
         }
     ],
     "WX21-Re05": [
+        {
+            "effectId": "WX21-Re05-E1",
+            "effectType": "AUTO",
+            "timing": [
+                "ATTACK"
+            ],
+            "action": {
+                "type": "STUB",
+                "stubId": "ON_ATTACK_PHASE_START_GRANT_CANT_BANISH_TO_OTHER_RED_SIGNI"
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
         {
             "effectId": "WX21-Re05-BURST",
             "effectType": "LIFE_BURST",

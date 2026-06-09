@@ -15304,6 +15304,20 @@
             "parseStatus": "AUTO"
         },
         {
+            "effectId": "WDK06-R11-E1",
+            "effectType": "AUTO",
+            "timing": [
+                "ON_ATTACK_SIGNI"
+            ],
+            "action": {
+                "type": "STUB",
+                "stubId": "ON_ATTACK_IF_DISCARDED_2_THIS_TURN_BANISH_OPP_SIGNI"
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+        },
+        {
             "effectId": "WDK06-R11-BURST",
             "effectType": "LIFE_BURST",
             "timing": [
@@ -15605,6 +15619,38 @@
             "duration": "UNTIL_END_OF_TURN",
             "mandatory": true,
             "parseStatus": "AUTO"
+        },
+        {
+            "effectId": "WDK06-C01-E2",
+            "effectType": "ACTIVATED",
+            "timing": [
+                "MAIN",
+                "ATTACK"
+            ],
+            "cost": {},
+            "action": {
+                "type": "SEQUENCE",
+                "steps": [
+                    {
+                        "type": "MILL",
+                        "owner": "self",
+                        "count": 3
+                    },
+                    {
+                        "type": "POWER_MODIFY",
+                        "target": {
+                            "type": "SIGNI",
+                            "owner": "opponent",
+                            "count": 1
+                        },
+                        "delta": -5000,
+                        "duration": "UNTIL_END_OF_TURN"
+                    }
+                ]
+            },
+            "duration": "INSTANT",
+            "mandatory": false,
+            "parseStatus": "MANUAL"
         }
     ],
     "WDK06-C02": [
