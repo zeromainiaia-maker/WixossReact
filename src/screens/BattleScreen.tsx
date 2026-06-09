@@ -2492,7 +2492,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return; // Supabase未更新 - ユーザー選択後に confirmEndDiscard で処理
         }
         let myHandEND = my.hand;
-        let myTrashEND = myTrashBeat;
+        const myTrashEND = myTrashBeat;
         // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
         let myFieldAfterCoinCheck = { ...my.field, beat_zone: myBeatEND };
         let myTrashAfterCoinCheck = myTrashEND;
