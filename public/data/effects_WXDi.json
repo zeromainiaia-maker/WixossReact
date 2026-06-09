@@ -56244,14 +56244,14 @@
                         "owner": "self"
                     },
                     {
-                        "type": "UNKNOWN",
-                        "raw": "この方法で場に出た《UNKNOWN-CODE-RU-》が場を離れる場合、代わりにゲームから除外される"
+                        "type": "STUB",
+                        "id": "EXILE_IF_LEAVE_FIELD"
                     }
                 ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "PARTIAL"
+            "parseStatus": "MANUAL"
         }
     ],
     "WXDi-P13-005": [
