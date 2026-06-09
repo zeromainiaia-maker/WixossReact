@@ -232,24 +232,35 @@ for (const { json, csvs } of FILES) {
     }
 
     // ── 6. 強制/任意不一致 ──────────────────────────────────
-    // 「してもよい」がCSVにある → mandatory は false であるべき
-    // ただし括弧内の説明文は除外（ランサーの括弧説明など）
-    const effNoParens = eff.replace(/（[^）]*）/g, '').replace(/\([^)]*\)/g, '');
-    const hasOptional = /してもよい/.test(effNoParens);
+    // 「してもよい」がCSVにある → そのエフェクトは mandatory:false であるべき
+    // 括弧内の説明文・「効果付与」内の「してもよい」は除外
+    const effForOptCheck = eff
+      .replace(/（[^）]*）/g, '')           // 括弧説明除外
+      .replace(/「[^」]*してもよい[^」]*」/g, ''); // 付与効果内除外
+    const hasOptional = /してもよい/.test(effForOptCheck);
     if (hasOptional && !hasStub && !hasUnknown) {
-      const mandatoryEffects = efList.filter(ef => ef.mandatory === true);
-      if (mandatoryEffects.length > 0 && efList.length === mandatoryEffects.length) {
+      // ACTIVATED以外かつコストなしのAUTOで全mandatory:trueは疑わしい
+      const nonActivatedEffects = efList.filter(ef =>
+        ef.effectType !== 'ACTIVATED' && ef.effectType !== 'LIFE_BURST'
+      );
+      const allMandatory = nonActivatedEffects.length > 0 &&
+        nonActivatedEffects.every(ef => ef.mandatory === true);
+      if (allMandatory) {
         report(json, cardId, name, 'MANDATORY_SUSPICIOUS',
-          `CSV「してもよい」あり、全エフェクトが mandatory:true`, eff);
+          `CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true`, eff);
       }
     }
-    // 「してもよい」がないのに mandatory:false
+    // 「してもよい」がないのにACTIVATED以外でmandatory:false
+    // （ACTIVATEDは任意使用が基本なので除外）
     if (!hasOptional && !hasStub && !hasUnknown) {
-      const nonBurstEffects = efList.filter(ef => ef.effectType !== 'LIFE_BURST');
-      const optionalEffects = nonBurstEffects.filter(ef => ef.mandatory === false);
-      if (optionalEffects.length > 0 && nonBurstEffects.length > 0 && optionalEffects.length === nonBurstEffects.length) {
+      const nonActivatedNonBurst = efList.filter(ef =>
+        ef.effectType !== 'ACTIVATED' && ef.effectType !== 'LIFE_BURST'
+      );
+      const allOptional = nonActivatedNonBurst.length > 0 &&
+        nonActivatedNonBurst.every(ef => ef.mandatory === false);
+      if (allOptional) {
         report(json, cardId, name, 'OPTIONAL_SUSPICIOUS',
-          `CSV「してもよい」なし、全エフェクトが mandatory:false`, eff);
+          `CSV「してもよい」なし、AUTO/CONTINUOUSエフェクトが全て mandatory:false`, eff);
       }
     }
 
