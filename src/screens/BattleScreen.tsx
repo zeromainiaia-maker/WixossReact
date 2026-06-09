@@ -2730,7 +2730,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 選択されたカードを捨てる
       const discardNums = [...selectedEndDiscard].map(i => my.hand[i]);
       let myHandEND = my.hand.filter((_, i) => !selectedEndDiscard.has(i));
-      let myTrashEND = [...myTrashBeat, ...discardNums];
+      const myTrashEND = [...myTrashBeat, ...discardNums];
       appendBattleLogs([`手札上限超過（${my.hand.length}枚→${myHandEND.length}枚）：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て`]);
 
       // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
