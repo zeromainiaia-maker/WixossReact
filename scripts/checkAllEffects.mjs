@@ -215,7 +215,7 @@ for (const { json, csvs } of FILES) {
 
     // ── 5. パワー値不一致 ──────────────────────────────────────
     // CSV「パワーを±N000」とJSON POWER_MODIFY.deltaを比較
-    const powerMatches = [...fullText.matchAll(/パワーを([＋\+－\-])([０-９\d,，]+)/g)];
+    const powerMatches = [...fullText.matchAll(/パワー[をは]([＋\+－\-])([０-９\d,，]+)/g)];
     if (powerMatches.length > 0 && !hasStub && !hasUnknown) {
       const csvPowerVals = powerMatches.map(m => {
         const sign = (m[1] === '＋' || m[1] === '+') ? 1 : -1;
