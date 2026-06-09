@@ -177,7 +177,7 @@ for (const { json, csvs } of FILES) {
 
     // ── 3. DRAW枚数不一致 ──────────────────────────────────────
     // 「カードをN枚引く」パターン（自分が引く場合）
-    const drawMatches = [...fullText.matchAll(/カードを([０-９\d]+)枚引く/g)];
+    const drawMatches = [...fullText.matchAll(/カードを([０-９\d]+)枚引[くき]/g)];
     if (drawMatches.length > 0 && !hasStub && !hasUnknown) {
       const csvDrawCounts = drawMatches
         .map(m => parseInt(kanjiToNum(m[1])))
