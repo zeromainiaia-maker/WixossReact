@@ -90,7 +90,7 @@ console.log(`効果あり: ${parsed}枚 / 合計${total}効果 / UNKNOWN: ${unkn
 
 // JSON出力（5ファイルに分割）
 const groups: Record<string, Record<string, ReturnType<typeof parseCardEffects>>> = {
-  WXDi: {}, WX24_25: {}, WXK: {}, WX: {}, misc: {},
+  WXDi: {}, WX24_26: {}, WXK: {}, WX: {}, misc: {},
 };
 for (const [cardNum, effects] of Object.entries(result)) {
   if (/^WXDi/i.test(cardNum))         groups.WXDi[cardNum]    = effects;
