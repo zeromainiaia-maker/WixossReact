@@ -8551,32 +8551,12 @@
                 ]
             },
             "action": {
-                "type": "SEQUENCE",
-                "steps": [
-                    {
-                        "type": "POWER_MODIFY",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "any",
-                            "count": 1
-                        },
-                        "delta": 5000
-                    },
-                    {
-                        "type": "GRANT_KEYWORD",
-                        "target": {
-                            "type": "SIGNI",
-                            "owner": "any",
-                            "count": 1
-                        },
-                        "keyword": "ランサー",
-                        "duration": "UNTIL_END_OF_TURN"
-                    }
-                ]
+                "type": "STUB",
+                "stubId": "POWER_PLUS_5000_THEN_IF_15000_OR_MORE_GRANT_LANCER"
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX03-047": [
@@ -15401,16 +15381,15 @@
             "effectId": "WX05-040-E2",
             "effectType": "AUTO",
             "timing": [
-                "ON_PLAY"
+                "ON_SIGNI_DOWN"
             ],
             "action": {
-                "type": "ENERGY_CHARGE_FROM_DECK",
-                "owner": "self",
-                "count": 1
+                "type": "STUB",
+                "stubId": "ON_OWN_SIGNI_EFFECT_DOWN_ENERGY_CHARGE"
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX05-040-BURST",
@@ -21241,21 +21220,15 @@
             "effectId": "WX07-036-E1",
             "effectType": "AUTO",
             "timing": [
-                "ON_TURN_END"
+                "ON_SIGNI_BANISH_OPPONENT"
             ],
             "action": {
-                "type": "GRANT_KEYWORD",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "self",
-                    "count": 1
-                },
-                "keyword": "ダブルクラッシュ",
-                "duration": "UNTIL_END_OF_TURN"
+                "type": "STUB",
+                "stubId": "ON_OWN_WEAPON_SIGNI_EFFECT_BANISH_OPP_GRANT_DUALCRASH_THIS"
             },
             "duration": "UNTIL_END_OF_TURN",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX07-037": [
@@ -36886,19 +36859,15 @@
             "effectId": "WX11-031-E1",
             "effectType": "AUTO",
             "timing": [
-                "ON_PLAY"
+                "ON_SIGNI_BANISH_OPPONENT"
             ],
             "action": {
-                "type": "UP",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "self",
-                    "count": 1
-                }
+                "type": "STUB",
+                "stubId": "ON_THIS_BANISH_3RD_SKY_EARTH_BEAST_OPP_CUMUL_UP_SELF"
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX11-031-BURST",
@@ -42430,31 +42399,12 @@
                 "ATTACK"
             ],
             "action": {
-                "type": "REVEAL_AND_PICK",
-                "owner": "self",
-                "revealCount": 1,
-                "filter": {
-                    "cardType": "シグニ",
-                    "level": 1
-                },
-                "pickCount": 1,
-                "then": {
-                    "type": "POWER_MODIFY",
-                    "target": {
-                        "type": "SIGNI",
-                        "owner": "self",
-                        "count": 1
-                    },
-                    "delta": 5000
-                },
-                "remainder": {
-                    "location": "deck",
-                    "position": "top"
-                }
+                "type": "STUB",
+                "stubId": "REVEAL_TOP_SIGNI_MULTI_LEVEL_BRANCH_POWER_ENERGY_LANCER_DRAW_BANISH"
             },
-            "duration": "UNTIL_END_OF_TURN",
+            "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX12-Re01": [
@@ -43964,20 +43914,22 @@
                 "type": "POWER_MODIFY",
                 "target": {
                     "type": "SIGNI",
-                    "owner": "any",
-                    "count": 1
+                    "owner": "opponent",
+                    "filter": {
+                        "charm": true
+                    }
                 },
                 "delta": -5000
             },
             "duration": "PERMANENT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX13-006A-E2",
             "effectType": "AUTO",
             "timing": [
-                "ON_PLAY"
+                "ON_LEAVE_FIELD"
             ],
             "action": {
                 "type": "TRANSFER_TO_HAND",
@@ -43987,13 +43939,14 @@
                     "count": 2,
                     "upToCount": true,
                     "filter": {
-                        "cardType": "シグニ"
+                        "cardType": "シグニ",
+                        "story": "凶蟲"
                     }
                 }
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX13-006A-E3",
@@ -44002,17 +43955,12 @@
                 "ON_PLAY"
             ],
             "action": {
-                "type": "POWER_MODIFY",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "any",
-                    "count": 1
-                },
-                "delta": -10000
+                "type": "STUB",
+                "stubId": "ON_PLAY_POWER_MINUS_10000_ALL_CHARM_OPP_SIGNI_UNTIL_EOT"
             },
             "duration": "UNTIL_END_OF_TURN",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX13-006B": [
@@ -46039,16 +45987,15 @@
             "effectId": "WX13-051-E2",
             "effectType": "AUTO",
             "timing": [
-                "ON_PLAY"
+                "ON_OPP_EFFECT_TRASH_FROM_HAND"
             ],
             "action": {
-                "type": "ENERGY_CHARGE_FROM_DECK",
-                "owner": "self",
-                "count": 2
+                "type": "STUB",
+                "stubId": "ON_OPP_EFFECT_DISCARD_FROM_HAND_ENERGY_CHARGE_2"
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX13-052": [
@@ -46056,38 +46003,15 @@
             "effectId": "WX13-052-E1",
             "effectType": "AUTO",
             "timing": [
-                "ON_PLAY"
+                "ON_SIGNI_BANISH_OPPONENT"
             ],
             "action": {
-                "type": "REVEAL_AND_PICK",
-                "owner": "self",
-                "revealCount": 1,
-                "filter": {
-                    "cardType": "シグニ",
-                    "story": "遊具"
-                },
-                "pickCount": 1,
-                "then": {
-                    "type": "BANISH",
-                    "target": {
-                        "type": "SIGNI",
-                        "owner": "self",
-                        "count": 1,
-                        "filter": {
-                            "cardType": "シグニ"
-                        },
-                        "upToCount": false
-                    },
-                    "optional": true
-                },
-                "remainder": {
-                    "location": "deck",
-                    "position": "top"
-                }
+                "type": "STUB",
+                "stubId": "ON_THIS_BANISH_OPP_REVEAL_TOP_YOINGU_OPTIONAL_BANISH_SELF_FIELD_ADD"
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX13-053": [
@@ -48125,16 +48049,12 @@
                 "ON_PLAY"
             ],
             "action": {
-                "type": "UP",
-                "target": {
-                    "type": "SIGNI",
-                    "owner": "self",
-                    "count": 1
-                }
+                "type": "STUB",
+                "stubId": "GRANT_ON_OPP_SIGNI_BANISH_SELF_UP_TO_ALL_YOINGU"
             },
             "duration": "UNTIL_END_OF_TURN",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX14-006B": [
@@ -53989,13 +53909,32 @@
                 "down_self": true
             },
             "action": {
-                "type": "DRAW",
-                "owner": "self",
-                "count": 1
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 2,
+                "choices": [
+                    {
+                        "choiceId": "c0",
+                        "label": "カードを1枚引く",
+                        "action": {
+                            "type": "DRAW",
+                            "owner": "self",
+                            "count": 1
+                        }
+                    },
+                    {
+                        "choiceId": "c1",
+                        "label": "手札1枚をトラップとして設置する",
+                        "action": {
+                            "type": "STUB",
+                            "stubId": "SET_HAND_CARD_AS_TRAP"
+                        }
+                    }
+                ]
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX15-048": [
@@ -55919,7 +55858,8 @@
                 "filter": {
                     "cardType": "シグニ",
                     "story": "英知"
-                }
+                },
+                "count": 3
             },
             "action": {
                 "type": "GRANT_KEYWORD",
@@ -55933,7 +55873,7 @@
             },
             "duration": "PERMANENT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX15-095": [
@@ -55946,7 +55886,8 @@
                 "filter": {
                     "cardType": "シグニ",
                     "story": "英知"
-                }
+                },
+                "count": 3
             },
             "action": {
                 "type": "GRANT_KEYWORD",
@@ -55960,7 +55901,7 @@
             },
             "duration": "PERMANENT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX15-096": [
@@ -55973,7 +55914,8 @@
                 "filter": {
                     "cardType": "シグニ",
                     "story": "英知"
-                }
+                },
+                "count": 3
             },
             "action": {
                 "type": "GRANT_KEYWORD",
@@ -55987,7 +55929,7 @@
             },
             "duration": "PERMANENT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX15-097": [
@@ -59478,19 +59420,26 @@
     ],
     "WX16-062": [
         {
-            "effectId": "WX16-062-BURST",
-            "effectType": "LIFE_BURST",
+            "effectId": "WX16-062-E1",
+            "effectType": "ACTIVATED",
             "timing": [
-                "ON_LIFE_BURST"
+                "TRAP"
             ],
             "action": {
-                "type": "ENERGY_CHARGE_FROM_DECK",
-                "owner": "self",
-                "count": 1
+                "type": "BOUNCE",
+                "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 1,
+                    "filter": {
+                        "level": 3
+                    }
+                },
+                "destination": "hand"
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX16-063": [
@@ -59514,19 +59463,18 @@
     ],
     "WX16-064": [
         {
-            "effectId": "WX16-064-BURST",
-            "effectType": "LIFE_BURST",
+            "effectId": "WX16-064-E1",
+            "effectType": "ACTIVATED",
             "timing": [
-                "ON_LIFE_BURST"
+                "TRAP"
             ],
             "action": {
-                "type": "DRAW",
-                "owner": "self",
-                "count": 1
+                "type": "STUB",
+                "stubId": "TRAP_BANISH_ALL_OPP_SIGNI_POWER_2000_OR_LESS"
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX16-065": [
@@ -62410,38 +62358,26 @@
                 "ON_ATTACK_SIGNI"
             ],
             "action": {
-                "type": "SEQUENCE",
-                "steps": [
-                    {
-                        "type": "TRANSFER_TO_DECK",
-                        "source": {
-                            "type": "TRASH_CARD",
-                            "owner": "self",
-                            "count": 1
-                        },
-                        "shuffle": true
-                    },
-                    {
-                        "type": "CONDITIONAL",
-                        "condition": {
-                            "type": "IS_MY_TURN"
-                        },
-                        "then": {
-                            "type": "GRANT_KEYWORD",
-                            "target": {
-                                "type": "SIGNI",
-                                "owner": "self",
-                                "count": 1
-                            },
-                            "keyword": "ダブルクラッシュ",
-                            "duration": "PERMANENT"
-                        }
-                    }
-                ]
+                "type": "STUB",
+                "stubId": "OPTIONAL_TRASH_4_DISTINCT_LEVEL_UNIVERSE_SIGNI_TO_DECK_GRANT_DUALCRASH"
             },
-            "duration": "UNTIL_END_OF_TURN",
+            "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
+        },
+        {
+            "effectId": "WX17-028-E2",
+            "effectType": "AUTO",
+            "timing": [
+                "ON_PLAY"
+            ],
+            "action": {
+                "type": "STUB",
+                "stubId": "REVEAL_4_FROM_DECK_BANISH_OPP_SIGNI_BY_LEVEL_SUM_THEN_TRASH"
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX17-028-BURST",
@@ -65646,38 +65582,92 @@
             "timing": [
                 "ON_PLAY"
             ],
+            "cost": {
+                "discard": {
+                    "count": 1,
+                    "filter": {
+                        "story": "電機"
+                    }
+                }
+            },
             "action": {
-                "type": "SEQUENCE",
-                "steps": [
+                "type": "CHOOSE",
+                "choose_count": 1,
+                "from_count": 3,
+                "choices": [
                     {
-                        "type": "TRANSFER_TO_HAND",
-                        "source": {
-                            "type": "TRASH_CARD",
-                            "owner": "self",
-                            "count": 1,
-                            "upToCount": false,
-                            "filter": {
-                                "cardType": "シグニ"
-                            }
+                        "choiceId": "c0",
+                        "label": "①対戦相手のシグニ2体のパワーを-2000（ターン終了時まで）",
+                        "action": {
+                            "type": "POWER_MODIFY",
+                            "target": {
+                                "type": "SIGNI",
+                                "owner": "opponent",
+                                "count": 2
+                            },
+                            "delta": -2000,
+                            "duration": "UNTIL_END_OF_TURN"
                         }
                     },
                     {
-                        "type": "TRANSFER_TO_HAND",
-                        "source": {
-                            "type": "TRASH_CARD",
-                            "owner": "self",
-                            "count": 1,
-                            "upToCount": false,
-                            "filter": {
-                                "cardType": "スペル"
-                            }
+                        "choiceId": "c1",
+                        "label": "②デッキ上2枚トラッシュ→センタールリグと共通色のシグニを手札に",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "MILL",
+                                    "owner": "self",
+                                    "count": 2
+                                },
+                                {
+                                    "type": "TRANSFER_TO_HAND",
+                                    "source": {
+                                        "type": "TRASH_CARD",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "upToCount": false,
+                                        "filter": {
+                                            "cardType": "シグニ",
+                                            "sameColorAsLrig": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "choiceId": "c2",
+                        "label": "③デッキ上3枚トラッシュ→トラッシュから黒スペルを手札に",
+                        "action": {
+                            "type": "SEQUENCE",
+                            "steps": [
+                                {
+                                    "type": "MILL",
+                                    "owner": "self",
+                                    "count": 3
+                                },
+                                {
+                                    "type": "TRANSFER_TO_HAND",
+                                    "source": {
+                                        "type": "TRASH_CARD",
+                                        "owner": "self",
+                                        "count": 1,
+                                        "upToCount": false,
+                                        "filter": {
+                                            "cardType": "スペル",
+                                            "color": "黒"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 ]
             },
-            "duration": "UNTIL_END_OF_TURN",
+            "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX18-001": [
@@ -65889,23 +65879,12 @@
                 ]
             },
             "action": {
-                "type": "SEQUENCE",
-                "steps": [
-                    {
-                        "type": "DRAW",
-                        "owner": "self",
-                        "count": 1
-                    },
-                    {
-                        "type": "DRAW",
-                        "owner": "self",
-                        "count": 3
-                    }
-                ]
+                "type": "STUB",
+                "stubId": "BET_DOWN_OPP_SIGNI_AND_DRAW"
             },
             "duration": "INSTANT",
             "mandatory": false,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX18-005": [
@@ -77983,16 +77962,15 @@
             "effectId": "WX20-Re03-E1",
             "effectType": "AUTO",
             "timing": [
-                "ON_PLAY"
+                "ON_SIGNI_POWER_ZERO_OR_LESS"
             ],
             "action": {
-                "type": "ENERGY_CHARGE_FROM_DECK",
-                "owner": "self",
-                "count": 1
+                "type": "STUB",
+                "stubId": "ON_OPP_SIGNI_POWER_ZERO_ENERGY_CHARGE_ONCE_PER_TURN"
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         }
     ],
     "WX20-Re04": [
@@ -78816,13 +78794,12 @@
                 "ATTACK"
             ],
             "action": {
-                "type": "DRAW",
-                "owner": "self",
-                "count": 1
+                "type": "STUB",
+                "stubId": "ON_ATTACK_PHASE_START_CONDITIONAL_ALL_DIFF_COLOR_ANGEL3_BANISH_OPP_SIGNI"
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX21-006-E2",
@@ -81141,37 +81118,12 @@
                 "ON_ATTACK_SIGNI"
             ],
             "action": {
-                "type": "SEQUENCE",
-                "steps": [
-                    {
-                        "type": "TRANSFER_TO_DECK",
-                        "source": {
-                            "type": "TRASH_CARD",
-                            "owner": "self",
-                            "count": 1
-                        },
-                        "shuffle": true
-                    },
-                    {
-                        "type": "CONDITIONAL",
-                        "condition": {
-                            "type": "IS_MY_TURN"
-                        },
-                        "then": {
-                            "type": "POWER_MODIFY",
-                            "target": {
-                                "type": "SIGNI",
-                                "owner": "any",
-                                "count": 1
-                            },
-                            "delta": -8000
-                        }
-                    }
-                ]
+                "type": "STUB",
+                "stubId": "ON_ATTACK_SELECT_OPP_SIGNI_TRASH3_DISTINCT_COST_SPELLS_TO_DECK_DRAW_POWER_MINUS"
             },
-            "duration": "UNTIL_END_OF_TURN",
+            "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX21-046-BURST",
@@ -81890,16 +81842,15 @@
             "effectId": "WX21-067-E1",
             "effectType": "AUTO",
             "timing": [
-                "ON_PLAY"
+                "ON_SIGNI_POWER_ZERO_OR_LESS"
             ],
             "action": {
-                "type": "DRAW",
-                "owner": "self",
-                "count": 1
+                "type": "STUB",
+                "stubId": "ON_OPP_SIGNI_POWER_ZERO_DRAW_ONCE_PER_TURN"
             },
             "duration": "INSTANT",
             "mandatory": true,
-            "parseStatus": "AUTO"
+            "parseStatus": "MANUAL"
         },
         {
             "effectId": "WX21-067-BURST",
