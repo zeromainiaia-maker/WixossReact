@@ -2568,6 +2568,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const newS: PlayerState = { ...s, temp_power_mods: mods };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${delta > 0 ? '+' : ''}${delta}`));
     }
+    case 'POWER_MODIFY_BY_TARGET_LEVEL': {
+      const a = action as PowerModifyByTargetLevelAction;
+      const lv = parseInt(ctx.cardMap.get(cardNum)?.Level ?? '0', 10);
+      const delta = a.deltaPerLevel * (isNaN(lv) ? 0 : lv);
+      const tgtOwnerBTL = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+      const sBTL = ownerState(tgtOwnerBTL, ctx);
+      const modsBTL = [...(sBTL.temp_power_mods ?? []), { cardNum, delta }];
+      return done(addLog(setOwnerState(tgtOwnerBTL, { ...sBTL, temp_power_mods: modsBTL }, ctx),
+        `${delta > 0 ? '+' : ''}${delta}（Lv${lv}）`));
+    }
     case 'POWER_MULTIPLY': {
       const pmxAction = action as import('../types/effects').PowerMultiplyAction;
       const tgtOwnerPMX = pmxAction.target.owner === 'any' ? 'self' : pmxAction.target.owner as Owner;
