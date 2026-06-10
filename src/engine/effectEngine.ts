@@ -1067,11 +1067,8 @@ function applyDeltaToState(
     if (!powers.has(topNum)) continue;
     // PREVENT_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化
     if (effectiveDelta < 0 && powerProtectedNums?.has(topNum)) continue;
-    // isArmored フィルタのゾーン状態チェック
-    if (filter?.isArmored !== undefined) {
-      const isArmored = state.field.signi_armor?.[zoneIdx] ?? false;
-      if (filter.isArmored !== isArmored) continue;
-    }
+    // ゾーン状態フィルタ（isArmored / hasCharm / hasAcce / infected / isDown / isFrozen / isUp）
+    if (!matchesStateFilter(state, zoneIdx, filter)) continue;
     const card = cardMap.get(topNum);
     if (!matchesFilter(card, filter)) continue;
     powers.set(topNum, (powers.get(topNum) ?? 0) + effectiveDelta);
