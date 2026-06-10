@@ -30041,7 +30041,7 @@
               "target": {
                 "type": "SIGNI",
                 "owner": "opponent",
-                "count": 1,
+                "count": "ALL",
                 "filter": {
                   "cardType": "シグニ"
                 },

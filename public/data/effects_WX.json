@@ -18392,7 +18392,7 @@
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
-          "count": 1,
+          "count": "ALL",
           "filter": {
             "cardType": "シグニ"
           },
@@ -43896,7 +43896,7 @@
           "filter": {
             "hasCharm": true
           },
-          "count": 1
+          "count": "ALL"
         },
         "delta": -5000
       },
@@ -46199,7 +46199,7 @@
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
-          "count": 1,
+          "count": "ALL",
           "filter": {
             "cardType": "シグニ"
           },
@@ -52185,7 +52185,7 @@
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
-          "count": 1,
+          "count": "ALL",
           "filter": {
             "cardType": "シグニ",
             "infected": true
@@ -54843,7 +54843,7 @@
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
-          "count": 1,
+          "count": "ALL",
           "filter": {
             "cardType": "シグニ",
             "infected": true
@@ -90653,7 +90653,7 @@
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
-          "count": 1,
+          "count": "ALL",
           "filter": {
             "cardType": "シグニ",
             "infected": true
