@@ -2320,6 +2320,7 @@ export function resumeSearch(
     }
     if (logMsg && remaining.length > 0) cur = addLog(cur, logMsg);
   }
+  cur = { ...cur, lastProcessedCards: picked };
   if (pending.afterAction) {
     const r = executeAction(pending.afterAction, cur);
     if (!r.done) return r;
