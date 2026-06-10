@@ -175,7 +175,7 @@ export function fieldCandidates(
   return state.field.signi.flatMap((stack, zoneIdx) => {
     if (!stack || stack.length === 0) return [];
     const cardNum = stack[stack.length - 1];
-    // ゾーン状態に依存するフィルター（infected / hasAcce）
+    // ゾーン状態に依存するフィルター（infected / hasAcce / hasCharm）
     if (filter?.infected !== undefined) {
       const infected = (state.field.signi_virus?.[zoneIdx] ?? 0) > 0;
       if (filter.infected !== infected) return [];
@@ -183,6 +183,10 @@ export function fieldCandidates(
     if (filter?.hasAcce !== undefined) {
       const acceExists = (state.field.signi_acce?.[zoneIdx] ?? null) !== null;
       if (filter.hasAcce !== acceExists) return [];
+    }
+    if (filter?.hasCharm !== undefined) {
+      const hasCharm = (state.field.signi_charms?.[zoneIdx] ?? null) !== null;
+      if (filter.hasCharm !== hasCharm) return [];
     }
     if (filter?.isDown !== undefined) {
       const isDown = state.field.signi_down?.[zoneIdx] ?? false;
