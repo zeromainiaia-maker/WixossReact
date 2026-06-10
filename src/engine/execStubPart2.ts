@@ -2700,7 +2700,8 @@ export function execStubPart2(
     const newTrashOTTOSU = sOTTOSU.trash.slice(0, -1);
     const ctx1OTTBSU = { ...ctx, otherState: { ...sOTTOSU, trash: newTrashOTTOSU }, lastProcessedCards: [topTrashOTTOSU] };
     const oppZonesOTTOSU = [0, 1, 2].filter(zi => sOTTOSU.field.signi[zi]?.at(-1));
-    if (oppZonesOTTOSU.length === 0) return done(addLog(ctx1OTTBSU, '相手フィールドにシグニなし'));
+    // シグニ不在の場合はトラッシュ除去前の ctx を返す（ctx1OTTBSU を返すとカードが消失する）
+    if (oppZonesOTTOSU.length === 0) return done(addLog(ctx, '相手フィールドにシグニなし'));
     if (oppZonesOTTOSU.length === 1) {
       // 1体のみ → 自動決定
       return exec({ type: 'STUB', id: 'INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE', value: oppZonesOTTOSU[0] } as StubAction as EffectAction, ctx1OTTBSU);
