@@ -39471,7 +39471,7 @@
       ],
       "action": {
         "type": "STUB",
-        "stubId": "ON_BANISH_RECOVER_RISE_UNDER_WEAPON_SIGNI_TO_HAND"
+        "id": "ON_BANISH_RECOVER_RISE_UNDER_WEAPON_SIGNI_TO_HAND"
       },
       "duration": "INSTANT",
       "mandatory": true,
@@ -44211,7 +44211,7 @@
       ],
       "action": {
         "type": "STUB",
-        "stubId": "ON_ATTACK_SAME_COLOR_AS_UNDER_CARD_BOUNCE_OPP_SIGNI_TO_DECK_TOP"
+        "id": "ON_ATTACK_SAME_COLOR_AS_UNDER_CARD_BOUNCE_OPP_SIGNI_TO_DECK_TOP"
       },
       "duration": "INSTANT",
       "mandatory": true,

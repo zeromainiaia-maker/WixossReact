@@ -2225,7 +2225,7 @@
       "effectType": "CONTINUOUS",
       "action": {
         "type": "STUB",
-        "stubId": "RISE_CONDITIONAL_ABILITIES_BY_UNDER_CARD_LEVEL"
+        "id": "RISE_CONDITIONAL_ABILITIES_BY_UNDER_CARD_LEVEL"
       },
       "duration": "PERMANENT",
       "mandatory": true,
@@ -16617,7 +16617,7 @@
       ],
       "action": {
         "type": "STUB",
-        "stubId": "ON_BATTLE_BANISH_POWER_PLUS_5000_UNTIL_NEXT_OPP_TURN_END"
+        "id": "ON_BATTLE_BANISH_POWER_PLUS_5000_UNTIL_NEXT_OPP_TURN_END"
       },
       "duration": "INSTANT",
       "mandatory": true,
@@ -18126,7 +18126,7 @@
           },
           {
             "type": "STUB",
-            "stubId": "CONDITIONAL_IF_LV4_LRIG_EXTRA_POWER_MINUS_20000_OPP_SIGNI"
+            "id": "CONDITIONAL_IF_LV4_LRIG_EXTRA_POWER_MINUS_20000_OPP_SIGNI"
           }
         ]
       },
@@ -35545,7 +35545,7 @@
       "cost": {},
       "action": {
         "type": "STUB",
-        "stubId": "ACTIVATED_TRASH_UP_TO_3_BLUEAKA_ENERGY_BOUNCE_SAME_LEVEL_OPP_SIGNI"
+        "id": "ACTIVATED_TRASH_UP_TO_3_BLUEAKA_ENERGY_BOUNCE_SAME_LEVEL_OPP_SIGNI"
       },
       "duration": "INSTANT",
       "mandatory": false,
@@ -35559,7 +35559,7 @@
       ],
       "action": {
         "type": "STUB",
-        "stubId": "KIZUNA_AUTO_ON_BATTLE_BANISH_ENERGY_CHARGE_1"
+        "id": "KIZUNA_AUTO_ON_BATTLE_BANISH_ENERGY_CHARGE_1"
       },
       "duration": "INSTANT",
       "mandatory": true,

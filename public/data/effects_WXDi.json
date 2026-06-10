@@ -19669,7 +19669,7 @@
       },
       "action": {
         "type": "STUB",
-        "stubId": "GAME_ONCE_RETURN_DIAGRAM_LV1_LRIG_TO_DECK"
+        "id": "GAME_ONCE_RETURN_DIAGRAM_LV1_LRIG_TO_DECK"
       },
       "duration": "INSTANT",
       "mandatory": false,
@@ -24488,7 +24488,7 @@
       ],
       "action": {
         "type": "STUB",
-        "stubId": "ON_ATTACK_PHASE_MUST_PAY_COLORLESS_3_OR_TRASH_SELF"
+        "id": "ON_ATTACK_PHASE_MUST_PAY_COLORLESS_3_OR_TRASH_SELF"
       },
       "duration": "INSTANT",
       "mandatory": true,
@@ -28240,7 +28240,7 @@
       "effectType": "CONTINUOUS",
       "action": {
         "type": "STUB",
-        "stubId": "OPP_TURN_REPLACEMENT_TRASH_UNDER_INSTEAD_OF_LEAVE_FIELD"
+        "id": "OPP_TURN_REPLACEMENT_TRASH_UNDER_INSTEAD_OF_LEAVE_FIELD"
       },
       "duration": "PERMANENT",
       "mandatory": true,
@@ -33224,7 +33224,7 @@
       "effectType": "CONTINUOUS",
       "action": {
         "type": "STUB",
-        "stubId": "CANT_GAIN_NEW_ABILITIES_BY_EFFECT"
+        "id": "CANT_GAIN_NEW_ABILITIES_BY_EFFECT"
       },
       "duration": "PERMANENT",
       "mandatory": true,

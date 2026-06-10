@@ -77,9 +77,13 @@ function checkAction(a, cardNum, file, path) {
     case 'TRASH':
     case 'ENERGY_CHARGE':
     case 'GRANT_KEYWORD':
-    case 'GRANT_PROTECTION':
     case 'NEGATE_ATTACK':
       if (a.target === undefined) bug(file, cardNum, path, 'MISSING_FIELD', 'target', `${t} requires target`);
+      break;
+    case 'GRANT_PROTECTION':
+      // targetはACTIVATED/AUTOでは必須。CONTINUOUSではsubjectFilterを使うのでtarget省略可
+      if (a.target === undefined && a.subjectFilter === undefined)
+        bug(file, cardNum, path, 'MISSING_FIELD', 'target', 'GRANT_PROTECTION requires target or subjectFilter');
       break;
     case 'POWER_MODIFY':
       if (a.delta === undefined) bug(file, cardNum, path, 'MISSING_FIELD', 'delta', 'POWER_MODIFY requires delta');

@@ -15311,7 +15311,7 @@
       ],
       "action": {
         "type": "STUB",
-        "stubId": "ON_ATTACK_IF_DISCARDED_2_THIS_TURN_BANISH_OPP_SIGNI"
+        "id": "ON_ATTACK_IF_DISCARDED_2_THIS_TURN_BANISH_OPP_SIGNI"
       },
       "duration": "INSTANT",
       "mandatory": true,
