@@ -277,6 +277,72 @@ function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: TargetF
   return true;
 }
 
+// ===== CONTINUOUS BANISH / FREEZE / DOWN 状態変更計算 =====
+
+export interface ContSigniMutation {
+  effectId: string;
+  type: 'BANISH' | 'FREEZE' | 'DOWN';
+  targetIsHost: boolean;
+  targetNums: string[];
+}
+
+/**
+ * フィールド上の CONTINUOUS BANISH/FREEZE/DOWN 効果（mandatory のみ）を評価し、
+ * 適用すべきシグニ変更のリストを返す。
+ * BattleScreen が useEffect 内で呼び出し、返値をゲーム状態に反映する。
+ */
+export function calcContinuousSigniMutations(
+  hostState: PlayerState,
+  guestState: PlayerState,
+  hostIsActive: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): ContSigniMutation[] {
+  const result: ContSigniMutation[] = [];
+
+  const scanOwner = (
+    ownerState: PlayerState,
+    otherState: PlayerState,
+    isOwnerTurn: boolean,
+    ownerIsHost: boolean,
+  ) => {
+    if (ownerState.all_cont_effects_negated) return;
+    for (const sourceStack of ownerState.field.signi) {
+      if (!sourceStack?.length) continue;
+      const sourceNum = sourceStack[sourceStack.length - 1];
+      for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        if (!eff.mandatory) continue;
+        if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+        const act = eff.action as BanishAction | FreezeAction | DownAction;
+        if (act.type !== 'BANISH' && act.type !== 'FREEZE' && act.type !== 'DOWN') continue;
+        const target = act.target;
+        if (target.type !== 'SIGNI') continue;
+        const tgtState = target.owner === 'opponent' ? otherState : ownerState;
+        const targetIsHost = target.owner === 'opponent' ? !ownerIsHost : ownerIsHost;
+        const candidates: string[] = [];
+        for (let zi = 0; zi < tgtState.field.signi.length; zi++) {
+          const stack = tgtState.field.signi[zi];
+          if (!stack?.length) continue;
+          const num = stack[stack.length - 1];
+          if (!matchesFilter(cardMap.get(num), target.filter)) continue;
+          if (!matchesStateFilter(tgtState, zi, target.filter)) continue;
+          if (act.type === 'FREEZE' && (tgtState.field.signi_frozen?.[zi] ?? false)) continue;
+          if (act.type === 'DOWN'   && (tgtState.field.signi_down?.[zi] ?? false)) continue;
+          candidates.push(num);
+        }
+        if (candidates.length === 0) continue;
+        const targetNums = target.count === 'ALL' ? candidates : candidates.slice(0, 1);
+        result.push({ effectId: eff.effectId, type: act.type, targetIsHost, targetNums });
+      }
+    }
+  };
+
+  scanOwner(hostState, guestState, hostIsActive, true);
+  scanOwner(guestState, hostState, !hostIsActive, false);
+  return result;
+}
+
 // ===== POWER_MODIFY アクション抽出 =====
 
 function extractPowerModifies(action: EffectAction): PowerModifyAction[] {
