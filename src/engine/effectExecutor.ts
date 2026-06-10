@@ -1805,6 +1805,59 @@ function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, newS, ctx), `コイン${gained}枚獲得（計${newS.coins}枚）`));
 }
 
+function execEnergyChargeByFieldCount(a: import('../types/effects').EnergyChargeByFieldCountAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  const fieldCount = state.field.signi.filter(s => s && s.length > 0).length;
+  const chargeCount = fieldCount + (a.bonus ?? 0);
+  if (chargeCount <= 0) return done(ctx);
+  const took = state.deck.slice(0, chargeCount);
+  const newS: PlayerState = { ...state, deck: state.deck.slice(chargeCount), energy: [...state.energy, ...took] };
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${chargeCount}（フィールド${fieldCount}体+${a.bonus}）`));
+}
+
+function execPowerModifyByTargetLevel(a: PowerModifyByTargetLevelAction, ctx: ExecCtx): ExecResult {
+  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (cands.length === 0) return done(ctx);
+  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  if (a.target.count === 'ALL') {
+    const mods = [...(state.temp_power_mods ?? []), ...cands.map(cardNum => {
+      const lv = parseInt(ctx.cardMap.get(cardNum)?.Level ?? '0', 10);
+      return { cardNum, delta: a.deltaPerLevel * (isNaN(lv) ? 0 : lv) };
+    })];
+    return done(addLog(setOwnerState(tgtOwner, { ...state, temp_power_mods: mods }, ctx), `対象レベル比例パワー修正`));
+  }
+  const count = resolveNum(a.target.count);
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+}
+
+function execPowerModifyPerTrashedLevel(a: import('../types/effects').PowerModifyPerTrashedLevelAction, ctx: ExecCtx): ExecResult {
+  const processed = ctx.lastProcessedCards ?? [];
+  const totalLevel = processed.reduce((acc, cn) => {
+    const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0', 10);
+    return acc + (isNaN(lv) ? 0 : lv);
+  }, 0);
+  if (totalLevel === 0) return done(ctx);
+  const delta = a.deltaPerLevel * totalLevel;
+  const modAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+  return executeAction(modAction, ctx);
+}
+
+function execPowerModifyPerCharm(a: import('../types/effects').PowerModifyPerCharmAction, ctx: ExecCtx): ExecResult {
+  if (a.sourceLocation === 'trashed_this_effect') {
+    return done(addLog(ctx, `[STUB_LOG] POWER_MODIFY_PER_CHARM trashed_this_effect 未実装`));
+  }
+  const countCharms = (state: PlayerState) => (state.field.signi_charms ?? []).filter(c => c !== null).length;
+  const charmCount = a.sourceOwner === 'self' ? countCharms(ctx.ownerState)
+    : a.sourceOwner === 'opponent' ? countCharms(ctx.otherState)
+    : countCharms(ctx.ownerState) + countCharms(ctx.otherState);
+  if (charmCount === 0) return done(ctx);
+  const delta = a.deltaPerCharm * charmCount;
+  const modAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+  return executeAction(modAction, ctx);
+}
+
 function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx): ExecResult {
   if (a.source === 'last_found') {
     const lastCard = ctx.lastProcessedCards?.[ctx.lastProcessedCards.length - 1];
