@@ -10156,7 +10156,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const needed = [...costColors];
               for (const n of selectedNums) {
                 const color = battleCardMap.get(n)?.Color ?? '無';
-                const idx = needed.findIndex(c => c === color || c === '無');
+                // 色一致コストを優先して消費し、なければ無色枠に充てる（多色カード対応・エンジン側resumeOptionalCostと同一ロジック）
+                let idx = needed.findIndex(c => c !== '無' && color.includes(c));
+                if (idx === -1) idx = needed.findIndex(c => c === '無');
                 if (idx === -1) return false;
                 needed.splice(idx, 1);
               }
