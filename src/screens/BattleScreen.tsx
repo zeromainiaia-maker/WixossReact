@@ -2624,6 +2624,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           spell_negated_this_turn: undefined,         // スペル打ち消しフラグをリセット
           turn_trigger_3rd_plant_down: undefined,     // 植物3回目ダウントリガーをリセット
           turn_plant_down_count: undefined,           // 植物ダウン回数をリセット
+          // WX25-CP1-003「次の対戦相手のターン終了時まで」: フラグ保持者(=相手の効果を受けた側)が
+          // 自分のターンを終了するタイミングがちょうど期限にあたる
+          opp_signi_energy_to_deck_bottom: undefined,
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
