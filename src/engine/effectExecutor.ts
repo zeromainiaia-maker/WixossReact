@@ -75,7 +75,8 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
     hand: [...state.hand, ...state.deck.slice(0, canDraw)],
     deck: state.deck.slice(canDraw),
   };
-  if (canDraw < count && s.trash.length > 0) {
+  // リフレッシュ: トラッシュ0枚でも発生し、ライフクロスの一番上をトラッシュに置く（BattleScreen.applyRefresh と同一仕様）
+  if (canDraw < count) {
     const topLife = s.life_cloth.at(-1) ?? null;
     s = {
       ...s,
