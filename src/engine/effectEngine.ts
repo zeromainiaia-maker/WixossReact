@@ -2441,7 +2441,7 @@ export function collectLrigNameAliases(
       const oppLrigTop = otherState.field.lrig.at(-1);
       if (oppLrigTop) {
         const oppClass = cardMap.get(oppLrigTop)?.CardClass ?? '';
-        for (const cls of oppClass.split('/').map(c => c.trim()).filter(Boolean)) {
+        for (const cls of oppClass.split(/[/／]/).map(c => c.trim()).filter(Boolean)) {
           if (!aliases.includes(cls)) aliases.push(cls);
         }
         // CardName にも追加（名前条件チェック用）
