@@ -34,6 +34,7 @@ const VALID_ACTION_TYPES = new Set([
   'PLACE_UNDER_SOURCE_SIGNI','PREVENT_NEXT_DAMAGE','TAKE_FROM_UNDER_SIGNI',
   'GRANT_EFFECT','GRANT_SIGNI_ABOVE_ABILITY','STUB','GAIN_BOND','MILL','UNKNOWN'
 ]);
+// Condition型（action内 condition / effectのconditionに使われる）
 const VALID_CONDITION_TYPES = new Set([
   'FIELD_COUNT','HAND_COUNT','LIFE_COUNT','ENERGY_COUNT','HAS_CARD_IN_FIELD',
   'TRASH_HAS_CARD','DECK_TOP_MATCHES','LRIG_LEVEL','LRIG_STORY','THIS_CARD_IN_LOCATION',
@@ -41,6 +42,13 @@ const VALID_CONDITION_TYPES = new Set([
   'SELF_POWER_GTE','LIFE_COMPARE_OPP','DURING_PHASE','AND','IS_MY_TURN',
   'IS_OPPONENT_TURN','PAID_ADDITIONAL_COST','BEAT_CONDITION','COND_STUB',
   'LAST_PROCESSED_LEVEL_SUM_EQ','OPPONENT_NOT_PAID','SELF_OPTIONAL_EFFECT_TAKEN','HAS_BOND'
+]);
+// ActiveCondition型（CardEffectのactiveConditionに使われる）
+const VALID_ACTIVE_CONDITION_TYPES = new Set([
+  'TURN_OWNER','HAS_CARD_IN_FIELD','COUNT_THRESHOLD','SELF_POWER_THRESHOLD',
+  'HAND_DIFF','ENA_DIFF','LRIG_LEVEL','EICHI_LEVEL_SUM',
+  'IS_SELF_ARMORED','IS_SELF_ACCED','IS_SELF_ACCE_CARD','IS_DRIVE_STATE',
+  'HAS_BOND','SUBSCRIBER_COUNT','AND'
 ]);
 const VALID_TARGET_TYPES = new Set([
   'SIGNI','LRIG','CENTER_LRIG_OR_SIGNI','HAND_CARD','DECK_CARD','TRASH_CARD',
@@ -78,6 +86,7 @@ function walkAction(action, cardNum, file, path) {
   if (action.effect && typeof action.effect === 'object') {
     walkAction(action.effect.action, cardNum, file, `${path}.effect.action`);
     if (action.effect.condition) walkCondition(action.effect.condition, cardNum, file, `${path}.effect.condition`);
+    if (action.effect.activeCondition) walkActiveCondition(action.effect.activeCondition, cardNum, file, `${path}.effect.activeCondition`);
     if (action.effect.duration && !VALID_DURATIONS.has(action.effect.duration)) {
       bugs.push({ file, cardNum, path: `${path}.effect.duration`, issue: 'INVALID_DURATION', value: action.effect.duration });
     }
@@ -118,6 +127,15 @@ function walkCondition(cond, cardNum, file, path) {
   if (cond.filter) walkFilter(cond.filter, cardNum, file, `${path}.filter`);
 }
 
+function walkActiveCondition(cond, cardNum, file, path) {
+  if (!cond || typeof cond !== 'object') return;
+  if (cond.type && !VALID_ACTIVE_CONDITION_TYPES.has(cond.type)) {
+    bugs.push({ file, cardNum, path, issue: 'INVALID_ACTIVE_CONDITION_TYPE', value: cond.type });
+  }
+  if (cond.conditions) cond.conditions.forEach((c,i) => walkActiveCondition(c, cardNum, file, `${path}.conditions[${i}]`));
+  if (cond.filter) walkFilter(cond.filter, cardNum, file, `${path}.filter`);
+}
+
 for (const f of files) {
   const fname = f.split('/').pop();
   const data = JSON.parse(readFileSync(f, 'utf8'));
@@ -125,7 +143,7 @@ for (const f of files) {
     for (const eff of effects) {
       walkAction(eff.action, cardNum, fname, 'action');
       if (eff.condition) walkCondition(eff.condition, cardNum, fname, 'condition');
-      if (eff.activeCondition) walkCondition(eff.activeCondition, cardNum, fname, 'activeCondition');
+      if (eff.activeCondition) walkActiveCondition(eff.activeCondition, cardNum, fname, 'activeCondition');
       if (eff.duration && !VALID_DURATIONS.has(eff.duration)) {
         bugs.push({ file: fname, cardNum, path: 'duration', issue: 'INVALID_DURATION', value: eff.duration });
       }
@@ -140,7 +158,6 @@ for (const b of bugs) {
   if (!seen.has(key)) { seen.add(key); unique.push(b); }
 }
 
-// グループ別表示
 const byIssue = {};
 for (const b of unique) {
   byIssue[b.issue] = byIssue[b.issue] || [];
