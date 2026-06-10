@@ -493,6 +493,17 @@ function extractPowerModifiesPerVirusCount(action: EffectAction): PowerModifyPer
   return [];
 }
 
+function extractPowerModifiesPerCharm(action: EffectAction): PowerModifyPerCharmAction[] {
+  if (action.type === 'POWER_MODIFY_PER_CHARM') {
+    const a = action as PowerModifyPerCharmAction;
+    if (!a.until) return [a]; // until なし = CONTINUOUS（until あり = ACTIVATED は executor 処理）
+  }
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerCharm(s));
+  }
+  return [];
+}
+
 /**
  * ACTIVATED 効果の POWER_MODIFY_PER_LRIG_LEVEL を解決して temp_power_mods 相当の delta を計算する。
  * @returns [cardNum, delta] ペア配列（BattleScreenで temp_power_mods に追加する）
