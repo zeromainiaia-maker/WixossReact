@@ -960,7 +960,7 @@ export function execStubPart2(
     for (let zi = 0; zi < 3; zi++) {
       const top = curBMCS.otherState.field.signi[zi]?.at(-1);
       if (!top) continue;
-      const colorsBMCS = (curBMCS.cardMap.get(top)?.Color ?? '').split('/').map(c => c.trim()).filter(Boolean);
+      const colorsBMCS = splitColors(curBMCS.cardMap.get(top)?.Color);
       if (colorsBMCS.length < 2) continue;
       const removedBMCS = removeFromField(top, curBMCS.otherState);
       curBMCS = { ...curBMCS, otherState: { ...removedBMCS, energy: [...removedBMCS.energy, top] } };
