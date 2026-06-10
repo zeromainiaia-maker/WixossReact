@@ -2773,7 +2773,7 @@ export function execStubPart1(
     const newS: PlayerState = {
       ...st,
       deck: st.deck.slice(toAdd.length),
-      life_cloth: [...toAdd, ...st.life_cloth],
+      life_cloth: [...st.life_cloth, ...toAdd],
     };
     return done(addLog(setOwnerState(owner, newS, ctx), `デッキ上${toAdd.length}枚をライフクロスに加えた`));
   }
