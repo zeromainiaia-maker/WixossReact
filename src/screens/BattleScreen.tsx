@@ -5393,14 +5393,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const opState = ownerIsHost ? guestState : hostState;
         const redirectBanishP0 = opState.banish_redirect === true;
         const redirectBanishToHandP0 = opState.banish_redirect_to_hand === true;
+        // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナの代わりにデッキの一番下へ
+        const energyToBottomP0 = !redirectBanishP0 && !redirectBanishToHandP0 && removed.opp_signi_energy_to_deck_bottom === true;
         const withBanished: PlayerState = redirectBanishP0
           ? { ...removed, trash: [...removed.trash, topNum] }
           : redirectBanishToHandP0
             ? { ...removed, hand: [...removed.hand, topNum] }
-            : { ...removed, energy: [...removed.energy, topNum] };
+            : energyToBottomP0
+              ? { ...removed, deck: [...removed.deck, topNum] }
+              : { ...removed, energy: [...removed.energy, topNum] };
         if (ownerIsHost) hostState = withBanished; else guestState = withBanished;
         const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : ''}`]);
+        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
 
         const triggers = collectBanishTriggers(topNum, ownerId, hostState, guestState);
         allTriggers.push(...triggers);
