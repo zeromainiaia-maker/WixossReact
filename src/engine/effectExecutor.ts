@@ -2546,9 +2546,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
-      const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, cardNum] };
+      // opp_signi_energy_to_deck_bottom (WX25-CP1-003): エナゾーンに置かれる代わりにデッキ下へ
+      const toBottom = removed.opp_signi_energy_to_deck_bottom === true;
+      const withEnergy: PlayerState = toBottom
+        ? { ...removed, deck: [...removed.deck, cardNum] }
+        : { ...removed, energy: [...removed.energy, cardNum] };
       return done(addLog(setOwnerState(found, withEnergy, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をバニッシュ`));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${toBottom ? '→デッキ下' : 'をバニッシュ'}`));
     }
     case 'BOUNCE': {
       let found: Owner | null = null;
