@@ -705,20 +705,24 @@ export function calcFieldPowers(
             }
           } else {
             if (s.target.owner === 'self' || s.target.owner === 'any') {
-              for (const stack of ownerState.field.signi) {
+              for (let zi = 0; zi < ownerState.field.signi.length; zi++) {
+                const stack = ownerState.field.signi[zi];
                 if (!stack || stack.length === 0) continue;
                 const num = stack[stack.length - 1];
                 if (!powers.has(num)) continue;
                 if (!matchesFilter(cardMap.get(num), s.target.filter)) continue;
+                if (!matchesStateFilter(ownerState, zi, s.target.filter)) continue;
                 powers.set(num, value);
               }
             }
             if (s.target.owner === 'opponent' || s.target.owner === 'any') {
-              for (const stack of otherState.field.signi) {
+              for (let zi = 0; zi < otherState.field.signi.length; zi++) {
+                const stack = otherState.field.signi[zi];
                 if (!stack || stack.length === 0) continue;
                 const num = stack[stack.length - 1];
                 if (!powers.has(num)) continue;
                 if (!matchesFilter(cardMap.get(num), s.target.filter)) continue;
+                if (!matchesStateFilter(otherState, zi, s.target.filter)) continue;
                 powers.set(num, value);
               }
             }
