@@ -652,7 +652,8 @@ export function calcFieldPowers(
       // COPY_SIGNI: card_identity_overrides でコピー元カードのパワーを使用
       const resolvedNum = identityOverrides[topNum] ?? topNum;
       const card = cardMap.get(resolvedNum);
-      const base = parseInt(card?.Power ?? '', 10);
+      // Power「∞」はInfinityとして集計（パワー0バニッシュ判定やpowerRangeフィルタが自然に成立する）
+      const base = card?.Power === '∞' ? Infinity : parseInt(card?.Power ?? '', 10);
       if (!isNaN(base)) powers.set(topNum, base);
     }
   };
