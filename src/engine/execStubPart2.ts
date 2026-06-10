@@ -1724,8 +1724,8 @@ export function execStubPart2(
   if (stub.id === 'INTERNAL_LIFE_TO_HAND_DO') {
     const sLTH = ctx.ownerState;
     if (sLTH.life_cloth.length === 0) return done(addLog(ctx, 'ライフクロスなし'));
-    const topLife = sLTH.life_cloth[0];
-    const newSLTH: PlayerState = { ...sLTH, life_cloth: sLTH.life_cloth.slice(1), hand: [...sLTH.hand, topLife] };
+    const topLife = sLTH.life_cloth.at(-1)!;
+    const newSLTH: PlayerState = { ...sLTH, life_cloth: sLTH.life_cloth.slice(0, -1), hand: [...sLTH.hand, topLife] };
     return done(addLog({ ...ctx, ownerState: newSLTH }, 'ライフクロス1枚を手札に加えた'));
   }
   // HAND_NONCOLORLESS_TO_ENERGY: 手札の無色以外カードをエナゾーンへ
