@@ -522,9 +522,11 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
           const basePow = topCard?.Power;
           if (!basePow || basePow === '-') return null;
           const effPow = effectivePowers?.get(topNum);
-          const rawPow = effPow !== undefined ? effPow : parseInt(basePow, 10);
+          // Power「∞」はInfinity扱い（parseIntだとNaNになり常時デバフ色で表示されてしまう）
+          const baseNum = basePow === '∞' ? Infinity : parseInt(basePow, 10);
+          const rawPow = effPow !== undefined ? effPow : baseNum;
           const displayPow = Math.max(0, rawPow);
-          const isBuffed = effPow !== undefined && effPow !== parseInt(basePow, 10);
+          const isBuffed = effPow !== undefined && effPow !== baseNum;
           return (
             <div style={{
               position: 'absolute',
