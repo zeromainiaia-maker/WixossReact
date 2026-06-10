@@ -1525,6 +1525,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]);
 
+  // CONTINUOUS BANISH / FREEZE / DOWN の自動適用（mandatory 効果：WX16-045 等）
+  useEffect(() => {
+    if (!bs || !user) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    if (loading) return;
+    if (bs.active_user_id !== user.id) return;
+    checkContMutationsRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]);
+
   // ATTACH_ACCE完了後にacce_just_doneフラグを検出してON_ACCEトリガーを発火
   // my は後で定義されるため bs から直接参照（isHost も後定義のため bs から計算）
   const acceJustDoneRef = (user && bs)
