@@ -7194,7 +7194,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);
-                    return c?.Color === req.color || isMultiEna(n, battleCards, my.keyword_grants, myEnaAllMulti);
+                    return c?.Color?.includes(req.color) || isMultiEna(n, battleCards, my.keyword_grants, myEnaAllMulti);
                   }).length >= req.count
                 ));
               const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost;
