@@ -3227,7 +3227,7 @@ export function execStubPart2(
       return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}レベル${signiLevelIBS}超過でトラッシュへ`));
     }
     // リミットチェック（他ゾーンのシグニレベル合計 + このシグニのレベル > ルリグのリミット）
-    const lrigLimitIBS = parseInt(lrigCardIBS?.Limit ?? '0', 10);
+    const lrigLimitIBS = lrigCardIBS?.Limit === '∞' ? Infinity : (parseInt(lrigCardIBS?.Limit ?? '0', 10) || 0);
     let usedLimitIBS = 0;
     for (let zi = 0; zi < 3; zi++) {
       if (zi === zoneIdxIBS) continue;
