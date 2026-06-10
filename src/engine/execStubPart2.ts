@@ -696,7 +696,7 @@ export function execStubPart2(
     const toHWPBECV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const energyColorSetPBECV = new Set<string>();
     for (const cn of ctx.ownerState.energy) {
-      const colors = (ctx.cardMap.get(cn)?.Color ?? '').split('/').map(c => c.trim()).filter(c => c && c !== '無');
+      const colors = splitColors(ctx.cardMap.get(cn)?.Color);
       for (const col of colors) energyColorSetPBECV.add(col);
     }
     const varietyPBECV = energyColorSetPBECV.size;
