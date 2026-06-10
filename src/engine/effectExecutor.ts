@@ -1752,7 +1752,7 @@ function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): 
     ownerState: { ...ctx.ownerState, hand: [], trash: [...ctx.ownerState.trash, ...ctx.ownerState.hand] },
     otherState: { ...ctx.otherState, hand: [], trash: [...ctx.otherState.trash, ...ctx.otherState.hand] },
   };
-  cur = addLog(cur, `{selfCount}${otherCount}`);
+  cur = addLog(cur, `${selfCount}${otherCount}`);
 
   if (!a.drawMax || maxCount === 0) return done(cur);
 
