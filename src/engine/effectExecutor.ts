@@ -105,7 +105,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       // opp_signi_energy_to_deck_bottom: 相手シグニがエナゾーンに置かれる代わりにデッキ下へ
       const toBottom = tgt.owner === 'opponent' && (removed.opp_signi_energy_to_deck_bottom ?? false);
       const dest: PlayerState = toBottom
-        ? { ...removed, deck: [num, ...removed.deck] }
+        ? { ...removed, deck: [...removed.deck, num] }
         : { ...removed, energy: [...removed.energy, num] };
       cur = addLog(setOwnerState(tgt.owner, dest, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}${toBottom ? '→デッキ下' : 'をバニッシュ'}`);
