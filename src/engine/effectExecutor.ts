@@ -332,13 +332,13 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.type === 'HAND_CARD') {
     cands = handCandidates(state, tgt.filter, ctx.cardMap);
-    scope = 'self_hand';
+    scope = tgt.owner === 'opponent' ? 'opp_hand' : 'self_hand';
   } else if (tgt.type === 'TRASH_CARD') {
     cands = trashCandidates(state, tgt.filter, ctx.cardMap);
-    scope = 'self_trash';
+    scope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
   } else {
     cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-    scope = 'self_field';
+    scope = tgt.owner === 'opponent' ? 'opp_field' : 'self_field';
   }
 
   function applyCharge(selected: string[], c: ExecCtx): ExecCtx {
