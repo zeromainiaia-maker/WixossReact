@@ -11785,10 +11785,10 @@
       },
       "action": {
         "type": "BLOOD_CRYSTAL_ARMOR",
-        "source": [
-          "hand",
-          "trash"
-        ],
+        "source": {
+          "0": "hand",
+          "1": "trash"
+        },
         "count": 1
       },
       "duration": "INSTANT",
@@ -12294,9 +12294,9 @@
       },
       "action": {
         "type": "BLOOD_CRYSTAL_ARMOR",
-        "source": [
-          "hand"
-        ],
+        "source": {
+          "0": "hand"
+        },
         "count": 1
       },
       "duration": "INSTANT",
@@ -12321,9 +12321,9 @@
       },
       "action": {
         "type": "BLOOD_CRYSTAL_ARMOR",
-        "source": [
-          "hand"
-        ],
+        "source": {
+          "0": "hand"
+        },
         "count": 1
       },
       "duration": "INSTANT",
@@ -12366,9 +12366,9 @@
       },
       "action": {
         "type": "BLOOD_CRYSTAL_ARMOR",
-        "source": [
-          "hand"
-        ],
+        "source": {
+          "0": "hand"
+        },
         "count": 1
       },
       "duration": "INSTANT",
@@ -16034,9 +16034,9 @@
       },
       "action": {
         "type": "BLOOD_CRYSTAL_ARMOR",
-        "source": [
-          "hand"
-        ],
+        "source": {
+          "0": "hand"
+        },
         "count": 1
       },
       "duration": "INSTANT",
@@ -33597,7 +33597,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 1000
+                "powerRange": {
+                  "max": 1000
+                }
               }
             }
           },
@@ -33608,7 +33610,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 5000
+                "powerRange": {
+                  "max": 5000
+                }
               }
             }
           }
@@ -34084,7 +34088,8 @@
       "mandatory": true,
       "parseStatus": "AUTO",
       "activeCondition": {
-        "type": "IS_OPP_TURN"
+        "type": "TURN_OWNER",
+        "owner": "opponent"
       }
     },
     {
@@ -35881,7 +35886,7 @@
                     "upToCount": true,
                     "filter": {
                       "cardType": "シグニ",
-                      "colorOneOf": [
+                      "color": [
                         "白",
                         "黒"
                       ]
@@ -36129,8 +36134,9 @@
               "id": "BLOCK_LRIG_ABILITIES_IF_OPP_TURN",
               "description": "対戦相手のセンタールリグ：相手ターンなら能力を失い新たに得られない",
               "target": {
-                "type": "CENTER_LRIG",
-                "owner": "opponent"
+                "type": "LRIG",
+                "owner": "opponent",
+                "count": 1
               },
               "until": "END_OF_TURN"
             }
@@ -38505,8 +38511,7 @@
                 "owner": "opponent",
                 "count": 1,
                 "filter": {
-                  "cardType": "シグニ",
-                  "powerLessThanSelf": true
+                  "cardType": "シグニ"
                 },
                 "upToCount": false
               }
@@ -41571,10 +41576,6 @@
                 },
                 {
                   "type": "TRANSFER_TO_DECK",
-                  "source": {
-                    "type": "SELF_CARD",
-                    "owner": "self"
-                  },
                   "destination": "lrigDeck",
                   "shuffle": false
                 }
@@ -45017,7 +45018,7 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "isSelf": true
+          "count": 1
         }
       },
       "duration": "PERMANENT",

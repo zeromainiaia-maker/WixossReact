@@ -376,8 +376,7 @@
                       "cardType": "シグニ"
                     }
                   },
-                  "delta": 5000,
-                  "duration": "UNTIL_OPPONENT_TURN_END"
+                  "delta": 5000
                 }
               ]
             }
@@ -5426,7 +5425,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 10000
+                "powerRange": {
+                  "max": 10000
+                }
               }
             }
           },
@@ -8594,12 +8595,11 @@
             "action": {
               "type": "POWER_MODIFY",
               "target": {
-                "type": "SIGNI_ZONE",
+                "type": "SIGNI",
                 "owner": "opponent",
                 "count": 1
               },
-              "delta": -3000,
-              "duration": "UNTIL_END_OF_TURN"
+              "delta": -3000
             }
           },
           {
@@ -9844,7 +9844,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 8000
+                "powerRange": {
+                  "max": 8000
+                }
               }
             }
           },
@@ -12433,7 +12435,9 @@
           "owner": "opponent",
           "count": 1,
           "filter": {
-            "maxPower": 5000
+            "powerRange": {
+              "max": 5000
+            }
           }
         }
       },
@@ -15276,12 +15280,8 @@
         ]
       },
       "action": {
-        "type": "GRANT_ABILITY_TO_ALL_LRIGS",
-        "target": {
-          "type": "LRIG",
-          "owner": "self",
-          "count": "ALL"
-        },
+        "type": "STUB",
+        "id": "GRANT_ABILITY_TO_ALL_LRIGS",
         "grantedAbilities": [
           {
             "type": "ACTIVATED",
@@ -15330,7 +15330,12 @@
               }
             }
           }
-        ]
+        ],
+        "target": {
+          "type": "LRIG",
+          "owner": "self",
+          "count": "ALL"
+        }
       },
       "duration": "UNTIL_END_OF_TURN",
       "mandatory": false,
@@ -19546,7 +19551,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 8000
+                "powerRange": {
+                  "max": 8000
+                }
               }
             }
           },
@@ -19608,7 +19615,9 @@
           "owner": "opponent",
           "count": 1,
           "filter": {
-            "maxPower": 10000
+            "powerRange": {
+              "max": 10000
+            }
           }
         }
       },
@@ -27125,9 +27134,7 @@
                       "type": "SIGNI",
                       "owner": "self",
                       "count": 1,
-                      "filter": {
-                        "isSelf": true
-                      }
+                      "filter": {}
                     },
                     "keyword": "アサシン",
                     "condition": "凍結状態のパワー3000以下のシグニ",
@@ -34345,7 +34352,8 @@
                     {
                       "type": "CONDITIONAL",
                       "condition": {
-                        "type": "TRASHED_BLUEARCHIVE"
+                        "type": "COND_STUB",
+                        "raw": "TRASHED_BLUEARCHIVE"
                       },
                       "then": {
                         "type": "PREVENT_NEXT_DAMAGE",
@@ -34746,12 +34754,10 @@
             "action": {
               "type": "GRANT_KEYWORD",
               "target": {
-                "type": "ANY",
+                "type": "CENTER_LRIG_OR_SIGNI",
                 "owner": "opponent",
                 "count": 1,
-                "filter": {
-                  "isLrigOrSigni": true
-                }
+                "filter": {}
               },
               "keyword": "アタックできない",
               "duration": "UNTIL_END_OF_TURN"
@@ -34777,13 +34783,11 @@
                   "then": {
                     "type": "GRANT_KEYWORD",
                     "target": {
-                      "type": "ANY",
+                      "type": "CENTER_LRIG_OR_SIGNI",
                       "owner": "opponent",
                       "count": 2,
                       "upToCount": true,
-                      "filter": {
-                        "isLrigOrSigni": true
-                      }
+                      "filter": {}
                     },
                     "keyword": "アタックできない",
                     "duration": "UNTIL_END_OF_TURN"
@@ -34865,12 +34869,10 @@
             "action": {
               "type": "DOWN",
               "target": {
-                "type": "ANY",
+                "type": "CENTER_LRIG_OR_SIGNI",
                 "owner": "opponent",
                 "count": 1,
-                "filter": {
-                  "isLrigOrSigni": true
-                },
+                "filter": {},
                 "upToCount": false
               }
             }
@@ -34895,13 +34897,11 @@
                   "then": {
                     "type": "DOWN",
                     "target": {
-                      "type": "ANY",
+                      "type": "CENTER_LRIG_OR_SIGNI",
                       "owner": "opponent",
                       "count": 2,
                       "upToCount": true,
-                      "filter": {
-                        "isLrigOrSigni": true
-                      }
+                      "filter": {}
                     }
                   }
                 }
@@ -34977,12 +34977,10 @@
             "action": {
               "type": "NEGATE_ATTACK",
               "target": {
-                "type": "ANY",
+                "type": "CENTER_LRIG_OR_SIGNI",
                 "owner": "opponent",
                 "count": 1,
-                "filter": {
-                  "isLrigOrSigni": true
-                },
+                "filter": {},
                 "upToCount": false
               }
             }
@@ -35007,13 +35005,11 @@
                   "then": {
                     "type": "NEGATE_ATTACK",
                     "target": {
-                      "type": "ANY",
+                      "type": "CENTER_LRIG_OR_SIGNI",
                       "owner": "opponent",
                       "count": 2,
                       "upToCount": true,
-                      "filter": {
-                        "isLrigOrSigni": true
-                      }
+                      "filter": {}
                     }
                   }
                 }
@@ -37557,17 +37553,14 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1,
-          "isSelf": true
+          "count": 1
         },
         "delta": 4000
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "activeCondition": {
-        "type": "KIZUNA_ACTIVE"
-      },
-      "parseStatus": "MANUAL"
+      "parseStatus": "MANUAL",
+      "kizunaIcon": true
     },
     {
       "effectId": "WX25-CP1-073-BURST",
@@ -38316,17 +38309,14 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1,
-          "isSelf": true
+          "count": 1
         },
         "delta": 4000
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "activeCondition": {
-        "type": "KIZUNA_ACTIVE"
-      },
-      "parseStatus": "MANUAL"
+      "parseStatus": "MANUAL",
+      "kizunaIcon": true
     }
   ],
   "WX25-CP1-088": [
@@ -39772,7 +39762,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 10000
+                "powerRange": {
+                  "max": 10000
+                }
               }
             }
           },
@@ -39827,7 +39819,9 @@
                 "owner": "opponent",
                 "count": 1,
                 "filter": {
-                  "maxPower": 8000
+                  "powerRange": {
+                    "max": 8000
+                  }
                 }
               }
             }
@@ -39842,7 +39836,9 @@
                 "owner": "opponent",
                 "count": 1,
                 "filter": {
-                  "maxPower": 12000
+                  "powerRange": {
+                    "max": 12000
+                  }
                 }
               }
             }
@@ -39995,8 +39991,7 @@
                     },
                     "upToCount": false
                   },
-                  "delta": -10000,
-                  "duration": "UNTIL_END_OF_TURN"
+                  "delta": -10000
                 },
                 {
                   "type": "LOOK_AND_REORDER",
@@ -41556,9 +41551,12 @@
         "ON_TURN_END"
       ],
       "condition": {
-        "type": "OTHER_STORY_SIGNI_ON_FIELD",
-        "story": "プリオケ",
-        "owner": "self"
+        "type": "HAS_CARD_IN_FIELD",
+        "owner": "self",
+        "filter": {
+          "cardType": "シグニ",
+          "story": "プリオケ"
+        }
       },
       "action": {
         "type": "POWER_MODIFY",
@@ -41566,13 +41564,11 @@
           "type": "SIGNI",
           "owner": "self",
           "count": 1,
-          "filter": {
-            "isSelf": true
-          }
+          "filter": {}
         },
         "delta": 5000
       },
-      "duration": "UNTIL_END_OF_OPPONENT_TURN",
+      "duration": "NEXT_TURN",
       "mandatory": true,
       "parseStatus": "MANUAL"
     },
@@ -45351,7 +45347,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 8000
+                "powerRange": {
+                  "max": 8000
+                }
               }
             }
           },
@@ -45401,7 +45399,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 8000
+                "powerRange": {
+                  "max": 8000
+                }
               }
             }
           },
@@ -46271,12 +46271,10 @@
             "action": {
               "type": "NEGATE_ATTACK",
               "target": {
-                "type": "ANY",
+                "type": "CENTER_LRIG_OR_SIGNI",
                 "owner": "opponent",
                 "count": 1,
-                "filter": {
-                  "isLrigOrSigni": true
-                },
+                "filter": {},
                 "upToCount": false
               }
             }
@@ -46301,13 +46299,11 @@
                   "then": {
                     "type": "NEGATE_ATTACK",
                     "target": {
-                      "type": "ANY",
+                      "type": "CENTER_LRIG_OR_SIGNI",
                       "owner": "opponent",
                       "count": 2,
                       "upToCount": true,
-                      "filter": {
-                        "isLrigOrSigni": true
-                      }
+                      "filter": {}
                     }
                   }
                 }
@@ -46346,7 +46342,9 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "maxPower": 8000
+                "powerRange": {
+                  "max": 8000
+                }
               }
             }
           },

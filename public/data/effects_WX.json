@@ -15403,7 +15403,8 @@
           {
             "type": "CONDITIONAL",
             "condition": {
-              "type": "TURN_TRIGGER_FIRED"
+              "type": "COND_STUB",
+              "raw": "TURN_TRIGGER_FIRED"
             },
             "then": {
               "type": "SEQUENCE",
@@ -16664,8 +16665,10 @@
                     "upToCount": false,
                     "filter": {
                       "cardType": "シグニ",
-                      "maxLevel": 2,
-                      "color": "黒"
+                      "color": "黒",
+                      "level": {
+                        "max": 2
+                      }
                     }
                   }
                 }
@@ -16678,9 +16681,8 @@
             "action": {
               "type": "CONDITIONAL",
               "condition": {
-                "type": "LRIG_COLOR_AND_LEVEL",
-                "color": "黒",
-                "minLevel": 4
+                "type": "COND_STUB",
+                "raw": "LRIG_COLOR_AND_LEVEL"
               },
               "then": {
                 "type": "ADD_TO_FIELD",
@@ -31483,8 +31485,7 @@
                 "count": 1,
                 "upToCount": false,
                 "filter": {
-                  "cardType": "シグニ",
-                  "matchCenterLrigColor": true
+                  "cardType": "シグニ"
                 }
               }
             }
@@ -33295,8 +33296,7 @@
           "count": 1,
           "upToCount": false,
           "filter": {
-            "cardType": "シグニ",
-            "hasKeyword": "ガードアイコン"
+            "cardType": "シグニ"
           }
         }
       },
@@ -36150,8 +36150,7 @@
                   "owner": "opponent",
                   "count": 1
                 },
-                "delta": -12000,
-                "duration": "UNTIL_END_OF_TURN"
+                "delta": -12000
               }
             },
             {
@@ -36167,7 +36166,9 @@
                   "upToCount": false,
                   "filter": {
                     "cardType": "シグニ",
-                    "maxLevel": 3
+                    "level": {
+                      "max": 3
+                    }
                   }
                 }
               }
@@ -36220,8 +36221,7 @@
                   "owner": "opponent",
                   "count": 1
                 },
-                "delta": -12000,
-                "duration": "UNTIL_END_OF_TURN"
+                "delta": -12000
               }
             },
             {
@@ -36237,7 +36237,9 @@
                   "upToCount": false,
                   "filter": {
                     "cardType": "シグニ",
-                    "maxLevel": 3
+                    "level": {
+                      "max": 3
+                    }
                   }
                 }
               }
@@ -38167,7 +38169,9 @@
               "count": 1,
               "filter": {
                 "cardType": "シグニ",
-                "maxLevel": 3
+                "level": {
+                  "max": 3
+                }
               },
               "upToCount": false
             }
@@ -42963,9 +42967,7 @@
                     "type": "ENERGY_CARD",
                     "owner": "opponent",
                     "count": 1,
-                    "filter": {
-                      "hasKeyword": "マルチエナ"
-                    }
+                    "filter": {}
                   }
                 }
               ]
@@ -43380,8 +43382,7 @@
                     },
                     "upToCount": false
                   },
-                  "delta": -7000,
-                  "duration": "UNTIL_END_OF_TURN"
+                  "delta": -7000
                 }
               ]
             }
@@ -43889,8 +43890,9 @@
           "type": "SIGNI",
           "owner": "opponent",
           "filter": {
-            "charm": true
-          }
+            "hasCharm": true
+          },
+          "count": 1
         },
         "delta": -5000
       },
@@ -48247,7 +48249,7 @@
                     "owner": "self",
                     "count": 2,
                     "upToCount": false,
-                    "selectedBy": "opponent"
+                    "actingPlayerSelects": false
                   }
                 }
               ]
@@ -49852,7 +49854,7 @@
                     "count": 1,
                     "filter": {
                       "cardType": "シグニ",
-                      "nameContains": "フレイスロ"
+                      "cardName": "フレイスロ"
                     }
                   }
                 },
@@ -49888,7 +49890,7 @@
                     "count": 1,
                     "filter": {
                       "cardType": "シグニ",
-                      "nameContains": "フレイスロ"
+                      "cardName": "フレイスロ"
                     }
                   }
                 },
@@ -52923,14 +52925,11 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "isSelf": true
+          "count": 1
         }
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "activeCondition": {
-        "type": "IN_CENTER_ZONE"
-      },
       "parseStatus": "MANUAL"
     },
     {
@@ -53688,7 +53687,9 @@
           "owner": "opponent",
           "count": 1,
           "filter": {
-            "powerMax": 7000
+            "powerRange": {
+              "max": 7000
+            }
           }
         }
       },
@@ -57469,8 +57470,7 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1,
-          "isSelf": true
+          "count": 1
         },
         "sourceOwner": "opponent",
         "sourceFilter": {
@@ -60263,8 +60263,7 @@
                     "owner": "self",
                     "count": 1,
                     "filter": {
-                      "cardType": "シグニ",
-                      "isRezona": false
+                      "cardType": "レゾナ"
                     }
                   }
                 },
@@ -60312,8 +60311,7 @@
                     "owner": "self",
                     "count": 1,
                     "filter": {
-                      "cardType": "シグニ",
-                      "isRezona": true
+                      "cardType": "レゾナ"
                     }
                   }
                 },
@@ -60744,8 +60742,7 @@
                     "owner": "self",
                     "count": 1,
                     "filter": {
-                      "cardType": "シグニ",
-                      "isRezona": false
+                      "cardType": "レゾナ"
                     }
                   }
                 },
@@ -60778,8 +60775,7 @@
                     "owner": "self",
                     "count": 1,
                     "filter": {
-                      "cardType": "シグニ",
-                      "isRezona": true
+                      "cardType": "レゾナ"
                     }
                   }
                 },
@@ -60794,8 +60790,7 @@
                     },
                     "upToCount": false
                   },
-                  "delta": -10000,
-                  "duration": "UNTIL_END_OF_TURN"
+                  "delta": -10000
                 }
               ]
             }
@@ -61987,10 +61982,7 @@
                   "target": {
                     "type": "LRIG",
                     "owner": "opponent",
-                    "count": 1,
-                    "filter": {
-                      "isCenter": true
-                    }
+                    "count": 1
                   }
                 },
                 {
@@ -62191,15 +62183,15 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1,
-          "isSelf": true
+          "count": 1
         },
         "delta": 3000
       },
       "duration": "PERMANENT",
       "mandatory": true,
       "activeCondition": {
-        "type": "OPPONENT_TURN"
+        "type": "TURN_OWNER",
+        "owner": "opponent"
       },
       "parseStatus": "MANUAL"
     },
@@ -64233,9 +64225,7 @@
           "type": "SIGNI",
           "owner": "opponent",
           "count": 1,
-          "filter": {
-            "sameLevelAsSelf": true
-          }
+          "filter": {}
         },
         "destination": "hand"
       },
@@ -65801,8 +65791,7 @@
                 "owner": "opponent",
                 "count": 2
               },
-              "delta": -2000,
-              "duration": "UNTIL_END_OF_TURN"
+              "delta": -2000
             }
           },
           {
@@ -65824,8 +65813,7 @@
                     "count": 1,
                     "upToCount": false,
                     "filter": {
-                      "cardType": "シグニ",
-                      "sameColorAsLrig": true
+                      "cardType": "シグニ"
                     }
                   }
                 }
@@ -74660,8 +74648,10 @@
             "action": {
               "type": "CONDITIONAL",
               "condition": {
-                "type": "OPPONENT_HAND_COUNT_GTE",
-                "count": 7
+                "type": "HAND_COUNT",
+                "owner": "opponent",
+                "operator": "gte",
+                "value": 7
               },
               "then": {
                 "type": "TRASH",
@@ -74669,7 +74659,7 @@
                   "type": "HAND_CARD",
                   "owner": "opponent",
                   "count": 4,
-                  "selectedBy": "self"
+                  "actingPlayerSelects": true
                 }
               }
             }
@@ -74680,8 +74670,10 @@
             "action": {
               "type": "CONDITIONAL",
               "condition": {
-                "type": "OPPONENT_ENERGY_COUNT_GTE",
-                "count": 10
+                "type": "ENERGY_COUNT",
+                "owner": "opponent",
+                "operator": "gte",
+                "value": 10
               },
               "then": {
                 "type": "TRASH",
@@ -74689,7 +74681,7 @@
                   "type": "ENERGY_CARD",
                   "owner": "opponent",
                   "count": 5,
-                  "selectedBy": "opponent"
+                  "actingPlayerSelects": false
                 }
               }
             }
@@ -75803,7 +75795,7 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "isSelf": true
+          "count": 1
         }
       },
       "duration": "PERMANENT",
@@ -79570,8 +79562,7 @@
                       "story": "天使"
                     }
                   },
-                  "delta": 5000,
-                  "duration": "UNTIL_END_OF_TURN"
+                  "delta": 5000
                 },
                 {
                   "type": "GRANT_KEYWORD",
