@@ -298,7 +298,7 @@ export function execStubPart2(
     for (let zi = 0; zi < 3; zi++) {
       const top = ctx.ownerState.field.signi[zi]?.at(-1);
       if (top) {
-        const colors = (ctx.cardMap.get(top)?.Color ?? '').split('/').map(c => c.trim()).filter(c => c && c !== '無');
+        const colors = splitColors(ctx.cardMap.get(top)?.Color);
         for (const c of colors) colorSetPMCV.add(c);
       }
     }
