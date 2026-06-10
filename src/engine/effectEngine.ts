@@ -975,8 +975,10 @@ export function calcFieldPowers(
               return (c && stripCC) ? { ...c, Color: '', CardClass: '' } : c;
             };
             if (mod.countByVariety) {
-              const names = new Set(cards.map(n => getCard(n)?.CardClass ?? n)
-                .filter((_, i) => !mod.countFilter || matchesFilter(getCard(cards[i]), mod.countFilter)));
+              // 「N種類につき」= カード名の異なる枚数（CardClassは空のカードがあり種類判定に使えない）
+              const names = new Set(cards
+                .filter(n => !mod.countFilter || matchesFilter(getCard(n), mod.countFilter))
+                .map(n => getCard(n)?.CardName ?? n));
               return names.size;
             }
             return cards.filter(n => !mod.countFilter || matchesFilter(getCard(n), mod.countFilter)).length;
