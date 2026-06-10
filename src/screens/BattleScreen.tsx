@@ -348,7 +348,7 @@ function checkGrowCondition(
     return myState.lrig_deck.some(id => {
       const card = cardMap.get(id);
       if (!card) return false;
-      const classes = card.CardClass?.split('/').map(c => c.trim()) ?? [];
+      const classes = card.CardClass?.split(/[/／]/).map(c => c.trim()) ?? [];
       if (!classes.some(c => c === class1 || c === class2)) return false;
       if (excludeClasses.length > 0 && excludeClasses.every(ec => classes.includes(ec))) return false;
       return true;
@@ -362,7 +362,7 @@ function checkGrowCondition(
     const required = parseInt(toHalfWidth(m[2]));
     const count = myState.lrig_deck.filter(id => {
       const card = cardMap.get(id);
-      return card?.CardClass?.split('/').map(c => c.trim()).some(c => c === targetClass) ?? false;
+      return card?.CardClass?.split(/[/／]/).map(c => c.trim()).some(c => c === targetClass) ?? false;
     }).length;
     return count >= required;
   }
@@ -410,7 +410,7 @@ function applyGrowEffect(
     const idx = state.lrig_deck.findIndex(id => {
       const card = cardMap.get(id);
       if (!card) return false;
-      const classes = card.CardClass?.split('/').map(c => c.trim()) ?? [];
+      const classes = card.CardClass?.split(/[/／]/).map(c => c.trim()) ?? [];
       if (!classes.some(c => c === class1 || c === class2)) return false;
       if (excludeClasses.length > 0 && excludeClasses.every(ec => classes.includes(ec))) return false;
       return true;
@@ -435,7 +435,7 @@ function applyGrowEffect(
     state.lrig_deck.forEach((id, i) => {
       if (toRemove.length >= required) return;
       const card = cardMap.get(id);
-      if (card?.CardClass?.split('/').map(c => c.trim()).some(c => c === targetClass)) toRemove.push(i);
+      if (card?.CardClass?.split(/[/／]/).map(c => c.trim()).some(c => c === targetClass)) toRemove.push(i);
     });
     const removeSet = new Set(toRemove);
     const newLrigDeck = state.lrig_deck.filter((_, i) => !removeSet.has(i));
@@ -464,10 +464,10 @@ function applyGrowEffect(
   return { state, log: null };
 }
 
-// ルリグのグロウ互換性チェック: CardClass に共通する名前（"/"区切り）が1つでもあれば true
+// ルリグのグロウ互換性チェック: CardClass に共通する名前（"/"区切り、全角"／"もあり）が1つでもあれば true
 function lrigClassesCompatible(fromClass: string, toClass: string): boolean {
-  const fromSet = new Set(fromClass.split('/').map(s => s.trim()).filter(Boolean));
-  return toClass.split('/').map(s => s.trim()).some(c => fromSet.has(c));
+  const fromSet = new Set(fromClass.split(/[/／]/).map(s => s.trim()).filter(Boolean));
+  return toClass.split(/[/／]/).map(s => s.trim()).some(c => fromSet.has(c));
 }
 
 // カードの Restriction チェック: "-" または空なら常に使用可。
@@ -478,7 +478,7 @@ function lrigClassesCompatible(fromClass: string, toClass: string): boolean {
 //     Restriction="タマ限定", lrigClass="花代" → false
 function meetsRestriction(restriction: string, lrigClass: string, ignoreRestriction = false): boolean {
   if (ignoreRestriction || !restriction || restriction === '-') return true;
-  return lrigClass.split('/').map(s => s.trim()).some(cls => restriction.includes(cls));
+  return lrigClass.split(/[/／]/).map(s => s.trim()).some(cls => restriction.includes(cls));
 }
 
 

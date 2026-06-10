@@ -2677,11 +2677,12 @@ export function execStubPart2(
     if (!revCardRCCD) return done(addLog(ctx, '公開カードなし'));
     const revColorRCCD = ctx.cardMap.get(revCardRCCD)?.Color ?? '';
     if (!revColorRCCD) return done(addLog(ctx, '公開カードの色不明'));
-    const revColorsRCCD = revColorRCCD.split('/');
+    // Color列は「白黒」のような連結形式（'/'区切りではない）。多色は1色ずつに分解して照合する
+    const revColorsRCCD = splitColors(revColorRCCD);
     const matchingRCCD = ctx.ownerState.hand.filter(cn => {
-      // Color列は「黒青」のような連結形式（'/'区切りではない）のため includes で照合する
       const col = ctx.cardMap.get(cn)?.Color ?? '';
-      return revColorsRCCD.some(rc => col.includes(rc));
+      // 無色など色を持たない公開カードは Color 値そのものの一致で照合
+      return revColorsRCCD.length > 0 ? revColorsRCCD.some(rc => col.includes(rc)) : col === revColorRCCD;
     });
     if (matchingRCCD.length === 0) return done(addLog(ctx, `手札に${revColorRCCD}カードなし`));
     const thenRCCD: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } };
