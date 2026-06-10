@@ -5363,8 +5363,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const stack of ownerState.field.signi) {
         if (!stack?.length) continue;
         const topNum = stack[stack.length - 1];
-        const power = powers.get(topNum) ?? parseInt(battleCardMap.get(topNum)?.Power ?? '0', 10);
-        if (power > 0) continue;
+        const rawPower = battleCardMap.get(topNum)?.Power;
+        const power = powers.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
+        // NaN（Power「-」等の非数値）はバニッシュ対象にしない
+        if (isNaN(power) || power > 0) continue;
         if (hasBanishResist(topNum, battleCardMap, grants)) continue;
         candidates.push(topNum);
       }
@@ -5387,8 +5389,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const stack of ownerState.field.signi) {
         if (!stack?.length) continue;
         const topNum = stack[stack.length - 1];
-        const power = powers.get(topNum) ?? parseInt(battleCardMap.get(topNum)?.Power ?? '0', 10);
-        if (power > 0) continue;
+        const rawPower = battleCardMap.get(topNum)?.Power;
+        const power = powers.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
+        // NaN（Power「-」等の非数値）はバニッシュ対象にしない
+        if (isNaN(power) || power > 0) continue;
         if (hasBanishResist(topNum, battleCardMap, grants)) continue;
 
         const currentOwner = ownerIsHost ? hostState : guestState;
