@@ -2449,7 +2449,9 @@ export function resumeOptionalCost(
    const costColors = [...(payOpt?.costColors ?? [])];
   for (const n of energyNums) {
     const color = ctx.cardMap.get(n)?.Color ?? '無';
-    const idx = costColors.findIndex(c => c === color || c === '無');
+    // 色一致コストを優先して消費し、なければ無色枠に充てる（多色カード対応のため includes 判定）
+    let idx = costColors.findIndex(c => c !== '無' && color.includes(c));
+    if (idx === -1) idx = costColors.findIndex(c => c === '無');
     if (idx === -1) return done(addLog(ctx, `コスト支払いエラー: ${color}は不要`));
     costColors.splice(idx, 1);
   }
