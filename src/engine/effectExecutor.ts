@@ -2324,7 +2324,7 @@ export function resumeSearch(
   if (pending.afterAction) {
     const r = executeAction(pending.afterAction, cur);
     if (!r.done) return r;
-    cur = { ...cur, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+    cur = { ...cur, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs, lastProcessedCards: r.lastProcessedCards };
   }
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);

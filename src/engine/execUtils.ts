@@ -44,6 +44,8 @@ export interface ExecCtx {
   allColorSigniNums?: Set<string>;
   // ALL_ZONE_BLACK / GAIN_LRIG_COLOR / INHERIT_UNDER_SIGNI_COLOR など: 追加色を持つシグニ番号→色配列
   fieldSigniExtraColors?: Map<string, string[]>;
+  // OPP_TRASH_LOSE_COLOR_AND_CLASS: 自分（ownerState）のトラッシュのカードが色/クラスを失う
+  oppTrashColorLoss?: boolean;
 }
 
 export type ExecResult =
@@ -279,8 +281,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
       });
     }
-    case 'TRASH_HAS_CARD':
-      return st(cond.owner).trash.some(n => matchesFilter(ctx.cardMap.get(n), cond.filter));
+    case 'TRASH_HAS_CARD': {
+      const stripCC = ctx.oppTrashColorLoss && cond.owner === 'self';
+      return st(cond.owner).trash.some(n => {
+        const c = ctx.cardMap.get(n);
+        if (!c) return false;
+        return matchesFilter(stripCC ? { ...c, Color: '', CardClass: '' } : c, cond.filter);
+      });
+    }
     case 'DECK_TOP_MATCHES': {
       const topNum = st(cond.owner).deck[0];
       if (!topNum) return false;

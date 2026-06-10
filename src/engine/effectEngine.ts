@@ -37,6 +37,7 @@ export function checkActiveCondition(
   cardMap: Map<string, CardData>,
   sourceCardNum?: string,
   effectivePowers?: Map<string, number>,
+  oppTrashColorLoss?: boolean,
 ): boolean {
   if (!cond) return true;
   switch (cond.type) {
@@ -192,7 +193,7 @@ export function checkActiveCondition(
     }
 
     case 'AND':
-      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers));
+      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss));
   }
   return true;
 }
@@ -414,7 +415,12 @@ function evalConditionForContinuous(
       });
     }
     case 'TRASH_HAS_CARD': {
-      return st(cond.owner).trash.some(n => matchesFilter(cardMap.get(n), cond.filter));
+      const stripCC = oppTrashColorLoss && cond.owner === 'self';
+      return st(cond.owner).trash.some(n => {
+        const c = cardMap.get(n);
+        if (!c) return false;
+        return matchesFilter(stripCC ? { ...c, Color: '', CardClass: '' } : c, cond.filter);
+      });
     }
     case 'LRIG_LEVEL': {
       const lrig = st(cond.owner).field.lrig;
@@ -656,6 +662,8 @@ export function calcFieldPowers(
   const applyEffects = (ownerState: PlayerState, otherState: PlayerState, isOwnerTurn: boolean) => {
     // NEGATE_ALL_OPP_EFFECTS: all_cont_effects_negated フラグがあれば全CONT効果をスキップ
     if (ownerState.all_cont_effects_negated) return;
+    // OPP_TRASH_LOSE_COLOR_AND_CLASS: 相手が自ターン中にこの効果を持つ場合、ownerState のトラッシュが色/クラスを失う
+    const oppTrashColorLoss = collectOppTrashLoseColorClass(otherState, ownerState, effectsMap, cardMap, !isOwnerTurn);
 
     // PREVENT_POWER_MINUS_BY_OPP / PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化するシグニ
     const otherPowerProtected = new Set<string>();
@@ -794,7 +802,7 @@ export function calcFieldPowers(
 
       for (const effect of effects) {
         if (effect.effectType !== 'CONTINUOUS') continue;
-        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum, powers)) continue;
+        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum, powers, oppTrashColorLoss)) continue;
         // クロスのみ有効な効果: このシグニのゾーンがクロス状態でなければスキップ
         if (effect.crossOnly) {
           const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum || s?.includes(topNum));
@@ -959,18 +967,25 @@ export function calcFieldPowers(
         // POWER_MODIFY_PER_TRASH_COUNT: トラッシュ枚数に比例したパワー増減（常時）
         const perTrashMods = extractPowerModifiesPerTrashCount(effect.action);
         for (const mod of perTrashMods) {
-          const countTrash = (st: PlayerState) => {
+          const countTrash = (st: PlayerState, stripCC: boolean) => {
             const cards = st.trash;
+            const getCard = (n: string) => {
+              const c = cardMap.get(n);
+              return (c && stripCC) ? { ...c, Color: '', CardClass: '' } : c;
+            };
             if (mod.countByVariety) {
-              const names = new Set(cards.map(n => cardMap.get(n)?.CardClass ?? n)
-                .filter((_, i) => !mod.countFilter || matchesFilter(cardMap.get(cards[i]), mod.countFilter)));
+              const names = new Set(cards.map(n => getCard(n)?.CardClass ?? n)
+                .filter((_, i) => !mod.countFilter || matchesFilter(getCard(cards[i]), mod.countFilter)));
               return names.size;
             }
-            return cards.filter(n => !mod.countFilter || matchesFilter(cardMap.get(n), mod.countFilter)).length;
+            return cards.filter(n => !mod.countFilter || matchesFilter(getCard(n), mod.countFilter)).length;
           };
           const count = mod.trashOwner === 'both'
-            ? countTrash(ownerState) + countTrash(otherState)
-            : countTrash(mod.trashOwner === 'self' ? ownerState : otherState);
+            ? countTrash(ownerState, oppTrashColorLoss) + countTrash(otherState, false)
+            : countTrash(
+                mod.trashOwner === 'self' ? ownerState : otherState,
+                mod.trashOwner === 'self' ? oppTrashColorLoss : false,
+              );
           const delta = Math.floor(count / mod.unitSize) * mod.deltaPerUnit;
           if (delta !== 0 && powers.has(topNum)) {
             powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
@@ -1730,6 +1745,7 @@ export function collectDrawLimits(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
   isMyTurn: boolean,
+  myState?: PlayerState,
 ): number | undefined {
   // opponentState のフィールドシグニ・ルリグを走査してCONT LIMIT_OPP_DRAW_COUNT を検出
   const candidates: string[] = [
@@ -1744,7 +1760,7 @@ export function collectDrawLimits(
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || (act.id !== 'LIMIT_OPP_DRAW_COUNT' && act.id !== 'OPP_DRAW_LIMIT_PER_TURN')) continue;
       // activeCondition チェック (レベル≥3 等)
-      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, opponentState, opponentState, isMyTurn, cardMap, cn)) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, opponentState, myState ?? opponentState, isMyTurn, cardMap, cn)) continue;
       // 引けるカード上限をテキストから解析
       const txt = (cardMap.get(cn)?.EffectText ?? '') + ' ' + (cardMap.get(cn)?.BurstText ?? '');
       const m = txt.match(/合計([０-９\d]+)枚まで/);
@@ -3896,6 +3912,7 @@ export function collectResonanceExtraAttackPhaseCondition(
  */
 export function collectOppTrashLoseColorClass(
   ownerState: PlayerState,
+  otherState: PlayerState,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
   isOwnerTurn: boolean,
@@ -3906,7 +3923,7 @@ export function collectOppTrashLoseColorClass(
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(eff.activeCondition, ownerState, ownerState, isOwnerTurn, cardMap, top)) continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top)) continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type === 'STUB' && act.id === 'OPP_TRASH_LOSE_COLOR_AND_CLASS') return true;
     }
