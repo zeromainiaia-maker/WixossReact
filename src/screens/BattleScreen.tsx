@@ -5453,7 +5453,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         if (mut.type === 'BANISH') {
           const removed = removeFromField(num, targetState);
-          const withBanished: import('../types').PlayerState = { ...removed, energy: [...removed.energy, num] };
+          // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナの代わりにデッキの一番下へ
+          const withBanished: import('../types').PlayerState = removed.opp_signi_energy_to_deck_bottom === true
+            ? { ...removed, deck: [...removed.deck, num] }
+            : { ...removed, energy: [...removed.energy, num] };
           if (mut.targetIsHost) hostState = withBanished; else guestState = withBanished;
           appendBattleLogs([`${cardName}をバニッシュ（常時効果）`]);
           const ownerId = mut.targetIsHost ? bs.host_id : bs.guest_id;
