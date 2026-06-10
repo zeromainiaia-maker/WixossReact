@@ -3969,8 +3969,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (growEffectLog) logs.push(growEffectLog);
       // game_grow_draw: グロウ時ドロー（GAIN_ABILITY_THIS_GAME）
       if (newMyState.game_grow_draw && newMyState.deck.length > 0) {
-        const drawCard = newMyState.deck[newMyState.deck.length - 1];
-        newMyState = { ...newMyState, deck: newMyState.deck.slice(0, -1), hand: [...newMyState.hand, drawCard] };
+        const drawCard = newMyState.deck[0];
+        newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
         logs.push('グロウ時ドロー（このゲーム）');
       }
       appendBattleLogs(logs);
