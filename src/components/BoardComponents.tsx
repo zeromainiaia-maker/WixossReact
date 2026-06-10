@@ -537,7 +537,7 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
               pointerEvents: 'none',
               fontSize: 13,
               fontWeight: 'bold',
-              color: isBuffed ? (effPow! > parseInt(basePow, 10) ? '#0066ff' : '#ff2200') : '#000000',
+              color: isBuffed ? (effPow! > baseNum ? '#0066ff' : '#ff2200') : '#000000',
               lineHeight: 1,
               textShadow: [
                 '-1px -1px 0 #fff', '1px -1px 0 #fff',
