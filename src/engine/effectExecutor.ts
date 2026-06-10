@@ -2234,6 +2234,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
       return done(addLog({ ...ctx, ownerState: newOwner }, `${pnd.count ?? 1}`));
     }
+    case 'ENERGY_CHARGE_BY_FIELD_COUNT':   return execEnergyChargeByFieldCount(action as import('../types/effects').EnergyChargeByFieldCountAction, ctx);
+    case 'POWER_MODIFY_BY_TARGET_LEVEL':   return execPowerModifyByTargetLevel(action as PowerModifyByTargetLevelAction, ctx);
+    case 'POWER_MODIFY_PER_TRASHED_LEVEL': return execPowerModifyPerTrashedLevel(action as import('../types/effects').PowerModifyPerTrashedLevelAction, ctx);
+    case 'POWER_MODIFY_PER_CHARM':         return execPowerModifyPerCharm(action as import('../types/effects').PowerModifyPerCharmAction, ctx);
     case 'GAIN_BOND':               return execGainBond(action as import('../types/effects').GainBondAction, ctx);
     case 'MILL':                    return execMill(action as MILLAction, ctx);
     case 'STUB': return execStub(action as StubAction, ctx, executeAction);
