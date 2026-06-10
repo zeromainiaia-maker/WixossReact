@@ -687,6 +687,24 @@ export function calcFieldPowers(
       if (blockOwnerPosDelta) break;
     }
 
+    // POWER_FLIP: otherState のシグニが POWER_FLIP CONT を持ち、ownerState（対戦相手）の自己バフを反転
+    // 「対戦相手のシグニのパワーが対戦相手の効果によって＋される場合、代わりに－される」
+    let flipOwnerPosDelta = false;
+    for (const stack of otherState.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      for (const eff of (effectsMap.get(top) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, top)) continue;
+        if (eff.action.type !== 'POWER_FLIP') continue;
+        const flipAct = eff.action as PowerFlipAction;
+        if (flipAct.target.owner === 'opponent' || flipAct.target.owner === 'any') {
+          flipOwnerPosDelta = true;
+        }
+      }
+      if (flipOwnerPosDelta) break;
+    }
+
     // DOUBLE_POWER_MINUS: 自分のフィールドにこの効果があれば相手シグニへの負デルタを2倍にする
     const hasDoublePowerMinus = ownerState.field.signi.some(stack => {
       const top = stack?.at(-1);
