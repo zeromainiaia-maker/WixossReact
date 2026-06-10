@@ -12,7 +12,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract,
+  removeFromField, fieldCandidates, selectOrInteract, splitColors,
 } from './execUtils';
 
 export function execStubPart2(
