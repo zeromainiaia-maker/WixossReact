@@ -1740,13 +1740,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
     // この方法でトラッシュに置いたチャーム枚数×N
     const perTrashedCharmM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーをこの方法でトラッシュに置いた【チャーム】([０-９\d]+)枚につき([＋－])([０-９\d]+)/);
     if (perTrashedCharmM) {
-      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const targetOwner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
       const sign = perTrashedCharmM[3] === '＋' ? 1 : -1;
       return {
         type: 'POWER_MODIFY_PER_CHARM',
-        target: { type: 'SIGNI', owner, count: parseNum(perTrashedCharmM[1]) },
+        target: { type: 'SIGNI', owner: targetOwner, count: parseNum(perTrashedCharmM[1]) },
         deltaPerCharm: sign * parseNum(perTrashedCharmM[4]),
-        sourceOwner: owner,
+        sourceOwner: 'self',  // trashed_this_effect は常に自分のチャームをコストとしてトラッシュ
         sourceLocation: 'trashed_this_effect',
         until: 'UNTIL_END_OF_TURN',
       } as PowerModifyPerCharmAction;
