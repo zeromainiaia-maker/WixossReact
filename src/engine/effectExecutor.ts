@@ -2161,7 +2161,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'BLOCK_CARD_USE': {
       const bcu = action as import('../types/effects').BlockCardUseAction;
       const newOwner = { ...ctx.ownerState, blocked_card_names: [...(ctx.ownerState.blocked_card_names ?? []), bcu.cardName] };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `{bcu.cardName}`));
+      return done(addLog({ ...ctx, ownerState: newOwner }, `${bcu.cardName}`));
     }
     case 'PREVENT_NEXT_DAMAGE': {
       const pnd = action as import('../types/effects').PreventNextDamageAction;
