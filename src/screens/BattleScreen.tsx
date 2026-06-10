@@ -8521,7 +8521,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
               return (
                 <p style={{ color: C.textDim, fontSize: 12, margin: '0 0 14px' }}>
-                  Lv.{signiLevel}　リミット: {fieldSigniTotal}/{lrigLimit}
+                  Lv.{signiLevel}　リミット: {fieldSigniTotal}/{lrigLimit === Infinity ? '∞' : lrigLimit}
                 </p>
               );
             })()}
