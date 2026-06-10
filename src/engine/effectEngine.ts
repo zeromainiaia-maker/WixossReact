@@ -246,7 +246,8 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     if (filter.levelRange.max !== undefined && lv > filter.levelRange.max) return false;
   }
   if (filter.hasGuard !== undefined) {
-    const hasGuard = (cardData.Guard ?? '') !== '';
+    // Guard列は '1'/'0' 形式（空文字判定だと全カードがガード持ち扱いになる）
+    const hasGuard = cardData.Guard === '1';
     if (filter.hasGuard !== hasGuard) return false;
   }
   if (filter.story) {

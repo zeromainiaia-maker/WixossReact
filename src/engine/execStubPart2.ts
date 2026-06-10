@@ -1495,7 +1495,8 @@ export function execStubPart2(
   if (stub.id === 'NON_GUARD_DISCARD_TO_ENERGY') {
     const lastDiscardedNGDE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1) ?? '';
     if (!lastDiscardedNGDE) return done(addLog(ctx, 'カードなし（NON_GUARD_DISCARD_TO_ENERGY）'));
-    const isGuardNGDE = (ctx.cardMap.get(lastDiscardedNGDE)?.Guard ?? '') !== '';
+    // Guard列は '1'/'0' 形式（空文字判定だと全カードがガード持ち扱いになる）
+    const isGuardNGDE = ctx.cardMap.get(lastDiscardedNGDE)?.Guard === '1';
     if (!isGuardNGDE) {
       // トラッシュからエナへ移動
       const ti = ctx.ownerState.trash.indexOf(lastDiscardedNGDE);

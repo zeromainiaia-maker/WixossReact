@@ -2323,12 +2323,9 @@ export function execStubPart1(
   if (stub.id === 'DECLARE_CLASS') {
     // stub.valueに宣言クラスが入っている場合→保存して完了
     if (typeof stub.value === 'string') {
-      const newOwnerDCLS: PlayerState = {
-        ...ctx.ownerState,
-        declared_class: stub.value,
-        lastProcessedCards: [...(ctx.lastProcessedCards ?? []), stub.value],
-      };
-      return done(addLog({ ...ctx, ownerState: newOwnerDCLS, lastProcessedCards: newOwnerDCLS.lastProcessedCards! },
+      // lastProcessedCards は ExecCtx のフィールド（PlayerState に入れるとDB保存される状態を汚染する）
+      const newOwnerDCLS: PlayerState = { ...ctx.ownerState, declared_class: stub.value };
+      return done(addLog({ ...ctx, ownerState: newOwnerDCLS, lastProcessedCards: [...(ctx.lastProcessedCards ?? []), stub.value] },
         `クラス「${stub.value}」を宣言`));
     }
     // クラス一覧を自トラッシュ・手札・相手フィールドから動的収集
@@ -2370,7 +2367,8 @@ export function execStubPart1(
       const c = ctx.cardMap.get(cn);
       if (!c || c.Type !== 'シグニ') return false;
       if (!c.CardClass?.includes(cls)) return false;
-      if (c.GuardIcon && c.GuardIcon !== '-' && c.GuardIcon !== '') return false;
+      // Guard列は '1'/'0' 形式（GuardIconというフィールドは存在せず、ガード除外が無効だった）
+      if (c.Guard === '1') return false;
       return (parseInt(c.Level ?? '-1') || -1) === lv;
     };
     const retrieved: string[] = [];

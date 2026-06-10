@@ -3010,7 +3010,8 @@ export function execStubPart3(
     const cnNGDTE = ctx.lastProcessedCards?.[0];
     if (!cnNGDTE) return done(addLog(ctx, '対象なし'));
     const cardNGDTE = ctx.cardMap.get(cnNGDTE);
-    const hasGuardNGDTE = cardNGDTE?.Guard === '○' || (cardNGDTE?.EffectText ?? '').includes('【ガード】');
+    // Guard列は '1'/'0' 形式（'○'判定は常にfalseだった）
+    const hasGuardNGDTE = cardNGDTE?.Guard === '1' || (cardNGDTE?.EffectText ?? '').includes('【ガード】');
     if (hasGuardNGDTE) return done(addLog(ctx, 'ガードカードなのでエナ移動なし'));
     const newSNGDTE: PlayerState = {
       ...ctx.ownerState,
