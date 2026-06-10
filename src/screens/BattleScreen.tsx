@@ -4970,11 +4970,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
               (eff.action as import('../types/effects').StubAction).id === 'BANISH_TO_LRIG_TRASH_INSTEAD',
             );
-          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash;
+          // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナゾーンに置かれる代わりにデッキの一番下へ
+          const energyToDeckBottom = !redirectBanish && !redirectBanishToHand && !frozenToDeckBottom && !frozenToTrash && !banishBySelftToTrash && !banishToLrigTrash &&
+            (op.opp_signi_energy_to_deck_bottom === true);
+          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || energyToDeckBottom;
           newOpState = {
             ...op,
             hand: redirectBanishToHand ? [...op.hand, ...opStack] : op.hand,
-            deck: frozenToDeckBottom ? [...op.deck, ...opStack] : op.deck,
+            deck: (frozenToDeckBottom || energyToDeckBottom) ? [...op.deck, ...opStack] : op.deck,
             energy: anyRedirect ? op.energy : [...op.energy, ...opStack],
             lrig_trash: banishToLrigTrash ? [...op.lrig_trash, ...opStack] : op.lrig_trash,
             trash: (redirectBanish || frozenToTrash || banishBySelftToTrash)
