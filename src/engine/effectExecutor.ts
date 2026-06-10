@@ -1846,7 +1846,21 @@ function execPowerModifyPerTrashedLevel(a: import('../types/effects').PowerModif
 
 function execPowerModifyPerCharm(a: import('../types/effects').PowerModifyPerCharmAction, ctx: ExecCtx): ExecResult {
   if (a.sourceLocation === 'trashed_this_effect') {
-    return done(addLog(ctx, `[STUB_LOG] POWER_MODIFY_PER_CHARM trashed_this_effect 未実装`));
+    // コスト：自分の場のチャームを好きな数（実装: 全て）トラッシュに置く
+    // sourceOwner は本来 'self' だが parser バグで 'opponent' になる場合があるため、常に自分のチャームを使用
+    const ownCharms = (ctx.ownerState.field.signi_charms ?? []).filter(c => c !== null) as string[];
+    if (ownCharms.length === 0) return done(ctx);
+    const newCharmSlots = (ctx.ownerState.field.signi_charms ?? [null, null, null]).map(() => null);
+    const newOwner: PlayerState = {
+      ...ctx.ownerState,
+      trash: [...ctx.ownerState.trash, ...ownCharms],
+      field: { ...ctx.ownerState.field, signi_charms: newCharmSlots },
+    };
+    const charmCount = ownCharms.length;
+    const delta = a.deltaPerCharm * charmCount;
+    const newCtx = addLog({ ...ctx, ownerState: newOwner }, `チャーム${charmCount}枚をトラッシュ`);
+    const modAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+    return executeAction(modAction, newCtx);
   }
   const countCharms = (state: PlayerState) => (state.field.signi_charms ?? []).filter(c => c !== null).length;
   const charmCount = a.sourceOwner === 'self' ? countCharms(ctx.ownerState)
