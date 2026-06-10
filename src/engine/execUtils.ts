@@ -67,6 +67,12 @@ export function resolveNum(n: NumberOrRef): number {
   return typeof n === 'number' ? n : 0;
 }
 
+// Color列は「黒青」のような連結形式（'/'区切りではない）。単色文字に分解する（「無」は色を持たないため含まない）
+export function splitColors(col: string | undefined): string[] {
+  if (!col) return [];
+  return [...col].filter(c => '白赤青緑黒'.includes(c));
+}
+
 export function ownerState(owner: Owner, ctx: ExecCtx): PlayerState {
   return owner === 'self' ? ctx.ownerState : ctx.otherState;
 }
