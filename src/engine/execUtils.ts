@@ -87,7 +87,7 @@ export function canPayOptionalCost(costColors: string[], state: PlayerState, car
       if (pool.length === 0) return false;
       pool.splice(0, 1);
     } else {
-      const idx = pool.findIndex(n => cardMap.get(n)?.Color === color);
+      const idx = pool.findIndex(n => cardMap.get(n)?.Color?.includes(color));
       if (idx === -1) return false;
       pool.splice(idx, 1);
     }
