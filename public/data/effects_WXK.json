@@ -41577,7 +41577,12 @@
                 {
                   "type": "TRANSFER_TO_DECK",
                   "destination": "lrigDeck",
-                  "shuffle": false
+                  "shuffle": false,
+                  "source": {
+                    "type": "LRIG",
+                    "owner": "self",
+                    "count": 1
+                  }
                 }
               ]
             }

@@ -22935,7 +22935,8 @@
               "afterSearch": {
                 "type": "SHUFFLE_DECK",
                 "owner": "self"
-              }
+              },
+              "filter": {}
             }
           }
         ]
@@ -37989,7 +37990,8 @@
         "afterSearch": {
           "type": "SHUFFLE_DECK",
           "owner": "self"
-        }
+        },
+        "filter": {}
       },
       "duration": "INSTANT",
       "mandatory": false,
