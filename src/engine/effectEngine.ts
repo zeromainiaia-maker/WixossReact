@@ -24,6 +24,7 @@ import type {
   BanishAction,
   FreezeAction,
   DownAction,
+  PowerFlipAction,
 } from '../types/effects';
 
 // ===== activeCondition 判定 =====
