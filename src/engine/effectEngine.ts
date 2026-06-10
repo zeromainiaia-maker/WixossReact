@@ -235,6 +235,15 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     if (filter.powerRange.min !== undefined && pw < filter.powerRange.min) return false;
     if (filter.powerRange.max !== undefined && pw > filter.powerRange.max) return false;
   }
+  if (filter.levelRange) {
+    const lv = parseInt(cardData.Level ?? '', 10);
+    if (filter.levelRange.min !== undefined && lv < filter.levelRange.min) return false;
+    if (filter.levelRange.max !== undefined && lv > filter.levelRange.max) return false;
+  }
+  if (filter.hasGuard !== undefined) {
+    const hasGuard = (cardData.Guard ?? '') !== '';
+    if (filter.hasGuard !== hasGuard) return false;
+  }
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
     if (!stories.some(s => cardData.CardClass?.includes(s))) return false;
