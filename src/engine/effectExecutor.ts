@@ -1626,7 +1626,7 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
       return [...cards, ...(stack ?? [])];
     }) as (string[] | null)[];
     const newOwner = { ...ctx.ownerState, deck: newDeck, field: { ...ctx.ownerState.field, signi: newSigni } };
-    return done(addLog({ ...ctx, ownerState: newOwner }, `{count}`));
+    return done(addLog({ ...ctx, ownerState: newOwner }, `${count}`));
   }
 
   // trash/hand/energy: SELECT_TARGET 
