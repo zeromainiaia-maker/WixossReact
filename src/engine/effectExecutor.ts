@@ -388,13 +388,25 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   for (let i = 0; i < count && life.length > 0; i++) {
     crashed.push(life.pop()!);
   }
-  // check
-  const checkCard = crashed[0] ?? null;
-  const newS: PlayerState = {
-    ...state,
-    life_cloth: life,
-    field: { ...state.field, check: checkCard },
-  };
+  let newS: PlayerState;
+  if (a.triggerBurst) {
+    // バースト発動あり: 先頭1枚をチェックゾーンへ、残りはpending
+    const checkCard = crashed[0] ?? null;
+    const pending = crashed.slice(1);
+    newS = {
+      ...state,
+      life_cloth: life,
+      field: { ...state.field, check: checkCard },
+      pending_crashed_cards: pending.length > 0 ? [...(state.pending_crashed_cards ?? []), ...pending] : state.pending_crashed_cards,
+    };
+  } else {
+    // バースト発動なし: クラッシュしたカードはそのままトラッシュへ
+    newS = {
+      ...state,
+      life_cloth: life,
+      trash: [...state.trash, ...crashed],
+    };
+  }
   return done(addLog(setOwnerState(a.owner, newS, ctx), `ライフクロスを${count}枚クラッシュ`));
 }
 
