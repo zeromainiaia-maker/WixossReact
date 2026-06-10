@@ -5460,7 +5460,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     setLoading(true);
     try {
-      let newStack = bs.effect_stack as import('../types/battleState').EffectStack | null;
+      let newStack = bs.effect_stack as import('../types').EffectStack | null;
       if (allTriggers.length > 0) {
         newStack = initStack(bs.active_user_id!, allTriggers);
       }
