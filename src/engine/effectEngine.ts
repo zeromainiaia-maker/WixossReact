@@ -10,6 +10,7 @@ import type {
   PowerModifyPerTrashCountAction,
   PowerModifyPerLifeCountAction,
   PowerModifyPerVirusCountAction,
+  PowerModifyPerCharmAction,
   PowerSetAction,
   CostIncreaseAction,
   BlockActionAction,
