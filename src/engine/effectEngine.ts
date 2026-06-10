@@ -250,6 +250,12 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
     if (!stories.some(s => cardData.CardClass?.includes(s))) return false;
   }
+  if (filter.excludeCardName && cardData.CardName === filter.excludeCardName) return false;
+  if (filter.levelParity !== undefined) {
+    const lv = parseInt(cardData.Level ?? '', 10);
+    if (filter.levelParity === 'even' && lv % 2 !== 0) return false;
+    if (filter.levelParity === 'odd'  && lv % 2 !== 1) return false;
+  }
   return true;
 }
 
