@@ -2502,7 +2502,13 @@ export function resumeSelectZone(
 ): ExecResult {
   const state = ownerState(pending.owner, ctx);
   const signi = [...state.field.signi] as (string[] | null)[];
-  if (signi[zoneIndex] && (signi[zoneIndex]?.length ?? 0) > 0) return done(ctx); // 
+  if (signi[zoneIndex] && (signi[zoneIndex]?.length ?? 0) > 0) {
+    // 選択ゾーンが埋まっている: cardNumはexecAddToFieldで既にデッキから除去済みのため、
+    // そのまま終了するとカードが消失する → デッキトップに戻す
+    const restored: PlayerState = { ...state, deck: [pending.cardNum, ...state.deck] };
+    return done(addLog(setOwnerState(pending.owner, restored, ctx),
+      `ゾーンが埋まっているため${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}をデッキに戻す`));
+  }
   signi[zoneIndex] = [pending.cardNum];
   const newS: PlayerState = { ...state, field: { ...state.field, signi } };
   const cur = addLog(setOwnerState(pending.owner, newS, ctx),
