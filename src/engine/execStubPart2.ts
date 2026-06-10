@@ -1986,7 +1986,8 @@ export function execStubPart2(
     const centerNumPCLTC = ctx.ownerState.field.lrig.at(-1);
     const centerCardPCLTC = centerNumPCLTC ? ctx.cardMap.get(centerNumPCLTC) : undefined;
     // ルリグタイプは CardClass 列（「タマ/イオナ」のような'/'区切り）。Team列はチーム名でありタイプではない
-    const typesCountPCLTC = centerCardPCLTC ? (centerCardPCLTC.CardClass ?? '').split('/').filter(s => s && s !== '-').length : 0;
+    // （effectEngine.ts の CONTINUOUS 版 POWER_BY_CENTER_LRIG_TYPE_COUNT と同一ロジック）
+    const typesCountPCLTC = centerCardPCLTC ? (centerCardPCLTC.CardClass ?? '').split(/[/／]/).filter(s => s && s !== '-').length : 0;
     const totalDeltaPCLTC = singleDeltaPCLTC * typesCountPCLTC;
     if (totalDeltaPCLTC === 0) return done(addLog(ctx, 'タイプなし（POWER_BY_CENTER_LRIG_TYPE_COUNT）'));
     // 自分のシグニに適用
