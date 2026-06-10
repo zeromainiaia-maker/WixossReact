@@ -2500,8 +2500,7 @@ export function execStubPart2(
     // 自分のエナゾーンの色の種類（"無色"以外）
     const colorsInEna = new Set<string>();
     for (const cn of ctx.ownerState.energy) {
-      const col = ctx.cardMap.get(cn)?.Color ?? '';
-      col.split('/').forEach(c => { if (c && c !== '無色') colorsInEna.add(c); });
+      for (const c of splitColors(ctx.cardMap.get(cn)?.Color)) colorsInEna.add(c);
     }
     const colorCountPMBCV = colorsInEna.size;
     const totalDeltaPMBCV = singleDeltaPMBCV * colorCountPMBCV;
