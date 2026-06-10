@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
 import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
@@ -1202,21 +1200,16 @@ export function execStubPart1(
     const othDraw = Math.min(drawN, newOther.deck.length);
     newOther = { ...newOther, hand: [...newOther.hand, ...newOther.deck.slice(0, othDraw)], deck: newOther.deck.slice(othDraw) };
     const ctxDrawnEPDD0 = addLog({ ...ctx, ownerState: newOwner, otherState: newOther }, `両者${drawN}枚ドロー`);
-    // 自分の捨て（インタラクション）→ continuation で相手の捨て（opponentResponds）
+    // 自分の捨て（インタラクション）→ continuation で相手の捨て
+    // （TRASH owner:'opponent' は execTrash が opponentResponds 付きインタラクションに変換する。
+    //   以前は PendingInteractionDef を EffectAction として渡しており、executeAction の default で
+    //   無言スキップされ相手の捨てが発生しなかった）
     if (newOwner.hand.length === 0) return done(ctxDrawnEPDD0);
-    const oppDiscardEPDD0: PendingInteractionDef = {
-      type: 'SELECT_TARGET',
-      candidates: newOther.hand,
-      count: 1,
-      optional: false,
-      targetScope: 'opp_hand',
-      thenAction: ({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction) as EffectAction,
-      opponentResponds: true,
-    };
+    const oppDiscardEPDD0: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
     return selectOrInteract(
       newOwner.hand, 1, false, 'self_hand',
       ({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } as TrashAction) as EffectAction,
-      newOther.hand.length > 0 ? oppDiscardEPDD0 as EffectAction : undefined,
+      newOther.hand.length > 0 ? (oppDiscardEPDD0 as EffectAction) : undefined,
       ctxDrawnEPDD0,
     );
   }
@@ -2748,7 +2741,7 @@ export function execStubPart1(
         const newS: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visible.length) };
         return needsInteraction(
           addLog({ ...ctx, ownerState: newS }, `デッキ上${visible.length}枚を確認`),
-          { type: 'LOOK_AND_REORDER', cards: visible, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top' },
+          { type: 'LOOK_AND_REORDER', cards: visible, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top', private: true },
         );
       }
     }

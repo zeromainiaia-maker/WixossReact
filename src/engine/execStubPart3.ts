@@ -1,6 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
-import type { PlayerState, TargetScope } from '../types';
+import type { PlayerState, TargetScope, Owner } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction,
@@ -13,11 +11,16 @@ import type {
   DownAction,
   SequenceAction,
   AddToHandAction,
+  TransferToDeckAction,
+  TransferToHandAction,
+  PowerModifyAction,
+  AttachAcceAction,
 } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination,
+  getCardNum,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 
@@ -3409,13 +3412,16 @@ export function execStubPart3(
     const sLDB = ctx.ownerState;
     if (sLDB.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
     const bottomLDB = sLDB.deck.at(-1)!;
-    return needsInteraction(ctx, {
+    // resumeLookAndReorder がカードをデッキに戻すため、先にデッキから取り除く（戻さないと複製される）
+    const newSLDB: PlayerState = { ...sLDB, deck: sLDB.deck.slice(0, -1) };
+    return needsInteraction({ ...ctx, ownerState: newSLDB }, {
       type: 'LOOK_AND_REORDER',
       cards: [bottomLDB],
       canTrash: false,
       destLocation: 'deck',
       destOwner: 'self',
       destPosition: 'bottom',
+      private: true,
     });
   }
   // LOOK_TOP_BOTTOM: デッキ上1枚とデッキ下1枚を確認
@@ -3425,13 +3431,18 @@ export function execStubPart3(
     const topLTB = sLTB.deck[0];
     const bottomLTB = sLTB.deck.at(-1)!;
     const cardsLTB = sLTB.deck.length === 1 ? [topLTB] : [topLTB, bottomLTB];
-    return needsInteraction(ctx, {
+    // resumeLookAndReorder がカードをデッキに戻すため、先にデッキから取り除く（戻さないと複製される）
+    const newDeckLTB = sLTB.deck.length === 1 ? [] : sLTB.deck.slice(1, -1);
+    const newSLTB: PlayerState = { ...sLTB, deck: newDeckLTB };
+    return needsInteraction({ ...ctx, ownerState: newSLTB }, {
       type: 'LOOK_AND_REORDER',
       cards: cardsLTB,
       canTrash: false,
       destLocation: 'deck',
       destOwner: 'self',
-      destPosition: 'any',
+      // 1枚目(デッキ上のカード)→トップ、2枚目(デッキ下のカード)→ボトムに戻す
+      destPosition: 'first_top_rest_bottom',
+      private: true,
     });
   }
   // LOOK_TOP_OPP_CHOOSE_TRASH: デッキ上N枚を公開し相手が1枚選んでトラッシュ

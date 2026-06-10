@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
 import type { EffectAction, StubAction } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import { done, addLog } from './execUtils';

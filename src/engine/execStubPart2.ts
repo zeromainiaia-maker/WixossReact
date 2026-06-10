@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
 import type { PlayerState, TargetScope } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
@@ -8,11 +6,17 @@ import type {
   TrashAction,
   AddToFieldAction,
   SequenceAction,
+  PlaceUnderSourceSigniAction,
+  AddToEnergyAction,
+  TransferToHandAction,
+  EnergyChargeAction,
+  ChooseAction,
 } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination,
+  getCardNum,
 } from './execUtils';
 
 export function execStubPart2(
@@ -1673,7 +1677,7 @@ export function execStubPart2(
     const newSLTN: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visLTN.length) };
     return needsInteraction(
       addLog({ ...ctx, ownerState: newSLTN }, `デッキ上${visLTN.length}枚を確認`),
-      { type: 'LOOK_AND_REORDER', cards: visLTN, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top' },
+      { type: 'LOOK_AND_REORDER', cards: visLTN, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top', private: true },
     );
   }
   // LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を確認し1枚をトップ・残りをデッキ下に
@@ -1688,7 +1692,7 @@ export function execStubPart2(
     const newSLTORB: PlayerState = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(visLTORB.length) };
     return needsInteraction(
       addLog({ ...ctx, ownerState: newSLTORB }, `デッキ上${visLTORB.length}枚を確認（1枚をトップへ・残りはデッキ下へ）`),
-      { type: 'LOOK_AND_REORDER', cards: visLTORB, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'first_top_rest_bottom' },
+      { type: 'LOOK_AND_REORDER', cards: visLTORB, canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'first_top_rest_bottom', private: true },
     );
   }
   // LOOK_TOP_SPELLS_TO_HAND: デッキ上N枚を確認してスペルを手札へ・残りをデッキへ
