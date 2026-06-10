@@ -84,7 +84,9 @@ export function addLog(ctx: ExecCtx, msg: string): ExecCtx {
 // 任意コストが支払えるかチェック（色の一致を検証）
 export function canPayOptionalCost(costColors: string[], state: PlayerState, cardMap: Map<string, CardData>): boolean {
   const pool = [...state.energy];
-  for (const color of costColors) {
+  // 無色は任意のエナで支払えるため、色指定コストを先に消費してから無色を割り当てる
+  const ordered = [...costColors].sort((a, b) => (a === '無' ? 1 : 0) - (b === '無' ? 1 : 0));
+  for (const color of ordered) {
     if (color === '無') {
       if (pool.length === 0) return false;
       pool.splice(0, 1);
