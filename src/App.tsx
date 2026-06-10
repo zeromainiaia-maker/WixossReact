@@ -10,7 +10,6 @@ import DeckListScreen from './screens/DeckListScreen';
 import DeckEditorScreen from './screens/DeckEditorScreen';
 import MatchmakingScreen from './screens/MatchmakingScreen';
 import BattleScreen from './screens/BattleScreen';
-import CpuBattleScreen from './screens/CpuBattleScreen';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -25,8 +24,7 @@ export default function App() {
   const [battleRoomId, setBattleRoomId] = useState<string | null>(null);
   const [battleDeckId, setBattleDeckId] = useState<string | null>(null);
   const [battleOppArtOverrides, setBattleOppArtOverrides] = useState<Record<string, string>>({});
-  const [cpuBattleDeckId, setCpuBattleDeckId] = useState<string | null>(null);
-  const [cpuBattleMode, setCpuBattleMode] = useState(false);
+
 
   // 認証状態の監視 + 対戦ルームへの再入場
   useEffect(() => {
@@ -221,14 +219,6 @@ export default function App() {
     return applyArtOverrides(allCards, merged);
   }, [allCards, battleDeckId, decks, battleOppArtOverrides, variantCardMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // CPU対戦用カード配列（自分 + CPU 両デッキの artOverrides を適用）
-  const cpuBattleCards = useMemo(() => {
-    const myDeck = decks.find(d => d.id === cpuBattleDeckId);
-    const cpuDeck = decks.find(d => d.id !== cpuBattleDeckId);
-    const merged = { ...(cpuDeck?.artOverrides ?? {}), ...(myDeck?.artOverrides ?? {}) };
-    return applyArtOverrides(allCards, merged);
-  }, [allCards, cpuBattleDeckId, decks, variantCardMap]); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (loading) return null;
 
   return (
@@ -239,11 +229,10 @@ export default function App() {
         <DeckListScreen
           decks={decks}
           cards={cards}
-          onCreateDeck={cpuBattleMode ? undefined : handleCreateDeck}
-          onEditDeck={cpuBattleMode ? undefined : (id => { setSelectedDeckId(id); setViewMode('DECK_EDITOR'); })}
-          onCpuSelect={cpuBattleMode ? (id => { setCpuBattleDeckId(id); setCpuBattleMode(false); setViewMode('CPU_BATTLE'); }) : undefined}
-          onReorderDecks={cpuBattleMode ? undefined : handleReorderDecks}
-          onBack={() => { setCpuBattleMode(false); setViewMode('START'); }}
+          onCreateDeck={handleCreateDeck}
+          onEditDeck={id => { setSelectedDeckId(id); setViewMode('DECK_EDITOR'); }}
+          onReorderDecks={handleReorderDecks}
+          onBack={() => setViewMode('START')}
         />
       )}
       {viewMode === 'DECK_EDITOR' && currentDeck && (
@@ -273,15 +262,6 @@ export default function App() {
           myDeckId={battleDeckId}
           cards={battleCards}
           onBack={() => { setBattleRoomId(null); setBattleDeckId(null); setViewMode('START'); }}
-        />
-      )}
-      {viewMode === 'CPU_BATTLE' && user && cpuBattleDeckId && (
-        <CpuBattleScreen
-          user={user}
-          myDeckId={cpuBattleDeckId}
-          decks={decks}
-          cards={cpuBattleCards}
-          onBack={() => { setCpuBattleDeckId(null); setViewMode('START'); }}
         />
       )}
     </>

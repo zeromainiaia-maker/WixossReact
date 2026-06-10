@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -2444,7 +2444,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // アップフェイズ開始時にすでにアップ済み（ENDフェイズで処理）。ドローして次へ。
         const drawBlocked = my.blocked_actions?.includes('DRAW') ?? false;
         // draw_limit: ターン内フラグ or 相手CONT LIMIT_OPP_DRAW_COUNT 効果の小さい方
-        const contDrawLimit = collectDrawLimits(op, effectsMap, battleCardMap, true);
+        const contDrawLimit = collectDrawLimits(op, effectsMap, battleCardMap, true, my);
         const effectiveDrawLimit = contDrawLimit !== undefined
           ? (my.draw_limit !== undefined ? Math.min(my.draw_limit, contDrawLimit) : contDrawLimit)
           : my.draw_limit;
@@ -2561,7 +2561,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const newSigniDownFA = [...(myFieldAfterCoinCheck.signi_down ?? [false, false, false])] as [boolean, boolean, boolean];
           const unflipped: string[] = [];
           for (const zi of my.flip_attack_signi_zones!) {
-            if (!(my.field.signi[zi]?.length)) { // ゾーンが空なら表向きに戻す
+            if (my.field.signi[zi]?.length) { // ゾーンにシグニが残っていれば表向きに戻す
               newSigniDownFA[zi] = false;
               const topName = battleCardMap.get(my.field.signi[zi]?.at(-1) ?? '')?.CardName;
               if (topName) unflipped.push(topName);
@@ -2800,7 +2800,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const newSigniDownFA = [...(myFieldAfterCoinCheck.signi_down ?? [false, false, false])] as [boolean, boolean, boolean];
         const unflipped: string[] = [];
         for (const zi of my.flip_attack_signi_zones!) {
-          if (!(my.field.signi[zi]?.length)) {
+          if (my.field.signi[zi]?.length) { // ゾーンにシグニが残っていれば表向きに戻す
             newSigniDownFA[zi] = false;
             const topName = battleCardMap.get(my.field.signi[zi]?.at(-1) ?? '')?.CardName;
             if (topName) unflipped.push(topName);
@@ -3105,7 +3105,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const contBlockedCtx = calcContinuousBlockedActions(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap);
       const allColorSigniNums = new Set([...collectAllColorSigniForField(ownerStateForCtx, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectAllColorSigniForField(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn)]);
       const fieldSigniExtraColors = new Map([...collectFieldSigniExtraColors(ownerStateForCtx, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectFieldSigniExtraColors(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn)]);
-      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums, otherBounceProtectedNums, otherTrashFieldProtectedNums, otherAbilityGainProtectedNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors };
+      // OPP_TRASH_LOSE_COLOR_AND_CLASS: otherState が自ターン中にこの効果を持つとき ownerState のトラッシュが色/クラスを失う
+      const oppTrashColorLoss = collectOppTrashLoseColorClass(otherState, ownerStateForCtx, effectsMap, battleCardMap, !isOwnerTurn);
+      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums, otherBounceProtectedNums, otherTrashFieldProtectedNums, otherAbilityGainProtectedNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss };
       let result = executeEffect(entry.effect, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
@@ -3929,7 +3931,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      let newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 選択枚数が totalReq-1 なら代替シグニをトラッシュ
+      const growSubInfoExec = collectGrowCostSubstitute(my, battleCardMap, effectsMap);
+      const costItemsExec = parseGrowCost(card.GrowCost);
+      const totalReqExec = costItemsExec.reduce((s, c) => s + c.count, 0);
+      if (growSubInfoExec && costIndices.size === totalReqExec - 1) {
+        const subSigni = newEnergy.find(cn => {
+          const c = battleCardMap.get(cn);
+          return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(growSubInfoExec.signiClass);
+        });
+        if (subSigni) {
+          newEnergy = newEnergy.filter(cn => cn !== subSigni);
+          paidNums.push(subSigni);
+        }
+      }
       const coinGain = parseInt(card.Coin) || 0;
       const growCoinCost = parseCoinCost(card.GrowCost);
       let newMyState: PlayerState = {
@@ -4723,7 +4739,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newAttackedIds = [...(my.attacked_signi_ids ?? []), myTopNum];
       // OPP_SIGNI_ATTACK_COST: アタックにエナコストが必要な場合、エナを消費
       const signiAtkCostSA = my.signi_attack_cost ?? 0;
-      const newEnergySA = signiAtkCostSA > 0 ? my.energy.slice(signiAtkCostSA) : my.energy;
+      const newEnergySA = signiAtkCostSA > 0 ? my.energy.slice(0, -signiAtkCostSA) : my.energy;
       const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds, energy: newEnergySA };
       let newOpState = op;
       let banishedOpCardNum: string | null = null; // バニッシュされた相手シグニ
@@ -5225,7 +5241,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_TRASH: banish_redirect=true の場合、バニッシュされたシグニがトラッシュへ
       const trashEntriesSA: StackEntry[] = [];
       if (banishedOpCardNum && my.banish_redirect === true) {
-        trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, opPlayerId, newMyState, newOpState));
+        trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, opPlayerId, newHostState, newGuestState));
       }
 
       const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries, ...trashEntriesSA, ...heavenEntries];
@@ -5844,13 +5860,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // バトル負け：何もしない（シグニはダウンのみ）
           appendBattleLogs([`[CPU] ${myCard?.CardName ?? myTopNum} がバトル敗北（${myPower} < ${opPower}）`]);
         } else if (opTopNum) {
-          // バトル勝ち：相手シグニバニッシュ → エナへ
+          // バトル勝ち：相手シグニバニッシュ → トラッシュへ（ライズスタック全体）
           appendBattleLogs([`[CPU] ${myCard?.CardName ?? myTopNum} がバトル勝利 → ${opCard?.CardName ?? opTopNum} をバニッシュ`]);
           const newOpSigni = [...huSt.field.signi] as (string[] | null)[];
           newOpSigni[opZone] = null;
           newHuSt = {
             ...huSt,
-            energy: [...huSt.energy, opTopNum],
+            trash: [...huSt.trash, ...opStack],
             field: { ...huSt.field, signi: newOpSigni },
           };
         } else {
@@ -5911,11 +5927,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ENDフェイズ：ターン終了処理 ───
     if (phase === 'END') {
+      const curHuDown   = huSt.field.signi_down   ?? [false, false, false];
+      const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
+      const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
       const nextHuSt = { ...huSt, field: {
         ...huSt.field,
-        signi_down:   [false, false, false] as boolean[],
+        // 凍結中のシグニはアップしない（frozen=true かつ down=true はそのまま残す）
+        signi_down:   curHuDown.map((d, i) => d && curHuFrozen[i]) as boolean[],
         signi_frozen: [false, false, false] as boolean[],
-        lrig_down:    false,
+        lrig_down:    (huSt.field.lrig_down ?? false) && curHuLrigFrozen,
         lrig_frozen:  false,
       }};
       const cleanCpuSt: PlayerState = {
@@ -7043,8 +7063,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const costItems = parseGrowCost(pendingGrowCard.GrowCost);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedGrowCost].map(i => my.energy[i]);
-              const isValid = selectedGrowCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
               // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 代替コスト情報
               const growSubInfo = collectGrowCostSubstitute(my, battleCardMap, effectsMap);
               const growSubEnaSigni = growSubInfo ? my.energy.filter(cn => {
@@ -7053,6 +7071,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               }) : [];
               const canUseGrowSub = growSubInfo && growSubEnaSigni.length > 0 &&
                 costItems.some(ci => ci.color === growSubInfo.substituteColor && ci.count > 0);
+              const isValidNormal = selectedGrowCost.size === totalReq &&
+                canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+              const isValidWithSub = !!(canUseGrowSub && growSubInfo &&
+                selectedGrowCost.size === totalReq - 1 && (() => {
+                  const subSigniId = growSubEnaSigni[0];
+                  const subMap = new Map([[subSigniId, growSubInfo.substituteColor]]);
+                  return canAffordGrowCost(
+                    [...selectedNums, subSigniId], battleCards, pendingGrowCard.GrowCost,
+                    my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs,
+                    undefined, undefined, subMap,
+                  );
+                })());
+              const isValid = isValidNormal || isValidWithSub;
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
