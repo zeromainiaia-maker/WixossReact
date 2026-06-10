@@ -2065,7 +2065,7 @@ function execAddCraftToLrigDeck(a: import('../types/effects').AddCraftToLrigDeck
   };
   return done(addLog(
     setOwnerState(a.owner, newState, ctx),
-    `{a.cardName}{a.count}`,
+    `${a.cardName}×${a.count}`,
   ));
 }
 
