@@ -27,7 +27,17 @@ export type EffectTiming =
   | 'ON_ENERGY_FROM_TRASH' // このカードがトラッシュからエナゾーンに置かれたとき
   | 'ON_BLOOD_CRYSTAL_ARMOR' // シグニが血晶武装状態になったとき
   | 'ON_HEAVEN'  // このシグニが《ヘブン》したとき（ヘブンヘブン時）
-  | 'ON_ACCE';   // シグニにアクセが付いたとき
+  | 'ON_ACCE'    // シグニにアクセが付いたとき
+  | 'ON_SIGNI_DOWN'             // 自分のシグニがダウンしたとき
+  | 'ON_SIGNI_ENTERS'           // シグニが場に出たとき
+  | 'ON_SIGNI_BANISH_OPPONENT'  // 相手シグニをバニッシュしたとき
+  | 'ON_SIGNI_BANISH_BATTLE'    // バトルで相手シグニをバニッシュしたとき
+  | 'ON_SIGNI_POWER_ZERO_OR_LESS' // シグニのパワーが0以下になったとき
+  | 'ON_LEAVE_FIELD'            // カードがフィールドを離れたとき
+  | 'ON_HAND_DISCARDED'         // 手札が捨てられたとき
+  | 'ON_OPP_EFFECT_TRASH_FROM_HAND' // 相手の効果で手札がトラッシュに置かれたとき
+  | 'ON_OPPONENT_SIGNI_TRASHED' // 相手シグニがトラッシュに置かれたとき
+  | 'ON_OPPONENT_SIGNI_PLAY';   // 相手がシグニを場に出したとき
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
