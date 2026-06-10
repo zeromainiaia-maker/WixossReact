@@ -44,6 +44,7 @@ import type {
   ForceSigniAttackAction,
   PowerModifyPerTrashCountAction,
   PowerModifyPerLifeCountAction,
+  PowerModifyByTargetLevelAction,
   PlaceVirusAction,
   AttachAcceAction,
   BloodCrystalArmorAction,
