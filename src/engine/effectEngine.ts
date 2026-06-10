@@ -3719,7 +3719,8 @@ export function collectFieldSigniExtraColors(
         const underCard = cardMap.get(underCn);
         if (!targetClass || (underCard?.CardClass ?? '').includes(targetClass)) {
           const underColor = underCard?.Color ?? '';
-          for (const c of underColor.split('/').map(s => s.trim()).filter(Boolean)) {
+          // Color列は連結形式のため1文字ずつ分解
+          for (const c of [...underColor].filter(s => '白赤青緑黒'.includes(s))) {
             if (!extraColors.includes(c)) extraColors.push(c);
           }
         }
