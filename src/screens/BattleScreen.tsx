@@ -8561,7 +8561,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     }}>
                     <span>ゾーン{zi + 1}{pendingRiseFilter ? (riseConditionMet ? ' (ライズ可)' : ' (条件不一致)') : (isOccupied ? ' (使用中)' : '')}</span>
                     <span style={{ fontSize: 11, color: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? C.textFaint : (overLimit || overPowerLimit) ? C.danger : C.textDim }}>
-                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (isOccupied ? '—' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit}`)}
+                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (isOccupied ? '—' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
                     </span>
                   </button>
                 );
