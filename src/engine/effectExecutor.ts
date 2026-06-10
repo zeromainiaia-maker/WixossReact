@@ -1772,7 +1772,7 @@ function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): 
       deck: cur.otherState.deck.slice(drawOther),
     },
   };
-  return done(addLog(cur, `{maxCount}`));
+  return done(addLog(cur, `${maxCount}`));
 }
 
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
