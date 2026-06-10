@@ -5395,11 +5395,80 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // CONTINUOUS BANISH / FREEZE / DOWN の自動適用（mandatory 効果のみ）
+  const checkAndApplyContMutations = async () => {
+    if (!bs || loading || bs.global_phase !== 'PLAYING') return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    const hostIsActive = bs.active_user_id === bs.host_id;
+    const mutations = calcContinuousSigniMutations(
+      bs.host_state, bs.guest_state, hostIsActive, effectsMap, battleCardMap,
+    );
+    if (mutations.length === 0) return;
+    const mutKey = mutations.map(m => `${m.effectId}:${m.targetNums.sort().join(',')}`).sort().join('|');
+    if (mutKey === lastContMutationKeyRef.current) return;
+    lastContMutationKeyRef.current = mutKey;
+
+    let hostState  = bs.host_state;
+    let guestState = bs.guest_state;
+    const allTriggers: import('../types/battleState').StackEntry[] = [];
+
+    for (const mut of mutations) {
+      for (const num of mut.targetNums) {
+        const targetState = mut.targetIsHost ? hostState : guestState;
+        const cardName = battleCardMap.get(num)?.CardName ?? num;
+
+        if (mut.type === 'BANISH') {
+          const removed = removeFromField(num, targetState);
+          const withBanished: import('../types').PlayerState = { ...removed, energy: [...removed.energy, num] };
+          if (mut.targetIsHost) hostState = withBanished; else guestState = withBanished;
+          appendBattleLogs([`${cardName}をバニッシュ（常時効果）`]);
+          const ownerId = mut.targetIsHost ? bs.host_id : bs.guest_id;
+          const triggers = collectBanishTriggers(num, ownerId, hostState, guestState);
+          allTriggers.push(...triggers);
+        } else if (mut.type === 'FREEZE') {
+          const zoneIdx = targetState.field.signi.findIndex(s => s?.at(-1) === num);
+          if (zoneIdx < 0) continue;
+          const newFrozen = [...(targetState.field.signi_frozen ?? [false, false, false])] as boolean[];
+          const newDown   = [...(targetState.field.signi_down   ?? [false, false, false])] as boolean[];
+          newFrozen[zoneIdx] = true;
+          newDown[zoneIdx]   = true;
+          const updated: import('../types').PlayerState = { ...targetState, field: { ...targetState.field, signi_frozen: newFrozen, signi_down: newDown } };
+          if (mut.targetIsHost) hostState = updated; else guestState = updated;
+          appendBattleLogs([`${cardName}をフリーズ（常時効果）`]);
+        } else if (mut.type === 'DOWN') {
+          const zoneIdx = targetState.field.signi.findIndex(s => s?.at(-1) === num);
+          if (zoneIdx < 0) continue;
+          const newDown = [...(targetState.field.signi_down ?? [false, false, false])] as boolean[];
+          newDown[zoneIdx] = true;
+          const updated: import('../types').PlayerState = { ...targetState, field: { ...targetState.field, signi_down: newDown } };
+          if (mut.targetIsHost) hostState = updated; else guestState = updated;
+          appendBattleLogs([`${cardName}をダウン（常時効果）`]);
+        }
+      }
+    }
+
+    setLoading(true);
+    try {
+      let newStack = bs.effect_stack as import('../types/battleState').EffectStack | null;
+      if (allTriggers.length > 0) {
+        newStack = initStack(bs.active_user_id!, allTriggers);
+      }
+      await supabase.from('battle_states').update({
+        host_state: hostState,
+        guest_state: guestState,
+        ...(newStack !== bs.effect_stack ? { effect_stack: newStack } : {}),
+      }).eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // refs を常に最新の関数インスタンスに同期（Rules of Hooks 対応）
   doPhaseAdvanceRef.current         = doPhaseAdvance;
   triggerPendingCrashRef.current    = triggerPendingCrash;
   resolveStackNextRef.current       = resolveStackNext;
   checkPowerZeroBanishRef.current   = checkAndBanishPowerZero;
+  checkContMutationsRef.current     = checkAndApplyContMutations;
 
   // ══════════════════════════════════════════
   // CPU AI ロジック（ターン行動）
