@@ -5736,7 +5736,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cpuLrigId = cpuSt.field.lrig.at(-1) ?? null;
       const cpuLrigNum = cpuLrigId ? getCardNum(cpuLrigId) : null;
       const cpuLrigCard = cpuLrigNum ? cards.find(c => c.CardNum === cpuLrigNum) : null;
-      const cpuLimit     = parseInt(cpuLrigCard?.Limit ?? '0') || 0;
+      const cpuLimit     = cpuLrigCard?.Limit === '∞' ? Infinity : (parseInt(cpuLrigCard?.Limit ?? '0') || 0);
       const cpuLrigLevel = parseInt(cpuLrigCard?.Level ?? '0') || 0;
 
       // 現在のフィールドのシグニの合計レベル
