@@ -1781,7 +1781,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const removed = [...(state.abilities_removed ?? []), ...cands];
   const newS: PlayerState = { ...state, abilities_removed: removed };
-  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `{cands.length}`));
+  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}`));
 }
 
 function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
