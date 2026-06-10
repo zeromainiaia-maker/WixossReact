@@ -850,7 +850,9 @@ export function calcFieldPowers(
             if ((target.owner === 'self' || target.owner === 'any') &&
                 matchesFilter(card, target.filter) &&
                 powers.has(topNum)) {
-              powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+              // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
+              const selfDelta = flipOwnerPosDelta && delta > 0 ? -delta : delta;
+              powers.set(topNum, (powers.get(topNum) ?? 0) + selfDelta);
             }
             continue;
           }
@@ -864,7 +866,9 @@ export function calcFieldPowers(
           if (effectiveDelta === 0 && delta !== 0) { /* ブロックされた正デルタ */ }
           else {
             if (targetIsOwner) {
-              applyDeltaToState(ownerState, effectiveDelta, target.filter, cardMap, powers);
+              // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
+              const ownerDelta = flipOwnerPosDelta && effectiveDelta > 0 ? -effectiveDelta : effectiveDelta;
+              applyDeltaToState(ownerState, ownerDelta, target.filter, cardMap, powers);
             }
             if (targetIsOther) {
               applyDeltaToState(otherState, effectiveDelta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
