@@ -2771,7 +2771,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const geGranted = { ...(geS.granted_effects ?? {}) };
       geGranted[cardNum] = [...(geGranted[cardNum] ?? []), geA.effect];
       return done(addLog(setOwnerState(geOwner, { ...geS, granted_effects: geGranted }, ctx),
-        `{ctx.cardMap.getcardNum?.CardName ?? cardNum}`));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
     case 'TAKE_FROM_UNDER_SIGNI': {
       const ta = action as import('../types/effects').TakeFromUnderSigniAction;
