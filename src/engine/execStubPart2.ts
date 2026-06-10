@@ -3166,7 +3166,7 @@ export function execStubPart2(
           curSB = addLog({ ...curSB, ownerState: { ...curSB.ownerState, trash: [...curSB.ownerState.trash, s], field: { ...curSB.ownerState.field, signi_seeds: newSeeds2 } } }, `開花：${sd.CardName}レベル超過→トラッシュ`);
           continue;
         }
-        const lrigLim2 = parseInt(lrigCard2?.Limit ?? '0', 10);
+        const lrigLim2 = lrigCard2?.Limit === '∞' ? Infinity : (parseInt(lrigCard2?.Limit ?? '0', 10) || 0);
         let usedLim2 = 0;
         for (let zj = 0; zj < 3; zj++) { if (zj !== zi) { const top2 = curSB.ownerState.field.signi[zj]?.at(-1); if (top2) usedLim2 += parseInt(curSB.cardMap.get(top2)?.Level ?? '0', 10); } }
         if (usedLim2 + signiLv2 > lrigLim2) {
