@@ -894,7 +894,7 @@ export function calcFieldPowers(
         // CONDITIONAL + POWER_MODIFY: 条件付きパワー修正（条件を評価して適用）
         if (effect.action.type === 'CONDITIONAL') {
           const condAct = effect.action as ConditionalAction;
-          const condMet = evalConditionForContinuous(condAct.condition, ownerState, otherState, cardMap, topNum);
+          const condMet = evalConditionForContinuous(condAct.condition, ownerState, otherState, cardMap, topNum, oppTrashColorLoss);
           const branch = condMet ? condAct.then : condAct.else;
           if (branch) {
             for (const mod of extractPowerModifies(branch)) {
