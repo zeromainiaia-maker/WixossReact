@@ -5421,7 +5421,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     let hostState  = bs.host_state;
     let guestState = bs.guest_state;
-    const allTriggers: import('../types/battleState').StackEntry[] = [];
+    const allTriggers: import('../types').StackEntry[] = [];
 
     for (const mut of mutations) {
       for (const num of mut.targetNums) {
