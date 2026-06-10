@@ -1611,7 +1611,7 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
     const s = ownerState(tgtOwner, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: mods }, c),
-      `${delta > 0 ? '+' : ''}${delta}{fieldCount}`);
+      `${delta > 0 ? '+' : ''}${delta}（フィールド${fieldCount}体）`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
