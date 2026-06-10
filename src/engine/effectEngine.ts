@@ -239,6 +239,41 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
   return true;
 }
 
+// ===== ゾーン状態フィルタ判定（zoneIdx ベース） =====
+
+function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: TargetFilter | undefined): boolean {
+  if (!filter) return true;
+  if (filter.isArmored !== undefined) {
+    const v = state.field.signi_armor?.[zoneIdx] ?? false;
+    if (filter.isArmored !== v) return false;
+  }
+  if (filter.hasCharm !== undefined) {
+    const v = (state.field.signi_charms?.[zoneIdx] ?? null) !== null;
+    if (filter.hasCharm !== v) return false;
+  }
+  if (filter.hasAcce !== undefined) {
+    const v = (state.field.signi_acce?.[zoneIdx] ?? null) !== null;
+    if (filter.hasAcce !== v) return false;
+  }
+  if (filter.infected !== undefined) {
+    const v = (state.field.signi_virus?.[zoneIdx] ?? 0) > 0;
+    if (filter.infected !== v) return false;
+  }
+  if (filter.isDown !== undefined) {
+    const v = state.field.signi_down?.[zoneIdx] ?? false;
+    if (filter.isDown !== v) return false;
+  }
+  if (filter.isFrozen !== undefined) {
+    const v = state.field.signi_frozen?.[zoneIdx] ?? false;
+    if (filter.isFrozen !== v) return false;
+  }
+  if (filter.isUp !== undefined) {
+    const v = !(state.field.signi_down?.[zoneIdx] ?? false);
+    if (filter.isUp !== v) return false;
+  }
+  return true;
+}
+
 // ===== POWER_MODIFY アクション抽出 =====
 
 function extractPowerModifies(action: EffectAction): PowerModifyAction[] {
