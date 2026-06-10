@@ -20,6 +20,9 @@ import type {
   ConditionalAction,
   Condition,
   GrantProtectionAction,
+  BanishAction,
+  FreezeAction,
+  DownAction,
 } from '../types/effects';
 
 // ===== activeCondition 判定 =====
