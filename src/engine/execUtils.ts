@@ -156,7 +156,10 @@ export function matchesFilter(
   if (filter.cardNum && card.CardNum !== filter.cardNum) return false;
   if (filter.powerRange) {
     // CONTINUOUS効果・temp_power_mods適用済みの実効パワーを優先して使用する
-    const pw = effectivePower !== undefined ? Math.max(0, effectivePower) : parseInt(card.Power ?? '', 10);
+    // Power「∞」はInfinity扱い（parseIntだとNaNになり「パワーX以下」フィルタを誤って通過してしまう）
+    const basePw = card.Power === '∞' ? Infinity : parseInt(card.Power ?? '', 10);
+    const pw = effectivePower !== undefined ? Math.max(0, effectivePower) : basePw;
+    if (isNaN(pw)) return false; // Power「-」等の非数値はパワー条件を満たさない
     if (filter.powerRange.min !== undefined && pw < filter.powerRange.min) return false;
     if (filter.powerRange.max !== undefined && pw > filter.powerRange.max) return false;
   }

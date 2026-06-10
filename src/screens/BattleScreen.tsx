@@ -6,7 +6,7 @@ import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, Pe
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
-import { getRiseFilter, matchesRiseFilter } from '../engine/execUtils';
+import { getRiseFilter, matchesRiseFilter, splitColors } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
@@ -58,6 +58,11 @@ class InstanceMap<V> extends Map<string, V> {
 }
 
 // デッキのカード配列にインスタンスIDを付与する（WD03-009 → WD03-009#1, WD03-009#2, ...）
+// Power「∞」はInfinity扱い（parseIntだとNaN→0になり∞シグニがパワー0として扱われてしまう）
+function parsePowerVal(s: string | undefined): number {
+  return s === '∞' ? Infinity : (parseInt(s ?? '0', 10) || 0);
+}
+
 function assignInstanceIds(cards: string[]): string[] {
   const counts: Record<string, number> = {};
   return cards.map(cn => {
@@ -3698,7 +3703,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     // DEPLOY_RESTRICT: signi_deploy_power_limit が設定されている場合、パワー上限以上のシグニ配置不可
     if (my.signi_deploy_power_limit !== undefined) {
-      const cardPwr = parseInt(battleCardMap.get(my.hand[handIndex])?.Power ?? '0') || 0;
+      const cardPwr = parsePowerVal(battleCardMap.get(my.hand[handIndex])?.Power);
       if (cardPwr >= my.signi_deploy_power_limit) return;
     }
     setLoading(true);
@@ -4846,9 +4851,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ─── 通常バトル（正面シグニあり・アサシンなし）───
         const opCardName = opTopCard.CardName ?? opTopCardNum;
         const myPower = effectivePowers.get(myTopNum)
-          ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
+          ?? parsePowerVal(battleCardMap.get(myTopNum)?.Power);
         const opPower = effectivePowers.get(opTopCardNum)
-          ?? (parseInt(opTopCard.Power ?? '0') || 0);
+          ?? parsePowerVal(opTopCard.Power);
         appendBattleLogs([`${myCardName}（${myPower}）vs ${opCardName}（${opPower}）`]);
 
         if (myPower >= opPower) {
@@ -5085,14 +5090,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const myTxtMZA = (myCardDataMZA?.EffectText ?? '') + ' ' + (myCardDataMZA?.BurstText ?? '');
         // 「アタックする」= 強制、「アタックできる」= 任意（デフォルト任意）
         const isForcedMZA = myTxtMZA.includes('シグニゾーンにもアタックする') && !myTxtMZA.includes('アタックできる');
-        const myPowerMZA = effectivePowers.get(myTopNum) ?? (parseInt(myCardDataMZA?.Power ?? '0') || 0);
+        const myPowerMZA = effectivePowers.get(myTopNum) ?? parsePowerVal(myCardDataMZA?.Power);
         for (let zi = 0; zi < 3; zi++) {
           if (zi === zoneIndex) continue; // 正面は既に処理済み
           const oppZiMZA = 2 - zi;
           const oppStackMZA = newOpState.field.signi[oppZiMZA] ?? [];
           const oppTopMZA = oppStackMZA.at(-1);
           if (!oppTopMZA) continue; // 相手シグニなし（空ゾーン）はダメージなしスキップ
-          const oppPowerMZA = effectivePowers.get(oppTopMZA) ?? (parseInt(battleCardMap.get(oppTopMZA)?.Power ?? '0') || 0);
+          const oppPowerMZA = effectivePowers.get(oppTopMZA) ?? parsePowerVal(battleCardMap.get(oppTopMZA)?.Power);
           // 「アタックできる」（任意）の場合: バトル判定はするが自動的に負けもあり得る
           // ゲーム上は「アタックを宣言するかどうか」を選択すべきだが、現状は自動適用
           // 「アタックする」（強制）の場合 or 自動でバトル判定
@@ -5866,8 +5871,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         const myTopNum = (cpuSt.field.signi[firstUp] ?? []).at(-1)!;
         const myCard = battleCardMap.get(myTopNum);
-        const myPower = effectivePowers.get(myTopNum) ?? (parseInt(myCard?.Power ?? '0') || 0);
-        const opPower = opTopNum ? (effectivePowers.get(opTopNum) ?? (parseInt(battleCardMap.get(opTopNum)?.Power ?? '0') || 0)) : 0;
+        const myPower = effectivePowers.get(myTopNum) ?? parsePowerVal(myCard?.Power);
+        const opPower = opTopNum ? (effectivePowers.get(opTopNum) ?? parsePowerVal(battleCardMap.get(opTopNum)?.Power)) : 0;
         const opCard = opTopNum ? battleCardMap.get(opTopNum) : null;
 
         const newSigniDown = [...signiDown];
@@ -6587,7 +6592,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手側が設定したパワー上限でアタック制限
       const oppPowerCap = op.opp_signi_attack_power_cap;
       if (oppPowerCap !== undefined) {
-        const signiPower = effectivePowers.get(topNum) ?? parseInt(battleCardMap.get(topNum)?.Power ?? '0');
+        const signiPower = effectivePowers.get(topNum) ?? parsePowerVal(battleCardMap.get(topNum)?.Power);
         if (signiPower <= oppPowerCap) return [];
       }
       // シグニ合計1回アタック制限チェック
@@ -7301,8 +7306,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               // ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 《無》コストをセンタールリグ色で支払わなければならない
               const hasColorlessRestriction = (effectsMap.get(pendingArtsCard.CardNum) ?? [])
                 .some(e => e.effectType === 'ACTIVATED' && JSON.stringify(e.action).includes('ARTS_COLORLESS_MUST_PAY_CENTER_COLOR'));
+              // Color列は「黒青」のような連結形式（'/'区切りではない）のため splitColors で分解する
               const centerColorForRestr = hasColorlessRestriction
-                ? (battleCardMap.get(my.field.lrig.at(-1) ?? '')?.Color ?? '').split('/')[0] ?? ''
+                ? splitColors(battleCardMap.get(my.field.lrig.at(-1) ?? '')?.Color)[0] ?? ''
                 : '';
               const effectiveCost = hasColorlessRestriction && centerColorForRestr
                 ? rawEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
@@ -8529,7 +8535,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               {([0, 1, 2] as const).map(zi => {
                 const summonCard = battleCardMap.get(pendingSigniSummon.cardNum);
                 const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
-                const signiPower = parseInt(summonCard?.Power ?? '0') || 0;
+                const signiPower = parsePowerVal(summonCard?.Power);
                 const zoneStack = my.field.signi[zi] ?? [];
                 const isOccupied = zoneStack.length > 0;
                 const pendingRiseFilter = summonCard ? getRiseFilter(summonCard.EffectText ?? '') : null;

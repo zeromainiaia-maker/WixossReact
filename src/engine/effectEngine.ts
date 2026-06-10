@@ -234,7 +234,9 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     }
   }
   if (filter.powerRange) {
-    const pw = parseInt(cardData.Power ?? '', 10);
+    // Power「∞」はInfinity扱い（parseIntだとNaNになり「パワーX以下」フィルタを誤って通過してしまう）
+    const pw = cardData.Power === '∞' ? Infinity : parseInt(cardData.Power ?? '', 10);
+    if (isNaN(pw)) return false; // Power「-」等の非数値はパワー条件を満たさない
     if (filter.powerRange.min !== undefined && pw < filter.powerRange.min) return false;
     if (filter.powerRange.max !== undefined && pw > filter.powerRange.max) return false;
   }
@@ -1383,7 +1385,8 @@ export function getEffectivePower(
 ): number {
   if (powers.has(cardNum)) return powers.get(cardNum)!;
   const card = cardMap.get(cardNum);
-  return parseInt(card?.Power ?? '', 10) || 0;
+  // Power「∞」はInfinity扱い（parseIntだとNaN→0になり∞シグニがパワー0として扱われてしまう）
+  return card?.Power === '∞' ? Infinity : (parseInt(card?.Power ?? '', 10) || 0);
 }
 
 // ===== CONTINUOUS BLOCK_ACTION 計算 =====
