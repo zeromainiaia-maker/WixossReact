@@ -540,7 +540,7 @@ function canAffordGrowCost(
     const rem: P[] = [];
     for (const p of pool) {
       if (needed > 0 && !p.isWild) {
-        const colorMatches = color === '無' || p.color === color || p.extraColor === color ||
+        const colorMatches = color === '無' || p.color.includes(color) || p.extraColor === color ||
           (colorSubs?.some(s => s.to === p.color && s.from.includes(color)));
         if (colorMatches) { needed--; continue; }
       }
