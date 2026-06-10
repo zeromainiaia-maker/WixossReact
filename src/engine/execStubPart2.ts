@@ -1789,7 +1789,7 @@ export function execStubPart2(
     const targetCnUSTENC = underUSTENC.find(cn => {
       const cnClass = ctx.cardMap.get(cn)?.CardClass ?? '';
       if (!cnClass) return false;
-      const cnClasses = cnClass.split('/').map(s => s.trim()).filter(Boolean);
+      const cnClasses = cnClass.split(/[/／]/).map(s => s.trim()).filter(Boolean);
       return !ctx.ownerState.energy.some(enaCn => {
         const enaClass = ctx.cardMap.get(enaCn)?.CardClass ?? '';
         return cnClasses.some(cls => enaClass.includes(cls));
