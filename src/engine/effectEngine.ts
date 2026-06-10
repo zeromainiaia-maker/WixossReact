@@ -379,6 +379,7 @@ function evalConditionForContinuous(
   otherState: PlayerState,
   cardMap: Map<string, CardData>,
   sourceCardNum?: string,
+  oppTrashColorLoss?: boolean,
 ): boolean {
   function st(owner: 'self' | 'opponent' | 'any') { return owner === 'opponent' ? otherState : ownerState; }
   function cmp(a: number, op: string, b: number) {
@@ -441,7 +442,7 @@ function evalConditionForContinuous(
       return ownerState.bonds?.includes(name) ?? false;
     }
     case 'AND':
-      return cond.conditions.every(c => evalConditionForContinuous(c, ownerState, otherState, cardMap, sourceCardNum));
+      return cond.conditions.every(c => evalConditionForContinuous(c, ownerState, otherState, cardMap, sourceCardNum, oppTrashColorLoss));
     default:
       return true;
   }
