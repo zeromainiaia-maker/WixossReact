@@ -970,6 +970,28 @@ export function calcFieldPowers(
           }
         }
 
+        // POWER_MODIFY_PER_CHARM: フィールドのチャーム枚数に比例したパワー増減（常時）
+        const perCharmMods = extractPowerModifiesPerCharm(effect.action);
+        for (const mod of perCharmMods) {
+          const countCharms = (st: PlayerState) => (st.field.signi_charms ?? []).filter(c => c !== null).length;
+          const charmCount = mod.sourceOwner === 'self' ? countCharms(ownerState)
+            : mod.sourceOwner === 'opponent' ? countCharms(otherState)
+            : countCharms(ownerState) + countCharms(otherState);
+          const delta = mod.deltaPerCharm * charmCount;
+          if (delta !== 0) {
+            if (mod.target.count !== 'ALL') {
+              if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
+                powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+              }
+            } else {
+              const tgtIsOwner = mod.target.owner === 'self' || mod.target.owner === 'any';
+              const tgtIsOther = mod.target.owner === 'opponent' || mod.target.owner === 'any';
+              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers);
+              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
+            }
+          }
+        }
+
         // STUBベースの CONT パワー修正
         if (effect.action.type === 'STUB') {
           const stub = effect.action as import('../types/effects').StubAction;
