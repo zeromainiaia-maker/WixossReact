@@ -3691,8 +3691,8 @@ export function collectFieldSigniExtraColors(
       const lrigTop = state.field.lrig.at(-1);
       if (lrigTop) {
         const lrigColor = cardMap.get(lrigTop)?.Color ?? '';
-        // ルリグの色（/区切り）をすべて追加
-        for (const c of lrigColor.split('/').map(s => s.trim()).filter(Boolean)) {
+        // ルリグの色をすべて追加（Color列は「黒青」のような連結形式のため1文字ずつ分解）
+        for (const c of [...lrigColor].filter(s => '白赤青緑黒'.includes(s))) {
           // lrig_extra_colors も含める
           if (!extraColors.includes(c)) extraColors.push(c);
         }
