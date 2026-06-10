@@ -2678,8 +2678,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         // GROW→MAIN（メインフェイズ開始時）: game_main_draw（手札5枚以下ならドロー）
         if (phase === 'GROW' && newMyState.game_main_draw && newMyState.hand.length <= 5 && newMyState.deck.length > 0) {
-          const drawCard = newMyState.deck[newMyState.deck.length - 1];
-          newMyState = { ...newMyState, deck: newMyState.deck.slice(0, -1), hand: [...newMyState.hand, drawCard] };
+          const drawCard = newMyState.deck[0];
+          newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
           appendBattleLogs(['メインフェイズ開始ドロー（このゲーム）']);
         }
         // DRAW→ENERGY（エナフェイズ開始時）: game_energy_phase_draw
