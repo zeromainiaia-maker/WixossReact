@@ -12,7 +12,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, splitColors,
+  removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination,
 } from './execUtils';
 
 export function execStubPart2(
@@ -963,10 +963,8 @@ export function execStubPart2(
       const colorsBMCS = splitColors(curBMCS.cardMap.get(top)?.Color);
       if (colorsBMCS.length < 2) continue;
       const removedBMCS = removeFromField(top, curBMCS.otherState);
-      // opp_signi_energy_to_deck_bottom (WX25-CP1-003): エナゾーンに置かれる代わりにデッキ下へ
-      const destBMCS: PlayerState = removedBMCS.opp_signi_energy_to_deck_bottom === true
-        ? { ...removedBMCS, deck: [...removedBMCS.deck, top] }
-        : { ...removedBMCS, energy: [...removedBMCS.energy, top] };
+      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
+      const { state: destBMCS } = banishDestination(removedBMCS, curBMCS.ownerState, top);
       curBMCS = { ...curBMCS, otherState: destBMCS };
       banishedBMCS++;
     }
@@ -2244,20 +2242,16 @@ export function execStubPart2(
   if (stub.id === 'BANISH') {
     const cnBAN = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!cnBAN) return done(addLog(ctx, 'バニッシュ対象なし'));
-    // opp_signi_energy_to_deck_bottom (WX25-CP1-003): エナゾーンに置かれる代わりにデッキ下へ
-    const banishDestBAN = (removed: PlayerState, cn: string): { s: PlayerState; toBottom: boolean } =>
-      removed.opp_signi_energy_to_deck_bottom === true
-        ? { s: { ...removed, deck: [...removed.deck, cn] }, toBottom: true }
-        : { s: { ...removed, energy: [...removed.energy, cn] }, toBottom: false };
+    // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
     const foundOppBAN = ctx.otherState.field.signi.some(s => s?.at(-1) === cnBAN);
     if (foundOppBAN) {
-      const { s: newSOtherBAN, toBottom } = banishDestBAN(removeFromField(cnBAN, ctx.otherState), cnBAN);
-      return done(addLog({ ...ctx, otherState: newSOtherBAN }, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}${toBottom ? '→デッキ下' : 'をバニッシュ'}`));
+      const { state: newSOtherBAN, log: logOppBAN } = banishDestination(removeFromField(cnBAN, ctx.otherState), ctx.ownerState, cnBAN);
+      return done(addLog({ ...ctx, otherState: newSOtherBAN }, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}${logOppBAN}`));
     }
     const foundSelfBAN = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnBAN);
     if (foundSelfBAN) {
-      const { s: newSBAN, toBottom } = banishDestBAN(removeFromField(cnBAN, ctx.ownerState), cnBAN);
-      return done(addLog({ ...ctx, ownerState: newSBAN }, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}${toBottom ? '→デッキ下' : 'をバニッシュ'}`));
+      const { state: newSBAN, log: logSelfBAN } = banishDestination(removeFromField(cnBAN, ctx.ownerState), ctx.otherState, cnBAN);
+      return done(addLog({ ...ctx, ownerState: newSBAN }, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}${logSelfBAN}`));
     }
     return done(addLog(ctx, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}はフィールドにない`));
   }

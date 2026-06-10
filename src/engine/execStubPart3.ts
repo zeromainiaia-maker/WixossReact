@@ -17,7 +17,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost,
+  removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 
@@ -1582,16 +1582,12 @@ export function execStubPart3(
     const signiStackHLB = ctx.otherState.field.signi[zoneHLB];
     const topHLB = signiStackHLB?.at(-1);
     if (!topHLB) return done(addLog(ctx, `【ハスターリク】ゾーン${zoneHLB + 1}: シグニなし（バニッシュ不要）`));
-    const newFieldSigHLB = [...ctx.otherState.field.signi] as (string[] | null)[];
-    const remaining = signiStackHLB!.slice(0, -1);
-    newFieldSigHLB[zoneHLB] = remaining.length > 0 ? remaining : null;
-    const newOtherHLB: PlayerState = {
-      ...ctx.otherState,
-      energy: [...ctx.otherState.energy, topHLB],
-      field: { ...ctx.otherState.field, signi: newFieldSigHLB },
-    };
+    // removeFromField でチャーム・アクセ・ライズ下カード等も正しく処理する
+    // （手動でスタックを切ると下のカードが場に残ってしまう）
+    const removedHLB = removeFromField(topHLB, ctx.otherState);
+    const { state: newOtherHLB, log: logHLB } = banishDestination(removedHLB, ctx.ownerState, topHLB);
     return done(addLog({ ...ctx, otherState: newOtherHLB },
-      `【ハスターリク】：${ctx.cardMap.get(topHLB)?.CardName ?? topHLB}をバニッシュ（エナへ）`));
+      `【ハスターリク】：${ctx.cardMap.get(topHLB)?.CardName ?? topHLB}${logHLB}`));
   }
   // ACTIVATE_EICHI_ABILITY: コイン能力でこのシグニの【出】効果を再発動
   if (stub.id === 'ACTIVATE_EICHI_ABILITY') {
@@ -2249,7 +2245,11 @@ export function execStubPart3(
           .map(zi => ctxDTT.otherState.field.signi[zi]?.at(-1))
           .filter((cn): cn is string => {
             if (!cn) return false;
-            const pw = parseInt(ctx.cardMap.get(cn)?.Power ?? '99999');
+            // 実効パワー優先・Power「∞」はInfinity扱い（「パワーN以下」の対象にしない）
+            const ep = ctx.effectivePowers;
+            const raw = ctx.cardMap.get(cn)?.Power;
+            const pw = (ep instanceof Map ? ep.get(cn) : (ep as Record<string, number> | undefined)?.[cn])
+              ?? (raw === '∞' ? Infinity : parseInt(raw ?? '99999'));
             return pw <= maxPwr;
           });
         if (bCands.length > 0) {
@@ -2445,7 +2445,10 @@ export function execStubPart3(
       const top = s?.at(-1);
       if (!top) return [];
       const ep = ctx.effectivePowers;
-      const pwr = (ep instanceof Map ? ep.get(top) : (ep as Record<string, number> | undefined)?.[top]) ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0');
+      // Power「∞」はInfinity扱い（「パワーN以上」の対象に含める）
+      const rawBOPG = ctx.cardMap.get(top)?.Power;
+      const pwr = (ep instanceof Map ? ep.get(top) : (ep as Record<string, number> | undefined)?.[top])
+        ?? (rawBOPG === '∞' ? Infinity : parseInt(rawBOPG ?? '0'));
       return pwr >= minPwr ? [{ cn: top, zi }] : [];
     });
     if (candsBOPG.length === 0) return done(addLog(ctx, `パワー${minPwr}以上の相手シグニなし`));
@@ -2490,7 +2493,11 @@ export function execStubPart3(
       .map(zi => ctx.otherState.field.signi[zi]?.at(-1))
       .filter((cn): cn is string => {
         if (!cn) return false;
-        const pw = parseInt(ctx.cardMap.get(cn)?.Power ?? '99999');
+        // 実効パワー優先・Power「∞」はInfinity扱い（「パワーN以下」の対象にしない）
+        const ep = ctx.effectivePowers;
+        const raw = ctx.cardMap.get(cn)?.Power;
+        const pw = (ep instanceof Map ? ep.get(cn) : (ep as Record<string, number> | undefined)?.[cn])
+          ?? (raw === '∞' ? Infinity : parseInt(raw ?? '99999'));
         return pw <= maxPwrIBOPL;
       });
     if (candsIBOPL.length === 0) return done(addLog(ctx, `バニッシュ対象なし（パワー${maxPwrIBOPL}以下）`));

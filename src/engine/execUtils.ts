@@ -67,6 +67,27 @@ export function resolveNum(n: NumberOrRef): number {
   return typeof n === 'number' ? n : 0;
 }
 
+// バニッシュされたシグニの行き先を決定する（BattleScreenのバトルバニッシュと同一の優先順）。
+// - 相手側の banish_redirect: エナの代わりにトラッシュへ
+// - 相手側の banish_redirect_to_hand: エナの代わりに手札へ
+// - 自身の opp_signi_energy_to_deck_bottom (WX25-CP1-003): エナの代わりにデッキの一番下へ
+export function banishDestination(
+  removed: PlayerState,   // バニッシュされた側の状態（removeFromField適用済み）
+  opponent: PlayerState,  // バニッシュされた側から見た対戦相手の状態
+  num: string,
+): { state: PlayerState; log: string } {
+  if (opponent.banish_redirect === true) {
+    return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
+  }
+  if (opponent.banish_redirect_to_hand === true) {
+    return { state: { ...removed, hand: [...removed.hand, num] }, log: 'をバニッシュ（手札へ）' };
+  }
+  if (removed.opp_signi_energy_to_deck_bottom === true) {
+    return { state: { ...removed, deck: [...removed.deck, num] }, log: '→デッキ下' };
+  }
+  return { state: { ...removed, energy: [...removed.energy, num] }, log: 'をバニッシュ' };
+}
+
 // Color列は「黒青」のような連結形式（'/'区切りではない）。単色文字に分解する（「無」は色を持たないため含まない）
 export function splitColors(col: string | undefined): string[] {
   if (!col) return [];

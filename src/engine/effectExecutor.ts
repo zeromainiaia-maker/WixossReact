@@ -58,7 +58,7 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum,
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
-  evalUseCondition,
+  evalUseCondition, banishDestination,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition };
@@ -103,13 +103,11 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     for (const num of selected) {
       const s = ownerState(tgt.owner, cur);
       const removed = removeFromField(num, s);
-      // opp_signi_energy_to_deck_bottom: 相手シグニがエナゾーンに置かれる代わりにデッキ下へ
-      const toBottom = tgt.owner === 'opponent' && (removed.opp_signi_energy_to_deck_bottom ?? false);
-      const dest: PlayerState = toBottom
-        ? { ...removed, deck: [...removed.deck, num] }
-        : { ...removed, energy: [...removed.energy, num] };
+      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
+      const opp = ownerState(tgt.owner === 'self' ? 'opponent' : 'self', cur);
+      const { state: dest, log } = banishDestination(removed, opp, num);
       cur = addLog(setOwnerState(tgt.owner, dest, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}${toBottom ? '→デッキ下' : 'をバニッシュ'}`);
+        `${cur.cardMap.get(num)?.CardName ?? num}${log}`);
     }
     return cur;
   }
@@ -2546,13 +2544,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
-      // opp_signi_energy_to_deck_bottom (WX25-CP1-003): エナゾーンに置かれる代わりにデッキ下へ
-      const toBottom = removed.opp_signi_energy_to_deck_bottom === true;
-      const withEnergy: PlayerState = toBottom
-        ? { ...removed, deck: [...removed.deck, cardNum] }
-        : { ...removed, energy: [...removed.energy, cardNum] };
+      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
+      const opp = ownerState(found === 'self' ? 'opponent' : 'self', ctx);
+      const { state: withEnergy, log } = banishDestination(removed, opp, cardNum);
       return done(addLog(setOwnerState(found, withEnergy, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${toBottom ? '→デッキ下' : 'をバニッシュ'}`));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${log}`));
     }
     case 'BOUNCE': {
       let found: Owner | null = null;
