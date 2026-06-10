@@ -3851,10 +3851,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }) ? 5 : undefined;
   // lrig_copy_opp_level_limit: WXK03-003A ルリグのリミットを相手センタールリグからコピー
   const oppCenterLrig = battleCardMap.get(op.field.lrig.at(-1) ?? '');
+  // Limit「∞」はInfinity扱い（parseIntだとNaN→0になりシグニを出せなくなる）
+  const parseLimitVal = (s?: string) => s === '∞' ? Infinity : (parseInt(s ?? '0') || 0);
   const copyBaseLimitFromOpp = my.lrig_copy_opp_level_limit
-    ? (parseInt(oppCenterLrig?.Limit ?? '0') || 0)
+    ? parseLimitVal(oppCenterLrig?.Limit)
     : undefined;
-  const lrigLimit = (oppBasicLimitOverride ?? copyBaseLimitFromOpp ?? (parseInt(currentLrig?.Limit ?? '0') || 0))
+  const lrigLimit = (oppBasicLimitOverride ?? copyBaseLimitFromOpp ?? parseLimitVal(currentLrig?.Limit))
     + ((my.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((my.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
     + (my.lrig_limit_mod ?? 0)
