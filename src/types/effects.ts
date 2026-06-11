@@ -531,6 +531,14 @@ export interface GrantSigniAboveAbilityAction {
   abilities: CardEffect[]; // 付与する能力
 }
 
+// このカードが場にあるかぎり、フィルタに合う自分の場のシグニ全員へ能力を付与する
+// （CONTINUOUS効果として宣言。【レイヤー】の《レイヤーアイコン》能力付与に使用）
+export interface GrantFieldSigniAbilityAction {
+  type: 'GRANT_FIELD_SIGNI_ABILITY';
+  filter?: TargetFilter;   // 付与先フィルタ（例: story:'怪異'。省略時は自分の全シグニ）
+  abilities: CardEffect[]; // 付与する能力（付与先シグニ自身の能力として扱われる）
+}
+
 // トラッシュ/エナ/フィールドからデッキへ移動
 export interface TransferToDeckAction {
   type: 'TRANSFER_TO_DECK';
