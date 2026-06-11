@@ -500,8 +500,8 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     return done(ctx);
   }
 
-  //
-   const srcDefined = src!;
+  // 場に出す：空きゾーンに配置（呼び出し元が担当できないため自動的に最初の空きへ）
+  const srcDefined = src!;
   function applyToField(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const n of selected) {
