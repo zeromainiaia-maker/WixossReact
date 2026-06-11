@@ -1224,6 +1224,7 @@ function applyDeltaToState(
   powers: Map<string, number>,
   powerProtectedNums?: Set<string>,
   negMultiplier?: number,
+  excludeNum?: string, // excludeSelf: 効果元カード自身を除外
 ) {
   const effectiveDelta = (negMultiplier !== undefined && delta < 0) ? delta * negMultiplier : delta;
   // 同一CardNumが複数ゾーンにある場合、同じpowersエントリに重複適用しない
