@@ -1189,7 +1189,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opOverrides = opS.card_identity_overrides ?? {};
     const hasOverrides = Object.keys(myOverrides).length > 0 || Object.keys(opOverrides).length > 0;
 
-    if (!hasGranted && !hasStack && !hasOverrides) return baseEffectsMap;
+    // レイヤー等のフィールド付与（GRANT_FIELD_SIGNI_ABILITY）持ちシグニの有無チェック
+    const hasFieldGrant = [...myS.field.signi, ...opS.field.signi].some(s => {
+      const top = s?.at(-1);
+      if (!top) return false;
+      return (baseEffectsMap.get(top) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' && e.action.type === 'GRANT_FIELD_SIGNI_ABILITY');
+    });
+
+    if (!hasGranted && !hasStack && !hasOverrides && !hasFieldGrant) return baseEffectsMap;
 
     const augMap = new Map<string, import('../types/effects').CardEffect[]>(baseEffectsMap);
 
