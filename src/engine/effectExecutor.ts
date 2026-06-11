@@ -1446,8 +1446,8 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   }
   if (charmCands.length === 0) return done(addLog(ctx, 'チャームなし'));
 
-  //
-   const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
+  // 対象シグニのゾーンを探す
+  const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
 
   const charmNum = charmCands[0];
