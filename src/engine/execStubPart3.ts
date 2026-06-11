@@ -2466,6 +2466,32 @@ export function execStubPart3(
     return selectOrInteract(candsIBOPL, 1, false, 'opp_field', banishIBOPL as EffectAction, undefined, ctx);
   }
   // SUMMON_FROM_ENERGY: エナゾーンからシグニを場に出す（シグニ限定）
+  // REVEAL_TOP_LEVEL_ROUTE: デッキの一番上を公開しシグニのレベル別効果を実行（WX12-CB02）
+  // Lv1:自パワー+5000 / Lv2:エナチャージ1 / Lv3:ランサー付与 / Lv4:1ドロー / Lv5:相手シグニバニッシュ
+  if (stub.id === 'REVEAL_TOP_LEVEL_ROUTE') {
+    const topRTLR = ctx.ownerState.deck[0];
+    if (!topRTLR) return done(addLog(ctx, 'デッキが空（公開不可）'));
+    const cardRTLR = ctx.cardMap.get(topRTLR);
+    const isSigniRTLR = cardRTLR?.Type === 'シグニ';
+    const lvRTLR = isSigniRTLR ? (parseInt(cardRTLR?.Level ?? '0') || 0) : 0;
+    const curRTLR = addLog(ctx, `デッキトップ公開: ${cardRTLR?.CardName ?? topRTLR}（${isSigniRTLR ? `レベル${lvRTLR}` : 'シグニ以外'}）`);
+    if (!isSigniRTLR) return done(curRTLR);
+    if (lvRTLR === 1 && ctx.sourceCardNum) {
+      const modsRTLR = [...(curRTLR.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: 5000 }];
+      return done(addLog({ ...curRTLR, ownerState: { ...curRTLR.ownerState, temp_power_mods: modsRTLR } }, 'このシグニのパワー＋5000'));
+    }
+    if (lvRTLR === 2) return exec({ type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } as EffectAction, curRTLR);
+    if (lvRTLR === 3 && ctx.sourceCardNum) {
+      const grantsRTLR = { ...(curRTLR.ownerState.keyword_grants ?? {}) };
+      grantsRTLR[ctx.sourceCardNum] = [...new Set([...(grantsRTLR[ctx.sourceCardNum] ?? []), 'ランサー'])];
+      return done(addLog({ ...curRTLR, ownerState: { ...curRTLR.ownerState, keyword_grants: grantsRTLR } }, 'このシグニは【ランサー】を得る'));
+    }
+    if (lvRTLR === 4) return exec({ type: 'DRAW', owner: 'self', count: 1 } as EffectAction, curRTLR);
+    if (lvRTLR === 5) {
+      return exec({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } } as BanishAction as EffectAction, curRTLR);
+    }
+    return done(curRTLR);
+  }
   // SUMMON_RESONA_FROM_LRIG_DECK: ルリグデッキからレゾナ1枚を出現条件を無視して場に出す（WX20-069等）
   if (stub.id === 'SUMMON_RESONA_FROM_LRIG_DECK') {
     const srcSRLD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
