@@ -224,7 +224,9 @@ for (const row of rows) {
   if (!cardNum || !cardName) continue;
   if (cardFilter && cardNum !== cardFilter) continue;
 
-  const effs = effectsAll[cardNum] ?? [];
+  const effsRaw = effectsAll[cardNum] ?? [];
+  // 付与能力（レイヤー等のabilities）もタイミング/コスト/アクション照合の対象に含める
+  const effs = effsRaw.flatMap(e => [e, ...collectNestedAbilityEffects(e.action)]);
 
   // ─── 1. カード自体がeffects.jsonに存在しない（効果テキストあり） ───
   // 【ガード】のみの説明文はゲームエンジン不要（キーワード処理済み）なので除外
