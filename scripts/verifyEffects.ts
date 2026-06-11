@@ -29,7 +29,7 @@ for (const fname of EFFECT_FILES) {
   Object.assign(effectsAll, JSON.parse(fs.readFileSync(p, 'utf8')));
 }
 
-const csvRaw = fs.readFileSync(CSV_PATH, 'utf8');
+const csvRaw = fs.readFileSync(CSV_PATH, 'utf8').replace(/^﻿/, '');
 
 // ======= 型定義（簡易） =======
 interface EffectDef {
