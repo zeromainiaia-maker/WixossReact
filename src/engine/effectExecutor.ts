@@ -860,23 +860,44 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       cur = addLog(cur, `リコレクト条件達成（アーツ${artsInLrigTrash}枚）`);
       continue;
     }
-    // TARGET_AND_DISCARD_HAND: 対戦相手シグニを対象とし手札を捨ててバニッシュ/バウンス/パワー変更
+    // TARGET_AND_DISCARD_HAND: 対戦相手シグニを対象とし手札を捨ててバニッシュ/バウンス/パワー変更など
+    // 直後の CONDITIONAL(IS_MY_TURN) は「捨てた場合の効果」のプレースホルダーなので消費し、
+    // その then を対象シグニへの適用アクションに使う（素通しすると二重実行になる）
     if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'TARGET_AND_DISCARD_HAND') {
-      const remaining = a.steps.slice(i + 1);
+      // パーサーが then の target.owner を 'self'/'any' と誤生成するため 'opponent' に修正（SEQUENCE内も再帰）
+      const fixOwnerTADH = (act: EffectAction): EffectAction => {
+        if (!act || typeof act !== 'object') return act;
+        if (act.type === 'SEQUENCE') {
+          return { ...act, steps: (act as SequenceAction).steps.map(fixOwnerTADH) } as SequenceAction;
+        }
+        if (['BANISH', 'BOUNCE', 'DOWN', 'FREEZE', 'GRANT_KEYWORD', 'POWER_MODIFY', 'TRANSFER_TO_DECK'].includes(act.type)) {
+          const withTgt = act as unknown as { target?: { owner?: string; [k: string]: unknown }; [k: string]: unknown };
+          if (withTgt.target && (withTgt.target.owner === 'self' || withTgt.target.owner === 'any')) {
+            return { ...withTgt, target: { ...withTgt.target, owner: 'opponent' } } as unknown as EffectAction;
+          }
+        }
+        return act;
+      };
+      const nextTADH = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
+      let thenTADH: EffectAction = {
+        type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+      } as import('../types/effects').BanishAction;
+      let restIdxTADH = i + 1;
+      if (nextTADH?.type === 'CONDITIONAL' && (nextTADH as ConditionalAction).condition.type === 'IS_MY_TURN') {
+        thenTADH = fixOwnerTADH((nextTADH as ConditionalAction).then);
+        restIdxTADH = i + 2;
+      }
+      const remaining = a.steps.slice(restIdxTADH);
       const cont: EffectAction | undefined = remaining.length > 0
         ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining } as SequenceAction)
         : undefined;
-      const oppState = cur.otherState;
-      const cands = fieldCandidates(oppState, { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors);
-      // 対戦相手シグニをバニッシュ（applyDirectActionが正しいカードを特定）、その後手札1枚捨て
-      const banishAction: import('../types/effects').BanishAction = {
-        type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
-      };
+      const cands = fieldCandidates(cur.otherState, { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors);
+      // 対象シグニに then を適用（applyDirectActionが正しいカードを特定）、その後手札1枚捨て
       const discardCont: EffectAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } as import('../types/effects').TrashAction;
       const fullCont: EffectAction = cont
         ? { type: 'SEQUENCE', steps: [discardCont, cont] } as SequenceAction
         : discardCont;
-      return selectOrInteract(cands, 1, false, 'opp_field', banishAction, fullCont, cur);
+      return selectOrInteract(cands, 1, false, 'opp_field', thenTADH, fullCont, cur);
     }
     // COST_COLOR_SELECT: コスト色に基づき次のSEARCHに色フィルタを適用
     if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'COST_COLOR_SELECT') {
