@@ -40,7 +40,11 @@
 | 18 | AUTO/ACTIVATED | ✅ | DECLARE_CARD_NAME |
 | 18 | AUTO/ACTIVATED | ✅ | LOOK_AND_REORDER |
 | 16 | CONT | ✅ | COPY_LRIG_NAME_ABILITY ※v0.113: collectLrigNameAliases実装・アーツコスト名前条件に対応 / v0.132: collectCopiedLrigAutoEffects追加・ON_ATTACK_LRIG/ON_PLAYトリガーにトラッシュルリグの【自】能力を組み込み |
-| 1 | ACTIVATED | ✅ | REVEAL_PICK_HAND_SHUFFLE_BOTTOM |
+| 1 | ACTIVATED | ✅ | REVEAL_PICK_HAND_SHUFFLE_BOTTOM ※v0.253: revealPickParams.then:'energy'対応（選んだカードをエナゾーンへ） |
+| 1 | AUTO | ✅ | REVEAL_TOP_BANISH_BY_LEVEL_SUM ※v0.253: デッキ上N枚公開→シグニレベル合計×1000以下の相手シグニをバニッシュ→公開分トラッシュ（WX17-028） |
+| 1 | AUTO | ✅ | REVEAL_TOP_LEVEL_ROUTE ※v0.253: デッキトップ公開→レベル別効果（Lv1:+5000/Lv2:エナ/Lv3:ランサー/Lv4:ドロー/Lv5:バニッシュ、WX12-CB02） |
+| 1 | AUTO | ✅ | SUMMON_RESONA_FROM_LRIG_DECK ※v0.253: ルリグデッキからレゾナ1枚（クラス解析対応）を出現条件無視で空きゾーンへ（WX20-069） |
+| - | 選択肢 | ✅ | SUMMON_FROM_TRASH ※v0.253: choiceTextParser選択肢用。トラッシュからシグニ1枚（レベル条件解析対応）をSELECT→場に出す |
 | 1 | AUTO/ACTIVATED | ✅ | REVEAL_PICK_PLAY ※デッキ上N枚公開→シグニ選択→場に出すインタラクション実装済み |
 | 15 | AUTO/ACTIVATED | ✅ | TARGET_ONLY ※対象シグニ選択→lastProcessedCardsに格納→後続ステップへ続行 |
 | 14 | CONT | ✅ | ARTS_COST_REDUCTION_BY_CENTER_LRIG |
