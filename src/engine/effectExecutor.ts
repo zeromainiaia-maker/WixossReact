@@ -855,9 +855,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         n => cur.cardMap.get(n)?.Type === 'アーツ'
       ).length;
       if (artsInLrigTrash < gate.minArts) {
-        return done(addLog(cur, `${artsInLrigTrash}/ ${gate.minArts}`));
+        return done(addLog(cur, `リコレクト条件未達（アーツ${artsInLrigTrash}枚 / 必要${gate.minArts}枚以上）`));
       }
-      cur = addLog(cur, `${artsInLrigTrash}`);
+      cur = addLog(cur, `リコレクト条件達成（アーツ${artsInLrigTrash}枚）`);
       continue;
     }
     // TARGET_AND_DISCARD_HAND: 対戦相手シグニを対象とし手札を捨ててバニッシュ/バウンス/パワー変更
