@@ -950,7 +950,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'CHOOSE', options: optionsSO, count: 1,
             ...(cont ? { continuation: cont } : {}),
           };
-          return needsInteraction(addLog(cur, ''), pendingSO);
+          return needsInteraction(addLog(cur, 'ソウルを使用して発動しますか？'), pendingSO);
         }
 
         // LRIG_UNDER_CARD_OP: シグニ下のカードを消費してコスト支払い（WX24/WX25/WXDiシリーズ）
