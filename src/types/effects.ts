@@ -357,6 +357,7 @@ export interface PowerModifyAction {
   type: 'POWER_MODIFY';
   target: EffectTarget;
   delta: NumberOrRef; // 正=強化、負=弱体化
+  excludeSelf?: boolean; // 「あなたの他のシグニ」: 効果元カード自身を対象から除外
 }
 
 export interface PowerSetAction {
