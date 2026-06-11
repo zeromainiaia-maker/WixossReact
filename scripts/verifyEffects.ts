@@ -405,13 +405,15 @@ for (const row of rows) {
   const jsonActions = collectActionsFromJson(effs);
 
   for (const { label, aliases } of textActions) {
-    // aliasのどれかがJSONに存在すればOK
-    const matched = aliases.some(a => jsonActions.has(a));
+    // aliasのどれかがJSONに存在すればOK。実装済みSTUBの同等物（STUB_EQUIVALENTS）も照合
+    const matched = aliases.some(a => jsonActions.has(a))
+      || [...jsonActions].some(j => j.startsWith('STUB:')
+        && (STUB_EQUIVALENTS[j.slice(5)] ?? []).some(t => aliases.includes(t)));
     if (!matched) {
       const hasStub = jsonActions.has('STUB');
       const severity = hasStub ? '[STUB代替?]' : '[要確認]';
       addIssue(cardNum, cardName, `アクション${severity}`,
-        `テキストから"${label}"が期待されるがJSONに存在しない (JSONアクション: ${[...jsonActions].filter(a=>a!=='SEQUENCE').join(', ')||'なし'})`);
+        `テキストから"${label}"が期待されるがJSONに存在しない (JSONアクション: ${[...jsonActions].filter(a=>a!=='SEQUENCE'&&a!=='STUB'&&!a.startsWith('STUB:')).join(', ')||'なし'}${[...jsonActions].some(a=>a.startsWith('STUB:'))?' / STUB: '+[...jsonActions].filter(a=>a.startsWith('STUB:')).map(a=>a.slice(5)).join(', '):''})`);
     }
   }
 
