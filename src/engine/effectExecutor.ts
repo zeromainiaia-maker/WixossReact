@@ -941,7 +941,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const optionsSO = [
             {
               id: 'pay', available: hasSoul,
-              label: soulName ? `${soulName}` : '',
+              label: soulName ? `ソウル（${soulName}）を使用して発動` : 'ソウルを使用して発動',
               action: payActionSO,
             },
             { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
