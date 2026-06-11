@@ -44,7 +44,17 @@ ymsty側のClaude (Fable 5) セッションからの引き継ぎ。コミット 
 復元スクリプトは ymsty 側 `tmp_verify/`（gitignore対象）: repairCorruption.mjs / applyAnswers.mjs /
 auditRoundtrip.mjs / fixRoundtrip.mjs。
 
-### zerom側への残作業
+### zerom側への残作業 → ✅ 完了（2026-06-11 v0.250）
+
+> 1. 残存ダメージ掃討: 空ログ7件・空/劣化ラベル5件・空コメント14件を正本（020302f^）から復元。
+>    実バグ2件を追加発見・修復: ①OTECクラス抽出regexが破損後に`《》`形式へ誤修正されておりクラスフィルタが常に空
+>    （正: `＜クラス＞`形式、CSVテキストで確認）②`[０-９d]`の`\d`バックスラッシュ欠落3箇所（レベル参照上書き2・ウィルス除去数1）。
+> 2. 動作確認: tsxスモークテストでRECOLLECT_GATE未達/達成の分岐とSOUL_OP CHOOSEラベル表示をPASS確認。
+> 3. CI: tsc 0 / lint 0 errors / checkAllEffects 0件。v0.250でデプロイ済み。
+> 4. **破損原因の特定**: PowerShell 5.1の`Get-Content`はBOMなしUTF-8をCP932誤読する（実際に本セッションの
+>    一時ファイルで再現）。日本語ファイルの読み書きは`[System.IO.File]::ReadAllText/WriteAllText`を使うこと。
+
+### zerom側への残作業（原文）
 
 1. **残存ダメージの掃討**: 4f4c77c以降の107コミットが破損行を変更しており、内容一致で復元できなかった
    約120行は後続コミットで修正済みと推定されるが、ログ文字列が空のまま残っている可能性がある。
