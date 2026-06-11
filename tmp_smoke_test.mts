@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// 破損修復後のスモークテスト: RECOLLECT_GATE / SOUL_OP CHOOSEラベル / OTECクラス抽出
+// 破損修復後のスモークテスト: RECOLLECT_GATE / SOUL_OP CHOOSEラベル
 import { executeAction } from './src/engine/effectExecutor';
 
 const baseState = (over: Record<string, any> = {}): any => ({
@@ -35,7 +35,7 @@ const check = (name: string, cond: boolean, detail: string) => {
   const r: any = executeAction({
     type: 'SEQUENCE', steps: [
       { type: 'RECOLLECT_GATE', minArts: 4 },
-      { type: 'DRAW', count: 1, target: { owner: 'self' } },
+      { type: 'DRAW', count: 1, owner: 'self' },
     ],
   } as any, ctx);
   check('RECOLLECT_GATE未達', r.logs.some((l: string) => l.includes('リコレクト条件未達')) && r.ownerState.hand.length === 0,
@@ -48,7 +48,7 @@ const check = (name: string, cond: boolean, detail: string) => {
   const r: any = executeAction({
     type: 'SEQUENCE', steps: [
       { type: 'RECOLLECT_GATE', minArts: 4 },
-      { type: 'DRAW', count: 1, target: { owner: 'self' } },
+      { type: 'DRAW', count: 1, owner: 'self' },
     ],
   } as any, ctx);
   check('RECOLLECT_GATE達成', r.logs.some((l: string) => l.includes('リコレクト条件達成')) && r.ownerState.hand.length === 1,
@@ -62,7 +62,7 @@ const check = (name: string, cond: boolean, detail: string) => {
   const r: any = executeAction({
     type: 'SEQUENCE', steps: [
       { type: 'STUB', id: 'SOUL_OP' },
-      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', count: 1, target: { owner: 'self' } } },
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', count: 1, owner: 'self' } },
     ],
   } as any, ctx);
   const opts = r.pending?.options ?? [];
