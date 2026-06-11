@@ -1090,7 +1090,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const totalVirusRV = virusArrRV.reduce((s, v) => s + v, 0);
           const srcRV = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
           const txtRV = srcRV ? (srcRV.EffectText ?? '') + ' ' + (srcRV.BurstText ?? '') : '';
-          const cntMRV = txtRV.match(/【ウィルス】([０-９d]+)つを?取り除く/);
+          const cntMRV = txtRV.match(/【ウィルス】([０-９\d]+)つを?取り除く/);
           const removeCountRV = cntMRV ? parseInt(toHWRV(cntMRV[1])) : 1;
           const isOptionalRV = !!(txtRV.match(/取り除いてもよい/));
           // ウイルス除去スタブ + conditional.then を連結したアクション
