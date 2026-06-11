@@ -2570,33 +2570,8 @@ export function execStubPart3(
     // 選択数を解析（「N つまで選ぶ」「N つ選ぶ」）
     const countM = txtCNFL.match(/([１-４1-4])つ(?:まで)?選ぶ/);
     const maxChoose = countM ? parseInt(toHWCNFL(countM[1])) : 2;
-    // ①②③④ を解析してCHOOSEオプション生成（CONDITIONAL_MULTI_CHOOSE_BY_CENTERと同じロジック）
-    const choicePatternsCNFL = [
-      { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
-      { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
-    ];
-    const optsCNFL: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
-    for (const { m, idx } of choicePatternsCNFL) {
-      const mat = txtCNFL.match(m);
-      if (!mat) continue;
-      const choiceTxtCNFL = mat[1].replace(/。\s*$/, '').trim();
-      let choiceActionCNFL: EffectAction | null = null;
-      if (choiceTxtCNFL.match(/カードを[１1]枚引く/))
-        choiceActionCNFL = { type: 'DRAW', count: 1 } as DrawAction;
-      if (!choiceActionCNFL && choiceTxtCNFL.match(/対戦相手のシグニ[１1]体を対象とし.*ダウン/))
-        choiceActionCNFL = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction;
-      if (!choiceActionCNFL && choiceTxtCNFL.match(/手札を[１1]枚見ないで選び.*捨て/))
-        choiceActionCNFL = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction;
-      const pwDownMCNFL = !choiceActionCNFL && choiceTxtCNFL.match(/パワーを([－-][０-９\d]+)する/);
-      if (pwDownMCNFL) {
-        const delta = parseInt(toHWCNFL(pwDownMCNFL[1]).replace('－', '-'));
-        choiceActionCNFL = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: delta } as StubAction) as EffectAction;
-      }
-      if (!choiceActionCNFL && choiceTxtCNFL.match(/ダウンする/))
-        choiceActionCNFL = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction;
-      if (choiceActionCNFL)
-        optsCNFL.push({ id: `choice_${idx}`, label: `${'①②③④'[idx]}${choiceTxtCNFL.slice(0, 18)}...`, action: choiceActionCNFL, available: true });
-    }
+    // ①②③④ を解析してCHOOSEオプション生成（choiceTextParserに共通化）
+    const optsCNFL = parseChoiceOptionsFromText(txtCNFL, 'choice');
     if (optsCNFL.length > 0) {
       return needsInteraction(addLog(ctx, `効果を${maxChoose}つ選択（CHOOSE_N_FROM_LIST）`), {
         type: 'CHOOSE', options: optsCNFL, count: Math.min(maxChoose, optsCNFL.length),
