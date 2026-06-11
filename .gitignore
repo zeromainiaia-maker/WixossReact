@@ -34,3 +34,7 @@ scripts/firebase-service-account.json
 *.sw?
 
 .vercel
+
+# 使い捨て調査・検証ファイル
+tmp_*
+tmp_verify/
