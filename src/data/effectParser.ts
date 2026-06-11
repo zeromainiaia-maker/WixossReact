@@ -777,17 +777,14 @@ function parseActionText(text: string): EffectAction {
 
 function splitEffectBlocks(text: string): string[] {
   // 「。」の直後に【(クロス)?(ドライブ|チーム)?(常|出|起|自|ガード)】が来る箇所で分割
-  return text.split(/(?<=。)(?=【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
+  // （《レイヤーアイコン》接頭辞付きのマーカーにも対応）
+  return text.split(/(?<=。)(?=(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
 }
 
-// 効果ではないキーワード接頭辞（ライズ条件・ハーモニー条件等）を除去し、
-// レイヤー付与文を通常の効果マーカー形式に正規化する
+// 効果ではないキーワード接頭辞（ライズ条件・ハーモニー条件等）を除去する
+// （【レイヤー】はparseCardEffects内のextractLayerGrantで先に処理される）
 function stripKeywordPrefixes(text: string): string {
   let t = text.trim();
-  // 【レイヤー】付与文を除去し、《レイヤーアイコン》能力を通常マーカーとして扱う
-  // （簡易実装：レイヤーアイコン能力をこのカード自身の能力として登録する）
-  t = t.replace(/【レイヤー】[^【]*?《レイヤーアイコン》の能力を得る。?/g, '');
-  t = t.replace(/《レイヤーアイコン》(?=【)/g, '');
   // 先頭の非効果キーワードを繰り返し除去
   const PREFIXES = [
     /^【ライド】/,                 // ライド（注釈はstripRuleParensで除去済み）
