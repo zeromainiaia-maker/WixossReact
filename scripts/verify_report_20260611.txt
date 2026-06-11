@@ -1,0 +1,2085 @@
+===========================================================
+ effects JSON 照合レポート (生成: 2026-06-11)
+ checkAllEffects.mjs + verifyEffects.ts 全シート実行結果
+ ※ Sheet8 CSVのBOMによる検証スキップを修正済み
+===========================================================
+
+■■■ checkAllEffects.mjs 結果 ■■■
+
+=== 検出結果: 156件 ===
+
+
+─── MANDATORY_SUSPICIOUS (101件) ───
+  [effects_misc.json] WDK05-T13 讃の遊　パックンチョ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたのデッキの一番上を公開する。それがシグニの場合、それを場に出す。
+  [effects_misc.json] WDK05-T15 仁の遊　カマクラ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたのデッキの一番上を公開する。それがシグニの場合、それをアタックしているシグニとしてダウン状態で場に出す。
+  [effects_misc.json] WDK16-13 コードＶＬ　出雲霞
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上を公開する。この方法でレベル２以下の＜電機＞のシグニが公開された場合、それを場に出してもよい。あなたの登録者数が１００万人を達成していて、この方法でシグニが公開された場合
+  [effects_WX.json] WX01-036 巨弓　カタパル
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上を見る。それがレベル２以下のシグニであなたの場に他のシグニがない場合、それを場に出してもよい。
+  [effects_WX.json] WX01-057 出弓　セフィラム
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上を見る。それがレベル２以下のシグニであなたの場に他のシグニがない場合、それを場に出してもよい。
+  [effects_WX.json] WX01-059 出弓　ボウ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上を見る。それがレベル１のシグニであなたの場に他のシグニがない場合、それを場に出してもよい。
+  [effects_WX.json] WX02-073 コードアンチ　テキサハンマ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このカードがデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。
+  [effects_WX.json] WX04-003 ミルルン・ヨクト
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：対戦相手の手札を見て、その中からスペル１枚を、あなたの手札にあるかのようにコストを支払わずに限定条件を無視して使用してもよい。【起】《青》手札からスペル１枚と＜原子＞のシグニ１枚を捨てる：対戦
+  [effects_WX.json] WX04-041 コードメイズ　スカイジュ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：あなたの場に他の＜迷宮＞のシグニがあるかぎり、このシグニの基本パワーは10000になる。【出】：対戦相手のすべてのシグニを好きなように配置し直してもよい。
+  [effects_WX.json] WX04-052 堕落の虚無　パイモン
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：あなたの＜悪魔＞のシグニ１体がバニッシュされる場合、代わりにそのシグニに付いている【チャーム】１枚をトラッシュに置いてもよい。【出】：あなたのデッキの一番上のカードをこのシグニの【チャーム】に
+  [effects_WX.json] WX04-058 コードメイズ　タジマハ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：あなたの場に他の＜迷宮＞のシグニがあるかぎり、このシグニの基本パワーは7000になる。【出】：あなたのすべてのシグニを好きなように配置し直してもよい。
+  [effects_WX.json] WX04-096 堕落の破戒　オリエンス
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：このシグニに【チャーム】が付いているかぎり、このシグニの基本パワーは12000になる。【起】《ダウン》：あなたの＜悪魔＞のシグニ１体を対象とし、あなたのデッキの一番上のカードをそれの【チャーム
+  [effects_WX.json] WX04-102 堕落の消滅　アリトン
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このカードが手札かデッキからトラッシュに置かれたとき、あなたのシグニ１体を対象とし、このカードをそれの【チャーム】にしてもよい。（【チャーム】は裏向きでシグニに付き、１体に１枚までしか付けられ
+  [effects_WX.json] WX08-046 幻蟲　タマムシ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：対戦相手のシグニ１体を対象とし、対戦相手のデッキの一番上のカードをそれの【チャーム】にしてもよい。（【チャーム】は裏向きでシグニに付き、１体に１枚までしか付けられない）
+  [effects_WX.json] WX08-078 幻蟲　ミンミン
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニが場を離れたとき、対戦相手のトラッシュから対象のカード１枚を対象の対戦相手のシグニ１体の【チャーム】にしてもよい。（【チャーム】は裏向きでシグニに付き、１体に１枚までしか付けられない
+  [effects_WX.json] WX08-080 幻蟲　ツクツク
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニが場を離れたとき、対戦相手のトラッシュから対象のカード１枚を対象の対戦相手のシグニ１体の【チャーム】にしてもよい。
+  [effects_WX.json] WX09-012 ブルーコードハート　Ｖ・＠・Ｃ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出現条件】《メインフェイズアイコン》　《コードハート　Ｖ・Ａ・Ｃ》１体とレゾナではない＜電機＞のシグニ１体をあなたの場からトラッシュに置く【自】：あなたが青のスペルを使用したとき、シグニ１体を対象と
+  [effects_WX.json] WX10-007 祈願の使者　サシェ・モティエ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上を見る。それがレベル３以下の＜宇宙＞のシグニの場合、それを場に出してもよい。
+  [effects_WX.json] WX10-021 ミュウ＝イクロ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上を見る。それがレベル３以下の＜凶蟲＞のシグニの場合、それを場に出してもよい。
+  [effects_WX.json] WX10-034 肆ノ遊姫　ベイゴマ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、あなたの他のシグニを２体まで対象とし、それらをバニッシュしてもよい。その後、この効果でバニッシュしたシグニと同じ数だけエナゾーンからカードを対象とし、それらを手札
+  [effects_WX.json] WX10-048 参ノ遊　キセカエ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニをバニッシュしてもよい。その後、この効果でこのシグニをバニッシュしていた場合、あなたのエナゾーンからカード１枚を対象とし、それを
+  [effects_WX.json] WX10-092 コードアンチ　ハンマフェイク
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このカードがデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。
+  [effects_WX.json] WX11-026 聖火の祭壇　ヘスチア
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのライフクロス１枚がクラッシュされたとき、このシグニをあなたのトラッシュから場に出してもよい。【出】：あなたのライフクロスが１枚以下の場合、あなたのデッキの上からカードを３枚公開する。そ
+  [effects_WX.json] WX11-035 極鎚　ミョルニル
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたの＜アーム＞のシグニ１体が場を離れたとき、あなたの手札からそのシグニより低いレベルを持つシグニ１枚を場に出してもよい。
+  [effects_WX.json] WX12-010 ホワイトメイズ　ホデサパ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出現条件】《メインフェイズアイコン》《アタックフェイズアイコン》白のシグニ１枚と黒のシグニ１枚をあなたの手札から捨てる【常】：対戦相手のシグニは可能ならばアタックしなければならない。【自】：対戦相手
+  [effects_WX.json] WX12-031 羅原　Ｖ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのメインフェイズ開始時、対戦相手のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする。
+  [effects_WX.json] WX13-044 羅石　ビスマス
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：対戦相手がアーツを使用したとき、このシグニをバニッシュしてもよい。そうした場合、対戦相手のすべてのシグニをバニッシュする。（そのアーツのあとでこの能力は発動する。そのアーツでこのシグニが場を離
+  [effects_WX.json] WX13-052 参ノ遊　コイノボリ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、あなたのデッキの一番上を公開する。それが＜遊具＞のシグニの場合、このシグニをバニッシュしてもよい。そうした場合、この効果で公開したシグニを
+  [effects_WX.json] WX14-009 炎・花代・伍
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：このカードにグロウするためのコストは、あなたのトラッシュにあるカード名に《フレイスロ》を含むカード７枚につき《赤×1》減る。【自】：あなたのカード名に《フレイスロ》を含むシグニ１体が場を離れた
+  [effects_WX.json] WX14-026 羅石　スイカリン
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：対戦相手のターンの間、このシグニがバニッシュされる場合、代わりにあなたのライフクロス１枚をクラッシュしてもよい。【出】：あなたは手札を１枚捨てる。この方法で捨てたカードが＜鉱石＞か＜宝石＞のシ
+  [effects_WX.json] WX14-033 大拳　カクシ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：このシグニはあなたの場に＜アーム＞のシグニが２体以上ないかぎり、新たに場に出すことができない。【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、あなたの他のシグニ１体をバニッシュし
+  [effects_WX.json] WX14-CB02 暁月
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：あなたの《燦》はバニッシュされない。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのアップ状態の＜アーム＞のシグニ１体をダウンしてもよい。そうした場合、それを手札
+  [effects_WX.json] WX15-036 大幻蟲　§オタガメ§
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このカードが手札からトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。【出】：対戦相手のシグニ１体を対象とし、あなたの場に他の＜凶蟲＞のシグニがある場合、それをダウンし凍結
+  [effects_WX.json] WX15-039 死之遊姫　†ニホニンギョ†
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－4000する。この効果によってそのシグニのパワーが０以下になった場合、このシグニをバニッシュしてもよい。そ
+  [effects_WX.json] WX16-038 忍猿の十勇　サルトビ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【ライズ】あなたのレベル２以下の赤のシグニ１体の上に置く【出】：あなたのデッキの一番上を見る。それが《ライズアイコン》を持つ＜武勇＞のシグニの場合、それを場に出してもよい。【自】：このシグニがライズさ
+  [effects_WX.json] WX16-070 仕英の文章　＃シゴト＃
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのレベルを＋１するか＋２してもよい。
+  [effects_WX.json] WX17-028 羅星姫　≡ソラフレア≡
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、あなたのトラッシュからそれぞれレベルの異なる＜宇宙＞のシグニ４枚をデッキに戻してシャッフルしてもよい。そうした場合、ターン終了時まで、このシグニは【ダブルクラッシ
+  [effects_WX.json] WX17-075 コードイート　タルタル
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニの正面にレベル２以下のシグニ１体が出たとき、あなたはそのシグニをバニッシュしてもよい。【起】《緑》：あなたのシグニ１体を対象とし、このカードをエナゾーンからそれの【アクセ】にする。【
+  [effects_WX.json] WX18-002 哀罪の駄姫　グズ子
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたの＜遊具＞のシグニ１体がバニッシュされたとき、あなたのデッキの一番上を公開する。それが＜遊具＞のシグニの場合、それを場に出してもよい。【出】
+  [effects_WX.json] WX20-034-CB 偉智の遊　*ハッカドール１号*
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたの手札から白ではないレベル３以下の＜遊具＞のシグニ１枚を場に出してもよい。そうした場合、カードを１枚引く。
+  [effects_WX.json] WX20-039-CB 丹乃遊　≡ハッカドール２号≡
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：対戦相手のパワー5000以下のシグニ１体を対象とし、あなたの手札から赤ではないレベル３以下の＜遊具＞のシグニ１枚を場に出してもよい。そうした場合、その対戦相手のシグニをバニッシュする。
+  [effects_WX.json] WX20-050 大拳　ニャックル
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、あなたのカード名に《ニャローブ》を含むシグニ１体をバニッシュしてもよい。そうした場合、このシグニをアップする。【自】：対戦相手のターンの間、このシグニが場を離れた
+  [effects_WX.json] WX20-055 不屈の僭帝　エンジュ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：《ライズアイコン》を持つあなたのシグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。
+  [effects_WX.json] WX20-066 幻水　ギンクチ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニを場から手札に戻してもよい。そうした場合、カードを１枚引く。
+  [effects_WX.json] WX20-067 文脈の攻防　モダーン
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：アタックフェイズの間、カード１枚がいずれかのプレイヤーの手札に加えられたとき、対戦相手のシグニ１体を対象とし、《白》を支払い、アップ状態のこのシグニをダウンしてもよい。そうした場合、それを手札
+  [effects_WX.json] WX20-082 幻蟲　カレハチョウ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このカードが手札かデッキからトラッシュに置かれたとき、対戦相手のトラッシュから対象のカード１枚を対象の対戦相手のシグニ１体の【チャーム】にしてもよい。
+  [effects_WX.json] WX21-065 幻竜　＃プロケラ#
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたの手札から名前の異なる＜龍獣＞のシグニを２枚まで公開してもよい。
+  [effects_WX.json] WX21-Re06 コードアンチ　カイヅカ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのトラッシュからシグニ１体が場に出たとき、このシグニをトラッシュから場に出してもよい。そうした場合、ターン終了時に、またはこのシグニが場から離れる場合に、このシグニをゲームから除外する。
+  [effects_WX24_26.json] WX24-P1-069 コードアート　Sエーバー
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたがスペルを使用したとき、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  [effects_WX24_26.json] WX24-P2-077 弍ノ遊　ミズフウセン
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズの間、このシグニが場を離れたとき、あなたの手札からレベル１の＜遊具＞のシグニ１枚をダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。【自】：あなたのター
+  [effects_WX24_26.json] WX24-P2-078 弍ノ遊　ミズデッポウ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：アタックフェイズの間、このシグニが場を離れたとき、あなたの手札からレベル１の＜遊具＞のシグニ１枚をダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。
+  [effects_WX24_26.json] WX24-P3-077 幻水　マンボウ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  [effects_WX24_26.json] WX24-P4-040 ミルルン☆スティール
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：カードを２枚引く。【出】：対戦相手の手札を見て１枚選び、捨てさせる。そのカードがコストの合計が１以下のスペルの場合、対戦相手のトラッシュからそのスペルをコストを支払わずに使用してもよい。（コス
+  [effects_WX24_26.json] WX24-P4-052 羅原姫　Ｌａ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがバニッシュされたとき、対戦相手の手札を１枚見ないで選び、捨てさせる。【自】：このシグニがアタックしたとき、そのアタック終了時、対戦相手のパワー8000以下のシグニ１体を対象とし、こ
+  [effects_WX24_26.json] WX24-P4-070 壱ノ遊　ビニールプール
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズの間、このシグニが場を離れたとき、あなたの手札からレベル１の＜遊具＞のシグニ１枚をダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。
+  [effects_WX24_26.json] WX24-P4-104 弐ノ遊　カミヨーヨー
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、対戦相手のパワー7000以下のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする。
+  [effects_WX24_26.json] WX25-P1-055 羅植姫　ダイナマイトツリー
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、対戦相手のパワー8000以下のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、それをバニッシュする。【自】：あなたのターン終了時、
+  [effects_WX24_26.json] WX25-P1-056 羅原闘姫　Ne
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：あなたの＜原子＞のシグニが対戦相手の効果によって場を離れる場合、その移動がバニッシュによるものでないなら、代わりにそのシグニをバニッシュしてもよい。【起】《ターン１回》《青》アップ状態の＜原子
+  [effects_WX24_26.json] WX25-P1-069 羅原　Ca
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがバニッシュされたとき、あなたのデッキの上からカードを３枚見る。その中から＜原子＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。【自】：対戦相手のターン終了
+  [effects_WX24_26.json] WX25-P1-083 羅原　Hf
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがバニッシュされたとき、対戦相手は手札を１枚捨てる。【自】：対戦相手のターン終了時、このシグニをバニッシュしてもよい。
+  [effects_WX24_26.json] WX25-P1-099 コードオールド　テキサハンマ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのメインフェイズの間、このカードがあなたの＜古代兵器＞のシグニの効果によってデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。
+  [effects_WX24_26.json] WX25-P1-104 コードオールド　ハンマフェイク
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのメインフェイズの間、このカードがあなたの＜古代兵器＞のシグニの効果によってデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。
+  [effects_WX24_26.json] WX25-P2-057 羅原姫　Pt
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】《ターン１回》：あなたの青のシグニ１体がバニッシュされたとき、以下の２つから１つを選ぶ。①カードを１枚引く。②あなたの手札からレベル１のシグニ１枚をダウン状態で場に出す。そのシグニの【出】能力は
+  [effects_WX24_26.json] WX25-P2-085 蒼将　タイコウボウ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたの場に他の＜武勇＞のシグニがある場合、以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それを凍結する。②アップ状態のこのシグニをダウンしてもよ
+  [effects_WX24_26.json] WX25-P2-112 紅将　パロミデ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、対戦相手のエナゾーンにカードが２枚以上ある場合、あなたのアップ状態のルリグ１体をダウンしてもよい。その後、対戦相手のエナゾーンからこの方法でダウンしたルリグと共
+  [effects_WX24_26.json] WX25-P3-074 紅天　ガルダ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜天使＞のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたと
+  [effects_WX24_26.json] WX25-P3-078 紅天　アヌビス
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜天使＞のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたと
+  [effects_WX24_26.json] WX25-P3-089 コードパレス　カイユー
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜迷宮＞のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたと
+  [effects_WX24_26.json] WX25-CP1-062 豊見コトリ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのターン終了時、手札を１枚捨ててもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのすべての＜ブルアカ＞のシグニのパワーを＋4000する。【絆自】：あなたのアタックフェイズ開始
+  [effects_WX24_26.json] WX25-CP1-082 里浜ウミカ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、パワーがこのシグニのパワーの半分以下の対戦相手のシグニ１体を対象とし、あなたの他のアップ状態の＜ブルアカ＞のシグニ１体をダウンしてもよい。そうした場合、それをバ
+  [effects_WX24_26.json] WX26-CP1-048 プリンセス・ジール(テイクミーハイヤー)
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜プリオケ＞の場合、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。【出】：このシグニが＜プリオケ＞の
+  [effects_WXDi.json] WXDi-P02-037 紅魔姫　ダッキ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】《ターン１回》：あなたのライフクロス１枚がクラッシュされたとき、カードを１枚引く。【自】《ターン１回》：あなたのシグニ１体がコストかあなたの効果によって場からトラッシュに置かれたとき、【エナチャ
+  [effects_WXDi.json] WXDi-P03-071 羅石　ラピスラズリ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、手札から赤の＜宝石＞のシグニ１枚を場に出してもよい。そのシグニの【出】能力は発動しない。
+  [effects_WXDi.json] WXDi-P04-059 コードアート　Yキトリキ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたがスペルを使用したとき、対戦相手のパワー5000以下のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、それをバニッシュする。
+  [effects_WXDi.json] WXDi-P05-032 大装　ゲイヴォルグ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：あなたのセンタールリグは「【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。」を得る。【自】：あなたのアタックフェイズ開始時、あなたの
+  [effects_WXDi.json] WXDi-P06-011 炎唱火　遊月・参
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置いてもよい。そうした場合、対戦相手は【エナチャージ１】をしてもよい。【出】：対戦相手は自分のシ
+  [effects_WXDi.json] WXDi-P06-034 紅将姫　クーフーリン
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【ライズ】あなたのトラッシュにある＜武勇＞のシグニ２枚を下に重ねて場に出す（空いているシグニゾーンに出す）【常】：このシグニがバニッシュされる場合、代わりに「アップ状態のこのシグニをダウンし、このシグ
+  [effects_WXDi.json] WXDi-P06-049 中装　ミカガミ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのルリグ１体がアタックしたとき、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  [effects_WXDi.json] WXDi-P08-053 羅星　ノヴァ//メモリア
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：対戦相手のアタックフェイズ開始時、対戦相手のレベル２以下のシグニを１体まで対象とし、このシグニを場から手札に戻してもよい。そうした場合、ターン終了時まで、それは「【常】：アタックできない。」を
+  [effects_WXDi.json] WXDi-P08-059 羅踊石　ガーネット
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：このシグニがダウン状態であるかぎり、このシグニのパワーは＋4000される。【起】《ダウン》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。そうした場合、対戦相手は【エナ
+  [effects_WXDi.json] WXDi-P08-062 コードメイズ　ウムル//メモリア
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上を見る。そのカードをデッキの一番下に置いてもよい。【起】このシグニを場からデッキの一番下に置く：あなたのデッキの一番上を公開する。そのカードが《コードメイズ　ウムル//メ
+  [effects_WXDi.json] WXDi-P09-054 聖将　フィン・マックール
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのターン終了時、アップ状態のこのシグニをダウンしてもよい。そうした場合、以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをトラッシュに置く。②カードを１枚引く。
+  [effects_WXDi.json] WXDi-P10-034 羅植姫　ユキ//メモリア
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたのデッキの上からカードを４枚見る。その中から１枚を裏向きでシグニゾーンに置き、残りを好きな順番でデッキの一番下に置く。次のあなたのメインフェイズ開始時、そ
+  [effects_WXDi.json] WXDi-P10-045 プリパラアイドル　北条そふぃ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのターン終了時、あなたの手札から＜プリパラ＞のシグニを１枚公開してもよい。そうした場合、次の対戦相手のターン終了時まで、このシグニのパワーを＋4000する。
+  [effects_WXDi.json] WXDi-P11-072 壱ノ遊　メンコ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがバトルによってシグニ１体をバニッシュしたとき、このシグニを場から手札に戻してもよい。そうした場合、【エナチャージ２】をする。
+  [effects_WXDi.json] WXDi-P11-078 融合の儀　ウムル//メモリア
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上のカードをトラッシュに置く。そのカードが《融合の儀　タウィル//メモリア》の場合、そのカードをトラッシュから場に出してもよい。【起】《黒》《白》このシグニと《融合の儀　タ
+  [effects_WXDi.json] WXDi-P13-074 コードイート　コーヒー//ディソナ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたのアップ状態の《ディソナアイコン》のシグニ２体をダウンしてもよい。そうした場合、カードを１枚引き、対戦相手は手札を１枚捨てる。その後、あなたは対戦相手のシ
+  [effects_WXDi.json] WXDi-P15-084 小装　ロングスピア
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたのルリグ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】《ターン１回》：このルリグがアタックしたと
+  [effects_WXDi.json] WXDi-P15-092 羅植　マングロブ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、以下の２つから１つを選ぶ。①あなたの手札が３枚以下の場合、カードを１枚引く。②あなたの手札が４枚以上ある
+  [effects_WXDi.json] WXDi-P16-078 翠天　ヴィーザル
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、【エナチャージ１】をする。
+  [effects_WXDi.json] WXDi-CP01-032 コード２４３４　レイン・パターソン
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【常】：対戦相手のターンの間、あなたの他のシグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜バーチャ
+  [effects_WXDi.json] WXDi-CP01-040 コード２４３４　ぽむ　れいんぱふ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのルリグ１体がアタックしたとき、アップ状態のこのシグニをダウンしてもよい。そうした場合、あなたのデッキの一番上を公開する。そのカードが＜バーチャル＞のシグニの場合、カードを１枚引く。
+  [effects_WXDi.json] WXDi-CP02-075 黒崎コユキ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜ブルアカ＞の場合、手札を１枚捨ててもよい。そうした場合、対戦相手の手札を１枚見ないで選び、捨てさせる。【絆自】：あなたのアタッ
+  [effects_WXDi.json] WXDi-CP02-081 才羽ミドリ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：あなたのアタックフェイズ開始時、このターンにあなたが手札から＜ブルアカ＞のカードを１枚以上捨てていた場合、以下の２つから１つを選ぶ。①カードを１枚引く。②あなたの場に《才羽モモイ》がある場合、
+  [effects_WXK.json] WXK08-033 コードＶＬ　闇夜乃モルル
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、あなたのデッキの一番上を公開する。この方法でレベル２以下のシグニが公開された場合、それを場に出してもよい。あなたの登録者数が１００万人を達成していて、この方法でシ
+  [effects_WXK.json] WXK08-059 コードＶＬ　轟京子
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、あなたの手札からレベル１の＜電機＞のシグニ１枚を場に出してもよい。
+  [effects_WXK.json] WXK08-063 コードＶＬ　桜凛月
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたのデッキの一番上を公開する。それがレベル１のシグニの場合、それを場に出してもよい。
+  [effects_WXK.json] WXK10-057 讃の遊　ボブスレー
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたのデッキの一番上を公開する。それがシグニの場合、それをアタックしているシグニとしてダウン状態で場に出す。
+  [effects_WXK.json] WXK10-061 密英の暗号　スキュタレー
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたの手札からレベル２の＜英知＞のシグニ１枚を場に出す。そのシグニの【出】能力は発動しない。
+  [effects_WXK.json] WXK11-030 コードＶＬ　早瀬走
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それを手札に戻す。【出】：このシグニがシグニの効果によって場に出た場
+  [effects_WXK.json] WXK11-066 幻水　オタガメ
+    CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true
+    CSV: 【出】：あなたの緑のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000する。【自】：このカードがあなたの効果によって手札から公開されたとき、あなたの手札から《幻水　オタガメ》１枚を場に出
+
+─── EFFECT_TYPE_MISSING_AUTO (16件) ───
+  [effects_misc.json] WDK06-R11 極装　ハイメイル
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED,LIFE_BURST)
+    CSV: 【ライズ】あなたの赤のシグニ１体の上に置く（この条件を満たさなければ場に出せない）【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、このターンにあなたが手札を２枚以上捨てていた場合
+  [effects_WX.json] WX15-041 三日の天下　アケチ
+    CSV【自】あり、JSONにAUTOなし (types:LIFE_BURST)
+    CSV: 【ライズ】あなたのレベル２以下の赤のシグニ１体の上に置く【自】：このシグニがアタックしたとき、対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。
+  [effects_WX.json] WX16-024 幻怪姫　カラテン
+    CSV【自】あり、JSONにAUTOなし (types:LIFE_BURST)
+    CSV: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：このシグニは対戦相手のパワー15000以上のシグニの効果を受けない。《レイヤーアイコン》【自】：このシ
+  [effects_WX.json] WX17-045 ＦＬＡＳＨ
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: カードを１枚引き、手札を１枚捨てる。【自】：このカードが手札からトラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、それをダウンする。（このスペルを使用してもこのスペル自身の【自】能力は発動しな
+  [effects_WX.json] WX21-Re05 無二の征服　アレクサンド
+    CSV【自】あり、JSONにAUTOなし (types:LIFE_BURST)
+    CSV: 【ライズ】あなたのレベル１の赤のシグニの上に置く【自】：各アタックフェイズ開始時、あなたの他の赤のシグニ１体を対象とし、ターン終了時まで、それは「【常】：バニッシュされない。」を得る。
+  [effects_WX24_26.json] WX24-P4-058 中装　ジガネマル
+    CSV【自】あり、JSONにAUTOなし (types:CONTINUOUS)
+    CSV: 【常】：【シュート】（対戦相手のシグニが【シュート】を持つシグニとのバトルによってバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる）【自】《ターン１回》：あなたのシグニがバトルに
+  [effects_WXDi.json] WXDi-D05-011 はんぱない★ディストラクション
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: 【使用条件】【チーム】＜うちゅうのはじまり＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】：このルリグがアタックしたとき、以下の２つから１
+  [effects_WXDi.json] WXDi-D06-011 salvage　the　future
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: 【使用条件】【チーム】＜DIAGRAM＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】：このルリグがアタックしたとき、以下の２つから１つを
+  [effects_WXDi.json] WXDi-P03-002 G-G-G
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: 【使用条件】あなたの場に緑のルリグがいるこのゲームの間、あなたは以下の能力を得る。『【自】：あなたのターンの間、あなたのルリグがグロウしたとき、それがそのターンであなたの最初のグロウである場合、【エナ
+  [effects_WXDi.json] WXDi-P04-040 翠魔姫　イバラキドウジ
+    CSV【自】あり、JSONにAUTOなし (types:CONTINUOUS)
+    CSV: 【常】：【ランサー】【自】：あなたのアタックフェイズ開始時、《無》《無》《無》を支払わないかぎり、このシグニを場からトラッシュに置く。
+  [effects_WXDi.json] WXDi-P10-002 アフタヌーンティーショー
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ（あなたの場にいるルリグ３体がこの条件を満たす）このゲームの間、あなたは以下の能力を得る。『【自】：あなたのアタックフェイズ開始時、以下の２つから
+  [effects_WXDi.json] WXDi-P10-070 枝折
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED,LIFE_BURST)
+    CSV: あなたのトラッシュからそれぞれ共通する色を持たず無色ではないシグニ２枚を対象とし、それらをエナゾーンに置く。【自】：あなたのターンの間、このカードが捨てられたとき、シグニ１体を対象とし、ターン終了時ま
+  [effects_WXDi.json] WXDi-P11-003 トリックスター・スターダム！
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED)
+    CSV: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ（あなたの場にいるルリグ３体がこの条件を満たす）このゲームの間、あなたは以下の能力を得る。『【自】：あなたのメインフェイズ開始時、以下の３つからま
+  [effects_WXDi.json] WXDi-P13-089 夢限//ディソナ
+    CSV【自】あり、JSONにAUTOなし (types:CONTINUOUS,ACTIVATED)
+    CSV: 【常】：【マルチエナ】【自】《ターン１回》：対戦相手のターンの間、このシグニが対戦相手のシグニの、能力か効果の対象になったとき、そのシグニが場にある場合、そのシグニをゲームから除外する。【起】手札とエ
+  [effects_WXK.json] WXK10-054 弩書　ピカトリクス
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED,LIFE_BURST)
+    CSV: 【ライズ】あなたの＜ウェポン＞のシグニ１体の上に置く【自】：このシグニがバニッシュされたとき、あなたのトラッシュからこのシグニの下にあった＜ウェポン＞のシグニ１枚を対象とし、それを手札に加える。【起】
+  [effects_WXK.json] WXK11-038 極装　トリアイナ
+    CSV【自】あり、JSONにAUTOなし (types:ACTIVATED,LIFE_BURST)
+    CSV: 【ライズ】共通する色を持たないあなたのシグニ２体の上に置く【自】：このシグニがアタックしたとき、このシグニの下にあるカードと共通する色を持つ対戦相手のシグニ１体を対象とし、それをデッキの一番上に置く。
+
+─── EFFECT_TYPE_MISSING_ACTIVATED (12件) ───
+  [effects_misc.json] WDK06-C01 カーニバル　†ＱＡ†
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO)
+    CSV: 【出】：対戦相手のシグニ１体を対象とし、あなたのトラッシュに＜武勇＞のシグニが１０枚以上ある場合、それをトラッシュに置く。　【起】《ターン１回》デッキの上からカードを３枚トラッシュに置く：対戦相手のシ
+  [effects_misc.json] SP27-013 幻怪　ベンザイテン
+    CSV【起】あり、JSONにACTIVATEDなし (types:CONTINUOUS)
+    CSV: 【常】：対戦相手は場にあるシグニの【起】能力を使用できない。（効果を受けないシグニの能力も使用できない）
+  [effects_WX.json] WX04-054 サーバント　Ｘ
+    CSV【起】あり、JSONにACTIVATEDなし (types:CONTINUOUS,CONTINUOUS)
+    CSV: 【常】：カード名に《サーバント》を含むあなたの他のシグニのパワーを＋3000する。【常】：【マルチエナ】【起】《無》《無》《無》：あなたのデッキからカード名に《サーバント》を含むシグニ１枚を探して公開
+  [effects_WX.json] WX12-029 羅石　アクアマリン
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO,LIFE_BURST)
+    CSV: 【自】《ターン１回》：あなたのシグニが【起】能力のコストとして場からトラッシュに置かれたとき、あなたのデッキの一番上のカードをエナゾーンに置く。（起動能力にある：の左側がコスト、右側が効果）
+  [effects_WX.json] WX17-051 幻怪　ドワフ
+    CSV【起】あり、JSONにACTIVATEDなし (types:LIFE_BURST)
+    CSV: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【起】《白》このシグニを場からトラッシュに置く：このシグニと同じレベルの対戦相手のシグニ１体を対象とし、それを
+  [effects_WX24_26.json] WX25-P3-071 羅菌　セレビシエ
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO,AUTO,LIFE_BURST)
+    CSV: 【出】：あなたの場に他の＜微菌＞のシグニがある場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。【自】：あなたの＜微菌＞のシグニの【出】【起】能力のコストとしてこのカードが捨て
+  [effects_WX24_26.json] WX25-P3-085 羅菌　ユーグレナ
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO,LIFE_BURST)
+    CSV: 【自】：あなたの＜微菌＞のシグニの【出】【起】能力のコストとしてこのカードが捨てられたとき、あなたの＜微菌＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニが対戦相手
+  [effects_WX24_26.json] WX25-CP1-040 羽川ハスミ(体操服)
+    CSV【起】あり、JSONにACTIVATEDなし (types:CONTINUOUS)
+    CSV: 【常】：【シュート】【起】《ターン１回》エナゾーンから＜ブルアカ＞のカードを３枚までトラッシュに置く：この方法でトラッシュに置いたカードの枚数と同じレベルの対戦相手のシグニ１体を対象とし、それを手札に
+  [effects_WXDi.json] WXDi-P03-030 VOGUE3　サンガ
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO)
+    CSV: 【チーム】＜DIAGRAM＞【チーム自】：あなたのアタックフェイズ開始時、あなたの場に青と緑と黒のシグニがある場合、【エナチャージ１】をし、その後、あなたのエナゾーンからシグニを１枚まで対象とし、それ
+  [effects_WXDi.json] WXDi-P06-010 VOGUE3-EX　サンガ
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO)
+    CSV: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるシグニが持つ色が合計３種類以上ある場合、以下の２つから１つを選ぶ。①あなたのエナゾーンからカード１枚を対象とし、それを手札に加える。②【エナチャ
+  [effects_WXDi.json] WXDi-P07-081 爆砲　センチュリオン
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO)
+    CSV: 【出】《コインアイコン》《コインアイコン》：【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）【起】《緑》《緑》このシグニを場からトラッシュに置く：対戦相手のレベル３以上のシグニ１
+  [effects_WXDi.json] WXDi-P14-056 羅星　カーニバル//フェゾーネ
+    CSV【起】あり、JSONにACTIVATEDなし (types:AUTO)
+    CSV: 【自】：このシグニがアタックしたとき、手札を１枚捨ててもよい。そうした場合、以下の３つから１つを選ぶ。①対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。②カードを１枚引く。③
+
+─── EFFECT_TYPE_MISSING_CONTINUOUS (26件) ───
+  [effects_misc.json] PR-461 風月の巫女　タマヨリヒメ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO)
+    CSV: 【グロウ】あなたのライフクロスが０枚である【常】：【ダブルクラッシュ】【自】：このルリグがアタックしたとき、あなたのシグニ１体を場からトラッシュに置いてもよい。そうした場合、このルリグをアップする。【
+  [effects_WX.json] WX05-003 コード・ピルルク　ＡＣＲＯ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO,ACTIVATED)
+    CSV: 【グロウ】あなたのセンタールリグがカード名に《ピルルク》を含む【常】：このルリグはあなたのルリグトラッシュにあるルリグの【起】能力を持つ。【出】：対戦相手は手札をすべて捨てる。【起】エクシード5：あな
+  [effects_WX.json] WX05-004 五型緑姫
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO,ACTIVATED)
+    CSV: 【グロウ】あなたのセンタールリグがカード名に《緑姫》を含む【常】：このルリグはあなたのルリグトラッシュにあるルリグの【起】能力を持つ。【出】：あなたのデッキの一番上のカードをライフクロスに加える。【起
+  [effects_WX.json] WX05-005 黒点の巫女　タマヨリヒメ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:ACTIVATED,ACTIVATED)
+    CSV: 【グロウ】あなたのトラッシュに黒のカードが１０枚以上ある【常】：エナゾーン以外の領域にあるシグニは黒になる。【起】《黒》エナゾーンから黒のカード１枚をトラッシュに置く：対戦相手のシグニ１体を対象とし、
+  [effects_WX.json] WX05-011 ミルルン・ティコ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:ACTIVATED,ACTIVATED)
+    CSV: 【グロウ】あなたのセンタールリグがカード名に《ミルルン》を含む【常】：対戦相手はスペルを使用できない。【起】エクシード１：あなたのデッキの上からカードを５枚見る。その中から好きな枚数を好きな順番でデッ
+  [effects_WX.json] WX09-Re01 星占の巫女　リメンバ・デッドナイト
+    CSV【常】あり、JSONにCONTINUOUSなし (types:ACTIVATED,ACTIVATED)
+    CSV: 【グロウ】あなたのセンタールリグがカード名に《リメンバ》を含む【常】：対戦相手の凍結状態のシグニは能力を失う。【起】エクシード１：対戦相手のシグニ１体を対象とし、それを凍結する。すでにそのシグニが凍結
+  [effects_WX.json] WX12-025 羅星　アルケス
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：あなたのセンタールリグが＜サシェ＞でないかぎり、手札にあるこのシグニは【ガード】を失う。
+  [effects_WX.json] WX12-034 参ノ遊　スナバセ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：あなたのセンタールリグが＜アイヤイ＞でないかぎり、手札にあるこのシグニは【ガード】を失う。
+  [effects_WX.json] WX12-036 幻蟲　エイフド
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【ガード】（このカードを手札から捨てることで、ルリグのアタックによるダメージを一度防ぐ）【常】：あなたのセンタールリグが＜ミュウ＞でないかぎり、手札にあるこのシグニは【ガード】を失う。
+  [effects_WX.json] WX15-031 幻怪姫　ヌラリ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：このシグニは対戦相手のコストの合計が５以上の、アーツとスペルの効果を受けない。
+  [effects_WX.json] WX15-032 矜持の豪魔　オダノブ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO,LIFE_BURST)
+    CSV: 【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【常】：このシグニは中央のシグニゾーンにあるかぎり、【トリプルクラッシュ】を得る。【出】：このシグニのパワー以下の対戦相手のシグニ１体を対象とし、それを
+  [effects_WX.json] WX16-024 幻怪姫　カラテン
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：このシグニは対戦相手のパワー15000以上のシグニの効果を受けない。《レイヤーアイコン》【自】：このシ
+  [effects_WX.json] WX16-034 幻怪　コロポ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：このシグニはコストの合計が１以下の対戦相手のアーツの効果を受けない。
+  [effects_WX.json] WX16-051 幻怪　スナカケ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：このシグニはパワーが8000以上あるかぎり、【ランサー】を得る。（【ランサー】を持つシグニがバトルでシ
+  [effects_WX.json] WX16-053 幻怪　ケセパサ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：このシグニは対戦相手のレベル２以下のシグニの効果を受けない。
+  [effects_WX.json] WX17-025 幻怪姫　オワレ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:ACTIVATED,ACTIVATED,LIFE_BURST)
+    CSV: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：対戦相手のターンの間、このシグニのパワーは＋3000される。【起】手札から＜怪異＞のシグニを３枚捨てる
+  [effects_WX.json] WX17-026 武装の全知　ギルガメジ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO,AUTO,LIFE_BURST)
+    CSV: 【ライズ】《ライズアイコン》を持つシグニ１体と＜武勇＞のシグニ２体の上に出す【常】：このシグニのパワーはこの下にあるカード１枚につき＋1000される。【自】：このシグニがアタックしたとき、この下から好
+  [effects_WX.json] WX20-038 撃弩砲　グスクル
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO,LIFE_BURST)
+    CSV: 【ライズ】あなたの《轟左砲　ドーラ》１体と《弩中砲　グスタフト》１体と《轟右砲　ドスラフ》１体の上に置く【常】：【アサシン】【ダブルクラッシュ】【常】：このシグニは対戦相手の効果によって、バニッシュさ
+  [effects_WX24_26.json] WX24-P1-043 コードアクセル　ダンプカー
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【ライズ】あなたの赤のシグニ３体の上に置く【常】：このシグニは下にレベル１のシグニがあるかぎり、「【常】：対戦相手の効果によってダウンしない。」を得る。レベル２のシグニがあるかぎり、「【常】：対戦相手
+  [effects_WXDi.json] WXDi-D03-011 Glory　Grow
+    CSV【常】あり、JSONにCONTINUOUSなし (types:ACTIVATED)
+    CSV: 【使用条件】【チーム】＜NoLimit＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【常】：【ダブルクラッシュ】（アタックによるダメージでライ
+  [effects_WXDi.json] WXDi-P03-003 頂点布武
+    CSV【常】あり、JSONにCONTINUOUSなし (types:ACTIVATED)
+    CSV: 【使用条件】あなたのセンタールリグがレベル２以上このゲームの間、あなたは以下の能力を得る。『【常】：あなたの中央のシグニゾーンにある＜武勇＞のシグニのパワーを＋1000し、そのシグニは「【自】：あなた
+  [effects_WXDi.json] WXDi-P04-036 蒼将姫　コロンブス
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO)
+    CSV: 【ハーモニー】ルリグ２体（このシグニが場に出たとき、あなたのアップ状態のルリグ２体をダウンしないかぎり、これをダウンする）【常】：あなたのルリグデッキにあるカードが１枚以下であるかぎり、このシグニのパ
+  [effects_WXDi.json] WXDi-P05-033 幻怪姫　タマモゼン
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO,LIFE_BURST)
+    CSV: 【ライズ】あなたのシグニ１体の上に置く（この条件を満たさなければ場に出せない）【常】《相手ターン》：このシグニは【シャドウ】を得る。（このシグニは対戦相手によって対象にされない）【自】：対戦相手のアタ
+  [effects_WXDi.json] WXDi-P05-038 羅原姫　Ｈ２Ｏ
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO,LIFE_BURST)
+    CSV: 【ライズ】あなたの＜原子＞のシグニ１体の上に置く【常】《相手ターン》：下にカードが１枚以上あるこのシグニが対戦相手の効果によって場を離れる場合、代わりにこのシグニの下からすべてのカードをトラッシュに置
+  [effects_WXDi.json] WXDi-P06-057 コードアート　ララ・ルー//メモリア
+    CSV【常】あり、JSONにCONTINUOUSなし (types:AUTO,LIFE_BURST)
+    CSV: 【ライズ】あなたのレベル１のシグニ１体の上に置く（この条件を満たさなければ場に出せない）【常】：このシグニは対戦相手の効果によって新たに能力を得られない。【自】：このシグニがアタックしたとき、手札を１
+  [effects_WXK.json] WXK11-053 コードライド　トレインキャノン
+    CSV【常】あり、JSONにCONTINUOUSなし (types:LIFE_BURST)
+    CSV: 【ライズ】それぞれレベルの異なるあなたの赤のシグニ３体の上に置く【常】：【アサシン】【ダブルクラッシュ】
+
+─── POWER_VALUE_MISMATCH (1件) ───
+  [effects_WX.json] WX06-006 アンシエント・ゲート
+    JSONのdelta=-15000、CSV値=[-12000]
+    CSV: 対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。あなたのセンタールリグが黒で、あなたのライフクロスが２枚以下の場合、代わりに対戦相手のシグニを２体まで対象とし、ターン
+
+
+=== ファイル別サマリー ===
+  effects_misc.json: 7件
+  effects_WX.json: 70件
+  effects_WX24_26.json: 28件
+  effects_WXDi.json: 41件
+  effects_WXK.json: 10件
+  合計: 156件
+
+■■■ verifyEffects.ts 全シート結果 ■■■
+======================================================================
+  WixossReact 効果照合レポート — Sheet1
+  対象: 974カード  issues: 37件  STUBアクション含有: 115件
+======================================================================
+
+## アクション[STUB代替?]  (11件)
+
+  WX04-047  羅原　Ｈｅ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: DRAW, STUB)
+  WX05-042  増武
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: DRAW, STUB, ENERGY_CHARGE_FROM_DECK, CONDITIONAL)
+  WX08-003  連結した廉潔　アン＝フォース
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, SHUFFLE_DECK, ENERGY_CHARGE_FROM_DECK, BOUNCE)
+  WX09-Re03  ゼノ・マルチプル
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX09-Re03  ゼノ・マルチプル
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX10-003  アイヤイ★ＪＯＫＥＲ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, UP, SHUFFLE_DECK, ADD_TO_FIELD)
+  WX11-017  ブルー・パニッシュ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX11-023  フォーカラー・マイアズマ
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX11-073  参ノ遊　ハゴイタ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, SHUFFLE_DECK, ENERGY_CHARGE_FROM_DECK)
+  WX11-074  羅植　スズビラ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, LOOK_AND_REORDER)
+  WX11-080  羅植　シクラメン
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, REVEAL_AND_PICK, ADD_TO_HAND)
+
+## アクション[要確認]  (9件)
+
+  WX04-034  ＳＨＯＲＴ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: BANISH, CONDITIONAL)
+  WX05-081  リバイブ・フレア
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_FIELD)
+  WX06-001  永らえし者　タウィル＝フィーラ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, TRANSFER_TO_DECK, CONDITIONAL, SHUFFLE_DECK)
+  WX06-014  創造の鍵主　ウムル＝フェム
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, CONDITIONAL, BANISH)
+  WX08-043  音階の左巧　ヘオン
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, LOOK_AND_REORDER)
+  WX10-001  炎・タマヨリヒメ・伍
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: BANISH, SEARCH, ADD_TO_FIELD)
+  WX10-017  アイヤイ★レイズ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK)
+  WX11-047  冒険
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK)
+  WX11-051  レベル・ダウン
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: BLOCK_ACTION, CHOOSE, TRANSFER_TO_HAND)
+
+## タイミング  (17件)
+
+  WX04-054  サーバント　Ｘ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX05-001  創世の巫女　マユ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX05-003  コード・ピルルク　ＡＣＲＯ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX05-004  五型緑姫
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX05-005  黒点の巫女　タマヨリヒメ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX05-008  遊月・伍
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX05-010  エルドラ＝マークⅤ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX05-011  ミルルン・ティコ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX05-013  侵犯されし神判　アン・フィフス
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX06-014  創造の鍵主　ウムル＝フェム
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX09-001  開かれし極門　ウトゥルス
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX09-Re01  星占の巫女　リメンバ・デッドナイト
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX10-015  フラッシュ・バック
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX10-027  リング・ドロー
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX10-029  極剣　ロクケイ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX10-052  サーバント　Ｙ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX11-052  サーバント　Ｚ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+
+======================================================================
+STUBアクション参照カード数: 115件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 11件
+  アクション[要確認]: 9件
+  タイミング: 17件
+======================================================================
+  WixossReact 効果照合レポート — Sheet2
+  対象: 929カード  issues: 116件  STUBアクション含有: 245件
+======================================================================
+
+## アクション[STUB代替?]  (40件)
+
+  WX12-017  ダークアート　†Ｍ・Ｇ・Ｔ†
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DOWN, FREEZE, TRANSFER_TO_HAND)
+  WX13-003  アイスフレイム・シュート
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, TRASH)
+  WX13-025  フォービドゥン・ゲーム
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, POWER_MODIFY, CONDITIONAL, ADD_TO_FIELD)
+  WX13-060  ストレンジ・カインド
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX14-048  トキシック・スパイクス
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_FIELD, CONDITIONAL, STUB)
+  WX15-034  戦意の箱舟
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX15-034  戦意の箱舟
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX16-005  ネバーエンド
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, BLOCK_ACTION, CONDITIONAL, ADD_TO_LIFE)
+  WX16-028  超罠　チュモーイ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BOUNCE, TRANSFER_TO_HAND)
+  WX16-048  バッド・アドバンテージ
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX16-Re02  轟炎　フレイスロ大尉
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB, BANISH)
+  WX16-Re04  激奏
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, CONDITIONAL, LOOK_AND_REORDER, STUB)
+  WX17-003  ネームレス・フィア―
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: UNKNOWN, STUB, TRASH)
+  WX17-003  ネームレス・フィア―
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: UNKNOWN, STUB, TRASH)
+  WX17-004  落華流粋
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, GRANT_KEYWORD, TRASH)
+  WX17-043  幻蟲　§シラエ§
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, ADD_TO_FIELD, ENERGY_CHARGE_FROM_DECK)
+  WX18-001  散華の閻魔　ウリス
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, ADD_TO_FIELD, SHUFFLE_DECK, STUB, CONDITIONAL, BANISH)
+  WX18-001  散華の閻魔　ウリス
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, ADD_TO_FIELD, SHUFFLE_DECK, STUB, CONDITIONAL, BANISH)
+  WX18-005  金剛不壊
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX18-005  金剛不壊
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX18-033  超罠　ギジドウ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BANISH, TRANSFER_TO_HAND, GRANT_KEYWORD, ADD_TO_FIELD, DRAW)
+  WX19-005  謳金時代
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX19-005  謳金時代
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX19-Re18  マカロン・バグズ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX20-003  クラス・クライシス
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, STUB, BLOCK_ACTION)
+  WX20-006  共存共栄
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX20-006  共存共栄
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX20-007  ダーク・コグネイト
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, BLOCK_ACTION)
+  WX20-007  ダーク・コグネイト
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, BLOCK_ACTION)
+  WX20-020  サティスファクション
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, BLOCK_ACTION)
+  WX20-020  サティスファクション
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, BLOCK_ACTION)
+  WX20-020  サティスファクション
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, BLOCK_ACTION)
+  WX20-069  参ノ遊　タマイレ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, ADD_TO_FIELD)
+  WX20-078  羅菌　エンザ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DRAW)
+  WX20-Re20  バニラ・スクランブル
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, BANISH)
+  WX20-Re20  バニラ・スクランブル
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, BANISH)
+  WX21-004  ママ♥５
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, TRANSFER_TO_HAND, DOWN, STUB, CONDITIONAL, BANISH)
+  WX21-035  縛恋の煉獄
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL)
+  WX21-035  縛恋の煉獄
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL)
+  WX21-035  縛恋の煉獄
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL)
+
+## アクション[要確認]  (38件)
+
+  WX12-CB02  幻獣　ぷにとー
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, POWER_MODIFY)
+  WX12-CB02  幻獣　ぷにとー
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, POWER_MODIFY)
+  WX12-CB02  幻獣　ぷにとー
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, POWER_MODIFY)
+  WX12-Re21  トーチュン・ウィップ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: SEARCH, REVEAL, ADD_TO_HAND, CONDITIONAL, POWER_MODIFY)
+  WX13-046  轟右砲　ドスラフ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY)
+  WX14-009  炎・花代・伍
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: GROW_COST_REDUCTION, DOWN, TRANSFER_TO_HAND)
+  WX14-011  炎得火失
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRASH, ENERGY_CHARGE_FROM_DECK)
+  WX14-011  炎得火失
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, ENERGY_CHARGE_FROM_DECK)
+  WX14-016  彫心鏤骨
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: BOUNCE)
+  WX15-022  君子豹変
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK)
+  WX15-073  勝利の円卓　アルスラ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: DRAW)
+  WX16-024  幻怪姫　カラテン
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: SEARCH, ADD_TO_FIELD)
+  WX16-025  幻怪姫　スノークイーン
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_FIELD, BOUNCE, TRANSFER_TO_HAND)
+  WX16-031  コードオーダー　ウェディング
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BLOCK_ACTION, POWER_MODIFY, DRAW, TRANSFER_TO_HAND)
+  WX16-062  中罠　ラクガキ
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
+  WX16-064  小罠　ケシオトシ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: DRAW)
+  WX16-Re01  スター・フェスティバル
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: SEARCH, REVEAL, ADD_TO_HAND, CONDITIONAL, BOUNCE)
+  WX16-Re10  キャッチ・リリース
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, CONDITIONAL, POWER_MODIFY)
+  WX17-028  羅星姫　≡ソラフレア≡
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, CONDITIONAL, GRANT_KEYWORD, TRANSFER_TO_HAND)
+  WX17-Re04  快演
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, CONDITIONAL, TRANSFER_TO_HAND)
+  WX17-Re04  快演
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, CONDITIONAL, TRANSFER_TO_HAND)
+  WX17-Re14  コードアート　†Ａ・Ｌ・Ｃ・Ａ†
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND)
+  WX18-019  奮闘努力
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK)
+  WX18-062  肥後の虎将　カトキヨ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: DRAW)
+  WX18-080  下町の酔魔　センベロ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: DRAW)
+  WX19-068  溶英の食塩　＃ノウド＃
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: DRAW)
+  WX19-074  惨之遊　†テホンビキ†
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, DRAW)
+  WX20-013  メル＝ギムレット
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK)
+  WX20-021  バイ・ザ・ウェイ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BLOCK_ACTION)
+  WX20-053  コードメイズ　リバティ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: REARRANGE_SIGNI, ADD_TO_FIELD, CONDITIONAL, SHUFFLE_DECK)
+  WX20-067  文脈の攻防　モダーン
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: DOWN, CONDITIONAL, BOUNCE, SHUFFLE_DECK)
+  WX20-072  コードイート　チョコプレート
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, SHUFFLE_DECK, ATTACH_ACCE, BANISH)
+  WX21-006  遠かりし使　リワト＝フィーラ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: DRAW, SEARCH, ADD_TO_FIELD)
+  WX21-020  プライマル・サーガ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: DRAW)
+  WX21-020  プライマル・サーガ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: DRAW)
+  WX21-027  禁断の知恵　ビネンバウム
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRASH, DRAW, CHOOSE, BLOCK_ACTION, SEARCH, REVEAL, ADD_TO_HAND)
+  WX21-044  惨之遊　†シャテキ†
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: COST_SUBSTITUTE, ENERGY_CHARGE_FROM_DECK, TRANSFER_TO_HAND)
+  WX21-048  羅星　カストル
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: DRAW)
+
+## コスト  (1件)
+
+  WX17-044  ＡＲＲＯＷ　ＲＡＩＮ
+    → テキスト:"青×1,無×1" ≠ JSON:"青×2" (起)
+
+## タイミング  (28件)
+
+  WX12-025  羅星　アルケス
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX12-029  羅石　アクアマリン
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX12-034  参ノ遊　スナバセ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX12-036  幻蟲　エイフド
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX14-032  サーバント　∞
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX15-031  幻怪姫　ヌラリ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX15-032  矜持の豪魔　オダノブ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX15-041  三日の天下　アケチ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX16-002  救念の記憶　リル
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX16-024  幻怪姫　カラテン
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX16-024  幻怪姫　カラテン
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX16-027  十字の炎槍　サナユキ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX16-034  幻怪　コロポ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX16-051  幻怪　スナカケ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX16-053  幻怪　ケセパサ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX17-002  アロス・ピルルク　Ｎ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX17-025  幻怪姫　オワレ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX17-026  武装の全知　ギルガメジ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX17-028  羅星姫　≡ソラフレア≡
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX17-045  ＦＬＡＳＨ
+    → "【自】"が2件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX17-051  幻怪　ドワフ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX20-023  幻怪　フゥライ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX20-037  暴食の暴君　トウタク
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX20-038  撃弩砲　グスクル
+    → "【常】"が2件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX21-003  とどめはあーや！Ⅴ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX21-024  荒ぶる海洋　§ポセイドナ§
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX21-Re05  無二の征服　アレクサンド
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX21-Re19  羅星　アルデバラン
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+
+## 定義なし  (9件)
+
+  WX16-049  幻怪　コナキ
+    → 効果テキストあり(【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤー...)だがeffects.jsonにエントリーなし
+  WX16-050  幻怪　アズアラ
+    → 効果テキストあり(【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤー...)だがeffects.jsonにエントリーなし
+  WX16-052  幻怪　カラカサ
+    → 効果テキストあり(【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤー...)だがeffects.jsonにエントリーなし
+  WX16-059  鉞担の足柄　キンタロ
+    → 効果テキストあり(【ライズ】あなたのレベル１の赤のシグニ１体の上に置く【常】：あなたのターンの間、...)だがeffects.jsonにエントリーなし
+  WX17-035  幻怪　ピグシイ
+    → 効果テキストあり(【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤー...)だがeffects.jsonにエントリーなし
+  WX17-052  幻怪　トロル
+    → 効果テキストあり(【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤー...)だがeffects.jsonにエントリーなし
+  WX17-055  混成の怪物　フンババ
+    → 効果テキストあり(【ライズ】あなたのレベル２以下の赤のシグニ１体の上に置く【自】：対戦相手のターン...)だがeffects.jsonにエントリーなし
+  WX18-061  今世の張良　クロカン
+    → 効果テキストあり(【ライズ】《ライズアイコン》を持つあなたのレベル２以下のシグニ１体の上に置く【起...)だがeffects.jsonにエントリーなし
+  WX21-050  幻怪　ワニュウドウ
+    → 効果テキストあり(【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤー...)だがeffects.jsonにエントリーなし
+
+======================================================================
+STUBアクション参照カード数: 245件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 40件
+  アクション[要確認]: 38件
+  コスト: 1件
+  タイミング: 28件
+  定義なし: 9件
+======================================================================
+  WixossReact 効果照合レポート — Sheet3
+  対象: 879カード  issues: 87件  STUBアクション含有: 264件
+======================================================================
+
+## アクション[STUB代替?]  (36件)
+
+  WX22-008  ミルルン・モル
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, COUNTER_SPELL, CONDITIONAL, DRAW, STUB, BANISH)
+  WX22-016  グレイブ・ディガー
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, STUB, TRANSFER_TO_HAND)
+  WX22-029  参ノ遊　ハンスピ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, CONDITIONAL, STUB)
+  WX22-037  伝達の朱鷺　§ヘルメス§
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, DRAW)
+  WX22-043  コードイート　クギニ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DRAW, ATTACH_ACCE)
+  WXEX1-16  アイヤイ★フルハウス
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, GRANT_KEYWORD)
+  WXEX1-23  静観の冥者　ハナレ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_FIELD, STUB)
+  PR-427  羅星　リンゼ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: BLOCK_ACTION, STUB, CONDITIONAL, ADD_TO_FIELD)
+  WXEX2-13  エルドラ×マークＶ　ＵＬＴＲＡ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, STUB, SHUFFLE_DECK, LIFE_CRASH, DRAW, ADD_TO_LIFE)
+  WXEX2-14  ミルルン・アラヤ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, STUB)
+  WXEX2-39  大幻蟲　フナシム
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, STUB, GRANT_KEYWORD, ADD_TO_FIELD)
+  WXEX2-80  似之遊　ハイ＆ロー
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_FIELD)
+  WXK02-031  師の遊姫　ヤリホー
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB, TRANSFER_TO_DECK, DRAW, ENERGY_CHARGE_FROM_DECK)
+  WXK02-045  ゲット・チャージ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB)
+  WXK02-070  仁の遊　ヘンガオ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DRAW)
+  WXK03-049  讃の遊　ゴムショット
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, CHOOSE, DRAW, ENERGY_CHARGE_FROM_DECK)
+  WXK03-076  元老の議員　ブルータス
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK04-003  エルドラ　オーバークロック
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB)
+  WXK04-006  差し伸べし使　リワト
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY, ENERGY_CHARGE_FROM_DECK, STUB, TRANSFER_TO_DECK)
+  WXK04-006  差し伸べし使　リワト
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY, ENERGY_CHARGE_FROM_DECK, STUB, TRANSFER_TO_DECK)
+  WXK04-014  血晶操作
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK04-014  血晶操作
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK04-084  幻水　マレガビ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, ADD_TO_FIELD)
+  WXK05-002  ブリーディング・フォース
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB, TRASH)
+  WXK05-002  ブリーディング・フォース
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, TRASH)
+  WXK05-003  血晶照射
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, TRASH, CONDITIONAL, BANISH)
+  WXK05-005  獣群邁進
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB, TRANSFER_TO_DECK, ENERGY_CHARGE_FROM_DECK, BLOCK_ACTION)
+  WXK05-010  時雨の調　ゆきめ
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB, REMOVE_ABILITIES)
+  WXK05-010  時雨の調　ゆきめ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, REMOVE_ABILITIES)
+  WXK05-048  フィフス・テンプト
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_FIELD)
+  WXK05-048  フィフス・テンプト
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_FIELD)
+  WXK06-029  フリーダム団　ワイルドライガー
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRANSFER_TO_HAND, POWER_MODIFY, REARRANGE_SIGNI, DRAW, ENERGY_CHARGE_FROM_DECK)
+  WXK06-050  幻竜　ラプトル
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: LIFE_CRASH, CONDITIONAL, STUB, TRANSFER_TO_HAND, DRAW)
+  WXK06-055  ブラック・ドラゴン・ウェーブ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK07-002  千変万化
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK07-031  羅星姫　アラクネ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRASH, TRANSFER_TO_HAND)
+
+## アクション[要確認]  (23件)
+
+  WX22-005  グラン・クロス
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_LIFE)
+  WX22-005  グラン・クロス
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_LIFE)
+  WX22-013  真幸の冥者　ハナレ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: GRANT_PROTECTION, DRAW, TRANSFER_TO_HAND, POWER_SET)
+  WX22-Re02  コードイート　ウナドン
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, GRANT_KEYWORD)
+  WX22-Re03  ゴースト・パーティー
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: SEARCH, REVEAL, ADD_TO_HAND, CONDITIONAL, BOUNCE)
+  WXEX1-17  メル＝ジントニック
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, SHUFFLE_DECK)
+  WXEX1-47  コードアンチ　ナイトゴン
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, LIFE_CRASH, TRANSFER_TO_DECK, DRAW, TRANSFER_TO_HAND)
+  PR-378  選択する物語
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, ENERGY_CHARGE_FROM_DECK)
+  WXEX2-66  大罠　スパム
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, FREEZE)
+  WXEX2-70  参ノ遊　ピンボール
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: BANISH, CONDITIONAL, ENERGY_CHARGE, SHUFFLE_DECK)
+  WXK01-021  ミルルン・アド
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY, PLAY_FREE, TRANSFER_TO_HAND, COUNTER_SPELL)
+  WXK01-036  コードアクセル　エフワン
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: SEARCH, ADD_TO_FIELD, BANISH)
+  WXK01-055  魔海の船員　ティーチ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_FIELD, DRAW)
+  WXK02-029  ビカム・ユー
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: REMOVE_ABILITIES)
+  WXK02-033  極装　ロンギンス
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: BANISH)
+  WXK03-021  極装　EXカリバン
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, TRANSFER_TO_HAND)
+  WXK03-044  油蛙の忍者　ジライヤ
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
+  WXK04-023  虎視眈眈
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, POWER_MODIFY)
+  WXK04-059  奪取
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, DRAW)
+  WXK04-066  羅植　オバナ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, ENERGY_CHARGE_FROM_DECK)
+  WXK05-014  エルドラ　ＴＹＰＥ×Ⅲ／／
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GAIN_COIN)
+  WXK05-025  貨英の変動　エフエックス
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, FREEZE, BANISH, DOWN)
+  WD08-006  アンシエント・サプライズ
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY)
+
+## タイミング  (20件)
+
+  WXEX1-32  幻怪姫　ヌエ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXEX1-35  神聖なる美将　ジャンヌ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXEX2-03  神性なる極門　ウトゥルス
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXEX2-33  幻怪姫　ガシャスカル
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXEX2-59  幻怪　テケテケ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXEX2-61  太陽の射手　アルジュナ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXEX2-78  ツヴァイ＝フミン
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WXEX2-84  真名の巫女　マユ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXK01-001  レイラ＝デッドエンド
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXK01-028  ママ　ＭＯＤＥ　ＬＯＶＥ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXK01-036  コードアクセル　エフワン
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXK01-041  ＭＩＲＡＣＬＥ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXK03-003A  夢限　-Ｐ-
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXK03-005  フラクタル・ケージ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXK03-021  極装　EXカリバン
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXK04-003  エルドラ　オーバークロック
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXK04-015  鎮護国禍
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WXK04-075  紅蓮の使い魔　キマ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXK05-001  再会の巫女　マユ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXK05-035  極装　オニマル
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+
+## 定義なし  (8件)
+
+  WXK01-008  レイラ＝ドリフト
+    → 効果テキストあり(【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗...)だがeffects.jsonにエントリーなし
+  WXK01-009  レイラ＝カーブ
+    → 効果テキストあり(【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗...)だがeffects.jsonにエントリーなし
+  WXK01-010  レイラ＝アクセル
+    → 効果テキストあり(【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗...)だがeffects.jsonにエントリーなし
+  WXK01-048  コードライド　オートバイ
+    → 効果テキストあり(【ドライブ自】：このシグニがアタックしたとき、対戦相手のパワー1000以下のすべ...)だがeffects.jsonにエントリーなし
+  WXK01-074  コードライド　タクシー
+    → 効果テキストあり(【ドライブ常】：【ダブルクラッシュ】【自】：このシグニがドライブ状態になったとき...)だがeffects.jsonにエントリーなし
+  WXK04-016  エルドラ　ＴＹＰＥ×Ⅲ／
+    → 効果テキストあり(【デコレ】（あなたの＜調理＞のシグニ１体を対象とし、手札から＜調理＞のシグニ１枚...)だがeffects.jsonにエントリーなし
+  WXK04-017  エルドラ　ＴＹＰＥ×Ⅱ／
+    → 効果テキストあり(【デコレ】（あなたの＜調理＞のシグニ１体を対象とし、手札から＜調理＞のシグニ１枚...)だがeffects.jsonにエントリーなし
+  WXK04-018  エルドラ　ＴＹＰＥ×Ⅰ／
+    → 効果テキストあり(【デコレ】（あなたの＜調理＞のシグニ１体を対象とし、手札から＜調理＞のシグニ１枚...)だがeffects.jsonにエントリーなし
+
+======================================================================
+STUBアクション参照カード数: 264件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 36件
+  アクション[要確認]: 23件
+  タイミング: 20件
+  定義なし: 8件
+======================================================================
+  WixossReact 効果照合レポート — Sheet4
+  対象: 633カード  issues: 53件  STUBアクション含有: 175件
+======================================================================
+
+## アクション[STUB代替?]  (28件)
+
+  WXK08-002  歌舞熱曲
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_FIELD, BOUNCE)
+  WXK08-003  グリモワール・ブラスト
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, BLOCK_ACTION)
+  WXK08-030  弩書　ゼロイゴナ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, POWER_MODIFY)
+  WXK09-004  ストーリー・テラー
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK09-031  コードハート　Ｖ・∀・Ｃ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, TRASH, TRANSFER_TO_HAND)
+  WXK10-004  プロテクション・マッピング
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, ADD_TO_LIFE, STUB)
+  WXK10-006  劫末の唄鍵　ワールド・エンド
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, STUB, ADD_TO_FIELD)
+  WXK10-011  弾丸雨注
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, POWER_MODIFY)
+  WXK10-018  翠焼の記憶　リル＆メル
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_LIFE, TRASH)
+  WXK10-019  アロス＆コードピルルク　ＫＥＹ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, STUB, ENERGY_CHARGE)
+  WXK10-031  讃の宙遊　チキュウゴマ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRASH)
+  WXK10-059  羅植　オドリコソウ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, LOOK_AND_REORDER, BOUNCE)
+  WXK10-074  コードイート　ワラビモチ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, STUB)
+  WXK10-083  コードアート　Ｔ・Ｍ・Ｂ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK11-008  龍滅熱鎖
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, EQUALIZE_ENERGY, ADD_TO_LIFE)
+  WXK11-010  水天二碧
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DOWN, ENERGY_CHARGE_FROM_DECK)
+  WXK11-026  不可思議な誇超　コンテンポラ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_FIELD, TRASH, ADD_TO_LIFE)
+  WXK11-040  コードアート　トレットＲ・Ｏ・Ｂ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, SEARCH, REVEAL, ADD_TO_HAND)
+  WXK11-047  サーバント　ＺＺ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, SHUFFLE_DECK, STUB)
+  WD20-004  ママ♥１　MODE２
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: DRAW, STUB)
+  WD21-008  震亜動地
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, STUB)
+  WD21-008  震亜動地
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, STUB)
+  WD22-011-G  フーリッシュ・マイアズマ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DRAW)
+  WD23-008-A  ぷりてぃあーや！Ⅳ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BANISH, SHUFFLE_DECK)
+  WD23-040-A  ＰＲＡＮＫ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB, CONDITIONAL)
+  WD23-044-EA  ＦＩＳＨＩＮＧ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: TRASH, STUB)
+  WDA-F02-07  イコール・プライズ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, BANISH)
+  WDA-F02-17  幻蟲　§アメンボ§
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, DOWN, CONDITIONAL, POWER_MODIFY, TRANSFER_TO_HAND)
+
+## アクション[要確認]  (11件)
+
+  WXK09-049  コードアート　Ａ・Ｃ・Ｓ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, ENERGY_CHARGE)
+  WXK09-051  コードアート　Ｔ・Ｒ・Ｓ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH)
+  WXK10-028  幻水電　エレクトイール
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, BANISH, TRANSFER_TO_HAND)
+  WD18-001  メル＝アンジュ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, ADD_TO_LIFE)
+  WD18-018  千切
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, CONDITIONAL, BANISH)
+  WD19-018  ラブリー・バイオ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: PLACE_VIRUS, CONDITIONAL, POWER_MODIFY)
+  WD20-018  創造
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, LOOK_AND_REORDER, CONDITIONAL, ADD_TO_LIFE)
+  WD22-036-G  ペイン・バイ・ペイン
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND)
+  WD23-013-A  ワンモア・コール
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK)
+  WD23-033-A  超罠　ボーウケアミ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, DRAW, GRANT_KEYWORD, CONDITIONAL, BANISH, TRANSFER_TO_HAND, TRASH)
+  WDK01-001  レイラ＝フルスロットル
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: SEARCH, ADD_TO_FIELD)
+
+## コスト  (1件)
+
+  WXK08-050  轟書　オウイ
+    → テキスト:"黒×2" ≠ JSON:"黒×1" (起)
+
+## タイミング  (9件)
+
+  WXK08-048  轟書　エノキアン
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXK10-039  羅原　ＣＨ４
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXK10-054  弩書　ピカトリクス
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXK11-038  極装　トリアイナ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXK11-053  コードライド　トレインキャノン
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WD14-015  三途の往復　アザゼラ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WD14-015  三途の往復　アザゼラ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WD17-009  仙石の西猿　ゴクウ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WDK01-001  レイラ＝フルスロットル
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+
+## 定義なし  (4件)
+
+  WDK01-002  レイラ＝ブレーキ
+    → 効果テキストあり(【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗...)だがeffects.jsonにエントリーなし
+  WDK01-003  レイラ＝コーナー
+    → 効果テキストあり(【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗...)だがeffects.jsonにエントリーなし
+  WDK01-004  レイラ＝クラッチ
+    → 効果テキストあり(【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗...)だがeffects.jsonにエントリーなし
+  WDK01-015  コードライド　ワゴン
+    → 効果テキストあり(【ドライブ常】：このシグニのパワーは＋7000される。（【ドライブ常】はそのシグ...)だがeffects.jsonにエントリーなし
+
+======================================================================
+STUBアクション参照カード数: 175件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 28件
+  アクション[要確認]: 11件
+  コスト: 1件
+  タイミング: 9件
+  定義なし: 4件
+======================================================================
+  WixossReact 効果照合レポート — Sheet5
+  対象: 360カード  issues: 33件  STUBアクション含有: 101件
+======================================================================
+
+## アクション[STUB代替?]  (14件)
+
+  WDK05-T11  師の遊　ユキダルマ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BOUNCE, ENERGY_CHARGE_FROM_DECK)
+  WDK06-R08  火中取栗
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WDK06-R08  火中取栗
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WDK06-R09  メル＝マドラー
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BANISH, ENERGY_CHARGE_FROM_DECK)
+  WDK07-E12  コードイート　ウジキントキ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: DRAW, STUB)
+  WDK08-Y08  猛威継承
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, STUB)
+  SP27-016  決闘文具
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, SHUFFLE_DECK, STUB)
+  SP38-003  ロック・テンカウント
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  SP38-004  十年一昔
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL)
+  SPK01-02  魔界の詩文　ダンテ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, TRANSFER_TO_HAND)
+  SPK01-07  獣爪一対
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL)
+  SPK01-07  獣爪一対
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL)
+  SPK01-14  祝福の五光
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, ENERGY_CHARGE_FROM_DECK)
+  SPK01-14  祝福の五光
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, ENERGY_CHARGE_FROM_DECK)
+
+## アクション[要確認]  (9件)
+
+  WDK06-R01  凛武の記憶　リル
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, LOOK_AND_REORDER, ENERGY_CHARGE_FROM_DECK)
+  WDK07-E01  エルドラ　ＴＹＰＥ×Ⅳ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, ADD_TO_LIFE)
+  WDK07-E07  パワー・デコレート
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK)
+  WDK07-E08  キャンディ・レイン
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: NAME_BAN)
+  WDK07-E08  キャンディ・レイン
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: NAME_BAN)
+  WDK07-E20  ＳＷＥＥＴ　ＣＨＡＲＧＥ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK)
+  WDK14-008  回心転火
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  SP27-014  中水罠　オトヒメ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, BANISH)
+  SP27-014  中水罠　オトヒメ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, BANISH)
+
+## タイミング  (7件)
+
+  WDK06-R09  メル＝マドラー
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WDK06-R11  極装　ハイメイル
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WDK06-C01  カーニバル　†ＱＡ†
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WDK07-E01  エルドラ　ＴＹＰＥ×Ⅳ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  SP26-002  アンチ・アビリティ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  SP26-002  アンチ・アビリティ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  SPK01-11  コードイート　ラズベリー
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+
+## 定義なし  (3件)
+
+  WDK07-E02  エルドラ　ＴＹＰＥ×Ⅲ
+    → 効果テキストあり(【デコレ】（あなたの＜調理＞のシグニ１体を対象とし、手札から＜調理＞のシグニ１枚...)だがeffects.jsonにエントリーなし
+  WDK07-E03  エルドラ　ＴＹＰＥ×Ⅱ
+    → 効果テキストあり(【デコレ】（あなたの＜調理＞のシグニ１体を対象とし、手札から＜調理＞のシグニ１枚...)だがeffects.jsonにエントリーなし
+  WDK07-E04  エルドラ　ＴＹＰＥ×Ⅰ
+    → 効果テキストあり(【デコレ】（あなたの＜調理＞のシグニ１体を対象とし、手札から＜調理＞のシグニ１枚...)だがeffects.jsonにエントリーなし
+
+======================================================================
+STUBアクション参照カード数: 101件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 14件
+  アクション[要確認]: 9件
+  タイミング: 7件
+  定義なし: 3件
+======================================================================
+  WixossReact 効果照合レポート — Sheet6
+  対象: 135カード  issues: 14件  STUBアクション含有: 33件
+======================================================================
+
+## アクション[STUB代替?]  (9件)
+
+  SPK16-13E  カウンター・ヴァンプ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  SPK16-13E  カウンター・ヴァンプ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  SPK16-13E  カウンター・ヴァンプ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  SPK16-13E  カウンター・ヴァンプ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  PR-328  美学の海賊　リリアナ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, DRAW)
+  PR-328  美学の海賊　リリアナ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, DRAW)
+  PR-469  五体合体　グレートタマヨリオー
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: BLOCK_ACTION, STUB)
+  PR-471  相手ルリグ全員タマに憧れてる説
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  PR-K072  パワー・オブ・ヒロインズ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, DRAW, REMOVE_ABILITIES, SHUFFLE_DECK)
+
+## アクション[要確認]  (3件)
+
+  PR-242  一蓮托生
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, SHUFFLE_DECK, ADD_TO_FIELD)
+  PR-384  コードイート　キリタン
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, BANISH)
+  PR-K044  焔型闘娘　花代＆緑子
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY, ENERGY_CHARGE_FROM_DECK, CHOOSE, GRANT_KEYWORD, ENERGY_CHARGE, TRANSFER_TO_HAND)
+
+## タイミング  (2件)
+
+  PR-431  サーバント　Ａ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  PR-461  風月の巫女　タマヨリヒメ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+
+======================================================================
+STUBアクション参照カード数: 33件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 9件
+  アクション[要確認]: 3件
+  タイミング: 2件
+======================================================================
+  WixossReact 効果照合レポート — Sheet7
+  対象: 880カード  issues: 121件  STUBアクション含有: 195件
+======================================================================
+
+## アクション[STUB代替?]  (14件)
+
+  WXDi-P00-018  ウムル＝クリアー
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, FREEZE)
+  WXDi-P00-033  コード２４３４　アルス・アルマル
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P01-026  バン＝ビッグバン
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, STUB, BLOCK_ACTION)
+  WXDi-P02-009  勇気へ前進　アキノ
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, STUB, CONDITIONAL, BOUNCE)
+  WXDi-P02-035  大装　ヤエキリ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRANSFER_TO_HAND)
+  WXDi-P03-023  天翔　ノヴァ
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, DRAW, STUB)
+  WXDi-P03-044  幻獣神　サーベルタイガー
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, STUB, CONDITIONAL, BANISH)
+  WXDi-P04-029  タウィル＝ハングアウト
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: BANISH, STUB)
+  WXDi-P04-077  翠天　ゼルエル
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P05-001  RED　ZONE
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, STUB)
+  WXDi-P05-078  凶天　ワルキューレ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, TRANSFER_TO_HAND)
+  WXDi-P06-013  狂騒の閻魔　ウリス
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, STUB, ADD_TO_LIFE)
+  WXDi-P07-010  でじたるあーや！Ⅲ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, STUB, TRASH, CONDITIONAL)
+  WXDi-P07-080  コードフード　ツナマヨ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+
+## アクション[要確認]  (32件)
+
+  WXDi-D01-004  紡ぎし扉　アト＝トレ
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
+  WXDi-D02-04L  【センター】リゼ　レベル３
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-D02-13A  【センター】アンジュ　レベル３
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: BOUNCE, DRAW)
+  WXDi-D03-004  頂点へ一歩　ヒラナ
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: DRAW, ENERGY_CHARGE_FROM_DECK, DOWN)
+  WXDi-D09-H13  紅将姫　ノブナガ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-D09-P16  幻水神　ホタルイカ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH)
+  WXDi-P00-009  目醒めし者　タウィル＝トレ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P00-036  紅魔姫　シュブニグラ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-P00-040  幻怪姫　アザトース
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
+  WXDi-P01-005  NIGHTMARE■STEP
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-P01-037  羅輝石　ローズクォーツ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, DRAW)
+  WXDi-P01-044  ドライ＝ランリョウオー
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY)
+  WXDi-P02-005  ゼノ・クラスタ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: DRAW, ENERGY_CHARGE_FROM_DECK)
+  WXDi-P02-011  ヒラナ*グローイン
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, TRASH)
+  WXDi-P02-013  ヒラナ*パワーオン
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, BANISH)
+  WXDi-P02-043  ドライ＝インフルＤ型
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
+  WXDi-P03-038  紅天姫　ゼウシアス
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: PLACE_UNDER_SIGNI)
+  WXDi-P03-040  コードオーダー　ワッフルアイス
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: PLACE_UNDER_SIGNI, CHOOSE, TAKE_FROM_UNDER_SIGNI, FREEZE, DOWN, DRAW)
+  WXDi-P04-021  エクスステップアウト
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, GRANT_KEYWORD)
+  WXDi-P05-003  M.G.D.
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: NEGATE_ATTACK)
+  WXDi-P05-077  照地
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: BANISH)
+  WXDi-P06-003  マイアズマ・ラビリンス
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-P06-005  グリーン・ビッグス
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY)
+  WXDi-P06-010  VOGUE3-EX　サンガ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, TRANSFER_TO_HAND, ENERGY_CHARGE_FROM_DECK)
+  WXDi-P06-027  花代・竜胆
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, GRANT_KEYWORD)
+  WXDi-P07-002  ENERGY　DOOR
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-P07-002  ENERGY　DOOR
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-P07-002  ENERGY　DOOR
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-P07-003  まっすぐオーネスト
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY)
+  WXDi-P07-049  透天姫　リワト//メモリア
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: BOUNCE, TRASH)
+  WXDi-P07-049  透天姫　リワト//メモリア
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: BOUNCE, TRASH)
+  WXDi-P07-081  爆砲　センチュリオン
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
+
+## コスト  (1件)
+
+  WXDi-P06-031  コードハート　リメンバ//メモリア
+    → テキスト:"無×1" ≠ JSON:"なし" (起)
+
+## タイミング  (31件)
+
+  WXDi-D03-011  Glory　Grow
+    → "【常】"が2件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-D04-011  ENDLESS-PUNCHLINE
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-D04-011  ENDLESS-PUNCHLINE
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-D05-011  はんぱない★ディストラクション
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-D06-011  salvage　the　future
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-D06-017  凶魔　アンナ・ミラージュ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXDi-D09-H11  一覇一絡
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-D09-H13  紅将姫　ノブナガ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXDi-P03-002  G-G-G
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P03-003  頂点布武
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P03-016  VJ.WOLF-3rdVerse
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXDi-P03-030  VOGUE3　サンガ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WXDi-P03-044  幻獣神　サーベルタイガー
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P04-002  世界逆流
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P04-006  DEVIL’S CARNIVAL
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P04-036  蒼将姫　コロンブス
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P04-040  翠魔姫　イバラキドウジ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P05-004  パラダイスうちゅう
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P05-005  Don’t　STOP!
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P05-033  幻怪姫　タマモゼン
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P05-038  羅原姫　Ｈ２Ｏ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P05-060  世紀末の爆走
+    → "【常】"が2件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P05-086  ムーン・バイツ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P06-002  ピーピング・フューチャー
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P06-006  Garden　of　Singularity
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P06-010  VOGUE3-EX　サンガ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXDi-P06-010  VOGUE3-EX　サンガ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WXDi-P06-057  コードアート　ララ・ルー//メモリア
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WXDi-P07-001  キラキラ☆メモリーズ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P07-067  紅将　ギルガメジ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXDi-P07-081  爆砲　センチュリオン
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+
+## 定義なし  (43件)
+
+  WXDi-D01-018  幻水　スイギュウ
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D01-019  幻獣　コアララ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D02-26  コード２４３４　星川サラ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D02-27  コード２４３４　魔使マオ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D03-018  羅石　ブロンズ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D03-019  羅石　シルヴァーナ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D04-018  コードメイズ　ガイセンモ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D04-019  コードメイズ　バベタワ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D05-018  羅星　プロシオス
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D05-019  羅星　シリオス
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D06-018  アイン＝グリーンガス
+    → 効果テキストあり(（エナコストを支払う際、このカードは緑か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D06-019  蒼凶魔　チクタク
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-D07-020  小装　エケザクス
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P00-085  幻獣　パンダダ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P00-088  幻水　アマケロン
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P01-089  聖紅将　パシバル
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か赤１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P01-090  聖紅将　ガウェイン
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か赤１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P01-095  蒼凶魔　コオニ
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P01-098  ツヴァイ＝コブラス
+    → 効果テキストあり(（エナコストを支払う際、このカードは緑か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P02-046  コードアンシエンツ　ファラリス
+    → 効果テキストあり(【ハーモニー】ルリグ２体（このシグニが場に出たとき、あなたのアップ状態のルリグ２...)だがeffects.jsonにエントリーなし
+  WXDi-P03-085  凶魔　ルカ
+    → 効果テキストあり(【ライズ】あなたの＜悪魔＞のシグニ１体の上に置く（この条件を満たさなければ場に出...)だがeffects.jsonにエントリーなし
+  WXDi-P04-087  聖紅魔　ザガン
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か赤１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P04-088  聖紅魔　オリアス
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か赤１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P04-090  中装　サンセツコン
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P04-091  翠凶天　ラファエ
+    → 効果テキストあり(（エナコストを支払う際、このカードは緑か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P04-092  翠凶天　アイゼン
+    → 効果テキストあり(（エナコストを支払う際、このカードは緑か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P05-087  聖凶天　マスティマ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P05-088  聖凶天　ウリエ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P05-089  聖蒼将　ヨリシゲ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P05-090  聖蒼将　トウタ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P05-091  羅原　Ｓｅ
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P05-092  羅原　Ｉ
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P06-086  幻水　シースター
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P06-087  幻水　ピグミーシーホース
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P06-088  羅星　カネスヴィナ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P06-089  羅星　セルペンス
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P06-090  羅原　Tc
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P06-091  羅原　Te
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P07-091  凶将　アグラヴェイン
+    → 効果テキストあり(【ライズ】あなたの＜武勇＞のシグニ１体の上に置く（この条件を満たさなければ場に出...)だがeffects.jsonにエントリーなし
+  WXDi-P07-096  聖翠美　オリガミ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P07-097  聖翠美　シュレリス
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P07-098  コードアート　Cレプヤキ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WXDi-P07-099  コードアート　Tコヤキキ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+
+======================================================================
+STUBアクション参照カード数: 195件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 14件
+  アクション[要確認]: 32件
+  コスト: 1件
+  タイミング: 31件
+  定義なし: 43件
+======================================================================
+  WixossReact 効果照合レポート — Sheet8
+  対象: 866カード  issues: 63件  STUBアクション含有: 240件
+======================================================================
+
+## アクション[STUB代替?]  (22件)
+
+  WXDi-P10-033  プリパラアイドル　真中らぁら
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, LOOK_AND_REORDER, STUB)
+  WXDi-P10-041  羅植姫　タナバタ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, PLACE_UNDER_SIGNI, TAKE_FROM_UNDER_SIGNI)
+  WXDi-P10-060  コードアンチ　マドカ//メモリア
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, ENERGY_CHARGE_FROM_DECK, STUB, NEGATE_ATTACK)
+  WXDi-P11-039  聖英姫　ソクラテス
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BOUNCE, LOOK_AND_REORDER)
+  WXDi-P12-005  UNKNOWN　MEMORY
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P12-005  UNKNOWN　MEMORY
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P12-007  炎妖舞　花代・惨
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, GRANT_KEYWORD, ENERGY_CHARGE_FROM_DECK, LIFE_CRASH)
+  WXDi-P12-051  翠魔姫　バン//ディソナ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, STUB)
+  WXDi-P13-051  翠美姫　アン//ディソナ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, GRANT_KEYWORD, ENERGY_CHARGE_FROM_DECK)
+  WXDi-P14-023  ミルルン☆ウェルカム
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: DRAW, STUB)
+  WXDi-P15-002  パワーオブストラグル
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, CONDITIONAL, STUB)
+  WXDi-P15-002  パワーオブストラグル
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, CONDITIONAL, STUB)
+  WXDi-P16-038  アザエラ「微笑みの翼」
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-077  翠魔　バン//フェゾーネ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-087  羅石　H・マイク
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-087  羅石　H・マイク
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-089  コードライド　E・カッター
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-093  アイン＝M・ボール
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-CP01-004  LazuLight　FLASH
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, STUB, BOUNCE, LOOK_AND_REORDER)
+  WXDi-CP01-027  コード２４３４　フレン・E・ルスタリオ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, ENERGY_CHARGE_FROM_DECK, CONDITIONAL, BOUNCE)
+  WXDi-CP02-003  覆面水着団
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, STUB, CONDITIONAL, GAIN_BOND)
+  WXDi-CP02-072  剣先ツルギ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRANSFER_TO_HAND, BANISH_REDIRECT, CHOOSE, BOUNCE, DRAW)
+
+## アクション[要確認]  (20件)
+
+  WXDi-P08-003  ウルトラスーパーヒーローズ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P08-063  コードアート　ピルルク//メモリア
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P09-062  神流の炎舞
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_HAND, CONDITIONAL, BANISH)
+  WXDi-P10-034  羅植姫　ユキ//メモリア
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, BANISH)
+  WXDi-P11-001  FLY　ME　TO　THE　FUTURE
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, DRAW, ADD_TO_LIFE)
+  WXDi-P11-008  喝采の歌姫　アルフォウ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, BANISH, TRASH)
+  WXDi-P11-033  カーニバル　-奪-
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P12-002  アンバランス・ダンス
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRASH)
+  WXDi-P12-052  コードオーダー　ズットモ//ディソナ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY_PER_STACK, TAKE_FROM_UNDER_SIGNI, PLACE_UNDER_SIGNI, GRANT_KEYWORD, BANISH)
+  WXDi-P13-060  羅星　コメッチ//ディソナ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ENERGY_CHARGE_FROM_DECK)
+  WXDi-P14-003  ブルー・ナイトショー
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-P15-001  リベレーターズフォース
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY)
+  WXDi-P15-001  リベレーターズフォース
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY)
+  WXDi-P15-003  ひらけ！ゲート！
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY)
+  WXDi-P15-004  オールアウトバトル
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: UNKNOWN, BANISH, ENERGY_CHARGE_FROM_DECK)
+  WXDi-P15-005  俯瞰者からの啓示
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P16-012  収斂せし扉　アト＝トレ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE, CHOOSE, DRAW, ENERGY_CHARGE_FROM_DECK, ADD_TO_LIFE)
+  WXDi-P16-051  コードラビリンス　トビラ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, GRANT_KEYWORD, CHOOSE, BANISH)
+  WXDi-CP02-074  音瀬コタマ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL)
+  WXDi-CP02-077  花岡ユズ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, LOOK_AND_REORDER)
+
+## タイミング  (13件)
+
+  WXDi-P08-044  翠将姫　ヒデヨシ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WXDi-P10-002  アフタヌーンティーショー
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P10-040  コードオーダー　エルドラ//メモリア
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P10-070  枝折
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P11-002  ミステリアス・チョイス
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P11-003  トリックスター・スターダム！
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P11-004  WISH　IN…
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P11-063  無心の豪圧
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P13-050  コードハート　セイヴ//ディソナ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXDi-P13-089  夢限//ディソナ
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WXDi-P14-056  羅星　カーニバル//フェゾーネ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WXDi-P15-048  紅将姫　シモン・バール//THE DOOR
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WXDi-CP02-103  物語の起動
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+
+## 定義なし  (8件)
+
+  WXDi-P11-061  羅原　C2H6
+    → 効果テキストあり(【ライズ】あなたの＜原子＞のシグニ１体の上に置く（この条件を満たさなければ場に出...)だがeffects.jsonにエントリーなし
+  WXDi-P12-055  透魔姫　ウリス//ディソナ
+    → 効果テキストあり(【ハーモニー】ルリグ２体（このシグニが場に出たとき、あなたのアップ状態のルリグ２...)だがeffects.jsonにエントリーなし
+  WXDi-P12-068  コードライド　ジンリキ//ディソナ
+    → 効果テキストあり(【ライズ】あなたの《ディソナアイコン》のシグニ１体の上に置く（この条件を満たさな...)だがeffects.jsonにエントリーなし
+  WXDi-P13-023  ナナシ　其ノ零ノ禍
+    → 効果テキストあり(（ゲームを開始する際に、このルリグを表向きにしたとき、このルリグがセンタールリグ...)だがeffects.jsonにエントリーなし
+  WXDi-P16-048  夢限紅天姫　ゼウシアス
+    → 効果テキストあり(【チーム】＜夢限少女＞【チーム自】：このシグニがアタックしたとき、以下の３つから...)だがeffects.jsonにエントリーなし
+  WXDi-P16-092  コードメイズ　トルネンブラ
+    → 効果テキストあり(【チーム】＜アンシエント・サプライズ＞（あなたの場に＜アンシエント・サプライズ＞...)だがeffects.jsonにエントリーなし
+  WXDi-CP01-001  世怜音女学院　After　School
+    → 効果テキストあり(このピースを使用する際、使用コストとして追加でエクシード４を支払ってもよい。（あ...)だがeffects.jsonにエントリーなし
+  WXDi-CP01-003  OBSYDIA　SALVAGE
+    → 効果テキストあり(このピースを使用する際、使用コストとして追加でエクシード４を支払ってもよい。（あ...)だがeffects.jsonにエントリーなし
+
+======================================================================
+STUBアクション参照カード数: 240件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 22件
+  アクション[要確認]: 20件
+  タイミング: 13件
+  定義なし: 8件
+======================================================================
+  WixossReact 効果照合レポート — Sheet9
+  対象: 883カード  issues: 103件  STUBアクション含有: 278件
+======================================================================
+
+## アクション[STUB代替?]  (28件)
+
+  WX24-P1-001  セイクリッド・フォース
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX24-P1-003  鏡花炎月
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: LIFE_CRASH, STUB)
+  WX24-P1-025  欣喜雀躍
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, LOOK_AND_REORDER, STUB)
+  WX24-P1-035  クラス・ヒストリー
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, LOOK_AND_REORDER, UNKNOWN)
+  WX24-P2-026  参式　一衣
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, TRANSFER_TO_HAND)
+  WX24-P2-036  プリーズ・ストップ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, DOWN)
+  WX24-P2-042  バカンス・チャージング
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB)
+  WX24-P2-051  羅輝石　ドラゴアゲート
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, GRANT_KEYWORD, CHOOSE, BANISH, DRAW)
+  WX24-P3-002  リメンバー・ミー
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, BLOCK_ACTION)
+  WX24-P3-003  勇気爆熱
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, ENERGY_CHARGE_FROM_DECK)
+  WX24-P3-006  タイム・ダイバー・ダウン
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, DOWN)
+  WX24-P3-008  今昔之感
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, NEGATE_ATTACK)
+  WX24-P3-030  黒想の花嫁　アルフォウ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, POWER_MODIFY)
+  WX24-P3-052  幻闘水姫　ナマコズ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY_PER_LIFE_COUNT, STUB, DRAW)
+  WX24-P3-079  SEA　SPRAY
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: DRAW, STUB, DOWN)
+  WX24-P4-008  緑衣之心
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB, GRANT_KEYWORD)
+  WX24-P4-014  閃華繚乱　花代・肆
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DRAW, CHOOSE, LIFE_CRASH)
+  WX24-P4-016  ちより　最終章
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, ENERGY_CHARGE_FROM_DECK, RECOLLECT_GATE, GRANT_KEYWORD)
+  WX24-P4-022  正調の成長　アン＝フォース
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, LOOK_AND_REORDER, RECOLLECT_GATE, BOUNCE)
+  WX25-P1-046  エクスチェンジ・エンハンス
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX25-P1-089  コードイート　リンゴアメ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, PLACE_UNDER_SIGNI)
+  WX25-P2-051  あーやの旗あげゲーム！
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: DRAW, STUB, DOWN)
+  WX25-P2-114  幻蟲　ユスリカ
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: DOWN, STUB, POWER_MODIFY)
+  WX25-CP1-043  早瀬ユウカ(体操服)
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, LOOK_AND_REORDER)
+  WX26-CP1-022  QUINTET PULSE
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WX26-CP1-051  プリンセス・リップル(テイクミーハイヤー)
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, DRAW)
+  WX26-CP1-057  花の騎士シンシア
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRASH)
+  WX26-CP1-100  ジュエルベル
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, STUB, LOOK_AND_REORDER)
+
+## アクション[要確認]  (32件)
+
+  WX24-P1-072  幻闘獣　ミャオ
+    → テキストから"LIFE_CRASH"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WX24-P2-001  インフィニット・フォース
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX24-P2-037  蔓巻発条
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, LOOK_AND_REORDER, TRANSFER_TO_DECK)
+  WX24-P2-077  弍ノ遊　ミズフウセン
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: DOWN, BLOCK_ACTION, DRAW)
+  WX24-P3-037  一筆啓上
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, LOOK_AND_REORDER, TRANSFER_TO_DECK, POWER_MODIFY)
+  WX24-P3-083  翠美　エッチング
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, BANISH)
+  WX24-P4-037  スノー・チャージング
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX24-P4-079  幻獣　ヘラジカ
+    → テキストから"LIFE_CRASH"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, GRANT_KEYWORD)
+  WX25-P1-039  スター・フォーメーション
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX25-P1-041  音吐朗朗
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, LOOK_AND_REORDER, TRANSFER_TO_DECK)
+  WX25-P1-042  体鳴楽器
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH)
+  WX25-P1-079  交差の飛来
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, BANISH)
+  WX25-P3-001  ホワイト・ディストラクト
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX25-P3-047  以火龍火
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX25-P3-052  ママ♥家庭教師
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX25-CP1-001  アリウススクワッド、作戦開始
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX25-CP1-004  白亜の予告状
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: RECOLLECT_GATE, CONDITIONAL, DOWN, BANISH)
+  WX25-CP1-004  白亜の予告状
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: RECOLLECT_GATE, CONDITIONAL, DOWN, BANISH)
+  WX25-CP1-008  0068　オペラより愛をこめて！
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: RECOLLECT_GATE, CONDITIONAL, PREVENT_NEXT_DAMAGE)
+  WX25-CP1-008  0068　オペラより愛をこめて！
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: RECOLLECT_GATE, CONDITIONAL, PREVENT_NEXT_DAMAGE)
+  WX25-CP1-025  夏空のウィッシュリスト
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX25-CP1-027  ハッキング
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX25-CP1-040  羽川ハスミ(体操服)
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: TRASH, ENERGY_CHARGE_FROM_DECK)
+  WX25-CP1-062  豊見コトリ
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: DOWN, CONDITIONAL, DRAW)
+  WX26-CP1-003  TRIAD FORCE
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: RECOLLECT_GATE, CONDITIONAL, LIFE_CRASH)
+  WX26-CP1-007  TRINITY DIVINE
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: RECOLLECT_GATE, GRANT_KEYWORD)
+  WX26-CP1-009  ONENESS HARMONY
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: RECOLLECT_GATE)
+  WX26-CP1-016  ミーティア・アステロイドシャワー
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, REVEAL_AND_PICK, ADD_TO_HAND)
+  WX26-CP1-017  ミーティア・ロケットストライク
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, BANISH)
+  WX26-CP1-019  ヴィオラ クロス ネージュ クレイモアスマッシャー
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WX26-CP1-059  プリンセス・ミーティア＆ヴィオラ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, GRANT_KEYWORD, ADD_TO_FIELD, CHOOSE, DRAW)
+  WX24-D1-10  ミラクル・チャージング
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
+
+## タイミング  (28件)
+
+  WX24-P1-043  コードアクセル　ダンプカー
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX24-P3-001  クリスタル・エクスプロージョン
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX24-P3-003  勇気爆熱
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX24-P3-005  ブルー・オーバードライブ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX24-P3-007  栄耀栄華
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX24-P3-009  ダーク・ブルーム
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX24-P3-093  デビル・ホール
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX24-P4-036  グロウ・エンハンス
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX24-P4-058  中装　ジガネマル
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX25-P2-001  スター・ダスト
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P2-003  走行車炎
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX25-P2-005  ブリザード・ウィング
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P2-005  ブリザード・ウィング
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX25-P2-007  一体分身
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P2-007  一体分身
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX25-P2-009  シザー・ハンズ
+    → "【自】"が2件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX25-P2-034  コード・ピルルク・APEX2
+    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
+  WX25-P3-028  虚幸の閻魔王姫　ウリス
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX25-P3-071  羅菌　セレビシエ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX25-P3-077  羅菌　アカカビ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX25-P3-084  羅菌　アクチノ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX25-P3-085  羅菌　ユーグレナ
+    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
+  WX25-P3-085  羅菌　ユーグレナ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX25-P3-088  羅菌　アオミドロ
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX25-CP1-038  白洲アズサ(水着)
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-CP1-040  羽川ハスミ(体操服)
+    → "【起】"が1件あるがeffects.jsonに対応するエフェクト(type=ACTIVATED)がない
+  WX26-CP1-100  ジュエルベル
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX26-CP1-101  力を貸して！
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+
+## 定義なし  (15件)
+
+  WX24-P4-090  小装　ハジョウツイ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か赤１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-091  幻水　イソギンチャク
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-092  羅植　クリスマスローズ
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-093  聖凶魔　アンドロマリウス
+    → 効果テキストあり(（エナコストを支払う際、このカードは白か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-094  コードアート　Ｒイダンボウ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か青１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-095  小罠　ボールゾウ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-096  幻竜　マラク
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-097  蒼翠美　ウォーターアート
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-098  壱ノ遊　ナイトプール
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX24-P4-099  コードメイズ　シバマタイシャ
+    → 効果テキストあり(（エナコストを支払う際、このカードは緑か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX25-P2-033  コード・ピルルク・φ2
+    → 効果テキストあり(【グロウ】青かつ黒のルリグ（このカードは青と黒の２色を持つルリグからしかグロウで...)だがeffects.jsonにエントリーなし
+  WX25-P2-111  コードアート　Dンタク
+    → 効果テキストあり(（エナコストを支払う際、このカードは青か黒１つとして支払える）...)だがeffects.jsonにエントリーなし
+  WX25-P3-035  花咲乱　遊月・弐
+    → 効果テキストあり(【グロウ】赤かつ緑のルリグ（このカードは赤と緑の２色を持つルリグからしかグロウで...)だがeffects.jsonにエントリーなし
+  WX25-P3-036  真・遊月・参
+    → 効果テキストあり(【グロウ】赤かつ緑のルリグ【自】：あなたのアタックフェイズ開始時、あなたの場に＜...)だがeffects.jsonにエントリーなし
+  WX25-P3-108  幻竜　ディアブロケラ
+    → 効果テキストあり(（エナコストを支払う際、このカードは赤か緑１つとして支払える）...)だがeffects.jsonにエントリーなし
+
+======================================================================
+STUBアクション参照カード数: 278件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 28件
+  アクション[要確認]: 32件
+  タイミング: 28件
+  定義なし: 15件
+======================================================================
+  WixossReact 効果照合レポート — Sheet10
+  対象: 127カード  issues: 5件  STUBアクション含有: 34件
+======================================================================
+
+## アクション[STUB代替?]  (2件)
+
+  SPDi43-15  VOGUE3-EXTREME　マドカ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BANISH, TRANSFER_TO_DECK)
+  SPDi43-26  粛命　ノヴァ
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, GRANT_KEYWORD, LOOK_AND_REORDER)
+
+## アクション[要確認]  (3件)
+
+  WX24-D4-06  樹木堕絡
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, REVEAL_AND_PICK, ADD_TO_HAND)
+  SPDi43-32  翠魔姫　Bグレートソード
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, GRANT_KEYWORD)
+  PR-Di035  OPEN　DREAM　LAND!
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, GRANT_KEYWORD, LIFE_CRASH, TRASH, BANISH)
+
+======================================================================
+STUBアクション参照カード数: 34件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 2件
+  アクション[要確認]: 3件
+======================================================================
+  WixossReact 効果照合レポート — TK
+  対象: 46カード  issues: 11件  STUBアクション含有: 21件
+======================================================================
+
+## アクション[STUB代替?]  (3件)
+
+  WXK03-TK-01B  落華流粋
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, GRANT_KEYWORD, TRASH)
+  WXK09-TK-01A  改造素材
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: BLOCK_CARD_USE, STUB)
+  WXDi-P13-004B  UNKNOWN-CODE-RU-
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, ENERGY_CHARGE_FROM_DECK, STUB)
+
+## タイミング  (5件)
+
+  WX25-P1-TK1  ダーク・バウンダリー
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P1-TK2  背闇之陣
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P1-TK3  ダーク・アナライズ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P1-TK4  闇気揚々
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P1-TK5  ダーク・アウト
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+
+## 定義なし  (3件)
+
+  WX24-D1-TK1  【リミットアッパー】
+    → 効果テキストあり(（あなたの場にいるルリグが１体で、そのルリグがレベル３以上であるかぎり、そのルリ...)だがeffects.jsonにエントリーなし
+  WX24-P1-TK2A  【ルリグバリア】
+    → 効果テキストあり(（あなたが次にルリグからダメージを受ける場合、代わりに【ルリグバリア】１つを消費...)だがeffects.jsonにエントリーなし
+  WX26-CP1-TK01  【シグニバリア】
+    → 効果テキストあり(（あなたが次にシグニからダメージを受ける場合、代わりに【シグニバリア】１つを消費...)だがeffects.jsonにエントリーなし
+
+======================================================================
+STUBアクション参照カード数: 21件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 3件
+  タイミング: 5件
+  定義なし: 3件
+======================================================================
+  WixossReact 効果照合レポート — Variants
+  対象: 2572カード  issues: 0件  STUBアクション含有: 0件
+======================================================================
+
+✅ 不一致なし
+
+======================================================================
+STUBアクション参照カード数: 0件  (詳細: --stubs オプション)
+
+======================================================================
