@@ -1223,6 +1223,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // レイヤー等のフィールド付与（collectGrantedFromLayer）
+    if (hasFieldGrant) {
+      const myLayer = collectGrantedFromLayer(myS, opS, myTurn, augMap, battleCardMap);
+      const opLayer = collectGrantedFromLayer(opS, myS, !myTurn, augMap, battleCardMap);
+      for (const [num, extra] of [...myLayer, ...opLayer]) {
+        const base = augMap.get(num) ?? augMap.get(getCardNum(num)) ?? [];
+        augMap.set(num, [...base, ...extra]);
+      }
+    }
+
     return new InstanceMap(augMap);
   }, [bs, baseEffectsMap, user.id, battleCardMap]);
 
