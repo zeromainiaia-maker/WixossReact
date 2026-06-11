@@ -429,7 +429,9 @@ for (const row of rows) {
   const stripCrashCtx = (t: string) => t.replace(/クラッシュしたとき[^、。]*/g, '');
   // 受動態「手札からトラッシュに置かれた」「捨てられた」はトリガー条件なので除去（DISCARD誤検出対策）
   const stripDiscardCtx = (t: string) => t.replace(/手札から[^。]*?(?:置かれ|捨てられ)[^、。]*/g, '');
-  const effectBody = stripCostParts(stripCrashCtx(stripDiscardCtx(stripBanishCtx(stripQuoted(stripParens(effectText))))));
+  // アンコールコスト宣言文（「アンコール－手札から…捨てる」等）は追加コストなので除去（DISCARD誤検出対策）
+  const stripEncoreCost = (t: string) => t.replace(/アンコール－[^。（]*/g, '');
+  const effectBody = stripCostParts(stripCrashCtx(stripDiscardCtx(stripEncoreCost(stripBanishCtx(stripQuoted(stripParens(effectText)))))));
   const burstBody  = stripParens(burstText);
   const textActions = detectActionsFromText(effectBody + ' ' + burstBody);
   const jsonActions = collectActionsFromJson(effs);
