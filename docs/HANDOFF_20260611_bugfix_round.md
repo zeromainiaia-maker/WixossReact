@@ -29,32 +29,75 @@ ymsty側のClaude (Fable 5) セッションからの引き継ぎ。コミット 
 
 ## 残作業（優先度順）
 
-### 1. タイミング不一致 113件
-「テキストに【出】/【自】/【常】/【起】があるがJSONに対応する type/timing のエフェクトがない」。
-実データ欠落とチェッカー誤検出が混在しているので、**1件ずつCSVテキストとJSONを突き合わせて分類**すること:
-- 実欠落 → エフェクトをJSONに追加（既存アクション型で表現できなければ `STUB` + STUBS.md追記）
-- 誤検出（例: グロウ条件文内の【出】、引用文内のマーカー等）→ verifyEffects.tsの除去ロジック(`stripQuoted`/`stripGrow`周辺)を改善
+### ~~1. タイミング不一致 113件~~ → ✅ 完了（v0.249、冒頭の完了報告参照）
 
-### 2. アクション[STUB代替?] 211件 / アクション[要確認] 174件
-「テキストから期待されるアクション型がJSONにない」。STUB代替?はSTUBが実体の可能性が高く、要確認は表現違い（例: バニッシュ→BANISH_REDIRECTエイリアス）の可能性が高い。
-誤検出なら `scripts/verifyEffects.ts` の `ACTION_KEYWORDS` のエイリアス追加で解消できるパターンが多い。
+### 1. アクション[STUB代替?] 211件 / アクション[要確認] 163件
+「テキストから期待されるアクション型がJSONにない」。1件ずつ分類して対処する:
 
-### 3. シート別残件数（2026-06-11時点、verifyEffects.ts）
+**[STUB代替?]（カードがSTUBアクションを含む）の判定手順:**
+1. そのカードのSTUB idをSTUBS.mdの一覧で確認する
+2. STUBが期待アクションを実装済み（✅）なら誤検出 → `verifyEffects.ts`の`collectActionsFromJson`で
+   そのSTUB idを期待アクションの同等物として数えるか、`ACTION_KEYWORDS`のエイリアスに追加して解消
+3. STUBがログのみ（📝）なら実体未実装 → 本実装するか、現状維持（STUB_LOG削減作業の対象として残す）
 
-| シート | STUB代替? | 要確認 | タイミング |
-|---|---:|---:|---:|
-| Sheet1 | 11 | 9 | 11 |
-| Sheet2 | 40 | 37 | 10 |
-| Sheet3 | 36 | 23 | 17 |
-| Sheet4 | 29 | 10 | 6 |
-| Sheet5 | 14 | 9 | 5 |
-| Sheet6 | 9 | 3 | 1 |
-| Sheet7 | 15 | 30 | 23 |
-| Sheet8 | 23 | 19 | 10 |
-| Sheet9 | 29 | 31 | 25 |
-| Sheet10 | 2 | 3 | 0 |
-| TK | 3 | 0 | 5 |
-| Variants | 0 | 0 | 0 |
+**[要確認]（STUBなし）の判定手順:**
+1. CSVテキストとJSONを突き合わせ、表現違いか実欠落かを判定
+2. 表現違い（例: バニッシュ→`BANISH_REDIRECT`、ミル→`REVEAL_AND_PICK`）→ `ACTION_KEYWORDS`のエイリアス追加
+3. 実欠落（JSONのアクションが本当に間違っている/足りない）→ JSONを修正。
+   前回ラウンドでは誤マージ（複数効果が1エフェクトに混入）や効果タイプ誤り（【出】がCONTINUOUS登録等）が多数見つかったので、
+   アクション不一致もパース誤りの兆候として周辺エフェクト全体を確認するとよい
+
+### 2. シート別残件数（2026-06-11 v0.249時点、verifyEffects.ts）
+
+タイミング/コスト/定義なし/LIFE_BURSTは全シート0。
+
+| シート | STUB代替? | 要確認 |
+|---|---:|---:|
+| Sheet1 | 11 | 8 |
+| Sheet2 | 41 | 36 |
+| Sheet3 | 36 | 21 |
+| Sheet4 | 28 | 10 |
+| Sheet5 | 14 | 8 |
+| Sheet6 | 9 | 3 |
+| Sheet7 | 15 | 27 |
+| Sheet8 | 24 | 16 |
+| Sheet9 | 28 | 31 |
+| Sheet10 | 2 | 3 |
+| TK | 3 | 0 |
+| Variants | 0 | 0 |
+| **計** | **211** | **163** |
+
+※前回表からの増減は再分類によるもの（STUBを追加したカードが要確認→STUB代替?に移動等）。総計385→374。
+
+## 作業ノウハウ（v0.249ラウンドで得たもの）
+
+### カード調査用ダンプスクリプト
+カードごとのCSVテキストとJSON定義の突き合わせには使い捨てスクリプトを作ると速い（前回は`tmp_verify/dumpCards.mjs`として作成、削除済み）。要点:
+- 5つのeffects JSONを全部ロードして`Object.assign`でマージ → cardNumで引く
+- CSVは`"`囲み対応の簡易スプリットでパース（`CardNum`/`CardName`/`EffectText`列）
+- 引数`Sheet1:WX05-001`形式でシートとカードを指定できるようにする
+
+### effects JSONの表現語彙（実装済みでそのまま使えるもの）
+- **フィルター**: `cardType`/`story`/`color`(配列可)/`level:{max:N}`/`powerRange:{min,max}`/`cardName`(部分一致)/`hasGuard`/`isUp`/`isFrozen`/`hasAcce`
+- **POWER_MODIFYの`excludeSelf:true`**: 「あなたの他のシグニ」（v0.249でエンジン対応済み）
+- **効果レベルの`condition`**: `{type:'HAS_CARD_IN_FIELD',owner,filter}`、`{type:'DURING_PHASE',phases}`等
+- **`activeCondition`（CONTINUOUS用）**: `IS_DRIVE_STATE`、`TURN_OWNER`等
+- **`usageLimit:'once_per_game'`**（《ゲーム１回》）
+- **SEQUENCEステップ**: `RECOLLECT_GATE`(`{minArts:N}`でリコレクト条件)、`STUB DECLARE_NUMBER`+`MILL{useDeclaredCount:true}`(数字宣言ミル)
+- **便利STUB（実装済み✅）**: `REVEAL_PICK_HAND_SHUFFLE_BOTTOM`+`revealPickParams:{pickCount,restDest,then}`（デッキ上N枚見て選ぶ）、`REVEAL_PICK_PLAY`（公開して場に出す）、`DECLARE_CLASS`、`OPTIONAL_TRASH_ENERGY_CLASS`、`LRIG_GROW_RESTRICT`
+
+### 慣例・落とし穴
+- **コスト付き【出】効果は`mandatory:false`**（支払いは任意。既存360件false vs 3件true）。コストなし【出】で「してもよい」がなければtrue
+- 「このキーを場からルリグトラッシュに置く」等の特殊コストは現状コスト未表現（cost欄なし）が慣例
+- エンジンが**CONTINUOUSとしてのみ参照するSTUB**がある（例: `ARTS_IMMOVABLE`はexecStubPart1の判定がCONTINUOUS前提。ACTIVATED内に置くと機能しない）。STUBを置く際はエンジン側のgrepで参照のされ方を確認
+- 新設timing文字列（`ON_ACCE_ATTACH`等6種、STUBS.md参照）はエンジン未配線＝発火しない。トリガー実装時に配線が必要
+- `checkAllEffects.mjs`は修正のたびに必ず再実行（現在0件、退行させない）
+
+## 運用ルール（リポジトリ外の取り決め）
+
+- **このリポジトリには「auto: Claude による変更」を自動コミットするフックがある**。ファイル編集が随時コミットされるのは正常動作（異常ではない）
+- リリース手順: `package.json`のversionをインクリメント → CIチェック（`npx tsc --noEmit`と`npm run lint`が**エラー0**であること。warningは既存26件あり許容）→ まとめコミット&`git push` → `vercel deploy --prod`
+- アプリコードに影響しないドキュメントのみの変更はversion bump/デプロイ不要
 
 ## 注意点・既知の近似実装
 
