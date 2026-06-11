@@ -2496,6 +2496,25 @@ export function execStubPart3(
     const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { powerRange: { min: minPwr } } } };
     return exec(banishAct as EffectAction, ctx);
   }
+  // INTERNAL_BANISH_ALL_POWER_GTE: パワーN以上のすべてのシグニ（両プレイヤー）をバニッシュ
+  if (stub.id === 'INTERNAL_BANISH_ALL_POWER_GTE') {
+    const minPwrBAPG = typeof stub.value === 'number' ? stub.value : 0;
+    const banishSeqBAPG: SequenceAction = {
+      type: 'SEQUENCE', steps: [
+        { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { powerRange: { min: minPwrBAPG } } } } as BanishAction,
+        { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { powerRange: { min: minPwrBAPG } } } } as BanishAction,
+      ],
+    };
+    return exec(banishSeqBAPG as EffectAction, addLog(ctx, `パワー${minPwrBAPG}以上のすべてのシグニをバニッシュ`));
+  }
+  // INTERNAL_FREEZE_OPP_LRIG: 相手センタールリグを凍結（ダウン+凍結状態）
+  if (stub.id === 'INTERNAL_FREEZE_OPP_LRIG') {
+    const newOtherFOL: PlayerState = {
+      ...ctx.otherState,
+      field: { ...ctx.otherState.field, lrig_down: true, lrig_frozen: true },
+    };
+    return done(addLog({ ...ctx, otherState: newOtherFOL }, '対戦相手のセンタールリグを凍結'));
+  }
   // INTERNAL_TRASH_SIGNI_TO_HAND: トラッシュからシグニ1枚を手札へ（CONDITIONAL_MULTI_CHOOSE系）
   if (stub.id === 'INTERNAL_TRASH_SIGNI_TO_HAND') {
     const signiTrashTSTH = ctx.ownerState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
