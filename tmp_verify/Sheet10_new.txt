@@ -1,0 +1,29 @@
+======================================================================
+  WixossReact 効果照合レポート — Sheet10
+  対象: 127カード  issues: 5件  STUBアクション含有: 34件
+======================================================================
+
+## アクション[STUB代替?]  (2件)
+
+  SPDi43-15  VOGUE3-EXTREME　マドカ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BANISH, TRANSFER_TO_DECK)
+  SPDi43-26  粛命　ノヴァ
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, GRANT_KEYWORD, LOOK_AND_REORDER)
+
+## アクション[要確認]  (3件)
+
+  WX24-D4-06  樹木堕絡
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, REVEAL_AND_PICK, ADD_TO_HAND)
+  SPDi43-32  翠魔姫　Bグレートソード
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, GRANT_KEYWORD)
+  PR-Di035  OPEN　DREAM　LAND!
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, GRANT_KEYWORD, LIFE_CRASH, TRASH, BANISH)
+
+======================================================================
+STUBアクション参照カード数: 34件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 2件
+  アクション[要確認]: 3件

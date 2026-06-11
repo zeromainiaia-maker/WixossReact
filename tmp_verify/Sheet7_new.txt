@@ -1,6 +1,6 @@
 ======================================================================
   WixossReact 効果照合レポート — Sheet7
-  対象: 880カード  issues: 50件  STUBアクション含有: 201件
+  対象: 880カード  issues: 42件  STUBアクション含有: 202件
 ======================================================================
 
 ## アクション[STUB代替?]  (15件)
@@ -19,14 +19,14 @@
     → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, ENERGY_CHARGE_FROM_DECK, CHOOSE, LIFE_CRASH, BANISH)
   WXDi-P03-023  天翔　ノヴァ
     → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, DRAW, STUB)
-  WXDi-P03-044  幻獣神　サーベルタイガー
-    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, STUB, CONDITIONAL, BANISH)
   WXDi-P04-029  タウィル＝ハングアウト
     → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: BANISH, STUB)
   WXDi-P04-077  翠天　ゼルエル
     → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
   WXDi-P05-001  RED　ZONE
     → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, STUB)
+  WXDi-P05-060  世紀末の爆走
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: STUB, BANISH)
   WXDi-P05-078  凶天　ワルキューレ
     → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, TRANSFER_TO_HAND)
   WXDi-P06-013  狂騒の閻魔　ウリス
@@ -36,7 +36,7 @@
   WXDi-P07-080  コードフード　ツナマヨ
     → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
 
-## アクション[要確認]  (28件)
+## アクション[要確認]  (27件)
 
   WXDi-D01-004  紡ぎし扉　アト＝トレ
     → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
@@ -46,8 +46,6 @@
     → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: BOUNCE, DRAW)
   WXDi-D03-004  頂点へ一歩　ヒラナ
     → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: DRAW, ENERGY_CHARGE_FROM_DECK, DOWN)
-  WXDi-D09-H13  紅将姫　ノブナガ
-    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
   WXDi-D09-P16  幻水神　ホタルイカ
     → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH)
   WXDi-P00-009  目醒めし者　タウィル＝トレ
@@ -95,29 +93,11 @@
   WXDi-P07-049  透天姫　リワト//メモリア
     → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: BOUNCE, TRASH)
 
-## タイミング  (7件)
-
-  WXDi-D09-H13  紅将姫　ノブナガ
-    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
-  WXDi-P03-016  VJ.WOLF-3rdVerse
-    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
-  WXDi-P03-044  幻獣神　サーベルタイガー
-    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
-  WXDi-P05-060  世紀末の爆走
-    → "【常】"が2件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
-  WXDi-P05-086  ムーン・バイツ
-    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
-  WXDi-P06-010  VOGUE3-EX　サンガ
-    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
-  WXDi-P07-067  紅将　ギルガメジ
-    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
-
 ======================================================================
-STUBアクション参照カード数: 201件  (詳細: --stubs オプション)
+STUBアクション参照カード数: 202件  (詳細: --stubs オプション)
 
 ======================================================================
 
 サマリー:
   アクション[STUB代替?]: 15件
-  アクション[要確認]: 28件
-  タイミング: 7件
+  アクション[要確認]: 27件
