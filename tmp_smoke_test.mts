@@ -68,7 +68,7 @@ const check = (name: string, cond: boolean, detail: string) => {
   const opts = r.pending?.options ?? [];
   const labels = opts.map((o: any) => o.label);
   check('SOUL_OPラベル', labels.length === 2 && labels.every((l: string) => l && l.length > 0) && labels[0].includes('ソウル'),
-    `labels=${JSON.stringify(labels)} log=${JSON.stringify(r.ctx?.logs ?? [])}`);
+    `labels=${JSON.stringify(labels)} log=${JSON.stringify(r.logs ?? [])}`);
 }
 
 process.exit(fail > 0 ? 1 : 0);
