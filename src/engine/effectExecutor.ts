@@ -992,7 +992,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             { id: 'reveal', available: hasCard,
               label: targetName ? `《${targetName}》を公開する` : '公開する',
               action: conditional.then },
-            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+            { id: 'skip', label: '公開しない', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
           const pendingOHRN: PendingInteractionDef = {
             type: 'CHOOSE', options: optionsOHRN, count: 1,
