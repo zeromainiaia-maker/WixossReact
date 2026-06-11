@@ -2383,15 +2383,18 @@ export function execStubPart1(
     const deckCards = ctx.ownerState.deck.slice(0, Math.min(revealCount, ctx.ownerState.deck.length));
     if (deckCards.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK）'));
     const maxPick = params.pickCount === 'ALL' ? deckCards.length : (params.pickCount as number);
-    const addHandAction: AddToHandAction = { type: 'ADD_TO_HAND', owner: 'self' };
+    // then:'energy' なら選んだカードをエナゾーンへ（既定は手札）
+    const pickDestAction: EffectAction = params.then === 'energy'
+      ? ({ type: 'ADD_TO_ENERGY', owner: 'self' } as EffectAction)
+      : ({ type: 'ADD_TO_HAND', owner: 'self' } as AddToHandAction);
     const pending: PendingInteractionDef = {
       type: 'SEARCH',
       visibleCards: deckCards,
       maxPick,
-      thenAction: addHandAction,
+      thenAction: pickDestAction,
       restDest: params.restDest,
     };
-    return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで手札に）`), pending);
+    return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで${params.then === 'energy' ? 'エナへ' : '手札に'}）`), pending);
   }
   // ソウル/ルリグデッキ操作
   if (stub.id === 'SOUL_OP') {
