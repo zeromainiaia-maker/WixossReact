@@ -90,7 +90,26 @@ function flatActions(a) {
   if (a.type === 'CONDITIONAL') return [...flatActions(a.then), ...flatActions(a.else)];
   if (a.type === 'CHOOSE') return (a.choices || []).flatMap(c => flatActions(c.action));
   if (a.type === 'CHOOSE_N_FROM_LIST') return (a.choices || []).flatMap(c => flatActions(c.action));
+  // 付与能力（レイヤー等）はアクション本体に加え内部アクションも展開
+  if (a.abilities) return [a, ...a.abilities.flatMap(ab => flatActions(ab.action))];
   return [a];
+}
+
+// エフェクトリストを付与能力（abilities内のCardEffect）込みで展開
+function expandEffects(efList) {
+  const out = [];
+  for (const ef of efList) {
+    out.push(ef);
+    const collectAbilities = (a) => {
+      if (!a) return;
+      if (a.abilities) for (const ab of a.abilities) { out.push(ab); collectAbilities(ab.action); }
+      if (a.steps) a.steps.forEach(collectAbilities);
+      if (a.then) collectAbilities(a.then);
+      if (a.else) collectAbilities(a.else);
+    };
+    collectAbilities(ef.action);
+  }
+  return out;
 }
 
 // JSON全体からアクションタイプ一覧を取得（STUBは除く）
