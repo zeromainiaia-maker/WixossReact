@@ -1132,10 +1132,38 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       if (effectText.includes('【出現条件】')) {
         effectText = effectText.replace(/^【出現条件】[^【]+/, '');
       }
+      // 【レイヤー】付与の検出：「あなたの＜X＞のシグニは《レイヤーアイコン》の能力を得る」
+      // 《レイヤーアイコン》接頭辞付きブロックは付与能力、それ以外はこのカード自身の能力
+      const layerM = effectText.match(/【レイヤー】あなたの＜([^＞]+)＞のシグニは《レイヤーアイコン》の能力を得る/);
+      if (layerM) {
+        effectText = effectText.replace(/【レイヤー】[^【]*?《レイヤーアイコン》の能力を得る。?/, '');
+      }
+
+      const layerAbilities: CardEffect[] = [];
       splitEffectBlocks(stripKeywordPrefixes(stripRuleParens(effectText))).forEach((block, i) => {
+        if (layerM && block.startsWith('《レイヤーアイコン》')) {
+          const e = parseBlock(card.CardNum, block.replace(/^《レイヤーアイコン》/, ''), i);
+          if (e) layerAbilities.push({ ...e, effectId: `${card.CardNum}-LAYER-E${layerAbilities.length + 1}` });
+          return;
+        }
         const e = parseBlock(card.CardNum, block, i);
         if (e) effects.push(e);
       });
+
+      if (layerM && layerAbilities.length > 0) {
+        effects.unshift({
+          effectId: `${card.CardNum}-LAYER`,
+          effectType: 'CONTINUOUS',
+          action: {
+            type: 'GRANT_FIELD_SIGNI_ABILITY',
+            filter: { cardType: 'シグニ', story: layerM[1] },
+            abilities: layerAbilities,
+          },
+          duration: 'PERMANENT',
+          mandatory: true,
+          parseStatus: layerAbilities.every(e => e.parseStatus === 'AUTO') ? 'AUTO' : 'PARTIAL',
+        });
+      }
     }
   }
 
