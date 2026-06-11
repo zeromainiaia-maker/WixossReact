@@ -1124,7 +1124,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       if (effectText.includes('【出現条件】')) {
         effectText = effectText.replace(/^【出現条件】[^【]+/, '');
       }
-      splitEffectBlocks(stripRuleParens(effectText)).forEach((block, i) => {
+      splitEffectBlocks(stripKeywordPrefixes(stripRuleParens(effectText))).forEach((block, i) => {
         const e = parseBlock(card.CardNum, block, i);
         if (e) effects.push(e);
       });
