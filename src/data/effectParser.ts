@@ -776,8 +776,33 @@ function parseActionText(text: string): EffectAction {
 // ===== 効果ブロック分割 =====
 
 function splitEffectBlocks(text: string): string[] {
-  // 「。」の直後に【(クロス)?(常|出|起|自|ガード)】が来る箇所で分割
-  return text.split(/(?<=。)(?=【(?:クロス)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
+  // 「。」の直後に【(クロス)?(ドライブ|チーム)?(常|出|起|自|ガード)】が来る箇所で分割
+  return text.split(/(?<=。)(?=【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
+}
+
+// 効果ではないキーワード接頭辞（ライズ条件・ハーモニー条件等）を除去し、
+// レイヤー付与文を通常の効果マーカー形式に正規化する
+function stripKeywordPrefixes(text: string): string {
+  let t = text.trim();
+  // 【レイヤー】付与文を除去し、《レイヤーアイコン》能力を通常マーカーとして扱う
+  // （簡易実装：レイヤーアイコン能力をこのカード自身の能力として登録する）
+  t = t.replace(/【レイヤー】[^【]*?《レイヤーアイコン》の能力を得る。?/g, '');
+  t = t.replace(/《レイヤーアイコン》(?=【)/g, '');
+  // 先頭の非効果キーワードを繰り返し除去
+  const PREFIXES = [
+    /^【ライド】/,                 // ライド（注釈はstripRuleParensで除去済み）
+    /^【デコレ】/,                 // デコレ（同上）
+    /^【ライズ】[^【]*/,           // ライズ：出現条件テキスト
+    /^【ハーモニー】[^【]*/,       // ハーモニー：条件テキスト
+    /^【グロウ】[^【]*/,           // グロウ：グロウ条件テキスト
+    /^【チーム】[^【]*/,           // チーム：チーム名（【チーム自】等は別マーカー）
+  ];
+  let prev: string;
+  do {
+    prev = t;
+    for (const re of PREFIXES) t = t.replace(re, '').trim();
+  } while (t !== prev);
+  return t;
 }
 
 // ===== 単一ブロックパース =====
