@@ -1,9 +1,9 @@
 ======================================================================
   WixossReact 効果照合レポート — Sheet8
-  対象: 866カード  issues: 44件  STUBアクション含有: 248件
+  対象: 866カード  issues: 40件  STUBアクション含有: 249件
 ======================================================================
 
-## アクション[STUB代替?]  (23件)
+## アクション[STUB代替?]  (24件)
 
   WXDi-P10-033  プリパラアイドル　真中らぁら
     → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, LOOK_AND_REORDER, STUB)
@@ -15,6 +15,8 @@
     → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, ENERGY_CHARGE_FROM_DECK, STUB, NEGATE_ATTACK)
   WXDi-P11-039  聖英姫　ソクラテス
     → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BOUNCE, LOOK_AND_REORDER)
+  WXDi-P11-063  無心の豪圧
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: BANISH, STUB)
   WXDi-P12-005  UNKNOWN　MEMORY
     → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
   WXDi-P12-005  UNKNOWN　MEMORY
@@ -87,25 +89,11 @@
   WXDi-CP02-077  花岡ユズ
     → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, LOOK_AND_REORDER)
 
-## タイミング  (5件)
-
-  WXDi-P10-040  コードオーダー　エルドラ//メモリア
-    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
-  WXDi-P11-063  無心の豪圧
-    → "【自】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO)がない
-  WXDi-P13-050  コードハート　セイヴ//ディソナ
-    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
-  WXDi-P15-048  紅将姫　シモン・バール//THE DOOR
-    → "【出】"が1件あるがeffects.jsonに対応するエフェクト(type=AUTO, timing=ON_PLAY)がない
-  WXDi-CP02-103  物語の起動
-    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
-
 ======================================================================
-STUBアクション参照カード数: 248件  (詳細: --stubs オプション)
+STUBアクション参照カード数: 249件  (詳細: --stubs オプション)
 
 ======================================================================
 
 サマリー:
-  アクション[STUB代替?]: 23件
+  アクション[STUB代替?]: 24件
   アクション[要確認]: 16件
-  タイミング: 5件
