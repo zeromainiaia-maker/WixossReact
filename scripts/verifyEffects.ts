@@ -262,12 +262,15 @@ for (const row of rows) {
   }
 
   // ─── 3. タイミング照合 ───
-  // 「「〜」を得る」のような付与効果引用文内の【】は実際の効果ではないので除去
+  // 「「〜」を得る」『〜を得る』のような付与効果引用文内の【】は実際の効果ではないので除去
   // ネストした引用（「【起】…「【常】…」を得る。」等）に対応するため固定点まで繰り返す
   const stripQuoted = (t: string) => {
     let prev = t;
-    let cur = t.replace(/「[^「」]*」/g, '');
-    while (cur !== prev) { prev = cur; cur = cur.replace(/「[^「」]*」/g, ''); }
+    let cur = t.replace(/「[^「」]*」/g, '').replace(/『[^『』]*』/g, '');
+    while (cur !== prev) {
+      prev = cur;
+      cur = cur.replace(/「[^「」]*」/g, '').replace(/『[^『』]*』/g, '');
+    }
     return cur;
   };
   // 【グロウ】条件テキスト（グロウ条件として書かれた非効果部分）を除去
