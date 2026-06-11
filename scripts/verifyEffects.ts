@@ -399,7 +399,9 @@ for (const row of rows) {
     .replace(/バニッシュし(?:た|て|ていた|ている|ても)[^、。]*/g, '');
   // 「クラッシュしたとき」はライフクラッシュのトリガー条件なので除去（LIFE_CRASH誤検出対策）
   const stripCrashCtx = (t: string) => t.replace(/クラッシュしたとき[^、。]*/g, '');
-  const effectBody = stripCostParts(stripCrashCtx(stripBanishCtx(stripQuoted(stripParens(effectText)))));
+  // 受動態「手札からトラッシュに置かれた」「捨てられた」はトリガー条件なので除去（DISCARD誤検出対策）
+  const stripDiscardCtx = (t: string) => t.replace(/手札から[^。]*?(?:置かれ|捨てられ)[^、。]*/g, '');
+  const effectBody = stripCostParts(stripCrashCtx(stripDiscardCtx(stripBanishCtx(stripQuoted(stripParens(effectText))))));
   const burstBody  = stripParens(burstText);
   const textActions = detectActionsFromText(effectBody + ' ' + burstBody);
   const jsonActions = collectActionsFromJson(effs);
