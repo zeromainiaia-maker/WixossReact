@@ -138,27 +138,40 @@ auditRoundtrip.mjs / fixRoundtrip.mjs。
    前回ラウンドでは誤マージ（複数効果が1エフェクトに混入）や効果タイプ誤り（【出】がCONTINUOUS登録等）が多数見つかったので、
    アクション不一致もパース誤りの兆候として周辺エフェクト全体を確認するとよい
 
-### 2. シート別残件数（2026-06-11 v0.249時点、verifyEffects.ts）
+### 2. シート別残件数（2026-06-11 v0.251時点、verifyEffects.ts）
 
 タイミング/コスト/定義なし/LIFE_BURSTは全シート0。
 
-| シート | STUB代替? | 要確認 |
-|---|---:|---:|
-| Sheet1 | 11 | 8 |
-| Sheet2 | 41 | 36 |
-| Sheet3 | 36 | 21 |
-| Sheet4 | 28 | 10 |
-| Sheet5 | 14 | 8 |
-| Sheet6 | 9 | 3 |
-| Sheet7 | 15 | 27 |
-| Sheet8 | 24 | 16 |
-| Sheet9 | 28 | 31 |
-| Sheet10 | 2 | 3 |
-| TK | 3 | 0 |
-| Variants | 0 | 0 |
-| **計** | **211** | **163** |
+> **✅ 2026-06-11 v0.251 進捗（zerom側）**: 374→318件（-56）。実施内容:
+> - **STUB_EQUIVALENTS実装**（verifyEffects.ts）: 実装済みSTUB 25種を期待アクションの同等物として照合（-51件）。
+>   collectActionsFromJsonがSTUB idを`STUB:ID`形式で収集し、レポートにもSTUB idを表示するようになった
+> - **TARGET_AND_DISCARD_HAND二重実行バグ修正**（effectExecutor.ts）: 直後のCONDITIONAL(IS_MY_TURN)を消費し
+>   then（owner self/any→opponent修正、SEQUENCE内再帰）を対象適用アクションに使用。スモークテストPASS
+> - **CHOOSE opponentResponds対応**: types/effects.ts ChooseAction拡張+execChoose透過（SPDi43-32で使用）
+> - **Sheet10全5件解消**（0件達成）: WX24-D4-06（ENERGY_CHARGE+target/pickCount2/緑filter）、
+>   SPDi43-26（ON_ATTACK_LRIG/REVEAL_PICK_HAND_SHUFFLE_BOTTOM/TADH+BOUNCE/usageLimit）、
+>   SPDi43-32（opponentResponds CHOOSE）、PR-Di035（5色CONDITIONAL分岐+owner修正+storyフィルタ）、SPDi43-15（TADH同等）
+> - **DISCARD誤検出対策**: 受動態「手札からトラッシュに置かれた」をトリガー文として除去
 
-※前回表からの増減は再分類によるもの（STUBを追加したカードが要確認→STUB代替?に移動等）。総計385→374。
+| シート | STUB代替? | 要確認 | (v0.249: STUB代替?/要確認) |
+|---|---:|---:|---|
+| Sheet1 | 10 | 8 | 11/8 |
+| Sheet2 | 31 | 36 | 41/36 |
+| Sheet3 | 27 | 20 | 36/21 |
+| Sheet4 | 24 | 10 | 28/10 |
+| Sheet5 | 13 | 8 | 14/8 |
+| Sheet6 | 8 | 3 | 9/3 |
+| Sheet7 | 8 | 27 | 15/27 |
+| Sheet8 | 17 | 16 | 24/16 |
+| Sheet9 | 18 | 31 | 28/31 |
+| Sheet10 | 0 | 0 | 2/3 |
+| TK | 3 | 0 | 3/0 |
+| Variants | 0 | 0 | 0/0 |
+| **計** | **159** | **159** | **211/163** |
+
+調査で判明した実欠落の例（次ラウンドの参考）:
+- WX21-035: 4択から2つ選ぶ効果（CHOOSE）がJSONから丸ごと欠落（コスト軽減部分のみ存在）
+- WX22-029: 「手札からカードを1枚エナゾーンに置く」がOPTIONAL_COST止まり（実体なし）
 
 ## 作業ノウハウ（v0.249ラウンドで得たもの）
 
