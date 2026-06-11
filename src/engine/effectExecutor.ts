@@ -1488,14 +1488,14 @@ function getLevelReferenceOverride(card: import('../types').CardData | undefined
   const txt = card?.EffectText ?? '';
   if (!txt.includes('レベルを参照する場合')) return null;
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-  //
-  const single = txt.match(/レベルを参照する場合、レベル([０-９d]+)として扱ってもよい/);
+  // 「レベルＮとして扱ってもよい」
+  const single = txt.match(/レベルを参照する場合、レベル([０-９\d]+)として扱ってもよい/);
   if (single) {
     const lv = parseInt(toHW(single[1]));
     return { min: lv, max: lv };
   }
-  //
-  const range = txt.match(/レベルを参照する場合、([０-９d]+)～([０-９d]+)いずれかのレベル/);
+  // 「Ｎ～Ｍいずれかのレベル１つとして扱ってもよい」
+  const range = txt.match(/レベルを参照する場合、([０-９\d]+)～([０-９\d]+)いずれかのレベル/);
   if (range) {
     return { min: parseInt(toHW(range[1])), max: parseInt(toHW(range[2])) };
   }
