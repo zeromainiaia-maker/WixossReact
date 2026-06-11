@@ -337,6 +337,8 @@ export function calcContinuousSigniMutations(
         if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
         const act = eff.action as BanishAction | FreezeAction | DownAction;
         if (act.type !== 'BANISH' && act.type !== 'FREEZE' && act.type !== 'DOWN') continue;
+        // 身代わりバニッシュ等の任意（してもよい）効果は自動適用しない（WX20-055/WX25-P1-056等）
+        if ((act as BanishAction).optional) continue;
         const target = act.target;
         if (target.type !== 'SIGNI') continue;
         const tgtState = target.owner === 'opponent' ? otherState : ownerState;

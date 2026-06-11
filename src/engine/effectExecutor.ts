@@ -2280,11 +2280,34 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
   }
   cur = { ...cur, lastProcessedCards: selected };
-  if (pending.continuation) return executeAction(pending.continuation, cur);
+  if (pending.continuation) {
+    // 任意選択（してもよい）をスキップした場合、「そうした場合〜」(CONDITIONAL IS_MY_TURN) は実行しない
+    const cont = pending.optional && selected.length === 0
+      ? stripDidItConditional(pending.continuation)
+      : pending.continuation;
+    if (cont) return executeAction(cont, cur);
+  }
   return done(cur);
 }
 
-// SEARCH: picked[] 
+// 「そうした場合」を表す先頭の CONDITIONAL(IS_MY_TURN) を else 側に置き換える
+function stripDidItConditional(action: EffectAction): EffectAction | undefined {
+  if (action.type === 'CONDITIONAL' && action.condition.type === 'IS_MY_TURN') {
+    return action.else;
+  }
+  if (action.type === 'SEQUENCE' && action.steps.length > 0) {
+    const first = action.steps[0];
+    if (first?.type === 'CONDITIONAL' && (first as ConditionalAction).condition.type === 'IS_MY_TURN') {
+      const firstElse = (first as ConditionalAction).else;
+      const rest = [...(firstElse ? [firstElse] : []), ...action.steps.slice(1)];
+      if (rest.length === 0) return undefined;
+      return rest.length === 1 ? rest[0] : { type: 'SEQUENCE', steps: rest };
+    }
+  }
+  return action;
+}
+
+// SEARCH: picked[]
 export function resumeSearch(
   picked: string[],
   pending: PendingInteractionDef & { type: 'SEARCH' },

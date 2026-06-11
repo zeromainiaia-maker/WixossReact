@@ -251,22 +251,43 @@ for (const { json, csvs } of FILES) {
     }
 
     // ── 6. 強制/任意不一致 ──────────────────────────────────
-    // 「してもよい」がCSVにある → そのエフェクトは mandatory:false であるべき
-    // 括弧内の説明文・「効果付与」内の「してもよい」は除外
+    // 「してもよい」がCSVにある → 実行時に辞退可能な表現があるべき
+    // 任意性は effect.mandatory:false のほか、アクションレベルでも表現される:
+    //   optional:true / target.upToCount / source.upToCount / CHOOSE のノーオプ選択肢 /
+    //   SEARCH・REVEAL_AND_PICK（0枚選択可） / STUB（手動解決）
+    // 括弧内の説明文・「効果付与」内・【起】能力内（ACTIVATEDは任意使用）の「してもよい」は除外
     const effForOptCheck = eff
       .replace(/（[^）]*）/g, '')           // 括弧説明除外
-      .replace(/「[^」]*してもよい[^」]*」/g, ''); // 付与効果内除外
+      .replace(/「[^」]*してもよい[^」]*」/g, '') // 付与効果内除外
+      .replace(/【起】.*?(?=【(?:出|自|常|起)】|$)/gs, ''); // 起動能力内除外（次の能力マーカーまで）
     const hasOptional = /してもよい/.test(effForOptCheck);
+    // アクション木に辞退可能な表現があるか
+    const actionIsSkippable = (a) => {
+      if (!a || typeof a !== 'object') return false;
+      if (a.optional === true) return true;
+      if (a.target?.upToCount === true) return true;
+      if (a.source?.upToCount === true) return true;
+      if (a.type === 'SEARCH' || a.type === 'REVEAL_AND_PICK' || a.type === 'STUB' || a.type === 'UNKNOWN') return true;
+      // PLAY_FREE系は使用確認UI、REARRANGEは配置をユーザーが決める（現状維持も選べる）ため辞退可能扱い
+      if (a.type === 'PLAY_FREE' || a.type === 'PLAY_FREE_FROM_TRASH' || a.type === 'REARRANGE_SIGNI') return true;
+      if (a.type === 'CHOOSE' && (a.choices ?? []).some(c =>
+        c.action?.type === 'SEQUENCE' && (c.action.steps ?? []).length === 0)) return true;
+      const children = [
+        ...(a.steps ?? []), a.then, a.else,
+        ...((a.choices ?? []).map(c => c.action)),
+      ];
+      return children.some(actionIsSkippable);
+    };
     if (hasOptional && !hasStub && !hasUnknown) {
-      // ACTIVATED以外かつコストなしのAUTOで全mandatory:trueは疑わしい
       const nonActivatedEffects = efList.filter(ef =>
         ef.effectType !== 'ACTIVATED' && ef.effectType !== 'LIFE_BURST'
       );
       const allMandatory = nonActivatedEffects.length > 0 &&
         nonActivatedEffects.every(ef => ef.mandatory === true);
-      if (allMandatory) {
+      const anySkippable = nonActivatedEffects.some(ef => actionIsSkippable(ef.action));
+      if (allMandatory && !anySkippable) {
         report(json, cardId, name, 'MANDATORY_SUSPICIOUS',
-          `CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトが全て mandatory:true`, eff);
+          `CSV「してもよい」あり、AUTO/CONTINUOUSエフェクトに辞退可能な表現なし`, eff);
       }
     }
     // 「してもよい」がないのにACTIVATED以外でmandatory:false
