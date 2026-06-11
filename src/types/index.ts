@@ -260,6 +260,7 @@ export interface PlayerState {
   game_turn_end_trash_to_hand?: { class: string; count: number }; // WXDi-P04-006: ターン終了時トラッシュ→手札
   game_grow_phase_limit_plus?: number;             // WXDi-P11-010A: グロウフェイズ開始時リミット+N（累積）
   game_lrig_limit_bonus?: number;                  // ゲーム通じて累積するリミット増加量（リセット対象外）
+  limit_upper_token?: boolean;                     // 【リミットアッパー】トークン（ルリグゾーンに1つまで・リセット対象外。ルリグ1体かつレベル3以上でリミット+2）
   game_declared_signi_level_zero?: boolean;        // WXK09-001: 宣言シグニのレベルを0に
   game_declared_signi_ignore_restriction?: boolean; // WXK09-001: 宣言シグニの限定条件無視
   // GRANT_ABILITY_INNER_TEXT で付与されたルリグ能力（ターンリセット対象外の持続効果）

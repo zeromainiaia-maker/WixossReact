@@ -3402,10 +3402,14 @@ export function execStubPart3(
     }
     return done(addLog(newCtxDDCPN, `${drawNDDCPN}枚ドロー`));
   }
-  // PLACE_LIMIT_UPPER: ルリグリミット上限を+1
+  // PLACE_LIMIT_UPPER: 【リミットアッパー】トークンをルリグゾーンに置く（1つまで）
+  // トークン効果（ルリグ1体かつレベル3以上でリミット+2）はBattleScreenのリミット計算側で適用
   if (stub.id === 'PLACE_LIMIT_UPPER') {
-    const newSPLU: PlayerState = { ...ctx.ownerState, lrig_limit_mod: (ctx.ownerState.lrig_limit_mod ?? 0) + 1 };
-    return done(addLog({ ...ctx, ownerState: newSPLU }, 'リミット上限+1'));
+    if (ctx.ownerState.limit_upper_token) {
+      return done(addLog(ctx, '【リミットアッパー】は既にルリグゾーンにある（1つまで）'));
+    }
+    const newSPLU: PlayerState = { ...ctx.ownerState, limit_upper_token: true };
+    return done(addLog({ ...ctx, ownerState: newSPLU }, '【リミットアッパー】をルリグゾーンに置く（ルリグ1体かつレベル3以上でリミット+2）'));
   }
   // LOOK_DECK_BOTTOM: デッキ下を1枚確認
   if (stub.id === 'LOOK_DECK_BOTTOM') {

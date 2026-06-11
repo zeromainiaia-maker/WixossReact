@@ -69,7 +69,7 @@
 | 2 | CONT | ✅ | LEVEL_REFERENCE_OVERRIDE ※v0.134: DECK_TOP_MATCHESにLEVEL_REFERENCE_OVERRIDE考慮追加。LAST_PROCESSED_LEVEL_SUM_EQ条件追加。effects.json修正（WX18-066/WX19-024: DECK_TOP_MATCHES条件付きBANISH、WD21-012: レベル合計10条件） |
 | 7 | CONT | ✅ | LOSE_COLOR_ALL_ZONES |
 | 7 | AUTO/ACTIVATED | ✅ | PLACE_CARD_UNDER_SIGNI ※「このシグニを他シグニの下」/「トラッシュからシグニ下配置」の2パターン実装済み |
-| 7 | AUTO/ACTIVATED | ✅ | PLACE_LIMIT_UPPER ※lrig_limit_mod+1でリミット上限を増加済み |
+| 7 | AUTO/ACTIVATED | ✅ | PLACE_LIMIT_UPPER ※v0.249: limit_upper_tokenトークン設置（1つまで・恒久）。ルリグ1体かつレベル3以上でリミット+2（旧実装はlrig_limit_mod+1でターン終了時に消失するバグ） |
 | 7 | AUTO/ACTIVATED | ✅ | PLACE_TRAP_OPTIONAL ※手札選択→ゾーン選択→INTERNAL_SET_TRAPで設置済み |
 | 2 | AUTO/ACTIVATED | ✅ | TRASH_SIGNI_UNDER_FIELD_SIGNI ※v0.136: 2ステップ実装（SELECT_TARGET[トラッシュ]→INTERNAL_TSU_CHOOSE_ZONE→INTERNAL_TSU_DO_PLACE）複数枚連続配置対応 |
 | 6 | ACTIVATED/AUTO | ✅ | ACTIVATE_TRAP ※v0.167: parseCardEffects+execでTRAP_ICONを発動。lastProcessedCards[0]でトラップ指定対応 |

@@ -1630,9 +1630,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (lv0Idx < 0) return;
       const selectedId = lrigWithIds[lv0Idx];
       const lrigDeckIds = lrigWithIds.filter((_, i) => i !== lv0Idx);
+      // ゲーム開始時、センタールリグのコイン欄（ナナシ其ノ零ノ禍等）分のコインを得る
+      const cpuStartCoins = Math.min(5, parseInt(cards.find(card => card.CardNum === cpuDeckData.lrig_deck[lv0Idx])?.Coin ?? '0') || 0);
       const cpuState: PlayerState = {
         life_cloth: [], hand: mainWithIds.slice(0, 5), deck: mainWithIds.slice(5),
-        lrig_deck: lrigDeckIds, trash: [], lrig_trash: [], energy: [], coins: 0,
+        lrig_deck: lrigDeckIds, trash: [], lrig_trash: [], energy: [], coins: cpuStartCoins,
         field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
       };
       await supabase.from('battle_states').update({
@@ -1869,11 +1871,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
 
         // Lv0ルリグ1〜2枚：アシストなしで通常セットアップ
+        // ゲーム開始時、センタールリグのコイン欄（ナナシ其ノ零ノ禍等）分のコインを得る
+        const startCoins = Math.min(5, parseInt(battleCardMap.get(cardNum)?.Coin ?? '0') || 0);
         const lrigDeckIds  = lrigWithIds.filter((_, i) => i !== selOrigIdx);
         const myState: PlayerState = {
           life_cloth: [], hand: mainWithIds.slice(0, 5), deck: mainWithIds.slice(5),
           lrig_deck: lrigDeckIds,
-          trash: [], lrig_trash: [], energy: [], coins: 0,
+          trash: [], lrig_trash: [], energy: [], coins: startCoins,
           field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
         };
         const update = isHost
@@ -1890,11 +1894,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         const confirmNoAssist = async () => {
           setLoading(true);
+          const startCoinsNA = Math.min(5, parseInt(centerCard?.Coin ?? '0') || 0);
           const lrigDeckIds = setup.lrigWithIds.filter(id => id !== setup.centerInstanceId);
           const myState: PlayerState = {
             life_cloth: [], hand: setup.mainWithIds.slice(0, 5), deck: setup.mainWithIds.slice(5),
             lrig_deck: lrigDeckIds,
-            trash: [], lrig_trash: [], energy: [], coins: 0,
+            trash: [], lrig_trash: [], energy: [], coins: startCoinsNA,
             field: { lrig: [setup.centerInstanceId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
           };
           const update = isHost
@@ -1912,12 +1917,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const selectAssistR = async (instanceId: string) => {
           if (!setup.assistLInstanceId) return;
           setLoading(true);
+          const startCoinsAR = Math.min(5, parseInt(centerCard?.Coin ?? '0') || 0);
           const usedIds = new Set([setup.centerInstanceId, setup.assistLInstanceId, instanceId]);
           const lrigDeckIds = setup.lrigWithIds.filter(id => !usedIds.has(id));
           const myState: PlayerState = {
             life_cloth: [], hand: setup.mainWithIds.slice(0, 5), deck: setup.mainWithIds.slice(5),
             lrig_deck: lrigDeckIds,
-            trash: [], lrig_trash: [], energy: [], coins: 0,
+            trash: [], lrig_trash: [], energy: [], coins: startCoinsAR,
             field: {
               lrig: [setup.centerInstanceId],
               signi: [null, null, null],
@@ -4006,11 +4012,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const copyBaseLimitFromOpp = my.lrig_copy_opp_level_limit
     ? parseLimitVal(oppCenterLrig?.Limit)
     : undefined;
+  // 【リミットアッパー】トークン: 場のルリグが1体（アシストなし）かつレベル3以上のかぎりリミット+2
+  const limitUpperBonus = my.limit_upper_token
+    && (my.field.assist_lrig_l ?? []).length === 0
+    && (my.field.assist_lrig_r ?? []).length === 0
+    && currentLrigLevel >= 3 ? 2 : 0;
   const lrigLimit = (oppBasicLimitOverride ?? copyBaseLimitFromOpp ?? parseLimitVal(currentLrig?.Limit))
     + ((my.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((my.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
     + (my.lrig_limit_mod ?? 0)
     + (my.game_lrig_limit_bonus ?? 0)
+    + limitUpperBonus
     + myLrigColorAndLimitMods.limitDelta;
   const fieldSigniTopLevels: number[] = my.field.signi.map(stack => {
     if (!stack || stack.length === 0) return 0;

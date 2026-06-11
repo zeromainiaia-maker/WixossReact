@@ -237,11 +237,19 @@ for (const row of rows) {
     && !effectText.includes('【起】')
     && !effectText.includes('【自】')
     && !/【常】(?!：【マルチエナ】)/.test(effectText);
-  if (effs.length === 0 && effectText && effectText !== '-' && !isGuardOnly) {
+  // 注釈（…）のみのテキストはルール説明であり効果定義不要:
+  // - デュアルエナ「白か赤１つとして支払える」→ Color列「白赤」でエンジンが支払い判定
+  // - ナナシ其ノ零ノ禍のゲーム開始時コイン → Coin列でゲーム開始時に付与
+  // - トークン（リミットアッパー/バリア等）→ エンジン側機構（STUBS.md参照）
+  const isReminderOnly =
+    effectText !== '' && effectText !== '-'
+    && effectText.replace(/（[^（）]*）/g, '').trim() === '';
+  const isToken = row['Type']?.trim() === 'トークン';
+  if (effs.length === 0 && effectText && effectText !== '-' && !isGuardOnly && !isReminderOnly && !isToken) {
     addIssue(cardNum, cardName, '定義なし', `効果テキストあり(${effectText.substring(0, 40)}...)だがeffects.jsonにエントリーなし`);
     continue;
   }
-  if (isGuardOnly && effs.length === 0) continue; // ガードのみ → 正常
+  if ((isGuardOnly || isReminderOnly || isToken) && effs.length === 0) continue; // ガード/注釈のみ・トークン → 正常
 
   // ─── 2. ライフバースト照合 ───
   const hasBurstDef = effs.some(e => e.effectType === 'LIFE_BURST');
@@ -292,11 +300,17 @@ for (const row of rows) {
   }
 
   // ─── 4. コスト照合（【起】と有コスト【出】） ───
-  const effectBlocks = splitEffects(effectText);
+  // 「」内の付与能力引用文を除去（引用された【起】コストとの誤照合対策）
+  const effectBlocks = splitEffects(effectText.replace(/「[^「」]*」/g, ''));
   for (const block of effectBlocks) {
     const isActivated = block.startsWith('【起】');
     const isOnPlay    = block.startsWith('【出】');
     if (!isActivated && !isOnPlay) continue;
+
+    // コスト部（：の前）が純粋なコスト表記（《…》×Ｎの並び）でなければ、
+    // 効果文中に紛れた【起】等の誤分割ブロックとみなしてスキップ
+    const costPart = block.replace(/【[^】]+】/, '').split('：')[0].split('。')[0];
+    if (/[^《》×０-９\d\s、,]/.test(costPart.replace(/《[^《》]*》/g, ''))) continue;
 
     const textCosts = extractCostFromText(block);
     if (textCosts.length === 0) continue; // コストなし
