@@ -146,8 +146,9 @@ for (const { json, csvs } of FILES) {
     if (!fullText) continue;
 
     const name = c.name;
-    const jsonTypes = efList.map(ef => ef.effectType);
-    const allActs = efList.flatMap(ef => flatActions(ef.action));
+    const efListExpanded = expandEffects(efList);
+    const jsonTypes = efListExpanded.map(ef => ef.effectType);
+    const allActs = efListExpanded.flatMap(ef => flatActions(ef.action));
     const hasStub = allActs.some(a => a.type === 'STUB');
     const hasUnknown = allActs.some(a => a.type === 'UNKNOWN');
 
