@@ -3355,6 +3355,51 @@ export function collectAllColorSigni(
 }
 
 /**
+ * GRANT_FIELD_SIGNI_ABILITY（【レイヤー】の《レイヤーアイコン》能力付与等）:
+ * 場のシグニが持つ CONTINUOUS の GRANT_FIELD_SIGNI_ABILITY 宣言を読み、
+ * フィルタに合う自分の場のシグニ全員（付与元自身を含む）へ abilities を付与する。
+ * 同型の付与元が複数あればそれぞれ別ソースとして重複付与される（ルール通り）。
+ * Returns: signiInstanceId → 追加 CardEffect[] のマップ
+ */
+export function collectGrantedFromLayer(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Map<string, CardEffect[]> {
+  const result = new Map<string, CardEffect[]>();
+  const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  type GrantAction = import('../types/effects').GrantFieldSigniAbilityAction;
+
+  // 1) 場のシグニから付与宣言を収集
+  const grants: GrantAction[] = [];
+  for (let zi = 0; zi < 3; zi++) {
+    const top = ownerState.field.signi[zi]?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (eff.action.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top)) continue;
+      grants.push(eff.action as GrantAction);
+    }
+  }
+  if (grants.length === 0) return result;
+
+  // 2) フィルタに合う自分の場のシグニへ付与
+  for (let zi = 0; zi < 3; zi++) {
+    const top = ownerState.field.signi[zi]?.at(-1);
+    if (!top) continue;
+    const card = cardMap.get(baseNum(top));
+    for (const g of grants) {
+      if (g.filter && !matchesFilter(card, g.filter)) continue;
+      result.set(top, [...(result.get(top) ?? []), ...g.abilities]);
+    }
+  }
+  return result;
+}
+
+/**
  * GRANT_UNDER_SIGNI_* / GRANT_SIGNI_ABOVE_ABILITY:
  * スタック（ライズ状態）シグニ間の CONTINUOUS 能力付与を収集する。
  * - トップシグニが GRANT_UNDER_SIGNI_* スタブを持つ → 下のカードの効果をトップに付与
