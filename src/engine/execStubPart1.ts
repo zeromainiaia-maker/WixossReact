@@ -1985,7 +1985,7 @@ export function execStubPart1(
     if (deckCards.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK_PLAY）'));
     // 場に出せるシグニをフィルタ（簡易：「シグニ」タイプ）
     const signiCards = deckCards.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
-    const pickCount = txtRPP.match(/シグニを([０-９\d]+)枚まで場に出す/) ? parseInt(toHWR(RegExp.$1)) : 1;
+    const pickCount = txtRPP.match(/シグニを([０-９\d]+)枚まで場に出/) ? parseInt(toHWR(RegExp.$1)) : 1;
     const addFieldAction: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
     const restToTrashAction: TrashAction = {
       type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 'ALL' },
