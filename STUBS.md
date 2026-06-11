@@ -22,7 +22,7 @@
 | 397 | ACTIVATED/CONT | ✅ | OPTIONAL_COST ※effectExecutorがSEQUENCE内STUB→CONDITIONAL(IS_MY_TURN)パターンをインターセプト→pay/skipのCHOOSE＋エナ選択UI（338件）。Pattern④で離れた位置のIS_MY_TURNも対応。execStub.tsがエッジケース（SEQUENCE末尾33件）も同様のCHOOSEを提示（v0.153） |
 | 116 | CONT/AUTO | ✅ | ARTS_COST_REDUCTION_BY_EFFECT |
 | 2 | AUTO/ACTIVATED | ✅ | TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST ※v0.143: effectExecutor専用ハンドラ追加。パーサーバグ(target.owner='self')を'opponent'に修正。BANISH/BOUNCE/DOWN/POWER_MODIFY対応。canPayOptionalCostチェック+CHOOSE(pay/skip)提示 |
-| 52 | ACTIVATED/AUTO | ✅ | TARGET_AND_DISCARD_HAND |
+| 52 | ACTIVATED/AUTO | ✅ | TARGET_AND_DISCARD_HAND ※v0.251: 二重実行バグ修正。直後のCONDITIONAL(IS_MY_TURN)を消費しthen（owner self/any→opponent修正、SEQUENCE内再帰）を対象適用アクションに使用。素通しすると自分シグニへの追加BANISH等が誤実行されていた |
 | 57 | ACTIVATED/CONT/AUTO | ✅ | POWER_MOD_PER_COUNT |
 | 44 | AUTO | ✅ | CONDITIONAL_POWER_BONUS |
 | 45 | CONT | ✅ | RULE_REMINDER_TEXT ※execStubがdone(ctx)を返すため無音スキップ済み |
