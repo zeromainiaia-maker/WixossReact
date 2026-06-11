@@ -274,13 +274,12 @@ for (const row of rows) {
   const stripGrow = (t: string) => t.replace(/【グロウ】[^【]*/g, '');
   // 【常】：【マルチエナ】はBattleScreen.tsxのEffectTextフォールバックで処理済みなので除去
   const stripMultiEner = (t: string) => t.replace(/【常】：【マルチエナ】/g, '');
-  // 「の【起】能力」「【起】能力を」等の補足説明（能力の参照テキスト）を除去
-  // 「の【出】能力」「【出】能力は」等の補足説明を除去
+  // 能力の参照テキスト（「の【起】能力」「【起】能力の」「【常】と【自】と【起】の能力」等）を除去
+  // 実効果のマーカーは「【起】コスト：効果」形式で直後に「能力」「と【」「の能力」が続くことはない
   const stripAbilityRef = (t: string) => t
-    .replace(/の【起】能力/g, 'の起能力')
-    .replace(/【起】能力を/g, '起能力を')
-    .replace(/の【出】能力/g, 'の出能力')
-    .replace(/【出】能力は/g, '出能力は');
+    .replace(/【(起|出|自|常)】(?=能力)/g, '$1')
+    .replace(/【(起|出|自|常)】(?=と【)/g, '$1')
+    .replace(/【(起|出|自|常)】(?=の能力)/g, '$1');
 
   const cleanEffectText = stripMultiEner(stripAbilityRef(stripGrow(stripQuoted(effectText))));
   const timingChecks = [
