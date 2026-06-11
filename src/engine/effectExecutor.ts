@@ -520,7 +520,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       } else if (srcDefined.type === 'HAND_CARD') {
         newS = { ...newS, hand: newS.hand.filter(x => x !== n) };
       }
-      //
+      // 空きゾーンに配置
       const signi = [...newS.field.signi] as (string[] | null)[];
       const emptyIdx = signi.findIndex(z => !z || z.length === 0);
       if (emptyIdx >= 0) signi[emptyIdx] = [n];
