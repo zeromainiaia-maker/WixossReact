@@ -1235,6 +1235,7 @@ function applyDeltaToState(
     const topNum = stack[stack.length - 1];
     if (seen.has(topNum)) continue;
     seen.add(topNum);
+    if (topNum === excludeNum) continue;
     if (!powers.has(topNum)) continue;
     // PREVENT_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化
     if (effectiveDelta < 0 && powerProtectedNums?.has(topNum)) continue;
