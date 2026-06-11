@@ -197,6 +197,18 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   POWER_MOD_BY_DISCARD_COUNT_HIGH: ['DISCARD'],
   DRAW_DISCARD_COUNT_PLUS_N: ['DRAW', 'DISCARD'],
   COUNT_BASED_DRAW_OR_POWER: ['DRAW', 'DISCARD'],
+  // ベット機構: BET_MECHANICが①②③④をchoiceTextParserで解析実行（バニッシュ/エナ置き/ドロー/ミル/クラッシュ等）
+  BET_ALTERNATIVE: ['BANISH', 'MOVE_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'DOWN', 'FREEZE'],
+  BET_CONDITION: ['BANISH', 'MOVE_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'DOWN', 'FREEZE'],
+  // ①②③④をchoiceTextParserで解析実行
+  CHOOSE_N_FROM_LIST: ['BANISH', 'DOWN', 'FREEZE', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'MOVE_TO_ENERGY'],
+  // ①バウンス（+手札捨て）②アタック不可③クラスサーチを実装
+  CHOOSE_SAME_OPTION_TWICE: ['BOUNCE', 'SEARCH', 'DISCARD'],
+  CHOOSE_SAME_OPTION_MULTIPLE: ['BOUNCE', 'SEARCH', 'DISCARD'],
+  // ウィルス除去→①②③④をchoiceTextParserで解析実行（両者ミル/パワー修正/トラッシュ回収等）
+  EXTRA_COST_REMOVE_VIRUS: ['MILL', 'POWER_MODIFY', 'TRANSFER_TO_HAND'],
+  // デッキ上N枚公開→レベル合計×1000以下バニッシュ→公開分トラッシュ（本実装済み）
+  REVEAL_TOP_BANISH_BY_LEVEL_SUM: ['BANISH', 'MILL'],
 };
 
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
