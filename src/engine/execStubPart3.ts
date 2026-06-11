@@ -2466,6 +2466,21 @@ export function execStubPart3(
     return selectOrInteract(candsIBOPL, 1, false, 'opp_field', banishIBOPL as EffectAction, undefined, ctx);
   }
   // SUMMON_FROM_ENERGY: エナゾーンからシグニを場に出す（シグニ限定）
+  // SUMMON_FROM_TRASH: トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用）
+  if (stub.id === 'SUMMON_FROM_TRASH') {
+    const srcSFT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtSFT = srcSFT ? (srcSFT.EffectText ?? '') : '';
+    const lvMSFT = txtSFT.match(/トラッシュから.*レベル([０-９\d]+)以下の.*シグニ/);
+    const maxLvSFT = lvMSFT ? parseInt(lvMSFT[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) : 99;
+    const signiInTrashSFT = ctx.ownerState.trash.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      if (!c || c.Type !== 'シグニ') return false;
+      return (parseInt(c.Level ?? '0') || 0) <= maxLvSFT;
+    });
+    if (signiInTrashSFT.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし'));
+    const addFieldSFT: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
+    return selectOrInteract(signiInTrashSFT, 1, false, 'self_trash', addFieldSFT as EffectAction, undefined, ctx);
+  }
   if (stub.id === 'SUMMON_FROM_ENERGY') {
     const srcSFE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtSFE = srcSFE ? (srcSFE.EffectText ?? '') : '';
