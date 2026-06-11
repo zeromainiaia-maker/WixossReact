@@ -889,7 +889,8 @@ export function calcFieldPowers(
             if (targetIsOwner) {
               // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
               const ownerDelta = flipOwnerPosDelta && effectiveDelta > 0 ? -effectiveDelta : effectiveDelta;
-              applyDeltaToState(ownerState, ownerDelta, target.filter, cardMap, powers);
+              applyDeltaToState(ownerState, ownerDelta, target.filter, cardMap, powers,
+                undefined, undefined, mod.excludeSelf ? topNum : undefined);
             }
             if (targetIsOther) {
               applyDeltaToState(otherState, effectiveDelta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
