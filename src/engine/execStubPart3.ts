@@ -2369,6 +2369,34 @@ export function execStubPart3(
     const banishAct: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { powerRange: { min: minPwr } } } };
     return exec(banishAct as EffectAction, ctx);
   }
+  // REVEAL_TOP_BANISH_BY_LEVEL_SUM: デッキ上N枚公開→公開シグニのレベル合計×1000以下の相手シグニをバニッシュ→公開カードをトラッシュ（WX17-028）
+  if (stub.id === 'REVEAL_TOP_BANISH_BY_LEVEL_SUM') {
+    const srcRTBLS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtRTBLS = srcRTBLS ? (srcRTBLS.EffectText ?? '') : '';
+    const cntMRTBLS = txtRTBLS.match(/デッキの上からカードを([１-９1-9])枚公開/);
+    const nRTBLS = cntMRTBLS ? parseInt(cntMRTBLS[1].replace(/[１-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))) : 4;
+    const revealedRTBLS = ctx.ownerState.deck.slice(0, nRTBLS);
+    if (revealedRTBLS.length === 0) return done(addLog(ctx, 'デッキが空（公開不可）'));
+    const levelSumRTBLS = revealedRTBLS.reduce((s, cn) => {
+      const c = ctx.cardMap.get(cn);
+      return s + (c?.Type === 'シグニ' ? (parseInt(c.Level ?? '0') || 0) : 0);
+    }, 0);
+    const maxPwrRTBLS = levelSumRTBLS * 1000;
+    const namesRTBLS = revealedRTBLS.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+    const newOwnerRTBLS: PlayerState = {
+      ...ctx.ownerState,
+      deck: ctx.ownerState.deck.slice(revealedRTBLS.length),
+      trash: [...ctx.ownerState.trash, ...revealedRTBLS],
+    };
+    const curRTBLS = addLog({ ...ctx, ownerState: newOwnerRTBLS },
+      `デッキ上${revealedRTBLS.length}枚公開: ${namesRTBLS}（シグニレベル合計${levelSumRTBLS}）→トラッシュ`);
+    if (maxPwrRTBLS <= 0) return done(curRTBLS);
+    const banishRTBLS: BanishAction = {
+      type: 'BANISH',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { powerRange: { max: maxPwrRTBLS } }, upToCount: true },
+    };
+    return exec(banishRTBLS as EffectAction, curRTBLS);
+  }
   // INTERNAL_BANISH_ALL_POWER_GTE: パワーN以上のすべてのシグニ（両プレイヤー）をバニッシュ
   if (stub.id === 'INTERNAL_BANISH_ALL_POWER_GTE') {
     const minPwrBAPG = typeof stub.value === 'number' ? stub.value : 0;
