@@ -1508,7 +1508,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   const visible = state.deck.slice(0, count);
   let pickable = a.filter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter)) : visible;
   // LEVEL_REFERENCE_OVERRIDE: レベルフィルターがある場合、デッキ/手札/トラッシュ中の
-  // 
+  // 「レベル参照上書き」カードも対象に含める
   if (a.filter?.level !== undefined) {
     const targetLevel = typeof a.filter.level === 'number' ? a.filter.level : null;
     if (targetLevel !== null) {
