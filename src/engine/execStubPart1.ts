@@ -9,7 +9,6 @@ import type {
   TrashAction,
   ShuffleDeckAction,
   AddToFieldAction,
-  DownAction,
   SequenceAction,
   AddToHandAction,
 } from '../types/effects';
