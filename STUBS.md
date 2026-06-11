@@ -568,7 +568,40 @@
 | 1 | AUTO | ✅ | TRAP_TO_SIGNI_IF_ZONE_EMPTY ※ゾーン空き確認+signi_traps->field.signi移動実装済み |
 ---
 
+## 2026-06-11 タイミング不一致修正ラウンドで新設したSTUB（📝 ログのみ・未実装）
+
+verifyEffects.tsの「タイミング不一致」113件解消の際、既存アクション型で表現できなかった効果に新設。
+すべてexecStubの既定フォールバック（ログのみ）で動作する。
+
+| effectType | STUB ID | カード | 効果概要 |
+|-----------|---------|--------|---------|
+| AUTO(出) | LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS | WX05-001, WXEX2-84 | ルリグトラッシュの全ルリグをこのカードの下に置き、アーツをルリグデッキに戻す |
+| AUTO(出) | LIFE_CLOTH_LOOK_TRASH_REFILL | WX05-010 | 全ライフクロスを見て好きな枚数トラッシュ→同数をデッキ上から補充→並び替え |
+| AUTO(自) | ARTS_SELF_RECYCLE_ON_TRIGGER | WX10-015, WX10-027, WXK01-041 | トリガー時にcostColors支払いでこのアーツをルリグトラッシュからルリグデッキ/手札に戻す |
+| AUTO(出) | DECLARE_ZONE_FOR_CLASS_CHANGE | WX14-032 | 領域1つを指定（指定領域の相手シグニはクラス/色を失い＜精元＞を得る） |
+| AUTO(出) | REVEAL_TOP_BANISH_BY_LEVEL_SUM | WX17-028 | デッキ上4枚公開→公開シグニのレベル合計×1000以下の相手シグニをバニッシュ |
+| CONT | DRIVE_SIGNI_POWER_DOUBLE_CRASH | WXK01-001 | ドライブ状態のシグニ全体に+3000とダブルクラッシュ付与 |
+| CONT | UNLIMITED_KEYS | WXK03-003A | キーを好きな枚数場に出せる |
+| AUTO(自) | BANISH_IF_DISCARDED_3_THIS_TURN | WXK03-021 | アタックフェイズ開始時、このターン手札3枚以上捨てていればバニッシュ+相手エナトラッシュ |
+| AUTO(出) | OPP_PUNISHER_CHOICE | WXK05-001 | 相手は手札2枚捨てる/エナ3枚トラッシュ/シグニ1体トラッシュを選択 |
+| CONT | SELF_BUFF_BY_UNDER_CARDS | WXK05-035 | 下のカード構成（レベル4×3枚）条件で+2000と相手ルリグ効果耐性 |
+| AUTO(出) | SELF_TRASH_UNLESS_TRASH_OTHERS | WXK10-039 | 他の＜原子＞2体をトラッシュに置かないかぎりこのシグニをトラッシュ |
+| AUTO(自) | BANISH_FACING_IF_SELF_POWER_GE_15000 | WD17-009 | アタック時、自パワー15000以上なら正面シグニをバニッシュ |
+| AUTO(出) | DRAW_IF_CHARGED_CLASS | WDK07-E01 | 直前のエナチャージで＜調理＞シグニが置かれた場合1ドロー |
+| CONT | UNDER_CARD_HOST_BUFF | WXDi-P05-060 | このカードの上にあるシグニへの常時付与（エナチャージ能力+パワー+2000） |
+| CONT | TREAT_AS_LEVEL1_IN_DECK_TRASH | WXDi-P05-086 | デッキ/トラッシュにある間レベル1のシグニとして扱ってもよい |
+| AUTO(自) | TRASH_UNDER_SPELLS_POWER_MINUS | WXDi-P10-040 | アタック時、下のスペルを好きな枚数トラッシュ→1枚につき-5000 |
+| AUTO(自) | BUFF_HOST_WHEN_PLACED_UNDER | WXDi-P11-063 | このカードがシグニの下に置かれたとき上のシグニ+2000 |
+| CONT | TREAT_AS_CLASS_ALL_ZONES | WXDi-CP02-103, WX26-CP1-100, WX26-CP1-101 | すべての領域で特定クラスとして扱う |
+
+**新設したtiming文字列**（エンジン未対応＝発火しない。実装時はトリガー配線が必要）:
+`ON_ATTACK_PHASE_START`（WXEX2-03, WXK03-021）, `ON_EXCEED_COST`（WXK03-005）, `ON_ACCE_ATTACH`（WXK04-003, SPK01-11）, `ON_PLACED_UNDER_SIGNI`（WXDi-P11-063）, `ON_SPELL_USE`（WX25-P2-034）, `ON_DISCARDED_AS_COST`（WX25-P3-085）
+
+---
+
 ## 集計サマリー（v0.160）
+
+※2026-06-11: 上記ラウンドで📝のSTUBが18種追加された（下表はv0.160時点の集計）。
 
 | カテゴリ | 種数 |
 |---------|-----:|

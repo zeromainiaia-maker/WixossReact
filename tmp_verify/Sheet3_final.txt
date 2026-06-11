@@ -1,0 +1,133 @@
+======================================================================
+  WixossReact 効果照合レポート — Sheet3
+  対象: 879カード  issues: 57件  STUBアクション含有: 273件
+======================================================================
+
+## アクション[STUB代替?]  (36件)
+
+  WX22-008  ミルルン・モル
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, COUNTER_SPELL, CONDITIONAL, DRAW, STUB, BANISH)
+  WX22-016  グレイブ・ディガー
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, STUB, TRANSFER_TO_HAND)
+  WX22-029  参ノ遊　ハンスピ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, CONDITIONAL, STUB)
+  WX22-037  伝達の朱鷺　§ヘルメス§
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, DRAW)
+  WX22-043  コードイート　クギニ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DRAW, ATTACH_ACCE)
+  WXEX1-16  アイヤイ★フルハウス
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, GRANT_KEYWORD)
+  WXEX1-23  静観の冥者　ハナレ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_FIELD, STUB)
+  PR-427  羅星　リンゼ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: BLOCK_ACTION, STUB, CONDITIONAL, ADD_TO_FIELD)
+  WXEX2-13  エルドラ×マークＶ　ＵＬＴＲＡ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, STUB, SHUFFLE_DECK, LIFE_CRASH, DRAW, ADD_TO_LIFE)
+  WXEX2-14  ミルルン・アラヤ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_HAND, STUB)
+  WXEX2-39  大幻蟲　フナシム
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, STUB, GRANT_KEYWORD, ADD_TO_FIELD)
+  WXEX2-80  似之遊　ハイ＆ロー
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_FIELD)
+  WXK02-031  師の遊姫　ヤリホー
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB, TRANSFER_TO_DECK, DRAW, ENERGY_CHARGE_FROM_DECK)
+  WXK02-045  ゲット・チャージ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB)
+  WXK02-070  仁の遊　ヘンガオ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, DRAW)
+  WXK03-021  極装　EXカリバン
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, GRANT_KEYWORD, TRANSFER_TO_HAND)
+  WXK03-049  讃の遊　ゴムショット
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, CHOOSE, DRAW, ENERGY_CHARGE_FROM_DECK)
+  WXK03-076  元老の議員　ブルータス
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK04-006  差し伸べし使　リワト
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY, ENERGY_CHARGE_FROM_DECK, STUB, TRANSFER_TO_DECK)
+  WXK04-006  差し伸べし使　リワト
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY, ENERGY_CHARGE_FROM_DECK, STUB, TRANSFER_TO_DECK)
+  WXK04-014  血晶操作
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK04-014  血晶操作
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK04-084  幻水　マレガビ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, ADD_TO_FIELD)
+  WXK05-002  ブリーディング・フォース
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB, TRASH)
+  WXK05-002  ブリーディング・フォース
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, TRASH)
+  WXK05-003  血晶照射
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, TRASH, CONDITIONAL, BANISH)
+  WXK05-005  獣群邁進
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB, TRANSFER_TO_DECK, ENERGY_CHARGE_FROM_DECK, BLOCK_ACTION)
+  WXK05-010  時雨の調　ゆきめ
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: STUB, REMOVE_ABILITIES)
+  WXK05-010  時雨の調　ゆきめ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, REMOVE_ABILITIES)
+  WXK05-048  フィフス・テンプト
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_FIELD)
+  WXK05-048  フィフス・テンプト
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, ADD_TO_FIELD)
+  WXK06-029  フリーダム団　ワイルドライガー
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRANSFER_TO_HAND, POWER_MODIFY, REARRANGE_SIGNI, DRAW, ENERGY_CHARGE_FROM_DECK)
+  WXK06-050  幻竜　ラプトル
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: LIFE_CRASH, CONDITIONAL, STUB, TRANSFER_TO_HAND, DRAW)
+  WXK06-055  ブラック・ドラゴン・ウェーブ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK07-002  千変万化
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXK07-031  羅星姫　アラクネ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRASH, TRANSFER_TO_HAND)
+
+## アクション[要確認]  (21件)
+
+  WX22-005  グラン・クロス
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_LIFE)
+  WX22-005  グラン・クロス
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_LIFE)
+  WX22-013  真幸の冥者　ハナレ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: GRANT_PROTECTION, DRAW, TRANSFER_TO_HAND, POWER_SET)
+  WX22-Re02  コードイート　ウナドン
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, GRANT_KEYWORD)
+  WX22-Re03  ゴースト・パーティー
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: SEARCH, REVEAL, ADD_TO_HAND, CONDITIONAL, BOUNCE)
+  WXEX1-17  メル＝ジントニック
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ADD_TO_HAND, SHUFFLE_DECK)
+  WXEX1-47  コードアンチ　ナイトゴン
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, LIFE_CRASH, TRANSFER_TO_DECK, DRAW, TRANSFER_TO_HAND)
+  PR-378  選択する物語
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, ENERGY_CHARGE_FROM_DECK)
+  WXEX2-66  大罠　スパム
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, FREEZE)
+  WXEX2-70  参ノ遊　ピンボール
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: BANISH, CONDITIONAL, ENERGY_CHARGE, SHUFFLE_DECK)
+  WXK01-021  ミルルン・アド
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY, PLAY_FREE, TRANSFER_TO_HAND, COUNTER_SPELL)
+  WXK01-055  魔海の船員　ティーチ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_FIELD, DRAW)
+  WXK02-029  ビカム・ユー
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: REMOVE_ABILITIES)
+  WXK02-033  極装　ロンギンス
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: BANISH)
+  WXK03-044  油蛙の忍者　ジライヤ
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK)
+  WXK04-023  虎視眈眈
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, POWER_MODIFY)
+  WXK04-059  奪取
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: BANISH, DRAW)
+  WXK04-066  羅植　オバナ
+    → テキストから"SEARCH"が期待されるがJSONに存在しない (JSONアクション: SHUFFLE_DECK, ENERGY_CHARGE_FROM_DECK)
+  WXK05-014  エルドラ　ＴＹＰＥ×Ⅲ／／
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GAIN_COIN, ATTACH_ACCE)
+  WXK05-025  貨英の変動　エフエックス
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, FREEZE, BANISH, DOWN)
+  WD08-006  アンシエント・サプライズ
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY)
+
+======================================================================
+STUBアクション参照カード数: 273件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 36件
+  アクション[要確認]: 21件

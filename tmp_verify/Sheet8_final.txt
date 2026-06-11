@@ -1,0 +1,99 @@
+======================================================================
+  WixossReact 効果照合レポート — Sheet8
+  対象: 866カード  issues: 40件  STUBアクション含有: 249件
+======================================================================
+
+## アクション[STUB代替?]  (24件)
+
+  WXDi-P10-033  プリパラアイドル　真中らぁら
+    → テキストから"BOUNCE"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, LOOK_AND_REORDER, STUB)
+  WXDi-P10-034  羅植姫　ユキ//メモリア
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER, STUB, BANISH)
+  WXDi-P10-041  羅植姫　タナバタ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB, PLACE_UNDER_SIGNI, TAKE_FROM_UNDER_SIGNI)
+  WXDi-P10-060  コードアンチ　マドカ//メモリア
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, ENERGY_CHARGE_FROM_DECK, STUB, NEGATE_ATTACK)
+  WXDi-P11-039  聖英姫　ソクラテス
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, BOUNCE, LOOK_AND_REORDER)
+  WXDi-P11-063  無心の豪圧
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: BANISH, STUB)
+  WXDi-P12-005  UNKNOWN　MEMORY
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P12-005  UNKNOWN　MEMORY
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P12-007  炎妖舞　花代・惨
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, GRANT_KEYWORD, ENERGY_CHARGE_FROM_DECK, LIFE_CRASH)
+  WXDi-P12-051  翠魔姫　バン//ディソナ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY, STUB)
+  WXDi-P13-051  翠美姫　アン//ディソナ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, GRANT_KEYWORD, ENERGY_CHARGE_FROM_DECK)
+  WXDi-P14-023  ミルルン☆ウェルカム
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: DRAW, STUB)
+  WXDi-P15-002  パワーオブストラグル
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, CONDITIONAL, STUB)
+  WXDi-P15-002  パワーオブストラグル
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, CONDITIONAL, STUB)
+  WXDi-P16-038  アザエラ「微笑みの翼」
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-077  翠魔　バン//フェゾーネ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-087  羅石　H・マイク
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-087  羅石　H・マイク
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-089  コードライド　E・カッター
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-P16-093  アイン＝M・ボール
+    → テキストから"MILL"が期待されるがJSONに存在しない (JSONアクション: STUB)
+  WXDi-CP01-004  LazuLight　FLASH
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, STUB, BOUNCE, LOOK_AND_REORDER)
+  WXDi-CP01-027  コード２４３４　フレン・E・ルスタリオ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: STUB, ENERGY_CHARGE_FROM_DECK, CONDITIONAL, BOUNCE)
+  WXDi-CP02-003  覆面水着団
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: TRANSFER_TO_DECK, STUB, CONDITIONAL, GAIN_BOND)
+  WXDi-CP02-072  剣先ツルギ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: STUB, CONDITIONAL, TRANSFER_TO_HAND, BANISH_REDIRECT, CHOOSE, BOUNCE, DRAW)
+
+## アクション[要確認]  (16件)
+
+  WXDi-P08-003  ウルトラスーパーヒーローズ
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P08-063  コードアート　ピルルク//メモリア
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P09-062  神流の炎舞
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ADD_TO_HAND, CONDITIONAL, BANISH)
+  WXDi-P11-001  FLY　ME　TO　THE　FUTURE
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: CHOOSE, DRAW, ADD_TO_LIFE)
+  WXDi-P11-008  喝采の歌姫　アルフォウ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, BANISH, TRASH)
+  WXDi-P11-033  カーニバル　-奪-
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P12-002  アンバランス・ダンス
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: TRASH)
+  WXDi-P12-052  コードオーダー　ズットモ//ディソナ
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: POWER_MODIFY_PER_STACK, TAKE_FROM_UNDER_SIGNI, PLACE_UNDER_SIGNI, GRANT_KEYWORD, BANISH)
+  WXDi-P13-060  羅星　コメッチ//ディソナ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: REVEAL_AND_PICK, ENERGY_CHARGE_FROM_DECK)
+  WXDi-P14-003  ブルー・ナイトショー
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD)
+  WXDi-P15-001  リベレーターズフォース
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_LRIG_ABILITY)
+  WXDi-P15-005  俯瞰者からの啓示
+    → テキストから"MOVE_TO_ENERGY"が期待されるがJSONに存在しない (JSONアクション: LOOK_AND_REORDER)
+  WXDi-P16-012  収斂せし扉　アト＝トレ
+    → テキストから"DISCARD"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE, CHOOSE, DRAW, ENERGY_CHARGE_FROM_DECK, ADD_TO_LIFE)
+  WXDi-P16-051  コードラビリンス　トビラ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: ENERGY_CHARGE_FROM_DECK, GRANT_KEYWORD, CHOOSE, BANISH)
+  WXDi-CP02-074  音瀬コタマ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL)
+  WXDi-CP02-077  花岡ユズ
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: TRASH, CONDITIONAL, LOOK_AND_REORDER)
+
+======================================================================
+STUBアクション参照カード数: 249件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 24件
+  アクション[要確認]: 16件
