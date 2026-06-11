@@ -165,9 +165,27 @@ function collectActionsFromJson(effs: EffectDef[]): Set<string> {
       .forEach(o => { if (o.action) walk(o.action); });
     if (action.choices) (action.choices as { action?: Record<string, unknown> }[])
       .forEach(o => { if (o.action) walk(o.action); });
+    // GRANT_FIELD_SIGNI_ABILITY / GRANT_SIGNI_ABOVE_ABILITY の付与能力内部を再帰探索
+    if (action.abilities) (action.abilities as { action?: Record<string, unknown> }[])
+      .forEach(a => { if (a.action) walk(a.action); });
   }
   effs.forEach(e => walk(e.action));
   return found;
+}
+
+/** action内にネストされた付与能力（abilities）のCardEffectを再帰収集 */
+function collectNestedAbilityEffects(action: Record<string, unknown> | undefined): EffectDef[] {
+  if (!action) return [];
+  const out: EffectDef[] = [];
+  if (action.abilities) {
+    for (const ab of action.abilities as EffectDef[]) {
+      out.push(ab, ...collectNestedAbilityEffects(ab.action));
+    }
+  }
+  if (action.steps) (action.steps as Record<string, unknown>[]).forEach(s => out.push(...collectNestedAbilityEffects(s)));
+  if (action.then) out.push(...collectNestedAbilityEffects(action.then as Record<string, unknown>));
+  if (action.else) out.push(...collectNestedAbilityEffects(action.else as Record<string, unknown>));
+  return out;
 }
 
 // ======= 照合ロジック =======
