@@ -1001,9 +1001,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     : 'INSTANT';
 
   // eichiCondition（英知=N 使用条件）を activeCondition に統合
-  const finalActiveCondition: ActiveCondition | undefined = eichiCondition
+  let finalActiveCondition: ActiveCondition | undefined = eichiCondition
     ? (activeCondition ? { type: 'AND', conditions: [eichiCondition, activeCondition] } : eichiCondition)
     : activeCondition;
+
+  // 【ドライブ常】【ドライブ自】：ドライブ状態であるかぎり有効
+  if (isDrive) {
+    const driveCond: ActiveCondition = { type: 'IS_DRIVE_STATE' };
+    finalActiveCondition = finalActiveCondition
+      ? { type: 'AND', conditions: [driveCond, finalActiveCondition] }
+      : driveCond;
+  }
 
   // ビートアイコン条件を useCondition にマージ
   const mergedCondition: import('../types/effects').Condition | undefined = beatCondition
