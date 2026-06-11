@@ -169,6 +169,9 @@ export interface TargetFilter {
   hasAcce?:   boolean; // アクセが付いている
   infected?:  boolean; // 感染状態（ウィルスのあるゾーンのシグニ）
   isArmored?: boolean; // 血晶武装状態
+  // ─ 動的フィルタ（ON_LEAVE_FIELD系トリガーの収集時に具体値へ解決される。未解決時は無視）─
+  levelBelowLeftCard?: boolean; // 場を離れたカードよりレベルが低い → level:{max:N-1} に解決（ミョルニル/花代・伍）
+  underLeftCard?: boolean;      // 場を離れたカードの下にあったカード → cardNames:[...] に解決（フンババ）
 }
 
 // ===== ターゲット =====

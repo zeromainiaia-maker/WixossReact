@@ -2241,15 +2241,52 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // 場を離れたシグニを検出（ON_LEAVE_FIELDトリガー用。行き先は問わない）
-  const detectLeftFieldSigni = (before: PlayerState, after: PlayerState): string[] => {
+  // under = そのシグニの下にあったカード（ライズ素材等。フンババの動的フィルタ解決に使う）
+  const detectLeftFieldSigni = (before: PlayerState, after: PlayerState): { cardNum: string; under: string[] }[] => {
     const afterFieldCards = new Set(after.field.signi.flatMap(z => z ?? []));
-    const result: string[] = [];
+    const result: { cardNum: string; under: string[] }[] = [];
     for (let i = 0; i < 3; i++) {
-      const beforeTop = (before.field.signi[i] ?? []).at(-1);
+      const beforeStack = before.field.signi[i] ?? [];
+      const beforeTop = beforeStack.at(-1);
       if (!beforeTop) continue;
-      if (!afterFieldCards.has(beforeTop)) result.push(beforeTop);
+      if (!afterFieldCards.has(beforeTop)) {
+        result.push({ cardNum: beforeTop, under: beforeStack.slice(0, -1) });
+      }
     }
     return result;
+  };
+
+  // ON_LEAVE_FIELD効果内の動的フィルタを、場を離れたカードの具体値に解決した複製を返す
+  //  levelBelowLeftCard → level:{max: 離れたカードのレベル-1}
+  //  underLeftCard → cardNames:[下にあった《ライズアイコン》を持たないシグニ名]（該当なしなら空＝候補なし）
+  const resolveLeaveFieldDynamicFilters = (
+    eff: import('../types/effects').CardEffect,
+    leftCard: CardData | undefined,
+    underCards: string[],
+  ): import('../types/effects').CardEffect => {
+    if (!/"(levelBelowLeftCard|underLeftCard)":true/.test(JSON.stringify(eff.action))) return eff;
+    const clone = JSON.parse(JSON.stringify(eff)) as import('../types/effects').CardEffect;
+    const leftLevel = parseInt(leftCard?.Level ?? '', 10);
+    const underNames = underCards
+      .map(n => battleCardMap.get(getCardNum(n)))
+      .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
+      .map(c => c.CardName);
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(visit); return; }
+      const obj = node as Record<string, unknown> & import('../types/effects').TargetFilter;
+      if (obj.levelBelowLeftCard === true) {
+        delete obj.levelBelowLeftCard;
+        obj.level = { max: isNaN(leftLevel) ? 0 : leftLevel - 1 };
+      }
+      if (obj.underLeftCard === true) {
+        delete obj.underLeftCard;
+        obj.cardNames = underNames;
+      }
+      Object.values(obj).forEach(visit);
+    };
+    visit(clone.action);
+    return clone;
   };
 
   // ON_LEAVE_FIELD トリガーを収集する
@@ -2257,6 +2294,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // triggerFilter があれば離れたカードがそれを満たす場合のみ）を集める
   const collectLeaveFieldTriggers = (
     leftCardNum: string,
+    leftUnder: string[],
     leftPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
@@ -2272,7 +2310,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cardNum: leftCardNum,
         effectId: eff.effectId,
         label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
-        effect: eff,
+        effect: resolveLeaveFieldDynamicFilters(eff, leftCard, leftUnder),
       });
     }
     const ownerStateAfter = leftPlayerId === bs!.host_id ? afterHostState : afterGuestState;
@@ -2294,7 +2332,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           cardNum: topNum,
           effectId: eff.effectId,
           label: `${battleCardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（味方が場を離れたとき）`,
-          effect: eff,
+          effect: resolveLeaveFieldDynamicFilters(eff, leftCard, leftUnder),
         });
       }
     }
@@ -3275,11 +3313,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const hostLeft  = detectLeftFieldSigni(bs.host_state, hostState);
         const guestLeft = detectLeftFieldSigni(bs.guest_state, guestState);
         const leaveEntries: StackEntry[] = [];
-        for (const cardNum of hostLeft) {
-          leaveEntries.push(...collectLeaveFieldTriggers(cardNum, bs.host_id, hostState, guestState));
+        for (const { cardNum, under } of hostLeft) {
+          leaveEntries.push(...collectLeaveFieldTriggers(cardNum, under, bs.host_id, hostState, guestState));
         }
-        for (const cardNum of guestLeft) {
-          leaveEntries.push(...collectLeaveFieldTriggers(cardNum, bs.guest_id, hostState, guestState));
+        for (const { cardNum, under } of guestLeft) {
+          leaveEntries.push(...collectLeaveFieldTriggers(cardNum, under, bs.guest_id, hostState, guestState));
         }
         if (leaveEntries.length > 0) {
           const baseStackL = (update.effect_stack as typeof stackAfter) ?? null;
@@ -3602,11 +3640,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const hostLeftPE  = detectLeftFieldSigni(bs.host_state, hostState);
         const guestLeftPE = detectLeftFieldSigni(bs.guest_state, guestState);
         const leaveEntriesPE: StackEntry[] = [];
-        for (const cardNum of hostLeftPE) {
-          leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, bs.host_id, hostState, guestState));
+        for (const { cardNum, under } of hostLeftPE) {
+          leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, under, bs.host_id, hostState, guestState));
         }
-        for (const cardNum of guestLeftPE) {
-          leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, bs.guest_id, hostState, guestState));
+        for (const { cardNum, under } of guestLeftPE) {
+          leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, under, bs.guest_id, hostState, guestState));
         }
 
         const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE];
@@ -4860,6 +4898,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds, energy: newEnergySA };
       let newOpState = op;
       let banishedOpCardNum: string | null = null; // バニッシュされた相手シグニ
+      let banishedOpUnderCards: string[] = [];     // その下にあったカード（ライズ素材等）
 
       // キーワード能力を確認
       const myGrants = my.keyword_grants;
@@ -5043,6 +5082,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               appendBattleLogs([`${opCardName}（レゾナ離脱代替）${battleCardMap.get(resonaSubCardNum)?.CardName ?? resonaSubCardNum}をトラッシュしてレゾナをフィールドに残す`]);
             } else {
           banishedOpCardNum = opTopCardNum;
+          banishedOpUnderCards = (op.field.signi[opZoneIndex] ?? []).slice(0, -1);
           const newOpSigni = [...op.field.signi] as (string[] | null)[];
           newOpSigni[opZoneIndex] = null;
           newOpDown[opZoneIndex]   = false;
@@ -5367,7 +5407,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_LEAVE_FIELD: バトルでバニッシュされたシグニは場を離れている
       const leaveEntriesSA: StackEntry[] = [];
       if (banishedOpCardNum) {
-        leaveEntriesSA.push(...collectLeaveFieldTriggers(banishedOpCardNum, opPlayerId, newHostState, newGuestState));
+        leaveEntriesSA.push(...collectLeaveFieldTriggers(banishedOpCardNum, banishedOpUnderCards, opPlayerId, newHostState, newGuestState));
       }
 
       const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries];
