@@ -1,5 +1,28 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 zerom側: アクション不一致ラウンド2（217→144件、v0.253）— Sheet2を0件化
+>
+> 残りは **Sheet3: 37 / Sheet4: 32 / Sheet7: 1 / Sheet8: 28 / Sheet9: 46 = 計144件**。
+> コスト/タイミング/定義なし/LIFE_BURST/checkAllEffects はすべて0維持。tsc 0 / lint 0 errors。
+>
+> ### このラウンドの主な変更（次ラウンドでも効く汎用改善）
+> 1. **①②③④選択肢解析を `src/engine/choiceTextParser.ts` に共通化**。従来はCMCBC/CHOOSE_N_FROM_LIST/
+>    BET_MECHANIC/INTERNAL_BET_SHOW_4/INTERNAL_ECRV_APPLYの5箇所が独自の部分解析を持ち対応パターンが
+>    まちまちだった。全箇所で同一パターン集（バニッシュ各種/デッキ上N枚エナ/ライフ追加/ライフクラッシュ/
+>    ルリグダウン・凍結/相手エナトラッシュ/クラスサーチ/ウィルス除去等）を解析可能に。
+>    **新パターンを足すときは choiceTextParser.ts の parseSingleChoiceText に1箇所追加するだけでよい**
+> 2. **STUB_EQUIVALENTS追加**: BET_ALTERNATIVE/BET_CONDITION/CHOOSE_N_FROM_LIST/CHOOSE_SAME_OPTION_TWICE(_MULTIPLE)/
+>    EXTRA_COST_REMOVE_VIRUS/REVEAL_TOP_BANISH_BY_LEVEL_SUM/REVEAL_PICK_HAND_SHUFFLE_BOTTOM/REVEAL_TOP_LEVEL_ROUTE
+> 3. **verifyEffects誤検出修正**: DISCARDパターンを同一文内限定（`手札から[^。]+捨てる`、文またぎ誤検出排除）、
+>    アンコールコスト宣言文の除去（stripEncoreCost）
+> 4. **新規STUB実装✅**: REVEAL_TOP_BANISH_BY_LEVEL_SUM/SUMMON_FROM_TRASH/SUMMON_RESONA_FROM_LRIG_DECK/
+>    REVEAL_TOP_LEVEL_ROUTE/INTERNAL_BANISH_ALL_POWER_GTE/INTERNAL_FREEZE_OPP_LRIG。
+>    RPHSBのthen:'energy'対応（選んだカードをエナへ）。BETの選択数をテキスト解析（従来2/4固定）
+> 5. **Sheet2のJSON修正24カード**: 大半は「以下のNつからMつ選ぶ」が丸ごと欠落→実CHOOSE展開
+>    （tmp_verify/fixSheet2.mjs・fixSheet2b.mjs参照、gitignore対象なので消える）。
+>    「エナチャージ1かドロー1」のCHOOSE化7件、トラップシグニのTRAP_ICON効果欠落2件
+>    （effectId `<cardNum>-TRAP`/effectType TRAP_ICON/timing ON_TRAP_ACTIVATE、WX15-081が前例）
+
 > ## ✅ 2026-06-12 ymsty側: アクション不一致ラウンド1完了（318→217件、v0.252）
 >
 > Sheet1/5/6/7/10/TK/Variants を0件化（Sheet7のみ1件残、下記）。残りは **Sheet2: 62 / Sheet3: 42 / Sheet4: 33 / Sheet8: 30 / Sheet9: 49 = 計216件 + Sheet7: 1件**。
