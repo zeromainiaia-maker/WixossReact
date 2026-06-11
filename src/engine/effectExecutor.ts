@@ -832,8 +832,8 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     return done(ctx);
   }
 
-  //
-   const visibleCards = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
+  // フィルタがある場合は一致カードのみ表示、ない場合は全体を公開
+  const visibleCards = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
 
   return needsInteraction(ctx, {
     type: 'SEARCH',
