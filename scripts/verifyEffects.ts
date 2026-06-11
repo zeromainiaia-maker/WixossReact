@@ -281,7 +281,14 @@ for (const row of rows) {
     .replace(/【(起|出|自|常)】(?=と【)/g, '$1')
     .replace(/【(起|出|自|常)】(?=の能力)/g, '$1');
 
-  const cleanEffectText = stripMultiEner(stripAbilityRef(stripGrow(stripQuoted(effectText))));
+  // 注釈（…）はルール説明であり、中の【出】【自】等のマーカーは実効果ではないので除去
+  const stripParensTiming = (t: string) => {
+    let prev = t;
+    let cur = t.replace(/（[^（）]*）/g, '');
+    while (cur !== prev) { prev = cur; cur = cur.replace(/（[^（）]*）/g, ''); }
+    return cur;
+  };
+  const cleanEffectText = stripMultiEner(stripAbilityRef(stripGrow(stripQuoted(stripParensTiming(effectText)))));
   const timingChecks = [
     { marker: '【常】',   type: 'CONTINUOUS',  timing: null         },
     { marker: '【出】',   type: 'AUTO',         timing: 'ON_PLAY'    },
