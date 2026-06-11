@@ -1059,7 +1059,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             const wt = thenOTEC as unknown as { target?: { owner?: string; [k: string]: unknown }; [k: string]: unknown };
             if (wt.target?.owner === 'self') thenOTEC = { ...wt, target: { ...wt.target, owner: 'opponent' } } as unknown as EffectAction;
           }
-          const cntMOTEC = txtOTEC.match(/([０-９\d]+)枚(?:まで)?を対象/);
+          const cntMOTEC = txtOTEC.match(/([０-９\d]+)枚?(?:まで)?を?対象/);
           const pickCountOTEC = cntMOTEC ? parseInt(toHWOTEC(cntMOTEC[1])) : 1;
           const destOTEC = toHandOTEC ? 'hand' : 'trash';
           const selectStubOTEC: import('../types/effects').StubAction = {
