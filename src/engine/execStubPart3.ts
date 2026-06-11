@@ -23,6 +23,7 @@ import {
   getCardNum,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
+import { parseChoiceOptionsFromText } from './choiceTextParser';
 
 export function execStubPart3(
   stub: StubAction,
