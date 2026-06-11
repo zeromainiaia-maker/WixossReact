@@ -244,29 +244,16 @@ export function execStubPart1(
   if (stub.id === 'INTERNAL_BET_SHOW_4') {
     const txtIBET = typeof stub.value === 'string' ? stub.value : '';
     const toHWIBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const choicePatsIBET = [
-      { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
-      { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
-    ];
-    const optsIBET: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
-    for (const { m, idx } of choicePatsIBET) {
-      const mat = txtIBET.match(m);
-      if (!mat) continue;
-      const ctxt = mat[1].replace(/。\s*$/, '').trim();
-      let act: EffectAction | null = null;
-      if (ctxt.match(/カードを[１1]枚引く/)) act = { type: 'DRAW', count: 1 } as DrawAction;
-      if (!act && ctxt.match(/対戦相手のシグニ.*手札に戻す/)) act = { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BounceAction;
-      const pwIBET = !act && ctxt.match(/パワーを([－-][０-９\d]+)する/);
-      if (pwIBET) act = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: parseInt(toHWIBET(pwIBET[1]).replace('－','-')) } as StubAction) as EffectAction;
-      if (!act && ctxt.match(/手札を[１1]枚捨てる|対戦相手は手札を[１1]枚捨てる/)) act = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction;
-      if (!act && ctxt.match(/ダウンする/)) act = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction;
-      if (act) optsIBET.push({ id: `ibet_c${idx}`, label: `${'①②③④'[idx]}${ctxt.slice(0,18)}...`, action: act, available: true });
-    }
+    // ①②③④ 選択肢を解析（choiceTextParserに共通化）
+    const optsIBET = parseChoiceOptionsFromText(txtIBET, 'ibet_c');
+    // ベット時の選択数「代わりにNつまで選ぶ」（既定4）
+    const enhCntMIBET = txtIBET.match(/代わりに([１-９\d])つ(?:まで)?(?:を)?選ぶ/);
+    const enhCntIBET = enhCntMIBET ? parseInt(toHWIBET(enhCntMIBET[1])) : 4;
     // コインを1枚消費
     const newOwnerIBET = { ...ctx.ownerState, coins: Math.max(0, ctx.ownerState.coins - 1) };
-    if (optsIBET.length === 0) return done(addLog({ ...ctx, ownerState: newOwnerIBET }, 'ベット4択（解析不可）'));
-    return needsInteraction(addLog({ ...ctx, ownerState: newOwnerIBET }, `ベット！コイン消費→4択`), {
-      type: 'CHOOSE', options: optsIBET, count: Math.min(4, optsIBET.length),
+    if (optsIBET.length === 0) return done(addLog({ ...ctx, ownerState: newOwnerIBET }, 'ベット強化選択（解析不可）'));
+    return needsInteraction(addLog({ ...ctx, ownerState: newOwnerIBET }, `ベット！コイン消費→${enhCntIBET}択`), {
+      type: 'CHOOSE', options: optsIBET, count: Math.min(enhCntIBET, optsIBET.length),
     });
   }
   // BET_ALTERNATIVE: ベット強化済みなのでスキップ（BET_MECHANICで処理済み）
