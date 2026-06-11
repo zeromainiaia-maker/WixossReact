@@ -2158,7 +2158,7 @@ function execAddCraftToLrigDeck(a: import('../types/effects').AddCraftToLrigDeck
     c => c.CardName === a.cardName && c.Type?.includes('クラフト'),
   );
   if (!craftCard) {
-    return done(addLog(ctx, `${a.cardName}`));
+    return done(addLog(ctx, `クラフトカード「${a.cardName}」が見つかりません`));
   }
   const s = ownerState(a.owner, ctx);
   const additions = Array(a.count).fill(craftCard.CardNum);
