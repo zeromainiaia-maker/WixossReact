@@ -90,8 +90,7 @@ function flatActions(a) {
   if (a.type === 'CONDITIONAL') return [...flatActions(a.then), ...flatActions(a.else)];
   if (a.type === 'CHOOSE') return (a.choices || []).flatMap(c => flatActions(c.action));
   if (a.type === 'CHOOSE_N_FROM_LIST') return (a.choices || []).flatMap(c => flatActions(c.action));
-  // 付与能力（レイヤー等）はアクション本体に加え内部アクションも展開
-  if (a.abilities) return [a, ...a.abilities.flatMap(ab => flatActions(ab.action))];
+  // 付与能力（abilities）の内部はexpandEffects側で展開されるためここでは展開しない
   return [a];
 }
 
