@@ -151,11 +151,47 @@ function detectActionsFromText(text: string): { label: string; aliases: string[]
   return found;
 }
 
+// 実装済みSTUB（STUBS.md ✅）が期待アクションの同等物として機能する場合のマッピング。
+// 「STUBがそのアクションを実際に実行する」と確認できたもののみ登録すること
+// （ログのみ📝のSTUBを登録すると実欠落を隠蔽してしまう）。
+const STUB_EQUIVALENTS: Record<string, string[]> = {
+  // 相手シグニ対象+手札1枚捨て（then未指定時はBANISH既定）
+  TARGET_AND_DISCARD_HAND: ['DISCARD', 'TRASH', 'BANISH'],
+  TRADE_BANISH_SELF_SIGNI: ['BANISH'],
+  // エナゾーンへ置く系
+  CHOOSE_HAND_OR_ENERGY: ['MOVE_TO_ENERGY'],
+  OPP_CHOOSE_OWN_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  MULTI_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  UNDER_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: ['MOVE_TO_ENERGY'],
+  CLASS_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  PLACE_ACCE_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  RESONANCE_COST_CARDS_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  HAND_NONCOLORLESS_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  NON_GUARD_DISCARD_TO_ENERGY: ['MOVE_TO_ENERGY', 'DISCARD'],
+  TRASH_CLASS_TO_HAND_OR_ENERGY: ['MOVE_TO_ENERGY'],
+  TRASHED_CARD_TO_HAND_OR_ENERGY: ['MOVE_TO_ENERGY'],
+  ENERGY_BY_LEVEL_SUM_LIMIT: ['MOVE_TO_ENERGY'],
+  DECK_TOP_CHECK_LEVEL_ENERGY: ['MOVE_TO_ENERGY'],
+  // デッキ上→トラッシュ（ミル）系
+  DECK_TOP_DECLARED_NUM_TRASH: ['MILL'],
+  DECK_MILL_UNTIL_CLASS: ['MILL'],
+  // 手札捨て系
+  OPTIONAL_DISCARD_CLASS_SIGNI: ['DISCARD'],
+  ARTS_USE_DISCARD_COLOR_HAND: ['DISCARD'],
+  DISCARD_OR_PENALTY: ['DISCARD'],
+  OPP_CHOOSE_YOUR_HAND_DISCARD: ['DISCARD'],
+  POWER_MOD_BY_DISCARD_COUNT_HIGH: ['DISCARD'],
+  DRAW_DISCARD_COUNT_PLUS_N: ['DRAW', 'DISCARD'],
+  COUNT_BASED_DRAW_OR_POWER: ['DRAW', 'DISCARD'],
+};
+
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
   const found = new Set<string>();
   function walk(action: Record<string, unknown>) {
     if (!action) return;
     if (action.type) found.add(action.type as string);
+    if (action.type === 'STUB' && action.id) found.add(`STUB:${action.id as string}`);
     if (action.steps) (action.steps as Record<string, unknown>[]).forEach(walk);
     if (action.then) walk(action.then as Record<string, unknown>);
     if (action.else) walk(action.else as Record<string, unknown>);
