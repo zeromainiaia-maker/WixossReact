@@ -2466,6 +2466,30 @@ export function execStubPart3(
     return selectOrInteract(candsIBOPL, 1, false, 'opp_field', banishIBOPL as EffectAction, undefined, ctx);
   }
   // SUMMON_FROM_ENERGY: エナゾーンからシグニを場に出す（シグニ限定）
+  // SUMMON_RESONA_FROM_LRIG_DECK: ルリグデッキからレゾナ1枚を出現条件を無視して場に出す（WX20-069等）
+  if (stub.id === 'SUMMON_RESONA_FROM_LRIG_DECK') {
+    const srcSRLD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtSRLD = srcSRLD ? (srcSRLD.EffectText ?? '') : '';
+    const classMSRLD = txtSRLD.match(/ルリグデッキから＜([^＞]+)＞のレゾナ/);
+    const clsSRLD = classMSRLD ? classMSRLD[1] : '';
+    const candsSRLD = (ctx.ownerState.lrig_deck ?? []).filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      if (!c || c.Type !== 'レゾナ') return false;
+      return !clsSRLD || (c.CardClass ?? '').includes(clsSRLD);
+    });
+    if (candsSRLD.length === 0) return done(addLog(ctx, 'ルリグデッキにレゾナなし'));
+    const ziSRLD = ctx.ownerState.field.signi.findIndex(z => !z || z.length === 0);
+    if (ziSRLD < 0) return done(addLog(ctx, '空きシグニゾーンなし（レゾナ配置不可）'));
+    const pickSRLD = candsSRLD[0];
+    const newSigniSRLD = ctx.ownerState.field.signi.map((z, i) => (i === ziSRLD ? [...(z ?? []), pickSRLD] : z));
+    const newOwnerSRLD: PlayerState = {
+      ...ctx.ownerState,
+      lrig_deck: (ctx.ownerState.lrig_deck ?? []).filter(n => n !== pickSRLD),
+      field: { ...ctx.ownerState.field, signi: newSigniSRLD },
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerSRLD },
+      `${ctx.cardMap.get(pickSRLD)?.CardName ?? pickSRLD}を出現条件を無視して場に出す`));
+  }
   // SUMMON_FROM_TRASH: トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用）
   if (stub.id === 'SUMMON_FROM_TRASH') {
     const srcSFT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
