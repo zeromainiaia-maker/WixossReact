@@ -1646,8 +1646,8 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
   const sourceCardNum = ctx.sourceCardNum;
   if (!sourceCardNum) return done(ctx);
 
-  //
-   const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCardNum));
+  // ソースシグニがあるゾーンのインデックスを探す
+  const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCardNum));
   if (zoneIdx === -1) return done(ctx);
 
   if (a.source === 'deck_top') {
