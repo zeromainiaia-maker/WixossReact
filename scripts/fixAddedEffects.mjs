@@ -160,4 +160,64 @@ const save = (f, j) => fs.writeFileSync(path.join(root, 'public/data', f), JSON.
   console.log('effects_WXDi.json: WXDi-P02-046, WXDi-P03-085, WXDi-P16-048, WXDi-P16-092 修正');
 }
 
+// ─── effects_WX24_26.json ───
+{
+  const j = load('effects_WX24_26.json');
+
+  // WX25-P3-036 真・遊月・参:
+  //  【自】に「＜龍獣＞のシグニがある場合」条件が欠落、
+  //  相手ライフクラッシュのバースト不発(triggerBurst:false)が未反映、
+  //  【起】《ゲーム１回》バーニングが丸ごと欠落していた
+  j['WX25-P3-036'] = [
+    {
+      effectId: 'WX25-P3-036-E1',
+      effectType: 'AUTO',
+      timing: ['ATTACK'],
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: '龍獣' } },
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          {
+            choiceId: 'c0',
+            label: '自分のライフを１枚クラッシュし、相手のライフを１枚クラッシュ（バースト不発）',
+            action: {
+              type: 'SEQUENCE',
+              steps: [
+                { type: 'LIFE_CRASH', owner: 'self', count: 1, triggerBurst: true },
+                { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: false },
+              ],
+            },
+          },
+          { choiceId: 'c1', label: '【エナチャージ１】', action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'AUTO',
+    },
+    {
+      effectId: 'WX25-P3-036-E2',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN', 'ATTACK'],
+      usageLimit: 'once_per_game',
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'COST_LRIG_DECK_ARTS_TO_LRIG_TRASH' },
+          { type: 'SHUFFLE_DECK', owner: 'self' },
+          { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'PARTIAL',
+    },
+  ];
+
+  save('effects_WX24_26.json', j);
+  console.log('effects_WX24_26.json: WX25-P3-036 修正');
+}
+
 console.log('完了');
