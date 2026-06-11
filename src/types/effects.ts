@@ -291,6 +291,7 @@ export type EffectAction =
   | TakeFromUnderSigniAction
   | GrantEffectAction
   | GrantSigniAboveAbilityAction
+  | GrantFieldSigniAbilityAction
   | StubAction
   | GainBondAction
   | MILLAction
