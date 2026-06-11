@@ -8,7 +8,6 @@ import type {
   BounceAction,
   TrashAction,
   AddToFieldAction,
-  DownAction,
   SequenceAction,
   AddToHandAction,
   TransferToDeckAction,
