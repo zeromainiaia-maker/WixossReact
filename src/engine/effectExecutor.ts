@@ -64,7 +64,7 @@ export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition };
 import { execStub } from './execStub';
 
-// ===== =====
+// ===== 個別アクション実行 =====
 
 function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   const count = resolveNum(a.count);
@@ -187,7 +187,7 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   if (a.target.count === 'ALL') return done(applyPowerSet(cands, ctx));
 
   const count = resolveNum(a.target.count);
-  //  sourceCardNum 
+  // 「このシグニ」: sourceCardNum が候補に含まれていれば自動適用
   if (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
     return done(applyPowerSet([ctx.sourceCardNum], ctx));
   }
@@ -230,7 +230,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
     function applyTrashField(selected: string[], c: ExecCtx): ExecCtx {
       let cur = c;
-      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH
+      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH等の保護チェック（相手シグニをトラッシュ移動する場合）
       const trashFieldProtected = tgt.owner === 'opponent'
         ? new Set(c.otherTrashFieldProtectedNums ?? [])
         : new Set<string>();
@@ -267,7 +267,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
     function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
-      // PREVENT_ZONE_MOVE_BY_OPP:  + AUTO
+      // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
       if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('hand') || c.otherState.prevent_opp_trash_from?.includes('hand'))) {
         return addLog(c, '手札保護により効果なし');
       }
@@ -283,7 +283,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     if (tgt.count === 'ALL') return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
-    // actingPlayerSelects=true: N     //  opponent :  
+    // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
+    // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
     const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
     return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, opponentResponds);
   }
@@ -293,7 +294,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
-      // PREVENT_ZONE_MOVE_BY_OPP:  + AUTO
+      // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
       if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('energy') || c.otherState.prevent_opp_trash_from?.includes('energy'))) {
         return addLog(c, 'エナ保護により効果なし');
       }
@@ -365,9 +366,9 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
 }
 
 function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): ExecResult {
-  // BLOCK_OPP_DECK_TO_ENERGY: ONT
+  // BLOCK_OPP_DECK_TO_ENERGY: 相手CONTがアクティブなら自分のデッキ→エナをブロック
   if (a.owner === 'self' && ctx.deckToEnergyBlocked) {
-    return done(addLog(ctx, 'ONT'));
+    return done(addLog(ctx, 'デッキ→エナ移動がブロックされた（CONT効果）'));
   }
   const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
@@ -458,11 +459,11 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.owner;
   const src = a.source;
 
-  // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 
+  // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: シグニ効果による自フィールドへのシグニ配置をブロック
   if (tgtOwner === 'self' && ctx.signiFieldPlaceByEffectBlocked) {
     const srcCard = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     if (srcCard?.Type === 'シグニ') {
-      return done(addLog(ctx, 'ONT'));
+      return done(addLog(ctx, 'シグニ効果によるシグニ配置がブロックされた（CONT効果）'));
     }
   }
 
@@ -470,7 +471,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   if (!src) {
     const state = ownerState(tgtOwner, ctx);
     if (state.deck.length === 0) return done(ctx);
-    // 
+    // 空きゾーンがなければスキップ
     if (!state.field.signi.some(z => !z || z.length === 0)) return done(ctx);
     const cardNum = state.deck[0];
     const newS: PlayerState = { ...state, deck: state.deck.slice(1) };
@@ -586,11 +587,11 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     const state = ownerState(a.target.owner, ctx);
     const newS: PlayerState = { ...state, field: { ...state.field, lrig_down: true } };
     const lrigName = state.field.lrig?.length
-      ? (ctx.cardMap.get(getCardNum(state.field.lrig.at(-1) ?? ''))?.CardName ?? '')
+      ? (ctx.cardMap.get(getCardNum(state.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ')
       : '';
     return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`));
   }
-  // PREVENT_SIGNI_DOWN_BY_OPP (state flag)  CONT
+  // PREVENT_SIGNI_DOWN_BY_OPP (state flag) または CONT保護効果によりダウン無効
   if (a.target.owner === 'opponent' && ctx.otherState.prevent_signi_down_by_opp) {
     return done(addLog(ctx, 'シグニダウン防止（常時効果）'));
   }
@@ -633,7 +634,7 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   if (a.target.type === 'LRIG') {
     const s = ownerState(a.target.owner, ctx);
     const lrigName = s.field.lrig?.length
-      ? (ctx.cardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardName ?? '')
+      ? (ctx.cardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ')
       : '';
     const newS: PlayerState = { ...s, field: { ...s.field, lrig_down: false } };
     return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をアップ`));
@@ -764,7 +765,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     let newS: PlayerState = { ...s, keyword_grants: grants };
 
     //
-    if (a.keyword === '') {
+    if (a.keyword === 'チアガール') {
       for (const n of selected) {
         const zoneIdx = newS.field.signi.findIndex(stack => stack?.at(-1) === n);
         if (zoneIdx >= 0) {
@@ -847,11 +848,11 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
   let cur = ctx;
   for (let i = 0; i < a.steps.length; i++) {
     const step = a.steps[i];
-    // 
+    // リコレクトゲート：条件未達なら残りステップをすべてスキップ
     if (step.type === 'RECOLLECT_GATE') {
       const gate = step as import('../types/effects').RecollectGateAction;
       const artsInLrigTrash = (cur.ownerState.lrig_trash ?? []).filter(
-        n => cur.cardMap.get(n)?.Type === ''
+        n => cur.cardMap.get(n)?.Type === 'アーツ'
       ).length;
       if (artsInLrigTrash < gate.minArts) {
         return done(addLog(cur, `${artsInLrigTrash}/ ${gate.minArts}`));
@@ -859,7 +860,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       cur = addLog(cur, `${artsInLrigTrash}`);
       continue;
     }
-    // TARGET_AND_DISCARD_HAND: //
+    // TARGET_AND_DISCARD_HAND: 対戦相手シグニを対象とし手札を捨ててバニッシュ/バウンス/パワー変更
     if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'TARGET_AND_DISCARD_HAND') {
       const remaining = a.steps.slice(i + 1);
       const cont: EffectAction | undefined = remaining.length > 0
@@ -867,7 +868,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : undefined;
       const oppState = cur.otherState;
       const cands = fieldCandidates(oppState, { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors);
-      // pplyDirectAction1
+      // 対戦相手シグニをバニッシュ（applyDirectActionが正しいカードを特定）、その後手札1枚捨て
       const banishAction: import('../types/effects').BanishAction = {
         type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 },
       };
@@ -877,7 +878,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : discardCont;
       return selectOrInteract(cands, 1, false, 'opp_field', banishAction, fullCont, cur);
     }
-    // COST_COLOR_SELECT: SEARCH
+    // COST_COLOR_SELECT: コスト色に基づき次のSEARCHに色フィルタを適用
     if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'COST_COLOR_SELECT') {
       const ccStub = step as import('../types/effects').StubAction;
       const colors = ccStub.costColors ?? [];
@@ -887,12 +888,12 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const afterRemaining = a.steps.slice(i + 2);
         const uniqueColors = [...new Set(colors)];
         if (uniqueColors.length === 1) {
-          //  SEARCH
+          // 色が1種類: 色フィルタ付きSEARCHを直接実行
       const coloredSearch: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: uniqueColors[0] } };
           const newSteps = [coloredSearch as EffectAction, ...afterRemaining];
           return execSequence({ type: 'SEQUENCE', steps: newSteps } as SequenceAction, addLog(cur, `${uniqueColors[0]}`));
         } else {
-          // : CHOOSESEARCH
+          // 色が複数: CHOOSEで色を選択させ、各色のSEARCHを実行
       const afterCont: EffectAction | undefined = afterRemaining.length > 0
             ? (afterRemaining.length === 1 ? afterRemaining[0] : { type: 'SEQUENCE', steps: afterRemaining } as SequenceAction)
             : undefined;
@@ -903,16 +904,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               return afterCont ? { type: 'SEQUENCE', steps: [cs as EffectAction, afterCont] } as SequenceAction : cs as EffectAction;
             })(),
           }));
-          return needsInteraction(addLog(cur, ''), {
+          return needsInteraction(addLog(cur, 'コスト色選択：サーチする色を選んでください'), {
             type: 'CHOOSE', options: opts, count: 1,
           });
         }
       }
-      cur = addLog(cur, '');
+      cur = addLog(cur, 'コスト色選択（スキップ）');
       continue;
     }
-    // : STUB( CONDITIONAL(IS_MY_TURN)
-    // IS_MY_TURN  
+    // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN)
+    // IS_MY_TURN はパーサーが「コスト支払い → 効果発動」を表すプレースホルダーとして使用
     if (step.type === 'STUB') {
       const nextStep = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
       if (nextStep?.type === 'CONDITIONAL' &&
@@ -926,7 +927,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const stub = step as import('../types/effects').StubAction;
         const costColors = stub.costColors ?? [];
 
-        // SOUL_OP: XDi
+        // SOUL_OP: ソウルカードを消費してコスト支払い（WXDiシリーズ）
       if (stub.id === 'SOUL_OP') {
           const srcZoneSO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);
           const stackSO = srcZoneSO >= 0 ? cur.ownerState.field.signi[srcZoneSO] : null;
@@ -943,7 +944,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               label: soulName ? `${soulName}` : '',
               action: payActionSO,
             },
-            { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
           const pendingSO: PendingInteractionDef = {
             type: 'CHOOSE', options: optionsSO, count: 1,
@@ -952,7 +953,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, ''), pendingSO);
         }
 
-        // LRIG_UNDER_CARD_OP: X24/WX25/WXDi
+        // LRIG_UNDER_CARD_OP: シグニ下のカードを消費してコスト支払い（WX24/WX25/WXDiシリーズ）
       if (stub.id === 'LRIG_UNDER_CARD_OP') {
           const srcZoneLUCO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);
           const stackLUCO = srcZoneLUCO >= 0 ? cur.ownerState.field.signi[srcZoneLUCO] : null;
@@ -969,7 +970,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               label: underName ? `${underName}` : '',
               action: payActionLUCO,
             },
-            { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
           const pendingLUCO: PendingInteractionDef = {
             type: 'CHOOSE', options: optionsLUCO, count: 1,
@@ -978,7 +979,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, ''), pendingLUCO);
         }
 
-        // OPTIONAL_HAND_REVEAL_NAMED: conditional.then
+        // OPTIONAL_HAND_REVEAL_NAMED: 名前指定カードを手札から任意公開 → そうした場合 conditional.then
         if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
           const srcOHRN = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
           const txtOHRN = srcOHRN ? (srcOHRN.EffectText ?? '') + ' ' + (srcOHRN.BurstText ?? '') : '';
@@ -991,7 +992,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             { id: 'reveal', available: hasCard,
               label: targetName ? `${targetName}` : '',
               action: conditional.then },
-            { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
           const pendingOHRN: PendingInteractionDef = {
             type: 'CHOOSE', options: optionsOHRN, count: 1,
@@ -1000,17 +1001,17 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, `${targetName}`), pendingOHRN);
         }
 
-        // TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST: 
-        // conditional.then  target.owner 'self' 
+        // TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST: 相手シグニを対象にして任意色コスト支払い
+        // パーサーが conditional.then の target.owner を 'self' と誤生成するため修正する
         if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
           const toHWTOSOC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           const oppCandsTOSOC = fieldCandidates(cur.otherState, { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors);
           if (oppCandsTOSOC.length === 0) {
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, 'ARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'));
+            return done(addLog(cur, '対象シグニなし（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）'));
           }
           const canAffordTOSOC = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
-          // : conditional.then  target.owner='self'/'any' 'opponent'
+          // パーサーバグ修正: conditional.then の target.owner='self'/'any' → 'opponent'
           const fixOwnerTOSOC = (a: EffectAction): EffectAction => {
             if (!a || typeof a !== 'object') return a;
             if (['BANISH', 'BOUNCE', 'DOWN', 'FREEZE', 'GRANT_KEYWORD', 'POWER_MODIFY'].includes(a.type)) {
@@ -1026,7 +1027,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const payLabelTOSOC = costColors.length > 0
             ? `対象選択して発動（${costColors.map(c => `《${c}》`).join('')}）`
             : '対象選択して発動';
-          // BANISH/BOUNCE opponent  execBanish selectOrInteract 
+          // BANISH/BOUNCE等は opponent 修正により execBanish で相手フィールドから selectOrInteract が走る
       const optsTOSOC = [
             { id: 'pay', label: payLabelTOSOC, action: fixedThenTOSOC, available: canAffordTOSOC, ...(costColors.length ? { costColors } : {}) },
             { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
@@ -1036,7 +1037,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
         }
 
-        // OPTIONAL_TRASH_ENERGY_CLASS: /
+        // OPTIONAL_TRASH_ENERGY_CLASS: エナゾーンから特定クラスのカードを任意でトラッシュ/手札へ
         if (stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
           const srcOTEC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
           const txtOTEC = srcOTEC ? (srcOTEC.EffectText ?? '') + ' ' + (srcOTEC.BurstText ?? '') : '';
@@ -1052,20 +1053,21 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             return done(addLog(cur, `${reqClassOTEC || 'カード'}OPTIONAL_TRASH_ENERGY_CLASS`));
           }
           const toHandOTEC = !!(txtOTEC.match(/それを手札に加える/) || conditional.then.type === 'TRANSFER_TO_HAND');
-          // conditional.then  BOUNCE/BANISH/DOWN  target.owner='self' 'opponent' 
+          // conditional.then の BOUNCE/BANISH/DOWN の target.owner='self' → 'opponent' 修正
           let thenOTEC = conditional.then;
           if (['BOUNCE', 'BANISH', 'DOWN', 'POWER_MODIFY'].includes(thenOTEC.type)) {
             const wt = thenOTEC as unknown as { target?: { owner?: string; [k: string]: unknown }; [k: string]: unknown };
             if (wt.target?.owner === 'self') thenOTEC = { ...wt, target: { ...wt.target, owner: 'opponent' } } as unknown as EffectAction;
           }
-          const cntMOTEC = txtOTEC.match(/([・・・兔d]+)譫・(?:縺ｾ縺ｧ)?繧・蟇ｾ雎｡/);
+          const cntMOTEC = txtOTEC.match(/([０-９\d]+)枚(?:まで)?を対象/);
           const pickCountOTEC = cntMOTEC ? parseInt(toHWOTEC(cntMOTEC[1])) : 1;
           const destOTEC = toHandOTEC ? 'hand' : 'trash';
           const selectStubOTEC: import('../types/effects').StubAction = {
             type: 'STUB', id: 'INTERNAL_OTEC_SELECT',
             value: `${destOTEC}:${reqClassOTEC}:${pickCountOTEC}`,
           };
-          // "" :  conditional.then           // "" : + conditional.then
+          // "手札へ" パターン: エナカード移動がメイン効果、conditional.then を追加しない
+          // "トラッシュ" パターン: エナカード移動 + conditional.then（追加効果）
       const payStepsOTEC: EffectAction[] = [selectStubOTEC as EffectAction];
           if (!toHandOTEC) payStepsOTEC.push(thenOTEC);
           const payActionOTEC: EffectAction = payStepsOTEC.length === 1
@@ -1074,14 +1076,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const payLabelOTEC = reqClassOTEC ? `エナ＜${reqClassOTEC}＞を選択して発動` : 'エナから選択して発動';
           const optsOTEC = [
             { id: 'pay', label: payLabelOTEC, action: payActionOTEC, available: true },
-            { id: 'skip', label: '', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
           return needsInteraction(addLog(cur, `エナゾーンのカードを選択しますか？`), {
             type: 'CHOOSE', options: optsOTEC, count: 1, ...(cont ? { continuation: cont } : {}),
           });
         }
 
-        // REMOVE_VIRUS: conditional.then
+        // REMOVE_VIRUS: ウイルスをN個取り除いてからconditional.thenを実行
       if (stub.id === 'REMOVE_VIRUS') {
           const toHWRV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           const virusArrRV = cur.otherState.field.signi_virus ?? [0, 0, 0];
@@ -1091,7 +1093,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const cntMRV = txtRV.match(/【ウィルス】([０-９d]+)つを?取り除く/);
           const removeCountRV = cntMRV ? parseInt(toHWRV(cntMRV[1])) : 1;
           const isOptionalRV = !!(txtRV.match(/取り除いてもよい/));
-          // + conditional.then 
+          // ウイルス除去スタブ + conditional.then を連結したアクション
           const removeStubRV: import('../types/effects').StubAction = {
             type: 'STUB', id: 'INTERNAL_REMOVE_VIRUS_N', value: removeCountRV,
           };
@@ -1099,7 +1101,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             type: 'SEQUENCE', steps: [removeStubRV as EffectAction, conditional.then],
           } as import('../types/effects').SequenceAction;
           if (totalVirusRV < removeCountRV) {
-            // 
+            // ウイルスが足りない場合はスキップ
             if (cont) return executeAction(cont, cur);
             return done(addLog(cur, `ウイルス不足（必要${removeCountRV}、実在${totalVirusRV}）`));
           }
@@ -1112,7 +1114,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               type: 'CHOOSE', options: optsRV, count: 1, ...(cont ? { continuation: cont } : {}),
             });
           }
-          // :  conditional.then
+          // 強制除去: ウイルス除去 → conditional.then
           const mandRV = executeAction(payActionRV, cur);
           if (!mandRV.done && cont) {
             const ex = mandRV.pending.continuation;
@@ -1124,7 +1126,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return mandRV;
         }
 
-        // OPPONENT_PAY_OPTIONAL: /        // pay  skip onditional.then
+        // OPPONENT_PAY_OPTIONAL: 対戦相手がコストを支払う/支払わない
+        // pay → 何も起きない（対戦相手のエナ消費）、skip → 効果発動（conditional.then）
       if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
           const canOppAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.otherState, cur.cardMap);
           const payLabel = costColors.length > 0
@@ -1158,8 +1161,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         return needsInteraction(addLog(cur, '任意コスト：発動しますか？'), pending);
       }
 
-      // Pattern   STUB ... BASE_STEPS ... CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)
-      // ( CONDITIONAL 
+      // Pattern ④ 追加コスト強化: STUB ... BASE_STEPS ... CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)
+      // (直後でなく離れた位置にある CONDITIONAL を先読みしてインタラクションを生成)
       {
         const stub4 = step as import('../types/effects').StubAction;
         const optIds = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
@@ -1186,7 +1189,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               ? (baseSteps.length === 0
                   ? conditional4.then
                   : { type: 'SEQUENCE', steps: [...baseSteps, conditional4.then] } as SequenceAction)
-              : conditional4.then; // replace mode: 
+              : conditional4.then; // replace mode: 強化効果のみ
             const costColors4 = stub4.costColors ?? [];
             const canAfford4 = costColors4.length === 0 || canPayOptionalCost(costColors4, cur.ownerState, cur.cardMap);
             const payLabel4 = costColors4.length > 0
@@ -1204,8 +1207,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           }
         }
       }
-      // Pattern : OPTIONAL_COST (CONDITIONAL
-      // pay  skip 
+      // Pattern ⑤: OPTIONAL_COST (後続のCONDITIONALなし)
+      // pay → 残りステップ実行; skip → 残りステップをスキップ
       {
         const stub5 = step as import('../types/effects').StubAction;
         const optIds5 = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
@@ -1222,14 +1225,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             : '支払う';
           const options5 = [
             { id: 'pay', label: payLabel5, action: cont5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}) },
-            { id: 'skip', label: '', action: noopAction5 as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: noopAction5 as EffectAction, available: true },
           ];
           const pending5: PendingInteractionDef = { type: 'CHOOSE', options: options5, count: 1 };
           return needsInteraction(addLog(cur, '任意コスト：支払いますか？'), pending5);
         }
       }
-      // Pattern : TARGET_AND_DISCARD_HAND
-      // 1 
+      // Pattern ⑥: TARGET_AND_DISCARD_HAND
+      // 手札1枚を自動捨て → 残りステップへ続行（ターゲットは後続ステップが独立して選択）
       if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'TARGET_AND_DISCARD_HAND') {
         if (cur.ownerState.hand.length > 0) {
           const discardIdx = cur.ownerState.hand.length - 1;
@@ -1247,7 +1250,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         }
         continue;
       }
-      // Pattern : REMOVE_VIRUS + TRANSFER_TO_HAND (N)
+      // Pattern ⑦: REMOVE_VIRUS + TRANSFER_TO_HAND (好きな数取り除く → N枚手札へ)
       if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'REMOVE_VIRUS') {
         const nextRV7 = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
         if (nextRV7?.type === 'TRANSFER_TO_HAND') {
@@ -1258,7 +1261,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ? (remainingRV7.length === 1 ? remainingRV7[0] : { type: 'SEQUENCE', steps: remainingRV7 } as import('../types/effects').SequenceAction)
             : undefined;
           if (totalRV7 === 0) {
-            i++; // TRANSFER_TO_HAND 
+            i++; // TRANSFER_TO_HAND もスキップ
             cur = addLog(cur, 'ウイルスなし（REMOVE_VIRUS+TRANSFER スキップ）');
             continue;
           }
@@ -1276,7 +1279,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     }
     const result = executeAction(step, cur);
     if (!result.done) {
-      // continuation
+      // インタラクション必要：残りのステップをcontinuationに入れる
       const remaining = a.steps.slice(i + 1);
       const cont: EffectAction | undefined = remaining.length > 0
         ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining })
@@ -1394,7 +1397,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 }
 
 function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult {
-  // subjectFilter  CONTINUOUS ffectEngine  no-op
+  // subjectFilter のみの場合は CONTINUOUS 用宣言（effectEngine 側で処理）→ no-op
   if (!a.target && a.subjectFilter) {
     return done(addLog(ctx, `効果耐性宣言（${a.from.join('/')}保護）`));
   }
@@ -1435,7 +1438,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
     charmCands = charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
     charmFromLocation = 'trash';
   } else {
-    //  or ilter
+    // デフォルトは手札 or エナ（filter指定があればエナから）
     const fromEnergy = charmSrc.energy.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
     const fromHand = charmSrc.hand.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
     if (fromEnergy.length > 0) { charmCands = fromEnergy; charmFromLocation = 'energy'; }
@@ -1450,9 +1453,9 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   const charmNum = charmCands[0];
   const targetNum = toCands[0];
   const zoneIdx = toState.field.signi.findIndex(s => s?.at(-1) === targetNum);
-  if (zoneIdx < 0) return done(addLog(ctx, ' '));
+  if (zoneIdx < 0) return done(addLog(ctx, 'チャーム付与: ゾーン不明'));
 
-  // 
+  // チャームカードをソースから除去
   let newCharmSrc: PlayerState = { ...charmSrc };
   if (charmFromLocation === 'deck') {
     newCharmSrc = { ...newCharmSrc, deck: newCharmSrc.deck.slice(1) };
@@ -1465,7 +1468,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   }
   let ctx2 = setOwnerState(charmOwner, newCharmSrc, ctx);
 
-  // 
+  // 対象シグニのゾーンにチャームをセット
   let newToState = ownerState(toOwner, ctx2);
   const charms = [...(newToState.field.signi_charms ?? [null, null, null])];
   charms[zoneIdx] = charmNum;
@@ -1477,8 +1480,9 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   return done(addLog(ctx2, `${cardName}を${targetName}にチャームとして付与`));
 }
 
-/** LEVEL_REFERENCE_OVERRIDE: 繧ｫ繝ｼ繝峨ユ繧ｭ繧ｹ繝医°繧芽ｨｱ螳ｹ繝ｬ繝吶Ν遽・峇繧定ｧ｣譫舌＠縺ｦ霑斐☆縲・ * 縲後Ξ繝吶Ν繧貞盾辣ｧ縺吶ｋ蝣ｴ蜷医√Ξ繝吶Ν・斐→縺励※謇ｱ縺｣縺ｦ繧ゅｈ縺・坂・ { min:4, max:4 }
- * 縲後Ξ繝吶Ν繧貞盾辣ｧ縺吶ｋ蝣ｴ蜷医・ｼ托ｽ橸ｼ斐＞縺壹ｌ縺九・繝ｬ繝吶Ν・代▽縺ｨ縺励※謇ｱ縺｣縺ｦ繧ゅｈ縺・坂・ { min:1, max:4 }
+/** LEVEL_REFERENCE_OVERRIDE: カードテキストから許容レベル範囲を解析して返す。
+ * 「レベルを参照する場合、レベル４として扱ってもよい」→ { min:4, max:4 }
+ * 「レベルを参照する場合、１～４いずれかのレベル１つとして扱ってもよい」→ { min:1, max:4 }
  */
 function getLevelReferenceOverride(card: import('../types').CardData | undefined): { min: number; max: number } | null {
   const txt = card?.EffectText ?? '';
@@ -1503,7 +1507,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   const count = resolveNum(a.revealCount);
   const visible = state.deck.slice(0, count);
   let pickable = a.filter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter)) : visible;
-  // LEVEL_REFERENCE_OVERRIDE: //
+  // LEVEL_REFERENCE_OVERRIDE: レベルフィルターがある場合、デッキ/手札/トラッシュ中の
   // 
   if (a.filter?.level !== undefined) {
     const targetLevel = typeof a.filter.level === 'number' ? a.filter.level : null;
@@ -1520,7 +1524,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   const maxPick = a.pickCount === 'ALL' ? pickable.length : a.pickCount;
 
   if (pickable.length === 0) {
-    // 
+    // ピック対象なし：残りを指定場所へ
     if (a.remainder) {
       const pos = a.remainder.position;
       const newS: PlayerState = {
@@ -1534,7 +1538,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     return done(ctx);
   }
 
-  // 
+  // 一時的にデッキ上部を除去
   const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
   const newCtx = setOwnerState(a.owner, newS, ctx);
 
@@ -1557,7 +1561,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
 }
 
 function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
-  let cands: string[] = [];
+  let cands: string[];
 
   if (a.source === 'hand') {
     cands = handCandidates(ctx.ownerState, a.filter, ctx.cardMap);
@@ -1566,17 +1570,18 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   } else if (a.source === 'opp_trash') {
     cands = trashCandidates(ctx.otherState, a.filter, ctx.cardMap);
   } else {
-    // lrig_deck:     cands = (ctx.ownerState.lrig_deck ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
+    // lrig_deck: ルリグデッキの先頭から対象を探す
+    cands = (ctx.ownerState.lrig_deck ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
   }
 
-  if (cands.length === 0) return done(addLog(ctx, 'PlayFree: '));
+  if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 対象なし'));
 
   // BattleScreen
   return needsInteraction(ctx, {
     type: 'SEARCH',
     visibleCards: cands,
     maxPick: 1,
-    thenAction: { type: 'ADD_TO_HAND', owner: 'self' }, // 
+    thenAction: { type: 'ADD_TO_HAND', owner: 'self' }, // プレースホルダー
   });
 }
 
@@ -1593,7 +1598,7 @@ function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
     ...state,
     cost_modifiers: [...(state.cost_modifiers ?? []), mod],
   };
-  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${a.targetCardType}${a.amount.map(e => e.count + e.color).join('')}`));
+  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${a.targetCardType}コスト+${a.amount.map(e => e.count + e.color).join('')}`));
 }
 
 function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): ExecResult {
@@ -1658,7 +1663,7 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
     return done(addLog({ ...ctx, ownerState: newOwner }, `${count}`));
   }
 
-  // trash/hand/energy: SELECT_TARGET 
+  // trash/hand/energy: SELECT_TARGET インタラクション
   const state = ctx.ownerState;
   const srcList = a.source === 'trash' ? state.trash :
                   a.source === 'hand'  ? state.hand  :
@@ -1749,7 +1754,7 @@ function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: Exec
     const s = ownerState(tgtOwner, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: mods }, c),
-      `${delta > 0 ? '+' : ''}${delta}lv${lv}{a.deltaPerLevel}`);
+      `パワー${delta > 0 ? '+' : ''}${delta}（ルリグlv${lv}×${a.deltaPerLevel}）`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
@@ -1759,7 +1764,8 @@ function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: Exec
 }
 
 function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult {
-  //  BattleScreen   // 
+  // チャーム保護は BattleScreen のバニッシュ処理側で判定するため、
+  // ここではプレイヤー状態にキーワードとして記録する
   const keyword = `CHARM_PROTECTION:${JSON.stringify(a.signiFilter)}`;
   const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
   //
@@ -1771,7 +1777,7 @@ function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult
 }
 
 function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): ExecResult {
-  // 
+  // 両者の手札枚数を記録してから全捨て
   const selfCount  = ctx.ownerState.hand.length;
   const otherCount = ctx.otherState.hand.length;
   const maxCount   = Math.max(selfCount, otherCount);
@@ -1785,7 +1791,7 @@ function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): 
 
   if (!a.drawMax || maxCount === 0) return done(cur);
 
-  // maxCount 
+  // 双方が maxCount 枚引く
   const drawSelf  = Math.min(maxCount, cur.ownerState.deck.length);
   const drawOther = Math.min(maxCount, cur.otherState.deck.length);
   cur = {
@@ -1892,15 +1898,15 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
   if (a.source === 'last_found') {
     const lastCard = ctx.lastProcessedCards?.[ctx.lastProcessedCards.length - 1];
     const cardName = lastCard ? ctx.cardMap.get(lastCard)?.CardName : undefined;
-    if (!cardName) return done(addLog(ctx, ' '));
+    if (!cardName) return done(addLog(ctx, '絆獲得: 対象カードが見つかりません'));
     const current = ctx.ownerState.bonds ?? [];
     if (current.includes(cardName)) return done(addLog(ctx, `${cardName}との絆は既に獲得済み`));
     const newOwner: PlayerState = { ...ctx.ownerState, bonds: [...current, cardName] };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${cardName}との絆を獲得`));
   }
-  // 'declared': 
+  // 'declared': デッキからカードを選択させる
   const deckCards = [...ctx.ownerState.deck];
-  if (deckCards.length === 0) return done(addLog(ctx, ' '));
+  if (deckCards.length === 0) return done(addLog(ctx, '絆獲得: デッキが空'));
   return needsInteraction(ctx, {
     type: 'DECLARE_BOND',
     deckCards,
@@ -1939,7 +1945,7 @@ function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
   const removedCards: string[] = [];
   const newCharms = charms.map(c => {
     if (c !== null && removed < count) {
-      // 
+      // フィルターがあればチェック
       if (!a.targetFilter || matchesFilter(ctx.cardMap.get(c), a.targetFilter)) {
         newTrash = [...newTrash, c];
         removedCards.push(c);
@@ -1951,7 +1957,7 @@ function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
   });
   const newS: PlayerState = { ...s, field: { ...s.field, signi_charms: newCharms }, trash: newTrash };
   const ctx2 = setOwnerState(a.targetOwner, newS, ctx);
-  return done({ ...addLog(ctx2, `${removed}`), lastProcessedCards: removedCards });
+  return done({ ...addLog(ctx2, `チャーム${removed}枚をトラッシュに置いた`), lastProcessedCards: removedCards });
 }
 
 function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResult {
@@ -1990,7 +1996,7 @@ function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: Ex
     const s = ownerState(tgtO, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtO, { ...s, temp_power_mods: mods }, c),
-      `${delta > 0 ? '+' : ''}${delta}${count}{a.deltaPerUnit}/${a.unitSize}`);
+      `パワー${delta > 0 ? '+' : ''}${delta}（トラッシュ${count}枚×${a.deltaPerUnit}/${a.unitSize}）`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
@@ -2013,7 +2019,7 @@ function execPowerModifyPerLifeCount(a: PowerModifyPerLifeCountAction, ctx: Exec
     const s = ownerState(tgtO, c);
     const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
     return addLog(setOwnerState(tgtO, { ...s, temp_power_mods: mods }, c),
-      `${delta > 0 ? '+' : ''}${delta}{count}{a.deltaPerLife}`);
+      `パワー${delta > 0 ? '+' : ''}${delta}（ライフ${count}枚×${a.deltaPerLife}）`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
@@ -2030,7 +2036,7 @@ function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
     ownerState: { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(selfDiscard), trash: [...ctx.ownerState.trash, ...ctx.ownerState.hand.slice(0, selfDiscard)] },
     otherState: { ...ctx.otherState, hand: ctx.otherState.hand.slice(otherDiscard), trash: [...ctx.otherState.trash, ...ctx.otherState.hand.slice(0, otherDiscard)] },
   };
-  return done(addLog(newCtx, `${a.count}`));
+  return done(addLog(newCtx, `各プレイヤー手札${a.count}枚捨て`));
 }
 
 function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
@@ -2057,7 +2063,7 @@ function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
   const ctx2 = a.targetOwner === 'opponent'
     ? { ...ctx, otherState: newState }
     : { ...ctx, ownerState: newState };
-  return done(addLog(ctx2, `${placed}`));
+  return done(addLog(ctx2, `【ウィルス】を${placed}ゾーンに配置`));
 }
 
 function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
@@ -2072,7 +2078,7 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
       return card && card.Type === 'シグニ' && (!a.signiFilter || matchesFilter(card, a.signiFilter));
     });
     if (handCands.length === 0) return done(addLog(ctx, 'アクセ可能な手札シグニなし'));
-    // : : 
+    // ステップ1: 手札からアクセカードを選択 → ステップ2: ホストシグニ選択へ
     const selectHostAction: AttachAcceAction = { ...a, fromHand: false };
     return needsInteraction(addLog(ctx, '手札からアクセするシグニを選択'), {
       type: 'SELECT_TARGET',
@@ -2084,7 +2090,8 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
     });
   }
 
-  // /:   // targetFilter igniFilter 
+  // エナゾーン/手札からのアクセ: ホストシグニ選択
+  // targetFilter でホスト側フィルター、signiFilter でアクセカード側フィルター
   const hostCands = (tgtState.field.signi ?? []).flatMap((stack, i) => {
     if (!stack || stack.length === 0) return [];
     if (acce[i] !== null) return [];
@@ -2106,7 +2113,7 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
 }
 
 function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecResult {
-  // 
+  // 自分のフィールドにいる対象シグニのうち、同名カードが指定領域にあるものを選択候補とする
   const candidates = (ctx.ownerState.field.signi ?? []).flatMap((stack, zoneIdx) => {
     if (!stack || stack.length === 0) return [];
     const top = stack[stack.length - 1];
@@ -2114,11 +2121,11 @@ function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecRe
     if (a.targetFilter && !matchesFilter(card, a.targetFilter)) return [];
     const sameName = card?.CardName;
     if (!sameName) return [];
-    // 
+    // 既に血晶武装状態でも選択可能（さらに重ねることができる）
     const inHand  = a.source.includes('hand')  && ctx.ownerState.hand.some(n => ctx.cardMap.get(n)?.CardName === sameName);
     const inTrash = a.source.includes('trash') && ctx.ownerState.trash.some(n => ctx.cardMap.get(n)?.CardName === sameName);
     const inDeck  = a.source.includes('deck')  && ctx.ownerState.deck.some(n => ctx.cardMap.get(n)?.CardName === sameName);
-    // 
+    // 自身と同名のカードをカウントする際、フィールドにある自身は除く
     const fieldSelf = stack[stack.length - 1];
     const inHandExcSelf  = a.source.includes('hand')  && ctx.ownerState.hand.some(n => { const cn = ctx.cardMap.get(n)?.CardName; return cn === sameName && n !== fieldSelf; });
     const inTrashExcSelf = a.source.includes('trash') && ctx.ownerState.trash.some(n => ctx.cardMap.get(n)?.CardName === sameName);
@@ -2146,7 +2153,7 @@ function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecRe
 }
 
 function execAddCraftToLrigDeck(a: import('../types/effects').AddCraftToLrigDeckAction, ctx: ExecCtx): ExecResult {
-  // CardData_TK  cardName 
+  // CardData_TK から cardName が一致するクラフトカードを検索
   const craftCard = [...ctx.cardMap.values()].find(
     c => c.CardName === a.cardName && c.Type?.includes('クラフト'),
   );
@@ -2165,7 +2172,7 @@ function execAddCraftToLrigDeck(a: import('../types/effects').AddCraftToLrigDeck
   ));
 }
 
-// =====  =====
+// ===== メイン実行関数 =====
 
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
   switch (action.type) {
@@ -2199,7 +2206,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'CONDITIONAL':             return execConditional(action as ConditionalAction, ctx);
     case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
     case 'TRANSFER_TO_DECK':        return execTransferToDeck(action as TransferToDeckAction, ctx);
-    case 'COUNTER_SPELL':           return done(addLog(ctx, '/'));
+    case 'COUNTER_SPELL':           return done(addLog(ctx, 'スペル/アーツ打ち消し'));
     case 'COST_REDUCTION':          return done(addLog(ctx, 'コスト軽減'));
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
     case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
@@ -2232,7 +2239,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           ...ctx.ownerState,
           lrig_granted_auto_effects: [...existing, ...ga.abilities],
         };
-        return done(addLog({ ...ctx, ownerState: newOwner }, ` ${ga.rawText}`));
+        return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグ付与能力: ${ga.rawText}`));
       }
       return done(ctx);
     }
@@ -2262,7 +2269,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'PREVENT_NEXT_DAMAGE': {
       const pnd = action as import('../types/effects').PreventNextDamageAction;
       const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
-      return done(addLog({ ...ctx, ownerState: newOwner }, `${pnd.count ?? 1}`));
+      return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、次の${pnd.count ?? 1}回のダメージを無効`));
     }
     case 'ENERGY_CHARGE_BY_FIELD_COUNT':   return execEnergyChargeByFieldCount(action as import('../types/effects').EnergyChargeByFieldCountAction, ctx);
     case 'POWER_MODIFY_BY_TARGET_LEVEL':   return execPowerModifyByTargetLevel(action as PowerModifyByTargetLevelAction, ctx);
@@ -2280,7 +2287,7 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
   return executeAction(effect.action, ctx);
 }
 
-// ===== I=====
+// ===== インタラクション解決（UIから呼ばれる） =====
 
 // SELECT_TARGET: selected[] export
  export function resumeSelectTarget(
@@ -2288,10 +2295,10 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
   pending: PendingInteractionDef & { type: 'SELECT_TARGET' },
   ctx: ExecCtx,
 ): ExecResult {
-  //  thenAction 
+  // 選択されたカードに thenAction を個別適用
   let cur = ctx;
   for (const cardNum of selected) {
-    // thenAction
+    // thenActionを単一カードに適用するため、フィルタなしで直接適用
     const result = applyDirectAction(pending.thenAction, cardNum, cur);
     if (!result.done) return result;
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
@@ -2348,13 +2355,13 @@ export function resumeSearch(
       if (pending.restDest === 'deck_bottom') {
         newDeck.push(cardNum);
         cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck } };
-        logMsg = '';
+        logMsg = '残りをデッキ下へ';
       } else if (pending.restDest === 'trash') {
         cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck, trash: [...cur.ownerState.trash, cardNum] } };
-        logMsg = '';
+        logMsg = '残りをトラッシュへ';
       } else if (pending.restDest === 'energy') {
         cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck, energy: [...cur.ownerState.energy, cardNum] } };
-        logMsg = '';
+        logMsg = '残りをエナゾーンへ';
       }
     }
     if (logMsg && remaining.length > 0) cur = addLog(cur, logMsg);
@@ -2379,7 +2386,7 @@ export function resumeSearch(
   if (!opt) return done(ctx);
   const result = executeAction(opt.action, ctx);
   if (!result.done) {
-    // ELECT_TARGET  continuation  continuation 
+    // ネストしたインタラクション（SELECT_TARGET 等）の continuation に外側の continuation を合成
     if (pending.continuation) {
       const existing = result.pending.continuation;
       result.pending = {
@@ -2397,7 +2404,8 @@ export function resumeSearch(
   return result;
 }
 
-// OPTIONAL_COST: // choiceId='pay': energyNums  'skip': 
+// OPTIONAL_COST: 任意コスト付き効果の発動/スキップ選択後の処理
+// choiceId='pay': energyNums 分のエナを支払い効果発動、'skip': スキップ
 export function resumeOptionalCost(
   choiceId: string,
   energyNums: string[],
@@ -2409,7 +2417,7 @@ export function resumeOptionalCost(
   const payOpt  = pending.options.find(o => o.id === 'pay');
 
   if (choiceId !== 'pay') {
-    // :  continuation
+    // スキップ: スキップアクション → continuation
     const result = executeAction(skipOpt?.action ?? noopAction, ctx);
     if (!result.done) return result;
     if (pending.continuation) {
@@ -2439,7 +2447,7 @@ export function resumeOptionalCost(
 
   const result = executeAction(payOpt?.action ?? noopAction, cur);
   if (!result.done) {
-    // continuationresult.pending 
+    // continuationをresult.pendingに付け足す
     if (pending.continuation) {
       const merged: EffectAction = result.pending.continuation
         ? { type: 'SEQUENCE', steps: [result.pending.continuation, pending.continuation] } as SequenceAction
@@ -2457,7 +2465,7 @@ export function resumeOptionalCost(
 // OPPONENT_PAY_OPTIONAL: // pay therState skip export
  export function resumeOpponentPayOptional(
   choiceId: string,
-  energyNums: string[], // CardNum
+  energyNums: string[], // 対戦相手が選択したエナカードのCardNum
   pending: PendingInteractionDef & { type: 'CHOOSE' },
   ctx: ExecCtx,
 ): ExecResult {
@@ -2466,7 +2474,7 @@ export function resumeOptionalCost(
   const skipOpt = pending.options.find(o => o.id === 'skip');
 
   if (choiceId !== 'pay') {
-    // 
+    // 対戦相手が支払わない → 効果発動
     const result = executeAction(skipOpt?.action ?? noopAction, ctx);
     if (!result.done) {
       if (pending.continuation) {
@@ -2521,7 +2529,7 @@ export function resumeOptionalCost(
   } else if (pending.destPosition === 'bottom') {
     newS = { ...state, deck: [...state.deck, ...keep], trash: [...state.trash, ...trashed] };
   } else if (pending.destPosition === 'first_top_rest_bottom') {
-    // 1
+    // 1枚目→デッキトップ、残り→デッキ下
     const [firstCard, ...restCards] = keep;
     newS = { ...state, deck: [...(firstCard ? [firstCard] : []), ...state.deck, ...restCards], trash: [...state.trash, ...trashed] };
   } else {
@@ -2532,7 +2540,7 @@ export function resumeOptionalCost(
   return done(cur);
 }
 
-// SELECT_ZONE: 
+// SELECT_ZONE: プレイヤーが選んだゾーン番号にカードを配置する
 export function resumeSelectZone(
   zoneIndex: number,
   pending: PendingInteractionDef & { type: 'SELECT_ZONE' },
@@ -2550,7 +2558,7 @@ export function resumeSelectZone(
   signi[zoneIndex] = [pending.cardNum];
   const newS: PlayerState = { ...state, field: { ...state.field, signi } };
   const cur = addLog(setOwnerState(pending.owner, newS, ctx),
-    `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}`);
+    `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}を場に出す`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
@@ -2562,22 +2570,22 @@ export function resumeSelectZone(
   ctx: ExecCtx,
 ): ExecResult {
   const cardName = ctx.cardMap.get(selectedCardNum)?.CardName;
-  if (!cardName) return done(addLog(ctx, ' '));
+  if (!cardName) return done(addLog(ctx, '絆獲得: 選択カードが見つかりません'));
   const current = ctx.ownerState.bonds ?? [];
   const newBonds = current.includes(cardName) ? current : [...current, cardName];
   const shuffled = shuffle([...ctx.ownerState.deck]);
   const newOwner: PlayerState = { ...ctx.ownerState, bonds: newBonds, deck: shuffled };
-  const cur = addLog({ ...ctx, ownerState: newOwner }, `${cardName}`);
+  const cur = addLog({ ...ctx, ownerState: newOwner }, `${cardName}との絆を獲得（デッキをシャッフル）`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
 
-// ===== cardNum=====
+// ===== 直接アクション適用（特定のcardNumに対して） =====
 
 function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx): ExecResult {
   switch (action.type) {
     case 'BANISH': {
-      // cardNumopponent.field 
+      // cardNumが opponent.field にあるか自分のフィールドにあるかを検索
       let found: Owner | null = null;
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
@@ -2605,18 +2613,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const trashAction = action as TrashAction;
       const tgt = trashAction.target;
       if (tgt.type === 'SIGNI') {
-        // 
+        // フィールドのシグニをトラッシュ
         const owner = tgt.owner as Owner;
         const s = ownerState(owner, ctx);
         if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
           const removed = removeFromField(cardNum, s);
           const newS: PlayerState = { ...removed, trash: [...removed.trash, cardNum] };
           return done(addLog(setOwnerState(owner, newS, ctx),
-            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
         }
         return done(ctx);
       }
-      // HAND_CARD: hand 1
+      // HAND_CARD: hand からトラッシュ（同名カードが複数ある場合は先頭の1枚のみ）
       for (const owner of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(owner, ctx);
         const hi = s.hand.indexOf(cardNum);
@@ -2636,7 +2644,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const s = ownerState(tgtOwner, ctx);
       const mods = [...(s.temp_power_mods ?? []), { cardNum, delta }];
       const newS: PlayerState = { ...s, temp_power_mods: mods };
-      return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${delta > 0 ? '+' : ''}${delta}`));
+      return done(addLog(setOwnerState(tgtOwner, newS, ctx), `パワー${delta > 0 ? '+' : ''}${delta}`));
     }
     case 'POWER_MODIFY_BY_TARGET_LEVEL': {
       const a = action as PowerModifyByTargetLevelAction;
@@ -2659,7 +2667,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(tgtOwnerPMX, newSPMX, ctx), `×${pmxAction.multiplier}（+${deltaPMX}）`));
     }
     case 'ADD_TO_HAND': {
-      // ID1/
+      // インスタンスIDで正確な1枚を特定しデッキ/トラッシュから除去して手札へ
       const cn = getCardNum(cardNum);
       let s = { ...ctx.ownerState };
       const di = s.deck.indexOf(cardNum);
@@ -2674,10 +2682,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
       }
       const newS: PlayerState = { ...s, hand: [...s.hand, cardNum] };
-      return done(addLog({ ...ctx, ownerState: newS }, `${ctx.cardMap.get(cn)?.CardName ?? cn}`));
+      return done(addLog({ ...ctx, ownerState: newS }, `${ctx.cardMap.get(cn)?.CardName ?? cn}を手札に加える`));
     }
     case 'ADD_TO_ENERGY': {
-      // /
+      // デッキ/トラッシュから除去してエナゾーンへ
       const cnE = getCardNum(cardNum);
       let sE = { ...ctx.ownerState };
       const diE = sE.deck.indexOf(cardNum);
@@ -2692,7 +2700,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
       }
       const newSE: PlayerState = { ...sE, energy: [...sE.energy, cardNum] };
-      return done(addLog({ ...ctx, ownerState: newSE }, `${ctx.cardMap.get(cnE)?.CardName ?? cnE}`));
+      return done(addLog({ ...ctx, ownerState: newSE }, `${ctx.cardMap.get(cnE)?.CardName ?? cnE}をエナゾーンへ`));
     }
     case 'TRANSFER_TO_HAND': {
       const src = (action as TransferToHandAction).source;
@@ -2707,7 +2715,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (ei >= 0) { const e = [...newS.energy]; e.splice(ei, 1); newS = { ...newS, energy: e }; }
         newS = { ...newS, hand: [...newS.hand, cardNum] };
       }
-      return done(addLog(setOwnerState(src.owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+      return done(addLog(setOwnerState(src.owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札に加える`));
     }
     case 'ADD_TO_FIELD': {
       const owner = (action as AddToFieldAction).owner;
@@ -2728,17 +2736,17 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場に出す`));
     }
     case 'ATTACH_ACCE': {
-      // cardNum = SELECT_TARGET 
+      // cardNum = SELECT_TARGET で選ばれたシグニ
       const acceAction = action as import('../types/effects').AttachAcceAction;
       const tgtState = ownerState(acceAction.targetSigniOwner, ctx);
       const srcState = ownerState(acceAction.sourceOwner, ctx);
-      // cardNum = SELECT_TARGET
+      // cardNum = SELECT_TARGETで選ばれたホストシグニ
       const zoneIdx  = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
-      // acce= sourceCardNum lastProcessedCards[0]
+      // acceカード = sourceCardNum（エナゾーンからの場合）または lastProcessedCards[0]（手札選択後）
       const acceCardNum = ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
       if (!acceCardNum) return done(ctx);
-      // 
+      // エナゾーンまたは手札からアクセカードを除去
       let newSrc = { ...srcState };
       if (newSrc.energy.includes(acceCardNum)) {
         newSrc = { ...newSrc, energy: newSrc.energy.filter(n => n !== acceCardNum) };
@@ -2748,7 +2756,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}がエナ/手札にない`));
       }
       let ctx2 = setOwnerState(acceAction.sourceOwner, newSrc, ctx);
-      // signi_acce[zoneIdx] 
+      // signi_acce[zoneIdx] に設定
       const tgt2 = ownerState(acceAction.targetSigniOwner, ctx2);
       const newAcce = [...(tgt2.field.signi_acce ?? [null, null, null])];
       newAcce[zoneIdx] = acceCardNum;
@@ -2756,19 +2764,20 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       ctx2 = setOwnerState(acceAction.targetSigniOwner, newTgt, ctx2);
       const acceCardName  = ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum;
       const signiCardName = ctx.cardMap.get(cardNum)?.CardName ?? cardNum;
-      // ON_ACCE :  ON_ACCE AUTO 
-      // attleScreen queueCardEffects  ON_ACCE 
+      // ON_ACCE トリガー: アクセしたことでフィールドシグニの ON_ACCE AUTO 効果を発火
+      // （BattleScreen側の queueCardEffects で ON_ACCE を処理）
       const ctx3 = addLog(ctx2, `${acceCardName}${signiCardName}`);
-      // acce_just_done : BattleScreen ON_ACCE 
+      // acce_just_done フラグ: BattleScreenで ON_ACCE トリガーを検出するために使用
       const tgt3 = ownerState(acceAction.targetSigniOwner, ctx3);
       const withFlag: import('../types').PlayerState = {
         ...tgt3,
-        acce_just_done: cardNum, // cardNum
+        acce_just_done: cardNum, // ホストシグニのcardNum
       };
       return done(setOwnerState(acceAction.targetSigniOwner, withFlag, ctx3));
     }
     case 'SEQUENCE': {
-      // SEARCH  thenAction SEQUENCE[REVEAL, ADD_TO_HAND]       // cardNum 
+      // SEARCH の thenAction が SEQUENCE[REVEAL, ADD_TO_HAND] 等の場合、
+      // cardNum を各ステップに引き継いで実行する
       const steps = (action as import('../types/effects').SequenceAction).steps;
       let cur = ctx;
       for (const step of steps) {
@@ -2779,7 +2788,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(cur);
     }
     case 'NEGATE_ATTACK': {
-      // cardNum  negated_attacks 
+      // cardNum を対象シグニの negated_attacks に追加
       const na = action as import('../types/effects').NegateAttackAction;
       const tgtOwner = na.target.owner === 'any' ? 'opponent' : na.target.owner as Owner;
       const s = ownerState(tgtOwner, ctx);
@@ -2789,7 +2798,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
     case 'BLOOD_CRYSTAL_ARMOR': {
-      // cardNum = ELECT_TARGET
+      // cardNum = 血晶武装する対象シグニ（SELECT_TARGETで選ばれたフィールドシグニ）
       const bcaA = action as import('../types/effects').BloodCrystalArmorAction;
       const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
@@ -2801,7 +2810,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       let foundCard: string | null = null;
       let shuffleNeeded = false;
 
-      // hand / trash eck 
+      // hand / trash から同名カードを探す（deck は最後に）
       for (const src of bcaA.source) {
         if (src === 'hand') {
           const idx = newState.hand.findIndex(n => ctx.cardMap.get(n)?.CardName === sameName);
@@ -2816,37 +2825,38 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       if (!foundCard) return done(addLog({ ...ctx, ownerState: newState }, `血晶武装対象なし（${sameName}）`));
 
-      // 
+      // シグニスタックの先頭に追加（下に置く）
       const newSigni = newState.field.signi.map((stack, i) => {
         if (i !== zoneIdx) return stack;
         return [foundCard!, ...(stack ?? [])];
       }) as (string[] | null)[];
 
-      // truerue
+      // 血晶武装フラグを立てる（既にtrueでもtrueのまま）
       const wasAlreadyArmored = newState.field.signi_armor?.[zoneIdx] ?? false;
       const newArmor = [...(newState.field.signi_armor ?? [false, false, false])];
       newArmor[zoneIdx] = true;
 
       newState = { ...newState, field: { ...newState.field, signi: newSigni, signi_armor: newArmor as boolean[] } };
 
-      // 
+      // デッキから武装した場合はシャッフル
       if (shuffleNeeded) {
         newState = { ...newState, deck: [...newState.deck].sort(() => Math.random() - 0.5) };
       }
 
       const newCtx = { ...ctx, ownerState: newState };
       const logMsg = `${sameName}を血晶武装${wasAlreadyArmored ? '（追加）' : ''}`;
-      // wasAlreadyArmored  lastProcessedCards       // ON_BLOOD_CRYSTAL_ARMOR BattleScreen
+      // wasAlreadyArmored を外部トリガー検出のために lastProcessedCards として渡す
+      // ON_BLOOD_CRYSTAL_ARMOR トリガーはBattleScreen側で検出・発火する
       return done(addLog(newCtx, logMsg));
     }
     case 'PLACE_UNDER_SOURCE_SIGNI': {
-      // ctx.sourceCardNum  cardNum 
+      // ctx.sourceCardNum にあるシグニのゾーンに cardNum を下から追加
       const fromLoc = (action as import('../types/effects').PlaceUnderSourceSigniAction).fromLocation;
       const sourceCard = ctx.sourceCardNum;
       if (!sourceCard) return done(ctx);
       const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.includes(sourceCard));
       if (zoneIdx === -1) return done(ctx);
-      // 
+      // 移動元のリストから除去
       let newState = { ...ctx.ownerState };
       if (fromLoc === 'trash') {
         newState = { ...newState, trash: newState.trash.filter(c => c !== cardNum) };
@@ -2862,14 +2872,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }) as (string[] | null)[];
         newState = { ...newState, field: { ...newState.field, signi: newSigniWithRemoval } };
       }
-      // 
+      // ゾーンの先頭に追加（下に置く）
       const newSigni = newState.field.signi.map((stack, i) => {
         if (i !== zoneIdx) return stack;
         return [cardNum, ...(stack ?? [])];
       }) as (string[] | null)[];
       newState = { ...newState, field: { ...newState.field, signi: newSigni } };
       return done(addLog({ ...ctx, ownerState: newState },
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をシグニの下に置いた`));
     }
     case 'DOWN': {
       const downA = action as import('../types/effects').DownAction;
@@ -2880,7 +2890,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const newDown = [...(downS.field.signi_down ?? [false, false, false])] as boolean[];
       newDown[zoneIdx] = true;
       return done(addLog(setOwnerState(downOwner, { ...downS, field: { ...downS.field, signi_down: newDown } }, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をダウン`));
     }
     case 'FREEZE': {
       const frzA = action as import('../types/effects').FreezeAction;
@@ -2921,11 +2931,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'TAKE_FROM_UNDER_SIGNI': {
       const ta = action as import('../types/effects').TakeFromUnderSigniAction;
-      // cardNum 
+      // cardNum をシグニゾーンの下カードから除去
       const newSigni = ctx.ownerState.field.signi.map(stack => {
         if (!stack) return stack;
         const idx = stack.indexOf(cardNum);
-        if (idx === -1 || idx === stack.length - 1) return stack; //  or 
+        if (idx === -1 || idx === stack.length - 1) return stack; // 上にある or 最上位(シグニ自体)
         return [...stack.slice(0, idx), ...stack.slice(idx + 1)];
       }) as (string[] | null)[];
       let newOwner = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigni } };
@@ -2941,7 +2951,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${destLabel}`));
     }
     default:
-      // STUB  cardNum lastProcessedCards 
+      // STUB 等の場合、選択中の cardNum を lastProcessedCards で引き渡す
       return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
   }
 }

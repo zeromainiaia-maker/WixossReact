@@ -10,6 +10,87 @@
 
 ymsty側のClaude (Fable 5) セッションからの引き継ぎ。コミット `fix: コスト/リミットアッパー/開始時コイン/ライド・デコレのバグ修正とチェッカー誤検出解消` の続きを行う。
 
+---
+
+## 🚨 2026-06-11 ymsty側: effectExecutor.ts の文字化け破損を発見・修復（zerom側に残作業あり）
+
+アクション不一致の調査中に重大な問題を発見し、このセッションは破損修復を優先した。
+
+### 経緯（確定事実）
+
+1. **020302f**（6/4 00:12, v0.187）が `effectExecutor.ts`（281行）と `execStub.ts`（2510行）の日本語を
+   **UTF-8→CP932誤読の文字化け**で破壊（例: `シグニ` → `繧ｷ繧ｰ繝・`）。
+2. `execStub.ts` は当日中に **983df86**「execStub.ts を1aba8f5ベースに戻してCI修正」で復元された。
+   現在の execStubPart1〜3 は復元後の分割なので無事（化け0件確認済み）。
+3. **`effectExecutor.ts` だけは復元されず**、**4f4c77c**（6/4 01:22）が化け文字を**削除**しただけで
+   今日まで残存していた（334行が破損。日本語文字列が空になり、一部はクォートがコードを飲み込んだ）。
+
+### 機能影響していた実バグ（今回修復済み）
+
+- **RECOLLECT_GATE**: `Type === 'アーツ'` が `Type === ''` になりリコレクト条件が**常に不成立**
+  （リコレクトを持つ全アーツの追加効果が死んでいた）
+- **OPTIONAL_TRASH_ENERGY_CLASS**: 枚数解析の正規表現が化けて**常に1枚**扱い
+- **execPlayFree**: lrig_deck検索の `cands = ...` 代入行がコメントに飲み込まれ**デッドコード化**
+- CHOOSEの「スキップ」「支払う」等のUIラベルが空文字（ボタンが無文字表示）
+- 各種ログ文字列・コメント多数
+
+### 修復方法（再現可能）
+
+正本は `git show '020302f^:src/engine/effectExecutor.ts'`。
+化けは可逆（化け文字列をCP932にエンコードし直しUTF-8でデコード）だが、
+**`・`（U+30FB）はデコード不能ペアの置換マーカーで2バイト損失**しており、
+0x8145として再エンコードすると前後と偶然つながり**正しいUTF-8に見える誤復元**になる
+（例: `'アーツ'` → `'アーチE` で閉じクォート消失）。`・`を含む行の機械復元は要監査。
+復元スクリプトは ymsty 側 `tmp_verify/`（gitignore対象）: repairCorruption.mjs / applyAnswers.mjs /
+auditRoundtrip.mjs / fixRoundtrip.mjs。
+
+### zerom側への残作業
+
+1. **残存ダメージの掃討**: 4f4c77c以降の107コミットが破損行を変更しており、内容一致で復元できなかった
+   約120行は後続コミットで修正済みと推定されるが、ログ文字列が空のまま残っている可能性がある。
+   `grep -nE "addLog\((ctx|cur|c)[0-9]?, ''\)|label: ''" src/engine/effectExecutor.ts` 等で残存確認を推奨。
+2. **動作確認**: リコレクト条件アーツ（WX26-CP1-001等）がゲート判定されること、
+   CHOOSEダイアログのラベルが表示されること。
+3. **デプロイ**: このセッションは修復コミット+pushのみ。CI（tsc 0 / lint 0 errors / checkAllEffects 0件）
+   確認済みだが、動作確認後に version bump + `vercel deploy --prod` を行うこと。
+4. **教訓**: `auto: Claude による変更` の自動コミットフックは破損もそのまま積むため、
+   大量行数の auto コミット（±300行超の同数置換）は破損シグナルとして警戒する。
+
+### アクション不一致調査で得た知見（残作業1の続行に必要）
+
+- 「シグニをエナゾーンに置く」は `ENERGY_CHARGE`+target（フィールド対応済み）。`MOVE_TO_ENERGY` という
+  アクション型はエンジンに存在しない（verifyEffectsのエイリアスにのみ登場）。
+- JSONの `CHOOSE` は相手選択（opponentResponds）未対応。`types/effects.ts` の ChooseAction に
+  `opponentResponds?: boolean` を追加し `execChoose` で `needsInteraction` に透過すれば実現できる
+  （BattleScreen側は対応済み）。「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」
+  （SPDi43-32）等に必要。
+- 「何もしない」選択肢の表現は `{"type":"SEQUENCE","steps":[]}`。
+- 「次のあなたのアタックフェイズ開始時」等の遅延発動は**即時実行で近似**するのが既存慣例
+  （WX24-P1-007等。遅延トリガー機構は存在しない）。
+- **⚠ TARGET_AND_DISCARD_HAND の二重実行バグ疑い**（effectExecutor.ts execSequence内、現L920付近）:
+  インターセプトが「相手シグニ選択→BANISH→手札1枚捨て」をハードコードした上で、
+  残ステップの `CONDITIONAL(IS_MY_TURN)→BANISH(owner:'self')` を continuation に**素通し**するため、
+  `IS_MY_TURN` は常にtrue（execUtils）で**自分のシグニへの追加BANISHが実行される**疑いが濃厚。
+  正しくは TOSOC（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST, 現L1062付近）の `fixOwnerTOSOC` と同様に、
+  直後の CONDITIONAL を**消費**して `then`（owner self→opponent修正）を thenAction に使うべき。
+  then の型は BANISH 以外に BOUNCE/POWER_MODIFY/ENERGY_CHARGE/DRAW 等があり（52カード）、
+  ハードコードBANISHではこれらのカードも誤動作する。修正時は applyDirectAction が
+  選択カードに直接適用される（未対応型は executeAction+lastProcessedCards フォールバック）ことを利用。
+
+### Sheet10 アクション不一致5件の分析結果（修正方針確定済み・未適用）
+
+| カード | 不一致 | 判定と方針 |
+|---|---|---|
+| WX24-D4-06 樹木堕絡 | MOVE_TO_ENERGY | **実バグ**: テキスト「エナゾーンに置く」がJSONでは`BANISH`。`ENERGY_CHARGE`+target(opponent SIGNI, maxPower8000)へ。さらに`REVEAL_AND_PICK`のpickCountが1（正: 2）でfilter（緑）も欠落 |
+| PR-Di035 OPEN DREAM LAND! | MOVE_TO_ENERGY | **実バグ多数**: 黒効果のTRASH対象がowner:self（正: opponent のデッキ20枚）、赤のLIFE_CRASHがowner:self（正: opponent）、緑はBANISH ALL（正: ENERGY_CHARGE ALL）、青のDRAW 3欠落、5色効果が無条件逐次実行（正: 色条件分岐。CONDITIONAL+HAS_CARD_IN_FIELD{story:'プリパラ',color:X}+FIELD_COUNT>=3 のANDで近似）、トラッシュ回収のstoryフィルタ欠落 |
+| SPDi43-32 Bグレートソード | DRAW | **実バグ**: E1が`ENERGY_CHARGE_FROM_DECK` owner:self固定。正: 対戦相手がドロー/エナチャージ/しないを選択（要opponentResponds CHOOSE、上記エンジン拡張）|
+| SPDi43-15 マドカ | DISCARD | STUB `TARGET_AND_DISCARD_HAND`(✅)が手札捨てを実装済み→検証側でSTUB同等マップ対応。ただし上記二重実行バグの影響対象 |
+| SPDi43-26 ノヴァ | BOUNCE | **実バグ**: E2のJSONがLOOK_AND_REORDERのみで「2枚まで手札に加え」（REVEAL_PICK_HAND_SHUFFLE_BOTTOM相当）と後半「ガード捨て→バウンス」（TADH+CONDITIONAL→BOUNCE）が丸ごと欠落。E1のtimingも`ON_ATTACK_SIGNI`（正: `ON_ATTACK_LRIG`、テキスト「このルリグがアタックしたとき」）|
+
+検証側の対応方針（[STUB代替?]の解消）: `verifyEffects.ts` の `collectActionsFromJson` でSTUB idも収集し、
+`STUB_EQUIVALENTS: Record<string, string[]>`（例: `TARGET_AND_DISCARD_HAND→['DISCARD','TRASH']`）で
+実装済みSTUBを期待アクションの同等物として照合する。
+
 ## 前提知識（このリポジトリの検証ワークフロー）
 
 - カード効果の正データは `public/data/effects_{WX,WXDi,WX24_26,WXK,misc}.json`（各1行ミニファイ形式）。
