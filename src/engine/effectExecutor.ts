@@ -2043,8 +2043,8 @@ function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
   const tgtState = a.targetOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
   const ZONE_COUNT = 3;
   const virus = [...(tgtState.field.signi_virus ?? [0, 0, 0])];
-  //
-   const available = [0, 1, 2].filter(i => virus[i] === 0);
+  // どのゾーンに置けるか（まだウィルスが置かれていないゾーン）
+  const available = [0, 1, 2].filter(i => virus[i] === 0);
 
   let placed = 0;
   if (a.zoneCount === 'ALL') {
