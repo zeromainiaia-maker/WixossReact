@@ -145,14 +145,16 @@ const save = (f, j) => fs.writeFileSync(path.join(root, 'public/data', f), JSON.
   }
 
   // WXDi-P16-092 トルネンブラ: 【常】色喪失効果が欠落していた（エンジンにSTUB実装あり）
-  j['WXDi-P16-092'].push({
-    effectId: 'WXDi-P16-092-E2',
-    effectType: 'CONTINUOUS',
-    action: { type: 'STUB', id: 'LOSE_COLOR_ALL_ZONES' },
-    duration: 'PERMANENT',
-    mandatory: true,
-    parseStatus: 'AUTO',
-  });
+  if (!j['WXDi-P16-092'].some(e => e.effectId === 'WXDi-P16-092-E2')) {
+    j['WXDi-P16-092'].push({
+      effectId: 'WXDi-P16-092-E2',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'LOSE_COLOR_ALL_ZONES' },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'AUTO',
+    });
+  }
 
   save('effects_WXDi.json', j);
   console.log('effects_WXDi.json: WXDi-P02-046, WXDi-P03-085, WXDi-P16-048, WXDi-P16-092 修正');
