@@ -18,6 +18,7 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost,
 } from './execUtils';
+import { parseChoiceOptionsFromText } from './choiceTextParser';
 
 export function execStubPart1(
   stub: StubAction,
