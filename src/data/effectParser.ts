@@ -1112,7 +1112,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
 
   const baseType = card.Type?.split('/')[0] ?? '';
-  if (baseType === 'アーツ' || baseType === 'ピース') {
+  if (baseType === 'アーツ' || baseType === 'ピース' || baseType === 'リレーピース') {
     const e = parseArtsEffect(card);
     if (e) effects.push(e);
   } else if (baseType === 'スペル') {
