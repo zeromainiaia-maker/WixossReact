@@ -1316,8 +1316,8 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
   const count = resolveNum(a.count);
   const cards = state.deck.slice(0, count);
   if (cards.length === 0) return done(ctx);
-  //
-   const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
+  // 一時的にデッキからカードを取り除く
+  const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
   const newCtx = setOwnerState(a.source.owner as Owner, newS, ctx);
   return needsInteraction(newCtx, {
     type: 'LOOK_AND_REORDER',
