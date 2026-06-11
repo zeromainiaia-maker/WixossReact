@@ -212,6 +212,8 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   REVEAL_TOP_BANISH_BY_LEVEL_SUM: ['BANISH', 'MILL'],
   // デッキ上N枚公開→選択→手札/エナ（then:'energy'対応済み）、残りはrestDest先へ
   REVEAL_PICK_HAND_SHUFFLE_BOTTOM: ['MOVE_TO_ENERGY'],
+  // デッキトップ公開→レベル別効果（Lv1:パワー+5000/Lv2:エナ/Lv3:ランサー/Lv4:ドロー/Lv5:バニッシュ、本実装済み）
+  REVEAL_TOP_LEVEL_ROUTE: ['BANISH', 'DRAW', 'MOVE_TO_ENERGY', 'POWER_MODIFY'],
 };
 
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
