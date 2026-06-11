@@ -967,7 +967,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const optionsLUCO = [
             {
               id: 'pay', available: hasUnder,
-              label: underName ? `${underName}` : '',
+              label: underName ? `「${underName}」を使用して発動` : 'シグニ下のカードを使用して発動',
               action: payActionLUCO,
             },
             { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
