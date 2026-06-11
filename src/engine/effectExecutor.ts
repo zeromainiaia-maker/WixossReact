@@ -1322,7 +1322,10 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     action: ch.action,
     available: ch.condition ? evalCondition(ch.condition, ctx) : true,
   }));
-  return needsInteraction(ctx, { type: 'CHOOSE', options, count: a.choose_count });
+  return needsInteraction(ctx, {
+    type: 'CHOOSE', options, count: a.choose_count,
+    ...(a.opponentResponds ? { opponentResponds: true } : {}),
+  });
 }
 
 function execConditional(a: ConditionalAction, ctx: ExecCtx): ExecResult {
