@@ -808,10 +808,13 @@ function stripKeywordPrefixes(text: string): string {
 // ===== 単一ブロックパース =====
 
 function parseBlock(cardNum: string, block: string, index: number): CardEffect | null {
-  const typeM = block.match(/^【(クロス)?(常|出|起|自|ガード)】/);
+  const typeM = block.match(/^【(クロス)?(ドライブ|チーム)?(常|出|起|自|ガード)】/);
   if (!typeM) return null;
   const isCrossOnly = typeM[1] === 'クロス';
-  const marker = typeM[2];
+  // ドライブ：そのシグニがドライブ状態であるかぎり有効（IS_DRIVE_STATE条件）
+  // チーム：チームルリグが揃っているかぎり有効（既存JSONの慣例に合わせ条件なしで登録）
+  const isDrive = typeM[2] === 'ドライブ';
+  const marker = typeM[3];
 
   // 【ガード】キーワードは効果として登録しない（ルール処理済み）
   if (marker === 'ガード') return null;
