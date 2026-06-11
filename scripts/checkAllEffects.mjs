@@ -154,11 +154,15 @@ for (const { json, csvs } of FILES) {
     // ── 1. effectType不一致 ──────────────────────────────────
     // 「効果付与」パターン（「『【自】〜』を得る」「『【常】〜』を得る」）は除外
     // 括弧内の説明文も除外
-    const effNoGrant = eff
+    // 「【自】能力」「【出】【起】能力」のような能力種別への言及は宣言ではないため除去
+    const stripMentions = (s) => s.replace(/【[常自起出]】(?=(?:【[常自起出]】)*能力)/g, '');
+    const effNoGrant = stripMentions(eff)
       .replace(/「【[常自起]】[^」]*」/g, '')   // 「【常】〜」 形式の付与効果
+      .replace(/『[^』]*』/g, '')               // 『【自】〜』 形式の付与効果（チーム系アーツ等）
       .replace(/（[^）]*）/g, '');              // （）内の説明文
-    const burstNoGrant = burst
+    const burstNoGrant = stripMentions(burst)
       .replace(/「【[常自起]】[^」]*」/g, '')
+      .replace(/『[^』]*』/g, '')
       .replace(/（[^）]*）/g, '');
     const effStripped = effNoGrant + ' ' + burstNoGrant;
 
@@ -259,6 +263,7 @@ for (const { json, csvs } of FILES) {
     const effForOptCheck = eff
       .replace(/（[^）]*）/g, '')           // 括弧説明除外
       .replace(/「[^」]*してもよい[^」]*」/g, '') // 付与効果内除外
+      .replace(/『[^』]*』/g, '')           // 『〜』付与効果内除外
       .replace(/【起】.*?(?=【(?:出|自|常|起)】|$)/gs, ''); // 起動能力内除外（次の能力マーカーまで）
     const hasOptional = /してもよい/.test(effForOptCheck);
     // アクション木に辞退可能な表現があるか
