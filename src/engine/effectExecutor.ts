@@ -1050,7 +1050,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
           if (energyCandsOTEC.length === 0) {
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, `${reqClassOTEC || 'カード'}OPTIONAL_TRASH_ENERGY_CLASS`));
+            return done(addLog(cur, `エナに${reqClassOTEC || 'カード'}なし（OPTIONAL_TRASH_ENERGY_CLASS）`));
           }
           const toHandOTEC = !!(txtOTEC.match(/それを手札に加える/) || conditional.then.type === 'TRANSFER_TO_HAND');
           // conditional.then の BOUNCE/BANISH/DOWN の target.owner='self' → 'opponent' 修正
