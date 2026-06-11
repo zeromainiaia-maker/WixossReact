@@ -492,6 +492,9 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   } else if (src.type === 'ENERGY_CARD') {
     cands = energyCandidates(state, src.filter, ctx.cardMap);
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
+  } else if (src.type === 'HAND_CARD') {
+    cands = handCandidates(state, src.filter, ctx.cardMap);
+    scope = tgtOwner === 'self' ? 'self_hand' : 'opp_hand';
   } else {
     return done(ctx);
   }
@@ -502,17 +505,31 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     let cur = c;
     for (const n of selected) {
       const s = ownerState(tgtOwner, cur);
+      // 空きゾーンがない場合は移動させずスキップ（カード消失防止）
+      const emptyIdxCheck = s.field.signi.findIndex(z => !z || z.length === 0);
+      if (emptyIdxCheck < 0) {
+        cur = addLog(cur, '空きシグニゾーンがないため場に出せない');
+        continue;
+      }
       let newS = { ...s };
       if (srcDefined.type === 'TRASH_CARD') {
         newS = { ...newS, trash: newS.trash.filter(x => x !== n) };
       } else if (srcDefined.type === 'ENERGY_CARD') {
         newS = { ...newS, energy: newS.energy.filter(x => x !== n) };
+      } else if (srcDefined.type === 'HAND_CARD') {
+        newS = { ...newS, hand: newS.hand.filter(x => x !== n) };
       }
-      // 
+      //
       const signi = [...newS.field.signi] as (string[] | null)[];
       const emptyIdx = signi.findIndex(z => !z || z.length === 0);
       if (emptyIdx >= 0) signi[emptyIdx] = [n];
       newS = { ...newS, field: { ...newS.field, signi } };
+      // ダウン状態で場に出す（ミズフウセン等「ダウン状態で場に出してもよい」）
+      if (a.asDown && emptyIdx >= 0) {
+        const newDown = [...(newS.field.signi_down ?? [false, false, false])] as boolean[];
+        newDown[emptyIdx] = true;
+        newS = { ...newS, field: { ...newS.field, signi_down: newDown } };
+      }
       cur = addLog(setOwnerState(tgtOwner, newS, cur),
         `${cur.cardMap.get(n)?.CardName ?? n}をフィールドに出す`);
     }

@@ -1,0 +1,448 @@
+
+========== SKIPPABLE (17件) ==========
+
+[effects_misc.json] WDK05-T13 讃の遊　パックンチョ
+  CSV: 【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたのデッキの一番上を公開する。それがシグニの場合、それを場に出す。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[BOUNCE:opt → IF(IS_MY_TURN)[LOOK_AND_REORDER]ELSE[null] → ADD_TO_FIELD]
+
+[effects_misc.json] WDK05-T15 仁の遊　カマクラ
+  CSV: 【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたのデッキの一番上を公開する。それがシグニの場合、それをアタックしているシグニとしてダウン状態で場に出す。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[BOUNCE:opt → IF(IS_MY_TURN)[LOOK_AND_REORDER]ELSE[null] → ADD_TO_FIELD]
+
+[effects_WX.json] WX04-003 ミルルン・ヨクト
+  CSV: 【出】：対戦相手の手札を見て、その中からスペル１枚を、あなたの手札にあるかのようにコストを支払わずに限定条件を無視して使用してもよい。【起】《青》手札からスペル１枚と＜原子＞のシグニ１枚を捨てる：対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《スペルカットインアイコン》《青》《青》：スペル１つを対象とし、
+  JSON: AUTO(ON_PLAY): PLAY_FREE:opt
+
+[effects_WX.json] WX10-034 肆ノ遊姫　ベイゴマ
+  CSV: 【自】：このシグニがアタックしたとき、あなたの他のシグニを２体まで対象とし、それらをバニッシュしてもよい。その後、この効果でバニッシュしたシグニと同じ数だけエナゾーンからカードを対象とし、それらを手札に加える。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[BANISH:opt:upTo → TRANSFER_TO_HAND]
+
+[effects_WX.json] WX10-048 参ノ遊　キセカエ
+  CSV: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニをバニッシュしてもよい。その後、この効果でこのシグニをバニッシュしていた場合、あなたのエナゾーンからカード１枚を対象とし、それを手札に加える。
+  JSON: AUTO(ON_PLAY): SEQ[BANISH:opt → TRANSFER_TO_HAND]
+
+[effects_WX.json] WX12-031 羅原　Ｖ
+  CSV: 【自】：あなたのメインフェイズ開始時、対戦相手のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする。
+  JSON: AUTO(ON_PLAY): SEQ[BANISH:opt → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WX.json] WX13-044 羅石　ビスマス
+  CSV: 【自】：対戦相手がアーツを使用したとき、このシグニをバニッシュしてもよい。そうした場合、対戦相手のすべてのシグニをバニッシュする。（そのアーツのあとでこの能力は発動する。そのアーツでこのシグニが場を離れていた場合この効果は何もしない）
+  JSON: AUTO(ON_PLAY): SEQ[BANISH:opt → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WX.json] WX17-075 コードイート　タルタル
+  CSV: 【自】：このシグニの正面にレベル２以下のシグニ１体が出たとき、あなたはそのシグニをバニッシュしてもよい。【起】《緑》：あなたのシグニ１体を対象とし、このカードをエナゾーンからそれの【アクセ】にする。【常】：これにアクセされている＜調理＞のシグニは「【自】：このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき
+  JSON: AUTO(ON_PLAY): BANISH:opt
+  JSON: CONTINUOUS: BANISH:opt
+
+[effects_WX.json] WX20-050 大拳　ニャックル
+  CSV: 【自】：このシグニがアタックしたとき、あなたのカード名に《ニャローブ》を含むシグニ１体をバニッシュしてもよい。そうした場合、このシグニをアップする。【自】：対戦相手のターンの間、このシグニが場を離れたとき、あなたのデッキからカード名に《ニャローブ》を含むシグニ１枚を探して公開し手札に加えるか場に出し、デッキをシャッフル
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[BANISH:opt → IF(IS_MY_TURN)[UP]ELSE[null]]
+  JSON: AUTO(ON_PLAY): SEARCH
+
+[effects_WX.json] WX20-055 不屈の僭帝　エンジュ
+  CSV: 【常】：《ライズアイコン》を持つあなたのシグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。
+  JSON: CONTINUOUS: BANISH:opt
+
+[effects_WX.json] WX20-066 幻水　ギンクチ
+  CSV: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニを場から手札に戻してもよい。そうした場合、カードを１枚引く。
+  JSON: AUTO(ON_PLAY): SEQ[BOUNCE:opt → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WX24_26.json] WX24-P4-104 弐ノ遊　カミヨーヨー
+  CSV: 【自】：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、対戦相手のパワー7000以下のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする。
+  JSON: AUTO(ON_PLAY): SEQ[BANISH:opt → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WX24_26.json] WX25-P1-056 羅原闘姫　Ne
+  CSV: 【常】：あなたの＜原子＞のシグニが対戦相手の効果によって場を離れる場合、その移動がバニッシュによるものでないなら、代わりにそのシグニをバニッシュしてもよい。【起】《ターン１回》《青》アップ状態の＜原子＞のシグニ２体をダウンする：あなたの場に《ミルルン・ケミストリー》がいる場合、ターン終了時まで、このシグニは「【自】：あ
+  JSON: CONTINUOUS: BANISH:opt
+
+[effects_WXDi.json] WXDi-P08-053 羅星　ノヴァ//メモリア
+  CSV: 【自】：対戦相手のアタックフェイズ開始時、対戦相手のレベル２以下のシグニを１体まで対象とし、このシグニを場から手札に戻してもよい。そうした場合、ターン終了時まで、それは「【常】：アタックできない。」を得る。
+  JSON: AUTO(ATTACK): SEQ[BOUNCE:opt:upTo → IF(IS_MY_TURN)[BLOCK_ACTION]ELSE[null]]
+
+[effects_WXDi.json] WXDi-P11-072 壱ノ遊　メンコ
+  CSV: 【自】：このシグニがバトルによってシグニ１体をバニッシュしたとき、このシグニを場から手札に戻してもよい。そうした場合、【エナチャージ２】をする。
+  JSON: AUTO(ON_PLAY): SEQ[BOUNCE:opt → IF(IS_MY_TURN)[ENERGY_CHARGE_FROM_DECK]ELSE[null]]
+
+[effects_WXK.json] WXK10-057 讃の遊　ボブスレー
+  CSV: 【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたのデッキの一番上を公開する。それがシグニの場合、それをアタックしているシグニとしてダウン状態で場に出す。【起】《ターン１回》《白》他のシグニ１体を場からデッキの一番上に置く：対戦相手のレベル３以下のシグニ１体を対象とし、それ
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[BOUNCE:opt → IF(IS_MY_TURN)[LOOK_AND_REORDER]ELSE[null] → ADD_TO_FIELD]
+
+[effects_WXK.json] WXK10-061 密英の暗号　スキュタレー
+  CSV: 【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたの手札からレベル２の＜英知＞のシグニ１枚を場に出す。そのシグニの【出】能力は発動しない。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[BOUNCE:opt → IF(IS_MY_TURN)[ADD_TO_FIELD]ELSE[null] → BLOCK_ACTION]
+
+========== NEEDS_FIX (85件) ==========
+
+[effects_misc.json] WDK16-13 コードＶＬ　出雲霞
+  CSV: 【出】：あなたのデッキの一番上を公開する。この方法でレベル２以下の＜電機＞のシグニが公開された場合、それを場に出してもよい。あなたの登録者数が１００万人を達成していて、この方法でシグニが公開された場合、それを場に出してもよい。
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → IF(IS_MY_TURN)[ADD_TO_FIELD]ELSE[null] → ADD_TO_FIELD]
+
+[effects_WX.json] WX01-036 巨弓　カタパル
+  CSV: 【出】：あなたのデッキの一番上を見る。それがレベル２以下のシグニであなたの場に他のシグニがない場合、それを場に出してもよい。
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → ADD_TO_FIELD]
+
+[effects_WX.json] WX01-057 出弓　セフィラム
+  CSV: 【出】：あなたのデッキの一番上を見る。それがレベル２以下のシグニであなたの場に他のシグニがない場合、それを場に出してもよい。
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → IF(AND)[CHOOSE[ADD_TO_FIELD | SEQ[]]]ELSE[null]]
+
+[effects_WX.json] WX01-059 出弓　ボウ
+  CSV: 【出】：あなたのデッキの一番上を見る。それがレベル１のシグニであなたの場に他のシグニがない場合、それを場に出してもよい。
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → ADD_TO_FIELD]
+
+[effects_WX.json] WX02-073 コードアンチ　テキサハンマ
+  CSV: 【自】：このカードがデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。
+  JSON: AUTO(ON_PLAY): ADD_TO_FIELD
+
+[effects_WX.json] WX04-041 コードメイズ　スカイジュ
+  CSV: 【常】：あなたの場に他の＜迷宮＞のシグニがあるかぎり、このシグニの基本パワーは10000になる。【出】：対戦相手のすべてのシグニを好きなように配置し直してもよい。
+  JSON: CONTINUOUS: POWER_SET
+  JSON: AUTO(ON_PLAY): REARRANGE_SIGNI
+
+[effects_WX.json] WX04-052 堕落の虚無　パイモン
+  CSV: 【常】：あなたの＜悪魔＞のシグニ１体がバニッシュされる場合、代わりにそのシグニに付いている【チャーム】１枚をトラッシュに置いてもよい。【出】：あなたのデッキの一番上のカードをこのシグニの【チャーム】にしてもよい。（【チャーム】は裏向きでシグニに付き、１体に１枚までしか付けられない）
+  JSON: CONTINUOUS: CHARM_PROTECTION:opt
+  JSON: AUTO(ON_PLAY): ATTACH_CHARM
+
+[effects_WX.json] WX04-058 コードメイズ　タジマハ
+  CSV: 【常】：あなたの場に他の＜迷宮＞のシグニがあるかぎり、このシグニの基本パワーは7000になる。【出】：あなたのすべてのシグニを好きなように配置し直してもよい。
+  JSON: CONTINUOUS: POWER_SET
+  JSON: AUTO(ON_PLAY): REARRANGE_SIGNI
+
+[effects_WX.json] WX04-096 堕落の破戒　オリエンス
+  CSV: 【常】：このシグニに【チャーム】が付いているかぎり、このシグニの基本パワーは12000になる。【起】《ダウン》：あなたの＜悪魔＞のシグニ１体を対象とし、あなたのデッキの一番上のカードをそれの【チャーム】にしてもよい。（【チャーム】は裏向きでシグニに付き、１体に１枚までしか付けられない）
+  JSON: CONTINUOUS: POWER_SET
+
+[effects_WX.json] WX04-102 堕落の消滅　アリトン
+  CSV: 【自】：このカードが手札かデッキからトラッシュに置かれたとき、あなたのシグニ１体を対象とし、このカードをそれの【チャーム】にしてもよい。（【チャーム】は裏向きでシグニに付き、１体に１枚までしか付けられない）
+  JSON: AUTO(ON_TRASH): ATTACH_CHARM
+
+[effects_WX.json] WX08-046 幻蟲　タマムシ
+  CSV: 【出】：対戦相手のシグニ１体を対象とし、対戦相手のデッキの一番上のカードをそれの【チャーム】にしてもよい。（【チャーム】は裏向きでシグニに付き、１体に１枚までしか付けられない）
+  JSON: AUTO(ON_PLAY): ATTACH_CHARM
+
+[effects_WX.json] WX08-078 幻蟲　ミンミン
+  CSV: 【自】：このシグニが場を離れたとき、対戦相手のトラッシュから対象のカード１枚を対象の対戦相手のシグニ１体の【チャーム】にしてもよい。（【チャーム】は裏向きでシグニに付き、１体に１枚までしか付けられない）
+  JSON: AUTO(ON_PLAY): ATTACH_CHARM
+
+[effects_WX.json] WX08-080 幻蟲　ツクツク
+  CSV: 【自】：このシグニが場を離れたとき、対戦相手のトラッシュから対象のカード１枚を対象の対戦相手のシグニ１体の【チャーム】にしてもよい。
+  JSON: AUTO(ON_PLAY): ATTACH_CHARM
+
+[effects_WX.json] WX09-012 ブルーコードハート　Ｖ・＠・Ｃ
+  CSV: 【出現条件】《メインフェイズアイコン》　《コードハート　Ｖ・Ａ・Ｃ》１体とレゾナではない＜電機＞のシグニ１体をあなたの場からトラッシュに置く【自】：あなたが青のスペルを使用したとき、シグニ１体を対象とし、それをアップする。【出】：あなたのトラッシュからコストの合計が３以下の青のスペル１枚を対象とし、それをコストを支払わ
+  JSON: AUTO(ON_PLAY): UP
+  JSON: AUTO(ON_PLAY): PLAY_FREE_FROM_TRASH
+
+[effects_WX.json] WX10-007 祈願の使者　サシェ・モティエ
+  CSV: 【出】：あなたのデッキの一番上を見る。それがレベル３以下の＜宇宙＞のシグニの場合、それを場に出してもよい。
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → ADD_TO_FIELD]
+
+[effects_WX.json] WX10-021 ミュウ＝イクロ
+  CSV: 【出】：あなたのデッキの一番上を見る。それがレベル３以下の＜凶蟲＞のシグニの場合、それを場に出してもよい。
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → ADD_TO_FIELD]
+
+[effects_WX.json] WX10-092 コードアンチ　ハンマフェイク
+  CSV: 【自】：このカードがデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。
+  JSON: AUTO(ON_PLAY): ADD_TO_FIELD
+
+[effects_WX.json] WX11-026 聖火の祭壇　ヘスチア
+  CSV: 【自】：あなたのライフクロス１枚がクラッシュされたとき、このシグニをあなたのトラッシュから場に出してもよい。【出】：あなたのライフクロスが１枚以下の場合、あなたのデッキの上からカードを３枚公開する。その中から＜天使＞のシグニを２枚まで場に出し、残りを好きな順番でデッキの一番上に戻す。
+  JSON: AUTO(ON_PLAY): LIFE_CRASH
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → LOOK_AND_REORDER]
+
+[effects_WX.json] WX11-035 極鎚　ミョルニル
+  CSV: 【自】：あなたの＜アーム＞のシグニ１体が場を離れたとき、あなたの手札からそのシグニより低いレベルを持つシグニ１枚を場に出してもよい。
+  JSON: AUTO(ON_PLAY): ADD_TO_FIELD
+
+[effects_WX.json] WX12-010 ホワイトメイズ　ホデサパ
+  CSV: 【出現条件】《メインフェイズアイコン》《アタックフェイズアイコン》白のシグニ１枚と黒のシグニ１枚をあなたの手札から捨てる【常】：対戦相手のシグニは可能ならばアタックしなければならない。【自】：対戦相手のシグニ１体がアタックしたとき、ターン終了時まで、そのシグニのパワーを－2000する。【出】：対戦相手のすべてのシグニを
+  JSON: CONTINUOUS: FORCE_SIGNI_ATTACK
+  JSON: AUTO(ON_ATTACK_SIGNI): POWER_MODIFY
+  JSON: AUTO(ON_PLAY): SEQ[REARRANGE_SIGNI → UP]
+
+[effects_WX.json] WX13-052 参ノ遊　コイノボリ
+  CSV: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、あなたのデッキの一番上を公開する。それが＜遊具＞のシグニの場合、このシグニをバニッシュしてもよい。そうした場合、この効果で公開したシグニをダウン状態で場に出す。
+  JSON: AUTO(ON_PLAY): REVEAL_AND_PICK
+
+[effects_WX.json] WX14-009 炎・花代・伍
+  CSV: 【常】：このカードにグロウするためのコストは、あなたのトラッシュにあるカード名に《フレイスロ》を含むカード７枚につき《赤×1》減る。【自】：あなたのカード名に《フレイスロ》を含むシグニ１体が場を離れたとき、あなたの手札からそのシグニより低いレベルを持つ、カード名に《フレイスロ》を含むシグニ１枚をダウン状態で場に出しても
+  JSON: CONTINUOUS: GROW_COST_REDUCTION
+  JSON: AUTO(ON_PLAY): DOWN
+
+[effects_WX.json] WX14-026 羅石　スイカリン
+  CSV: 【常】：対戦相手のターンの間、このシグニがバニッシュされる場合、代わりにあなたのライフクロス１枚をクラッシュしてもよい。【出】：あなたは手札を１枚捨てる。この方法で捨てたカードが＜鉱石＞か＜宝石＞のシグニで、あなたのセンタールリグが赤の場合、ターン終了時まで、このシグニは【アサシン】を得る。
+  JSON: CONTINUOUS: LIFE_CRASH
+  JSON: AUTO(ON_PLAY): SEQ[TRASH → GRANT_KEYWORD]
+
+[effects_WX.json] WX14-033 大拳　カクシ
+  CSV: 【常】：このシグニはあなたの場に＜アーム＞のシグニが２体以上ないかぎり、新たに場に出すことができない。【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、あなたの他のシグニ１体をバニッシュしてもよい。そうした場合、このシグニをアップする。
+  JSON: CONTINUOUS: ADD_TO_FIELD
+  JSON: AUTO(ON_PLAY): SEQ[BANISH:opt → IF(IS_MY_TURN)[UP]ELSE[null]]
+
+[effects_WX.json] WX14-CB02 暁月
+  CSV: 【常】：あなたの《燦》はバニッシュされない。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのアップ状態の＜アーム＞のシグニ１体をダウンしてもよい。そうした場合、それを手札に戻す。
+  JSON: CONTINUOUS: GRANT_PROTECTION
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[DOWN → IF(IS_MY_TURN)[BOUNCE]ELSE[null]]
+
+[effects_WX.json] WX15-036 大幻蟲　§オタガメ§
+  CSV: 【自】：このカードが手札からトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。【出】：対戦相手のシグニ１体を対象とし、あなたの場に他の＜凶蟲＞のシグニがある場合、それをダウンし凍結する。
+  JSON: AUTO(ON_PLAY): ADD_TO_FIELD
+  JSON: AUTO(ON_PLAY): SEQ[DOWN → FREEZE]
+
+[effects_WX.json] WX15-039 死之遊姫　†ニホニンギョ†
+  CSV: 【自】：このシグニがアタックしたとき、ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－4000する。この効果によってそのシグニのパワーが０以下になった場合、このシグニをバニッシュしてもよい。そうした場合、あなたのトラッシュから対象の＜遊具＞のシグニ１枚を場に出す。【出】：このシグニがシグニの効果によって場に出た
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[POWER_MODIFY → BANISH:opt → IF(IS_MY_TURN)[ADD_TO_FIELD]ELSE[null]]
+  JSON: AUTO(ON_PLAY): TRANSFER_TO_HAND
+
+[effects_WX.json] WX16-038 忍猿の十勇　サルトビ
+  CSV: 【ライズ】あなたのレベル２以下の赤のシグニ１体の上に置く【出】：あなたのデッキの一番上を見る。それが《ライズアイコン》を持つ＜武勇＞のシグニの場合、それを場に出してもよい。【自】：このシグニがライズされたとき、あなたのデッキの一番上を見る。それが《ライズアイコン》を持たない＜武勇＞のシグニの場合、それを場に出してもよい
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → ADD_TO_FIELD]
+
+[effects_WX.json] WX16-070 仕英の文章　＃シゴト＃
+  CSV: 【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのレベルを＋１するか＋２してもよい。
+  JSON: AUTO(ON_ATTACK_SIGNI): LEVEL_MODIFY
+
+[effects_WX.json] WX17-028 羅星姫　≡ソラフレア≡
+  CSV: 【自】：このシグニがアタックしたとき、あなたのトラッシュからそれぞれレベルの異なる＜宇宙＞のシグニ４枚をデッキに戻してシャッフルしてもよい。そうした場合、ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。【出】《赤×0》:あなたのデッキの上からカードを４枚公開する。その後、パワーが「この方法で公開したシグニのレ
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[TRANSFER_TO_DECK → IF(IS_MY_TURN)[GRANT_KEYWORD]ELSE[null]]
+
+[effects_WX.json] WX18-002 哀罪の駄姫　グズ子
+  CSV: 【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたの＜遊具＞のシグニ１体がバニッシュされたとき、あなたのデッキの一番上を公開する。それが＜遊具＞のシグニの場合、それを場に出してもよい。【出】：あなたのデッキから＜遊具＞のシグニ１枚を探して場に出し、デッキをシャッフルする。【起】ダイレクト《ターン１回》《コイン
+  JSON: AUTO(ON_BANISH): REVEAL_AND_PICK
+  JSON: AUTO(ON_PLAY): SEARCH
+
+[effects_WX.json] WX20-034-CB 偉智の遊　*ハッカドール１号*
+  CSV: 【出】：あなたの手札から白ではないレベル３以下の＜遊具＞のシグニ１枚を場に出してもよい。そうした場合、カードを１枚引く。
+  JSON: AUTO(ON_PLAY): SEQ[ADD_TO_FIELD → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WX.json] WX20-039-CB 丹乃遊　≡ハッカドール２号≡
+  CSV: 【出】：対戦相手のパワー5000以下のシグニ１体を対象とし、あなたの手札から赤ではないレベル３以下の＜遊具＞のシグニ１枚を場に出してもよい。そうした場合、その対戦相手のシグニをバニッシュする。
+  JSON: AUTO(ON_PLAY): SEQ[ADD_TO_FIELD → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WX.json] WX20-067 文脈の攻防　モダーン
+  CSV: 【自】：アタックフェイズの間、カード１枚がいずれかのプレイヤーの手札に加えられたとき、対戦相手のシグニ１体を対象とし、《白》を支払い、アップ状態のこのシグニをダウンしてもよい。そうした場合、それを手札に戻す。【出】：あなたのトラッシュにカード名に《コンテンポラ》を含むカードがある場合、あなたのデッキから＜美巧＞のシグニ
+  JSON: AUTO(ON_PLAY): SEQ[DOWN → IF(IS_MY_TURN)[BOUNCE]ELSE[null]]
+  JSON: AUTO(ON_PLAY): SHUFFLE_DECK
+
+[effects_WX.json] WX20-082 幻蟲　カレハチョウ
+  CSV: 【自】：このカードが手札かデッキからトラッシュに置かれたとき、対戦相手のトラッシュから対象のカード１枚を対象の対戦相手のシグニ１体の【チャーム】にしてもよい。
+  JSON: AUTO(ON_TRASH): ATTACH_CHARM
+
+[effects_WX.json] WX21-065 幻竜　＃プロケラ#
+  CSV: 【出】：あなたの手札から名前の異なる＜龍獣＞のシグニを２枚まで公開してもよい。
+  JSON: AUTO(ON_PLAY): REVEAL
+
+[effects_WX.json] WX21-Re06 コードアンチ　カイヅカ
+  CSV: 【自】：あなたのトラッシュからシグニ１体が場に出たとき、このシグニをトラッシュから場に出してもよい。そうした場合、ターン終了時に、またはこのシグニが場から離れる場合に、このシグニをゲームから除外する。【出】：対戦相手のシグニ１体を対象とし、このシグニがトラッシュから場に出た場合、ターン終了時まで、それのパワーを－500
+  JSON: AUTO(ON_TURN_END): SEQ[ADD_TO_FIELD → IF(IS_MY_TURN)[TRASH]ELSE[null]]
+  JSON: AUTO(ON_PLAY): POWER_MODIFY
+
+[effects_WX.json] WX17-055 混成の怪物　フンババ
+  CSV: 【ライズ】あなたのレベル２以下の赤のシグニ１体の上に置く【自】：対戦相手のターンの間、このシグニが場を離れたとき、あなたのトラッシュからこのシグニの下にあった《ライズアイコン》を持たないシグニ１枚を対象とし、それを場に出してもよい。それの【出】能力は発動しない。
+  JSON: AUTO(ON_PLAY): SEQ[ADD_TO_FIELD → BLOCK_ACTION]
+
+[effects_WX24_26.json] WX24-P1-069 コードアート　Sエーバー
+  CSV: 【自】：あなたがスペルを使用したとき、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  JSON: AUTO(ON_PLAY): SEQ[DOWN → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WX24_26.json] WX24-P2-077 弍ノ遊　ミズフウセン
+  CSV: 【自】：あなたのアタックフェイズの間、このシグニが場を離れたとき、あなたの手札からレベル１の＜遊具＞のシグニ１枚をダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。【自】：あなたのターン終了時、このターンにあなたの効果によってこのシグニが場に出ていた場合、カードを１枚引くか、対戦相手は手札を１枚捨てる。
+  JSON: AUTO(ON_PLAY): SEQ[DOWN → BLOCK_ACTION]
+  JSON: AUTO(ON_TURN_END): DRAW
+
+[effects_WX24_26.json] WX24-P2-078 弍ノ遊　ミズデッポウ
+  CSV: 【自】：アタックフェイズの間、このシグニが場を離れたとき、あなたの手札からレベル１の＜遊具＞のシグニ１枚をダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。
+  JSON: AUTO(ON_PLAY): SEQ[DOWN → BLOCK_ACTION]
+
+[effects_WX24_26.json] WX24-P3-077 幻水　マンボウ
+  CSV: 【自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  JSON: AUTO(ATTACK): SEQ[DOWN → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WX24_26.json] WX24-P4-040 ミルルン☆スティール
+  CSV: 【出】：カードを２枚引く。【出】：対戦相手の手札を見て１枚選び、捨てさせる。そのカードがコストの合計が１以下のスペルの場合、対戦相手のトラッシュからそのスペルをコストを支払わずに使用してもよい。（コストの合計とは、カードの左上のエナコストの数字の合計である。例えばコストが《白×1》《無×1》の場合、コストの合計は２であ
+  JSON: AUTO(ON_PLAY): DRAW
+  JSON: AUTO(ON_PLAY): SEQ[TRASH → PLAY_FREE:opt]
+
+[effects_WX24_26.json] WX24-P4-052 羅原姫　Ｌａ
+  CSV: 【自】：このシグニがバニッシュされたとき、対戦相手の手札を１枚見ないで選び、捨てさせる。【自】：このシグニがアタックしたとき、そのアタック終了時、対戦相手のパワー8000以下のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする。
+  JSON: AUTO(ON_BANISH): TRASH
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[BANISH:opt → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WX24_26.json] WX24-P4-070 壱ノ遊　ビニールプール
+  CSV: 【自】：あなたのアタックフェイズの間、このシグニが場を離れたとき、あなたの手札からレベル１の＜遊具＞のシグニ１枚をダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。
+  JSON: AUTO(ON_PLAY): SEQ[DOWN → BLOCK_ACTION]
+
+[effects_WX24_26.json] WX25-P1-055 羅植姫　ダイナマイトツリー
+  CSV: 【自】：あなたのアタックフェイズ開始時、対戦相手のパワー8000以下のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、それをバニッシュする。【自】：あなたのターン終了時、対戦相手のエナゾーンから無色のカード１枚を対象とし、それをトラッシュに置く。
+  JSON: AUTO(ATTACK): SEQ[DOWN → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+  JSON: AUTO(ON_TURN_END): TRASH
+
+[effects_WX24_26.json] WX25-P1-069 羅原　Ca
+  CSV: 【自】：このシグニがバニッシュされたとき、あなたのデッキの上からカードを３枚見る。その中から＜原子＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。【自】：対戦相手のターン終了時、このシグニをバニッシュしてもよい。
+  JSON: AUTO(ON_BANISH): LOOK_AND_REORDER
+  JSON: AUTO(ON_TURN_END): BANISH:opt
+
+[effects_WX24_26.json] WX25-P1-083 羅原　Hf
+  CSV: 【自】：このシグニがバニッシュされたとき、対戦相手は手札を１枚捨てる。【自】：対戦相手のターン終了時、このシグニをバニッシュしてもよい。
+  JSON: AUTO(ON_BANISH): TRASH
+  JSON: AUTO(ON_TURN_END): BANISH:opt
+
+[effects_WX24_26.json] WX25-P1-099 コードオールド　テキサハンマ
+  CSV: 【自】：あなたのメインフェイズの間、このカードがあなたの＜古代兵器＞のシグニの効果によってデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。
+  JSON: AUTO(ON_PLAY): ADD_TO_FIELD
+
+[effects_WX24_26.json] WX25-P1-104 コードオールド　ハンマフェイク
+  CSV: 【自】：あなたのメインフェイズの間、このカードがあなたの＜古代兵器＞のシグニの効果によってデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。
+  JSON: AUTO(ON_PLAY): ADD_TO_FIELD
+
+[effects_WX24_26.json] WX25-P2-057 羅原姫　Pt
+  CSV: 【自】《ターン１回》：あなたの青のシグニ１体がバニッシュされたとき、以下の２つから１つを選ぶ。①カードを１枚引く。②あなたの手札からレベル１のシグニ１枚をダウン状態で場に出す。そのシグニの【出】能力は発動しない。【自】：対戦相手のターン終了時、このシグニをバニッシュしてもよい。そうした場合、対戦相手は手札を１枚捨てる。
+  JSON: AUTO(ON_BANISH): CHOOSE[DRAW | SEQ[DOWN → BLOCK_ACTION]]
+  JSON: AUTO(ON_TURN_END): SEQ[BANISH:opt → IF(IS_MY_TURN)[TRASH]ELSE[null]]
+
+[effects_WX24_26.json] WX25-P2-085 蒼将　タイコウボウ
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたの場に他の＜武勇＞のシグニがある場合、以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それを凍結する。②アップ状態のこのシグニをダウンしてもよい。そうした場合、対戦相手は手札を１枚捨てる。
+  JSON: AUTO(ATTACK): CHOOSE[FREEZE | SEQ[DOWN → IF(IS_MY_TURN)[TRASH]ELSE[null]]]
+
+[effects_WX24_26.json] WX25-P2-112 紅将　パロミデ
+  CSV: 【自】：あなたのアタックフェイズ開始時、対戦相手のエナゾーンにカードが２枚以上ある場合、あなたのアップ状態のルリグ１体をダウンしてもよい。その後、対戦相手のエナゾーンからこの方法でダウンしたルリグと共通する色を持つカード１枚を対象とし、それをトラッシュに置く。
+  JSON: AUTO(ATTACK): SEQ[DOWN → TRASH]
+
+[effects_WX24_26.json] WX25-P3-074 紅天　ガルダ
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜天使＞のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。」を得る。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[DOWN → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WX24_26.json] WX25-P3-078 紅天　アヌビス
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜天使＞のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。」を得る。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[DOWN → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WX24_26.json] WX25-P3-089 コードパレス　カイユー
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜迷宮＞のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、カードを１枚引くか、対戦相手は手札を１枚捨てる。」を得る。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[DOWN → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WX24_26.json] WX25-CP1-062 豊見コトリ
+  CSV: 【自】：あなたのターン終了時、手札を１枚捨ててもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのすべての＜ブルアカ＞のシグニのパワーを＋4000する。【絆自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  JSON: AUTO(ATTACK): SEQ[DOWN → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WX24_26.json] WX25-CP1-082 里浜ウミカ
+  CSV: 【自】：あなたのアタックフェイズ開始時、パワーがこのシグニのパワーの半分以下の対戦相手のシグニ１体を対象とし、あなたの他のアップ状態の＜ブルアカ＞のシグニ１体をダウンしてもよい。そうした場合、それをバニッシュする。【起】《無》：ターン終了時まで、このシグニのパワーを＋5000する。【絆常】：アタックフェイズの間、このシ
+  JSON: AUTO(ATTACK): SEQ[DOWN → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WX24_26.json] WX26-CP1-048 プリンセス・ジール(テイクミーハイヤー)
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜プリオケ＞の場合、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。【出】：このシグニが＜プリオケ＞のシグニの効果によって場に出ていた場合、対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。それが対戦相
+  JSON: AUTO(ATTACK): BANISH
+  JSON: AUTO(ON_PLAY): SEQ[TRASH → ENERGY_CHARGE_FROM_DECK]
+
+[effects_WXDi.json] WXDi-P02-037 紅魔姫　ダッキ
+  CSV: 【自】《ターン１回》：あなたのライフクロス１枚がクラッシュされたとき、カードを１枚引く。【自】《ターン１回》：あなたのシグニ１体がコストかあなたの効果によって場からトラッシュに置かれたとき、【エナチャージ１】をする。【出】：あなたのライフクロス１枚をクラッシュしてもよい。
+  JSON: AUTO(ON_PLAY): DRAW
+  JSON: AUTO(ON_TRASH): ENERGY_CHARGE_FROM_DECK
+  JSON: AUTO(ON_PLAY): LIFE_CRASH
+
+[effects_WXDi.json] WXDi-P03-071 羅石　ラピスラズリ
+  CSV: 【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、手札から赤の＜宝石＞のシグニ１枚を場に出してもよい。そのシグニの【出】能力は発動しない。
+  JSON: AUTO(ON_BANISH): SEQ[ADD_TO_FIELD → BLOCK_ACTION]
+
+[effects_WXDi.json] WXDi-P04-059 コードアート　Yキトリキ
+  CSV: 【自】：あなたがスペルを使用したとき、対戦相手のパワー5000以下のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、それをバニッシュする。
+  JSON: AUTO(ON_PLAY): SEQ[DOWN → IF(IS_MY_TURN)[BANISH]ELSE[null]]
+
+[effects_WXDi.json] WXDi-P05-032 大装　ゲイヴォルグ
+  CSV: 【常】：あなたのセンタールリグは「【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。」を得る。【自】：あなたのアタックフェイズ開始時、あなたのアップ状態の白のシグニ１体をダウンしてもよい。そうした場合、カードを１枚引く。
+  JSON: CONTINUOUS: TRASH
+  JSON: AUTO(ATTACK): SEQ[DOWN → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WXDi.json] WXDi-P06-011 炎唱火　遊月・参
+  CSV: 【自】：あなたのアタックフェイズ開始時、対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置いてもよい。そうした場合、対戦相手は【エナチャージ１】をしてもよい。【出】：対戦相手は自分のシグニ１体を選びバニッシュする。【起】《ゲーム１回》《赤×0》：【エナチャージ２】をする。その後、対戦相手のエナゾーンにカ
+  JSON: AUTO(ATTACK): SEQ[TRASH → IF(IS_MY_TURN)[ENERGY_CHARGE_FROM_DECK]ELSE[null]]
+  JSON: AUTO(ON_PLAY): BANISH
+
+[effects_WXDi.json] WXDi-P06-034 紅将姫　クーフーリン
+  CSV: 【ライズ】あなたのトラッシュにある＜武勇＞のシグニ２枚を下に重ねて場に出す（空いているシグニゾーンに出す）【常】：このシグニがバニッシュされる場合、代わりに「アップ状態のこのシグニをダウンし、このシグニの下からカード１枚とあなたのエナゾーンからカード１枚をトラッシュに置く。」をしてもよい。【常】：あなたの中央のシグニゾ
+  JSON: CONTINUOUS: POWER_MODIFY
+
+[effects_WXDi.json] WXDi-P06-049 中装　ミカガミ
+  CSV: 【自】：あなたのルリグ１体がアタックしたとき、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[DOWN → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WXDi.json] WXDi-P08-059 羅踊石　ガーネット
+  CSV: 【常】：このシグニがダウン状態であるかぎり、このシグニのパワーは＋4000される。【起】《ダウン》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。そうした場合、対戦相手は【エナチャージ１】をしてもよい。
+  JSON: CONTINUOUS: POWER_MODIFY
+
+[effects_WXDi.json] WXDi-P08-062 コードメイズ　ウムル//メモリア
+  CSV: 【出】：あなたのデッキの一番上を見る。そのカードをデッキの一番下に置いてもよい。【起】このシグニを場からデッキの一番下に置く：あなたのデッキの一番上を公開する。そのカードが《コードメイズ　ウムル//メモリア》以外のシグニの場合、そのシグニを場に出してもよい。
+  JSON: AUTO(ON_PLAY): SEQ[LOOK_AND_REORDER → LOOK_AND_REORDER]
+
+[effects_WXDi.json] WXDi-P09-054 聖将　フィン・マックール
+  CSV: 【自】：あなたのターン終了時、アップ状態のこのシグニをダウンしてもよい。そうした場合、以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをトラッシュに置く。②カードを１枚引く。
+  JSON: AUTO(ON_TURN_END): SEQ[DOWN → CHOOSE[TRASH | DRAW]]
+
+[effects_WXDi.json] WXDi-P10-034 羅植姫　ユキ//メモリア
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたのデッキの上からカードを４枚見る。その中から１枚を裏向きでシグニゾーンに置き、残りを好きな順番でデッキの一番下に置く。次のあなたのメインフェイズ開始時、そのカードを表向きにしてもよい。そうした場合、そのシグニが場にあるかぎり、そのシグニのパワーを＋5000する。そうしなかっ
+  JSON: AUTO(ATTACK): LOOK_AND_REORDER
+
+[effects_WXDi.json] WXDi-P10-045 プリパラアイドル　北条そふぃ
+  CSV: 【自】：あなたのターン終了時、あなたの手札から＜プリパラ＞のシグニを１枚公開してもよい。そうした場合、次の対戦相手のターン終了時まで、このシグニのパワーを＋4000する。
+  JSON: AUTO(ON_TURN_END): SEQ[REVEAL → IF(IS_MY_TURN)[POWER_MODIFY]ELSE[null]]
+
+[effects_WXDi.json] WXDi-P11-078 融合の儀　ウムル//メモリア
+  CSV: 【出】：あなたのデッキの一番上のカードをトラッシュに置く。そのカードが《融合の儀　タウィル//メモリア》の場合、そのカードをトラッシュから場に出してもよい。【起】《黒》《白》このシグニと《融合の儀　タウィル//メモリア》１体を場からトラッシュに置く：あなたのトラッシュから白か黒のシグニ１枚を対象とし、それを場に出す。【
+  JSON: AUTO(ON_PLAY): SEQ[TRASH → ADD_TO_FIELD]
+  JSON: CONTINUOUS: POWER_MODIFY
+
+[effects_WXDi.json] WXDi-P13-074 コードイート　コーヒー//ディソナ
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたのアップ状態の《ディソナアイコン》のシグニ２体をダウンしてもよい。そうした場合、カードを１枚引き、対戦相手は手札を１枚捨てる。その後、あなたは対戦相手のシグニ１体を対象とし、それを凍結する。（凍結されたシグニは次の自分のアップフェイズにアップしない）
+  JSON: AUTO(ATTACK): SEQ[DOWN → IF(IS_MY_TURN)[TRASH]ELSE[null] → FREEZE]
+
+[effects_WXDi.json] WXDi-P15-084 小装　ロングスピア
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたのルリグ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。」を得る。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[DOWN → IF(IS_MY_TURN)[TRASH]ELSE[null]]
+
+[effects_WXDi.json] WXDi-P15-092 羅植　マングロブ
+  CSV: 【自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、以下の２つから１つを選ぶ。①あなたの手札が３枚以下の場合、カードを１枚引く。②あなたの手札が４枚以上ある場合、【エナチャージ１】をする。
+  JSON: AUTO(ATTACK): SEQ[DOWN → CHOOSE[DRAW | ENERGY_CHARGE_FROM_DECK]]
+
+[effects_WXDi.json] WXDi-P16-078 翠天　ヴィーザル
+  CSV: 【自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、【エナチャージ１】をする。
+  JSON: AUTO(ATTACK): SEQ[DOWN → IF(IS_MY_TURN)[ENERGY_CHARGE_FROM_DECK]ELSE[null]]
+
+[effects_WXDi.json] WXDi-CP01-032 コード２４３４　レイン・パターソン
+  CSV: 【常】：対戦相手のターンの間、あなたの他のシグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜バーチャル＞の場合、対戦相手のデッキの上からカードを３枚トラッシュに置く。この方法でトラッシュに置かれたシグニのレベルの合計が７
+  JSON: CONTINUOUS: BANISH:opt
+  JSON: AUTO(ATTACK): SEQ[TRASH → TRASH]
+
+[effects_WXDi.json] WXDi-CP01-040 コード２４３４　ぽむ　れいんぱふ
+  CSV: 【自】：あなたのルリグ１体がアタックしたとき、アップ状態のこのシグニをダウンしてもよい。そうした場合、あなたのデッキの一番上を公開する。そのカードが＜バーチャル＞のシグニの場合、カードを１枚引く。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[DOWN → IF(IS_MY_TURN)[LOOK_AND_REORDER]ELSE[null] → DRAW]
+
+[effects_WXDi.json] WXDi-CP02-075 黒崎コユキ
+  CSV: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜ブルアカ＞の場合、手札を１枚捨ててもよい。そうした場合、対戦相手の手札を１枚見ないで選び、捨てさせる。【絆自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  JSON: AUTO(ATTACK): SEQ[TRASH → IF(IS_MY_TURN)[TRASH]ELSE[null] → DOWN → IF(IS_MY_TURN)[DRAW]ELSE[null]]
+
+[effects_WXDi.json] WXDi-CP02-081 才羽ミドリ
+  CSV: 【自】：あなたのアタックフェイズ開始時、このターンにあなたが手札から＜ブルアカ＞のカードを１枚以上捨てていた場合、以下の２つから１つを選ぶ。①カードを１枚引く。②あなたの場に《才羽モモイ》がある場合、カードを２枚引き、手札を１枚捨てる。【絆自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。
+  JSON: AUTO(ATTACK): CHOOSE[DRAW | SEQ[SEQ[DRAW → TRASH] → DOWN → IF(IS_MY_TURN)[DRAW]ELSE[null]]]
+
+[effects_WXK.json] WXK08-033 コードＶＬ　闇夜乃モルル
+  CSV: 【自】：このシグニがアタックしたとき、あなたのデッキの一番上を公開する。この方法でレベル２以下のシグニが公開された場合、それを場に出してもよい。あなたの登録者数が１００万人を達成していて、この方法でシグニが公開された場合、それを場に出してもよい。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[LOOK_AND_REORDER → IF(IS_MY_TURN)[ADD_TO_FIELD]ELSE[null] → ADD_TO_FIELD]
+
+[effects_WXK.json] WXK08-059 コードＶＬ　轟京子
+  CSV: 【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、あなたの手札からレベル１の＜電機＞のシグニ１枚を場に出してもよい。
+  JSON: AUTO(ON_BANISH): ADD_TO_FIELD
+
+[effects_WXK.json] WXK08-063 コードＶＬ　桜凛月
+  CSV: 【出】：あなたのデッキの一番上を公開する。それがレベル１のシグニの場合、それを場に出してもよい。
+  JSON: AUTO(ON_PLAY): REVEAL_AND_PICK
+
+[effects_WXK.json] WXK11-030 コードＶＬ　早瀬走
+  CSV: 【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それを手札に戻す。【出】：このシグニがシグニの効果によって場に出た場合、【エナチャージ１】をする。
+  JSON: AUTO(ON_ATTACK_SIGNI): SEQ[BANISH:opt → IF(IS_MY_TURN)[BOUNCE]ELSE[null]]
+  JSON: AUTO(ON_PLAY): ENERGY_CHARGE_FROM_DECK
+
+[effects_WXK.json] WXK11-066 幻水　オタガメ
+  CSV: 【出】：あなたの緑のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000する。【自】：このカードがあなたの効果によって手札から公開されたとき、あなたの手札から《幻水　オタガメ》１枚を場に出してもよい。
+  JSON: AUTO(ON_PLAY): POWER_MODIFY
+  JSON: AUTO(ON_REVEALED_FROM_HAND): ADD_TO_FIELD
+
+合計: SKIPPABLE=17 NEEDS_FIX=85

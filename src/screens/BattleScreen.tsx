@@ -5,7 +5,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass} from '../engine/effectEngine';
-import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -2240,6 +2240,67 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return entries;
   };
 
+  // 場を離れたシグニを検出（ON_LEAVE_FIELDトリガー用。行き先は問わない）
+  const detectLeftFieldSigni = (before: PlayerState, after: PlayerState): string[] => {
+    const afterFieldCards = new Set(after.field.signi.flatMap(z => z ?? []));
+    const result: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const beforeTop = (before.field.signi[i] ?? []).at(-1);
+      if (!beforeTop) continue;
+      if (!afterFieldCards.has(beforeTop)) result.push(beforeTop);
+    }
+    return result;
+  };
+
+  // ON_LEAVE_FIELD トリガーを収集する
+  // 離れたカード自身の効果（scope=self）と、場の味方シグニの効果（scope=any_ally。
+  // triggerFilter があれば離れたカードがそれを満たす場合のみ）を集める
+  const collectLeaveFieldTriggers = (
+    leftCardNum: string,
+    leftPlayerId: string,
+    afterHostState: PlayerState,
+    afterGuestState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const leftCard = battleCardMap.get(getCardNum(leftCardNum));
+    for (const eff of (effectsMap.get(getCardNum(leftCardNum)) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      entries.push({
+        id: generateUUID(),
+        playerId: leftPlayerId,
+        cardNum: leftCardNum,
+        effectId: eff.effectId,
+        label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
+        effect: eff,
+      });
+    }
+    const ownerStateAfter = leftPlayerId === bs!.host_id ? afterHostState : afterGuestState;
+    // 場のシグニに加えてルリグも監視対象（例: 炎・花代・伍はルリグの【自】で味方シグニの離脱を見る）
+    const lrigTop = ownerStateAfter.field.lrig.at(-1);
+    const watcherNums = [
+      ...ownerStateAfter.field.signi.flatMap(stack => stack?.length ? [stack[stack.length - 1]] : []),
+      ...(lrigTop ? [lrigTop] : []),
+    ];
+    for (const topNum of watcherNums) {
+      for (const eff of (effectsMap.get(getCardNum(topNum)) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_ally' && scope !== 'any') continue;
+        if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
+        entries.push({
+          id: generateUUID(),
+          playerId: leftPlayerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${battleCardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（味方が場を離れたとき）`,
+          effect: eff,
+        });
+      }
+    }
+    return entries;
+  };
+
   // フィールドからトラッシュに移動したシグニを検出（ON_TRASHトリガー用）
   const detectTrashedSigni = (before: PlayerState, after: PlayerState): string[] => {
     const result: string[] = [];
@@ -3210,6 +3271,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(stack.turnPlayerId, trashEntries);
         }
 
+        // ON_LEAVE_FIELD: 場を離れたシグニのトリガー（行き先を問わない）
+        const hostLeft  = detectLeftFieldSigni(bs.host_state, hostState);
+        const guestLeft = detectLeftFieldSigni(bs.guest_state, guestState);
+        const leaveEntries: StackEntry[] = [];
+        for (const cardNum of hostLeft) {
+          leaveEntries.push(...collectLeaveFieldTriggers(cardNum, bs.host_id, hostState, guestState));
+        }
+        for (const cardNum of guestLeft) {
+          leaveEntries.push(...collectLeaveFieldTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+        if (leaveEntries.length > 0) {
+          const baseStackL = (update.effect_stack as typeof stackAfter) ?? null;
+          update.effect_stack = baseStackL
+            ? pushToStack(baseStackL, leaveEntries)
+            : initStack(stack.turnPlayerId, leaveEntries);
+        }
+
         // ON_ENERGY_FROM_TRASH: トラッシュからエナゾーンに移動したカードのトリガー
         const hostEnergyFromTrash  = detectEnergyFromTrash(bs.host_state, hostState);
         const guestEnergyFromTrash = detectEnergyFromTrash(bs.guest_state, guestState);
@@ -3520,7 +3598,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           armorEntries.push(...collectArmorTriggers(cardNum, bs.guest_id, hostState, guestState));
         }
 
-        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries];
+        // ON_LEAVE_FIELD: 場を離れたシグニのトリガー
+        const hostLeftPE  = detectLeftFieldSigni(bs.host_state, hostState);
+        const guestLeftPE = detectLeftFieldSigni(bs.guest_state, guestState);
+        const leaveEntriesPE: StackEntry[] = [];
+        for (const cardNum of hostLeftPE) {
+          leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, bs.host_id, hostState, guestState));
+        }
+        for (const cardNum of guestLeftPE) {
+          leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+
+        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE];
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
@@ -5275,7 +5364,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, opPlayerId, newHostState, newGuestState));
       }
 
-      const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries, ...trashEntriesSA, ...heavenEntries];
+      // ON_LEAVE_FIELD: バトルでバニッシュされたシグニは場を離れている
+      const leaveEntriesSA: StackEntry[] = [];
+      if (banishedOpCardNum) {
+        leaveEntriesSA.push(...collectLeaveFieldTriggers(banishedOpCardNum, opPlayerId, newHostState, newGuestState));
+      }
+
+      const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? user.id;
         const existingStack = bs.effect_stack ?? null;

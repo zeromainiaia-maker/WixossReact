@@ -424,7 +424,8 @@ export interface AddToLifeAction {
 export interface AddToFieldAction {
   type: 'ADD_TO_FIELD'; // 直前に選んだカードをフィールドへ（コスト不要で出す）
   owner: Owner;
-  source?: EffectTarget; // トラッシュ・エナなど出処が明示される場合
+  source?: EffectTarget; // トラッシュ・エナ・手札など出処が明示される場合
+  asDown?: boolean;      // true = ダウン状態で場に出す
 }
 
 export interface FreezeAction {
@@ -1068,6 +1069,10 @@ export interface CardEffect {
 
   // AUTO 効果のトリガースコープ（省略 = 'self'）
   triggerScope?: TriggerScope;
+
+  // any_ally スコープのトリガーで、トリガー元カードが満たすべきフィルタ
+  // （例: ミョルニル「あなたの＜アーム＞のシグニ１体が場を離れたとき」）
+  triggerFilter?: TargetFilter;
 
   // CONTINUOUS 用：常時効果がいつ適用されるか
   activeCondition?: ActiveCondition;
