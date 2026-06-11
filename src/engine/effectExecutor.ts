@@ -990,7 +990,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             : false;
           const optionsOHRN = [
             { id: 'reveal', available: hasCard,
-              label: targetName ? `${targetName}` : '',
+              label: targetName ? `《${targetName}》を公開する` : '公開する',
               action: conditional.then },
             { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
