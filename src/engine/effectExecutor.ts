@@ -2766,7 +2766,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const signiCardName = ctx.cardMap.get(cardNum)?.CardName ?? cardNum;
       // ON_ACCE トリガー: アクセしたことでフィールドシグニの ON_ACCE AUTO 効果を発火
       // （BattleScreen側の queueCardEffects で ON_ACCE を処理）
-      const ctx3 = addLog(ctx2, `${acceCardName}${signiCardName}`);
+      const ctx3 = addLog(ctx2, `${acceCardName}を${signiCardName}にアクセ`);
       // acce_just_done フラグ: BattleScreenで ON_ACCE トリガーを検出するために使用
       const tgt3 = ownerState(acceAction.targetSigniOwner, ctx3);
       const withFlag: import('../types').PlayerState = {
