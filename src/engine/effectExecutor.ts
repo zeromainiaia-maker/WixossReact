@@ -764,7 +764,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     }
     let newS: PlayerState = { ...s, keyword_grants: grants };
 
-    //
+    // チアガールはフリーゾーンへ移動
     if (a.keyword === 'チアガール') {
       for (const n of selected) {
         const zoneIdx = newS.field.signi.findIndex(stack => stack?.at(-1) === n);
