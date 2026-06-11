@@ -1402,8 +1402,8 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
     return done(addLog(ctx, `効果耐性宣言（${a.from.join('/')}保護）`));
   }
   if (!a.target) return done(ctx);
-  //
-   const tgt = a.target;
+  // 効果耐性はキーワード付与として扱う
+  const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const keyword = `PROTECTION:${a.from.join(',')}:${a.sourceOwner}`;
