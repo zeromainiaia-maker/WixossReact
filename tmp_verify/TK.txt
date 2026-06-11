@@ -1,0 +1,35 @@
+======================================================================
+  WixossReact 効果照合レポート — TK
+  対象: 46カード  issues: 8件  STUBアクション含有: 21件
+======================================================================
+
+## アクション[STUB代替?]  (3件)
+
+  WXK03-TK-01B  落華流粋
+    → テキストから"BANISH"が期待されるがJSONに存在しない (JSONアクション: STUB, GRANT_KEYWORD, TRASH)
+  WXK09-TK-01A  改造素材
+    → テキストから"POWER_MODIFY"が期待されるがJSONに存在しない (JSONアクション: BLOCK_CARD_USE, STUB)
+  WXDi-P13-004B  UNKNOWN-CODE-RU-
+    → テキストから"DRAW"が期待されるがJSONに存在しない (JSONアクション: GRANT_KEYWORD, ENERGY_CHARGE_FROM_DECK, STUB)
+
+## タイミング  (5件)
+
+  WX25-P1-TK1  ダーク・バウンダリー
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P1-TK2  背闇之陣
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P1-TK3  ダーク・アナライズ
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P1-TK4  闇気揚々
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+  WX25-P1-TK5  ダーク・アウト
+    → "【常】"が1件あるがeffects.jsonに対応するエフェクト(type=CONTINUOUS)がない
+
+======================================================================
+STUBアクション参照カード数: 21件  (詳細: --stubs オプション)
+
+======================================================================
+
+サマリー:
+  アクション[STUB代替?]: 3件
+  タイミング: 5件
