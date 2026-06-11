@@ -215,48 +215,29 @@ export function execStubPart1(
     const srcBET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtBET = srcBET ? (srcBET.EffectText ?? '') + ' ' + (srcBET.BurstText ?? '') : '';
     const toHWBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // ①②③④ 選択肢を解析
-    const choicePatsBET = [
-      { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
-      { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
-    ];
-    const parseChoiceBET = (txt: string): Array<{ id: string; label: string; action: EffectAction; available: boolean }> => {
-      const opts: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
-      for (const { m, idx } of choicePatsBET) {
-        const mat = txt.match(m);
-        if (!mat) continue;
-        const ctxt = mat[1].replace(/。\s*$/, '').trim();
-        let act: EffectAction | null = null;
-        if (ctxt.match(/カードを[１1]枚引く/)) act = { type: 'DRAW', count: 1 } as DrawAction;
-        if (!act && ctxt.match(/手札を[１1]枚捨てる/)) act = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction;
-        if (!act && ctxt.match(/対戦相手のシグニ.*手札に戻す/)) act = { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BounceAction;
-        const pwBET = !act && ctxt.match(/パワーを([－-][０-９\d]+)する/);
-        if (pwBET) act = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: parseInt(toHWBET(pwBET[1]).replace('－','-')) } as StubAction) as EffectAction;
-        if (!act && ctxt.match(/対戦相手は手札を[１1]枚捨てる/)) act = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction;
-        if (!act && ctxt.match(/ダウンする/)) act = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction;
-        if (act) opts.push({ id: `bet_c${idx}`, label: `${'①②③④'[idx]}${ctxt.slice(0, 18)}...`, action: act, available: true });
-      }
-      return opts;
-    };
-    const optsBET = parseChoiceBET(txtBET);
+    // ①②③④ 選択肢を解析（choiceTextParserに共通化）
+    const optsBET = parseChoiceOptionsFromText(txtBET, 'bet_c');
     if (optsBET.length === 0) return done(addLog(ctx, 'ベット（選択肢解析不可）'));
+    // 通常時の選択数「以下のNつからMつ(まで)選ぶ」（既定2）
+    const baseCntMBET = txtBET.match(/から([１-９\d])つ(?:まで)?(?:を)?選ぶ/);
+    const baseCntBET = baseCntMBET ? parseInt(toHWBET(baseCntMBET[1])) : 2;
     // COIN_USE_RESTRICTION: コインをスペルとシグニにしか使えない場合、アーツBETは不可
     const coinRestricted = ctx.ownerState.coin_use_restriction === 'spell_signi_only';
     const hasCoins = ctx.ownerState.coins > 0 && !coinRestricted;
     // コインがある場合はベット選択を提示
     if (hasCoins) {
       const noopBET: SequenceAction = { type: 'SEQUENCE', steps: [] };
-      const betYesOpt = { id: 'bet_yes', label: `ベットする（コイン消費・4択）`, action: ({ type: 'STUB', id: 'INTERNAL_BET_SHOW_4', value: txtBET } as StubAction) as EffectAction, available: true };
-      const betNoOpt = { id: 'bet_no', label: 'ベットしない（2択）', action: noopBET as EffectAction, available: true };
+      const betYesOpt = { id: 'bet_yes', label: `ベットする（コイン消費・強化選択）`, action: ({ type: 'STUB', id: 'INTERNAL_BET_SHOW_4', value: txtBET } as StubAction) as EffectAction, available: true };
+      const betNoOpt = { id: 'bet_no', label: `ベットしない（${baseCntBET}択）`, action: noopBET as EffectAction, available: true };
       const pendingBetQ: PendingInteractionDef = {
         type: 'CHOOSE', options: [betYesOpt, betNoOpt], count: 1,
-        continuation: optsBET.length > 0 ? ({ type: 'CHOOSE', options: optsBET, count: Math.min(2, optsBET.length) } as unknown as EffectAction) : undefined,
+        continuation: optsBET.length > 0 ? ({ type: 'CHOOSE', options: optsBET, count: Math.min(baseCntBET, optsBET.length) } as unknown as EffectAction) : undefined,
       };
-      return needsInteraction(addLog(ctx, 'ベットしますか？（コインを消費して4択→強化）'), pendingBetQ);
+      return needsInteraction(addLog(ctx, 'ベットしますか？（コインを消費して強化選択）'), pendingBetQ);
     }
-    // コインなし：通常2択
-    return needsInteraction(addLog(ctx, 'ベット（コインなし）→2択'), {
-      type: 'CHOOSE', options: optsBET, count: Math.min(2, optsBET.length),
+    // コインなし：通常選択
+    return needsInteraction(addLog(ctx, `ベット（コインなし）→${baseCntBET}択`), {
+      type: 'CHOOSE', options: optsBET, count: Math.min(baseCntBET, optsBET.length),
     });
   }
   // INTERNAL_BET_SHOW_4: ベット時に4択を表示
