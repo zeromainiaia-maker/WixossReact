@@ -1768,8 +1768,8 @@ function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult
   // ここではプレイヤー状態にキーワードとして記録する
   const keyword = `CHARM_PROTECTION:${JSON.stringify(a.signiFilter)}`;
   const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-  //
-   const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap, ctx.effectivePowers);
+  // フィールドの対象シグニ全体に付与
+  const cands = fieldCandidates(ctx.ownerState, a.signiFilter, ctx.cardMap, ctx.effectivePowers);
   for (const n of cands) grants[n] = [...(grants[n] ?? []), keyword];
   const newOwner: PlayerState = { ...ctx.ownerState, keyword_grants: grants };
   return done(addLog({ ...ctx, ownerState: newOwner },
