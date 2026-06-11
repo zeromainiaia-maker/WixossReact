@@ -481,6 +481,7 @@ export interface ChooseAction {
   choose_count: number; // N個選ぶ
   from_count: number;   // M個の選択肢から
   choices: ChoiceOption[];
+  opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 
 export interface ChoiceOption {
