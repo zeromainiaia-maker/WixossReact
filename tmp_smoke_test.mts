@@ -38,8 +38,8 @@ const check = (name: string, cond: boolean, detail: string) => {
       { type: 'DRAW', count: 1, target: { owner: 'self' } },
     ],
   } as any, ctx);
-  check('RECOLLECT_GATE未達', r.logs.some((l: string) => l.includes('リコレクト条件未達')) && r.ctx.ownerState.hand.length === 0,
-    `logs=${JSON.stringify(r.logs)} hand=${r.ctx.ownerState.hand.length}`);
+  check('RECOLLECT_GATE未達', r.logs.some((l: string) => l.includes('リコレクト条件未達')) && r.ownerState.hand.length === 0,
+    `logs=${JSON.stringify(r.logs)} hand=${r.ownerState.hand.length}`);
 }
 
 // 2. RECOLLECT_GATE 達成（アーツ4枚）→ 後続DRAWが実行される
@@ -51,8 +51,8 @@ const check = (name: string, cond: boolean, detail: string) => {
       { type: 'DRAW', count: 1, target: { owner: 'self' } },
     ],
   } as any, ctx);
-  check('RECOLLECT_GATE達成', r.logs.some((l: string) => l.includes('リコレクト条件達成')) && r.ctx.ownerState.hand.length === 1,
-    `logs=${JSON.stringify(r.logs)} hand=${r.ctx.ownerState.hand.length}`);
+  check('RECOLLECT_GATE達成', r.logs.some((l: string) => l.includes('リコレクト条件達成')) && r.ownerState.hand.length === 1,
+    `logs=${JSON.stringify(r.logs)} hand=${r.ownerState.hand.length}`);
 }
 
 // 3. SOUL_OP: CHOOSEラベル・ログが空でない
