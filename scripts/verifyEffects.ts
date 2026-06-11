@@ -210,6 +210,8 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   EXTRA_COST_REMOVE_VIRUS: ['MILL', 'POWER_MODIFY', 'TRANSFER_TO_HAND'],
   // デッキ上N枚公開→レベル合計×1000以下バニッシュ→公開分トラッシュ（本実装済み）
   REVEAL_TOP_BANISH_BY_LEVEL_SUM: ['BANISH', 'MILL'],
+  // デッキ上N枚公開→選択→手札/エナ（then:'energy'対応済み）、残りはrestDest先へ
+  REVEAL_PICK_HAND_SHUFFLE_BOTTOM: ['MOVE_TO_ENERGY'],
 };
 
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
