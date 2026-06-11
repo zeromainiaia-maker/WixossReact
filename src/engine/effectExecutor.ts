@@ -891,7 +891,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           // 色が1種類: 色フィルタ付きSEARCHを直接実行
       const coloredSearch: SearchAction = { ...searchStep, filter: { ...searchStep.filter, color: uniqueColors[0] } };
           const newSteps = [coloredSearch as EffectAction, ...afterRemaining];
-          return execSequence({ type: 'SEQUENCE', steps: newSteps } as SequenceAction, addLog(cur, `${uniqueColors[0]}`));
+          return execSequence({ type: 'SEQUENCE', steps: newSteps } as SequenceAction, addLog(cur, `コスト色選択：${uniqueColors[0]}`));
         } else {
           // 色が複数: CHOOSEで色を選択させ、各色のSEARCHを実行
       const afterCont: EffectAction | undefined = afterRemaining.length > 0
