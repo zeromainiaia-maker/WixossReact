@@ -1017,41 +1017,8 @@ export function execStubPart1(
     const chooseCount = removeN + 1;
     const srcECRV2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtECRV2 = srcECRV2 ? (srcECRV2.EffectText ?? '') + ' ' + (srcECRV2.BurstText ?? '') : '';
-    const toHWECRV2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // ①②③④の効果オプションを解析（CONDITIONAL_MULTI_CHOOSE_BY_CENTERと同様のロジック）
-    const ecrPatterns = [
-      { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
-      { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
-    ];
-    const optsECRV: Array<{ id: string; label: string; action: EffectAction; available: boolean }> = [];
-    for (const { m, idx } of ecrPatterns) {
-      const mat = txtECRV2.match(m);
-      if (!mat) continue;
-      const choiceTxtECRV = mat[1].replace(/。\s*$/, '').trim();
-      let choiceActECRV: EffectAction | null = null;
-      if (choiceTxtECRV.match(/トラッシュから.*黒.*シグニ.*手札/)) {
-        choiceActECRV = ({ type: 'STUB', id: 'SUMMON_FROM_TRASH_TO_HAND_BLACK' } as StubAction) as EffectAction;
-      } else if (choiceTxtECRV.match(/パワーを([－-][０-９\d]+)する/)) {
-        const delta = parseInt(toHWECRV2(choiceTxtECRV.match(/パワーを([－-][０-９\d]+)する/)![1]).replace('－', '-'));
-        choiceActECRV = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_OPP_ONE', value: delta } as StubAction) as EffectAction;
-      } else if (choiceTxtECRV.match(/すべてのシグニのパワーを([－-][０-９\d]+)/)) {
-        const delta = parseInt(toHWECRV2(choiceTxtECRV.match(/すべてのシグニのパワーを([－-][０-９\d]+)/)![1]).replace('－', '-'));
-        choiceActECRV = ({ type: 'STUB', id: 'INTERNAL_POWER_MOD_ALL_OPP', value: delta } as StubAction) as EffectAction;
-      } else if (choiceTxtECRV.match(/トラッシュにある.*ゲームから除外/)) {
-        choiceActECRV = ({ type: 'STUB', id: 'INTERNAL_EXILE_OPP_TRASH' } as StubAction) as EffectAction;
-      } else if (choiceTxtECRV.match(/デッキの上からカードを([０-９\d]+)枚トラッシュ/)) {
-        const cnt = parseInt(toHWECRV2(choiceTxtECRV.match(/デッキの上からカードを([０-９\d]+)枚トラッシュ/)![1]));
-        choiceActECRV = ({ type: 'STUB', id: 'INTERNAL_DECK_TRASH_BOTH', value: cnt } as StubAction) as EffectAction;
-      }
-      if (choiceActECRV) {
-        optsECRV.push({
-          id: `eff_${idx}`,
-          label: `${['①','②','③','④'][idx]}${choiceTxtECRV.slice(0, 20)}...`,
-          action: choiceActECRV,
-          available: true,
-        });
-      }
-    }
+    // ①②③④の効果オプションを解析（choiceTextParserに共通化）
+    const optsECRV = parseChoiceOptionsFromText(txtECRV2, 'eff');
     if (optsECRV.length > 0) {
       return needsInteraction(addLog(ctxECRV, `効果を${chooseCount}つ選択`), {
         type: 'CHOOSE', options: optsECRV, count: Math.min(chooseCount, optsECRV.length),
