@@ -2265,6 +2265,41 @@ export function execStubPart3(
     if (logsDTT.length > 0) return done(addLog(ctxDTT, logsDTT.join(' / ')));
     return done(addLog(ctx, '3つの処理（個別解析不可）'));
   }
+  // DRAW_IF_CHARGED_CLASS: 直前のエナチャージで＜クラス＞のシグニが置かれた場合1ドロー（WDK07-E01）
+  if (stub.id === 'DRAW_IF_CHARGED_CLASS') {
+    const srcDICC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const clsDICC = (srcDICC?.EffectText ?? '').match(/この方法で＜([^＞]+)＞のシグニ/)?.[1];
+    const lastEnaDICC = ctx.ownerState.energy.at(-1);
+    const cardDICC = lastEnaDICC ? ctx.cardMap.get(getCardNum(lastEnaDICC)) : undefined;
+    const hitDICC = !!cardDICC && cardDICC.Type === 'シグニ'
+      && (!clsDICC || (cardDICC.CardClass ?? '').includes(clsDICC));
+    if (!hitDICC) return done(addLog(ctx, `エナに置かれたのは＜${clsDICC ?? '?'}＞のシグニではない→ドローなし`));
+    const deckDICC = ctx.ownerState.deck;
+    if (deckDICC.length === 0) return done(ctx);
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState,
+      hand: [...ctx.ownerState.hand, deckDICC[0]], deck: deckDICC.slice(1) } },
+      `＜${clsDICC}＞のシグニをチャージ→1枚ドロー`));
+  }
+  // HAND_EXCESS_TO_ENERGY: 手札がN枚（value、既定5）より多い場合、差分を手札からエナゾーンへ（WDK08-Y08）
+  if (stub.id === 'HAND_EXCESS_TO_ENERGY') {
+    const limitHETE = typeof stub.value === 'number' ? stub.value : 5;
+    const excessHETE = ctx.ownerState.hand.length - limitHETE;
+    if (excessHETE <= 0) return done(addLog(ctx, `手札${limitHETE}枚以下のため移動なし`));
+    const chargeHETE = { type: 'ENERGY_CHARGE',
+      target: { type: 'HAND_CARD', owner: 'self', count: excessHETE } } as unknown as EffectAction;
+    return exec(chargeHETE, ctx);
+  }
+  // DRAW_UNTIL_HAND_SIZE: 手札がN枚（value、既定6）になるまで引く
+  if (stub.id === 'DRAW_UNTIL_HAND_SIZE') {
+    const targetNDUHS = typeof stub.value === 'number' ? stub.value : 6;
+    const needDUHS = Math.max(0, targetNDUHS - ctx.ownerState.hand.length);
+    if (needDUHS === 0) return done(addLog(ctx, `手札${targetNDUHS}枚以上のためドローなし`));
+    const canDrawDUHS = Math.min(needDUHS, ctx.ownerState.deck.length);
+    const newOwnerDUHS = { ...ctx.ownerState,
+      hand: [...ctx.ownerState.hand, ...ctx.ownerState.deck.slice(0, canDrawDUHS)],
+      deck: ctx.ownerState.deck.slice(canDrawDUHS) };
+    return done(addLog({ ...ctx, ownerState: newOwnerDUHS }, `${canDrawDUHS}枚ドロー（手札${targetNDUHS}枚まで）`));
+  }
   // CONDITIONAL_MULTI_CHOOSE_BY_CENTER: センタールリグによる複数選択
   if (stub.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER') {
     const srcCMCBC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
@@ -2300,9 +2335,10 @@ export function execStubPart3(
       if (!mat) continue;
       const choiceTxt = mat[1].replace(/。\s*$/,'').trim();
       let choiceAction: EffectAction | null = null;
-      // 「カードを1枚引く」→ DRAW
-      if (choiceTxt.match(/カードを[１1]枚引く/)) {
-        choiceAction = { type: 'DRAW', count: 1 } as DrawAction;
+      // 「カードをN枚引く」→ DRAW
+      const drawMCMCBC = choiceTxt.match(/カードを([１-９1-9])枚引く/);
+      if (drawMCMCBC) {
+        choiceAction = { type: 'DRAW', count: parseInt(toHWCMCBC(drawMCMCBC[1])) } as DrawAction;
       }
       // 「各プレイヤーはデッキの上からN枚トラッシュに置く」
       const deckTrashM = choiceTxt.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
@@ -2373,6 +2409,8 @@ export function execStubPart3(
         if (choiceTxt.match(/ダウンし.*凍結/)) {
           // DOWN + FREEZE ALL
           choiceAction = ({ type: 'STUB', id: 'INTERNAL_DOWN_AND_FREEZE_OPP' } as StubAction) as EffectAction;
+        } else if (choiceTxt.match(/すべてのシグニを凍結/)) {
+          choiceAction = { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as import('../types/effects').FreezeAction as EffectAction;
         } else {
           choiceAction = { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as import('../types/effects').FreezeAction as EffectAction;
         }

@@ -1,5 +1,33 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 ymsty側: アクション不一致ラウンド1完了（318→217件、v0.252）
+>
+> Sheet1/5/6/7/10/TK/Variants を0件化（Sheet7のみ1件残、下記）。残りは **Sheet2: 62 / Sheet3: 42 / Sheet4: 33 / Sheet8: 30 / Sheet9: 49 = 計216件 + Sheet7: 1件**。
+> コスト/タイミング/定義なし/LIFE_BURST/checkAllEffects はすべて0維持。tsc 0 / lint 0 errors。
+>
+> ### zerom側への続行手順（このセッションで確立したワークフロー）
+> 1. `node tmp_verify/dumpCompact.mjs Sheet2:WX12-001 ...` でCSVとJSONを突き合わせ（**dumpCompact.mjs / dumpCards.mjs はymsty側tmp_verify/にあり、gitignore対象なので再作成が必要**。仕様は本ファイル下部「カード調査用ダンプスクリプト」参照。dumpCompactはJSONをアクション構造の要約で表示する版）
+> 2. 修正は使い捨てスクリプト（JSON.parse→変更→JSON.stringifyでミニファイ維持）で一括適用
+> 3. シート0件化→全シート再実行で退行チェック→checkAllEffects 0確認
+>
+> ### 頻出パターンと確立した直し方
+> - **「1枚引くか【エナチャージ1】」がチャージ固定** → CHOOSE 1/2 [DRAW, ENERGY_CHARGE_FROM_DECK]（多数あり）
+> - **「デッキから探してエナゾーンに置く」がSHUFFLE_DECKのみ** → `SEARCH{filter,maxCount,then:{type:'ADD_TO_ENERGY',owner:'self'},afterSearch:SHUFFLE_DECK}`。ADD_TO_ENERGYはapplyDirectActionが対応済みでSEARCH/REVEAL_AND_PICKのthenに安全（ENERGY_CHARGE+DECK_CARDよりこちらを使う）
+> - **「以下のN つからM つ選ぶ」が丸ごと欠落/STUB単体** → 実CHOOSE{choose_count,from_count,choices}に展開。選択肢内の「そうした場合」はコスト→`conditional:true`(BANISHのみ対応)か順次実行で近似
+> - **チーム起/チーム自の効果が丸ごと欠落**（WXDi系に多い）→ addEffで先頭にunshift。任意コストは`SEQ[STUB OPTIONAL_COST{costColors},CONDITIONAL(IS_MY_TURN)→効果]`
+> - **「手札に加えるかエナゾーンに置く」** → 行き先を先に選ぶCHOOSE（choices両方にREVEAL_AND_PICK、thenだけ違う）で近似。CHOSEN_TO_ENERGY_OR_HANDはトラッシュ専用なのでデッキ公開系には使えない（カード消失する）
+> - **トリガー条件文の誤検出**（「手札からトラッシュに移動していた」等）→ ACTION_KEYWORDSの能動形限定で対処済み。パターンを広げると誤検出が増えるので注意（「捨て」だけにすると退行した）
+> - **動的条件（トラッシュN枚以上等）** → `{type:'COND_STUB',raw:'...'}`（常にtrueの許容近似）
+> - STUB_EQUIVALENTSに追加済み: CONDITIONAL_MULTI_CHOOSE_BY_CENTER(_LEVEL_GTE)/DRAW_UNTIL_HAND_SIZE/DRAW_IF_CHARGED_CLASS/HAND_EXCESS_TO_ENERGY/REVEAL_PICK_PLAY。エイリアス追加: ADD_TO_ENERGY・TAKE_FROM_UNDER_SIGNI（エナゾーンに置く）、TRANSFER_TO_HAND（手札に戻す）
+>
+> ### 残課題（Sheet7の1件）
+> - **WXDi-P02-037 紅魔姫ダッキ**: 「ライフクロスがクラッシュされたとき1ドロー」= STUB TRIGGER_OWN_LIFE_CRASHED_DRAW。クラッシュ時トリガーの配線がBattleScreenに存在しないため未実装のまま。配線追加かエンジン側対応が必要
+> - WXDi-P02-035に新設timing `ON_GUARD`（ガード時トリガー、未配線）を使用。発火させるにはBattleScreenのガード処理に配線が必要
+>
+> ### このセッションのエンジン変更（src/engine/execStubPart3.ts）
+> - 新規スタブ実装: DRAW_UNTIL_HAND_SIZE / HAND_EXCESS_TO_ENERGY / DRAW_IF_CHARGED_CLASS
+> - CONDITIONAL_MULTI_CHOOSE_BY_CENTERのパーサー改善: 「カードをN枚引く」(N=1-9)、「すべてのシグニを凍結」→FREEZE ALL
+
 > **✅ 2026-06-11 完了報告（zrom側）**: 残作業1「タイミング不一致113件」を全件解消した（全シート0件）。
 > 内訳: 実欠落の効果追加 約30件（うち新設STUB 18種 → STUBS.md「2026-06-11 タイミング不一致修正ラウンド」参照）、
 > パース誤り修正（効果タイプ誤り・誤マージ分離）約15件、verifyEffects.ts誤検出修正 約60件

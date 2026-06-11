@@ -125,14 +125,15 @@ function normTextCost(costs: { color: string; count: number }[]): string {
 /** アクションタイプのキーワード照合 */
 // aliases: テキストのキーワードが複数のJSONアクション名にマッピングされる場合
 const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
-  { pattern: /手札に戻す|バウンス/,                                    types: ['BOUNCE'] },
+  { pattern: /手札に戻す|バウンス/,                                    types: ['BOUNCE', 'TRANSFER_TO_HAND'] },
   // BANISH系: BANISH_REDIRECT（バニッシュ先変更）, CHARM_PROTECTION（バニッシュ代替チャーム）もエイリアス
   { pattern: /バニッシュ(?!無効)/,                                     types: ['BANISH', 'BANISH_REDIRECT', 'CHARM_PROTECTION'] },
   // DRAW系: MUTUAL_DISCARD_AND_DRAW（両者手札捨て+ドロー）もエイリアス
   { pattern: /カードを([１-９\d０-９]+枚)?引く|ドローする/,             types: ['DRAW', 'MUTUAL_DISCARD_AND_DRAW'] },
   { pattern: /デッキから.+探して/,                                     types: ['SEARCH'] },
-  { pattern: /エナゾーンに置く/,                                       types: ['MOVE_TO_ENERGY', 'ENERGY_CHARGE', 'ENERGY_CHARGE_FROM_DECK'] },
-  { pattern: /手札から.+トラッシュ|手札から.+捨てる/,                  types: ['DISCARD', 'TRASH'] },
+  { pattern: /エナゾーンに置く/,                                       types: ['MOVE_TO_ENERGY', 'ENERGY_CHARGE', 'ENERGY_CHARGE_FROM_DECK', 'ADD_TO_ENERGY', 'TAKE_FROM_UNDER_SIGNI'] },
+  // 能動形のみ（「手札からトラッシュに移動していた」等のトリガー条件文を除外）
+  { pattern: /手札から.+トラッシュに置|手札から.+捨てる/,              types: ['DISCARD', 'TRASH'] },
   // MILLパターン: 受動態「トラッシュに置かれた」はトリガー条件なので除外（能動態「置く」のみ）
   // [^。]+で同一センテンス内のみマッチ（別センテンスの「トラッシュに置く」の誤検出を防ぐ）
   // REVEAL_AND_PICK（デッキ上公開→選択→残りトラッシュ）もMILLエイリアス
@@ -155,6 +156,18 @@ function detectActionsFromText(text: string): { label: string; aliases: string[]
 // 「STUBがそのアクションを実際に実行する」と確認できたもののみ登録すること
 // （ログのみ📝のSTUBを登録すると実欠落を隠蔽してしまう）。
 const STUB_EQUIVALENTS: Record<string, string[]> = {
+  // カードテキストの①②③④を実行時に解析しCHOOSE提示（DRAW/ミル/ダウン/凍結/バニッシュ/バウンス等を実装）
+  CONDITIONAL_MULTI_CHOOSE_BY_CENTER: ['DRAW', 'MILL', 'TRASH', 'DISCARD', 'DOWN', 'FREEZE', 'BANISH', 'BOUNCE', 'POWER_MODIFY'],
+  // 手札がN枚になるまでドロー
+  DRAW_UNTIL_HAND_SIZE: ['DRAW'],
+  // ①②③④を実行時解析（DRAW/ミル/バニッシュ/バウンス/トラッシュ→デッキ+ライフエナ等を実装）
+  CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE: ['DRAW', 'MILL', 'BANISH', 'BOUNCE', 'MOVE_TO_ENERGY'],
+  // 直前エナチャージがクラス一致なら1ドロー
+  DRAW_IF_CHARGED_CLASS: ['DRAW'],
+  // 手札N枚超過分をエナゾーンへ
+  HAND_EXCESS_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  // デッキ上N枚公開→場に出す、残りはトラッシュ（restDest:'trash'）
+  REVEAL_PICK_PLAY: ['MILL'],
   // 相手シグニ対象+手札1枚捨て（then未指定時はBANISH既定）
   TARGET_AND_DISCARD_HAND: ['DISCARD', 'TRASH', 'BANISH'],
   TRADE_BANISH_SELF_SIGNI: ['BANISH'],
