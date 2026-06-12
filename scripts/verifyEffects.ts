@@ -159,8 +159,8 @@ function detectActionsFromText(text: string): { label: string; aliases: string[]
 // 「STUBがそのアクションを実際に実行する」と確認できたもののみ登録すること
 // （ログのみ📝のSTUBを登録すると実欠落を隠蔽してしまう）。
 const STUB_EQUIVALENTS: Record<string, string[]> = {
-  // カードテキストの①②③④を実行時に解析しCHOOSE提示（DRAW/ミル/ダウン/凍結/バニッシュ/バウンス等を実装）
-  CONDITIONAL_MULTI_CHOOSE_BY_CENTER: ['DRAW', 'MILL', 'TRASH', 'DISCARD', 'DOWN', 'FREEZE', 'BANISH', 'BOUNCE', 'POWER_MODIFY'],
+  // カードテキストの①②③④を実行時に解析しCHOOSE提示（DRAW/ミル/ダウン/凍結/バニッシュ/バウンス/エナ置き(BANISH近似)等を実装）
+  CONDITIONAL_MULTI_CHOOSE_BY_CENTER: ['DRAW', 'MILL', 'TRASH', 'DISCARD', 'DOWN', 'FREEZE', 'BANISH', 'BOUNCE', 'POWER_MODIFY', 'MOVE_TO_ENERGY'],
   // 手札がN枚になるまでドロー
   DRAW_UNTIL_HAND_SIZE: ['DRAW'],
   // ①②③④を実行時解析（DRAW/ミル/バニッシュ/バウンス/トラッシュ→デッキ+ライフエナ等を実装）
