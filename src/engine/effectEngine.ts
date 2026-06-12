@@ -13,6 +13,7 @@ import type {
   PowerModifyPerCharmAction,
   PowerSetAction,
   CostIncreaseAction,
+  CostReductionAction,
   BlockActionAction,
   TargetFilter,
   EnergyCost,
@@ -188,6 +189,20 @@ export function checkActiveCondition(
         case 'eq':  return cnt === cond.value;
         case 'gt':  return cnt > cond.value;
         case 'lt':  return cnt < cond.value;
+        default:    return false;
+      }
+    }
+
+    case 'VIRUS_COUNT': {
+      const state = cond.owner === 'self' ? ownerState : otherState;
+      const virusCnt = (state.field.signi_virus ?? []).reduce((s, v) => s + v, 0);
+      switch (cond.operator) {
+        case 'gte': return virusCnt >= cond.value;
+        case 'lte': return virusCnt <= cond.value;
+        case 'eq':  return virusCnt === cond.value;
+        case 'neq': return virusCnt !== cond.value;
+        case 'gt':  return virusCnt > cond.value;
+        case 'lt':  return virusCnt < cond.value;
         default:    return false;
       }
     }
@@ -544,6 +559,14 @@ function extractCostIncreases(action: EffectAction): CostIncreaseAction[] {
   if (action.type === 'COST_INCREASE') return [action as CostIncreaseAction];
   if (action.type === 'SEQUENCE') {
     return action.steps.flatMap(s => extractCostIncreases(s));
+  }
+  return [];
+}
+
+function extractCostReductions(action: EffectAction): CostReductionAction[] {
+  if (action.type === 'COST_REDUCTION') return [action as CostReductionAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractCostReductions(s));
   }
   return [];
 }
@@ -1253,6 +1276,7 @@ export interface ActiveCostMod {
   direction: 'increase' | 'decrease';
   targetCardType: string;
   amount: EnergyCost[];
+  cardColor?: string; // decrease用: 対象カードの色制限（「青のスペル」等。複数色は「青と黒」のように含む）
 }
 
 /**
@@ -1288,6 +1312,13 @@ export function calcActiveCostMods(
         for (const inc of increases) {
           const target = inc.targetOwner === 'opponent' ? forOp : forMy;
           target.push({ direction: 'increase', targetCardType: inc.targetCardType, amount: inc.amount });
+        }
+        // CostReduction: 「あなたが使用する〜のコストは…減る」（常に効果オーナー自身のコストを減らす）
+        const ownBucket = ownerState === myState ? forMy : forOp;
+        const reductions = extractCostReductions(effect.action);
+        for (const red of reductions) {
+          if (red.isGrowCost) continue; // グロウコスト軽減は別経路（GROW_COST_REDUCTION）
+          ownBucket.push({ direction: 'decrease', targetCardType: red.targetCardType, amount: red.reduction, cardColor: red.color });
         }
       }
     }

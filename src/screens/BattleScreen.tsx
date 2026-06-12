@@ -142,6 +142,26 @@ function removeNColorFromCost(cost: string, color: string, n: number): string {
   return result || 'なし';
 }
 
+// 場のCONTINUOUS COST_REDUCTION（コードハートVAC「青のスペルのコストは《無×1》減る」等）をコスト文字列に適用する。
+// 《無》軽減はコストの無色部分のみ減る（無色部分がなければ軽減なし＝removeNColorFromCostの挙動）
+function applyContinuousCostDecreases(
+  cost: string,
+  cardType: 'スペル' | 'アーツ',
+  cardColor: string | undefined,
+  mods: import('../engine/effectEngine').ActiveCostMod[],
+): string {
+  let result = cost;
+  for (const m of mods) {
+    if (m.direction !== 'decrease' || m.targetCardType !== cardType) continue;
+    if (m.cardColor) {
+      const colors = m.cardColor.match(/[白青赤緑黒無]/g) ?? [];
+      if (colors.length > 0 && !colors.some(c => cardColor?.includes(c))) continue;
+    }
+    for (const r of m.amount) result = removeNColorFromCost(result, r.color, r.count);
+  }
+  return result;
+}
+
 // コスト文字列から指定色を1つ減らす（《X》×Nが1→削除、2+→-1）
 function removeOneCostColor(cost: string, color: string): string {
   const parts = parseGrowCost(cost);
@@ -8058,7 +8078,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     const myLrigLevel = myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0;
                     const oppLrigColor = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
                     return artsCandidates.map(card => {
-                    const effCost = computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap, myLrigNameAliases, myArtsThresholdReductions);
+                    const effCost = applyContinuousCostDecreases(
+                      computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap, myLrigNameAliases, myArtsThresholdReductions),
+                      'アーツ', card.Color, activeCostMods.forMy);
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
@@ -8370,7 +8392,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               if (!spellCard) return null;
               // フィールド条件によるコスト軽減をスペルにも適用
               const myLrigCardSP = battleCardMap.get(my.field.lrig.at(-1) ?? '');
-              const effSpellCost = computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases);
+              const effSpellCost = applyContinuousCostDecreases(
+                computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases),
+                'スペル', spellCard.Color, activeCostMods.forMy);
               const costItems = parseGrowCost(effSpellCost);
               const baseSpellReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);

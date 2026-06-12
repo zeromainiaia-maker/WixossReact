@@ -435,10 +435,12 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             position: 'relative',
             border: trapCardNum ? '1px dashed #ffd700'
               : magicBoxCardNum ? '1px dashed #bb88ff'
-              : seedCardNum ? '1px dashed #44ff88' : C.borderEmpty,
+              : seedCardNum ? '1px dashed #44ff88'
+              : virusCount > 0 ? '1px dashed #ff5555' : C.borderEmpty,
             backgroundColor: trapCardNum ? 'rgba(40,30,0,0.6)'
               : magicBoxCardNum ? 'rgba(40,0,80,0.6)'
-              : seedCardNum ? 'rgba(0,40,20,0.6)' : C.bgCardEmpty,
+              : seedCardNum ? 'rgba(0,40,20,0.6)'
+              : virusCount > 0 ? 'rgba(60,0,0,0.55)' : C.bgCardEmpty,
             cursor: magicBoxCardNum && isMe ? 'pointer' : undefined,
           }}
           onClick={() => { if (magicBoxCardNum && isMe) setShowMBPeek(true); }}
@@ -458,8 +460,23 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
               <span style={{ fontSize: 14, lineHeight: 1 }}>🌱</span>
               <span style={{ fontSize: 7, color: '#44ff88', fontWeight: 'bold', lineHeight: 1 }}>SEED</span>
             </div>
+          ) : virusCount > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>🦠</span>
+              <span style={{ fontSize: 7, color: '#ff8888', fontWeight: 'bold', lineHeight: 1 }}>VIRUS</span>
+            </div>
           ) : (
             <span style={{ fontSize: 8, color: C.textGhost, textAlign: 'center', padding: 2, lineHeight: 1.3 }}>{label}</span>
+          )}
+          {virusCount > 0 && (trapCardNum || magicBoxCardNum || seedCardNum) && (
+            <div style={{
+              position: 'absolute', top: 2, right: 2,
+              backgroundColor: 'rgba(180,0,0,0.88)', color: '#fff',
+              fontSize: 8, fontWeight: 'bold', borderRadius: 3,
+              padding: '1px 3px', lineHeight: 1, pointerEvents: 'none',
+            }}>
+              V
+            </div>
           )}
         </div>
         {charmCardNum && (

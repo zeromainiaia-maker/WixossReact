@@ -1,5 +1,54 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-13 ymsty側: ユーザー報告バグ4件の修正（v0.264）+ 🚨 新規系統穴の発見（下記）
+>
+> **デプロイ未実施（ymsty側に権限なし）→ zerom側で動作確認のうえ `vercel deploy --prod` を行うこと**。
+> tsc 0 / lint 0 errors（warning 28、既存同数）/ checkAllEffects 0（警告12、既存同数）/
+> verifyEffects 全12シート issues 0 / tsxスモークテスト13項目PASS。
+>
+> ### 修正1: WX01-005 ピルルクΩの【起】手札コストが支払われていなかった
+> - JSONに`cost`が丸ごと欠落（「手札から青のシグニを１枚捨てる」）→ `cost:{handDiscardSigni:{color:'青',count:1}}` 付与。
+>   ルリグ【起】モーダル（pendingLrigGranted）はhandDiscardSigniの選択UI・検証・支払いを既に完備しており、JSONのみで解決
+>
+> ### 修正2: WX01-031 コードハートVACの【常】スペルコスト軽減が機能していなかった
+> - **原因**: `calcActiveCostMods`（effectEngine.ts）がCONTINUOUSの`COST_INCREASE`しか収集せず、
+>   `COST_REDUCTION`はeffectExecutorでもログのみの未実装で**どこからも参照されていなかった**
+> - **エンジン**: `extractCostReductions`新設 → ActiveCostModに `direction:'decrease'` + `cardColor`（対象カード色制限）で収集。
+>   isGrowCost付きはスキップ（グロウはGROW_COST_REDUCTION経路）
+> - **BattleScreen**: `applyContinuousCostDecreases(cost, cardType, cardColor, mods)` 新設。
+>   スペル発動モーダルとアーツ選択モーダルの`computeArtsEffectiveCost`直後に適用
+>   （アーツ支払いモーダルへはpendingArtsEffectiveCost経由で伝播）。《無》軽減は無色部分のみ減る
+>   （removeNColorFromCostの挙動どおり、ルール準拠）。**カットインアーツ経路には未適用**（既存のコスト軽減全般が
+>   未適用の経路のため従来どおりの近似）
+> - **JSONデータバグ3件を併せて修正**: WX01-031-E1とWX03-028-E1の`reduction:[{color:'無×1'}]`→`'無'`
+>   （破損気味のパース値）、WX12-024-E2（†C・C・M†）に色フィルタ`color:'青と黒'`欠落
+>   （全色スペルに効く定義だった）。これでWX03-028（青アーツ軽減）とWX12-024も同時に直った
+> - 残: ACTIVATED/AUTO/LIFE_BURSTの一時的COST_REDUCTION（WX04-008等10件）は状態機構がなく未実装のまま
+>
+> ### 修正3: WD19-015 クロコウジが相手の場にウィルスがあっても【出】でさらに置けた
+> - 「対戦相手の場に【ウィルス】がない場合」の条件がJSON欠落 → 新ActiveCondition
+>   `{type:'VIRUS_COUNT', owner, operator, value}` を新設（types/effects.ts + effectEngine checkActiveCondition）し、
+>   `activeCondition:{type:'VIRUS_COUNT',owner:'opponent',operator:'eq',value:0}` を付与。
+>   v0.263のON_PLAY収集3箇所のactiveConditionゲートで人間召喚/グロウ/CPU召喚すべて効く。
+>   同型テキストのWX20-030はSTUB（SELF_TRASH_IF_NO_OPP_VIRUS）内で条件判定済みのため対象外
+>
+> ### 修正4: 空きゾーンのウィルスが見えなかった（UI）
+> - StackedSigniSlot（BoardComponents.tsx）の空ゾーン分岐にウィルス表示がなかった（「V」バッジは
+>   シグニがいる分岐のみ）→ 空ゾーンに 🦠 VIRUS 表示 + 赤破線ボーダー。トラップ/マジックボックス/シード
+>   と共存する場合は右上「V」バッジで表示
+>
+> ### 🚨 新規発見: 【起】の手札捨てコスト未表現が102カード（WX01-005と同型の系統穴）
+> - スキャン: CSVの【起】コスト部（「：」より前）に「手札から…捨てる」があるのに、対応ACTIVATED効果に
+>   `cost.discard`/`cost.handDiscardSigni`が無いもの = **102カード**（スクリプトはymsty側
+>   tmp_verify/scanActivatedHandDiscardCost.mjs、gitignore対象なので再作成要）。
+>   ON_PLAY（v0.262の230件）と違いACTIVATEDは**コスト無しで発動できてしまう**（無発火ではなく踏み倒し）
+> - **一括付与は要注意**: 支払いUIの対応がパスごとに違う。ルリグ【起】（executeLrigGranted）は
+>   handDiscardSigniのみ、シグニ【起】（executeSigniActivated）はdiscard+discardFilterのみ対応。
+>   対応外のコスト型を付けると**発動不能になる退行**を起こすため、パスごとのUI対応確認
+>   （または共通化）とセットで行うこと。混合コスト（「スペル１枚と＜原子＞１枚」等）はスキーマ拡張も必要
+> - なお本スキャンは手札捨てのみ。【起】のウィルス除去コスト（WX20-030-E2等）・エナカード指定等、
+>   他のコスト型にも同様の穴がある可能性が高い
+
 > ## ✅ 2026-06-12 zerom側: ONPLAY_DEAD_OPTIONAL 105件 → 12件（v0.263）
 >
 > v0.262の残課題1を実施。未表現だった【出】コストのスキーマを拡張し、105件中93件を解消した。
