@@ -6519,11 +6519,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ガード応答: handIndex=ガードカードのインデックス、null=ガードしない
-  const handleGuardResponse = async (handIndex: number | null) => {
-    if (!my.field.lrig_attacked || loading) return;
+  // ルリグアタックへのガード応答（人間・CPU共通）。handIndex=null は「ガードしない」（ダメージ解決）
+  const performGuardResponse = async (handIndex: number | null, p: {
+    responder: PlayerState; attacker: PlayerState;
+    responderId: string; attackerId: string;
+    responderKey: 'host_state' | 'guest_state';
+  }) => {
+    const { responder: my, attacker: op, responderId, attackerId } = p;
+    if (!my.field.lrig_attacked) return;
     setLoading(true);
     try {
-      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const stateKey = p.responderKey;
       let newMyState: PlayerState;
       let guardTriggers: StackEntry[] = [];
       if (handIndex !== null) {
@@ -6531,7 +6537,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const cardNum = my.hand[handIndex];
         const guardCardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
         // OPP_GUARD_COST_COLORLESS: 相手フィールドにアクティブな場合、追加で無色エナを1枚消費
-        const needsExtraEnergy = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, !isMyTurn);
+        // （ガードは常に相手ターン中＝防御側は非ターンプレイヤー）
+        const needsExtraEnergy = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, true);
         // EXTRA_GUARD_COST_FROM_HAND: 相手フィールドにアクティブな場合、手札から追加でガードカードを1枚捨てる
         const needsExtraGuardCard = collectOppExtraGuardFromHand(op, battleCardMap, effectsMap);
         // game_opp_extra_guard_hand_or_colorless: 相手が能力付与→ガード時に追加でエナか手札捨て
