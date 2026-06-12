@@ -163,8 +163,8 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   CONDITIONAL_MULTI_CHOOSE_BY_CENTER: ['DRAW', 'MILL', 'TRASH', 'DISCARD', 'DOWN', 'FREEZE', 'BANISH', 'BOUNCE', 'POWER_MODIFY', 'MOVE_TO_ENERGY'],
   // 手札がN枚になるまでドロー
   DRAW_UNTIL_HAND_SIZE: ['DRAW'],
-  // ①②③④を実行時解析（DRAW/ミル/バニッシュ/バウンス/トラッシュ→デッキ+ライフエナ等を実装）
-  CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE: ['DRAW', 'MILL', 'BANISH', 'BOUNCE', 'MOVE_TO_ENERGY'],
+  // ①②③④を実行時解析（DRAW/ミル/バニッシュ/バウンス/トラッシュ→デッキ+ライフエナ/全体パワー+等を実装）
+  CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE: ['DRAW', 'MILL', 'BANISH', 'BOUNCE', 'MOVE_TO_ENERGY', 'POWER_MODIFY'],
   // 直前エナチャージがクラス一致なら1ドロー
   DRAW_IF_CHARGED_CLASS: ['DRAW'],
   // 手札N枚超過分をエナゾーンへ
