@@ -816,11 +816,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     placedState: PlayerState;
     mandatoryEntries: StackEntry[];
     remainingCostEffects?: import('../types/effects').CardEffect[]; // 2つ目以降のコスト付き任意【出】（1効果ずつモーダルを連鎖）
+    placedZone?: number; // 召喚したゾーン（fieldTrashのexcludeSelf / handToUnderSelfの行き先に使用。グロウ経路はundefined）
   } | null>(null);
   const [selectedSigniOnPlayCost, setSelectedSigniOnPlayCost] = useState<Set<number>>(new Set());
   const [selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard] = useState<Set<number>>(new Set());
   // エナゾーンからのカード指定コスト（cost.energyTrash）の選択
   const [selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash] = useState<Set<number>>(new Set());
+  // 場のシグニをトラッシュするコスト（cost.fieldTrash）のゾーン選択
+  const [selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash] = useState<Set<number>>(new Set());
   // キーピース
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [pendingKeyCard, setPendingKeyCard] = useState<CardData | null>(null);
