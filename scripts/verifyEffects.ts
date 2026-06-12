@@ -131,7 +131,8 @@ const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
   { pattern: /バニッシュ(?!無効|以外)/,                                types: ['BANISH', 'BANISH_REDIRECT', 'CHARM_PROTECTION'] },
   // DRAW系: MUTUAL_DISCARD_AND_DRAW（両者手札捨て+ドロー）もエイリアス
   { pattern: /カードを([１-９\d０-９]+枚)?引く|ドローする/,             types: ['DRAW', 'MUTUAL_DISCARD_AND_DRAW'] },
-  { pattern: /デッキから.+探して/,                                     types: ['SEARCH'] },
+  // 「探している間」（SEARCH中の常時能力トリガー文）は除外
+  { pattern: /デッキから.+探して(?!いる)/,                             types: ['SEARCH'] },
   { pattern: /エナゾーンに置く/,                                       types: ['MOVE_TO_ENERGY', 'ENERGY_CHARGE', 'ENERGY_CHARGE_FROM_DECK', 'ADD_TO_ENERGY', 'TAKE_FROM_UNDER_SIGNI'] },
   // 能動形のみ（「手札からトラッシュに移動していた」等のトリガー条件文を除外）
   // [^。]+で同一センテンス内のみマッチ（「手札から場に出す。ターン終了時トラッシュ」等の文またぎ誤検出を防ぐ）
