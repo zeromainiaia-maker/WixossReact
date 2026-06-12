@@ -6082,34 +6082,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── スペルカットインパス（人間のスペルに対してCPUは常にパス）───
     if (bs.pending_spell && bs.pending_spell.caster_id !== CPU_PLAYER_ID) {
-      const { caster_id, card_num } = bs.pending_spell;
-      const casterIsHost = caster_id === bs.host_id;
-      const casterState    = casterIsHost ? bs.host_state : bs.guest_state;
-      const nonCasterState = casterIsHost ? bs.guest_state : bs.host_state;
-      const resolved: PlayerState = { ...casterState, trash: [...casterState.trash, card_num] };
-      const effects = effectsMap.get(card_num) ?? [];
-      const spellEff = effects.find(e => e.effectType === 'ACTIVATED');
-      if (!spellEff) {
-        await supabase.from('battle_states')
-          .update({ [casterIsHost ? 'host_state' : 'guest_state']: resolved, pending_spell: null, pending_effect: null })
-          .eq('room_id', roomId);
-        return;
-      }
-      const spellName = battleCardMap.get(card_num)?.CardName ?? card_num;
-      appendBattleLogs([`[相手] ${spellName}を使用`]);
-      const spellPowers = calcFieldPowers(resolved, nonCasterState, bs.active_user_id === caster_id, effectsMap, battleCardMap);
-      const spellIsOwnerTurn2 = bs.active_user_id === caster_id;
-      const spellAllColorSigniNums2 = new Set([...collectAllColorSigniForField(resolved, battleCardMap, effectsMap, nonCasterState, spellIsOwnerTurn2), ...collectAllColorSigniForField(nonCasterState, battleCardMap, effectsMap, resolved, !spellIsOwnerTurn2)]);
-      const spellExtraColors2 = new Map([...collectFieldSigniExtraColors(resolved, battleCardMap, effectsMap, nonCasterState, spellIsOwnerTurn2), ...collectFieldSigniExtraColors(nonCasterState, battleCardMap, effectsMap, resolved, !spellIsOwnerTurn2)]);
-      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: battleCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, allColorSigniNums: spellAllColorSigniNums2, fieldSigniExtraColors: spellExtraColors2 };
-      const result = executeEffect(spellEff, ctx);
-      if (result.logs.length > 0) appendBattleLogs(result.logs);
-      const hostState  = casterIsHost ? result.ownerState : result.otherState;
-      const guestState = casterIsHost ? result.otherState : result.ownerState;
-      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
-      update.pending_effect = result.done ? null
-        : ({ sourcePlayerId: caster_id, sourceCardNum: card_num, effectId: spellEff.effectId, interaction: result.pending } satisfies PendingEffect);
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      // 対人戦と同じ共通処理（NEGATE_SPELL打ち消し・ON_SPELL_USEトリガーを含む）でスペルを解決
+      await handleCutinPass();
       return;
     }
 
