@@ -267,7 +267,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       };
       return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札からランダム${count}枚をトラッシュへ`), lastProcessedCards: picked });
     }
-    const cands = handCandidates(state, tgt.filter, ctx.cardMap);
+    const cands = handCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     const scope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
     function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
@@ -300,7 +300,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   }
 
   if (tgt.type === 'ENERGY_CARD') {
-    const cands = energyCandidates(state, tgt.filter, ctx.cardMap);
+    const cands = energyCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
@@ -342,10 +342,10 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
   let scope: TargetScope;
 
   if (tgt.type === 'HAND_CARD') {
-    cands = handCandidates(state, tgt.filter, ctx.cardMap);
+    cands = handCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgt.owner === 'opponent' ? 'opp_hand' : 'self_hand';
   } else if (tgt.type === 'TRASH_CARD') {
-    cands = trashCandidates(state, tgt.filter, ctx.cardMap);
+    cands = trashCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
   } else {
     cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
@@ -436,10 +436,10 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   let scope: TargetScope;
 
   if (src.type === 'TRASH_CARD') {
-    cands = trashCandidates(state, src.filter, ctx.cardMap);
+    cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    cands = energyCandidates(state, src.filter, ctx.cardMap);
+    cands = energyCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else {
     return done(ctx);
@@ -498,13 +498,13 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   let scope: TargetScope;
 
   if (src.type === 'TRASH_CARD') {
-    cands = trashCandidates(state, src.filter, ctx.cardMap);
+    cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    cands = energyCandidates(state, src.filter, ctx.cardMap);
+    cands = energyCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else if (src.type === 'HAND_CARD') {
-    cands = handCandidates(state, src.filter, ctx.cardMap);
+    cands = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_hand' : 'opp_hand';
   } else {
     return done(ctx);
@@ -1381,14 +1381,14 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   }
 
   if (src.type === 'TRASH_CARD') {
-    const cands = trashCandidates(state, src.filter, ctx.cardMap);
+    const cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
     const newS = insertToDeck({ ...state, trash: state.trash.filter(n => !cards.includes(n)) }, cards);
     return done({ ...addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}枚をデッキに戻す`), lastProcessedCards: cards });
   }
 
   if (src.type === 'HAND_CARD') {
-    const cands = handCandidates(state, src.filter, ctx.cardMap);
+    const cands = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
     const scope: TargetScope = src.owner === 'self' ? 'self_hand' : 'opp_hand';
 
@@ -1602,11 +1602,11 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   let cands: string[];
 
   if (a.source === 'hand') {
-    cands = handCandidates(ctx.ownerState, a.filter, ctx.cardMap);
+    cands = handCandidates(ctx.ownerState, a.filter, ctx.cardMap, ctx.treatAsClassAllZones);
   } else if (a.source === 'opp_hand') {
-    cands = handCandidates(ctx.otherState, a.filter, ctx.cardMap);
+    cands = handCandidates(ctx.otherState, a.filter, ctx.cardMap, ctx.treatAsClassAllZones);
   } else if (a.source === 'opp_trash') {
-    cands = trashCandidates(ctx.otherState, a.filter, ctx.cardMap);
+    cands = trashCandidates(ctx.otherState, a.filter, ctx.cardMap, ctx.treatAsClassAllZones);
   } else {
     // lrig_deck: ルリグデッキの先頭から対象を探す
     cands = (ctx.ownerState.lrig_deck ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
