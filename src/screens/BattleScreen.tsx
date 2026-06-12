@@ -3861,9 +3861,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     triggeringCardNum: string,
     myState: PlayerState,
     opState: PlayerState,
+    ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
   ): StackEntry[] => {
     const entries: StackEntry[] = [];
-    const opId = isHost ? bs.guest_id : bs.host_id;
+    const opId = ownerId === bs.host_id ? bs.guest_id : bs.host_id;
 
     // 自分のフィールド：'any_ally' または 'any' トリガー
     // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ（GRANT_ABILITY_INNER_TEXT付与）
