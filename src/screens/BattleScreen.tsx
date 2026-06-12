@@ -6641,7 +6641,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } else {
           // ライフクロス0枚 → 自分の敗北
           appendBattleLogs([`ルリグアタック：ライフなし → 敗北`]);
-          const winnerId = isHost ? bs.guest_id : bs.host_id;
+          const winnerId = attackerId;
           const clearedMyState: PlayerState = { ...my, field: { ...my.field, lrig_attacked: false } };
           await supabase.from('battle_states')
             .update({ [stateKey]: clearedMyState, global_phase: 'FINISHED', winner_id: winnerId })
