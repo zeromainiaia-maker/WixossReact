@@ -46,6 +46,8 @@ export interface ExecCtx {
   fieldSigniExtraColors?: Map<string, string[]>;
   // OPP_TRASH_LOSE_COLOR_AND_CLASS: 自分（ownerState）のトラッシュのカードが色/クラスを失う
   oppTrashColorLoss?: boolean;
+  // TREAT_AS_CLASS_ALL_ZONES: カードNum→クラス名のマップ（全ゾーンでクラスとして扱う）
+  treatAsClassAllZones?: Record<string, string>;
 }
 
 export type ExecResult =
