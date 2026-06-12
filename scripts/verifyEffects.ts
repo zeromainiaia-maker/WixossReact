@@ -127,7 +127,8 @@ function normTextCost(costs: { color: string; count: number }[]): string {
 const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
   { pattern: /手札に戻す|バウンス/,                                    types: ['BOUNCE', 'TRANSFER_TO_HAND'] },
   // BANISH系: BANISH_REDIRECT（バニッシュ先変更）, CHARM_PROTECTION（バニッシュ代替チャーム）もエイリアス
-  { pattern: /バニッシュ(?!無効)/,                                     types: ['BANISH', 'BANISH_REDIRECT', 'CHARM_PROTECTION'] },
+  // 「バニッシュ以外で」（移動制限の除外句）はアクションではないため除外
+  { pattern: /バニッシュ(?!無効|以外)/,                                types: ['BANISH', 'BANISH_REDIRECT', 'CHARM_PROTECTION'] },
   // DRAW系: MUTUAL_DISCARD_AND_DRAW（両者手札捨て+ドロー）もエイリアス
   { pattern: /カードを([１-９\d０-９]+枚)?引く|ドローする/,             types: ['DRAW', 'MUTUAL_DISCARD_AND_DRAW'] },
   { pattern: /デッキから.+探して/,                                     types: ['SEARCH'] },
