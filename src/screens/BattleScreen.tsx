@@ -6219,6 +6219,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .sort((a, b) => (parseInt(a.card!.Level) || 0) - (parseInt(b.card!.Level) || 0));
 
       let newCpuSt = { ...cpuSt };
+      // 配置したシグニの【出】/ON_PLAYトリガー（対人戦handleSummonSigniと同じ収集）
+      const cpuOnPlayEntries: StackEntry[] = [];
 
       for (let zone = 0; zone < 3; zone++) {
         if ((newCpuSt.field.signi[zone] ?? []).length > 0) continue; // ゾーン埋まってる
