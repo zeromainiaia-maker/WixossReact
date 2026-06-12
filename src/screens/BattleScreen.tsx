@@ -5757,6 +5757,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // シグニアタック処理（人間プレイヤー用エントリポイント）
+  const handleSigniAttack = async (zoneIndex: number) => {
+    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
+    if (op.field.check) return; // 相手のライフバースト処理待ち中はアタック不可
+    await performSigniAttack(zoneIndex, {
+      attacker: my,
+      defender: op,
+      attackerId: user.id,
+      defenderId: isHost ? bs.guest_id : bs.host_id,
+      attackerKey: isHost ? 'host_state' : 'guest_state',
+    });
+  };
+
   // ルリグアタック: 自分のルリグをダウンし相手にガード応答を要求
   const handleLrigAttack = async () => {
     if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_LRIG') return;
