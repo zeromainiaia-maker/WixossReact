@@ -24,7 +24,7 @@ export function execStubPart1(
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
 ): ExecResult | null {
-  if (stub.id === 'PREVENT_NEXT_DAMAGE') {
+  if (stub.id === 'PREVENT_NEXT_DAMAGE' || stub.id === 'PREVENT_NEXT_DAMAGE_THIS_TURN') {
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、次のダメージを1回無効'));
   }
