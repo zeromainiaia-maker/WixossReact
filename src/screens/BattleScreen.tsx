@@ -3166,6 +3166,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
         spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
+        turn_hand_discarded_count: undefined,
       };
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
