@@ -7228,7 +7228,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
         }
       }
-      await finishOrChainSigniOnPlayCost(cardNum, paid, allEntries, remainingCostEffects);
+      await finishOrChainSigniOnPlayCost(cardNum, paid, allEntries, remainingCostEffects, placedZone);
     } finally {
       setLoading(false);
     }
@@ -7240,6 +7240,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     placedState: PlayerState,
     mandatoryEntries: StackEntry[],
     remainingCostEffects?: import('../types/effects').CardEffect[],
+    placedZone?: number,
   ) => {
     if (loading) return;
     setLoading(true);
@@ -7247,8 +7248,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSigniOnPlayCost(new Set());
     setSelectedSigniOnPlayDiscard(new Set());
     setSelectedSigniOnPlayEnergyTrash(new Set());
+    setSelectedSigniOnPlayFieldTrash(new Set());
     try {
-      await finishOrChainSigniOnPlayCost(cardNum, placedState, mandatoryEntries, remainingCostEffects);
+      await finishOrChainSigniOnPlayCost(cardNum, placedState, mandatoryEntries, remainingCostEffects, placedZone);
     } finally {
       setLoading(false);
     }
