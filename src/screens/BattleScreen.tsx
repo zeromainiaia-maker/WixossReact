@@ -5503,7 +5503,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             // ライフなし → 相手の敗北
             appendBattleLogs([`${myCardName}がアタック：相手のライフなし → 相手の敗北`]);
             await supabase.from('battle_states')
-              .update({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: user.id })
+              .update({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: attackerId })
               .eq('room_id', roomId);
             return;
           }
