@@ -3968,6 +3968,40 @@ export function execStubPart3(
     });
   }
 
+  // LIFE_CLOTH_LOOK_TRASH_REFILL: 全ライフクロスを見て好きな枚数トラッシュ→同数デッキ上から補充（WX05-010）
+  if (stub.id === 'LIFE_CLOTH_LOOK_TRASH_REFILL') {
+    const lifeCloth = ctx.ownerState.life_cloth;
+    if (lifeCloth.length === 0) return done(addLog(ctx, 'ライフクロスなし'));
+    const trashStub: StubAction = { type: 'STUB', id: 'INTERNAL_LCLTR_TRASH' };
+    return needsInteraction(
+      addLog(ctx, `全ライフクロス${lifeCloth.length}枚 → 好きな枚数をトラッシュに置く（任意）`),
+      {
+        type: 'SELECT_TARGET',
+        candidates: lifeCloth,
+        count: lifeCloth.length,
+        optional: true,
+        targetScope: 'self_field' as TargetScope,
+        thenAction: trashStub as EffectAction,
+      },
+    );
+  }
+  if (stub.id === 'INTERNAL_LCLTR_TRASH') {
+    const selected = ctx.lastProcessedCards ?? [];
+    const trashCount = selected.length;
+    if (trashCount === 0) return done(addLog(ctx, 'ライフクロスをトラッシュしなかった'));
+    const newLife = ctx.ownerState.life_cloth.filter(cn => !selected.includes(cn));
+    const took = ctx.ownerState.deck.slice(0, trashCount);
+    const newDeck = ctx.ownerState.deck.slice(trashCount);
+    const newOwner = {
+      ...ctx.ownerState,
+      life_cloth: [...newLife, ...took],
+      deck: newDeck,
+      trash: [...ctx.ownerState.trash, ...selected],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner },
+      `ライフクロス${trashCount}枚トラッシュ→デッキ上から${took.length}枚補充`));
+  }
+
   // LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS: ルリグトラッシュの全ルリグをこのカードの下に、アーツをルリグデッキへ（WX05-001, WXEX2-84）
   if (stub.id === 'LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS') {
     const lrigTrash = ctx.ownerState.lrig_trash ?? [];
