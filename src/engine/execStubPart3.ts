@@ -3968,6 +3968,19 @@ export function execStubPart3(
     });
   }
 
+  // DRAW_IF_CHARGED_CLASS: 直前のENERGY_CHARGE_FROM_DECKで＜調理＞がチャージされた場合1ドロー（WDK07-E01）
+  if (stub.id === 'DRAW_IF_CHARGED_CLASS') {
+    const lastCharged = ctx.ownerState.energy.at(-1);
+    if (!lastCharged) return done(addLog(ctx, 'エナにカードなし（DRAW_IF_CHARGED_CLASS）'));
+    const card = ctx.cardMap.get(lastCharged);
+    const story = ctx.ownerState.story_overrides?.[lastCharged] ?? card?.Story ?? '';
+    if (!story.includes('調理')) {
+      return done(addLog(ctx, `${card?.CardName ?? lastCharged}は＜調理＞でないためドローしない`));
+    }
+    const drawAct: DrawAction = { type: 'DRAW', owner: 'self', count: 1 };
+    return exec(drawAct as EffectAction, addLog(ctx, `${card?.CardName ?? lastCharged}は＜調理＞→1ドロー`));
+  }
+
   // TRASH_UNDER_SPELLS_POWER_MINUS: このシグニの下スペルを任意枚数トラッシュ→相手シグニに-5000×枚数（WXDi-P10-040）
   if (stub.id === 'TRASH_UNDER_SPELLS_POWER_MINUS') {
     const selfNum = ctx.sourceCardNum;
