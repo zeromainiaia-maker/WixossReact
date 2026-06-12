@@ -6650,7 +6650,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // MULTI_DAMAGE_ON_LRIG_ATTACK: 攻撃側に残りアタック回数があれば再トリガー
-      const oppStateKey = isHost ? 'guest_state' : 'host_state';
+      const oppStateKey = stateKey === 'host_state' ? 'guest_state' : 'host_state';
       let newOpState = op;
       if (op.lrig_attack_remaining && op.lrig_attack_remaining > 0) {
         const rem = op.lrig_attack_remaining - 1;
