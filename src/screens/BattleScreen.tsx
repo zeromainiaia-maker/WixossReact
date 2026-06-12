@@ -5320,9 +5320,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             newOpState = { ...op, field: { ...op.field, signi: newOpSigniLRD, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（場離れ→ダウン代替）バニッシュ回避してダウン`]);
           } else {
-          // COOKING_BANISH_SUBSTITUTE: 調理シグニにアクセがある場合、アクセをトラッシュしてバニッシュ回避（相手ターンのみ）
+          // COOKING_BANISH_SUBSTITUTE: 調理シグニにアクセがある場合、アクセをトラッシュしてバニッシュ回避
+          // （防御側から見て相手ターンのみ＝アタックは常にアタッカーのターンなので常に該当）
           const opTopCardClass = opTopCardNum ? (battleCardMap.get(opTopCardNum)?.CardClass ?? '') : '';
-          const cookingBanishSub = isMyTurn && opTopCardClass.includes('調理') &&
+          const cookingBanishSub = opTopCardClass.includes('調理') &&
             (op.field.signi_acce?.[opZoneIndex] ?? null) !== null &&
             op.field.signi.some(stack => {
               const top = stack?.at(-1);
