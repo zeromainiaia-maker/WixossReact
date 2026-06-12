@@ -3603,6 +3603,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_frozen: [false, false, false] as [boolean, boolean, boolean],
               lrig_down:    (nextState.field.lrig_down ?? false) && (nextState.field.lrig_frozen ?? false),
               lrig_frozen:  false,
+              assist_lrig_l_down: false,
+              assist_lrig_r_down: false,
             },
           };
 
