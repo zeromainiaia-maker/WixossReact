@@ -4159,7 +4159,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
         (e.triggerScope === undefined || e.triggerScope === 'self') &&
-        e.mandatory !== false,
+        e.mandatory !== false &&
+        // activeCondition（英知=N等）を満たさない【出】は発火しない
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, true, battleCardMap, cardNum)),
       );
       // コスト付き任意【出】効果（mandatory: false + cost あり）
       const ownCostOnPlay = ownEffects.filter(e =>
