@@ -194,6 +194,21 @@ export function matchesFilter(
     const hasGuard = card.Guard === '1';
     if (filter.hasGuard !== hasGuard) return false;
   }
+  if (filter.hasIcon !== undefined) {
+    // 《Xアイコン》持ちの判定: カード自身のテキストにキーワード能力があるかの近似
+    const txt = card.EffectText ?? '';
+    const iconOk =
+      filter.hasIcon === 'クロス'   ? txt.includes('【クロス') :
+      filter.hasIcon === 'ライズ'   ? txt.includes('【ライズ】') :
+      filter.hasIcon === 'トラップ' ? txt.includes('《トラップアイコン》：') :
+      filter.hasIcon === 'アクセ'   ? txt.includes('【アクセ】') :
+      false;
+    if (!iconOk) return false;
+  }
+  if (filter.hasLifeBurst !== undefined) {
+    const hasLB = !!card.BurstText && card.BurstText !== '-';
+    if (filter.hasLifeBurst !== hasLB) return false;
+  }
   return true;
 }
 
