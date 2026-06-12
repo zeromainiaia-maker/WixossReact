@@ -6351,68 +6351,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ATTACK_SIGNIフェイズ：全シグニでアタック ───
     if (phase === 'ATTACK_SIGNI') {
-      // まだダウンしていないシグニを1枚ずつアタック
+      // まだダウンしていない（かつアタック可能な）シグニを1枚ずつアタック
       const signiDown = cpuSt.field.signi_down ?? [false, false, false];
-      const firstUp = cpuSt.field.signi.findIndex((stack, i) =>
-        (stack ?? []).length > 0 && !signiDown[i]
-      );
+      const firstUp = cpuSt.field.signi.findIndex((stack, i) => {
+        const top = (stack ?? []).at(-1);
+        if (!top || signiDown[i]) return false;
+        // アタック不可のシグニはダウンされず performSigniAttack が早期returnして
+        // 無限ループするため、ここで候補から除外する
+        if (cpuSt.blocked_actions?.includes(`ATTACK:${top}`)) return false;
+        return true;
+      });
 
       if (firstUp >= 0) {
-        const opZone = 2 - firstUp; // 正面ゾーン（反転）
-        const opStack = huSt.field.signi[opZone] ?? [];
-        const opTopNum = opStack.length > 0 ? opStack[opStack.length - 1] : null;
-
         const myTopNum = (cpuSt.field.signi[firstUp] ?? []).at(-1)!;
-        const myCard = battleCardMap.get(myTopNum);
-        const myPower = effectivePowers.get(myTopNum) ?? parsePowerVal(myCard?.Power);
-        const opPower = opTopNum ? (effectivePowers.get(opTopNum) ?? parsePowerVal(battleCardMap.get(opTopNum)?.Power)) : 0;
-        const opCard = opTopNum ? battleCardMap.get(opTopNum) : null;
-
-        const newSigniDown = [...signiDown];
-        newSigniDown[firstUp] = true;
-        const newCpuSt: PlayerState = { ...cpuSt, field: { ...cpuSt.field, signi_down: newSigniDown } };
-        let newHuSt = huSt;
-
-        if (opTopNum && myPower < opPower) {
-          // バトル負け：何もしない（シグニはダウンのみ）
-          appendBattleLogs([`[CPU] ${myCard?.CardName ?? myTopNum} がバトル敗北（${myPower} < ${opPower}）`]);
-        } else if (opTopNum) {
-          // バトル勝ち：相手シグニバニッシュ → トラッシュへ（ライズスタック全体）
-          appendBattleLogs([`[CPU] ${myCard?.CardName ?? myTopNum} がバトル勝利 → ${opCard?.CardName ?? opTopNum} をバニッシュ`]);
-          const newOpSigni = [...huSt.field.signi] as (string[] | null)[];
-          newOpSigni[opZone] = null;
-          newHuSt = {
-            ...huSt,
-            trash: [...huSt.trash, ...opStack],
-            field: { ...huSt.field, signi: newOpSigni },
-          };
-        } else {
-          // 正面シグニなし：ライフクロスをクラッシュ
-          if (huSt.life_cloth.length > 0) {
-            const crashed = huSt.life_cloth[huSt.life_cloth.length - 1];
-            appendBattleLogs([`[CPU] ${myCard?.CardName ?? myTopNum} → あなたのライフをクラッシュ（残り${huSt.life_cloth.length - 1}枚）`]);
-            newHuSt = {
-              ...huSt,
-              life_cloth: huSt.life_cloth.slice(0, -1),
-              field: { ...huSt.field, check: crashed },
-            };
-          } else {
-            appendBattleLogs([`[CPU] あなたのライフが0枚 → CPUの勝利！`]);
-            // 人間のライフなし → CPUの勝利
-            await supabase.from('battle_states').update({
-              guest_state: newCpuSt,
-              host_state: huSt,
-              winner_id: CPU_PLAYER_ID,
-              global_phase: 'FINISHED',
-            }).eq('room_id', roomId);
-            return;
-          }
-        }
-
-        await supabase.from('battle_states').update({
-          guest_state: newCpuSt,
-          host_state: newHuSt,
-        }).eq('room_id', roomId);
+        appendBattleLogs([`[CPU] ${battleCardMap.get(myTopNum)?.CardName ?? myTopNum} がアタック`]);
+        // 対人戦と同じ共通処理でバトル解決（バニッシュ先エナ・各種代替・ON_BANISH等トリガー収集を含む）
+        await performSigniAttack(firstUp, {
+          attacker: cpuSt,
+          defender: huSt,
+          attackerId: CPU_PLAYER_ID,
+          defenderId: bs.host_id,
+          attackerKey: 'guest_state',
+        });
         return; // 次のuseEffectトリガーで残りのシグニをアタック
       }
 
