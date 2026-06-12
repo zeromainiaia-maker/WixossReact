@@ -3829,5 +3829,67 @@ export function execStubPart3(
   // DECLARE_NUMBER: 数字を宣言する（DECLARE_AND_MILLの分離STUBとして使用）
   // → execStub.tsではDECLARE_NUMBERが既に実装済み（STUBS.md ✅）のため不要
 
+  // OPP_ENERGY_REDUCE_TO_N: 相手のエナをstub.value枚になるようにトラッシュ（WXK06-055 CHOOSE選択肢）
+  if (stub.id === 'OPP_ENERGY_REDUCE_TO_N') {
+    const target = typeof stub.value === 'number' ? stub.value : 6;
+    const opp = ctx.otherState;
+    if (opp.energy.length <= target) {
+      return done(addLog(ctx, `相手エナ${opp.energy.length}枚≤${target}のため何もしない`));
+    }
+    const excess = opp.energy.length - target;
+    const toTrash = opp.energy.slice(0, excess);
+    const newEnergy = opp.energy.slice(excess);
+    const newOther = { ...opp, energy: newEnergy, trash: [...opp.trash, ...toTrash] };
+    return done(addLog({ ...ctx, otherState: newOther },
+      `相手エナを${target}枚に（${excess}枚をトラッシュへ）`));
+  }
+
+  // BANISH_FACING_IF_SELF_POWER_GE_15000: アタック時、自パワー15000以上なら正面相手シグニをバニッシュ（WD17-009）
+  if (stub.id === 'BANISH_FACING_IF_SELF_POWER_GE_15000') {
+    const attackerNum = ctx.sourceCardNum;
+    if (!attackerNum) return done(addLog(ctx, 'アタッカー不明（BANISH_FACING_IF_SELF_POWER_GE_15000）'));
+    const zoneIdx = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === attackerNum);
+    if (zoneIdx < 0) return done(addLog(ctx, 'アタッカーゾーン不明'));
+    const attackerPower = ctx.effectivePowers?.get(attackerNum)
+      ?? parseInt(ctx.cardMap.get(attackerNum)?.Power ?? '0', 10);
+    if (attackerPower < 15000) {
+      return done(addLog(ctx, `自パワー${attackerPower}が15000未満のため不発`));
+    }
+    const oppStack = ctx.otherState.field.signi[zoneIdx];
+    const oppTopNum = oppStack?.at(-1);
+    if (!oppTopNum) return done(addLog(ctx, '正面に相手シグニなし'));
+    const oppName = ctx.cardMap.get(oppTopNum)?.CardName ?? oppTopNum;
+    const removedOpp = removeFromField(oppTopNum, ctx.otherState);
+    const { state: withDest, log: destLog } = banishDestination(removedOpp, ctx.ownerState, oppTopNum);
+    return done(addLog({ ...ctx, otherState: withDest }, `${oppName}${destLog}（パワー15000以上アタック）`));
+  }
+
+  // OPP_PUNISHER_CHOICE: 相手が3択（手札2捨て/エナ3トラッシュ/シグニ1トラッシュ）を選ぶ（WXK05-001【出】）
+  if (stub.id === 'OPP_PUNISHER_CHOICE') {
+    const discard2: TrashAction = {
+      type: 'TRASH',
+      target: { type: 'HAND_CARD', owner: 'opponent', count: 2, blind: true },
+    };
+    const energyTrash3: TrashAction = {
+      type: 'TRASH',
+      target: { type: 'ENERGY_CARD', owner: 'opponent', count: 3 },
+    };
+    const signiTrash1: TrashAction = {
+      type: 'TRASH',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+    };
+    const canDiscard2 = ctx.otherState.hand.length >= 2;
+    const canEnergyTrash3 = ctx.otherState.energy.length >= 3;
+    return needsInteraction(addLog(ctx, '相手：手札2枚捨てる/エナ3枚トラッシュ/シグニ1体トラッシュを選択'), {
+      type: 'CHOOSE', count: 1,
+      opponentResponds: true,
+      options: [
+        { id: 'c0', label: '手札を2枚捨てる', action: discard2 as EffectAction, available: canDiscard2 },
+        { id: 'c1', label: 'エナ3枚をトラッシュ', action: energyTrash3 as EffectAction, available: canEnergyTrash3 },
+        { id: 'c2', label: '自シグニ1体をトラッシュ', action: signiTrash1 as EffectAction, available: true },
+      ],
+    });
+  }
+
   return null;
 }
