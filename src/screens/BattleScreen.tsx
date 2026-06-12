@@ -10500,23 +10500,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
-                  {discardNeeded > 0 && (
+                  {handNeeded > 0 && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
-                        手札から捨てるカードを選択: {selectedSigniOnPlayDiscard.size} / {discardNeeded}枚
-                        {discardFilter ? `（${filterLabel(discardFilter)}のみ）` : ''}
+                        手札から{handCostLabel}カードを選択: {selectedSigniOnPlayDiscard.size} / {handNeeded}枚
+                        {handFilter ? `（${filterLabel(handFilter)}のみ）` : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                        {pendingSigniOnPlayCost.placedState.hand.map((num, i) => {
+                        {pState.hand.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniOnPlayDiscard.has(i);
-                          const matchesDiscardFilter = !discardFilter || matchesFilter(c, discardFilter);
+                          const matchesDiscardFilter = !handFilter || matchesFilter(c, handFilter);
                           return (
                             <div key={i}
                               onClick={() => matchesDiscardFilter && setSelectedSigniOnPlayDiscard(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
-                                if (next.size >= discardNeeded) return prev;
+                                if (next.size >= handNeeded) return prev;
                                 next.add(i); return next;
                               })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
