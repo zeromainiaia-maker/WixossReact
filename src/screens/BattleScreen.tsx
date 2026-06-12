@@ -6047,16 +6047,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (cpuSt.field?.check) {
       const cardNum = cpuSt.field.check;
       const burstCard = battleCardMap.get(cardNum);
-      appendBattleLogs([`[CPU] ライフクロスをオープン: ${burstCard?.CardName ?? cardNum}（ライフバースト不発動）`]);
-      // CPUはライフバーストを常に発動しない（エナに送るだけ）
-      const newCpuSt: PlayerState = {
-        ...cpuSt,
-        energy: [...cpuSt.energy, cardNum],
-        field: { ...cpuSt.field, check: null },
-      };
+      // LIFE_BURST効果があれば発動する（対人戦と同じ共通処理：ON_LIFE_CRASHED・CRASH_TO_TRASH_INSTEADを含む）
+      const hasBurst = (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST');
+      appendBattleLogs([`[CPU] ライフクロスをオープン: ${burstCard?.CardName ?? cardNum}${hasBurst ? '（ライフバースト発動）' : '（ライフバーストなし）'}`]);
+      await performLifeBurstResponse(hasBurst, undefined, {
+        owner: cpuSt, opponent: huSt,
+        ownerId: CPU_PLAYER_ID, ownerKey: 'guest_state',
+      });
+      return;
+    }
+
+    // ─── ダブルクラッシュ等の同時クラッシュ予約を順次checkへ（人間側のtriggerPendingCrash相当）───
+    if ((cpuSt.pending_crashed_cards?.length ?? 0) > 0 && !bs.effect_stack && !bs.pending_effect) {
+      const [nextCard, ...remaining] = cpuSt.pending_crashed_cards!;
+      appendBattleLogs([`[CPU] 同時クラッシュ：ライフクロスをクラッシュ（${battleCardMap.get(nextCard)?.CardName ?? nextCard}）`]);
       await supabase.from('battle_states').update({
-        guest_state: newCpuSt,
-        pending_effect: null,
+        guest_state: { ...cpuSt, pending_crashed_cards: remaining, field: { ...cpuSt.field, check: nextCard } },
       }).eq('room_id', roomId);
       return;
     }
