@@ -4085,3 +4085,40 @@ export function collectLevelRefOverridesFromNonField(
   }
   return result;
 }
+
+// TREAT_AS_CLASS_ALL_ZONES: 全ゾーンで特定クラスとして扱うカードのマップを収集
+export function collectTreatAsClassAllZones(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  const classRe = /すべての領域で＜(.+?)＞として扱う/;
+  for (const state of [ownerState, otherState]) {
+    const allZones = [
+      ...state.field.signi.flatMap(s => s ?? []),
+      ...state.field.lrig,
+      ...state.hand,
+      ...state.trash,
+      ...state.energy,
+      ...state.deck,
+      ...(state.lrig_trash ?? []),
+      ...(state.lrig_deck ?? []),
+      ...state.life_cloth,
+    ];
+    for (const cn of allZones) {
+      if (result[cn]) continue;
+      for (const eff of (effectsMap.get(cn) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type !== 'STUB' || act.id !== 'TREAT_AS_CLASS_ALL_ZONES') continue;
+        const card = cardMap.get(cn);
+        const text = card?.EffectText ?? card?.CardText ?? '';
+        const m = classRe.exec(text);
+        if (m) { result[cn] = m[1]; break; }
+      }
+    }
+  }
+  return result;
+}
