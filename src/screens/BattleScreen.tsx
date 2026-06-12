@@ -6176,13 +6176,51 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
           // lrig_deckはinstance IDなのでgrowTargetIdをそのまま除外・フィールドに積む
           const newLrigDeck = cpuSt.lrig_deck.filter(id => id !== growTargetId);
-          const newCpuSt: PlayerState = {
+          // コイン獲得/グロウコイン消費（対人戦executeGrowと同じ）
+          const coinGainCpu = parseInt(growCard.Coin) || 0;
+          const growCoinCostCpu = parseCoinCost(growCard.GrowCost);
+          let newCpuSt: PlayerState = {
             ...cpuSt,
             energy: newEnergy,
             lrig_deck: newLrigDeck,
             field: { ...cpuSt.field, lrig: [...cpuSt.field.lrig, growTargetId] },
             actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
+            coins: Math.min(5, Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu) + coinGainCpu),
           };
+          // ルリグ【出】効果（対人戦executeGrowと同じ収集）:
+          // mandatoryは発火、コインのみのコスト付き任意【出】は支払えるなら支払って発動
+          const cpuGrowEntries: StackEntry[] = [];
+          for (const eff of (effectsMap.get(growTargetId) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+            let fire = eff.mandatory !== false;
+            if (!fire && eff.cost?.coin && !eff.cost.energy && !eff.cost.discard) {
+              if ((newCpuSt.coins ?? 0) >= eff.cost.coin) {
+                newCpuSt = { ...newCpuSt, coins: (newCpuSt.coins ?? 0) - eff.cost.coin };
+                appendBattleLogs([`[CPU] 《コイン》×${eff.cost.coin}を支払って【出】効果を発動`]);
+                fire = true;
+              }
+            }
+            if (!fire) continue;
+            cpuGrowEntries.push({
+              id: generateUUID(),
+              playerId: CPU_PLAYER_ID,
+              cardNum: growTargetId,
+              effectId: eff.effectId,
+              label: `${growCard.CardName} の【出】効果`,
+              effect: eff,
+            });
+          }
+          if (cpuGrowEntries.length > 0) {
+            // スタックに積んで解決を待つ（GROWに留まり、解決後の再実行でMAINへ進む）
+            const existingStackGR = bs.effect_stack ?? null;
+            const newStackGR = existingStackGR
+              ? pushToStack(existingStackGR, cpuGrowEntries)
+              : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuGrowEntries);
+            await supabase.from('battle_states')
+              .update({ guest_state: newCpuSt, effect_stack: newStackGR })
+              .eq('room_id', roomId);
+            return;
+          }
           await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
