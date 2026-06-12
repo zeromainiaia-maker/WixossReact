@@ -290,6 +290,8 @@ export interface PlayerState {
   turn_plant_down_count?: number;
   // OPP_LRIG_LOSE_ABILITY: このターン、このプレイヤーのルリグは能力を失う（相手がカットイン発動）
   lrig_abilities_disabled?: boolean;
+  // このターンに手札を捨てた枚数の累計（BANISH_IF_DISCARDED_3_THIS_TURN等で参照）
+  turn_hand_discarded_count?: number;
 }
 
 export interface GameLog {
