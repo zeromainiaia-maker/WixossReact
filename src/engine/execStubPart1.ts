@@ -2744,10 +2744,18 @@ export function execStubPart1(
     if (count === 0) {
       const toSignedCBDP = (s: string) => parseInt(toHWCBDP(s).replace('＋','+').replace('－','-'));
       // 「手札をN枚まで捨てる：枚数ドロー or 枚数のシグニパワー修正」パターン（インタラクティブ）
-      const discardCostMCBDP = txtCBDP.match(/手札を([０-９\d]+)枚まで捨てる/);
-      if (discardCostMCBDP) {
-        const maxDiscardCBDP = parseInt(toHWCBDP(discardCostMCBDP[1]));
-        const handCardsCBDP = ctx.ownerState.hand;
+      // 「手札から＜クラス＞のシグニをN枚まで捨てる」「手札を好きな枚数捨てる」も対応
+      const discardCostMCBDP = txtCBDP.match(/手札(?:から(?:＜([^＞]+)＞の)?(?:シグニ|カード))?を?([０-９\d]+)枚まで捨てる/);
+      const discardAnyMCBDP = txtCBDP.match(/手札を好きな枚数捨てる/);
+      if (discardCostMCBDP || discardAnyMCBDP) {
+        const classCBDP = discardCostMCBDP?.[1];
+        const allHandCBDP = ctx.ownerState.hand;
+        const handCardsCBDP = classCBDP
+          ? allHandCBDP.filter(cn => (ctx.cardMap.get(cn)?.CardClass ?? '').includes(classCBDP))
+          : allHandCBDP;
+        const maxDiscardCBDP = discardCostMCBDP
+          ? parseInt(toHWCBDP(discardCostMCBDP[2]))
+          : handCardsCBDP.length;
         if (handCardsCBDP.length === 0) return done(addLog(ctx, '手札なし（捨てスキップ）'));
         const noopSCBDP: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
         const contSCBDP: StubAction = { type: 'STUB', id: 'INTERNAL_CBDOP_AFTER_DISCARD' };
