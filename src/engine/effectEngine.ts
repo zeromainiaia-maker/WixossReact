@@ -807,8 +807,10 @@ export function calcFieldPowers(
     for (const stack of ownerState.field.signi) {
       if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
     }
-    // センタールリグ（最前面）
-    if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig[ownerState.field.lrig.length - 1]);
+    // センタールリグ（最前面）※lrig_abilities_disabledがある場合はCONT効果をスキップ
+    if (ownerState.field.lrig.length > 0 && !ownerState.lrig_abilities_disabled) {
+      candidates.push(ownerState.field.lrig[ownerState.field.lrig.length - 1]);
+    }
     // アシストルリグ（左右それぞれ最前面）
     const al = ownerState.field.assist_lrig_l ?? [];
     if (al.length > 0) candidates.push(al[al.length - 1]);
