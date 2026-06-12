@@ -5400,7 +5400,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const frozenToTrash = !frozenToDeckBottom && myFrozenOvr.frozenLeaveToTrash;
           // RISE_BANISH_SUBSTITUTE / BANISH_SUBSTITUTE_RISE_STACK:
           // ライズスタック（複数枚）のシグニがバニッシュされる場合、スタック下のカードをトラッシュに置いてバニッシュを回避
-          const riseBanishSubSigni = collectRiseBanishSubstituteSigni(op, battleCardMap, effectsMap, my, !isMyTurn);
+          const riseBanishSubSigni = collectRiseBanishSubstituteSigni(op, battleCardMap, effectsMap, my, false);
           const opTopHasRiseSub = riseBanishSubSigni.includes(opTopCardNum ?? '');
           const riseSubStack = opTopHasRiseSub ? (op.field.signi[opZoneIndex] ?? []) : [];
           const riseSubApplied = opTopHasRiseSub && riseSubStack.length >= 2;
