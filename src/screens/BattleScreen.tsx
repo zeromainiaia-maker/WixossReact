@@ -6344,7 +6344,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           e.effectType === 'AUTO' &&
           e.timing?.includes('ON_PLAY') &&
           (e.triggerScope === undefined || e.triggerScope === 'self') &&
-          e.mandatory !== false,
+          e.mandatory !== false &&
+          // activeCondition（英知=N等）を満たさない【出】は発火しない
+          (!e.activeCondition || checkActiveCondition(e.activeCondition, newCpuSt, huSt, true, battleCardMap, candidate.id)),
         );
         cpuOnPlayEntries.push(...ownOnPlayCpu.map(eff => ({
           id: generateUUID(),
