@@ -1,5 +1,36 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 zerom側: CPU統一ラウンド2 — 残りのCPU独自実装を対人戦と共通化（v0.260）
+>
+> v0.259（シグニアタック統一）に続き、cpuTurnAction の残りの独自実装を共通関数化した。
+> 抽出パターンは performSigniAttack と同じ（本体を `perform*` に抽出し、人間用 `handle*` は薄いラッパーに）。
+>
+> 1. **ルリグアタック**: `performLrigAttack({attacker, defender, attackerId, attackerKey})` 抽出。
+>    CPU戦で **ON_ATTACK_LRIGトリガーが発火**、OPP_LRIG_ATTACK_COST・ドライブ状態・アタック無効化もCPUに適用。
+>    アタック不可時は false を返す（CPU側はfalseならENDへ進む）。myLrigAttackExtraCost メモは関数内計算に置換し削除
+> 2. **ガード応答**: `performGuardResponse(handIndex, {responder, attacker, responderId, attackerId, responderKey})` 抽出。
+>    CPUの被ルリグアタックで **prevent_next_damage・PREVENT_LRIG_DAMAGE（手札0条件）・人間ルリグのダブルクラッシュ**が
+>    有効に（従来は素通り）。handIndex=null=ガードしない。CPUは常にnull（将来のAI強化はindexを渡すだけ）
+> 3. **ライフバースト**: `performLifeBurstResponse(activate, targetCardNum, {owner, opponent, ownerId, ownerKey})` 抽出。
+>    CPUのライフクラッシュで **ON_LIFE_CRASHEDが発火**（v0.255の既知の近似を解消）、CRASH_TO_TRASH_INSTEAD対応。
+>    **CPUはLIFE_BURST効果を持つカードなら発動するようになった**（従来は常に不発動→CPU強化）。
+>    queueCardEffects に owner引数（{id,key}、省略時従来通り）を追加
+> 4. **同時クラッシュ予約の消化**: CPUの pending_crashed_cards を check へ順次昇格する処理を cpuTurnAction に追加
+>    （人間側 triggerPendingCrash 相当）。**従来は人間のダブルクラッシュ2点目がCPU戦で消えていた実バグの修正**。
+>    CPU行動useEffectの発火条件・depsにも pending_crashed_cards を追加
+> 5. **スペルカットインパス**: CPU独自のスペル解決30行を削除し `handleCutinPass()` を呼ぶだけに
+>    （caster_idベースで既に汎用だった）。CPU戦で **NEGATE_SPELL打ち消し・ON_SPELL_USEトリガー**が有効に
+> 6. **CPU召喚の【出】効果**: MAINフェイズのシグニ配置で **ON_PLAYトリガー（自身のmandatory + フィールドのany_ally/any_opp）を
+>    収集してスタックに積む**ようにした（従来は一切発火せず）。コスト付き任意【出】（mandatory:false）はCPUは発動しない。
+>    トリガーがある場合はMAINに留まり、スタック解決後の再実行でATTACK_ARTSへ進む
+> 7. **ヘルパーのオーナーID化**: collectFieldTriggers / collectSelfEventTriggers に ownerId引数（省略時user.id）を追加
+>
+> ### 検証・残課題
+> - tsc 0 / lint 0 errors（warning 28、既存同数）。v0.260デプロイ済み
+> - CPU召喚のON_PLAY解決は全配置後にまとめて（人間は1枚ごと）— 近似
+> - CPUのグロウ時トリガー（ON_GROW等）・アーツ/スペル使用はCPU AI未実装のため対象外
+> - MULTI_DAMAGE再アタック＋ダメージ無効が連続する稀なケースでCPU行動useEffectのdepsが変化せず停止する可能性（既存からの理論上の残課題）
+
 > ## ✅ 2026-06-12 zerom側: 課題B解決 — CPUアタックを対人戦と共通処理に統一（v0.259）
 >
 > 課題Bの最小修正（(a)(b)のみ複製）ではなく、**handleSigniAttack のバトル解決ロジック全体を
