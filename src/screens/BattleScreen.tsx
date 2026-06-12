@@ -5356,6 +5356,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : null;
           if (gkDrive) contGrantedKeywords.add(gkDrive.keyword);
         }
+        // DRIVE_SIGNI_POWER_DOUBLE_CRASH: ルリグのCONT → このシグニ（ドライブ状態）にダブルクラッシュ付与
+        const myLrigTopForDrive = my.field.lrig.at(-1);
+        if (myLrigTopForDrive) {
+          const hasDriveDoubleCrash = (effectsMap.get(myLrigTopForDrive) ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'DRIVE_SIGNI_POWER_DOUBLE_CRASH',
+          );
+          if (hasDriveDoubleCrash) contGrantedKeywords.add('ダブルクラッシュ');
+        }
       }
       // アクセカードのCONTINUOUS GRANT_KEYWORD効果をホストシグニに適用
       // 例: 「これにアクセされている＜調理＞のシグニは【ランサー】を得る」(WXEX1-70-E3等)
