@@ -5619,7 +5619,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 if (e.effectType !== 'AUTO' || !e.timing?.includes('ON_HEAVEN')) continue;
                 heavenEntries.push({
                   id: generateUUID(),
-                  playerId: user.id,
+                  playerId: attackerId,
                   cardNum,
                   effectId: e.effectId,
                   label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【クロス自】効果（ヘブンヘブン）`,
