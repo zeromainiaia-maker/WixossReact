@@ -4114,7 +4114,7 @@ export function collectTreatAsClassAllZones(
         const act = eff.action as import('../types/effects').StubAction;
         if (act.type !== 'STUB' || act.id !== 'TREAT_AS_CLASS_ALL_ZONES') continue;
         const card = cardMap.get(cn);
-        const text = card?.EffectText ?? card?.CardText ?? '';
+        const text = card?.EffectText ?? '';
         const m = classRe.exec(text);
         if (m) { result[cn] = m[1]; break; }
       }
