@@ -4418,7 +4418,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const mandatoryOnPlay = allOnPlayEffects.filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
-        e.mandatory !== false,
+        e.mandatory !== false &&
+        // activeCondition（英知=N等）を満たさない【出】は発火しない
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, newMyState, op, true, battleCardMap, cardNum)),
       );
       const costOnPlay = allOnPlayEffects.filter(e =>
         e.effectType === 'AUTO' &&
