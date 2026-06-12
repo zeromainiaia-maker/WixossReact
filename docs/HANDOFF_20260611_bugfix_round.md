@@ -1,5 +1,31 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 zerom側: 【出】《コイン》コストの系統バグ修正 — WD19-004等38枚（v0.261）
+>
+> **報告**: WD19-004（ナナシ 其ノ壱）の【出】が発動しない。
+> **原因**: 【出】《コインアイコン》のコイン コストがJSONスキーマに存在せず、該当効果は
+> `mandatory:false` ＋ `cost`なし で出力されていた。executeGrow/handleSummonSigniの収集フィルタは
+> mandatoryOnPlay（mandatory!==false）と costOnPlay（mandatory:false **かつcostあり**）の2種のみのため、
+> **コスト無し任意扱いの効果は両方から漏れて一切発火しなかった**。同パターンは全CSVで38枚（コイン【出】持ち全ルリグ/キー）。
+>
+> ### 修正内容
+> 1. **types/effects.ts**: `EffectCost` に `coin?: number` を追加
+> 2. **JSON 38枚**: コイン【出】効果に `cost:{coin:N}` を一括付与（tmp_verify/addCoinCosts.mjs、gitignore対象）。
+>    Nはテキストの《コインアイコン》連続数から導出（WD20-001=3、WD20-004/WD21-001=2、他=1）。
+>    テキスト件数とJSON効果件数の1:1突き合わせで全38枚一致（手動確認0件）
+> 3. **コスト支払いモーダル**（pendingSigniOnPlayCost / executeSigniOnPlayCost）: コイン表示
+>    （所持数併記）・支払い可否判定・支払い（coins減算）対応。グロウ/召喚の両経路で機能
+> 4. **WD19-004-E1**: 「黒のカード1枚」のTRANSFER_TO_HANDフィルタが空だった → `{color:'黒'}` 追加
+> 5. **CPUグロウのパリティ**（CPU統一の続き）: CPUグロウ時にコイン獲得/グロウコイン消費が無かったのを追加。
+>    ルリグ【出】も発火するように（mandatoryは常に、コインのみコストの任意【出】は支払えるなら自動支払いで発動）
+>
+> ### 検証・残課題
+> - tsc 0 / lint 0 errors / checkAllEffects 0 / verifyEffects Sheet2-5 全て issues 0（退行なし）。v0.261デプロイ済み
+> - **キーの【出】コイン（WXK07-004 真・遊月・鍵）は従来どおり支払いなしで無条件発火**
+>   （executeKeyPieceがqueueCardEffectsで全AUTO/ON_PLAYを積む実装。コストモーダルは1効果しか扱えず
+>   キーは2効果あるため未対応。修正するならモーダルの連鎖化が必要）
+> - 【起】効果のコインコスト支払いは未対応（executeSigniActivated等。現状コインコスト【起】の有無は未調査）
+
 > ## ✅ 2026-06-12 zerom側: CPU統一ラウンド2 — 残りのCPU独自実装を対人戦と共通化（v0.260）
 >
 > v0.259（シグニアタック統一）に続き、cpuTurnAction の残りの独自実装を共通関数化した。
