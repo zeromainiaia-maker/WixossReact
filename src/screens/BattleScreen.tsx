@@ -6684,10 +6684,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  // ライフバースト確認後の処理
+  // ライフバースト確認後の処理（人間・CPU共通）
   // targetCardNum: 同時クラッシュ時に処理するカードを指定（省略時はfield.check）
-  const handleLifeBurstResponse = async (activate: boolean, targetCardNum?: string) => {
-    if (!my.field.check || loading) return;
+  const performLifeBurstResponse = async (activate: boolean, targetCardNum: string | undefined, p: {
+    owner: PlayerState; opponent: PlayerState;
+    ownerId: string;
+    ownerKey: 'host_state' | 'guest_state';
+  }) => {
+    const { owner: my, opponent: op, ownerId } = p;
+    if (!my.field.check) return;
     setLoading(true);
     try {
       const allCrashCards = [my.field.check, ...(my.pending_crashed_cards ?? [])];
