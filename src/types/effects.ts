@@ -41,10 +41,15 @@ export type EffectTiming =
   | 'ON_LIFE_CRASHED'           // あなたのライフクロスがクラッシュされたとき
   | 'ON_GUARD'                  // あなたが【ガード】したとき
   | 'ON_ATTACK_PHASE_START'     // あなたのアタックフェイズ開始時
-  | 'ON_ACCE_ATTACH';           // シグニに【アクセ】が付いたとき（ルリグ監視/アクセカード自身）
+  | 'ON_ACCE_ATTACH'            // シグニに【アクセ】が付いたとき（ルリグ監視/アクセカード自身）
+  | 'ON_SPELL_USE'              // あなたがスペルを使用したとき
+  | 'ON_DISCARDED_AS_COST'      // このカードがシグニ能力のコストとして手札から捨てられたとき
+  | 'ON_EXCEED_COST'            // このカードがエクシードのコストとしてルリグトラッシュに置かれたとき
+  | 'ON_PLACED_UNDER_SIGNI';    // このカードがシグニの下に置かれたとき（※配置機構が未実装のため現状発火しない）
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
+  | 'twice_per_turn'   // ターンに2回（《ターン２回》）
   | 'once_per_game'    // ゲームに1回
   | 'once_per_trigger' // トリガー1回につき1回
   | 'unlimited';       // 制限なし

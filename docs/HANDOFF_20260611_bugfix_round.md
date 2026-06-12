@@ -1,5 +1,36 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 ymsty側: トリガー配線ラウンド3（v0.257）— 未配線timing 5種を配線（1種は配線不能と判定）
+>
+> v0.256の残りを処理。tsc 0 / lint 0 errors / checkAllEffects 0 / verifyEffects全12シート0件維持。
+> エンジン側フラグ設定はtsxスモークテスト5項目PASS（blind捨て/DISCARD_BOTH両者/名前公開/SELECT_TARGET公開2枚/手札残存）。
+>
+> 1. **ON_REVEALED_FROM_HAND**（9カード、幻水/水獣系）: acce_just_doneと同じフラグパターンで配線。
+>    手札公開スタブ3種（HAND_REVEAL_CLASS_SIGNI / REVEAL_CLASS_SIGNI_FROM_HAND / OPTIONAL_HAND_REVEAL_NAMED×2箇所）が
+>    新設マーカー `INTERNAL_MARK_REVEALED_FROM_HAND`（SELECT_TARGET選択カード）/ `INTERNAL_MARK_REVEALED_NAMED`
+>    （テキストの《名前》から導出）で `hand_revealed_just` に記録 → BattleScreenのuseEffectが公開カード自身の
+>    AUTO効果をスタックに積んでフラグをクリア（**トリガー有無に関わらず必ずクリア**）
+> 2. **ON_HAND_DISCARDED**（WXDi-CP02-077 花岡ユズ）: 効果による手札捨ては `hand_discarded_just` フラグ
+>    （execTrashのHAND_CARD blind/通常 + execDiscardBoth の3経路）、コストによる捨てはBattleScreenの
+>    コスト支払い2箇所で直接収集。`collectHandDiscardTriggers` 新設: triggerFilterで捨てカード照合
+>    （ユズはJSONに `triggerFilter:{story:'ブルアカ'}` 追加）、《ターン２回》は新設 `usageLimit:'twice_per_turn'` を
+>    actions_doneの**出現回数**で制御。テキスト「あなたのターンの間」のため自ターンのみ発火
+> 3. **ON_DISCARDED_AS_COST**（WX25-P3-085 ユーグレナ）: executeSigniActivated（【起】）と
+>    executeSigniOnPlayCost（【出】）の手札捨てコスト支払い時に、捨てられたカード自身のAUTO効果を収集。
+>    近似: 「＜微菌＞のシグニの能力のコスト」限定は未チェック（任意のシグニ能力コストで発火）
+> 4. **ON_SPELL_USE**（WX25-P2-034 APEX2）: handleCutinPass（スペル解決点）でcasterルリグのAUTO効果を収集。
+>    《自分ターン》はspellIsOwnerTurnでゲート、《ターン1回》と＜電機＞条件はJSONに追加
+>    （`usageLimit:'once_per_turn'` + `condition:HAS_CARD_IN_FIELD{story:'電機'}`、storyフィルタはCardClass部分一致）。
+>    近似: カットインで使用されたスペル自体では発火しない
+> 5. **ON_EXCEED_COST**（WXK03-005 フラクタル・ケージ）: executeLrigGranted（エクシード支払いの唯一の箇所）で
+>    ルリグトラッシュに置かれたカードのAUTO効果を収集
+> 6. **ON_PLACED_UNDER_SIGNI**（WXDi-P11-063 無心の豪圧）: **配線不能と判定**。
+>    「このスペルをチェックゾーンからシグニの下に置く」機構自体が未実装（E1のパースが STUB TRAP_OPERATION に
+>    誤マッピングされており、トラップ設置として動く）。配線するにはまず置く機構の実装が必要。
+>    timingはEffectTimingユニオンに追加済み（コメントで未発火を明記）
+>
+> **これでeffects JSONで使用中のtimingは ON_PLACED_UNDER_SIGNI（上記の通り機構未実装）を除き全て配線済み**。
+
 > ## ✅ 2026-06-12 ymsty側: トリガー配線ラウンド2（v0.256）— 未配線timing残り3種を配線
 >
 > v0.255に続き、effects JSONで使用されているのにエンジン未配線だったtimingを配線した。

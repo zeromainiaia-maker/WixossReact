@@ -1585,6 +1585,66 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acceJustDoneRef, bs?.effect_stack, bs?.pending_effect, loading]);
 
+  // 手札公開（hand_revealed_just）/効果による手札捨て（hand_discarded_just）フラグを検出してトリガーを発火
+  // フラグはトリガーの有無に関わらず必ずクリアする（残存すると後で誤発火するため）
+  const handRevealedJustRef = (user && bs)
+    ? (user.id === bs.host_id ? bs.host_state?.hand_revealed_just : bs.guest_state?.hand_revealed_just)
+    : undefined;
+  const handDiscardedJustRef = (user && bs)
+    ? (user.id === bs.host_id ? bs.host_state?.hand_discarded_just : bs.guest_state?.hand_discarded_just)
+    : undefined;
+  useEffect(() => {
+    if (!bs || !user || loading) return;
+    const revealedHJ = handRevealedJustRef ?? [];
+    const discardedHJ = handDiscardedJustRef ?? [];
+    if (revealedHJ.length === 0 && discardedHJ.length === 0) return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    const localIsHost = user.id === bs.host_id;
+    const localMy: PlayerState = localIsHost ? bs.host_state : bs.guest_state;
+    const stateKey = localIsHost ? 'host_state' : 'guest_state';
+    (async () => {
+      setLoading(true);
+      try {
+        const entries: StackEntry[] = [];
+        // ON_REVEALED_FROM_HAND: 公開されたカード自身のAUTO効果（まだ手札にあるもののみ）
+        for (const cn of revealedHJ) {
+          if (!localMy.hand.includes(cn)) continue;
+          for (const eff of (effectsMap.get(cn) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_REVEALED_FROM_HAND')) continue;
+            entries.push({
+              id: generateUUID(),
+              playerId: user.id,
+              cardNum: cn,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(cn)?.CardName ?? cn}【自】手札公開時`,
+              effect: eff,
+            });
+          }
+        }
+        // ON_HAND_DISCARDED: 効果による手札捨て（コスト捨てはコスト支払い側で別途収集）
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(discardedHJ, localMy, false);
+        entries.push(...hdEntries);
+        const cleared: PlayerState = {
+          ...localMy,
+          hand_revealed_just: null,
+          hand_discarded_just: null,
+          actions_done: usedLimitIds.length > 0 ? [...(localMy.actions_done ?? []), ...usedLimitIds] : localMy.actions_done,
+        };
+        const update: Record<string, unknown> = { [stateKey]: cleared };
+        if (entries.length > 0) {
+          const existingStack = bs.effect_stack ?? null;
+          update.effect_stack = existingStack
+            ? pushToStack(existingStack, entries)
+            : initStack(bs.active_user_id ?? user.id, entries);
+        }
+        await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handRevealedJustRef, handDiscardedJustRef, bs?.effect_stack, bs?.pending_effect, loading]);
+
   // ON_TURN_END 解決後の自動フェーズ進行
   useEffect(() => {
     if (!bs || !user) return;
@@ -3858,6 +3918,71 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /**
+   * 手札が捨てられたときのトリガーを収集する。
+   * - ON_DISCARDED_AS_COST（asCost=true時のみ）: 捨てられたカード自身のAUTO効果（WX25-P3-085 ユーグレナ）
+   * - ON_HAND_DISCARDED: 自フィールドシグニのAUTO効果。triggerFilterで捨てカードを照合（WXDi-CP02-077 花岡ユズ）。
+   *   テキストが「あなたのターンの間」のため自ターンのみ発火
+   * usageLimitは actions_done(effectId) の出現回数で制御（once_per_turn=1回 / twice_per_turn=2回）。
+   * usedLimitIds を呼び出し側で actions_done に追加して保存すること。
+   */
+  const collectHandDiscardTriggers = (
+    discardedNums: string[],
+    myState: PlayerState,
+    asCost: boolean,
+  ): { entries: StackEntry[]; usedLimitIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedLimitIds: string[] = [];
+    if (discardedNums.length === 0) return { entries, usedLimitIds };
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (myState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedLimitIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedLimitIds.push(eff.effectId);
+      return true;
+    };
+    // ON_DISCARDED_AS_COST: 捨てられたカード自身（シグニ能力のコストとして捨てられた場合のみ）
+    if (asCost) {
+      for (const cn of discardedNums) {
+        for (const eff of (effectsMap.get(cn) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DISCARDED_AS_COST')) continue;
+          if (!limitOk(eff)) continue;
+          entries.push({
+            id: generateUUID(),
+            playerId: user.id,
+            cardNum: cn,
+            effectId: eff.effectId,
+            label: `${battleCardMap.get(cn)?.CardName ?? cn}【自】コスト捨て時`,
+            effect: eff,
+          });
+        }
+      }
+    }
+    // ON_HAND_DISCARDED: 自フィールドシグニ（自ターンのみ）
+    if (bs.active_user_id === user.id && !(myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO'))) {
+      for (const stack of myState.field.signi) {
+        const topNum = stack?.at(-1);
+        if (!topNum) continue;
+        for (const eff of (effectsMap.get(topNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
+          if (eff.triggerFilter && !discardedNums.some(cn => matchesFilter(battleCardMap.get(cn), eff.triggerFilter))) continue;
+          if (!limitOk(eff)) continue;
+          entries.push({
+            id: generateUUID(),
+            playerId: user.id,
+            cardNum: topNum,
+            effectId: eff.effectId,
+            label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札捨て時`,
+            effect: eff,
+          });
+        }
+      }
+    }
+    return { entries, usedLimitIds };
+  };
+
+  /**
    * 相手がアーツを使用したとき、ON_OPP_ARTS_USE トリガーを持つ自分のシグニを収集する。
    * activeCondition（HAS_CARD_IN_FIELD 等）を満たす場合のみスタックに追加する。
    */
@@ -4636,9 +4761,40 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: battleCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors };
       const result = executeEffect(spellEff, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs);
-      const hostState  = casterIsHost ? result.ownerState : result.otherState;
-      const guestState = casterIsHost ? result.otherState : result.ownerState;
+      // ON_SPELL_USE: スペル使用時のルリグトリガー（WX25-P2-034 APEX2「あなたがスペルを使用したとき」、自分ターンのみ）
+      let casterAfter = result.ownerState;
+      const spellUseEntries: StackEntry[] = [];
+      if (spellIsOwnerTurn) {
+        const casterLrigNum = casterAfter.field.lrig.at(-1);
+        if (casterLrigNum) {
+          const usedIdsSU: string[] = [];
+          for (const eff of (effectsMap.get(casterLrigNum) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
+            if (eff.usageLimit === 'once_per_turn' &&
+                ((casterAfter.actions_done?.includes(eff.effectId)) || usedIdsSU.includes(eff.effectId))) continue;
+            if (eff.condition && !evalUseCondition(eff.condition, casterAfter, result.otherState, battleCardMap, casterLrigNum, bs.turn_phase, spellPowers)) continue;
+            if (eff.usageLimit === 'once_per_turn') usedIdsSU.push(eff.effectId);
+            spellUseEntries.push({
+              id: generateUUID(),
+              playerId: caster_id,
+              cardNum: casterLrigNum,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(casterLrigNum)?.CardName ?? casterLrigNum}【自】スペル使用時`,
+              effect: eff,
+            });
+          }
+          if (usedIdsSU.length > 0) casterAfter = { ...casterAfter, actions_done: [...(casterAfter.actions_done ?? []), ...usedIdsSU] };
+        }
+      }
+      const hostState  = casterIsHost ? casterAfter : result.otherState;
+      const guestState = casterIsHost ? result.otherState : casterAfter;
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
+      if (spellUseEntries.length > 0) {
+        const existingStackSU = bs.effect_stack ?? null;
+        update.effect_stack = existingStackSU
+          ? pushToStack(existingStackSU, spellUseEntries)
+          : initStack(bs.active_user_id ?? user.id, spellUseEntries);
+      }
       if (!result.done) {
         update.pending_effect = { sourcePlayerId: caster_id, sourceCardNum: card_num, effectId: spellEff.effectId, interaction: result.pending } satisfies PendingEffect;
       } else {
@@ -6591,6 +6747,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const stackEntries: StackEntry[] = plant3rdDownTriggerEntry
         ? [entry, plant3rdDownTriggerEntry]
         : [entry];
+      // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 【起】コストで手札を捨てた場合のトリガー
+      if (discardedCards.length > 0) {
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(discardedCards, paid, true);
+        stackEntries.push(...hdEntries);
+        if (usedLimitIds.length > 0) {
+          paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
+        }
+      }
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack
@@ -6743,7 +6907,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const discardNums = [...discardIndices].map(i => placedState.hand[i]);
       const newHand = placedState.hand.filter((_, i) => !discardIndices.has(i));
-      const paid: PlayerState = {
+      let paid: PlayerState = {
         ...placedState,
         energy: newEnergy,
         hand: newHand,
@@ -6759,6 +6923,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         effect: costEffect,
       };
       const allEntries = [...mandatoryEntries, costEntry];
+      // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 【出】コストで手札を捨てた場合のトリガー
+      if (discardNums.length > 0) {
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(discardNums, paid, true);
+        allEntries.push(...hdEntries);
+        if (usedLimitIds.length > 0) {
+          paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
+        }
+      }
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack
@@ -6813,17 +6985,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newAssistL  = [...(my.field.assist_lrig_l ?? [])];
       const newAssistR  = [...(my.field.assist_lrig_r ?? [])];
       let newLrigTrash = [...my.lrig_trash];
+      const exceedPaidCards: string[] = []; // ON_EXCEED_COSTトリガー用（ルリグトラッシュに置かれたカード）
       if (exceedCost > 0) {
         let remaining = exceedCost;
         const fromCenter = Math.min(remaining, newLrig.length - 1);
-        if (fromCenter > 0) { newLrigTrash = [...newLrigTrash, ...newLrig.splice(0, fromCenter)]; remaining -= fromCenter; }
+        if (fromCenter > 0) { const movedC = newLrig.splice(0, fromCenter); exceedPaidCards.push(...movedC); newLrigTrash = [...newLrigTrash, ...movedC]; remaining -= fromCenter; }
         if (remaining > 0 && newAssistL.length > 1) {
           const fromL = Math.min(remaining, newAssistL.length - 1);
-          newLrigTrash = [...newLrigTrash, ...newAssistL.splice(0, fromL)]; remaining -= fromL;
+          const movedL = newAssistL.splice(0, fromL); exceedPaidCards.push(...movedL);
+          newLrigTrash = [...newLrigTrash, ...movedL]; remaining -= fromL;
         }
         if (remaining > 0 && newAssistR.length > 1) {
           const fromR = Math.min(remaining, newAssistR.length - 1);
-          newLrigTrash = [...newLrigTrash, ...newAssistR.splice(0, fromR)];
+          const movedR = newAssistR.splice(0, fromR); exceedPaidCards.push(...movedR);
+          newLrigTrash = [...newLrigTrash, ...movedR];
         }
       }
       // エナコスト支払い
@@ -6851,11 +7026,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         label: `${cardName} の【起】付与効果`,
         effect,
       };
+      // ON_EXCEED_COST: エクシードのコストとしてルリグトラッシュに置かれたカードのトリガー（WXK03-005）
+      const entriesLG: import('../types').StackEntry[] = [entry];
+      for (const cn of exceedPaidCards) {
+        for (const eff of (effectsMap.get(cn) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_EXCEED_COST')) continue;
+          entriesLG.push({
+            id: generateUUID(),
+            playerId: user.id,
+            cardNum: cn,
+            effectId: eff.effectId,
+            label: `${battleCardMap.get(cn)?.CardName ?? cn}【自】エクシードコスト時`,
+            effect: eff,
+          });
+        }
+      }
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack
-        ? pushToStack(existingStack, [entry])
-        : initStack(turnPlayerId, [entry]);
+        ? pushToStack(existingStack, entriesLG)
+        : initStack(turnPlayerId, entriesLG);
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states')
         .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })

@@ -2832,7 +2832,8 @@ export function execStubPart3(
         `手札に${classNameHRCS ? `＜${classNameHRCS}＞` : ''}シグニなし（公開なし）`));
     }
     const countHRCS = isAnyCountHRCS ? candsHRCS.length : 1;
-    const noopHRCS: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    // 公開カードを hand_revealed_just に記録（ON_REVEALED_FROM_HANDトリガー検出用）
+    const markRevealHRCS: StubAction = { type: 'STUB', id: 'INTERNAL_MARK_REVEALED_FROM_HAND' };
     return needsInteraction(
       addLog(ctx, `手札から${classNameHRCS ? `＜${classNameHRCS}＞` : ''}シグニを${isAnyCountHRCS ? '好きな枚数' : '１枚'}公開する`),
       {
@@ -2841,9 +2842,30 @@ export function execStubPart3(
         count: countHRCS,
         optional: isAnyCountHRCS,
         targetScope: 'self_hand',
-        thenAction: noopHRCS as EffectAction,
+        thenAction: markRevealHRCS as EffectAction,
       }
     );
+  }
+  // INTERNAL_MARK_REVEALED_FROM_HAND: 手札公開の記録（applyDirectAction経由で選択カードごとに呼ばれる）
+  // BattleScreenが hand_revealed_just を検出してON_REVEALED_FROM_HANDトリガーを発火しクリアする
+  if (stub.id === 'INTERNAL_MARK_REVEALED_FROM_HAND' || stub.id === 'INTERNAL_MARK_REVEALED_NAMED') {
+    let revealedMRFH: string[];
+    if (stub.id === 'INTERNAL_MARK_REVEALED_NAMED') {
+      // 効果テキストの「《名前》を公開」から導出（OPTIONAL_HAND_REVEAL_NAMEDのCHOOSE経由）
+      const srcMRFH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+      const nameMRFH = ((srcMRFH?.EffectText ?? '') + ' ' + (srcMRFH?.BurstText ?? '')).match(/《([^《》]+)》を公開/)?.[1];
+      const foundMRFH = nameMRFH ? ctx.ownerState.hand.find(cn => ctx.cardMap.get(cn)?.CardName === nameMRFH) : undefined;
+      revealedMRFH = foundMRFH ? [foundMRFH] : [];
+    } else {
+      revealedMRFH = ctx.lastProcessedCards ?? [];
+    }
+    if (revealedMRFH.length === 0) return done(ctx);
+    const newOwnerMRFH: PlayerState = {
+      ...ctx.ownerState,
+      hand_revealed_just: [...(ctx.ownerState.hand_revealed_just ?? []), ...revealedMRFH],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerMRFH },
+      `手札から${revealedMRFH.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・')}を公開`));
   }
   // OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開
   if (stub.id === 'OPTIONAL_HAND_REVEAL_NAMED') {
@@ -2853,7 +2875,11 @@ export function execStubPart3(
     const nameOHRN = mNameOHRN ? mNameOHRN[1] : '';
     const matchingOHRN = ctx.ownerState.hand.filter(cn => nameOHRN && ctx.cardMap.get(cn)?.CardName === nameOHRN);
     if (matchingOHRN.length === 0) return done(addLog(ctx, `手札に「${nameOHRN}」なし（公開なし）`));
-    return done(addLog({ ...ctx, lastProcessedCards: matchingOHRN },
+    const newOwnerOHRN: PlayerState = {
+      ...ctx.ownerState,
+      hand_revealed_just: [...(ctx.ownerState.hand_revealed_just ?? []), ...matchingOHRN],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerOHRN, lastProcessedCards: matchingOHRN },
       `手札「${nameOHRN}」を公開（${matchingOHRN.length}枚）`));
   }
   // ACCE_SIGNI_GRANT_ABILITY: アクセ中のシグニにキーワード能力を付与

@@ -3219,8 +3219,9 @@ export function execStubPart1(
       return true;
     });
     if (handCands.length === 0) return done(addLog(ctx, `手札に${targetClassRev ?? 'クラス'}シグニなし（公開スキップ）`));
-    const noopAction: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    return selectOrInteract(handCands, handCands.length, true, 'self_hand', noopAction as EffectAction, undefined, ctx);
+    // 公開カードを hand_revealed_just に記録（ON_REVEALED_FROM_HANDトリガー検出用、execStubPart3にハンドラ）
+    const markRevealRCS: StubAction = { type: 'STUB', id: 'INTERNAL_MARK_REVEALED_FROM_HAND' };
+    return selectOrInteract(handCands, handCands.length, true, 'self_hand', markRevealRCS as EffectAction, undefined, ctx);
   }
   // 対戦相手が自分のシグニを選んでエナに置く
   if (stub.id === 'OPP_CHOOSE_OWN_SIGNI_TO_ENERGY') {

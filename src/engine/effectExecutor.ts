@@ -260,6 +260,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         ...state,
         hand: state.hand.filter(n => !picked.includes(n)),
         trash: [...state.trash, ...picked],
+        // ON_HAND_DISCARDEDトリガー検出用（BattleScreenが消化してクリア）
+        hand_discarded_just: picked.length > 0 ? [...(state.hand_discarded_just ?? []), ...picked] : state.hand_discarded_just,
       };
       return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札からランダム${count}枚をトラッシュへ`), lastProcessedCards: picked });
     }
@@ -277,7 +279,11 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         const idx = remaining.indexOf(n);
         if (idx >= 0) { remaining.splice(idx, 1); toTrash.push(n); }
       }
-      const newS: PlayerState = { ...s, hand: remaining, trash: [...s.trash, ...toTrash] };
+      const newS: PlayerState = {
+        ...s, hand: remaining, trash: [...s.trash, ...toTrash],
+        // ON_HAND_DISCARDEDトリガー検出用（BattleScreenが消化してクリア）
+        hand_discarded_just: toTrash.length > 0 ? [...(s.hand_discarded_just ?? []), ...toTrash] : s.hand_discarded_just,
+      };
       return addLog(setOwnerState(tgt.owner, newS, c),
         `手札から${toTrash.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
     }
@@ -1012,7 +1018,11 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const optionsOHRN = [
             { id: 'reveal', available: hasCard,
               label: targetName ? `《${targetName}》を公開する` : '公開する',
-              action: conditional.then },
+              // 公開記録（ON_REVEALED_FROM_HANDトリガー検出用）を挟んでから then を実行
+              action: { type: 'SEQUENCE', steps: [
+                { type: 'STUB', id: 'INTERNAL_MARK_REVEALED_NAMED' } as StubAction,
+                conditional.then,
+              ] } as EffectAction },
             { id: 'skip', label: '公開しない', action: (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
           const pendingOHRN: PendingInteractionDef = {
@@ -2055,10 +2065,15 @@ function execPowerModifyPerLifeCount(a: PowerModifyPerLifeCountAction, ctx: Exec
 function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
   const selfDiscard = Math.min(a.count, ctx.ownerState.hand.length);
   const otherDiscard = Math.min(a.count, ctx.otherState.hand.length);
+  const selfDiscarded = ctx.ownerState.hand.slice(0, selfDiscard);
+  const otherDiscarded = ctx.otherState.hand.slice(0, otherDiscard);
   const newCtx: ExecCtx = {
     ...ctx,
-    ownerState: { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(selfDiscard), trash: [...ctx.ownerState.trash, ...ctx.ownerState.hand.slice(0, selfDiscard)] },
-    otherState: { ...ctx.otherState, hand: ctx.otherState.hand.slice(otherDiscard), trash: [...ctx.otherState.trash, ...ctx.otherState.hand.slice(0, otherDiscard)] },
+    // hand_discarded_just: ON_HAND_DISCARDEDトリガー検出用（BattleScreenが消化してクリア）
+    ownerState: { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(selfDiscard), trash: [...ctx.ownerState.trash, ...selfDiscarded],
+      hand_discarded_just: selfDiscarded.length > 0 ? [...(ctx.ownerState.hand_discarded_just ?? []), ...selfDiscarded] : ctx.ownerState.hand_discarded_just },
+    otherState: { ...ctx.otherState, hand: ctx.otherState.hand.slice(otherDiscard), trash: [...ctx.otherState.trash, ...otherDiscarded],
+      hand_discarded_just: otherDiscarded.length > 0 ? [...(ctx.otherState.hand_discarded_just ?? []), ...otherDiscarded] : ctx.otherState.hand_discarded_just },
   };
   return done(addLog(newCtx, `各プレイヤー手札${a.count}枚捨て`));
 }

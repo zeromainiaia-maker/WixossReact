@@ -206,6 +206,10 @@ export interface PlayerState {
   self_optional_effect_taken?: boolean;
   // ATTACH_ACCE 直後にセット: アクセしたホストシグニのCardNum（BattleScreenでON_ACCEトリガー検出用）
   acce_just_done?: string | null;
+  // 効果による手札公開直後にセット: 公開された手札カードのCardNum（BattleScreenでON_REVEALED_FROM_HANDトリガー検出用）
+  hand_revealed_just?: string[] | null;
+  // 効果による手札捨て直後にセット: 捨てられたカードのCardNum（BattleScreenでON_HAND_DISCARDEDトリガー検出用）
+  hand_discarded_just?: string[] | null;
   // OPP_MAIN_PHASE_LIMIT_DOWN: 次の自ターンMAINフェイズ開始時に適用するリミット修正
   pending_lrig_limit_mod?: number;
   // OPP_SIGNI_ATTACK_COST: 自シグニのアタックに支払う無色コスト枚数（エナ消費）
