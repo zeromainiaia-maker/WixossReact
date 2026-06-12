@@ -3937,7 +3937,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ctxPowers = calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, battleCardMap);
       const allColorSigniNums = new Set([...collectAllColorSigniForField(ownerState, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectAllColorSigniForField(otherState, battleCardMap, effectsMap, ownerState, !isOwnerTurn)]);
       const fieldSigniExtraColors = new Map([...collectFieldSigniExtraColors(ownerState, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectFieldSigniExtraColors(otherState, battleCardMap, effectsMap, ownerState, !isOwnerTurn)]);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors };
+      const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones };
 
       const result = resumeSelectVirusZone(zoneIndex, inter, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
