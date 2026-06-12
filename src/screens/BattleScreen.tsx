@@ -5679,7 +5679,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (eff.usageLimit === 'once_per_turn') usedIdsBB.push(eff.effectId);
             battleBanishEntries.push({
               id: generateUUID(),
-              playerId: user.id,
+              playerId: attackerId,
               cardNum: topNumBB,
               effectId: eff.effectId,
               label: `${battleCardMap.get(topNumBB)?.CardName ?? topNumBB} の【自】効果（バトルバニッシュ時）`,
