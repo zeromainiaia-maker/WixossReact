@@ -356,6 +356,7 @@ export type PendingInteractionDef =
       virusCount: number;          // 選択ゾーンに置くウィルス数（通常1）
       remainingZones: number;      // 残り選択ゾーン数
       upTo?: boolean;              // true=「～つまで」（配置をやめられる）
+      powerDeltaOnZone?: number;   // 選択ゾーンのシグニへのパワー修正。指定時はウィルス済みゾーンも選択可（WD19-009）
       continuation?: EffectAction;
     }
   | {

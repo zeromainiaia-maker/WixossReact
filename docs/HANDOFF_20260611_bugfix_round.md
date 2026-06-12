@@ -1,5 +1,75 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 ymsty側: コインバグ同型の系統調査 — 無発火【出】230件の検出と244コスト付与（v0.262）
+>
+> v0.261のコイン【出】バグ（mandatory:false+costなしは収集から漏れて無発火）が**なぜ全検証0件をすり抜けたか**を
+> 分析し、同型バグを系統的に検出・修正した。**デプロイ未実施（ymsty側に権限なし）→ zerom側で動作確認のうえ
+> `vercel deploy --prod` を行うこと**。tsc 0 / lint 0 errors（warning 28、既存同数）/ checkAllEffects 0 /
+> verifyEffects 全12シート issues 0。
+>
+> ### 見逃しの原因分析（再発防止のため記録）
+> 1. **verifyEffectsのコスト語彙が6色のみ**: `extractCostFromText` が《コインアイコン》を抽出できず、
+>    テキスト側「コストなし」vs JSON側「コストなし」の空対空一致で**空振りPASS**していた
+> 2. **checkAllEffectsのOPTIONAL_SUSPICIOUS除外が「テキストにコスト⇒JSONにcostがある」を暗黙の前提に**:
+>    『全効果がON_PLAY+CSVに【出】…：があればmandatory:falseは正しい』の除外（L300-318付近）で、
+>    JSON側に`cost`が実在するかを確認していなかった（ここに1条件あれば38枚全て検出できた）
+> 3. **エンジン収集フィルタが非網羅で無音**: mandatory:false+costなしはどちらのバケツにも入らず警告なく消える
+> 4. **「無発火」を検出する検証が存在しない**（静的なテキスト↔JSON照合のみ）
+>
+> ### 系統調査の結果: 同じ穴に【出】230件・【起】コイン約130件が残っていた
+> - **コストなし任意【出】（mandatory:false+costなし）= 230効果**が無発火。全件に実コストあり
+>   （純粋な「してもよい」は0件）。内訳: 手札捨て103 / エナカード指定31 / エナ色2 / 自己犠牲14 /
+>   デッキ2 / ライフ5 / その他（英知・ルリグデッキ・アップルリグダウン等）65 / 特殊8
+> - **【起】《コインアイコン》コストも全件未表現**（HANDOFFの「未調査」が定量化: メモリア/ディソナ/THE DOOR系
+>   シグニ約130効果）。コイン支払いなしで発動できていた
+>
+> ### 修正内容
+> 1. **スキーマ拡張**（types/effects.ts EffectCost）: `discardFilter?: TargetFilter`（フィルタ付き手札捨て）、
+>    `energyTrash?: {count, filter?}`（エナゾーンからのカード指定トラッシュ）
+> 2. **JSON一括付与 計244効果**（使い捨てスクリプト tmp_verify/addOnPlayCosts.mjs / addActivatedCoinCosts.mjs、
+>    gitignore対象）: 【出】113効果（discard+discardFilter / energyTrash / energy / coin。
+>    v0.261の38枚から漏れていたWXDi系コイン7枚を含む）+【起】コイン130効果 + WXDi-P07-041（コイン×3+赤×1混合）。
+>    1:1対応チェック（コストブロック数=効果数）とエナ色整合チェック付きで適用、不一致はスキップ
+> 3. **【出】コストモーダル**（BattleScreen）: discardFilter（対象外カードは選択不可・薄表示）、
+>    energyTrash選択セクション新設、**複数コスト効果の連鎖**（remainingCostEffects、1効果ずつモーダル）。
+>    **実バグ修正**: エナ参照が`my.energy`だった→`placedState.energy`（グロウ経路でグロウコストのエナが
+>    復活する潜在バグ。コインのみルリグはLv1グロウコスト0のため顕在化していなかった）
+> 4. **【起】コイン支払い対応**: executeSigniActivated（coins減算）+ モーダル（コイン表示・支払い可否判定）
+> 5. **検証器強化**:
+>    - verifyEffects: コスト語彙に《コインアイコン》追加（normCostがcost.coinを照合）
+>    - checkAllEffects: 新警告 `ONPLAY_DEAD_OPTIONAL`（mandatory:false+costなしのON_PLAY検出。
+>      0件ゲートとは別枠の警告セクション、`--warnings`で詳細）。**現在105件**（下記残課題）
+>    - エンジン収集2箇所（handleSummonSigni/executeGrow）にconsole.warnで収集漏れを警告
+>
+> ### WD19-009 ニホコカビのバグ修正（ymsty報告分）
+> - **BURST**: JSONが「任意のシグニ(any)に-8000」だった → 正は「ウィルスを置いたそのゾーンのシグニに-8000、
+>   ウィルス済みゾーンも選択可」。PLACE_VIRUSに `powerDeltaOnZone?: number` を新設（types/effects.ts +
+>   types/index.ts SELECT_VIRUS_ZONE + execPlaceVirus/resumeSelectVirusZone + モーダル/CPU自動応答）。
+>   tsxスモークテスト3項目PASS（選択式/空きゾーン=配置+修正/ウィルス済み=修正のみ）
+> - **E1**: timingが`ON_TURN_END`（「ターン終了時まで」を誤parse）で**毎ターン終了時に-5000が誤発火していた**
+>   → 新timing `ON_OPP_VIRUS_REMOVED`（未配線=発火しない。誤発火よりはまし）+ usageLimit:once_per_turn。
+>   **WX21-030（コビョウ）のE1も同型誤parse** → `ON_OPP_VIRUS_CHANGED`（未配線）に変更
+>
+> ### ウィルス「自分のゾーンに置かれる」報告の調査結果（ymsty報告分）
+> エンジン・UI配線・JSON全31件のtargetOwnerを検証したが**自分の効果が自分の場に置くバグは発見できず**
+> （エンジン単体テストPASS、方向チェック全OK）。有力な説明: v0.259-261でCPUの【出】/【自】が発火するように
+> なったため、**CPU側ウィルス効果が（ルール通り）人間の場にウィルスを置くようになった**のが新挙動として
+> 見えている可能性。CPUのゾーン選択は自動でモーダルが出ないため突然置かれたように見える。
+> バトルログに「[相手] ◯◯の【出】効果」があればこれ。**実バグの再現報告があれば カード名+状況 を要確認**
+>
+> ### 残課題（zerom側 or 次ラウンド）
+> 1. **ONPLAY_DEAD_OPTIONAL 105件**（`node scripts/checkAllEffects.mjs --warnings`で列挙）: コストが
+>    スキーマ未対応で未表現のまま無発火。主な型: 英知=N（〜10件）/ 自己犠牲（場からトラッシュ14件）/
+>    ライフコスト5件 / ルリグデッキからアーツ2件 / アップ状態ルリグをダウン7件 / 「手札をN枚まで捨てる」
+>    可変コスト型（効果が枚数参照、〜10件）/ ディソナアイコン（フィルタ表現なし）/ クロス・ライズ等アイコン持ち /
+>    シグニの下に置く / 手札からエナへ 等。スキーマ拡張（life_crash流用可のものあり）+モーダル対応が必要
+> 2. **ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED の配線**: ウィルス増減点は execPlaceVirus/
+>    resumeSelectVirusZone/PLACE_VIRUS_CENTER（置く）、execStubPart1 L917-1015・execStubPart2 L786（取り除く）。
+>    acce_just_done と同じフラグパターンで配線可能
+> 3. **キー【出】コインの無条件発火**は従来どおり未対応（executeKeyPieceがコストモーダル非経由。v0.261の既知）
+> 4. CPUはコスト付き任意【出】を発動しない（従来どおり。コインのみ自動支払いはCPUグロウのみ）
+> 5. 課題A（場に出す効果のゾーン選択化）は引き続き未着手
+
 > ## ✅ 2026-06-12 zerom側: 【出】《コイン》コストの系統バグ修正 — WD19-004等38枚（v0.261）
 >
 > **報告**: WD19-004（ナナシ 其ノ壱）の【出】が発動しない。

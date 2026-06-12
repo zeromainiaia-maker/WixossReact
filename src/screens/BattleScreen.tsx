@@ -815,9 +815,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     costEffect: import('../types/effects').CardEffect;
     placedState: PlayerState;
     mandatoryEntries: StackEntry[];
+    remainingCostEffects?: import('../types/effects').CardEffect[]; // 2つ目以降のコスト付き任意【出】（1効果ずつモーダルを連鎖）
   } | null>(null);
   const [selectedSigniOnPlayCost, setSelectedSigniOnPlayCost] = useState<Set<number>>(new Set());
   const [selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard] = useState<Set<number>>(new Set());
+  // エナゾーンからのカード指定コスト（cost.energyTrash）の選択
+  const [selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash] = useState<Set<number>>(new Set());
   // キーピース
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [pendingKeyCard, setPendingKeyCard] = useState<CardData | null>(null);
@@ -1082,7 +1085,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const tgtState = tgtIsHost ? bs.host_state : bs.guest_state;
       if (inter.type === 'SELECT_VIRUS_ZONE') {
         const tgtVirus = tgtState.field.signi_virus ?? [0, 0, 0];
-        const zone = [0, 1, 2].find(zi => (tgtVirus[zi] ?? 0) === 0);
+        // powerDeltaOnZone時はシグニのいるゾーン優先（パワー修正を有効活用）、なければ空きゾーン
+        const zone = inter.powerDeltaOnZone !== undefined
+          ? ([0, 1, 2].find(zi => (tgtState.field.signi[zi]?.length ?? 0) > 0 && (tgtVirus[zi] ?? 0) === 0)
+             ?? [0, 1, 2].find(zi => (tgtState.field.signi[zi]?.length ?? 0) > 0)
+             ?? 0)
+          : [0, 1, 2].find(zi => (tgtVirus[zi] ?? 0) === 0);
         const timerVZ = setTimeout(() => {
           handleSelectVirusZoneForEffect(zone ?? null);
         }, CPU_ACTION_DELAY);
@@ -4158,6 +4166,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.mandatory === false &&
         e.cost,
       );
+      // 収集漏れ検出: mandatory:false+costなしはどちらの収集にも入らず無発火（v0.261コインバグと同型。JSON側のcost表現が必要）
+      const droppedOnPlay = ownEffects.filter(e =>
+        e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY') &&
+        (e.triggerScope === undefined || e.triggerScope === 'self') &&
+        e.mandatory === false && !e.cost,
+      );
+      if (droppedOnPlay.length > 0) console.warn(`[handleSummonSigni] mandatory:false+costなしのON_PLAY効果は発火しません: ${droppedOnPlay.map(e => e.effectId).join(', ')}`);
 
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       appendBattleLogs([`${cardName}を召喚`]);
@@ -4172,13 +4187,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         effect: eff,
       }));
 
-      // コスト付き【出】効果があればモーダルで確認（DBはモーダル確定後に保存）
+      // コスト付き【出】効果があればモーダルで確認（DBはモーダル確定後に保存。複数あれば1効果ずつ連鎖）
       if (ownCostOnPlay.length > 0) {
         setPendingSigniOnPlayCost({
           cardNum,
           costEffect: ownCostOnPlay[0],
           placedState: placed,
           mandatoryEntries: [...ownEntries, ...fieldEntries],
+          remainingCostEffects: ownCostOnPlay.slice(1),
         });
         return;
       }
@@ -4404,9 +4420,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.mandatory === false &&
         e.cost,
       );
+      // 収集漏れ検出: mandatory:false+costなしはどちらの収集にも入らず無発火（v0.261コインバグと同型）
+      const droppedGrowOnPlay = allOnPlayEffects.filter(e =>
+        e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY') &&
+        e.mandatory === false && !e.cost,
+      );
+      if (droppedGrowOnPlay.length > 0) console.warn(`[executeGrow] mandatory:false+costなしのON_PLAY効果は発火しません: ${droppedGrowOnPlay.map(e => e.effectId).join(', ')}`);
       if (suppressLrigPlay) appendBattleLogs(['センタールリグの【出】能力は抑制されました']);
 
-      // コスト付き任意【出】効果があればモーダルで確認
+      // コスト付き任意【出】効果があればモーダルで確認（複数あれば1効果ずつ連鎖）
       if (costOnPlay.length > 0) {
         const mandatoryEntries: StackEntry[] = mandatoryOnPlay.map(eff => ({
           id: generateUUID(), playerId: user.id, cardNum,
@@ -4415,6 +4437,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         setPendingSigniOnPlayCost({
           cardNum, costEffect: costOnPlay[0],
           placedState: newMyState, mandatoryEntries,
+          remainingCostEffects: costOnPlay.slice(1),
         });
         return;
       }
@@ -6799,10 +6822,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? { ...my.field, signi_down: newSigniDown, key_piece: null }
         : { ...my.field, signi_down: newSigniDown };
       const newLrigTrash = keySub ? [...my.lrig_trash, myEnergyTrashSubInfo.keySubInstId!] : my.lrig_trash;
+      // 《コインアイコン》コスト（【起】コイン。activate_cost_zero時は免除）
+      const coinCostAct = my.activate_cost_zero_signi === cardNum ? 0 : (effect.cost?.coin ?? 0);
+      if (coinCostAct > 0 && (my.coins ?? 0) < coinCostAct) return; // 支払い不能（UI側でも無効化済み）
       let paid: PlayerState = {
         ...my,
         hand: newHand,
         energy: newEnergy,
+        coins: coinCostAct > 0 ? Math.max(0, (my.coins ?? 0) - coinCostAct) : my.coins,
         activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
         trash: [...my.trash, ...paidNums, ...discardedCards],
         lrig_trash: newLrigTrash,
@@ -6996,6 +7023,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ出現時コスト付き【出】効果：発動
+  // コスト付き任意【出】の連鎖: 残り効果があれば次のモーダルへ、なければDBに確定書き込み
+  const finishOrChainSigniOnPlayCost = async (
+    cardNum: string,
+    placedState: PlayerState,
+    entries: StackEntry[],
+    remaining: import('../types/effects').CardEffect[] | undefined,
+  ) => {
+    if (remaining && remaining.length > 0) {
+      setPendingSigniOnPlayCost({
+        cardNum,
+        costEffect: remaining[0],
+        placedState,
+        mandatoryEntries: entries,
+        remainingCostEffects: remaining.slice(1),
+      });
+      return;
+    }
+    const stateKey = isHost ? 'host_state' : 'guest_state';
+    if (entries.length === 0) {
+      await supabase.from('battle_states').update({ [stateKey]: placedState }).eq('room_id', roomId);
+      return;
+    }
+    const turnPlayerId = bs.active_user_id ?? user.id;
+    const existingStack = bs?.effect_stack ?? null;
+    const newStack = existingStack
+      ? pushToStack(existingStack, entries)
+      : initStack(turnPlayerId, entries);
+    await supabase.from('battle_states')
+      .update({ [stateKey]: placedState, effect_stack: newStack, pending_effect: null })
+      .eq('room_id', roomId);
+  };
+
   const executeSigniOnPlayCost = async (
     cardNum: string,
     costEffect: import('../types/effects').CardEffect,
@@ -7003,15 +7062,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     discardIndices: Set<number>,
     placedState: PlayerState,
     mandatoryEntries: StackEntry[],
+    energyTrashIndices: Set<number> = new Set(),
+    remainingCostEffects?: import('../types/effects').CardEffect[],
   ) => {
     if (loading) return;
     setLoading(true);
     setPendingSigniOnPlayCost(null);
     setSelectedSigniOnPlayCost(new Set());
     setSelectedSigniOnPlayDiscard(new Set());
+    setSelectedSigniOnPlayEnergyTrash(new Set());
     try {
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // エナ消費はplacedState基準（チェーン2回目以降は前回の支払い結果を引き継ぐ）
+      const energyRemovedIdx = new Set([...costIndices, ...energyTrashIndices]);
+      const paidNums = [...energyRemovedIdx].map(i => placedState.energy[i]);
+      const newEnergy = placedState.energy.filter((_, i) => !energyRemovedIdx.has(i));
       const discardNums = [...discardIndices].map(i => placedState.hand[i]);
       const newHand = placedState.hand.filter((_, i) => !discardIndices.has(i));
       // 《コインアイコン》コスト（【出】《コイン》等）
@@ -7042,41 +7106,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
         }
       }
-      const turnPlayerId = bs.active_user_id ?? user.id;
-      const existingStack = bs?.effect_stack ?? null;
-      const newStack = existingStack
-        ? pushToStack(existingStack, allEntries)
-        : initStack(turnPlayerId, allEntries);
-      const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states')
-        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
-        .eq('room_id', roomId);
+      await finishOrChainSigniOnPlayCost(cardNum, paid, allEntries, remainingCostEffects);
     } finally {
       setLoading(false);
     }
   };
 
   // シグニ出現時コスト付き【出】効果：スキップ（召喚はコミット）
-  const skipSigniOnPlayCost = async (placedState: PlayerState, mandatoryEntries: StackEntry[]) => {
+  const skipSigniOnPlayCost = async (
+    cardNum: string,
+    placedState: PlayerState,
+    mandatoryEntries: StackEntry[],
+    remainingCostEffects?: import('../types/effects').CardEffect[],
+  ) => {
     if (loading) return;
     setLoading(true);
     setPendingSigniOnPlayCost(null);
     setSelectedSigniOnPlayCost(new Set());
     setSelectedSigniOnPlayDiscard(new Set());
+    setSelectedSigniOnPlayEnergyTrash(new Set());
     try {
-      const stateKey = isHost ? 'host_state' : 'guest_state';
-      if (mandatoryEntries.length === 0) {
-        await supabase.from('battle_states').update({ [stateKey]: placedState }).eq('room_id', roomId);
-      } else {
-        const turnPlayerId = bs.active_user_id ?? user.id;
-        const existingStack = bs?.effect_stack ?? null;
-        const newStack = existingStack
-          ? pushToStack(existingStack, mandatoryEntries)
-          : initStack(turnPlayerId, mandatoryEntries);
-        await supabase.from('battle_states')
-          .update({ [stateKey]: placedState, effect_stack: newStack, pending_effect: null })
-          .eq('room_id', roomId);
-      }
+      await finishOrChainSigniOnPlayCost(cardNum, placedState, mandatoryEntries, remainingCostEffects);
     } finally {
       setLoading(false);
     }
@@ -9857,7 +9907,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     ? canAffordWithExtraCost(selectedNums, battleCards, costStr, actExtraCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount)
                     : canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount));
               const discardOk = selectedSigniActivatedDiscard.size >= discardNeeded;
-              const canAfford = energyOk && discardOk;
+              // 《コインアイコン》コスト（リル//メモリア等の【起】コイン）
+              const coinNeededAct = isCostZeroByEffect ? 0 : (eff.cost?.coin ?? 0);
+              const coinOkAct = coinNeededAct === 0 || (my.coins ?? 0) >= coinNeededAct;
+              const canAfford = energyOk && discardOk && coinOkAct;
 
               return (
                 <>
@@ -9874,6 +9927,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           コスト: {[
                             energyTotal > 0 ? `エナ${energyTotal}枚` : null,
                             eff.cost?.discard ? `手札${eff.cost.discard}枚` : null,
+                            coinNeededAct > 0 ? `《コイン》×${coinNeededAct}（所持${my.coins ?? 0}）` : null,
                             eff.cost?.down_self ? 'このシグニをダウン' : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
@@ -10174,17 +10228,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             {(() => {
               const card = battleCardMap.get(pendingSigniOnPlayCost.cardNum);
               const eff  = pendingSigniOnPlayCost.costEffect;
+              // エナ/手札はplacedState基準（グロウ経路はグロウコスト支払い後、チェーン時は前効果の支払い後）
+              const pcEnergy = pendingSigniOnPlayCost.placedState.energy;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
+              const discardFilter = eff.cost?.discardFilter;
               const coinNeeded = eff.cost?.coin ?? 0;
+              const enaTrashNeeded = eff.cost?.energyTrash?.count ?? 0;
+              const enaTrashFilter = eff.cost?.energyTrash?.filter;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
-              const selectedNums = [...selectedSigniOnPlayCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedSigniOnPlayCost].map(i => pcEnergy[i]);
               const energyOk = energyTotal === 0
                 ? true
                 : selectedSigniOnPlayCost.size === energyTotal &&
                   canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
               const coinOk = coinNeeded === 0 || (pendingSigniOnPlayCost.placedState.coins ?? 0) >= coinNeeded;
-              const canAfford = energyOk && coinOk && selectedSigniOnPlayDiscard.size >= discardNeeded;
+              const filterLabel = (f?: import('../types/effects').TargetFilter) => {
+                if (!f) return '';
+                const parts: string[] = [];
+                if (f.story) parts.push((Array.isArray(f.story) ? f.story : [f.story]).map(s => `＜${s}＞`).join('か'));
+                if (f.color) parts.push((Array.isArray(f.color) ? f.color : [f.color]).join('か'));
+                if (f.level !== undefined && typeof f.level === 'number') parts.push(`レベル${f.level}`);
+                if (f.cardType === 'シグニ' || (Array.isArray(f.cardType) && f.cardType.includes('シグニ'))) parts.push('シグニ');
+                return parts.join('の');
+              };
+              const canAfford = energyOk && coinOk
+                && selectedSigniOnPlayDiscard.size >= discardNeeded
+                && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded;
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
@@ -10204,7 +10274,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
                           コスト: {[
                             energyTotal > 0 ? costStr : null,
-                            discardNeeded > 0 ? `手札${discardNeeded}枚` : null,
+                            discardNeeded > 0 ? `手札${discardFilter ? `の${filterLabel(discardFilter)}` : ''}${discardNeeded}枚捨て` : null,
+                            enaTrashNeeded > 0 ? `エナの${filterLabel(enaTrashFilter) || 'カード'}${enaTrashNeeded}枚トラッシュ` : null,
                             coinNeeded > 0 ? `《コイン》×${coinNeeded}（所持${pendingSigniOnPlayCost.placedState.coins ?? 0}）` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
@@ -10217,7 +10288,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         エナゾーンから選択: {selectedSigniOnPlayCost.size} / {energyTotal}枚
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                        {my.energy.map((num, i) => {
+                        {pcEnergy.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniOnPlayCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
@@ -10267,14 +10338,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         手札から捨てるカードを選択: {selectedSigniOnPlayDiscard.size} / {discardNeeded}枚
+                        {discardFilter ? `（${filterLabel(discardFilter)}のみ）` : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {pendingSigniOnPlayCost.placedState.hand.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniOnPlayDiscard.has(i);
+                          const matchesDiscardFilter = !discardFilter || matchesFilter(c, discardFilter);
                           return (
                             <div key={i}
-                              onClick={() => setSelectedSigniOnPlayDiscard(prev => {
+                              onClick={() => matchesDiscardFilter && setSelectedSigniOnPlayDiscard(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
                                 if (next.size >= discardNeeded) return prev;
@@ -10286,7 +10359,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
                                 border: isSel ? '2px solid #ff9800' : C.borderCard,
-                                cursor: 'pointer', overflow: 'hidden' }}>
+                                opacity: matchesDiscardFilter ? 1 : 0.35,
+                                cursor: matchesDiscardFilter ? 'pointer' : 'default', overflow: 'hidden' }}>
                               {c ? (
                                 <img src={c.ImgURL} alt={c.CardName} draggable={false}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -10308,9 +10382,62 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
+                  {enaTrashNeeded > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        エナゾーンからトラッシュするカードを選択: {selectedSigniOnPlayEnergyTrash.size} / {enaTrashNeeded}枚
+                        {enaTrashFilter ? `（${filterLabel(enaTrashFilter)}のみ）` : ''}
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {pcEnergy.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedSigniOnPlayEnergyTrash.has(i);
+                          const matchesEna = !enaTrashFilter || matchesFilter(c, enaTrashFilter);
+                          return (
+                            <div key={i}
+                              onClick={() => matchesEna && setSelectedSigniOnPlayEnergyTrash(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (next.size >= enaTrashNeeded) return prev;
+                                next.add(i); return next;
+                              })}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #9c27b0' : C.borderCard,
+                                opacity: matchesEna ? 1 : 0.35,
+                                cursor: matchesEna ? 'pointer' : 'default', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(156,39,176,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => skipSigniOnPlayCost(pendingSigniOnPlayCost.placedState, pendingSigniOnPlayCost.mandatoryEntries)}
+                      onClick={() => skipSigniOnPlayCost(
+                        pendingSigniOnPlayCost.cardNum,
+                        pendingSigniOnPlayCost.placedState,
+                        pendingSigniOnPlayCost.mandatoryEntries,
+                        pendingSigniOnPlayCost.remainingCostEffects,
+                      )}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
@@ -10324,6 +10451,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         selectedSigniOnPlayDiscard,
                         pendingSigniOnPlayCost.placedState,
                         pendingSigniOnPlayCost.mandatoryEntries,
+                        selectedSigniOnPlayEnergyTrash,
+                        pendingSigniOnPlayCost.remainingCostEffects,
                       )}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
@@ -11062,18 +11191,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 <div style={{ display: 'flex', gap: 8 }}>
                   {([0, 1, 2] as const).map(zi => {
                     const hasVirus = (tgtVirus[zi] ?? 0) > 0;
+                    // powerDeltaOnZone（WD19-009等）はウィルス済みゾーンも選択可（パワー修正のみ適用）
+                    const selectable = !hasVirus || inter.powerDeltaOnZone !== undefined;
                     const signiName = battleCardMap.get(tgtState.field.signi[zi]?.at(-1) ?? '')?.CardName;
                     return (
                       <button key={zi}
-                        onClick={() => !hasVirus && !loading && handleSelectVirusZoneForEffect(zi)}
-                        disabled={hasVirus || loading}
+                        onClick={() => selectable && !loading && handleSelectVirusZoneForEffect(zi)}
+                        disabled={!selectable || loading}
                         style={{ flex: 1, padding: '12px 4px', borderRadius: 8,
-                          border: hasVirus ? `1px solid ${C.textFaint}` : C.borderUI,
-                          backgroundColor: hasVirus ? C.disabled : C.bgButton,
-                          color: hasVirus ? C.textFaint : C.text,
+                          border: !selectable ? `1px solid ${C.textFaint}` : C.borderUI,
+                          backgroundColor: !selectable ? C.disabled : C.bgButton,
+                          color: !selectable ? C.textFaint : C.text,
                           fontSize: 12, whiteSpace: 'pre-wrap',
-                          cursor: hasVirus || loading ? 'default' : 'pointer' }}>
-                        {`ゾーン${zi + 1}\n${hasVirus ? '(ウィルスあり)' : (signiName ?? '(空き)')}`}
+                          cursor: !selectable || loading ? 'default' : 'pointer' }}>
+                        {`ゾーン${zi + 1}\n${hasVirus ? '(ウィルスあり)' : (signiName ?? '(空き)')}${hasVirus && signiName ? `\n${signiName}` : ''}`}
                       </button>
                     );
                   })}

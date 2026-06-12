@@ -2082,6 +2082,19 @@ function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
   const tgtOwner: Owner = a.targetOwner === 'opponent' ? 'opponent' : 'self';
   const tgtState = ownerState(tgtOwner, ctx);
   const virus = [...(tgtState.field.signi_virus ?? [0, 0, 0])];
+
+  // powerDeltaOnZone: ウィルス済みゾーンも選択可（ウィルスは置けないがパワー修正は適用される）ため常に選択式
+  if (a.powerDeltaOnZone !== undefined) {
+    return needsInteraction(ctx, {
+      type: 'SELECT_VIRUS_ZONE',
+      owner: tgtOwner,
+      virusCount: a.virusCount,
+      remainingZones: typeof a.zoneCount === 'number' ? a.zoneCount : 1,
+      upTo: a.upToZoneCount ?? false,
+      powerDeltaOnZone: a.powerDeltaOnZone,
+    });
+  }
+
   // どのゾーンに置けるか（まだウィルスが置かれていないゾーン）
   const available = [0, 1, 2].filter(i => virus[i] === 0);
   if (available.length === 0) return done(addLog(ctx, '【ウィルス】を置けるゾーンなし'));
@@ -2120,11 +2133,23 @@ export function resumeSelectVirusZone(
   }
   const state = ownerState(pending.owner, ctx);
   const virus = [...(state.field.signi_virus ?? [0, 0, 0])];
-  // 既にウィルスがあるゾーンが選ばれた場合は再選択
-  if ((virus[zoneIndex] ?? 0) > 0) return needsInteraction(ctx, pending);
-  virus[zoneIndex] = pending.virusCount;
-  const newS: PlayerState = { ...state, field: { ...state.field, signi_virus: virus } };
-  const cur = addLog(setOwnerState(pending.owner, newS, ctx), `ゾーン${zoneIndex + 1}に【ウィルス】を配置`);
+  // 既にウィルスがあるゾーンが選ばれた場合は再選択（powerDeltaOnZone時はウィルス済みゾーンも選択可）
+  const alreadyHasVirus = (virus[zoneIndex] ?? 0) > 0;
+  if (alreadyHasVirus && pending.powerDeltaOnZone === undefined) return needsInteraction(ctx, pending);
+  if (!alreadyHasVirus) virus[zoneIndex] = pending.virusCount;
+  let newS: PlayerState = { ...state, field: { ...state.field, signi_virus: virus } };
+  let logMsg = alreadyHasVirus
+    ? `ゾーン${zoneIndex + 1}は【ウィルス】配置済み`
+    : `ゾーン${zoneIndex + 1}に【ウィルス】を配置`;
+  // 選択ゾーンのシグニへのパワー修正（WD19-009: そのシグニゾーンにあるシグニのパワーを－8000）
+  if (pending.powerDeltaOnZone !== undefined) {
+    const zoneTop = newS.field.signi[zoneIndex]?.at(-1);
+    if (zoneTop) {
+      newS = { ...newS, temp_power_mods: [...(newS.temp_power_mods ?? []), { cardNum: zoneTop, delta: pending.powerDeltaOnZone }] };
+      logMsg += `、${ctx.cardMap.get(zoneTop)?.CardName ?? zoneTop}のパワー${pending.powerDeltaOnZone > 0 ? '+' : ''}${pending.powerDeltaOnZone}`;
+    }
+  }
+  const cur = addLog(setOwnerState(pending.owner, newS, ctx), logMsg);
   const remaining = pending.remainingZones - 1;
   if (remaining > 0 && [0, 1, 2].some(i => virus[i] === 0)) {
     return needsInteraction(cur, { ...pending, remainingZones: remaining });

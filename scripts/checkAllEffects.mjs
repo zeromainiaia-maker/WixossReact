@@ -126,9 +126,15 @@ function getMandatoryList(efList) {
 
 // ─── 検出ロジック ──────────────────────────────────────────────
 const issues = [];
+// 既知の未対応を含むため件数ゲート（0件維持）の対象外とする警告。検出結果とは別枠で出力する
+const warnings = [];
 
 function report(file, cardId, name, checkType, detail, csvSnippet) {
   issues.push({ file, cardId, name, checkType, detail, csvSnippet: csvSnippet?.substring(0, 100) });
+}
+
+function warn(file, cardId, name, checkType, detail) {
+  warnings.push({ file, cardId, name, checkType, detail });
 }
 
 for (const { json, csvs } of FILES) {
@@ -322,6 +328,21 @@ for (const { json, csvs } of FILES) {
       }
     }
 
+    // ── 6b. 無発火の任意【出】検出（v0.261コインコスト系統バグと同型）──────
+    // mandatory:false かつ cost なしの AUTO/ON_PLAY(triggerScope self) は、エンジンの収集フィルタ
+    // （mandatoryOnPlay: mandatory!==false / costOnPlay: mandatory:false+costあり）の両方から漏れて
+    // 一切発火しない。テキスト上はコストがある（【出】...：）のにJSONで未表現のケースが大半。
+    // 既知の未表現コスト（自己犠牲・英知・ルリグデッキ等）が多数残っているため警告枠で出力する。
+    for (const ef of efList) {
+      if (ef.effectType !== 'AUTO') continue;
+      if (!Array.isArray(ef.timing) || !ef.timing.includes('ON_PLAY')) continue;
+      if (ef.triggerScope && ef.triggerScope !== 'self') continue;
+      if (ef.mandatory !== false) continue;
+      if (ef.cost && Object.keys(ef.cost).length > 0) continue;
+      warn(json, cardId, name, 'ONPLAY_DEAD_OPTIONAL',
+        `${ef.effectId}: mandatory:false+costなしのON_PLAYは発火しない（costの表現追加かmandatory見直しが必要）`);
+    }
+
     // ── 7. BOUNCE先不一致 ──────────────────────────────────────
     // CSV「手札に戻す」があるのにBOUNCE destination が deck など
     if (/手札に戻す/.test(fullText) && !hasStub && !hasUnknown) {
@@ -374,3 +395,15 @@ for (const [f, cnt] of Object.entries(byFile)) {
   console.log(`  ${f}: ${cnt}件`);
 }
 console.log(`  合計: ${issues.length}件`);
+
+// 警告（0件維持ゲートの対象外。既知の未表現コスト等の棚卸し用）
+// 詳細表示は --warnings 付きで実行
+if (warnings.length > 0) {
+  const byWarnType = {};
+  for (const w of warnings) byWarnType[w.checkType] = (byWarnType[w.checkType] || 0) + 1;
+  console.log(`\n=== 警告（参考・ゲート対象外）: ${warnings.length}件 ===`);
+  for (const [t, cnt] of Object.entries(byWarnType)) console.log(`  ${t}: ${cnt}件`);
+  if (process.argv.includes('--warnings')) {
+    for (const w of warnings) console.log(`  [${w.file}] ${w.cardId} ${w.name}: ${w.detail}`);
+  }
+}

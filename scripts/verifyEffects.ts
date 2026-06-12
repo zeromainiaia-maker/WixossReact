@@ -103,14 +103,19 @@ function extractCostFromText(effectBlock: string): { color: string; count: numbe
     if (existing) existing.count += cnt;
     else result.push({ color, count: cnt });
   }
+  // 《コインアイコン》コスト（連続数=枚数。v0.261で38枚に cost:{coin:N} が付与済み）
+  const coinCount = (costPart.match(/《コインアイコン》/g) ?? []).length;
+  if (coinCount > 0) result.push({ color: 'コイン', count: coinCount });
   return result;
 }
 
-/** effects.jsonのコストを正規化（同じ色を合算） */
-function normCost(energy: { color: string; count: number }[] | undefined): string {
-  if (!energy?.length) return '';
+/** effects.jsonのコストを正規化（同じ色を合算。coinは「コイン」擬似色として含める） */
+function normCost(cost: { energy?: { color: string; count: number }[]; coin?: number } | undefined): string {
+  const entries = [...(cost?.energy ?? [])];
+  if (cost?.coin) entries.push({ color: 'コイン', count: cost.coin });
+  if (!entries.length) return '';
   const merged: Record<string, number> = {};
-  for (const e of energy) merged[e.color] = (merged[e.color] ?? 0) + e.count;
+  for (const e of entries) merged[e.color] = (merged[e.color] ?? 0) + e.count;
   return Object.entries(merged).sort((a, b) => a[0].localeCompare(b[0]))
     .map(([c, n]) => `${c}×${n}`).join(',');
 }
@@ -417,9 +422,9 @@ for (const row of rows) {
     if (candidateEffs.length === 0) continue; // タイミング不一致は上で報告済み
 
     const textCostStr = normTextCost(textCosts);
-    const jsonMatched = candidateEffs.some(e => normCost(e.cost?.energy) === textCostStr);
+    const jsonMatched = candidateEffs.some(e => normCost(e.cost) === textCostStr);
     if (!jsonMatched) {
-      const jsonCosts = candidateEffs.map(e => normCost(e.cost?.energy) || 'なし').join(' / ');
+      const jsonCosts = candidateEffs.map(e => normCost(e.cost) || 'なし').join(' / ');
       addIssue(cardNum, cardName, 'コスト',
         `テキスト:"${textCostStr}" ≠ JSON:"${jsonCosts}" (${isActivated ? '起' : '出'})`);
     }

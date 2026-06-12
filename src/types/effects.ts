@@ -45,7 +45,9 @@ export type EffectTiming =
   | 'ON_SPELL_USE'              // あなたがスペルを使用したとき
   | 'ON_DISCARDED_AS_COST'      // このカードがシグニ能力のコストとして手札から捨てられたとき
   | 'ON_EXCEED_COST'            // このカードがエクシードのコストとしてルリグトラッシュに置かれたとき
-  | 'ON_PLACED_UNDER_SIGNI';    // このカードがシグニの下に置かれたとき（※配置機構が未実装のため現状発火しない）
+  | 'ON_PLACED_UNDER_SIGNI'     // このカードがシグニの下に置かれたとき（※配置機構が未実装のため現状発火しない）
+  | 'ON_OPP_VIRUS_REMOVED'      // 対戦相手の場の【ウィルス】が取り除かれたとき（※未配線。WD19-009。ON_TURN_END誤発火の修正で導入）
+  | 'ON_OPP_VIRUS_CHANGED';     // 対戦相手の場に【ウィルス】が置かれるか取り除かれたとき（※未配線。WX21-030）
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
@@ -148,6 +150,8 @@ export interface EnergyCost {
 export interface EffectCost {
   energy?: EnergyCost[];
   discard?: number;       // 手札を任意のカードN枚トラッシュ
+  discardFilter?: TargetFilter; // discardで捨てられるカードの制限（「手札から＜天使＞のシグニを１枚捨てる」等）
+  energyTrash?: { count: number; filter?: TargetFilter }; // エナゾーンから指定カードN枚をトラッシュ（色支払いでなくカード指定。「エナゾーンから＜天使＞のシグニ３枚をトラッシュに置く」等）
   handDiscardSigni?: { color: string; count: number }; // 手札から指定色のシグニをN枚トラッシュ
   banish_self?: boolean;  // 自身をバニッシュ
   life_crash?: number;    // 自分のライフクロスをN枚クラッシュ
@@ -962,6 +966,9 @@ export interface PlaceVirusAction {
   zoneCount: number | 'ALL';   // 何ゾーンに置くか
   virusCount: number;          // 各ゾーンに置くウィルス数（通常1）
   upToZoneCount?: boolean;     // true=「～つまで」
+  // 選んだゾーンのシグニにパワー修正を与える（WD19-009「そのシグニゾーンにあるシグニのパワーを－8000」）。
+  // 指定時はウィルス済みゾーンも選択可（ウィルスは置けないがパワー修正は適用される）
+  powerDeltaOnZone?: number;
 }
 
 // エナゾーンのカードをシグニのアクセにする
