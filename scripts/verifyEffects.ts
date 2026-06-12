@@ -216,6 +216,8 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   REVEAL_PICK_HAND_SHUFFLE_BOTTOM: ['MOVE_TO_ENERGY'],
   // デッキトップ公開→レベル別効果（Lv1:パワー+5000/Lv2:エナ/Lv3:ランサー/Lv4:ドロー/Lv5:バニッシュ、本実装済み）
   REVEAL_TOP_LEVEL_ROUTE: ['BANISH', 'DRAW', 'MOVE_TO_ENERGY', 'POWER_MODIFY'],
+  // 両プレイヤーのデッキ上N枚をトラッシュ（choiceTextParser生成STUB、本実装済み）
+  INTERNAL_DECK_TRASH_BOTH: ['MILL'],
 };
 
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
