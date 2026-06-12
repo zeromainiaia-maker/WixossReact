@@ -6350,16 +6350,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ATTACK_LRIGフェイズ：ルリグアタック ───
     if (phase === 'ATTACK_LRIG') {
       if (!cpuSt.field.lrig_down) {
-        const cpuLrigNum = cpuSt.field.lrig.at(-1) ? getCardNum(cpuSt.field.lrig.at(-1)!) : null;
-        const cpuLrigCard = cpuLrigNum ? battleCardMap.get(cpuLrigNum) : null;
-        appendBattleLogs([`[CPU] ルリグアタック: ${cpuLrigCard?.CardName ?? 'ルリグ'}`]);
-        const newCpuSt: PlayerState = { ...cpuSt, field: { ...cpuSt.field, lrig_down: true } };
-        const newHuSt: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true } };
-        await supabase.from('battle_states').update({
-          guest_state: newCpuSt,
-          host_state: newHuSt,
-        }).eq('room_id', roomId);
-        return;
+        // 対人戦と同じ共通処理（追加コスト・ON_ATTACK_LRIGトリガー収集を含む）
+        const attacked = await performLrigAttack({
+          attacker: cpuSt, defender: huSt,
+          attackerId: CPU_PLAYER_ID, attackerKey: 'guest_state',
+        });
+        if (attacked) return;
+        // アタック不可（ドライブ状態・無効化等）→ そのままENDへ進む
       }
       // ガード応答待ち・ライフバースト処理中はENDへ進まない
       if (huSt.field.lrig_attacked || huSt.field.check) return;
