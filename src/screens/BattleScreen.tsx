@@ -10432,9 +10432,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
                           コスト: {[
                             energyTotal > 0 ? costStr : null,
-                            discardNeeded > 0 ? `手札${discardFilter ? `の${filterLabel(discardFilter)}` : ''}${discardNeeded}枚捨て` : null,
+                            handNeeded > 0 ? `手札${handFilter ? `の${filterLabel(handFilter)}` : ''}${handNeeded}枚を${handCostLabel}` : null,
                             enaTrashNeeded > 0 ? `エナの${filterLabel(enaTrashFilter) || 'カード'}${enaTrashNeeded}枚トラッシュ` : null,
-                            coinNeeded > 0 ? `《コイン》×${coinNeeded}（所持${pendingSigniOnPlayCost.placedState.coins ?? 0}）` : null,
+                            ftNeeded > 0 ? `場の${filterLabel(ftCost?.filter) || 'シグニ'}${ftNeeded}体をトラッシュ` : null,
+                            lrigDownCost ? `アップ状態の${lrigDownCost.centerOnly ? 'センター' : ''}ルリグ${lrigDownCost.count}体をダウン` : null,
+                            (eff.cost?.lifeTrash ?? 0) > 0 ? `ライフクロス${eff.cost!.lifeTrash}枚トラッシュ` : null,
+                            (eff.cost?.life_crash ?? 0) > 0 ? `ライフクロス${eff.cost!.life_crash}枚クラッシュ` : null,
+                            (eff.cost?.lifeToHand ?? 0) > 0 ? `ライフクロス${eff.cost!.lifeToHand}枚を手札へ` : null,
+                            deckTrashNeeded > 0 ? `デッキ上${deckTrashNeeded}枚トラッシュ` : null,
+                            charmNeeded > 0 ? `チャーム${charmNeeded}枚トラッシュ` : null,
+                            virusNeeded > 0 ? `相手の【ウィルス】${virusNeeded}個除去` : null,
+                            coinNeeded > 0 ? `《コイン》×${coinNeeded}（所持${pState.coins ?? 0}）` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                       </div>
