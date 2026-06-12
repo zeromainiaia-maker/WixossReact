@@ -5693,7 +5693,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // ON_ATTACK_SIGNI トリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
-      const opPlayerId = isHost ? bs.guest_id : bs.host_id;
+      const opPlayerId = defenderId;
       const opAtkedEntries: StackEntry[] = [];
       const opFrontZoneIdx = 2 - zoneIndex; // アタッカー正面ゾーン（防御側から見た）
       for (const opSigniStack of newOpState.field.signi) {
