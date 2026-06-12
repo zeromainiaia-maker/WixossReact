@@ -6976,10 +6976,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const discardNums = [...discardIndices].map(i => placedState.hand[i]);
       const newHand = placedState.hand.filter((_, i) => !discardIndices.has(i));
+      // 《コインアイコン》コスト（【出】《コイン》等）
+      const coinCostOPC = costEffect.cost?.coin ?? 0;
+      if (coinCostOPC > 0 && (placedState.coins ?? 0) < coinCostOPC) return; // 支払い不能（UI側でも無効化済み）
       let paid: PlayerState = {
         ...placedState,
         energy: newEnergy,
         hand: newHand,
+        coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
         trash: [...placedState.trash, ...paidNums, ...discardNums],
       };
       const cName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
