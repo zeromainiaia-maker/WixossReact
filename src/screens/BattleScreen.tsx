@@ -1451,17 +1451,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return collectArtsThresholdCostReductions(myS, battleCardMap, effectsMap);
   }, [bs, battleCardMap, effectsMap, user.id]);
 
-  // OPP_LRIG_ATTACK_COST: 自分がルリグアタックする際に支払う追加コスト（相手フィールドの効果による）
-  const myLrigAttackExtraCost = useMemo((): number => {
-    if (!bs || bs.global_phase !== 'PLAYING') return 0;
-    const localIsHost = user.id === bs.host_id;
-    const myS = localIsHost ? bs.host_state : bs.guest_state;
-    const opS = localIsHost ? bs.guest_state : bs.host_state;
-    const myTurn = bs.active_user_id === user.id;
-    // 相手フィールドのOPP_LRIG_ATTACK_COSTが自分ターン中にアクティブな場合、自分が追加コスト支払い
-    return collectOppLrigAttackExtraCost(opS, myS, battleCardMap, effectsMap, !myTurn);
-  }, [bs, battleCardMap, effectsMap, user.id]);
-
   // HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT: 実効手札上限（自分のターン終了時に適用）
   const myEffectiveHandLimit = useMemo(() => {
     if (!bs || bs.global_phase !== 'PLAYING') return 6;
