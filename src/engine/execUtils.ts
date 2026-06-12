@@ -139,6 +139,7 @@ export function matchesFilter(
   filter: TargetFilter | undefined,
   effectivePower?: number,  // 実効パワー（未指定時はcard.Powerを使用）
   classOverride?: string,   // card_class_overridesによるクラス上書き
+  allZoneClassOverrides?: Record<string, string>, // TREAT_AS_CLASS_ALL_ZONES: 全ゾーン適用
 ): boolean {
   if (!card) return false;
   if (!filter) return true;
