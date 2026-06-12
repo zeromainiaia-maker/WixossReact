@@ -6423,6 +6423,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...cpuSt,
         temp_power_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
         pending_crashed_cards: [], must_attack_signi: undefined, prevent_next_damage: undefined,
+        attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: undefined,
         banish_redirect: undefined, banish_redirect_to_hand: undefined,
