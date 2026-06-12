@@ -262,6 +262,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         trash: [...state.trash, ...picked],
         // ON_HAND_DISCARDEDトリガー検出用（BattleScreenが消化してクリア）
         hand_discarded_just: picked.length > 0 ? [...(state.hand_discarded_just ?? []), ...picked] : state.hand_discarded_just,
+        turn_hand_discarded_count: tgt.owner === 'self' && picked.length > 0
+          ? (state.turn_hand_discarded_count ?? 0) + picked.length : state.turn_hand_discarded_count,
       };
       return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札からランダム${count}枚をトラッシュへ`), lastProcessedCards: picked });
     }
