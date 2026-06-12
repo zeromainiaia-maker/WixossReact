@@ -10353,32 +10353,66 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const card = battleCardMap.get(pendingSigniOnPlayCost.cardNum);
               const eff  = pendingSigniOnPlayCost.costEffect;
               // エナ/手札はplacedState基準（グロウ経路はグロウコスト支払い後、チェーン時は前効果の支払い後）
-              const pcEnergy = pendingSigniOnPlayCost.placedState.energy;
+              const pState = pendingSigniOnPlayCost.placedState;
+              const pcEnergy = pState.energy;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              // 手札コスト（discard=トラッシュ / handToEnergy=エナへ / handToUnderSelf=シグニの下へ。同時指定はない前提で選択UIを共用）
               const discardNeeded = eff.cost?.discard ?? 0;
-              const discardFilter = eff.cost?.discardFilter;
+              const handToEnergyNeeded = eff.cost?.handToEnergy?.count ?? 0;
+              const handToUnderNeeded  = eff.cost?.handToUnderSelf?.count ?? 0;
+              const handNeeded = discardNeeded + handToEnergyNeeded + handToUnderNeeded;
+              const handFilter = eff.cost?.discardFilter ?? eff.cost?.handToEnergy?.filter ?? eff.cost?.handToUnderSelf?.filter;
+              const handCostLabel = handToEnergyNeeded > 0 ? 'エナゾーンに置く' : handToUnderNeeded > 0 ? 'このシグニの下に置く' : '捨てる';
               const coinNeeded = eff.cost?.coin ?? 0;
               const enaTrashNeeded = eff.cost?.energyTrash?.count ?? 0;
               const enaTrashFilter = eff.cost?.energyTrash?.filter;
+              // 場のシグニトラッシュコスト
+              const ftCost = eff.cost?.fieldTrash;
+              const ftNeeded = ftCost?.count ?? 0;
+              const selfZoneFT = pendingSigniOnPlayCost.placedZone
+                ?? pState.field.signi.findIndex(s => s?.at(-1) === pendingSigniOnPlayCost.cardNum);
+              const ftSelectableZones = [0, 1, 2].filter(zi => {
+                const top = pState.field.signi[zi]?.at(-1);
+                if (!top) return false;
+                if (ftCost?.excludeSelf && zi === selfZoneFT) return false;
+                return !ftCost?.filter || matchesFilter(battleCardMap.get(getCardNum(top)), ftCost.filter);
+              });
+              // 自動支払いコスト（選択不要）
+              const lrigDownCost = eff.cost?.lrigDown;
+              const upLrigCount = (pState.field.lrig.length > 0 && !pState.field.lrig_down ? 1 : 0)
+                + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_l?.length ?? 0) > 0 && !pState.field.assist_lrig_l_down ? 1 : 0)
+                + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_r?.length ?? 0) > 0 && !pState.field.assist_lrig_r_down ? 1 : 0);
+              const lrigDownOk = !lrigDownCost || upLrigCount >= lrigDownCost.count;
+              const lifeNeeded = (eff.cost?.lifeTrash ?? 0) + (eff.cost?.life_crash ?? 0) + (eff.cost?.lifeToHand ?? 0);
+              const lifeOk = lifeNeeded === 0 || pState.life_cloth.length >= lifeNeeded;
+              const charmNeeded = eff.cost?.charmTrash ?? 0;
+              const charmOk = charmNeeded === 0 || (pState.field.signi_charms ?? []).filter(Boolean).length >= charmNeeded;
+              const virusNeeded = eff.cost?.removeOppVirus ?? 0;
+              const virusOk = virusNeeded === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeeded;
+              const deckTrashNeeded = eff.cost?.deckTrash ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniOnPlayCost].map(i => pcEnergy[i]);
               const energyOk = energyTotal === 0
                 ? true
                 : selectedSigniOnPlayCost.size === energyTotal &&
                   canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
-              const coinOk = coinNeeded === 0 || (pendingSigniOnPlayCost.placedState.coins ?? 0) >= coinNeeded;
+              const coinOk = coinNeeded === 0 || (pState.coins ?? 0) >= coinNeeded;
               const filterLabel = (f?: import('../types/effects').TargetFilter) => {
                 if (!f) return '';
                 const parts: string[] = [];
                 if (f.story) parts.push((Array.isArray(f.story) ? f.story : [f.story]).map(s => `＜${s}＞`).join('か'));
                 if (f.color) parts.push((Array.isArray(f.color) ? f.color : [f.color]).join('か'));
                 if (f.level !== undefined && typeof f.level === 'number') parts.push(`レベル${f.level}`);
+                if (f.hasIcon) parts.push(`《${f.hasIcon}アイコン》持ち`);
+                if (f.hasLifeBurst) parts.push('《ライフバースト》持ち');
+                if (f.cardName) parts.push(`《${f.cardName}》`);
                 if (f.cardType === 'シグニ' || (Array.isArray(f.cardType) && f.cardType.includes('シグニ'))) parts.push('シグニ');
                 return parts.join('の');
               };
-              const canAfford = energyOk && coinOk
-                && selectedSigniOnPlayDiscard.size >= discardNeeded
-                && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded;
+              const canAfford = energyOk && coinOk && lrigDownOk && lifeOk && charmOk && virusOk
+                && selectedSigniOnPlayDiscard.size >= handNeeded
+                && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
+                && selectedSigniOnPlayFieldTrash.size >= ftNeeded;
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
