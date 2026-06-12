@@ -10163,6 +10163,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           コスト: {[
                             energyTotal > 0 ? costStr : null,
                             discardNeeded > 0 ? `手札${discardNeeded}枚` : null,
+                            coinNeeded > 0 ? `《コイン》×${coinNeeded}（所持${pendingSigniOnPlayCost.placedState.coins ?? 0}）` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                       </div>
