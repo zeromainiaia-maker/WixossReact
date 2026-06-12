@@ -2425,6 +2425,26 @@ export function execStubPart3(
       type: 'SEARCH', visibleCards: signiTrashTSTH, maxPick: 1, thenAction: addHandTSTH as EffectAction,
     });
   }
+  // INTERNAL_DRAW_PER_CENTER_LEVEL: センタールリグのレベル1につき1ドロー
+  if (stub.id === 'INTERNAL_DRAW_PER_CENTER_LEVEL') {
+    const lrigCnDPCL = ctx.ownerState.field.lrig.at(-1);
+    const lvDPCL = lrigCnDPCL ? (parseInt(ctx.cardMap.get(lrigCnDPCL)?.Level ?? '0') || 0) : 0;
+    if (lvDPCL <= 0) return done(addLog(ctx, 'センタールリグなし'));
+    const sDPCL = ctx.ownerState;
+    const canDPCL = Math.min(lvDPCL, sDPCL.deck.length);
+    const newSDPCL: PlayerState = { ...sDPCL, hand: [...sDPCL.hand, ...sDPCL.deck.slice(0, canDPCL)], deck: sDPCL.deck.slice(canDPCL) };
+    return done(addLog({ ...ctx, ownerState: newSDPCL }, `ルリグレベル${lvDPCL}→${canDPCL}枚ドロー`));
+  }
+  // INTERNAL_CHARGE_PER_CENTER_LEVEL: センタールリグのレベル1につきエナチャージ1
+  if (stub.id === 'INTERNAL_CHARGE_PER_CENTER_LEVEL') {
+    const lrigCnCPCL = ctx.ownerState.field.lrig.at(-1);
+    const lvCPCL = lrigCnCPCL ? (parseInt(ctx.cardMap.get(lrigCnCPCL)?.Level ?? '0') || 0) : 0;
+    if (lvCPCL <= 0) return done(addLog(ctx, 'センタールリグなし'));
+    const sCPCL = ctx.ownerState;
+    const tookCPCL = sCPCL.deck.slice(0, Math.min(lvCPCL, sCPCL.deck.length));
+    const newSCPCL: PlayerState = { ...sCPCL, deck: sCPCL.deck.slice(tookCPCL.length), energy: [...sCPCL.energy, ...tookCPCL] };
+    return done(addLog({ ...ctx, ownerState: newSCPCL }, `ルリグレベル${lvCPCL}→エナチャージ${tookCPCL.length}`));
+  }
   // INTERNAL_DECK_TRASH_BOTH: 両プレイヤーのデッキ上N枚をトラッシュ
   if (stub.id === 'INTERNAL_DECK_TRASH_BOTH') {
     const cntIDTB = typeof stub.value === 'number' ? stub.value : 7;
