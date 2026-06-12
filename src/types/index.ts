@@ -76,6 +76,8 @@ export interface PlayerState {
     lrig_attacked?: boolean;   // true=このプレイヤーが相手ルリグに攻撃された（ガード応答待ち）
     assist_lrig_l?: string[];
     assist_lrig_r?: string[];
+    assist_lrig_l_down?: boolean; // true=左アシストルリグがダウン状態（【出】ルリグダウンコスト等）
+    assist_lrig_r_down?: boolean; // true=右アシストルリグがダウン状態
     check?: string | null;
     key_piece?: string | null;
     signi_charms?: (string | null)[]; // [zone0, zone1, zone2] チャームカードのCardNum or null
