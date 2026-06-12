@@ -222,6 +222,8 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   // センタールリグのレベル1につき1ドロー/エナチャージ1（本実装済み）
   INTERNAL_DRAW_PER_CENTER_LEVEL: ['DRAW'],
   INTERNAL_CHARGE_PER_CENTER_LEVEL: ['MOVE_TO_ENERGY'],
+  // 手札すべて捨ててN枚引く（choiceTextParser生成STUB、本実装済み）
+  INTERNAL_DISCARD_ALL_DRAW_N: ['DRAW', 'DISCARD'],
 };
 
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
