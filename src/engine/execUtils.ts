@@ -218,6 +218,31 @@ export function matchesFilter(
 
 
 /**
+ * 混合手札捨てコスト（discardGroups）の充足判定:
+ * 選択されたカードを全グループの必要枚数に過不足なく割当できるか（バックトラック。コストは数枚規模が前提）。
+ */
+export function canSatisfyDiscardGroups(
+  cards: (CardData | undefined)[],
+  groups: { count: number; filter?: TargetFilter }[],
+): boolean {
+  const slots: (TargetFilter | undefined)[] = [];
+  for (const g of groups) for (let i = 0; i < g.count; i++) slots.push(g.filter);
+  if (cards.length !== slots.length) return false;
+  const used = new Array<boolean>(cards.length).fill(false);
+  const assign = (slot: number): boolean => {
+    if (slot === slots.length) return true;
+    for (let i = 0; i < cards.length; i++) {
+      if (used[i] || !matchesFilter(cards[i], slots[slot])) continue;
+      used[i] = true;
+      if (assign(slot + 1)) return true;
+      used[i] = false;
+    }
+    return false;
+  };
+  return assign(0);
+}
+
+/**
  * インスタンスID（CardNum#N）からCardNumを取り出す。
  * #N がない場合はそのまま返す（後方互換）。
  */

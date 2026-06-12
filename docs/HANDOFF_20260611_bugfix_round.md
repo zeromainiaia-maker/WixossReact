@@ -1,5 +1,49 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-13 ymsty側: 【起】手札捨てコスト ラウンド2 — 残51カード中33カード解消（v0.275）— デプロイ未実施→zerom側で
+>
+> v0.266の残り（混合/可変/キー/STUB型 ≈50）のうち表現可能な分を解消した。51→18カード（スキャンは
+> tmp_verify/scanActivatedHandDiscardCost.mjs、ymsty側gitignore）。tsc 0 / lint 0 errors（28警告、既存同数）/
+> checkAllEffects 0（警告12既存同数）/ verifyEffects全12シート0 / tsxスモークテスト60項目PASS。
+> **`vercel deploy --prod` をzerom側で行うこと**（v0.275）。
+>
+> ### 一括付与 26効果（tmp_verify/tagActivatedDiscardCosts.mjs拡張、gitignore対象）
+> - **discardFilterの語彙拡張で付与**: story配列（＜鉱石＞か＜宝石＞等）/ color配列 / 色+クラス複合 /
+>   cardName（《フレイスロ》を含む・《究極　ニパ子》・《ディソナアイコン》='//ディソナ'）/ hasIcon:'クロス' /
+>   hasGuard / level:N / ＜クラス＞の「カード」（シグニ限定なし、ブルアカ・プリオケ12枚）。
+>   matchesFilterは全て対応済みのためエンジン変更不要。シグニ【起】モーダルのフィルタラベルに
+>   level/hasIcon/hasGuard表示を追加
+> - **handDiscardSigniのcolor/story配列対応**（types/effects.ts + ルリグ【起】モーダル判定・ラベル3箇所、
+>   `fmtHandDiscardSigniLabel`新設）
+> - **trash読みSTUBへの付与は必須だった**: POWER_MOD_MIRROR（WXK06-049）/ POWER_UP_BY_DISCARDED_SIGNI_POWER
+>   （WDK08-Y01）は`trash.at(-1)`=捨てカード前提の実装なのに、コスト未付与でtrash末尾を誤読する実バグだった。
+>   DISCARD_BY_POWER_MATCH（WXK10-026）はスタブ内で自己処理のため引き続き付与しない（二重払い防止）
+>
+> ### 新スキーマ `discardGroups`: 混合手札捨てコスト 3カード（WX04-003/WX12-024/WX20-Re07）
+> - `cost.discardGroups: {count, filter?}[]`（「スペル１枚と＜原子＞のシグニ１枚を捨てる」等）。
+>   充足判定は `canSatisfyDiscardGroups`（execUtils、バックトラック割当。青黒両色カードの交差ケース対応）
+> - シグニ【起】モーダルとルリグ【起】モーダル両方で選択UI対応（支払いは従来のindexベースで変更なし）
+>
+> ### 手動修正 5カード（tmp_verify/fixActivatedDiscardRound2.mjs）
+> - **WX11-003 花代・肆**: E1が【起】2ブロックの誤マージ（アサシン付与+バニッシュが1つのSEQUENCE、
+>   コスト1回で両方実行）→ E1/E1Bに分割。アサシン対象も誤り（any/無フィルタ→自分の赤シグニ）、
+>   BANISHのstory[鉱石,宝石]はコスト側の条件だったため対象フィルタから除去
+> - **WXEX2-12-E3**: handDiscardSigni青1付与 / **WXDi-P10-042-E2**: discard+スペルfilter付与 /
+>   **PR-046-E3**: discard+白か青filter付与（併せてFREEZE対象owner self→any修正）
+> - **WX25-P3-088-E2 アオミドロ（実バグ）**: 「能力のコストとしてこのカードが捨てられたとき」が
+>   ON_PLAYに誤マッピングされ**場に出た時に発火していた** → ON_DISCARDED_AS_COST（v0.257配線済み）に修正
+> - 1:1不一致の原因はテキスト中の【起】参照（【常】の「【起】能力」・引用付与能力内の【起】）による
+>   ブロック数の水増しだった
+>
+> ### 残り18カード（スキーマ/機構が未対応のため意図的スキップ）
+> - **「手札からこのカードを捨てる」型 8枚**（WX17-031/WX18-029/WX18-053/WX18-055/WX19-022/WX19-045/
+>   WXK11-067/WXDi-P08-070）: 手札からの起動＝自身がコストという機構自体が未実装
+> - **「手札をすべて捨てる」型 6枚**（WX05-022/WX10-037/WXEX2-48/WXDi-P09-006/WXDi-P16-012/WX25-P3-019）:
+>   discardAllスキーマ+「この方法でN枚以上捨てた場合」の枚数条件ゲートが必要（後半2枚はエナ全トラッシュとの複合）
+> - **可変 1枚**（WDK13-011 1枚以上捨てる・レベル合計参照）/ **アーツ 1枚**（WX25-P2-001、STUB能力付与内）/
+>   **正しいスキップ 2枚**（WXK10-026=スタブ自己処理、WX25-P3-088=トリガー誤検出・timing修正済み）。
+>   なおキー4枚（WXK10-015/016/019, WDK10-009）はv0.267-274のキー【起】discard UI追加で解消済みだった
+
 > ## ✅ 2026-06-13 ymsty側: 残作業2件を実施（v0.265/v0.266）— デプロイ未実施→zerom側で
 >
 > tsc 0 / lint 0 errors（28警告、既存同数）/ checkAllEffects 0（警告12既存同数）/ verifyEffects全12シート0 /
