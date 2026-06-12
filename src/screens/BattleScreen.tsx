@@ -4666,6 +4666,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: [...my.trash, ...paidNums, ...discardNums],
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
         field: keySub ? { ...my.field, key_piece: null } : my.field,
+        turn_hand_discarded_count: discardNums.length > 0
+          ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
       };
       if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
