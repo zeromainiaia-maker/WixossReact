@@ -6484,6 +6484,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         signi_frozen: [false, false, false] as boolean[],
         lrig_down:    (huSt.field.lrig_down ?? false) && curHuLrigFrozen,
         lrig_frozen:  false,
+        assist_lrig_l_down: false,
+        assist_lrig_r_down: false,
       }};
       const cleanCpuSt: PlayerState = {
         ...cpuSt,
