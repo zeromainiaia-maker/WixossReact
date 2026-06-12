@@ -4200,6 +4200,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           placedState: placed,
           mandatoryEntries: [...ownEntries, ...fieldEntries],
           remainingCostEffects: ownCostOnPlay.slice(1),
+          placedZone: zoneIndex,
         });
         return;
       }
