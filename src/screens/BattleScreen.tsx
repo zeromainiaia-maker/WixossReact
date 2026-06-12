@@ -7039,6 +7039,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     placedState: PlayerState,
     entries: StackEntry[],
     remaining: import('../types/effects').CardEffect[] | undefined,
+    placedZone?: number,
   ) => {
     if (remaining && remaining.length > 0) {
       setPendingSigniOnPlayCost({
@@ -7047,6 +7048,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         placedState,
         mandatoryEntries: entries,
         remainingCostEffects: remaining.slice(1),
+        placedZone,
       });
       return;
     }
