@@ -10596,6 +10596,56 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
+                  {ftNeeded > 0 && (
+                    <>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        場からトラッシュするシグニを選択: {selectedSigniOnPlayFieldTrash.size} / {ftNeeded}体
+                        {ftCost?.filter ? `（${filterLabel(ftCost.filter)}のみ）` : ''}{ftCost?.excludeSelf ? '（このシグニ以外）' : ''}
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {[0, 1, 2].map(zi => {
+                          const top = pState.field.signi[zi]?.at(-1);
+                          if (!top) return null;
+                          const c = battleCardMap.get(getCardNum(top));
+                          const selectable = ftSelectableZones.includes(zi);
+                          const isSel = selectedSigniOnPlayFieldTrash.has(zi);
+                          return (
+                            <div key={zi}
+                              onClick={() => selectable && setSelectedSigniOnPlayFieldTrash(prev => {
+                                const next = new Set(prev);
+                                if (next.has(zi)) { next.delete(zi); return next; }
+                                if (next.size >= ftNeeded) return prev;
+                                next.add(zi); return next;
+                              })}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #e91e63' : C.borderCard,
+                                opacity: selectable ? 1 : 0.35,
+                                cursor: selectable ? 'pointer' : 'default', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{top}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(233,30,99,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => skipSigniOnPlayCost(
@@ -10603,6 +10653,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         pendingSigniOnPlayCost.placedState,
                         pendingSigniOnPlayCost.mandatoryEntries,
                         pendingSigniOnPlayCost.remainingCostEffects,
+                        pendingSigniOnPlayCost.placedZone,
                       )}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
@@ -10619,6 +10670,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         pendingSigniOnPlayCost.mandatoryEntries,
                         selectedSigniOnPlayEnergyTrash,
                         pendingSigniOnPlayCost.remainingCostEffects,
+                        selectedSigniOnPlayFieldTrash,
+                        pendingSigniOnPlayCost.placedZone,
                       )}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
