@@ -10134,13 +10134,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const eff  = pendingSigniOnPlayCost.costEffect;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
+              const coinNeeded = eff.cost?.coin ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniOnPlayCost].map(i => my.energy[i]);
               const energyOk = energyTotal === 0
                 ? true
                 : selectedSigniOnPlayCost.size === energyTotal &&
                   canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
-              const canAfford = energyOk && selectedSigniOnPlayDiscard.size >= discardNeeded;
+              const coinOk = coinNeeded === 0 || (pendingSigniOnPlayCost.placedState.coins ?? 0) >= coinNeeded;
+              const canAfford = energyOk && coinOk && selectedSigniOnPlayDiscard.size >= discardNeeded;
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
