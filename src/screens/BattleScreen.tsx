@@ -5643,7 +5643,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
         .map(e => ({
           id: generateUUID(),
-          playerId: user.id,
+          playerId: attackerId,
           cardNum: myTopNum,
           effectId: e.effectId,
           label: `${battleCardMap.get(myTopNum)?.CardName ?? myTopNum} の【自】効果（シグニアタック時）`,
