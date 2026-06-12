@@ -6703,7 +6703,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_LIFE_CRASHED: 自フィールドシグニの「ライフクロスがクラッシュされたとき」トリガーを収集
       // （アタック・効果問わず全クラッシュ経路がチェックゾーン経由でここに集約される）
       const { entries: crashTriggers, usedOncePerTurnIds: crashTriggerUsedIds } =
-        collectSelfEventTriggers('ON_LIFE_CRASHED', my, op, 'ライフクラッシュ時');
+        collectSelfEventTriggers('ON_LIFE_CRASHED', my, op, 'ライフクラッシュ時', ownerId);
       // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
       const baseState: PlayerState = {
         ...my,
