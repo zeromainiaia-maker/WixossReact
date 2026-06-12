@@ -3240,7 +3240,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     extraUpdate: Record<string, unknown> = {},
     repeatCount = 1,
     extraEntries: StackEntry[] = [],
+    owner?: { id: string; key: 'host_state' | 'guest_state' }, // 省略時は自分（CPU効果は明示指定）
   ): Promise<boolean> => {
+    const ownerId = owner?.id ?? user.id;
     const effects = effectsMap.get(cardNum) ?? [];
     const targets = effects.filter(e =>
       (effectTypes as string[]).includes(e.effectType) &&
@@ -3249,11 +3251,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (targets.length === 0 && extraEntries.length === 0) return false;
 
     const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-    const turnPlayerId = bs?.active_user_id ?? user.id;
+    const turnPlayerId = bs?.active_user_id ?? ownerId;
 
     const makeEntries = (): StackEntry[] => targets.map(eff => ({
       id: generateUUID(),
-      playerId: user.id,
+      playerId: ownerId,
       cardNum,
       effectId: eff.effectId,
       label: `${cardName} の${effectTypeLabel(eff.effectType)}効果`,
