@@ -5778,29 +5778,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  // ルリグアタック: 自分のルリグをダウンし相手にガード応答を要求
-  const handleLrigAttack = async () => {
-    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_LRIG') return;
-    if (my.field.lrig_down) return; // すでに攻撃済み
-    if (op.field.lrig_attacked) return; // ガード応答待ち中
-    if ((my.lrig_riding_signi?.length ?? 0) > 0) return; // ドライブ状態：ルリグはアタックできない
+  // ルリグアタックの実行（人間・CPU共通）: アタッカーのルリグをダウンし防御側にガード応答を要求。
+  // アタック不可（ドライブ状態・無効化等）の場合は状態を変えずに false を返す
+  const performLrigAttack = async (p: {
+    attacker: PlayerState; defender: PlayerState;
+    attackerId: string;
+    attackerKey: 'host_state' | 'guest_state';
+  }): Promise<boolean> => {
+    const { attacker: my, defender: op, attackerId } = p;
+    if (my.field.lrig_down) return false; // すでに攻撃済み
+    if (op.field.lrig_attacked) return false; // ガード応答待ち中
+    if ((my.lrig_riding_signi?.length ?? 0) > 0) return false; // ドライブ状態：ルリグはアタックできない
     // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: negated_attacks にルリグIDがある場合アタック不可
     const myLrigNumLA = my.field.lrig.at(-1);
-    if (myLrigNumLA && (my.negated_attacks ?? []).includes(myLrigNumLA)) return;
+    if (myLrigNumLA && (my.negated_attacks ?? []).includes(myLrigNumLA)) return false;
     // keyword_grants で「アタックできない」が付与されている場合アタック不可
-    if (myLrigNumLA && (my.keyword_grants?.[myLrigNumLA] ?? []).includes('アタックできない')) return;
+    if (myLrigNumLA && (my.keyword_grants?.[myLrigNumLA] ?? []).includes('アタックできない')) return false;
     setLoading(true);
     try {
-      const myKey = isHost ? 'host_state' : 'guest_state';
-      const opKey = isHost ? 'guest_state' : 'host_state';
+      const myKey = p.attackerKey;
+      const opKey = p.attackerKey === 'host_state' ? 'guest_state' : 'host_state';
       const lrigNum = my.field.lrig.at(-1) ?? '';
       const lrigName = battleCardMap.get(lrigNum)?.CardName ?? 'ルリグ';
-      // OPP_LRIG_ATTACK_COST: 相手フィールドの効果による追加コスト支払い
+      // OPP_LRIG_ATTACK_COST: 相手フィールドの効果による追加コスト支払い（アタッカーは常にターンプレイヤー）
+      const lrigAttackExtraCost = collectOppLrigAttackExtraCost(op, my, battleCardMap, effectsMap, false);
       let myEnergyAfterAttack = my.energy;
-      if (myLrigAttackExtraCost > 0 && my.energy.length >= myLrigAttackExtraCost) {
-        const removed = myEnergyAfterAttack.slice(-myLrigAttackExtraCost);
-        myEnergyAfterAttack = myEnergyAfterAttack.slice(0, -myLrigAttackExtraCost);
-        appendBattleLogs([`ルリグアタック追加コスト（《無》×${myLrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
+      if (lrigAttackExtraCost > 0 && my.energy.length >= lrigAttackExtraCost) {
+        const removed = myEnergyAfterAttack.slice(-lrigAttackExtraCost);
+        myEnergyAfterAttack = myEnergyAfterAttack.slice(0, -lrigAttackExtraCost);
+        appendBattleLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
       }
       appendBattleLogs([`${lrigName}がアタック`]);
       const newMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, field: { ...my.field, lrig_down: true } };
@@ -5811,26 +5817,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
       const grantedAttackEffects = (my.lrig_granted_auto_effects ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
-      const copiedAutoEffects = collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, isMyTurn)
+      const copiedAutoEffects = collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, true)
         .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
       const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects, ...copiedAutoEffects];
       const update: Partial<BattleStateRow> = { [myKey]: newMyState, [opKey]: newOpState };
       if (onAttackEffects.length > 0) {
         const entries: StackEntry[] = onAttackEffects.map(e => ({
           id: generateUUID(),
-          playerId: user.id,
+          playerId: attackerId,
           cardNum: lrigNum,
           effectId: e.effectId,
           label: `${lrigName} の【自】効果（アタック時）`,
           effect: e,
         }));
         const existing = bs.effect_stack ?? null;
-        update.effect_stack = existing ? pushToStack(existing, entries) : initStack(user.id, entries);
+        update.effect_stack = existing ? pushToStack(existing, entries) : initStack(bs.active_user_id ?? attackerId, entries);
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      return true;
     } finally {
       setLoading(false);
     }
+  };
+
+  // ルリグアタック（人間プレイヤー用エントリポイント）
+  const handleLrigAttack = async () => {
+    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_LRIG') return;
+    await performLrigAttack({
+      attacker: my,
+      defender: op,
+      attackerId: user.id,
+      attackerKey: isHost ? 'host_state' : 'guest_state',
+    });
   };
 
   // ダブルクラッシュ等による追加ライフクラッシュ（バースト後に自動発動）
