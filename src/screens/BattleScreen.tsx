@@ -2482,17 +2482,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /**
-   * ターン開始時・終了時の AUTO 効果を収集する。
+   * ターン開始時・終了時・アタックフェイズ開始時の AUTO 効果を収集する。
    * 自分のフィールドシグニ（'self' スコープ）+ ルリグ + 相手の any_opp/any も対象。
+   * ※ ON_ATTACK_PHASE_START はターンプレイヤー側のみ発火（「各アタックフェイズ開始時」の
+   *    WXEX2-03 も相手アタックフェイズでは発火しない近似）
    */
   const collectTurnTriggers = (
-    timing: 'ON_TURN_START' | 'ON_TURN_END',
+    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START',
     myState: PlayerState,
     opState: PlayerState,
   ): StackEntry[] => {
     const entries: StackEntry[] = [];
     const opId = isHost ? bs.guest_id : bs.host_id;
-    const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時' : 'ターン終了時';
+    const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時'
+      : timing === 'ON_TURN_END' ? 'ターン終了時' : 'アタックフェイズ開始時';
 
     // 自分のフィールドシグニ（self = このターンプレイヤーのカード）
     // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ
@@ -2843,6 +2846,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           update.effect_stack = existingStackHL
             ? pushToStack(existingStackHL, hlEntries)
             : initStack(turnPlayerId, hlEntries);
+        }
+        // ON_ATTACK_PHASE_START: MAIN→ATTACK_ARTS移行時（アタックフェイズ開始時）トリガー
+        if (phase === 'MAIN') {
+          const apsEntries = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op);
+          if (apsEntries.length > 0) {
+            const baseStackAPS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
+            update.effect_stack = baseStackAPS
+              ? pushToStack(baseStackAPS, apsEntries)
+              : initStack(bs.active_user_id ?? user.id, apsEntries);
+          }
         }
       }
 
@@ -5426,6 +5439,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           )
         : [];
 
+      // ON_SIGNI_BANISH_BATTLE: バトルで相手シグニをバニッシュしたとき
+      // scope 'self'（デフォルト）はバニッシュしたアタッカー自身のみ、'any_ally'/'any' は自フィールド全シグニ
+      const battleBanishEntries: StackEntry[] = [];
+      if (banishedOpCardNum) {
+        const usedIdsBB: string[] = [];
+        for (const stackBB of newMyState.field.signi) {
+          const topNumBB = stackBB?.at(-1);
+          if (!topNumBB) continue;
+          for (const eff of (effectsMap.get(topNumBB) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BANISH_BATTLE')) continue;
+            const scopeBB = eff.triggerScope ?? 'self';
+            if (scopeBB === 'self' && topNumBB !== myTopNum) continue;
+            if (eff.usageLimit === 'once_per_turn' &&
+                ((my.actions_done?.includes(eff.effectId)) || usedIdsBB.includes(eff.effectId))) continue;
+            if (eff.usageLimit === 'once_per_turn') usedIdsBB.push(eff.effectId);
+            battleBanishEntries.push({
+              id: generateUUID(),
+              playerId: user.id,
+              cardNum: topNumBB,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(topNumBB)?.CardName ?? topNumBB} の【自】効果（バトルバニッシュ時）`,
+              effect: eff,
+            } satisfies StackEntry);
+          }
+        }
+        if (usedIdsBB.length > 0) {
+          newMyState.actions_done = [...(newMyState.actions_done ?? []), ...usedIdsBB];
+        }
+      }
+
       // ON_ATTACK_SIGNI トリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
       const opPlayerId = isHost ? bs.guest_id : bs.host_id;
       const opAtkedEntries: StackEntry[] = [];
@@ -5471,7 +5514,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         leaveEntriesSA.push(...collectLeaveFieldTriggers(banishedOpCardNum, banishedOpUnderCards, opPlayerId, newHostState, newGuestState));
       }
 
-      const allTriggers = [...attackEntries, ...banishEntries, ...opAtkedEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries];
+      const allTriggers = [...attackEntries, ...banishEntries, ...battleBanishEntries, ...opAtkedEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? user.id;
         const existingStack = bs.effect_stack ?? null;
@@ -6629,8 +6672,47 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     // ホストシグニ自体のON_ACCE効果は上記でキャッチされる
     // また「あなたのシグニ１体がアクセされたとき」系のWX15-059等
-    void acceHostCardNum;
+
+    // ON_ACCE_ATTACH（ルリグ）: 「あなたのシグニ１体に【アクセ】が付いたとき」（WXK04-003 オーバークロック）
+    const usedOncePerTurnIdsAcce: string[] = [];
+    const myLrigAcce = state.field.lrig.at(-1);
+    if (myLrigAcce) {
+      for (const eff of (effectsMap.get(myLrigAcce) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
+        if (eff.usageLimit === 'once_per_turn' &&
+            ((state.actions_done?.includes(eff.effectId)) || usedOncePerTurnIdsAcce.includes(eff.effectId))) continue;
+        if (eff.usageLimit === 'once_per_turn') usedOncePerTurnIdsAcce.push(eff.effectId);
+        triggerEntries.push({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum: myLrigAcce,
+          effectId: eff.effectId,
+          label: `${battleCardMap.get(myLrigAcce)?.CardName ?? myLrigAcce}【自】アクセ装着時`,
+          effect: eff,
+        });
+      }
+    }
+    // ON_ACCE_ATTACH（アクセカード自身）: 「このカードが【アクセ】としてシグニに付いたとき」（SPK01-11 ラズベリー）
+    const hostZoneAcce = state.field.signi.findIndex(s => s?.at(-1) === acceHostCardNum);
+    const attachedAcceNum = hostZoneAcce >= 0 ? (state.field.signi_acce?.[hostZoneAcce] ?? null) : null;
+    if (attachedAcceNum) {
+      for (const eff of (effectsMap.get(attachedAcceNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
+        triggerEntries.push({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum: attachedAcceNum,
+          effectId: eff.effectId,
+          label: `${battleCardMap.get(attachedAcceNum)?.CardName ?? attachedAcceNum}【自】アクセ装着時`,
+          effect: eff,
+        });
+      }
+    }
+
     if (triggerEntries.length === 0) return;
+    const stateToWrite = usedOncePerTurnIdsAcce.length > 0
+      ? { ...state, actions_done: [...(state.actions_done ?? []), ...usedOncePerTurnIdsAcce] }
+      : state;
     const stateKey = isHost ? 'host_state' : 'guest_state';
     const curStack = bs?.effect_stack ?? null;
     const turnPlayerId = bs.active_user_id ?? user.id;
@@ -6638,7 +6720,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       ? pushToStack(curStack, triggerEntries)
       : initStack(turnPlayerId, triggerEntries);
     await supabase.from('battle_states')
-      .update({ [stateKey]: state, effect_stack: newStack })
+      .update({ [stateKey]: stateToWrite, effect_stack: newStack })
       .eq('room_id', roomId);
   };
 

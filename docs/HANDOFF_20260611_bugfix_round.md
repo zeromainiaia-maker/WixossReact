@@ -1,5 +1,26 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 ymsty側: トリガー配線ラウンド2（v0.256）— 未配線timing残り3種を配線
+>
+> v0.255に続き、effects JSONで使用されているのにエンジン未配線だったtimingを配線した。
+> tsc 0 / lint 0 errors / checkAllEffects 0 / verifyEffects全12シート0件維持。
+>
+> 1. **ON_ATTACK_PHASE_START**（4カード: WXEX2-03ウトゥルス/WXDi-D09-P16ホタルイカ/WXDi-P00-040アザトース/
+>    WXK03-021 EXカリバン）: `collectTurnTriggers` を汎用化し、`doPhaseAdvance` のMAIN→ATTACK_ARTS移行時に収集。
+>    turn_count===1はEND直行なので発火しない（正しい）。近似: ウトゥルス「各アタックフェイズ開始時」は自ターンのみ発火
+> 2. **ON_SIGNI_BANISH_BATTLE**（2カード: WXDi-P02-046ファラリス/WX24-P4-058ジガネマル）:
+>    `handleSigniAttack` の `banishedOpCardNum` 成立時に収集。scope 'self'=アタッカー自身のみ、
+>    'any_ally'=自フィールド全シグニ。近似: バニッシュ代替（調理/アクセ/ライズ等）・MULTI_ZONE/ADJACENT追加バトルでは発火しない
+> 3. **ON_ACCE_ATTACH**（2カード: WXK04-003オーバークロック=ルリグが自シグニのアクセ装着を監視/
+>    SPK01-11ラズベリー=アクセカード自身）: 既存の `checkAndFireOnAcceTriggersForOwner`（ON_ACCE配線済み）を拡張。
+>    アクセカードは `state.field.signi_acce[hostZone]` から特定
+> 4. **JSON修正2件**: WX24-P4-058-EX1に `triggerScope:'any_ally'`（「あなたのシグニが」）、
+>    WXK04-003-E1に `usageLimit:'once_per_turn'`（CSV《ターン１回》の反映漏れ）
+>
+> **残りの未配線timing**: ON_REVEALED_FROM_HAND（9カード、手札公開機構が分散しており未着手）、
+> ON_PLACED_UNDER_SIGNI / ON_SPELL_USE / ON_DISCARDED_AS_COST / ON_EXCEED_COST / ON_HAND_DISCARDED（各1カード）。
+> いずれも発生イベントの検出点が個別に必要。
+
 > ## ✅ 2026-06-12 ymsty側: ON_LIFE_CRASHED / ON_GUARD トリガー配線完了（v0.255）
 >
 > ラウンド1・3で見送られていた未配線timing 2種を配線した。tsc 0 / lint 0 errors / checkAllEffects 0 /
