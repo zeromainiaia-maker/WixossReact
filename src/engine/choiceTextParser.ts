@@ -80,6 +80,14 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   if (oppEnergyTrashM) {
     return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: parseInt(toHW(oppEnergyTrashM[1])) } } as TrashAction;
   }
+  // 「あなたのすべてのシグニのパワーを＋N」
+  const pwAllPlusM = choiceTxt.match(/あなたのすべてのシグニのパワーを[＋+]([０-９\d]+)/);
+  if (pwAllPlusM) {
+    return {
+      type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+      delta: parseInt(toHW(pwAllPlusM[1])),
+    } as EffectAction;
+  }
   // 「すべてのシグニのパワーを－N」
   const pwAllM = choiceTxt.match(/すべてのシグニのパワーを([－-][０-９\d]+)/);
   if (pwAllM) {
