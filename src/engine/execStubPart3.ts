@@ -3968,6 +3968,15 @@ export function execStubPart3(
     });
   }
 
+  // OPP_LRIG_LOSE_ABILITY: 相手ターンの場合、ターン終了時まで相手センタールリグは能力を失う（WX20-003）
+  if (stub.id === 'OPP_LRIG_LOSE_ABILITY') {
+    if (ctx.isOwnerTurn) {
+      return done(addLog(ctx, '自ターンのため不発（相手ターン専用効果）'));
+    }
+    const newOther = { ...ctx.otherState, lrig_abilities_disabled: true };
+    return done(addLog({ ...ctx, otherState: newOther }, '相手センタールリグはターン終了時まで能力を失う'));
+  }
+
   // LIFE_CLOTH_LOOK_TRASH_REFILL: 全ライフクロスを見て好きな枚数トラッシュ→同数デッキ上から補充（WX05-010）
   if (stub.id === 'LIFE_CLOTH_LOOK_TRASH_REFILL') {
     const lifeCloth = ctx.ownerState.life_cloth;
