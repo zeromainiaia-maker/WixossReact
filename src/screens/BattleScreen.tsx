@@ -7074,6 +7074,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     mandatoryEntries: StackEntry[],
     energyTrashIndices: Set<number> = new Set(),
     remainingCostEffects?: import('../types/effects').CardEffect[],
+    fieldTrashZones: Set<number> = new Set(),
+    placedZone?: number,
   ) => {
     if (loading) return;
     setLoading(true);
@@ -7081,23 +7083,131 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSigniOnPlayCost(new Set());
     setSelectedSigniOnPlayDiscard(new Set());
     setSelectedSigniOnPlayEnergyTrash(new Set());
+    setSelectedSigniOnPlayFieldTrash(new Set());
     try {
+      const cost = costEffect.cost;
       // エナ消費はplacedState基準（チェーン2回目以降は前回の支払い結果を引き継ぐ）
       const energyRemovedIdx = new Set([...costIndices, ...energyTrashIndices]);
       const paidNums = [...energyRemovedIdx].map(i => placedState.energy[i]);
       const newEnergy = placedState.energy.filter((_, i) => !energyRemovedIdx.has(i));
-      const discardNums = [...discardIndices].map(i => placedState.hand[i]);
+      // 手札コスト: discard（トラッシュ）/ handToEnergy（エナへ）/ handToUnderSelf（このシグニの下へ）で行き先が異なる
+      const handPickedNums = [...discardIndices].map(i => placedState.hand[i]);
       const newHand = placedState.hand.filter((_, i) => !discardIndices.has(i));
+      const isHandToEnergy = (cost?.handToEnergy?.count ?? 0) > 0;
+      const isHandToUnder  = (cost?.handToUnderSelf?.count ?? 0) > 0;
+      const discardNums = (isHandToEnergy || isHandToUnder) ? [] : handPickedNums;
       // 《コインアイコン》コスト（【出】《コイン》等）
-      const coinCostOPC = costEffect.cost?.coin ?? 0;
+      const coinCostOPC = cost?.coin ?? 0;
       if (coinCostOPC > 0 && (placedState.coins ?? 0) < coinCostOPC) return; // 支払い不能（UI側でも無効化済み）
       let paid: PlayerState = {
         ...placedState,
-        energy: newEnergy,
+        energy: isHandToEnergy ? [...newEnergy, ...handPickedNums] : newEnergy,
         hand: newHand,
         coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
         trash: [...placedState.trash, ...paidNums, ...discardNums],
       };
+      const payLogs: string[] = [];
+      // handToUnderSelf: 出たシグニの下に置く
+      if (isHandToUnder && handPickedNums.length > 0) {
+        const selfZone = placedZone ?? paid.field.signi.findIndex(s => s?.at(-1) === cardNum);
+        if (selfZone >= 0 && paid.field.signi[selfZone]) {
+          const newSigniU = [...paid.field.signi] as (string[] | null)[];
+          newSigniU[selfZone] = [...handPickedNums, ...(newSigniU[selfZone] ?? [])];
+          paid = { ...paid, field: { ...paid.field, signi: newSigniU } };
+          payLogs.push(`手札${handPickedNums.length}枚をシグニの下に置いた`);
+        } else {
+          // 行き先が見つからない場合はトラッシュへ（消失防止）
+          paid = { ...paid, trash: [...paid.trash, ...handPickedNums] };
+        }
+      }
+      // fieldTrash: 場のシグニをトラッシュ（チャーム/アクセも一緒にトラッシュへ）
+      if (fieldTrashZones.size > 0) {
+        const newSigniF  = [...paid.field.signi] as (string[] | null)[];
+        const newDownF   = [...(paid.field.signi_down   ?? [false, false, false])];
+        const newFrozenF = [...(paid.field.signi_frozen ?? [false, false, false])];
+        const newCharmsF = [...(paid.field.signi_charms ?? [null, null, null])];
+        const newAcceF   = [...(paid.field.signi_acce   ?? [null, null, null])];
+        const toTrashF: string[] = [];
+        for (const zi of fieldTrashZones) {
+          const stack = newSigniF[zi];
+          if (!stack || stack.length === 0) continue;
+          toTrashF.push(...stack.map(getCardNum));
+          if (newCharmsF[zi]) { toTrashF.push(newCharmsF[zi]!); newCharmsF[zi] = null; }
+          if (newAcceF[zi])   { toTrashF.push(newAcceF[zi]!);   newAcceF[zi]   = null; }
+          newSigniF[zi] = null;
+          newDownF[zi] = false;
+          newFrozenF[zi] = false;
+        }
+        paid = {
+          ...paid,
+          field: { ...paid.field, signi: newSigniF, signi_down: newDownF, signi_frozen: newFrozenF, signi_charms: newCharmsF, signi_acce: newAcceF },
+          trash: [...paid.trash, ...toTrashF],
+        };
+        if (toTrashF.length > 0) payLogs.push(`場のシグニ${fieldTrashZones.size}体をコストでトラッシュ`);
+      }
+      // lrigDown: アップ状態のルリグをダウン（センター→アシストL→Rの順で自動支払い）
+      const lrigDownCost = cost?.lrigDown;
+      if (lrigDownCost) {
+        let remainingLD = lrigDownCost.count;
+        const f = { ...paid.field };
+        if (remainingLD > 0 && f.lrig.length > 0 && !f.lrig_down) { f.lrig_down = true; remainingLD--; }
+        if (!lrigDownCost.centerOnly) {
+          if (remainingLD > 0 && (f.assist_lrig_l?.length ?? 0) > 0 && !f.assist_lrig_l_down) { f.assist_lrig_l_down = true; remainingLD--; }
+          if (remainingLD > 0 && (f.assist_lrig_r?.length ?? 0) > 0 && !f.assist_lrig_r_down) { f.assist_lrig_r_down = true; remainingLD--; }
+        }
+        if (remainingLD > 0) return; // 支払い不能（UI側でも無効化済み）
+        paid = { ...paid, field: f };
+        payLogs.push(`ルリグ${lrigDownCost.count}体をコストでダウン`);
+      }
+      // ライフコスト: lifeTrash（トラッシュへ）/ life_crash（クラッシュ＝バースト不発の近似でトラッシュへ）/ lifeToHand（手札へ）
+      const lifeTrashN = (cost?.lifeTrash ?? 0) + (cost?.life_crash ?? 0);
+      if (lifeTrashN > 0) {
+        if (paid.life_cloth.length < lifeTrashN) return;
+        const movedL = paid.life_cloth.slice(-lifeTrashN);
+        paid = { ...paid, life_cloth: paid.life_cloth.slice(0, -lifeTrashN), trash: [...paid.trash, ...movedL] };
+        payLogs.push(`ライフクロス${lifeTrashN}枚をコストでトラッシュ${(cost?.life_crash ?? 0) > 0 ? '（クラッシュ近似・バースト不発）' : ''}`);
+      }
+      const lifeToHandN = cost?.lifeToHand ?? 0;
+      if (lifeToHandN > 0) {
+        if (paid.life_cloth.length < lifeToHandN) return;
+        const movedLH = paid.life_cloth.slice(-lifeToHandN);
+        paid = { ...paid, life_cloth: paid.life_cloth.slice(0, -lifeToHandN), hand: [...paid.hand, ...movedLH] };
+        payLogs.push(`ライフクロス${lifeToHandN}枚を手札に加えた（コスト）`);
+      }
+      // deckTrash: デッキ上からN枚トラッシュ
+      const deckTrashN = cost?.deckTrash ?? 0;
+      if (deckTrashN > 0) {
+        const movedD = paid.deck.slice(0, deckTrashN);
+        paid = { ...paid, deck: paid.deck.slice(movedD.length), trash: [...paid.trash, ...movedD] };
+        payLogs.push(`デッキ上${movedD.length}枚をコストでトラッシュ`);
+      }
+      // charmTrash: 自分の場のチャームN枚をトラッシュ（左のゾーンから自動選択）
+      const charmTrashN = cost?.charmTrash ?? 0;
+      if (charmTrashN > 0) {
+        const newCharmsC = [...(paid.field.signi_charms ?? [null, null, null])];
+        const movedC: string[] = [];
+        for (let zi = 0; zi < newCharmsC.length && movedC.length < charmTrashN; zi++) {
+          if (newCharmsC[zi]) { movedC.push(newCharmsC[zi]!); newCharmsC[zi] = null; }
+        }
+        if (movedC.length < charmTrashN) return;
+        paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsC }, trash: [...paid.trash, ...movedC] };
+        payLogs.push(`チャーム${movedC.length}枚をコストでトラッシュ`);
+      }
+      // removeOppVirus: 相手の場のウィルスN個を取り除く（左のゾーンから自動選択）
+      const removeVirusN = cost?.removeOppVirus ?? 0;
+      if (removeVirusN > 0) {
+        const newOppVirus = [...(op.field.signi_virus ?? [0, 0, 0])];
+        let removedV = 0;
+        for (let zi = 0; zi < newOppVirus.length && removedV < removeVirusN; zi++) {
+          while (newOppVirus[zi] > 0 && removedV < removeVirusN) { newOppVirus[zi]--; removedV++; }
+        }
+        if (removedV < removeVirusN) return;
+        const oppKey = isHost ? 'guest_state' : 'host_state';
+        const newOpState: PlayerState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
+        await supabase.from('battle_states').update({ [oppKey]: newOpState }).eq('room_id', roomId);
+        payLogs.push(`相手の【ウィルス】${removedV}個をコストで取り除いた`);
+      }
+      if (payLogs.length > 0) appendBattleLogs(payLogs);
       const cName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const costEntry: StackEntry = {
         id: generateUUID(),
