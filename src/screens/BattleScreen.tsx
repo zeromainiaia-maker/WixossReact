@@ -5181,8 +5181,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      const myKey = isHost ? 'host_state' : 'guest_state';
-      const opKey = isHost ? 'guest_state' : 'host_state';
+      const myKey = p.attackerKey;
+      const opKey = attackerIsHost ? 'guest_state' : 'host_state';
 
       // 自分のシグニをダウン
       const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
