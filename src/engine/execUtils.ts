@@ -168,8 +168,8 @@ export function matchesFilter(
   }
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
-    // card_class_overridesによるクラス上書きを考慮
-    const effectiveClass = classOverride ?? card.CardClass ?? '';
+    // card_class_overridesによるクラス上書き、次にTREAT_AS_CLASS_ALL_ZONESオーバーライドを考慮
+    const effectiveClass = classOverride ?? allZoneClassOverrides?.[card.CardNum ?? ''] ?? card.CardClass ?? '';
     if (!stories.some(s => effectiveClass.includes(s))) return false;
   }
   if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
