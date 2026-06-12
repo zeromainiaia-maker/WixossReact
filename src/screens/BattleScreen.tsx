@@ -6589,7 +6589,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         };
         // ON_GUARD: 自フィールドシグニの「あなたが【ガード】したとき」トリガーを収集
         const { entries: guardEntries, usedOncePerTurnIds: guardUsedIds } =
-          collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
+          collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時', responderId);
         guardTriggers = guardEntries;
         if (guardUsedIds.length > 0) {
           newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...guardUsedIds] };
