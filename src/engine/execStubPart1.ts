@@ -931,7 +931,9 @@ export function execStubPart1(
       removed += take;
     }
     const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
-    return done(addLog({ ...ctx, otherState: newOther }, `ウイルス${removed}つを取り除く`));
+    // ON_OPP_VIRUS_REMOVED/CHANGED検出用フラグ（取り除いた側=効果オーナーが監視者）
+    const newOwnerRV = removed > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState;
+    return done(addLog({ ...ctx, ownerState: newOwnerRV, otherState: newOther }, `ウイルス${removed}つを取り除く`));
   }
   // INTERNAL_REMOVE_VIRUS_N: N個ウイルスを除去（effectExecutorのREMOVE_VIRUS+IS_MY_TURNハンドラから使用）
   if (stub.id === 'INTERNAL_REMOVE_VIRUS_N') {
@@ -946,7 +948,8 @@ export function execStubPart1(
       removed += take;
     }
     const newOther = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } };
-    return done(addLog({ ...ctx, otherState: newOther }, `ウイルス${removed}つを取り除く`));
+    const newOwnerIRVN = removed > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState;
+    return done(addLog({ ...ctx, ownerState: newOwnerIRVN, otherState: newOther }, `ウイルス${removed}つを取り除く`));
   }
   // INTERNAL_RV_BATCH_TRANSFER: N個ウイルス除去 + トラッシュからシグニN枚を手札へ（WX15-028型）
   if (stub.id === 'INTERNAL_RV_BATCH_TRANSFER') {
@@ -960,7 +963,9 @@ export function execStubPart1(
       newVirus[z] -= take;
       removed += take;
     }
-    const newCtx = addLog({ ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } } },
+    const newCtx = addLog({ ...ctx,
+      ownerState: removed > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState,
+      otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirus } } },
       `ウイルス${removed}つを取り除く`);
     // トラッシュから黒のシグニをN枚選択して手札へ（SELECT_TARGETで選ばせる）
     const blackTrashCands = newCtx.ownerState.trash.filter(cn => {
@@ -1012,7 +1017,9 @@ export function execStubPart1(
       newVirusECRV[zi] -= take;
       removedECRV += take;
     }
-    let ctxECRV: typeof ctx = { ...ctx, otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirusECRV } } };
+    let ctxECRV: typeof ctx = { ...ctx,
+      ownerState: removedECRV > 0 ? { ...ctx.ownerState, opp_virus_removed_just: true } : ctx.ownerState,
+      otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: newVirusECRV } } };
     if (removedECRV > 0) ctxECRV = addLog(ctxECRV as import('./execUtils').ExecCtx, `ウイルス${removedECRV}個除去`) as typeof ctx;
     const chooseCount = removeN + 1;
     const srcECRV2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;

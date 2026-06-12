@@ -46,8 +46,8 @@ export type EffectTiming =
   | 'ON_DISCARDED_AS_COST'      // このカードがシグニ能力のコストとして手札から捨てられたとき
   | 'ON_EXCEED_COST'            // このカードがエクシードのコストとしてルリグトラッシュに置かれたとき
   | 'ON_PLACED_UNDER_SIGNI'     // このカードがシグニの下に置かれたとき（※配置機構が未実装のため現状発火しない）
-  | 'ON_OPP_VIRUS_REMOVED'      // 対戦相手の場の【ウィルス】が取り除かれたとき（※未配線。WD19-009。ON_TURN_END誤発火の修正で導入）
-  | 'ON_OPP_VIRUS_CHANGED';     // 対戦相手の場に【ウィルス】が置かれるか取り除かれたとき（※未配線。WX21-030）
+  | 'ON_OPP_VIRUS_REMOVED'      // 対戦相手の場の【ウィルス】が取り除かれたとき（WD19-009。opp_virus_removed_justフラグで発火）
+  | 'ON_OPP_VIRUS_CHANGED';     // 対戦相手の場に【ウィルス】が置かれるか取り除かれたとき（WX21-030。opp_virus_placed/removed_justフラグで発火）
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回

@@ -1691,6 +1691,79 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handRevealedJustRef, handDiscardedJustRef, bs?.effect_stack, bs?.pending_effect, loading]);
 
+  // 対戦相手の場のウィルス増減フラグ（opp_virus_placed_just / opp_virus_removed_just）を検出して
+  // ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED トリガーを発火（WD19-009 / WX21-030）
+  // フラグはトリガーの有無に関わらず必ずクリアする。CPU戦ではCPU側のフラグも人間クライアントが処理する
+  const myVirusPlacedRef = (user && bs)
+    ? (user.id === bs.host_id ? bs.host_state?.opp_virus_placed_just : bs.guest_state?.opp_virus_placed_just)
+    : undefined;
+  const myVirusRemovedRef = (user && bs)
+    ? (user.id === bs.host_id ? bs.host_state?.opp_virus_removed_just : bs.guest_state?.opp_virus_removed_just)
+    : undefined;
+  const cpuVirusPlacedRef = isCpuBattle ? bs?.guest_state?.opp_virus_placed_just : undefined;
+  const cpuVirusRemovedRef = isCpuBattle ? bs?.guest_state?.opp_virus_removed_just : undefined;
+  useEffect(() => {
+    if (!bs || !user || loading) return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    const localIsHost = user.id === bs.host_id;
+    const processOwn = !!(myVirusPlacedRef || myVirusRemovedRef);
+    // CPU戦ではCPU=guest固定。人間がguestになることはないが、自分側と二重処理しないようガード
+    const processCpu = isCpuBattle && localIsHost && !!(cpuVirusPlacedRef || cpuVirusRemovedRef);
+    if (!processOwn && !processCpu) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const entries: StackEntry[] = [];
+        const update: Record<string, unknown> = {};
+        const handleVirusFlagsFor = (
+          state: PlayerState, opState: PlayerState, stateKey: string, ownerId: string,
+          placed: boolean, removed: boolean,
+        ) => {
+          let usedIds: string[] = [];
+          if (removed) {
+            const r = collectSelfEventTriggers('ON_OPP_VIRUS_REMOVED', state, opState, 'ウィルス除去時', ownerId);
+            entries.push(...r.entries);
+            usedIds = [...usedIds, ...r.usedOncePerTurnIds];
+          }
+          if (placed || removed) {
+            const r2 = collectSelfEventTriggers('ON_OPP_VIRUS_CHANGED', state, opState, 'ウィルス増減時', ownerId);
+            entries.push(...r2.entries);
+            usedIds = [...usedIds, ...r2.usedOncePerTurnIds];
+          }
+          update[stateKey] = {
+            ...state,
+            opp_virus_placed_just: null,
+            opp_virus_removed_just: null,
+            actions_done: usedIds.length > 0 ? [...(state.actions_done ?? []), ...usedIds] : state.actions_done,
+          };
+        };
+        const hostS = bs.host_state;
+        const guestS = bs.guest_state;
+        if (processOwn) {
+          handleVirusFlagsFor(
+            localIsHost ? hostS : guestS, localIsHost ? guestS : hostS,
+            localIsHost ? 'host_state' : 'guest_state', user.id,
+            !!myVirusPlacedRef, !!myVirusRemovedRef,
+          );
+        }
+        if (processCpu) {
+          handleVirusFlagsFor(guestS, hostS, 'guest_state', CPU_PLAYER_ID,
+            !!cpuVirusPlacedRef, !!cpuVirusRemovedRef);
+        }
+        if (entries.length > 0) {
+          const existingStack = bs.effect_stack ?? null;
+          update.effect_stack = existingStack
+            ? pushToStack(existingStack, entries)
+            : initStack(bs.active_user_id ?? user.id, entries);
+        }
+        await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myVirusPlacedRef, myVirusRemovedRef, cpuVirusPlacedRef, cpuVirusRemovedRef, bs?.effect_stack, bs?.pending_effect, loading]);
+
   // ON_TURN_END 解決後の自動フェーズ進行
   useEffect(() => {
     if (!bs || !user) return;
@@ -3969,7 +4042,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * usedOncePerTurnIds として返すので、呼び出し側で actions_done に追加して保存すること。
    */
   const collectSelfEventTriggers = (
-    timing: 'ON_LIFE_CRASHED' | 'ON_GUARD',
+    timing: 'ON_LIFE_CRASHED' | 'ON_GUARD' | 'ON_OPP_VIRUS_REMOVED' | 'ON_OPP_VIRUS_CHANGED',
     myState: PlayerState,
     opState: PlayerState,
     labelSuffix: string,
@@ -7235,6 +7308,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const oppKey = isHost ? 'guest_state' : 'host_state';
         const newOpState: PlayerState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
         await supabase.from('battle_states').update({ [oppKey]: newOpState }).eq('room_id', roomId);
+        // ON_OPP_VIRUS_REMOVED/CHANGED検出用フラグ（コストによる除去も発火対象）
+        paid = { ...paid, opp_virus_removed_just: true };
         payLogs.push(`相手の【ウィルス】${removedV}個をコストで取り除いた`);
       }
       if (payLogs.length > 0) appendBattleLogs(payLogs);

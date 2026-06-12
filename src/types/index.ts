@@ -212,6 +212,10 @@ export interface PlayerState {
   hand_revealed_just?: string[] | null;
   // 効果による手札捨て直後にセット: 捨てられたカードのCardNum（BattleScreenでON_HAND_DISCARDEDトリガー検出用）
   hand_discarded_just?: string[] | null;
+  // このプレイヤーから見て対戦相手の場に【ウィルス】が置かれた/取り除かれた直後にセット
+  // （BattleScreenでON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGEDトリガー検出用。複数個の同時増減でも1回扱い）
+  opp_virus_placed_just?: boolean | null;
+  opp_virus_removed_just?: boolean | null;
   // OPP_MAIN_PHASE_LIMIT_DOWN: 次の自ターンMAINフェイズ開始時に適用するリミット修正
   pending_lrig_limit_mod?: number;
   // OPP_SIGNI_ATTACK_COST: 自シグニのアタックに支払う無色コスト枚数（エナ消費）

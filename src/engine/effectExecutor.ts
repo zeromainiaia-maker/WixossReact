@@ -2107,7 +2107,11 @@ function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
   if (zoneCount >= available.length && !a.upToZoneCount) {
     for (const i of available) virus[i] = a.virusCount;
     const newState: PlayerState = { ...tgtState, field: { ...tgtState.field, signi_virus: virus } };
-    return done(addLog(setOwnerState(tgtOwner, newState, ctx), `【ウィルス】を${available.length}ゾーンに配置`));
+    // ON_OPP_VIRUS_CHANGED検出用: 置かれた場の相手側にフラグ（watcher = 置かれた場から見た対戦相手）
+    let cur = setOwnerState(tgtOwner, newState, ctx);
+    const watcherOwner: Owner = tgtOwner === 'opponent' ? 'self' : 'opponent';
+    cur = setOwnerState(watcherOwner, { ...ownerState(watcherOwner, cur), opp_virus_placed_just: true }, cur);
+    return done(addLog(cur, `【ウィルス】を${available.length}ゾーンに配置`));
   }
 
   // 配置先ゾーンをプレイヤーが選択する
@@ -2149,7 +2153,12 @@ export function resumeSelectVirusZone(
       logMsg += `、${ctx.cardMap.get(zoneTop)?.CardName ?? zoneTop}のパワー${pending.powerDeltaOnZone > 0 ? '+' : ''}${pending.powerDeltaOnZone}`;
     }
   }
-  const cur = addLog(setOwnerState(pending.owner, newS, ctx), logMsg);
+  let cur = addLog(setOwnerState(pending.owner, newS, ctx), logMsg);
+  // ON_OPP_VIRUS_CHANGED検出用: 実際に置かれた場合のみ、置かれた場の相手側にフラグ
+  if (!alreadyHasVirus) {
+    const watcherOwnerRSV: Owner = pending.owner === 'opponent' ? 'self' : 'opponent';
+    cur = setOwnerState(watcherOwnerRSV, { ...ownerState(watcherOwnerRSV, cur), opp_virus_placed_just: true }, cur);
+  }
   const remaining = pending.remainingZones - 1;
   if (remaining > 0 && [0, 1, 2].some(i => virus[i] === 0)) {
     return needsInteraction(cur, { ...pending, remainingZones: remaining });

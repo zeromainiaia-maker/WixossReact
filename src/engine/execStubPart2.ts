@@ -2166,7 +2166,9 @@ export function execStubPart2(
     if ((virusPVC[1] ?? 0) > 0) return done(addLog(ctx, '中央シグニゾーンには既に【ウィルス】がある'));
     virusPVC[1] = 1;
     const newSOtherPVC: PlayerState = { ...sOtherPVC, field: { ...sOtherPVC.field, signi_virus: virusPVC } };
-    return done(addLog({ ...ctx, otherState: newSOtherPVC }, '相手の中央シグニゾーンに【ウィルス】を設置'));
+    // ON_OPP_VIRUS_CHANGED検出用フラグ（置いた側=効果オーナーが監視者）
+    const newOwnerPVC: PlayerState = { ...ctx.ownerState, opp_virus_placed_just: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerPVC, otherState: newSOtherPVC }, '相手の中央シグニゾーンに【ウィルス】を設置'));
   }
   // SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ
   if (stub.id === 'SELF_TRASH_IF_NO_OPP_VIRUS') {
