@@ -3968,5 +3968,79 @@ export function execStubPart3(
     });
   }
 
+  // TRASH_UNDER_SPELLS_POWER_MINUS: このシグニの下スペルを任意枚数トラッシュ→相手シグニに-5000×枚数（WXDi-P10-040）
+  if (stub.id === 'TRASH_UNDER_SPELLS_POWER_MINUS') {
+    const selfNum = ctx.sourceCardNum;
+    if (!selfNum) return done(addLog(ctx, 'TRASH_UNDER_SPELLS_POWER_MINUS: 発動元不明'));
+    const zoneStack = ctx.ownerState.field.signi.find(s => s?.at(-1) === selfNum);
+    if (!zoneStack || zoneStack.length <= 1) {
+      return done(addLog(ctx, `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}: 下にスペルなし`));
+    }
+    const underSpells = zoneStack.slice(0, -1).filter(cn => {
+      const card = ctx.cardMap.get(cn);
+      return card?.CardType?.includes('スペル') || card?.CardType?.includes('spell');
+    });
+    if (underSpells.length === 0) {
+      return done(addLog(ctx, `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}: 下にスペルなし`));
+    }
+    const trashStub: StubAction = { type: 'STUB', id: 'INTERNAL_TUSP_TRASH' };
+    return needsInteraction(
+      addLog(ctx, `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}の下のスペルを好きな枚数トラッシュ`),
+      {
+        type: 'SELECT_TARGET',
+        candidates: underSpells,
+        count: underSpells.length,
+        optional: true,
+        targetScope: 'self_field' as TargetScope,
+        thenAction: trashStub as EffectAction,
+      },
+    );
+  }
+  if (stub.id === 'INTERNAL_TUSP_TRASH') {
+    const selectedSpells = ctx.lastProcessedCards ?? [];
+    const trashCount = selectedSpells.length;
+    const newSigni = ctx.ownerState.field.signi.map(stack => {
+      if (!stack) return null;
+      const filtered = stack.filter(cn => !selectedSpells.includes(cn));
+      return filtered.length > 0 ? filtered : null;
+    }) as (string[] | null)[];
+    const newOwner = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, signi: newSigni },
+      trash: [...ctx.ownerState.trash, ...selectedSpells],
+    };
+    if (trashCount === 0) return done(addLog({ ...ctx, ownerState: newOwner }, 'スペルをトラッシュしなかった'));
+    const spellNames = selectedSpells.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('/');
+    const oppCands = ctx.otherState.field.signi.filter(s => s?.at(-1)).map(s => s!.at(-1)!);
+    if (oppCands.length === 0) {
+      return done(addLog({ ...ctx, ownerState: newOwner }, `${spellNames}をトラッシュ（相手シグニなし）`));
+    }
+    const applyStub: StubAction = { type: 'STUB', id: 'INTERNAL_TUSP_APPLY', value: trashCount };
+    return needsInteraction(
+      addLog({ ...ctx, ownerState: newOwner }, `${spellNames}をトラッシュ → 相手シグニ選択（-${trashCount * 5000}）`),
+      {
+        type: 'SELECT_TARGET',
+        candidates: oppCands,
+        count: 1,
+        optional: false,
+        targetScope: 'opp_field' as TargetScope,
+        thenAction: applyStub as EffectAction,
+      },
+    );
+  }
+  if (stub.id === 'INTERNAL_TUSP_APPLY') {
+    const targetNum = (ctx.lastProcessedCards ?? [])[0];
+    const trashCount = typeof stub.value === 'number' ? stub.value : 0;
+    if (!targetNum || trashCount === 0) return done(addLog(ctx, 'INTERNAL_TUSP_APPLY: 対象または枚数なし'));
+    const delta = -(trashCount * 5000);
+    const newOther = {
+      ...ctx.otherState,
+      temp_power_mods: [...(ctx.otherState.temp_power_mods ?? []), { cardNum: targetNum, delta }],
+    };
+    const targetName = ctx.cardMap.get(targetNum)?.CardName ?? targetNum;
+    return done(addLog({ ...ctx, otherState: newOther },
+      `${targetName}にパワー${delta}（スペル${trashCount}枚トラッシュ）`));
+  }
+
   return null;
 }
