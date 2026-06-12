@@ -3883,7 +3883,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
-          playerId: user.id,
+          playerId: ownerId,
           cardNum: topNum,
           effectId: eff.effectId,
           label: `${cardName} の【自】効果（他のシグニ召喚時）`,
