@@ -1094,7 +1094,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }, CPU_ACTION_DELAY);
       return () => clearTimeout(timerSZ);
     }
-    if (pe.respondPlayerId !== CPU_PLAYER_ID) return;
+    // 応答者がCPUの場合（respondPlayerId指定、または無指定で効果オーナーがCPU）は自動応答する
+    // （CPU所有効果のSELECT_TARGET等はUIに表示されないため、ここで応答しないと固まる）
+    if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
     const timer = setTimeout(() => {
       let selected: string[] = [];
       if (inter.type === 'SELECT_TARGET') {
@@ -1102,7 +1104,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const shuffled = [...inter.candidates].sort(() => Math.random() - 0.5);
         selected = shuffled.slice(0, Math.min(count, shuffled.length));
       } else if (inter.type === 'CHOOSE') {
-        selected = inter.options.length > 0 ? [inter.options[0].id] : [];
+        const firstAvail = inter.options.find(o => o.available) ?? inter.options[0];
+        selected = firstAvail ? [firstAvail.id] : [];
       } else if (inter.type === 'SEARCH') {
         const count = inter.maxPick ?? 0;
         selected = inter.visibleCards.slice(0, count);
