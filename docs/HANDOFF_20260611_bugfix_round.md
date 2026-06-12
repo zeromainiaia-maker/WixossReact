@@ -1,5 +1,31 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-13 ymsty側: 残作業2件を実施（v0.265/v0.266）— デプロイ未実施→zerom側で
+>
+> tsc 0 / lint 0 errors（28警告、既存同数）/ checkAllEffects 0（警告12既存同数）/ verifyEffects全12シート0 /
+> スモークテスト11項目PASS。**`vercel deploy --prod` をzerom側で行うこと**。
+>
+> ### v0.265: ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED 配線（残課題2の完了）
+> - PlayerStateに `opp_virus_placed_just` / `opp_virus_removed_just` 新設（監視者=ウィルスが増減した場から見た対戦相手側にセット）
+> - 設定点: execPlaceVirus即時配置 / resumeSelectVirusZone / PLACE_VIRUS_CENTER（置く）、
+>   REMOVE_VIRUS / INTERNAL_REMOVE_VIRUS_N / INTERNAL_RV_BATCH_TRANSFER / INTERNAL_ECRV_APPLY（除去）、
+>   removeOppVirusコスト支払い（BattleScreen executeSigniOnPlayCost内）
+> - BattleScreen新useEffect（hand_revealed_justと同パターン）がフラグ検出→collectSelfEventTriggers
+>   （timing2種追加）で発火・クリア。**CPU戦はCPU側（guest固定）フラグも人間クライアントが処理**
+> - 近似: 複数個の同時増減は1イベント扱い（ペズトは1回のみ発火）/ 盤面リセット系STUB（execStubPart1 L3352付近）の
+>   ウィルス消滅では発火しない / 効果オーナー以外のプレイヤー側の監視シグニは発火しない（該当カードは現状なし）
+>
+> ### v0.266: 【起】手札捨てコスト 53効果/51カードに付与（v0.264発見の102カード系統穴の安全サブセット）
+> - **シグニ【起】モーダルにdiscardFilter対応を追加**（従来は素のdiscardのみ。【出】モーダルと同じ
+>   matchesFilterゲート+薄表示）。シグニは `discard+discardFilter`（色/＜クラス＞=story/シグニ/スペル）で付与
+> - **handDiscardSigniスキーマ拡張**: `{color?, story?, count}`（colorをオプション化しstory追加）。
+>   ルリグ【起】の「＜クラス＞のシグニN枚」7件に対応（モーダルの判定・ラベル3箇所も対応）
+> - 付与はnth【起】ブロック↔nth ACTIVATED効果の1:1対応が取れたカードのみ（tmp_verify/tagActivatedDiscardCosts.mjs、
+>   gitignore対象）。**残りスキップ分**: 1:1不一致4（WX11-003/WXEX2-12/WXDi-P10-042/WX25-P3-088）/
+>   キー4（WXK10-015/016/019, WDK10-009、キー【起】モーダルにdiscard UIなし）/ STUB action 3
+>   （WXK06-049-E3/WXK10-026-E2/WDK08-Y01-E2、スタブ内で自己処理の可能性）/
+>   混合・可変・「すべて捨てる」型（WX04-001/WX04-003/WX05-022等、スキーマ未対応）≈50カードは未表現のまま
+
 > ## ✅ 2026-06-13 ymsty側: ユーザー報告バグ4件の修正（v0.264）+ 🚨 新規系統穴の発見（下記）
 >
 > **デプロイ未実施（ymsty側に権限なし）→ zerom側で動作確認のうえ `vercel deploy --prod` を行うこと**。

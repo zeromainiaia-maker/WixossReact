@@ -7571,7 +7571,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const costPartsMA: string[] = [];
           if (exceedCostMA > 0) costPartsMA.push(`エクシード${exceedCostMA}`);
           if (energyTotalMA > 0) costPartsMA.push(`エナ${energyTotalMA}`);
-          if (hdSigniMA) costPartsMA.push(`手札${hdSigniMA.color}シグニ×${hdSigniMA.count}`);
+          if (hdSigniMA) costPartsMA.push(`手札${hdSigniMA.color ?? ''}${hdSigniMA.story ? `＜${hdSigniMA.story}＞` : ''}シグニ×${hdSigniMA.count}`);
           const lrigActLabel = isSongFrag ? '歌のカケラ' : (costPartsMA.join('・') || 'コストなし');
           lrigActionsMA.push({
             label: `【起】${lrigActLabel}`,
@@ -10123,6 +10123,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const isCostZeroByEffect = my.activate_cost_zero_signi === pendingSigniActivated.cardNum;
               const energyTotal = isCostZeroByEffect ? 0 : (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
+              const actDiscardFilter = eff.cost?.discardFilter;
+              const actFilterLabel = (() => {
+                if (!actDiscardFilter) return '';
+                const parts: string[] = [];
+                if (actDiscardFilter.story) parts.push((Array.isArray(actDiscardFilter.story) ? actDiscardFilter.story : [actDiscardFilter.story]).map(s => `＜${s}＞`).join('か'));
+                if (actDiscardFilter.color) parts.push((Array.isArray(actDiscardFilter.color) ? actDiscardFilter.color : [actDiscardFilter.color]).join('か'));
+                if (actDiscardFilter.cardName) parts.push(`《${actDiscardFilter.cardName}》`);
+                if (actDiscardFilter.cardType === 'シグニ' || (Array.isArray(actDiscardFilter.cardType) && actDiscardFilter.cardType.includes('シグニ'))) parts.push('シグニ');
+                if (actDiscardFilter.cardType === 'スペル' || (Array.isArray(actDiscardFilter.cardType) && actDiscardFilter.cardType.includes('スペル'))) parts.push('スペル');
+                return parts.join('の');
+              })();
               const costStr = isCostZeroByEffect ? '' : ((eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '');
               const keySubCount = (!isCostZeroByEffect && keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId) ? 2 : 0;
               // INCREASE_ACT_ABILITY_COST: 相手フィールドが持つ場合、自分のターン中に起動能力コスト+1
@@ -10157,7 +10168,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
                           コスト: {[
                             energyTotal > 0 ? `エナ${energyTotal}枚` : null,
-                            eff.cost?.discard ? `手札${eff.cost.discard}枚` : null,
+                            eff.cost?.discard ? `手札${actDiscardFilter ? `の${actFilterLabel}` : ''}${eff.cost.discard}枚` : null,
                             coinNeededAct > 0 ? `《コイン》×${coinNeededAct}（所持${my.coins ?? 0}）` : null,
                             eff.cost?.down_self ? 'このシグニをダウン' : null,
                           ].filter(Boolean).join('・') || 'なし'}
@@ -10246,14 +10257,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         手札から捨てるカードを選択: {selectedSigniActivatedDiscard.size} / {discardNeeded}枚
+                        {actDiscardFilter ? `（${actFilterLabel}のみ）` : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {my.hand.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniActivatedDiscard.has(i);
+                          const matchesActDiscard = !actDiscardFilter || matchesFilter(c, actDiscardFilter);
                           return (
                             <div key={i}
-                              onClick={() => setSelectedSigniActivatedDiscard(prev => {
+                              onClick={() => matchesActDiscard && setSelectedSigniActivatedDiscard(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
                                 if (next.size >= discardNeeded) return prev;
@@ -10265,7 +10278,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
                                 border: isSel ? '2px solid #ff9800' : C.borderCard,
-                                cursor: 'pointer', overflow: 'hidden' }}>
+                                opacity: matchesActDiscard ? 1 : 0.35,
+                                cursor: matchesActDiscard ? 'pointer' : 'default', overflow: 'hidden' }}>
                               {c ? (
                                 <img src={c.ImgURL} alt={c.CardName} draggable={false}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -10843,7 +10857,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           コスト: {[
                             exceedCost > 0 ? `エクシード${exceedCost}` : null,
                             energyTotal > 0 ? costStr : null,
-                            hdSigniCost ? `手札${hdSigniCost.color}シグニ×${hdSigniCost.count}` : null,
+                            hdSigniCost ? `手札${hdSigniCost.color ?? ''}${hdSigniCost.story ? `＜${hdSigniCost.story}＞` : ''}シグニ×${hdSigniCost.count}` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {exceedCost > 0 && !canAffordExceed && (
@@ -10904,12 +10918,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {hdSigniCost && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
-                        手札から{hdSigniCost.color}シグニを選択: {selectedLrigGrantedHandDiscard.size} / {hdSigniCost.count}枚
+                        手札から{hdSigniCost.color ?? ''}{hdSigniCost.story ? `＜${hdSigniCost.story}＞` : ''}シグニを選択: {selectedLrigGrantedHandDiscard.size} / {hdSigniCost.count}枚
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {my.hand.map((num, i) => {
                           const c = battleCardMap.get(num);
-                          const isValidTarget = c?.Color?.includes(hdSigniCost.color) && c?.Type === 'シグニ';
+                          const isValidTarget = c?.Type === 'シグニ' &&
+                            (!hdSigniCost.color || c?.Color?.includes(hdSigniCost.color)) &&
+                            (!hdSigniCost.story || (c?.CardClass ?? '').includes(hdSigniCost.story));
                           const isSel = selectedLrigGrantedHandDiscard.has(i);
                           if (!isValidTarget && !isSel) return null;
                           return (
