@@ -749,6 +749,26 @@ export function calcFieldPowers(
       if (flipOwnerPosDelta) break;
     }
 
+    // DRIVE_SIGNI_POWER_DOUBLE_CRASH: ルリグがこのCONTを持つ場合、ドライブ状態シグニに+3000
+    // ダブルクラッシュ付与はBattleScreen側で処理
+    const lrigTop = ownerState.field.lrig.at(-1);
+    if (lrigTop) {
+      const hasDrivePowerBonus = (effectsMap.get(lrigTop) ?? []).some(eff =>
+        eff.effectType === 'CONTINUOUS' &&
+        checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, lrigTop) &&
+        (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+        (eff.action as import('../types/effects').StubAction).id === 'DRIVE_SIGNI_POWER_DOUBLE_CRASH',
+      );
+      if (hasDrivePowerBonus) {
+        const driveNums = ownerState.lrig_riding_signi ?? [];
+        for (const driveNum of driveNums) {
+          if (powers.has(driveNum)) {
+            powers.set(driveNum, (powers.get(driveNum) ?? 0) + 3000);
+          }
+        }
+      }
+    }
+
     // DOUBLE_POWER_MINUS: 自分のフィールドにこの効果があれば相手シグニへの負デルタを2倍にする
     const hasDoublePowerMinus = ownerState.field.signi.some(stack => {
       const top = stack?.at(-1);
