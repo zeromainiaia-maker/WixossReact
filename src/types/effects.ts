@@ -154,6 +154,7 @@ export interface EffectCost {
   down_self?: boolean;    // 自身をダウン
   exceed?: number;        // エクシード：ルリグの下からN枚をルリグトラッシュへ
   beat_signi?: number;    // 場のシグニN体をビートにする（コスト）
+  coin?: number;          // 《コインアイコン》×N（【出】《コイン》等）
 }
 
 // ===== ターゲットフィルタ =====
