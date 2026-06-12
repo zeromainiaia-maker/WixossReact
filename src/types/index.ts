@@ -290,8 +290,6 @@ export interface PlayerState {
   turn_plant_down_count?: number;
   // OPP_LRIG_LOSE_ABILITY: このターン、このプレイヤーのルリグは能力を失う（相手がカットイン発動）
   lrig_abilities_disabled?: boolean;
-  // OPPONENT_SIGNI_ENERGY_TO_DECK_BOTTOM: このターン相手シグニがバニッシュされたとき追加でエナ1枚をデッキ下へ（WX25-CP1-003）
-  opp_signi_energy_to_deck_bottom?: boolean;
 }
 
 export interface GameLog {
