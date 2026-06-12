@@ -1054,7 +1054,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ATTACK_ARTS_OPはCPUがターンプレイヤーのとき人間が担当→CPU動かない
     // CPUが非ターンプレイヤーのときはCPUが担当→動く
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && isCpuTurn) return;
-    if (!isCpuTurn && bs.turn_phase !== 'ATTACK_ARTS_OP' && !cpuSt.field?.check && !cpuSt.field?.lrig_attacked && !bs.pending_spell) return;
+    if (!isCpuTurn && bs.turn_phase !== 'ATTACK_ARTS_OP' && !cpuSt.field?.check && !cpuSt.field?.lrig_attacked && !bs.pending_spell && !(cpuSt.pending_crashed_cards?.length)) return;
     if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current);
     cpuTimerRef.current = setTimeout(() => { cpuTurnRef.current?.(); }, CPU_ACTION_DELAY);
     return () => { if (cpuTimerRef.current) clearTimeout(cpuTimerRef.current); };
@@ -1064,8 +1064,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     bs?.host_state?.field?.check, bs?.host_state?.field?.lrig_attacked,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(bs?.guest_state?.field?.signi_down),
+    bs?.guest_state?.pending_crashed_cards?.length,
     bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
-  ]);  
+  ]);
 
   // CPU対戦：CPU が respondPlayer として応答すべき pending_effect を自動解決
   // 「対戦相手は手札を捨てる」等、効果の解決をCPUが行う必要がある場合
