@@ -3968,6 +3968,30 @@ export function execStubPart3(
     });
   }
 
+  // LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS: ルリグトラッシュの全ルリグをこのカードの下に、アーツをルリグデッキへ（WX05-001, WXEX2-84）
+  if (stub.id === 'LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS') {
+    const lrigTrash = ctx.ownerState.lrig_trash ?? [];
+    const lrigNums = lrigTrash.filter(cn => ctx.cardMap.get(cn)?.Type === 'ルリグ');
+    const artsNums = lrigTrash.filter(cn => ctx.cardMap.get(cn)?.Type === 'アーツ');
+    if (lrigNums.length === 0 && artsNums.length === 0) {
+      return done(addLog(ctx, 'ルリグトラッシュにルリグ/アーツなし'));
+    }
+    const newLrigTrash = lrigTrash.filter(cn =>
+      ctx.cardMap.get(cn)?.Type !== 'ルリグ' && ctx.cardMap.get(cn)?.Type !== 'アーツ',
+    );
+    const newLrig = [...lrigNums, ...ctx.ownerState.field.lrig];
+    const newLrigDeck = [...artsNums, ...(ctx.ownerState.lrig_deck ?? [])];
+    const newOwner = {
+      ...ctx.ownerState,
+      lrig_trash: newLrigTrash,
+      lrig_deck: newLrigDeck,
+      field: { ...ctx.ownerState.field, lrig: newLrig },
+    };
+    const lrigNames = lrigNums.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('/');
+    return done(addLog({ ...ctx, ownerState: newOwner },
+      `ルリグ${lrigNums.length}体(${lrigNames})を下に、アーツ${artsNums.length}枚をルリグデッキへ`));
+  }
+
   // DRAW_IF_CHARGED_CLASS: 直前のENERGY_CHARGE_FROM_DECKで＜調理＞がチャージされた場合1ドロー（WDK07-E01）
   if (stub.id === 'DRAW_IF_CHARGED_CLASS') {
     const lastCharged = ctx.ownerState.energy.at(-1);
