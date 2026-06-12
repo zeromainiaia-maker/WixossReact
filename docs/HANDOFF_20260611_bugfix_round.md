@@ -1,5 +1,58 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 zerom側: ONPLAY_DEAD_OPTIONAL 105件 → 12件（v0.263）
+>
+> v0.262の残課題1を実施。未表現だった【出】コストのスキーマを拡張し、105件中93件を解消した。
+> tsc 0 / lint 0 errors（warning 28、既存同数）/ checkAllEffects 0 / verifyEffects 全12シート issues 0 /
+> tsxスモークテスト18項目PASS。v0.262と合わせてv0.263としてデプロイ済み。
+>
+> ### スキーマ追加（types/effects.ts EffectCost）と【出】コストモーダル対応
+> - `fieldTrash {count, filter?, excludeSelf?}`: 場の自分シグニをトラッシュ（ゾーン選択UI、チャーム/アクセも一緒にトラッシュ。
+>   ON_LEAVE_FIELD等のトリガーは発火しない近似）
+> - `handToEnergy {count, filter?}` / `handToUnderSelf {count, filter?}`: 手札→エナ / 手札→このシグニの下
+>   （手札選択UIをdiscardと共用。同一効果での併用は不可）
+> - `lrigDown {count, centerOnly?}`: アップ状態ルリグをダウン（センター→アシストL→Rの順で自動支払い。
+>   **PlayerState.fieldに `assist_lrig_l_down`/`assist_lrig_r_down` を新設**、ターン交代時リセット4箇所対応。
+>   UIにアシストのダウン表示はない=コスメティック課題）
+> - `lifeTrash` / `lifeToHand` / 既存`life_crash`の支払い対応（ライフ上から自動。
+>   **life_crashコストはバースト不発でトラッシュへの近似**）
+> - `deckTrash` / `charmTrash` / `removeOppVirus`（自動支払い。ウィルス除去とチャームは左ゾーンから自動選択。
+>   removeOppVirusのみ相手stateを別updateで書き込み）
+> - `none: true`: コストなし任意【出】（発動確認のみのモーダル）
+> - TargetFilterに `hasIcon: 'クロス'|'ライズ'|'トラップ'|'アクセ'`（カードテキストのキーワード有無で判定する近似）と
+>   `hasLifeBurst` を追加（execUtils matchesFilter）
+>
+> ### 英知=N 14件: コストでなく条件として解決
+> mandatory:true + activeCondition(EICHI_LEVEL_SUM、既存実装) に変更し、
+> **ON_PLAY収集3箇所（handleSummonSigni / executeGrow / CPU召喚）に activeCondition ゲートを追加**
+> （満たさない【出】は発火しない）。
+>
+> ### 可変手札捨て型 11件: COUNT_BASED_DRAW_OR_POWER スタブで自己完結化
+> - CBDPの捨て正規表現を拡張: 「手札から＜クラス＞のシグニをN枚まで捨てる」（候補をクラスでフィルタ）、
+>   「手札を好きな枚数捨てる」
+> - INTERNAL_CBDOP_AFTER_DISCARD に新分岐: 「1枚につき【エナチャージN】」「1枚につきカードを1枚引く」
+>   「それのパワーを…1枚につき－N」（単体対象×枚数倍）
+> - 対象カードは action→CBDP置換 + mandatory:true（オニオコゼ/アザエラ翼/タウィル/まほまほは既にCBDPでフリップのみ）
+>
+> ### JSON付与 105効果（tmp_verify/addDeadOptionalCosts.mjs、gitignore対象）
+> 内訳: fieldTrash14 / discard+filter16（hasIcon/hasLifeBurst/ディソナ=cardName'//ディソナ'）/ 英知14 /
+> energyTrash13 / handToEnergy8 / handToUnderSelf5 / lrigDown7 / ライフ系8 / coin2（ホログラフ・オーネスト）/
+> removeOppVirus3 / deckTrash2 / charmTrash1 / none1 / CBDPフリップ11。
+> 実バグ修正2件: WXDi-P14-006遊月燦のLIFE_CRASH owner self→opponent（自分のライフを削っていた）、
+> WDK17-014キュルビウスのSEQUENCE二重パワー修正（-7000と-10000が両方適用される定義→-7000のみの近似に）
+>
+> ### 残り12件（意図的スキップ、`--warnings`で列挙）
+> - チャーム可変数+リンク（ダエワ）/ 全シグニ+手札+エナ全トラッシュ（DJ.LOVIT）/ シグニ下からトラッシュ
+>   （ダリチュー・ゲンダ）/ トラッシュ→デッキ下（フウカ）/ ルリグデッキからアーツ（マリゴールド・ゴルスペ、
+>   UIセクション未実装）/ ルリグダウン可変数+レベル比例（ベロド）/ ビートコスト（ヘーリオス・ナーキル）/
+>   手札とエナ全部（レイラ乱舞）/ スペルのON_PLAY警告（リング・ドロー、ピース/スペル経路はqueueCardEffectsが
+>   全効果を積むため実際は発火する誤検出に近い）
+> - 近似メモ: シャフリ（Lv1+Lv2各1→Lv2以下2体）、Sk（同レベルリンクなし）、アタランテ/アト（異クラス制約なし）、
+>   モモタロ（3種各1→cardNames3枚）、OPA（共通色なし）、USS（Lv1-4各1なし）、イモイシ（鉱石+宝石各1なし）、
+>   パンジャン（ダウンしたルリグとの共通色リンクなし）、クロス・ライフ・クロス（加える側がデッキ上のまま）
+> - ピース/キーの【出】は従来どおりqueueCardEffects経由で**コスト支払いなしの無条件発火**（v0.261既知）。
+>   今回タグ付けしたコストはピースでは支払われない（データとしては正しい表現になった）
+
 > ## ✅ 2026-06-12 ymsty側: コインバグ同型の系統調査 — 無発火【出】230件の検出と244コスト付与（v0.262）
 >
 > v0.261のコイン【出】バグ（mandatory:false+costなしは収集から漏れて無発火）が**なぜ全検証0件をすり抜けたか**を
