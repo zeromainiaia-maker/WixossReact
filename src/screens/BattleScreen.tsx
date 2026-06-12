@@ -5739,7 +5739,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       const allTriggers = [...attackEntries, ...banishEntries, ...battleBanishEntries, ...opAtkedEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries];
       if (allTriggers.length > 0) {
-        const turnPlayerId = bs.active_user_id ?? user.id;
+        const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;
         const stack = existingStack
           ? pushToStack(existingStack, allTriggers)
