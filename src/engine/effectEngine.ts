@@ -769,6 +769,26 @@ export function calcFieldPowers(
       }
     }
 
+    // SELF_BUFF_BY_UNDER_CARDS: 下にLv4シグニが3枚あれば+2000（WXK05-035 CONT）
+    for (const stack of ownerState.field.signi) {
+      const topNum = stack?.at(-1);
+      if (!topNum || !stack || stack.length <= 1) continue;
+      const hasSBUC = (effectsMap.get(topNum) ?? []).some(eff =>
+        eff.effectType === 'CONTINUOUS' &&
+        checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum) &&
+        (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+        (eff.action as import('../types/effects').StubAction).id === 'SELF_BUFF_BY_UNDER_CARDS',
+      );
+      if (hasSBUC && powers.has(topNum)) {
+        const underCards = stack.slice(0, -1);
+        const lv4Count = underCards.filter(cn => {
+          const level = parseInt(cardMap.get(cn)?.Level ?? '0', 10);
+          return level === 4;
+        }).length;
+        if (lv4Count >= 3) powers.set(topNum, (powers.get(topNum) ?? 0) + 2000);
+      }
+    }
+
     // DOUBLE_POWER_MINUS: 自分のフィールドにこの効果があれば相手シグニへの負デルタを2倍にする
     const hasDoublePowerMinus = ownerState.field.signi.some(stack => {
       const top = stack?.at(-1);
