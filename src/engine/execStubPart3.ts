@@ -3864,6 +3864,83 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: withDest }, `${oppName}${destLog}（パワー15000以上アタック）`));
   }
 
+  // SELF_TRASH_UNLESS_TRASH_OTHERS: 他の＜原子＞2体をトラッシュしないかぎり自分をトラッシュ（WXK10-039【出】）
+  if (stub.id === 'SELF_TRASH_UNLESS_TRASH_OTHERS') {
+    const selfNum = ctx.sourceCardNum;
+    if (!selfNum) return done(addLog(ctx, 'SELF_TRASH_UNLESS_TRASH_OTHERS: 発動元不明'));
+    const otherAtomCands: string[] = [];
+    for (const stack of ctx.ownerState.field.signi) {
+      const cn = stack?.at(-1);
+      if (!cn || cn === selfNum) continue;
+      const story = ctx.ownerState.story_overrides?.[cn] ?? ctx.cardMap.get(cn)?.Story ?? '';
+      if (story.includes('原子')) otherAtomCands.push(cn);
+    }
+    const selfName = ctx.cardMap.get(selfNum)?.CardName ?? selfNum;
+    if (otherAtomCands.length < 2) {
+      const removed = removeFromField(selfNum, ctx.ownerState);
+      const newOwner = { ...removed, trash: [...removed.trash, selfNum] };
+      return done(addLog({ ...ctx, ownerState: newOwner },
+        `${selfName}をトラッシュ（他の＜原子＞が${otherAtomCands.length}体のみ）`));
+    }
+    const selectOthers: StubAction = { type: 'STUB', id: 'INTERNAL_STUTO_SELECT_OTHERS' };
+    const trashSelf: StubAction = { type: 'STUB', id: 'INTERNAL_STUTO_TRASH_SELF' };
+    return needsInteraction(addLog(ctx, `${selfName}の【出】: 他の＜原子＞2体をトラッシュ or このシグニをトラッシュ`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'c0', label: '他の＜原子＞2体をトラッシュ', action: selectOthers as EffectAction, available: true },
+        { id: 'c1', label: `${selfName}をトラッシュ`, action: trashSelf as EffectAction, available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_STUTO_SELECT_OTHERS') {
+    const selfNum = ctx.sourceCardNum;
+    const cands: string[] = [];
+    for (const stack of ctx.ownerState.field.signi) {
+      const cn = stack?.at(-1);
+      if (!cn || cn === selfNum) continue;
+      const story = ctx.ownerState.story_overrides?.[cn] ?? ctx.cardMap.get(cn)?.Story ?? '';
+      if (story.includes('原子')) cands.push(cn);
+    }
+    if (cands.length < 2 && selfNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === selfNum)) {
+      const removed = removeFromField(selfNum, ctx.ownerState);
+      const newOwner = { ...removed, trash: [...removed.trash, selfNum] };
+      return done(addLog({ ...ctx, ownerState: newOwner },
+        `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}をトラッシュ（＜原子＞2体不足）`));
+    }
+    return needsInteraction(ctx, {
+      type: 'SELECT_TARGET',
+      candidates: cands,
+      count: 2,
+      optional: false,
+      targetScope: 'self_field',
+      thenAction: ({ type: 'STUB', id: 'INTERNAL_STUTO_TRASH_SELECTED' } as StubAction) as EffectAction,
+    });
+  }
+  if (stub.id === 'INTERNAL_STUTO_TRASH_SELECTED') {
+    const targets = ctx.lastProcessedCards ?? [];
+    let st = ctx.ownerState;
+    const names: string[] = [];
+    for (const cn of targets) {
+      if (st.field.signi.some(s => s?.at(-1) === cn)) {
+        const removed = removeFromField(cn, st);
+        st = { ...removed, trash: [...removed.trash, cn] };
+        names.push(ctx.cardMap.get(cn)?.CardName ?? cn);
+      }
+    }
+    return done(addLog({ ...ctx, ownerState: st }, `${names.join('/')}をトラッシュ`));
+  }
+  if (stub.id === 'INTERNAL_STUTO_TRASH_SELF') {
+    const selfNum = ctx.sourceCardNum;
+    if (!selfNum) return done(addLog(ctx, 'INTERNAL_STUTO_TRASH_SELF: 発動元不明'));
+    if (!ctx.ownerState.field.signi.some(s => s?.at(-1) === selfNum)) {
+      return done(addLog(ctx, 'INTERNAL_STUTO_TRASH_SELF: このシグニはフィールドにない'));
+    }
+    const removed = removeFromField(selfNum, ctx.ownerState);
+    const newOwner = { ...removed, trash: [...removed.trash, selfNum] };
+    return done(addLog({ ...ctx, ownerState: newOwner },
+      `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}をトラッシュ`));
+  }
+
   // OPP_PUNISHER_CHOICE: 相手が3択（手札2捨て/エナ3トラッシュ/シグニ1トラッシュ）を選ぶ（WXK05-001【出】）
   if (stub.id === 'OPP_PUNISHER_CHOICE') {
     const discard2: TrashAction = {
