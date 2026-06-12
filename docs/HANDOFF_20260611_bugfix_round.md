@@ -1,5 +1,40 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 zerom側: 課題B解決 — CPUアタックを対人戦と共通処理に統一（v0.259）
+>
+> 課題Bの最小修正（(a)(b)のみ複製）ではなく、**handleSigniAttack のバトル解決ロジック全体を
+> `performSigniAttack(zoneIndex, {attacker, defender, attackerId, defenderId, attackerKey})` として抽出**し、
+> 人間（handleSigniAttackは薄いラッパーに）とCPU（cpuTurnのATTACK_SIGNI独自実装60行を削除）の両方が
+> 同じ関数でバトルを解決するようにした。今後のCPU強化も同関数を呼ぶだけでよい。
+>
+> これによりCPU戦のバトルバニッシュで (a)(b)(c) がすべて解決:
+> - ON_BANISH / ON_LEAVE_FIELD / ON_SIGNI_BANISH_BATTLE / ON_ATTACK_SIGNI / ヘブンヘブン等が発火（WX15-116含む）
+> - バニッシュ先がエナへ（ライズ下カード・チャーム・アクセはトラッシュ）
+> - 無効化（NEGATE系）・アサシン/ランサー/Sランサー/ダブルクラッシュ・各種バニッシュ代替
+>   （ダウン代替/調理/アクセ/レゾナ/ライズ）・リダイレクト・凍結オーバーライド・MULTI_ZONE/ADJACENT追加バトルもCPUで有効に
+>
+> ### 併せて修正したCPU戦の固まりバグ（統一で顕在化するため必須）
+> 1. **スタック解決ゲート**（BattleScreen L1540付近）: CPUターン中のCPU所有エントリは
+>    `firstEntry.playerId !== user.id` で弾かれ解決されなかった → CPU戦では人間クライアントが全エントリを解決
+> 2. **CPU自動応答の一般化**（L1100付近）: `respondPlayerId !== CPU_PLAYER_ID` → `(respondPlayerId ?? sourcePlayerId)`。
+>    CPU所有効果のSELECT_TARGET/CHOOSE等のpendingはUI非表示のため、応答しないと固まる潜在バグだった
+>    （v0.258のSELECT_ZONE/SELECT_VIRUS_ZONE対応と同じパターン）。CHOOSEは available な選択肢を優先するよう改善
+> 3. **CPUのattacked_signi_idsリセット**: 共通処理が記録するようになったため、ENDフェイズのcleanCpuStに追加
+>    （リセットしないとONE_ATTACK系条件が翌ターン誤判定）
+>
+> ### 実装メモ
+> - performSigniAttack 内では isMyTurn は「アタッカーのターン」として常にtrue前提（両呼び出し元が保証）
+> - CPU側はアタック不可（blocked_actions `ATTACK:xxx`）のシグニを**事前に候補から除外**すること
+>   （共通関数はダウンさせずに早期returnするため、除外しないとCPUが無限ループする）
+> - DECLARE_BOND インタラクションのみCPU自動応答未対応（CPU効果からは現状発生しない）
+> - 検証: tsc 0 / lint 0 errors（warning 28、既存同数）
+> - **v0.258（ウィルスゾーン選択化）と合わせて v0.259 としてデプロイ済み**
+>
+> ### 残課題
+> - 課題A（場に出す効果のゾーン選択化）は未着手
+> - CPUルリグアタックは独自実装のまま（ON_ATTACK_LRIG トリガーがCPU戦で発火しない。同様の共通化が可能）
+> - CPU自身のライフクラッシュは cpuTurnAction が check を直接消化するため ON_LIFE_CRASHED 不発（v0.255の既知の近似）
+
 > ## ✅ 2026-06-12 ymsty側: ウィルス配置のゾーン選択化（v0.258）+ 🆕 zerom側への新規課題2件（下記A/B）
 >
 > ### 完了: ウィルスが勝手にゾーン1（左端）に置かれる問題の修正
