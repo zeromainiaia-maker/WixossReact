@@ -5136,10 +5136,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally { setLoading(false); }
   };
 
-  // シグニアタック処理（キーワード能力対応）
-  const handleSigniAttack = async (zoneIndex: number) => {
-    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
-    if (op.field.check) return; // 相手のライフバースト処理待ち中はアタック不可
+  // シグニアタックのバトル解決（人間・CPU共通）
+  // attacker視点で全処理（無効化・キーワード能力・バニッシュ代替/リダイレクト・各種トリガー収集）を行う。
+  // 呼び出し元はフェイズ・check待ち・blocked_actionsのガードを行うこと（blockedはここでも弾くが、
+  // CPU側はアタッカーがダウンしないと無限ループするため事前に除外が必要）
+  const performSigniAttack = async (zoneIndex: number, p: {
+    attacker: PlayerState; defender: PlayerState;
+    attackerId: string; defenderId: string;
+    attackerKey: 'host_state' | 'guest_state';
+  }) => {
+    const { attacker: my, defender: op, attackerId, defenderId } = p;
+    const attackerIsHost = p.attackerKey === 'host_state';
     setLoading(true);
     try {
       const myTopNum = (my.field.signi[zoneIndex] ?? []).at(-1);
