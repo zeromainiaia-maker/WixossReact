@@ -154,11 +154,22 @@ export interface EffectCost {
   energyTrash?: { count: number; filter?: TargetFilter }; // エナゾーンから指定カードN枚をトラッシュ（色支払いでなくカード指定。「エナゾーンから＜天使＞のシグニ３枚をトラッシュに置く」等）
   handDiscardSigni?: { color: string; count: number }; // 手札から指定色のシグニをN枚トラッシュ
   banish_self?: boolean;  // 自身をバニッシュ
-  life_crash?: number;    // 自分のライフクロスをN枚クラッシュ
+  life_crash?: number;    // 自分のライフクロスをN枚クラッシュ（【出】コスト支払いではバースト不発の近似でトラッシュへ）
   down_self?: boolean;    // 自身をダウン
   exceed?: number;        // エクシード：ルリグの下からN枚をルリグトラッシュへ
   beat_signi?: number;    // 場のシグニN体をビートにする（コスト）
   coin?: number;          // 《コインアイコン》×N（【出】《コイン》等）
+  // ─ v0.263 追加: 無発火だった任意【出】コストの表現（ONPLAY_DEAD_OPTIONAL対策）─
+  fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean }; // 場の自分シグニN体をトラッシュ（「他の＜原子＞のシグニ１体を場からトラッシュに置く」等）
+  handToEnergy?: { count: number; filter?: TargetFilter };    // 手札からN枚をエナゾーンに置く
+  handToUnderSelf?: { count: number; filter?: TargetFilter }; // 手札からN枚をこのシグニの下に置く
+  lrigDown?: { count: number; centerOnly?: boolean };         // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）
+  lifeTrash?: number;     // ライフクロス上からN枚をトラッシュに置く
+  lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
+  deckTrash?: number;     // デッキ上からN枚をトラッシュに置く
+  charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く
+  removeOppVirus?: number; // 対戦相手の場の【ウィルス】N個を取り除く
+  none?: boolean;         // コストなしの任意効果（発動するかの確認のみ）
 }
 
 // ===== ターゲットフィルタ =====
