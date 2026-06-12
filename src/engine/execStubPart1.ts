@@ -2849,6 +2849,42 @@ export function execStubPart1(
     const srcICD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtICD = srcICD ? (srcICD.EffectText ?? '') + ' ' + (srcICD.BurstText ?? '') : '';
     const toHWICD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 「この方法で捨てたカード１枚につき【エナチャージＮ】」（バン//メモリア等）
+    const chargePerICD = txtICD.match(/捨てたカード１枚につき【エナチャージ([０-９\d]+)】/);
+    if (chargePerICD) {
+      const perN = parseInt(toHWICD(chargePerICD[1])) || 1;
+      const chargeCount = Math.min(countICD * perN, ctxICD.ownerState.deck.length);
+      const newS: PlayerState = {
+        ...ctxICD.ownerState,
+        energy: [...ctxICD.ownerState.energy, ...ctxICD.ownerState.deck.slice(0, chargeCount)],
+        deck: ctxICD.ownerState.deck.slice(chargeCount),
+      };
+      return done(addLog({ ...ctxICD, ownerState: newS }, `手札${countICD}枚捨て→エナチャージ${chargeCount}`));
+    }
+    // 「それのパワーをこの方法で捨てたカード１枚につき－Ｎする」（単体対象×枚数倍、コムラサキ等）
+    const pwrPerICD = txtICD.match(/それのパワーを.*捨てたカード１枚につき([＋－][０-９\d]+)/);
+    if (pwrPerICD) {
+      const delta = parseInt(toHWICD(pwrPerICD[1]).replace('＋', '+').replace('－', '-')) * countICD;
+      const firstOpp = ([0, 1, 2] as const)
+        .map(i => ctxICD.otherState.field.signi[i]?.at(-1))
+        .find((cn): cn is string => !!cn);
+      if (!firstOpp) return done(addLog(ctxICD, 'パワー修正：相手シグニなし'));
+      const mods = [...(ctxICD.otherState.temp_power_mods ?? []), { cardNum: firstOpp, delta }];
+      return done(addLog(
+        { ...ctxICD, otherState: { ...ctxICD.otherState, temp_power_mods: mods } },
+        `手札${countICD}枚捨て→相手シグニ1体にパワー${delta}`,
+      ));
+    }
+    // 「この方法で捨てたカード１枚につきカードを１枚引く」
+    if (txtICD.match(/捨てたカード１枚につきカードを１枚引く/)) {
+      const canDraw = Math.min(countICD, ctxICD.ownerState.deck.length);
+      const newS: PlayerState = {
+        ...ctxICD.ownerState,
+        hand: [...ctxICD.ownerState.hand, ...ctxICD.ownerState.deck.slice(0, canDraw)],
+        deck: ctxICD.ownerState.deck.slice(canDraw),
+      };
+      return done(addLog({ ...ctxICD, ownerState: newS }, `手札${countICD}枚捨て→${canDraw}枚ドロー`));
+    }
     // 「捨てたカードの枚数（に1を加えた枚数）カードを引く」
     if (txtICD.match(/捨てたカードの枚数|枚数に等しい枚数.*引く|枚数のカードを引く/)) {
       const bonusM = txtICD.match(/枚数に([０-９\d]+)を加えた枚数/);
