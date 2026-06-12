@@ -3944,6 +3944,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     myState: PlayerState,
     opState: PlayerState,
     labelSuffix: string,
+    ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
     const entries: StackEntry[] = [];
     const usedOncePerTurnIds: string[] = [];
