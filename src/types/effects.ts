@@ -192,6 +192,8 @@ export interface TargetFilter {
   isFrozen?:  boolean;
   hasCharm?:  boolean;
   hasAcce?:   boolean; // アクセが付いている
+  hasIcon?:   'クロス' | 'ライズ' | 'トラップ' | 'アクセ'; // 《Xアイコン》を持つカード（カードテキストのキーワード有無で判定する近似）
+  hasLifeBurst?: boolean; // 《ライフバースト》を持つカード
   infected?:  boolean; // 感染状態（ウィルスのあるゾーンのシグニ）
   isArmored?: boolean; // 血晶武装状態
   // ─ 動的フィルタ（ON_LEAVE_FIELD系トリガーの収集時に具体値へ解決される。未解決時は無視）─
