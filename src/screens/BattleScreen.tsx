@@ -2922,6 +2922,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
           negate_opp_signi_attacks_until: undefined, // N回目シグニアタック自動無効化フラグをリセット
           all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
+          lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
           negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
           coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
