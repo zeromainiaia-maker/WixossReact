@@ -6269,9 +6269,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         fieldTotal += lv;
         handSignis.splice(handSignis.indexOf(candidate), 1);
 
+        // 【出】/ON_PLAYトリガー収集（コスト付き任意【出】はCPUは発動しない＝mandatory:falseを除外）
+        const ownOnPlayCpu = (effectsMap.get(candidate.id) ?? []).filter(e =>
+          e.effectType === 'AUTO' &&
+          e.timing?.includes('ON_PLAY') &&
+          (e.triggerScope === undefined || e.triggerScope === 'self') &&
+          e.mandatory !== false,
+        );
+        cpuOnPlayEntries.push(...ownOnPlayCpu.map(eff => ({
+          id: generateUUID(),
+          playerId: CPU_PLAYER_ID,
+          cardNum: candidate.id,
+          effectId: eff.effectId,
+          label: `${candidate.card!.CardName} の【出】/【自】効果`,
+          effect: eff,
+        } satisfies StackEntry)));
+        cpuOnPlayEntries.push(...collectFieldTriggers('ON_PLAY', candidate.id, newCpuSt, huSt, CPU_PLAYER_ID));
+
         // 1枚ずつSupabaseを更新して画面に反映させてから次へ
         await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
+      }
+
+      // 配置で【出】トリガーが発生した場合はスタックに積んで解決を待つ（MAINに留まり、解決後の再実行で先へ進む）
+      if (cpuOnPlayEntries.length > 0) {
+        const existingStackOP = bs.effect_stack ?? null;
+        const newStackOP = existingStackOP
+          ? pushToStack(existingStackOP, cpuOnPlayEntries)
+          : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuOnPlayEntries);
+        await supabase.from('battle_states').update({ effect_stack: newStackOP }).eq('room_id', roomId);
+        return;
       }
 
       // HASTARLIQ: CPUのMAIN→ATTACK_ARTS移行時、相手(人間)の hastarliq_zones があれば発動
