@@ -1,5 +1,31 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 ymsty側: ON_LIFE_CRASHED / ON_GUARD トリガー配線完了（v0.255）
+>
+> ラウンド1・3で見送られていた未配線timing 2種を配線した。tsc 0 / lint 0 errors / checkAllEffects 0 /
+> verifyEffects全12シート0件維持。
+>
+> ### 実装内容（src/screens/BattleScreen.tsx）
+> 1. **`collectSelfEventTriggers(timing, myState, opState, labelSuffix)` 新設**（collectFieldTriggersの直後）:
+>    自フィールドシグニのAUTO+指定timingを収集してStackEntry[]を返す。`usageLimit:'once_per_turn'`は
+>    `actions_done`（effectId、ターン毎リセット）で制御し、発火分のidを返すので呼び出し側でactions_doneに追加保存。
+>    BLOCK_OWN_SIGNI_AUTO / FROZEN_LOSES_ABILITIES（相手ルリグ）+凍結も考慮。
+> 2. **ON_LIFE_CRASHED（WXDi-P02-037 ダッキ）**: 配線点は `handleLifeBurstResponse` の1箇所のみ。
+>    アタック/ダブルクラッシュ/効果LIFE_CRASH等、全クラッシュ経路がチェックゾーン（`field.check`）経由で
+>    ここに集約されるため（crashOneLife系7箇所への個別配線は不要だった）。バースト発動時は
+>    queueCardEffectsの新引数 `extraEntries` でバーストと一緒にスタックへ、不発時は直接effect_stackにpush。
+> 3. **ON_GUARD（WXDi-P02-035 ヤエキリ）**: `handleGuardResponse` のガード成立分岐 +
+>    `handleGuardWithEnergyAlternative` / `handleGuardWithHandAlternative`（代替ガードもガードに含む）。
+> 4. **types/effects.ts**: EffectTimingユニオンに `ON_LIFE_CRASHED` / `ON_GUARD` を追加。
+>
+> ### 既知の近似（残課題）
+> - `LIFE_CRASH{triggerBurst:false}`（チェックゾーン非経由で直接トラッシュ）とエンジン内STUBの
+>   ライフ減少（CRASH_LIFE_TO_HAND等）では発火しない（エンジン側からスタックに積めないため）
+> - CPU戦でCPU自身のライフがクラッシュされた場合は発火しない（cpuTurnActionがcheckを直接消化）
+> - 防御側（非ターンプレイヤー）が積んだエントリはキュー先頭所有者解決ルール
+>   （BattleScreen L1516: `firstEntry.playerId === user.id`）で防御側クライアントが解決する
+
+
 > ## ✅ 2026-06-12 zerom側: アクション不一致ラウンド3完了（144→**0件**、v0.254）— 全シート0件達成
 >
 > Sheet3(37)/Sheet4(31)/Sheet7(1)/Sheet8(28)/Sheet9(46) をすべて0件化。**verifyEffectsの全カテゴリ

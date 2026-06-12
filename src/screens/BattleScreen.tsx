@@ -3141,13 +3141,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     _startOpState: PlayerState,
     extraUpdate: Record<string, unknown> = {},
     repeatCount = 1,
+    extraEntries: StackEntry[] = [],
   ): Promise<boolean> => {
     const effects = effectsMap.get(cardNum) ?? [];
     const targets = effects.filter(e =>
       (effectTypes as string[]).includes(e.effectType) &&
       (timings.length === 0 || e.timing?.some(t => timings.includes(t)))
     );
-    if (targets.length === 0) return false;
+    if (targets.length === 0 && extraEntries.length === 0) return false;
 
     const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
     const turnPlayerId = bs?.active_user_id ?? user.id;
@@ -3162,6 +3163,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }));
     const allEntries: StackEntry[] = [];
     for (let r = 0; r < repeatCount; r++) allEntries.push(...makeEntries());
+    allEntries.push(...extraEntries);
     const entries = allEntries;
 
     const existing = bs?.effect_stack ?? null;
@@ -3793,6 +3795,53 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     return entries;
+  };
+
+  /**
+   * 自分側イベント（ON_LIFE_CRASHED / ON_GUARD）に反応する自フィールドシグニの AUTO 効果を収集する。
+   * usageLimit 'once_per_turn' は actions_done（effectId）で管理する。発火させた effectId を
+   * usedOncePerTurnIds として返すので、呼び出し側で actions_done に追加して保存すること。
+   */
+  const collectSelfEventTriggers = (
+    timing: 'ON_LIFE_CRASHED' | 'ON_GUARD',
+    myState: PlayerState,
+    opState: PlayerState,
+    labelSuffix: string,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
+    if (myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+    // FROZEN_LOSES_ABILITIES: 相手ルリグにこの常在があれば自分の凍結シグニのAUTOは発火しない
+    const opLrigTop = opState.field.lrig.at(-1);
+    const frozenLosesAbilities = opLrigTop
+      ? (effectsMap.get(opLrigTop) ?? []).some(e =>
+          e.effectType === 'CONTINUOUS' &&
+          (e.action as import('../types/effects').StubAction)?.type === 'STUB' &&
+          (e.action as import('../types/effects').StubAction)?.id === 'FROZEN_LOSES_ABILITIES',
+        )
+      : false;
+    for (let zi = 0; zi < myState.field.signi.length; zi++) {
+      const topNum = myState.field.signi[zi]?.at(-1);
+      if (!topNum) continue;
+      if (frozenLosesAbilities && (myState.field.signi_frozen?.[zi] ?? false)) continue;
+      for (const eff of effectsMap.get(topNum) ?? []) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        if (eff.usageLimit === 'once_per_turn') {
+          if (myState.actions_done?.includes(eff.effectId) || usedOncePerTurnIds.includes(eff.effectId)) continue;
+          usedOncePerTurnIds.push(eff.effectId);
+        }
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（${labelSuffix}）`,
+          effect: eff,
+        });
+      }
+    }
+    return { entries, usedOncePerTurnIds };
   };
 
   /**
@@ -6160,14 +6209,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const trashTarget = energySigni[0]; // 最初の該当シグニをトラッシュ
+      // ON_GUARD: 代替コストによるガードも【ガード】したときに含まれる
+      const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
+        collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
       const newMyState: PlayerState = {
         ...my,
         energy: my.energy.filter(cn => cn !== trashTarget),
         trash: [...my.trash, trashTarget],
         field: { ...my.field, lrig_attacked: false },
+        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
       };
       appendBattleLogs([`ガード代替コスト：エナ＜${altCost.signiClass}＞（${battleCardMap.get(trashTarget)?.CardName ?? trashTarget}）をトラッシュ`]);
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      const update: Record<string, unknown> = { [stateKey]: newMyState };
+      if (guardTriggers.length > 0) {
+        const existingStack = bs.effect_stack ?? null;
+        update.effect_stack = existingStack
+          ? pushToStack(existingStack, guardTriggers)
+          : initStack(bs.active_user_id ?? user.id, guardTriggers);
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
     } finally { setLoading(false); }
   };
 
@@ -6181,14 +6241,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const stateKey = isHost ? 'host_state' : 'guest_state';
       // 手札の末尾N枚を捨てる
       const discarded = my.hand.slice(-altN);
+      // ON_GUARD: 代替コストによるガードも【ガード】したときに含まれる
+      const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
+        collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
       const newMyState: PlayerState = {
         ...my,
         hand: my.hand.slice(0, -altN),
         trash: [...my.trash, ...discarded],
         field: { ...my.field, lrig_attacked: false },
+        actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
       };
       appendBattleLogs([`ガード代替：手札${altN}枚を捨てる（${discarded.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）`]);
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      const update: Record<string, unknown> = { [stateKey]: newMyState };
+      if (guardTriggers.length > 0) {
+        const existingStack = bs.effect_stack ?? null;
+        update.effect_stack = existingStack
+          ? pushToStack(existingStack, guardTriggers)
+          : initStack(bs.active_user_id ?? user.id, guardTriggers);
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
     } finally { setLoading(false); }
   };
 
@@ -6199,6 +6270,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
       let newMyState: PlayerState;
+      let guardTriggers: StackEntry[] = [];
       if (handIndex !== null) {
         // ガードカードをトラッシュへ
         const cardNum = my.hand[handIndex];
@@ -6253,6 +6325,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           energy: energyAfterGuard,
           field: { ...my.field, lrig_attacked: false },
         };
+        // ON_GUARD: 自フィールドシグニの「あなたが【ガード】したとき」トリガーを収集
+        const { entries: guardEntries, usedOncePerTurnIds: guardUsedIds } =
+          collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
+        guardTriggers = guardEntries;
+        if (guardUsedIds.length > 0) {
+          newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...guardUsedIds] };
+        }
       } else {
         // ガードしない → ライフクロスをクラッシュ
         // 攻撃側ルリグのダブルクラッシュ確認
@@ -6318,7 +6397,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newMyState = { ...newMyState, field: { ...newMyState.field, lrig_attacked: true } };
         appendBattleLogs([`ルリグアタック継続（残り${rem}回）`]);
       }
-      await supabase.from('battle_states').update({ [stateKey]: newMyState, [oppStateKey]: newOpState }).eq('room_id', roomId);
+      const guardUpdate: Record<string, unknown> = { [stateKey]: newMyState, [oppStateKey]: newOpState };
+      if (guardTriggers.length > 0) {
+        const existingStack = bs.effect_stack ?? null;
+        guardUpdate.effect_stack = existingStack
+          ? pushToStack(existingStack, guardTriggers)
+          : initStack(bs.active_user_id ?? user.id, guardTriggers);
+      }
+      await supabase.from('battle_states').update(guardUpdate).eq('room_id', roomId);
     } finally {
       setLoading(false);
     }
@@ -6335,6 +6421,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const remainingPending = allCrashCards.filter(c => c !== cardNum);
       // CRASH_TO_TRASH_INSTEAD: 相手（攻撃側）がフラグを持つ場合エナではなくトラッシュへ
       const crashToTrash = op.crash_to_trash_instead === true;
+      // ON_LIFE_CRASHED: 自フィールドシグニの「ライフクロスがクラッシュされたとき」トリガーを収集
+      // （アタック・効果問わず全クラッシュ経路がチェックゾーン経由でここに集約される）
+      const { entries: crashTriggers, usedOncePerTurnIds: crashTriggerUsedIds } =
+        collectSelfEventTriggers('ON_LIFE_CRASHED', my, op, 'ライフクラッシュ時');
       // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
       const baseState: PlayerState = {
         ...my,
@@ -6342,13 +6432,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: crashToTrash ? [...my.trash, cardNum] : my.trash,
         field: { ...my.field, check: null },
         pending_crashed_cards: remainingPending,
+        actions_done: crashTriggerUsedIds.length > 0
+          ? [...(my.actions_done ?? []), ...crashTriggerUsedIds]
+          : my.actions_done,
       };
       if (crashToTrash) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}はトラッシュに置かれた（CRASH_TO_TRASH_INSTEAD）`]);
       if (!activate) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states')
-          .update({ [stateKey]: baseState, pending_effect: null })
-          .eq('room_id', roomId);
+        const update: Record<string, unknown> = { [stateKey]: baseState, pending_effect: null };
+        if (crashTriggers.length > 0) {
+          const existingStack = bs.effect_stack ?? null;
+          update.effect_stack = existingStack
+            ? pushToStack(existingStack, crashTriggers)
+            : initStack(bs.active_user_id ?? user.id, crashTriggers);
+        }
+        await supabase.from('battle_states').update(update).eq('room_id', roomId);
         return;
       }
       // LIFE_BURST効果を発火（LIFE_BURST_DOUBLEフラグがある場合は2回分キュー）
@@ -6356,7 +6454,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const baseStateForBurst = doubleBurst
         ? { ...baseState, life_burst_double_next: undefined }
         : baseState;
-      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1);
+      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1, crashTriggers);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await supabase.from('battle_states')

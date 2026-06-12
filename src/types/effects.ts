@@ -37,7 +37,9 @@ export type EffectTiming =
   | 'ON_HAND_DISCARDED'         // 手札が捨てられたとき
   | 'ON_OPP_EFFECT_TRASH_FROM_HAND' // 相手の効果で手札がトラッシュに置かれたとき
   | 'ON_OPPONENT_SIGNI_TRASHED' // 相手シグニがトラッシュに置かれたとき
-  | 'ON_OPPONENT_SIGNI_PLAY';   // 相手がシグニを場に出したとき
+  | 'ON_OPPONENT_SIGNI_PLAY'    // 相手がシグニを場に出したとき
+  | 'ON_LIFE_CRASHED'           // あなたのライフクロスがクラッシュされたとき
+  | 'ON_GUARD';                 // あなたが【ガード】したとき
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
