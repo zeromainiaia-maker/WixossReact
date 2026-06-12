@@ -6069,43 +6069,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ルリグアタックのガード応答（CPUがlrig_attackedされている）───
     if (cpuSt.field?.lrig_attacked) {
-      // CPUはガードしない
-      let newCpuSt: PlayerState;
-      if (cpuSt.prevent_lrig_damage) {
-        appendBattleLogs([`[CPU] ルリグアタックを受けたがルリグダメージ無効`]);
-        newCpuSt = { ...cpuSt, prevent_lrig_damage: undefined, field: { ...cpuSt.field, lrig_attacked: false } };
-        await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
-        return;
-      } else if (cpuSt.life_cloth.length > 0) {
-        const crashed = cpuSt.life_cloth[cpuSt.life_cloth.length - 1];
-        appendBattleLogs([`[CPU] ルリグアタックを受けた → ライフクロスクラッシュ（残り${cpuSt.life_cloth.length - 1}枚）`]);
-        newCpuSt = {
-          ...cpuSt,
-          life_cloth: cpuSt.life_cloth.slice(0, -1),
-          field: { ...cpuSt.field, lrig_attacked: false, check: crashed },
-        };
-      } else if (cpuSt.prevent_defeat) {
-        appendBattleLogs([`[CPU] ルリグアタック：ライフなし → 敗北無効`]);
-        newCpuSt = { ...cpuSt, prevent_defeat: undefined, field: { ...cpuSt.field, lrig_attacked: false } };
-      } else {
-        appendBattleLogs([`[CPU] ライフクロスが0枚 → あなたの勝利！`]);
-        // ライフなし → 人間の勝利
-        await supabase.from('battle_states').update({
-          guest_state: { ...cpuSt, field: { ...cpuSt.field, lrig_attacked: false } },
-          winner_id: user.id,
-          global_phase: 'FINISHED',
-        }).eq('room_id', roomId);
-        return;
-      }
-      // MULTI_DAMAGE_ON_LRIG_ATTACK: 人間攻撃側に残りアタック回数があれば再トリガー
-      let newHuStMD = huSt;
-      if (huSt.lrig_attack_remaining && huSt.lrig_attack_remaining > 0) {
-        const remMD = huSt.lrig_attack_remaining - 1;
-        newHuStMD = { ...huSt, lrig_attack_remaining: remMD > 0 ? remMD : undefined };
-        newCpuSt = { ...newCpuSt, field: { ...newCpuSt.field, lrig_attacked: true } };
-        appendBattleLogs([`[CPU] ルリグアタック継続（残り${remMD}回）`]);
-      }
-      await supabase.from('battle_states').update({ guest_state: newCpuSt, host_state: newHuStMD }).eq('room_id', roomId);
+      // CPUはガードしない。対人戦と同じ共通処理でダメージ解決
+      // （各種ダメージ無効・ダブルクラッシュ・敗北無効・MULTI_DAMAGE再アタックを含む）
+      appendBattleLogs([`[CPU] ガードしない`]);
+      await performGuardResponse(null, {
+        responder: cpuSt, attacker: huSt,
+        responderId: CPU_PLAYER_ID, attackerId: bs.host_id,
+        responderKey: 'guest_state',
+      });
       return;
     }
 
