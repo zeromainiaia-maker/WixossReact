@@ -6717,13 +6717,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       if (crashToTrash) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}はトラッシュに置かれた（CRASH_TO_TRASH_INSTEAD）`]);
       if (!activate) {
-        const stateKey = isHost ? 'host_state' : 'guest_state';
+        const stateKey = p.ownerKey;
         const update: Record<string, unknown> = { [stateKey]: baseState, pending_effect: null };
         if (crashTriggers.length > 0) {
           const existingStack = bs.effect_stack ?? null;
           update.effect_stack = existingStack
             ? pushToStack(existingStack, crashTriggers)
-            : initStack(bs.active_user_id ?? user.id, crashTriggers);
+            : initStack(bs.active_user_id ?? ownerId, crashTriggers);
         }
         await supabase.from('battle_states').update(update).eq('room_id', roomId);
         return;
@@ -6733,9 +6733,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const baseStateForBurst = doubleBurst
         ? { ...baseState, life_burst_double_next: undefined }
         : baseState;
-      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1, crashTriggers);
+      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1, crashTriggers, { id: ownerId, key: p.ownerKey });
       if (!fired) {
-        const stateKey = isHost ? 'host_state' : 'guest_state';
+        const stateKey = p.ownerKey;
         await supabase.from('battle_states')
           .update({ [stateKey]: baseState, pending_effect: null })
           .eq('room_id', roomId);
@@ -6743,6 +6743,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally {
       setLoading(false);
     }
+  };
+
+  // ライフバースト確認（人間プレイヤー用エントリポイント）
+  const handleLifeBurstResponse = async (activate: boolean, targetCardNum?: string) => {
+    if (loading) return;
+    await performLifeBurstResponse(activate, targetCardNum, {
+      owner: my,
+      opponent: op,
+      ownerId: user.id,
+      ownerKey: isHost ? 'host_state' : 'guest_state',
+    });
   };
 
   // シグニ起動効果を実行（コスト支払い後）
