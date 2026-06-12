@@ -1,5 +1,33 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 zerom側: アクション不一致ラウンド3完了（144→**0件**、v0.254）— 全シート0件達成
+>
+> Sheet3(37)/Sheet4(31)/Sheet7(1)/Sheet8(28)/Sheet9(46) をすべて0件化。**verifyEffectsの全カテゴリ
+> （コスト/タイミング/定義なし/LIFE_BURST/アクション）が全12シートで0件**。checkAllEffects 0維持。tsc 0 / lint 0 errors。
+>
+> ### このラウンドの主な変更
+> 1. **JSON修正 約100カード**: CHOOSE丸ごと欠落の展開（約30カード）、「エナゾーンに置く」のBANISH誤り→
+>    `ENERGY_CHARGE+target`修正（約10カード）、「デッキから探してエナへ」のSEARCH+then:ADD_TO_ENERGY展開、
+>    「1ドローかエナチャ1」CHOOSE化、チーム効果丸ごと欠落の追加（WXDi-P16-087/089/093）、
+>    「N枚見てM枚手札/エナ」のRPHSB（revealPickParams）置換等。使い捨てスクリプトは
+>    tmp_verify/fixSheet3.mjs / fixSheet4.mjs / fixSheet8.mjs / fixSheet9.mjs（gitignore対象）
+> 2. **新規STUB実装2種✅**: INTERNAL_DRAW_PER_CENTER_LEVEL / INTERNAL_CHARGE_PER_CENTER_LEVEL
+>    （ルリグレベル比例ドロー/エナチャ、execStubPart3）。ログのみSTUB新設7種はSTUBS.md
+>    「2026-06-12 アクション不一致修正ラウンド3」参照
+> 3. **choiceTextParser拡張**: 「あなたのすべてのシグニのパワーを＋N」→POWER_MODIFY(self ALL)
+> 4. **verifyEffects誤検出修正**: stripParensのネスト括弧対応（ランサー注釈の誤LIFE_CRASH）、
+>    「バニッシュ以外」「探している間」「ルリグデッキから」の除外、STUB_EQUIVALENTS 6種追加
+>    （INTERNAL_DECK_TRASH_BOTH/INTERNAL_DISCARD_ALL_DRAW_N/INTERNAL_DRAW_PER_CENTER_LEVEL/
+>    INTERNAL_CHARGE_PER_CENTER_LEVEL + CMCBC系2種にMOVE_TO_ENERGY/POWER_MODIFY追加）
+> 5. **Sheet7のダッキ（WXDi-P02-037）**: E1を新設timing `ON_LIFE_CRASHED`+DRAW実体に変更。
+>    **クラッシュ時トリガーの配線は未実装のまま**（クラッシュ発生がcrashOneLife系7箇所+execLifeCrashに
+>    分散しており、今回は見送り。配線時は全経路で before/after のlife_cloth減少検出が必要）
+>
+> ### 次回候補（このHANDOFFの残課題）
+> - checkAllEffects残: MANDATORY_SUSPICIOUS 102 / EFFECT_TYPE_MISSING 54 の精査（memory参照）
+> - ON_LIFE_CRASHED / ON_GUARD 等の未配線timingのトリガー配線
+> - STUB_LOG（ログのみSTUB）の本実装化継続
+
 > ## ✅ 2026-06-12 zerom側: アクション不一致ラウンド2（217→144件、v0.253）— Sheet2を0件化
 >
 > 残りは **Sheet3: 37 / Sheet4: 32 / Sheet7: 1 / Sheet8: 28 / Sheet9: 46 = 計144件**。
