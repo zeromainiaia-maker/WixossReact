@@ -2867,6 +2867,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             signi_frozen: [false, false, false],
             lrig_down:    (opState.field.lrig_down ?? false) && curLrigFrozen,
             lrig_frozen:  false,
+            assist_lrig_l_down: false,
+            assist_lrig_r_down: false,
           },
         };
         // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
