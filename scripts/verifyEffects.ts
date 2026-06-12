@@ -424,7 +424,13 @@ for (const row of rows) {
 
   // ─── 5. 主要アクション照合 ───
   // （）で囲まれたキーワード説明文を除去（ランサー説明の「クラッシュ」等の誤検出対策）
-  const stripParens = (t: string) => t.replace(/（[^（）]*）/g, '');
+  // ネスト括弧対応（「（【ランサー（パワー5000以下のシグニ）】を持つ…）」等は内→外の順で繰り返し除去）
+  const stripParens = (t: string) => {
+    let prev = t;
+    let cur = t.replace(/（[^（）]*）/g, '');
+    while (cur !== prev) { prev = cur; cur = cur.replace(/（[^（）]*）/g, ''); }
+    return cur;
+  };
   // 各効果ブロックのコスト部分（【起/出/自】...：の前）を除去して効果部分のみを残す
   const stripCostParts = (t: string) => t.replace(/【[^】]+】[^：。]*：/g, '');
   // 「」内の付与能力引用文を除去（「【自】：ライフクロスをクラッシュしたとき...」等の誤検出対策）
