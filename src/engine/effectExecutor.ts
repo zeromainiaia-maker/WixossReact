@@ -285,6 +285,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         ...s, hand: remaining, trash: [...s.trash, ...toTrash],
         // ON_HAND_DISCARDEDトリガー検出用（BattleScreenが消化してクリア）
         hand_discarded_just: toTrash.length > 0 ? [...(s.hand_discarded_just ?? []), ...toTrash] : s.hand_discarded_just,
+        turn_hand_discarded_count: tgt.owner === 'self' && toTrash.length > 0
+          ? (s.turn_hand_discarded_count ?? 0) + toTrash.length : s.turn_hand_discarded_count,
       };
       return addLog(setOwnerState(tgt.owner, newS, c),
         `手札から${toTrash.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
