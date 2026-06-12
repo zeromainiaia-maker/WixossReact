@@ -1533,8 +1533,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (loading) return;
     // ターンプレイヤーが自分か、キュー先頭のエフェクト所有者が自分の場合に解決する
     // （相手ターン中の自分のライフバーストなど、非ターンプレイヤーのエフェクトにも対応）
+    // CPU戦はクライアントが人間側のみのため、CPUターン中のCPU所有エントリも人間クライアントが解決する
     const firstEntry = stack.queue[0];
-    if (bs.active_user_id !== user.id && firstEntry?.playerId !== user.id) return;
+    if (!isCpuBattle && bs.active_user_id !== user.id && firstEntry?.playerId !== user.id) return;
     // 相手のチェックゾーンにカードがある（バースト処理待ち）間はスタック解決を停止
     // ※ CPUバトルでは相手（CPU）はスタック解決後に自動処理するためブロックしない
     const isLocalHost = user.id === bs.host_id;
