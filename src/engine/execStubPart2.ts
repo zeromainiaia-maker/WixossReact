@@ -2159,13 +2159,14 @@ export function execStubPart2(
     }
     return done(addLog(ctx, `パワーミラー（対象なし / 捨てパワー${discardedPwPMM}）`));
   }
-  // PLACE_VIRUS_CENTER: 相手の全シグニゾーンにウィルスを設置
+  // PLACE_VIRUS_CENTER: 相手の中央のシグニゾーンにウィルスを設置
   if (stub.id === 'PLACE_VIRUS_CENTER') {
     const sOtherPVC = ctx.otherState;
     const virusPVC = [...(sOtherPVC.field.signi_virus ?? [0, 0, 0])];
-    for (let i = 0; i < 3; i++) { if (virusPVC[i] === 0 && sOtherPVC.field.signi[i]?.at(-1)) virusPVC[i] = 1; }
+    if ((virusPVC[1] ?? 0) > 0) return done(addLog(ctx, '中央シグニゾーンには既に【ウィルス】がある'));
+    virusPVC[1] = 1;
     const newSOtherPVC: PlayerState = { ...sOtherPVC, field: { ...sOtherPVC.field, signi_virus: virusPVC } };
-    return done(addLog({ ...ctx, otherState: newSOtherPVC }, '相手全シグニゾーンにウィルス設置'));
+    return done(addLog({ ...ctx, otherState: newSOtherPVC }, '相手の中央シグニゾーンに【ウィルス】を設置'));
   }
   // SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ
   if (stub.id === 'SELF_TRASH_IF_NO_OPP_VIRUS') {

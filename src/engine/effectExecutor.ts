@@ -2079,30 +2079,58 @@ function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
 }
 
 function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
-  const tgtState = a.targetOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
-  const ZONE_COUNT = 3;
+  const tgtOwner: Owner = a.targetOwner === 'opponent' ? 'opponent' : 'self';
+  const tgtState = ownerState(tgtOwner, ctx);
   const virus = [...(tgtState.field.signi_virus ?? [0, 0, 0])];
   // どのゾーンに置けるか（まだウィルスが置かれていないゾーン）
   const available = [0, 1, 2].filter(i => virus[i] === 0);
+  if (available.length === 0) return done(addLog(ctx, '【ウィルス】を置けるゾーンなし'));
 
-  let placed = 0;
-  if (a.zoneCount === 'ALL') {
-    for (let i = 0; i < ZONE_COUNT; i++) {
-      if (virus[i] === 0) { virus[i] = a.virusCount; placed++; }
-    }
-  } else {
-    const maxZones = Math.min(a.zoneCount as number, available.length);
-    for (let i = 0; i < maxZones; i++) {
-      virus[available[i]] = a.virusCount; placed++;
-    }
+  const zoneCount = a.zoneCount === 'ALL'
+    ? available.length
+    : Math.min(a.zoneCount, available.length);
+
+  // 全空きゾーンに置く場合は選択の余地がない（「まで」の場合は減らせるので選択させる）
+  if (zoneCount >= available.length && !a.upToZoneCount) {
+    for (const i of available) virus[i] = a.virusCount;
+    const newState: PlayerState = { ...tgtState, field: { ...tgtState.field, signi_virus: virus } };
+    return done(addLog(setOwnerState(tgtOwner, newState, ctx), `【ウィルス】を${available.length}ゾーンに配置`));
   }
 
-  const newField = { ...tgtState.field, signi_virus: virus };
-  const newState: PlayerState = { ...tgtState, field: newField };
-  const ctx2 = a.targetOwner === 'opponent'
-    ? { ...ctx, otherState: newState }
-    : { ...ctx, ownerState: newState };
-  return done(addLog(ctx2, `【ウィルス】を${placed}ゾーンに配置`));
+  // 配置先ゾーンをプレイヤーが選択する
+  return needsInteraction(ctx, {
+    type: 'SELECT_VIRUS_ZONE',
+    owner: tgtOwner,
+    virusCount: a.virusCount,
+    remainingZones: zoneCount,
+    upTo: a.upToZoneCount ?? false,
+  });
+}
+
+// SELECT_VIRUS_ZONE: プレイヤーが選んだシグニゾーンに【ウィルス】を置く（zoneIndex=nullで配置打ち切り）
+export function resumeSelectVirusZone(
+  zoneIndex: number | null,
+  pending: PendingInteractionDef & { type: 'SELECT_VIRUS_ZONE' },
+  ctx: ExecCtx,
+): ExecResult {
+  if (zoneIndex === null) {
+    const cur = addLog(ctx, '【ウィルス】配置を終了');
+    if (pending.continuation) return executeAction(pending.continuation, cur);
+    return done(cur);
+  }
+  const state = ownerState(pending.owner, ctx);
+  const virus = [...(state.field.signi_virus ?? [0, 0, 0])];
+  // 既にウィルスがあるゾーンが選ばれた場合は再選択
+  if ((virus[zoneIndex] ?? 0) > 0) return needsInteraction(ctx, pending);
+  virus[zoneIndex] = pending.virusCount;
+  const newS: PlayerState = { ...state, field: { ...state.field, signi_virus: virus } };
+  const cur = addLog(setOwnerState(pending.owner, newS, ctx), `ゾーン${zoneIndex + 1}に【ウィルス】を配置`);
+  const remaining = pending.remainingZones - 1;
+  if (remaining > 0 && [0, 1, 2].some(i => virus[i] === 0)) {
+    return needsInteraction(cur, { ...pending, remainingZones: remaining });
+  }
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
 }
 
 function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {

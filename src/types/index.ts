@@ -351,6 +351,14 @@ export type PendingInteractionDef =
       continuation?: EffectAction;
     }
   | {
+      type: 'SELECT_VIRUS_ZONE';
+      owner: 'self' | 'opponent';  // ウィルスを置くフィールドの持ち主（効果オーナー視点）
+      virusCount: number;          // 選択ゾーンに置くウィルス数（通常1）
+      remainingZones: number;      // 残り選択ゾーン数
+      upTo?: boolean;              // true=「～つまで」（配置をやめられる）
+      continuation?: EffectAction;
+    }
+  | {
       type: 'DECLARE_BOND';
       deckCards: string[];       // デッキのCardNum一覧（全枚数表示）
       continuation?: EffectAction;

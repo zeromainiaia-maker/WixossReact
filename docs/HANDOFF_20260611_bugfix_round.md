@@ -1,5 +1,60 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-12 ymsty側: ウィルス配置のゾーン選択化（v0.258）+ 🆕 zerom側への新規課題2件（下記A/B）
+>
+> ### 完了: ウィルスが勝手にゾーン1（左端）に置かれる問題の修正
+> 1. **PLACE_VIRUS（effectExecutor.ts execPlaceVirus）**: 左端の空きゾーンから自動配置していた →
+>    新設インタラクション `SELECT_VIRUS_ZONE`（types/index.ts PendingInteractionDefに追加）で効果オーナーが
+>    ゾーンを選択。選択の余地がない場合（'ALL' / 配置数≧空きゾーン数で強制）は従来どおり即時配置。
+>    「～つまで」（upToZoneCount）は1ゾーンずつ選択し「配置を終了する」で打ち切り可。
+>    複数ゾーンは remainingZones を減らしながら再インタラクション。`resumeSelectVirusZone` 新設（export）。
+> 2. **PLACE_VIRUS_CENTER（execStubPart2.ts）実バグ**: テキストは「対戦相手の中央のシグニゾーンに置く」なのに
+>    実装が「シグニのいる全ゾーンに置く」だった → 中央（index 1）固定に修正（選択不要）。
+> 3. **BattleScreen.tsx**: SELECT_VIRUS_ZONE モーダルUI（ゾーン3ボタン+シグニ名表示、ウィルス済みは無効、
+>    upTo時は打ち切りボタン）+ `handleSelectVirusZoneForEffect`。
+>    **CPU自動応答を追加**（CPU効果のゾーン選択は最初の空きを自動選択）。その際、**既存の SELECT_ZONE
+>    （デッキトップを場に出す効果）にもCPU応答が存在せず固まる潜在バグ**を発見したため併せて対応済み。
+> 4. 検証: tsc 0 / lint 0 errors（warning 26→28、新規2件は既存と同型のreact-hooks系）/
+>    tsxスモークテスト13項目PASS（選択化・ALL即時・強制即時・まで打ち切り・空きなし・再選択・
+>    SEQUENCE内continuation引き継ぎ）。**デプロイ未実施（ymsty側に権限なし）→ zerom側で動作確認のうえ
+>    version確認 + `vercel deploy --prod` を行うこと**。
+>
+> ### 🆕 課題A（zerom担当）: カードを場に出す効果のゾーン自動配置（最初の空きゾーン固定）
+>
+> カードを場に出す効果（トラッシュ/手札/エナから「場に出す」）はゾーン選択なしで**最初の空きゾーンに
+> 自動配置**される（コード上「呼び出し元が担当できないため自動的に最初の空きへ」と意図的簡略化の明記あり）。
+> 本来はプレイヤーがゾーンを選ぶルール。ウィルスと同じ症状（勝手にゾーン1）。
+>
+> - **箇所**: effectExecutor.ts `execAddToField` 内 `applyToField`（count:'ALL'経路、L511付近）/
+>   `applyDirectAction` の `ADD_TO_FIELD`（SELECT_TARGET・SEARCH選択後の経路、L2810付近）/
+>   スタブ多数（execStubPart1 L201、execStubPart2 L1210・L1350・L1517、execStubPart3 L2527・L3280 等。
+>   `findIndex(z => !z || z.length === 0)` でgrepすると列挙できる）
+> - **実装ガイド**: 既存の SELECT_ZONE（デッキトップ用）と今回の SELECT_VIRUS_ZONE が実装例。注意点:
+>   1. `resumeSelectTarget`（L2360付近）のループは pending を返すと**残りの選択カードが脱落**する。
+>      複数枚「場に出す」を選択式にするには1枚ずつ連鎖させる設計（continuation化）が必要
+>   2. `resumeSelectZone` は占有ゾーン選択時に**デッキトップへ戻す**安全網がある — トラッシュ/手札/エナ
+>      出しに流用する場合は戻し先の引数化が必要
+>   3. AddToFieldAction の `asDown`（ダウン状態で出す）は SELECT_ZONE 定義に未対応
+>   4. CPU自動応答は SELECT_ZONE / SELECT_VIRUS_ZONE 対応済み（BattleScreen L1077付近）。
+>      新インタラクション型を足す場合はここにも追加しないとCPU戦が固まる
+>
+> ### 🆕 課題B（zerom担当）: WX15-116 ヨグルティの ON_BANISH 効果がCPU対戦で発動しない（調査済み・方針確定）
+>
+> - JSON定義は正常: `WX15-116-E1` = AUTO / ON_BANISH / PLACE_VIRUS（zoneCount:1）
+> - 配線済みで正常な経路: 人間のアタック（handleSigniAttack L5648で collectBanishTriggers）・
+>   効果バニッシュ（detectBanishedSigni L3381/L3698）・パワー0バニッシュ（L5895）
+> - **原因: CPUアタックのバトル勝利処理（cpuTurn の ATTACK_SIGNI、BattleScreen L6355-6396）が独自実装**:
+>   - (a) collectBanishTriggers を呼ばない → ON_BANISH / ON_LEAVE_FIELD / ON_SIGNI_BANISH_BATTLE 等が
+>     CPU戦のバトルバニッシュで一切発火しない
+>   - (b) バニッシュ先が**トラッシュ**（`trash: [...huSt.trash, ...opStack]`）— 正: トップカードはエナへ、
+>     ライズ下カードはトラッシュへ。**CPU戦では人間のシグニがバニッシュされてもエナが増えない**ルール違反
+>   - (c) バニッシュ代替（ダウン代替/調理/アクセ/ライズ）・リダイレクト（banish_redirect等）・チャームも未考慮
+> - **修正方針**: handleSigniAttack の L5732-5741 と同じパターンで
+>   `collectBanishTriggers(banishedCardNum, 人間側id, newHostState, newGuestState)` → `pushToStack/initStack`
+>   で effect_stack に積む。最低限 (a)(b) で WX15-116 は発火する（PLACE_VIRUS は SELECT_VIRUS_ZONE になり
+>   人間オーナーならモーダルでゾーン選択、CPUオーナーならCPU自動応答済み）。(c) は別途
+>   handleSigniAttack のロジック共通化を検討
+
 > ## ✅ 2026-06-12 ymsty側: トリガー配線ラウンド3（v0.257）— 未配線timing 5種を配線（1種は配線不能と判定）
 >
 > v0.256の残りを処理。tsc 0 / lint 0 errors / checkAllEffects 0 / verifyEffects全12シート0件維持。

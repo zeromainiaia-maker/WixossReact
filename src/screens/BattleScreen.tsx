@@ -5,7 +5,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass} from '../engine/effectEngine';
-import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -1072,8 +1072,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   useEffect(() => {
     if (!isCpuBattle || !bs?.pending_effect) return;
     const pe = bs.pending_effect;
-    if (pe.respondPlayerId !== CPU_PLAYER_ID) return;
     const inter = pe.interaction;
+    // SELECT_VIRUS_ZONE / SELECT_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
+    if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE') {
+      if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
+      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+      const tgtIsHost = inter.owner === 'self' ? ownerIsHost : !ownerIsHost;
+      const tgtState = tgtIsHost ? bs.host_state : bs.guest_state;
+      if (inter.type === 'SELECT_VIRUS_ZONE') {
+        const tgtVirus = tgtState.field.signi_virus ?? [0, 0, 0];
+        const zone = [0, 1, 2].find(zi => (tgtVirus[zi] ?? 0) === 0);
+        const timerVZ = setTimeout(() => {
+          handleSelectVirusZoneForEffect(zone ?? null);
+        }, CPU_ACTION_DELAY);
+        return () => clearTimeout(timerVZ);
+      }
+      const emptyZone = [0, 1, 2].find(zi => !(tgtState.field.signi[zi]?.length));
+      if (emptyZone === undefined) return;
+      const timerSZ = setTimeout(() => {
+        handleSelectZoneForEffect(emptyZone);
+      }, CPU_ACTION_DELAY);
+      return () => clearTimeout(timerSZ);
+    }
+    if (pe.respondPlayerId !== CPU_PLAYER_ID) return;
     const timer = setTimeout(() => {
       let selected: string[] = [];
       if (inter.type === 'SELECT_TARGET') {
@@ -3769,6 +3790,44 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors };
 
       const result = resumeSelectZone(zoneIndex, inter, ctx);
+      if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
+
+      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
+      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
+      if (!result.done) {
+        const { respondPlayerId: _drop, ...peBase } = pe;
+        update.pending_effect = { ...peBase, interaction: result.pending } satisfies PendingEffect;
+      } else {
+        update.pending_effect = null;
+        const existingStack = bs.effect_stack ?? null;
+        if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // SELECT_VIRUS_ZONE: 【ウィルス】を置くシグニゾーンの選択（zoneIndex=nullで配置打ち切り）
+  const handleSelectVirusZoneForEffect = async (zoneIndex: number | null) => {
+    if (!bs?.pending_effect || loading) return;
+    setLoading(true);
+    try {
+      const pe = bs.pending_effect;
+      const inter = pe.interaction;
+      if (inter.type !== 'SELECT_VIRUS_ZONE') return;
+      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+      const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
+      const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
+      const isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
+      const ctxPowers = calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, battleCardMap);
+      const allColorSigniNums = new Set([...collectAllColorSigniForField(ownerState, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectAllColorSigniForField(otherState, battleCardMap, effectsMap, ownerState, !isOwnerTurn)]);
+      const fieldSigniExtraColors = new Map([...collectFieldSigniExtraColors(ownerState, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectFieldSigniExtraColors(otherState, battleCardMap, effectsMap, ownerState, !isOwnerTurn)]);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: battleCardMap, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors };
+
+      const result = resumeSelectVirusZone(zoneIndex, inter, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -10917,6 +10976,62 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     );
                   })}
                 </div>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
+        // SELECT_VIRUS_ZONE：【ウィルス】を置くシグニゾーンの選択
+        if (inter.type === 'SELECT_VIRUS_ZONE') {
+          const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+          const tgtIsHost = inter.owner === 'self' ? ownerIsHost : !ownerIsHost;
+          const tgtState = tgtIsHost ? bs.host_state : bs.guest_state;
+          const tgtVirus = tgtState.field.signi_virus ?? [0, 0, 0];
+          const tgtLabel = inter.owner === 'opponent' ? '相手の' : '自分の';
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '20px 16px', width: 'min(95vw, 380px)',
+                  display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                </p>
+                <p style={{ color: C.textDim, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                  {tgtLabel}【ウィルス】を置くシグニゾーンを選択してください
+                  {inter.remainingZones > 1 ? `（残り${inter.remainingZones}ゾーン）` : ''}
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {([0, 1, 2] as const).map(zi => {
+                    const hasVirus = (tgtVirus[zi] ?? 0) > 0;
+                    const signiName = battleCardMap.get(tgtState.field.signi[zi]?.at(-1) ?? '')?.CardName;
+                    return (
+                      <button key={zi}
+                        onClick={() => !hasVirus && !loading && handleSelectVirusZoneForEffect(zi)}
+                        disabled={hasVirus || loading}
+                        style={{ flex: 1, padding: '12px 4px', borderRadius: 8,
+                          border: hasVirus ? `1px solid ${C.textFaint}` : C.borderUI,
+                          backgroundColor: hasVirus ? C.disabled : C.bgButton,
+                          color: hasVirus ? C.textFaint : C.text,
+                          fontSize: 12, whiteSpace: 'pre-wrap',
+                          cursor: hasVirus || loading ? 'default' : 'pointer' }}>
+                        {`ゾーン${zi + 1}\n${hasVirus ? '(ウィルスあり)' : (signiName ?? '(空き)')}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                {inter.upTo && (
+                  <button onClick={() => !loading && handleSelectVirusZoneForEffect(null)}
+                    disabled={loading}
+                    style={{ padding: '10px 0', borderRadius: 8, border: C.borderUI,
+                      backgroundColor: 'transparent', color: C.textSub, fontSize: 13,
+                      cursor: loading ? 'default' : 'pointer' }}>
+                    配置を終了する
+                  </button>
+                )}
               </div>
             </div>,
             document.body,
