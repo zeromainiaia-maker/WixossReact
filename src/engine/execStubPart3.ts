@@ -3968,6 +3968,58 @@ export function execStubPart3(
     });
   }
 
+  // BANISH_IF_DISCARDED_3_THIS_TURN: このターン手札3枚以上捨てていればバニッシュ+相手エナトラッシュ（WXK03-021 ON_ATTACK_PHASE_START）
+  if (stub.id === 'BANISH_IF_DISCARDED_3_THIS_TURN') {
+    const count = ctx.ownerState.turn_hand_discarded_count ?? 0;
+    if (count < 3) {
+      return done(addLog(ctx, `手札捨て${count}枚（3枚未満のため不発）`));
+    }
+    const oppCands = ctx.otherState.field.signi.filter(s => s?.at(-1)).map(s => s!.at(-1)!);
+    if (oppCands.length === 0) {
+      return done(addLog(ctx, `手札${count}枚捨て済み → 相手シグニなし`));
+    }
+    const banishNext: StubAction = { type: 'STUB', id: 'INTERNAL_BIDC_BANISH' };
+    return needsInteraction(
+      addLog(ctx, `手札${count}枚捨て済み → 相手シグニ1体バニッシュ`),
+      {
+        type: 'SELECT_TARGET', candidates: oppCands, count: 1, optional: false,
+        targetScope: 'opp_field' as TargetScope,
+        thenAction: banishNext as EffectAction,
+      },
+    );
+  }
+  if (stub.id === 'INTERNAL_BIDC_BANISH') {
+    const targetNum = (ctx.lastProcessedCards ?? [])[0];
+    if (!targetNum) return done(addLog(ctx, 'INTERNAL_BIDC_BANISH: 対象なし'));
+    const targetName = ctx.cardMap.get(targetNum)?.CardName ?? targetNum;
+    const removed = removeFromField(targetNum, ctx.otherState);
+    const { state: withDest, log: destLog } = banishDestination(removed, ctx.ownerState, targetNum);
+    const oppEnergyCands = ctx.otherState.energy;
+    if (oppEnergyCands.length === 0) {
+      return done(addLog({ ...ctx, otherState: withDest }, `${targetName}${destLog}（相手エナなし）`));
+    }
+    const energyNext: StubAction = { type: 'STUB', id: 'INTERNAL_BIDC_ENERGY' };
+    return needsInteraction(
+      addLog({ ...ctx, otherState: withDest }, `${targetName}${destLog} → 相手エナ1枚をトラッシュ`),
+      {
+        type: 'SELECT_TARGET', candidates: oppEnergyCands, count: 1, optional: false,
+        targetScope: 'opp_energy' as TargetScope,
+        thenAction: energyNext as EffectAction,
+      },
+    );
+  }
+  if (stub.id === 'INTERNAL_BIDC_ENERGY') {
+    const energyNum = (ctx.lastProcessedCards ?? [])[0];
+    if (!energyNum) return done(addLog(ctx, 'INTERNAL_BIDC_ENERGY: 対象なし'));
+    const energyName = ctx.cardMap.get(energyNum)?.CardName ?? energyNum;
+    const newOther = {
+      ...ctx.otherState,
+      energy: ctx.otherState.energy.filter(cn => cn !== energyNum),
+      trash: [...ctx.otherState.trash, energyNum],
+    };
+    return done(addLog({ ...ctx, otherState: newOther }, `${energyName}をエナからトラッシュへ`));
+  }
+
   // OPP_LRIG_LOSE_ABILITY: 相手ターンの場合、ターン終了時まで相手センタールリグは能力を失う（WX20-003）
   // カットインが未実装のため自ターンに発動することはないが、構造上は otherState にフラグをセット
   if (stub.id === 'OPP_LRIG_LOSE_ABILITY') {
