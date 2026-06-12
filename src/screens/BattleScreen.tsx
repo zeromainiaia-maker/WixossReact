@@ -6664,12 +6664,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const existingStack = bs.effect_stack ?? null;
         guardUpdate.effect_stack = existingStack
           ? pushToStack(existingStack, guardTriggers)
-          : initStack(bs.active_user_id ?? user.id, guardTriggers);
+          : initStack(bs.active_user_id ?? attackerId, guardTriggers);
       }
       await supabase.from('battle_states').update(guardUpdate).eq('room_id', roomId);
     } finally {
       setLoading(false);
     }
+  };
+
+  // ガード応答（人間プレイヤー用エントリポイント）
+  const handleGuardResponse = async (handIndex: number | null) => {
+    if (loading) return;
+    await performGuardResponse(handIndex, {
+      responder: my,
+      attacker: op,
+      responderId: user.id,
+      attackerId: isHost ? bs.guest_id : bs.host_id,
+      responderKey: isHost ? 'host_state' : 'guest_state',
+    });
   };
 
   // ライフバースト確認後の処理
