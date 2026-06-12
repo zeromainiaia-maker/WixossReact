@@ -5651,12 +5651,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } satisfies StackEntry));
 
       // ON_BANISH トリガー（バニッシュされた相手シグニ + フィールドトリガー）
-      const newHostState  = isHost ? newMyState : newOpState;
-      const newGuestState = isHost ? newOpState : newMyState;
+      const newHostState  = attackerIsHost ? newMyState : newOpState;
+      const newGuestState = attackerIsHost ? newOpState : newMyState;
       const banishEntries = banishedOpCardNum
         ? collectBanishTriggers(
             banishedOpCardNum,
-            isHost ? bs.guest_id : bs.host_id,
+            defenderId,
             newHostState,
             newGuestState,
           )
