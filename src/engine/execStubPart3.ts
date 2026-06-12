@@ -3978,7 +3978,7 @@ export function execStubPart3(
     }
     const underSpells = zoneStack.slice(0, -1).filter(cn => {
       const card = ctx.cardMap.get(cn);
-      return card?.CardType?.includes('スペル') || card?.CardType?.includes('spell');
+      return card?.Type?.includes('スペル') || card?.Type?.includes('spell');
     });
     if (underSpells.length === 0) {
       return done(addLog(ctx, `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}: 下にスペルなし`));
