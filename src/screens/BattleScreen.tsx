@@ -5569,7 +5569,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const azaEffect = (effectsMap.get(myTopNum) ?? []).find(e =>
         e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' &&
         (e.action as import('../types/effects').StubAction).id === 'ADJACENT_ZONE_ATTACK' &&
-        checkActiveCondition(e.activeCondition, my, newOpState, isMyTurn, battleCardMap, myTopNum),
+        checkActiveCondition(e.activeCondition, my, newOpState, true, battleCardMap, myTopNum),
       );
       if (azaEffect) {
         const myPowerAZA = effectivePowers.get(myTopNum) ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
