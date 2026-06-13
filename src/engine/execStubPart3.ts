@@ -4267,5 +4267,42 @@ export function execStubPart3(
       `${ctx.cardMap.get(pickedTAUC)?.CardName ?? pickedTAUC}をトラッシュ（付属カード）`));
   }
 
+  // ARTS_SELF_RECYCLE_ON_TRIGGER: ルリグトラッシュのアーツがトリガー時に自己回収
+  if (stub.id === 'ARTS_SELF_RECYCLE_ON_TRIGGER') {
+    const selfNum = ctx.sourceCardNum;
+    const costCs = stub.costColors ?? [];
+    const inLrigTrash = selfNum && (ctx.ownerState.lrig_trash ?? []).includes(selfNum);
+    if (!inLrigTrash) {
+      return done(addLog(ctx, `ARTS_SELF_RECYCLE_ON_TRIGGER: ${selfNum} はルリグトラッシュにない`));
+    }
+    const canAffordASR = costCs.length === 0 || canPayOptionalCost(costCs, ctx.ownerState, ctx.cardMap);
+    const costLabelASR = costCs.length > 0 ? `（${costCs.map(c => `《${c}》`).join('')}）` : '';
+    const recycleAction: StubAction = { type: 'STUB', id: 'INTERNAL_ARTS_RECYCLE_EXECUTE' };
+    const skipAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
+    return needsInteraction(addLog(ctx, `アーツ自己回収${costLabelASR}：ルリグデッキに戻しますか？`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'pay', label: `ルリグデッキに戻す${costLabelASR}`, action: recycleAction as EffectAction,
+          available: canAffordASR, ...(costCs.length ? { costColors: costCs } : {}) },
+        { id: 'skip', label: 'しない', action: skipAction as EffectAction, available: true },
+      ],
+    });
+  }
+
+  // INTERNAL_ARTS_RECYCLE_EXECUTE: アーツをルリグトラッシュからルリグデッキへ回収実行
+  if (stub.id === 'INTERNAL_ARTS_RECYCLE_EXECUTE') {
+    const selfNum = ctx.sourceCardNum;
+    if (!selfNum) return done(ctx);
+    const newLrigTrash = (ctx.ownerState.lrig_trash ?? []).filter(n => n !== selfNum);
+    const newLrigDeck = shuffle([...(ctx.ownerState.lrig_deck ?? []), selfNum]);
+    const newOwnerASR: PlayerState = {
+      ...ctx.ownerState,
+      lrig_trash: newLrigTrash,
+      lrig_deck: newLrigDeck,
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerASR },
+      `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}をルリグデッキに戻してシャッフル`));
+  }
+
   return null;
 }
