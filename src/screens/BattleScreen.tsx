@@ -7097,7 +7097,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）: キーをルリグトラッシュへ
       const keySub = useKeySub && myEnergyTrashSubInfo.keySubInstId;
       const newField = keySub
-        ? { ...my.field, signi_down: newSigniDown, key_piece: null }
+        ? { ...my.field, signi_down: newSigniDown, key_piece: null, key_piece_extra: [] }
         : { ...my.field, signi_down: newSigniDown };
       const newLrigTrash = keySub ? [...my.lrig_trash, myEnergyTrashSubInfo.keySubInstId!] : my.lrig_trash;
       // 《コインアイコン》コスト（【起】コイン。activate_cost_zero時は免除）
