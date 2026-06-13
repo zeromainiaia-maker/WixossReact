@@ -100,7 +100,13 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     ? { ...tgt.filter, levelEqDiscardLevelSum: undefined, level: ctx.ownerState.last_activated_discard_level_sum ?? -1 }
     : tgt.filter;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const banishProtected = tgt.owner === 'opponent' ? (ctx.otherBanishProtectedNums ?? new Set<string>()) : new Set<string>();
+  const allBanishCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = banishProtected.size > 0 ? allBanishCands.filter(n => !banishProtected.has(n)) : allBanishCands;
+  if (tgt.owner === 'opponent') {
+    const grants = ctx.otherState.keyword_grants;
+    cands = cands.filter(n => !hasBanishResist(n, ctx.cardMap, grants));
+  }
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyBanish(selected: string[], c: ExecCtx): ExecCtx {
