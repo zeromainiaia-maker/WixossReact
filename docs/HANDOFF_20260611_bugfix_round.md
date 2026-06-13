@@ -1,5 +1,55 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-13 ymsty側: 残4カード対応（可変コスト1枚 / アーツSTUB付与 / 正スキップ確認）（v0.278）— デプロイ未実施→zerom側で
+>
+> tsc 0 / lint 0 errors（28警告、既存同数）。機構未対応カード **残0件**。**`vercel deploy --prod` をzerom側で行うこと**（v0.275+v0.276+v0.277+v0.278まとめてデプロイ）。
+>
+> ### WDK13-011-E2（可変コスト）: 1枚以上の宇宙シグニを捨て→レベル合計と一致する相手シグニをバニッシュ
+> - **新EffectCost.discardVariable `{filter?, min}`**: 1枚以上の可変枚数手札捨てコスト（min未満では発動不可）
+> - **新TargetFilter.levelEqDiscardLevelSum**: `last_activated_discard_level_sum`（捨てたカードのレベル合計）と一致するシグニを絞り込む
+> - **新PlayerState.last_activated_discard_level_sum**: discardVariableコスト支払いで捨てたカードのレベル合計を保存。次の発動まで保持
+> - **execBanish内解決**: `matchesFilter`にはPlayerState非渡しのため、levelEqDiscardLevelSumを発動前に具体的な`level:N`値に変換してfieldCandidatesへ渡す
+> - **シグニ起動モーダル**: discardVariableのフィルタ表示＋複数選択UI（min枚以上選択しないと「発動」ボタンが無効）
+> - **executeSigniActivated拡張**: `discardVarIndices?: Set<number>` パラメータ追加、捨てカードのレベル合計計算、trash追加、last_activated_discard_level_sum更新
+>
+> ### WX25-P2-001（アーツSTUB内 GAIN_ABILITY_THIS_GAME付与2効果）
+> - **新PlayerState**: `lrig_barrier`（ルリグバリア残数）/ `game_guard_barrier_act`（ガードシグニ捨て→バリア【起】付与フラグ）/ `game_opp_guard_extra_colorless`（相手ガード追加《無》コスト、ゲーム長）
+> - **GAIN_ABILITY_THIS_GAME STUB拡張** (execStubPart1.ts): テキストマッチで上記3フラグを付与
+> - **collectOppGuardExtraColorlessCost拡張**: `game_opp_guard_extra_colorless`フラグも追加コスト判定に含む
+> - **getMyLrigFieldActions**: `game_guard_barrier_act`がtrueの場合、MAINフェイズにガードシグニ捨て→バリア【起】ボタンを表示
+> - **executeGuardBarrierAct**: 手札からガードアイコン持ちシグニを1枚選択して捨てる→`lrig_barrier+1`。GUARD_BARRIER_ACTをactions_doneに記録（once_per_turn相当）
+> - **performGuardResponse拡張**: ルリグアタック時、`lrig_barrier > 0`ならダメージ無効（prevent_next_damageより優先）し`lrig_barrier-1`
+> - **ガード応答モーダル**: ルリグバリア発動ボタンを追加（`lrig_barrier > 0`時のみ表示）
+>
+> ### 正しいスキップ確認（変更なし）
+> - **WXK10-026**: DISCARD_BY_POWER_MATCH STUBがスタブ内で手札捨てを自己処理しているため、コスト付与すると二重払いになる。変更不要（正しい）
+> - **WX25-P3-088**: v0.275でコスト付与済み（`discard:1, discardFilter:{cardType:'シグニ', story:'微菌'}`）＋timing ON_DISCARDED_AS_COSTに修正済み。変更不要（正しい）
+
+> ## ✅ 2026-06-13 ymsty側: 【起】手札から自身を捨てて発動する型 8カード対応（v0.277）— デプロイ未実施→zerom側で
+>
+> tsc 0 / lint 0 errors（28警告、既存同数）/ checkAllEffects 0 / verifyEffects全12シート0件維持。**`vercel deploy --prod` をzerom側で行うこと**（v0.275+v0.276+v0.277まとめてデプロイ）。
+>
+> ### 新スキーマ・機構
+> - **CardEffect.handActivated?: boolean**: 手札から起動できる【起】効果フラグ。BattleScreenのgetMyHandCardActionsで検出しボタン表示
+> - **EffectCost.discardSelfFromHand?: true**: 自分自身を手札から捨てることがコスト。executeHandActivated内でコスト支払い処理
+> - **State: pendingHandActivated / selectedHandActivatedCost**: 手発動モーダル用のstate
+> - **executeHandActivated**: 手コスト支払い（自身をtrashへ）＋エネルギーコスト支払い＋スタックへ積む。ON_DISCARDED_AS_COST/ON_HAND_DISCARDEDトリガーも収集
+> - **getMyHandCardActions拡張**: MAIN/ATTACK_ARTSフェイズで`handActivated`効果を持つカードに【起】ボタン表示
+> - **モーダルUI**: エネルギーコストの色選択＋「発動する（このカードを捨てる）」ボタン
+>
+> ### JSON更新 8カード
+> - **WX17-031-E3**: handActivated=true / cost:{discardSelfFromHand:true, energy:[{color:'白',count:1}]} / POWER_MODIFY self ALL
+> - **WX18-029-E2**: handActivated=true / cost:{discardSelfFromHand:true, energy:[{color:'黒',count:1}]} / DRAW
+> - **WX18-053-E1**: handActivated=true / cost:{discardSelfFromHand:true, energy:[{color:'赤',count:1}]} / POWER_MODIFY ALL
+> - **WX18-055-E1**: handActivated=true / cost:{discardSelfFromHand:true, energy:[{color:'青',count:1}]} / BOUNCE or ENERGY_CHARGE（CHOOSE）
+> - **WX19-022-E3**: handActivated=true / cost:{discardSelfFromHand:true, energy:[{color:'緑',count:1}]} / DRAW
+> - **WX19-045-E1**: handActivated=true / cost:{discardSelfFromHand:true, energy:[{color:'無',count:1}]} / ADD_TO_LIFE
+> - **WXK11-067-E1**: handActivated=true / cost:{discardSelfFromHand:true, energy:[{color:'黒',count:1}]} / BANISH+DRAW
+> - **WXDi-P08-070-E1**: handActivated=true / cost:{discardSelfFromHand:true} / DRAW×2（エネルギーコストなし）
+>
+> ### 残り4カード（v0.277→v0.278で全解消）
+> - **WDK13-011**（可変コスト）/ **WX25-P2-001**（アーツSTUB付与）/ **WXK10-026**・**WX25-P3-088**（正しいスキップ）→ v0.278で完了
+
 > ## ✅ 2026-06-13 ymsty側: 【起】手札すべて捨てコスト 6カード対応（v0.276）— デプロイ未実施→zerom側で
 >
 > tsc 0 / lint 0 errors（28警告、既存同数）/ checkAllEffects 0（警告12既存同数）。**`vercel deploy --prod` をzerom側で行うこと**（v0.275+v0.276まとめてデプロイ）。
