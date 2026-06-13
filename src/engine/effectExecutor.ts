@@ -839,15 +839,28 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     else delete resolvedFilter.cardName;
   }
 
+  // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュ内でレベル1シグニとして扱うカードのオーバーライド
+  let searchCardMap = ctx.cardMap;
+  if (ctx.deckTrashLevel1Nums && ctx.deckTrashLevel1Nums.size > 0) {
+    const overrides = new Map(ctx.cardMap);
+    for (const cn of ctx.deckTrashLevel1Nums) {
+      if (pool.includes(cn)) {
+        const card = ctx.cardMap.get(cn);
+        if (card) overrides.set(cn, { ...card, Type: 'シグニ', Level: '1' });
+      }
+    }
+    searchCardMap = overrides;
+  }
+
   // 1
-  const hasVisible = pool.some(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
+  const hasVisible = pool.some(n => matchesFilter(searchCardMap.get(n), resolvedFilter));
   if (!hasVisible) {
     if (a.afterSearch) return executeAction(a.afterSearch, ctx);
     return done(ctx);
   }
 
   // フィルタがある場合は一致カードのみ表示、ない場合は全体を公開
-  const visibleCards = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter));
+  const visibleCards = pool.filter(n => matchesFilter(searchCardMap.get(n), resolvedFilter));
 
   return needsInteraction(ctx, {
     type: 'SEARCH',
