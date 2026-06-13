@@ -237,19 +237,13 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(tgt.owner, ctx);
 
   if (tgt.type === 'SIGNI') {
-    const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    const allSigCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    const trashFieldProtected = tgt.owner === 'opponent' ? new Set(ctx.otherTrashFieldProtectedNums ?? []) : new Set<string>();
+    const cands = trashFieldProtected.size > 0 ? allSigCands.filter(n => !trashFieldProtected.has(n)) : allSigCands;
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
     function applyTrashField(selected: string[], c: ExecCtx): ExecCtx {
       let cur = c;
-      // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH等の保護チェック（相手シグニをトラッシュ移動する場合）
-      const trashFieldProtected = tgt.owner === 'opponent'
-        ? new Set(c.otherTrashFieldProtectedNums ?? [])
-        : new Set<string>();
       for (const num of selected) {
-        if (trashFieldProtected.has(num)) {
-          cur = addLog(cur, `${cur.cardMap.get(num)?.CardName ?? num}（移動保護）`);
-          continue;
-        }
         const s = ownerState(tgt.owner, cur);
         const removed = removeFromField(num, s);
         cur = addLog(setOwnerState(tgt.owner,
