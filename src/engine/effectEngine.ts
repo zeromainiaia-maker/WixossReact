@@ -3195,6 +3195,31 @@ export function collectBounceProtectedSigni(
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+
+      // GRANT_PROTECTION from=['BOUNCE'|'any']
+      if (eff.action.type === 'GRANT_PROTECTION') {
+        const gp = eff.action as GrantProtectionAction;
+        if (gp.from.includes('BOUNCE') || gp.from.includes('any')) {
+          if (gp.target?.count === 'ALL') {
+            for (const s of state.field.signi) {
+              if (!s?.length) continue;
+              protected_.add(s[s.length - 1]);
+            }
+          } else if (gp.target?.count === 1) {
+            if (gp.target.filter) {
+              for (const s of state.field.signi) {
+                if (!s?.length) continue;
+                const sTop = s[s.length - 1];
+                if (matchesFilter(cardMap.get(sTop), gp.target.filter)) protected_.add(sTop);
+              }
+            } else {
+              protected_.add(topNum);
+            }
+          }
+        }
+        continue;
+      }
+
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
 
