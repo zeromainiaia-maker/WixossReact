@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -5712,7 +5712,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const n = s?.at(-1);
               return n && (effectsMap.get(n) ?? []).some(e =>
                 e.effectType === 'CONTINUOUS' &&
-                e.action.type === 'BANISH_REDIRECT' &&
+                hasBanishRedirectInAction(e.action) &&
                 checkActiveCondition(e.activeCondition, my, op, true, battleCardMap, n, effectivePowers),
               );
             });
@@ -6212,7 +6212,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const candidates: string[] = [];
     for (const ownerIsHost of [true, false]) {
       const ownerState = ownerIsHost ? bs.host_state : bs.guest_state;
+      const opStateP0 = ownerIsHost ? bs.guest_state : bs.host_state;
+      const isOwnerTurnP0 = ownerIsHost ? isMyTurnLocal : !isMyTurnLocal;
       const grants = ownerState.keyword_grants;
+      // CONTINUOUS GRANT_PROTECTION from=['BANISH'] による保護（activeCondition 評価込み）
+      const banishProtected = collectBanishEffectProtectedSigni(ownerState, opStateP0, isOwnerTurnP0, effectsMap, battleCardMap);
       for (const stack of ownerState.field.signi) {
         if (!stack?.length) continue;
         const topNum = stack[stack.length - 1];
@@ -6220,6 +6224,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const power = powers.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
         // NaN（Power「-」等の非数値）はバニッシュ対象にしない
         if (isNaN(power) || power > 0) continue;
+        if (banishProtected.has(topNum)) continue;
         if (hasBanishResist(topNum, battleCardMap, grants)) continue;
         candidates.push(topNum);
       }
@@ -6237,7 +6242,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     for (const ownerIsHost of [true, false]) {
       const ownerId = ownerIsHost ? bs.host_id : bs.guest_id;
       const ownerState = ownerIsHost ? hostState : guestState;
+      const opStateP02 = ownerIsHost ? guestState : hostState;
+      const isOwnerTurnP02 = ownerIsHost ? isMyTurnLocal : !isMyTurnLocal;
       const grants = ownerState.keyword_grants;
+      const banishProtected2 = collectBanishEffectProtectedSigni(ownerState, opStateP02, isOwnerTurnP02, effectsMap, battleCardMap);
 
       for (const stack of ownerState.field.signi) {
         if (!stack?.length) continue;
@@ -6246,6 +6254,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const power = powers.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
         // NaN（Power「-」等の非数値）はバニッシュ対象にしない
         if (isNaN(power) || power > 0) continue;
+        if (banishProtected2.has(topNum)) continue;
         if (hasBanishResist(topNum, battleCardMap, grants)) continue;
 
         const currentOwner = ownerIsHost ? hostState : guestState;
@@ -6258,7 +6267,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const n = s?.at(-1);
             return n && (effectsMap.get(n) ?? []).some(e =>
               e.effectType === 'CONTINUOUS' &&
-              e.action.type === 'BANISH_REDIRECT' &&
+              hasBanishRedirectInAction(e.action) &&
               checkActiveCondition(e.activeCondition, opState, currentOwner, opIsOwnerTurnP0, battleCardMap, n),
             );
           });

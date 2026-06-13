@@ -571,6 +571,13 @@ function extractCostReductions(action: EffectAction): CostReductionAction[] {
   return [];
 }
 
+/** SEQUENCE ステップ内を再帰的に探索し BANISH_REDIRECT が含まれるか判定する。 */
+export function hasBanishRedirectInAction(action: EffectAction): boolean {
+  if (action.type === 'BANISH_REDIRECT') return true;
+  if (action.type === 'SEQUENCE') return (action as import('../types/effects').SequenceAction).steps.some(s => hasBanishRedirectInAction(s));
+  return false;
+}
+
 // ===== フィールドシグニの有効パワー計算 =====
 
 /**
@@ -2860,7 +2867,7 @@ export function collectOppLrigAttackExtraCost(
 }
 
 /**
- * CENTER_LRIG_COLOR_CHANGE_BLACK / LRIG_LIMIT_UP_AND_COLOR_GAIN / GAIN_LRIG_COLOR:
+ * CENTER_LRIG_COLOR_CHANGE_BLACK / LRIG_LIMIT_UP_AND_COLOR_GAIN / GAIN_LRIG_COLOR / LRIG_LIMIT_MODIFY:
  * フィールドにある常在効果によるルリグ色・リミット変更を収集する。
  * 返値: { extraColors: string[]; limitDelta: number }
  */
@@ -2885,6 +2892,14 @@ export function collectLrigColorAndLimitMods(
     for (const eff of (effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, cn)) continue;
+
+      // 直接型: LRIG_LIMIT_MODIFY で自分のリミットを変更
+      if (eff.action.type === 'LRIG_LIMIT_MODIFY') {
+        const lma = eff.action as import('../types/effects').LrigLimitModifyAction;
+        if (lma.owner === 'self') limitDelta += lma.delta;
+        continue;
+      }
+
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
       const txt = cardMap.get(cn)?.EffectText ?? '';
@@ -2905,6 +2920,23 @@ export function collectLrigColorAndLimitMods(
           }
         }
       }
+    }
+  }
+
+  // 相手フィールドに CONTINUOUS LRIG_LIMIT_MODIFY owner:'opponent' があれば自分のリミットを修正
+  const otherCandidates: string[] = [];
+  for (const stack of otherState.field.signi) {
+    const top = stack?.at(-1);
+    if (top) otherCandidates.push(top);
+  }
+  for (const cn of otherCandidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (eff.action.type !== 'LRIG_LIMIT_MODIFY') continue;
+      const lma = eff.action as import('../types/effects').LrigLimitModifyAction;
+      if (lma.owner !== 'opponent') continue;
+      if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, cn)) continue;
+      limitDelta += lma.delta;
     }
   }
 
@@ -3061,6 +3093,46 @@ export function collectDownProtectedSigni(
     if (state.keyword_grants?.[top]?.includes('__down_protect__')) protected_.add(top);
   }
   return [...protected_];
+}
+
+/**
+ * CONTINUOUS GRANT_PROTECTION from=['BANISH'|'any'|'シグニ'|'ルリグ']: 対戦相手の効果バニッシュから保護されているシグニ番号を返す。
+ * hasBanishResist の EffectText フォールバックは activeCondition を無視するため、effects.json 登録済みカードはここで評価する。
+ */
+export function collectBanishEffectProtectedSigni(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Set<string> {
+  const protected_ = new Set<string>();
+  for (const stack of state.field.signi) {
+    if (!stack?.length) continue;
+    const sourceNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+      if (eff.action.type !== 'GRANT_PROTECTION') continue;
+      const gp = eff.action as import('../types/effects').GrantProtectionAction;
+      if (gp.sourceOwner !== 'opponent') continue;
+      if (!gp.from.includes('BANISH') && !gp.from.includes('any')) continue;
+      if (gp.subjectFilter) {
+        for (const s2 of state.field.signi) {
+          const top2 = s2?.at(-1);
+          if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter)) protected_.add(top2);
+        }
+      } else if (gp.target?.owner === 'self' && gp.target?.count === 1) {
+        protected_.add(sourceNum);
+      } else if (gp.target?.owner === 'self' && gp.target?.count === 'ALL') {
+        for (const s2 of state.field.signi) {
+          const top2 = s2?.at(-1);
+          if (top2) protected_.add(top2);
+        }
+      }
+    }
+  }
+  return protected_;
 }
 
 /**
