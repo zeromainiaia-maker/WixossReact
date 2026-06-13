@@ -632,7 +632,7 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   if (a.target.owner === 'opponent') {
     const grants = ctx.otherState.keyword_grants ?? {};
     for (const [cardNum, kws] of Object.entries(grants)) {
-      if (kws.some(kw => kw.startsWith('PROTECTION:') && kw.includes('DOWN') && kw.endsWith(':opponent'))) {
+      if (kws.some(kw => kw.startsWith('PROTECTION:') && (kw.includes('DOWN') || kw.includes('any')) && kw.endsWith(':opponent'))) {
         downProtected.add(cardNum);
       }
     }
