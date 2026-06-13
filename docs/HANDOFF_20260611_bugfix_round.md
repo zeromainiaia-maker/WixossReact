@@ -1,5 +1,54 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+## ✅ 2026-06-14 ymsty側: CONTINUOUS activeCondition 未評価バグ 系統修正（コミット b153a41c・e3c3e8a0）
+
+### 修正内容（2コミット）
+
+#### コミット b153a41c — 5件
+
+| 対象関数・箇所 | バグ内容 | 修正 |
+|---|---|---|
+| `collectForcedTargets` (effectEngine.ts) | `otherState`/`cardMap` 引数なし → `checkActiveCondition` が呼べず FORCE_TARGET_SELF が常時有効 | パラメータ追加・checkActiveCondition 適用。呼び出し元(BattleScreen L3510)も更新 |
+| `collectCenterZoneDeployRestrict` (effectEngine.ts) | `myState`/`isOpponentTurn` 引数なし → OPP_ZONE_PLACEMENT_RESTRICT が常時有効 | パラメータ追加・checkActiveCondition 適用。呼び出し元(BattleScreen L4337)も更新 |
+| `performSigniAttack` `redirectBanish` (BattleScreen ~L5709) | CONTINUOUS BANISH_REDIRECT 効果（11枚）が状態フラグ `banish_redirect` を設定しない場合に無視されていた | 自フィールドの CONTINUOUS BANISH_REDIRECT を checkActiveCondition 込みでインライン評価 |
+| power-0 バニッシュループ `redirectBanishP0` (BattleScreen ~L6255) | 同上（相手視点） | 相手フィールドの CONTINUOUS BANISH_REDIRECT を checkActiveCondition 込みで評価 |
+| ON_TRASH トリガー (BattleScreen L6065) | `my.banish_redirect === true` だけ参照、CONTINUOUS 由来のリダイレクトを見落とし | `redirectBanish` 変数（CONTINUOUS 込み）に統一 |
+
+#### コミット e3c3e8a0 — 3件
+
+| 対象 | バグ内容 | 修正 |
+|---|---|---|
+| `hasBanishRedirectInAction` 新設 (effectEngine.ts) | WXDi-CP02-071 の CONTINUOUS 効果は action.type='SEQUENCE' にラップされており、`e.action.type === 'BANISH_REDIRECT'` チェックが空振り | SEQUENCE ステップを再帰的に探索するヘルパー追加。BattleScreen の redirectBanish / redirectBanishP0 の両チェックを置き換え |
+| `collectLrigColorAndLimitMods` 修正 (effectEngine.ts) | LRIG_LIMIT_MODIFY 直接アクション型を `act.type !== 'STUB'` でスキップしていた。また相手フィールドの「相手のリミット-1」効果(WX22-002)も未参照 | 直接型 LRIG_LIMIT_MODIFY (owner:'self') の処理を追加。otherState フィールドスキャンを追加して owner:'opponent' 効果をリミット計算に反映 |
+| `collectBanishEffectProtectedSigni` 新設 (effectEngine.ts) + power-0 バニッシュループ | CONTINUOUS GRANT_PROTECTION from=['BANISH'] の activeCondition を無視し、hasBanishResist の EffectText フォールバックが条件不問で常時 true を返していた（WX12-037 等）。これにより条件未達成でもバニッシュ不可になっていた | 新関数で GRANT_PROTECTION from=['BANISH'|'any'] を checkActiveCondition 評価。power-0 バニッシュループの候補収集・実処理の両パスで先行チェック（hasBanishResist は後続のフォールバックとして維持） |
+
+### 影響カード（主要）
+
+- **WXDi-P03-053** (FORCE_TARGET_SELF)
+- **WXDi-P11-TK01** (OPP_ZONE_PLACEMENT_RESTRICT)
+- **WX05-018**, WX09-022, WX18-038 他計11枚 (BANISH_REDIRECT)
+- **WXDi-CP02-071** (SEQUENCE-BANISH_REDIRECT)
+- **WX22-002** (CONTINUOUS LRIG_LIMIT_MODIFY)
+- **WX12-037**, WXDi-D05-015, WXDi-P01-039, WXK01-039 (GRANT_PROTECTION from=BANISH)
+
+### zerom側への引き継ぎ事項（未対応の既知課題）
+
+以下は今回修正せず残っている既知の未対応課題。いずれもバグというより「機構未実装」フィーチャーギャップ。
+
+| # | 内容 | 関連カード |
+|---|---|---|
+| 1 | `collectBounceProtectedSigni` が GRANT_PROTECTION from=['BOUNCE'/'any'] を処理しない（STUB チェックで弾いている）。WX11-036 等が相手ターン中バウンス保護されない | WX11-036, WX14-060, WX14-061, WX19-046, WX19-048, WX20-052, WXEX2-36, WXK11-021 等 |
+| 2 | `collectDownProtectedSigni` が GRANT_PROTECTION from=['any'] を処理しない（'DOWN' のみチェック）。相手ターン中ダウン保護されない | 上記と重複するカード多数 |
+| 3 | CONTINUOUS REMOVE_ABILITIES が未実装（effectEngine に処理なし）。対象シグニの能力を常在的に消す効果が無効 | WX16-001, WXDi-P05-045, WXK01-002, WXK04-068 |
+| 4 | CONTINUOUS DRAW (WXDi-P04-056) — 常在ドロー効果の取り扱いが未実装 | WXDi-P04-056 |
+| 5 | WXDi-CP02-056 の SEQUENCE（GRANT_QUOTED_AUTO_ABILITY + CONDITIONAL REMOVE_ABILITIES） — CONTINUOUS SEQUENCE 内の複合効果 | WXDi-CP02-056 |
+
+### デプロイ
+
+**`vercel deploy --prod` を zerom 側で実施すること**（ymsty 側に Vercel 権限なし）。
+
+---
+
 ## ✅ 2026-06-13 ymsty側: ON_LIFE_CRASHED CPU戦配線 — 確認のみ（実装済み）
 
 ### 現状サマリー（v0.280〜v0.284, zerom側 — デプロイ済み）
