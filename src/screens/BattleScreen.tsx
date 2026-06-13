@@ -5545,6 +5545,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (hasDriveDoubleCrash) contGrantedKeywords.add('ダブルクラッシュ');
         }
       }
+      // SELF_POWER_THRESHOLD条件付きCONT GRANT_KEYWORD（例: WD04-010 ランサー when power≥10000）
+      for (const eff of (effectsMap.get(myTopNum) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        if (!eff.activeCondition || eff.activeCondition.type !== 'SELF_POWER_THRESHOLD') continue;
+        const gkA = eff.action.type === 'GRANT_KEYWORD'
+          ? eff.action as import('../types/effects').GrantKeywordAction
+          : null;
+        if (!gkA) continue;
+        const selfPower = effectivePowers.get(myTopNum) ?? parseInt(battleCardMap.get(myTopNum)?.Power ?? '0');
+        const cond = eff.activeCondition;
+        const met = cond.operator === 'gte' ? selfPower >= cond.value
+          : cond.operator === 'lte' ? selfPower <= cond.value
+          : cond.operator === 'gt' ? selfPower > cond.value
+          : cond.operator === 'lt' ? selfPower < cond.value
+          : cond.operator === 'eq' ? selfPower === cond.value
+          : selfPower !== cond.value; // neq
+        if (met) contGrantedKeywords.add(gkA.keyword);
+      }
       // アクセカードのCONTINUOUS GRANT_KEYWORD効果をホストシグニに適用
       // 例: 「これにアクセされている＜調理＞のシグニは【ランサー】を得る」(WXEX1-70-E3等)
       const myZoneIdx = my.field.signi.findIndex(s => s?.at(-1) === myTopNum);
