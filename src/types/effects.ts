@@ -176,6 +176,8 @@ export interface EffectCost {
   // ─ v0.276 追加: 全捨て型コスト ─
   discardAll?: true;      // 手札をすべて捨てる（自動・選択不要）
   energyTrashAll?: true;  // エナゾーンのカードをすべてトラッシュ（自動・選択不要）
+  // ─ v0.277 追加: 手札から自身を捨てる（手発動用コスト）─
+  discardSelfFromHand?: true; // このカードを手札から捨てる（handActivatedな【起】のコスト）
 }
 
 // ===== ターゲットフィルタ =====
@@ -1146,4 +1148,6 @@ export interface CardEffect {
   kizunaIcon?: boolean;
   // ターン1制限なし（デフォルトは1ターン1回）
   repeatable?: boolean;
+  // v0.277: 手札から発動できる【起】（手札から自身を捨てることでフィールドなしで発動）
+  handActivated?: boolean;
 }

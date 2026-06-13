@@ -840,6 +840,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedRemoveZones, setSelectedRemoveZones] = useState<Set<number>>(new Set());
   const [pendingSpellCast, setPendingSpellCast] = useState<{ cardNum: string; handIndex: number } | null>(null);
   const [selectedSpellCost, setSelectedSpellCost] = useState<Set<number>>(new Set());
+  // v0.277: 手札から発動する【起】
+  const [pendingHandActivated, setPendingHandActivated] = useState<{ cardNum: string; handIndex: number; effect: import('../types/effects').CardEffect } | null>(null);
+  const [selectedHandActivatedCost, setSelectedHandActivatedCost] = useState<Set<number>>(new Set());
   const [pendingCutinCard, setPendingCutinCard] = useState<CardData | null>(null);
   const [selectedCutinCost, setSelectedCutinCost] = useState<Set<number>>(new Set());
   // シグニ起動効果
@@ -5155,6 +5158,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // v0.277: 手札から発動できる【起】（MAIN / ATTACK_ARTS フェイズ）
+    if (bs.turn_phase === 'MAIN' || bs.turn_phase === 'ATTACK_ARTS') {
+      const handEffects = effectsMap.get(cardNum) ?? [];
+      const phase = bs.turn_phase as string;
+      for (const eff of handEffects) {
+        if (eff.effectType !== 'ACTIVATED') continue;
+        if (!eff.handActivated) continue;
+        if (!eff.timing?.includes(phase as import('../types/effects').EffectTiming)) continue;
+        if (my.actions_done?.includes(eff.effectId)) continue;
+        if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
+        const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+        const costLabel = energyTotal > 0 ? `エナ${energyTotal}・手から捨て` : '手から捨て';
+        actionList.push({
+          label: `【起】${costLabel}`,
+          color: '#ff6b35',
+          onClick: () => { setPendingHandActivated({ cardNum, handIndex, effect: eff }); setSelectedHandActivatedCost(new Set()); },
+        });
+      }
+    }
+
     return actionList;
   };
 
@@ -7111,6 +7135,57 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // v0.277: 手札から自身を捨てて発動する【起】効果を実行
+  const executeHandActivated = async (cardNum: string, handIndex: number, effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingHandActivated(null);
+    setSelectedHandActivatedCost(new Set());
+    try {
+      // エナコスト支払い
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // 手札からこのカード自身を捨てる（self-discard from hand）
+      const newHand = my.hand.filter((_, i) => i !== handIndex);
+      const isGameOnce = effect.usageLimit === 'once_per_game';
+      let paid: PlayerState = {
+        ...my,
+        hand: newHand,
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums, cardNum],
+        actions_done: [...(my.actions_done ?? []), effect.effectId],
+        game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
+      };
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      const entry: StackEntry = {
+        id: generateUUID(),
+        playerId: user.id,
+        cardNum,
+        effectId: effect.effectId,
+        label: `${cardName}【起】（手から捨て）`,
+        effect,
+      };
+      const stackEntries: StackEntry[] = [entry];
+      // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 自身をコストとして捨てた場合のトリガー
+      const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers([cardNum], paid, true);
+      stackEntries.push(...hdEntries);
+      if (usedLimitIds.length > 0) {
+        paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
+      }
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existingStack = bs?.effect_stack ?? null;
+      const newStack = existingStack
+        ? pushToStack(existingStack, stackEntries)
+        : initStack(turnPlayerId, stackEntries);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ON_ACCE トリガー: ATTACH_ACCE 完了後にホストシグニのON_ACCE AUTO効果を発火
   const checkAndFireOnAcceTriggersForOwner = async (state: PlayerState, acceHostCardNum: string) => {
     const triggerEntries: StackEntry[] = [];
@@ -8638,6 +8713,125 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       color: C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
                     発動する
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* v0.277: 手札から発動する【起】コスト選択 */}
+      {pendingHandActivated && createPortal(
+        <div onClick={() => { setPendingHandActivated(null); setSelectedHandActivatedCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 3500,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(92vw, 360px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const haCard = battleCardMap.get(pendingHandActivated.cardNum);
+              if (!haCard) return null;
+              const haEffect = pendingHandActivated.effect;
+              const energyCosts = haEffect.cost?.energy ?? [];
+              const energyTotal = energyCosts.reduce((s, c) => s + c.count, 0);
+              const energyCostStr = energyCostToString(energyCosts);
+              const selectedNums = [...selectedHandActivatedCost].map(i => my.energy[i]);
+              const isValid = energyTotal === 0 ||
+                (selectedHandActivatedCost.size === energyTotal &&
+                  canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => { setPendingHandActivated(null); setSelectedHandActivatedCost(new Set()); }}
+                      style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
+                      ← キャンセル
+                    </button>
+                    <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>
+                      【起】手発動
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img src={haCard.ImgURL} alt={haCard.CardName}
+                      style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                      onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                    <div>
+                      <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{haCard.CardName}</p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: このカードを手札から捨てる{energyTotal > 0 ? `・エナ${energyTotal}枚` : ''}</p>
+                    </div>
+                  </div>
+                  <p style={{ color: C.textMuted, fontSize: 11, margin: 0, textAlign: 'center' }}>
+                    このカードを手札からトラッシュに捨てます
+                  </p>
+                  {energyTotal > 0 && (
+                    <>
+                      <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                        エナから選択: {selectedHandActivatedCost.size} / {energyTotal}枚
+                        {energyCosts.map((c, i) => (
+                          <span key={i} style={{ marginLeft: 6, color: C.textDim }}>({c.color}×{c.count})</span>
+                        ))}
+                      </p>
+                      <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                        {my.energy.map((num, i) => {
+                          const card = battleCardMap.get(num);
+                          const isSel = selectedHandActivatedCost.has(i);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          return (
+                            <div key={i}
+                              onClick={() => {
+                                setSelectedHandActivatedCost(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(i)) next.delete(i); else next.add(i);
+                                  return next;
+                                });
+                              }}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
+                                overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                                border: isSel ? C.borderMulliganSel : isWild ? '1px solid #ffcc00' : C.borderCard }}>
+                              {card
+                                ? <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                                : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
+                                  </div>
+                              }
+                              {isWild && !isSel && (
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                                  backgroundColor: 'rgba(255,204,0,0.85)', textAlign: 'center' }}>
+                                  <span style={{ fontSize: 7, fontWeight: 'bold', color: '#000' }}>マルチ</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.45)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: C.text, fontSize: 14, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <button
+                    onClick={() => executeHandActivated(pendingHandActivated.cardNum, pendingHandActivated.handIndex, haEffect, selectedHandActivatedCost)}
+                    disabled={loading || !isValid}
+                    style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: isValid ? '#ff6b35' : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
+                    発動する（このカードを捨てる）
                   </button>
                 </>
               );
