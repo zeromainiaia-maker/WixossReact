@@ -3499,7 +3499,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: 相手フィールドのトラッシュ保護シグニ
       const otherTrashFieldProtectedNums = collectTrashFieldProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn);
       // PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP: 能力付与保護シグニ
-      const otherAbilityGainProtectedNums = collectAbilityGainProtectedSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, isOwnerTurn);
+      // !isOwnerTurn: 第1引数 otherState（相手）視点でのisOwnerTurnを渡す
+      const otherAbilityGainProtectedNums = collectAbilityGainProtectedSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn);
       // BLOCK_OPP_DECK_TO_ENERGY / BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT
       const contBlockedCtx = calcContinuousBlockedActions(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap);
       const allColorSigniNums = new Set([...collectAllColorSigniForField(ownerStateForCtx, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectAllColorSigniForField(otherState, battleCardMap, effectsMap, ownerStateForCtx, !isOwnerTurn)]);
