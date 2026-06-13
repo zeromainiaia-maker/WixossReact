@@ -4335,5 +4335,25 @@ export function execStubPart3(
       `領域指定：${zoneLabel}の相手シグニはクラス/色を失い＜精元＞を得る`));
   }
 
+  // BUFF_HOST_WHEN_PLACED_UNDER: このカードがシグニの下に置かれたとき上のシグニ+2000（WXDi-P11-063）
+  if (stub.id === 'BUFF_HOST_WHEN_PLACED_UNDER') {
+    const underCardNumBHWPU = ctx.sourceCardNum;
+    if (!underCardNumBHWPU) return done(addLog(ctx, 'BUFF_HOST_WHEN_PLACED_UNDER: sourceCardNum未設定'));
+    let hostSigniNumBHWPU: string | null = null;
+    for (const stack of ctx.ownerState.field.signi) {
+      if (!stack || stack.length < 2) continue;
+      const idx = stack.indexOf(underCardNumBHWPU);
+      if (idx >= 0 && idx < stack.length - 1) {
+        hostSigniNumBHWPU = stack.at(-1) ?? null;
+        break;
+      }
+    }
+    if (!hostSigniNumBHWPU) return done(addLog(ctx, 'BUFF_HOST_WHEN_PLACED_UNDER: 宿主シグニが見つからない'));
+    const newModsBHWPU = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: hostSigniNumBHWPU, delta: 2000 }];
+    const newOwnerBHWPU: PlayerState = { ...ctx.ownerState, temp_power_mods: newModsBHWPU };
+    return done(addLog({ ...ctx, ownerState: newOwnerBHWPU },
+      `${ctx.cardMap.get(hostSigniNumBHWPU)?.CardName ?? hostSigniNumBHWPU}のパワー+2000（ターン終了時まで）`));
+  }
+
   return null;
 }
