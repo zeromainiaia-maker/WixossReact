@@ -227,6 +227,8 @@ export interface PlayerState {
   signi_attack_cost?: number;
   // MULTI_DAMAGE_ON_LRIG_ATTACK: このターン残りN回ルリグアタックできる（1回目は通常アタック扱い）
   lrig_attack_remaining?: number;
+  // このターン既にルリグがアタックした（ON_ATTACK_LRIG効果でアップされても再アタック不可）
+  lrig_has_attacked?: boolean;
   // ライドシステム：LRIGが現在乗っている乗機シグニのCardNum一覧（ターン終了時にクリア）
   lrig_riding_signi?: string[];
   // SUPPRESS_CENTER_ON_PLAY: このターン自分のセンタールリグの【出】効果は発動しない
