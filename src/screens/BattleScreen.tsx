@@ -6169,7 +6169,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
       }
       appendBattleLogs([`${lrigName}がアタック`]);
-      const newMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, field: { ...my.field, lrig_down: true } };
+      const newMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, lrig_has_attacked: true, field: { ...my.field, lrig_down: true } };
       const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
 
       // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）
