@@ -2766,6 +2766,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER: ターン終了時・開始時に自己回収できるアーツ）
+    for (const artsNum of (myState.lrig_trash ?? [])) {
+      for (const eff of (effectsMap.get(artsNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
+        const cardName = battleCardMap.get(artsNum)?.CardName ?? artsNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum: artsNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（${labelSuffix}）`,
+          effect: eff,
+        });
+      }
+    }
+
     return entries;
   };
 
