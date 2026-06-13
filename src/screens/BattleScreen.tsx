@@ -4092,6 +4092,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER: ON_PLAYトリガーでアーツ自己回収）
+    if (event === 'ON_PLAY') {
+      for (const artsNum of (myState.lrig_trash ?? [])) {
+        for (const eff of (effectsMap.get(artsNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+          const act = eff.action as import('../types/effects').StubAction;
+          if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
+          const cardName = battleCardMap.get(artsNum)?.CardName ?? artsNum;
+          entries.push({
+            id: generateUUID(),
+            playerId: ownerId,
+            cardNum: artsNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（シグニ召喚時）`,
+            effect: eff,
+          });
+        }
+      }
+    }
+
     return entries;
   };
 
