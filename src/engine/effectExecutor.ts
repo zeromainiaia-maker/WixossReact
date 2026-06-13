@@ -2882,7 +2882,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (emptyZones.length === 0) {
         return done(addLog(setOwnerState(owner, newS, ctx), `空きシグニゾーンなし（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
       }
-      if (emptyZones.length >= 2) {
+      if (emptyZones.length >= 2 && (owner === 'self' || owner === 'opponent')) {
         const ctxAfterRemove = setOwnerState(owner, newS, ctx);
         return needsInteraction(ctxAfterRemove, { type: 'SELECT_SIGNI_ZONE', cardNum, owner, ...(asDown ? { asDown } : {}) });
       }
