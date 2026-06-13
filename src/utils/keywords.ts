@@ -18,7 +18,7 @@ export function hasKeyword(
     if (e.effectType !== 'CONTINUOUS') return false;
     if (e.action.type !== 'GRANT_KEYWORD') return false;
     if ((e.action as { keyword: string }).keyword !== keyword) return false;
-    if (e.activeCondition) return false; // 条件付き付与は呼び出し元で動的評価
+    if (e.activeCondition?.type === 'SELF_POWER_THRESHOLD') return false; // performSigniAttack で effectivePowers を使って動的評価
     if (e.kizunaIcon) {
       if (!bonds) return false;
       if (!bonds.includes(card?.CardName ?? '')) return false;
