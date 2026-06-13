@@ -4987,7 +4987,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: newEnergy,
         hand: newHand,
         trash: [...my.trash, ...paidNums, ...discardNums],
-        actions_done: [...(my.actions_done ?? []), effect.effectId],
+        actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
+          ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
       };
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
