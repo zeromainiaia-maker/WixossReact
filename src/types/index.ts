@@ -101,6 +101,8 @@ export interface PlayerState {
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
   story_overrides?: Record<string, string>; // CardNum -> ゲーム中に変更されたStory（大本のCardDataは変えない）
+  // DECLARE_ZONE_FOR_CLASS_CHANGE: このプレイヤーが指定した領域（相手シグニがクラス/色を失い＜精元＞を得る）
+  declared_class_zones?: Array<{ sourceCardNum: string; zone: 'deck' | 'hand' | 'signi' | 'trash' }>;
   pending_crashed_cards?: string[]; // ダブルクラッシュ等で同時クラッシュしたが未処理のカード番号（バースト処理待ち）
   // 効果エンジン用：ターン終了時にクリア
   temp_power_mods?: Array<{ cardNum: string; delta: number }>;
