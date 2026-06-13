@@ -29,7 +29,7 @@ STUB_LOG（ログのみSTUB）**0件達成**。実装内容:
 1. ~~checkAllEffects MANDATORY_SUSPICIOUS 102件の精査・本物バグ抽出~~ → **0件達成済み（zerom v0.280-v0.284で解消）**
    - 副次修正（v0.285予定）: `BUFF_HOST_WHEN_PLACED_UNDER` を `STUB_EQUIVALENTS` に追加（verifyEffects Sheet8 1件 → 0件）
 2. CPU AI拡張（メインフェイズでのアーツ/スペル/起動効果使用）
-3. 課題A: 「場に出す」効果のゾーン選択化（effectExecutor.ts `execAddToField` 等）
+3. ✅ 課題A: 「場に出す」効果のゾーン選択化（v0.286完了）
 
 ---
 
@@ -350,7 +350,7 @@ STUB_LOG（ログのみSTUB）**0件達成**。実装内容:
 >    acce_just_done と同じフラグパターンで配線可能
 > 3. **キー【出】コインの無条件発火**は従来どおり未対応（executeKeyPieceがコストモーダル非経由。v0.261の既知）
 > 4. CPUはコスト付き任意【出】を発動しない（従来どおり。コインのみ自動支払いはCPUグロウのみ）
-> 5. 課題A（場に出す効果のゾーン選択化）は引き続き未着手
+> 5. 課題A（場に出す効果のゾーン選択化）は v0.286 で完了
 
 > ## ✅ 2026-06-12 zerom側: 【出】《コイン》コストの系統バグ修正 — WD19-004等38枚（v0.261）
 >
@@ -440,7 +440,7 @@ STUB_LOG（ログのみSTUB）**0件達成**。実装内容:
 > - **v0.258（ウィルスゾーン選択化）と合わせて v0.259 としてデプロイ済み**
 >
 > ### 残課題
-> - 課題A（場に出す効果のゾーン選択化）は未着手
+> - 課題A（場に出す効果のゾーン選択化）は v0.286 で完了
 > - CPUルリグアタックは独自実装のまま（ON_ATTACK_LRIG トリガーがCPU戦で発火しない。同様の共通化が可能）
 > - CPU自身のライフクラッシュは cpuTurnAction が check を直接消化するため ON_LIFE_CRASHED 不発（v0.255の既知の近似）
 
@@ -463,24 +463,16 @@ STUB_LOG（ログのみSTUB）**0件達成**。実装内容:
 >    SEQUENCE内continuation引き継ぎ）。**デプロイ未実施（ymsty側に権限なし）→ zerom側で動作確認のうえ
 >    version確認 + `vercel deploy --prod` を行うこと**。
 >
-> ### 🆕 課題A（zerom担当）: カードを場に出す効果のゾーン自動配置（最初の空きゾーン固定）
+> ### ✅ 課題A（v0.286完了）: カードを場に出す効果のゾーン選択化
 >
-> カードを場に出す効果（トラッシュ/手札/エナから「場に出す」）はゾーン選択なしで**最初の空きゾーンに
-> 自動配置**される（コード上「呼び出し元が担当できないため自動的に最初の空きへ」と意図的簡略化の明記あり）。
-> 本来はプレイヤーがゾーンを選ぶルール。ウィルスと同じ症状（勝手にゾーン1）。
+> v0.286（2026-06-13 ymsty）で実装済み。
 >
-> - **箇所**: effectExecutor.ts `execAddToField` 内 `applyToField`（count:'ALL'経路、L511付近）/
->   `applyDirectAction` の `ADD_TO_FIELD`（SELECT_TARGET・SEARCH選択後の経路、L2810付近）/
->   スタブ多数（execStubPart1 L201、execStubPart2 L1210・L1350・L1517、execStubPart3 L2527・L3280 等。
->   `findIndex(z => !z || z.length === 0)` でgrepすると列挙できる）
-> - **実装ガイド**: 既存の SELECT_ZONE（デッキトップ用）と今回の SELECT_VIRUS_ZONE が実装例。注意点:
->   1. `resumeSelectTarget`（L2360付近）のループは pending を返すと**残りの選択カードが脱落**する。
->      複数枚「場に出す」を選択式にするには1枚ずつ連鎖させる設計（continuation化）が必要
->   2. `resumeSelectZone` は占有ゾーン選択時に**デッキトップへ戻す**安全網がある — トラッシュ/手札/エナ
->      出しに流用する場合は戻し先の引数化が必要
->   3. AddToFieldAction の `asDown`（ダウン状態で出す）は SELECT_ZONE 定義に未対応
->   4. CPU自動応答は SELECT_ZONE / SELECT_VIRUS_ZONE 対応済み（BattleScreen L1077付近）。
->      新インタラクション型を足す場合はここにも追加しないとCPU戦が固まる
+> - `applyDirectAction` ADD_TO_FIELD: 空きゾーン2つ以上→ SELECT_SIGNI_ZONE インタラクション返却。1つ→自動配置。0→done（ログ出力）。
+> - `SUMMON_RESONA_FROM_LRIG_DECK` スタブ（execStubPart3.ts）: 同様の選択化。
+> - `SELECT_SIGNI_ZONE` 型定義（types/index.ts）・`resumeSelectSigniZone` 関数（effectExecutor.ts）追加。
+> - BattleScreen: ゾーン選択UIモーダル・CPU自動応答・ハンドラ追加。
+> - **対象外（引き続き自動配置）**: count:'ALL'のapplyToField（sync制約）、PLACE_REV_SIGNI、REVEAL_SIGNI_TO_FIELD、LOOK_TOP_SIGNI_TO_FIELD。
+> - **デプロイ未実施（ymsty側に権限なし）→ zerom側で動作確認のうえ `vercel deploy --prod` を行うこと**。
 >
 > ### 🆕 課題B（zerom担当）: WX15-116 ヨグルティの ON_BANISH 効果がCPU対戦で発動しない（調査済み・方針確定）
 >
