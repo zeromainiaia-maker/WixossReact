@@ -4304,5 +4304,36 @@ export function execStubPart3(
       `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}をルリグデッキに戻してシャッフル`));
   }
 
+  // DECLARE_ZONE_FOR_CLASS_CHANGE: メインデッキ/手札/シグニゾーン/トラッシュの1つを指定
+  // 指定領域にある相手シグニはクラス/色を失い＜精元＞を得る（CONTINUOUS）
+  if (stub.id === 'DECLARE_ZONE_FOR_CLASS_CHANGE') {
+    const selfNumDZCC = ctx.sourceCardNum;
+    if (!selfNumDZCC) return done(addLog(ctx, 'DECLARE_ZONE_FOR_CLASS_CHANGE: sourceCardNum未設定'));
+    const makeDZCCAction = (zone: 'deck' | 'hand' | 'signi' | 'trash'): StubAction =>
+      ({ type: 'STUB', id: 'INTERNAL_DECLARE_ZONE_EXECUTE', value: zone } as StubAction);
+    return needsInteraction(addLog(ctx, '領域を指定：指定領域の相手シグニはクラス/色を失い＜精元＞を得る'), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'deck',  label: 'メインデッキ',   action: makeDZCCAction('deck')  as EffectAction, available: true },
+        { id: 'hand',  label: '手札',            action: makeDZCCAction('hand')  as EffectAction, available: true },
+        { id: 'signi', label: 'シグニゾーン',    action: makeDZCCAction('signi') as EffectAction, available: true },
+        { id: 'trash', label: 'トラッシュ',      action: makeDZCCAction('trash') as EffectAction, available: true },
+      ],
+    });
+  }
+
+  // INTERNAL_DECLARE_ZONE_EXECUTE: 選択した領域を declared_class_zones に記録
+  if (stub.id === 'INTERNAL_DECLARE_ZONE_EXECUTE') {
+    const zone = stub.value as 'deck' | 'hand' | 'signi' | 'trash';
+    const srcDZE = ctx.sourceCardNum;
+    if (!srcDZE || !zone) return done(ctx);
+    const zoneLabel = { deck: 'メインデッキ', hand: '手札', signi: 'シグニゾーン', trash: 'トラッシュ' }[zone] ?? zone;
+    const prevDecls = ctx.ownerState.declared_class_zones ?? [];
+    const newDecls = [...prevDecls.filter(d => d.sourceCardNum !== srcDZE), { sourceCardNum: srcDZE, zone }];
+    const newOwnerDZE: PlayerState = { ...ctx.ownerState, declared_class_zones: newDecls };
+    return done(addLog({ ...ctx, ownerState: newOwnerDZE },
+      `領域指定：${zoneLabel}の相手シグニはクラス/色を失い＜精元＞を得る`));
+  }
+
   return null;
 }
