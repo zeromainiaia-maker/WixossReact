@@ -3129,6 +3129,30 @@ export function execStubPart2(
       { type: 'CHOOSE', options: zoneOptsTRAPOP2, count: 1 }
     );
   }
+  // INTERNAL_PLACE_SELF_UNDER_SIGNI: sourceCardNum（スペル）をstub.valueのシグニの下に配置しON_PLACED_UNDER_SIGNIを発火
+  if (stub.id === 'INTERNAL_PLACE_SELF_UNDER_SIGNI') {
+    const hostSigniNumIPSUS = String(stub.value ?? '');
+    const spellNumIPSUS = ctx.sourceCardNum;
+    if (!hostSigniNumIPSUS || !spellNumIPSUS) return done(addLog(ctx, 'INTERNAL_PLACE_SELF_UNDER_SIGNI: パラメータ不足'));
+    const zoneIdxIPSUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === hostSigniNumIPSUS);
+    if (zoneIdxIPSUS < 0) return done(addLog(ctx, `INTERNAL_PLACE_SELF_UNDER_SIGNI: ホスト${hostSigniNumIPSUS}が見つからない`));
+    const newTrashIPSUS = ctx.ownerState.trash.filter(n => n !== spellNumIPSUS);
+    const newSigniIPSUS = ctx.ownerState.field.signi.map((stack, i) => {
+      if (i !== zoneIdxIPSUS || !stack) return stack;
+      return [spellNumIPSUS, ...stack];
+    }) as (string[] | null)[];
+    const newOwnerIPSUS: PlayerState = { ...ctx.ownerState, trash: newTrashIPSUS, field: { ...ctx.ownerState.field, signi: newSigniIPSUS } };
+    const placedCtxIPSUS = addLog({ ...ctx, ownerState: newOwnerIPSUS, sourceCardNum: spellNumIPSUS },
+      `${ctx.cardMap.get(spellNumIPSUS)?.CardName ?? spellNumIPSUS}を${ctx.cardMap.get(hostSigniNumIPSUS)?.CardName ?? hostSigniNumIPSUS}の下に配置`);
+    // ON_PLACED_UNDER_SIGNI効果を発火
+    const spellDataIPSUS = ctx.cardMap.get(spellNumIPSUS);
+    if (spellDataIPSUS) {
+      const spellEffsIPSUS = parseCardEffects(spellDataIPSUS);
+      const placedEffIPSUS = spellEffsIPSUS.find(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLACED_UNDER_SIGNI'));
+      if (placedEffIPSUS) return exec(placedEffIPSUS.action, placedCtxIPSUS);
+    }
+    return done(placedCtxIPSUS);
+  }
   // ─── シード系 ────────────────────────────────────────────────────────────
   // PLACE_SEED_FROM_REVEALED: デッキ上4枚を見て1枚を【シード】として設置
   if (stub.id === 'PLACE_SEED_FROM_REVEALED') {
