@@ -229,6 +229,8 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   INTERNAL_CHARGE_PER_CENTER_LEVEL: ['MOVE_TO_ENERGY'],
   // 手札すべて捨ててN枚引く（choiceTextParser生成STUB、本実装済み）
   INTERNAL_DISCARD_ALL_DRAW_N: ['DRAW', 'DISCARD'],
+  // シグニの下に置かれたとき上のシグニにパワー+N（v0.284実装済み）
+  BUFF_HOST_WHEN_PLACED_UNDER: ['POWER_MODIFY'],
 };
 
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {

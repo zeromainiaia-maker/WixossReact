@@ -1,6 +1,6 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
-## 🔜 2026-06-13 ymsty側: ON_LIFE_CRASHED CPU戦配線
+## ✅ 2026-06-13 ymsty側: ON_LIFE_CRASHED CPU戦配線 — 確認のみ（実装済み）
 
 ### 現状サマリー（v0.280〜v0.284, zerom側 — デプロイ済み）
 
@@ -14,23 +14,20 @@ STUB_LOG（ログのみSTUB）**0件達成**。実装内容:
 | v0.283 | DECLARE_ZONE_FOR_CLASS_CHANGE | `applyDeclaredZoneClassOverride`（effectEngine）＋`declared_class_zones`（PlayerState）。全6 ExecCtxサイトに適用 |
 | v0.284 | BUFF_HOST_WHEN_PLACED_UNDER | TRAP_OPERATION拡張（の下に置いてもよい検出＋メモリア名フィルタ）＋INTERNAL_PLACE_SELF_UNDER_SIGNI（trash→signi stack配置＋ON_PLACED_UNDER_SIGNI即時発火）。E2 actionをSTUBのみに変更 |
 
-### ymsty担当タスク: ON_LIFE_CRASHED CPU戦配線
+### ON_LIFE_CRASHED CPU戦配線: 確認済み（コード変更不要）
 
-v0.255でON_LIFE_CRASHED（WXDi-P02-037 ダッキ）は`handleLifeBurstResponse`経由で**人間戦は配線済み**。
-未対応の近似: **CPU自身のライフがクラッシュされた場合は発火しない**（cpuTurnActionがcheckを直接消化するため）。
+**v0.260 で既に実装済み**。コードトレース:
+- `cpuTurnAction`（L6317-6326）: `cpuSt.field?.check` あり → `performLifeBurstResponse(hasBurst, undefined, { ownerId: CPU_PLAYER_ID, ... })` を呼ぶ
+- `performLifeBurstResponse`（L6997-6998）: `collectSelfEventTriggers('ON_LIFE_CRASHED', my, op, 'ライフクラッシュ時', ownerId)` でダッキのDRAW効果を収集
+- スタック解決（L1593）: CPU戦は人間クライアントが全エントリ解決 → ダッキのDRAW効果が発火する
+- tsc 0 エラー確認済み。コード変更なし。
 
-#### 配線ポイント（推定）
-- `cpuTurnAction` 内でCPUの`check`（クラッシュカード）を消化する箇所（`triggerPendingCrash`相当）に
-  `collectSelfEventTriggers('ON_LIFE_CRASHED', cpuState, humanState, ...)` を追加してスタックに積む
-- `performLifeBurstResponse`を呼ぶか、その中で ON_LIFE_CRASHED を収集している部分をCPU側にも適用
+**デプロイはv0.285〜含む更新後にzerom側で実施。**
 
-#### 完了基準
-- CPU戦でダッキ（WXDi-P02-037）がCPUフィールドにいるとき、**CPUのライフがクラッシュされるとダッキのドロー効果が発火**する
-- tsc 0 / lint 0 errors / vercel deploy --prod
+### 残課題（優先度順）
 
-### その他残課題（優先度順）
-
-1. checkAllEffects MANDATORY_SUSPICIOUS 102件の精査・本物バグ抽出
+1. ~~checkAllEffects MANDATORY_SUSPICIOUS 102件の精査・本物バグ抽出~~ → **0件達成済み（zerom v0.280-v0.284で解消）**
+   - 副次修正（v0.285予定）: `BUFF_HOST_WHEN_PLACED_UNDER` を `STUB_EQUIVALENTS` に追加（verifyEffects Sheet8 1件 → 0件）
 2. CPU AI拡張（メインフェイズでのアーツ/スペル/起動効果使用）
 3. 課題A: 「場に出す」効果のゾーン選択化（effectExecutor.ts `execAddToField` 等）
 
