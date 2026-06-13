@@ -80,6 +80,7 @@ export interface PlayerState {
     assist_lrig_r_down?: boolean; // true=右アシストルリグがダウン状態
     check?: string | null;
     key_piece?: string | null;
+    key_piece_extra?: string[];  // UNLIMITED_KEYS: 2枚目以降のキー/ピース
     signi_charms?: (string | null)[]; // [zone0, zone1, zone2] チャームカードのCardNum or null
     signi_acce?:   (string | null)[]; // [zone0, zone1, zone2] アクセカードのCardNum or null
     signi_virus?:  number[];          // [zone0, zone1, zone2] ウィルス数（0 or 1）
