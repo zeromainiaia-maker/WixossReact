@@ -5,7 +5,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride} from '../engine/effectEngine';
-import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -1130,8 +1130,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!isCpuBattle || !bs?.pending_effect) return;
     const pe = bs.pending_effect;
     const inter = pe.interaction;
-    // SELECT_VIRUS_ZONE / SELECT_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
-    if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE') {
+    // SELECT_VIRUS_ZONE / SELECT_ZONE / SELECT_SIGNI_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
+    if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE' || inter.type === 'SELECT_SIGNI_ZONE') {
       if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
       const ownerIsHost = pe.sourcePlayerId === bs.host_id;
       const tgtIsHost = inter.owner === 'self' ? ownerIsHost : !ownerIsHost;
@@ -1148,6 +1148,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           handleSelectVirusZoneForEffect(zone ?? null);
         }, CPU_ACTION_DELAY);
         return () => clearTimeout(timerVZ);
+      }
+      if (inter.type === 'SELECT_SIGNI_ZONE') {
+        const emptyZoneSZ = [0, 1, 2].find(zi => !(tgtState.field.signi[zi]?.length));
+        if (emptyZoneSZ === undefined) return;
+        const timerSSZ = setTimeout(() => {
+          handleSelectSigniZoneForEffect(emptyZoneSZ);
+        }, CPU_ACTION_DELAY);
+        return () => clearTimeout(timerSSZ);
       }
       const emptyZone = [0, 1, 2].find(zi => !(tgtState.field.signi[zi]?.length));
       if (emptyZone === undefined) return;
@@ -3957,6 +3965,47 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       const result = resumeSelectZone(zoneIndex, inter, ctx);
+      if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
+
+      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
+      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
+      if (!result.done) {
+        const { respondPlayerId: _drop, ...peBase } = pe;
+        update.pending_effect = { ...peBase, interaction: result.pending } satisfies PendingEffect;
+      } else {
+        update.pending_effect = null;
+        const existingStack = bs.effect_stack ?? null;
+        if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
+      }
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // SELECT_SIGNI_ZONE: トラッシュ/エナ/手札などから場に出す際のゾーン選択
+  const handleSelectSigniZoneForEffect = async (zoneIndex: number) => {
+    if (!bs?.pending_effect || loading) return;
+    setLoading(true);
+    try {
+      const pe = bs.pending_effect;
+      const inter = pe.interaction;
+      if (inter.type !== 'SELECT_SIGNI_ZONE') return;
+      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+      const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
+      const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
+      const isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
+      const ctxPowers = calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, battleCardMap);
+      const allColorSigniNums = new Set([...collectAllColorSigniForField(ownerState, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectAllColorSigniForField(otherState, battleCardMap, effectsMap, ownerState, !isOwnerTurn)]);
+      const fieldSigniExtraColors = new Map([...collectFieldSigniExtraColors(ownerState, battleCardMap, effectsMap, otherState, isOwnerTurn), ...collectFieldSigniExtraColors(otherState, battleCardMap, effectsMap, ownerState, !isOwnerTurn)]);
+      const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
+      const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
+      const declaredCardMap5 = applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+
+      const result = resumeSelectSigniZone(zoneIndex, inter, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -12096,6 +12145,57 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     return (
                       <button key={zi}
                         onClick={() => !isOccupied && !loading && handleSelectZoneForEffect(zi)}
+                        disabled={isOccupied || loading}
+                        style={{ flex: 1, padding: '12px 0', borderRadius: 8,
+                          border: isOccupied ? `1px solid ${C.textFaint}` : C.borderUI,
+                          backgroundColor: isOccupied ? C.disabled : C.bgButton,
+                          color: isOccupied ? C.textFaint : C.text,
+                          fontSize: 13, cursor: isOccupied || loading ? 'default' : 'pointer' }}>
+                        ゾーン{zi + 1}{isOccupied ? '\n(使用中)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
+        // SELECT_SIGNI_ZONE：トラッシュ/エナ/手札などから場に出す際のゾーン選択
+        if (inter.type === 'SELECT_SIGNI_ZONE') {
+          const placeCardSSZ = battleCardMap.get(inter.cardNum);
+          const ownerIsHostSSZ = pe.sourcePlayerId === bs.host_id;
+          const tgtIsHostSSZ = inter.owner === 'self' ? ownerIsHostSSZ : !ownerIsHostSSZ;
+          const tgtStateSSZ = tgtIsHostSSZ ? bs.host_state : bs.guest_state;
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '20px 16px', width: 'min(95vw, 380px)',
+                  display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <img src={placeCardSSZ?.ImgURL} alt={placeCardSSZ?.CardName}
+                    style={{ width: 60, height: 84, objectFit: 'cover', borderRadius: 6 }}
+                    onError={e2 => { const img = e2.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                  <p style={{ color: C.text, fontSize: 13, margin: 0 }}>
+                    {placeCardSSZ?.CardName ?? inter.cardNum}
+                  </p>
+                </div>
+                <p style={{ color: C.textDim, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                  場に出すゾーンを選択してください
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {([0, 1, 2] as const).map(zi => {
+                    const isOccupied = (tgtStateSSZ.field.signi[zi] ?? []).length > 0;
+                    return (
+                      <button key={zi}
+                        onClick={() => !isOccupied && !loading && handleSelectSigniZoneForEffect(zi)}
                         disabled={isOccupied || loading}
                         style={{ flex: 1, padding: '12px 0', borderRadius: 8,
                           border: isOccupied ? `1px solid ${C.textFaint}` : C.borderUI,

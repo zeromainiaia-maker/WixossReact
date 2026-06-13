@@ -372,6 +372,13 @@ export type PendingInteractionDef =
       continuation?: EffectAction;
     }
   | {
+      type: 'SELECT_SIGNI_ZONE';
+      cardNum: string;          // 場に出すカード（ソースから除去済み）
+      owner: 'self' | 'opponent';
+      asDown?: boolean;
+      continuation?: EffectAction;
+    }
+  | {
       type: 'SELECT_VIRUS_ZONE';
       owner: 'self' | 'opponent';  // ウィルスを置くフィールドの持ち主（効果オーナー視点）
       virusCount: number;          // 選択ゾーンに置くウィルス数（通常1）

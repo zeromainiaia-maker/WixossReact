@@ -2685,6 +2685,31 @@ export function resumeSelectZone(
   return done(cur);
 }
 
+// SELECT_SIGNI_ZONE: トラッシュ/エナ/手札などから場に出す際のゾーン選択（デッキ戻し不要）
+export function resumeSelectSigniZone(
+  zoneIndex: number,
+  pending: PendingInteractionDef & { type: 'SELECT_SIGNI_ZONE' },
+  ctx: ExecCtx,
+): ExecResult {
+  const state = ownerState(pending.owner, ctx);
+  const signi = [...state.field.signi] as (string[] | null)[];
+  if (signi[zoneIndex] && (signi[zoneIndex]?.length ?? 0) > 0) {
+    // 選択ゾーンが埋まっている: 再選択を促す
+    return needsInteraction(ctx, pending);
+  }
+  signi[zoneIndex] = [pending.cardNum];
+  let newS: PlayerState = { ...state, field: { ...state.field, signi } };
+  if (pending.asDown) {
+    const newDown = [...(newS.field.signi_down ?? [false, false, false])] as boolean[];
+    newDown[zoneIndex] = true;
+    newS = { ...newS, field: { ...newS.field, signi_down: newDown } };
+  }
+  const cur = addLog(setOwnerState(pending.owner, newS, ctx),
+    `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}をゾーン${zoneIndex + 1}に場に出す`);
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
+}
+
 // DECLARE_BOND: export
  export function resumeDeclareBond(
   selectedCardNum: string,
@@ -2842,6 +2867,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'ADD_TO_FIELD': {
       const owner = (action as AddToFieldAction).owner;
       const src = (action as AddToFieldAction).source;
+      const asDown = (action as AddToFieldAction).asDown;
       const state = ownerState(owner, ctx);
       let newS = { ...state };
       if (src?.type === 'TRASH_CARD') {
@@ -2852,9 +2878,22 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (ei >= 0) { const e = [...newS.energy]; e.splice(ei, 1); newS = { ...newS, energy: e }; }
       }
       const signi = [...newS.field.signi] as (string[] | null)[];
-      const emptyIdx = signi.findIndex(z => !z || z.length === 0);
-      if (emptyIdx >= 0) signi[emptyIdx] = [cardNum];
+      const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
+      if (emptyZones.length === 0) {
+        return done(addLog(setOwnerState(owner, newS, ctx), `空きシグニゾーンなし（${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}配置不可）`));
+      }
+      if (emptyZones.length >= 2) {
+        const ctxAfterRemove = setOwnerState(owner, newS, ctx);
+        return needsInteraction(ctxAfterRemove, { type: 'SELECT_SIGNI_ZONE', cardNum, owner, ...(asDown ? { asDown } : {}) });
+      }
+      // 空きゾーン1つのみ: 自動配置
+      signi[emptyZones[0].i] = [cardNum];
       newS = { ...newS, field: { ...newS.field, signi } };
+      if (asDown) {
+        const newDown = [...(newS.field.signi_down ?? [false, false, false])] as boolean[];
+        newDown[emptyZones[0].i] = true;
+        newS = { ...newS, field: { ...newS.field, signi_down: newDown } };
+      }
       return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場に出す`));
     }
     case 'ATTACH_ACCE': {

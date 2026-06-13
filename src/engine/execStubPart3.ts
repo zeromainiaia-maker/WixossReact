@@ -2524,16 +2524,16 @@ export function execStubPart3(
       return !clsSRLD || (c.CardClass ?? '').includes(clsSRLD);
     });
     if (candsSRLD.length === 0) return done(addLog(ctx, 'ルリグデッキにレゾナなし'));
-    const ziSRLD = ctx.ownerState.field.signi.findIndex(z => !z || z.length === 0);
-    if (ziSRLD < 0) return done(addLog(ctx, '空きシグニゾーンなし（レゾナ配置不可）'));
+    const emptyZonesSRLD = ctx.ownerState.field.signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
+    if (emptyZonesSRLD.length === 0) return done(addLog(ctx, '空きシグニゾーンなし（レゾナ配置不可）'));
     const pickSRLD = candsSRLD[0];
-    const newSigniSRLD = ctx.ownerState.field.signi.map((z, i) => (i === ziSRLD ? [...(z ?? []), pickSRLD] : z));
-    const newOwnerSRLD: PlayerState = {
-      ...ctx.ownerState,
-      lrig_deck: (ctx.ownerState.lrig_deck ?? []).filter(n => n !== pickSRLD),
-      field: { ...ctx.ownerState.field, signi: newSigniSRLD },
-    };
-    return done(addLog({ ...ctx, ownerState: newOwnerSRLD },
+    const ctxAfterSRLD = { ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: (ctx.ownerState.lrig_deck ?? []).filter(n => n !== pickSRLD) } };
+    if (emptyZonesSRLD.length >= 2) {
+      return needsInteraction(ctxAfterSRLD, { type: 'SELECT_SIGNI_ZONE', cardNum: pickSRLD, owner: 'self' });
+    }
+    const newSigniSRLD = ctxAfterSRLD.ownerState.field.signi.map((z, i) => (i === emptyZonesSRLD[0].i ? [...(z ?? []), pickSRLD] : z));
+    const newOwnerSRLD: PlayerState = { ...ctxAfterSRLD.ownerState, field: { ...ctxAfterSRLD.ownerState.field, signi: newSigniSRLD } };
+    return done(addLog({ ...ctxAfterSRLD, ownerState: newOwnerSRLD },
       `${ctx.cardMap.get(pickSRLD)?.CardName ?? pickSRLD}を出現条件を無視して場に出す`));
   }
   // SUMMON_FROM_TRASH: トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用）
