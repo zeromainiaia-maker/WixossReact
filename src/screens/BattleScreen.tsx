@@ -7944,29 +7944,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ── キーピース フィールドアクション ──
   const getKeyPieceActions = (): CardAction[] => {
     if (!isMyTurn || loading || !my.field.key_piece) return [];
-    const keyNum = my.field.key_piece;
     const phase = bs.turn_phase;
-    const effects = effectsMap.get(keyNum) ?? [];
-    const activatable = effects.filter(e =>
-      e.effectType === 'ACTIVATED' &&
-      !(my.actions_done?.includes(e.effectId)) &&
-      !(my.blocked_actions?.includes(e.effectId)) &&
-      !isActionBlocked('USE_ACT') &&
-      (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP' || phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG') &&
-      (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, keyNum, phase, effectivePowers)),
-    );
-    return activatable.map(eff => {
-      const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
-      const costLabel = eff.cost
-        ? [energyTotal > 0 ? `エナ${energyTotal}` : null, eff.cost.discard ? `手札${eff.cost.discard}枚` : null]
-            .filter(Boolean).join('・') || 'コストなし'
-        : 'コストなし';
-      return {
-        label: `【起】${costLabel}`,
-        color: C.coin,
-        onClick: () => { setPendingKeyActivated({ cardNum: keyNum, effect: eff }); setSelectedKeyActivatedCost(new Set()); },
-      };
-    });
+    const allKeyNums = [my.field.key_piece, ...(my.field.key_piece_extra ?? [])];
+    const result: CardAction[] = [];
+    for (const keyNum of allKeyNums) {
+      const effects = effectsMap.get(keyNum) ?? [];
+      const activatable = effects.filter(e =>
+        e.effectType === 'ACTIVATED' &&
+        !(my.actions_done?.includes(e.effectId)) &&
+        !(my.blocked_actions?.includes(e.effectId)) &&
+        !isActionBlocked('USE_ACT') &&
+        (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP' || phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG') &&
+        (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, keyNum, phase, effectivePowers)),
+      );
+      for (const eff of activatable) {
+        const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+        const costLabel = eff.cost
+          ? [energyTotal > 0 ? `エナ${energyTotal}` : null, eff.cost.discard ? `手札${eff.cost.discard}枚` : null]
+              .filter(Boolean).join('・') || 'コストなし'
+          : 'コストなし';
+        const cardName = battleCardMap.get(keyNum)?.CardName ?? keyNum;
+        result.push({
+          label: `【起】${costLabel}（${cardName}）`,
+          color: C.coin,
+          onClick: () => { setPendingKeyActivated({ cardNum: keyNum, effect: eff }); setSelectedKeyActivatedCost(new Set()); },
+        });
+      }
+    }
+    return result;
   };
 
   // ── アシストルリグ フィールドアクション ──
