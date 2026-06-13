@@ -6145,6 +6145,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     attackerKey: 'host_state' | 'guest_state';
   }): Promise<boolean> => {
     const { attacker: my, defender: op, attackerId } = p;
+    if (my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）
     if (my.field.lrig_down) return false; // すでに攻撃済み
     if (op.field.lrig_attacked) return false; // ガード応答待ち中
     if ((my.lrig_riding_signi?.length ?? 0) > 0) return false; // ドライブ状態：ルリグはアタックできない
