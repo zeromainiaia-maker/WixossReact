@@ -5281,7 +5281,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     // ── キーピース ──
-    if ((cardData.Type === 'キー' || cardData.Type === 'ピース') && !my.field.key_piece) {
+    // UNLIMITED_KEYS: ルリグにCONT「UNLIMITED_KEYS」があれば何枚でもキーを出せる
+    const hasUnlimitedKeys = my.field.lrig.some(ln =>
+      (effectsMap.get(ln) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' &&
+        (e.action as import('../types/effects').StubAction)?.type === 'STUB' &&
+        (e.action as import('../types/effects').StubAction)?.id === 'UNLIMITED_KEYS',
+      )
+    );
+    if ((cardData.Type === 'キー' || cardData.Type === 'ピース') && (!my.field.key_piece || hasUnlimitedKeys)) {
       const timing = cardData.Timing ?? '';
       const canUse =
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
