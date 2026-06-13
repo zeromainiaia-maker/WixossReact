@@ -12236,7 +12236,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {inter.remainingZones > 1 ? `（残り${inter.remainingZones}ゾーン）` : ''}
                 </p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {([0, 1, 2] as const).map(zi => {
+                  {([2, 1, 0] as const).map(zi => {
                     const hasVirus = (tgtVirus[zi] ?? 0) > 0;
                     // powerDeltaOnZone（WD19-009等）はウィルス済みゾーンも選択可（パワー修正のみ適用）
                     const selectable = !hasVirus || inter.powerDeltaOnZone !== undefined;
