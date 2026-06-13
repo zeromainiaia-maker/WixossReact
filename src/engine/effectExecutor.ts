@@ -63,6 +63,7 @@ import {
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition };
 import { execStub } from './execStub';
+import { hasBanishResist } from '../utils/keywords';
 
 // ===== 個別アクション実行 =====
 
