@@ -2718,10 +2718,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // 自分のフィールドシグニ（self = このターンプレイヤーのカード）
     // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ
     const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    // CONTINUOUS REMOVE_ABILITIES: 能力を失っているシグニを事前計算（collectTurnTriggersはターンプレイヤー=自分が主体）
+    const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, effectsMap, battleCardMap);
+    const opAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(opState, myState, false, effectsMap, battleCardMap);
     for (const stack of myState.field.signi) {
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
       if (ownAutoBlockedTurn) continue;
+      if (myAbilitiesRemovedTurn.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
       for (const eff of (effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
         if ((eff.triggerScope ?? 'self') !== 'self') continue;
