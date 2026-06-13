@@ -4200,10 +4200,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           (e.action as import('../types/effects').StubAction)?.id === 'FROZEN_LOSES_ABILITIES',
         )
       : false;
+    // CONTINUOUS REMOVE_ABILITIES: 能力を失っているシグニのセットを事前計算
+    const isOwnerTurnForSelfTrigger = ownerId === bs.active_user_id;
+    const myAbilitiesRemovedSelf = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForSelfTrigger, effectsMap, battleCardMap);
     for (let zi = 0; zi < myState.field.signi.length; zi++) {
       const topNum = myState.field.signi[zi]?.at(-1);
       if (!topNum) continue;
       if (frozenLosesAbilities && (myState.field.signi_frozen?.[zi] ?? false)) continue;
+      if (myAbilitiesRemovedSelf.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
       for (const eff of effectsMap.get(topNum) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
         if (eff.usageLimit === 'once_per_turn') {
