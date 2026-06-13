@@ -7238,7 +7238,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: [...my.trash, ...paidNums, ...discardedCards, ...discardAllCards, ...energyTrashAllCards, ...discardVarCards],
         lrig_trash: newLrigTrash,
         field: newField,
-        actions_done: [...(my.actions_done ?? []), effect.effectId],
+        actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
+          ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
         game_actions_done: isGameOnceAct ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         last_activated_discard_count: totalDiscardedCount,
         last_activated_discard_level_sum: discardVarCards.length > 0 ? discardVarLevelSum : my.last_activated_discard_level_sum,
