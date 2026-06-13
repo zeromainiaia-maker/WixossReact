@@ -94,8 +94,12 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     return done(addLog(ctx, '条件未達成 → BANISH スキップ'));
   }
   const tgt = a.target;
+  // levelEqDiscardLevelSum: コスト支払い時に捨てたカードのレベル合計でフィルターを解決（WDK13-011）
+  const resolvedFilter: import('../types/effects').TargetFilter | undefined = tgt.filter?.levelEqDiscardLevelSum
+    ? { ...tgt.filter, levelEqDiscardLevelSum: undefined, level: ctx.ownerState.last_activated_discard_level_sum ?? -1 }
+    : tgt.filter;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyBanish(selected: string[], c: ExecCtx): ExecCtx {

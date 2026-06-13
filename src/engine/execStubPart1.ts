@@ -2199,6 +2199,16 @@ export function execStubPart1(
       ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_grow_phase_limit_plus: nGA5 } };
       logsGA.push(`グロウフェイズ開始時リミット+${nGA5}（このゲーム・累積）`);
     }
+    // WX25-P2-001: 対戦相手は追加で《無》を支払わないかぎり【ガード】ができない（このゲーム）
+    if (txtGA.match(/対戦相手は追加で《無》を支払わないかぎり【ガード】ができない/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_opp_guard_extra_colorless: true } };
+      logsGA.push('相手ガード追加《無》コスト（このゲーム）');
+    }
+    // WX25-P2-001: 手札から《ガードアイコン》を持つシグニを捨て→【ルリグバリア】付与能力（このゲーム）
+    if (txtGA.match(/手札から《ガードアイコン》を持つシグニを.*捨てる.*【ルリグバリア】/)) {
+      ctxGA = { ...ctxGA, ownerState: { ...ctxGA.ownerState, game_guard_barrier_act: true } };
+      logsGA.push('ガードシグニ捨て→ルリグバリア能力付与（このゲーム）');
+    }
     // 以下のパターンは意図通り動作するため特定ログのみ
     // このゲームの間、あなたは以下の能力を得る（能力ブロック：後続スタブで処理）
     if (txtGA.match(/このゲームの間、あなたは以下の能力を得る/)) {

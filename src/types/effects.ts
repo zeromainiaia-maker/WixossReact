@@ -178,6 +178,8 @@ export interface EffectCost {
   energyTrashAll?: true;  // エナゾーンのカードをすべてトラッシュ（自動・選択不要）
   // ─ v0.277 追加: 手札から自身を捨てる（手発動用コスト）─
   discardSelfFromHand?: true; // このカードを手札から捨てる（handActivatedな【起】のコスト）
+  // ─ v0.278 追加: 可変枚数手札捨て（１枚以上）─
+  discardVariable?: { filter?: TargetFilter; min: number }; // 手札からN枚以上捨てる（プレイヤーが枚数を選択）
 }
 
 // ===== ターゲットフィルタ =====
@@ -199,6 +201,7 @@ export interface TargetFilter {
   isUp?:      boolean; // アップ状態（ダウンしていない）
   isFrozen?:  boolean;
   hasCharm?:  boolean;
+  levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
   hasAcce?:   boolean; // アクセが付いている
   hasIcon?:   'クロス' | 'ライズ' | 'トラップ' | 'アクセ'; // 《Xアイコン》を持つカード（カードテキストのキーワード有無で判定する近似）
   hasLifeBurst?: boolean; // 《ライフバースト》を持つカード

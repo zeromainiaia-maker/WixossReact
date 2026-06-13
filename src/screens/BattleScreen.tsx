@@ -843,6 +843,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // v0.277: 手札から発動する【起】
   const [pendingHandActivated, setPendingHandActivated] = useState<{ cardNum: string; handIndex: number; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedHandActivatedCost, setSelectedHandActivatedCost] = useState<Set<number>>(new Set());
+  // v0.278: 可変枚数手札捨てコスト（WDK13-011用）
+  const [selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar] = useState<Set<number>>(new Set());
+  // v0.278: WX25-P2-001 付与【起】（ガードシグニ捨て→ルリグバリア）
+  const [pendingGuardBarrierAct, setPendingGuardBarrierAct] = useState(false);
+  const [selectedBarrierGuardCard, setSelectedBarrierGuardCard] = useState<number | null>(null);
   const [pendingCutinCard, setPendingCutinCard] = useState<CardData | null>(null);
   const [selectedCutinCost, setSelectedCutinCost] = useState<Set<number>>(new Set());
   // シグニ起動効果
@@ -6814,7 +6819,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 攻撃側ルリグのダブルクラッシュ確認
         const opLrigNum = op.field.lrig.at(-1);
         const opLrigHasDoubleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ'));
-        if ((my.prevent_next_damage ?? 0) > 0) {
+        if ((my.lrig_barrier ?? 0) > 0) {
+          appendBattleLogs([`ルリグアタック：ルリグバリア発動（残${(my.lrig_barrier ?? 1) - 1}）`]);
+          newMyState = { ...my, lrig_barrier: (my.lrig_barrier ?? 1) - 1, field: { ...my.field, lrig_attacked: false } };
+        } else if ((my.prevent_next_damage ?? 0) > 0) {
           appendBattleLogs([`ルリグアタック：ダメージ無効`]);
           newMyState = { ...my, prevent_next_damage: (my.prevent_next_damage ?? 0) - 1, field: { ...my.field, lrig_attacked: false } };
         } else if (my.prevent_lrig_damage || (() => {
@@ -6972,12 +6980,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ起動効果を実行（コスト支払い後）
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>) => {
     if (loading) return;
     setLoading(true);
     setPendingSigniActivated(null);
     setSelectedSigniActivatedCost(new Set());
     setSelectedSigniActivatedDiscard(new Set());
+    setSelectedSigniActivatedDiscardVar(new Set());
     setKeySubstituteEnabled(false);
     try {
       // エナコストを支払う
@@ -6988,7 +6997,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = effect.cost?.energyTrashAll ? [] : baseNewEnergy;
       // 手札捨てコストを支払う
       const discardedCards = [...discardCostIndices].map(i => my.hand[i]);
-      const baseNewHand = my.hand.filter((_, i) => !discardCostIndices.has(i));
+      const discardVarCards = discardVarIndices ? [...discardVarIndices].map(i => my.hand[i]) : [];
+      const discardVarLevelSum = discardVarCards.reduce((s, cn) => {
+        const lv = parseInt(battleCardMap.get(cn)?.Level ?? '0', 10) || 0;
+        return s + lv;
+      }, 0);
+      const baseNewHand = my.hand.filter((_, i) => !discardCostIndices.has(i) && !(discardVarIndices?.has(i)));
       // discardAll: 手札をすべて捨てる（選択不要、自動）
       const discardAllCards = effect.cost?.discardAll ? [...baseNewHand] : [];
       const newHand = effect.cost?.discardAll ? [] : baseNewHand;
@@ -7016,12 +7030,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: newEnergy,
         coins: coinCostAct > 0 ? Math.max(0, (my.coins ?? 0) - coinCostAct) : my.coins,
         activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
-        trash: [...my.trash, ...paidNums, ...discardedCards, ...discardAllCards, ...energyTrashAllCards],
+        trash: [...my.trash, ...paidNums, ...discardedCards, ...discardAllCards, ...energyTrashAllCards, ...discardVarCards],
         lrig_trash: newLrigTrash,
         field: newField,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
         game_actions_done: isGameOnceAct ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         last_activated_discard_count: totalDiscardedCount,
+        last_activated_discard_level_sum: discardVarCards.length > 0 ? discardVarLevelSum : my.last_activated_discard_level_sum,
       };
       // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
       let plant3rdDownTriggerEntry: StackEntry | null = null;
@@ -7069,7 +7084,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? [entry, plant3rdDownTriggerEntry]
         : [entry];
       // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 【起】コストで手札を捨てた場合のトリガー
-      const allDiscardedForTrigger = [...discardedCards, ...discardAllCards];
+      const allDiscardedForTrigger = [...discardedCards, ...discardAllCards, ...discardVarCards];
       if (allDiscardedForTrigger.length > 0) {
         const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(allDiscardedForTrigger, paid, true);
         stackEntries.push(...hdEntries);
@@ -7181,6 +7196,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       await supabase.from('battle_states')
         .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
         .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // v0.278: WX25-P2-001 付与【起】 ガードシグニ捨て→ルリグバリア
+  const executeGuardBarrierAct = async (handIndex: number) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingGuardBarrierAct(false);
+    setSelectedBarrierGuardCard(null);
+    try {
+      const cardNum = my.hand[handIndex];
+      const newHand = my.hand.filter((_, i) => i !== handIndex);
+      const paid: PlayerState = {
+        ...my,
+        hand: newHand,
+        trash: [...my.trash, cardNum],
+        lrig_barrier: (my.lrig_barrier ?? 0) + 1,
+        actions_done: [...(my.actions_done ?? []), 'GUARD_BARRIER_ACT'],
+      };
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      appendBattleLogs([`【起】ガードシグニ（${cardName}）を捨て→ルリグバリア+1（計${paid.lrig_barrier}）`]);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states').update({ [stateKey]: paid }).eq('room_id', roomId);
     } finally {
       setLoading(false);
     }
@@ -7631,6 +7671,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.discard ? `手札${eff.cost.discard}枚トラッシュ` : null,
               eff.cost.discardAll ? '手札すべて捨て' : null,
               eff.cost.energyTrashAll ? 'エナすべトラッシュ' : null,
+              eff.cost.discardVariable ? `手札${eff.cost.discardVariable.min}枚以上捨て` : null,
               eff.cost.down_self ? 'ダウン' : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
@@ -7640,6 +7681,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           onClick: () => {
             setPendingSigniActivated({ cardNum: topNum, effect: eff });
             setSelectedSigniActivatedCost(new Set());
+            setSelectedSigniActivatedDiscardVar(new Set());
           },
         };
       });
@@ -7790,6 +7832,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             },
           };
         });
+
+      // v0.278: WX25-P2-001 付与【起】（手札ガードシグニを捨てる→ルリグバリア）
+      if (my.game_guard_barrier_act && !my.actions_done?.includes('GUARD_BARRIER_ACT') && !isActionBlocked('USE_ACT')) {
+        const guardSigniInHand = my.hand.some(cn => battleCardMap.get(cn)?.Guard === '1');
+        if (guardSigniInHand) {
+          lrigActionsMA.push({
+            label: '【起】ガードシグニ捨て→ルリグバリア',
+            color: '#4db6e0',
+            onClick: () => { setPendingGuardBarrierAct(true); setSelectedBarrierGuardCard(null); },
+          });
+        }
+      }
 
       return [...lrigActionsMA, ...grantedActionsMA];
     }
@@ -8841,6 +8895,81 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
+      {/* v0.278: WX25-P2-001 付与【起】 ガードシグニ捨て→ルリグバリア */}
+      {pendingGuardBarrierAct && createPortal(
+        <div onClick={() => { setPendingGuardBarrierAct(false); setSelectedBarrierGuardCard(null); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 3500,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(92vw, 360px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => { setPendingGuardBarrierAct(false); setSelectedBarrierGuardCard(null); }}
+                style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
+                  backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
+                ← キャンセル
+              </button>
+              <p style={{ color: '#4db6e0', fontSize: 14, fontWeight: 'bold', margin: 0 }}>
+                ルリグバリア付与
+              </p>
+            </div>
+            <p style={{ color: C.textMuted, fontSize: 12, margin: 0 }}>
+              手札の《ガードアイコン》を持つシグニを1枚捨てる → ルリグバリア+1
+            </p>
+            <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+              ガードシグニを選択: {selectedBarrierGuardCard !== null ? '1枚選択中' : '未選択'}
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+              {my.hand.map((num, i) => {
+                const c = battleCardMap.get(num);
+                const isGuard = c?.Guard === '1';
+                const isSel = selectedBarrierGuardCard === i;
+                return (
+                  <div key={i}
+                    onClick={() => isGuard && setSelectedBarrierGuardCard(isSel ? null : i)}
+                    onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                    onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                    onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                    onContextMenu={e => e.preventDefault()}
+                    style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
+                      overflow: 'hidden', cursor: isGuard ? 'pointer' : 'default', flexShrink: 0,
+                      border: isSel ? '2px solid #4db6e0' : C.borderCard,
+                      opacity: isGuard ? 1 : 0.3 }}>
+                    {c
+                      ? <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                      : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
+                        </div>
+                    }
+                    {isSel && (
+                      <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(77,182,224,0.45)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ color: C.text, fontSize: 14, fontWeight: 'bold' }}>✓</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => selectedBarrierGuardCard !== null && executeGuardBarrierAct(selectedBarrierGuardCard)}
+              disabled={loading || selectedBarrierGuardCard === null}
+              style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                backgroundColor: selectedBarrierGuardCard !== null ? '#4db6e0' : C.disabled,
+                color: C.text, fontSize: 14, fontWeight: 'bold',
+                cursor: (loading || selectedBarrierGuardCard === null) ? 'default' : 'pointer' }}>
+              ガードシグニを捨ててバリア付与
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* スペルカットイン カード拡大 */}
       {cutinSpellZoomed && bs.pending_spell && (() => {
         const zCard = battleCardMap.get(bs.pending_spell.card_num);
@@ -9545,6 +9674,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 });
               return (
                 <>
+                  {(my.lrig_barrier ?? 0) > 0 && (
+                    <button
+                      onClick={() => performGuardResponse(null, {
+                        responder: my, attacker: op,
+                        responderId: user.id,
+                        attackerId: isHost ? bs.guest_id ?? '' : bs.host_id ?? '',
+                        responderKey: isHost ? 'host_state' : 'guest_state',
+                      })}
+                      disabled={loading}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4db6e0',
+                        backgroundColor: 'rgba(77,182,224,0.15)', color: '#4db6e0', cursor: 'pointer',
+                        fontSize: 13, marginBottom: 4 }}>
+                      ルリグバリア発動（残{(my.lrig_barrier ?? 0)}→{(my.lrig_barrier ?? 1) - 1}）攻撃無効
+                    </button>
+                  )}
                   {oppGuardExtraColorless && (
                     <p style={{ color: '#f0a030', fontSize: 12, margin: '0 0 6px',
                       padding: '6px 10px', background: 'rgba(240,160,48,0.1)', borderRadius: 6,
@@ -10409,12 +10553,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   (actCostExtra > 0
                     ? canAffordWithExtraCost(selectedNums, battleCards, costStr, actExtraCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount)
                     : canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount));
+              const actDiscardVar = eff.cost?.discardVariable;
+              const discardVarOk = actDiscardVar
+                ? (selectedSigniActivatedDiscardVar.size >= actDiscardVar.min)
+                : true;
               const discardOk = eff.cost?.discardAll
                 ? true // 手札をすべて捨てる：選択不要・常に支払い可能
-                : actDiscardGroups
-                  ? (selectedSigniActivatedDiscard.size === discardNeeded &&
-                     canSatisfyDiscardGroups([...selectedSigniActivatedDiscard].map(i => battleCardMap.get(my.hand[i])), actDiscardGroups))
-                  : selectedSigniActivatedDiscard.size >= discardNeeded;
+                : actDiscardVar
+                  ? discardVarOk
+                  : actDiscardGroups
+                    ? (selectedSigniActivatedDiscard.size === discardNeeded &&
+                       canSatisfyDiscardGroups([...selectedSigniActivatedDiscard].map(i => battleCardMap.get(my.hand[i])), actDiscardGroups))
+                    : selectedSigniActivatedDiscard.size >= discardNeeded;
               // 《コインアイコン》コスト（リル//メモリア等の【起】コイン）
               const coinNeededAct = isCostZeroByEffect ? 0 : (eff.cost?.coin ?? 0);
               const coinOkAct = coinNeededAct === 0 || (my.coins ?? 0) >= coinNeededAct;
@@ -10436,6 +10586,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             energyTotal > 0 ? `エナ${energyTotal}枚` : null,
                             eff.cost?.energyTrashAll ? 'エナをすべてトラッシュ' : null,
                             eff.cost?.discardAll ? `手札をすべて捨てる（${my.hand.length}枚）` :
+                              actDiscardVar ? `手札から${fmtDiscardFilterLabel(actDiscardVar.filter) || 'カード'}${actDiscardVar.min}枚以上` :
                               actDiscardGroups ? `手札から${actFilterLabel}` :
                                 eff.cost?.discard ? `手札${actDiscardFilter ? `の${actFilterLabel}` : ''}${eff.cost.discard}枚` : null,
                             coinNeededAct > 0 ? `《コイン》×${coinNeededAct}（所持${my.coins ?? 0}）` : null,
@@ -10534,7 +10685,56 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </p>
                   )}
 
-                  {!eff.cost?.discardAll && discardNeeded > 0 && (
+                  {/* discardVariable: 可変枚数手札捨て（WDK13-011: ＜宇宙＞シグニを1枚以上） */}
+                  {actDiscardVar && (
+                    <>
+                      <p style={{ color: discardVarOk ? C.success : C.textMuted, fontSize: 12, margin: 0 }}>
+                        手札から{fmtDiscardFilterLabel(actDiscardVar.filter) || 'カード'}を選択（{actDiscardVar.min}枚以上）:
+                        {' '}{selectedSigniActivatedDiscardVar.size}枚選択中
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.hand.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const matchesVar = !actDiscardVar.filter || matchesFilter(c, actDiscardVar.filter);
+                          const isSel = selectedSigniActivatedDiscardVar.has(i);
+                          return (
+                            <div key={i}
+                              onClick={() => matchesVar && setSelectedSigniActivatedDiscardVar(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); } else { next.add(i); }
+                                return next;
+                              })}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #ff9800' : C.borderCard,
+                                opacity: matchesVar ? 1 : 0.3,
+                                cursor: matchesVar ? 'pointer' : 'default', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {!eff.cost?.discardAll && !actDiscardVar && discardNeeded > 0 && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         手札から捨てるカードを選択: {selectedSigniActivatedDiscard.size} / {discardNeeded}枚
@@ -10587,14 +10787,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setKeySubstituteEnabled(false); }}
+                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setKeySubstituteEnabled(false); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled)}
+                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

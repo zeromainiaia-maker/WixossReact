@@ -2161,6 +2161,8 @@ export function collectOppGuardExtraColorlessCost(
       return true;
     }
   }
+  // game_opp_guard_extra_colorless: GAIN_ABILITY_THIS_GAME で付与された永続コスト（WX25-P2-001）
+  if (ownerState.game_opp_guard_extra_colorless) return true;
   return false;
 }
 

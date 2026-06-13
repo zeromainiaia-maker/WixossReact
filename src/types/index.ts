@@ -294,6 +294,12 @@ export interface PlayerState {
   lrig_abilities_disabled?: boolean;
   // このターンに手札を捨てた枚数の累計（BANISH_IF_DISCARDED_3_THIS_TURN等で参照）
   turn_hand_discarded_count?: number;
+  // v0.278: discardVariable コスト支払いで捨てたカードのレベル合計（WDK13-011用）
+  last_activated_discard_level_sum?: number;
+  // v0.278: WX25-P2-001 GAIN_ABILITY_THIS_GAME で付与されるゲーム全体フラグ
+  lrig_barrier?: number;                 // 【ルリグバリア】数（相手ルリグアタック1回を無効）
+  game_guard_barrier_act?: boolean;      // 手札ガードシグニ捨て→ルリグバリア付与 能力を持つ
+  game_opp_guard_extra_colorless?: boolean; // 相手ガード時に追加で《無》1枚必要（このゲーム）
 }
 
 export interface GameLog {
