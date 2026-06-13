@@ -1,5 +1,32 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+> ## ✅ 2026-06-13 ymsty側: 【起】手札すべて捨てコスト 6カード対応（v0.276）— デプロイ未実施→zerom側で
+>
+> tsc 0 / lint 0 errors（28警告、既存同数）/ checkAllEffects 0（警告12既存同数）。**`vercel deploy --prod` をzerom側で行うこと**（v0.275+v0.276まとめてデプロイ）。
+>
+> ### 新スキーマ・機構
+> - **EffectCost拡張**: `discardAll: true`（手札をすべて捨てる、自動・選択不要）、`energyTrashAll: true`（エナゾーン全トラッシュ、自動）
+> - **PlayerState拡張**: `last_activated_discard_count`（【起】コスト支払いで捨てた合計枚数、手札+エナ）、`game_actions_done`（once_per_game追跡、ターンリセット対象外）
+> - **Condition追加**: `ACTIVATED_DISCARD_COUNT_GTE: {value: N}`（捨てた合計枚数 ≥ N を判定。evalCondition / effectExecutor CONDITIONAL内で動作）
+> - **BattleScreen**: executeSigniActivated / executeLrigGrantedの両方でdiscardAll/energyTrashAllを自動支払い。モーダルに「手札N枚をすべて捨てます」表示（選択UI不要）。once_per_gameの可用性チェックをシグニ・ルリグ両方に追加
+>
+> ### JSON更新 6カード
+> - **WX05-022-E2** (C.M.R 手札すべて捨て BANISH): cost discardAll + once_per_turn / CONDITIONAL(≥2)→BANISH、else=空
+> - **WX10-037-E3** (シヴァ 手札すべて捨て ADD_TO_LIFE): cost discardAll / CONDITIONAL(≥4)→ADD_TO_LIFE×1（count:4→1バグ修正）、else=空
+> - **WXEX2-48-E3** (アスモデ 手札すべて捨て 場に出す): cost discardAll + once_per_turn / CONDITIONAL(≥2)→悪魔3体まで、else→悪魔Lv3以下1体
+> - **WXDi-P09-006-E2** (レイラ=オーバーテイク 手札すべて捨て GUARD不可): cost discardAll + once_per_game / BLOCK_ACTION（近似: 全アタック間）
+> - **WXDi-P16-012-E3** (アト=トレ エナ全+手札全捨て ライフに加える): cost energyTrashAll+discardAll + once_per_game / CONDITIONAL(≥5)→SHUFFLE_DECK+ADD_TO_LIFE、else=空
+> - **WX25-P3-019-E2** (ヒラナ エナ全+手札全捨て ドロー+エナチャ): cost energyTrashAll+discardAll + once_per_game / SEQUENCE[DRAW×3, ENERGY_CHARGE×3]（DRAWが欠落していたバグ修正）
+>
+> ### 残り12カード（v0.275残の18→さらに6解消）
+> - **「手札からこのカードを捨てる」型 8枚**（WX17-031等）: 手札から自己起動＝機構未実装
+> - **「手札をすべて捨てる」型 残4枚**（WX05-022, WX10-037はv0.275残扱いだったが今回解消。残: WX05-022/WX10-037完了）
+> - **正しいスキップ 2枚**: WXK10-026 / WX25-P3-088（修正済み）。**WDK13-011（可変）・WX25-P2-001（アーツSTUB）も引き続き未対応**
+>
+> ### 近似メモ
+> - WXDi-P09-006-E2: 「次のアタック時のみガード不可」→「このターン中ガード不可」（BLOCK_ACTION END_OF_TURN）
+> - 「手札からこのカードを捨てる」型（自己コスト手発動）はゲームエンジン側で機構未実装のため引き続きスキップ
+
 > ## ✅ 2026-06-13 ymsty側: 【起】手札捨てコスト ラウンド2 — 残51カード中33カード解消（v0.275）— デプロイ未実施→zerom側で
 >
 > v0.266の残り（混合/可変/キー/STUB型 ≈50）のうち表現可能な分を解消した。51→18カード（スキャンは
