@@ -3318,6 +3318,63 @@ export function collectTrashFieldProtectedSigni(
 }
 
 /**
+ * CONTINUOUS REMOVE_ABILITIES: stateのシグニのうち、能力を失っているシグニのCardNum集合を返す。
+ * 自シグニのCONT(owner:'self')と相手シグニのCONT(owner:'opponent')の両方をスキャンする。
+ * owner:'opponent', count:1 → 相手フィールド上の同ゾーンインデックスのシグニ（対面シグニ）を対象とする。
+ */
+export function collectContinuousAbilitiesRemovedSigni(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Set<string> {
+  const removed = new Set<string>();
+  const RemoveAbilitiesType = 'REMOVE_ABILITIES';
+
+  // 自フィールドの CONTINUOUS REMOVE_ABILITIES(owner:'self') — 自分自身が能力を失う
+  for (let zi = 0; zi < state.field.signi.length; zi++) {
+    const stack = state.field.signi[zi];
+    if (!stack?.length) continue;
+    const sourceNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if ((eff.action as { type: string }).type !== RemoveAbilitiesType) continue;
+      const act = eff.action as import('../types/effects').RemoveAbilitiesAction;
+      if (act.target.owner !== 'self') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+      if (act.target.count === 1 || act.target.count === 'ALL') removed.add(sourceNum);
+    }
+  }
+
+  // 相手フィールドの CONTINUOUS REMOVE_ABILITIES(owner:'opponent') — 対面シグニが能力を失う
+  for (let zi = 0; zi < otherState.field.signi.length; zi++) {
+    const stack = otherState.field.signi[zi];
+    if (!stack?.length) continue;
+    const sourceNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if ((eff.action as { type: string }).type !== RemoveAbilitiesType) continue;
+      const act = eff.action as import('../types/effects').RemoveAbilitiesAction;
+      if (act.target.owner !== 'opponent') continue;
+      if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, sourceNum)) continue;
+      // count:1 は同ゾーン（対面）のシグニを対象とする
+      if (act.target.count === 1) {
+        const facing = state.field.signi[zi]?.at(-1);
+        if (facing) removed.add(facing);
+      } else if (act.target.count === 'ALL') {
+        for (const s of state.field.signi) {
+          const top = s?.at(-1);
+          if (top) removed.add(top);
+        }
+      }
+    }
+  }
+
+  return removed;
+}
+
+/**
  * PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP:
  * 相手効果によって能力を得られないシグニ番号を返す。
  * ownerState = 保護される側（自分）、otherState = 保護する効果を持つ側 or 効果を使う側
