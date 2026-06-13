@@ -7860,7 +7860,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
         (e.timing === undefined || e.timing.includes('MAIN')) &&
-        !(my.actions_done?.includes(e.effectId)) &&
+        !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
+        !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
         !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
         !isActionBlocked('USE_ACT') &&
