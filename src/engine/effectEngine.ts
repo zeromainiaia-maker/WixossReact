@@ -3626,8 +3626,10 @@ export function hasAllCardsColorBlack(
  */
 export function collectCenterZoneDeployRestrict(
   opponentState: PlayerState,
-  _cardMap: Map<string, CardData>,
+  myState: PlayerState,
+  cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOpponentTurn: boolean,
 ): number | undefined {
   const candidates: string[] = [
     ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
@@ -3636,6 +3638,7 @@ export function collectCenterZoneDeployRestrict(
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, opponentState, myState, isOpponentTurn, cardMap, cn)) continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'OPP_ZONE_PLACEMENT_RESTRICT') continue;
       return 3;

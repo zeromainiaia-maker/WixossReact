@@ -4334,7 +4334,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     if (isActionBlocked('PLAY_COLORLESS') && battleCardMap.get(my.hand[handIndex])?.Color === '無') return;
     // OPP_ZONE_PLACEMENT_RESTRICT: 相手が中央ゾーン(index=1)にLv3+配置不可
-    const czRestrict = collectCenterZoneDeployRestrict(op, battleCardMap, effectsMap);
+    const czRestrict = collectCenterZoneDeployRestrict(op, my, battleCardMap, effectsMap, !isMyTurn);
     if (czRestrict !== undefined && zoneIndex === 1) {
       const cardLvCZ = parseInt(battleCardMap.get(my.hand[handIndex])?.Level ?? '0') || 0;
       if (cardLvCZ >= czRestrict) return;
@@ -5708,7 +5708,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const redirectBanish = my.banish_redirect === true;
           const redirectBanishToHand = my.banish_redirect_to_hand === true;
           // BANISH_BY_SELF_GOES_TO_TRASH: この攻撃シグニが banish_to_trash_by_self を持つ場合、バニッシュ先はトラッシュ
-          const banishBySelftToTrash = (my.banish_to_trash_by_self ?? []).includes(myTopNum);
+          // 状態フラグ（ACTIVATEDで設定済み）またはCONTINUOUS STUB効果（activeCondition評価込み）
+          const banishBySelftToTrash =
+            (my.banish_to_trash_by_self ?? []).includes(myTopNum) ||
+            (effectsMap.get(myTopNum) ?? []).some(eff =>
+              eff.effectType === 'CONTINUOUS' &&
+              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+              (eff.action as import('../types/effects').StubAction).id === 'BANISH_BY_SELF_GOES_TO_TRASH' &&
+              checkActiveCondition(eff.activeCondition, my, op, true, battleCardMap, myTopNum, effectivePowers),
+            );
           // FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 防御側CONTが有効なら凍結シグニはデッキ下へ
           // FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 攻撃側CONTが有効なら相手凍結シグニはトラッシュへ
           const opFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(op, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
@@ -6945,14 +6953,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`ルリグアタック：ダメージ無効`]);
           newMyState = { ...my, prevent_next_damage: (my.prevent_next_damage ?? 0) - 1, field: { ...my.field, lrig_attacked: false } };
         } else if (my.prevent_lrig_damage || (() => {
-          // PREVENT_LRIG_DAMAGE (条件付き): 手札が0枚のかぎりルリグダメージ無効
+          // PREVENT_LRIG_DAMAGE (条件付き): activeCondition を正確に評価
           return my.field.signi.some((stack) => {
             const top = stack?.at(-1); if (!top) return false;
             return (effectsMap.get(top) ?? []).some(eff =>
               eff.effectType === 'CONTINUOUS' &&
               (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
               (eff.action as import('../types/effects').StubAction).id === 'PREVENT_LRIG_DAMAGE' &&
-              my.hand.length === 0,
+              checkActiveCondition(eff.activeCondition, my, op, false, battleCardMap, top),
             );
           });
         })()) {
