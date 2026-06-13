@@ -4088,6 +4088,29 @@ export function collectLevelRefOverridesFromNonField(
   return result;
 }
 
+// TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュでレベル1シグニとして扱うカードのSetを収集
+export function collectDeckTrashLevel1Nums(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): Set<string> {
+  const result = new Set<string>();
+  for (const state of [ownerState, otherState]) {
+    for (const cn of [...state.deck, ...state.trash]) {
+      if (result.has(cn)) continue;
+      for (const eff of (effectsMap.get(cn) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').StubAction;
+        if (act.type === 'STUB' && act.id === 'TREAT_AS_LEVEL1_IN_DECK_TRASH') {
+          result.add(cn);
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
 // TREAT_AS_CLASS_ALL_ZONES: 全ゾーンで特定クラスとして扱うカードのマップを収集
 export function collectTreatAsClassAllZones(
   ownerState: PlayerState,
