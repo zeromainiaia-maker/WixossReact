@@ -7000,7 +7000,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const baseStateForBurst = doubleBurst
         ? { ...baseState, life_burst_double_next: undefined }
         : baseState;
-      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1, crashTriggers, { id: ownerId, key: p.ownerKey });
+      // lrig_trash: ARTS_SELF_RECYCLE_ON_TRIGGER with ON_LIFE_BURST timing
+      const lrigTrashBurstEntries: StackEntry[] = [];
+      for (const artsNum of (baseState.lrig_trash ?? [])) {
+        for (const eff of (effectsMap.get(artsNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LIFE_BURST')) continue;
+          const act = eff.action as import('../types/effects').StubAction;
+          if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
+          const cardName = battleCardMap.get(artsNum)?.CardName ?? artsNum;
+          lrigTrashBurstEntries.push({
+            id: generateUUID(),
+            playerId: ownerId,
+            cardNum: artsNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（ライフバースト時）`,
+            effect: eff,
+          });
+        }
+      }
+      const allBurstExtras = [...crashTriggers, ...lrigTrashBurstEntries];
+      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1, allBurstExtras, { id: ownerId, key: p.ownerKey });
       if (!fired) {
         const stateKey = p.ownerKey;
         await supabase.from('battle_states')
