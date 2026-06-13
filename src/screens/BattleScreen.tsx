@@ -2980,6 +2980,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_attack_cost: undefined,             // シグニアタックコストリセット
           lrig_riding_signi: undefined,             // ドライブ状態（ライド）をリセット
           lrig_attack_remaining: undefined,         // マルチダメージ残数リセット
+          lrig_has_attacked: undefined,             // ルリグアタック済みフラグをリセット
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
           negate_opp_signi_attacks_until: undefined, // N回目シグニアタック自動無効化フラグをリセット
