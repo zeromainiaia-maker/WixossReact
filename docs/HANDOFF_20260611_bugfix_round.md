@@ -30,6 +30,7 @@ STUB_LOG（ログのみSTUB）**0件達成**。実装内容:
    - 副次修正（v0.285予定）: `BUFF_HOST_WHEN_PLACED_UNDER` を `STUB_EQUIVALENTS` に追加（verifyEffects Sheet8 1件 → 0件）
 2. CPU AI拡張（メインフェイズでのアーツ/スペル/起動効果使用）
 3. ✅ 課題A: 「場に出す」効果のゾーン選択化（v0.286完了）
+4. ✅ 課題B: WX15-116 ON_BANISH CPU戦（確認済み実装済み — performSigniAttack共通化で解消）
 
 ---
 
@@ -474,22 +475,12 @@ STUB_LOG（ログのみSTUB）**0件達成**。実装内容:
 > - **対象外（引き続き自動配置）**: count:'ALL'のapplyToField（sync制約）、PLACE_REV_SIGNI、REVEAL_SIGNI_TO_FIELD、LOOK_TOP_SIGNI_TO_FIELD。
 > - **デプロイ未実施（ymsty側に権限なし）→ zerom側で動作確認のうえ `vercel deploy --prod` を行うこと**。
 >
-> ### 🆕 課題B（zerom担当）: WX15-116 ヨグルティの ON_BANISH 効果がCPU対戦で発動しない（調査済み・方針確定）
+> ### ✅ 課題B（確認済み・実装済み）: WX15-116 ヨグルティの ON_BANISH 効果がCPU対戦で発動しない
 >
-> - JSON定義は正常: `WX15-116-E1` = AUTO / ON_BANISH / PLACE_VIRUS（zoneCount:1）
-> - 配線済みで正常な経路: 人間のアタック（handleSigniAttack L5648で collectBanishTriggers）・
->   効果バニッシュ（detectBanishedSigni L3381/L3698）・パワー0バニッシュ（L5895）
-> - **原因: CPUアタックのバトル勝利処理（cpuTurn の ATTACK_SIGNI、BattleScreen L6355-6396）が独自実装**:
->   - (a) collectBanishTriggers を呼ばない → ON_BANISH / ON_LEAVE_FIELD / ON_SIGNI_BANISH_BATTLE 等が
->     CPU戦のバトルバニッシュで一切発火しない
->   - (b) バニッシュ先が**トラッシュ**（`trash: [...huSt.trash, ...opStack]`）— 正: トップカードはエナへ、
->     ライズ下カードはトラッシュへ。**CPU戦では人間のシグニがバニッシュされてもエナが増えない**ルール違反
->   - (c) バニッシュ代替（ダウン代替/調理/アクセ/ライズ）・リダイレクト（banish_redirect等）・チャームも未考慮
-> - **修正方針**: handleSigniAttack の L5732-5741 と同じパターンで
->   `collectBanishTriggers(banishedCardNum, 人間側id, newHostState, newGuestState)` → `pushToStack/initStack`
->   で effect_stack に積む。最低限 (a)(b) で WX15-116 は発火する（PLACE_VIRUS は SELECT_VIRUS_ZONE になり
->   人間オーナーならモーダルでゾーン選択、CPUオーナーならCPU自動応答済み）。(c) は別途
->   handleSigniAttack のロジック共通化を検討
+> **2026-06-13 ymsty 確認**: `cpuTurnAction` の ATTACK_SIGNI フェイズ（現 L6706-6736）は zerom 側の
+> リファクタリングにより `performSigniAttack` 共通関数を呼ぶよう修正済み（コメント「対人戦と同じ共通処理で
+> バトル解決（バニッシュ先エナ・各種代替・ON_BANISH等トリガー収集を含む）」）。
+> HANDOFF 記載の (a)(b)(c) はすべて `performSigniAttack` 内で処理されており修正不要。
 
 > ## ✅ 2026-06-12 ymsty側: トリガー配線ラウンド3（v0.257）— 未配線timing 5種を配線（1種は配線不能と判定）
 >
