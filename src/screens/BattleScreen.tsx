@@ -4128,6 +4128,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     for (const stack of opState.field.signi) {
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
+      if (opAbilitiesRemoved.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
       const effects = effectsMap.get(topNum) ?? [];
       for (const eff of effects) {
         if (eff.effectType !== 'AUTO') continue;
