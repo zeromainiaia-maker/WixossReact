@@ -3066,6 +3066,33 @@ export function execStubPart2(
       const newOwnerCKTO = { ...ctx.ownerState, deck: newDeckCKTO, hand: newHandCKTO, field: { ...ctx.ownerState.field, check: cardToCheckTO } };
       return done(addLog({ ...ctx, ownerState: newOwnerCKTO }, `${ctx.cardMap.get(cardToCheckTO)?.CardName ?? cardToCheckTO}をチェックゾーンへ`));
     }
+    // このスペル自身をシグニの下に置いてもよい（WXDi-P11-063等）
+    if (txtTRAPOPER.includes('の下に置いてもよい')) {
+      const spellNumTO = ctx.sourceCardNum;
+      if (spellNumTO) {
+        const selfTopSigniTO = ctx.ownerState.field.signi.map(s => s?.at(-1)).filter((c): c is string => !!c);
+        const memoriaMatchTO = [...txtTRAPOPER.matchAll(/《([^》]+メモリア[^》]*)》/g)].map(m => m[1]);
+        const hostCandsTO = memoriaMatchTO.length > 0
+          ? selfTopSigniTO.filter(cn => memoriaMatchTO.some(name => ctx.cardMap.get(cn)?.CardName === name))
+          : selfTopSigniTO;
+        const validHostsTO = hostCandsTO.length > 0 ? hostCandsTO : selfTopSigniTO;
+        const spellNameTO = ctx.cardMap.get(spellNumTO)?.CardName ?? spellNumTO;
+        const placeOptsTO = validHostsTO.map(cn => ({
+          id: `under_${cn}`,
+          label: `${ctx.cardMap.get(cn)?.CardName ?? cn}の下に置く`,
+          action: ({ type: 'STUB', id: 'INTERNAL_PLACE_SELF_UNDER_SIGNI', value: cn } as StubAction) as EffectAction,
+          available: true,
+        }));
+        placeOptsTO.push({
+          id: 'skip', label: 'スキップ（トラッシュへ）',
+          action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction,
+          available: true,
+        });
+        return needsInteraction(addLog(ctx, `${spellNameTO}をシグニの下に置きますか？`), {
+          type: 'CHOOSE', count: 1, options: placeOptsTO,
+        });
+      }
+    }
     const cardToTrapTO = ctx.lastProcessedCards?.[0];
     if (cardToTrapTO) {
       // lastProcessedCards[0] をトラップとして設置（ゾーン選択）
