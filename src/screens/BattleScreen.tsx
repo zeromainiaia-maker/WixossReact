@@ -6958,10 +6958,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       // エナコストを支払う
       const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const baseNewEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // energyTrashAll: エナゾーンのカードをすべてトラッシュ（選択不要、自動）
+      const energyTrashAllCards = effect.cost?.energyTrashAll ? [...baseNewEnergy] : [];
+      const newEnergy = effect.cost?.energyTrashAll ? [] : baseNewEnergy;
       // 手札捨てコストを支払う
       const discardedCards = [...discardCostIndices].map(i => my.hand[i]);
-      const newHand = my.hand.filter((_, i) => !discardCostIndices.has(i));
+      const baseNewHand = my.hand.filter((_, i) => !discardCostIndices.has(i));
+      // discardAll: 手札をすべて捨てる（選択不要、自動）
+      const discardAllCards = effect.cost?.discardAll ? [...baseNewHand] : [];
+      const newHand = effect.cost?.discardAll ? [] : baseNewHand;
       // down_self コストの場合はそのゾーンをダウン
       const newSigniDown = [...(my.field.signi_down ?? [false, false, false])];
       if (effect.cost?.down_self) {
@@ -6977,16 +6983,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 《コインアイコン》コスト（【起】コイン。activate_cost_zero時は免除）
       const coinCostAct = my.activate_cost_zero_signi === cardNum ? 0 : (effect.cost?.coin ?? 0);
       if (coinCostAct > 0 && (my.coins ?? 0) < coinCostAct) return; // 支払い不能（UI側でも無効化済み）
+      // 捨てた合計枚数（ACTIVATED_DISCARD_COUNT_GTE条件用）
+      const totalDiscardedCount = discardedCards.length + discardAllCards.length + energyTrashAllCards.length;
+      const isGameOnceAct = effect.usageLimit === 'once_per_game';
       let paid: PlayerState = {
         ...my,
         hand: newHand,
         energy: newEnergy,
         coins: coinCostAct > 0 ? Math.max(0, (my.coins ?? 0) - coinCostAct) : my.coins,
         activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
-        trash: [...my.trash, ...paidNums, ...discardedCards],
+        trash: [...my.trash, ...paidNums, ...discardedCards, ...discardAllCards, ...energyTrashAllCards],
         lrig_trash: newLrigTrash,
         field: newField,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
+        game_actions_done: isGameOnceAct ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
+        last_activated_discard_count: totalDiscardedCount,
       };
       // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
       let plant3rdDownTriggerEntry: StackEntry | null = null;
@@ -7034,8 +7045,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? [entry, plant3rdDownTriggerEntry]
         : [entry];
       // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 【起】コストで手札を捨てた場合のトリガー
-      if (discardedCards.length > 0) {
-        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(discardedCards, paid, true);
+      const allDiscardedForTrigger = [...discardedCards, ...discardAllCards];
+      if (allDiscardedForTrigger.length > 0) {
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(allDiscardedForTrigger, paid, true);
         stackEntries.push(...hdEntries);
         if (usedLimitIds.length > 0) {
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
@@ -7432,18 +7444,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // エナコスト支払い
       const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const baseLGEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // energyTrashAll: エナゾーンのカードをすべてトラッシュ（自動）
+      const lgEnergyTrashAllCards = effect.cost?.energyTrashAll ? [...baseLGEnergy] : [];
+      const newEnergy = effect.cost?.energyTrashAll ? [] : baseLGEnergy;
       // 手札シグニ捨てコスト支払い
       const discardedHandNums = [...handDiscardIndices].map(i => my.hand[i]);
-      const newHand = my.hand.filter((_, i) => !handDiscardIndices.has(i));
+      const baseLGHand = my.hand.filter((_, i) => !handDiscardIndices.has(i));
+      // discardAll: 手札をすべて捨てる（自動）
+      const lgDiscardAllCards = effect.cost?.discardAll ? [...baseLGHand] : [];
+      const newHand = effect.cost?.discardAll ? [] : baseLGHand;
+      const lgTotalDiscarded = discardedHandNums.length + lgDiscardAllCards.length + lgEnergyTrashAllCards.length;
+      const lgIsGameOnce = effect.usageLimit === 'once_per_game';
       const paid: import('../types').PlayerState = {
         ...my,
         hand: newHand,
         energy: newEnergy,
-        trash: [...my.trash, ...paidNums, ...discardedHandNums],
+        trash: [...my.trash, ...paidNums, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards],
         field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
+        game_actions_done: lgIsGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
+        last_activated_discard_count: lgTotalDiscarded,
       };
       const lrigTop = my.field.lrig.at(-1);
       const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
@@ -7519,6 +7541,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (e.timing === undefined || e.timing.includes('MAIN')) &&
         !(my.actions_done?.includes(e.effectId)) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
+        !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
         !isActionBlocked('USE_ACT') &&
         !isInfectedBlocked &&
         !isCharmActivateBlocked &&
@@ -7531,6 +7554,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? [
               energyTotal > 0 ? `エナ${energyTotal}` : null,
               eff.cost.discard ? `手札${eff.cost.discard}枚トラッシュ` : null,
+              eff.cost.discardAll ? '手札すべて捨て' : null,
+              eff.cost.energyTrashAll ? 'エナすべトラッシュ' : null,
               eff.cost.down_self ? 'ダウン' : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
@@ -7598,6 +7623,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.effectType !== 'ACTIVATED') continue;
           if (!eff.timing?.includes('MAIN')) continue;
           if (!eff.repeatable && my.actions_done?.includes(eff.effectId)) continue;
+          if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
           if (my.blocked_actions?.includes(eff.effectId)) continue;
           // SONG_FRAGMENT: エナゾーンに歌のカケラがある場合のみ表示
           const actMA = eff.action as import('../types/effects').StubAction;
@@ -7615,6 +7641,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (energyTotalMA > 0) costPartsMA.push(`エナ${energyTotalMA}`);
           if (hdSigniMA) costPartsMA.push(`手札${fmtHandDiscardSigniLabel(hdSigniMA)}シグニ×${hdSigniMA.count}`);
           if (dgMA) costPartsMA.push(`手札${dgMA.map(g => `${fmtDiscardFilterLabel(g.filter) || 'カード'}${g.count}枚`).join('と')}`);
+          if (eff.cost?.discardAll) costPartsMA.push('手札すべて捨て');
+          if (eff.cost?.energyTrashAll) costPartsMA.push('エナすべトラッシュ');
           const lrigActLabel = isSongFrag ? '歌のカケラ' : (costPartsMA.join('・') || 'コストなし');
           lrigActionsMA.push({
             label: `【起】${lrigActLabel}`,
@@ -10187,10 +10215,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   (actCostExtra > 0
                     ? canAffordWithExtraCost(selectedNums, battleCards, costStr, actExtraCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount)
                     : canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount));
-              const discardOk = actDiscardGroups
-                ? (selectedSigniActivatedDiscard.size === discardNeeded &&
-                   canSatisfyDiscardGroups([...selectedSigniActivatedDiscard].map(i => battleCardMap.get(my.hand[i])), actDiscardGroups))
-                : selectedSigniActivatedDiscard.size >= discardNeeded;
+              const discardOk = eff.cost?.discardAll
+                ? true // 手札をすべて捨てる：選択不要・常に支払い可能
+                : actDiscardGroups
+                  ? (selectedSigniActivatedDiscard.size === discardNeeded &&
+                     canSatisfyDiscardGroups([...selectedSigniActivatedDiscard].map(i => battleCardMap.get(my.hand[i])), actDiscardGroups))
+                  : selectedSigniActivatedDiscard.size >= discardNeeded;
               // 《コインアイコン》コスト（リル//メモリア等の【起】コイン）
               const coinNeededAct = isCostZeroByEffect ? 0 : (eff.cost?.coin ?? 0);
               const coinOkAct = coinNeededAct === 0 || (my.coins ?? 0) >= coinNeededAct;
@@ -10210,8 +10240,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
                           コスト: {[
                             energyTotal > 0 ? `エナ${energyTotal}枚` : null,
-                            actDiscardGroups ? `手札から${actFilterLabel}` :
-                              eff.cost?.discard ? `手札${actDiscardFilter ? `の${actFilterLabel}` : ''}${eff.cost.discard}枚` : null,
+                            eff.cost?.energyTrashAll ? 'エナをすべてトラッシュ' : null,
+                            eff.cost?.discardAll ? `手札をすべて捨てる（${my.hand.length}枚）` :
+                              actDiscardGroups ? `手札から${actFilterLabel}` :
+                                eff.cost?.discard ? `手札${actDiscardFilter ? `の${actFilterLabel}` : ''}${eff.cost.discard}枚` : null,
                             coinNeededAct > 0 ? `《コイン》×${coinNeededAct}（所持${my.coins ?? 0}）` : null,
                             eff.cost?.down_self ? 'このシグニをダウン' : null,
                           ].filter(Boolean).join('・') || 'なし'}
@@ -10296,7 +10328,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </>
                   )}
 
-                  {discardNeeded > 0 && (
+                  {/* discardAll: 手札をすべて捨てる（選択不要） */}
+                  {eff.cost?.discardAll && my.hand.length > 0 && (
+                    <p style={{ color: C.warn, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                      手札 {my.hand.length} 枚をすべてトラッシュに捨てます
+                    </p>
+                  )}
+                  {eff.cost?.energyTrashAll && my.energy.length > 0 && (
+                    <p style={{ color: C.warn, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                      エナゾーン {my.energy.length} 枚をすべてトラッシュに置きます
+                    </p>
+                  )}
+
+                  {!eff.cost?.discardAll && discardNeeded > 0 && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         手札から捨てるカードを選択: {selectedSigniActivatedDiscard.size} / {discardNeeded}枚
@@ -10885,10 +10929,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
                 + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);
               const canAffordExceed = exceedCost === 0 || totalExceedAvail >= exceedCost;
-              const canAffordHandDiscard = lgGroups
-                ? (selectedLrigGrantedHandDiscard.size === lgDiscardTotal &&
-                   canSatisfyDiscardGroups([...selectedLrigGrantedHandDiscard].map(i => battleCardMap.get(my.hand[i])), lgGroups))
-                : (!hdSigniCost || selectedLrigGrantedHandDiscard.size >= hdSigniCost.count);
+              const canAffordHandDiscard = eff.cost?.discardAll
+                ? true // 手札をすべて捨てる：常に支払い可能
+                : lgGroups
+                  ? (selectedLrigGrantedHandDiscard.size === lgDiscardTotal &&
+                     canSatisfyDiscardGroups([...selectedLrigGrantedHandDiscard].map(i => battleCardMap.get(my.hand[i])), lgGroups))
+                  : (!hdSigniCost || selectedLrigGrantedHandDiscard.size >= hdSigniCost.count);
               const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
@@ -10907,9 +10953,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
                           コスト: {[
                             exceedCost > 0 ? `エクシード${exceedCost}` : null,
-                            energyTotal > 0 ? costStr : null,
-                            hdSigniCost ? `手札${fmtHandDiscardSigniLabel(hdSigniCost)}シグニ×${hdSigniCost.count}` : null,
-                            lgGroups ? `手札${lgGroupsLabel}` : null,
+                            eff.cost?.energyTrashAll ? 'エナをすべてトラッシュ' : (energyTotal > 0 ? costStr : null),
+                            eff.cost?.discardAll ? `手札をすべて捨てる（${my.hand.length}枚）` :
+                              hdSigniCost ? `手札${fmtHandDiscardSigniLabel(hdSigniCost)}シグニ×${hdSigniCost.count}` :
+                                lgGroups ? `手札${lgGroupsLabel}` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {exceedCost > 0 && !canAffordExceed && (
@@ -10921,7 +10968,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </div>
                   )}
 
-                  {energyTotal > 0 && (
+                  {/* discardAll/energyTrashAll: 自動・選択不要の通知 */}
+                  {eff.cost?.discardAll && my.hand.length > 0 && (
+                    <p style={{ color: C.warn, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                      手札 {my.hand.length} 枚をすべてトラッシュに捨てます
+                    </p>
+                  )}
+                  {eff.cost?.energyTrashAll && my.energy.length > 0 && (
+                    <p style={{ color: C.warn, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                      エナゾーン {my.energy.length} 枚をすべてトラッシュに置きます
+                    </p>
+                  )}
+
+                  {energyTotal > 0 && !eff.cost?.energyTrashAll && (
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         エナゾーンから選択: {selectedLrigGrantedCost.size} / {energyTotal}枚

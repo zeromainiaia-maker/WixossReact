@@ -137,7 +137,8 @@ export type Condition =
   | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number }   // lastProcessedCardsのシグニレベル合計=N
   | { type: 'OPPONENT_NOT_PAID' }                             // 相手が任意コストを支払わなかった場合
   | { type: 'SELF_OPTIONAL_EFFECT_TAKEN' }                    // 自分が任意効果（自バニッシュ等）を実行した場合
-  | { type: 'HAS_BOND'; cardName?: string };                  // 絆アイコン：このカード名との絆を獲得している
+  | { type: 'HAS_BOND'; cardName?: string }                   // 絆アイコン：このカード名との絆を獲得している
+  | { type: 'ACTIVATED_DISCARD_COUNT_GTE'; value: number };  // 直前の【起】コストで捨てた合計枚数（手札+エナ）≥ N
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
@@ -172,6 +173,9 @@ export interface EffectCost {
   charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く
   removeOppVirus?: number; // 対戦相手の場の【ウィルス】N個を取り除く
   none?: boolean;         // コストなしの任意効果（発動するかの確認のみ）
+  // ─ v0.276 追加: 全捨て型コスト ─
+  discardAll?: true;      // 手札をすべて捨てる（自動・選択不要）
+  energyTrashAll?: true;  // エナゾーンのカードをすべてトラッシュ（自動・選択不要）
 }
 
 // ===== ターゲットフィルタ =====

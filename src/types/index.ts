@@ -94,7 +94,9 @@ export interface PlayerState {
     cross_state?:  boolean[];         // [zone0, zone1, zone2] true=クロス状態
     heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み
   };
-  actions_done?: string[];    // このターンに使用済みのアクション（ターン開始時にリセット）
+  actions_done?: string[];      // このターンに使用済みのアクション（ターン開始時にリセット）
+  game_actions_done?: string[]; // ゲーム通じて使用済みのアクション（once_per_game追跡、ターンリセット対象外）
+  last_activated_discard_count?: number; // 直前【起】コスト支払いで捨てた合計枚数（手札+エナ）。ACTIVATED_DISCARD_COUNT_GTE条件用
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
   story_overrides?: Record<string, string>; // CardNum -> ゲーム中に変更されたStory（大本のCardDataは変えない）

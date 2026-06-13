@@ -460,6 +460,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!name) return false;
       return ctx.ownerState.bonds?.includes(name) ?? false;
     }
+    case 'ACTIVATED_DISCARD_COUNT_GTE':
+      return (ctx.ownerState.last_activated_discard_count ?? 0) >= cond.value;
     case 'LAST_PROCESSED_LEVEL_SUM_EQ': {
       // lastProcessedCardsのシグニのレベル合計がvalue=Nか判定（WD21-012等）
       const processed = ctx.lastProcessedCards ?? [];
