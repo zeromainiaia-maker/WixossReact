@@ -4147,3 +4147,37 @@ export function collectTreatAsClassAllZones(
   }
   return result;
 }
+
+// DECLARE_ZONE_FOR_CLASS_CHANGE: 指定領域にある相手シグニをクラス/色なし＋精元として扱うcardMapを生成
+// ownerState=効果を受ける側(カード検索を行う側), otherState=WX14-032を持つ側
+export function applyDeclaredZoneClassOverride(
+  cardMap: Map<string, CardData>,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+): Map<string, CardData> {
+  const decls = otherState.declared_class_zones ?? [];
+  if (decls.length === 0) return cardMap;
+  const affectedNums = new Set<string>();
+  for (const decl of decls) {
+    const onField = otherState.field.signi.some(s => s?.includes(decl.sourceCardNum));
+    if (!onField) continue;
+    let pool: string[];
+    switch (decl.zone) {
+      case 'deck':  pool = ownerState.deck; break;
+      case 'hand':  pool = ownerState.hand; break;
+      case 'signi': pool = ownerState.field.signi.flatMap(s => s ?? []); break;
+      case 'trash': pool = ownerState.trash; break;
+      default: pool = [];
+    }
+    for (const cn of pool) {
+      if (cardMap.get(cn)?.Type === 'シグニ') affectedNums.add(cn);
+    }
+  }
+  if (affectedNums.size === 0) return cardMap;
+  const newMap = new Map(cardMap);
+  for (const cn of affectedNums) {
+    const card = cardMap.get(cn);
+    if (card) newMap.set(cn, { ...card, CardClass: '精元', Color: '' });
+  }
+  return newMap;
+}
