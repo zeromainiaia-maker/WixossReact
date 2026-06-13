@@ -34,7 +34,7 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwner }, 'アタックを無効にする'));
   }
   // ゲームプレイに影響しない説明テキストは無音でスキップ
-  if (stub.id === 'RULE_REMINDER_TEXT' || stub.id === 'USE_CONDITION_TEXT') {
+  if (stub.id === 'RULE_REMINDER_TEXT' || stub.id === 'USE_CONDITION_TEXT' || stub.id === 'UNLIMITED_KEYS') {
     return done(ctx);
   }
   // OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース）
