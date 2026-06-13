@@ -3483,7 +3483,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // PREVENT_ZONE_MOVE_BY_OPP: 相手（otherState）の保護ゾーンを動的計算してctxに渡す
       const otherProtectedZones = collectProtectedZones(otherState, battleCardMap, effectsMap);
       // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手フィールドの能力保護シグニを動的計算してctxに渡す
-      const otherProtectedSigniNums = collectAbilityProtectedSigni(otherState, battleCardMap, effectsMap, !isOwnerTurn);
+      const otherProtectedSigniNums = collectAbilityProtectedSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn);
       // PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP_ALL: 相手フィールドのダウン保護シグニ
       const otherDownProtectedNums = collectDownProtectedSigni(otherState, battleCardMap, effectsMap, ownerStateForCtx, isOwnerTurn);
       // SIGNI_CANT_BOUNCE_FROM_FIELD: 相手フィールドのバウンス保護シグニ

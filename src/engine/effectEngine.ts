@@ -2284,9 +2284,10 @@ export function collectHandLimits(
  */
 export function collectAbilityProtectedSigni(
   state: PlayerState,
+  otherState: PlayerState,
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
-  isOwnerTurn?: boolean,
+  isOwnerTurn: boolean,
 ): string[] {
   const protectedNums = new Set<string>();
   for (const stack of state.field.signi) {
@@ -2294,6 +2295,7 @@ export function collectAbilityProtectedSigni(
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
 
       // GRANT_PROTECTION アクション: from に 'シグニ' を含み sourceOwner='opponent' → このシグニを保護
       if (eff.action.type === 'GRANT_PROTECTION') {
