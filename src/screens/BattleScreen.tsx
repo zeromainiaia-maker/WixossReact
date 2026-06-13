@@ -4777,10 +4777,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const coinCost = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
+      const hasUnlimitedKeysEKP = my.field.lrig.some(ln =>
+        (effectsMap.get(ln) ?? []).some(e =>
+          e.effectType === 'CONTINUOUS' &&
+          (e.action as import('../types/effects').StubAction)?.type === 'STUB' &&
+          (e.action as import('../types/effects').StubAction)?.id === 'UNLIMITED_KEYS',
+        )
+      );
+      const newField = (hasUnlimitedKeysEKP && my.field.key_piece)
+        ? { ...my.field, key_piece_extra: [...(my.field.key_piece_extra ?? []), instanceId] }
+        : { ...my.field, key_piece: instanceId };
       const paid: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
-        field: { ...my.field, key_piece: instanceId },
+        field: newField,
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
         coins: Math.max(0, my.coins - coinCost),
