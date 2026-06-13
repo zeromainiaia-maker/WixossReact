@@ -5524,17 +5524,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           contGrantedKeywords.add(gkA.keyword);
         }
       }
-      // ドライブ常 GRANT_KEYWORD: このシグニがドライブ状態のとき有効なキーワード付与
+      // DRIVE_SIGNI_POWER_DOUBLE_CRASH: ルリグのCONT STUB → ドライブ状態のこのシグニにダブルクラッシュ付与
       if (my.lrig_riding_signi?.includes(myTopNum)) {
-        for (const eff of (effectsMap.get(myTopNum) ?? [])) {
-          if (eff.effectType !== 'CONTINUOUS') continue;
-          if (eff.activeCondition?.type !== 'IS_DRIVE_STATE') continue;
-          const gkDrive = eff.action.type === 'GRANT_KEYWORD'
-            ? eff.action as import('../types/effects').GrantKeywordAction
-            : null;
-          if (gkDrive) contGrantedKeywords.add(gkDrive.keyword);
-        }
-        // DRIVE_SIGNI_POWER_DOUBLE_CRASH: ルリグのCONT → このシグニ（ドライブ状態）にダブルクラッシュ付与
         const myLrigTopForDrive = my.field.lrig.at(-1);
         if (myLrigTopForDrive) {
           const hasDriveDoubleCrash = (effectsMap.get(myLrigTopForDrive) ?? []).some(eff =>
@@ -5545,23 +5536,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (hasDriveDoubleCrash) contGrantedKeywords.add('ダブルクラッシュ');
         }
       }
-      // SELF_POWER_THRESHOLD条件付きCONT GRANT_KEYWORD（例: WD04-010 ランサー when power≥10000）
+      // 自シグニの activeCondition 付き CONT GRANT_KEYWORD を checkActiveCondition で統一評価
+      // （IS_DRIVE_STATE / SELF_POWER_THRESHOLD / TURN_OWNER / HAS_CARD_IN_FIELD / COUNT_THRESHOLD / LRIG_LEVEL / AND 等）
+      // isOwnerTurn=true: performSigniAttack は常に攻撃側（my）のターン中に実行される
       for (const eff of (effectsMap.get(myTopNum) ?? [])) {
-        if (eff.effectType !== 'CONTINUOUS') continue;
-        if (!eff.activeCondition || eff.activeCondition.type !== 'SELF_POWER_THRESHOLD') continue;
-        const gkA = eff.action.type === 'GRANT_KEYWORD'
-          ? eff.action as import('../types/effects').GrantKeywordAction
-          : null;
-        if (!gkA) continue;
-        const selfPower = effectivePowers.get(myTopNum) ?? parseInt(battleCardMap.get(myTopNum)?.Power ?? '0');
-        const cond = eff.activeCondition;
-        const met = cond.operator === 'gte' ? selfPower >= cond.value
-          : cond.operator === 'lte' ? selfPower <= cond.value
-          : cond.operator === 'gt' ? selfPower > cond.value
-          : cond.operator === 'lt' ? selfPower < cond.value
-          : cond.operator === 'eq' ? selfPower === cond.value
-          : selfPower !== cond.value; // neq
-        if (met) contGrantedKeywords.add(gkA.keyword);
+        if (eff.effectType !== 'CONTINUOUS' || !eff.activeCondition) continue;
+        if (eff.action.type !== 'GRANT_KEYWORD') continue;
+        if (checkActiveCondition(eff.activeCondition, my, op, true, battleCardMap, myTopNum, effectivePowers)) {
+          contGrantedKeywords.add((eff.action as import('../types/effects').GrantKeywordAction).keyword);
+        }
       }
       // アクセカードのCONTINUOUS GRANT_KEYWORD効果をホストシグニに適用
       // 例: 「これにアクセされている＜調理＞のシグニは【ランサー】を得る」(WXEX1-70-E3等)

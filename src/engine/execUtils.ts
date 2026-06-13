@@ -1,6 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope } from '../types';
 import { hasShadow, hasShadowLrig } from '../utils/keywords';
-import { checkBeatCondition } from './effectEngine';
+import { checkBeatCondition, checkActiveCondition } from './effectEngine';
 import type {
   EffectAction,
   TargetFilter,
@@ -586,6 +586,15 @@ export function selectOrInteract(
     filteredCands = candidates.filter(n => {
       if (hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds)) return false;
       if (sourceIsLrig && hasShadowLrig(n, ctx.cardMap, ctx.otherState.keyword_grants)) return false;
+      // activeCondition 付きシャドウ（TURN_OWNER等）を評価:
+      // n は ctx.otherState のシグニ。ownerState=otherState, isOwnerTurn=false（ctx.ownerState のターン中に効果実行）
+      const hasCondShadow = ctx.cardMap.get(n)?.effects?.some(eff => {
+        if (eff.effectType !== 'CONTINUOUS' || !eff.activeCondition) return false;
+        if (eff.action.type !== 'GRANT_KEYWORD') return false;
+        if ((eff.action as { keyword: string }).keyword !== 'シャドウ') return false;
+        return checkActiveCondition(eff.activeCondition, ctx.otherState, ctx.ownerState, false, ctx.cardMap, n, ctx.effectivePowers);
+      }) ?? false;
+      if (hasCondShadow) return false;
       return true;
     });
   }
