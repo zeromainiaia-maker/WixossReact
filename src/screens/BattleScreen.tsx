@@ -4081,6 +4081,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const entries: StackEntry[] = [];
     const opId = ownerId === bs.host_id ? bs.guest_id : bs.host_id;
 
+    // CONTINUOUS REMOVE_ABILITIES: 能力を失っているシグニのセットを事前計算
+    const isOwnerTurnForTrigger = ownerId === bs.active_user_id;
+    const myAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForTrigger, effectsMap, battleCardMap);
+    const opAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(opState, myState, !isOwnerTurnForTrigger, effectsMap, battleCardMap);
+
     // 自分のフィールド：'any_ally' または 'any' トリガー
     // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ（GRANT_ABILITY_INNER_TEXT付与）
     const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
@@ -4089,6 +4094,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const topNum = stack[stack.length - 1];
       if (topNum === triggeringCardNum) continue; // 自身は除く（ON_PLAYは queueCardEffects で処理）
       if (ownAutoBlocked) continue;
+      if (myAbilitiesRemoved.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
       const effects = effectsMap.get(topNum) ?? [];
       for (const eff of effects) {
         if (eff.effectType !== 'AUTO') continue;
