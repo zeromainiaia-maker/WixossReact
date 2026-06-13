@@ -2084,19 +2084,22 @@ export function collectEnergyTrashSubstituteInfo(
 /**
  * FORCE_TARGET_SELF: フィールドのシグニが「相手ターンに可能ならば自分を対象にさせる」CONTINUOUS効果を持つ場合、
  * そのシグニのCardNumセットを返す（相手ターン中にアクティブなもの）。
+ * isOwnerTurn = state（カード所有者）のターンかどうか。呼び出し元は !executor_isOwnerTurn を渡す。
  */
 export function collectForcedTargets(
   state: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   isOwnerTurn: boolean,
 ): string[] {
-  if (isOwnerTurn) return []; // 自分のターン中はFORCE_TARGET_SELFは無効
   const result: string[] = [];
   for (const stack of state.field.signi) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type === 'STUB' && act.id === 'FORCE_TARGET_SELF') {
         result.push(topNum);

@@ -3507,7 +3507,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // FORCE_TARGET_SELF: opp_field SELECT_TARGETで強制対象シグニが候補にある場合、候補を絞る
       if (!result.done && result.pending.type === 'SELECT_TARGET' && result.pending.targetScope === 'opp_field') {
-        const forcedNums = collectForcedTargets(otherState, effectsMap, isOwnerTurn);
+        const forcedNums = collectForcedTargets(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn);
         const forcedInCands = forcedNums.filter(n => result.done === false && result.pending.type === 'SELECT_TARGET' && result.pending.candidates.includes(n));
         if (forcedInCands.length > 0 && result.done === false && result.pending.type === 'SELECT_TARGET' && forcedInCands.length < result.pending.candidates.length) {
           const pend = result.pending;
@@ -5705,7 +5705,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (newOpCharms[opZoneIndex]) { banishExtraTrash.push(newOpCharms[opZoneIndex]!); newOpCharms[opZoneIndex] = null; }
           if (newOpAcce[opZoneIndex])   { banishExtraTrash.push(newOpAcce[opZoneIndex]!);   newOpAcce[opZoneIndex]   = null; }
           // ウィルスはゾーンに属するため、シグニがバニッシュされても除去しない
-          const redirectBanish = my.banish_redirect === true;
+          // 状態フラグ（ACTIVATEDで設定済み）またはCONTINUOUS BANISH_REDIRECT効果（activeCondition評価込み）
+          const redirectBanish =
+            my.banish_redirect === true ||
+            my.field.signi.some(s => {
+              const n = s?.at(-1);
+              return n && (effectsMap.get(n) ?? []).some(e =>
+                e.effectType === 'CONTINUOUS' &&
+                e.action.type === 'BANISH_REDIRECT' &&
+                checkActiveCondition(e.activeCondition, my, op, true, battleCardMap, n, effectivePowers),
+              );
+            });
           const redirectBanishToHand = my.banish_redirect_to_hand === true;
           // BANISH_BY_SELF_GOES_TO_TRASH: この攻撃シグニが banish_to_trash_by_self を持つ場合、バニッシュ先はトラッシュ
           // 状態フラグ（ACTIVATEDで設定済み）またはCONTINUOUS STUB効果（activeCondition評価込み）
@@ -6052,7 +6062,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // ON_TRASH: banish_redirect=true の場合、バニッシュされたシグニがトラッシュへ
       const trashEntriesSA: StackEntry[] = [];
-      if (banishedOpCardNum && my.banish_redirect === true) {
+      if (banishedOpCardNum && redirectBanish) {
         trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, opPlayerId, newHostState, newGuestState));
       }
 
@@ -6241,7 +6251,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const currentOwner = ownerIsHost ? hostState : guestState;
         const removed = removeFromField(topNum, currentOwner);
         const opState = ownerIsHost ? guestState : hostState;
-        const redirectBanishP0 = opState.banish_redirect === true;
+        const opIsOwnerTurnP0 = ownerIsHost ? !isMyTurnLocal : isMyTurnLocal;
+        const redirectBanishP0 =
+          opState.banish_redirect === true ||
+          opState.field.signi.some(s => {
+            const n = s?.at(-1);
+            return n && (effectsMap.get(n) ?? []).some(e =>
+              e.effectType === 'CONTINUOUS' &&
+              e.action.type === 'BANISH_REDIRECT' &&
+              checkActiveCondition(e.activeCondition, opState, currentOwner, opIsOwnerTurnP0, battleCardMap, n),
+            );
+          });
         const redirectBanishToHandP0 = opState.banish_redirect_to_hand === true;
         // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナの代わりにデッキの一番下へ
         const energyToBottomP0 = !redirectBanishP0 && !redirectBanishToHandP0 && removed.opp_signi_energy_to_deck_bottom === true;
