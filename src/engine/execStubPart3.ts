@@ -4172,5 +4172,100 @@ export function execStubPart3(
       `${targetName}にパワー${delta}（スペル${trashCount}枚トラッシュ）`));
   }
 
+  // GAIN_LRIG_BARRIER: 【ルリグバリア】を1つ得る（ルリグアタック1回を無効）
+  if (stub.id === 'GAIN_LRIG_BARRIER') {
+    const newOwnerGLB: PlayerState = { ...ctx.ownerState, lrig_barrier: (ctx.ownerState.lrig_barrier ?? 0) + 1 };
+    return done(addLog({ ...ctx, ownerState: newOwnerGLB },
+      `【ルリグバリア】+1（計${newOwnerGLB.lrig_barrier}）`));
+  }
+
+  // EXILE_SELF_AFTER_USE: 使用後このカードをゲームから除外する（近似: トラッシュへ）
+  if (stub.id === 'EXILE_SELF_AFTER_USE') {
+    const srcESAU = ctx.sourceCardNum;
+    if (!srcESAU) return done(addLog(ctx, 'EXILE_SELF_AFTER_USE: sourceCardNum なし'));
+    const nameESAU = ctx.cardMap.get(srcESAU)?.CardName ?? srcESAU;
+    // フィールドから除去（チャーム・アクセはトラッシュ、カード本体はゲームから除外→近似でトラッシュ）
+    const removedESAU = removeFromField(srcESAU, ctx.ownerState);
+    const newOwnerESAU: PlayerState = { ...removedESAU, trash: [...removedESAU.trash, srcESAU] };
+    return done(addLog({ ...ctx, ownerState: newOwnerESAU }, `${nameESAU}をゲームから除外（近似: トラッシュ）`));
+  }
+
+  // ATTACH_SEARCHED_AS_ACCE: サーチしたカードを対象シグニのアクセとして付ける（手札経由近似）
+  if (stub.id === 'ATTACH_SEARCHED_AS_ACCE') {
+    const searchedASAA = (ctx.lastProcessedCards ?? [])[0];
+    if (!searchedASAA || !ctx.ownerState.hand.includes(searchedASAA)) {
+      return done(addLog(ctx, 'ATTACH_SEARCHED_AS_ACCE: サーチカードが手札にない'));
+    }
+    const acceASAA = ctx.ownerState.field.signi_acce ?? [null, null, null];
+    const candidatesASAA = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
+      if (!stack || stack.length === 0) return [];
+      if (acceASAA[i] !== null) return [];
+      return [stack[stack.length - 1]];
+    });
+    if (candidatesASAA.length === 0) return done(addLog(ctx, 'ATTACH_SEARCHED_AS_ACCE: アクセ対象シグニなし'));
+    const ctxASAA = { ...ctx, sourceCardNum: searchedASAA };
+    const attachASAA: AttachAcceAction = { type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self' };
+    return needsInteraction(addLog(ctxASAA, `${ctx.cardMap.get(searchedASAA)?.CardName ?? searchedASAA}をアクセとして付ける対象を選択`), {
+      type: 'SELECT_TARGET', candidates: candidatesASAA, count: 1, optional: false,
+      targetScope: 'self_field', thenAction: attachASAA as EffectAction,
+    });
+  }
+
+  // GROW_CENTER_IF_LEVEL_LTE_OPP: センタールリグのレベルが相手以下なら無コストグロウ
+  if (stub.id === 'GROW_CENTER_IF_LEVEL_LTE_OPP') {
+    const myLrigCnGC = ctx.ownerState.field.lrig.at(-1);
+    const oppLrigCnGC = ctx.otherState.field.lrig.at(-1);
+    const myLvGC = myLrigCnGC ? parseInt(ctx.cardMap.get(myLrigCnGC)?.Level ?? '0') || 0 : 0;
+    const oppLvGC = oppLrigCnGC ? parseInt(ctx.cardMap.get(oppLrigCnGC)?.Level ?? '0') || 0 : 0;
+    if (myLvGC > oppLvGC) {
+      return done(addLog(ctx, `グロウ条件不成立（自Lv${myLvGC} > 相手Lv${oppLvGC}）`));
+    }
+    const nextLrigGC = ctx.ownerState.lrig_deck?.at(0);
+    if (!nextLrigGC) return done(addLog(ctx, 'グロウ不可（ルリグデッキ空）'));
+    const newOwnerGC: PlayerState = {
+      ...ctx.ownerState,
+      lrig_deck: ctx.ownerState.lrig_deck?.slice(1) ?? [],
+      field: { ...ctx.ownerState.field, lrig: [...ctx.ownerState.field.lrig, nextLrigGC] },
+    };
+    const nextNameGC = ctx.cardMap.get(nextLrigGC)?.CardName ?? nextLrigGC;
+    return done(addLog({ ...ctx, ownerState: newOwnerGC },
+      `グロウ条件成立（自Lv${myLvGC}≤相手Lv${oppLvGC}）→${nextNameGC}にグロウ（コストなし近似）`));
+  }
+
+  // TRASH_ATTACHED_OR_UNDER_CARD: シグニに付いているカードまたは下のカード1枚をトラッシュ
+  if (stub.id === 'TRASH_ATTACHED_OR_UNDER_CARD') {
+    const acceTAUC = ctx.ownerState.field.signi_acce ?? [null, null, null];
+    const charmTAUC = ctx.ownerState.field.signi_charms ?? [null, null, null];
+    const candidatesTAUC: string[] = [];
+    for (let iTAUC = 0; iTAUC < 3; iTAUC++) {
+      if (acceTAUC[iTAUC]) candidatesTAUC.push(acceTAUC[iTAUC]!);
+      if (charmTAUC[iTAUC]) candidatesTAUC.push(charmTAUC[iTAUC]!);
+      const stackTAUC = ctx.ownerState.field.signi[iTAUC];
+      if (stackTAUC && stackTAUC.length > 1) candidatesTAUC.push(...stackTAUC.slice(0, -1));
+    }
+    if (candidatesTAUC.length === 0) return done(addLog(ctx, '付属カードなし（TRASH_ATTACHED_OR_UNDER_CARD）'));
+    // 自動選択: 最初の候補をトラッシュ（近似）
+    const pickedTAUC = candidatesTAUC[0];
+    const newAcceTAUC = (acceTAUC as (string | null)[]).map(c => c === pickedTAUC ? null : c);
+    const newCharmTAUC = (charmTAUC as (string | null)[]).map(c => c === pickedTAUC ? null : c);
+    const newSigniTAUC = ctx.ownerState.field.signi.map(s => {
+      if (!s || !s.includes(pickedTAUC)) return s;
+      const filtered = s.filter(c => c !== pickedTAUC);
+      return filtered.length > 0 ? filtered : null;
+    });
+    const newOwnerTAUC: PlayerState = {
+      ...ctx.ownerState,
+      trash: [...ctx.ownerState.trash, pickedTAUC],
+      field: {
+        ...ctx.ownerState.field,
+        signi_acce: newAcceTAUC,
+        signi_charms: newCharmTAUC,
+        signi: newSigniTAUC as typeof ctx.ownerState.field.signi,
+      },
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerTAUC },
+      `${ctx.cardMap.get(pickedTAUC)?.CardName ?? pickedTAUC}をトラッシュ（付属カード）`));
+  }
+
   return null;
 }
