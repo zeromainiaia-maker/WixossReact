@@ -8609,7 +8609,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setPendingArtsCard(null); setSelectedArtsCost(new Set()); setIsBetting(false); setIsEncore(false); }}
+                    <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setIsBetting(false); setIsEncore(false); setKeySubstituteEnabled(false); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← 戻る
