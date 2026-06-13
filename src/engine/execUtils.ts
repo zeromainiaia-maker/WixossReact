@@ -48,6 +48,8 @@ export interface ExecCtx {
   oppTrashColorLoss?: boolean;
   // TREAT_AS_CLASS_ALL_ZONES: カードNum→クラス名のマップ（全ゾーンでクラスとして扱う）
   treatAsClassAllZones?: Record<string, string>;
+  // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュでレベル1シグニとして扱うカードのSet
+  deckTrashLevel1Nums?: Set<string>;
 }
 
 export type ExecResult =
