@@ -1102,7 +1102,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ── CPU 対戦：ターン自動行動 ──────────────────────────────────
   useEffect(() => {
     if (!bs || !isCpuBattle || bs.global_phase !== 'PLAYING') return;
-    if (bs.pending_effect || bs.effect_stack) return;
+    // CPUのチェックゾーン処理（バースト確認）はeffect_stackがあっても行う
+    // （攻撃時トリガーとバースト確認を並行させないとCPUが止まる）
+    if (bs.pending_effect || (bs.effect_stack && !bs.guest_state?.field?.check)) return;
     // プレイヤー（人間）がライフバースト処理中はCPU停止
     if (bs.host_state?.field?.check) return;
     const cpuSt = bs.guest_state;
