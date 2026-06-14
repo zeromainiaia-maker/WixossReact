@@ -6250,7 +6250,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const scopeBB = eff.triggerScope ?? 'self';
             if (scopeBB === 'self' && topNumBB !== myTopNum) continue;
             if (eff.usageLimit === 'once_per_turn' &&
-                ((my.actions_done?.includes(eff.effectId)) || usedIdsBB.includes(eff.effectId))) continue;
+                ((myS.actions_done?.includes(eff.effectId)) || usedIdsBB.includes(eff.effectId))) continue;
             if (eff.usageLimit === 'once_per_turn') usedIdsBB.push(eff.effectId);
             battleBanishEntries.push({
               id: generateUUID(),
