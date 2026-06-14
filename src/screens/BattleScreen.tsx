@@ -5727,35 +5727,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニアタック バトル解決（ON_ATTACK_SIGNI処理後に呼ばれるPhase 2）
-  // pending_signi_battle フラグを持つアタッカー側が、スタック解決完了後にバトルを実行する
-  const resolvePendingSigniBattle = async () => {
-    if (!my.pending_signi_battle) return;
+  // 汎用版（myS/opSをパラメータとして受け取り、人間・CPU両方に対応）
+  const resolvePendingSigniBattleFor = async (
+    myS: PlayerState,
+    opS: PlayerState,
+    myKey: 'host_state' | 'guest_state',
+    attackerId: string,
+    defenderId: string,
+  ) => {
+    if (!myS.pending_signi_battle) return;
     if (loading) return;
-    const { zoneIndex } = my.pending_signi_battle;
-    const myKey = isHost ? 'host_state' : 'guest_state';
-    const opKey = isHost ? 'guest_state' : 'host_state';
-    const attackerId = user.id;
-    const defenderId = isHost ? (bs.guest_id ?? '') : (bs.host_id ?? '');
-    const attackerIsHost = isHost;
+    const { zoneIndex } = myS.pending_signi_battle;
+    const opKey = myKey === 'host_state' ? 'guest_state' : 'host_state';
+    const attackerIsHost = myKey === 'host_state';
     setLoading(true);
     try {
-      const myTopNum = (my.field.signi[zoneIndex] ?? []).at(-1);
+      const myTopNum = (myS.field.signi[zoneIndex] ?? []).at(-1);
       if (!myTopNum) {
         await supabase.from('battle_states')
-          .update({ [myKey]: { ...my, pending_signi_battle: undefined } })
+          .update({ [myKey]: { ...myS, pending_signi_battle: undefined } })
           .eq('room_id', roomId);
         return;
       }
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
       let opZoneIndex = 2 - zoneIndex;
-      let opStack = op.field.signi[opZoneIndex] ?? [];
+      let opStack = opS.field.signi[opZoneIndex] ?? [];
       let opTopCardNum: string | null = opStack.length > 0 ? opStack[opStack.length - 1] : null;
       let opTopCard = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
 
       // REDIRECT_ATTACK_TO_SELF_ZONE
       if (!opTopCardNum) {
-        for (let zi = 0; zi < op.field.signi.length; zi++) {
-          const top = op.field.signi[zi]?.at(-1);
+        for (let zi = 0; zi < opS.field.signi.length; zi++) {
+          const top = opS.field.signi[zi]?.at(-1);
           if (!top) continue;
           const hasRedir = (effectsMap.get(top) ?? []).some(eff =>
             eff.effectType === 'CONTINUOUS' &&
@@ -5764,7 +5767,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           );
           if (hasRedir) {
             opZoneIndex = zi;
-            opStack = op.field.signi[zi]!;
+            opStack = opS.field.signi[zi]!;
             opTopCardNum = top;
             opTopCard = battleCardMap.get(top) ?? null;
             appendBattleLogs([`${battleCardMap.get(top)?.CardName ?? top}がアタックをこのゾーンへリダイレクト`]);
@@ -5774,8 +5777,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // pending_signi_battle をクリアしたmyStateを基点とする
-      let newMyState: PlayerState = { ...my, pending_signi_battle: undefined };
-      let newOpState: PlayerState = op;
+      let newMyState: PlayerState = { ...myS, pending_signi_battle: undefined };
+      let newOpState: PlayerState = opS;
       let banishedOpCardNum: string | null = null;
       let banishedOpUnderCards: string[] = [];
 
