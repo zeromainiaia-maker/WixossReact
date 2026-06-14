@@ -6569,11 +6569,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // refs を常に最新の関数インスタンスに同期（Rules of Hooks 対応）
-  doPhaseAdvanceRef.current         = doPhaseAdvance;
-  triggerPendingCrashRef.current    = triggerPendingCrash;
-  resolveStackNextRef.current       = resolveStackNext;
-  checkPowerZeroBanishRef.current   = checkAndBanishPowerZero;
-  checkContMutationsRef.current     = checkAndApplyContMutations;
+  doPhaseAdvanceRef.current                = doPhaseAdvance;
+  triggerPendingCrashRef.current           = triggerPendingCrash;
+  resolveStackNextRef.current              = resolveStackNext;
+  checkPowerZeroBanishRef.current          = checkAndBanishPowerZero;
+  checkContMutationsRef.current            = checkAndApplyContMutations;
+  resolvePendingSigniBattleRef.current     = resolvePendingSigniBattle;
+  resolvePendingLrigAttackRef.current      = resolvePendingLrigAttack;
 
   // ══════════════════════════════════════════
   // CPU AI ロジック（ターン行動）
