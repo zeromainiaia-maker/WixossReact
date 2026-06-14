@@ -5892,22 +5892,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // （防御側から見て相手ターンのみ＝アタックは常にアタッカーのターンなので常に該当）
           const opTopCardClass = opTopCardNum ? (battleCardMap.get(opTopCardNum)?.CardClass ?? '') : '';
           const cookingBanishSub = opTopCardClass.includes('調理') &&
-            (op.field.signi_acce?.[opZoneIndex] ?? null) !== null &&
-            op.field.signi.some(stack => {
+            (opS.field.signi_acce?.[opZoneIndex] ?? null) !== null &&
+            opS.field.signi.some(stack => {
               const top = stack?.at(-1);
               return top && (effectsMap.get(top) ?? []).some(eff =>
                 eff.effectType === 'CONTINUOUS' &&
                 (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
                 (eff.action as import('../types/effects').StubAction).id === 'COOKING_BANISH_SUBSTITUTE' &&
-                checkActiveCondition(eff.activeCondition, op, my, false, battleCardMap, top),
+                checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, top),
               );
             });
           if (cookingBanishSub) {
             const acceTrash = newOpAcce[opZoneIndex]!;
             newOpAcce[opZoneIndex] = null;
             newOpFrozen[opZoneIndex] = false;
-            const newOpSigniCBS = [...op.field.signi] as (string[] | null)[];
-            newOpState = { ...op, trash: [...op.trash, acceTrash], field: { ...op.field, signi: newOpSigniCBS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            const newOpSigniCBS = [...opS.field.signi] as (string[] | null)[];
+            newOpState = { ...opS, trash: [...opS.trash, acceTrash], field: { ...opS.field, signi: newOpSigniCBS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（調理バニッシュ代替）アクセをトラッシュしてバニッシュ回避`]);
           } else if (newOpAcce[opZoneIndex] && (effectsMap.get(newOpAcce[opZoneIndex]!) ?? []).some(eff =>
             eff.effectType === 'CONTINUOUS' &&
