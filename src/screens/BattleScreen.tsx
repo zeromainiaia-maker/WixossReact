@@ -5926,14 +5926,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const opTopCardData = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
             const resonaSubCardNum = (opTopCardData?.Type === 'レゾナ' && (opTopCardData?.CardClass ?? '').includes('宇宙'))
               ? (() => {
-                  for (const stack of op.field.signi) {
+                  for (const stack of opS.field.signi) {
                     const top = stack?.at(-1);
                     if (!top || top === opTopCardNum) continue;
                     const hasRLSSS = (effectsMap.get(top) ?? []).some(eff =>
                       eff.effectType === 'CONTINUOUS' &&
                       (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
                       (eff.action as import('../types/effects').StubAction).id === 'RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE' &&
-                      checkActiveCondition(eff.activeCondition, op, my, false, battleCardMap, top),
+                      checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, top),
                     );
                     if (hasRLSSS) return top;
                   }
@@ -5942,7 +5942,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               : null;
             if (resonaSubCardNum) {
               // 代替シグニをトラッシュ、レゾナを場に残す
-              const subRemoved = removeFromField(resonaSubCardNum, { ...op, field: { ...op.field, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } });
+              const subRemoved = removeFromField(resonaSubCardNum, { ...opS, field: { ...opS.field, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } });
               newOpState = { ...subRemoved, trash: [...subRemoved.trash, resonaSubCardNum] };
               appendBattleLogs([`${opCardName}（レゾナ離脱代替）${battleCardMap.get(resonaSubCardNum)?.CardName ?? resonaSubCardNum}をトラッシュしてレゾナをフィールドに残す`]);
             } else {
