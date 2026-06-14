@@ -5534,7 +5534,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             opZoneIndex = zi;
             opStack = op.field.signi[zi]!;
             opTopCardNum = top;
-            opTopCard = battleCardMap.get(top) ?? null;
             appendBattleLogs([`${battleCardMap.get(top)?.CardName ?? top}がアタックをこのゾーンへリダイレクト`]);
             break;
           }
