@@ -6322,8 +6322,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
       }
       appendBattleLogs([`${lrigName}がアタック`]);
-      const newMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, lrig_has_attacked: true, field: { ...my.field, lrig_down: true } };
-      const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
+      // pending_lrig_attack: true でON_ATTACK_LRIG解決後にガード応答（lrig_attacked）をセット
+      const newMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, lrig_has_attacked: true, pending_lrig_attack: true, field: { ...my.field, lrig_down: true } };
+      // lrig_attacked は ON_ATTACK_LRIG 解決後にセット（スタック解決後の useEffect で対応）
 
       // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）
       const lrigCardEffects = (effectsMap.get(lrigNum) ?? [])
@@ -6333,7 +6334,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const copiedAutoEffects = collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, true)
         .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
       const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects, ...copiedAutoEffects];
-      const update: Partial<BattleStateRow> = { [myKey]: newMyState, [opKey]: newOpState };
+      const update: Partial<BattleStateRow> = { [myKey]: newMyState };
       if (onAttackEffects.length > 0) {
         const entries: StackEntry[] = onAttackEffects.map(e => ({
           id: generateUUID(),
