@@ -6234,39 +6234,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      // ON_ATTACK_SIGNI トリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
-      const opPlayerId = defenderId;
-      const opAtkedEntries: StackEntry[] = [];
-      const opFrontZoneIdx = 2 - zoneIndex; // アタッカー正面ゾーン（防御側から見た）
-      for (const opSigniStack of newOpState.field.signi) {
-        const opTopNum = opSigniStack?.at(-1);
-        if (!opTopNum) continue;
-        for (const oe of (effectsMap.get(opTopNum) ?? [])) {
-          if (oe.effectType !== 'AUTO' || !oe.timing?.includes('ON_ATTACK_SIGNI')) continue;
-          const oeAct = oe.action as import('../types/effects').StubAction;
-          if (oeAct.type !== 'STUB') continue;
-          if (oeAct.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
-            opAtkedEntries.push({
-              id: generateUUID(),
-              playerId: opPlayerId,
-              cardNum: opTopNum,
-              effectId: oe.effectId,
-              label: `${battleCardMap.get(opTopNum)?.CardName ?? opTopNum} の【自】効果（相手シグニアタック時）`,
-              effect: oe,
-            } satisfies StackEntry);
-          } else if (oeAct.id === 'MOVE_TO_ATTACKER_FRONT') {
-            opAtkedEntries.push({
-              id: generateUUID(),
-              playerId: opPlayerId,
-              cardNum: opTopNum,
-              effectId: oe.effectId,
-              label: `${battleCardMap.get(opTopNum)?.CardName ?? opTopNum} の【自】効果（アタッカー正面移動）`,
-              effect: { ...oe, action: { ...oeAct, value: opFrontZoneIdx } },
-            } satisfies StackEntry);
-          }
-        }
-      }
-
       // ON_TRASH: banish_redirect=true の場合、バニッシュされたシグニがトラッシュへ
       const trashEntriesSA: StackEntry[] = [];
       const redirectBanishForTrigger =
