@@ -6191,11 +6191,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const heavenEntries: StackEntry[] = [];
       const attackerCard = battleCardMap.get(myTopNum);
       if (attackerCard?.hasCrossIcon) {
-        const stateAfterDown: PlayerState = my;
+        const stateAfterDown: PlayerState = myS;
         const crossStates = collectCrossStates(stateAfterDown, battleCardMap);
         if (crossStates[zoneIndex]) {
           const crossZones = ([0, 1, 2] as const).filter(z => crossStates[z]);
-          const allDowned = crossZones.every(z => my.field.signi_down?.[z] ?? false);
+          const allDowned = crossZones.every(z => myS.field.signi_down?.[z] ?? false);
           if (allDowned && crossZones.length >= 2) {
             // ヘブンヘブン成立: 各クロスシグニのON_HEAVENトリガーを収集
             const heavenZoneNums = crossZones
