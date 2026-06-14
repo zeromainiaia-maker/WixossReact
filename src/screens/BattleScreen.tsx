@@ -971,11 +971,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const leavingRef = useRef(false);
   const stackProcessingRef        = useRef(false);  // resolveStackNext の多重実行防止
   const lastResolvedEntryIdRef    = useRef<string | null>(null); // 直前に処理したキュー先頭のID（DB伝播前の二重処理防止）
-  const doPhaseAdvanceRef         = useRef<(() => Promise<void>) | null>(null);
-  const triggerPendingCrashRef    = useRef<(() => Promise<void>) | null>(null);
-  const resolveStackNextRef       = useRef<(() => Promise<void>) | null>(null);
-  const checkPowerZeroBanishRef   = useRef<(() => Promise<void>) | null>(null);
-  const checkContMutationsRef     = useRef<(() => Promise<void>) | null>(null);
+  const doPhaseAdvanceRef                = useRef<(() => Promise<void>) | null>(null);
+  const triggerPendingCrashRef           = useRef<(() => Promise<void>) | null>(null);
+  const resolveStackNextRef              = useRef<(() => Promise<void>) | null>(null);
+  const checkPowerZeroBanishRef          = useRef<(() => Promise<void>) | null>(null);
+  const checkContMutationsRef            = useRef<(() => Promise<void>) | null>(null);
+  const resolvePendingSigniBattleRef     = useRef<(() => Promise<void>) | null>(null);
+  const resolvePendingLrigAttackRef      = useRef<(() => Promise<void>) | null>(null);
   const lastBanishedKeyRef        = useRef<string>(''); // 直前に処理したバニッシュ候補のフィンガープリント（二重処理防止）
   const lastContMutationKeyRef    = useRef<string>(''); // CONTINUOUS BANISH/FREEZE/DOWN 二重処理防止
   const cpuTurnRef                = useRef<(() => Promise<void>) | null>(null); // CPU自動行動
