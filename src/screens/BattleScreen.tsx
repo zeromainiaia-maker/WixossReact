@@ -6217,7 +6217,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (heavenEntries.length > 0 || crossZones.length >= 2) {
               appendBattleLogs([`ヘブンヘブン！ ${heavenZoneNums.map(n => battleCardMap.get(n)?.CardName ?? n).join(' & ')}`]);
               // heaven_state を更新
-              const newHeavenState = [...(my.field.heaven_state ?? [false, false, false])];
+              const newHeavenState = [...(myS.field.heaven_state ?? [false, false, false])];
               crossZones.forEach(z => { newHeavenState[z] = true; });
               newMyState.field = { ...newMyState.field, heaven_state: newHeavenState };
             }
