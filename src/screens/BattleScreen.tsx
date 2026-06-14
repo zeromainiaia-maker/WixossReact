@@ -6310,6 +6310,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // resolvePendingSigniBattleFor の人間プレイヤー向けラッパー（useEffectから呼ばれる）
+  const resolvePendingSigniBattle = async () => {
+    if (!my.pending_signi_battle || loading) return;
+    await resolvePendingSigniBattleFor(
+      my, op,
+      isHost ? 'host_state' : 'guest_state',
+      user.id,
+      isHost ? bs.guest_id : bs.host_id,
+    );
+  };
+
   // ON_ATTACK_LRIG解決後にガード応答をセット（pending_lrig_attackフラグをクリアしてlrig_attackedをセット）
   const resolvePendingLrigAttack = async () => {
     if (!my.pending_lrig_attack) return;
