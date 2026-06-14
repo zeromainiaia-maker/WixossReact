@@ -6279,6 +6279,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // ON_ATTACK_LRIG解決後にガード応答をセット（pending_lrig_attackフラグをクリアしてlrig_attackedをセット）
+  const resolvePendingLrigAttack = async () => {
+    if (!my.pending_lrig_attack) return;
+    if (loading) return;
+    const myKey = isHost ? 'host_state' : 'guest_state';
+    const opKey = isHost ? 'guest_state' : 'host_state';
+    setLoading(true);
+    try {
+      const newMyState: PlayerState = { ...my, pending_lrig_attack: undefined };
+      const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
+      await supabase.from('battle_states')
+        .update({ [myKey]: newMyState, [opKey]: newOpState })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // シグニアタック処理（人間プレイヤー用エントリポイント）
   const handleSigniAttack = async (zoneIndex: number) => {
     if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
