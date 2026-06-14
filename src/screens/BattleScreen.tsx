@@ -5693,7 +5693,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // pending_signi_battle をクリアしたmyStateを基点とする
-      let newMyState: PlayerState = { ...myS, pending_signi_battle: undefined };
+      const newMyState: PlayerState = { ...myS, pending_signi_battle: undefined };
       let newOpState: PlayerState = opS;
       let banishedOpCardNum: string | null = null;
       let banishedOpUnderCards: string[] = [];
