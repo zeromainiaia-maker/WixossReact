@@ -5783,14 +5783,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let banishedOpUnderCards: string[] = [];
 
       // キーワード能力確認
-      const myGrants = my.keyword_grants;
+      const myGrants = myS.keyword_grants;
       const myArmoredNums = new Set(
-        my.field.signi.flatMap((stack, i) =>
-          (my.field.signi_armor?.[i] && stack?.at(-1)) ? [stack.at(-1)!] : [],
+        myS.field.signi.flatMap((stack, i) =>
+          (myS.field.signi_armor?.[i] && stack?.at(-1)) ? [stack.at(-1)!] : [],
         ),
       );
       const contGrantedKeywords = new Set<string>();
-      for (const stack of my.field.signi) {
+      for (const stack of myS.field.signi) {
         if (!stack?.length) continue;
         const sourceNum = stack[stack.length - 1];
         for (const eff of (effectsMap.get(sourceNum) ?? [])) {
@@ -5803,8 +5803,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           contGrantedKeywords.add(gkA.keyword);
         }
       }
-      if (my.lrig_riding_signi?.includes(myTopNum)) {
-        const myLrigTopForDrive = my.field.lrig.at(-1);
+      if (myS.lrig_riding_signi?.includes(myTopNum)) {
+        const myLrigTopForDrive = myS.field.lrig.at(-1);
         if (myLrigTopForDrive) {
           const hasDriveDoubleCrash = (effectsMap.get(myLrigTopForDrive) ?? []).some(eff =>
             eff.effectType === 'CONTINUOUS' &&
@@ -5817,13 +5817,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const eff of (effectsMap.get(myTopNum) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS' || !eff.activeCondition) continue;
         if (eff.action.type !== 'GRANT_KEYWORD') continue;
-        if (checkActiveCondition(eff.activeCondition, my, op, true, battleCardMap, myTopNum, effectivePowers)) {
+        if (checkActiveCondition(eff.activeCondition, myS, opS, true, battleCardMap, myTopNum, effectivePowers)) {
           contGrantedKeywords.add((eff.action as import('../types/effects').GrantKeywordAction).keyword);
         }
       }
-      const myZoneIdx = my.field.signi.findIndex(s => s?.at(-1) === myTopNum);
+      const myZoneIdx = myS.field.signi.findIndex(s => s?.at(-1) === myTopNum);
       if (myZoneIdx >= 0) {
-        const acceNum = my.field.signi_acce?.[myZoneIdx] ?? null;
+        const acceNum = myS.field.signi_acce?.[myZoneIdx] ?? null;
         if (acceNum) {
           for (const eff of (effectsMap.get(acceNum) ?? [])) {
             if (eff.effectType !== 'CONTINUOUS') continue;
