@@ -5997,9 +5997,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const newOpSigniRiseSub = [...newOpSigni] as (string[] | null)[];
             newOpSigniRiseSub[opZoneIndex] = [topCard]; // トップカードのみ残す
             newOpState = {
-              ...op,
-              trash: [...op.trash, ...bottomCards, ...banishExtraTrash],
-              field: { ...op.field, signi: newOpSigniRiseSub, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
+              ...opS,
+              trash: [...opS.trash, ...bottomCards, ...banishExtraTrash],
+              field: { ...opS.field, signi: newOpSigniRiseSub, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
             };
             appendBattleLogs([`${opCardName}（ライズ代替）スタック下${bottomCards.length}枚をトラッシュしてバニッシュ回避`]);
           } else {
