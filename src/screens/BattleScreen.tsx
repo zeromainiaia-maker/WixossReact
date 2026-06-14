@@ -5868,14 +5868,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         if (myPower >= opPower) {
           // バトル勝利：相手シグニをバニッシュ（チャームがあればトラッシュへ）
-          const newOpDown   = [...(op.field.signi_down   ?? [false, false, false])];
-          const newOpFrozen = [...(op.field.signi_frozen  ?? [false, false, false])];
-          const newOpCharms = [...(op.field.signi_charms  ?? [null, null, null])];
-          const newOpAcce   = [...(op.field.signi_acce    ?? [null, null, null])];
+          const newOpDown   = [...(opS.field.signi_down   ?? [false, false, false])];
+          const newOpFrozen = [...(opS.field.signi_frozen  ?? [false, false, false])];
+          const newOpCharms = [...(opS.field.signi_charms  ?? [null, null, null])];
+          const newOpAcce   = [...(opS.field.signi_acce    ?? [null, null, null])];
           const wasOpFrozen = newOpFrozen[opZoneIndex] ?? false;
 
           // BATTLE_LEAVE_REPLACE_WITH_DOWN: アップ状態のシグニはバニッシュ代わりにダウン（任意→自動適用）
-          const opSigniWasUp = !(op.field.signi_down?.[opZoneIndex] === true);
+          const opSigniWasUp = !(opS.field.signi_down?.[opZoneIndex] === true);
           const leaveReplaceDown = opSigniWasUp && (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
             eff.effectType === 'CONTINUOUS' &&
             (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
@@ -5884,8 +5884,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (leaveReplaceDown) {
             newOpDown[opZoneIndex] = true;
             newOpFrozen[opZoneIndex] = false;
-            const newOpSigniLRD = [...op.field.signi] as (string[] | null)[];
-            newOpState = { ...op, field: { ...op.field, signi: newOpSigniLRD, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            const newOpSigniLRD = [...opS.field.signi] as (string[] | null)[];
+            newOpState = { ...opS, field: { ...opS.field, signi: newOpSigniLRD, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（場離れ→ダウン代替）バニッシュ回避してダウン`]);
           } else {
           // COOKING_BANISH_SUBSTITUTE: 調理シグニにアクセがある場合、アクセをトラッシュしてバニッシュ回避
