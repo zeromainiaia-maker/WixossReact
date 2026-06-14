@@ -6247,16 +6247,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           );
         });
       if (banishedOpCardNum && redirectBanishForTrigger) {
-        trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, opPlayerId, newHostState, newGuestState));
+        trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, defenderId, newHostState, newGuestState));
       }
 
       // ON_LEAVE_FIELD: バトルでバニッシュされたシグニは場を離れている
       const leaveEntriesSA: StackEntry[] = [];
       if (banishedOpCardNum) {
-        leaveEntriesSA.push(...collectLeaveFieldTriggers(banishedOpCardNum, banishedOpUnderCards, opPlayerId, newHostState, newGuestState));
+        leaveEntriesSA.push(...collectLeaveFieldTriggers(banishedOpCardNum, banishedOpUnderCards, defenderId, newHostState, newGuestState));
       }
 
-      const allTriggers = [...attackEntries, ...banishEntries, ...battleBanishEntries, ...opAtkedEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries];
+      // Phase 2のトリガー（ON_BANISHなど。ON_ATTACK_SIGNIはPhase 1で処理済み）
+      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;
