@@ -728,6 +728,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX08-022 【起】手札を１枚捨てる。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。
+  // 「手札を捨てる」はコスト扱いにして、手札がない場合は起動不可にする
+  'WX08-022': [
+    {
+      effectId: 'WX08-022-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { discard: 1 },
+      action: {
+        type: 'ENERGY_CHARGE_FROM_DECK',
+        owner: 'self',
+        count: 2,
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
