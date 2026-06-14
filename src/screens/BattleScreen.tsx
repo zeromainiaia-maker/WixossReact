@@ -5519,7 +5519,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let opZoneIndex = 2 - zoneIndex; // 正面ゾーン（表示反転を考慮）
       let opStack = op.field.signi[opZoneIndex] ?? [];
       let opTopCardNum: string | null = opStack.length > 0 ? opStack[opStack.length - 1] : null;
-      let opTopCard = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
 
       // REDIRECT_ATTACK_TO_SELF_ZONE: 正面が空の場合、このSTUBを持つ相手シグニのゾーンへリダイレクト
       if (!opTopCardNum) {
