@@ -1350,6 +1350,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         }
       }
     }
+    // 自分のHAND_CARD/SIGNI/ENERGY_CARDのTRASH実行前にlastProcessedCardsをリセット（対象なし判定のため）
+    if (step.type === 'TRASH') {
+      const tA = step as import('../types/effects').TrashAction;
+      if (tA.target.owner === 'self' &&
+          (tA.target.type === 'HAND_CARD' || tA.target.type === 'SIGNI' || tA.target.type === 'ENERGY_CARD')) {
+        cur = { ...cur, lastProcessedCards: [] };
+      }
+    }
     const result = executeAction(step, cur);
     if (!result.done) {
       // インタラクション必要：残りのステップをcontinuationに入れる
@@ -1363,6 +1371,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       return { ...result, pending };
     }
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards };
+    // 自分のTRASH（HAND_CARD/SIGNI/ENERGY_CARD）が対象なし（done だが lastProcessedCards 空）→ 残りSEQUENCEをスキップ
+    if (step.type === 'TRASH' && i + 1 < a.steps.length) {
+      const tA = step as import('../types/effects').TrashAction;
+      if (tA.target.owner === 'self' &&
+          (tA.target.type === 'HAND_CARD' || tA.target.type === 'SIGNI' || tA.target.type === 'ENERGY_CARD') &&
+          (cur.lastProcessedCards ?? []).length === 0) {
+        return done(addLog(cur, 'TRASH対象なし：残りのSEQUENCEをスキップ'));
+      }
+    }
   }
   return done(cur);
 }
