@@ -6288,7 +6288,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     try {
       const myKey = p.attackerKey;
-      const opKey = p.attackerKey === 'host_state' ? 'guest_state' : 'host_state';
       const lrigNum = my.field.lrig.at(-1) ?? '';
       const lrigName = battleCardMap.get(lrigNum)?.CardName ?? 'ルリグ';
       // OPP_LRIG_ATTACK_COST: 相手フィールドの効果による追加コスト支払い（アタッカーは常にターンプレイヤー）
