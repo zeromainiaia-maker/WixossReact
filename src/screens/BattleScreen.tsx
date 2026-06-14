@@ -7109,9 +7109,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!my.field.check) return;
     setLoading(true);
     try {
-      const allCrashCards = [my.field.check, ...(my.pending_crashed_cards ?? [])];
       const cardNum = targetCardNum ?? my.field.check;
-      const remainingPending = allCrashCards.filter(c => c !== cardNum);
+      let remainingPending: string[];
+      if (!targetCardNum || targetCardNum === my.field.check) {
+        // check のカードを処理: pending はそのまま残す
+        remainingPending = my.pending_crashed_cards ?? [];
+      } else {
+        // pending のカードを先に処理: indexOf で最初の一致のみ除き、check を pending 先頭に回す
+        const pendingList = my.pending_crashed_cards ?? [];
+        const targetIdx = pendingList.indexOf(targetCardNum);
+        const afterRemoval = targetIdx >= 0
+          ? [...pendingList.slice(0, targetIdx), ...pendingList.slice(targetIdx + 1)]
+          : pendingList;
+        remainingPending = [my.field.check!, ...afterRemoval];
+      }
       // CRASH_TO_TRASH_INSTEAD: 相手（攻撃側）がフラグを持つ場合エナではなくトラッシュへ
       const crashToTrash = op.crash_to_trash_instead === true;
       // ON_LIFE_CRASHED: 自フィールドシグニの「ライフクロスがクラッシュされたとき」トリガーを収集
