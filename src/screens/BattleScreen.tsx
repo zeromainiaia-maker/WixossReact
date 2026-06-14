@@ -6192,18 +6192,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      // ON_ATTACK_SIGNI トリガー（アタックしたシグニ自身）
-      const attackEntries: StackEntry[] = (effectsMap.get(myTopNum) ?? [])
-        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
-        .map(e => ({
-          id: generateUUID(),
-          playerId: attackerId,
-          cardNum: myTopNum,
-          effectId: e.effectId,
-          label: `${battleCardMap.get(myTopNum)?.CardName ?? myTopNum} の【自】効果（シグニアタック時）`,
-          effect: e,
-        } satisfies StackEntry));
-
       // ON_BANISH トリガー（バニッシュされた相手シグニ + フィールドトリガー）
       const newHostState  = attackerIsHost ? newMyState : newOpState;
       const newGuestState = attackerIsHost ? newOpState : newMyState;
