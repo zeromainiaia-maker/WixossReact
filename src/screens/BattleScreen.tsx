@@ -5628,6 +5628,199 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
+      // ON_ATTACK_SIGNIトリガー収集（Phase 1：バトル前に処理するトリガー）
+      const attackEntries: StackEntry[] = (effectsMap.get(myTopNum) ?? [])
+        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
+        .map(e => ({
+          id: generateUUID(),
+          playerId: attackerId,
+          cardNum: myTopNum,
+          effectId: e.effectId,
+          label: `${battleCardMap.get(myTopNum)?.CardName ?? myTopNum} の【自】効果（シグニアタック時）`,
+          effect: e,
+        } satisfies StackEntry));
+
+      // ON_ATTACK_SIGNIトリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
+      const opFrontZoneIdx = 2 - zoneIndex;
+      const opAtkedEntries: StackEntry[] = [];
+      const opPlayerId = defenderId;
+      for (const opSigniStack of newOpState.field.signi) {
+        const opTopNum = opSigniStack?.at(-1);
+        if (!opTopNum) continue;
+        for (const oe of (effectsMap.get(opTopNum) ?? [])) {
+          if (oe.effectType !== 'AUTO' || !oe.timing?.includes('ON_ATTACK_SIGNI')) continue;
+          const oeAct = oe.action as import('../types/effects').StubAction;
+          if (oeAct.type !== 'STUB') continue;
+          if (oeAct.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
+            opAtkedEntries.push({
+              id: generateUUID(),
+              playerId: opPlayerId,
+              cardNum: opTopNum,
+              effectId: oe.effectId,
+              label: `${battleCardMap.get(opTopNum)?.CardName ?? opTopNum} の【自】効果（相手シグニアタック時）`,
+              effect: oe,
+            } satisfies StackEntry);
+          } else if (oeAct.id === 'MOVE_TO_ATTACKER_FRONT') {
+            opAtkedEntries.push({
+              id: generateUUID(),
+              playerId: opPlayerId,
+              cardNum: opTopNum,
+              effectId: oe.effectId,
+              label: `${battleCardMap.get(opTopNum)?.CardName ?? opTopNum} の【自】効果（アタッカー正面移動）`,
+              effect: { ...oe, action: { ...oeAct, value: opFrontZoneIdx } },
+            } satisfies StackEntry);
+          }
+        }
+      }
+
+      // バトル解決前にON_ATTACK_SIGNIを処理するため pending_signi_battle をセット
+      const newMyStateWithPending: PlayerState = { ...newMyState, pending_signi_battle: { zoneIndex } };
+
+      const allAttackTriggers = [...attackEntries, ...opAtkedEntries];
+      if (allAttackTriggers.length > 0) {
+        const turnPlayerId = bs.active_user_id ?? attackerId;
+        const existingStack = bs.effect_stack ?? null;
+        const stack = existingStack
+          ? pushToStack(existingStack, allAttackTriggers)
+          : initStack(turnPlayerId, allAttackTriggers);
+        await supabase.from('battle_states')
+          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpState, effect_stack: stack })
+          .eq('room_id', roomId);
+      } else {
+        await supabase.from('battle_states')
+          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpState })
+          .eq('room_id', roomId);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // シグニアタック バトル解決（ON_ATTACK_SIGNI処理後に呼ばれるPhase 2）
+  // pending_signi_battle フラグを持つアタッカー側が、スタック解決完了後にバトルを実行する
+  const resolvePendingSigniBattle = async () => {
+    if (!my.pending_signi_battle) return;
+    if (loading) return;
+    const { zoneIndex } = my.pending_signi_battle;
+    const myKey = isHost ? 'host_state' : 'guest_state';
+    const opKey = isHost ? 'guest_state' : 'host_state';
+    const attackerId = user.id;
+    const defenderId = isHost ? (bs.guest_id ?? '') : (bs.host_id ?? '');
+    const attackerIsHost = isHost;
+    setLoading(true);
+    try {
+      const myTopNum = (my.field.signi[zoneIndex] ?? []).at(-1);
+      if (!myTopNum) {
+        await supabase.from('battle_states')
+          .update({ [myKey]: { ...my, pending_signi_battle: undefined } })
+          .eq('room_id', roomId);
+        return;
+      }
+      const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
+      let opZoneIndex = 2 - zoneIndex;
+      let opStack = op.field.signi[opZoneIndex] ?? [];
+      let opTopCardNum: string | null = opStack.length > 0 ? opStack[opStack.length - 1] : null;
+      let opTopCard = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
+
+      // REDIRECT_ATTACK_TO_SELF_ZONE
+      if (!opTopCardNum) {
+        for (let zi = 0; zi < op.field.signi.length; zi++) {
+          const top = op.field.signi[zi]?.at(-1);
+          if (!top) continue;
+          const hasRedir = (effectsMap.get(top) ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'REDIRECT_ATTACK_TO_SELF_ZONE',
+          );
+          if (hasRedir) {
+            opZoneIndex = zi;
+            opStack = op.field.signi[zi]!;
+            opTopCardNum = top;
+            opTopCard = battleCardMap.get(top) ?? null;
+            appendBattleLogs([`${battleCardMap.get(top)?.CardName ?? top}がアタックをこのゾーンへリダイレクト`]);
+            break;
+          }
+        }
+      }
+
+      // pending_signi_battle をクリアしたmyStateを基点とする
+      let newMyState: PlayerState = { ...my, pending_signi_battle: undefined };
+      let newOpState: PlayerState = op;
+      let banishedOpCardNum: string | null = null;
+      let banishedOpUnderCards: string[] = [];
+
+      // キーワード能力確認
+      const myGrants = my.keyword_grants;
+      const myArmoredNums = new Set(
+        my.field.signi.flatMap((stack, i) =>
+          (my.field.signi_armor?.[i] && stack?.at(-1)) ? [stack.at(-1)!] : [],
+        ),
+      );
+      const contGrantedKeywords = new Set<string>();
+      for (const stack of my.field.signi) {
+        if (!stack?.length) continue;
+        const sourceNum = stack[stack.length - 1];
+        for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+          if (eff.effectType !== 'CONTINUOUS') continue;
+          const gkAction = eff.action.type === 'GRANT_KEYWORD' ? eff.action : null;
+          if (!gkAction || (gkAction as import('../types/effects').GrantKeywordAction).target.count !== 'ALL') continue;
+          const gkA = gkAction as import('../types/effects').GrantKeywordAction;
+          if (gkA.target.filter?.isArmored && !myArmoredNums.has(myTopNum)) continue;
+          if (gkA.target.filter?.isArmored === false && myArmoredNums.has(myTopNum)) continue;
+          contGrantedKeywords.add(gkA.keyword);
+        }
+      }
+      if (my.lrig_riding_signi?.includes(myTopNum)) {
+        const myLrigTopForDrive = my.field.lrig.at(-1);
+        if (myLrigTopForDrive) {
+          const hasDriveDoubleCrash = (effectsMap.get(myLrigTopForDrive) ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'DRIVE_SIGNI_POWER_DOUBLE_CRASH',
+          );
+          if (hasDriveDoubleCrash) contGrantedKeywords.add('ダブルクラッシュ');
+        }
+      }
+      for (const eff of (effectsMap.get(myTopNum) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS' || !eff.activeCondition) continue;
+        if (eff.action.type !== 'GRANT_KEYWORD') continue;
+        if (checkActiveCondition(eff.activeCondition, my, op, true, battleCardMap, myTopNum, effectivePowers)) {
+          contGrantedKeywords.add((eff.action as import('../types/effects').GrantKeywordAction).keyword);
+        }
+      }
+      const myZoneIdx = my.field.signi.findIndex(s => s?.at(-1) === myTopNum);
+      if (myZoneIdx >= 0) {
+        const acceNum = my.field.signi_acce?.[myZoneIdx] ?? null;
+        if (acceNum) {
+          for (const eff of (effectsMap.get(acceNum) ?? [])) {
+            if (eff.effectType !== 'CONTINUOUS') continue;
+            if (eff.activeCondition && eff.activeCondition.type !== 'IS_SELF_ACCE_CARD') continue;
+            const gkA = eff.action.type === 'GRANT_KEYWORD'
+              ? eff.action as import('../types/effects').GrantKeywordAction
+              : null;
+            if (!gkA) continue;
+            if (gkA.target.owner === 'any' || gkA.target.owner === 'opponent') {
+              const hostCard = battleCardMap.get(myTopNum);
+              if (!hostCard) continue;
+              if (gkA.target.filter?.story) {
+                const stories = Array.isArray(gkA.target.filter.story)
+                  ? gkA.target.filter.story
+                  : [gkA.target.filter.story];
+                if (!stories.some(s => hostCard.CardClass?.includes(s))) continue;
+              }
+              if (gkA.target.filter?.cardType && hostCard.Type !== gkA.target.filter.cardType) continue;
+              contGrantedKeywords.add(gkA.keyword);
+            }
+          }
+        }
+      }
+      const hasGrantedKeyword = (kw: string) =>
+        hasKeyword(myTopNum, kw, battleCardMap, myGrants) || contGrantedKeywords.has(kw);
+      const isAssassin    = hasGrantedKeyword('アサシン');
+      const isLancer      = hasGrantedKeyword('ランサー');
+      const isSLancer     = hasGrantedKeyword('Sランサー');
+      const isDoubleCrush = hasGrantedKeyword('ダブルクラッシュ');
+
       // アサシン：正面シグニを無視してライフへ直接アタック
       const effectivelyEmpty = !opTopCardNum || isAssassin;
 
