@@ -6154,14 +6154,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // ヘブンヘブン判定: アタッカーダウン後に全クロスシグニがダウン状態か確認
+      // Phase 2では my はすでにシグニダウン済みのため my をそのまま使用
       const heavenEntries: StackEntry[] = [];
       const attackerCard = battleCardMap.get(myTopNum);
       if (attackerCard?.hasCrossIcon) {
-        const stateAfterDown: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown } };
+        const stateAfterDown: PlayerState = my;
         const crossStates = collectCrossStates(stateAfterDown, battleCardMap);
         if (crossStates[zoneIndex]) {
           const crossZones = ([0, 1, 2] as const).filter(z => crossStates[z]);
-          const allDowned = crossZones.every(z => newSigniDown[z]);
+          const allDowned = crossZones.every(z => my.field.signi_down?.[z] ?? false);
           if (allDowned && crossZones.length >= 2) {
             // ヘブンヘブン成立: 各クロスシグニのON_HEAVENトリガーを収集
             const heavenZoneNums = crossZones
