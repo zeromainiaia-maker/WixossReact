@@ -5947,8 +5947,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               appendBattleLogs([`${opCardName}（レゾナ離脱代替）${battleCardMap.get(resonaSubCardNum)?.CardName ?? resonaSubCardNum}をトラッシュしてレゾナをフィールドに残す`]);
             } else {
           banishedOpCardNum = opTopCardNum;
-          banishedOpUnderCards = (op.field.signi[opZoneIndex] ?? []).slice(0, -1);
-          const newOpSigni = [...op.field.signi] as (string[] | null)[];
+          banishedOpUnderCards = (opS.field.signi[opZoneIndex] ?? []).slice(0, -1);
+          const newOpSigni = [...opS.field.signi] as (string[] | null)[];
           newOpSigni[opZoneIndex] = null;
           newOpDown[opZoneIndex]   = false;
           newOpFrozen[opZoneIndex] = false;
@@ -5958,37 +5958,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ウィルスはゾーンに属するため、シグニがバニッシュされても除去しない
           // 状態フラグ（ACTIVATEDで設定済み）またはCONTINUOUS BANISH_REDIRECT効果（activeCondition評価込み）
           const redirectBanish =
-            my.banish_redirect === true ||
-            my.field.signi.some(s => {
+            myS.banish_redirect === true ||
+            myS.field.signi.some(s => {
               const n = s?.at(-1);
               return n && (effectsMap.get(n) ?? []).some(e =>
                 e.effectType === 'CONTINUOUS' &&
                 hasBanishRedirectInAction(e.action) &&
-                checkActiveCondition(e.activeCondition, my, op, true, battleCardMap, n, effectivePowers),
+                checkActiveCondition(e.activeCondition, myS, opS, true, battleCardMap, n, effectivePowers),
               );
             });
-          const redirectBanishToHand = my.banish_redirect_to_hand === true;
+          const redirectBanishToHand = myS.banish_redirect_to_hand === true;
           // BANISH_BY_SELF_GOES_TO_TRASH: この攻撃シグニが banish_to_trash_by_self を持つ場合、バニッシュ先はトラッシュ
           // 状態フラグ（ACTIVATEDで設定済み）またはCONTINUOUS STUB効果（activeCondition評価込み）
           const banishBySelftToTrash =
-            (my.banish_to_trash_by_self ?? []).includes(myTopNum) ||
+            (myS.banish_to_trash_by_self ?? []).includes(myTopNum) ||
             (effectsMap.get(myTopNum) ?? []).some(eff =>
               eff.effectType === 'CONTINUOUS' &&
               (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
               (eff.action as import('../types/effects').StubAction).id === 'BANISH_BY_SELF_GOES_TO_TRASH' &&
-              checkActiveCondition(eff.activeCondition, my, op, true, battleCardMap, myTopNum, effectivePowers),
+              checkActiveCondition(eff.activeCondition, myS, opS, true, battleCardMap, myTopNum, effectivePowers),
             );
           // FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 防御側CONTが有効なら凍結シグニはデッキ下へ
           // FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 攻撃側CONTが有効なら相手凍結シグニはトラッシュへ
-          const opFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(op, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
-          const myFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(my, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
+          const opFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(opS, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
+          const myFrozenOvr = wasOpFrozen ? collectFrozenBanishOverrides(myS, battleCardMap, effectsMap) : { frozenBanishToDeckBottom: false, frozenLeaveToTrash: false };
           const frozenToDeckBottom = opFrozenOvr.frozenBanishToDeckBottom;
           const frozenToTrash = !frozenToDeckBottom && myFrozenOvr.frozenLeaveToTrash;
           // RISE_BANISH_SUBSTITUTE / BANISH_SUBSTITUTE_RISE_STACK:
           // ライズスタック（複数枚）のシグニがバニッシュされる場合、スタック下のカードをトラッシュに置いてバニッシュを回避
-          const riseBanishSubSigni = collectRiseBanishSubstituteSigni(op, battleCardMap, effectsMap, my, false);
+          const riseBanishSubSigni = collectRiseBanishSubstituteSigni(opS, battleCardMap, effectsMap, myS, false);
           const opTopHasRiseSub = riseBanishSubSigni.includes(opTopCardNum ?? '');
-          const riseSubStack = opTopHasRiseSub ? (op.field.signi[opZoneIndex] ?? []) : [];
+          const riseSubStack = opTopHasRiseSub ? (opS.field.signi[opZoneIndex] ?? []) : [];
           const riseSubApplied = opTopHasRiseSub && riseSubStack.length >= 2;
           if (riseSubApplied) {
             // バニッシュ代替: スタック下2枚をトラッシュ、トップカードは残る
