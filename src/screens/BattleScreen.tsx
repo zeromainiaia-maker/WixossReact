@@ -6270,13 +6270,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_TRASH: banish_redirect=true の場合、バニッシュされたシグニがトラッシュへ
       const trashEntriesSA: StackEntry[] = [];
       const redirectBanishForTrigger =
-        my.banish_redirect === true ||
-        my.field.signi.some(s => {
+        myS.banish_redirect === true ||
+        myS.field.signi.some(s => {
           const n = s?.at(-1);
           return n && (effectsMap.get(n) ?? []).some(e =>
             e.effectType === 'CONTINUOUS' &&
             hasBanishRedirectInAction(e.action) &&
-            checkActiveCondition(e.activeCondition, my, op, true, battleCardMap, n, effectivePowers),
+            checkActiveCondition(e.activeCondition, myS, opS, true, battleCardMap, n, effectivePowers),
           );
         });
       if (banishedOpCardNum && redirectBanishForTrigger) {
