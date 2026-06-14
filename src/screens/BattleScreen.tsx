@@ -5918,8 +5918,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             newOpAcce[opZoneIndex] = null;
             newOpDown[opZoneIndex] = true;
             newOpFrozen[opZoneIndex] = false;
-            const newOpSigniABS = [...op.field.signi] as (string[] | null)[];
-            newOpState = { ...op, trash: [...op.trash, exiledAcce], field: { ...op.field, signi: newOpSigniABS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            const newOpSigniABS = [...opS.field.signi] as (string[] | null)[];
+            newOpState = { ...opS, trash: [...opS.trash, exiledAcce], field: { ...opS.field, signi: newOpSigniABS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（アクセ代替バニッシュ）アクセをゲームから除外してダウン`]);
           } else {
             // RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE: 宇宙レゾナ場離れを代替シグニのトラッシュで回避
