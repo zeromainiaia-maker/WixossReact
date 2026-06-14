@@ -5551,7 +5551,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const signiAtkCostSA = my.signi_attack_cost ?? 0;
       const newEnergySA = signiAtkCostSA > 0 ? my.energy.slice(0, -signiAtkCostSA) : my.energy;
       const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds, energy: newEnergySA };
-      let newOpState = op;
+      const newOpState = op;
 
       // NEGATE_NTH_ATTACK: 相手（防御側）がN回目まで自動無効化フラグを持つ場合
       if ((op.negate_opp_signi_attacks_until ?? 0) > 0) {
