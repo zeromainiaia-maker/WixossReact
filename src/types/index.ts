@@ -305,6 +305,10 @@ export interface PlayerState {
   lrig_barrier?: number;                 // 【ルリグバリア】数（相手ルリグアタック1回を無効）
   game_guard_barrier_act?: boolean;      // 手札ガードシグニ捨て→ルリグバリア付与 能力を持つ
   game_opp_guard_extra_colorless?: boolean; // 相手ガード時に追加で《無》1枚必要（このゲーム）
+  // ON_ATTACK_SIGNI解決後のバトル解決待ち（zoneIndex: アタックしたゾーン番号）
+  pending_signi_battle?: { zoneIndex: number };
+  // ON_ATTACK_LRIG解決後にlrig_attacked: trueをセット待ち（防御側IDを保持）
+  pending_lrig_attack?: boolean;
 }
 
 export interface GameLog {
