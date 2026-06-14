@@ -6661,6 +6661,55 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return;
     }
 
+    // ─── CPUのON_ATTACK_LRIG処理完了後のガード応答セット（pending_lrig_attack）───
+    if (cpuSt.pending_lrig_attack && !bs.effect_stack && !bs.pending_effect) {
+      const cleanCpuSt: PlayerState = { ...cpuSt, pending_lrig_attack: undefined };
+      const huStWithLrigAttacked: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true } };
+      await supabase.from('battle_states')
+        .update({ guest_state: cleanCpuSt, host_state: huStWithLrigAttacked })
+        .eq('room_id', roomId);
+      return;
+    }
+
+    // ─── CPUのpending_signi_battle（ON_ATTACK_SIGNI処理完了後のバトル解決）───
+    if (cpuSt.pending_signi_battle && !bs.effect_stack && !bs.pending_effect) {
+      const { zoneIndex } = cpuSt.pending_signi_battle;
+      // resolvePendingSigniBattleRefはホスト（人間）視点のため、CPU向けは直接呼べない
+      // CPUのmy/op を設定して内部的にバトル解決する
+      // performSigniAttack の呼び出し元が CPU の場合は既に上位ループで処理されるが
+      // ここでは再度 performSigniAttack (Phase 2相当) を直接呼ぶ
+      // ※ 実装簡略化のため、CPUのpending_signi_battleをクリアしてPhase 2を実行
+      // Phase 2のコードは resolvePendingSigniBattle と同等だが、CPU側のmy/opを使う
+      setLoading(true);
+      try {
+        const myTopNumCpu = (cpuSt.field.signi[zoneIndex] ?? []).at(-1);
+        if (!myTopNumCpu) {
+          await supabase.from('battle_states')
+            .update({ guest_state: { ...cpuSt, pending_signi_battle: undefined } })
+            .eq('room_id', roomId);
+          return;
+        }
+        // CPU版バトル解決はperformSigniAttackと同じコードをcpuSt/huSt視点で再実行
+        // ここではPhase 2用の直接呼び出しをする
+        // resolvePendingSigniBattleRefをCPU視点に合わせて直接実行
+        // （簡略化：CPU側の pending_signi_battle をクリアしてCPUターンループに戻す）
+        // 実際のバトル解決は performSigniAttack の Phase 2 コードと同等
+        // ─── Phase 2 バトル解決（CPUバトル）───
+        const cleanCpuState: PlayerState = { ...cpuSt, pending_signi_battle: undefined };
+        // Phase 2 バトル解決を直接実行
+        await performSigniAttack(zoneIndex, {
+          attacker: cleanCpuState,
+          defender: huSt,
+          attackerId: CPU_PLAYER_ID,
+          defenderId: bs.host_id,
+          attackerKey: 'guest_state',
+        });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     // ─── ルリグアタックのガード応答（CPUがlrig_attackedされている）───
     if (cpuSt.field?.lrig_attacked) {
       // CPUはガードしない。対人戦と同じ共通処理でダメージ解決
