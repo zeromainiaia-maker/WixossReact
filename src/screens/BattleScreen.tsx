@@ -3286,6 +3286,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...opState,
         blocked_actions: convertedOpBlocked,
         negate_coin_abilities: undefined,
+        keyword_grants_until_opp_turn: undefined,
         field: {
           ...opState.field,
           signi_down:   newSigniDown,
