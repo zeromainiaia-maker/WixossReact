@@ -8012,7 +8012,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newHand = effect.cost?.discardAll ? [] : baseLGHand;
       const lgTotalDiscarded = discardedHandNums.length + lgDiscardAllCards.length + lgEnergyTrashAllCards.length;
       const lgIsGameOnce = effect.usageLimit === 'once_per_game';
-      const paid: import('../types').PlayerState = {
+      let paid: import('../types').PlayerState = {
         ...my,
         hand: newHand,
         energy: newEnergy,
