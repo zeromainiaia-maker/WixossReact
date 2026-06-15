@@ -3905,6 +3905,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...(nextRespondPlayerId ? { respondPlayerId: nextRespondPlayerId } : {}),
           interaction: result.pending,
         } satisfies PendingEffect;
+        // 中間ステップでバニッシュが発生した場合（BANISH後にSELECT_VIRUS_ZONE等が続く場合）、
+        // ON_BANISHトリガーをここで検出してスタックに積む。
+        // （result.done=falseブランチでは後続ハンドラにバニッシュ検出がないため）
+        const midHostBanished  = detectBanishedSigni(bs.host_state, hostState);
+        const midGuestBanished = detectBanishedSigni(bs.guest_state, guestState);
+        const midBanishEntries: StackEntry[] = [];
+        for (const cardNum of midHostBanished) {
+          midBanishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState));
+        }
+        for (const cardNum of midGuestBanished) {
+          midBanishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+        if (midBanishEntries.length > 0) {
+          const existingMidStack = bs.effect_stack ?? null;
+          update.effect_stack = existingMidStack
+            ? pushToStack(existingMidStack, midBanishEntries)
+            : initStack(bs.active_user_id ?? user.id, midBanishEntries);
+        }
       } else {
         update.pending_effect = null;
 
