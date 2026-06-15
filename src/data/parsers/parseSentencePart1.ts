@@ -68,6 +68,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, actionId: 'ATTACK', until: 'PERMANENT' };
   }
 
+  // ---- バニッシュ先変更（ルリグデッキ→ルリグトラッシュ: レゾナ系）----
+  if (t.match(/このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる/)) {
+    return { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as StubAction;
+  }
+
   // ---- バニッシュ先変更（エナゾーン→トラッシュ）----
   if (t.match(/バニッシュされる場合.*エナゾーンに置かれる代わりにトラッシュに置かれる/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
