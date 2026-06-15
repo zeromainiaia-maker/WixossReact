@@ -18811,6 +18811,9 @@
       "timing": [
         "ON_PLAY"
       ],
+      "cost": {
+        "trashArtsFromLrigDeck": { "color": "黒", "count": 1 }
+      },
       "action": {
         "type": "ADD_TO_FIELD",
         "owner": "self",
