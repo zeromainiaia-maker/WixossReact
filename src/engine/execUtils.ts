@@ -591,8 +591,8 @@ export function selectOrInteract(
       ? ctx.cardMap.get(ctx.sourceCardNum)?.Type === 'ルリグ'
       : false;
     filteredCands = candidates.filter(n => {
-      if (hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds)) return false;
-      if (sourceIsLrig && hasShadowLrig(n, ctx.cardMap, ctx.otherState.keyword_grants)) return false;
+      if (hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds, ctx.otherState.keyword_grants_until_opp_turn)) return false;
+      if (sourceIsLrig && hasShadowLrig(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.keyword_grants_until_opp_turn)) return false;
       // activeCondition 付きシャドウ（TURN_OWNER等）を評価:
       // n は ctx.otherState のシグニ。ownerState=otherState, isOwnerTurn=false（ctx.ownerState のターン中に効果実行）
       const hasCondShadow = ctx.cardMap.get(n)?.effects?.some(eff => {
