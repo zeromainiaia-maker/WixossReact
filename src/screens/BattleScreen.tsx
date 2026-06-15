@@ -11573,6 +11573,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const virusNeeded = eff.cost?.removeOppVirus ?? 0;
               const virusOk = virusNeeded === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeeded;
               const deckTrashNeeded = eff.cost?.deckTrash ?? 0;
+              // charmTrashVariable
+              const charmVarOPCostM = eff.cost?.charmTrashVariable;
+              const totalOPCharmsM = (pState.field.signi_charms ?? []).filter(Boolean).length;
+              const charmVarOPOk = !charmVarOPCostM || signiOnPlayCharmTrashVar >= charmVarOPCostM.min;
+              // trashArtsFromLrigDeck
+              const artsTrashOPCostM = eff.cost?.trashArtsFromLrigDeck;
+              const artsFilteredCardsM = artsTrashOPCostM ? pState.lrig_deck.filter(cn => {
+                const c = battleCardMap.get(cn);
+                return c?.Type === 'アーツ' && (!artsTrashOPCostM.color || c.Color?.includes(artsTrashOPCostM.color));
+              }) : [];
+              const artsOkM = !artsTrashOPCostM || (artsFilteredCardsM.length >= artsTrashOPCostM.count && selectedSigniOnPlayArtsTrash !== null);
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniOnPlayCost].map(i => pcEnergy[i]);
               const energyOk = energyTotal === 0
