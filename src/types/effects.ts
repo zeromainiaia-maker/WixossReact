@@ -185,13 +185,10 @@ export interface EffectCost {
   discardSelfFromHand?: true; // このカードを手札から捨てる（handActivatedな【起】のコスト）
   // ─ v0.278 追加: 可変枚数手札捨て（１枚以上）─
   discardVariable?: { filter?: TargetFilter; min: number }; // 手札からN枚以上捨てる（プレイヤーが枚数を選択）
-  // ─ v0.309 追加: エナゾーンから指定カードN枚をトラッシュ（ACTIVATED対応）─
-  // ※ energyTrashAll（全トラッシュ）とは別。色支払い(energy)とも別枠
-  energyTrashActivated?: { count: number; filter?: TargetFilter }; // エナから指定シグニN枚をトラッシュ（ACTIVATED用）
   // ─ v0.309 追加: トラッシュにあるカードをゲームから除外するコスト ─
   trashExile?: {
-    self?: boolean;       // トラッシュにあるこのカード自身をゲームから除外
-    count?: number;       // 何枚（selfでない場合）
+    self?: boolean;        // トラッシュにあるこのカード自身をゲームから除外
+    count?: number;        // 何枚（selfでない場合）
     filter?: TargetFilter; // フィルター（cardName等）
   };
 }
