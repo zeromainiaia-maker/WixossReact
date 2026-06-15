@@ -7410,6 +7410,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 《コインアイコン》コスト（【起】コイン。activate_cost_zero時は免除）
       const coinCostAct = my.activate_cost_zero_signi === cardNum ? 0 : (effect.cost?.coin ?? 0);
       if (coinCostAct > 0 && (my.coins ?? 0) < coinCostAct) return; // 支払い不能（UI側でも無効化済み）
+      // removeOppVirus: 相手の場のウィルスN個を取り除く
+      const removeVirusNAct = effect.cost?.removeOppVirus ?? 0;
+      let newOpVirusState: typeof op | null = null;
+      if (removeVirusNAct > 0) {
+        const newOppVirus = [...(op.field.signi_virus ?? [0, 0, 0])];
+        let removedV = 0;
+        for (let zi = 0; zi < newOppVirus.length && removedV < removeVirusNAct; zi++) {
+          while (newOppVirus[zi] > 0 && removedV < removeVirusNAct) { newOppVirus[zi]--; removedV++; }
+        }
+        if (removedV < removeVirusNAct) return; // 支払い不能
+        newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
+      }
       // 捨てた合計枚数（ACTIVATED_DISCARD_COUNT_GTE条件用）
       const totalDiscardedCount = discardedCards.length + discardAllCards.length + energyTrashAllCards.length;
       const isGameOnceAct = effect.usageLimit === 'once_per_game';
