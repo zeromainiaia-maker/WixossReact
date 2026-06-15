@@ -836,6 +836,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX16-032 羅菌　ムラサキウニ E2（自動：アタックしたとき）
+  // 【自】このシグニがアタックしたとき、対戦相手の感染状態のシグニすべてのパワーを－5000する。
+  'WX16-032': [
+    {
+      effectId: 'WX16-032-E2',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      action: {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', infected: true } },
+        delta: -5000,
+      },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX19-045 羅菌　ポレン（起動）
   // 【起】《アタックフェイズ》手札からこのカードを捨てる：
   //   相手の場のウィルス合計が2つになるように相手のシグニゾーンにウィルスを置く。
