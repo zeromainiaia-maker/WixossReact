@@ -59,43 +59,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX15-066 羅菌　エキノコ（常在）
-  // 【常】：対戦相手の感染状態のシグニのパワーを－1000する。
-  'WX15-066': [
-    {
-      effectId: 'WX15-066-E1',
-      effectType: 'CONTINUOUS',
-      action: {
-        type: 'POWER_MODIFY',
-        target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', infected: true } },
-        delta: -1000,
-      },
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-  ],
-
-  // WX04-101 幻水　大ウナギ（起動）
-  // 【起】このシグニを場からトラッシュに置く：相手シグニ１体のパワーを自ルリグlv×-1000（ターン終了時まで）
-  'WX04-101': [
-    {
-      effectId: 'WX04-101-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { banish_self: true },
-      action: {
-        type: 'POWER_MODIFY_PER_LRIG_LEVEL',
-        target: { type: 'SIGNI', owner: 'opponent', count: 1 },
-        deltaPerLevel: -1000,
-        lrigOwner: 'self',
-      },
-      duration: 'UNTIL_END_OF_TURN',
-      mandatory: false,
-      parseStatus: 'AUTO',
-    },
-  ],
-
   // WX05-020 幻水　シャチ（AUTO E2）
   // 【自】《ターン１回》：あなたの＜鉱石＞か＜宝石＞のシグニ１体が対戦相手のアーツの効果を受けたとき、
   //   対戦相手にダメージを与える。（近似: 相手がアーツを使用したとき、フィールドに該当シグニがいれば発動）
