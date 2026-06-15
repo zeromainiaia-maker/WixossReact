@@ -12581,7 +12581,8 @@
               "count": 3,
               "upToCount": true,
               "filter": {
-                "cardType": "シグニ"
+                "cardType": "シグニ",
+                "colorMatchesLrig": true
               }
             }
           },
@@ -16518,7 +16519,8 @@
           "count": 1,
           "upToCount": false,
           "filter": {
-            "cardType": "シグニ"
+            "cardType": "シグニ",
+            "colorMatchesLrig": true
           }
         }
       },
@@ -22376,7 +22378,8 @@
           "owner": "self"
         },
         "filter": {
-          "cardType": "シグニ"
+          "cardType": "シグニ",
+          "colorMatchesLrig": true
         },
         "maxCount": 1,
         "then": {
@@ -27724,7 +27727,9 @@
                 "location": "deck",
                 "owner": "self"
               },
-              "filter": {},
+              "filter": {
+                "colorMatchesLrig": true
+              },
               "maxCount": 2,
               "then": {
                 "type": "ADD_TO_ENERGY",
@@ -31761,7 +31766,8 @@
           "owner": "self"
         },
         "filter": {
-          "cardType": "シグニ"
+          "cardType": "シグニ",
+          "colorMatchesLrig": true
         },
         "maxCount": 1,
         "then": {
@@ -33626,7 +33632,8 @@
                 "owner": "self"
               },
               "filter": {
-                "cardType": "シグニ"
+                "cardType": "シグニ",
+                "colorMatchesLrig": true
               },
               "maxCount": 1,
               "then": {

@@ -5177,7 +5177,8 @@
                     "count": 1,
                     "upToCount": false,
                     "filter": {
-                      "cardType": "シグニ"
+                      "cardType": "シグニ",
+                      "colorMatchesLrig": true
                     }
                   }
                 },
@@ -42278,7 +42279,9 @@
       "mandatory": false,
       "parseStatus": "AUTO",
       "cost": {
-        "charmTrashVariable": { "min": 1 }
+        "charmTrashVariable": {
+          "min": 1
+        }
       },
       "usageLimit": "once_per_turn"
     },

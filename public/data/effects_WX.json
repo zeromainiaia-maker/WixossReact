@@ -7404,7 +7404,10 @@
         "ON_PLAY"
       ],
       "cost": {
-        "trashArtsFromLrigDeck": { "color": "緑", "count": 1 }
+        "trashArtsFromLrigDeck": {
+          "color": "緑",
+          "count": 1
+        }
       },
       "action": {
         "type": "ENERGY_CHARGE_FROM_DECK",
@@ -9857,7 +9860,8 @@
           "count": 2,
           "upToCount": true,
           "filter": {
-            "cardType": "シグニ"
+            "cardType": "シグニ",
+            "colorMatchesLrig": true
           }
         }
       },
@@ -17701,7 +17705,8 @@
           "count": 1,
           "upToCount": false,
           "filter": {
-            "cardType": "スペル"
+            "cardType": "スペル",
+            "colorMatchesLrig": true
           }
         }
       },
@@ -18813,7 +18818,10 @@
         "ON_PLAY"
       ],
       "cost": {
-        "trashArtsFromLrigDeck": { "color": "黒", "count": 1 }
+        "trashArtsFromLrigDeck": {
+          "color": "黒",
+          "count": 1
+        }
       },
       "action": {
         "type": "ADD_TO_FIELD",
@@ -21954,7 +21962,9 @@
         "ON_PLAY"
       ],
       "cost": {
-        "charmTrashVariable": { "min": 0 }
+        "charmTrashVariable": {
+          "min": 0
+        }
       },
       "action": {
         "type": "POWER_MODIFY_PER_CHARM",
@@ -53430,7 +53440,8 @@
               "count": 1,
               "upToCount": false,
               "filter": {
-                "cardType": "シグニ"
+                "cardType": "シグニ",
+                "colorMatchesLrig": true
               }
             }
           },
@@ -66909,7 +66920,8 @@
                     "count": 1,
                     "upToCount": false,
                     "filter": {
-                      "cardType": "シグニ"
+                      "cardType": "シグニ",
+                      "colorMatchesLrig": true
                     }
                   }
                 }
@@ -71291,7 +71303,8 @@
                     "count": 1,
                     "upToCount": false,
                     "filter": {
-                      "cardType": "シグニ"
+                      "cardType": "シグニ",
+                      "colorMatchesLrig": true
                     }
                   }
                 }
@@ -76122,7 +76135,8 @@
                     "owner": "self",
                     "count": 1,
                     "filter": {
-                      "cardType": "シグニ"
+                      "cardType": "シグニ",
+                      "colorMatchesLrig": true
                     }
                   }
                 }
@@ -77919,7 +77933,8 @@
           "count": 1,
           "upToCount": false,
           "filter": {
-            "cardType": "シグニ"
+            "cardType": "シグニ",
+            "colorMatchesLrig": true
           }
         }
       },
@@ -82825,7 +82840,10 @@
                   "target": {
                     "type": "ENERGY_CARD",
                     "owner": "opponent",
-                    "count": 1
+                    "count": 1,
+                    "filter": {
+                      "colorNotMatchesLrig": true
+                    }
                   }
                 }
               },
