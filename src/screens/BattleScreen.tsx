@@ -11842,6 +11842,83 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
+                  {/* charmTrashVariable: 可変チャームトラッシュ枚数選択ステッパー (ON_PLAY) */}
+                  {charmVarOPCostM && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <p style={{ color: charmVarOPOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        チャームをトラッシュする枚数を選択（{charmVarOPCostM.min}枚以上）: 場のチャーム {totalOPCharmsM}枚
+                      </p>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                          onClick={() => setSigniOnPlayCharmTrashVar(v => Math.max(0, v - 1))}
+                          disabled={signiOnPlayCharmTrashVar <= 0}
+                          style={{ width: 32, height: 32, borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButton,
+                            color: C.text, fontSize: 18, cursor: signiOnPlayCharmTrashVar <= 0 ? 'default' : 'pointer' }}>
+                          −
+                        </button>
+                        <span style={{ minWidth: 40, textAlign: 'center', color: C.text, fontSize: 16, fontWeight: 'bold' }}>
+                          {signiOnPlayCharmTrashVar}枚
+                        </span>
+                        <button
+                          onClick={() => setSigniOnPlayCharmTrashVar(v => Math.min(totalOPCharmsM, v + 1))}
+                          disabled={signiOnPlayCharmTrashVar >= totalOPCharmsM}
+                          style={{ width: 32, height: 32, borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButton,
+                            color: C.text, fontSize: 18, cursor: signiOnPlayCharmTrashVar >= totalOPCharmsM ? 'default' : 'pointer' }}>
+                          ＋
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* trashArtsFromLrigDeck: ルリグデッキからアーツを選択 (ON_PLAY) */}
+                  {artsTrashOPCostM && (
+                    <>
+                      <p style={{ color: artsOkM ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        ルリグデッキから{artsTrashOPCostM.color ? artsTrashOPCostM.color + 'の' : ''}アーツを選択:
+                        {' '}{selectedSigniOnPlayArtsTrash ? '1枚選択済み' : `未選択（${artsFilteredCardsM.length}枚中）`}
+                      </p>
+                      {artsFilteredCardsM.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                          {artsFilteredCardsM.map((cn, i) => {
+                            const c = battleCardMap.get(cn);
+                            const isSel = selectedSigniOnPlayArtsTrash === cn;
+                            return (
+                              <div key={i}
+                                onClick={() => setSelectedSigniOnPlayArtsTrash(isSel ? null : cn)}
+                                onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                                onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                                onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                                onContextMenu={e => e.preventDefault()}
+                                style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                  border: isSel ? '2px solid #4caf50' : C.borderCard,
+                                  cursor: 'pointer', overflow: 'hidden' }}>
+                                {c ? (
+                                  <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 7, color: C.textFaint }}>{cn}</span>
+                                  </div>
+                                )}
+                                {isSel && (
+                                  <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(76,175,80,0.4)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p style={{ color: C.warn, fontSize: 11, margin: 0 }}>
+                          ルリグデッキに{artsTrashOPCostM.color ? artsTrashOPCostM.color + 'の' : ''}アーツがありません
+                        </p>
+                      )}
+                    </>
+                  )}
+
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => skipSigniOnPlayCost(
