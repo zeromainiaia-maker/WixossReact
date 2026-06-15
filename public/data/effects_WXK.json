@@ -42268,7 +42268,8 @@
           "owner": "opponent",
           "count": 1,
           "filter": {
-            "cardType": "シグニ"
+            "cardType": "シグニ",
+            "levelEqualsVar": "charm_trash_count"
           },
           "upToCount": false
         }
@@ -42277,7 +42278,7 @@
       "mandatory": false,
       "parseStatus": "AUTO",
       "cost": {
-        "charmTrash": 1
+        "charmTrashVariable": { "min": 1 }
       },
       "usageLimit": "once_per_turn"
     },
