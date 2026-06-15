@@ -7503,7 +7503,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: newEnergy,
         coins: coinCostAct > 0 ? Math.max(0, (my.coins ?? 0) - coinCostAct) : my.coins,
         activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
-        trash: [...my.trash, ...paidNums, ...discardedCards, ...discardAllCards, ...energyTrashAllCards, ...discardVarCards],
+        trash: [...my.trash, ...paidNums, ...energyTrashCards, ...discardedCards, ...discardAllCards, ...energyTrashAllCards, ...discardVarCards],
         lrig_trash: newLrigTrash,
         field: newField,
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
@@ -7512,6 +7512,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_activated_discard_count: totalDiscardedCount,
         last_activated_discard_level_sum: discardVarCards.length > 0 ? discardVarLevelSum : my.last_activated_discard_level_sum,
       };
+      // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
+      if (effect.cost?.trashExile?.self) {
+        paid = { ...paid, trash: paid.trash.filter(cn => cn !== cardNum), lrig_trash: [...paid.lrig_trash, cardNum] };
+      } else if (trashExileIndices.size > 0) {
+        const exiledNums = [...trashExileIndices].map(i => my.trash[i]);
+        paid = { ...paid, trash: paid.trash.filter((_, i) => !trashExileIndices.has(i)), lrig_trash: [...paid.lrig_trash, ...exiledNums] };
+      }
       // trash_self: このシグニを場からトラッシュに置く（起動コスト）
       if (effect.cost?.trash_self) {
         const afterRemove = removeFromField(cardNum, paid);
