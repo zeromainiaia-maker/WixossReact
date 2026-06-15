@@ -10886,6 +10886,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>コスト: {[
                           energyTotal > 0 ? `エナ${energyTotal}枚` : null,
                           discardNeeded > 0 ? `手札${discardNeeded}枚` : null,
+                          virusNeededAssist > 0 ? `相手の【ウィルス】${virusNeededAssist}個除去（現在${(op.field.signi_virus ?? []).reduce((s, v) => s + v, 0)}個）` : null,
                         ].filter(Boolean).join('・') || 'なし'}</p>
                       </div>
                     </div>
