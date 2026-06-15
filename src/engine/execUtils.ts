@@ -157,6 +157,10 @@ export function matchesFilter(
     const colors = Array.isArray(filter.color) ? filter.color : [filter.color];
     if (!colors.some(c => card.Color?.includes(c))) return false;
   }
+  if (filter.colorExclude) {
+    const excl = Array.isArray(filter.colorExclude) ? filter.colorExclude : [filter.colorExclude];
+    if (excl.some(c => card.Color?.includes(c))) return false;
+  }
   if (filter.level !== undefined) {
     const lv = parseInt(card.Level ?? '', 10);
     if (typeof filter.level === 'number') {
