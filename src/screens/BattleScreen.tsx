@@ -11215,6 +11215,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             eff.cost?.trash_self ? 'このシグニをトラッシュ' : null,
                             charmTrashNActM > 0 ? `チャーム${charmTrashNActM}枚トラッシュ（現在${totalActCharmsM}枚）` : null,
                             charmVarActCostM ? `チャーム${charmVarActCostM.min}枚以上トラッシュ（現在${totalActCharmsM}枚）` : null,
+                            actEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(actEnergyTrashCost.filter) || 'シグニ'}${actEnergyTrashCost.count}枚トラッシュ` : null,
+                            actTrashExileCost?.self ? 'このカードをゲームから除外' : actTrashExileCost ? `トラッシュから${actTrashExileCost.count ?? 1}枚ゲーム除外` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                       </div>
