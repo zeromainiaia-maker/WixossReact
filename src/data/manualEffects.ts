@@ -642,66 +642,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX10-008 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
-  'WX10-008': [
-    {
-      effectId: 'WX10-008-E1',
-      effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'AUTO',
-    },
-  ],
-
-  // WX10-020 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
-  'WX10-020': [
-    {
-      effectId: 'WX10-020-E1',
-      effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'AUTO',
-    },
-  ],
-
-  // WX10-024 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
-  'WX10-024': [
-    {
-      effectId: 'WX10-024-E1',
-      effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'AUTO',
-    },
-  ],
-
-  // WX11-013 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
-  'WX11-013': [
-    {
-      effectId: 'WX11-013-E1',
-      effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'AUTO',
-    },
-  ],
-
-  // WX13-028 このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる（CONTINUOUS）
-  'WX13-028': [
-    {
-      effectId: 'WX13-028-E1',
-      effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as import('../types/effects').StubAction,
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'AUTO',
-    },
-  ],
-
   // WX14-017 あなたのエナゾーンにある無色ではないカードはすべての色を持つ（CONTINUOUS）
   'WX14-017': [
     {
