@@ -1131,6 +1131,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(bs?.guest_state?.field?.signi_down),
     bs?.guest_state?.pending_crashed_cards?.length,
+    !!bs?.guest_state?.pending_signi_battle, // バトル解決待ちクリア時に再実行（トリガーなし時の停止防止）
+    !!bs?.guest_state?.pending_lrig_attack,  // ルリグアタック解決待ちクリア時に再実行
     bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
   ]);
 
