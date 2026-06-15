@@ -1635,7 +1635,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.active_user_id !== user.id) return;
     checkPowerZeroBanishRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]);
+  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CONTINUOUS BANISH / FREEZE / DOWN の自動適用（mandatory 効果：WX16-045 等）
   useEffect(() => {
