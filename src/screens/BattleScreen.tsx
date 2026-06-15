@@ -5675,7 +5675,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // バトル解決前にON_ATTACK_SIGNIを処理するため pending_signi_battle をセット
       const newMyStateWithPending: PlayerState = { ...newMyState, pending_signi_battle: { zoneIndex } };
 
-      const allAttackTriggers = [...attackEntries, ...opAtkedEntries];
+      const allAttackTriggers = [...attackEntries, ...allyAttackEntries, ...opAtkedEntries];
       if (allAttackTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;
