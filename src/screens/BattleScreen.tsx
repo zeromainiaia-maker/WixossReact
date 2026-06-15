@@ -12183,7 +12183,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const charmOkLrig = charmTrashNLrigM === 0 || (my.field.signi_charms ?? []).filter(Boolean).length >= charmTrashNLrigM;
               const virusNeededLrig = eff.cost?.removeOppVirus ?? 0;
               const virusOkLrig = virusNeededLrig === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededLrig;
-              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig;
+              const lgEnergyTrashCost = eff.cost?.energyTrash;
+              const lgEnergyTrashOk = !lgEnergyTrashCost || selectedLrigGrantedEnergyTrash.size >= lgEnergyTrashCost.count;
+              const lgTrashExileCost = eff.cost?.trashExile;
+              const lgTrashExileOk = !lgTrashExileCost || lgTrashExileCost.self
+                ? true
+                : selectedLrigGrantedTrashExile.size >= (lgTrashExileCost?.count ?? 0);
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
