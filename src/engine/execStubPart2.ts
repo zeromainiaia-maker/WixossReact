@@ -2170,6 +2170,20 @@ export function execStubPart2(
     const newOwnerPVC: PlayerState = { ...ctx.ownerState, opp_virus_placed_just: true };
     return done(addLog({ ...ctx, ownerState: newOwnerPVC, otherState: newSOtherPVC }, '相手の中央シグニゾーンに【ウィルス】を設置'));
   }
+  // PLACE_VIRUS_TO_2: 相手の場のウィルス合計が2になるようにウィルスを置く（WX19-045）
+  if (stub.id === 'PLACE_VIRUS_TO_2') {
+    const virusPV2 = [...(ctx.otherState.field.signi_virus ?? [0, 0, 0])];
+    const totalPV2 = virusPV2.reduce((s, v) => s + v, 0);
+    const neededPV2 = Math.max(0, 2 - totalPV2);
+    if (neededPV2 === 0) return done(addLog(ctx, '相手のウィルスは既に2個以上'));
+    let placedPV2 = 0;
+    for (let i = 0; i < 3 && placedPV2 < neededPV2; i++) {
+      if ((virusPV2[i] ?? 0) === 0) { virusPV2[i] = 1; placedPV2++; }
+    }
+    const newOtherPV2: PlayerState = { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: virusPV2 } };
+    const newOwnerPV2: PlayerState = { ...ctx.ownerState, opp_virus_placed_just: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerPV2, otherState: newOtherPV2 }, `相手シグニゾーンにウィルスを${placedPV2}個置く（合計2個に）`));
+  }
   // SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ
   if (stub.id === 'SELF_TRASH_IF_NO_OPP_VIRUS') {
     const hasVirusSTINOV = (ctx.otherState.field.signi_virus ?? []).some(v => (v ?? 0) > 0);
