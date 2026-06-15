@@ -1963,7 +1963,15 @@ function execPowerModifyPerTrashedLevel(a: import('../types/effects').PowerModif
 
 function execPowerModifyPerCharm(a: import('../types/effects').PowerModifyPerCharmAction, ctx: ExecCtx): ExecResult {
   if (a.sourceLocation === 'trashed_this_effect') {
-    // コスト：自分の場のチャームを好きな数（実装: 全て）トラッシュに置く
+    // last_charm_trash_count設定済み = charmTrashVariableコストとして既にトラッシュ済み（WX07-045等）
+    if (ctx.ownerState.last_charm_trash_count !== undefined) {
+      const charmCount = ctx.ownerState.last_charm_trash_count;
+      if (charmCount === 0) return done(ctx);
+      const delta = a.deltaPerCharm * charmCount;
+      const modAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+      return executeAction(modAction, ctx);
+    }
+    // コスト：自分の場のチャームを全てトラッシュに置く（固定）
     // sourceOwner は本来 'self' だが parser バグで 'opponent' になる場合があるため、常に自分のチャームを使用
     const ownCharms = (ctx.ownerState.field.signi_charms ?? []).filter(c => c !== null) as string[];
     if (ownCharms.length === 0) return done(ctx);
