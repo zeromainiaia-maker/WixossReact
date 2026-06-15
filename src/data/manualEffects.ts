@@ -747,6 +747,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX19-045 羅菌　ポレン（起動）
+  // 【起】《アタックフェイズ》手札からこのカードを捨てる：
+  //   相手の場のウィルス合計が2つになるように相手のシグニゾーンにウィルスを置く。
+  //   ＜ナナシ＞限定
+  'WX19-045': [
+    {
+      effectId: 'WX19-045-E1',
+      effectType: 'ACTIVATED',
+      timing: ['ATTACK_ARTS'],
+      condition: { type: 'LRIG_STORY', owner: 'self', story: 'ナナシ' },
+      cost: { discardSelfFromHand: true },
+      action: { type: 'STUB', id: 'PLACE_VIRUS_TO_2' },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+      handActivated: true,
+    },
+  ],
+
 };
 
 /**
