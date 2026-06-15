@@ -878,6 +878,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let effectType: EffectType;
   let timing: EffectTiming[] | undefined;
   let mandatory = false;
+  let extractedTriggerScope: import('../types/effects').TriggerScope | undefined;
+  let extractedTriggerFilter: TargetFilter | undefined;
 
   switch (marker) {
     case '常': effectType = 'CONTINUOUS'; mandatory = true; break;
