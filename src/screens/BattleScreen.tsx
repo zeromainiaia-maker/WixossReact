@@ -8023,6 +8023,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         game_actions_done: lgIsGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         last_activated_discard_count: lgTotalDiscarded,
       };
+      // charmTrash: 自分の場のチャームN枚をトラッシュ（ルリグ起動コスト）
+      const charmTrashNLrig = effect.cost?.charmTrash ?? 0;
+      if (charmTrashNLrig > 0) {
+        const newCharmsLrig = [...(paid.field.signi_charms ?? [null, null, null])];
+        const movedCL: string[] = [];
+        for (let zi = 0; zi < newCharmsLrig.length && movedCL.length < charmTrashNLrig; zi++) {
+          if (newCharmsLrig[zi]) { movedCL.push(newCharmsLrig[zi]!); newCharmsLrig[zi] = null; }
+        }
+        if (movedCL.length < charmTrashNLrig) { setLoading(false); return; }
+        paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsLrig }, trash: [...paid.trash, ...movedCL] };
+      }
+      // removeOppVirus: 相手の場のウィルスN個を取り除く（ルリグ起動コスト）
+      const removeVirusNLrig = effect.cost?.removeOppVirus ?? 0;
+      let newOpVirusStateLrig: typeof op | null = null;
+      if (removeVirusNLrig > 0) {
+        const newOppVirusLrig = [...(op.field.signi_virus ?? [0, 0, 0])];
+        let removedVL = 0;
+        for (let zi = 0; zi < newOppVirusLrig.length && removedVL < removeVirusNLrig; zi++) {
+          while (newOppVirusLrig[zi] > 0 && removedVL < removeVirusNLrig) { newOppVirusLrig[zi]--; removedVL++; }
+        }
+        if (removedVL < removeVirusNLrig) { setLoading(false); return; }
+        newOpVirusStateLrig = { ...op, field: { ...op.field, signi_virus: newOppVirusLrig } };
+        paid = { ...paid, opp_virus_removed_just: true };
+      }
       const lrigTop = my.field.lrig.at(-1);
       const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
       const entry: import('../types').StackEntry = {
