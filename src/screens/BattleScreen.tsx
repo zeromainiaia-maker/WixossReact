@@ -11033,6 +11033,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             coinNeededAct > 0 ? `《コイン》×${coinNeededAct}（所持${my.coins ?? 0}）` : null,
                             eff.cost?.down_self ? 'このシグニをダウン' : null,
                             virusNeededAct > 0 ? `相手の【ウィルス】${virusNeededAct}個除去（現在${(op.field.signi_virus ?? []).reduce((s, v) => s + v, 0)}個）` : null,
+                            eff.cost?.trash_self ? 'このシグニをトラッシュ' : null,
+                            charmTrashNActM > 0 ? `チャーム${charmTrashNActM}枚トラッシュ（現在${(my.field.signi_charms ?? []).filter(Boolean).length}枚）` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                       </div>
