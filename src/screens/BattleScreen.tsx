@@ -5817,7 +5817,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       const hasGrantedKeyword = (kw: string) =>
-        hasKeyword(myTopNum, kw, battleCardMap, myGrants) || contGrantedKeywords.has(kw);
+        hasKeyword(myTopNum, kw, battleCardMap, myGrants, undefined, myS.keyword_grants_until_opp_turn) || contGrantedKeywords.has(kw);
       const isAssassin    = hasGrantedKeyword('アサシン');
       const isLancer      = hasGrantedKeyword('ランサー');
       const isSLancer     = hasGrantedKeyword('Sランサー');
