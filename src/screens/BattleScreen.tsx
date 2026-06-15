@@ -5633,7 +5633,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           effectId: e.effectId,
           label: `${battleCardMap.get(myTopNum)?.CardName ?? myTopNum} の【自】効果（シグニアタック時）`,
           effect: e,
+          triggeringCardNum: myTopNum, // 「それ」= 自身
         } satisfies StackEntry));
+
+      // any_ally scope: 味方フィールドの他シグニが持つON_ATTACK_SIGNIへの応答（例: WX01-029）
+      const allyAttackEntries = collectFieldTriggers('ON_ATTACK_SIGNI', myTopNum, newMyState, newOpState, attackerId);
 
       // ON_ATTACK_SIGNIトリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
       const opFrontZoneIdx = 2 - zoneIndex;
