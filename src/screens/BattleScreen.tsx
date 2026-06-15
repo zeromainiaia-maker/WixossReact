@@ -4169,6 +4169,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!eff.timing?.includes(event)) continue;
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any_ally' && scope !== 'any') continue;
+        // triggerFilter: ON_ATTACK_SIGNI等でトリガー元カードがフィルタを満たすか確認
+        if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
@@ -4177,6 +4179,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           effectId: eff.effectId,
           label: `${cardName} の【自】効果（他のシグニ召喚時）`,
           effect: eff,
+          triggeringCardNum,
         });
       }
     }
