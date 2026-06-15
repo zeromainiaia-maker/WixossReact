@@ -1698,7 +1698,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acceJustDoneRef, bs?.effect_stack, bs?.pending_effect, loading]);
+  }, [acceJustDoneRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 手札公開（hand_revealed_just）/効果による手札捨て（hand_discarded_just）フラグを検出してトリガーを発火
   // フラグはトリガーの有無に関わらず必ずクリアする（残存すると後で誤発火するため）
