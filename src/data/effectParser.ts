@@ -185,6 +185,8 @@ function parseCost(costStr: string): EffectCost | undefined {
   const beatM = costStr.match(/(?:他の)?シグニ([０-９\d]+)体を【ビート】にする/);
   if (beatM) cost.beat_signi = parseNum(beatM[1]);
   else if (costStr.includes('シグニ１体を【ビート】にする') || costStr.includes('他のシグニ１体を【ビート】にする')) cost.beat_signi = 1;
+  const coinM = costStr.match(/《コインアイコン》/g);
+  if (coinM?.length) cost.coin = coinM.length;
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 
