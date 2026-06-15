@@ -5318,7 +5318,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // フェイズ別・手札カードアクションを返す
   const getMyHandCardActions = (cardNum: string, handIndex: number): CardAction[] => {
-    if (!isMyTurn || loading) return [];
+    if (loading) return [];
+    // 非自分ターンでも ATTACK_ARTS_OP は手札起動効果を許可
+    if (!isMyTurn && bs.turn_phase !== 'ATTACK_ARTS_OP') return [];
     const actionList: CardAction[] = [];
 
     if (bs.turn_phase === 'ENERGY') {
