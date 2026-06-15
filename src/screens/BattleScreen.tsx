@@ -7440,6 +7440,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_activated_discard_count: totalDiscardedCount,
         last_activated_discard_level_sum: discardVarCards.length > 0 ? discardVarLevelSum : my.last_activated_discard_level_sum,
       };
+      // trash_self: このシグニを場からトラッシュに置く（起動コスト）
+      if (effect.cost?.trash_self) {
+        const afterRemove = removeFromField(cardNum, paid);
+        paid = { ...afterRemove, trash: [...afterRemove.trash, cardNum] };
+      }
+      // charmTrash: 自分の場のチャームN枚をトラッシュ（左のゾーンから自動選択）
+      const charmTrashNAct2 = effect.cost?.charmTrash ?? 0;
+      if (charmTrashNAct2 > 0) {
+        const newCharmsAct = [...(paid.field.signi_charms ?? [null, null, null])];
+        const movedCA: string[] = [];
+        for (let zi = 0; zi < newCharmsAct.length && movedCA.length < charmTrashNAct2; zi++) {
+          if (newCharmsAct[zi]) { movedCA.push(newCharmsAct[zi]!); newCharmsAct[zi] = null; }
+        }
+        if (movedCA.length < charmTrashNAct2) return; // 支払い不能
+        paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsAct }, trash: [...paid.trash, ...movedCA] };
+      }
       // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
       let plant3rdDownTriggerEntry: StackEntry | null = null;
       if (effect.cost?.down_self && my.turn_trigger_3rd_plant_down) {
