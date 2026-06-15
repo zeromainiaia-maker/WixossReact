@@ -542,11 +542,14 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   let cands: string[];
   let scope: TargetScope;
 
+  const addToFieldOwnerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
   if (src.type === 'TRASH_CARD') {
-    cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap);
+    cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    cands = energyCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap);
+    cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else if (src.type === 'HAND_CARD') {
     cands = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
