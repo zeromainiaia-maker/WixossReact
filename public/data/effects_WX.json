@@ -21946,6 +21946,9 @@
       "timing": [
         "ON_PLAY"
       ],
+      "cost": {
+        "charmTrashVariable": { "min": 0 }
+      },
       "action": {
         "type": "POWER_MODIFY_PER_CHARM",
         "target": {
