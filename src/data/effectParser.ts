@@ -187,6 +187,18 @@ function parseCost(costStr: string): EffectCost | undefined {
   else if (costStr.includes('シグニ１体を【ビート】にする') || costStr.includes('他のシグニ１体を【ビート】にする')) cost.beat_signi = 1;
   const coinM = costStr.match(/《コインアイコン》/g);
   if (coinM?.length) cost.coin = coinM.length;
+  // 手札から[OR指定]シグニをN枚捨てる → handDiscardSigni
+  const hdsOr = costStr.match(/手札から((?:＜[^＞]+＞か)+＜[^＞]+＞)のシグニを([０-９\d]+)枚捨てる/);
+  const hdsSimple = !hdsOr ? costStr.match(/手札から(?:([白赤青緑黒])の)?(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚捨てる/) : null;
+  if (hdsOr) {
+    const stories = [...hdsOr[1].matchAll(/＜([^＞]+)＞/g)].map(m => m[1]);
+    cost.handDiscardSigni = { story: stories, count: parseNum(hdsOr[2]) };
+  } else if (hdsSimple) {
+    const hdsObj: NonNullable<EffectCost['handDiscardSigni']> = { count: parseNum(hdsSimple[3]) };
+    if (hdsSimple[1]) hdsObj.color = hdsSimple[1];
+    if (hdsSimple[2]) hdsObj.story = hdsSimple[2];
+    cost.handDiscardSigni = hdsObj;
+  }
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 
