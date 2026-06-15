@@ -874,6 +874,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash] = useState<Set<number>>(new Set());
   // 場のシグニをトラッシュするコスト（cost.fieldTrash）のゾーン選択
   const [selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash] = useState<Set<number>>(new Set());
+  // ルリグデッキからアーツを選択するコスト（trashArtsFromLrigDeck）
+  const [selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash] = useState<string | null>(null);
+  // 可変チャームトラッシュコスト - ON_PLAY効果用
+  const [signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar] = useState<number>(0);
+  // 可変チャームトラッシュコスト - シグニ起動効果用
+  const [signiActCharmTrashVar, setSigniActCharmTrashVar] = useState<number>(0);
   // キーピース
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [pendingKeyCard, setPendingKeyCard] = useState<CardData | null>(null);
