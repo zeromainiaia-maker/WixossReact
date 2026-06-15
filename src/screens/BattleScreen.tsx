@@ -11439,16 +11439,122 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </div>
                   )}
 
+                  {/* energyTrash: エナゾーンから指定シグニをトラッシュするコスト選択 */}
+                  {actEnergyTrashCost && (
+                    <>
+                      <p style={{ color: actEnergyTrashOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        エナから{fmtDiscardFilterLabel(actEnergyTrashCost.filter) || 'シグニ'}をトラッシュに置く:
+                        {' '}{selectedSigniActivatedEnergyTrash.size} / {actEnergyTrashCost.count}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.energy.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const matches = !actEnergyTrashCost.filter || matchesFilter(c, actEnergyTrashCost.filter);
+                          const isSel = selectedSigniActivatedEnergyTrash.has(i);
+                          return (
+                            <div key={i}
+                              onClick={() => matches && setSelectedSigniActivatedEnergyTrash(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (next.size >= actEnergyTrashCost.count) return prev;
+                                next.add(i); return next;
+                              })}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #4caf50' : C.borderCard,
+                                opacity: matches ? 1 : 0.35,
+                                cursor: matches ? 'pointer' : 'default', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(76,175,80,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {/* trashExile: トラッシュからカードをゲーム除外するコスト選択 */}
+                  {actTrashExileCost && !actTrashExileCost.self && (
+                    <>
+                      <p style={{ color: actTrashExileOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        トラッシュから{actTrashExileCost.filter?.cardName ? `《${actTrashExileCost.filter.cardName}》` : 'カード'}をゲームから除外:
+                        {' '}{selectedSigniActivatedTrashExile.size} / {actTrashExileCost.count ?? 1}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {my.trash.map((num, i) => {
+                          const c = battleCardMap.get(num);
+                          const matches = !actTrashExileCost.filter || matchesFilter(c, actTrashExileCost.filter);
+                          const isSel = selectedSigniActivatedTrashExile.has(i);
+                          const needed = actTrashExileCost.count ?? 1;
+                          return (
+                            <div key={i}
+                              onClick={() => matches && setSelectedSigniActivatedTrashExile(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); return next; }
+                                if (next.size >= needed) return prev;
+                                next.add(i); return next;
+                              })}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #9c27b0' : C.borderCard,
+                                opacity: matches ? 1 : 0.35,
+                                cursor: matches ? 'pointer' : 'default', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(156,39,176,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  {actTrashExileCost?.self && (
+                    <p style={{ color: C.warn, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                      このカードをゲームから除外します
+                    </p>
+                  )}
+
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setSigniActCharmTrashVar(0); setKeySubstituteEnabled(false); }}
+                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setSigniActCharmTrashVar(0); setKeySubstituteEnabled(false); setSelectedSigniActivatedEnergyTrash(new Set()); setSelectedSigniActivatedTrashExile(new Set()); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar)}
+                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
