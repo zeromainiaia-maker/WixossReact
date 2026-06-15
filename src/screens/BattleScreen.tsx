@@ -1831,7 +1831,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myVirusPlacedRef, myVirusRemovedRef, cpuVirusPlacedRef, cpuVirusRemovedRef, bs?.effect_stack, bs?.pending_effect, loading]);
+  }, [myVirusPlacedRef, myVirusRemovedRef, cpuVirusPlacedRef, cpuVirusRemovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ON_TURN_END 解決後の自動フェーズ進行
   useEffect(() => {
