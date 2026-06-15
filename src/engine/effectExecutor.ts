@@ -178,6 +178,19 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   if (cands.length === 0) return done(ctx);
 
+  // targetsTriggerSource: 「それ」= triggeringCardNum（なければ sourceCardNum）を自動対象
+  if (a.targetsTriggerSource) {
+    const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+    if (autoNum && cands.includes(autoNum)) {
+      const s = ownerState(tgtOwner, ctx);
+      const mods = [...(s.temp_power_mods ?? []), { cardNum: autoNum, delta }];
+      const newS: PlayerState = { ...s, temp_power_mods: mods };
+      return done(addLog(setOwnerState(tgtOwner, newS, ctx),
+        `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}のパワー${delta > 0 ? '+' : ''}${delta}`));
+    }
+    return done(ctx);
+  }
+
   function applyPowerMod(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgtOwner, c);
     const mods = [
