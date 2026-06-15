@@ -5033,7 +5033,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const discardNums = [...discardIndices].map(i => my.hand[i]);
       const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
-      const paid: PlayerState = {
+      let paid: PlayerState = {
         ...my,
         energy: newEnergy,
         hand: newHand,
@@ -5041,6 +5041,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
       };
+      // removeOppVirus: 相手の場のウィルスN個を取り除く
+      const removeVirusNAssist = effect.cost?.removeOppVirus ?? 0;
+      let newOpVirusStateAssist: typeof op | null = null;
+      if (removeVirusNAssist > 0) {
+        const newOppVirus = [...(op.field.signi_virus ?? [0, 0, 0])];
+        let removedV = 0;
+        for (let zi = 0; zi < newOppVirus.length && removedV < removeVirusNAssist; zi++) {
+          while (newOppVirus[zi] > 0 && removedV < removeVirusNAssist) { newOppVirus[zi]--; removedV++; }
+        }
+        if (removedV < removeVirusNAssist) return;
+        newOpVirusStateAssist = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
+        paid = { ...paid, opp_virus_removed_just: true };
+      }
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
         id: generateUUID(),
@@ -5054,8 +5067,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack ? pushToStack(existingStack, [entry]) : initStack(turnPlayerId, [entry]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
+      const oppStateKeyAssist = isHost ? 'guest_state' : 'host_state';
+      const updatePayloadAssist: Record<string, unknown> = { [stateKey]: paid, effect_stack: newStack, pending_effect: null };
+      if (newOpVirusStateAssist) updatePayloadAssist[oppStateKeyAssist] = newOpVirusStateAssist;
       await supabase.from('battle_states')
-        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .update(updatePayloadAssist)
         .eq('room_id', roomId);
     } finally {
       setLoading(false);
