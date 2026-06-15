@@ -11,6 +11,7 @@ export type EffectType =
 export type EffectTiming =
   | 'MAIN'            // メインフェイズ
   | 'ATTACK'          // アタックフェイズ全般
+  | 'ATTACK_ARTS'     // アーツステップ（手札起動型シグニ等で使用）
   | 'SPELL_CUTIN'     // スペルカットイン
   | 'ON_PLAY'         // 出効果（場に出たとき）
   | 'ON_LIFE_BURST'   // ライフバースト発動時
