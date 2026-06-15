@@ -10872,7 +10872,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedAssistActivatedCost].map(i => my.energy[i]);
               const energyOk = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
-              const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded;
+              const virusNeededAssist = eff.cost?.removeOppVirus ?? 0;
+              const virusOkAssist = virusNeededAssist === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededAssist;
+              const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded && virusOkAssist;
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>アシスト【起】効果を発動</p>
