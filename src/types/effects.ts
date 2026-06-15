@@ -404,6 +404,7 @@ export interface PowerModifyAction {
   target: EffectTarget;
   delta: NumberOrRef; // 正=強化、負=弱体化
   excludeSelf?: boolean; // 「あなたの他のシグニ」: 効果元カード自身を対象から除外
+  targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニを自動対象（ctx.triggeringCardNum → ctx.sourceCardNum の順で解決）
 }
 
 export interface PowerSetAction {
