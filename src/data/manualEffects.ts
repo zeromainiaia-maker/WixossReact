@@ -53,6 +53,39 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX15-004 ナナシ　其ノ四ノ別（ルリグ）
+  // 【常】：対戦相手の感染状態のシグニのパワーを－1000する。（count:1→ALLに修正）
+  // 【起】ブラインド《コインアイコン》《コインアイコン》：次の対戦相手のターンの間、あなたのシグニは【シャドウ】を得る。
+  'WX15-004': [
+    {
+      effectId: 'WX15-004-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', infected: true } },
+        delta: -1000,
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX15-004-E3',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { coin: 2 },
+      action: {
+        type: 'GRANT_KEYWORD',
+        target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+        keyword: 'シャドウ',
+        duration: 'UNTIL_END_OF_TURN',
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX15-064 羅菌　キョウギュ（起動）
   // 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じゾーンの【ウィルス】１つを取り除き、
   //   ターン終了時まで、それのパワーを－7000する。パワーが0以下になった場合、1枚引く。
