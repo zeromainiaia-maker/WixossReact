@@ -892,11 +892,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
   if (plusM || minusM) {
     const delta = plusM ? parseNum(plusM[1]) : -(parseNum(minusM![1]));
     let target: EffectTarget;
-    if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:[白赤青緑黒]の|＜[^＞]+＞の|他の)?シグニのパワーを/)) {
+    let isTriggerSource = false;
+    if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:[白赤青緑黒]の|＜[^＞]+＞の|他の)?(?:すべての)?シグニのパワーを/)) {
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t) } };
     } else if (t.match(/対戦相手のすべてのシグニ/) ||
                t.match(/(?:感染状態の)?対戦相手のシグニすべて/) ||
-               t.match(/対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞の|感染状態の)?シグニのパワーを/)) {
+               t.match(/対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞の|感染状態の)?(?:すべての)?シグニのパワーを/)) {
       target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t), ...(t.includes('感染状態') ? { infected: true } : {}) } };
     } else if (t.match(/対戦相手の(?:感染状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
       target = parseSigniTarget(t, 'opponent');
@@ -904,10 +905,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
       target = parseSigniTarget(t, 'self');
     } else if (t.match(/このシグニ/)) {
       target = { type: 'SIGNI', owner: 'self', count: 1 };
+    } else if (t.match(/^それのパワーを/) || t.match(/^それはパワーが/)) {
+      // 「それ」= トリガー元シグニ（ON_ATTACK_SIGNI等で発火したシグニ自身）
+      target = { type: 'SIGNI', owner: 'self', count: 1 };
+      isTriggerSource = true;
     } else {
       target = { type: 'SIGNI', owner: 'any', count: 1 };
     }
-    return { type: 'POWER_MODIFY', target, delta };
+    const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target, delta };
+    if (isTriggerSource) pmAction.targetsTriggerSource = true;
+    return pmAction;
   }
 
   // ---- パワーセット（基本パワーはNになる / それの基本パワーをNにする）----
