@@ -1758,7 +1758,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handRevealedJustRef, handDiscardedJustRef, bs?.effect_stack, bs?.pending_effect, loading]);
+  }, [handRevealedJustRef, handDiscardedJustRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 対戦相手の場のウィルス増減フラグ（opp_virus_placed_just / opp_virus_removed_just）を検出して
   // ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED トリガーを発火（WD19-009 / WX21-030）
