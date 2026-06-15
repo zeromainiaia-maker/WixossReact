@@ -11336,9 +11336,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </>
                   )}
 
+                  {/* charmTrashVariable: 可変チャームトラッシュ枚数選択ステッパー */}
+                  {charmVarActCostM && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <p style={{ color: charmVarActOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        チャームをトラッシュする枚数を選択（{charmVarActCostM.min}枚以上）: 場のチャーム {totalActCharmsM}枚
+                      </p>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                          onClick={() => setSigniActCharmTrashVar(v => Math.max(0, v - 1))}
+                          disabled={signiActCharmTrashVar <= 0}
+                          style={{ width: 32, height: 32, borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButton,
+                            color: C.text, fontSize: 18, cursor: signiActCharmTrashVar <= 0 ? 'default' : 'pointer' }}>
+                          −
+                        </button>
+                        <span style={{ minWidth: 40, textAlign: 'center', color: C.text, fontSize: 16, fontWeight: 'bold' }}>
+                          {signiActCharmTrashVar}枚
+                        </span>
+                        <button
+                          onClick={() => setSigniActCharmTrashVar(v => Math.min(totalActCharmsM, v + 1))}
+                          disabled={signiActCharmTrashVar >= totalActCharmsM}
+                          style={{ width: 32, height: 32, borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButton,
+                            color: C.text, fontSize: 18, cursor: signiActCharmTrashVar >= totalActCharmsM ? 'default' : 'pointer' }}>
+                          ＋
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setKeySubstituteEnabled(false); }}
+                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setSigniActCharmTrashVar(0); setKeySubstituteEnabled(false); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
