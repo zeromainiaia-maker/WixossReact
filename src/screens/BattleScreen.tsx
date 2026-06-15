@@ -1846,7 +1846,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!(localMy.actions_done?.includes('__TURN_END__'))) return;
     doPhaseAdvanceRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, loading, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state]);
+  }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!bs) return (
     <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgSetup, color: C.text }}>
