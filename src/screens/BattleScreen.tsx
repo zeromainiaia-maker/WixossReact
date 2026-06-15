@@ -11845,6 +11845,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             eff.cost?.discardAll ? `手札をすべて捨てる（${my.hand.length}枚）` :
                               hdSigniCost ? `手札${fmtHandDiscardSigniLabel(hdSigniCost)}シグニ×${hdSigniCost.count}` :
                                 lgGroups ? `手札${lgGroupsLabel}` : null,
+                            charmTrashNLrigM > 0 ? `チャーム${charmTrashNLrigM}枚トラッシュ（現在${(my.field.signi_charms ?? []).filter(Boolean).length}枚）` : null,
+                            virusNeededLrig > 0 ? `相手の【ウィルス】${virusNeededLrig}個除去（現在${(op.field.signi_virus ?? []).reduce((s, v) => s + v, 0)}個）` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {exceedCost > 0 && !canAffordExceed && (
