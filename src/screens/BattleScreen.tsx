@@ -1624,7 +1624,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!(localMy.pending_crashed_cards?.length ?? 0)) return;
     triggerPendingCrashRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase]);
+  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // パワー0以下シグニの自動バニッシュ
   useEffect(() => {
