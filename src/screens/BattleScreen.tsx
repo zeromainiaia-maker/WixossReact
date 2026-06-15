@@ -7468,7 +7468,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const afterRemove = removeFromField(cardNum, paid);
         paid = { ...afterRemove, trash: [...afterRemove.trash, cardNum] };
       }
-      // charmTrash: 自分の場のチャームN枚をトラッシュ（左のゾーンから自動選択）
+      // charmTrash: 自分の場のチャームN枚をトラッシュ（固定枚数・自動選択）
       const charmTrashNAct2 = effect.cost?.charmTrash ?? 0;
       if (charmTrashNAct2 > 0) {
         const newCharmsAct = [...(paid.field.signi_charms ?? [null, null, null])];
@@ -7478,6 +7478,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         if (movedCA.length < charmTrashNAct2) return; // 支払い不能
         paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsAct }, trash: [...paid.trash, ...movedCA] };
+      }
+      // charmTrashVariable: チャームを可変枚数トラッシュ（プレイヤーが選択した枚数）
+      const charmVarActCost = effect.cost?.charmTrashVariable;
+      if (charmVarActCost) {
+        const n = signiActCharmTrashVar;
+        if (n < charmVarActCost.min) return;
+        if (n > 0) {
+          const newCharmsActV = [...(paid.field.signi_charms ?? [null, null, null])];
+          const movedActV: string[] = [];
+          for (let zi = 0; zi < newCharmsActV.length && movedActV.length < n; zi++) {
+            if (newCharmsActV[zi]) { movedActV.push(newCharmsActV[zi]!); newCharmsActV[zi] = null; }
+          }
+          if (movedActV.length < n) return;
+          paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsActV }, trash: [...paid.trash, ...movedActV], last_charm_trash_count: n };
+        } else {
+          paid = { ...paid, last_charm_trash_count: 0 };
+        }
       }
       // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
       let plant3rdDownTriggerEntry: StackEntry | null = null;
