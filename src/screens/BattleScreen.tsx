@@ -1659,7 +1659,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!localMy.pending_signi_battle) return;
     resolvePendingSigniBattleRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase]);
+  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ON_ATTACK_LRIG処理完了後のガード応答セット（pending_lrig_attackが設定されスタックが空になったとき）
   useEffect(() => {
@@ -1672,7 +1672,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!localMy.pending_lrig_attack) return;
     resolvePendingLrigAttackRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state, bs?.global_phase]);
+  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state, bs?.global_phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ATTACH_ACCE完了後にacce_just_doneフラグを検出してON_ACCEトリガーを発火
   // my は後で定義されるため bs から直接参照（isHost も後定義のため bs から計算）
