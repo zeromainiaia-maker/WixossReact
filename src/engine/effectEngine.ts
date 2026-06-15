@@ -1705,7 +1705,9 @@ export function calcContinuousBlockedActions(
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
     if ((ownerState.keyword_grants?.[topNum] ?? []).includes('アタックできない') ||
-        (otherState.keyword_grants?.[topNum] ?? []).includes('アタックできない')) {
+        (ownerState.keyword_grants_until_opp_turn?.[topNum] ?? []).includes('アタックできない') ||
+        (otherState.keyword_grants?.[topNum] ?? []).includes('アタックできない') ||
+        (otherState.keyword_grants_until_opp_turn?.[topNum] ?? []).includes('アタックできない')) {
       cannotAttackSigni.add(topNum);
     }
   }
