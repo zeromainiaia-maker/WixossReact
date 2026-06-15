@@ -11112,7 +11112,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const virusOkAct = virusNeededAct === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededAct;
               const charmTrashNActM = eff.cost?.charmTrash ?? 0;
               const charmOkAct = charmTrashNActM === 0 || (my.field.signi_charms ?? []).filter(Boolean).length >= charmTrashNActM;
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct;
+              const charmVarActCostM = eff.cost?.charmTrashVariable;
+              const totalActCharmsM = (my.field.signi_charms ?? []).filter(Boolean).length;
+              const charmVarActOk = !charmVarActCostM || signiActCharmTrashVar >= charmVarActCostM.min;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk;
 
               return (
                 <>
