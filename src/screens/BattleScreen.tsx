@@ -7398,6 +7398,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSigniActivatedCost(new Set());
     setSelectedSigniActivatedDiscard(new Set());
     setSelectedSigniActivatedDiscardVar(new Set());
+    setSigniActCharmTrashVar(0);
     setKeySubstituteEnabled(false);
     try {
       // エナコストを支払う
