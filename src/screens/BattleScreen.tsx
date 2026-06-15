@@ -7436,19 +7436,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ起動効果を実行（コスト支払い後）
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set()) => {
     if (loading) return;
     setLoading(true);
     setPendingSigniActivated(null);
     setSelectedSigniActivatedCost(new Set());
     setSelectedSigniActivatedDiscard(new Set());
     setSelectedSigniActivatedDiscardVar(new Set());
+    setSelectedSigniActivatedEnergyTrash(new Set());
+    setSelectedSigniActivatedTrashExile(new Set());
     setSigniActCharmTrashVar(0);
     setKeySubstituteEnabled(false);
     try {
-      // エナコストを支払う
+      // エナコストを支払う（色コスト + energyTrash指定コスト）
+      const allEnergyRemovedIdx = new Set([...costIndices, ...energyTrashIndices]);
       const paidNums = [...costIndices].map(i => my.energy[i]);
-      const baseNewEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const energyTrashCards = [...energyTrashIndices].map(i => my.energy[i]);
+      const baseNewEnergy = my.energy.filter((_, i) => !allEnergyRemovedIdx.has(i));
       // energyTrashAll: エナゾーンのカードをすべてトラッシュ（選択不要、自動）
       const energyTrashAllCards = effect.cost?.energyTrashAll ? [...baseNewEnergy] : [];
       const newEnergy = effect.cost?.energyTrashAll ? [] : baseNewEnergy;
