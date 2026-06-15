@@ -11819,7 +11819,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   ? (selectedLrigGrantedHandDiscard.size === lgDiscardTotal &&
                      canSatisfyDiscardGroups([...selectedLrigGrantedHandDiscard].map(i => battleCardMap.get(my.hand[i])), lgGroups))
                   : (!hdSigniCost || selectedLrigGrantedHandDiscard.size >= hdSigniCost.count);
-              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard;
+              const charmTrashNLrigM = eff.cost?.charmTrash ?? 0;
+              const charmOkLrig = charmTrashNLrigM === 0 || (my.field.signi_charms ?? []).filter(Boolean).length >= charmTrashNLrigM;
+              const virusNeededLrig = eff.cost?.removeOppVirus ?? 0;
+              const virusOkLrig = virusNeededLrig === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededLrig;
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
