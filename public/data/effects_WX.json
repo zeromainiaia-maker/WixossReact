@@ -828,7 +828,8 @@
           "count": 1,
           "upToCount": false,
           "filter": {
-            "cardType": "シグニ"
+            "cardType": "シグニ",
+            "colorMatchesLrig": true
           }
         }
       },
