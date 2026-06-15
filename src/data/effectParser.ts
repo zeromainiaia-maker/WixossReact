@@ -902,6 +902,21 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('ターン終了時') ? ['ON_TURN_END']
              : actionText.includes('ターン開始時') ? ['ON_TURN_START']
              : ['ON_PLAY'];
+      // ON_ATTACK_SIGNI: トリガー元（このシグニ/あなたのシグニ等）のスコープを抽出
+      if (timing[0] === 'ON_ATTACK_SIGNI') {
+        const selfAttM = actionText.match(/^このシグニがアタックしたとき、/);
+        if (selfAttM) {
+          extractedTriggerScope = 'self';
+        } else {
+          const allyColorM = actionText.match(/^あなたの([白赤青緑黒])のシグニがアタックしたとき、/);
+          if (allyColorM) {
+            extractedTriggerScope = 'any_ally';
+            extractedTriggerFilter = { color: allyColorM[1] };
+          } else if (/^あなたのシグニがアタックしたとき、/.test(actionText)) {
+            extractedTriggerScope = 'any_ally';
+          }
+        }
+      }
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
       if (timing[0] === 'ON_HEAVEN') {
         const m = actionText.match(/このシグニが《ヘブン》したとき[、,]\s*(.+)/s);
