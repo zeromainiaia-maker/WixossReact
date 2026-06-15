@@ -60,6 +60,7 @@ export type UsageLimit =
 export type EffectDuration =
   | 'INSTANT'            // 即時解決して終わり
   | 'UNTIL_END_OF_TURN'  // ターン終了時まで
+  | 'UNTIL_OPP_TURN_END' // 次の対戦相手のターン終了時まで
   | 'NEXT_TURN'          // 次のターンの間
   | 'PERMANENT';         // フィールドにいる間ずっと
 
