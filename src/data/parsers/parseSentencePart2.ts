@@ -1863,7 +1863,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
     const kwMatch = quoted.match(/^(ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ|バニッシュ耐性|シールド|チャーム)$/);
     if (kwMatch) {
-      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'any', count: 1 }, keyword: kwMatch[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
+      const kwOwner: Owner = t.includes('対戦相手') && !t.includes('あなた') ? 'opponent'
+        : t.includes('あなた') ? 'self' : 'any';
+      const kwAll = t.includes('すべてのシグニ') || t.includes('全てのシグニ') || t.includes('シグニすべて');
+      const kwCountM = t.match(/シグニ([０-９\d]+)体/);
+      const kwCount: number | 'ALL' = kwAll ? 'ALL' : kwCountM ? parseNum(kwCountM[1]) : 1;
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount }, keyword: kwMatch[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
     }
     return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
   }
