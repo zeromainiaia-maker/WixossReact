@@ -8064,6 +8064,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.energyTrashAll ? 'エナすべトラッシュ' : null,
               eff.cost.discardVariable ? `手札${eff.cost.discardVariable.min}枚以上捨て` : null,
               eff.cost.down_self ? 'ダウン' : null,
+              eff.cost.removeOppVirus ? `ウィルス${eff.cost.removeOppVirus}除去` : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
         return {
