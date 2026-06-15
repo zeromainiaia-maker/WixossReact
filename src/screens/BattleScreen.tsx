@@ -897,10 +897,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [pendingAssistActivated, setPendingAssistActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedAssistActivatedCost, setSelectedAssistActivatedCost] = useState<Set<number>>(new Set());
   const [selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard] = useState<Set<number>>(new Set());
+  // シグニ起動効果: energyTrash（エナゾーンから指定カードをトラッシュ）選択インデックス
+  const [selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash] = useState<Set<number>>(new Set());
+  // シグニ起動効果: trashExile（トラッシュからカードをゲーム除外）選択インデックス
+  const [selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile] = useState<Set<number>>(new Set());
   // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動
   const [pendingLrigGranted, setPendingLrigGranted] = useState<{ sourceCardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedLrigGrantedCost, setSelectedLrigGrantedCost] = useState<Set<number>>(new Set());
   const [selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard] = useState<Set<number>>(new Set());
+  // ルリグ起動付与能力: energyTrash選択インデックス
+  const [selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash] = useState<Set<number>>(new Set());
+  // ルリグ起動付与能力: trashExile選択インデックス
+  const [selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile] = useState<Set<number>>(new Set());
   // ライフクロスクラッシュ時のカード拡大
   // エンドフェイズ手札捨て選択UI
   const [pendingEndDiscard, setPendingEndDiscard] = useState<number | null>(null);
