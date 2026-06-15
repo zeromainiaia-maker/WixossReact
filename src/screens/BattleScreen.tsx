@@ -6679,6 +6679,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return;
     }
 
+    // ─── パワー0以下シグニのバニッシュ（バースト後パワーダウンで発生）───
+    // useEffectのチェックはCPUターン中（active_user_id !== user.id）をスキップするためここで補完
+    if (!bs.effect_stack && !bs.pending_effect) {
+      const isCpuHostLocal = bs.active_user_id === bs.host_id;
+      const powersCpu = calcFieldPowers(bs.host_state, bs.guest_state, isCpuHostLocal, effectsMap, battleCardMap);
+      const hasPowerZero = [bs.host_state, bs.guest_state].some(st =>
+        st.field.signi.some(stack => {
+          if (!stack?.length) return false;
+          const topNum = stack[stack.length - 1];
+          const rawPower = battleCardMap.get(topNum)?.Power;
+          const power = powersCpu.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
+          return !isNaN(power) && power <= 0;
+        })
+      );
+      if (hasPowerZero) {
+        await checkPowerZeroBanishRef.current?.();
+        return;
+      }
+    }
+
     if (!isCpuTurnNow) return;
 
     const phase = bs.turn_phase;
