@@ -889,6 +889,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
     let target: EffectTarget;
     if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:[白赤青緑黒]の|＜[^＞]+＞の|他の)?シグニのパワーを/)) {
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t) } };
+    } else if (t.match(/対戦相手のすべてのシグニ/) ||
+               t.match(/(?:感染状態の)?対戦相手のシグニすべて/) ||
+               t.match(/対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞の|感染状態の)?シグニのパワーを/)) {
+      target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t), ...(t.includes('感染状態') ? { infected: true } : {}) } };
     } else if (t.match(/対戦相手の(?:感染状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
       target = parseSigniTarget(t, 'opponent');
     } else if (t.match(/あなたの(?:感染状態の)?シグニ([０-９\d]+)体/)) {
