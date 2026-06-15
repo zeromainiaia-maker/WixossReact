@@ -3163,6 +3163,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       else if (ctx.otherState.field.lrig.at(-1) === cardNum) gkOwner = 'opponent';
       if (!gkOwner) return done(ctx);
       const gkS = ownerState(gkOwner, ctx);
+      if (gkA.duration === 'UNTIL_OPP_TURN_END') {
+        const gkGrantsOpp = { ...(gkS.keyword_grants_until_opp_turn ?? {}) };
+        gkGrantsOpp[cardNum] = [...new Set([...(gkGrantsOpp[cardNum] ?? []), gkA.keyword])];
+        return done(addLog(setOwnerState(gkOwner, { ...gkS, keyword_grants_until_opp_turn: gkGrantsOpp }, ctx),
+          `${gkA.keyword}（次の相手ターン終了まで）：${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+      }
       const gkGrants = { ...(gkS.keyword_grants ?? {}) };
       gkGrants[cardNum] = [...new Set([...(gkGrants[cardNum] ?? []), gkA.keyword])];
       return done(addLog(setOwnerState(gkOwner, { ...gkS, keyword_grants: gkGrants }, ctx),
