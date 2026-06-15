@@ -1610,7 +1610,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!isCpuBattle && opStateForCheck.field?.check) return;
     resolveStackNextRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.effect_stack, bs?.pending_effect, loading, bs?.host_state, bs?.guest_state]);
+  }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // pending_life_crashes の自動消化
   useEffect(() => {
