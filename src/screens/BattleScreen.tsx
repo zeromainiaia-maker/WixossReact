@@ -8113,9 +8113,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newLrigTrash = [...newLrigTrash, ...movedR];
         }
       }
-      // エナコスト支払い
+      // エナコスト支払い（色コスト + energyTrash指定コスト）
+      const lgAllEnergyRemovedIdx = new Set([...costIndices, ...energyTrashIndices]);
       const paidNums = [...costIndices].map(i => my.energy[i]);
-      const baseLGEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const lgEnergyTrashCards = [...energyTrashIndices].map(i => my.energy[i]);
+      const baseLGEnergy = my.energy.filter((_, i) => !lgAllEnergyRemovedIdx.has(i));
       // energyTrashAll: エナゾーンのカードをすべてトラッシュ（自動）
       const lgEnergyTrashAllCards = effect.cost?.energyTrashAll ? [...baseLGEnergy] : [];
       const newEnergy = effect.cost?.energyTrashAll ? [] : baseLGEnergy;
@@ -8131,13 +8133,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...my,
         hand: newHand,
         energy: newEnergy,
-        trash: [...my.trash, ...paidNums, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards],
+        trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards],
         field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
         game_actions_done: lgIsGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         last_activated_discard_count: lgTotalDiscarded,
       };
+      // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
+      if (trashExileIndices.size > 0) {
+        const lgExiledNums = [...trashExileIndices].map(i => my.trash[i]);
+        paid = { ...paid, trash: paid.trash.filter((_, i) => !trashExileIndices.has(i)), lrig_trash: [...paid.lrig_trash, ...lgExiledNums] };
+      }
       // charmTrash: 自分の場のチャームN枚をトラッシュ（ルリグ起動コスト）
       const charmTrashNLrig = effect.cost?.charmTrash ?? 0;
       if (charmTrashNLrig > 0) {
