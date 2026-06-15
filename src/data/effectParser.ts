@@ -203,6 +203,23 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (hdsSimple[2]) hdsObj.story = hdsSimple[2];
     cost.handDiscardSigni = hdsObj;
   }
+  // エナゾーンから[フィルター]シグニN枚をトラッシュに置く → energyTrash
+  const etM = costStr.match(/エナゾーンから(?:(?:それぞれ?レベルの異なる|名前の異なる)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/);
+  if (etM) {
+    const etFilter: TargetFilter = { cardType: 'シグニ' };
+    if (etM[1]) etFilter.level = parseNum(etM[1]);
+    if (etM[2]) etFilter.story = etM[2];
+    cost.energyTrash = { count: parseNum(etM[3]), filter: etFilter };
+  }
+  // トラッシュにあるカードをゲームから除外するコスト → trashExile
+  if (costStr.match(/トラッシュにあるこのカードをゲームから除外する/)) {
+    cost.trashExile = { self: true };
+  } else {
+    const teNamedM = costStr.match(/トラッシュにある《([^》]+)》([０-９\d]+)枚をゲームから除外する/);
+    const teGenericM = !teNamedM ? costStr.match(/トラッシュにあるカード([０-９\d]+)枚をゲームから除外する/) : null;
+    if (teNamedM) cost.trashExile = { count: parseNum(teNamedM[2]), filter: { cardName: teNamedM[1] } };
+    else if (teGenericM) cost.trashExile = { count: parseNum(teGenericM[1]) };
+  }
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 
