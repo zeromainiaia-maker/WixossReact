@@ -8016,6 +8016,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSigniOnPlayDiscard(new Set());
     setSelectedSigniOnPlayEnergyTrash(new Set());
     setSelectedSigniOnPlayFieldTrash(new Set());
+    setSelectedSigniOnPlayArtsTrash(null);
+    setSigniOnPlayCharmTrashVar(0);
     try {
       await finishOrChainSigniOnPlayCost(cardNum, placedState, mandatoryEntries, remainingCostEffects, placedZone);
     } finally {
