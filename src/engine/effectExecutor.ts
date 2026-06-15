@@ -455,12 +455,19 @@ function resolveDynamicFilter(
   ownerSt: import('../types').PlayerState,
   cardMap: Map<string, import('../types').CardData>,
 ): import('../types/effects').TargetFilter | undefined {
-  if (!filter?.colorMatchesLrig) return filter;
+  if (!filter) return filter;
+  if (!filter.colorMatchesLrig && !filter.colorNotMatchesLrig) return filter;
   const lrigTop = ownerSt.field.lrig.at(-1);
   const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
-  const { colorMatchesLrig: _, ...rest } = filter;
+  if (filter.colorMatchesLrig) {
+    const { colorMatchesLrig: _, ...rest } = filter;
+    if (!lrigColor) return rest;
+    return { ...rest, color: lrigColor };
+  }
+  // colorNotMatchesLrig
+  const { colorNotMatchesLrig: _, ...rest } = filter;
   if (!lrigColor) return rest;
-  return { ...rest, color: lrigColor };
+  return { ...rest, colorExclude: lrigColor };
 }
 
 function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
