@@ -12213,6 +12213,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                                 lgGroups ? `手札${lgGroupsLabel}` : null,
                             charmTrashNLrigM > 0 ? `チャーム${charmTrashNLrigM}枚トラッシュ（現在${(my.field.signi_charms ?? []).filter(Boolean).length}枚）` : null,
                             virusNeededLrig > 0 ? `相手の【ウィルス】${virusNeededLrig}個除去（現在${(op.field.signi_virus ?? []).reduce((s, v) => s + v, 0)}個）` : null,
+                            lgEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(lgEnergyTrashCost.filter) || 'シグニ'}${lgEnergyTrashCost.count}枚トラッシュ` : null,
+                            lgTrashExileCost?.self ? 'このカードをゲームから除外' : lgTrashExileCost ? `トラッシュから${lgTrashExileCost.count ?? 1}枚ゲーム除外` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                         {exceedCost > 0 && !canAffordExceed && (
