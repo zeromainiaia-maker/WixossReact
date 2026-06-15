@@ -11635,6 +11635,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             (eff.cost?.lifeToHand ?? 0) > 0 ? `ライフクロス${eff.cost!.lifeToHand}枚を手札へ` : null,
                             deckTrashNeeded > 0 ? `デッキ上${deckTrashNeeded}枚トラッシュ` : null,
                             charmNeeded > 0 ? `チャーム${charmNeeded}枚トラッシュ` : null,
+                            charmVarOPCostM ? `チャーム${charmVarOPCostM.min}枚以上トラッシュ（現在${totalOPCharmsM}枚）` : null,
+                            artsTrashOPCostM ? `ルリグデッキから${artsTrashOPCostM.color ? artsTrashOPCostM.color + 'の' : ''}アーツ${artsTrashOPCostM.count}枚をトラッシュ` : null,
                             virusNeeded > 0 ? `相手の【ウィルス】${virusNeeded}個除去` : null,
                             coinNeeded > 0 ? `《コイン》×${coinNeeded}（所持${pState.coins ?? 0}）` : null,
                           ].filter(Boolean).join('・') || 'なし'}
