@@ -8100,6 +8100,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.discardVariable ? `手札${eff.cost.discardVariable.min}枚以上捨て` : null,
               eff.cost.down_self ? 'ダウン' : null,
               eff.cost.removeOppVirus ? `ウィルス${eff.cost.removeOppVirus}除去` : null,
+              eff.cost.trash_self ? 'このシグニをトラッシュ' : null,
+              eff.cost.charmTrash ? `チャーム${eff.cost.charmTrash}枚トラッシュ` : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
         return {
