@@ -78,7 +78,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         type: 'GRANT_KEYWORD',
         target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
         keyword: 'シャドウ',
-        duration: 'UNTIL_END_OF_TURN',
+        duration: 'UNTIL_OPP_TURN_END',
       },
       duration: 'INSTANT',
       mandatory: false,
