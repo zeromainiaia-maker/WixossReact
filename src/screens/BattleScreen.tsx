@@ -11603,7 +11603,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 if (f.cardType === 'シグニ' || (Array.isArray(f.cardType) && f.cardType.includes('シグニ'))) parts.push('シグニ');
                 return parts.join('の');
               };
-              const canAfford = energyOk && coinOk && lrigDownOk && lifeOk && charmOk && virusOk
+              const canAfford = energyOk && coinOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM
                 && selectedSigniOnPlayDiscard.size >= handNeeded
                 && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
                 && selectedSigniOnPlayFieldTrash.size >= ftNeeded;
