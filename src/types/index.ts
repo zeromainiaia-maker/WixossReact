@@ -108,6 +108,7 @@ export interface PlayerState {
   // 効果エンジン用：ターン終了時にクリア
   temp_power_mods?: Array<{ cardNum: string; delta: number }>;
   keyword_grants?: Record<string, string[]>; // instanceId → ['ランサー', ...]
+  keyword_grants_until_opp_turn?: Record<string, string[]>; // 次の対戦相手ターン終了時までの付与キーワード
   granted_effects?: Record<string, import('./effects').CardEffect[]>; // instanceId → 付与された CardEffect[]
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
