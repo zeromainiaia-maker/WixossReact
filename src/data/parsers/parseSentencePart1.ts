@@ -1180,12 +1180,20 @@ export function parseSentencePart1(t: string): EffectAction | null {
   if (t.includes('を得る') || t.includes('を持つ')) {
     const kwM = t.match(/【([^】]+)】/);
     if (kwM && !['常','出','起','自','ガード'].includes(kwM[1])) {
-      const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
-      // エナゾーンのカード全体 or シグニ or ルリグ
+      const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
+        : (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
+        : 'PERMANENT';
+      // ターゲット解決（エナゾーン → 全シグニ → 個別）
+      const kwAllSelf = t.match(/あなたのシグニ(?:すべて|は|が)/) || t.includes('すべてのあなたのシグニ');
+      const kwCountSelfM = t.match(/あなたのシグニ([０-９\d]+)体/);
       const target: EffectTarget = t.includes('エナゾーンにあるカード') || t.includes('エナゾーンのカード')
         ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }
         : t.includes('このシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
         : t.includes('センタールリグ') ? { type: 'LRIG', owner: 'self', count: 1 }
+        : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
+        : kwCountSelfM ? { type: 'SIGNI', owner: 'self', count: parseNum(kwCountSelfM[1]) }
+        : t.includes('あなたのシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
+        : t.includes('対戦相手のシグニ') ? { type: 'SIGNI', owner: 'opponent', count: 1 }
         : { type: 'SIGNI', owner: 'any', count: 1 };
       return { type: 'GRANT_KEYWORD', target, keyword: kwM[1], duration: dur };
     }
