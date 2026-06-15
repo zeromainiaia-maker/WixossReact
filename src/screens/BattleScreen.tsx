@@ -6463,6 +6463,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const opStateP02 = ownerIsHost ? guestState : hostState;
       const isOwnerTurnP02 = ownerIsHost ? isMyTurnLocal : !isMyTurnLocal;
       const grants = ownerState.keyword_grants;
+      const grantsOppTurn2 = ownerState.keyword_grants_until_opp_turn;
       const banishProtected2 = collectBanishEffectProtectedSigni(ownerState, opStateP02, isOwnerTurnP02, effectsMap, battleCardMap);
 
       for (const stack of ownerState.field.signi) {
@@ -6473,7 +6474,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // NaN（Power「-」等の非数値）はバニッシュ対象にしない
         if (isNaN(power) || power > 0) continue;
         if (banishProtected2.has(topNum)) continue;
-        if (hasBanishResist(topNum, battleCardMap, grants)) continue;
+        if (hasBanishResist(topNum, battleCardMap, grants, grantsOppTurn2)) continue;
 
         const currentOwner = ownerIsHost ? hostState : guestState;
         const removed = removeFromField(topNum, currentOwner);
