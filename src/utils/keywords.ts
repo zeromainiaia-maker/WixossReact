@@ -12,6 +12,7 @@ export function hasKeyword(
   cardMap: Map<string, CardData>,
   keywordGrants?: Record<string, string[]>,
   bonds?: string[], // 絆アイコン効果チェック用（プレイヤーが絆獲得済みのカード名一覧）
+  extraGrants?: Record<string, string[]>, // UNTIL_OPP_TURN_END で付与されたキーワード
 ): boolean {
   const card = cardMap.get(cardNum);
   if (card?.effects?.some(e => {
@@ -25,7 +26,8 @@ export function hasKeyword(
     }
     return true;
   })) return true;
-  return keywordGrants?.[cardNum]?.includes(keyword) ?? false;
+  if (keywordGrants?.[cardNum]?.includes(keyword)) return true;
+  return extraGrants?.[cardNum]?.includes(keyword) ?? false;
 }
 
 /**
@@ -36,8 +38,9 @@ export function hasShadow(
   cardMap: Map<string, CardData>,
   keywordGrants?: Record<string, string[]>,
   bonds?: string[],
+  extraGrants?: Record<string, string[]>,
 ): boolean {
-  return hasKeyword(cardNum, 'シャドウ', cardMap, keywordGrants, bonds);
+  return hasKeyword(cardNum, 'シャドウ', cardMap, keywordGrants, bonds, extraGrants);
 }
 
 /**
@@ -48,8 +51,9 @@ export function hasShadowLrig(
   cardNum: string,
   cardMap: Map<string, CardData>,
   keywordGrants?: Record<string, string[]>,
+  extraGrants?: Record<string, string[]>,
 ): boolean {
-  return hasKeyword(cardNum, 'シャドウ（ルリグ）', cardMap, keywordGrants);
+  return hasKeyword(cardNum, 'シャドウ（ルリグ）', cardMap, keywordGrants, undefined, extraGrants);
 }
 
 /**
@@ -60,8 +64,9 @@ export function hasBanishResist(
   cardNum: string,
   cardMap: Map<string, CardData>,
   keywordGrants?: Record<string, string[]>,
+  extraGrants?: Record<string, string[]>,
 ): boolean {
-  if (hasKeyword(cardNum, 'バニッシュされない', cardMap, keywordGrants)) return true;
+  if (hasKeyword(cardNum, 'バニッシュされない', cardMap, keywordGrants, undefined, extraGrants)) return true;
   // effects.json 未登録カード用フォールバック
   const card = cardMap.get(cardNum);
   return card?.EffectText?.includes('バニッシュされない') ?? false;
