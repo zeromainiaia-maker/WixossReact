@@ -7919,7 +7919,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paid = { ...paid, deck: paid.deck.slice(movedD.length), trash: [...paid.trash, ...movedD] };
         payLogs.push(`デッキ上${movedD.length}枚をコストでトラッシュ`);
       }
-      // charmTrash: 自分の場のチャームN枚をトラッシュ（左のゾーンから自動選択）
+      // charmTrash: 自分の場のチャームN枚をトラッシュ（固定枚数・自動選択）
       const charmTrashN = cost?.charmTrash ?? 0;
       if (charmTrashN > 0) {
         const newCharmsC = [...(paid.field.signi_charms ?? [null, null, null])];
@@ -7930,6 +7930,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (movedC.length < charmTrashN) return;
         paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsC }, trash: [...paid.trash, ...movedC] };
         payLogs.push(`チャーム${movedC.length}枚をコストでトラッシュ`);
+      }
+      // charmTrashVariable: チャームを可変枚数トラッシュ（プレイヤーが選択した枚数）
+      const charmVarOPCost = cost?.charmTrashVariable;
+      if (charmVarOPCost) {
+        const n = signiOnPlayCharmTrashVar;
+        if (n < charmVarOPCost.min) return;
+        if (n > 0) {
+          const newCharmsOPV = [...(paid.field.signi_charms ?? [null, null, null])];
+          const movedOPV: string[] = [];
+          for (let zi = 0; zi < newCharmsOPV.length && movedOPV.length < n; zi++) {
+            if (newCharmsOPV[zi]) { movedOPV.push(newCharmsOPV[zi]!); newCharmsOPV[zi] = null; }
+          }
+          if (movedOPV.length < n) return;
+          paid = { ...paid, field: { ...paid.field, signi_charms: newCharmsOPV }, trash: [...paid.trash, ...movedOPV], last_charm_trash_count: n };
+          payLogs.push(`チャーム${n}枚をコストでトラッシュ`);
+        } else {
+          paid = { ...paid, last_charm_trash_count: 0 };
+        }
+      }
+      // trashArtsFromLrigDeck: ルリグデッキからアーツをトラッシュ
+      const artsTrashOPCost = cost?.trashArtsFromLrigDeck;
+      if (artsTrashOPCost) {
+        if (!selectedSigniOnPlayArtsTrash) return;
+        paid = {
+          ...paid,
+          lrig_deck: paid.lrig_deck.filter(c => c !== selectedSigniOnPlayArtsTrash),
+          lrig_trash: [...paid.lrig_trash, selectedSigniOnPlayArtsTrash],
+        };
+        payLogs.push(`ルリグデッキからアーツをトラッシュ`);
       }
       // removeOppVirus: 相手の場のウィルスN個を取り除く（左のゾーンから自動選択）
       const removeVirusN = cost?.removeOppVirus ?? 0;
