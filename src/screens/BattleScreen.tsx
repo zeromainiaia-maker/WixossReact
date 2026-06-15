@@ -10968,7 +10968,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               // 《コインアイコン》コスト（リル//メモリア等の【起】コイン）
               const coinNeededAct = isCostZeroByEffect ? 0 : (eff.cost?.coin ?? 0);
               const coinOkAct = coinNeededAct === 0 || (my.coins ?? 0) >= coinNeededAct;
-              const canAfford = energyOk && discardOk && coinOkAct;
+              const virusNeededAct = eff.cost?.removeOppVirus ?? 0;
+              const virusOkAct = virusNeededAct === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededAct;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct;
 
               return (
                 <>
