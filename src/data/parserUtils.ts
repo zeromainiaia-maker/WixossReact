@@ -128,7 +128,9 @@ export function parseNameFilter(text: string): Partial<TargetFilter> {
 // ===== シグニターゲットパース =====
 
 export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
-  const all = text.includes('すべてのシグニ') || text.includes('全てのシグニ');
+  const all = text.includes('すべてのシグニ') || text.includes('全てのシグニ') ||
+              text.includes('シグニすべて') ||
+              (!text.includes('このシグニ') && !!text.match(/シグニのパワーを/) && !text.match(/シグニ([０-９\d]+)体/));
   const upToM = text.match(/シグニを?([０-９\d]+)体まで/);
   const countM = text.match(/シグニを?([０-９\d]+)体/);
   const count = all ? 'ALL' : (upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1));
