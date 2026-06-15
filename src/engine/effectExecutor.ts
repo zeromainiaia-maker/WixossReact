@@ -450,16 +450,31 @@ function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, newS, ctx), 'デッキをシャッフル'));
 }
 
+function resolveDynamicFilter(
+  filter: import('../types/effects').TargetFilter | undefined,
+  ownerSt: import('../types').PlayerState,
+  cardMap: Map<string, import('../types').CardData>,
+): import('../types/effects').TargetFilter | undefined {
+  if (!filter?.colorMatchesLrig) return filter;
+  const lrigTop = ownerSt.field.lrig.at(-1);
+  const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
+  const { colorMatchesLrig: _, ...rest } = filter;
+  if (!lrigColor) return rest;
+  return { ...rest, color: lrigColor };
+}
+
 function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   const src = a.source;
   const tgtOwner = src.owner;
   const state = ownerState(tgtOwner, ctx);
+  const ownerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
 
   let cands: string[];
   let scope: TargetScope;
 
   if (src.type === 'TRASH_CARD') {
-    cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap);
+    cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
     cands = energyCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
