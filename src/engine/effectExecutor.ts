@@ -878,13 +878,17 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   const fromDeck = a.from.location === 'deck';
   const pool = fromDeck ? state.deck : state.trash;
 
-  // '__lastRevealed__' :
-   const resolvedFilter = { ...a.filter };
+  // '__lastRevealed__' / colorMatchesLrig / colorNotMatchesLrig の動的解決
+  let resolvedFilter = { ...a.filter };
   if (resolvedFilter.cardName === '__lastRevealed__') {
     const revealedNum = ctx.lastProcessedCards?.[0];
     const revealedName = revealedNum ? ctx.cardMap.get(revealedNum)?.CardName : undefined;
     if (revealedName) resolvedFilter.cardName = revealedName;
     else delete resolvedFilter.cardName;
+  }
+  if (resolvedFilter.colorMatchesLrig || resolvedFilter.colorNotMatchesLrig) {
+    const searchOwnerSt = a.from.owner === 'self' ? ctx.ownerState : ctx.otherState;
+    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap) };
   }
 
   // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュ内でレベル1シグニとして扱うカードのオーバーライド
