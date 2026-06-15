@@ -11180,7 +11180,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const charmVarActCostM = eff.cost?.charmTrashVariable;
               const totalActCharmsM = (my.field.signi_charms ?? []).filter(Boolean).length;
               const charmVarActOk = !charmVarActCostM || signiActCharmTrashVar >= charmVarActCostM.min;
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk;
+              // energyTrash: エナゾーンから指定カードN枚コスト
+              const actEnergyTrashCost = eff.cost?.energyTrash;
+              const actEnergyTrashOk = !actEnergyTrashCost || selectedSigniActivatedEnergyTrash.size >= actEnergyTrashCost.count;
+              // trashExile: トラッシュからカードをゲーム除外コスト
+              const actTrashExileCost = eff.cost?.trashExile;
+              const actTrashExileOk = !actTrashExileCost || actTrashExileCost.self
+                ? true
+                : selectedSigniActivatedTrashExile.size >= (actTrashExileCost?.count ?? 0);
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk;
 
               return (
                 <>
