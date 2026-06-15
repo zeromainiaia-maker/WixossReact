@@ -8,6 +8,51 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
+  // WX01-025 サルベージ（アーツ）
+  // あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加える。
+  'WX01-025': [
+    {
+      effectId: 'WX01-025-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '無', count: 1 }] },
+      action: {
+        type: 'TRANSFER_TO_HAND',
+        source: {
+          type: 'TRASH_CARD',
+          owner: 'self',
+          count: 1,
+          upToCount: false,
+          filter: { cardType: 'シグニ', colorMatchesLrig: true },
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX01-029 羅輝石　アダマスフィア（自動E1）
+  // 【自】：あなたの赤のシグニがアタックしたとき、ターン終了時まで、それのパワーを＋2000する。
+  'WX01-029': [
+    {
+      effectId: 'WX01-029-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'any_ally',
+      triggerFilter: { color: '赤' },
+      action: {
+        type: 'POWER_MODIFY',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        delta: 2000,
+        targetsTriggerSource: true,
+      },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX04-101 幻水　大ウナギ（起動）
   // 【起】このシグニを場からトラッシュに置く：相手シグニ１体のパワーを自ルリグlv×-1000（ターン終了時まで）
   'WX04-101': [
