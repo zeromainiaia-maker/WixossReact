@@ -187,6 +187,10 @@ function parseCost(costStr: string): EffectCost | undefined {
   else if (costStr.includes('シグニ１体を【ビート】にする') || costStr.includes('他のシグニ１体を【ビート】にする')) cost.beat_signi = 1;
   const coinM = costStr.match(/《コインアイコン》/g);
   if (coinM?.length) cost.coin = coinM.length;
+  // 対戦相手の場の【ウィルス】N個を取り除く → removeOppVirus
+  const virusM = costStr.match(/【ウィルス】([０-９\d]+)(?:つ|個)を取り除く/);
+  if (virusM) cost.removeOppVirus = parseNum(virusM[1]);
+  else if (costStr.includes('【ウィルス】１つを取り除く') || costStr.includes('【ウィルス】１個を取り除く')) cost.removeOppVirus = 1;
   // 手札から[OR指定]シグニをN枚捨てる → handDiscardSigni
   const hdsOr = costStr.match(/手札から((?:＜[^＞]+＞か)+＜[^＞]+＞)のシグニを([０-９\d]+)枚捨てる/);
   const hdsSimple = !hdsOr ? costStr.match(/手札から(?:([白赤青緑黒])の)?(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚捨てる/) : null;
