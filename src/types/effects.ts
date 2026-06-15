@@ -206,7 +206,9 @@ export interface TargetFilter {
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
   levelEqualsVar?: 'charm_trash_count'; // レベルがlast_charm_trash_countと一致するか（WXK10-082用）
-  colorMatchesLrig?: boolean; // 自分のセンタールリグと共通する色を持つか（WX01-025等）
+  colorMatchesLrig?: boolean;    // 自分のセンタールリグと共通する色を持つか（WX01-025等）
+  colorNotMatchesLrig?: boolean; // 自分のセンタールリグと共通する色を持たない（WX21-035等）
+  colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）
   hasAcce?:   boolean; // アクセが付いている
   hasIcon?:   'クロス' | 'ライズ' | 'トラップ' | 'アクセ'; // 《Xアイコン》を持つカード（カードテキストのキーワード有無で判定する近似）
   hasLifeBurst?: boolean; // 《ライフバースト》を持つカード
