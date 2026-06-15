@@ -7402,6 +7402,9 @@
       "timing": [
         "ON_PLAY"
       ],
+      "cost": {
+        "trashArtsFromLrigDeck": { "color": "緑", "count": 1 }
+      },
       "action": {
         "type": "ENERGY_CHARGE_FROM_DECK",
         "owner": "self",
