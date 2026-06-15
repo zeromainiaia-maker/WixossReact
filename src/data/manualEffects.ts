@@ -53,6 +53,33 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX15-064 羅菌　キョウギュ（起動）
+  // 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じゾーンの【ウィルス】１つを取り除き、
+  //   ターン終了時まで、それのパワーを－7000する。パワーが0以下になった場合、1枚引く。
+  'WX15-064': [
+    {
+      effectId: 'WX15-064-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { down_self: true },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'POWER_MODIFY',
+            target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', infected: true }, upToCount: false },
+            delta: -7000,
+          },
+          { type: 'STUB', id: 'REMOVE_VIRUS_TARGET_ZONE' },
+          { type: 'STUB', id: 'DRAW_IF_POWER_ZERO_TEMP' },
+        ],
+      } as SequenceAction,
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX15-066 羅菌　エキノコ（常在）
   // 【常】：対戦相手の感染状態のシグニのパワーを－1000する。
   'WX15-066': [
