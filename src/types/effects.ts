@@ -159,6 +159,7 @@ export interface EffectCost {
   banish_self?: boolean;  // 自身をバニッシュ
   life_crash?: number;    // 自分のライフクロスをN枚クラッシュ（【出】コスト支払いではバースト不発の近似でトラッシュへ）
   down_self?: boolean;    // 自身をダウン
+  trash_self?: boolean;   // このシグニを場からトラッシュに置く（【起】コスト）
   exceed?: number;        // エクシード：ルリグの下からN枚をルリグトラッシュへ
   beat_signi?: number;    // 場のシグニN体をビートにする（コスト）
   coin?: number;          // 《コインアイコン》×N（【出】《コイン》等）
