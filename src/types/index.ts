@@ -417,6 +417,7 @@ export interface StackEntry {
   effectId: string;
   label: string;                               // 表示用 e.g. "サーバント O の【自】効果"
   effect: import('./effects').CardEffect;
+  triggeringCardNum?: string;                  // any_ally/self scope で効果を引き起こしたカード番号（「それ」参照用）
 }
 
 export interface EffectStack {
