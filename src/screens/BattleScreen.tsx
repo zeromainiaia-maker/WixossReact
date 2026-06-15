@@ -5370,14 +5370,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
-    // v0.277: 手札から発動できる【起】（MAIN / ATTACK_ARTS フェイズ）
-    if (bs.turn_phase === 'MAIN' || bs.turn_phase === 'ATTACK_ARTS') {
+    // v0.277: 手札から発動できる【起】（MAIN / ATTACK_ARTS / ATTACK_ARTS_OP フェイズ）
+    if (bs.turn_phase === 'MAIN' || bs.turn_phase === 'ATTACK_ARTS' || bs.turn_phase === 'ATTACK_ARTS_OP') {
       const handEffects = effectsMap.get(cardNum) ?? [];
       const phase = bs.turn_phase as string;
+      // ATTACK_ARTS_OP（相手ターンのアーツステップ）はタイミング照合で ATTACK_ARTS として扱う
+      const timingPhase = (phase === 'ATTACK_ARTS_OP' ? 'ATTACK_ARTS' : phase) as import('../types/effects').EffectTiming;
       for (const eff of handEffects) {
         if (eff.effectType !== 'ACTIVATED') continue;
         if (!eff.handActivated) continue;
-        if (!eff.timing?.includes(phase as import('../types/effects').EffectTiming)) continue;
+        if (!eff.timing?.includes(timingPhase)) continue;
         if (my.actions_done?.includes(eff.effectId)) continue;
         if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
         if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
