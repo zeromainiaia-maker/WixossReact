@@ -235,6 +235,26 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   if (choiceTxt.match(/トラッシュから.*シグニ[１1]枚.*手札に加える/)) {
     return ({ type: 'STUB', id: 'INTERNAL_TRASH_SIGNI_TO_HAND' } as StubAction) as EffectAction;
   }
+  // 「デッキから《ライズアイコン》を持つシグニN枚と＜クラス＞のシグニN枚を探して手札に加え、シャッフル」（WDK06-R08②用。単一classSearchMより先に判定）
+  const riseAndClassM = choiceTxt.match(/デッキから《ライズアイコン》を持つシグニ([１-９\d]+)枚と.*＜([^＞]+)＞のシグニ([１-９\d]+)枚を探して/);
+  if (riseAndClassM) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        {
+          type: 'SEARCH', from: { location: 'deck', owner: 'self' },
+          filter: { cardType: 'シグニ', hasIcon: 'ライズ' }, maxCount: parseInt(toHW(riseAndClassM[1])),
+          then: { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction,
+        } as SearchAction,
+        {
+          type: 'SEARCH', from: { location: 'deck', owner: 'self' },
+          filter: { cardType: 'シグニ', story: riseAndClassM[2] }, maxCount: parseInt(toHW(riseAndClassM[3])),
+          then: { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction,
+        } as SearchAction,
+        { type: 'SHUFFLE_DECK', owner: 'self' } as ShuffleDeckAction,
+      ],
+    } as SequenceAction;
+  }
   // 「デッキから＜クラス＞のシグニN枚を探して手札に加える」
   const classSearchM = choiceTxt.match(/デッキから.*＜([^＞]+)＞のシグニ([１-９\d]+)枚を探して/);
   if (classSearchM) {
