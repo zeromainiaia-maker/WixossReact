@@ -3213,7 +3213,8 @@ export function execStubPart3(
     });
   }
   // SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体）
-  if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'SWAP_OPTIONAL') {
+  // MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理）
+  if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'SWAP_OPTIONAL' || stub.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE') {
     const srcCardSR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtSR = srcCardSR ? (srcCardSR.EffectText ?? '') + ' ' + (srcCardSR.BurstText ?? '') : '';
     const isOppSR = txtSR.includes('対戦相手のシグニ');
