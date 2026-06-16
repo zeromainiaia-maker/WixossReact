@@ -318,6 +318,121 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (teNamedM) cost.trashExile = { count: parseNum(teNamedM[2]), filter: { cardName: teNamedM[1] } };
     else if (teGenericM) cost.trashExile = { count: parseNum(teGenericM[1]) };
   }
+  // アップ状態のルリグN体をダウン → lrigDown
+  if (!cost.lrigDown) {
+    const ldM = costStr.match(/アップ状態の(?:レベル([０-９\d]+)の)?(?:センター)?ルリグ([０-９\d]+)体をダウンする/);
+    if (ldM) cost.lrigDown = { count: parseNum(ldM[2]) };
+  }
+  // アップ状態のシグニN体をダウン → fieldDown
+  if (!cost.fieldDown) {
+    const fdM = costStr.match(/アップ状態の(?:(?:他の)?(?:レベル([０-９\d]+)(?:以下)?の)?(?:＜([^＞]+)＞の)?)?(?:他の)?シグニ([０-９\d]+)体をダウンする/);
+    if (fdM) {
+      const fdFilter: TargetFilter = { cardType: 'シグニ', isUp: true };
+      if (fdM[1]) fdFilter.level = { max: parseNum(fdM[1]) } as TargetFilter['level'];
+      if (fdM[2]) fdFilter.story = fdM[2];
+      cost.fieldDown = { count: parseNum(fdM[3]), filter: fdFilter };
+    }
+  }
+  // 手札をすべて捨てる → discardAll
+  if (!cost.discard && !cost.discardFilter && !cost.discardAll) {
+    if (/手札をすべて捨てる/.test(costStr)) cost.discardAll = true;
+  }
+  // 手札をN枚まで捨てる → discardUpTo
+  if (!cost.discard && !cost.discardAll && !cost.discardUpTo) {
+    const discardUpToM = costStr.match(/手札を([０-９\d]+)枚まで捨てる/);
+    if (discardUpToM) cost.discardUpTo = parseNum(discardUpToM[1]);
+  }
+  // 手札をN枚デッキの一番下に置く → handBottomDeck
+  if (!cost.handBottomDeck) {
+    const hbdM = costStr.match(/手札を([０-９\d]+)枚デッキの一番下に置く/);
+    if (hbdM) cost.handBottomDeck = parseNum(hbdM[1]);
+  }
+  // エナゾーンにあるすべてのカードをトラッシュに置き、手札をすべて捨てる → combined
+  if (/エナゾーンにあるすべてのカードをトラッシュに置き(?:、)?手札をすべて捨てる/.test(costStr)) {
+    cost.energyTrashAll = true;
+    cost.discardAll = true;
+  }
+  // ルリグデッキからアーツN枚をルリグトラッシュ → trashArtsFromLrigDeck
+  if (!cost.trashArtsFromLrigDeck) {
+    const tArtM = costStr.match(/ルリグデッキからアーツ([０-９\d]+)枚をルリグトラッシュに置く/);
+    if (tArtM) cost.trashArtsFromLrigDeck = { count: parseNum(tArtM[1]) };
+    else if (/ルリグデッキからアーツ[１1]枚をルリグトラッシュに置く/.test(costStr)) cost.trashArtsFromLrigDeck = { count: 1 };
+  }
+  // 手札から＜A＞と＜B＞のシグニを合計N枚捨てる → discardGroups
+  if (!cost.handDiscardSigni && !cost.discardGroups) {
+    const hdsAndM = costStr.match(/手札から＜([^＞]+)＞と＜([^＞]+)＞のシグニを合計([０-９\d]+)枚捨てる/);
+    if (hdsAndM) {
+      const perGroup = Math.floor(parseNum(hdsAndM[3]) / 2);
+      cost.discardGroups = [
+        { count: perGroup, filter: { cardType: 'シグニ', story: hdsAndM[1] } },
+        { count: perGroup, filter: { cardType: 'シグニ', story: hdsAndM[2] } },
+      ];
+    }
+  }
+  // 手札から[色]の＜A＞のシグニN枚と[色]の＜B＞のシグニN枚を捨てる → discardGroups
+  if (!cost.handDiscardSigni && !cost.discardGroups) {
+    const hdsColorGroupM = costStr.match(/手札から([白赤青緑黒])の＜([^＞]+)＞のシグニ([０-９\d]+)枚と([白赤青緑黒])の＜([^＞]+)＞のシグニ([０-９\d]+)枚を捨てる/);
+    if (hdsColorGroupM) {
+      cost.discardGroups = [
+        { count: parseNum(hdsColorGroupM[3]), filter: { cardType: 'シグニ', color: hdsColorGroupM[1], story: hdsColorGroupM[2] } },
+        { count: parseNum(hdsColorGroupM[6]), filter: { cardType: 'シグニ', color: hdsColorGroupM[4], story: hdsColorGroupM[5] } },
+      ];
+    }
+  }
+  // 手札からカード名に《XXX》を含むカードをN枚捨てる → discard + discardFilter
+  if (!cost.discard && !cost.discardFilter && !cost.discardGroups) {
+    const hcNameM = costStr.match(/手札からカード名に《([^》]+)》を含むカードを([０-９\d]+)枚捨てる/);
+    if (hcNameM) {
+      cost.discard = parseNum(hcNameM[2]);
+      cost.discardFilter = { cardName: hcNameM[1] };
+    }
+  }
+  // 手札から《keyword》のカードをN枚捨てる → discard + discardFilter
+  if (!cost.discard && !cost.discardFilter && !cost.discardGroups) {
+    const hcKwM = costStr.match(/手札から《([^》]+)》のカードを([０-９\d]+)枚捨てる/);
+    if (hcKwM) {
+      cost.discard = parseNum(hcKwM[2]);
+      cost.discardFilter = { keyword: hcKwM[1] };
+    }
+  }
+  // 手札にあるこのカードをゲームから除外する → handExileSelf
+  if (/手札にあるこのカードをゲームから除外する/.test(costStr)) cost.handExileSelf = true;
+  // このシグニを場からデッキの一番下に置く → selfToDeckBottom
+  if (/このシグニを(?:場から)?デッキの一番下に置く/.test(costStr)) cost.selfToDeckBottom = true;
+  // このシグニのパワーをN減らす（コスト） → selfPowerDown
+  if (!cost.selfPowerDown) {
+    const spdM = costStr.match(/このシグニのパワーを([０-９\d]+)減らす/);
+    if (spdM) cost.selfPowerDown = parseNum(spdM[1]);
+  }
+  // 場のレゾナをルリグトラッシュに置く → fieldToLrigTrash
+  if (!cost.fieldToLrigTrash) {
+    if (/レゾナ[１1]体を場からルリグトラッシュに置く/.test(costStr)) {
+      cost.fieldToLrigTrash = { count: 1, filter: { cardType: 'レゾナ' } };
+    } else {
+      const fltM = costStr.match(/レゾナ([０-９\d]+)体を場からルリグトラッシュに置く/);
+      if (fltM) cost.fieldToLrigTrash = { count: parseNum(fltM[1]), filter: { cardType: 'レゾナ' } };
+    }
+  }
+  // エナゾーンからすべての[色]のカードをトラッシュ → energyTrashColorAll
+  if (!cost.energyTrashAll && !cost.energyTrash && !cost.energyTrashColorAll) {
+    const etcaM = costStr.match(/エナゾーンからすべての([白赤青緑黒])のカードをトラッシュに置く/);
+    if (etcaM) cost.energyTrashColorAll = etcaM[1];
+  }
+  // エナゾーンからこのカード自身をトラッシュ → energyTrashSelf
+  if (/エナゾーンからこのカードをトラッシュに置く/.test(costStr)) cost.energyTrashSelf = true;
+  // あなたのシグニの下からカード1枚をトラッシュに置く → underSelfTrash (任意シグニ)
+  if (!cost.underSelfTrash) {
+    if (/あなたのシグニの下からカード[１1]枚をトラッシュに置く/.test(costStr)) cost.underSelfTrash = 1;
+  }
+  // エナゾーンからレベルN1～N2の＜クラス＞のシグニを1枚ずつトラッシュ → energyTrash拡張
+  if (!cost.energyTrash && !cost.energyTrashAll) {
+    const etLvRangeM = costStr.match(/エナゾーンからレベル([０-９\d]+)～([０-９\d]+)の＜([^＞]+)＞のシグニを([０-９\d]+)枚ずつトラッシュに置く/);
+    if (etLvRangeM) {
+      const minLv = parseNum(etLvRangeM[1]);
+      const maxLv = parseNum(etLvRangeM[2]);
+      cost.energyTrash = { count: maxLv - minLv + 1, filter: { cardType: 'シグニ', story: etLvRangeM[3], levelRange: { min: minLv, max: maxLv } } };
+    }
+  }
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 
