@@ -236,8 +236,21 @@ export function execStubPart3(
   if (stub.id === 'ALL_ZONE_BLACK') return done(addLog(ctx, '[ALL_ZONE_BLACK: effectEngineで処理]'));
   // ALL_CARDS_COLOR_CHANGE_BLACK: CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み
   if (stub.id === 'ALL_CARDS_COLOR_CHANGE_BLACK') return done(addLog(ctx, '[ALL_CARDS_COLOR_CHANGE_BLACK: effectEngineで処理]'));
-  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（ログのみ）
-  if (stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') return done(addLog(ctx, '[ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体効果ログ]'));
+  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（effectEngine lrig_gained_types参照）
+  if (stub.id === 'ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE') {
+    const srcACLGTGW = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtACLGTGW = srcACLGTGW ? (srcACLGTGW.EffectText ?? '') : '';
+    const gainM = txtACLGTGW.match(/すべての場にあるセンタールリグは＜([^＞]+)＞を追加で得る/);
+    if (gainM) {
+      const typeName = gainM[1];
+      const current = ctx.ownerState.lrig_gained_types ?? [];
+      if (!current.includes(typeName)) {
+        const newOwnerACLGTGW: PlayerState = { ...ctx.ownerState, lrig_gained_types: [...current, typeName] };
+        return done(addLog({ ...ctx, ownerState: newOwnerACLGTGW }, `このゲーム：全センタールリグが＜${typeName}＞を追加で得る`));
+      }
+    }
+    return done(addLog(ctx, '[ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: タイプ名解析不可]'));
+  }
   // CHANGE_BASE_LEVEL: このシグニの基本レベルを1～3にしてもよい（ターン終了まで）
   if (stub.id === 'CHANGE_BASE_LEVEL') {
     const srcCBL = ctx.sourceCardNum;
