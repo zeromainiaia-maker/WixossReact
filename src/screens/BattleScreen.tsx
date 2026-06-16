@@ -11233,6 +11233,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             eff.cost?.down_self ? 'このシグニをダウン' : null,
                             virusNeededAct > 0 ? `相手の【ウィルス】${virusNeededAct}個除去（現在${(op.field.signi_virus ?? []).reduce((s, v) => s + v, 0)}個）` : null,
                             eff.cost?.trash_self ? 'このシグニをトラッシュ' : null,
+                            eff.cost?.trash_key ? 'このキーをルリグトラッシュ' : null,
                             charmTrashNActM > 0 ? `チャーム${charmTrashNActM}枚トラッシュ（現在${totalActCharmsM}枚）` : null,
                             charmVarActCostM ? `チャーム${charmVarActCostM.min}枚以上トラッシュ（現在${totalActCharmsM}枚）` : null,
                             actEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(actEnergyTrashCost.filter) || 'シグニ'}${actEnergyTrashCost.count}枚トラッシュ` : null,
