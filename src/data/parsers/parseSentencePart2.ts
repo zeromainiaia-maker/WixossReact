@@ -1396,6 +1396,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_TRASH_TO_ENERGY' } as StubAction;
   }
 
+  // ---- DECLARE_ZONE_FOR_CLASS_CHANGE: 【出】で領域を指定する（WX14-032）----
+  if (t.match(/メインデッキ、手札、シグニゾーン、トラッシュのいずれか.*指定する/)) {
+    return { type: 'STUB', id: 'DECLARE_ZONE_FOR_CLASS_CHANGE' } as StubAction;
+  }
   // ---- シグニの【出】能力で指定したシグニがクラスを失い別クラスを得る ----
   if (t.match(/【出】能力で指定された.*シグニ.*クラスと色を失い.*を得る/)) {
     return { type: 'STUB', id: 'PLAY_EFFECT_TARGET_CLASS_CHANGE' } as StubAction;
