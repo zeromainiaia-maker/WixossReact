@@ -8494,8 +8494,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const eff of activatable) {
         const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
         const costLabel = eff.cost
-          ? [energyTotal > 0 ? `エナ${energyTotal}` : null, eff.cost.discard ? `手札${eff.cost.discard}枚` : null]
-              .filter(Boolean).join('・') || 'コストなし'
+          ? [
+              energyTotal > 0 ? `エナ${energyTotal}` : null,
+              eff.cost.discard ? `手札${eff.cost.discard}枚` : null,
+              eff.cost.coin ? `《コイン》×${eff.cost.coin}` : null,
+              eff.cost.trash_key ? 'このキーをルリグトラッシュ' : null,
+            ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
         const cardName = battleCardMap.get(keyNum)?.CardName ?? keyNum;
         result.push({
