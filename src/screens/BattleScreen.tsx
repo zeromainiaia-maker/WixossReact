@@ -4597,7 +4597,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ルリグのクラス（制限チェック共通）
   const lrigClass = currentLrig?.CardClass ?? '';
-  const ignoreRestriction = my.lrig_gained_types?.includes('__ignore_lrig_restriction__') ?? false;
+  const ignoreRestriction = (my.lrig_gained_types?.includes('__ignore_lrig_restriction__') ?? false) ||
+    [my.field.lrig.at(-1), my.field.key_piece].filter(Boolean).some(cn =>
+      (effectsMap.get(cn!) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' &&
+        (e.action as import('../types/effects').StubAction).type === 'STUB' &&
+        (e.action as import('../types/effects').StubAction).id === 'IGNORE_LRIG_RESTRICTION_ARTS'
+      )
+    );
 
   // シグニ召喚: リミット計算（アシストルリグ+1ずつ、lrig_limit_mod加算、LRIG_LIMIT_UP_AND_COLOR_GAIN加算）
   // OPP_CENTER_LRIG_LIMIT_SET_5: 相手フィールドにあれば基本リミットを5に上書き
