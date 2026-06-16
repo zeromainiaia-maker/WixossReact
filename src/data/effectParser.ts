@@ -428,6 +428,24 @@ function parseCost(costStr: string): EffectCost | undefined {
   if (!cost.underSelfTrash) {
     if (/あなたのシグニの下からカード[１1]枚をトラッシュに置く/.test(costStr)) cost.underSelfTrash = 1;
   }
+  // あなたの【アクセ】N枚をトラッシュに置く → acceTrash
+  if (!cost.acceTrash) {
+    const acceM = costStr.match(/あなたの【アクセ】([０-９\d]+)枚をトラッシュに置く/);
+    if (acceM) cost.acceTrash = parseNum(acceM[1]);
+    else if (/あなたの【アクセ】[１1]枚をトラッシュに置く/.test(costStr)) cost.acceTrash = 1;
+  }
+  // この上からカウンター（【貯菌】等）Nつを取り除く → chargeCounterRemove
+  if (!cost.chargeCounterRemove) {
+    const ccM = costStr.match(/この上から【[^】]+】([０-９\d]+)つを取り除く/);
+    if (ccM) cost.chargeCounterRemove = parseNum(ccM[1]);
+    else if (/この上から【[^】]+】[１1]つを取り除く/.test(costStr)) cost.chargeCounterRemove = 1;
+  }
+  // あなたの【トラップ】N体/つを手札に加える（コスト） → trapToHand
+  if (!cost.trapToHand) {
+    const ttM = costStr.match(/あなたの【トラップ】([０-９\d]+)(?:体|つ|枚)を手札に加える/);
+    if (ttM) cost.trapToHand = parseNum(ttM[1]);
+    else if (/あなたの【トラップ】[１1](?:体|つ|枚)を手札に加える/.test(costStr)) cost.trapToHand = 1;
+  }
   // エナゾーンからレベルN1～N2の＜クラス＞のシグニを1枚ずつトラッシュ → energyTrash拡張
   if (!cost.energyTrash && !cost.energyTrashAll) {
     const etLvRangeM = costStr.match(/エナゾーンからレベル([０-９\d]+)～([０-９\d]+)の＜([^＞]+)＞のシグニを([０-９\d]+)枚ずつトラッシュに置く/);
