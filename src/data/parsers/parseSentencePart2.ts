@@ -1965,5 +1965,60 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
   }
 
+  // ---- ルリグトラッシュのルリグの【起】能力をコピー ----
+  if (t.match(/このルリグはあなたのルリグトラッシュにあるルリグの【起】能力を持つ/)) {
+    return { type: 'STUB', id: 'COPY_LRIG_TRASH_ACTIVATED' } as StubAction;
+  }
+
+  // ---- エナゾーン以外のシグニを黒にする ----
+  if (t.match(/エナゾーン以外の領域にあるシグニは黒になる/)) {
+    return { type: 'STUB', id: 'CHANGE_ALL_SIGNI_COLOR_TO_BLACK' } as StubAction;
+  }
+
+  // ---- ドライブ状態でもアタックできる ----
+  if (t.match(/このルリグはドライブ状態でもアタックできる/)) {
+    return { type: 'STUB', id: 'ALLOW_ATTACK_WHILE_DRIVE' } as StubAction;
+  }
+
+  // ---- あなたのシグニを他のシグニゾーンに配置（対象指定型）----
+  if (t.match(/あなたのシグニ.*を対象とし.*他のシグニゾーン.*配置/)) {
+    return { type: 'STUB', id: 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE' } as StubAction;
+  }
+
+  // ---- ライフクロスはリフレッシュでトラッシュに移動しない ----
+  if (t.match(/あなたのライフクロスはリフレッシュによってトラッシュに移動しない/)) {
+    return { type: 'STUB', id: 'PREVENT_LIFE_REFRESH_TRASH' } as StubAction;
+  }
+
+  // ---- 対戦相手は追加コストを払わないかぎり【ガード】できない ----
+  if (t.match(/対戦相手は追加で.*を支払わないかぎり【ガード】ができない/)) {
+    return { type: 'STUB', id: 'GUARD_EXTRA_COST_BY_OPP' } as StubAction;
+  }
+
+  // ---- 場離れ代替：下のカードをトラッシュに置く ----
+  if (t.match(/このシグニが対戦相手の効果によって場を離れる場合.*代わりに.*下からすべてのカードをトラッシュに置いてもよい/)) {
+    return { type: 'STUB', id: 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER' } as StubAction;
+  }
+
+  // ---- 対戦相手のドロー枚数制限 ----
+  if (t.match(/対戦相手はカードを合計.*枚までしか引けない/)) {
+    return { type: 'STUB', id: 'OPP_DRAW_LIMIT' } as StubAction;
+  }
+
+  // ---- このシグニは対戦相手の効果によって新たに能力を得られない ----
+  if (t.match(/このシグニは対戦相手の効果によって新たに能力を得られない/)) {
+    return { type: 'STUB', id: 'PREVENT_ABILITY_GAIN_BY_OPP' } as StubAction;
+  }
+
+  // ---- 対戦相手はコストを払わないかぎり手札を捨てる ----
+  if (t.match(/対戦相手は.*を支払わないかぎり[、,]?手札を.*捨てる/)) {
+    return { type: 'STUB', id: 'OPP_DISCARD_OR_PAY_ENERGY' } as StubAction;
+  }
+
+  // ---- レベル０のルリグからグロウできる ----
+  if (t.match(/レベル０のルリグからこのルリグにグロウできる/)) {
+    return { type: 'STUB', id: 'GROW_FROM_LEVEL0' } as StubAction;
+  }
+
   return null;
 }
