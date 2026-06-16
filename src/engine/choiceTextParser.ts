@@ -114,6 +114,14 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
       source: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
     } as AddToFieldAction;
   }
+  // 「すべての【チャーム】をトラッシュに置く〜ドロー＋エナチャ」→ TRASH_ALL_CHARMS_DRAW_CHARGE
+  if (choiceTxt.match(/すべての【チャーム】をトラッシュ/)) {
+    return ({ type: 'STUB', id: 'TRASH_ALL_CHARMS_DRAW_CHARGE' } as StubAction) as EffectAction;
+  }
+  // 「シグニ1体の【チャーム】にする」→ ATTACH_CHARM_FROM_TRASH（チャーム付与。近似）
+  if (choiceTxt.match(/【チャーム】にする/)) {
+    return ({ type: 'STUB', id: 'ATTACH_CHARM_FROM_TRASH' } as StubAction) as EffectAction;
+  }
   // 「対戦相手の手札を1枚見ないで選び、捨てさせる」
   if (choiceTxt.match(/手札を[１1]枚見ないで選び.*捨て/)) {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction;
