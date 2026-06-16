@@ -213,7 +213,9 @@ function parseCost(costStr: string): EffectCost | undefined {
   // 手札からこのカードを捨てる → discardSelfFromHand
   if (/手札からこのカードを捨てる/.test(costStr)) cost.discardSelfFromHand = true;
   // 場のシグニN体をトラッシュ（フィールドから、クラス指定あり） → fieldTrash
-  const ftM = costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/);
+  // 「シグニをN体まで場から」「シグニN体を場から」両語順対応
+  const ftM = costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/)
+    ?? costStr.match(/シグニを([０-９\d]+)体まで場からトラッシュに置く/);
   const ftArmWep = !ftM ? costStr.match(/＜アーム＞のシグニ[１1]体と＜ウェポン＞のシグニ[１1]体を場からトラッシュに置く/) : null;
   if (ftArmWep) {
     cost.fieldTrash = { count: 2 };
