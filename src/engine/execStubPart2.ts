@@ -4032,12 +4032,14 @@ export function execStubPart2(
     const txtSGQCA = srcSGQCA ? (srcSGQCA.EffectText ?? '') + ' ' + (srcSGQCA.BurstText ?? '') : '';
     const toHWSGQCA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // 付与するキーワードを引用文から解析
+    // 注意: keyword_grantsはhasGrantedKeyword/hasKeyword（utils/keywords.ts）が日本語の正式名でしか
+    // 照合しないため、英語短縮コード（'assassin'等）を入れると常時非発火になる（2026-06-17発見・修正）
     let kwSGQCA: string | null = null;
-    if (txtSGQCA.includes('アサシン')) kwSGQCA = 'assassin';
-    else if (txtSGQCA.includes('シャドウ')) kwSGQCA = 'shadow';
-    else if (txtSGQCA.includes('ランサー')) kwSGQCA = 'lancer';
-    else if (txtSGQCA.includes('ダブルクラッシュ')) kwSGQCA = 'double_crush';
-    else if (txtSGQCA.includes('ガード')) kwSGQCA = 'guard';
+    if (txtSGQCA.includes('アサシン')) kwSGQCA = 'アサシン';
+    else if (txtSGQCA.includes('シャドウ')) kwSGQCA = 'シャドウ';
+    else if (txtSGQCA.includes('Sランサー')) kwSGQCA = 'Sランサー';
+    else if (txtSGQCA.includes('ランサー')) kwSGQCA = 'ランサー';
+    else if (txtSGQCA.includes('ダブルクラッシュ')) kwSGQCA = 'ダブルクラッシュ';
     // 対象シグニ数
     const countMSGQCA = txtSGQCA.match(/シグニを([０-９\d]+)体まで/);
     const maxCntSGQCA = countMSGQCA ? parseInt(toHWSGQCA(countMSGQCA[1])) : 1;
@@ -4087,24 +4089,27 @@ export function execStubPart2(
       `${ctx.cardMap.get(targetCA)?.CardName ?? targetCA}が${copiedCardCA.CardName}の能力をコピー`));
   }
   // GRANT_ABILITY_UNTIL_OPP_TURN: 次の対戦相手のターン終了時まで①の能力を付与
+  // 付与先: 直前のTARGET_ONLY等でlastProcessedCardsが設定済みならそれを使う（「あなたのシグニ1体を対象とし」型）。
+  // 未設定ならsourceCardNum自身に付与（自己対象型）。テキスト解析は常にsourceCardNum（効果の発生源）から行う。
   if (stub.id === 'GRANT_ABILITY_UNTIL_OPP_TURN') {
     const srcGAUOT = ctx.sourceCardNum;
     if (!srcGAUOT) return done(addLog(ctx, 'GRANT_ABILITY_UNTIL_OPP_TURN: ソースなし'));
+    const tgtGAUOT = ctx.lastProcessedCards?.[0] ?? srcGAUOT;
     const srcCardGAUOT = ctx.cardMap.get(srcGAUOT);
     const txtGAUOT = srcCardGAUOT ? (srcCardGAUOT.EffectText ?? '') + ' ' + (srcCardGAUOT.BurstText ?? '') : '';
+    // 注意: keyword_grantsはhasGrantedKeyword/hasKeyword（utils/keywords.ts）が日本語の正式名でしか
+    // 照合しないため、英語短縮コード（'lancer'等）を入れると常時非発火になる（2026-06-17発見・修正）
     let kwGAUOT: string | null = null;
     if (txtGAUOT.includes('Sランサー')) kwGAUOT = 'Sランサー';
-    else if (txtGAUOT.includes('ランサー')) kwGAUOT = 'lancer';
-    else if (txtGAUOT.includes('アサシン')) kwGAUOT = 'assassin';
-    else if (txtGAUOT.includes('ダブルクラッシュ')) kwGAUOT = 'double_crush';
-    else if (txtGAUOT.includes('シャドウ')) kwGAUOT = 'shadow';
-    else if (txtGAUOT.includes('バニッシュ不可')) kwGAUOT = 'バニッシュ不可';
-    else if (txtGAUOT.includes('ダウン不可')) kwGAUOT = 'ダウン不可';
+    else if (txtGAUOT.includes('ランサー')) kwGAUOT = 'ランサー';
+    else if (txtGAUOT.includes('アサシン')) kwGAUOT = 'アサシン';
+    else if (txtGAUOT.includes('ダブルクラッシュ')) kwGAUOT = 'ダブルクラッシュ';
+    else if (txtGAUOT.includes('シャドウ')) kwGAUOT = 'シャドウ';
     if (!kwGAUOT) return done(addLog(ctx, `GRANT_ABILITY_UNTIL_OPP_TURN: キーワード解析不可`));
     const grantsGAUOT = { ...(ctx.ownerState.keyword_grants ?? {}) };
-    grantsGAUOT[srcGAUOT] = [...new Set([...(grantsGAUOT[srcGAUOT] ?? []), kwGAUOT])];
+    grantsGAUOT[tgtGAUOT] = [...new Set([...(grantsGAUOT[tgtGAUOT] ?? []), kwGAUOT])];
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsGAUOT } },
-      `${ctx.cardMap.get(srcGAUOT)?.CardName ?? srcGAUOT}に${kwGAUOT}（次の相手ターン終了まで）`));
+      `${ctx.cardMap.get(tgtGAUOT)?.CardName ?? tgtGAUOT}に${kwGAUOT}（次の相手ターン終了まで）`));
   }
   // RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: ライズ対象シグニに引用常在能力を付与
   if (stub.id === 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY') {
@@ -4112,13 +4117,14 @@ export function execStubPart2(
     if (!targetRTSGA) return done(addLog(ctx, 'RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: 対象なし'));
     const riseCardRTSGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtRTSGA = riseCardRTSGA ? (riseCardRTSGA.EffectText ?? '') : '';
+    // 注意: keyword_grantsはhasGrantedKeyword/hasKeyword（utils/keywords.ts）が日本語の正式名でしか
+    // 照合しないため、英語短縮コード（'assassin'等）を入れると常時非発火になる（2026-06-17発見・修正）
     let kwRTSGA: string | null = null;
-    if (txtRTSGA.includes('アサシン')) kwRTSGA = 'assassin';
+    if (txtRTSGA.includes('アサシン')) kwRTSGA = 'アサシン';
     else if (txtRTSGA.includes('Sランサー')) kwRTSGA = 'Sランサー';
-    else if (txtRTSGA.includes('ランサー')) kwRTSGA = 'lancer';
-    else if (txtRTSGA.includes('ダブルクラッシュ')) kwRTSGA = 'double_crush';
-    else if (txtRTSGA.includes('シャドウ')) kwRTSGA = 'shadow';
-    else if (txtRTSGA.includes('バニッシュ不可')) kwRTSGA = 'バニッシュ不可';
+    else if (txtRTSGA.includes('ランサー')) kwRTSGA = 'ランサー';
+    else if (txtRTSGA.includes('ダブルクラッシュ')) kwRTSGA = 'ダブルクラッシュ';
+    else if (txtRTSGA.includes('シャドウ')) kwRTSGA = 'シャドウ';
     if (!kwRTSGA) return done(addLog(ctx, `RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: キーワード解析不可`));
     const grantsRTSGA = { ...(ctx.ownerState.keyword_grants ?? {}) };
     grantsRTSGA[targetRTSGA] = [...new Set([...(grantsRTSGA[targetRTSGA] ?? []), kwRTSGA])];

@@ -1,5 +1,42 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+## ✅ 2026-06-17 ymsty側: keyword_grants英語コード不一致の系統バグ修正（WXDi-P07-059残課題対処中に発見）
+
+### 発端
+直前エントリのWXDi-P07-059「スペル型のためベット強化が到達不能」を深掘りしている過程で発見。
+
+### 問題
+`utils/keywords.ts`の`hasKeyword`/`hasShadow`、および実戦闘判定`BattleScreen.tsx`の`hasGrantedKeyword`は
+`keyword_grants`を**日本語の正式名**（'シャドウ'/'ランサー'/'アサシン'/'ダブルクラッシュ'等）でしか照合しない
+（全effects_*.jsonの静的GRANT_KEYWORD定義も例外なく日本語）。しかし以下3箇所が**英語短縮コード**
+（'shadow'/'lancer'/'assassin'/'double_crush'）を直接書き込んでおり、付与した能力が**常時非発火**だった:
+- `execStubPart2.ts` `GRANT_ABILITY_UNTIL_OPP_TURN`（使用: WXDi-P07-059）
+- `execStubPart2.ts` `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`（使用: WXDi-P10-025, WXDi-P14-008）
+- `choiceTextParser.ts`のGRANT_KEYWORD分岐（「①【ランサー】を得る」等のCHOOSE選択肢。BET_MECHANIC等から
+  動的解析で使われるため、今後このパターンに一致するカードすべてに影響しうる）
+
+なお`execStubPart1.ts`の`INTERNAL_WD007_GRANT/APPLY`（WD21-007、STUBS.md#6 BET_CONDITION✅）は内部モード値として
+英語コードを使うが、`keyword_grants`への書き込み直前に日本語へ変換しており**正しく実装済み**（誤検出注意）。
+
+### 修正
+上記3箇所すべて日本語の正式名に統一。あわせてWXDi-P07-059自体に2つ目の実バグを発見：
+`GRANT_ABILITY_UNTIL_OPP_TURN`の付与先が常に`ctx.sourceCardNum`（スペル自身、的外れ）固定だったため、
+SEQUENCEに`TARGET_ONLY`ステップを追加（「あなたのシグニ１体を対象とし」を選択→`lastProcessedCards`に格納）し、
+スタブ側も`lastProcessedCards`を優先するよう修正。
+
+### 確認済み・残課題
+- 検証: tsc 0エラー / checkAllEffects 78件（退行なし）/ verifyEffects Sheet7,8該当カードissues 0件
+- `WX20-056`（`RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY`使用）はテキストが「手札に戻らずダウンせず新たに能力を
+  得られない」で5キーワード分岐のどれにも一致せず、元から別系統の未対応（今回のスコープ外、要再訪）
+- WXDi-P07-059の①②差分（シャドウの対象スコープ: 宣言色のシグニ限定 vs 全体）は、シャドウ自体が現状色スコープ
+  非対応の単純boolean実装のため、ベットしても効果上の差は出ない。色スコープ対応は別の大きめな機能追加が必要
+  （シャドウを使う他カードへの影響範囲調査も含む、今回は着手せず）
+
+### デプロイ
+`vercel deploy --prod` を zerom 側で実施すること（ymsty側に権限なし）。
+
+---
+
 ## ✅ 2026-06-17 ymsty側: BET_MECHANICの二重ベットプロンプト実バグ修正
 
 ### 発端

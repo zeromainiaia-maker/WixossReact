@@ -279,9 +279,11 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
     }
   }
   // 「ダブルクラッシュ/ランサー等のキーワードを得る」
+  // keyword_grantsはhasGrantedKeyword/hasKeyword（utils/keywords.ts）が日本語の正式名でしか照合しないため、
+  // 英語短縮コードではなく日本語名をそのまま使う（2026-06-17発見・修正: 英語コードだと常時非発火だった）
   if (choiceTxt.match(/【ダブルクラッシュ】を得る|【ランサー】を得る|【アサシン】を得る/)) {
-    const kw = choiceTxt.includes('ダブルクラッシュ') ? 'double_crush'
-      : choiceTxt.includes('ランサー') ? 'lancer' : 'assassin';
+    const kw = choiceTxt.includes('ダブルクラッシュ') ? 'ダブルクラッシュ'
+      : choiceTxt.includes('ランサー') ? 'ランサー' : 'アサシン';
     return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: kw, duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
   }
   // 「シグニを手札に戻す」→ BOUNCE（「手札を1枚捨てる」が続けばセットで実行）
