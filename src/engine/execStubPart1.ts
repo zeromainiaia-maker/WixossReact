@@ -971,6 +971,34 @@ export function execStubPart1(
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をライフクロスへ`));
   }
+  // ATTACH_CHARM_FROM_TRASH: トラッシュのシグニをチャームとして付与（ログのみ近似）
+  if (stub.id === 'ATTACH_CHARM_FROM_TRASH') {
+    return done(addLog(ctx, 'チャーム付与（ATTACH_CHARM_FROM_TRASH: 近似・詳細未実装）'));
+  }
+  // TRASH_ALL_CHARMS_DRAW_CHARGE: 場の全チャームをトラッシュ→同枚数ドロー+エナチャ
+  if (stub.id === 'TRASH_ALL_CHARMS_DRAW_CHARGE') {
+    const charms = ctx.ownerState.field.signi_charms ?? [null, null, null];
+    const charmCards = (charms as (string | null)[]).filter((c): c is string => c !== null);
+    if (charmCards.length === 0) return done(addLog(ctx, 'チャームなし（TRASH_ALL_CHARMS_DRAW_CHARGE）'));
+    const newCharms: (string | null)[] = [null, null, null];
+    const newTrash = [...ctx.ownerState.trash, ...charmCards];
+    const drawCount = Math.min(charmCards.length, ctx.ownerState.deck.length);
+    const drawnCards = ctx.ownerState.deck.slice(0, drawCount);
+    const deckAfterDraw = ctx.ownerState.deck.slice(drawCount);
+    const chargeCount = Math.min(charmCards.length, deckAfterDraw.length);
+    const chargedCards = deckAfterDraw.slice(0, chargeCount);
+    const deckFinal = deckAfterDraw.slice(chargeCount);
+    const newOwner = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, signi_charms: newCharms },
+      trash: newTrash,
+      hand: [...ctx.ownerState.hand, ...drawnCards],
+      deck: deckFinal,
+      energy: [...ctx.ownerState.energy, ...chargedCards],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner },
+      `チャーム${charmCards.length}枚トラッシュ→${drawCount}ドロー+${chargeCount}エナチャ`));
+  }
   // サブスクライバーカウント+1
   if (stub.id === 'GAIN_SUBSCRIBER_COUNT') {
     const srcSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
