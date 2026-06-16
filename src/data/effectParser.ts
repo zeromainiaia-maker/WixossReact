@@ -1439,8 +1439,26 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   const baseType = card.Type?.split('/')[0] ?? '';
   if (baseType === 'アーツ' || baseType === 'ピース' || baseType === 'リレーピース') {
-    const e = parseArtsEffect(card);
-    if (e) effects.push(e);
+    // 【自】を含む場合は分離して個別パース（ARTS_SELF_RECYCLE_ON_TRIGGER等）
+    const rawEff = card.EffectText ?? '';
+    const autoIdx = rawEff.indexOf('【自】：');
+    if (autoIdx >= 0) {
+      const mainPart = rawEff.slice(0, autoIdx).trim();
+      if (mainPart) {
+        const mainCard = { ...card, EffectText: mainPart };
+        const e = parseArtsEffect(mainCard);
+        if (e) effects.push(e);
+      }
+      const autoPart = stripRuleParens(rawEff.slice(autoIdx));
+      const autoEffect = parseBlock(card.CardNum, autoPart, effects.length);
+      if (autoEffect) {
+        autoEffect.effectId = `${card.CardNum}-E${effects.length + 1}`;
+        effects.push(autoEffect);
+      }
+    } else {
+      const e = parseArtsEffect(card);
+      if (e) effects.push(e);
+    }
   } else if (baseType === 'スペル') {
     const e = parseSpellEffect(card);
     if (e) effects.push(e);
