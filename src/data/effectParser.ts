@@ -289,10 +289,15 @@ function parseCost(costStr: string): EffectCost | undefined {
       cost.handDiscardSigni = { count: parseNum(hcLvSigniM[2]), level: parseNum(hcLvSigniM[1]) };
     }
   }
-  // このシグニの下からカードN枚をトラッシュ → underSelfTrash
-  const ustM = costStr.match(/(?:このシグニ|あなたのシグニ[０-９\d]?体?)の下からカード(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
+  // このシグニの下からカード/スペルN枚をトラッシュ → underSelfTrash
+  const ustM = costStr.match(/(?:このシグニ)の下から(?:カード|スペル|シグニ)(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
+  const ustAnyM = !ustM ? costStr.match(/(?:あなたのシグニ(?:[０-９\d]+体)?)の下からカードを?合計([０-９\d]+)枚トラッシュに置く/) : null;
   if (ustM) cost.underSelfTrash = parseNum(ustM[1]);
+  else if (ustAnyM) cost.underSelfTrash = parseNum(ustAnyM[1]);
   else if (/このシグニの下からカード(?:１枚|一枚)をトラッシュに置く/.test(costStr)) cost.underSelfTrash = 1;
+  // 可変枚数チャームトラッシュ → charmTrashVariable
+  const ctVarM = costStr.match(/【チャーム】を([０-９\d]+)枚以上トラッシュに置く/);
+  if (ctVarM && !cost.charmTrash) cost.charmTrashVariable = { min: parseNum(ctVarM[1]) };
   // デッキ上からN枚トラッシュ → deckTrash
   const dtM = costStr.match(/デッキの(?:一番)?上からカードを?([０-９\d]+)枚トラッシュに置く/);
   if (dtM) cost.deckTrash = parseNum(dtM[1]);
