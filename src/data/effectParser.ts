@@ -250,6 +250,20 @@ function parseCost(costStr: string): EffectCost | undefined {
   } else if (etKwM) {
     cost.energyTrash = { count: parseNum(etKwM[2]), filter: { keyword: etKwM[1] } };
   }
+  // エナゾーンから[フィルター]シグニを1枚以上トラッシュ（可変枚数）
+  if (!cost.energyTrash && !cost.energyTrashAll) {
+    const etVarM = costStr.match(/エナゾーンから(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚以上トラッシュに置く/);
+    if (etVarM) {
+      const etVFilter: TargetFilter = { cardType: 'シグニ' };
+      if (etVarM[1]) etVFilter.story = etVarM[1];
+      cost.energyTrash = { count: parseNum(etVarM[2]), filter: etVFilter };
+    }
+  }
+  // エナゾーンから《keyword》のカードN枚をトラッシュ（アイコン型）
+  if (!cost.energyTrash && !cost.energyTrashAll) {
+    const etIconM = costStr.match(/エナゾーンから《([^》]+)》のカード([０-９\d]+)枚をトラッシュに置く/);
+    if (etIconM) cost.energyTrash = { count: parseNum(etIconM[2]), filter: { keyword: etIconM[1] } };
+  }
   // 手札から[フィルター]カードN枚を捨てる（シグニ以外の汎用手札捨て）
   if (!cost.handDiscardSigni && !cost.discardSelfFromHand && !cost.discard && !cost.discardVariable) {
     const hcCardM = costStr.match(/手札から(?:＜([^＞]+)＞の)?カードを?([０-９\d]+)枚捨てる/);
