@@ -8285,6 +8285,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.down_self ? 'ダウン' : null,
               eff.cost.removeOppVirus ? `ウィルス${eff.cost.removeOppVirus}除去` : null,
               eff.cost.trash_self ? 'このシグニをトラッシュ' : null,
+              eff.cost.trash_key ? 'このキーをルリグトラッシュ' : null,
               eff.cost.charmTrash ? `チャーム${eff.cost.charmTrash}枚トラッシュ` : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
