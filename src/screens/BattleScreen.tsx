@@ -2867,9 +2867,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? (my.draw_limit !== undefined ? Math.min(my.draw_limit, contDrawLimit) : contDrawLimit)
           : my.draw_limit;
         const effectiveDrawCount = effectiveDrawLimit !== undefined ? Math.min(drawCount, effectiveDrawLimit) : drawCount;
+        const preventRefreshTrash = my.field.signi.some(s => {
+          const top = s?.at(-1);
+          return top && (effectsMap.get(top) ?? []).some(e =>
+            e.effectType === 'CONTINUOUS' &&
+            (e.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (e.action as import('../types/effects').StubAction).id === 'PREVENT_LIFE_REFRESH_TRASH',
+          );
+        });
         newMyState = drawBlocked
           ? { ...my, actions_done: [], draw_limit: undefined }
-          : { ...drawCards(my, effectiveDrawCount), actions_done: ['DRAW'], draw_limit: undefined };
+          : { ...drawCards(my, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined };
         update.turn_phase = 'DRAW';
 
         // ON_TURN_START トリガー収集（ドローと同時にスタック積み）
