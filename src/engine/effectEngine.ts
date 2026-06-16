@@ -3134,6 +3134,17 @@ export function collectBanishEffectProtectedSigni(
       }
     }
   }
+  // PREVENT_SELF_MOVE_BY_OPP: バニッシュも含む場移動禁止（STUB）
+  for (const stack of state.field.signi) {
+    if (!stack?.length) continue;
+    const sn = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(sn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sn)) continue;
+      const a = eff.action as import('../types/effects').StubAction;
+      if (a.type === 'STUB' && a.id === 'PREVENT_SELF_MOVE_BY_OPP') protected_.add(sn);
+    }
+  }
   return protected_;
 }
 
