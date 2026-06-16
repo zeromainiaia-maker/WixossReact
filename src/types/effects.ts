@@ -193,6 +193,16 @@ export interface EffectCost {
     count?: number;        // 何枚（selfでない場合）
     filter?: TargetFilter; // フィルター（cardName等）
   };
+  // ─ v0.312 追加: 追加コストタイプ群 ─
+  fieldDown?: { count: number; filter?: TargetFilter }; // 場のシグニN体をダウン（コスト）
+  discardUpTo?: number;        // 手札をN枚まで捨てる（任意上限）
+  handBottomDeck?: number;     // 手札をN枚デッキの一番下に置く
+  handExileSelf?: boolean;     // 手札にあるこのカードをゲームから除外する
+  selfToDeckBottom?: boolean;  // このシグニをデッキの一番下に置く（コスト）
+  selfPowerDown?: number;      // このシグニのパワーをN減らす（コスト）
+  fieldToLrigTrash?: { count: number; filter?: TargetFilter }; // 場のカードをルリグトラッシュに置く
+  energyTrashColorAll?: string; // エナゾーンからすべての[色]のカードをトラッシュ
+  energyTrashSelf?: boolean;   // エナゾーンからこのカード自身をトラッシュに置く
 }
 
 // ===== ターゲットフィルタ =====
