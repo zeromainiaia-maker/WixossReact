@@ -159,15 +159,28 @@ export function parseEnergyCosts(str: string): EnergyCost[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(str)) !== null) {
     if (ENERGY_COLORS.has(m[1])) {
-      costs.push({
-        color: m[1] as EnergyCost['color'],
-        count: m[2] ? parseNum(m[2]) : 1,
-      });
+      const cnt = m[2] ? parseNum(m[2]) : 1;
+      if (cnt > 0) costs.push({ color: m[1] as EnergyCost['color'], count: cnt });
     } else {
       // 《色×数字》 形式（説明文中のコスト表記）
       const inner = m[1].match(/^([白赤青緑黒無])×([０-９\d]+)$/);
       if (inner && ENERGY_COLORS.has(inner[1])) {
-        costs.push({ color: inner[1] as EnergyCost['color'], count: parseNum(inner[2]) });
+        const cnt = parseNum(inner[2]);
+        if (cnt > 0) costs.push({ color: inner[1] as EnergyCost['color'], count: cnt });
+      } else {
+        // 《色1/色2》×N 形式（混色コスト、無色N枚で近似）
+        const bicolorInner = m[1].match(/^([白赤青緑黒])\/([白赤青緑黒])$/);
+        if (bicolorInner) {
+          const cnt = m[2] ? parseNum(m[2]) : 1;
+          if (cnt > 0) costs.push({ color: '無', count: cnt });
+        } else {
+          // 《色1/色2×N》 形式
+          const bicolorNum = m[1].match(/^([白赤青緑黒])\/([白赤青緑黒])×([０-９\d]+)$/);
+          if (bicolorNum) {
+            const cnt = parseNum(bicolorNum[3]);
+            if (cnt > 0) costs.push({ color: '無', count: cnt });
+          }
+        }
       }
     }
   }
