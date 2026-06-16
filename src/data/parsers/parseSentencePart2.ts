@@ -1013,6 +1013,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.match(/対戦相手の効果はバニッシュ以外でこのシグニを場から移動させない/)) {
     return { type: 'STUB', id: 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH' } as StubAction;
   }
+  if (t.match(/このシグニは対戦相手の効果によって場から他の領域に移動しない/)) {
+    return { type: 'STUB', id: 'PREVENT_SELF_MOVE_BY_OPP' } as StubAction;
+  }
 
   // ---- 基本レベルを変更（ターン終了時まで）----
   if (t.match(/次のあなたのターン.*基本レベルを.*にしてもよい/)) {
