@@ -2145,7 +2145,7 @@ export function collectOppGuardExtraColorlessCost(
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'OPP_GUARD_COST_COLORLESS') continue;
+      if (act.type !== 'STUB' || (act.id !== 'OPP_GUARD_COST_COLORLESS' && act.id !== 'GUARD_EXTRA_COST_BY_OPP')) continue;
       // activeConditionがある場合はチェック
       if (eff.activeCondition) {
         if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn)) continue;
