@@ -4336,6 +4336,73 @@ export function execStubPart3(
       `領域指定：${zoneLabel}の相手シグニはクラス/色を失い＜精元＞を得る`));
   }
 
+  // OPP_DISCARD_OR_PAY_ENERGY: アタックフェイズ開始時、対戦相手は《無》を支払うか手札を1枚捨てる
+  if (stub.id === 'OPP_DISCARD_OR_PAY_ENERGY') {
+    const canPayDPE    = ctx.otherState.energy.length >= 1;
+    const canDiscardDPE = ctx.otherState.hand.length >= 1;
+    const optsDPE: { id: string; label: string; action: EffectAction; available: boolean }[] = [];
+    if (canPayDPE) {
+      optsDPE.push({ id: 'dpe_pay', label: '《無》を1枚支払う',
+        action: { type: 'STUB', id: 'INTERNAL_DPE_PAY' } as StubAction as EffectAction, available: true });
+    }
+    if (canDiscardDPE) {
+      optsDPE.push({ id: 'dpe_discard', label: '手札を1枚捨てる',
+        action: { type: 'STUB', id: 'INTERNAL_DPE_SELECT_DISCARD' } as StubAction as EffectAction, available: true });
+    }
+    if (optsDPE.length === 0) return done(addLog(ctx, '対戦相手：エナも手札もなし（効果なし）'));
+    return needsInteraction(addLog(ctx, '対戦相手：《無》を支払うか手札を1枚捨てますか？'), {
+      type: 'CHOOSE', options: optsDPE, count: 1, opponentResponds: true,
+    });
+  }
+  if (stub.id === 'INTERNAL_DPE_PAY') {
+    if (ctx.otherState.energy.length === 0) return done(addLog(ctx, '対戦相手：エナなし'));
+    const lastEn = ctx.otherState.energy[ctx.otherState.energy.length - 1];
+    const newOtherDPE: PlayerState = { ...ctx.otherState, energy: ctx.otherState.energy.slice(0, -1), trash: [...ctx.otherState.trash, lastEn] };
+    return done(addLog({ ...ctx, otherState: newOtherDPE }, `対戦相手が《無》を消費（${ctx.cardMap.get(lastEn)?.CardName ?? lastEn}）`));
+  }
+  if (stub.id === 'INTERNAL_DPE_SELECT_DISCARD') {
+    if (ctx.otherState.hand.length === 0) return done(addLog(ctx, '対戦相手：手札なし'));
+    const optsDPS = ctx.otherState.hand.map((cn, idx) => ({
+      id: `dpe_h${idx}`, label: ctx.cardMap.get(cn)?.CardName ?? cn,
+      action: { type: 'STUB', id: 'INTERNAL_DPE_DO_DISCARD', value: idx } as StubAction as EffectAction, available: true,
+    }));
+    return needsInteraction(addLog(ctx, '対戦相手：捨てる手札を選んでください'), {
+      type: 'CHOOSE', options: optsDPS, count: 1, opponentResponds: true,
+    });
+  }
+  if (stub.id === 'INTERNAL_DPE_DO_DISCARD') {
+    const idxDPE = typeof stub.value === 'number' ? stub.value : 0;
+    const discardedCnDPE = ctx.otherState.hand[idxDPE];
+    if (!discardedCnDPE) return done(addLog(ctx, '対戦相手：選択手札なし'));
+    const newHandDPE = ctx.otherState.hand.filter((_, i) => i !== idxDPE);
+    const newOtherDPE2: PlayerState = { ...ctx.otherState, hand: newHandDPE, trash: [...ctx.otherState.trash, discardedCnDPE] };
+    return done(addLog({ ...ctx, otherState: newOtherDPE2 }, `対戦相手が手札（${ctx.cardMap.get(discardedCnDPE)?.CardName ?? discardedCnDPE}）を捨てる`));
+  }
+
+  // OPP_DRAW_LIMIT: 対戦相手のターン開始時、そのターンのドローを1枚に制限（triggerScope: any_opp で相手ターン発動）
+  if (stub.id === 'OPP_DRAW_LIMIT') {
+    const oppHand = ctx.otherState.hand.length;
+    if (oppHand < 2) return done(addLog(ctx, '対戦相手の手札が2枚未満：ドロー制限なし'));
+    const newOtherODL: PlayerState = { ...ctx.otherState, draw_limit: 1 };
+    return done(addLog({ ...ctx, otherState: newOtherODL }, '対戦相手のこのターンのドロー上限：1枚'));
+  }
+
+  // BattleScreen側処理済みSTUB（execStub呼び出し時はログのみ）
+  if (stub.id === 'OPP_CENTER_LRIG_LIMIT_SET_5') return done(addLog(ctx, '相手センタールリグの基本リミットを5に変更（BattleScreen側処理）'));
+  if (stub.id === 'CARDS_OUTSIDE_ENERGY_BECOME_WHITE') return done(addLog(ctx, 'エナゾーン以外のカードは白になる（effectEngine collectFieldSigniExtraColors処理）'));
+  if (stub.id === 'ENERGY_NON_COLORLESS_ALL_COLORS') return done(addLog(ctx, 'エナゾーンの非無色カードはすべての色を持つ（effectEngine collectEnergyColorSubstitutes処理）'));
+  if (stub.id === 'BANISH_TO_LRIG_TRASH_INSTEAD') return done(addLog(ctx, 'バニッシュ先をルリグトラッシュに変更（BattleScreen側処理）'));
+  if (stub.id === 'RESTRICT_CHARMED_SIGNI_ACTIVATED') return done(addLog(ctx, 'チャーム付きシグニの起動封じ（BattleScreen側処理）'));
+  if (stub.id === 'COPY_LRIG_TRASH_ACTIVATED') return done(addLog(ctx, 'ルリグトラッシュの起動能力を継承（BattleScreen側処理）'));
+  if (stub.id === 'ALLOW_ATTACK_WHILE_DRIVE') return done(addLog(ctx, 'ドライブ状態でもアタック可（BattleScreen側処理）'));
+  if (stub.id === 'PREVENT_LIFE_REFRESH_TRASH') return done(addLog(ctx, 'リフレッシュでライフがトラッシュに移動しない（BattleScreen側処理）'));
+  if (stub.id === 'GROW_FROM_LEVEL0') return done(addLog(ctx, 'レベル0からグロウ可能（BattleScreen側処理）'));
+  if (stub.id === 'REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER') return done(addLog(ctx, '場離れ代替：スタック下をトラッシュ（BattleScreen側処理）'));
+  if (stub.id === 'PREVENT_SELF_MOVE_BY_OPP') return done(addLog(ctx, '対戦相手効果による場移動不可（effectEngine保護処理）'));
+  if (stub.id === 'PREVENT_ABILITY_GAIN_BY_OPP') return done(addLog(ctx, '対戦相手効果での能力付与不可（effectEngine保護処理）'));
+  if (stub.id === 'CHANGE_ALL_SIGNI_COLOR_TO_BLACK') return done(addLog(ctx, 'エナゾーン以外のシグニは黒（effectEngine collectFieldSigniExtraColors処理）'));
+  if (stub.id === 'GUARD_EXTRA_COST_BY_OPP') return done(addLog(ctx, 'ガード追加コスト（effectEngine collectOppGuardExtraColorlessCost処理）'));
+
   // BUFF_HOST_WHEN_PLACED_UNDER: このカードがシグニの下に置かれたとき上のシグニ+2000（WXDi-P11-063）
   if (stub.id === 'BUFF_HOST_WHEN_PLACED_UNDER') {
     const underCardNumBHWPU = ctx.sourceCardNum;
