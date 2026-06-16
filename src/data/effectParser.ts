@@ -1588,6 +1588,10 @@ function inferTriggerScope(effect: CardEffect, card: CardData): import('../types
     if (/あなたのシグニ[１-９\d０-９]*体?が血晶武装状態になったとき/.test(text)) return 'any_ally';
     return 'self'; // 「このシグニが血晶武装状態になったとき」→ 自身のみ
   }
+  // 「対戦相手のターン開始時/終了時」→ 相手ターン中に自分のシグニが発動（any_opp）
+  if (effect.timing?.includes('ON_TURN_START') || effect.timing?.includes('ON_TURN_END')) {
+    if (/対戦相手のターン(?:開始時|終了時)/.test(text)) return 'any_opp';
+  }
   if (!effect.timing?.includes('ON_PLAY')) return undefined;
   // 「他のシグニが場に出たとき」「あなたのシグニが場に出たとき」→ 味方シグニ全体
   if (/他の.*シグニ.*場に出たとき/.test(text) ||
