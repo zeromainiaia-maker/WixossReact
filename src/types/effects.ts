@@ -174,6 +174,7 @@ export interface EffectCost {
   lifeTrash?: number;     // ライフクロス上からN枚をトラッシュに置く
   lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
   deckTrash?: number;     // デッキ上からN枚をトラッシュに置く
+  underSelfTrash?: number; // このシグニの下からカードN枚をトラッシュに置く（【起】コスト）
   charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く（固定枚数）
   charmTrashVariable?: { min: number }; // チャームを好きな枚数（min枚以上）トラッシュ（プレイヤーが枚数を選択）
   trashArtsFromLrigDeck?: { color?: string; count: number }; // ルリグデッキからアーツN枚をトラッシュ（【出】コスト）
