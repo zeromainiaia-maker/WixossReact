@@ -181,6 +181,9 @@ function parseCost(costStr: string): EffectCost | undefined {
   if (dm) cost.discard = parseNum(dm[1]);
   const em = costStr.match(/エクシード([０-９\d]+)/);
   if (em) cost.exceed = parseNum(em[1]);
+  // このルリグの下からカードN枚をルリグトラッシュに置く → exceed（エクシードの文章表現）
+  const emLrig = !em ? costStr.match(/このルリグの下からカード([０-９\d]+)枚をルリグトラッシュに置く/) : null;
+  if (emLrig) cost.exceed = parseNum(emLrig[1]);
   // シグニを【ビート】にする（コスト）: "他のシグニ1体" or "シグニ1体"
   const beatM = costStr.match(/(?:他の)?シグニ([０-９\d]+)体を【ビート】にする/);
   if (beatM) cost.beat_signi = parseNum(beatM[1]);
