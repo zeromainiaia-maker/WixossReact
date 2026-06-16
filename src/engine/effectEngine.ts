@@ -3250,8 +3250,8 @@ export function collectBounceProtectedSigni(
         }
       }
 
-      // PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH: このシグニ自身がバウンス不可
-      if (act.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH') {
+      // PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_SELF_MOVE_BY_OPP: このシグニ自身がバウンス不可
+      if (act.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH' || act.id === 'PREVENT_SELF_MOVE_BY_OPP') {
         const inSigniField = state.field.signi.some(s => s?.at(-1) === topNum);
         if (inSigniField) protected_.add(topNum);
       }
