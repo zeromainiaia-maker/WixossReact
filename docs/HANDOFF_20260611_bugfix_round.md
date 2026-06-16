@@ -1,5 +1,38 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+## ✅ 2026-06-17 zerom側: フィーチャーギャップ修正（v0.320）
+
+### 実施内容
+
+#### WXDi-P04-056（幻獣コーギー）JSON修正
+- E2が「CONTINUOUS DRAW count:1」（誤定義・常在ドローとして誤実装）だったのを正しいAUTO効果に修正
+- 修正後: `effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'], triggerScope: 'self'`
+  - action: SEQUENCE [TRASH(HAND_CARD, 1, upToCount:true), DRAW(1)]
+  - 「手札を１枚捨ててもよい。そうした場合、カードを１枚引く。」近似実装
+  - activeCondition(SELF_POWER_THRESHOLD>=8000)はcollectTurnTriggersで未評価のため、パワー条件なしで常時発火する近似
+- 検証: tsc 0 errors / checkAllEffects 78件（退行なし）
+
+### 確認済み事項（修正不要）
+
+1. **HANDOFF残課題#1（collectBounceProtectedSigni）**: 既にGRANT_PROTECTIONのBOUNCE/anyを処理済み（L3213-3233）
+2. **HANDOFF残課題#2（collectDownProtectedSigni）**: 既にGRANT_PROTECTIONのDOWN/anyを処理済み（L3022-3038）
+3. **HANDOFF残課題#3（CONTINUOUS REMOVE_ABILITIES）**: `collectContinuousAbilitiesRemovedSigni`が実装済みでBattleScreen.tsxにも統合済み
+
+### 残課題（着手未完了）
+
+| # | 内容 | 状況 |
+|---|---|---|
+| 1 | **WXDi-P05-045（小装ヤエコリ）JSON誤定義** | E1が「CONTINUOUS REMOVE_ABILITIES target:opponent count:1」（誤定義）→ 対面シグニが常時能力消去される誤動作中。正しくは「CONTINUOUS POWER_MODIFY+5000 + AUTO ON_ATTACK_PHASE_START REMOVE_ABILITIES opponent 1体（選択）」の2効果に分割すべき。collectTurnTriggers（L2771-2788）はシグニのactiveConditionを未評価なので追加も必要 |
+| 2 | **WXDi-CP02-056（早瀬ユウカ）E1** | CONTINUOUS SEQUENCE（GRANT_QUOTED_AUTO_ABILITY + CONDITIONAL REMOVE_ABILITIES）複合効果が未処理。CSVテキストは「バウンス代替（手札2枚コスト）+能力消去」でありさらに複雑 |
+| 3 | **WXK01-002（アロス・ピルルク TETRA）E1** | CONTINUOUS REMOVE_ABILITIES target:opponent count:1（手札0枚条件） → 対面シグニ常時能力消去の近似。本来は「ルリグダメージ代替+能力消去」で全く別機構 |
+| 4 | **verifyEffectsのissues 282件** | checkAllEffects 78件で退行なし。verifyEffectsのissuesはv0.254達成後の新STUBがSTUB_EQUIVALENTSに未登録の偽陽性が多い。ゲーム動作には影響なし |
+| 5 | **collectTurnTriggersにactiveConditionチェック追加** | L2771-2788のシグニAUTO効果収集でactiveConditionを未評価。特にHAS_CARD_IN_FIELD系のactiveConditionを持つシグニAUTO効果（WXDi-P05-045等）に影響 |
+
+### デプロイ
+`vercel deploy --prod` を zerom 側で実施（ymsty 側に権限なし）
+
+---
+
 ## 🚧 2026-06-16 ymsty側: BET_ALTERNATIVE誤分類バグ系統修正 — 進行中（トークン残量低のため中断、続行要）
 
 ### 発端
