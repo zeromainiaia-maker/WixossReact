@@ -318,6 +318,8 @@ export interface PlayerState {
   lrig_upkeep_condition?: 'pay_colorless1' | 'pay_colorless3' | 'discard_or_colorless1';
   // DISCARD_BY_POWER_MATCH: 起動コスト支払い後に捨てたシグニのパワーを記録（次のexecStub呼び出しで参照）
   last_discarded_signi_power?: number;
+  // BET_CONDITION: このアーツ/効果でベット宣言していた場合 true（execStub内でチェック）
+  is_betting_this_effect?: boolean;
 }
 
 export interface GameLog {
