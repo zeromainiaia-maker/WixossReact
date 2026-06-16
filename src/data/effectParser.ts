@@ -464,6 +464,24 @@ function parseCost(costStr: string): EffectCost | undefined {
       cost.energyTrash = { count: maxLv - minLv + 1, filter: { cardType: 'シグニ', story: etLvRangeM[3], levelRange: { min: minLv, max: maxLv } } };
     }
   }
+  // エナゾーンからそれぞれ名前の異なる、カード名に《XXX》を含むシグニN枚をトラッシュ → energyTrash
+  if (!cost.energyTrash && !cost.energyTrashAll) {
+    const etDistinctM = costStr.match(/エナゾーンからそれぞれ名前の異なる、カード名に《([^》]+)》を含む(?:シグニ|カード)([０-９\d]+)枚をトラッシュに置く/);
+    if (etDistinctM) {
+      cost.energyTrash = { count: parseNum(etDistinctM[2]), filter: { cardName: etDistinctM[1] } };
+    }
+  }
+  // 手札とエナゾーンとトラッシュにある《XXX》をN枚ずつゲームから除外する → trashExile で近似
+  if (!cost.trashExile) {
+    const multiExileM = costStr.match(/手札とエナゾーンとトラッシュにある《([^》]+)》を([０-９\d]+)枚ずつゲームから除外する/);
+    if (multiExileM) {
+      cost.trashExile = { count: parseNum(multiExileM[2]), filter: { cardName: multiExileM[1] } };
+    }
+  }
+  // 【トラップ】であるこのカードを公開するコスト → none（特殊コスト）
+  if (/【トラップ】であるこのカードを公開する/.test(costStr)) cost.none = true;
+  // コラボコスト → none（ゲーム実装外コスト）
+  if (/コラボライバー/.test(costStr)) cost.none = true;
   return Object.keys(cost).length > 0 ? cost : undefined;
 }
 
