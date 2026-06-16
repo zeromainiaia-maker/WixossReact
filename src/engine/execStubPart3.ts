@@ -2849,7 +2849,9 @@ export function execStubPart3(
     const srcCSO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
     const toHWCSO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const cntMCSO = txtCSO.match(/以下の.*?から([２-９\d])つまで選ぶ/);
+    // ベット強化版「あなたがベットしていた場合、代わりにNつまで選ぶ」があれば優先（常にベットしたとして扱う近似）
+    const cntMCSOBet = txtCSO.match(/あなたがベットしていた場合、代わりに([２-９\d])つ(?:まで)?選ぶ/);
+    const cntMCSO = cntMCSOBet ?? txtCSO.match(/以下の.*?から([２-９\d])つまで選ぶ/);
     const maxRoundsCSO = cntMCSO ? parseInt(toHWCSO(cntMCSO[1])) : 2;
     const remainingCSO = typeof stub.value === 'number' ? stub.value : maxRoundsCSO;
     if (remainingCSO <= 0) return done(addLog(ctx, '選択完了'));
@@ -2869,16 +2871,16 @@ export function execStubPart3(
         available: ctx.otherState.field.signi.some(s => s && s.length > 0),
       });
     }
-    // ②アタックできない付与: センタールリグにアタック禁止を付与
-    if (txtCSO.match(/②.*アタックできない/)) {
+    // ②アタックできない付与: センタールリグにアタック禁止を付与（③以降に文を伸ばさないよう[^③]で範囲限定）
+    if (txtCSO.match(/②[^③]*アタックできない/)) {
       optsCSO.push({
         id: 'cso_no_attack', label: '②相手センタールリグにアタック不可を付与',
         action: { type: 'STUB', id: 'INTERNAL_GRANT_NO_ATTACK_LRIG' } as StubAction as EffectAction,
         available: !!ctx.otherState.field.lrig.at(-1),
       });
     }
-    // ②サーチ: デッキからシグニを手札に加える
-    if (txtCSO.match(/②.*デッキ.*シグニ.*(?:手札|探して)/)) {
+    // ②サーチ: デッキからシグニを手札に加える（③のクラス指定サーチと誤マッチしないよう[^③]で範囲限定）
+    if (txtCSO.match(/②[^③]*デッキ[^③]*シグニ[^③]*(?:手札|探して)/)) {
       optsCSO.push({
         id: 'cso_search', label: '②デッキからシグニを手札に加える',
         action: { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ' }, maxCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } } as EffectAction,

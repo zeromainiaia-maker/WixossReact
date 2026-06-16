@@ -96,11 +96,13 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   }
   const tgt = a.target;
   // levelEqDiscardLevelSum / levelEqualsVar: コスト支払い時の動的値でフィルターを解決
-  const resolvedFilter: import('../types/effects').TargetFilter | undefined = tgt.filter?.levelEqDiscardLevelSum
+  const preResolvedFilter: import('../types/effects').TargetFilter | undefined = tgt.filter?.levelEqDiscardLevelSum
     ? { ...tgt.filter, levelEqDiscardLevelSum: undefined, level: ctx.ownerState.last_activated_discard_level_sum ?? -1 }
     : tgt.filter?.levelEqualsVar === 'charm_trash_count'
     ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_charm_trash_count ?? 0 }
     : tgt.filter;
+  // colorMatchesLrig / levelLteFieldVirusCount等の動的フィルタを解決（activatorはctx.ownerState固定）
+  const resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState);
   const state = ownerState(tgt.owner, ctx);
   const banishProtected = tgt.owner === 'opponent' ? new Set(ctx.otherBanishProtectedNums ?? []) : new Set<string>();
   if (tgt.owner === 'opponent') {
@@ -467,20 +469,29 @@ function resolveDynamicFilter(
   filter: import('../types/effects').TargetFilter | undefined,
   ownerSt: import('../types').PlayerState,
   cardMap: Map<string, import('../types').CardData>,
+  otherSt?: import('../types').PlayerState,
 ): import('../types/effects').TargetFilter | undefined {
   if (!filter) return filter;
-  if (!filter.colorMatchesLrig && !filter.colorNotMatchesLrig) return filter;
-  const lrigTop = ownerSt.field.lrig.at(-1);
-  const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
-  if (filter.colorMatchesLrig) {
-    const { colorMatchesLrig: _, ...rest } = filter;
-    if (!lrigColor) return rest;
-    return { ...rest, color: lrigColor };
+  let result = filter;
+  if (result.colorMatchesLrig || result.colorNotMatchesLrig) {
+    const lrigTop = ownerSt.field.lrig.at(-1);
+    const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
+    if (result.colorMatchesLrig) {
+      const { colorMatchesLrig: _, ...rest } = result;
+      result = lrigColor ? { ...rest, color: lrigColor } : rest;
+    } else {
+      // colorNotMatchesLrig
+      const { colorNotMatchesLrig: _, ...rest } = result;
+      result = lrigColor ? { ...rest, colorExclude: lrigColor } : rest;
+    }
   }
-  // colorNotMatchesLrig
-  const { colorNotMatchesLrig: _, ...rest } = filter;
-  if (!lrigColor) return rest;
-  return { ...rest, colorExclude: lrigColor };
+  if (result.levelLteFieldVirusCount && otherSt) {
+    const ownVirus = (ownerSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
+    const oppVirus = (otherSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
+    const { levelLteFieldVirusCount: _, ...rest } = result;
+    result = { ...rest, level: { max: ownVirus + oppVirus } };
+  }
+  return result;
 }
 
 function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
@@ -488,12 +499,13 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = src.owner;
   const state = ownerState(tgtOwner, ctx);
   const ownerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  const otherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
 
   let cands: string[];
   let scope: TargetScope;
 
   if (src.type === 'TRASH_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap);
+    const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt);
     cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
@@ -556,12 +568,13 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   let scope: TargetScope;
 
   const addToFieldOwnerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  const addToFieldOtherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
   if (src.type === 'TRASH_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt);
     cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt);
     cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else if (src.type === 'HAND_CARD') {
@@ -901,7 +914,8 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   }
   if (resolvedFilter.colorMatchesLrig || resolvedFilter.colorNotMatchesLrig) {
     const searchOwnerSt = a.from.owner === 'self' ? ctx.ownerState : ctx.otherState;
-    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap) };
+    const searchOtherSt = a.from.owner === 'self' ? ctx.otherState : ctx.ownerState;
+    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt) };
   }
 
   // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュ内でレベル1シグニとして扱うカードのオーバーライド

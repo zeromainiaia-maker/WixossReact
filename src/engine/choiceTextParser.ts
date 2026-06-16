@@ -15,6 +15,8 @@ import type {
   LifeCrashAction,
   AddToLifeAction,
   EnergyChargeFromDeckAction,
+  AddToFieldAction,
+  BlockActionAction,
 } from '../types/effects';
 
 export interface ParsedChoiceOption {
@@ -33,6 +35,30 @@ const CHOICE_PATTERNS = [
 
 /** 選択肢1つ分のテキストをアクションに変換（解析不可ならnull） */
 export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
+  // 「レベルが場にある【ウィルス】の数以下の対戦相手のシグニ１体を対象とし、それをバニッシュする」（WX16-005①）
+  // 汎用バニッシュ判定より先に判定する必要がある
+  if (choiceTxt.match(/レベルが場にある【ウィルス】の数以下の対戦相手のシグニ[１1]体を対象とし.*バニッシュする/)) {
+    return {
+      type: 'BANISH',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelLteFieldVirusCount: true } },
+    } as BanishAction;
+  }
+  // 「トラッシュから、レベルが場にある【ウィルス】の数以下のシグニ１枚を対象とし、それを場に出す。そのシグニの【出】能力は発動しない」（WX16-005②）
+  if (choiceTxt.match(/トラッシュから.*レベルが場にある【ウィルス】の数以下のシグニ[１1]枚を対象とし.*場に出す/)) {
+    const steps: EffectAction[] = [
+      {
+        type: 'ADD_TO_FIELD', owner: 'self',
+        source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', levelLteFieldVirusCount: true } },
+      } as AddToFieldAction,
+    ];
+    if (choiceTxt.match(/【出】能力は発動しない/)) {
+      steps.push({
+        type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 },
+        actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN',
+      } as BlockActionAction);
+    }
+    return steps.length === 1 ? steps[0] : ({ type: 'SEQUENCE', steps } as SequenceAction);
+  }
   // 「カードをN枚引く」→ DRAW（後続の「その後…」は近似で省略。JSONの後続STUBが担う場合あり）
   const drawM = choiceTxt.match(/カードを([１-９1-9])枚引く/);
   if (drawM) return { type: 'DRAW', count: parseInt(toHW(drawM[1])) } as DrawAction;

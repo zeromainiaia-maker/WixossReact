@@ -1,5 +1,69 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+## 🚧 2026-06-16 ymsty側: BET_ALTERNATIVE誤分類バグ系統修正 — 進行中（トークン残量低のため中断、続行要）
+
+### 発端
+STUBS.md 13番(`DRAW_IF_OPP_DISCARDED_HAND`)/14番(`DISABLE_FIRST_ABILITY_ON_ATTACK`)の「対象カード0件」記載をユーザーが疑問視。
+調査の結果、14番は本当に0件だが、**13番には対象カード(`SPK16-13E`)が実在し、別の系統バグに埋もれて見えなくなっていた**ことが判明。
+
+### 根本原因（修正済み）
+`src/data/parsers/parseSentencePart3.ts` で「あなたがベットしていた場合、代わりに」（→`BET_ALTERNATIVE`、実体はno-op）の判定が
+「`^ベット―`」（→`BET_MECHANIC`、①②③選択UI+ベット強化を実際に実行する）より**先**にあり、
+**ベット―カード全件が無条件で`BET_ALTERNATIVE`に誤分類されていた**。判定順を入れ替えて修正済み（将来の再パース時のみ有効、既存JSONは個別修正が必要）。
+
+CSV全件調査で「ベット―...あなたがベットしていた場合、代わりに」形式のカードは**42枚**。うち4枚（`WDK06-R08`/`SPK16-13E`/`WX18-003`/`WX18-005`）が完全no-op、
+14枚がSEQUENCE内に`BET_ALTERNATIVE`を埋め込んだ形で**ベット強化部分のみno-op**（一部はベース効果自体もテキストと無関係な誤実装）。
+残り24枚はSEQUENCEで個別に手実装済み（ただし「ベットしたかどうか」の分岐自体は無視し常に強化版相当を実行する近似が既存の慣習）。
+
+### ✅ 完了（4/14 + 2/4トップレベル）
+| カード | 内容 |
+|---|---|
+| `WX18-003` | `BET_ALTERNATIVE`→`BET_MECHANIC`に変更のみ。①②とも既存`choiceTextParser`で解析可能 |
+| `WX18-005` | 同上。①②③④とも既存`choiceTextParser`で解析可能 |
+| `WX15-029` | ①②択一なし、単純な「1枚回収→ベット時2枚」型。常に強化版（2枚、`colorMatchesLrig`フィルタ欠落も併せて修正）を実行する単一アクションに変更 |
+| `WX16-005` | ベースのJSON自体がテキストと無関係（ウィルス関連①②③のはずがIS_MY_TURN+ライフクロス加算という別物）だった。**新エンジン機能**`TargetFilter.levelLteFieldVirusCount`（場の両プレイヤー合計ウィルス数以下のレベル、`effectExecutor.ts`の`resolveDynamicFilter`に統合・`execBanish`/`execAddToField`/`execTransferToHand`/`execSearch`全呼び出し元に`otherSt`引数追加）を新設し、`choiceTextParser.ts`に①②の新パターンを追加。`BET_MECHANIC`に変更しベット強化込みで動作確認済み |
+| `WX17-003` | `parseStatus:PARTIAL`で`UNKNOWN`ノード＋`CHOOSE_SAME_OPTION_TWICE`と`CHOOSE_SAME_OPTION_MULTIPLE`を**両方**実行する重複バグ＋無関係な末尾`TRASH`まで混入していた実バグも発見・修正。JSONを`STUB:CHOOSE_SAME_OPTION_TWICE`単独に整理。`execStubPart3.ts`の同スタブに「あなたがベットしていた場合、代わりにNつまで選ぶ」優先読み取りを追加（常に強化版round数を使う近似）。②の正規表現が`[^③]`で範囲限定されておらず③のテキストまで誤マッチしていた実バグも修正 |
+
+検証: 各修正後に `npx tsc --noEmit -p .`（0エラー）・`node scripts/checkAllEffects.mjs`（合計78件、修正前と同数=退行なし）・
+`npx tsx scripts/verifyEffects.ts --sheet Sheet2 --card <ID>`（個別確認、新規issueなし）を実施済み。
+
+### ⬜ 残り11/14（同パターンで対応すること）
+
+**単純スケール型（①②選択肢なし、常に強化版を実行する1アクションに変更するだけで良い）**:
+- `WX17-005`（鎧終一触）: `MAKE_SERVANT_ZERO`スタブの実装内容を先に確認。ベット時「シグニ1体→対戦相手のすべてのシグニ」に対象拡大
+- `WD19-006`（フェイタル・パニッシュ）: パワー-7000→ベット時-12000に値を変更するだけ
+- `WD19-007`（シックネス・ラブ）: パワー-8000→ベット時-15000に値を変更するだけ
+- `WXK07-106`（ハット・トリック）: 「効果を1回行う」→ベット時2回（SEQUENCEで2回繰り返すか、専用ロジック化）
+
+**choiceTextParser経由でBET_MECHANIC化が可能な型（要・新パターン追加してから）**:
+- `WX19-005`（謳金時代）: 現状JSONが`BET_ALTERNATIVE`+`OPP_CHOOSE_YOUR_HAND_DISCARD`のみで①②③④が未実装。①②③④から2つ(ベット時3つ)
+- `WX19-006`（ダウト・クリューソス）: 現状JSONが無関係（IS_MY_TURNで2ドロー）。①②③から1つ(ベット時2つ)
+- `WXK04-014`（血晶操作）: `OPTIONAL_COST`スタブの実装内容を先に確認。①②③から1つ(ベット時2つ)
+- `WDK05-T10`（ヴィクティム・ディフェンス）: 全面未実装。①②から1つ(ベット時2つ両方)
+- `WDK12-007`（難攻不落）: 全面未実装。①②から1つ(ベット時2つ両方)。【チャーム】関連の新規アクション語彙が必要かも
+- `PR-K072`（パワー・オブ・ヒロインズ）: 全面未実装。①②から1つ(ベット時2つ両方)
+
+**個別構造（CHOOSE的だが①②形式ではない）**:
+- `WXDi-P07-059`（サーブ・カラー）: ドロー+色宣言+①か②の能力付与（ベット時②）。choiceTextParserの枠外、専用CHOOSE実装が必要
+
+CSV全文・現状JSON構造は本セッションの会話ログに全件ダンプ済み（再取得は`grep -h "^<ID>," public/data/CardData_Sheet*.csv`と
+`node -e "console.log(JSON.parse(require('fs').readFileSync('public/data/effects_WX.json'))['<ID>'])"`で再現可能）。
+
+### ⬜ 別系統として保留（このラウンドでは着手しない、より大きな機構追加が必要）
+- `WDK06-R08`（火中取栗）: ①「対象のあなたの《ライズアイコン》を持つシグニ1体よりパワーの低い対戦相手のシグニ」という**選択した参照カードとの相対パワー比較**ターゲティングが未実装（`levelLteFieldVirusCount`と似た方式だが、ボード集計値でなく「プレイヤーが選んだ別カードのパワー」を動的フィルタにする必要があり一段複雑）
+- `SPK16-13E`（カウンター・ヴァンプ）: STUBS.md 13番(`DRAW_IF_OPP_DISCARDED_HAND`)の本体。①②③とも「このターン対戦相手の効果で自分の場/エナ/手札からカードが移動した」という**ターン限定トリガーフラグ**（3ゾーン分）が未実装。新設が必要
+
+### 副次的に発見した未修正の課題（要対応だが今回はスキップ）
+- `scripts/verifyEffects.ts`の`STUB_EQUIVALENTS['BET_ALTERNATIVE']`が「実装済みとして除外してよい」と誤登録されている
+  （実体はno-op、コメント自体も「ログのみのSTUBを登録すると実欠落を隠蔽してしまう」と注意書きがあるのに違反していた）。
+  **残り11枚＋保留2枚の修正が完了してから**このエントリを削除する（今消すと未修正カード分の新規issueが大量に出るため順序が重要）
+
+### デプロイ
+**今回の変更はJSON+エンジンコードのみ、UI変更なし。`vercel deploy --prod`をzerom側で実施すること**（ymsty側に権限なし）。
+残り11枚＋保留2枚の対応が終わってからまとめてデプロイ推奨。
+
+---
+
 ## ✅ 2026-06-14 ymsty側: CONTINUOUS activeCondition 未評価バグ 系統修正（コミット b153a41c・e3c3e8a0）
 
 ### 修正内容（2コミット）

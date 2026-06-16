@@ -893,11 +893,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- ベットメカニクス ----
-  if (t.match(/あなたがベットしていた場合、代わりに/)) {
-    return { type: 'STUB', id: 'BET_ALTERNATIVE' } as StubAction;
-  }
+  // 「ベット―」で始まるカード全体は①②③選択＋ベット強化のBET_MECHANICとして扱う。
+  // 「あなたがベットしていた場合、代わりに」はBET_MECHANIC本文にも必ず含まれるため、
+  // こちらを先に判定すると全てのベットカードがBET_ALTERNATIVE（no-op）に誤分類されてしまう。
   if (t.match(/^ベット―/)) {
     return { type: 'STUB', id: 'BET_MECHANIC' } as StubAction;
+  }
+  if (t.match(/あなたがベットしていた場合、代わりに/)) {
+    return { type: 'STUB', id: 'BET_ALTERNATIVE' } as StubAction;
   }
 
   // ---- トラップメカニクス ----
