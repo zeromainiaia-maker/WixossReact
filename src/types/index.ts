@@ -311,6 +311,13 @@ export interface PlayerState {
   pending_signi_battle?: { zoneIndex: number };
   // ON_ATTACK_LRIG解決後にlrig_attacked: trueをセット待ち（防御側IDを保持）
   pending_lrig_attack?: boolean;
+  // UPKEEP_OR_NO_UP: 次の自分のUPフェーズにルリグアップ条件（条件未達でセンタールリグはアップしない）
+  // 'pay_colorless1': 《無》1枚支払わないかぎりアップしない
+  // 'pay_colorless3': 《無》3枚支払わないかぎりアップしない
+  // 'discard_or_colorless1': 手札1枚捨てるか《無》1枚支払わないかぎりアップしない
+  lrig_upkeep_condition?: 'pay_colorless1' | 'pay_colorless3' | 'discard_or_colorless1';
+  // DISCARD_BY_POWER_MATCH: 起動コスト支払い後に捨てたシグニのパワーを記録（次のexecStub呼び出しで参照）
+  last_discarded_signi_power?: number;
 }
 
 export interface GameLog {
