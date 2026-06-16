@@ -272,9 +272,14 @@ function parseCost(costStr: string): EffectCost | undefined {
       cost.handDiscardSigni = { count: parseNum(hcLvSigniM[2]), level: parseNum(hcLvSigniM[1]) };
     }
   }
+  // このシグニの下からカードN枚をトラッシュ → underSelfTrash
+  const ustM = costStr.match(/(?:このシグニ|あなたのシグニ[０-９\d]?体?)の下からカード(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
+  if (ustM) cost.underSelfTrash = parseNum(ustM[1]);
+  else if (/このシグニの下からカード(?:１枚|一枚)をトラッシュに置く/.test(costStr)) cost.underSelfTrash = 1;
   // デッキ上からN枚トラッシュ → deckTrash
   const dtM = costStr.match(/デッキの(?:一番)?上からカードを?([０-９\d]+)枚トラッシュに置く/);
   if (dtM) cost.deckTrash = parseNum(dtM[1]);
+  else if (/デッキの一番上のカードをトラッシュに置く/.test(costStr)) cost.deckTrash = 1;
   // ライフクロスをクラッシュ → life_crash
   const lcM = costStr.match(/ライフクロス([０-９\d]+)枚をクラッシュ(?:する)?/);
   if (lcM) cost.life_crash = parseNum(lcM[1]);
