@@ -210,7 +210,9 @@ export function execStubPart1(
   if (stub.id === 'ACCE_BANISH_SUBSTITUTE') {
     return done(addLog(ctx, 'アクセ代替バニッシュ（BattleScreen側処理）'));
   }
-  // BET_MECHANIC: コインを消費してベット→強化選択（①②③④から2つ、ベット時4つ）
+  // BET_MECHANIC: ①②③④選択（ベット時は強化数まで選べる）
+  // ベット可否・コイン消費はアーツ使用モーダル側（parseBetCost/is_betting_this_effect、BET_CONDITIONと共通）で
+  // 既に確定済みのため、ここで独自に「ベットしますか？」を聞いたりコインを消費したりしない（二重課金防止）。
   if (stub.id === 'BET_MECHANIC') {
     const srcBET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtBET = srcBET ? (srcBET.EffectText ?? '') + ' ' + (srcBET.BurstText ?? '') : '';
@@ -221,39 +223,17 @@ export function execStubPart1(
     // 通常時の選択数「以下のNつからMつ(まで)選ぶ」（既定2）
     const baseCntMBET = txtBET.match(/から([１-９\d])つ(?:まで)?(?:を)?選ぶ/);
     const baseCntBET = baseCntMBET ? parseInt(toHWBET(baseCntMBET[1])) : 2;
-    // COIN_USE_RESTRICTION: コインをスペルとシグニにしか使えない場合、アーツBETは不可
-    const coinRestricted = ctx.ownerState.coin_use_restriction === 'spell_signi_only';
-    const hasCoins = ctx.ownerState.coins > 0 && !coinRestricted;
-    // コインがある場合はベット選択を提示
-    if (hasCoins) {
-      const noopBET: SequenceAction = { type: 'SEQUENCE', steps: [] };
-      const betYesOpt = { id: 'bet_yes', label: `ベットする（コイン消費・強化選択）`, action: ({ type: 'STUB', id: 'INTERNAL_BET_SHOW_4', value: txtBET } as StubAction) as EffectAction, available: true };
-      const betNoOpt = { id: 'bet_no', label: `ベットしない（${baseCntBET}択）`, action: noopBET as EffectAction, available: true };
-      const pendingBetQ: PendingInteractionDef = {
-        type: 'CHOOSE', options: [betYesOpt, betNoOpt], count: 1,
-        continuation: optsBET.length > 0 ? ({ type: 'CHOOSE', options: optsBET, count: Math.min(baseCntBET, optsBET.length) } as unknown as EffectAction) : undefined,
-      };
-      return needsInteraction(addLog(ctx, 'ベットしますか？（コインを消費して強化選択）'), pendingBetQ);
+    if (ctx.ownerState.is_betting_this_effect) {
+      // ベット済み（モーダルでコイン消費・宣言済み）→ 強化数「代わりにNつまで選ぶ」を使う
+      const enhCntMBET = txtBET.match(/代わりに([１-９\d])つ(?:まで)?(?:を)?選ぶ/);
+      const enhCntBET = enhCntMBET ? parseInt(toHWBET(enhCntMBET[1])) : baseCntBET;
+      const clearedOwnerBET = { ...ctx.ownerState, is_betting_this_effect: undefined };
+      return needsInteraction(addLog({ ...ctx, ownerState: clearedOwnerBET }, `ベット済み→${enhCntBET}択`), {
+        type: 'CHOOSE', options: optsBET, count: Math.min(enhCntBET, optsBET.length),
+      });
     }
-    // コインなし：通常選択
-    return needsInteraction(addLog(ctx, `ベット（コインなし）→${baseCntBET}択`), {
+    return needsInteraction(addLog(ctx, `${baseCntBET}択`), {
       type: 'CHOOSE', options: optsBET, count: Math.min(baseCntBET, optsBET.length),
-    });
-  }
-  // INTERNAL_BET_SHOW_4: ベット時に4択を表示
-  if (stub.id === 'INTERNAL_BET_SHOW_4') {
-    const txtIBET = typeof stub.value === 'string' ? stub.value : '';
-    const toHWIBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // ①②③④ 選択肢を解析（choiceTextParserに共通化）
-    const optsIBET = parseChoiceOptionsFromText(txtIBET, 'ibet_c');
-    // ベット時の選択数「代わりにNつまで選ぶ」（既定4）
-    const enhCntMIBET = txtIBET.match(/代わりに([１-９\d])つ(?:まで)?(?:を)?選ぶ/);
-    const enhCntIBET = enhCntMIBET ? parseInt(toHWIBET(enhCntMIBET[1])) : 4;
-    // コインを1枚消費
-    const newOwnerIBET = { ...ctx.ownerState, coins: Math.max(0, ctx.ownerState.coins - 1) };
-    if (optsIBET.length === 0) return done(addLog({ ...ctx, ownerState: newOwnerIBET }, 'ベット強化選択（解析不可）'));
-    return needsInteraction(addLog({ ...ctx, ownerState: newOwnerIBET }, `ベット！コイン消費→${enhCntIBET}択`), {
-      type: 'CHOOSE', options: optsIBET, count: Math.min(enhCntIBET, optsIBET.length),
     });
   }
   // BET_ALTERNATIVE: ベット強化済みなのでスキップ（BET_MECHANICで処理済み）

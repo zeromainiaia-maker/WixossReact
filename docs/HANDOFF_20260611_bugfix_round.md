@@ -1,5 +1,37 @@
 # 引き継ぎ: バグ修正ラウンド続き（2026-06-11 → zrom側Claudeへ）
 
+## ✅ 2026-06-17 ymsty側: BET_MECHANICの二重ベットプロンプト実バグ修正
+
+### 発端
+zerom側のBET_ALTERNATIVE全14枚完了（v0.319-320、下記エントリ）をpullしてレビュー中に発見。
+
+### 問題
+`BattleScreen.tsx`にはアーツ使用モーダル側で「ベット―《コインアイコン》」をテキストから検出し、トグルでコイン消費＋
+`is_betting_this_effect`フラグを立てる**既存の**仕組み（`parseBetCost`、コミットd178a847＝今回のBET_ALTERNATIVE作業より大幅に古い、
+`BET_CONDITION`が参照）が存在していた。一方、`BET_MECHANIC`スタブ（`execStubPart1.ts`）は効果解決時に**独自に**
+「ベットしますか？」を再度尋ね、コインを**実コストを無視して常に1枚固定**で消費する別経路だった。
+
+`BET_MECHANIC`を使うカードが0枚→11枚（WX18-003/WX18-005/WX15-029/WX16-005/WX17-003/WX19-005/WX19-006/WXK04-014/
+WDK05-T10/PR-K072/WDK12-007/WDK06-R08/SPK16-13E、一部重複あり）に増えたことで、この2つが同じカードに対して
+両方動くようになり、**二重プロンプト＋コイン消費額の不一致**という実害が出る状態になっていた。
+
+### 修正
+`execStubPart1.ts`の`BET_MECHANIC`を、独自プロンプト（`INTERNAL_BET_SHOW_4`）を呼ばず`ctx.ownerState.is_betting_this_effect`
+（モーダル側で既に確定済み）を直接読むだけに変更（`BET_CONDITION`と同じパターンで使用後にフラグクリア）。
+`INTERNAL_BET_SHOW_4`ハンドラ自体は到達不能になったが削除はしていない（他から参照なし、害もないため）。
+
+### 確認済み・既知の残課題
+- 検証: tsc 0エラー / checkAllEffects 78件（退行なし）
+- **WXDi-P07-059（スペル型）は対象外のまま**: `parseBetCost`/`is_betting_this_effect`は`executeArts`（アーツ専用）でしか
+  セットされない。スペル使用フローには同等のベットUIが無いため、この1枚は引き続きベット強化（②付与）に到達不能
+  （`GRANT_ABILITY_UNTIL_OPP_TURN`スタブも①②を区別せず常に「シャドウ」を付与する近似のまま、要再訪）
+- 同様にWXK07-106等の「単純スケール型4枚」は元々`BET_MECHANIC`を経由しない常時強化版実行のため対象外（無関係）
+
+### デプロイ
+`vercel deploy --prod` を zerom 側で実施すること（ymsty側に権限なし）。
+
+---
+
 ## ✅ 2026-06-17 zerom側: フィーチャーギャップ修正（v0.320）
 
 ### 実施内容
