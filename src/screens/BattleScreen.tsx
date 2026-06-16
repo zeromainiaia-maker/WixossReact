@@ -6752,7 +6752,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── UPフェイズ（ドロー）───
     if (phase === 'UP') {
       appendBattleLogs([`[CPU] ${drawCount}枚ドロー`]);
-      const newCpuSt = drawCards(cpuSt, drawCount);
+      const cpuPreventRefresh = cpuSt.field.signi.some(s => {
+        const top = s?.at(-1);
+        return top && (effectsMap.get(top) ?? []).some(e =>
+          e.effectType === 'CONTINUOUS' &&
+          (e.action as import('../types/effects').StubAction).type === 'STUB' &&
+          (e.action as import('../types/effects').StubAction).id === 'PREVENT_LIFE_REFRESH_TRASH',
+        );
+      });
+      const newCpuSt = drawCards(cpuSt, drawCount, cpuPreventRefresh);
       await supabase.from('battle_states').update({
         guest_state: { ...newCpuSt, actions_done: ['DRAW'] },
         turn_phase: 'DRAW',
