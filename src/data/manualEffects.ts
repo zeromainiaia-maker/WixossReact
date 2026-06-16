@@ -188,6 +188,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX10-018-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
+      cost: { energy: [{ color: '緑', count: 2 }] },
       action: { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN' },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: false,
