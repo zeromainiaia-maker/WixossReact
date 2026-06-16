@@ -251,10 +251,11 @@ function parseCost(costStr: string): EffectCost | undefined {
     cost.energyTrash = { count: parseNum(etKwM[2]), filter: { keyword: etKwM[1] } };
   }
   // 手札から[フィルター]カードN枚を捨てる（シグニ以外の汎用手札捨て）
-  if (!cost.handDiscardSigni && !cost.discardSelfFromHand && !cost.discard) {
+  if (!cost.handDiscardSigni && !cost.discardSelfFromHand && !cost.discard && !cost.discardVariable) {
     const hcCardM = costStr.match(/手札から(?:＜([^＞]+)＞の)?カードを?([０-９\d]+)枚捨てる/);
     const hcSpellM = !hcCardM ? costStr.match(/手札からスペルを([０-９\d]+)枚捨てる/) : null;
-    const hcVarM = !hcCardM && !hcSpellM ? costStr.match(/手札から(?:＜([^＞]+)＞の)?(?:カード|シグニ)を([０-９\d]+)枚以上捨てる/) : null;
+    const hcVarSigniM = !hcCardM && !hcSpellM ? costStr.match(/手札から(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚以上捨てる/) : null;
+    const hcLvSigniM = !hcCardM && !hcSpellM && !hcVarSigniM ? costStr.match(/手札からレベル([０-９\d]+)のシグニを([０-９\d]+)枚捨てる/) : null;
     if (hcCardM) {
       const hcFilter: TargetFilter = {};
       if (hcCardM[1]) hcFilter.story = hcCardM[1];
@@ -263,12 +264,21 @@ function parseCost(costStr: string): EffectCost | undefined {
     } else if (hcSpellM) {
       cost.discard = parseNum(hcSpellM[1]);
       cost.discardFilter = { cardType: 'スペル' };
-    } else if (hcVarM) {
-      const hvFilter: TargetFilter = {};
-      if (hcVarM[1]) hvFilter.story = hcVarM[1];
-      cost.discardVariable = { min: parseNum(hcVarM[2]), filter: Object.keys(hvFilter).length ? hvFilter : undefined };
+    } else if (hcVarSigniM) {
+      const hvFilter: TargetFilter = { cardType: 'シグニ' };
+      if (hcVarSigniM[1]) hvFilter.story = hcVarSigniM[1];
+      cost.discardVariable = { min: parseNum(hcVarSigniM[2]), filter: hvFilter };
+    } else if (hcLvSigniM) {
+      cost.handDiscardSigni = { count: parseNum(hcLvSigniM[2]), level: parseNum(hcLvSigniM[1]) };
     }
   }
+  // デッキ上からN枚トラッシュ → deckTrash
+  const dtM = costStr.match(/デッキの(?:一番)?上からカードを?([０-９\d]+)枚トラッシュに置く/);
+  if (dtM) cost.deckTrash = parseNum(dtM[1]);
+  // ライフクロスをクラッシュ → life_crash
+  const lcM = costStr.match(/ライフクロス([０-９\d]+)枚をクラッシュ(?:する)?/);
+  if (lcM) cost.life_crash = parseNum(lcM[1]);
+  else if (/ライフクロス[１1]枚をクラッシュ/.test(costStr)) cost.life_crash = 1;
   // トラッシュにあるカードをゲームから除外するコスト → trashExile
   if (costStr.match(/トラッシュにあるこのカードをゲームから除外する/)) {
     cost.trashExile = { self: true };
