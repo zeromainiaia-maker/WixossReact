@@ -1580,7 +1580,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT' } as StubAction;
 
   // ---- 【マルチエナ】常時能力 ----
-  if (t.match(/^【常】：【マルチエナ】$/))
+  if (t.match(/^(?:【常】：)?【マルチエナ】。?$/))
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- 対戦相手のライフクロスを手札に加えさせる ----
