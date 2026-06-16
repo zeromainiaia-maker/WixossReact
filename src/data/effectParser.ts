@@ -205,8 +205,8 @@ function parseCost(costStr: string): EffectCost | undefined {
   }
   // このシグニを場からトラッシュに置く → trash_self
   if (/このシグニを(?:場から)?トラッシュに置く/.test(costStr)) cost.trash_self = true;
-  // このキーを場からルリグトラッシュに置く（単独 or 他コストと複合） → trash_key
-  if (/このキーを(?:場から)?ルリグトラッシュに置く/.test(costStr)) cost.trash_key = true;
+  // このキーを場からルリグトラッシュに置く（単独 or 複合「置き」形も含む） → trash_key
+  if (/このキーを(?:場から)?ルリグトラッシュに置く/.test(costStr) || /このキーを(?:場から)?ルリグトラッシュに置き/.test(costStr)) cost.trash_key = true;
   // 手札からこのカードを捨てる → discardSelfFromHand
   if (/手札からこのカードを捨てる/.test(costStr)) cost.discardSelfFromHand = true;
   // 場のシグニN体をトラッシュ（フィールドから、クラス指定あり） → fieldTrash
