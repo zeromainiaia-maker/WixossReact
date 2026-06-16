@@ -6369,9 +6369,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）
     if (my.field.lrig_down) return false; // すでに攻撃済み
     if (op.field.lrig_attacked) return false; // ガード応答待ち中
-    if ((my.lrig_riding_signi?.length ?? 0) > 0) return false; // ドライブ状態：ルリグはアタックできない
-    // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: negated_attacks にルリグIDがある場合アタック不可
     const myLrigNumLA = my.field.lrig.at(-1);
+    const allowDriveAttack = !!(myLrigNumLA && (effectsMap.get(myLrigNumLA) ?? []).some(e =>
+      e.effectType === 'CONTINUOUS' &&
+      (e.action as import('../types/effects').StubAction).type === 'STUB' &&
+      (e.action as import('../types/effects').StubAction).id === 'ALLOW_ATTACK_WHILE_DRIVE',
+    ));
+    if ((my.lrig_riding_signi?.length ?? 0) > 0 && !allowDriveAttack) return false; // ドライブ状態：ルリグはアタックできない
+    // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: negated_attacks にルリグIDがある場合アタック不可
     if (myLrigNumLA && (my.negated_attacks ?? []).includes(myLrigNumLA)) return false;
     // keyword_grants で「アタックできない」が付与されている場合アタック不可
     if (myLrigNumLA && (my.keyword_grants?.[myLrigNumLA] ?? []).includes('アタックできない')) return false;
