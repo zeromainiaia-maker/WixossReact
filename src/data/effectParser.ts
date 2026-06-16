@@ -203,13 +203,39 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (hdsSimple[2]) hdsObj.story = hdsSimple[2];
     cost.handDiscardSigni = hdsObj;
   }
-  // エナゾーンから[フィルター]シグニN枚をトラッシュに置く → energyTrash
-  const etM = costStr.match(/エナゾーンから(?:(?:それぞれ?レベルの異なる|名前の異なる)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/);
+  // このシグニを場からトラッシュに置く → trash_self
+  if (/このシグニを(?:場から)?トラッシュに置く/.test(costStr)) cost.trash_self = true;
+  // このキーを場からルリグトラッシュに置く → trash_key
+  if (/このキーを(?:場から)?ルリグトラッシュに置く/.test(costStr)) cost.trash_key = true;
+  // 場のシグニN体をトラッシュ（フィールドから、クラス指定あり） → fieldTrash
+  const ftM = costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体を場からトラッシュに置く/);
+  const ftArmWep = !ftM ? costStr.match(/＜アーム＞のシグニ[１1]体と＜ウェポン＞のシグニ[１1]体を場からトラッシュに置く/) : null;
+  if (ftArmWep) {
+    cost.fieldTrash = { count: 2 };
+  } else if (ftM) {
+    const ftFilter: TargetFilter = { cardType: 'シグニ' };
+    if (ftM[1]) ftFilter.story = ftM[1];
+    cost.fieldTrash = { count: parseNum(ftM[2]), filter: ftFilter };
+  }
+  // エナゾーンから[フィルター]シグニN枚をトラッシュに置く → energyTrash（前置き形）
+  const etM = costStr.match(/エナゾーンから(?:(?:それぞれ?レベルの異なる|名前の異なる|それぞれ共通するクラスを持たない)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/);
+  // エナゾーンから後置き形（「シグニN枚をエナゾーンからトラッシュに置く」）
+  const etRevM = !etM ? costStr.match(/(?:(?:それぞれ?レベルの異なる)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をエナゾーンからトラッシュに置く/) : null;
+  // エナゾーンから＜クラス＞のカードN枚をトラッシュ（カード型）
+  const etCardM = !etM && !etRevM ? costStr.match(/エナゾーンから(?:＜([^＞]+)＞の)?カード([０-９\d]+)枚をトラッシュに置く/) : null;
   if (etM) {
     const etFilter: TargetFilter = { cardType: 'シグニ' };
     if (etM[1]) etFilter.level = parseNum(etM[1]);
     if (etM[2]) etFilter.story = etM[2];
     cost.energyTrash = { count: parseNum(etM[3]), filter: etFilter };
+  } else if (etRevM) {
+    const etRFilter: TargetFilter = { cardType: 'シグニ' };
+    if (etRevM[1]) etRFilter.story = etRevM[1];
+    cost.energyTrash = { count: parseNum(etRevM[2]), filter: etRFilter };
+  } else if (etCardM) {
+    const etCFilter: TargetFilter = {};
+    if (etCardM[1]) etCFilter.story = etCardM[1];
+    cost.energyTrash = { count: parseNum(etCardM[2]), filter: Object.keys(etCFilter).length ? etCFilter : undefined };
   }
   // トラッシュにあるカードをゲームから除外するコスト → trashExile
   if (costStr.match(/トラッシュにあるこのカードをゲームから除外する/)) {
