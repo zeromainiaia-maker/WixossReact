@@ -8489,7 +8489,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.turn_phase === 'ATTACK_LRIG') {
       if (my.field.lrig_down) return []; // 攻撃済み
       if (op.field.lrig_attacked) return []; // ガード応答待ち
-      if ((my.lrig_riding_signi?.length ?? 0) > 0) return [{ label: 'ドライブ中（攻撃不可）', color: C.textDim, onClick: () => {} }];
+      const lrigTopALK = my.field.lrig.at(-1);
+      const driveCanAttack = !!(lrigTopALK && (effectsMap.get(lrigTopALK) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' &&
+        (e.action as import('../types/effects').StubAction).type === 'STUB' &&
+        (e.action as import('../types/effects').StubAction).id === 'ALLOW_ATTACK_WHILE_DRIVE',
+      ));
+      if ((my.lrig_riding_signi?.length ?? 0) > 0 && !driveCanAttack) return [{ label: 'ドライブ中（攻撃不可）', color: C.textDim, onClick: () => {} }];
       return [{ label: 'アタック', color: C.danger, onClick: handleLrigAttack }];
     }
 
