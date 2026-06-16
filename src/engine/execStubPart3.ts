@@ -1966,9 +1966,30 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerACZB },
       `${ctx.cardMap.get(targetACZB)?.CardName ?? targetACZB}の次の起動コスト→《黒×0》`));
   }
-  // BET_CONDITION: ベット条件（ログのみ）
+  // BET_CONDITION: ベット宣言していた場合に追加効果を実行
   if (stub.id === 'BET_CONDITION') {
-    return done(addLog(ctx, 'ベット条件'));
+    if (!ctx.ownerState.is_betting_this_effect) {
+      return done(addLog(ctx, 'ベットなし：BET_CONDITION スキップ'));
+    }
+    const srcBET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtBET = srcBET ? (srcBET.EffectText ?? '') : '';
+    const toHWBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 「さらにカードをN枚引く」パターン（WDK01-010等）
+    const drawBET = txtBET.match(/あなたがベットしていた場合[^。]*さらに(?:カードを)?([１-９\d０-９]+)枚引く/);
+    if (drawBET) {
+      const countBET = parseInt(toHWBET(drawBET[1]));
+      const canDrawBET = Math.min(countBET, ctx.ownerState.deck.length);
+      const newOwnerBET: PlayerState = {
+        ...ctx.ownerState,
+        hand: [...ctx.ownerState.hand, ...ctx.ownerState.deck.slice(0, canDrawBET)],
+        deck: ctx.ownerState.deck.slice(canDrawBET),
+        is_betting_this_effect: undefined,
+      };
+      return done(addLog({ ...ctx, ownerState: newOwnerBET }, `ベットあり：${canDrawBET}枚ドロー`));
+    }
+    // 「この効果を1回繰り返す」パターン（WD21-007等）: フラグクリアのみ（繰り返しは未実装）
+    const newOwnerBETClear: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined };
+    return done(addLog({ ...ctx, ownerState: newOwnerBETClear }, 'ベットあり：追加効果（繰り返し）→未実装'));
   }
   // DISABLE_FIRST_ABILITY_ON_ATTACK: アタック時最初の能力を無効化（ログのみ）
   if (stub.id === 'DISABLE_FIRST_ABILITY_ON_ATTACK') {
