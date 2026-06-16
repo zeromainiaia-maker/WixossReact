@@ -205,10 +205,12 @@ function parseCost(costStr: string): EffectCost | undefined {
   }
   // このシグニを場からトラッシュに置く → trash_self
   if (/このシグニを(?:場から)?トラッシュに置く/.test(costStr)) cost.trash_self = true;
-  // このキーを場からルリグトラッシュに置く → trash_key
+  // このキーを場からルリグトラッシュに置く（単独 or 他コストと複合） → trash_key
   if (/このキーを(?:場から)?ルリグトラッシュに置く/.test(costStr)) cost.trash_key = true;
+  // 手札からこのカードを捨てる → discardSelfFromHand
+  if (/手札からこのカードを捨てる/.test(costStr)) cost.discardSelfFromHand = true;
   // 場のシグニN体をトラッシュ（フィールドから、クラス指定あり） → fieldTrash
-  const ftM = costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体を場からトラッシュに置く/);
+  const ftM = costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/);
   const ftArmWep = !ftM ? costStr.match(/＜アーム＞のシグニ[１1]体と＜ウェポン＞のシグニ[１1]体を場からトラッシュに置く/) : null;
   if (ftArmWep) {
     cost.fieldTrash = { count: 2 };
@@ -217,12 +219,21 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (ftM[1]) ftFilter.story = ftM[1];
     cost.fieldTrash = { count: parseNum(ftM[2]), filter: ftFilter };
   }
+  // 場のチャームN枚をトラッシュ → charmTrash
+  const ctM = costStr.match(/(?:あなたの)?(?:場にある)?【チャーム】([０-９\d]+)枚をトラッシュに置く/);
+  if (ctM) cost.charmTrash = parseNum(ctM[1]);
+  // エナゾーンのカードをすべてトラッシュ → energyTrashAll
+  if (/エナゾーンから(?:すべての)?カードをすべてトラッシュに置く|エナゾーンからすべてのカードをトラッシュに置く/.test(costStr)) {
+    cost.energyTrashAll = true;
+  }
   // エナゾーンから[フィルター]シグニN枚をトラッシュに置く → energyTrash（前置き形）
-  const etM = costStr.match(/エナゾーンから(?:(?:それぞれ?レベルの異なる|名前の異なる|それぞれ共通するクラスを持たない)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/);
+  const etM = !cost.energyTrashAll ? costStr.match(/エナゾーンから(?:(?:それぞれ?レベルの異なる|名前の異なる|それぞれ共通するクラスを持たない)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/) : null;
   // エナゾーンから後置き形（「シグニN枚をエナゾーンからトラッシュに置く」）
-  const etRevM = !etM ? costStr.match(/(?:(?:それぞれ?レベルの異なる)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をエナゾーンからトラッシュに置く/) : null;
+  const etRevM = !etM && !cost.energyTrashAll ? costStr.match(/(?:(?:それぞれ?レベルの異なる)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をエナゾーンからトラッシュに置く/) : null;
   // エナゾーンから＜クラス＞のカードN枚をトラッシュ（カード型）
-  const etCardM = !etM && !etRevM ? costStr.match(/エナゾーンから(?:＜([^＞]+)＞の)?カード([０-９\d]+)枚をトラッシュに置く/) : null;
+  const etCardM = !etM && !etRevM && !cost.energyTrashAll ? costStr.match(/エナゾーンから(?:＜([^＞]+)＞の)?カード([０-９\d]+)枚をトラッシュに置く/) : null;
+  // エナゾーンから【keyword】を持つカードN枚をトラッシュ（キーワード型）
+  const etKwM = !etM && !etRevM && !etCardM && !cost.energyTrashAll ? costStr.match(/エナゾーンから【([^】]+)】を持つカード([０-９\d]+)枚をトラッシュに置く/) : null;
   if (etM) {
     const etFilter: TargetFilter = { cardType: 'シグニ' };
     if (etM[1]) etFilter.level = parseNum(etM[1]);
@@ -236,6 +247,27 @@ function parseCost(costStr: string): EffectCost | undefined {
     const etCFilter: TargetFilter = {};
     if (etCardM[1]) etCFilter.story = etCardM[1];
     cost.energyTrash = { count: parseNum(etCardM[2]), filter: Object.keys(etCFilter).length ? etCFilter : undefined };
+  } else if (etKwM) {
+    cost.energyTrash = { count: parseNum(etKwM[2]), filter: { keyword: etKwM[1] } };
+  }
+  // 手札から[フィルター]カードN枚を捨てる（シグニ以外の汎用手札捨て）
+  if (!cost.handDiscardSigni && !cost.discardSelfFromHand && !cost.discard) {
+    const hcCardM = costStr.match(/手札から(?:＜([^＞]+)＞の)?カードを?([０-９\d]+)枚捨てる/);
+    const hcSpellM = !hcCardM ? costStr.match(/手札からスペルを([０-９\d]+)枚捨てる/) : null;
+    const hcVarM = !hcCardM && !hcSpellM ? costStr.match(/手札から(?:＜([^＞]+)＞の)?(?:カード|シグニ)を([０-９\d]+)枚以上捨てる/) : null;
+    if (hcCardM) {
+      const hcFilter: TargetFilter = {};
+      if (hcCardM[1]) hcFilter.story = hcCardM[1];
+      cost.discard = parseNum(hcCardM[2]);
+      if (Object.keys(hcFilter).length) cost.discardFilter = hcFilter;
+    } else if (hcSpellM) {
+      cost.discard = parseNum(hcSpellM[1]);
+      cost.discardFilter = { cardType: 'スペル' };
+    } else if (hcVarM) {
+      const hvFilter: TargetFilter = {};
+      if (hcVarM[1]) hvFilter.story = hcVarM[1];
+      cost.discardVariable = { min: parseNum(hcVarM[2]), filter: Object.keys(hvFilter).length ? hvFilter : undefined };
+    }
   }
   // トラッシュにあるカードをゲームから除外するコスト → trashExile
   if (costStr.match(/トラッシュにあるこのカードをゲームから除外する/)) {
