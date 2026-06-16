@@ -8411,7 +8411,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュにあるルリグの起動能力を継承
       const hasInheritLrigTrash = (effectsMap.get(lrigTopMA) ?? []).some(eff =>
         eff.effectType === 'CONTINUOUS' &&
-        (eff.action as import('../types/effects').StubAction)?.id === 'INHERIT_LRIG_TRASH_ABILITIES',
+        ((eff.action as import('../types/effects').StubAction)?.id === 'INHERIT_LRIG_TRASH_ABILITIES' ||
+         (eff.action as import('../types/effects').StubAction)?.id === 'COPY_LRIG_TRASH_ACTIVATED'),
       );
       if (hasInheritLrigTrash) {
         for (const trashLrigCn of my.lrig_trash) {
