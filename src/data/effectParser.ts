@@ -1439,17 +1439,27 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   const baseType = card.Type?.split('/')[0] ?? '';
   if (baseType === 'アーツ' || baseType === 'ピース' || baseType === 'リレーピース') {
-    // 【自】を含む場合は分離して個別パース（ARTS_SELF_RECYCLE_ON_TRIGGER等）
+    // 「」『』外側にある【自】：セクションを分離してパース（ARTS_SELF_RECYCLE_ON_TRIGGER等）
+    // 「」内の【自】は付与能力なので除外する
     const rawEff = card.EffectText ?? '';
-    const autoIdx = rawEff.indexOf('【自】：');
-    if (autoIdx >= 0) {
-      const mainPart = rawEff.slice(0, autoIdx).trim();
+    let artsAutoIdx = -1;
+    {
+      let depth = 0;
+      for (let ci = 0; ci < rawEff.length; ci++) {
+        const ch = rawEff[ci];
+        if (ch === '「' || ch === '『') depth++;
+        else if (ch === '」' || ch === '』') depth--;
+        else if (depth === 0 && rawEff.startsWith('【自】：', ci)) { artsAutoIdx = ci; break; }
+      }
+    }
+    if (artsAutoIdx >= 0) {
+      const mainPart = rawEff.slice(0, artsAutoIdx).trim();
       if (mainPart) {
         const mainCard = { ...card, EffectText: mainPart };
         const e = parseArtsEffect(mainCard);
         if (e) effects.push(e);
       }
-      const autoPart = stripRuleParens(rawEff.slice(autoIdx));
+      const autoPart = stripRuleParens(rawEff.slice(artsAutoIdx));
       const autoEffect = parseBlock(card.CardNum, autoPart, effects.length);
       if (autoEffect) {
         autoEffect.effectId = `${card.CardNum}-E${effects.length + 1}`;
