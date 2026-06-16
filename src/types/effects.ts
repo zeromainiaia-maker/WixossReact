@@ -203,6 +203,9 @@ export interface EffectCost {
   fieldToLrigTrash?: { count: number; filter?: TargetFilter }; // 場のカードをルリグトラッシュに置く
   energyTrashColorAll?: string; // エナゾーンからすべての[色]のカードをトラッシュ
   energyTrashSelf?: boolean;   // エナゾーンからこのカード自身をトラッシュに置く
+  acceTrash?: number;          // あなたの【アクセ】N枚をトラッシュに置く（コスト）
+  chargeCounterRemove?: number; // この上からカウンター（貯菌等）Nつを取り除く（コスト）
+  trapToHand?: number;         // あなたの【トラップ】N体を手札に加える（コスト）
 }
 
 // ===== ターゲットフィルタ =====
