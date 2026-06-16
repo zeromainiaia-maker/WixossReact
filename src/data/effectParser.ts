@@ -272,11 +272,15 @@ function parseCost(costStr: string): EffectCost | undefined {
   }
   // 手札から[フィルター]カードN枚を捨てる（シグニ以外の汎用手札捨て）
   if (!cost.handDiscardSigni && !cost.discardSelfFromHand && !cost.discard && !cost.discardVariable) {
-    const hcCardM = costStr.match(/手札から(?:＜([^＞]+)＞の)?カードを?([０-９\d]+)枚捨てる/);
-    const hcSpellM = !hcCardM ? costStr.match(/手札からスペルを([０-９\d]+)枚捨てる/) : null;
-    const hcVarSigniM = !hcCardM && !hcSpellM ? costStr.match(/手札から(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚以上捨てる/) : null;
-    const hcLvSigniM = !hcCardM && !hcSpellM && !hcVarSigniM ? costStr.match(/手札からレベル([０-９\d]+)のシグニを([０-９\d]+)枚捨てる/) : null;
-    if (hcCardM) {
+    const hcColorCardM = costStr.match(/手札から([白赤青緑黒])のカードを([０-９\d]+)枚捨てる/);
+    const hcCardM = !hcColorCardM ? costStr.match(/手札から(?:＜([^＞]+)＞の)?カードを?([０-９\d]+)枚捨てる/) : null;
+    const hcSpellM = !hcColorCardM && !hcCardM ? costStr.match(/手札からスペルを([０-９\d]+)枚捨てる/) : null;
+    const hcVarSigniM = !hcColorCardM && !hcCardM && !hcSpellM ? costStr.match(/手札から(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚以上捨てる/) : null;
+    const hcLvSigniM = !hcColorCardM && !hcCardM && !hcSpellM && !hcVarSigniM ? costStr.match(/手札からレベル([０-９\d]+)のシグニを([０-９\d]+)枚捨てる/) : null;
+    if (hcColorCardM) {
+      cost.discard = parseNum(hcColorCardM[2]);
+      cost.discardFilter = { color: hcColorCardM[1] };
+    } else if (hcCardM) {
       const hcFilter: TargetFilter = {};
       if (hcCardM[1]) hcFilter.story = hcCardM[1];
       cost.discard = parseNum(hcCardM[2]);
