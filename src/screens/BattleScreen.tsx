@@ -7576,6 +7576,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         game_actions_done: isGameOnceAct ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         last_activated_discard_count: totalDiscardedCount,
         last_activated_discard_level_sum: discardVarCards.length > 0 ? discardVarLevelSum : my.last_activated_discard_level_sum,
+        // DISCARD_BY_POWER_MATCH: handDiscardSigniコストで捨てたシグニのパワーを記録
+        last_discarded_signi_power: discardedCards.length > 0
+          ? (parseInt(battleCardMap.get(discardedCards[0])?.Power ?? '0', 10) || undefined)
+          : my.last_discarded_signi_power,
       };
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
       if (effect.cost?.trashExile?.self) {
