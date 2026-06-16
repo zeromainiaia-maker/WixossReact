@@ -4044,7 +4044,7 @@ export function collectFieldSigniExtraColors(
     return (effectsMap.get(lrigCn) ?? []).some(eff => {
       if (eff.effectType !== 'CONTINUOUS') return false;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'FORCE_COLOR_BLACK') return false;
+      if (act.type !== 'STUB' || (act.id !== 'FORCE_COLOR_BLACK' && act.id !== 'CHANGE_ALL_SIGNI_COLOR_TO_BLACK')) return false;
       return checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, lrigCn);
     });
   });
