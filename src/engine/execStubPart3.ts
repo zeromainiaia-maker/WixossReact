@@ -1915,9 +1915,17 @@ export function execStubPart3(
       addLog({ ...ctx, sourceCardNum: cnTSFUL, lastProcessedCards: [] },
         `${cardTSFUL.CardName}をトラッシュからコストなしで使用`));
   }
-  // UPKEEP_OR_NO_UP: アップキープかアップなし（ログのみ）
+  // UPKEEP_OR_NO_UP: 次の相手UPフェーズに条件未達でセンタールリグをアップさせない
   if (stub.id === 'UPKEEP_OR_NO_UP') {
-    return done(addLog(ctx, 'アップキープかアップなし'));
+    const srcUONU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtUONU = srcUONU ? (srcUONU.EffectText ?? '') + ' ' + (srcUONU.BurstText ?? '') : '';
+    // 《無》×3 を支払わないかぎり
+    let condUONU: import('../../types/index').PlayerState['lrig_upkeep_condition'] = 'pay_colorless1';
+    if (txtUONU.match(/《無》《無》《無》を支払わないかぎり/)) condUONU = 'pay_colorless3';
+    else if (txtUONU.match(/手札を[１1]枚捨てるか《無》を支払わないかぎり/)) condUONU = 'discard_or_colorless1';
+    const newOtherUONU: PlayerState = { ...ctx.otherState, lrig_upkeep_condition: condUONU };
+    const condLabel = condUONU === 'pay_colorless3' ? '《無》×3を支払う' : condUONU === 'discard_or_colorless1' ? '手札1枚捨てるか《無》払う' : '《無》×1を支払う';
+    return done(addLog({ ...ctx, otherState: newOtherUONU }, `次の対戦相手UPフェーズ：${condLabel}かセンタールリグはアップしない`));
   }
   // ACTIVATE_COST_ZERO_BLACK: トラッシュのシグニを選択→次の起動コストを《黒×0》に
   if (stub.id === 'ACTIVATE_COST_ZERO_BLACK') {
