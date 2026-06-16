@@ -4576,7 +4576,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     .filter((c): c is CardData =>
       !!c &&
       c.Type === 'ルリグ' &&
-      parseInt(c.Level) === currentLrigLevel + 1 &&
+      (parseInt(c.Level) === currentLrigLevel + 1 ||
+        // GROW_FROM_LEVEL0: このルリグはレベル0からグロウできる
+        (currentLrigLevel === 0 && (effectsMap.get(c.CardNum) ?? []).some(e =>
+          e.effectType === 'CONTINUOUS' &&
+          (e.action as import('../types/effects').StubAction).type === 'STUB' &&
+          (e.action as import('../types/effects').StubAction).id === 'GROW_FROM_LEVEL0',
+        ))) &&
       // CardClass 互換チェック
       (!currentLrig || lrigClassesCompatible(currentLrig.CardClass, c.CardClass)) &&
       // 【グロウ】条件チェック（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数・複数色制限）
