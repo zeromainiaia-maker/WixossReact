@@ -3439,6 +3439,10 @@ export function collectAbilityGainProtectedSigni(
           }
         }
       }
+      // PREVENT_ABILITY_GAIN_BY_OPP: このシグニ自身が相手効果による能力付与を受けない
+      if (act.type === 'STUB' && act.id === 'PREVENT_ABILITY_GAIN_BY_OPP') {
+        protected_.add(cn);
+      }
       // CONTINUOUS GRANT_ABILITY_INNER_TEXT: 「対戦相手の効果によって新たに能力を得られない」テキスト検出（シグニ自身）
       if (act.type === 'STUB' && act.id === 'GRANT_ABILITY_INNER_TEXT') {
         const card = cardMap.get(cn);
