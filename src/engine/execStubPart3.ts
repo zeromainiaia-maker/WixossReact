@@ -1943,7 +1943,7 @@ export function execStubPart3(
     const srcUONU = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtUONU = srcUONU ? (srcUONU.EffectText ?? '') + ' ' + (srcUONU.BurstText ?? '') : '';
     // 《無》×3 を支払わないかぎり
-    let condUONU: import('../../types/index').PlayerState['lrig_upkeep_condition'] = 'pay_colorless1';
+    let condUONU: PlayerState['lrig_upkeep_condition'] = 'pay_colorless1';
     if (txtUONU.match(/《無》《無》《無》を支払わないかぎり/)) condUONU = 'pay_colorless3';
     else if (txtUONU.match(/手札を[１1]枚捨てるか《無》を支払わないかぎり/)) condUONU = 'discard_or_colorless1';
     const newOtherUONU: PlayerState = { ...ctx.otherState, lrig_upkeep_condition: condUONU };
