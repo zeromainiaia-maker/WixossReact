@@ -297,7 +297,7 @@ function parseCost(costStr: string): EffectCost | undefined {
     }
   }
   // このシグニの下からカード/スペルN枚をトラッシュ → underSelfTrash
-  const ustM = costStr.match(/(?:このシグニ)の下から(?:カード|スペル|シグニ)(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
+  const ustM = costStr.match(/(?:このシグニ)の下から(?:同名の)?(?:カード|スペル|シグニ)(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
   const ustAnyM = !ustM ? costStr.match(/(?:あなたのシグニ(?:[０-９\d]+体)?)の下からカードを?合計([０-９\d]+)枚トラッシュに置く/) : null;
   if (ustM) cost.underSelfTrash = parseNum(ustM[1]);
   else if (ustAnyM) cost.underSelfTrash = parseNum(ustAnyM[1]);
