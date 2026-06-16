@@ -2878,6 +2878,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newMyState = drawBlocked
           ? { ...my, actions_done: [], draw_limit: undefined }
           : { ...drawCards(my, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined };
+        // UPKEEP_OR_NO_UP: lrig_upkeep_conditionをクリア（次のターンに引き継がない）
+        if (newMyState.lrig_upkeep_condition) {
+          newMyState = { ...newMyState, lrig_upkeep_condition: undefined };
+          appendBattleLogs(['センタールリグのアップ条件（未払い）→ルリグはダウン状態でターン開始']);
+        }
         update.turn_phase = 'DRAW';
 
         // ON_TURN_START トリガー収集（ドローと同時にスタック積み）
