@@ -960,6 +960,17 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, prevent_defeat: true };
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン敗北無効'));
   }
+  // INTERNAL_TRASH_TO_LIFE: 自トラッシュの末尾カードをライフクロスへ追加（近似：相手選択なし）
+  if (stub.id === 'INTERNAL_TRASH_TO_LIFE') {
+    if (ctx.ownerState.trash.length === 0) return done(addLog(ctx, 'トラッシュが空（INTERNAL_TRASH_TO_LIFE）'));
+    const cardNum = ctx.ownerState.trash[ctx.ownerState.trash.length - 1];
+    const newOwner = {
+      ...ctx.ownerState,
+      trash: ctx.ownerState.trash.slice(0, -1),
+      life_cloth: [...ctx.ownerState.life_cloth, cardNum],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をライフクロスへ`));
+  }
   // サブスクライバーカウント+1
   if (stub.id === 'GAIN_SUBSCRIBER_COUNT') {
     const srcSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
