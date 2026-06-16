@@ -206,8 +206,8 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   POWER_MOD_BY_DISCARD_COUNT_HIGH: ['DISCARD'],
   DRAW_DISCARD_COUNT_PLUS_N: ['DRAW', 'DISCARD'],
   COUNT_BASED_DRAW_OR_POWER: ['DRAW', 'DISCARD'],
-  // ベット機構: BET_MECHANICが①②③④をchoiceTextParserで解析実行（バニッシュ/エナ置き/ドロー/ミル/クラッシュ等）
-  BET_ALTERNATIVE: ['BANISH', 'MOVE_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'DOWN', 'FREEZE'],
+  // ベット機構: BET_MECHANICが①②③④をchoiceTextParserで解析実行（バニッシュ/エナ置き/ドロー/ミル/クラッシュ/サーチ等）
+  BET_MECHANIC: ['BANISH', 'MOVE_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'DOWN', 'FREEZE', 'SEARCH', 'ENERGY_CHARGE_FROM_DECK', 'LIFE_CRASH'],
   BET_CONDITION: ['BANISH', 'MOVE_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'DOWN', 'FREEZE'],
   // ①②③④をchoiceTextParserで解析実行
   CHOOSE_N_FROM_LIST: ['BANISH', 'DOWN', 'FREEZE', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'MOVE_TO_ENERGY'],
