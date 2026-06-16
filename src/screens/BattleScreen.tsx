@@ -81,20 +81,20 @@ function assignGuestInstanceIds(cards: string[]): string[] {
 }
 
 // リフレッシュ: トラッシュ全枚数をデッキに加えシャッフル。ライフがあれば一番上をトラッシュへ（バーストなし）。
-function applyRefresh(state: PlayerState): PlayerState {
+function applyRefresh(state: PlayerState, preventLifeToTrash = false): PlayerState {
   const newDeck = shuffle([...state.trash]);
-  const topLife = state.life_cloth.length > 0 ? state.life_cloth[state.life_cloth.length - 1] : null;
+  const topLife = (!preventLifeToTrash && state.life_cloth.length > 0) ? state.life_cloth[state.life_cloth.length - 1] : null;
   return {
     ...state,
     deck:       newDeck,
-    trash:      topLife ? [topLife] : [],
-    life_cloth: topLife ? state.life_cloth.slice(0, -1) : state.life_cloth,
+    trash:      preventLifeToTrash ? state.trash : (topLife ? [topLife] : []),
+    life_cloth: (!preventLifeToTrash && topLife) ? state.life_cloth.slice(0, -1) : state.life_cloth,
   };
 }
 
 // ドロー処理（リフレッシュ対応）。
 // デッキ枚数が不足した場合: 残り全枚数をドロー → リフレッシュ → そこで停止（追加ドローは行わない）。
-function drawCards(state: PlayerState, count: number): PlayerState {
+function drawCards(state: PlayerState, count: number, preventLifeToTrash = false): PlayerState {
   if (count <= 0) return state;
   const canDraw = Math.min(count, state.deck.length);
   const drew: PlayerState = {
@@ -102,7 +102,7 @@ function drawCards(state: PlayerState, count: number): PlayerState {
     hand: [...state.hand, ...state.deck.slice(0, canDraw)],
     deck: state.deck.slice(canDraw),
   };
-  return canDraw < count ? applyRefresh(drew) : drew;
+  return canDraw < count ? applyRefresh(drew, preventLifeToTrash) : drew;
 }
 
 function jankenWinner(h: string, g: string, hostId: string, guestId: string): string | null {
