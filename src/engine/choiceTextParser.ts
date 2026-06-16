@@ -17,7 +17,6 @@ import type {
   EnergyChargeFromDeckAction,
   AddToFieldAction,
   BlockActionAction,
-  SearchAction,
 } from '../types/effects';
 
 export interface ParsedChoiceOption {
