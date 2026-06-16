@@ -191,9 +191,9 @@ function parseCost(costStr: string): EffectCost | undefined {
   const virusM = costStr.match(/【ウィルス】([０-９\d]+)(?:つ|個)を取り除く/);
   if (virusM) cost.removeOppVirus = parseNum(virusM[1]);
   else if (costStr.includes('【ウィルス】１つを取り除く') || costStr.includes('【ウィルス】１個を取り除く')) cost.removeOppVirus = 1;
-  // 手札から[OR指定]シグニをN枚捨てる → handDiscardSigni
-  const hdsOr = costStr.match(/手札から((?:＜[^＞]+＞か)+＜[^＞]+＞)のシグニを([０-９\d]+)枚捨てる/);
-  const hdsSimple = !hdsOr ? costStr.match(/手札から(?:([白赤青緑黒])の)?(?:＜([^＞]+)＞の)?シグニを([０-９\d]+)枚捨てる/) : null;
+  // 手札から[OR指定]シグニをN枚捨てる → handDiscardSigni (合計N枚も対応)
+  const hdsOr = costStr.match(/手札から((?:＜[^＞]+＞か)+＜[^＞]+＞)のシグニを(?:合計)?([０-９\d]+)枚捨てる/);
+  const hdsSimple = !hdsOr ? costStr.match(/手札から(?:([白赤青緑黒])の)?(?:(?:それぞれ名前の異なる)?＜([^＞]+)＞の)?シグニを([０-９\d]+)枚捨てる/) : null;
   if (hdsOr) {
     const stories = [...hdsOr[1].matchAll(/＜([^＞]+)＞/g)].map(m => m[1]);
     cost.handDiscardSigni = { story: stories, count: parseNum(hdsOr[2]) };
