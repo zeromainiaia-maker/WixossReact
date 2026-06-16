@@ -999,6 +999,20 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwner },
       `チャーム${charmCards.length}枚トラッシュ→${drawCount}ドロー+${chargeCount}エナチャ`));
   }
+  // DRAW_UP_TO_SIX: 手札が6枚未満のとき、6枚になるまでカードを引く（SPK16-13E③用）
+  if (stub.id === 'DRAW_UP_TO_SIX') {
+    const needDraw = Math.max(0, 6 - ctx.ownerState.hand.length);
+    if (needDraw === 0) return done(addLog(ctx, '手札がすでに6枚以上（DRAW_UP_TO_SIX）'));
+    const drawCount = Math.min(needDraw, ctx.ownerState.deck.length);
+    if (drawCount === 0) return done(addLog(ctx, 'デッキが空（DRAW_UP_TO_SIX）'));
+    const drawn = ctx.ownerState.deck.slice(0, drawCount);
+    const newOwner = {
+      ...ctx.ownerState,
+      hand: [...ctx.ownerState.hand, ...drawn],
+      deck: ctx.ownerState.deck.slice(drawCount),
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `${drawCount}枚ドロー（手札6枚まで）`));
+  }
   // サブスクライバーカウント+1
   if (stub.id === 'GAIN_SUBSCRIBER_COUNT') {
     const srcSC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
