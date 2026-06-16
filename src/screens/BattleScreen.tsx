@@ -9122,7 +9122,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 ));
               const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost;
               const betCostForCard = parseBetCost(pendingArtsCard.EffectText ?? '');
-              const canBet = betCostForCard > 0 && my.coins >= betCostForCard && !isActionBlocked('BET');
+              const canBet = betCostForCard > 0 && my.coins >= betCostForCard && !isActionBlocked('BET') && !my.negate_coin_abilities;
               const canEncore = !!encoreCostForCard && (encoreCostForCard.coins === 0 || my.coins >= encoreCostForCard.coins) && !isActionBlocked('ENCORE');
               return (
                 <>
