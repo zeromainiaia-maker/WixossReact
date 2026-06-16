@@ -269,6 +269,65 @@ export function execStubPart1(
     const quotedActM = txtGQAA.match(/「(【起】[^」]{1,30})/);
     return done(addLog(ctx, `[GRANT_QUOTED_ACTIVATE_ABILITY: ${quotedActM?.[1] ?? '起動能力'}付与（effectEngineで処理）]`));
   }
+  // WD21-007型: 「以下の５つから１つを選ぶ。…対象のシグニ１体は選んだ能力を得る。あなたがベットしていた場合、この効果を１回繰り返す。」
+  if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY') {
+    const srcW7 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtW7 = srcW7 ? (srcW7.EffectText ?? '') : '';
+    if (/以下の[５5]つから[１1]つを選ぶ/.test(txtW7) && /対象のシグニ[１1]体は選んだ能力を得る/.test(txtW7)) {
+      const optsW7 = [
+        { id: 'w7_1', label: '①【アサシン】を得る', action: ({ type: 'STUB', id: 'INTERNAL_WD007_GRANT', value: 'assassin' } as StubAction) as EffectAction, available: true },
+        { id: 'w7_2', label: '②【ランサー】を得る', action: ({ type: 'STUB', id: 'INTERNAL_WD007_GRANT', value: 'lancer' } as StubAction) as EffectAction, available: true },
+        { id: 'w7_3', label: '③【ダブルクラッシュ】を得る', action: ({ type: 'STUB', id: 'INTERNAL_WD007_GRANT', value: 'double_crush' } as StubAction) as EffectAction, available: true },
+        { id: 'w7_4', label: '④バニッシュされない', action: ({ type: 'STUB', id: 'INTERNAL_WD007_GRANT', value: 'no_banish' } as StubAction) as EffectAction, available: true },
+        { id: 'w7_5', label: '⑤対象は（相手シグニ）アタックできない', action: ({ type: 'STUB', id: 'INTERNAL_WD007_GRANT', value: 'cant_attack' } as StubAction) as EffectAction, available: true },
+      ];
+      return needsInteraction(addLog(ctx, '以下の５つから１つを選ぶ'), { type: 'CHOOSE', options: optsW7, count: 1 });
+    }
+  }
+  // INTERNAL_WD007_GRANT: 選んだ能力に応じた対象（自分シグニ or 相手シグニ）を選択
+  if (stub.id === 'INTERNAL_WD007_GRANT') {
+    const modeW7 = typeof stub.value === 'string' ? stub.value : '';
+    const scopeW7: TargetScope = modeW7 === 'cant_attack' ? 'opp_field' : 'self_field';
+    const stateW7 = scopeW7 === 'self_field' ? ctx.ownerState : ctx.otherState;
+    const candsW7 = stateW7.field.signi.flatMap(s => (s?.length ? [s[s.length - 1]] : []));
+    if (candsW7.length === 0) return done(addLog(ctx, '対象シグニなし'));
+    const contW7: StubAction = { type: 'STUB', id: 'INTERNAL_WD007_APPLY', value: modeW7 };
+    return selectOrInteract(candsW7, 1, false, scopeW7, contW7 as EffectAction, undefined, ctx);
+  }
+  // INTERNAL_WD007_APPLY: 選択した対象に能力を付与し、ベットしていれば1回繰り返す
+  if (stub.id === 'INTERNAL_WD007_APPLY') {
+    const modeW7b = typeof stub.value === 'string' ? stub.value : '';
+    const tnW7 = ctx.lastProcessedCards?.[0];
+    if (!tnW7) return done(addLog(ctx, '対象なし'));
+    const nameW7 = ctx.cardMap.get(tnW7)?.CardName ?? tnW7;
+    let curW7 = ctx;
+    if (modeW7b === 'cant_attack') {
+      const grantsW7 = { ...(curW7.ownerState.keyword_grants ?? {}) };
+      grantsW7[tnW7] = [...new Set([...(grantsW7[tnW7] ?? []), 'アタックできない'])];
+      curW7 = addLog({ ...curW7, ownerState: { ...curW7.ownerState, keyword_grants: grantsW7 } }, `${nameW7}はアタックできない（ターン終了時まで）`);
+    } else if (modeW7b === 'no_banish') {
+      const grantedEffW7: import('../types/effects').CardEffect = {
+        effectId: `granted-wd007-noBanish-${Date.now()}-${tnW7}`,
+        effectType: 'CONTINUOUS',
+        duration: 'UNTIL_END_OF_TURN',
+        action: { type: 'GRANT_PROTECTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, from: ['BANISH'], sourceOwner: 'opponent', duration: 'UNTIL_END_OF_TURN' },
+      };
+      const grantedMapW7 = { ...(curW7.ownerState.granted_effects ?? {}) };
+      grantedMapW7[tnW7] = [...(grantedMapW7[tnW7] ?? []), grantedEffW7];
+      curW7 = addLog({ ...curW7, ownerState: { ...curW7.ownerState, granted_effects: grantedMapW7 } }, `${nameW7}はバニッシュされない（ターン終了時まで）`);
+    } else {
+      const kwW7 = modeW7b === 'assassin' ? 'アサシン' : modeW7b === 'lancer' ? 'ランサー' : 'ダブルクラッシュ';
+      const grantsW7b = { ...(curW7.ownerState.keyword_grants ?? {}) };
+      grantsW7b[tnW7] = [...new Set([...(grantsW7b[tnW7] ?? []), kwW7])];
+      curW7 = addLog({ ...curW7, ownerState: { ...curW7.ownerState, keyword_grants: grantsW7b } }, `${nameW7}は【${kwW7}】を得る（ターン終了時まで）`);
+    }
+    // BET_CONDITION: ベットしていれば（他の選択肢・他のシグニで）この効果を1回繰り返す
+    if (curW7.ownerState.is_betting_this_effect) {
+      curW7 = { ...curW7, ownerState: { ...curW7.ownerState, is_betting_this_effect: undefined }, lastProcessedCards: [] };
+      return exec({ type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction, curW7);
+    }
+    return done(curW7);
+  }
   // 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects）
   if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
       stub.id === 'GRANT_ABILITY_INNER_TEXT') {

@@ -471,6 +471,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'ACTIVATED_DISCARD_COUNT_GTE':
       return (ctx.ownerState.last_activated_discard_count ?? 0) >= cond.value;
+    case 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN':
+      return !ctx.ownerState.non_dissona_spell_played_this_turn;
     case 'LAST_PROCESSED_LEVEL_SUM_EQ': {
       // lastProcessedCardsのシグニのレベル合計がvalue=Nか判定（WD21-012等）
       const processed = ctx.lastProcessedCards ?? [];

@@ -825,6 +825,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [showGrowSkipConfirm, setShowGrowSkipConfirm] = useState(false);
   const [showSigniAttackSkipConfirm, setShowSigniAttackSkipConfirm] = useState(false);
   const [showLrigAttackSkipConfirm, setShowLrigAttackSkipConfirm] = useState(false);
+  const [showUpkeepPayConfirm, setShowUpkeepPayConfirm] = useState(false);
   const [showGrowModal, setShowGrowModal] = useState(false);
   const [pendingGrowCard, setPendingGrowCard] = useState<CardData | null>(null);
   const [selectedGrowCost, setSelectedGrowCost] = useState<Set<number>>(new Set());
@@ -2847,8 +2848,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return entries;
   };
 
-  // フェイズ進行（実処理）
-  const doPhaseAdvance = async () => {
+  // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
+  const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {
     // いずれかのチェックゾーンにカードがある間はフェーズ移動不可
     if (my.field.check || op.field.check) return;
     setLoading(true);
@@ -2878,10 +2879,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newMyState = drawBlocked
           ? { ...my, actions_done: [], draw_limit: undefined }
           : { ...drawCards(my, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined };
-        // UPKEEP_OR_NO_UP: lrig_upkeep_conditionをクリア（次のターンに引き継がない）
+        // UPKEEP_OR_NO_UP: コストを支払ったらアップ、そうでなければダウンのままクリア
         if (newMyState.lrig_upkeep_condition) {
-          newMyState = { ...newMyState, lrig_upkeep_condition: undefined };
-          appendBattleLogs(['センタールリグのアップ条件（未払い）→ルリグはダウン状態でターン開始']);
+          if (upkeepPay) {
+            const payCount = newMyState.lrig_upkeep_condition === 'pay_colorless3' ? 3 : 1;
+            if (upkeepPay === 'energy') {
+              const paid = newMyState.energy.slice(-payCount);
+              newMyState = { ...newMyState, energy: newMyState.energy.slice(0, -payCount), trash: [...newMyState.trash, ...paid],
+                lrig_upkeep_condition: undefined, field: { ...newMyState.field, lrig_down: false } };
+              appendBattleLogs([`センタールリグのアップ条件：《無》×${payCount}を支払いアップ`]);
+            } else {
+              const discarded = newMyState.hand.slice(0, 1);
+              newMyState = { ...newMyState, hand: newMyState.hand.slice(1), trash: [...newMyState.trash, ...discarded],
+                lrig_upkeep_condition: undefined, field: { ...newMyState.field, lrig_down: false } };
+              appendBattleLogs(['センタールリグのアップ条件：手札を1枚捨ててアップ']);
+            }
+          } else {
+            newMyState = { ...newMyState, lrig_upkeep_condition: undefined };
+            appendBattleLogs(['センタールリグのアップ条件（未払い）→ルリグはダウン状態でターン開始']);
+          }
         }
         update.turn_phase = 'DRAW';
 
@@ -3058,6 +3074,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           flip_attack_signi_zones: undefined,         // フリップアタックゾーンをリセット
           turn_end_field_trash_targets: undefined,    // ターン終了時トラッシュ対象をリセット
           spell_negated_this_turn: undefined,         // スペル打ち消しフラグをリセット
+          non_dissona_spell_played_this_turn: undefined, // DISONA_RESTRICTION: 非ディソナスペル使用フラグをリセット
+          dissona_only_spells_this_turn: undefined,   // DISONA_RESTRICTION: ディソナ制限フラグをリセット
           turn_trigger_3rd_plant_down: undefined,     // 植物3回目ダウントリガーをリセット
           turn_plant_down_count: undefined,           // 植物ダウン回数をリセット
           // WX25-CP1-003「次の対戦相手のターン終了時まで」: フラグ保持者(=相手の効果を受けた側)が
@@ -3299,6 +3317,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
         turn_hand_discarded_count: undefined,
         is_betting_this_effect: undefined, last_discarded_signi_power: undefined,
+        non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
       };
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
@@ -3351,10 +3370,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // UPKEEP_OR_NO_UP: アップ条件のコストを支払ってセンタールリグをアップする
+  const handleUpkeepPay = (mode: 'energy' | 'discard') => {
+    setShowUpkeepPayConfirm(false);
+    doPhaseAdvance(mode);
+  };
+  // UPKEEP_OR_NO_UP: コストを支払わずセンタールリグをダウンのままにする
+  const handleUpkeepDecline = () => {
+    setShowUpkeepPayConfirm(false);
+    doPhaseAdvance();
+  };
+
   // フェイズ進行（エナフェイズ・グロウフェイズ未使用時は確認ポップアップ）
   const handlePhaseAdvance = () => {
     if (!iControlThisPhase || loading) return;
     if (my.field.check || op.field.check) return; // チェックゾーンにカードがある間はブロック
+    // UPKEEP_OR_NO_UP: センタールリグのアップ条件未払いなら確認を挟む
+    if (bs.turn_phase === 'UP' && my.lrig_upkeep_condition) {
+      setShowUpkeepPayConfirm(true);
+      return;
+    }
     if (bs.turn_phase === 'ENERGY') {
       const used    = my.actions_done?.includes('ENERGY') ?? false;
       const blocked = my.blocked_actions?.includes('ENERGY') ?? false;
@@ -5170,6 +5205,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (isActionBlocked('USE_SPELL')) return;
     if (isActionBlocked('PLAY_COLORLESS') && card.Color === '無') return;
     if (isActionBlocked('BLOCK_NON_WHITE_SPELL') && !card.Color?.includes('白')) return;
+    // DISONA_RESTRICTION: このターン《ディソナアイコン》ではないスペルを使用できない
+    if (my.dissona_only_spells_this_turn && card.Story !== 'Dissona') {
+      appendBattleLogs(['ディソナ制限：《ディソナアイコン》ではないスペルは使用不可']);
+      return;
+    }
     // BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT: 相手フィールドのチャーム数以下コストのスペルは使用不可
     const spellBlockThreshold = collectBlockLowCostSpellCount(op, battleCardMap, effectsMap);
     if (spellBlockThreshold > 0) {
@@ -5191,6 +5231,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
         actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
+        // DISONA_RESTRICTION: 使用条件チェック用に非ディソナスペルの使用を記録
+        ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       // handからはインスタンスIDで正確な1枚を参照する
@@ -6795,9 +6837,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           (e.action as import('../types/effects').StubAction).id === 'PREVENT_LIFE_REFRESH_TRASH',
         );
       });
-      const newCpuSt = drawCards(cpuSt, drawCount, cpuPreventRefresh);
+      let newCpuSt: PlayerState = { ...drawCards(cpuSt, drawCount, cpuPreventRefresh), actions_done: ['DRAW'] };
+      // UPKEEP_OR_NO_UP: CPUは支払えるなら自動で支払いセンタールリグをアップする
+      if (newCpuSt.lrig_upkeep_condition) {
+        const payCountCpu = newCpuSt.lrig_upkeep_condition === 'pay_colorless3' ? 3 : 1;
+        if (newCpuSt.energy.length >= payCountCpu) {
+          const paidCpu = newCpuSt.energy.slice(-payCountCpu);
+          newCpuSt = { ...newCpuSt, energy: newCpuSt.energy.slice(0, -payCountCpu), trash: [...newCpuSt.trash, ...paidCpu],
+            lrig_upkeep_condition: undefined, field: { ...newCpuSt.field, lrig_down: false } };
+          appendBattleLogs([`[CPU] センタールリグのアップ条件：《無》×${payCountCpu}を支払いアップ`]);
+        } else if (newCpuSt.lrig_upkeep_condition === 'discard_or_colorless1' && newCpuSt.hand.length > 0) {
+          const discardedCpu = newCpuSt.hand.slice(0, 1);
+          newCpuSt = { ...newCpuSt, hand: newCpuSt.hand.slice(1), trash: [...newCpuSt.trash, ...discardedCpu],
+            lrig_upkeep_condition: undefined, field: { ...newCpuSt.field, lrig_down: false } };
+          appendBattleLogs(['[CPU] センタールリグのアップ条件：手札を1枚捨ててアップ']);
+        } else {
+          newCpuSt = { ...newCpuSt, lrig_upkeep_condition: undefined };
+          appendBattleLogs(['[CPU] センタールリグのアップ条件（未払い）→ダウン状態でターン開始']);
+        }
+      }
       await supabase.from('battle_states').update({
-        guest_state: { ...newCpuSt, actions_done: ['DRAW'] },
+        guest_state: newCpuSt,
         turn_phase: 'DRAW',
       }).eq('room_id', roomId);
       return;
@@ -9953,6 +10013,54 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   border: 'none', backgroundColor: C.accent,
                   color: C.text, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
                 このまま進む
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* UPKEEP_OR_NO_UP: センタールリグのアップ条件確認 */}
+      {showUpkeepPayConfirm && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4000,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 340px)', textAlign: 'center',
+          }}>
+            <p style={{ color: C.accent, fontSize: 15, fontWeight: 'bold', margin: '0 0 6px' }}>
+              センタールリグにアップ条件があります
+            </p>
+            <p style={{ color: C.textDim, fontSize: 12, margin: '0 0 20px' }}>
+              {my.lrig_upkeep_condition === 'pay_colorless3' ? '《無》×3を支払わないかぎりアップしません。'
+                : my.lrig_upkeep_condition === 'discard_or_colorless1' ? '手札を1枚捨てるか《無》×1を支払わないかぎりアップしません。'
+                : '《無》×1を支払わないかぎりアップしません。'}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {my.lrig_upkeep_condition === 'discard_or_colorless1' && (
+                <button onClick={() => handleUpkeepPay('discard')} disabled={my.hand.length < 1}
+                  style={{ padding: '10px 0', borderRadius: 8,
+                    border: 'none', backgroundColor: C.accent, opacity: my.hand.length < 1 ? 0.4 : 1,
+                    color: C.text, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+                  手札を1枚捨ててアップ
+                </button>
+              )}
+              <button onClick={() => handleUpkeepPay('energy')}
+                disabled={my.energy.length < (my.lrig_upkeep_condition === 'pay_colorless3' ? 3 : 1)}
+                style={{ padding: '10px 0', borderRadius: 8,
+                  border: 'none', backgroundColor: C.accent,
+                  opacity: my.energy.length < (my.lrig_upkeep_condition === 'pay_colorless3' ? 3 : 1) ? 0.4 : 1,
+                  color: C.text, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+                《無》×{my.lrig_upkeep_condition === 'pay_colorless3' ? 3 : 1}を支払ってアップ
+              </button>
+              <button onClick={handleUpkeepDecline}
+                style={{ padding: '10px 0', borderRadius: 8,
+                  border: C.borderUI, backgroundColor: 'transparent',
+                  color: C.textDim, fontSize: 14, cursor: 'pointer' }}>
+                支払わずダウンのままにする
               </button>
             </div>
           </div>

@@ -140,7 +140,8 @@ export type Condition =
   | { type: 'OPPONENT_NOT_PAID' }                             // 相手が任意コストを支払わなかった場合
   | { type: 'SELF_OPTIONAL_EFFECT_TAKEN' }                    // 自分が任意効果（自バニッシュ等）を実行した場合
   | { type: 'HAS_BOND'; cardName?: string }                   // 絆アイコン：このカード名との絆を獲得している
-  | { type: 'ACTIVATED_DISCARD_COUNT_GTE'; value: number };  // 直前の【起】コストで捨てた合計枚数（手札+エナ）≥ N
+  | { type: 'ACTIVATED_DISCARD_COUNT_GTE'; value: number }    // 直前の【起】コストで捨てた合計枚数（手札+エナ）≥ N
+  | { type: 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN' };       // このターンに《ディソナアイコン》ではないスペルを使用していない（DISONA_RESTRICTION用）
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 

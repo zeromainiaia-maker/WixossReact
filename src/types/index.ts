@@ -293,6 +293,10 @@ export interface PlayerState {
   turn_end_field_trash_targets?: string[];
   // NEGATE_SPELL: このターン、このプレイヤーのスペル（コスト合計5以下）が打ち消される
   spell_negated_this_turn?: boolean;
+  // DISONA_RESTRICTION: このターンに《ディソナアイコン》ではないスペルを使用した（使用条件チェック用）
+  non_dissona_spell_played_this_turn?: boolean;
+  // DISONA_RESTRICTION: このターン、《ディソナアイコン》ではないスペルを使用できない
+  dissona_only_spells_this_turn?: boolean;
   // GRANT_TURN_TRIGGER_3RD_DOWN: このターン植物シグニが3回目ダウン時に効果を発動する
   turn_trigger_3rd_plant_down?: boolean;
   // このターンの植物シグニダウン回数（GRANT_TURN_TRIGGER_3RD_DOWN用）

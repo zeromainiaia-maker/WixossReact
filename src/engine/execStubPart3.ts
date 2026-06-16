@@ -955,9 +955,11 @@ export function execStubPart3(
     }
     return done(addLog(ctx, '効果制限'));
   }
-  // DISONA_RESTRICTION: DISONA制限（ログのみ）
+  // DISONA_RESTRICTION: 「このターン、あなたは《ディソナアイコン》ではないスペルを使用できない」
+  // （使用条件側「すでに非ディソナスペルを使用していた場合は使用不可」はeffect.conditionで判定済み）
   if (stub.id === 'DISONA_RESTRICTION') {
-    return done(addLog(ctx, 'DISONA制限'));
+    const newOwnerDR: PlayerState = { ...ctx.ownerState, dissona_only_spells_this_turn: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerDR }, 'このターン、《ディソナアイコン》ではないスペルを使用できない'));
   }
   // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック、未達時トラッシュ
   if (stub.id === 'COIN_SPEND_CONDITION') {
@@ -1241,9 +1243,40 @@ export function execStubPart3(
       `【マジックボックス】公開: ${ctx.cardMap.get(mbCardOD)?.CardName ?? mbCardOD}→トラッシュ`,
     ));
   }
-  // TARGET_OPP_SIGNI_ONLY: 対象修飾子（ログのみ）
+  // TARGET_OPP_SIGNI_ONLY: 「対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。」
+  // 対象選択→対戦相手が手札2枚を捨てて回避するか、シグニがデッキの一番下に送られるかを選ぶ（WXDi-P01-028）
   if (stub.id === 'TARGET_OPP_SIGNI_ONLY') {
-    return done(addLog(ctx, '相手シグニを対象とする'));
+    const candsTOSO = ctx.otherState.field.signi
+      .flatMap((s: string[] | null) => (s?.length ? [s[s.length - 1]] : []))
+      .filter(Boolean) as string[];
+    if (candsTOSO.length === 0) return done(addLog(ctx, '対象シグニなし（TARGET_OPP_SIGNI_ONLY）'));
+    const internalTOSO: StubAction = { type: 'STUB', id: 'INTERNAL_TOSO_AFTER_SELECT' };
+    return selectOrInteract(candsTOSO, 1, false, 'opp_field', internalTOSO as EffectAction, undefined, ctx, true);
+  }
+  // INTERNAL_TOSO_AFTER_SELECT: 選択後、対戦相手の手札が2枚未満なら強制でデッキ下へ。
+  // 2枚以上ある場合は対戦相手に「手札2枚を捨てて回避」か「デッキの一番下に送られるのを許す」かを選ばせる
+  if (stub.id === 'INTERNAL_TOSO_AFTER_SELECT') {
+    const targetTOSO = ctx.lastProcessedCards?.[0];
+    if (!targetTOSO) return done(addLog(ctx, '[INTERNAL_TOSO: 対象なし]'));
+    const nameTOSO = ctx.cardMap.get(targetTOSO)?.CardName ?? targetTOSO;
+    if (ctx.otherState.hand.length < 2) {
+      return exec({ type: 'STUB', id: 'INTERNAL_TOSO_TO_DECK' } as StubAction, { ...ctx, lastProcessedCards: [targetTOSO] });
+    }
+    const optsTOSO = [
+      { id: 'discard2', label: '手札を2枚捨てる（回避）', action: ({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 2 } }) as EffectAction, available: true },
+      { id: 'allow', label: `${nameTOSO}をデッキの一番下に置かれるのを許す`, action: ({ type: 'STUB', id: 'INTERNAL_TOSO_TO_DECK' }) as StubAction as EffectAction, available: true },
+    ];
+    return needsInteraction(addLog(ctx, `対戦相手：${nameTOSO}を対象→手札2枚を捨てるか選択`), {
+      type: 'CHOOSE', options: optsTOSO, count: 1, opponentResponds: true,
+    });
+  }
+  // INTERNAL_TOSO_TO_DECK: 選択した相手シグニをデッキの一番下へ
+  if (stub.id === 'INTERNAL_TOSO_TO_DECK') {
+    const tnTOSO = ctx.lastProcessedCards?.[0];
+    if (!tnTOSO) return done(addLog(ctx, '[INTERNAL_TOSO_TO_DECK: 対象なし]'));
+    const removedTOSO = removeFromField(tnTOSO, ctx.otherState);
+    const newOtherTOSO: PlayerState = { ...removedTOSO, deck: [...removedTOSO.deck, tnTOSO] };
+    return done(addLog({ ...ctx, otherState: newOtherTOSO }, `${ctx.cardMap.get(tnTOSO)?.CardName ?? tnTOSO}をデッキの一番下に置く`));
   }
   // TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: 相手シグニ1体を対象とし、バウンスかトラッシュを選ぶ
   // （WXDi-P10-033: デッキ5枚公開後の条件付き選択効果）
@@ -1974,7 +2007,7 @@ export function execStubPart3(
     const srcBET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtBET = srcBET ? (srcBET.EffectText ?? '') : '';
     const toHWBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 「さらにカードをN枚引く」パターン（WDK01-010等）
+    // 「さらにカードをN枚引く」パターン
     const drawBET = txtBET.match(/あなたがベットしていた場合[^。]*さらに(?:カードを)?([１-９\d０-９]+)枚引く/);
     if (drawBET) {
       const countBET = parseInt(toHWBET(drawBET[1]));
@@ -1987,9 +2020,33 @@ export function execStubPart3(
       };
       return done(addLog({ ...ctx, ownerState: newOwnerBET }, `ベットあり：${canDrawBET}枚ドロー`));
     }
-    // 「この効果を1回繰り返す」パターン（WD21-007等）: フラグクリアのみ（繰り返しは未実装）
+    // 「Ａ枚の代わりにＢ枚まで対象とし、それらを手札に加える」パターン（WDK01-010）：
+    // 直前のTRANSFER_TO_HAND（トラッシュ→手札）でA枚まで既に対象済みのため、差分(B-A)枚を追加で選ぶ
+    const moreBET = txtBET.match(/([０-９\d]+)枚の代わりに([０-９\d]+)枚まで対象とし、それらを手札に加える/);
+    if (moreBET) {
+      const origBET = parseInt(toHWBET(moreBET[1]));
+      const extraBET = parseInt(toHWBET(moreBET[2])) - origBET;
+      const clearedOwnerBET: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined };
+      if (extraBET <= 0) return done(addLog({ ...ctx, ownerState: clearedOwnerBET }, 'ベットあり（追加対象なし）'));
+      const candsMoreBET = clearedOwnerBET.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
+      if (candsMoreBET.length === 0) return done(addLog({ ...ctx, ownerState: clearedOwnerBET }, 'ベットあり：トラッシュに追加対象なし'));
+      const thenMoreBET: StubAction = { type: 'STUB', id: 'INTERNAL_BET_EXTRA_TO_HAND' };
+      return selectOrInteract(candsMoreBET, extraBET, true, 'self_trash', thenMoreBET as EffectAction, undefined, { ...ctx, ownerState: clearedOwnerBET });
+    }
+    // 未知パターン: フラグクリアのみ
     const newOwnerBETClear: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined };
-    return done(addLog({ ...ctx, ownerState: newOwnerBETClear }, 'ベットあり：追加効果（繰り返し）→未実装'));
+    return done(addLog({ ...ctx, ownerState: newOwnerBETClear }, 'ベットあり（追加効果パターン未対応）'));
+  }
+  // INTERNAL_BET_EXTRA_TO_HAND: ベット時の追加対象（トラッシュ→手札）を1枚処理
+  if (stub.id === 'INTERNAL_BET_EXTRA_TO_HAND') {
+    const cnBETX = ctx.lastProcessedCards?.[0];
+    if (!cnBETX) return done(ctx);
+    const newOwnerBETX: PlayerState = {
+      ...ctx.ownerState,
+      trash: ctx.ownerState.trash.filter(cn => cn !== cnBETX),
+      hand: [...ctx.ownerState.hand, cnBETX],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerBETX }, `${ctx.cardMap.get(cnBETX)?.CardName ?? cnBETX}を手札に追加（ベット追加対象）`));
   }
   // DISABLE_FIRST_ABILITY_ON_ATTACK: アタック時最初の能力を無効化（ログのみ）
   if (stub.id === 'DISABLE_FIRST_ABILITY_ON_ATTACK') {
