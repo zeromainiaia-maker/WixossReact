@@ -3063,6 +3063,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // WX25-CP1-003「次の対戦相手のターン終了時まで」: フラグ保持者(=相手の効果を受けた側)が
           // 自分のターンを終了するタイミングがちょうど期限にあたる
           opp_signi_energy_to_deck_bottom: undefined,
+          is_betting_this_effect: undefined,          // BET_CONDITION: ターン終了時にクリア
+          last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
