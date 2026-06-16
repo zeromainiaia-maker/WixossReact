@@ -264,6 +264,10 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
       then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
     } as EffectAction;
   }
+  // 「N体よりパワーの低い対戦相手のシグニ1体をバニッシュする」（WDK06-R08①。パワー比較なし近似。通常バニッシュより先に判定）
+  if (choiceTxt.match(/[１1]体よりパワーの低い.*バニッシュ/)) {
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
+  }
   // 「バニッシュする」（パワー制限なし、または以上）
   if (choiceTxt.match(/シグニ[１1]体.*バニッシュする/)) {
     const gte = choiceTxt.match(/パワー([０-９\d万]+)以上.*バニッシュ/);
