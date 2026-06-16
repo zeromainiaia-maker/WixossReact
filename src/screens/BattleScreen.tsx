@@ -4924,6 +4924,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_hand_discarded_count: discardNums.length > 0
           ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
+        // BET_CONDITION: ベット宣言フラグ（execStub内でBET_CONDITIONが参照）
+        is_betting_this_effect: betting && betCost > 0 ? true : undefined,
       };
       if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
