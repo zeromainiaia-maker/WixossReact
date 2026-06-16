@@ -3071,6 +3071,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const convertedOpBlocked = (opState.blocked_actions ?? [])
           .filter(a => a.endsWith(':NEXT_TURN'))
           .map(a => a.replace(':NEXT_TURN', ''));
+        // UPKEEP_OR_NO_UP: 条件あり→次ターンのUPフェーズで条件未達としてルリグをアップしない
+        const upkeepLrigDown = ((opState.field.lrig_down ?? false) && curLrigFrozen)
+          || (opState.lrig_upkeep_condition !== undefined);
+        if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
         update[opKey] = {
           ...opState,
           blocked_actions: convertedOpBlocked,
@@ -3080,7 +3084,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...opState.field,
             signi_down:   newSigniDown,
             signi_frozen: [false, false, false],
-            lrig_down:    (opState.field.lrig_down ?? false) && curLrigFrozen,
+            lrig_down:    upkeepLrigDown,
             lrig_frozen:  false,
             assist_lrig_l_down: false,
             assist_lrig_r_down: false,
