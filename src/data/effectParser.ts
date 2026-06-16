@@ -1166,6 +1166,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
              : actionText.includes('各アタックフェイズ開始時') ? ['ATTACK']
              : actionText.includes('アタックフェイズ開始時') ? ['ATTACK']
+             : actionText.includes('ライフバーストが発動したとき') ? ['ON_LIFE_BURST']
              : actionText.includes('ターン終了時') ? ['ON_TURN_END']
              : actionText.includes('ターン開始時') ? ['ON_TURN_START']
              : ['ON_PLAY'];
