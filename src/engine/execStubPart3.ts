@@ -1836,9 +1836,32 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerSMTE },
       `${ctx.cardMap.get(cnSMTE)?.CardName ?? cnSMTE}→エナゾーン`));
   }
-  // DISCARD_BY_POWER_MATCH: パワー一致で捨て（ログのみ）
+  // DISCARD_BY_POWER_MATCH: コストで捨てたシグニと同パワーの相手手札シグニを捨てさせる
   if (stub.id === 'DISCARD_BY_POWER_MATCH') {
-    return done(addLog(ctx, 'パワー一致で捨て（スキップ）'));
+    const targetPowerDBPM = ctx.ownerState.last_discarded_signi_power;
+    if (!targetPowerDBPM) return done(addLog(ctx, 'DISCARD_BY_POWER_MATCH: 捨てたシグニのパワー未記録'));
+    const oppHandDBPM = ctx.otherState.hand;
+    const matchingDBPM = oppHandDBPM.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && parseInt(c.Power ?? '0', 10) === targetPowerDBPM;
+    });
+    if (matchingDBPM.length === 0) {
+      return done(addLog(ctx, `相手手札にパワー${targetPowerDBPM}のシグニなし（DISCARD_BY_POWER_MATCH）`));
+    }
+    // 相手の手札を公開して選ばせる（opponentResponds: true）
+    const internalDBPM: StubAction = { type: 'STUB', id: 'INTERNAL_DBPM_DISCARD' };
+    return selectOrInteract(matchingDBPM, 1, false, 'opp_hand', internalDBPM as EffectAction, undefined, ctx, true);
+  }
+  if (stub.id === 'INTERNAL_DBPM_DISCARD') {
+    const targetDBPM = ctx.lastProcessedCards?.[0];
+    if (!targetDBPM) return done(addLog(ctx, 'INTERNAL_DBPM_DISCARD: 対象なし'));
+    const newOtherDBPM: PlayerState = {
+      ...ctx.otherState,
+      hand: ctx.otherState.hand.filter(cn => cn !== targetDBPM),
+      trash: [...ctx.otherState.trash, targetDBPM],
+    };
+    return done(addLog({ ...ctx, otherState: newOtherDBPM },
+      `${ctx.cardMap.get(targetDBPM)?.CardName ?? targetDBPM}（パワー一致）→相手トラッシュ`));
   }
   // DECLARE_NUMBER_RANGE: 0〜5の数字宣言（DECLARE_NUMBERと同様だが0を含む）
   if (stub.id === 'DECLARE_NUMBER_RANGE') {
