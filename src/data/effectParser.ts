@@ -771,6 +771,9 @@ function splitSentences(text: string): string[] {
 // ===== アクションテキスト全体パース =====
 
 function parseActionText(text: string): EffectAction {
+  // ---- ARTS_SELF_RECYCLE_ON_TRIGGER: コスト支払いでルリグトラッシュ→ルリグデッキへ戻す ----
+  if (text.match(/《[^》]+》を支払ってもよい。そうした場合、このカードを(?:あなたの)?ルリグトラッシュからルリグデッキに戻す/))
+    return { type: 'STUB', id: 'ARTS_SELF_RECYCLE_ON_TRIGGER' } as import('../types/effects').StubAction;
   // ---- センタールリグへの能力付与 ----
   if (text.includes('センタールリグは以下の能力を得る') || text.includes('レベルN以上のセンタールリグは以下の能力を得る')) {
     const m = text.match(/以下の能力を得る[。、]?(.+)/s);
