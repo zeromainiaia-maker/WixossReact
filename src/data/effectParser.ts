@@ -322,6 +322,15 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (teNamedM) cost.trashExile = { count: parseNum(teNamedM[2]), filter: { cardName: teNamedM[1] } };
     else if (teGenericM) cost.trashExile = { count: parseNum(teGenericM[1]) };
   }
+  // コストとしてシグニをバニッシュ → fieldTrash で近似
+  if (!cost.fieldTrash) {
+    const banishCostM = costStr.match(/レベル([０-９\d]+)以下の(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体をバニッシュする/);
+    if (banishCostM) {
+      const bcFilter: TargetFilter = { cardType: 'シグニ', level: { max: parseNum(banishCostM[1]) } as TargetFilter['level'] };
+      if (banishCostM[2]) bcFilter.story = banishCostM[2];
+      cost.fieldTrash = { count: parseNum(banishCostM[3]), filter: bcFilter };
+    }
+  }
   // アップ状態のルリグN体をダウン → lrigDown
   if (!cost.lrigDown) {
     const ldM = costStr.match(/アップ状態の(?:レベル([０-９\d]+)の)?(?:センター)?ルリグ([０-９\d]+)体をダウンする/);
