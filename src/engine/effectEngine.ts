@@ -3305,7 +3305,7 @@ export function collectTrashFieldProtectedSigni(
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
 
-      if (act.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH') {
+      if (act.id === 'PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH' || act.id === 'PREVENT_SELF_MOVE_BY_OPP') {
         protected_.add(topNum);
       }
 
