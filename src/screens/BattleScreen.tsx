@@ -4963,10 +4963,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const discardNums = [...discardIndices].map(i => my.hand[i]);
       const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
+      // trash_key: このキーをルリグトラッシュに置く（コスト）
+      let newField = my.field;
+      let newLrigTrashKey = my.lrig_trash;
+      if (effect.cost?.trash_key) {
+        const keyInstId = my.field.key_piece;
+        const extraKeys = my.field.key_piece_extra ?? [];
+        const isMainKey = keyInstId != null && (keyInstId === cardNum || keyInstId.startsWith(cardNum + '_'));
+        const extraIdx = !isMainKey ? extraKeys.findIndex(k => k === cardNum || k.startsWith(cardNum + '_')) : -1;
+        if (isMainKey && keyInstId) {
+          newField = { ...my.field, key_piece: null, key_piece_extra: extraKeys };
+          newLrigTrashKey = [...my.lrig_trash, keyInstId];
+        } else if (extraIdx >= 0) {
+          const newExtra = extraKeys.filter((_, i) => i !== extraIdx);
+          newField = { ...my.field, key_piece_extra: newExtra };
+          newLrigTrashKey = [...my.lrig_trash, extraKeys[extraIdx]];
+        }
+      }
       const paid: PlayerState = {
         ...my,
         energy: newEnergy,
         hand: newHand,
+        field: newField,
+        lrig_trash: newLrigTrashKey,
         trash: [...my.trash, ...paidNums, ...discardNums],
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
