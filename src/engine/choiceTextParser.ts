@@ -259,6 +259,16 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
     }
     return bounce;
   }
+  // 「ダウンする。カードを1枚引く」→ SEQUENCE[DOWN, DRAW]（単独「ダウンする」より先に判定）
+  if (choiceTxt.match(/ダウンする.*カードを[１1]枚引く/)) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction,
+        { type: 'DRAW', count: 1 } as DrawAction,
+      ],
+    } as SequenceAction;
+  }
   // 「ダウンする」（汎用フォールバック: 相手シグニ1体）
   if (choiceTxt.match(/ダウンする/)) {
     return { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction;
