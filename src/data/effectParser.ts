@@ -1073,9 +1073,14 @@ function parseActionText(text: string): EffectAction {
 // ===== 効果ブロック分割 =====
 
 function splitEffectBlocks(text: string): string[] {
-  // 「。」の直後に【(クロス)?(ドライブ|チーム)?(常|出|起|自|ガード)】が来る箇所で分割
-  // （《レイヤーアイコン》接頭辞付きのマーカーにも対応）
-  return text.split(/(?<=。)(?=(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
+  // 【マルチエナ】の直後に別の効果マーカーが続く場合は句点を挿入（WX04-054等）
+  // 「。」と効果マーカーの間の全角/半角スペースを除去（WX10-029等）
+  const MARKER_RE = /(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】/;
+  const MARKER_PAT = MARKER_RE.source;
+  const normalized = text
+    .replace(new RegExp(`【マルチエナ】(?=${MARKER_PAT})`, 'g'), '【マルチエナ】。')
+    .replace(new RegExp(`。[\\s　]+(?=${MARKER_PAT})`, 'g'), '。');
+  return normalized.split(/(?<=。)(?=(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
 }
 
 // 効果ではないキーワード接頭辞（ライズ条件・ハーモニー条件等）を除去する
