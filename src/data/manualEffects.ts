@@ -256,6 +256,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX11-024-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
+      cost: { energy: [{ color: '無', count: 1 }] },
       action: { type: 'FORCE_END_TURN' },
       duration: 'INSTANT',
       mandatory: false,
