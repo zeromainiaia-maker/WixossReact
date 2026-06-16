@@ -61,6 +61,10 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
     }
     return steps.length === 1 ? steps[0] : ({ type: 'SEQUENCE', steps } as SequenceAction);
   }
+  // 「手札がN枚より少ない分だけカードを引く」→ STUB(DRAW_UP_TO_N)（SPK16-13E③用。通常のDRAWより先に判定）
+  if (choiceTxt.match(/手札が[６6]枚より少ない分だけカードを引く/)) {
+    return ({ type: 'STUB', id: 'DRAW_UP_TO_SIX' } as StubAction) as EffectAction;
+  }
   // 「カードをN枚引く」→ DRAW（後続の「その後…」は近似で省略。JSONの後続STUBが担う場合あり）
   const drawM = choiceTxt.match(/カードを([１-９1-9])枚引く/);
   if (drawM) return { type: 'DRAW', count: parseInt(toHW(drawM[1])) } as DrawAction;
