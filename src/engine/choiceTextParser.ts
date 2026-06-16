@@ -93,6 +93,26 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   if (choiceTxt.match(/対戦相手のシグニ[１1]体を対象とし.*ダウン/)) {
     return { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction;
   }
+  // 「対戦相手のシグニ1体をトラッシュに置く」→ BANISHの近似（レベル制限等は近似で無視）
+  if (choiceTxt.match(/対戦相手の.*シグニ[１1]体.*トラッシュに置く/)) {
+    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
+  }
+  // 「ルリグによってダメージを受けない」→ PREVENT_LRIG_DAMAGE_THIS_TURN
+  if (choiceTxt.match(/ルリグ.*ダメージを受けない|ダメージを受けない.*ルリグ/)) {
+    return ({ type: 'STUB', id: 'PREVENT_LRIG_DAMAGE_THIS_TURN' } as StubAction) as EffectAction;
+  }
+  // 「トラッシュから（対戦相手の選んだ）カードをライフクロスに加える」→ 近似（相手選択は省略）
+  if (choiceTxt.match(/トラッシュから.*ライフクロスに加える/)) {
+    return ({ type: 'STUB', id: 'INTERNAL_TRASH_TO_LIFE' } as StubAction) as EffectAction;
+  }
+  // 「手札からシグニ1枚を場に出す」→ ADD_TO_FIELD from HAND（クラス/ストーリーフィルタは近似で省略）
+  if (choiceTxt.match(/手札から.*シグニ[１1]枚.*場に出す/)) {
+    return {
+      type: 'ADD_TO_FIELD',
+      owner: 'self',
+      source: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
+    } as AddToFieldAction;
+  }
   // 「対戦相手の手札を1枚見ないで選び、捨てさせる」
   if (choiceTxt.match(/手札を[１1]枚見ないで選び.*捨て/)) {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction;
