@@ -13151,6 +13151,64 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             );
           }
 
+          // multiSelect: 複数選択UI（チェックボックス＋決定ボタン）
+          if (inter.multiSelect) {
+            const maxSel = inter.count;
+            const canConfirm = inter.upTo
+              ? true
+              : selectedMultiChoiceIds.size === maxSel;
+            return createPortal(
+              <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+                backgroundColor: 'rgba(0,0,0,0.92)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div onClick={e => e.stopPropagation()}
+                  style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                    padding: '20px 16px', width: 'min(92vw, 380px)',
+                    display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                  </p>
+                  <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
+                    {inter.upTo ? `${maxSel}個まで選択` : `${maxSel}個選択`}（{selectedMultiChoiceIds.size}/{maxSel}）
+                  </p>
+                  {inter.options.map(opt => {
+                    const isSel = selectedMultiChoiceIds.has(opt.id);
+                    const canAdd = isSel || (opt.available && selectedMultiChoiceIds.size < maxSel);
+                    return (
+                      <button key={opt.id}
+                        disabled={loading || (!isSel && !canAdd)}
+                        onClick={() => setSelectedMultiChoiceIds(prev => {
+                          const next = new Set(prev);
+                          isSel ? next.delete(opt.id) : next.add(opt.id);
+                          return next;
+                        })}
+                        style={{ padding: '12px 8px', borderRadius: 8, border: 'none',
+                          backgroundColor: isSel ? C.success : (opt.available ? C.bgButton : C.disabled),
+                          color: C.text, fontSize: 13, fontWeight: 'bold', textAlign: 'left',
+                          cursor: (loading || (!isSel && !canAdd)) ? 'default' : 'pointer',
+                          outline: isSel ? `2px solid ${C.success}` : 'none' }}>
+                        {isSel ? '✓ ' : ''}{opt.label}
+                      </button>
+                    );
+                  })}
+                  <button
+                    disabled={loading || !canConfirm}
+                    onClick={() => {
+                      handleEffectInteraction([...selectedMultiChoiceIds]);
+                      setSelectedMultiChoiceIds(new Set());
+                    }}
+                    style={{ padding: '12px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: canConfirm ? C.success : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !canConfirm) ? 'default' : 'pointer' }}>
+                    決定
+                  </button>
+                </div>
+              </div>,
+              document.body,
+            );
+          }
+
           return createPortal(
             <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
               backgroundColor: 'rgba(0,0,0,0.92)',
