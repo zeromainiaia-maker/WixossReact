@@ -4357,10 +4357,30 @@ export function execStubPart3(
       othEPLC = { ...othEPLC, deck: othEPLC.deck.slice(mEPLC), trash: [...othEPLC.trash, ...milledEPLC] };
       logsEPLC.push(`黒ルリグ${blackEPLC}体→相手デッキ${milledEPLC.length}枚トラッシュ`);
     }
-    if (redEPLC > 0) logsEPLC.push(`赤ルリグ${redEPLC}体→バニッシュ（対象選択・未実装）`);
-    if (logsEPLC.length === 0) logsEPLC.push('対象の色のルリグなし');
+    if (logsEPLC.length === 0 && redEPLC === 0) logsEPLC.push('対象の色のルリグなし');
 
-    return done(addLog({ ...ctx, ownerState: ownEPLC, otherState: othEPLC }, logsEPLC.join(' / ')));
+    const afterCtxEPLC = { ...ctx, ownerState: ownEPLC, otherState: othEPLC };
+    if (redEPLC > 0) {
+      // 赤：相手シグニ2体まで選択→パワー合計12000以下ならバニッシュ（redEPLC回繰り返し）
+      const oppSigsEPLC = othEPLC.field.signi.flatMap(z => z?.at(-1) ? [z.at(-1)!] : []);
+      const loggedCtxEPLC = logsEPLC.length > 0
+        ? addLog(afterCtxEPLC, logsEPLC.join(' / '))
+        : afterCtxEPLC;
+      if (oppSigsEPLC.length === 0) {
+        return done(addLog(loggedCtxEPLC, `赤ルリグ${redEPLC}体→相手シグニなし`));
+      }
+      return needsInteraction(
+        addLog(loggedCtxEPLC, `赤ルリグ${redEPLC}体→相手シグニ2体まで選択`),
+        {
+          type: 'SELECT_TARGET', candidates: oppSigsEPLC,
+          count: Math.min(2, oppSigsEPLC.length), optional: true,
+          targetScope: 'opp_field' as TargetScope,
+          thenAction: { type: 'STUB', id: 'INTERNAL_EVDIVA_RED_BANISH',
+            _remaining: redEPLC - 1 } as unknown as EffectAction,
+        },
+      );
+    }
+    return done(addLog(afterCtxEPLC, logsEPLC.join(' / ')));
   }
 
   // PRDI035_PARADISE_COLOR: PR-Di035 OPEN DREAM LAND! 色分岐。
