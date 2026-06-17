@@ -4414,7 +4414,22 @@ export function execStubPart3(
   // INTERNAL_APPLY_PRIOKE_ATTACK_TRASH: 予約したアタック時トラッシュ能力を対象プリオケシグニに適用
   if (stub.id === 'INTERNAL_APPLY_PRIOKE_ATTACK_TRASH') {
     const targetIAPAT = (ctx.lastProcessedCards ?? [])[0];
-    if (!targetIAPAT) return done(addLog(ctx, 'INTERNAL_APPLY_PRIOKE_ATTACK_TRASH: 対象なし'));
+    if (!targetIAPAT) {
+      // 対象未選択 → プリオケシグニを SELECT_TARGET で選択させる
+      const priokeCands = ctx.ownerState.field.signi.flatMap(s => {
+        const top = s?.at(-1);
+        return (top && (ctx.cardMap.get(top)?.CardClass ?? '').includes('プリオケ')) ? [top] : [];
+      });
+      if (priokeCands.length === 0) {
+        const cleared2: PlayerState = { ...ctx.ownerState, pending_prioke_attack_trash_grant: false };
+        return done(addLog({ ...ctx, ownerState: cleared2 }, 'プリオケシグニなし（FS3スキップ）'));
+      }
+      return needsInteraction(addLog(ctx, 'プリオケシグニ1体を選択（アタック時トラッシュ能力付与）'), {
+        type: 'SELECT_TARGET', candidates: priokeCands, count: 1, optional: false,
+        targetScope: 'self_field' as TargetScope,
+        thenAction: { type: 'STUB', id: 'INTERNAL_APPLY_PRIOKE_ATTACK_TRASH' } as EffectAction,
+      });
+    }
     // granted_effects にアタック時トラッシュ能力を付与（ターン終了時まで）
     const trashEff: import('../types/effects').CardEffect = {
       effectId: `${targetIAPAT}-FS3-GRANTED`,
