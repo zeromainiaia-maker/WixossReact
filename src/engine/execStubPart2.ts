@@ -3197,10 +3197,12 @@ export function execStubPart2(
     const newOwnerIPSUS: PlayerState = { ...ctx.ownerState, trash: newTrashIPSUS, field: { ...ctx.ownerState.field, signi: newSigniIPSUS } };
     const placedCtxIPSUS = addLog({ ...ctx, ownerState: newOwnerIPSUS, sourceCardNum: spellNumIPSUS },
       `${ctx.cardMap.get(spellNumIPSUS)?.CardName ?? spellNumIPSUS}を${ctx.cardMap.get(hostSigniNumIPSUS)?.CardName ?? hostSigniNumIPSUS}の下に配置`);
-    // ON_PLACED_UNDER_SIGNI効果を発火
+    // ON_PLACED_UNDER_SIGNI効果を発火（プリパースJSON優先、なければテキストパーサーフォールバック）
     const spellDataIPSUS = ctx.cardMap.get(spellNumIPSUS);
     if (spellDataIPSUS) {
-      const spellEffsIPSUS = parseCardEffects(spellDataIPSUS);
+      const spellEffsIPSUS = (spellDataIPSUS.effects && spellDataIPSUS.effects.length > 0)
+        ? spellDataIPSUS.effects
+        : parseCardEffects(spellDataIPSUS);
       const placedEffIPSUS = spellEffsIPSUS.find(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLACED_UNDER_SIGNI'));
       if (placedEffIPSUS) return exec(placedEffIPSUS.action, placedCtxIPSUS);
     }
