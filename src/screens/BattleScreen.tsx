@@ -2796,6 +2796,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // キーワードトークン効果（GRANT_KEYWORD で付与されたキーワードが ON_TURN_END 等を持つ場合）
+    const KEYWORD_TOKEN_MAP: Record<string, string> = {
+      'みこみこ親衛隊': 'WX25-P3-TK03',
+    };
+    const myGrantsKT = myState.keyword_grants ?? {};
+    for (const stack of myState.field.signi) {
+      if (!stack?.length) continue;
+      const topNumKT = stack[stack.length - 1];
+      if (ownAutoBlockedTurn) continue;
+      if (myAbilitiesRemovedTurn.has(topNumKT)) continue;
+      for (const kw of (myGrantsKT[topNumKT] ?? [])) {
+        const tokenCardKT = KEYWORD_TOKEN_MAP[kw];
+        if (!tokenCardKT) continue;
+        for (const eff of (effectsMap.get(tokenCardKT) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+          const cardNameKT = battleCardMap.get(topNumKT)?.CardName ?? topNumKT;
+          entries.push({
+            id: generateUUID(),
+            playerId: user.id,
+            cardNum: topNumKT,
+            effectId: `${tokenCardKT}:${eff.effectId}:${topNumKT}`,
+            label: `${cardNameKT}【${kw}】（${labelSuffix}）`,
+            effect: eff,
+          });
+        }
+      }
+    }
+
     // 自分のルリグ
     const myLrigNum = myState.field.lrig.at(-1);
     if (myLrigNum) {
