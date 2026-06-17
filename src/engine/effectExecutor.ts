@@ -1537,8 +1537,10 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
   }));
   return needsInteraction(ctx, {
     type: 'CHOOSE', options, count: a.choose_count,
+    ...(a.upTo || a.choose_count > 1 ? { multiSelect: true } : {}),
+    ...(a.upTo ? { upTo: true } as Record<string, unknown> : {}),
     ...(a.opponentResponds ? { opponentResponds: true } : {}),
-  });
+  } as PendingInteractionDef & { type: 'CHOOSE' });
 }
 
 function execConditional(a: ConditionalAction, ctx: ExecCtx): ExecResult {
