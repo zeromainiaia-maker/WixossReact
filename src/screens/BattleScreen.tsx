@@ -926,6 +926,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [stackOrderIds, setStackOrderIds] = useState<string[]>([]);
   // LOOK_AND_REORDER インタラクション：現在の並び順
   const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
+  const [selectedMultiChoiceIds, setSelectedMultiChoiceIds] = useState<Set<string>>(new Set());
   // アシストルリグセットアップ（センタールリグ選択後の中間状態）
   const [pendingLrigSetup, setPendingLrigSetup] = useState<{
     centerCardNum: string;
