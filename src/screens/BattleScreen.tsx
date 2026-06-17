@@ -1264,6 +1264,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     nums.add('WXDi-CP02-TK02A'); // 雨雲号
     nums.add('WXDi-CP02-TK03B'); // クルセイダーちゃん
     nums.add('WX25-P1-TK6');     // 幻怪 ヤミノザンシ（ON_LEAVE_FIELD で怪異シグニ離脱時に生成）
+    nums.add('WX25-P3-TK03');    // 【みこみこ親衛隊】キーワードトークン（ON_TURN_END trigger用）
     return nums;
   }, [myDeckData, bs]);
 
