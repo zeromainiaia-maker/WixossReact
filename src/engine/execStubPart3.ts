@@ -4469,6 +4469,8 @@ export function execStubPart3(
     let ownPDL: PlayerState = { ...ctx.ownerState, pending_pridi035_paradise: false };
     let othPDL: PlayerState = { ...ctx.otherState, field: { ...ctx.otherState.field } };
     const logsPDL: string[] = [];
+    // 青の「相手は手札を3枚捨てる」は相手自身が選ぶため、即時効果適用後にインタラクションとして発行する
+    let blueTrashAct: EffectAction | null = null;
     const qualifies = (col: string) => {
       const m = paraPDL.filter(n => (ctx.cardMap.get(n)?.Color ?? '').includes(col));
       return m.length >= 3 && new Set(m.map(n => ctx.cardMap.get(n)?.Level)).size >= 3;
@@ -4488,9 +4490,12 @@ export function execStubPart3(
     if (qualifies('青')) {
       const drawnPDL = ownPDL.deck.slice(0, 3);
       ownPDL = { ...ownPDL, deck: ownPDL.deck.slice(3), hand: [...ownPDL.hand, ...drawnPDL] };
-      const discPDL = othPDL.hand.slice(0, 3);
-      othPDL = { ...othPDL, hand: othPDL.hand.slice(discPDL.length), trash: [...othPDL.trash, ...discPDL] };
-      logsPDL.push(`青：${drawnPDL.length}枚ドロー・相手手札${discPDL.length}枚捨て`);
+      // 相手手札捨ては相手が選ぶ。即時には適用せず TRASH アクションを後段で発行（手札がN枚未満なら全部）
+      const blueCountPDL = Math.min(3, othPDL.hand.length);
+      if (blueCountPDL > 0) {
+        blueTrashAct = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: blueCountPDL } } as EffectAction;
+      }
+      logsPDL.push(`青：${drawnPDL.length}枚ドロー・相手が手札${blueCountPDL}枚を選んで捨てる`);
     }
     if (qualifies('緑')) {
       const movedPDL = othPDL.field.signi.flatMap(s => s ?? []);
@@ -4508,7 +4513,12 @@ export function execStubPart3(
     }
     if (logsPDL.length === 0) logsPDL.push('条件未達（共通色のプリパラ3体・レベル3種類なし）');
 
-    return done(addLog({ ...ctx, ownerState: ownPDL, otherState: othPDL }, `PR-Di035 ${logsPDL.join(' / ')}`));
+    const ctxPDL2: ExecCtx = { ...ctx, ownerState: ownPDL, otherState: othPDL };
+    // 青成立時は相手に手札選択の捨てインタラクションを発行（他の即時効果は適用済み）
+    if (blueTrashAct) {
+      return exec(blueTrashAct, addLog(ctxPDL2, `PR-Di035 ${logsPDL.join(' / ')}`));
+    }
+    return done(addLog(ctxPDL2, `PR-Di035 ${logsPDL.join(' / ')}`));
   }
 
   // EXILE_SELF_AFTER_USE: 使用後このカードをゲームから除外する（近似: トラッシュへ）

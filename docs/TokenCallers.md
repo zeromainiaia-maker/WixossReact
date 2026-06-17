@@ -110,8 +110,8 @@
 - **WXDi-P15-003 ひらけ！ゲート！**（`scripts/fixOpenGateGrant.mjs`）…
   `GRANT_LRIG_ABILITY.abilities` を実体化。センタールリグに『【起】エクシード4：シグニバリア』『【起】エクシード4：ドロー4』を付与（`lrig_granted_auto_effects` 経由で起動可能）。
 - **PR-Di035 OPEN DREAM LAND!**（`scripts/fixOpenDreamLand.mjs` / stub `PRDI035_PARADISE_COLOR`）…
-  ＜プリパラ＞が共通色を持ちレベル3種類以上ある色の効果を実行（白=両バリア / 赤=相手ライフ1トラッシュ / 青=ドロー3+相手手札3捨て / 緑=相手シグニ全てエナへ / 黒=相手ミル20）。
-  ※本来「次のあなたのアタックフェイズ開始時」の遅延判定だが遅延トリガー機構がなく即時で近似。青の相手手札捨ては先頭3枚で近似。
+  ＜プリパラ＞が共通色を持ちレベル3種類以上ある色の効果を実行（白=両バリア / 赤=相手ライフ1トラッシュ / 青=ドロー3+相手が手札3枚を選んで捨てる / 緑=相手シグニ全てエナへ / 黒=相手ミル20）。
+  ※遅延タイミング（次のアタックフェイズ開始時）は v0.327 で実装済み。青の相手手札捨ても相手選択の本実装に変更済み（`opponentResponds`）。
 - **WX25-P2-001 スター・ダスト** … 既存の `game_guard_barrier_act` 特殊経路で対応済み（変更不要）。
 
 ### 検証
@@ -134,7 +134,9 @@
   ＜プリオケ＞(CardClass 一致) を1枚までエナへ送り、残りをデッキ下へ（`REVEAL_SECOND_PICK_ENERGY` stub）。
   検証: `scripts/_verifyFutureSession2.ts`（22項目パス）。
 - ~~エビディバ赤 / PR-Di035 遅延タイミング / FUTURE SESSION ③（遅延能力付与）~~ → v0.327 で実装済み。
-- **PR-Di035 青の相手手札捨て**は依然「先頭3枚固定」で近似（本来は相手が選ぶ）。対人戦で要改善。
+- ~~PR-Di035 青の相手手札捨ては「先頭3枚固定」で近似~~ → **本実装済み**。即時効果適用後に
+  `TRASH(HAND_CARD owner:opponent count:min(3,手札数))` を発行し、`opponentResponds` で**相手が選んで捨てる**
+  インタラクションになる（`PRDI035_APPLY_PARADISE`、`scripts/_verifyPrDi035Blue.ts` 13項目パス）。
 
 ## その他のTODO
 - ~~みこみこ親衛隊のターン終了時 手札捨て→除去~~ → 実装済み（`WX25-P3-TK03-E1` ON_TURN_END +
