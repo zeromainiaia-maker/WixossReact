@@ -4405,6 +4405,40 @@ export function execStubPart3(
     return done(addLog(cIERB, `パワー合計${totalPowerIERB}≤12000 → ${namesIERB}をバニッシュ`));
   }
 
+  // GRANT_PRIOKE_PENDING_ATTACK_TRASH: FUTURE SESSION③ 次のAPS時にプリオケシグニへ能力付与をフラグとして予約
+  if (stub.id === 'GRANT_PRIOKE_PENDING_ATTACK_TRASH') {
+    const newSGPPAT: PlayerState = { ...ctx.ownerState, pending_prioke_attack_trash_grant: true };
+    return done(addLog({ ...ctx, ownerState: newSGPPAT }, '次のアタックフェイズ開始時にプリオケシグニへアタック時トラッシュ能力を付与（予約）'));
+  }
+
+  // INTERNAL_APPLY_PRIOKE_ATTACK_TRASH: 予約したアタック時トラッシュ能力を対象プリオケシグニに適用
+  if (stub.id === 'INTERNAL_APPLY_PRIOKE_ATTACK_TRASH') {
+    const targetIAPAT = (ctx.lastProcessedCards ?? [])[0];
+    if (!targetIAPAT) return done(addLog(ctx, 'INTERNAL_APPLY_PRIOKE_ATTACK_TRASH: 対象なし'));
+    // granted_effects にアタック時トラッシュ能力を付与（ターン終了時まで）
+    const trashEff: import('../types/effects').CardEffect = {
+      effectId: `${targetIAPAT}-FS3-GRANTED`,
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      action: {
+        type: 'BANISH',
+        target: { type: 'SIGNI', owner: 'opponent', count: 1,
+          filter: { cardType: 'シグニ' }, upToCount: false },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+    };
+    const prevGranted = ctx.ownerState.granted_effects ?? {};
+    const prevEffs = prevGranted[targetIAPAT] ?? [];
+    const newGranted = { ...prevGranted, [targetIAPAT]: [...prevEffs, trashEff] };
+    const cleared: PlayerState = { ...ctx.ownerState,
+      pending_prioke_attack_trash_grant: false,
+      granted_effects: newGranted,
+    };
+    const targetName = ctx.cardMap.get(targetIAPAT)?.CardName ?? targetIAPAT;
+    return done(addLog({ ...ctx, ownerState: cleared }, `${targetName}にアタック時「相手シグニ1体をトラッシュ」を付与（ターン終了時まで）`));
+  }
+
   // PRDI035_PARADISE_COLOR: PR-Di035 OPEN DREAM LAND! 色分岐。
   // 本来は「次のあなたのアタックフェイズ開始時」に判定する遅延効果だが、遅延トリガー機構が
   // ないため即時で近似する。場の＜プリパラ＞シグニが、ある色を共通して持ちレベルが3種類以上
