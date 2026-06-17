@@ -11,7 +11,7 @@
 | トークン | 呼び出し元 | 生成機構 | 状況 |
 |---|---|---|---|
 | WXK01-TK-01A 棘々迷路 | WXK01-042 幻怪姫 イバラヒメ | `ADD_CRAFT_TO_LRIG_DECK` | ✅ |
-| WXK03-TK-01B 落華流粋 | WXK03-002 カーニバル †MAIS† | （アーツ/クラフト） | ⚠️ 効果本体実装、生成配線要確認 |
+| WXK03-TK-01B 落華流粋 | WXK03-002 カーニバル †MAIS† | `ADD_CRAFT_TO_LRIG_DECK`(名前解決) | ✅ 生成確認。本体E1のCHOOSE(4/最大2)を `CONDITIONAL_MULTI_CHOOSE_BY_CENTER` 単体に修正（余分なアサシン付与/手札2捨ての二重実行を除去）。WXK03-002【出】declare→ZEROも修正(下記) |
 | WXK09-TK-01A 改造素材 | WXK09-015〜020 コード・ピルルク各種, WXK09-047/048/049/077/084, WXK10-050 ほか コードアート群 | `ADD_CRAFT_TO_LRIG_DECK` | ✅ |
 | WXDi-P16-TK01 インビンシブル・ストーリー | WXDi-P16-009 ガブリエラ / -010 アザエラ / -011 ミカエラ | `ADD_CRAFT_TO_LRIG_DECK`（stub） | ✅ |
 | WXDi-P14-TK01〜05 フェゾーネマジック5種 | WXDi-P14-006 遊月・燦, -007 アロス・ピルルク kl, -008 アン＝サード, -009 ウリス, -071 アキノ | フェゾーネ機構（commit a50c4319 で実装） | ✅ |
@@ -33,11 +33,11 @@
 
 | トークン | 呼び出し元 | 生成機構 | 状況 |
 |---|---|---|---|
-| WX25-CP1-TK1A 雷ちゃん | WX25-CP1-066 白石ウタハ | `ADD_TO_FIELD` | ⚠️ ADD_TO_FIELD が名指しトークン解決するか要確認 |
-| WX24-P3-TK1A ママ勇者 | WX24-P3-018 ちより 第三章 | `ADD_TO_FIELD` | ⚠️ 同上 |
-| WXDi-CP02-TK01A ペロロ人形 | WXDi-CP02-028 阿慈谷ヒフミ[助けて、ペロロ様！] | `ADD_TO_FIELD` | ⚠️ |
-| WXDi-CP02-TK02A 雨雲号 | WXDi-CP02-041 奥空アヤネ(水着) | `ADD_TO_FIELD` | ⚠️ |
-| WXDi-CP02-TK03B クルセイダーちゃん | WXDi-CP02-029 阿慈谷ヒフミ(水着) | `ADD_TO_FIELD` | ⚠️ |
+| WX25-CP1-TK1A 雷ちゃん | WX25-CP1-066 白石ウタハ | `ADD_TO_FIELD` cardName | ✅ E1にcardName明示・常時ロード・execAddToFieldで解決 |
+| WX24-P3-TK1A ママ勇者 | WX24-P3-018 ちより 第三章 | `ADD_TO_FIELD` cardName | ✅ E2にcardName明示 |
+| WXDi-CP02-TK01A ペロロ人形 | WXDi-CP02-028 阿慈谷ヒフミ[助けて、ペロロ様！] | `ADD_TO_FIELD` cardName | ✅ E1にcardName明示 |
+| WXDi-CP02-TK02A 雨雲号 | WXDi-CP02-041 奥空アヤネ(水着) | `ADD_TO_FIELD` cardName | ✅ E1にcardName明示 |
+| WXDi-CP02-TK03B クルセイダーちゃん | WXDi-CP02-029 阿慈谷ヒフミ(水着) | `ADD_TO_FIELD` cardName | ✅ E1にcardName明示 |
 
 ## 4. 下に置くクラフト（レイヤー）
 
@@ -59,7 +59,7 @@
 | WX24-D1-TK1 リミットアッパー | WX24 各種エンハンス(P1-031 ほか計13枚), 至る果てへ等 | `PLACE_LIMIT_UPPER` + リミット計算側。`limit_upper_token`(boolean)が正データ。盤面はアシスト左の枠にトークンカード表示(BoardComponents) | ✅ |
 | WX24-P1-TK2A ルリグバリア | WX24-P1-001 セイクリッド・フォース ほか多数（純白の防壁等） | `GAIN_LRIG_BARRIER` → フリーゾーンにトークン設置、ルリグアタックで消費 | ✅ 付与配線済 |
 | WX26-CP1-TK01 シグニバリア | WX26-CP1-001 FUTURE SESSION ほか多数 | `GAIN_SIGNI_BARRIER` → フリーゾーンにトークン設置、シグニ攻撃時 `crashOneLife` で消費 | ✅ 実装済 |
-| WX25-P3-TK03 みこみこ親衛隊 | WX25-P3-023 さんさんおせおせ ほか | `GRANT_KEYWORD keyword:みこみこ親衛隊`（プレースホルダ） | ⚠️ キーワード付与のみ、トークン挙動未実装 |
+| WX25-P3-TK03 みこみこ親衛隊 | WX25-P3-023 さんさんおせおせ ほか | `GRANT_KEYWORD` + ON_TURN_END実体 | ✅ `WX25-P3-TK03-E1`(ON_TURN_END:手札1捨て→`REMOVE_MIKO_KEYWORD`)を`collectTurnTriggers`のKEYWORD_TOKEN_MAP経由で実行 |
 | WXDi-P05-TK01A ハスターリク | WXDi-P05-016 ウムル＝トレ | `HASTARLIQ` stub | ✅ |
 
 ## 7. グロウ先・変身先（厳密にはトークンでない、TK.csv に同居）
@@ -76,7 +76,7 @@
 
 | トークン | 備考 |
 |---|---|
-| WXDi-P07-TK01-A サーバント ZERO | カーニバル系ルリグ/シグニ（WXEX2-10, WXDi-P07-041 等）が「サーバント ＺＥＲＯ」をデッキ外から生成。全角ＺＥＲＯ表記揺れで名前一致せず要確認 |
+| WXDi-P07-TK01-A サーバント ZERO | ✅ `*_SERVANT_ZERO`系stub（`ALL_OPP_SIGNI_SERVANT_ZERO`/`SIGNI_SERVANT_ZERO`/`DECLARED_NAME_TO_SERVANT_ZERO`）が cardNum を直接指定して変換（名前一致不要）。WXK03-002【出】も `DECLARED_NAME_TO_SERVANT_ZERO value:'field'` で場限定変換に修正済み |
 
 ---
 

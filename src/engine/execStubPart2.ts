@@ -2273,19 +2273,23 @@ export function execStubPart2(
     const newSMiko = { ...ctx.ownerState, keyword_grants: grants };
     return done(addLog({ ...ctx, ownerState: newSMiko }, `みこみこ親衛隊を${ctx.cardMap.get(mikoNum)?.CardName ?? mikoNum}から取り除く`));
   }
-  // DECLARED_NAME_TO_SERVANT_ZERO: declared_card_name と一致する相手の全領域カードをサーバントZEROに（WXEX2-10）
+  // DECLARED_NAME_TO_SERVANT_ZERO: declared_card_name と一致する相手のカードをサーバントZEROに（WXEX2-10）
+  // value:'field' 指定時は相手の「場」のみを対象にする（WXK03-002 カーニバル †MAIS† は場限定）。
   if (stub.id === 'DECLARED_NAME_TO_SERVANT_ZERO') {
     const SERVANT_ZERO_DN = 'WXDi-P07-TK01-A';
     const declaredDN = ctx.ownerState.declared_card_name ?? '';
     if (!declaredDN) return done(addLog(ctx, '宣言されたカード名がない（DECLARED_NAME_TO_SERVANT_ZERO）'));
-    // 相手の全領域（場・手札・エナ・トラッシュ・デッキ）で名前が一致するカードを収集
-    const allOppCardsDN: string[] = [
-      ...(ctx.otherState.hand ?? []),
-      ...(ctx.otherState.energy ?? []),
-      ...(ctx.otherState.trash ?? []),
-      ...(ctx.otherState.deck ?? []),
-      ...ctx.otherState.field.signi.flatMap(z => z ?? []),
-    ];
+    const fieldOnlyDN = stub.value === 'field';
+    // 相手の対象領域で名前が一致するカードを収集（既定: 全領域 / value:'field': 場のみ）
+    const allOppCardsDN: string[] = fieldOnlyDN
+      ? ctx.otherState.field.signi.flatMap(z => z ?? [])
+      : [
+        ...(ctx.otherState.hand ?? []),
+        ...(ctx.otherState.energy ?? []),
+        ...(ctx.otherState.trash ?? []),
+        ...(ctx.otherState.deck ?? []),
+        ...ctx.otherState.field.signi.flatMap(z => z ?? []),
+      ];
     const matchedDN = allOppCardsDN.filter(cn => {
       const overrideId = ctx.otherState.card_identity_overrides?.[cn] ?? ctx.cardMap.get(cn)?.CardNum;
       const name = ctx.cardMap.get(overrideId ?? cn)?.CardName ?? ctx.cardMap.get(cn)?.CardName ?? '';
