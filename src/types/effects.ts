@@ -502,6 +502,7 @@ export interface AddToFieldAction {
   owner: Owner;
   source?: EffectTarget; // トラッシュ・エナ・手札など出処が明示される場合
   asDown?: boolean;      // true = ダウン状態で場に出す
+  cardName?: string;     // ゲーム外からトークンを生成して場に出す場合のCardNum
 }
 
 export interface FreezeAction {
