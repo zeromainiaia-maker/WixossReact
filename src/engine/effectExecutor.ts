@@ -2690,13 +2690,24 @@ export function resumeSearch(
 
 // CHOOSE: choiceId export
  export function resumeChoose(
-  choiceId: string,
+  choiceId: string | string[], // 単一IDまたは複数ID（multiSelect/upTo対応）
   pending: PendingInteractionDef & { type: 'CHOOSE' },
   ctx: ExecCtx,
 ): ExecResult {
-  const opt = pending.options.find(o => o.id === choiceId);
-  if (!opt) return done(ctx);
-  const result = executeAction(opt.action, ctx);
+  const ids = Array.isArray(choiceId) ? choiceId : [choiceId];
+  const opts = ids.map(id => pending.options.find(o => o.id === id)).filter((o): o is NonNullable<typeof o> => !!o);
+  if (opts.length === 0) {
+    // upTo=true で0個選択した場合（スキップ相当）
+    if (pending.continuation) {
+      return executeAction(pending.continuation, ctx);
+    }
+    return done(ctx);
+  }
+  // 複数選択時はSEQUENCEとして実行
+  const combinedAction: import('../types/effects').EffectAction = opts.length === 1
+    ? opts[0].action
+    : ({ type: 'SEQUENCE', steps: opts.map(o => o.action) } as import('../types/effects').SequenceAction);
+  const result = executeAction(combinedAction, ctx);
   if (!result.done) {
     // ネストしたインタラクション（SELECT_TARGET 等）の continuation に外側の continuation を合成
     if (pending.continuation) {
