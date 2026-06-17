@@ -4454,15 +4454,19 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: cleared }, `${targetName}にアタック時「相手シグニ1体をトラッシュ」を付与（ターン終了時まで）`));
   }
 
-  // PRDI035_PARADISE_COLOR: PR-Di035 OPEN DREAM LAND! 色分岐。
-  // 本来は「次のあなたのアタックフェイズ開始時」に判定する遅延効果だが、遅延トリガー機構が
-  // ないため即時で近似する。場の＜プリパラ＞シグニが、ある色を共通して持ちレベルが3種類以上
-  // ある場合、その色の効果を行う（複数色該当時は全て）。青の相手手札捨ては先頭3枚で近似。
+  // PRDI035_PARADISE_COLOR: 次のアタックフェイズ開始時判定フラグをセット。
   if (stub.id === 'PRDI035_PARADISE_COLOR') {
+    const nextOwner: PlayerState = { ...ctx.ownerState, pending_pridi035_paradise: true };
+    return done(addLog({ ...ctx, ownerState: nextOwner }, 'PR-Di035：次のアタックフェイズ開始時に色別効果を評価'));
+  }
+
+  // PRDI035_APPLY_PARADISE: PR-Di035 OPEN DREAM LAND! 色分岐（APS時評価）。
+  // 場の＜プリパラ＞シグニが、ある色を共通して持ちレベルが3種類以上ある場合、その色の効果を行う。
+  if (stub.id === 'PRDI035_APPLY_PARADISE') {
     const signiTopsPDL = ctx.ownerState.field.signi
       .map(s => s?.at(-1)).filter((n): n is string => !!n);
     const paraPDL = signiTopsPDL.filter(n => (ctx.cardMap.get(n)?.CardClass ?? '').includes('プリパラ'));
-    let ownPDL: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field } };
+    let ownPDL: PlayerState = { ...ctx.ownerState, pending_pridi035_paradise: false };
     let othPDL: PlayerState = { ...ctx.otherState, field: { ...ctx.otherState.field } };
     const logsPDL: string[] = [];
     const qualifies = (col: string) => {
@@ -4484,7 +4488,7 @@ export function execStubPart3(
     if (qualifies('青')) {
       const drawnPDL = ownPDL.deck.slice(0, 3);
       ownPDL = { ...ownPDL, deck: ownPDL.deck.slice(3), hand: [...ownPDL.hand, ...drawnPDL] };
-      const discPDL = othPDL.hand.slice(0, 3); // 相手手札捨ては先頭3枚で近似
+      const discPDL = othPDL.hand.slice(0, 3);
       othPDL = { ...othPDL, hand: othPDL.hand.slice(discPDL.length), trash: [...othPDL.trash, ...discPDL] };
       logsPDL.push(`青：${drawnPDL.length}枚ドロー・相手手札${discPDL.length}枚捨て`);
     }
