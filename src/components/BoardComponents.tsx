@@ -381,6 +381,41 @@ export function StackSlot({ stack, cards, width = 60, height = 84, label, faceDo
 // ─── StackedSigniSlot: シグニゾーン用スタックスロット ──────────────
 export const SIGNI_STACK_OFFSET = 4;
 
+// シグニの状態キーワードを盤面バッジで表示する定義（感染「V」と同様の視認性向上）。
+// 表示順は配列順（上から）。label は省スペースのため短縮表記。
+const KEYWORD_BADGES: { keyword: string; label: string; fg: string; bg: string }[] = [
+  { keyword: 'アサシン', label: '刺', fg: '#fff', bg: 'rgba(150,0,90,0.9)' },
+  { keyword: 'Sランサー', label: 'S槍', fg: '#fff', bg: 'rgba(170,30,30,0.9)' },
+  { keyword: 'ランサー', label: '槍', fg: '#fff', bg: 'rgba(170,30,30,0.9)' },
+  { keyword: 'トリプルクラッシュ', label: '3C', fg: '#fff', bg: 'rgba(200,90,0,0.9)' },
+  { keyword: 'ダブルクラッシュ', label: 'W', fg: '#fff', bg: 'rgba(200,90,0,0.9)' },
+  { keyword: 'シャドウ', label: '影', fg: '#ddd', bg: 'rgba(40,40,60,0.92)' },
+];
+
+// シグニのトップカードが現在表示すべき状態キーワード（固有＋付与）を算出する。
+// 能力消去中は何も表示しない。上位キーワード（Sランサー/トリプルクラッシュ）がある場合は
+// 下位（ランサー/ダブルクラッシュ）を重複表示しない。
+export function getSigniStatusKeywords(
+  stack: string[] | null,
+  cards: CardData[],
+  keywordGrants?: Record<string, string[]>,
+  abilitiesRemoved?: string[],
+): string[] {
+  if (!stack || stack.length === 0) return [];
+  const topNum = stack[stack.length - 1];
+  if (abilitiesRemoved?.includes(topNum)) return [];
+  const card = cards.find(c => c.CardNum === getCardNum(topNum));
+  const text = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+  const granted = keywordGrants?.[topNum] ?? [];
+  const has = (kw: string) => granted.includes(kw) || text.includes(`【${kw}】`);
+  const result = KEYWORD_BADGES.filter(b => has(b.keyword)).map(b => b.keyword);
+  // 上位キーワードがあれば下位を除外
+  const drop = new Set<string>();
+  if (result.includes('Sランサー')) drop.add('ランサー');
+  if (result.includes('トリプルクラッシュ')) drop.add('ダブルクラッシュ');
+  return result.filter(kw => !drop.has(kw));
+}
+
 export interface StackedSigniSlotProps {
   stack: string[] | null;
   cards: CardData[];
@@ -401,9 +436,10 @@ export interface StackedSigniSlotProps {
   trapCardNum?: string | null;
   seedCardNum?: string | null;
   magicBoxCardNum?: string | null;
+  statusKeywords?: string[];
 }
 
-export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, magicBoxCardNum }: StackedSigniSlotProps) {
+export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, magicBoxCardNum, statusKeywords = [] }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
   const [showMBPeek, setShowMBPeek] = useState(false);
@@ -616,6 +652,25 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
           }}>
             V
+          </div>
+        )}
+        {statusKeywords.length > 0 && (
+          <div style={{
+            position: 'absolute', top: extraH + 2 + (isArmored ? 13 : 0), left: 2,
+            display: 'flex', flexDirection: 'column', gap: 1,
+            pointerEvents: 'none', zIndex: n + 4,
+          }}>
+            {statusKeywords.map(kw => {
+              const b = KEYWORD_BADGES.find(x => x.keyword === kw);
+              if (!b) return null;
+              return (
+                <div key={kw} title={kw} style={{
+                  backgroundColor: b.bg, color: b.fg,
+                  fontSize: 7, fontWeight: 'bold', borderRadius: 2,
+                  padding: '1px 2px', lineHeight: 1, minWidth: 8, textAlign: 'center',
+                }}>{b.label}</div>
+              );
+            })}
           </div>
         )}
         {chokkinCount > 0 && (
@@ -981,6 +1036,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             trapCardNum={state.field.signi_traps?.[rawIdx] ?? null}
             seedCardNum={state.field.signi_seeds?.[rawIdx] ?? null}
             magicBoxCardNum={state.field.signi_magic_boxes?.[rawIdx] ?? null}
+            statusKeywords={getSigniStatusKeywords(s, cards, state.keyword_grants, state.abilities_removed)}
             isMe={isMe} />
         );
       })}
