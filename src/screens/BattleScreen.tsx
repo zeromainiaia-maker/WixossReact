@@ -1257,6 +1257,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs) { addState(bs.host_state); addState(bs.guest_state); }
     nums.add('WXDi-P07-TK01-A'); // サーバントZEROトークン（常時ロード）
     nums.add('WX24-D1-TK1');     // 【リミットアッパー】トークン（ルリグゾーン左に表示・常時ロード）
+    // クラフトカード（ADD_CRAFT_TO_LRIG_DECKでゲーム外から生成・cardMapに必要）
+    nums.add('WXK01-TK-01A');   // 棘々迷路
+    nums.add('WXK03-TK-01B');   // 落華流粋
+    nums.add('WXK09-TK-01A');   // 改造素材
     // シグニトークン（ADD_TO_FIELD cardName指定で生成されるゲーム外カード）
     nums.add('WX25-CP1-TK1A');   // 雷ちゃん
     nums.add('WX24-P3-TK1A');    // ママ勇者
