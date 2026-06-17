@@ -325,6 +325,8 @@ export interface PlayerState {
   last_discarded_signi_power?: number;
   // BET_CONDITION: このアーツ/効果でベット宣言していた場合 true（execStub内でチェック）
   is_betting_this_effect?: boolean;
+  // FUTURE SESSION③: 次のアタックフェイズ開始時にプリオケシグニへアタック時トラッシュ能力を付与
+  pending_prioke_attack_trash_grant?: boolean;
 }
 
 export interface GameLog {

@@ -38735,7 +38735,12 @@
               "raw": "③次のあなたのアタックフェイズ開始時、プリオケのシグニにアタック時トラッシュ能力を付与（未実装）"
             }
           }
-        ]
+        ],
+        "recollect": {
+          "minCount": 4,
+          "thenChooseCount": 2,
+          "thenUpTo": true
+        }
       },
       "duration": "INSTANT",
       "mandatory": false,
