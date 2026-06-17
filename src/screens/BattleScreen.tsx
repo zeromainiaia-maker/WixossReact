@@ -1196,8 +1196,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const shuffled = [...inter.candidates].sort(() => Math.random() - 0.5);
         selected = shuffled.slice(0, Math.min(count, shuffled.length));
       } else if (inter.type === 'CHOOSE') {
-        const firstAvail = inter.options.find(o => o.available) ?? inter.options[0];
-        selected = firstAvail ? [firstAvail.id] : [];
+        if (inter.multiSelect) {
+          // 複数選択: 利用可能な選択肢からcount個（upToならcount個まで）選択
+          const avail = inter.options.filter(o => o.available);
+          selected = avail.slice(0, inter.count).map(o => o.id);
+        } else {
+          const firstAvail = inter.options.find(o => o.available) ?? inter.options[0];
+          selected = firstAvail ? [firstAvail.id] : [];
+        }
       } else if (inter.type === 'SEARCH') {
         const count = inter.maxPick ?? 0;
         selected = inter.visibleCards.slice(0, count);
