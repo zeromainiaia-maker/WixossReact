@@ -547,6 +547,43 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     }
   }
 
+  // ゲーム外からトークン生成（cardName指定時）
+  if (!src && a.cardName) {
+    const state = ownerState(tgtOwner, ctx);
+    if (!state.field.signi.some(z => !z || z.length === 0)) {
+      return done(addLog(ctx, `空きシグニゾーンなし（${a.cardName}配置不可）`));
+    }
+    let maxIdx = 0;
+    const scanNums = (arr: string[] | null | undefined) => arr?.forEach(n => {
+      if (getCardNum(n) === a.cardName) {
+        const i = parseInt(n.slice(a.cardName!.length + 1), 10) || 0;
+        if (i > maxIdx) maxIdx = i;
+      }
+    });
+    const scanSt = (s: PlayerState) => {
+      scanNums(s.deck); scanNums(s.hand); scanNums(s.trash); scanNums(s.energy);
+      s.field.signi.forEach(z => scanNums(z));
+      scanNums(s.field.free_zone);
+    };
+    scanSt(ctx.ownerState);
+    scanSt(ctx.otherState);
+    const instanceId = `${a.cardName}#${maxIdx + 1}`;
+    const signi = [...state.field.signi] as (string[] | null)[];
+    const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
+    if (emptyZones.length >= 2) {
+      return needsInteraction(ctx, {
+        type: 'SELECT_SIGNI_ZONE',
+        cardNum: instanceId,
+        owner: tgtOwner === 'opponent' ? 'opponent' : 'self',
+      });
+    }
+    signi[emptyZones[0].i] = [instanceId];
+    const newS: PlayerState = { ...state, field: { ...state.field, signi } };
+    const cardLabel = ctx.cardMap.get(instanceId)?.CardName ?? a.cardName;
+    return done(addLog(setOwnerState(tgtOwner, newS, ctx),
+      `${cardLabel}をゾーン${emptyZones[0].i + 1}に場に出す（ゲーム外から）`));
+  }
+
   // source
   if (!src) {
     const state = ownerState(tgtOwner, ctx);
