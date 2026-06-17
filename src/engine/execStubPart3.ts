@@ -4316,6 +4316,106 @@ export function execStubPart3(
       `【シグニバリア】+${countGSB}（フリーゾーンに設置）`));
   }
 
+  // EVDIVA_PER_LRIG_COLOR: WX25-P3-050 エビディバ!!!!! 場の色別ルリグ数ぶんに各効果を行う。
+  // 白=【ルリグバリア】/青=ドロー3/緑=エナチャージ3/黒=相手デッキ10トラッシュ（決定的）。
+  // 赤=対象選択を伴うバニッシュのため未実装（ログのみ）。
+  if (stub.id === 'EVDIVA_PER_LRIG_COLOR') {
+    const sEPLC = ctx.ownerState;
+    const lrigNumsEPLC = [
+      sEPLC.field.lrig.at(-1),
+      sEPLC.field.assist_lrig_l?.at(-1),
+      sEPLC.field.assist_lrig_r?.at(-1),
+    ].filter((n): n is string => !!n);
+    const colorCntEPLC = (col: string) =>
+      lrigNumsEPLC.filter(n => (ctx.cardMap.get(n)?.Color ?? '').includes(col)).length;
+    const whiteEPLC = colorCntEPLC('白'), redEPLC = colorCntEPLC('赤'), blueEPLC = colorCntEPLC('青'),
+          greenEPLC = colorCntEPLC('緑'), blackEPLC = colorCntEPLC('黒');
+
+    let ownEPLC: PlayerState = { ...sEPLC, field: { ...sEPLC.field } };
+    let othEPLC: PlayerState = ctx.otherState;
+    const logsEPLC: string[] = [];
+
+    if (whiteEPLC > 0) {
+      ownEPLC = { ...ownEPLC, field: { ...ownEPLC.field, free_zone: addBarrierTokens(ownEPLC.field.free_zone, LRIG_BARRIER_CARD, whiteEPLC) } };
+      logsEPLC.push(`白ルリグ${whiteEPLC}体→【ルリグバリア】+${whiteEPLC}`);
+    }
+    if (blueEPLC > 0) {
+      const dEPLC = blueEPLC * 3;
+      const drawnEPLC = ownEPLC.deck.slice(0, dEPLC);
+      ownEPLC = { ...ownEPLC, deck: ownEPLC.deck.slice(dEPLC), hand: [...ownEPLC.hand, ...drawnEPLC] };
+      logsEPLC.push(`青ルリグ${blueEPLC}体→${drawnEPLC.length}枚ドロー`);
+    }
+    if (greenEPLC > 0) {
+      const cEPLC = greenEPLC * 3;
+      const chargedEPLC = ownEPLC.deck.slice(0, cEPLC);
+      ownEPLC = { ...ownEPLC, deck: ownEPLC.deck.slice(cEPLC), energy: [...ownEPLC.energy, ...chargedEPLC] };
+      logsEPLC.push(`緑ルリグ${greenEPLC}体→エナチャージ${chargedEPLC.length}`);
+    }
+    if (blackEPLC > 0) {
+      const mEPLC = blackEPLC * 10;
+      const milledEPLC = othEPLC.deck.slice(0, mEPLC);
+      othEPLC = { ...othEPLC, deck: othEPLC.deck.slice(mEPLC), trash: [...othEPLC.trash, ...milledEPLC] };
+      logsEPLC.push(`黒ルリグ${blackEPLC}体→相手デッキ${milledEPLC.length}枚トラッシュ`);
+    }
+    if (redEPLC > 0) logsEPLC.push(`赤ルリグ${redEPLC}体→バニッシュ（対象選択・未実装）`);
+    if (logsEPLC.length === 0) logsEPLC.push('対象の色のルリグなし');
+
+    return done(addLog({ ...ctx, ownerState: ownEPLC, otherState: othEPLC }, logsEPLC.join(' / ')));
+  }
+
+  // PRDI035_PARADISE_COLOR: PR-Di035 OPEN DREAM LAND! 色分岐。
+  // 本来は「次のあなたのアタックフェイズ開始時」に判定する遅延効果だが、遅延トリガー機構が
+  // ないため即時で近似する。場の＜プリパラ＞シグニが、ある色を共通して持ちレベルが3種類以上
+  // ある場合、その色の効果を行う（複数色該当時は全て）。青の相手手札捨ては先頭3枚で近似。
+  if (stub.id === 'PRDI035_PARADISE_COLOR') {
+    const signiTopsPDL = ctx.ownerState.field.signi
+      .map(s => s?.at(-1)).filter((n): n is string => !!n);
+    const paraPDL = signiTopsPDL.filter(n => (ctx.cardMap.get(n)?.CardClass ?? '').includes('プリパラ'));
+    let ownPDL: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field } };
+    let othPDL: PlayerState = { ...ctx.otherState, field: { ...ctx.otherState.field } };
+    const logsPDL: string[] = [];
+    const qualifies = (col: string) => {
+      const m = paraPDL.filter(n => (ctx.cardMap.get(n)?.Color ?? '').includes(col));
+      return m.length >= 3 && new Set(m.map(n => ctx.cardMap.get(n)?.Level)).size >= 3;
+    };
+
+    if (qualifies('白')) {
+      let fz = addBarrierTokens(ownPDL.field.free_zone, SIGNI_BARRIER_CARD, 1);
+      fz = addBarrierTokens(fz, LRIG_BARRIER_CARD, 1);
+      ownPDL = { ...ownPDL, field: { ...ownPDL.field, free_zone: fz } };
+      logsPDL.push('白：シグニバリア+ルリグバリア');
+    }
+    if (qualifies('赤') && othPDL.life_cloth.length > 0) {
+      const crashedPDL = othPDL.life_cloth[othPDL.life_cloth.length - 1];
+      othPDL = { ...othPDL, life_cloth: othPDL.life_cloth.slice(0, -1), trash: [...othPDL.trash, crashedPDL] };
+      logsPDL.push('赤：相手ライフ1枚をトラッシュ');
+    }
+    if (qualifies('青')) {
+      const drawnPDL = ownPDL.deck.slice(0, 3);
+      ownPDL = { ...ownPDL, deck: ownPDL.deck.slice(3), hand: [...ownPDL.hand, ...drawnPDL] };
+      const discPDL = othPDL.hand.slice(0, 3); // 相手手札捨ては先頭3枚で近似
+      othPDL = { ...othPDL, hand: othPDL.hand.slice(discPDL.length), trash: [...othPDL.trash, ...discPDL] };
+      logsPDL.push(`青：${drawnPDL.length}枚ドロー・相手手札${discPDL.length}枚捨て`);
+    }
+    if (qualifies('緑')) {
+      const movedPDL = othPDL.field.signi.flatMap(s => s ?? []);
+      othPDL = {
+        ...othPDL,
+        energy: [...othPDL.energy, ...movedPDL],
+        field: { ...othPDL.field, signi: [null, null, null] },
+      };
+      logsPDL.push(`緑：相手シグニ${movedPDL.length}枚をエナゾーンへ`);
+    }
+    if (qualifies('黒')) {
+      const milledPDL = othPDL.deck.slice(0, 20);
+      othPDL = { ...othPDL, deck: othPDL.deck.slice(milledPDL.length), trash: [...othPDL.trash, ...milledPDL] };
+      logsPDL.push(`黒：相手デッキ${milledPDL.length}枚トラッシュ`);
+    }
+    if (logsPDL.length === 0) logsPDL.push('条件未達（共通色のプリパラ3体・レベル3種類なし）');
+
+    return done(addLog({ ...ctx, ownerState: ownPDL, otherState: othPDL }, `PR-Di035 ${logsPDL.join(' / ')}`));
+  }
+
   // EXILE_SELF_AFTER_USE: 使用後このカードをゲームから除外する（近似: トラッシュへ）
   if (stub.id === 'EXILE_SELF_AFTER_USE') {
     const srcESAU = ctx.sourceCardNum;

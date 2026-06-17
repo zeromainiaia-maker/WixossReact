@@ -102,12 +102,22 @@
 - **WX26-CP1-001 FUTURE SESSION** … `CHOOSE(choose_count:1, from_count:3)` に再構築。①GAIN_SIGNI_BARRIER / ②REVEAL_PICK(近似) / ③UNKNOWN(未実装)。
   ※リコレクト4枚以上で「2つまで」に上昇する点は未対応（choose_count 固定）。②のプリオケ→エナと③の遅延能力付与は未実装。
 
-### 残課題（バリア以外のパース構造が壊れており、今回は未対応）
+### 専用 stub / 付与能力実体化で対応済み
 
-- **WX25-P3-050 エビディバ!!!!!** … 「白ルリグ1体につき」可変数付与のため固定 stub にできず。可変カウント機構が必要。
-- **WXDi-P15-003 ひらけ！ゲート！** … `GRANT_LRIG_ABILITY` の引用能力が未パース（abilities空）。付与能力パースが必要。
-- **PR-Di035 OPEN DREAM LAND!** … 色条件分岐が単一 SEQUENCE に潰れている（Sのみ置換、Lは未追加）。
+- **WX25-P3-050 エビディバ!!!!!**（`scripts/fixEvdivaPerLrig.mjs` / stub `EVDIVA_PER_LRIG_COLOR`）…
+  場の色別ルリグ数ぶんに実行。白=ルリグバリア / 青=ドロー3 / 緑=エナチャージ3 / 黒=相手ミル10 を決定的に実装。
+  ※赤（合計12000以下バニッシュ）は対象選択が必要なため未実装ログのみ。
+- **WXDi-P15-003 ひらけ！ゲート！**（`scripts/fixOpenGateGrant.mjs`）…
+  `GRANT_LRIG_ABILITY.abilities` を実体化。センタールリグに『【起】エクシード4：シグニバリア』『【起】エクシード4：ドロー4』を付与（`lrig_granted_auto_effects` 経由で起動可能）。
+- **PR-Di035 OPEN DREAM LAND!**（`scripts/fixOpenDreamLand.mjs` / stub `PRDI035_PARADISE_COLOR`）…
+  ＜プリパラ＞が共通色を持ちレベル3種類以上ある色の効果を実行（白=両バリア / 赤=相手ライフ1トラッシュ / 青=ドロー3+相手手札3捨て / 緑=相手シグニ全てエナへ / 黒=相手ミル20）。
+  ※本来「次のあなたのアタックフェイズ開始時」の遅延判定だが遅延トリガー機構がなく即時で近似。青の相手手札捨ては先頭3枚で近似。
 - **WX25-P2-001 スター・ダスト** … 既存の `game_guard_barrier_act` 特殊経路で対応済み（変更不要）。
+
+### 既知の近似・未対応（再掲）
+
+- CHOOSE の「N つ**まで**(up to)」と、リコレクト枚数で choose_count が増える挙動は未対応（固定 choose_count で近似）。
+- エビディバ赤、PR-Di035 の遅延タイミング、FUTURE SESSION ③（遅延能力付与）は未実装。
 
 ## その他のTODO
 - **みこみこ親衛隊**はキーワード付与で代用されており、ターン終了時の手札捨て→除去のトークン本来挙動は未実装。
