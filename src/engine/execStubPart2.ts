@@ -2259,6 +2259,31 @@ export function execStubPart2(
     const newSOtherSZ: PlayerState = { ...ctx.otherState, card_identity_overrides: identOverSZ };
     return done(addLog({ ...ctx, otherState: newSOtherSZ }, `${targets.length}体をサーバントZERO（WXDi-P07-TK01-A）に`));
   }
+  // DECLARED_NAME_TO_SERVANT_ZERO: declared_card_name と一致する相手の全領域カードをサーバントZEROに（WXEX2-10）
+  if (stub.id === 'DECLARED_NAME_TO_SERVANT_ZERO') {
+    const SERVANT_ZERO_DN = 'WXDi-P07-TK01-A';
+    const declaredDN = ctx.ownerState.declared_card_name ?? '';
+    if (!declaredDN) return done(addLog(ctx, '宣言されたカード名がない（DECLARED_NAME_TO_SERVANT_ZERO）'));
+    // 相手の全領域（場・手札・エナ・トラッシュ・デッキ）で名前が一致するカードを収集
+    const allOppCardsDN: string[] = [
+      ...(ctx.otherState.hand ?? []),
+      ...(ctx.otherState.energy ?? []),
+      ...(ctx.otherState.trash ?? []),
+      ...(ctx.otherState.deck ?? []),
+      ...ctx.otherState.field.signi.flatMap(z => z ?? []),
+    ];
+    const matchedDN = allOppCardsDN.filter(cn => {
+      const overrideId = ctx.otherState.card_identity_overrides?.[cn] ?? ctx.cardMap.get(cn)?.CardNum;
+      const name = ctx.cardMap.get(overrideId ?? cn)?.CardName ?? ctx.cardMap.get(cn)?.CardName ?? '';
+      return name === declaredDN;
+    });
+    if (matchedDN.length === 0) return done(addLog(ctx, `「${declaredDN}」一致カードなし（DECLARED_NAME_TO_SERVANT_ZERO）`));
+    const identOverDN = { ...(ctx.otherState.card_identity_overrides ?? {}) };
+    for (const cn of matchedDN) identOverDN[cn] = SERVANT_ZERO_DN;
+    const newSOtherDN: PlayerState = { ...ctx.otherState, card_identity_overrides: identOverDN };
+    return done(addLog({ ...ctx, otherState: newSOtherDN },
+      `「${declaredDN}」${matchedDN.length}枚をサーバントZERO（WXDi-P07-TK01-A）に`));
+  }
   // === バッチ7: バニッシュ・トラッシュ・条件効果 ===
   // BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ
   if (stub.id === 'BANISH') {
