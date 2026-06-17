@@ -3999,6 +3999,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 任意コスト付き選択: resumeOptionalCost でエナ消費処理
           const energyNums = selectedOrChoiceId.slice(1);
           result = resumeOptionalCost(choiceId, energyNums, inter, ctx);
+        } else if (inter.multiSelect) {
+          // 複数選択UI: selectedOrChoiceId が選択された全choiceId配列
+          result = resumeChoose(selectedOrChoiceId, inter, ctx);
         } else {
           result = resumeChoose(choiceId, inter, ctx);
         }
