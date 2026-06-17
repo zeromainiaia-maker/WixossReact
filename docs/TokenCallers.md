@@ -57,8 +57,8 @@
 | トークン | 呼び出し元 | 生成機構 | 状況 |
 |---|---|---|---|
 | WX24-D1-TK1 リミットアッパー | WX24 各種エンハンス(P1-031 ほか計13枚), 至る果てへ等 | `PLACE_LIMIT_UPPER` + リミット計算側 | ✅ |
-| WX24-P1-TK2A ルリグバリア | WX24-P1-001 セイクリッド・フォース ほか多数（純白の防壁等） | `GAIN_LRIG_BARRIER` + `lrig_barrier` state、ルリグアタックで消費 | ✅ |
-| WX26-CP1-TK01 シグニバリア | WX26-CP1-001 FUTURE SESSION ほか多数 | （該当 state/消費ロジックなし） | ❌ **未実装** |
+| WX24-P1-TK2A ルリグバリア | WX24-P1-001 セイクリッド・フォース ほか多数（純白の防壁等） | `GAIN_LRIG_BARRIER` + `lrig_barrier` state、ルリグアタックで消費 | ✅ 付与配線済 |
+| WX26-CP1-TK01 シグニバリア | WX26-CP1-001 FUTURE SESSION ほか多数 | `GAIN_SIGNI_BARRIER` + `signi_barrier` state、シグニ攻撃時 `crashOneLife` で消費 | ✅ 実装済 |
 | WX25-P3-TK03 みこみこ親衛隊 | WX25-P3-023 さんさんおせおせ ほか | `GRANT_KEYWORD keyword:みこみこ親衛隊`（プレースホルダ） | ⚠️ キーワード付与のみ、トークン挙動未実装 |
 | WXDi-P05-TK01A ハスターリク | WXDi-P05-016 ウムル＝トレ | `HASTARLIQ` stub | ✅ |
 
@@ -80,11 +80,28 @@
 
 ---
 
-## 実装上の注意点・TODO
+## バリア実装メモ（2026-06-17 実装）
 
-- **シグニバリア（WX26-CP1-TK01）が完全未実装。** `lrig_barrier` に相当する `signi_barrier` state、
-  シグニからのダメージ時の消費処理が `src/types/index.ts` / `BattleScreen.tsx` にない。
-  ルリグバリア（`GAIN_LRIG_BARRIER` / `lrig_barrier`）を雛形に実装が必要。
+両バリアの **付与経路** を共通方式で配線した。
+
+- インフラ: `signi_barrier?: number`（`src/types/index.ts`）を追加。`GAIN_SIGNI_BARRIER` stub を
+  `GAIN_LRIG_BARRIER` の隣（`src/engine/execStubPart3.ts`）に追加。両 stub は `count` 任意対応。
+- 消費: シグニ攻撃のライフクラッシュ中核 `crashOneLife`（`BattleScreen.tsx`）の先頭で `signi_barrier`
+  を消費（`prevent_next_damage` より優先）。ルリグバリアは従来どおりルリグアタック解決時に消費。
+- 付与配線（`scripts/fixBarrierGrants.mjs`）: パーサが `GRANT_KEYWORD(keyword:"○バリア")` という
+  プレースホルダにしていた10件を `GAIN_*_BARRIER` stub に置換（WXDi-P16-003 は `count:2`）。
+  付与が落ちていた4枚（WXDi-P12-001 / WXDi-CP02-001 / WX25-P3-001 / WXDi-P14-001選択肢①）に GAIN step を追加。
+
+### 残課題（バリア以外のパース構造が壊れており、今回は未対応）
+
+- **WX24-P1-001 セイクリッド・フォース** … 「3つから2つ選ぶ」が単一 `REVEAL_PICK` に潰れており①ルリグバリアが欠落。CHOOSE 再構築が必要。
+- **WX26-CP1-001 FUTURE SESSION** … 3択がリコレクト分岐込みで潰れ、①シグニバリアが欠落。
+- **WX25-P3-050 エビディバ!!!!!** … 「白ルリグ1体につき」可変数付与のため固定 stub にできず。
+- **WXDi-P15-003 ひらけ！ゲート！** … `GRANT_LRIG_ABILITY` の引用能力が未パース（abilities空）。
+- **PR-Di035 OPEN DREAM LAND!** … 色条件分岐が単一 SEQUENCE に潰れている（Sのみ置換、Lは未追加）。
+- **WX25-P2-001 スター・ダスト** … 既存の `game_guard_barrier_act` 特殊経路で対応済み（変更不要）。
+
+## その他のTODO
 - **みこみこ親衛隊**はキーワード付与で代用されており、ターン終了時の手札捨て→除去のトークン本来挙動は未実装。
 - **シグニトークン（4章・3章）の `ADD_TO_FIELD`** が、本体テキストの名指し（《雷ちゃん》等）から
   正しいトークンカードを解決して場に出しているか未検証。effects JSON 上は cardName/source 指定が

@@ -5633,6 +5633,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ライフクロスを1枚クラッシュし、チェック状態にする
   // returns: crashed=null + prevented=true → ダメージ無効、crashed=null + !prevented → ライフなし（即勝利判定）
   const crashOneLife = (state: PlayerState): { newState: PlayerState; crashed: string | null; prevented?: boolean } => {
+    if ((state.signi_barrier ?? 0) > 0) {
+      appendBattleLogs([`シグニバリア発動（残${(state.signi_barrier ?? 1) - 1}）ダメージ無効`]);
+      return {
+        newState: { ...state, signi_barrier: (state.signi_barrier ?? 0) - 1 },
+        crashed: null,
+        prevented: true,
+      };
+    }
     if ((state.prevent_next_damage ?? 0) > 0) {
       return {
         newState: { ...state, prevent_next_damage: (state.prevent_next_damage ?? 0) - 1 },

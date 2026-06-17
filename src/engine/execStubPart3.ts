@@ -4299,9 +4299,18 @@ export function execStubPart3(
 
   // GAIN_LRIG_BARRIER: 【ルリグバリア】を1つ得る（ルリグアタック1回を無効）
   if (stub.id === 'GAIN_LRIG_BARRIER') {
-    const newOwnerGLB: PlayerState = { ...ctx.ownerState, lrig_barrier: (ctx.ownerState.lrig_barrier ?? 0) + 1 };
+    const countGLB = (stub as { count?: number }).count ?? 1;
+    const newOwnerGLB: PlayerState = { ...ctx.ownerState, lrig_barrier: (ctx.ownerState.lrig_barrier ?? 0) + countGLB };
     return done(addLog({ ...ctx, ownerState: newOwnerGLB },
-      `【ルリグバリア】+1（計${newOwnerGLB.lrig_barrier}）`));
+      `【ルリグバリア】+${countGLB}（計${newOwnerGLB.lrig_barrier}）`));
+  }
+
+  // GAIN_SIGNI_BARRIER: 【シグニバリア】を1つ得る（相手シグニからのダメージ1回を無効）
+  if (stub.id === 'GAIN_SIGNI_BARRIER') {
+    const countGSB = (stub as { count?: number }).count ?? 1;
+    const newOwnerGSB: PlayerState = { ...ctx.ownerState, signi_barrier: (ctx.ownerState.signi_barrier ?? 0) + countGSB };
+    return done(addLog({ ...ctx, ownerState: newOwnerGSB },
+      `【シグニバリア】+${countGSB}（計${newOwnerGSB.signi_barrier}）`));
   }
 
   // EXILE_SELF_AFTER_USE: 使用後このカードをゲームから除外する（近似: トラッシュへ）
