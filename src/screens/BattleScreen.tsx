@@ -2927,6 +2927,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // PR-Di035 OPEN DREAM LAND!: 次のAPSにプリパラ共通色・レベル3種類チェック（フラグ検出）
+    if (timing === 'ON_ATTACK_PHASE_START' && myState.pending_pridi035_paradise) {
+      entries.push({
+        id: generateUUID(),
+        playerId: user.id,
+        cardNum: 'PR-Di035',
+        effectId: 'PR-Di035-DELAYED-PARADISE',
+        label: 'OPEN DREAM LAND! 色別効果（アタックフェイズ開始時）',
+        effect: {
+          effectId: 'PR-Di035-DELAYED-PARADISE',
+          effectType: 'AUTO',
+          timing: ['ON_ATTACK_PHASE_START'],
+          action: {
+            type: 'STUB',
+            id: 'PRDI035_APPLY_PARADISE',
+          } as import('../types/effects').StubAction,
+          duration: 'INSTANT',
+          mandatory: true,
+          parseStatus: 'MANUAL',
+        },
+      });
+    }
+
     return entries;
   };
 
