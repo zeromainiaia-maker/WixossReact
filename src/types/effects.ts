@@ -1090,7 +1090,11 @@ export interface StubAction {
     pickCount: number | 'ALL';
     restDest: 'deck_bottom' | 'trash' | 'energy';
     then: 'hand' | 'energy';
+    // 1段目（手札）の後に、残りから特定クラスを1枚までエナゾーンへ送る2段階ピック（FUTURE SESSION ②）
+    secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' };
   };
+  revealed?: string[]; // REVEAL_SECOND_PICK_ENERGY: 1段目で公開したカード一覧（残り算出用）
+  secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
   value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）
 }
 

@@ -15,7 +15,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost,
+  removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost, getCardNum,
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 
@@ -2510,7 +2510,7 @@ export function execStubPart1(
   }
   // デッキ上N枚公開してM枚を手札に加え残りをデッキ下/トラッシュ/エナゾーンへ
   if (stub.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM') {
-    const params = (stub as StubAction & { revealPickParams?: { pickCount: number | 'ALL'; restDest: 'deck_bottom' | 'trash' | 'energy'; then: 'hand' | 'energy' } }).revealPickParams
+    const params = (stub as StubAction & { revealPickParams?: { pickCount: number | 'ALL'; restDest: 'deck_bottom' | 'trash' | 'energy'; then: 'hand' | 'energy'; secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' } } }).revealPickParams
       ?? { pickCount: 1, restDest: 'deck_bottom' as const, then: 'hand' as const };
     const effText = ctx.sourceCardNum
       ? (ctx.cardMap.get(ctx.sourceCardNum)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(ctx.sourceCardNum)?.BurstText ?? '')
@@ -2525,6 +2525,18 @@ export function execStubPart1(
     const pickDestAction: EffectAction = params.then === 'energy'
       ? ({ type: 'ADD_TO_ENERGY', owner: 'self' } as EffectAction)
       : ({ type: 'ADD_TO_HAND', owner: 'self' } as AddToHandAction);
+    // 2段階ピック（FUTURE SESSION ②）: 1段目で手札に加えたあと、残りから特定クラスを1枚までエナへ。
+    // 1段目では restDest を付けず continuation で2段目スタブへ渡す（残りのデッキ下移動は2段目で実施）。
+    if (params.secondPick) {
+      const pending2: PendingInteractionDef = {
+        type: 'SEARCH',
+        visibleCards: deckCards,
+        maxPick,
+        thenAction: pickDestAction,
+        continuation: { type: 'STUB', id: 'REVEAL_SECOND_PICK_ENERGY', revealed: deckCards, secondPick: params.secondPick } as EffectAction,
+      };
+      return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで手札に）`), pending2);
+    }
     const pending: PendingInteractionDef = {
       type: 'SEARCH',
       visibleCards: deckCards,
@@ -2533,6 +2545,36 @@ export function execStubPart1(
       restDest: params.restDest,
     };
     return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで${params.then === 'energy' ? 'エナへ' : '手札に'}）`), pending);
+  }
+  // REVEAL_SECOND_PICK_ENERGY: 2段階ピックの2段目。1段目で公開した残りのうち、
+  // 指定クラスを toMax 枚までエナゾーンへ、それ以外の残りはデッキ下/トラッシュへ。
+  if (stub.id === 'REVEAL_SECOND_PICK_ENERGY') {
+    const sp = (stub as StubAction & { secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' } }).secondPick
+      ?? { classContains: '', toMax: 1, restDest: 'deck_bottom' as const };
+    const revealed = (stub as StubAction & { revealed?: string[] }).revealed ?? [];
+    // 1段目で手札に加えられず、まだデッキに残っている公開カード
+    const remaining = revealed.filter(n => ctx.ownerState.deck.includes(n));
+    const matches = remaining.filter(n => (ctx.cardMap.get(getCardNum(n))?.CardClass ?? '').includes(sp.classContains));
+    const nonMatches = remaining.filter(n => !matches.includes(n));
+    // 非対象の残りを先にデッキ下/トラッシュへ移動（対象の選び残しは下の SEARCH の restDest が処理）
+    let cur = ctx;
+    if (nonMatches.length > 0) {
+      const deckNM = cur.ownerState.deck.filter(n => !nonMatches.includes(n));
+      if (sp.restDest === 'trash') {
+        cur = addLog({ ...cur, ownerState: { ...cur.ownerState, deck: deckNM, trash: [...cur.ownerState.trash, ...nonMatches] } }, `残り${nonMatches.length}枚をトラッシュへ`);
+      } else {
+        cur = addLog({ ...cur, ownerState: { ...cur.ownerState, deck: [...deckNM, ...nonMatches] } }, `残り${nonMatches.length}枚をデッキ下へ`);
+      }
+    }
+    if (matches.length === 0) return done(cur);
+    const pendingSP: PendingInteractionDef = {
+      type: 'SEARCH',
+      visibleCards: matches,
+      maxPick: sp.toMax,
+      thenAction: { type: 'ADD_TO_ENERGY', owner: 'self' } as EffectAction,
+      restDest: sp.restDest,
+    };
+    return needsInteraction(addLog(cur, `${sp.classContains}を${sp.toMax}枚までエナゾーンへ`), pendingSP);
   }
   // ソウル/ルリグデッキ操作
   if (stub.id === 'SOUL_OP') {

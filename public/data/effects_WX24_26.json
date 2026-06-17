@@ -38716,14 +38716,19 @@
           },
           {
             "choiceId": "c1",
-            "label": "②デッキ上5枚から2枚を手札に",
+            "label": "②デッキ上5枚から2枚を手札に＋プリオケ1枚をエナへ",
             "action": {
               "type": "STUB",
               "id": "REVEAL_PICK_HAND_SHUFFLE_BOTTOM",
               "revealPickParams": {
                 "pickCount": 2,
                 "restDest": "deck_bottom",
-                "then": "hand"
+                "then": "hand",
+                "secondPick": {
+                  "classContains": "プリオケ",
+                  "toMax": 1,
+                  "restDest": "deck_bottom"
+                }
               }
             }
           },

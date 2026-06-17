@@ -126,15 +126,20 @@
   （`BoardComponents.tsx` の `assistLSlot`。リミットアッパー有効時はアシストルリグ不在＝アシスト左が空）。
 - `battleCardNums` に `WX24-D1-TK1` を常時ロード追加（画像解決のため）。
 
-### 既知の近似・未対応（再掲）
+### 既知の近似・未対応（再掲・2026-06-17 更新）
 
-- CHOOSE の「N つ**まで**(up to)」と、リコレクト枚数で choose_count が増える挙動は未対応（固定 choose_count で近似）。
-- エビディバ赤、PR-Di035 の遅延タイミング、FUTURE SESSION ③（遅延能力付与）は未実装。
+- ~~CHOOSE の「N つまで(up to)」と、リコレクト枚数で choose_count が増える挙動~~ → v0.327 で実装済み（`upTo`/`recollect`）。
+- ~~FUTURE SESSION ②（プリオケ1枚をエナへ送る2段階ピック）~~ → **実装済み**。
+  `REVEAL_PICK_HAND_SHUFFLE_BOTTOM` の `secondPick` 経由で、手札ピック後に残りから
+  ＜プリオケ＞(CardClass 一致) を1枚までエナへ送り、残りをデッキ下へ（`REVEAL_SECOND_PICK_ENERGY` stub）。
+  検証: `scripts/_verifyFutureSession2.ts`（22項目パス）。
+- ~~エビディバ赤 / PR-Di035 遅延タイミング / FUTURE SESSION ③（遅延能力付与）~~ → v0.327 で実装済み。
+- **PR-Di035 青の相手手札捨て**は依然「先頭3枚固定」で近似（本来は相手が選ぶ）。対人戦で要改善。
 
 ## その他のTODO
-- **みこみこ親衛隊**はキーワード付与で代用されており、ターン終了時の手札捨て→除去のトークン本来挙動は未実装。
-- **シグニトークン（4章・3章）の `ADD_TO_FIELD`** が、本体テキストの名指し（《雷ちゃん》等）から
-  正しいトークンカードを解決して場に出しているか未検証。effects JSON 上は cardName/source 指定が
-  省略されているケースがあり、トークン解決ロジックの確認が必要。
-- ダーク系（WX25-P1-TK1〜6）は個別名指しの呼び出し元が無く、うらら系の汎用「ダークアーツ」生成機構
-  経由。生成側の配線状況は別途確認。
+- ~~みこみこ親衛隊のターン終了時 手札捨て→除去~~ → 実装済み（`WX25-P3-TK03-E1` ON_TURN_END +
+  `REMOVE_MIKO_KEYWORD` stub、`collectTurnTriggers` の KEYWORD_TOKEN_MAP 経由）。
+- ~~シグニトークン（雷ちゃん/ママ勇者/ペロロ人形/雨雲号/クルセイダーちゃん）の `ADD_TO_FIELD` 名指し解決~~
+  → effects JSON で `cardName` 明示・`battleCardNums` に常時ロード済み。`execAddToField` のゲーム外生成経路で解決。
+- ~~サーバント ZERO（全角ＺＥＲＯ）の名前一致~~ → `*_SERVANT_ZERO` 各 stub が cardNum `WXDi-P07-TK01-A` を直接指定で解決済み。
+- ダーク系（WX25-P1-TK1〜6）はうらら系の汎用「ダークアーツ」生成機構経由（WX25-P1-034 E2 の CHOOSE で配線済み）。
