@@ -31616,6 +31616,17 @@
   ],
   "WXDi-P05-086": [
     {
+      "effectId": "WXDi-P05-086-CONT",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "STUB",
+        "id": "TREAT_AS_LEVEL1_IN_DECK_TRASH"
+      },
+      "duration": "PERMANENT",
+      "mandatory": true,
+      "parseStatus": "MANUAL"
+    },
+    {
       "effectId": "WXDi-P05-086-E1",
       "effectType": "ACTIVATED",
       "timing": [
