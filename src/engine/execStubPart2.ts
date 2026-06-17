@@ -2259,6 +2259,20 @@ export function execStubPart2(
     const newSOtherSZ: PlayerState = { ...ctx.otherState, card_identity_overrides: identOverSZ };
     return done(addLog({ ...ctx, otherState: newSOtherSZ }, `${targets.length}体をサーバントZERO（WXDi-P07-TK01-A）に`));
   }
+  // REMOVE_MIKO_KEYWORD: みこみこ親衛隊キーワードをsourceCardNumのシグニのkeyword_grantsから取り除く（WX25-P3-TK03）
+  if (stub.id === 'REMOVE_MIKO_KEYWORD') {
+    const mikoNum = ctx.sourceCardNum;
+    if (!mikoNum) return done(addLog(ctx, 'シグニ番号不明（REMOVE_MIKO_KEYWORD）'));
+    const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+    const newGrants = (grants[mikoNum] ?? []).filter(kw => kw !== 'みこみこ親衛隊');
+    if (newGrants.length === 0) {
+      delete grants[mikoNum];
+    } else {
+      grants[mikoNum] = newGrants;
+    }
+    const newSMiko = { ...ctx.ownerState, keyword_grants: grants };
+    return done(addLog({ ...ctx, ownerState: newSMiko }, `みこみこ親衛隊を${ctx.cardMap.get(mikoNum)?.CardName ?? mikoNum}から取り除く`));
+  }
   // DECLARED_NAME_TO_SERVANT_ZERO: declared_card_name と一致する相手の全領域カードをサーバントZEROに（WXEX2-10）
   if (stub.id === 'DECLARED_NAME_TO_SERVANT_ZERO') {
     const SERVANT_ZERO_DN = 'WXDi-P07-TK01-A';
