@@ -56,7 +56,7 @@
 
 | トークン | 呼び出し元 | 生成機構 | 状況 |
 |---|---|---|---|
-| WX24-D1-TK1 リミットアッパー | WX24 各種エンハンス(P1-031 ほか計13枚), 至る果てへ等 | `PLACE_LIMIT_UPPER` + リミット計算側 | ✅ |
+| WX24-D1-TK1 リミットアッパー | WX24 各種エンハンス(P1-031 ほか計13枚), 至る果てへ等 | `PLACE_LIMIT_UPPER` + リミット計算側。`limit_upper_token`(boolean)が正データ。盤面はアシスト左の枠にトークンカード表示(BoardComponents) | ✅ |
 | WX24-P1-TK2A ルリグバリア | WX24-P1-001 セイクリッド・フォース ほか多数（純白の防壁等） | `GAIN_LRIG_BARRIER` → フリーゾーンにトークン設置、ルリグアタックで消費 | ✅ 付与配線済 |
 | WX26-CP1-TK01 シグニバリア | WX26-CP1-001 FUTURE SESSION ほか多数 | `GAIN_SIGNI_BARRIER` → フリーゾーンにトークン設置、シグニ攻撃時 `crashOneLife` で消費 | ✅ 実装済 |
 | WX25-P3-TK03 みこみこ親衛隊 | WX25-P3-023 さんさんおせおせ ほか | `GRANT_KEYWORD keyword:みこみこ親衛隊`（プレースホルダ） | ⚠️ キーワード付与のみ、トークン挙動未実装 |
@@ -113,6 +113,18 @@
   ＜プリパラ＞が共通色を持ちレベル3種類以上ある色の効果を実行（白=両バリア / 赤=相手ライフ1トラッシュ / 青=ドロー3+相手手札3捨て / 緑=相手シグニ全てエナへ / 黒=相手ミル20）。
   ※本来「次のあなたのアタックフェイズ開始時」の遅延判定だが遅延トリガー機構がなく即時で近似。青の相手手札捨ては先頭3枚で近似。
 - **WX25-P2-001 スター・ダスト** … 既存の `game_guard_barrier_act` 特殊経路で対応済み（変更不要）。
+
+### 検証
+
+- `scripts/_verifyBarrier.ts`（`npx tsx scripts/_verifyBarrier.ts`）でエンジンレベルの自動検証（12項目全パス）。
+  バリアヘルパー / `GAIN_*_BARRIER` / `EVDIVA_PER_LRIG_COLOR` / `PRDI035_PARADISE_COLOR` を確認。
+- `npm run typecheck` / `npm run build` 通過。実機（Supabaseマルチプレイ対戦UI）での目視確認は未実施。
+
+### リミットアッパー表示（2026-06-17）
+
+- `limit_upper_token`(boolean)を正データとして維持。盤面では**アシスト左の枠**にトークンカード（WX24-D1-TK1）を表示
+  （`BoardComponents.tsx` の `assistLSlot`。リミットアッパー有効時はアシストルリグ不在＝アシスト左が空）。
+- `battleCardNums` に `WX24-D1-TK1` を常時ロード追加（画像解決のため）。
 
 ### 既知の近似・未対応（再掲）
 
