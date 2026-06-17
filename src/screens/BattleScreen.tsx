@@ -1268,6 +1268,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     nums.add('WXK01-TK-01A');   // 棘々迷路
     nums.add('WXK03-TK-01B');   // 落華流粋
     nums.add('WXK09-TK-01A');   // 改造素材
+    nums.add('WX25-P1-TK1');   // ダーク・バウンダリー（ヤミノアーツ①）
+    nums.add('WX25-P1-TK2');   // 背闇之陣（ヤミノアーツ②）
+    nums.add('WX25-P1-TK3');   // ダーク・アナライズ（ヤミノアーツ③）
+    nums.add('WX25-P1-TK4');   // 闇気揚々（ヤミノアーツ④）
+    nums.add('WX25-P1-TK5');   // ダーク・アウト（ヤミノアーツ⑤）
     // シグニトークン（ADD_TO_FIELD cardName指定で生成されるゲーム外カード）
     nums.add('WX25-CP1-TK1A');   // 雷ちゃん
     nums.add('WX24-P3-TK1A');    // ママ勇者

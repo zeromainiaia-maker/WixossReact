@@ -19385,8 +19385,61 @@
         ]
       },
       "action": {
-        "type": "STUB",
-        "id": "CRAFT_TO_LRIG_DECK"
+        "type": "CHOOSE",
+        "choose_count": 2,
+        "from_count": 5,
+        "choices": [
+          {
+            "choiceId": "tk1",
+            "label": "ダーク・バウンダリー（バウンス2体）",
+            "action": {
+              "type": "ADD_CRAFT_TO_LRIG_DECK",
+              "owner": "self",
+              "cardName": "ダーク・バウンダリー",
+              "count": 1
+            }
+          },
+          {
+            "choiceId": "tk2",
+            "label": "背闇之陣（手札3捨→相手シグニ全バニッシュ）",
+            "action": {
+              "type": "ADD_CRAFT_TO_LRIG_DECK",
+              "owner": "self",
+              "cardName": "背闇之陣",
+              "count": 1
+            }
+          },
+          {
+            "choiceId": "tk3",
+            "label": "ダーク・アナライズ（見てサーチ）",
+            "action": {
+              "type": "ADD_CRAFT_TO_LRIG_DECK",
+              "owner": "self",
+              "cardName": "ダーク・アナライズ",
+              "count": 1
+            }
+          },
+          {
+            "choiceId": "tk4",
+            "label": "闇気揚々（パワー強化系）",
+            "action": {
+              "type": "ADD_CRAFT_TO_LRIG_DECK",
+              "owner": "self",
+              "cardName": "闇気揚々",
+              "count": 1
+            }
+          },
+          {
+            "choiceId": "tk5",
+            "label": "ダーク・アウト（ルリグバニッシュ）",
+            "action": {
+              "type": "ADD_CRAFT_TO_LRIG_DECK",
+              "owner": "self",
+              "cardName": "ダーク・アウト",
+              "count": 1
+            }
+          }
+        ]
       },
       "duration": "INSTANT",
       "mandatory": false,
