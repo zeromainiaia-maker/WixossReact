@@ -555,6 +555,11 @@ export interface ChooseAction {
   from_count: number;   // M個の選択肢から
   choices: ChoiceOption[];
   upTo?: boolean;        // true = 「N個まで」（1〜N個選択可）
+  recollect?: {          // リコレクト条件達成時に choose_count/upTo を上書き
+    minCount: number;       // トラッシュの<プリオケ>カード数の閾値
+    thenChooseCount: number; // 条件達成時のchoose_count
+    thenUpTo?: boolean;      // 条件達成時のupTo
+  };
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 
