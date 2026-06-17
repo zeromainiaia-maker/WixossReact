@@ -614,16 +614,6 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             ×{n}
           </div>
         )}
-        {isFrozen && (
-          <div style={{
-            position: 'absolute', bottom: extraH + 2, left: 0, right: 0,
-            backgroundColor: 'rgba(100,180,255,0.88)', color: '#003366',
-            fontSize: 8, fontWeight: 'bold', textAlign: 'center',
-            pointerEvents: 'none', zIndex: n + 2, lineHeight: '13px',
-          }}>
-            凍結
-          </div>
-        )}
         {isArmored && (
           <div style={{
             position: 'absolute', top: extraH + 2, left: 2,
@@ -654,12 +644,21 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             V
           </div>
         )}
-        {statusKeywords.length > 0 && (
+        {(isFrozen || statusKeywords.length > 0) && (
           <div style={{
-            position: 'absolute', top: extraH + 2 + (isArmored ? 13 : 0), left: 2,
-            display: 'flex', flexDirection: 'column', gap: 1,
+            // 左上に横並び。血晶バッジがある場合は右にずらし、右上の V と被らないよう折り返す
+            position: 'absolute', top: extraH + 2, left: isArmored ? 26 : 2,
+            display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 1,
+            maxWidth: width - (isArmored ? 28 : 4) - 14,
             pointerEvents: 'none', zIndex: n + 4,
           }}>
+            {isFrozen && (
+              <div title="凍結" style={{
+                backgroundColor: 'rgba(100,180,255,0.92)', color: '#003366',
+                fontSize: 7, fontWeight: 'bold', borderRadius: 2,
+                padding: '1px 2px', lineHeight: 1, minWidth: 8, textAlign: 'center',
+              }}>凍</div>
+            )}
             {statusKeywords.map(kw => {
               const b = KEYWORD_BADGES.find(x => x.keyword === kw);
               if (!b) return null;
