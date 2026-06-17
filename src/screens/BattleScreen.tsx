@@ -1257,6 +1257,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs) { addState(bs.host_state); addState(bs.guest_state); }
     nums.add('WXDi-P07-TK01-A'); // サーバントZEROトークン（常時ロード）
     nums.add('WX24-D1-TK1');     // 【リミットアッパー】トークン（ルリグゾーン左に表示・常時ロード）
+    // シグニトークン（ADD_TO_FIELD cardName指定で生成されるゲーム外カード）
+    nums.add('WX25-CP1-TK1A');   // 雷ちゃん
+    nums.add('WX24-P3-TK1A');    // ママ勇者
+    nums.add('WXDi-CP02-TK01A'); // ペロロ人形
+    nums.add('WXDi-CP02-TK02A'); // 雨雲号
+    nums.add('WXDi-CP02-TK03B'); // クルセイダーちゃん
     return nums;
   }, [myDeckData, bs]);
 
