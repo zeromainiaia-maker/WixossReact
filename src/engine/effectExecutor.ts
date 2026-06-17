@@ -63,7 +63,7 @@ import {
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition };
 import { execStub } from './execStub';
-import { hasBanishResist } from '../utils/keywords';
+import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../utils/keywords';
 
 // ===== 個別アクション実行 =====
 
@@ -669,11 +669,16 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
 function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   if (a.target.type === 'LRIG') {
     const state = ownerState(a.target.owner, ctx);
+    const lrigTopId = state.field.lrig?.at(-1);
+    const lrigCardNum = lrigTopId ? getCardNum(lrigTopId) : undefined;
+    const lrigCard = lrigCardNum ? ctx.cardMap.get(lrigCardNum) : undefined;
+    const lrigLevel = lrigCard ? parseInt(lrigCard.Level ?? '', 10) : NaN;
     const newS: PlayerState = { ...state, field: { ...state.field, lrig_down: true } };
-    const lrigName = state.field.lrig?.length
-      ? (ctx.cardMap.get(getCardNum(state.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ')
-      : '';
-    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`));
+    const lrigName = lrigCard?.CardName ?? 'ルリグ';
+    const newCtx = addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`);
+    return done(!isNaN(lrigLevel)
+      ? { ...newCtx, seqVars: { ...newCtx.seqVars, lastDownedLrigLevel: lrigLevel } }
+      : newCtx);
   }
   // PREVENT_SIGNI_DOWN_BY_OPP (state flag) または CONT保護効果によりダウン無効
   if (a.target.owner === 'opponent' && ctx.otherState.prevent_signi_down_by_opp) {
@@ -817,7 +822,25 @@ function execStoryChange(a: StoryChangeAction, ctx: ExecCtx): ExecResult {
   return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
 
+function resolveDynamicShadowKeyword(kw: string, ctx: ExecCtx): string {
+  if (!kw.startsWith('シャドウ:')) return kw;
+  const scope = decodeShadowKeyword(kw);
+  if (!scope) return kw;
+  if (scope.downerLrigLevel) {
+    const level = ctx.seqVars?.lastDownedLrigLevel;
+    return level !== undefined && !isNaN(level) ? encodeShadowKeyword({ levelEq: level }) : 'シャドウ';
+  }
+  if (scope.declaredNumberPowerEq) {
+    const pw = ctx.seqVars?.declaredNumber;
+    return pw !== undefined && !isNaN(pw) ? encodeShadowKeyword({ powerEq: pw }) : 'シャドウ';
+  }
+  return kw;
+}
+
 function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
+  const resolvedKeyword = resolveDynamicShadowKeyword(a.keyword, ctx);
+  const a2 = resolvedKeyword !== a.keyword ? { ...a, keyword: resolvedKeyword } : a;
+  a = a2;
   const tgt = a.target;
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
@@ -1037,6 +1060,32 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         }
       }
       cur = addLog(cur, 'コスト色選択（スキップ）');
+      continue;
+    }
+    // DECLARE_NUMBER: 数字を宣言し、次のGRANT_KEYWORD(シャドウ:{declaredNumberPowerEq:true})に反映
+    if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'DECLARE_NUMBER') {
+      const nextDN = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
+      const remaining = a.steps.slice(i + 2);
+      const cont: EffectAction | undefined = remaining.length > 0
+        ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining } as SequenceAction)
+        : undefined;
+      if (nextDN?.type === 'GRANT_KEYWORD') {
+        const grantDN = nextDN as GrantKeywordAction;
+        const powerValues = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000, 20000];
+        const optsDN = powerValues.map(pw => ({
+          id: String(pw),
+          label: String(pw),
+          available: true,
+          action: (cont
+            ? { type: 'SEQUENCE', steps: [{ ...grantDN, keyword: encodeShadowKeyword({ powerEq: pw }) } as EffectAction, cont] } as SequenceAction
+            : { ...grantDN, keyword: encodeShadowKeyword({ powerEq: pw }) }) as EffectAction,
+        }));
+        return needsInteraction(addLog(cur, '数字を宣言してください（シャドウが適用されるパワー）'), {
+          type: 'CHOOSE', options: optsDN, count: 1,
+        });
+      }
+      // GRANT_KEYWORD が続かない場合: 無条件シャドウとして付与し続行
+      cur = addLog(cur, '数字を宣言（スキップ：次ステップが GRANT_KEYWORD でないため）');
       continue;
     }
     // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN)

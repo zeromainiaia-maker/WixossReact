@@ -54,6 +54,7 @@ export interface ShadowScope {
   levelGte?: number;          // レベルX以上
   levelEq?: number;           // レベルX
   powerLte?: number;          // パワーX以下
+  powerEq?: number;           // パワーがちょうどX（宣言した数字と同じパワー等）
   color?: string;             // 特定の色
   cardType?: 'シグニ' | 'スペル'; // 特定のカードタイプ（他条件とのAND）
   declaredColor?: true;       // 保護対象のコントローラーが宣言した色と一致
@@ -63,6 +64,9 @@ export interface ShadowScope {
   underSigniLevelEq?: true;   // 保護対象の下にあるシグニと同じレベル
   lrigTrashArtsColor?: true;  // 保護対象コントローラーのルリグトラッシュにあるアーツが持つ色と一致
   artsCostLte?: number;       // 発生源がアーツでコスト合計がX以下
+  // ===== 動的スコープマーカー（GRANT時にのみ使用、keyword_grantsへの保存前に解決済みになる） =====
+  downerLrigLevel?: true;      // 同一SEQUENCE内でダウンしたルリグのレベルと等しいシグニ（WX24-P1-040）
+  declaredNumberPowerEq?: true; // 同一SEQUENCE内で宣言した数字と等しいパワーのシグニ（SPDi43-27）
 }
 
 const SHADOW_PREFIX = 'シャドウ:';
@@ -140,6 +144,7 @@ export function evaluateShadowScope(
   if (scope.levelGte !== undefined && !(srcLevel >= scope.levelGte)) return false;
   if (scope.levelEq !== undefined && srcLevel !== scope.levelEq) return false;
   if (scope.powerLte !== undefined && !(srcPower <= scope.powerLte)) return false;
+  if (scope.powerEq !== undefined && srcPower !== scope.powerEq) return false;
   if (scope.color !== undefined && !(sourceCard.Color?.includes(scope.color) ?? false)) return false;
   if (scope.declaredColor) {
     const dc = protectedOwnerState.declared_color;

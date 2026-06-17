@@ -53,6 +53,8 @@ export interface ExecCtx {
   treatAsClassAllZones?: Record<string, string>;
   // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュでレベル1シグニとして扱うカードのSet
   deckTrashLevel1Nums?: Set<string>;
+  // SEQUENCE内で動的に決まる値（ステップ間の受け渡し用、最上位効果呼び出し単位でリセット）
+  seqVars?: { lastDownedLrigLevel?: number; declaredNumber?: number };
 }
 
 export type ExecResult =
