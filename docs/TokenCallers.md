@@ -95,12 +95,17 @@
   プレースホルダにしていた10件を `GAIN_*_BARRIER` stub に置換（WXDi-P16-003 は `count:2`）。
   付与が落ちていた4枚（WXDi-P12-001 / WXDi-CP02-001 / WX25-P3-001 / WXDi-P14-001選択肢①）に GAIN step を追加。
 
+### CHOOSE 再構築で対応済み（scripts/fixSacredForceChoice.mjs / fixFutureSessionChoice.mjs）
+
+- **WX24-P1-001 セイクリッド・フォース** … 単一 `REVEAL_PICK` に潰れていたのを `CHOOSE(choose_count:2, from_count:3)` に再構築。①GAIN_LRIG_BARRIER / ②BOUNCE / ③REVEAL_PICK。
+  ※「2つ**まで**」の up-to は CHOOSE に表現力がなく choose_count:2 固定で近似。
+- **WX26-CP1-001 FUTURE SESSION** … `CHOOSE(choose_count:1, from_count:3)` に再構築。①GAIN_SIGNI_BARRIER / ②REVEAL_PICK(近似) / ③UNKNOWN(未実装)。
+  ※リコレクト4枚以上で「2つまで」に上昇する点は未対応（choose_count 固定）。②のプリオケ→エナと③の遅延能力付与は未実装。
+
 ### 残課題（バリア以外のパース構造が壊れており、今回は未対応）
 
-- **WX24-P1-001 セイクリッド・フォース** … 「3つから2つ選ぶ」が単一 `REVEAL_PICK` に潰れており①ルリグバリアが欠落。CHOOSE 再構築が必要。
-- **WX26-CP1-001 FUTURE SESSION** … 3択がリコレクト分岐込みで潰れ、①シグニバリアが欠落。
-- **WX25-P3-050 エビディバ!!!!!** … 「白ルリグ1体につき」可変数付与のため固定 stub にできず。
-- **WXDi-P15-003 ひらけ！ゲート！** … `GRANT_LRIG_ABILITY` の引用能力が未パース（abilities空）。
+- **WX25-P3-050 エビディバ!!!!!** … 「白ルリグ1体につき」可変数付与のため固定 stub にできず。可変カウント機構が必要。
+- **WXDi-P15-003 ひらけ！ゲート！** … `GRANT_LRIG_ABILITY` の引用能力が未パース（abilities空）。付与能力パースが必要。
 - **PR-Di035 OPEN DREAM LAND!** … 色条件分岐が単一 SEQUENCE に潰れている（Sのみ置換、Lは未追加）。
 - **WX25-P2-001 スター・ダスト** … 既存の `game_guard_barrier_act` 特殊経路で対応済み（変更不要）。
 
