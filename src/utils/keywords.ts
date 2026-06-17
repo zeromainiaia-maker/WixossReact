@@ -1,10 +1,12 @@
-import type { CardData } from '../types';
+import type { CardData, PlayerState } from '../types';
 
 /**
  * シグニがキーワード能力を持つかチェックする。
  * - card.effects の CONTINUOUS GRANT_KEYWORD（先天的 / 恒久付与）
  * - keywordGrants[cardNum]（ターン内の動的付与）
  * の両方を確認する。
+ * 「シャドウ」はスコープ付き表現（例: "シャドウ:level_lte:2"）を許容するため、
+ * 完全一致だけでなく `keyword + ':'` のプレフィックス一致も見る。
  */
 export function hasKeyword(
   cardNum: string,
@@ -15,10 +17,11 @@ export function hasKeyword(
   extraGrants?: Record<string, string[]>, // UNTIL_OPP_TURN_END で付与されたキーワード
 ): boolean {
   const card = cardMap.get(cardNum);
+  const matches = (kw: string) => kw === keyword || kw.startsWith(keyword + ':');
   if (card?.effects?.some(e => {
     if (e.effectType !== 'CONTINUOUS') return false;
     if (e.action.type !== 'GRANT_KEYWORD') return false;
-    if ((e.action as { keyword: string }).keyword !== keyword) return false;
+    if (!matches((e.action as { keyword: string }).keyword)) return false;
     if (e.activeCondition) return false; // 条件付き付与は呼び出し元で checkActiveCondition により動的評価
     if (e.kizunaIcon) {
       if (!bonds) return false;
@@ -26,8 +29,8 @@ export function hasKeyword(
     }
     return true;
   })) return true;
-  if (keywordGrants?.[cardNum]?.includes(keyword)) return true;
-  return extraGrants?.[cardNum]?.includes(keyword) ?? false;
+  if (keywordGrants?.[cardNum]?.some(matches)) return true;
+  return extraGrants?.[cardNum]?.some(matches) ?? false;
 }
 
 /**
@@ -41,6 +44,143 @@ export function hasShadow(
   extraGrants?: Record<string, string[]>,
 ): boolean {
   return hasKeyword(cardNum, 'シャドウ', cardMap, keywordGrants, bonds, extraGrants);
+}
+
+// ===== シャドウのスコープ（対象限定）=====
+// 「【シャドウ（条件）】」の括弧内条件。条件省略時（'シャドウ'単体）は無条件（常に保護）。
+// keyword文字列は "シャドウ:" + JSON.stringify(scope) で符号化する（hasKeyword側はプレフィックス一致で検出）。
+export interface ShadowScope {
+  levelLte?: number;          // レベルX以下
+  levelGte?: number;          // レベルX以上
+  levelEq?: number;           // レベルX
+  powerLte?: number;          // パワーX以下
+  color?: string;             // 特定の色
+  cardType?: 'シグニ' | 'スペル'; // 特定のカードタイプ（他条件とのAND）
+  declaredColor?: true;       // 保護対象のコントローラーが宣言した色と一致
+  selfColor?: true;           // 保護対象自身の色と一致
+  selfPowerLte?: true;        // 保護対象自身のパワー以下
+  selfPowerHalfLte?: true;    // 保護対象自身のパワーの半分以下
+  underSigniLevelEq?: true;   // 保護対象の下にあるシグニと同じレベル
+  lrigTrashArtsColor?: true;  // 保護対象コントローラーのルリグトラッシュにあるアーツが持つ色と一致
+  artsCostLte?: number;       // 発生源がアーツでコスト合計がX以下
+}
+
+const SHADOW_PREFIX = 'シャドウ:';
+
+/** ShadowScopeをkeyword_grants/GrantKeywordAction.keyword用の文字列に符号化する */
+export function encodeShadowKeyword(scope: ShadowScope | null): string {
+  if (!scope || Object.keys(scope).length === 0) return 'シャドウ';
+  return SHADOW_PREFIX + JSON.stringify(scope);
+}
+
+/** keyword文字列（"シャドウ" or "シャドウ:{...}"）からShadowScopeを復元する。シャドウでなければnull、無条件ならundefinedスコープ（{}）を返す */
+export function decodeShadowKeyword(kw: string): ShadowScope | null {
+  if (kw === 'シャドウ') return {};
+  if (!kw.startsWith(SHADOW_PREFIX)) return null;
+  try {
+    return JSON.parse(kw.slice(SHADOW_PREFIX.length)) as ShadowScope;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * cardNumが持つすべてのシャドウのスコープを集める（CONTINUOUS静的付与＋動的keywordGrants＋extraGrants）。
+ * activeCondition付きの静的付与は呼び出し元で別途 checkActiveCondition により判定すること（このリストには含めない）。
+ */
+export function getShadowScopes(
+  cardNum: string,
+  cardMap: Map<string, CardData>,
+  keywordGrants?: Record<string, string[]>,
+  bonds?: string[],
+  extraGrants?: Record<string, string[]>,
+): ShadowScope[] {
+  const card = cardMap.get(cardNum);
+  const scopes: ShadowScope[] = [];
+  card?.effects?.forEach(e => {
+    if (e.effectType !== 'CONTINUOUS' || e.action.type !== 'GRANT_KEYWORD') return;
+    const kw = (e.action as { keyword: string }).keyword;
+    const scope = decodeShadowKeyword(kw);
+    if (scope === null) return;
+    if (e.activeCondition) return; // 呼び出し元でcheckActiveCondition評価
+    if (e.kizunaIcon && !bonds?.includes(card?.CardName ?? '')) return;
+    scopes.push(scope);
+  });
+  for (const kw of keywordGrants?.[cardNum] ?? []) {
+    const scope = decodeShadowKeyword(kw);
+    if (scope) scopes.push(scope);
+  }
+  for (const kw of extraGrants?.[cardNum] ?? []) {
+    const scope = decodeShadowKeyword(kw);
+    if (scope) scopes.push(scope);
+  }
+  return scopes;
+}
+
+/**
+ * 効果の発生源カード（sourceCard）がShadowScopeの条件を満たすか（＝保護されて対象にできないか）を判定する。
+ * scopeが{}（条件キー無し）の場合は無条件で常に保護する。
+ * protectedOwnerState: シャドウ保持カードのコントローラーのPlayerState（宣言色・ルリグトラッシュ・場の参照に使用）
+ */
+export function evaluateShadowScope(
+  scope: ShadowScope,
+  sourceCard: CardData | undefined,
+  protectedCardNum: string,
+  protectedOwnerState: PlayerState,
+  cardMap: Map<string, CardData>,
+): boolean {
+  const keys = Object.keys(scope) as (keyof ShadowScope)[];
+  if (keys.length === 0) return true; // 無条件シャドウ
+  if (!sourceCard) return false; // 発生源不明なら保護しない（安全側のフォールバック）
+  const srcLevel = parseInt(sourceCard.Level ?? '', 10);
+  const srcPower = sourceCard.Power === '∞' ? Infinity : parseInt(sourceCard.Power ?? '', 10);
+
+  if (scope.cardType !== undefined && sourceCard.Type !== scope.cardType) return false;
+  if (scope.levelLte !== undefined && !(srcLevel <= scope.levelLte)) return false;
+  if (scope.levelGte !== undefined && !(srcLevel >= scope.levelGte)) return false;
+  if (scope.levelEq !== undefined && srcLevel !== scope.levelEq) return false;
+  if (scope.powerLte !== undefined && !(srcPower <= scope.powerLte)) return false;
+  if (scope.color !== undefined && !(sourceCard.Color?.includes(scope.color) ?? false)) return false;
+  if (scope.declaredColor) {
+    const dc = protectedOwnerState.declared_color;
+    if (!dc || !(sourceCard.Color?.includes(dc) ?? false)) return false;
+  }
+  if (scope.selfColor) {
+    const protectedCard = cardMap.get(protectedCardNum);
+    const pc = protectedCard?.Color ?? '';
+    if (!pc || !(sourceCard.Color?.split('').some(c => pc.includes(c)) ?? false)) return false;
+  }
+  if (scope.selfPowerLte) {
+    const protectedCard = cardMap.get(protectedCardNum);
+    const pp = protectedCard?.Power === '∞' ? Infinity : parseInt(protectedCard?.Power ?? '', 10);
+    if (isNaN(srcPower) || isNaN(pp) || !(srcPower <= pp)) return false;
+  }
+  if (scope.selfPowerHalfLte) {
+    const protectedCard = cardMap.get(protectedCardNum);
+    const pp = protectedCard?.Power === '∞' ? Infinity : parseInt(protectedCard?.Power ?? '', 10);
+    if (isNaN(srcPower) || isNaN(pp) || !(srcPower <= pp / 2)) return false;
+  }
+  if (scope.underSigniLevelEq) {
+    const zoneIdx = protectedOwnerState.field.signi.findIndex(stack => stack?.at(-1) === protectedCardNum);
+    const stack = zoneIdx >= 0 ? protectedOwnerState.field.signi[zoneIdx] : undefined;
+    const underNum = stack && stack.length > 1 ? stack[stack.length - 2] : undefined;
+    const underLevel = underNum ? parseInt(cardMap.get(underNum)?.Level ?? '', 10) : NaN;
+    if (isNaN(underLevel) || srcLevel !== underLevel) return false;
+  }
+  if (scope.lrigTrashArtsColor) {
+    const artsColors = (protectedOwnerState.lrig_trash ?? [])
+      .map(n => cardMap.get(n))
+      .filter(c => c?.Type === 'アーツ')
+      .flatMap(c => (c?.Color ?? '').split(''));
+    if (artsColors.length === 0 || !(sourceCard.Color?.split('').some(c => artsColors.includes(c)) ?? false)) return false;
+  }
+  if (scope.artsCostLte !== undefined) {
+    if (sourceCard.Type !== 'アーツ') return false;
+    const costTotal = (sourceCard.Cost ?? '').match(/×([０-９\d]+)/g)
+      ?.reduce((sum, m) => sum + parseInt(m.replace(/[×０-９]/g, c => (c === '×' ? '' : String.fromCharCode(c.charCodeAt(0) - 0xFEE0))), 10), 0) ?? 0;
+    if (!(costTotal <= scope.artsCostLte)) return false;
+  }
+  return true;
 }
 
 /**

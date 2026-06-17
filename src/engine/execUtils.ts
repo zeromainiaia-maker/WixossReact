@@ -1,5 +1,5 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope } from '../types';
-import { hasShadow, hasShadowLrig } from '../utils/keywords';
+import { hasShadowLrig, getShadowScopes, evaluateShadowScope, decodeShadowKeyword } from '../utils/keywords';
 import { checkBeatCondition, checkActiveCondition } from './effectEngine';
 import type {
   EffectAction,
@@ -592,16 +592,21 @@ export function selectOrInteract(
     const sourceIsLrig = ctx.sourceCardNum
       ? ctx.cardMap.get(ctx.sourceCardNum)?.Type === 'ルリグ'
       : false;
+    const sourceCardForShadow = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     filteredCands = candidates.filter(n => {
-      if (hasShadow(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds, ctx.otherState.keyword_grants_until_opp_turn)) return false;
       if (sourceIsLrig && hasShadowLrig(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.keyword_grants_until_opp_turn)) return false;
+      // シャドウ（スコープなし＝無条件、スコープ付き＝発生源カードの属性で判定。activeCondition無しのもの）
+      const scopes = getShadowScopes(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds, ctx.otherState.keyword_grants_until_opp_turn);
+      if (scopes.some(scope => evaluateShadowScope(scope, sourceCardForShadow, n, ctx.otherState, ctx.cardMap))) return false;
       // activeCondition 付きシャドウ（TURN_OWNER等）を評価:
       // n は ctx.otherState のシグニ。ownerState=otherState, isOwnerTurn=false（ctx.ownerState のターン中に効果実行）
       const hasCondShadow = ctx.cardMap.get(n)?.effects?.some(eff => {
         if (eff.effectType !== 'CONTINUOUS' || !eff.activeCondition) return false;
         if (eff.action.type !== 'GRANT_KEYWORD') return false;
-        if ((eff.action as { keyword: string }).keyword !== 'シャドウ') return false;
-        return checkActiveCondition(eff.activeCondition, ctx.otherState, ctx.ownerState, false, ctx.cardMap, n, ctx.effectivePowers);
+        const scope = decodeShadowKeyword((eff.action as { keyword: string }).keyword);
+        if (scope === null) return false;
+        if (!checkActiveCondition(eff.activeCondition, ctx.otherState, ctx.ownerState, false, ctx.cardMap, n, ctx.effectivePowers)) return false;
+        return evaluateShadowScope(scope, sourceCardForShadow, n, ctx.otherState, ctx.cardMap);
       }) ?? false;
       if (hasCondShadow) return false;
       return true;
