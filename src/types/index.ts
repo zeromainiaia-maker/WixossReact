@@ -377,6 +377,7 @@ export type PendingInteractionDef =
       continuation?: EffectAction;
       opponentResponds?: boolean; // true = 対戦相手が選択するインタラクション（例:「対戦相手は支払ってもよい」）
       multiSelect?: boolean;       // true = count > 1 の複数選択UI
+      upTo?: boolean;              // true = 「N個まで」選択可（0個も可）
     }
   | {
       type: 'LOOK_AND_REORDER';
