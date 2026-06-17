@@ -1018,18 +1018,19 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   const assist_r  = state.field.assist_lrig_r ?? [];
   const key_piece = state.field.key_piece ?? null;
 
-  // 【リミットアッパー】トークンはルリグゾーン左に配置する（1つまで・WX24-D1-TK1）
-  const LIMIT_UPPER_CARD = 'WX24-D1-TK1';
-  const limitUpperSlot: Slot | null = state.limit_upper_token
-    ? { cardNum: LIMIT_UPPER_CARD, label: 'Lアッパー', w: lowerW, h: lowerH }
-    : null;
-
   type Slot = { label: string; w: number; h: number; cardNum?: string | null; stack?: string[] };
+
+  // 【リミットアッパー】トークン（WX24-D1-TK1）はアシスト左の位置に配置する（1つまで）。
+  // リミットアッパー有効時はアシストルリグ不在＝アシスト左ゾーンが空のため、その枠に表示する。
+  const LIMIT_UPPER_CARD = 'WX24-D1-TK1';
+  const assistLSlot: Slot = (state.limit_upper_token && assist_l.length === 0)
+    ? { cardNum: LIMIT_UPPER_CARD, label: 'Lアッパー', w: lowerW, h: lowerH }
+    : { stack: assist_l, label: 'アシスト左', w: lowerW, h: lowerH };
+
   const lowerSlots: Slot[] = isMe
     ? [
-        ...(limitUpperSlot ? [limitUpperSlot] : []),
         { cardNum: check,    label: 'CHECK',      w: lowerW, h: lowerH },
-        { stack:   assist_l, label: 'アシスト左',  w: lowerW, h: lowerH },
+        assistLSlot,
         { stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
         { stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
         { cardNum: key_piece,label: 'KEY',         w: lowerW, h: lowerH },
@@ -1038,9 +1039,8 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
         { cardNum: key_piece,label: 'KEY',         w: lowerW, h: lowerH },
         { stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
         { stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
-        { stack:   assist_l, label: 'アシスト左',  w: lowerW, h: lowerH },
+        assistLSlot,
         { cardNum: check,    label: 'CHECK',       w: lowerW, h: lowerH },
-        ...(limitUpperSlot ? [limitUpperSlot] : []),
       ];
 
   const lrig_down = state.field.lrig_down ?? false;
