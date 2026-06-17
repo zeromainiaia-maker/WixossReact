@@ -4384,6 +4384,27 @@ export function execStubPart3(
     return done(addLog(afterCtxEPLC, logsEPLC.join(' / ')));
   }
 
+  // INTERNAL_EVDIVA_RED_BANISH: 選択したシグニのパワー合計が12000以下ならバニッシュ（エビディバ赤効果）
+  if (stub.id === 'INTERNAL_EVDIVA_RED_BANISH') {
+    const targetsIERB = ctx.lastProcessedCards ?? [];
+    if (targetsIERB.length === 0) return done(addLog(ctx, 'INTERNAL_EVDIVA_RED_BANISH: 対象なし'));
+    const totalPowerIERB = targetsIERB.reduce((sum, n) => {
+      const p = ctx.effectivePowers?.get(n) ?? parseInt(ctx.cardMap.get(n)?.Power ?? '0', 10);
+      return sum + (isNaN(p) ? 0 : p);
+    }, 0);
+    if (totalPowerIERB > 12000) {
+      return done(addLog(ctx, `パワー合計${totalPowerIERB}>12000のためバニッシュ不発`));
+    }
+    let cIERB = ctx;
+    for (const t of targetsIERB) {
+      const removedIERB = removeFromField(t, cIERB.otherState);
+      const { state: withDestIERB } = banishDestination(removedIERB, cIERB.ownerState, t);
+      cIERB = { ...cIERB, otherState: withDestIERB };
+    }
+    const namesIERB = targetsIERB.map(n => ctx.cardMap.get(n)?.CardName ?? n).join('・');
+    return done(addLog(cIERB, `パワー合計${totalPowerIERB}≤12000 → ${namesIERB}をバニッシュ`));
+  }
+
   // PRDI035_PARADISE_COLOR: PR-Di035 OPEN DREAM LAND! 色分岐。
   // 本来は「次のあなたのアタックフェイズ開始時」に判定する遅延効果だが、遅延トリガー機構が
   // ないため即時で近似する。場の＜プリパラ＞シグニが、ある色を共通して持ちレベルが3種類以上
