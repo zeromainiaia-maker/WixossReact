@@ -4699,12 +4699,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     .map(num => battleCardMap.get(num))
     .filter((c): c is CardData => !!c && c.Type === 'アーツ');
 
-  // フェゾーネマジック候補（lrig_deck のスペル/クラフト、メインフェイズに手札スペルと同様に使用可能）
-  const fezzoneCandidates: CardData[] = my.lrig_deck
-    .filter((num, i, arr) => arr.indexOf(num) === i)
-    .map(num => battleCardMap.get(num))
-    .filter((c): c is CardData => !!c && c.Type === 'スペル/クラフト');
-
   // アシストグロウ候補（各ゾーンごとに、lrig_deck からアシストルリグを検索）
   const getAssistGrowCandidates = (side: 'l' | 'r'): CardData[] => {
     if (!bs) return [];
