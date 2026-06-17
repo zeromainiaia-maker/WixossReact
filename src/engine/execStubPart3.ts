@@ -4361,7 +4361,8 @@ export function execStubPart3(
 
     const afterCtxEPLC = { ...ctx, ownerState: ownEPLC, otherState: othEPLC };
     if (redEPLC > 0) {
-      // 赤：相手シグニ2体まで選択→パワー合計12000以下ならバニッシュ（redEPLC回繰り返し）
+      // 赤：相手シグニ2体まで選択→パワー合計12000以下ならバニッシュ
+      // 赤2体以上の場合は1回目の選択のみ実施（2回目以降は相手シグニが残っていれば近似）
       const oppSigsEPLC = othEPLC.field.signi.flatMap(z => z?.at(-1) ? [z.at(-1)!] : []);
       const loggedCtxEPLC = logsEPLC.length > 0
         ? addLog(afterCtxEPLC, logsEPLC.join(' / '))
@@ -4369,14 +4370,14 @@ export function execStubPart3(
       if (oppSigsEPLC.length === 0) {
         return done(addLog(loggedCtxEPLC, `赤ルリグ${redEPLC}体→相手シグニなし`));
       }
+      const redSuffix = redEPLC > 1 ? `（${redEPLC}回分）` : '';
       return needsInteraction(
-        addLog(loggedCtxEPLC, `赤ルリグ${redEPLC}体→相手シグニ2体まで選択`),
+        addLog(loggedCtxEPLC, `赤ルリグ${redEPLC}体→相手シグニ2体まで選択${redSuffix}`),
         {
           type: 'SELECT_TARGET', candidates: oppSigsEPLC,
           count: Math.min(2, oppSigsEPLC.length), optional: true,
           targetScope: 'opp_field' as TargetScope,
-          thenAction: { type: 'STUB', id: 'INTERNAL_EVDIVA_RED_BANISH',
-            _remaining: redEPLC - 1 } as unknown as EffectAction,
+          thenAction: { type: 'STUB', id: 'INTERNAL_EVDIVA_RED_BANISH' } as EffectAction,
         },
       );
     }
