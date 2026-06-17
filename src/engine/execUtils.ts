@@ -262,6 +262,38 @@ export function getCardNum(id: string): string {
   return h > 0 ? id.slice(0, h) : id;
 }
 
+// ─── バリアトークン（フリーゾーンにカードとして設置する） ───────────────
+// 【ルリグバリア】【シグニバリア】はトークンカード。数値カウンタではなく
+// field.free_zone にトークンカードのインスタンス（CardNum#N）として置く。
+export const LRIG_BARRIER_CARD = 'WX24-P1-TK2A';   // 【ルリグバリア】
+export const SIGNI_BARRIER_CARD = 'WX26-CP1-TK01'; // 【シグニバリア】
+
+export function countBarrierTokens(freeZone: string[] | undefined, base: string): number {
+  return (freeZone ?? []).filter(n => getCardNum(n) === base).length;
+}
+
+// フリーゾーンにバリアトークンを count 個追加する（既存の最大連番+1から採番）。
+export function addBarrierTokens(freeZone: string[] | undefined, base: string, count = 1): string[] {
+  const fz = [...(freeZone ?? [])];
+  let maxIdx = 0;
+  for (const n of fz) {
+    if (getCardNum(n) === base) {
+      const i = parseInt(n.slice(base.length + 1), 10) || 0;
+      if (i > maxIdx) maxIdx = i;
+    }
+  }
+  for (let k = 0; k < count; k++) fz.push(`${base}#${maxIdx + 1 + k}`);
+  return fz;
+}
+
+// フリーゾーンからバリアトークンを1個取り除く（先頭の該当インスタンス）。
+export function removeOneBarrierToken(freeZone: string[] | undefined, base: string): string[] {
+  const fz = [...(freeZone ?? [])];
+  const idx = fz.findIndex(n => getCardNum(n) === base);
+  if (idx >= 0) fz.splice(idx, 1);
+  return fz;
+}
+
 export function fieldCandidates(
   state: PlayerState,
   filter: TargetFilter | undefined,

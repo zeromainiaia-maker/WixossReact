@@ -308,8 +308,8 @@ export interface PlayerState {
   // v0.278: discardVariable コスト支払いで捨てたカードのレベル合計（WDK13-011用）
   last_activated_discard_level_sum?: number;
   // v0.278: WX25-P2-001 GAIN_ABILITY_THIS_GAME で付与されるゲーム全体フラグ
-  lrig_barrier?: number;                 // 【ルリグバリア】数（相手ルリグアタック1回を無効）
-  signi_barrier?: number;                // 【シグニバリア】数（相手シグニからのダメージ1回を無効）
+  // 【ルリグバリア】【シグニバリア】は field.free_zone にトークンカードとして設置する
+  // （旧 lrig_barrier / signi_barrier 数値カウンタは廃止。execUtils の barrier ヘルパー参照）
   game_guard_barrier_act?: boolean;      // 手札ガードシグニ捨て→ルリグバリア付与 能力を持つ
   game_opp_guard_extra_colorless?: boolean; // 相手ガード時に追加で《無》1枚必要（このゲーム）
   // ON_ATTACK_SIGNI解決後のバトル解決待ち（zoneIndex: アタックしたゾーン番号）

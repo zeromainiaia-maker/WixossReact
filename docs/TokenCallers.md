@@ -57,8 +57,8 @@
 | トークン | 呼び出し元 | 生成機構 | 状況 |
 |---|---|---|---|
 | WX24-D1-TK1 リミットアッパー | WX24 各種エンハンス(P1-031 ほか計13枚), 至る果てへ等 | `PLACE_LIMIT_UPPER` + リミット計算側 | ✅ |
-| WX24-P1-TK2A ルリグバリア | WX24-P1-001 セイクリッド・フォース ほか多数（純白の防壁等） | `GAIN_LRIG_BARRIER` + `lrig_barrier` state、ルリグアタックで消費 | ✅ 付与配線済 |
-| WX26-CP1-TK01 シグニバリア | WX26-CP1-001 FUTURE SESSION ほか多数 | `GAIN_SIGNI_BARRIER` + `signi_barrier` state、シグニ攻撃時 `crashOneLife` で消費 | ✅ 実装済 |
+| WX24-P1-TK2A ルリグバリア | WX24-P1-001 セイクリッド・フォース ほか多数（純白の防壁等） | `GAIN_LRIG_BARRIER` → フリーゾーンにトークン設置、ルリグアタックで消費 | ✅ 付与配線済 |
+| WX26-CP1-TK01 シグニバリア | WX26-CP1-001 FUTURE SESSION ほか多数 | `GAIN_SIGNI_BARRIER` → フリーゾーンにトークン設置、シグニ攻撃時 `crashOneLife` で消費 | ✅ 実装済 |
 | WX25-P3-TK03 みこみこ親衛隊 | WX25-P3-023 さんさんおせおせ ほか | `GRANT_KEYWORD keyword:みこみこ親衛隊`（プレースホルダ） | ⚠️ キーワード付与のみ、トークン挙動未実装 |
 | WXDi-P05-TK01A ハスターリク | WXDi-P05-016 ウムル＝トレ | `HASTARLIQ` stub | ✅ |
 
@@ -84,10 +84,13 @@
 
 両バリアの **付与経路** を共通方式で配線した。
 
-- インフラ: `signi_barrier?: number`（`src/types/index.ts`）を追加。`GAIN_SIGNI_BARRIER` stub を
-  `GAIN_LRIG_BARRIER` の隣（`src/engine/execStubPart3.ts`）に追加。両 stub は `count` 任意対応。
-- 消費: シグニ攻撃のライフクラッシュ中核 `crashOneLife`（`BattleScreen.tsx`）の先頭で `signi_barrier`
-  を消費（`prevent_next_damage` より優先）。ルリグバリアは従来どおりルリグアタック解決時に消費。
+- **保持: 数値カウンタではなく `field.free_zone` にトークンカードとして設置**（ルリグバリア=`WX24-P1-TK2A`、
+  シグニバリア=`WX26-CP1-TK01`）。ヘルパーは `execUtils.ts`（`LRIG_BARRIER_CARD`/`SIGNI_BARRIER_CARD`/
+  `countBarrierTokens`/`addBarrierTokens`/`removeOneBarrierToken`）。盤面のフリーゾーンにカードとして表示される。
+- 付与: `GAIN_SIGNI_BARRIER`/`GAIN_LRIG_BARRIER` stub（`execStubPart3.ts`、`count` 任意対応）が
+  フリーゾーンにトークンを push。
+- 消費: シグニ攻撃のライフクラッシュ中核 `crashOneLife`（`BattleScreen.tsx`）冒頭でシグニバリアトークンを
+  1枚除外（`prevent_next_damage` より優先）。ルリグバリアはルリグアタック解決時にトークンを1枚除外。
 - 付与配線（`scripts/fixBarrierGrants.mjs`）: パーサが `GRANT_KEYWORD(keyword:"○バリア")` という
   プレースホルダにしていた10件を `GAIN_*_BARRIER` stub に置換（WXDi-P16-003 は `count:2`）。
   付与が落ちていた4枚（WXDi-P12-001 / WXDi-CP02-001 / WX25-P3-001 / WXDi-P14-001選択肢①）に GAIN step を追加。

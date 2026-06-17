@@ -6,7 +6,7 @@ import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, Pe
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectContinuousAbilitiesRemovedSigni} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
-import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups } from '../engine/execUtils';
+import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
@@ -5633,10 +5633,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ライフクロスを1枚クラッシュし、チェック状態にする
   // returns: crashed=null + prevented=true → ダメージ無効、crashed=null + !prevented → ライフなし（即勝利判定）
   const crashOneLife = (state: PlayerState): { newState: PlayerState; crashed: string | null; prevented?: boolean } => {
-    if ((state.signi_barrier ?? 0) > 0) {
-      appendBattleLogs([`シグニバリア発動（残${(state.signi_barrier ?? 1) - 1}）ダメージ無効`]);
+    if (countBarrierTokens(state.field.free_zone, SIGNI_BARRIER_CARD) > 0) {
+      const fz = removeOneBarrierToken(state.field.free_zone, SIGNI_BARRIER_CARD);
+      appendBattleLogs([`シグニバリア発動（残${countBarrierTokens(fz, SIGNI_BARRIER_CARD)}）ダメージ無効`]);
       return {
-        newState: { ...state, signi_barrier: (state.signi_barrier ?? 0) - 1 },
+        newState: { ...state, field: { ...state.field, free_zone: fz } },
         crashed: null,
         prevented: true,
       };
@@ -7435,9 +7436,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 攻撃側ルリグのダブルクラッシュ確認
         const opLrigNum = op.field.lrig.at(-1);
         const opLrigHasDoubleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ'));
-        if ((my.lrig_barrier ?? 0) > 0) {
-          appendBattleLogs([`ルリグアタック：ルリグバリア発動（残${(my.lrig_barrier ?? 1) - 1}）`]);
-          newMyState = { ...my, lrig_barrier: (my.lrig_barrier ?? 1) - 1, field: { ...my.field, lrig_attacked: false } };
+        if (countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) > 0) {
+          const fzLB = removeOneBarrierToken(my.field.free_zone, LRIG_BARRIER_CARD);
+          appendBattleLogs([`ルリグアタック：ルリグバリア発動（残${countBarrierTokens(fzLB, LRIG_BARRIER_CARD)}）`]);
+          newMyState = { ...my, field: { ...my.field, free_zone: fzLB, lrig_attacked: false } };
         } else if ((my.prevent_next_damage ?? 0) > 0) {
           appendBattleLogs([`ルリグアタック：ダメージ無効`]);
           newMyState = { ...my, prevent_next_damage: (my.prevent_next_damage ?? 0) - 1, field: { ...my.field, lrig_attacked: false } };
@@ -7925,15 +7927,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const cardNum = my.hand[handIndex];
       const newHand = my.hand.filter((_, i) => i !== handIndex);
+      const fzGBA = addBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD, 1);
       const paid: PlayerState = {
         ...my,
         hand: newHand,
         trash: [...my.trash, cardNum],
-        lrig_barrier: (my.lrig_barrier ?? 0) + 1,
+        field: { ...my.field, free_zone: fzGBA },
         actions_done: [...(my.actions_done ?? []), 'GUARD_BARRIER_ACT'],
       };
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
-      appendBattleLogs([`【起】ガードシグニ（${cardName}）を捨て→ルリグバリア+1（計${paid.lrig_barrier}）`]);
+      appendBattleLogs([`【起】ガードシグニ（${cardName}）を捨て→ルリグバリア+1（計${countBarrierTokens(fzGBA, LRIG_BARRIER_CARD)}）`]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
       await supabase.from('battle_states').update({ [stateKey]: paid }).eq('room_id', roomId);
     } finally {
@@ -10530,7 +10533,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 });
               return (
                 <>
-                  {(my.lrig_barrier ?? 0) > 0 && (
+                  {countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) > 0 && (
                     <button
                       onClick={() => performGuardResponse(null, {
                         responder: my, attacker: op,
@@ -10542,7 +10545,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #4db6e0',
                         backgroundColor: 'rgba(77,182,224,0.15)', color: '#4db6e0', cursor: 'pointer',
                         fontSize: 13, marginBottom: 4 }}>
-                      ルリグバリア発動（残{(my.lrig_barrier ?? 0)}→{(my.lrig_barrier ?? 1) - 1}）攻撃無効
+                      ルリグバリア発動（残{countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD)}→{countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) - 1}）攻撃無効
                     </button>
                   )}
                   {oppGuardExtraColorless && (

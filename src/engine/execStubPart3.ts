@@ -20,6 +20,7 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination,
   getCardNum, shuffle,
+  LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
@@ -4297,20 +4298,22 @@ export function execStubPart3(
       `${targetName}にパワー${delta}（スペル${trashCount}枚トラッシュ）`));
   }
 
-  // GAIN_LRIG_BARRIER: 【ルリグバリア】を1つ得る（ルリグアタック1回を無効）
+  // GAIN_LRIG_BARRIER: 【ルリグバリア】を得る（フリーゾーンにトークンとして設置。ルリグアタック1回を無効）
   if (stub.id === 'GAIN_LRIG_BARRIER') {
     const countGLB = (stub as { count?: number }).count ?? 1;
-    const newOwnerGLB: PlayerState = { ...ctx.ownerState, lrig_barrier: (ctx.ownerState.lrig_barrier ?? 0) + countGLB };
+    const fzGLB = addBarrierTokens(ctx.ownerState.field.free_zone, LRIG_BARRIER_CARD, countGLB);
+    const newOwnerGLB: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, free_zone: fzGLB } };
     return done(addLog({ ...ctx, ownerState: newOwnerGLB },
-      `【ルリグバリア】+${countGLB}（計${newOwnerGLB.lrig_barrier}）`));
+      `【ルリグバリア】+${countGLB}（フリーゾーンに設置）`));
   }
 
-  // GAIN_SIGNI_BARRIER: 【シグニバリア】を1つ得る（相手シグニからのダメージ1回を無効）
+  // GAIN_SIGNI_BARRIER: 【シグニバリア】を得る（フリーゾーンにトークンとして設置。相手シグニからのダメージ1回を無効）
   if (stub.id === 'GAIN_SIGNI_BARRIER') {
     const countGSB = (stub as { count?: number }).count ?? 1;
-    const newOwnerGSB: PlayerState = { ...ctx.ownerState, signi_barrier: (ctx.ownerState.signi_barrier ?? 0) + countGSB };
+    const fzGSB = addBarrierTokens(ctx.ownerState.field.free_zone, SIGNI_BARRIER_CARD, countGSB);
+    const newOwnerGSB: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, free_zone: fzGSB } };
     return done(addLog({ ...ctx, ownerState: newOwnerGSB },
-      `【シグニバリア】+${countGSB}（計${newOwnerGSB.signi_barrier}）`));
+      `【シグニバリア】+${countGSB}（フリーゾーンに設置）`));
   }
 
   // EXILE_SELF_AFTER_USE: 使用後このカードをゲームから除外する（近似: トラッシュへ）
