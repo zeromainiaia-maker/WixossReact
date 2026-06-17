@@ -2898,6 +2898,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // FUTURE SESSION③: 次のAPSにプリオケシグニへアタック時トラッシュ能力を付与（フラグ検出）
+    if (timing === 'ON_ATTACK_PHASE_START' && myState.pending_prioke_attack_trash_grant) {
+      const priokeSignis = myState.field.signi.flatMap(s => {
+        const top = s?.at(-1);
+        return (top && (battleCardMap.get(top)?.CardClass ?? '').includes('プリオケ')) ? [top] : [];
+      });
+      if (priokeSignis.length > 0) {
+        entries.push({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum: 'WX26-CP1-001',
+          effectId: 'WX26-CP1-001-DELAYED-FS3',
+          label: 'FUTURE SESSION③ プリオケシグニへアタック時トラッシュ能力付与',
+          effect: {
+            effectId: 'WX26-CP1-001-DELAYED-FS3',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_PHASE_START'],
+            action: {
+              type: 'STUB',
+              id: 'INTERNAL_APPLY_PRIOKE_ATTACK_TRASH',
+            } as import('../types/effects').StubAction,
+            duration: 'INSTANT',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          },
+        });
+      }
+    }
+
     return entries;
   };
 
