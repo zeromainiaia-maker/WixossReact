@@ -1263,6 +1263,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     nums.add('WXDi-CP02-TK01A'); // ペロロ人形
     nums.add('WXDi-CP02-TK02A'); // 雨雲号
     nums.add('WXDi-CP02-TK03B'); // クルセイダーちゃん
+    nums.add('WX25-P1-TK6');     // 幻怪 ヤミノザンシ（ON_LEAVE_FIELD で怪異シグニ離脱時に生成）
     return nums;
   }, [myDeckData, bs]);
 
