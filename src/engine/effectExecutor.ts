@@ -1535,10 +1535,22 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     action: ch.action,
     available: ch.condition ? evalCondition(ch.condition, ctx) : true,
   }));
+  let effectiveCount = a.choose_count;
+  let effectiveUpTo = a.upTo ?? false;
+  // リコレクト条件: トラッシュの<プリオケ>カード数が閾値以上なら choose_count/upTo を上書き
+  if (a.recollect) {
+    const priokeCount = ctx.ownerState.trash.filter(n =>
+      (ctx.cardMap.get(n)?.CardClass ?? '').includes('プリオケ'),
+    ).length;
+    if (priokeCount >= a.recollect.minCount) {
+      effectiveCount = a.recollect.thenChooseCount;
+      effectiveUpTo = a.recollect.thenUpTo ?? false;
+    }
+  }
   return needsInteraction(ctx, {
-    type: 'CHOOSE', options, count: a.choose_count,
-    ...(a.upTo || a.choose_count > 1 ? { multiSelect: true } : {}),
-    ...(a.upTo ? { upTo: true } as Record<string, unknown> : {}),
+    type: 'CHOOSE', options, count: effectiveCount,
+    ...(effectiveUpTo || effectiveCount > 1 ? { multiSelect: true } : {}),
+    ...(effectiveUpTo ? { upTo: true } as Record<string, unknown> : {}),
     ...(a.opponentResponds ? { opponentResponds: true } : {}),
   } as PendingInteractionDef & { type: 'CHOOSE' });
 }
