@@ -551,9 +551,10 @@ export interface SequenceAction {
 
 export interface ChooseAction {
   type: 'CHOOSE';
-  choose_count: number; // N個選ぶ
+  choose_count: number; // N個選ぶ（upTo=trueなら最大N個）
   from_count: number;   // M個の選択肢から
   choices: ChoiceOption[];
+  upTo?: boolean;        // true = 「N個まで」（1〜N個選択可）
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 
