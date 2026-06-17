@@ -1256,6 +1256,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
     if (bs) { addState(bs.host_state); addState(bs.guest_state); }
     nums.add('WXDi-P07-TK01-A'); // サーバントZEROトークン（常時ロード）
+    nums.add('WX24-D1-TK1');     // 【リミットアッパー】トークン（ルリグゾーン左に表示・常時ロード）
     return nums;
   }, [myDeckData, bs]);
 

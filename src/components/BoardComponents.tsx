@@ -1018,9 +1018,16 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   const assist_r  = state.field.assist_lrig_r ?? [];
   const key_piece = state.field.key_piece ?? null;
 
+  // 【リミットアッパー】トークンはルリグゾーン左に配置する（1つまで・WX24-D1-TK1）
+  const LIMIT_UPPER_CARD = 'WX24-D1-TK1';
+  const limitUpperSlot: Slot | null = state.limit_upper_token
+    ? { cardNum: LIMIT_UPPER_CARD, label: 'Lアッパー', w: lowerW, h: lowerH }
+    : null;
+
   type Slot = { label: string; w: number; h: number; cardNum?: string | null; stack?: string[] };
   const lowerSlots: Slot[] = isMe
     ? [
+        ...(limitUpperSlot ? [limitUpperSlot] : []),
         { cardNum: check,    label: 'CHECK',      w: lowerW, h: lowerH },
         { stack:   assist_l, label: 'アシスト左',  w: lowerW, h: lowerH },
         { stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
@@ -1033,6 +1040,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
         { stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
         { stack:   assist_l, label: 'アシスト左',  w: lowerW, h: lowerH },
         { cardNum: check,    label: 'CHECK',       w: lowerW, h: lowerH },
+        ...(limitUpperSlot ? [limitUpperSlot] : []),
       ];
 
   const lrig_down = state.field.lrig_down ?? false;
