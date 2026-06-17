@@ -327,6 +327,8 @@ export interface PlayerState {
   is_betting_this_effect?: boolean;
   // FUTURE SESSION③: 次のアタックフェイズ開始時にプリオケシグニへアタック時トラッシュ能力を付与
   pending_prioke_attack_trash_grant?: boolean;
+  // PR-Di035: 次のアタックフェイズ開始時にプリパラ共通色・レベル3種類チェックして色別効果
+  pending_pridi035_paradise?: boolean;
 }
 
 export interface GameLog {
