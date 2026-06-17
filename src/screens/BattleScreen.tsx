@@ -839,7 +839,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [closeZoneSignal, setCloseZoneSignal] = useState(0);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [selectedRemoveZones, setSelectedRemoveZones] = useState<Set<number>>(new Set());
-  const [pendingSpellCast, setPendingSpellCast] = useState<{ cardNum: string; handIndex: number } | null>(null);
+  const [pendingSpellCast, setPendingSpellCast] = useState<{ cardNum: string; handIndex: number; fromLrigDeck?: boolean } | null>(null);
   const [selectedSpellCost, setSelectedSpellCost] = useState<Set<number>>(new Set());
   // v0.277: 手札から発動する【起】
   const [pendingHandActivated, setPendingHandActivated] = useState<{ cardNum: string; handIndex: number; effect: import('../types/effects').CardEffect } | null>(null);
@@ -4699,6 +4699,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     .map(num => battleCardMap.get(num))
     .filter((c): c is CardData => !!c && c.Type === 'アーツ');
 
+  // フェゾーネマジック候補（lrig_deck のスペル/クラフト、メインフェイズに手札スペルと同様に使用可能）
+  const fezzoneCandidates: CardData[] = my.lrig_deck
+    .filter((num, i, arr) => arr.indexOf(num) === i)
+    .map(num => battleCardMap.get(num))
+    .filter((c): c is CardData => !!c && c.Type === 'スペル/クラフト');
+
   // アシストグロウ候補（各ゾーンごとに、lrig_deck からアシストルリグを検索）
   const getAssistGrowCandidates = (side: 'l' | 'r'): CardData[] => {
     if (!bs) return [];
@@ -5200,7 +5206,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // スペル発動: 手札から除いてコスト支払い → pending_spell をセット（カットイン待ち）
-  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number) => {
+  // fromLrigDeck=true のとき: ルリグデッキから除いてpending_spell.from_lrig_deck=trueをセット（フェゾーネマジック）
+  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean) => {
     if (!isMyTurn || loading) return;
     if (isActionBlocked('USE_SPELL')) return;
     if (isActionBlocked('PLAY_COLORLESS') && card.Color === '無') return;
@@ -5225,18 +5232,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
-      const newMyState: PlayerState = {
-        ...my,
-        hand: my.hand.filter((_, i) => i !== handIdx),
-        energy: newEnergy,
-        trash: [...my.trash, ...paidNums],
-        actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
-        // DISONA_RESTRICTION: 使用条件チェック用に非ディソナスペルの使用を記録
-        ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
-      };
+      let spellInstanceId: string;
+      let newMyState: PlayerState;
+      if (fromLrigDeck) {
+        // フェゾーネマジック: lrig_deckから除いてゲームから除外先へ（使用後はlrig_trashへ近似）
+        spellInstanceId = my.lrig_deck.find(id => {
+          const base = id.indexOf('#') > 0 ? id.slice(0, id.indexOf('#')) : id;
+          return base === card.CardNum;
+        }) ?? card.CardNum;
+        newMyState = {
+          ...my,
+          lrig_deck: my.lrig_deck.filter(id => id !== spellInstanceId),
+          energy: newEnergy,
+          trash: [...my.trash, ...paidNums],
+          actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
+          ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
+        };
+      } else {
+        spellInstanceId = my.hand[handIdx] ?? card.CardNum;
+        newMyState = {
+          ...my,
+          hand: my.hand.filter((_, i) => i !== handIdx),
+          energy: newEnergy,
+          trash: [...my.trash, ...paidNums],
+          actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
+          ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
+        };
+      }
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      // handからはインスタンスIDで正確な1枚を参照する
-      const spell: PendingSpell = { caster_id: user.id, card_num: my.hand[handIdx] ?? card.CardNum };
+      const spell: PendingSpell = { caster_id: user.id, card_num: spellInstanceId, ...(fromLrigDeck ? { from_lrig_deck: true } : {}) };
       await supabase.from('battle_states')
         .update({ [stateKey]: newMyState, pending_spell: spell })
         .eq('room_id', roomId);
@@ -5252,10 +5276,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setPendingCutinCard(null);
     setSelectedCutinCost(new Set());
     try {
-      const { caster_id, card_num } = bs.pending_spell;
+      const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
       const casterIsHost = caster_id === bs.host_id;
       const casterState = casterIsHost ? bs.host_state : bs.guest_state;
       const nonCasterState = casterIsHost ? bs.guest_state : bs.host_state;
+      // 使用後の置き場所: フェゾーネマジック等（ルリグデッキ由来）はゲームから除外＝lrig_trashへ近似、通常スペルはトラッシュへ
+      const placeUsedSpell = (s: PlayerState): PlayerState => from_lrig_deck
+        ? { ...s, lrig_trash: [...s.lrig_trash, card_num] }
+        : { ...s, trash: [...s.trash, card_num] };
       // NEGATE_SPELL: casterStateにspell_negated_this_turnがあればコスト合計5以下のスペルを打ち消す
       if (casterState.spell_negated_this_turn) {
         const spellCard = battleCardMap.get(card_num);
@@ -5263,8 +5291,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (spellTotalCostNS <= 5) {
           const spellNameNS = spellCard?.CardName ?? card_num;
           const negatedCasterState: PlayerState = {
-            ...casterState,
-            trash: [...casterState.trash, card_num],
+            ...placeUsedSpell(casterState),
             spell_negated_this_turn: undefined,
           };
           const hostStateNS  = casterIsHost ? negatedCasterState : nonCasterState;
@@ -5277,7 +5304,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      const resolved: PlayerState = { ...casterState, trash: [...casterState.trash, card_num] };
+      const resolved: PlayerState = placeUsedSpell(casterState);
 
       // スペル効果を発火（casterがowner）
       const effects = effectsMap.get(card_num) ?? [];
@@ -5364,11 +5391,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setPendingCutinCard(null);
     setSelectedCutinCost(new Set());
     try {
-      const { caster_id, card_num } = bs.pending_spell;
+      const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
       const casterIsHost = caster_id === bs.host_id;
       const casterState = casterIsHost ? bs.host_state : bs.guest_state;
-      // スペルをトラッシュへ（打ち消し）
-      const newCasterState: PlayerState = { ...casterState, trash: [...casterState.trash, card_num] };
+      // スペルを処理（打ち消し）: フェゾーネマジック等はゲームから除外＝lrig_trashへ近似、通常スペルはトラッシュへ
+      const newCasterState: PlayerState = from_lrig_deck
+        ? { ...casterState, lrig_trash: [...casterState.lrig_trash, card_num] }
+        : { ...casterState, trash: [...casterState.trash, card_num] };
       // カットインコスト支払い＆ルリグデッキから除去
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
@@ -5519,6 +5548,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     const phase = bs.turn_phase;
     const actions: CardAction[] = [];
+
+    // ── スペル/クラフト（フェゾーネマジック）── メインフェイズに手札スペルと同様に使用可能
+    if (cardData.Type === 'スペル/クラフト') {
+      if (my.blocked_card_names?.includes(cardData.CardName)) return actions;
+      // pending_spell がある間は新たにスペルを発動できない
+      const spellBlocked = !!bs.pending_spell;
+      const canUse = !isActionBlocked('USE_SPELL') && phase === 'MAIN' && isMyTurn && !spellBlocked;
+      // スペル使用条件（手札スペルと同様にACTIVATED効果の condition を評価）
+      const spellEff = (effectsMap.get(cardNum) ?? []).find(e => e.effectType === 'ACTIVATED');
+      const condOk = !spellEff?.condition || evalUseCondition(spellEff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
+      // コスト支払い可能か（簡易チェック：エナで賄えるか）
+      const costOk = canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, [], my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+      if (canUse && condOk && costOk) {
+        actions.push({
+          label: '使用',
+          color: C.accent,
+          onClick: () => { setPendingSpellCast({ cardNum, handIndex: -1, fromLrigDeck: true }); setSelectedSpellCost(new Set()); },
+        });
+      }
+      return actions;
+    }
 
     // ── アーツ ──
     if (cardData.Type === 'アーツ') {
@@ -5931,6 +5981,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isLancer      = hasGrantedKeyword('ランサー');
       const isSLancer     = hasGrantedKeyword('Sランサー');
       const isDoubleCrush = hasGrantedKeyword('ダブルクラッシュ');
+      const isShoot       = hasGrantedKeyword('シュート');
 
       // アサシン：正面シグニを無視してライフへ直接アタック
       const effectivelyEmpty = !opTopCardNum || isAssassin;
@@ -6036,6 +6087,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ウィルスはゾーンに属するため、シグニがバニッシュされても除去しない
           // 状態フラグ（ACTIVATEDで設定済み）またはCONTINUOUS BANISH_REDIRECT効果（activeCondition評価込み）
           const redirectBanish =
+            isShoot ||
             myS.banish_redirect === true ||
             myS.field.signi.some(s => {
               const n = s?.at(-1);
@@ -6594,7 +6646,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const removed = removeFromField(topNum, currentOwner);
         const opState = ownerIsHost ? guestState : hostState;
         const opIsOwnerTurnP0 = ownerIsHost ? !isMyTurnLocal : isMyTurnLocal;
+        // パワー0バニッシュ: 相手の同ゾーンシグニがシュートを持つ場合もトラッシュへ
+        const dieZoneP0 = currentOwner.field.signi.findIndex(s => s?.at(-1) === topNum);
+        const opZoneSigniP0 = dieZoneP0 >= 0 ? opState.field.signi[dieZoneP0]?.at(-1) ?? null : null;
+        const opShootP0 = opZoneSigniP0 != null &&
+          hasKeyword(opZoneSigniP0, 'シュート', battleCardMap, opState.keyword_grants, undefined, opState.keyword_grants_until_opp_turn);
         const redirectBanishP0 =
+          opShootP0 ||
           opState.banish_redirect === true ||
           opState.field.signi.some(s => {
             const n = s?.at(-1);
@@ -9508,7 +9566,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
-                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex)}
+                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.accent : C.disabled,

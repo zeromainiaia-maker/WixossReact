@@ -336,6 +336,7 @@ export interface GameLog {
 export interface PendingSpell {
   caster_id: string;   // スペルを発動したプレイヤーのID
   card_num: string;    // 発動中のスペルカード番号
+  from_lrig_deck?: boolean; // ルリグデッキからの発動（フェゾーネマジック等スペル/クラフト）
 }
 
 // ===== 効果エンジン インタラクション定義 =====
