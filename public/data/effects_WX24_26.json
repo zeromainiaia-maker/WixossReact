@@ -9815,29 +9815,38 @@
         ]
       },
       "action": {
-        "type": "SEQUENCE",
-        "steps": [
+        "type": "CHOOSE",
+        "choose_count": 1,
+        "from_count": 2,
+        "choices": [
           {
-            "type": "STUB",
-            "id": "NEGATE_ATTACK_ON_TRIGGER"
+            "choiceId": "c0",
+            "label": "①相手シグニ1体ダウン",
+            "action": {
+              "type": "DOWN",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ"
+                },
+                "upToCount": false
+              }
+            }
           },
           {
-            "type": "TRANSFER_TO_DECK",
-            "source": {
-              "type": "SIGNI",
-              "owner": "self",
-              "count": 1,
-              "filter": {
-                "cardType": "シグニ"
-              }
-            },
-            "shuffle": false
+            "choiceId": "c1",
+            "label": "②スペル打ち消し",
+            "action": {
+              "type": "COUNTER_SPELL"
+            }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX24-P3-037": [

@@ -808,6 +808,39 @@ function MulliganCard({ cardNum, cards, selected, onToggle }: {
   );
 }
 
+// ─── カットイン候補型 ──────────────────────────────────────────────────
+interface CutinCandidate {
+  card: CardData;
+  instanceId: string;
+  source: 'lrig_deck' | 'lrig_field' | 'signi_field' | 'hand';
+  effect: import('../types/effects').CardEffect;
+  zoneIdx?: number;
+  handIdx?: number;
+}
+
+function findCounterSpellMaxCost(action: import('../types/effects').EffectAction): number | undefined {
+  if (action.type === 'COUNTER_SPELL') return (action as import('../types/effects').CounterSpellAction).maxCost;
+  if (action.type === 'SEQUENCE') {
+    for (const step of (action as import('../types/effects').SequenceAction).steps) {
+      const r = findCounterSpellMaxCost(step);
+      if (r !== undefined) return r;
+    }
+  }
+  if (action.type === 'CHOOSE') {
+    for (const choice of (action as import('../types/effects').ChooseAction).choices) {
+      const r = findCounterSpellMaxCost(choice.action);
+      if (r !== undefined) return r;
+    }
+  }
+  return undefined;
+}
+
+function effectEnergyCostStr(energy: { color: string; count: number }[] | undefined): string {
+  const items = energy?.filter(e => e.count > 0) ?? [];
+  if (!items.length) return 'なし';
+  return items.map(e => `《${e.color}》×${e.count}`).join('');
+}
+
 // ─── メインコンポーネント ────────────────────────────────────────────
 export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: Props) {
   const [bs, setBs] = useState<BattleStateRow | null>(null);
