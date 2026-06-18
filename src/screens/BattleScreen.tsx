@@ -10223,24 +10223,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               }
               /* カットインのコスト選択 */
               const isHandDiscardModal = pendingCutinCard.source === 'hand' && pendingCutinCard.effect.cost?.discardSelfFromHand;
+              const exceedCostModal = pendingCutinCard.source === 'lrig_field'
+                ? (pendingCutinCard.effect.cost?.exceed ?? 0) : 0;
+              const exceedPoolModal = [
+                ...my.field.lrig.slice(0, -1),
+                ...(my.field.assist_lrig_l?.slice(0, -1) ?? []),
+                ...(my.field.assist_lrig_r?.slice(0, -1) ?? []),
+              ];
               const cutinCostStrModal = pendingCutinCard.source === 'lrig_deck'
                 ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === pendingCutinCard.card.CardName); return r ? removeNColorFromCost(pendingCutinCard.card.Cost, '無', r.colorlessReduction) : pendingCutinCard.card.Cost; })()
                 : effectEnergyCostStr(pendingCutinCard.effect.cost?.energy);
-              const cutinCostLabelModal = isHandDiscardModal ? '手札から自分を捨てる'
-                : (pendingCutinCard.source === 'lrig_deck' ? pendingCutinCard.card.Cost || 'なし' : cutinCostStrModal || 'なし');
+              const exceedPartModal = exceedCostModal > 0 ? `エクシード${exceedCostModal}` : '';
+              const energyPartModal = isHandDiscardModal ? '手札から自分を捨てる'
+                : (pendingCutinCard.source === 'lrig_deck' ? pendingCutinCard.card.Cost || '' : cutinCostStrModal || '');
+              const cutinCostLabelModal = [exceedPartModal, energyPartModal].filter(Boolean).join('・') || 'なし';
               const costItems = isHandDiscardModal ? [] : parseGrowCost(cutinCostStrModal);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedCutinCost].map(i => my.energy[i]);
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
-              const isValid = totalReq === 0 || isHandDiscardModal ||
+              const exceedOkModal = exceedCostModal === 0 || selectedCutinExceed.size === exceedCostModal;
+              const isValid = exceedOkModal && (totalReq === 0 || isHandDiscardModal ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setPendingCutinCard(null); setSelectedCutinCost(new Set()); }}
+                    <button onClick={() => { setPendingCutinCard(null); setSelectedCutinCost(new Set()); setSelectedCutinExceed(new Set()); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← 戻る
