@@ -28,6 +28,7 @@ import { parseSentencePart1 } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
 import { parseSentencePart3 } from './parsers/parseSentencePart3';
 import { parseSentencePart4 } from './parsers/parseSentencePart4';
+import { encodeShadowScopesInText } from '../utils/keywords';
 
 function parseUseCondition(text: string): Condition {
   const n = (s: string) => parseInt(toHalf(s), 10);
@@ -1475,7 +1476,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   } else {
     // シグニ・ルリグ・その他：EffectTextを複数ブロックに分割して解析
     if (card.EffectText && card.EffectText !== '-') {
-      let effectText = card.EffectText;
+      // 【シャドウ（X）】のスコープ条件を stripRuleParens で括弧除去される前に符号化する
+      let effectText = encodeShadowScopesInText(card.EffectText);
       // クロスアイコン prefix の検出と除去
       if (effectText.startsWith('《クロスアイコン》')) {
         card.hasCrossIcon = true;

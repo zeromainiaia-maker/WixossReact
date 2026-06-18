@@ -89,6 +89,51 @@ export function decodeShadowKeyword(kw: string): ShadowScope | null {
 }
 
 /**
+ * 「【シャドウ（X）】」の括弧内テキスト X を ShadowScope に変換する。
+ * 未対応の表現（例:「このシグニの【出】能力で指定した色」）は null を返す（無条件シャドウにフォールバック）。
+ */
+export function parseShadowScopeText(inner: string): ShadowScope | null {
+  const s = inner.trim();
+  const half = (x: string) => x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  let m: RegExpMatchArray | null;
+  // レベル（以下／以上／ちょうど）
+  if ((m = s.match(/^レベル([０-９\d]+)以下/))) return { levelLte: parseInt(half(m[1]), 10) };
+  if ((m = s.match(/^レベル([０-９\d]+)以上/))) return { levelGte: parseInt(half(m[1]), 10) };
+  if ((m = s.match(/^レベル([０-９\d]+)/)))     return { levelEq:  parseInt(half(m[1]), 10) };
+  // パワー（自分基準を先に判定）
+  if (/^パワーがこのシグニのパワーの半分以下/.test(s)) return { selfPowerHalfLte: true, cardType: 'シグニ' };
+  if (/^このシグニのパワー以下/.test(s))               return { selfPowerLte: true };
+  if ((m = s.match(/^パワー([０-９\d]+)以下/)))         return { powerLte: parseInt(half(m[1]), 10) };
+  // カードタイプ単独
+  if (s === 'シグニ') return { cardType: 'シグニ' };
+  if (s === 'スペル') return { cardType: 'スペル' };
+  // アーツコスト
+  if ((m = s.match(/^コストの合計が([０-９\d]+)以下のアーツ/))) return { artsCostLte: parseInt(half(m[1]), 10) };
+  // 色系
+  if (/^(宣言された色|宣言した色)/.test(s)) return s.includes('シグニ') ? { declaredColor: true, cardType: 'シグニ' } : { declaredColor: true };
+  if (/^このシグニが持つ色/.test(s))                       return { selfColor: true };
+  if (/^あなたのルリグトラッシュにあるアーツが持つ色/.test(s)) return { lrigTrashArtsColor: true };
+  if ((m = s.match(/^([白赤青緑黒])$/)))                    return { color: m[1] };
+  // 動的スコープ（同一SEQUENCE内で解決されるマーカー）
+  if (/^この方法でダウンしたルリグと同じレベル/.test(s))   return { downerLrigLevel: true };
+  if (/^この方法で宣言した数字と同じパワー/.test(s))       return { declaredNumberPowerEq: true };
+  if (/^このシグニの下にあるシグニと同じレベル/.test(s))   return { underSigniLevelEq: true };
+  return null;
+}
+
+/**
+ * 効果テキスト中の「【シャドウ（X）】」を「【シャドウ:{json}】」へ符号化する。
+ * stripRuleParens で括弧内テキストが除去される前に呼ぶことで、スコープ条件が失われないようにする。
+ * 未対応スコープは無条件シャドウ「【シャドウ】」に縮退させる。
+ */
+export function encodeShadowScopesInText(text: string): string {
+  return text.replace(/【シャドウ（([^）]*)）】/g, (_full, inner: string) => {
+    const scope = parseShadowScopeText(inner);
+    return `【${encodeShadowKeyword(scope)}】`;
+  });
+}
+
+/**
  * cardNumが持つすべてのシャドウのスコープを集める（CONTINUOUS静的付与＋動的keywordGrants＋extraGrants）。
  * activeCondition付きの静的付与は呼び出し元で別途 checkActiveCondition により判定すること（このリストには含めない）。
  */
