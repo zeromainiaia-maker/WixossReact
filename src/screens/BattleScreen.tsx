@@ -4950,8 +4950,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         result.push({ card, instanceId, source: 'lrig_deck', effect: dummyEff });
       });
 
-    // 2. lrig_field: ACTIVATED効果にSPELL_CUTINタイミングを持つルリグ
-    [...new Set(my.field.lrig.filter(Boolean))].forEach(instanceId => {
+    // 2. lrig_field + key_piece: ACTIVATED効果にSPELL_CUTINタイミングを持つルリグ/キー
+    const lrigAndKeyIds = [
+      ...new Set(my.field.lrig.filter(Boolean)),
+      ...(my.field.key_piece ? [my.field.key_piece] : []),
+      ...(my.field.key_piece_extra ?? []),
+    ];
+    lrigAndKeyIds.forEach(instanceId => {
       const cardNum = getCardNum(instanceId);
       const card = battleCardMap.get(cardNum);
       if (!card) return;
