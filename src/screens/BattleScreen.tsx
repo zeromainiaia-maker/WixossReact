@@ -11274,13 +11274,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ) : (
           <button
             onClick={handlePhaseAdvance}
-            disabled={!!(bs.effect_stack || bs.pending_effect || loading)}
+            disabled={!!(bs.effect_stack || bs.pending_effect || loading || my.pending_signi_battle)}
             style={{
               padding: '5px 16px', borderRadius: 5, border: 'none',
               backgroundColor: bs.turn_phase === 'END' ? C.dangerDark : C.accent,
               color: C.text, fontSize: 12, fontWeight: 'bold',
               cursor: 'pointer',
-              visibility: (bs.effect_stack || bs.pending_effect || loading) ? 'hidden' : 'visible',
+              visibility: (bs.effect_stack || bs.pending_effect || loading || my.pending_signi_battle) ? 'hidden' : 'visible',
             }}
           >
             {PHASE_BTN[bs.turn_phase]}
