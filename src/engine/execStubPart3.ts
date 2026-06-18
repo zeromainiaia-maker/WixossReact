@@ -4779,5 +4779,10 @@ export function execStubPart3(
       `${ctx.cardMap.get(srcNum)?.CardName ?? srcNum}：バニッシュされない（ターン終了時まで）`));
   }
 
+  // SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時）
+  if (stub.id === 'SET_CANCEL_ATTACK_FLAG') {
+    return done({ ...ctx, ownerState: { ...ctx.ownerState, cancel_current_signi_attack: true } });
+  }
+
   return null;
 }
