@@ -2899,6 +2899,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // 相手ルリグの付与AUTO（lrig_granted_auto_effects: any_opp/any scope）
+    // WXDi-P07-073等: 相手APS開始時に自分のルリグへ付与した自動能力が相手ターン終了時等に発火
+    for (const eff of (opState.lrig_granted_auto_effects ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_opp' && scope !== 'any') continue;
+      const opLrigNum = opState.field.lrig.at(-1) ?? '';
+      entries.push({
+        id: generateUUID(),
+        playerId: opId,
+        cardNum: opLrigNum,
+        effectId: eff.effectId,
+        label: `ルリグ付与効果（${labelSuffix}）`,
+        effect: eff,
+      });
+    }
+
     // FUTURE SESSION③: 次のAPSにプリオケシグニへアタック時トラッシュ能力を付与（フラグ検出）
     if (timing === 'ON_ATTACK_PHASE_START' && myState.pending_prioke_attack_trash_grant) {
       const priokeSignis = myState.field.signi.flatMap(s => {
