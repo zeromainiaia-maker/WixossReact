@@ -2221,9 +2221,11 @@ function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
 
 function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResult {
   const s = ownerState(a.targetOwner, ctx);
-  const newS: PlayerState = { ...s, must_attack_signi: true };
+  const newS: PlayerState = { ...s, must_attack_signi: true, must_attack_infected_only: a.infectedOnly ?? false };
   const ctx2 = setOwnerState(a.targetOwner, newS, ctx);
-  return done(addLog(ctx2, `${a.targetOwner === 'opponent' ? '対戦相手' : '自分'}のシグニは可能ならばアタックしなければならない`));
+  const who = a.targetOwner === 'opponent' ? '対戦相手' : '自分';
+  const scopeLabel = a.infectedOnly ? '感染状態の' : '';
+  return done(addLog(ctx2, `${who}の${scopeLabel}シグニは可能ならばアタックしなければならない`));
 }
 
 function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: ExecCtx): ExecResult {

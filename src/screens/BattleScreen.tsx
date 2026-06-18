@@ -824,6 +824,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [showEnergySkipConfirm, setShowEnergySkipConfirm] = useState(false);
   const [showGrowSkipConfirm, setShowGrowSkipConfirm] = useState(false);
   const [showSigniAttackSkipConfirm, setShowSigniAttackSkipConfirm] = useState(false);
+  const [showMustAttackWarning, setShowMustAttackWarning] = useState(false);
   const [showLrigAttackSkipConfirm, setShowLrigAttackSkipConfirm] = useState(false);
   const [showUpkeepPayConfirm, setShowUpkeepPayConfirm] = useState(false);
   const [showGrowModal, setShowGrowModal] = useState(false);
@@ -3136,6 +3137,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actions_done:       [],   // ターン内行動履歴をリセット
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
+          must_attack_infected_only: undefined,
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
@@ -3398,7 +3400,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: myFieldAfterCoinCheck,
         temp_power_mods: [], keyword_grants: {}, granted_effects: {},
         blocked_actions: [], blocked_card_names: [], actions_done: [],
-        pending_crashed_cards: [], must_attack_signi: undefined,
+        pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, life_burst_double_next: undefined,
         lrig_granted_auto_effects: undefined, banish_redirect: undefined,
@@ -3486,6 +3488,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     doPhaseAdvance();
   };
 
+  // 強制攻撃: まだアタック（ダウン）しておらず、アタック可能な「強制対象」シグニのゾーン一覧を返す。
+  // must_attack_infected_only の場合は感染状態（ウィルスが乗っている）シグニのみが対象。
+  // 「アタック可能か」は実際にアタックボタンが出る条件（getMySigniZoneActions）で判定するため、
+  // パワー上限・コスト不足・アタック禁止など「可能ならば」の対象外ケースは自動的に除外され、
+  // アタックできないシグニだけが残ってフェイズを進められなくなるソフトロックを防ぐ。
+  const mustAttackRemainingZones = (): number[] => {
+    if (!my.must_attack_signi) return [];
+    const signiDown = my.field.signi_down  ?? [false, false, false];
+    const virus     = my.field.signi_virus ?? [0, 0, 0];
+    const zones: number[] = [];
+    for (let i = 0; i < my.field.signi.length; i++) {
+      const top = my.field.signi[i]?.at(-1);
+      if (!top) continue;
+      if (signiDown[i]) continue;                                   // 既にアタック済み（ダウン）
+      if (my.must_attack_infected_only && (virus[i] ?? 0) === 0) continue; // 非感染は対象外
+      const acts = getMySigniZoneActions(i);                        // アタックボタンが出る＝アタック可能
+      if (!acts.some(a => a.label.includes('アタック'))) continue;
+      zones.push(i);
+    }
+    return zones;
+  };
+
   // フェイズ進行（エナフェイズ・グロウフェイズ未使用時は確認ポップアップ）
   const handlePhaseAdvance = () => {
     if (!iControlThisPhase || loading) return;
@@ -3521,6 +3545,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     if (bs.turn_phase === 'ATTACK_SIGNI') {
       const signiDown   = my.field.signi_down   ?? [false, false, false];
+      // 強制攻撃: アタック（ダウン）していない「可能ならばアタックしなければならない」対象シグニが
+      // 残っている間は次フェイズへ進めない（感染状態限定の場合は感染シグニのみ対象）
+      if (my.must_attack_signi && mustAttackRemainingZones().length > 0) {
+        setShowMustAttackWarning(true);
+        return;
+      }
       const hasUpSigni  = my.field.signi.some((stack, i) =>
         (stack?.length ?? 0) > 0 && !signiDown[i],
       );
@@ -7378,7 +7408,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cleanCpuSt: PlayerState = {
         ...cpuSt,
         temp_power_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
-        pending_crashed_cards: [], must_attack_signi: undefined, prevent_next_damage: undefined,
+        pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined,
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: undefined,
@@ -10289,6 +10319,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 このまま進む
               </button>
             </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* 強制攻撃: 対象シグニがアタックするまで進めない警告 */}
+      {showMustAttackWarning && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4000,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            backgroundColor: C.bgModal, border: '2px solid #c0392b', borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 360px)', textAlign: 'center',
+          }}>
+            <p style={{ color: '#ff6b6b', fontSize: 15, fontWeight: 'bold', margin: '0 0 6px' }}>
+              ⚠ アタックしなければなりません
+            </p>
+            <p style={{ color: C.textDim, fontSize: 13, margin: '0 0 20px', lineHeight: 1.6 }}>
+              {my.must_attack_infected_only
+                ? '感染状態のシグニは可能ならばアタックしなければなりません。'
+                : 'あなたのシグニは可能ならばアタックしなければなりません。'}
+              <br />
+              対象のシグニがすべてアタック（ダウン）するまで次のフェイズへ進めません。
+            </p>
+            <button onClick={() => setShowMustAttackWarning(false)}
+              style={{ width: '100%', padding: '10px 0', borderRadius: 8,
+                border: 'none', backgroundColor: '#c0392b',
+                color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+              OK
+            </button>
           </div>
         </div>,
         document.body,

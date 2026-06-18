@@ -1136,7 +1136,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- 強制攻撃 ----
   if (t.includes('可能ならばアタックしなければならない')) {
     const target: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    return { type: 'FORCE_SIGNI_ATTACK', targetOwner: target } as ForceSigniAttackAction;
+    const infectedOnly = t.includes('感染状態');
+    return { type: 'FORCE_SIGNI_ATTACK', targetOwner: target, ...(infectedOnly ? { infectedOnly: true } : {}) } as ForceSigniAttackAction;
   }
 
   // ---- チャーム除去 ----

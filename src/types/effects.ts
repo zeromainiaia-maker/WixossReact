@@ -1014,6 +1014,7 @@ export interface RemoveCharmAction {
 export interface ForceSigniAttackAction {
   type: 'FORCE_SIGNI_ATTACK';
   targetOwner: Owner;
+  infectedOnly?: boolean; // 感染状態のシグニのみを強制対象とする（WX16-047等）
 }
 
 // 対戦相手の場のウィルス数Nにつきパワー±M（常時効果）

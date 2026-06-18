@@ -112,6 +112,8 @@ export interface PlayerState {
   granted_effects?: Record<string, import('./effects').CardEffect[]>; // instanceId → 付与された CardEffect[]
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
+  // 強制攻撃を感染状態のシグニのみに限定する（WX16-047等）
+  must_attack_infected_only?: boolean;
   // アクティブなコスト修正（CostIncrease/CostReduction効果）
   cost_modifiers?: Array<{
     direction: 'increase' | 'decrease';

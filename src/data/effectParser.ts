@@ -1168,8 +1168,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
              : actionText.match(/このカードがあなたの効果によって手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
              : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
-             : actionText.includes('各アタックフェイズ開始時') ? ['ATTACK']
-             : actionText.includes('アタックフェイズ開始時') ? ['ATTACK']
+             : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              : actionText.includes('ライフバーストが発動したとき') ? ['ON_LIFE_BURST']
              : actionText.includes('ターン終了時') ? ['ON_TURN_END']
              : actionText.includes('ターン開始時') ? ['ON_TURN_START']
@@ -1208,8 +1207,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (m2) actionText = m2[1];
         }
       }
-      if (timing[0] === 'ATTACK') {
-        const m = actionText.match(/各?アタックフェイズ開始時[、,]\s*(.+)/s);
+      if (timing[0] === 'ON_ATTACK_PHASE_START') {
+        // 「対戦相手の」=相手のアタックフェイズ→any_opp、「各」=any、それ以外（あなたの）=self
+        if (/対戦相手のアタックフェイズ開始時/.test(actionText)) extractedTriggerScope = 'any_opp';
+        else if (/各アタックフェイズ開始時/.test(actionText)) extractedTriggerScope = 'any';
+        else extractedTriggerScope = 'self';
+        const m = actionText.match(/(?:対戦相手の|あなたの|各)?アタックフェイズ開始時[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_REVEALED_FROM_HAND') {
