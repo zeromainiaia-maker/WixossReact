@@ -38,6 +38,13 @@ CardData_Sheet*.csv（カードテキスト）
 - **STUB_LOG（ログのみ・ゲーム効果なし）: 0 件達成済み**（v0.284）。以降は STUB の本実装化を継続。
 - effects JSON ⇔ CSV のアクション不一致: 0 件達成（v0.254、全シート全カテゴリ）
 
+### effects JSON 編集時の運用注意（重要）
+- **全再生成（`npm run build:effects`）は原則禁止。** 既存データに手作業の修正が多数積まれており、再生成すると実測で約90枚が退化する。データは個別に編集すること。
+- **ファイルごとに整形形式が異なる:**
+  - `effects_WXDi.json` と `effects_WX24_26.json` … 2スペース整形（pretty-print）・**末尾改行なし**。スクリプトで書き換える際はこの2ファイルのみ `JSON.stringify(j, null, 2)`（末尾改行なし）で出力する。`JSON.stringify(j)` でミニファイ化すると約13万行の巨大 diff になりマージ衝突を招く。
+  - `effects_misc.json` / `effects_WX.json` / `effects_WXK.json` … ミニファイ。
+- **typecheck は素の終了コードを確認する:** `npx tsc --noEmit -p tsconfig.json; echo "exit: $?"`。grep や固定文字列でフィルタするとエラーを見落とす。
+
 ---
 
 ## 2. バグ修正はパーサー優先
