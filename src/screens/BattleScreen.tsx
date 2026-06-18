@@ -5687,11 +5687,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           trash: [...my.trash, cutinCard.CardNum, ...paidNums],
         };
       } else {
-        // lrig_field / signi_field: カードはそのまま、エナコストのみ支払い
+        // lrig_field / signi_field: エナコスト + エクシードコスト（選択カードをlrig_trashへ）
+        const exceedCostH = candidate.effect.cost?.exceed ?? 0;
+        const exceedPoolH = [
+          ...my.field.lrig.slice(0, -1),
+          ...(my.field.assist_lrig_l?.slice(0, -1) ?? []),
+          ...(my.field.assist_lrig_r?.slice(0, -1) ?? []),
+        ];
+        const exceedCards = exceedCostH > 0
+          ? new Set([...selectedCutinExceed].map(i => exceedPoolH[i]).filter(Boolean))
+          : new Set<string>();
         cutinPaid = {
           ...my,
           energy: newEnergy,
           trash: [...my.trash, ...paidNums],
+          lrig_trash: [...my.lrig_trash, ...exceedCards],
+          field: {
+            ...my.field,
+            lrig: my.field.lrig.filter(id => !exceedCards.has(id)),
+            assist_lrig_l: my.field.assist_lrig_l?.filter(id => !exceedCards.has(id)),
+            assist_lrig_r: my.field.assist_lrig_r?.filter(id => !exceedCards.has(id)),
+          },
         };
       }
       // カットイン使用・スペル打ち消しログ（カットインは常にスペルを打ち消す）
