@@ -323,7 +323,7 @@ for (const row of rows) {
   // 注釈（…）のみのテキストはルール説明であり効果定義不要:
   // - デュアルエナ「白か赤１つとして支払える」→ Color列「白赤」でエンジンが支払い判定
   // - ナナシ其ノ零ノ禍のゲーム開始時コイン → Coin列でゲーム開始時に付与
-  // - トークン（リミットアッパー/バリア等）→ エンジン側機構（STUBS.md参照）
+  // - トークン（リミットアッパー/バリア等）→ エンジン側機構（docs/STUBS.md参照）
   const isReminderOnly =
     effectText !== '' && effectText !== '-'
     && effectText.replace(/（[^（）]*）/g, '').trim() === '';
