@@ -1,0 +1,6200 @@
+{
+  "inJson": [
+    {
+      "id": "DECLARE_NUMBER",
+      "count": 37,
+      "cardCount": 34,
+      "sample": "WD03-006, WD06-008, WD13-008",
+      "impl": "execStubPart1",
+      "comment": "数字宣言：現在はランダム値で代用"
+    },
+    {
+      "id": "OPTIONAL_COST",
+      "count": 409,
+      "cardCount": 398,
+      "sample": "WD06-001, PR-427, WD10-009",
+      "impl": "execStubPart1",
+      "comment": "OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パターンを処理済み ここはSEQUENCE末尾や非IS_MY_TURNパターンの33件ほどを担当"
+    },
+    {
+      "id": "LOOK_OPP_LIFE_TOP",
+      "count": 30,
+      "cardCount": 29,
+      "sample": "WD06-006, WD06-018, WDK09-017",
+      "impl": "execStubPart1",
+      "comment": "対戦相手のライフクロス上を見る（複数枚パターン対応）"
+    },
+    {
+      "id": "CONDITIONAL_POWER_BONUS",
+      "count": 44,
+      "cardCount": 39,
+      "sample": "WD06-006, WDK08-Y08, WDK10-009",
+      "impl": "execStubPart1",
+      "comment": "条件付きパワーボーナス"
+    },
+    {
+      "id": "CONDITIONAL_ARTS_COST",
+      "count": 14,
+      "cardCount": 14,
+      "sample": "WD06-008, WDA-F01-08, SP38-001",
+      "impl": "execStubPart1",
+      "comment": "条件付きアーツコスト（コスト計算はcomputeArtsEffectiveCostで処理済み、ここでは条件確認のみ）"
+    },
+    {
+      "id": "DRAW_DISCARD_COUNT_PLUS_N",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "PR-427, WXEX2-39, WXDi-P00-018",
+      "impl": "execStubPart2",
+      "comment": "DRAW_DISCARD_COUNT_PLUS_N: 捨てた枚数+Nドロー"
+    },
+    {
+      "id": "TRADE_BANISH_SELF_SIGNI",
+      "count": 29,
+      "cardCount": 29,
+      "sample": "WD07-012, WD22-029-G, WDK08-Y01",
+      "impl": "execStubPart1",
+      "comment": "トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ"
+    },
+    {
+      "id": "ACTIVATE_COST_ZERO_BLACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD08-001",
+      "impl": "execStubPart3",
+      "comment": "ACTIVATE_COST_ZERO_BLACK: トラッシュのシグニを選択→次の起動コストを《黒×0》に"
+    },
+    {
+      "id": "CONDITIONAL_PER_TRASH",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WD08-008, WX12-037",
+      "impl": "execStubPart2",
+      "comment": "CONDITIONAL_PER_TRASH: トラッシュ枚数による条件（N枚以上でX）"
+    },
+    {
+      "id": "CONDITIONAL_SEARCH_IF_RESONA",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD09-018",
+      "impl": "execStubPart2",
+      "comment": "CONDITIONAL_SEARCH_IF_RESONA: フィールドにレゾナがある場合サーチ"
+    },
+    {
+      "id": "OPTIONAL_DISCARD_CLASS_SIGNI",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WD10-006, PR-328, WX13-025",
+      "impl": "execStubPart1",
+      "comment": "手札からクラスシグニを任意枚数捨てる"
+    },
+    {
+      "id": "ARTS_COST_REDUCTION_BY_EFFECT",
+      "count": 116,
+      "cardCount": 114,
+      "sample": "WD10-006, WD12-006, WD15-006",
+      "impl": "execStubPart1",
+      "comment": "アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み）"
+    },
+    {
+      "id": "POWER_MOD_BY_FIELD_CLASS_LEVEL",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WD11-007, WX04-103",
+      "impl": "execStubPart2",
+      "comment": "自場の特定クラスシグニのレベル合計に基づくパワー修正"
+    },
+    {
+      "id": "GRANT_QUOTED_AUTO_ABILITY",
+      "count": 42,
+      "cardCount": 40,
+      "sample": "WD13-002, WD21-007, WD22-007-G",
+      "impl": "execStubPart1",
+      "comment": "WD21-007型: 「以下の５つから１つを選ぶ。…対象のシグニ１体は選んだ能力を得る。あなたがベットしていた場合、この効果を１回繰り返す。」"
+    },
+    {
+      "id": "LIMIT_OPP_ATTACK_ONCE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD13-010",
+      "impl": "execStubPart3",
+      "comment": "LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限"
+    },
+    {
+      "id": "HAND_SIGNI_HAS_GUARD_ICON",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD13-014",
+      "impl": "execStubPart2",
+      "comment": "ガードアイコン付与（手札のシグニに付与: フラグ設定）"
+    },
+    {
+      "id": "OPTIONAL_TRASH_ENERGY_CLASS",
+      "count": 33,
+      "cardCount": 33,
+      "sample": "WD14-009, WDK08-Y14, WX06-CB03",
+      "impl": "execStubPart1",
+      "comment": "他の任意コスト系（SEQUENCEパターン外のフォールバック）"
+    },
+    {
+      "id": "USE_CONDITION_ARTS_USED",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WD15-006, WD20-008",
+      "impl": "execStubPart3",
+      "comment": "USE_CONDITION_ARTS_USED: このターンにアーツを使用していた場合、このカードは使用不可 actions_done に 'USE_ARTS' が含まれるかチェック（BattleScreenがartsUse時に追加）"
+    },
+    {
+      "id": "PREVENT_OWN_ARTS_USE",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WD15-006, WX13-026",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_OWN_ARTS_USE: 自分のアーツ使用封じ"
+    },
+    {
+      "id": "CONDITIONAL_DISCARD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD16-016",
+      "impl": "execStubPart2",
+      "comment": "CONDITIONAL_DISCARD: 条件付き手札捨て"
+    },
+    {
+      "id": "ACCE_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD18-009",
+      "impl": "execStubPart2",
+      "comment": "=== バッチ5: アクセ・デッキ・パワー補足 === ACCE_TO_ENERGY / PLACE_ACCE_SIGNI_TO_ENERGY: アクセカードをエナゾーンへ"
+    },
+    {
+      "id": "ACCE_OP",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WD18-009, SP27-015",
+      "impl": "execStubPart3",
+      "comment": "ACCE_OP: アクセ操作（汎用ログ）"
+    },
+    {
+      "id": "REMOVE_VIRUS",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "WD19-001, WX15-028, WX15-040",
+      "impl": "execStubPart1",
+      "comment": "ウイルス除去：テキストを解析して適切な数のウイルスを取り除く"
+    },
+    {
+      "id": "POWER_MOD_PER_COUNT",
+      "count": 59,
+      "cardCount": 59,
+      "sample": "WD19-001, WDK06-C17, WDK10-009",
+      "impl": "execStubPart1",
+      "comment": "動的パワー修正（COUNT依存）"
+    },
+    {
+      "id": "REMOVE_VIRUS_TARGET_ZONE",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WD19-007, WX15-064",
+      "impl": "execStubPart1",
+      "comment": "REMOVE_VIRUS_TARGET_ZONE: lastProcessedCards[0]と同じゾーンのウィルスを1個除去（WX15-064型）"
+    },
+    {
+      "id": "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST",
+      "count": 58,
+      "cardCount": 57,
+      "sample": "WD20-001, WDK05-T11, WDK08-Y11",
+      "impl": "execStubPart1",
+      "comment": "他の任意コスト系（SEQUENCEパターン外のフォールバック）"
+    },
+    {
+      "id": "LRIG_GROW_RESTRICT",
+      "count": 34,
+      "cardCount": 34,
+      "sample": "WD20-006, WDK06-R09, WDK07-Y07",
+      "impl": "execStubPart1",
+      "comment": "グロウ制限：対戦相手の no_grow フラグをセット"
+    },
+    {
+      "id": "ADJACENT_ZONE_ATTACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD20-009",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "OPP_CHOOSE_YOUR_HAND_DISCARD",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WD21-004, WX17-014, WXK01-013",
+      "impl": "execStubPart1",
+      "comment": "対戦相手が手札を1枚選んで捨てる"
+    },
+    {
+      "id": "SOUL_OP",
+      "count": 35,
+      "cardCount": 33,
+      "sample": "WD21-006, WD22-016-UG, SPK06-05",
+      "impl": "execStubPart1",
+      "comment": "ソウル/ルリグデッキ操作"
+    },
+    {
+      "id": "LEVEL_REFERENCE_OVERRIDE",
+      "count": 8,
+      "cardCount": 8,
+      "sample": "WD21-012, WX17-059, WX17-061",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "CONDITIONAL_MULTI_CHOOSE_BY_CENTER",
+      "count": 8,
+      "cardCount": 8,
+      "sample": "WD22-011-G, WX11-023, WX12-005",
+      "impl": "execStubPart3",
+      "comment": "CONDITIONAL_MULTI_CHOOSE_BY_CENTER: センタールリグによる複数選択"
+    },
+    {
+      "id": "HAND_SIZE_INCREASE",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WD23-001-E, WX19-003, WX25-P2-005",
+      "impl": "execStubPart3",
+      "comment": "手札上限増加（CONTINUOUS：シグニがフィールドにある間） HAND_SIZE_INCREASE: 手札上限を増やす / REDUCE_OPP_HAND_LIMIT: 相手の手札上限を減らす"
+    },
+    {
+      "id": "GAIN_COIN_AND_DISCARD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD23-004-E",
+      "impl": "execStubPart2",
+      "comment": "コイン獲得+手札から捨て（先頭N枚を自動捨て）"
+    },
+    {
+      "id": "LIFE_BURST_DOUBLE",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WD23-006-E, WXDi-P12-035",
+      "impl": "execStubPart3",
+      "comment": "ライフバースト特殊（engine: 発動システム改修必要） LIFE_BURST_DOUBLE: このターン、次のライフバーストは2回発動する"
+    },
+    {
+      "id": "EXCEED_OPP_LRIG_TRASH_2",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD23-012-A",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "LRIG_UNDER_CARD_OP",
+      "count": 23,
+      "cardCount": 22,
+      "sample": "WD23-022-E, WDK09-015, WDK17-015",
+      "impl": "execStubPart1",
+      "comment": "ルリグデッキ下操作（多パターン）"
+    },
+    {
+      "id": "REVEAL_AND_PICK",
+      "count": 13,
+      "cardCount": 13,
+      "sample": "WD23-024-E, WDK13-011, WDK13-017",
+      "impl": "execStubPart1",
+      "comment": "デッキから探してもよい（REVEAL_AND_PICK: シグニ検索→手札or場）"
+    },
+    {
+      "id": "PLACE_TRAP_FROM_REVEALED",
+      "count": 10,
+      "cardCount": 10,
+      "sample": "WD23-032-A, WD23-040-A, SP26-001",
+      "impl": "execStubPart2",
+      "comment": "PLACE_TRAP_FROM_REVEALED: 前のLOOK_AND_REORDERで公開されたデッキ上N枚からトラップ設置"
+    },
+    {
+      "id": "TRAP_TO_HAND",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WD23-040-A, WX16-017, WX16-028",
+      "impl": "execStubPart2",
+      "comment": "TRAP_TO_HAND: signi_trapsのカードを手札へ（全枚または選択）"
+    },
+    {
+      "id": "REVEAL_PICK_HAND_SHUFFLE_BOTTOM",
+      "count": 16,
+      "cardCount": 16,
+      "sample": "WD23-041-EA, WDK01-008, WDK13-011",
+      "impl": "execStubPart1",
+      "comment": "デッキ上N枚公開してM枚を手札に加え残りをデッキ下/トラッシュ/エナゾーンへ"
+    },
+    {
+      "id": "CONDITIONAL_ALTERNATE_EFFECT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WD23-044-EA, WX06-024",
+      "impl": "execStubPart3",
+      "comment": "CONDITIONAL_ALTERNATE_EFFECT: 条件達成時にダウン済みシグニをトラッシュへ（代替効果）"
+    },
+    {
+      "id": "REVEAL_PICK_PLAY",
+      "count": 15,
+      "cardCount": 15,
+      "sample": "WDA-F01-08, WX13-002, WX18-028",
+      "impl": "execStubPart1",
+      "comment": "デッキ公開してシグニを場に出す"
+    },
+    {
+      "id": "TRASH",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WDA-F02-07, WDK07-E09",
+      "impl": "execStubPart2",
+      "comment": "TRASH (STUB版): lastProcessedCards[0] か sourceCardNum をトラッシュへ"
+    },
+    {
+      "id": "ALL_ZONE_BLACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDA-F02-17",
+      "impl": "execStubPart3",
+      "comment": "ALL_ZONE_BLACK: CONTINUOUS→effectEngine.collectAllZoneBlackCardNumsで動的処理済み"
+    },
+    {
+      "id": "OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WDA-F03-13, WX24-P2-050",
+      "impl": "execStubPart2",
+      "comment": "相手エナが指定数以上のとき超過分をトラッシュ"
+    },
+    {
+      "id": "BET_CONDITION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK01-010",
+      "impl": "execStubPart1",
+      "comment": "BET_ALTERNATIVE: ベット強化済みなのでスキップ（BET_MECHANICで処理済み）"
+    },
+    {
+      "id": "ARTS_COST_REDUCTION_BY_COST_THRESHOLD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK03-014",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "EXTRA_GUARD_COST_FROM_HAND",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WDK04-001, WX19-001",
+      "impl": "execStubPart2",
+      "comment": "ガード系（engine: ガードコスト処理未実装）"
+    },
+    {
+      "id": "DECK_REVEAL_UNTIL",
+      "count": 9,
+      "cardCount": 9,
+      "sample": "WDK04-006, WX04-093, WX17-039",
+      "impl": "execStubPart1",
+      "comment": "デッキを条件が満たされるまで公開する"
+    },
+    {
+      "id": "LOOK_AND_REORDER",
+      "count": 18,
+      "cardCount": 16,
+      "sample": "WDK04-006, SP26-001, WX13-035",
+      "impl": "execStubPart1",
+      "comment": "デッキを見て並べ替え（STUB版：動的パース）"
+    },
+    {
+      "id": "CENTER_ZONE_CONDITION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK04-014",
+      "impl": "execStubPart3",
+      "comment": "CENTER_ZONE_CONDITION: このシグニが中央ゾーン（zone[1]）にある場合のみ続行"
+    },
+    {
+      "id": "BET_MECHANIC",
+      "count": 11,
+      "cardCount": 11,
+      "sample": "WDK05-T10, WDK06-R08, WDK12-007",
+      "impl": "execStubPart1",
+      "comment": "BET_MECHANIC: ①②③④選択（ベット時は強化数まで選べる） ベット可否・コイン消費はアーツ使用モーダル側（parseBetCost/is_betting_this_effect、BET_CONDITIONと共通）で 既に確定済みのため、ここで独自に「ベットしますか？」を聞いたりコインを消費したりしない（二重課金防止）。"
+    },
+    {
+      "id": "EFFECT_LIMIT",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WDK06-C17, WX13-053, WX21-066",
+      "impl": "execStubPart3",
+      "comment": "EFFECT_LIMIT: 連続効果の上限枚数をキャップ（直前のパワー修正を上限値でキャップ）"
+    },
+    {
+      "id": "ACCE_FROM_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK07-E11",
+      "impl": "execStubPart3",
+      "comment": "ACCE_FROM_TRASH: トラッシュのアクセカードを自分のシグニに付ける"
+    },
+    {
+      "id": "CONDITIONAL_ADD_HAND",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK07-E11",
+      "impl": "execStubPart2",
+      "comment": "CONDITIONAL_ADD_HAND: フィールドにシグニがあれば手札に1枚追加"
+    },
+    {
+      "id": "ACCE_FROM_HAND",
+      "count": 8,
+      "cardCount": 8,
+      "sample": "WDK07-E15, SP27-015, WX16-074",
+      "impl": "execStubPart3",
+      "comment": "=== バッチ12: アクセ・シグニ配置・能力付与・無効系 === ACCE_FROM_HAND: 手札のアクセカードを自分のシグニに付ける"
+    },
+    {
+      "id": "SEED_BLOOM",
+      "count": 5,
+      "cardCount": 4,
+      "sample": "WDK07-Y01, WDK07-Y07, WXK04-001",
+      "impl": "execStubPart2",
+      "comment": "SEED_BLOOM: シード1枚（または好きな枚数）を開花する SEED_BLOOM_OPTIONAL: 任意でシード1枚を開花する"
+    },
+    {
+      "id": "PLACE_SEED_FROM_REVEALED",
+      "count": 8,
+      "cardCount": 8,
+      "sample": "WDK07-Y02, WDK07-Y03, WDK07-Y04",
+      "impl": "execStubPart2",
+      "comment": "─── シード系 ──────────────────────────────────────────────────────────── PLACE_SEED_FROM_REVEALED: デッキ上4枚を見て1枚を【シード】として設置"
+    },
+    {
+      "id": "SEED_HAND_AND_BLOOM_FROM_DECK_TOP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK07-Y20",
+      "impl": "execStubPart2",
+      "comment": "SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シード1枚を手札に加え、デッキ上をシード設置"
+    },
+    {
+      "id": "POWER_UP_BY_DISCARDED_SIGNI_POWER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK08-Y01",
+      "impl": "execStubPart2",
+      "comment": "捨てたシグニのパワーだけ自場シグニ1体をパワーアップ（SELECT自場→自己再帰）"
+    },
+    {
+      "id": "REVEAL_CLASS_SIGNI_FROM_HAND",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WDK08-Y11, WXDi-P00-033, WXK04-034",
+      "impl": "execStubPart1",
+      "comment": "手札のクラスシグニを好きな枚数公開（公開＝SELECT_TARGET、デッキに触れない）"
+    },
+    {
+      "id": "GATE",
+      "count": 6,
+      "cardCount": 5,
+      "sample": "WDK09-001, WDK09-006, WXDi-P15-010",
+      "impl": "execStubPart3",
+      "comment": "GATE: ゲート効果（ログのみ） GATE: 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可）"
+    },
+    {
+      "id": "OPP_SIGNI_TO_DECK_BY_GATE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK09-001",
+      "impl": "execStubPart2",
+      "comment": "相手シグニをゲートを通じてデッキへ（バウンス）"
+    },
+    {
+      "id": "REDUCE_OPP_HAND_LIMIT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK09-009",
+      "impl": "execStubPart3",
+      "comment": "手札上限増加（CONTINUOUS：シグニがフィールドにある間） HAND_SIZE_INCREASE: 手札上限を増やす / REDUCE_OPP_HAND_LIMIT: 相手の手札上限を減らす"
+    },
+    {
+      "id": "OPP_SIGNI_TO_DECK_NTH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK09-012",
+      "impl": "execStubPart2",
+      "comment": "相手シグニをデッキのN番目に挿入"
+    },
+    {
+      "id": "OPP_ENERGY_OR_DISCARD_CONDITION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK10-001",
+      "impl": "execStubPart2",
+      "comment": "OPP_ENERGY_OR_DISCARD_CONDITION: 相手はエナゾーンかトラッシュか選択"
+    },
+    {
+      "id": "DESIGNATE_SIGNI_ZONE",
+      "count": 11,
+      "cardCount": 11,
+      "sample": "WDK10-009, WX08-021, WX10-051",
+      "impl": "execStubPart2",
+      "comment": "DESIGNATE_SIGNI_ZONE: 相手シグニゾーンを1つ指定する"
+    },
+    {
+      "id": "POWER_MOD_PER_REVEALED_LEVEL",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WDK13-012, SPK01-09, WXK07-091",
+      "impl": "execStubPart2",
+      "comment": "公開したシグニのレベルに基づくパワー修正（lastProcessedCards使用）"
+    },
+    {
+      "id": "LOOK_TOP_N",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK13-022",
+      "impl": "execStubPart2",
+      "comment": "LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: デッキ上N枚を確認して並べ替え"
+    },
+    {
+      "id": "TRASH_SIGNI_TO_BEAT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK14-011",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "BLACK_RISE_PLAY_STACK_FROM_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK15-001",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "TRASH_SIGNI_UNDER_FIELD_SIGNI",
+      "count": 8,
+      "cardCount": 8,
+      "sample": "WDK15-001, WDK15-007, WX22-035",
+      "impl": "execStubPart1",
+      "comment": "トラッシュからシグニをフィールドシグニの下に置く（ライズ補充）"
+    },
+    {
+      "id": "ALL_OPP_SIGNI_POWER_DOWN_HALF",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK15-011",
+      "impl": "execStubPart2",
+      "comment": "自シグニのパワーの半分だけ全相手シグニをパワーマイナス"
+    },
+    {
+      "id": "SIGNI_UNDER_WEAPON_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK15-013",
+      "impl": "execStubPart3",
+      "comment": "SIGNI_UNDER_WEAPON_SIGNI: 自シグニ1体を自＜ウェポン＞シグニの下に置く"
+    },
+    {
+      "id": "ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WDK16-01T, WXK10-015",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "GAIN_SUBSCRIBER_COUNT",
+      "count": 21,
+      "cardCount": 20,
+      "sample": "WDK16-01T, WDK16-02T, WDK16-03T",
+      "impl": "execStubPart1",
+      "comment": "サブスクライバーカウント+1"
+    },
+    {
+      "id": "INHERIT_OPP_LRIG_TYPE",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WDK17-001, WXEX2-23",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "NAMED_SIGNI_ACCE_FROM_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WDK17-011",
+      "impl": "execStubPart3",
+      "comment": "ACCE_FROM_TRASH: トラッシュのアクセカードを自分のシグニに付ける"
+    },
+    {
+      "id": "GROW_COST_SUBSTITUTE_TRASH_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "SP07-001",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "SP07-011",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "ACTIVATE_TRAP",
+      "count": 6,
+      "cardCount": 5,
+      "sample": "SP26-001, WX15-017, WX15-035",
+      "impl": "execStubPart2",
+      "comment": "ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: トラップを表向きにしてTRAP_ICON効果を発動"
+    },
+    {
+      "id": "SUPPRESS_LIFE_BURST_ON_CRASH",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "SP26-002, WX05-032, WX08-010",
+      "impl": "execStubPart1",
+      "comment": "ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット"
+    },
+    {
+      "id": "RULE_REMINDER_TEXT",
+      "count": 43,
+      "cardCount": 42,
+      "sample": "SP26-003, SP38-001, PR-K026",
+      "impl": "execStubPart1",
+      "comment": "ゲームプレイに影響しない説明テキストは無音でスキップ"
+    },
+    {
+      "id": "CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "SP26-005, SP38-004, PR-Di013",
+      "impl": "execStubPart1",
+      "comment": "CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE 「以下のN つからM つ選ぶ。[条件]の場合、代わりにK つまで選ぶ。①...②...」 stub.value: undefined=初回, 0=ベース選択, 1=強化選択"
+    },
+    {
+      "id": "GAIN_EXTRA_TURN",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "SP26-006, SP38-006, WX05-001",
+      "impl": "execStubPart2",
+      "comment": "追加ターンを獲得（ログのみ、ゲームエンジン実装が必要） GAIN_EXTRA_TURN: 追加ターンフラグをセット（BattleScreen側でターン終了時に追加ターンを付与）"
+    },
+    {
+      "id": "CONDITIONAL_KEYWORD_BY_CENTER_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "SP27-002",
+      "impl": "execStubPart3",
+      "comment": "CONDITIONAL_KEYWORD_BY_CENTER_COLOR: センタールリグの色に応じてキーワード付与"
+    },
+    {
+      "id": "NEGATE_NTH_ATTACK",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "SP27-016, WX17-006",
+      "impl": "execStubPart3",
+      "comment": "NEGATE_NTH_ATTACK: このターン、相手シグニのアタックをN回目まで自動無効化"
+    },
+    {
+      "id": "SUPPRESS_OPP_SIGNI_ABILITIES",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "SP27-016",
+      "impl": "execStubPart3",
+      "comment": "SUPPRESS_OPP_SIGNI_ABILITIES: 相手フィールドの全シグニの能力を消去"
+    },
+    {
+      "id": "PREVENT_DEFEAT_THIS_TURN",
+      "count": 4,
+      "cardCount": 3,
+      "sample": "SP36-001, WX25-P3-049, WXDi-P16-041",
+      "impl": "execStubPart1",
+      "comment": "敗北無効フラグ"
+    },
+    {
+      "id": "ARTS_USE_DISCARD_COLOR_HAND",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "SP38-003, WX24-P3-006",
+      "impl": "execStubPart2",
+      "comment": "ARTS_USE_DISCARD_COLOR_HAND: 手札から特定色のカードを任意N枚まで捨て、コスト軽減（OPTIONAL_DISCARD_CLASS_SIGNI の色版）"
+    },
+    {
+      "id": "CENTER_LRIG_RIDES_ON_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "SPK01-01",
+      "impl": "execStubPart3",
+      "comment": "CENTER_LRIG_RIDES_ON_SIGNI: センタールリグが選択した1体の乗機シグニに乗る（乗り換え可）"
+    },
+    {
+      "id": "HAND_CARDS_UNDER_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "SPK01-02",
+      "impl": "execStubPart2",
+      "comment": "手札からカードをこのシグニの下に置く（HAND_CARDS_UNDER_SIGNI / PLACE_SIGNI_UNDER_SELF_OPT）"
+    },
+    {
+      "id": "TRASH_OWN_KEY_OPTIONAL",
+      "count": 6,
+      "cardCount": 6,
+      "sample": "SPK01-07, WXK08-010, WXK08-015",
+      "impl": "execStubPart1",
+      "comment": "キー１枚を任意でルリグトラッシュに置く（追加効果条件）"
+    },
+    {
+      "id": "GRANT_QUOTED_ABILITY",
+      "count": 17,
+      "cardCount": 16,
+      "sample": "SPK01-11, WX22-Re04, WX24-P1-042",
+      "impl": "execStubPart1",
+      "comment": "引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects）"
+    },
+    {
+      "id": "TARGET_AND_DISCARD_HAND",
+      "count": 53,
+      "cardCount": 52,
+      "sample": "PR-195, PR-370, PR-459A",
+      "impl": "execStubPart1",
+      "comment": "手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ）"
+    },
+    {
+      "id": "GRANT_LRIG_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-317",
+      "impl": "execStubPart2",
+      "comment": "能力付与系（CONTINUOUS効果はeffectEngineで処理、AUTO/ACTIVATEDでも来た場合のフォールバック） GRANT_UNDER_SIGNI_*/GRANT_UNDER_LRIG_*/GRANT_LRIG_TRASH_ACTIVATE_ABILITY → collectGrantedFromUnderSigni / collectLrigGrantedEffectsで処理済み"
+    },
+    {
+      "id": "TRIGGER_OTHER_SIGNI_EICHI_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-366",
+      "impl": "execStubPart3",
+      "comment": "TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 他の自シグニを選択し、その英知AUTO能力を発動させる"
+    },
+    {
+      "id": "DEFEAT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-422",
+      "impl": "execStubPart3",
+      "comment": "DEFEAT: 敗北処理 - ライフクロスを0にしてゲーム終了を誘発"
+    },
+    {
+      "id": "CAST_FROM_OPP_TRASH",
+      "count": 6,
+      "cardCount": 5,
+      "sample": "PR-433, WX14-027, WXEX1-46",
+      "impl": "execStubPart2",
+      "comment": "CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択"
+    },
+    {
+      "id": "REVEAL_OPP_HAND_CARD",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "PR-459A, WXDi-P14-060",
+      "impl": "execStubPart3",
+      "comment": "REVEAL_OPP_HAND_CARD: 相手の手札のカードを1枚公開"
+    },
+    {
+      "id": "LEVEL_BASED_CONDITIONAL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-459A",
+      "impl": "execStubPart3",
+      "comment": "LEVEL_BASED_CONDITIONAL: 公開したシグニのレベルN枚だけ手札を捨てる"
+    },
+    {
+      "id": "GROW_FROM_LEVEL0",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-469",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "NON_LRIG_TO_LRIG_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-469",
+      "impl": "execStubPart2",
+      "comment": "ルリグデッキにカードを追加（非ルリグをルリグトラッシュへ）"
+    },
+    {
+      "id": "ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-471",
+      "impl": "execStubPart3",
+      "comment": "ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（effectEngine lrig_gained_types参照）"
+    },
+    {
+      "id": "POWER_BY_CENTER_LRIG_TYPE_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-472",
+      "impl": "execStubPart2",
+      "comment": "POWER_BY_CENTER_LRIG_TYPE_COUNT: センタールリグのタイプ数×deltaをパワー修正"
+    },
+    {
+      "id": "PLAY_FREE",
+      "count": 9,
+      "cardCount": 9,
+      "sample": "PR-474, WX07-014, WX14-002",
+      "impl": "execStubPart2",
+      "comment": "フリープレイ系：lastProcessedCards[0] のカードをコストなしでプレイ"
+    },
+    {
+      "id": "PREVENT_LRIG_DAMAGE_THIS_TURN",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "PR-K019, WX26-CP1-004, WX26-CP1-073",
+      "impl": "execStubPart1",
+      "comment": "このターンのルリグダメージ無効：ownerState に prevent_lrig_damage フラグをセット"
+    },
+    {
+      "id": "POWER_EQUALS_FRONT_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-K021",
+      "impl": "execStubPart2",
+      "comment": "前のシグニのパワーと等しく設定（自シグニを前シグニのパワーに）"
+    },
+    {
+      "id": "DECLARE_CARD_NAME",
+      "count": 16,
+      "cardCount": 16,
+      "sample": "PR-K046, WX11-037, WX13-048",
+      "impl": "execStubPart1",
+      "comment": "カード名宣言（手札のカード名から選択）"
+    },
+    {
+      "id": "CHOOSE_HAND_CARD",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "PR-K060, WX05-006, WX16-Re17",
+      "impl": "execStubPart3",
+      "comment": "CHOOSE_HAND_CARD: 手札から1枚選択（lastProcessedCardsに設定）"
+    },
+    {
+      "id": "OPP_DECLARE_CHOICE",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "PR-K060, WX05-006, WX16-Re17",
+      "impl": "execStubPart3",
+      "comment": "OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ"
+    },
+    {
+      "id": "IGNORE_LRIG_RESTRICTION_ARTS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-K060",
+      "impl": "execStubPart3",
+      "comment": "IGNORE_LRIG_RESTRICTION_ARTS: ルリグ制限アーツを無視（ログのみ）"
+    },
+    {
+      "id": "PEEP_HAND",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "PR-K070, WX24-P4-105",
+      "impl": "execStubPart3",
+      "comment": "PEEP_HAND: 相手の手札を覗き見（ログに枚数と名前を表示）"
+    },
+    {
+      "id": "TARGET_ONLY",
+      "count": 17,
+      "cardCount": 17,
+      "sample": "SPDi37-06, PR-Di017B, WX24-P4-075",
+      "impl": "execStubPart1",
+      "comment": "ターゲット選択のみ（lastProcessedCards に格納し後続ステップへ）"
+    },
+    {
+      "id": "GRANT_ABILITY_INNER_TEXT",
+      "count": 21,
+      "cardCount": 20,
+      "sample": "SPDi43-01, SPDi44-04, WX07-065",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "DOUBLE_POWER_MINUS",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "SPDi43-04, WX04-038, WX22-023",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "OPPONENT_PAY_OPTIONAL",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "SPDi43-06, WXEX1-34, WXEX2-08",
+      "impl": "execStubPart1",
+      "comment": "対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる）"
+    },
+    {
+      "id": "DECLARE_COLOR_COND_ENERGY_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "SPDi43-22",
+      "impl": "execStubPart2",
+      "comment": "相手が宣言した色に応じてエナをトラッシュ（相手の宣言が必要→スキップ） DECLARE_COLOR_COND_ENERGY_TRASH: 色を宣言し、エナから宣言色のカードを任意でトラッシュ"
+    },
+    {
+      "id": "DOWN_UP_SIGNI_AND_CHOOSE",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "SPDi43-23, WX06-024, WX07-024",
+      "impl": "execStubPart3",
+      "comment": "DOWN_UP_SIGNI_AND_CHOOSE: シグニをダウン/アップして選択 DOWN_UP_SIGNI_AND_CHOOSE: アップ状態の特定クラスシグニを好きな数ダウン（コスト軽減素材）"
+    },
+    {
+      "id": "GAIN_SIGNI_BARRIER",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "SPDi43-23, WX26-CP1-001, WXDi-P12-001",
+      "impl": "execStubPart3",
+      "comment": "GAIN_SIGNI_BARRIER: 【シグニバリア】を得る（フリーゾーンにトークンとして設置。相手シグニからのダメージ1回を無効）"
+    },
+    {
+      "id": "GAIN_LRIG_BARRIER",
+      "count": 10,
+      "cardCount": 10,
+      "sample": "SPDi43-26, WX24-P1-001, WX24-P3-026",
+      "impl": "execStubPart3",
+      "comment": "GAIN_LRIG_BARRIER: 【ルリグバリア】を得る（フリーゾーンにトークンとして設置。ルリグアタック1回を無効）"
+    },
+    {
+      "id": "SONG_FRAGMENT",
+      "count": 11,
+      "cardCount": 11,
+      "sample": "SPDi47-01, SPDi47-02, SPDi47-03",
+      "impl": "execStubPart1",
+      "comment": "SONG_FRAGMENT: エナゾーンから【歌のカケラ】持ちカードをトラッシュに置き、その効果を発動 「このルリグはそのカードの【歌のカケラ】を使用する」= ルリグ効果として扱う"
+    },
+    {
+      "id": "LRIG_GAIN_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-Di013",
+      "impl": "execStubPart3",
+      "comment": "ルリグシステム（未実装残）"
+    },
+    {
+      "id": "PRDI035_PARADISE_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-Di035",
+      "impl": "execStubPart3",
+      "comment": "PRDI035_PARADISE_COLOR: 次のアタックフェイズ開始時判定フラグをセット。"
+    },
+    {
+      "id": "PLACE_REV_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "PR-Di017A",
+      "impl": "execStubPart1",
+      "comment": "PLACE_REV_SIGNI: REVメカニクス（ライフクロス1枚以下時に指定シグニを場に出す） PR-Di017A「白熱する黒白」のREV変身効果"
+    },
+    {
+      "id": "CONDITIONAL_CARD_COST_BY_OPP_LRIG",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX03-002, WX03-003, WX03-004",
+      "impl": "execStubPart2",
+      "comment": "CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のルリグ属性によるコスト変更チェック"
+    },
+    {
+      "id": "NEGATE_THAT_ATTACK",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX04-004, WXEX2-17",
+      "impl": "execStubPart3",
+      "comment": "NEGATE_THAT_ATTACK: 現在のアタックを無効化"
+    },
+    {
+      "id": "OPP_DECK_REVEAL_UNTIL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX04-015",
+      "impl": "execStubPart1",
+      "comment": "デッキを条件が満たされるまで公開する"
+    },
+    {
+      "id": "PLAY_SPELL_FREE_IGNORE_RESTRICTION",
+      "count": 4,
+      "cardCount": 3,
+      "sample": "WX04-015, WX14-014, WXEX2-14",
+      "impl": "execStubPart2",
+      "comment": "PLAY_SPELL_FREE_IGNORE_RESTRICTION: 手札のスペルをコストなし・限定条件無視で使用"
+    },
+    {
+      "id": "MOVE_TO_ATTACKER_FRONT",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX04-029, WXDi-D06-012, WXDi-P02-052",
+      "impl": "execStubPart3",
+      "comment": "シグニ移動/リダイレクト系（engine: 移動先変更未実装） MOVE_TO_ATTACKER_FRONT: 相手シグニアタック時、正面が空なら自分をその正面に移動（してもよい）"
+    },
+    {
+      "id": "DISCARD_OR_PENALTY",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX04-047, WX24-P3-079, WXDi-P14-023",
+      "impl": "execStubPart3",
+      "comment": "DISCARD_OR_PENALTY: 特定カード1枚捨てるかペナルティ（N枚捨て）を選ぶ"
+    },
+    {
+      "id": "POWER_DOUBLE_ALL",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX04-049, WX07-029",
+      "impl": "execStubPart2",
+      "comment": "全自シグニのパワーを2倍にする（現在値と同量をデルタ追加）"
+    },
+    {
+      "id": "DECK_REVEAL_UNTIL_CLASS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX04-050",
+      "impl": "execStubPart1",
+      "comment": "デッキを条件が満たされるまで公開する"
+    },
+    {
+      "id": "COST_COLOR_SELECT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX04-063",
+      "impl": "execStubPart3",
+      "comment": "COST_COLOR_SELECT: 支払ったエナの色ごとに1色選択し、選択色のシグニをデッキから手札に加える"
+    },
+    {
+      "id": "REVEALED_SIGNI_TO_FIELD_REST_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX04-093",
+      "impl": "execStubPart2",
+      "comment": "公開したシグニをフィールドに出し、残りをトラッシュ"
+    },
+    {
+      "id": "REPEAT_EFFECT",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX04-093, WX16-042, WX22-016",
+      "impl": "execStubPart3",
+      "comment": "REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す"
+    },
+    {
+      "id": "COPY_LRIG_TRASH_ACTIVATED",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX05-002, WX05-003, WX05-004",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "CHANGE_ALL_SIGNI_COLOR_TO_BLACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX05-005",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "COUNT_DISTINCT_NAMES",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX05-012",
+      "impl": "execStubPart3",
+      "comment": "COUNT_DISTINCT_NAMES: フィールドの異なる名称数を数えてパワー修正"
+    },
+    {
+      "id": "HAND_REVEAL_CLASS_SIGNI",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX05-030, WX06-019",
+      "impl": "execStubPart3",
+      "comment": "HAND_REVEAL_CLASS_SIGNI: 手札のクラスシグニを選択して公開（SELECT_TARGET）"
+    },
+    {
+      "id": "OPTIONAL_HAND_REVEAL_NAMED",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX05-038",
+      "impl": "execStubPart3",
+      "comment": "OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開"
+    },
+    {
+      "id": "DECK_TOP_DECLARED_NUM_TRASH",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX06-014, WX16-Re02, WXDi-P06-013",
+      "impl": "execStubPart2",
+      "comment": "宣言した数だけデッキ上からトラッシュへ"
+    },
+    {
+      "id": "GRID_REVEAL_PLUS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX06-033",
+      "impl": "execStubPart3",
+      "comment": "CONDITIONAL_KEYWORD_BY_CENTER_COLOR already handled above === バッチ16: アクセ・公開・汎用選択系 === GRID_REVEAL_PLUS: このターン、デッキ公開枚数+1フラグを設定"
+    },
+    {
+      "id": "TRASH_ALL_SIGNI_AND_KEY",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX07-017, WXEX2-21",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "CHARM_CONDITIONAL_POWER",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX07-031, WX08-032, WX25-P2-103",
+      "impl": "execStubPart2",
+      "comment": "CHARM_CONDITIONAL_POWER: チャームがある場合パワー修正"
+    },
+    {
+      "id": "LOOK_TOP_COLOR_SORT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX07-071, WX12-024",
+      "impl": "execStubPart2",
+      "comment": "LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: デッキ上N枚を確認して並べ替え"
+    },
+    {
+      "id": "CARDS_OUTSIDE_ENERGY_BECOME_WHITE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX08-005",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "RESTRICT_CHARMED_SIGNI_ACTIVATED",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX08-006",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "GAIN_ABILITY_THIS_GAME",
+      "count": 20,
+      "cardCount": 19,
+      "sample": "WX08-015, WX10-011, WX24-P4-036",
+      "impl": "execStubPart1",
+      "comment": "ゲーム全体能力付与"
+    },
+    {
+      "id": "REVEAL_TOP_CONDITIONAL_ROUTE",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX08-025, WX10-030, WXK05-021",
+      "impl": "execStubPart3",
+      "comment": "REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐"
+    },
+    {
+      "id": "LOOK_OPP_HAND_DISCARD_SIGNI",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX08-067, WX16-066",
+      "impl": "execStubPart2",
+      "comment": "相手の手札のシグニを見て捨てさせる（宣言数字フィルタ or 有色フィルタ）"
+    },
+    {
+      "id": "CONDITIONAL_SEARCH_IF_FIELD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX09-041",
+      "impl": "execStubPart2",
+      "comment": "CONDITIONAL_SEARCH_IF_FIELD: フィールドにシグニがある場合サーチ"
+    },
+    {
+      "id": "PREVENT_TARGET_LRIG_ATTACK_THIS_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX09-Re03",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: このターン対象ルリグのアタックを防ぐ"
+    },
+    {
+      "id": "DECK_TOP_TO_LIFE",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX10-002, WXEX2-48, WXK02-035",
+      "impl": "execStubPart1",
+      "comment": "デッキ上をライフクロスに加える"
+    },
+    {
+      "id": "BANISH_TO_LRIG_TRASH_INSTEAD",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX10-008, WX10-020, WX10-024",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "ARTS_SELF_RECYCLE_ON_TRIGGER",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX10-015, WX10-027",
+      "impl": "execStubPart3",
+      "comment": "ARTS_SELF_RECYCLE_ON_TRIGGER: ルリグトラッシュのアーツがトリガー時に自己回収"
+    },
+    {
+      "id": "CHOOSE_COLOR_FROM_LIST",
+      "count": 5,
+      "cardCount": 4,
+      "sample": "WX10-025, WX11-074, WX11-077",
+      "impl": "execStubPart3",
+      "comment": "CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE CHOOSE_COLOR_FROM_LIST: エナゾーンの色から選ぶ（最大N色）→ selectedColors に保存"
+    },
+    {
+      "id": "END_ATTACK_IF_EXTRA_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX10-026",
+      "impl": "execStubPart3",
+      "comment": "END_ATTACK_IF_EXTRA_TURN: 追加ターンならアタックフェイズを終了（ATTACK_SIGNI/LRIG封じ）"
+    },
+    {
+      "id": "CONDITIONAL_COST_REDUCTION_BY_FIELD",
+      "count": 6,
+      "cardCount": 6,
+      "sample": "WX10-031, WX12-049, WX15-034",
+      "impl": "execStubPart2",
+      "comment": "コスト軽減系（engine: コスト計算システム未実装） CONDITIONAL_COST_REDUCTION_BY_FIELD: フィールド条件（クラス/枚数）でコスト軽減チェック"
+    },
+    {
+      "id": "LOOK_TOP_SPELLS_TO_HAND",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX10-033",
+      "impl": "execStubPart2",
+      "comment": "LOOK_TOP_SPELLS_TO_HAND: デッキ上N枚を確認してスペルを手札へ・残りをデッキへ"
+    },
+    {
+      "id": "LEVEL_MOD_PER_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX10-036",
+      "impl": "execStubPart2",
+      "comment": "レベル修正（engine: ベースレベル変更システム未実装）"
+    },
+    {
+      "id": "BLOCK_OPP_ZONE_PLACEMENT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX10-051",
+      "impl": "execStubPart2",
+      "comment": "BLOCK_OPP_ZONE_PLACEMENT: 指定ゾーンへの配置を禁止（disabled_signi_zones に追加）"
+    },
+    {
+      "id": "ARTS_COST_REDUCTION_BY_CENTER_LRIG",
+      "count": 14,
+      "cardCount": 14,
+      "sample": "WX11-015, WXK05-002, WXK05-004",
+      "impl": "execStubPart1",
+      "comment": "アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み）"
+    },
+    {
+      "id": "MASS_TRASH",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WX11-020, WX24-P2-026, WXDi-P05-007",
+      "impl": "execStubPart1",
+      "comment": "大量トラッシュ: 相手エナ全体+相手シグニ全体、またはシグニ+キー"
+    },
+    {
+      "id": "GRANT_UNDER_LRIG_ACTIVATE_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX12-001",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "PREVENT_DEFEAT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX12-002",
+      "impl": "execStubPart1",
+      "comment": "敗北無効フラグ"
+    },
+    {
+      "id": "PLAY_SPELL_FROM_HAND",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX12-003",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "SUPPRESS_CENTER_ON_PLAY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX12-011",
+      "impl": "execStubPart3",
+      "comment": "SUPPRESS_CENTER_ON_PLAY: このターン自分のセンタールリグの【出】効果を抑制"
+    },
+    {
+      "id": "POWER_MOD_BY_HAND_COUNT",
+      "count": 6,
+      "cardCount": 6,
+      "sample": "WX12-013, WX12-020, WX24-P2-005",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "REVEAL_PICK_CLASS_TO_ENERGY",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WX12-021, WX14-041, WX15-003",
+      "impl": "execStubPart1",
+      "comment": "デッキ上2枚を見てクラスシグニをエナへ、残りをデッキ上へ"
+    },
+    {
+      "id": "BANISH_FROM_GAME",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX12-035, WX13-040, WX14-064",
+      "impl": "execStubPart1",
+      "comment": "ゲームから除外：トラッシュにある自シグニを任意で除外（後続効果条件）"
+    },
+    {
+      "id": "DISCARD_IF_ATTACKED_THIS_TURN",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX12-047, WX12-048",
+      "impl": "execStubPart1",
+      "comment": "このターンにこのシグニがアタックしていた場合、手札を1枚捨てる"
+    },
+    {
+      "id": "SPELL_COST_REDUCTION_BY_TRASH_COUNT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX12-056, WXK06-055",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "CHOOSE_N_FROM_LIST",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "WX13-003, WXEX2-44, WXDi-P05-052",
+      "impl": "execStubPart3",
+      "comment": "CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行"
+    },
+    {
+      "id": "LIMIT_OPP_SIGNI_ATTACKS_ONCE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX13-005A",
+      "impl": "execStubPart3",
+      "comment": "LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限"
+    },
+    {
+      "id": "SIGNI_CANT_BOUNCE_FROM_FIELD",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX13-029, WXK05-024",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "SUPPRESS_GAIN_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX13-029",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "PREVENT_SIGNI_DOWN_BY_OPP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX13-029",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "TRIGGER_LIFE_BURST",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX13-032, WXEX1-11, WXEX2-13",
+      "impl": "execStubPart3",
+      "comment": "TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット）"
+    },
+    {
+      "id": "REACTIVE_POWER_UP",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX13-036, WXEX2-52",
+      "impl": "execStubPart2",
+      "comment": "REACTIVE_POWER_UP: あなたの効果で相手シグニのパワーが減ったとき、その分だけ自シグニのパワーを上げる"
+    },
+    {
+      "id": "GRANT_QUOTED_ACTIVATE_ABILITY",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX13-058, WXDi-P09-066, WXK08-078",
+      "impl": "execStubPart1",
+      "comment": "GRANT_QUOTED_ACTIVATE_ABILITY: 「【起】...」付与（effectEngineのCONTINUOUS処理で対応） WXK08-078: GRANT_SIGNI_ABOVE_ABILITY+POWER_MINUS_PER_OWN_LEVELに変換済み（collectGrantedFromUnderSigni） WX13-058: effects.jsonでDOUBLE_OWN_POWER_MINUS+HAS_CARD_IN_FIELD条件に変換済み"
+    },
+    {
+      "id": "SWAP_OPTIONAL",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX13-073, WXDi-P10-047",
+      "impl": "execStubPart3",
+      "comment": "SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体） MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理）"
+    },
+    {
+      "id": "STACK_ALL_LRIG_UNDER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX14-001",
+      "impl": "execStubPart3",
+      "comment": "STACK_ALL_LRIG_UNDER: ルリグトラッシュ全ルリグをこのカードの下に置く"
+    },
+    {
+      "id": "EXILE_FROM_CHECK_ZONE",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "WX14-002, WX14-014, WXEX1-46",
+      "impl": "execStubPart1",
+      "comment": "チェックゾーンから除外：対戦相手のチェックゾーンのカードをトラッシュへ"
+    },
+    {
+      "id": "ENERGY_NON_COLORLESS_ALL_COLORS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX14-017",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "BLOCK_COLORLESS_PLAY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX14-017",
+      "impl": "execStubPart3",
+      "comment": "BLOCK_COLORLESS_PLAY: 相手の無色プレイを封じる"
+    },
+    {
+      "id": "PREVENT_OPP_SIGNI_ABILITY_GAIN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX14-023",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "CONDITIONAL_TRASH_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX14-029",
+      "impl": "execStubPart2",
+      "comment": "条件付きトラッシュ→エナ（センタールリグ名条件付き）"
+    },
+    {
+      "id": "DECLARE_ZONE_FOR_CLASS_CHANGE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX14-032",
+      "impl": "execStubPart3",
+      "comment": "DECLARE_ZONE_FOR_CLASS_CHANGE: メインデッキ/手札/シグニゾーン/トラッシュの1つを指定 指定領域にある相手シグニはクラス/色を失い＜精元＞を得る（CONTINUOUS）"
+    },
+    {
+      "id": "PLAY_EFFECT_TARGET_CLASS_CHANGE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX14-032",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "VIEW_AND_DISCARD_SPELL",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX14-038, WXDi-P16-050",
+      "impl": "execStubPart1",
+      "comment": "相手の手札を見てスペルを捨てさせる"
+    },
+    {
+      "id": "MOVE_TO_OTHER_SIGNI_ZONE",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX14-050, WX14-052, WX14-053",
+      "impl": "execStubPart1",
+      "comment": "自シグニを他の空きシグニゾーンに移動（してもよい）"
+    },
+    {
+      "id": "HAND_TO_ENERGY_OPTIONAL",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX14-067, WXDi-P06-076",
+      "impl": "execStubPart1",
+      "comment": "手札から任意でエナゾーンに置く"
+    },
+    {
+      "id": "OPP_REVEAL_HAND_AND_LRIG_DECK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX15-001",
+      "impl": "execStubPart3",
+      "comment": "OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND: 公開ログ"
+    },
+    {
+      "id": "MULTI_ZONE_ATTACK",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX15-037, WXK04-070",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "TRAP_OPERATION",
+      "count": 13,
+      "cardCount": 9,
+      "sample": "WX15-053, WX15-083, WX16-028",
+      "impl": "execStubPart2",
+      "comment": "TRAP_OPERATION: トラップ/チェックゾーン操作の統合ハンドラ"
+    },
+    {
+      "id": "DRAW_IF_POWER_ZERO_TEMP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX15-064",
+      "impl": "execStubPart1",
+      "comment": "DRAW_IF_POWER_ZERO_TEMP: lastProcessedCards[0]がtemp_power_mods適用後パワー0以下なら1枚引く（WX15-064型）"
+    },
+    {
+      "id": "PLACE_TRAP_OPTIONAL",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "WX15-084, WX15-086, WX16-015",
+      "impl": "execStubPart2",
+      "comment": "PLACE_TRAP_OPTIONAL / SET_HAND_CARD_AS_TRAP: 手札からトラップ設置"
+    },
+    {
+      "id": "RISE_BANISH_SUBSTITUTE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX16-002",
+      "impl": "execStubPart3",
+      "comment": "ライズ/スタック系（engine: ライズシステム未実装）"
+    },
+    {
+      "id": "NEGATE_COIN_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX16-002",
+      "impl": "execStubPart3",
+      "comment": "NEGATE_COIN_ABILITY: コイン能力を無効化（ログのみ）"
+    },
+    {
+      "id": "PLACE_CARD_UNDER_SIGNI",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "WX16-003, WX24-P2-056, WX24-P4-046",
+      "impl": "execStubPart1",
+      "comment": "シグニの下にカードを置く"
+    },
+    {
+      "id": "ARTS_COLORLESS_MUST_PAY_CENTER_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX16-006",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "BOTH_DISCARD_BY_CENTER_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX16-016",
+      "impl": "execStubPart2",
+      "comment": "BOTH_DISCARD_BY_CENTER_LEVEL: 両者センタールリグのレベル分捨て"
+    },
+    {
+      "id": "EXTRA_COST_REMOVE_VIRUS",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX16-023, WX16-048",
+      "impl": "execStubPart1",
+      "comment": "EXTRA_COST_REMOVE_VIRUS: ウイルスを任意数取り除いてからN+1択の効果を選ぶ"
+    },
+    {
+      "id": "ACCE_COST_REDUCTION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX16-044",
+      "impl": "execStubPart2",
+      "comment": "アーツ条件系（engine: アーツ使用条件未実装）"
+    },
+    {
+      "id": "TRASH_ACCE_AT_TURN_END",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX16-044",
+      "impl": "execStubPart3",
+      "comment": "TRASH_ACCE_AT_TURN_END: アクセカードをターン終了時にトラッシュ（即座に処理） TRASH_ACCE_AT_TURN_END: このシグニに付いているアクセ1枚をトラッシュへ"
+    },
+    {
+      "id": "TRAP_OP",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "WX16-061, WX17-044, WX17-062",
+      "impl": "execStubPart2",
+      "comment": "TRAP_OP: ソースカードのテキストに応じて操作判定"
+    },
+    {
+      "id": "ENERGY_SUBSTITUTE_TRASH_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX16-Re06",
+      "impl": "execStubPart3",
+      "comment": "エナ代替系（effectEngine.collectEnergyTrashSubstituteInfoで動的計算）"
+    },
+    {
+      "id": "REVEAL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX16-Re17",
+      "impl": "execStubPart3",
+      "comment": "REVEAL: デッキ上を公開（名前ログ）"
+    },
+    {
+      "id": "COPY_SIGNI",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX17-001, WXK04-005",
+      "impl": "execStubPart3",
+      "comment": "COPY_SIGNI: 自フィールドシグニ1体をトラッシュのシグニと同じカードにする（ターン終了時まで）"
+    },
+    {
+      "id": "CHOOSE_SAME_OPTION_TWICE",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX17-003, WXDi-P16-TK01, WXK05-010",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "ALL_OPP_SIGNI_SERVANT_ZERO",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX17-005, WXK04-005",
+      "impl": "execStubPart2",
+      "comment": "ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07-TK01-A: Lv1 精元 無色 1000 能力なし）に変換"
+    },
+    {
+      "id": "POWER_MOD_DISTRIBUTE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX17-021",
+      "impl": "execStubPart2",
+      "comment": "POWER_MOD_DISTRIBUTE: 合計パワーを選択シグニに均等配分（自場シグニ最大3体）"
+    },
+    {
+      "id": "PLACE_CHOKKIN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX17-034",
+      "impl": "execStubPart3",
+      "comment": "PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1"
+    },
+    {
+      "id": "COOKING_BANISH_SUBSTITUTE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX17-048",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "POWER_BOOST_PER_SIGNI_WITH_ICON",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX17-053",
+      "impl": "execStubPart2",
+      "comment": "POWER_BOOST_PER_SIGNI_WITH_ICON: キーワード持ちシグニ1体につきパワー修正"
+    },
+    {
+      "id": "BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX18-020",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "DRAW_BY_CHARM_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX18-038",
+      "impl": "execStubPart2",
+      "comment": "チャーム数だけドロー"
+    },
+    {
+      "id": "DECK_SIGNI_LEVEL_OVERRIDE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX18-065",
+      "impl": "execStubPart3",
+      "comment": "DECK_SIGNI_LEVEL_OVERRIDE: デッキ内指定クラスのシグニレベルをN扱い（このターン）"
+    },
+    {
+      "id": "REMOVE_OPP_MULTI_ENA",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX19-002",
+      "impl": "execStubPart2",
+      "comment": "OPP_TRASH_TO_DECK_TOP は line 1211 の handler で処理済み（dead code 削除） REMOVE_OPP_MULTI_ENA / REMOVE_OPP_MULTI_ENA_ONLY: 相手の複数色エナをトラッシュへ"
+    },
+    {
+      "id": "SIGNI_SERVANT_ZERO",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX19-002, WXDi-P07-041",
+      "impl": "execStubPart2",
+      "comment": "ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07-TK01-A: Lv1 精元 無色 1000 能力なし）に変換"
+    },
+    {
+      "id": "CONDITIONAL_FREE_GROW",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX19-007",
+      "impl": "execStubPart2",
+      "comment": "グロウコスト変更（engine: グロウコスト処理未実装）"
+    },
+    {
+      "id": "GRANT_UNDER_SIGNI_CONSTANT_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX19-027",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "CHANGE_BASE_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX19-027",
+      "impl": "execStubPart3",
+      "comment": "CHANGE_BASE_LEVEL: このシグニの基本レベルを1～3にしてもよい（ターン終了まで）"
+    },
+    {
+      "id": "CRASH_TO_TRASH_INSTEAD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX19-034",
+      "impl": "execStubPart3",
+      "comment": "CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスクラッシュ時、エナではなくトラッシュへ"
+    },
+    {
+      "id": "PLACE_VIRUS_TO_2",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX19-045",
+      "impl": "execStubPart2",
+      "comment": "PLACE_VIRUS_TO_2: 相手の場のウィルス合計が2になるようにウィルスを置く（WX19-045）"
+    },
+    {
+      "id": "PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX19-046",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_LOW_LEVEL_LRIG_DAMAGE / PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ"
+    },
+    {
+      "id": "PREVENT_ZONE_MOVE_BY_OPP",
+      "count": 3,
+      "cardCount": 2,
+      "sample": "WX19-047, WXK10-083",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS→collectProtectedZones動的計算 / AUTO→prevent_opp_trash_fromフラグ設置"
+    },
+    {
+      "id": "SET_LEVEL_RANGE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX19-065",
+      "impl": "execStubPart2",
+      "comment": "SET_LEVEL_RANGE: 自シグニ1体を選んでレベル1～4に変更（ターン終了時まで）"
+    },
+    {
+      "id": "COUNT_BASED_DRAW_OR_POWER",
+      "count": 9,
+      "cardCount": 9,
+      "sample": "WX19-Re18, WX24-P4-103, WXDi-D07-018",
+      "impl": "execStubPart1",
+      "comment": "カウント基準ドロー/パワー（lastProcessedCardsの枚数だけドロー or パワー修正）"
+    },
+    {
+      "id": "LAYER_ABILITY_COPY",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX20-023, WXEX2-59",
+      "impl": "execStubPart2",
+      "comment": "LAYER_ABILITY_COPY: ＜怪異＞シグニのレイヤー能力を自シグニにコピー"
+    },
+    {
+      "id": "PREVENT_SIGNI_DOWN_BY_OPP_ALL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX20-025",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP: 相手によるシグニダウン防止"
+    },
+    {
+      "id": "SELF_TRASH_IF_NO_OPP_VIRUS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX20-030",
+      "impl": "execStubPart2",
+      "comment": "SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ"
+    },
+    {
+      "id": "ADD_RESONANCE_CONDITION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX20-052",
+      "impl": "execStubPart3",
+      "comment": "ADD_RESONANCE_CONDITION: ルリグデッキのレゾナにアタックフェイズタイミングを追加（effectEngineで処理）"
+    },
+    {
+      "id": "RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX20-056",
+      "impl": "execStubPart2",
+      "comment": "RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: ライズ対象シグニに引用常在能力を付与"
+    },
+    {
+      "id": "PLAY_SPELL_FROM_HAND_FREE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX20-059",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "DECK_TOP_CHECK_LEVEL_HAND",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX20-Re05, WX20-Re06, WXEX1-58",
+      "impl": "execStubPart2",
+      "comment": "デッキトップを公開してレベル一致なら手札に加える"
+    },
+    {
+      "id": "DYNAMIC_LEVEL_BY_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX20-Re18",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "GRANT_UNDER_LRIG_AUTO_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX21-003",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "SET_OPP_SIGNI_AS_TRAP",
+      "count": 3,
+      "cardCount": 2,
+      "sample": "WX21-003, WX21-025",
+      "impl": "execStubPart2",
+      "comment": "SET_OPP_SIGNI_AS_TRAP: 相手のシグニ1体をトラップとして設置"
+    },
+    {
+      "id": "GROW_COST_ZERO",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX21-017, WX21-018",
+      "impl": "execStubPart2",
+      "comment": "グロウコスト変更（engine: グロウコスト処理未実装）"
+    },
+    {
+      "id": "ALL_CLASS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX21-021",
+      "impl": "execStubPart3",
+      "comment": "ALL_CLASS: CONTINUOUS→effectEngine.collectAllClassSigniで動的処理済み"
+    },
+    {
+      "id": "GRANT_UNDER_SIGNI_ALL_ABILITIES",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX21-024",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "ATTACK_PHASE_LEVEL_OVERRIDE",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX21-029, WXEX2-47",
+      "impl": "execStubPart3",
+      "comment": "ダメージ特殊（engine: ダメージ処理拡張必要）"
+    },
+    {
+      "id": "COPY_CARD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX21-034",
+      "impl": "execStubPart3",
+      "comment": "COPY_CARD: このシグニはlastProcessed[0]のカードとレベル以外同じになる（card_identity_overrides）"
+    },
+    {
+      "id": "ACCE_SIGNI_GRANT_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX21-041",
+      "impl": "execStubPart3",
+      "comment": "ACCE_SIGNI_GRANT_ABILITY: アクセ中のシグニにキーワード能力を付与"
+    },
+    {
+      "id": "CLASS_CHANGE",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WX21-049, WXEX2-06, WX25-P1-058",
+      "impl": "execStubPart3",
+      "comment": "CLASS_CHANGE: シグニのクラスを一時変更"
+    },
+    {
+      "id": "SET_HAND_CARD_AS_TRAP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX21-057",
+      "impl": "execStubPart2",
+      "comment": "PLACE_TRAP_OPTIONAL / SET_HAND_CARD_AS_TRAP: 手札からトラップ設置"
+    },
+    {
+      "id": "POWER_BY_ACCE_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX21-062",
+      "impl": "execStubPart2",
+      "comment": "POWER_BY_ACCE_COUNT: アクセ数×deltaをパワー修正"
+    },
+    {
+      "id": "GRANT_SIGNI_CLASS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX21-Re03",
+      "impl": "execStubPart2",
+      "comment": "GRANT_SIGNI_CLASS: このシグニに＜X＞クラスを付与"
+    },
+    {
+      "id": "SEARCH_ANGEL_TO_FIELD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-005",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "LRIG_LIMIT_UP_AND_COLOR_GAIN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-014",
+      "impl": "execStubPart2",
+      "comment": "LRIG_LIMIT_UP_AND_COLOR_GAIN: ルリグリミット増加（+1）と色獲得（log）"
+    },
+    {
+      "id": "ALL_PLAYER_MILL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-017",
+      "impl": "execStubPart3",
+      "comment": "ALL_PLAYER_MILL: 各プレイヤーがデッキ上N枚をトラッシュ"
+    },
+    {
+      "id": "ATTACK_COUNT_BY_POWER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-022",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "POWER_CAP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-022",
+      "impl": "execStubPart2",
+      "comment": "=== バッチ6: パワー補足・ウィルス・条件移動 === POWER_CAP: シグニのパワーをN以下に制限"
+    },
+    {
+      "id": "BANISH_SUBSTITUTE_RISE_STACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-034",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "DECLARE_COLOR",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WX22-042, WXDi-P07-059, WXDi-P13-051",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "PLACE_ACCE_SIGNI_TO_ENERGY",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX22-043, WXEX1-44",
+      "impl": "execStubPart2",
+      "comment": "=== バッチ5: アクセ・デッキ・パワー補足 === ACCE_TO_ENERGY / PLACE_ACCE_SIGNI_TO_ENERGY: アクセカードをエナゾーンへ"
+    },
+    {
+      "id": "ACCE_SIGNI_ALL_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-043",
+      "impl": "execStubPart3",
+      "comment": "ACCE_SIGNI_ALL_COLOR: アクセ中のシグニを全色にする"
+    },
+    {
+      "id": "SELECT_NO_COMMON_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-050",
+      "impl": "execStubPart3",
+      "comment": "SELECT_NO_COMMON_COLOR: 共通色なしを選択（ログのみ） SELECT_NO_COMMON_COLOR: WX22-050 エンジェル・アウェイク LOOK_AND_REORDER後のlastProcessedCards（デッキ上3枚）から天使シグニを選択 「それぞれ共通する色を持たないように」: プレイヤーが手動でルールを守る前提 選択したカードは「手札 or エナ」を1枚ずつ選択、非選択はトラッシュへ"
+    },
+    {
+      "id": "CHOSEN_TO_ENERGY_OR_HAND",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-050",
+      "impl": "execStubPart2",
+      "comment": "CHOSEN_TO_ENERGY_OR_HAND: 選んだカードをエナか手札か選択して追加"
+    },
+    {
+      "id": "GRANT_CHOSEN_ABILITY_FROM_PLAY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-Re04",
+      "impl": "execStubPart2",
+      "comment": "GRANT_CHOSEN_ABILITY_FROM_PLAY: 【出】で選んだ能力（keyword_grants記録済み）を常在で参照 このCONTINUOUS効果はexecStubではなくeffectEngine側でkeyword_grantsを参照するため、ここでは何もしない"
+    },
+    {
+      "id": "OPP_SIGNI_ATTACK_COST",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX22-Re20, WXEX1-04",
+      "impl": "execStubPart3",
+      "comment": "OPP_SIGNI_ATTACK_COST: ターン終了時まで、相手シグニのアタックに《無》×2コスト"
+    },
+    {
+      "id": "OPP_ENERGY_EXCESS_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-07",
+      "impl": "execStubPart1",
+      "comment": "対戦相手のエナゾーンが閾値以上の場合、1枚トラッシュに"
+    },
+    {
+      "id": "OPP_DECLARE_COLOR",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXEX1-07, WXK09-037",
+      "impl": "execStubPart3",
+      "comment": "OPP_DECLARE_COLOR: 相手が色を宣言（5色CHOOSE opponentResponds→INTERNAL_SET_OPP_DECLARED_COLOR）"
+    },
+    {
+      "id": "LIMIT_OPP_DRAW_COUNT",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WXEX1-10, WXDi-P12-008, WXK06-004",
+      "impl": "execStubPart3",
+      "comment": "ドロー枚数制限（次のターン）"
+    },
+    {
+      "id": "RESONANCE_COST_CARDS_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-16",
+      "impl": "execStubPart3",
+      "comment": "=== バッチ11: デッキ/エナ/ドロー系 === RESONANCE_COST_CARDS_TO_ENERGY: レゾナコストカードをエナゾーンへ"
+    },
+    {
+      "id": "ACTIVATE_EICHI_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-18",
+      "impl": "execStubPart3",
+      "comment": "ACTIVATE_EICHI_ABILITY: コイン能力でこのシグニの【出】効果を再発動"
+    },
+    {
+      "id": "TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-19",
+      "impl": "execStubPart2",
+      "comment": "トラッシュから3ゾーンへ分配（lastProcessedCards→各ゾーンへ） TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH: トラッシュから3枚選んでエナ/手札/デッキ下に分配"
+    },
+    {
+      "id": "PLACE_LRIG_FROM_DECK_ON_TOP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-20",
+      "impl": "execStubPart2",
+      "comment": "PLACE_LRIG_FROM_DECK_ON_TOP: ルリグデッキからルリグをフィールドへ"
+    },
+    {
+      "id": "POWER_MOD_MIRROR",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXEX1-23, WXK06-049",
+      "impl": "execStubPart2",
+      "comment": "POWER_MOD_MIRROR: 捨てたシグニのパワーを±として対象に適用 ・WXEX1-23文脈（lastProcessedCardsに相手シグニ）: -(捨てたパワー)を相手シグニへ ・WXK06-049文脈（自場シグニが発動源）: +(捨てたパワー)を自シグニへ"
+    },
+    {
+      "id": "OPP_CENTER_LRIG_LIMIT_SET_5",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-26",
+      "impl": "execStubPart3",
+      "comment": "BattleScreen側処理済みSTUB（execStub呼び出し時はログのみ）"
+    },
+    {
+      "id": "FROZEN_SIGNI_TO_TRASH_ON_LEAVE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-30",
+      "impl": "execStubPart2",
+      "comment": "FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 凍結状態のシグニが退場するとトラッシュへ"
+    },
+    {
+      "id": "PREVENT_INFECTED_SIGNI_ACTIVATE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-51",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-62",
+      "impl": "execStubPart3",
+      "comment": "LEVEL_REFERENCE_OVERRIDE_BY_OWN_EFFECT: このカード自身のレベル参照をLv4として扱う（デッキ/手札/トラッシュ在中）"
+    },
+    {
+      "id": "TRAP_TO_SIGNI_IF_ZONE_EMPTY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-67",
+      "impl": "execStubPart2",
+      "comment": "TRAP_TO_SIGNI_IF_ZONE_EMPTY: このカードのゾーンにシグニがない場合、signi_traps[zone]→signi[zone]"
+    },
+    {
+      "id": "CHANGE_EICHI_SIGNI_BASE_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX1-71",
+      "impl": "execStubPart3",
+      "comment": "CHANGE_EICHI_SIGNI_BASE_LEVEL: 英知シグニを選択→基本レベルを1～3に変更（ターン終了まで）"
+    },
+    {
+      "id": "SIGNI_REPOSITION",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WXEX2-04, WX24-P2-089, WXDi-CP02-095",
+      "impl": "execStubPart3",
+      "comment": "SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体） MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理）"
+    },
+    {
+      "id": "PREVENT_DAMAGE_UNTIL_OPP_TURN_END",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-06",
+      "impl": "execStubPart2",
+      "comment": "ルリグダメージ無効フラグを設定"
+    },
+    {
+      "id": "PREVENT_DEFEAT_UNTIL_NEXT_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-08",
+      "impl": "execStubPart1",
+      "comment": "敗北無効フラグ"
+    },
+    {
+      "id": "RISE_LEAVE_DISCARD_STACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-09",
+      "impl": "execStubPart3",
+      "comment": "ライズ/スタック系（engine: ライズシステム未実装）"
+    },
+    {
+      "id": "TRASH_ALL_BY_NAME_FROM_FIELD_AND_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-10",
+      "impl": "execStubPart2",
+      "comment": "フィールドの全シグニの名前が一致するカードをエナ・フィールドからトラッシュ"
+    },
+    {
+      "id": "DECLARED_NAME_TO_SERVANT_ZERO",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXEX2-10, WXK03-002",
+      "impl": "execStubPart2",
+      "comment": "DECLARED_NAME_TO_SERVANT_ZERO: declared_card_name と一致する相手のカードをサーバントZEROに（WXEX2-10） value:'field' 指定時は相手の「場」のみを対象にする（WXK03-002 カーニバル †MAIS† は場限定）。"
+    },
+    {
+      "id": "ALLOW_ATTACK_WHILE_DRIVE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-11",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "GRANT_LRIG_TRASH_ACTIVATE_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-12",
+      "impl": "execStubPart2",
+      "comment": "能力付与系（CONTINUOUS効果はeffectEngineで処理、AUTO/ACTIVATEDでも来た場合のフォールバック） GRANT_UNDER_SIGNI_*/GRANT_UNDER_LRIG_*/GRANT_LRIG_TRASH_ACTIVATE_ABILITY → collectGrantedFromUnderSigni / collectLrigGrantedEffectsで処理済み"
+    },
+    {
+      "id": "PREVENT_NON_FIELD_MOVE_BY_OPP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-22",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "INFECTED_SIGNI_POWER_DOWN_BY_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-26",
+      "impl": "execStubPart2",
+      "comment": "相手フィールドのウイルスシグニのレベル合計に基づくパワー修正"
+    },
+    {
+      "id": "NO_ABILITY_SIGNI_TO_DECK_BOTTOM",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-30",
+      "impl": "execStubPart2",
+      "comment": "NO_ABILITY_SIGNI_TO_DECK_BOTTOM: 能力なしシグニをデッキ下に"
+    },
+    {
+      "id": "RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-32",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "BATTLE_BANISH_LIFE_BURST",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-40",
+      "impl": "execStubPart3",
+      "comment": "BATTLE_BANISH_LIFE_BURST: バトルバニッシュ後に相手側LBを発動"
+    },
+    {
+      "id": "PREVENT_ABILITY_CHANGE_BY_OPP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-49",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "PICK_FROM_TRASHED_CARDS",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXEX2-49, WX24-P4-034",
+      "impl": "execStubPart2",
+      "comment": "PICK_FROM_TRASHED_CARDS: トラッシュカードからピックして手札へ"
+    },
+    {
+      "id": "BLOCK_ALL_OPP_ACTIVATE_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-54",
+      "impl": "execStubPart3",
+      "comment": "BLOCK_ALL_OPP_ACTIVATE_ABILITY: 全相手起動能力封じ"
+    },
+    {
+      "id": "PLACE_VIRUS_CENTER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-79",
+      "impl": "execStubPart2",
+      "comment": "PLACE_VIRUS_CENTER: 相手の中央のシグニゾーンにウィルスを設置"
+    },
+    {
+      "id": "INHERIT_UNDER_SIGNI_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXEX2-81",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "SUPPRESS_LIFE_BURST_ON_CARD",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX24-P1-003, WX25-P3-032, WXDi-D09-H11",
+      "impl": "execStubPart1",
+      "comment": "ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット"
+    },
+    {
+      "id": "CHOOSE_HAND_OR_ENERGY",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WX24-P1-025, WX24-P2-042, WXDi-CP01-004",
+      "impl": "execStubPart3",
+      "comment": "CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）"
+    },
+    {
+      "id": "PLACE_LIMIT_UPPER",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "WX24-P1-031, WX24-P2-041, WX24-P4-036",
+      "impl": "execStubPart3",
+      "comment": "PLACE_LIMIT_UPPER: 【リミットアッパー】トークンをルリグゾーンに置く（1つまで） トークン効果（ルリグ1体かつレベル3以上でリミット+2）はBattleScreenのリミット計算側で適用"
+    },
+    {
+      "id": "DECLARE_CLASS",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX24-P1-035, WX25-P1-058, WXDi-P09-004",
+      "impl": "execStubPart1",
+      "comment": "クラス/色宣言 DECLARE_CLASS: クラスを宣言してownerState.declared_classに保存"
+    },
+    {
+      "id": "POWER_MOD_BY_LRIG_TRASH_ARTS",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX24-P1-049, WX25-P2-062",
+      "impl": "execStubPart2",
+      "comment": "ルリグトラッシュのアーツ枚数に基づくパワー修正（対象1体を先にSELECT_TARGETで選ぶ）"
+    },
+    {
+      "id": "DOUBLE_OWN_POWER_MINUS",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WX24-P1-049, WX25-P2-103, WX25-CP1-070",
+      "impl": "execStubPart2",
+      "comment": "自シグニパワーの2倍を全相手シグニにマイナス DOUBLE_OWN_POWER_MINUS: 対象シグニへの自分効果パワー-を2倍にする（SELECT_TARGET + フラグ設置）"
+    },
+    {
+      "id": "ARTS_USE_DISCARD_LRIG_DECK",
+      "count": 10,
+      "cardCount": 10,
+      "sample": "WX24-P2-002, WX24-P2-004, WX24-P2-006",
+      "impl": "execStubPart1",
+      "comment": "アーツ使用時にルリグデッキからアーツを任意でルリグトラッシュへ"
+    },
+    {
+      "id": "GUARD_ALTERNATIVE_COST",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX24-P2-026, WX25-P2-007",
+      "impl": "execStubPart2",
+      "comment": "ガード系（engine: ガードコスト処理未実装）"
+    },
+    {
+      "id": "GUARD_EXTRA_COST_BY_OPP",
+      "count": 9,
+      "cardCount": 9,
+      "sample": "WX24-P2-047, WX25-P2-001, WX24-D1-05",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "CRASH_LIFE_TO_HAND",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX24-P2-048, WXDi-P07-001",
+      "impl": "execStubPart1",
+      "comment": "ライフクロスの一番上を手札に加える"
+    },
+    {
+      "id": "NON_GUARD_DISCARD_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX24-P2-051",
+      "impl": "execStubPart1",
+      "comment": "ガードアイコンなしカードを捨てたとき、そのカードをエナへ"
+    },
+    {
+      "id": "UNKNOWN_NESTED",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WX24-P2-060, WX24-P3-018, WXDi-P04-033",
+      "impl": "execStubPart1",
+      "comment": "UNKNOWN_NESTED: 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動）"
+    },
+    {
+      "id": "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END",
+      "count": 10,
+      "cardCount": 10,
+      "sample": "WX24-P3-001, WX24-P3-003, WX24-P3-005",
+      "impl": "execStubPart1",
+      "comment": "ルリグリミット修正（エナフェイズ終了まで）"
+    },
+    {
+      "id": "TRASHED_CARD_TO_HAND_OR_ENERGY",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX24-P3-007, WX24-P3-030",
+      "impl": "execStubPart1",
+      "comment": "トラッシュに置かれたカードを手札かエナに"
+    },
+    {
+      "id": "FIELD_COND_DRAW_REVEAL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX24-P3-022",
+      "impl": "execStubPart3",
+      "comment": "=== バッチ15: 公開・アクセ応用・条件ドロー系 === FIELD_COND_DRAW_REVEAL: フィールド条件達成時にデッキ上を公開し同クラスなら手札へ"
+    },
+    {
+      "id": "OPEN_MAGIC_BOX",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX24-P3-050, WX24-P3-066, WX24-P3-069",
+      "impl": "execStubPart3",
+      "comment": "OPEN_MAGIC_BOX: このシグニと同ゾーンのMBを表向きにしてトラッシュへ（任意）"
+    },
+    {
+      "id": "POWER_MOD_BY_DISCARD_COUNT_HIGH",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX24-P3-052, WX26-CP1-051, WXDi-P05-078",
+      "impl": "execStubPart1",
+      "comment": "捨てた枚数基準パワー修正"
+    },
+    {
+      "id": "PLACE_MAGIC_BOX",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX24-P3-089, WX24-P4-064",
+      "impl": "execStubPart3",
+      "comment": "PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX）"
+    },
+    {
+      "id": "DO_THREE_THINGS",
+      "count": 8,
+      "cardCount": 8,
+      "sample": "WX24-P4-002, WX24-P4-007, WXK11-002",
+      "impl": "execStubPart3",
+      "comment": "DO_THREE_THINGS: 3〜4つの処理を動的解析して実行"
+    },
+    {
+      "id": "COPY_LRIG_NAME_ABILITY",
+      "count": 16,
+      "cardCount": 16,
+      "sample": "WX24-P4-011, WX24-P4-012, WX24-P4-013",
+      "impl": "execStubPart1",
+      "comment": "カード名コピー系 COPY_LRIG_NAME_ABILITY: ルリグトラッシュのルリグ名/タイプを現在のルリグに追加"
+    },
+    {
+      "id": "POWER_MOD_DOUBLE_DIFF",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX24-P4-054",
+      "impl": "execStubPart2",
+      "comment": "POWER_MOD_DOUBLE_DIFF: 対象シグニの基本パワーと自分の基本パワーとの差の2倍でマイナス"
+    },
+    {
+      "id": "REVEALED_CARD_COLOR_DISCARD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX24-P4-105",
+      "impl": "execStubPart2",
+      "comment": "REVEALED_CARD_COLOR_DISCARD: 公開カードの色と同じ色の手札カードを捨てる"
+    },
+    {
+      "id": "BLOCK_OPP_ARTS_SPELL_ACT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P1-050",
+      "impl": "execStubPart3",
+      "comment": "BLOCK_OPP_ARTS_SPELL_ACT: このターン対戦相手はアーツ・スペル・起動能力を使用できない"
+    },
+    {
+      "id": "SIGNI_LOSE_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P1-063",
+      "impl": "execStubPart3",
+      "comment": "カード属性変更系（engine: 属性変更システム未実装） SIGNI_LOSE_COLOR: 対戦相手のシグニ1体が色を失う（ターン終了時まで）"
+    },
+    {
+      "id": "UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P1-089",
+      "impl": "execStubPart2",
+      "comment": "UNDER_SIGNI_TO_ENERGY: シグニ下カードをエナゾーンへ UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ"
+    },
+    {
+      "id": "OPP_LRIG_ATTACK_COST",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P2-014",
+      "impl": "execStubPart3",
+      "comment": "コストアップ系（engine: コスト計算未実装）"
+    },
+    {
+      "id": "OPP_MAIN_PHASE_LIMIT_DOWN",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX25-P2-014, WXDi-P13-029",
+      "impl": "execStubPart3",
+      "comment": "OPP_MAIN_PHASE_LIMIT_DOWN: 次の相手メインフェイズの間、センタールリグのリミット-2"
+    },
+    {
+      "id": "ADD_CARD_TO_LRIG_DECK_HIDDEN",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX25-P2-017, WX25-P2-021, WXDi-P11-013",
+      "impl": "execStubPart2",
+      "comment": "ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える"
+    },
+    {
+      "id": "TRASH_SPELL_FREE_USE_LIMIT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P2-034",
+      "impl": "execStubPart3",
+      "comment": "TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（ログのみ） TRASH_SPELL_FREE_USE_LIMIT: トラッシュからコスト上限以下のスペルをコストなしで使用"
+    },
+    {
+      "id": "PREVENT_SIGNI_ABILITY_LOSS_BY_OPP",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX25-P2-053, WXK10-024",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "SUPPRESS_LIFEBURST_COLOR_CONDITION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P3-003",
+      "impl": "execStubPart2",
+      "comment": "色条件によるライフバースト抑制（相手に suppress_life_burst フラグ）"
+    },
+    {
+      "id": "REMOVE_SIGNI_ZONE",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WX25-P3-015, WXDi-P00-015, WXK03-005",
+      "impl": "execStubPart2",
+      "comment": "裏向き系（face_down_signi + abilities_removed で近似実装済み） REMOVE_SIGNI_ZONE: 対戦相手のシグニゾーンを1つ削除"
+    },
+    {
+      "id": "REPEAT_N_TIMES",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX25-P3-028, WXDi-P07-007, WXDi-P08-007",
+      "impl": "execStubPart3",
+      "comment": "REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す"
+    },
+    {
+      "id": "LRIG_ALL_NAMES",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P3-037",
+      "impl": "execStubPart3",
+      "comment": "ルリグシステム（未実装残）"
+    },
+    {
+      "id": "EVDIVA_PER_LRIG_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P3-050",
+      "impl": "execStubPart3",
+      "comment": "EVDIVA_PER_LRIG_COLOR: WX25-P3-050 エビディバ!!!!! 場の色別ルリグ数ぶんに各効果を行う。 白=【ルリグバリア】/青=ドロー3/緑=エナチャージ3/黒=相手デッキ10トラッシュ（決定的）。 赤=対象選択を伴うバニッシュのため未実装（ログのみ）。"
+    },
+    {
+      "id": "POWER_COPY_FROM_DOWNED",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX25-P3-062, WXDi-P16-052",
+      "impl": "execStubPart2",
+      "comment": "POWER_COPY_FROM_DOWNED: ダウンしたシグニのパワーを自シグニに加算"
+    },
+    {
+      "id": "ABILITY_CHECK_ELSE_TRASH",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX25-P3-069, WX25-P3-072",
+      "impl": "execStubPart2",
+      "comment": "ABILITY_CHECK_ELSE_TRASH: 能力なしなら自トラッシュ"
+    },
+    {
+      "id": "CHANGE_SIGNI_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P3-111",
+      "impl": "execStubPart3",
+      "comment": "CHANGE_SIGNI_COLOR: 対象シグニの色を指定色に変更（ターン終了時まで）"
+    },
+    {
+      "id": "POWER_MOD_PER_REVEALED",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX25-CP1-003, WX25-CP1-061, WXDi-P00-033",
+      "impl": "execStubPart1",
+      "comment": "公開したカード枚数基準パワー修正"
+    },
+    {
+      "id": "FORCE_TARGET_SELF",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WX25-CP1-060, WXDi-P03-053, WXDi-P11-040",
+      "impl": "execStubPart3",
+      "comment": "FORCE_TARGET_SELF: このシグニしか対象にできない（ログのみ）"
+    },
+    {
+      "id": "GRANT_PRIOKE_PENDING_ATTACK_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX26-CP1-001",
+      "impl": "execStubPart3",
+      "comment": "GRANT_PRIOKE_PENDING_ATTACK_TRASH: FUTURE SESSION③ 次のAPS時にプリオケシグニへ能力付与をフラグとして予約"
+    },
+    {
+      "id": "DRAW_AND_PUT_HAND_TO_DECK_BOTTOM",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX26-CP1-006, WXK10-043",
+      "impl": "execStubPart1",
+      "comment": "各プレイヤーがカードを1枚引き手札を1枚デッキ下に置く"
+    },
+    {
+      "id": "TRASH_CLASS_TO_HAND_OR_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX26-CP1-022",
+      "impl": "execStubPart2",
+      "comment": "トラッシュからクラスシグニを手札かエナへ選択"
+    },
+    {
+      "id": "ARTS_EXTRA_COST_CONDITION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX26-CP1-024",
+      "impl": "execStubPart2",
+      "comment": "ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす"
+    },
+    {
+      "id": "POWER_MOD_BY_TRASH_CLASS_COUNT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WX26-CP1-057, WXDi-CP02-060",
+      "impl": "execStubPart2",
+      "comment": "トラッシュの特定クラスカード枚数に基づくパワー修正"
+    },
+    {
+      "id": "ARTS_IMMOVABLE",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WX25-P1-TK1, WX25-P1-TK2, WX25-P1-TK3",
+      "impl": "execStubPart2",
+      "comment": "アーツ条件系（engine: アーツ使用条件未実装）"
+    },
+    {
+      "id": "NO_BATTLE_DEFENDER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P1-TK6",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "OPP_DRAW_LIMIT_PER_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P2-TK05",
+      "impl": "execStubPart3",
+      "comment": "OPP_DRAW_LIMIT_PER_TURN: ドローフェイズ中の相手ドローを1枚に制限（BattleScreen側処理）"
+    },
+    {
+      "id": "REMOVE_MIKO_KEYWORD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P3-TK03",
+      "impl": "execStubPart2",
+      "comment": "REMOVE_MIKO_KEYWORD: みこみこ親衛隊キーワードをsourceCardNumのシグニのkeyword_grantsから取り除く（WX25-P3-TK03）"
+    },
+    {
+      "id": "POWER_MOD_BY_COLOR_VARIETY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-D06-016",
+      "impl": "execStubPart2",
+      "comment": "自場シグニの色の種類数×delta → 1体相手シグニパワー修正（SELECT_TARGET→自己再帰）"
+    },
+    {
+      "id": "OPP_REVEAL_TOP_AND_HAND",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-D09-P14",
+      "impl": "execStubPart3",
+      "comment": "OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND: 公開ログ"
+    },
+    {
+      "id": "OPTIONAL_DISCARD_GUARD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-D09-P15",
+      "impl": "execStubPart3",
+      "comment": "OPTIONAL_DISCARD_GUARD: 手札から任意カードを捨ててガード可能フラグを設定"
+    },
+    {
+      "id": "MOVE_TARGET_SIGNI_TO_OTHER_ZONE",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P00-015, WXDi-P00-068",
+      "impl": "execStubPart3",
+      "comment": "SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体） MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理）"
+    },
+    {
+      "id": "REVERSE_OPP_POWER_MINUS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P00-039",
+      "impl": "execStubPart3",
+      "comment": "=== バッチ17: パワー反転・条件分岐・ターゲット系 === REVERSE_OPP_POWER_MINUS: 相手シグニのパワーマイナス修正を反転（プラスに）"
+    },
+    {
+      "id": "PREVENT_LIFE_REFRESH_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P00-041",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "TARGET_OPP_SIGNI_ONLY",
+      "count": 2,
+      "cardCount": 1,
+      "sample": "WXDi-P01-028",
+      "impl": "execStubPart3",
+      "comment": "TARGET_OPP_SIGNI_ONLY: 「対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。」 対象選択→対戦相手が手札2枚を捨てて回避するか、シグニがデッキの一番下に送られるかを選ぶ（WXDi-P01-028）"
+    },
+    {
+      "id": "SIGNI_FLIP_FACEDOWN",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WXDi-P01-040, WXDi-P05-037, WXDi-P09-009",
+      "impl": "execStubPart2",
+      "comment": "SIGNI_FLIP_FACEDOWN: 自シグニ（または相手lastProcessed）を裏向きにする"
+    },
+    {
+      "id": "FLIP_FACE_DOWN_SIGNI",
+      "count": 4,
+      "cardCount": 4,
+      "sample": "WXDi-P01-040, WXDi-P05-037, WXDi-P09-009",
+      "impl": "execStubPart2",
+      "comment": "FLIP_FACE_DOWN_SIGNI: 裏向きシグニを表向きに戻す（\"この方法で裏向きにしたシグニを表向きにする\"）"
+    },
+    {
+      "id": "POWER_MOD_TARGET_AND_SELF",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P02-039",
+      "impl": "execStubPart2",
+      "comment": "対象シグニと自シグニの両方にパワー修正（自場シグニを対象とする）"
+    },
+    {
+      "id": "SELF_TO_DECK_TOP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P02-058",
+      "impl": "execStubPart1",
+      "comment": "自シグニをデッキトップに置く"
+    },
+    {
+      "id": "COPY_TARGET_POWER",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P02-079, WXDi-P09-051",
+      "impl": "execStubPart2",
+      "comment": "COPY_TARGET_POWER: 対象シグニのパワーを自シグニの基本パワーにする"
+    },
+    {
+      "id": "OPP_TURN_NO_ENERGY_COST",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P03-012",
+      "impl": "execStubPart3",
+      "comment": "OPP_TURN_NO_ENERGY_COST: 対戦相手の次のターン中、対戦相手はエナコストを支払えない"
+    },
+    {
+      "id": "SIGNI_PROTECT_MOVE_EXCEPT_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P03-043",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "POWER_MOD_ON_FRONT_PLACE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P03-043",
+      "impl": "execStubPart2",
+      "comment": "POWER_MOD_ON_FRONT_PLACE: 正面に配置された相手シグニに任意で-3000"
+    },
+    {
+      "id": "TOP_TO_BOTTOM_OPTIONAL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P03-050",
+      "impl": "execStubPart1",
+      "comment": "デッキトップを見て下に置いてもよい"
+    },
+    {
+      "id": "BLOCK_NON_WHITE_SPELL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P03-052",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "SIGNI_GAIN_ONE_LRIG_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P03-074",
+      "impl": "execStubPart3",
+      "comment": "SIGNI_GAIN_ONE_LRIG_COLOR: このシグニがルリグの色を1つ得る（ターン終了時まで）"
+    },
+    {
+      "id": "FROM_TRASH_TO_CENTER_ZONE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P03-087",
+      "impl": "execStubPart2",
+      "comment": "FROM_TRASH_TO_CENTER_ZONE: トラッシュからカードを中央シグニゾーン（zone[1]）に出す"
+    },
+    {
+      "id": "EACH_PLAYER_DRAW_DISCARD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P04-010",
+      "impl": "execStubPart1",
+      "comment": "各プレイヤーがカードを1枚引き、1枚捨てる"
+    },
+    {
+      "id": "OPP_SIGNI_ONE_ATTACK_TOTAL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P04-023",
+      "impl": "execStubPart3",
+      "comment": "LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限"
+    },
+    {
+      "id": "COPY_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P04-035",
+      "impl": "execStubPart2",
+      "comment": "COPY_ABILITY: このシグニはその（lastProcessed[0]の）能力を得る"
+    },
+    {
+      "id": "OPP_SIGNI_LEAVE_TO_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P04-037",
+      "impl": "execStubPart2",
+      "comment": "相手シグニが退場時にエナではなくトラッシュへ（フラグ設定）"
+    },
+    {
+      "id": "GRANT_GUARD_ICON_HAND_SIGNI",
+      "count": 9,
+      "cardCount": 9,
+      "sample": "WXDi-P04-049, WXDi-P10-049, WXDi-P13-044",
+      "impl": "execStubPart1",
+      "comment": "手札のシグニにガードアイコンを付与（このターン）"
+    },
+    {
+      "id": "MULTI_SIGNI_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P04-077",
+      "impl": "execStubPart1",
+      "comment": "相手シグニ複数をエナに置く"
+    },
+    {
+      "id": "POWER_MOD_BY_FRONT_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P04-083",
+      "impl": "execStubPart2",
+      "comment": "相手同ゾーン（前）シグニのレベルに基づくパワー修正"
+    },
+    {
+      "id": "HASTARLIQ",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P05-016",
+      "impl": "execStubPart3",
+      "comment": "HASTARLIQ: 【ハスターリク】(WXDi-P05-TK01A)を相手シグニゾーンに設置"
+    },
+    {
+      "id": "OPP_SIGNI_ATTACK_POWER_RESTRICT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P05-031, WXDi-CP01-017",
+      "impl": "execStubPart2",
+      "comment": "OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手シグニアタック時パワー制限"
+    },
+    {
+      "id": "PLACE_SIGNI_UNDER_SELF_OPT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P05-034, WXDi-P11-081",
+      "impl": "execStubPart2",
+      "comment": "手札からカードをこのシグニの下に置く（HAND_CARDS_UNDER_SIGNI / PLACE_SIGNI_UNDER_SELF_OPT）"
+    },
+    {
+      "id": "TRASH_IF_ZONE_OCCUPIED",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P05-037, WXDi-P09-034",
+      "impl": "execStubPart2",
+      "comment": "ゾーンが空いているときトラッシュ（条件付き）"
+    },
+    {
+      "id": "REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P05-038",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "OPP_DRAW_LIMIT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P05-039, WXDi-P16-005",
+      "impl": "execStubPart3",
+      "comment": "OPP_DRAW_LIMIT: 対戦相手のターン開始時、そのターンのドローを1枚に制限（triggerScope: any_opp で相手ターン発動）"
+    },
+    {
+      "id": "POWER_MOD_BY_LRIG_LEVEL_SUM",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P05-055",
+      "impl": "execStubPart2",
+      "comment": "ルリグレベル合計に基づくパワー修正（自分のルリグ全体のレベル合計を参照）"
+    },
+    {
+      "id": "PLACE_SIGNI_UNDER_SIGNI",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P05-060, WXDi-P09-078",
+      "impl": "execStubPart2",
+      "comment": "PLACE_SIGNI_UNDER_SIGNI: シグニをシグニ下に設置（lastProcessed→sourceCardNumのゾーン下）"
+    },
+    {
+      "id": "TREAT_AS_LEVEL1_IN_DECK_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P05-086",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "UPKEEP_OR_NO_UP",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P06-002, WXDi-P13-075",
+      "impl": "execStubPart3",
+      "comment": "UPKEEP_OR_NO_UP: 次の相手UPフェーズに条件未達でセンタールリグをアップさせない"
+    },
+    {
+      "id": "DECLARE_NUMBER_RANGE",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WXDi-P06-013, WXK03-076, WXK10-052",
+      "impl": "execStubPart3",
+      "comment": "DECLARE_NUMBER_RANGE: 0〜5の数字宣言（DECLARE_NUMBERと同様だが0を含む）"
+    },
+    {
+      "id": "INCREASE_ACT_ABILITY_COST",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P06-031",
+      "impl": "execStubPart3",
+      "comment": "INCREASE_ACT_ABILITY_COST: 起動能力のコストを増加（ログのみ）"
+    },
+    {
+      "id": "FIELD_ENERGY_SIGNI_GAIN_COLOR",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P06-040, WXDi-P12-010",
+      "impl": "execStubPart2",
+      "comment": "FIELD_ENERGY_SIGNI_GAIN_COLOR: CONTINUOUS効果はeffectEngineで処理済み（no-op）"
+    },
+    {
+      "id": "LOOK_TOP_SORT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P06-050",
+      "impl": "execStubPart2",
+      "comment": "LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: デッキ上N枚を確認して並べ替え"
+    },
+    {
+      "id": "PREVENT_ABILITY_GAIN_BY_OPP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P06-057",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "USE_SPELL_FROM_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P06-066",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "ENERGY_TO_TRASH",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P06-069, WXDi-P11-002",
+      "impl": "execStubPart2",
+      "comment": "エナゾーンからカード1枚選んでトラッシュ（SELECT→INTERNAL）"
+    },
+    {
+      "id": "OPP_CHOOSES_FOR_YOU",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P07-007",
+      "impl": "execStubPart3",
+      "comment": "OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ"
+    },
+    {
+      "id": "FACE_DOWN_OPP_SIGNI",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P07-010, WXDi-P09-034",
+      "impl": "execStubPart2",
+      "comment": "FACE_DOWN_OPP_SIGNI: 相手シグニを対象選択→裏向きにする"
+    },
+    {
+      "id": "PREVENT_SELF_MOVE_BY_OPP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P07-050",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "GRANT_ABILITY_UNTIL_OPP_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P07-059",
+      "impl": "execStubPart2",
+      "comment": "GRANT_ABILITY_UNTIL_OPP_TURN: 次の対戦相手のターン終了時まで①の能力を付与 付与先: 直前のTARGET_ONLY等でlastProcessedCardsが設定済みならそれを使う（「あなたのシグニ1体を対象とし」型）。 未設定ならsourceCardNum自身に付与（自己対象型）。テキスト解析は常にsourceCardNum（効果の発生源）から行う。"
+    },
+    {
+      "id": "DISCARD_IF_NO_CLASS_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P07-062",
+      "impl": "execStubPart1",
+      "comment": "フィールドに他のクラスシグニがない場合、手札を捨てる"
+    },
+    {
+      "id": "OPP_TRASH_TO_DECK_TOP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P07-076",
+      "impl": "execStubPart1",
+      "comment": "相手のトラッシュからカードをデッキトップに（もよい）"
+    },
+    {
+      "id": "UNDER_SIGNI_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P07-080",
+      "impl": "execStubPart2",
+      "comment": "シグニの下のカードをエナゾーンに置く"
+    },
+    {
+      "id": "PREVENT_POWER_MINUS_BY_OPP",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P07-085, WXK03-026",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "DECLARE_NUMBER_POWER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P07-086",
+      "impl": "execStubPart3",
+      "comment": "DECLARE_NUMBER_POWER: パワー値宣言（3000〜15000）→ declared_guard_restrict_level に保存"
+    },
+    {
+      "id": "NEGATE_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P08-044",
+      "impl": "execStubPart3",
+      "comment": "NEGATE_ABILITY: 対象シグニの能力を無効化（abilities_removedに追加）"
+    },
+    {
+      "id": "LEAVE_FIELD_TO_DECK_BOTTOM",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P08-046",
+      "impl": "execStubPart2",
+      "comment": "自シグニをフィールドから退場させてデッキ下へ"
+    },
+    {
+      "id": "LOOK_TOP_BOTTOM",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P08-046",
+      "impl": "execStubPart3",
+      "comment": "LOOK_TOP_BOTTOM: デッキ上1枚とデッキ下1枚を確認"
+    },
+    {
+      "id": "LOOK_TOP_SIGNI_TO_FIELD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P08-046",
+      "impl": "execStubPart2",
+      "comment": "デッキ上のシグニをフィールドへ（最初のシグニを配置）"
+    },
+    {
+      "id": "SUBSTITUTE_DAMAGE_WITH_SELF_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P08-054",
+      "impl": "execStubPart3",
+      "comment": "SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: このシグニをトラッシュに置く代わりにダメージ無効（任意）"
+    },
+    {
+      "id": "MAKE_MULTI_SERVANT_ZERO",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P09-005",
+      "impl": "execStubPart2",
+      "comment": "ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07-TK01-A: Lv1 精元 無色 1000 能力なし）に変換"
+    },
+    {
+      "id": "ADD_CARD_TO_LRIG_DECK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P09-007",
+      "impl": "execStubPart2",
+      "comment": "ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える"
+    },
+    {
+      "id": "BLOCK_OPP_SPELL_ACT_NEXT_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P09-007",
+      "impl": "execStubPart3",
+      "comment": "ブロック系（engine: 行動ブロック未実装） BLOCK_OPP_SPELL_ACT_NEXT_TURN: 次の対戦相手のターン中、スペルと起動能力を使用できない"
+    },
+    {
+      "id": "PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P09-008",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN: 相手の次ターン最初のダメージを無効"
+    },
+    {
+      "id": "OPP_REVEAL_LRIG_DECK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P09-039",
+      "impl": "execStubPart3",
+      "comment": "OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND: 公開ログ"
+    },
+    {
+      "id": "POWER_MOD_BY_UNDER_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P09-046",
+      "impl": "execStubPart2",
+      "comment": "シグニ下のカード枚数×delta → 2体まで相手シグニパワー修正（SELECT→INTERNAL）"
+    },
+    {
+      "id": "DRAW",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P10-006",
+      "impl": "execStubPart2",
+      "comment": "=== バッチ4: デッキ/手札/エナ操作 === DRAW: N枚ドロー"
+    },
+    {
+      "id": "POWER_MOD_BY_TRASHED_SIGNI_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P10-009",
+      "impl": "execStubPart2",
+      "comment": "トラッシュしたシグニのレベル×-2000 → 1体相手シグニパワー修正（SELECT→INTERNAL）"
+    },
+    {
+      "id": "SIGNI_GRANT_QUOTED_CONSTANT_ABILITY",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P10-025, WXDi-P14-008",
+      "impl": "execStubPart2",
+      "comment": "SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 引用常在能力を自シグニに付与（SELECT_TARGET→keyword_grants）"
+    },
+    {
+      "id": "TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P10-033",
+      "impl": "execStubPart3",
+      "comment": "TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: 相手シグニ1体を対象とし、バウンスかトラッシュを選ぶ （WXDi-P10-033: デッキ5枚公開後の条件付き選択効果）"
+    },
+    {
+      "id": "SELECT_OTHER_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P10-052",
+      "impl": "execStubPart3",
+      "comment": "SELECT_OTHER_SIGNI: ソース以外のシグニを選択"
+    },
+    {
+      "id": "MAKE_SERVANT_ZERO",
+      "count": 3,
+      "cardCount": 1,
+      "sample": "WXDi-P11-031",
+      "impl": "execStubPart2",
+      "comment": "ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07-TK01-A: Lv1 精元 無色 1000 能力なし）に変換"
+    },
+    {
+      "id": "LIFE_TO_HAND_OPTIONAL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P11-040",
+      "impl": "execStubPart2",
+      "comment": "LIFE_TO_HAND_OPTIONAL: ライフクロス1枚を手札に加える"
+    },
+    {
+      "id": "DEPLOY_RESTRICT",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WXDi-P11-050, WXDi-P15-039, WXK09-015",
+      "impl": "execStubPart3",
+      "comment": "DEPLOY_RESTRICT: 配置制限（CONTINUOUSは動的処理、AUTOはフラグ設置）"
+    },
+    {
+      "id": "NEGATE_ATTACK_ON_TRIGGER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P11-055",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "BUFF_HOST_WHEN_PLACED_UNDER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P11-063",
+      "impl": "execStubPart3",
+      "comment": "BUFF_HOST_WHEN_PLACED_UNDER: このカードがシグニの下に置かれたとき上のシグニ+2000（WXDi-P11-063）"
+    },
+    {
+      "id": "ONE_ATTACK_PER_TURN",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P11-071, WXDi-P12-078",
+      "impl": "execStubPart3",
+      "comment": "アタック制限系（engine: アタック制限システム未実装）"
+    },
+    {
+      "id": "OPP_CHOOSE_OWN_SIGNI_TO_ENERGY",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P12-051, WXDi-P16-077",
+      "impl": "execStubPart1",
+      "comment": "対戦相手が自分のシグニを選んでエナに置く"
+    },
+    {
+      "id": "DISONA_RESTRICTION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P12-075",
+      "impl": "execStubPart3",
+      "comment": "DISONA_RESTRICTION: 「このターン、あなたは《ディソナアイコン》ではないスペルを使用できない」 （使用条件側「すでに非ディソナスペルを使用していた場合は使用不可」はeffect.conditionで判定済み）"
+    },
+    {
+      "id": "ENERGY_TO_HAND_ON_DECK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P12-079",
+      "impl": "execStubPart2",
+      "comment": "エナゾーンからカードを手札へ（SELECT→INTERNAL）"
+    },
+    {
+      "id": "BLOCK_OPP_AUTO_ABILITY_EXTENDED",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P13-006",
+      "impl": "execStubPart3",
+      "comment": "BLOCK_OPP_AUTO_ABILITY_EXTENDED: このターンと次のターン、相手シグニの【自】能力は発動しない"
+    },
+    {
+      "id": "BANISH_REDIRECT_TO_HAND",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P13-045",
+      "impl": "execStubPart3",
+      "comment": "BANISH_REDIRECT_TO_HAND: このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る"
+    },
+    {
+      "id": "LOOK_DECK_BOTTOM",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P13-049",
+      "impl": "execStubPart3",
+      "comment": "LOOK_DECK_BOTTOM: デッキ下を1枚確認"
+    },
+    {
+      "id": "FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P13-071",
+      "impl": "execStubPart2",
+      "comment": "FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 凍結シグニのバニッシュをデッキ下へ"
+    },
+    {
+      "id": "FIRST_SPELL_COST_UP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P13-072",
+      "impl": "execStubPart3",
+      "comment": "コストアップ系（engine: コスト計算未実装）"
+    },
+    {
+      "id": "CRAFT_TO_LRIG_DECK",
+      "count": 5,
+      "cardCount": 5,
+      "sample": "WXDi-P14-006, WXDi-P14-007, WXDi-P14-008",
+      "impl": "execStubPart2",
+      "comment": "=== バッチ9: ルリグ・条件サーチ・選択系 === CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ"
+    },
+    {
+      "id": "PREVENT_OPP_POWER_PLUS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P14-048",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "TRADE_SELF_AND_OPP_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P14-064",
+      "impl": "execStubPart2",
+      "comment": "自・相手を両方エナへ（ゾーン交換系）"
+    },
+    {
+      "id": "OPP_ZONE_PLACEMENT_RESTRICT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P14-068, WXDi-P11-TK01",
+      "impl": "execStubPart3",
+      "comment": "OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS効果（effectEngineで動的判定）"
+    },
+    {
+      "id": "COIN_USE_RESTRICTION",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-P15-008, WXDi-P15-009",
+      "impl": "execStubPart3",
+      "comment": "COIN_USE_RESTRICTION: コイン使用先をスペルとシグニに限定（ゲーム中永続）"
+    },
+    {
+      "id": "HAND_SIGNI_UNDER_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P15-067",
+      "impl": "execStubPart2",
+      "comment": "手札のシグニをこのシグニの下に置く"
+    },
+    {
+      "id": "WHITE_SIGNI_ABILITY_PROTECT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P15-085",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "ADD_CRAFT_TO_LRIG_DECK",
+      "count": 3,
+      "cardCount": 3,
+      "sample": "WXDi-P16-009, WXDi-P16-010, WXDi-P16-011",
+      "impl": "execStubPart2",
+      "comment": "=== バッチ9: ルリグ・条件サーチ・選択系 === CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ"
+    },
+    {
+      "id": "BLOCK_FRONT_SIGNI_ATTACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P16-047",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "LRIG_LIMIT_MODIFY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P16-047",
+      "impl": "execStubPart2",
+      "comment": "LRIG_LIMIT_MODIFY (STUB版): ルリグリミット修正"
+    },
+    {
+      "id": "GAIN_LRIG_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P16-058",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "CONDITIONAL_TRASH_UNDER_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P16-064",
+      "impl": "execStubPart3",
+      "comment": "CONDITIONAL_TRASH_UNDER_SIGNI: 相手エナN枚以上の場合、シグニ下カードを任意でトラッシュ"
+    },
+    {
+      "id": "COIN_SPEND_CONDITION",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P16-083",
+      "impl": "execStubPart3",
+      "comment": "COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック、未達時トラッシュ"
+    },
+    {
+      "id": "LOSE_COLOR_ALL_ZONES",
+      "count": 7,
+      "cardCount": 7,
+      "sample": "WXDi-P16-086, WXDi-P16-087, WXDi-P16-088",
+      "impl": "execStubPart3",
+      "comment": "LOSE_COLOR_ALL_ZONES: CONTINUOUS効果（effectEngine.collectColorlessOverridesで動的計算）"
+    },
+    {
+      "id": "OPP_DISCARD_OR_PAY_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P16-091",
+      "impl": "execStubPart3",
+      "comment": "OPP_DISCARD_OR_PAY_ENERGY: アタックフェイズ開始時、対戦相手は《無》を支払うか手札を1枚捨てる"
+    },
+    {
+      "id": "COLLAB",
+      "count": 6,
+      "cardCount": 5,
+      "sample": "WXDi-CP01-004, WXDi-CP01-005, WXDi-CP01-006",
+      "impl": "execStubPart3",
+      "comment": "COLLAB: コラボ効果"
+    },
+    {
+      "id": "BANISH",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-CP01-015, WXK06-025",
+      "impl": "execStubPart2",
+      "comment": "=== バッチ7: バニッシュ・トラッシュ・条件効果 === BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ"
+    },
+    {
+      "id": "SPECIFIC_CARD_COST_REDUCE",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXDi-CP01-027, WXDi-CP01-048",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "LOOK_TOP_ONE_RETURN_REST_BOTTOM",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-CP01-036",
+      "impl": "execStubPart2",
+      "comment": "LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を確認し1枚をトップ・残りをデッキ下に"
+    },
+    {
+      "id": "REDIRECT_ATTACK_TO_SELF_ZONE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-CP02-TK01A",
+      "impl": "execStubPart3",
+      "comment": "REDIRECT_ATTACK_TO_SELF_ZONE: 相手シグニの直接アタックをこのシグニゾーンにリダイレクト（BattleScreen側処理）"
+    },
+    {
+      "id": "BATTLE_LEAVE_REPLACE_WITH_DOWN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-CP02-TK01A",
+      "impl": "execStubPart3",
+      "comment": "BATTLE_LEAVE_REPLACE_WITH_DOWN: バトル・相手効果による場離れをダウンに置換（任意）（BattleScreen側処理）"
+    },
+    {
+      "id": "REMOVE_SELF_SIGNI_FROM_GAME",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-CP02-TK01A",
+      "impl": "execStubPart3",
+      "comment": "REMOVE_SELF_SIGNI_FROM_GAME: このシグニをゲームから除外する（クラフトルール適用）"
+    },
+    {
+      "id": "ACCE_BANISH_SUBSTITUTE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P09-TK03A",
+      "impl": "execStubPart1",
+      "comment": "ACCE_BANISH_SUBSTITUTE: アクセクラフトによる場離れ代替（オンタマ等） アクセされているシグニが場を離れる場合、代わりにこのアクセをゲームから除外してシグニをダウン"
+    },
+    {
+      "id": "SUMMON_FROM_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P14-TK04",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK01-003",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE: 次の相手ATKフェイズ開始時、このシグニはアタック不可"
+    },
+    {
+      "id": "MULTI_DAMAGE_ON_LRIG_ATTACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK01-004",
+      "impl": "execStubPart3",
+      "comment": "MULTI_DAMAGE_ON_LRIG_ATTACK: このターン、ルリグアタックをN回与える（lrig_attack_remainingフラグでBattleScreen側が管理）"
+    },
+    {
+      "id": "LRIG_RIDE_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK01-038",
+      "impl": "execStubPart3",
+      "comment": "LRIG_RIDE_SIGNI: センタールリグがすべての乗機シグニに乗る（ドライブ状態）"
+    },
+    {
+      "id": "ADJACENT_SIGNI_POWER_MOD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK01-060",
+      "impl": "execStubPart3",
+      "comment": "ADJACENT_SIGNI_POWER_MOD: このシグニと隣接するシグニ最大2体のパワーを修正"
+    },
+    {
+      "id": "NEGATE_ALL_OPP_EFFECTS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK02-001",
+      "impl": "execStubPart3",
+      "comment": "NEGATE_ALL_OPP_EFFECTS: 相手のCONTINUOUS効果を全て無効化（all_cont_effects_negatedフラグ）"
+    },
+    {
+      "id": "TRASH_FROM_DECK_PER_SIGNI_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK02-004",
+      "impl": "execStubPart2",
+      "comment": "自場シグニのレベル合計枚数をデッキ上からトラッシュ"
+    },
+    {
+      "id": "ENERGY_SUBSTITUTE_TRASH_KEY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK02-023",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "LOOK_TOP_BY_LIFE_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK02-032",
+      "impl": "execStubPart2",
+      "comment": "LOOK_TOP_N / LOOK_TOP_SORT / LOOK_TOP_COLOR_SORT / LOOK_TOP_BY_LIFE_COUNT: デッキ上N枚を確認して並べ替え"
+    },
+    {
+      "id": "CONDITIONAL_ALT_POWER_BOOST",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXK02-038, WXK10-036",
+      "impl": "execStubPart2",
+      "comment": "複雑パワー修正（engine: コンテキスト/配置情報必要） CONDITIONAL_ALT_POWER_BOOST: 条件成立時に代わりにパワー修正（AUTO/ACTIVATED: temp_power_mods）"
+    },
+    {
+      "id": "POWER_EQUAL_TO_SELF_POWER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK02-038",
+      "impl": "execStubPart2",
+      "comment": "自シグニのパワーに等しく相手シグニのパワーを設定"
+    },
+    {
+      "id": "CLASS_SIGNI_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK02-045",
+      "impl": "execStubPart2",
+      "comment": "デッキ上のクラスシグニを最大2枚選んでエナゾーンへ（LOOK_AND_REORDER後）"
+    },
+    {
+      "id": "GRANT_CONDITIONAL_ASSASSIN_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK02-057",
+      "impl": "execStubPart3",
+      "comment": "GRANT_CONDITIONAL_ASSASSIN_ABILITY: 条件付きアサシンをkeyword_grantsに付与"
+    },
+    {
+      "id": "PREVENT_LRIG_DAMAGE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK03-001",
+      "impl": "execStubPart2",
+      "comment": "ルリグダメージ無効フラグを設定"
+    },
+    {
+      "id": "REMOVE_OPP_MULTI_ENA_ONLY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK03-002",
+      "impl": "execStubPart2",
+      "comment": "OPP_TRASH_TO_DECK_TOP は line 1211 の handler で処理済み（dead code 削除） REMOVE_OPP_MULTI_ENA / REMOVE_OPP_MULTI_ENA_ONLY: 相手の複数色エナをトラッシュへ"
+    },
+    {
+      "id": "CENTER_LRIG_COLOR_CHANGE_BLACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK03-006",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "PREVENT_DAMAGE_FROM_OPP_EFFECTS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK03-011",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_LOW_LEVEL_LRIG_DAMAGE / PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ"
+    },
+    {
+      "id": "BANISH_IF_DISCARDED_3_THIS_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK03-021",
+      "impl": "execStubPart3",
+      "comment": "BANISH_IF_DISCARDED_3_THIS_TURN: このターン手札3枚以上捨てていればバニッシュ+相手エナトラッシュ（WXK03-021 ON_ATTACK_PHASE_START）"
+    },
+    {
+      "id": "RIDE_ON",
+      "count": 2,
+      "cardCount": 1,
+      "sample": "WXK03-022",
+      "impl": "execStubPart2",
+      "comment": "RIDE_ON: ルリグが乗機シグニ1体に任意でライド（ドライブ状態でない場合のみ可）"
+    },
+    {
+      "id": "ODD_LEVEL_SIGNI_CANT_ATTACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK03-028",
+      "impl": "execStubPart3",
+      "comment": "アタック制限系（engine: アタック制限システム未実装）"
+    },
+    {
+      "id": "DRIVE_SIGNI_PREVENT_DOWN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK03-035",
+      "impl": "execStubPart3",
+      "comment": "ウェポン・プロテクション系（engine: 種族保護フラグ未実装） DRIVE_SIGNI_PREVENT_DOWN: ドライブ状態のシグニに対戦相手の効果によるダウン防止を付与"
+    },
+    {
+      "id": "CENTER_LRIG_DISMOUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK03-036",
+      "impl": "execStubPart3",
+      "comment": "CENTER_LRIG_DISMOUNT: センタールリグがすべての乗機シグニから降りる（ドライブ解除・任意）"
+    },
+    {
+      "id": "GRANT_CHOSEN_ABILITY",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXK04-002, WXK10-018",
+      "impl": "execStubPart2",
+      "comment": "選んだキーワード/保護能力付与（シグニ対象・SELECT_TARGET→CHOOSEインタラクション）"
+    },
+    {
+      "id": "ACCE_BANISH_SELF_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK04-031",
+      "impl": "execStubPart2",
+      "comment": "ACCE_BANISH_SELF_TRASH: アクセを自分のトラッシュへ"
+    },
+    {
+      "id": "OPP_CHOOSE_EFFECT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK04-032",
+      "impl": "execStubPart3",
+      "comment": "OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ"
+    },
+    {
+      "id": "DECK_TOP_CHECK_LEVEL_ENERGY",
+      "count": 3,
+      "cardCount": 2,
+      "sample": "WXK04-062, WXK10-031",
+      "impl": "execStubPart2",
+      "comment": "デッキ上を公開し、宣言したレベルのシグニならエナゾーンへ"
+    },
+    {
+      "id": "REDUCE_PLAY_ABILITY_COST",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK04-075",
+      "impl": "execStubPart2",
+      "comment": "REDUCE_PLAY_ABILITY_COST: 次の【出】能力コストを軽減"
+    },
+    {
+      "id": "ALL_COLOR",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK05-029",
+      "impl": "execStubPart3",
+      "comment": "ALL_COLOR: CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み"
+    },
+    {
+      "id": "BANISH_MULTI_COLOR_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK05-030",
+      "impl": "execStubPart2",
+      "comment": "複数色（2色以上）の相手シグニをバニッシュ"
+    },
+    {
+      "id": "SEED_FLOWER_OP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK05-050",
+      "impl": "execStubPart2",
+      "comment": "SEED_FLOWER_OP: 別シード1枚を開花してデッキ上をシード設置（ヤマレンゲ系）"
+    },
+    {
+      "id": "MOVE_ACCE_TO_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK05-064",
+      "impl": "execStubPart3",
+      "comment": "MOVE_ACCE_TO_SIGNI: アクセを別のシグニに付け替え"
+    },
+    {
+      "id": "PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK06-024",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: 全シグニの相手パワーマイナス防止（effectEngineで動的処理）"
+    },
+    {
+      "id": "OPP_HAND_TO_DECK_TOP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK06-028",
+      "impl": "execStubPart1",
+      "comment": "相手の手札をデッキトップに置く"
+    },
+    {
+      "id": "OPP_TRASH_FIELD_SIGNI_AND_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK06-030",
+      "impl": "execStubPart2",
+      "comment": "相手フィールドシグニとエナゾーンをすべてトラッシュ"
+    },
+    {
+      "id": "OPP_RETURN_HAND_ON_SELF_BANISH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK06-041",
+      "impl": "execStubPart3",
+      "comment": "OPP_RETURN_HAND_ON_SELF_BANISH: バニッシュされたとき、対戦相手は手札を1枚デッキの一番上に置く"
+    },
+    {
+      "id": "BANISH_BY_SELF_GOES_TO_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK06-049",
+      "impl": "execStubPart3",
+      "comment": "BANISH_BY_SELF_GOES_TO_TRASH: このシグニによるバニッシュはエナでなくトラッシュへ"
+    },
+    {
+      "id": "DECK_MILL_UNTIL_CLASS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK06-050",
+      "impl": "execStubPart2",
+      "comment": "クラスが出るまでデッキ上からトラッシュに置く"
+    },
+    {
+      "id": "SKIP_MAIN_PHASE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK06-078",
+      "impl": "execStubPart1",
+      "comment": "メインフェイズ終了"
+    },
+    {
+      "id": "ALL_CARDS_COLOR_CHANGE_BLACK",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK07-005",
+      "impl": "execStubPart3",
+      "comment": "ALL_CARDS_COLOR_CHANGE_BLACK: CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み"
+    },
+    {
+      "id": "ENERGY_COLOR_SUBSTITUTE_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK07-005",
+      "impl": "execStubPart3",
+      "comment": "エナ代替系（effectEngine.collectEnergyTrashSubstituteInfoで動的計算）"
+    },
+    {
+      "id": "PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK07-031",
+      "impl": "execStubPart2",
+      "comment": "保護・移動防止系（engine: 各防止フラグシステム未実装）"
+    },
+    {
+      "id": "CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK07-032",
+      "impl": "execStubPart3",
+      "comment": "CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN: シグニ1体の基本レベルを1にしてもよい（次の自ターン終了まで）"
+    },
+    {
+      "id": "MULTI_SIGNI_POWER_UP_5000",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK07-039",
+      "impl": "execStubPart2",
+      "comment": "複数の自シグニにパワー+5000（SELECT_TARGET→INTERNAL_POWER_UP_SELECTED）"
+    },
+    {
+      "id": "WXK07_043_CHARM_BANISH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK07-043",
+      "impl": "execStubPart3",
+      "comment": "WXK07-043「羅菌 マグネ」: 対戦相手のAPS開始時、チャームがある場合バニッシュされない（ターン終了まで）"
+    },
+    {
+      "id": "PREVENT_BOUNCE_AND_DOWN_BY_OPP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK08-024",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "BLOCK_OPP_ENCORE_AND_BET",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK08-025",
+      "impl": "execStubPart2",
+      "comment": "BLOCK_OPP_ENCORE_AND_BET: 相手のアンコール/ベット封じ"
+    },
+    {
+      "id": "GRANT_CHOSEN_ABILITY_SELF",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK08-026",
+      "impl": "execStubPart2",
+      "comment": "選んだキーワード/保護能力付与（シグニ対象・SELECT_TARGET→CHOOSEインタラクション）"
+    },
+    {
+      "id": "BEAT_ZONE_OP",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK08-029",
+      "impl": "execStubPart3",
+      "comment": "BEAT_ZONE_OP: ビートゾーン操作（「【ビート】にする」または「【ビート】がN枚以下」条件チェック）"
+    },
+    {
+      "id": "PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK08-030",
+      "impl": "execStubPart3",
+      "comment": "PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON: 全ウェポンシグニの下にトラッシュからシグニを1枚ずつ置く"
+    },
+    {
+      "id": "POWER_DOWN_BY_ZONE_CARD_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK08-032",
+      "impl": "execStubPart2",
+      "comment": "シグニゾーンのカード総数×delta → 1体相手シグニパワー修正（SELECT_TARGET→自己再帰）"
+    },
+    {
+      "id": "GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK08-048",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "PLACE_DECK_TOP_UNDER_WEAPON_SIGNI",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK08-088",
+      "impl": "execStubPart3",
+      "comment": "PLACE_DECK_TOP_UNDER_WEAPON_SIGNI: ウェポンシグニの下にデッキ上を置く"
+    },
+    {
+      "id": "GAIN_ADDITIONAL_LRIG_TYPE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK09-005",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "LRIG_TRASH_KEY_TO_CENTER_UNDER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK09-005",
+      "impl": "execStubPart2",
+      "comment": "LRIG_TRASH_KEY_TO_CENTER_UNDER: ルリグトラッシュのキーをセンタールリグの下に"
+    },
+    {
+      "id": "ENERGY_LEVEL_CONDITION_CHOOSE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK09-031",
+      "impl": "execStubPart3",
+      "comment": "ENERGY_LEVEL_CONDITION_CHOOSE: エナにレベルN以上があればCHOOSE提示"
+    },
+    {
+      "id": "POWER_MOD_BY_LRIG_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK09-035",
+      "impl": "execStubPart2",
+      "comment": "ルリグレベルに基づくパワー修正（相手センタールリグのレベルを参照）"
+    },
+    {
+      "id": "OPP_ENERGY_COLOR_CONDITION_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK09-037",
+      "impl": "execStubPart2",
+      "comment": "相手エナのカード1枚を色条件でトラッシュ（相手が選択→スキップ）"
+    },
+    {
+      "id": "SIGNI_GRANT_CHOSEN_ABILITY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK09-050",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "REPLACE_PLUS_N",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-005",
+      "impl": "execStubPart3",
+      "comment": "REPLACE_PLUS_N: このターン、相手シグニへの正パワー修正を負に置換"
+    },
+    {
+      "id": "OPP_SIGNI_TO_DECK_AND_SHUFFLE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-006",
+      "impl": "execStubPart1",
+      "comment": "相手シグニをデッキに加えてシャッフル"
+    },
+    {
+      "id": "PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-019",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "OPP_HAND_TO_DECK_BOTTOM_IF_LESS_HAND",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-025",
+      "impl": "execStubPart2",
+      "comment": "相手より手札が少ない場合、相手の手札をデッキ下へ"
+    },
+    {
+      "id": "DISCARD_BY_POWER_MATCH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-026",
+      "impl": "execStubPart2",
+      "comment": "PICK_FROM_TRASHED_CARDS の後半 / CONDITIONAL_ALTERNATE_EFFECT: 代替効果（スキップ） TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（log） OPP_DECLARE_COLOR: 相手が色を宣言（log） DISCARD_BY_POWER_MATCH: 手札の青シグニを捨て→相手手札の同パワーシグニを捨てさせる"
+    },
+    {
+      "id": "ENERGY_BY_LEVEL_SUM_LIMIT",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WXK10-050, WXK11-040",
+      "impl": "execStubPart2",
+      "comment": "エナのカードが指定レベル合計を超えたらトラッシュ"
+    },
+    {
+      "id": "SHUFFLE_DECK_POWER_HALF",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-051",
+      "impl": "execStubPart2",
+      "comment": "シャッフル後に全シグニのパワーを半減"
+    },
+    {
+      "id": "OPP_SIGNI_POWER_DOWN_BY_TRASHED_LEVEL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-056",
+      "impl": "execStubPart2",
+      "comment": "トラッシュに置かれたシグニのレベルに基づくパワー修正（1体対象 or 全体）"
+    },
+    {
+      "id": "SEED_BLOOM_OPTIONAL",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-059",
+      "impl": "execStubPart2",
+      "comment": "SEED_BLOOM: シード1枚（または好きな枚数）を開花する SEED_BLOOM_OPTIONAL: 任意でシード1枚を開花する"
+    },
+    {
+      "id": "POWER_BY_RISE_SIGNI_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-064",
+      "impl": "execStubPart2",
+      "comment": "自場ライズシグニ数に基づくパワー修正（スタック2枚以上のシグニ）"
+    },
+    {
+      "id": "HAND_NONCOLORLESS_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-083",
+      "impl": "execStubPart1",
+      "comment": "手札から無色でないカードをエナに置く"
+    },
+    {
+      "id": "POWER_MOD_BY_ATTACKER_LEVEL",
+      "count": 2,
+      "cardCount": 1,
+      "sample": "WXK10-084",
+      "impl": "execStubPart2",
+      "comment": "アタックしたシグニのレベルに基づくパワー修正"
+    },
+    {
+      "id": "POWER_BY_LEVEL_SUM_COMPARE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK10-089",
+      "impl": "execStubPart2",
+      "comment": "自・相手のシグニレベル合計比較（自≦相手の場合）× levelSum → 1体相手シグニパワー修正"
+    },
+    {
+      "id": "PREVENT_LOW_LEVEL_LRIG_DAMAGE",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-012",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_LOW_LEVEL_LRIG_DAMAGE / PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ"
+    },
+    {
+      "id": "OPP_TRASH_LOSE_COLOR_AND_CLASS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-026",
+      "impl": "execStubPart3",
+      "comment": "OPP_TRASH_LOSE_COLOR_AND_CLASS: CONT効果（effectEngineで処理）"
+    },
+    {
+      "id": "PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-026",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "MULTI_ACCE_LIMIT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-037",
+      "impl": "execStubPart3",
+      "comment": "MULTI_ACCE_LIMIT: アクセを特定枚数に制限（ログのみ）"
+    },
+    {
+      "id": "MULTI_ACCE_FROM_HAND",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-037",
+      "impl": "execStubPart3",
+      "comment": "=== バッチ12: アクセ・シグニ配置・能力付与・無効系 === ACCE_FROM_HAND: 手札のアクセカードを自分のシグニに付ける"
+    },
+    {
+      "id": "POWER_BY_CHARM_COUNT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-041",
+      "impl": "execStubPart2",
+      "comment": "自場チャーム数に基づくパワー修正"
+    },
+    {
+      "id": "BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-042",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "SET_OPP_SIGNI_POWER_BY_SELF_POWER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-043",
+      "impl": "execStubPart2",
+      "comment": "自パワーに合わせて相手シグニのパワーを設定"
+    },
+    {
+      "id": "TRASH_ALL_OPP_CARDS",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-047",
+      "impl": "execStubPart2",
+      "comment": "TRASH_ALL_OPP_CARDS: 相手エナから名前一致カードをすべてトラッシュへ"
+    },
+    {
+      "id": "POWER_BY_ENERGY_COLOR_VARIETY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-063",
+      "impl": "execStubPart2",
+      "comment": "エナゾーンの色の種類数に基づくパワー修正"
+    },
+    {
+      "id": "LOOK_TOP_OPP_CHOOSE_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-064",
+      "impl": "execStubPart3",
+      "comment": "LOOK_TOP_OPP_CHOOSE_TRASH: デッキ上N枚を公開し相手が1枚選んでトラッシュ"
+    },
+    {
+      "id": "BLOCK_OPP_DECK_TO_ENERGY",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-068",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "OPP_TRASH_TO_OPP_SIGNI_UNDER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXK11-069",
+      "impl": "execStubPart2",
+      "comment": "VIEW_AND_DISCARD_SPELL (STUB版): 手札か場のカードを見てスペルを捨てる → 手札からスペルを1枚捨てる (already implemented by batch 5 VIEW_AND_DISCARD_SPELL) OPP_TRASH_TO_OPP_SIGNI_UNDER: 相手トラッシュ最上段を相手シグニ下にカードを置く"
+    }
+  ],
+  "fallback": [
+    {
+      "id": "EXCEED_OPP_LRIG_TRASH_2",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WD23-012-A",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白",
+      "count": 2,
+      "cardCount": 2,
+      "sample": "WDK16-01T, WXK10-015",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "SEARCH_ANGEL_TO_FIELD",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX22-005",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "NO_BATTLE_DEFENDER",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WX25-P1-TK6",
+      "impl": "",
+      "comment": ""
+    },
+    {
+      "id": "TREAT_AS_LEVEL1_IN_DECK_TRASH",
+      "count": 1,
+      "cardCount": 1,
+      "sample": "WXDi-P05-086",
+      "impl": "",
+      "comment": ""
+    }
+  ],
+  "deadHandlers": [
+    {
+      "id": "PREVENT_NEXT_DAMAGE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "PREVENT_NEXT_DAMAGE_THIS_TURN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "USE_CONDITION_TEXT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "ゲームプレイに影響しない説明テキストは無音でスキップ"
+    },
+    {
+      "id": "UNLIMITED_KEYS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "ゲームプレイに影響しない説明テキストは無音でスキップ"
+    },
+    {
+      "id": "INTERNAL_OPP_PAY_COST",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_OPP_SKIP_COST",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "SET_DECLARED_NUMBER",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "DECLARE_NUMBER の宣言値を PlayerState に格納"
+    },
+    {
+      "id": "INTERNAL_DECLARE_CARD_NAME",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "STACK_SIGNI_UNDER",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "シグニの下にカードを置く"
+    },
+    {
+      "id": "INTERNAL_PLACE_SELF_UNDER_SIGNI",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_PLACE_SELF_UNDER_SIGNI: 自シグニを選択シグニのスタック下に移動"
+    },
+    {
+      "id": "AWAKEN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "覚醒メカニクス（ルリグ変身）"
+    },
+    {
+      "id": "BET_ALTERNATIVE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "BET_ALTERNATIVE: ベット強化済みなのでスキップ（BET_MECHANICで処理済み）"
+    },
+    {
+      "id": "INTERNAL_WD007_GRANT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_WD007_GRANT: 選んだ能力に応じた対象（自分シグニ or 相手シグニ）を選択"
+    },
+    {
+      "id": "INTERNAL_WD007_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_WD007_APPLY: 選択した対象に能力を付与し、ベットしていれば1回繰り返す"
+    },
+    {
+      "id": "ENCORE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "アンコールメカニクス（ルリグトラッシュのアーツをコストなしで使用）"
+    },
+    {
+      "id": "INTERNAL_ENCORE_USE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_ENCORE_USE: 選択したアーツをコストなしで実行"
+    },
+    {
+      "id": "POWER_MOD_PER_OPPONENT_FIELD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_TRASH_TO_LIFE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_TRASH_TO_LIFE: 自トラッシュの末尾カードをライフクロスへ追加（近似：相手選択なし）"
+    },
+    {
+      "id": "ATTACH_CHARM_FROM_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "ATTACH_CHARM_FROM_TRASH: トラッシュのシグニをチャームとして付与（ログのみ近似）"
+    },
+    {
+      "id": "TRASH_ALL_CHARMS_DRAW_CHARGE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "TRASH_ALL_CHARMS_DRAW_CHARGE: 場の全チャームをトラッシュ→同枚数ドロー+エナチャ"
+    },
+    {
+      "id": "DRAW_UP_TO_SIX",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "DRAW_UP_TO_SIX: 手札が6枚未満のとき、6枚になるまでカードを引く（SPK16-13E③用）"
+    },
+    {
+      "id": "INTERNAL_REMOVE_VIRUS_N",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_REMOVE_VIRUS_N: N個ウイルスを除去（effectExecutorのREMOVE_VIRUS+IS_MY_TURNハンドラから使用）"
+    },
+    {
+      "id": "INTERNAL_RV_BATCH_TRANSFER",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_RV_BATCH_TRANSFER: N個ウイルス除去 + トラッシュからシグニN枚を手札へ（WX15-028型）"
+    },
+    {
+      "id": "INTERNAL_ECRV_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_ECRV_APPLY: ウイルスN個除去→(N+1)択効果を選ぶ"
+    },
+    {
+      "id": "SUMMON_FROM_TRASH_TO_HAND_BLACK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "SUMMON_FROM_TRASH_TO_HAND_BLACK: トラッシュから黒シグニを手札へ"
+    },
+    {
+      "id": "INTERNAL_POWER_MOD_ALL_OPP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_POWER_MOD_ALL_OPP: 全相手シグニへのパワー修正"
+    },
+    {
+      "id": "INTERNAL_EXILE_OPP_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_EXILE_OPP_TRASH: 相手トラッシュのカードをゲームから除外（2枚まで）"
+    },
+    {
+      "id": "INTERNAL_TOP_TO_BOTTOM",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_HAND_TO_DECK_BOTTOM",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_OPP_ENERGY_TO_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_HAND_TO_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL: lastProcessedCardsの手札カードをエナへ移動"
+    },
+    {
+      "id": "INTERNAL_OPP_TRASH_TO_DECK_TOP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_OPP_HAND_TO_DECK_TOP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_UNKNOWN_NESTED_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_UNKNOWN_NESTED_SKIP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_BANISH_FROM_GAME_DO",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_BANISH_FROM_GAME_SKIP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "LRIG_ZONE_RESTRICT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "その他ゾーン/レベル/フェイズ制限"
+    },
+    {
+      "id": "LRIG_LEVEL_RESTRICT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "その他ゾーン/レベル/フェイズ制限"
+    },
+    {
+      "id": "EXTRA_PHASE_RESTRICT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "その他ゾーン/レベル/フェイズ制限"
+    },
+    {
+      "id": "INTERNAL_OTEC_SELECT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_OTEC_SELECT: エナゾーンから特定クラスのカードを選択してトラッシュ/手札へ"
+    },
+    {
+      "id": "INTERNAL_OTEC_MOVE_SELECTED",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_OTEC_MOVE_SELECTED: applyDirectActionのdefault経由で呼ばれ、lastProcessedCards[0]を移動"
+    },
+    {
+      "id": "INTERNAL_CMCLG_DEDUCT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_DEDUCT: 任意コストのエナを消費"
+    },
+    {
+      "id": "INTERNAL_CMCLG_TRASH_TO_DECK_LIFE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_TRASH_TO_DECK_LIFE: 自トラッシュ全→デッキにシャッフル+デッキ上→ライフ"
+    },
+    {
+      "id": "INTERNAL_CMCLG_OPP_TRASH_TO_DECK_LIFE_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_OPP_TRASH_TO_DECK_LIFE_ENERGY: 相手トラッシュ全→デッキにシャッフル+相手ライフ1枚→エナ"
+    },
+    {
+      "id": "INTERNAL_CMCLG_MILL_OPP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_MILL_OPP: 相手デッキ上N枚→トラッシュ"
+    },
+    {
+      "id": "INTERNAL_CMCLG_PLAY_CLASS_FROM_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_PLAY_CLASS_FROM_HAND: 手札から＜CLASS＞のシグニを場に出す"
+    },
+    {
+      "id": "INTERNAL_CMCLG_PLAY_CLASS_FROM_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_PLAY_CLASS_FROM_TRASH: トラッシュから＜CLASS＞のシグニをN枚まで場に出す"
+    },
+    {
+      "id": "INTERNAL_CMCLG_GRANT_SLANCER",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_GRANT_SLANCER: 選択した＜CLASS＞シグニに【Sランサー】付与"
+    },
+    {
+      "id": "INTERNAL_CMCLG_ALL_POWER_UP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_ALL_POWER_UP: 自フィールド全シグニのパワーを+N（次の対戦相手ターン終了まで継続）"
+    },
+    {
+      "id": "INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_POWER_MOD_BY_CLASS_LEVELS: ＜毒牙＞シグニのレベル合計×-1000で対象シグニのパワーを修正"
+    },
+    {
+      "id": "INTERNAL_CMCLG_APPLY_POWER_MOD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_APPLY_POWER_MOD: POWER_MOD_BY_CLASS_LEVELS の続き"
+    },
+    {
+      "id": "INTERNAL_CMCLG_DRAW_ON_POWER_ZERO",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_DRAW_ON_POWER_ZERO: このターン相手シグニのパワー≤0でドロー（フラグ設置）"
+    },
+    {
+      "id": "INTERNAL_CMCLG_GRANT_LAYER_LEAVE_BOUNCE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CMCLG_GRANT_LAYER_LEAVE_BOUNCE: 【レイヤー】持ちシグニに「場を離れたとき手札に戻す」を付与"
+    },
+    {
+      "id": "INTERNAL_SONG_FRAGMENT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_SONG_FRAGMENT: SELECT_TARGETで選択されたカードで歌のカケラ発動"
+    },
+    {
+      "id": "INTERNAL_DC_TRASH_RETRIEVE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_DC_TRASH_RETRIEVE: WXDi-P09-004用 宣言クラスを持ち《ガードアイコン》を持たないLv1/Lv2/Lv3のシグニをトラッシュから各1枚まで手札へ"
+    },
+    {
+      "id": "INTERNAL_DC_DECK_PICK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_DC_DECK_PICK: WX24-P1-035用 デッキ上3枚から宣言クラスのシグニを好きな枚数手札/エナに振り分け、残りをデッキ下へ"
+    },
+    {
+      "id": "INTERNAL_SET_DECLARED_COLOR",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "REVEAL_SECOND_PICK_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "REVEAL_SECOND_PICK_ENERGY: 2段階ピックの2段目。1段目で公開した残りのうち、 指定クラスを toMax 枚までエナゾーンへ、それ以外の残りはデッキ下/トラッシュへ。"
+    },
+    {
+      "id": "INTERNAL_CONSUME_SOUL",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CONSUME_SOUL: ソースシグニの下にあるソウルカードをルリグトラッシュへ"
+    },
+    {
+      "id": "INTERNAL_CONSUME_LRIG_UNDER",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_CONSUME_LRIG_UNDER: ルリグの下からN枚をルリグトラッシュへ（SOUL_OP optional消費の実行部）"
+    },
+    {
+      "id": "INTERNAL_PLACE_LRIG_UNDER_CENTER",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_PLACE_LRIG_UNDER_CENTER: ルリグトラッシュから選択ルリグをセンタールリグ下に配置"
+    },
+    {
+      "id": "INTERNAL_CBDOP_AFTER_DISCARD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL: 手札捨て後の効果（COUNT_BASED_DRAW_OR_POWER から継続）"
+    },
+    {
+      "id": "INTERNAL_DISCARD_LRIG_DECK_ARTS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL: ルリグデッキからアーツをルリグトラッシュへ（CHOOSEの続き）"
+    },
+    {
+      "id": "INTERNAL_TSU_CHOOSE_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_TSU_CHOOSE_ZONE: 選択トラッシュシグニをどのフィールドシグニの下に置くか選択"
+    },
+    {
+      "id": "INTERNAL_TSU_DO_PLACE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_TSU_DO_PLACE: トラッシュ→フィールド下配置実行、残りがあれば継続"
+    },
+    {
+      "id": "INTERNAL_TRASHED_TO_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_TRASHED_TO_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_OPP_SIGNI_TO_ENERGY_EXEC",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_OPP_SIGNI_TO_DECK_SHUFFLE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_OPP_FIELD_TO_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "INTERNAL_OPP_FIELD_TO_ENERGY: lastProcessedCards[0]を相手フィールドからエナゾーンへ移動"
+    },
+    {
+      "id": "INTERNAL_MOVE_TO_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_ATTACH_SOUL_FROM_LRIG",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "ソウル付与（ルリグの下カードを選択シグニに付与）"
+    },
+    {
+      "id": "INTERNAL_CHOOSE_SOUL_LRIG",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "ソウル付与（ルリグトラッシュからルリグを選択シグニに付与）"
+    },
+    {
+      "id": "INTERNAL_SET_SOUL_FROM_LRIG_TRASH_RESULT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "ルリグトラッシュ選択後ソウル付与"
+    },
+    {
+      "id": "OPP_GUARD_COST_COLORLESS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "このターン相手はガードできない（ガードコスト無色版 or ガード禁止）"
+    },
+    {
+      "id": "PREVENT_OPP_GUARD_THIS_TURN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": "このターン相手はガードできない（ガードコスト無色版 or ガード禁止）"
+    },
+    {
+      "id": "INTERNAL_TRASH_OWN_KEY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart1",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_PMBUC_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_APPLY_POWER_DELTA_OPP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_APPLY_POWER_DELTA_OPP: SELECT_TARGET後に対象シグニへparent deltaを適用"
+    },
+    {
+      "id": "INTERNAL_POWER_UP_SELECTED",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "MULTI_SIGNI_POWER_UP_5000 の後処理：選択した自シグニにパワー+5000"
+    },
+    {
+      "id": "INTERNAL_PMBTSL_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_ENERGY_TO_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "ENERGY_TO_TRASH の後処理：選択したエナカードをトラッシュへ"
+    },
+    {
+      "id": "INTERNAL_ENERGY_TO_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "ENERGY_TO_HAND_ON_DECK 後処理：選択エナを手札へ"
+    },
+    {
+      "id": "INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N: 選択した相手手札をデッキ下へ"
+    },
+    {
+      "id": "OPP_DECLARE_COLOR_COND_ENERGY_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "相手が宣言した色に応じてエナをトラッシュ（相手の宣言が必要→スキップ） DECLARE_COLOR_COND_ENERGY_TRASH: 色を宣言し、エナから宣言色のカードを任意でトラッシュ"
+    },
+    {
+      "id": "INTERNAL_DCCE_TRASH_COLOR",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_DCCE_TRASH_COLOR: 宣言色のエナ1枚をトラッシュ"
+    },
+    {
+      "id": "INTERNAL_TRASH_TO_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "TRASHED_CARD_TO_HAND_OR_ENERGY → 手札選択後処理"
+    },
+    {
+      "id": "INTERNAL_TRASH_TO_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "TRASHED_CARD_TO_HAND_OR_ENERGY → エナ選択後処理"
+    },
+    {
+      "id": "INTERNAL_TRASH_CLASS_SPLIT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_TRASH_CLASS_SPLIT: 選択カードを手札（1枚）＋エナ（残り）に振り分け"
+    },
+    {
+      "id": "INTERNAL_LIFE_TO_HAND_DO",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_ACLDH_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_ACLDH_APPLY: ADD_CARD_TO_LRIG_DECK_HIDDEN の選択後処理"
+    },
+    {
+      "id": "INTERNAL_TRASH_CARD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "VIEW_AND_DISCARD_SPELL: 手札からスペルを選んでトラッシュへ"
+    },
+    {
+      "id": "INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_OPP_TRASH_UNDER_SIGNI_ZONE: stub.value=ゾーン番号、lastProcessedCards[0]=置くカード"
+    },
+    {
+      "id": "CHOOSE_TRAP_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "CHOOSE_TRAP_ZONE: 選択済みカードのゾーン選択"
+    },
+    {
+      "id": "INTERNAL_SET_TRAP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_SET_TRAP: ゾーン番号をstub.valueで受け取りトラップ設置"
+    },
+    {
+      "id": "INTERNAL_TTH_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_TTH_APPLY: TRAP_TO_HAND選択完了後の適用"
+    },
+    {
+      "id": "ACTIVATE_TRAP_IN_FIELD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: トラップを表向きにしてTRAP_ICON効果を発動"
+    },
+    {
+      "id": "INTERNAL_OPP_SIGNI_TO_TRAP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_OPP_SIGNI_TO_TRAP: 選択した相手シグニをトラップゾーンへ"
+    },
+    {
+      "id": "INTERNAL_PTFR_CHOOSE_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_PTFR_CHOOSE_ZONE: PLACE_TRAP_FROM_REVEALED用のゾーン選択"
+    },
+    {
+      "id": "INTERNAL_SEED_FROM_DECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_SEED_FROM_DECK: SEARCHで選択したカードをデッキから取り出してゾーン選択"
+    },
+    {
+      "id": "INTERNAL_SET_SEED",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_SET_SEED: lastProcessedCards[0]を指定ゾーンにシード設置"
+    },
+    {
+      "id": "INTERNAL_BLOOM_SEED",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_BLOOM_SEED: 指定ゾーンのシードを開花する"
+    },
+    {
+      "id": "INTERNAL_SEED_TO_HAND_THEN_DECK_TOP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_SEED_TO_HAND_THEN_DECK_TOP: 指定ゾーンのシードを手札に加えてデッキ上をシード設置"
+    },
+    {
+      "id": "INTERNAL_SEED_FROM_DECK_TOP_PLACE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_SEED_FROM_DECK_TOP_PLACE: デッキ上1枚をシードとして設置"
+    },
+    {
+      "id": "BLOOM_CHOOSE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "BLOOM_CHOOSE: 開花したとき選択効果（個別効果テキスト依存）"
+    },
+    {
+      "id": "INTERNAL_REMOVE_SIGNI_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_REMOVE_SIGNI_ZONE: 選択したゾーンを削除してシグニをトラッシュへ"
+    },
+    {
+      "id": "INTERNAL_DESIGNATE_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_DESIGNATE_ZONE: 選択したゾーンを相手Stateに保存"
+    },
+    {
+      "id": "INTERNAL_PMOP_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_SET_LEVEL_RANGE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "PREVENT_SELF_DOWN_BY_OPP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP: 相手によるシグニダウン防止"
+    },
+    {
+      "id": "INTERNAL_GRANT_NO_ATTACK_LRIG",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_GRANT_NO_ATTACK_LRIG: CHOOSE_SAME_OPTION_TWICEから呼ばれる内部ハンドラ 相手センタールリグにアタック不可（negated_attacks）を付与"
+    },
+    {
+      "id": "OPTIONAL_TRADE_GUARD_SIGNI",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "ガード系（engine: ガードコスト処理未実装）"
+    },
+    {
+      "id": "INTERNAL_GRANT_KEYWORD_TO_TARGET",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_GRANT_KEYWORD_TO_TARGET: 選択されたキーワード/保護能力を対象シグニに付与"
+    },
+    {
+      "id": "GRANT_LRIG_TYPE_GAME_WIDE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_LAYER_COPY_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart2",
+      "comment": "INTERNAL_LAYER_COPY_APPLY: 選択シグニのレイヤー能力を自シグニに付与"
+    },
+    {
+      "id": "INTERNAL_RIDE_ON_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_APPLY_CLASS_CHANGE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_APPLY_CLASS_CHANGE: 選択シグニのクラスを変更"
+    },
+    {
+      "id": "INTERNAL_COPY_SIGNI_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_COPY_SIGNI_APPLY: card_identity_overrides を設定してコピーを適用"
+    },
+    {
+      "id": "INTERNAL_DISMOUNT_DO",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_MOVE_TO_BEAT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_MOVE_TO_BEAT: 選択シグニをビートゾーンへ移動"
+    },
+    {
+      "id": "INTERNAL_SIGNI_UNDER_WEAPON",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_SIGNI_UNDER_WEAPON: 選択シグニを＜ウェポン＞の下に配置"
+    },
+    {
+      "id": "INTERNAL_PTSUAW_PLACE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_PTSUAW_PLACE: ウェポン下シグニ配置の実行"
+    },
+    {
+      "id": "INTERNAL_TRASH_UNDER_SIGNI",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_TRASH_UNDER_SIGNI: シグニ下カードをトラッシュへ移動"
+    },
+    {
+      "id": "DRIVE_CONT_BANISH_RESIST",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "DRIVE_CONT_BANISH_RESIST: ドライブ常→このシグニはバニッシュされない（effectEngineで処理）"
+    },
+    {
+      "id": "DRIVE_AUTO_BANISH_ALL_OPP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "DRIVE_AUTO_BANISH_ALL_OPP: ドライブ自→アタック時に相手全シグニをバニッシュ（IS_DRIVE_STATEチェック付き）"
+    },
+    {
+      "id": "WEAPON_SIGNI_PROTECT_DOWN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "WEAPON_SIGNI_PROTECTION",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "ARM_SIGNI_LRIG_PROTECTION",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "WEAPON_SIGNI_PREVENT_DOWN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_SET_OPP_DECLARED_COLOR",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_DO_COLLAB",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_DO_COLLAB: コラボ実行（アシストルリグ1人を配置）"
+    },
+    {
+      "id": "INTERNAL_SET_GATE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_SET_MAGIC_BOX",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_SET_MAGIC_BOX: ゾーン確定後の実設置処理"
+    },
+    {
+      "id": "INTERNAL_OPEN_MB_DO",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_OPEN_MB_DO: MB表向き確定後のトラッシュ移動"
+    },
+    {
+      "id": "INTERNAL_TOSO_AFTER_SELECT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_TOSO_AFTER_SELECT: 選択後、対戦相手の手札が2枚未満なら強制でデッキ下へ。 2枚以上ある場合は対戦相手に「手札2枚を捨てて回避」か「デッキの一番下に送られるのを許す」かを選ばせる"
+    },
+    {
+      "id": "INTERNAL_TOSO_TO_DECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_TOSO_TO_DECK: 選択した相手シグニをデッキの一番下へ"
+    },
+    {
+      "id": "INTERNAL_TOSFC_AFTER_SELECT",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_TOSFC_AFTER_SELECT: 選択後にバウンスかトラッシュを選択"
+    },
+    {
+      "id": "INTERNAL_TOSFC_BOUNCE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_TOSFC_BOUNCE: 選択した相手シグニをバウンス"
+    },
+    {
+      "id": "INTERNAL_TOSFC_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_TOSFC_TRASH: 選択した相手シグニをトラッシュ"
+    },
+    {
+      "id": "HASTARLIQ_TRIGGER",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "HASTARLIQ_TRIGGER: アタックフェイズ開始時発動（BattleScreenがスタックに積む） 相手に「手札を1枚捨てる」か「《無》を支払う」か「どちらも行わない（→バニッシュ）」を選ばせる"
+    },
+    {
+      "id": "INTERNAL_HL_SELECT_DISCARD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_HL_SELECT_DISCARD: 手札を1枚選んで捨てる（ハスターリク回避）"
+    },
+    {
+      "id": "INTERNAL_HL_DO_DISCARD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_HL_DO_DISCARD: 選択した手札をトラッシュへ→バニッシュ回避"
+    },
+    {
+      "id": "INTERNAL_HL_PAY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_HL_PAY: 《無》1枚支払い→バニッシュ回避"
+    },
+    {
+      "id": "INTERNAL_HL_BANISH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_HL_BANISH: どちらも行わない→そのゾーンのシグニをバニッシュ（エナへ）"
+    },
+    {
+      "id": "INTERNAL_SDWT_DO",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_SDWT_DO: シグニトラッシュ+ダメージ無効実行"
+    },
+    {
+      "id": "INTERNAL_SNC_AFTER_SEARCH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_SNC_AFTER_SEARCH: SEARCHで非選択→trash済み、選択カードはまだdeckに残っている SEARCH+restDestがdeck上カードをtrashに移動済み（非選択分） 選択分はdeck内に残っているので、LOOK_AND_REORDER前後のdeckを比較して特定するか SEARCH.visibleCardsの中で今もdeckにあるカードを選択済みとみなす → lastProcessedCards で拾えないのでdeckを走査して特定 ここでは: SNC_AFTER_SEARCH stateを受け取って振り分けへ"
+    },
+    {
+      "id": "INTERNAL_SNC_MOVE_TO_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_SNC_MOVE_TO_HAND: 指定カードをデッキから手札へ"
+    },
+    {
+      "id": "INTERNAL_SNC_MOVE_TO_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_SNC_MOVE_TO_ENERGY: 指定カードをデッキからエナゾーンへ"
+    },
+    {
+      "id": "INTERNAL_DBPM_DISCARD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_BET_EXTRA_TO_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_BET_EXTRA_TO_HAND: ベット時の追加対象（トラッシュ→手札）を1枚処理"
+    },
+    {
+      "id": "DISABLE_FIRST_ABILITY_ON_ATTACK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "DISABLE_FIRST_ABILITY_ON_ATTACK: アタック時最初の能力を無効化（ログのみ）"
+    },
+    {
+      "id": "MAGIC_BOX_REVEAL",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "MAGIC_BOX_REVEAL: 場のMBを表向きにしてシグニにする（全MBをシグニとして配置）"
+    },
+    {
+      "id": "INTERNAL_OPP_DECK_TRASH_N",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_OPP_DECK_TRASH_N: 相手デッキの上からN枚をトラッシュ"
+    },
+    {
+      "id": "INTERNAL_ODC_COLOR_CHECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_ODC_COLOR_CHECK: 色宣言後、lastProcessedCards[0]の色を確認してペナルティ適用"
+    },
+    {
+      "id": "DRAW_IF_CHARGED_CLASS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "DRAW_IF_CHARGED_CLASS: 直前のエナチャージで＜クラス＞のシグニが置かれた場合1ドロー（WDK07-E01）"
+    },
+    {
+      "id": "HAND_EXCESS_TO_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "HAND_EXCESS_TO_ENERGY: 手札がN枚（value、既定5）より多い場合、差分を手札からエナゾーンへ（WDK08-Y08）"
+    },
+    {
+      "id": "DRAW_UNTIL_HAND_SIZE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "DRAW_UNTIL_HAND_SIZE: 手札がN枚（value、既定6）になるまで引く"
+    },
+    {
+      "id": "INTERNAL_DOWN_AND_FREEZE_OPP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_DOWN_AND_FREEZE_OPP: 相手シグニ1体をダウン+全シグニを凍結"
+    },
+    {
+      "id": "INTERNAL_BANISH_OPP_POWER_GTE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_BANISH_OPP_POWER_GTE: 相手のパワーN以上のシグニ1体をバニッシュ"
+    },
+    {
+      "id": "REVEAL_TOP_BANISH_BY_LEVEL_SUM",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "REVEAL_TOP_BANISH_BY_LEVEL_SUM: デッキ上N枚公開→公開シグニのレベル合計×1000以下の相手シグニをバニッシュ→公開カードをトラッシュ（WX17-028）"
+    },
+    {
+      "id": "INTERNAL_BANISH_ALL_POWER_GTE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_BANISH_ALL_POWER_GTE: パワーN以上のすべてのシグニ（両プレイヤー）をバニッシュ"
+    },
+    {
+      "id": "INTERNAL_FREEZE_OPP_LRIG",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_FREEZE_OPP_LRIG: 相手センタールリグを凍結（ダウン+凍結状態）"
+    },
+    {
+      "id": "INTERNAL_TRASH_SIGNI_TO_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_TRASH_SIGNI_TO_HAND: トラッシュからシグニ1枚を手札へ（CONDITIONAL_MULTI_CHOOSE系）"
+    },
+    {
+      "id": "INTERNAL_DRAW_PER_CENTER_LEVEL",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_DRAW_PER_CENTER_LEVEL: センタールリグのレベル1につき1ドロー"
+    },
+    {
+      "id": "INTERNAL_CHARGE_PER_CENTER_LEVEL",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_CHARGE_PER_CENTER_LEVEL: センタールリグのレベル1につきエナチャージ1"
+    },
+    {
+      "id": "INTERNAL_DECK_TRASH_BOTH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_DECK_TRASH_BOTH: 両プレイヤーのデッキ上N枚をトラッシュ"
+    },
+    {
+      "id": "INTERNAL_POWER_MOD_OPP_ONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_POWER_MOD_OPP_ONE: 相手の1体にパワー修正"
+    },
+    {
+      "id": "INTERNAL_BANISH_OPP_POWER_LTE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_BANISH_OPP_POWER_LTE: パワーN以下の相手シグニをバニッシュ（対象選択）"
+    },
+    {
+      "id": "REVEAL_TOP_LEVEL_ROUTE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "SUMMON_FROM_ENERGY: エナゾーンからシグニを場に出す（シグニ限定） REVEAL_TOP_LEVEL_ROUTE: デッキの一番上を公開しシグニのレベル別効果を実行（WX12-CB02） Lv1:自パワー+5000 / Lv2:エナチャージ1 / Lv3:ランサー付与 / Lv4:1ドロー / Lv5:相手シグニバニッシュ"
+    },
+    {
+      "id": "SUMMON_RESONA_FROM_LRIG_DECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "SUMMON_RESONA_FROM_LRIG_DECK: ルリグデッキからレゾナ1枚を出現条件を無視して場に出す（WX20-069等）"
+    },
+    {
+      "id": "SUMMON_FROM_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "SUMMON_FROM_TRASH: トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用）"
+    },
+    {
+      "id": "INTERNAL_DISCARD_ALL_DRAW_N",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_DISCARD_ALL_DRAW_N: 手札をすべて捨てN枚引く"
+    },
+    {
+      "id": "INTERNAL_DECK_BOTTOM_SUMMON",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_DECK_BOTTOM_SUMMON: デッキ下1枚トラッシュ→シグニなら場に出す"
+    },
+    {
+      "id": "INTERNAL_DECK_BOTTOM_LEVEL_DOWN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_DECK_BOTTOM_LEVEL_DOWN: デッキ下1枚トラッシュ→シグニなら同レベル相手シグニをダウン"
+    },
+    {
+      "id": "INTERNAL_BLOCK_ATTACK_THIS_TURN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_BLOCK_ATTACK_THIS_TURN: 対象がアタックできない 発動者（ownerState）の keyword_grants に格納する。相手ターン開始の UPフェイズで otherState.keyword_grants がリセットされても情報が失われないようにするため。"
+    },
+    {
+      "id": "INTERNAL_DOWN_SIGNI_BY_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_SELECT_COLOR",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "CHOOSE_SAME_OPTION_MULTIPLE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_MARK_REVEALED_FROM_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_MARK_REVEALED_FROM_HAND: 手札公開の記録（applyDirectAction経由で選択カードごとに呼ばれる） BattleScreenが hand_revealed_just を検出してON_REVEALED_FROM_HANDトリガーを発火しクリアする"
+    },
+    {
+      "id": "INTERNAL_MARK_REVEALED_NAMED",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_MARK_REVEALED_FROM_HAND: 手札公開の記録（applyDirectAction経由で選択カードごとに呼ばれる） BattleScreenが hand_revealed_just を検出してON_REVEALED_FROM_HANDトリガーを発火しクリアする"
+    },
+    {
+      "id": "INTERNAL_BOUNCE_TO_DECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "=== バッチ14: シグニ移動・エナ操作・複数対象系 === OPP_SIGNI_TO_DECK_AND_SHUFFLE / OPP_SIGNI_TO_DECK_BY_GATE / OPP_SIGNI_TO_DECK_NTH は line 2567 の handler で処理済み（dead code 削除） INTERNAL_BOUNCE_TO_DECK: 選択シグニをデッキにランダム挿入"
+    },
+    {
+      "id": "INTERNAL_LEAVE_TO_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_LEAVE_TO_TRASH: 選択シグニをトラッシュに置く"
+    },
+    {
+      "id": "INTERNAL_DISCARD_MATCHING_HAND_DOP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_DISCARD_PENALTY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_REPOSITION_MOVE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_REPOSITION_MOVE: 選択シグニを空きゾーンへ移動（後方互換）"
+    },
+    {
+      "id": "INTERNAL_REPOSITION_TO_ZONE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_REPOSITION_TO_ZONE: 選択シグニを指定ゾーンへ移動（SIGNI_REPOSITIONの後半）"
+    },
+    {
+      "id": "POWER_MINUS_PER_OWN_LEVEL",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "POWER_MINUS_PER_OWN_LEVEL: このシグニのレベル×2000だけ対戦相手シグニのパワーを下げる WXK08-078（弩書　エムショ）のGRANT_SIGNI_ABOVE_ABILITYで付与されるACTIVATED効果"
+    },
+    {
+      "id": "INTERNAL_NEGATE_ABILITY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_NEGATE_ABILITY: 選択シグニの能力を無効化"
+    },
+    {
+      "id": "BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: 相手ターン中、相手はシグニを配置できない"
+    },
+    {
+      "id": "PREVENT_OPP_UPKEEP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "PREVENT_OPP_UPKEEP: 相手のアップキープ（アップ）を防ぐ"
+    },
+    {
+      "id": "DRAW_IF_OPP_DISCARDED_HAND",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "DRAW_IF_OPP_DISCARDED_HAND: 相手が手札を捨てたときドロー（トリガー系・ログのみ）"
+    },
+    {
+      "id": "MOVE_LRIG_TRASH_UNDER",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "MOVE_LRIG_TRASH_UNDER: ルリグトラッシュからルリグをセンタールリグの下に置き、白/黒アーツをルリグデッキへ"
+    },
+    {
+      "id": "INHERIT_LRIG_TRASH_ABILITIES",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュにあるルリグの起動能力を継承する（BattleScreen側処理）"
+    },
+    {
+      "id": "FORCE_COLOR_BLACK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "FORCE_COLOR_BLACK: エナゾーン以外の領域にあるシグニは黒になる（collectFieldSigniExtraColorsで処理）"
+    },
+    {
+      "id": "REORDER_LIFE_CLOTHS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "REORDER_LIFE_CLOTHS: ライフクロスを好きな枚数トラッシュに置き同数デッキ上から補充し並び替え"
+    },
+    {
+      "id": "INTERNAL_REORDER_LIFE_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_REORDER_LIFE_APPLY: N枚のライフをトラッシュに置き、デッキ上からN枚をライフに追加"
+    },
+    {
+      "id": "FROZEN_LOSES_ABILITIES",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "FROZEN_LOSES_ABILITIES: 対戦相手の凍結状態のシグニは能力を失う（effectEngineで処理）"
+    },
+    {
+      "id": "OPTIONAL_RETURN_TO_LRIG_DECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "OPTIONAL_RETURN_TO_LRIG_DECK: 任意コストを支払ってルリグトラッシュからルリグをルリグデッキに戻す"
+    },
+    {
+      "id": "INTERNAL_RETURN_LRIG_TO_DECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_RETURN_LRIG_TO_DECK: ルリグトラッシュの最初のルリグをlrig_deckへ移動"
+    },
+    {
+      "id": "TRASH_AT_TURN_END",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "TRASH_AT_TURN_END: ターン終了時にlastProcessedCardsのシグニをフィールドからトラッシュに置く（WX02-005 ホワイト・ホープ）"
+    },
+    {
+      "id": "DECLARE_AND_MILL",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "DECLARE_AND_MILL: effects.jsonではDECLARE_NUMBER+MILL(useDeclaredCount)に移行済み"
+    },
+    {
+      "id": "RETURN_ANGEL_SIGNI_TO_DECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "RETURN_ANGEL_SIGNI_TO_DECK: トラッシュから天使シグニ7枚をデッキ下に置く（WX06-001 タウィル＝フィーラ E2）"
+    },
+    {
+      "id": "RETURN_UNIQUE_ANGEL_SIGNI_TO_DECK",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "RETURN_UNIQUE_ANGEL_SIGNI_TO_DECK: トラッシュから名前の異なる天使シグニ7枚をデッキ下に置く（WX06-001 E3）"
+    },
+    {
+      "id": "NEGATE_SPELL",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "NEGATE_SPELL: コスト合計5以下のスペルを打ち消す（WX11-017 ブルー・パニッシュ）"
+    },
+    {
+      "id": "GRANT_TURN_TRIGGER_3RD_DOWN",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "GRANT_TURN_TRIGGER_3RD_DOWN: このターン植物シグニ3回目ダウン時トリガー付与（WX05-042 増武）"
+    },
+    {
+      "id": "OPP_ENERGY_REDUCE_TO_N",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "OPP_ENERGY_REDUCE_TO_N: 相手のエナをstub.value枚になるようにトラッシュ（WXK06-055 CHOOSE選択肢）"
+    },
+    {
+      "id": "BANISH_FACING_IF_SELF_POWER_GE_15000",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "BANISH_FACING_IF_SELF_POWER_GE_15000: アタック時、自パワー15000以上なら正面相手シグニをバニッシュ（WD17-009）"
+    },
+    {
+      "id": "SELF_TRASH_UNLESS_TRASH_OTHERS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "SELF_TRASH_UNLESS_TRASH_OTHERS: 他の＜原子＞2体をトラッシュしないかぎり自分をトラッシュ（WXK10-039【出】）"
+    },
+    {
+      "id": "INTERNAL_STUTO_SELECT_OTHERS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_STUTO_TRASH_SELECTED",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_STUTO_TRASH_SELF",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "OPP_PUNISHER_CHOICE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "OPP_PUNISHER_CHOICE: 相手が3択（手札2捨て/エナ3トラッシュ/シグニ1トラッシュ）を選ぶ（WXK05-001【出】）"
+    },
+    {
+      "id": "INTERNAL_BIDC_BANISH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_BIDC_ENERGY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "OPP_LRIG_LOSE_ABILITY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "OPP_LRIG_LOSE_ABILITY: 相手ターンの場合、ターン終了時まで相手センタールリグは能力を失う（WX20-003） カットインが未実装のため自ターンに発動することはないが、構造上は otherState にフラグをセット"
+    },
+    {
+      "id": "LIFE_CLOTH_LOOK_TRASH_REFILL",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "LIFE_CLOTH_LOOK_TRASH_REFILL: 全ライフクロスを見て好きな枚数トラッシュ→同数デッキ上から補充（WX05-010）"
+    },
+    {
+      "id": "INTERNAL_LCLTR_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "LRIG_TRASH_TO_UNDER_AND_RETURN_ARTS: ルリグトラッシュの全ルリグをこのカードの下に、アーツをルリグデッキへ（WX05-001, WXEX2-84）"
+    },
+    {
+      "id": "TRASH_UNDER_SPELLS_POWER_MINUS",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "TRASH_UNDER_SPELLS_POWER_MINUS: このシグニの下スペルを任意枚数トラッシュ→相手シグニに-5000×枚数（WXDi-P10-040）"
+    },
+    {
+      "id": "INTERNAL_TUSP_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_TUSP_APPLY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_EVDIVA_RED_BANISH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_EVDIVA_RED_BANISH: 選択したシグニのパワー合計が12000以下ならバニッシュ（エビディバ赤効果）"
+    },
+    {
+      "id": "INTERNAL_APPLY_PRIOKE_ATTACK_TRASH",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_APPLY_PRIOKE_ATTACK_TRASH: 予約したアタック時トラッシュ能力を対象プリオケシグニに適用"
+    },
+    {
+      "id": "PRDI035_APPLY_PARADISE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "PRDI035_APPLY_PARADISE: PR-Di035 OPEN DREAM LAND! 色分岐（APS時評価）。 場の＜プリパラ＞シグニが、ある色を共通して持ちレベルが3種類以上ある場合、その色の効果を行う。"
+    },
+    {
+      "id": "EXILE_SELF_AFTER_USE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "EXILE_SELF_AFTER_USE: 使用後このカードをゲームから除外する（近似: トラッシュへ）"
+    },
+    {
+      "id": "ATTACH_SEARCHED_AS_ACCE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "ATTACH_SEARCHED_AS_ACCE: サーチしたカードを対象シグニのアクセとして付ける（手札経由近似）"
+    },
+    {
+      "id": "GROW_CENTER_IF_LEVEL_LTE_OPP",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "GROW_CENTER_IF_LEVEL_LTE_OPP: センタールリグのレベルが相手以下なら無コストグロウ"
+    },
+    {
+      "id": "TRASH_ATTACHED_OR_UNDER_CARD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "TRASH_ATTACHED_OR_UNDER_CARD: シグニに付いているカードまたは下のカード1枚をトラッシュ"
+    },
+    {
+      "id": "INTERNAL_ARTS_RECYCLE_EXECUTE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_ARTS_RECYCLE_EXECUTE: アーツをルリグトラッシュからルリグデッキへ回収実行"
+    },
+    {
+      "id": "INTERNAL_DECLARE_ZONE_EXECUTE",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "INTERNAL_DECLARE_ZONE_EXECUTE: 選択した領域を declared_class_zones に記録"
+    },
+    {
+      "id": "INTERNAL_DPE_PAY",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_DPE_SELECT_DISCARD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "INTERNAL_DPE_DO_DISCARD",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": ""
+    },
+    {
+      "id": "SET_CANCEL_ATTACK_FLAG",
+      "count": 0,
+      "cardCount": 0,
+      "sample": "",
+      "impl": "execStubPart3",
+      "comment": "SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時）"
+    }
+  ]
+}
