@@ -8476,12 +8476,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       const lrigTop = my.field.lrig.at(-1);
       const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
+      // ルリグ自身の【起】効果か、付与/継承された【起】効果かでラベルを分ける
+      const isOwnLrigEffect = (effectsMap.get(lrigTop ?? '') ?? []).some(e => e.effectId === effect.effectId);
       const entry: import('../types').StackEntry = {
         id: generateUUID(),
         playerId: user.id,
         cardNum: lrigTop ?? '',
         effectId: effect.effectId,
-        label: `${cardName} の【起】付与効果`,
+        label: isOwnLrigEffect ? `${cardName} の【起】効果` : `${cardName} の【起】付与効果`,
         effect,
       };
       // ON_EXCEED_COST: エクシードのコストとしてルリグトラッシュに置かれたカードのトリガー（WXK03-005）
@@ -8639,7 +8641,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const eff of lrigEffsMA) {
           if (eff.effectType !== 'ACTIVATED') continue;
           if (!eff.timing?.includes('MAIN')) continue;
-          if (!eff.repeatable && my.actions_done?.includes(eff.effectId)) continue;
+          // ルリグの【起】効果は基本何度でも使用可（ターン1回アイコンを持つ場合のみ usageLimit で制限）。
+          // 他パス（シグニ/付与/キー）と同様に usageLimit 基準で判定する。
+          if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
+          if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
           if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
           if (my.blocked_actions?.includes(eff.effectId)) continue;
           // SONG_FRAGMENT: エナゾーンに歌のカケラがある場合のみ表示
