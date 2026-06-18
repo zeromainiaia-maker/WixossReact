@@ -13,6 +13,9 @@ WixossカードゲームのReactクローン実装。
 - **メモ・ノート・引き継ぎ（HANDOFF）・調査記録などの .md は必ず `docs/` にまとめる**。プロジェクトルートに散らばせない。
 - ルート直下に置いてよいのは定位置が規約で決まっているものだけ：`CLAUDE.md` / `README.md` / `.github/pull_request_template.md`
 - 現状の `docs/` の主要ファイル：
+  - **`DESIGN.md` — 設計方針・開発ルール（まずこれを読む）**
+  - **`TODO.md` — 残作業の一覧（完了したら消す）**
+  - **`BUGFIXES.md` — バグ修正記録（新しいものを上に追記）**
   - `STUBS.md` — STUB実装状況の一覧
   - `TokenCallers.md` — トークン↔呼び出し元の対応表
   - `effects-json-guide.md` — effects JSONの表現語彙・ガイド
