@@ -4764,5 +4764,20 @@ export function execStubPart3(
       `${ctx.cardMap.get(hostSigniNumBHWPU)?.CardName ?? hostSigniNumBHWPU}のパワー+2000（ターン終了時まで）`));
   }
 
+  // WXK07-043「羅菌 マグネ」: 対戦相手のAPS開始時、チャームがある場合バニッシュされない（ターン終了まで）
+  if (stub.id === 'WXK07_043_CHARM_BANISH') {
+    const srcNum = ctx.sourceCardNum;
+    if (!srcNum) return done(addLog(ctx, '[WXK07_043_CHARM_BANISH: sourceCardNum未設定]'));
+    const zoneIdx = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcNum);
+    if (zoneIdx < 0) return done(addLog(ctx, '[WXK07_043_CHARM_BANISH: ゾーン不明]'));
+    const hasCharm = (ctx.ownerState.field.signi_charms?.[zoneIdx] ?? null) !== null;
+    if (!hasCharm) return done(addLog(ctx, '【チャーム】なし（WXK07-043スキップ）'));
+    const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
+    grants[srcNum] = [...new Set([...(grants[srcNum] ?? []), 'PROTECTION:BANISH:opponent'])];
+    const newOwner: PlayerState = { ...ctx.ownerState, keyword_grants: grants };
+    return done(addLog({ ...ctx, ownerState: newOwner },
+      `${ctx.cardMap.get(srcNum)?.CardName ?? srcNum}：バニッシュされない（ターン終了時まで）`));
+  }
+
   return null;
 }
