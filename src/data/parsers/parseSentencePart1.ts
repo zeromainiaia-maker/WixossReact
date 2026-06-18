@@ -171,6 +171,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- ガード不可 ----
   if (t.match(/対戦相手は(?:.*シグニで)?【ガード】ができない/)) {
     const until: BlockActionAction['until'] = t.includes('次の') ? 'NEXT_TURN' : 'END_OF_TURN';
+    // 「レベルN以下のシグニで【ガード】ができない」はレベル制限ガード（GUARD_MAX_LVN）として扱う。
+    // この一般ルールを先に評価するため、ここで判別しないと後段の専用ルールに到達せず
+    // 全ガード禁止(GUARD)に誤分類される（WX01-004 等で発生していた不具合）。
+    const lvM = t.match(/レベル([０-９\d]+)以下のシグニで【ガード】ができない/);
+    if (lvM) {
+      return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: `GUARD_MAX_LV${parseNum(lvM[1])}`, until };
+    }
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until };
   }
 
@@ -1228,13 +1235,6 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- このシグニはアタックできない（CONTINUOUS）----
   if (t.match(/このシグニはアタックできない/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'ATTACK_SIGNI_SELF', until: 'PERMANENT' };
-  }
-
-  // ---- ガード制限（このターン、レベルN以下はガードできない）----
-  const guardLvM = t.match(/対戦相手.*レベル([０-９\d]+)以下のシグニで【ガード】ができない/);
-  if (guardLvM) {
-    const lv = parseNum(guardLvM[1]);
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: `GUARD_MAX_LV${lv}`, until: 'END_OF_TURN' };
   }
 
   // ---- ライフクロス → トラッシュ ----

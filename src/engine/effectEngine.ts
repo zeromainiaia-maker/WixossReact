@@ -1530,6 +1530,24 @@ export function calcContinuousBlockedActions(
   scanField(ownerState, otherState, isOwnerTurn, true);
   scanField(otherState, ownerState, !isOwnerTurn, false);
 
+  // センタールリグの self 対象 CONTINUOUS BLOCK_ACTION（グロウフェイズスキップ等）を拾う。
+  // scanField はシグニゾーンの opponent 対象ブロックのみ対象にするため、ルリグが自分自身へ
+  // 課す制約（「あなたのグロウフェイズをスキップする」= GROW など）はここで補完する。
+  const scanLrigSelfBlocks = (fieldOwner: PlayerState, fieldOther: PlayerState, isFieldOwnerTurn: boolean, isMe: boolean) => {
+    if (fieldOwner.lrig_abilities_disabled) return;
+    const lrigTop = fieldOwner.field.lrig.at(-1);
+    if (!lrigTop) return;
+    for (const effect of (effectsMap.get(lrigTop) ?? [])) {
+      if (effect.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(effect.activeCondition, fieldOwner, fieldOther, isFieldOwnerTurn, cardMap, lrigTop)) continue;
+      for (const b of extractBlockActions(effect.action)) {
+        if (b.target.owner === 'self') (isMe ? forSelf : forOther).add(b.actionId);
+      }
+    }
+  };
+  scanLrigSelfBlocks(ownerState, otherState, isOwnerTurn, true);
+  scanLrigSelfBlocks(otherState, ownerState, !isOwnerTurn, false);
+
   // ONE_ATTACK_PER_TURN: このシグニ自身にこの常在効果があり、すでにアタック済みならアタック不可
   for (const stack of ownerState.field.signi) {
     if (!stack?.length) continue;

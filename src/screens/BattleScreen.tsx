@@ -3505,7 +3505,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     if (bs.turn_phase === 'GROW') {
       const grew    = my.actions_done?.includes('GROW') ?? false;
-      const blocked = my.blocked_actions?.includes('GROW') ?? false;
+      // 静的封じ + CONTINUOUS（グロウフェイズスキップ常在）+ no_grow を考慮
+      const blocked = isActionBlocked('GROW') || (my.no_grow ?? false);
       if (!grew && !blocked) {
         const hasAffordable = growCandidates.some(card => {
           const gCoin = parseCoinCost(card.GrowCost);
@@ -7063,7 +7064,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── GROWフェイズ：グロウ可能なら最初の候補でグロウ ───
     if (phase === 'GROW') {
       const grew    = cpuSt.actions_done?.includes('GROW') ?? false;
-      const blocked = (cpuSt.blocked_actions?.includes('GROW') ?? false) || (cpuSt.no_grow ?? false);
+      // 静的封じ + CONTINUOUS（グロウフェイズスキップ常在）+ no_grow を考慮
+      const cpuContBlockedGrow = calcContinuousBlockedActions(cpuSt, huSt, true, effectsMap, battleCardMap).forSelf.has('GROW');
+      const blocked = (cpuSt.blocked_actions?.includes('GROW') ?? false) || cpuContBlockedGrow || (cpuSt.no_grow ?? false);
       if (!grew && !blocked) {
         const currentLrigId = cpuSt.field.lrig.at(-1) ?? null;
         const currentLrigNum = currentLrigId ? getCardNum(currentLrigId) : null;
@@ -10920,7 +10923,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         {/* GROWフェイズのグロウボタン */}
         {isMyTurn && bs.turn_phase === 'GROW' && (() => {
           const used    = my.actions_done?.includes('GROW') ?? false;
-          const blocked = (my.blocked_actions?.includes('GROW') ?? false) || (my.no_grow ?? false);
+          const blocked = isActionBlocked('GROW') || (my.no_grow ?? false);
           if (used || blocked || growCandidates.length === 0) return null;
           return (
             <button onClick={() => setShowGrowModal(true)} disabled={loading}
