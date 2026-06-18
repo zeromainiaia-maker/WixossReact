@@ -4917,15 +4917,84 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       });
   };
 
-  // スペルカットイン候補（自分の lrig_deck から、相手がスペル発動中のとき用）
-  const cutinCandidates = my.lrig_deck
-    .filter((num, i, arr) => arr.indexOf(num) === i)
-    .map(num => battleCardMap.get(num))
-    .filter((c): c is CardData =>
-      !!c &&
-      c.Timing.includes('スペルカットイン') &&
-      meetsRestriction(c.Restriction, lrigClass, ignoreRestriction)
-    );
+  // スペルカットイン候補（lrig_deck + field lrig + signi_field + hand）
+  const cutinCandidates: CutinCandidate[] = (() => {
+    if (!bs.pending_spell || bs.pending_spell.caster_id === user.id) return [];
+    const pendingSpellCard = battleCardMap.get(bs.pending_spell.card_num);
+    const pendingSpellCostTotal = pendingSpellCard
+      ? parseGrowCost(pendingSpellCard.Cost).reduce((s, c) => s + c.count, 0)
+      : 0;
+    const result: CutinCandidate[] = [];
+
+    // 1. lrig_deck: CSV Timing列に「スペルカットイン」を含むカード
+    my.lrig_deck
+      .filter((id, i, arr) => arr.indexOf(id) === i)
+      .forEach(instanceId => {
+        const cardNum = getCardNum(instanceId);
+        const card = battleCardMap.get(cardNum);
+        if (!card || !card.Timing.includes('スペルカットイン')) return;
+        if (!meetsRestriction(card.Restriction, lrigClass, ignoreRestriction)) return;
+        const effs = effectsMap.get(instanceId) ?? effectsMap.get(cardNum) ?? [];
+        const eff = effs.find(e => e.effectType === 'ACTIVATED');
+        const maxCost = eff ? findCounterSpellMaxCost(eff.action) : undefined;
+        if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
+        const dummyEff: import('../types/effects').CardEffect = eff ?? {
+          effectId: cardNum + '-cutin-dummy',
+          effectType: 'ACTIVATED',
+          timing: ['SPELL_CUTIN'],
+          action: { type: 'COUNTER_SPELL' },
+          duration: 'INSTANT',
+          mandatory: false,
+          parseStatus: 'MANUAL',
+        };
+        result.push({ card, instanceId, source: 'lrig_deck', effect: dummyEff });
+      });
+
+    // 2. lrig_field: ACTIVATED効果にSPELL_CUTINタイミングを持つルリグ
+    [...new Set(my.field.lrig.filter(Boolean))].forEach(instanceId => {
+      const cardNum = getCardNum(instanceId);
+      const card = battleCardMap.get(cardNum);
+      if (!card) return;
+      const effs = effectsMap.get(instanceId) ?? effectsMap.get(cardNum) ?? [];
+      const eff = effs.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
+      if (!eff) return;
+      if (eff.cost?.exceed) return;
+      if (eff.cost?.underSelfTrash) return;
+      if (eff.cost?.coin) return;
+      const maxCost = findCounterSpellMaxCost(eff.action);
+      if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
+      result.push({ card, instanceId, source: 'lrig_field', effect: eff });
+    });
+
+    // 3. signi_field: ACTIVATED効果にSPELL_CUTINタイミングを持つシグニ
+    my.field.signi.forEach((zone, zoneIdx) => {
+      const topId = zone?.at(-1);
+      if (!topId) return;
+      const cardNum = getCardNum(topId);
+      const card = battleCardMap.get(cardNum);
+      if (!card) return;
+      const effs = effectsMap.get(topId) ?? effectsMap.get(cardNum) ?? [];
+      const eff = effs.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
+      if (!eff) return;
+      const maxCost = findCounterSpellMaxCost(eff.action);
+      if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
+      result.push({ card, instanceId: topId, source: 'signi_field', effect: eff, zoneIdx });
+    });
+
+    // 4. hand: ACTIVATED効果にSPELL_CUTINタイミングを持つ手札カード
+    my.hand.forEach((cardNum, handIdx) => {
+      const card = battleCardMap.get(cardNum);
+      if (!card) return;
+      const effs = effectsMap.get(cardNum) ?? [];
+      const eff = effs.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
+      if (!eff) return;
+      const maxCost = findCounterSpellMaxCost(eff.action);
+      if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
+      result.push({ card, instanceId: cardNum, source: 'hand', effect: eff, handIdx });
+    });
+
+    return result;
+  })();
 
   const toggleGrowCostCard = (idx: number) => {
     setSelectedGrowCost(prev => {
