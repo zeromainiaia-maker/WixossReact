@@ -802,6 +802,84 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WD19-018 ラブリー・バイオ（スペル）
+  // 以下の２つから１つを選ぶ。
+  // ①自分の＜微菌＞のシグニ１体をバニッシュ → 相手シグニゾーン１つにウィルスを置く
+  // ②自分の＜微菌＞のシグニ１体をバニッシュ → 相手シグニ１体のパワーを－7000（ターン終了時まで）
+  'WD19-018': [
+    {
+      effectId: 'WD19-018-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '黒', count: 0 }] },
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          {
+            choiceId: 'c0',
+            label: '①自分の＜微菌＞シグニをバニッシュ→ウィルス',
+            action: {
+              type: 'SEQUENCE',
+              steps: [
+                {
+                  type: 'BANISH',
+                  target: {
+                    type: 'SIGNI',
+                    owner: 'self',
+                    count: 1,
+                    filter: { cardType: 'シグニ', signiClass: '微菌' },
+                    upToCount: false,
+                  },
+                },
+                {
+                  type: 'PLACE_VIRUS',
+                  targetOwner: 'opponent',
+                  zoneCount: 1,
+                  virusCount: 1,
+                },
+              ],
+            },
+          },
+          {
+            choiceId: 'c1',
+            label: '②自分の＜微菌＞シグニをバニッシュ→相手シグニ－7000',
+            action: {
+              type: 'SEQUENCE',
+              steps: [
+                {
+                  type: 'BANISH',
+                  target: {
+                    type: 'SIGNI',
+                    owner: 'self',
+                    count: 1,
+                    filter: { cardType: 'シグニ', signiClass: '微菌' },
+                    upToCount: false,
+                  },
+                },
+                {
+                  type: 'POWER_MODIFY',
+                  target: {
+                    type: 'SIGNI',
+                    owner: 'opponent',
+                    count: 1,
+                    filter: { cardType: 'シグニ' },
+                    upToCount: false,
+                  },
+                  delta: -7000,
+                },
+              ],
+            },
+          },
+        ],
+      } as ChooseAction,
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
