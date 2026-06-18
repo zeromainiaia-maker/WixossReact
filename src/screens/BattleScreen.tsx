@@ -10170,18 +10170,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             const extraArtsCosts = activeCostMods.forMy
                               .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                               .flatMap(m => m.amount);
+                            const exceedCostCand = candidate.source === 'lrig_field'
+                              ? (candidate.effect.cost?.exceed ?? 0) : 0;
+                            const totalExceedAvailCand = (my.field.lrig.length - 1)
+                              + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
+                              + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);
+                            const canAffordExceedCand = exceedCostCand === 0 || totalExceedAvailCand >= exceedCostCand;
                             const isHandDiscard = candidate.source === 'hand' && candidate.effect.cost?.discardSelfFromHand;
                             const costStr = candidate.source === 'lrig_deck'
                               ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === candidate.card.CardName); return r ? removeNColorFromCost(candidate.card.Cost, '無', r.colorlessReduction) : candidate.card.Cost; })()
                               : effectEnergyCostStr(candidate.effect.cost?.energy);
-                            const costLabel = isHandDiscard ? '手札から自分を捨てる'
-                              : (candidate.source === 'lrig_deck' ? candidate.card.Cost || 'なし' : costStr || 'なし');
-                            const canAfford = isHandDiscard
+                            const canAffordEnergy = isHandDiscard
                               ? true
                               : canAffordWithExtraCost(my.energy, battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+                            const canAfford = canAffordEnergy && canAffordExceedCand;
+                            const exceedPart = exceedCostCand > 0 ? `エクシード${exceedCostCand}` : '';
+                            const energyPart = isHandDiscard ? '手札から自分を捨てる'
+                              : (candidate.source === 'lrig_deck' ? candidate.card.Cost || '' : costStr || '');
+                            const costLabel = [exceedPart, energyPart].filter(Boolean).join('・') || 'なし';
                             return (
                               <button key={candidate.instanceId}
-                                onClick={() => { if (canAfford) { setPendingCutinCard(candidate); setSelectedCutinCost(new Set()); } }}
+                                onClick={() => { if (canAfford) { setPendingCutinCard(candidate); setSelectedCutinCost(new Set()); setSelectedCutinExceed(new Set()); } }}
                                 disabled={loading || !canAfford}
                                 style={{ display: 'flex', alignItems: 'center', gap: 10,
                                   padding: '8px 12px', borderRadius: 8, border: C.borderUI,
