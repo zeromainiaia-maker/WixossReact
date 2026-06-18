@@ -185,6 +185,11 @@ export function matchesFilter(
     const effectiveClass = classOverride ?? allZoneClassOverrides?.[card.CardNum ?? ''] ?? card.CardClass ?? '';
     if (!stories.some(s => effectiveClass.includes(s))) return false;
   }
+  if (filter.signiClass) {
+    const classes = Array.isArray(filter.signiClass) ? filter.signiClass : [filter.signiClass];
+    const effectiveClass = classOverride ?? allZoneClassOverrides?.[card.CardNum ?? ''] ?? card.CardClass ?? '';
+    if (!classes.some(c => effectiveClass.includes(c))) return false;
+  }
   if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
   if (filter.cardNames && !filter.cardNames.includes(card.CardName ?? '')) return false;
   if (filter.excludeCardName && card.CardName === filter.excludeCardName) return false;
