@@ -331,6 +331,8 @@ export interface PlayerState {
   pending_prioke_attack_trash_grant?: boolean;
   // PR-Di035: 次のアタックフェイズ開始時にプリパラ共通色・レベル3種類チェックして色別効果
   pending_pridi035_paradise?: boolean;
+  // NEGATE_ATTACK_ON_TRIGGER: アタックを無効にする（WXDi-P11-055）
+  cancel_current_signi_attack?: boolean;
 }
 
 export interface GameLog {
