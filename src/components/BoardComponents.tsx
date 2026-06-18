@@ -407,7 +407,13 @@ export function getSigniStatusKeywords(
   const card = cards.find(c => c.CardNum === getCardNum(topNum));
   const text = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
   const granted = keywordGrants?.[topNum] ?? [];
-  const has = (kw: string) => granted.includes(kw) || text.includes(`【${kw}】`);
+  // 「【kw】を得る/得て/を持つ/を与える」等、効果で付与・参照される記述は固有キーワードとして扱わない。
+  // （実際に付与された場合は keywordGrants 側で動的に検出されるため、未発動時にバッジが誤表示されない）
+  const has = (kw: string) => {
+    if (granted.includes(kw)) return true;
+    const stripped = text.replace(new RegExp(`【${kw}】(を得る|を得て|を持|を与え)`, 'g'), '');
+    return stripped.includes(`【${kw}】`);
+  };
   const result = KEYWORD_BADGES.filter(b => has(b.keyword)).map(b => b.keyword);
   // 上位キーワードがあれば下位を除外
   const drop = new Set<string>();
