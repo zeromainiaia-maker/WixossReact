@@ -8826,6 +8826,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!stack || stack.length === 0) return []; // シグニなし
       if (my.field.signi_down?.[rawZoneIdx]) return []; // すでにダウン
       if (op.field.check) return []; // 相手のライフバースト処理待ち
+      if (my.pending_signi_battle) return []; // 別シグニのアタック解決中は操作不可
+      if (loading) return []; // 処理中は操作不可
       const topNum = stack[stack.length - 1];
       if (contBlocked.cannotAttackSigni.has(topNum)) return []; // アタック不可シグニ
       // GATE: blocked_actions に 'ATTACK:cardId' があればアタックボタンを非表示
