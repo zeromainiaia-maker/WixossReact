@@ -4958,7 +4958,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const effs = effectsMap.get(instanceId) ?? effectsMap.get(cardNum) ?? [];
       const eff = effs.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
       if (!eff) return;
-      if (eff.cost?.exceed) return;
       if (eff.cost?.underSelfTrash) return;
       if (eff.cost?.coin) return;
       const maxCost = findCounterSpellMaxCost(eff.action);
