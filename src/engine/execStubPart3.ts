@@ -4773,7 +4773,9 @@ export function execStubPart3(
     const hasCharm = (ctx.ownerState.field.signi_charms?.[zoneIdx] ?? null) !== null;
     if (!hasCharm) return done(addLog(ctx, '【チャーム】なし（WXK07-043スキップ）'));
     const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-    grants[srcNum] = [...new Set([...(grants[srcNum] ?? []), 'PROTECTION:BANISH:opponent'])];
+    // テキストは全方位「バニッシュされない」。効果バニッシュは PROTECTION:BANISH 経路、
+    // バトル/ルールバニッシュ（パワー0以下）は hasBanishResist が 'バニッシュされない' を見るため両方付与する。
+    grants[srcNum] = [...new Set([...(grants[srcNum] ?? []), 'PROTECTION:BANISH:opponent', 'バニッシュされない'])];
     const newOwner: PlayerState = { ...ctx.ownerState, keyword_grants: grants };
     return done(addLog({ ...ctx, ownerState: newOwner },
       `${ctx.cardMap.get(srcNum)?.CardName ?? srcNum}：バニッシュされない（ターン終了時まで）`));
