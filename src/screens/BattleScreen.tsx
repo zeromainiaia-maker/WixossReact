@@ -10190,17 +10190,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 );
               }
               /* カットインのコスト選択 */
-              const cutinReductionModal = specificCardCostReductions.find(r => r.targetCardName === pendingCutinCard.CardName);
-              const cutinReducedCostModal = cutinReductionModal ? removeNColorFromCost(pendingCutinCard.Cost, '無', cutinReductionModal.colorlessReduction) : pendingCutinCard.Cost;
-              const costItems = parseGrowCost(cutinReducedCostModal);
+              const isHandDiscardModal = pendingCutinCard.source === 'hand' && pendingCutinCard.effect.cost?.discardSelfFromHand;
+              const cutinCostStrModal = pendingCutinCard.source === 'lrig_deck'
+                ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === pendingCutinCard.card.CardName); return r ? removeNColorFromCost(pendingCutinCard.card.Cost, '無', r.colorlessReduction) : pendingCutinCard.card.Cost; })()
+                : effectEnergyCostStr(pendingCutinCard.effect.cost?.energy);
+              const cutinCostLabelModal = isHandDiscardModal ? '手札から自分を捨てる'
+                : (pendingCutinCard.source === 'lrig_deck' ? pendingCutinCard.card.Cost || 'なし' : cutinCostStrModal || 'なし');
+              const costItems = isHandDiscardModal ? [] : parseGrowCost(cutinCostStrModal);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedCutinCost].map(i => my.energy[i]);
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
-              const isValid = totalReq === 0 ||
+              const isValid = totalReq === 0 || isHandDiscardModal ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, cutinReducedCostModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -10212,12 +10216,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>カットインコスト選択</p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <img src={pendingCutinCard.ImgURL} alt={pendingCutinCard.CardName}
+                    <img src={pendingCutinCard.card.ImgURL} alt={pendingCutinCard.card.CardName}
                       style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
                       onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                     <div>
-                      <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{pendingCutinCard.CardName}</p>
-                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: {pendingCutinCard.Cost || 'なし'}</p>
+                      <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{pendingCutinCard.card.CardName}</p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: {cutinCostLabelModal}</p>
                     </div>
                   </div>
                   {totalReq > 0 && (
