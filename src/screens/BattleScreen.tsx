@@ -3566,6 +3566,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // フェイズ進行（エナフェイズ・グロウフェイズ未使用時は確認ポップアップ）
   const handlePhaseAdvance = () => {
     if (!iControlThisPhase || loading) return;
+    if (my.pending_signi_battle) return; // シグニアタック解決中はフェイズ移行不可
     if (my.field.check || op.field.check) return; // チェックゾーンにカードがある間はブロック
     // UPKEEP_OR_NO_UP: センタールリグのアップ条件未払いなら確認を挟む
     if (bs.turn_phase === 'UP' && my.lrig_upkeep_condition) {
