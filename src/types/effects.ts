@@ -1096,6 +1096,7 @@ export interface StubAction {
   revealed?: string[]; // REVEAL_SECOND_PICK_ENERGY: 1段目で公開したカード一覧（残り算出用）
   secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
   value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）
+  count?: number;          // GAIN_SIGNI_BARRIER / GAIN_LRIG_BARRIER 等の個数
 }
 
 // 生徒との絆を獲得する（ブルアカ絆メカニクス）

@@ -53,6 +53,24 @@ import {
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
+  // ---- 【シグニバリア】/【ルリグバリア】を得る ----
+  // 純粋なバリア付与文のみマッチ（「白のルリグ1体につき【ルリグバリア】…」等の複雑文は別stubで処理するため除外）。
+  // 従来は汎用 GRANT_KEYWORD(keyword:○バリア) になり no-op だった。エンジン実装済みの
+  // GAIN_SIGNI_BARRIER / GAIN_LRIG_BARRIER stub（フリーゾーンにトークン設置）を返す。
+  {
+    const barrierM = t.match(/^【(シグニバリア|ルリグバリア)】([０-９\d]+)?つ?(?:と【(シグニバリア|ルリグバリア)】([０-９\d]+)?つ?)?を得る。?$/);
+    if (barrierM) {
+      const mkBarrier = (kw: string, numStr?: string): StubAction => {
+        const id = kw === 'シグニバリア' ? 'GAIN_SIGNI_BARRIER' : 'GAIN_LRIG_BARRIER';
+        const n = numStr ? parseNum(numStr) : 1;
+        return n !== 1 ? { type: 'STUB', id, count: n } : { type: 'STUB', id };
+      };
+      const first = mkBarrier(barrierM[1], barrierM[2]);
+      if (barrierM[3]) return { type: 'SEQUENCE', steps: [first, mkBarrier(barrierM[3], barrierM[4])] };
+      return first;
+    }
+  }
+
   // ---- 条件かぎり、代わりに＋Nされる/する（条件付き代替パワー修正）----
   if (t.match(/^[^。]+かぎり、代わりに[＋+][０-９\d]+(?:される|する)/)) {
     return { type: 'STUB', id: 'CONDITIONAL_ALT_POWER_BOOST' } as StubAction;
