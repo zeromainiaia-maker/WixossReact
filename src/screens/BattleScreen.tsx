@@ -7741,6 +7741,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // シグニ起動効果を実行（コスト支払い後）
   const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set()) => {
     if (loading) return;
+    // down_self コストは、対象シグニが既にダウンしていると支払えない（多重発動防止）
+    if (effect.cost?.down_self) {
+      const dzi = my.field.signi.findIndex(s => s?.at(-1) === cardNum);
+      if (dzi >= 0 && (my.field.signi_down?.[dzi] ?? false)) return;
+    }
     setLoading(true);
     setPendingSigniActivated(null);
     setSelectedSigniActivatedCost(new Set());
@@ -8551,6 +8556,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           (eff.action as import('../types/effects').StubAction).id === 'RESTRICT_CHARMED_SIGNI_ACTIVATED'
         );
       });
+      // down_self コストは、このシグニが既にダウンしていると支払えない
+      const isAlreadyDown = my.field.signi_down?.[rawZoneIdx] ?? false;
+      // discard コストは手札の枚数が足りないと支払えない
+      const handCount = my.hand.length;
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
         (e.timing === undefined || e.timing.includes('MAIN')) &&
@@ -8561,6 +8570,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         !isActionBlocked('USE_ACT') &&
         !isInfectedBlocked &&
         !isCharmActivateBlocked &&
+        !(e.cost?.down_self && isAlreadyDown) &&
+        !(e.cost?.discard && handCount < e.cost.discard) &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
       );
       if (activatable.length === 0) return [];
