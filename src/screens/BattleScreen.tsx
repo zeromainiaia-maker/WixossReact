@@ -883,7 +883,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // v0.278: WX25-P2-001 付与【起】（ガードシグニ捨て→ルリグバリア）
   const [pendingGuardBarrierAct, setPendingGuardBarrierAct] = useState(false);
   const [selectedBarrierGuardCard, setSelectedBarrierGuardCard] = useState<number | null>(null);
-  const [pendingCutinCard, setPendingCutinCard] = useState<CardData | null>(null);
+  const [pendingCutinCard, setPendingCutinCard] = useState<CutinCandidate | null>(null);
   const [selectedCutinCost, setSelectedCutinCost] = useState<Set<number>>(new Set());
   // シグニ起動効果
   const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
