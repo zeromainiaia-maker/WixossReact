@@ -3953,7 +3953,7 @@ export function execStubPart3(
   }
 
   // DECLARE_NUMBER: 数字を宣言する（DECLARE_AND_MILLの分離STUBとして使用）
-  // → execStub.tsではDECLARE_NUMBERが既に実装済み（STUBS.md ✅）のため不要
+  // → execStub.tsではDECLARE_NUMBERが既に実装済み（docs/STUBS.md ✅）のため不要
 
   // OPP_ENERGY_REDUCE_TO_N: 相手のエナをstub.value枚になるようにトラッシュ（WXK06-055 CHOOSE選択肢）
   if (stub.id === 'OPP_ENERGY_REDUCE_TO_N') {
