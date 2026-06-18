@@ -10315,6 +10315,47 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
+                  {exceedCostModal > 0 && (
+                    <>
+                      <p style={{ color: exceedOkModal ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                        エクシード選択: {selectedCutinExceed.size} / {exceedCostModal}枚（ルリグの下から選択）
+                      </p>
+                      <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                        {exceedPoolModal.map((id, i) => {
+                          const exCard = battleCardMap.get(getCardNum(id));
+                          const isSel = selectedCutinExceed.has(i);
+                          return (
+                            <div key={i} onClick={() => {
+                              setSelectedCutinExceed(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) { next.delete(i); } else if (next.size < exceedCostModal) { next.add(i); }
+                                return next;
+                              });
+                            }}
+                            style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
+                              overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                              border: isSel ? '2px solid #ff6600' : C.borderCard }}>
+                              {exCard
+                                ? <img src={exCard.ImgURL} alt={exCard.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                                : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 8, color: C.textFaint }}>{id}</span>
+                                  </div>
+                              }
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,102,0,0.45)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: C.text, fontSize: 14, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <button onClick={() => handleCutinUse(pendingCutinCard, selectedCutinCost)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
