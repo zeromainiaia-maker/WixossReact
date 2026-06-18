@@ -1890,6 +1890,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
       const kwCount: number | 'ALL' = kwAll ? 'ALL' : kwCountM ? parseNum(kwCountM[1]) : 1;
       return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount }, keyword: kwMatch[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
     }
+    // 引用内が「【常】：…【シャドウ（X）】を得る。」のみの場合はシャドウ付与へ平坦化
+    // （シャドウスコープは encodeShadowScopesInText 済 → 【シャドウ:{...}】）
+    const innerShadowM = quoted.match(/【(シャドウ(?::\{[^}]*\})?)】を(?:得る|持つ)/);
+    if (innerShadowM) {
+      const swOwner: Owner = t.includes('対戦相手') && !t.includes('あなた') ? 'opponent'
+        : t.includes('あなた') ? 'self' : 'any';
+      const swAll = t.includes('すべてのシグニ') || t.includes('全てのシグニ') || t.includes('シグニすべて');
+      const swCountM = t.match(/シグニ(?:を)?([０-９\d]+)体/);
+      const swCount: number | 'ALL' = swAll ? 'ALL' : swCountM ? parseNum(swCountM[1]) : 1;
+      // 引用内の 【常】：対戦相手のターンの間 は外側の継続期間に依存
+      const swDur: EffectDuration = (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
+        : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: swOwner, count: swCount }, keyword: innerShadowM[1], duration: swDur } as GrantKeywordAction;
+    }
     return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
   }
 
