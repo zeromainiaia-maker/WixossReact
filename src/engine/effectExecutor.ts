@@ -1065,6 +1065,32 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : discardCont;
       return selectOrInteract(cands, 1, false, 'opp_field', thenTADH, fullCont, cur);
     }
+    // NEGATE_ATTACK_ON_TRIGGER: 「そのアタックを無効にしてもよい」（WXDi-P11-055）
+    // 直後の CONDITIONAL(IS_MY_TURN) は「そうした場合」のプレースホルダーとして消費する
+    if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'NEGATE_ATTACK_ON_TRIGGER') {
+      const nextNAT = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
+      const thenNAT: EffectAction[] = [];
+      let restIdxNAT = i + 1;
+      if (nextNAT?.type === 'CONDITIONAL' && (nextNAT as ConditionalAction).condition.type === 'IS_MY_TURN') {
+        thenNAT.push((nextNAT as ConditionalAction).then);
+        restIdxNAT = i + 2;
+      }
+      const remainingNAT = a.steps.slice(restIdxNAT);
+      const cancelFlagStub: import('../types/effects').StubAction = { type: 'STUB', id: 'SET_CANCEL_ATTACK_FLAG' };
+      const yesSteps: EffectAction[] = [cancelFlagStub as EffectAction, ...thenNAT, ...remainingNAT];
+      const yesAction: EffectAction = yesSteps.length === 1
+        ? yesSteps[0]
+        : { type: 'SEQUENCE', steps: yesSteps } as SequenceAction;
+      const noopNAT: SequenceAction = { type: 'SEQUENCE', steps: [] };
+      return needsInteraction(cur, {
+        type: 'CHOOSE',
+        options: [
+          { id: 'yes', label: 'アタックを無効にする', action: yesAction, available: true },
+          { id: 'no',  label: '無効にしない',           action: noopNAT as EffectAction, available: true },
+        ],
+        count: 1,
+      });
+    }
     // COST_COLOR_SELECT: コスト色に基づき次のSEARCHに色フィルタを適用
     if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'COST_COLOR_SELECT') {
       const ccStub = step as import('../types/effects').StubAction;
