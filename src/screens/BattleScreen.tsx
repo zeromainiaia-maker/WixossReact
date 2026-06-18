@@ -6304,7 +6304,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isShoot       = hasGrantedKeyword('シュート');
 
       // アサシン：正面シグニを無視してライフへ直接アタック
-      const effectivelyEmpty = !opTopCardNum || isAssassin;
+      // NO_BATTLE_DEFENDER: 防御シグニが「バトルしない」CONTINUOUS効果を持つ場合もライフへ直接アタック
+      const hasNoBattleDefender = opTopCardNum !== null && (effectsMap.get(opTopCardNum) ?? []).some(eff =>
+        eff.effectType === 'CONTINUOUS' &&
+        eff.action.type === 'STUB' &&
+        (eff.action as import('../types/effects').StubAction).id === 'NO_BATTLE_DEFENDER',
+      );
+      if (hasNoBattleDefender && opTopCardNum) {
+        appendBattleLogs([`${battleCardMap.get(opTopCardNum)?.CardName ?? opTopCardNum}はバトルしない（ダメージは受ける）`]);
+      }
+      const effectivelyEmpty = !opTopCardNum || isAssassin || hasNoBattleDefender;
 
       if (!effectivelyEmpty && opTopCardNum && opTopCard) {
         // ─── 通常バトル（正面シグニあり・アサシンなし）───
