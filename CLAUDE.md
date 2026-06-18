@@ -19,4 +19,4 @@ WixossカードゲームのReactクローン実装。
   - `STUBS.md` — STUB実装状況の一覧
   - `TokenCallers.md` — トークン↔呼び出し元の対応表
   - `effects-json-guide.md` — effects JSONの表現語彙・ガイド
-  - `HANDOFF_*.md` — セッション間の引き継ぎメモ（消化済みのものは随時削除）
+- 引き継ぎ（HANDOFF）は廃止。残作業は `TODO.md`、設計判断は `DESIGN.md`、修正記録は `BUGFIXES.md` に集約する。
