@@ -2534,7 +2534,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'CONDITIONAL':             return execConditional(action as ConditionalAction, ctx);
     case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
     case 'TRANSFER_TO_DECK':        return execTransferToDeck(action as TransferToDeckAction, ctx);
-    case 'COUNTER_SPELL':           return done(addLog(ctx, 'スペル/アーツ打ち消し'));
+    case 'COUNTER_SPELL':           return done(ctx); // 打ち消しログはBattleScreen側でスペル名付きで出力
     case 'COST_REDUCTION':          return done(addLog(ctx, 'コスト軽減'));
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
     case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
