@@ -222,8 +222,8 @@ export interface TargetFilter {
   levelParity?: 'even' | 'odd';
   levelRange?: { min?: number; max?: number };
   powerRange?: { min?: number; max?: number };
-  story?:     string | string[];  // Dissona専用。シグニクラスには signiClass を使う
-  signiClass?: string | string[]; // ＜クラス＞フィルター（CardClassに対してincludesでマッチ）
+  story?:     string | string[];  // Dissona専用。シグニクラスには cardClass を使う
+  cardClass?: string | string[]; // ＜クラス＞フィルター（CSVのCardClassフィールドに対してincludesでマッチ）
   hasGuard?:  boolean;
   isDown?:    boolean;
   isUp?:      boolean; // アップ状態（ダウンしていない）
