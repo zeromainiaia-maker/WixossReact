@@ -110,11 +110,12 @@ CardData_Sheet*.csv（カードテキスト）
 
 | コマンド | 内容 |
 |---|---|
-| `npm run build:effects` | `effects_*.json` を再生成 |
+| `npm run build:effects` | `effects_*.json` を再生成（※原則禁止。上記運用注意参照） |
 | `npm run verify` | effects JSON ⇔ CSV の照合（`scripts/verifyEffects.ts`） |
+| `node scripts/genStubsMd.mjs` | `docs/STUBS.md`（全 STUB 一覧）を再生成 |
 | `npx tsc --noEmit` | 型チェック |
 | `npm run lint` | ESLint |
 
-- STUB 実装状況: [STUBS.md](./STUBS.md)
+- STUB 実装状況: [STUBS.md](./STUBS.md)（`genStubsMd.mjs` で自動生成）
 - トークン↔呼び出し元: [TokenCallers.md](./TokenCallers.md)
 - effects JSON 表現語彙: [effects-json-guide.md](./effects-json-guide.md)
