@@ -1366,10 +1366,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   // アンコール（《cost》（説明）本文）とベット（《cost》本文）のプレフィックスを除去してから解析
+  const isBet = /^ベット[―─]/.test(card.EffectText);
   const stripped = stripRuleParens(card.EffectText)
     .replace(/^(?:アンコール－|ベット[―─])(?:《[^》]+》)*\s*/, '');
   const { cleaned, condition } = extractUseCondition(stripped);
-  let action = parseActionText(condition ? cleaned : stripped);
+  // ベットの多択メカニクス（「以下のN個からM個を選ぶ。…あなたがベットしていた場合、代わりに…」）。
+  // プレフィックス除去後は parseSentence の ^ベット― ルール(BET_MECHANIC)に到達せず、「代わりに」節が
+  // BET_ALTERNATIVE(no-op)に誤分類されるため、ここで多択構造を検出して BET_MECHANIC を優先する。
+  // （CHOOSE/GRANT_QUOTED_AUTO_ABILITY 等の専用処理が必要な少数カードは manualEffects 側で上書きする）
+  let action = (isBet && /以下の[^。]*から[^。]*選ぶ/.test(stripped))
+    ? ({ type: 'STUB', id: 'BET_MECHANIC' } as StubAction)
+    : parseActionText(condition ? cleaned : stripped);
   const hasUnknown = action.type === 'UNKNOWN'
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
   // ALT_COST_OPP_TURN をアクション列から CardEffect フィールドに昇格
