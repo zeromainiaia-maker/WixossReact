@@ -33,6 +33,7 @@ import type {
   StubAction,
   CardLocation,
   RevealAction,
+  EffectDuration,
 } from '../../types/effects';
 import {
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
