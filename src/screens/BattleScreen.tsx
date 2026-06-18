@@ -5562,15 +5562,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_trash: [...my.lrig_trash, cutinInstanceId],
         trash: [...my.trash, ...paidNums],
       };
+      // カットイン使用・スペル打ち消しログ（カットインは常にスペルを打ち消す）
+      const counterSpellName = battleCardMap.get(card_num)?.CardName ?? card_num;
+      appendBattleLogs([`[自分] ${cutinCard.CardName}を使用（カットイン）`]);
+      appendBattleLogs([`${cutinCard.CardName}：「${counterSpellName}」を打ち消した`]);
       // カットイン効果発火（ownerState=me, otherState=caster）
-      const effects = effectsMap.get(cutinInstanceId) ?? [];
+      // effectsMapはCardNumキーのためインスタンスID（#付き）でもフォールバック検索する
+      const effects = effectsMap.get(cutinInstanceId) ?? effectsMap.get(getCardNum(cutinInstanceId)) ?? [];
       const cutinEff = effects.find(e => e.effectType === 'ACTIVATED');
       if (!cutinEff) {
         const myKey = isHost ? 'host_state' : 'guest_state';
         const casterKey = casterIsHost ? 'host_state' : 'guest_state';
-        // myとcasterが同じキーになる場合の処理
         if (myKey === casterKey) {
-          // 自分がcasterとはならない（カットインは非キャスター側）
           await supabase.from('battle_states')
             .update({ [myKey]: cutinPaid, pending_spell: null })
             .eq('room_id', roomId);
@@ -5581,7 +5584,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         return;
       }
-      appendBattleLogs([`[自分] ${cutinCard.CardName}を使用（カットイン）`]);
       // ownerState=cutinPaid(me), otherState=newCasterState
       const cutinPowers = calcFieldPowers(cutinPaid, newCasterState, bs.active_user_id === user.id, effectsMap, battleCardMap);
       const cutinIsOwnerTurn = bs.active_user_id === user.id;
