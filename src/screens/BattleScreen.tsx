@@ -3477,6 +3477,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_hand_discarded_count: undefined,
         is_betting_this_effect: undefined, last_discarded_signi_power: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
+        cancel_current_signi_attack: undefined,
       };
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
