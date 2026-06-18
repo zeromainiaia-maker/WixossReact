@@ -10143,28 +10143,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       <>
                         <p style={{ color: C.textMuted, fontSize: 12, margin: 0 }}>カットインカード:</p>
                         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {cutinCandidates.map(card => {
+                          {cutinCandidates.map(candidate => {
                             const extraArtsCosts = activeCostMods.forMy
                               .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                               .flatMap(m => m.amount);
-                            const cutinReduction = specificCardCostReductions.find(r => r.targetCardName === card.CardName);
-                            const cutinReducedCost = cutinReduction ? removeNColorFromCost(card.Cost, '無', cutinReduction.colorlessReduction) : card.Cost;
-                            const canAfford = canAffordWithExtraCost(my.energy, battleCards, cutinReducedCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+                            const isHandDiscard = candidate.source === 'hand' && candidate.effect.cost?.discardSelfFromHand;
+                            const costStr = candidate.source === 'lrig_deck'
+                              ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === candidate.card.CardName); return r ? removeNColorFromCost(candidate.card.Cost, '無', r.colorlessReduction) : candidate.card.Cost; })()
+                              : effectEnergyCostStr(candidate.effect.cost?.energy);
+                            const costLabel = isHandDiscard ? '手札から自分を捨てる'
+                              : (candidate.source === 'lrig_deck' ? candidate.card.Cost || 'なし' : costStr || 'なし');
+                            const canAfford = isHandDiscard
+                              ? true
+                              : canAffordWithExtraCost(my.energy, battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
                             return (
-                              <button key={card.CardNum}
-                                onClick={() => { if (canAfford) { setPendingCutinCard(card); setSelectedCutinCost(new Set()); } }}
+                              <button key={candidate.instanceId}
+                                onClick={() => { if (canAfford) { setPendingCutinCard(candidate); setSelectedCutinCost(new Set()); } }}
                                 disabled={loading || !canAfford}
                                 style={{ display: 'flex', alignItems: 'center', gap: 10,
                                   padding: '8px 12px', borderRadius: 8, border: C.borderUI,
                                   backgroundColor: canAfford ? C.bgButton : C.bgButtonDark,
                                   cursor: (loading || !canAfford) ? 'default' : 'pointer',
                                   opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
-                                <img src={card.ImgURL} alt={card.CardName}
+                                <img src={candidate.card.ImgURL} alt={candidate.card.CardName}
                                   style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
                                   onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                                 <div>
-                                  <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{card.CardName}</p>
-                                  <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>コスト: {card.Cost || 'なし'}</p>
+                                  <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{candidate.card.CardName}</p>
+                                  <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>コスト: {costLabel}</p>
                                   {!canAfford && <p style={{ color: C.danger, fontSize: 10, margin: 0 }}>エナ不足</p>}
                                 </div>
                               </button>
