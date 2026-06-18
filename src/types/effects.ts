@@ -222,7 +222,8 @@ export interface TargetFilter {
   levelParity?: 'even' | 'odd';
   levelRange?: { min?: number; max?: number };
   powerRange?: { min?: number; max?: number };
-  story?:     string | string[];
+  story?:     string | string[];  // Dissona専用。シグニクラスには signiClass を使う
+  signiClass?: string | string[]; // ＜クラス＞フィルター（CardClassに対してincludesでマッチ）
   hasGuard?:  boolean;
   isDown?:    boolean;
   isUp?:      boolean; // アップ状態（ダウンしていない）
