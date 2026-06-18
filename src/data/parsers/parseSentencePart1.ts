@@ -1220,6 +1220,21 @@ export function parseSentencePart1(t: string): EffectAction | null {
         : t.includes('あなたのシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
         : t.includes('対戦相手のシグニ') ? { type: 'SIGNI', owner: 'opponent', count: 1 }
         : { type: 'SIGNI', owner: 'any', count: 1 };
+      // 「【X】と【Y】を得る」「【X】【Y】を持つ」複合付与 → SEQUENCE
+      // 「を得る/を持つ」直前に隣接するキーワード連続（と/・接続のみ）に限定し、
+      // 文境界を跨いだ無関係キーワードの巻き込みを防ぐ
+      const gainM = t.match(/((?:【[^】]+】[と・]*)+)を(?:得る|持つ)/);
+      if (gainM) {
+        const runKw = [...gainM[1].matchAll(/【([^】]+)】/g)]
+          .map(m => m[1])
+          .filter(k => !['常','出','起','自','ガード'].includes(k));
+        if (runKw.length >= 2) {
+          return {
+            type: 'SEQUENCE',
+            steps: runKw.map(k => ({ type: 'GRANT_KEYWORD', target, keyword: k, duration: dur })),
+          };
+        }
+      }
       return { type: 'GRANT_KEYWORD', target, keyword: kwM[1], duration: dur };
     }
   }
