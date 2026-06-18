@@ -5637,12 +5637,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // カットイン使用 → カットイン効果発火・スペルをトラッシュ（打ち消し）
-  const handleCutinUse = async (cutinCard: CardData, costIndices: Set<number>) => {
+  const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>) => {
     if (!bs.pending_spell || loading) return;
     setLoading(true);
     setPendingCutinCard(null);
     setSelectedCutinCost(new Set());
     try {
+      const { card: cutinCard, instanceId: cutinInstanceId, source, handIdx } = candidate;
       const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
       const casterIsHost = caster_id === bs.host_id;
       const casterState = casterIsHost ? bs.host_state : bs.guest_state;
@@ -5650,28 +5651,52 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newCasterState: PlayerState = from_lrig_deck
         ? { ...casterState, lrig_trash: [...casterState.lrig_trash, card_num] }
         : { ...casterState, trash: [...casterState.trash, card_num] };
-      // カットインコスト支払い＆ルリグデッキから除去
+      // コスト支払い
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
-      const lrigIdx = my.lrig_deck.findIndex(id => getCardNum(id) === cutinCard.CardNum);
-      const cutinInstanceId = lrigIdx >= 0 ? my.lrig_deck[lrigIdx] : cutinCard.CardNum;
-      const newLrigDeck = lrigIdx === -1 ? my.lrig_deck
-        : [...my.lrig_deck.slice(0, lrigIdx), ...my.lrig_deck.slice(lrigIdx + 1)];
-      const cutinPaid: PlayerState = {
-        ...my,
-        lrig_deck: newLrigDeck,
-        energy: newEnergy,
-        lrig_trash: [...my.lrig_trash, cutinInstanceId],
-        trash: [...my.trash, ...paidNums],
-      };
+      let cutinPaid: PlayerState;
+      if (source === 'lrig_deck') {
+        // ルリグデッキから使用: デッキから取り出してルリグトラッシュへ
+        const lrigIdx = my.lrig_deck.findIndex(id => getCardNum(id) === cutinCard.CardNum);
+        const actualId = lrigIdx >= 0 ? my.lrig_deck[lrigIdx] : cutinCard.CardNum;
+        const newLrigDeck = lrigIdx === -1 ? my.lrig_deck
+          : [...my.lrig_deck.slice(0, lrigIdx), ...my.lrig_deck.slice(lrigIdx + 1)];
+        cutinPaid = {
+          ...my,
+          lrig_deck: newLrigDeck,
+          energy: newEnergy,
+          lrig_trash: [...my.lrig_trash, actualId],
+          trash: [...my.trash, ...paidNums],
+        };
+      } else if (source === 'hand') {
+        // 手札から自分を捨てる（discardSelfFromHand）
+        const idx = handIdx ?? my.hand.indexOf(cutinCard.CardNum);
+        const newHand = idx >= 0
+          ? [...my.hand.slice(0, idx), ...my.hand.slice(idx + 1)]
+          : my.hand;
+        cutinPaid = {
+          ...my,
+          hand: newHand,
+          energy: newEnergy,
+          trash: [...my.trash, cutinCard.CardNum, ...paidNums],
+        };
+      } else {
+        // lrig_field / signi_field: カードはそのまま、エナコストのみ支払い
+        cutinPaid = {
+          ...my,
+          energy: newEnergy,
+          trash: [...my.trash, ...paidNums],
+        };
+      }
       // カットイン使用・スペル打ち消しログ（カットインは常にスペルを打ち消す）
       const counterSpellName = battleCardMap.get(card_num)?.CardName ?? card_num;
       appendBattleLogs([`[自分] ${cutinCard.CardName}を使用（カットイン）`]);
       appendBattleLogs([`${cutinCard.CardName}：「${counterSpellName}」を打ち消した`]);
-      // カットイン効果発火（ownerState=me, otherState=caster）
-      // effectsMapはCardNumキーのためインスタンスID（#付き）でもフォールバック検索する
+      // カットイン効果発火: lrig_deckはACTIVATED、field/handはSPELL_CUTINタイミングのACTIVATEDを優先
       const effects = effectsMap.get(cutinInstanceId) ?? effectsMap.get(getCardNum(cutinInstanceId)) ?? [];
-      const cutinEff = effects.find(e => e.effectType === 'ACTIVATED');
+      const cutinEff = source === 'lrig_deck'
+        ? effects.find(e => e.effectType === 'ACTIVATED')
+        : effects.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
       if (!cutinEff) {
         const myKey = isHost ? 'host_state' : 'guest_state';
         const casterKey = casterIsHost ? 'host_state' : 'guest_state';
