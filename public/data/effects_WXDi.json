@@ -38570,22 +38570,40 @@
       "effectId": "WXDi-P07-073-E1",
       "effectType": "AUTO",
       "timing": [
-        "ATTACK"
+        "ON_ATTACK_PHASE_START"
       ],
+      "triggerScope": "any_opp",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": "ALL",
-          "filter": {
-            "cardType": "シグニ"
+        "type": "GRANT_LRIG_ABILITY",
+        "abilities": [
+          {
+            "effectId": "WXDi-P07-073-E1-GRANTED",
+            "effectType": "AUTO",
+            "timing": [
+              "ON_TURN_END"
+            ],
+            "triggerScope": "any_opp",
+            "action": {
+              "type": "BANISH",
+              "target": {
+                "type": "SIGNI",
+                "owner": "self",
+                "count": "ALL",
+                "filter": {
+                  "cardType": "シグニ"
+                }
+              }
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
           }
-        }
+        ],
+        "rawText": "センタールリグは『【自】：対戦相手のターン終了時、あなたのすべてのシグニをバニッシュする。』を得る。"
       },
       "duration": "UNTIL_END_OF_TURN",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WXDi-P07-073-BURST",
