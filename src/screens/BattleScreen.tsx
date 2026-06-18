@@ -885,6 +885,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedBarrierGuardCard, setSelectedBarrierGuardCard] = useState<number | null>(null);
   const [pendingCutinCard, setPendingCutinCard] = useState<CutinCandidate | null>(null);
   const [selectedCutinCost, setSelectedCutinCost] = useState<Set<number>>(new Set());
+  const [selectedCutinExceed, setSelectedCutinExceed] = useState<Set<number>>(new Set());
   // シグニ起動効果
   const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedSigniActivatedCost, setSelectedSigniActivatedCost] = useState<Set<number>>(new Set());
