@@ -739,6 +739,69 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX22-016 グレイブ・ディガー（ベット―好きな枚数）
+  // ベットのコイン1枚につき2択（①コスト減 ②効果1回繰り返し）。パーサーは多択ベットを
+  // BET_MECHANIC stub 化するため、CHOOSE 構造を保持するマニュアル上書き。
+  'WX22-016': [
+    {
+      effectId: 'WX22-016-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN', 'ATTACK'],
+      cost: { energy: [{ color: '黒', count: 6 }] },
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          {
+            choiceId: 'c0',
+            label: '選択肢1',
+            action: { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
+          },
+          {
+            choiceId: 'c1',
+            label: '選択肢2',
+            action: {
+              type: 'SEQUENCE',
+              steps: [
+                { type: 'STUB', id: 'REPEAT_EFFECT' },
+                {
+                  type: 'TRANSFER_TO_HAND',
+                  source: {
+                    type: 'TRASH_CARD',
+                    owner: 'self',
+                    count: 1,
+                    upToCount: false,
+                    filter: { cardType: 'シグニ' },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WD21-007 自由自罪（ベット―《コイン》《コイン》）
+  // 5択から1つ選び対象シグニに付与、ベット時もう1回。パーサーは多択ベットを
+  // BET_MECHANIC stub 化するため、GRANT_QUOTED_AUTO_ABILITY stub を保持する上書き。
+  'WD21-007': [
+    {
+      effectId: 'WD21-007-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN', 'ATTACK', 'SPELL_CUTIN'],
+      cost: { energy: [{ color: '赤', count: 2 }] },
+      action: { type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
