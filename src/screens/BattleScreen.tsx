@@ -3241,6 +3241,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           opp_signi_energy_to_deck_bottom: undefined,
           is_betting_this_effect: undefined,          // BET_CONDITION: ターン終了時にクリア
           last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
+          cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
