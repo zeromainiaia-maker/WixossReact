@@ -16,7 +16,7 @@ WixossカードゲームのReactクローン実装。
   - **`DESIGN.md` — 設計方針・開発ルール（まずこれを読む）**
   - **`TODO.md` — 残作業の一覧（完了したら消す）**
   - **`BUGFIXES.md` — バグ修正記録（新しいものを上に追記）**
-  - `STUBS.md` — STUB実装状況の一覧
+  - `STUBS.md` — 全STUBの一覧と実装状況（`node scripts/genStubsMd.mjs` で再生成。手編集しない）
   - `TokenCallers.md` — トークン↔呼び出し元の対応表
   - `effects-json-guide.md` — effects JSONの表現語彙・ガイド
 - 引き継ぎ（HANDOFF）は廃止。残作業は `TODO.md`、設計判断は `DESIGN.md`、修正記録は `BUGFIXES.md` に集約する。
