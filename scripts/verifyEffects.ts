@@ -161,7 +161,7 @@ function detectActionsFromText(text: string): { label: string; aliases: string[]
   return found;
 }
 
-// 実装済みSTUB（STUBS.md ✅）が期待アクションの同等物として機能する場合のマッピング。
+// 実装済みSTUB（docs/STUBS.md ✅）が期待アクションの同等物として機能する場合のマッピング。
 // 「STUBがそのアクションを実際に実行する」と確認できたもののみ登録すること
 // （ログのみ📝のSTUBを登録すると実欠落を隠蔽してしまう）。
 const STUB_EQUIVALENTS: Record<string, string[]> = {
