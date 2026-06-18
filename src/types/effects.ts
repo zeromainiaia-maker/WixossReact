@@ -636,6 +636,7 @@ export interface TransferToDeckAction {
 // スペル/アーツの効果を打ち消す
 export interface CounterSpellAction {
   type: 'COUNTER_SPELL';
+  maxCost?: number; // 対象スペルのコスト合計の上限（未指定なら無制限）
 }
 
 // コスト減少（コードハートVACなど）
