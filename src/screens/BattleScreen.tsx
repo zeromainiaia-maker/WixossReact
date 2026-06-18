@@ -6189,6 +6189,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
+
+      // NEGATE_ATTACK_ON_TRIGGER: アタックキャンセルフラグがあればバトル/ダメージを全てスキップ
+      if (myS.cancel_current_signi_attack) {
+        const clearedState: PlayerState = { ...myS, pending_signi_battle: undefined, cancel_current_signi_attack: undefined };
+        await supabase.from('battle_states').update({ [myKey]: clearedState }).eq('room_id', roomId);
+        appendBattleLogs([`${myCardName}のアタックが無効になった`]);
+        return;
+      }
+
       let opZoneIndex = 2 - zoneIndex;
       let opStack = opS.field.signi[opZoneIndex] ?? [];
       let opTopCardNum: string | null = opStack.length > 0 ? opStack[opStack.length - 1] : null;

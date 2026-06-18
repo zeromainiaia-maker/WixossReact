@@ -46534,7 +46534,7 @@
       "effectType": "CONTINUOUS",
       "action": {
         "type": "STUB",
-        "id": "NEGATE_ATTACK_ON_TRIGGER"
+        "id": "NO_BATTLE_DEFENDER"
       },
       "duration": "PERMANENT",
       "mandatory": true,
