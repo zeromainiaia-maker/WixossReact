@@ -257,7 +257,8 @@ export function hasBanishResist(
   extraGrants?: Record<string, string[]>,
 ): boolean {
   if (hasKeyword(cardNum, 'バニッシュされない', cardMap, keywordGrants, undefined, extraGrants)) return true;
-  // effects.json 未登録カード用フォールバック
+  // effects.json 未登録カード用フォールバック（『』内の引用テキストは除外：条件付き付与の誤検知防止）
   const card = cardMap.get(cardNum);
-  return card?.EffectText?.includes('バニッシュされない') ?? false;
+  const text = (card?.EffectText ?? '').replace(/『[^』]*』/g, '');
+  return text.includes('バニッシュされない');
 }
