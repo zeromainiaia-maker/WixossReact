@@ -655,15 +655,16 @@ function buildLevelMods(
           levelMods.set(topNum, Math.max(0, baseLv - Math.floor(charmCount / divisor) * delta));
         }
       } else if (act.id === 'DYNAMIC_LEVEL_BY_ENERGY') {
-        // "エナゾーンにあるシグニ/スペルNにつき+Y"
-        const mDelta = txt.match(/につき.*?＋([１-９\d]+)/);
-        const delta = mDelta ? parseInt(toHW(mDelta[1])) : 1;
-        const mType = txt.match(/エナゾーンにある(シグニ|スペル)/);
+        // "エナゾーンにある(カード|シグニ|スペル)N枚につき＋M"（N枚=除数。省略時1）
+        const m = txt.match(/エナゾーンにある(カード|シグニ|スペル)([０-９\d]*)枚?につき[＋+]([０-９\d]+)/);
+        const typeStr = m?.[1] ?? 'カード';
+        const divisor = m ? (parseInt(toHW(m[2] || '1')) || 1) : 1;
+        const delta = m ? (parseInt(toHW(m[3])) || 1) : 1;
         const energyCount = ownerState.energy.filter(cn => {
-          if (!mType) return true;
-          return cardMap.get(cn)?.Type === (mType[1] === 'シグニ' ? 'シグニ' : 'スペル');
+          if (typeStr === 'カード') return true;
+          return cardMap.get(cn)?.Type === typeStr;
         }).length;
-        levelMods.set(topNum, baseLv + energyCount * delta);
+        levelMods.set(topNum, baseLv + Math.floor(energyCount / divisor) * delta);
       }
     }
   }
@@ -1173,6 +1174,15 @@ export function calcFieldPowers(
             const m = txt.match(/【アクセ】１枚につき[＋+]([０-９\d]+)/);
             if (m && acceCount > 0 && powers.has(topNum)) {
               powers.set(topNum, (powers.get(topNum) ?? 0) + acceCount * parseN(m[1]));
+            }
+          }
+
+          // DYNAMIC_LEVEL_BY_ENERGY: 「パワーはこのシグニのレベル１につき＋N」= 実効レベル×N
+          if (stub.id === 'DYNAMIC_LEVEL_BY_ENERGY') {
+            const m = txt.match(/パワーは.*?レベル１につき[＋+]([０-９\d]+)/);
+            if (m && powers.has(topNum)) {
+              const effLv = levelMods.get(topNum) ?? (parseInt(card?.Level ?? '0', 10) || 0);
+              powers.set(topNum, (powers.get(topNum) ?? 0) + effLv * parseN(m[1]));
             }
           }
 
