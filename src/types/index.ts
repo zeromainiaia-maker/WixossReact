@@ -107,9 +107,13 @@ export interface PlayerState {
   pending_crashed_cards?: string[]; // ダブルクラッシュ等で同時クラッシュしたが未処理のカード番号（バースト処理待ち）
   // 効果エンジン用：ターン終了時にクリア
   temp_power_mods?: Array<{ cardNum: string; delta: number }>;
+  // 次の対戦相手のターン終了時までの一時パワー修正（temp_power_modsの長期版。UNTIL_OPP_TURN_END）
+  power_mods_until_opp_turn?: Array<{ cardNum: string; delta: number }>;
   keyword_grants?: Record<string, string[]>; // instanceId → ['ランサー', ...]
   keyword_grants_until_opp_turn?: Record<string, string[]>; // 次の対戦相手ターン終了時までの付与キーワード
   granted_effects?: Record<string, import('./effects').CardEffect[]>; // instanceId → 付与された CardEffect[]
+  // 次の対戦相手のターン終了時までの付与効果（granted_effectsの長期版。UNTIL_OPP_TURN_END）
+  granted_effects_until_opp_turn?: Record<string, import('./effects').CardEffect[]>;
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
   // 強制攻撃を感染状態のシグニのみに限定する（WX16-047等）
