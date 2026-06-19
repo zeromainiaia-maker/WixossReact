@@ -60,6 +60,27 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX16-Re07 轟砲　ウルバン（相手ライフ2枚以上クラッシュで自身アップ）
+  // 【自】《ターン１回》：【ダブルクラッシュ】によって対戦相手のライフクロスが２枚以上クラッシュされたとき、このシグニをアップする。
+  // E1 を ON_PLAY の誤パース（UP）から ON_OPP_LIFE_CRASHED（相手ライフクラッシュ時）へ修正。
+  // ダブルクラッシュ＝同時2枚以上クラッシュは OPP_LIFE_CRASH_EVENT_GTE(2) で判定（performLifeBurstResponse 収集時に評価）。
+  'WX16-Re07': [
+    {
+      effectId: 'WX16-Re07-E1',
+      effectType: 'AUTO',
+      timing: ['ON_OPP_LIFE_CRASHED'],
+      usageLimit: 'once_per_turn',
+      condition: { type: 'OPP_LIFE_CRASH_EVENT_GTE', value: 2 },
+      action: {
+        type: 'UP',
+        target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX15-064 羅菌　キョウギュ（起動）
   // 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じゾーンの【ウィルス】１つを取り除き、
   //   ターン終了時まで、それのパワーを－7000する。パワーが0以下になった場合、1枚引く。
