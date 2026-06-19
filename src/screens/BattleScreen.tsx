@@ -8208,6 +8208,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           paid = { ...paid, last_charm_trash_count: 0 };
         }
       }
+      // acceTrash: あなたの【アクセ】N枚をトラッシュ（自動選択。先頭のゾーンから）
+      const acceTrashNAct = effect.cost?.acceTrash ?? 0;
+      if (acceTrashNAct > 0) {
+        const newAcceAct = [...(paid.field.signi_acce ?? [null, null, null])];
+        const movedAcceAct: string[] = [];
+        for (let zi = 0; zi < newAcceAct.length && movedAcceAct.length < acceTrashNAct; zi++) {
+          if (newAcceAct[zi]) { movedAcceAct.push(newAcceAct[zi]!); newAcceAct[zi] = null; }
+        }
+        if (movedAcceAct.length < acceTrashNAct) return; // 支払い不能
+        paid = { ...paid, field: { ...paid.field, signi_acce: newAcceAct as (string | null)[] }, trash: [...paid.trash, ...movedAcceAct] };
+      }
       // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
       let plant3rdDownTriggerEntry: StackEntry | null = null;
       if (effect.cost?.down_self && my.turn_trigger_3rd_plant_down) {
@@ -8904,9 +8915,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isAlreadyDown = my.field.signi_down?.[rawZoneIdx] ?? false;
       // discard コストは手札の枚数が足りないと支払えない
       const handCount = my.hand.length;
+      // acceTrash コストは【アクセ】枚数が足りないと支払えない
+      const acceCount = (my.field.signi_acce ?? []).filter(a => a !== null).length;
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
         (e.timing === undefined || e.timing.includes('MAIN')) &&
+        !(e.cost?.acceTrash && acceCount < e.cost.acceTrash) &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
@@ -8933,6 +8947,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.trash_self ? 'このシグニをトラッシュ' : null,
               eff.cost.trash_key ? 'このキーをルリグトラッシュ' : null,
               eff.cost.charmTrash ? `チャーム${eff.cost.charmTrash}枚トラッシュ` : null,
+              eff.cost.acceTrash ? `アクセ${eff.cost.acceTrash}枚トラッシュ` : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
         return {
