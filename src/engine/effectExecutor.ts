@@ -121,6 +121,13 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       }
     }
   }
+  // thisCardOnly: 効果元シグニ自身のみを対象（「このシグニをバニッシュする」）
+  let thisCardRestrict: string[] | null = null;
+  if (resolvedFilter?.thisCardOnly) {
+    const { thisCardOnly: _t, ...rest } = resolvedFilter;
+    resolvedFilter = rest;
+    thisCardRestrict = ctx.sourceCardNum ? [ctx.sourceCardNum] : [];
+  }
   // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）のシグニに限定
   let frontRestrict: string[] | null = null;
   if (resolvedFilter?.frontOfSelf) {
@@ -136,6 +143,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   }
   const allBanishCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   let cands = banishProtected.size > 0 ? allBanishCands.filter(n => !banishProtected.has(n)) : allBanishCands;
+  if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (tgt.owner === 'opponent') {
     const grants = ctx.otherState.keyword_grants;

@@ -31108,19 +31108,55 @@
     {
       "effectId": "WX25-P3-057-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "IS_SELF_AWAKENED"
+      },
       "action": {
-        "type": "STUB",
-        "id": "UNIMPL_GRANTED_ABILITY"
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "アサシン",
+        "duration": "PERMANENT"
       },
       "duration": "PERMANENT",
-      "mandatory": false,
+      "mandatory": true,
       "parseStatus": "MANUAL"
+    },
+    {
+      "effectId": "WX25-P3-057-E1b",
+      "effectType": "AUTO",
+      "timing": [
+        "ON_TURN_END"
+      ],
+      "condition": {
+        "type": "THIS_CARD_IS_AWAKENED"
+      },
+      "action": {
+        "type": "BANISH",
+        "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1,
+          "filter": {
+            "cardType": "シグニ",
+            "thisCardOnly": true
+          },
+          "upToCount": false
+        }
+      },
+      "duration": "INSTANT",
+      "mandatory": true,
+      "parseStatus": "MANUAL",
+      "triggerScope": "self"
     },
     {
       "effectId": "WX25-P3-057-E2",
       "effectType": "AUTO",
       "timing": [
-        "ATTACK"
+        "ON_ATTACK_PHASE_START"
       ],
       "action": {
         "type": "SEQUENCE",
@@ -31145,7 +31181,14 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "condition": {
+        "type": "HAND_COUNT",
+        "owner": "self",
+        "operator": "eq",
+        "value": 0
+      },
+      "triggerScope": "self"
     },
     {
       "effectId": "WX25-P3-057-BURST",

@@ -2870,6 +2870,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const eff of (effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
         if ((eff.triggerScope ?? 'self') !== 'self') continue;
+        // condition を持つAUTOは条件を満たす場合のみ収集（「覚醒であるかぎり」等の付与AUTO）
+        if (eff.condition && !evalUseCondition(eff.condition, myState, opState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
