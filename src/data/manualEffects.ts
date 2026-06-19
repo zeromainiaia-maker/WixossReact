@@ -115,6 +115,46 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX25-CP1-075 姫木メル（相手シグニへ ON_LIFE_CRASHED デバフを付与）
+  // 【自】：あなたのアタックフェイズ開始時、あなたの場に他の＜ブルアカ＞のシグニがある場合、対戦相手のシグニ１体を対象とし、
+  //   ターン終了時まで、それは「【自】《ターン１回》：このシグニがシグニ１体とバトルしたか、あなたのライフクロス１枚が
+  //   クラッシュされたとき、ターン終了時まで、このシグニのパワーを－2000する。」を得る。
+  // E1 を「即時-2000＋エナチャージ」の誤パースから GRANT_EFFECT（相手シグニへデバフ能力を付与）へ修正。
+  // 付与期間「ターン終了時まで」は既存 granted_effects のクリアと一致。付与能力は ON_LIFE_CRASHED で発火し
+  //   付与先（相手）のライフがクラッシュされたとき自身のパワー-2000（thisCardOnly）。
+  // 【補足】バトル時節（「このシグニがバトルしたか」）は専用 timing 未実装のため今回はライフクラッシュ節のみ実装。
+  // E2（【絆自】：このシグニが相手ライフをクラッシュしたときエナチャージ）はパーサー生成のまま維持。
+  'WX25-CP1-075': [
+    {
+      effectId: 'WX25-CP1-075-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardClass: 'ブルアカ' }, excludeSelf: true },
+      action: {
+        type: 'GRANT_EFFECT',
+        target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+        duration: 'UNTIL_END_OF_TURN',
+        effect: {
+          effectId: 'WX25-CP1-075-GRANT',
+          effectType: 'AUTO',
+          timing: ['ON_LIFE_CRASHED'],
+          usageLimit: 'once_per_turn',
+          action: {
+            type: 'POWER_MODIFY',
+            target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+            delta: -2000,
+          },
+          duration: 'UNTIL_END_OF_TURN',
+          mandatory: true,
+          parseStatus: 'MANUAL',
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX15-064 羅菌　キョウギュ（起動）
   // 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じゾーンの【ウィルス】１つを取り除き、
   //   ターン終了時まで、それのパワーを－7000する。パワーが0以下になった場合、1枚引く。
