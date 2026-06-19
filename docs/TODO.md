@@ -84,7 +84,7 @@
 - **覚醒状態の条件:** WX25-P3-057（覚醒でアサシン＋常在＋ターン終了時自バニッシュ。自身指定バニッシュ＋アタック無効化耐性が未対応で保留）。※WXDi-P07-060 は v0.340 で実装済（`IS_SELF_AWAKENED`/`THIS_CARD_IS_AWAKENED` 追加）。
 - ~~**ドライブ状態の Condition:** WDK01-011~~ → v0.340 で `IS_DRIVE_STATE` を Condition にも追加し実装済（「自身のパワー以下」は無フィルタ近似）。
 - ~~**血晶武装＋任意コスト:** WDK08-L11~~ → v0.343 で実装済（`THIS_CARD_IS_ARMORED`＋任意コスト）。
-- **ソウル付与先への付与:** WXDi-D07-003 / WXDi-P04-015
+- ~~**ソウル付与先への付与:** WXDi-D07-003 / WXDi-P04-015~~ → v0.347 で `GRANT_SOUL_HOST_ABILITY` 機構を新設し実装済。
 - **アクセされているシグニへの付与:** WX18-076（正面参照）/ SP27-015（付与先が【起】＋【アクセ】2枚トラッシュコスト）。※WX16-045・WX20-072 は v0.346 で `GRANT_ACCE_HOST_ABILITY` 機構を新設し実装済。
 - **場全体/特定クラス全体への付与:** WX21-052（＜天使＞・任意自トラッシュコスト）/ WD14-001（全領域に【ライフバースト】付与）。※WX13-034 は v0.344 で `GRANT_FIELD_SIGNI_ABILITY`＋`powerLtSelf`、WXDi-P15-061 は v0.345 で `GRANT_SIGNI_ABOVE_ABILITY` で実装済。
 - **正面 等:** WX20-Re18（正面）/ PR-426（正面）/ PR-288（ルリグレベル一致）。※「自身のパワー以下」は v0.344 で `powerLteSelf`/`powerLtSelf` を追加し解決済。

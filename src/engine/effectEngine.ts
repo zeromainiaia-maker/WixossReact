@@ -3744,6 +3744,40 @@ export function collectGrantedFromAcce(
 }
 
 /**
+ * GRANT_SOUL_HOST_ABILITY:
+ * 【ソウル】として付いているカードが持つ CONTINUOUS の GRANT_SOUL_HOST_ABILITY 宣言を読み、
+ * フィルタに合うホストシグニ（ソウルが付いているシグニ）へ abilities を付与する。
+ * Returns: hostSigniInstanceId → 追加 CardEffect[] のマップ
+ */
+export function collectGrantedFromSoul(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Map<string, CardEffect[]> {
+  const result = new Map<string, CardEffect[]>();
+  const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  type GrantSoul = import('../types/effects').GrantSoulHostAbilityAction;
+  for (let zi = 0; zi < 3; zi++) {
+    const soulNum = (ownerState.field.signi_soul ?? [])[zi] ?? null;
+    if (!soulNum) continue;
+    const hostTop = ownerState.field.signi[zi]?.at(-1);
+    if (!hostTop) continue;
+    const hostCard = cardMap.get(baseNum(hostTop));
+    for (const eff of (effectsMap.get(soulNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (eff.action.type !== 'GRANT_SOUL_HOST_ABILITY') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, soulNum)) continue;
+      const g = eff.action as GrantSoul;
+      if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
+      result.set(hostTop, [...(result.get(hostTop) ?? []), ...g.abilities]);
+    }
+  }
+  return result;
+}
+
+/**
  * GRANT_UNDER_SIGNI_* / GRANT_SIGNI_ABOVE_ABILITY:
  * スタック（ライズ状態）シグニ間の CONTINUOUS 能力付与を収集する。
  * - トップシグニが GRANT_UNDER_SIGNI_* スタブを持つ → 下のカードの効果をトップに付与

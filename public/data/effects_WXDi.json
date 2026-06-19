@@ -4160,11 +4160,38 @@
       "effectId": "WXDi-D07-003-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "STUB",
-        "id": "UNIMPL_GRANTED_ABILITY"
+        "type": "GRANT_SOUL_HOST_ABILITY",
+        "abilities": [
+          {
+            "effectId": "WXDi-D07-003-E1-G",
+            "effectType": "AUTO",
+            "timing": [
+              "ON_ATTACK_SIGNI"
+            ],
+            "action": {
+              "type": "BANISH",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ",
+                  "powerRange": {
+                    "max": 12000
+                  }
+                },
+                "upToCount": false
+              }
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL",
+            "triggerScope": "self"
+          }
+        ]
       },
       "duration": "PERMANENT",
-      "mandatory": false,
+      "mandatory": true,
       "parseStatus": "MANUAL"
     }
   ],
@@ -24125,11 +24152,38 @@
       "effectId": "WXDi-P04-015-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "STUB",
-        "id": "UNIMPL_GRANTED_ABILITY"
+        "type": "GRANT_SOUL_HOST_ABILITY",
+        "abilities": [
+          {
+            "effectId": "WXDi-P04-015-E1-G",
+            "effectType": "AUTO",
+            "timing": [
+              "ON_ATTACK_SIGNI"
+            ],
+            "action": {
+              "type": "BANISH",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ",
+                  "level": {
+                    "max": 2
+                  }
+                },
+                "upToCount": false
+              }
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL",
+            "triggerScope": "self"
+          }
+        ]
       },
       "duration": "PERMANENT",
-      "mandatory": false,
+      "mandatory": true,
       "parseStatus": "MANUAL"
     }
   ],

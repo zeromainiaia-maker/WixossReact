@@ -379,6 +379,7 @@ export type EffectAction =
   | GrantSigniAboveAbilityAction
   | GrantFieldSigniAbilityAction
   | GrantAcceHostAbilityAction
+  | GrantSoulHostAbilityAction
   | StubAction
   | GainBondAction
   | MILLAction
@@ -642,6 +643,14 @@ export interface GrantFieldSigniAbilityAction {
 export interface GrantAcceHostAbilityAction {
   type: 'GRANT_ACCE_HOST_ABILITY';
   filter?: TargetFilter;   // ホストシグニへのフィルタ（例: cardClass:'調理'。省略時は任意）
+  abilities: CardEffect[]; // 付与する能力（ホストシグニ自身の能力として扱われる）
+}
+
+// このカードが【ソウル】として付いているシグニ（ホスト）へ能力を付与する（CONTINUOUS宣言型）
+// 「このカードが【ソウル】として付いているシグニは『…』を得る」
+export interface GrantSoulHostAbilityAction {
+  type: 'GRANT_SOUL_HOST_ABILITY';
+  filter?: TargetFilter;   // ホストシグニへのフィルタ（省略時は任意）
   abilities: CardEffect[]; // 付与する能力（ホストシグニ自身の能力として扱われる）
 }
 
