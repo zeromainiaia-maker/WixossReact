@@ -122,7 +122,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // E1 を「即時-2000＋エナチャージ」の誤パースから GRANT_EFFECT（相手シグニへデバフ能力を付与）へ修正。
   // 付与期間「ターン終了時まで」は既存 granted_effects のクリアと一致。付与能力は ON_LIFE_CRASHED で発火し
   //   付与先（相手）のライフがクラッシュされたとき自身のパワー-2000（thisCardOnly）。
-  // 【補足】バトル時節（「このシグニがバトルしたか」）は専用 timing 未実装のため今回はライフクラッシュ節のみ実装。
+  // 付与能力は2つの契機（このシグニがバトルした=ON_SIGNI_BATTLE / 付与先コントローラーのライフがクラッシュ=ON_LIFE_CRASHED）で
+  //   発火し、《ターン1回》（同一effectIdでusageLimit共有）で自身パワー-2000。
   // E2（【絆自】：このシグニが相手ライフをクラッシュしたときエナチャージ）はパーサー生成のまま維持。
   'WX25-CP1-075': [
     {
@@ -137,7 +138,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         effect: {
           effectId: 'WX25-CP1-075-GRANT',
           effectType: 'AUTO',
-          timing: ['ON_LIFE_CRASHED'],
+          timing: ['ON_SIGNI_BATTLE', 'ON_LIFE_CRASHED'],
           usageLimit: 'once_per_turn',
           action: {
             type: 'POWER_MODIFY',
