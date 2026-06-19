@@ -31109,20 +31109,12 @@
       "effectId": "WX25-P3-057-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ"
-          },
-          "upToCount": false
-        }
+        "type": "STUB",
+        "id": "UNIMPL_GRANTED_ABILITY"
       },
       "duration": "PERMANENT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX25-P3-057-E2",

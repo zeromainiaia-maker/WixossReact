@@ -4160,23 +4160,12 @@
       "effectId": "WXDi-D07-003-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "powerRange": {
-              "max": 12000
-            }
-          },
-          "upToCount": false
-        }
+        "type": "STUB",
+        "id": "UNIMPL_GRANTED_ABILITY"
       },
       "duration": "PERMANENT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     }
   ],
   "WXDi-D07-004": [
@@ -24136,23 +24125,12 @@
       "effectId": "WXDi-P04-015-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "level": {
-              "max": 2
-            }
-          },
-          "upToCount": false
-        }
+        "type": "STUB",
+        "id": "UNIMPL_GRANTED_ABILITY"
       },
       "duration": "PERMANENT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     }
   ],
   "WXDi-P04-016": [
@@ -29133,23 +29111,12 @@
       "effectId": "WXDi-P05-034-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "powerRange": {
-              "max": 8000
-            }
-          },
-          "upToCount": false
-        }
+        "type": "STUB",
+        "id": "UNIMPL_GRANTED_ABILITY"
       },
       "duration": "PERMANENT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WXDi-P05-034-E2",
@@ -38015,23 +37982,12 @@
       "effectId": "WXDi-P07-060-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "powerRange": {
-              "max": 3000
-            }
-          },
-          "upToCount": false
-        }
+        "type": "STUB",
+        "id": "UNIMPL_GRANTED_ABILITY"
       },
       "duration": "PERMANENT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WXDi-P07-060-E2",
@@ -68172,24 +68128,12 @@
       "effectId": "WXDi-P15-061-E2",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "powerRange": {
-              "max": 3000
-            },
-            "story": "解放派"
-          },
-          "upToCount": false
-        }
+        "type": "STUB",
+        "id": "UNIMPL_GRANTED_ABILITY"
       },
       "duration": "PERMANENT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     }
   ],
   "WXDi-P15-062": [
@@ -82937,23 +82881,12 @@
       "effectId": "WXDi-CP02-TK02A-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "powerRange": {
-              "max": 10000
-            }
-          },
-          "upToCount": false
-        }
+        "type": "STUB",
+        "id": "UNIMPL_GRANTED_ABILITY"
       },
       "duration": "PERMANENT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WXDi-CP02-TK02A-E2",

@@ -73,9 +73,30 @@
 
 ---
 
-## F. CONTINUOUS BANISH 誤解析の一掃（系統的・要精査）
+## F. CONTINUOUS BANISH/TRASH 誤解析（残: 機能実装と TRASH 系）
 
-- **背景:** `calcContinuousSigniMutations`（`effectEngine.ts`）は CONTINUOUS の BANISH/FREEZE/DOWN（`mandatory:true`・非optional・条件パス）を場にある間ずっと自動適用する。本来は【自】効果や能力付与（「〜を得る『…バニッシュ』」）なのに無条件 CONTINUOUS BANISH に潰れたカードは、場に出した瞬間から相手シグニを一方的にバニッシュし続ける重大バグになる（WD04-009 で発覚・v0.338修正済）。
-- **対象候補（CONTINUOUS・action=BANISH・条件なし、要個別精査）:** `WX05-021` `WX09-019` `WX09-027` `WX10-063` `WX12-024` `WX13-034` `WX16-045` `WX17-038` `WX17-075` `WX18-076` `WX20-072` `WX20-Re18` `WX21-052` `WXEX2-60` `WD14-001` `WDK08-L11` `WDK16-06H` `SP27-015` `PR-288` `PR-426` `WXDi-D07-003` `WXDi-P04-015` `WXDi-P05-034` `WXDi-P07-060` `WXDi-P15-061` `WXDi-CP02-TK02A` `WXK03-034` `WXK03-056` `WXK07-044` `WX25-P1-056` `WX25-P3-057` ほか。
-  - ※`WX20-055`/`WX25-P1-056` 等の身代わり系は `optional:true` なら自動適用されない。`TURN_OWNER`/`IS_DRIVE_STATE` 等の条件付きは正当な可能性あり。CSV を1枚ずつ確認して AUTO/能力付与/起動へ振り分けること。
-  - ※CONTINUOUS TRASH はこの経路で実行されない（無害）が、これも誤解析なので併せて精査対象。
+> **有害バグは解消済み（v0.339）**: 非optional CONTINUOUS BANISH は残り0件。詳細は BUGFIXES.md「CONTINUOUS BANISH 誤解析の一掃ラウンド」。以下は残りの「機能実装」と無害な TRASH 系。
+
+### F-1. no-op 化したカードの機能実装（24枚・無害化のみ済み）
+
+誤バニッシュは停止したが効果は未実装（CONTINUOUS STUB `UNIMPL_GRANTED_ABILITY` に置換）。忠実実装には新しい条件型/機構が必要：
+
+- **覚醒状態の条件:** WXDi-P07-060 / WX25-P3-057（覚醒であるかぎり付与）
+- **ドライブ状態の Condition:** WDK01-011（【ドライブ常】、現状 ActiveCondition の IS_DRIVE_STATE はあるが AUTO 用 Condition がない）
+- **血晶武装＋任意コスト:** WDK08-L11
+- **ソウル付与先への付与:** WXDi-D07-003 / WXDi-P04-015
+- **アクセされているシグニへの付与:** WX16-045 / WX18-076 / WX20-072 / SP27-015
+- **場全体/特定クラス全体への付与:** WX13-034（あなたのシグニ全部）/ WX21-052（＜天使＞）/ WD14-001（全領域に【ライフバースト】付与）/ WXDi-P15-061（上の＜解放派＞）
+- **動的パワー「自身以下」/正面 等:** WX20-Re18（正面）/ PR-426（正面）/ PR-288（ルリグレベル一致）
+- **その他の条件:** WXDi-P05-034（下にカードがある）/ WXK03-034・WXK03-056（このターン手札をN枚捨てた）/ WDK16-06H（センターに《楓》がいる）
+- **テキスト書き換え系:** WX09-027（自分の他シグニのバニッシュ閾値を書き換え）
+- **トークン:** WXDi-CP02-TK02A（CSV要確認）
+- **WX17-038:** 中央でアタック時にデッキ公開→同レベルバニッシュ（複雑な公開シーケンス）
+
+### F-2. 無害な CONTINUOUS TRASH 誤解析（精査のみ）
+
+`calcContinuousSigniMutations` は TRASH を実行しないので無害だが誤解析ではある：`WX06-029` `WX12-018` `WX17-036` `WX21-054` `WXDi-P02-068` `WXDi-P04-040` `WXDi-P04-082` `WXDi-P05-032` `WXDi-P06-034` `WXDi-P09-058` `WXDi-P10-072` `WXDi-P15-060` `WXDi-P15-064` `WXDi-P15-076` `WXDi-P15-082` `WXDi-P15-098` `WXK04-048` `WXK05-024` `WXK10-039` ほか。
+
+### F-3. optional 身代わりバニッシュの表現（無害・別概念）
+
+`optional:true` の「代わりにバニッシュしてもよい」は自動適用されず無害だが、CONTINUOUS BANISH 表現は正しくない（本来は BANISH_SUBSTITUTE/CHARM_PROTECTION 的な置換機構）：`WX12-024` `WX17-075` `WX20-055` `WXEX2-60` `WXDi-P10-052` `WXDi-CP01-032` `WX25-P1-056`。
