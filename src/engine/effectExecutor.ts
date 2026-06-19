@@ -229,7 +229,12 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const delta = resolveNum(a.delta);
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // thisCardOnly: 効果元シグニ自身のみ（「このシグニのパワーを±X」。WX25-CP1-075 等の付与能力で使用）
+  if (a.target.filter?.thisCardOnly) {
+    cands = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+      ? [ctx.sourceCardNum] : [];
+  }
   if (cands.length === 0) return done(ctx);
 
   // targetsTriggerSource: 「それ」= triggeringCardNum（なければ sourceCardNum）を自動対象
