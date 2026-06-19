@@ -8146,11 +8146,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!activate) {
         const stateKey = p.ownerKey;
         const update: Record<string, unknown> = { [stateKey]: baseState, pending_effect: null };
-        if (crashTriggers.length > 0) {
+        if (opStateForUsed) update[opKey] = opStateForUsed;
+        const combinedTriggers = [...crashTriggers, ...oppCrashTriggers];
+        if (combinedTriggers.length > 0) {
           const existingStack = bs.effect_stack ?? null;
           update.effect_stack = existingStack
-            ? pushToStack(existingStack, crashTriggers)
-            : initStack(bs.active_user_id ?? ownerId, crashTriggers);
+            ? pushToStack(existingStack, combinedTriggers)
+            : initStack(bs.active_user_id ?? ownerId, combinedTriggers);
         }
         await supabase.from('battle_states').update(update).eq('room_id', roomId);
         return;
