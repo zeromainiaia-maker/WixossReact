@@ -1353,8 +1353,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opS  = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
 
-    const myGranted = { ...(myS.granted_effects ?? {}), ...(myS.granted_effects_until_opp_turn ?? {}) };
-    const opGranted = { ...(opS.granted_effects ?? {}), ...(opS.granted_effects_until_opp_turn ?? {}) };
+    // granted_effects（ターン終了まで）と granted_effects_until_opp_turn（次の相手ターン終了まで）を
+    // instanceId 単位で配列結合してマージ（同一キーで一方が欠落しないように）。
+    const mergeGranted = (
+      a: Record<string, import('../types/effects').CardEffect[]>,
+      b: Record<string, import('../types/effects').CardEffect[]>,
+    ): Record<string, import('../types/effects').CardEffect[]> => {
+      const out: Record<string, import('../types/effects').CardEffect[]> = { ...a };
+      for (const [k, v] of Object.entries(b)) out[k] = [...(out[k] ?? []), ...v];
+      return out;
+    };
+    const myGranted = mergeGranted(myS.granted_effects ?? {}, myS.granted_effects_until_opp_turn ?? {});
+    const opGranted = mergeGranted(opS.granted_effects ?? {}, opS.granted_effects_until_opp_turn ?? {});
     const hasGranted = Object.keys(myGranted).length > 0 || Object.keys(opGranted).length > 0;
 
     // スタックあり（ライズ）ゾーンの有無チェック
