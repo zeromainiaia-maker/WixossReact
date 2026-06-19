@@ -18,7 +18,7 @@
 
 | カード | 内容 | 状態 |
 |---|---|---|
-| PR-Di035（青） | 「相手手札3枚捨て」が先頭3枚固定の近似（`PRDI035_APPLY_PARADISE` の `othPDL.hand.slice(0,3)`）。本来は相手が選ぶ。遅延評価中スタブから相手へ SELECT_DISCARD 系を発行する横断的機構が必要 | 近似のまま |
+| ~~PR-Di035（青）~~ | 「相手手札3枚捨て」が先頭3枚固定の近似だった | → 監査(v0.359)で解消済を確認。`PRDI035_APPLY_PARADISE`(execStubPart3.ts:4490)は青成立時に `TRASH{HAND_CARD,owner:opponent}` を `opponentResponds` 付きで発行し相手が選んで捨てる実装。先頭固定の近似は既に撤去済み |
 | ~~WXDi-P03-085（ルカ）~~ | 「黒ではない」除外を無視した近似 | → v0.359 で `colorExclude:黒`＋`powerRange.max:3000` を付与し実装済 |
 | ~~WX17-035（ピグシイ）~~ | 「このシグニの正面のシグニ」の表現がなく近似（owner:self で全体除去のバグ） | → v0.359 で `execRemoveAbilities` に `frontOfSelf` を追加し正面1体に限定 |
 
