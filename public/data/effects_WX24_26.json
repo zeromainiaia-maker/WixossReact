@@ -46460,11 +46460,7 @@
         "steps": [
           {
             "type": "STUB",
-            "id": "DECLARE_NUMBER"
-          },
-          {
-            "type": "STUB",
-            "id": "LOOK_OPP_LIFE_TOP"
+            "id": "TK3_DECLARE_DISCARD"
           },
           {
             "type": "STUB",

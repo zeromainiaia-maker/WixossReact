@@ -110,6 +110,36 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, declared_guard_restrict_level: val };
     return done(addLog({ ...ctx, ownerState: newOwner }, `数字「${val}」を宣言（相手はLv${val}シグニでガード不可）`));
   }
+  // TK3_DECLARE_DISCARD: 数字を宣言し、対戦相手の手札から宣言レベルのシグニをすべて捨てさせる
+  // （WX25-P1-TK3 ダーク・アナライズ：「数字1つを宣言する。対戦相手の手札を見て、宣言した数字と同じレベルを持つすべてのシグニを捨てさせる」）
+  if (stub.id === 'TK3_DECLARE_DISCARD') {
+    if (stub.value === undefined || stub.value === null) {
+      const options = [1, 2, 3, 4, 5].map(n => ({
+        id: `tk3_${n}`, label: `${n}を宣言`,
+        action: ({ type: 'STUB', id: 'TK3_DECLARE_DISCARD', value: n } as StubAction) as EffectAction,
+        available: true,
+      }));
+      return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), { type: 'CHOOSE', options, count: 1 });
+    }
+    const lvlTK3 = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value));
+    const oppHandTK3 = ctx.otherState.hand;
+    const discardTK3 = oppHandTK3.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && parseInt(c?.Level ?? '0', 10) === lvlTK3;
+    });
+    if (discardTK3.length === 0) {
+      return done(addLog(ctx, `数字「${lvlTK3}」を宣言：対戦相手の手札にLv${lvlTK3}のシグニなし`));
+    }
+    const newOtherTK3: PlayerState = {
+      ...ctx.otherState,
+      hand: oppHandTK3.filter(cn => !discardTK3.includes(cn)),
+      trash: [...ctx.otherState.trash, ...discardTK3],
+      hand_discarded_just: [...(ctx.otherState.hand_discarded_just ?? []), ...discardTK3],
+    };
+    const namesTK3 = discardTK3.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+    return done(addLog({ ...ctx, otherState: newOtherTK3 },
+      `数字「${lvlTK3}」を宣言：対戦相手のLv${lvlTK3}シグニ${discardTK3.length}枚を捨てさせる（${namesTK3}）`));
+  }
   // カード名宣言（手札のカード名から選択）
   if (stub.id === 'DECLARE_CARD_NAME') {
     const handNames = [...new Set(
