@@ -38,12 +38,11 @@
 
 | 機構 | 内容 | 影響カード例 |
 |---|---|---|
-| 遅延能力付与 | 「次のアタックフェイズ開始時にシグニへ能力を付与」 | FUTURE SESSION③（WX26-CP1-001） |
-| 動的 choose_count | リコレクト枚数等で選択数が動的に変わる | FUTURE SESSION リコレクト |
-| ダーク系 TK 生成 | うらら系の汎用ダークアーツ生成（個別名指しなし） | ダーク系トークン |
+| 遅延能力付与 | 「次のアタックフェイズ開始時にシグニへ能力を付与」（`pending_prioke_attack_trash_grant` まで配線済・付与能力の解決は STUB のまま＝部分実装） | FUTURE SESSION③（WX26-CP1-001） |
+| ダーク系 TK 生成 | うらら系の汎用ダークアーツ生成（個別名指しなし）。engine にハンドラ無し＝真に未実装 | ダーク系トークン |
 | クラッシュ時トリガー配線 | `ON_LIFE_CRASHED` timing が未配線。クラッシュ発生は `crashOneLife` 系7箇所＋`execLifeCrash` に分散しており、配線時は全経路対応が必要 | WXDi-P02-037（ダッキ）等 |
 
-> **解決済み（2026-06-19, v0.359 監査）**: ~~CONTINUOUS REMOVE_ABILITIES~~（WX16-001/WXDi-P05-045/WXK01-002/WXK04-068）は `collectContinuousAbilitiesRemovedSigni`（effectEngine）で対面/全体除去ともに実装済み。~~CONTINUOUS DRAW~~（WXDi-P04-056）は実体が「パワー8000以上の間アタック時に手札1枚捨てて1枚引く」の条件付き付与で、`SELF_POWER_THRESHOLD`＋捨て引きSEQUENCEで実装済み（TODO記載が誤り）。
+> **解決済み（2026-06-19, v0.359 監査）**: ~~CONTINUOUS REMOVE_ABILITIES~~（WX16-001/WXDi-P05-045/WXK01-002/WXK04-068）は `collectContinuousAbilitiesRemovedSigni`（effectEngine）で対面/全体除去ともに実装済み。~~CONTINUOUS DRAW~~（WXDi-P04-056）は実体が「パワー8000以上の間アタック時に手札1枚捨てて1枚引く」の条件付き付与で、`SELF_POWER_THRESHOLD`＋捨て引きSEQUENCEで実装済み（TODO記載が誤り）。~~動的 choose_count~~（リコレクト）は `execStubPart`/`effectExecutor.ts:1609` の `a.recollect` 上書き（トラッシュの＜プリオケ＞数が閾値以上で選択数を変更）で実装済み。
 | 手札からの自己起動 | 「手札からこのカードを捨てて起動」＝自身がコストという機構自体が未実装 | WX17-031 等8枚 |
 
 ---
