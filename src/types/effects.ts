@@ -378,6 +378,7 @@ export type EffectAction =
   | GrantEffectAction
   | GrantSigniAboveAbilityAction
   | GrantFieldSigniAbilityAction
+  | GrantAcceHostAbilityAction
   | StubAction
   | GainBondAction
   | MILLAction
@@ -634,6 +635,14 @@ export interface GrantFieldSigniAbilityAction {
   type: 'GRANT_FIELD_SIGNI_ABILITY';
   filter?: TargetFilter;   // 付与先フィルタ（例: story:'怪異'。省略時は自分の全シグニ）
   abilities: CardEffect[]; // 付与する能力（付与先シグニ自身の能力として扱われる）
+}
+
+// このカードが【アクセ】として付いているシグニ（ホスト）へ能力を付与する（CONTINUOUS宣言型）
+// 「これにアクセされている＜クラス＞のシグニは『…』を得る」
+export interface GrantAcceHostAbilityAction {
+  type: 'GRANT_ACCE_HOST_ABILITY';
+  filter?: TargetFilter;   // ホストシグニへのフィルタ（例: cardClass:'調理'。省略時は任意）
+  abilities: CardEffect[]; // 付与する能力（ホストシグニ自身の能力として扱われる）
 }
 
 // トラッシュ/エナ/フィールドからデッキへ移動
