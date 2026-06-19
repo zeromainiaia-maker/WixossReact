@@ -1297,7 +1297,7 @@ export function calcFieldPowers(
   // negatePositiveFor: このセットにあるシグニへの正デルタを負に置換（REPLACE_PLUS_N）
   const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>) => {
     const doublers = state.double_power_minus_targets ?? [];
-    for (const mod of state.temp_power_mods ?? []) {
+    for (const mod of [...(state.temp_power_mods ?? []), ...(state.power_mods_until_opp_turn ?? [])]) {
       if (powers.has(mod.cardNum)) {
         // DOUBLE_OWN_POWER_MINUS: 特定シグニへの負デルタを2倍に
         let delta = mod.delta < 0 && doublers.includes(mod.cardNum) ? mod.delta * 2 : mod.delta;
