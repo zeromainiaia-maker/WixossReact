@@ -237,13 +237,16 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   }
   if (cands.length === 0) return done(ctx);
 
+  // UNTIL_OPP_TURN_END は長期ストア power_mods_until_opp_turn へ（次の相手ターン終了時までクリアされない）
+  const powerModKey = a.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
+
   // targetsTriggerSource: 「それ」= triggeringCardNum（なければ sourceCardNum）を自動対象
   if (a.targetsTriggerSource) {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     if (autoNum && cands.includes(autoNum)) {
       const s = ownerState(tgtOwner, ctx);
-      const mods = [...(s.temp_power_mods ?? []), { cardNum: autoNum, delta }];
-      const newS: PlayerState = { ...s, temp_power_mods: mods };
+      const mods = [...(s[powerModKey] ?? []), { cardNum: autoNum, delta }];
+      const newS: PlayerState = { ...s, [powerModKey]: mods };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
         `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}のパワー${delta > 0 ? '+' : ''}${delta}`));
     }
@@ -253,10 +256,10 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   function applyPowerMod(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgtOwner, c);
     const mods = [
-      ...(s.temp_power_mods ?? []),
+      ...(s[powerModKey] ?? []),
       ...selected.map(cardNum => ({ cardNum, delta })),
     ];
-    const newS: PlayerState = { ...s, temp_power_mods: mods };
+    const newS: PlayerState = { ...s, [powerModKey]: mods };
     return addLog(setOwnerState(tgtOwner, newS, c),
       `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}のパワー${delta > 0 ? '+' : ''}${delta}`);
   }
