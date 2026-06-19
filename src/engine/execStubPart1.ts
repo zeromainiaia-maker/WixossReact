@@ -28,6 +28,14 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、次のダメージを1回無効'));
   }
+  // SET_NEXT_LIFE_CRASH_COUNTER: 「次にあなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスをクラッシュする」
+  // 防御用カウンタークラッシュをセット（WX25-P1-004 / WXDi-P12-030）。perTrigger=value(既定1)、remaining=1。
+  if (stub.id === 'SET_NEXT_LIFE_CRASH_COUNTER') {
+    const perTrigger = typeof stub.value === 'number' ? stub.value : 1;
+    const newOwner = { ...ctx.ownerState, life_crash_counter: { remaining: 1, perTrigger } };
+    return done(addLog({ ...ctx, ownerState: newOwner },
+      `次にあなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスを${perTrigger}枚クラッシュする`));
+  }
   if (stub.id === 'NEGATE_ATTACK_ON_TRIGGER') {
     // 発動中のアタックを無効化: prevent_next_damage と同様のフラグで近似
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
