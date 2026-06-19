@@ -32,6 +32,34 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX11-026 聖火の祭壇　ヘスチア（自己復活）
+  // 【自】：あなたのライフクロス１枚がクラッシュされたとき、このシグニをあなたのトラッシュから場に出してもよい。
+  // E1 を ON_PLAY の誤パース（LIFE_CRASH self）から ON_LIFE_CRASHED の自己復活へ修正。
+  // トラッシュにあるこのカード自身がトリガー源になるため、collectSelfEventTriggers がトラッシュも走査する。
+  // 自己復活アクションは ADD_TO_FIELD source:TRASH_CARD（cardName一致＝同名は機能等価）。upToCount で「してもよい」を表現。
+  'WX11-026': [
+    {
+      effectId: 'WX11-026-E1',
+      effectType: 'AUTO',
+      timing: ['ON_LIFE_CRASHED'],
+      triggerScope: 'self',
+      action: {
+        type: 'ADD_TO_FIELD',
+        owner: 'self',
+        source: {
+          type: 'TRASH_CARD',
+          owner: 'self',
+          count: 1,
+          upToCount: true,
+          filter: { cardType: 'シグニ', cardName: '聖火の祭壇　ヘスチア' },
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX15-064 羅菌　キョウギュ（起動）
   // 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じゾーンの【ウィルス】１つを取り除き、
   //   ターン終了時まで、それのパワーを－7000する。パワーが0以下になった場合、1枚引く。
