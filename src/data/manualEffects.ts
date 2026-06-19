@@ -81,6 +81,40 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX25-P1-004 条炎反射（アーツ・カウンタークラッシュ）
+  // このターン、次に対戦相手のルリグによってあなたのライフクロス１枚がクラッシュされたとき、対戦相手のライフクロス１枚をクラッシュする。
+  // E1 を「即時2枚クラッシュ」の誤パースから SET_NEXT_LIFE_CRASH_COUNTER（防御カウンター設定）へ修正。
+  // 発生源限定（相手ルリグによって）とブースト時2枚クラッシュは近似で省略（perTrigger=1固定）。
+  'WX25-P1-004': [
+    {
+      effectId: 'WX25-P1-004-E1',
+      effectType: 'ACTIVATED',
+      timing: ['ATTACK'],
+      cost: { energy: [{ color: '赤', count: 0 }] },
+      action: { type: 'STUB', id: 'SET_NEXT_LIFE_CRASH_COUNTER', value: 1 },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P12-030 レイラ・ザ・クラック（アシストルリグ・カウンタークラッシュ）
+  // 【出】：ターン終了時まで、このルリグは「【自】《ターン１回》：対戦相手のシグニによってあなたのライフクロス１枚が
+  //   クラッシュされたとき、対戦相手のライフクロス１枚をクラッシュする。」を得る。
+  // E1 を「即時クラッシュ」の誤パースから SET_NEXT_LIFE_CRASH_COUNTER へ修正。発生源限定（相手シグニ）は近似で省略。
+  // E2（《赤》《無》の別【出】）は別能力のためパーサー生成のまま維持。
+  'WXDi-P12-030': [
+    {
+      effectId: 'WXDi-P12-030-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: { type: 'STUB', id: 'SET_NEXT_LIFE_CRASH_COUNTER', value: 1 },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX15-064 羅菌　キョウギュ（起動）
   // 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じゾーンの【ウィルス】１つを取り除き、
   //   ターン終了時まで、それのパワーを－7000する。パワーが0以下になった場合、1枚引く。
