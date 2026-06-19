@@ -3344,6 +3344,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
           keyword_grants_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 次の相手ターン終了時（=自分のターン再開時）にクリア
+          granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 付与効果を次の相手ターン終了時にクリア
+          power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END: 長期パワー修正を次の相手ターン終了時にクリア
           field: {
             ...opState.field,
             signi_down:   newSigniDown,
