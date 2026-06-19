@@ -3579,6 +3579,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         blocked_actions: convertedOpBlocked,
         negate_coin_abilities: undefined,
         keyword_grants_until_opp_turn: undefined,
+        granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END
+        power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END
         field: {
           ...opState.field,
           signi_down:   newSigniDown,
