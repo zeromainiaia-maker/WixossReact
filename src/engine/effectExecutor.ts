@@ -822,7 +822,12 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をアップ`));
   }
   const state = ownerState(a.target.owner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // thisCardOnly: 効果元シグニ自身のみ（「このシグニをアップする」。WX16-Re07等）
+  if (a.target.filter?.thisCardOnly) {
+    cands = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+      ? [ctx.sourceCardNum] : [];
+  }
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyUp(selected: string[], c: ExecCtx): ExecCtx {
