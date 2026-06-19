@@ -338,7 +338,11 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   }
 
   if (tgt.type === 'ENERGY_CARD') {
-    const cands = energyCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // colorNotMatchesLrig 等の動的フィルタを対象オーナーのルリグ基準で解決（WX21-035①）
+    const ownerSt = tgt.owner === 'self' ? ctx.ownerState : ctx.otherState;
+    const otherSt = tgt.owner === 'self' ? ctx.otherState : ctx.ownerState;
+    const resolvedFilter = resolveDynamicFilter(tgt.filter, ownerSt, ctx.cardMap, otherSt);
+    const cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
