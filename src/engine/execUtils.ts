@@ -487,6 +487,15 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const pw = ctx.effectivePowers?.get(src) ?? parseInt(ctx.cardMap.get(src)?.Power ?? '0', 10);
       return pw >= cond.value;
     }
+    case 'FIELD_SIGNI_POWER_COUNT': {
+      const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
+        const top = stack?.at(-1);
+        if (!top) return n;
+        const pw = ctx.effectivePowers?.get(top) ?? parseInt(ctx.cardMap.get(top)?.Power ?? '0', 10);
+        return pw >= cond.minPower ? n + 1 : n;
+      }, 0);
+      return cmp(cnt, cond.operator, cond.value);
+    }
     case 'LIFE_COMPARE_OPP':
       return cmp(s.life_cloth.length, cond.operator, o.life_cloth.length);
     case 'DURING_PHASE':

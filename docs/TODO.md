@@ -70,3 +70,12 @@
 
 - `checkAllEffects` の `MANDATORY_SUSPICIOUS`（ヒューリスティック検出・要精査）の精査。
 - `verifyEffects` の「定義なし」誤検出（注釈のみ・トークン等）の除外ロジック改善。
+
+---
+
+## F. CONTINUOUS BANISH 誤解析の一掃（系統的・要精査）
+
+- **背景:** `calcContinuousSigniMutations`（`effectEngine.ts`）は CONTINUOUS の BANISH/FREEZE/DOWN（`mandatory:true`・非optional・条件パス）を場にある間ずっと自動適用する。本来は【自】効果や能力付与（「〜を得る『…バニッシュ』」）なのに無条件 CONTINUOUS BANISH に潰れたカードは、場に出した瞬間から相手シグニを一方的にバニッシュし続ける重大バグになる（WD04-009 で発覚・v0.338修正済）。
+- **対象候補（CONTINUOUS・action=BANISH・条件なし、要個別精査）:** `WX05-021` `WX09-019` `WX09-027` `WX10-063` `WX12-024` `WX13-034` `WX16-045` `WX17-038` `WX17-075` `WX18-076` `WX20-072` `WX20-Re18` `WX21-052` `WXEX2-60` `WD14-001` `WDK08-L11` `WDK16-06H` `SP27-015` `PR-288` `PR-426` `WXDi-D07-003` `WXDi-P04-015` `WXDi-P05-034` `WXDi-P07-060` `WXDi-P15-061` `WXDi-CP02-TK02A` `WXK03-034` `WXK03-056` `WXK07-044` `WX25-P1-056` `WX25-P3-057` ほか。
+  - ※`WX20-055`/`WX25-P1-056` 等の身代わり系は `optional:true` なら自動適用されない。`TURN_OWNER`/`IS_DRIVE_STATE` 等の条件付きは正当な可能性あり。CSV を1枚ずつ確認して AUTO/能力付与/起動へ振り分けること。
+  - ※CONTINUOUS TRASH はこの経路で実行されない（無害）が、これも誤解析なので併せて精査対象。

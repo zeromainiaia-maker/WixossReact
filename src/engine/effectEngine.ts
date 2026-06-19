@@ -68,6 +68,26 @@ export function checkActiveCondition(
       break;
     }
 
+    case 'FIELD_SIGNI_POWER_COUNT': {
+      // 場のシグニのうち実効パワーが minPower 以上のものの数を operator/value で判定
+      const state = cond.owner === 'self' ? ownerState : otherState;
+      const cnt = state.field.signi.reduce((n, stack) => {
+        const top = stack?.at(-1);
+        if (!top) return n;
+        const pw = effectivePowers?.get(top) ?? parseInt(cardMap.get(top)?.Power ?? '0', 10);
+        return pw >= cond.minPower ? n + 1 : n;
+      }, 0);
+      switch (cond.operator) {
+        case 'gte': return cnt >= cond.value;
+        case 'lte': return cnt <= cond.value;
+        case 'gt':  return cnt >  cond.value;
+        case 'lt':  return cnt <  cond.value;
+        case 'eq':  return cnt === cond.value;
+        case 'neq': return cnt !== cond.value;
+      }
+      return false;
+    }
+
     case 'SELF_POWER_THRESHOLD': {
       // effectivePowers がある場合はそちらを参照、なければカードの基本パワーを使用
       const selfPower = sourceCardNum
