@@ -455,6 +455,7 @@ export interface PowerModifyAction {
   delta: NumberOrRef; // 正=強化、負=弱体化
   excludeSelf?: boolean; // 「あなたの他のシグニ」: 効果元カード自身を対象から除外
   targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニを自動対象（ctx.triggeringCardNum → ctx.sourceCardNum の順で解決）
+  duration?: EffectDuration; // 'UNTIL_OPP_TURN_END' のとき power_mods_until_opp_turn へ（省略時はターン終了まで＝temp_power_mods）
 }
 
 export interface PowerSetAction {
