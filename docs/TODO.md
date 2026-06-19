@@ -48,14 +48,16 @@
 
 ---
 
-## C. 未実装の特殊システム（STUB ログのみ）
+## C. 特殊システム（v0.359 監査: 全て実装済み・残るは個別精査のみ）
 
-| STUB / システム | 件数 | 内容 |
+> **2026-06-19 監査結果**: 下記4システムは「STUB ログのみ」ではなく、いずれも engine に実体実装が存在する（前セッションで実装済み・TODO 未更新だった）。ヒューリスティックなテキスト解析ベースのため、個別カードのエッジケースが残る可能性はあるが、システムとしては機能する。
+
+| STUB / システム | 件数 | 実装状況 |
 |---|---|---|
-| GRANT_QUOTED_AUTO_ABILITY 系 | 約27件 | 「アタック時にパワー自己参照-」「アーツ使用時ダブルクラッシュ獲得」等の引用能力付与 |
-| GAIN_SUBSCRIBER_COUNT | 16件 | 登録者数（WDK16） |
-| SONG_FRAGMENT | 10件 | 歌のカケラ（WX26-CP1） |
-| COPY_LRIG_NAME_ABILITY | 16件 | ルリグ名＋AUTO 能力コピー（WX24-P4） |
+| GRANT_QUOTED_AUTO_ABILITY 系 | 約27件 | `execStubPart1.ts:312`〜 で引用テキストからキーワード/CONTINUOUS能力を抽出して付与。実装済（ヒューリスティック） |
+| GAIN_SUBSCRIBER_COUNT | 16件 | `execStubPart1.ts:997` でテキストから加算量を解析し `subscriber_count` を増加。読み取り側(`SUBSCRIBER_COUNT` Cond/パワー/ドロー)も実装済 |
+| SONG_FRAGMENT | 10件 | `execStubPart1.ts:2141` でエナの【歌のカケラ】を選択・処理。実装済 |
+| COPY_LRIG_NAME_ABILITY | 16件 | `execStubPart1.ts:1608`＋`effectEngine.ts:2633/2724` でルリグトラッシュ参照のカード名エイリアスを設定。実装済 |
 
 ---
 
