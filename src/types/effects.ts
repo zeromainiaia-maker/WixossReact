@@ -386,6 +386,7 @@ export type EffectAction =
   | GrantFieldSigniAbilityAction
   | GrantAcceHostAbilityAction
   | GrantSoulHostAbilityAction
+  | RevealUntilBanishSameLevelAction
   | StubAction
   | GainBondAction
   | MILLAction
@@ -658,6 +659,14 @@ export interface GrantSoulHostAbilityAction {
   type: 'GRANT_SOUL_HOST_ABILITY';
   filter?: TargetFilter;   // ホストシグニへのフィルタ（省略時は任意）
   abilities: CardEffect[]; // 付与する能力（ホストシグニ自身の能力として扱われる）
+}
+
+// デッキ上から指定クラスのシグニがめくれるまで公開し、そのシグニと同じレベルの相手シグニ1体をバニッシュ。
+// 公開したカードはシャッフルしてデッキの一番下に置く（WX17-038）。
+export interface RevealUntilBanishSameLevelAction {
+  type: 'REVEAL_UNTIL_BANISH_SAME_LEVEL';
+  revealClass: string;     // めくり続ける対象シグニの＜クラス＞（CardClass に includes）
+  banishOwner: Owner;      // バニッシュ対象のオーナー（通常 opponent）
 }
 
 // トラッシュ/エナ/フィールドからデッキへ移動

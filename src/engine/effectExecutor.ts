@@ -1871,6 +1871,39 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
+function execRevealUntilBanishSameLevel(
+  a: import('../types/effects').RevealUntilBanishSameLevelAction,
+  ctx: ExecCtx,
+): ExecResult {
+  const state = ctx.ownerState; // 公開はあなたのデッキ
+  // デッキ上から revealClass のシグニがめくれるまで公開
+  let foundIdx = -1;
+  for (let i = 0; i < state.deck.length; i++) {
+    const card = ctx.cardMap.get(state.deck[i]);
+    if (card?.Type === 'シグニ' && (card.CardClass ?? '').includes(a.revealClass)) { foundIdx = i; break; }
+  }
+  if (foundIdx < 0) {
+    // 見つからない：デッキ全体を見たがいない（実質シャッフルのみ）
+    const newS: PlayerState = { ...state, deck: shuffle([...state.deck]) };
+    return done(addLog(setOwnerState('self', newS, ctx), `デッキに＜${a.revealClass}＞のシグニがなかった`));
+  }
+  const revealed = state.deck.slice(0, foundIdx + 1);
+  const foundCard = ctx.cardMap.get(state.deck[foundIdx]);
+  const level = parseInt(foundCard?.Level ?? '0', 10) || 0;
+  // 公開したカードをシャッフルしてデッキの一番下へ
+  const remaining = state.deck.slice(foundIdx + 1);
+  const newDeck = [...remaining, ...shuffle(revealed)];
+  const newCtx = setOwnerState('self', { ...state, deck: newDeck }, ctx);
+  const logged = addLog(newCtx, `＜${a.revealClass}＞のシグニ（レベル${level}）が公開された`);
+  // そのレベルの相手シグニ1体をバニッシュ
+  const banishState = ownerState(a.banishOwner, logged);
+  const cands = fieldCandidates(banishState, { cardType: 'シグニ', level }, logged.cardMap, logged.effectivePowers, logged.allColorSigniNums, logged.fieldSigniExtraColors);
+  if (cands.length === 0) return done(addLog(logged, `レベル${level}の対戦相手のシグニはいなかった`));
+  const banishAction: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: a.banishOwner, count: 1, filter: { cardType: 'シグニ', level }, upToCount: false } };
+  const scope: TargetScope = a.banishOwner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, 1, false, scope, banishAction, undefined, logged);
+}
+
 function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   let cands: string[];
 
@@ -2663,6 +2696,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MODIFY_BY_TARGET_LEVEL':   return execPowerModifyByTargetLevel(action as PowerModifyByTargetLevelAction, ctx);
     case 'POWER_MODIFY_PER_TRASHED_LEVEL': return execPowerModifyPerTrashedLevel(action as import('../types/effects').PowerModifyPerTrashedLevelAction, ctx);
     case 'POWER_MODIFY_PER_CHARM':         return execPowerModifyPerCharm(action as import('../types/effects').PowerModifyPerCharmAction, ctx);
+    case 'REVEAL_UNTIL_BANISH_SAME_LEVEL': return execRevealUntilBanishSameLevel(action as import('../types/effects').RevealUntilBanishSameLevelAction, ctx);
     case 'GAIN_BOND':               return execGainBond(action as import('../types/effects').GainBondAction, ctx);
     case 'MILL':                    return execMill(action as MILLAction, ctx);
     case 'STUB': return execStub(action as StubAction, ctx, executeAction);
