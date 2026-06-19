@@ -4435,10 +4435,11 @@ export function execStubPart3(
       effectId: `${targetIAPAT}-FS3-GRANTED`,
       effectType: 'AUTO',
       timing: ['ON_ATTACK_SIGNI'],
+      // カードは「トラッシュに置く」（＝バニッシュではない。被バニッシュ反応を誘発しない）
       action: {
-        type: 'BANISH',
+        type: 'TRASH',
         target: { type: 'SIGNI', owner: 'opponent', count: 1,
-          filter: { cardType: 'シグニ' }, upToCount: false },
+          filter: { cardType: 'シグニ' } },
       },
       duration: 'INSTANT',
       mandatory: true,
