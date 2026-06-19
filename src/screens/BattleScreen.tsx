@@ -6168,6 +6168,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // パワー0以下でバニッシュされるべきシグニ（候補）を収集する。
+  // checkAndBanishPowerZero と同じ判定ロジックを共有し、バトル解決を遅延させる判定に使う。
+  const collectPowerZeroBanishCandidates = (hostState: PlayerState, guestState: PlayerState): string[] => {
+    const isMyTurnLocal = bs?.active_user_id === bs?.host_id;
+    const powers = calcFieldPowers(hostState, guestState, isMyTurnLocal, effectsMap, battleCardMap);
+    const candidates: string[] = [];
+    for (const ownerIsHost of [true, false]) {
+      const ownerState = ownerIsHost ? hostState : guestState;
+      const opStateP0 = ownerIsHost ? guestState : hostState;
+      const isOwnerTurnP0 = ownerIsHost ? isMyTurnLocal : !isMyTurnLocal;
+      const grants = ownerState.keyword_grants;
+      const grantsOppTurn = ownerState.keyword_grants_until_opp_turn;
+      const banishProtected = collectBanishEffectProtectedSigni(ownerState, opStateP0, isOwnerTurnP0, effectsMap, battleCardMap);
+      for (const stack of ownerState.field.signi) {
+        if (!stack?.length) continue;
+        const topNum = stack[stack.length - 1];
+        const rawPower = battleCardMap.get(topNum)?.Power;
+        const power = powers.get(topNum) ?? (rawPower === '∞' ? Infinity : parseInt(rawPower ?? '0', 10));
+        if (isNaN(power) || power > 0) continue;
+        if (banishProtected.has(topNum)) continue;
+        if (hasBanishResist(topNum, battleCardMap, grants, grantsOppTurn)) continue;
+        candidates.push(topNum);
+      }
+    }
+    return candidates;
+  };
+
   // シグニアタック バトル解決（ON_ATTACK_SIGNI処理後に呼ばれるPhase 2）
   // 汎用版（myS/opSをパラメータとして受け取り、人間・CPU両方に対応）
   const resolvePendingSigniBattleFor = async (
