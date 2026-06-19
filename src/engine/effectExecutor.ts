@@ -1009,7 +1009,12 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
 function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // thisCardOnly: 効果元シグニ自身のみへ付与（「このシグニは『…』を得る」。WXDi-CP02-084等）
+  if (tgt.filter?.thisCardOnly) {
+    cands = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+      ? [ctx.sourceCardNum] : [];
+  }
 
   const untilOppTurn = a.duration === 'UNTIL_OPP_TURN_END';
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
