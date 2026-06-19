@@ -88,7 +88,7 @@
 - ~~**場全体/特定クラス全体への付与:** WX21-052（＜天使＞・任意自トラッシュコスト）~~ → v0.358 で実装済（`GRANT_FIELD_SIGNI_ABILITY`＋`cardClass:天使` で自分の＜天使＞へ付与、付与能力は `ON_TURN_END`＋`triggerScope:any_opp`＝対戦相手ターン終了時に発火、`BANISH` の新フラグ `selfTrashCost` で「対象を1体以上選んだら効果元シグニを自トラッシュ」を表現）。※WX13-034 は v0.344（`GRANT_FIELD_SIGNI_ABILITY`＋`powerLtSelf`）、WXDi-P15-061 は v0.345（`GRANT_SIGNI_ABOVE_ABILITY`）、WD14-001 は v0.355（`GRANT_ALL_ZONE_LIFEBURST`）で実装済。
 - ~~**正面 等:** WX18-076（被バニッシュ時に「正面にあった」シグニ参照＝離場時ゾーン記録が必要）~~ → v0.357 で実装済（`collectBanishTriggers` にバニッシュ前状態 `prevOwnerState` を渡し、離場ゾーンの正面 2-zi を参照）。※WX20-Re18（動的レベル＋正面）は v0.354、PR-426 は v0.348（`frontOfSelf`＋`IS_SELF_IN_CENTER_ZONE`）、PR-288 は v0.349（`LRIG_LEVEL_EQ_OPP`）で実装済。「自身のパワー以下」は v0.344 で解決済。
 - **その他の条件:** ※WDK16-06H（センター名《楓》＋登録者数）は v0.350 で `LRIG_NAME_CONTAINS`/`SUBSCRIBER_COUNT`(Cond) を追加し実装済。WXDi-P05-034（下にカード）は v0.342、WXK03-034・WXK03-056（手札N枚捨て）は v0.341 で実装済。
-- **テキスト書き換え系:** WX09-027（自分の他シグニのバニッシュ閾値を書き換え）
+- ~~**テキスト書き換え系:** WX09-027（自分の他シグニのバニッシュ閾値を書き換え）~~ → v0.363 で実装済。E1=CONTINUOUSマーカー `BANISH_THRESHOLD_BOOST_7_15`、`execBanish` が自場のオリハルティア存在を検出し《オリハルティア》以外のシグニの「相手パワー7000以下バニッシュ」を15000以下に書き換え。E2 は欠落していた「トラッシュに《アダマスフィア》がある場合」を `CONDITIONAL{TRASH_HAS_CARD}` で補完。
 - **トークン:** ※WXDi-CP02-TK02A は v0.352 でランサー＋バトルバニッシュを実装済（「対戦相手ターン終了時に自己除外」は非アクティブ側ターン終了トリガーが必要で保留）。
 - ~~**WX17-038:** 中央でアタック時にデッキ公開→同レベルバニッシュ~~ → v0.353 で `REVEAL_UNTIL_BANISH_SAME_LEVEL` を新設し実装済。
 

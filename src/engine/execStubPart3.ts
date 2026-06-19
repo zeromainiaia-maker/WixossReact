@@ -3730,6 +3730,11 @@ export function execStubPart3(
   if (stub.id === 'REDIRECT_ATTACK_TO_SELF_ZONE') {
     return done(addLog(ctx, '正面アタックをこのシグニゾーンへリダイレクト（BattleScreen側処理）'));
   }
+  // BANISH_THRESHOLD_BOOST_7_15: WX09-027(オリハルティア)の常在マーカー。
+  // 実体は execBanish が自場のオリハルティア存在を検出して 7000→15000 に書き換える（no-op）
+  if (stub.id === 'BANISH_THRESHOLD_BOOST_7_15') {
+    return done(addLog(ctx, 'バニッシュ閾値書き換え（オリハルティア・execBanish側処理）'));
+  }
   // BATTLE_LEAVE_REPLACE_WITH_DOWN: バトル・相手効果による場離れをダウンに置換（任意）（BattleScreen側処理）
   if (stub.id === 'BATTLE_LEAVE_REPLACE_WITH_DOWN') {
     return done(addLog(ctx, '場離れ代替ダウン（BattleScreen側処理）'));

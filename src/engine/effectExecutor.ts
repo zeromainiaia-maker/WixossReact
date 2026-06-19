@@ -111,6 +111,20 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     const { powerLteSelf: _a, powerLtSelf: _b, ...rest } = resolvedFilter;
     resolvedFilter = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: maxP } };
   }
+  // WX09-027(羅石オリハルティア): 自場にオリハルティアがあるとき、《オリハルティア》以外のシグニの
+  // 「対戦相手のパワー7000以下を1体バニッシュ」→「15000以下」に書き換える
+  if (tgt.owner === 'opponent' && resolvedFilter?.powerRange?.max === 7000) {
+    const srcName = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum)?.CardName : undefined;
+    if (srcName !== '羅石　オリハルティア') {
+      const hasOrihaltia = ctx.ownerState.field.signi.some(stack => {
+        const top = stack?.at(-1);
+        return !!top && ctx.cardMap.get(top)?.CardName === '羅石　オリハルティア';
+      });
+      if (hasOrihaltia) {
+        resolvedFilter = { ...resolvedFilter, powerRange: { ...resolvedFilter.powerRange, max: 15000 } };
+      }
+    }
+  }
   const state = ownerState(tgt.owner, ctx);
   const banishProtected = tgt.owner === 'opponent' ? new Set(ctx.otherBanishProtectedNums ?? []) : new Set<string>();
   if (tgt.owner === 'opponent') {
