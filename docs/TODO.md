@@ -85,9 +85,9 @@
 - ~~**ドライブ状態の Condition:** WDK01-011~~ → v0.340 で `IS_DRIVE_STATE` を Condition にも追加し実装済（「自身のパワー以下」は無フィルタ近似）。
 - ~~**血晶武装＋任意コスト:** WDK08-L11~~ → v0.343 で実装済（`THIS_CARD_IS_ARMORED`＋任意コスト）。
 - ~~**ソウル付与先への付与:** WXDi-D07-003 / WXDi-P04-015~~ → v0.347 で `GRANT_SOUL_HOST_ABILITY` 機構を新設し実装済。
-- **アクセされているシグニへの付与:** WX18-076（被バニッシュ時の正面参照）。※WX16-045・WX20-072 は v0.346（`GRANT_ACCE_HOST_ABILITY`）、SP27-015 は v0.356（付与【起】＋`acceTrash`コスト配線）で実装済。
+- ~~**アクセされているシグニへの付与:** WX18-076（被バニッシュ時の正面参照）~~ → v0.357 で実装済（離場時に前状態から `GRANT_ACCE_HOST_ABILITY` の ON_BANISH 能力を再構築＋`isTriggerSource` フィルタで正面シグニを対象）。※WX16-045・WX20-072 は v0.346（`GRANT_ACCE_HOST_ABILITY`）、SP27-015 は v0.356（付与【起】＋`acceTrash`コスト配線）で実装済。
 - **場全体/特定クラス全体への付与:** WX21-052（＜天使＞・任意自トラッシュコスト）。※WX13-034 は v0.344（`GRANT_FIELD_SIGNI_ABILITY`＋`powerLtSelf`）、WXDi-P15-061 は v0.345（`GRANT_SIGNI_ABOVE_ABILITY`）、WD14-001 は v0.355（`GRANT_ALL_ZONE_LIFEBURST`）で実装済。
-- **正面 等:** WX18-076（被バニッシュ時に「正面にあった」シグニ参照＝離場時ゾーン記録が必要）。※WX20-Re18（動的レベル＋正面）は v0.354、PR-426 は v0.348（`frontOfSelf`＋`IS_SELF_IN_CENTER_ZONE`）、PR-288 は v0.349（`LRIG_LEVEL_EQ_OPP`）で実装済。「自身のパワー以下」は v0.344 で解決済。
+- ~~**正面 等:** WX18-076（被バニッシュ時に「正面にあった」シグニ参照＝離場時ゾーン記録が必要）~~ → v0.357 で実装済（`collectBanishTriggers` にバニッシュ前状態 `prevOwnerState` を渡し、離場ゾーンの正面 2-zi を参照）。※WX20-Re18（動的レベル＋正面）は v0.354、PR-426 は v0.348（`frontOfSelf`＋`IS_SELF_IN_CENTER_ZONE`）、PR-288 は v0.349（`LRIG_LEVEL_EQ_OPP`）で実装済。「自身のパワー以下」は v0.344 で解決済。
 - **その他の条件:** ※WDK16-06H（センター名《楓》＋登録者数）は v0.350 で `LRIG_NAME_CONTAINS`/`SUBSCRIBER_COUNT`(Cond) を追加し実装済。WXDi-P05-034（下にカード）は v0.342、WXK03-034・WXK03-056（手札N枚捨て）は v0.341 で実装済。
 - **テキスト書き換え系:** WX09-027（自分の他シグニのバニッシュ閾値を書き換え）
 - **トークン:** ※WXDi-CP02-TK02A は v0.352 でランサー＋バトルバニッシュを実装済（「対戦相手ターン終了時に自己除外」は非アクティブ側ターン終了トリガーが必要で保留）。

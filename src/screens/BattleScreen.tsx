@@ -2769,12 +2769,44 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     banishedPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
+    prevOwnerState?: PlayerState, // バニッシュされたカードのオーナーのバニッシュ前状態（アクセ付与ON_BANISH復元用）
   ): StackEntry[] => {
     const entries: StackEntry[] = [];
     const opId = isHost ? bs.guest_id : bs.host_id;
     const myAfterState = isHost ? afterHostState : afterGuestState;
     const opAfterState = isHost ? afterGuestState : afterHostState;
     const banishedOwnerIsMe = banishedPlayerId === user.id;
+
+    // 0. アクセ付与の ON_BANISH 能力を復元（WX18-076: 離場で消えるため前状態から再構築）
+    if (prevOwnerState) {
+      const zi = prevOwnerState.field.signi.findIndex(s => s?.at(-1) === banishedCardNum);
+      const acceNum = zi >= 0 ? (prevOwnerState.field.signi_acce ?? [])[zi] : null;
+      if (acceNum) {
+        const ownerAfter = banishedOwnerIsMe ? myAfterState : opAfterState;
+        const otherAfter = banishedOwnerIsMe ? opAfterState : myAfterState;
+        const hostCard = battleCardMap.get(getCardNum(banishedCardNum));
+        const isBanishedOwnerTurn = bs.active_user_id === banishedPlayerId;
+        for (const eff of (effectsMap.get(acceNum) ?? [])) {
+          if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'GRANT_ACCE_HOST_ABILITY') continue;
+          const g = eff.action as import('../types/effects').GrantAcceHostAbilityAction;
+          if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
+          for (const ab of g.abilities) {
+            if (ab.effectType !== 'AUTO' || !ab.timing?.includes('ON_BANISH')) continue;
+            if (ab.activeCondition && !checkActiveCondition(ab.activeCondition, ownerAfter, otherAfter, isBanishedOwnerTurn, battleCardMap, banishedCardNum)) continue;
+            const frontNum = otherAfter.field.signi[2 - zi]?.at(-1); // 正面（前ゾーン 2-zi）の相手シグニ
+            entries.push({
+              id: generateUUID(),
+              playerId: banishedPlayerId,
+              cardNum: banishedCardNum,
+              effectId: ab.effectId,
+              label: `${hostCard?.CardName ?? banishedCardNum} の付与【自】（バニッシュ時）`,
+              effect: ab,
+              triggeringCardNum: frontNum,
+            });
+          }
+        }
+      }
+    }
 
     // 1. バニッシュされたカード自身の ON_BANISH 効果
     for (const eff of (effectsMap.get(banishedCardNum) ?? [])) {
@@ -3893,10 +3925,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const guestBanished = detectBanishedSigni(bs.guest_state, guestState);
         const banishEntries: StackEntry[] = [];
         for (const cardNum of hostBanished) {
-          banishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState));
+          banishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState, bs.host_state));
         }
         for (const cardNum of guestBanished) {
-          banishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState));
+          banishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState, bs.guest_state));
         }
         if (banishEntries.length > 0) {
           const baseStack = (update.effect_stack as typeof stackAfter) ?? null;
@@ -4217,10 +4249,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const midGuestBanished = detectBanishedSigni(bs.guest_state, guestState);
         const midBanishEntries: StackEntry[] = [];
         for (const cardNum of midHostBanished) {
-          midBanishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState));
+          midBanishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState, bs.host_state));
         }
         for (const cardNum of midGuestBanished) {
-          midBanishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState));
+          midBanishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState, bs.guest_state));
         }
         if (midBanishEntries.length > 0) {
           const existingMidStack = bs.effect_stack ?? null;
@@ -6774,6 +6806,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             defenderId,
             newHostState,
             newGuestState,
+            op, // 防御側のバトル前状態（アクセ付与ON_BANISH復元用）
           )
         : [];
 
