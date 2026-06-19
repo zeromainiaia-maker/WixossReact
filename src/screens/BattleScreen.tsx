@@ -8169,7 +8169,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const stateKey = p.ownerKey;
         const update: Record<string, unknown> = { [stateKey]: baseState, pending_effect: null };
         if (opStateForUsed) update[opKey] = opStateForUsed;
-        const combinedTriggers = [...crashTriggers, ...oppCrashTriggers];
+        const combinedTriggers = [...crashTriggers, ...oppCrashTriggers, ...counterCrashTriggers];
         if (combinedTriggers.length > 0) {
           const existingStack = bs.effect_stack ?? null;
           update.effect_stack = existingStack
