@@ -16785,8 +16785,10 @@
       "effectId": "WXDi-P02-037-E1",
       "effectType": "AUTO",
       "timing": [
-        "ON_PLAY"
+        "ON_LIFE_CRASHED"
       ],
+      "triggerScope": "self",
+      "usageLimit": "once_per_turn",
       "action": {
         "type": "DRAW",
         "owner": "self",
@@ -16794,7 +16796,7 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WXDi-P02-037-E2",
