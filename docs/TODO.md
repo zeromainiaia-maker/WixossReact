@@ -42,7 +42,7 @@
 | クラッシュ時トリガー（複雑ケースのみ残） | 機構は配線済み（全クラッシュ経路が `crashOneLife`/`execLifeCrash(triggerBurst)` 経由でチェックゾーンに集約→`collectSelfEventTriggers('ON_LIFE_CRASHED')`）。v0.362 で collector をルリグ／キーも走査するよう拡張。実態は**データ誤パース**で、自分ライフ・クラッシュ時の単純な【自】7枚（WXDi-P02-037/WX02-003/WX14-CB05/WX21-Re03/WXK03-014/WXK11-034/WD21-011）を `ON_LIFE_CRASHED` に修正済。残るは複雑ケース：相手ライフ／付与経由／条件付き（WX16-Re07・WDK17-009・WXDi-P06-007/P12-030/P16-039/CP02-084・WX25-P1-004・WX25-CP1-065/075）と、自己復活の WX11-026 | 上記 |
 
 > **解決済み（2026-06-19, v0.359 監査）**: ~~CONTINUOUS REMOVE_ABILITIES~~（WX16-001/WXDi-P05-045/WXK01-002/WXK04-068）は `collectContinuousAbilitiesRemovedSigni`（effectEngine）で対面/全体除去ともに実装済み。~~CONTINUOUS DRAW~~（WXDi-P04-056）は実体が「パワー8000以上の間アタック時に手札1枚捨てて1枚引く」の条件付き付与で、`SELF_POWER_THRESHOLD`＋捨て引きSEQUENCEで実装済み（TODO記載が誤り）。~~動的 choose_count~~（リコレクト）は `execStubPart`/`effectExecutor.ts:1609` の `a.recollect` 上書き（トラッシュの＜プリオケ＞数が閾値以上で選択数を変更）で実装済み。~~遅延能力付与（FS③・WX26-CP1-001）~~は `GRANT_PRIOKE_PENDING_ATTACK_TRASH`→APS時 `INTERNAL_APPLY_PRIOKE_ATTACK_TRASH` で対象プリオケへ付与する形で実装済み。v0.360 で付与能力を `BANISH`→`TRASH`（「トラッシュに置く」＝非バニッシュ）に忠実化。
-| 手札からの自己起動 | 「手札からこのカードを捨てて起動」＝自身がコストという機構自体が未実装 | WX17-031 等8枚 |
+| 手札からの自己起動 | 「手札からこのカードを捨てて起動」＝自身がコストという機構自体が未実装。さらに WX17-031(§ヤシガニラ§)は【起】《スペルカットイン》＝**スペル使用への割り込みタイミング**でもあり、(1)手札を発動源とする起動UI/エンジン、(2)spell-cut-in 割り込みウィンドウ、の2機構が必要。要・専用設計 | WX17-031 等8枚 |
 
 ---
 
