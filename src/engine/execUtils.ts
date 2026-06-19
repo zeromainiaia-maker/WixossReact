@@ -491,6 +491,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!src) return false;
       return ctx.ownerState.lrig_riding_signi?.includes(src) ?? false;
     }
+    case 'TURN_HAND_DISCARD_GTE':
+      return (ctx.ownerState.turn_hand_discarded_count ?? 0) >= cond.value;
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
