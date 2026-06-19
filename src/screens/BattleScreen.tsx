@@ -1353,8 +1353,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opS  = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
 
-    const myGranted = myS.granted_effects ?? {};
-    const opGranted = opS.granted_effects ?? {};
+    const myGranted = { ...(myS.granted_effects ?? {}), ...(myS.granted_effects_until_opp_turn ?? {}) };
+    const opGranted = { ...(opS.granted_effects ?? {}), ...(opS.granted_effects_until_opp_turn ?? {}) };
     const hasGranted = Object.keys(myGranted).length > 0 || Object.keys(opGranted).length > 0;
 
     // スタックあり（ライズ）ゾーンの有無チェック
