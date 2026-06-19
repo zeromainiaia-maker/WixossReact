@@ -156,6 +156,55 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-CP02-084 大野ツクヨ（次の相手ターン終了まで自己強化＋ON_LIFE_CRASHED付与）
+  // 【起】《ダウン》：次の対戦相手のターン終了時まで、このシグニのパワーを＋4000し、このシグニは
+  //   「【自】《ターン１回》：あなたのライフクロス１枚がクラッシュされたとき、あなたのデッキの一番上を公開する。
+  //   そのカードが＜ブルアカ＞の場合、【エナチャージ１】をする。」を得る。
+  // E1 を「即時エナチャージ＋+4000」の誤パースから、UNTIL_OPP_TURN_END の自己強化＋付与へ修正。
+  // パワー+4000は power_mods_until_opp_turn、付与能力は granted_effects_until_opp_turn に保存（次の相手ターン終了時にクリア）。
+  // E2【絆常】（CONTINUOUS +4000）はパーサー生成のまま維持。
+  'WXDi-CP02-084': [
+    {
+      effectId: 'WXDi-CP02-084-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { down_self: true },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'POWER_MODIFY',
+            target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+            delta: 4000,
+            duration: 'UNTIL_OPP_TURN_END',
+          },
+          {
+            type: 'GRANT_EFFECT',
+            target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+            duration: 'UNTIL_OPP_TURN_END',
+            effect: {
+              effectId: 'WXDi-CP02-084-GRANT',
+              effectType: 'AUTO',
+              timing: ['ON_LIFE_CRASHED'],
+              usageLimit: 'once_per_turn',
+              action: {
+                type: 'CONDITIONAL',
+                condition: { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardClass: 'ブルアカ' } },
+                then: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+              },
+              duration: 'INSTANT',
+              mandatory: true,
+              parseStatus: 'MANUAL',
+            },
+          },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX15-064 羅菌　キョウギュ（起動）
   // 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じゾーンの【ウィルス】１つを取り除き、
   //   ターン終了時まで、それのパワーを－7000する。パワーが0以下になった場合、1枚引く。
