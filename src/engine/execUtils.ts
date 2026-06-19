@@ -499,6 +499,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const stack = ctx.ownerState.field.signi.find(s => s?.at(-1) === src);
       return !!stack && stack.length > 1;
     }
+    case 'LRIG_LEVEL_EQ_OPP': {
+      const myLrig = s.field.lrig.at(-1);
+      const opLrig = o.field.lrig.at(-1);
+      if (!myLrig || !opLrig) return false;
+      const myLv = parseInt(ctx.cardMap.get(myLrig)?.Level ?? '-1', 10);
+      const opLv = parseInt(ctx.cardMap.get(opLrig)?.Level ?? '-2', 10);
+      return myLv === opLv;
+    }
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
