@@ -507,6 +507,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const opLv = parseInt(ctx.cardMap.get(opLrig)?.Level ?? '-2', 10);
       return myLv === opLv;
     }
+    case 'LRIG_NAME_CONTAINS': {
+      const lrig = st(cond.owner).field.lrig.at(-1);
+      if (!lrig) return false;
+      return ctx.cardMap.get(lrig)?.CardName?.includes(cond.name) ?? false;
+    }
+    case 'SUBSCRIBER_COUNT':
+      return cmp(ctx.ownerState.subscriber_count ?? 0, cond.operator, cond.value);
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
