@@ -29110,13 +29110,72 @@
     {
       "effectId": "WXDi-P05-034-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "THIS_CARD_HAS_UNDER"
+      },
       "action": {
-        "type": "STUB",
-        "id": "UNIMPL_GRANTED_ABILITY"
+        "type": "POWER_MODIFY",
+        "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1,
+          "filter": {
+            "cardType": "シグニ"
+          }
+        },
+        "delta": 5000
       },
       "duration": "PERMANENT",
-      "mandatory": false,
+      "mandatory": true,
       "parseStatus": "MANUAL"
+    },
+    {
+      "effectId": "WXDi-P05-034-E1b",
+      "effectType": "AUTO",
+      "timing": [
+        "ON_ATTACK_SIGNI"
+      ],
+      "condition": {
+        "type": "THIS_CARD_HAS_UNDER"
+      },
+      "action": {
+        "type": "SEQUENCE",
+        "steps": [
+          {
+            "type": "STUB",
+            "id": "OPTIONAL_COST",
+            "costColors": [
+              "赤",
+              "赤"
+            ]
+          },
+          {
+            "type": "CONDITIONAL",
+            "condition": {
+              "type": "IS_MY_TURN"
+            },
+            "then": {
+              "type": "BANISH",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ",
+                  "powerRange": {
+                    "max": 8000
+                  }
+                },
+                "upToCount": false
+              }
+            }
+          }
+        ]
+      },
+      "duration": "INSTANT",
+      "mandatory": false,
+      "parseStatus": "MANUAL",
+      "triggerScope": "self"
     },
     {
       "effectId": "WXDi-P05-034-E2",

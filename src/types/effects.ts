@@ -111,6 +111,7 @@ export type ActiveCondition =
   | { type: 'IS_DRIVE_STATE' }                                  // このシグニがドライブ状態（ルリグに乗られている）であるかぎり
   | { type: 'IS_SELF_AWAKENED' }                                // このシグニが覚醒状態であるかぎり
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }            // このターンにあなたが手札をN枚以上捨てている場合
+  | { type: 'THIS_CARD_HAS_UNDER' }                             // このシグニの下にカードがあるかぎり
   | { type: 'HAS_BOND'; cardName?: string }                    // 絆アイコン：このカード名との絆を獲得している（cardName省略=このカード自身）
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number }  // 登録者数条件（N万人以上等）
   | { type: 'VIRUS_COUNT'; owner: Owner; operator: CompareOp; value: number } // 場の【ウィルス】数条件（「対戦相手の場に【ウィルス】がない場合」等）
@@ -133,6 +134,7 @@ export type Condition =
   | { type: 'THIS_CARD_IS_AWAKENED' }                         // このシグニが覚醒状態の場合
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }          // このターンにあなたが手札をN枚以上捨てている場合
+  | { type: 'THIS_CARD_HAS_UNDER' }                           // このシグニの下にカードがある場合
   | { type: 'SELF_POWER_GTE'; value: number }
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp }

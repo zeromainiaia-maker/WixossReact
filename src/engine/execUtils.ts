@@ -493,6 +493,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'TURN_HAND_DISCARD_GTE':
       return (ctx.ownerState.turn_hand_discarded_count ?? 0) >= cond.value;
+    case 'THIS_CARD_HAS_UNDER': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const stack = ctx.ownerState.field.signi.find(s => s?.at(-1) === src);
+      return !!stack && stack.length > 1;
+    }
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;

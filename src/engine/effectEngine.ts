@@ -204,6 +204,13 @@ export function checkActiveCondition(
       // このターンにあなたが手札をN枚以上捨てている場合
       return (ownerState.turn_hand_discarded_count ?? 0) >= cond.value;
 
+    case 'THIS_CARD_HAS_UNDER': {
+      // このシグニの下にカードがあるかぎり
+      if (!sourceCardNum) return false;
+      const stack = ownerState.field.signi.find(s => s?.at(-1) === sourceCardNum);
+      return !!stack && stack.length > 1;
+    }
+
     case 'HAS_BOND': {
       const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);
       if (!name) return false;
