@@ -7200,6 +7200,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── CPUのpending_signi_battle（ON_ATTACK_SIGNI処理完了後のバトル解決）───
     if (cpuSt.pending_signi_battle && !bs.effect_stack && !bs.pending_effect) {
+      // バトルはすべての処理が完了してから行う。パワー0以下バニッシュ対象が残っている
+      // 場合は先にバニッシュさせる（state更新でCPUドライバが再実行され、その後バトル解決される）。
+      if (collectPowerZeroBanishCandidates(bs.host_state, bs.guest_state).length > 0) {
+        await checkPowerZeroBanishRef.current?.();
+        return;
+      }
       await resolvePendingSigniBattleFor(cpuSt, huSt, 'guest_state', CPU_PLAYER_ID, bs.host_id);
       return;
     }
