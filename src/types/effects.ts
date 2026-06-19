@@ -110,6 +110,7 @@ export type ActiveCondition =
   | { type: 'IS_SELF_ACCE_CARD' }                               // このカードがアクセとして装着されているかぎり（アクセカード側の条件）
   | { type: 'IS_DRIVE_STATE' }                                  // このシグニがドライブ状態（ルリグに乗られている）であるかぎり
   | { type: 'IS_SELF_AWAKENED' }                                // このシグニが覚醒状態であるかぎり
+  | { type: 'IS_SELF_IN_CENTER_ZONE' }                          // このシグニが中央のシグニゾーンにあるかぎり
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }            // このターンにあなたが手札をN枚以上捨てている場合
   | { type: 'THIS_CARD_HAS_UNDER' }                             // このシグニの下にカードがあるかぎり
   | { type: 'HAS_BOND'; cardName?: string }                    // 絆アイコン：このカード名との絆を獲得している（cardName省略=このカード自身）
@@ -242,6 +243,7 @@ export interface TargetFilter {
   levelEqualsVar?: 'charm_trash_count'; // レベルがlast_charm_trash_countと一致するか（WXK10-082用）
   powerLteSelf?: boolean; // 効果元シグニの実効パワー以下（「自身のパワー以下の対戦相手のシグニ」。execBanishがpowerRange.maxへ解決）
   powerLtSelf?: boolean;  // 効果元シグニの実効パワーより低い（「自身よりパワーの低い」。execBanishがpowerRange.maxへ解決）
+  frontOfSelf?: boolean;  // 効果元シグニの正面のシグニ（execBanishが対象ゾーン 2-zi を解決）
   colorMatchesLrig?: boolean;    // 自分のセンタールリグと共通する色を持つか（WX01-025等）
   colorNotMatchesLrig?: boolean; // 自分のセンタールリグと共通する色を持たない（WX21-035等）
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）

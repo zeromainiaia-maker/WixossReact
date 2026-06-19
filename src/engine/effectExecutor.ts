@@ -121,8 +121,22 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       }
     }
   }
+  // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）のシグニに限定
+  let frontRestrict: string[] | null = null;
+  if (resolvedFilter?.frontOfSelf) {
+    const { frontOfSelf: _f, ...rest } = resolvedFilter;
+    resolvedFilter = rest;
+    if (tgt.owner === 'opponent' && ctx.sourceCardNum) {
+      const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
+      const frontNum = zi >= 0 ? ctx.otherState.field.signi[2 - zi]?.at(-1) : undefined;
+      frontRestrict = frontNum ? [frontNum] : [];
+    } else {
+      frontRestrict = [];
+    }
+  }
   const allBanishCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   let cands = banishProtected.size > 0 ? allBanishCands.filter(n => !banishProtected.has(n)) : allBanishCands;
+  if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (tgt.owner === 'opponent') {
     const grants = ctx.otherState.keyword_grants;
     cands = cands.filter(n => !hasBanishResist(n, ctx.cardMap, grants));

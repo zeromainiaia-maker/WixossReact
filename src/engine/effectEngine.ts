@@ -200,6 +200,11 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       return ownerState.awakened_signi?.includes(sourceCardNum) ?? false;
 
+    case 'IS_SELF_IN_CENTER_ZONE':
+      // このシグニが中央のシグニゾーン（index 1）にあるかぎり
+      if (!sourceCardNum) return false;
+      return ownerState.field.signi[1]?.includes(sourceCardNum) ?? false;
+
     case 'TURN_HAND_DISCARD_GTE':
       // このターンにあなたが手札をN枚以上捨てている場合
       return (ownerState.turn_hand_discarded_count ?? 0) >= cond.value;
