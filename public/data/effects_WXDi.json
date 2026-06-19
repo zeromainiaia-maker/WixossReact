@@ -23121,7 +23121,11 @@
           "owner": "opponent",
           "count": "ALL",
           "filter": {
-            "cardType": "シグニ"
+            "cardType": "シグニ",
+            "powerRange": {
+              "max": 3000
+            },
+            "colorExclude": "黒"
           }
         }
       },

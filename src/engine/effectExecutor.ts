@@ -2165,7 +2165,22 @@ function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): 
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）のシグニに限定（WX17-035「このシグニの正面のシグニ」）
+  let resolvedFilter = a.target.filter;
+  let frontRestrict: string[] | null = null;
+  if (resolvedFilter?.frontOfSelf) {
+    const { frontOfSelf: _f, ...rest } = resolvedFilter;
+    resolvedFilter = rest;
+    if (tgtOwner === 'opponent' && ctx.sourceCardNum) {
+      const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
+      const frontNum = zi >= 0 ? ctx.otherState.field.signi[2 - zi]?.at(-1) : undefined;
+      frontRestrict = frontNum ? [frontNum] : [];
+    } else {
+      frontRestrict = [];
+    }
+  }
+  let cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   const removed = [...(state.abilities_removed ?? []), ...cands];
   const newS: PlayerState = { ...state, abilities_removed: removed };
   return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}`));
