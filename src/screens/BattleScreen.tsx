@@ -4650,6 +4650,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
       }
     }
+    // トラッシュからの自己復活（WX11-026 ヘスチア等）：トラッシュにあるこのカード自身が
+    // ON_LIFE_CRASHED でトリガー源になる。アクションが「トラッシュから場に出す」(ADD_TO_FIELD
+    // source:TRASH_CARD) の AUTO 効果のみを対象とし、誤発火を防ぐ。
+    if (timing === 'ON_LIFE_CRASHED') {
+      for (const trashInstance of myState.trash) {
+        for (const eff of effectsMap.get(trashInstance) ?? []) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+          const act = eff.action as import('../types/effects').AddToFieldAction;
+          if (act.type !== 'ADD_TO_FIELD' || act.source?.type !== 'TRASH_CARD') continue;
+          if (eff.usageLimit === 'once_per_turn') {
+            if (myState.actions_done?.includes(eff.effectId) || usedOncePerTurnIds.includes(eff.effectId)) continue;
+            usedOncePerTurnIds.push(eff.effectId);
+          }
+          const cardName = battleCardMap.get(trashInstance)?.CardName ?? trashInstance;
+          entries.push({
+            id: generateUUID(),
+            playerId: ownerId,
+            cardNum: trashInstance,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（${labelSuffix}・トラッシュから復活）`,
+            effect: eff,
+          });
+        }
+      }
+    }
     return { entries, usedOncePerTurnIds };
   };
 
