@@ -3286,6 +3286,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           pending_lrig_attack: undefined,           // ルリグアタック解決待ちフラグをリセット
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
+          life_crash_counter: undefined,            // カウンタークラッシュ（このターン）をリセット
           negate_opp_signi_attacks_until: undefined, // N回目シグニアタック自動無効化フラグをリセット
           all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
           lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
