@@ -6228,6 +6228,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
+      // バトルはすべての処理（パワー0以下バニッシュ等のルール処理）が完了してから行う。
+      // ON_ATTACK_SIGNIでパワーを0にされたシグニ等が場に残っている場合は、先に
+      // checkAndBanishPowerZero にバニッシュさせるため、ここでは解決を遅延する。
+      // pending_signi_battle は保持されたままなので、バニッシュ完了後に本関数が再度呼ばれる。
+      {
+        const hostStateForP0 = attackerIsHost ? myS : opS;
+        const guestStateForP0 = attackerIsHost ? opS : myS;
+        if (collectPowerZeroBanishCandidates(hostStateForP0, guestStateForP0).length > 0) {
+          return;
+        }
+      }
+
       let opZoneIndex = 2 - zoneIndex;
       let opStack = opS.field.signi[opZoneIndex] ?? [];
       let opTopCardNum: string | null = opStack.length > 0 ? opStack[opStack.length - 1] : null;
