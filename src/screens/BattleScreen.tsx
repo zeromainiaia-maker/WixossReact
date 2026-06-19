@@ -7208,7 +7208,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cardNum = cpuSt.field.check;
       const burstCard = battleCardMap.get(cardNum);
       // LIFE_BURST効果があれば発動する（対人戦と同じ共通処理：ON_LIFE_CRASHED・CRASH_TO_TRASH_INSTEADを含む）
-      const hasBurst = (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST');
+      // WD14-001: 付与された【ライフバースト】も含めて判定
+      const hasBurst = effectiveHasBurst(cardNum, cpuSt);
       appendBattleLogs([`[CPU] ライフクロスをオープン: ${burstCard?.CardName ?? cardNum}${hasBurst ? '（ライフバースト発動）' : '（ライフバーストなし）'}`]);
       await performLifeBurstResponse(hasBurst, undefined, {
         owner: cpuSt, opponent: huSt,
@@ -7940,6 +7941,40 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
+  // GRANT_ALL_ZONE_LIFEBURST（WD14-001）: このプレイヤーの場に「全領域の【ライフバースト】を持たない
+  // カードへ【ライフバースト】を付与」する CONTINUOUS 効果があるか
+  const controlsAllZoneBurstGrant = (state: PlayerState): boolean => {
+    const cards: string[] = [];
+    for (const s of state.field.signi) { const t = s?.at(-1); if (t) cards.push(t); }
+    const lt = state.field.lrig.at(-1); if (lt) cards.push(lt);
+    const al = (state.field.assist_lrig_l ?? []).at(-1); if (al) cards.push(al);
+    const ar = (state.field.assist_lrig_r ?? []).at(-1); if (ar) cards.push(ar);
+    return cards.some(n => (effectsMap.get(n) ?? []).some(e =>
+      e.effectType === 'CONTINUOUS'
+      && (e.action as import('../types/effects').StubAction).type === 'STUB'
+      && (e.action as import('../types/effects').StubAction).id === 'GRANT_ALL_ZONE_LIFEBURST'));
+  };
+  // クラッシュされたカードの実効ライフバースト有無（ネイティブ or WD14-001付与）
+  const effectiveHasBurst = (cardNum: string, ownerState: PlayerState): boolean => {
+    const card = battleCardMap.get(cardNum);
+    if (card?.LifeBurst === '1') return true;
+    if ((effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST')) return true;
+    return controlsAllZoneBurstGrant(ownerState);
+  };
+  // WD14-001 付与の合成ライフバースト（相手シグニ1体バニッシュ）
+  const grantedBurstEntry = (cardNum: string, ownerId: string): StackEntry => ({
+    id: generateUUID(),
+    playerId: ownerId,
+    cardNum,
+    effectId: 'GRANTED_ALLZONE_BURST',
+    label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【ライフバースト】（付与）`,
+    effect: {
+      effectId: 'GRANTED_ALLZONE_BURST', effectType: 'LIFE_BURST', timing: ['ON_LIFE_BURST'],
+      action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+      duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL',
+    },
+  });
+
   // ライフバースト確認後の処理（人間・CPU共通）
   // targetCardNum: 同時クラッシュ時に処理するカードを指定（省略時はfield.check）
   const performLifeBurstResponse = async (activate: boolean, targetCardNum: string | undefined, p: {
@@ -8018,7 +8053,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         }
       }
-      const allBurstExtras = [...crashTriggers, ...lrigTrashBurstEntries];
+      // WD14-001: ネイティブ【ライフバースト】を持たないカードに付与された合成バーストを追加
+      const cardHasNativeBurst = battleCardMap.get(cardNum)?.LifeBurst === '1'
+        || (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST');
+      const grantedBurstExtras = (!cardHasNativeBurst && controlsAllZoneBurstGrant(my))
+        ? [grantedBurstEntry(cardNum, ownerId)] : [];
+      const allBurstExtras = [...crashTriggers, ...lrigTrashBurstEntries, ...grantedBurstExtras];
       const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1, allBurstExtras, { id: ownerId, key: p.ownerKey });
       if (!fired) {
         const stateKey = p.ownerKey;
@@ -10836,7 +10876,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'flex-start' }}>
                   {allCrashCards.map((cardNum, idx) => {
                     const card = battleCardMap.get(cardNum);
-                    const hasBurst = card?.LifeBurst === '1';
+                    // WD14-001: 付与された【ライフバースト】も含めて判定
+                    const hasBurst = card?.LifeBurst === '1' || controlsAllZoneBurstGrant(my);
                     const burstSuppressed = !!(my.suppress_life_burst || eichiSuppressActive || my.game_suppress_lb);
                     return (
                       <div key={cardNum + idx} style={{
