@@ -83064,30 +83064,44 @@
       "effectId": "WXDi-CP02-TK02A-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "STUB",
-        "id": "UNIMPL_GRANTED_ABILITY"
+        "type": "GRANT_KEYWORD",
+        "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1
+        },
+        "keyword": "ランサー",
+        "duration": "PERMANENT"
       },
       "duration": "PERMANENT",
-      "mandatory": false,
+      "mandatory": true,
       "parseStatus": "MANUAL"
     },
     {
       "effectId": "WXDi-CP02-TK02A-E2",
       "effectType": "AUTO",
       "timing": [
-        "ON_TURN_END"
+        "ON_SIGNI_BANISH_BATTLE"
       ],
       "action": {
-        "type": "TRASH",
+        "type": "BANISH",
         "target": {
-          "type": "TRASH_CARD",
+          "type": "SIGNI",
           "owner": "opponent",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "cardType": "シグニ",
+            "powerRange": {
+              "max": 10000
+            }
+          },
+          "upToCount": false
         }
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL",
+      "triggerScope": "self"
     }
   ],
   "WXDi-CP02-TK03A": [
