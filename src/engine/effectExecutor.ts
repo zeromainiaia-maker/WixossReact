@@ -1008,14 +1008,17 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(tgt.owner, ctx);
   const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
 
+  const untilOppTurn = a.duration === 'UNTIL_OPP_TURN_END';
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgt.owner, c);
-    const granted = { ...(s.granted_effects ?? {}) };
+    // UNTIL_OPP_TURN_END は長期ストア granted_effects_until_opp_turn へ（次の相手ターン終了時までクリアされない）
+    const key = untilOppTurn ? 'granted_effects_until_opp_turn' : 'granted_effects';
+    const granted = { ...(s[key] ?? {}) };
     for (const n of selected) {
       granted[n] = [...(granted[n] ?? []), a.effect];
     }
     const effectLabel = (a.effect as { effectType?: string })?.effectType ?? '効果';
-    return addLog(setOwnerState(tgt.owner, { ...s, granted_effects: granted }, c),
+    return addLog(setOwnerState(tgt.owner, { ...s, [key]: granted }, c),
       `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に${effectLabel}を付与`);
   }
 
