@@ -4610,6 +4610,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (myAbilitiesRemovedSelf.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
       for (const eff of effectsMap.get(topNum) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        // トラッシュからの自己復活（ADD_TO_FIELD source:TRASH_CARD で自身を出す）はトラッシュ専用能力。
+        // 場にいる間は機能しないため、フィールド走査では除外する（トラッシュ走査側で発火）。
+        {
+          const fAct = eff.action as import('../types/effects').AddToFieldAction;
+          const selfName = battleCardMap.get(topNum)?.CardName;
+          if (fAct.type === 'ADD_TO_FIELD' && fAct.source?.type === 'TRASH_CARD'
+            && selfName && fAct.source.filter?.cardName && selfName.includes(fAct.source.filter.cardName)) {
+            continue;
+          }
+        }
         if (eff.usageLimit === 'once_per_turn') {
           if (myState.actions_done?.includes(eff.effectId) || usedOncePerTurnIds.includes(eff.effectId)) continue;
           usedOncePerTurnIds.push(eff.effectId);
