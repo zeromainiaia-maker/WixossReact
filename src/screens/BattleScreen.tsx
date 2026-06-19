@@ -8131,6 +8131,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const opStateForUsed: PlayerState | null = oppUsedIds.length > 0
         ? { ...op, actions_done: [...(op.actions_done ?? []), ...oppUsedIds] }
         : null;
+      // SET_NEXT_LIFE_CRASH_COUNTER: 自分（my=クラッシュされた側）に設定されたカウンタークラッシュを消費し、
+      // 対戦相手（op）のライフクロスを perTrigger 枚クラッシュし返すトリガーを積む（WX25-P1-004 / WXDi-P12-030）。
+      const counterCrashTriggers: StackEntry[] = [];
+      let myCounterAfter = my.life_crash_counter;
+      if (my.life_crash_counter && my.life_crash_counter.remaining > 0) {
+        const per = my.life_crash_counter.perTrigger;
+        counterCrashTriggers.push({
+          id: generateUUID(),
+          playerId: ownerId,
+          cardNum,
+          effectId: 'LIFE_CRASH_COUNTER',
+          label: `カウンタークラッシュ（対戦相手のライフクロスを${per}枚クラッシュ）`,
+          effect: {
+            effectId: 'LIFE_CRASH_COUNTER', effectType: 'AUTO', timing: ['ON_LIFE_CRASHED'],
+            action: { type: 'LIFE_CRASH', owner: 'opponent', count: per, triggerBurst: true },
+            duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+          },
+        });
+        const remaining = my.life_crash_counter.remaining - 1;
+        myCounterAfter = remaining > 0 ? { ...my.life_crash_counter, remaining } : undefined;
+      }
       // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
       const baseState: PlayerState = {
         ...my,
@@ -8138,6 +8159,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: crashToTrash ? [...my.trash, cardNum] : my.trash,
         field: { ...my.field, check: null },
         pending_crashed_cards: remainingPending,
+        life_crash_counter: myCounterAfter,
         actions_done: crashTriggerUsedIds.length > 0
           ? [...(my.actions_done ?? []), ...crashTriggerUsedIds]
           : my.actions_done,
