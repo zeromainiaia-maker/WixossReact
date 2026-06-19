@@ -8099,6 +8099,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // （アタック・効果問わず全クラッシュ経路がチェックゾーン経由でここに集約される）
       const { entries: crashTriggers, usedOncePerTurnIds: crashTriggerUsedIds } =
         collectSelfEventTriggers('ON_LIFE_CRASHED', my, op, 'ライフクラッシュ時', ownerId);
+      // ON_OPP_LIFE_CRASHED: クラッシュした側（op＝ターンプレイヤー）のフィールドの
+      // 「対戦相手のライフクロスがクラッシュされたとき」トリガーを収集する。
+      // ダブルクラッシュ判定（同時N枚以上）は OPP_LIFE_CRASH_EVENT_GTE 条件で評価。
+      const crasherId = p.ownerKey === 'host_state' ? bs.guest_id : bs.host_id;
+      const opKey = p.ownerKey === 'host_state' ? 'guest_state' : 'host_state';
+      const oppCrashEventSize = 1 + (my.pending_crashed_cards?.length ?? 0);
+      const oppCrashTriggers: StackEntry[] = [];
+      const oppUsedIds: string[] = [];
+      for (let zi = 0; zi < op.field.signi.length; zi++) {
+        const topNum = op.field.signi[zi]?.at(-1);
+        if (!topNum) continue;
+        for (const eff of effectsMap.get(topNum) ?? []) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
+          if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
+          if (eff.usageLimit === 'once_per_turn') {
+            if (op.actions_done?.includes(eff.effectId) || oppUsedIds.includes(eff.effectId)) continue;
+            oppUsedIds.push(eff.effectId);
+          }
+          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+          oppCrashTriggers.push({
+            id: generateUUID(),
+            playerId: crasherId,
+            cardNum: topNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（相手ライフクラッシュ時）`,
+            effect: eff,
+          });
+        }
+      }
+      const opStateForUsed: PlayerState | null = oppUsedIds.length > 0
+        ? { ...op, actions_done: [...(op.actions_done ?? []), ...oppUsedIds] }
+        : null;
       // チェックゾーンをクリアしてエナ（またはトラッシュ）へ移動した状態を基点にする
       const baseState: PlayerState = {
         ...my,
