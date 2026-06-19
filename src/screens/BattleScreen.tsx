@@ -8185,8 +8185,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         || (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST');
       const grantedBurstExtras = (!cardHasNativeBurst && controlsAllZoneBurstGrant(my))
         ? [grantedBurstEntry(cardNum, ownerId)] : [];
-      const allBurstExtras = [...crashTriggers, ...lrigTrashBurstEntries, ...grantedBurstExtras];
-      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, {}, doubleBurst ? 2 : 1, allBurstExtras, { id: ownerId, key: p.ownerKey });
+      const allBurstExtras = [...crashTriggers, ...oppCrashTriggers, ...lrigTrashBurstEntries, ...grantedBurstExtras];
+      const burstExtraUpdate = opStateForUsed ? { [opKey]: opStateForUsed } : {};
+      const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, burstExtraUpdate, doubleBurst ? 2 : 1, allBurstExtras, { id: ownerId, key: p.ownerKey });
       if (!fired) {
         const stateKey = p.ownerKey;
         await supabase.from('battle_states')
