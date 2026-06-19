@@ -2734,6 +2734,18 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
   }
   cur = { ...cur, lastProcessedCards: selected };
+  // selfTrashCost: 「このシグニを場からトラッシュに置いてもよい。そうした場合、それらをバニッシュする」
+  // 対象を1体以上選んだ場合のみ、効果元シグニ自身をコストとしてトラッシュする（WX21-052）
+  if (selected.length > 0
+      && pending.thenAction.type === 'BANISH'
+      && (pending.thenAction as BanishAction).selfTrashCost
+      && cur.sourceCardNum
+      && cur.ownerState.field.signi.some(s => s?.at(-1) === cur.sourceCardNum)) {
+    const selfNum = cur.sourceCardNum;
+    const removed = removeFromField(selfNum, cur.ownerState);
+    cur = addLog({ ...cur, ownerState: { ...removed, trash: [...removed.trash, selfNum] } },
+      `${cur.cardMap.get(selfNum)?.CardName ?? selfNum}を場からトラッシュに置く`);
+  }
   if (pending.continuation) {
     // 任意選択（してもよい）をスキップした場合、「そうした場合〜」(CONDITIONAL IS_MY_TURN) は実行しない
     const cont = pending.optional && selected.length === 0

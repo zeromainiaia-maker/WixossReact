@@ -444,6 +444,7 @@ export interface BanishAction {
   target: EffectTarget;
   optional?: boolean;    // true = 「してもよい」（プレイヤーがスキップ可能）
   conditional?: boolean; // true = 前ステップ（STUB等）が成功した場合のみ実行
+  selfTrashCost?: boolean; // 「このシグニを場からトラッシュに置いてもよい。そうした場合〜バニッシュ」：対象を1体以上選んだ場合、効果元シグニ自身をコストとしてトラッシュ（WX21-052）
 }
 
 export interface PowerModifyAction {
