@@ -481,6 +481,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (zoneIdx < 0) return false;
       return ctx.ownerState.field.signi_armor?.[zoneIdx] ?? false;
     }
+    case 'THIS_CARD_IS_AWAKENED': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      return ctx.ownerState.awakened_signi?.includes(src) ?? false;
+    }
+    case 'IS_DRIVE_STATE': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      return ctx.ownerState.lrig_riding_signi?.includes(src) ?? false;
+    }
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;

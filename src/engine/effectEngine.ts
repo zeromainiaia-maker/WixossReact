@@ -195,6 +195,11 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       return ownerState.lrig_riding_signi?.includes(sourceCardNum) ?? false;
 
+    case 'IS_SELF_AWAKENED':
+      // このシグニが覚醒状態であるかぎり
+      if (!sourceCardNum) return false;
+      return ownerState.awakened_signi?.includes(sourceCardNum) ?? false;
+
     case 'HAS_BOND': {
       const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);
       if (!name) return false;

@@ -37981,13 +37981,53 @@
     {
       "effectId": "WXDi-P07-060-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "IS_SELF_AWAKENED"
+      },
       "action": {
-        "type": "STUB",
-        "id": "UNIMPL_GRANTED_ABILITY"
+        "type": "POWER_MODIFY",
+        "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1,
+          "filter": {
+            "cardType": "シグニ"
+          }
+        },
+        "delta": 2000
       },
       "duration": "PERMANENT",
-      "mandatory": false,
+      "mandatory": true,
       "parseStatus": "MANUAL"
+    },
+    {
+      "effectId": "WXDi-P07-060-E1b",
+      "effectType": "AUTO",
+      "timing": [
+        "ON_ATTACK_SIGNI"
+      ],
+      "condition": {
+        "type": "THIS_CARD_IS_AWAKENED"
+      },
+      "action": {
+        "type": "BANISH",
+        "target": {
+          "type": "SIGNI",
+          "owner": "opponent",
+          "count": 1,
+          "filter": {
+            "cardType": "シグニ",
+            "powerRange": {
+              "max": 3000
+            }
+          },
+          "upToCount": false
+        }
+      },
+      "duration": "INSTANT",
+      "mandatory": true,
+      "parseStatus": "MANUAL",
+      "triggerScope": "self"
     },
     {
       "effectId": "WXDi-P07-060-E2",

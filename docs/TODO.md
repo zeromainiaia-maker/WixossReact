@@ -81,8 +81,8 @@
 
 誤バニッシュは停止したが効果は未実装（CONTINUOUS STUB `UNIMPL_GRANTED_ABILITY` に置換）。忠実実装には新しい条件型/機構が必要：
 
-- **覚醒状態の条件:** WXDi-P07-060 / WX25-P3-057（覚醒であるかぎり付与）
-- **ドライブ状態の Condition:** WDK01-011（【ドライブ常】、現状 ActiveCondition の IS_DRIVE_STATE はあるが AUTO 用 Condition がない）
+- **覚醒状態の条件:** WX25-P3-057（覚醒でアサシン＋常在＋ターン終了時自バニッシュ。自身指定バニッシュ＋アタック無効化耐性が未対応で保留）。※WXDi-P07-060 は v0.340 で実装済（`IS_SELF_AWAKENED`/`THIS_CARD_IS_AWAKENED` 追加）。
+- ~~**ドライブ状態の Condition:** WDK01-011~~ → v0.340 で `IS_DRIVE_STATE` を Condition にも追加し実装済（「自身のパワー以下」は無フィルタ近似）。
 - **血晶武装＋任意コスト:** WDK08-L11
 - **ソウル付与先への付与:** WXDi-D07-003 / WXDi-P04-015
 - **アクセされているシグニへの付与:** WX16-045 / WX18-076 / WX20-072 / SP27-015
