@@ -102,7 +102,15 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_charm_trash_count ?? 0 }
     : tgt.filter;
   // colorMatchesLrig / levelLteFieldVirusCount等の動的フィルタを解決（activatorはctx.ownerState固定）
-  const resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState);
+  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState);
+  // powerLteSelf / powerLtSelf: 効果元シグニの実効パワーを基準に powerRange.max へ解決
+  if (resolvedFilter && (resolvedFilter.powerLteSelf || resolvedFilter.powerLtSelf) && ctx.sourceCardNum) {
+    const selfPower = ctx.effectivePowers?.get(ctx.sourceCardNum)
+      ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum)?.Power ?? '0', 10);
+    const maxP = resolvedFilter.powerLtSelf ? selfPower - 1 : selfPower;
+    const { powerLteSelf: _a, powerLtSelf: _b, ...rest } = resolvedFilter;
+    resolvedFilter = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: maxP } };
+  }
   const state = ownerState(tgt.owner, ctx);
   const banishProtected = tgt.owner === 'opponent' ? new Set(ctx.otherBanishProtectedNums ?? []) : new Set<string>();
   if (tgt.owner === 'opponent') {
