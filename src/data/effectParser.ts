@@ -1201,6 +1201,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           }
         }
       }
+      // ON_LEAVE_FIELD: トリガー元のスコープを抽出（「このシグニ」=self／「あなたの＜X＞のシグニが」=any_ally＋triggerFilter）
+      if (timing[0] === 'ON_LEAVE_FIELD') {
+        const selfLeaveM = actionText.match(/^このシグニが場を離れたとき[、,]/);
+        if (!selfLeaveM) {
+          const allyLeaveM = actionText.match(/^あなたの(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場を離れたとき[、,]/);
+          if (allyLeaveM) {
+            extractedTriggerScope = 'any_ally';
+            if (allyLeaveM[1]) extractedTriggerFilter = { story: allyLeaveM[1] };
+          }
+        }
+        // アクション部分の抽出は parseSingleSentence 側のプレフィックス除去に委ねる
+      }
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
       if (timing[0] === 'ON_HEAVEN') {
         const m = actionText.match(/このシグニが《ヘブン》したとき[、,]\s*(.+)/s);
