@@ -614,6 +614,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }, 0);
       return sum === cond.value;
     }
+    case 'TRASH_COUNT':
+      return cmp(st(cond.owner).trash.length, cond.operator, cond.value);
     default: return true;
   }
 }
