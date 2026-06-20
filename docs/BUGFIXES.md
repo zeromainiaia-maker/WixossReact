@@ -5,6 +5,15 @@
 
 ---
 
+## F-4 self対象 REMOVE_ABILITIES の thisCardOnly 対応＋WXDi-P15-056-E1 本実装（v0.398, 2026-06-20）
+
+- **`execRemoveAbilities` に `thisCardOnly` フィルタ対応を追加**（frontOfSelf と同型）。「このシグニは能力を失う」を効果元自身のみに限定。
+- **WXDi-P15-056-E1（Lスピーカ）:** 無害化マーカー（UNIMPL_GRANTED_ABILITY）から本実装へ。condition `SAME_ZONE_HAS_GATE` の AUTO ON_ATTACK_SIGNI＋`SEQUENCE[OPTIONAL_COST(白白), CONDITIONAL(PAID){REMOVE_ABILITIES self thisCardOnly UNTIL_END_OF_TURN}]`。「LIONがいれば」「このシグニをアップ（再攻撃）」は近似省略。
+- **反映:** effectExecutor（execRemoveAbilities）＋manualEffects＋プリビルド JSON。typecheck 通過、verifyEffects 新規警告なし。
+- **残るF-4は WXDi-P15-058-E1（場全体【シャドウ（スペル）】＝getShadowScopes 拡張）のみ。**
+
+---
+
 ## F-4 THE DOOR ピース ひらけ！ゲート！（WXDi-P15-003）（v0.397, 2026-06-20）
 
 - **ピースのゲート設置を配線。** ピースは `executeKeyPiece` が `queueCardEffects(['AUTO'],['ON_PLAY'])` で発火させるため、旧 ACTIVATED パースでは発火しなかった。
