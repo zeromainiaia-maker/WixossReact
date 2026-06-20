@@ -1075,6 +1075,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'LIFE_CRASH', owner: op ? 'opponent' : 'self', count: cM ? parseNum(cM[1]) : 1, triggerBurst: true };
   }
 
+  // ---- クラフトの《X》を場に出す（ゲーム外からトークン生成）----
+  // 旧実装は bare ADD_TO_FIELD でデッキトップを出していた（誤り）。
+  // cardName を付けて execAddToField のトークン生成パスへ（CardName→CardNum は engine 側で解決）。
+  {
+    const craftM = t.match(/クラフトの《([^》]+)》(?:[０-９\d一二三四五六七八九]+)?(?:つ|体|枚)?を場に出す/);
+    if (craftM) {
+      return { type: 'ADD_TO_FIELD', owner: 'self', cardName: craftM[1] };
+    }
+  }
+
   // ---- エナゾーンからシグニを場に出す ----
   // 旧実装は source 無しの bare ADD_TO_FIELD でデッキトップを出してしまっていた（誤り）。
   // エナから対象を選んで場に出すよう source:ENERGY_CARD＋フィルタ/枚数を付与（トラッシュ版と同形）。
