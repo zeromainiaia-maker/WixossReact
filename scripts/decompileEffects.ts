@@ -143,6 +143,35 @@ function condJa(c?: any): string {
     case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${filterJa(c.filter)}シグニがいる`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;
+    case 'IS_MY_TURN': return '自分のターンの間';
+    case 'IS_OPPONENT_TURN': return '対戦相手のターンの間';
+    case 'DECK_TOP_MATCHES': return `${ownerJa(c.owner)}デッキの一番上が${filterJa(c.filter)}カード`;
+    case 'LRIG_STORY': return `${ownerJa(c.owner)}センタールリグが＜${c.story}＞`;
+    case 'LRIG_LEVEL_EQ_OPP': return '自分と対戦相手のセンタールリグのレベルが同じ';
+    case 'LRIG_TRASH_COUNT': return `ルリグトラッシュに${c.cardType ? c.cardType : ''}が${numJa(c.value)}枚${opJa(c.operator)}`;
+    case 'SUBSCRIBER_COUNT': return `登録者数が${numJa(c.value)}万${opJa(c.operator)}`;
+    case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}以上`;
+    case 'FIELD_SIGNI_POWER_COUNT': return `${ownerJa(c.owner)}場にパワー${c.minPower}以上のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
+    case 'LIFE_COMPARE_OPP': return `自分のライフが対戦相手${opJa(c.operator)}`;
+    case 'DURING_PHASE': return `${(c.phases || []).join('/')}フェイズの間`;
+    case 'THIS_CARD_IN_LOCATION': return `このカードが${c.location}にある`;
+    case 'THIS_CARD_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
+    case 'THIS_CARD_IS_DOWN': return 'このシグニがダウンしている';
+    case 'THIS_CARD_IS_ARMORED': return 'このシグニが血晶武装状態';
+    case 'THIS_CARD_IS_AWAKENED': return 'このシグニが覚醒状態';
+    case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
+    case 'THIS_CARD_HAS_UNDER': return 'このシグニの下にカードがある';
+    case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
+    case 'TURN_HAND_DISCARD_GTE': return `このターン手札を${numJa(c.value)}枚以上捨てている`;
+    case 'ACTIVATED_DISCARD_COUNT_GTE': return `直前の起動コストで${numJa(c.value)}枚以上捨てた`;
+    case 'OPP_LIFE_CRASH_EVENT_GTE': return `相手ライフを同時に${numJa(c.value)}枚以上クラッシュした`;
+    case 'HAS_BOND': return `${c.cardName ? '「' + c.cardName + '」' : 'このカード'}との絆を獲得している`;
+    case 'OPPONENT_NOT_PAID': return '対戦相手が任意コストを支払わなかった';
+    case 'SELF_OPTIONAL_EFFECT_TAKEN': return '自分が任意効果を実行した';
+    case 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN': return 'このターン《ディソナ》以外のスペルを使用していない';
+    case 'LAST_PROCESSED_LEVEL_SUM_EQ': return `直前に処理したシグニのレベル合計が${numJa(c.value)}`;
+    case 'BEAT_CONDITION': return `《ビート》[${c.condText ?? ''}]`;
+    case 'COND_STUB': return `[条件STUB:${c.raw ?? ''}]`;
     default: return `[条件:${c.type}]`;
   }
 }
