@@ -5,6 +5,16 @@
 
 ---
 
+## 有害フラット化 CONTINUOUS BANISH 27件を一括本実装（v0.414, 2026-06-20）
+
+- **TODO F の再発27件（非optional・mandatory:true・activeCondition無しの CONTINUOUS BANISH＝runtime で常時バニッシュ）をプリビルド JSON で一括修正。残存0件を確認。**
+- **条件付き granted AUTO 型（中央/パワー/覚醒/血晶武装/手札捨て/楓/下カード 等）:** WX05-021・WX10-063・WXK07-044・PR-288・PR-426・WXDi-P07-060・WDK08-L11・WDK16-06H・WXDi-P05-034・WXK03-034・WXK03-056・WX20-Re18 を `ON_ATTACK_SIGNI`＋各 condition（SELF_POWER_GTE/THIS_CARD_IN_CENTER_ZONE/IS_SELF_AWAKENED/THIS_CARD_IS_ARMORED/TURN_HAND_DISCARD_GTE/LRIG_NAME_CONTAINS/THIS_CARD_HAS_UNDER 等）＋必要なら OPTIONAL_COST に。
+- **機構型（既存エンジン機能で復元）:** アクセ＝GRANT_ACCE_HOST_ABILITY（WX16-045/WX18-076/WX20-072/SP27-015）／ソウル＝GRANT_SOUL_HOST_ABILITY（WXDi-D07-003/WXDi-P04-015）／上シグニ＝GRANT_SIGNI_ABOVE_ABILITY（WXDi-P15-061）／場全体＝GRANT_FIELD_SIGNI_ABILITY（WX13-034/WX21-052）／全領域LB＝GRANT_ALL_ZONE_LIFEBURST（WD14-001）／公開バニッシュ＝REVEAL_UNTIL_BANISH_SAME_LEVEL（WX17-038）／閾値書換＝BANISH_THRESHOLD_BOOST_7_15（WX09-027）。
+- **その他:** WX25-P3-057（覚醒中ターン終了時の自己バニッシュ）／WX09-019（パワー18000以上でライフクラッシュ時2体）／WXDi-CP02-TK02A（バトルバニッシュ時＝ON_SIGNI_BATTLE）。
+- **⚠ durable 化は未:** JSON 直接修正のため `build:effects` 全再生成で失われる。manualEffects 昇格 or parser 修正が次の課題（TODO F 参照）。verify 新規エラーなし（CONTINUOUS→AUTO 化に伴う timing 警告 +2 は軽微）。
+
+---
+
 ## WD04-009 引用付与フラット化（有害 CONTINUOUS BANISH）修正＋再発の発見（v0.413, 2026-06-20）
 
 - **WD04-009（幻獣セイリュ）:** 「場のシグニ3体が各15000以上のかぎり【ランサー】＋『【自】アタック時に相手シグニ1体バニッシュ』を得る」が、引用付与をフラット化し **CONTINUOUS BANISH opponent（条件・トリガー欠落＝常時バニッシュの有害誤り）** になっていた。→ E1=条件 `FIELD_SIGNI_POWER_COUNT(15000×3体)` 付きランサー付与／E2=同条件付き `ON_ATTACK_SIGNI` バニッシュ。manualEffects＋JSON。
