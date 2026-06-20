@@ -124,12 +124,11 @@
 
 自ゲート機構（`own_gate_zones`／`SAME_ZONE_HAS_GATE`／`FIELD_HAS_GATE`／`frontOfGateZone`／`PLACE_OWN_GATE`）は v0.388 で新設済み。これを土台に防衛派 THE DOOR シグニ（ゲート参照・約15枚）を順次実装。
 
-**✅ 完了:** WXDi-P15-076/082（v0.388）。バッチA＝WXDi-P15-080/081/077/078（v0.389）。バッチB＝WXDi-P15-059/WXDi-P16-074（v0.390・後者はE1のみ／E2は近似維持）。バッチC＝WXDi-P16-062（v0.391・`inGateZone` フィルタ新設・E1は近似）。バッチD＝WXDi-P15-057（v0.392・E1は近似）。バッチE＝WXDi-P16-070/P15-056/P16-054（v0.394・`POWER_MODIFY_PER_HAND_COUNT` 新設。P15-056-E1は無害化・P16-054-E1はバニッシュ耐性近似）。
+**✅ 完了:** WXDi-P15-076/082（v0.388）。バッチA＝WXDi-P15-080/081/077/078（v0.389）。バッチB＝WXDi-P15-059/WXDi-P16-074（v0.390・後者はE1のみ／E2は近似維持）。バッチC＝WXDi-P16-062（v0.391・`inGateZone` フィルタ新設・E1は近似）。バッチD＝WXDi-P15-057（v0.392・E1は近似）。バッチE＝WXDi-P16-070/P15-056/P16-054（v0.394・`POWER_MODIFY_PER_HAND_COUNT` 新設。P15-056-E1は無害化・P16-054-E1はバニッシュ耐性近似）。バッチF＝WXDi-P16-059（v0.395・ガード税＋自シグニシャドウ付与。`execGrantKeyword` の UNTIL_OPP_TURN_END 振り分けバグも修正）。
 
-**残りのゲート参照シグニ（未実装・要追加表現）:**
-- `WXDi-P15-058`（宇宙・E1 同ゾーンゲートのシグニへ【シャドウ（スペル）】付与＝keyword 付与＋シャドウ（スペル）挙動／E2 同ゾーンゲートで《プロフェッサー》条件＋任意BBで相手をデッキ下）
-- `WXDi-P16-059`（アーム・E1 同ゾーンゲートで「相手は追加で《無》払わないとガードできない」＝ガード税付与／E2 ターン終了時 場ゲートで自シグニに【シャドウ（レベル2以下）】付与）
-- 必要な追加表現：①ガード税の付与（`collectOppGuardExtraColorlessCost` への gate 条件付き配線）②【シャドウ（スペル/特定レベル）】の keyword 付与＋挙動 ③self対象 REMOVE_ABILITIES の thisCardOnly 対応（P15-056-E1 の本実装に必要）。`inGateZone` フィルタ＋`POWER_MODIFY_PER_HAND_COUNT`＋UNTIL_OPP_TURN_END で「同ゾーンゲートのシグニへの場全体付与」「相手ターン中の付与」「手札比例パワー」は表現可能になった。
+**残りのゲート参照シグニ（未実装・1枚）:**
+- `WXDi-P15-058`（宇宙・E1 同ゾーンゲートのシグニへ【シャドウ（スペル）】の**場全体付与**＝`getShadowScopes` が他カードの継続 GRANT_KEYWORD を読まないため要拡張／E2 同ゾーンゲート＋《プロフェッサー　防衛者Ｄｒ．タマゴ》条件＋任意BBで相手をデッキ下＝`LRIG_NAME_CONTAINS` 近似で実装可）
+- 必要な追加表現：①場全体への継続キーワード付与をシャドウ判定（`getShadowScopes`）が読む経路（`inGateZone` フィルタは利用可）。②self対象 REMOVE_ABILITIES の thisCardOnly 対応（P15-056-E1 の本実装に必要）。`inGateZone`／`POWER_MODIFY_PER_HAND_COUNT`／UNTIL_OPP_TURN_END／ガード税 activeCondition／シャドウ keyword 付与は実装済み。
 
 **未配線（別）:** ピース `ひらけ！ゲート！`（WXDi-P15-003）＝ゲート設置＋センタールリグ能力付与の複合（現状 GRANT_LRIG_ABILITY のみ生成・gate 設置が欠落。SEQUENCE 化が必要）。
 ※「//THE DOOR」でも解放派/闘争派のカードはゲート非参照（箱名のみ）で対象外。
