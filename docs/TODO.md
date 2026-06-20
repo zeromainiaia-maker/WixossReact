@@ -124,12 +124,12 @@
 
 自ゲート機構（`own_gate_zones`／`SAME_ZONE_HAS_GATE`／`FIELD_HAS_GATE`／`frontOfGateZone`／`PLACE_OWN_GATE`）は v0.388 で新設済み。これを土台に防衛派 THE DOOR シグニ（ゲート参照・約15枚）を順次実装。
 
-**✅ 完了:** WXDi-P15-076/082（v0.388）。バッチA＝WXDi-P15-080/081/077/078（v0.389）。バッチB＝WXDi-P15-059/WXDi-P16-074（v0.390・後者はE1のみ／E2は近似維持）。
+**✅ 完了:** WXDi-P15-076/082（v0.388）。バッチA＝WXDi-P15-080/081/077/078（v0.389）。バッチB＝WXDi-P15-059/WXDi-P16-074（v0.390・後者はE1のみ／E2は近似維持）。バッチC＝WXDi-P16-062（v0.391・`inGateZone` フィルタ新設・E1は近似）。
 
 **残りのゲート参照シグニ（未実装・要追加表現）:**
-- `WXDi-P15-056`（電機）/ `WXDi-P15-057`（地獣・E1+3000は activeCondition で可だが「相手ターン中シャドウ」付与が要る）/ `WXDi-P15-058`（宇宙・同ゾーンゲートのシグニへ keyword 付与）
-- `WXDi-P16-054`（水獣・「相手ターン中の付与」）/ `WXDi-P16-059`（アーム・ガード税付与）/ `WXDi-P16-062`（乗機・同ゾーンゲートのシグニへ +2000／能力消去付与）/ `WXDi-P16-070`（毒牙・E2 per hand card パワー）
-- 必要な追加表現：①「同ゾーンに【ゲート】があるあなたのシグニ」への場全体付与（per-zone gate フィルタ＝新フィルタ or GRANT_FIELD_SIGNI_ABILITY の gate 条件）②「対戦相手のターンの間」の一時付与 ③`POWER_MODIFY_PER_HAND_COUNT`（手札1枚につき）。
+- `WXDi-P15-056`（電機・E1 自己能力消去型／E2 同ゾーンゲートのシグニへ+2000 UNTIL_OPP_TURN_END＝inGateZoneで可）/ `WXDi-P15-057`（地獣・E1+3000は activeCondition で可だが「相手ターン中シャドウ」付与が要る／E2 トラッシュ回収）/ `WXDi-P15-058`（宇宙・同ゾーンゲートのシグニへ keyword 付与）
+- `WXDi-P16-054`（水獣・「相手ターン中の付与」）/ `WXDi-P16-059`（アーム・ガード税付与）/ `WXDi-P16-070`（毒牙・E1 同ゾーンゲートでデッキ下は可／E2 per hand card パワー）
+- 必要な追加表現：①「相手ターンの間」の一時付与（UNTIL_OPP_TURN_END grant）②`POWER_MODIFY_PER_HAND_COUNT`（手札1枚につき）③ガード税・シャドウ（スペル/特定レベル）付与。`inGateZone` フィルタ（v0.391）で「同ゾーンゲートのシグニへの場全体付与」は表現可能になった。
 
 **未配線（別）:** ピース `ひらけ！ゲート！`（WXDi-P15-003）＝ゲート設置＋センタールリグ能力付与の複合（現状 GRANT_LRIG_ABILITY のみ生成・gate 設置が欠落。SEQUENCE 化が必要）。
 ※「//THE DOOR」でも解放派/闘争派のカードはゲート非参照（箱名のみ）で対象外。
