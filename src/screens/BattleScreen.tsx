@@ -5801,8 +5801,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const srcNum of spellUseSources) {
           for (const eff of (effectsMap.get(srcNum) ?? [])) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
-            // スペル色フィルタ（「緑のスペルを使用したとき」等）
-            if (eff.triggerFilter?.color && !usedSpellColor.includes(eff.triggerFilter.color)) continue;
+            // スペル色フィルタ（「緑のスペルを使用したとき」等。color は単色 or 配列）
+            if (eff.triggerFilter?.color) {
+              const wantColors = Array.isArray(eff.triggerFilter.color) ? eff.triggerFilter.color : [eff.triggerFilter.color];
+              if (!wantColors.some(c => usedSpellColor.includes(c))) continue;
+            }
             if (eff.usageLimit === 'once_per_turn' &&
                 ((casterAfter.actions_done?.includes(eff.effectId)) || usedIdsSU.includes(eff.effectId))) continue;
             if (eff.condition && !evalUseCondition(eff.condition, casterAfter, result.otherState, battleCardMap, srcNum, bs.turn_phase, spellPowers)) continue;
