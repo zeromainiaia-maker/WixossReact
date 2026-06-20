@@ -205,6 +205,49 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P16-039 アザエラ「逆転の炎」（アシストルリグ・自己付与＋両者クラッシュ時ドロー/チャージ）
+  // 【出】：対戦相手のパワー10000以下のシグニ１体をバニッシュする。（E1＝パーサー生成が正しいので維持）
+  // 【出】：次の対戦相手のターン終了時まで、このルリグは「【自】《ターン２回》：あなたか対戦相手のライフクロス１枚が
+  //   クラッシュされたとき、カードを１枚引くか【エナチャージ１】をする。」を得る。
+  // E2 を「即時エナチャージ」の誤パースから GRANT_EFFECT（このアシストルリグ自身へ UNTIL_OPP_TURN_END で付与）へ修正。
+  // 付与能力は timing [ON_LIFE_CRASHED（自ライフ）, ON_OPP_LIFE_CRASHED（相手ライフ）]＋twice_per_turn。
+  // 付与先＝アシストルリグ instanceId（execGrantEffect の thisCardOnly をアシストゾーンにも対応）。
+  // 自ライフクラッシュ時は collectSelfEventTriggers が nonSigniSources（assist_lrig 含む）で収集、
+  //   相手ライフクラッシュ時は performLifeBurstResponse の oppCrashSources（assist_lrig 含む）で収集する。
+  'WXDi-P16-039': [
+    {
+      effectId: 'WXDi-P16-039-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'GRANT_EFFECT',
+        target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+        duration: 'UNTIL_OPP_TURN_END',
+        effect: {
+          effectId: 'WXDi-P16-039-GRANT',
+          effectType: 'AUTO',
+          timing: ['ON_LIFE_CRASHED', 'ON_OPP_LIFE_CRASHED'],
+          usageLimit: 'twice_per_turn',
+          action: {
+            type: 'CHOOSE',
+            choose_count: 1,
+            from_count: 2,
+            choices: [
+              { choiceId: 'c0', label: 'カードを1枚引く', action: { type: 'DRAW', owner: 'self', count: 1 } },
+              { choiceId: 'c1', label: 'エナチャージ1', action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } },
+            ],
+          } as ChooseAction,
+          duration: 'INSTANT',
+          mandatory: true,
+          parseStatus: 'MANUAL',
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WDK17-009 愛憎の果てに　ハイティ・鍵（キー・自ライフクラッシュ時3択）
   // 【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたのライフクロスがクラッシュされたとき、以下の３つから１つを選ぶ。
   //   ①カードを１枚引く。②対戦相手のダウン状態のシグニ１体を対象とし、それをバニッシュする。
