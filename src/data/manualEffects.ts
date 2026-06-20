@@ -1747,6 +1747,32 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P15-056 コードハート Lスピーカ//THE DOOR（電機）
+  // E1【常】：同ゾーンゲートで「【自】アタックしたとき、LIONがいれば《白》《白》払えばアップ＋ターン終了時まで能力喪失」を得る。
+  //   → 自己アップ＋thisCardOnly能力喪失の表現が要るため未実装。旧パース＝CONTINUOUS REMOVE_ABILITIES self（自分の能力を消す有害誤り）を無害な STUB UNIMPL_GRANTED_ABILITY に置換。
+  // E2【自】APS開始時、次の相手ターン終了時まで、同ゾーンゲートのあなたのすべてのシグニのパワー+2000。
+  //   → AUTO ON_ATTACK_PHASE_START＋POWER_MODIFY self ALL に inGateZone フィルタ＋duration UNTIL_OPP_TURN_END（旧＝全シグニ無条件 UNTIL_END_OF_TURN）。
+  'WXDi-P15-056': [
+    {
+      effectId: 'WXDi-P15-056-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'UNIMPL_GRANTED_ABILITY' },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P15-056-E2',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      triggerScope: 'self',
+      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', inGateZone: true } }, delta: 2000, duration: 'UNTIL_OPP_TURN_END' },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P15-098 凶将　アオトラ
   // 【常】：あなたの黒のシグニは「【自】：このシグニがアタックしたとき、対戦相手のデッキの一番上のカードをトラッシュに置く。」を得る。
   // 旧パース＝CONTINUOUS TRASH DECK_CARD self（owner も誤り・no-op）。
