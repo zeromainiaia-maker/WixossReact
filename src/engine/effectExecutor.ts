@@ -205,6 +205,17 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     let cur = c;
     for (const num of selected) {
       const s = ownerState(tgt.owner, cur);
+      // 効果離場の powerReduction 身代わり（WX06-019）: tgt.owner==='opponent'＝相手効果で victim 側が場を離れる。
+      // protector があれば victim を残し protector のパワーを下げてバニッシュを回避（自動適用）。
+      if (tgt.owner === 'opponent') {
+        const sub = findEffectLeavePowerReductionSubstitute(num, s, cur.cardMap);
+        if (sub) {
+          const mods = [...(s.temp_power_mods ?? []), { cardNum: sub.protectorNum, delta: -sub.reduction }];
+          cur = addLog(setOwnerState(tgt.owner, { ...s, temp_power_mods: mods }, cur),
+            `${cur.cardMap.get(sub.protectorNum)?.CardName ?? sub.protectorNum}のパワー-${sub.reduction}で${cur.cardMap.get(num)?.CardName ?? num}の場離れを身代わり`);
+          continue;
+        }
+      }
       const removed = removeFromField(num, s);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
       const opp = ownerState(tgt.owner === 'self' ? 'opponent' : 'self', cur);
