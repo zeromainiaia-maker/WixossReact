@@ -5,6 +5,16 @@
 
 ---
 
+## 「対戦相手の手札を見て選び」系を一括修正＋相手手札を見るUI（v0.412, 2026-06-20）
+
+- **UI（全`opp_hand`選択を網羅）:** `SELECT_TARGET` の `targetScope==='opp_hand'` 選択モーダルで、**対戦相手の手札全体**を表示するよう拡張（候補のみ選択可・非候補はグレー＝0.4不透明）。「対戦相手の手札を見て…選び」で相手手札全体を実際に見て選べる。相手が選ぶ場合（opponentResponds）は相手が自分の手札を見るだけなので無害。
+- **パーサー修正（durable・全件＆将来分）:** `parseSentencePart1.ts` の「対戦相手の手札を見てN枚選び（…捨てさせる）」「レベル指定」ハンドラが `actingPlayerSelects:true` を付けていなかった（→`execTrash` で `opponentResponds`＝相手が選ぶに取り違え）。3箇所に付与。
+- **プリビルド JSON 一括パッチ（21件）:** 検証済み20カードの「見て…選び」効果（`count===1` の TRASH opp_hand のみ・whitelist effectId 内）に `actingPlayerSelects:true` を付与。混在分岐（WXDi-P13-049＝「対戦相手は3枚捨てる」count3 は据置／スペル分岐 count1 は付与、WXK09-039＝E1付与・BURST「対戦相手は捨てる」は据置）も `count===1` で正しく区別。
+- **逆翻訳器:** TRASH 手札の選択者を明示（自分が見て選ぶ／見ないでランダム／相手が選ぶ）。
+- 対象例: WX06-CB02/WX07-015/WX14-027/WX17-071/WX19-039/WXK03-001/WXK09-039/WXK10-026/WXK11-023/WDK16-05H/WXDi-P00-006/P03-025/P06-002/P07-025/P08-033/P08-036/P13-049/P14-045/P16-043/WX24-P4-040。typecheck 通過。
+
+---
+
 ## WD03-011 手札捨ての選択者修正＋逆翻訳器に選択者表示（v0.411, 2026-06-20）
 
 - **WD03-011（Ｓ・Ｍ・Ｐ）誤り修正:** 【出】「対戦相手の手札を見てレベル１のカード１枚を選び、捨てさせる」が `blind`/`actingPlayerSelects` 無し＝`execTrash` で `opponentResponds=true`（相手が選ぶ）になっていた。本来は「見て…選び」＝**自分が選ぶ**なので `actingPlayerSelects:true` を付与。manualEffects＋プリビルド JSON。
