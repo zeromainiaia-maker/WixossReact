@@ -5,6 +5,15 @@
 
 ---
 
+## LOOK_AND_REORDER の canTrash がUI未実装だったのを実装（v0.431, 2026-06-20）
+
+- **症状:** `LOOK_AND_REORDER` の `canTrash:true`（「上からN枚見て**好きな枚数をトラッシュに置き**、残りを並べ替えて戻す」）が、**UI にトラッシュ選択が無く** resume 呼び出しも `trashed=[]` 固定だったため、**1枚もトラッシュできず全枚数を並べ替えて戻すだけ**の近似になっていた。データ（JSON）とエンジン（`resumeLookAndReorder` は `trashed[]` 対応済）は正しかった。**`canTrash:true` の全25効果**が該当（WX01-062 ゲット・オープン他）。
+- **修正（`BattleScreen` UI のみ）:** LOOK_AND_REORDER モーダルに `inter.canTrash` 時のみ**各カードのトラッシュ・トグル**を追加（トラッシュ指定カードはグレー表示＋取り消し線＋↑↓無効）。確定時に `resumeLookAndReorder(order, 選択したトラッシュ集合, ...)` を渡すよう変更（`[]` 固定を撤廃）。`lookReorderTrash` state を新設しインタラクション切替/確定時にリセット。
+- **CPU:** 自己解決は全カード保持（トラッシュ無し）の安全デフォルト（既存の `selected=[...inter.cards]` のまま、trashed は空）。
+- typecheck 通過。エンジン・データ変更なし。
+
+---
+
 ## 逆翻訳スキャン Sheet1：サーチ/デッキトップ配置の誤り修正（v0.430, 2026-06-20）
 
 WX01-057（正＝条件付き任意配置）を基準に、Sheet1 のサーチ系/デッキトップ配置系4枚を修正。

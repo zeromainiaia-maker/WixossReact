@@ -961,6 +961,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [stackOrderIds, setStackOrderIds] = useState<string[]>([]);
   // LOOK_AND_REORDER インタラクション：現在の並び順
   const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
+  // LOOK_AND_REORDER：トラッシュに置くカード（canTrash 時のみ。「好きな枚数をトラッシュに置き」）
+  const [lookReorderTrash, setLookReorderTrash] = useState<Set<string>>(new Set());
   const [selectedMultiChoiceIds, setSelectedMultiChoiceIds] = useState<Set<string>>(new Set());
   // アシストルリグセットアップ（センタールリグ選択後の中間状態）
   const [pendingLrigSetup, setPendingLrigSetup] = useState<{
@@ -1704,6 +1706,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const same = prev.length === inter.cards.length && prev.every((n, i) => n === inter.cards[i]);
         return same ? prev : [...inter.cards];
       });
+      setLookReorderTrash(prev => (prev.size === 0 ? prev : new Set()));
     }
    
   }, [bs?.pending_effect]);
@@ -4267,7 +4270,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           result = resumeChoose(choiceId, inter, ctx);
         }
       } else if (inter.type === 'LOOK_AND_REORDER') {
-        result = resumeLookAndReorder(selectedOrChoiceId, [], inter, ctx);
+        const trashList = inter.canTrash ? selectedOrChoiceId.filter(n => lookReorderTrash.has(n)) : [];
+        result = resumeLookAndReorder(selectedOrChoiceId, trashList, inter, ctx);
       } else if (inter.type === 'REVEAL_CARDS') {
         // 閲覧専用モーダルの確認（OK）→ continuation を実行
         result = resumeRevealCards(inter, ctx);
@@ -14392,6 +14396,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
             setLookReorderOrder(newOrder);
           };
+          const toggleTrash = (cardNum: string) => {
+            setLookReorderTrash(prev => {
+              const next = new Set(prev);
+              if (next.has(cardNum)) next.delete(cardNum); else next.add(cardNum);
+              return next;
+            });
+          };
+          const trashCount = lookReorderOrder.filter(n => lookReorderTrash.has(n)).length;
           return createPortal(
             <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
               backgroundColor: 'rgba(0,0,0,0.92)',
@@ -14404,37 +14416,51 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {srcCard?.CardName ?? pe.sourceCardNum}の効果
                 </p>
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
-                  {inter.destPosition === 'first_top_rest_bottom'
+                  {inter.canTrash
+                    ? `トラッシュに置くカードを選び、残りを並べ替えてください（上がデッキトップ）${trashCount > 0 ? ` ／ トラッシュ:${trashCount}枚` : ''}`
+                    : inter.destPosition === 'first_top_rest_bottom'
                     ? '1枚目をデッキトップへ戻し、残りはデッキ下へ（上が優先）'
                     : 'カードを見て並べ替えてください（上がデッキトップ）'}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {lookReorderOrder.map((cardNum, i) => {
                     const c = battleCardMap.get(cardNum);
+                    const isTrashed = inter.canTrash && lookReorderTrash.has(cardNum);
                     return (
                       <div key={cardNum} style={{ display: 'flex', alignItems: 'center', gap: 8,
-                        backgroundColor: C.bgButton, borderRadius: 6, padding: '6px 8px' }}>
-                        <span style={{ color: C.textDim, fontSize: 11, width: 16 }}>{i + 1}</span>
+                        backgroundColor: C.bgButton, borderRadius: 6, padding: '6px 8px',
+                        opacity: isTrashed ? 0.45 : 1 }}>
+                        <span style={{ color: C.textDim, fontSize: 11, width: 16 }}>{isTrashed ? '×' : i + 1}</span>
                         <img src={c?.ImgURL} alt={c?.CardName} draggable={false}
-                          style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                          style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0,
+                            filter: isTrashed ? 'grayscale(1)' : 'none' }}
                           onError={e2 => { const img = e2.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
-                        <span style={{ color: C.textSub, fontSize: 12, flex: 1 }}>{c?.CardName ?? cardNum}</span>
+                        <span style={{ color: C.textSub, fontSize: 12, flex: 1,
+                          textDecoration: isTrashed ? 'line-through' : 'none' }}>{c?.CardName ?? cardNum}</span>
+                        {inter.canTrash && (
+                          <button onClick={() => toggleTrash(cardNum)}
+                            style={{ padding: '4px 8px', fontSize: 11, borderRadius: 4,
+                              border: C.borderUI, backgroundColor: isTrashed ? C.danger : 'transparent',
+                              color: C.text, cursor: 'pointer', flexShrink: 0 }}>
+                            {isTrashed ? '戻す' : 'トラッシュ'}
+                          </button>
+                        )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <button onClick={() => moveCard(i, -1)} disabled={i === 0}
+                          <button onClick={() => moveCard(i, -1)} disabled={i === 0 || isTrashed}
                             style={{ padding: '2px 8px', fontSize: 11, borderRadius: 4,
                               border: C.borderUI, backgroundColor: 'transparent',
-                              color: i === 0 ? C.textDim : C.text, cursor: i === 0 ? 'default' : 'pointer' }}>↑</button>
-                          <button onClick={() => moveCard(i, 1)} disabled={i === lookReorderOrder.length - 1}
+                              color: (i === 0 || isTrashed) ? C.textDim : C.text, cursor: (i === 0 || isTrashed) ? 'default' : 'pointer' }}>↑</button>
+                          <button onClick={() => moveCard(i, 1)} disabled={i === lookReorderOrder.length - 1 || isTrashed}
                             style={{ padding: '2px 8px', fontSize: 11, borderRadius: 4,
                               border: C.borderUI, backgroundColor: 'transparent',
-                              color: i === lookReorderOrder.length - 1 ? C.textDim : C.text,
-                              cursor: i === lookReorderOrder.length - 1 ? 'default' : 'pointer' }}>↓</button>
+                              color: (i === lookReorderOrder.length - 1 || isTrashed) ? C.textDim : C.text,
+                              cursor: (i === lookReorderOrder.length - 1 || isTrashed) ? 'default' : 'pointer' }}>↓</button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-                <button onClick={() => { handleEffectInteraction(lookReorderOrder); setLookReorderOrder([]); }}
+                <button onClick={() => { handleEffectInteraction(lookReorderOrder); setLookReorderOrder([]); setLookReorderTrash(new Set()); }}
                   disabled={loading}
                   style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                     backgroundColor: loading ? C.disabled : C.success,
