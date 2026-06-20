@@ -7766,36 +7766,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
-      // ON_ATTACK_PHASE_START: CPU自身のアタックフェイズ開始時トリガー（self scope）を収集。
+      // ── MAIN→ATTACK_ARTS 移行（アタックフェイズ開始時）。以下のトリガーを1つのスタックに集約し、
+      //    フェイズを ATTACK_ARTS へ進めながら積む（MAIN に留まると再実行で無限収集になるため）。
+      const cpuTurnPlayerId = bs.active_user_id ?? CPU_PLAYER_ID;
+      const apsStackEntries: StackEntry[] = [];
+
+      // ON_ATTACK_PHASE_START: CPU自身のアタックフェイズ開始時トリガー（self scope）。
       // 人間ターンは doPhaseAdvance の collectTurnTriggers が担うが、CPUターンはここで収集しないと発火しない。
-      // 付与能力（WXDi-P10-072 が相手＝CPUシグニへ与える自己ミル等）もここで拾う（effectsMap は付与合成済み）。
-      {
-        const apsCpuEntries: StackEntry[] = [];
-        for (const stack of newCpuSt.field.signi) {
-          if (!stack?.length) continue;
-          const topNum = stack[stack.length - 1];
-          for (const eff of (effectsMap.get(topNum) ?? [])) {
-            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_PHASE_START')) continue;
-            if ((eff.triggerScope ?? 'self') !== 'self') continue;
-            if (eff.condition && !evalUseCondition(eff.condition, newCpuSt, huSt, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-            const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-            apsCpuEntries.push({
-              id: generateUUID(),
-              playerId: CPU_PLAYER_ID,
-              cardNum: topNum,
-              effectId: eff.effectId,
-              label: `${cardName} の【自】効果（アタックフェイズ開始時）`,
-              effect: eff,
-            });
-          }
-        }
-        if (apsCpuEntries.length > 0) {
-          const existingStackAPS = bs.effect_stack ?? null;
-          const newStackAPS = existingStackAPS
-            ? pushToStack(existingStackAPS, apsCpuEntries)
-            : initStack(bs.active_user_id ?? CPU_PLAYER_ID, apsCpuEntries);
-          await supabase.from('battle_states').update({ guest_state: newCpuSt, effect_stack: newStackAPS }).eq('room_id', roomId);
-          return;
+      // 付与能力（WXDi-P10-072 が相手＝CPUシグニへ与える自己ミル等）も effectsMap が付与合成済みのためここで拾う。
+      for (const stack of newCpuSt.field.signi) {
+        if (!stack?.length) continue;
+        const topNum = stack[stack.length - 1];
+        for (const eff of (effectsMap.get(topNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_PHASE_START')) continue;
+          if ((eff.triggerScope ?? 'self') !== 'self') continue;
+          if (eff.condition && !evalUseCondition(eff.condition, newCpuSt, huSt, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+          apsStackEntries.push({
+            id: generateUUID(),
+            playerId: CPU_PLAYER_ID,
+            cardNum: topNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（アタックフェイズ開始時）`,
+            effect: eff,
+          });
         }
       }
 
@@ -7803,9 +7797,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const huStForHL = isHost ? bs.guest_state : bs.host_state;
       const huKeyForHL = isHost ? 'guest_state' : 'host_state';
       const hlZonesCpu = huStForHL.hastarliq_zones ?? [];
+      const huUpdate: Partial<BattleStateRow> = {};
       if (hlZonesCpu.length > 0) {
-        const cpuTurnPlayerId = bs.active_user_id ?? CPU_PLAYER_ID;
-        const hlEntriesCpu: StackEntry[] = hlZonesCpu.map(zi => ({
+        apsStackEntries.push(...hlZonesCpu.map(zi => ({
           id: generateUUID(),
           playerId: cpuTurnPlayerId,
           cardNum: 'WXDi-P05-TK01A',
@@ -7819,20 +7813,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             mandatory: true,
             parseStatus: 'AUTO' as const,
           },
-        }));
-        const newHuStForHL = { ...huStForHL, hastarliq_zones: undefined };
-        const existingStackHLCpu = bs.effect_stack ?? null;
-        const newStackHLCpu = existingStackHLCpu
-          ? pushToStack(existingStackHLCpu, hlEntriesCpu)
-          : initStack(cpuTurnPlayerId, hlEntriesCpu);
-        await supabase.from('battle_states').update({
-          turn_phase: 'ATTACK_ARTS',
-          [huKeyForHL]: newHuStForHL,
-          effect_stack: newStackHLCpu,
-        }).eq('room_id', roomId);
-        return;
+        } satisfies StackEntry)));
+        huUpdate[huKeyForHL] = { ...huStForHL, hastarliq_zones: undefined };
       }
-      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_ARTS' }).eq('room_id', roomId);
+
+      const apsUpdate: Partial<BattleStateRow> = { turn_phase: 'ATTACK_ARTS', ...huUpdate };
+      if (apsStackEntries.length > 0) {
+        const existingStackAPS = bs.effect_stack ?? null;
+        apsUpdate.effect_stack = existingStackAPS
+          ? pushToStack(existingStackAPS, apsStackEntries)
+          : initStack(cpuTurnPlayerId, apsStackEntries);
+      }
+      await supabase.from('battle_states').update(apsUpdate).eq('room_id', roomId);
       return;
     }
 
