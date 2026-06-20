@@ -1749,16 +1749,23 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXDi-P15-056 コードハート Lスピーカ//THE DOOR（電機）
   // E1【常】：同ゾーンゲートで「【自】アタックしたとき、LIONがいれば《白》《白》払えばアップ＋ターン終了時まで能力喪失」を得る。
-  //   → 自己アップ＋thisCardOnly能力喪失の表現が要るため未実装。旧パース＝CONTINUOUS REMOVE_ABILITIES self（自分の能力を消す有害誤り）を無害な STUB UNIMPL_GRANTED_ABILITY に置換。
+  //   → condition SAME_ZONE_HAS_GATE の AUTO ON_ATTACK_SIGNI＋任意《白白》→ payすればこのシグニのみ能力喪失（thisCardOnly REMOVE_ABILITIES）。
+  //     「LIONがいれば」「このシグニをアップ（再攻撃）」は近似省略。旧＝CONTINUOUS REMOVE_ABILITIES self（自分の能力を常時消す有害誤り）を解消。
   // E2【自】APS開始時、次の相手ターン終了時まで、同ゾーンゲートのあなたのすべてのシグニのパワー+2000。
   //   → AUTO ON_ATTACK_PHASE_START＋POWER_MODIFY self ALL に inGateZone フィルタ＋duration UNTIL_OPP_TURN_END（旧＝全シグニ無条件 UNTIL_END_OF_TURN）。
   'WXDi-P15-056': [
     {
       effectId: 'WXDi-P15-056-E1',
-      effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'UNIMPL_GRANTED_ABILITY' },
-      duration: 'PERMANENT',
-      mandatory: true,
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      condition: { type: 'SAME_ZONE_HAS_GATE' },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白', '白'] },
+        { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, until: 'UNTIL_END_OF_TURN' } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
       parseStatus: 'MANUAL',
     },
     {
