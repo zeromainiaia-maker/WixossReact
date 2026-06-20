@@ -1158,7 +1158,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       effectType = 'AUTO'; timing = ['ON_PLAY'];
       mandatory = costStr === '' && !eichiCondition;
       break;
-    case '起': effectType = 'ACTIVATED'; timing = ['MAIN']; break;
+    case '起':
+      effectType = 'ACTIVATED'; timing = ['MAIN'];
+      // 「手札からこのカードを捨てる」＝手札から発動する起動能力。
+      // 使用フェイズはコスト先頭のアイコンで決まる（スペルカットイン／アタックフェイズ／メインフェイズ）。
+      // discardSelfFromHand 限定のため通常の場の【起】（既定 MAIN）には影響しない。
+      if (/手札からこのカードを捨てる/.test(costStr)) {
+        const handT: EffectTiming[] = [];
+        if (costStr.includes('《スペルカットインアイコン》')) handT.push('SPELL_CUTIN');
+        if (costStr.includes('《アタックフェイズアイコン》')) handT.push('ATTACK_ARTS');
+        if (costStr.includes('《メインフェイズアイコン》')) handT.push('MAIN');
+        timing = handT.length > 0 ? handT : ['MAIN'];
+      }
+      break;
     case '自':
       effectType = 'AUTO';
       timing = actionText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
