@@ -5122,6 +5122,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (eff.cost?.coin) return;
       const maxCost = findCounterSpellMaxCost(eff.action);
       if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
+      // 使用条件（「あなたの場に＜凶蟲＞のシグニがある場合」等）を満たさないカットインは候補から除外
+      if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, instanceId, bs.turn_phase, effectivePowers)) return;
       result.push({ card, instanceId, source: 'lrig_field', effect: eff });
     });
 
