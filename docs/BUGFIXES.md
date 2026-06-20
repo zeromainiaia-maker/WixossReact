@@ -5,6 +5,16 @@
 
 ---
 
+## WX01-030 BURST「そうした場合」誤パース修正（v0.425, 2026-06-20）
+
+- **コストは正しい**（《赤》×3＝JSON 赤×3）。精査で BURST の致命バグを発見。
+- **WX01-030 BURST:** 「あなたのライフを1枚トラッシュに置く。**そうした場合**、相手ライフを1枚クラッシュ」が「そうした場合」を `IS_MY_TURN` に誤パース。**バーストは相手ターンに発動するため `IS_MY_TURN` は常に false → 相手ライフクラッシュが永久不発**だった。→ `LIFE_CRASH self(triggerBurst:false＝トラッシュへ)` が `lastProcessedCards` を残し、相手 `LIFE_CRASH` を `conditional:true` でゲート。
+- **`execLifeCrash` に `conditional` 対応＋`lastProcessedCards` 設定を追加**（「そうした場合」の連鎖用・再利用可能）。`LifeCrashAction.conditional` 新設。
+- **E1:** keyword duration を PERMANENT→UNTIL_END_OF_TURN（「ターン終了時まで」）。
+- 逆翻訳器: `LIFE_CRASH triggerBurst:false` を「トラッシュに置く（バースト不発）」、`conditional` を「（そうした場合）」と表示。typecheck 通過。
+
+---
+
 ## WX01-029-E3「このシグニ」明示＋execGrantKeyword に thisCardOnly 対応（v0.423, 2026-06-20）
 
 - **WX01-029 E3:** 「ターン終了時まで、**このシグニ**は【ダブルクラッシュ】を得る」が target `owner:self count:1`（フィルタ無し）＋keyword `duration:PERMANENT` で、任意自シグニ選択に見えた（runtime は no-filter 自動適用で実害は無かったが曖昧）。→ `thisCardOnly:true` で明示＋keyword duration を `UNTIL_END_OF_TURN` に。
