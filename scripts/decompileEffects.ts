@@ -330,8 +330,19 @@ const timingJa: Record<string, string> = {
 function effJa(e: Eff): string {
   const typeMark = e.effectType === 'AUTO' ? '【自】' : e.effectType === 'CONTINUOUS' ? '【常】'
     : e.effectType === 'ACTIVATED' ? '【起】' : e.effectType === 'LIFE_BURST' ? '【LB】' : `【${e.effectType}】`;
-  const trig = (e.timing || []).map((t: string) => timingJa[t] ?? t).join('/');
-  const scope = e.triggerScope && e.triggerScope !== 'self' ? `〔範囲:${e.triggerScope}〕` : '';
+  // triggerScope（any_ally/any_opp/any）+ triggerFilter を主語に反映（「このシグニが」→「あなたの赤のシグニが」等）
+  const subjFilter = e.triggerFilter ? filterJa(e.triggerFilter) : '';
+  const scopeSubj = e.triggerScope === 'any_ally' ? `あなたの${subjFilter}`
+    : e.triggerScope === 'any_opp' ? `対戦相手の${subjFilter}`
+    : e.triggerScope === 'any' ? `いずれかの${subjFilter}`
+    : null;
+  const trig = (e.timing || []).map((t: string) => {
+    let s = timingJa[t] ?? t;
+    if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}シグニ${s.slice('このシグニ'.length)}`;
+    return s;
+  }).join('/');
+  // 主語に反映できなかった scope のみマーカー表示
+  const scope = (e.triggerScope && e.triggerScope !== 'self' && (scopeSubj === null || !(e.timing || []).some((t: string) => (timingJa[t] ?? '').startsWith('このシグニ')))) ? `〔範囲:${e.triggerScope}〕` : '';
   const cond = e.condition ? `${condJa(e.condition)}場合、` : '';
   const actCond = e.activeCondition ? `《${condJa(e.activeCondition)}のかぎり》` : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
