@@ -12,7 +12,16 @@
 - **データ/パーサー:** 純「凍結する」は `FREEZE`（down 無し）＝ダウンしない。「ダウンし凍結」は同一対象に適用する **`FREEZE(down:true)`** をパーサーが生成（旧 `SEQUENCE[DOWN, FREEZE]` は選択対象が別々になりうる二重選択バグも併せて解消）。WX01-085 E1/BURST を `FREEZE(down:true)` に（manualEffects＋JSON）。
 - **既存 JSON の `SEQUENCE[DOWN, FREEZE]`（「ダウンし凍結」）カードは無修正でも DOWN ステップでダウンするため壊れない**（純凍結だけがダウンしなくなる）。全体対象は元から正。
 - **逆翻訳器:** `FREEZE` を `down:true` のとき「ダウンして凍結する」、それ以外「凍結する」と表示。
-- typecheck 通過。**残（別系統）:** 選択対象の `SEQUENCE[DOWN(N), FREEZE(N)]`（WX04-046-BURST 等）は依然ダウン対象と凍結対象が別選択になりうる（パーサーは新規分を `FREEZE(down:true)` に修正済だが既存 JSON は未変換）。
+- typecheck 通過。（既存 JSON の `SEQUENCE[DOWN,FREEZE]` 二重選択は v0.434 で一括変換）
+
+---
+
+## 既存「ダウンし凍結」82効果を FREEZE(down:true) に一括変換（v0.434, 2026-06-20）
+
+- v0.433 でパーサーは新規分を `FREEZE(down:true)` に直したが、既存プリビルド JSON には旧 `SEQUENCE[DOWN(N), FREEZE(N)]`（同一対象だが**別々に選択でき、ダウン対象と凍結対象が一致しない**二重選択バグ）が残っていた。
+- **隣接する `DOWN`→`FREEZE` で target が完全一致するペアを単一 `FREEZE(down:true)` に統合**するスクリプトを全シートに適用（**82効果**・WX04-046-BURST 等）。他ステップ（DRAW/TRASH 等）やネスト SEQUENCE は保持。
+- **対象が異なるペアは変換しない**（例 WX08-027-BURST＝「すべてのシグニをダウン」＋「シグニ1体を凍結」は別物なので据置）。
+- durable: パーサーが同形を生成するため再パースでも一致。typecheck 通過。
 
 ---
 
