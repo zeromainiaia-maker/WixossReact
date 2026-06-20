@@ -5,6 +5,18 @@
 
 ---
 
+## F-2 引用付与トリガーの実装（バッチ7・WXK04-048 自己付与＋アクセ付与）（v0.383, 2026-06-20）
+
+- **対象＝TODO F-2「アクセ付与併用＋任意コスト」。** 2能力とも CONTINUOUS TRASH に誤フラット化されていたものを実装。
+- **`THIS_CARD_IS_ACCED` 条件を新設（`evalCondition`）:** 「このシグニに【アクセ】が付いているかぎり」。`sourceCardNum` のゾーンの `signi_acce` で判定（ActiveCondition `IS_SELF_ACCED` の Condition 版）。
+- **WXK04-048（アイスケーキ）:**
+  - E1: アクセ付き条件付き AUTO `ON_ATTACK_SIGNI`。任意《青》コストは既存パターン `SEQUENCE[STUB OPTIONAL_COST(costColors:['青']), CONDITIONAL(PAID_ADDITIONAL_COST)→相手手札1枚捨て]` で表現。
+  - E2: `GRANT_ACCE_HOST_ABILITY{filter: レベル3以上}`→ホストシグニへ `ON_ATTACK_SIGNI`→相手手札1枚捨てを付与（既存 `collectGrantedFromAcce` 経由）。
+  - BURST はパーサー生成を維持。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（E1/E2 外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 引用付与トリガーの実装（バッチ6・全領域LIFE_BURST付与 WX17-036）（v0.382, 2026-06-20）
 
 - **対象＝TODO F-2「全領域 LIFE_BURST 付与」。** 「あなたのすべての領域にある＜怪異＞のシグニであるカードは【ライフバースト】『…』を持つ」を、既存の `GRANT_ALL_ZONE_LIFEBURST`（WD14-001 用）機構を**フィルタ＋付与アクション対応**に拡張して実装。

@@ -137,6 +137,7 @@ export type Condition =
   | { type: 'THIS_CARD_IS_DOWN' }
   | { type: 'THIS_CARD_IS_ARMORED' }                          // このシグニが血晶武装状態の場合
   | { type: 'THIS_CARD_IS_AWAKENED' }                         // このシグニが覚醒状態の場合
+  | { type: 'THIS_CARD_IS_ACCED' }                            // このシグニに【アクセ】が付いている場合
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }          // このターンにあなたが手札をN枚以上捨てている場合
   | { type: 'THIS_CARD_HAS_UNDER' }                           // このシグニの下にカードがある場合

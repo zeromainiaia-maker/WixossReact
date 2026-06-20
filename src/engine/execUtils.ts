@@ -488,6 +488,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!src) return false;
       return ctx.ownerState.awakened_signi?.includes(src) ?? false;
     }
+    case 'THIS_CARD_IS_ACCED': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const zoneIdx = ctx.ownerState.field.signi.findIndex(z => z?.at(-1) === src);
+      if (zoneIdx < 0) return false;
+      return (ctx.ownerState.field.signi_acce?.[zoneIdx] ?? null) !== null;
+    }
     case 'IS_DRIVE_STATE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;

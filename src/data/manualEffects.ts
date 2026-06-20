@@ -1603,6 +1603,56 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXK04-048 コードイート　アイスケーキ
+  // E1【常】このシグニは【アクセ】が付いているかぎり、「【自】このシグニがアタックしたとき、
+  //    《青》を支払ってもよい。そうした場合、対戦相手は手札を１枚捨てる。」を得る。
+  // E2【常】これにアクセされているレベル３以上のシグニは「【自】このシグニがアタックしたとき、対戦相手は手札を１枚捨てる。」を得る。
+  // 旧パース＝E1/E2 とも CONTINUOUS TRASH HAND opponent（no-op）。BURST はパーサー生成を維持。
+  // E1: アクセ付き条件付き AUTO ON_ATTACK_SIGNI＋任意《青》コスト（OPTIONAL_COST→PAID_ADDITIONAL_COST ゲート）。
+  // E2: GRANT_ACCE_HOST_ABILITY（ホスト＝レベル3以上）で ON_ATTACK_SIGNI の相手手札捨てを付与。
+  'WXK04-048': [
+    {
+      effectId: 'WXK04-048-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      condition: { type: 'THIS_CARD_IS_ACCED' },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['青'] },
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXK04-048-E2',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_ACCE_HOST_ABILITY',
+        filter: { cardType: 'シグニ', levelRange: { min: 3 } },
+        abilities: [
+          {
+            effectId: 'WXK04-048-E2-G',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_SIGNI'],
+            triggerScope: 'self',
+            action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+            duration: 'INSTANT',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          },
+        ],
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
