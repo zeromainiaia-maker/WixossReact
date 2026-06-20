@@ -688,10 +688,25 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     if (!state.field.signi.some(z => !z || z.length === 0)) {
       return done(addLog(ctx, `空きシグニゾーンなし（${a.cardName}配置不可）`));
     }
+    // a.cardName は原文の《CardName》。InstanceMap は CardNum でカードデータを引くため、
+    // クラフト/トークンの CardName を CardNum に解決してインスタンスの基底にする
+    // （未解決だと能力・パワーが付かない空トークンになる）。
+    let tokenBase = a.cardName;
+    if (!ctx.cardMap.has(a.cardName)) {
+      for (const [num, cd] of ctx.cardMap) {
+        if (cd.CardName === a.cardName && (cd.Type ?? '').includes('クラフト')) { tokenBase = getCardNum(num); break; }
+      }
+      // クラフト型が見つからなければ CardName 一致のみで解決
+      if (tokenBase === a.cardName) {
+        for (const [num, cd] of ctx.cardMap) {
+          if (cd.CardName === a.cardName) { tokenBase = getCardNum(num); break; }
+        }
+      }
+    }
     let maxIdx = 0;
     const scanNums = (arr: string[] | null | undefined) => arr?.forEach(n => {
-      if (getCardNum(n) === a.cardName) {
-        const i = parseInt(n.slice(a.cardName!.length + 1), 10) || 0;
+      if (getCardNum(n) === tokenBase) {
+        const i = parseInt(n.slice(tokenBase.length + 1), 10) || 0;
         if (i > maxIdx) maxIdx = i;
       }
     });
