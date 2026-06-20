@@ -8607,8 +8607,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? pushToStack(existingStack, stackEntries)
         : initStack(turnPlayerId, stackEntries);
       const stateKey = isHost ? 'host_state' : 'guest_state';
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      const updatePayload: Record<string, unknown> = { [stateKey]: paid, effect_stack: newStack, pending_effect: null };
+      if (newOpVirusState) updatePayload[opKey] = newOpVirusState;
       await supabase.from('battle_states')
-        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .update(updatePayload)
         .eq('room_id', roomId);
     } finally {
       setLoading(false);
