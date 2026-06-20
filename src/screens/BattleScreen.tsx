@@ -8155,16 +8155,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const oppCrashEventSize = 1 + (my.pending_crashed_cards?.length ?? 0);
       const oppCrashTriggers: StackEntry[] = [];
       const oppUsedIds: string[] = [];
-      for (let zi = 0; zi < op.field.signi.length; zi++) {
-        const topNum = op.field.signi[zi]?.at(-1);
-        if (!topNum) continue;
+      // usageLimit を op.actions_done の出現回数で制御（once=1 / twice=2）。
+      const oppLimitOk = (eff: import('../types/effects').CardEffect): boolean => {
+        if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+        const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+        const used = (op.actions_done ?? []).filter(id => id === eff.effectId).length
+          + oppUsedIds.filter(id => id === eff.effectId).length;
+        if (used >= max) return false;
+        oppUsedIds.push(eff.effectId);
+        return true;
+      };
+      // シグニ＋ルリグ／アシストルリグ／キー（付与能力含む。WXDi-P16-039 のアシストルリグ自己付与等）を走査
+      const oppCrashSources = [
+        ...op.field.signi.map(s => s?.at(-1)),
+        op.field.lrig.at(-1),
+        op.field.assist_lrig_l?.at(-1),
+        op.field.assist_lrig_r?.at(-1),
+        op.field.key_piece,
+        ...(op.field.key_piece_extra ?? []),
+      ].filter((n): n is string => !!n);
+      for (const topNum of oppCrashSources) {
         for (const eff of effectsMap.get(topNum) ?? []) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
           if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
-          if (eff.usageLimit === 'once_per_turn') {
-            if (op.actions_done?.includes(eff.effectId) || oppUsedIds.includes(eff.effectId)) continue;
-            oppUsedIds.push(eff.effectId);
-          }
+          if (!oppLimitOk(eff)) continue;
           const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
           oppCrashTriggers.push({
             id: generateUUID(),
