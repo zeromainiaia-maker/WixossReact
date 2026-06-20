@@ -5,6 +5,16 @@
 
 ---
 
+## F-4 THE DOOR ゲート参照シグニ（バッチE・POWER_MODIFY_PER_HAND_COUNT 新設＋3枚）（v0.394, 2026-06-20）
+
+- **新アクション `POWER_MODIFY_PER_HAND_COUNT`:** 手札N枚につきパワー±M（AUTO実行・スナップショット）。`until: 'UNTIL_OPP_TURN_END'` で `power_mods_until_opp_turn` へ、省略時は `temp_power_mods`。`execPowerModifyPerLifeCount` と同型。
+- **WXDi-P16-070（アイン＝サンガ・毒牙）:** E1=同ゾーンゲートで「ターン終了時、相手シグニ1体をデッキ下」→ condition `SAME_ZONE_HAS_GATE` の ON_TURN_END AUTO＋TRANSFER_TO_DECK。E2=「ターン終了時、場ゲートで自シグニ1体に次の相手ターン終了時まで手札1枚につき+1000」→ condition `FIELD_HAS_GATE`＋`POWER_MODIFY_PER_HAND_COUNT`（旧＝STUB GATE 誤パース＝相手ゲート設置の有害動作を解消）。
+- **WXDi-P15-056（Lスピーカ・電機）:** E1=「同ゾーンゲートで攻撃時にLION＋WWでアップ＋能力喪失」→ 自己アップ＋thisCardOnly能力喪失が未表現のため**無害な STUB UNIMPL_GRANTED_ABILITY に置換**（旧＝CONTINUOUS REMOVE_ABILITIES self＝自分の能力を消す有害誤りを解消）。E2=「APS開始時、次の相手ターン終了時まで同ゾーンゲートの自シグニ全体+2000」→ ON_ATTACK_PHASE_START AUTO＋POWER_MODIFY self ALL に `inGateZone` フィルタ＋`duration: UNTIL_OPP_TURN_END`。
+- **WXDi-P16-054（アキノ・水獣）:** E1=「同ゾーンゲートで相手ターン中+5000＆相手効果でバニッシュ耐性」→ CONTINUOUS POWER_MODIFY self +5000 に activeCondition `AND[TURN_OWNER opponent, SAME_ZONE_HAS_GATE]`（バニッシュ耐性は近似省略）。E2=「アタック時、場ゲートで CHOOSE（相手5000以下バウンス／ドロー2）」→ ON_ATTACK_SIGNI CHOOSE に condition `FIELD_HAS_GATE`（攻撃側自身の ON_ATTACK_SIGNI 収集は eff.condition を評価する＝6277行）。
+- **反映:** types/effects＋effectExecutor（新executor＋switch）＋manualEffects＋プリビルド JSON。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 身代わり置換型2枚（WXDi-P06-034 / WXK05-024）（v0.393, 2026-06-20）
 
 - **対象＝TODO F-2 残り最後の2枚（身代わり置換型）。** いずれも旧パースは CONTINUOUS TRASH（`calcContinuousSigniMutations` が BANISH/FREEZE/DOWN 以外を実行しないため**無害な no-op**）。バトルバニッシュ経路の既存置換チェーン（`BATTLE_LEAVE_REPLACE_WITH_DOWN`/`COOKING_BANISH_SUBSTITUTE`/`RISE_BANISH_SUBSTITUTE` 等）に倣って配線。
