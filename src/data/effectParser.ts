@@ -725,6 +725,19 @@ function parseSingleSentence(text: string): EffectAction {
   if (/^ターン終了時、それら?を(?:場から)?トラッシュに置く。?$/.test(text.trim())) {
     return { type: 'STUB', id: 'TRASH_AT_TURN_END' } as StubAction;
   }
+  // 「あなたのトラッシュにカードがN枚以上/以下ある場合、〜」→ CONDITIONAL(TRASH_COUNT)
+  {
+    const m = text.trim().match(/^あなたのトラッシュにカードが([０-９\d]+)枚(以上|以下)ある場合、(.+)/s);
+    if (m) {
+      const val = parseNum(m[1]);
+      const op = m[2] === '以上' ? 'gte' : 'lte';
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'TRASH_COUNT', owner: 'self', operator: op, value: val },
+        then: parseSingleSentence(m[3]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
   // タイミング・期間プレフィックスを除去（既にparseBlockで処理済み）
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
