@@ -661,7 +661,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- スペル/アーツ打ち消し ----
   if ((t.includes('スペル') || t.includes('アーツ')) && t.includes('打ち消す')) {
-    return { type: 'COUNTER_SPELL' } as CounterSpellAction;
+    const cs: CounterSpellAction = { type: 'COUNTER_SPELL' };
+    // 「コストの合計が０のスペル」「コストの合計がN以下のスペル」→ 対象スペルのコスト上限（WX17-031等）
+    const mcM = t.match(/コストの合計が([０-９\d]+)(?:以下)?のスペル/);
+    if (mcM) cs.maxCost = parseNum(mcM[1]);
+    return cs;
   }
 
   // ---- コスト減少（「青のスペルのコストは《無×1》減る」など）----
