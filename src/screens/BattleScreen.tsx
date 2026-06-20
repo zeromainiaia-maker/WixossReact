@@ -6719,14 +6719,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナゾーンに置かれる代わりにデッキの一番下へ
           const energyToDeckBottom = !redirectBanish && !redirectBanishToHand && !frozenToDeckBottom && !frozenToTrash && !banishBySelftToTrash && !banishToLrigTrash &&
             (opS.opp_signi_energy_to_deck_bottom === true);
-          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || energyToDeckBottom;
+          // BATTLE_LEAVE_REPLACE_WITH_EXILE (WXK05-024): 場を離れる代わりにゲームから除外（本実装はトラッシュで近似）。
+          // エナに置かれる代わりにトラッシュへ送る。
+          const defenderLeaveExile = (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE' &&
+            checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? ''),
+          );
+          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || energyToDeckBottom || defenderLeaveExile;
           newOpState = {
             ...opS,
             hand: redirectBanishToHand ? [...opS.hand, ...opStack] : opS.hand,
             deck: (frozenToDeckBottom || energyToDeckBottom) ? [...opS.deck, ...opStack] : opS.deck,
             energy: anyRedirect ? opS.energy : [...opS.energy, ...opStack],
             lrig_trash: banishToLrigTrash ? [...opS.lrig_trash, ...opStack] : opS.lrig_trash,
-            trash: (redirectBanish || frozenToTrash || banishBySelftToTrash)
+            trash: (redirectBanish || frozenToTrash || banishBySelftToTrash || defenderLeaveExile)
               ? [...opS.trash, ...opStack, ...banishExtraTrash]
               : (banishExtraTrash.length > 0 ? [...opS.trash, ...banishExtraTrash] : opS.trash),
             field: {
