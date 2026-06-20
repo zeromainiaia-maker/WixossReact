@@ -762,7 +762,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
   if (t.includes('バニッシュする') || t.includes('バニッシュしてもよい')) {
     if (t.match(/すべてのシグニをバニッシュ/)) {
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
-      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ' } } };
+      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t) } } };
     }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const isOptional = t.includes('バニッシュしてもよい');
