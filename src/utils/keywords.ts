@@ -167,6 +167,42 @@ export function getShadowScopes(
 }
 
 /**
+ * protectedCardNum（ownerState の場のシグニ）が、同じ場の他カードの CONTINUOUS GRANT_FIELD_SHADOW
+ * 宣言によって得るシャドウのスコープを集める（場全体への継続シャドウ付与）。
+ * getShadowScopes は各カード自身の effects しか読まないため、場全体付与はこの経路で補う。
+ * 現状フィルタは inGateZone（own_gate_zones）のみ対応。activeCondition 付き宣言は未対応（保護しない）。
+ */
+export function getFieldGrantedShadowScopes(
+  protectedCardNum: string,
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+): ShadowScope[] {
+  const scopes: ShadowScope[] = [];
+  const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  const signi = ownerState.field.signi;
+  const zi = signi.findIndex(stack => stack?.at(-1) === protectedCardNum);
+  if (zi < 0) return scopes;
+  for (let z = 0; z < signi.length; z++) {
+    const top = signi[z]?.at(-1);
+    if (!top) continue;
+    const card = cardMap.get(top) ?? cardMap.get(baseNum(top));
+    card?.effects?.forEach(e => {
+      if (e.effectType !== 'CONTINUOUS' || e.action.type !== 'GRANT_FIELD_SHADOW') return;
+      if (e.activeCondition) return; // activeCondition 付きは未対応（呼び出し元で評価していない）
+      const a = e.action as { keyword: string; filter?: { inGateZone?: boolean; cardType?: string }; targetOwner?: string };
+      if (a.targetOwner === 'opponent') return; // 自場付与のみ対応
+      if (a.filter?.inGateZone !== undefined) {
+        const inGate = (ownerState.own_gate_zones ?? []).includes(zi);
+        if (a.filter.inGateZone !== inGate) return;
+      }
+      const scope = decodeShadowKeyword(a.keyword);
+      if (scope) scopes.push(scope);
+    });
+  }
+  return scopes;
+}
+
+/**
  * 効果の発生源カード（sourceCard）がShadowScopeの条件を満たすか（＝保護されて対象にできないか）を判定する。
  * scopeが{}（条件キー無し）の場合は無条件で常に保護する。
  * protectedOwnerState: シャドウ保持カードのコントローラーのPlayerState（宣言色・ルリグトラッシュ・場の参照に使用）

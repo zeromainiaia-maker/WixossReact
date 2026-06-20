@@ -404,6 +404,7 @@ export type EffectAction =
   | GrantEffectAction
   | GrantSigniAboveAbilityAction
   | GrantFieldSigniAbilityAction
+  | GrantFieldShadowAction
   | GrantAcceHostAbilityAction
   | GrantSoulHostAbilityAction
   | RevealUntilBanishSameLevelAction
@@ -666,6 +667,16 @@ export interface GrantFieldSigniAbilityAction {
   filter?: TargetFilter;   // 付与先フィルタ（例: story:'怪異'。省略時は自分の全シグニ）
   abilities: CardEffect[]; // 付与する能力（付与先シグニ自身の能力として扱われる）
   targetOwner?: Owner;     // 付与先のオーナー（省略時 self。'opponent' = 対戦相手の場のシグニへ付与）
+}
+
+// このカードが場にあるかぎり、フィルタに合う場のシグニ全員へ【シャドウ（X）】キーワードを付与する（CONTINUOUS宣言型）
+// 「同じシグニゾーンに【ゲート】があるあなたのシグニは【シャドウ（スペル）】を得る」(WXDi-P15-058) 等。
+// getShadowScopes が読まない場全体継続シャドウ付与を、execUtils のシャドウ保護フィルタが getFieldGrantedShadowScopes 経由で評価する。
+export interface GrantFieldShadowAction {
+  type: 'GRANT_FIELD_SHADOW';
+  keyword: string;        // 符号化済みシャドウキーワード（例: 'シャドウ:{"cardType":"スペル"}'）
+  filter?: TargetFilter;  // 付与先フィルタ（例: inGateZone:true。省略時は付与元オーナーの全シグニ）
+  targetOwner?: Owner;    // 付与先のオーナー（省略時 self＝付与元と同じ場。現状 self のみ対応）
 }
 
 // このカードが【アクセ】として付いているシグニ（ホスト）へ能力を付与する（CONTINUOUS宣言型）

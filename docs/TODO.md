@@ -3,7 +3,7 @@
 未実装・未対応の作業をまとめた恒久ドキュメント。完了したら該当項目を消すこと。
 設計方針は [DESIGN.md](./DESIGN.md)、過去の修正は [BUGFIXES.md](./BUGFIXES.md)。
 
-最終更新: 2026-06-20（v0.393 まで）。**F-2 は全完了**（付与型14枚＋相手場付与 WXDi-P10-072・v0.387＋THE DOOR自ゲート WXDi-P15-076/082・v0.388＋身代わり置換 WXDi-P06-034/WXK05-024・v0.393）。残るは **F-4**（THE DOOR ゲート参照シグニの未実装分・要追加表現）と **F-3**（optional身代わりバニッシュ7枚＝無害確定・効果バニッシュ経路の置換は別タスク）。引き継ぎ詳細は BUGFIXES.md 冒頭の各記録を参照。
+最終更新: 2026-06-20（v0.399 まで）。**F-2 は全完了**（付与型14枚＋相手場付与 WXDi-P10-072・v0.387＋THE DOOR自ゲート WXDi-P15-076/082・v0.388＋身代わり置換 WXDi-P06-034/WXK05-024・v0.393）。**F-4 ゲート参照シグニの本実装も全完了**（場全体シャドウ付与 WXDi-P15-058-E1・v0.399 で残0。あとは近似精緻化3枚＝低優先のみ）。残るは **F-3**（optional身代わりバニッシュ7枚＝無害確定・効果バニッシュ経路の置換は別タスク）。引き継ぎ詳細は BUGFIXES.md 冒頭の各記録を参照。
 
 ---
 
@@ -124,16 +124,15 @@
 
 自ゲート機構（`own_gate_zones`／`SAME_ZONE_HAS_GATE`／`FIELD_HAS_GATE`／`frontOfGateZone`／`PLACE_OWN_GATE`）は v0.388 で新設済み。これを土台に防衛派 THE DOOR シグニ（ゲート参照・約15枚）を順次実装。
 
-**✅ 完了:** WXDi-P15-076/082（v0.388）。バッチA＝WXDi-P15-080/081/077/078（v0.389）。バッチB＝WXDi-P15-059/WXDi-P16-074（v0.390・後者はE1のみ／E2は近似維持）。バッチC＝WXDi-P16-062（v0.391・`inGateZone` フィルタ新設・E1は近似）。バッチD＝WXDi-P15-057（v0.392・E1は近似）。バッチE＝WXDi-P16-070/P15-056/P16-054（v0.394・`POWER_MODIFY_PER_HAND_COUNT` 新設。P15-056-E1は無害化・P16-054-E1はバニッシュ耐性近似）。バッチF＝WXDi-P16-059（v0.395・ガード税＋自シグニシャドウ付与。`execGrantKeyword` の UNTIL_OPP_TURN_END 振り分けバグも修正）。バッチG＝WXDi-P15-058（v0.396・E2はタマゴ近似／E1は無害化）。
+**✅ 完了:** WXDi-P15-076/082（v0.388）。バッチA＝WXDi-P15-080/081/077/078（v0.389）。バッチB＝WXDi-P15-059/WXDi-P16-074（v0.390・後者はE1のみ／E2は近似維持）。バッチC＝WXDi-P16-062（v0.391・`inGateZone` フィルタ新設・E1は近似）。バッチD＝WXDi-P15-057（v0.392・E1は近似）。バッチE＝WXDi-P16-070/P15-056/P16-054（v0.394・`POWER_MODIFY_PER_HAND_COUNT` 新設。P15-056-E1は無害化・P16-054-E1はバニッシュ耐性近似）。バッチF＝WXDi-P16-059（v0.395・ガード税＋自シグニシャドウ付与。`execGrantKeyword` の UNTIL_OPP_TURN_END 振り分けバグも修正）。バッチG＝WXDi-P15-058（v0.396・E2はタマゴ近似／E1は v0.399 で本実装＝場全体シャドウ付与 `GRANT_FIELD_SHADOW`）。
 
 **✅ 防衛派 THE DOOR ゲート参照シグニ（15枚）＋ゲート設置手段（ピース WXDi-P15-003・防衛者ルリグ WXDi-P15-010/011）はすべて実装/近似完了。アーキタイプは実用レベルで機能。**
 
-**残るF-4・近似/未対応の積み残し（任意・低優先）:**
-- `WXDi-P15-058-E1`（場全体【シャドウ（スペル）】付与＝`getShadowScopes` が他カードの継続 GRANT_KEYWORD を読む経路の拡張が必要）。※`WXDi-P15-056-E1` は v0.398 で本実装（self REMOVE_ABILITIES の thisCardOnly 対応）。
-- 近似の精緻化：`WXDi-P16-074-E2`（ゲートゾーン条件・ターン1回）/ `WXDi-P16-054-E1`（相手効果バニッシュ耐性）/ `WXDi-P15-057-E1`（相手ターン中シャドウ）。
-- 必要なら：self対象 REMOVE_ABILITIES の thisCardOnly 対応、場全体継続キーワード付与の `getShadowScopes` 読み取り経路。
+**残るF-4・近似の精緻化（任意・低優先）:**
+- 近似の精緻化のみ：`WXDi-P16-074-E2`（ゲートゾーン条件・ターン1回）/ `WXDi-P16-054-E1`（相手効果バニッシュ耐性）/ `WXDi-P15-057-E1`（相手ターン中シャドウ）。
+- ※`WXDi-P15-058-E1`（場全体【シャドウ（スペル）】付与）は v0.399 で本実装（新 CONTINUOUS `GRANT_FIELD_SHADOW`＋`getFieldGrantedShadowScopes` 経路。詳細は BUGFIXES.md）。`WXDi-P15-056-E1` は v0.398 で本実装（self REMOVE_ABILITIES の thisCardOnly 対応）。
 
-**未配線（別）:** ピース `ひらけ！ゲート！`（WXDi-P15-003）＝ゲート設置＋センタールリグ能力付与の複合（現状 GRANT_LRIG_ABILITY のみ生成・gate 設置が欠落。SEQUENCE 化が必要）。
+**ピース `ひらけ！ゲート！`（WXDi-P15-003）は v0.397 で配線済み**（E1=AUTO ON_PLAY→PLACE_OWN_GATE、E2=CONTINUOUS GRANT_LRIG_ABILITY。詳細は BUGFIXES.md）。
 ※「//THE DOOR」でも解放派/闘争派のカードはゲート非参照（箱名のみ）で対象外。
 
 ### F-3. optional 身代わりバニッシュの表現（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）

@@ -5,6 +5,18 @@
 
 ---
 
+## F-4 場全体への継続シャドウ付与＋WXDi-P15-058-E1 本実装（v0.399, 2026-06-20）
+
+- **新 CONTINUOUS 宣言アクション `GRANT_FIELD_SHADOW`:** 「フィルタに合う場のシグニ全員へ【シャドウ（X）】を継続付与」を表現。`keyword`（符号化済みシャドウキーワード）＋`filter`（例 `inGateZone`）＋`targetOwner`（現状 self のみ）。`calcContinuousSigniMutations` は BANISH/FREEZE/DOWN 以外を実行しないため CONTINUOUS としては安全（executor 到達時も default no-op）。
+- **`getFieldGrantedShadowScopes`（keywords.ts 新設）:** 保護対象シグニ `n` が、同じ場の他カードの `GRANT_FIELD_SHADOW` 宣言で得るシャドウスコープを集める。`getShadowScopes` が各カード自身の effects しか読まない弱点を補完する経路。フィルタは `inGateZone`（own_gate_zones）を判定。
+- **配線:** シャドウ保護の唯一の経路 `execUtils.selectOrInteract`（`scope === 'opp_field'`）に `getFieldGrantedShadowScopes`＋`evaluateShadowScope` を追加。これで場全体付与シャドウも対象除外に効く。
+- **WXDi-P15-058-E1（羅星姫 コスチュム）:** 「同じシグニゾーンに【ゲート】があるあなたのシグニは【シャドウ（スペル）】を得る」を `GRANT_FIELD_SHADOW{keyword:シャドウ(スペル), filter:inGateZone, targetOwner:self}` で本実装（旧＝無害な STUB UNIMPL_GRANTED_ABILITY マーカー）。own_gate_zones のゾーンの自シグニが相手スペル効果の対象から外れる。
+- **検証:** `scripts/testFieldShadow.ts` を新設しヘッドレス検証（ゲートゾーンのシグニのみスペルから保護／ゲートなしゾーン・シグニ効果・ゲート未設置では非保護）。全テスト通過。typecheck 通過、verifyEffects/checkAllEffects に新規警告なし。
+- **反映:** types/effects（GrantFieldShadowAction）＋keywords（getFieldGrantedShadowScopes）＋execUtils（保護フィルタ配線）＋manualEffects＋プリビルド JSON（外科パッチ）。
+- **これで F-4 ゲート参照シグニの本実装はすべて完了**（残る積み残しは P16-074-E2／P16-054-E1／P15-057-E1 の近似精緻化＝低優先のみ）。
+
+---
+
 ## F-4 self対象 REMOVE_ABILITIES の thisCardOnly 対応＋WXDi-P15-056-E1 本実装（v0.398, 2026-06-20）
 
 - **`execRemoveAbilities` に `thisCardOnly` フィルタ対応を追加**（frontOfSelf と同型）。「このシグニは能力を失う」を効果元自身のみに限定。

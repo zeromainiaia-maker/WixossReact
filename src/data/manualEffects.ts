@@ -1850,14 +1850,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXDi-P15-058 羅星姫 コスチュム//THE DOOR（宇宙）
   // E1【常】：同じシグニゾーンに【ゲート】があるあなたのシグニは【シャドウ（スペル）】を得る。
-  //   → 場全体への継続シャドウ付与は `getShadowScopes` が他カードの継続 GRANT_KEYWORD を読まないため未実装。無害な STUB UNIMPL_GRANTED_ABILITY に置換（旧＝GRANT_KEYWORD「ゲート」誤り・無害だがマーカー化）。
+  //   → 場全体への継続シャドウ付与。新 CONTINUOUS 宣言 GRANT_FIELD_SHADOW{keyword:シャドウ(スペル), filter:inGateZone} で表現し、
+  //     execUtils のシャドウ保護フィルタが getFieldGrantedShadowScopes 経由で「own_gate_zones のゾーンの自シグニはスペル効果の対象にできない」を評価する（v0.399）。
   // E2【常】：同ゾーンゲートで「【自】APS開始時、《プロフェッサー　防衛者Ｄｒ．タマゴ》がいる場合、相手シグニ1体を対象、《青》《青》払えばデッキ下」を得る。
   //   → condition AND[SAME_ZONE_HAS_GATE, LRIG_NAME_CONTAINS self 'タマゴ'（センタールリグ名近似）]＋SEQUENCE[OPTIONAL_COST(青青), CONDITIONAL(PAID){TRANSFER_TO_DECK opp1 bottom}]。旧＝CONTINUOUS TRANSFER_TO_DECK no-op。
   'WXDi-P15-058': [
     {
       effectId: 'WXDi-P15-058-E1',
       effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'UNIMPL_GRANTED_ABILITY' },
+      action: { type: 'GRANT_FIELD_SHADOW', keyword: 'シャドウ:{"cardType":"スペル"}', filter: { inGateZone: true }, targetOwner: 'self' },
       duration: 'PERMANENT',
       mandatory: true,
       parseStatus: 'MANUAL',
