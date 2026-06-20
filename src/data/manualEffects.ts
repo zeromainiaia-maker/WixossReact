@@ -510,22 +510,24 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX06-019 幻水　シロナクジ
+  // WX06-019 幻水　シロナクジ（F-3 効果離場型 身代わり）
   // 【常】あなたの他の＜水獣＞のシグニ1体が対戦相手の効果によって場を離れる場合、
   //   代わりにターン終了時まで、このシグニのパワーを－6000してもよい。
+  // trigger filter を story:'水獣'（Dissona用）→ cardClass:'水獣' に修正。
+  // execBanish の効果離場フック（findEffectLeavePowerReductionSubstitute）が powerReduction 身代わりを自動適用する。
   'WX06-019': [
     {
       effectId: 'WX06-019-E1',
       effectType: 'CONTINUOUS',
       action: {
         type: 'BANISH_SUBSTITUTE',
-        trigger: { type: 'SIGNI', owner: 'self', count: 1, filter: { story: '水獣' } },
+        trigger: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardClass: '水獣' } },
         substituteCost: { powerReduction: 6000 },
         optional: true,
       },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
