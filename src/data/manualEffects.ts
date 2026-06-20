@@ -1871,6 +1871,58 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // ----- F-4 ピース（ゲート設置手段）-----
+
+  // WXDi-P15-003 ひらけ！ゲート！（ピース）
+  // 「あなたのシグニゾーン1つに【ゲート】1つを置く。このゲームの間、あなたのセンタールリグは『【起】エクシード4：【シグニバリア】1つを得る。【起】エクシード4：カードを4枚引く。』を得る。」
+  // ピースは executeKeyPiece が ON_PLAY を発火させるため、旧 ACTIVATED パースでは発火しなかった。
+  // E1=AUTO ON_PLAY で PLACE_OWN_GATE（ゲート設置）。E2=CONTINUOUS GRANT_LRIG_ABILITY（key_piece に残る間センタールリグへ付与＝collectLrigGrantedEffects がキーピースを走査）。
+  // 【使用条件】ドリームチーム3色以上はピース使用条件のため近似省略。
+  'WXDi-P15-003': [
+    {
+      effectId: 'WXDi-P15-003-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: { type: 'STUB', id: 'PLACE_OWN_GATE' },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P15-003-E2',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_LRIG_ABILITY',
+        rawText: '【起】エクシード４：【シグニバリア】１つを得る。【起】エクシード４：カードを４枚引く。',
+        abilities: [
+          {
+            effectId: 'WXDi-P15-003-E2-A',
+            effectType: 'ACTIVATED',
+            timing: ['MAIN'],
+            cost: { exceed: 4 },
+            action: { type: 'STUB', id: 'GAIN_SIGNI_BARRIER' },
+            duration: 'INSTANT',
+            mandatory: false,
+            parseStatus: 'MANUAL',
+          },
+          {
+            effectId: 'WXDi-P15-003-E2-B',
+            effectType: 'ACTIVATED',
+            timing: ['MAIN'],
+            cost: { exceed: 4 },
+            action: { type: 'DRAW', owner: 'self', count: 4 },
+            duration: 'INSTANT',
+            mandatory: false,
+            parseStatus: 'MANUAL',
+          },
+        ],
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P15-098 凶将　アオトラ
   // 【常】：あなたの黒のシグニは「【自】：このシグニがアタックしたとき、対戦相手のデッキの一番上のカードをトラッシュに置く。」を得る。
   // 旧パース＝CONTINUOUS TRASH DECK_CARD self（owner も誤り・no-op）。
