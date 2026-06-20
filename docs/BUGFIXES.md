@@ -5,12 +5,19 @@
 
 ---
 
+## WX01-033 E3 トラッシュ色フィルタ欠落修正（v0.429, 2026-06-20）
+
+- **WX01-033（幻獣神オサキ）E3:** 「あなたのトラッシュからすべての**緑の**カードをデッキに加えてシャッフルする」が source の色フィルタ欠落で**全色を対象**にしていた（過剰）。→ `source.filter:{color:'緑'}` を付与（`execTransferToDeck` は `trashCandidates(state, src.filter)` で既にフィルタを尊重）。manualEffects＋JSON。
+- 逆翻訳器: `TRANSFER_TO_DECK` の `shuffle:true` を「デッキに加えてシャッフルする」と表示するよう改善。typecheck 通過。
+
+---
+
 ## WX01-033 オサキ「緑のスペル使用時」誤パース修正＋ON_SPELL_USE をシグニへ拡張（v0.428, 2026-06-20）
 
 - **WX01-033（幻獣神オサキ）E1:** 原文「**あなたが緑のスペルを使用したとき**、デッキトップをエナゾーンに置く」が **timing `ON_PLAY`（場に出たとき）に誤パース**＋スペル色フィルタ欠落だった。→ `timing:['ON_SPELL_USE']`＋`triggerFilter:{color:'緑'}`。manualEffects＋JSON。
 - **エンジン拡張（`BattleScreen.handleCutinPass`）:** `ON_SPELL_USE` の収集が**キャスターのセンタールリグのみ**だったため、シグニの ON_SPELL_USE（オサキ）が発火しなかった。→ 収集元を**ルリグ＋場のシグニ各ゾーンのトップ**に拡張し、`triggerFilter.color` があれば**使用スペルの色**（`battleCardMap.get(card_num).Color`）で絞るようにした。発火点は handleCutinPass のみ（CPU はカットインパスでここに合流）＝PvP/CPU 両対応。打ち消し経路 `handleCutinUse` はスペル不発のため ON_SPELL_USE を発火しない（正しい）。
 - **逆翻訳器:** `ON_SPELL_USE`/`ON_GUARD` を timingJa に追加。`ON_SPELL_USE`＋`triggerFilter.color` を「あなたが緑のスペルを使用したとき」と表示。
-- typecheck 通過。**残（同カード）:** E3「トラッシュの**緑の**カードすべてをデッキへ」が JSON では色フィルタ欠落で全色を対象にしている疑い（要精査・今回未修正）。
+- typecheck 通過。（E3 のトラッシュ色フィルタ欠落は v0.429 で修正。上の項を参照）
 
 ---
 

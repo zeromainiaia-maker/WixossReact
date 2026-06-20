@@ -240,7 +240,9 @@ function actionJa(a?: Action): string {
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
       : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュする${a.conditional ? '（そうした場合）' : ''}`;
     case 'TRANSFER_TO_HAND': return `${targetJa(a.source)}を手札に加える`;
-    case 'TRANSFER_TO_DECK': return `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く`;
+    case 'TRANSFER_TO_DECK': return a.shuffle
+      ? `${targetJa(a.source)}をデッキに加えてシャッフルする`
+      : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く`;
     case 'ADD_TO_HAND': return `${targetJa(a.target)}を手札に加える`;
     case 'SEARCH': {
       // cardType フィルタを名詞に反映（「カード」だとスペルも引けるように誤読されるため）

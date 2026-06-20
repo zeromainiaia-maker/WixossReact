@@ -162,7 +162,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 旧JSONは timing が ON_PLAY（場に出たとき）に誤パースされ、スペル色フィルタも欠落していた。
   // → timing ON_SPELL_USE＋triggerFilter{color:'緑'}。BattleScreen の ON_SPELL_USE 収集を
   //   ルリグだけでなく場のシグニも走査するよう拡張（triggerFilter.color で使用スペルの色を判定）。
-  // E2/E3/BURST はパーサー生成を維持。
+  // E2/BURST はパーサー生成を維持。
+  // E3【起】《緑》《緑》：あなたのトラッシュからすべての緑のカードをデッキに加えてシャッフルする。
+  //   旧JSONは source に色フィルタが無く全色のカードを対象にしていた（過剰）。→ filter:{color:'緑'} を付与。
   'WX01-033': [
     {
       effectId: 'WX01-033-E1',
@@ -172,6 +174,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
       duration: 'INSTANT',
       mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX01-033-E3',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '緑', count: 1 }, { color: '緑', count: 1 }] },
+      action: { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 'ALL', filter: { color: '緑' } }, shuffle: true },
+      duration: 'INSTANT',
+      mandatory: false,
       parseStatus: 'MANUAL',
     },
   ],
