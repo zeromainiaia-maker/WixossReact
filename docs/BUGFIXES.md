@@ -16,6 +16,21 @@
 
 ---
 
+## ADD_TO_FIELD source 欠落族の残り（SEQUENCE/動的フィルタ/名指し/ベット/クラフト/leave）を一括修正（v0.438, 2026-06-21）
+
+v0.435〜0.437 で単純系27効果を直したあとの「残り系統」（TODO の①〜⑥）をパーサー＋engine 改修＋対象カードのみ JSON 再生成（`scripts/regenCards.ts` 新設・全再生成は禁止のため）で durable 修正。**全て「bare ADD_TO_FIELD＝デッキトップ誤配置」を正しい source/cardName に。**
+
+- **① エナ配置の SEQUENCE 形（11効果）:** `WX24-P2-007` / `WX24-P3-086` / `WX25-P3-098` / `WX25-CP1-005` / `WX26-CP1-086`(SONG) / `WXDi-P01-032` / `WXDi-P07-032` / `WXDi-P12-042` / `WXDi-CP02-087` / `WXK09-023` / `WXDi-P03-078`。パーサーは v0.435 で既に「エナゾーンから…場に出す」→source:ENERGY_CARD を生成済みだったが、SEQUENCE 先頭の当該効果は JSON が未再生成で bare のまま残っていた＝対象再生成で解消。`parseStoryFilter` に**重複除去**を追加（条件文＋フィルタ文で ＜ブルアカ＞ が2回出て story:["ブルアカ","ブルアカ"] になる WXDi-CP02-087 を是正）。
+- **② 動的フィルタ手札配置＋timing 誤り（2効果）:** `WX11-035`（＜アーム＞が場を離れたとき）/ `WX16-025`（このシグニが場を離れたとき）。**`自`の timing 判定に「場を離れたとき」→`ON_LEAVE_FIELD` を新設**（従来は ON_PLAY 誤判定）。triggerScope/triggerFilter を抽出（「あなたの＜X＞のシグニが」→any_ally＋triggerFilter）。手札配置フィルタに動的 **`levelBelowLeftCard`**（既存）/**`powerBelowLeftCard`（新設）** を付与。`BattleScreen` の `resolveLeaveFieldDynamicFilters` に powerBelowLeftCard 解決（離れたカードのパワー-1）を追加。ON_LEAVE_FIELD/ON_REVEALED_FROM_HAND の「〜してもよい」は mandatory:false（任意トリガー）に。**ON_LEAVE_FIELD 基盤（収集・動的解決）は既存だが JSON で使うカードがゼロだった＝ここで初めて配線。**
+- **③ 名指し手札配置（2効果）:** `WXDi-P05-068`（《大罠　ハーメルン》）/ `WX22-036`（《幻竜　ピュートン》）。手札配置ハンドラに **`parseNameFilter`** を追加（cardName フィルタ）。WX22-036 は **`ON_REVEALED_FROM_HAND` 検出を broaden**（「このカードが**＜龍獣＞のシグニの効果によって**手札から公開されたとき」も拾う）。
+- **④ ベット/アンコール手札配置（2効果）:** `WXK07-105` / `WX19-017`。現行パーサーで既に正しく source:HAND_CARD を生成（コスト接頭辞後に手札ハンドラ発火）＝対象再生成のみで解消。
+- **⑤ クラフト/トークン配置（cardName 機構・7効果）:** `WXDi-P13-062`(サーバントＺＥＲＯ) / `WXDi-CP02-028`(ペロロ人形) / `WXDi-CP02-029`(クルセイダーちゃん) / `WXDi-CP02-041`(雨雲号) / `WX25-CP1-066`(雷ちゃん) / `WX25-P1-034`(幻怪ヤミノザンシ・ON_LEAVE_FIELD) / `WX24-P3-018`(ママ勇者)。パーサーに**「クラフトの《X》…を場に出す」→ `ADD_TO_FIELD{cardName:X}`** ハンドラを新設。**`execAddToField` のトークン生成パスに CardName→CardNum 解決を追加**（InstanceMap は CardNum でカードデータを引くため、原文の《CardName》のままだと能力・パワーが付かない空トークンになっていた）。全角英数・表意空白を半角化して照合（原文《ＺＥＲＯ》とトークン名 "ZERO" の幅差を吸収）。対象トークンは全て battleCardNums にプリロード済み。
+- **⑥ トラッシュ/その他（2効果）:** `WX20-002-E3`（エナから＜調理＞配置＝対象再生成で解消）/ `WX22-001-E1`（トラッシュから＜遊具＞2枚配置＝既に正）。`WX22-001-E3`（【起】「このアタックフェイズの間、＜遊具＞が場を離れたとき手札から配置」＝**付与型遅延 leave トリガー**）は機構未実装のため、**bare ADD_TO_FIELD のデッキトップ誤配置を避けて no-op STUB `GRANT_LEAVE_PLACE_PENDING` に**（忠実実装は将来課題）。
+
+**残った近似（要追加実装）:** WXDi-CP02-087 のエナ枚数条件・WXDi-P03-078 の「このシグニよりパワー低い」（ON_TURN_END は動的フィルタ未解決）・WXDi-P05-068 先頭の「カードを2枚引き」（複数文の引き＋配置でドロー脱落）・WXK07-105 のベット条件分岐・WX25-CP1-066-E1 の「場に雷ちゃんがない場合」・WX22-001-E3 の付与型 leave トリガー。クラフトトークンの実機配置（cardName→token 解決）は**要実機検証**。typecheck は本変更による新規エラー 0（既存4件はpull由来）。
+
+---
+
 ## 「手札からシグニを場に出す」が bare ADD_TO_FIELD でデッキトップを出していた修正（v0.437, 2026-06-20）
 
 - **症状:** 原文「あなたの手札から[フィルタ]シグニを場に出す」が source 無しの bare `ADD_TO_FIELD` で、デッキトップを出していた（手札から選ばない誤り）。ena/レゾナ系（v0.435/0.436）と同根。
