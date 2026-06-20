@@ -1479,6 +1479,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return base;
   }, [bs, effectsMap, battleCardMap, user.id]);
 
+  // CONTINUOUS GRANT_KEYWORD（activeCondition 達成）で動的に付与中のキーワード（バッジ表示用）。
+  // WD04-010「パワー10000以上でランサー」等、毎フレーム条件評価で変動する付与を keyword_grants とは別に算出する。
+  const dynamicKeywords = useMemo(() => {
+    const empty = {} as Record<string, string[]>;
+    if (!bs) return { my: empty, op: empty };
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    return {
+      my: collectContinuousGrantedKeywords(myS, opS, myTurn, effectsMap, battleCardMap, effectivePowers),
+      op: collectContinuousGrantedKeywords(opS, myS, !myTurn, effectsMap, battleCardMap, effectivePowers),
+    };
+  }, [bs, effectsMap, battleCardMap, user.id, effectivePowers]);
+
   // CONTINUOUS コスト修正（CostIncreaseAction 効果を集計）
   const activeCostMods = useMemo(() => {
     if (!bs) return { forMy: [], forOp: [] };
