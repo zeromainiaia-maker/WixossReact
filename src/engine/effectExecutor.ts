@@ -2486,6 +2486,20 @@ function execPlaceVirus(a: PlaceVirusAction, ctx: ExecCtx): ExecResult {
   const available = [0, 1, 2].filter(i => virus[i] === 0);
   if (available.length === 0) return done(addLog(ctx, '【ウィルス】を置けるゾーンなし'));
 
+  // fillToTotal: 合計がこの値になるように不足分だけ置く（WX19-045）。既に達していれば何もしない。
+  if (a.fillToTotal !== undefined) {
+    const curTotal = virus.reduce((s, v) => s + (v ?? 0), 0);
+    const needed = Math.max(0, a.fillToTotal - curTotal);
+    if (needed === 0) return done(addLog(ctx, `相手の【ウィルス】は既に合計${a.fillToTotal}個以上`));
+    return needsInteraction(ctx, {
+      type: 'SELECT_VIRUS_ZONE',
+      owner: tgtOwner,
+      virusCount: a.virusCount,
+      remainingZones: Math.min(needed, available.length),
+      upTo: false,
+    });
+  }
+
   const zoneCount = a.zoneCount === 'ALL'
     ? available.length
     : Math.min(a.zoneCount, available.length);
