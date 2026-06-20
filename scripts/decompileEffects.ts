@@ -230,7 +230,7 @@ function actionJa(a?: Action): string {
     case 'ENERGY_CHARGE': return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
     case 'ENERGY_CHARGE_FROM_DECK': return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
     case 'ADD_TO_LIFE': return `${ownerJa(a.owner)}デッキの${a.fromTop ? '一番上' : ''}から${numJa(a.count)}枚をライフクロスに加える`;
-    case 'ADD_TO_FIELD': return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す` : '直前に選んだカードを場に出す';
+    case 'ADD_TO_FIELD': return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
     case 'BLOCK_ACTION': return `${ownerJa(a.target?.owner)}${a.target?.type === 'SIGNI' ? 'シグニ' : ''}は「${a.actionId}」ができない（${a.until ?? ''}）`;
     case 'LOOK_AND_REORDER': {
       const src = a.source?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
