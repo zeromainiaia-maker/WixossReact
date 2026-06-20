@@ -173,6 +173,13 @@ function actionJa(a?: Action): string {
     case 'SEQUENCE': return a.steps.map(actionJa).join('。そして');
     case 'CHOOSE': return `次から${a.choose_count}つ選ぶ【${(a.choices || []).map((c: any) => actionJa(c.action)).join(' / ')}】`;
     case 'CONDITIONAL': return `${condJa(a.condition)}なら、${actionJa(a.then)}`;
+    case 'BANISH_SUBSTITUTE': {
+      const sc = a.substituteCost ?? {};
+      const cost = sc.discardSpell ? `手札からスペル${sc.discardSpell}枚を捨てる`
+        : sc.trashStackSpell ? `このシグニの下からスペル${sc.trashStackSpell}枚をトラッシュする`
+        : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}する` : '';
+      return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}てもよい`;
+    }
     case 'STUB': return `[STUB:${a.id}${a.banishSubstitute ? ' ' + JSON.stringify(a.banishSubstitute) : ''}${a.costColors ? ' コスト' + a.costColors.join('') : ''}]`;
     default: return `[アクション:${a.type}]`;
   }

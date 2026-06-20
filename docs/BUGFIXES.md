@@ -5,6 +5,20 @@
 
 ---
 
+## F-3 コスト払い型 身代わりバニッシュを実装（既存 action.type BANISH_SUBSTITUTE・2枚）（v0.402, 2026-06-20）
+
+**decompileEffects の Sheet1 全件検証で発見した「宣言だけで未実装の機構」を実装。** `action.type: 'BANISH_SUBSTITUTE'`（`substituteCost` 付き＝コストを払ってバニッシュを回避する型）はパーサーが生成・型も存在したが、エンジン/バトルにハンドラが無く**完全な no-op** だった。
+
+- **`collectBanishSubstitutes` をオプション統一型に再設計:** 戻り値を `BanishSubstituteOption[]`（`kind:'sacrifice'` 別シグニを犠牲 ／ `kind:'pay_cost'` コスト払いで victim を残す）に変更し、犠牲型（v0.401 の STUB）とコスト型（既存 action）を1経路に統合。
+- **WX10-033（Ｓ・Ｗ・Ｔ）:** 自身バニッシュ時、手札からスペル1枚捨てで回避（`discardSpell:1`）。trigger を `thisCardOnly` に外科パッチして「このシグニ限定」を表現（パーサーは任意シグニと区別できていなかった）。
+- **WX11-029（Ｍ・Ｐ・Ｐ）:** 味方バニッシュ時、自身の下からスペル2枚トラッシュで回避（`trashStackSpell:2`）。
+- **バトル統合:** v0.401 の再入 pause/resume をオプション対応に拡張。`pending_banish_substitute.options[]` ／ `banish_substitute_choice.option`。pay_cost 適用は victim を場に残しコストを支払う（手札スペル先頭から／下スタックのスペル先頭から自動選択）。UI は選択肢を「《X》を代わりにバニッシュ／手札スペルN枚捨てて回避／下スペルNトラッシュで回避／身代わりしない」で提示。CPU は pay_cost 優先＋弱い犠牲のみのヒューリスティック。
+- **対象外:** `WX06-019`（シロナクジ）は「対戦相手の**効果によって場を離れる**」トリガー＋`powerReduction` 型＝バトル外の効果離場フックが要るため未対応（F-3 の効果バニッシュ経路と同じ積み残し）。
+- **検証:** `scripts/testBanishSubstitute.ts` を犠牲型＋コスト型10アサートに拡張（discardSpell/trashStackSpell/thisCardOnly/コスト不足、全通過）。typecheck 通過、verify/eslint 新規警告なし。`decompileEffects` に `BANISH_SUBSTITUTE` 逆翻訳も追加。
+- **反映:** types（index/effects）＋effectEngine（collectBanishSubstitutes 再設計）＋BattleScreen（decision/apply/UI/handler）＋プリビルド JSON（WX10-033 外科パッチ）。
+
+---
+
 ## F-3 optional 身代わりバニッシュ 対話本実装（バトル経路・5枚）（v0.401, 2026-06-20）
 
 **TODO F-3 を対話プロンプトで本実装（バトルバニッシュ経路）。** 旧は全7枚が `CONTINUOUS BANISH optional`＝`calcContinuousSigniMutations` 行397で自動適用されない no-op（＝「身代わりしない」という合法プレイで無害）。これに**「してもよい」の対話選択肢を追加**。

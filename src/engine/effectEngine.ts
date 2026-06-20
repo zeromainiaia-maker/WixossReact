@@ -3701,11 +3701,23 @@ export function collectRiseBanishSubstituteSigni(
 }
 
 /**
+ * バトルバニッシュの任意身代わり置換オプション（F-3）。defender がバトルでバニッシュされる victim を守る選択肢。
+ *   - kind:'sacrifice' … 代わりに sacrificeNum をバニッシュ（victim は残る）
+ *   - kind:'pay_cost'  … コスト（スペル捨て/下スペルトラッシュ）を払って victim を場に残す（誰もバニッシュしない）
+ */
+export type BanishSubstituteOption =
+  | { kind: 'sacrifice'; sourceNum: string; sacrificeNum: string }
+  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell'; amount: number };
+
+/**
  * BANISH_SUBSTITUTE (F-3): 防御側 state のシグニ victimNum がバニッシュされる場合に使える
- * 任意の身代わり置換を収集する。バトルバニッシュ経路で「victim の代わりに sacrifice をバニッシュ
- * してもよい」を対話適用するための候補列挙（純関数）。
- *   - self_sacrifice_other: victim 自身が BANISH_SUBSTITUTE を持ち、別クラスの他シグニを犠牲にできる（WX12-024/WXEX2-60）
- *   - protect_other_sacrifice_self: 別のシグニ(source)が BANISH_SUBSTITUTE を持ち、victim が条件を満たすとき source 自身を犠牲にする（WX20-055/CP01-032/P10-052近似）
+ * 任意の身代わり置換オプションを列挙する純関数。バトルバニッシュ経路で対話適用する。
+ *   STUB BANISH_SUBSTITUTE（犠牲型）:
+ *     - self_sacrifice_other: victim 自身が持ち、別クラスの他シグニを犠牲にできる（WX12-024/WXEX2-60）
+ *     - protect_other_sacrifice_self: 別シグニ(source)が持ち、victim が条件を満たすとき source 自身を犠牲（WX20-055/CP01-032/P10-052近似）
+ *   action.type BANISH_SUBSTITUTE（コスト払い型）:
+ *     - discardSpell N: source が持ち、手札からスペルN枚を捨てて victim を残す（WX10-033=自身限定／trigger.filter.thisCardOnly）
+ *     - trashStackSpell N: source の下からスペルN枚をトラッシュして victim を残す（WX11-029=任意の自シグニ）
  * isOwnerTurn=victim オーナーのターンか（バトルでは常に false=相手ターン）。
  */
 export function collectBanishSubstitutes(
@@ -3715,37 +3727,63 @@ export function collectBanishSubstitutes(
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   victimNum: string,
-): { sourceNum: string; sacrificeCandidates: string[]; pattern: string }[] {
-  const result: { sourceNum: string; sacrificeCandidates: string[]; pattern: string }[] = [];
+): BanishSubstituteOption[] {
+  const result: BanishSubstituteOption[] = [];
+  const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  const isSpell = (n: string) => cardMap.get(baseNum(n))?.Type === 'スペル';
   const tops: string[] = [];
-  for (const stack of state.field.signi) { const t = stack?.at(-1); if (t) tops.push(t); }
-  const victimCard = cardMap.get(victimNum);
-  const hasRiseIcon = (n: string) => (cardMap.get(n)?.EffectText ?? '').includes('【ライズ】');
+  const stackOf = new Map<string, string[]>();
+  for (const stack of state.field.signi) {
+    const t = stack?.at(-1);
+    if (t) { tops.push(t); stackOf.set(t, stack!); }
+  }
+  const victimCard = cardMap.get(baseNum(victimNum));
+  const hasRiseIcon = (n: string) => (cardMap.get(baseNum(n))?.EffectText ?? '').includes('【ライズ】');
 
   for (const sourceNum of tops) {
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || act.id !== 'BANISH_SUBSTITUTE' || !act.banishSubstitute) continue;
-      const bs = act.banishSubstitute;
-      if (bs.oppTurnOnly && isOwnerTurn) continue; // 相手ターン限定（victim ターンでは無効）
-      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+      const act = eff.action as any; // STUB（犠牲型）or BanishSubstituteAction（コスト型）
 
-      if (bs.pattern === 'self_sacrifice_other') {
-        // victim 自身が身代わり元。別クラスの他シグニを犠牲にできる
-        if (sourceNum !== victimNum) continue;
-        const cands = tops.filter(n => {
-          if (n === victimNum) return false; // 「他の」シグニ
-          if (bs.sacrificeClass) return (cardMap.get(n)?.CardClass ?? '').includes(bs.sacrificeClass);
-          return true;
-        });
-        if (cands.length > 0) result.push({ sourceNum, sacrificeCandidates: cands, pattern: bs.pattern });
-      } else if (bs.pattern === 'protect_other_sacrifice_self') {
-        // source 自身を犠牲に victim を守る。victim は source 以外で victimFilter を満たすこと
-        if (sourceNum === victimNum) continue;
-        if (bs.victimFilter === 'riseIcon' && !hasRiseIcon(victimNum)) continue;
-        if (!victimCard) continue;
-        result.push({ sourceNum, sacrificeCandidates: [sourceNum], pattern: bs.pattern });
+      // ── 犠牲型（STUB BANISH_SUBSTITUTE + banishSubstitute）──
+      if (act.type === 'STUB' && act.id === 'BANISH_SUBSTITUTE' && act.banishSubstitute) {
+        const bs = act.banishSubstitute;
+        if (bs.oppTurnOnly && isOwnerTurn) continue;
+        if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+        if (bs.pattern === 'self_sacrifice_other') {
+          if (sourceNum !== victimNum) continue;
+          for (const n of tops) {
+            if (n === victimNum) continue; // 「他の」シグニ
+            if (bs.sacrificeClass && !(cardMap.get(baseNum(n))?.CardClass ?? '').includes(bs.sacrificeClass)) continue;
+            result.push({ kind: 'sacrifice', sourceNum, sacrificeNum: n });
+          }
+        } else if (bs.pattern === 'protect_other_sacrifice_self') {
+          if (sourceNum === victimNum) continue;
+          if (bs.victimFilter === 'riseIcon' && !hasRiseIcon(victimNum)) continue;
+          if (!victimCard) continue;
+          result.push({ kind: 'sacrifice', sourceNum, sacrificeNum: sourceNum });
+        }
+        continue;
+      }
+
+      // ── コスト払い型（action.type BANISH_SUBSTITUTE）──
+      if (act.type === 'BANISH_SUBSTITUTE' && act.substituteCost) {
+        if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+        // trigger フィルタ: thisCardOnly なら victim=source のみ。それ以外は自分の任意シグニ。
+        const tf = act.trigger?.filter ?? {};
+        if (tf.thisCardOnly && sourceNum !== victimNum) continue;
+        if (tf.story && !(victimCard?.CardClass ?? '').includes(tf.story)) continue;
+        if (tf.excludeSelf && victimNum === sourceNum) continue;
+        const cost = act.substituteCost;
+        if (cost.discardSpell) {
+          const spellsInHand = state.hand.filter(isSpell).length;
+          if (spellsInHand >= cost.discardSpell) result.push({ kind: 'pay_cost', sourceNum, costType: 'discardSpell', amount: cost.discardSpell });
+        } else if (cost.trashStackSpell) {
+          const under = (stackOf.get(sourceNum) ?? []).slice(0, -1); // 下のカード（トップ以外）
+          if (under.filter(isSpell).length >= cost.trashStackSpell) result.push({ kind: 'pay_cost', sourceNum, costType: 'trashStackSpell', amount: cost.trashStackSpell });
+        }
+        // powerReduction（WX06-019）は「効果による場離れ」トリガーでバトル外のため未対応
+        continue;
       }
     }
   }

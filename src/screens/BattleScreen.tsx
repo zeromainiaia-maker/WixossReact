@@ -6565,47 +6565,48 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
           // ─── F-3 BANISH_SUBSTITUTE: バトルバニッシュの任意身代わり置換 ───
           // victim = opTopCardNum（バトル防御シグニ）。防御側に身代わりがあれば対話（人間）/ヒューリスティック（CPU）で適用。
-          let f3SubstituteApplied = false;
+          // option=sacrifice: 別シグニを代わりにバニッシュ / option=pay_cost: コストを払って victim を残す。
           let f3SacrificeNum: string | null = null;
+          let f3PayCost: { sourceNum: string; costType: 'discardSpell' | 'trashStackSpell'; amount: number } | null = null;
           {
             const f3Decision = opS.banish_substitute_choice;
             const f3DecidedForVictim = !!f3Decision && f3Decision.victimNum === opTopCardNum;
+            const applyOption = (o: import('../types').BanishSubstituteOptionState) => {
+              if (o.kind === 'sacrifice') f3SacrificeNum = o.sacrificeNum;
+              else f3PayCost = { sourceNum: o.sourceNum, costType: o.costType, amount: o.amount };
+            };
             if (!f3DecidedForVictim) {
               if (opS.pending_banish_substitute) {
                 // 防御側の決定待ち中。再入してもここで停止（決定で再開）。
                 return;
               }
-              const f3Subs = opTopCardNum
+              const f3Opts = opTopCardNum
                 ? collectBanishSubstitutes(opS, myS, false, battleCardMap, effectsMap, opTopCardNum)
                 : [];
-              if (f3Subs.length > 0) {
+              if (f3Opts.length > 0) {
                 if (defenderId === CPU_PLAYER_ID) {
-                  // CPU ヒューリスティック: 自己保護型は最弱の他シグニを犠牲にして使う。
-                  // 味方保護型は victim のパワー >= 身代わり元なら守る（弱いものを守る自己犠牲は見送り）。
+                  // CPU ヒューリスティック: コスト払い型を優先（victim を残せて損失が小さい）。
+                  // 犠牲型は「犠牲シグニのパワー <= victim」のときだけ使う（弱いものを守る自己犠牲は見送り）。
                   const f3PowerOf = (n: string) => effectivePowers.get(n) ?? parsePowerVal(battleCardMap.get(n)?.Power);
-                  const ss = f3Subs.find(s => s.pattern === 'self_sacrifice_other');
-                  const po = f3Subs.find(s => s.pattern === 'protect_other_sacrifice_self');
-                  if (ss) {
-                    f3SacrificeNum = [...ss.sacrificeCandidates].sort((a, b) => f3PowerOf(a) - f3PowerOf(b))[0] ?? null;
-                  } else if (po && opTopCardNum && f3PowerOf(opTopCardNum) >= f3PowerOf(po.sourceNum)) {
-                    f3SacrificeNum = po.sourceNum;
-                  }
-                  f3SubstituteApplied = f3SacrificeNum != null;
+                  const pay = f3Opts.find(o => o.kind === 'pay_cost');
+                  const sac = f3Opts.filter(o => o.kind === 'sacrifice')
+                    .sort((a, b) => f3PowerOf((a as { sacrificeNum: string }).sacrificeNum) - f3PowerOf((b as { sacrificeNum: string }).sacrificeNum))[0];
+                  if (pay) applyOption(pay);
+                  else if (sac && opTopCardNum && f3PowerOf((sac as { sacrificeNum: string }).sacrificeNum) <= f3PowerOf(opTopCardNum)) applyOption(sac);
                 } else {
                   // 人間防御側に対話プロンプトを提示（中断）。攻撃側 myS.pending_signi_battle は保持して再入で再開。
-                  const f3Sub0 = f3Subs[0];
                   await supabase.from('battle_states')
-                    .update({ [opKey]: { ...opS, pending_banish_substitute: { victimNum: opTopCardNum!, sourceNum: f3Sub0.sourceNum, sacrificeCandidates: f3Sub0.sacrificeCandidates } } })
+                    .update({ [opKey]: { ...opS, pending_banish_substitute: { victimNum: opTopCardNum!, options: f3Opts } } })
                     .eq('room_id', roomId);
                   appendBattleLogs([`${opCardName}のバニッシュに身代わりの選択を待っています`]);
                   return;
                 }
               }
-            } else if (f3Decision && f3Decision.sacrificeNum != null) {
-              f3SacrificeNum = f3Decision.sacrificeNum;
-              f3SubstituteApplied = true;
+            } else if (f3Decision?.option) {
+              applyOption(f3Decision.option);
             }
           }
+          const f3SubstituteApplied = f3SacrificeNum != null || f3PayCost != null;
 
           // BATTLE_LEAVE_REPLACE_WITH_DOWN: アップ状態のシグニはバニッシュ代わりにダウン（任意→自動適用）
           const opSigniWasUp = !(opS.field.signi_down?.[opZoneIndex] === true);
@@ -6648,6 +6649,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               banish_substitute_choice: undefined, pending_banish_substitute: undefined,
             };
             appendBattleLogs([`身代わり：${opCardName}の代わりに${battleCardMap.get(f3SacrificeNum)?.CardName ?? f3SacrificeNum}をバニッシュ`]);
+          } else if (f3SubstituteApplied && f3PayCost) {
+            // コスト払い型: victim は場に残り、誰もバニッシュされない（コストを支払う）
+            const pc = f3PayCost as { sourceNum: string; costType: 'discardSpell' | 'trashStackSpell'; amount: number };
+            const isSpellCard = (n: string) => battleCardMap.get(getCardNum(n))?.Type === 'スペル';
+            if (pc.costType === 'discardSpell') {
+              // 手札からスペルを amount 枚（先頭から）トラッシュへ
+              const picked: string[] = [];
+              const restHand: string[] = [];
+              for (const h of opS.hand) { if (picked.length < pc.amount && isSpellCard(h)) picked.push(h); else restHand.push(h); }
+              newOpState = { ...opS, hand: restHand, trash: [...opS.trash, ...picked], banish_substitute_choice: undefined, pending_banish_substitute: undefined };
+              appendBattleLogs([`身代わり：手札からスペル${picked.length}枚を捨てて${opCardName}のバニッシュを回避`]);
+            } else {
+              // このシグニ（sourceNum）の下からスペルを amount 枚トラッシュへ。トップと残りは維持。
+              const srcZone = opS.field.signi.findIndex(s => s?.at(-1) === pc.sourceNum);
+              const stack = srcZone >= 0 ? (opS.field.signi[srcZone] ?? []) : [];
+              const top = stack.at(-1);
+              const under = stack.slice(0, -1);
+              const trashed: string[] = [];
+              const keptUnder: string[] = [];
+              for (const u of under) { if (trashed.length < pc.amount && isSpellCard(u)) trashed.push(u); else keptUnder.push(u); }
+              const f3Signi = [...opS.field.signi] as (string[] | null)[];
+              if (srcZone >= 0 && top) f3Signi[srcZone] = [...keptUnder, top];
+              newOpState = { ...opS, trash: [...opS.trash, ...trashed], field: { ...opS.field, signi: f3Signi }, banish_substitute_choice: undefined, pending_banish_substitute: undefined };
+              appendBattleLogs([`身代わり：${battleCardMap.get(pc.sourceNum)?.CardName ?? pc.sourceNum}の下からスペル${trashed.length}枚をトラッシュして${opCardName}のバニッシュを回避`]);
+            }
           } else if (leaveReplaceDown) {
             newOpDown[opZoneIndex] = true;
             newOpFrozen[opZoneIndex] = false;
@@ -8505,17 +8531,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  // F-3 BANISH_SUBSTITUTE: 防御側（人間）が身代わりの可否・犠牲シグニを選ぶ。
-  // sacrificeNum=null で「身代わりしない（通常バニッシュ）」。決定後、攻撃側のバトル解決が再入で再開する。
-  const handleBanishSubstituteChoice = async (sacrificeNum: string | null) => {
+  // F-3 BANISH_SUBSTITUTE: 防御側（人間）が身代わりの選択肢を選ぶ。
+  // optionIndex=null で「身代わりしない（通常バニッシュ）」。決定後、攻撃側のバトル解決が再入で再開する。
+  const handleBanishSubstituteChoice = async (optionIndex: number | null) => {
     if (loading) return;
     const pend = my.pending_banish_substitute;
     if (!pend) return;
+    const option = optionIndex != null ? (pend.options[optionIndex] ?? null) : null;
     const myKey = isHost ? 'host_state' : 'guest_state';
     const newMyState: PlayerState = {
       ...my,
       pending_banish_substitute: undefined,
-      banish_substitute_choice: { victimNum: pend.victimNum, sacrificeNum },
+      banish_substitute_choice: { victimNum: pend.victimNum, option },
     };
     await supabase.from('battle_states').update({ [myKey]: newMyState }).eq('room_id', roomId);
   };
@@ -11338,16 +11365,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               }}>
                 <p style={{ color: C.life, fontSize: 15, fontWeight: 'bold', margin: 0 }}>身代わりバニッシュ</p>
                 <p style={{ color: C.textSub, fontSize: 13, margin: 0 }}>
-                  《{victimName}》がバニッシュされます。代わりにバニッシュするシグニを選べます。
+                  《{victimName}》がバニッシュされます。身代わりの方法を選べます。
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {pend.sacrificeCandidates.map(num => (
-                    <button key={num} onClick={() => handleBanishSubstituteChoice(num)} disabled={loading}
-                      style={{ padding: '11px 0', borderRadius: 8, border: 'none', backgroundColor: '#e53935',
-                        color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer' }}>
-                      《{battleCardMap.get(num)?.CardName ?? num}》を代わりにバニッシュ
-                    </button>
-                  ))}
+                  {pend.options.map((opt, i) => {
+                    const label = opt.kind === 'sacrifice'
+                      ? `《${battleCardMap.get(opt.sacrificeNum)?.CardName ?? opt.sacrificeNum}》を代わりにバニッシュ`
+                      : opt.costType === 'discardSpell'
+                        ? `手札からスペル${opt.amount}枚を捨てて回避`
+                        : `《${battleCardMap.get(opt.sourceNum)?.CardName ?? opt.sourceNum}》の下からスペル${opt.amount}枚をトラッシュして回避`;
+                    return (
+                      <button key={i} onClick={() => handleBanishSubstituteChoice(i)} disabled={loading}
+                        style={{ padding: '11px 0', borderRadius: 8, border: 'none', backgroundColor: '#e53935',
+                          color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer' }}>
+                        {label}
+                      </button>
+                    );
+                  })}
                   <button onClick={() => handleBanishSubstituteChoice(null)} disabled={loading}
                     style={{ padding: '11px 0', borderRadius: 8, border: C.borderUI, backgroundColor: C.bgButton,
                       color: C.textSub, fontSize: 14, cursor: loading ? 'default' : 'pointer' }}>
