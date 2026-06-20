@@ -538,12 +538,13 @@ export interface TransferToHandAction {
   source: EffectTarget; // どこから何を（TRASH_CARD, ENERGY_CARD など）
 }
 
-// デッキ上のカードをライフクロスに加える
+// デッキ上または手札からライフクロスに加える
 export interface AddToLifeAction {
   type: 'ADD_TO_LIFE';
   owner: Owner;
   count: NumberOrRef;
   fromTop: boolean; // true=デッキ上から
+  fromHand?: boolean; // true=手札から1枚選ぶ
 }
 
 export interface AddToFieldAction {
