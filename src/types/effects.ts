@@ -132,6 +132,7 @@ export type Condition =
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean }
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter }
+  | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'LRIG_STORY'; owner: Owner; story: string }
