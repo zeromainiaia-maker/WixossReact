@@ -218,7 +218,7 @@ function actionJa(a?: Action): string {
       const cnt = t?.count === 'ALL' ? 'すべて' : `${t?.count}枚`;
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}`;
     }
-    case 'POWER_MODIFY': return `${targetJa(a.target)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
+    case 'POWER_MODIFY': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
     case 'POWER_SET': return `${targetJa(a.target)}のパワーを${a.value}にする`;
     case 'POWER_MODIFY_PER_HAND_COUNT': return `${targetJa(a.target)}のパワーを手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
     case 'FREEZE': return `${targetJa(a.target)}を凍結する`;
