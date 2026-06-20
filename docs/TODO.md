@@ -115,10 +115,16 @@
 **✅ バッチ9（v0.385）:** `WXDi-P04-040`（自己犠牲型＝`execTrash` に `thisCardOnly` 追加＋OPTIONAL_COST《無×3》払わなければ自己トラッシュ）。
 **✅ バッチ10（v0.386）:** `WXK10-039`（シグニ犠牲型＝`execTrash`/`TargetFilter` に `excludeSelf` 追加＋CHOOSE「他の原子2体トラッシュ／自己トラッシュ」）。
 
-**残り（4枚・いずれも要・専用機構/高リスク。既存機構でクリーンに実装可能な付与型・コスト型・相手場付与は v0.377〜v0.387 で完了）:**
-- **ゲート条件（自ゲート未モデリング）:** `WXDi-P15-082`（ON_ATTACK_PHASE_START＋同ゾーンに【ゲート】）/ `WXDi-P15-076`（ON_TURN_END＋【ゲート】）← 既存 `signi_gate_zones` は「相手へ設置するアタック不可ゲート」で別概念。THE DOOR の自ゲート表現が必要。
-- ~~**相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`~~ → **v0.387 で実装済**（GRANT_FIELD_SIGNI_ABILITY{targetOwner:opponent}＋付与能力 ON_ATTACK_PHASE_START/MILL self。CPUターンの APS 収集を `cpuTurnAction` に配線。詳細は BUGFIXES.md）。
+**残り（2枚・いずれも要・専用機構/高リスク。既存機構でクリーンに実装可能な付与型・コスト型・相手場付与・自ゲートは v0.377〜v0.388 で完了）:**
+- ~~**ゲート条件（自ゲート未モデリング）:** `WXDi-P15-082` / `WXDi-P15-076`~~ → **v0.388 で実装済**（THE DOOR 自ゲート機構 `own_gate_zones`＋`SAME_ZONE_HAS_GATE`/`FIELD_HAS_GATE`/`frontOfGateZone`＋配置 `PLACE_OWN_GATE`＋UI バッジを新設。詳細は BUGFIXES.md）。
+- ~~**相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`~~ → **v0.387 で実装済**。
 - **身代わり置換型（F-3 と同種・別タスク）:** `WXDi-P06-034`（ライズ＋「代わりに…してもよい」）/ `WXK05-024`（場離れ代わりに除外）← 置換効果。F-3 と合わせて対応。
+
+### F-4. THE DOOR アーキタイプ（自ゲート基盤は v0.388 で完成・個別カードは未実装）
+
+自ゲート機構（`own_gate_zones`／`SAME_ZONE_HAS_GATE`／`FIELD_HAS_GATE`／`frontOfGateZone`／`PLACE_OWN_GATE`）は v0.388 で新設済み。これを土台に THE DOOR シグニ（P15/P16 で約40枚）を個別実装可能。
+- 未配線：ピース `ひらけ！ゲート！`（WXDi-P15-003）＝ゲート設置＋センタールリグ能力付与の複合（現状 GRANT_LRIG_ABILITY のみ生成・gate 設置が欠落。SEQUENCE 化が必要）。
+- 他の THE DOOR シグニ（WXDi-P15-048〜083 / P16-054〜073 等）は旧パースで CONTINUOUS TRASH/誤 GRANT_KEYWORD 等に化けている。本基盤の condition/filter で順次本実装へ。
 
 ### F-3. optional 身代わりバニッシュの表現（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）
 
