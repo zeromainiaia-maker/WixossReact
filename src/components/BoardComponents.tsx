@@ -1067,6 +1067,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             seedCardNum={state.field.signi_seeds?.[rawIdx] ?? null}
             magicBoxCardNum={state.field.signi_magic_boxes?.[rawIdx] ?? null}
             statusKeywords={getSigniStatusKeywords(s, cards, state.keyword_grants, state.abilities_removed, dynamicKeywords)}
+            hasGate={state.own_gate_zones?.includes(rawIdx) ?? false}
             isMe={isMe} />
         );
       })}
