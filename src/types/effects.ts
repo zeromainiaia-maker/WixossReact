@@ -1085,6 +1085,9 @@ export interface PlaceVirusAction {
   zoneCount: number | 'ALL';   // 何ゾーンに置くか
   virusCount: number;          // 各ゾーンに置くウィルス数（通常1）
   upToZoneCount?: boolean;     // true=「～つまで」
+  // 対象の場の【ウィルス】合計がこの値になるように不足分だけ置く（WX19-045「合計が2つになるように置く」）。
+  // 指定時、配置数 = max(0, fillToTotal - 現在のウィルス合計) を空きゾーンへ（プレイヤーが配置先を選択）。
+  fillToTotal?: number;
   // 選んだゾーンのシグニにパワー修正を与える（WD19-009「そのシグニゾーンにあるシグニのパワーを－8000」）。
   // 指定時はウィルス済みゾーンも選択可（ウィルスは置けないがパワー修正は適用される）
   powerDeltaOnZone?: number;
