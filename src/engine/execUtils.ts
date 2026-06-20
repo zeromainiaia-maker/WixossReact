@@ -343,6 +343,9 @@ export function fieldCandidates(
       const inGate = (state.own_gate_zones ?? []).includes(zoneIdx);
       if (filter.inGateZone !== inGate) return [];
     }
+    if (filter?.centerZoneOnly !== undefined) {
+      if (filter.centerZoneOnly !== (zoneIdx === 1)) return [];
+    }
     // card_class_overridesによるクラス上書きを考慮してフィルター適用
     const classOverride = state.card_class_overrides?.[cardNum];
     // ACCE_SIGNI_ALL_COLOR / ALL_COLOR / ALL_ZONE_BLACK: 全色を持つシグニは色フィルターをバイパス
