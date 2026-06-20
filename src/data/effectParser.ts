@@ -738,6 +738,17 @@ function parseSingleSentence(text: string): EffectAction {
       } as import('../types/effects').ConditionalAction;
     }
   }
+  // 「（公開した）そのカードが【ライフバースト】を持つ場合、〜」→ CONDITIONAL(LAST_PROCESSED_HAS_BURST)
+  {
+    const m = text.trim().match(/^(?:公開した)?そのカードが【ライフバースト】を持つ場合、(.+)/s);
+    if (m) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LAST_PROCESSED_HAS_BURST' },
+        then: parseSingleSentence(m[1]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
   // タイミング・期間プレフィックスを除去（既にparseBlockで処理済み）
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
