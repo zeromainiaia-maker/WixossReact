@@ -2482,6 +2482,31 @@ function execPowerModifyPerLifeCount(a: PowerModifyPerLifeCountAction, ctx: Exec
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+function execPowerModifyPerHandCount(a: import('../types/effects').PowerModifyPerHandCountAction, ctx: ExecCtx): ExecResult {
+  const handState = a.handOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  const count = handState.hand.length;
+  const delta = a.deltaPerCard * count;
+  if (delta === 0) return done(ctx);
+
+  const tgtO = a.target.owner === 'opponent' ? 'opponent' : 'self' as 'self' | 'opponent';
+  const state = ownerState(tgtO, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // UNTIL_OPP_TURN_END は長期ストアへ（次の相手ターン終了時までクリアされない）
+  const powerModKey = a.until === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
+
+  function applyMod(selected: string[], c: ExecCtx): ExecCtx {
+    const s = ownerState(tgtO, c);
+    const mods = [...(s[powerModKey] ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
+    return addLog(setOwnerState(tgtO, { ...s, [powerModKey]: mods }, c),
+      `パワー${delta > 0 ? '+' : ''}${delta}（手札${count}枚×${a.deltaPerCard}）`);
+  }
+
+  if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
+  const cnt = resolveNum(a.target.count);
+  const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
+}
+
 function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
   const selfDiscard = Math.min(a.count, ctx.ownerState.hand.length);
   const otherDiscard = Math.min(a.count, ctx.otherState.hand.length);
