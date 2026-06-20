@@ -1,7 +1,7 @@
 {
   "name": "wixossreact",
   "private": true,
-  "version": "0.424",
+  "version": "0.425",
   "type": "module",
   "scripts": {
     "dev": "vite",
