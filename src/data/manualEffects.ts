@@ -248,6 +248,106 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P06-007 閃光へ飛翔　レイ（ルリグ・効果2枚ドロー条件＋ルリグ付与クラッシュ時）
+  // 【自】：あなたのアタックフェイズ開始時、このターンにあなたが効果によってカードを２枚以上引いていた場合、
+  //   青のシグニ１体を対象とし、手札を３枚捨ててもよい。そうした場合、ターン終了時まで、それは【アサシン】を得る。
+  // 【出】：カードを１枚引き【エナチャージ１】をする。
+  // 【起】《ゲーム１回》《青×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：対戦相手のライフクロス１枚が
+  //   クラッシュされたとき、カードを１枚引くか、対戦相手は手札を１枚捨てる。」を得る。
+  // E1: 条件 CARDS_DRAWN_BY_EFFECT(self,gte,2) を CONDITIONAL でラップ（lrigブランチは eff.condition を評価しないため）。
+  //   「捨ててもよい」は CHOOSE（捨てる/捨てない）、捨てる選択肢は HAND_COUNT>=3 でゲート。
+  // E2: DRAW1＋エナチャージ1（DRAW 欠落を補完）。
+  // E3: GRANT_EFFECT（thisCardOnly＝センタールリグ自身へ UNTIL_END_OF_TURN）で ON_OPP_LIFE_CRASHED twice_per_turn の
+  //   CHOOSE（自ドロー / 相手ディスカード）を付与。collectは performLifeBurstResponse の oppCrashSources(lrig含む)で拾う。
+  'WXDi-P06-007': [
+    {
+      effectId: 'WXDi-P06-007-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      triggerScope: 'self',
+      action: {
+        type: 'CONDITIONAL',
+        condition: { type: 'CARDS_DRAWN_BY_EFFECT', owner: 'self', operator: 'gte', value: 2 },
+        then: {
+          type: 'CHOOSE',
+          choose_count: 1,
+          from_count: 2,
+          choices: [
+            {
+              choiceId: 'c0',
+              label: '手札3枚を捨てて青のシグニ1体に【アサシン】を付与',
+              condition: { type: 'HAND_COUNT', owner: 'self', operator: 'gte', value: 3 },
+              action: {
+                type: 'SEQUENCE',
+                steps: [
+                  { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 3 } },
+                  {
+                    type: 'GRANT_KEYWORD',
+                    target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', color: '青' }, upToCount: false },
+                    keyword: 'アサシン',
+                    duration: 'UNTIL_END_OF_TURN',
+                  },
+                ],
+              },
+            },
+            { choiceId: 'c1', label: '何もしない', action: { type: 'SEQUENCE', steps: [] } },
+          ],
+        } as ChooseAction,
+      },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P06-007-E2',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'DRAW', owner: 'self', count: 1 },
+          { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P06-007-E3',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '青', count: 0 }] },
+      usageLimit: 'once_per_game',
+      action: {
+        type: 'GRANT_EFFECT',
+        target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+        duration: 'UNTIL_END_OF_TURN',
+        effect: {
+          effectId: 'WXDi-P06-007-E3-GRANT',
+          effectType: 'AUTO',
+          timing: ['ON_OPP_LIFE_CRASHED'],
+          usageLimit: 'twice_per_turn',
+          action: {
+            type: 'CHOOSE',
+            choose_count: 1,
+            from_count: 2,
+            choices: [
+              { choiceId: 'c0', label: 'カードを1枚引く', action: { type: 'DRAW', owner: 'self', count: 1 } },
+              { choiceId: 'c1', label: '対戦相手は手札を1枚捨てる', action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } },
+            ],
+          } as ChooseAction,
+          duration: 'INSTANT',
+          mandatory: true,
+          parseStatus: 'MANUAL',
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WDK17-009 愛憎の果てに　ハイティ・鍵（キー・自ライフクラッシュ時3択）
   // 【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたのライフクロスがクラッシュされたとき、以下の３つから１つを選ぶ。
   //   ①カードを１枚引く。②対戦相手のダウン状態のシグニ１体を対象とし、それをバニッシュする。
