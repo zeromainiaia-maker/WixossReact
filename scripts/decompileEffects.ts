@@ -231,7 +231,12 @@ function actionJa(a?: Action): string {
     case 'TRANSFER_TO_HAND': return `${targetJa(a.source)}を手札に加える`;
     case 'TRANSFER_TO_DECK': return `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く`;
     case 'ADD_TO_HAND': return `${targetJa(a.target)}を手札に加える`;
-    case 'SEARCH': return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}カードを${a.maxCount ? a.maxCount + '枚まで' : ''}探して手札に加える${a.afterSearch ? '（その後シャッフル）' : ''}`;
+    case 'SEARCH': {
+      // cardType フィルタを名詞に反映（「カード」だとスペルも引けるように誤読されるため）
+      const ct = a.filter?.cardType;
+      const noun = ct ? ([] as string[]).concat(ct).join('か') : 'カード';
+      return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}を${a.maxCount ? a.maxCount + '枚まで' : ''}探して手札に加える${a.afterSearch ? '（その後シャッフル）' : ''}`;
+    }
     case 'GRANT_KEYWORD': return `${targetJa(a.target)}に【${a.keyword}】を与える`;
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失う${a.frontOfSelf ? '（正面）' : ''}`;
     case 'GRANT_PROTECTION': return `${a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ'}は${ownerJa(a.sourceOwner)}効果によって${a.from?.join('・')}されない`;
