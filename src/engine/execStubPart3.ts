@@ -1168,6 +1168,30 @@ export function execStubPart3(
     const newOtherGATE = { ...ctx.otherState, signi_gate_zones: currentGates, blocked_actions: blocked };
     return done(addLog({ ...ctx, otherState: newOtherGATE }, `相手ゾーン${gateZoneIdx + 1}に【ゲート】設置`));
   }
+  // PLACE_OWN_GATE: あなたのシグニゾーン1つにTHE DOOR【ゲート】を置く（own_gate_zones）。
+  // signi_gate_zones（相手ゾーンのアタック妨害ゲート）とは別概念。THE DOORシグニが参照する自ゲート。
+  if (stub.id === 'PLACE_OWN_GATE') {
+    const existingOwnGates = ctx.ownerState.own_gate_zones ?? [];
+    const zoneOptsOG = [0, 1, 2].map(zi => ({
+      id: `own_gate_zone_${zi}`,
+      label: existingOwnGates.includes(zi) ? `ゾーン${zi + 1}（既に【ゲート】あり）` : `ゾーン${zi + 1}に【ゲート】を置く`,
+      action: ({ type: 'STUB', id: 'INTERNAL_SET_OWN_GATE', value: zi } as StubAction) as EffectAction,
+      available: !existingOwnGates.includes(zi),
+    }));
+    if (zoneOptsOG.every(o => !o.available)) {
+      return done(addLog(ctx, '全シグニゾーンに既に【ゲート】があるため設置をスキップ'));
+    }
+    return needsInteraction(addLog(ctx, '【ゲート】を置くあなたのシグニゾーンを選択'), {
+      type: 'CHOOSE', options: zoneOptsOG, count: 1,
+    });
+  }
+  if (stub.id === 'INTERNAL_SET_OWN_GATE') {
+    const ownGateIdx: number = (typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'))) as number;
+    const currentOwnGates = [...(ctx.ownerState.own_gate_zones ?? [])];
+    if (!currentOwnGates.includes(ownGateIdx)) currentOwnGates.push(ownGateIdx);
+    const newOwnerOG = { ...ctx.ownerState, own_gate_zones: currentOwnGates };
+    return done(addLog({ ...ctx, ownerState: newOwnerOG }, `あなたのゾーン${ownGateIdx + 1}に【ゲート】を置いた`));
+  }
   // PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX）
   if (stub.id === 'PLACE_MAGIC_BOX') {
     const cardPMB = ctx.lastProcessedCards?.[0] ?? null;
