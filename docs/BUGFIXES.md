@@ -5,6 +5,16 @@
 
 ---
 
+## F-2 相手場への付与の実装（WXDi-P10-072・CPUターンAPS収集を配線）（v0.387, 2026-06-20）
+
+- **対象＝TODO F-2 残り「相手場への付与（機構は v0.377 で用意済・未配線）」WXDi-P10-072。** 旧パース＝CONTINUOUS TRASH SIGNI opponent（no-op）。
+- **正体:** 「【常】：対戦相手のシグニは『【自】：あなたのアタックフェイズ開始時、あなたのデッキの一番上のカードをトラッシュに置く。』を得る。」＝対戦相手の場のシグニ全員へ「自分のアタックフェイズ開始時に自己ミル1」する【自】を付与。
+- **manualEffects:** E1 を `CONTINUOUS GRANT_FIELD_SIGNI_ABILITY{targetOwner:'opponent', filter:シグニ}`＋付与能力 `AUTO ON_ATTACK_PHASE_START / triggerScope:self / MILL{owner:'self',count:1}` に修正（`targetOwner` 対応は v0.377 で実装済。付与先＝対戦相手の視点で「あなた」＝そのシグニのコントローラー＝`owner:'self'` がコントローラーのデッキに解決される）。BURST はパーサー生成を維持。
+- **配線（CPUターンの未収集を解消）:** 人間ターン側は `doPhaseAdvance` の `collectTurnTriggers('ON_ATTACK_PHASE_START')`（MAIN→ATTACK_ARTS 移行）で既に拾える（effectsMap は付与合成済みのため P10-072 を CPU が持ち人間シグニへ付与した場合も自動発火）。**CPUターン側は MAIN→ATTACK_ARTS 移行で APS トリガーを収集していなかった**ため、`cpuTurnAction` の MAIN ブロック末尾（HASTARLIQ／ATTACK_ARTS 遷移と統合）に CPU自身の場シグニの self scope `ON_ATTACK_PHASE_START` AUTO（condition 評価込み）を収集する処理を追加。HASTARLIQ と同一スタックに集約し `turn_phase: ATTACK_ARTS` へ進めながら積む（MAIN に留まると再実行で無限収集になるため）。これは汎用修正で、付与能力に限らず CPU 自身のネイティブ `ON_ATTACK_PHASE_START` 能力も発火するようになる。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（外科パッチ）＋`BattleScreen.tsx`。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 シグニ犠牲コスト型の実装（バッチ10・WXK10-039）（v0.386, 2026-06-20）
 
 - **対象＝TODO F-2「シグニ犠牲コスト型」。** 「他の＜原子＞2体をトラッシュしないかぎり自己トラッシュ」を CHOOSE で実装。
