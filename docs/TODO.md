@@ -98,10 +98,25 @@
 - **トークン:** ※WXDi-CP02-TK02A は v0.352 でランサー＋バトルバニッシュを実装済（「対戦相手ターン終了時に自己除外」は非アクティブ側ターン終了トリガーが必要で保留）。
 - ~~**WX17-038:** 中央でアタック時にデッキ公開→同レベルバニッシュ~~ → v0.353 で `REVEAL_UNTIL_BANISH_SAME_LEVEL` を新設し実装済。
 
-### F-2. 無害な CONTINUOUS TRASH 誤解析（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）
+### F-2. 引用付与トリガー能力のフラット化誤解析（**実装着手 v0.377・バッチ1完了。残りを継続**）
 
-**監査結論:** `calcContinuousSigniMutations`（effectEngine.ts:371-422、CONTINUOUS効果を実際に適用する唯一の経路）の **行395** `if (act.type !== 'BANISH' && act.type !== 'FREEZE' && act.type !== 'DOWN') continue;` により **CONTINUOUS TRASH は一切実行されない**。CONTINUOUS の `action` は `executeAction` を通らない（状態算出のみ）ため他経路でも非実行。**無害確定**。
-正体は「このシグニは『…』を得る（かぎり）」型の**引用付与能力のフラット化誤解析**（内側 trigger能力の TRASH が CONTINUOUS action として漏れただけ）。本実装＝各カードの引用内 trigger能力を CONTINUOUS で個別付与する大規模作業のため別タスク。対象：`WX06-029` `WX12-018` `WX17-036` `WX21-054` `WXDi-P02-068` `WXDi-P04-040` `WXDi-P04-082` `WXDi-P05-032` `WXDi-P06-034` `WXDi-P09-058` `WXDi-P10-072` `WXDi-P15-060` `WXDi-P15-064` `WXDi-P15-076` `WXDi-P15-082` `WXDi-P15-098` `WXK04-048` `WXK05-024` `WXK10-039` ほか。
+**監査結論（無害性）:** `calcContinuousSigniMutations`（effectEngine.ts、CONTINUOUS効果を実際に適用する唯一の経路）の `if (act.type !== 'BANISH' && act.type !== 'FREEZE' && act.type !== 'DOWN') continue;` により **CONTINUOUS TRASH は一切実行されない**ため、未実装でも**無害**（誤バニッシュ等の害はない）。正体は「このシグニは『【自】…』を得る（かぎり）」型の**引用付与能力のフラット化誤解析**で、内側 trigger 能力が落ちて TRASH だけが CONTINUOUS action として漏れたもの。
+
+**実装方針（v0.377 で確立）:** 大規模機構は不要。「〜であるかぎり『【自】…』を得る」は **condition 付き AUTO トリガー**として表現すれば既存収集（`collectTurnTriggers`/ON_ATTACK_SIGNI 収集が `evalUseCondition` で条件評価）が発火する。場全体付与は既存 `GRANT_FIELD_SIGNI_ABILITY`＋`collectGrantedFromLayer`。機構追加は `LRIG_COLOR` 条件と `GrantFieldSigniAbilityAction.targetOwner` の2点のみ（v0.377）。
+
+**✅ バッチ1（v0.377・実装済）:** `WX06-029` / `WXDi-P04-082` / `WXDi-P15-098`（いずれも ON_ATTACK_SIGNI 経路。詳細は BUGFIXES.md）。
+
+**残り（カテゴリ別）:**
+- **自己付与・既存timing/条件で可（次バッチ最有力）:** `WXDi-P15-082`（ON_ATTACK_PHASE_START＋同ゾーンに【ゲート】）/ `WXDi-P15-076`（ON_TURN_END＋【ゲート】）← 「同じシグニゾーンに【ゲート】がある」条件の新設が必要。
+- **相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`（相手シグニへ ON_ATTACK_PHASE_START 自デッキ mill）← 相手ターンの ON_ATTACK_PHASE_START 収集経路（playerId）の検証が必要。
+- **上シグニ付与（既存 GRANT_SIGNI_ABOVE_ABILITY）:** `WXDi-P15-060` / `WXDi-P15-064`。
+- **ルリグへの付与:** `WXDi-P05-032`（センタールリグへ「【自】ルリグアタック時…」）。
+- **複雑な色条件（対戦相手センターと共通しない色の energy）:** `WXDi-P09-058`（＋E2 が覚醒トリガーの別誤パース）/ 上記 P15-060/064 にも内在。`colorNotMatchesOppLrig` 相当のフィルタ新設が要る。
+- **専用 timing 欠如:** `WX21-054`（「ダメージを与えたとき」＝ON_DAMAGE 無し）/ `WXDi-P02-068`（「バトルによってバニッシュしたとき」）。
+- **複合条件:** `WX12-018`（ルリグトラッシュのアーツ4枚以上＋場に＜天使＞3体）。
+- **全領域 LIFE_BURST 付与（特殊）:** `WX17-036`（手札/デッキ/トラッシュ/場の＜怪異＞すべてに【ライフバースト】を付与）。
+- **アクセ付与併用:** `WXK04-048`（自己付与＋`GRANT_ACCE_HOST_ABILITY`）。
+- **別形の誤解析（F-2 の付与型ではない・要別対応）:** `WXDi-P04-040`（《無×3》払わないと自己トラッシュ）/ `WXDi-P06-034`（ライズ＋身代わり置換引用）/ `WXK05-024`（場離れ代わりに除外＋起動）/ `WXK10-039`（＜原子＞2体トラッシュしないと自己トラッシュ）。
 
 ### F-3. optional 身代わりバニッシュの表現（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）
 

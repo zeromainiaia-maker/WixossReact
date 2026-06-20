@@ -514,6 +514,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!lrig) return false;
       return ctx.cardMap.get(lrig)?.CardName?.includes(cond.name) ?? false;
     }
+    case 'LRIG_COLOR': {
+      const lrig = st(cond.owner).field.lrig.at(-1);
+      if (!lrig) return false;
+      return ctx.cardMap.get(lrig)?.Color?.includes(cond.color) ?? false;
+    }
     case 'SUBSCRIBER_COUNT':
       return cmp(ctx.ownerState.subscriber_count ?? 0, cond.operator, cond.value);
     case 'SELF_POWER_GTE': {

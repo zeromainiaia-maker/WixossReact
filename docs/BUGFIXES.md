@@ -5,6 +5,21 @@
 
 ---
 
+## F-2 引用付与トリガー能力のフラット化誤解析を実装開始（バッチ1・3枚＋機構）（v0.377, 2026-06-20）
+
+- **対象＝TODO F-2:** 「このシグニは『【自】…』を得る（かぎり）」型の引用付与能力が、内側 trigger を失って **CONTINUOUS TRASH にフラット化**され `calcContinuousSigniMutations`（行395）で no-op 化していた約19枚。監査で無害確定済みだが効果未実装だった。
+- **方針の確定（機構は既存）:** 「〜であるかぎり『【自】…』を得る」型は、エンジンの **condition 付き AUTO トリガー**として表現すれば既存の収集経路が発火する（`collectTurnTriggers` 行2931／ON_ATTACK_SIGNI 収集 行6275 がいずれも `evalUseCondition(e.condition)` で発動条件を評価する確立済みパターン）。場全体への付与は既存の `GRANT_FIELD_SIGNI_ABILITY`＋`collectGrantedFromLayer`（augMap へ合成）に乗る。**新規の大規模機構は不要**で、データ表現の付け替えが主作業と判明。
+- **小規模な機構追加（2点）:**
+  - `LRIG_COLOR { owner, color }` 条件を新設（Condition／ActiveCondition 両方）。`evalCondition`(execUtils)・`checkActiveCondition`(effectEngine) にセンタールリグの Color 照合を実装。WX06-029 の「センタールリグが青で」用。
+  - `GrantFieldSigniAbilityAction.targetOwner?: Owner` を新設し `collectGrantedFromLayer` を付与先オーナー別（自場／相手場）に分岐。`targetOwner:'opponent'` で相手シグニ全体へ付与可能に（WXDi-P10-072 等の足場。今回は未配線）。
+- **実装した3枚（ON_ATTACK_SIGNI 経路＝最も検証が確実なもの）:**
+  - **WX06-029（Ｏ・Ｓ・Ｓ）:** AUTO `ON_ATTACK_SIGNI`＋`condition: AND[LRIG_COLOR(self,青), THIS_CARD_IN_CENTER_ZONE]`→相手手札1枚捨て。
+  - **WXDi-P04-082（ブルータス）:** AUTO `ON_ATTACK_SIGNI`＋`condition: THIS_CARD_IN_CENTER_ZONE`→`CHOOSE`（自分／対戦相手のデッキ上4枚を mill）。
+  - **WXDi-P15-098（アオトラ）:** `GRANT_FIELD_SIGNI_ABILITY{filter:色黒}`→付与能力 `ON_ATTACK_SIGNI`→相手デッキ上1枚 mill。BURST はパーサー生成を維持。
+- **反映:** `manualEffects.ts`（effectId 一致で JSON を上書き＝実行時に有効）＋プリビルド JSON（`effects_WX.json`/`effects_WXDi.json`、現在は minify 形式）に同内容を外科パッチ。全再生成は回避。
+- **既知の無害な警告:** `verifyEffects` が WX06-029 に「【常】に対応する CONTINUOUS が無い」を1件出すが、「【常】…を得る」を condition 付き AUTO で表現したことによるヒューリスティックの誤検出（TODO E 節の既知課題）。ゲーム動作には影響しない。
+- **残（TODO F-2 に詳細）:** ゲート条件・上シグニ付与・ルリグ付与・相手場付与の配線・複雑色条件（対戦相手センターと共通しない色）・全領域 LIFE_BURST 付与（WX17-036）・専用 timing 欠如（ダメージ時 WX21-054／バトルバニッシュ時 WXDi-P02-068）、および別形の誤解析（自己犠牲コスト・置換引用：WXDi-P04-040/WXDi-P06-034/WXK05-024/WXK10-039）。
+
 ## 動的キーワード付与（CONTINUOUS GRANT_KEYWORD）のバッジ表示を修正（v0.376, 2026-06-20）
 
 - **症状（ユーザー報告）:** WD04-010「幻獣　ミスザク」（【常】パワー10000以上のかぎりランサーを得る）のように、条件達成で動的に得るキーワードの**バッジが表示されない**。他の動的変化も同様にバッジが付かない可能性。

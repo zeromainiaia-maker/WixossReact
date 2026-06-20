@@ -248,6 +248,13 @@ export function checkActiveCondition(
       }
     }
 
+    case 'LRIG_COLOR': {
+      const lrigState = cond.owner === 'self' ? ownerState : otherState;
+      const top = lrigState.field.lrig.at(-1);
+      if (!top) return false;
+      return cardMap.get(top)?.Color?.includes(cond.color) ?? false;
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss));
   }
@@ -3745,8 +3752,9 @@ export function collectGrantedFromLayer(
   const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   type GrantAction = import('../types/effects').GrantFieldSigniAbilityAction;
 
-  // 1) 場のシグニから付与宣言を収集
-  const grants: GrantAction[] = [];
+  // 1) 場のシグニから付与宣言を収集（付与先オーナーごとに分ける）
+  const selfGrants: GrantAction[] = [];   // targetOwner 省略/self: 自分の場へ付与
+  const oppGrants: GrantAction[] = [];    // targetOwner:'opponent': 対戦相手の場へ付与
   for (let zi = 0; zi < 3; zi++) {
     const top = ownerState.field.signi[zi]?.at(-1);
     if (!top) continue;
@@ -3754,21 +3762,27 @@ export function collectGrantedFromLayer(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top)) continue;
-      grants.push(eff.action as GrantAction);
+      const g = eff.action as GrantAction;
+      (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push(g);
     }
   }
-  if (grants.length === 0) return result;
+  if (selfGrants.length === 0 && oppGrants.length === 0) return result;
 
-  // 2) フィルタに合う自分の場のシグニへ付与
-  for (let zi = 0; zi < 3; zi++) {
-    const top = ownerState.field.signi[zi]?.at(-1);
-    if (!top) continue;
-    const card = cardMap.get(baseNum(top));
-    for (const g of grants) {
-      if (g.filter && !matchesFilter(card, g.filter)) continue;
-      result.set(top, [...(result.get(top) ?? []), ...g.abilities]);
+  // 2) フィルタに合う付与先の場のシグニへ付与
+  const apply = (grants: GrantAction[], tgtState: PlayerState) => {
+    if (grants.length === 0) return;
+    for (let zi = 0; zi < 3; zi++) {
+      const top = tgtState.field.signi[zi]?.at(-1);
+      if (!top) continue;
+      const card = cardMap.get(baseNum(top));
+      for (const g of grants) {
+        if (g.filter && !matchesFilter(card, g.filter)) continue;
+        result.set(top, [...(result.get(top) ?? []), ...g.abilities]);
+      }
     }
-  }
+  };
+  apply(selfGrants, ownerState);
+  apply(oppGrants, otherState);
   return result;
 }
 

@@ -1311,6 +1311,91 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // ===== F-2: 引用付与トリガー能力のフラット化誤解析の修正（CONTINUOUS TRASH → 条件付き/付与トリガー） =====
+
+  // WX06-029 コードアート　Ｏ・Ｓ・Ｓ
+  // 【常】：あなたのセンタールリグが青で、このシグニが中央のシグニゾーンにあるかぎり、
+  //         このシグニは「【自】：このシグニがアタックしたとき、対戦相手は手札を１枚捨てる。」を得る。
+  // 旧パース＝CONTINUOUS TRASH HAND_CARD（calcContinuousSigniMutations を通らず no-op）。
+  // 「〜であるかぎり『【自】アタック時…』を得る」型は condition 付き AUTO ON_ATTACK_SIGNI として表現
+  //（BattleScreen の ON_ATTACK_SIGNI 収集が evalUseCondition で発動条件を評価する既存パターン）。
+  'WX06-029': [
+    {
+      effectId: 'WX06-029-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      condition: {
+        type: 'AND',
+        conditions: [
+          { type: 'LRIG_COLOR', owner: 'self', color: '青' },
+          { type: 'THIS_CARD_IN_CENTER_ZONE' },
+        ],
+      },
+      action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P04-082 凶将　ブルータス
+  // 【常】：このシグニは中央のシグニゾーンにあるかぎり、
+  //         「【自】：このシグニがアタックしたとき、あなたか対戦相手のデッキの上からカードを４枚トラッシュに置く。」を得る。
+  // 旧パース＝CONTINUOUS TRASH DECK_CARD self（no-op）。中央条件付き AUTO ON_ATTACK_SIGNI＋CHOOSE（自/相手デッキ）。
+  'WXDi-P04-082': [
+    {
+      effectId: 'WXDi-P04-082-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      condition: { type: 'THIS_CARD_IN_CENTER_ZONE' },
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          { choiceId: 'self_deck', label: 'あなたのデッキの上から４枚をトラッシュ', action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 4 } } },
+          { choiceId: 'opp_deck', label: '対戦相手のデッキの上から４枚をトラッシュ', action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 4 } } },
+        ],
+      } as ChooseAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P15-098 凶将　アオトラ
+  // 【常】：あなたの黒のシグニは「【自】：このシグニがアタックしたとき、対戦相手のデッキの一番上のカードをトラッシュに置く。」を得る。
+  // 旧パース＝CONTINUOUS TRASH DECK_CARD self（owner も誤り・no-op）。
+  // 自分の黒シグニ全体への付与＝GRANT_FIELD_SIGNI_ABILITY（collectGrantedFromLayer が augMap へ合成）。
+  // 付与能力は ON_ATTACK_SIGNI で相手デッキ上1枚をトラッシュ（mill）。BURST はパーサー生成を維持。
+  'WXDi-P15-098': [
+    {
+      effectId: 'WXDi-P15-098-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_FIELD_SIGNI_ABILITY',
+        filter: { cardType: 'シグニ', color: '黒' },
+        abilities: [
+          {
+            effectId: 'WXDi-P15-098-E1-G',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_SIGNI'],
+            triggerScope: 'self',
+            action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 1 } },
+            duration: 'INSTANT',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          },
+        ],
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
