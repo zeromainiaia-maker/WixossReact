@@ -1753,7 +1753,23 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   }
 
   if (src.type === 'SIGNI') {
-    const cands = fieldCandidates(state, src.filter, ctx.cardMap, ctx.effectivePowers);
+    // frontOfGateZone: THE DOOR【ゲート】がある自分のシグニゾーンの正面にある対戦相手のシグニに限定
+    let gateFrontRestrict: string[] | null = null;
+    let srcFilter = src.filter;
+    if (srcFilter?.frontOfGateZone) {
+      const { frontOfGateZone: _g, ...rest } = srcFilter;
+      srcFilter = rest;
+      if (src.owner === 'opponent') {
+        const gateZones = ctx.ownerState.own_gate_zones ?? [];
+        gateFrontRestrict = gateZones
+          .map(zi => ctx.otherState.field.signi[2 - zi]?.at(-1))
+          .filter((n): n is string => !!n);
+      } else {
+        gateFrontRestrict = [];
+      }
+    }
+    let cands = fieldCandidates(state, srcFilter, ctx.cardMap, ctx.effectivePowers);
+    if (gateFrontRestrict !== null) cands = cands.filter(n => gateFrontRestrict!.includes(n));
     const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
     const scope: TargetScope = src.owner === 'self' ? 'self_field' : 'opp_field';
 
