@@ -173,8 +173,12 @@ export interface PlayerState {
   card_class_overrides?: Record<string, string>;
   // このターン無効化された自フィールドのシグニゾーン番号（REMOVE_SIGNI_ZONE効果）
   disabled_signi_zones?: number[];
-  // ゲート設置済みゾーン番号（GATE効果：条件付きアタック不可）
+  // ゲート設置済みゾーン番号（GATE効果：条件付きアタック不可。相手ゾーンへ設置するアタック妨害ゲート）
   signi_gate_zones?: number[];
+  // THE DOOR【ゲート】が置かれている自分のシグニゾーン番号。signi_gate_zones とは別概念で、
+  // 自分のシグニゾーンに置くマーカー。THE DOORシグニが「同じシグニゾーンに【ゲート】があるかぎり…」等で参照する。
+  // ゾーン番号で管理し、そのゾーンのシグニが離れてもゲートは残る（ルール通り）。
+  own_gate_zones?: number[];
   // ハスターリク設置済みゾーン番号（WXDi-P05-TK01A：アタックフェイズ開始時に相手が捨て/払いしないとバニッシュ）
   hastarliq_zones?: number[];
   // このターン、対戦相手シグニのパワーが0以下になったときカード1枚引く（WX13-060①）
