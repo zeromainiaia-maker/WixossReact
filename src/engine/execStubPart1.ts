@@ -131,12 +131,17 @@ export function execStubPart1(
     }
     const lvlTK3 = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value));
     const oppHandTK3 = ctx.otherState.hand;
+    // 「対戦相手の手札を見て」: 手札全体をログに公開（情報アドバンテージを再現）
+    const handNamesTK3 = oppHandTK3.length > 0
+      ? oppHandTK3.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、')
+      : '（なし）';
+    const ctxRevealTK3 = addLog(ctx, `対戦相手の手札を見る：${handNamesTK3}`);
     const discardTK3 = oppHandTK3.filter(cn => {
       const c = ctx.cardMap.get(cn);
       return c?.Type === 'シグニ' && parseInt(c?.Level ?? '0', 10) === lvlTK3;
     });
     if (discardTK3.length === 0) {
-      return done(addLog(ctx, `数字「${lvlTK3}」を宣言：対戦相手の手札にLv${lvlTK3}のシグニなし`));
+      return done(addLog(ctxRevealTK3, `数字「${lvlTK3}」を宣言：対戦相手の手札にLv${lvlTK3}のシグニなし`));
     }
     const newOtherTK3: PlayerState = {
       ...ctx.otherState,
