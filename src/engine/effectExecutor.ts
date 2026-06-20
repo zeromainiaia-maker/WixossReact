@@ -3693,6 +3693,19 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog({ ...ctx, ownerState: newOwner },
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${destLabel}`));
     }
+    case 'ADD_TO_LIFE': {
+      // fromHand 選択後: 手札からライフクロスに移動
+      const atlA = action as import('../types/effects').AddToLifeAction;
+      const atlOwner = atlA.owner;
+      const atlS = ownerState(atlOwner, ctx);
+      const hi = atlS.hand.indexOf(cardNum);
+      if (hi < 0) return done(ctx);
+      const newHand = [...atlS.hand];
+      newHand.splice(hi, 1);
+      const newAtlS: PlayerState = { ...atlS, hand: newHand, life_cloth: [...atlS.life_cloth, cardNum] };
+      return done(addLog(setOwnerState(atlOwner, newAtlS, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をライフクロスに追加`));
+    }
     default:
       // STUB 等の場合、選択中の cardNum を lastProcessedCards で引き渡す
       return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
