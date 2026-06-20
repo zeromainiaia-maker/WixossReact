@@ -1637,7 +1637,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WXDi-P16-074 幻怪 ナナシ//THE DOOR（古代兵器）
   // E1【常】：同ゾーンゲートで「【自】APS開始時、相手シグニ1体を対象とし、《無》を支払ってもよい。そうしたらターン終了時まで-5000」を得る。
   //   → condition SAME_ZONE_HAS_GATE 付き AUTO＋OPTIONAL_COST(無)→PAID_ADDITIONAL_COST ゲートで -5000。旧＝CONTINUOUS POWER_MODIFY 常時誤り。
-  // E2（ON_BANISH→相手捨て）はパーサー生成を維持（ゲートゾーン条件・ターン1回は近似省略）。
+  // E2【自】《ターン1回》：同じシグニゾーンに【ゲート】があるあなたのシグニ1体がバニッシュされたとき、対戦相手は手札を1枚捨てる。
+  //   → AUTO ON_BANISH、triggerScope any_ally（自分の他シグニ被バニッシュ＝collectBanishTriggers section2/3）、usageLimit once_per_turn、
+  //     condition FIELD_HAS_GATE owner self（「同ゾーンゲート」は被バニッシュシグニの離場後ゾーン参照が要るため場ゲート有で近似）。
+  //     collectBanishTriggers に condition/usageLimit 評価を新設（v0.400・ON_BANISH any_ally 効果は既存ゼロで影響なし）。旧＝scope self・条件/回数なしの過少発火。
   'WXDi-P16-074': [
     {
       effectId: 'WXDi-P16-074-E1',
@@ -1649,6 +1652,18 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無'] },
         { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false }, delta: -5000 } },
       ] },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P16-074-E2',
+      effectType: 'AUTO',
+      timing: ['ON_BANISH'],
+      triggerScope: 'any_ally',
+      usageLimit: 'once_per_turn',
+      condition: { type: 'FIELD_HAS_GATE', owner: 'self' },
+      action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
       duration: 'INSTANT',
       mandatory: true,
       parseStatus: 'MANUAL',
@@ -1686,7 +1701,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXDi-P15-057 幻獣神 LOVIT//THE DOOR（地獣）
   // E1【常】：このシグニと同じシグニゾーンに【ゲート】があるかぎり、このシグニのパワーは＋3000され、「【常】：対戦相手のターンの間【シャドウ】」を得る。
-  //   → CONTINUOUS POWER_MODIFY self +3000 に activeCondition SAME_ZONE_HAS_GATE（旧＝常時+3000）。「相手ターン中シャドウ」付与は近似省略。
+  //   → E1=CONTINUOUS POWER_MODIFY self +3000 に activeCondition SAME_ZONE_HAS_GATE（旧＝常時+3000）。
+  //     E1b=相手ターン中シャドウ＝CONTINUOUS GRANT_KEYWORD シャドウ self に activeCondition AND[SAME_ZONE_HAS_GATE, TURN_OWNER opponent]
+  //     （execUtils の hasCondShadow が activeCondition 付き self シャドウを評価。v0.400 で本実装）。
   // E2【自】ターン終了時、場ゲートがある場合、トラッシュから《ガードアイコン》シグニ1枚を対象、《無》を払ってもよい。払えば手札に加える。
   //   → AUTO ON_TURN_END、condition FIELD_HAS_GATE、SEQUENCE[OPTIONAL_COST(無), CONDITIONAL(PAID){TRANSFER_TO_HAND from trash hasGuard}]。旧＝GRANT_KEYWORD誤り。
   'WXDi-P15-057': [
@@ -1695,6 +1712,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectType: 'CONTINUOUS',
       activeCondition: { type: 'SAME_ZONE_HAS_GATE' },
       action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 3000 },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P15-057-E1b',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'AND', conditions: [{ type: 'SAME_ZONE_HAS_GATE' }, { type: 'TURN_OWNER', owner: 'opponent' }] },
+      action: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: 'シャドウ', duration: 'PERMANENT' },
       duration: 'PERMANENT',
       mandatory: true,
       parseStatus: 'MANUAL',
@@ -1782,7 +1808,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXDi-P16-054 幻水姫 アキノ//THE DOOR（水獣）
   // E1【常】：同ゾーンゲートで「【常】相手ターン中、このシグニのパワー+5000かつ相手効果でバニッシュされない」を得る。
-  //   → CONTINUOUS POWER_MODIFY self +5000 に activeCondition AND[TURN_OWNER opponent, SAME_ZONE_HAS_GATE]（バニッシュ耐性は近似省略）。旧＝常時+5000。
+  //   → E1=CONTINUOUS POWER_MODIFY self +5000 に activeCondition AND[TURN_OWNER opponent, SAME_ZONE_HAS_GATE]（旧＝常時+5000）。
+  //     E1b=相手効果バニッシュ耐性＝CONTINUOUS GRANT_PROTECTION self from[BANISH] sourceOwner opponent に同 activeCondition
+  //     （collectBanishEffectProtectedSigni が activeCondition 評価込みで保護。v0.400 で本実装）。
   // E2【自】アタックしたとき、場ゲートがある場合、①相手の5000以下を手札に戻す ②カード2枚引く から1つ選ぶ。
   //   → AUTO ON_ATTACK_SIGNI に condition FIELD_HAS_GATE を付与（CHOOSE 構造はパーサー生成を維持）。
   'WXDi-P16-054': [
@@ -1791,6 +1819,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectType: 'CONTINUOUS',
       activeCondition: { type: 'AND', conditions: [{ type: 'TURN_OWNER', owner: 'opponent' }, { type: 'SAME_ZONE_HAS_GATE' }] },
       action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 5000 },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P16-054-E1b',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'AND', conditions: [{ type: 'TURN_OWNER', owner: 'opponent' }, { type: 'SAME_ZONE_HAS_GATE' }] },
+      action: { type: 'GRANT_PROTECTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, from: ['BANISH'], sourceOwner: 'opponent', duration: 'PERMANENT' },
       duration: 'PERMANENT',
       mandatory: true,
       parseStatus: 'MANUAL',

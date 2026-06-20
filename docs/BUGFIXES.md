@@ -5,6 +5,19 @@
 
 ---
 
+## F-4 ゲート参照シグニ 近似精緻化3枚（P15-057／P16-054／P16-074）（v0.400, 2026-06-20）
+
+TODO F-4 の「近似精緻化（任意・低優先）」3枚をすべて本実装。いずれも既存機構へ載せ、新規機構追加は collectBanishTriggers の condition/usageLimit 評価のみ。
+
+- **WXDi-P15-057-E1b（LOVIT・相手ターン中シャドウ）:** 「同ゾーンゲートのかぎり、対戦相手のターンの間【シャドウ】を得る」を CONTINUOUS `GRANT_KEYWORD シャドウ self`＋activeCondition `AND[SAME_ZONE_HAS_GATE, TURN_OWNER opponent]` で本実装（旧＝近似省略）。execUtils のシャドウ保護フィルタの `hasCondShadow`（activeCondition 付き self シャドウを `checkActiveCondition` 評価）に既に対応経路があり追加配線不要。
+- **WXDi-P16-054-E1b（アキノ・相手効果バニッシュ耐性）:** 「相手ターン中、相手効果でバニッシュされない」を CONTINUOUS `GRANT_PROTECTION{target:self, from:['BANISH'], sourceOwner:opponent}`＋同 activeCondition で本実装（旧＝近似省略）。`collectBanishEffectProtectedSigni` が activeCondition 評価込みで保護判定。
+- **WXDi-P16-074-E2（ナナシ・被バニッシュ時に相手ディスカード）:** 「《ターン1回》同ゾーンゲートのあなたのシグニ1体がバニッシュされたとき、相手は手札1枚捨てる」を AUTO `ON_BANISH`／`triggerScope:any_ally`／`usageLimit:once_per_turn`／condition `FIELD_HAS_GATE owner:self` で本実装（旧＝scope self・条件/回数なしの過少発火）。**`collectBanishTriggers` のフィールドトリガー収集（section2/3）に `eff.condition`（`evalUseCondition`）と `usageLimit once_per_turn`（actions_done 照合）の評価を新設**。ON_BANISH の any_ally/any 効果は実装全体で既存ゼロのため既存挙動への影響なし。**近似:** 「同ゾーンゲート」（被バニッシュシグニの離場後ゾーン参照が必要）は「場にゲートがある」で近似。自己被バニッシュ（section1=scope self 限定）は any_ally 収集の対象外。
+- **検証:** `scripts/testGateContinuous.ts` を新設しヘッドレス検証（P16-054 耐性＝相手ターン＋ゲートのみ／P15-057 シャドウ＝相手ターン＋ゲートのみ、各3条件）。全テスト通過。typecheck 通過、verifyEffects/checkAllEffects に新規警告なし。
+- **反映:** manualEffects＋BattleScreen（collectBanishTriggers 拡張）＋プリビルド JSON（外科パッチ）。
+- **これで F-4（THE DOOR ゲート参照シグニ）の積み残しは完全に解消**（残るは P15-058 ピース使用条件等の使用条件近似のみ）。
+
+---
+
 ## F-4 場全体への継続シャドウ付与＋WXDi-P15-058-E1 本実装（v0.399, 2026-06-20）
 
 - **新 CONTINUOUS 宣言アクション `GRANT_FIELD_SHADOW`:** 「フィルタに合う場のシグニ全員へ【シャドウ（X）】を継続付与」を表現。`keyword`（符号化済みシャドウキーワード）＋`filter`（例 `inGateZone`）＋`targetOwner`（現状 self のみ）。`calcContinuousSigniMutations` は BANISH/FREEZE/DOWN 以外を実行しないため CONTINUOUS としては安全（executor 到達時も default no-op）。

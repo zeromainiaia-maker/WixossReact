@@ -2860,6 +2860,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const scope = eff.triggerScope ?? 'self';
         if (banishedOwnerIsMe  && scope !== 'any_ally' && scope !== 'any') continue;
         if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
+        // condition を持つAUTOは条件を満たす場合のみ収集（WXDi-P16-074-E2 の FIELD_HAS_GATE 等）
+        if (eff.condition && !evalUseCondition(eff.condition, myAfterState, opAfterState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        // usageLimit once_per_turn: actions_done に記録済みならスキップ（実行時に永続化される）
+        if (eff.usageLimit === 'once_per_turn' && myAfterState.actions_done?.includes(eff.effectId)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
@@ -2882,6 +2886,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 相手視点：「自分の味方がバニッシュ」= !banishedOwnerIsMe
         if (!banishedOwnerIsMe && scope !== 'any_ally' && scope !== 'any') continue;
         if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
+        // condition / usageLimit（相手＝opAfterState 視点で評価）
+        if (eff.condition && !evalUseCondition(eff.condition, opAfterState, myAfterState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (eff.usageLimit === 'once_per_turn' && opAfterState.actions_done?.includes(eff.effectId)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
