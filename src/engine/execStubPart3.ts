@@ -3763,6 +3763,14 @@ export function execStubPart3(
   if (stub.id === 'BATTLE_LEAVE_REPLACE_WITH_DOWN') {
     return done(addLog(ctx, '場離れ代替ダウン（BattleScreen側処理）'));
   }
+  // BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY: バニッシュ代わりにダウン＋下1枚＋エナ1枚トラッシュ（WXDi-P06-034・BattleScreen側処理）
+  if (stub.id === 'BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY') {
+    return done(addLog(ctx, 'バニッシュ代替（ダウン＋下/エナトラッシュ）（BattleScreen側処理）'));
+  }
+  // BATTLE_LEAVE_REPLACE_WITH_EXILE: 場を離れる代わりにゲームから除外（≈トラッシュ近似・WXK05-024・BattleScreen側処理）
+  if (stub.id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE') {
+    return done(addLog(ctx, '場離れ代替除外（BattleScreen側処理）'));
+  }
   // REMOVE_SELF_SIGNI_FROM_GAME: このシグニをゲームから除外する（クラフトルール適用）
   if (stub.id === 'REMOVE_SELF_SIGNI_FROM_GAME') {
     const srcCnRSG = ctx.sourceCardNum;
