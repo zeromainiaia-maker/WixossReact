@@ -550,6 +550,10 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
 }
 
 function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
+  // conditional: 前ステップが lastProcessedCards を残した場合のみ実行（「そうした場合」）
+  if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
+    return done(ctx);
+  }
   const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
   const crashed: string[] = [];
