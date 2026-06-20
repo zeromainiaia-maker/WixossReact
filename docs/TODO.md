@@ -10,7 +10,7 @@
 ### 🔰 続きから始める人（zerom）へ — 推奨着手順
 
 1. **逆翻訳スキャンの継続（現在のメインタスク）:** `npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt` で逆翻訳を生成し、原文（同ファイルに併記）と突き合わせて誤りを潰す。**runtime の真実源はプリビルド `effects_*.json`（App.tsx が fetch→`card.effects`→`buildEffectsMap` が優先使用）＋manualEffects 上書き。** durable 化は「manualEffects＋JSON 両方」が原則だが、**系統的な一括修正はパーサー修正＋JSON 直パッチで durable 化する運用も可**（パーサーが同形を再生成するため。v0.434/0.435/0.436/0.437 のFREEZE/配置系一括修正はこの方式）。下記「逆翻訳スキャンで判明した系統バグ」を参照。
-2. **`ADD_TO_FIELD` source 欠落族の残り（最優先・下記新項目）:** v0.435〜0.437 で ena/レゾナ/手札の単純系27効果を修正済。**残りの系統（エナseq・動的フィルタ・名指し・ベット・クラフト・トラッシュ）が未対応。** 詳細は「逆翻訳スキャンで判明した系統バグ」末尾。
+2. ~~**`ADD_TO_FIELD` source 欠落族の残り（最優先）:**~~ → **v0.438 で①〜⑥すべて修正済**（エナseq11・動的フィルタ/leave2・名指し2・ベット2・クラフト7・トラッシュ系2）。詳細は BUGFIXES.md。**残るは近似のみ**（WXDi-CP02-087 エナ枚数条件／WXDi-P03-078 自パワー動的フィルタ／WXDi-P05-068 先頭ドロー脱落／WXK07-105 ベット分岐／WX25-CP1-066 場存在条件／WX22-001-E3 付与型 leave トリガー機構）と**クラフトトークンの実機配置検証**。
 3. **逆翻訳器（decompileEffects.ts）は随時強化:** STUB→STUBS.md 説明／条件・アクション・選択者・トリガー主語・cardType 名詞・LIFE_CRASH の trash/crash 区別などを表示するよう拡充済み。生ID（`[条件:X]`/`[アクション:X]`/`[STUB:X]`）が残る箇所は未対応＝表示 or 実装の穴。
 4. **F-3 の実機検証（ヘッドレス不可・PvP/CPU実機が要る）:** 身代わり対話 pause/resume。対象 犠牲型 `WX12-024`/`WXEX2-60`/`WX20-055`/`WXDi-CP01-032`/`WXDi-P10-052`、コスト払い型 `WX10-033`/`WX11-029`。安定するまで身代わり拡張に進まない。
 5. **LOOK_AND_REORDER の canTrash UI（v0.431 実装）も実機検証推奨**（PvP/CPU対話・ヘッドレス不可）。
