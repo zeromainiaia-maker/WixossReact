@@ -2659,9 +2659,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     leftCard: CardData | undefined,
     underCards: string[],
   ): import('../types/effects').CardEffect => {
-    if (!/"(levelBelowLeftCard|underLeftCard)":true/.test(JSON.stringify(eff.action))) return eff;
+    if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard)":true/.test(JSON.stringify(eff.action))) return eff;
     const clone = JSON.parse(JSON.stringify(eff)) as import('../types/effects').CardEffect;
     const leftLevel = parseInt(leftCard?.Level ?? '', 10);
+    const leftPower = parseInt((leftCard?.Power ?? '').replace(/[^\d]/g, ''), 10);
     const underNames = underCards
       .map(n => battleCardMap.get(getCardNum(n)))
       .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
