@@ -1075,6 +1075,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'LIFE_CRASH', owner: op ? 'opponent' : 'self', count: cM ? parseNum(cM[1]) : 1, triggerBurst: true };
   }
 
+  // ---- 「（このアタックフェイズの間、）〜が場を離れたとき、〜を場に出す」付与型の遅延トリガー ----
+  // 即時配置ではなく付与トリガーなので、bare ADD_TO_FIELD（=デッキトップ誤配置）や手札ハンドラの
+  // 即時配置を避けて no-op STUB に。忠実実装には「場を離れたとき手札から配置」を期間付きで付与する
+  // 機構が必要（WX22-001-E3）。※【自】ON_LEAVE_FIELD はトリガー文が除去済みで此処に来ない。
+  if (t.includes('場を離れたとき') && t.includes('場に出す')) {
+    return { type: 'STUB', id: 'GRANT_LEAVE_PLACE_PENDING' } as StubAction;
+  }
+
   // ---- クラフトの《X》を場に出す（ゲーム外からトークン生成）----
   // 旧実装は bare ADD_TO_FIELD でデッキトップを出していた（誤り）。
   // cardName を付けて execAddToField のトークン生成パスへ（CardName→CardNum は engine 側で解決）。
