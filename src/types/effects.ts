@@ -166,6 +166,8 @@ export type Condition =
   | { type: 'HAS_BOND'; cardName?: string }                   // 絆アイコン：このカード名との絆を獲得している
   | { type: 'ACTIVATED_DISCARD_COUNT_GTE'; value: number }    // 直前の【起】コストで捨てた合計枚数（手札+エナ）≥ N
   | { type: 'OPP_LIFE_CRASH_EVENT_GTE'; value: number }       // 今回の相手ライフクラッシュイベントで同時にN枚以上クラッシュされた場合（ダブルクラッシュ判定。ON_OPP_LIFE_CRASHED収集時に専用評価）
+  | { type: 'SAME_ZONE_HAS_GATE' }                            // このシグニと同じシグニゾーンにTHE DOOR【ゲート】がある場合（own_gate_zones）
+  | { type: 'FIELD_HAS_GATE'; owner: Owner }                  // 指定プレイヤーの場にTHE DOOR【ゲート】がある場合（own_gate_zones が非空）
   | { type: 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN' };       // このターンに《ディソナアイコン》ではないスペルを使用していない（DISONA_RESTRICTION用）
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
