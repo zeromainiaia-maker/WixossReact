@@ -4647,10 +4647,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             continue;
           }
         }
-        if (eff.usageLimit === 'once_per_turn') {
-          if (myState.actions_done?.includes(eff.effectId) || usedOncePerTurnIds.includes(eff.effectId)) continue;
-          usedOncePerTurnIds.push(eff.effectId);
-        }
+        if (!limitOk(eff)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
@@ -4662,20 +4659,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
       }
     }
-    // ルリグ／キーの自イベントトリガー（ライフクラッシュ時等：シグニ以外の発生源）
+    // ルリグ／アシストルリグ／キーの自イベントトリガー（ライフクラッシュ時等：シグニ以外の発生源）
     // 例: WX02-003(ルリグ・ライフクラッシュ時ドロー) / WXK03-014(キー・ライフクラッシュ時ドロー)
+    //     WXDi-P16-039(アシストルリグ自身に付与された【自】) 等
     const nonSigniSources = [
       myState.field.lrig.at(-1),
+      myState.field.assist_lrig_l?.at(-1),
+      myState.field.assist_lrig_r?.at(-1),
       myState.field.key_piece,
       ...(myState.field.key_piece_extra ?? []),
     ].filter((n): n is string => !!n);
     for (const srcNum of nonSigniSources) {
       for (const eff of effectsMap.get(srcNum) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-        if (eff.usageLimit === 'once_per_turn') {
-          if (myState.actions_done?.includes(eff.effectId) || usedOncePerTurnIds.includes(eff.effectId)) continue;
-          usedOncePerTurnIds.push(eff.effectId);
-        }
+        if (!limitOk(eff)) continue;
         const cardName = battleCardMap.get(srcNum)?.CardName ?? srcNum;
         entries.push({
           id: generateUUID(),
