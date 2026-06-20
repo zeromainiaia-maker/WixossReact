@@ -375,6 +375,9 @@ function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: TargetF
     const v = (state.own_gate_zones ?? []).includes(zoneIdx);
     if (filter.inGateZone !== v) return false;
   }
+  if (filter.centerZoneOnly !== undefined) {
+    if (filter.centerZoneOnly !== (zoneIdx === 1)) return false;
+  }
   return true;
 }
 
