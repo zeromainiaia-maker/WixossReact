@@ -41,6 +41,22 @@ for (const f of ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
   for (const [id, effs] of Object.entries(j)) effectsMap.set(id, effs as Eff[]);
 }
 
+// ── STUBS.md から STUB id → 説明 マップを構築（逆翻訳で id ではなく説明文を出すため）──
+const stubDescMap = new Map<string, string>();
+{
+  const p = join(root, 'docs/STUBS.md');
+  if (existsSync(p)) {
+    for (const line of readFileSync(p, 'utf-8').split('\n')) {
+      // 表の行: | `STUB_ID` | 件数 | カード数 | 代表カード | 説明 |
+      const m = line.match(/^\|\s*`([^`]+)`\s*\|[^|]*\|[^|]*\|[^|]*\|(.*)\|\s*$/);
+      if (!m) continue;
+      const id = m[1].trim();
+      const desc = m[2].trim();
+      if (id && desc) stubDescMap.set(id, desc);
+    }
+  }
+}
+
 // ── 部品の和文化 ──
 const ownerJa = (o?: string) => o === 'opponent' ? '対戦相手の' : o === 'self' ? 'あなたの' : '';
 const opJa = (op?: string) => ({ gte: '以上', lte: '以下', gt: 'より多く', lt: '未満', eq: '＝' } as Record<string, string>)[op ?? ''] ?? (op ?? '');
