@@ -16,6 +16,14 @@
 
 ---
 
+## WX02-002-E1「全領域のカードが【ライフバースト】【エナチャージ１】を持つ」の誤パース修正（v0.439, 2026-06-21）
+
+- **症状:** 【常】「あなたのすべての領域にあるカードは【ライフバースト】【エナチャージ１】を持つ」が `SEQUENCE[GRANT_KEYWORD(ライフバースト→シグニ1体), GRANT_KEYWORD(エナチャージ１→シグニ1体)]` に誤パースされていた（全領域付与でなく「シグニ1体にキーワード付与」＝完全に別物）。本来はライフクロスを含む全領域のカードが追加の【ライフバースト】（効果＝【エナチャージ１】）を得て、クラッシュ時に発動する。
+- **修正:** `manualEffects` に `WX02-002-E1` を `GRANT_ALL_ZONE_LIFEBURST`（既存機構）で定義。`burstAction:{ENERGY_CHARGE_FROM_DECK count1}`＝エナチャージ１。**`StubAction.burstAdditive` を新設**：従来の WD14-001/WX17-036 は「ネイティブ【ライフバースト】を持たないカードのみ」に付与だったが、WX02-002 は**既にバーストを持つカードにも追加**（両方を好きな順で使用可）。`BattleScreen` の `grantedBurstExtras` 判定を `burstAdditive || !cardHasNativeBurst` に拡張。
+- 逆翻訳器も `GRANT_ALL_ZONE_LIFEBURST` の burstFilter/burstAction/burstAdditive を表示するよう強化。E2/E3（ライフクラッシュ）はパーサー版が正しいため据置（effectId 単位マージ）。typecheck 0エラー。
+
+---
+
 ## ADD_TO_FIELD source 欠落族の残り（SEQUENCE/動的フィルタ/名指し/ベット/クラフト/leave）を一括修正（v0.438, 2026-06-21）
 
 v0.435〜0.437 で単純系27効果を直したあとの「残り系統」（TODO の①〜⑥）をパーサー＋engine 改修＋対象カードのみ JSON 再生成（`scripts/regenCards.ts` 新設・全再生成は禁止のため）で durable 修正。**全て「bare ADD_TO_FIELD＝デッキトップ誤配置」を正しい source/cardName に。**
