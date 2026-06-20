@@ -29,6 +29,23 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WD03-006 ピーピング・アナライズ（アーツ）
+  // 「数字１つを宣言する。その後、対戦相手の手札を見て、宣言した数字と同じレベルのシグニをすべて捨てさせる。」
+  // 旧JSONの誤り: SEQUENCE[DECLARE_NUMBER, DECLARE_NUMBER]＝宣言が重複し「捨てさせる」が欠落。
+  // → 同一効果の WX25-P1-TK3（ダーク・アナライズ）と同じ STUB TK3_DECLARE_DISCARD（数字宣言→相手手札の同レベルシグニ全捨て）に置換。
+  'WD03-006': [
+    {
+      effectId: 'WD03-006-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '青', count: 3 }] },
+      action: { type: 'STUB', id: 'TK3_DECLARE_DISCARD' },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX01-025 サルベージ（アーツ）
   // あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加える。
   'WX01-025': [
