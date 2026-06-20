@@ -86,11 +86,26 @@ function targetJa(t?: any, unit = 'シグニ'): string {
   if (!t) return '';
   const u = t.type === 'HAND_CARD' ? 'カード(手札)' : t.type === 'TRASH_CARD' ? 'カード(トラッシュ)'
     : t.type === 'ENERGY_CARD' ? 'カード(エナ)' : t.type === 'DECK_CARD' ? 'カード(デッキ)'
-    : t.type === 'LRIG' ? 'ルリグ' : t.type === 'PLAYER' ? '' : unit;
+    : t.type === 'LRIG' ? 'ルリグ' : t.type === 'CENTER_LRIG_OR_SIGNI' ? 'センタールリグかシグニ'
+    : t.type === 'PLAYER' ? '' : unit;
   const cnt = t.count === 'ALL' ? 'すべての' : '';
   const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? '体まで' : '体'}`;
   const blind = t.blind ? '（見ないで）' : '';
   return `${ownerJa(t.owner)}${cnt}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
+}
+
+function costJa(c?: any): string {
+  if (!c) return '';
+  const parts: string[] = [];
+  if (c.energy) parts.push(c.energy.map((e: any) => `《${e.color}×${e.count}》`).join(''));
+  if (c.exceed != null) parts.push(`エクシード${c.exceed}`);
+  if (c.down_self) parts.push('《ダウン》');
+  if (c.discard != null) parts.push(`手札${c.discard}枚を捨てる`);
+  if (c.handDiscardSigni) parts.push(`手札から${c.handDiscardSigni.color ? '《' + c.handDiscardSigni.color + '》' : ''}シグニ${c.handDiscardSigni.count}枚を捨てる`);
+  if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
+  if (c.coin != null) parts.push(`コイン${c.coin}`);
+  if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
+  return parts.join('＋');
 }
 
 function condJa(c?: any): string {
@@ -134,12 +149,22 @@ function actionJa(a?: Action): string {
     case 'DOWN': return `${targetJa(a.target)}をダウンする`;
     case 'UP': return `${targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
+    case 'ENERGY_CHARGE_FROM_DECK': return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
+    case 'ADD_TO_LIFE': return `${ownerJa(a.owner)}デッキの${a.fromTop ? '一番上' : ''}から${numJa(a.count)}枚をライフクロスに加える`;
+    case 'ADD_TO_FIELD': return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す` : '直前に選んだカードを場に出す';
+    case 'BLOCK_ACTION': return `${ownerJa(a.target?.owner)}${a.target?.type === 'SIGNI' ? 'シグニ' : ''}は「${a.actionId}」ができない（${a.until ?? ''}）`;
+    case 'LOOK_AND_REORDER': {
+      const src = a.source?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
+      const loc = a.source?.location === 'hand' ? '手札' : 'デッキの上';
+      const ops = [a.reorder ? '並べ替える' : '見る', a.canTrash ? '（不要札はトラッシュ可）' : ''].filter(Boolean).join('');
+      return `${src}${loc}${a.count === 99 ? '' : numJa(a.count) + '枚'}を${ops}`;
+    }
     case 'MILL': return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚トラッシュに置く`;
     case 'LIFE_CRASH': return `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュする`;
     case 'TRANSFER_TO_HAND': return `${targetJa(a.source)}を手札に加える`;
     case 'TRANSFER_TO_DECK': return `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く`;
     case 'ADD_TO_HAND': return `${targetJa(a.target)}を手札に加える`;
-    case 'SEARCH': return `デッキから${filterJa(a.filter)}カードを探して手札に加える`;
+    case 'SEARCH': return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}カードを${a.maxCount ? a.maxCount + '枚まで' : ''}探して手札に加える${a.afterSearch ? '（その後シャッフル）' : ''}`;
     case 'GRANT_KEYWORD': return `${targetJa(a.target)}に【${a.keyword}】を与える`;
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失う${a.frontOfSelf ? '（正面）' : ''}`;
     case 'GRANT_PROTECTION': return `${a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ'}は${ownerJa(a.sourceOwner)}効果によって${a.from?.join('・')}されない`;
@@ -170,7 +195,7 @@ function effJa(e: Eff): string {
   const scope = e.triggerScope && e.triggerScope !== 'self' ? `〔範囲:${e.triggerScope}〕` : '';
   const cond = e.condition ? `${condJa(e.condition)}場合、` : '';
   const actCond = e.activeCondition ? `《${condJa(e.activeCondition)}のかぎり》` : '';
-  const cost = e.cost ? `（コスト:${JSON.stringify(e.cost)}）` : '';
+  const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' ? `《${e.usageLimit}》` : '';
   const body = actionJa(e.action);
   return `${typeMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}`;
