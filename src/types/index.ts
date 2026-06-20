@@ -254,6 +254,9 @@ export interface PlayerState {
   banish_to_trash_by_self?: string[];
   // GROW_COST_ZERO / CONDITIONAL_FREE_GROW: 次のグロウコストを0にする
   free_grow_this_turn?: boolean;
+  // このターンに効果（execDraw 経由）で引いた累計枚数。ドローフェイズのドローは含まない。
+  // 「このターンに効果によってカードをN枚以上引いていた場合」条件（CARDS_DRAWN_BY_EFFECT）用。ターン終了時に0へリセット。
+  cards_drawn_by_effect_this_turn?: number;
   // REPLACE_PLUS_N: このターン、相手シグニへの正のパワー修正を負に置換する
   replace_opp_power_plus?: boolean;
   // COIN_USE_RESTRICTION: コイン使用先制限（'spell_signi_only'=スペルとシグニにしか使えない）
