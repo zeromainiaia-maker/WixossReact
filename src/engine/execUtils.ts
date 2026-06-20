@@ -502,6 +502,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'TURN_HAND_DISCARD_GTE':
       return (ctx.ownerState.turn_hand_discarded_count ?? 0) >= cond.value;
+    case 'SAME_ZONE_HAS_GATE': {
+      // このシグニ（sourceCardNum）と同じシグニゾーンに THE DOOR【ゲート】がある場合
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const zi = s.field.signi.findIndex(z => z?.at(-1) === src);
+      if (zi < 0) return false;
+      return (s.own_gate_zones ?? []).includes(zi);
+    }
+    case 'FIELD_HAS_GATE':
+      return (st(cond.owner).own_gate_zones ?? []).length > 0;
     case 'THIS_CARD_HAS_UNDER': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
