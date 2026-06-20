@@ -59,7 +59,7 @@ const stubDescMap = new Map<string, string>();
 
 // ── 部品の和文化 ──
 const ownerJa = (o?: string) => o === 'opponent' ? '対戦相手の' : o === 'self' ? 'あなたの' : '';
-const opJa = (op?: string) => ({ gte: '以上', lte: '以下', gt: 'より多く', lt: '未満', eq: '＝' } as Record<string, string>)[op ?? ''] ?? (op ?? '');
+const opJa = (op?: string) => ({ gte: '以上', lte: '以下', gt: 'より多く', lt: '未満', eq: 'である', neq: 'ではない' } as Record<string, string>)[op ?? ''] ?? (op ?? '');
 const numJa = (n: any) => typeof n === 'object' ? '[参照値]' : String(n);
 
 function filterJa(f?: any): string {
@@ -184,7 +184,7 @@ function condJa(c?: any): string {
     case 'COND_STUB': return `[条件STUB:${c.raw ?? ''}]`;
     // ── ActiveCondition（CONTINUOUS の activeCondition）系 ──
     case 'COUNT_THRESHOLD': {
-      const loc = ({ hand: '手札', trash: 'トラッシュ', energy: 'エナ', deck: 'デッキ', life_cloth: 'ライフ' } as Record<string, string>)[c.location] ?? c.location;
+      const loc = ({ hand: '手札', trash: 'トラッシュ', energy: 'エナ', deck: 'デッキ', life_cloth: 'ライフ', lrig_deck: 'ルリグデッキ', lrig_trash: 'ルリグトラッシュ' } as Record<string, string>)[c.location] ?? c.location;
       return `${ownerJa(c.owner)}${loc}が${numJa(c.value)}枚${opJa(c.operator)}`;
     }
     case 'SELF_POWER_THRESHOLD': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator)}`;
@@ -270,7 +270,14 @@ function actionJa(a?: Action): string {
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
     case 'EQUALIZE_ENERGY': return 'エナゾーンの枚数を揃える';
     case 'FORCE_SIGNI_ATTACK': return `${ownerJa(a.target?.owner)}シグニは可能ならアタックする`;
-    case 'COST_REDUCTION': return 'コストを軽減する';
+    case 'COST_REDUCTION': {
+      const red = Array.isArray(a.reduction) && a.reduction.length > 0
+        ? a.reduction.map((e: any) => `《${e.color}×${e.count}》`).join('')
+        : 'コスト';
+      const costKind = a.isGrowCost ? 'グロウコスト' : 'コスト';
+      const tgt = `${a.color ? a.color + 'の' : ''}${a.targetCardType ?? 'カード'}`;
+      return `あなたが使用する${tgt}の${costKind}は${red}減る`;
+    }
     case 'GROW_FREE': return 'コストを支払わずにグロウする';
     case 'MOVE_TO_ENERGY':
     case 'TRANSFER_TO_ENERGY': return `${targetJa(a.source ?? a.target)}をエナゾーンに置く`;
@@ -295,7 +302,12 @@ function actionJa(a?: Action): string {
     case 'PLAY_FREE': return `${targetJa(a.source ?? a.target)}をコストを支払わずに使用/場に出す`;
     case 'PLAY_FREE_FROM_TRASH': return 'トラッシュからコストを支払わずに場に出す';
     case 'BANISH_REDIRECT': return '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
-    case 'COST_INCREASE': return `${ownerJa(a.targetOwner)}コストを増やす`;
+    case 'COST_INCREASE': {
+      const inc = Array.isArray(a.amount) && a.amount.length > 0
+        ? a.amount.map((e: any) => `《${e.color}×${e.count}》`).join('')
+        : 'コスト';
+      return `${ownerJa(a.targetOwner)}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
+    }
     case 'PREVENT_DAMAGE': return 'ダメージを無効にする';
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
