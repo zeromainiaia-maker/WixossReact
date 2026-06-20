@@ -6445,6 +6445,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // pending_signi_battle をクリアしたmyStateを基点とする
       const newMyState: PlayerState = { ...myS, pending_signi_battle: undefined };
       let newOpState: PlayerState = opS;
+      // ON_SIGNI_DAMAGE: このアタックで実際に相手ライフをクラッシュ（ダメージを与えた）か
+      let dealtSigniDamage = false;
       let banishedOpCardNum: string | null = null;
       let banishedOpUnderCards: string[] = [];
 
@@ -6773,6 +6775,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } else {
           appendBattleLogs([attackLabel]);
           newOpState = afterFirst;
+          dealtSigniDamage = true;
         }
 
         if (crashCount > 1 && newOpState.life_cloth.length > 0) {
@@ -6996,8 +6999,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (opBattleUsed.length > 0) newOpState.actions_done = [...(newOpState.actions_done ?? []), ...opBattleUsed];
       }
 
+      // ON_SIGNI_DAMAGE: このアタックで相手ライフをクラッシュ（ダメージを与えた）場合、攻撃側シグニ自身の
+      // 「【自】このシグニが対戦相手にダメージを与えたとき…」を収集（WX21-054 等）。condition も評価する。
+      const damageEntries: StackEntry[] = [];
+      if (dealtSigniDamage) {
+        for (const eff of (effectsMap.get(myTopNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_DAMAGE')) continue;
+          if ((eff.triggerScope ?? 'self') !== 'self') continue;
+          if (eff.condition && !evalUseCondition(eff.condition, newMyState, newOpState, battleCardMap, myTopNum, bs.turn_phase, effectivePowers)) continue;
+          damageEntries.push({
+            id: generateUUID(),
+            playerId: attackerId,
+            cardNum: myTopNum,
+            effectId: eff.effectId,
+            label: `${myCardName} の【自】効果（ダメージ時）`,
+            effect: eff,
+            triggeringCardNum: myTopNum,
+          } satisfies StackEntry);
+        }
+      }
+
       // Phase 2のトリガー（ON_BANISHなど。ON_ATTACK_SIGNIはPhase 1で処理済み）
-      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries];
+      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries, ...damageEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;

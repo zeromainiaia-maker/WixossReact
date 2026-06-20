@@ -34,6 +34,7 @@ export type EffectTiming =
   | 'ON_SIGNI_BANISH_OPPONENT'  // 相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BANISH_BATTLE'    // バトルで相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BATTLE'           // このシグニがシグニ1体とバトルしたとき（攻撃側・防御側の両参加シグニで発火）
+  | 'ON_SIGNI_DAMAGE'           // このシグニが対戦相手にダメージを与えたとき（正面空きでライフをクラッシュしたとき）
   | 'ON_SIGNI_POWER_ZERO_OR_LESS' // シグニのパワーが0以下になったとき
   | 'ON_LEAVE_FIELD'            // カードがフィールドを離れたとき
   | 'ON_HAND_DISCARDED'         // 手札が捨てられたとき

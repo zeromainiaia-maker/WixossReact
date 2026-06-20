@@ -5,6 +5,16 @@
 
 ---
 
+## F-2 引用付与トリガーの実装（バッチ8・ダメージ時 timing 新設 WX21-054）（v0.384, 2026-06-20）
+
+- **対象＝TODO F-2「専用 timing 欠如（ダメージ時）」。** 「このシグニが対戦相手にダメージを与えたとき」に相当する timing が無かったため新設。
+- **`ON_SIGNI_DAMAGE` timing を新設:** 「正面が空き（またはアサシン）で相手ライフをクラッシュした＝ダメージを与えたとき」。`resolvePendingSigniBattleFor`（シグニアタック解決）のライフクラッシュ分岐で `dealtSigniDamage` を立て、Phase 2 のトリガー収集で攻撃側シグニ自身の `ON_SIGNI_DAMAGE` AUTO を `eff.condition` 評価込みで収集し `allTriggers` に追加。ルリグアタック・追加ゾーンバニッシュでは発火しない（シグニのライフクラッシュのみ）。
+- **WX21-054（ディノス）:** E1 を `ON_SIGNI_DAMAGE`＋`condition: ENERGY_COUNT(opponent,gte,5)`→相手エナ1枚トラッシュ に修正。E2（手札公開 or 自己トラッシュ）と BURST はパーサー生成を維持。
+- **近似:** WXDi-P05-069 のフリップアタック経路（別ハンドラ）でのライフクラッシュは未収集（通常アタックでは発火）。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（E1 のみ外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 引用付与トリガーの実装（バッチ7・WXK04-048 自己付与＋アクセ付与）（v0.383, 2026-06-20）
 
 - **対象＝TODO F-2「アクセ付与併用＋任意コスト」。** 2能力とも CONTINUOUS TRASH に誤フラット化されていたものを実装。

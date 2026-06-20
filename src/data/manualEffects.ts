@@ -1653,6 +1653,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX21-054 幻竜　ディノス
+  // 【常】対戦相手のエナゾーンにカードが５枚以上あるかぎり、このシグニは
+  //   「【自】：このシグニが対戦相手にダメージを与えたとき、対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。」を得る。
+  // 旧 E1 パース＝CONTINUOUS TRASH ENERGY（no-op）。新 timing ON_SIGNI_DAMAGE（正面空きでライフをクラッシュした時）
+  //   ＋condition ENERGY_COUNT(opp,gte,5) の AUTO に修正。E2（手札公開 or 自己トラッシュ）と BURST は維持。
+  'WX21-054': [
+    {
+      effectId: 'WX21-054-E1',
+      effectType: 'AUTO',
+      timing: ['ON_SIGNI_DAMAGE'],
+      triggerScope: 'self',
+      condition: { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 5 },
+      action: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**

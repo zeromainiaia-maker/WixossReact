@@ -111,11 +111,11 @@
 **✅ バッチ5（v0.381）:** `WXDi-P05-032`（ルリグ付与＝既存 `GRANT_LRIG_ABILITY`＋`collectLrigGrantedEffects` を ON_ATTACK_LRIG 収集へ配線）。
 **✅ バッチ6（v0.382）:** `WX17-036`（全領域 LIFE_BURST 付与＝既存 `GRANT_ALL_ZONE_LIFEBURST` を burstFilter/burstAction 対応に拡張。＜怪異＞シグニ限定・TRASH）。
 **✅ バッチ7（v0.383）:** `WXK04-048`（自己付与＝`THIS_CARD_IS_ACCED` 新設＋任意《青》OPTIONAL_COST／アクセ付与＝`GRANT_ACCE_HOST_ABILITY` レベル3以上）。
+**✅ バッチ8（v0.384）:** `WX21-054`（`ON_SIGNI_DAMAGE` timing 新設＝シグニが相手ライフをクラッシュした時＋相手エナ5枚以上で相手エナトラッシュ）。
 
 **残り（カテゴリ別・いずれも要・専用機構/高リスク）:**
 - **ゲート条件（自ゲート未モデリング）:** `WXDi-P15-082`（ON_ATTACK_PHASE_START＋同ゾーンに【ゲート】）/ `WXDi-P15-076`（ON_TURN_END＋【ゲート】）← 既存 `signi_gate_zones` は「相手へ設置するアタック不可ゲート」で別概念。THE DOOR の自ゲート表現が必要。
 - **相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`（相手シグニへ ON_ATTACK_PHASE_START 自デッキ mill）← `collectTurnTriggers` が人間ターンのみ呼ばれるため、相手（CPU）ターンの self トリガー収集経路の確認が必要。
-- **専用 timing 欠如:** `WX21-054`（「対戦相手にダメージを与えたとき」＝ON_DAMAGE 相当の timing 無し）。
 - **別形の誤解析（F-2 の付与型ではない・要別対応）:** `WXDi-P04-040`（《無×3》払わないと自己トラッシュ）/ `WXDi-P06-034`（ライズ＋身代わり置換引用）/ `WXK05-024`（場離れ代わりに除外＋起動）/ `WXK10-039`（＜原子＞2体トラッシュしないと自己トラッシュ）。
 
 ### F-3. optional 身代わりバニッシュの表現（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）
