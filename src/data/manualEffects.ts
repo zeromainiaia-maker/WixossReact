@@ -1638,6 +1638,39 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // ----- F-4 バッチD -----
+
+  // WXDi-P15-057 幻獣神 LOVIT//THE DOOR（地獣）
+  // E1【常】：このシグニと同じシグニゾーンに【ゲート】があるかぎり、このシグニのパワーは＋3000され、「【常】：対戦相手のターンの間【シャドウ】」を得る。
+  //   → CONTINUOUS POWER_MODIFY self +3000 に activeCondition SAME_ZONE_HAS_GATE（旧＝常時+3000）。「相手ターン中シャドウ」付与は近似省略。
+  // E2【自】ターン終了時、場ゲートがある場合、トラッシュから《ガードアイコン》シグニ1枚を対象、《無》を払ってもよい。払えば手札に加える。
+  //   → AUTO ON_TURN_END、condition FIELD_HAS_GATE、SEQUENCE[OPTIONAL_COST(無), CONDITIONAL(PAID){TRANSFER_TO_HAND from trash hasGuard}]。旧＝GRANT_KEYWORD誤り。
+  'WXDi-P15-057': [
+    {
+      effectId: 'WXDi-P15-057-E1',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'SAME_ZONE_HAS_GATE' },
+      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 3000 },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P15-057-E2',
+      effectType: 'AUTO',
+      timing: ['ON_TURN_END'],
+      triggerScope: 'self',
+      condition: { type: 'FIELD_HAS_GATE', owner: 'self' },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無'] },
+        { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', hasGuard: true } } } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P15-098 凶将　アオトラ
   // 【常】：あなたの黒のシグニは「【自】：このシグニがアタックしたとき、対戦相手のデッキの一番上のカードをトラッシュに置く。」を得る。
   // 旧パース＝CONTINUOUS TRASH DECK_CARD self（owner も誤り・no-op）。
