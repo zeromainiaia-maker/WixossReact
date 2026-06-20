@@ -7,6 +7,7 @@ import type {
   BanishAction,
   ConditionalAction,
   BlockCardUseAction,
+  PlaceVirusAction,
 } from '../../types/effects';
 import {
   parseNum, makeRevealPickStub,
