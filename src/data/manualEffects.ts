@@ -115,6 +115,67 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX25-CP1-065 風倉モエ（相手シグニへ即時-2000＋同じ対象へクラッシュ時-2000を付与）
+  // 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、手札から＜ブルアカ＞のカードを１枚捨ててもよい。
+  //   そうした場合、ターン終了時まで、それのパワーを－2000する。このターン、対戦相手のライフクロス１枚がクラッシュされたとき、
+  //   ターン終了時まで、それのパワーを－2000する。
+  // 鍵: 即時-2000 と「クラッシュ時-2000」を同一の選択対象へ適用する必要がある（「それ」＝同じ対象）。
+  // STUB TARGET_AND_DISCARD_HAND（対象選択→直後 CONDITIONAL(IS_MY_TURN).then を選択対象へ applyDirectAction で適用→手札1枚捨て）を利用し、
+  //   then を SEQUENCE[POWER_MODIFY -2000, GRANT_EFFECT(ON_LIFE_CRASHED→POWER_MODIFY thisCardOnly -2000)] にする。
+  // 付与先＝相手シグニ。相手（＝付与先コントローラー）のライフがクラッシュされると、その付与 ON_LIFE_CRASHED が
+  //   collectSelfEventTriggers（相手フィールド走査）で発火し、付与先自身が-2000（thisCardOnly）。クラッシュごとにスタック（usageLimitなし）。
+  // 近似: 捨てる対象の＜ブルアカ＞限定・「捨ててもよい」の任意性・「そうした場合」ゲートは TARGET_AND_DISCARD_HAND の仕様上
+  //   「手札を1枚（任意カード）強制で捨て対象選択」に簡略化（既存STUB踏襲）。E2【絆自】は絆条件未対応のため非実装。
+  'WX25-CP1-065': [
+    {
+      effectId: 'WX25-CP1-065-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      triggerScope: 'self',
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'IS_MY_TURN' },
+            then: {
+              type: 'SEQUENCE',
+              steps: [
+                {
+                  type: 'POWER_MODIFY',
+                  target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+                  delta: -2000,
+                },
+                {
+                  type: 'GRANT_EFFECT',
+                  target: { type: 'SIGNI', owner: 'opponent', count: 1 },
+                  duration: 'UNTIL_END_OF_TURN',
+                  effect: {
+                    effectId: 'WX25-CP1-065-E1-CRASH',
+                    effectType: 'AUTO',
+                    timing: ['ON_LIFE_CRASHED'],
+                    action: {
+                      type: 'POWER_MODIFY',
+                      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+                      delta: -2000,
+                    },
+                    duration: 'UNTIL_END_OF_TURN',
+                    mandatory: true,
+                    parseStatus: 'MANUAL',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      } as SequenceAction,
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX25-CP1-075 姫木メル（相手シグニへ ON_LIFE_CRASHED デバフを付与）
   // 【自】：あなたのアタックフェイズ開始時、あなたの場に他の＜ブルアカ＞のシグニがある場合、対戦相手のシグニ１体を対象とし、
   //   ターン終了時まで、それは「【自】《ターン１回》：このシグニがシグニ１体とバトルしたか、あなたのライフクロス１枚が
