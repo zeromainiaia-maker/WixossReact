@@ -1152,8 +1152,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WX19-045 羅菌　ポレン（起動）
   // 【起】《アタックフェイズ》手札からこのカードを捨てる：
-  //   相手の場のウィルス合計が2つになるように相手のシグニゾーンにウィルスを置く。
-  //   ＜ナナシ＞限定
+  //   相手の場のウィルス合計が2つになるように相手のシグニゾーンにウィルスを置く。＜ナナシ＞限定。
+  // PLACE_VIRUS の fillToTotal:2 で「合計が2個になるよう不足分を配置先選択して置く」。
+  // 旧 STUB PLACE_VIRUS_TO_2（空きゾーン自動配置）から、配置先をプレイヤーが選べる正式アクションへ。
   'WX19-045': [
     {
       effectId: 'WX19-045-E1',
@@ -1161,7 +1162,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       timing: ['ATTACK_ARTS'],
       condition: { type: 'LRIG_STORY', owner: 'self', story: 'ナナシ' },
       cost: { discardSelfFromHand: true },
-      action: { type: 'STUB', id: 'PLACE_VIRUS_TO_2' },
+      action: { type: 'PLACE_VIRUS', targetOwner: 'opponent', zoneCount: 2, virusCount: 1, fillToTotal: 2 },
       duration: 'INSTANT',
       mandatory: false,
       parseStatus: 'MANUAL',
