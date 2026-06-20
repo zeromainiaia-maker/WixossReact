@@ -1257,6 +1257,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       mandatory = true;
+      // ON_LEAVE_FIELD の「場に出してもよい」等は任意トリガー（プレイヤーは発動しない選択可）
+      if (timing[0] === 'ON_LEAVE_FIELD' && /(?:出して|加えて|引いて)?もよい/.test(actionText)) mandatory = false;
       break;
     default: return null;
   }
