@@ -717,7 +717,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     };
     scanSt(ctx.ownerState);
     scanSt(ctx.otherState);
-    const instanceId = `${a.cardName}#${maxIdx + 1}`;
+    const instanceId = `${tokenBase}#${maxIdx + 1}`;
     const signi = [...state.field.signi] as (string[] | null)[];
     const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
     if (emptyZones.length >= 2) {
