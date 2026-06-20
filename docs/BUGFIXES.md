@@ -5,6 +5,15 @@
 
 ---
 
+## F-4 THE DOOR ゲート参照シグニ（バッチF・WXDi-P16-059＋GRANT_KEYWORD UNTIL_OPP_TURN_END 修正）（v0.395, 2026-06-20）
+
+- **`execGrantKeyword` のUNTIL_OPP_TURN_END振り分けバグ修正:** 従来は duration によらず `keyword_grants` へ付与していたが、`keyword_grants` は**付与者のターン終了時にクリア**されるため、ターン終了時に付与する `UNTIL_OPP_TURN_END` キーワードが即消えていた。`a.duration === 'UNTIL_OPP_TURN_END'` のとき `keyword_grants_until_opp_turn`（付与者の次ターン開始時クリア＝相手ターンを跨ぐ）へ振り分けるよう修正（シャドウ等の読み取り側は既に両ストアを参照）。
+- **WXDi-P16-059（デウス・アーム）:** E1=「同ゾーンゲートで『相手は追加で《無》払わないとガードできない』を得る」→ CONTINUOUS STUB `OPP_GUARD_COST_COLORLESS` に activeCondition `SAME_ZONE_HAS_GATE`（既存ガード税機構 `collectOppGuardExtraColorlessCost` が activeCondition 対応）。E2=「ターン終了時、場ゲートで自シグニ1体に次の相手ターン終了時まで【シャドウ（レベル2以下）】」→ AUTO ON_TURN_END＋condition `FIELD_HAS_GATE`＋GRANT_KEYWORD（`シャドウ:{"levelLte":2}`・UNTIL_OPP_TURN_END）。
+- **反映:** effectExecutor（execGrantKeyword 修正）＋manualEffects＋プリビルド JSON。typecheck 通過、verifyEffects 新規警告なし。
+- **残（F-4ゲート参照）:** WXDi-P15-058 のみ（E1=同ゾーンゲートのシグニへ【シャドウ（スペル）】の場全体付与＝`getShadowScopes` の継続付与対応が要る／E2=タマゴ条件＋任意BBでデッキ下）。
+
+---
+
 ## F-4 THE DOOR ゲート参照シグニ（バッチE・POWER_MODIFY_PER_HAND_COUNT 新設＋3枚）（v0.394, 2026-06-20）
 
 - **新アクション `POWER_MODIFY_PER_HAND_COUNT`:** 手札N枚につきパワー±M（AUTO実行・スナップショット）。`until: 'UNTIL_OPP_TURN_END'` で `power_mods_until_opp_turn` へ、省略時は `temp_power_mods`。`execPowerModifyPerLifeCount` と同型。
