@@ -5,6 +5,14 @@
 
 ---
 
+## WD04-009 引用付与フラット化（有害 CONTINUOUS BANISH）修正＋再発の発見（v0.413, 2026-06-20）
+
+- **WD04-009（幻獣セイリュ）:** 「場のシグニ3体が各15000以上のかぎり【ランサー】＋『【自】アタック時に相手シグニ1体バニッシュ』を得る」が、引用付与をフラット化し **CONTINUOUS BANISH opponent（条件・トリガー欠落＝常時バニッシュの有害誤り）** になっていた。→ E1=条件 `FIELD_SIGNI_POWER_COUNT(15000×3体)` 付きランサー付与／E2=同条件付き `ON_ATTACK_SIGNI` バニッシュ。manualEffects＋JSON。
+- **⚠ 同型の再発を27件発見（TODO F に記録）:** 非optional・mandatory:true の CONTINUOUS BANISH がプリビルド JSON に27件残存＝**runtime で実際にバニッシュ適用＝有害**。`calcContinuousSigniMutations`→`removeFromField`。
+- **🔑 パイプライン知見の確定:** runtime は `buildEffectsMap` が **`card.effects`（プリビルド JSON）を優先**し `mergeManualEffects` を重ねる＝**プリビルド JSON が runtime の真実源**。JSON 手パッチは効くが `build:effects` 全再生成で manualEffects 未登録分は消える。**durable 修正は manualEffects 登録が必須。**
+
+---
+
 ## 「対戦相手の手札を見て選び」系を一括修正＋相手手札を見るUI（v0.412, 2026-06-20）
 
 - **UI（全`opp_hand`選択を網羅）:** `SELECT_TARGET` の `targetScope==='opp_hand'` 選択モーダルで、**対戦相手の手札全体**を表示するよう拡張（候補のみ選択可・非候補はグレー＝0.4不透明）。「対戦相手の手札を見て…選び」で相手手札全体を実際に見て選べる。相手が選ぶ場合（opponentResponds）は相手が自分の手札を見るだけなので無害。
