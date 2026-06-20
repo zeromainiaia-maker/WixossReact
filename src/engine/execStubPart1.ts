@@ -150,7 +150,7 @@ export function execStubPart1(
       hand_discarded_just: [...(ctx.otherState.hand_discarded_just ?? []), ...discardTK3],
     };
     const namesTK3 = discardTK3.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
-    return done(addLog({ ...ctx, otherState: newOtherTK3 },
+    return done(addLog({ ...ctxRevealTK3, otherState: newOtherTK3 },
       `数字「${lvlTK3}」を宣言：対戦相手のLv${lvlTK3}シグニ${discardTK3.length}枚を捨てさせる（${namesTK3}）`));
   }
   // カード名宣言（手札のカード名から選択）
