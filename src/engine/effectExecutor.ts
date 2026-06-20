@@ -3175,6 +3175,15 @@ export function resumeOptionalCost(
 }
 
 // SELECT_ZONE: プレイヤーが選んだゾーン番号にカードを配置する
+// REVEAL_CARDS: 閲覧専用モーダル（公開を確認したら continuation を実行するだけ。状態変更なし）
+export function resumeRevealCards(
+  pending: PendingInteractionDef & { type: 'REVEAL_CARDS' },
+  ctx: ExecCtx,
+): ExecResult {
+  if (pending.continuation) return executeAction(pending.continuation, ctx);
+  return done(ctx);
+}
+
 export function resumeSelectZone(
   zoneIndex: number,
   pending: PendingInteractionDef & { type: 'SELECT_ZONE' },
