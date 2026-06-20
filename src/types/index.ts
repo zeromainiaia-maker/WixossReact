@@ -448,6 +448,12 @@ export type PendingInteractionDef =
       type: 'DECLARE_BOND';
       deckCards: string[];       // デッキのCardNum一覧（全枚数表示）
       continuation?: EffectAction;
+    }
+  | {
+      type: 'REVEAL_CARDS';      // カード群を閲覧専用で公開（「対戦相手の手札を見て」等の情報公開モーダル）
+      cards: string[];           // 公開するカードのCardNum一覧
+      title?: string;            // モーダル見出し
+      continuation?: EffectAction;
     };
 
 export interface PendingEffect {
