@@ -266,7 +266,13 @@ function actionJa(a?: Action): string {
     case 'GRANT_FIELD_SIGNI_ABILITY': return `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': return a.steps.map(actionJa).join('。そして');
     case 'CHOOSE': return `次から${a.choose_count}つ選ぶ【${(a.choices || []).map((c: any) => actionJa(c.action)).join(' / ')}】`;
-    case 'CONDITIONAL': return `${condJa(a.condition)}なら、${actionJa(a.then)}`;
+    case 'CONDITIONAL': {
+      // IS_MY_TURN は「そうした場合」マーカーとして使われる
+      if (a.condition?.type === 'IS_MY_TURN') {
+        return `そうした場合、${actionJa(a.then)}`;
+      }
+      return `${condJa(a.condition)}なら、${actionJa(a.then)}`;
+    }
     case 'BANISH_SUBSTITUTE': {
       const sc = a.substituteCost ?? {};
       const cost = sc.discardSpell ? `手札からスペル${sc.discardSpell}枚を捨てる`
