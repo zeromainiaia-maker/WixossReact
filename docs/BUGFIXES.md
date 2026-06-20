@@ -5,6 +5,15 @@
 
 ---
 
+## WD04-013/015/018 誤パース修正＋powerLteLastProcessed 新設（v0.416, 2026-06-20）
+
+- **WD04-013 / WD04-015（シグニ）:** 「アタック時、このシグニのパワーが5000/3000以上の場合にエナチャージ」の **SELF_POWER_GTE 条件が欠落**し常時チャージだった。→ `condition: SELF_POWER_GTE` を付与。
+- **WD04-018（スペル）:** 「アップシグニ1体をダウン→そのシグニのパワー以下の相手シグニ1体バニッシュ」が、①「そうした場合」を `IS_MY_TURN` に誤パース、②「そのシグニのパワー以下」フィルタ欠落（任意シグニをバニッシュできる過剰）だった。
+  - **新フィルタ `TargetFilter.powerLteLastProcessed`:** パワーが `lastProcessedCards[0]` の実効パワー以下 → `resolveDynamicFilter` が `powerRange.max` に解決（`execBanish` に lastProcessedCards／effectivePowers を渡すよう拡張）。`resumeSelectTarget` は対象適用後 `lastProcessedCards=選択` を立てるため、`SEQUENCE[DOWN, BANISH{powerLteLastProcessed, conditional:true}]` で「ダウンしたそのシグニのパワー以下」を正しく解決し、`conditional` でダウン成立をゲート。
+- 逆翻訳器にも `powerLteLastProcessed` 表示を追加。typecheck 通過、verify 安定。
+
+---
+
 ## フラット化 CONTINUOUS BANISH 27件を manualEffects へ昇格＝durable 化（v0.415, 2026-06-20）
 
 - **v0.414 の JSON 修正を manualEffects に昇格し再生成耐性を獲得。** 修正済みプリビルド JSON から27件の該当 effectId を抽出して `MANUAL_EFFECTS` に登録（`mergeManualEffects` が effectId 単位で上書き）。
