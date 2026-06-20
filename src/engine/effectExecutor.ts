@@ -91,6 +91,32 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, s, ctx), `${count}枚ドロー`));
 }
 
+// 効果離場の powerReduction 身代わり（WX06-019 シロナクジ型）:
+// victim owner の場に「あなたの他の＜X＞が対戦相手の効果で場を離れる場合、代わりにこのシグニのパワーを-N」を
+// CONTINUOUS BANISH_SUBSTITUTE{substituteCost.powerReduction} で宣言するカード(protector)があり、
+// victim がその trigger フィルタに合致すれば、victim を残し protector のパワーを -N する身代わりを返す。
+// 「してもよい」は自動適用（pause/resume を伴わない決定論的な近似。バトル経路の対話本実装とは別経路）。
+function findEffectLeavePowerReductionSubstitute(
+  victimNum: string,
+  victimState: PlayerState,
+  cardMap: Map<string, CardData>,
+): { protectorNum: string; reduction: number } | null {
+  const victimCard = cardMap.get(victimNum);
+  for (const stack of victimState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top || top === victimNum) continue; // 「他の」＝victim自身は除外
+    for (const eff of (cardMap.get(top)?.effects ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'BANISH_SUBSTITUTE') continue;
+      const ba = eff.action as import('../types/effects').BanishSubstituteAction;
+      if (!ba.substituteCost.powerReduction) continue;
+      if (ba.trigger.owner !== 'self') continue;
+      if (!matchesFilter(victimCard, ba.trigger.filter)) continue;
+      return { protectorNum: top, reduction: ba.substituteCost.powerReduction };
+    }
+  }
+  return null;
+}
+
 function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   // conditional: true = 前ステップ（STUB等）がlastProcessedCardsを設定した場合のみ実行
   if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
