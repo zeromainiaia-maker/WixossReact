@@ -505,6 +505,7 @@ export interface LifeCrashAction {
   owner: Owner;
   count: NumberOrRef;
   triggerBurst: boolean; // ライフバーストを発動するか
+  conditional?: boolean; // true=前ステップ（自ライフをトラッシュ等）が lastProcessedCards を残した場合のみ実行（「そうした場合」）
 }
 
 export interface ShuffleDeckAction {
