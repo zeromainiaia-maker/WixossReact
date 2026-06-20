@@ -590,9 +590,19 @@ function resolveDynamicFilter(
   ownerSt: import('../types').PlayerState,
   cardMap: Map<string, import('../types').CardData>,
   otherSt?: import('../types').PlayerState,
+  lastProcessedCards?: string[],
+  effectivePowers?: Map<string, number>,
 ): import('../types/effects').TargetFilter | undefined {
   if (!filter) return filter;
   let result = filter;
+  if (result.powerLteLastProcessed) {
+    const { powerLteLastProcessed: _p, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const pw = ref ? (effectivePowers?.get(ref) ?? parseInt(cardMap.get(getCardNum(ref))?.Power ?? '0', 10)) : undefined;
+    result = (pw !== undefined && !isNaN(pw))
+      ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: pw } }
+      : rest;
+  }
   if (result.colorMatchesLrig || result.colorNotMatchesLrig) {
     const lrigTop = ownerSt.field.lrig.at(-1);
     const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
