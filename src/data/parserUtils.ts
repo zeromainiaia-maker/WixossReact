@@ -104,7 +104,8 @@ export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
 
 // ＜クラス名＞ を配列で抽出（例: ＜鉱石＞か＜宝石＞ → ['鉱石','宝石']）
 export function parseStoryFilter(text: string): Partial<TargetFilter> {
-  const matches = [...text.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]);
+  // 同一クラス名が複数回出る場合（条件文＋フィルタ文で＜X＞が2回など）は重複除去
+  const matches = [...new Set([...text.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]))];
   if (matches.length === 0) return {};
   return { story: matches.length === 1 ? matches[0] : matches };
 }
