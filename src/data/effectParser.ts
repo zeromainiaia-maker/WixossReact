@@ -1241,7 +1241,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_REVEALED_FROM_HAND') {
-        const m = actionText.match(/このカードがあなたの効果によって手札から公開されたとき[、,]\s*(.+)/s);
+        const m = actionText.match(/このカードが.{0,40}手札から公開されたとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_ENERGY_FROM_TRASH') {
