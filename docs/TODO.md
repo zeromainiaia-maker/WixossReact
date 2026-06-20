@@ -99,7 +99,13 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 
 ## F. CONTINUOUS BANISH/TRASH 誤解析（残: 機能実装と TRASH 系）
 
-> **有害バグは解消済み（v0.339）**: 非optional CONTINUOUS BANISH は残り0件。詳細は BUGFIXES.md「CONTINUOUS BANISH 誤解析の一掃ラウンド」。以下は残りの「機能実装」と無害な TRASH 系。
+> **⚠ 再発（2026-06-20 発見・要対応）**: 非optional・`mandatory:true` の CONTINUOUS BANISH が**プリビルド JSON に 27 件**残存しており、**runtime で実際にバニッシュ適用される＝有害**。`calcContinuousSigniMutations`（effectEngine:398, mandatory:true かつ activeCondition 成立で適用）→ BattleScreen:7475 で `removeFromField`。例: `WX05-021`（パワー20000以上で得る引用付与をフラット化＝相手シグニ無条件バニッシュ）/ `WX18-076` 等。**正体は F-2 と同型の「このシグニは『【自】…バニッシュ』を得る（かぎり）」引用付与のフラット化**で、過去に修正されたが**全再生成で失われた**と推測。
+>
+> **🔑 重要なパイプライン知見:** runtime の効果は `buildEffectsMap`（effectParser:1639）が **`card.effects`（＝App.tsx が fetch するプリビルド `effects_*.json`）を優先使用**し、空のときだけ再パース。さらに `mergeManualEffects` を上に重ねる。**＝プリビルド JSON が runtime の真実源**。よって **JSON 外科パッチは runtime に効くが、`build:effects` 全再生成で manualEffects 未登録の手パッチは消える**。durable に直すには **manualEffects 登録**が必須（JSON だけだと再生成で消える）。
+>
+> **対象27件**（activeCondition 無し）: WX05-021 / WX09-019 / WX09-027 / WX10-063 / WX13-034-E2 / WX16-045 / WX17-038 / WX18-076 / WX20-072 / WX20-Re18 / WX21-052 / WD14-001 / WDK08-L11 / WDK16-06H / SP27-015 / PR-288 / PR-426 / WX25-P3-057 / WXDi-D07-003 / WXDi-P04-015 / WXDi-P05-034 / WXDi-P07-060 / WXDi-P15-061 / WXDi-CP02-TK02A / WXK03-034 / WXK03-056 / WXK07-044。**各カードを F-2 と同様に「condition 付き granted AUTO ＋（必要なら）keyword 付与」で manualEffects に本実装する**（WD04-009 が手本＝v0.412 で実装済）。検出: 下記 node スクリプトで再スキャン可。
+>
+> ~~**有害バグは解消済み（v0.339）**~~（↑のとおり再発）。以下は残りの「機能実装」と無害な TRASH 系。
 
 ### F-1. no-op 化したカードの機能実装（24枚・無害化のみ済み）
 
