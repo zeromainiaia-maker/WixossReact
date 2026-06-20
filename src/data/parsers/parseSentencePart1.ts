@@ -1068,8 +1068,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- ライフクロスに加える ----
   if (t.includes('ライフクロスに加える') || t.includes('ライフクロスに置く')) {
-    const cM = t.match(/カードを([０-９\d]+)枚/);
-    return { type: 'ADD_TO_LIFE', owner: 'self', count: cM ? parseNum(cM[1]) : 1, fromTop: true };
+    const cM = t.match(/カードを([０-９\d]+)枚/) ?? t.match(/([０-９\d]+)枚(?:の手札)?をライフクロス/);
+    const count = cM ? parseNum(cM[1]) : 1;
+    // 「手札を〜ライフクロスに加える」は手札選択
+    if (t.match(/^手札(?:を|から)/)) {
+      return { type: 'ADD_TO_LIFE', owner: 'self', count, fromTop: false, fromHand: true };
+    }
+    return { type: 'ADD_TO_LIFE', owner: 'self', count, fromTop: true };
   }
 
   // ---- ライフクロスをクラッシュ ----
