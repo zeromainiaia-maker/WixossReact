@@ -5,6 +5,13 @@
 
 ---
 
+## WX01-029-E3「このシグニ」明示＋execGrantKeyword に thisCardOnly 対応（v0.423, 2026-06-20）
+
+- **WX01-029 E3:** 「ターン終了時まで、**このシグニ**は【ダブルクラッシュ】を得る」が target `owner:self count:1`（フィルタ無し）＋keyword `duration:PERMANENT` で、任意自シグニ選択に見えた（runtime は no-filter 自動適用で実害は無かったが曖昧）。→ `thisCardOnly:true` で明示＋keyword duration を `UNTIL_END_OF_TURN` に。
+- **`execGrantKeyword` に `thisCardOnly` 対応を追加**（候補を効果元のみに絞り、選択UIを出さず自動付与）。「このシグニは【X】を得る」系で再利用可能。typecheck 通過。
+
+---
+
 ## WX01-029-E1「それ」の対象誤り修正（v0.422, 2026-06-20）
 
 - **WX01-029（羅輝石アダマスフィア）E1:** 「あなたの赤のシグニがアタックしたとき、**それ**のパワーを+2000」が `POWER_MODIFY owner:any count:1`（＝任意シグニを自由選択・相手シグニも選べる誤り）だった。「それ」＝アタックした赤シグニなので `targetsTriggerSource:true`（トリガー元を自動対象）に修正。manualEffects＋JSON。
