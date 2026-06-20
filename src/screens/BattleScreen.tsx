@@ -3264,6 +3264,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           blocked_actions:    [],   // ターン内封じ行動をリセット
           blocked_card_names: [],   // ターン内使用禁止カードをリセット
           actions_done:       [],   // ターン内行動履歴をリセット
+          cards_drawn_by_effect_this_turn: 0, // 効果ドロー累計をリセット
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
           must_attack_infected_only: undefined,
