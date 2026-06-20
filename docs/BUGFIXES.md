@@ -5,6 +5,15 @@
 
 ---
 
+## F-2 自己犠牲コスト型の実装（バッチ9・WXDi-P04-040）（v0.385, 2026-06-20）
+
+- **対象＝TODO F-2「別形の誤解析」のうち自己犠牲（pay-or-sacrifice）型1枚。** 引用付与型とは別の誤フラット化（CONTINUOUS TRASH self）。
+- **`execTrash` の SIGNI 分岐に `thisCardOnly` 対応を追加:** 「このシグニを場からトラッシュに置く」を効果元自身のみへ限定（従来 execBanish のみ対応。`fieldCandidates` 後に `ctx.sourceCardNum` で絞り込み）。
+- **WXDi-P04-040（イバラキドウジ）:** E1「【自】アタックフェイズ開始時、《無×3》を支払わないかぎり、このシグニを場からトラッシュに置く」を `ON_ATTACK_PHASE_START`→`SEQUENCE[OPTIONAL_COST(無×3), CONDITIONAL(PAID_ADDITIONAL_COST){then:noop, else:このシグニを自己トラッシュ}]` で実装（既存の OPTIONAL_COST 直後 CONDITIONAL ＝pay→then/skip→else パターンに乗る）。【ランサー】は静的キーワードのためテキストから自動判定。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 引用付与トリガーの実装（バッチ8・ダメージ時 timing 新設 WX21-054）（v0.384, 2026-06-20）
 
 - **対象＝TODO F-2「専用 timing 欠如（ダメージ時）」。** 「このシグニが対戦相手にダメージを与えたとき」に相当する timing が無かったため新設。

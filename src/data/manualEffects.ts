@@ -1672,6 +1672,36 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P04-040 翠魔姫　イバラキドウジ
+  // 【常】【ランサー】（静的キーワードはテキストから自動判定）
+  // 【自】：あなたのアタックフェイズ開始時、《無》《無》《無》を支払わないかぎり、このシグニを場からトラッシュに置く。
+  // 旧パース＝CONTINUOUS TRASH SIGNI self（no-op）。任意《無×3》コストを払えば維持、払わなければ自己トラッシュ。
+  // OPTIONAL_COST（支払う/スキップ）→ CONDITIONAL{PAID_ADDITIONAL_COST, then:noop, else: このシグニを自己トラッシュ}。
+  // 自己トラッシュは TRASH SIGNI self＋filter.thisCardOnly（execTrash に thisCardOnly 対応を追加）。
+  'WXDi-P04-040': [
+    {
+      effectId: 'WXDi-P04-040-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      triggerScope: 'self',
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無', '無', '無'] },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'PAID_ADDITIONAL_COST' },
+            then: { type: 'SEQUENCE', steps: [] },
+            else: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } },
+          },
+        ],
+      } as SequenceAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**

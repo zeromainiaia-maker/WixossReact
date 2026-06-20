@@ -332,7 +332,16 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(tgt.owner, ctx);
 
   if (tgt.type === 'SIGNI') {
-    const allSigCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    // thisCardOnly: 効果元シグニ自身のみを対象（「このシグニを場からトラッシュに置く」。WXDi-P04-040 等の自己犠牲）
+    let trashFilter = tgt.filter;
+    let trashThisCardRestrict: string[] | null = null;
+    if (trashFilter?.thisCardOnly) {
+      const { thisCardOnly: _t, ...rest } = trashFilter;
+      trashFilter = rest;
+      trashThisCardRestrict = ctx.sourceCardNum ? [ctx.sourceCardNum] : [];
+    }
+    const allSigCands0 = fieldCandidates(state, trashFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    const allSigCands = trashThisCardRestrict ? allSigCands0.filter(n => trashThisCardRestrict!.includes(n)) : allSigCands0;
     const trashFieldProtected = tgt.owner === 'opponent' ? new Set(ctx.otherTrashFieldProtectedNums ?? []) : new Set<string>();
     const cands = trashFieldProtected.size > 0 ? allSigCands.filter(n => !trashFieldProtected.has(n)) : allSigCands;
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
