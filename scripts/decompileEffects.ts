@@ -101,12 +101,21 @@ function filterJa(f?: any): string {
 
 function targetJa(t?: any, unit = 'シグニ'): string {
   if (!t) return '';
-  const u = t.type === 'HAND_CARD' ? 'カード(手札)' : t.type === 'TRASH_CARD' ? 'カード(トラッシュ)'
-    : t.type === 'ENERGY_CARD' ? 'カード(エナ)' : t.type === 'DECK_CARD' ? 'カード(デッキ)'
-    : t.type === 'LRIG' ? 'ルリグ' : t.type === 'CENTER_LRIG_OR_SIGNI' ? 'センタールリグかシグニ'
-    : t.type === 'PLAYER' ? '' : unit;
+  // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
+  const loc = t.type === 'HAND_CARD' ? '(手札)' : t.type === 'TRASH_CARD' ? '(トラッシュ)'
+    : t.type === 'ENERGY_CARD' ? '(エナ)' : t.type === 'DECK_CARD' ? '(デッキ)'
+    : t.type === 'LRIG_TRASH_CARD' ? '(ルリグトラッシュ)' : t.type === 'LIFE_CLOTH_CARD' ? '(ライフ)' : '';
+  let u: string;
+  if (t.type === 'LRIG') u = 'ルリグ';
+  else if (t.type === 'CENTER_LRIG_OR_SIGNI') u = 'センタールリグかシグニ';
+  else if (t.type === 'PLAYER') u = '';
+  else if (loc) {
+    const ct = t.filter?.cardType;
+    u = (ct ? ([] as string[]).concat(ct).join('か') : 'カード') + loc;
+  } else u = unit; // SIGNI 等
   const cnt = t.count === 'ALL' ? 'すべての' : '';
-  const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? '体まで' : '体'}`;
+  const counter = loc ? '枚' : '体';
+  const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? counter + 'まで' : counter}`;
   const blind = t.blind ? '（見ないで）' : '';
   return `${ownerJa(t.owner)}${cnt}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
 }
