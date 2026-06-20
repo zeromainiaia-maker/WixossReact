@@ -1396,6 +1396,38 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P10-072 凶美　アルフォウ//メモリア
+  // 【常】：対戦相手のシグニは「【自】：あなたのアタックフェイズ開始時、あなたのデッキの一番上のカードをトラッシュに置く。」を得る。
+  // 旧パース＝CONTINUOUS TRASH SIGNI opponent（no-op）。実体は「対戦相手の場のシグニ全員へ ON_ATTACK_PHASE_START の自己ミル能力を付与」。
+  // GRANT_FIELD_SIGNI_ABILITY{targetOwner:'opponent'}（v0.377 で targetOwner 対応済）＋付与能力は MILL self 1（付与先＝対戦相手の視点で「あなた」＝そのシグニのコントローラー）。
+  // 付与能力は付与先（対戦相手）のアタックフェイズ開始時に発火。人間ターン側は doPhaseAdvance の collectTurnTriggers、CPU ターン側は cpuTurnAction の MAIN→ATTACK_ARTS 移行で収集（v0.387 で配線）。BURST はパーサー生成を維持。
+  'WXDi-P10-072': [
+    {
+      effectId: 'WXDi-P10-072-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_FIELD_SIGNI_ABILITY',
+        targetOwner: 'opponent',
+        filter: { cardType: 'シグニ' },
+        abilities: [
+          {
+            effectId: 'WXDi-P10-072-E1-G',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_PHASE_START'],
+            triggerScope: 'self',
+            action: { type: 'MILL', owner: 'self', count: 1 },
+            duration: 'INSTANT',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          },
+        ],
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX12-018 真天使の未来　ガブリエルト
   // 【常】このシグニは対戦相手の、アーツ以外の効果を受けない。（E1: GRANT_PROTECTION、パーサー生成を維持）
   // 【常】あなたのルリグトラッシュにアーツが４枚以上あるかぎり、このシグニは
