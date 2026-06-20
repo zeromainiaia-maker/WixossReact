@@ -220,7 +220,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- ハンデス（レベル指定）----
   const levelHandM = t.match(/対戦相手の手札を見て.*レベル([０-９\d]+).*カード.*選び.*捨てさせる/);
   if (levelHandM) {
-    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, filter: { level: parseNum(levelHandM[1]) } } };
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, filter: { level: parseNum(levelHandM[1]) }, actingPlayerSelects: true } };
   }
 
   // ---- パワー増減禁止（CONTINUOUS 耐性）----
