@@ -4268,6 +4268,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       } else if (inter.type === 'LOOK_AND_REORDER') {
         result = resumeLookAndReorder(selectedOrChoiceId, [], inter, ctx);
+      } else if (inter.type === 'REVEAL_CARDS') {
+        // 閲覧専用モーダルの確認（OK）→ continuation を実行
+        result = resumeRevealCards(inter, ctx);
       } else {
         return;
       }
