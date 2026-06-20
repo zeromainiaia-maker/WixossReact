@@ -1550,13 +1550,15 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手の手札を見てN枚選び捨てさせる ----
+  // 「見て…選び」＝自分（効果使用側）が相手手札を見て選ぶ → actingPlayerSelects:true
+  // （無印だと execTrash で opponentResponds=相手が選ぶ になり取り違える）
   {
     const hvdM = t.match(/対戦相手の手札を見て([０-９\d]+)枚選び/);
     if (hvdM) {
-      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hvdM[1]) } };
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hvdM[1]), actingPlayerSelects: true } };
     }
     if (t.match(/対戦相手の手札を見て.*カード.*選び.*捨てさせる/)) {
-      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, actingPlayerSelects: true } };
     }
   }
 
