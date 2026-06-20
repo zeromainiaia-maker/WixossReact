@@ -3535,6 +3535,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: myFieldAfterCoinCheck,
         temp_power_mods: [], keyword_grants: {}, granted_effects: {},
         blocked_actions: [], blocked_card_names: [], actions_done: [],
+        cards_drawn_by_effect_this_turn: 0,
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, life_burst_double_next: undefined,
