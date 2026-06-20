@@ -115,9 +115,9 @@
 **✅ バッチ9（v0.385）:** `WXDi-P04-040`（自己犠牲型＝`execTrash` に `thisCardOnly` 追加＋OPTIONAL_COST《無×3》払わなければ自己トラッシュ）。
 **✅ バッチ10（v0.386）:** `WXK10-039`（シグニ犠牲型＝`execTrash`/`TargetFilter` に `excludeSelf` 追加＋CHOOSE「他の原子2体トラッシュ／自己トラッシュ」）。
 
-**残り（5枚・続きは zerom 担当。いずれも要・専用機構/高リスク。既存機構でクリーンに実装可能な付与型・コスト型は v0.377〜v0.386 で完了）:**
+**残り（4枚・いずれも要・専用機構/高リスク。既存機構でクリーンに実装可能な付与型・コスト型・相手場付与は v0.377〜v0.387 で完了）:**
 - **ゲート条件（自ゲート未モデリング）:** `WXDi-P15-082`（ON_ATTACK_PHASE_START＋同ゾーンに【ゲート】）/ `WXDi-P15-076`（ON_TURN_END＋【ゲート】）← 既存 `signi_gate_zones` は「相手へ設置するアタック不可ゲート」で別概念。THE DOOR の自ゲート表現が必要。
-- **相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`（相手シグニへ ON_ATTACK_PHASE_START 自デッキ mill）← `collectTurnTriggers` が人間ターンのみ呼ばれるため、相手（CPU）ターンの self トリガー収集経路の確認が必要。
+- ~~**相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`~~ → **v0.387 で実装済**（GRANT_FIELD_SIGNI_ABILITY{targetOwner:opponent}＋付与能力 ON_ATTACK_PHASE_START/MILL self。CPUターンの APS 収集を `cpuTurnAction` に配線。詳細は BUGFIXES.md）。
 - **身代わり置換型（F-3 と同種・別タスク）:** `WXDi-P06-034`（ライズ＋「代わりに…してもよい」）/ `WXK05-024`（場離れ代わりに除外）← 置換効果。F-3 と合わせて対応。
 
 ### F-3. optional 身代わりバニッシュの表現（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）
