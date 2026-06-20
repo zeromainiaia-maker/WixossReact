@@ -196,7 +196,12 @@ function actionJa(a?: Action): string {
         : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}する` : '';
       return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}てもよい`;
     }
-    case 'STUB': return `[STUB:${a.id}${a.banishSubstitute ? ' ' + JSON.stringify(a.banishSubstitute) : ''}${a.costColors ? ' コスト' + a.costColors.join('') : ''}]`;
+    case 'STUB': {
+      const extra = `${a.banishSubstitute ? ' ' + JSON.stringify(a.banishSubstitute) : ''}${a.costColors ? ' コスト' + a.costColors.join('') : ''}`;
+      // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
+      const desc = stubDescMap.get(a.id);
+      return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
+    }
     default: return `[アクション:${a.type}]`;
   }
 }
