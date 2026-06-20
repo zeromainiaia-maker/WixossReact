@@ -139,6 +139,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       mandatory: true,
       parseStatus: 'MANUAL',
     },
+    {
+      // E3【起】《赤》《赤》：ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。
+      // 旧JSONは target owner:self count:1（任意自シグニに見える・フィルタ無し）＋keyword duration:PERMANENT。
+      // → 「このシグニ」を thisCardOnly で明示、keyword duration を UNTIL_END_OF_TURN に。
+      effectId: 'WX01-029-E3',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '赤', count: 1 }, { color: '赤', count: 1 }] },
+      action: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, keyword: 'ダブルクラッシュ', duration: 'UNTIL_END_OF_TURN' },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
   ],
 
   // WX01-023 大器晩成（アーツ）
