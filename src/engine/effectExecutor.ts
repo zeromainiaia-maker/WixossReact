@@ -1071,8 +1071,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   if (tgt.type === 'LRIG') return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
   const count = resolveNum(tgt.count);
-  // 「このシグニ」: フィルターなし・sourceCardNum が候補に含まれていれば自動適用（POWER_SET/MULTIPLYと同じパターン）
-  if (!tgt.filter && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
+  // 「このシグニ」: フィルターなし or thisCardOnly・sourceCardNum が候補に含まれていれば自動適用（選択UIを出さない）
+  if ((!tgt.filter || tgt.filter.thisCardOnly) && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
     return done(applyGrant([ctx.sourceCardNum], ctx));
   }
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
