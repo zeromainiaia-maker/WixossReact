@@ -937,7 +937,7 @@ export function ZoneCardModal({ title, cardNums, cards, onClose, getCardActions 
 }
 
 // ─── プレイヤー盤面 ──────────────────────────────────────────────────
-export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, getKeyPieceActions, getAssistLActions, getAssistRActions, getFreeZoneActions, closeZoneSignal, effectivePowers }: {
+export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, getKeyPieceActions, getAssistLActions, getAssistRActions, getFreeZoneActions, closeZoneSignal, effectivePowers, dynamicKeywords }: {
   state: PlayerState; cards: CardData[]; isMe: boolean;
   getSigniZoneActions?: (rawZoneIdx: number) => CardAction[];
   getLrigDeckCardActions?: (cardNum: string) => CardAction[];
@@ -948,6 +948,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   getFreeZoneActions?: (cardNum: string) => CardAction[];
   closeZoneSignal?: number;
   effectivePowers?: Map<string, number>;
+  dynamicKeywords?: Record<string, string[]>;
 }) {
   const [zoneModal, setZoneModal] = useState<{
     title: string; cardNums: string[]; isLrigDeck?: boolean; isFreeZone?: boolean;
