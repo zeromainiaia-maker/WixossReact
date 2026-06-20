@@ -54,8 +54,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'HAND_SIZE_INCREASE' } as StubAction;
 
   // ---- ウィルスをシグニゾーンに置く（合計N個になるように） ----
-  if (t.match(/【ウィルス】の合計が[１-９\d０-９]+つになるように.*シグニゾーンに【ウィルス】を置く/))
-    return { type: 'STUB', id: 'REMOVE_VIRUS' } as StubAction;
+  const fillVirusM = t.match(/【ウィルス】の合計が([１-９\d０-９]+)つになるように.*シグニゾーンに【ウィルス】を置く/);
+  if (fillVirusM) {
+    const n = parseNum(fillVirusM[1]);
+    return { type: 'PLACE_VIRUS', targetOwner: 'opponent', zoneCount: n, virusCount: 1, fillToTotal: n } as PlaceVirusAction;
+  }
 
   // ---- 対戦相手の場のすべての【ウィルス】を取り除く ----
   if (t.match(/対戦相手の場にあるすべての【ウィルス】を取り除く/))
