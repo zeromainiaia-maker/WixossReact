@@ -13953,6 +13953,52 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const inter = pe.interaction;
         const srcCard = battleCardMap.get(pe.sourceCardNum);
 
+        // REVEAL_CARDS：閲覧専用モーダル（「対戦相手の手札を見て」等の情報公開）
+        if (inter.type === 'REVEAL_CARDS') {
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '16px', width: 'min(94vw, 460px)', maxHeight: '82vh',
+                  display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {inter.title ?? `${srcCard?.CardName ?? pe.sourceCardNum}の効果`}
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                  {inter.cards.length === 0
+                    ? <p style={{ color: C.textFaint, fontSize: 12 }}>カードがありません</p>
+                    : inter.cards.map((num, i) => {
+                        const card = battleCardMap.get(num);
+                        return (
+                          <div key={i} style={{ width: 60, borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)' }}>
+                            <img src={card?.ImgURL ?? '/ErrerCard.webp'} alt={card?.CardName ?? num}
+                              style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', display: 'block' }}
+                              onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                            <div style={{ backgroundColor: 'rgba(0,0,0,0.6)', textAlign: 'center', padding: '1px 2px' }}>
+                              <span style={{ fontSize: 8, color: '#fff' }}>{card?.CardName ?? num}</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+                <button
+                  onClick={() => handleEffectInteraction([])}
+                  disabled={loading}
+                  style={{ padding: '12px 0', borderRadius: 8, border: 'none',
+                    backgroundColor: loading ? C.disabled : C.success,
+                    color: C.text, fontSize: 14, fontWeight: 'bold',
+                    cursor: loading ? 'default' : 'pointer' }}>
+                  確認
+                </button>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
         // SELECT_TARGET / SEARCH 共通：カード選択ピッカー
         if (inter.type === 'SELECT_TARGET' || inter.type === 'SEARCH') {
           const candidates = inter.type === 'SELECT_TARGET' ? inter.candidates : inter.visibleCards;
