@@ -1460,6 +1460,50 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // ===== F-2 身代わり置換型（バトルバニッシュ経路の置換チェーンに配線）=====
+
+  // WXDi-P06-034 紅将姫 クーフーリン（ライズ・武勇）
+  // E1【常】：このシグニがバニッシュされる場合、代わりに「アップ状態のこのシグニをダウンし、下から1枚＋エナから1枚をトラッシュ」をしてもよい。
+  //   → CONTINUOUS STUB BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY（BattleScreen のバトルバニッシュ置換チェーンが処理。払える＝アップ/下カード有/エナ有なら自動適用）。旧＝CONTINUOUS TRASH ENERGY（no-op誤り）。
+  //   ※効果バニッシュ（execBanish 経路）は未対応＝バトルバニッシュのみの近似。
+  // E2【常】：あなたの中央のシグニゾーンにあるシグニのパワーを＋3000する。
+  //   → CONTINUOUS POWER_MODIFY self ALL に centerZoneOnly フィルタ（中央ゾーン=index1）。旧＝POWER_MODIFY any count1（対象誤り）。
+  'WXDi-P06-034': [
+    {
+      effectId: 'WXDi-P06-034-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY' },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P06-034-E2',
+      effectType: 'CONTINUOUS',
+      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', centerZoneOnly: true } }, delta: 3000 },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXK05-024 魔界の末娘 アナスタシア（悪魔）
+  // E1【常】：あなたの＜悪魔＞のシグニは場から手札に戻らない。→ STUB SIGNI_CANT_BOUNCE_FROM_FIELD（実装済・パーサー生成を維持）。
+  // E2【常】：このシグニが場を離れる場合、代わりにこのシグニをゲームから除外する。
+  //   → CONTINUOUS STUB BATTLE_LEAVE_REPLACE_WITH_EXILE（バトルバニッシュ時にエナでなくトラッシュへ＝除外をトラッシュで近似。REMOVE_SELF_SIGNI_FROM_GAME と同じ近似方針）。旧＝CONTINUOUS TRASH（no-op誤り）。
+  //   ※効果バニッシュ/バウンス等の場離れは未対応＝バトルバニッシュのみの近似。
+  // E3（トラッシュ発動の【起】）はパーサー生成を維持（トラッシュ発動機構が要るため近似・別途）。
+  'WXK05-024': [
+    {
+      effectId: 'WXK05-024-E2',
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'BATTLE_LEAVE_REPLACE_WITH_EXILE' },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // ===== THE DOOR ゲート参照シグニ（F-4・バッチA。基盤は own_gate_zones / SAME_ZONE_HAS_GATE / FIELD_HAS_GATE）=====
 
   // WXDi-P15-080 蒼天 ヒラナ//THE DOOR
