@@ -49,7 +49,7 @@ import type {
   BanishAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseEnergyCosts, toHalf,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseNameFilter, parseEnergyCosts, toHalf,
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
