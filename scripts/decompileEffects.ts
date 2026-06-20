@@ -274,7 +274,17 @@ function actionJa(a?: Action): string {
         : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}する` : '';
       return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}てもよい`;
     }
-    case 'REVEAL_AND_PICK': return `${ownerJa(a.from?.owner)}デッキ${a.count ? '上' + numJa(a.count) + '枚' : ''}を公開し${filterJa(a.pickFilter)}カードを選び${a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : '処理する'}（残りは戻す）`;
+    case 'REVEAL_AND_PICK': {
+      const rapOwner = a.owner ?? a.from?.owner;
+      const rapCnt = a.revealCount ?? a.count;
+      const rapFilter = a.filter ?? a.pickFilter;
+      const thenJa = a.then
+        ? (a.then.type === 'ADD_TO_HAND' ? '手札に加える'
+         : a.then.type === 'ADD_TO_FIELD' ? '場に出す'
+         : actionJa(a.then))
+        : (a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : '処理する');
+      return `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し${rapFilter ? filterJa(rapFilter) + 'なら' : ''}${thenJa}（残りは戻す）`;
+    }
     case 'REARRANGE_SIGNI': return a.swap ? 'このシグニと対象シグニの位置を入れ替える' : `${targetJa(a.target)}を再配置する`;
     case 'NEGATE_ATTACK': return 'そのアタックを無効にする';
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
