@@ -655,6 +655,16 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             V
           </div>
         )}
+        {hasGate && (
+          <div title="THE DOOR【ゲート】" style={{
+            position: 'absolute', top: extraH + 2, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: 1,
+            backgroundColor: 'rgba(20,40,90,0.92)', color: '#9fd0ff',
+            fontSize: 7, fontWeight: 'bold', borderRadius: 3,
+            padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 5,
+            whiteSpace: 'nowrap',
+          }}>🚪GATE</div>
+        )}
         {(isFrozen || statusKeywords.length > 0) && (
           <div style={{
             // 左上に横並び。血晶バッジがある場合は右にずらし、右上の V と被らないよう折り返す
