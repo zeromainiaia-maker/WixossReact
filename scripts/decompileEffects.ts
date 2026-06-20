@@ -85,6 +85,7 @@ function filterJa(f?: any): string {
   if (f.powerRange?.min != null) parts.push(`パワー${f.powerRange.min}以上の`);
   if (f.powerLteSelf) parts.push('このシグニのパワー以下の');
   if (f.powerLtSelf) parts.push('このシグニよりパワーの低い');
+  if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
   if (f.hasIcon) parts.push(`《${f.hasIcon}アイコン》を持つ`);
   if (f.isDown) parts.push('ダウン状態の');
