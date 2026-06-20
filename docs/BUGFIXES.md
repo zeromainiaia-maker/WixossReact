@@ -5,6 +5,15 @@
 
 ---
 
+## WX01-033 オサキ「緑のスペル使用時」誤パース修正＋ON_SPELL_USE をシグニへ拡張（v0.428, 2026-06-20）
+
+- **WX01-033（幻獣神オサキ）E1:** 原文「**あなたが緑のスペルを使用したとき**、デッキトップをエナゾーンに置く」が **timing `ON_PLAY`（場に出たとき）に誤パース**＋スペル色フィルタ欠落だった。→ `timing:['ON_SPELL_USE']`＋`triggerFilter:{color:'緑'}`。manualEffects＋JSON。
+- **エンジン拡張（`BattleScreen.handleCutinPass`）:** `ON_SPELL_USE` の収集が**キャスターのセンタールリグのみ**だったため、シグニの ON_SPELL_USE（オサキ）が発火しなかった。→ 収集元を**ルリグ＋場のシグニ各ゾーンのトップ**に拡張し、`triggerFilter.color` があれば**使用スペルの色**（`battleCardMap.get(card_num).Color`）で絞るようにした。発火点は handleCutinPass のみ（CPU はカットインパスでここに合流）＝PvP/CPU 両対応。打ち消し経路 `handleCutinUse` はスペル不発のため ON_SPELL_USE を発火しない（正しい）。
+- **逆翻訳器:** `ON_SPELL_USE`/`ON_GUARD` を timingJa に追加。`ON_SPELL_USE`＋`triggerFilter.color` を「あなたが緑のスペルを使用したとき」と表示。
+- typecheck 通過。**残（同カード）:** E3「トラッシュの**緑の**カードすべてをデッキへ」が JSON では色フィルタ欠落で全色を対象にしている疑い（要精査・今回未修正）。
+
+---
+
 ## 逆翻訳スキャン Sheet1：コスト軽減/条件欠落の系統修正（v0.427, 2026-06-20）
 
 逆翻訳スキャンの継続。Sheet1 で5効果の誤りを発見・修正（すべて manualEffects＋JSON 両方＝durable）。

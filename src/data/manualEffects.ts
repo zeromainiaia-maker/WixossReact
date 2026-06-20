@@ -157,6 +157,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX01-033 幻獣神　オサキ（シグニ）
+  // E1【自】：あなたが緑のスペルを使用したとき、あなたのデッキの一番上のカードをエナゾーンに置く。
+  // 旧JSONは timing が ON_PLAY（場に出たとき）に誤パースされ、スペル色フィルタも欠落していた。
+  // → timing ON_SPELL_USE＋triggerFilter{color:'緑'}。BattleScreen の ON_SPELL_USE 収集を
+  //   ルリグだけでなく場のシグニも走査するよう拡張（triggerFilter.color で使用スペルの色を判定）。
+  // E2/E3/BURST はパーサー生成を維持。
+  'WX01-033': [
+    {
+      effectId: 'WX01-033-E1',
+      effectType: 'AUTO',
+      timing: ['ON_SPELL_USE'],
+      triggerFilter: { color: '緑' },
+      action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX01-031 コードハート　Ｖ・Ａ・Ｃ（シグニ）
   // E1【常】：あなたが使用する青のスペルのコストは《無×1》減る。
   // 旧JSONは reduction の color が "無×1"（《無×1》から ×1 が色名にめり込み）で、removeNColorFromCost が

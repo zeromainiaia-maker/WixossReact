@@ -5776,30 +5776,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums };
       const result = executeEffect(spellEff, ctx);
       if (result.logs.length > 0) appendBattleLogs(result.logs);
-      // ON_SPELL_USE: スペル使用時のルリグトリガー（WX25-P2-034 APEX2「あなたがスペルを使用したとき」、自分ターンのみ）
+      // ON_SPELL_USE: スペル使用時トリガー（自分ターンのみ）。
+      // ルリグ（WX25-P2-034 APEX2「あなたがスペルを使用したとき」）に加え、場のシグニ（WX01-033 幻獣神オサキ
+      // 「あなたが緑のスペルを使用したとき」）も走査する。triggerFilter.color があれば使用スペルの色で絞る。
       let casterAfter = result.ownerState;
       const spellUseEntries: StackEntry[] = [];
       if (spellIsOwnerTurn) {
-        const casterLrigNum = casterAfter.field.lrig.at(-1);
-        if (casterLrigNum) {
-          const usedIdsSU: string[] = [];
-          for (const eff of (effectsMap.get(casterLrigNum) ?? [])) {
+        const usedSpellColor = battleCardMap.get(card_num)?.Color ?? '';
+        // 収集元: センタールリグ + 場のシグニ各ゾーンのトップ
+        const spellUseSources = [
+          casterAfter.field.lrig.at(-1),
+          ...casterAfter.field.signi.map(stack => stack?.at(-1)),
+        ].filter((n): n is string => !!n);
+        const usedIdsSU: string[] = [];
+        for (const srcNum of spellUseSources) {
+          for (const eff of (effectsMap.get(srcNum) ?? [])) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
+            // スペル色フィルタ（「緑のスペルを使用したとき」等）
+            if (eff.triggerFilter?.color && !usedSpellColor.includes(eff.triggerFilter.color)) continue;
             if (eff.usageLimit === 'once_per_turn' &&
                 ((casterAfter.actions_done?.includes(eff.effectId)) || usedIdsSU.includes(eff.effectId))) continue;
-            if (eff.condition && !evalUseCondition(eff.condition, casterAfter, result.otherState, battleCardMap, casterLrigNum, bs.turn_phase, spellPowers)) continue;
+            if (eff.condition && !evalUseCondition(eff.condition, casterAfter, result.otherState, battleCardMap, srcNum, bs.turn_phase, spellPowers)) continue;
             if (eff.usageLimit === 'once_per_turn') usedIdsSU.push(eff.effectId);
             spellUseEntries.push({
               id: generateUUID(),
               playerId: caster_id,
-              cardNum: casterLrigNum,
+              cardNum: srcNum,
               effectId: eff.effectId,
-              label: `${battleCardMap.get(casterLrigNum)?.CardName ?? casterLrigNum}【自】スペル使用時`,
+              label: `${battleCardMap.get(srcNum)?.CardName ?? srcNum}【自】スペル使用時`,
               effect: eff,
             });
           }
-          if (usedIdsSU.length > 0) casterAfter = { ...casterAfter, actions_done: [...(casterAfter.actions_done ?? []), ...usedIdsSU] };
         }
+        if (usedIdsSU.length > 0) casterAfter = { ...casterAfter, actions_done: [...(casterAfter.actions_done ?? []), ...usedIdsSU] };
       }
       const hostState  = casterIsHost ? casterAfter : result.otherState;
       const guestState = casterIsHost ? result.otherState : casterAfter;

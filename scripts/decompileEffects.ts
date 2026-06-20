@@ -338,6 +338,7 @@ const timingJa: Record<string, string> = {
   ON_ATTACK_PHASE_START: 'あなたのアタックフェイズ開始時', ON_LIFE_CRASHED: 'あなたのライフがクラッシュされたとき',
   ON_OPP_LIFE_CRASHED: '対戦相手のライフがクラッシュされたとき', ON_SIGNI_BATTLE: 'このシグニがバトルしたとき',
   ON_SIGNI_DAMAGE: 'このシグニが相手にダメージを与えたとき', ON_LEAVE_FIELD: 'このカードが場を離れたとき',
+  ON_SPELL_USE: 'あなたがスペルを使用したとき', ON_GUARD: 'あなたがガードしたとき',
   MAIN: '（メイン起動）', ON_LIFE_BURST: '【ライフバースト】',
 };
 
@@ -353,6 +354,8 @@ function effJa(e: Eff): string {
   const trig = (e.timing || []).map((t: string) => {
     let s = timingJa[t] ?? t;
     if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}シグニ${s.slice('このシグニ'.length)}`;
+    // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
+    if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
     return s;
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
