@@ -1046,7 +1046,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             trapCardNum={state.field.signi_traps?.[rawIdx] ?? null}
             seedCardNum={state.field.signi_seeds?.[rawIdx] ?? null}
             magicBoxCardNum={state.field.signi_magic_boxes?.[rawIdx] ?? null}
-            statusKeywords={getSigniStatusKeywords(s, cards, state.keyword_grants, state.abilities_removed)}
+            statusKeywords={getSigniStatusKeywords(s, cards, state.keyword_grants, state.abilities_removed, dynamicKeywords)}
             isMe={isMe} />
         );
       })}
