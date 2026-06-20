@@ -5,6 +5,14 @@
 
 ---
 
+## F-4 THE DOOR ゲート参照シグニ（バッチB・2枚）（v0.390, 2026-06-20）
+
+- **WXDi-P15-059（ノヴァ）:** E1=APS開始時、場ゲートでドロー2・手札1捨て→ condition `FIELD_HAS_GATE` 付与（旧は条件欠落）。E2=アタック時、相手1捨て＋同ゾーンゲートで追加1捨て→ `SEQUENCE[TRASH opp hand1, CONDITIONAL(SAME_ZONE_HAS_GATE){TRASH opp hand1}]`（旧は2枚とも無条件）。`execConditional` は `evalCondition` を `ctx.sourceCardNum` 文脈で評価するため SAME_ZONE_HAS_GATE が攻撃シグニのゾーンで正しく判定される。
+- **WXDi-P16-074（ナナシ・古代兵器）:** E1=同ゾーンゲートで「APS開始時、相手シグニ1体に《無》払えば-5000」を得る→ condition `SAME_ZONE_HAS_GATE`＋`SEQUENCE[OPTIONAL_COST(無), CONDITIONAL(PAID_ADDITIONAL_COST){POWER_MODIFY opp -5000}]`（旧＝CONTINUOUS 常時誤り）。E2（ON_BANISH→相手捨て）はゲートゾーン条件・ターン1回を近似省略しパーサー生成を維持。
+- **反映:** manualEffects＋プリビルド JSON（外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-4 THE DOOR ゲート参照シグニ（バッチA・4枚）（v0.389, 2026-06-20）
 
 - **対象＝TODO F-4。** v0.388 の自ゲート基盤（`own_gate_zones`/`SAME_ZONE_HAS_GATE`/`FIELD_HAS_GATE`）の上で防衛派 THE DOOR シグニを実装。いずれも旧パースは CONTINUOUS化等で no-op だったものを修正。
