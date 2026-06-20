@@ -254,6 +254,23 @@ function actionJa(a?: Action): string {
       const d = a.deltaPerUnit ?? a.deltaPerLevel ?? a.deltaPerLife ?? a.delta ?? a.deltaPerColor ?? 0;
       return `${targetJa(a.target)}のパワーを${per}数に応じて${d >= 0 ? '＋' : '－'}${Math.abs(d)}ずつ変更する`;
     }
+    case 'PLAY_FREE': return `${targetJa(a.source ?? a.target)}をコストを支払わずに使用/場に出す`;
+    case 'PLAY_FREE_FROM_TRASH': return 'トラッシュからコストを支払わずに場に出す';
+    case 'BANISH_REDIRECT': return '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
+    case 'COST_INCREASE': return `${ownerJa(a.targetOwner)}コストを増やす`;
+    case 'PREVENT_DAMAGE': return 'ダメージを無効にする';
+    case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
+    case 'FORCE_END_TURN': return 'ターンを終了する';
+    case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
+    case 'POWER_FLIP': return `${targetJa(a.target)}のパワーの増減を反転する`;
+    case 'POWER_MODIFY_BY_TARGET_LEVEL': return `${targetJa(a.target)}のパワーを対象のレベルに応じて変更する`;
+    case 'POWER_MODIFY_PER_TRASHED_LEVEL': return `${targetJa(a.target)}のパワーをトラッシュしたシグニのレベル合計に応じて変更する`;
+    case 'PLACE_UNDER_SIGNI': return `${targetJa(a.source)}をこのシグニの下に置く`;
+    case 'TAKE_FROM_UNDER_SIGNI': return 'このシグニの下のカードを取る';
+    case 'STACK_SPELL': return 'トラッシュからスペルをこのカードの下に置く';
+    case 'REVEAL': return `${ownerJa(a.owner)}デッキの上を公開する`;
+    case 'GRANT_LRIG_ABILITY': return `あなたのセンタールリグは『${(a.abilities || []).map(effJa).join(' / ') || a.rawText || ''}』を得る`;
+    case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
       const extra = `${a.banishSubstitute ? ' ' + JSON.stringify(a.banishSubstitute) : ''}${a.costColors ? ' コスト' + a.costColors.join('') : ''}`;
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
