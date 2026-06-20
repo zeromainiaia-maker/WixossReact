@@ -1409,6 +1409,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     ...(handActivated ? { handActivated: true } : {}),
     ...(extractedTriggerScope !== undefined ? { triggerScope: extractedTriggerScope } : {}),
     ...(extractedTriggerFilter !== undefined ? { triggerFilter: extractedTriggerFilter } : {}),
+    ...(usageLimit !== undefined ? { usageLimit } : {}),
   };
 }
 
