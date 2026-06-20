@@ -123,6 +123,55 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WD04-013 / WD04-015（シグニ）: アタック時、このシグニのパワーがN以上の場合のみエナチャージ。
+  // 旧JSONは条件（SELF_POWER_GTE）欠落で常時チャージだった。
+  'WD04-013': [
+    {
+      effectId: 'WD04-013-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      condition: { type: 'SELF_POWER_GTE', value: 5000 },
+      action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+  'WD04-015': [
+    {
+      effectId: 'WD04-015-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'self',
+      condition: { type: 'SELF_POWER_GTE', value: 3000 },
+      action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WD04-018 （スペル）: あなたのアップ状態のシグニ1体をダウンする。そうした場合、そのシグニのパワー以下の対戦相手のシグニ1体をバニッシュする。
+  // 旧JSONは「そうした場合」を IS_MY_TURN に誤パース＋「そのシグニのパワー以下」フィルタ欠落（＝任意のシグニをバニッシュできる過剰）。
+  // → SEQUENCE[DOWN self up 1, BANISH opponent 1 filter{powerLteLastProcessed} conditional:true]。
+  //   DOWN が lastProcessedCards にダウンしたシグニをセット → BANISH の powerLteLastProcessed が「そのシグニのパワー以下」を解決。conditional でダウン成立をゲート。
+  'WD04-018': [
+    {
+      effectId: 'WD04-018-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '緑', count: 1 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'DOWN', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', isUp: true }, upToCount: false } },
+        { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLteLastProcessed: true }, upToCount: false }, conditional: true },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX01-025 サルベージ（アーツ）
   // あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加える。
   'WX01-025': [
