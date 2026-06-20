@@ -5,6 +5,13 @@
 
 ---
 
+## F-4 THE DOOR ゲート参照シグニ（バッチD・WXDi-P15-057）（v0.392, 2026-06-20）
+
+- **WXDi-P15-057（LOVIT・地獣）:** E1=「同ゾーンゲートでパワー+3000＋相手ターン中シャドウ」→ CONTINUOUS POWER_MODIFY self +3000 に activeCondition `SAME_ZONE_HAS_GATE`（シャドウ付与は近似省略・旧＝常時+3000）。E2=「ターン終了時、場ゲートでトラッシュの《ガードアイコン》シグニを《無》払えば手札へ」→ AUTO ON_TURN_END、condition `FIELD_HAS_GATE`、`SEQUENCE[OPTIONAL_COST(無), CONDITIONAL(PAID){TRANSFER_TO_HAND from TRASH_CARD hasGuard}]`（旧＝GRANT_KEYWORD 誤り）。
+- **反映:** manualEffects＋プリビルド JSON。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-4 THE DOOR ゲート参照シグニ（バッチC・inGateZone フィルタ＋WXDi-P16-062）（v0.391, 2026-06-20）
 
 - **新フィルタ `TargetFilter.inGateZone`（状態ベース）:** 「このシグニと同じシグニゾーンに【ゲート】がある」＝own_gate_zones にゾーンが含まれる。`fieldCandidates`（AUTO 実行）と `matchesStateFilter`（CONTINUOUS パワー）の両方に判定を追加。「同ゾーンゲートのあなたのシグニ」への場全体付与に再利用可能。
