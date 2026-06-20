@@ -5,6 +5,21 @@
 
 ---
 
+## F-2 THE DOOR 自ゲート機構を新設（WXDi-P15-076/082）（v0.388, 2026-06-20）
+
+- **対象＝TODO F-2 残り「ゲート条件（自ゲート未モデリング）」WXDi-P15-076 / WXDi-P15-082。** THE DOOR の【ゲート】は**自分のシグニゾーンに置くマーカー**で、既存 `signi_gate_zones`（相手ゾーンに設置するアタック妨害ゲート）とは**別概念**だったため、自ゲート機構を新設。THE DOOR アーキタイプ（P15/P16 で40枚超）全体の基盤になる。
+- **状態:** `PlayerState.own_gate_zones?: number[]`（【ゲート】がある自分のシグニゾーン番号。ゾーンのシグニが離れてもゲートは残る＝ルール通り）。
+- **条件（新設）:** ActiveCondition／Condition の両方に `SAME_ZONE_HAS_GATE`（効果元シグニと同じゾーンにゲート）と `FIELD_HAS_GATE{owner}`（指定プレイヤーの場にゲートあり）を追加。`checkActiveCondition`（CONTINUOUS パワー修正用）と `evalCondition`／`evalUseCondition`（AUTO の condition 用）で評価。
+- **ターゲットフィルタ（新設）:** `TargetFilter.frontOfGateZone`（【ゲート】がある自シグニゾーンの正面の相手シグニ＝各 zi に対し相手ゾーン 2-zi）。`execTransferToDeck` の SIGNI 分岐で解決（frontOfSelf と同型）。
+- **配置（STUB 新設＋バグ修正）:** `PLACE_OWN_GATE`（自シグニゾーン選択 CHOOSE）＋`INTERNAL_SET_OWN_GATE`（own_gate_zones へ追加）を `execStubPart3` に新設。**防衛者ルリグ WXDi-P15-010-E3／WXDi-P15-011-E3** の「あなたのシグニゾーンに【ゲート】を置く」は旧パースで**相手ゲートの STUB `GATE` に誤マッピング**されていた（THE DOOR防衛者なのに相手ゾーンに設置するバグ）ため `PLACE_OWN_GATE` に修正＝配置カードの配線とバグ修正を兼ねる。
+- **WXDi-P15-076（ムジカ）:** E1=「同じゾーンにゲートあるかぎり『【自】ターン終了時、相手シグニ1体トラッシュ』を得る」→ condition `SAME_ZONE_HAS_GATE` 付き `ON_TURN_END` AUTO。E2=「場にゲートあるかぎりパワー+5000」→ CONTINUOUS POWER_MODIFY self に activeCondition `FIELD_HAS_GATE` 付与。
+- **WXDi-P15-082（バン）:** E1=「同じゾーンにゲートあるかぎり『【自】APS開始時、相手は手札1枚捨てる』を得る」→ condition 付き `ON_ATTACK_PHASE_START` AUTO（相手捨て＝`TRASH HAND_CARD opponent`＝opponentResponds で相手が選ぶ）。E2=「ターン終了時、ゲートがある自ゾーンの正面の相手シグニ1体をデッキの一番下に置く」→ `ON_TURN_END` AUTO＋`TRANSFER_TO_DECK{position:bottom,shuffle:false}` source SIGNI opponent filter `frontOfGateZone`。
+- **UI:** `StackedSigniSlot` に `hasGate` プロップを追加し、ゲートのあるゾーン（シグニ有無問わず）に「🚪GATE」バッジを表示。`PlayerField` が `state.own_gate_zones` から各ゾーンへ渡す。
+- **反映:** types（index/effects）＋effectEngine＋execUtils＋effectExecutor＋execStubPart3＋manualEffects＋プリビルド JSON（外科パッチ）＋BoardComponents。typecheck 通過、verifyEffects 新規警告なし。
+- **残（THE DOOR）:** ピース `ひらけ！ゲート！`（WXDi-P15-003）はゲート設置＋ルリグ能力付与の複合で未配線（GRANT_LRIG_ABILITY のみ生成・gate 設置欠落）。他の THE DOOR シグニ（〜40枚）は本基盤の上に個別実装可能。
+
+---
+
 ## F-2 相手場への付与の実装（WXDi-P10-072・CPUターンAPS収集を配線）（v0.387, 2026-06-20）
 
 - **対象＝TODO F-2 残り「相手場への付与（機構は v0.377 で用意済・未配線）」WXDi-P10-072。** 旧パース＝CONTINUOUS TRASH SIGNI opponent（no-op）。
