@@ -157,6 +157,87 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX01-031 コードハート　Ｖ・Ａ・Ｃ（シグニ）
+  // E1【常】：あなたが使用する青のスペルのコストは《無×1》減る。
+  // 旧JSONは reduction の color が "無×1"（《無×1》から ×1 が色名にめり込み）で、removeNColorFromCost が
+  // color==="無×1" を探して実コスト "無" に一致せず＝軽減が一切効いていなかった。→ color:"無", count:1 に修正。
+  'WX01-031': [
+    {
+      effectId: 'WX01-031-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'COST_REDUCTION', targetCardType: 'スペル', color: '青', reduction: [{ color: '無', count: 1 }] },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX03-028 コードアート　Ｒ・Ｇ・Ｎ（シグニ）
+  // E1【常】：あなたが使用する青のアーツのコストは《無×1》減る。 → WX01-031 と同型の "無×1" バグ（軽減不発）。
+  // E2【常】：あなたのルリグデッキが0枚であるかぎり、このシグニの基本パワーは18000になる。
+  //   旧JSONは activeCondition 欠落で常時18000だった。→ COUNT_THRESHOLD(lrig_deck self eq 0)。
+  //   target count:1 owner:self は CONTINUOUS POWER_SET では「このシグニのみ」に適用される（既存挙動）。
+  'WX03-028': [
+    {
+      effectId: 'WX03-028-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'COST_REDUCTION', targetCardType: 'アーツ', color: '青', reduction: [{ color: '無', count: 1 }] },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX03-028-E2',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'COUNT_THRESHOLD', location: 'lrig_deck', owner: 'self', operator: 'eq', value: 0 },
+      action: { type: 'POWER_SET', target: { type: 'SIGNI', owner: 'self', count: 1 }, value: 18000 },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX01-032 ＳＮＡＴＣＨＥＲ（スペル）
+  // 「対戦相手は手札を2枚捨てる。その後、対戦相手の手札が0枚の場合、カードを1枚引く。」
+  // 旧JSONは「対戦相手の手札が0枚の場合」を IS_MY_TURN に誤パース（スペルは自ターン使用＝常時ドローの過剰）。
+  // → CONDITIONAL を HAND_COUNT(opponent eq 0) に修正。TRASH 後に評価されるので捨てた結果0枚を正しく判定。
+  'WX01-032': [
+    {
+      effectId: 'WX01-032-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '青', count: 2 }, { color: '無', count: 1 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 2 } },
+        { type: 'CONDITIONAL', condition: { type: 'HAND_COUNT', owner: 'opponent', operator: 'eq', value: 0 },
+          then: { type: 'DRAW', owner: 'self', count: 1 } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX01-034 修復（スペル）
+  // 「あなたのデッキの一番上のカードをライフクロスに加える。その後、あなたのエナゾーンにカードが10枚以上ある場合、追加であなたのデッキの一番上のカードをライフクロスに加える。」
+  // 旧JSONは2回目のADD_TO_LIFEが無条件（エナ10枚以上条件が欠落）だった。→ 2枚目を CONDITIONAL{ENERGY_COUNT self gte 10} でゲート。
+  'WX01-034': [
+    {
+      effectId: 'WX01-034-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '緑', count: 3 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true },
+        { type: 'CONDITIONAL', condition: { type: 'ENERGY_COUNT', owner: 'self', operator: 'gte', value: 10 },
+          then: { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX01-029 羅輝石　アダマスフィア（シグニ）
   // E1【自】：あなたの赤のシグニがアタックしたとき、ターン終了時まで、それのパワーを＋2000する。
   // 旧JSONは POWER_MODIFY owner:any count:1（＝任意シグニ＝相手シグニも選べる誤り）。「それ」＝アタックした赤シグニなので targetsTriggerSource:true。

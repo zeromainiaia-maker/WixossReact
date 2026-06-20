@@ -281,6 +281,8 @@ function getLocationCount(state: PlayerState, location: string): number {
     case 'energy':   return state.energy.length;
     case 'deck':     return state.deck.length;
     case 'life_cloth': return state.life_cloth.length;
+    case 'lrig_deck': return (state.lrig_deck ?? []).length;
+    case 'lrig_trash': return (state.lrig_trash ?? []).length;
     default:         return 0;
   }
 }

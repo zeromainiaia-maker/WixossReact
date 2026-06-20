@@ -5,6 +5,19 @@
 
 ---
 
+## 逆翻訳スキャン Sheet1：コスト軽減/条件欠落の系統修正（v0.427, 2026-06-20）
+
+逆翻訳スキャンの継続。Sheet1 で5効果の誤りを発見・修正（すべて manualEffects＋JSON 両方＝durable）。
+
+- **コスト軽減の color 文字列めり込みバグ（軽減が全く効かない・全シート走査で2件）:**
+  - **WX01-031-E1**（青のスペル《無×1》減）/ **WX03-028-E1**（青のアーツ《無×1》減）の `COST_REDUCTION.reduction[0].color` が **`"無×1"`**（《無×1》の `×1` が色名にめり込み）になっており、`removeNColorFromCost` が `p.color === "無×1"` を実コストの `"無"` に一致できず**軽減が一切発動していなかった**。→ `color: "無", count: 1` に修正。`color: "青"`（スペル/アーツ色フィルタ）は正しかった。全シート走査で該当はこの2件のみ。
+- **「対戦相手の手札が0枚の場合」を `IS_MY_TURN` 誤パース:** **WX01-032-E1**（ＳＮＡＴＣＨＥＲ）。スペルは自ターン使用＝常時 true で**常時1ドローの過剰**だった。→ `CONDITIONAL{HAND_COUNT opponent eq 0}`（TRASH 後に評価され「捨てて0枚なら引く」を正しく判定）。
+- **「エナ10枚以上ある場合、追加で」条件欠落:** **WX01-034-E1**（修復）。2枚目の `ADD_TO_LIFE` が無条件＝常時2枚追加だった。→ `CONDITIONAL{ENERGY_COUNT self gte 10}` で2枚目をゲート。
+- **activeCondition 欠落で常時化:** **WX03-028-E2**（ルリグデッキ0枚であるかぎり基本パワー18000）。条件欠落で常時18000だった。→ `COUNT_THRESHOLD{lrig_deck self eq 0}`。`getLocationCount` に `lrig_deck`/`lrig_trash` を追加（従来 default で0を返していた）。CONTINUOUS POWER_SET の `count:1 owner:self` は既存挙動で「このシグニのみ」に適用されるため target 変更は不要。
+- typecheck 通過。
+
+---
+
 ## WX01-030 BURST「そうした場合」誤パース修正（v0.425, 2026-06-20）
 
 - **コストは正しい**（《赤》×3＝JSON 赤×3）。精査で BURST の致命バグを発見。
