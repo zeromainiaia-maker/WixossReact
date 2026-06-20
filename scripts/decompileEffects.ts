@@ -189,8 +189,9 @@ function condJa(c?: any): string {
       return `${ownerJa(c.owner)}${loc}が${numJa(c.value)}枚${opJa(c.operator)}`;
     }
     case 'SELF_POWER_THRESHOLD': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator)}`;
-    case 'HAND_DIFF': return `自分と対戦相手の手札差が${numJa(c.value)}${opJa(c.operator)}`;
-    case 'ENA_DIFF': return `自分と対戦相手のエナ差が${numJa(c.value)}${opJa(c.operator)}`;
+    // diff = 自分 − 相手（符号付き）。gte のみ使用＝「自分が相手よりN枚以上多い」（相手が多い場合は不成立）
+    case 'HAND_DIFF': return `あなたの手札が対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
+    case 'ENA_DIFF': return `あなたのエナが対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
     case 'EICHI_LEVEL_SUM': return `英知（＜英知＞シグニのレベル合計）が${numJa(c.value)}${opJa(c.operator)}`;
     case 'VIRUS_COUNT': return `${ownerJa(c.owner)}場の【ウィルス】が${numJa(c.value)}${opJa(c.operator)}`;
     case 'IS_SELF_ARMORED': return 'このシグニが血晶武装状態';
@@ -368,7 +369,9 @@ function effJa(e: Eff): string {
   // 主語に反映できなかった scope のみマーカー表示
   const scope = (e.triggerScope && e.triggerScope !== 'self' && (scopeSubj === null || !(e.timing || []).some((t: string) => (timingJa[t] ?? '').startsWith('このシグニ')))) ? `〔範囲:${e.triggerScope}〕` : '';
   const cond = e.condition ? `${condJa(e.condition)}場合、` : '';
-  const actCond = e.activeCondition ? `《${condJa(e.activeCondition)}のかぎり》` : '';
+  // 「〜かぎり」：述語（い形容詞「い」/動詞「る」終わり）はそのまま、名詞終わりは「である」を補う
+  const acJa = e.activeCondition ? condJa(e.activeCondition) : '';
+  const actCond = e.activeCondition ? `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》` : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' ? `《${e.usageLimit}》` : '';
   const body = actionJa(e.action);
