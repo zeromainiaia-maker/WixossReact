@@ -8112,28 +8112,40 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  // GRANT_ALL_ZONE_LIFEBURST（WD14-001）: このプレイヤーの場に「全領域の【ライフバースト】を持たない
-  // カードへ【ライフバースト】を付与」する CONTINUOUS 効果があるか
-  const controlsAllZoneBurstGrant = (state: PlayerState): boolean => {
+  // GRANT_ALL_ZONE_LIFEBURST: このプレイヤーの場に「全領域の【ライフバースト】を持たないカードへ
+  // 【ライフバースト】を付与」する CONTINUOUS 効果がある場合、その STUB を返す（無ければ null）。
+  // WD14-001＝フィルタなし（全カード）・BANISH（既定）。WX17-036＝＜怪異＞シグニ限定・TRASH（burstFilter/burstAction 指定）。
+  const getAllZoneBurstGrant = (state: PlayerState): import('../types/effects').StubAction | null => {
     const cards: string[] = [];
     for (const s of state.field.signi) { const t = s?.at(-1); if (t) cards.push(t); }
     const lt = state.field.lrig.at(-1); if (lt) cards.push(lt);
     const al = (state.field.assist_lrig_l ?? []).at(-1); if (al) cards.push(al);
     const ar = (state.field.assist_lrig_r ?? []).at(-1); if (ar) cards.push(ar);
-    return cards.some(n => (effectsMap.get(n) ?? []).some(e =>
-      e.effectType === 'CONTINUOUS'
-      && (e.action as import('../types/effects').StubAction).type === 'STUB'
-      && (e.action as import('../types/effects').StubAction).id === 'GRANT_ALL_ZONE_LIFEBURST'));
+    for (const n of cards) {
+      for (const e of (effectsMap.get(n) ?? [])) {
+        if (e.effectType !== 'CONTINUOUS') continue;
+        const act = e.action as import('../types/effects').StubAction;
+        if (act.type === 'STUB' && act.id === 'GRANT_ALL_ZONE_LIFEBURST') return act;
+      }
+    }
+    return null;
   };
-  // クラッシュされたカードの実効ライフバースト有無（ネイティブ or WD14-001付与）
+  // クラッシュされたカードが付与ライフバーストの対象か（burstFilter があればクラッシュカードが一致する必要がある）
+  const matchesAllZoneBurstGrant = (cardNum: string, ownerState: PlayerState): boolean => {
+    const grant = getAllZoneBurstGrant(ownerState);
+    if (!grant) return false;
+    if (grant.burstFilter && !matchesFilter(battleCardMap.get(cardNum), grant.burstFilter)) return false;
+    return true;
+  };
+  // クラッシュされたカードの実効ライフバースト有無（ネイティブ or 付与）
   const effectiveHasBurst = (cardNum: string, ownerState: PlayerState): boolean => {
     const card = battleCardMap.get(cardNum);
     if (card?.LifeBurst === '1') return true;
     if ((effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST')) return true;
-    return controlsAllZoneBurstGrant(ownerState);
+    return matchesAllZoneBurstGrant(cardNum, ownerState);
   };
-  // WD14-001 付与の合成ライフバースト（相手シグニ1体バニッシュ）
-  const grantedBurstEntry = (cardNum: string, ownerId: string): StackEntry => ({
+  // 付与の合成ライフバースト（既定＝相手シグニ1体バニッシュ／burstAction 指定時はそれを使用）
+  const grantedBurstEntry = (cardNum: string, ownerId: string, grant: import('../types/effects').StubAction | null): StackEntry => ({
     id: generateUUID(),
     playerId: ownerId,
     cardNum,
@@ -8141,7 +8153,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【ライフバースト】（付与）`,
     effect: {
       effectId: 'GRANTED_ALLZONE_BURST', effectType: 'LIFE_BURST', timing: ['ON_LIFE_BURST'],
-      action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+      action: grant?.burstAction
+        ?? { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
       duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL',
     },
   });
@@ -8294,11 +8307,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         }
       }
-      // WD14-001: ネイティブ【ライフバースト】を持たないカードに付与された合成バーストを追加
+      // WD14-001 / WX17-036: ネイティブ【ライフバースト】を持たないカードに付与された合成バーストを追加
+      // （burstFilter があればクラッシュカードが一致した場合のみ）
       const cardHasNativeBurst = battleCardMap.get(cardNum)?.LifeBurst === '1'
         || (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST');
-      const grantedBurstExtras = (!cardHasNativeBurst && controlsAllZoneBurstGrant(my))
-        ? [grantedBurstEntry(cardNum, ownerId)] : [];
+      const allZoneBurstGrant = getAllZoneBurstGrant(my);
+      const grantedBurstExtras = (!cardHasNativeBurst && matchesAllZoneBurstGrant(cardNum, my))
+        ? [grantedBurstEntry(cardNum, ownerId, allZoneBurstGrant)] : [];
       const allBurstExtras = [...crashTriggers, ...oppCrashTriggers, ...counterCrashTriggers, ...lrigTrashBurstEntries, ...grantedBurstExtras];
       const burstExtraUpdate = opStateForUsed ? { [opKey]: opStateForUsed } : {};
       const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, burstExtraUpdate, doubleBurst ? 2 : 1, allBurstExtras, { id: ownerId, key: p.ownerKey });
@@ -11148,8 +11163,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'flex-start' }}>
                   {allCrashCards.map((cardNum, idx) => {
                     const card = battleCardMap.get(cardNum);
-                    // WD14-001: 付与された【ライフバースト】も含めて判定
-                    const hasBurst = card?.LifeBurst === '1' || controlsAllZoneBurstGrant(my);
+                    // WD14-001 / WX17-036: 付与された【ライフバースト】も含めて判定（burstFilter 一致のみ）
+                    const hasBurst = card?.LifeBurst === '1'
+                      || (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST')
+                      || matchesAllZoneBurstGrant(cardNum, my);
                     const burstSuppressed = !!(my.suppress_life_burst || eichiSuppressActive || my.game_suppress_lb);
                     return (
                       <div key={cardNum + idx} style={{

@@ -5,6 +5,16 @@
 
 ---
 
+## F-2 引用付与トリガーの実装（バッチ6・全領域LIFE_BURST付与 WX17-036）（v0.382, 2026-06-20）
+
+- **対象＝TODO F-2「全領域 LIFE_BURST 付与」。** 「あなたのすべての領域にある＜怪異＞のシグニであるカードは【ライフバースト】『…』を持つ」を、既存の `GRANT_ALL_ZONE_LIFEBURST`（WD14-001 用）機構を**フィルタ＋付与アクション対応**に拡張して実装。
+- **機構拡張（`StubAction` に2フィールド追加）:** `burstFilter?: TargetFilter`（付与対象の絞り込み。省略時＝全カード＝WD14-001）／`burstAction?: EffectAction`（付与する【ライフバースト】のアクション。省略時＝相手シグニ1体バニッシュ＝WD14-001）。**WD14-001 は両方とも省略のため挙動完全不変。**
+- **BattleScreen の付与バースト判定をフィルタ対応に:** `controlsAllZoneBurstGrant(boolean)` を `getAllZoneBurstGrant(→STUB|null)`＋`matchesAllZoneBurstGrant(cardNum,state)` に置換。クラッシュされたカードが `burstFilter` に一致する場合のみ付与バーストを有効化。`grantedBurstEntry` は `grant.burstAction` を使用（無ければ既定 BANISH）。`effectiveHasBurst`／二重クラッシュ UI／付与バースト追加（8313 付近）の3経路を更新。
+- **WX17-036（ブラウニー）:** E1 を CONTINUOUS `STUB GRANT_ALL_ZONE_LIFEBURST`＋`burstFilter:{シグニ,怪異}`＋`burstAction: TRASH 相手シグニ1体` に修正。WX17-036 が場にある間、自分の全領域（手札/デッキ/トラッシュ/ライフ）の＜怪異＞シグニがライフクラッシュ時にこのバーストを使える。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 引用付与トリガーの実装（バッチ5・ルリグ付与 WXDi-P05-032）（v0.381, 2026-06-20）
 
 - **対象＝TODO F-2「ルリグへの付与」。** 「あなたのセンタールリグは『【自】…』を得る」型を、既存 `GRANT_LRIG_ABILITY`（CONTINUOUS 宣言→`collectLrigGrantedEffects` がセンタールリグへ付与）で実装。

@@ -1582,6 +1582,27 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX17-036 幻怪　ブラウニー
+  // 【常】：あなたのすべての領域にある＜怪異＞のシグニであるカードは
+  //   【ライフバースト】「対戦相手のシグニ１体を対象とし、それをトラッシュに置く。」を持つ。
+  // 旧パース＝CONTINUOUS TRASH SIGNI opponent（no-op）。全領域へのバースト付与は既存 STUB GRANT_ALL_ZONE_LIFEBURST
+  //   を burstFilter（＜怪異＞シグニ限定）＋burstAction（相手シグニ1体トラッシュ）対応に拡張して実装（WD14-001 は既定値で不変）。
+  'WX17-036': [
+    {
+      effectId: 'WX17-036-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'STUB',
+        id: 'GRANT_ALL_ZONE_LIFEBURST',
+        burstFilter: { cardType: 'シグニ', story: '怪異' },
+        burstAction: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
