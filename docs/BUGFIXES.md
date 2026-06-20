@@ -5,12 +5,14 @@
 
 ---
 
-## WX01-085 ＦＲＥＥＺＥ ダウン/凍結の対象不一致修正（v0.432, 2026-06-20）
+## FREEZE の自動ダウンを廃止（凍結＝現状維持）＋ down フラグ新設（v0.433, 2026-06-20）
 
-- **WX01-085-BURST:** 原文「対戦相手のシグニを2体まで対象とし、**それらを**ダウンし凍結する」が、JSON で `DOWN(2体)` と `FREEZE(2体)` の**別ステップ**＝別々に対象選択でき、**ダウン対象と凍結対象が一致しない**誤りだった（原文「それら」＝同一対象）。
-- **修正:** engine の `execFreeze` は `signi_frozen` に加え `signi_down` も立てる（＝**FREEZE はダウンを兼ねる**）ため、**単一の `FREEZE`（2体・upToCount）** で「同じ2体をダウン＆凍結」を表現。E1「すべてのシグニをダウンし凍結」も FREEZE が全体ダウンを兼ねるため単一 `FREEZE(ALL)` に整理（全体対象なので元から不一致は無いが冗長解消）。manualEffects＋JSON。
-- **逆翻訳器:** `FREEZE` を「凍結する」→「**ダウンして凍結する**」に変更（engine の実挙動＝ダウン込みを反映）。
-- typecheck 通過。
+- **症状:** engine の `execFreeze`（単独 FREEZE 経路）が `signi_frozen` に加え **`signi_down` も常時立てて**おり、原文が純「凍結する」（「ダウン」記載なし）のカードまで誤ってダウンさせていた。WIXOSS の凍結は「次の自分のアップフェイズにアップしない」だけで**現在のアップ/ダウン状態は変えない**のが正。
+- **修正（engine）:** `FreezeAction.down?: boolean` を新設。`execFreeze`／`applyDirectAction(FREEZE)` ともに **`down:true` のときだけダウンも行う**よう変更（既定は凍結のみ）。`applyDirectAction` 側は元々ダウンしておらず**経路間で挙動が食い違っていた**のも統一。
+- **データ/パーサー:** 純「凍結する」は `FREEZE`（down 無し）＝ダウンしない。「ダウンし凍結」は同一対象に適用する **`FREEZE(down:true)`** をパーサーが生成（旧 `SEQUENCE[DOWN, FREEZE]` は選択対象が別々になりうる二重選択バグも併せて解消）。WX01-085 E1/BURST を `FREEZE(down:true)` に（manualEffects＋JSON）。
+- **既存 JSON の `SEQUENCE[DOWN, FREEZE]`（「ダウンし凍結」）カードは無修正でも DOWN ステップでダウンするため壊れない**（純凍結だけがダウンしなくなる）。全体対象は元から正。
+- **逆翻訳器:** `FREEZE` を `down:true` のとき「ダウンして凍結する」、それ以外「凍結する」と表示。
+- typecheck 通過。**残（別系統）:** 選択対象の `SEQUENCE[DOWN(N), FREEZE(N)]`（WX04-046-BURST 等）は依然ダウン対象と凍結対象が別選択になりうる（パーサーは新規分を `FREEZE(down:true)` に修正済だが既存 JSON は未変換）。
 
 ---
 

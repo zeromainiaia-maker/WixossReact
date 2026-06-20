@@ -823,12 +823,17 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
       const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
       if (zoneIdx < 0) continue;
       const newFrozen = [...(s.field.signi_frozen ?? [false, false, false])] as boolean[];
-      const newDown   = [...(s.field.signi_down   ?? [false, false, false])] as boolean[];
       newFrozen[zoneIdx] = true;
-      newDown[zoneIdx]   = true;
-      const newS: PlayerState = { ...s, field: { ...s.field, signi_frozen: newFrozen, signi_down: newDown } };
+      // 凍結のみ（現在のアップ/ダウン状態は変えない）。「ダウンし凍結」(down:true)のときのみダウンも行う。
+      const fieldPatch: Partial<PlayerState['field']> = { signi_frozen: newFrozen };
+      if (a.down) {
+        const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
+        newDown[zoneIdx] = true;
+        fieldPatch.signi_down = newDown;
+      }
+      const newS: PlayerState = { ...s, field: { ...s.field, ...fieldPatch } };
       cur = addLog(setOwnerState(a.target.owner, newS, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}をフリーズ`);
+        `${cur.cardMap.get(num)?.CardName ?? num}を${a.down ? 'ダウンしてフリーズ' : 'フリーズ'}`);
     }
     return cur;
   }
@@ -3601,7 +3606,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (frzIdx < 0) return done(ctx);
       const newFrz = [...(frzS.field.signi_frozen ?? [false, false, false])] as boolean[];
       newFrz[frzIdx] = true;
-      return done(addLog(setOwnerState(frzOwner, { ...frzS, field: { ...frzS.field, signi_frozen: newFrz } }, ctx),
+      const frzFieldPatch: Partial<PlayerState['field']> = { signi_frozen: newFrz };
+      if (frzA.down) {
+        const newFrzDown = [...(frzS.field.signi_down ?? [false, false, false])] as boolean[];
+        newFrzDown[frzIdx] = true;
+        frzFieldPatch.signi_down = newFrzDown;
+      }
+      return done(addLog(setOwnerState(frzOwner, { ...frzS, field: { ...frzS.field, ...frzFieldPatch } }, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
     case 'GRANT_KEYWORD': {

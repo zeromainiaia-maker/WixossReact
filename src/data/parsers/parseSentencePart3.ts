@@ -1210,10 +1210,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
     const mDown = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、それらをダウンし凍結する/);
     if (mDown) {
       const cnt = parseNum(mDown[1]);
-      return { type: 'SEQUENCE', steps: [
-        { type: 'DOWN',   target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true } } as DownAction,
-        { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true } } as FreezeAction,
-      ]} as SequenceAction;
+      // 「それら（＝同一対象）をダウンし凍結」→ 単一 FREEZE(down:true) で同じ対象に適用
+      return { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: cnt, upToCount: true }, down: true } as FreezeAction;
     }
     const mDown2 = t.match(/対戦相手のシグニを([０-９\d]+)体まで対象とし、それらをダウンする/);
     if (mDown2) {

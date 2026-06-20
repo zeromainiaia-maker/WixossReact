@@ -161,15 +161,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // BURST「対戦相手のシグニを2体まで対象とし、それらをダウンし凍結する。」
   //   旧JSONは DOWN(2体) と FREEZE(2体) を別ステップ＝別々に選択でき、ダウン対象と凍結対象が
   //   一致しない誤り（原文「それら」＝同じ対象）。engine の FREEZE は signi_down も立てる（ダウン込み）ため、
-  //   単一の FREEZE(2体・upToCount) で「同じ2体をダウン＆凍結」を表現できる。
-  //   E1「対戦相手のすべてのシグニをダウンし凍結する」も FREEZE が全体ダウンを兼ねるため単一 FREEZE(ALL) に整理。
+  //   単一の FREEZE(down:true) で「同じ対象をダウン＆凍結」を表現（FREEZE は down:true のときのみダウンも行う）。
+  //   E1「対戦相手のすべてのシグニをダウンし凍結する」も単一 FREEZE(ALL, down:true) に整理。
   'WX01-085': [
     {
       effectId: 'WX01-085-E1',
       effectType: 'ACTIVATED',
       timing: ['MAIN'],
       cost: { energy: [{ color: '青', count: 1 }] },
-      action: { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' }, upToCount: false } },
+      action: { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' }, upToCount: false }, down: true },
       duration: 'INSTANT',
       mandatory: false,
       parseStatus: 'MANUAL',
@@ -178,7 +178,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX01-085-BURST',
       effectType: 'LIFE_BURST',
       timing: ['ON_LIFE_BURST'],
-      action: { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 2, filter: { cardType: 'シグニ' }, upToCount: true } },
+      action: { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 2, filter: { cardType: 'シグニ' }, upToCount: true }, down: true },
       duration: 'INSTANT',
       mandatory: false,
       parseStatus: 'MANUAL',

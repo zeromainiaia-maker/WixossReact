@@ -554,6 +554,7 @@ export interface AddToFieldAction {
 export interface FreezeAction {
   type: 'FREEZE'; // 凍結付与
   target: EffectTarget;
+  down?: boolean; // true=「ダウンし凍結」：同一対象をダウンも行う。省略時は凍結のみ（現在のアップ/ダウン状態は変えない）
 }
 
 export interface DownAction {

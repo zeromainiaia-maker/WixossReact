@@ -960,10 +960,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- ダウンし凍結（複合）----
+  // 「それら（＝選んだ同一対象）をダウンし凍結」。FREEZE(down:true) で同一対象にダウン＆凍結を適用
+  // （SEQUENCE[DOWN, FREEZE] だと選択対象が別々になりうるため単一アクションにする）。
   if (t.includes('ダウンし凍結')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const signiTgt = parseSigniTarget(t, owner);
-    return { type: 'SEQUENCE', steps: [{ type: 'DOWN', target: signiTgt }, { type: 'FREEZE', target: signiTgt }] };
+    return { type: 'FREEZE', target: signiTgt, down: true };
   }
 
   // ---- ダウン ----

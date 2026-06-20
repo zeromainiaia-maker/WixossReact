@@ -223,7 +223,7 @@ function actionJa(a?: Action): string {
     case 'POWER_MODIFY': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
     case 'POWER_SET': return `${targetJa(a.target)}のパワーを${a.value}にする`;
     case 'POWER_MODIFY_PER_HAND_COUNT': return `${targetJa(a.target)}のパワーを手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
-    case 'FREEZE': return `${targetJa(a.target)}をダウンして凍結する`;  // engine の FREEZE は signi_down も立てる＝ダウン込み
+    case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
     case 'DOWN': return `${targetJa(a.target)}をダウンする`;
     case 'UP': return `${targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
