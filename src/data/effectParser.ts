@@ -211,8 +211,8 @@ function parseCost(costStr: string): EffectCost | undefined {
   if (/このシグニを(?:場から)?トラッシュに置く/.test(costStr) || /このシグニと《[^》]+》[０-９\d]*体を場からトラッシュに置く/.test(costStr)) cost.trash_self = true;
   // このキーを場からルリグトラッシュに置く（単独 or 複合「置き」形も含む） → trash_key
   if (/このキーを(?:場から)?ルリグトラッシュに置く/.test(costStr) || /このキーを(?:場から)?ルリグトラッシュに置き/.test(costStr)) cost.trash_key = true;
-  // 手札からこのカードを捨てる → discardSelfFromHand
-  if (/手札からこのカードを捨てる/.test(costStr)) cost.discardSelfFromHand = true;
+  // 手札からこのカードを捨てる → discardSelfFromHand（「捨てる：」終止形と「捨て、…を取り除く：」複合コストの連用形両対応）
+  if (/手札からこのカードを捨て[る、]/.test(costStr)) cost.discardSelfFromHand = true;
   // 場のシグニN体をトラッシュ（フィールドから、クラス指定あり） → fieldTrash
   const ftM = costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/);
   const ftVerbM = !ftM ? costStr.match(/シグニを([０-９\d]+)体(?:まで)?場からトラッシュに置く/) : null;
