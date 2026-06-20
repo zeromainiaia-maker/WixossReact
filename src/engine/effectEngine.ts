@@ -255,6 +255,19 @@ export function checkActiveCondition(
       return cardMap.get(top)?.Color?.includes(cond.color) ?? false;
     }
 
+    case 'SAME_ZONE_HAS_GATE': {
+      // このシグニ（sourceCardNum）と同じシグニゾーンに THE DOOR【ゲート】があるかぎり
+      if (!sourceCardNum) return false;
+      const zi = ownerState.field.signi.findIndex(z => z?.at(-1) === sourceCardNum);
+      if (zi < 0) return false;
+      return (ownerState.own_gate_zones ?? []).includes(zi);
+    }
+
+    case 'FIELD_HAS_GATE': {
+      const gateState = cond.owner === 'self' ? ownerState : otherState;
+      return (gateState.own_gate_zones ?? []).length > 0;
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss));
   }
