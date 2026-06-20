@@ -157,6 +157,101 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX01-036 巨弓　カタパル（シグニ）
+  // E1【出】：デッキトップを見る。それがレベル2以下のシグニで自分の場に他のシグニがない場合、出してもよい。
+  //   旧JSONは LOOK_AND_REORDER の後に ADD_TO_FIELD を無条件実行＝条件（レベル2以下・他シグニ無し）と
+  //   「出してもよい」（任意）を欠落。→ WX01-057-E1 と同型（CONDITIONAL{AND[DECK_TOP_MATCHES, FIELD_COUNT eq 1]}＋CHOOSE）。
+  'WX01-036': [
+    {
+      effectId: 'WX01-036-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'top' } },
+        { type: 'CONDITIONAL',
+          condition: { type: 'AND', conditions: [
+            { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: { max: 2 } } },
+            { type: 'FIELD_COUNT', owner: 'self', operator: 'eq', value: 1 },
+          ] },
+          then: { type: 'CHOOSE', choose_count: 1, choices: [
+            { choiceId: 'yes', label: 'デッキトップを場に出す', action: { type: 'ADD_TO_FIELD', owner: 'self' } },
+            { choiceId: 'no', label: '場に出さない', action: { type: 'SEQUENCE', steps: [] } },
+          ] } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX01-059 出弓　ボウ（シグニ）
+  // E1【出】：デッキトップを見る。それがレベル1のシグニで自分の場に他のシグニがない場合、出してもよい。
+  //   旧JSONは ADD_TO_FIELD 無条件＝条件・任意欠落。→ WX01-036/057 と同型。レベルは「1」（ちょうど）。
+  'WX01-059': [
+    {
+      effectId: 'WX01-059-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'top' } },
+        { type: 'CONDITIONAL',
+          condition: { type: 'AND', conditions: [
+            { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: 1 } },
+            { type: 'FIELD_COUNT', owner: 'self', operator: 'eq', value: 1 },
+          ] },
+          then: { type: 'CHOOSE', choose_count: 1, choices: [
+            { choiceId: 'yes', label: 'デッキトップを場に出す', action: { type: 'ADD_TO_FIELD', owner: 'self' } },
+            { choiceId: 'no', label: '場に出さない', action: { type: 'SEQUENCE', steps: [] } },
+          ] } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX01-037 忘得ぬ幻想　ヴァルキリー（シグニ）
+  // E1【起】《ダウン》：デッキから《忘得ぬ幻想　ヴァルキリー》以外のレベル3以下のシグニ1枚を探して公開し手札に加えシャッフル。
+  //   旧JSONは filter.cardName（＝ヴァルキリーを探す）になっており「以外」が反映されず逆。→ excludeCardName に修正。
+  'WX01-037': [
+    {
+      effectId: 'WX01-037-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { down_self: true },
+      action: { type: 'SEARCH', from: { location: 'deck', owner: 'self' },
+        filter: { cardType: 'シグニ', level: { max: 3 }, excludeCardName: '忘得ぬ幻想　ヴァルキリー' },
+        maxCount: 1,
+        then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
+        afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX01-038 ゲット・ダンタリアン（スペル）
+  // 「デッキから白のシグニ1枚と赤のシグニ1枚を探して公開し手札に加え、デッキをシャッフルする。」
+  //   旧JSONは白のシグニ1枚のみ（赤のサーチが欠落）。→ SEQUENCE[白サーチ, 赤サーチ]。
+  'WX01-038': [
+    {
+      effectId: 'WX01-038-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '白', count: 1 }, { color: '赤', count: 1 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ', color: '白' }, maxCount: 1,
+          then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] } },
+        { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ', color: '赤' }, maxCount: 1,
+          then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
+          afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX01-033 幻獣神　オサキ（シグニ）
   // E1【自】：あなたが緑のスペルを使用したとき、あなたのデッキの一番上のカードをエナゾーンに置く。
   // 旧JSONは timing が ON_PLAY（場に出たとき）に誤パースされ、スペル色フィルタも欠落していた。

@@ -75,6 +75,7 @@ function filterJa(f?: any): string {
   if (f.cardClass) parts.push(`＜${[].concat(f.cardClass).join('・')}＞の`);
   if (f.story) parts.push(`＜${[].concat(f.story).join('・')}＞の`);
   if (f.cardName) parts.push(`《${f.cardName}》`);
+  if (f.excludeCardName) parts.push(`《${f.excludeCardName}》以外の`);
   if (f.cardNames) parts.push(`《${f.cardNames.join('》《')}》のいずれか`);
   if (typeof f.level === 'number') parts.push(`レベル${f.level}の`);
   else if (f.level?.max != null) parts.push(`レベル${f.level.max}以下の`);
@@ -248,7 +249,11 @@ function actionJa(a?: Action): string {
       // cardType フィルタを名詞に反映（「カード」だとスペルも引けるように誤読されるため）
       const ct = a.filter?.cardType;
       const noun = ct ? ([] as string[]).concat(ct).join('か') : 'カード';
-      return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}を${a.maxCount ? a.maxCount + '枚まで' : ''}探して手札に加える${a.afterSearch ? '（その後シャッフル）' : ''}`;
+      // then（SEQUENCE）に REVEAL/ADD_TO_HAND があれば「公開し手札に加える」を反映
+      const thenSteps = a.then?.type === 'SEQUENCE' ? (a.then.steps ?? []) : (a.then ? [a.then] : []);
+      const reveal = thenSteps.some((s: any) => s?.type === 'REVEAL') ? '公開し' : '';
+      const dest = thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える' : '処理する';
+      return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}を${a.maxCount ? a.maxCount + '枚まで' : ''}探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
     case 'GRANT_KEYWORD': return `${targetJa(a.target)}に【${a.keyword}】を与える`;
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失う${a.frontOfSelf ? '（正面）' : ''}`;
