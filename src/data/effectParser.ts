@@ -1385,6 +1385,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     ? (useCondition ? { type: 'AND', conditions: [beatCondition, useCondition] } : beatCondition)
     : useCondition;
 
+  // 使用回数制限（《ターン１回》《ターン２回》《ゲーム１回》）。CONTINUOUS には付けない。
+  let usageLimit: import('../types/effects').UsageLimit | undefined;
+  if (effectType !== 'CONTINUOUS') {
+    if (costStr.includes('《ターン２回》')) usageLimit = 'twice_per_turn';
+    else if (costStr.includes('《ターン１回》')) usageLimit = 'once_per_turn';
+    else if (costStr.includes('《ゲーム１回》')) usageLimit = 'once_per_game';
+  }
+
   return {
     effectId: `${cardNum}-E${index + 1}`,
     effectType,
