@@ -5,6 +5,16 @@
 
 ---
 
+## spell-cut-in に使用条件評価を追加＋WX17-031 凶蟲条件を強制（v0.375, 2026-06-20）
+
+- **症状:** spell-cut-in 候補収集（`cutinCandidates`）が各カットイン効果の `eff.condition` を評価していなかったため、WX17-031「§ヤシガニラ§」の【起】《スペルカットイン》が「あなたの場に＜凶蟲＞のシグニがある場合」条件を無視して常に発動候補に出ていた。
+- **修正（BattleScreen.cutinCandidates）:** lrig_field／signi_field／hand の3ソースの push 直前に `if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, srcNum, bs.turn_phase, effectivePowers)) return;` を追加。条件を満たさないカットインは候補から除外。
+- **WX17-031-E3 に条件付与:** パーサーは文中条件「対象とし、あなたの場に＜凶蟲＞のシグニがある場合、それの効果を打ち消す」を抽出できていなかったため、JSON に `condition: HAS_CARD_IN_FIELD{owner:self, filter:{cardType:シグニ, story:凶蟲}}` を外科パッチ（`story`/`cardClass` とも `CardClass.includes` で照合されるため凶蟲に一致）。
+- **退化なし確認:** 他のSPELL_CUTIN条件持ちは WX07-014/WX08-018 の `COND_STUB`（"クロス状態のシグニがある"）のみで、`evalUseCondition` は `COND_STUB→true` を返すため従来通り候補に出る（影響なし）。
+- **残（近似）:** WX17-031 の凶蟲条件は「カットインを発動候補に出すか」のゲートとして強制。厳密には「カットインは使えるが凶蟲がないと打ち消さない」だが、打ち消さないカットインは無意味なため発動候補から除外で実用上同等。文中条件のパーサー抽出は未対応（同型カードが増えたら parser 化を検討）。
+
+---
+
 ## WX19-045 ウィルス充填（合計N個になるように置く）を PLACE_VIRUS fillToTotal で正式実装（v0.374, 2026-06-20）
 
 - **対象:** WX19-045「羅菌　ポレン」E1「対戦相手の場にある【ウィルス】の合計が２つになるように、対戦相手のシグニゾーンに【ウィルス】を置く」（v0.373 で手札発動は可能になったが action は STUB `PLACE_VIRUS_TO_2` の空きゾーン自動配置近似だった）。
