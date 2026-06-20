@@ -1144,6 +1144,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
   }
 
+  // ---- 「（このアタックフェイズの間、）〜が場を離れたとき、〜を場に出す」付与型の遅延トリガー ----
+  // 即時配置ではなく付与トリガーなので、bare ADD_TO_FIELD（=デッキトップ誤配置）を避けて no-op STUB に。
+  // 忠実実装には「場を離れたとき手札から配置」を期間付きで付与する機構が必要（WX22-001-E3）。
+  if (t.includes('場を離れたとき') && t.includes('場に出す')) {
+    return { type: 'STUB', id: 'GRANT_LEAVE_PLACE_PENDING' } as StubAction;
+  }
+
   // ---- 場に出す（デッキ上から / 手札から など）----
   if (t.includes('場に出してもよい') || (t.includes('場に出す') && !t.includes('エナ') && !t.includes('トラッシュ'))) {
     return { type: 'ADD_TO_FIELD', owner: 'self' };
