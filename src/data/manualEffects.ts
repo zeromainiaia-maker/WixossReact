@@ -1809,6 +1809,36 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // ----- F-4 バッチF -----
+
+  // WXDi-P16-059 小装 デウス//THE DOOR（アーム）
+  // E1【常】：同ゾーンゲートで「【常】相手は追加で《無》を支払わないかぎり【ガード】ができない」を得る。
+  //   → CONTINUOUS STUB OPP_GUARD_COST_COLORLESS に activeCondition SAME_ZONE_HAS_GATE（既存ガード税機構が activeCondition 対応）。旧＝STUB GRANT_ABILITY_INNER_TEXT。
+  // E2【自】ターン終了時、場ゲートがある場合、自シグニ1体に次の相手ターン終了時まで【シャドウ（レベル2以下）】を付与。
+  //   → AUTO ON_TURN_END＋condition FIELD_HAS_GATE＋GRANT_KEYWORD（シャドウ:levelLte2・UNTIL_OPP_TURN_END）。旧＝GRANT_KEYWORD「ゲート」誤り。
+  'WXDi-P16-059': [
+    {
+      effectId: 'WXDi-P16-059-E1',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'SAME_ZONE_HAS_GATE' },
+      action: { type: 'STUB', id: 'OPP_GUARD_COST_COLORLESS' },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P16-059-E2',
+      effectType: 'AUTO',
+      timing: ['ON_TURN_END'],
+      triggerScope: 'self',
+      condition: { type: 'FIELD_HAS_GATE', owner: 'self' },
+      action: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' }, upToCount: false }, keyword: 'シャドウ:{"levelLte":2}', duration: 'UNTIL_OPP_TURN_END' },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P15-098 凶将　アオトラ
   // 【常】：あなたの黒のシグニは「【自】：このシグニがアタックしたとき、対戦相手のデッキの一番上のカードをトラッシュに置く。」を得る。
   // 旧パース＝CONTINUOUS TRASH DECK_CARD self（owner も誤り・no-op）。
