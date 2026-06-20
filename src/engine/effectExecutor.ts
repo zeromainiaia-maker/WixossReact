@@ -693,13 +693,16 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     // （未解決だと能力・パワーが付かない空トークンになる）。
     let tokenBase = a.cardName;
     if (!ctx.cardMap.has(a.cardName)) {
+      // 全角英数・表意空白を半角化して照合（原文《ＺＥＲＯ》とトークン名 "ZERO" の幅差を吸収）
+      const norm = (s: string) => s.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+      const want = norm(a.cardName);
       for (const [num, cd] of ctx.cardMap) {
-        if (cd.CardName === a.cardName && (cd.Type ?? '').includes('クラフト')) { tokenBase = getCardNum(num); break; }
+        if (norm(cd.CardName ?? '') === want && (cd.Type ?? '').includes('クラフト')) { tokenBase = getCardNum(num); break; }
       }
       // クラフト型が見つからなければ CardName 一致のみで解決
       if (tokenBase === a.cardName) {
         for (const [num, cd] of ctx.cardMap) {
-          if (cd.CardName === a.cardName) { tokenBase = getCardNum(num); break; }
+          if (norm(cd.CardName ?? '') === want) { tokenBase = getCardNum(num); break; }
         }
       }
     }
