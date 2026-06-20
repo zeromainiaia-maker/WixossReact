@@ -14089,18 +14089,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
                   {label}
                 </p>
+                {inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_hand' && (
+                  <p style={{ color: C.textDim, fontSize: 10, margin: 0, textAlign: 'center' }}>
+                    対戦相手の手札（全{op.hand.length}枚を確認・選べるカードのみ枠が明るい）
+                  </p>
+                )}
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-                  {sortedCandidates.map((rawId, idx) => {
+                  {/* opp_hand「見て選び」では相手の手札全体を表示（候補のみ選択可・非候補はグレー） */}
+                  {(inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_hand' ? op.hand : sortedCandidates).map((rawId, dispIdx) => {
+                    const isOppHandView = inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_hand';
+                    const candIdx = isOppHandView ? sortedCandidates.indexOf(rawId) : dispIdx;
+                    const selectable = candIdx >= 0;
                     // インスタンスID（CardNum#N）からCardNumを取り出して表示用データを取得
                     const cardNum = getCardNum(rawId);
                     const c = battleCardMap.get(cardNum);
                     // インデックス文字列で管理 → 同名カードでも個別に選択できる
-                    const idxStr = String(idx);
-                    const isSel = effectSelectedNums.includes(idxStr);
+                    const idxStr = String(candIdx);
+                    const isSel = selectable && effectSelectedNums.includes(idxStr);
                     // フィールド対象の場合のゾーン番号（candidates[idx] = zone idx が対応）
-                    const zoneIdx = fieldZoneInfo[idx];
+                    const zoneIdx = selectable ? fieldZoneInfo[candIdx] : undefined;
                     return (
-                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <div key={dispIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         <div
                           onPointerDown={() => {
                             pickLongPressTimer.current = setTimeout(() => {
@@ -14111,6 +14120,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                           onContextMenu={e => e.preventDefault()}
                           onClick={() => {
+                            if (!selectable) return;
                             setEffectSelectedNums(prev => {
                               if (prev.includes(idxStr)) {
                                 return prev.filter(x => x !== idxStr);
@@ -14121,7 +14131,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           }}
                           style={{ position: 'relative', width: 60, height: 84, borderRadius: 4,
                             border: isSel ? '2px solid #f44336' : C.borderCard,
-                            cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}>
+                            cursor: selectable ? 'pointer' : 'default',
+                            opacity: selectable ? 1 : 0.4, overflow: 'hidden', flexShrink: 0 }}>
                           {c ? (
                             <img src={c.ImgURL} alt={c.CardName} draggable={false}
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
