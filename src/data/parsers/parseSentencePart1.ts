@@ -760,6 +760,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- バニッシュ ----
   if (t.includes('バニッシュする') || t.includes('バニッシュしてもよい')) {
+    // 「それをバニッシュする」= 前文で「対戦相手のシグニを対象とし」た相手シグニをバニッシュ
+    if (t.match(/^それをバニッシュする$/)) {
+      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } };
+    }
     if (t.match(/すべてのシグニをバニッシュ/)) {
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
       return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t) } } };
