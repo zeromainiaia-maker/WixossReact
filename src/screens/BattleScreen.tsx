@@ -4693,10 +4693,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
           const act = eff.action as import('../types/effects').AddToFieldAction;
           if (act.type !== 'ADD_TO_FIELD' || act.source?.type !== 'TRASH_CARD') continue;
-          if (eff.usageLimit === 'once_per_turn') {
-            if (myState.actions_done?.includes(eff.effectId) || usedOncePerTurnIds.includes(eff.effectId)) continue;
-            usedOncePerTurnIds.push(eff.effectId);
-          }
+          if (!limitOk(eff)) continue;
           const cardName = battleCardMap.get(trashInstance)?.CardName ?? trashInstance;
           entries.push({
             id: generateUUID(),
