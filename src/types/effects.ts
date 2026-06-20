@@ -1050,6 +1050,15 @@ export interface PowerModifyPerLifeCountAction {
   lifeOwner: Owner;
 }
 
+// 手札N枚につきパワー±M（AUTO実行・スナップショット。until で持続を指定）
+export interface PowerModifyPerHandCountAction {
+  type: 'POWER_MODIFY_PER_HAND_COUNT';
+  target: EffectTarget;
+  deltaPerCard: number;
+  handOwner: Owner;
+  until?: EffectDuration; // 'UNTIL_OPP_TURN_END' なら次の相手ターン終了時まで（省略時はターン終了時まで）
+}
+
 // コインを得る
 export interface GainCoinAction {
   type: 'GAIN_COIN';
