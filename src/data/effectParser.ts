@@ -1176,6 +1176,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       timing = actionText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
              : actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
+             : actionText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_OPP_LIFE_CRASHED']
+             : actionText.match(/(?:あなたの)?ライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_LIFE_CRASHED']
              : actionText.includes('場を離れたとき') ? ['ON_LEAVE_FIELD']
              : actionText.match(/(?:手札か?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
