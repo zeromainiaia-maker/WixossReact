@@ -371,6 +371,10 @@ function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: TargetF
     const v = !(state.field.signi_down?.[zoneIdx] ?? false);
     if (filter.isUp !== v) return false;
   }
+  if (filter.inGateZone !== undefined) {
+    const v = (state.own_gate_zones ?? []).includes(zoneIdx);
+    if (filter.inGateZone !== v) return false;
+  }
   return true;
 }
 
