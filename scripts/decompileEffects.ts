@@ -196,6 +196,35 @@ function actionJa(a?: Action): string {
         : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}する` : '';
       return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}てもよい`;
     }
+    case 'REVEAL_AND_PICK': return `${ownerJa(a.from?.owner)}デッキ${a.count ? '上' + numJa(a.count) + '枚' : ''}を公開し${filterJa(a.pickFilter)}カードを選び${a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : '処理する'}（残りは戻す）`;
+    case 'REARRANGE_SIGNI': return a.swap ? 'このシグニと対象シグニの位置を入れ替える' : `${targetJa(a.target)}を再配置する`;
+    case 'NEGATE_ATTACK': return 'そのアタックを無効にする';
+    case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
+    case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
+    case 'EQUALIZE_ENERGY': return 'エナゾーンの枚数を揃える';
+    case 'FORCE_SIGNI_ATTACK': return `${ownerJa(a.target?.owner)}シグニは可能ならアタックする`;
+    case 'COST_REDUCTION': return 'コストを軽減する';
+    case 'GROW_FREE': return 'コストを支払わずにグロウする';
+    case 'MOVE_TO_ENERGY':
+    case 'TRANSFER_TO_ENERGY': return `${targetJa(a.source ?? a.target)}をエナゾーンに置く`;
+    case 'ATTACH_CHARM': return `${targetJa(a.target)}にチャームを付ける`;
+    case 'REMOVE_CHARM': return `${ownerJa(a.targetOwner)}シグニのチャームを${a.count === 'ALL' ? 'すべて' : a.count}外す`;
+    case 'CONDITIONAL_DISCARD': return `${condJa(a.condition)}なら、${actionJa(a.then)}`;
+    case 'POWER_MODIFY_PER_TRASH_COUNT':
+    case 'POWER_MODIFY_PER_LIFE_COUNT':
+    case 'POWER_MODIFY_PER_STACK':
+    case 'POWER_MODIFY_PER_LEVEL_SUM':
+    case 'POWER_MODIFY_PER_LRIG_LEVEL':
+    case 'POWER_MODIFY_PER_FIELD':
+    case 'POWER_MODIFY_PER_ENERGY':
+    case 'POWER_MODIFY_PER_CHARM':
+    case 'POWER_MODIFY_PER_DECK_COUNT':
+    case 'POWER_MODIFY_PER_ENERGY_COLOR':
+    case 'POWER_MODIFY_PER_VIRUS_COUNT': {
+      const per = a.type.replace('POWER_MODIFY_PER_', '');
+      const d = a.deltaPerUnit ?? a.deltaPerLevel ?? a.deltaPerLife ?? a.delta ?? a.deltaPerColor ?? 0;
+      return `${targetJa(a.target)}のパワーを${per}数に応じて${d >= 0 ? '＋' : '－'}${Math.abs(d)}ずつ変更する`;
+    }
     case 'STUB': {
       const extra = `${a.banishSubstitute ? ' ' + JSON.stringify(a.banishSubstitute) : ''}${a.costColors ? ' コスト' + a.costColors.join('') : ''}`;
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
