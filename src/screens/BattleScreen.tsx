@@ -11789,7 +11789,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         {/* 自分の盤面 */}
         <div style={{ border: C.borderSelf, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgSelf }}>
-          <PlayerField state={my} cards={battleCards} isMe={true} getSigniZoneActions={getMySigniZoneActions} getLrigDeckCardActions={getMyLrigDeckCardActions} getLrigFieldActions={getMyLrigFieldActions} getKeyPieceActions={getKeyPieceActions} getAssistLActions={() => getAssistActions('l')} getAssistRActions={() => getAssistActions('r')} getFreeZoneActions={getMyFreeZoneActions} closeZoneSignal={closeZoneSignal} effectivePowers={effectivePowers} />
+          <PlayerField state={my} cards={battleCards} isMe={true} getSigniZoneActions={getMySigniZoneActions} getLrigDeckCardActions={getMyLrigDeckCardActions} getLrigFieldActions={getMyLrigFieldActions} getKeyPieceActions={getKeyPieceActions} getAssistLActions={() => getAssistActions('l')} getAssistRActions={() => getAssistActions('r')} getFreeZoneActions={getMyFreeZoneActions} closeZoneSignal={closeZoneSignal} effectivePowers={effectivePowers} dynamicKeywords={dynamicKeywords.my} />
           <HandCards cardNums={my.hand} cards={battleCards} getCardActions={getMyHandCardActions} />
         </div>
       </div>
