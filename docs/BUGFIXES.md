@@ -5,6 +5,17 @@
 
 ---
 
+## F-4 THE DOOR ゲート参照シグニ（バッチA・4枚）（v0.389, 2026-06-20）
+
+- **対象＝TODO F-4。** v0.388 の自ゲート基盤（`own_gate_zones`/`SAME_ZONE_HAS_GATE`/`FIELD_HAS_GATE`）の上で防衛派 THE DOOR シグニを実装。いずれも旧パースは CONTINUOUS化等で no-op だったものを修正。
+- **WXDi-P15-080（ヒラナ）:** E1=「同ゾーンゲートで『【自】APS開始時、相手シグニ1体を-3000』を得る」→ condition `SAME_ZONE_HAS_GATE` 付き `ON_ATTACK_PHASE_START` AUTO（POWER_MODIFY opponent -3000・ターン終了時まで）。旧＝CONTINUOUS POWER_MODIFY 常時誤り。
+- **WXDi-P15-081（レイ）:** E1=同ゾーンゲートで「APS開始時ドロー1」→ condition 付き AUTO。E2=【出】場ゲートでデッキ上3枚スクライ→ `CONDITIONAL(FIELD_HAS_GATE){LOOK_AND_REORDER}`。BURST 維持。
+- **WXDi-P15-077（エクス）:** E1=同ゾーンゲートでパワー+10000 → CONTINUOUS POWER_MODIFY self に activeCondition `SAME_ZONE_HAS_GATE`。E2（【出】look5）・BURST 維持。
+- **WXDi-P15-078（WOLF）:** E1=同ゾーンゲートで「APS開始時エナチャージ1」→ condition 付き AUTO。E2=APS開始時、場ゲートで相手シグニ1体のバトルバニッシュをエナでなくトラッシュへ→ 旧 count:ALL・条件欠落を condition `FIELD_HAS_GATE`＋count1 に修正。
+- **反映:** manualEffects＋プリビルド JSON（外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 THE DOOR 自ゲート機構を新設（WXDi-P15-076/082）（v0.388, 2026-06-20）
 
 - **対象＝TODO F-2 残り「ゲート条件（自ゲート未モデリング）」WXDi-P15-076 / WXDi-P15-082。** THE DOOR の【ゲート】は**自分のシグニゾーンに置くマーカー**で、既存 `signi_gate_zones`（相手ゾーンに設置するアタック妨害ゲート）とは**別概念**だったため、自ゲート機構を新設。THE DOOR アーキタイプ（P15/P16 で40枚超）全体の基盤になる。
