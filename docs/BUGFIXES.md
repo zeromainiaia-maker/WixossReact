@@ -5,6 +5,17 @@
 
 ---
 
+## F-3 効果離場型 身代わり（powerReduction）を execBanish に配線（WX06-019）（v0.403, 2026-06-20）
+
+- **対象＝TODO F-3 積み残し「効果離場型」WX06-019（シロナクジ）。** 「あなたの他の＜水獣＞が**対戦相手の効果によって**場を離れる場合、代わりにこのシグニのパワーを-6000してもよい」。バトル経路の対話本実装（v0.401/402）とは別に、**効果バニッシュ経路（`execBanish`）に限定フックを追加**。
+- **`findEffectLeavePowerReductionSubstitute`（effectExecutor・純関数）:** victim owner の場に CONTINUOUS `BANISH_SUBSTITUTE{substituteCost.powerReduction}` を持つ protector があり、victim が trigger フィルタに合致（かつ victim≠protector＝「他の」）なら `{protectorNum, reduction}` を返す。
+- **`execBanish` の `applyBanish` にフック:** `tgt.owner === 'opponent'`（＝相手効果で victim 側が場を離れる）かつ protector があれば、**victim を残し protector のパワーを -N**（temp_power_mods）してバニッシュを回避。「してもよい」は**自動適用**（pause/resume を伴わない決定論的近似。バトルコアの対話実装に手を入れないため最も安全）。protector 不在・自己効果（tgt.owner==='self'）では従来通り。
+- **WX06-019 のデータ修正:** trigger filter が `story:'水獣'`（Dissona用フィールド）だったため `cardClass:'水獣'` に修正（manualEffects＋プリビルド JSON）。
+- **近似/限界:** powerReduction 型のみ・自動適用・効果バニッシュ経路のみ（バウンス等は未対応）。犠牲型/コスト払い型の effect-banish 拡張は**バトル経路の実機検証が済むまで保留**（TODO の方針通り）。
+- **検証:** `scripts/testBanishSubstitute.ts` 全10アサート通過（回帰なし）。typecheck 通過、verify 新規警告なし。
+
+---
+
 ## F-3 コスト払い型 身代わりバニッシュを実装（既存 action.type BANISH_SUBSTITUTE・2枚）（v0.402, 2026-06-20）
 
 **decompileEffects の Sheet1 全件検証で発見した「宣言だけで未実装の機構」を実装。** `action.type: 'BANISH_SUBSTITUTE'`（`substituteCost` 付き＝コストを払ってバニッシュを回避する型）はパーサーが生成・型も存在したが、エンジン/バトルにハンドラが無く**完全な no-op** だった。
