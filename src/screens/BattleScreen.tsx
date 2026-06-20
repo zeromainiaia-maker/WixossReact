@@ -8528,7 +8528,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cardHasNativeBurst = battleCardMap.get(cardNum)?.LifeBurst === '1'
         || (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST');
       const allZoneBurstGrant = getAllZoneBurstGrant(my);
-      const grantedBurstExtras = (!cardHasNativeBurst && matchesAllZoneBurstGrant(cardNum, my))
+      // 既定はネイティブ【ライフバースト】が無いカードのみに付与。burstAdditive=true（WX02-002）は
+      // ネイティブを持つカードにも追加し、両方を好きな順で使用できる。
+      const grantedBurstApplies = matchesAllZoneBurstGrant(cardNum, my)
+        && (allZoneBurstGrant?.burstAdditive || !cardHasNativeBurst);
+      const grantedBurstExtras = grantedBurstApplies
         ? [grantedBurstEntry(cardNum, ownerId, allZoneBurstGrant)] : [];
       const allBurstExtras = [...crashTriggers, ...oppCrashTriggers, ...counterCrashTriggers, ...lrigTrashBurstEntries, ...grantedBurstExtras];
       const burstExtraUpdate = opStateForUsed ? { [opKey]: opStateForUsed } : {};
