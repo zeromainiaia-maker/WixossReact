@@ -990,11 +990,14 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgtOwner, c);
-    const grants = { ...(s.keyword_grants ?? {}) };
+    // UNTIL_OPP_TURN_END は長期ストア keyword_grants_until_opp_turn へ（次の相手ターン終了時＝付与者の次ターン開始時までクリアされない）。
+    // 通常の keyword_grants は付与者のターン終了時にクリアされるため、ターン終了時付与は必ずこちらを使う。
+    const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
+    const grants = { ...(s[gkey] ?? {}) };
     for (const n of selected) {
       grants[n] = [...(grants[n] ?? []), a.keyword];
     }
-    let newS: PlayerState = { ...s, keyword_grants: grants };
+    let newS: PlayerState = { ...s, [gkey]: grants };
 
     // チアガールはフリーゾーンへ移動
     if (a.keyword === 'チアガール') {
