@@ -129,7 +129,7 @@
 **✅ 防衛派 THE DOOR ゲート参照シグニ（15枚）＋ゲート設置手段（ピース WXDi-P15-003・防衛者ルリグ WXDi-P15-010/011）はすべて実装/近似完了。アーキタイプは実用レベルで機能。**
 
 **残るF-4・近似/未対応の積み残し（任意・低優先）:**
-- 無害化マーカーの本実装：`WXDi-P15-056-E1`（攻撃時 self アップ＋thisCardOnly能力喪失）/ `WXDi-P15-058-E1`（場全体【シャドウ（スペル）】＝`getShadowScopes` 拡張）。
+- `WXDi-P15-058-E1`（場全体【シャドウ（スペル）】付与＝`getShadowScopes` が他カードの継続 GRANT_KEYWORD を読む経路の拡張が必要）。※`WXDi-P15-056-E1` は v0.398 で本実装（self REMOVE_ABILITIES の thisCardOnly 対応）。
 - 近似の精緻化：`WXDi-P16-074-E2`（ゲートゾーン条件・ターン1回）/ `WXDi-P16-054-E1`（相手効果バニッシュ耐性）/ `WXDi-P15-057-E1`（相手ターン中シャドウ）。
 - 必要なら：self対象 REMOVE_ABILITIES の thisCardOnly 対応、場全体継続キーワード付与の `getShadowScopes` 読み取り経路。
 
