@@ -86,7 +86,8 @@
 
 JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューする検証補助。`npx tsx scripts/decompileEffects.ts --sheet <N> | <CardNum...> | --manual | --grep <語>`。
 - **Sheet1 全974枚の逆翻訳結果を共有: [`docs/decompile_sheet1.txt`](./decompile_sheet1.txt)**（ツール更新時は `npx tsx scripts/decompileEffects.ts --sheet 1 > docs/decompile_sheet1.txt` で再生成）。ルート直下の `decompile_*.txt` はスクラッチ扱いで gitignore。
-- **既知の限界:** 「素朴なキーワード差分」は誤検知だらけ（コスト文・ルール注記「（パワー0以下…バニッシュされる）」・未対応アクション）。本格運用には①近似承認リスト②未対応アクション補完が必要。未対応アクション例: `REVEAL_AND_PICK`/`ATTACH_CHARM`/`SHUFFLE_DECK`/`REARRANGE_SIGNI` 等（逆翻訳器に case 追加で対応可）。
+- **v0.404 で逆翻訳器を強化:** ①STUB は `id` ではなく **STUBS.md の説明文**を表示（id→説明マップを STUBS.md の表からパース）。②未対応アクション補完（`REVEAL_AND_PICK`/`REARRANGE_SIGNI`/`NEGATE_ATTACK`/`COUNTER_SPELL`/`SHUFFLE_DECK`/`EQUALIZE_ENERGY`/`COST_REDUCTION`/`GROW_FREE`/`MOVE_TO_ENERGY`/`ATTACH_CHARM`/`REMOVE_CHARM`/`POWER_MODIFY_PER_*` 一括）。③条件（Condition）を `[条件:ID]` から説明文へ（`condJa` に約30種を追加。条件は effects.ts に約40種と少数のため別メモは作らず switch 直書きが最適）。
+- **既知の限界（残）:** 「素朴なキーワード差分」は誤検知（コスト文・ルール注記）。本格運用には近似承認リストが要る。
 
 ### Sheet1（974枚）スキャンで判明した残課題（2026-06-20）
 
