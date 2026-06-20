@@ -99,7 +99,7 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 
 ## F. CONTINUOUS BANISH/TRASH 誤解析（残: 機能実装と TRASH 系）
 
-> **✅ 27件を JSON 修正済み（v0.414）。ただし durable 化は未（manualEffects 未登録）— `build:effects` 全再生成で再び失われるため要注意。** 各カードを F-2 同型の condition 付き granted AUTO／機構（GRANT_ACCE/SOUL/FIELD/ABOVE_ABILITY・GRANT_ALL_ZONE_LIFEBURST・REVEAL_UNTIL_BANISH 等）で本実装し、プリビルド JSON を runtime 真実源として直した（残存0件確認）。**次の課題: これら27件を manualEffects に昇格（または parser を修正）して再生成耐性を持たせる。** 以下は発見時の記録↓
+> **✅ 解決済み（v0.414 JSON 修正 → v0.415 で manualEffects 昇格＝再生成耐性も獲得）。** 27件を F-2 同型の condition 付き granted AUTO／機構（GRANT_ACCE/SOUL/FIELD/ABOVE_ABILITY・GRANT_ALL_ZONE_LIFEBURST・REVEAL_UNTIL_BANISH 等）で本実装し、プリビルド JSON＋manualEffects の両方に登録（残存0件・パーサー再パース経路でも有害0件を確認）。**`build:effects` 全再生成しても manualEffects が上書きするため durable。** 以下は発見時の記録↓
 >
 > **⚠ 再発（2026-06-20 発見）**: 非optional・`mandatory:true` の CONTINUOUS BANISH が**プリビルド JSON に 27 件**残存しており、**runtime で実際にバニッシュ適用される＝有害**だった。`calcContinuousSigniMutations`（effectEngine:398, mandatory:true かつ activeCondition 成立で適用）→ BattleScreen:7475 で `removeFromField`。例: `WX05-021`（パワー20000以上で得る引用付与をフラット化＝相手シグニ無条件バニッシュ）/ `WX18-076` 等。**正体は F-2 と同型の「このシグニは『【自】…バニッシュ』を得る（かぎり）」引用付与のフラット化**で、過去に修正されたが**全再生成で失われた**と推測。
 >
