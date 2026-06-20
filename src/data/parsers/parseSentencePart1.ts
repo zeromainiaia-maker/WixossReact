@@ -1120,7 +1120,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // 旧実装は bare ADD_TO_FIELD でデッキトップを出していた（誤り）。手札から対象を選んで出す。
   if (t.includes('手札から') && (t.includes('場に出す') || t.includes('場に出してもよい'))
       && !t.includes('エナ') && !t.includes('トラッシュ') && !t.includes('ルリグデッキ') && !t.includes('デッキの一番上') && !t.includes('デッキの上')) {
-    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStoryFilter(t) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStoryFilter(t), ...parseNameFilter(t) };
     const exclM = t.match(/([白青赤緑黒])ではない/);
     if (exclM) filter.colorExclude = exclM[1];
     else Object.assign(filter, parseColorFilter(t));
