@@ -1163,7 +1163,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // 「手札からこのカードを捨てる」＝手札から発動する起動能力。
       // 使用フェイズはコスト先頭のアイコンで決まる（スペルカットイン／アタックフェイズ／メインフェイズ）。
       // discardSelfFromHand 限定のため通常の場の【起】（既定 MAIN）には影響しない。
-      if (/手札からこのカードを捨てる/.test(costStr)) {
+      if (/手札からこのカードを捨て[る、]/.test(costStr)) {
         const handT: EffectTiming[] = [];
         if (costStr.includes('《スペルカットインアイコン》')) handT.push('SPELL_CUTIN');
         if (costStr.includes('《アタックフェイズアイコン》')) handT.push('ATTACK_ARTS');
