@@ -49,6 +49,6 @@ for (const f of files) {
       if (before !== after) { changed = true; patched++; console.log(`patch ${t} ${e.effectId}: ${before} -> ${after}`); }
     }
   }
-  if (changed) writeFileSync(fp, JSON.stringify(json, null, 2) + '\n', 'utf-8');
+  if (changed) writeFileSync(fp, JSON.stringify(json), 'utf-8');
 }
 console.log(`\n計 ${patched} 効果をパッチ`);
