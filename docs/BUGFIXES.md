@@ -5,6 +5,14 @@
 
 ---
 
+## フラット化 CONTINUOUS BANISH 27件を manualEffects へ昇格＝durable 化（v0.415, 2026-06-20）
+
+- **v0.414 の JSON 修正を manualEffects に昇格し再生成耐性を獲得。** 修正済みプリビルド JSON から27件の該当 effectId を抽出して `MANUAL_EFFECTS` に登録（`mergeManualEffects` が effectId 単位で上書き）。
+- **検証:** `card.effects` 無し（＝パーサー再パース＋manualEffects マージ）経路でも有害な非optional CONTINUOUS BANISH が **0件**＝`build:effects` 全再生成しても上書きが効く。typecheck 通過、verify 安定。
+- **補足修正:** WX21-052 の `selfTrashCost` は `EffectTarget` でなく `BanishAction` 直下のフラグだったため移動。
+
+---
+
 ## 有害フラット化 CONTINUOUS BANISH 27件を一括本実装（v0.414, 2026-06-20）
 
 - **TODO F の再発27件（非optional・mandatory:true・activeCondition無しの CONTINUOUS BANISH＝runtime で常時バニッシュ）をプリビルド JSON で一括修正。残存0件を確認。**
