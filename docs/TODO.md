@@ -3,16 +3,18 @@
 未実装・未対応の作業をまとめた恒久ドキュメント。完了したら該当項目を消すこと。
 設計方針は [DESIGN.md](./DESIGN.md)、過去の修正は [BUGFIXES.md](./BUGFIXES.md)。
 
-最終更新: 2026-06-20（**v0.425 まで**）。F-2／F-3／F-4 の状況は従来通り（下記）。直近は **逆翻訳スキャンによる Sheet1 個別カードの誤り修正ラウンド**（v0.403〜0.425）を継続中。詳細は BUGFIXES.md 冒頭の各記録を参照。
+最終更新: 2026-06-21（**v0.437 まで**）。F-2／F-3／F-4 の状況は従来通り（下記）。直近は **逆翻訳スキャンによる Sheet1 個別カードの誤り修正ラウンド**（v0.403〜0.437）を継続中。詳細は BUGFIXES.md 冒頭の各記録を参照。**現在のメインタスク（逆翻訳スキャン継続）は ymst → zerom に引き継ぎ。**
 
 > **F-2 全完了**（付与型14枚＋相手場付与 WXDi-P10-072＋THE DOOR自ゲート＋身代わり置換）。**F-4（THE DOOR）全完了**。**F-3 はバトルバニッシュ経路を対話本実装**（犠牲型5枚＋コスト払い型2枚・**要実機検証**／効果バニッシュ経路は powerReduction型 WX06-019 のみ v0.403 で実装、犠牲/コスト型の効果バニッシュは未）。
 
-### 🔰 続きから始める人（ymst）へ — 推奨着手順
+### 🔰 続きから始める人（zerom）へ — 推奨着手順
 
-1. **逆翻訳スキャンの継続（現在のメインタスク）:** `npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt` で逆翻訳を生成し、原文（同ファイルに併記）と突き合わせて誤りを潰す。**runtime の真実源はプリビルド `effects_*.json`（App.tsx が fetch→`card.effects`→`buildEffectsMap` が優先使用）＋manualEffects 上書き。durable に直すには manualEffects 登録必須**（JSON だけだと `build:effects` 全再生成で消える）。修正は「manualEffects＋JSON 両方」が鉄則。下記「逆翻訳スキャンで判明した系統バグ」を参照。
-2. **逆翻訳器（decompileEffects.ts）は随時強化:** STUB→STUBS.md 説明／条件・アクション・選択者・トリガー主語・cardType 名詞・LIFE_CRASH の trash/crash 区別などを表示するよう拡充済み。生ID（`[条件:X]`/`[アクション:X]`/`[STUB:X]`）が残る箇所は未対応＝表示 or 実装の穴。
-3. **F-3 の実機検証（ヘッドレス不可・PvP/CPU実機が要る）:** 身代わり対話 pause/resume。対象 犠牲型 `WX12-024`/`WXEX2-60`/`WX20-055`/`WXDi-CP01-032`/`WXDi-P10-052`、コスト払い型 `WX10-033`/`WX11-029`。安定するまで身代わり拡張に進まない。
-4. **未着手の大物:** D（CPU AI 拡張）、F-3 の効果バニッシュ経路（犠牲/コスト型の `execBanish` 側フック）。
+1. **逆翻訳スキャンの継続（現在のメインタスク）:** `npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt` で逆翻訳を生成し、原文（同ファイルに併記）と突き合わせて誤りを潰す。**runtime の真実源はプリビルド `effects_*.json`（App.tsx が fetch→`card.effects`→`buildEffectsMap` が優先使用）＋manualEffects 上書き。** durable 化は「manualEffects＋JSON 両方」が原則だが、**系統的な一括修正はパーサー修正＋JSON 直パッチで durable 化する運用も可**（パーサーが同形を再生成するため。v0.434/0.435/0.436/0.437 のFREEZE/配置系一括修正はこの方式）。下記「逆翻訳スキャンで判明した系統バグ」を参照。
+2. **`ADD_TO_FIELD` source 欠落族の残り（最優先・下記新項目）:** v0.435〜0.437 で ena/レゾナ/手札の単純系27効果を修正済。**残りの系統（エナseq・動的フィルタ・名指し・ベット・クラフト・トラッシュ）が未対応。** 詳細は「逆翻訳スキャンで判明した系統バグ」末尾。
+3. **逆翻訳器（decompileEffects.ts）は随時強化:** STUB→STUBS.md 説明／条件・アクション・選択者・トリガー主語・cardType 名詞・LIFE_CRASH の trash/crash 区別などを表示するよう拡充済み。生ID（`[条件:X]`/`[アクション:X]`/`[STUB:X]`）が残る箇所は未対応＝表示 or 実装の穴。
+4. **F-3 の実機検証（ヘッドレス不可・PvP/CPU実機が要る）:** 身代わり対話 pause/resume。対象 犠牲型 `WX12-024`/`WXEX2-60`/`WX20-055`/`WXDi-CP01-032`/`WXDi-P10-052`、コスト払い型 `WX10-033`/`WX11-029`。安定するまで身代わり拡張に進まない。
+5. **LOOK_AND_REORDER の canTrash UI（v0.431 実装）も実機検証推奨**（PvP/CPU対話・ヘッドレス不可）。
+6. **未着手の大物:** D（CPU AI 拡張）、F-3 の効果バニッシュ経路（犠牲/コスト型の `execBanish` 側フック）。
 
 ### 逆翻訳スキャンで判明した系統バグ（ymst 向け・横展開で潰す）
 
@@ -25,6 +27,10 @@
 - **「このシグニ」が自由選択に:** GRANT_KEYWORD 等で「このシグニは得る」が任意自シグニに見える（WX01-029-E3＝`thisCardOnly` で明示。`execGrantKeyword` に thisCardOnly 対応追加済）。
 - **「そのシグニのパワー以下」等の動的フィルタ欠落:** WD04-018＝`powerLteLastProcessed` 新設で修正。
 - **引用付与のフラット化 → 有害 CONTINUOUS BANISH:** F 節参照（27件 v0.414/0.415 で manualEffects 昇格・解決済。同型が他Sheetにある可能性）。
+- **`FREEZE` の自動ダウン誤り（解決済 v0.433/0.434）:** engine の `execFreeze` が常時 `signi_down` も立てていたため純「凍結する」カードまで誤ってダウンしていた。`FreezeAction.down?` 新設で「ダウンし凍結」のみダウン。既存 `SEQUENCE[DOWN,FREEZE]` 82効果も `FREEZE(down:true)` に一括変換（同一対象の二重選択バグ解消）。**他Sheetの凍結カードは挙動 OK。**
+- **`ADD_TO_FIELD` の source 欠落でデッキトップ誤配置（一部解決・残あり）:** 「エナ/手札/トラッシュ/ルリグデッキ から[フィルタ]シグニ（レゾナ）を場に出す」が source 無しの bare `ADD_TO_FIELD` になると `execAddToField` の `!src` 分岐が**デッキトップを出す**（全く別カードが出る重大誤り）。逆翻訳の「**直前に選んだカードを場に出す**」がサイン。**LOOK/SEARCH の後に続く bare ADD_TO_FIELD は正当**（`applyDirectAction` が選んだカードを出す）。`effect.action` が直接 or SEQUENCE 先頭の bare ADD_TO_FIELD のみ要注意。
+  - **解決済（v0.435〜0.437・27効果）:** エナ配置9（parser「エナゾーンから…場に出す」→source:ENERGY_CARD）／ルリグデッキレゾナ9（→ STUB `SUMMON_RESONA_FROM_LRIG_DECK`）／手札配置の単純系9（parser「手札から…場に出す」→source:HAND_CARD、「Xではない」=colorExclude）。
+  - **未解決（zerom 向け・bare ADD_TO_FIELD 同根）:** ①**エナ配置の SEQUENCE 形**（WX24-P2-007/WX24-P3-086/WX25-P3-098/WX25-CP1-005/WX26-CP1-086-SONG/WXDi-P01-032/P07-032/P12-042/CP02-087/WXK09-023/WXDi-P03-078 等。一部は「【出】能力は発動しない」抑制STUB併発・動的フィルタ・複数枚）②**動的フィルタ手札配置**（WX11-035「より低いレベル」/WX16-025「よりパワー低い」＝**timing も「場を離れたとき」→「場に出たとき」誤パース併発**）③**名指し手札配置**（WXDi-P05-068《大罠ハーメルン》/WX22-036《幻竜...》）④**ベット/アンコール手札配置**（WXK07-105/WX19-017）⑤**クラフト/トークン配置**（WXDi-CP02-028/029/041《ペロロ人形》等・WX25-CP1-066/WX25-P1-034/WXDi-P13-062＝`ADD_TO_FIELD.cardName` 機構で要対応）⑥**トラッシュ配置の一部**（WX22-001-E3/WX20-002-E3＝「2枚まで」「名前の異なる」等でparser trashハンドラ未ヒット）。検出: `effect.action` が直接 or SEQUENCE 先頭の bare `ADD_TO_FIELD`（source/cardName 無し）。
 - **逆翻訳器の表示漏れ（実害なし・カードは正しい）:** `cardType` フィルタ未表示で「カード」に見える（WX01-007/025＝SEARCH/領域カードに cardType 名詞反映で解消）等。**「カードに見えるが実はシグニ限定」は逆翻訳器の表示問題でカードは正しいことが多い** ので、必ず JSON を確認してから直すこと。
 
 ---
