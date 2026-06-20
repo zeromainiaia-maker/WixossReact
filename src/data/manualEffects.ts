@@ -1702,6 +1702,41 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXK10-039 羅原　ＣＨ４
+  // 【常】【アサシン】（静的キーワードはテキストから自動判定）
+  // 【出】：あなたの他の＜原子＞のシグニ２体を場からトラッシュに置かないかぎり、このシグニを場からトラッシュに置く。
+  // 旧パース＝CONTINUOUS TRASH SIGNI self（no-op）。他の＜原子＞2体をコストでトラッシュすれば維持、しなければ自己トラッシュ。
+  // CHOOSE（2択）: 「他の原子2体トラッシュ」(他の原子が2体以上＝FIELD_CLASS_COUNT≥3 でのみ選択可)／「このシグニを自己トラッシュ」。
+  'WXK10-039': [
+    {
+      effectId: 'WXK10-039-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      triggerScope: 'self',
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          {
+            choiceId: 'pay_atomos',
+            label: 'あなたの他の＜原子＞のシグニ２体をトラッシュ',
+            action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 2, filter: { cardType: 'シグニ', story: '原子', excludeSelf: true } } },
+            condition: { type: 'FIELD_CLASS_COUNT', owner: 'self', story: '原子', operator: 'gte', value: 3 },
+          },
+          {
+            choiceId: 'sacrifice_self',
+            label: 'このシグニを場からトラッシュ',
+            action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } },
+          },
+        ],
+      } as ChooseAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**

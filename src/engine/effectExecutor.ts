@@ -333,15 +333,23 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.type === 'SIGNI') {
     // thisCardOnly: 効果元シグニ自身のみを対象（「このシグニを場からトラッシュに置く」。WXDi-P04-040 等の自己犠牲）
+    // excludeSelf: 効果元シグニ自身を対象から除外（「あなたの他の＜原子＞のシグニ」。WXK10-039 等）
     let trashFilter = tgt.filter;
     let trashThisCardRestrict: string[] | null = null;
+    let trashExcludeSelf = false;
     if (trashFilter?.thisCardOnly) {
       const { thisCardOnly: _t, ...rest } = trashFilter;
       trashFilter = rest;
       trashThisCardRestrict = ctx.sourceCardNum ? [ctx.sourceCardNum] : [];
     }
+    if (trashFilter?.excludeSelf) {
+      const { excludeSelf: _e, ...rest } = trashFilter;
+      trashFilter = rest;
+      trashExcludeSelf = true;
+    }
     const allSigCands0 = fieldCandidates(state, trashFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-    const allSigCands = trashThisCardRestrict ? allSigCands0.filter(n => trashThisCardRestrict!.includes(n)) : allSigCands0;
+    let allSigCands = trashThisCardRestrict ? allSigCands0.filter(n => trashThisCardRestrict!.includes(n)) : allSigCands0;
+    if (trashExcludeSelf && ctx.sourceCardNum) allSigCands = allSigCands.filter(n => n !== ctx.sourceCardNum);
     const trashFieldProtected = tgt.owner === 'opponent' ? new Set(ctx.otherTrashFieldProtectedNums ?? []) : new Set<string>();
     const cands = trashFieldProtected.size > 0 ? allSigCands.filter(n => !trashFieldProtected.has(n)) : allSigCands;
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
