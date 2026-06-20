@@ -205,6 +205,59 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WDK17-009 愛憎の果てに　ハイティ・鍵（キー・自ライフクラッシュ時3択）
+  // 【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたのライフクロスがクラッシュされたとき、以下の３つから１つを選ぶ。
+  //   ①カードを１枚引く。②対戦相手のダウン状態のシグニ１体を対象とし、それをバニッシュする。
+  //   ③あなたのセンタールリグが＜アルフォウ＞であなたのライフクロスが１枚以下の場合、対戦相手のライフクロス１枚をクラッシュする。
+  // E1 を ON_PLAY の CHOOSE 誤パースから ON_LIFE_CRASHED（自ライフクラッシュ時）へ修正。キーは collectSelfEventTriggers が走査する（v0.362）。
+  // 選択肢③は AND[LRIG_NAME_CONTAINS アルフォウ, LIFE_COUNT self lte 1] の condition で選択可否をゲート（execChoose の available）。
+  // 「対戦相手のアタックフェイズの間」は近似で省略（自ライフクラッシュはほぼ相手アタック中に発生）。
+  // E2（【起】このキーをルリグトラッシュ：対戦相手が自分のシグニ/エナを対象…）は対戦相手選択の複雑効果のためパーサー生成のまま維持。
+  'WDK17-009': [
+    {
+      effectId: 'WDK17-009-E1',
+      effectType: 'AUTO',
+      timing: ['ON_LIFE_CRASHED'],
+      triggerScope: 'self',
+      usageLimit: 'once_per_turn',
+      action: {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 3,
+        choices: [
+          {
+            choiceId: 'c0',
+            label: 'カードを1枚引く',
+            action: { type: 'DRAW', owner: 'self', count: 1 },
+          },
+          {
+            choiceId: 'c1',
+            label: '対戦相手のダウン状態のシグニ1体をバニッシュ',
+            action: {
+              type: 'BANISH',
+              target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', isDown: true }, upToCount: false },
+            },
+          },
+          {
+            choiceId: 'c2',
+            label: '対戦相手のライフクロス1枚をクラッシュ',
+            condition: {
+              type: 'AND',
+              conditions: [
+                { type: 'LRIG_NAME_CONTAINS', owner: 'self', name: 'アルフォウ' },
+                { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: 1 },
+              ],
+            },
+            action: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
+          },
+        ],
+      } as ChooseAction,
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX15-064 羅菌　キョウギュ（起動）
   // 【起】《ダウン》：対戦相手の感染状態のシグニ１体を対象とし、それと同じゾーンの【ウィルス】１つを取り除き、
   //   ターン終了時まで、それのパワーを－7000する。パワーが0以下になった場合、1枚引く。
