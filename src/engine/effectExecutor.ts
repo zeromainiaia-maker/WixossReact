@@ -75,6 +75,8 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
     ...state,
     hand: [...state.hand, ...state.deck.slice(0, canDraw)],
     deck: state.deck.slice(canDraw),
+    // このターンに効果で引いた累計枚数（CARDS_DRAWN_BY_EFFECT 条件用）。ドローフェイズのドローは drawCards 経由でここを通らない。
+    cards_drawn_by_effect_this_turn: (state.cards_drawn_by_effect_this_turn ?? 0) + canDraw,
   };
   // リフレッシュ: トラッシュ0枚でも発生し、ライフクロスの一番上をトラッシュに置く（BattleScreen.applyRefresh と同一仕様）
   if (canDraw < count) {
