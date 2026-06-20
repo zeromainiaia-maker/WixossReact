@@ -7106,7 +7106,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
       const copiedAutoEffects = collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, true)
         .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
-      const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects, ...copiedAutoEffects];
+      // CONTINUOUS GRANT_LRIG_ABILITY（場のシグニ/キーが「あなたのセンタールリグは『【自】…』を得る」を宣言）由来の
+      // ON_ATTACK_LRIG 付与能力（WXDi-P05-032 等）。lrig_granted_auto_effects（実行時付与）とは別ソース。
+      const contGrantedLrigEffects = collectLrigGrantedEffects(my, op, true, effectsMap, battleCardMap)
+        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
+      const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects, ...copiedAutoEffects, ...contGrantedLrigEffects];
       const update: Partial<BattleStateRow> = { [myKey]: newMyState };
       if (onAttackEffects.length > 0) {
         const entries: StackEntry[] = onAttackEffects.map(e => ({

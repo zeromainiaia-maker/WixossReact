@@ -5,6 +5,15 @@
 
 ---
 
+## F-2 引用付与トリガーの実装（バッチ5・ルリグ付与 WXDi-P05-032）（v0.381, 2026-06-20）
+
+- **対象＝TODO F-2「ルリグへの付与」。** 「あなたのセンタールリグは『【自】…』を得る」型を、既存 `GRANT_LRIG_ABILITY`（CONTINUOUS 宣言→`collectLrigGrantedEffects` がセンタールリグへ付与）で実装。
+- **配線追加（BattleScreen `performLrigAttack`）:** ON_ATTACK_LRIG 収集が `effectsMap.get(lrigNum)`／`lrig_granted_auto_effects`／コピー能力のみで、**CONTINUOUS GRANT_LRIG_ABILITY 由来（`collectLrigGrantedEffects`）の ON_ATTACK_LRIG が漏れていた**。`collectLrigGrantedEffects(my, op, …)` の ON_ATTACK_LRIG 分を `onAttackEffects` に追加。
+- **WXDi-P05-032（ゲイヴォルグ）:** E1 を CONTINUOUS `GRANT_LRIG_ABILITY`（付与＝`ON_ATTACK_LRIG`＋`once_per_turn`→相手シグニ1体トラッシュ）に修正。E2（アタックフェイズ開始時に白シグニダウン→ドロー）はパーサー生成を維持。付与 AUTO は活性化 UI（`grantedActionsMA`＝ACTIVATED 限定）には出ない。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（E1 のみ外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 引用付与トリガーの実装（バッチ4・WXDi-P02-068＋ON_SIGNI_BATTLE 条件評価）（v0.380, 2026-06-20）
 
 - **ON_SIGNI_BATTLE 収集に condition 評価を追加:** `collectBattleTrig`（BattleScreen）が `eff.condition` を無視していたため、`evalUseCondition` による発動条件評価を追加（攻撃側=`newMyState`／防御側=`newOpState` を基準）。他の AUTO 収集経路（ON_ATTACK_SIGNI／collectTurnTriggers）と整合。既存の ON_SIGNI_BATTLE カード（condition なし）には影響なし。

@@ -1550,6 +1550,38 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P05-032 大装　ゲイヴォルグ
+  // 【常】あなたのセンタールリグは「【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。」を得る。
+  // 旧 E1 パース＝CONTINUOUS TRASH SIGNI opponent（no-op）。CONTINUOUS GRANT_LRIG_ABILITY でセンタールリグへ
+  //   ON_ATTACK_LRIG 能力を付与（collectLrigGrantedEffects→ON_ATTACK_LRIG 収集に配線済み）。
+  // E2（アタックフェイズ開始時に白シグニ1体ダウン→ドロー）はパーサー生成を維持。
+  'WXDi-P05-032': [
+    {
+      effectId: 'WXDi-P05-032-E1',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_LRIG_ABILITY',
+        rawText: 'あなたのセンタールリグは「【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。」を得る。',
+        abilities: [
+          {
+            effectId: 'WXDi-P05-032-E1-G',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_LRIG'],
+            triggerScope: 'self',
+            usageLimit: 'once_per_turn',
+            action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+            duration: 'INSTANT',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          },
+        ],
+      } as GrantLrigAbilityAction,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
