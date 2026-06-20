@@ -379,6 +379,7 @@ export type EffectAction =
   | PowerModifyPerEnergyColorAction
   | PowerModifyPerTrashCountAction
   | PowerModifyPerLifeCountAction
+  | PowerModifyPerHandCountAction
   | GainCoinAction
   | DiscardBothAction
   | RemoveCharmAction
