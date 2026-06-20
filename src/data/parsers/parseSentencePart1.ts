@@ -1124,6 +1124,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const exclM = t.match(/([白青赤緑黒])ではない/);
     if (exclM) filter.colorExclude = exclM[1];
     else Object.assign(filter, parseColorFilter(t));
+    // 動的フィルタ（ON_LEAVE_FIELD トリガー時に離れたカードの値で解決）
+    // 「（この/その）シグニより低いレベル／レベルの低い」→ levelBelowLeftCard
+    if (/(?:この|その)シグニより(?:低いレベル|レベルの低い)/.test(t)) { delete filter.level; filter.levelBelowLeftCard = true; }
+    // 「（この/その）シグニよりパワーの低い／低いパワー」→ powerBelowLeftCard
+    if (/(?:この|その)シグニより(?:パワーの低い|低いパワー)/.test(t)) filter.powerBelowLeftCard = true;
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const count = upToM ? parseNum(upToM[1]) : 1;
     return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
