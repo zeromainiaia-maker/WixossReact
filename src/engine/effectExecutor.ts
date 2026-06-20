@@ -819,6 +819,13 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
 function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
   const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
+  if (a.fromHand) {
+    // 手札から1枚選んでライフクロスに追加
+    const cands = handCandidates(state, undefined, ctx.cardMap, ctx.treatAsClassAllZones);
+    if (cands.length === 0) return done(addLog(ctx, '手札がないためライフクロスに加えられない'));
+    const scope: TargetScope = a.owner === 'self' ? 'self_hand' : 'opp_hand';
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+  }
   if (!a.fromTop) return done(ctx);
   const took = state.deck.slice(0, count);
   const newS: PlayerState = {
