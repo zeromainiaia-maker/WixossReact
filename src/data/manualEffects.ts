@@ -227,7 +227,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
             { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: 1 } },
             { type: 'FIELD_COUNT', owner: 'self', operator: 'eq', value: 1 },
           ] },
-          then: { type: 'CHOOSE', choose_count: 1, choices: [
+          then: { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
             { choiceId: 'yes', label: 'デッキトップを場に出す', action: { type: 'ADD_TO_FIELD', owner: 'self' } },
             { choiceId: 'no', label: '場に出さない', action: { type: 'SEQUENCE', steps: [] } },
           ] } },
