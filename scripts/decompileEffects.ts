@@ -198,9 +198,15 @@ function actionJa(a?: Action): string {
     case 'BANISH': return `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
     case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}`;
     case 'TRASH': {
-      const u = a.target?.type === 'HAND_CARD' ? '手札' : a.target?.type === 'ENERGY_CARD' ? 'エナ' : '';
-      if (a.target?.type === 'SIGNI') return `${targetJa(a.target)}をトラッシュに置く`;
-      return `${ownerJa(a.target?.owner)}${u}を${a.target?.count === 'ALL' ? 'すべて' : a.target?.count + '枚'}トラッシュに置く${a.target?.thisCardOnly ? '（このカード）' : ''}`;
+      const t = a.target;
+      const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : '';
+      if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く`;
+      // 手札/エナの「誰が選ぶか」を明示（見ないでランダム / 自分が見て選ぶ / 相手が選ぶ）
+      const who = t?.type === 'HAND_CARD' && t?.owner === 'opponent'
+        ? (t.blind ? '（見ないでランダム）' : t.actingPlayerSelects ? '（自分が見て選ぶ）' : '（相手が選ぶ）')
+        : '';
+      const cnt = t?.count === 'ALL' ? 'すべて' : `${t?.count}枚`;
+      return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}`;
     }
     case 'POWER_MODIFY': return `${targetJa(a.target)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
     case 'POWER_SET': return `${targetJa(a.target)}のパワーを${a.value}にする`;
