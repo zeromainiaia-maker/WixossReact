@@ -1373,6 +1373,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     mandatory,
     parseStatus,
     ...(isCrossOnly ? { crossOnly: true } : {}),
+    ...(handActivated ? { handActivated: true } : {}),
     ...(extractedTriggerScope !== undefined ? { triggerScope: extractedTriggerScope } : {}),
     ...(extractedTriggerFilter !== undefined ? { triggerFilter: extractedTriggerFilter } : {}),
   };
