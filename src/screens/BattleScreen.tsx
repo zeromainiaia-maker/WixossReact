@@ -2675,6 +2675,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         delete obj.levelBelowLeftCard;
         obj.level = { max: isNaN(leftLevel) ? 0 : leftLevel - 1 };
       }
+      if (obj.powerBelowLeftCard === true) {
+        delete obj.powerBelowLeftCard;
+        obj.powerRange = { max: isNaN(leftPower) ? 0 : leftPower - 1 };
+      }
       if (obj.underLeftCard === true) {
         delete obj.underLeftCard;
         obj.cardNames = underNames;
