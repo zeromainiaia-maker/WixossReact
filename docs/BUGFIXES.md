@@ -5,6 +5,14 @@
 
 ---
 
+## F-4 THE DOOR ゲート参照シグニ（バッチC・inGateZone フィルタ＋WXDi-P16-062）（v0.391, 2026-06-20）
+
+- **新フィルタ `TargetFilter.inGateZone`（状態ベース）:** 「このシグニと同じシグニゾーンに【ゲート】がある」＝own_gate_zones にゾーンが含まれる。`fieldCandidates`（AUTO 実行）と `matchesStateFilter`（CONTINUOUS パワー）の両方に判定を追加。「同ゾーンゲートのあなたのシグニ」への場全体付与に再利用可能。
+- **WXDi-P16-062（マキナ・乗機）:** E1=「同ゾーンゲートで『各APS開始時、相手シグニ1体を相手が《無》払わないと能力消去』を得る」→ **近似**：CONTINUOUS REMOVE_ABILITIES opponent（対面）に activeCondition `SAME_ZONE_HAS_GATE` 付与（旧＝無条件のフリーロック誤り。`collectContinuousAbilitiesRemovedSigni` の opponent 分岐＋`checkActiveCondition` が source の own_gate_zones を見て発火。相手の《無》回避・APS再付与は近似省略）。E2=「同ゾーンゲートのあなたのシグニのパワー+2000」→ CONTINUOUS POWER_MODIFY self ALL に `inGateZone` フィルタ。
+- **反映:** types/effects＋execUtils（fieldCandidates）＋effectEngine（matchesStateFilter）＋manualEffects＋プリビルド JSON。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-4 THE DOOR ゲート参照シグニ（バッチB・2枚）（v0.390, 2026-06-20）
 
 - **WXDi-P15-059（ノヴァ）:** E1=APS開始時、場ゲートでドロー2・手札1捨て→ condition `FIELD_HAS_GATE` 付与（旧は条件欠落）。E2=アタック時、相手1捨て＋同ゾーンゲートで追加1捨て→ `SEQUENCE[TRASH opp hand1, CONDITIONAL(SAME_ZONE_HAS_GATE){TRASH opp hand1}]`（旧は2枚とも無条件）。`execConditional` は `evalCondition` を `ctx.sourceCardNum` 文脈で評価するため SAME_ZONE_HAS_GATE が攻撃シグニのゾーンで正しく判定される。
