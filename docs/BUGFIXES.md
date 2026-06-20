@@ -5,6 +5,17 @@
 
 ---
 
+## F-4 THE DOOR ピース ひらけ！ゲート！（WXDi-P15-003）（v0.397, 2026-06-20）
+
+- **ピースのゲート設置を配線。** ピースは `executeKeyPiece` が `queueCardEffects(['AUTO'],['ON_PLAY'])` で発火させるため、旧 ACTIVATED パースでは発火しなかった。
+- **E1=AUTO ON_PLAY → STUB `PLACE_OWN_GATE`**（プレイ時に自シグニゾーンへ【ゲート】設置）。
+- **E2=CONTINUOUS `GRANT_LRIG_ABILITY`**（key_piece に残る間センタールリグへ付与＝`collectLrigGrantedEffects` がキーピースを走査）。付与能力＝`【起】エクシード4：【シグニバリア】1つ（STUB GAIN_SIGNI_BARRIER）`／`【起】エクシード4：カード4枚引く（DRAW 4）`。グロウしても key_piece の継続付与なので維持。
+- 【使用条件】ドリームチーム3色以上はピース使用条件のため近似省略。
+- **これで THE DOOR のゲート設置手段（ピース＋防衛者ルリグ WXDi-P15-010/011 の【起】）と参照シグニ15枚が揃い、アーキタイプが実用レベルで機能する。**
+- **反映:** manualEffects＋プリビルド JSON。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-4 THE DOOR ゲート参照シグニ（バッチG・WXDi-P15-058＝ゲート参照シグニ完了）（v0.396, 2026-06-20）
 
 - **WXDi-P15-058（コスチュム・宇宙）:** E1=「同ゾーンゲートのあなたのシグニは【シャドウ（スペル）】を得る」→ 場全体への継続シャドウ付与は `getShadowScopes` が他カードの継続 GRANT_KEYWORD を読まないため未実装。無害な STUB `UNIMPL_GRANTED_ABILITY` に置換。E2=「同ゾーンゲートで『APS開始時、《プロフェッサー　防衛者Ｄｒ．タマゴ》がいれば相手シグニ1体に《青》《青》払ってデッキ下』を得る」→ condition `AND[SAME_ZONE_HAS_GATE, LRIG_NAME_CONTAINS self 'タマゴ']`＋`SEQUENCE[OPTIONAL_COST(青青), CONDITIONAL(PAID){TRANSFER_TO_DECK opp1 bottom}]`（タマゴはセンタールリグ名で近似）。
