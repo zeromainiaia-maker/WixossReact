@@ -6559,12 +6559,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
             (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_WITH_DOWN',
           );
+          // BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY (WXDi-P06-034): バニッシュ代わりに
+          // アップ状態のこのシグニをダウンし、下から1枚＋エナから1枚をトラッシュして場に残る（払えるなら自動適用）。
+          const leaveReplaceDownTUE = opSigniWasUp &&
+            (opS.field.signi[opZoneIndex]?.length ?? 0) >= 2 &&   // 下にカードが1枚以上
+            opS.energy.length >= 1 &&
+            (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
+              eff.effectType === 'CONTINUOUS' &&
+              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+              (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY' &&
+              checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? ''),
+            );
           if (leaveReplaceDown) {
             newOpDown[opZoneIndex] = true;
             newOpFrozen[opZoneIndex] = false;
             const newOpSigniLRD = [...opS.field.signi] as (string[] | null)[];
             newOpState = { ...opS, field: { ...opS.field, signi: newOpSigniLRD, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（場離れ→ダウン代替）バニッシュ回避してダウン`]);
+          } else if (leaveReplaceDownTUE) {
+            newOpDown[opZoneIndex] = true;
+            newOpFrozen[opZoneIndex] = false;
+            const stackTUE = opS.field.signi[opZoneIndex] ?? [];
+            const trashedUnderTUE = stackTUE[0];          // 下から1枚（最下のカード）
+            const remainingStackTUE = stackTUE.slice(1);  // 残り（トップシグニを含む）
+            const trashedEnergyTUE = opS.energy[0];       // エナから1枚（自動・先頭）
+            const newOpSigniTUE = [...opS.field.signi] as (string[] | null)[];
+            newOpSigniTUE[opZoneIndex] = remainingStackTUE;
+            newOpState = {
+              ...opS,
+              energy: opS.energy.slice(1),
+              trash: [...opS.trash, trashedUnderTUE, trashedEnergyTUE],
+              field: { ...opS.field, signi: newOpSigniTUE, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
+            };
+            appendBattleLogs([`${opCardName}（バニッシュ代替）ダウン＋下1枚＋エナ1枚をトラッシュしてバニッシュ回避`]);
           } else {
           // COOKING_BANISH_SUBSTITUTE: 調理シグニにアクセがある場合、アクセをトラッシュしてバニッシュ回避
           // （防御側から見て相手ターンのみ＝アタックは常にアタッカーのターンなので常に該当）
