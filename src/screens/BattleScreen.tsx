@@ -5152,6 +5152,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!eff) return;
       const maxCost = findCounterSpellMaxCost(eff.action);
       if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
+      if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) return;
       result.push({ card, instanceId: cardNum, source: 'hand', effect: eff, handIdx });
     });
 
