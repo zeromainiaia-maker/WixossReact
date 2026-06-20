@@ -8565,6 +8565,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 手札からこのカード自身を捨てる（self-discard from hand）
       const newHand = my.hand.filter((_, i) => i !== handIndex);
       const isGameOnce = effect.usageLimit === 'once_per_game';
+      // removeOppVirus: 相手の場の【ウィルス】N個を取り除くコスト（WX21-030「手札からこのカードを捨て、ウィルス3つを取り除く」）
+      const removeVirusN = effect.cost?.removeOppVirus ?? 0;
+      let newOpVirusState: PlayerState | null = null;
+      if (removeVirusN > 0) {
+        const newOppVirus = [...(op.field.signi_virus ?? [0, 0, 0])];
+        let removedV = 0;
+        for (let zi = 0; zi < newOppVirus.length && removedV < removeVirusN; zi++) {
+          while (newOppVirus[zi] > 0 && removedV < removeVirusN) { newOppVirus[zi]--; removedV++; }
+        }
+        if (removedV < removeVirusN) { setLoading(false); return; } // 支払い不能（ウィルス不足）
+        newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
+      }
       let paid: PlayerState = {
         ...my,
         hand: newHand,
