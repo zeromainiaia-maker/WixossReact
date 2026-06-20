@@ -1457,6 +1457,78 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P15-060 幻竜　遊月//THE DOOR
+  // 【常】このカードの上にある＜解放派＞のシグニは「【自】あなたのアタックフェイズ開始時、
+  //   対戦相手のエナゾーンから対戦相手のセンタールリグと共通する色を持たないカード１枚を対象とし、それをトラッシュに置く。」を得る。
+  // 旧 E2 パース＝CONTINUOUS TRASH ENERGY（no-op）。上シグニ付与＝GRANT_SIGNI_ABOVE_ABILITY（collectGrantedFromUnderSigni PatternB）。
+  // E1（下にカードがあるかぎり+4000）と BURST はパーサー生成を維持。
+  'WXDi-P15-060': [
+    {
+      effectId: 'WXDi-P15-060-E2',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_SIGNI_ABOVE_ABILITY',
+        filter: { cardType: 'シグニ', story: '解放派' },
+        abilities: [
+          {
+            effectId: 'WXDi-P15-060-E2-G',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_PHASE_START'],
+            triggerScope: 'self',
+            action: {
+              type: 'TRASH',
+              target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1, filter: { colorNotMatchesLrig: true } },
+            },
+            duration: 'INSTANT',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          },
+        ],
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXDi-P15-064 幻蟲　アロス・ピルルク//THE DOOR
+  // 【常】このカードの上にある＜解放派＞のシグニは「【自】あなたのアタックフェイズ開始時、手札を１枚捨ててもよい。
+  //   そうした場合、対戦相手の手札を１枚見ないで選び、捨てさせる。」を得る。
+  // 旧 E2 パース＝CONTINUOUS TRASH HAND opponent blind（no-op）。上シグニ付与＝GRANT_SIGNI_ABOVE_ABILITY。
+  // 付与能力は ON_ATTACK_PHASE_START の「手札1枚捨て→相手手札を見ないで1枚捨てさせる(blind)」。
+  // 「捨ててもよい」の任意性は SEQUENCE＋CONDITIONAL(IS_MY_TURN) で近似（同カード E1 の生成パターンに合わせる）。
+  'WXDi-P15-064': [
+    {
+      effectId: 'WXDi-P15-064-E2',
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'GRANT_SIGNI_ABOVE_ABILITY',
+        filter: { cardType: 'シグニ', story: '解放派' },
+        abilities: [
+          {
+            effectId: 'WXDi-P15-064-E2-G',
+            effectType: 'AUTO',
+            timing: ['ON_ATTACK_PHASE_START'],
+            triggerScope: 'self',
+            action: {
+              type: 'SEQUENCE',
+              steps: [
+                { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } },
+                { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } } },
+              ],
+            } as SequenceAction,
+            duration: 'INSTANT',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          },
+        ],
+      },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**

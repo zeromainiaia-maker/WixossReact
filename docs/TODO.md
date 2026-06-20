@@ -106,11 +106,11 @@
 
 **✅ バッチ1（v0.377）:** `WX06-029` / `WXDi-P04-082` / `WXDi-P15-098`（いずれも ON_ATTACK_SIGNI 経路。詳細は BUGFIXES.md）。
 **✅ バッチ2（v0.378）:** `WX12-018`（ON_ATTACK_SIGNI＋`LRIG_TRASH_COUNT`/`FIELD_CLASS_COUNT` 新設）/ `WXDi-P09-058`（覚醒中ターン終了時の相手エナ非共通色トラッシュ＝`colorNotMatchesLrig`＋E2 を `ON_SIGNI_BATTLE` 覚醒に修正）。
+**✅ バッチ3（v0.379）:** `WXDi-P15-060` / `WXDi-P15-064`（上シグニ付与＝既存 `GRANT_SIGNI_ABOVE_ABILITY`。内側はエナ非共通色トラッシュ／手札捨て＋blind相手捨て）。
 
 **残り（カテゴリ別）:**
 - **ゲート条件（自ゲート未モデリング）:** `WXDi-P15-082`（ON_ATTACK_PHASE_START＋同ゾーンに【ゲート】）/ `WXDi-P15-076`（ON_TURN_END＋【ゲート】）← 既存 `signi_gate_zones` は「相手へ設置するアタック不可ゲート」で別概念。THE DOOR の自ゲート表現が必要。
 - **相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`（相手シグニへ ON_ATTACK_PHASE_START 自デッキ mill）← `collectTurnTriggers` が人間ターンのみ呼ばれるため、相手（CPU）ターンの self トリガー収集経路の確認が必要。
-- **上シグニ付与（既存 GRANT_SIGNI_ABOVE_ABILITY）:** `WXDi-P15-060` / `WXDi-P15-064`（内側が「相手センターと共通しない色」エナトラッシュ／見て選んで捨てさせる等の複合）。
 - **ルリグへの付与:** `WXDi-P05-032`（センタールリグへ「【自】《ターン1回》ルリグアタック時…」を付与＝ルリグ付与機構が必要）。
 - **専用 timing 欠如:** `WX21-054`（「ダメージを与えたとき」＝ON_DAMAGE 無し）/ `WXDi-P02-068`（「バトルによってバニッシュしたとき相手手札を見て1枚選び捨てさせる」）。
 - **全領域 LIFE_BURST 付与（特殊）:** `WX17-036`（手札/デッキ/トラッシュ/場の＜怪異＞すべてに【ライフバースト】を付与）。

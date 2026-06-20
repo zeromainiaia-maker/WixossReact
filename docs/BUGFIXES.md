@@ -5,6 +5,15 @@
 
 ---
 
+## F-2 引用付与トリガーの実装（バッチ3・上シグニ付与 WXDi-P15-060／P15-064）（v0.379, 2026-06-20）
+
+- **対象＝TODO F-2「上シグニ付与」。** 「このカードの上にある＜解放派＞のシグニは『【自】…』を得る」型を、既存 `GRANT_SIGNI_ABOVE_ABILITY`（`collectGrantedFromUnderSigni` Pattern B が下カードから上シグニへ付与し augMap へ合成）で実装。新規機構なし。
+- **WXDi-P15-060（遊月//THE DOOR）:** E2 を `GRANT_SIGNI_ABOVE_ABILITY{filter:解放派}`→付与能力 `ON_ATTACK_PHASE_START`→相手エナの「相手センターと共通しない色」1枚トラッシュ（`colorNotMatchesLrig`、バッチ2と同じく対象オーナー基準で解決）。E1（下にカードがあるかぎり+4000）・BURST はパーサー生成を維持。
+- **WXDi-P15-064（アロス・ピルルク//THE DOOR）:** E2 を `GRANT_SIGNI_ABOVE_ABILITY{filter:解放派}`→付与能力 `ON_ATTACK_PHASE_START`→`SEQUENCE[手札1枚捨て, CONDITIONAL(IS_MY_TURN)→相手手札を見ないで1枚捨てさせる(blind)]`。「捨ててもよい」の任意性は同カード E1 の生成パターンに合わせ近似。E1（自身の同型能力）・BURST は維持。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（E2 のみ外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 引用付与トリガーの実装（バッチ2・WX12-018／WXDi-P09-058）（v0.378, 2026-06-20）
 
 - **対象＝TODO F-2 の続き。** バッチ1（v0.377）の方針（「〜であるかぎり『【自】…』を得る」＝condition 付き AUTO トリガー）を踏襲し、汎用条件を足して2枚を追加実装。
