@@ -400,6 +400,7 @@ export function getSigniStatusKeywords(
   cards: CardData[],
   keywordGrants?: Record<string, string[]>,
   abilitiesRemoved?: string[],
+  dynamicKeywords?: Record<string, string[]>,
 ): string[] {
   if (!stack || stack.length === 0) return [];
   const topNum = stack[stack.length - 1];
@@ -407,10 +408,13 @@ export function getSigniStatusKeywords(
   const card = cards.find(c => c.CardNum === getCardNum(topNum));
   const text = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
   const granted = keywordGrants?.[topNum] ?? [];
+  // CONTINUOUS GRANT_KEYWORD（activeCondition 達成）で動的に付与中のキーワード（WD04-010 のパワー条件ランサー等）
+  const dynamic = dynamicKeywords?.[topNum] ?? [];
   // 「【kw】を得る/得て/を持つ/を与える」等、効果で付与・参照される記述は固有キーワードとして扱わない。
-  // （実際に付与された場合は keywordGrants 側で動的に検出されるため、未発動時にバッジが誤表示されない）
+  // （実際に付与された場合は keywordGrants / dynamicKeywords 側で動的に検出されるため、未発動時にバッジが誤表示されない）
   const has = (kw: string) => {
     if (granted.includes(kw)) return true;
+    if (dynamic.includes(kw)) return true;
     const stripped = text.replace(new RegExp(`【${kw}】(を得る|を得て|を持|を与え)`, 'g'), '');
     return stripped.includes(`【${kw}】`);
   };
