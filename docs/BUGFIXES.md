@@ -5,6 +5,19 @@
 
 ---
 
+## 動的キーワード付与（CONTINUOUS GRANT_KEYWORD）のバッジ表示を修正（v0.376, 2026-06-20）
+
+- **症状（ユーザー報告）:** WD04-010「幻獣　ミスザク」（【常】パワー10000以上のかぎりランサーを得る）のように、条件達成で動的に得るキーワードの**バッジが表示されない**。他の動的変化も同様にバッジが付かない可能性。
+- **原因:** バッジ判定 `getSigniStatusKeywords`（BoardComponents）が「テキストの固有【kw】（ただし『を得る』形は除外）」と「`keyword_grants` 状態（解決済み付与）」のみを参照し、**CONTINUOUS GRANT_KEYWORD の activeCondition を評価していなかった**。WD04-010 の付与は `SELF_POWER_THRESHOLD` 条件付きで毎フレーム変動するため `keyword_grants` には書かれず、テキストの「【ランサー】を得る」も除外対象で、結果バッジ非表示。バトル処理（`hasGrantedKeyword`/`contGrantedKeywords`, BattleScreen 6468-6474）では条件評価済みのため**ゲーム上のランサーは機能していた**＝表示のみの不整合。
+- **修正:**
+  - エンジンに `collectContinuousGrantedKeywords(ownerState, otherState, isOwnerTurn, effectsMap, cardMap, effectivePowers)` を新設。各シグニ instanceId 単位で、CONTINUOUS GRANT_KEYWORD のうち activeCondition を満たす付与を収集（自己付与「このシグニは…を得る」＝count:1/source自身、場全体付与＝count:ALL/filter一致の両対応）。
+  - BattleScreen で `dynamicKeywords`（自分/相手ボード分）を `effectivePowers` 依存の useMemo で算出し、両 `PlayerField` に渡す。
+  - `getSigniStatusKeywords` に `dynamicKeywords` 引数を追加し、`has(kw)` 判定に動的付与を含める。
+- **波及:** WD04-010 以外の動的キーワード（パワー閾値・場の状況などで変動する CONTINUOUS ランサー/アサシン/ダブルクラッシュ等）のバッジも正しく表示・非表示されるようになる。
+- **検証:** collector を WD04-010 相当で単体確認（power12000→`["ランサー"]` / power8000→`{}`）。
+
+---
+
 ## spell-cut-in に使用条件評価を追加＋WX17-031 凶蟲条件を強制（v0.375, 2026-06-20）
 
 - **症状:** spell-cut-in 候補収集（`cutinCandidates`）が各カットイン効果の `eff.condition` を評価していなかったため、WX17-031「§ヤシガニラ§」の【起】《スペルカットイン》が「あなたの場に＜凶蟲＞のシグニがある場合」条件を無視して常に発動候補に出ていた。
