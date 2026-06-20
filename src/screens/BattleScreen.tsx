@@ -11781,7 +11781,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         {/* 相手盤面 */}
         <div style={{ border: C.borderPanel, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgOpponent }}>
           <HandCards cardNums={op.hand} cards={battleCards} faceDown />
-          <PlayerField state={op} cards={battleCards} isMe={false} effectivePowers={effectivePowers} />
+          <PlayerField state={op} cards={battleCards} isMe={false} effectivePowers={effectivePowers} dynamicKeywords={dynamicKeywords.op} />
         </div>
 
         {/* 中央区切り */}
