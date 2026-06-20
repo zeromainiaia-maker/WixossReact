@@ -16,6 +16,17 @@
 
 ---
 
+## 「ライフクロスがクラッシュされたとき」→ ON_LIFE_CRASHED 誤パース（ON_PLAY 化）を恒久修正＋usageLimit/thisCardOnly 補完（v0.440, 2026-06-21）
+
+- **症状:** 【自】「あなたのライフクロス１枚がクラッシュされたとき、〜」が **timing 判定に無く ON_PLAY（場に出たとき）へ誤フォールバック**していた。TODO B節で「7枚を ON_LIFE_CRASHED に修正済」とあったが**JSON 直パッチのみで manualEffects 未登録**だったため、後の再生成で ON_PLAY に逆戻りしていた（WX02-003 で発覚）。
+- **修正（パーサー・durable）:** `自` の timing 判定に **`対戦相手のライフ…クラッシュされたとき`→`ON_OPP_LIFE_CRASHED` / `(あなたの)ライフ…クラッシュされたとき`→`ON_LIFE_CRASHED`** を新設。トリガー文を除去し、ON_LIFE_CRASHED は `triggerScope:self`。「〜してもよい」は mandatory:false（任意化対象に ON_LIFE_CRASHED/ON_OPP_LIFE_CRASHED を追加）。
+- **副次修正① usageLimit:** パーサーは従来 `《ターン１回》` 等を**一切解析しておらず**（usageLimit は manualEffects のみ）、ライフクラッシュ系が毎回多重発動しうる状態だった。**`《ターン１回》→once_per_turn` / `《ターン２回》→twice_per_turn` / `《ゲーム１回》→once_per_game`** を AUTO/ACTIVATED 全般で付与（CONTINUOUS 除外）。
+- **副次修正② thisCardOnly:** 「このシグニをバニッシュする」が「自シグニ1体を任意選択」になっていたのを `thisCardOnly` に（WX14-CB05-E3）。
+- **対象再生成（12枚）:** 単純系 `WX02-003`/`WX14-CB05`/`WX21-Re03`/`WXK03-014`/`WXK11-034`/`WD21-011`/`WXDi-P02-037`、parser 効果を含む `PR-426`(E2)、および manualEffects 定義が JSON に未反映で stale だった `WDK17-009`/`WXDi-P06-007`/`WXDi-P16-039`/`WX25-CP1-065` を JSON に反映。さらに usageLimit 追加で差分が出た本セッション既修正の `WXDi-P07-032`/`WX20-002`/`WX25-P1-034`/`WX24-P3-018`/`WX22-001` も再生成（usageLimit のみの差分を確認）。
+- **注意（durable 性）:** usageLimit のパーサー化は**全再生成で多数のカードに once_per_turn 等が付与される**広域変更。現状はサージカル再生成のみのため影響は対象カードに限定。全再生成時は退化チェック推奨。typecheck 0エラー。
+
+---
+
 ## WX02-002-E1「全領域のカードが【ライフバースト】【エナチャージ１】を持つ」の誤パース修正（v0.439, 2026-06-21）
 
 - **症状:** 【常】「あなたのすべての領域にあるカードは【ライフバースト】【エナチャージ１】を持つ」が `SEQUENCE[GRANT_KEYWORD(ライフバースト→シグニ1体), GRANT_KEYWORD(エナチャージ１→シグニ1体)]` に誤パースされていた（全領域付与でなく「シグニ1体にキーワード付与」＝完全に別物）。本来はライフクロスを含む全領域のカードが追加の【ライフバースト】（効果＝【エナチャージ１】）を得て、クラッシュ時に発動する。
