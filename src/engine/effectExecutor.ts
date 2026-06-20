@@ -580,7 +580,8 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
       trash: [...state.trash, ...crashed],
     };
   }
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `ライフクロスを${count}枚クラッシュ`));
+  // crashed を lastProcessedCards に残す（後続の conditional LIFE_CRASH「そうした場合」用）
+  return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `ライフクロスを${crashed.length}枚クラッシュ`), lastProcessedCards: crashed });
 }
 
 function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {
