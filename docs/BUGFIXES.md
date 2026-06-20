@@ -5,6 +5,12 @@
 
 ---
 
+## WX01-002-E1 条件欠落修正（v0.417, 2026-06-20）
+
+- **WX01-002（コードアートＲＩＤＥ・ルリグ）E1:** 「あなたの場に**白と赤のシグニがあるかぎり**、あなたのシグニのパワー+3000」が **activeCondition 欠落で常時+3000** だった。→ `AND[HAS_CARD_IN_FIELD(self,色白), HAS_CARD_IN_FIELD(self,色赤)]` を付与。E2/E3 はパーサー生成を維持。manualEffects＋JSON。typecheck 通過。
+
+---
+
 ## WD04-013/015/018 誤パース修正＋powerLteLastProcessed 新設（v0.416, 2026-06-20）
 
 - **WD04-013 / WD04-015（シグニ）:** 「アタック時、このシグニのパワーが5000/3000以上の場合にエナチャージ」の **SELF_POWER_GTE 条件が欠落**し常時チャージだった。→ `condition: SELF_POWER_GTE` を付与。
