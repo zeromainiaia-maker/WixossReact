@@ -16,6 +16,15 @@
 
 ---
 
+## 一時召喚「ターン終了時、それらを場からトラッシュに置く」が全シグニ BANISH（盤面全滅）に誤パース → TRASH_AT_TURN_END へ修正（v0.441, 2026-06-21）
+
+- **症状（致命）:** 「デッキ/トラッシュから…シグニを場に出す。**ターン終了時、それら（=出したカード）を場からトラッシュに置く**」型の一時召喚で、2文目が **`BANISH SIGNI owner:any count:ALL`（両者の全シグニを即座にバニッシュ＝盤面全滅）** に誤パースされていた（単数「それを」は `BANISH any 1`）。parseSentencePart1 の `それ(ら)を場からトラッシュに置く`→BANISH ハンドラが原因。「それら＝直前に出したカード」「トラッシュに置く≠バニッシュ」「ターン終了時＝遅延」をすべて取り違えていた。
+- **修正（パーサー・durable）:** `parseSingleSentence` の**プレフィックス除去前**に `^ターン終了時、それら?を(場から)?トラッシュに置く$` を検出し、専用 STUB **`TRASH_AT_TURN_END`** を発行（この STUB は元々 WX02-005 用に engine 実装済みだったが、パーサーが BANISH を吐いていたため未使用だった）。`lastProcessedCards`（直前に出したカード）を `turn_end_field_trash_targets` に登録し、ターン終了処理でトラッシュする既存機構に接続。
+- **対象（13枚 / 同型15枚中）:** `WX02-005`/`WX03-047`/`WX13-002`/`WX13-009`/`WX13-017`/`WX13-023`/`WX16-Re20`/`WX20-001`/`WX20-048`/`WX20-Re20`/`WXDi-P03-034`/`WXDi-P13-042`/`WXDi-P15-046`（単数「それを」型＝旧 BANISH 1 も含め全て TRASH_AT_TURN_END へ）。
+- **動作範囲:** **SEARCH 系配置**（WX02-005 等）は `resumeSearch` が `lastProcessedCards` を設定するため**ターン終了トラッシュまで完全動作**。**source 系配置**（トラッシュ/手札/エナから出す）は `execAddToField`/`resumeSelectSigniZone` が `lastProcessedCards` を設定しないため **TRASH_AT_TURN_END が空振り＝一時シグニが残る（過剰利益・非致命）**。core resume 関数の `lastProcessedCards` 変更は他カードの「そうした場合」conditional に波及するため見送り。**残課題:** source 系配置の placed カードを `lastProcessedCards` に通す（要慎重なスコープ）。typecheck 0エラー。
+
+---
+
 ## 「ライフクロスがクラッシュされたとき」→ ON_LIFE_CRASHED 誤パース（ON_PLAY 化）を恒久修正＋usageLimit/thisCardOnly 補完（v0.440, 2026-06-21）
 
 - **症状:** 【自】「あなたのライフクロス１枚がクラッシュされたとき、〜」が **timing 判定に無く ON_PLAY（場に出たとき）へ誤フォールバック**していた。TODO B節で「7枚を ON_LIFE_CRASHED に修正済」とあったが**JSON 直パッチのみで manualEffects 未登録**だったため、後の再生成で ON_PLAY に逆戻りしていた（WX02-003 で発覚）。
