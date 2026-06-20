@@ -5,6 +5,16 @@
 
 ---
 
+## 専用の手札公開モーダル `REVEAL_CARDS` を新設（v0.410, 2026-06-20）
+
+- **「対戦相手の手札を見て」系の情報アドバンテージを専用モーダルで再現。** v0.409 のログ公開を、閲覧専用モーダルに格上げ。
+- **新インタラクション `REVEAL_CARDS`（`PendingInteractionDef`）:** `{ cards, title?, continuation? }`。選択を伴わずカード群を公開表示し、「確認」で `continuation` を実行する。`resumeRevealCards`（effectExecutor）は continuation を実行するだけ（状態変更なし）。
+- **`TK3_DECLARE_DISCARD` を2段化:** 数字宣言（CHOOSE）→ `REVEAL_CARDS`（相手手札全体を公開）→ 確認後に新 STUB `TK3_DISCARD_BY_LEVEL` が宣言レベルのシグニを全捨て。効果オーナー（＝見る側）が respond するため、人間の効果なら人間がモーダルで相手手札を視認、CPU の効果なら CPU が自動確認（人間には CPU の手は見せない）。
+- **BattleScreen:** `handleEffectInteraction` に `REVEAL_CARDS` 分岐（`resumeRevealCards`）＋モーダル描画（カードを face-up グリッド＋確認ボタン）。CPU 自動解決は `selected=[]` で既存経路に乗る。
+- **反映:** types/index＋effectExecutor＋execStubPart1＋BattleScreen。typecheck 通過。WD03-006/WX25-P1-TK3（ダーク・アナライズ）に適用。
+
+---
+
 ## TK3_DECLARE_DISCARD に相手手札の公開ログを追加（v0.409, 2026-06-20）
 
 - **WD03-006/WX25-P1-TK3 の「対戦相手の手札を見て」の情報アドバンテージを再現。** 従来は同レベルのシグニを自動で捨てるだけで相手手札全体が見えず、「見て」で得られる**手札情報**が失われていた。
