@@ -123,6 +123,24 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX01-002 コードアート　ＲＩＤＥ（ルリグ）
+  // E1【常】：あなたの場に白と赤のシグニがあるかぎり、あなたのシグニのパワーを＋3000する。
+  // 旧JSONは activeCondition 欠落で常時+3000だった。→ AND[白シグニがいる, 赤シグニがいる]。E2/E3 はパーサー生成を維持。
+  'WX01-002': [
+    {
+      effectId: 'WX01-002-E1',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'AND', conditions: [
+        { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: '白' } },
+        { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: '赤' } },
+      ] },
+      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } }, delta: 3000 },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WD04-013 / WD04-015（シグニ）: アタック時、このシグニのパワーがN以上の場合のみエナチャージ。
   // 旧JSONは条件（SELF_POWER_GTE）欠落で常時チャージだった。
   'WD04-013': [
