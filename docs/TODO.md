@@ -98,10 +98,12 @@
 - **トークン:** ※WXDi-CP02-TK02A は v0.352 でランサー＋バトルバニッシュを実装済（「対戦相手ターン終了時に自己除外」は非アクティブ側ターン終了トリガーが必要で保留）。
 - ~~**WX17-038:** 中央でアタック時にデッキ公開→同レベルバニッシュ~~ → v0.353 で `REVEAL_UNTIL_BANISH_SAME_LEVEL` を新設し実装済。
 
-### F-2. 無害な CONTINUOUS TRASH 誤解析（精査のみ）
+### F-2. 無害な CONTINUOUS TRASH 誤解析（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）
 
-`calcContinuousSigniMutations` は TRASH を実行しないので無害だが誤解析ではある：`WX06-029` `WX12-018` `WX17-036` `WX21-054` `WXDi-P02-068` `WXDi-P04-040` `WXDi-P04-082` `WXDi-P05-032` `WXDi-P06-034` `WXDi-P09-058` `WXDi-P10-072` `WXDi-P15-060` `WXDi-P15-064` `WXDi-P15-076` `WXDi-P15-082` `WXDi-P15-098` `WXK04-048` `WXK05-024` `WXK10-039` ほか。
+**監査結論:** `calcContinuousSigniMutations`（effectEngine.ts:371-422、CONTINUOUS効果を実際に適用する唯一の経路）の **行395** `if (act.type !== 'BANISH' && act.type !== 'FREEZE' && act.type !== 'DOWN') continue;` により **CONTINUOUS TRASH は一切実行されない**。CONTINUOUS の `action` は `executeAction` を通らない（状態算出のみ）ため他経路でも非実行。**無害確定**。
+正体は「このシグニは『…』を得る（かぎり）」型の**引用付与能力のフラット化誤解析**（内側 trigger能力の TRASH が CONTINUOUS action として漏れただけ）。本実装＝各カードの引用内 trigger能力を CONTINUOUS で個別付与する大規模作業のため別タスク。対象：`WX06-029` `WX12-018` `WX17-036` `WX21-054` `WXDi-P02-068` `WXDi-P04-040` `WXDi-P04-082` `WXDi-P05-032` `WXDi-P06-034` `WXDi-P09-058` `WXDi-P10-072` `WXDi-P15-060` `WXDi-P15-064` `WXDi-P15-076` `WXDi-P15-082` `WXDi-P15-098` `WXK04-048` `WXK05-024` `WXK10-039` ほか。
 
-### F-3. optional 身代わりバニッシュの表現（無害・別概念）
+### F-3. optional 身代わりバニッシュの表現（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）
 
-`optional:true` の「代わりにバニッシュしてもよい」は自動適用されず無害だが、CONTINUOUS BANISH 表現は正しくない（本来は BANISH_SUBSTITUTE/CHARM_PROTECTION 的な置換機構）：`WX12-024` `WX17-075` `WX20-055` `WXEX2-60` `WXDi-P10-052` `WXDi-CP01-032` `WX25-P1-056`。
+**監査結論:** 全7枚に `optional:true` が正しく付与されており、`calcContinuousSigniMutations` の **行397** `if ((act as BanishAction).optional) continue;` により**自動適用されない**＝**無害確定**。表現としては CONTINUOUS BANISH のままだが optional フラグが「自動適用しない身代わり」を正しく表す。
+本実装（「してもよい」の対話プロンプトをバトルバニッシュ経路＝BattleScreen 6620-6700 の多分岐＋effect-banish 経路の両方に差し込む）は**最も壊れやすいコアへの高リスク介入**かつ対象7枚のニッチカードのため、リスク承知の上での専用設計タスクとして切り出す。対象：`WX12-024` `WX17-075` `WX20-055` `WXEX2-60` `WXDi-P10-052` `WXDi-CP01-032` `WX25-P1-056`（本来は BANISH_SUBSTITUTE/CHARM_PROTECTION 的な置換機構）。
