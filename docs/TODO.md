@@ -84,7 +84,8 @@
 
 ### 逆翻訳ツール `scripts/decompileEffects.ts`（2026-06-20 新設）
 
-JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューする検証補助。`npx tsx scripts/decompileEffects.ts --sheet <N> | <CardNum...> | --manual | --grep <語>`。出力 `decompile_*.txt` は gitignore 済み（生成物）。
+JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューする検証補助。`npx tsx scripts/decompileEffects.ts --sheet <N> | <CardNum...> | --manual | --grep <語>`。
+- **Sheet1 全974枚の逆翻訳結果を共有: [`docs/decompile_sheet1.txt`](./decompile_sheet1.txt)**（ツール更新時は `npx tsx scripts/decompileEffects.ts --sheet 1 > docs/decompile_sheet1.txt` で再生成）。ルート直下の `decompile_*.txt` はスクラッチ扱いで gitignore。
 - **既知の限界:** 「素朴なキーワード差分」は誤検知だらけ（コスト文・ルール注記「（パワー0以下…バニッシュされる）」・未対応アクション）。本格運用には①近似承認リスト②未対応アクション補完が必要。未対応アクション例: `REVEAL_AND_PICK`/`ATTACH_CHARM`/`SHUFFLE_DECK`/`REARRANGE_SIGNI` 等（逆翻訳器に case 追加で対応可）。
 
 ### Sheet1（974枚）スキャンで判明した残課題（2026-06-20）

@@ -38,4 +38,5 @@ scripts/firebase-service-account.json
 # 使い捨て調査・検証ファイル
 tmp_*
 tmp_verify/
-decompile_*.txt
+# 逆翻訳ツールの出力: ルート直下はスクラッチ（無視）。共有分は docs/ にコミットする。
+/decompile_*.txt
