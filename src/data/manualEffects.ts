@@ -123,6 +123,24 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX01-029 羅輝石　アダマスフィア（シグニ）
+  // E1【自】：あなたの赤のシグニがアタックしたとき、ターン終了時まで、それのパワーを＋2000する。
+  // 旧JSONは POWER_MODIFY owner:any count:1（＝任意シグニ＝相手シグニも選べる誤り）。「それ」＝アタックした赤シグニなので targetsTriggerSource:true。
+  // E2/E3/BURST はパーサー生成を維持。
+  'WX01-029': [
+    {
+      effectId: 'WX01-029-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_SIGNI'],
+      triggerScope: 'any_ally',
+      triggerFilter: { color: '赤' },
+      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 2000, targetsTriggerSource: true },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX01-023 大器晩成（アーツ）
   // 「対戦相手のエナゾーンにあるすべてのカードと対戦相手のすべてのシグニをトラッシュに置く。」
   // 旧JSONはシグニを BANISH（＝既定でエナゾーン行き）にしていた誤り。「トラッシュに置く」なので TRASH（シグニはトラッシュへ）に修正。
