@@ -5,6 +5,14 @@
 
 ---
 
+## F-2 引用付与トリガーの実装（バッチ4・WXDi-P02-068＋ON_SIGNI_BATTLE 条件評価）（v0.380, 2026-06-20）
+
+- **ON_SIGNI_BATTLE 収集に condition 評価を追加:** `collectBattleTrig`（BattleScreen）が `eff.condition` を無視していたため、`evalUseCondition` による発動条件評価を追加（攻撃側=`newMyState`／防御側=`newOpState` を基準）。他の AUTO 収集経路（ON_ATTACK_SIGNI／collectTurnTriggers）と整合。既存の ON_SIGNI_BATTLE カード（condition なし）には影響なし。
+- **WXDi-P02-068（ヒジカタ）:** E2「【常】このターンに手札を２枚以上捨てていたかぎり、『【自】バトルによって相手シグニをバニッシュしたとき、相手手札を見ないで１枚捨てさせる』を得る」を、`ON_SIGNI_BATTLE`＋`condition: TURN_HAND_DISCARD_GTE(2)`→`TRASH HAND opponent blind` に修正。「バトルによってバニッシュした」勝利限定はバッチ2と同じくバトル成立時で近似。E1（手札1枚以上捨て→+3000、条件欠落は別の軽微な未対応）はパーサー生成を維持。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（E2 のみ外科パッチ）。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-2 引用付与トリガーの実装（バッチ3・上シグニ付与 WXDi-P15-060／P15-064）（v0.379, 2026-06-20）
 
 - **対象＝TODO F-2「上シグニ付与」。** 「このカードの上にある＜解放派＞のシグニは『【自】…』を得る」型を、既存 `GRANT_SIGNI_ABOVE_ABILITY`（`collectGrantedFromUnderSigni` Pattern B が下カードから上シグニへ付与し augMap へ合成）で実装。新規機構なし。

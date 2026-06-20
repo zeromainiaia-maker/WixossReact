@@ -6973,9 +6973,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!effectivelyEmpty && opTopCardNum) {
         const myBattleUsed: string[] = [];
         const opBattleUsed: string[] = [];
-        const collectBattleTrig = (cardNum: string, playerId: string, doneIds: string[] | undefined, used: string[]) => {
+        const collectBattleTrig = (cardNum: string, playerId: string, doneIds: string[] | undefined, used: string[], ownerSt: PlayerState, otherSt: PlayerState) => {
           for (const eff of (effectsMap.get(cardNum) ?? [])) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BATTLE')) continue;
+            // condition を持つAUTOは発動条件を満たす場合のみ収集（「このターンに手札を2枚以上捨てていたかぎり…を得る」等の付与AUTO）
+            if (eff.condition && !evalUseCondition(eff.condition, ownerSt, otherSt, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
             if (eff.usageLimit === 'once_per_turn' && (doneIds?.includes(eff.effectId) || used.includes(eff.effectId))) continue;
             if (eff.usageLimit === 'once_per_turn') used.push(eff.effectId);
             signiBattleEntries.push({
@@ -6988,8 +6990,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             } satisfies StackEntry);
           }
         };
-        collectBattleTrig(myTopNum, attackerId, newMyState.actions_done, myBattleUsed);
-        collectBattleTrig(opTopCardNum, defenderId, newOpState.actions_done, opBattleUsed);
+        collectBattleTrig(myTopNum, attackerId, newMyState.actions_done, myBattleUsed, newMyState, newOpState);
+        collectBattleTrig(opTopCardNum, defenderId, newOpState.actions_done, opBattleUsed, newOpState, newMyState);
         if (myBattleUsed.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...myBattleUsed];
         if (opBattleUsed.length > 0) newOpState.actions_done = [...(newOpState.actions_done ?? []), ...opBattleUsed];
       }

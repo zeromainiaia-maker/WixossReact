@@ -1529,6 +1529,27 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P02-068 蒼将　ヒジカタ
+  // 【常】このターンに手札を２枚以上捨てていたかぎり、このシグニは
+  //   「【自】このシグニがバトルによって対戦相手のシグニをバニッシュしたとき、対戦相手の手札を１枚見ないで選び、捨てさせる。」を得る。
+  // 旧 E2 パース＝CONTINUOUS TRASH HAND opponent blind（no-op）。
+  // condition 付き AUTO ON_SIGNI_BATTLE に修正（ON_SIGNI_BATTLE 収集に condition 評価を追加済み）。
+  // 「バトルによってバニッシュした」勝利限定はバッチ2の P09-058 と同じくバトル成立時で近似。
+  // E1（このターンに手札1枚以上捨てた→+3000）はパーサー生成を維持（条件欠落は別の軽微な未対応）。
+  'WXDi-P02-068': [
+    {
+      effectId: 'WXDi-P02-068-E2',
+      effectType: 'AUTO',
+      timing: ['ON_SIGNI_BATTLE'],
+      triggerScope: 'self',
+      condition: { type: 'TURN_HAND_DISCARD_GTE', value: 2 },
+      action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 };
 
 /**
