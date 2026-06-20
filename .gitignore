@@ -38,3 +38,4 @@ scripts/firebase-service-account.json
 # 使い捨て調査・検証ファイル
 tmp_*
 tmp_verify/
+decompile_*.txt

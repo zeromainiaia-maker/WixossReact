@@ -208,6 +208,16 @@ if (args.includes('--manual')) {
   // manualEffects.ts に登場するカード番号を抽出
   const src = readFileSync(join(root, 'src/data/manualEffects.ts'), 'utf-8');
   targets = [...src.matchAll(/'([A-Z0-9]+-[A-Za-z0-9-]+)':\s*\[/g)].map(m => m[1]);
+} else if (args[0] === '--sheet') {
+  // CardData_Sheet<N>.csv の全カードを CSV 順で対象にする（引数長制限回避）
+  const n = args[1] ?? '1';
+  const p = join(root, 'public/data', `CardData_Sheet${n}.csv`);
+  const text = readFileSync(p, 'utf-8').replace(/^﻿/, '');
+  const { data } = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+  targets = data.map(r => r.CardNum?.trim()).filter((x): x is string => !!x);
+} else if (args[0] === '--file') {
+  // 改行/空白区切りのカード番号ファイル
+  targets = readFileSync(args[1], 'utf-8').split(/\s+/).map(s => s.trim()).filter(Boolean);
 } else if (args[0] === '--grep') {
   const kw = args[1] ?? '';
   for (const [id, c] of cardMap) {
