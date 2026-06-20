@@ -519,6 +519,25 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!lrig) return false;
       return ctx.cardMap.get(lrig)?.Color?.includes(cond.color) ?? false;
     }
+    case 'LRIG_TRASH_COUNT': {
+      const types = cond.cardType
+        ? (Array.isArray(cond.cardType) ? cond.cardType : [cond.cardType])
+        : null;
+      const cnt = ctx.ownerState.lrig_trash.filter(n => {
+        const c = ctx.cardMap.get(n);
+        if (!c) return false;
+        return types ? types.includes(c.Type as typeof types[number]) : true;
+      }).length;
+      return cmp(cnt, cond.operator, cond.value);
+    }
+    case 'FIELD_CLASS_COUNT': {
+      const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
+        const top = stack?.at(-1);
+        if (!top) return n;
+        return ctx.cardMap.get(top)?.CardClass?.includes(cond.story) ? n + 1 : n;
+      }, 0);
+      return cmp(cnt, cond.operator, cond.value);
+    }
     case 'SUBSCRIBER_COUNT':
       return cmp(ctx.ownerState.subscriber_count ?? 0, cond.operator, cond.value);
     case 'SELF_POWER_GTE': {

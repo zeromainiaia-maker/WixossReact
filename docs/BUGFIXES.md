@@ -5,6 +5,20 @@
 
 ---
 
+## F-2 引用付与トリガーの実装（バッチ2・WX12-018／WXDi-P09-058）（v0.378, 2026-06-20）
+
+- **対象＝TODO F-2 の続き。** バッチ1（v0.377）の方針（「〜であるかぎり『【自】…』を得る」＝condition 付き AUTO トリガー）を踏襲し、汎用条件を足して2枚を追加実装。
+- **汎用条件を2つ新設（`evalCondition`/execUtils）:**
+  - `LRIG_TRASH_COUNT { cardType?, operator, value }` — ルリグトラッシュの（cardType 一致）枚数。「ルリグトラッシュにアーツが4枚以上」等。
+  - `FIELD_CLASS_COUNT { owner, story, operator, value }` — 場のシグニのうち CardClass が story を含む数。「場に＜天使＞が3体」等（既存 FIELD_COUNT はクラス未対応のため新設）。
+- **WX12-018（ガブリエルト）:** E2「【常】ルリグトラッシュにアーツ4枚以上のかぎり、『【自】アタック時、場に＜天使＞3体なら相手の全シグニをトラッシュ』を得る」を、`ON_ATTACK_SIGNI`＋`condition: AND[LRIG_TRASH_COUNT(アーツ,gte,4), FIELD_CLASS_COUNT(self,天使,gte,3)]`→`TRASH SIGNI opponent ALL` に修正。E1（GRANT_PROTECTION）と BURST はパーサー生成を維持。
+- **WXDi-P09-058（LOVIT//メモリア）:** 2能力とも誤パース（E1=CONTINUOUS TRASH ENERGY、E2=ON_PLAY AWAKEN＝召喚時覚醒の誤り）を修正。
+  - E1: `ON_TURN_END`＋`condition: THIS_CARD_IS_AWAKENED`→相手エナ1枚トラッシュ。「対戦相手のセンタールリグと共通しない色」は energy 対象で既存 `colorNotMatchesLrig` が**対象オーナー（相手）のルリグ基準**で `colorExclude` へ解決される（effectExecutor の ENERGY_CARD 経路）ため、追加機構なしで忠実表現。
+  - E2: `ON_SIGNI_BATTLE`→`AWAKEN_SIGNI`（自身覚醒）。**近似**: 「バトルによってバニッシュしたとき」の勝利限定は専用情報がないため、バトル成立時に発火（実用上ほぼ一致）。E2 の誤った召喚時覚醒を撤去したことで E1 の覚醒ゲートが正しく機能する。
+- **反映:** `manualEffects.ts`＋プリビルド JSON（外科パッチ）。typecheck 通過、verifyEffects は新規警告なし（既知の WX06-029 のみ）。
+
+---
+
 ## F-2 引用付与トリガー能力のフラット化誤解析を実装開始（バッチ1・3枚＋機構）（v0.377, 2026-06-20）
 
 - **対象＝TODO F-2:** 「このシグニは『【自】…』を得る（かぎり）」型の引用付与能力が、内側 trigger を失って **CONTINUOUS TRASH にフラット化**され `calcContinuousSigniMutations`（行395）で no-op 化していた約19枚。監査で無害確定済みだが効果未実装だった。

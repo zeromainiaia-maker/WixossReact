@@ -104,18 +104,17 @@
 
 **実装方針（v0.377 で確立）:** 大規模機構は不要。「〜であるかぎり『【自】…』を得る」は **condition 付き AUTO トリガー**として表現すれば既存収集（`collectTurnTriggers`/ON_ATTACK_SIGNI 収集が `evalUseCondition` で条件評価）が発火する。場全体付与は既存 `GRANT_FIELD_SIGNI_ABILITY`＋`collectGrantedFromLayer`。機構追加は `LRIG_COLOR` 条件と `GrantFieldSigniAbilityAction.targetOwner` の2点のみ（v0.377）。
 
-**✅ バッチ1（v0.377・実装済）:** `WX06-029` / `WXDi-P04-082` / `WXDi-P15-098`（いずれも ON_ATTACK_SIGNI 経路。詳細は BUGFIXES.md）。
+**✅ バッチ1（v0.377）:** `WX06-029` / `WXDi-P04-082` / `WXDi-P15-098`（いずれも ON_ATTACK_SIGNI 経路。詳細は BUGFIXES.md）。
+**✅ バッチ2（v0.378）:** `WX12-018`（ON_ATTACK_SIGNI＋`LRIG_TRASH_COUNT`/`FIELD_CLASS_COUNT` 新設）/ `WXDi-P09-058`（覚醒中ターン終了時の相手エナ非共通色トラッシュ＝`colorNotMatchesLrig`＋E2 を `ON_SIGNI_BATTLE` 覚醒に修正）。
 
 **残り（カテゴリ別）:**
-- **自己付与・既存timing/条件で可（次バッチ最有力）:** `WXDi-P15-082`（ON_ATTACK_PHASE_START＋同ゾーンに【ゲート】）/ `WXDi-P15-076`（ON_TURN_END＋【ゲート】）← 「同じシグニゾーンに【ゲート】がある」条件の新設が必要。
-- **相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`（相手シグニへ ON_ATTACK_PHASE_START 自デッキ mill）← 相手ターンの ON_ATTACK_PHASE_START 収集経路（playerId）の検証が必要。
-- **上シグニ付与（既存 GRANT_SIGNI_ABOVE_ABILITY）:** `WXDi-P15-060` / `WXDi-P15-064`。
-- **ルリグへの付与:** `WXDi-P05-032`（センタールリグへ「【自】ルリグアタック時…」）。
-- **複雑な色条件（対戦相手センターと共通しない色の energy）:** `WXDi-P09-058`（＋E2 が覚醒トリガーの別誤パース）/ 上記 P15-060/064 にも内在。`colorNotMatchesOppLrig` 相当のフィルタ新設が要る。
-- **専用 timing 欠如:** `WX21-054`（「ダメージを与えたとき」＝ON_DAMAGE 無し）/ `WXDi-P02-068`（「バトルによってバニッシュしたとき」）。
-- **複合条件:** `WX12-018`（ルリグトラッシュのアーツ4枚以上＋場に＜天使＞3体）。
+- **ゲート条件（自ゲート未モデリング）:** `WXDi-P15-082`（ON_ATTACK_PHASE_START＋同ゾーンに【ゲート】）/ `WXDi-P15-076`（ON_TURN_END＋【ゲート】）← 既存 `signi_gate_zones` は「相手へ設置するアタック不可ゲート」で別概念。THE DOOR の自ゲート表現が必要。
+- **相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`（相手シグニへ ON_ATTACK_PHASE_START 自デッキ mill）← `collectTurnTriggers` が人間ターンのみ呼ばれるため、相手（CPU）ターンの self トリガー収集経路の確認が必要。
+- **上シグニ付与（既存 GRANT_SIGNI_ABOVE_ABILITY）:** `WXDi-P15-060` / `WXDi-P15-064`（内側が「相手センターと共通しない色」エナトラッシュ／見て選んで捨てさせる等の複合）。
+- **ルリグへの付与:** `WXDi-P05-032`（センタールリグへ「【自】《ターン1回》ルリグアタック時…」を付与＝ルリグ付与機構が必要）。
+- **専用 timing 欠如:** `WX21-054`（「ダメージを与えたとき」＝ON_DAMAGE 無し）/ `WXDi-P02-068`（「バトルによってバニッシュしたとき相手手札を見て1枚選び捨てさせる」）。
 - **全領域 LIFE_BURST 付与（特殊）:** `WX17-036`（手札/デッキ/トラッシュ/場の＜怪異＞すべてに【ライフバースト】を付与）。
-- **アクセ付与併用:** `WXK04-048`（自己付与＋`GRANT_ACCE_HOST_ABILITY`）。
+- **アクセ付与併用＋任意コスト:** `WXK04-048`（自己付与＝IS_ACCED＋《青》任意支払い「そうした場合」＋`GRANT_ACCE_HOST_ABILITY`）。
 - **別形の誤解析（F-2 の付与型ではない・要別対応）:** `WXDi-P04-040`（《無×3》払わないと自己トラッシュ）/ `WXDi-P06-034`（ライズ＋身代わり置換引用）/ `WXK05-024`（場離れ代わりに除外＋起動）/ `WXK10-039`（＜原子＞2体トラッシュしないと自己トラッシュ）。
 
 ### F-3. optional 身代わりバニッシュの表現（**監査済み 2026-06-20: 無害確定・本実装は別タスク**）
