@@ -172,6 +172,21 @@ function condJa(c?: any): string {
     case 'LAST_PROCESSED_LEVEL_SUM_EQ': return `直前に処理したシグニのレベル合計が${numJa(c.value)}`;
     case 'BEAT_CONDITION': return `《ビート》[${c.condText ?? ''}]`;
     case 'COND_STUB': return `[条件STUB:${c.raw ?? ''}]`;
+    // ── ActiveCondition（CONTINUOUS の activeCondition）系 ──
+    case 'COUNT_THRESHOLD': {
+      const loc = ({ hand: '手札', trash: 'トラッシュ', energy: 'エナ', deck: 'デッキ', life_cloth: 'ライフ' } as Record<string, string>)[c.location] ?? c.location;
+      return `${ownerJa(c.owner)}${loc}が${numJa(c.value)}枚${opJa(c.operator)}`;
+    }
+    case 'SELF_POWER_THRESHOLD': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator)}`;
+    case 'HAND_DIFF': return `自分と対戦相手の手札差が${numJa(c.value)}${opJa(c.operator)}`;
+    case 'ENA_DIFF': return `自分と対戦相手のエナ差が${numJa(c.value)}${opJa(c.operator)}`;
+    case 'EICHI_LEVEL_SUM': return `英知（＜英知＞シグニのレベル合計）が${numJa(c.value)}${opJa(c.operator)}`;
+    case 'VIRUS_COUNT': return `${ownerJa(c.owner)}場の【ウィルス】が${numJa(c.value)}${opJa(c.operator)}`;
+    case 'IS_SELF_ARMORED': return 'このシグニが血晶武装状態';
+    case 'IS_SELF_ACCED': return 'このシグニに【アクセ】が付いている';
+    case 'IS_SELF_ACCE_CARD': return 'このカードが【アクセ】として付いている';
+    case 'IS_SELF_AWAKENED': return 'このシグニが覚醒状態';
+    case 'IS_SELF_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
     default: return `[条件:${c.type}]`;
   }
 }
