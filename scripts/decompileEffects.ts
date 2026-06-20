@@ -72,6 +72,7 @@ function filterJa(f?: any): string {
   if (f.inGateZone) parts.push('同じゾーンに【ゲート】がある');
   if (f.centerZoneOnly) parts.push('中央ゾーンの');
   if (f.color) parts.push(`《${[].concat(f.color).join('・')}》の`);
+  if (f.colorExclude) parts.push(`《${[].concat(f.colorExclude).join('・')}》以外の`);
   if (f.cardClass) parts.push(`＜${[].concat(f.cardClass).join('・')}＞の`);
   if (f.story) parts.push(`＜${[].concat(f.story).join('・')}＞の`);
   if (f.cardName) parts.push(`《${f.cardName}》`);

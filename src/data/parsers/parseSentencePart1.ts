@@ -1116,6 +1116,19 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SUMMON_RESONA_FROM_LRIG_DECK' } as StubAction;
   }
 
+  // ---- 手札からシグニを場に出す ----
+  // 旧実装は bare ADD_TO_FIELD でデッキトップを出していた（誤り）。手札から対象を選んで出す。
+  if (t.includes('手札から') && (t.includes('場に出す') || t.includes('場に出してもよい'))
+      && !t.includes('エナ') && !t.includes('トラッシュ') && !t.includes('ルリグデッキ') && !t.includes('デッキの一番上') && !t.includes('デッキの上')) {
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStoryFilter(t) };
+    const exclM = t.match(/([白青赤緑黒])ではない/);
+    if (exclM) filter.colorExclude = exclM[1];
+    else Object.assign(filter, parseColorFilter(t));
+    const upToM = t.match(/([０-９\d]+)枚まで/);
+    const count = upToM ? parseNum(upToM[1]) : 1;
+    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
+  }
+
   // ---- 場に出す（デッキ上から / 手札から など）----
   if (t.includes('場に出してもよい') || (t.includes('場に出す') && !t.includes('エナ') && !t.includes('トラッシュ'))) {
     return { type: 'ADD_TO_FIELD', owner: 'self' };
