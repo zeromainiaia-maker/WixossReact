@@ -2573,6 +2573,53 @@ export function collectCrossStates(playerState: PlayerState, cardMap: Map<string
 }
 
 /**
+ * 動的キーワード付与の収集（バッジ表示用）。
+ * CONTINUOUS GRANT_KEYWORD で activeCondition が現在満たされている付与を、各シグニ instanceId 単位で集める。
+ * - 「このシグニは【ランサー】を得る」型（count:1, owner:self, source=シグニ自身）＝ WD04-010 等の動的キーワード
+ * - 「あなたの＜X＞のシグニはランサーを得る」型（count:ALL, owner:self/any/all, filter一致）＝ 場全体付与
+ * keyword_grants（解決済み付与）とは別に、毎フレーム条件評価で変動する付与を表示するためのもの。
+ * 戻り値: { [signiInstanceId]: keyword[] }。
+ */
+export function collectContinuousGrantedKeywords(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+  effectivePowers?: Map<string, number>,
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  const add = (num: string, kw: string) => {
+    (result[num] ??= []);
+    if (!result[num].includes(kw)) result[num].push(kw);
+  };
+  const signiTops: string[] = ownerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : []));
+  const signiSet = new Set(signiTops);
+  // 発生源: 自分の場のシグニ＋センタールリグ
+  const sources: string[] = [...signiTops];
+  const lrigTop = ownerState.field.lrig.at(-1);
+  if (lrigTop) sources.push(lrigTop);
+  for (const srcNum of sources) {
+    for (const eff of effectsMap.get(srcNum) ?? []) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (eff.action.type !== 'GRANT_KEYWORD') continue;
+      const gk = eff.action as import('../types/effects').GrantKeywordAction;
+      // 自分のシグニへの付与のみ（owner:opponent のデバフ系キーワードはバッジ対象外）
+      if (gk.target.owner !== 'self' && gk.target.owner !== 'any' && gk.target.owner !== 'all') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, srcNum, effectivePowers)) continue;
+      const targetsAll = gk.target.count === 'ALL';
+      for (const num of signiTops) {
+        if (gk.target.filter && !matchesFilter(cardMap.get(num), gk.target.filter)) continue;
+        // count:1（「このシグニ」想定）は発生源シグニ自身のみ。count:ALL は条件一致の全シグニ。
+        if (!targetsAll && !(signiSet.has(srcNum) && num === srcNum)) continue;
+        add(num, gk.keyword);
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * COPY_LRIG_NAME_ABILITY (CONT): センタールリグに「ルリグトラッシュのルリグと同じカード名として扱う」
  * CONTINUOUS効果があれば、そのエイリアスカード名のリストを返す。
  * NOTE: 同ルリグの【自】能力コピーは未実装（名前エイリアスのみ対応）。
