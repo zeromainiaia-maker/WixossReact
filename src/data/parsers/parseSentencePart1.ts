@@ -766,6 +766,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const isOptional = t.includes('バニッシュしてもよい');
+    // 「このシグニをバニッシュする」＝自身のみ（任意選択でなく thisCardOnly）
+    if (/このシグニを(?:[^。、]*)?バニッシュ/.test(t) && !t.includes('対戦相手')) {
+      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } }, ...(isOptional ? { optional: true } : {}) };
+    }
     return { type: 'BANISH', target: parseSigniTarget(t, owner), ...(isOptional ? { optional: true } : {}) };
   }
 
