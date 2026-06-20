@@ -1110,6 +1110,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
   }
 
+  // ---- ルリグデッキからレゾナを出現条件無視で場に出す ----
+  // 旧実装は bare ADD_TO_FIELD でデッキトップを出していた（誤り）。専用STUBはクラスを EffectText から読む。
+  if (t.includes('ルリグデッキから') && t.includes('レゾナ') && t.includes('場に出す')) {
+    return { type: 'STUB', id: 'SUMMON_RESONA_FROM_LRIG_DECK' } as StubAction;
+  }
+
   // ---- 場に出す（デッキ上から / 手札から など）----
   if (t.includes('場に出してもよい') || (t.includes('場に出す') && !t.includes('エナ') && !t.includes('トラッシュ'))) {
     return { type: 'ADD_TO_FIELD', owner: 'self' };
