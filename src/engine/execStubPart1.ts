@@ -130,28 +130,34 @@ export function execStubPart1(
       return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), { type: 'CHOOSE', options, count: 1 });
     }
     const lvlTK3 = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value));
-    const oppHandTK3 = ctx.otherState.hand;
-    // 「対戦相手の手札を見て」: 手札全体をログに公開（情報アドバンテージを再現）
-    const handNamesTK3 = oppHandTK3.length > 0
-      ? oppHandTK3.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、')
-      : '（なし）';
-    const ctxRevealTK3 = addLog(ctx, `対戦相手の手札を見る：${handNamesTK3}`);
-    const discardTK3 = oppHandTK3.filter(cn => {
-      const c = ctx.cardMap.get(cn);
-      return c?.Type === 'シグニ' && parseInt(c?.Level ?? '0', 10) === lvlTK3;
+    // 「対戦相手の手札を見て」: 手札全体を閲覧専用モーダルで公開し、確認後に捨てさせる（TK3_DISCARD_BY_LEVEL）。
+    return needsInteraction(addLog(ctx, `数字「${lvlTK3}」を宣言：対戦相手の手札を見る`), {
+      type: 'REVEAL_CARDS',
+      cards: [...ctx.otherState.hand],
+      title: `対戦相手の手札（宣言レベル${lvlTK3}のシグニを捨てさせる）`,
+      continuation: ({ type: 'STUB', id: 'TK3_DISCARD_BY_LEVEL', value: lvlTK3 } as StubAction) as EffectAction,
     });
-    if (discardTK3.length === 0) {
-      return done(addLog(ctxRevealTK3, `数字「${lvlTK3}」を宣言：対戦相手の手札にLv${lvlTK3}のシグニなし`));
+  }
+  // TK3_DISCARD_BY_LEVEL: REVEAL_CARDS 確認後、宣言レベルのシグニを相手手札からすべて捨てさせる
+  if (stub.id === 'TK3_DISCARD_BY_LEVEL') {
+    const lvlTD = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value));
+    const oppHandTD = ctx.otherState.hand;
+    const discardTD = oppHandTD.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && parseInt(c?.Level ?? '0', 10) === lvlTD;
+    });
+    if (discardTD.length === 0) {
+      return done(addLog(ctx, `対戦相手の手札にLv${lvlTD}のシグニなし`));
     }
-    const newOtherTK3: PlayerState = {
+    const newOtherTD: PlayerState = {
       ...ctx.otherState,
-      hand: oppHandTK3.filter(cn => !discardTK3.includes(cn)),
-      trash: [...ctx.otherState.trash, ...discardTK3],
-      hand_discarded_just: [...(ctx.otherState.hand_discarded_just ?? []), ...discardTK3],
+      hand: oppHandTD.filter(cn => !discardTD.includes(cn)),
+      trash: [...ctx.otherState.trash, ...discardTD],
+      hand_discarded_just: [...(ctx.otherState.hand_discarded_just ?? []), ...discardTD],
     };
-    const namesTK3 = discardTK3.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
-    return done(addLog({ ...ctxRevealTK3, otherState: newOtherTK3 },
-      `数字「${lvlTK3}」を宣言：対戦相手のLv${lvlTK3}シグニ${discardTK3.length}枚を捨てさせる（${namesTK3}）`));
+    const namesTD = discardTD.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
+    return done(addLog({ ...ctx, otherState: newOtherTD },
+      `対戦相手のLv${lvlTD}シグニ${discardTD.length}枚を捨てさせる（${namesTD}）`));
   }
   // カード名宣言（手札のカード名から選択）
   if (stub.id === 'DECLARE_CARD_NAME') {
