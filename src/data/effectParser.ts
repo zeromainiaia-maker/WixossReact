@@ -1215,6 +1215,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         }
         // アクション部分の抽出は parseSingleSentence 側のプレフィックス除去に委ねる
       }
+      // ON_LIFE_CRASHED / ON_OPP_LIFE_CRASHED: 自分ライフ＝triggerScope:self。トリガー文を除去
+      if (timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED') {
+        if (timing[0] === 'ON_LIFE_CRASHED') extractedTriggerScope = 'self';
+        const m = actionText.match(/(?:対戦相手|あなた)?の?ライフ(?:クロス)?[^、。]*クラッシュされたとき[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
       if (timing[0] === 'ON_HEAVEN') {
         const m = actionText.match(/このシグニが《ヘブン》したとき[、,]\s*(.+)/s);
