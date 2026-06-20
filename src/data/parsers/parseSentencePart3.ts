@@ -1,7 +1,6 @@
 import type {
   EffectAction,
   Owner,
-  SequenceAction,
   ChooseAction,
   RearrangeSigniAction,
   BlockActionAction,
