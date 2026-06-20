@@ -5,6 +5,17 @@
 
 ---
 
+## F-2 身代わり置換型2枚（WXDi-P06-034 / WXK05-024）（v0.393, 2026-06-20）
+
+- **対象＝TODO F-2 残り最後の2枚（身代わり置換型）。** いずれも旧パースは CONTINUOUS TRASH（`calcContinuousSigniMutations` が BANISH/FREEZE/DOWN 以外を実行しないため**無害な no-op**）。バトルバニッシュ経路の既存置換チェーン（`BATTLE_LEAVE_REPLACE_WITH_DOWN`/`COOKING_BANISH_SUBSTITUTE`/`RISE_BANISH_SUBSTITUTE` 等）に倣って配線。
+- **新フィルタ `TargetFilter.centerZoneOnly`（状態ベース）:** 中央のシグニゾーン（index 1）のシグニのみ。`fieldCandidates`／`matchesStateFilter` に追加。
+- **WXDi-P06-034（クーフーリン・ライズ）:** E1=「バニッシュされる場合、代わりにアップ状態のこのシグニをダウンし下から1枚＋エナから1枚をトラッシュ」→ CONTINUOUS STUB `BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY`。`resolvePendingSigniBattleFor` の置換チェーンに `leaveReplaceDownTUE` 分岐を追加（UP かつ 下カード≥1 かつ エナ≥1 で自動適用＝ダウン＋下1枚/エナ1枚トラッシュして場に残る）。E2=「中央ゾーンのシグニのパワー+3000」→ CONTINUOUS POWER_MODIFY self ALL に `centerZoneOnly`。
+- **WXK05-024（アナスタシア・悪魔）:** E1=「＜悪魔＞は場から手札に戻らない」→ `SIGNI_CANT_BOUNCE_FROM_FIELD`（実装済・維持）。E2=「場を離れる場合、代わりに除外」→ CONTINUOUS STUB `BATTLE_LEAVE_REPLACE_WITH_EXILE`。バトルバニッシュ時にエナでなくトラッシュへ送る（除外を**トラッシュで近似**＝既存 `REMOVE_SELF_SIGNI_FROM_GAME` と同じ方針）。`defenderLeaveExile` フラグを通常バニッシュ先計算に追加。E3（トラッシュ発動の【起】）はトラッシュ発動機構が要るためパーサー生成を維持。
+- **近似（共通）:** いずれも**バトルバニッシュ経路のみ**対応。効果バニッシュ（`execBanish`）・バウンス等の場離れは未対応（execBanish 側に置換フックがないため。F-3 同様の専用設計が要る）。
+- **反映:** types/effects＋execUtils＋effectEngine（centerZoneOnly）＋execStubPart3（STUB no-op登録）＋BattleScreen（置換チェーン2分岐）＋manualEffects＋プリビルド JSON。typecheck 通過、verifyEffects 新規警告なし。
+
+---
+
 ## F-4 THE DOOR ゲート参照シグニ（バッチD・WXDi-P15-057）（v0.392, 2026-06-20）
 
 - **WXDi-P15-057（LOVIT・地獣）:** E1=「同ゾーンゲートでパワー+3000＋相手ターン中シャドウ」→ CONTINUOUS POWER_MODIFY self +3000 に activeCondition `SAME_ZONE_HAS_GATE`（シャドウ付与は近似省略・旧＝常時+3000）。E2=「ターン終了時、場ゲートでトラッシュの《ガードアイコン》シグニを《無》払えば手札へ」→ AUTO ON_TURN_END、condition `FIELD_HAS_GATE`、`SEQUENCE[OPTIONAL_COST(無), CONDITIONAL(PAID){TRANSFER_TO_HAND from TRASH_CARD hasGuard}]`（旧＝GRANT_KEYWORD 誤り）。
