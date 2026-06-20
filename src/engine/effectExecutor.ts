@@ -1010,10 +1010,17 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   let cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  // thisCardOnly: 効果元シグニ自身のみへ付与（「このシグニは『…』を得る」。WXDi-CP02-084等）
+  // thisCardOnly: 効果元自身のみへ付与（「このシグニ/このルリグは『…』を得る」。WXDi-CP02-084・WXDi-P16-039等）
+  // シグニだけでなくセンタールリグ・アシストルリグも対象にする（アシストルリグの【出】が自身に能力を付与するケース）。
   if (tgt.filter?.thisCardOnly) {
-    cands = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
-      ? [ctx.sourceCardNum] : [];
+    const src = ctx.sourceCardNum;
+    const inSelfZone = !!src && (
+      state.field.signi.some(s => s?.at(-1) === src) ||
+      state.field.lrig.at(-1) === src ||
+      state.field.assist_lrig_l?.at(-1) === src ||
+      state.field.assist_lrig_r?.at(-1) === src
+    );
+    cands = inSelfZone ? [src!] : [];
   }
 
   const untilOppTurn = a.duration === 'UNTIL_OPP_TURN_END';
