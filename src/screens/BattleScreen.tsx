@@ -6746,7 +6746,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_acce:   newOpAcce,
             },
           };
-          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : energyToDeckBottom ? '（エナ代替→デッキ下）' : ''}`]);
+          appendBattleLogs([`${myCardName}が${opCardName}をバニッシュ${redirectBanish ? '（トラッシュへ）' : redirectBanishToHand ? '（手札へ）' : frozenToDeckBottom ? '（凍結→デッキ下）' : frozenToTrash ? '（凍結→トラッシュ）' : banishToLrigTrash ? '（ルリグトラッシュへ）' : energyToDeckBottom ? '（エナ代替→デッキ下）' : defenderLeaveExile ? '（除外＝トラッシュへ）' : ''}`]);
           }
           } // end resonaSubCardNum else
           } // end cookingBanishSub/acceBanishSub/resonaSub else
