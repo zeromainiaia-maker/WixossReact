@@ -2604,8 +2604,9 @@ export function collectContinuousGrantedKeywords(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'GRANT_KEYWORD') continue;
       const gk = eff.action as import('../types/effects').GrantKeywordAction;
-      // 自分のシグニへの付与のみ（owner:opponent のデバフ系キーワードはバッジ対象外）
-      if (gk.target.owner !== 'self' && gk.target.owner !== 'any' && gk.target.owner !== 'all') continue;
+      // 自分のシグニへの付与のみ（owner:opponent のデバフ系キーワードはバッジ対象外）。
+      // 場全体付与は target.count === 'ALL' で表現されるため owner は self/any のみ対象（Owner型に 'all' は無い）。
+      if (gk.target.owner !== 'self' && gk.target.owner !== 'any') continue;
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, srcNum, effectivePowers)) continue;
       const targetsAll = gk.target.count === 'ALL';
       for (const num of signiTops) {
