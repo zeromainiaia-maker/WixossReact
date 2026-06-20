@@ -1249,6 +1249,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   }
 
   const cost = parseCost(costStr);
+  // 「手札からこのカードを捨てる」起動能力は手札カードアクションUI（getMyHandCardActions）の対象。
+  const handActivated = cost.discardSelfFromHand === true;
   let activeCondition: ActiveCondition | undefined;
   let resolvedAction: EffectAction;
   let parseStatus: CardEffect['parseStatus'] = 'AUTO';
