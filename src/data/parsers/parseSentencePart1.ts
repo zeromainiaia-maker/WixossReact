@@ -1075,9 +1075,20 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'LIFE_CRASH', owner: op ? 'opponent' : 'self', count: cM ? parseNum(cM[1]) : 1, triggerBurst: true };
   }
 
-  // ---- エナゾーンから場に出す ----
+  // ---- エナゾーンからシグニを場に出す ----
+  // 旧実装は source 無しの bare ADD_TO_FIELD でデッキトップを出してしまっていた（誤り）。
+  // エナから対象を選んで場に出すよう source:ENERGY_CARD＋フィルタ/枚数を付与（トラッシュ版と同形）。
   if (t.includes('エナゾーンから') && t.includes('場に出す')) {
-    return { type: 'ADD_TO_FIELD', owner: 'self' };
+    const filter: TargetFilter = {
+      cardType: 'シグニ',
+      ...parseLevelFilter(t),
+      ...parseColorFilter(t),
+      ...parseStoryFilter(t),
+    };
+    const upToM = t.match(/([０-９\d]+)枚まで/);
+    const countM = t.match(/([０-９\d]+)枚を対象/);
+    const count = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
+    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'ENERGY_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
   }
 
   // ---- このシグニをトラッシュから場に出す（自己蘇生）----
