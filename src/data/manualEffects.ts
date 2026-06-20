@@ -1611,6 +1611,33 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // ----- F-4 バッチC（inGateZone フィルタ＝同ゾーンゲートのシグニへの場全体付与）-----
+
+  // WXDi-P16-062 コードライド マキナ//THE DOOR（乗機）
+  // E1【常】：同ゾーンゲートで「【自】各APS開始時、相手シグニ1体を対象とし、相手が《無》を払わないかぎりターン終了時まで能力を失う」を得る。
+  //   → 近似：CONTINUOUS REMOVE_ABILITIES opponent（対面）に activeCondition SAME_ZONE_HAS_GATE を付与（旧＝無条件のフリーロックbug。相手の《無》支払い回避とAPS再付与は近似省略）。
+  // E2【常】：同じシグニゾーンに【ゲート】があるあなたのシグニのパワーを＋2000する。
+  //   → CONTINUOUS POWER_MODIFY self ALL に inGateZone フィルタ（own_gate_zones のゾーンのシグニのみ）。
+  'WXDi-P16-062': [
+    {
+      effectId: 'WXDi-P16-062-E1',
+      effectType: 'CONTINUOUS',
+      activeCondition: { type: 'SAME_ZONE_HAS_GATE' },
+      action: { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, until: 'UNTIL_END_OF_TURN' },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WXDi-P16-062-E2',
+      effectType: 'CONTINUOUS',
+      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', inGateZone: true } }, delta: 2000 },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P15-098 凶将　アオトラ
   // 【常】：あなたの黒のシグニは「【自】：このシグニがアタックしたとき、対戦相手のデッキの一番上のカードをトラッシュに置く。」を得る。
   // 旧パース＝CONTINUOUS TRASH DECK_CARD self（owner も誤り・no-op）。
