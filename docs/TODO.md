@@ -124,11 +124,15 @@
 
 自ゲート機構（`own_gate_zones`／`SAME_ZONE_HAS_GATE`／`FIELD_HAS_GATE`／`frontOfGateZone`／`PLACE_OWN_GATE`）は v0.388 で新設済み。これを土台に防衛派 THE DOOR シグニ（ゲート参照・約15枚）を順次実装。
 
-**✅ 完了:** WXDi-P15-076/082（v0.388）。バッチA＝WXDi-P15-080/081/077/078（v0.389）。バッチB＝WXDi-P15-059/WXDi-P16-074（v0.390・後者はE1のみ／E2は近似維持）。バッチC＝WXDi-P16-062（v0.391・`inGateZone` フィルタ新設・E1は近似）。バッチD＝WXDi-P15-057（v0.392・E1は近似）。バッチE＝WXDi-P16-070/P15-056/P16-054（v0.394・`POWER_MODIFY_PER_HAND_COUNT` 新設。P15-056-E1は無害化・P16-054-E1はバニッシュ耐性近似）。バッチF＝WXDi-P16-059（v0.395・ガード税＋自シグニシャドウ付与。`execGrantKeyword` の UNTIL_OPP_TURN_END 振り分けバグも修正）。
+**✅ 完了:** WXDi-P15-076/082（v0.388）。バッチA＝WXDi-P15-080/081/077/078（v0.389）。バッチB＝WXDi-P15-059/WXDi-P16-074（v0.390・後者はE1のみ／E2は近似維持）。バッチC＝WXDi-P16-062（v0.391・`inGateZone` フィルタ新設・E1は近似）。バッチD＝WXDi-P15-057（v0.392・E1は近似）。バッチE＝WXDi-P16-070/P15-056/P16-054（v0.394・`POWER_MODIFY_PER_HAND_COUNT` 新設。P15-056-E1は無害化・P16-054-E1はバニッシュ耐性近似）。バッチF＝WXDi-P16-059（v0.395・ガード税＋自シグニシャドウ付与。`execGrantKeyword` の UNTIL_OPP_TURN_END 振り分けバグも修正）。バッチG＝WXDi-P15-058（v0.396・E2はタマゴ近似／E1は無害化）。
 
-**残りのゲート参照シグニ（未実装・1枚）:**
-- `WXDi-P15-058`（宇宙・E1 同ゾーンゲートのシグニへ【シャドウ（スペル）】の**場全体付与**＝`getShadowScopes` が他カードの継続 GRANT_KEYWORD を読まないため要拡張／E2 同ゾーンゲート＋《プロフェッサー　防衛者Ｄｒ．タマゴ》条件＋任意BBで相手をデッキ下＝`LRIG_NAME_CONTAINS` 近似で実装可）
-- 必要な追加表現：①場全体への継続キーワード付与をシャドウ判定（`getShadowScopes`）が読む経路（`inGateZone` フィルタは利用可）。②self対象 REMOVE_ABILITIES の thisCardOnly 対応（P15-056-E1 の本実装に必要）。`inGateZone`／`POWER_MODIFY_PER_HAND_COUNT`／UNTIL_OPP_TURN_END／ガード税 activeCondition／シャドウ keyword 付与は実装済み。
+**✅ 防衛派 THE DOOR ゲート参照シグニ（15枚）はすべて実装/近似完了。**
+
+**残るF-4・近似/未対応の積み残し（任意・低優先）:**
+- ピース `ひらけ！ゲート！`（WXDi-P15-003）＝ゲート設置＋センタールリグ能力付与の複合（SEQUENCE 化が必要）。THE DOOR ルリグ（WXDi-P15-010/011）の【起】で自ゲートは設置できるため、対戦は成立する。
+- 無害化マーカーの本実装：`WXDi-P15-056-E1`（攻撃時 self アップ＋thisCardOnly能力喪失）/ `WXDi-P15-058-E1`（場全体【シャドウ（スペル）】＝`getShadowScopes` 拡張）。
+- 近似の精緻化：`WXDi-P16-074-E2`（ゲートゾーン条件・ターン1回）/ `WXDi-P16-054-E1`（相手効果バニッシュ耐性）/ `WXDi-P15-057-E1`（相手ターン中シャドウ）。
+- 必要なら：self対象 REMOVE_ABILITIES の thisCardOnly 対応、場全体継続キーワード付与の `getShadowScopes` 読み取り経路。
 
 **未配線（別）:** ピース `ひらけ！ゲート！`（WXDi-P15-003）＝ゲート設置＋センタールリグ能力付与の複合（現状 GRANT_LRIG_ABILITY のみ生成・gate 設置が欠落。SEQUENCE 化が必要）。
 ※「//THE DOOR」でも解放派/闘争派のカードはゲート非参照（箱名のみ）で対象外。
