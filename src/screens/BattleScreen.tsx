@@ -5982,8 +5982,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (my.actions_done?.includes(eff.effectId)) continue;
         if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
         if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
+        // removeOppVirus コスト（WX21-030）: 相手の場のウィルス総数が足りなければ発動不可
+        const removeVirusReq = eff.cost?.removeOppVirus ?? 0;
+        if (removeVirusReq > 0 && (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) < removeVirusReq) continue;
         const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
-        const costLabel = energyTotal > 0 ? `エナ${energyTotal}・手から捨て` : '手から捨て';
+        const costLabel = energyTotal > 0 ? `エナ${energyTotal}・手から捨て` : (removeVirusReq > 0 ? `ウィルス${removeVirusReq}除去・手から捨て` : '手から捨て');
         actionList.push({
           label: `【起】${costLabel}`,
           color: '#ff6b35',
