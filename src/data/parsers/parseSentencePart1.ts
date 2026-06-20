@@ -804,7 +804,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
     // シグニ・ルリグをトラッシュへ（対戦相手 or 自分）
     // 「対戦相手のシグニを対象とし、あなたのシグニをトラッシュ」→ self のトラッシュ
-    if (t.match(/対戦相手の.+シグニ.+体を対象とし.*あなたのシグニ.*トラッシュに置く/)) {
+    if (t.match(/対戦相手のシグニ.+体を対象とし.*あなたのシグニ.*トラッシュに置く/)) {
       return { type: 'TRASH', target: parseSigniTarget(t, 'self') };
     }
     if (t.includes('対戦相手のシグニ') || t.includes('対戦相手の感染状態のシグニ') || t.includes('対戦相手のパワー') || t.includes('対戦相手のセンタールリグ')) {
