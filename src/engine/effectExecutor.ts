@@ -1033,6 +1033,10 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   } else {
     cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
       .filter(n => !abilityGainBlocked.has(n));
+    // thisCardOnly: 効果元シグニ自身のみへ付与（「このシグニは【X】を得る」）
+    if (tgt.filter?.thisCardOnly) {
+      cands = (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    }
   }
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
