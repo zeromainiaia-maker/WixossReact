@@ -99,7 +99,7 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
 function findEffectLeavePowerReductionSubstitute(
   victimNum: string,
   victimState: PlayerState,
-  cardMap: Map<string, CardData>,
+  cardMap: Map<string, import('../types').CardData>,
 ): { protectorNum: string; reduction: number } | null {
   const victimCard = cardMap.get(victimNum);
   for (const stack of victimState.field.signi) {
