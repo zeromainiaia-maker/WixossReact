@@ -616,6 +616,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'TRASH_COUNT':
       return cmp(st(cond.owner).trash.length, cond.operator, cond.value);
+    case 'LAST_PROCESSED_HAS_BURST': {
+      const proc = ctx.lastProcessedCards ?? [];
+      if (proc.length === 0) return false;
+      const c = ctx.cardMap.get(proc[0]);
+      return !!c?.LifeBurst && c.LifeBurst !== '-' && c.LifeBurst !== '';
+    }
     default: return true;
   }
 }
