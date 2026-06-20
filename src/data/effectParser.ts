@@ -719,6 +719,12 @@ function parseActiveCondition(text: string): ConditionParseResult {
 
 
 function parseSingleSentence(text: string): EffectAction {
+  // 一時召喚の後始末: 「（ターン終了時、）それら?を（場から）トラッシュに置く」＝直前に出したカードを
+  // ターン終了時にトラッシュ（lastProcessedCards を turn_end_field_trash_targets へ）。
+  // 「それら」を全シグニ BANISH と誤解しないよう、プレフィックス除去前に検出する。
+  if (/^ターン終了時、それら?を(?:場から)?トラッシュに置く。?$/.test(text.trim())) {
+    return { type: 'STUB', id: 'TRASH_AT_TURN_END' } as StubAction;
+  }
   // タイミング・期間プレフィックスを除去（既にparseBlockで処理済み）
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
