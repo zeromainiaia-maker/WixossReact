@@ -3771,6 +3771,10 @@ export function execStubPart3(
   if (stub.id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE') {
     return done(addLog(ctx, '場離れ代替除外（BattleScreen側処理）'));
   }
+  // BANISH_SUBSTITUTE (F-3): バニッシュ時の任意身代わり置換（CONTINUOUS宣言・BattleScreen側で対話処理）
+  if (stub.id === 'BANISH_SUBSTITUTE') {
+    return done(addLog(ctx, '身代わりバニッシュ（BattleScreen側処理）'));
+  }
   // REMOVE_SELF_SIGNI_FROM_GAME: このシグニをゲームから除外する（クラフトルール適用）
   if (stub.id === 'REMOVE_SELF_SIGNI_FROM_GAME') {
     const srcCnRSG = ctx.sourceCardNum;

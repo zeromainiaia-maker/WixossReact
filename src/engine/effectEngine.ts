@@ -3701,6 +3701,58 @@ export function collectRiseBanishSubstituteSigni(
 }
 
 /**
+ * BANISH_SUBSTITUTE (F-3): 防御側 state のシグニ victimNum がバニッシュされる場合に使える
+ * 任意の身代わり置換を収集する。バトルバニッシュ経路で「victim の代わりに sacrifice をバニッシュ
+ * してもよい」を対話適用するための候補列挙（純関数）。
+ *   - self_sacrifice_other: victim 自身が BANISH_SUBSTITUTE を持ち、別クラスの他シグニを犠牲にできる（WX12-024/WXEX2-60）
+ *   - protect_other_sacrifice_self: 別のシグニ(source)が BANISH_SUBSTITUTE を持ち、victim が条件を満たすとき source 自身を犠牲にする（WX20-055/CP01-032/P10-052近似）
+ * isOwnerTurn=victim オーナーのターンか（バトルでは常に false=相手ターン）。
+ */
+export function collectBanishSubstitutes(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  victimNum: string,
+): { sourceNum: string; sacrificeCandidates: string[]; pattern: string }[] {
+  const result: { sourceNum: string; sacrificeCandidates: string[]; pattern: string }[] = [];
+  const tops: string[] = [];
+  for (const stack of state.field.signi) { const t = stack?.at(-1); if (t) tops.push(t); }
+  const victimCard = cardMap.get(victimNum);
+  const hasRiseIcon = (n: string) => (cardMap.get(n)?.EffectText ?? '').includes('【ライズ】');
+
+  for (const sourceNum of tops) {
+    for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'BANISH_SUBSTITUTE' || !act.banishSubstitute) continue;
+      const bs = act.banishSubstitute;
+      if (bs.oppTurnOnly && isOwnerTurn) continue; // 相手ターン限定（victim ターンでは無効）
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+
+      if (bs.pattern === 'self_sacrifice_other') {
+        // victim 自身が身代わり元。別クラスの他シグニを犠牲にできる
+        if (sourceNum !== victimNum) continue;
+        const cands = tops.filter(n => {
+          if (n === victimNum) return false; // 「他の」シグニ
+          if (bs.sacrificeClass) return (cardMap.get(n)?.CardClass ?? '').includes(bs.sacrificeClass);
+          return true;
+        });
+        if (cands.length > 0) result.push({ sourceNum, sacrificeCandidates: cands, pattern: bs.pattern });
+      } else if (bs.pattern === 'protect_other_sacrifice_self') {
+        // source 自身を犠牲に victim を守る。victim は source 以外で victimFilter を満たすこと
+        if (sourceNum === victimNum) continue;
+        if (bs.victimFilter === 'riseIcon' && !hasRiseIcon(victimNum)) continue;
+        if (!victimCard) continue;
+        result.push({ sourceNum, sacrificeCandidates: [sourceNum], pattern: bs.pattern });
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * ALL_ZONE_BLACK: effectsMap 中のすべてのカードを走査し、
  * CONTINUOUS STUB 'ALL_ZONE_BLACK' を持つカードの CardNum 集合を返す。
  * これらのカードはすべての領域（手札・エナ・トラッシュ等）で黒でもある。

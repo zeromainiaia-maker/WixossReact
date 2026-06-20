@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords} from '../engine/effectEngine';
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes} from '../engine/effectEngine';
 import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -1178,6 +1178,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     bs?.guest_state?.pending_crashed_cards?.length,
     !!bs?.guest_state?.pending_signi_battle, // バトル解決待ちクリア時に再実行（トリガーなし時の停止防止）
     !!bs?.guest_state?.pending_lrig_attack,  // ルリグアタック解決待ちクリア時に再実行
+    // F-3: CPU攻撃・人間防御の身代わり決定後にCPUバトル解決を再開（host=人間の決定を監視）
+    !!bs?.host_state?.banish_substitute_choice,
     bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
   ]);
 
@@ -3317,6 +3319,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_has_attacked: undefined,             // ルリグアタック済みフラグをリセット
           pending_signi_battle: undefined,          // シグニバトル解決待ちフラグをリセット
           pending_lrig_attack: undefined,           // ルリグアタック解決待ちフラグをリセット
+          pending_banish_substitute: undefined,     // F-3 身代わりバニッシュ待ちフラグをリセット
+          banish_substitute_choice: undefined,      // F-3 身代わりバニッシュ決定をリセット
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
           life_crash_counter: undefined,            // カウンタークラッシュ（このターン）をリセット
@@ -6559,6 +6563,50 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const newOpAcce   = [...(opS.field.signi_acce    ?? [null, null, null])];
           const wasOpFrozen = newOpFrozen[opZoneIndex] ?? false;
 
+          // ─── F-3 BANISH_SUBSTITUTE: バトルバニッシュの任意身代わり置換 ───
+          // victim = opTopCardNum（バトル防御シグニ）。防御側に身代わりがあれば対話（人間）/ヒューリスティック（CPU）で適用。
+          let f3SubstituteApplied = false;
+          let f3SacrificeNum: string | null = null;
+          {
+            const f3Decision = opS.banish_substitute_choice;
+            const f3DecidedForVictim = !!f3Decision && f3Decision.victimNum === opTopCardNum;
+            if (!f3DecidedForVictim) {
+              if (opS.pending_banish_substitute) {
+                // 防御側の決定待ち中。再入してもここで停止（決定で再開）。
+                return;
+              }
+              const f3Subs = opTopCardNum
+                ? collectBanishSubstitutes(opS, myS, false, battleCardMap, effectsMap, opTopCardNum)
+                : [];
+              if (f3Subs.length > 0) {
+                if (defenderId === CPU_PLAYER_ID) {
+                  // CPU ヒューリスティック: 自己保護型は最弱の他シグニを犠牲にして使う。
+                  // 味方保護型は victim のパワー >= 身代わり元なら守る（弱いものを守る自己犠牲は見送り）。
+                  const f3PowerOf = (n: string) => effectivePowers.get(n) ?? parsePowerVal(battleCardMap.get(n)?.Power);
+                  const ss = f3Subs.find(s => s.pattern === 'self_sacrifice_other');
+                  const po = f3Subs.find(s => s.pattern === 'protect_other_sacrifice_self');
+                  if (ss) {
+                    f3SacrificeNum = [...ss.sacrificeCandidates].sort((a, b) => f3PowerOf(a) - f3PowerOf(b))[0] ?? null;
+                  } else if (po && opTopCardNum && f3PowerOf(opTopCardNum) >= f3PowerOf(po.sourceNum)) {
+                    f3SacrificeNum = po.sourceNum;
+                  }
+                  f3SubstituteApplied = f3SacrificeNum != null;
+                } else {
+                  // 人間防御側に対話プロンプトを提示（中断）。攻撃側 myS.pending_signi_battle は保持して再入で再開。
+                  const f3Sub0 = f3Subs[0];
+                  await supabase.from('battle_states')
+                    .update({ [opKey]: { ...opS, pending_banish_substitute: { victimNum: opTopCardNum!, sourceNum: f3Sub0.sourceNum, sacrificeCandidates: f3Sub0.sacrificeCandidates } } })
+                    .eq('room_id', roomId);
+                  appendBattleLogs([`${opCardName}のバニッシュに身代わりの選択を待っています`]);
+                  return;
+                }
+              }
+            } else if (f3Decision && f3Decision.sacrificeNum != null) {
+              f3SacrificeNum = f3Decision.sacrificeNum;
+              f3SubstituteApplied = true;
+            }
+          }
+
           // BATTLE_LEAVE_REPLACE_WITH_DOWN: アップ状態のシグニはバニッシュ代わりにダウン（任意→自動適用）
           const opSigniWasUp = !(opS.field.signi_down?.[opZoneIndex] === true);
           const leaveReplaceDown = opSigniWasUp && (effectsMap.get(opTopCardNum ?? '') ?? []).some(eff =>
@@ -6577,7 +6625,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY' &&
               checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? ''),
             );
-          if (leaveReplaceDown) {
+          if (f3SubstituteApplied && f3SacrificeNum) {
+            // 身代わり置換: victim は場に残り、代わりに f3SacrificeNum をバニッシュ（通常どおりエナへ／チャーム・アクセはトラッシュ）
+            const sacZone = opS.field.signi.findIndex(s => s?.at(-1) === f3SacrificeNum);
+            const sacStack = sacZone >= 0 ? (opS.field.signi[sacZone] ?? []) : [];
+            banishedOpCardNum = f3SacrificeNum;
+            banishedOpUnderCards = sacStack.slice(0, -1);
+            const f3Signi = [...opS.field.signi] as (string[] | null)[];
+            const f3Extra: string[] = [];
+            if (sacZone >= 0) {
+              f3Signi[sacZone] = null;
+              newOpDown[sacZone] = false;
+              newOpFrozen[sacZone] = false;
+              if (newOpCharms[sacZone]) { f3Extra.push(newOpCharms[sacZone]!); newOpCharms[sacZone] = null; }
+              if (newOpAcce[sacZone])   { f3Extra.push(newOpAcce[sacZone]!);   newOpAcce[sacZone]   = null; }
+            }
+            newOpState = {
+              ...opS,
+              energy: [...opS.energy, ...sacStack],
+              trash: f3Extra.length > 0 ? [...opS.trash, ...f3Extra] : opS.trash,
+              field: { ...opS.field, signi: f3Signi, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
+              banish_substitute_choice: undefined, pending_banish_substitute: undefined,
+            };
+            appendBattleLogs([`身代わり：${opCardName}の代わりに${battleCardMap.get(f3SacrificeNum)?.CardName ?? f3SacrificeNum}をバニッシュ`]);
+          } else if (leaveReplaceDown) {
             newOpDown[opZoneIndex] = true;
             newOpFrozen[opZoneIndex] = false;
             const newOpSigniLRD = [...opS.field.signi] as (string[] | null)[];
@@ -6758,6 +6829,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           } // end resonaSubCardNum else
           } // end cookingBanishSub/acceBanishSub/resonaSub else
           } // end leaveReplaceDown else
+
+          // F-3: 消費済みの身代わり決定フラグをクリア（見送り時は通常チェーンが opS から引き継ぐため）
+          if (opS.banish_substitute_choice || opS.pending_banish_substitute) {
+            newOpState = { ...newOpState, banish_substitute_choice: undefined, pending_banish_substitute: undefined };
+          }
 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer || isSLancer) {
@@ -8427,6 +8503,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       ownerId: user.id,
       ownerKey: isHost ? 'host_state' : 'guest_state',
     });
+  };
+
+  // F-3 BANISH_SUBSTITUTE: 防御側（人間）が身代わりの可否・犠牲シグニを選ぶ。
+  // sacrificeNum=null で「身代わりしない（通常バニッシュ）」。決定後、攻撃側のバトル解決が再入で再開する。
+  const handleBanishSubstituteChoice = async (sacrificeNum: string | null) => {
+    if (loading) return;
+    const pend = my.pending_banish_substitute;
+    if (!pend) return;
+    const myKey = isHost ? 'host_state' : 'guest_state';
+    const newMyState: PlayerState = {
+      ...my,
+      pending_banish_substitute: undefined,
+      banish_substitute_choice: { victimNum: pend.victimNum, sacrificeNum },
+    };
+    await supabase.from('battle_states').update({ [myKey]: newMyState }).eq('room_id', roomId);
   };
 
   // シグニ起動効果を実行（コスト支払い後）
@@ -11225,6 +11316,47 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               {selectedEndDiscard.size === pendingEndDiscard ? `${pendingEndDiscard}枚捨てて終了` : `あと${pendingEndDiscard - selectedEndDiscard.size}枚選択してください`}
             </button>
           </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* F-3 身代わりバニッシュ選択（防御側＝自分のシグニがバニッシュされる場合の任意置換） */}
+      {my.pending_banish_substitute && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 4600,
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          {(() => {
+            const pend = my.pending_banish_substitute!;
+            const victimName = battleCardMap.get(pend.victimNum)?.CardName ?? pend.victimNum;
+            return (
+              <div style={{
+                backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                padding: '24px 20px', width: 'min(92vw, 360px)',
+                display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center',
+              }}>
+                <p style={{ color: C.life, fontSize: 15, fontWeight: 'bold', margin: 0 }}>身代わりバニッシュ</p>
+                <p style={{ color: C.textSub, fontSize: 13, margin: 0 }}>
+                  《{victimName}》がバニッシュされます。代わりにバニッシュするシグニを選べます。
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {pend.sacrificeCandidates.map(num => (
+                    <button key={num} onClick={() => handleBanishSubstituteChoice(num)} disabled={loading}
+                      style={{ padding: '11px 0', borderRadius: 8, border: 'none', backgroundColor: '#e53935',
+                        color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer' }}>
+                      《{battleCardMap.get(num)?.CardName ?? num}》を代わりにバニッシュ
+                    </button>
+                  ))}
+                  <button onClick={() => handleBanishSubstituteChoice(null)} disabled={loading}
+                    style={{ padding: '11px 0', borderRadius: 8, border: C.borderUI, backgroundColor: C.bgButton,
+                      color: C.textSub, fontSize: 14, cursor: loading ? 'default' : 'pointer' }}>
+                    身代わりしない（{victimName}をバニッシュ）
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>,
         document.body,
       )}

@@ -5,6 +5,20 @@
 
 ---
 
+## F-3 optional 身代わりバニッシュ 対話本実装（バトル経路・5枚）（v0.401, 2026-06-20）
+
+**TODO F-3 を対話プロンプトで本実装（バトルバニッシュ経路）。** 旧は全7枚が `CONTINUOUS BANISH optional`＝`calcContinuousSigniMutations` 行397で自動適用されない no-op（＝「身代わりしない」という合法プレイで無害）。これに**「してもよい」の対話選択肢を追加**。
+
+- **新機構 `BANISH_SUBSTITUTE`（CONTINUOUS STUB＋`StubAction.banishSubstitute`）:** victim（バトル防御シグニ＝opTopCardNum）の代わりに sacrifice をバニッシュする任意置換を宣言。2パターン: `self_sacrifice_other`（このシグニを守り、別クラスの他シグニを犠牲＝WX12-024電機/WXEX2-60ウェポン）／`protect_other_sacrifice_self`（victim を守り自身を犠牲＝WX20-055《ライズ》/CP01-032任意他/P10-052）。`oppTurnOnly` で相手ターン限定。
+- **`collectBanishSubstitutes`（effectEngine・純関数）:** 防御側 state と victim から、有効な身代わりと犠牲候補を列挙。activeCondition／oppTurnOnly／クラス／《ライズアイコン》（EffectText に【ライズ】）を評価。
+- **バトル統合（再入 pause/resume）:** `resolvePendingSigniBattleFor` の勝利バニッシュ分岐で victim 確定前に身代わりを判定。**人間防御=中断**（防御側 state に `pending_banish_substitute` を立てて return、攻撃側 `pending_signi_battle` は保持→決定で再入再開。ライフバースト/ガードと同じクロスクライアント方式）／**CPU防御=ヒューリスティック即決**（自己保護は最弱の他シグニを犠牲／味方保護は victim パワー≥身代わり元なら守る）。決定後はチェーン先頭で「victim を場に残し sacrifice をエナへバニッシュ（チャーム・アクセはトラッシュ）」を適用。CPUドライバ依存に `host_state.banish_substitute_choice` を追加（CPU攻撃・人間防御の再開用）。
+- **状態:** `PlayerState.pending_banish_substitute`／`banish_substitute_choice`（ターン遷移リセットに追加）。UI=防御側に「《X》を代わりにバニッシュ／身代わりしない」プロンプト（`handleBanishSubstituteChoice`）。
+- **対象5枚:** WX12-024 / WXEX2-60 / WX20-055 / WXDi-CP01-032 / WXDi-P10-052（P10-052 の「【出】で選んだシグニ」は SELECT_OTHER_SIGNI が選択を保存しないため「相手ターン中の他シグニ」で近似）。
+- **検証:** `scripts/testBanishSubstitute.ts` で `collectBanishSubstitutes` を網羅検証（クラス絞り込み・ライズ判定・oppTurnOnly・victim=自身除外、全12アサート通過）。typecheck 通過、verify/checkAllEffects 新規警告なし、eslint 新規エラーなし。
+- **既知の近似/積み残し:** ①**バトルバニッシュ経路のみ**（効果バニッシュ `execBanish`／バウンス等の場離れは未対応＝v0.393 と同じく execBanish 側フックが要る）。②**対話 pause/resume・CPU即決はヘッドレス検証不可**＝実機（PvP／CPU戦）での動作確認が必要。③`WX25-P1-056`（非バニッシュ離場→バニッシュ置換）と `WX17-075`（置換でない任意ON時バニッシュ）は別機構のため対象外。
+
+---
+
 ## F-4 ゲート参照シグニ 近似精緻化3枚（P15-057／P16-054／P16-074）（v0.400, 2026-06-20）
 
 TODO F-4 の「近似精緻化（任意・低優先）」3枚をすべて本実装。いずれも既存機構へ載せ、新規機構追加は collectBanishTriggers の condition/usageLimit 評価のみ。

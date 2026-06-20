@@ -347,6 +347,11 @@ export interface PlayerState {
   pending_pridi035_paradise?: boolean;
   // NEGATE_ATTACK_ON_TRIGGER: アタックを無効にする（WXDi-P11-055）
   cancel_current_signi_attack?: boolean;
+  // BANISH_SUBSTITUTE (F-3): バトルバニッシュの任意身代わり置換。防御側で対話待ち中の情報。
+  // 攻撃側のバトル解決はこのフラグが立つ間 victim バニッシュを保留し、防御側の決定（banish_substitute_choice）後に再開する。
+  pending_banish_substitute?: { victimNum: string; sourceNum: string; sacrificeCandidates: string[] };
+  // BANISH_SUBSTITUTE 防御側の決定。sacrificeNum=null は「身代わりしない（通常バニッシュ）」。
+  banish_substitute_choice?: { victimNum: string; sacrificeNum: string | null };
 }
 
 export interface GameLog {
