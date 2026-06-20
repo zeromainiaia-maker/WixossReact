@@ -2259,8 +2259,17 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
       frontRestrict = [];
     }
   }
+  // thisCardOnly: 効果元シグニ自身のみ（「このシグニは能力を失う」）
+  let thisCardRestrict: string[] | null = null;
+  if (resolvedFilter?.thisCardOnly) {
+    const { thisCardOnly: _t, ...rest } = resolvedFilter;
+    resolvedFilter = rest;
+    thisCardRestrict = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+      ? [ctx.sourceCardNum] : [];
+  }
   let cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
+  if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
   const removed = [...(state.abilities_removed ?? []), ...cands];
   const newS: PlayerState = { ...state, abilities_removed: removed };
   return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}`));
