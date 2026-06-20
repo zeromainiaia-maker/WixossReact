@@ -264,7 +264,17 @@ function actionJa(a?: Action): string {
     case 'GRANT_PROTECTION': return `${a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ'}は${ownerJa(a.sourceOwner)}効果によって${a.from?.join('・')}されない`;
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
-    case 'SEQUENCE': return a.steps.map(actionJa).join('。そして');
+    case 'SEQUENCE': {
+      const parts = a.steps.map(actionJa) as string[];
+      return parts.reduce((acc: string, part: string, i: number) => {
+        if (i === 0) return part;
+        // IS_MY_TURN の CONDITIONAL は「そうした場合」で始まるので「そして」は不要
+        if (a.steps[i]?.condition?.type === 'IS_MY_TURN' || part.startsWith('そうした場合')) {
+          return acc + '。' + part;
+        }
+        return acc + '。そして' + part;
+      }, '');
+    }
     case 'CHOOSE': return `次から${a.choose_count}つ選ぶ【${(a.choices || []).map((c: any) => actionJa(c.action)).join(' / ')}】`;
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
