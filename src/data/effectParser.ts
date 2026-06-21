@@ -814,6 +814,26 @@ function parseActionText(text: string): EffectAction {
   // ---- ARTS_SELF_RECYCLE_ON_TRIGGER: コスト支払いでルリグトラッシュ→ルリグデッキへ戻す ----
   if (text.match(/《[^》]+》を支払ってもよい。そうした場合、このカードを(?:あなたの)?ルリグトラッシュからルリグデッキに戻す/))
     return { type: 'STUB', id: 'ARTS_SELF_RECYCLE_ON_TRIGGER' } as import('../types/effects').StubAction;
+  // ---- エナ色条件つき単体除去（「シグニ1体を対象とし、あなたのエナゾーンに〈色〉のカードと〈色〉のカードがある場合、それを〜する」）----
+  // エナの色条件を CONDITIONAL でラップ。対象は対戦相手シグニ（owner未指定の除去はopponent）、色フィルタは付けない。
+  {
+    const enaCondM = text.match(/^シグニ([０-９\d]+)体を対象とし、あなたのエナゾーンに(.+?)がある場合、それを(バニッシュする|手札に戻す|トラッシュに置く|ダウンする|凍結する)。?$/);
+    if (enaCondM) {
+      const colors = [...enaCondM[2].matchAll(/([白赤青緑黒])のカード/g)].map(m => m[1]);
+      if (colors.length > 0) {
+        const cnt = parseNum(enaCondM[1]);
+        const verb = enaCondM[3];
+        const tgt: EffectTarget = { type: 'SIGNI', owner: 'opponent', count: cnt, filter: { cardType: 'シグニ' }, upToCount: false };
+        const inner: EffectAction =
+          verb === 'バニッシュする'   ? { type: 'BANISH', target: tgt }
+          : verb === '手札に戻す'      ? { type: 'BOUNCE', target: tgt }
+          : verb === 'トラッシュに置く' ? { type: 'TRASH', target: tgt }
+          : verb === 'ダウンする'      ? { type: 'DOWN', target: tgt }
+          :                             { type: 'FREEZE', target: tgt };
+        return { type: 'CONDITIONAL', condition: { type: 'ENERGY_HAS_COLOR', owner: 'self', colors }, then: inner };
+      }
+    }
+  }
   // ---- センタールリグへの能力付与 ----
   if (text.includes('センタールリグは以下の能力を得る') || text.includes('レベルN以上のセンタールリグは以下の能力を得る')) {
     const m = text.match(/以下の能力を得る[。、]?(.+)/s);
