@@ -1078,6 +1078,17 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const a2 = resolvedKeyword !== a.keyword ? { ...a, keyword: resolvedKeyword } : a;
   a = a2;
   const tgt = a.target;
+  // duration:NEXT_TURN かつ「あなたのすべてのシグニ」（クラス等の絞り込みなし）への付与
+  // → 次の自分ターン中に存在する全シグニ（新たに出したシグニも含む）が得る場全体付与として予約する。
+  // （keyword_grants へのスナップショット付与では次ターンに新規召喚したシグニに付かないため）
+  if (a.duration === 'NEXT_TURN' && tgt.type === 'SIGNI' && tgt.owner === 'self' && tgt.count === 'ALL'
+      && (!tgt.filter || (!tgt.filter.story && !tgt.filter.cardClass && !tgt.filter.color
+          && !tgt.filter.level && !tgt.filter.powerRange && !tgt.filter.cardName))) {
+    const reserved = [...(ctx.ownerState.field_keyword_grants_next_turn ?? []), a.keyword];
+    return done(addLog(
+      { ...ctx, ownerState: { ...ctx.ownerState, field_keyword_grants_next_turn: reserved } },
+      `次の自分のターンの間、あなたのすべてのシグニが【${a.keyword}】を得る`));
+  }
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
 
