@@ -5507,21 +5507,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const { state: afterGrowEffect, log: growEffectLog } = applyGrowEffect(growCond, newMyState, battleCardMap);
       newMyState = afterGrowEffect;
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const opKey = isHost ? 'guest_state' : 'host_state';
-      // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: グロウ先がこの継続効果を持つなら、両者のシグニを上限まで減らす
-      //（「すでに場に２体以上ある場合は１体になるようにシグニをトラッシュに置く」）。
+      // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: グロウ先がこの継続効果を持つなら、各プレイヤーが
+      //「自分のシグニを超過分だけ選んでトラッシュに置く」（残り上限体）。スタックに積んで選択させる。
       const grownFieldLimit = computeFieldSigniLimit(newMyState, op, effectsMap, getCardNum);
-      let opAfterLimit: PlayerState = op;
+      const opponentId = isHost ? bs.guest_id : bs.host_id;
+      const fieldLimitEntries: StackEntry[] = [];
       if (grownFieldLimit < 3) {
-        const myRed = reduceFieldSigniToLimit(newMyState, grownFieldLimit, battleCardMap);
-        const opRed = reduceFieldSigniToLimit(op, grownFieldLimit, battleCardMap);
-        newMyState = myRed.state;
-        opAfterLimit = opRed.state;
-        if (myRed.trashed.length > 0 || opRed.trashed.length > 0) {
-          appendBattleLogs([`場出し数制限（上限${grownFieldLimit}体）により超過したシグニをトラッシュに置いた`]);
-        }
+        const mkLimitEntry = (pid: string, count: number): void => {
+          const excess = count - grownFieldLimit;
+          if (excess <= 0) return;
+          fieldLimitEntries.push({
+            id: generateUUID(), playerId: pid, cardNum: '',
+            effectId: '__field_limit_trash__',
+            label: `場出し数制限：シグニ${excess}体を選んでトラッシュに置く（残り${grownFieldLimit}体）`,
+            effect: {
+              effectId: '__field_limit_trash__', effectType: 'AUTO', timing: [],
+              action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: excess } },
+              duration: 'INSTANT', mandatory: true,
+            } as import('../types/effects').CardEffect,
+          });
+        };
+        mkLimitEntry(user.id, newMyState.field.signi.filter(s => (s ?? []).length > 0).length);
+        mkLimitEntry(opponentId, op.field.signi.filter(s => (s ?? []).length > 0).length);
       }
-      const opChangedByLimit = opAfterLimit !== op;
       const cardName = card.CardName;
       const coinLog = coinGain > 0 ? `（コイン+${coinGain}）` : '';
       const logs = [`${cardName}にグロウ${coinLog}`];
@@ -5564,10 +5572,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // コスト付き任意【出】効果があればモーダルで確認（複数あれば1効果ずつ連鎖）
       if (costOnPlay.length > 0) {
-        const mandatoryEntries: StackEntry[] = mandatoryOnPlay.map(eff => ({
-          id: generateUUID(), playerId: user.id, cardNum,
-          effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
-        }));
+        const mandatoryEntries: StackEntry[] = [
+          ...fieldLimitEntries,
+          ...mandatoryOnPlay.map(eff => ({
+            id: generateUUID(), playerId: user.id, cardNum,
+            effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
+          })),
+        ];
         setPendingSigniOnPlayCost({
           cardNum, costEffect: costOnPlay[0],
           placedState: newMyState, mandatoryEntries,
@@ -5576,23 +5587,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
-      if (mandatoryOnPlay.length === 0) {
-        await supabase.from('battle_states')
-          .update({ [stateKey]: newMyState, ...(opChangedByLimit ? { [opKey]: opAfterLimit } : {}) })
-          .eq('room_id', roomId);
+      // mandatory ON_PLAY 効果＋場出し数制限の選択トラッシュをスタックに積む
+      const entries: StackEntry[] = [
+        ...fieldLimitEntries,
+        ...mandatoryOnPlay.map(eff => ({
+          id: generateUUID(), playerId: user.id, cardNum,
+          effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
+        })),
+      ];
+      if (entries.length === 0) {
+        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
         return;
       }
-
-      // mandatory ON_PLAY 効果をスタックに積む
-      const entries: StackEntry[] = mandatoryOnPlay.map(eff => ({
-        id: generateUUID(), playerId: user.id, cardNum,
-        effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
-      }));
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existing = bs?.effect_stack ?? null;
       const stack = existing ? pushToStack(existing, entries) : initStack(turnPlayerId, entries);
       await supabase.from('battle_states')
-        .update({ [stateKey]: newMyState, ...(opChangedByLimit ? { [opKey]: opAfterLimit } : {}), effect_stack: stack, pending_effect: null })
+        .update({ [stateKey]: newMyState, effect_stack: stack, pending_effect: null })
         .eq('room_id', roomId);
     } finally {
       setLoading(false);
@@ -8113,19 +8124,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
             coins: Math.min(5, Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu) + coinGainCpu),
           };
-          // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: CPUがこの継続効果を持つルリグにグロウしたら両者を上限まで減らす
-          let cpuGrowHostState = bs.host_state;
+          // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: CPUがこの継続効果を持つルリグにグロウした場合、
+          // CPU自身は自動削減（レベル高優先）、人間（host）は選択トラッシュをスタックに積む。
           const cpuGrownFieldLimit = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
+          const cpuLimitEntries: StackEntry[] = [];
           if (cpuGrownFieldLimit < 3) {
             const cRed = reduceFieldSigniToLimit(newCpuSt, cpuGrownFieldLimit, battleCardMap);
-            const hRed = reduceFieldSigniToLimit(bs.host_state, cpuGrownFieldLimit, battleCardMap);
             newCpuSt = cRed.state;
-            cpuGrowHostState = hRed.state;
-            if (cRed.trashed.length > 0 || hRed.trashed.length > 0) {
+            if (cRed.trashed.length > 0) {
               appendBattleLogs([`[CPU] 場出し数制限（上限${cpuGrownFieldLimit}体）で超過シグニをトラッシュに置いた`]);
             }
+            const hostExcess = bs.host_state.field.signi.filter(s => (s ?? []).length > 0).length - cpuGrownFieldLimit;
+            if (hostExcess > 0) {
+              cpuLimitEntries.push({
+                id: generateUUID(), playerId: bs.host_id, cardNum: '',
+                effectId: '__field_limit_trash__',
+                label: `場出し数制限：シグニ${hostExcess}体を選んでトラッシュに置く（残り${cpuGrownFieldLimit}体）`,
+                effect: {
+                  effectId: '__field_limit_trash__', effectType: 'AUTO', timing: [],
+                  action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: hostExcess } },
+                  duration: 'INSTANT', mandatory: true,
+                } as import('../types/effects').CardEffect,
+              });
+            }
           }
-          const cpuGrowHostChanged = cpuGrowHostState !== bs.host_state;
           // ルリグ【出】効果（対人戦executeGrowと同じ収集）:
           // mandatoryは発火、コインのみのコスト付き任意【出】は支払えるなら支払って発動
           const cpuGrowEntries: StackEntry[] = [];
@@ -8149,19 +8171,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               effect: eff,
             });
           }
-          if (cpuGrowEntries.length > 0) {
+          // 場出し数制限の選択トラッシュ（人間相手）＋ルリグ【出】効果をスタックに積む
+          const cpuAllGrowEntries = [...cpuLimitEntries, ...cpuGrowEntries];
+          if (cpuAllGrowEntries.length > 0) {
             // スタックに積んで解決を待つ（GROWに留まり、解決後の再実行でMAINへ進む）
             const existingStackGR = bs.effect_stack ?? null;
             const newStackGR = existingStackGR
-              ? pushToStack(existingStackGR, cpuGrowEntries)
-              : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuGrowEntries);
+              ? pushToStack(existingStackGR, cpuAllGrowEntries)
+              : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuAllGrowEntries);
             await supabase.from('battle_states')
-              .update({ guest_state: newCpuSt, ...(cpuGrowHostChanged ? { host_state: cpuGrowHostState } : {}), effect_stack: newStackGR })
+              .update({ guest_state: newCpuSt, effect_stack: newStackGR })
               .eq('room_id', roomId);
             return;
           }
           await supabase.from('battle_states')
-            .update({ guest_state: newCpuSt, ...(cpuGrowHostChanged ? { host_state: cpuGrowHostState } : {}) })
+            .update({ guest_state: newCpuSt })
             .eq('room_id', roomId);
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
