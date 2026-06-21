@@ -4265,6 +4265,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             blocked_actions: convertedBlocked,
             field_keyword_grants_active: nextState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
             field_keyword_grants_next_turn: undefined,
+            // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
+            free_grow_this_turn: nextState.free_grow_next_turn ? true : nextState.free_grow_this_turn,
+            free_grow_next_turn: undefined,
             field: {
               ...nextState.field,
               signi_down:   newSigniDown,
