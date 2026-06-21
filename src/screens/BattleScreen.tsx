@@ -4867,6 +4867,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any' && scope !== 'any_opp') continue;
+        // MOVE_TO_ATTACKER_FRONT / MOVE_TO_OTHER_SIGNI_ZONE は専用ハンドラ（opAtkedEntries）が
+        // 移動先ゾーンを注入して処理するため、ここでは収集しない（二重発火防止）。
+        const oeStub = eff.action as import('../types/effects').StubAction;
+        if (event === 'ON_ATTACK_SIGNI' && oeStub.type === 'STUB'
+          && (oeStub.id === 'MOVE_TO_ATTACKER_FRONT' || oeStub.id === 'MOVE_TO_OTHER_SIGNI_ZONE')) continue;
         // triggerFilter: 「対戦相手の＜X＞のシグニがアタックしたとき」等、トリガー元カードの絞り込み
         if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
