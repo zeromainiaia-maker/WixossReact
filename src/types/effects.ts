@@ -741,8 +741,10 @@ export interface GrantProtectionAction {
   target?: EffectTarget;          // 一時付与（AUTO/ACTIVATED）: 特定ターゲットに付与
   subjectFilter?: TargetFilter;   // CONTINUOUS用: このフィルターの全シグニを保護
   subjectOwner?: Owner;           // subjectFilter の所有者（省略時: 'self'）
-  from: string[];     // 保護元：'ルリグ' | 'シグニ' | 'スペル' | 'アーツ' | 'DOWN' | 'BOUNCE' | 'any'
-  sourceOwner: Owner; // 誰の効果から保護するか
+  from?: string[];    // 保護元：'ルリグ' | 'シグニ' | 'スペル' | 'アーツ' | 'DOWN' | 'BOUNCE' | 'any'
+  sourceOwner?: Owner; // 誰の効果から保護するか
+  fromAll?: boolean;   // true = すべての効果から保護（exceptSource 以外）
+  exceptSource?: { sourceType: string; sourceOwner: Owner }; // fromAll 時の例外
   duration: EffectDuration;
 }
 
