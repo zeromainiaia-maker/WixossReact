@@ -152,16 +152,23 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'COPY_LRIG_NAME_ABILITY' } as StubAction;
   }
 
-  // ---- 〈クラス〉のシグニN体につきカードをM枚引く ----
+  // ---- 〈フィルタ〉のシグニN体につきカードをM枚引く ----
+  // 「場にある」は任意。修飾句にはクラス（＜電機＞と＜水獣＞の＝OR）や盤面ステート
+  // （凍結状態/ダウン状態/アップ状態/感染状態）が入りうる。
   {
-    const m = t.match(/(あなた|対戦相手)?の?場にある(＜[^＞]+＞の)?シグニ([０-９\d]+)体につきカードを([０-９\d]+)枚引く/);
+    const m = t.match(/(あなた|対戦相手)?の?(?:場にある)?(.*?)シグニ([０-９\d]+)体につきカードを([０-９\d]+)枚引く/);
     if (m) {
       const countOwner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
-      const storyFilter = m[2] ? parseStoryFilter(m[2]) : {};
+      const mod = m[2] ?? '';
+      const stateFilter: Partial<TargetFilter> = {};
+      if (mod.includes('凍結状態')) stateFilter.isFrozen = true;
+      if (mod.includes('ダウン状態')) stateFilter.isDown = true;
+      if (mod.includes('アップ状態')) stateFilter.isUp = true;
+      if (mod.includes('感染状態')) stateFilter.infected = true;
       return {
         type: 'DRAW_PER_FIELD_COUNT',
         drawPerUnit: parseNum(m[4]),
-        countFilter: { cardType: 'シグニ', ...storyFilter },
+        countFilter: { cardType: 'シグニ', ...parseStoryFilter(mod), ...stateFilter },
         countOwner,
       } as DrawPerFieldCountAction;
     }

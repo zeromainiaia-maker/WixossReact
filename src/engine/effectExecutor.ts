@@ -62,6 +62,7 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition };
+import { matchesStateFilter } from './effectEngine';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../utils/keywords';
 
@@ -2286,11 +2287,16 @@ function execAwakenSigni(ctx: ExecCtx): ExecResult {
 
 function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAction, ctx: ExecCtx): ExecResult {
   const countState = ownerState(a.countOwner, ctx);
-  const fieldCount = countState.field.signi.filter(stack => {
-    if (!stack || stack.length === 0) return false;
+  let fieldCount = 0;
+  for (let zi = 0; zi < countState.field.signi.length; zi++) {
+    const stack = countState.field.signi[zi];
+    if (!stack || stack.length === 0) continue;
     const card = ctx.cardMap.get(stack[stack.length - 1]);
-    return matchesFilter(card, a.countFilter);
-  }).length;
+    // カード属性フィルタ（クラス/色/レベル等）に加えて、盤面ステート（凍結/ダウン等）も評価する
+    if (!matchesFilter(card, a.countFilter)) continue;
+    if (!matchesStateFilter(countState, zi, a.countFilter)) continue;
+    fieldCount++;
+  }
   if (fieldCount === 0) return done(ctx);
   const drawCount = a.drawPerUnit * fieldCount;
   return executeAction({ type: 'DRAW', owner: 'self', count: drawCount }, ctx);

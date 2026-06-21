@@ -343,7 +343,7 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
 
 // ===== ゾーン状態フィルタ判定（zoneIdx ベース） =====
 
-function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: TargetFilter | undefined): boolean {
+export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: TargetFilter | undefined): boolean {
   if (!filter) return true;
   if (filter.isArmored !== undefined) {
     const v = state.field.signi_armor?.[zoneIdx] ?? false;
