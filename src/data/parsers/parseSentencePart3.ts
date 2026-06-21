@@ -7,6 +7,7 @@ import type {
   EnergyChargeAction,
   FreezeAction,
   DrawPerFieldCountAction,
+  EnergyChargeFromDeckPerFieldCountAction,
   NegateAttackAction,
   PlaceUnderSigniAction,
   TakeFromUnderSigniAction,
@@ -152,25 +153,41 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'COPY_LRIG_NAME_ABILITY' } as StubAction;
   }
 
-  // ---- 〈フィルタ〉のシグニN体につきカードをM枚引く ----
+  // ---- 〈フィルタ〉のシグニN体につき〈ドロー / エナチャージ〉 ----
   // 「場にある」は任意。修飾句にはクラス（＜電機＞と＜水獣＞の＝OR）や盤面ステート
   // （凍結状態/ダウン状態/アップ状態/感染状態）が入りうる。
   {
-    const m = t.match(/(あなた|対戦相手)?の?(?:場にある)?(.*?)シグニ([０-９\d]+)体につきカードを([０-９\d]+)枚引く/);
-    if (m) {
-      const countOwner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
-      const mod = m[2] ?? '';
+    // 修飾句からカウント対象シグニのフィルタを組み立てる（クラスOR＋盤面ステート）
+    const buildCountFilter = (mod: string): TargetFilter => {
       const stateFilter: Partial<TargetFilter> = {};
       if (mod.includes('凍結状態')) stateFilter.isFrozen = true;
       if (mod.includes('ダウン状態')) stateFilter.isDown = true;
       if (mod.includes('アップ状態')) stateFilter.isUp = true;
       if (mod.includes('感染状態')) stateFilter.infected = true;
+      if (mod.includes('他の')) stateFilter.excludeSelf = true;
+      return { cardType: 'シグニ', ...parseStoryFilter(mod), ...stateFilter };
+    };
+    const drawM = t.match(/(あなた|対戦相手)?の?(?:場にある)?(.*?)シグニ([０-９\d]+)体につきカードを([０-９\d]+)枚引く/);
+    if (drawM) {
+      const countOwner: Owner = drawM[1] === '対戦相手' ? 'opponent' : 'self';
       return {
         type: 'DRAW_PER_FIELD_COUNT',
-        drawPerUnit: parseNum(m[4]),
-        countFilter: { cardType: 'シグニ', ...parseStoryFilter(mod), ...stateFilter },
+        drawPerUnit: parseNum(drawM[4]),
+        countFilter: buildCountFilter(drawM[2] ?? ''),
         countOwner,
       } as DrawPerFieldCountAction;
+    }
+    // 「…シグニN体につき（あなたの）デッキの一番上のカードをエナゾーンに置く」（M枚指定は稀）
+    const ecM = t.match(/(あなた|対戦相手)?の?(?:場にある)?(.*?)シグニ([０-９\d]+)体につき(?:あなたの)?デッキの一番上の(?:カードを([０-９\d]+)枚|カード)をエナゾーンに置く/);
+    if (ecM) {
+      const countOwner: Owner = ecM[1] === '対戦相手' ? 'opponent' : 'self';
+      return {
+        type: 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT',
+        chargePerUnit: ecM[4] ? parseNum(ecM[4]) : 1,
+        countFilter: buildCountFilter(ecM[2] ?? ''),
+        countOwner,
+        owner: 'self',
+      } as EnergyChargeFromDeckPerFieldCountAction;
     }
   }
 

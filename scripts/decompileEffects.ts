@@ -224,6 +224,7 @@ function actionJa(a?: Action, effectType?: string): string {
   switch (a.type) {
     case 'DRAW': return `${ownerJa(a.owner)}カードを${numJa(a.count)}枚引く`;
     case 'DRAW_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきカードを${a.drawPerUnit}枚引く`;
+    case 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきデッキの一番上のカードを${a.chargePerUnit}枚エナゾーンに置く`;
     case 'BANISH': return a.opponentSelects
       ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
       : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;

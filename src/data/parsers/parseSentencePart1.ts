@@ -1043,8 +1043,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- デッキ上 → エナゾーン ----
-  if ((t.includes('デッキの一番上のカードをエナゾーンに置')) ||
-      (t.includes('デッキの上からカードを') && t.includes('エナゾーンに置'))) {
+  // 「場のシグニ1体につき…エナゾーンに置く」は動的回数（part3 の
+  // ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT）に委譲する。汎用版が先取りすると固定枚数に潰れる。
+  if (!t.includes('体につき') &&
+      ((t.includes('デッキの一番上のカードをエナゾーンに置')) ||
+       (t.includes('デッキの上からカードを') && t.includes('エナゾーンに置')))) {
     const cM = t.match(/カードを([０-９\d]+)枚/);
     return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: cM ? parseNum(cM[1]) : 1 };
   }
@@ -1329,7 +1332,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- キーワード能力付与（【ランサー】【ダブルクラッシュ】など）----
-  if (t.includes('を得る') || t.includes('を持つ')) {
+  // 「【ライフバースト】を持つ…シグニ1体につき…（引く/エナに置く）」のような per-field 構文は
+  // キーワード付与ではなく条件修飾。part3 の *_PER_FIELD_COUNT に委譲する。
+  const isPerFieldCount = t.includes('体につき') && (t.includes('引く') || t.includes('エナゾーンに置'));
+  if (!isPerFieldCount && (t.includes('を得る') || t.includes('を持つ'))) {
     const kwM = t.match(/【([^】]+)】/);
     if (kwM && !['常','出','起','自','ガード'].includes(kwM[1])) {
       const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
@@ -1566,7 +1572,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- デッキの一番上のカードをエナゾーンに加える（単独）----
-  if (t.match(/デッキの一番上のカードをエナゾーンに(?:加える|置く)/)) {
+  // 「場のシグニ1体につき…」は動的回数（part3）に委譲する。
+  if (!t.includes('体につき') && t.match(/デッキの一番上のカードをエナゾーンに(?:加える|置く)/)) {
     return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 };
   }
 

@@ -5,6 +5,16 @@
 
 ---
 
+## 「場のシグニN体につきデッキトップをエナに置く」が固定エナチャージに潰れる修正（v0.454, 2026-06-21）
+
+- **症状:** 「あなたの場にある＜空獣＞と＜地獣＞と＜植物＞のシグニ１体につきあなたのデッキの一番上のカードをエナゾーンに置く」（WX02-066）が **固定 `ENERGY_CHARGE_FROM_DECK count:1`** に潰れていた。v0.453 のドロー版（DRAW_PER_FIELD_COUNT）と同型で、アクションがエナチャージ。
+- **新アクション:** `ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT`（chargePerUnit/countFilter/countOwner/owner）を types/engine に新設。engine は対象シグニ数を数えて `ENERGY_CHARGE_FROM_DECK` を実行（`matchesFilter`＋`matchesStateFilter`＋`excludeSelf`＝効果元除外も評価）。
+- **パーサー:** part3 の per-field ハンドラに「…シグニN体につきデッキの一番上のカードをエナゾーンに置く」分岐を追加（クラスOR＋ステート＋「他の」=excludeSelf 抽出を `buildCountFilter` に共通化）。part1 の **2か所**の汎用エナチャージ handler（デッキトップ→エナ）に「体につき」ガードを追加して part3 に委譲。
+- **波及（WX06-020-E2）:** part1 の汎用キーワード付与（`を得る/を持つ`）が「**【ライフバースト】を持つ**他の＜植物＞のシグニ１体につき…」を**付与と誤認**して先取りしていた（per-field を止めた副作用で顕在化）。part1 キーワードブロックに per-field 構文（体につき＋引く/エナに置く）除外ガードを追加。WX06-020-E2 は `ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT`（story:植物＋excludeSelf）に。**近似:** 「【ライフバースト】を持つ」フィルタは省略（場の他の植物シグニ数でカウント）。
+- **影響（素パース差分で隔離確認）:** Sheet1 で変化は **2枚のみ**（WX02-066 / WX06-020-E2）。対象2枚のみ JSON 再生成。逆翻訳器に `ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT` 表示を追加。typecheck 0エラー。
+
+---
+
 ## 「場のシグニN体につきカードをM枚引く」が固定ドローに潰れる修正＋ステート/複数クラス対応（v0.453, 2026-06-21）
 
 - **症状:** 「あなたの場にある＜電機＞と＜水獣＞のシグニ１体につきカードを１枚引く」（WX02-061）が **固定 `DRAW count:1`** に潰れていた（動的枚数＝場の対象シグニ数が欠落）。

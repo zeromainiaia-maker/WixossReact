@@ -401,6 +401,7 @@ export type EffectAction =
   | AltCostOppTurnAction
   | BlockCardUseAction
   | DrawPerFieldCountAction
+  | EnergyChargeFromDeckPerFieldCountAction
   | AwakenSigniAction
   | NegateAttackAction
   | PlaceUnderSigniAction
@@ -431,6 +432,15 @@ export interface DrawPerFieldCountAction {
   drawPerUnit: number;        // シグニ1体ごとに引く枚数
   countFilter: TargetFilter;  // カウント対象シグニのフィルタ
   countOwner: Owner;          // カウントするフィールドのオーナー
+}
+
+// フィールドのシグニ N体につき デッキトップ M枚をエナチャージ
+export interface EnergyChargeFromDeckPerFieldCountAction {
+  type: 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT';
+  chargePerUnit: number;      // シグニ1体ごとにエナチャージする枚数
+  countFilter: TargetFilter;  // カウント対象シグニのフィルタ
+  countOwner: Owner;          // カウントするフィールドのオーナー
+  owner: Owner;               // エナチャージするプレイヤー
 }
 
 // このシグニを覚醒させる（覚醒状態になる）

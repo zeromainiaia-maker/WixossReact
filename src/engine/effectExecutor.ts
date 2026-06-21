@@ -2302,6 +2302,25 @@ function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAc
   return executeAction({ type: 'DRAW', owner: 'self', count: drawCount }, ctx);
 }
 
+function execEnergyChargeFromDeckPerFieldCount(a: import('../types/effects').EnergyChargeFromDeckPerFieldCountAction, ctx: ExecCtx): ExecResult {
+  const countState = ownerState(a.countOwner, ctx);
+  let fieldCount = 0;
+  for (let zi = 0; zi < countState.field.signi.length; zi++) {
+    const stack = countState.field.signi[zi];
+    if (!stack || stack.length === 0) continue;
+    const top = stack[stack.length - 1];
+    // excludeSelf（「他の」）: 効果元シグニ自身はカウントから除外
+    if (a.countFilter.excludeSelf && top === ctx.sourceCardNum) continue;
+    const card = ctx.cardMap.get(top);
+    if (!matchesFilter(card, a.countFilter)) continue;
+    if (!matchesStateFilter(countState, zi, a.countFilter)) continue;
+    fieldCount++;
+  }
+  if (fieldCount === 0) return done(ctx);
+  const chargeCount = a.chargePerUnit * fieldCount;
+  return executeAction({ type: 'ENERGY_CHARGE_FROM_DECK', owner: a.owner, count: chargeCount }, ctx);
+}
+
 function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: ExecCtx): ExecResult {
   const lrigState = a.lrigOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const lrigNum = lrigState.field.lrig.at(-1);
@@ -2919,6 +2938,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'COST_INCREASE':           return execCostIncrease(action as CostIncreaseAction, ctx);
     case 'POWER_MODIFY_PER_FIELD':     return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
     case 'DRAW_PER_FIELD_COUNT':       return execDrawPerFieldCount(action as import('../types/effects').DrawPerFieldCountAction, ctx);
+    case 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT': return execEnergyChargeFromDeckPerFieldCount(action as import('../types/effects').EnergyChargeFromDeckPerFieldCountAction, ctx);
     case 'AWAKEN_SIGNI':               return execAwakenSigni(ctx);
     case 'NEGATE_ATTACK':              return execNegateAttack(action as import('../types/effects').NegateAttackAction, ctx);
     case 'PLACE_UNDER_SIGNI':          return execPlaceUnderSigni(action as import('../types/effects').PlaceUnderSigniAction, ctx);
