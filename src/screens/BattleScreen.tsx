@@ -10100,7 +10100,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     <p style={{ color: C.textFaint, textAlign: 'center', margin: '12px 0' }}>候補なし</p>
                   ) : growCandidates.map(card => {
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
-                    const isFreeGrow = my.free_grow_this_turn === true;
+                    const isFreeGrow = my.free_grow_this_turn === true || freeGrowFilter !== null;
                     const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
                       canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
