@@ -745,8 +745,7 @@ export function execStubPart3(
       || stub.id === 'ARTS_COLORLESS_MUST_PAY_CENTER_COLOR') {
     return done(addLog(ctx, `[コストアップ/制限: ${stub.id}]`));
   }
-  // シグニ移動/リダイレクト系（engine: 移動先変更未実装）
-  // MOVE_TO_ATTACKER_FRONT: 相手シグニアタック時、正面が空なら自分をその正面に移動（してもよい）
+  // MOVE_TO_ATTACKER_FRONT: 相手シグニアタック時、正面が空なら自分をそのアタッカーの正面ゾーンに移動（してもよい）。実装済み（stub.value 優先、なければ attacked_signi_ids から動的特定）
   if (stub.id === 'MOVE_TO_ATTACKER_FRONT') {
     const srcMTAF = ctx.sourceCardNum;
     if (!srcMTAF) return done(addLog(ctx, 'アタッカー前移動：ソースなし'));
