@@ -14,7 +14,7 @@
 3. **逆翻訳器（decompileEffects.ts）は随時強化:** STUB→STUBS.md 説明／条件・アクション・選択者・トリガー主語・cardType 名詞・LIFE_CRASH の trash/crash 区別などを表示するよう拡充済み。生ID（`[条件:X]`/`[アクション:X]`/`[STUB:X]`）が残る箇所は未対応＝表示 or 実装の穴。
 4. **F-3 の実機検証（ヘッドレス不可・PvP/CPU実機が要る）:** 身代わり対話 pause/resume。対象 犠牲型 `WX12-024`/`WXEX2-60`/`WX20-055`/`WXDi-CP01-032`/`WXDi-P10-052`、コスト払い型 `WX10-033`/`WX11-029`。安定するまで身代わり拡張に進まない。
 5. **LOOK_AND_REORDER の canTrash UI（v0.431 実装）も実機検証推奨**（PvP/CPU対話・ヘッドレス不可）。
-5b. **WX04-004-E2 守備側アタック無効化（要実機検証・ヘッドレス不可）:** 「対戦相手のシグニが正面なしでアタックしたとき、《緑》《無》＋手札の＜美巧＞シグニ1枚を捨ててそのアタックを無効にしてもよい」を実装。新 timing `ON_OPP_SIGNI_ATTACK_DIRECT`＋`performSigniAttack` で正面空のとき守備側ルリグ能力をスタックに積む＋STUB `OPP_DIRECT_ATTACK_NEGATE`/`OPP_DIRECT_ATTACK_NEGATE_PAY`（支払い可否判定→CHOOSE→エナ自動支払い＋＜美巧＞自動捨て→アタッカー(otherState)の `cancel_current_signi_attack` 設定）。**検証点:** ①守備側（非ターンプレイヤー）にCHOOSEが提示されるか、②支払い後 Phase2(line~6654)でダメージがスキップされるか、③スタック writeback で otherState のキャンセルフラグ＋pending_signi_battle が両立保存されるか、④＜美巧＞捨ては先頭自動選択（選択UIは未・近似）、⑤エナ支払いも自動割り当て（緑1＋無1）。
+5b. **WX04-004-E2 守備側アタック無効化（要実機検証・ヘッドレス不可）:** 「対戦相手のシグニが正面なしでアタックしたとき、《緑》《無》＋手札の＜美巧＞シグニ1枚を捨ててそのアタックを無効にしてもよい」を実装。新 timing `ON_OPP_SIGNI_ATTACK_DIRECT`＋`performSigniAttack` で正面空のとき守備側ルリグ能力をスタックに積む＋STUB `OPP_DIRECT_ATTACK_NEGATE`/`OPP_DIRECT_ATTACK_NEGATE_PAY`（支払い可否判定→CHOOSE→エナ自動支払い＋＜美巧＞自動捨て→アタッカー(otherState)の `cancel_current_signi_attack` 設定）。**検証点:** ①守備側（非ターンプレイヤー）にCHOOSEが提示されるか、②支払い後 Phase2(line~6654)でダメージがスキップされるか、③スタック writeback で otherState のキャンセルフラグ＋pending_signi_battle が両立保存されるか、④＜美巧＞捨ては手札からの選択UI（TRASH HAND_CARDで選択→continuationでエナ支払い＋フラグ設定）、⑤エナ支払いは自動割り当て（緑1＋無1）。
 6. **未着手の大物:** D（CPU AI 拡張）、F-3 の効果バニッシュ経路（犠牲/コスト型の `execBanish` 側フック）。
 
 ### 逆翻訳スキャンで判明した系統バグ（ymst 向け・横展開で潰す）

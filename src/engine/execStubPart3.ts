@@ -4846,7 +4846,13 @@ export function execStubPart3(
     if (!canPayOptionalCost(costColorsODN, ctx.ownerState, ctx.cardMap) || !hasBikoODN) {
       return done(ctx); // コスト不能：何もしない（アタックはそのまま通る）
     }
-    const payActionODN: StubAction = { type: 'STUB', id: 'OPP_DIRECT_ATTACK_NEGATE_PAY', costColors: costColorsODN };
+    // pay: ＜美巧＞シグニを手札から選んで捨てる（TRASH選択UI）→ エナ支払い＋アタッカー無効化フラグ（continuation）
+    const discardStepODN: TrashAction = {
+      type: 'TRASH',
+      target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: '美巧' } },
+    };
+    const payStepODN: StubAction = { type: 'STUB', id: 'OPP_DIRECT_ATTACK_NEGATE_PAY', costColors: costColorsODN };
+    const payActionODN: SequenceAction = { type: 'SEQUENCE', steps: [discardStepODN as EffectAction, payStepODN as EffectAction] };
     return needsInteraction(addLog(ctx, `${costColorsODN.map(c => `《${c}》`).join('')}＋＜美巧＞のシグニ1枚を捨ててアタックを無効にしてもよい`), {
       type: 'CHOOSE',
       options: [
@@ -4857,8 +4863,8 @@ export function execStubPart3(
     });
   }
 
-  // OPP_DIRECT_ATTACK_NEGATE_PAY: 上記の支払い実行。エナ（costColors）と＜美巧＞シグニ1枚を捨て、
-  // アタッカー(otherState)の cancel_current_signi_attack を立てる。
+  // OPP_DIRECT_ATTACK_NEGATE_PAY: ＜美巧＞捨て選択の後続。エナ（costColors）を支払い、
+  // アタッカー(otherState)の cancel_current_signi_attack を立てる（＜美巧＞捨ては直前のTRASHステップで実行済み）。
   if (stub.id === 'OPP_DIRECT_ATTACK_NEGATE_PAY') {
     const costColorsPay = stub.costColors ?? ['緑', '無'];
     const pool = [...ctx.ownerState.energy];
@@ -4877,22 +4883,14 @@ export function execStubPart3(
     }
     const paidEnergy = removeIdx.map(i => pool[i]);
     const newEnergy = pool.filter((_, i) => !removeIdx.includes(i));
-    const handIdxBiko = ctx.ownerState.hand.findIndex(n => {
-      const c = ctx.cardMap.get(n);
-      return c?.Type === 'シグニ' && (c.CardClass ?? '').includes('美巧');
-    });
-    if (handIdxBiko === -1) return done(addLog(ctx, 'アタック無効化：＜美巧＞シグニが手札にない'));
-    const discardedBiko = ctx.ownerState.hand[handIdxBiko];
-    const newHand = ctx.ownerState.hand.filter((_, i) => i !== handIdxBiko);
     const newOwnerODN: PlayerState = {
       ...ctx.ownerState,
       energy: newEnergy,
-      hand: newHand,
-      trash: [...ctx.ownerState.trash, ...paidEnergy, discardedBiko],
+      trash: [...ctx.ownerState.trash, ...paidEnergy],
     };
     const newOtherODN: PlayerState = { ...ctx.otherState, cancel_current_signi_attack: true };
     return done(addLog({ ...ctx, ownerState: newOwnerODN, otherState: newOtherODN },
-      `${costColorsPay.map(c => `《${c}》`).join('')}を支払い${ctx.cardMap.get(discardedBiko)?.CardName ?? discardedBiko}を捨て、アタックを無効にした`));
+      `${costColorsPay.map(c => `《${c}》`).join('')}を支払い、アタックを無効にした`));
   }
 
   return null;
