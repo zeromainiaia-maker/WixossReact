@@ -168,6 +168,7 @@ export type Condition =
   | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number }   // lastProcessedCardsのシグニレベル合計=N
   | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number }   // この方法でトラッシュ(lastProcessedCards)したシグニのうち相異なるレベルがcount種以上（WX03-015）
   | { type: 'TRASHED_STORY_COUNT_GTE'; story: string; count: number }  // この方法でトラッシュ(lastProcessedCards)した＜story＞のシグニがcount体以上（WX03-021）
+  | { type: 'LAST_PROCESSED_POWER_GTE'; value: number; addDelta?: number }  // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー(+addDelta)がvalue以上（WX03-046「それのパワーが15000以上」。addDeltaで直前の+パワーを加味）
   | { type: 'OPPONENT_NOT_PAID' }                             // 相手が任意コストを支払わなかった場合
   | { type: 'SELF_OPTIONAL_EFFECT_TAKEN' }                    // 自分が任意効果（自バニッシュ等）を実行した場合
   | { type: 'HAS_BOND'; cardName?: string }                   // 絆アイコン：このカード名との絆を獲得している
@@ -669,6 +670,7 @@ export interface GrantKeywordAction {
   target: EffectTarget;
   keyword: string;
   duration: EffectDuration;
+  targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX03-046「打突」等。選択UIを出さず同一対象に付与）
 }
 
 // 複合能力（CardEffect）をシグニ/ルリグに付与する

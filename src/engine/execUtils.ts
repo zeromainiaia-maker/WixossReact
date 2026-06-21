@@ -656,6 +656,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const c = ctx.cardMap.get(proc[0]);
       return !!c?.LifeBurst && c.LifeBurst !== '-' && c.LifeBurst !== '';
     }
+    case 'LAST_PROCESSED_POWER_GTE': {
+      // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー判定（WX03-046「それのパワーが15000以上」）。
+      // effectivePowers は直前の POWER_MODIFY 適用前のスナップショットのため、addDelta でその+パワーを加味する。
+      const lp = ctx.lastProcessedCards?.[0];
+      if (!lp) return false;
+      const base = ctx.effectivePowers?.get(lp) ?? parseInt(ctx.cardMap.get(lp)?.Power ?? '0', 10);
+      return base + (cond.addDelta ?? 0) >= cond.value;
+    }
     default: return true;
   }
 }

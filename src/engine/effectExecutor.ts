@@ -1088,6 +1088,23 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const resolvedKeyword = resolveDynamicShadowKeyword(a.keyword, ctx);
   const a2 = resolvedKeyword !== a.keyword ? { ...a, keyword: resolvedKeyword } : a;
   a = a2;
+  // targetsLastProcessed:「それ」= 直前に選択/処理したシグニ(lastProcessedCards)へ付与（WX03-046「打突」。選択UIを出さず同一対象に付与）
+  if (a.targetsLastProcessed) {
+    const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
+    let cur = ctx;
+    for (const cn of ctx.lastProcessedCards ?? []) {
+      let owner: Owner | null = null;
+      if (cur.ownerState.field.signi.some(s => s?.at(-1) === cn)) owner = 'self';
+      else if (cur.otherState.field.signi.some(s => s?.at(-1) === cn)) owner = 'opponent';
+      if (!owner) continue;
+      const s = ownerState(owner, cur);
+      const grants = { ...(s[gkey] ?? {}) };
+      grants[cn] = [...new Set([...(grants[cn] ?? []), a.keyword])];
+      cur = addLog(setOwnerState(owner, { ...s, [gkey]: grants }, cur),
+        `${a.keyword}：${cur.cardMap.get(cn)?.CardName ?? cn}`);
+    }
+    return done(cur);
+  }
   const tgt = a.target;
   // duration:NEXT_TURN かつ「あなたのすべてのシグニ」（クラス等の絞り込みなし）への付与
   // → 次の自分ターン中に存在する全シグニ（新たに出したシグニも含む）が得る場全体付与として予約する。
