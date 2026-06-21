@@ -1100,6 +1100,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- ライフクロスに加える ----
   if (t.includes('ライフクロスに加える') || t.includes('ライフクロスに置く')) {
+    // 「（この方法で）トラッシュに置いたシグニ1体につき…ライフクロスに加える」= 直前にトラッシュした枚数（動的）
+    if (t.match(/トラッシュに置いたシグニ[０-９\d]*体?につき/)) {
+      return { type: 'ADD_TO_LIFE', owner: 'self', count: { $ref: 'last_processed_count' }, fromTop: true };
+    }
     const cM = t.match(/カードを([０-９\d]+)枚/) ?? t.match(/([０-９\d]+)枚(?:の手札)?をライフクロス/);
     const count = cM ? parseNum(cM[1]) : 1;
     // 「手札を〜ライフクロスに加える」は手札選択
