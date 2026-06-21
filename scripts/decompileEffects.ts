@@ -246,7 +246,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'TRASH': {
       const t = a.target;
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
-      if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く`;
+      if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
       // 手札/エナの「誰が選ぶか」を明示（見ないでランダム / 自分が見て選ぶ / 相手が選ぶ）
       const who = a.opponentSelects && t?.owner === 'opponent'
         ? '（相手が選ぶ）'

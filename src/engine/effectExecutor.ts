@@ -432,7 +432,9 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
     }
     const count = resolveNum(tgt.count);
-    return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+    // 「各プレイヤーは自分のシグニ1体を対象とし、それをトラッシュ」：相手のシグニは相手自身が選ぶ（WX04-025）
+    const oppRespondsField = !!a.opponentSelects && tgt.owner === 'opponent';
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, oppRespondsField);
   }
 
   if (tgt.type === 'HAND_CARD') {
