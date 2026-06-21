@@ -3962,17 +3962,20 @@ export function execStubPart2(
     }
     return done(addLog(ctx, 'コスト軽減条件（条件解析不可）'));
   }
-  // CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のルリグ属性によるコスト変更チェック
+  // CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のセンタールリグ色による基本コスト軽減（実コスト軽減は支払い時に computeArtsEffectiveCost が適用済み。ここでは結果ログのみ）
   if (stub.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG') {
     const srcCCOL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCCOL = srcCCOL ? (srcCCOL.EffectText ?? '') + ' ' + (srcCCOL.BurstText ?? '') : '';
-    const condM = txtCCOL.match(/対戦相手のセンタールリグが([赤青緑黒白]+)の場合/);
+    const condM = txtCCOL.match(/対戦相手のセンタールリグが([赤青緑黒白]+)の場合[、,](?:このカードの|このアーツの)?(?:基本|使用)コストは(.+?)になる/);
     if (condM) {
       const condColor = condM[1];
+      const reducedCost = condM[2];
       const oppLrigCn = ctx.otherState.field.lrig.at(-1);
       const oppColor = oppLrigCn ? (ctx.cardMap.get(oppLrigCn)?.Color ?? '') : '';
       const met = oppColor.includes(condColor);
-      return done(addLog(ctx, `コスト変更条件（相手${condColor}）: ${met ? '条件達成' : '条件未達'}`));
+      return done(addLog(ctx, met
+        ? `基本コスト軽減：相手センタールリグが${condColor}→コスト${reducedCost}（支払い時適用済み）`
+        : `基本コスト軽減：相手センタールリグが${condColor}でない→軽減なし`));
     }
     return done(addLog(ctx, 'コスト変更条件（ルリグ属性解析不可）'));
   }

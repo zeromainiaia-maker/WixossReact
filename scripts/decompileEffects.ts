@@ -421,6 +421,10 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_LRIG_ABILITY': return `あなたのセンタールリグは『${(a.abilities || []).map(effJa).join(' / ') || a.rawText || ''}』を得る`;
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
+      // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）
+      if (a.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG') {
+        return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';
+      }
       const burstExtra = a.id === 'GRANT_ALL_ZONE_LIFEBURST'
         ? `（全領域のカードに【ライフバースト】付与${a.burstAdditive ? '・既存バーストにも追加' : ''}${a.burstFilter ? '・対象' + filterJa(a.burstFilter) : ''}${a.burstAction ? '・効果=' + actionJa(a.burstAction) : ''}）`
         : '';
