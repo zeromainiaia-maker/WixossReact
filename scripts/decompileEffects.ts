@@ -214,7 +214,9 @@ function actionJa(a?: Action): string {
   if (!a) return '';
   switch (a.type) {
     case 'DRAW': return `${ownerJa(a.owner)}カードを${numJa(a.count)}枚引く`;
-    case 'BANISH': return `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
+    case 'BANISH': return a.opponentSelects
+      ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
+      : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
     case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}`;
     case 'TRASH': {
       const t = a.target;
