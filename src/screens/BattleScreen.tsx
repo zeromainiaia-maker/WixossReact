@@ -13367,6 +13367,56 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     </p>
                   )}
 
+                  {/* fieldTrash: 場のシグニを場からトラッシュするコスト選択（excludeSelf=効果元を除く。WX03-035等） */}
+                  {actFieldTrashCost && actFtNeeded > 0 && (
+                    <>
+                      <p style={{ color: actFieldTrashOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        場から{actFieldTrashCost.excludeSelf ? '他の' : ''}{filterLabel(actFieldTrashCost.filter)}シグニをトラッシュ:
+                        {' '}{selectedSigniActivatedFieldTrash.size} / {actFtNeeded}体
+                      </p>
+                      {actFtSelectableZones.length === 0 ? (
+                        <p style={{ color: C.warn, fontSize: 11, margin: 0 }}>対象シグニがいません</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {actFtSelectableZones.map(zi => {
+                            const top = my.field.signi[zi]?.at(-1);
+                            const c = top ? battleCardMap.get(getCardNum(top)) : undefined;
+                            const isSel = selectedSigniActivatedFieldTrash.has(zi);
+                            return (
+                              <div key={zi}
+                                onClick={() => setSelectedSigniActivatedFieldTrash(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(zi)) { next.delete(zi); return next; }
+                                  if (next.size >= actFtNeeded) return prev;
+                                  next.add(zi); return next;
+                                })}
+                                onContextMenu={e => e.preventDefault()}
+                                style={{ position: 'relative', width: 52, height: 73, borderRadius: 4, flexShrink: 0,
+                                  border: isSel ? '2px solid #4caf50' : C.borderCard,
+                                  cursor: 'pointer', overflow: 'hidden' }}>
+                                {c ? (
+                                  <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 7, color: C.textFaint }}>{top}</span>
+                                  </div>
+                                )}
+                                {isSel && (
+                                  <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(76,175,80,0.4)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setSigniActCharmTrashVar(0); setKeySubstituteEnabled(false); setSelectedSigniActivatedEnergyTrash(new Set()); setSelectedSigniActivatedTrashExile(new Set()); }}
