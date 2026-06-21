@@ -283,7 +283,12 @@ function actionJa(a?: Action): string {
         : '処理する';
       return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}を${a.maxCount ? a.maxCount + '枚まで' : ''}探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
-    case 'GRANT_KEYWORD': return `${targetJa(a.target)}に【${a.keyword}】を与える`;
+    case 'GRANT_KEYWORD': {
+      const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
+        : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
+        : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
+      return `${targetJa(a.target)}に【${a.keyword}】を与える${durJa}`;
+    }
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失う${a.frontOfSelf ? '（正面）' : ''}`;
     case 'GRANT_PROTECTION': {
       const subject = a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ';
