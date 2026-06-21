@@ -240,7 +240,9 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   }
   if (tgt.count === 'ALL') return done(applyBanish(cands, ctx));
   const count = resolveNum(tgt.count);
-  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx);
+  // opponentSelects: 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」→ 対戦相手が選ぶ
+  const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
+  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds);
 }
 
 function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
