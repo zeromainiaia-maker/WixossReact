@@ -771,7 +771,17 @@ function parseSingleSentence(text: string): EffectAction {
       } as import('../types/effects').ConditionalAction;
     }
   }
-  // タイミング・期間プレフィックスを除去（既にparseBlockで処理済み）
+  // 「（ターン終了時まで|次のあなたのターン）、あなたの（すべての）＜X＞(と＜Y＞)*のシグニは【K】を得る」
+  // → 期間つき全シグニへのキーワード付与（ストリップ前に期間/クラスフィルタを抽出）
+  {
+    const m = text.trim().replace(/。$/, '').match(/^(ターン終了時まで|次のあなたのターン|次の自分のターン)、あなたの(?:すべての)?(.*?)シグニ(?:は|が)?【([^】]+)】を得る$/);
+    if (m && !['常', '出', '起', '自', 'ガード'].includes(m[3])) {
+      const dur: EffectDuration = m[1] === 'ターン終了時まで' ? 'UNTIL_END_OF_TURN' : 'NEXT_TURN';
+      const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(m[2]) };
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter }, keyword: m[3], duration: dur };
+    }
+  }
+  // タイミング・期間プレフィックスを除去（既にパースブロックで処理済み）
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
     .replace(/^あなたのターン終了時、/, '')
