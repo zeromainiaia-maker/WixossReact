@@ -4823,9 +4823,76 @@ export function execStubPart3(
       `${ctx.cardMap.get(srcNum)?.CardName ?? srcNum}：バニッシュされない（ターン終了時まで）`));
   }
 
-  // SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時）
+  // SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時。攻撃側=効果オーナー自身のアタックを無効化）
   if (stub.id === 'SET_CANCEL_ATTACK_FLAG') {
     return done({ ...ctx, ownerState: { ...ctx.ownerState, cancel_current_signi_attack: true } });
+  }
+
+  // SET_CANCEL_OPP_ATTACK_FLAG: 守備側の効果が「対戦相手のアタック」を無効化する場合に使う。
+  // Phase2(resolvePendingSigniBattleFor)はアタッカー側stateの cancel_current_signi_attack を見るため、
+  // 守備側効果(owner=守備側)からは otherState(=アタッカー)にフラグを立てる必要がある（WX04-004-E2）。
+  if (stub.id === 'SET_CANCEL_OPP_ATTACK_FLAG') {
+    return done({ ...ctx, otherState: { ...ctx.otherState, cancel_current_signi_attack: true } });
+  }
+
+  // OPP_DIRECT_ATTACK_NEGATE: 相手シグニが正面なしでアタックしたとき、コスト（costColorsのエナ＋＜美巧＞シグニ1枚捨て）を
+  // 支払ってそのアタックを無効にしてもよい（WX04-004-E2）。owner=守備側。支払い不能なら発動しない。
+  if (stub.id === 'OPP_DIRECT_ATTACK_NEGATE') {
+    const costColorsODN = stub.costColors ?? ['緑', '無'];
+    const hasBikoODN = ctx.ownerState.hand.some(n => {
+      const c = ctx.cardMap.get(n);
+      return c?.Type === 'シグニ' && (c.CardClass ?? '').includes('美巧');
+    });
+    if (!canPayOptionalCost(costColorsODN, ctx.ownerState, ctx.cardMap) || !hasBikoODN) {
+      return done(ctx); // コスト不能：何もしない（アタックはそのまま通る）
+    }
+    const payActionODN: StubAction = { type: 'STUB', id: 'OPP_DIRECT_ATTACK_NEGATE_PAY', costColors: costColorsODN };
+    return needsInteraction(addLog(ctx, `${costColorsODN.map(c => `《${c}》`).join('')}＋＜美巧＞のシグニ1枚を捨ててアタックを無効にしてもよい`), {
+      type: 'CHOOSE',
+      options: [
+        { id: 'pay', label: 'コストを払いアタックを無効にする', action: payActionODN as EffectAction, available: true },
+        { id: 'skip', label: '無効にしない', action: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction, available: true },
+      ],
+      count: 1,
+    });
+  }
+
+  // OPP_DIRECT_ATTACK_NEGATE_PAY: 上記の支払い実行。エナ（costColors）と＜美巧＞シグニ1枚を捨て、
+  // アタッカー(otherState)の cancel_current_signi_attack を立てる。
+  if (stub.id === 'OPP_DIRECT_ATTACK_NEGATE_PAY') {
+    const costColorsPay = stub.costColors ?? ['緑', '無'];
+    const pool = [...ctx.ownerState.energy];
+    const removeIdx: number[] = [];
+    // canPayOptionalCost と同じ割り当て順（色指定を先、無色を後）で除去対象エナを決定
+    const ordered = [...costColorsPay].sort((a, b) => (a === '無' ? 1 : 0) - (b === '無' ? 1 : 0));
+    for (const color of ordered) {
+      let idx: number;
+      if (color === '無') {
+        idx = pool.findIndex((_, i) => !removeIdx.includes(i));
+      } else {
+        idx = pool.findIndex((n, i) => !removeIdx.includes(i) && (ctx.cardMap.get(n)?.Color?.includes(color) ?? false));
+      }
+      if (idx === -1) return done(addLog(ctx, 'アタック無効化：エナ不足で支払い不能')); // 念のため
+      removeIdx.push(idx);
+    }
+    const paidEnergy = removeIdx.map(i => pool[i]);
+    const newEnergy = pool.filter((_, i) => !removeIdx.includes(i));
+    const handIdxBiko = ctx.ownerState.hand.findIndex(n => {
+      const c = ctx.cardMap.get(n);
+      return c?.Type === 'シグニ' && (c.CardClass ?? '').includes('美巧');
+    });
+    if (handIdxBiko === -1) return done(addLog(ctx, 'アタック無効化：＜美巧＞シグニが手札にない'));
+    const discardedBiko = ctx.ownerState.hand[handIdxBiko];
+    const newHand = ctx.ownerState.hand.filter((_, i) => i !== handIdxBiko);
+    const newOwnerODN: PlayerState = {
+      ...ctx.ownerState,
+      energy: newEnergy,
+      hand: newHand,
+      trash: [...ctx.ownerState.trash, ...paidEnergy, discardedBiko],
+    };
+    const newOtherODN: PlayerState = { ...ctx.otherState, cancel_current_signi_attack: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerODN, otherState: newOtherODN },
+      `${costColorsPay.map(c => `《${c}》`).join('')}を支払い${ctx.cardMap.get(discardedBiko)?.CardName ?? discardedBiko}を捨て、アタックを無効にした`));
   }
 
   return null;

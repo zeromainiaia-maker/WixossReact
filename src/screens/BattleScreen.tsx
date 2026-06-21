@@ -6575,6 +6575,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // ON_OPP_SIGNI_ATTACK_DIRECT: 正面が空（=守備側ルリグへの直接アタック）のとき、
+      // 守備側ルリグの「コストを払ってアタックを無効にしてもよい」能力をスタックに積んで提示する（WX04-004-E2）。
+      // STUB(OPP_DIRECT_ATTACK_NEGATE)が支払い可否判定・選択・アタッカーのキャンセルフラグ設定までを担う。
+      if (!opTopCardNum) {
+        const defLrigTop = newOpState.field.lrig.at(-1);
+        if (defLrigTop) {
+          for (const de of (effectsMap.get(defLrigTop) ?? effectsMap.get(getCardNum(defLrigTop)) ?? [])) {
+            if ((de.effectType !== 'AUTO' && de.effectType !== 'ACTIVATED') || !de.timing?.includes('ON_OPP_SIGNI_ATTACK_DIRECT')) continue;
+            opAtkedEntries.push({
+              id: generateUUID(),
+              playerId: defenderId,
+              cardNum: defLrigTop,
+              effectId: de.effectId,
+              label: `${battleCardMap.get(getCardNum(defLrigTop))?.CardName ?? defLrigTop} の【自】効果（正面が空のアタックを無効化）`,
+              effect: de,
+            } satisfies StackEntry);
+          }
+        }
+      }
+
       // バトル解決前にON_ATTACK_SIGNIを処理するため pending_signi_battle をセット
       const newMyStateWithPending: PlayerState = { ...newMyState, pending_signi_battle: { zoneIndex } };
 
