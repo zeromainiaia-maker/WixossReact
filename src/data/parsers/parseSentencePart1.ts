@@ -1336,15 +1336,23 @@ export function parseSentencePart1(t: string): EffectAction | null {
       // ターゲット解決（エナゾーン → 全シグニ → 個別）
       const kwAllSelf = t.match(/あなたのシグニ(?:すべて|は|が)/) || t.includes('すべてのあなたのシグニ');
       const kwCountSelfM = t.match(/あなたのシグニ([０-９\d]+)体/);
+      // 「あなたの＜鉱石＞か＜宝石＞のシグニ」「あなたの赤のシグニ」のようにクラス句/色句が
+      // 「あなたの」と「シグニ」の間に挟まると t.includes('あなたのシグニ') が外れて owner:any 既定に
+      // 潰れる。クラス句（＜X＞か…）・色句（赤の 等）を許容して判定する。
+      const kwSelfSigni = t.includes('あなたのシグニ') || /あなたの(?:[白赤青緑黒]の|＜[^＞]+＞か?)+の?シグニ/.test(t);
+      const kwOppSigni = t.includes('対戦相手のシグニ') || /対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞か?)+の?シグニ/.test(t);
+      // 単体シグニ付与に付くクラス/色/レベルフィルタ（＜鉱石＞か＜宝石＞か＜ウェポン＞ 等）
+      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t) };
+      const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
       const target: EffectTarget = t.includes('エナゾーンにあるカード') || t.includes('エナゾーンのカード')
         ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }
         : t.includes('このシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
         : t.includes('センタールリグ') ? { type: 'LRIG', owner: 'self', count: 1 }
         : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
         : kwCountSelfM ? { type: 'SIGNI', owner: 'self', count: parseNum(kwCountSelfM[1]) }
-        : t.includes('あなたのシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
-        : t.includes('対戦相手のシグニ') ? { type: 'SIGNI', owner: 'opponent', count: 1 }
-        : { type: 'SIGNI', owner: 'any', count: 1 };
+        : kwSelfSigni ? { type: 'SIGNI', owner: 'self', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
+        : kwOppSigni ? { type: 'SIGNI', owner: 'opponent', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
+        : { type: 'SIGNI', owner: 'any', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) };
       // 「【X】と【Y】を得る」「【X】【Y】を持つ」複合付与 → SEQUENCE
       // 「を得る/を持つ」直前に隣接するキーワード連続（と/・接続のみ）に限定し、
       // 文境界を跨いだ無関係キーワードの巻き込みを防ぐ
