@@ -768,6 +768,19 @@ export function parseSentencePart1(t: string): EffectAction | null {
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
       return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t) } } };
     }
+    // 「パワーの合計がN以下になるように好きな数対象とし、それらをバニッシュする」（合計パワー制限の複数選択）
+    const sumBanishM = t.match(/パワーの合計が([０-９\d]+)以下になるように好きな数/);
+    if (sumBanishM) {
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      return {
+        type: 'BANISH',
+        target: {
+          type: 'SIGNI', owner, count: 'ALL',
+          filter: { cardType: 'シグニ', ...parseStoryFilter(t) },
+          totalPowerMax: parseNum(sumBanishM[1]),
+        },
+      };
+    }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const isOptional = t.includes('バニッシュしてもよい');
     // 「このシグニをバニッシュする」＝自身のみ（任意選択でなく thisCardOnly）
