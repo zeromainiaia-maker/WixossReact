@@ -15,6 +15,7 @@ export function hasKeyword(
   keywordGrants?: Record<string, string[]>,
   bonds?: string[], // 絆アイコン効果チェック用（プレイヤーが絆獲得済みのカード名一覧）
   extraGrants?: Record<string, string[]>, // UNTIL_OPP_TURN_END で付与されたキーワード
+  fieldKeywords?: string[], // 自ターン中に全自シグニが得ているキーワード（field_keyword_grants_active）
 ): boolean {
   const card = cardMap.get(cardNum);
   const matches = (kw: string) => kw === keyword || kw.startsWith(keyword + ':');
@@ -30,7 +31,8 @@ export function hasKeyword(
     return true;
   })) return true;
   if (keywordGrants?.[cardNum]?.some(matches)) return true;
-  return extraGrants?.[cardNum]?.some(matches) ?? false;
+  if (extraGrants?.[cardNum]?.some(matches)) return true;
+  return fieldKeywords?.some(matches) ?? false;
 }
 
 /**
