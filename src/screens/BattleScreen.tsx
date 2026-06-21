@@ -14079,6 +14079,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const countStr = maxPick === 1 ? '' : `${maxPick}枚`;
             return `${from}${actionDesc}カードを${countStr}選んでください`;
           })();
+
+          // 相手シグニ選択時はゾーン3→2→1の順（画面上の配置に合わせる）で表示
+          const sortedCandidates = (inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_field')
+            ? [...candidates].reverse()
+            : candidates;
+
           // パワー合計上限つき選択時：現在の選択合計パワー
           const selectedPowerSum = (inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined)
             ? effectSelectedNums.reduce((s, i) => {
@@ -14091,11 +14097,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 ? selectedPowerSum <= inter.totalPowerMax  // 好きな数（0体含む）。合計上限内なら確定可
                 : (inter.optional || effectSelectedNums.length >= maxPick))
             : effectSelectedNums.length <= maxPick;
-
-          // 相手シグニ選択時はゾーン3→2→1の順（画面上の配置に合わせる）で表示
-          const sortedCandidates = (inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_field')
-            ? [...candidates].reverse()
-            : candidates;
 
           // フィールド対象の場合: 各候補がどのゾーンに属するかをマッピング
           const fieldZoneInfo: number[] = (() => {
