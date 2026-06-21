@@ -5301,14 +5301,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       const coinGain = parseInt(card.Coin) || 0;
-      const growCoinCost = parseCoinCost(card.GrowCost);
+      // フリーグロウ（ゲット・グロウ等）はグロウコストのコインを支払わず、通常グロウ枠も消費しない（横グロウ）
+      const growCoinCost = wasFreeGrow ? 0 : parseCoinCost(card.GrowCost);
       let newMyState: PlayerState = {
         ...my,
         lrig_deck: newLrigDeck,
         field: { ...my.field, lrig: [...my.field.lrig, instanceId] },
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
-        actions_done: [...(my.actions_done ?? []), 'GROW'],
+        actions_done: wasFreeGrow ? (my.actions_done ?? []) : [...(my.actions_done ?? []), 'GROW'],
         coins: Math.min(5, Math.max(0, my.coins - growCoinCost) + coinGain),
         free_grow_this_turn: undefined,
       };
