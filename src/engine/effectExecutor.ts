@@ -842,7 +842,11 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
 }
 
 function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
-  const count = resolveNum(a.count);
+  // last_processed_count: 「トラッシュに置いたシグニ1体につき…ライフクロスに加える」→ 直前にトラッシュした枚数
+  const count = (typeof a.count === 'object' && a.count.$ref === 'last_processed_count')
+    ? (ctx.lastProcessedCards?.length ?? 0)
+    : resolveNum(a.count);
+  if (count <= 0) return done(ctx);
   const state = ownerState(a.owner, ctx);
   if (a.fromHand) {
     // 手札から1枚選んでライフクロスに追加
