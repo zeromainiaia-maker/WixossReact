@@ -723,6 +723,7 @@ export function selectOrInteract(
   continuation: EffectAction | undefined,
   ctx: ExecCtx,
   opponentResponds = false,
+  extra?: { totalPowerMax?: number; candidatePowers?: Record<string, number> },
 ): ExecResult {
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
   let filteredCands = candidates;
