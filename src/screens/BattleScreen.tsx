@@ -9971,6 +9971,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (e.cost!.fieldTrash!.excludeSelf && zi === rawZoneIdx) return false;
           return !e.cost!.fieldTrash!.filter || matchesFilter(battleCardMap.get(getCardNum(ftTop)), e.cost!.fieldTrash!.filter);
         }).length < e.cost.fieldTrash.count) &&
+        // fieldDown: アップ状態の該当シグニが必要数いないと支払えない
+        !(e.cost?.fieldDown && [0, 1, 2].filter(zi => {
+          const fdTop = my.field.signi[zi]?.at(-1);
+          if (!fdTop) return false;
+          if (my.field.signi_down?.[zi]) return false; // アップ状態のみ
+          const { isUp: _iu, isDown: _id, ...fdCardFilter } = e.cost!.fieldDown!.filter ?? {};
+          return matchesFilter(battleCardMap.get(getCardNum(fdTop)), fdCardFilter);
+        }).length < e.cost.fieldDown.count) &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
       );
       if (activatable.length === 0) return [];
