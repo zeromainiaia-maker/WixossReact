@@ -4184,6 +4184,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...activeState,
             temp_power_mods:    [],
             keyword_grants:     {},
+            field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
             granted_effects:    {},
             blocked_actions:    [],
             actions_done:       [],
