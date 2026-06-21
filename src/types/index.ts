@@ -103,6 +103,7 @@ export interface PlayerState {
   actions_done?: string[];      // このターンに使用済みのアクション（ターン開始時にリセット）
   game_actions_done?: string[]; // ゲーム通じて使用済みのアクション（once_per_game追跡、ターンリセット対象外）
   last_activated_discard_count?: number; // 直前【起】コスト支払いで捨てた合計枚数（手札+エナ）。ACTIVATED_DISCARD_COUNT_GTE条件用
+  last_energy_trash_color_count?: number; // 直前コスト(energyTrashColorAll)でエナからトラッシュした指定色カードの枚数。ENERGY_TRASH_COLOR_COUNT_GTE条件用（WX04-002-E2「この方法で赤が3枚以上」）
   last_charm_trash_count?: number; // 直前コスト支払いでトラッシュしたチャーム枚数（BanishFilter: levelEqualsVar用）
   last_field_trash_level?: number; // 直前コスト支払いで場からトラッシュしたシグニのレベル（BanishFilter: levelEqualsVar='field_trash_level'用。WX03-001）
   blocked_actions?: string[]; // カード効果で封じられたアクション

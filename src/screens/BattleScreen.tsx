@@ -9592,7 +9592,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const baseLGEnergy = my.energy.filter((_, i) => !lgAllEnergyRemovedIdx.has(i));
       // energyTrashAll: エナゾーンのカードをすべてトラッシュ（自動）
       const lgEnergyTrashAllCards = effect.cost?.energyTrashAll ? [...baseLGEnergy] : [];
-      const newEnergy = effect.cost?.energyTrashAll ? [] : baseLGEnergy;
+      const afterAllLGEnergy = effect.cost?.energyTrashAll ? [] : baseLGEnergy;
+      // energyTrashColorAll: エナゾーンからすべての[色]のカードをトラッシュ（自動）。トラッシュした枚数を記録（WX04-002-E2）
+      const lgEnergyTrashColor = effect.cost?.energyTrashColorAll;
+      const lgEnergyTrashColorCards = lgEnergyTrashColor
+        ? afterAllLGEnergy.filter(cn => battleCardMap.get(cn)?.Color?.includes(lgEnergyTrashColor))
+        : [];
+      const newEnergy = lgEnergyTrashColor
+        ? afterAllLGEnergy.filter(cn => !lgEnergyTrashColorCards.includes(cn))
+        : afterAllLGEnergy;
       // 手札シグニ捨てコスト支払い
       const discardedHandNums = [...handDiscardIndices].map(i => my.hand[i]);
       const baseLGHand = my.hand.filter((_, i) => !handDiscardIndices.has(i));
@@ -9605,12 +9613,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...my,
         hand: newHand,
         energy: newEnergy,
-        trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards],
+        trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards, ...lgEnergyTrashColorCards],
         field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
         game_actions_done: lgIsGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         last_activated_discard_count: lgTotalDiscarded,
+        last_energy_trash_color_count: lgEnergyTrashColor ? lgEnergyTrashColorCards.length : my.last_energy_trash_color_count,
       };
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
       if (trashExileIndices.size > 0) {
