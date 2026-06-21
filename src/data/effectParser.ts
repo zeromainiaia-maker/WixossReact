@@ -649,6 +649,15 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'opponent', operator: op, value: val }, rest: text.slice(oppHandM[0].length), conditionFound: true };
   }
 
+  // パターン5d2: 「(あなた|対戦相手)のライフクロスがN枚(以上|以下|)であるかぎり、」
+  const lifeCountM = text.match(/^(あなた|対戦相手)のライフクロスが([０-９\d]+)枚(以上|以下)?(?:であるかぎり|かぎり)、/);
+  if (lifeCountM) {
+    const owner: Owner = lifeCountM[1] === 'あなた' ? 'self' : 'opponent';
+    const val = parseNum(lifeCountM[2]);
+    const op: CompareOp = lifeCountM[3] === '以上' ? 'gte' : lifeCountM[3] === '以下' ? 'lte' : 'eq';
+    return { condition: { type: 'COUNT_THRESHOLD', location: 'life_cloth', owner, operator: op, value: val }, rest: text.slice(lifeCountM[0].length), conditionFound: true };
+  }
+
   // パターン5e: 「(あなた|対戦相手)のセンタールリグがレベルN(以上|以下|)であるかぎり、」
   const centerLrigLevelM = text.match(/^(あなた|対戦相手)のセンタールリグがレベル([０-９\d]+)(以上|以下)?(?:であるかぎり|かぎり)、/);
   if (centerLrigLevelM) {
