@@ -63,6 +63,7 @@ import {
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition };
 import { matchesStateFilter } from './effectEngine';
+import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../utils/keywords';
 
@@ -2160,6 +2161,15 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   } else {
     // lrig_deck: ルリグデッキの先頭から対象を探す
     cands = (ctx.ownerState.lrig_deck ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), a.filter));
+  }
+
+  // costThreshold: 使用コストの合計が閾値以下のカードに限定（WX04-011「コストの合計が３以下の青のアーツ」）
+  if (a.costThreshold != null) {
+    cands = cands.filter(n => {
+      const c = ctx.cardMap.get(n);
+      const total = parseEnergyCosts(c?.Cost ?? '').reduce((s, e) => s + e.count, 0);
+      return total <= a.costThreshold!;
+    });
   }
 
   if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 対象なし'));

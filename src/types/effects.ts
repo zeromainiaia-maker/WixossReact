@@ -798,6 +798,7 @@ export interface PlayFreeAction {
   ignoreCost: boolean;
   ignoreRestrictions?: boolean;
   optional: boolean;
+  costThreshold?: number; // 使用コストの合計の上限（「コストの合計がN以下の〜」WX04-011）
 }
 
 // コスト増加（CONTINUOUS効果で相手のカード使用コストを増やす）

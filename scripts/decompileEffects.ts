@@ -415,7 +415,17 @@ function actionJa(a?: Action, effectType?: string): string {
       const d = a.deltaPerUnit ?? a.deltaPerLevel ?? a.deltaPerLife ?? a.delta ?? a.deltaPerColor ?? 0;
       return `${targetJa(a.target)}のパワーを${per}数に応じて${d >= 0 ? '＋' : '－'}${Math.abs(d)}ずつ変更する`;
     }
-    case 'PLAY_FREE': return `${targetJa(a.source ?? a.target)}をコストを支払わずに使用/場に出す`;
+    case 'PLAY_FREE': {
+      const srcLoc: Record<string, string> = {
+        lrig_deck: 'ルリグデッキ', hand: '手札',
+        opp_hand: '対戦相手の手札', opp_trash: '対戦相手のトラッシュ',
+      };
+      const from = typeof a.source === 'string' ? (srcLoc[a.source] ?? a.source) : targetJa(a.source ?? a.target);
+      const noun = a.filter?.cardType ? ([] as string[]).concat(a.filter.cardType).join('か') : 'カード';
+      const costLim = a.costThreshold != null ? `コストの合計が${a.costThreshold}以下の` : '';
+      const restr = a.ignoreRestrictions ? '（限定条件を無視して）' : '';
+      return `${from}から${costLim}${filterJa(a.filter)}${noun}1枚を${restr}コストを支払わずに使用する`;
+    }
     case 'PLAY_FREE_FROM_TRASH': return 'トラッシュからコストを支払わずに場に出す';
     case 'BANISH_REDIRECT': return '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
     case 'COST_INCREASE': {
