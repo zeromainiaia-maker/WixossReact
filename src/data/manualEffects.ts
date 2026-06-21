@@ -209,6 +209,39 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX04-030 トライ・シグナル（スペル）
+  // E1「対戦相手のシグニ1体を対象とし、それを対戦相手のデッキに戻し、対戦相手は自分のデッキをシャッフルする」
+  //   旧パース誤り: TRANSFER_TO_DECK の shuffle:false（＝デッキの上に置く）。正しくは shuffle:true（デッキに戻してシャッフル）。
+  // BURST「手札から＜迷宮＞シグニ1枚を捨てる。そうした場合、対戦相手は対象の自分のシグニ1体をトラッシュに置く」
+  //   旧パース誤り: 2段目 TRASH に opponentSelects 欠落（相手自身が選ぶべき）。
+  'WX04-030': [
+    {
+      effectId: 'WX04-030-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '白', count: 3 }, { color: '無', count: 2 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
+        { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, shuffle: true },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX04-030-BURST',
+      effectType: 'LIFE_BURST',
+      timing: ['ON_LIFE_BURST'],
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: '迷宮' } } },
+        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, opponentSelects: true } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 
   // WD02-007 背炎之陣（アーツ）
   // 「手札を３枚捨てる。そうした場合、すべてのシグニをバニッシュする。（あなたのシグニも含まれる）」
