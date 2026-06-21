@@ -5905,6 +5905,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         update.pending_effect = null;
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      // GROW_FREE（ゲット・グロウ等）: スペル解決後、グロウ先選択モーダルを開いて実際にグロウまで行う
+      if (result.done && spellIsOwnerTurn) {
+        const growFree = findGrowFreeAction(spellEff.action);
+        if (growFree) {
+          setFreeGrowFilter(growFree.levelFilter === 'same' ? 'same' : 'plus1');
+          setPendingGrowCard(null);
+          setSelectedGrowCost(new Set());
+          setShowGrowModal(true);
+        }
+      }
     } finally {
       setLoading(false);
     }
