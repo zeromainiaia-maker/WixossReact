@@ -724,6 +724,18 @@ function parseActiveCondition(text: string): ConditionParseResult {
   return { condition: undefined, rest: text, conditionFound: false };
 }
 
+// 「この方法で…トラッシュに置かれた場合、」の条件文を解析する。
+// 該当しない場合は null（呼び出し側で IS_MY_TURN にフォールバック）。
+function parseThisWayTrashCondition(clause: string): Condition | null {
+  // この方法で（それぞれ）レベルの異なるシグニがN体トラッシュに置かれた場合（WX03-015）
+  const dl = clause.match(/この方法で.*?レベルの異なるシグニが([０-９\d]+)体.*?トラッシュに置かれた場合/);
+  if (dl) return { type: 'TRASHED_DISTINCT_LEVELS_GTE', count: parseNum(dl[1]) };
+  // この方法でN体の＜X＞のシグニがトラッシュに置かれた場合（WX03-021）
+  const sc = clause.match(/この方法で([０-９\d]+)体の?＜([^＞]+)＞のシグニ.*?トラッシュに置かれた場合/);
+  if (sc) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc[2], count: parseNum(sc[1]) };
+  return null;
+}
+
 // ===== アクションパース（1文） =====
 
 
