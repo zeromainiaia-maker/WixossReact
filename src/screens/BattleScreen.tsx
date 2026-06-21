@@ -13371,7 +13371,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {actFieldTrashCost && actFtNeeded > 0 && (
                     <>
                       <p style={{ color: actFieldTrashOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
-                        場から{actFieldTrashCost.excludeSelf ? '他の' : ''}{filterLabel(actFieldTrashCost.filter)}シグニをトラッシュ:
+                        場から{actFieldTrashCost.excludeSelf ? '他の' : ''}{fmtDiscardFilterLabel(actFieldTrashCost.filter)}シグニをトラッシュ:
                         {' '}{selectedSigniActivatedFieldTrash.size} / {actFtNeeded}体
                       </p>
                       {actFtSelectableZones.length === 0 ? (
