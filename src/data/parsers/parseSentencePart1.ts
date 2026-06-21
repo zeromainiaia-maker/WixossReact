@@ -781,6 +781,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
       return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t) } } };
     }
+    // 「対戦相手のシグニN体を対象とし、このシグニとそれをバニッシュする」＝選んだ相手シグニ＋自身を共にバニッシュ（WX03-032-E2）
+    if (/このシグニと(?:それ|それら)を[^。]*バニッシュ/.test(t) && t.includes('対戦相手')) {
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'BANISH', target: parseSigniTarget(t, 'opponent') } as BanishAction,
+          { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } } } as BanishAction,
+        ],
+      };
+    }
     // 「パワーの合計がN以下になるように好きな数対象とし、それらをバニッシュする」（合計パワー制限の複数選択）
     const sumBanishM = t.match(/パワーの合計が([０-９\d]+)以下になるように好きな数/);
     if (sumBanishM) {
