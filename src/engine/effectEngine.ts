@@ -3358,7 +3358,7 @@ export function collectBounceProtectedSigni(
       // GRANT_PROTECTION from=['BOUNCE'|'any']
       if (eff.action.type === 'GRANT_PROTECTION') {
         const gp = eff.action as GrantProtectionAction;
-        if (gp.from.includes('BOUNCE') || gp.from.includes('any')) {
+        if (gp.from?.includes('BOUNCE') || gp.from?.includes('any')) {
           if (gp.target?.count === 'ALL') {
             for (const s of state.field.signi) {
               if (!s?.length) continue;
