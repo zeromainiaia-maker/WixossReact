@@ -8932,6 +8932,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (movedAcceAct.length < acceTrashNAct) return; // 支払い不能
         paid = { ...paid, field: { ...paid.field, signi_acce: newAcceAct as (string | null)[] }, trash: [...paid.trash, ...movedAcceAct] };
       }
+      // fieldTrash: 場のシグニをコストでトラッシュ（チャーム/アクセも一緒に。WX03-035「他の＜古代兵器＞のシグニ1体を場からトラッシュ」等）
+      if (fieldTrashZones.size > 0) {
+        const newSigniFA  = [...paid.field.signi] as (string[] | null)[];
+        const newDownFA   = [...(paid.field.signi_down   ?? [false, false, false])];
+        const newFrozenFA = [...(paid.field.signi_frozen ?? [false, false, false])];
+        const newCharmsFA = [...(paid.field.signi_charms ?? [null, null, null])];
+        const newAcceFA   = [...(paid.field.signi_acce   ?? [null, null, null])];
+        const toTrashFA: string[] = [];
+        let trashedSigniLevelFA: number | undefined;
+        for (const zi of fieldTrashZones) {
+          const stack = newSigniFA[zi];
+          if (!stack || stack.length === 0) continue;
+          const topSigniFA = battleCardMap.get(getCardNum(stack.at(-1)!));
+          if (topSigniFA) trashedSigniLevelFA = parseInt(topSigniFA.Level ?? '0', 10) || 0;
+          toTrashFA.push(...stack.map(getCardNum));
+          if (newCharmsFA[zi]) { toTrashFA.push(newCharmsFA[zi]!); newCharmsFA[zi] = null; }
+          if (newAcceFA[zi])   { toTrashFA.push(newAcceFA[zi]!);   newAcceFA[zi]   = null; }
+          newSigniFA[zi] = null;
+          newDownFA[zi] = false;
+          newFrozenFA[zi] = false;
+        }
+        paid = {
+          ...paid,
+          field: { ...paid.field, signi: newSigniFA, signi_down: newDownFA, signi_frozen: newFrozenFA, signi_charms: newCharmsFA, signi_acce: newAcceFA },
+          trash: [...paid.trash, ...toTrashFA],
+          last_field_trash_level: trashedSigniLevelFA,
+        };
+      }
       // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
       let plant3rdDownTriggerEntry: StackEntry | null = null;
       if (effect.cost?.down_self && my.turn_trigger_3rd_plant_down) {
