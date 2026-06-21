@@ -807,6 +807,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- トラッシュに置く（直接除去）----
   if (t.includes('トラッシュに置く') || t.includes('トラッシュに置く')) {
+    // 「あなたの（XかYの）シグニを好きな数対象とし、それらを（場から）トラッシュに置く」= 好きな数選択
+    if (t.match(/あなたの(?:.+の)?シグニを好きな数対象とし/)) {
+      const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t) };
+      return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: true, filter } };
+    }
     // デッキからトラッシュ
     const deckM = t.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
     if (deckM) {
