@@ -1891,7 +1891,7 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  const keyword = `PROTECTION:${a.from.join(',')}:${a.sourceOwner}`;
+  const keyword = `PROTECTION:${(a.from ?? []).join(',')}:${a.sourceOwner ?? ''}`;
 
   function applyProtection(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgt.owner, c);
