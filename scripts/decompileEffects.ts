@@ -149,6 +149,8 @@ function costJa(c?: any): string {
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
   if (c.coin != null) parts.push(`コイン${c.coin}`);
+  if (c.charmTrash != null) parts.push(`場の【チャーム】${c.charmTrash}枚をトラッシュ`);
+  if (c.charmTrashVariable) parts.push('場の【チャーム】を好きな枚数トラッシュ');
   if (c.fieldTrash) parts.push(`場から${c.fieldTrash.excludeSelf ? '他の' : ''}${filterJa(c.fieldTrash.filter)}シグニ${c.fieldTrash.count}体をトラッシュ`);
   if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}アーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
   if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
@@ -243,7 +245,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}`;
     case 'TRASH': {
       const t = a.target;
-      const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : '';
+      const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
       if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く`;
       // 手札/エナの「誰が選ぶか」を明示（見ないでランダム / 自分が見て選ぶ / 相手が選ぶ）
       const who = a.opponentSelects && t?.owner === 'opponent'
