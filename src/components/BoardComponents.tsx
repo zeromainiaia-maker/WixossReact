@@ -401,6 +401,7 @@ export function getSigniStatusKeywords(
   keywordGrants?: Record<string, string[]>,
   abilitiesRemoved?: string[],
   dynamicKeywords?: Record<string, string[]>,
+  fieldKeywords?: string[], // 自ターン中に全自シグニが得ているキーワード（field_keyword_grants_active）
 ): string[] {
   if (!stack || stack.length === 0) return [];
   const topNum = stack[stack.length - 1];
@@ -415,6 +416,7 @@ export function getSigniStatusKeywords(
   const has = (kw: string) => {
     if (granted.includes(kw)) return true;
     if (dynamic.includes(kw)) return true;
+    if (fieldKeywords?.includes(kw)) return true;
     const stripped = text.replace(new RegExp(`【${kw}】(を得る|を得て|を持|を与え)`, 'g'), '');
     return stripped.includes(`【${kw}】`);
   };
