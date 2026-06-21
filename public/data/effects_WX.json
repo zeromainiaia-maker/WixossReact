@@ -10564,26 +10564,30 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-033-E2",
       "effectType": "AUTO",
       "timing": [
-        "ON_TURN_END"
+        "ON_SPELL_USE"
       ],
       "action": {
         "type": "POWER_MODIFY",
         "target": {
           "type": "SIGNI",
-          "owner": "any",
-          "count": 1
+          "owner": "self",
+          "count": "ALL",
+          "filter": {
+            "cardType": "シグニ",
+            "story": "原子"
+          }
         },
         "delta": 2000
       },
       "duration": "UNTIL_END_OF_TURN",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-033-E3",
@@ -10607,15 +10611,15 @@
           "type": "SIGNI",
           "owner": "opponent",
           "count": 1,
+          "upToCount": false,
           "filter": {
             "cardType": "シグニ"
-          },
-          "upToCount": false
+          }
         }
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-033-BURST",
@@ -10632,23 +10636,33 @@
             "count": 1
           },
           {
-            "type": "BANISH",
-            "target": {
-              "type": "SIGNI",
-              "owner": "opponent",
-              "count": 1,
+            "type": "CONDITIONAL",
+            "condition": {
+              "type": "HAS_CARD_IN_FIELD",
+              "owner": "self",
               "filter": {
                 "cardType": "シグニ",
                 "story": "原子"
-              },
-              "upToCount": false
+              }
+            },
+            "then": {
+              "type": "BANISH",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "upToCount": false,
+                "filter": {
+                  "cardType": "シグニ"
+                }
+              }
             }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-034": [
