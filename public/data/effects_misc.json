@@ -2747,87 +2747,14 @@
       "timing": [
         "ON_ATTACK_SIGNI"
       ],
+      "triggerScope": "any_opp",
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "self",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ"
-          },
-          "upToCount": false
-        }
+        "type": "STUB",
+        "id": "BANISH_ATTACKER_IF_WEAKER_THAN_FRONT"
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
-    },
-    {
-      "effectId": "WD07-012-E2",
-      "effectType": "AUTO",
-      "timing": [
-        "ON_PLAY"
-      ],
-      "cost": {
-        "energy": [
-          {
-            "color": "黒",
-            "count": 1
-          }
-        ]
-      },
-      "action": {
-        "type": "SEQUENCE",
-        "steps": [
-          {
-            "type": "STUB",
-            "id": "TRADE_BANISH_SELF_SIGNI"
-          },
-          {
-            "type": "CONDITIONAL",
-            "condition": {
-              "type": "IS_MY_TURN"
-            },
-            "then": {
-              "type": "POWER_MODIFY",
-              "target": {
-                "type": "SIGNI",
-                "owner": "self",
-                "count": 1
-              },
-              "delta": -10000,
-              "targetsTriggerSource": true
-            }
-          }
-        ]
-      },
-      "duration": "UNTIL_END_OF_TURN",
-      "mandatory": false,
-      "parseStatus": "AUTO"
-    },
-    {
-      "effectId": "WD07-012-BURST",
-      "effectType": "LIFE_BURST",
-      "timing": [
-        "ON_LIFE_BURST"
-      ],
-      "action": {
-        "type": "POWER_MODIFY",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ"
-          },
-          "upToCount": false
-        },
-        "delta": -10000
-      },
-      "duration": "INSTANT",
-      "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WD07-013": [

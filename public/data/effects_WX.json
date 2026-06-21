@@ -10237,6 +10237,7 @@
       "timing": [
         "ON_ATTACK_SIGNI"
       ],
+      "triggerScope": "any_opp",
       "action": {
         "type": "SEQUENCE",
         "steps": [
@@ -10244,8 +10245,12 @@
             "type": "POWER_MODIFY",
             "target": {
               "type": "SIGNI",
-              "owner": "any",
-              "count": 1
+              "owner": "self",
+              "count": "ALL",
+              "filter": {
+                "cardType": "シグニ",
+                "story": "迷宮"
+              }
             },
             "delta": 1000
           },
@@ -10257,37 +10262,7 @@
       },
       "duration": "UNTIL_END_OF_TURN",
       "mandatory": true,
-      "parseStatus": "AUTO"
-    },
-    {
-      "effectId": "WX04-029-BURST",
-      "effectType": "LIFE_BURST",
-      "timing": [
-        "ON_LIFE_BURST"
-      ],
-      "action": {
-        "type": "SEARCH",
-        "from": {
-          "location": "deck",
-          "owner": "self"
-        },
-        "filter": {
-          "cardType": "シグニ",
-          "story": "迷宮"
-        },
-        "maxCount": 1,
-        "then": {
-          "type": "ADD_TO_FIELD",
-          "owner": "self"
-        },
-        "afterSearch": {
-          "type": "SHUFFLE_DECK",
-          "owner": "self"
-        }
-      },
-      "duration": "INSTANT",
-      "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-030": [
@@ -36895,7 +36870,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "any_opp"
     },
     {
       "effectId": "WX11-025-BURST",
@@ -39912,7 +39888,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "any_opp"
     },
     {
       "effectId": "WX12-001-E3",
@@ -40308,65 +40285,25 @@
   ],
   "WX12-010": [
     {
-      "effectId": "WX12-010-E1",
-      "effectType": "CONTINUOUS",
-      "action": {
-        "type": "FORCE_SIGNI_ATTACK",
-        "targetOwner": "opponent"
-      },
-      "duration": "PERMANENT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
-    },
-    {
       "effectId": "WX12-010-E2",
       "effectType": "AUTO",
       "timing": [
         "ON_ATTACK_SIGNI"
       ],
+      "triggerScope": "any_opp",
       "action": {
         "type": "POWER_MODIFY",
         "target": {
           "type": "SIGNI",
-          "owner": "any",
+          "owner": "opponent",
           "count": 1
         },
+        "targetsTriggerSource": true,
         "delta": -2000
       },
       "duration": "UNTIL_END_OF_TURN",
       "mandatory": true,
-      "parseStatus": "AUTO"
-    },
-    {
-      "effectId": "WX12-010-E3",
-      "effectType": "AUTO",
-      "timing": [
-        "ON_PLAY"
-      ],
-      "action": {
-        "type": "SEQUENCE",
-        "steps": [
-          {
-            "type": "REARRANGE_SIGNI",
-            "target": {
-              "type": "SIGNI",
-              "owner": "opponent",
-              "count": "ALL"
-            }
-          },
-          {
-            "type": "UP",
-            "target": {
-              "type": "SIGNI",
-              "owner": "self",
-              "count": 1
-            }
-          }
-        ]
-      },
-      "duration": "INSTANT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX12-011": [
@@ -41824,7 +41761,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "any_opp"
     },
     {
       "effectId": "WX12-035-BURST",
@@ -48358,7 +48296,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "any_opp"
     },
     {
       "effectId": "WX14-003-E4",
@@ -51148,7 +51087,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "any_opp"
     },
     {
       "effectId": "WX14-050-E2",
@@ -51203,7 +51143,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "any_opp"
     },
     {
       "effectId": "WX14-052-E2",
@@ -51238,7 +51179,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "any_opp"
     },
     {
       "effectId": "WX14-053-E2",
