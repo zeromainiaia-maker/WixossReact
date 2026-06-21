@@ -1231,9 +1231,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const timer = setTimeout(() => {
       let selected: string[] = [];
       if (inter.type === 'SELECT_TARGET') {
-        const count = typeof inter.count === 'number' ? inter.count : 1;
-        const shuffled = [...inter.candidates].sort(() => Math.random() - 0.5);
-        selected = shuffled.slice(0, Math.min(count, shuffled.length));
+        if (inter.totalPowerMax !== undefined) {
+          // パワー合計上限つき：パワーの小さい順に上限まで貪欲に選ぶ（できるだけ多くバニッシュ）
+          const powers = inter.candidatePowers ?? {};
+          const sorted = [...inter.candidates].sort((a, b) => (powers[a] ?? 0) - (powers[b] ?? 0));
+          let sum = 0;
+          for (const n of sorted) {
+            const p = powers[n] ?? 0;
+            if (sum + p > inter.totalPowerMax) continue;
+            sum += p;
+            selected.push(n);
+          }
+        } else {
+          const count = typeof inter.count === 'number' ? inter.count : 1;
+          const shuffled = [...inter.candidates].sort(() => Math.random() - 0.5);
+          selected = shuffled.slice(0, Math.min(count, shuffled.length));
+        }
       } else if (inter.type === 'CHOOSE') {
         if (inter.multiSelect) {
           // 複数選択: 利用可能な選択肢からcount個（upToならcount個まで）選択
