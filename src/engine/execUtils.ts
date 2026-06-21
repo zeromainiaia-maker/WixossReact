@@ -765,6 +765,8 @@ export function selectOrInteract(
     thenAction,
     continuation,
     ...(opponentResponds ? { opponentResponds: true } : {}),
+    ...(extra?.totalPowerMax !== undefined ? { totalPowerMax: extra.totalPowerMax } : {}),
+    ...(extra?.candidatePowers ? { candidatePowers: extra.candidatePowers } : {}),
   });
 }
 
