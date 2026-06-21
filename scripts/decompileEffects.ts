@@ -312,7 +312,16 @@ function actionJa(a?: Action): string {
          : a.then.type === 'ADD_TO_FIELD' ? '場に出す'
          : actionJa(a.then))
         : (a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : '処理する');
-      return `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し${rapFilter ? filterJa(rapFilter) + 'なら' : ''}${thenJa}（残りは戻す）`;
+      const pickN = a.pickCount === 'ALL' ? 'すべて' : `${numJa(a.pickCount ?? 1)}枚`;
+      const filterStr = rapFilter ? filterJa(rapFilter) + 'シグニ' : 'カード';
+      // 残り（remainder）の行き先を反映
+      const rem = a.remainder;
+      const remJa = !rem ? ''
+        : rem.location === 'trash' ? '、残りをトラッシュに置く'
+        : rem.location === 'deck'
+          ? (rem.position === 'bottom' ? '、残りをデッキの一番下に置く' : '、残りをデッキの上に戻す')
+          : '、残りを戻す';
+      return `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し、その中から${filterStr}を${pickN}${thenJa}${remJa}`;
     }
     case 'REARRANGE_SIGNI': return a.swap ? 'このシグニと対象シグニの位置を入れ替える' : `${targetJa(a.target)}を再配置する`;
     case 'NEGATE_ATTACK': return 'そのアタックを無効にする';
