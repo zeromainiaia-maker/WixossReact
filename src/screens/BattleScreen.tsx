@@ -9752,6 +9752,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.trash_key ? 'このキーをルリグトラッシュ' : null,
               eff.cost.charmTrash ? `チャーム${eff.cost.charmTrash}枚トラッシュ` : null,
               eff.cost.acceTrash ? `アクセ${eff.cost.acceTrash}枚トラッシュ` : null,
+              eff.cost.fieldTrash ? `場の${eff.cost.fieldTrash.excludeSelf ? '他の' : ''}シグニ${eff.cost.fieldTrash.count}体トラッシュ` : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
         return {
@@ -9761,6 +9762,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             setPendingSigniActivated({ cardNum: topNum, effect: eff });
             setSelectedSigniActivatedCost(new Set());
             setSelectedSigniActivatedDiscardVar(new Set());
+            setSelectedSigniActivatedFieldTrash(new Set());
           },
         };
       });
