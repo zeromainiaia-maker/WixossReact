@@ -4202,6 +4202,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const nextStateUpd = {
             ...nextState,
             blocked_actions: convertedBlocked,
+            field_keyword_grants_active: nextState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
+            field_keyword_grants_next_turn: undefined,
             field: {
               ...nextState.field,
               signi_down:   newSigniDown,
