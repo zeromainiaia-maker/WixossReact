@@ -9,6 +9,7 @@ import type {
   EffectDuration,
   ActiveCondition,
   TargetFilter,
+  EffectTarget,
   Owner,
   CompareOp,
   SequenceAction,
