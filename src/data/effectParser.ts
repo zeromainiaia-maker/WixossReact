@@ -1120,7 +1120,8 @@ function parseActionText(text: string): EffectAction {
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
       const thenAction = parseSingleSentence(rest);
-      steps.push({ type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: thenAction });
+      const condition = parseThisWayTrashCondition(thenM[0]) ?? { type: 'IS_MY_TURN' as const };
+      steps.push({ type: 'CONDITIONAL', condition, then: thenAction });
     } else {
       steps.push(parseSingleSentence(clean));
     }
