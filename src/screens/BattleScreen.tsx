@@ -10010,6 +10010,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.charmTrash ? `チャーム${eff.cost.charmTrash}枚トラッシュ` : null,
               eff.cost.acceTrash ? `アクセ${eff.cost.acceTrash}枚トラッシュ` : null,
               eff.cost.fieldTrash ? `場の${eff.cost.fieldTrash.excludeSelf ? '他の' : ''}シグニ${eff.cost.fieldTrash.count}体トラッシュ` : null,
+              eff.cost.fieldDown ? `場のシグニ${eff.cost.fieldDown.count}体ダウン` : null,
             ].filter(Boolean).join('・') || 'コストなし'
           : 'コストなし';
         return {
