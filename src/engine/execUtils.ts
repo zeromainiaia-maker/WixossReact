@@ -403,6 +403,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT':
       return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
+    case 'ENERGY_HAS_COLOR': {
+      const ez = st(cond.owner).energy;
+      return cond.colors.every(color => ez.some(n => ctx.cardMap.get(n)?.Color?.includes(color)));
+    }
     case 'CARDS_DRAWN_BY_EFFECT':
       return cmp(st(cond.owner).cards_drawn_by_effect_this_turn ?? 0, cond.operator, cond.value);
     case 'HAS_CARD_IN_FIELD': {
