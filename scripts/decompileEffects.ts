@@ -119,8 +119,16 @@ function targetJa(t?: any, unit = 'シグニ'): string {
   if (t.totalPowerMax !== undefined) {
     return `${ownerJa(t.owner)}${filterJa(t.filter)}${u}をパワーの合計が${t.totalPowerMax}以下になるように好きな数`.trim();
   }
-  const cnt = t.count === 'ALL' ? 'すべての' : '';
   const counter = loc ? '枚' : '体';
+  // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
+  if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
+    return `トラッシュに置いたシグニ1${counter}につき${ownerJa(t.owner)}${filterJa(t.filter)}${u}1${counter}`.trim();
+  }
+  // 「好きな数」（count:'ALL' + upToCount）
+  if (t.count === 'ALL' && t.upToCount) {
+    return `${ownerJa(t.owner)}${filterJa(t.filter)}${u}を好きな数`.trim();
+  }
+  const cnt = t.count === 'ALL' ? 'すべての' : '';
   const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? counter + 'まで' : counter}`;
   const blind = t.blind ? '（見ないで）' : '';
   return `${ownerJa(t.owner)}${cnt}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
