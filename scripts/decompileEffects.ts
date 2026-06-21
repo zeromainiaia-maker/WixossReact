@@ -460,6 +460,7 @@ const timingJa: Record<string, string> = {
   ON_SIGNI_DAMAGE: 'このシグニが相手にダメージを与えたとき', ON_LEAVE_FIELD: 'このカードが場を離れたとき',
   ON_SPELL_USE: 'あなたがスペルを使用したとき', ON_GUARD: 'あなたがガードしたとき',
   MAIN: '（メイン起動）', ON_LIFE_BURST: '【ライフバースト】',
+  ON_ENERGY_CHARGE: 'あなたのエナゾーンにカード1枚が置かれたとき', ON_POWER_THRESHOLD: 'このシグニのパワーが閾値以上になったとき',
 };
 
 function effJa(e: Eff): string {
