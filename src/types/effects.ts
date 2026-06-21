@@ -280,7 +280,8 @@ export interface TargetFilter {
   excludeSelf?: boolean;  // 効果元シグニ自身を対象から除外（「あなたの他の＜原子＞のシグニ」等。execTrash/execBanishが解決）
   isTriggerSource?: boolean; // トリガー元カード（ctx.triggeringCardNum）のみを対象。execBanishが解決
   colorMatchesLrig?: boolean;    // 自分のセンタールリグと共通する色を持つか（WX01-025等）
-  colorNotMatchesLrig?: boolean; // 自分のセンタールリグと共通する色を持たない（WX21-035等）
+  colorNotMatchesLrig?: boolean; // 自分のセンタールリグと共通する色を持たない
+  colorNotMatchesOpponentLrig?: boolean; // 対戦相手のセンタールリグと共通する色を持たない（WX21-035等）
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）
   hasAcce?:   boolean; // アクセが付いている
   hasIcon?:   'クロス' | 'ライズ' | 'トラップ' | 'アクセ'; // 《Xアイコン》を持つカード（カードテキストのキーワード有無で判定する近似）
