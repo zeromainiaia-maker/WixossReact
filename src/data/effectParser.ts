@@ -1275,6 +1275,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let mandatory = false;
   let extractedTriggerScope: import('../types/effects').TriggerScope | undefined;
   let extractedTriggerFilter: TargetFilter | undefined;
+  let extractedTriggerCondition: Condition | undefined; // トリガー文から抽出した発動条件（ON_ENERGY_CHARGE=IS_MY_TURN等）
 
   switch (marker) {
     case '常': effectType = 'CONTINUOUS'; mandatory = true; break;
