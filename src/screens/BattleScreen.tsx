@@ -12998,7 +12998,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const actTrashExileOk = !actTrashExileCost || actTrashExileCost.self
                 ? true
                 : selectedSigniActivatedTrashExile.size >= (actTrashExileCost?.count ?? 0);
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk;
+              // fieldTrash: 場のシグニをコストでトラッシュ（excludeSelf=効果元自身を除く。WX03-035等）
+              const actFieldTrashCost = eff.cost?.fieldTrash;
+              const actFtNeeded = actFieldTrashCost?.count ?? 0;
+              const actSelfZoneFt = my.field.signi.findIndex(s => s?.at(-1) === pendingSigniActivated.cardNum);
+              const actFtSelectableZones = actFieldTrashCost ? [0, 1, 2].filter(zi => {
+                const top = my.field.signi[zi]?.at(-1);
+                if (!top) return false;
+                if (actFieldTrashCost.excludeSelf && zi === actSelfZoneFt) return false;
+                return !actFieldTrashCost.filter || matchesFilter(battleCardMap.get(getCardNum(top)), actFieldTrashCost.filter);
+              }) : [];
+              const actFieldTrashOk = actFtNeeded === 0 || selectedSigniActivatedFieldTrash.size === actFtNeeded;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk;
 
               return (
                 <>
