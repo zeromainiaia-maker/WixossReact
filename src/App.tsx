@@ -256,13 +256,22 @@ export default function App() {
         />
       )}
       {viewMode === 'BATTLE' && user && battleRoomId && battleDeckId && (
-        <BattleScreen
-          user={user}
-          roomId={battleRoomId}
-          myDeckId={battleDeckId}
-          cards={battleCards}
-          onBack={() => { setBattleRoomId(null); setBattleDeckId(null); setViewMode('START'); }}
-        />
+        // カードマスタ（CSV/effects）の非同期fetchが未完了のままBattleScreenをマウントすると、
+        // battleCardMap が空→全シグニのパワーが0と誤判定され盤面が誤バニッシュされる。
+        // リロード復帰時にこの競合が起きるため、カードデータが揃うまで待つ。
+        battleCards.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#fff' }}>
+            対戦データを読み込み中…
+          </div>
+        ) : (
+          <BattleScreen
+            user={user}
+            roomId={battleRoomId}
+            myDeckId={battleDeckId}
+            cards={battleCards}
+            onBack={() => { setBattleRoomId(null); setBattleDeckId(null); setViewMode('START'); }}
+          />
+        )
       )}
     </>
   );

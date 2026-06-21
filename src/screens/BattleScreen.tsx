@@ -7713,6 +7713,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // パワー0以下シグニの自動バニッシュ処理
   const checkAndBanishPowerZero = async () => {
     if (!bs || loading || bs.global_phase !== 'PLAYING') return;
+    // カードマスタ（cards）が未ロードだと battleCardMap が空になり、全シグニのパワーが
+    // 取得できず parseInt('0')=0 と誤判定され、盤面全体を誤バニッシュしてDBに書き込んでしまう。
+    // リロード直後にカードデータfetchが未完了のまま battle_state を購読すると発生するため、
+    // カードデータが揃うまでルール処理（破壊的書き込み）を一切行わない。
+    if (battleCardMap.size === 0) return;
     if (bs.effect_stack || bs.pending_effect) return;
 
     const isMyTurnLocal = bs.active_user_id === bs.host_id;
