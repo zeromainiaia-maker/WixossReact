@@ -9059,6 +9059,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const zoneIdx = my.field.signi.findIndex(s => s?.at(-1) === cardNum);
         if (zoneIdx >= 0) newSigniDown[zoneIdx] = true;
       }
+      // fieldDown コスト: アップ状態の該当シグニN体をダウン（自動支払い：該当ゾーンを順にダウン）
+      if (effect.cost?.fieldDown) {
+        const { isUp: _iuFD, isDown: _idFD, ...fdCardFilter } = effect.cost.fieldDown.filter ?? {};
+        let remainingFD = effect.cost.fieldDown.count;
+        for (let zi = 0; zi < my.field.signi.length && remainingFD > 0; zi++) {
+          const fdTop = my.field.signi[zi]?.at(-1);
+          if (!fdTop || newSigniDown[zi]) continue;
+          if (!matchesFilter(battleCardMap.get(getCardNum(fdTop)), fdCardFilter)) continue;
+          newSigniDown[zi] = true;
+          remainingFD--;
+        }
+      }
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）: キーをルリグトラッシュへ
       const keySub = useKeySub && myEnergyTrashSubInfo.keySubInstId;
       const newField = keySub
