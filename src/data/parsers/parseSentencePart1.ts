@@ -1174,6 +1174,21 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'ADD_TO_FIELD', owner: 'self' };
   }
 
+  // ---- 効果耐性付与（「〜のルリグ以外からの効果を受けない」）----
+  // 「ルリグ以外」は「ルリグからは受けるが、それ以外全てから受けない」という意味
+  if (t.match(/ルリグ以外からの効果を受けない/)) {
+    const classM = t.match(/あなたの(?:他の)?＜([^＞]+)＞のシグニは/);
+    if (classM) {
+      return {
+        type: 'GRANT_PROTECTION',
+        subjectFilter: { cardType: 'シグニ', story: classM[1] },
+        fromAll: true,
+        exceptSource: { sourceType: 'ルリグ', sourceOwner: 'opponent' as Owner },
+        duration: 'PERMANENT',
+      } as GrantProtectionAction;
+    }
+  }
+
   // ---- 効果耐性付与（「対戦相手の〜の効果を受けない/受けず」）----
   if (t.match(/効果を受けない|効果を受けず/)) {
     const from: string[] = [];
