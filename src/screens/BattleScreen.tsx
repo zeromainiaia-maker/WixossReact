@@ -5070,7 +5070,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     .filter((c): c is CardData =>
       !!c &&
       c.Type === 'ルリグ' &&
-      (parseInt(c.Level) === currentLrigLevel + 1 ||
+      // freeGrowFilter==='same': ゲット・グロウ等で現センターと同レベルへ横グロウ
+      (freeGrowFilter === 'same'
+        ? parseInt(c.Level) === currentLrigLevel
+        : parseInt(c.Level) === currentLrigLevel + 1 ||
         // GROW_FROM_LEVEL0: このルリグはレベル0からグロウできる
         (currentLrigLevel === 0 && (effectsMap.get(c.CardNum) ?? []).some(e =>
           e.effectType === 'CONTINUOUS' &&
