@@ -239,7 +239,11 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     });
   }
   if (tgt.count === 'ALL') return done(applyBanish(cands, ctx));
-  const count = resolveNum(tgt.count);
+  // last_processed_count: 「トラッシュに置いたシグニ1体につき対戦相手のシグニ1体」→ 直前にトラッシュした枚数
+  const count = (typeof tgt.count === 'object' && tgt.count.$ref === 'last_processed_count')
+    ? (ctx.lastProcessedCards?.length ?? 0)
+    : resolveNum(tgt.count);
+  if (count <= 0) return done(addLog(ctx, 'バニッシュ数0 → スキップ'));
   // opponentSelects: 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」→ 対戦相手が選ぶ
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
   return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds);
