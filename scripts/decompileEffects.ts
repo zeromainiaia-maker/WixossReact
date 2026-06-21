@@ -261,7 +261,14 @@ function actionJa(a?: Action): string {
     }
     case 'GRANT_KEYWORD': return `${targetJa(a.target)}に【${a.keyword}】を与える`;
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失う${a.frontOfSelf ? '（正面）' : ''}`;
-    case 'GRANT_PROTECTION': return `${a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ'}は${ownerJa(a.sourceOwner)}効果によって${a.from?.join('・')}されない`;
+    case 'GRANT_PROTECTION': {
+      const subject = a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ';
+      if (a.fromAll && a.exceptSource) {
+        const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
+        return `${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`;
+      }
+      return `${subject}は${ownerJa(a.sourceOwner)}効果によって${a.from?.join('・')}されない`;
+    }
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': {
