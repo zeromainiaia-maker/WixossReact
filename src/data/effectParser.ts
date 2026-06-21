@@ -367,11 +367,10 @@ function parseCost(costStr: string): EffectCost | undefined {
     cost.energyTrashAll = true;
     cost.discardAll = true;
   }
-  // ルリグデッキからアーツN枚をルリグトラッシュ → trashArtsFromLrigDeck
+  // ルリグデッキから[色]のアーツN枚をルリグトラッシュ → trashArtsFromLrigDeck（色指定は任意）
   if (!cost.trashArtsFromLrigDeck) {
-    const tArtM = costStr.match(/ルリグデッキからアーツ([０-９\d]+)枚をルリグトラッシュに置く/);
-    if (tArtM) cost.trashArtsFromLrigDeck = { count: parseNum(tArtM[1]) };
-    else if (/ルリグデッキからアーツ[１1]枚をルリグトラッシュに置く/.test(costStr)) cost.trashArtsFromLrigDeck = { count: 1 };
+    const tArtM = costStr.match(/ルリグデッキから(?:(白|赤|青|緑|黒|無)の)?アーツ([０-９\d]+)枚をルリグトラッシュに置く/);
+    if (tArtM) cost.trashArtsFromLrigDeck = { count: parseNum(tArtM[2]), ...(tArtM[1] ? { color: tArtM[1] } : {}) };
   }
   // 手札から＜A＞と＜B＞のシグニを合計N枚捨てる → discardGroups
   if (!cost.handDiscardSigni && !cost.discardGroups) {
