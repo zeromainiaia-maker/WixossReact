@@ -470,6 +470,7 @@ export interface BanishAction {
   optional?: boolean;    // true = 「してもよい」（プレイヤーがスキップ可能）
   conditional?: boolean; // true = 前ステップ（STUB等）が成功した場合のみ実行
   selfTrashCost?: boolean; // 「このシグニを場からトラッシュに置いてもよい。そうした場合〜バニッシュ」：対象を1体以上選んだ場合、効果元シグニ自身をコストとしてトラッシュ（WX21-052）
+  opponentSelects?: boolean; // 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」：対戦相手が自分のシグニを選んでバニッシュ（target.owner='opponent'）
 }
 
 export interface PowerModifyAction {
