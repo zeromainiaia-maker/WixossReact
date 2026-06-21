@@ -5,6 +5,24 @@
 
 ---
 
+## Sheet1 逆翻訳照合（WX02-021〜040）一括修正＋動的数/条件/場全体付与の基盤追加（v0.442〜0.451, 2026-06-21）
+
+`docs/decompile_sheet1.txt` を1枚ずつ原文照合し、パーサー/エンジン/逆翻訳器を横断修正。多くは**1枚の指摘から系統的に同型カードへ波及する基盤追加**。
+
+- **WX02-021（v0.442）:** GRANT_PROTECTION「ルリグ以外からの効果を受けない」を `fromAll+exceptSource` で表現（意味が逆だった）。SEARCH→ADD_TO_FIELD の逆翻訳「場に出す」、BURST「センタールリグかシグニ1体」を `CENTER_LRIG_OR_SIGNI`（OR選択）に。
+- **WX02-022（v0.443）:** ① CONTINUOUS の `activeCondition`「ライフクロスN枚以下」を `COUNT_THRESHOLD(life_cloth)` で新設（パターン追加・6効果に波及）。② **パワー合計上限つき複数選択バニッシュ**を新機能実装：`EffectTarget.totalPowerMax`＋SELECT_TARGET 拡張（`candidatePowers`）、execBanish/selectOrInteract/resumeSelectTarget で合計検証、BattleScreen UI（超過カード選択不可・合計表示・CPU貪欲選択）。同型4枚（WX05-002/WX07-026/WXEX2-38）。
+- **WX02-025（v0.444）:** `BanishAction.opponentSelects`（「対戦相手は自分のシグニを選んでバニッシュ」=相手が選択）を新設し execBanish で `opponentResponds` に接続（同型5枚）。REVEAL_AND_PICK 逆翻訳の `remainder` 反映（「残りは戻す」固定→trash/deck-bottom/top を正しく描画、209枚に波及）。
+- **WX02-027（v0.445）:** ① execTrash が `count:'ALL'+upToCount`（＝「好きな数」）を**自動全トラッシュ**にしていたのを選択式に。② **直前処理数の動的参照 `{$ref:'last_processed_count'}`** を新設（「トラッシュに置いたシグニ1体につき対戦相手のシグニ1体」）。execBanish で解決。同型 WD14-011 にも波及。
+- **WX02-028（v0.446）:** スペルの**引用符形式ルリグ能力付与**「あなたのセンタールリグは『…』を得る」を `GRANT_LRIG_ABILITY` 化＋ parseSpellEffect でサブ能力パース（22枚）。タイミング「このルリグがアタックしたとき」→`ON_ATTACK_LRIG`。ADD_TO_LIFE も `last_processed_count` 対応。BURST 逆翻訳「その【出】能力は発動しない」。
+- **WX02-029（v0.447）:** 逆翻訳 `costJa` の `handDiscardSigni` がクラス/storyを無視していたのを `filterJa` 経由に（「＜アーム・ウェポン＞のシグニ」、108枚に波及）。
+- **WX02-034（v0.448）:** Condition **`ENERGY_HAS_COLOR`** 新設（「エナゾーンに赤と緑がある場合」）。「シグニ1体を対象とし、〈エナ色条件〉場合、それを除去」を CONDITIONAL で表現（対象=対戦相手・色フィルタ誤付与を除去）。evalCondition 両系統に評価追加。
+- **WX02-037（v0.449）:** parseSingleSentence に「あなたの場に＜X＞のシグニがある場合、〜」→`CONDITIONAL(HAS_CARD_IN_FIELD)` を追加（2枚目ドローの条件欠落、17枚に波及）。
+- **WX02-040（v0.450/0.451）:** GRANT_KEYWORD のクラスフィルタ＋ALL対象＋期間（ターン終了時まで/次のあなたのターン）をストリップ前に抽出。**QA準拠の「次の自分ターン中に存在する全シグニ（新規召喚含む）に継続付与」をエンジン実装**：PlayerState `field_keyword_grants_next_turn`/`_active`、execGrantKeyword で `duration:NEXT_TURN`＋自全シグニを場全体付与として予約、ターン遷移3パスで予約→active→クリア、hasKeyword/getSigniStatusKeywords に `fieldKeywords` 引数（ランサー判定・UIバッジ）。
+
+- typecheck 0エラー・UNKNOWN 0件維持。`docs/decompile_sheet1.txt` 再生成済み。**続きの照合（WX02-041〜）は ymst が継続。**
+
+---
+
 ## FREEZE の自動ダウンを廃止（凍結＝現状維持）＋ down フラグ新設（v0.433, 2026-06-20）
 
 - **症状:** engine の `execFreeze`（単独 FREEZE 経路）が `signi_frozen` に加え **`signi_down` も常時立てて**おり、原文が純「凍結する」（「ダウン」記載なし）のカードまで誤ってダウンさせていた。WIXOSS の凍結は「次の自分のアップフェイズにアップしない」だけで**現在のアップ/ダウン状態は変えない**のが正。
