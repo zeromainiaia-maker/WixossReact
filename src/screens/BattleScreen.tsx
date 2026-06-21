@@ -315,13 +315,15 @@ function computeArtsEffectiveCost(
       });
       if (hasClassSigni) return removeNColorFromCost(base, color, cnt);
     }
-    // 場の特定クラスのシグニ1体につき色コスト×N軽減（枚数比例。WX04-030「場の＜迷宮＞シグニ1体につき《白×1》減る」）
-    m = text.match(/(?:あなたの)?場に(?:ある)?＜([^＞]+)＞のシグニ([０-９一]+)体につき(?:このスペルの|このアーツの|使用)?コストは?《([^》]+)》×?([０-９\d]*)減る/);
+    // 場の特定クラスのシグニ1体につき色コスト軽減（枚数比例。WX04-030「場の＜迷宮＞シグニ1体につき《白×1》減る」）
+    // 色指定は《白×1》（括弧内）/《白》×1（括弧外）の両表記に対応。
+    m = text.match(/(?:あなたの)?場に(?:ある)?＜([^＞]+)＞のシグニ([０-９一]+)体につき[^、。]*?《([^》]+)》(?:×?([０-９\d]+))?減る/);
     if (m) {
       const cls = m[1];
       const perN = parseInt(toHalfWidth(m[2].replace('一', '1'))) || 1;
-      const color = m[3];
-      const perRed = parseInt(toHalfWidth(m[4] || '1')) || 1;
+      const inner = m[3].match(/([^×x]+)[×x]?([０-９\d]*)/);
+      const color = (inner?.[1] ?? m[3]).trim();
+      const perRed = parseInt(toHalfWidth(inner?.[2] || m[4] || '1')) || 1;
       const cnt = (myState.field.signi ?? []).filter(stack => {
         const top = stack?.at(-1);
         return top && (cardMap.get(top)?.CardClass ?? '').includes(cls);
