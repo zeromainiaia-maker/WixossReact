@@ -1232,6 +1232,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     case '自':
       effectType = 'AUTO';
       timing = actionText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
+             : actionText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
              : actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
              : actionText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_OPP_LIFE_CRASHED']
