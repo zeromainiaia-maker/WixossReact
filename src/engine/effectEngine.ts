@@ -3167,7 +3167,7 @@ export function collectDownProtectedSigni(
       // 実アクション: GRANT_PROTECTION with from: ['DOWN'] or ['any']
       if (eff.action.type === 'GRANT_PROTECTION') {
         const gp = eff.action as GrantProtectionAction;
-        if (!gp.from.includes('DOWN') && !gp.from.includes('any')) continue;
+        if (!gp.from?.includes('DOWN') && !gp.from?.includes('any')) continue;
         if (gp.subjectFilter) {
           // subjectFilter に一致する全シグニを保護
           for (const stack of state.field.signi) {
