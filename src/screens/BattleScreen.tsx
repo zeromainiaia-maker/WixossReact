@@ -5276,6 +5276,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setShowGrowModal(false);
     setPendingGrowCard(null);
     setSelectedGrowCost(new Set());
+    const wasFreeGrow = freeGrowFilter !== null;
+    setFreeGrowFilter(null);
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
