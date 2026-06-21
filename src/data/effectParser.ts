@@ -1326,11 +1326,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'self';
         } else {
           const allyColorM = actionText.match(/^あなたの([白赤青緑黒])のシグニがアタックしたとき、/);
+          const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がアタックしたとき[、,]/);
           if (allyColorM) {
             extractedTriggerScope = 'any_ally';
             extractedTriggerFilter = { color: allyColorM[1] };
           } else if (/^あなたのシグニがアタックしたとき、/.test(actionText)) {
             extractedTriggerScope = 'any_ally';
+          } else if (oppAttM) {
+            // 「対戦相手の（＜X＞の）シグニがアタックしたとき」: 防御側シグニが相手アタックに反応（any_opp）
+            extractedTriggerScope = 'any_opp';
+            if (oppAttM[1]) extractedTriggerFilter = { story: oppAttM[1] };
           }
         }
       }
