@@ -820,11 +820,15 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       }
       let newS = { ...s };
       if (srcDefined.type === 'TRASH_CARD') {
-        newS = { ...newS, trash: newS.trash.filter(x => x !== n) };
+        // THIS_CARD_FROM_TRASH 用に「トラッシュから出た」インスタンスを記録（直後の【出】効果が参照）
+        newS = { ...newS, trash: newS.trash.filter(x => x !== n),
+          signi_played_from_trash: [...(newS.signi_played_from_trash ?? []), n] };
       } else if (srcDefined.type === 'ENERGY_CARD') {
-        newS = { ...newS, energy: newS.energy.filter(x => x !== n) };
+        newS = { ...newS, energy: newS.energy.filter(x => x !== n),
+          signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
       } else if (srcDefined.type === 'HAND_CARD') {
-        newS = { ...newS, hand: newS.hand.filter(x => x !== n) };
+        newS = { ...newS, hand: newS.hand.filter(x => x !== n),
+          signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
       }
       // 空きゾーンに配置
       const signi = [...newS.field.signi] as (string[] | null)[];
