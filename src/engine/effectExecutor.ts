@@ -415,7 +415,14 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       }
       return cur;
     }
-    if (tgt.count === 'ALL') return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
+    if (tgt.count === 'ALL') {
+      // 「好きな数」（count:'ALL' + upToCount）: プレイヤーが0〜全部を選択（自動全トラッシュにしない）
+      if (tgt.upToCount) {
+        if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+        return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
+      }
+      return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
+    }
     const count = resolveNum(tgt.count);
     return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
   }
