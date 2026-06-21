@@ -1419,6 +1419,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     default: return null;
   }
 
+  // 「このシグニがトラッシュから場に出た場合」= 効果元がトラッシュ出自であることを条件化（WX03-034-E1）。
+  // アクション文中から条件節を除去し、THIS_CARD_FROM_TRASH を発動条件に昇格する。
+  if (actionText && /このシグニがトラッシュから場に出た場合/.test(actionText)) {
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, { type: 'THIS_CARD_FROM_TRASH' }] }
+      : { type: 'THIS_CARD_FROM_TRASH' };
+    actionText = actionText.replace(/、?このシグニがトラッシュから場に出た場合(?:、)?/, '、').replace(/^、/, '');
+  }
+
   const cost = parseCost(costStr);
   // 「手札からこのカードを捨てる」起動能力は手札カードアクションUI（getMyHandCardActions）の対象。
   const handActivated = cost?.discardSelfFromHand === true;
