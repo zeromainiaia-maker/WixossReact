@@ -686,7 +686,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- エナチャージ（【エナチャージN】ショートハンド）----
-  const ecM = t.match(/【エナチャージ([０-９\d]+)】/);
+  // 長音符が異体字ダッシュ（― U+2015 / ‐ / − / -）で記録されたデータにも対応（WX03-033-BURST等）
+  const ecM = t.match(/【エナチャ[ー―‐−-]ジ([０-９\d]+)】/);
   if (ecM) return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) };
 
   // ---- ドロー：まず「引き、捨てる」複合パターンを先にチェック ----
