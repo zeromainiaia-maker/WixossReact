@@ -12931,7 +12931,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       {/* ===== シグニ起動効果 コスト支払いモーダル ===== */}
       {pendingSigniActivated && createPortal(
         <div
-          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setKeySubstituteEnabled(false); }}
+          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setKeySubstituteEnabled(false); setSelectedSigniActivatedFieldTrash(new Set()); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
