@@ -1884,7 +1884,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult {
   // subjectFilter のみの場合は CONTINUOUS 用宣言（effectEngine 側で処理）→ no-op
   if (!a.target && a.subjectFilter) {
-    return done(addLog(ctx, `効果耐性宣言（${a.from.join('/')}保護）`));
+    return done(addLog(ctx, `効果耐性宣言（${a.from?.join('/')}保護）`));
   }
   if (!a.target) return done(ctx);
   // 効果耐性はキーワード付与として扱う
