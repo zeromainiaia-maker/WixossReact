@@ -5,6 +5,15 @@
 
 ---
 
+## 逆翻訳器：CONTINUOUS POWER_SET の「このシグニ」表示と condition「他の」表示を改善（2026-06-21・ツールのみ）
+
+- **背景:** WX02-052 が「間違っている」と報告されたが、**JSON データは正しく逆翻訳器の表示バグ**だった。原文「あなたの場に**他の**＜ウェポン＞のシグニがあるかぎり、**このシグニの基本パワー**は8000になる」に対し、逆翻訳が「＜ウェポン＞のシグニがいるかぎり…あなたのシグニ1体のパワーを8000にする」と表示し、「他の」と「このシグニ」が抜けていた。
+- **データが正しい根拠:** ①condition は `HAS_CARD_IN_FIELD` に **`excludeSelf:true`** を持つ（＝「他の」）。②action は CONTINUOUS POWER_SET で `target:{owner:self,count:1}`。engine の `calcContinuousSigniMutations`（effectEngine.ts:975-982）は **`count!=='ALL'` を「このシグニのみ」** として効果元へ適用するため、ランタイム挙動は「このシグニの基本パワーを8000」で正しい。
+- **修正（`scripts/decompileEffects.ts` のみ）:** ①`HAS_CARD_IN_FIELD` の condJa に `excludeSelf` → 「他の」表示を追加。②`actionJa` に effectType を渡し、**CONTINUOUS の POWER_SET で count≠ALL・owner self/any** のとき「このシグニの基本パワーを…にする」と表示（engine 挙動に一致）。
+- **影響:** 逆翻訳の表示精度向上のみ（JSON/パーサー/engine 変更なし）。Sheet1 で「場に他の」72件・「このシグニの基本パワー」系（WX01-054/056/068 等の条件付き基本パワー族）が正しく表示。`docs/decompile_sheet1.txt` 再生成。typecheck 0エラー。
+
+---
+
 ## キーワード付与の「あなたの＜クラス＞/色のシグニ」が owner:any＋フィルタ欠落に潰れる修正（v0.452, 2026-06-21）
 
 - **症状:** 【ダブルクラッシュ】等のキーワード付与で、原文「あなたの＜鉱石＞か＜宝石＞のシグニ１体を対象とし…得る」が **`GRANT_KEYWORD target:{owner:'any', count:1}`（フィルタ無し）** に潰れていた（WX02-055-E1 で発覚）。`parseSentencePart1` の汎用キーワード付与ブロックが owner 判定に `t.includes('あなたのシグニ')` を使っており、「あなたの」と「シグニ」の間にクラス句/色句が挟まると外れて owner:any 既定にフォールバック、かつクラス/色フィルタも一切付与していなかった。**＝相手シグニにも付与可能・クラス無制限の誤り。**

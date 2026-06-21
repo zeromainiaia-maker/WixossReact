@@ -167,7 +167,7 @@ function condJa(c?: any): string {
     case 'TRASH_HAS_CARD': return `${ownerJa(c.owner)}トラッシュに${filterJa(c.filter)}カードがある`;
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
-    case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${filterJa(c.filter)}シグニがいる`;
+    case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${filterJa(c.filter)}シグニがいる`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;
     case 'IS_MY_TURN': return '自分のターンの間';
@@ -219,7 +219,7 @@ function condJa(c?: any): string {
   }
 }
 
-function actionJa(a?: Action): string {
+function actionJa(a?: Action, effectType?: string): string {
   if (!a) return '';
   switch (a.type) {
     case 'DRAW': return `${ownerJa(a.owner)}カードを${numJa(a.count)}枚引く`;
@@ -239,7 +239,13 @@ function actionJa(a?: Action): string {
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}`;
     }
     case 'POWER_MODIFY': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
-    case 'POWER_SET': return `${targetJa(a.target)}のパワーを${a.value}にする`;
+    case 'POWER_SET': {
+      // CONTINUOUS の POWER_SET で count≠ALL は engine 上「このシグニのみ」に解決される（effectEngine 参照）
+      const thisOnly = effectType === 'CONTINUOUS' && a.target?.count !== 'ALL'
+        && (a.target?.owner === 'self' || a.target?.owner === 'any');
+      const tgt = thisOnly ? 'このシグニの基本パワー' : `${targetJa(a.target)}のパワー`;
+      return `${tgt}を${a.value}にする`;
+    }
     case 'POWER_MODIFY_PER_HAND_COUNT': return `${targetJa(a.target)}のパワーを手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
     case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
     case 'DOWN': return `${targetJa(a.target)}をダウンする`;
@@ -452,7 +458,7 @@ function effJa(e: Eff): string {
   const actCond = e.activeCondition ? `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》` : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' ? `《${e.usageLimit}》` : '';
-  const body = actionJa(e.action);
+  const body = actionJa(e.action, e.effectType);
   return `${typeMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}`;
 }
 
