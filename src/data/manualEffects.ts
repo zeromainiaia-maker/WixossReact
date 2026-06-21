@@ -40,6 +40,119 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX09-027": [{"effectId":"WX09-027-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"BANISH_THRESHOLD_BOOST_7_15"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   "WXDi-CP02-TK02A": [{"effectId":"WXDi-CP02-TK02A-E1","effectType":"AUTO","timing":["ON_SIGNI_BATTLE"],"triggerScope":"self","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
 
+  // ===== 「センタールリグと共通する色を持つ」系の誤パース修正（CHOOSE/SEQUENCE復元）=====
+  // 自動パーサーが選択肢構造を STUB/誤 SEQUENCE に潰し colorMatchesLrig フィルタも欠落していた4枚を manual 化。
+  // fixLrigColorFilters.mjs の locate() パスが旧構造前提で再適用不能だったため、本体ごとここで定義する。
+
+  // WX17-Re14 コードアート †A・L・C・A†（シグニ）【出】手札から＜電機＞シグニ1枚を捨てる：以下の3つから1つを選ぶ
+  'WX17-Re14': [
+    {
+      effectId: 'WX17-Re14-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      cost: { handDiscardSigni: { count: 1, story: '電機' } },
+      action: { type: 'CHOOSE', choose_count: 1, from_count: 3, choices: [
+        // ①対戦相手のシグニ2体をターン終了時までそれぞれパワー-2000
+        { choiceId: 'c0', label: '対戦相手のシグニ2体のパワー-2000',
+          action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 2, upToCount: false, filter: { cardType: 'シグニ' } }, delta: -2000 } },
+        // ②デッキトップ2枚トラッシュ→トラッシュからセンタールリグと共通色シグニ1枚を手札へ
+        { choiceId: 'c1', label: 'デッキトップ2枚をトラッシュ→共通色シグニ回収',
+          action: { type: 'SEQUENCE', steps: [
+            { type: 'MILL', owner: 'self', count: 2 },
+            { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', colorMatchesLrig: true } } },
+          ] } },
+        // ③デッキトップ3枚トラッシュ→トラッシュから黒のスペル1枚を手札へ
+        { choiceId: 'c2', label: 'デッキトップ3枚をトラッシュ→黒スペル回収',
+          action: { type: 'SEQUENCE', steps: [
+            { type: 'MILL', owner: 'self', count: 3 },
+            { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'スペル', color: '黒' } } },
+          ] } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX20-020 サティスファクション（アーツ）以下の4つから2つまで選ぶ
+  // ・冒頭のコスト軽減（自L4以下&相手L5以上で《無×1》）は CONDITIONAL_ARTS_COST STUB のまま（未実装）。
+  // ・④ADD_TO_FIELD はエンジン上【出】を発動させないため「【出】能力は発動しない」を既定で満たす。
+  'WX20-020': [
+    {
+      effectId: 'WX20-020-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN', 'ATTACK'],
+      cost: { energy: [{ color: '無', count: 6 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'CONDITIONAL_ARTS_COST' },
+        { type: 'CHOOSE', choose_count: 2, from_count: 4, upTo: true, choices: [
+          { choiceId: 'c0', label: '対戦相手のシグニ1体をバニッシュ',
+            action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } },
+          { choiceId: 'c1', label: 'カードを2枚引く',
+            action: { type: 'DRAW', owner: 'self', count: 2 } },
+          { choiceId: 'c2', label: 'デッキトップ2枚をエナゾーンへ',
+            action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 } },
+          { choiceId: 'c3', label: '共通色シグニをトラッシュから場に出す（【出】不発）',
+            action: { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', colorMatchesLrig: true } } } },
+        ] },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WX21-035 縛恋の煉獄（スペル）以下の4つから2つまで選ぶ
+  // ・任意コスト軽減（手札から赤緑の＜龍獣＞1枚ずつ捨てて《赤×0》）は OPTIONAL_COST STUB のまま（未実装）。
+  // ・①colorNotMatchesLrig は ENERGY_CARD 対象では対象オーナー（＝相手）のルリグ基準で解決される（execTrash）。
+  'WX21-035': [
+    {
+      effectId: 'WX21-035-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '赤', count: 1 }, { color: '緑', count: 1 }, { color: '無', count: 1 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['赤', '緑'] },
+        { type: 'CHOOSE', choose_count: 2, from_count: 4, upTo: true, choices: [
+          { choiceId: 'c0', label: '相手エナから相手ルリグと共通色を持たないカード1枚をトラッシュ',
+            action: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1, upToCount: false, filter: { colorNotMatchesLrig: true } } } },
+          { choiceId: 'c1', label: 'デッキトップ2枚をエナゾーンへ',
+            action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 } },
+          { choiceId: 'c2', label: '相手パワー7000以下シグニ1体をバニッシュ',
+            action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', powerRange: { max: 7000 } } } } },
+          { choiceId: 'c3', label: '相手パワー12000以上シグニ1体をバニッシュ',
+            action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', powerRange: { min: 12000 } } } } },
+        ] },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
+  // WXK02-029 ビカム・ユー（アーツ）以下の2つから1つを選ぶ
+  // ・①条件付きグロウ＋全キー能力喪失は CONDITIONAL_GROW_AND_KEY_DISABLE STUB のまま（未実装の複合効果）。
+  'WXK02-029': [
+    {
+      effectId: 'WXK02-029-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '無', count: 0 }] },
+      action: { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+        { choiceId: 'c0', label: '条件付きグロウ＋全キー能力喪失',
+          action: { type: 'STUB', id: 'CONDITIONAL_GROW_AND_KEY_DISABLE' } },
+        { choiceId: 'c1', label: '共通色シグニを回収して1枚引く',
+          action: { type: 'SEQUENCE', steps: [
+            { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', colorMatchesLrig: true } } },
+            { type: 'DRAW', owner: 'self', count: 1 },
+          ] } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 
   // WD02-007 背炎之陣（アーツ）
   // 「手札を３枚捨てる。そうした場合、すべてのシグニをバニッシュする。（あなたのシグニも含まれる）」
