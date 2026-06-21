@@ -10356,19 +10356,29 @@
     {
       "effectId": "WX04-031-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "COUNT_THRESHOLD",
+        "owner": "opponent",
+        "location": "energy",
+        "operator": "lte",
+        "value": 4
+      },
       "action": {
         "type": "GRANT_KEYWORD",
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "thisCardOnly": true
+          }
         },
         "keyword": "ダブルクラッシュ",
         "duration": "PERMANENT"
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-031-E2",
@@ -10376,6 +10386,7 @@
       "timing": [
         "ON_ATTACK_SIGNI"
       ],
+      "triggerScope": "self",
       "action": {
         "type": "TRASH",
         "target": {
@@ -10386,8 +10397,7 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO",
-      "triggerScope": "self"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-031-BURST",
@@ -10396,23 +10406,39 @@
         "ON_LIFE_BURST"
       ],
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "powerRange": {
-              "max": 8000
+        "type": "SEQUENCE",
+        "steps": [
+          {
+            "type": "TRASH",
+            "target": {
+              "type": "ENERGY_CARD",
+              "owner": "opponent",
+              "count": 1,
+              "filter": {
+                "keyword": "マルチエナ"
+              }
             }
           },
-          "upToCount": false
-        }
+          {
+            "type": "BANISH",
+            "target": {
+              "type": "SIGNI",
+              "owner": "opponent",
+              "count": 1,
+              "upToCount": false,
+              "filter": {
+                "cardType": "シグニ",
+                "powerRange": {
+                  "max": 8000
+                }
+              }
+            }
+          }
+        ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-032": [
