@@ -1435,8 +1435,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
   }
 
-  // ---- 自分のXかYのシグニを好きな数トラッシュ ----
-  if (t.match(/あなたの.+のシグニを好きな数対象とし.*トラッシュに置く/)) {
+  // ---- 自分の（XかYの）シグニを好きな数トラッシュ ----
+  if (t.match(/あなたの(?:.+の)?シグニを好きな数対象とし.*トラッシュに置く/)) {
     const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t) };
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: true, filter } };
   }
