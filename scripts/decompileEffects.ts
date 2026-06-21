@@ -115,6 +115,10 @@ function targetJa(t?: any, unit = 'シグニ'): string {
     const ct = t.filter?.cardType;
     u = (ct ? ([] as string[]).concat(ct).join('か') : 'カード') + loc;
   } else u = unit; // SIGNI 等
+  // パワー合計上限つき「好きな数」（「パワーの合計がN以下になるように好きな数」）
+  if (t.totalPowerMax !== undefined) {
+    return `${ownerJa(t.owner)}${filterJa(t.filter)}${u}をパワーの合計が${t.totalPowerMax}以下になるように好きな数`.trim();
+  }
   const cnt = t.count === 'ALL' ? 'すべての' : '';
   const counter = loc ? '枚' : '体';
   const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? counter + 'まで' : counter}`;
