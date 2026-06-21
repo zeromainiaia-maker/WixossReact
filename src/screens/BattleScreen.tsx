@@ -10076,7 +10076,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* グロウ選択モーダル */}
       {showGrowModal && createPortal(
-        <div onClick={() => { setShowGrowModal(false); setPendingGrowCard(null); setSelectedGrowCost(new Set()); }}
+        <div onClick={() => { setShowGrowModal(false); setPendingGrowCard(null); setSelectedGrowCost(new Set()); setFreeGrowFilter(null); }}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -10147,7 +10147,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     );
                   })}
                 </div>
-                <button onClick={() => { setShowGrowModal(false); setPendingGrowCard(null); setSelectedGrowCost(new Set()); }}
+                <button onClick={() => { setShowGrowModal(false); setPendingGrowCard(null); setSelectedGrowCost(new Set()); setFreeGrowFilter(null); }}
                   style={{ padding: '8px 0', borderRadius: 8, border: C.borderUI,
                     backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 13 }}>
                   キャンセル（グロウしない）
