@@ -984,7 +984,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
   if (t.includes('ダウンする') || t.match(/をダウン/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     if (t.includes('センタールリグ') && t.includes('シグニ')) {
-      // 「センタールリグとすべてのシグニをダウン」のような複合ダウン
+      // 「センタールリグかシグニ１体」→ OR選択（CENTER_LRIG_OR_SIGNI）
+      if (t.match(/センタールリグか.*シグニ|センタールリグまたは.*シグニ/)) {
+        return { type: 'DOWN', target: { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 1 } };
+      }
+      // 「センタールリグとすべてのシグニをダウン」のような複合ダウン（AND）
       const signiTgt = parseSigniTarget(t, owner);
       return { type: 'SEQUENCE', steps: [
         { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 } },
