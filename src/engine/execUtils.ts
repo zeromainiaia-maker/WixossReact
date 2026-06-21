@@ -233,6 +233,23 @@ export function matchesFilter(
     const hasLB = !!card.BurstText && card.BurstText !== '-';
     if (filter.hasLifeBurst !== hasLB) return false;
   }
+  if (filter.keyword) {
+    // 【キーワード能力】を持つカードの判定（フィールド全体の付与効果は考慮しない印字ベース近似）
+    if (filter.keyword === 'マルチエナ') {
+      // 「【常】：【マルチエナ】」（サーバント等の印字）または自身のみへの CONTINUOUS 付与
+      const printed = card.EffectText?.includes('：【マルチエナ】') ?? false;
+      const selfGrant = card.effects?.some(e =>
+        e.effectType === 'CONTINUOUS' &&
+        e.action.type === 'GRANT_KEYWORD' &&
+        (e.action as { keyword?: string }).keyword === 'マルチエナ' &&
+        (e.action as { target?: { count?: unknown } }).target?.count !== 'ALL'
+      ) ?? false;
+      if (!printed && !selfGrant) return false;
+    } else {
+      const txt = card.EffectText ?? '';
+      if (!txt.includes(`【${filter.keyword}】`) && !txt.includes(`《${filter.keyword}》`)) return false;
+    }
+  }
   return true;
 }
 

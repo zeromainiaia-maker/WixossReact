@@ -511,6 +511,7 @@ export interface PowerSetAction {
 export interface TrashAction {
   type: 'TRASH'; // 指定カードをトラッシュへ
   target: EffectTarget;
+  opponentSelects?: boolean; // 「対戦相手は自分の〜1枚を対象とし、それをトラッシュに置く」：対戦相手が自分のカードを選んでトラッシュ（target.owner='opponent'。WX04-009）
 }
 
 export interface EnergyChargeAction {

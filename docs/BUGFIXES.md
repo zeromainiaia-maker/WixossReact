@@ -5,6 +5,15 @@
 
 ---
 
+## WX04-009（遊月・参戎）の【出】が「【マルチエナ】を持つカードを対戦相手が選ぶ」を無視して任意エナを自分が選ぶ修正（v0.461, 2026-06-22）
+
+- **症状（WX04-009-E1 報告）:** 原文「【出】：**対戦相手は**自分のエナゾーンから**【マルチエナ】を持つ**カード１枚を対象とし、それをトラッシュに置く」に対し、JSON が `TRASH(ENERGY_CARD, owner:opponent, count:1)` のみで ①**【マルチエナ】フィルタが欠落**（任意の相手エナをトラッシュ可能）、②**選択者が効果使用側（自分）**（本来は対戦相手が自分のエナから選ぶ）。punish カードが「相手エナ1枚を自分が好きに割れる」別物になっていた。
+- **修正:** ①`TargetFilter.keyword` を `matchesFilter`（execUtils.ts）で実装。マルチエナは印字ベース近似（EffectText の `：【マルチエナ】`＝サーバント等／自身のみへの CONTINUOUS GRANT_KEYWORD マルチエナ）で判定（フィールド全体への付与＝allMulti は対象外。`isMultiEna` のフィールド文脈なし版）。その他キーワードは EffectText の `【kw】`/`《kw》` 包含で判定。②`TrashAction.opponentSelects` を新設（既存 BanishAction と同パターン）。execTrash の ENERGY_CARD 分岐で `opponentSelects && owner==='opponent'` 時に `selectOrInteract(..., oppResponds=true)` で**対戦相手に選択を委ねる**。③effects_WX.json の WX04-009-E1 を `filter:{keyword:'マルチエナ'}` ＋ `opponentSelects:true`、parseStatus:MANUAL に修正。
+- **逆翻訳器:** filterJa に `keyword`→「【kw】を持つ」、TRASH の who 判定に `opponentSelects`（エナ含む）→「（相手が選ぶ）」を追加。「対戦相手の【マルチエナ】を持つエナを1枚トラッシュに置く（相手が選ぶ）」と原文一致。
+- **検証:** typecheck 0エラー、verifyEffects で WX04-009 は警告なし（既存無関係警告のみ）、decompile_sheet1.txt 再生成（差分は当該1行のみ）。**相手にマルチエナエナが無い場合は候補0で不発（正常）。実機検証推奨。**
+
+---
+
 ## WX03-015（デス・コロッサオ）の条件欠落＆強制トラッシュを修正（0か全部＋レベル相異3体条件）（v0.460, 2026-06-21）
 
 - **症状（WX03-015-E1 報告）:** 原文「あなたのすべてのシグニを場からトラッシュに置いて**もよい**。この方法で**それぞれがレベルの異なるシグニが3体**トラッシュに置かれた場合、対戦相手のすべてのシグニをバニッシュする」に対し、JSON が ①TRASH が**強制**（任意の「してもよい」無視）、②条件が `CONDITIONAL:IS_MY_TURN`（パーサの「そうした場合」プレースホルダ＝常にtrue）で**レベル相異3体の条件が完全欠落**。結果「全シグニ強制トラッシュ→無条件で相手全シグニバニッシュ」という別物だった。逆翻訳も「そうした場合」と誤表示。

@@ -504,7 +504,9 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     if (tgt.count === 'ALL') return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
-    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
+    // opponentSelects: 「対戦相手は自分のエナから1枚を対象とし、それをトラッシュに置く」→ 対戦相手が選ぶ（WX04-009）
+    const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, oppResponds);
   }
 
   if (tgt.type === 'DECK_CARD') {

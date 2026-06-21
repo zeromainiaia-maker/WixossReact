@@ -102,6 +102,7 @@ function filterJa(f?: any): string {
   if (f.infected) parts.push('感染状態の');
   if (f.colorMatchesLrig) parts.push('センタールリグと共通色の');
   if (f.colorNotMatchesLrig) parts.push('センタールリグと共通色でない');
+  if (f.keyword) parts.push(`【${f.keyword}】を持つ`);
   return parts.join('');
 }
 
@@ -245,7 +246,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : '';
       if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く`;
       // 手札/エナの「誰が選ぶか」を明示（見ないでランダム / 自分が見て選ぶ / 相手が選ぶ）
-      const who = t?.type === 'HAND_CARD' && t?.owner === 'opponent'
+      const who = a.opponentSelects && t?.owner === 'opponent'
+        ? '（相手が選ぶ）'
+        : t?.type === 'HAND_CARD' && t?.owner === 'opponent'
         ? (t.blind ? '（見ないでランダム）' : t.actingPlayerSelects ? '（自分が見て選ぶ）' : '（相手が選ぶ）')
         : '';
       const cnt = t?.count === 'ALL' ? 'すべて' : `${t?.count}枚`;
