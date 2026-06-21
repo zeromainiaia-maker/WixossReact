@@ -14072,11 +14072,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               act.type === 'TRANSFER_TO_DECK' ? 'デッキに加える' :
               act.type === 'BLOOD_CRYSTAL_ARMOR' ? '血晶武装する' :
               '';
+            // パワー合計上限つき選択（「パワーの合計がN以下になるように好きな数」）
+            if (inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined) {
+              return `${from}パワーの合計が${inter.totalPowerMax}以下になるように${actionDesc}カードを好きな数選んでください`;
+            }
             const countStr = maxPick === 1 ? '' : `${maxPick}枚`;
             return `${from}${actionDesc}カードを${countStr}選んでください`;
           })();
+          // パワー合計上限つき選択時：現在の選択合計パワー
+          const selectedPowerSum = (inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined)
+            ? effectSelectedNums.reduce((s, i) => {
+                const rawId = sortedCandidates[parseInt(i, 10)];
+                return s + (rawId !== undefined ? (inter.candidatePowers?.[rawId] ?? 0) : 0);
+              }, 0)
+            : 0;
           const canConfirm = inter.type === 'SELECT_TARGET'
-            ? (inter.optional || effectSelectedNums.length >= maxPick)
+            ? (inter.totalPowerMax !== undefined
+                ? selectedPowerSum <= inter.totalPowerMax  // 好きな数（0体含む）。合計上限内なら確定可
+                : (inter.optional || effectSelectedNums.length >= maxPick))
             : effectSelectedNums.length <= maxPick;
 
           // 相手シグニ選択時はゾーン3→2→1の順（画面上の配置に合わせる）で表示
