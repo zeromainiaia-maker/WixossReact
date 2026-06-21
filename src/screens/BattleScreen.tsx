@@ -141,6 +141,22 @@ function fmtDiscardFilterLabel(f: import('../types/effects').TargetFilter | unde
   return parts.join('の');
 }
 
+// アクション木（SEQUENCE/CONDITIONAL等のネスト）から GROW_FREE を再帰探索する。
+function findGrowFreeAction(action: unknown): import('../types/effects').GrowFreeAction | null {
+  if (!action || typeof action !== 'object') return null;
+  const a = action as Record<string, unknown>;
+  if (a.type === 'GROW_FREE') return a as unknown as import('../types/effects').GrowFreeAction;
+  for (const key of ['steps', 'then', 'else', 'action', 'choices'] as const) {
+    const v = a[key];
+    if (Array.isArray(v)) {
+      for (const item of v) { const found = findGrowFreeAction(item); if (found) return found; }
+    } else if (v) {
+      const found = findGrowFreeAction(v); if (found) return found;
+    }
+  }
+  return null;
+}
+
 // グロウコストのパース: "《白》×１《赤》×２" → [{color:'白',count:1},{color:'赤',count:2}]
 function parseGrowCost(raw: string): { color: string; count: number }[] {
   if (!raw || raw === 'なし' || raw === '-') return [];
