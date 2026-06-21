@@ -759,6 +759,18 @@ function parseSingleSentence(text: string): EffectAction {
       } as import('../types/effects').ConditionalAction;
     }
   }
+  // 「あなたの場に＜X＞(か＜Y＞)*のシグニがある場合、〜」→ CONDITIONAL(HAS_CARD_IN_FIELD)
+  {
+    const m = text.trim().match(/^(あなた|対戦相手)の場に((?:＜[^＞]+＞(?:か)?)+)のシグニがある場合、(.+)/s);
+    if (m) {
+      const owner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'HAS_CARD_IN_FIELD', owner, filter: { cardType: 'シグニ', ...parseStoryFilter(m[2]) } },
+        then: parseSingleSentence(m[3]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
   // タイミング・期間プレフィックスを除去（既にparseBlockで処理済み）
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
