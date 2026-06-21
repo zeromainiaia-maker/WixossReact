@@ -1045,6 +1045,17 @@ function parseActionText(text: string): EffectAction {
       continue;
     }
 
+    // 「その後、デッキをシャッフルし、X」→ 直前のSEARCHにafterSearchをマージしてXを次ステップに
+    const shuffleThenM = clean.match(/^その後、デッキをシャッフルし、(.+)$/s);
+    if (shuffleThenM && steps.length > 0) {
+      const prev = steps[steps.length - 1] as import('../types/effects').SearchAction;
+      if (prev?.type === 'SEARCH' && !prev.afterSearch) {
+        prev.afterSearch = { type: 'SHUFFLE_DECK', owner: 'self' };
+      }
+      steps.push(parseSingleSentence(shuffleThenM[1].replace(/。$/, '').trim()));
+      continue;
+    }
+
     // 「そうした場合、」「この方法で...た場合、」「《色》を支払った場合、」はCONDITIONALとして前のステップと結合
     const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|(?:《[^》]+》)+を支払った場合、)/);
     if (thenM && steps.length > 0) {
