@@ -2964,7 +2964,17 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'LOOK_AND_REORDER':        return execLookAndReorder(action as LookAndReorderAction, ctx);
     case 'TRANSFER_TO_DECK':        return execTransferToDeck(action as TransferToDeckAction, ctx);
     case 'COUNTER_SPELL':           return done(ctx); // 打ち消しログはBattleScreen側でスペル名付きで出力
-    case 'COST_REDUCTION':          return done(addLog(ctx, 'コスト軽減'));
+    case 'COST_REDUCTION': {
+      // 次に使用するスペルのコスト軽減（WX04-008）: フラグに積み、BattleScreenのスペル使用コスト計算で消費。
+      const cr = action as import('../types/effects').CostReductionAction;
+      if (cr.targetCardType === 'スペル' && !cr.isGrowCost && cr.reduction?.length) {
+        const existing = ctx.ownerState.next_spell_cost_reduction ?? [];
+        return done(addLog(
+          { ...ctx, ownerState: { ...ctx.ownerState, next_spell_cost_reduction: [...existing, ...cr.reduction] } },
+          `次に使用するスペルのコストを${cr.reduction.map(r => `《${r.color}×${r.count}》`).join('')}軽減`));
+      }
+      return done(addLog(ctx, 'コスト軽減'));
+    }
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
     case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
     case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);

@@ -3565,6 +3565,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_end_field_trash_targets: undefined,    // ターン終了時トラッシュ対象をリセット
           spell_negated_this_turn: undefined,         // スペル打ち消しフラグをリセット
           next_spell_uncounterable: undefined,        // WX04-008: 次スペル打ち消し不可フラグをリセット
+          next_spell_cost_reduction: undefined,       // WX04-008: 次スペルコスト軽減をリセット
           non_dissona_spell_played_this_turn: undefined, // DISONA_RESTRICTION: 非ディソナスペル使用フラグをリセット
           dissona_only_spells_this_turn: undefined,   // DISONA_RESTRICTION: ディソナ制限フラグをリセット
           turn_trigger_3rd_plant_down: undefined,     // 植物3回目ダウントリガーをリセット
@@ -5989,6 +5990,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           energy: newEnergy,
           trash: [...my.trash, ...paidNums],
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
+          next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
         };
       } else {
@@ -5999,6 +6001,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           energy: newEnergy,
           trash: [...my.trash, ...paidNums],
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
+          next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
         };
       }
@@ -10955,9 +10958,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               if (!spellCard) return null;
               // フィールド条件によるコスト軽減をスペルにも適用
               const myLrigCardSP = battleCardMap.get(my.field.lrig.at(-1) ?? '');
-              const effSpellCost = applyContinuousCostDecreases(
+              let effSpellCost = applyContinuousCostDecreases(
                 computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases),
                 'スペル', spellCard.Color, activeCostMods.forMy);
+              // 次スペルコスト軽減（WX04-008《白×2》減）を適用
+              for (const r of my.next_spell_cost_reduction ?? []) effSpellCost = removeNColorFromCost(effSpellCost, r.color, r.count);
               const costItems = parseGrowCost(effSpellCost);
               const baseSpellReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);

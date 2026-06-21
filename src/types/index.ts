@@ -327,6 +327,8 @@ export interface PlayerState {
   spell_negated_this_turn?: boolean;
   // GRANT_NEXT_SPELL_UNCOUNTERABLE: 次にこのプレイヤーが使用するスペルは対戦相手の効果で打ち消されない（WX04-008 ファフニール）
   next_spell_uncounterable?: boolean;
+  // COST_REDUCTION(スペル/UNTIL_END_OF_TURN): 次に使用するスペルの使用コストを軽減（WX04-008《白×2》減）。スペル使用時に消費
+  next_spell_cost_reduction?: { color: string; count: number }[];
   // DISONA_RESTRICTION: このターンに《ディソナアイコン》ではないスペルを使用した（使用条件チェック用）
   non_dissona_spell_played_this_turn?: boolean;
   // DISONA_RESTRICTION: このターン、《ディソナアイコン》ではないスペルを使用できない
