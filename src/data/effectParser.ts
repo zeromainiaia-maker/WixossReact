@@ -595,6 +595,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3c: 「あなたの場にレベルNの＜X＞のシグニがあるかぎり、」（レベル＋クラス条件）
+  const fieldLevelStoryM = text.match(/^あなたの場にレベル([０-９\d]+)の((?:＜[^＞]+＞(?:か)?)+)のシグニがあるかぎり、/);
+  if (fieldLevelStoryM) {
+    const storyFilter = parseStoryFilter(fieldLevelStoryM[2]);
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(fieldLevelStoryM[1]), ...storyFilter } },
+      rest: text.slice(fieldLevelStoryM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
