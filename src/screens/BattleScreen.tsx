@@ -3631,6 +3631,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       update[opKey] = {
         ...opState,
         blocked_actions: convertedOpBlocked,
+        field_keyword_grants_active: opState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
+        field_keyword_grants_next_turn: undefined,
         negate_coin_abilities: undefined,
         keyword_grants_until_opp_turn: undefined,
         granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END
