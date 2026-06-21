@@ -3264,7 +3264,7 @@ export function collectBanishEffectProtectedSigni(
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
       const gp = eff.action as import('../types/effects').GrantProtectionAction;
       if (gp.sourceOwner !== 'opponent') continue;
-      if (!gp.from.includes('BANISH') && !gp.from.includes('any')) continue;
+      if (!gp.from?.includes('BANISH') && !gp.from?.includes('any')) continue;
       if (gp.subjectFilter) {
         for (const s2 of state.field.signi) {
           const top2 = s2?.at(-1);
