@@ -4823,6 +4823,12 @@ export function execStubPart3(
       `${ctx.cardMap.get(srcNum)?.CardName ?? srcNum}：バニッシュされない（ターン終了時まで）`));
   }
 
+  // GRANT_NEXT_SPELL_UNCOUNTERABLE: 次に自分が使用するスペルは対戦相手の効果で打ち消されない（WX04-008 ファフニール）
+  if (stub.id === 'GRANT_NEXT_SPELL_UNCOUNTERABLE') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, next_spell_uncounterable: true } },
+      '次に使用するスペルは対戦相手の効果で打ち消されない'));
+  }
+
   // SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時。攻撃側=効果オーナー自身のアタックを無効化）
   if (stub.id === 'SET_CANCEL_ATTACK_FLAG') {
     return done({ ...ctx, ownerState: { ...ctx.ownerState, cancel_current_signi_attack: true } });

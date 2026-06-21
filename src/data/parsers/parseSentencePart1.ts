@@ -276,7 +276,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
       type: 'SEQUENCE',
       steps: [
         { type: 'COST_REDUCTION', targetCardType: (typeM?.[1] ?? 'スペル') as 'スペル' | 'アーツ', reduction: costs, duration: 'UNTIL_END_OF_TURN' } as CostReductionAction,
-        { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, keyword: 'NEXT_UNCOUNTERABLE', duration: 'UNTIL_END_OF_TURN' },
+        // 次に使用するスペルは対戦相手の効果で打ち消されない（フラグをセット。WX04-008）
+        { type: 'STUB', id: 'GRANT_NEXT_SPELL_UNCOUNTERABLE' } as StubAction,
       ],
     };
   }

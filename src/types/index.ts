@@ -325,6 +325,8 @@ export interface PlayerState {
   turn_end_field_trash_targets?: string[];
   // NEGATE_SPELL: このターン、このプレイヤーのスペル（コスト合計5以下）が打ち消される
   spell_negated_this_turn?: boolean;
+  // GRANT_NEXT_SPELL_UNCOUNTERABLE: 次にこのプレイヤーが使用するスペルは対戦相手の効果で打ち消されない（WX04-008 ファフニール）
+  next_spell_uncounterable?: boolean;
   // DISONA_RESTRICTION: このターンに《ディソナアイコン》ではないスペルを使用した（使用条件チェック用）
   non_dissona_spell_played_this_turn?: boolean;
   // DISONA_RESTRICTION: このターン、《ディソナアイコン》ではないスペルを使用できない

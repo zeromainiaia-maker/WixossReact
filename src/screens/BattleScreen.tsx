@@ -3564,6 +3564,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           flip_attack_signi_zones: undefined,         // フリップアタックゾーンをリセット
           turn_end_field_trash_targets: undefined,    // ターン終了時トラッシュ対象をリセット
           spell_negated_this_turn: undefined,         // スペル打ち消しフラグをリセット
+          next_spell_uncounterable: undefined,        // WX04-008: 次スペル打ち消し不可フラグをリセット
           non_dissona_spell_played_this_turn: undefined, // DISONA_RESTRICTION: 非ディソナスペル使用フラグをリセット
           dissona_only_spells_this_turn: undefined,   // DISONA_RESTRICTION: ディソナ制限フラグをリセット
           turn_trigger_3rd_plant_down: undefined,     // 植物3回目ダウントリガーをリセット
@@ -5367,6 +5368,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // スペルカットイン候補（lrig_deck + field lrig + signi_field + hand）
   const cutinCandidates: CutinCandidate[] = (() => {
     if (!bs.pending_spell || bs.pending_spell.caster_id === user.id) return [];
+    // GRANT_NEXT_SPELL_UNCOUNTERABLE（WX04-008）: 使用者のスペルが対戦相手の効果で打ち消されない場合、
+    // カットイン（このエンジンでは常にスペルを打ち消す）を提示しない。
+    const cutinCasterState = bs.pending_spell.caster_id === bs.host_id ? bs.host_state : bs.guest_state;
+    if (cutinCasterState.next_spell_uncounterable) return [];
     const pendingSpellCard = battleCardMap.get(bs.pending_spell.card_num);
     const pendingSpellCostTotal = pendingSpellCard
       ? parseGrowCost(pendingSpellCard.Cost).reduce((s, c) => s + c.count, 0)
@@ -6024,7 +6029,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? { ...s, lrig_trash: [...s.lrig_trash, card_num] }
         : { ...s, trash: [...s.trash, card_num] };
       // NEGATE_SPELL: casterStateにspell_negated_this_turnがあればコスト合計5以下のスペルを打ち消す
-      if (casterState.spell_negated_this_turn) {
+      // ただし next_spell_uncounterable（WX04-008）があれば打ち消されない
+      if (casterState.spell_negated_this_turn && !casterState.next_spell_uncounterable) {
         const spellCard = battleCardMap.get(card_num);
         const spellTotalCostNS = parseGrowCost(spellCard?.Cost ?? '').reduce((s, c) => s + c.count, 0);
         if (spellTotalCostNS <= 5) {
@@ -6043,7 +6049,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      const resolved: PlayerState = placeUsedSpell(casterState);
+      // 保護スペル（next_spell_uncounterable）はこの解決で消費＝フラグをクリア
+      const resolved: PlayerState = { ...placeUsedSpell(casterState), next_spell_uncounterable: undefined };
 
       // スペル効果を発火（casterがowner）
       const effects = effectsMap.get(card_num) ?? [];
