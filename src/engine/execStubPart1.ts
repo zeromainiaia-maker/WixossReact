@@ -2185,6 +2185,59 @@ export function execStubPart1(
     const hitNameRU = hitCardRU ? ctx.cardMap.get(hitCardRU)?.CardName ?? hitCardRU : 'ヒットなし';
     return done(addLog(newCtxRU, `デッキ公開 ${revealedRU.length}枚 → ヒット: ${hitNameRU}`));
   }
+  // OPP_REVEAL_SPELL_USE_FREE: 対戦相手のデッキを上からスペルがめくれるまで公開し、
+  // めくれたスペルをあなたが手札にあるかのようにコストなし・限定条件無視で使用してもよい。
+  // 残り（公開した非スペル）はデッキに戻してシャッフル。使用しなかった場合は相手トラッシュへ。（WX04-015）
+  if (stub.id === 'OPP_REVEAL_SPELL_USE_FREE') {
+    const deckORS = [...ctx.otherState.deck];
+    const revealedORS: string[] = [];
+    let hitSpellORS: string | null = null;
+    for (const cn of deckORS) {
+      revealedORS.push(cn);
+      if (ctx.cardMap.get(cn)?.Type === 'スペル') { hitSpellORS = cn; break; }
+    }
+    // 公開した非スペル＋未公開分をデッキに戻してシャッフル（ヒットスペルはデッキから抜く）
+    const notRevealedORS = deckORS.filter(cn => !revealedORS.includes(cn));
+    const nonHitRevealedORS = revealedORS.filter(cn => cn !== hitSpellORS);
+    const newDeckORS = shuffle([...notRevealedORS, ...nonHitRevealedORS]);
+    const ctxORS = { ...ctx, otherState: { ...ctx.otherState, deck: newDeckORS } };
+    if (!hitSpellORS) {
+      return done(addLog(ctxORS, `相手デッキ公開 ${revealedORS.length}枚：スペルなし（デッキに戻してシャッフル）`));
+    }
+    const spellNameORS = ctx.cardMap.get(hitSpellORS)?.CardName ?? hitSpellORS;
+    const useORS: StubAction = { type: 'STUB', id: 'INTERNAL_USE_OPP_SPELL_FREE', value: hitSpellORS };
+    const skipORS: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_SPELL_TO_TRASH', value: hitSpellORS };
+    const pendingORS: PendingInteractionDef = {
+      type: 'CHOOSE',
+      options: [
+        { id: 'use', label: `${spellNameORS}を使用する`, action: useORS as EffectAction, available: true },
+        { id: 'skip', label: '使用しない（相手トラッシュへ）', action: skipORS as EffectAction, available: true },
+      ],
+      count: 1,
+    };
+    return needsInteraction(addLog(ctxORS, `相手デッキ公開 ${revealedORS.length}枚 → スペル: ${spellNameORS}（使用してもよい）`), pendingORS);
+  }
+  // INTERNAL_USE_OPP_SPELL_FREE: 公開した相手スペルをコストなし・限定条件無視で使用し、使用後は相手トラッシュへ（WX04-015）
+  if (stub.id === 'INTERNAL_USE_OPP_SPELL_FREE') {
+    const cnUOS = typeof stub.value === 'string' ? stub.value : ctx.lastProcessedCards?.[0];
+    if (!cnUOS) return done(addLog(ctx, '[INTERNAL_USE_OPP_SPELL_FREE: 対象スペルなし]'));
+    const cardUOS = ctx.cardMap.get(cnUOS);
+    // 使用後はそのスペルを対戦相手のトラッシュへ（持ち主＝相手）
+    const afterOtherUOS = { ...ctx.otherState, trash: [...ctx.otherState.trash, cnUOS] };
+    const ctxUOS = { ...ctx, otherState: afterOtherUOS, sourceCardNum: cnUOS, lastProcessedCards: [] };
+    const effsUOS = parseCardEffects(cardUOS!);
+    const mainUOS = effsUOS.find(e =>
+      e.effectType === 'ACTIVATED' || (e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')));
+    if (!mainUOS) return done(addLog(ctxUOS, `${cardUOS?.CardName ?? cnUOS}：効果なし（相手トラッシュへ）`));
+    return exec(mainUOS.action, addLog(ctxUOS, `${cardUOS?.CardName ?? cnUOS}をコストなし・限定条件無視で使用（相手トラッシュへ）`));
+  }
+  // INTERNAL_OPP_SPELL_TO_TRASH: 使用しなかった公開スペルを対戦相手のトラッシュへ（WX04-015）
+  if (stub.id === 'INTERNAL_OPP_SPELL_TO_TRASH') {
+    const cnOST = typeof stub.value === 'string' ? stub.value : null;
+    if (!cnOST) return done(ctx);
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, trash: [...ctx.otherState.trash, cnOST] } },
+      `${ctx.cardMap.get(cnOST)?.CardName ?? cnOST}を対戦相手のトラッシュへ`));
+  }
   // SONG_FRAGMENT: エナゾーンから【歌のカケラ】持ちカードをトラッシュに置き、その効果を発動
   // 「このルリグはそのカードの【歌のカケラ】を使用する」= ルリグ効果として扱う
   if (stub.id === 'SONG_FRAGMENT') {
