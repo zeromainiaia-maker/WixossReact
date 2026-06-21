@@ -579,6 +579,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const pw = ctx.effectivePowers?.get(src) ?? parseInt(ctx.cardMap.get(src)?.Power ?? '0', 10);
       return pw >= cond.value;
     }
+    case 'THIS_CARD_FROM_TRASH':
+      // このシグニがトラッシュから場に出た場合（execAddToField で signi_played_from_trash に記録）
+      return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_trash?.includes(ctx.sourceCardNum) ?? false);
     case 'FIELD_SIGNI_POWER_COUNT': {
       const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
         const top = stack?.at(-1);
