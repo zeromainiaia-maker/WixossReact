@@ -787,7 +787,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if (/このシグニを(?:[^。、]*)?バニッシュ/.test(t) && !t.includes('対戦相手')) {
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } }, ...(isOptional ? { optional: true } : {}) };
     }
-    return { type: 'BANISH', target: parseSigniTarget(t, owner), ...(isOptional ? { optional: true } : {}) };
+    // 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」＝対戦相手が自分のシグニを選んでバニッシュ
+    const oppSelects = /対戦相手は自分の/.test(t);
+    return { type: 'BANISH', target: parseSigniTarget(t, owner), ...(isOptional ? { optional: true } : {}), ...(oppSelects ? { opponentSelects: true } : {}) };
   }
 
   // ---- デッキからトラッシュ（もよい）----
