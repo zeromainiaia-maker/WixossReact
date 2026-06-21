@@ -911,6 +911,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedSigniActivatedCost, setSelectedSigniActivatedCost] = useState<Set<number>>(new Set());
   const [selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard] = useState<Set<number>>(new Set());
+  // 起動能力 fieldTrash コスト（場のシグニを場からトラッシュ）のゾーン選択
+  const [selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash] = useState<Set<number>>(new Set());
   // エナゾーンのACTIVATED能力（アクセカード発動）
   const [pendingEnergyActivated, setPendingEnergyActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedEnergyActivatedCost, setSelectedEnergyActivatedCost] = useState<Set<number>>(new Set());
