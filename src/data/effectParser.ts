@@ -1385,6 +1385,22 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const m = actionText.match(/トラッシュからエナゾーンに置かれたとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
+      // ON_ENERGY_CHARGE: 「（あなたのターンの間、）あなたのエナゾーンにカード1枚が置かれたとき、」を除去。
+      // 「あなたのターンの間」が前置されていれば IS_MY_TURN 条件を付与。発生源＝このシグニ自身（self）。
+      if (timing[0] === 'ON_ENERGY_CHARGE') {
+        extractedTriggerScope = 'self';
+        if (/あなたのターンの間/.test(actionText)) extractedTriggerCondition = { type: 'IS_MY_TURN' };
+        const m = actionText.match(/^.*?あなたのエナゾーンに[^、。]*置かれたとき[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
+      // ON_POWER_THRESHOLD: 「このシグニのパワーがN以上になったとき、」を除去し、閾値を SELF_POWER_GTE 条件に保持。
+      if (timing[0] === 'ON_POWER_THRESHOLD') {
+        extractedTriggerScope = 'self';
+        const pm = actionText.match(/このシグニのパワーが([０-９\d]+)以上になったとき/);
+        if (pm) extractedTriggerCondition = { type: 'SELF_POWER_GTE', value: parseNum(pm[1]) };
+        const m = actionText.match(/このシグニのパワーが[０-９\d]+以上になったとき[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
       if (timing[0] === 'ON_BLOOD_CRYSTAL_ARMOR') {
         const m = actionText.match(/(?:(?:あなたの|このシグニが?)(?:シグニ[１-９\d０-９]*体?が?)?血晶武装状態になったとき)[、,]\s*(.+)/s);
         if (m) actionText = m[1];
