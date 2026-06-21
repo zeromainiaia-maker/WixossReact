@@ -1343,7 +1343,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_LIFE_CRASHED / ON_OPP_LIFE_CRASHED: 自分ライフ＝triggerScope:self。トリガー文を除去
       if (timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED') {
         if (timing[0] === 'ON_LIFE_CRASHED') extractedTriggerScope = 'self';
-        const m = actionText.match(/(?:対戦相手|あなた)?の?ライフ(?:クロス)?[^、。]*クラッシュされたとき[、,]\s*(.+)/s);
+        // 「あなたのシグニが対戦相手のライフクロスをクラッシュしたとき」（能動態）もカバー
+        const m = actionText.match(/^.*?クラッシュ(?:した|された)とき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
