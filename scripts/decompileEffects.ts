@@ -386,6 +386,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GROW_FREE': return a.levelFilter === 'same'
       ? 'あなたのセンタールリグと同じレベルのルリグ1枚をルリグデッキからグロウコストを支払わずグロウする'
       : 'コストを支払わずにグロウする';
+    case 'MUTUAL_DISCARD_AND_DRAW': return a.drawMax
+      ? 'あなたと対戦相手は手札をすべて捨て、捨てられた枚数のうち最も大きい数に等しい枚数を双方が引く'
+      : 'あなたと対戦相手は手札をすべて捨てる';
     case 'MOVE_TO_ENERGY':
     case 'TRANSFER_TO_ENERGY': return `${targetJa(a.source ?? a.target)}をエナゾーンに置く`;
     case 'ATTACH_CHARM': return `${targetJa(a.target)}にチャームを付ける`;
