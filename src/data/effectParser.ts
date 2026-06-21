@@ -820,6 +820,14 @@ function parseActionText(text: string): EffectAction {
     // abilities は parseBlock 後に埋められる（此処では rawText のみ保持）
     return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: m?.[1]?.trim() ?? '' } as GrantLrigAbilityAction;
   }
+  // ---- センタールリグへの能力付与（引用符形式: 「（ターン終了時まで、）あなたのセンタールリグは「...」を得る」）----
+  {
+    const quotedLrigM = text.match(/あなたのセンタールリグは[「『]([\s\S]+?)[」』]を得る/);
+    if (quotedLrigM) {
+      // abilities は parseBlock / parseSpellEffect で rawText から埋められる
+      return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedLrigM[1].trim() } as GrantLrigAbilityAction;
+    }
+  }
 
   const sentences = splitSentences(text).filter(s => {
     const c = s.trim().replace(/。$/, '');
