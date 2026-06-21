@@ -764,6 +764,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if (t.match(/^それをバニッシュする$/)) {
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } };
     }
+    // 「（この方法で）トラッシュに置いたシグニ1体につき対戦相手のシグニ1体を対象とし、それらをバニッシュする」
+    // ＝直前ステップでトラッシュした枚数だけ対戦相手シグニをバニッシュ（動的数: last_processed_count）
+    if (t.match(/トラッシュに置いたシグニ[０-９\d]*体?につき対戦相手のシグニ[０-９\d]*体?を.*バニッシュ/)) {
+      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: { $ref: 'last_processed_count' }, filter: { cardType: 'シグニ' }, upToCount: true } };
+    }
     if (t.match(/すべてのシグニをバニッシュ/)) {
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
       return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t) } } };
