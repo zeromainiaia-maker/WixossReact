@@ -15128,7 +15128,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         opacity: isTrashed ? 0.45 : 1 }}>
                         <span style={{ color: C.textDim, fontSize: 11, width: 16 }}>{isTrashed ? '×' : i + 1}</span>
                         <img src={c?.ImgURL} alt={c?.CardName} draggable={false}
+                          onClick={() => setExpandedPickImgUrl(c?.ImgURL ?? null)}
                           style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0,
+                            cursor: 'pointer',
                             filter: isTrashed ? 'grayscale(1)' : 'none' }}
                           onError={e2 => { const img = e2.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                         <span style={{ color: C.textSub, fontSize: 12, flex: 1,
@@ -15360,7 +15362,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         backgroundColor: C.bgButton, borderRadius: 6, padding: '6px 8px' }}>
                         <span style={{ color: C.textDim, fontSize: 11, width: 16 }}>{i + 1}</span>
                         <img src={c?.ImgURL} alt={c?.CardName} draggable={false}
-                          style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                          onClick={() => setExpandedPickImgUrl(c?.ImgURL ?? null)}
+                          style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0, cursor: 'pointer' }}
                           onError={e2 => { const img = e2.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                         <span style={{ color: C.textSub, fontSize: 12, flex: 1 }}>{c?.CardName ?? cardNum}</span>
                       </div>
