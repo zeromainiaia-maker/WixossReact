@@ -3942,6 +3942,11 @@ export function execStubPart2(
     const newOwnerGCZ: PlayerState = { ...ctx.ownerState, free_grow_this_turn: true };
     return done(addLog({ ...ctx, ownerState: newOwnerGCZ }, 'グロウコスト0（次のグロウは無料）'));
   }
+  // FREE_GROW_NEXT_TURN: 次の自分ターンのグロウコストを0にする予約（WX03-024-BURST）
+  if (stub.id === 'FREE_GROW_NEXT_TURN') {
+    const newOwnerGNT: PlayerState = { ...ctx.ownerState, free_grow_next_turn: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerGNT }, '次の自分ターンのグロウは無料'));
+  }
   if (stub.id === 'GROW_COST_SUBSTITUTE_TRASH_SIGNI') {
     return done(addLog(ctx, '[グロウコスト代替: GROW_COST_SUBSTITUTE_TRASH_SIGNI]'));
   }
