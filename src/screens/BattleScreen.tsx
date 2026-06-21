@@ -2768,6 +2768,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return result;
   };
 
+  // デッキからトラッシュに移動したカードを検出（ON_TRASH「デッキからトラッシュに置かれたとき」用・WX02-073/WX13-038等）
+  const detectDeckTrashed = (before: PlayerState, after: PlayerState): string[] => {
+    const beforeDeck = new Set(before.deck);
+    const beforeTrash = new Set(before.trash);
+    return after.trash.filter(n => beforeDeck.has(n) && !beforeTrash.has(n));
+  };
+
+  // デッキからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self のみ）を収集する。
+  // 場のシグニ用フィールドトリガー（any_ally等）はデッキミルでは発火しないため除外する。
+  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
+      entries.push({
+        id: generateUUID(),
+        playerId: trashedPlayerId,
+        cardNum: trashedCardNum,
+        effectId: eff.effectId,
+        label: `${cardName} の【トラッシュ時】効果（デッキから）`,
+        effect: eff,
+      });
+    }
+    return entries;
+  };
+
   // ON_TRASH トリガーを収集する
   const collectTrashTriggers = (
     trashedCardNum: string,
@@ -4021,6 +4048,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         for (const cardNum of guestTrashed) {
           trashEntries.push(...collectTrashTriggers(cardNum, bs.guest_id, hostState, guestState));
+        }
+        // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
+        for (const cardNum of detectDeckTrashed(bs.host_state, hostState)) {
+          trashEntries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id));
+        }
+        for (const cardNum of detectDeckTrashed(bs.guest_state, guestState)) {
+          trashEntries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id));
         }
         if (trashEntries.length > 0) {
           const baseStackT = (update.effect_stack as typeof stackAfter) ?? null;

@@ -1281,7 +1281,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_OPP_LIFE_CRASHED']
              : actionText.match(/(?:あなたの)?ライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_LIFE_CRASHED']
              : actionText.includes('場を離れたとき') ? ['ON_LEAVE_FIELD']
-             : actionText.match(/(?:手札か?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
+             : actionText.match(/(?:(?:手札か)?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
              : actionText.match(/このカードが.{0,40}手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
              : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
@@ -1334,7 +1334,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_TRASH') {
-        const m = actionText.match(/(?:(?:手札か?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき)[、,]\s*(.+)/s);
+        const m = actionText.match(/(?:(?:(?:手札か)?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき)[、,]\s*(.+)/s);
         if (m) actionText = m[1];
         else {
           // 「対戦相手の効果によって〜」等のトリガー文を除去
@@ -1367,9 +1367,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       mandatory = true;
-      // ON_LEAVE_FIELD / ON_REVEALED_FROM_HAND / ON_LIFE_CRASHED の「〜してもよい」等は任意トリガー（発動しない選択可）
+      // ON_LEAVE_FIELD / ON_REVEALED_FROM_HAND / ON_LIFE_CRASHED / ON_TRASH の「〜してもよい」等は任意トリガー（発動しない選択可）
       if ((timing[0] === 'ON_LEAVE_FIELD' || timing[0] === 'ON_REVEALED_FROM_HAND'
-           || timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED')
+           || timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED'
+           || timing[0] === 'ON_TRASH')
           && /もよい/.test(actionText)) mandatory = false;
       break;
     default: return null;

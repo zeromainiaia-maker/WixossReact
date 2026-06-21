@@ -5,6 +5,17 @@
 
 ---
 
+## 「このカードがデッキからトラッシュに置かれたとき」が ON_PLAY 誤判定→ON_TRASH 修正＋デッキミル ON_TRASH 発火（v0.456, 2026-06-21）
+
+- **症状（WX02-073 報告）:** 【自】「このカードが**デッキからトラッシュに置かれたとき**、このカードをトラッシュから場に出してもよい」が **`timing:ON_PLAY`（場に出たとき）に誤判定**され、さらに action が任意トラッシュカード（`thisCardOnly` 欠落）・`mandatory:true`（「もよい」無視）だった。
+- **timing 修正（parser）:** ON_TRASH の timing 正規表現が `(?:手札か?デッキから|…)` で**プレーンな「デッキから」にマッチしなかった**（「手札か」が必須化していた）。`(?:(?:手札か)?デッキから|場から|いずれかの領域から)` に修正（timing 判定とトリガー文ストリップの2か所）。**ON_TRASH の「〜してもよい」を任意トリガー（mandatory:false）**の対象に追加。
+- **action 修正（parser）:** 自己蘇生ハンドラ（v0.455）の判定を「場に出**す**」限定から「場に出」に緩め、「場に出して（もよい）」も `thisCardOnly`＋asDown 付与の対象に。
+- **engine（デッキミル ON_TRASH 発火）:** ON_TRASH は従来**フィールド→トラッシュ**（`detectTrashedSigni`）でしか収集されず、**デッキ→トラッシュ（ミル）では発火しなかった**。`detectDeckTrashed`（before.deck→after.trash を検出）＋`collectDeckTrashSelfTriggers`（カード自身・`triggerScope:self` のみ。場シグニ用 any_ally 等は除外）を新設し、stack 解決ループの ON_TRASH 検出に配線。
+- **影響（素パース差分で隔離確認）:** Sheet1 で **5枚**変化（WX02-073・**WX10-092**＝同型の場出し自蘇生・WX04-035/WX04-102＝ON_TRASH の任意化・WX11-026-E1＝thisCardOnly 補完）。他帯の **WX13-038**（デッキトラッシュ時パワー-2000・mandatory 維持）も同 timing 修正で ON_TRASH に。対象5枚 JSON 再生成（WX11-026 は manualEffects 優先で無変化）。typecheck 0エラー。
+- **残:** デッキミル ON_TRASH の発火は stack 解決ループ経由のミルが対象（コスト/特殊経路の網羅は将来）。自己蘇生の発動は v0.455 の trashActivated 実行経路（場に出す）に乗るため**実機検証（PvP/CPU）推奨**。
+
+---
+
 ## トラッシュ自己起動【起】機構＋UI を新設（「このシグニをトラッシュから場に出す」）（v0.455, 2026-06-21）
 
 - **症状（WX02-069/071 報告）:** 【起】《黒》《黒/無》「このシグニをトラッシュから場に出す（このシグニがトラッシュにある場合のみ使用可）」が、①データ上 `ADD_TO_FIELD source:TRASH_CARD count:1`（=**任意トラッシュカード**1枚／`thisCardOnly` 欠落）で、②そもそも**トラッシュから起動する機構が無かった**（`handActivated`＝手札自己起動は v0.373 で実装済だがトラッシュ版は未実装）。`ACTIVATED timing:MAIN`＝場のシグニ起動扱いだが本体は場に存在せず、起動UIに現れず発動不能だった。

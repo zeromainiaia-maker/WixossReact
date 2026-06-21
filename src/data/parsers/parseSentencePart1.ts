@@ -1168,7 +1168,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // 「このシグニ/カード」＋「トラッシュから」＋「場に出す/シグニゾーンに出す」＝効果元自身（thisCardOnly）。
   // 任意トラッシュカードを出す汎用版（下の handler）と区別する。
   if ((t.includes('このシグニ') || t.includes('このカード')) && t.includes('トラッシュから')
-      && (t.includes('場に出す') || t.includes('シグニゾーンに出す'))) {
+      && (t.includes('場に出') || t.includes('シグニゾーンに出'))) {
     const asDown = t.includes('ダウン状態で');
     return {
       type: 'ADD_TO_FIELD', owner: 'self',
