@@ -383,7 +383,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const tgt = `${a.color ? a.color + 'の' : ''}${a.targetCardType ?? 'カード'}`;
       return `あなたが使用する${tgt}の${costKind}は${red}減る`;
     }
-    case 'GROW_FREE': return 'コストを支払わずにグロウする';
+    case 'GROW_FREE': return a.levelFilter === 'same'
+      ? 'あなたのセンタールリグと同じレベルのルリグ1枚をルリグデッキからグロウコストを支払わずグロウする'
+      : 'コストを支払わずにグロウする';
     case 'MOVE_TO_ENERGY':
     case 'TRANSFER_TO_ENERGY': return `${targetJa(a.source ?? a.target)}をエナゾーンに置く`;
     case 'ATTACH_CHARM': return `${targetJa(a.target)}にチャームを付ける`;
