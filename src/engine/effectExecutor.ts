@@ -645,6 +645,13 @@ function resolveDynamicFilter(
       result = lrigColor ? { ...rest, colorExclude: lrigColor } : rest;
     }
   }
+  if (result.colorNotMatchesOpponentLrig) {
+    // 対戦相手のセンタールリグと共通する色を持たない（otherSt が対戦相手の状態）
+    const oppLrigTop = otherSt?.field.lrig.at(-1);
+    const oppLrigColor = oppLrigTop ? cardMap.get(getCardNum(oppLrigTop))?.Color : undefined;
+    const { colorNotMatchesOpponentLrig: _, ...rest } = result;
+    result = oppLrigColor ? { ...rest, colorExclude: oppLrigColor } : rest;
+  }
   if (result.levelLteFieldVirusCount && otherSt) {
     const ownVirus = (ownerSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
     const oppVirus = (otherSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
