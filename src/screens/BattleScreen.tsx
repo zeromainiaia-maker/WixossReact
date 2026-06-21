@@ -337,6 +337,80 @@ function computeArtsEffectiveCost(
   return base;
 }
 
+// LIMIT_ALL_FIELD_N: すべてのプレイヤーのシグニ場出し数上限を継続STUBから算出（WX04-005-E3）。
+// 自分／相手いずれかのセンタールリグが当該STUBを持てば両者に適用。最小値を採用。無ければ3。
+function computeFieldSigniLimit(
+  myState: PlayerState,
+  opState: PlayerState,
+  effMap: Map<string, import('../types/effects').CardEffect[]>,
+  getCardNumFn: (id: string) => string,
+): number {
+  const fromLrig = (state: PlayerState): number | null => {
+    const top = state.field.lrig.at(-1);
+    if (!top) return null;
+    let lim: number | null = null;
+    for (const e of (effMap.get(top) ?? effMap.get(getCardNumFn(top)) ?? [])) {
+      if (e.effectType !== 'CONTINUOUS') continue;
+      const act = e.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB') continue;
+      const mm = act.id.match(/^LIMIT_ALL_FIELD_(\d+)$/);
+      if (mm) { const v = parseInt(mm[1], 10); lim = lim === null ? v : Math.min(lim, v); }
+    }
+    return lim;
+  };
+  const vals = [fromLrig(myState), fromLrig(opState)].filter((x): x is number => x !== null);
+  return vals.length > 0 ? Math.min(...vals) : 3;
+}
+
+// LIMIT_ALL_FIELD_N 補足: 場のシグニを上限 limit 体まで減らす（既に超過なら、レベルの高い順に limit 体を残し
+// 残りはスタックごとトラッシュへ）。WX04-005-E3「（すでに場に２体以上ある場合は１体になるようにシグニをトラッシュに置く）」。
+// 注: ここでは選択UIなしの自動（レベル高優先・同レベルはゾーン順）。ON_LEAVE/ON_TRASH トリガーは未収集（要フォロー）。
+function reduceFieldSigniToLimit(
+  state: PlayerState,
+  limit: number,
+  cardMap: Map<string, CardData>,
+): { state: PlayerState; trashed: string[] } {
+  const zones = state.field.signi
+    .map((stk, zi) => ({ zi, stk: stk ?? [], top: (stk ?? []).at(-1) }))
+    .filter(z => z.stk.length > 0);
+  if (zones.length <= limit) return { state, trashed: [] };
+  const sorted = [...zones].sort((a, b) => {
+    const la = parseInt(cardMap.get(a.top!)?.Level ?? '0') || 0;
+    const lb = parseInt(cardMap.get(b.top!)?.Level ?? '0') || 0;
+    return lb - la; // レベル高い順に残す
+  });
+  const keep = new Set(sorted.slice(0, limit).map(z => z.zi));
+  const newSigni = [...state.field.signi] as (string[] | null)[];
+  const newDown = [...(state.field.signi_down ?? [false, false, false])] as boolean[];
+  const newFrozen = [...(state.field.signi_frozen ?? [false, false, false])] as boolean[];
+  const newCharms = state.field.signi_charms ? [...state.field.signi_charms] as (string | null)[] : undefined;
+  const newAcce = state.field.signi_acce ? [...state.field.signi_acce] as (string | null)[] : undefined;
+  let trash = [...state.trash];
+  const trashed: string[] = [];
+  for (const z of zones) {
+    if (keep.has(z.zi)) continue;
+    trash = [...trash, ...z.stk];
+    if (z.top) trashed.push(z.top);
+    newSigni[z.zi] = null;
+    newDown[z.zi] = false;
+    newFrozen[z.zi] = false;
+    if (newCharms) newCharms[z.zi] = null;
+    if (newAcce) newAcce[z.zi] = null;
+  }
+  return {
+    state: {
+      ...state,
+      field: {
+        ...state.field, signi: newSigni, signi_down: newDown, signi_frozen: newFrozen,
+        ...(newCharms ? { signi_charms: newCharms } : {}),
+        ...(newAcce ? { signi_acce: newAcce } : {}),
+      },
+      trash,
+    },
+    trashed,
+  };
+}
+
 // EffectText から【グロウ】条件テキストを抽出（次の【】の手前まで）
 function extractGrowCondition(effectText?: string): string | null {
   const m = effectText?.match(/【グロウ】([^【]*)/);
@@ -2658,6 +2732,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const my = isHost ? bs.host_state : bs.guest_state;
   const op = isHost ? bs.guest_state : bs.host_state;
   const isMyTurn = bs.active_user_id === user.id;
+  // LIMIT_ALL_FIELD_N: すべてのプレイヤーのシグニ場出し数の上限（WX04-005-E3）。無ければ3。
+  const fieldSigniCountLimit: number = computeFieldSigniLimit(my, op, effectsMap, getCardNum);
   // このフェイズの進行ボタンを自分が持つか
   const iControlThisPhase = NON_TURN_PLAYER_PHASES.includes(bs.turn_phase) ? !isMyTurn : isMyTurn;
 
@@ -5431,6 +5507,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const { state: afterGrowEffect, log: growEffectLog } = applyGrowEffect(growCond, newMyState, battleCardMap);
       newMyState = afterGrowEffect;
       const stateKey = isHost ? 'host_state' : 'guest_state';
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: グロウ先がこの継続効果を持つなら、両者のシグニを上限まで減らす
+      //（「すでに場に２体以上ある場合は１体になるようにシグニをトラッシュに置く」）。
+      const grownFieldLimit = computeFieldSigniLimit(newMyState, op, effectsMap, getCardNum);
+      let opAfterLimit: PlayerState = op;
+      if (grownFieldLimit < 3) {
+        const myRed = reduceFieldSigniToLimit(newMyState, grownFieldLimit, battleCardMap);
+        const opRed = reduceFieldSigniToLimit(op, grownFieldLimit, battleCardMap);
+        newMyState = myRed.state;
+        opAfterLimit = opRed.state;
+        if (myRed.trashed.length > 0 || opRed.trashed.length > 0) {
+          appendBattleLogs([`場出し数制限（上限${grownFieldLimit}体）により超過したシグニをトラッシュに置いた`]);
+        }
+      }
+      const opChangedByLimit = opAfterLimit !== op;
       const cardName = card.CardName;
       const coinLog = coinGain > 0 ? `（コイン+${coinGain}）` : '';
       const logs = [`${cardName}にグロウ${coinLog}`];
@@ -5486,7 +5577,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       if (mandatoryOnPlay.length === 0) {
-        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+        await supabase.from('battle_states')
+          .update({ [stateKey]: newMyState, ...(opChangedByLimit ? { [opKey]: opAfterLimit } : {}) })
+          .eq('room_id', roomId);
         return;
       }
 
@@ -5499,7 +5592,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const existing = bs?.effect_stack ?? null;
       const stack = existing ? pushToStack(existing, entries) : initStack(turnPlayerId, entries);
       await supabase.from('battle_states')
-        .update({ [stateKey]: newMyState, effect_stack: stack, pending_effect: null })
+        .update({ [stateKey]: newMyState, ...(opChangedByLimit ? { [opKey]: opAfterLimit } : {}), effect_stack: stack, pending_effect: null })
         .eq('room_id', roomId);
     } finally {
       setLoading(false);
@@ -6184,7 +6277,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // レベル制限: シグニLv ≤ ルリグLv
         const levelOk = signiLevel <= currentLrigLevel;
         // リミット制限: 空きゾーンに召喚後の合計レベルがリミット以内であること
-        const canFitSomewhere = [0, 1, 2].some(zi => {
+        // ＋ LIMIT_ALL_FIELD_N: 場のシグニ体数が上限未満であること（WX04-005-E3「1体しか場に出せない」）
+        const myCurrentSigniCount = my.field.signi.filter(stk => (stk ?? []).length > 0).length;
+        const canFitSomewhere = myCurrentSigniCount < fieldSigniCountLimit && [0, 1, 2].some(zi => {
           const isEmpty = (my.field.signi[zi] ?? []).length === 0;
           return isEmpty && (fieldSigniTotal + signiLevel) <= lrigLimit;
         });
@@ -8018,6 +8113,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
             coins: Math.min(5, Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu) + coinGainCpu),
           };
+          // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: CPUがこの継続効果を持つルリグにグロウしたら両者を上限まで減らす
+          let cpuGrowHostState = bs.host_state;
+          const cpuGrownFieldLimit = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
+          if (cpuGrownFieldLimit < 3) {
+            const cRed = reduceFieldSigniToLimit(newCpuSt, cpuGrownFieldLimit, battleCardMap);
+            const hRed = reduceFieldSigniToLimit(bs.host_state, cpuGrownFieldLimit, battleCardMap);
+            newCpuSt = cRed.state;
+            cpuGrowHostState = hRed.state;
+            if (cRed.trashed.length > 0 || hRed.trashed.length > 0) {
+              appendBattleLogs([`[CPU] 場出し数制限（上限${cpuGrownFieldLimit}体）で超過シグニをトラッシュに置いた`]);
+            }
+          }
+          const cpuGrowHostChanged = cpuGrowHostState !== bs.host_state;
           // ルリグ【出】効果（対人戦executeGrowと同じ収集）:
           // mandatoryは発火、コインのみのコスト付き任意【出】は支払えるなら支払って発動
           const cpuGrowEntries: StackEntry[] = [];
@@ -8048,11 +8156,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ? pushToStack(existingStackGR, cpuGrowEntries)
               : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuGrowEntries);
             await supabase.from('battle_states')
-              .update({ guest_state: newCpuSt, effect_stack: newStackGR })
+              .update({ guest_state: newCpuSt, ...(cpuGrowHostChanged ? { host_state: cpuGrowHostState } : {}), effect_stack: newStackGR })
               .eq('room_id', roomId);
             return;
           }
-          await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+          await supabase.from('battle_states')
+            .update({ guest_state: newCpuSt, ...(cpuGrowHostChanged ? { host_state: cpuGrowHostState } : {}) })
+            .eq('room_id', roomId);
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
       }
@@ -8091,10 +8201,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let newCpuSt = { ...cpuSt };
       // 配置したシグニの【出】/ON_PLAYトリガー（対人戦handleSummonSigniと同じ収集）
       const cpuOnPlayEntries: StackEntry[] = [];
+      // LIMIT_ALL_FIELD_N: シグニ場出し数の上限（WX04-005-E3）。CPU=guest, 人間=host。
+      const cpuFieldSigniLimit = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
 
       for (let zone = 0; zone < 3; zone++) {
         if ((newCpuSt.field.signi[zone] ?? []).length > 0) continue; // ゾーン埋まってる
         if (handSignis.length === 0) break;
+        // 場出し数上限に達していたら召喚しない
+        if (newCpuSt.field.signi.filter(stk => (stk ?? []).length > 0).length >= cpuFieldSigniLimit) break;
 
         // 召喚できるシグニを探す（リミット内 かつ シグニLv ≤ ルリグLv）
         const candidate = handSignis.find(({ card }) => {

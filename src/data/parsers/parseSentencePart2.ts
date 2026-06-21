@@ -527,6 +527,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
   }
 
+  // ---- すべてのプレイヤーはシグニをN体しか場に出すことができない（既に2体以上なら1体になるよう捨てる）----
+  {
+    const allFieldLimitM = t.match(/すべてのプレイヤーはシグニを([０-９\d]+)体しか場に出すことができない/);
+    if (allFieldLimitM) {
+      return { type: 'STUB', id: `LIMIT_ALL_FIELD_${parseNum(allFieldLimitM[1])}` } as StubAction;
+    }
+  }
+
   // ---- 《レイヤーアイコン》能力コピー ----
   if (t.match(/《レイヤーアイコン》能力.*を得る/)) {
     return { type: 'STUB', id: 'LAYER_ABILITY_COPY' } as StubAction;
