@@ -497,6 +497,10 @@ function evalConditionForContinuous(
       const count = st(cond.owner).energy.length;
       return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
     }
+    case 'ENERGY_HAS_COLOR': {
+      const ez = st(cond.owner).energy;
+      return cond.colors.every(color => ez.some(n => cardMap.get(n)?.Color?.includes(color)));
+    }
     case 'HAS_CARD_IN_FIELD': {
       return st(cond.owner).field.signi.some(stack => {
         if (!stack?.length) return false;
