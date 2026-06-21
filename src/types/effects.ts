@@ -301,7 +301,7 @@ export interface EffectTarget {
     | 'LIFE_CLOTH_CARD'
     | 'PLAYER';
   owner: Owner;
-  count: number | 'ALL';
+  count: number | 'ALL' | { $ref: string }; // $ref='last_processed_count': 直前ステップでトラッシュ/処理した枚数（動的）
   filter?: TargetFilter;
   upToCount?: boolean;   // count > 1 のとき「以上」を許容するか
   blind?: boolean;       // true = 対戦相手の手札を見ないで選ぶ（ランダム選択）
