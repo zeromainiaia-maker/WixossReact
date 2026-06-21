@@ -3441,6 +3441,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // NEXT_TURN場全体付与：予約（next_turn）を次の自分ターン開始時に active へ移動
           field_keyword_grants_active: opState.field_keyword_grants_next_turn,
           field_keyword_grants_next_turn: undefined,
+          // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
+          free_grow_this_turn: opState.free_grow_next_turn ? true : opState.free_grow_this_turn,
+          free_grow_next_turn: undefined,
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
           keyword_grants_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 次の相手ターン終了時（=自分のターン再開時）にクリア
