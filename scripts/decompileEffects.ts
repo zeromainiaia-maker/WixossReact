@@ -297,6 +297,8 @@ function actionJa(a?: Action, effectType?: string): string {
       const reveal = thenSteps.some((s: any) => s?.type === 'REVEAL') ? '公開し' : '';
       const dest = thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える'
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_FIELD') ? '場に出す'
+        : thenSteps.some((s: any) => s?.type === 'TRASH') ? 'トラッシュに置く'
+        : thenSteps.some((s: any) => s?.type === 'ADD_TO_ENERGY' || s?.type === 'ENERGY_CHARGE') ? 'エナゾーンに置く'
         : '処理する';
       return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}を${a.maxCount ? a.maxCount + '枚まで' : ''}探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
