@@ -799,6 +799,7 @@ export interface PlayFreeAction {
   ignoreRestrictions?: boolean;
   optional: boolean;
   costThreshold?: number; // 使用コストの合計の上限（「コストの合計がN以下の〜」WX04-011）
+  useTimingIncludes?: string; // 使用タイミングに含むべきアイコン（「使用タイミングに《メインフェイズアイコン》を含む」WX04-011）
 }
 
 // コスト増加（CONTINUOUS効果で相手のカード使用コストを増やす）

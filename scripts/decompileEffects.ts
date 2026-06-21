@@ -422,9 +422,10 @@ function actionJa(a?: Action, effectType?: string): string {
       };
       const from = typeof a.source === 'string' ? (srcLoc[a.source] ?? a.source) : targetJa(a.source ?? a.target);
       const noun = a.filter?.cardType ? ([] as string[]).concat(a.filter.cardType).join('か') : 'カード';
+      const timingClause = a.useTimingIncludes ? `使用タイミングに《${a.useTimingIncludes}アイコン》を含む` : '';
       const costLim = a.costThreshold != null ? `コストの合計が${a.costThreshold}以下の` : '';
       const restr = a.ignoreRestrictions ? '（限定条件を無視して）' : '';
-      return `${from}から${costLim}${filterJa(a.filter)}${noun}1枚を${restr}コストを支払わずに使用する`;
+      return `${from}から${timingClause}${costLim}${filterJa(a.filter)}${noun}1枚を${restr}コストを支払わずに使用する`;
     }
     case 'PLAY_FREE_FROM_TRASH': return 'トラッシュからコストを支払わずに場に出す';
     case 'BANISH_REDIRECT': return '対戦相手のシグニのバニッシュ先をトラッシュに変更する';

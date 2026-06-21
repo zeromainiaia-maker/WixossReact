@@ -2171,6 +2171,10 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
       return total <= a.costThreshold!;
     });
   }
+  // useTimingIncludes: 使用タイミングに指定アイコンを含むカードに限定（WX04-011「使用タイミングに《メインフェイズアイコン》を含む」）
+  if (a.useTimingIncludes) {
+    cands = cands.filter(n => (ctx.cardMap.get(n)?.Timing ?? '').includes(a.useTimingIncludes!));
+  }
 
   if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 対象なし'));
 
