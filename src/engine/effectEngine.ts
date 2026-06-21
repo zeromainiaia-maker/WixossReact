@@ -51,7 +51,8 @@ export function checkActiveCondition(
       const targets = (cond.excludeSelf && sourceCardNum)
         ? fieldNums.filter(n => n !== sourceCardNum)
         : fieldNums;
-      return targets.some(num => matchesFilter(cardMap.get(num), cond.filter));
+      const matched = targets.filter(num => matchesFilter(cardMap.get(num), cond.filter)).length;
+      return matched >= (cond.minCount ?? 1);
     }
 
     case 'COUNT_THRESHOLD': {
