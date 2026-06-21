@@ -254,6 +254,7 @@ export interface TargetFilter {
   powerRange?: { min?: number; max?: number };
   story?:     string | string[];  // Dissona専用。シグニクラスには cardClass を使う
   cardClass?: string | string[]; // ＜クラス＞フィルター（CSVのCardClassフィールドに対してincludesでマッチ）
+  cardClassExclude?: string | string[]; // ＜クラス＞除外（「＜天使＞ではないシグニ」等。CardClassにincludesでマッチしたら除外）WX03-002
   hasGuard?:  boolean;
   isDown?:    boolean;
   isUp?:      boolean; // アップ状態（ダウンしていない）

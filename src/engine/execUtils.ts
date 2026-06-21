@@ -190,6 +190,11 @@ export function matchesFilter(
     const effectiveClass = classOverride ?? allZoneClassOverrides?.[card.CardNum ?? ''] ?? card.CardClass ?? '';
     if (!classes.some(c => effectiveClass.includes(c))) return false;
   }
+  if (filter.cardClassExclude) {
+    const exClasses = Array.isArray(filter.cardClassExclude) ? filter.cardClassExclude : [filter.cardClassExclude];
+    const effectiveClass = classOverride ?? allZoneClassOverrides?.[card.CardNum ?? ''] ?? card.CardClass ?? '';
+    if (exClasses.some(c => effectiveClass.includes(c))) return false;
+  }
   if (filter.cardName && !card.CardName?.includes(filter.cardName)) return false;
   if (filter.cardNames && !filter.cardNames.includes(card.CardName ?? '')) return false;
   if (filter.excludeCardName && card.CardName === filter.excludeCardName) return false;

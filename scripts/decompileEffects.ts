@@ -74,6 +74,7 @@ function filterJa(f?: any): string {
   if (f.color) parts.push(`《${[].concat(f.color).join('・')}》の`);
   if (f.colorExclude) parts.push(`《${[].concat(f.colorExclude).join('・')}》以外の`);
   if (f.cardClass) parts.push(`＜${[].concat(f.cardClass).join('・')}＞の`);
+  if (f.cardClassExclude) parts.push(`＜${[].concat(f.cardClassExclude).join('・')}＞ではない`);
   if (f.story) parts.push(`＜${[].concat(f.story).join('・')}＞の`);
   if (f.cardName) parts.push(`《${f.cardName}》`);
   if (f.excludeCardName) parts.push(`《${f.excludeCardName}》以外の`);
