@@ -267,6 +267,9 @@ export interface PlayerState {
   banish_to_trash_by_self?: string[];
   // GROW_COST_ZERO / CONDITIONAL_FREE_GROW: 次のグロウコストを0にする
   free_grow_this_turn?: boolean;
+  // THIS_CARD_FROM_TRASH: トラッシュから場に出したシグニのインスタンスID。直後の【出】効果で
+  // 「このシグニがトラッシュから場に出た場合」条件の判定に使う（WX03-034）。ターン開始時にクリア。
+  signi_played_from_trash?: string[];
   // FREE_GROW_NEXT_TURN: 次の自分ターンのグロウコストを0にする予約（WX03-024-BURST）。
   // 自分ターン開始時に free_grow_this_turn へ移される。
   free_grow_next_turn?: boolean;
