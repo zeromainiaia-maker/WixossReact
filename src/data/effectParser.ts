@@ -1307,6 +1307,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('場を離れたとき') ? ['ON_LEAVE_FIELD']
              : actionText.match(/(?:(?:手札か)?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
+             : actionText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
+             : actionText.match(/あなたのエナゾーンに[^、。]*置かれたとき/) ? ['ON_ENERGY_CHARGE']
              : actionText.match(/このカードが.{0,40}手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
              : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
