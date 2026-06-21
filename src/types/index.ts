@@ -393,6 +393,8 @@ export type PendingInteractionDef =
       thenAction: EffectAction;   // 選択後に実行するアクション（各カードに適用）
       continuation?: EffectAction;
       opponentResponds?: boolean; // true = 相手プレイヤーが選択するインタラクション（例:「対戦相手は手札を1枚捨てる」）
+      totalPowerMax?: number;     // 「パワーの合計がN以下になるように好きな数」: 選択カードの実効パワー合計の上限
+      candidatePowers?: Record<string, number>; // 各候補の実効パワー（totalPowerMax 判定・UI用）
     }
   | {
       type: 'SEARCH';
