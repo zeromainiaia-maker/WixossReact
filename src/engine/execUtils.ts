@@ -634,6 +634,17 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }
       return levels.size >= cond.count;
     }
+    case 'TRASHED_STORY_COUNT_GTE': {
+      // この方法でトラッシュしたシグニ(lastProcessedCards)のうち、＜story＞クラスが cond.count 体以上か（WX03-021）
+      const processedTS = ctx.lastProcessedCards ?? [];
+      let nTS = 0;
+      for (const cn of processedTS) {
+        const c = ctx.cardMap.get(cn);
+        if (c?.Type !== 'シグニ') continue;
+        if (c.CardClass?.includes(cond.story)) nTS++;
+      }
+      return nTS >= cond.count;
+    }
     case 'TRASH_COUNT':
       return cmp(st(cond.owner).trash.length, cond.operator, cond.value);
     case 'LAST_PROCESSED_HAS_BURST': {
