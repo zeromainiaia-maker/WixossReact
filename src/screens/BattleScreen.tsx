@@ -8795,7 +8795,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ起動効果を実行（コスト支払い後）
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set()) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set()) => {
     if (loading) return;
     // down_self コストは、対象シグニが既にダウンしていると支払えない（多重発動防止）
     if (effect.cost?.down_self) {
