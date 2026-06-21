@@ -1001,6 +1001,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const logScrollRef = useRef<HTMLDivElement>(null);
   const prevPhaseRef = useRef<string | null>(null);
   const prevTurnRef  = useRef<number | null>(null);
+  // ON_ENERGY_CHARGE / ON_POWER_THRESHOLD 検知用スナップショット（前回観測時のエナ・パワー）
+  const prevEnergyRef = useRef<{ host: string[]; guest: string[] } | null>(null);
+  const prevPowersRef = useRef<Map<string, number> | null>(null);
   // Realtime で受け取った game_logs をローカル state に同期
   const prevGameLogsLenRef = useRef<number>(0);
   // defer: true のログを main update 後に一括 flush するバッファ
