@@ -8809,6 +8809,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSigniActivatedDiscardVar(new Set());
     setSelectedSigniActivatedEnergyTrash(new Set());
     setSelectedSigniActivatedTrashExile(new Set());
+    setSelectedSigniActivatedFieldTrash(new Set());
     setSigniActCharmTrashVar(0);
     setKeySubstituteEnabled(false);
     try {
