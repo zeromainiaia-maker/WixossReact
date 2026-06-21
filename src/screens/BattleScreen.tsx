@@ -9734,6 +9734,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         !isCharmActivateBlocked &&
         !(e.cost?.down_self && isAlreadyDown) &&
         !(e.cost?.discard && handCount < e.cost.discard) &&
+        // fieldTrash: 場からトラッシュ可能なシグニ（excludeSelf=自身を除く）が必要数いないと支払えない
+        !(e.cost?.fieldTrash && [0, 1, 2].filter(zi => {
+          const ftTop = my.field.signi[zi]?.at(-1);
+          if (!ftTop) return false;
+          if (e.cost!.fieldTrash!.excludeSelf && zi === rawZoneIdx) return false;
+          return !e.cost!.fieldTrash!.filter || matchesFilter(battleCardMap.get(getCardNum(ftTop)), e.cost!.fieldTrash!.filter);
+        }).length < e.cost.fieldTrash.count) &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
       );
       if (activatable.length === 0) return [];
