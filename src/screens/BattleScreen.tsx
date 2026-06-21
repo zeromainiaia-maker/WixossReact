@@ -5084,13 +5084,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // 召喚したカード自身の ON_PLAY 効果
       const ownEffects = effectsMap.get(cardNum) ?? [];
+      // 手札からの召喚は「トラッシュから場に出た」に該当しないため、THIS_CARD_FROM_TRASH 条件付き【出】は発火させない（WX03-034-E1）
+      const involvesFromTrash = (c?: import('../types/effects').Condition): boolean =>
+        !!c && (c.type === 'THIS_CARD_FROM_TRASH' || (c.type === 'AND' && c.conditions.some(involvesFromTrash)));
       const ownOnPlay = ownEffects.filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
         (e.triggerScope === undefined || e.triggerScope === 'self') &&
         e.mandatory !== false &&
         // activeCondition（英知=N等）を満たさない【出】は発火しない
-        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, true, battleCardMap, cardNum)),
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, true, battleCardMap, cardNum)) &&
+        // THIS_CARD_FROM_TRASH 条件のみ収集時に評価（手札召喚では false）
+        (!involvesFromTrash(e.condition) || evalUseCondition(e.condition!, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
       );
       // コスト付き任意【出】効果（mandatory: false + cost あり）
       const ownCostOnPlay = ownEffects.filter(e =>
