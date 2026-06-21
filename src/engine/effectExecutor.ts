@@ -226,6 +226,18 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
+  // totalPowerMax: 「パワーの合計がN以下になるように好きな数」→ 合計パワー制限つき複数選択
+  if (tgt.totalPowerMax !== undefined) {
+    if (cands.length === 0) return done(ctx);
+    const candidatePowers: Record<string, number> = {};
+    for (const n of cands) {
+      candidatePowers[n] = ctx.effectivePowers?.get(n) ?? parseInt(ctx.cardMap.get(n)?.Power ?? '0', 10);
+    }
+    return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false, {
+      totalPowerMax: tgt.totalPowerMax,
+      candidatePowers,
+    });
+  }
   if (tgt.count === 'ALL') return done(applyBanish(cands, ctx));
   const count = resolveNum(tgt.count);
   return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx);
