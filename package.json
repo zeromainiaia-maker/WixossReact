@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -b --noEmit",
-    "build:effects": "tsx scripts/buildEffectsJson.ts",
+    "build:effects": "tsx scripts/buildEffectsJson.ts && node scripts/fixLrigColorFilters.mjs",
     "verify": "tsx scripts/verifyEffects.ts",
     "lint": "eslint .",
     "preview": "vite preview"
