@@ -184,6 +184,7 @@ function condJa(c?: any): string {
     case 'LRIG_TRASH_COUNT': return `ルリグトラッシュに${c.cardType ? c.cardType : ''}が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'SUBSCRIBER_COUNT': return `登録者数が${numJa(c.value)}万${opJa(c.operator)}`;
     case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}以上`;
+    case 'THIS_CARD_FROM_TRASH': return 'このシグニがトラッシュから場に出た';
     case 'FIELD_SIGNI_POWER_COUNT': return `${ownerJa(c.owner)}場にパワー${c.minPower}以上のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'LIFE_COMPARE_OPP': return `自分のライフが対戦相手${opJa(c.operator)}`;
     case 'DURING_PHASE': return `${(c.phases || []).join('/')}フェイズの間`;
