@@ -4867,14 +4867,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any' && scope !== 'any_opp') continue;
+        // triggerFilter: 「対戦相手の＜X＞のシグニがアタックしたとき」等、トリガー元カードの絞り込み
+        if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
           playerId: opId,
           cardNum: topNum,
           effectId: eff.effectId,
-          label: `${cardName} の【自】効果（シグニ召喚時）`,
+          label: `${cardName} の【自】効果（相手シグニアタック時）`,
           effect: eff,
+          triggeringCardNum,
         });
       }
     }
