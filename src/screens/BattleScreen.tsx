@@ -14164,6 +14164,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                               if (prev.includes(idxStr)) {
                                 return prev.filter(x => x !== idxStr);
                               }
+                              // パワー合計上限つき：加えると上限を超える候補は選択不可
+                              if (inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined) {
+                                const curSum = prev.reduce((s, i) => {
+                                  const rid = sortedCandidates[parseInt(i, 10)];
+                                  return s + (rid !== undefined ? (inter.candidatePowers?.[rid] ?? 0) : 0);
+                                }, 0);
+                                const addP = inter.candidatePowers?.[rawId] ?? 0;
+                                if (curSum + addP > inter.totalPowerMax) return prev;
+                                return [...prev, idxStr];
+                              }
                               if (prev.length >= maxPick) return prev;
                               return [...prev, idxStr];
                             });
