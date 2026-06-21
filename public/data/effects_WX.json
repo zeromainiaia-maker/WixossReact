@@ -10469,13 +10469,13 @@
               "type": "SIGNI",
               "owner": "opponent",
               "count": 1,
+              "upToCount": false,
               "filter": {
                 "cardType": "シグニ",
                 "powerRange": {
                   "max": 10000
                 }
-              },
-              "upToCount": false
+              }
             }
           },
           {
@@ -10496,7 +10496,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-032-BURST",
@@ -10516,25 +10516,34 @@
             }
           },
           {
-            "type": "BANISH",
-            "target": {
-              "type": "SIGNI",
+            "type": "CONDITIONAL",
+            "condition": {
+              "type": "ENERGY_COUNT",
               "owner": "opponent",
-              "count": 1,
-              "filter": {
-                "cardType": "シグニ",
-                "powerRange": {
-                  "max": 10000
+              "operator": "lte",
+              "value": 4
+            },
+            "then": {
+              "type": "BANISH",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "upToCount": false,
+                "filter": {
+                  "cardType": "シグニ",
+                  "powerRange": {
+                    "max": 10000
+                  }
                 }
-              },
-              "upToCount": false
+              }
             }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-033": [

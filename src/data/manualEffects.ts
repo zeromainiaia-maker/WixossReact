@@ -314,6 +314,55 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX04-033 羅原姫 Ne（シグニ）
+  // E1（COST_INCREASE）/E3（fieldDownコスト＋バニッシュ）は正しい。配列丸ごと上書きのため再掲。
+  //   ※E3 の fieldDown コストはエンジン側で支払い・発動可否を実装（従来は未処理＝タダ撃ちだった。12カード共通の修正）。
+  // E2「あなたがスペルを使用したとき、ターン終了時まで、あなたのすべての＜原子＞シグニ+2000」
+  //   旧パース誤り: timing が ON_TURN_END（本文「ターン終了時まで」を誤検出）＋対象 owner:any/count:1。正: ON_SPELL_USE・自分の全＜原子＞シグニ。
+  // BURST「カードを1枚引く。その後、あなたの場に＜原子＞のシグニがある場合、対戦相手のシグニ1体をバニッシュする」
+  //   旧パース誤り: ＜原子＞条件をバニッシュ対象に取り違え（無条件で相手の＜原子＞シグニをバニッシュ）。正: 場に＜原子＞がある場合に相手シグニ1体をバニッシュ。
+  'WX04-033': [
+    {
+      effectId: 'WX04-033-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'COST_INCREASE', targetCardType: 'スペル', targetOwner: 'opponent', amount: [{ color: '無', count: 1 }], duration: 'PERMANENT' },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX04-033-E2',
+      effectType: 'AUTO',
+      timing: ['ON_SPELL_USE'],
+      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', story: '原子' } }, delta: 2000 },
+      duration: 'UNTIL_END_OF_TURN',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX04-033-E3',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { fieldDown: { count: 2, filter: { cardType: 'シグニ', isUp: true, story: '原子' } } },
+      action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+    {
+      effectId: 'WX04-033-BURST',
+      effectType: 'LIFE_BURST',
+      timing: ['ON_LIFE_BURST'],
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'DRAW', owner: 'self', count: 1 },
+        { type: 'CONDITIONAL', condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: '原子' } }, then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
 
   // WD02-007 背炎之陣（アーツ）
   // 「手札を３枚捨てる。そうした場合、すべてのシグニをバニッシュする。（あなたのシグニも含まれる）」
