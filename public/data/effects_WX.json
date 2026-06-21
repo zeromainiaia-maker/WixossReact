@@ -10681,61 +10681,147 @@
         ]
       },
       "action": {
-        "type": "SEQUENCE",
-        "steps": [
+        "type": "CHOOSE",
+        "choose_count": 1,
+        "from_count": 3,
+        "choices": [
           {
-            "type": "BANISH",
-            "target": {
-              "type": "SIGNI",
+            "choiceId": "c0",
+            "label": "＜原子＞2枚捨て→相手シグニ1体バニッシュ",
+            "condition": {
+              "type": "HAND_COUNT_FILTER",
               "owner": "self",
-              "count": 1,
               "filter": {
-                "cardType": "シグニ"
+                "cardType": "シグニ",
+                "story": "原子"
               },
-              "upToCount": false
+              "operator": "gte",
+              "value": 2,
+              "distinctName": true
+            },
+            "action": {
+              "type": "SEQUENCE",
+              "steps": [
+                {
+                  "type": "TRASH",
+                  "target": {
+                    "type": "HAND_CARD",
+                    "owner": "self",
+                    "count": 2,
+                    "filter": {
+                      "cardType": "シグニ",
+                      "story": "原子"
+                    }
+                  }
+                },
+                {
+                  "type": "BANISH",
+                  "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 1,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "シグニ"
+                    }
+                  }
+                }
+              ]
             }
           },
           {
-            "type": "CONDITIONAL",
+            "choiceId": "c1",
+            "label": "＜原子＞4枚捨て→相手シグニ2体バニッシュ",
             "condition": {
-              "type": "IS_MY_TURN"
+              "type": "HAND_COUNT_FILTER",
+              "owner": "self",
+              "filter": {
+                "cardType": "シグニ",
+                "story": "原子"
+              },
+              "operator": "gte",
+              "value": 4,
+              "distinctName": true
             },
-            "then": {
-              "type": "BANISH",
-              "target": {
-                "type": "SIGNI",
-                "owner": "self",
-                "count": 1,
-                "filter": {
-                  "cardType": "シグニ"
+            "action": {
+              "type": "SEQUENCE",
+              "steps": [
+                {
+                  "type": "TRASH",
+                  "target": {
+                    "type": "HAND_CARD",
+                    "owner": "self",
+                    "count": 4,
+                    "filter": {
+                      "cardType": "シグニ",
+                      "story": "原子"
+                    }
+                  }
                 },
-                "upToCount": false
-              }
+                {
+                  "type": "BANISH",
+                  "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 2,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "シグニ"
+                    }
+                  }
+                }
+              ]
             }
           },
           {
-            "type": "CONDITIONAL",
+            "choiceId": "c2",
+            "label": "＜原子＞6枚捨て→相手シグニ3体バニッシュ",
             "condition": {
-              "type": "IS_MY_TURN"
+              "type": "HAND_COUNT_FILTER",
+              "owner": "self",
+              "filter": {
+                "cardType": "シグニ",
+                "story": "原子"
+              },
+              "operator": "gte",
+              "value": 6,
+              "distinctName": true
             },
-            "then": {
-              "type": "BANISH",
-              "target": {
-                "type": "SIGNI",
-                "owner": "self",
-                "count": 1,
-                "filter": {
-                  "cardType": "シグニ"
+            "action": {
+              "type": "SEQUENCE",
+              "steps": [
+                {
+                  "type": "TRASH",
+                  "target": {
+                    "type": "HAND_CARD",
+                    "owner": "self",
+                    "count": 6,
+                    "filter": {
+                      "cardType": "シグニ",
+                      "story": "原子"
+                    }
+                  }
                 },
-                "upToCount": false
-              }
+                {
+                  "type": "BANISH",
+                  "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 3,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "シグニ"
+                    }
+                  }
+                }
+              ]
             }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-035": [
