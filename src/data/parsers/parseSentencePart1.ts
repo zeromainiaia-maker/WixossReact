@@ -142,16 +142,22 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'GROW_FREE', levelFilter: 'same' } as GrowFreeAction;
   }
 
-  // ---- グロウコスト減少（ルリグ対象）----
+  // ---- グロウコスト減少／0化（ルリグ対象）----
   if (t.match(/グロウコストは.*になる/)) {
     const costs = parseEnergyCosts(t);
-    const dur = t.includes('次のあなたのターン') ? 'NEXT_TURN' : 'PERMANENT';
+    const totalCount = costs.reduce((s, c) => s + c.count, 0);
+    const isNextTurn = t.includes('次のあなたのターン');
+    // 「グロウコストは《無×0》になる」= グロウコストが0になる（実質フリーグロウ）。
+    // 「減る（reduction）」ではなく「0にセット」なので専用STUBで表現する（WX03-024-BURST等）。
+    if (totalCount === 0) {
+      return { type: 'STUB', id: isNextTurn ? 'FREE_GROW_NEXT_TURN' : 'GROW_COST_ZERO', raw: t } as StubAction;
+    }
     return {
       type: 'COST_REDUCTION',
       targetCardType: 'ルリグ',
-      reduction: costs.length > 0 ? costs : [{ color: '無', count: 0 }],
+      reduction: costs,
       isGrowCost: true,
-      duration: dur,
+      duration: isNextTurn ? 'NEXT_TURN' : 'PERMANENT',
     } as CostReductionAction;
   }
 
