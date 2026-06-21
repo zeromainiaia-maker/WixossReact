@@ -3645,7 +3645,12 @@ export function execStubPart2(
         // 相手トラッシュから削除（手札にあるかのように使用するため自トラッシュには加えない）
         stateOtherAfterPF = { ...stateOtherAfterPF, trash: stateOtherAfterPF.trash.filter(c => c !== cnPF) };
       } else if (cardPF.Type === 'スペル') {
-        stateAfterPF = { ...stateAfterPF, trash: [...stateAfterPF.trash, cnPF], hand: stateAfterPF.hand.filter(c => c !== cnPF) };
+        // カードの現在位置で移動先を判定（自手札→自トラッシュ / 相手手札から借用→持ち主＝相手のトラッシュ）
+        if (stateOtherAfterPF.hand.includes(cnPF)) {
+          stateOtherAfterPF = { ...stateOtherAfterPF, hand: stateOtherAfterPF.hand.filter(c => c !== cnPF), trash: [...stateOtherAfterPF.trash, cnPF] };
+        } else {
+          stateAfterPF = { ...stateAfterPF, trash: [...stateAfterPF.trash, cnPF], hand: stateAfterPF.hand.filter(c => c !== cnPF) };
+        }
       }
       const execCtxPF = { ...newCtxPF, ownerState: stateAfterPF, otherState: stateOtherAfterPF };
       const resPF = exec(mainEffPF.action, addLog(execCtxPF, `${cardPF.CardName}をコストなしで使用`));

@@ -2162,12 +2162,19 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
 
   if (cands.length === 0) return done(addLog(ctx, 'PlayFree: 対象なし'));
 
-  // BattleScreen
+  // opp_hand: 相手の手札から選んだスペルを「あなたの手札にあるかのように」コストなしで使用する（WX04-003）。
+  // STUB 'PLAY_FREE' が選択カードの主効果を実際に実行し、使用後は持ち主（相手）のトラッシュへ送る。
+  // その他のソース（self hand / opp_trash / lrig_deck）は従来どおりのプレースホルダー（暫定）。
+  const thenAction: EffectAction = a.source === 'opp_hand'
+    ? ({ type: 'STUB', id: 'PLAY_FREE' } as StubAction)
+    : ({ type: 'ADD_TO_HAND', owner: 'self' } as EffectAction);
+
+  // SEARCH は0枚選択で確定でき、「使用してもよい」（辞退）に対応する
   return needsInteraction(ctx, {
     type: 'SEARCH',
     visibleCards: cands,
     maxPick: 1,
-    thenAction: { type: 'ADD_TO_HAND', owner: 'self' }, // プレースホルダー
+    thenAction,
   });
 }
 
