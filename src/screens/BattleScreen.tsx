@@ -5,7 +5,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes} from '../engine/effectEngine';
-import { executeEffect, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -81,7 +81,9 @@ function assignGuestInstanceIds(cards: string[]): string[] {
 }
 
 // リフレッシュ: トラッシュ全枚数をデッキに加えシャッフル。ライフがあれば一番上をトラッシュへ（バーストなし）。
+// ルール：トラッシュが空の場合はリフレッシュしない（保留）。発動時はリフレッシュ回数を加算する。
 function applyRefresh(state: PlayerState, preventLifeToTrash = false): PlayerState {
+  if (state.trash.length === 0) return state; // トラッシュ空＝リフレッシュ保留（行わない）
   const newDeck = shuffle([...state.trash]);
   const topLife = (!preventLifeToTrash && state.life_cloth.length > 0) ? state.life_cloth[state.life_cloth.length - 1] : null;
   return {
@@ -89,11 +91,12 @@ function applyRefresh(state: PlayerState, preventLifeToTrash = false): PlayerSta
     deck:       newDeck,
     trash:      preventLifeToTrash ? state.trash : (topLife ? [topLife] : []),
     life_cloth: (!preventLifeToTrash && topLife) ? state.life_cloth.slice(0, -1) : state.life_cloth,
+    refresh_count_this_turn: (state.refresh_count_this_turn ?? 0) + 1,
   };
 }
 
 // ドロー処理（リフレッシュ対応）。
-// デッキ枚数が不足した場合: 残り全枚数をドロー → リフレッシュ → そこで停止（追加ドローは行わない）。
+// デッキ枚数が不足、またはドローでデッキがちょうど0枚になった場合: リフレッシュする（トラッシュが空なら保留）。
 function drawCards(state: PlayerState, count: number, preventLifeToTrash = false): PlayerState {
   if (count <= 0) return state;
   const canDraw = Math.min(count, state.deck.length);
@@ -102,7 +105,8 @@ function drawCards(state: PlayerState, count: number, preventLifeToTrash = false
     hand: [...state.hand, ...state.deck.slice(0, canDraw)],
     deck: state.deck.slice(canDraw),
   };
-  return canDraw < count ? applyRefresh(drew, preventLifeToTrash) : drew;
+  // デッキが0枚になったらリフレッシュ（過剰ドロー時も、ちょうど0枚になった時も）
+  return drew.deck.length === 0 ? applyRefresh(drew, preventLifeToTrash) : drew;
 }
 
 function jankenWinner(h: string, g: string, hostId: string, guestId: string): string | null {
@@ -3360,9 +3364,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             (e.action as import('../types/effects').StubAction).id === 'PREVENT_LIFE_REFRESH_TRASH',
           );
         });
+        // ターン開始時にリフレッシュ回数をリセット（ドローによるリフレッシュはこのターン分としてカウント）
         newMyState = drawBlocked
-          ? { ...my, actions_done: [], draw_limit: undefined }
-          : { ...drawCards(my, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined };
+          ? { ...my, refresh_count_this_turn: 0, actions_done: [], draw_limit: undefined }
+          : { ...drawCards({ ...my, refresh_count_this_turn: 0 }, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined };
         // UPKEEP_OR_NO_UP: コストを支払ったらアップ、そうでなければダウンのままクリア
         if (newMyState.lrig_upkeep_condition) {
           if (upkeepPay) {
@@ -4165,6 +4170,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const declaredCardMap1 = applyDeclaredZoneClassOverride(battleCardMap, ownerStateForCtx, otherState);
       const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, triggeringCardNum: entry.triggeringCardNum, otherProtectedZones, otherProtectedSigniNums, otherDownProtectedNums, otherBounceProtectedNums, otherBanishProtectedNums, otherTrashFieldProtectedNums, otherAbilityGainProtectedNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
       let result = executeEffect(entry.effect, ctx);
+      // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
+      {
+        const refreshed = applyRefreshOnDone(result, battleCardMap);
+        if (refreshed !== result) {
+          const turnPlayerIsOwner = entry.playerId === bs.active_user_id;
+          const turnPlayerRefreshed = turnPlayerIsOwner ? refreshed.ownerRefreshed : refreshed.otherRefreshed;
+          const turnPlayerCount = (turnPlayerIsOwner ? refreshed.ownerState : refreshed.otherState).refresh_count_this_turn ?? 0;
+          result = (turnPlayerRefreshed && turnPlayerCount >= 2 && refreshed.done)
+            ? { ...refreshed, forceEndTurn: true }
+            : refreshed;
+        }
+      }
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       // FORCE_TARGET_SELF: opp_field SELECT_TARGETで強制対象シグニが候補にある場合、候補を絞る
@@ -4531,6 +4548,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         return;
       }
+      // デッキ0枚→リフレッシュ（インタラクション解決後）。
+      result = applyRefreshOnDone(result, battleCardMap);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -4665,7 +4684,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const declaredCardMap3 = applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
-      const result = resumeSelectZone(zoneIndex, inter, ctx);
+      let result = resumeSelectZone(zoneIndex, inter, ctx);
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -4706,7 +4726,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const declaredCardMap5 = applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
-      const result = resumeSelectSigniZone(zoneIndex, inter, ctx);
+      let result = resumeSelectSigniZone(zoneIndex, inter, ctx);
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -4747,7 +4768,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const declaredCardMap4 = applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
-      const result = resumeSelectVirusZone(zoneIndex, inter, ctx);
+      let result = resumeSelectVirusZone(zoneIndex, inter, ctx);
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -6078,7 +6100,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(resolved, nonCasterState, effectsMap);
       const spellDeclaredCardMap = applyDeclaredZoneClassOverride(battleCardMap, resolved, nonCasterState);
       const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums };
-      const result = executeEffect(spellEff, ctx);
+      let result = executeEffect(spellEff, ctx);
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペル解決後）
       if (result.logs.length > 0) appendBattleLogs(result.logs);
       // ON_SPELL_USE: スペル使用時トリガー（自分ターンのみ）。
       // ルリグ（WX25-P2-034 APEX2「あなたがスペルを使用したとき」）に加え、場のシグニ（WX01-033 幻獣神オサキ
@@ -6255,7 +6278,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cutinDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(cutinPaid, newCasterState, effectsMap);
       const cutinDeclaredCardMap = applyDeclaredZoneClassOverride(battleCardMap, cutinPaid, newCasterState);
       const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: cutinDeclaredCardMap, logs: [], effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId, allColorSigniNums: cutinAllColorSigniNums, fieldSigniExtraColors: cutinExtraColors, deckTrashLevel1Nums: cutinDeckTrashLevel1Nums };
-      const result = executeEffect(cutinEff, ctx);
+      let result = executeEffect(cutinEff, ctx);
+      result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペルカットイン解決後）
       if (result.logs.length > 0) appendBattleLogs(result.logs);
       // myがhost/guestに応じてマッピング
       const hostState  = isHost ? result.ownerState : result.otherState;

@@ -101,6 +101,7 @@ export interface PlayerState {
     heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み
   };
   actions_done?: string[];      // このターンに使用済みのアクション（ターン開始時にリセット）
+  refresh_count_this_turn?: number; // このターン中にこのプレイヤーが行ったリフレッシュ回数（ターン開始時にリセット。ターンプレイヤーが2回目でターン終了）
   game_actions_done?: string[]; // ゲーム通じて使用済みのアクション（once_per_game追跡、ターンリセット対象外）
   last_activated_discard_count?: number; // 直前【起】コスト支払いで捨てた合計枚数（手札+エナ）。ACTIVATED_DISCARD_COUNT_GTE条件用
   last_energy_trash_color_count?: number; // 直前コスト(energyTrashColorAll)でエナからトラッシュした指定色カードの枚数。ENERGY_TRASH_COLOR_COUNT_GTE条件用（WX04-002-E2「この方法で赤が3枚以上」）

@@ -73,23 +73,15 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
   const canDraw = Math.min(count, state.deck.length);
-  let s: PlayerState = {
+  const s: PlayerState = {
     ...state,
     hand: [...state.hand, ...state.deck.slice(0, canDraw)],
     deck: state.deck.slice(canDraw),
     // このターンに効果で引いた累計枚数（CARDS_DRAWN_BY_EFFECT 条件用）。ドローフェイズのドローは drawCards 経由でここを通らない。
     cards_drawn_by_effect_this_turn: (state.cards_drawn_by_effect_this_turn ?? 0) + canDraw,
   };
-  // リフレッシュ: トラッシュ0枚でも発生し、ライフクロスの一番上をトラッシュに置く（BattleScreen.applyRefresh と同一仕様）
-  if (canDraw < count) {
-    const topLife = s.life_cloth.at(-1) ?? null;
-    s = {
-      ...s,
-      deck: shuffle([...s.trash]),
-      trash: topLife ? [topLife] : [],
-      life_cloth: topLife ? s.life_cloth.slice(0, -1) : s.life_cloth,
-    };
-  }
+  // リフレッシュはここでは行わず、効果解決後（result.done）の applyRefreshOnDone に集約する
+  // （ルール：効果解決中はデッキ0のまま可能な限り解決し、その後リフレッシュ）。
   return done(addLog(setOwnerState(a.owner, s, ctx), `${count}枚ドロー`));
 }
 
@@ -3073,6 +3065,51 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
 
 export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
   return executeAction(effect.action, ctx);
+}
+
+// デッキが0枚（かつトラッシュにカードあり）のプレイヤーをリフレッシュする。
+// ルール：メインデッキが0枚になったらトラッシュをシャッフルして新デッキとし、
+// ライフクロスがあれば一番上を1枚トラッシュへ（バーストなし）。トラッシュが空ならリフレッシュしない（保留）。
+// 場に PREVENT_LIFE_REFRESH_TRASH があればライフをトラッシュに置かない。
+function refreshPlayerIfDeckEmpty(
+  st: PlayerState,
+  cardMap: Map<string, import('../types').CardData>,
+): { state: PlayerState; refreshed: boolean } {
+  if (st.deck.length > 0 || st.trash.length === 0) return { state: st, refreshed: false };
+  const preventLifeToTrash = st.field.signi.some(stack => {
+    const top = stack?.at(-1);
+    return !!top && (cardMap.get(top)?.effects ?? []).some(e =>
+      e.effectType === 'CONTINUOUS'
+      && e.action?.type === 'STUB'
+      && (e.action as import('../types/effects').StubAction).id === 'PREVENT_LIFE_REFRESH_TRASH');
+  });
+  const topLife = (!preventLifeToTrash && st.life_cloth.length > 0) ? st.life_cloth[st.life_cloth.length - 1] : null;
+  return {
+    state: {
+      ...st,
+      deck: shuffle([...st.trash]),
+      trash: preventLifeToTrash ? st.trash : (topLife ? [topLife] : []),
+      life_cloth: (!preventLifeToTrash && topLife) ? st.life_cloth.slice(0, -1) : st.life_cloth,
+      refresh_count_this_turn: (st.refresh_count_this_turn ?? 0) + 1,
+    },
+    refreshed: true,
+  };
+}
+
+// 効果解決完了時（result.done）に、デッキが0枚になった両プレイヤーをリフレッシュする。
+// 戻り値に owner/other がリフレッシュされたかを含める（ターンプレイヤーの2回目→ターン終了の判定用）。
+export function applyRefreshOnDone(
+  result: ExecResult,
+  cardMap: Map<string, import('../types').CardData>,
+): ExecResult & { ownerRefreshed?: boolean; otherRefreshed?: boolean } {
+  if (!result.done) return result;
+  const o = refreshPlayerIfDeckEmpty(result.ownerState, cardMap);
+  const t = refreshPlayerIfDeckEmpty(result.otherState, cardMap);
+  if (!o.refreshed && !t.refreshed) return result;
+  const logs = [...result.logs];
+  if (o.refreshed) logs.push('リフレッシュ（デッキを再構築）');
+  if (t.refreshed) logs.push('相手リフレッシュ（デッキを再構築）');
+  return { ...result, ownerState: o.state, otherState: t.state, logs, ownerRefreshed: o.refreshed, otherRefreshed: t.refreshed };
 }
 
 // ===== インタラクション解決（UIから呼ばれる） =====
