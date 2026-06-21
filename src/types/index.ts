@@ -267,6 +267,9 @@ export interface PlayerState {
   banish_to_trash_by_self?: string[];
   // GROW_COST_ZERO / CONDITIONAL_FREE_GROW: 次のグロウコストを0にする
   free_grow_this_turn?: boolean;
+  // FREE_GROW_NEXT_TURN: 次の自分ターンのグロウコストを0にする予約（WX03-024-BURST）。
+  // 自分ターン開始時に free_grow_this_turn へ移される。
+  free_grow_next_turn?: boolean;
   // このターンに効果（execDraw 経由）で引いた累計枚数。ドローフェイズのドローは含まない。
   // 「このターンに効果によってカードをN枚以上引いていた場合」条件（CARDS_DRAWN_BY_EFFECT）用。ターン終了時に0へリセット。
   cards_drawn_by_effect_this_turn?: number;
