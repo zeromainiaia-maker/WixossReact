@@ -14234,7 +14234,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       backgroundColor: canConfirm ? C.success : C.disabled,
                       color: C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !canConfirm) ? 'default' : 'pointer' }}>
-                    決定 ({effectSelectedNums.length}/{maxPick})
+                    {inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined
+                      ? `決定 (合計${selectedPowerSum}/${inter.totalPowerMax})`
+                      : `決定 (${effectSelectedNums.length}/${maxPick})`}
                   </button>
                 </div>
               </div>
