@@ -10122,7 +10122,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   グロウ先を選択
                 </p>
                 <p style={{ color: C.textDim, fontSize: 11, margin: 0, textAlign: 'center' }}>
-                  現在 Lv.{currentLrigLevel} → Lv.{currentLrigLevel + 1}
+                  {freeGrowFilter === 'same'
+                    ? `同レベルへグロウ（Lv.${currentLrigLevel}・コスト不要）`
+                    : `現在 Lv.${currentLrigLevel} → Lv.${currentLrigLevel + 1}`}
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {growCandidates.length === 0 ? (
