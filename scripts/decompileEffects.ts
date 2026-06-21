@@ -256,7 +256,9 @@ function actionJa(a?: Action): string {
       // then（SEQUENCE）に REVEAL/ADD_TO_HAND があれば「公開し手札に加える」を反映
       const thenSteps = a.then?.type === 'SEQUENCE' ? (a.then.steps ?? []) : (a.then ? [a.then] : []);
       const reveal = thenSteps.some((s: any) => s?.type === 'REVEAL') ? '公開し' : '';
-      const dest = thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える' : '処理する';
+      const dest = thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える'
+        : thenSteps.some((s: any) => s?.type === 'ADD_TO_FIELD') ? '場に出す'
+        : '処理する';
       return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}を${a.maxCount ? a.maxCount + '枚まで' : ''}探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
     case 'GRANT_KEYWORD': return `${targetJa(a.target)}に【${a.keyword}】を与える`;
