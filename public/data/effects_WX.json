@@ -66803,37 +66803,86 @@
         }
       },
       "action": {
-        "type": "SEQUENCE",
-        "steps": [
+        "type": "CHOOSE",
+        "choose_count": 1,
+        "from_count": 3,
+        "choices": [
           {
-            "type": "TRANSFER_TO_HAND",
-            "source": {
-              "type": "TRASH_CARD",
-              "owner": "self",
-              "count": 1,
-              "upToCount": false,
-              "filter": {
-                "cardType": "シグニ"
-              }
+            "choiceId": "c0",
+            "label": "対戦相手のシグニ2体のパワー-2000",
+            "action": {
+              "type": "POWER_MODIFY",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 2,
+                "upToCount": false,
+                "filter": {
+                  "cardType": "シグニ"
+                }
+              },
+              "delta": -2000
             }
           },
           {
-            "type": "TRANSFER_TO_HAND",
-            "source": {
-              "type": "TRASH_CARD",
-              "owner": "self",
-              "count": 1,
-              "upToCount": false,
-              "filter": {
-                "cardType": "スペル"
-              }
+            "choiceId": "c1",
+            "label": "デッキトップ2枚をトラッシュ→共通色シグニ回収",
+            "action": {
+              "type": "SEQUENCE",
+              "steps": [
+                {
+                  "type": "MILL",
+                  "owner": "self",
+                  "count": 2
+                },
+                {
+                  "type": "TRANSFER_TO_HAND",
+                  "source": {
+                    "type": "TRASH_CARD",
+                    "owner": "self",
+                    "count": 1,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "シグニ",
+                      "colorMatchesLrig": true
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "choiceId": "c2",
+            "label": "デッキトップ3枚をトラッシュ→黒スペル回収",
+            "action": {
+              "type": "SEQUENCE",
+              "steps": [
+                {
+                  "type": "MILL",
+                  "owner": "self",
+                  "count": 3
+                },
+                {
+                  "type": "TRANSFER_TO_HAND",
+                  "source": {
+                    "type": "TRASH_CARD",
+                    "owner": "self",
+                    "count": 1,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "スペル",
+                      "color": "黒"
+                    }
+                  }
+                }
+              ]
             }
           }
         ]
       },
-      "duration": "UNTIL_END_OF_TURN",
+      "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX18-001": [
@@ -75871,20 +75920,70 @@
             "id": "CONDITIONAL_ARTS_COST"
           },
           {
-            "type": "BLOCK_ACTION",
-            "target": {
-              "type": "PLAYER",
-              "owner": "self",
-              "count": 1
-            },
-            "actionId": "ON_PLAY_ABILITY",
-            "until": "END_OF_TURN"
+            "type": "CHOOSE",
+            "choose_count": 2,
+            "from_count": 4,
+            "upTo": true,
+            "choices": [
+              {
+                "choiceId": "c0",
+                "label": "対戦相手のシグニ1体をバニッシュ",
+                "action": {
+                  "type": "BANISH",
+                  "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 1,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "シグニ"
+                    }
+                  }
+                }
+              },
+              {
+                "choiceId": "c1",
+                "label": "カードを2枚引く",
+                "action": {
+                  "type": "DRAW",
+                  "owner": "self",
+                  "count": 2
+                }
+              },
+              {
+                "choiceId": "c2",
+                "label": "デッキトップ2枚をエナゾーンへ",
+                "action": {
+                  "type": "ENERGY_CHARGE_FROM_DECK",
+                  "owner": "self",
+                  "count": 2
+                }
+              },
+              {
+                "choiceId": "c3",
+                "label": "共通色シグニをトラッシュから場に出す（【出】不発）",
+                "action": {
+                  "type": "ADD_TO_FIELD",
+                  "owner": "self",
+                  "source": {
+                    "type": "TRASH_CARD",
+                    "owner": "self",
+                    "count": 1,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "シグニ",
+                      "colorMatchesLrig": true
+                    }
+                  }
+                }
+              }
+            ]
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX20-021": [
@@ -82191,23 +82290,88 @@
         "steps": [
           {
             "type": "STUB",
-            "id": "OPTIONAL_COST"
+            "id": "OPTIONAL_COST",
+            "costColors": [
+              "赤",
+              "緑"
+            ]
           },
           {
-            "type": "CONDITIONAL",
-            "condition": {
-              "type": "IS_MY_TURN"
-            },
-            "then": {
-              "type": "STUB",
-              "id": "ARTS_COST_REDUCTION_BY_EFFECT"
-            }
+            "type": "CHOOSE",
+            "choose_count": 2,
+            "from_count": 4,
+            "upTo": true,
+            "choices": [
+              {
+                "choiceId": "c0",
+                "label": "相手エナから相手ルリグと共通色を持たないカード1枚をトラッシュ",
+                "action": {
+                  "type": "TRASH",
+                  "target": {
+                    "type": "ENERGY_CARD",
+                    "owner": "opponent",
+                    "count": 1,
+                    "upToCount": false,
+                    "filter": {
+                      "colorNotMatchesLrig": true
+                    }
+                  }
+                }
+              },
+              {
+                "choiceId": "c1",
+                "label": "デッキトップ2枚をエナゾーンへ",
+                "action": {
+                  "type": "ENERGY_CHARGE_FROM_DECK",
+                  "owner": "self",
+                  "count": 2
+                }
+              },
+              {
+                "choiceId": "c2",
+                "label": "相手パワー7000以下シグニ1体をバニッシュ",
+                "action": {
+                  "type": "BANISH",
+                  "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 1,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "シグニ",
+                      "powerRange": {
+                        "max": 7000
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "choiceId": "c3",
+                "label": "相手パワー12000以上シグニ1体をバニッシュ",
+                "action": {
+                  "type": "BANISH",
+                  "target": {
+                    "type": "SIGNI",
+                    "owner": "opponent",
+                    "count": 1,
+                    "upToCount": false,
+                    "filter": {
+                      "cardType": "シグニ",
+                      "powerRange": {
+                        "min": 12000
+                      }
+                    }
+                  }
+                }
+              }
+            ]
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX21-036": [
