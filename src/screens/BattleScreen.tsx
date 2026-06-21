@@ -9229,9 +9229,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const newCharmsF = [...(paid.field.signi_charms ?? [null, null, null])];
         const newAcceF   = [...(paid.field.signi_acce   ?? [null, null, null])];
         const toTrashF: string[] = [];
+        let trashedSigniLevel: number | undefined;
         for (const zi of fieldTrashZones) {
           const stack = newSigniF[zi];
           if (!stack || stack.length === 0) continue;
+          // この方法でトラッシュに置いたシグニ（スタック最上段）のレベルを記録（WX03-001: 同じレベルのシグニを対象）
+          const topSigni = battleCardMap.get(getCardNum(stack.at(-1)!));
+          if (topSigni) trashedSigniLevel = parseInt(topSigni.Level ?? '0', 10) || 0;
           toTrashF.push(...stack.map(getCardNum));
           if (newCharmsF[zi]) { toTrashF.push(newCharmsF[zi]!); newCharmsF[zi] = null; }
           if (newAcceF[zi])   { toTrashF.push(newAcceF[zi]!);   newAcceF[zi]   = null; }
@@ -9243,6 +9247,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...paid,
           field: { ...paid.field, signi: newSigniF, signi_down: newDownF, signi_frozen: newFrozenF, signi_charms: newCharmsF, signi_acce: newAcceF },
           trash: [...paid.trash, ...toTrashF],
+          last_field_trash_level: trashedSigniLevel,
         };
         if (toTrashF.length > 0) payLogs.push(`場のシグニ${fieldTrashZones.size}体をコストでトラッシュ`);
       }

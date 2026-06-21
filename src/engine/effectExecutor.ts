@@ -129,6 +129,8 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     ? { ...tgt.filter, levelEqDiscardLevelSum: undefined, level: ctx.ownerState.last_activated_discard_level_sum ?? -1 }
     : tgt.filter?.levelEqualsVar === 'charm_trash_count'
     ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_charm_trash_count ?? 0 }
+    : tgt.filter?.levelEqualsVar === 'field_trash_level'
+    ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_field_trash_level ?? -1 }
     : tgt.filter;
   // colorMatchesLrig / levelLteFieldVirusCount等の動的フィルタを解決（activatorはctx.ownerState固定）
   let resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers);

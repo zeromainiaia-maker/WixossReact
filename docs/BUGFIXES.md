@@ -5,6 +5,16 @@
 
 ---
 
+## WX03-001（ウムル=フィーラ）【起】が「自分シグニを無条件バニッシュ」に潰れる修正＋「コストでトラッシュしたシグニと同レベル」機構を新設（v0.457, 2026-06-21）
+
+- **症状（WX03-001-E1 報告）:** 【起】《黒》《黒》＜古代兵器＞のシグニ1体を場からトラッシュ：**この方法でトラッシュしたシグニと同じレベルのシグニ1体**をバニッシュ、という効果が、JSON 上 `BANISH target owner:"self"`（=**自分のシグニ**を対象）＋**レベル制約欠落**（無条件の任意シグニ）になっていた。逆翻訳も「あなたのシグニ1体をバニッシュする」と誤表示。
+- **データ修正（durable・MANUAL）:** `effects_WX.json` WX03-001-E1 の `action.target.owner` を `self`→`any`（原文「シグニ1体」＝owner無制限）、`filter` に **`levelEqualsVar:"field_trash_level"`** を付与。`parseStatus:MANUAL` で固定（再生成保護）。コスト `fieldTrash {filter:{story:"古代兵器"}}` は既存どおり（story/cardClass どちらも CardClass を includes 判定するため適合）。
+- **機構新設（既存 `levelEqualsVar` 動的フィルタ系統に追従）:** ①`PlayerState.last_field_trash_level` を新設（types/index.ts）。②`fieldTrash` コスト支払い時（BattleScreen）に**トラッシュしたシグニ最上段のレベル**を `last_field_trash_level` に記録。③`TargetFilter.levelEqualsVar` のユニオンに `'field_trash_level'` を追加（types/effects.ts）。④`execBanish` で `levelEqualsVar==='field_trash_level'` を `level: last_field_trash_level ?? -1` に解決（既存の `charm_trash_count` 分岐に並置）。
+- **逆翻訳器:** `costJa` に `fieldTrash`（「場から〜シグニN体をトラッシュ」）、`filterJa` に `levelEqualsVar`/`levelEqDiscardLevelSum` の和文を追加。逆翻訳が原文一致（〈《黒×1》《黒×1》＋場から＜古代兵器＞のシグニ1体をトラッシュ〉この方法でトラッシュしたシグニと同じレベルのシグニ1体をバニッシュする）に。
+- **検証:** typecheck 0エラー、checkAllEffects 0エラー、decompile_sheet1.txt 再生成。**実機検証（PvP/CPU・コスト支払いで level 記録→対象がレベル一致のみに絞られるか）推奨。** CPU AI のこの起動利用は未確認。
+
+---
+
 ## 「このカードがデッキからトラッシュに置かれたとき」が ON_PLAY 誤判定→ON_TRASH 修正＋デッキミル ON_TRASH 発火（v0.456, 2026-06-21）
 
 - **症状（WX02-073 報告）:** 【自】「このカードが**デッキからトラッシュに置かれたとき**、このカードをトラッシュから場に出してもよい」が **`timing:ON_PLAY`（場に出たとき）に誤判定**され、さらに action が任意トラッシュカード（`thisCardOnly` 欠落）・`mandatory:true`（「もよい」無視）だった。

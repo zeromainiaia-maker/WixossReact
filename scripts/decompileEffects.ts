@@ -81,6 +81,9 @@ function filterJa(f?: any): string {
   if (typeof f.level === 'number') parts.push(`レベル${f.level}の`);
   else if (f.level?.max != null) parts.push(`レベル${f.level.max}以下の`);
   else if (f.level?.min != null) parts.push(`レベル${f.level.min}以上の`);
+  if (f.levelEqualsVar === 'field_trash_level') parts.push('この方法でトラッシュしたシグニと同じレベルの');
+  else if (f.levelEqualsVar === 'charm_trash_count') parts.push('トラッシュしたチャーム枚数と同じレベルの');
+  if (f.levelEqDiscardLevelSum) parts.push('捨てたカードのレベル合計と同じレベルの');
   if (f.levelRange?.max != null) parts.push(`レベル${f.levelRange.max}以下の`);
   if (f.levelRange?.min != null) parts.push(`レベル${f.levelRange.min}以上の`);
   if (f.powerRange?.max != null) parts.push(`パワー${f.powerRange.max}以下の`);
@@ -144,6 +147,7 @@ function costJa(c?: any): string {
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
   if (c.coin != null) parts.push(`コイン${c.coin}`);
+  if (c.fieldTrash) parts.push(`場から${filterJa(c.fieldTrash.filter)}シグニ${c.fieldTrash.count}体をトラッシュ`);
   if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
   return parts.join('＋');
 }

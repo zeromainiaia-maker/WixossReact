@@ -260,7 +260,7 @@ export interface TargetFilter {
   isFrozen?:  boolean;
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
-  levelEqualsVar?: 'charm_trash_count'; // レベルがlast_charm_trash_countと一致するか（WXK10-082用）
+  levelEqualsVar?: 'charm_trash_count' | 'field_trash_level'; // レベルがlast_charm_trash_count/last_field_trash_levelと一致するか（WXK10-082 / WX03-001用）
   powerLteSelf?: boolean; // 効果元シグニの実効パワー以下（「自身のパワー以下の対戦相手のシグニ」。execBanishがpowerRange.maxへ解決）
   powerLtSelf?: boolean;  // 効果元シグニの実効パワーより低い（「自身よりパワーの低い」。execBanishがpowerRange.maxへ解決）
   frontOfSelf?: boolean;  // 効果元シグニの正面のシグニ（execBanishが対象ゾーン 2-zi を解決）
