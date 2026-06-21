@@ -3305,6 +3305,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           field: myFieldAfterCoinCheck,
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
+          field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
           granted_effects:    {},   // ターン内付与能力をリセット
           blocked_actions:    [],   // ターン内封じ行動をリセット
           blocked_card_names: [],   // ターン内使用禁止カードをリセット
