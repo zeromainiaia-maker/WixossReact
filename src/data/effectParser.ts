@@ -218,12 +218,15 @@ function parseCost(costStr: string): EffectCost | undefined {
   const ftM = costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/);
   const ftVerbM = !ftM ? costStr.match(/シグニを([０-９\d]+)体(?:まで)?場からトラッシュに置く/) : null;
   const ftArmWep = !ftM && !ftVerbM ? costStr.match(/＜アーム＞のシグニ[１1]体と＜ウェポン＞のシグニ[１1]体を場からトラッシュに置く/) : null;
+  // 「他の…シグニを場からトラッシュ」= 効果元自身を除く（excludeSelf）。WX03-035「他の＜古代兵器＞のシグニ1体」等
+  const ftOther = /他の(?:＜[^＞]+＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/.test(costStr)
+    || /他のシグニを([０-９\d]+)体(?:まで)?場からトラッシュに置く/.test(costStr);
   if (ftArmWep) {
     cost.fieldTrash = { count: 2 };
   } else if (ftM) {
     const ftFilter: TargetFilter = { cardType: 'シグニ' };
     if (ftM[1]) ftFilter.story = ftM[1];
-    cost.fieldTrash = { count: parseNum(ftM[2]), filter: ftFilter };
+    cost.fieldTrash = { count: parseNum(ftM[2]), filter: ftFilter, ...(ftOther ? { excludeSelf: true } : {}) };
   } else if (ftVerbM) {
     cost.fieldTrash = { count: parseNum(ftVerbM[1]), filter: { cardType: 'シグニ' } };
   }
