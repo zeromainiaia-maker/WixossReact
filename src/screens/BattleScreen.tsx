@@ -2011,6 +2011,81 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myVirusPlacedRef, myVirusRemovedRef, cpuVirusPlacedRef, cpuVirusRemovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ON_ENERGY_CHARGE / ON_POWER_THRESHOLD の検知ウォッチャー（WX03-032）。
+  // 状態変化のたびに、前回スナップショット（prevEnergyRef/prevPowersRef）と比較して
+  //  - エナゾーンにカードがちょうど1枚増えた → ON_ENERGY_CHARGE（2枚同時=エナチャージ2等は不発）
+  //  - シグニのパワーが閾値（SELF_POWER_GTE.value）を下から跨いで到達 → ON_POWER_THRESHOLD
+  // を検知してスタックに積む。二重pushを避けるため push はホスト側クライアントのみ行う。
+  useEffect(() => {
+    if (!bs || !user || loading) return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    if (bs.global_phase !== 'PLAYING') return;
+    const hostState = bs.host_state, guestState = bs.guest_state;
+    const hostIsActive = bs.active_user_id === bs.host_id;
+    // 各シグニを「その持ち主視点」で計算したパワー（ターン依存修正を正しく反映）
+    const hostPowers  = calcFieldPowers(hostState, guestState, hostIsActive,  effectsMap, battleCardMap);
+    const guestPowers = calcFieldPowers(guestState, hostState, !hostIsActive, effectsMap, battleCardMap);
+    const curPowers = new Map<string, number>([...hostPowers, ...guestPowers]);
+    const prevEnergy = prevEnergyRef.current;
+    const prevPowers = prevPowersRef.current;
+    const snapshot = () => {
+      prevEnergyRef.current = { host: [...hostState.energy], guest: [...guestState.energy] };
+      prevPowersRef.current = curPowers;
+    };
+    // 初回観測 or push権を持たない（非ホスト）クライアントはスナップショット更新のみ
+    if (!prevEnergy || !prevPowers || user.id !== bs.host_id) { snapshot(); return; }
+
+    const sides: Array<{ key: 'host' | 'guest'; st: PlayerState; op: PlayerState; ownerId: string; prevE: string[] }> = [
+      { key: 'host',  st: hostState,  op: guestState, ownerId: bs.host_id,  prevE: prevEnergy.host },
+      { key: 'guest', st: guestState, op: hostState,  ownerId: bs.guest_id, prevE: prevEnergy.guest },
+    ];
+    const entries: StackEntry[] = [];
+    for (const { st, op, ownerId, prevE } of sides) {
+      const isOwnerActiveTurn = ownerId === bs.active_user_id;
+      // ON_ENERGY_CHARGE: エナがちょうど1枚増えたとき（差分の新規カードが1枚）
+      const addedToEnergy = st.energy.filter(n => !prevE.includes(n));
+      // ON_POWER_THRESHOLD / ON_ENERGY_CHARGE は場のシグニを走査
+      for (let zi = 0; zi < st.field.signi.length; zi++) {
+        const topNum = st.field.signi[zi]?.at(-1);
+        if (!topNum) continue;
+        for (const eff of effectsMap.get(topNum) ?? []) {
+          if (eff.effectType !== 'AUTO') continue;
+          if (eff.timing?.includes('ON_ENERGY_CHARGE') && addedToEnergy.length === 1) {
+            // 「あなたのターンの間」= IS_MY_TURN（evalでは常にtrueのため、ここで自ターン判定）
+            if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
+            if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
+                && !evalUseCondition(eff.condition, st, op, battleCardMap, topNum, bs.turn_phase, curPowers)) continue;
+            entries.push({ id: generateUUID(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
+              label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（エナチャージ時）`, effect: eff });
+          }
+          if (eff.timing?.includes('ON_POWER_THRESHOLD')) {
+            const threshold = eff.condition?.type === 'SELF_POWER_GTE' ? eff.condition.value : Infinity;
+            const curP  = curPowers.get(topNum) ?? 0;
+            const prevP = prevPowers.get(topNum);
+            const wasBelow = prevP === undefined || prevP < threshold;
+            if (curP >= threshold && wasBelow) {
+              entries.push({ id: generateUUID(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
+                label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（パワー${threshold}到達時）`, effect: eff });
+            }
+          }
+        }
+      }
+    }
+    if (entries.length === 0) { snapshot(); return; }
+    (async () => {
+      setLoading(true);
+      try {
+        const existingStack = bs.effect_stack ?? null;
+        const newStack = existingStack ? pushToStack(existingStack, entries) : initStack(bs.active_user_id ?? user.id, entries);
+        await supabase.from('battle_states').update({ effect_stack: newStack }).eq('room_id', roomId);
+        snapshot();
+      } finally {
+        setLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ON_TURN_END 解決後の自動フェーズ進行
   useEffect(() => {
     if (!bs || !user) return;
