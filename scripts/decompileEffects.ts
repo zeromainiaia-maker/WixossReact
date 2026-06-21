@@ -126,7 +126,7 @@ function targetJa(t?: any, unit = 'シグニ'): string {
   }
   // 「好きな数」（count:'ALL' + upToCount）
   if (t.count === 'ALL' && t.upToCount) {
-    return `${ownerJa(t.owner)}${filterJa(t.filter)}${u}を好きな数`.trim();
+    return `${ownerJa(t.owner)}好きな数の${filterJa(t.filter)}${u}`.trim();
   }
   const cnt = t.count === 'ALL' ? 'すべての' : '';
   const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? counter + 'まで' : counter}`;
