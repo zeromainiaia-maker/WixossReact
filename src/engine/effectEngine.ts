@@ -2410,7 +2410,7 @@ export function collectAbilityProtectedSigni(
       // GRANT_PROTECTION アクション: from に 'シグニ' を含み sourceOwner='opponent' → このシグニを保護
       if (eff.action.type === 'GRANT_PROTECTION') {
         const gp = eff.action as GrantProtectionAction;
-        if (gp.sourceOwner === 'opponent' && (gp.from.includes('シグニ') || gp.from.includes('any'))) {
+        if (gp.sourceOwner === 'opponent' && (gp.from?.includes('シグニ') || gp.from?.includes('any'))) {
           // subjectFilter: フィルタ一致シグニを保護
           if (gp.subjectFilter) {
             for (const s2 of state.field.signi) {
