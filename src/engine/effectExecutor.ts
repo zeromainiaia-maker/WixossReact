@@ -2967,6 +2967,17 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
   pending: PendingInteractionDef & { type: 'SELECT_TARGET' },
   ctx: ExecCtx,
 ): ExecResult {
+  // totalPowerMax: 選択カードの実効パワー合計が上限を超えないよう保証（超過分は順に切り捨て）
+  if (pending.totalPowerMax !== undefined) {
+    const powers = pending.candidatePowers ?? {};
+    let sum = 0;
+    selected = selected.filter(n => {
+      const p = powers[n] ?? 0;
+      if (sum + p > pending.totalPowerMax!) return false;
+      sum += p;
+      return true;
+    });
+  }
   // 選択されたカードに thenAction を個別適用
   let cur = ctx;
   for (const cardNum of selected) {
