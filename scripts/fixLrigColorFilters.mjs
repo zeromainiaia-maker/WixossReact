@@ -120,7 +120,7 @@ for (const fix of FIXES) {
     console.log(`[FIX] ${fix.eid} → ${fix.type}`);
     totalFixed++;
   }
-  fs.writeFileSync(path, JSON.stringify(db), 'utf-8');
+  fs.writeFileSync(path, JSON.stringify(db, null, 2), 'utf-8');
 }
 
 console.log(`\n合計 ${totalFixed} 件修正完了`);
