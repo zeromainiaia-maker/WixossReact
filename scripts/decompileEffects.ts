@@ -202,6 +202,7 @@ function condJa(c?: any): string {
     case 'SELF_OPTIONAL_EFFECT_TAKEN': return '自分が任意効果を実行した';
     case 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN': return 'このターン《ディソナ》以外のスペルを使用していない';
     case 'LAST_PROCESSED_LEVEL_SUM_EQ': return `直前に処理したシグニのレベル合計が${numJa(c.value)}`;
+    case 'TRASHED_DISTINCT_LEVELS_GTE': return `この方法でそれぞれレベルの異なるシグニが${numJa(c.count)}体トラッシュに置かれた`;
     case 'BEAT_CONDITION': return `《ビート》[${c.condText ?? ''}]`;
     case 'COND_STUB': return `[条件STUB:${c.raw ?? ''}]`;
     // ── ActiveCondition（CONTINUOUS の activeCondition）系 ──
@@ -320,6 +321,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': {
+      if (!a.steps || a.steps.length === 0) return '何もしない';
       const parts = a.steps.map(actionJa) as string[];
       return parts.reduce((acc: string, part: string, i: number) => {
         if (i === 0) return part;

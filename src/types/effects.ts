@@ -163,6 +163,7 @@ export type Condition =
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }
   | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number }   // lastProcessedCardsのシグニレベル合計=N
+  | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number }   // この方法でトラッシュ(lastProcessedCards)したシグニのうち相異なるレベルがcount種以上（WX03-015）
   | { type: 'OPPONENT_NOT_PAID' }                             // 相手が任意コストを支払わなかった場合
   | { type: 'SELF_OPTIONAL_EFFECT_TAKEN' }                    // 自分が任意効果（自バニッシュ等）を実行した場合
   | { type: 'HAS_BOND'; cardName?: string }                   // 絆アイコン：このカード名との絆を獲得している

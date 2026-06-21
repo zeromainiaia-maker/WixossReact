@@ -623,6 +623,17 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }, 0);
       return sum === cond.value;
     }
+    case 'TRASHED_DISTINCT_LEVELS_GTE': {
+      // この方法でトラッシュしたシグニ(lastProcessedCards)のうち、相異なるレベルが cond.count 種以上か（WX03-015）
+      const processedTDL = ctx.lastProcessedCards ?? [];
+      const levels = new Set<number>();
+      for (const cn of processedTDL) {
+        const c = ctx.cardMap.get(cn);
+        if (c?.Type !== 'シグニ') continue;
+        levels.add(parseInt(c.Level ?? '0', 10) || 0);
+      }
+      return levels.size >= cond.count;
+    }
     case 'TRASH_COUNT':
       return cmp(st(cond.owner).trash.length, cond.operator, cond.value);
     case 'LAST_PROCESSED_HAS_BURST': {

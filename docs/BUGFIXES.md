@@ -5,6 +5,17 @@
 
 ---
 
+## WX03-015（デス・コロッサオ）の条件欠落＆強制トラッシュを修正（0か全部＋レベル相異3体条件）（v0.460, 2026-06-21）
+
+- **症状（WX03-015-E1 報告）:** 原文「あなたのすべてのシグニを場からトラッシュに置いて**もよい**。この方法で**それぞれがレベルの異なるシグニが3体**トラッシュに置かれた場合、対戦相手のすべてのシグニをバニッシュする」に対し、JSON が ①TRASH が**強制**（任意の「してもよい」無視）、②条件が `CONDITIONAL:IS_MY_TURN`（パーサの「そうした場合」プレースホルダ＝常にtrue）で**レベル相異3体の条件が完全欠落**。結果「全シグニ強制トラッシュ→無条件で相手全シグニバニッシュ」という別物だった。逆翻訳も「そうした場合」と誤表示。
+- **ユーザー指摘:** 「すべてのシグニをトラッシュしてもよい」は**0か全部か**（部分選択不可）。→ `upToCount`（0〜全部の自由選択）では不正確。
+- **条件機構の新設:** `Condition` に `TRASHED_DISTINCT_LEVELS_GTE { count }` を追加（types/effects.ts）。`evalCondition`（execUtils.ts）で **`lastProcessedCards` のシグニの相異なるレベル数 ≥ count** を判定（`LAST_PROCESSED_LEVEL_SUM_EQ` と同系統）。
+- **0か全部の表現:** `SELECT_TARGET` の `optional` は0〜count の部分選択を許すため不適。**宣言的 `CHOOSE` アクション**（既存 execChoose）で2択化：「全シグニトラッシュ」=`SEQUENCE[TRASH(self ALL 強制), CONDITIONAL(TRASHED_DISTINCT_LEVELS_GTE 3)→BANISH(opp ALL)]` ／「トラッシュしない」=空SEQUENCE。yesオプション内にCONDITIONALを内包することで、execSequence がステップ間で `lastProcessedCards` を引き継ぎ条件判定が正しく動く（resumeChoose:3168 は option の lastProcessedCards を continuation へ渡さないため、continuation方式は不可）。parseStatus:MANUAL。
+- **逆翻訳器:** condJa に `TRASHED_DISTINCT_LEVELS_GTE`、空SEQUENCE→「何もしない」を追加。「…全シグニをトラッシュに置く。そしてこの方法でそれぞれレベルの異なるシグニが3体トラッシュに置かれたなら、対戦相手のすべてのシグニをバニッシュする / 何もしない」と原文一致。
+- **検証:** typecheck 0エラー、checkAllEffects 0エラー、decompile_sheet1.txt 再生成。**実機検証（0/全部の二択UI→3体相異レベル時のみ相手全バニッシュ）推奨。**
+
+---
+
 ## STUB:CONDITIONAL_CARD_COST_BY_OPP_LRIG は実装済みと判明→「未実装」表示を是正（v0.459, 2026-06-21）
 
 - **報告:** 逆翻訳で WX03-002/003/004/005/014（アーツ5枚）の `[STUB:CONDITIONAL_CARD_COST_BY_OPP_LRIG]`（相手センタールリグが指定色なら基本コストから《無×3》等が消える軽減）が未実装に見える、という指摘。
