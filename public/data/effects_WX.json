@@ -10301,13 +10301,13 @@
                 "cardType": "シグニ"
               }
             },
-            "shuffle": false
+            "shuffle": true
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-030-BURST",
@@ -10341,14 +10341,15 @@
                 "type": "SIGNI",
                 "owner": "opponent",
                 "count": 1
-              }
+              },
+              "opponentSelects": true
             }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-031": [

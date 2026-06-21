@@ -315,6 +315,20 @@ function computeArtsEffectiveCost(
       });
       if (hasClassSigni) return removeNColorFromCost(base, color, cnt);
     }
+    // 場の特定クラスのシグニ1体につき色コスト×N軽減（枚数比例。WX04-030「場の＜迷宮＞シグニ1体につき《白×1》減る」）
+    m = text.match(/(?:あなたの)?場に(?:ある)?＜([^＞]+)＞のシグニ([０-９一]+)体につき(?:このスペルの|このアーツの|使用)?コストは?《([^》]+)》×?([０-９\d]*)減る/);
+    if (m) {
+      const cls = m[1];
+      const perN = parseInt(toHalfWidth(m[2].replace('一', '1'))) || 1;
+      const color = m[3];
+      const perRed = parseInt(toHalfWidth(m[4] || '1')) || 1;
+      const cnt = (myState.field.signi ?? []).filter(stack => {
+        const top = stack?.at(-1);
+        return top && (cardMap.get(top)?.CardClass ?? '').includes(cls);
+      }).length;
+      const reduction = Math.floor(cnt / perN) * perRed;
+      if (reduction > 0) return removeNColorFromCost(base, color, reduction);
+    }
   }
 
   // SPELL_COST_REDUCTION_BY_TRASH_COUNT: トラッシュのクラスシグニN枚につき色コスト×1軽減
