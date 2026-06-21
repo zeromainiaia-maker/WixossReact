@@ -5,6 +5,17 @@
 
 ---
 
+## トラッシュ自己起動【起】機構＋UI を新設（「このシグニをトラッシュから場に出す」）（v0.455, 2026-06-21）
+
+- **症状（WX02-069/071 報告）:** 【起】《黒》《黒/無》「このシグニをトラッシュから場に出す（このシグニがトラッシュにある場合のみ使用可）」が、①データ上 `ADD_TO_FIELD source:TRASH_CARD count:1`（=**任意トラッシュカード**1枚／`thisCardOnly` 欠落）で、②そもそも**トラッシュから起動する機構が無かった**（`handActivated`＝手札自己起動は v0.373 で実装済だがトラッシュ版は未実装）。`ACTIVATED timing:MAIN`＝場のシグニ起動扱いだが本体は場に存在せず、起動UIに現れず発動不能だった。
+- **データ修正（parser・durable）:** parseSentencePart1 の「このシグニをトラッシュから場に出す」ハンドラを「このシグニ/カード＋トラッシュから＋場に出す/シグニゾーンに出す」に一般化し **source に `thisCardOnly`＋「ダウン状態で」→`asDown`** を付与。effectParser に **`trashActivated` フラグ**（ACTIVATED かつ自己蘇生アクション時）を新設（`handActivated` と同様）。
+- **engine:** `execAddToField` の TRASH_CARD 分岐に `thisCardOnly`＝効果元カード自身（`ctx.sourceCardNum` がトラッシュにあればそれのみ）を追加。effect_stack 解決時の ctx は `sourceCardNum=entry.cardNum`・場にいなくても無条件で解決されるため、トラッシュの自身を場へ移せる。
+- **UI（BattleScreen / BoardComponents）:** `PlayerField` に `getTrashCardActions` を新設し、**トラッシュ ZoneCardModal のカードに発動ボタン**を表示（従来 getCardActions=undefined で何も出なかった）。`getMyTrashCardActions`＝自ターン MAIN・`trashActivated`・コストがエナのみ・使用回数/condition を満たすカードに「【起】トラッシュから出す」。`pendingTrashActivated` モーダルでエナ支払い→`executeTrashActivated`（エナをトラッシュへ・効果元はトラッシュに残し effect_stack に積む→`execAddToField` が場へ移動）。
+- **対象データ再生成（14枚）:** WX02-069/071/WX07-033(E3・自蘇生 asDown)/WX11-049/WX17-049/WX19-029/WXK02-037/WXK11-071/WXDi-P03-087/P07-089/P09-045/P12-053/P16-082/CP01-050。素パース差分で Sheet1 影響4枚を隔離確認、全件「自己蘇生効果のみ」変化。逆翻訳器に「このシグニをトラッシュから場に出す」表示を追加。typecheck 0エラー。
+- **MVP の範囲・残（TODO）:** UIで発動可能なのは**エナコストのみ・MAINフェイズ**の自己蘇生。手札捨て/コイン/エクシード/ウィルス除去/アタックフェイズ起動（WXDi系・WX11-049/WX19-029 等）のコストUIは未対応（データは正・UIゲートで非提示）。**CPU AI はトラッシュ起動を使わない**。**実機検証（PvP/CPU・ヘッドレス不可）が必要。**
+
+---
+
 ## 「場のシグニN体につきデッキトップをエナに置く」が固定エナチャージに潰れる修正（v0.454, 2026-06-21）
 
 - **症状:** 「あなたの場にある＜空獣＞と＜地獣＞と＜植物＞のシグニ１体につきあなたのデッキの一番上のカードをエナゾーンに置く」（WX02-066）が **固定 `ENERGY_CHARGE_FROM_DECK count:1`** に潰れていた。v0.453 のドロー版（DRAW_PER_FIELD_COUNT）と同型で、アクションがエナチャージ。

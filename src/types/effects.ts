@@ -1327,4 +1327,6 @@ export interface CardEffect {
   repeatable?: boolean;
   // v0.277: 手札から発動できる【起】（手札から自身を捨てることでフィールドなしで発動）
   handActivated?: boolean;
+  // トラッシュから発動できる【起】（「このシグニをトラッシュから場に出す」等の自己蘇生。トラッシュゾーンUIから発動）
+  trashActivated?: boolean;
 }

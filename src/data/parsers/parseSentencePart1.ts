@@ -1164,9 +1164,17 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'ENERGY_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
   }
 
-  // ---- このシグニをトラッシュから場に出す（自己蘇生）----
-  if (t.match(/このシグニをトラッシュから場に出す/)) {
-    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } };
+  // ---- このシグニ/カード自身をトラッシュから場に出す（自己蘇生・トラッシュ自己起動）----
+  // 「このシグニ/カード」＋「トラッシュから」＋「場に出す/シグニゾーンに出す」＝効果元自身（thisCardOnly）。
+  // 任意トラッシュカードを出す汎用版（下の handler）と区別する。
+  if ((t.includes('このシグニ') || t.includes('このカード')) && t.includes('トラッシュから')
+      && (t.includes('場に出す') || t.includes('シグニゾーンに出す'))) {
+    const asDown = t.includes('ダウン状態で');
+    return {
+      type: 'ADD_TO_FIELD', owner: 'self',
+      source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      ...(asDown ? { asDown: true } : {}),
+    };
   }
 
   // ---- トラッシュからシグニを場に出す ----

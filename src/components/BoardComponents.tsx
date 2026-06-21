@@ -959,7 +959,7 @@ export function ZoneCardModal({ title, cardNums, cards, onClose, getCardActions 
 }
 
 // ─── プレイヤー盤面 ──────────────────────────────────────────────────
-export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, getKeyPieceActions, getAssistLActions, getAssistRActions, getFreeZoneActions, closeZoneSignal, effectivePowers, dynamicKeywords }: {
+export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDeckCardActions, getLrigFieldActions, getKeyPieceActions, getAssistLActions, getAssistRActions, getFreeZoneActions, getTrashCardActions, closeZoneSignal, effectivePowers, dynamicKeywords }: {
   state: PlayerState; cards: CardData[]; isMe: boolean;
   getSigniZoneActions?: (rawZoneIdx: number) => CardAction[];
   getLrigDeckCardActions?: (cardNum: string) => CardAction[];
@@ -968,12 +968,13 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   getAssistLActions?: () => CardAction[];
   getAssistRActions?: () => CardAction[];
   getFreeZoneActions?: (cardNum: string) => CardAction[];
+  getTrashCardActions?: (cardNum: string) => CardAction[];
   closeZoneSignal?: number;
   effectivePowers?: Map<string, number>;
   dynamicKeywords?: Record<string, string[]>;
 }) {
   const [zoneModal, setZoneModal] = useState<{
-    title: string; cardNums: string[]; isLrigDeck?: boolean; isFreeZone?: boolean;
+    title: string; cardNums: string[]; isLrigDeck?: boolean; isFreeZone?: boolean; isTrash?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -996,7 +997,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       }
       <Stat label="ライフ"      value={state.life_cloth.length} color="#bb3333" />
       <Stat label="エナ"        value={state.energy.length}     onClick={() => showZone('エナゾーン', state.energy)} />
-      <Stat label="トラッシュ"  value={state.trash.length}      onClick={() => showZone('トラッシュ', state.trash)} />
+      <Stat label="トラッシュ"  value={state.trash.length}      onClick={() => setZoneModal({ title: 'トラッシュ', cardNums: state.trash, isTrash: isMe })} />
       <Stat label="Lトラッシュ" value={state.lrig_trash.length} onClick={() => showZone('ルリグトラッシュ', state.lrig_trash)} />
       <Stat label="コイン"      value={state.coins} color="#cc8800" />
     </div>
@@ -1181,6 +1182,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
           getCardActions={
             zoneModal.isLrigDeck ? getLrigDeckCardActions :
             zoneModal.isFreeZone  ? getFreeZoneActions :
+            zoneModal.isTrash     ? getTrashCardActions :
             undefined
           }
         />

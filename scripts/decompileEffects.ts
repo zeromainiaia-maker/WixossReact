@@ -260,7 +260,11 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       return a.fromHand ? `手札を${numJa(a.count)}枚選んでライフクロスに加える` : `${ownerJa(a.owner)}デッキの${a.fromTop ? '一番上' : ''}から${numJa(a.count)}枚をライフクロスに加える`;
     }
-    case 'ADD_TO_FIELD': return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
+    case 'ADD_TO_FIELD':
+      // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
+      if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
+        return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す`;
+      return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
     case 'BLOCK_ACTION':
       if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
       return `${ownerJa(a.target?.owner)}${a.target?.type === 'SIGNI' ? 'シグニ' : ''}は「${a.actionId}」ができない（${a.until ?? ''}）`;

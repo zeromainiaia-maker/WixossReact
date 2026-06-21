@@ -1378,6 +1378,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   const cost = parseCost(costStr);
   // 「手札からこのカードを捨てる」起動能力は手札カードアクションUI（getMyHandCardActions）の対象。
   const handActivated = cost?.discardSelfFromHand === true;
+  // 「このシグニ/カードをトラッシュから場に出す」等のトラッシュ自己起動【起】はトラッシュゾーンUIの対象。
+  const trashActivated = effectType === 'ACTIVATED'
+    && /(?:この(?:シグニ|カード)|トラッシュからこの(?:シグニ|カード))/.test(actionText)
+    && actionText.includes('トラッシュ') && /(?:場に出す|シグニゾーンに出す)/.test(actionText);
   let activeCondition: ActiveCondition | undefined;
   let resolvedAction: EffectAction;
   let parseStatus: CardEffect['parseStatus'] = 'AUTO';
@@ -1509,6 +1513,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     parseStatus,
     ...(isCrossOnly ? { crossOnly: true } : {}),
     ...(handActivated ? { handActivated: true } : {}),
+    ...(trashActivated ? { trashActivated: true } : {}),
     ...(extractedTriggerScope !== undefined ? { triggerScope: extractedTriggerScope } : {}),
     ...(extractedTriggerFilter !== undefined ? { triggerFilter: extractedTriggerFilter } : {}),
     ...(usageLimit !== undefined ? { usageLimit } : {}),

@@ -788,6 +788,10 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   if (src.type === 'TRASH_CARD') {
     const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt);
     cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // thisCardOnly: 「このシグニをトラッシュから場に出す」＝効果元カード自身のみ（トラッシュ自己起動）
+    if (src.filter?.thisCardOnly) {
+      cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
     const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt);

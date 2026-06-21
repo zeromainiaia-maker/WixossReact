@@ -878,6 +878,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // v0.277: 手札から発動する【起】
   const [pendingHandActivated, setPendingHandActivated] = useState<{ cardNum: string; handIndex: number; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedHandActivatedCost, setSelectedHandActivatedCost] = useState<Set<number>>(new Set());
+  // トラッシュ自己起動（「このシグニをトラッシュから場に出す」等）
+  const [pendingTrashActivated, setPendingTrashActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
+  const [selectedTrashActivatedCost, setSelectedTrashActivatedCost] = useState<Set<number>>(new Set());
   // v0.278: 可変枚数手札捨てコスト（WDK13-011用）
   const [selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar] = useState<Set<number>>(new Set());
   // v0.278: WX25-P2-001 付与【起】（ガードシグニ捨て→ルリグバリア）
@@ -6075,6 +6078,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return actionList;
   };
 
+  // トラッシュ自己起動【起】（「このシグニをトラッシュから場に出す」等）。トラッシュゾーンUIから発動。
+  // 現状はエナコストのみ対応（手札捨て/コイン/エクシード等の複合コストは未対応）。
+  const getMyTrashCardActions = (cardNum: string): CardAction[] => {
+    if (loading) return [];
+    const actions: CardAction[] = [];
+    if (!isMyTurn || bs.turn_phase !== 'MAIN') return actions;
+    const effs = effectsMap.get(cardNum) ?? [];
+    for (const eff of effs) {
+      if (!eff.trashActivated || eff.effectType !== 'ACTIVATED') continue;
+      if (!eff.timing?.includes('MAIN')) continue;
+      if (my.actions_done?.includes(eff.effectId)) continue;
+      if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
+      // エナ以外のコストキーがあれば未対応としてスキップ
+      const c = eff.cost;
+      const hasUnsupportedCost = !!c && Object.entries(c).some(([k, v]) => k !== 'energy' && v);
+      if (hasUnsupportedCost) continue;
+      const energyTotal = (c?.energy ?? []).reduce((s, e) => s + e.count, 0);
+      if (my.energy.length < energyTotal) continue;
+      actions.push({
+        label: energyTotal > 0 ? `【起】トラッシュから出す（エナ${energyTotal}）` : '【起】トラッシュから出す',
+        color: '#ff6b35',
+        onClick: () => { setPendingTrashActivated({ cardNum, effect: eff }); setSelectedTrashActivatedCost(new Set()); },
+      });
+    }
+    return actions;
+  };
+
   // ルリグデッキのカードアクション（アーツ / キーピース / アシストルリグ）
   const getMyLrigDeckCardActions = (cardNum: string): CardAction[] => {
     if (loading) return [];
@@ -8920,6 +8951,49 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // トラッシュ自己起動【起】を実行（エナコスト支払い → このカードをトラッシュから場に出す）。
+  // カードはトラッシュに残したまま effect_stack に積み、resolver の execAddToField が
+  // thisCardOnly source（トラッシュの効果元自身）を場へ移す。
+  const executeTrashActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+    if (loading) return;
+    setLoading(true);
+    setPendingTrashActivated(null);
+    setSelectedTrashActivatedCost(new Set());
+    try {
+      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const isGameOnce = effect.usageLimit === 'once_per_game';
+      // 支払ったエナはトラッシュへ。効果元カード自身はトラッシュに残し、ADD_TO_FIELD 解決時に場へ移す。
+      const paid: PlayerState = {
+        ...my,
+        energy: newEnergy,
+        trash: [...my.trash, ...paidNums],
+        actions_done: [...(my.actions_done ?? []), effect.effectId],
+        game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
+      };
+      const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
+      const entry: StackEntry = {
+        id: generateUUID(),
+        playerId: user.id,
+        cardNum,
+        effectId: effect.effectId,
+        label: `${cardName}【起】（トラッシュから場に出す）`,
+        effect,
+      };
+      const turnPlayerId = bs.active_user_id ?? user.id;
+      const existingStack = bs?.effect_stack ?? null;
+      const newStack = existingStack
+        ? pushToStack(existingStack, [entry])
+        : initStack(turnPlayerId, [entry]);
+      const stateKey = isHost ? 'host_state' : 'guest_state';
+      await supabase.from('battle_states')
+        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
+        .eq('room_id', roomId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // v0.278: WX25-P2-001 付与【起】 ガードシグニ捨て→ルリグバリア
   const executeGuardBarrierAct = async (handIndex: number) => {
     if (loading) return;
@@ -10725,6 +10799,112 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
+      {/* トラッシュ自己起動【起】（「このシグニをトラッシュから場に出す」等）のエナコスト支払い */}
+      {pendingTrashActivated && createPortal(
+        <div onClick={() => { setPendingTrashActivated(null); setSelectedTrashActivatedCost(new Set()); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 3500,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+              padding: '20px 16px', width: 'min(92vw, 360px)', maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(() => {
+              const taCard = battleCardMap.get(pendingTrashActivated.cardNum);
+              if (!taCard) return null;
+              const taEffect = pendingTrashActivated.effect;
+              const energyCosts = taEffect.cost?.energy ?? [];
+              const energyTotal = energyCosts.reduce((s, c) => s + c.count, 0);
+              const energyCostStr = energyCostToString(energyCosts);
+              const selectedNums = [...selectedTrashActivatedCost].map(i => my.energy[i]);
+              const isValid = energyTotal === 0 ||
+                (selectedTrashActivatedCost.size === energyTotal &&
+                  canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+              return (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => { setPendingTrashActivated(null); setSelectedTrashActivatedCost(new Set()); }}
+                      style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
+                      ← キャンセル
+                    </button>
+                    <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>
+                      【起】トラッシュ発動
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <img src={taCard.ImgURL} alt={taCard.CardName}
+                      style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
+                      onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                    <div>
+                      <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{taCard.CardName}</p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>このシグニをトラッシュから場に出す{energyTotal > 0 ? `・エナ${energyTotal}枚` : ''}</p>
+                    </div>
+                  </div>
+                  {energyTotal > 0 && (
+                    <>
+                      <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                        エナから選択: {selectedTrashActivatedCost.size} / {energyTotal}枚
+                        {energyCosts.map((c, i) => (
+                          <span key={i} style={{ marginLeft: 6, color: C.textDim }}>({c.color}×{c.count})</span>
+                        ))}
+                      </p>
+                      <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                        {my.energy.map((num, i) => {
+                          const card = battleCardMap.get(num);
+                          const isSel = selectedTrashActivatedCost.has(i);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          return (
+                            <div key={i}
+                              onClick={() => {
+                                setSelectedTrashActivatedCost(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(i)) next.delete(i); else next.add(i);
+                                  return next;
+                                });
+                              }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
+                                overflow: 'hidden', cursor: 'pointer', flexShrink: 0,
+                                border: isSel ? C.borderMulliganSel : isWild ? '1px solid #ffcc00' : C.borderCard }}>
+                              {card
+                                ? <img src={card.ImgURL} alt={card.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
+                                : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 8, color: C.textFaint }}>{num}</span>
+                                  </div>
+                              }
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(244,67,54,0.45)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: C.text, fontSize: 14, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <button
+                    onClick={() => executeTrashActivated(pendingTrashActivated.cardNum, taEffect, selectedTrashActivatedCost)}
+                    disabled={loading || !isValid}
+                    style={{ padding: '11px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: isValid ? '#ff6b35' : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
+                    発動する（トラッシュから場に出す）
+                  </button>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* v0.278: WX25-P2-001 付与【起】 ガードシグニ捨て→ルリグバリア */}
       {pendingGuardBarrierAct && createPortal(
         <div onClick={() => { setPendingGuardBarrierAct(false); setSelectedBarrierGuardCard(null); }}
@@ -12119,7 +12299,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         {/* 自分の盤面 */}
         <div style={{ border: C.borderSelf, borderRadius: 6, padding: '4px 6px', backgroundColor: C.bgSelf }}>
-          <PlayerField state={my} cards={battleCards} isMe={true} getSigniZoneActions={getMySigniZoneActions} getLrigDeckCardActions={getMyLrigDeckCardActions} getLrigFieldActions={getMyLrigFieldActions} getKeyPieceActions={getKeyPieceActions} getAssistLActions={() => getAssistActions('l')} getAssistRActions={() => getAssistActions('r')} getFreeZoneActions={getMyFreeZoneActions} closeZoneSignal={closeZoneSignal} effectivePowers={effectivePowers} dynamicKeywords={dynamicKeywords.my} />
+          <PlayerField state={my} cards={battleCards} isMe={true} getSigniZoneActions={getMySigniZoneActions} getLrigDeckCardActions={getMyLrigDeckCardActions} getLrigFieldActions={getMyLrigFieldActions} getKeyPieceActions={getKeyPieceActions} getAssistLActions={() => getAssistActions('l')} getAssistRActions={() => getAssistActions('r')} getFreeZoneActions={getMyFreeZoneActions} getTrashCardActions={getMyTrashCardActions} closeZoneSignal={closeZoneSignal} effectivePowers={effectivePowers} dynamicKeywords={dynamicKeywords.my} />
           <HandCards cardNums={my.hand} cards={battleCards} getCardActions={getMyHandCardActions} />
         </div>
       </div>
