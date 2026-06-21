@@ -421,6 +421,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         cond.operator, resolveNum(cond.value));
     case 'HAND_COUNT':
       return cmp(st(cond.owner).hand.length, cond.operator, resolveNum(cond.value));
+    case 'HAND_COUNT_FILTER': {
+      const matched = handCandidates(st(cond.owner), cond.filter, ctx.cardMap);
+      const n = cond.distinctName
+        ? new Set(matched.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn)).size
+        : matched.length;
+      return cmp(n, cond.operator, resolveNum(cond.value));
+    }
     case 'LIFE_COUNT':
       return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT':
