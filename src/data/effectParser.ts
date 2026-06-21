@@ -1531,9 +1531,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   }
 
   // ビートアイコン条件を useCondition にマージ
-  const mergedCondition: import('../types/effects').Condition | undefined = beatCondition
+  let mergedCondition: import('../types/effects').Condition | undefined = beatCondition
     ? (useCondition ? { type: 'AND', conditions: [beatCondition, useCondition] } : beatCondition)
     : useCondition;
+  // トリガー文から抽出した条件（ON_ENERGY_CHARGE=IS_MY_TURN / ON_POWER_THRESHOLD=SELF_POWER_GTE）をマージ
+  if (extractedTriggerCondition) {
+    mergedCondition = mergedCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, mergedCondition] }
+      : extractedTriggerCondition;
+  }
 
   // 使用回数制限（《ターン１回》《ターン２回》《ゲーム１回》）。CONTINUOUS には付けない。
   let usageLimit: import('../types/effects').UsageLimit | undefined;
