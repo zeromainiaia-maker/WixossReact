@@ -141,7 +141,7 @@ function costJa(c?: any): string {
   if (c.exceed != null) parts.push(`エクシード${c.exceed}`);
   if (c.down_self) parts.push('《ダウン》');
   if (c.discard != null) parts.push(`手札${c.discard}枚を捨てる`);
-  if (c.handDiscardSigni) parts.push(`手札から${c.handDiscardSigni.color ? '《' + c.handDiscardSigni.color + '》' : ''}シグニ${c.handDiscardSigni.count}枚を捨てる`);
+  if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
   if (c.coin != null) parts.push(`コイン${c.coin}`);
   if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
