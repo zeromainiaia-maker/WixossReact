@@ -12379,7 +12379,8 @@
         },
         "filter": {
           "cardType": "スペル",
-          "color": "赤"
+          "color": "赤",
+          "costMax": 1
         },
         "maxCount": 1,
         "then": {
@@ -12401,7 +12402,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-072": [

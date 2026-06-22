@@ -263,6 +263,7 @@ export interface TargetFilter {
   levelParity?: 'even' | 'odd';
   levelRange?: { min?: number; max?: number };
   powerRange?: { min?: number; max?: number };
+  costMax?:   number;  // 使用コストの合計（《色×N》の合計、コインを除く）がこの値以下（「コストの合計が1以下のスペル」WX04-071 等）
   story?:     string | string[];  // Dissona専用。シグニクラスには cardClass を使う
   cardClass?: string | string[]; // ＜クラス＞フィルター（CSVのCardClassフィールドに対してincludesでマッチ）
   cardClassExclude?: string | string[]; // ＜クラス＞除外（「＜天使＞ではないシグニ」等。CardClassにincludesでマッチしたら除外）WX03-002
