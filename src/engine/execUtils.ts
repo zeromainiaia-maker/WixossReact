@@ -467,12 +467,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).cards_drawn_by_effect_this_turn ?? 0, cond.operator, cond.value);
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
-      return st(cond.owner).field.signi.some(stack => {
+      const matched = st(cond.owner).field.signi.filter(stack => {
         if (!stack || stack.length === 0) return false;
         const top = stack[stack.length - 1];
         if (cond.excludeSelf && srcNum && top === srcNum) return false;
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
-      });
+      }).length;
+      return matched >= (cond.minCount ?? 1);
     }
     case 'TRASH_HAS_CARD': {
       const stripCC = ctx.oppTrashColorLoss && cond.owner === 'self';
