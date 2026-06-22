@@ -408,6 +408,16 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し、その中から${filterStr}を${pickN}${thenJa}${remJa}`;
     }
     case 'REARRANGE_SIGNI': return a.swap ? 'このシグニと対象シグニの位置を入れ替える' : `${targetJa(a.target)}を好きなように配置し直す${a.optional ? '（してもよい）' : ''}`;
+    case 'CHARM_PROTECTION':
+      return `あなたの${filterJa(a.signiFilter)}シグニ1体がバニッシュされる場合、代わりにそのシグニに付いている【チャーム】1枚をトラッシュに置いて${a.optional ? 'もよい' : '置く'}`;
+    case 'ATTACH_CHARM': {
+      const charmSrcJa = a.charm?.type === 'DECK_CARD' ? 'デッキの一番上のカード'
+        : a.charm?.type === 'TRASH_CARD' ? `トラッシュから${filterJa(a.charm.filter)}カード1枚`
+        : a.charm?.type === 'HAND_CARD' ? `手札から${filterJa(a.charm.filter)}カード1枚`
+        : 'カード';
+      const toJa = a.to?.filter?.thisCardOnly ? 'このシグニ' : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ1体`;
+      return `${ownerJa(a.charm?.owner)}${charmSrcJa}を${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
+    }
     case 'SET_BASE_LEVEL': {
       const thisOnlySBL = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner);
       return `${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
