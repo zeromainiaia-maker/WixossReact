@@ -446,12 +446,15 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'CHARM_PROTECTION':
       return `あなたの${filterJa(a.signiFilter)}シグニ1体がバニッシュされる場合、代わりにそのシグニに付いている【チャーム】1枚をトラッシュに置いて${a.optional ? 'もよい' : '置く'}`;
     case 'ATTACH_CHARM': {
-      const charmSrcJa = a.charm?.type === 'DECK_CARD' ? 'デッキの一番上のカード'
-        : a.charm?.type === 'TRASH_CARD' ? `トラッシュから${filterJa(a.charm.filter)}カード1枚`
-        : a.charm?.type === 'HAND_CARD' ? `手札から${filterJa(a.charm.filter)}カード1枚`
-        : 'カード';
+      // TRASH_CARD + thisCardOnly:「このカードを【チャーム】にする」（効果元自身。WX04-102）
+      const thisCardCharm = a.charm?.type === 'TRASH_CARD' && a.charm.filter?.thisCardOnly;
+      const charmJa = thisCardCharm ? 'このカード'
+        : a.charm?.type === 'DECK_CARD' ? `${ownerJa(a.charm?.owner)}デッキの一番上のカード`
+        : a.charm?.type === 'TRASH_CARD' ? `${ownerJa(a.charm?.owner)}トラッシュから${filterJa(a.charm.filter)}カード1枚`
+        : a.charm?.type === 'HAND_CARD' ? `${ownerJa(a.charm?.owner)}手札から${filterJa(a.charm.filter)}カード1枚`
+        : `${ownerJa(a.charm?.owner)}カード`;
       const toJa = a.to?.filter?.thisCardOnly ? 'このシグニ' : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ1体`;
-      return `${ownerJa(a.charm?.owner)}${charmSrcJa}を${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
+      return `${charmJa}を${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
     }
     case 'SET_BASE_LEVEL': {
       const thisOnlySBL = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner);
