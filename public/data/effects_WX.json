@@ -13177,25 +13177,13 @@
         ]
       },
       "action": {
-        "type": "SEQUENCE",
-        "steps": [
-          {
-            "type": "STUB",
-            "id": "DECK_REVEAL_UNTIL"
-          },
-          {
-            "type": "STUB",
-            "id": "REVEALED_SIGNI_TO_FIELD_REST_TRASH"
-          },
-          {
-            "type": "STUB",
-            "id": "REPEAT_EFFECT"
-          }
-        ]
+        "type": "REVEAL_UNTIL_TO_FIELD",
+        "owner": "self",
+        "repeat": 3
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-093-BURST",
