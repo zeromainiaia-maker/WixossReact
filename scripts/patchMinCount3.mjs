@@ -30,8 +30,11 @@ for (let i = 1; i <= 11; i++) {
 const effPath = join(root, 'public/data/effects_WX.json');
 const eff = JSON.parse(readFileSync(effPath, 'utf-8'));
 
+const stripMinCount = (json) => json.replace(/,"minCount":\d+/g, '');
+
 let touched = 0;
 const changedCards = [];
+const suspicious = [];
 for (const r of allRows) {
   const text = `${r.EffectText ?? ''}\n${r.BurstText ?? ''}`;
   if (!PATTERN.test(text)) continue;
