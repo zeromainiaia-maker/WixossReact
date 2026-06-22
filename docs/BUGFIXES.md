@@ -5,6 +5,17 @@
 
 ---
 
+## WX04-049-E1「基本レベルは2になる」の実装（SET_BASE_LEVEL）（2026-06-22）
+
+- **症状（ユーザー報告）:** E1「【常】場に他の＜空獣＞か＜地獣＞があるかぎり、このシグニの基本レベルは2になる」が誤実装。パーサーが「基本レベルはNになる」を `BLOCK_ACTION(actionId:'SET_LEVEL_2')` に変換していたが、**エンジンで一切消費されず no-op**（基本レベルが実際に2にならない）。decompileも「『SET_LEVEL_2』ことができない」と誤表示。
+- **修正:**
+  - 新アクション `SET_BASE_LEVEL`（CONTINUOUS。target/value）を追加。
+  - `applyContinuousBaseLevelOverride`（effectEngine）: 両プレイヤーの場のシグニを走査し、条件を満たす `SET_BASE_LEVEL` 効果元の **`cardMap` の Level を直接上書き**。これで `matchesFilter` のレベルフィルタ等、全レベル参照（レベル指定の除去/対象など）に自動反映。`applyDeclaredZoneClassOverride` と同じ cardMap オーバーライド方式（45箇所ある `fieldCandidates` への引数追加を回避）。
+  - BattleScreen の全 `declaredCardMap` 生成箇所（8箇所＝効果解決/各インタラクション/スペル/カットイン）でチェーン適用。
+  - **手札のシグニは上書き対象外**（場のシグニのみ走査）なので「場に出るまでレベル3」＝センタールリグLv2では場に出せない、という原文の挙動も維持。
+  - JSON は `SET_BASE_LEVEL` に修正、`manualEffects.ts` に E1 を MANUAL 登録。decompile に `SET_BASE_LEVEL`／`POWER_DOUBLE_ALL`（E2）の和文化を追加。
+  - 検証: 他＜地獣＞があると Level 3→2、無いと 3 のままをテストで確認。`npm run typecheck` 通過、`npm run verify` フラグなし・サマリー不変。
+
 ## WX04-047-E1 逆翻訳（DISCARD_OR_PENALTY）の正確化（2026-06-22）
 
 - **症状（ユーザー報告）:** E1の逆翻訳が `[STUB:DISCARD_OR_PENALTY: …汎用説明]` で原文「あなたは手札から＜原子＞のシグニを1枚捨てないかぎり手札を2枚捨てる」を表していなかった。
