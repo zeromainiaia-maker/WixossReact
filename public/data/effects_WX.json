@@ -13372,6 +13372,9 @@
     {
       "effectId": "WX04-098-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "IS_SELF_CHARMED"
+      },
       "action": {
         "type": "POWER_SET",
         "target": {
@@ -13383,7 +13386,7 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-099": [
