@@ -10,11 +10,18 @@
  * 出力: docs/grouped_sentence_<sheet>.txt （人間が開いて使う／コンテキストには載せない）
  * 使い方: node scripts/groupBySentence.mjs [入力decompile] [出力txt]
  */
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync } from 'fs';
+import { join } from 'path';
 
-const inPath = process.argv[2] ?? 'docs/decompile_sheet1.txt';
-const outPath = process.argv[3] ?? 'docs/grouped_sentence_sheet1.txt';
-const text = readFileSync(inPath, 'utf-8');
+const arg1 = process.argv[2] ?? 'docs/decompile_sheet1.txt';
+// --all: docs/decompile_sheet*.txt を全シート結合して横断分析（系統が弾をまたいでも束ねる）
+const allMode = arg1 === '--all';
+const inPath = allMode ? 'docs/decompile_sheet*.txt(全シート)' : arg1;
+const outPath = process.argv[3] ?? (allMode ? 'docs/grouped_sentence_all.txt' : 'docs/grouped_sentence_sheet1.txt');
+const text = allMode
+  ? readdirSync('docs').filter(f => /^decompile_sheet\d+\.txt$/.test(f))
+      .map(f => readFileSync(join('docs', f), 'utf-8')).join('\n')
+  : readFileSync(arg1, 'utf-8');
 
 const CARD_NUM_RE = /[A-Z][A-Za-z0-9]*-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)?/g;
 
