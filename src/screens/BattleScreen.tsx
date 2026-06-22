@@ -3042,6 +3042,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      // fromZones 指定があり 'deck' を含まない場合はデッキからでは発火しない
+      if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('deck')) continue;
       const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
       entries.push({
         id: generateUUID(),
