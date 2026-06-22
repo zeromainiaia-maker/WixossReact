@@ -287,12 +287,25 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
 
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const delta = resolveNum(a.delta);
-  const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  // owner:'any'（「対象のシグニ」）= 自分・対戦相手どちらのシグニも選べる
+  const isAny = a.target.owner === 'any';
+  const tgtOwner = isAny ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  // 完全効果耐性: 相手のパワーをマイナスする効果は耐性シグニに無効（プラスは利益なので除外しない）
-  if (tgtOwner === 'opponent' && delta < 0 && ctx.otherEffectImmuneNums?.size) {
-    cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
+  let cands: string[];
+  if (isAny) {
+    const selfCands = fieldCandidates(ctx.ownerState, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    let oppCands = fieldCandidates(ctx.otherState, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    // 完全効果耐性: 相手のパワーをマイナスする効果は耐性シグニに無効
+    if (delta < 0 && ctx.otherEffectImmuneNums?.size) {
+      oppCands = oppCands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
+    }
+    cands = [...selfCands, ...oppCands];
+  } else {
+    cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    // 完全効果耐性: 相手のパワーをマイナスする効果は耐性シグニに無効（プラスは利益なので除外しない）
+    if (tgtOwner === 'opponent' && delta < 0 && ctx.otherEffectImmuneNums?.size) {
+      cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
+    }
   }
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニのパワーを±X」。WX25-CP1-075 等の付与能力で使用）
   if (a.target.filter?.thisCardOnly) {
