@@ -104,7 +104,7 @@ export type NumberOrRef = number | { $ref: string };
 
 export type ActiveCondition =
   | { type: 'TURN_OWNER'; owner: Owner }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number } // minCount: フィルタ一致シグニがN体以上あるか（省略=1。「＜美巧＞が3体あるかぎり」=minCount:3。WX04-004-E1）
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean } // minCount: フィルタ一致シグニがN体以上あるか（省略=1。「＜美巧＞が3体あるかぎり」=minCount:3。WX04-004-E1）。distinctNames:true で名前が異なるものをN種以上数える（「それぞれ名前の異なる＜原子＞が3体」=minCount:3+distinctNames。WX12-Re01）
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number; color?: string } // color指定時はその色を含むカードのみ数える（WX05-005「トラッシュに黒のカードが10枚以上」）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
   | { type: 'SELF_POWER_THRESHOLD'; operator: CompareOp; value: number }
