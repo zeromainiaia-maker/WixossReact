@@ -25,8 +25,8 @@ const text = allMode
       .map(f => readFileSync(join('docs', f), 'utf-8')).join('\n')
   : readFileSync(arg1, 'utf-8');
 
-// カードのカード番号パターン (逆翻訳のエフェクトID内に出るので正規化対象)
-const CARD_NUM_RE = /[A-Z][A-Za-z0-9]*-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)?/g;
+// カード番号/エフェクトID (WXDi-P01-061-E1 等の多セグメントも丸ごとマスク)
+const CARD_NUM_RE = /[A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+/g;
 
 /** 正規化: カード名・種族・色・数字・カード番号をマスクして「型」を抽出 */
 function norm(s) {
@@ -43,8 +43,11 @@ function norm(s) {
  *  → コスト個数やタイミングの違いで★が誤検出されるのを防ぎ、真の構造差だけを残す。 */
 function normDec(s) {
   return norm(
-    s.replace(/〈[^〉]*〉/g, '')            // コスト塊 〈《赤×1》《無×1》〉
-     .replace(/\/[A-Z_]+/g, '')            // /ATTACK 等のタイミング修飾
+    s.replace(CARD_NUM_RE, '')             // カード番号/ID を先に除去
+     .replace(/〈[^〉]*〉/g, '')            // コスト塊 〈《赤×1》《無×1》〉
+     .replace(/【[^】]*】/g, '')            // マーカー 【起】【自】【常】等
+     .replace(/（[^）]*）/g, '')             // タイミング （メイン起動）等
+     .replace(/[／\/]?[A-Z][A-Z_]+/g, '')   // タイミング/アクション英大文字語(ATTACK/MAIN等)
   );
 }
 

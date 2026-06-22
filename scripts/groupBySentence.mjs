@@ -23,7 +23,8 @@ const text = allMode
       .map(f => readFileSync(join('docs', f), 'utf-8')).join('\n')
   : readFileSync(arg1, 'utf-8');
 
-const CARD_NUM_RE = /[A-Z][A-Za-z0-9]*-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)?/g;
+// カード番号/エフェクトID (WXDi-P01-061-E1 等の多セグメントも丸ごとマスク)
+const CARD_NUM_RE = /[A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+/g;
 
 // 効果本体の「型」を抽出（マーカー/タイミング/コストを落とし、カード名・数字をマスク）
 function bodyKey(sentence) {
