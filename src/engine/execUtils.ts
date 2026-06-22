@@ -805,14 +805,17 @@ export function selectOrInteract(
   extra?: { totalPowerMax?: number; candidatePowers?: Record<string, number> },
 ): ExecResult {
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
+  // both_field（owner:'any'）でも相手側の候補にはシャドウを適用する（自分側候補は対象外）
   let filteredCands = candidates;
-  if (scope === 'opp_field') {
+  if (scope === 'opp_field' || scope === 'both_field') {
     // sourceCardNumがルリグの場合はシャドウ(ルリグ)も除外
     const sourceIsLrig = ctx.sourceCardNum
       ? ctx.cardMap.get(ctx.sourceCardNum)?.Type === 'ルリグ'
       : false;
     const sourceCardForShadow = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     filteredCands = candidates.filter(n => {
+      // both_field: 相手フィールドにあるシグニのみシャドウ判定（自分のシグニは常に選択可）
+      if (scope === 'both_field' && !ctx.otherState.field.signi.some(s => s?.at(-1) === n)) return true;
       if (sourceIsLrig && hasShadowLrig(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.keyword_grants_until_opp_turn)) return false;
       // シャドウ（スコープなし＝無条件、スコープ付き＝発生源カードの属性で判定。activeCondition無しのもの）
       const scopes = getShadowScopes(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds, ctx.otherState.keyword_grants_until_opp_turn);
