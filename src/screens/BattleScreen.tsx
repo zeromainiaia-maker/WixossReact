@@ -4924,7 +4924,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownerIsHost = pe.sourcePlayerId === bs.host_id;
       const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
       const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
-      const declaredCardMapR = applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState);
+      const declaredCardMapR = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, bs.active_user_id === pe.sourcePlayerId);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum };
       const targetState = inter.owner === 'opponent' ? otherState : ownerState;
       // skip（null）= 現状の配置をそのまま渡す（恒等変換。continuation はそのまま実行される）
