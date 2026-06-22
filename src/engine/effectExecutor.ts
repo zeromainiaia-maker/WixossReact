@@ -3123,6 +3123,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手のシグニのバニッシュ先をトラッシュへ変更'));
     }
     case 'REARRANGE_SIGNI':                return execRearrangeSigni(action as import('../types/effects').RearrangeSigniAction, ctx);
+    case 'SET_BASE_LEVEL':                 return done(ctx); // CONTINUOUS。基本レベルは applyContinuousBaseLevelOverride（cardMap上書き）で反映
     case 'GROW_FREE':                      return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
     case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
     case 'POWER_MODIFY_PER_DECK_COUNT':    return done(addLog(ctx, 'デッキ枚数比例パワー（effectEngine処理）'));
