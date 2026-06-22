@@ -15504,6 +15504,95 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
 
         // SELECT_SIGNI_ZONE：トラッシュ/エナ/手札などから場に出す際のゾーン選択
+        // REARRANGE_SIGNI：シグニを好きなように配置し直す（各シグニにゾーンを割り当て）
+        if (inter.type === 'REARRANGE_SIGNI') {
+          const ownerLabelRS = inter.owner === 'opponent' ? '相手の' : '自分の';
+          const assignZoneRS = (signi: string, z: number) => {
+            setRearrangeSlots(prev => {
+              const next = prev.map(x => (x === signi ? null : x));
+              next[z] = signi;
+              return next;
+            });
+          };
+          const allAssignedRS = inter.signiNums.every(n => rearrangeSlots.includes(n));
+          return createPortal(
+            <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+              backgroundColor: 'rgba(0,0,0,0.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                  padding: '20px 16px', width: 'min(95vw, 420px)', maxHeight: '85vh', overflowY: 'auto',
+                  display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                </p>
+                <p style={{ color: C.textDim, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                  {ownerLabelRS}シグニを好きなように配置し直してください（各シグニのゾーンを選択）
+                </p>
+                {/* 新しい配置プレビュー */}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                  {([0, 1, 2] as const).map(zi => {
+                    const occ = rearrangeSlots[zi];
+                    const c = occ ? battleCardMap.get(getCardNum(occ)) : undefined;
+                    return (
+                      <div key={zi} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <div style={{ width: 52, height: 73, borderRadius: 4, border: C.borderCard,
+                          backgroundColor: C.bgButton, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {c ? <img src={c.ImgURL} alt={c.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                             : <span style={{ fontSize: 9, color: C.textFaint }}>空き</span>}
+                        </div>
+                        <span style={{ fontSize: 10, color: C.textDim }}>ゾーン{zi + 1}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* 各シグニのゾーン割り当て */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {inter.signiNums.map(n => {
+                    const c = battleCardMap.get(getCardNum(n));
+                    const curZone = rearrangeSlots.indexOf(n);
+                    return (
+                      <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <img src={c?.ImgURL} alt={c?.CardName}
+                          style={{ width: 34, height: 48, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />
+                        <span style={{ flex: 1, fontSize: 11, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c?.CardName ?? n}</span>
+                        {([0, 1, 2] as const).map(z => (
+                          <button key={z} onClick={() => assignZoneRS(n, z)} disabled={loading}
+                            style={{ width: 30, padding: '6px 0', borderRadius: 6,
+                              border: curZone === z ? `2px solid ${C.success}` : C.borderUI,
+                              backgroundColor: curZone === z ? C.success : C.bgButton,
+                              color: C.text, fontSize: 12, cursor: 'pointer' }}>
+                            {z + 1}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {inter.optional && (
+                    <button onClick={() => handleRearrangeSigniConfirm(null)} disabled={loading}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
+                      配置し直さない
+                    </button>
+                  )}
+                  <button
+                    onClick={() => allAssignedRS && handleRearrangeSigniConfirm(rearrangeSlots.map(s => s ?? ''))}
+                    disabled={!allAssignedRS || loading}
+                    style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: allAssignedRS && !loading ? C.success : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: allAssignedRS && !loading ? 'pointer' : 'default' }}>
+                    配置を確定
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          );
+        }
+
         if (inter.type === 'SELECT_SIGNI_ZONE') {
           const placeCardSSZ = battleCardMap.get(inter.cardNum);
           const ownerIsHostSSZ = pe.sourcePlayerId === bs.host_id;
