@@ -2676,14 +2676,30 @@ function evaluateCrossCondition(state: PlayerState, zoneIndex: number, condText:
   return evaluateSingleCross(state, zoneIndex, text, cardMap);
 }
 
+/**
+ * カードが《クロスアイコン》を持つクロスシグニか（EffectText 先頭で判定）。
+ * 実行時の CardData は parseCardEffects を通らず card.hasCrossIcon が未設定のため、
+ * フラグに依存せず EffectText から直接導出する（App.tsx は effects を JSON から付与する）。
+ */
+export function cardHasCrossIcon(card: CardData | undefined): boolean {
+  return !!card?.EffectText?.startsWith('《クロスアイコン》');
+}
+
+/** 《クロスアイコン》直後のクロス条件文（「《X》の左」等）。クロスシグニでなければ null。 */
+export function getCrossConditionText(card: CardData | undefined): string | null {
+  const m = card?.EffectText?.match(/^《クロスアイコン》([^【]+)/);
+  return m ? m[1].trim() : null;
+}
+
 export function collectCrossStates(playerState: PlayerState, cardMap: Map<string, CardData>): boolean[] {
   const result = [false, false, false];
   for (let z = 0; z < 3; z++) {
     const stack = playerState.field.signi[z];
     if (!stack || stack.length === 0) continue;
     const card = cardMap.get(stack[stack.length - 1]);
-    if (!card?.hasCrossIcon || !card.crossConditionText) continue;
-    result[z] = evaluateCrossCondition(playerState, z, card.crossConditionText, cardMap);
+    const crossCond = getCrossConditionText(card);
+    if (!crossCond) continue;
+    result[z] = evaluateCrossCondition(playerState, z, crossCond, cardMap);
   }
   return result;
 }
