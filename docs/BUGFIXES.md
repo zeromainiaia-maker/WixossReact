@@ -5,6 +5,18 @@
 
 ---
 
+## WX04-094「怒号」の対象・条件付き付与を本実装（2026-06-22）
+
+- **原文:** 「あなたの＜空獣＞か＜地獣＞のシグニ1体を対象とし、ターン終了時まで、それのパワーを＋2000する。あなたの場に＜空獣＞と＜地獣＞のシグニが合計3体ある場合、ターン終了時まで、それは【ランサー】と『【自】：このシグニが対戦相手のライフクロスをクラッシュしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。』を得る。」
+- **旧実装の問題:** 対象が `owner:any`（自分または相手の任意シグニ）で、＜空獣＞＜地獣＞のクラス絞りが無く、しかも「3体ある場合」の条件を無視して**無条件で `ENERGY_CHARGE_FROM_DECK`** を実行していた（【ランサー】付与も【自】付与も欠落）。
+- **修正:** SEQUENCE で本実装。
+  - ①`POWER_MODIFY` 対象 `owner:self, count:1, filter cardClass:[空獣,地獣]`・+2000（duration 省略＝ターン終了まで）。クラスは規約どおり `cardClass` を使用（[[storyフィルター使用ルール]]）。
+  - ②`CONDITIONAL`（`HAS_CARD_IN_FIELD owner:self filter cardClass:[空獣,地獣] minCount:3`）→ then で、①で選んだ「それ」へ `GRANT_KEYWORD ランサー` と `GRANT_EFFECT`（【自】`ON_OPP_LIFE_CRASHED`→`ENERGY_CHARGE_FROM_DECK`、WX03-031-E1 と同型）をいずれも UNTIL_END_OF_TURN で付与。
+- **基盤追加:**
+  - `GrantEffectAction` に `targetsLastProcessed`（「それ」＝直前選択シグニへ付与。GRANT_KEYWORD と同機構）を追加し `execGrantEffect` に分岐実装。付与は `granted_effects`（instanceId単位）へ入り、`effectsMap` が instanceId でマージするため `ON_OPP_LIFE_CRASHED` 収集（BattleScreen 9182〜、付与能力も走査）で発火する。
+  - `Condition.HAS_CARD_IN_FIELD` に `minCount`（CONDITIONAL用。従来は `.some()`＝1体以上固定）を追加し `evalCondition` を「該当数 ≥ minCount」判定へ。
+- 検証: `npm run typecheck` 通過。`tsx scripts/decompileEffects.ts WX04-094` の逆翻訳が「あなたの＜空獣・地獣＞のシグニ1体のパワーを＋2000する。そしてあなたの場に＜空獣・地獣＞のシグニが3体以上いるなら、それは【ランサー】を得る（…）。そしてそれは『【自】対戦相手のライフがクラッシュされたとき：…エナゾーンに置く』を得る（…）」となることを確認。`ON_OPP_LIFE_CRASHED` は配線済み（攻撃側フィールドを走査、augmented effectsMap 経由で付与能力も拾う）。
+
 ## WX04-093「惰眠」のデッキ公開→場出し→3回繰り返しを本実装（2026-06-22）
 
 - **原文:** 「あなたのデッキの上からシグニがめくれるまで公開する。その後、公開されたシグニを場に出し、残りをトラッシュに置く。その後、この効果を２回繰り返す。（場に出すことのできないシグニはトラッシュに置かれる）」
