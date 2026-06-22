@@ -4562,6 +4562,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // REVEAL_UNTIL_TO_FIELD（WX04-093「惰眠」等）: 効果で場に出したシグニの【出】(ON_PLAY) を積む。
+        // lastProcessedCards に場へ出した instanceId が全て入る（トラッシュ送りのシグニは含まれない）。
+        // 原文「【出】能力はこのスペルを処理したあとに好きな順番で発動する」→ 複数エントリを積めば整列UIで順番を選べる。
+        if ((entry.effect.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD') {
+          const rutfOnPlayEntries: StackEntry[] = [];
+          for (const instanceId of result.lastProcessedCards ?? []) {
+            const cn = getCardNum(instanceId);
+            for (const eff of (effectsMap.get(cn) ?? [])) {
+              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+              rutfOnPlayEntries.push({
+                id: generateUUID(),
+                playerId: entry.playerId,
+                cardNum: instanceId,
+                effectId: eff.effectId,
+                label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果`,
+                effect: eff,
+              });
+            }
+          }
+          if (rutfOnPlayEntries.length > 0) {
+            const baseStackR = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackR
+              ? pushToStack(baseStackR, rutfOnPlayEntries)
+              : initStack(stack.turnPlayerId, rutfOnPlayEntries);
+          }
+        }
+
         // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
         const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
         if (entryCardType === 'アーツ' && entry.playerId !== user.id) {
