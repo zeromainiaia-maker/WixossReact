@@ -448,6 +448,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : '公開した他のカードをデッキの一番下に置く';
       return `${ownerJa(a.owner)}デッキを上から${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがめくれるまで公開し、そのシグニを手札に加える。そして${restJa}`;
     }
+    case 'REVEAL_UNTIL_TO_FIELD':
+      return `${ownerJa(a.owner)}デッキを上から${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがめくれるまで公開し、そのシグニを場に出し、残りをトラッシュに置く（場に出せないシグニはトラッシュへ）。これを${a.repeat}回繰り返す`;
     case 'NEGATE_ATTACK': return 'そのアタックを無効にする';
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
