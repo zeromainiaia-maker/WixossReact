@@ -4349,16 +4349,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...collectCharmShieldSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap),
       ]);
       const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, triggeringCardNum: entry.triggeringCardNum, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
-      // crossOnly（【クロス出】【クロス自】【クロス起】）: 発生源シグニが解決時にクロス状態のゾーンに
-      // いなければ不発（【クロス常】は calcFieldPowers 側で別途ゲート済み）。全トリガー経路がこのリゾルバを
-      // 通るため、ここ1か所でゲートすれば通常召喚・特殊召喚・アタックいずれの【クロス】効果も網羅される。
-      let result: ExecResult;
-      if (entry.effect.crossOnly && !isCrossZoneActive(ownerState, entry.cardNum, battleCardMap)) {
-        const cn = battleCardMap.get(entry.cardNum)?.CardName ?? entry.cardNum;
-        result = { done: true, ownerState, otherState, logs: [`${cn} はクロス状態でないため【クロス】効果は発動しない`] };
-      } else {
-        result = executeEffect(entry.effect, ctx);
-      }
+      let result = executeEffect(entry.effect, ctx);
       // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
       {
         const refreshed = applyRefreshOnDone(result, battleCardMap);
