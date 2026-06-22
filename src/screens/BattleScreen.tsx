@@ -13785,10 +13785,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   )}
 
                   {/* fieldTrash: 場のシグニを場からトラッシュするコスト選択（excludeSelf=効果元を除く。WX03-035等） */}
-                  {actFieldTrashCost && actFtNeeded > 0 && (
+                  {(actFieldTrashCost || actFieldTrashGroups) && actFtNeeded > 0 && (
                     <>
                       <p style={{ color: actFieldTrashOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
-                        場から{actFieldTrashCost.excludeSelf ? '他の' : ''}{fmtDiscardFilterLabel(actFieldTrashCost.filter)}シグニをトラッシュ:
+                        場から{actFieldTrashGroups
+                          ? actFieldTrashGroups.map(g => `${fmtDiscardFilterLabel(g.filter)}シグニ${g.count}体`).join('と')
+                          : `${actFieldTrashCost!.excludeSelf ? '他の' : ''}${fmtDiscardFilterLabel(actFieldTrashCost!.filter)}シグニ`}をトラッシュ:
                         {' '}{selectedSigniActivatedFieldTrash.size} / {actFtNeeded}体
                       </p>
                       {actFtSelectableZones.length === 0 ? (
