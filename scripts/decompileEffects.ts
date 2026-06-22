@@ -124,21 +124,21 @@ function targetJa(t?: any, unit = 'シグニ'): string {
   } else u = unit; // SIGNI 等
   // パワー合計上限つき「好きな数」（「パワーの合計がN以下になるように好きな数」）
   if (t.totalPowerMax !== undefined) {
-    return `${ownerJa(t.owner)}${filterJa(t.filter)}${u}をパワーの合計が${t.totalPowerMax}以下になるように好きな数`.trim();
+    return `${own}${filterJa(t.filter)}${u}をパワーの合計が${t.totalPowerMax}以下になるように好きな数`.trim();
   }
   const counter = loc ? '枚' : '体';
   // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
-    return `トラッシュに置いたシグニ1${counter}につき${ownerJa(t.owner)}${filterJa(t.filter)}${u}1${counter}`.trim();
+    return `トラッシュに置いたシグニ1${counter}につき${own}${filterJa(t.filter)}${u}1${counter}`.trim();
   }
   // 「好きな数」（count:'ALL' + upToCount）
   if (t.count === 'ALL' && t.upToCount) {
-    return `${ownerJa(t.owner)}好きな数の${filterJa(t.filter)}${u}`.trim();
+    return `${own}好きな数の${filterJa(t.filter)}${u}`.trim();
   }
   const cnt = t.count === 'ALL' ? 'すべての' : '';
   const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? counter + 'まで' : counter}`;
   const blind = t.blind ? '（見ないで）' : '';
-  return `${ownerJa(t.owner)}${cnt}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
+  return `${own}${cnt}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
 }
 
 function costJa(c?: any): string {
@@ -426,9 +426,14 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'POWER_MODIFY_PER_TRASH_COUNT':
     case 'POWER_MODIFY_PER_LIFE_COUNT':
     case 'POWER_MODIFY_PER_STACK':
+    case 'POWER_MODIFY_PER_FIELD': {
+      // 「対象のパワーを〈countOwner〉の場の〈countFilter〉シグニ1体につき±Nする」
+      const d = a.deltaPerUnit ?? a.delta ?? 0;
+      const cf = filterJa(a.countFilter);
+      return `${targetJa(a.target)}のパワーを${ownerJa(a.countOwner)}場の${cf}シグニ1体につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+    }
     case 'POWER_MODIFY_PER_LEVEL_SUM':
     case 'POWER_MODIFY_PER_LRIG_LEVEL':
-    case 'POWER_MODIFY_PER_FIELD':
     case 'POWER_MODIFY_PER_ENERGY':
     case 'POWER_MODIFY_PER_CHARM':
     case 'POWER_MODIFY_PER_DECK_COUNT':
