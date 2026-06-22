@@ -11389,11 +11389,12 @@
           "type": "SIGNI",
           "owner": "opponent",
           "count": "ALL"
-        }
+        },
+        "optional": true
       },
       "duration": "INSTANT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-043": [
