@@ -13394,8 +13394,12 @@
       "effectId": "WX04-099-E1",
       "effectType": "AUTO",
       "timing": [
-        "ON_PLAY"
+        "ON_SIGNI_BATTLE"
       ],
+      "triggerScope": "self",
+      "condition": {
+        "type": "IS_OPPONENT_TURN"
+      },
       "action": {
         "type": "BANISH",
         "target": {
@@ -13404,7 +13408,8 @@
           "count": 1,
           "filter": {
             "cardType": "シグニ",
-            "level": {
+            "isTriggerSource": true,
+            "levelRange": {
               "max": 2
             }
           },
@@ -13413,7 +13418,7 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-101": [
