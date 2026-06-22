@@ -432,6 +432,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT':
       return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
+    case 'ENERGY_COUNT_FILTER': {
+      const matched = energyCandidates(st(cond.owner), cond.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+      const n = cond.distinctName
+        ? new Set(matched.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn)).size
+        : matched.length;
+      return cmp(n, cond.operator, resolveNum(cond.value));
+    }
     case 'ENERGY_HAS_COLOR': {
       const ez = st(cond.owner).energy;
       return cond.colors.every(color => ez.some(n => ctx.cardMap.get(n)?.Color?.includes(color)));
