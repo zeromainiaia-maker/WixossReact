@@ -948,8 +948,9 @@ export function calcFieldPowers(
       }
       const effects = effectsMap.get(topNum);
       if (!effects) continue;
-      // DOUBLE_POWER_MINUS「あなたのシグニの効果で」: 発生元（topNum）がシグニのときのみ相手への負デルタを2倍化
-      const srcIsSigniDbl = (cardMap.get(topNum)?.Type ?? '').includes('シグニ');
+      // DOUBLE_POWER_MINUS「あなたのシグニの効果で」: 発生元（topNum）がシグニ（レゾナ含む）のときのみ相手への負デルタを2倍化
+      const srcTypeDbl = cardMap.get(topNum)?.Type ?? '';
+      const srcIsSigniDbl = srcTypeDbl.includes('シグニ') || srcTypeDbl.includes('レゾナ');
       const dblOtherMult = (hasDoublePowerMinus && srcIsSigniDbl) ? 2 : 1;
 
       // クロス状態を一度だけ計算（crossOnly効果の判定用）
