@@ -3088,11 +3088,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     causeByOpponent = false,
   ): StackEntry[] => {
     const entries: StackEntry[] = [];
-    // トラッシュに置かれたカード自身の ON_TRASH 効果
+    // トラッシュに置かれたカード自身の ON_TRASH 効果（このパスは「場から」トラッシュ＝field origin）
     for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       // 「対戦相手の効果によって」限定トリガーは対戦相手効果が原因のときのみ発火（WX04-035-E2）
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      // fromZones 指定があり 'field' を含まない場合は「場から」では発火しない（WX04-102「手札かデッキから」）
+      if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('field')) continue;
       const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
       entries.push({
         id: generateUUID(),
