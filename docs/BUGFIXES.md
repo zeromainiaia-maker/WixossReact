@@ -5,6 +5,19 @@
 
 ---
 
+## WX04-037「フィア＝リカブト」E2修正・decompile和文化の改善（2026-06-22）
+
+- **症状（ユーザー報告）:** WX04-037 の逆翻訳が不正確。E1「FIELD数に応じて」が曖昧、E2が誤実装、BURSTのマイナス対象が自分/相手どちらか不明。
+- **E2 のロジック修正（誤実装）:**
+  - 原文「【自】あなたのターンの間、対戦相手のシグニ1体が場からトラッシュに置かれたとき、デッキの一番上をエナゾーンに置く」。
+  - 修正前 JSON は `timing:ON_TRASH` のみ（triggerScope 既定=self）で**このカード自身がトラッシュされたとき**発火していた。
+  - 修正: `triggerScope:'any_opp'` + `condition:IS_MY_TURN`。`collectTrashTriggers` に **any_opp 分岐**を新設（トラッシュされたカードの対戦相手フィールドを監視）。`IS_MY_TURN`/`IS_OPPONENT_TURN` は `evalCondition` では常時 true/false のため、watcher のターンを明示判定して発火を制御。
+- **decompile（`decompileEffects.ts`）の和文化改善:**
+  - `POWER_MODIFY_PER_FIELD` を専用ケース化 → 「対象のパワーを〈countOwner〉の場の〈countFilter〉シグニ1体につき±N」（E1: 「あなたの場の＜毒牙＞のシグニ1体につき－1000」）。
+  - target の `owner:'any'` を「自分または対戦相手の」と明示（BURST のマイナス対象が両者対象だと分かる）。
+  - any_opp/any スコープを ON_TRASH/ON_LEAVE_FIELD 等「このカード」始まりのトリガーにも主語反映（「対戦相手のシグニがトラッシュに置かれたとき」）。主語反映できた場合は冗長な `〔範囲:〕` マーカーを抑制。ターン条件（〜の間）は「場合、」を付けない。
+- E1（`POWER_MODIFY_PER_FIELD`）・BURST（`owner:'any'` の -10000/-7000）の **JSON ロジック自体は正しい**ため、E2 のみ `manualEffects.ts` で上書き登録。`npm run typecheck` 通過、`npm run verify` で WX04-037 フラグなし・サマリー不変。
+
 ## WX04-036-E1「再誕」場出し・好きな数バニッシュ・同数探索の修正（2026-06-22）
 
 - **症状（ユーザー報告）:** WX04-036-E1「あなたの＜美巧＞のシグニを**好きな数**対象としバニッシュ→デッキから**同じ枚数**の＜美巧＞シグニを探して**場に出す**」が誤実装。「場に出す」はプレイヤーがカード・ゾーンを選択できる必要がある。
