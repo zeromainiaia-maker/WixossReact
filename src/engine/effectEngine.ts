@@ -1045,7 +1045,7 @@ export function calcFieldPowers(
                 undefined, undefined, mod.excludeSelf ? topNum : undefined);
             }
             if (targetIsOther) {
-              applyDeltaToState(otherState, effectiveDelta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
+              applyDeltaToState(otherState, effectiveDelta, target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
             }
           }
         }
