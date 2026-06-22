@@ -50,15 +50,18 @@ export function checkActiveCondition(
       const state = cond.owner === 'self' ? ownerState : otherState;
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
       let matched = 0;
+      const distinctNameSet = cond.distinctNames ? new Set<string>() : null;
       state.field.signi.forEach((stack, zi) => {
         const top = stack?.at(-1);
         if (!top) return;
         if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return;
-        if (!matchesFilter(cardMap.get(top), cond.filter)) return;
+        const c = cardMap.get(top);
+        if (!matchesFilter(c, cond.filter)) return;
         if (!matchesStateFilter(state, zi, cond.filter)) return;
-        matched++;
+        if (distinctNameSet) distinctNameSet.add(c?.CardName ?? top);
+        else matched++;
       });
-      return matched >= (cond.minCount ?? 1);
+      return (distinctNameSet ? distinctNameSet.size : matched) >= (cond.minCount ?? 1);
     }
 
     case 'COUNT_THRESHOLD': {
