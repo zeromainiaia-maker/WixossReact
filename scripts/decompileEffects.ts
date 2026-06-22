@@ -40,6 +40,14 @@ for (const f of ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json',
   const j = JSON.parse(readFileSync(join(root, 'public/data', f), 'utf-8'));
   for (const [id, effs] of Object.entries(j)) effectsMap.set(id, effs as Eff[]);
 }
+// manualEffects をマージ（runtime の buildEffectsMap と同じ effects を逆翻訳に反映する）
+{
+  const ids = new Set<string>([...effectsMap.keys(), ...Object.keys(MANUAL_EFFECTS)]);
+  for (const id of ids) {
+    const merged = mergeManualEffects(id, (effectsMap.get(id) ?? []) as never[]);
+    if (merged.length > 0) effectsMap.set(id, merged as Eff[]);
+  }
+}
 
 // ── STUBS.md から STUB id → 説明 マップを構築（逆翻訳で id ではなく説明文を出すため）──
 const stubDescMap = new Map<string, string>();
