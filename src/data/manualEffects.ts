@@ -182,6 +182,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX04-098-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_CHARMED"},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
 
+  // WX04-099 ツヴァイ＝サリナ（シグニ 精武：毒牙）
+  //  E1【自】対戦相手のターンの間、このシグニが対戦相手のレベル2以下のシグニとバトルしたとき、そのシグニをバニッシュする（自身がバトルでバニッシュされても発動）。
+  //   旧: timing ON_PLAY＋対象が任意の相手レベル2以下シグニ（誤）。timing ON_SIGNI_BATTLE＋IS_OPPONENT_TURN＋isTriggerSource（バトル相手=triggeringCardNum）で本実装。
+  "WX04-099": [
+    {"effectId":"WX04-099-E1","effectType":"AUTO","timing":["ON_SIGNI_BATTLE"],"triggerScope":"self","condition":{"type":"IS_OPPONENT_TURN"},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","isTriggerSource":true,"levelRange":{"max":2}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
   //   新トリガー ON_FRONT_SIGNI_ATTACK（BattleScreen のアタックハンドラが正面ゾーンの守備側シグニで発火・triggeringCardNum=アタッカー）、
