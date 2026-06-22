@@ -5,6 +5,17 @@
 
 ---
 
+## WX04-099-E1「ツヴァイ＝サリナ」のバトルトリガー誤実装（2026-06-22）
+
+- **原文:** 「【自】：対戦相手のターンの間、このシグニが対戦相手のレベル2以下のシグニとバトルしたとき、バトル終了時に、その対戦相手のシグニをバニッシュする。（このシグニがバトルでバニッシュされていても、この能力は発動する）」
+- **旧実装の問題:** timing が **ON_PLAY**（場に出たとき）で、バニッシュ対象も「対戦相手のレベル2以下シグニ**任意1体**」だった（バトル契機・相手ターン限定・バトル相手指定がすべて欠落）。
+- **修正:** timing `ON_SIGNI_BATTLE`＋`triggerScope:self`＋`condition IS_OPPONENT_TURN`。BANISH 対象を `owner:opponent, filter:{isTriggerSource:true, levelRange.max:2}`（「そのバトルした相手シグニ」＝バトル相手をレベル2以下に限定）に。
+- **基盤の整備（検証で発覚）:**
+  - `ON_SIGNI_BATTLE` 収集（BattleScreen `collectBattleTrig`）に **①ターン判定**（`condHas` で IS_MY_TURN/IS_OPPONENT_TURN を評価。ON_TRASH と同方式）と **②`triggeringCardNum` にバトル相手を設定**（攻撃側↔防御側を相互参照）を追加。これにより `isTriggerSource` でバトル相手を特定でき、「このシグニがバニッシュされても発動」（相手＝triggeringCardNum は別カードなので追跡が途切れない）も満たす。
+  - `evalCondition` の `IS_OPPONENT_TURN` を `false`→`true` に是正（`IS_MY_TURN` と対称のプレースホルダ。実ターン判定は収集側 `condHas` が担う。従来は `evalUseCondition` 経由で常にブロックされ、IS_OPPONENT_TURN 付き AUTO が発火しない潜在バグだった）。
+  - decompile: `isTriggerSource` 描画にレベル条件（「そのレベルN以下のシグニ」）を追加。
+- 検証: `npm run typecheck` 通過、`tsx scripts/decompileEffects.ts WX04-099` で「【自】このシグニがバトルしたとき：対戦相手のターンの間、そのレベル2以下のシグニをバニッシュする」を確認。
+
 ## WX04-098-E1「堕落の吐露 マイモン」の【チャーム】条件欠落（2026-06-22）
 
 - **原文:** 「【常】：このシグニに【チャーム】が付いているかぎり、このシグニの基本パワーは10000になる。」
