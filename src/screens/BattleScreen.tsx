@@ -15024,9 +15024,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             </div>
                           )}
                         </div>
-                        {zoneIdx !== undefined && (
+                        {zoneIdx !== undefined && zoneIdx >= 0 && (
                           <span style={{ fontSize: 9, color: '#9abcbc', lineHeight: 1 }}>
-                            ゾーン{zoneIdx + 1}
+                            {(fieldSideInfo[candIdx] ?? '')}ゾーン{zoneIdx + 1}
                           </span>
                         )}
                       </div>
