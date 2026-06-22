@@ -1117,7 +1117,7 @@ export function calcFieldPowers(
             const tgtState = mod.target.owner === 'self' ? ownerState
               : mod.target.owner === 'opponent' ? otherState : ownerState;
             const prot = tgtState === otherState ? otherPowerProtected : undefined;
-            const mult = tgtState === otherState && hasDoublePowerMinus ? 2 : 1;
+            const mult = tgtState === otherState ? dblOtherMult : 1;
             applyDeltaToState(tgtState, delta, mod.target.filter, cardMap, powers, prot, mult);
           } else if (powers.has(topNum)) {
             powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
