@@ -3281,6 +3281,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'PLACE_UNDER_SOURCE_SIGNI':   return done(addLog(ctx, 'シグニの下に置く（直接呼出）')); // applyDirectAction内で処理
     case 'TAKE_FROM_UNDER_SIGNI':      return execTakeFromUnderSigni(action as import('../types/effects').TakeFromUnderSigniAction, ctx);
     case 'POWER_MODIFY_PER_LRIG_LEVEL': return execPowerModifyPerLrigLevel(action as PowerModifyPerLrigLevelAction, ctx);
+    case 'POWER_MODIFY_PER_LEVEL_SUM':  return execPowerModifyPerLevelSum(action as import('../types/effects').PowerModifyPerLevelSumAction, ctx);
     case 'FORCE_END_TURN':             return done(addLog({ ...ctx, forceEndTurn: true }, 'ターンを強制終了'));
     case 'CHARM_PROTECTION':           return execCharmProtection(action as CharmProtectionAction, ctx);
     case 'MUTUAL_DISCARD_AND_DRAW': return execMutualDiscardAndDraw(action as MutualDiscardAndDrawAction, ctx);
