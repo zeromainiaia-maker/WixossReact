@@ -5,6 +5,18 @@
 
 ---
 
+## G002「デッキトップ公開→＜X＞のシグニならエナゾーンに置く」23枚の誤実装を修正（2026-06-23）
+
+逆翻訳の同型グルーピング（grouped_all.txt の G002・23枚／全て WXK 帯）の代表照合で発覚。逆翻訳が「デッキから**undefined枚**エナチャージする」と出ていたのを起点に調査。
+
+- **原文（例 WXK01-050）:** 【自】このシグニがアタックしたとき、あなたのデッキの一番上を公開する。それが＜乗機＞のシグニの場合、それをエナゾーンに置く。
+- **誤実装:** `REVEAL_AND_PICK` の `then` が `ENERGY_CHARGE{target:{type:DECK_CARD,owner:self,count:1}}`。SEARCH 解決（`resumeSearch`）で `applyDirectAction(thenAction)` を呼ぶが **applyDirectAction に `ENERGY_CHARGE` ケースが無く** default で `executeAction(ENERGY_CHARGE)` にフォールバック → `execEnergyCharge` は `DECK_CARD` を HAND/TRASH 以外＝**else 分岐で `fieldCandidates`（自分の場のシグニ）** を候補にし、公開して選んだカード（`lastProcessedCards`）を無視して**自分の場のシグニを1体エナに送る**完全な誤動作だった。
+- **修正:**
+  - **逆翻訳器（`decompileEffects.ts`）:** `REVEAL_AND_PICK` の `thenJa` に `ADD_TO_ENERGY`→「エナゾーンに置く」分岐を追加（`undefined枚` 表示を解消）。
+  - **パーサー（`effectParser.ts`・デッキトップ公開→条件分岐の生成箇所）:** `then` が `ENERGY_CHARGE{DECK_CARD}` になる場合を `ADD_TO_ENERGY{owner:self}` に正規化（`applyDirectAction` の `ADD_TO_ENERGY` ケースが「選んだカードをデッキ/トラッシュから除去しエナへ」を実装済みのため、公開カードが正しくエナに置かれる）。再パースで `then=ADD_TO_ENERGY` になることを確認＝再生成耐性あり。
+  - **JSON 直パッチ（`effects_WXK.json`・23枚）:** 全 G002 カードの `then` を `ADD_TO_ENERGY{owner:self}` に変更（即効）。対象: WXK01-050/056/062/068・WXK02-044/050/056/062・WXK04-039/052/057・WXK06-039/046/054・WXK07-041/049/057・WXK08-039/047/054・WXK09-045/054/062。
+- 検証: `npm run typecheck` 通過。`decompileEffects WXK01-050` で「その中から＜乗機＞のシグニを1枚エナゾーンに置く」（undefined 解消）を確認。`parseCardEffects` 再パースで `then=ADD_TO_ENERGY` を確認。
+
 ## 逆翻訳の同型グルーピングで WX05-009 / WX05-054 / WX05-076 を修正（2026-06-23）
 
 逆翻訳バグを系統的に発見する調査インデックス（`scripts/group*.mjs`＋`docs/grouped_all.txt`。詳細は TODO.md E節「系統分け／同型グルーピング・インデックス」）で、同型カード群の逆翻訳の割れ（★）として検出・修正。
