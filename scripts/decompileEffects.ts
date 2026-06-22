@@ -523,6 +523,8 @@ function effJa(e: Eff): string {
   const trig = (e.timing || []).map((t: string) => {
     let s = timingJa[t] ?? t;
     if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}シグニ${s.slice('このシグニ'.length)}`;
+    // ON_TRASH/ON_LEAVE_FIELD 等「このカード」始まりも scope 主語に置換（any_opp→「対戦相手のシグニが…」）
+    else if (scopeSubj !== null && s.startsWith('このカード')) s = `${scopeSubj}シグニ${s.slice('このカード'.length)}`;
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
     return s;
