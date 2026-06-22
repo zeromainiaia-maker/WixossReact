@@ -1417,6 +1417,24 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       cur = addLog(cur, `リコレクト条件達成（アーツ${artsInLrigTrash}枚）`);
       continue;
     }
+    // LRIG_UNDER_TO_TRASH ゲート：センタールリグの下からN枚をルリグトラッシュへ（エクシード相当）。
+    // 「そうした場合」効果のため、下のカードがN枚未満なら置けず残りステップをスキップ（WX05-007）。
+    if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'LRIG_UNDER_TO_TRASH') {
+      const gateLUT = step as import('../types/effects').StubAction;
+      const needLUT = typeof gateLUT.value === 'number' ? gateLUT.value : parseInt(String(gateLUT.value ?? '0'), 10) || 0;
+      const lrigLUT = [...cur.ownerState.field.lrig];
+      const underCountLUT = lrigLUT.length - 1; // 現センタールリグ（末尾）を除いた下のカード枚数
+      if (underCountLUT < needLUT) {
+        return done(addLog(cur, `センタールリグの下が${underCountLUT}枚（必要${needLUT}枚）→ 置けないため以降スキップ`));
+      }
+      const movedLUT = lrigLUT.splice(0, needLUT); // 下（スタック先頭）からN枚
+      cur = {
+        ...cur,
+        ownerState: { ...cur.ownerState, field: { ...cur.ownerState.field, lrig: lrigLUT }, lrig_trash: [...cur.ownerState.lrig_trash, ...movedLUT] },
+        logs: [...cur.logs, `センタールリグの下から${needLUT}枚をルリグトラッシュに置いた`],
+      };
+      continue;
+    }
     // TARGET_AND_DISCARD_HAND: 対戦相手シグニを対象とし手札を捨ててバニッシュ/バウンス/パワー変更など
     // 直後の CONDITIONAL(IS_MY_TURN) は「捨てた場合の効果」のプレースホルダーなので消費し、
     // その then を対象シグニへの適用アクションに使う（素通しすると二重実行になる）

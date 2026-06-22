@@ -606,6 +606,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
         return 'あなたが使用するアーツとスペルの限定条件は無視される';
       }
+      // LRIG_UNDER_TO_TRASH: センタールリグの下からN枚をルリグトラッシュへ（エクシード相当のゲート。置けない場合は以降スキップ）
+      if (a.id === 'LRIG_UNDER_TO_TRASH') {
+        return `あなたのセンタールリグの下からカード${a.value ?? '?'}枚をルリグトラッシュに置く（置けた場合のみ次へ）`;
+      }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;

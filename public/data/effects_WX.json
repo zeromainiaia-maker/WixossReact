@@ -14118,6 +14118,11 @@
         "type": "SEQUENCE",
         "steps": [
           {
+            "type": "STUB",
+            "id": "LRIG_UNDER_TO_TRASH",
+            "value": 4
+          },
+          {
             "type": "TRASH",
             "target": {
               "type": "SIGNI",
@@ -14128,26 +14133,12 @@
               },
               "upToCount": false
             }
-          },
-          {
-            "type": "CONDITIONAL",
-            "condition": {
-              "type": "IS_MY_TURN"
-            },
-            "then": {
-              "type": "BANISH",
-              "target": {
-                "type": "SIGNI",
-                "owner": "any",
-                "count": 1
-              }
-            }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX05-008": [
