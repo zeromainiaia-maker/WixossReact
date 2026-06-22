@@ -6392,6 +6392,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         if (usedIdsSU.length > 0) casterAfter = { ...casterAfter, actions_done: [...(casterAfter.actions_done ?? []), ...usedIdsSU] };
       }
+      // REVEAL_UNTIL_TO_FIELD（WX04-093「惰眠」等）: スペル効果で場に出したシグニの【出】(ON_PLAY) を積む。
+      // 原文「【出】能力はこのスペルを処理したあとに好きな順番で発動する」→ スペル解決後にスタックへ積み、整列UIで順番を選べる。
+      if (result.done && (spellEff.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD') {
+        for (const instanceId of result.lastProcessedCards ?? []) {
+          const cn = getCardNum(instanceId);
+          for (const eff of (effectsMap.get(cn) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+            spellUseEntries.push({
+              id: generateUUID(),
+              playerId: caster_id,
+              cardNum: instanceId,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果`,
+              effect: eff,
+            });
+          }
+        }
+      }
       const hostState  = casterIsHost ? casterAfter : result.otherState;
       const guestState = casterIsHost ? result.otherState : casterAfter;
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
