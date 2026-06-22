@@ -11916,14 +11916,20 @@
         "type": "POWER_MODIFY",
         "target": {
           "type": "SIGNI",
-          "owner": "any",
-          "count": 1
+          "owner": "self",
+          "count": "ALL",
+          "filter": {
+            "cardType": "シグニ",
+            "cardClass": "アーム",
+            "excludeSelf": true
+          }
         },
-        "delta": 2000
+        "delta": 2000,
+        "excludeSelf": true
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-056-BURST",
