@@ -2636,6 +2636,41 @@ function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: Exec
   return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+// POWER_MODIFY_PER_LEVEL_SUM（ACTIVATED/INSTANT 一回限り）: 指定オーナー場のフィルタ一致シグニのレベル合計 × deltaPerLevel を、
+// 選択した対象シグニへ temp_power_mods で付与する（CONTINUOUS 版は calcFieldPowers 側で処理）。WX04-103。
+function execPowerModifyPerLevelSum(a: import('../types/effects').PowerModifyPerLevelSumAction, ctx: ExecCtx): ExecResult {
+  const countState = a.countOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  let levelSum = 0;
+  for (const s of countState.field.signi) {
+    if (!s || s.length === 0) continue;
+    const sNum = s[s.length - 1];
+    if (a.excludeSelf && sNum === ctx.sourceCardNum) continue;
+    const sCard = ctx.cardMap.get(sNum);
+    if (!matchesFilter(sCard, a.countFilter)) continue;
+    const lv = parseInt(sCard?.Level ?? '', 10);
+    if (!isNaN(lv)) levelSum += lv;
+  }
+  if (levelSum === 0) return done(addLog(ctx, 'レベル合計0のためパワー修正なし'));
+  const delta = a.deltaPerLevel * levelSum;
+  const tgtOwner: Owner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
+  const state = ownerState(tgtOwner, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (cands.length === 0) return done(ctx);
+  // 解決済み delta の POWER_MODIFY を thenAction にして適用（applyDirectAction が直接処理。再帰ループを避ける）
+  const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+  if (a.target.count === 'ALL') {
+    let cur = ctx;
+    for (const n of cands) {
+      const r = applyDirectAction(pmAction, n, cur);
+      cur = { ...cur, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+    }
+    return done(addLog(cur, `パワー${delta > 0 ? '+' : ''}${delta}（レベル合計${levelSum}×${a.deltaPerLevel}）`));
+  }
+  const count = resolveNum(a.target.count);
+  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, pmAction, undefined, ctx);
+}
+
 function execCharmProtection(a: CharmProtectionAction, ctx: ExecCtx): ExecResult {
   // チャーム保護は BattleScreen のバニッシュ処理側で判定するため、
   // ここではプレイヤー状態にキーワードとして記録する
