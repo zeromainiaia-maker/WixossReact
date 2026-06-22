@@ -109,6 +109,22 @@
 - `checkAllEffects` の `MANDATORY_SUSPICIOUS`（ヒューリスティック検出・要精査）の精査。
 - `verifyEffects` の「定義なし」誤検出（注釈のみ・トークン等）の除外ロジック改善。
 
+### クロスシグニ（クロス状態）の実機検証（2026-06-23 追加・要実機・ヘッドレス不可）
+
+**背景:** 実行時カードは `parseCardEffects` を通らず（App.tsx が effects を JSON から付与）`hasCrossIcon`/`crossConditionText` が未設定のため、`collectCrossStates` が常に全 false を返し**クロス機構（【クロス常】・【クロス出】・ヘブンヘブン）が全不発**だった。修正として `effectEngine.ts` に `cardHasCrossIcon`/`getCrossConditionText` を追加し `EffectText` 由来でクロス条件を導出するよう変更（`collectCrossStates`／BattleScreen ヘブン判定）。あわせて【クロス出】(ON_PLAY)・【クロス自】(ON_ATTACK_SIGNI) を発動時のクロス状態でゲート（`queueCardEffects`／`attackEntries`）。**エンジン単体テストと盤面左右↔配列index対応（`BoardComponents.tsx:1007,1055`＝自分側は画面左＝index0で整合）はコード上確認済みだが、実機GUIでの観測は未実施。**
+
+**検証点:**
+- ①クロスシグニ2枚を隣接かつ正しい左右（「《X》の左」＝Xの1つ左に配置）で並べたとき【クロス常】が有効化する（例: 基本パワーが指定値に変化）。
+- ②【クロス出】がクロス成立時のみ発火し、非クロス（単独/逆配置/非隣接）では発火しないこと。
+- ③ヘブンヘブン（全クロスシグニがダウン状態でアタック）の ON_HEAVEN が発火すること。
+- ④盤面表示の左右とクロス成立が画面の見た目どおり一致すること（相手側はミラー表示でもロジックは各プレイヤーのraw indexで正）。
+- ⑤【クロス出】の特殊召喚経路（SEED_BLOOM/REVEAL_UNTIL/COLLAB 等）は未ゲート（既知の軽微な残課題）。実戦影響は小さいが、対象クロスシグニがそれら経路で出る場合は要確認。
+
+**実機検証に必要な前提（verify 試行時に判明したブロッカー）:**
+- `.env.local` の `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` が空。クロスロジックは `battle_states` 経由の対戦中のみ走るため、有効な Supabase 認証情報が必須。
+- ブラウザ自動化ツール（playwright 等）が未導入。GUI 駆動には別途導入が必要。
+- 上記が揃えば CPU 戦経由でクロスシグニ2枚を含むデッキで観測可能（将来 `verifier-battle` スキル化候補）。
+
 ### 逆翻訳ツール `scripts/decompileEffects.ts`（2026-06-20 新設）
 
 JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューする検証補助。`npx tsx scripts/decompileEffects.ts --sheet <N> | <CardNum...> | --manual | --grep <語>`。
