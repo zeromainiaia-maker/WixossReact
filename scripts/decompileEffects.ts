@@ -615,6 +615,12 @@ function effJa(e: Eff): string {
     else if (scopeSubj !== null && s.startsWith('このカード')) s = `${scopeSubj}シグニ${s.slice('このカード'.length)}`;
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
+    // ON_TRASH の発生源限定（fromZones）を反映（「このカードが手札かデッキからトラッシュに置かれたとき」）
+    if (t === 'ON_TRASH' && e.triggerCondition?.fromZones) {
+      const zoneJa: Record<string, string> = { hand: '手札', deck: 'デッキ', energy: 'エナ', field: '場' };
+      const zones = e.triggerCondition.fromZones.map((z: string) => zoneJa[z] ?? z).join('か');
+      s = s.replace('トラッシュに置かれたとき', `${zones}からトラッシュに置かれたとき`);
+    }
     return s;
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
