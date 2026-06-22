@@ -5,11 +5,13 @@
 
 最終更新: 2026-06-21（**v0.437 まで**）。F-2／F-3／F-4 の状況は従来通り（下記）。直近は **逆翻訳スキャンによる Sheet1 個別カードの誤り修正ラウンド**（v0.403〜0.437）を継続中。詳細は BUGFIXES.md 冒頭の各記録を参照。**現在のメインタスク（逆翻訳スキャン継続）は ymst → zerom に引き継ぎ。**
 
+**2026-06-23 追記（ymst→zerom）:** 逆翻訳スキャンを効率化する**系統分け／同型グルーピング・インデックス**を新設（`scripts/group*.mjs`＋全10シート統合 `docs/grouped_all.txt` / `grouped_sentence_all.txt`）。同型★（高精度バグ候補）は枯れ、WX05-009/054/076 を修正済（BUGFIXES）。**次の一手は文型★のトリアージ。詳細は下記 E節「系統分け／同型グルーピング・インデックス」。**
+
 > **F-2 全完了**（付与型14枚＋相手場付与 WXDi-P10-072＋THE DOOR自ゲート＋身代わり置換）。**F-4（THE DOOR）全完了**。**F-3 はバトルバニッシュ経路を対話本実装**（犠牲型5枚＋コスト払い型2枚・**要実機検証**／効果バニッシュ経路は powerReduction型 WX06-019 のみ v0.403 で実装、犠牲/コスト型の効果バニッシュは未）。
 
 ### 🔰 続きから始める人（zerom）へ — 推奨着手順
 
-1. **逆翻訳スキャンの継続（現在のメインタスク）:** `npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt` で逆翻訳を生成し、原文（同ファイルに併記）と突き合わせて誤りを潰す。**runtime の真実源はプリビルド `effects_*.json`（App.tsx が fetch→`card.effects`→`buildEffectsMap` が優先使用）＋manualEffects 上書き。** durable 化は「manualEffects＋JSON 両方」が原則だが、**系統的な一括修正はパーサー修正＋JSON 直パッチで durable 化する運用も可**（パーサーが同形を再生成するため。v0.434/0.435/0.436/0.437 のFREEZE/配置系一括修正はこの方式）。下記「逆翻訳スキャンで判明した系統バグ」を参照。
+1. **逆翻訳スキャンの継続（現在のメインタスク）:** **まず E節「系統分け／同型グルーピング・インデックス」の `docs/grouped_all.txt` / `grouped_sentence_all.txt` で系統的にバグ候補を絞ると効率的（全文を読まずに済む）。** `npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt` で逆翻訳を生成し、原文（同ファイルに併記）と突き合わせて誤りを潰す。**runtime の真実源はプリビルド `effects_*.json`（App.tsx が fetch→`card.effects`→`buildEffectsMap` が優先使用）＋manualEffects 上書き。** durable 化は「manualEffects＋JSON 両方」が原則だが、**系統的な一括修正はパーサー修正＋JSON 直パッチで durable 化する運用も可**（パーサーが同形を再生成するため。v0.434/0.435/0.436/0.437 のFREEZE/配置系一括修正はこの方式）。下記「逆翻訳スキャンで判明した系統バグ」を参照。
 2. ~~**`ADD_TO_FIELD` source 欠落族の残り（最優先）:**~~ → **v0.438 で①〜⑥すべて修正済**（エナseq11・動的フィルタ/leave2・名指し2・ベット2・クラフト7・トラッシュ系2）。詳細は BUGFIXES.md。**残るは近似のみ**（WXDi-CP02-087 エナ枚数条件／WXDi-P03-078 自パワー動的フィルタ／WXDi-P05-068 先頭ドロー脱落／WXK07-105 ベット分岐／WX25-CP1-066 場存在条件／WX22-001-E3 付与型 leave トリガー機構）と**クラフトトークンの実機配置検証**。
 3. **逆翻訳器（decompileEffects.ts）は随時強化:** STUB→STUBS.md 説明／条件・アクション・選択者・トリガー主語・cardType 名詞・LIFE_CRASH の trash/crash 区別などを表示するよう拡充済み。生ID（`[条件:X]`/`[アクション:X]`/`[STUB:X]`）が残る箇所は未対応＝表示 or 実装の穴。
 4. **F-3 の実機検証（ヘッドレス不可・PvP/CPU実機が要る）:** 身代わり対話 pause/resume。対象 犠牲型 `WX12-024`/`WXEX2-60`/`WX20-055`/`WXDi-CP01-032`/`WXDi-P10-052`、コスト払い型 `WX10-033`/`WX11-029`。安定するまで身代わり拡張に進まない。
@@ -119,6 +121,32 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 - **UNKNOWN（部分未実装・parseStatus=PARTIAL）:** `WX05-010`（ライフを見て好きな枚数トラッシュ→同数補充）/ `WX11-037`（デッキ5枚公開→宣言カード手札・残りデッキ下）/ `WX11-043`（ヘブン時に手札の青スペル使用）/ `WX17-003`。効果の一部が UNKNOWN のまま。未完であり退化ではない。
 - ~~コスト払い型 `BANISH_SUBSTITUTE`（WX10-033/WX11-029）が宣言だけで未実装~~ → **v0.402 で実装済**（BUGFIXES.md 参照）。~~`WX06-019` は効果離場型のため未対応~~ → **v0.403 で実装済**（効果バニッシュ経路 `execBanish` に powerReduction 自動適用フックを追加。BUGFIXES.md 参照）。
 - 他Sheet（特に WXDi/WXK 帯）は近似・STUB が多く本物の誤りが出やすい。逆翻訳ツールで順次スキャン推奨。
+
+### 系統分け／同型グルーピング・インデックス（2026-06-23 新設・ymst→zerom 引き継ぎ）
+
+逆翻訳バグを「似た系統でまとめて」発見・修正するための調査インデックス。LLM に全文を読ませず grep／多数決で機械的に束ねる（トークン削減が目的）。
+
+**ツール（`scripts/`）:**
+- `groupBySystem.mjs` — 原文キーワードで系統別件数を集計
+- `groupSimilar.mjs` — **カード全体が同型**なのに逆翻訳が割れるグループ（★）を検出＝**高精度**バグ候補
+- `groupBySentence.mjs` — **効果文単位**でグルーピング＋★検出＝網羅的だが誤検出多め（要トリアージ）
+
+**生成物（`docs/`・人間が開く検索インデックス。コンテキストに丸載せしない）:**
+- `decompile_sheet{1-10}.txt`（全10シート展開済）
+- `grouped_all.txt`（同型）／`grouped_sentence_all.txt`（文型）＝**全シート統合版**。再生成: `node scripts/groupSimilar.mjs --all` ／ `node scripts/groupBySentence.mjs --all`（`--all` が `decompile_sheet*.txt` を自動結合・中間ファイル不要）。decompile 自体は `npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt` で再生成。
+
+**運用の要点:**
+- **必ず全シート統合（`--all`）で見る。** 系統が弾をまたぐとシート別では取りこぼす（例: WX05-054/076 は手本 WX03-037 が同シートだったから検出できた）。
+- ★は「同じ原文型なのに逆翻訳の構造が多数派と違う」カード。**多数派が正・外れがバグ**のことが多いが、原文を見て最終判断する。
+- **一括無検証の全置換は禁止**（約90枚退化の前例。A節参照）。系統ごとに機構を1回確立 → 同パターン適用 → 各カード verify。
+
+**現状（2026-06-23）:**
+- **同型★は枯れた。** カード番号の多セグメント化（`WXDi-P01-061-E1` 等）とタイミング語（ATTACK/メイン起動）の正規化で誤検出を除去（155→7枚）。構造バグは **WX05-009 / WX05-054 / WX05-076 で出尽くし、すべて修正済**（BUGFIXES）。残る同型★1件 `WX04-056` は**無害な表現差**（`cardClass:アーム` でも `story` と同じ `card.CardClass` を照合し機能正常。`story:アーム` に揃えれば★0だが任意）。
+
+**次の一手（zerom）: 文型★のトリアージ。**
+- `grouped_sentence_all.txt` に **344文型 / 1580枚**。ただし誤検出が多い。
+- **先に `groupBySentence.mjs` の `bodyKey` に、`groupSimilar.mjs` の `normDec` と同じタイミング語除去（`.replace(/[／\/]?[A-Z][A-Z_]+/g,'')`＝ATTACK 等スラッシュ無し大文字語も除去）を入れて誤検出を減らす**。上位文型の多くはタイミング/コスト差の誤検出のはず。
+- 精度を上げた上で、上位の文型を系統ごとに原文と突き合わせて潰す。
 
 ---
 

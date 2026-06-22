@@ -5,6 +5,15 @@
 
 ---
 
+## 逆翻訳の同型グルーピングで WX05-009 / WX05-054 / WX05-076 を修正（2026-06-23）
+
+逆翻訳バグを系統的に発見する調査インデックス（`scripts/group*.mjs`＋`docs/grouped_all.txt`。詳細は TODO.md E節「系統分け／同型グルーピング・インデックス」）で、同型カード群の逆翻訳の割れ（★）として検出・修正。
+
+- **WX05-009「一燭即発」（アーツ・赤）:** バニッシュ対象に「パワーが、この方法でダウンしたシグニのパワー以下」の制約が欠落し、無条件で相手シグニ1体をバニッシュできていた。BANISH フィルタに `powerLteLastProcessed:true`（DOWN ステップが `lastProcessedCards` に記録 → `resolveDynamicFilter` が `powerRange.max` へ解決。WD04-018 と同機構）＋ `conditional:true`（ダウン対象が選ばれなければ空振り）を追加。
+- **WX05-054「幻竜リントブルム」/ WX05-076「魅惑の魔道ロキ」（常時強化シグニ）:** 原文「あなたの他の＜龍獣/悪魔＞のシグニのパワーを＋2000」が `POWER_MODIFY owner:any / count:1`（敵味方の**任意1体**に+2000）に誤パースされていた。手本 WX03-037 に倣い `owner:self / count:ALL / story フィルタ / excludeSelf:true`（同種族の自分のシグニ全体・自身除外）へ修正。同型7枚グループ内で逆翻訳が割れていたのを groupSimilar の★検出で発見。
+- 検証: JSON parse・`decompileEffects` 再生成で全体強化に戻ったことを確認。`checkAllEffects` 退化なし。
+- ⚠ 3効果とも effects_WX.json 直パッチ（parseStatus MANUAL 化）だが **manualEffects 未登録**。`build:effects` 全再生成では消える（JSON を正データとして再生成しない運用なら実質 durable）。durable 化が要るなら manualEffects 登録を検討。
+
 ## 訂正: WX05-005/006 のグロウ条件は activeCondition ではなく grow ゲート（2026-06-23）
 
 - **背景:** decompile の【JSON逆翻訳】にグロウ条件行を追加した際、先の WX05-005-E1・WX05-006-E1 の修正が誤りだったと判明。
