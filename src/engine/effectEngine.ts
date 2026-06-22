@@ -333,6 +333,15 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
     if (!stories.some(s => cardData.CardClass?.includes(s))) return false;
   }
+  // cardClass / cardClassExclude（execUtils 版 matchesFilter と挙動を揃える。CONTINUOUS power 計算等で使用）
+  if (filter.cardClass) {
+    const classes = Array.isArray(filter.cardClass) ? filter.cardClass : [filter.cardClass];
+    if (!classes.some(c => cardData.CardClass?.includes(c))) return false;
+  }
+  if (filter.cardClassExclude) {
+    const exClasses = Array.isArray(filter.cardClassExclude) ? filter.cardClassExclude : [filter.cardClassExclude];
+    if (exClasses.some(c => cardData.CardClass?.includes(c))) return false;
+  }
   if (filter.excludeCardName && cardData.CardName === filter.excludeCardName) return false;
   if (filter.levelParity !== undefined) {
     const lv = parseInt(cardData.Level ?? '', 10);
