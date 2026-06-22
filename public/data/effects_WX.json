@@ -10953,12 +10953,12 @@
             "target": {
               "type": "SIGNI",
               "owner": "self",
-              "count": 1,
+              "count": "ALL",
               "filter": {
                 "cardType": "シグニ",
                 "story": "美巧"
               },
-              "upToCount": false
+              "upToCount": true
             }
           },
           {
@@ -10971,7 +10971,9 @@
               "cardType": "シグニ",
               "story": "美巧"
             },
-            "maxCount": 1,
+            "maxCount": {
+              "$ref": "last_processed_count"
+            },
             "then": {
               "type": "ADD_TO_FIELD",
               "owner": "self"
@@ -10985,7 +10987,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-036-BURST",
