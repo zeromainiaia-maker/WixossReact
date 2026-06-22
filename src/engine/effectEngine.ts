@@ -197,6 +197,14 @@ export function checkActiveCondition(
       return (ownerState.field.signi_acce ?? []).includes(sourceCardNum);
     }
 
+    case 'IS_SELF_CHARMED': {
+      // このシグニに【チャーム】が付いているかぎり（フィールドのシグニに signi_charms が設定されている）
+      if (!sourceCardNum) return false;
+      const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
+      if (zoneIdx < 0) return false;
+      return (ownerState.field.signi_charms?.[zoneIdx] ?? null) !== null;
+    }
+
     case 'IS_DRIVE_STATE':
       // このシグニがドライブ状態（LRIGが乗っている）であるかぎり
       if (!sourceCardNum) return false;
