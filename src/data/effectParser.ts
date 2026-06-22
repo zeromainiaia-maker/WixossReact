@@ -593,7 +593,7 @@ function parseActiveCondition(text: string): ConditionParseResult {
   if (fieldClassCountM) {
     const storyFilter = parseStoryFilter(fieldClassCountM[1]);
     return {
-      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter } },
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter }, minCount: parseNum(fieldClassCountM[2]) },
       rest: text.slice(fieldClassCountM[0].length),
       conditionFound: true,
     };
