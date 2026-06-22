@@ -11414,22 +11414,48 @@
             "color": "赤",
             "count": 1
           }
-        ]
-      },
-      "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "any",
-          "count": "ALL",
+        ],
+        "fieldTrash": {
+          "count": 3,
           "filter": {
-            "cardType": "シグニ"
+            "cardType": "シグニ",
+            "story": [
+              "鉱石",
+              "宝石"
+            ]
           }
         }
       },
+      "action": {
+        "type": "SEQUENCE",
+        "steps": [
+          {
+            "type": "BANISH",
+            "target": {
+              "type": "SIGNI",
+              "owner": "self",
+              "count": "ALL",
+              "filter": {
+                "cardType": "シグニ"
+              }
+            }
+          },
+          {
+            "type": "BANISH",
+            "target": {
+              "type": "SIGNI",
+              "owner": "opponent",
+              "count": "ALL",
+              "filter": {
+                "cardType": "シグニ"
+              }
+            }
+          }
+        ]
+      },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-043-BURST",
