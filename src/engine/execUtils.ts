@@ -649,8 +649,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cond.phases.includes(ctx.currentPhase ?? '');
     case 'AND':
       return cond.conditions.every(c => evalCondition(c, ctx));
+    // IS_MY_TURN / IS_OPPONENT_TURN は実行時には判定できない（executor は常にオーナー視点）ため、
+    // どちらもプレースホルダとして true を返す。実際のターン判定は収集側（BattleScreen）が condHas で行う。
     case 'IS_MY_TURN':            return true;
-    case 'IS_OPPONENT_TURN':      return false;
+    case 'IS_OPPONENT_TURN':      return true;
     case 'BEAT_CONDITION': {
       const beatZone = ctx.ownerState.field.beat_zone ?? [];
       return checkBeatCondition(beatZone, cond.condText, ctx.cardMap);
