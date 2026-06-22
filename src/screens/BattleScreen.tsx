@@ -4434,12 +4434,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const cardNum of detectDeckTrashed(bs.guest_state, guestState)) {
           trashEntries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp));
         }
-        // 手札／エナ→トラッシュの ON_TRASH（「いずれかの領域から」fromAnyZone 指定の効果のみ）
-        for (const cardNum of detectHandEnergyTrashed(bs.host_state, hostState)) {
-          trashEntries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp));
+        // 手札→トラッシュ／エナ→トラッシュの ON_TRASH（fromAnyZone 指定、または fromZones が当該領域を含む効果）
+        for (const cardNum of detectHandTrashed(bs.host_state, hostState)) {
+          trashEntries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'hand'));
         }
-        for (const cardNum of detectHandEnergyTrashed(bs.guest_state, guestState)) {
-          trashEntries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp));
+        for (const cardNum of detectHandTrashed(bs.guest_state, guestState)) {
+          trashEntries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'hand'));
+        }
+        for (const cardNum of detectEnergyTrashed(bs.host_state, hostState)) {
+          trashEntries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'energy'));
+        }
+        for (const cardNum of detectEnergyTrashed(bs.guest_state, guestState)) {
+          trashEntries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'energy'));
         }
         if (trashEntries.length > 0) {
           const baseStackT = (update.effect_stack as typeof stackAfter) ?? null;
