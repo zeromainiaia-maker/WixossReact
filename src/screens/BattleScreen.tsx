@@ -3614,6 +3614,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_granted_auto_effects: undefined, // ターン終了時まで付与されたルリグ能力をクリア
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_to_hand: undefined,   // バニッシュ先→手札フラグをクリア
+          power0_banish_to_trash: undefined,    // パワー0以下→トラッシュ（このターン）フラグをクリア
+          double_power_minus_this_turn: undefined, // パワーマイナス2倍（このターン）フラグをクリア
           no_grow: undefined,                   // グロウ禁止フラグをリセット
           suppress_life_burst: undefined,       // ライフバースト抑制フラグをリセット
           prevent_lrig_damage: undefined,       // ルリグダメージ無効フラグをリセット
