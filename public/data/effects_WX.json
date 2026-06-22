@@ -10852,6 +10852,11 @@
       "timing": [
         "ON_TRASH"
       ],
+      "triggerScope": "self",
+      "triggerCondition": {
+        "byOpponentEffect": true,
+        "fromAnyZone": true
+      },
       "action": {
         "type": "SEQUENCE",
         "steps": [
@@ -10865,14 +10870,17 @@
           {
             "type": "CONDITIONAL",
             "condition": {
-              "type": "IS_MY_TURN"
+              "type": "PAID_ADDITIONAL_COST"
             },
             "then": {
-              "type": "BOUNCE",
-              "target": {
-                "type": "SIGNI",
+              "type": "TRANSFER_TO_HAND",
+              "source": {
+                "type": "TRASH_CARD",
                 "owner": "self",
-                "count": 1
+                "count": 1,
+                "filter": {
+                  "thisCardOnly": true
+                }
               }
             }
           }
@@ -10880,7 +10888,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-035-BURST",
