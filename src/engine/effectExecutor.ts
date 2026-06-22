@@ -3004,6 +3004,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ADD_TO_HAND':             return done(addLog(ctx, 'カードを手札に加える')); // SEARCH内で処理
     case 'TRANSFER_TO_HAND':        return execTransferToHand(action as TransferToHandAction, ctx);
     case 'ADD_TO_FIELD':            return execAddToField(action as AddToFieldAction, ctx);
+    case 'PLACE_SIGNI_ON_FIELD':    return execPlaceSigniOnField(action as import('../types/effects').PlaceSigniOnFieldAction, ctx);
     case 'ADD_TO_LIFE':             return execAddToLife(action as AddToLifeAction, ctx);
     case 'FREEZE':                  return execFreeze(action as FreezeAction, ctx);
     case 'DOWN':                    return execDown(action as DownAction, ctx);
