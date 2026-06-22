@@ -17048,14 +17048,19 @@
         "type": "POWER_MODIFY",
         "target": {
           "type": "SIGNI",
-          "owner": "any",
-          "count": 1
+          "owner": "self",
+          "count": "ALL",
+          "filter": {
+            "cardType": "シグニ",
+            "story": "龍獣"
+          }
         },
-        "delta": 2000
+        "delta": 2000,
+        "excludeSelf": true
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-054-BURST",
@@ -17590,14 +17595,19 @@
         "type": "POWER_MODIFY",
         "target": {
           "type": "SIGNI",
-          "owner": "any",
-          "count": 1
+          "owner": "self",
+          "count": "ALL",
+          "filter": {
+            "cardType": "シグニ",
+            "story": "悪魔"
+          }
         },
-        "delta": 2000
+        "delta": 2000,
+        "excludeSelf": true
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-076-BURST",
