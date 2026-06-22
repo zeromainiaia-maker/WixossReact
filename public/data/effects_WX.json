@@ -13468,22 +13468,30 @@
       "timing": [
         "ON_TRASH"
       ],
+      "triggerScope": "self",
+      "triggerCondition": {
+        "fromZones": ["hand", "deck"]
+      },
       "action": {
         "type": "ATTACH_CHARM",
         "charm": {
-          "type": "SIGNI",
+          "type": "TRASH_CARD",
           "owner": "self",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "thisCardOnly": true
+          }
         },
         "to": {
           "type": "SIGNI",
           "owner": "self",
           "count": 1
-        }
+        },
+        "optional": true
       },
       "duration": "INSTANT",
-      "mandatory": false,
-      "parseStatus": "AUTO"
+      "mandatory": true,
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-103": [
