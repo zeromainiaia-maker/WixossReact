@@ -346,7 +346,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
         ? (cur.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
         : tgtOwner;
       const s = ownerState(own, cur);
-      const mods = [...(s[powerModKey] ?? []), { cardNum, delta, srcNonSigni }];
+      const mods = [...(s[powerModKey] ?? []), { cardNum, delta, srcType }];
       cur = addLog(setOwnerState(own, { ...s, [powerModKey]: mods }, cur),
         `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワー${delta > 0 ? '+' : ''}${delta}`);
     }
