@@ -3066,6 +3066,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
       }
     }
+    // 対戦相手のシグニがトラッシュに置かれたのを監視する any_opp トリガー（トラッシュされたカードの対戦相手フィールド）。
+    // 例: WX04-037-E2「あなたのターンの間、対戦相手のシグニ1体が場からトラッシュに置かれたとき」。
+    const watcherPlayerId = trashedPlayerId === bs.host_id ? bs.guest_id : bs.host_id;
+    const watcherState = trashedPlayerId === bs.host_id ? afterGuestState : afterHostState;
+    const watcherOppState = ownerState; // = トラッシュされたカードのオーナー状態
+    const watcherIsTurnPlayer = bs.active_user_id === watcherPlayerId;
+    // 条件ツリーに IS_MY_TURN / IS_OPPONENT_TURN が含まれるか（evalCondition では IS_MY_TURN が常時true のため明示判定）
+    const condHas = (c: import('../types/effects').Condition | undefined, t: string): boolean =>
+      !!c && (c.type === t || (c.type === 'AND' && (c.conditions ?? []).some(cc => condHas(cc, t))));
+    for (const stack of watcherState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+        if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_opp') continue; // 'any' は既存の自分側ループで収集済み
+        // 「あなたのターンの間」: IS_MY_TURN 指定があれば watcher がターンプレイヤーのときのみ
+        if (condHas(eff.condition, 'IS_MY_TURN') && !watcherIsTurnPlayer) continue;
+        if (condHas(eff.condition, 'IS_OPPONENT_TURN') && watcherIsTurnPlayer) continue;
+        // ターン条件以外の condition を評価
+        if (eff.condition && !evalUseCondition(eff.condition, watcherState, watcherOppState, battleCardMap, topNum, bs.turn_phase ?? '')) continue;
+        entries.push({
+          id: generateUUID(),
+          playerId: watcherPlayerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（対戦相手シグニのトラッシュ時）`,
+          effect: eff,
+        });
+      }
+    }
     return entries;
   };
 
