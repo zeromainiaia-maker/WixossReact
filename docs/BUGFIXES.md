@@ -5,6 +5,15 @@
 
 ---
 
+## WX04-050-E1「めくれるまで公開→手札→残りデッキ下」の実装（REVEAL_UNTIL_TO_HAND）（2026-06-22）
+
+- **症状（ユーザー報告）:** E1「【起】《ダウン》：デッキを上から＜美巧＞のシグニがめくれるまで公開→そのシグニを手札に加え、公開した他のカードをシャッフルしてデッキの一番下に置く」が誤実装。
+- **原因:** `SEQUENCE[STUB:DECK_REVEAL_UNTIL_CLASS, TRANSFER_TO_DECK(self signi)]`。STUB は公開と `lastProcessedCards` 設定のみで**ヒットシグニを手札に加えず**、「残り」の行き先テキスト（"残り…"）にも一致しないため**公開カードがデッキから除去されたまま消失**。2ステップ目も誤パース。
+- **修正:**
+  - 新アクション `REVEAL_UNTIL_TO_HAND`（owner / revealClass / restDest）を追加。`execRevealUntilToHand`: デッキ上から `revealClass` のシグニがめくれるまで公開→**ヒットを手札へ**、公開した他のカードを `restDest`（`deck_bottom_shuffled` / `deck_bottom` / `trash`）へ。該当なしならデッキをシャッフル。
+  - JSON を `REVEAL_UNTIL_TO_HAND(revealClass:'美巧', restDest:'deck_bottom_shuffled')` に修正、`manualEffects.ts` に MANUAL 登録。decompile に和文化追加。
+  - 検証: 公開列 [電機,スペル,美巧,…] で美巧を手札へ・残り（電機/スペル）をデッキ下、未公開は先頭維持をテストで確認。`npm run typecheck` 通過、`npm run verify` フラグなし・サマリー不変。
+
 ## WX04-049-E1「基本レベルは2になる」の実装（SET_BASE_LEVEL）（2026-06-22）
 
 - **症状（ユーザー報告）:** E1「【常】場に他の＜空獣＞か＜地獣＞があるかぎり、このシグニの基本レベルは2になる」が誤実装。パーサーが「基本レベルはNになる」を `BLOCK_ACTION(actionId:'SET_LEVEL_2')` に変換していたが、**エンジンで一切消費されず no-op**（基本レベルが実際に2にならない）。decompileも「『SET_LEVEL_2』ことができない」と誤表示。
