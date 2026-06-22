@@ -14233,16 +14233,18 @@
               "owner": "opponent",
               "count": 1,
               "filter": {
-                "cardType": "シグニ"
+                "cardType": "シグニ",
+                "powerLteLastProcessed": true
               },
               "upToCount": false
-            }
+            },
+            "conditional": true
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX05-010": [
