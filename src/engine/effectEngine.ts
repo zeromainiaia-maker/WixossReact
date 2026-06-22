@@ -3411,12 +3411,9 @@ export function collectEffectImmuneSigni(
       if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
 
       // この解決中のソース種別が耐性対象に含まれるか判定
-      let blocked = false;
-      if (gp.fromAll) {
-        blocked = !exceptMatches(gp.exceptSource);
-      } else {
-        blocked = sourceMatches(gp.from);
-      }
+      const blocked = gp.fromAll
+        ? !exceptMatches(gp.exceptSource)
+        : sourceMatches(gp.from);
       if (!blocked) continue;
 
       // 保護対象シグニを収集

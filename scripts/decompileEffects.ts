@@ -460,7 +460,6 @@ function actionJa(a?: Action, effectType?: string): string {
       : 'あなたと対戦相手は手札をすべて捨てる';
     case 'MOVE_TO_ENERGY':
     case 'TRANSFER_TO_ENERGY': return `${targetJa(a.source ?? a.target)}をエナゾーンに置く`;
-    case 'ATTACH_CHARM': return `${targetJa(a.target)}にチャームを付ける`;
     case 'REMOVE_CHARM': return `${ownerJa(a.targetOwner)}シグニのチャームを${a.count === 'ALL' ? 'すべて' : a.count}外す`;
     case 'CONDITIONAL_DISCARD': return `${condJa(a.condition)}なら、${actionJa(a.then)}`;
     case 'POWER_MODIFY_PER_TRASH_COUNT':
