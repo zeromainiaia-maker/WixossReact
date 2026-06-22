@@ -750,6 +750,14 @@ export interface RevealUntilBanishSameLevelAction {
   banishOwner: Owner;      // バニッシュ対象のオーナー（通常 opponent）
 }
 
+// デッキ上から指定クラスのシグニがめくれるまで公開し、そのシグニを手札に加え、公開した他のカードを処理する（WX04-050）。
+export interface RevealUntilToHandAction {
+  type: 'REVEAL_UNTIL_TO_HAND';
+  owner: Owner;            // 公開するデッキの持ち主（通常 self）
+  revealClass?: string;    // めくり続ける対象シグニの＜クラス＞（省略=任意のシグニ）
+  restDest: 'deck_bottom_shuffled' | 'deck_bottom' | 'trash'; // 公開した他のカードの行き先
+}
+
 // トラッシュ/エナ/フィールドからデッキへ移動
 export interface TransferToDeckAction {
   type: 'TRANSFER_TO_DECK';
