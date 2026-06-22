@@ -3431,6 +3431,27 @@ export function collectEffectImmuneSigni(
       }
     }
   }
+
+  // 一時付与（AUTO/ACTIVATED/スペル）の効果耐性: keyword_grants / keyword_grants_until_opp_turn の
+  // 'PROTECTION:<種別>:<owner>' を読み、解決中ソース種別が該当する場の自シグニ／センタールリグを免疫に加える。
+  // （WX04-064「あなたのセンタールリグとあなたのシグニはアーツの効果を受けない」UNTIL_OPP_TURN_END 等）
+  const protMatches = (kw: string): boolean => {
+    if (!kw.startsWith('PROTECTION:')) return false;
+    const parts = kw.split(':');
+    const ownerStr = parts[2] ?? '';
+    if (ownerStr && ownerStr !== 'opponent') return false; // 相手効果からの保護のみ対象
+    const fromList = (parts[1] ?? '').split(',').filter(Boolean);
+    return fromList.includes('any') || sourceMatches(fromList);
+  };
+  for (const store of [state.keyword_grants, state.keyword_grants_until_opp_turn]) {
+    if (!store) continue;
+    for (const stack of state.field.signi) {
+      const top = stack?.at(-1);
+      if (top && (store[top] ?? []).some(protMatches)) immune.add(top);
+    }
+    const lrigTop = state.field.lrig?.at(-1);
+    if (lrigTop && (store[lrigTop] ?? []).some(protMatches)) immune.add(lrigTop);
+  }
   return immune;
 }
 

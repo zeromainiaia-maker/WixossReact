@@ -999,6 +999,10 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   if (a.target.type === 'LRIG') {
     const state = ownerState(a.target.owner, ctx);
     const lrigTopId = state.field.lrig?.at(-1);
+    // 効果耐性（「あなたのセンタールリグはアーツの効果を受けない」WX04-064 等）: 相手効果ならダウン無効
+    if (a.target.owner === 'opponent' && lrigTopId && ctx.otherEffectImmuneNums?.has(lrigTopId)) {
+      return done(addLog(ctx, 'センタールリグは効果を受けない（ダウン無効）'));
+    }
     const lrigCardNum = lrigTopId ? getCardNum(lrigTopId) : undefined;
     const lrigCard = lrigCardNum ? ctx.cardMap.get(lrigCardNum) : undefined;
     const lrigLevel = lrigCard ? parseInt(lrigCard.Level ?? '', 10) : NaN;
@@ -2054,18 +2058,26 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   if (!a.target) return done(ctx);
   // 効果耐性はキーワード付与として扱う
   const tgt = a.target;
-  const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const keyword = `PROTECTION:${(a.from ?? []).join(',')}:${a.sourceOwner ?? ''}`;
+  // UNTIL_OPP_TURN_END は長期ストア keyword_grants_until_opp_turn へ（次の相手ターン終了時までクリアされない）
+  const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
 
-  function applyProtection(selected: string[], c: ExecCtx): ExecCtx {
+  const applyProtection = (selected: string[], c: ExecCtx): ExecCtx => {
     const s = ownerState(tgt.owner, c);
-    const grants = { ...(s.keyword_grants ?? {}) };
-    for (const n of selected) grants[n] = [...(grants[n] ?? []), keyword];
-    return addLog(setOwnerState(tgt.owner, { ...s, keyword_grants: grants }, c),
-      `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に保護を付与`);
+    const grants = { ...(s[gkey] ?? {}) };
+    for (const n of selected) grants[n] = [...new Set([...(grants[n] ?? []), keyword])];
+    return addLog(setOwnerState(tgt.owner, { ...s, [gkey]: grants }, c),
+      `${selected.map(n => c.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}に効果耐性（${(a.from ?? []).join('/')}）を付与`);
+  };
+
+  // センタールリグへの付与（「あなたのセンタールリグ…は効果を受けない」WX04-064 等）
+  if (tgt.type === 'LRIG') {
+    const lrigTop = ownerState(tgt.owner, ctx).field.lrig?.at(-1);
+    return done(lrigTop ? applyProtection([lrigTop], ctx) : ctx);
   }
 
+  const state = ownerState(tgt.owner, ctx);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   if (tgt.count === 'ALL') return done(applyProtection(cands, ctx));
   const count = resolveNum(tgt.count);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';

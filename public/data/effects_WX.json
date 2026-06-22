@@ -12177,22 +12177,39 @@
         ]
       },
       "action": {
-        "type": "GRANT_PROTECTION",
-        "target": {
-          "type": "SIGNI",
-          "owner": "self",
-          "count": "ALL"
-        },
-        "from": [
-          "ルリグ",
-          "アーツ"
-        ],
-        "sourceOwner": "opponent",
-        "duration": "PERMANENT"
+        "type": "SEQUENCE",
+        "steps": [
+          {
+            "type": "GRANT_PROTECTION",
+            "target": {
+              "type": "SIGNI",
+              "owner": "self",
+              "count": "ALL"
+            },
+            "from": [
+              "アーツ"
+            ],
+            "sourceOwner": "opponent",
+            "duration": "UNTIL_OPP_TURN_END"
+          },
+          {
+            "type": "GRANT_PROTECTION",
+            "target": {
+              "type": "LRIG",
+              "owner": "self",
+              "count": 1
+            },
+            "from": [
+              "アーツ"
+            ],
+            "sourceOwner": "opponent",
+            "duration": "UNTIL_OPP_TURN_END"
+          }
+        ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-064-BURST",
@@ -12207,12 +12224,12 @@
           "owner": "opponent",
           "count": 1
         },
-        "actionId": "ARTS",
+        "actionId": "USE_ARTS",
         "until": "NEXT_TURN"
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-066": [

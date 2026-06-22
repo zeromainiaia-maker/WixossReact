@@ -5,6 +5,23 @@
 
 ---
 
+## WX04-064 ノー・ゲインを正しく実装（アーツ効果耐性＋一時GRANT_PROTECTION配線）（2026-06-22）
+
+- **原文 E1:** 「このターンと対戦相手の次のターンの間、あなたのセンタールリグとあなたのシグニはアーツの効果を受けない。」
+- **原文 BURST:** 「次のターンの間、対戦相手はアーツを使用できない。」
+- **旧実装の問題:**
+  1. E1 の `from` が `["ルリグ","アーツ"]`（「ルリグ」は誤付与。原文は「アーツの効果」のみ）。
+  2. E1 の対象が「あなたのすべてのシグニ」のみで**センタールリグが抜けていた**。
+  3. E1 の `duration` が `PERMANENT`（正しくは `UNTIL_OPP_TURN_END`＝このターン＋相手の次のターン）。
+  4. そもそも**一時付与の GRANT_PROTECTION（ソース種別耐性）を読む箇所が無く、「アーツの効果を受けない」が機能していなかった**（保護キーワードは BANISH/BOUNCE/DOWN 専用しか参照されていなかった）。
+  5. BURST の `actionId` が `'ARTS'` だが、アーツ使用ゲートは `isActionBlocked('USE_ARTS')` を見るため**キー不一致で封じが効いていなかった**。
+- **修正:**
+  - `effectEngine.collectEffectImmuneSigni`: `keyword_grants` / `keyword_grants_until_opp_turn` の `PROTECTION:<種別>:opponent` を読み、解決中アーツ等のソース種別が該当する場の自シグニ／センタールリグを免疫集合へ追加（既存の banish/bounce/down/trash/freeze/power 各保護パスへ union 済み）。これで**全ての一時 GRANT_PROTECTION（ソース種別耐性）が機能**するようになった。
+  - `effectExecutor.execGrantProtection`: `UNTIL_OPP_TURN_END` のとき長期ストア `keyword_grants_until_opp_turn`（相手次ターン終了時にクリア）へ付与。`target.type:'LRIG'` をセンタールリグへの付与として処理。
+  - `execDown`（LRIG 対象・相手効果）: `ctx.otherEffectImmuneNums` にセンタールリグがあればダウン無効。
+  - JSON E1 を SEQUENCE[ GRANT_PROTECTION(シグニ全/アーツ/UNTIL_OPP_TURN_END), GRANT_PROTECTION(ルリグ/アーツ/UNTIL_OPP_TURN_END) ] に修正。BURST の `actionId` を `USE_ARTS` に修正。`manualEffects.ts` に E1・BURST を MANUAL 登録。
+- 検証: `npm run typecheck` 通過、lint 0 errors。耐性失効タイミングは「自分の次ターン開始時＝相手の次ターン終了時」クリアで原文「このターンと対戦相手の次のターンの間」と一致。
+
 ## WX04-063 ゲット・ゲートを完全実装（支払ったエナの色でデッキサーチ）（2026-06-22）
 
 - **原文:** 「このスペルの使用コストで支払われたエナ１つにつきそのエナの色１つを選択する。あなたのデッキから、選択した色の種類１つにつきその色を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。（無色は色に含まれない）」
