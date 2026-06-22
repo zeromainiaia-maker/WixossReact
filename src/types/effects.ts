@@ -429,6 +429,7 @@ export type EffectAction =
   | GrantAcceHostAbilityAction
   | GrantSoulHostAbilityAction
   | RevealUntilBanishSameLevelAction
+  | RevealUntilToHandAction
   | StubAction
   | GainBondAction
   | MILLAction
