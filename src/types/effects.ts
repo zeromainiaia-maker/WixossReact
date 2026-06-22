@@ -557,6 +557,16 @@ export interface AddToEnergyAction {
   owner: Owner;
 }
 
+// 指定カードを1枚ずつ場に出す（ゾーン選択を順次チェーン）。
+// SEARCH→ADD_TO_FIELD で複数枚を場に出す際、各カードのゾーン選択を1枚ずつ確実に解決するために使う（WX04-036-E1）。
+export interface PlaceSigniOnFieldAction {
+  type: 'PLACE_SIGNI_ON_FIELD';
+  owner: Owner;
+  cardNums: string[];        // 場に出すカード（デッキ/トラッシュ等から。applyDirectActionが現領域から除去）
+  asDown?: boolean;          // ダウン状態で出す
+  afterAction?: EffectAction; // 全カード配置後に実行（SHUFFLE_DECK 等）
+}
+
 // トラッシュ・エナ・ライフクロスなど任意の場所から手札へ移動
 export interface TransferToHandAction {
   type: 'TRANSFER_TO_HAND';
