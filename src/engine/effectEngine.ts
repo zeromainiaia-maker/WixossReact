@@ -948,6 +948,9 @@ export function calcFieldPowers(
       }
       const effects = effectsMap.get(topNum);
       if (!effects) continue;
+      // DOUBLE_POWER_MINUS「あなたのシグニの効果で」: 発生元（topNum）がシグニのときのみ相手への負デルタを2倍化
+      const srcIsSigniDbl = (cardMap.get(topNum)?.Type ?? '').includes('シグニ');
+      const dblOtherMult = (hasDoublePowerMinus && srcIsSigniDbl) ? 2 : 1;
 
       // クロス状態を一度だけ計算（crossOnly効果の判定用）
       let crossStatesCache: boolean[] | null = null;
