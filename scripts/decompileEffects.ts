@@ -252,7 +252,7 @@ function condJa(c?: any): string {
     case 'SELF_HAS_KEYWORD': return `このシグニが【${c.keyword}】を持っている`;
     case 'IS_SELF_ARMORED': return 'このシグニが血晶武装状態';
     case 'IS_SELF_ACCED': return 'このシグニに【アクセ】が付いている';
-    case 'IS_SELF_ACCE_CARD': return 'このカードが【アクセ】として付いDSている';
+    case 'IS_SELF_ACCE_CARD': return 'このカードが【アクセ】として付いている';
     case 'IS_SELF_CHARMED': return 'このシグニに【チャーム】が付いている';
     case 'IS_SELF_AWAKENED': return 'このシグニが覚醒状態';
     case 'IS_SELF_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
