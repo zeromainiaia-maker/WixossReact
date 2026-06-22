@@ -3027,11 +3027,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return after.trash.filter(n => beforeDeck.has(n) && !beforeTrash.has(n));
   };
 
-  // 手札・エナゾーンからトラッシュに移動したカードを検出（ON_TRASH「いずれかの領域から」用・WX04-035等）
-  const detectHandEnergyTrashed = (before: PlayerState, after: PlayerState): string[] => {
-    const beforeHandEnergy = new Set([...before.hand, ...before.energy]);
+  // 手札からトラッシュに移動したカードを検出（ON_TRASH「手札から」用）
+  const detectHandTrashed = (before: PlayerState, after: PlayerState): string[] => {
+    const beforeHand = new Set(before.hand);
     const beforeTrash = new Set(before.trash);
-    return after.trash.filter(n => beforeHandEnergy.has(n) && !beforeTrash.has(n));
+    return after.trash.filter(n => beforeHand.has(n) && !beforeTrash.has(n));
+  };
+
+  // エナゾーンからトラッシュに移動したカードを検出（ON_TRASH「エナから」用）
+  const detectEnergyTrashed = (before: PlayerState, after: PlayerState): string[] => {
+    const beforeEnergy = new Set(before.energy);
+    const beforeTrash = new Set(before.trash);
+    return after.trash.filter(n => beforeEnergy.has(n) && !beforeTrash.has(n));
   };
 
   // デッキからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self のみ）を収集する。
