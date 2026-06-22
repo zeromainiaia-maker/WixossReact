@@ -1583,9 +1583,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/すべてのプレイヤーはドローフェイズの間にカードを合計[０-９\d]+枚までしか引けない/))
     return { type: 'STUB', id: 'LIMIT_OPP_DRAW_COUNT' } as StubAction;
 
-  // ---- 【マルチエナ】常時能力 ----
-  if (t.match(/^(?:【常】：)?【マルチエナ】。?$/))
-    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+  // ---- 【マルチエナ】常時能力（このシグニ自身が持つキーワード。括弧の補足付きも許容） ----
+  if (t.match(/^(?:【常】：)?【マルチエナ】(?:（[^）]*）)?。?$/))
+    return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, keyword: 'マルチエナ', duration: 'PERMANENT' } as EffectAction;
 
   // ---- 対戦相手のライフクロスを手札に加えさせる ----
   if (t.match(/対戦相手のライフクロス[１-９\d０-９]*枚?を手札に加えさせる/))
