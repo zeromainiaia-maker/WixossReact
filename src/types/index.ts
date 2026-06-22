@@ -114,12 +114,12 @@ export interface PlayerState {
   declared_class_zones?: Array<{ sourceCardNum: string; zone: 'deck' | 'hand' | 'signi' | 'trash' }>;
   pending_crashed_cards?: string[]; // ダブルクラッシュ等で同時クラッシュしたが未処理のカード番号（バースト処理待ち）
   // 効果エンジン用：ターン終了時にクリア
-  // srcNonSigni: この修正の発生元がシグニ「以外」（スペル/アーツ/ルリグ等）の場合 true。
-  //   DOUBLE_POWER_MINUS（「あなたのシグニの効果で」WX04-038-E1）の2倍判定で、シグニ発生元のみ倍化するために使う。
-  //   未設定（undefined）はシグニ発生元として扱う（STUB系のシグニ効果が大多数のため）。
-  temp_power_mods?: Array<{ cardNum: string; delta: number; srcNonSigni?: boolean }>;
+  // srcType: この修正の発生元カードの Type（'シグニ'/'スペル'/'アーツ'/'ルリグ'/'アシストルリグ'/'レゾナ' 等）。
+  //   「あなたのシグニの効果で」（WX04-038-E1）等、発生元の種別を参照する効果のために保持する。
+  //   includes() で照合する想定（'アシストルリグ'.includes('ルリグ') 等）。未設定はシグニ発生元として扱う（STUB系シグニ効果が大多数のため）。
+  temp_power_mods?: Array<{ cardNum: string; delta: number; srcType?: string }>;
   // 次の対戦相手のターン終了時までの一時パワー修正（temp_power_modsの長期版。UNTIL_OPP_TURN_END）
-  power_mods_until_opp_turn?: Array<{ cardNum: string; delta: number; srcNonSigni?: boolean }>;
+  power_mods_until_opp_turn?: Array<{ cardNum: string; delta: number; srcType?: string }>;
   keyword_grants?: Record<string, string[]>; // instanceId → ['ランサー', ...]
   keyword_grants_until_opp_turn?: Record<string, string[]>; // 次の対戦相手ターン終了時までの付与キーワード
   // 次の自分のターンの間、自分の場の「すべて」のシグニ（その間に新たに出したシグニも含む）が得るキーワード（GRANT_KEYWORD duration:NEXT_TURN）
