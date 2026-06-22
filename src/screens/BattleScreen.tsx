@@ -4006,6 +4006,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       update[opKey] = {
         ...opState,
         blocked_actions: convertedOpBlocked,
+        abilities_removed: [], // 相手に付与された REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア（WX05-001-E2 等）
         field_keyword_grants_active: opState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
         field_keyword_grants_next_turn: undefined,
         // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
