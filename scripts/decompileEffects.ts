@@ -418,7 +418,7 @@ function actionJa(a?: Action, effectType?: string): string {
           : '、残りを戻す';
       return `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し、その中から${filterStr}を${pickN}${thenJa}${remJa}`;
     }
-    case 'REARRANGE_SIGNI': return a.swap ? 'このシグニと対象シグニの位置を入れ替える' : `${targetJa(a.target)}を好きなように配置し直す${a.optional ? '（してもよい）' : ''}`;
+    case 'REARRANGE_SIGNI': return a.swap ? `${targetJa(a.target)}とこのシグニの場所を入れ替える${a.optional ? '（してもよい）' : ''}` : `${targetJa(a.target)}を好きなように配置し直す${a.optional ? '（してもよい）' : ''}`;
     case 'CHARM_PROTECTION':
       return `あなたの${filterJa(a.signiFilter)}シグニ1体がバニッシュされる場合、代わりにそのシグニに付いている【チャーム】1枚をトラッシュに置いて${a.optional ? 'もよい' : '置く'}`;
     case 'ATTACH_CHARM': {

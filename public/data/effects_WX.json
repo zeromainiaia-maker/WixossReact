@@ -12101,11 +12101,12 @@
           "owner": "self",
           "count": 1
         },
-        "swap": true
+        "swap": true,
+        "optional": true
       },
       "duration": "INSTANT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-062": [
