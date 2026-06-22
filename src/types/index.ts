@@ -479,6 +479,13 @@ export type PendingInteractionDef =
       cards: string[];           // 公開するカードのCardNum一覧
       title?: string;            // モーダル見出し
       continuation?: EffectAction;
+    }
+  | {
+      type: 'REARRANGE_SIGNI';   // フィールド上のシグニを好きなように配置し直す（「対戦相手のすべてのシグニを配置し直す」WX04-041-E2）
+      owner: 'self' | 'opponent';  // 並び替えるシグニの持ち主（効果オーナー視点）
+      signiNums: string[];         // 並び替え対象のシグニ（各ゾーンのトップ instance id）
+      optional: boolean;           // true=スキップ可（「配置し直してもよい」）
+      continuation?: EffectAction;
     };
 
 export interface PendingEffect {
