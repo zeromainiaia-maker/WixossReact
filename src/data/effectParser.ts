@@ -17,6 +17,7 @@ import type {
   UnknownAction,
   RevealAndPickAction,
   EnergyChargeAction,
+  AddToEnergyAction,
   GrantLrigAbilityAction,
   LookAndReorderAction,
   StubAction,
