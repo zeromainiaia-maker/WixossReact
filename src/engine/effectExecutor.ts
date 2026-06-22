@@ -879,7 +879,11 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
 
 function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.target.owner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // 完全効果耐性: 相手の凍結効果は耐性シグニに無効
+  if (a.target.owner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
+    cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
+  }
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyFreeze(selected: string[], c: ExecCtx): ExecCtx {
