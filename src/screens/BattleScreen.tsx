@@ -7777,7 +7777,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // Phase 2では my はすでにシグニダウン済みのため my をそのまま使用
       const heavenEntries: StackEntry[] = [];
       const attackerCard = battleCardMap.get(myTopNum);
-      if (attackerCard?.hasCrossIcon) {
+      if (cardHasCrossIcon(attackerCard)) {
         const stateAfterDown: PlayerState = myS;
         const crossStates = collectCrossStates(stateAfterDown, battleCardMap);
         if (crossStates[zoneIndex]) {
