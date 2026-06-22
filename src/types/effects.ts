@@ -624,7 +624,8 @@ export interface SearchAction {
   type: 'SEARCH';
   from: { location: CardLocation; owner: Owner };
   filter: TargetFilter;
-  maxCount: number;
+  maxCount: NumberOrRef; // {$ref:'last_processed_count'} = 直前にバニッシュ/トラッシュ等した枚数（WX04-036-E1「同じ枚数」）
+  upToTarget?: boolean;  // true: maxCount まで「任意の数」（0枚可）。省略時も SEARCH UI は maxPick まで任意選択
   // 見つかったカードに対して行う処理（REVEAL→ADD_TO_HAND など）
   then: EffectAction;
   // サーチ完了後に行う処理（SHUFFLE_DECK など）
