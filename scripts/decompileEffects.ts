@@ -408,6 +408,10 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し、その中から${filterStr}を${pickN}${thenJa}${remJa}`;
     }
     case 'REARRANGE_SIGNI': return a.swap ? 'このシグニと対象シグニの位置を入れ替える' : `${targetJa(a.target)}を好きなように配置し直す${a.optional ? '（してもよい）' : ''}`;
+    case 'SET_BASE_LEVEL': {
+      const thisOnlySBL = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner);
+      return `${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
+    }
     case 'NEGATE_ATTACK': return 'そのアタックを無効にする';
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
