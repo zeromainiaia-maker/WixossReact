@@ -4230,10 +4230,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): Promise<boolean> => {
     const ownerId = owner?.id ?? user.id;
     const effects = effectsMap.get(cardNum) ?? [];
-    const targets = effects.filter(e =>
+    let targets = effects.filter(e =>
       (effectTypes as string[]).includes(e.effectType) &&
       (timings.length === 0 || e.timing?.some(t => timings.includes(t)))
     );
+    // crossOnly（【クロス出】【クロス起】等）: 発生源シグニのゾーンがクロス状態でなければ発動しない。
+    // トリガー時（収集時）の状態 startMyState で判定する（解決時ではなく発動時のクロス状態が正）。
+    if (targets.some(e => e.crossOnly)) {
+      const crossOk = isCrossZoneActive(startMyState, cardNum, battleCardMap);
+      targets = targets.filter(e => !e.crossOnly || crossOk);
+    }
     if (targets.length === 0 && extraEntries.length === 0) return false;
 
     const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
