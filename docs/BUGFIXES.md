@@ -9,8 +9,11 @@
 
 - **原文:** 「あなたのデッキの上からシグニがめくれるまで公開する。その後、公開されたシグニを場に出し、残りをトラッシュに置く。その後、この効果を２回繰り返す。（場に出すことのできないシグニはトラッシュに置かれる）」
 - **旧実装の問題:** E1 が `SEQUENCE(STUB DECK_REVEAL_UNTIL / REVEALED_SIGNI_TO_FIELD_REST_TRASH / REPEAT_EFFECT)` で未実装（ログのみ）だった。
-- **修正:** 新アクション `REVEAL_UNTIL_TO_FIELD`（types/effects.ts）を追加。`execRevealUntilToField`（effectExecutor.ts）でデッキ上からシグニがめくれるまで公開→そのシグニを場に出し→手前の公開カードをトラッシュ→これを `repeat` 回繰り返す。空きシグニゾーンが無く場に出せないシグニはトラッシュへ（原文の括弧書きに対応）。空きゾーンが複数ある場合は `SELECT_SIGNI_ZONE` で配置先を選択し、残りの繰り返しを `continuation` に積む。JSON E1 を `REVEAL_UNTIL_TO_FIELD(repeat:3)` に置換、`manualEffects.ts` に E1・BURST を MANUAL 登録。decompile actionJa も対応。
-- 検証: `npm run typecheck` 通過、decompile 再生成で「あなたのデッキを上からシグニがめくれるまで公開し、そのシグニを場に出し、残りをトラッシュに置く（場に出せないシグニはトラッシュへ）。これを3回繰り返す」を確認。
+- **修正:** 新アクション `REVEAL_UNTIL_TO_FIELD`（types/effects.ts）を追加。`execRevealUntilToField`（effectExecutor.ts）でデッキ上からシグニがめくれるまで公開→そのシグニを場に出し→手前の公開カードをトラッシュ→これを `repeat` 回繰り返す。空きシグニゾーンが無く場に出せないシグニはトラッシュへ（原文の括弧書きに対応）。JSON E1 を `REVEAL_UNTIL_TO_FIELD(repeat:3)` に置換、`manualEffects.ts` に E1・BURST を MANUAL 登録。decompile actionJa も対応。
+- **【出】(ON_PLAY) 発火（検証で発覚した追加対応）:** 当エンジンには「効果で場に出したシグニの【出】を発火する汎用機構」が無く（COLLAB / SEED_BLOOM など個別 STUB のみが `lastProcessedCards` ベースで ON_PLAY を積む）、しかもスペルは processStack とは別の専用パス（`resolvePendingSpell`）で解決され ON_PLAY を一切収集していなかった。さらに `SELECT_SIGNI_ZONE` での中断は `needsInteraction` が `lastProcessedCards` を保持せず、resume パス（`handleSelectSigniZoneForEffect`）にもトリガー収集が無いため、ゾーン選択を挟むと場出しシグニの追跡が途切れる。
+  - 対応: `execRevealUntilToField` は**ゾーン選択を行わず最も若い空きゾーンへ自動配置**し（中断を避ける）、場に出した instanceId を `lastProcessedCards` に蓄積。BattleScreen の **スペル解決パス（resolvePendingSpell）** と **processStack（非スペルの ACTIVATED 用）** の両方で、`action.type === 'REVEAL_UNTIL_TO_FIELD'` のとき `lastProcessedCards` 各シグニの AUTO/ON_PLAY 効果をスタックへ積む。複数体は別エントリとして積まれるため、原文「【出】能力は…好きな順番で発動する」も既存の整列UIで満たされる。
+- 検証: `npm run typecheck` 通過。経路調査で WX04-093（スペル）は resolvePendingSpell で解決されること、カットイン経路はスペルを打ち消す＝本効果は解決しないこと、CPU はスペルパス統一済み（pending_spell 経由）であることを確認。decompile 再生成で「あなたのデッキを上からシグニがめくれるまで公開し、そのシグニを場に出し、残りをトラッシュに置く（場に出せないシグニはトラッシュへ）。これを3回繰り返す」を確認。
+- **既知の割り切り:** 複数体を同時に場へ出す際のゾーン位置はプレイヤーが選べず自動配置（中断を排して【出】追跡を確実にするため）。ゾーン依存（正面関係）の戦略性は犠牲になるが、原文に明記された【出】発火を優先した。
 
 ## WX04-089-E1「＜美巧＞が3体あるかぎり+2000」の minCount 欠落（2026-06-22）
 
