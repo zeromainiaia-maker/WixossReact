@@ -462,6 +462,9 @@ export type PendingInteractionDef =
       owner: 'self' | 'opponent';
       asDown?: boolean;
       continuation?: EffectAction;
+      // REVEAL_UNTIL_TO_FIELD（WX04-093 等）でゾーン選択を跨いで「これまで場に出したシグニ」を維持するための蓄積。
+      // 指定時、resumeSelectSigniZone は配置後に lastProcessedCards=[...placedSoFar, cardNum] を設定する（【出】発火の追跡用）。
+      placedSoFar?: string[];
     }
   | {
       type: 'SELECT_VIRUS_ZONE';
