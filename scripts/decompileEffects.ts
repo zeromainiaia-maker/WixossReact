@@ -560,7 +560,7 @@ function actionJa(a?: Action, effectType?: string): string {
 const timingJa: Record<string, string> = {
   ON_PLAY: 'このシグニが場に出たとき', ON_ATTACK_SIGNI: 'このシグニがアタックしたとき',
   ON_ATTACK_LRIG: 'このルリグがアタックしたとき',
-  ON_BANISH: 'このシグニ（など）がバニッシュされたとき', ON_TRASH: 'このカードがトラッシュに置かれたとき',
+  ON_BANISH: 'このシグニがバニッシュされたとき', ON_TRASH: 'このカードがトラッシュに置かれたとき',
   ON_TURN_START: 'ターン開始時', ON_TURN_END: 'ターン終了時',
   ON_ATTACK_PHASE_START: 'あなたのアタックフェイズ開始時', ON_LIFE_CRASHED: 'あなたのライフがクラッシュされたとき',
   ON_OPP_LIFE_CRASHED: '対戦相手のライフがクラッシュされたとき', ON_SIGNI_BATTLE: 'このシグニがバトルしたとき',

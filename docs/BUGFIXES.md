@@ -5,6 +5,12 @@
 
 ---
 
+## decompile: ON_BANISH トリガー表示の不要な「（など）」を除去（2026-06-22）
+
+- **症状（ユーザー疑問）:** WX04-081-E1 等の逆翻訳が「このシグニ**（など）**がバニッシュされたとき」となっており、「（など）」が何を指すか不明だった。
+- **原因:** `decompileEffects.ts` の `timingJa` で ON_BANISH ラベルにのみ作者のヘッジ「（など）」がハードコードされていた（WIXOSS のルール用語ではない。他トリガーには無い）。triggerScope による主語変化は別途 `scopeSubj` 機構が担うため冗長。
+- **修正:** ON_BANISH ラベルを「このシグニがバニッシュされたとき」に変更し decompile 再生成（ON_BANISH を持つ全カードが原文どおりの表記に）。
+
 ## decompile: OPTIONAL_COST 系STUBの逆翻訳を「《色》を支払ってもよい」に（WX04-081-E1 他）（2026-06-22）
 
 - **症状（ユーザー確認依頼）:** WX04-081-E1 の逆翻訳が `[STUB:OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース）…]` という STUBS.md の冗長な説明文になっていた。
