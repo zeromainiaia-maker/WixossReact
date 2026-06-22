@@ -5,6 +5,20 @@
 
 ---
 
+## WX04-038「バイオレンス・スプラッシュ」E1の複雑効果実装・BURST修正（2026-06-22）
+
+- **症状（ユーザー報告）:** E1が複雑効果で未実装、BURSTも原文と相違。
+- **E1（スペル。このターン継続2効果）:**
+  - 原文①「パワーが0以下のシグニがバニッシュされる場合、エナの代わりにトラッシュ」（**所有者問わず**）／②「あなたのシグニの効果で対戦相手のシグニのパワーが－される場合、代わりに2倍－される」。
+  - 修正前は ①が `BANISH_REDIRECT`（owner:self・パワー条件なし＝「対戦相手シグニ全部トラッシュ」相当の誤り）、②が未実装 STUB（`DOUBLE_POWER_MINUS` はフィールド常在シグニ用でスペルでは無効）。
+  - 実装: PlayerState に `power0_banish_to_trash` / `double_power_minus_this_turn`（このターン）を新設。
+    - ①: STUB `BANISH_REDIRECT_POWER0_TRASH` でフラグ設定 → `checkPowerZeroBanish`（パワー0以下バニッシュ処理）で、いずれかのプレイヤーがこのフラグを持つときトラッシュへリダイレクト。
+    - ②: STUB `DOUBLE_POWER_MINUS_THIS_TURN` でフラグ設定 → `calcFieldPowers` が CONTINUOUS 負デルタ（`hasDoublePowerMinus`）と一時 `temp_power_mods` 負デルタ（`applyTempMods` の `doubleNeg`）の両方を、相手がフラグ所持時に2倍。
+    - 両フラグはターン終了時クリア（3箇所のリセット集約に追加）。
+  - 検証: フラグ設定／相手シグニ -2000 が -4000（5000→1000）になることをテストで確認。
+- **BURST:** 原文「トラッシュから**黒の**シグニ1枚を対象とし、**手札に加えるか場に出す**」に対し、修正前は黒フィルタ欠落＋手札固定。`CHOOSE`（手札に加える `TRANSFER_TO_HAND` ／場に出す `ADD_TO_FIELD`、ともに `filter:{cardType:シグニ,color:黒}`）に修正。場出しは [[（applyDirectAction の ADD_TO_FIELD 修正）]] によりゾーン選択＋トラッシュ除去。
+- JSON と `manualEffects.ts` に MANUAL 登録。decompile の STUB 2種に和文化を追加（`[STUB:...]` ではなく原文相当の自然文）。`npm run typecheck` 通過、`npm run verify` で WX04-038 フラグなし・サマリー不変。
+
 ## POWER_MODIFY owner:'any'（「対象のシグニ」）の両フィールド対象選択を実装（2026-06-22）
 
 - **症状（ユーザー報告）:** WX04-037-BURST「対象のシグニ1体のパワーを－10000」など、**owner:'any'（「対象のシグニ」＝自分・相手どちらも選べる）の対象選択UIが機能していない**。
