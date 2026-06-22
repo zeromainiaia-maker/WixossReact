@@ -5,6 +5,18 @@
 
 ---
 
+## WX04-035「コンテンポラ」3効果の完全実装（2026-06-22）
+
+- **症状:** WX04-035 の3効果がいずれも近似/誤実装だった。
+  - **E1【常】**「あなたの＜美巧＞のシグニは対戦相手の、ルリグとシグニの効果を受けない」→ `GRANT_PROTECTION from=['ルリグ','シグニ']` は定義されていたが、ソース種別を見て遮断する消費側が無く、能力消失保護に部分的にしか効いていなかった（バニッシュ/バウンス/ダウン/トラッシュ/フリーズ/パワー-が素通り）。`subjectOwner` 欠落。
+  - **E2【自】**「対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき、《緑》を支払ってもよい。そうした場合、このシグニを手札に加える」→ `BOUNCE`（場のシグニを手札へ）＋誤った `CONDITIONAL(IS_MY_TURN)` で、トリガー原因（対戦相手効果）・領域（いずれか）・回収対象（このカード自身）がすべて不正確。
+  - **BURST**「デッキトップ1枚をエナへ。その後エナに＜美巧＞シグニが5枚以上ならデッキトップ1枚をライフへ」→ 5枚以上条件が欠落し、無条件でライフ追加していた。
+- **修正:**
+  - **E1:** `collectEffectImmuneSigni`（effectEngine）を新設。解決中効果のソースカード種別（ルリグ/シグニ/スペル/アーツ）を判定し、`from`/`fromAll(+exceptSource)` が該当する場合のみ耐性シグニを返す。BattleScreen の ctx 構築で、バニッシュ/バウンス/ダウン/トラッシュ/能力消失/能力付与の各保護セットへ union し、`ctx.otherEffectImmuneNums` 経由で FREEZE・POWER_MODIFY(マイナス) からも除外。`subjectOwner:'self'` を付与。
+  - **E2:** `SEQUENCE[OPTIONAL_COST(緑) → CONDITIONAL(PAID_ADDITIONAL_COST) → TRANSFER_TO_HAND(thisCardOnly)]` に変更。`execTransferToHand` が `thisCardOnly` を解釈し（トラッシュの効果元自身を即時回収）、`CardEffect.triggerCondition={byOpponentEffect,fromAnyZone}` を新設。ON_TRASH 収集で原因owner（=効果オーナー）と被トラッシュ所有者を比較して「対戦相手の効果によって」を判定、手札/エナ→トラッシュ検出（`collectAnyZoneTrashSelfTriggers`）で「いずれかの領域から」を補完。
+  - **BURST:** `ENERGY_COUNT_FILTER` 条件（evalCondition）を新設し、エナチャージ後に `CONDITIONAL(エナの＜美巧＞シグニ≥5)` でライフ追加を包む。
+  - 3効果は再生成耐性のため `manualEffects.ts`（MANUAL_EFFECTS）にも登録。`npm run typecheck` 通過、`npm run verify` で WX04-035 のフラグなし。
+
 ## デッキが0枚になってもリフレッシュが発動しない修正（2026-06-22）
 
 - **症状（ユーザー報告）:** メインデッキが0枚になってもリフレッシュ（トラッシュをシャッフルして新デッキ化＋ライフ1枚トラッシュ）が発動しない。
