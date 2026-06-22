@@ -159,6 +159,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX04-093-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":3,"private":true,"reorder":false,"canTrash":true,"destination":{"location":"deck","owner":"self","position":"top"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
+  // WX04-094 怒号（スペル -）あなたの＜空獣＞か＜地獣＞のシグニ1体を対象とし、ターン終了時までパワー+2000。
+  //   さらに、あなたの場に＜空獣＞と＜地獣＞のシグニが合計3体ある場合、ターン終了時までそれは【ランサー】と
+  //   「【自】：対戦相手のライフクロスをクラッシュしたとき、デッキの一番上をエナゾーンに置く」(ON_OPP_LIFE_CRASHED) を得る。
+  //   旧: 対象 owner:any・無条件で ENERGY_CHARGE_FROM_DECK（誤）。対象クラス絞り・条件付き付与・「それ」(targetsLastProcessed) で本実装。
+  "WX04-094": [
+    {"effectId":"WX04-094-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","cardClass":["空獣","地獣"]}},"delta":2000},{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","cardClass":["空獣","地獣"]},"minCount":3},"then":{"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","targetsLastProcessed":true,"target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"},{"type":"GRANT_EFFECT","targetsLastProcessed":true,"target":{"type":"SIGNI","owner":"self","count":1},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX04-094-E1-GRANT","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"triggerScope":"self","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
   //   新トリガー ON_FRONT_SIGNI_ATTACK（BattleScreen のアタックハンドラが正面ゾーンの守備側シグニで発火・triggeringCardNum=アタッカー）、
