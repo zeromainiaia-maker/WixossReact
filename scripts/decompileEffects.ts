@@ -313,7 +313,10 @@ function actionJa(a?: Action, effectType?: string): string {
         : thenSteps.some((s: any) => s?.type === 'TRASH') ? 'トラッシュに置く'
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_ENERGY' || s?.type === 'ENERGY_CHARGE') ? 'エナゾーンに置く'
         : '処理する';
-      return `${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}を${a.maxCount ? a.maxCount + '枚まで' : ''}探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
+      const maxJa = typeof a.maxCount === 'object'
+        ? (a.maxCount?.$ref === 'last_processed_count' ? 'この方法でバニッシュ／トラッシュした数と同じ枚数の' : '')
+        : (a.maxCount ? a.maxCount + '枚まで' : '');
+      return `${ownerJa(a.from?.owner)}デッキから${maxJa}${filterJa(a.filter)}${noun}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
     case 'GRANT_KEYWORD': {
       const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
