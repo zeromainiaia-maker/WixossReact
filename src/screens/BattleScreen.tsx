@@ -3059,12 +3059,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // 手札・エナゾーンからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self かつ fromAnyZone）を収集する。
   // 「いずれかの領域からトラッシュに置かれたとき」（WX04-035-E2）のうち、場/デッキ以外（手札・エナ）の経路を補う。
-  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] => {
+  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' = 'hand'): StackEntry[] => {
     const entries: StackEntry[] = [];
     for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
-      if (!eff.triggerCondition?.fromAnyZone) continue; // 場/デッキ以外は fromAnyZone 指定の効果のみ
+      // 場/デッキ以外（手札・エナ）は fromAnyZone 指定、または fromZones が当該領域を含む効果のみ
+      const fromZones = eff.triggerCondition?.fromZones;
+      const okByZones = fromZones ? fromZones.includes(origin) : !!eff.triggerCondition?.fromAnyZone;
+      if (!okByZones) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
       const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
       entries.push({
