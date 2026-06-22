@@ -12123,6 +12123,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         document.body,
       )}
 
+      {/* リムーブ封じ警告（SELF_SIGNI_TRASH。WX04-046-E1等） */}
+      {showRemoveBlockedWarn && createPortal(
+        <div onClick={() => setShowRemoveBlockedWarn(false)} style={{
+          position: 'fixed', inset: 0, zIndex: 4000,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            backgroundColor: C.bgModal, border: '2px solid #c0392b', borderRadius: 12,
+            padding: '24px 20px', width: 'min(88vw, 360px)', textAlign: 'center',
+          }}>
+            <p style={{ color: '#ff6b6b', fontSize: 15, fontWeight: 'bold', margin: '0 0 6px' }}>
+              ⚠ リムーブできません
+            </p>
+            <p style={{ color: C.textDim, fontSize: 13, margin: '0 0 20px', lineHeight: 1.6 }}>
+              対戦相手の効果により、自分でシグニを場からトラッシュに置くこと（リムーブ）がブロックされています。
+            </p>
+            <button onClick={() => setShowRemoveBlockedWarn(false)}
+              style={{ width: '100%', padding: '10px 0', borderRadius: 8,
+                border: 'none', backgroundColor: '#c0392b',
+                color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}>
+              OK
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {/* ルリグアタックスキップ確認 */}
       {showLrigAttackSkipConfirm && createPortal(
         <div style={{
