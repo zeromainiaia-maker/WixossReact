@@ -12466,7 +12466,7 @@
         "steps": [
           {
             "type": "LIFE_CRASH",
-            "owner": "opponent",
+            "owner": "self",
             "count": 1,
             "triggerBurst": true
           },
@@ -12482,7 +12482,10 @@
                 "owner": "opponent",
                 "count": 1,
                 "filter": {
-                  "cardType": "シグニ"
+                  "cardType": "シグニ",
+                  "powerRange": {
+                    "max": 8000
+                  }
                 },
                 "upToCount": false
               }
@@ -12492,7 +12495,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-074": [
