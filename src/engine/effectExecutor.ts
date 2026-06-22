@@ -669,8 +669,13 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   let scope: TargetScope;
 
   if (src.type === 'TRASH_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt);
-    cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // thisCardOnly: 効果元カード自身のみ（「このシグニを手札に加える」。トラッシュに置かれた自身を回収。WX04-035-E2）
+    if (src.filter?.thisCardOnly) {
+      cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    } else {
+      const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt);
+      cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
     cands = energyCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
