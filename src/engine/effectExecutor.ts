@@ -70,8 +70,11 @@ import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../ut
 // ===== 個別アクション実行 =====
 
 function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
-  const count = resolveNum(a.count);
   const state = ownerState(a.owner, ctx);
+  // untilHandCount: 手札が N 枚になるまで（差の分だけ）引く。N 枚以上なら引かない（WX05-003）
+  const count = a.untilHandCount !== undefined
+    ? Math.max(0, a.untilHandCount - state.hand.length)
+    : resolveNum(a.count);
   const canDraw = Math.min(count, state.deck.length);
   const s: PlayerState = {
     ...state,
