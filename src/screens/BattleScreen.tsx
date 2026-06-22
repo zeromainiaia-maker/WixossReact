@@ -3023,6 +3023,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const topNum = stack[stack.length - 1];
       for (const eff of (effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+        if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any_ally' && scope !== 'any') continue;
         entries.push({
