@@ -2135,7 +2135,12 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
     charmCands = charmSrc.deck.slice(0, 1);
     charmFromLocation = 'deck';
   } else if (a.charm.type === 'TRASH_CARD') {
-    charmCands = charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+    // thisCardOnly:「このカードを【チャーム】にする」= 効果元カード自身（トラッシュにある）（WX04-102）
+    if (a.charm.filter?.thisCardOnly) {
+      charmCands = (ctx.sourceCardNum && charmSrc.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    } else {
+      charmCands = charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+    }
     charmFromLocation = 'trash';
   } else {
     // デフォルトは手札 or エナ（filter指定があればエナから）
