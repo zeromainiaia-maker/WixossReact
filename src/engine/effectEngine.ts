@@ -1193,7 +1193,7 @@ export function calcFieldPowers(
               const tgtIsOwner = mod.target.owner === 'self' || mod.target.owner === 'any';
               const tgtIsOther = mod.target.owner === 'opponent' || mod.target.owner === 'any';
               if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers);
-              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
+              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
             }
           }
         }
