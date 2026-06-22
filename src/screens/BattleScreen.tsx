@@ -6216,6 +6216,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSpellCost(new Set());
     try {
       const paidNums = [...costIndices].map(i => my.energy[i]);
+      // 支払ったエナ1枚ごとの色配列（WX04-063「支払われたエナの色」参照用）。
+      // マルチエナは全5色、無色エナは空配列として記録する。
+      const paidEnergyColors = paidNums.map(num =>
+        isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti)
+          ? ['白', '赤', '青', '緑', '黒']
+          : splitColors(battleCardMap.get(getCardNum(num))?.Color));
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       let spellInstanceId: string;
       let newMyState: PlayerState;
@@ -6247,7 +6253,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         };
       }
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const spell: PendingSpell = { caster_id: user.id, card_num: spellInstanceId, ...(fromLrigDeck ? { from_lrig_deck: true } : {}) };
+      const spell: PendingSpell = { caster_id: user.id, card_num: spellInstanceId, paid_energy_colors: paidEnergyColors, ...(fromLrigDeck ? { from_lrig_deck: true } : {}) };
       await supabase.from('battle_states')
         .update({ [stateKey]: newMyState, pending_spell: spell })
         .eq('room_id', roomId);
@@ -6318,7 +6324,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellExtraColors = new Map([...collectFieldSigniExtraColors(resolved, battleCardMap, effectsMap, nonCasterState, spellIsOwnerTurn), ...collectFieldSigniExtraColors(nonCasterState, battleCardMap, effectsMap, resolved, !spellIsOwnerTurn)]);
       const spellDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(resolved, nonCasterState, effectsMap);
       const spellDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, resolved, nonCasterState), resolved, nonCasterState, effectsMap, spellIsOwnerTurn);
-      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums, paidEnergyColorSets: bs.pending_spell.paid_energy_colors };
       let result = executeEffect(spellEff, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペル解決後）
       if (result.logs.length > 0) appendBattleLogs(result.logs);

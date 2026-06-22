@@ -59,6 +59,9 @@ export interface ExecCtx {
   treatAsClassAllZones?: Record<string, string>;
   // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュでレベル1シグニとして扱うカードのSet
   deckTrashLevel1Nums?: Set<string>;
+  // COST_COLOR_SELECT（WX04-063）: スペル使用コストとして実際に支払われたエナ1枚ごとの色配列。
+  // マルチエナは全5色、無色エナは空配列。これを基に「支払った色の種類」分のシグニを探す。
+  paidEnergyColorSets?: string[][];
   // SEQUENCE内で動的に決まる値（ステップ間の受け渡し用、最上位効果呼び出し単位でリセット）
   seqVars?: { lastDownedLrigLevel?: number; declaredNumber?: number };
 }

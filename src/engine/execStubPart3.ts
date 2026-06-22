@@ -1523,42 +1523,56 @@ export function execStubPart3(
   if (stub.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
     return done(addLog(ctx, 'ルリグ制限アーツを無視'));
   }
-  // COST_COLOR_SELECT: 支払ったエナの色ごとに1色選択し、選択色のシグニをデッキから手札に加える
+  // COST_COLOR_SELECT（WX04-063 ゲット・ゲート）:
+  // 支払われたエナ1つにつきその色を1つ選択し、選択した「色の種類」1つにつき
+  // その色のシグニ1枚をデッキから探して公開・手札に加える（その後シャッフル）。無色は色に含まれない。
   if (stub.id === 'COST_COLOR_SELECT') {
-    const srcCCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const costCCS = srcCCS ? (Array.isArray((srcCCS as any).Cost) ? (srcCCS as any).Cost : []) : [];
-    // コスト色一覧からユニーク色セットを生成（無色は全色選択可）
-    const colorsCCS = ['白', '赤', '青', '緑', '黒'];
-    const costColorsCCS: string[] = [];
-    if (Array.isArray(costCCS)) {
+    const COLORS_CCS = ['白', '赤', '青', '緑', '黒'];
+    // 実際に支払ったエナ1枚ごとの色集合（無色エナ＝空配列は除外）。
+    let colorSetsCCS: string[][] = (ctx.paidEnergyColorSets ?? [])
+      .map(cs => cs.filter(c => COLORS_CCS.includes(c)))
+      .filter(cs => cs.length > 0);
+    // フォールバック: paidEnergyColorSets 未提供（CPU 等）時はコスト仕様から推定（無色枠は全色ワイルド扱い）。
+    if (!ctx.paidEnergyColorSets) {
+      const srcCCS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+      const costCCS = srcCCS && Array.isArray((srcCCS as any).Cost) ? (srcCCS as any).Cost : [];
+      const fbCCS: string[][] = [];
       for (const c of costCCS) {
-        if (c.color && c.color !== '無') {
-          for (let i = 0; i < (c.count ?? 1); i++) costColorsCCS.push(c.color);
-        } else if (c.color === '無') {
-          // 無色は全色選択可能を代表して追加
-          for (let i = 0; i < (c.count ?? 1); i++) costColorsCCS.push('ANY');
+        const cntCCS = c.count ?? 1;
+        if (c.color && c.color !== '無') for (let i = 0; i < cntCCS; i++) fbCCS.push([c.color]);
+        else if (c.color === '無') for (let i = 0; i < cntCCS; i++) fbCCS.push([...COLORS_CCS]);
+      }
+      colorSetsCCS = fbCCS;
+    }
+    // 二部マッチング（エナ→色、各エナ1色）で「同時に取れる色の種類」最大数を求める。
+    const matchByColorCCS: Record<string, number> = {};
+    const tryAssignCCS = (ei: number, seen: Set<string>): boolean => {
+      for (const col of colorSetsCCS[ei]) {
+        if (seen.has(col)) continue;
+        seen.add(col);
+        if (matchByColorCCS[col] === undefined || tryAssignCCS(matchByColorCCS[col], seen)) {
+          matchByColorCCS[col] = ei; return true;
         }
       }
+      return false;
+    };
+    let maxDistinctCCS = 0;
+    for (let ei = 0; ei < colorSetsCCS.length; ei++) if (tryAssignCCS(ei, new Set())) maxDistinctCCS++;
+    const unionColorsCCS = COLORS_CCS.filter(col => colorSetsCCS.some(cs => cs.includes(col)));
+    if (maxDistinctCCS === 0 || unionColorsCCS.length === 0) {
+      return done(addLog(ctx, 'コスト色選択：色を持つエナが支払われていない（不発）'));
     }
-    // 実際に支払ったエナのカードから色を収集（best-effort）
-    const paidColorsCCS: string[] = costColorsCCS.length > 0 ? costColorsCCS : colorsCCS.slice(0, 1);
-    // 選択肢：各色1つのシグニをデッキから手札に
-    const chosenColorsCCS = [...new Set(paidColorsCCS.filter(c => c !== 'ANY'))];
-    const anyCount = paidColorsCCS.filter(c => c === 'ANY').length;
-    // CHOOSE で選択する色を提示
-    const colorOptsCCS = colorsCCS.map(col => ({
-      id: `ccs_${col}`, label: `《${col}》のシグニを手札に`,
+    // 色ごとに「その色のシグニ1枚をデッキから探して手札へ→シャッフル」を選択肢化。
+    const colorOptsCCS = unionColorsCCS.map(col => ({
+      id: `ccs_${col}`, label: `《${col}》のシグニ1枚をデッキから手札に`,
       action: ({ type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ', color: col }, maxCount: 1, then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } } as EffectAction),
       available: true,
     }));
-    const totalCountCCS = chosenColorsCCS.length + anyCount || 1;
-    if (totalCountCCS >= colorOptsCCS.length) {
-      // 全色分：SEARCH を色ごとに順次実行
-      return done(addLog(ctx, `コスト色選択：${totalCountCCS}色のシグニをデッキから手札へ`));
-    }
-    return needsInteraction(addLog(ctx, `コスト色選択（${totalCountCCS}色）`), {
-      type: 'CHOOSE', options: colorOptsCCS, count: Math.min(totalCountCCS, colorOptsCCS.length), multiSelect: true,
-    });
+    // 取得可能な色の種類数（maxDistinctCCS）まで選択。upTo=true で「N色まで」。
+    return needsInteraction(
+      addLog(ctx, `コスト色選択：${maxDistinctCCS}色まで（支払ったエナの色からシグニを手札へ）`),
+      { type: 'CHOOSE', options: colorOptsCCS, count: Math.min(maxDistinctCCS, colorOptsCCS.length), multiSelect: true, upTo: true },
+    );
   }
   // HASTARLIQ: 【ハスターリク】(WXDi-P05-TK01A)を相手シグニゾーンに設置
   if (stub.id === 'HASTARLIQ') {

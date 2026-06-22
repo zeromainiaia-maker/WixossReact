@@ -394,6 +394,9 @@ export interface PendingSpell {
   caster_id: string;   // スペルを発動したプレイヤーのID
   card_num: string;    // 発動中のスペルカード番号
   from_lrig_deck?: boolean; // ルリグデッキからの発動（フェゾーネマジック等スペル/クラフト）
+  // 使用コストとして実際に支払われたエナ1枚ごとの色配列（WX04-063 等の「支払ったエナの色」参照用）。
+  // マルチエナは全5色、無色エナは空配列。
+  paid_energy_colors?: string[][];
 }
 
 // ===== 効果エンジン インタラクション定義 =====

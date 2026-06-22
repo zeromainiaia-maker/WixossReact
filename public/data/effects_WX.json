@@ -12153,44 +12153,12 @@
         ]
       },
       "action": {
-        "type": "SEQUENCE",
-        "steps": [
-          {
-            "type": "STUB",
-            "id": "COST_COLOR_SELECT"
-          },
-          {
-            "type": "SEARCH",
-            "from": {
-              "location": "deck",
-              "owner": "self"
-            },
-            "filter": {
-              "cardType": "シグニ"
-            },
-            "maxCount": 1,
-            "then": {
-              "type": "SEQUENCE",
-              "steps": [
-                {
-                  "type": "REVEAL"
-                },
-                {
-                  "type": "ADD_TO_HAND",
-                  "owner": "self"
-                }
-              ]
-            },
-            "afterSearch": {
-              "type": "SHUFFLE_DECK",
-              "owner": "self"
-            }
-          }
-        ]
+        "type": "STUB",
+        "id": "COST_COLOR_SELECT"
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-064": [
