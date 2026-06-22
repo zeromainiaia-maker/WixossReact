@@ -287,9 +287,15 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
         return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す`;
       return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
-    case 'BLOCK_ACTION':
+    case 'BLOCK_ACTION': {
       if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
-      return `${ownerJa(a.target?.owner)}${a.target?.type === 'SIGNI' ? 'シグニ' : ''}は「${a.actionId}」ができない（${a.until ?? ''}）`;
+      const actionLabel: Record<string, string> = {
+        SELF_SIGNI_TRASH: 'カードの効果を除き、自分で自分のシグニを場からトラッシュに置く（リムーブ）',
+        DRAW: 'カードを引く', ENERGY: 'エナチャージ', USE_ACT: '【起】能力の使用',
+      };
+      const lbl = actionLabel[a.actionId] ?? `「${a.actionId}」`;
+      return `${ownerJa(a.target?.owner)}${a.target?.type === 'SIGNI' ? 'シグニ' : ''}は${lbl}ことができない（${a.until ?? ''}）`;
+    }
     case 'LOOK_AND_REORDER': {
       const src = a.source?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
       const loc = a.source?.location === 'hand' ? '手札' : 'デッキの上';
