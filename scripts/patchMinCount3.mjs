@@ -56,9 +56,10 @@ for (const r of allRows) {
   const before = JSON.stringify(eff[cardNum] ?? null);
   const after = JSON.stringify(regenerated);
   if (before !== after) {
-    // minCount を除いて比較し、それ以外の差分がないか検証
+    // minCount を除いて比較し、それ以外の差分があるカードは手修正の可能性 → スキップ
     if (stripMinCount(before) !== stripMinCount(after)) {
       suspicious.push(cardNum);
+      continue;
     }
     eff[cardNum] = regenerated;
     touched++;
@@ -66,11 +67,9 @@ for (const r of allRows) {
   }
 }
 
-if (suspicious.length > 0) {
-  console.log(`⚠ minCount以外の差分があるカード（要確認・書き込み中止）: ${suspicious.join(', ')}`);
-  process.exit(1);
-}
-
 writeFileSync(effPath, JSON.stringify(eff), 'utf-8');
 console.log(`パッチ済み: ${touched}枚`);
 console.log(changedCards.join(', '));
+if (suspicious.length > 0) {
+  console.log(`スキップ（minCount以外の差分あり=手修正の可能性。要個別確認）: ${suspicious.join(', ')}`);
+}
