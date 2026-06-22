@@ -7923,6 +7923,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const redirectBanishP0 =
           opShootP0 ||
           opState.banish_redirect === true ||
+          // パワー0以下のシグニ→トラッシュ（所有者問わず。WX04-038-E1。どちらかのプレイヤーが設定）
+          hostState.power0_banish_to_trash === true ||
+          guestState.power0_banish_to_trash === true ||
           opState.field.signi.some(s => {
             const n = s?.at(-1);
             return n && (effectsMap.get(n) ?? []).some(e =>
