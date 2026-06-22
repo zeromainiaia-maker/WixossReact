@@ -2970,6 +2970,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return after.trash.filter(n => beforeDeck.has(n) && !beforeTrash.has(n));
   };
 
+  // 手札・エナゾーンからトラッシュに移動したカードを検出（ON_TRASH「いずれかの領域から」用・WX04-035等）
+  const detectHandEnergyTrashed = (before: PlayerState, after: PlayerState): string[] => {
+    const beforeHandEnergy = new Set([...before.hand, ...before.energy]);
+    const beforeTrash = new Set(before.trash);
+    return after.trash.filter(n => beforeHandEnergy.has(n) && !beforeTrash.has(n));
+  };
+
   // デッキからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self のみ）を収集する。
   // 場のシグニ用フィールドトリガー（any_ally等）はデッキミルでは発火しないため除外する。
   const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] => {
