@@ -165,6 +165,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX04-086-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":["空獣","地獣"],"excludeSelf":true}},"delta":2000,"excludeSelf":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
 
+  // WX04-088 幻獣 ビーグル（シグニ 精生：地獣）
+  //  E1【常】このシグニが【ランサー】を持っているかぎり、このシグニの基本パワーは10000になる（activeCondition SELF_HAS_KEYWORD 欠落で常時10000だった）。
+  //  E2【起】《緑×3》：ターン終了時まで、このシグニは【ランサー】を得る（旧: 対象「あなたのシグニ1体」誤→ thisCardOnly に修正）。
+  "WX04-088": [
+    {"effectId":"WX04-088-E1","effectType":"CONTINUOUS","activeCondition":{"type":"SELF_HAS_KEYWORD","keyword":"ランサー"},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX04-088-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"緑","count":1},{"color":"緑","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-056-E1 大壊 アクス（シグニ 精武：アーム）【常】あなたの他の＜アーム＞のシグニのパワー+2000。
   "WX04-056": [
     {"effectId":"WX04-056-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","cardClass":"アーム","excludeSelf":true}},"delta":2000,"excludeSelf":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}

@@ -249,6 +249,7 @@ function condJa(c?: any): string {
     case 'ENA_DIFF': return `あなたのエナが対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
     case 'EICHI_LEVEL_SUM': return `英知（＜英知＞シグニのレベル合計）が${numJa(c.value)}${opJa(c.operator)}`;
     case 'VIRUS_COUNT': return `${ownerJa(c.owner)}場の【ウィルス】が${numJa(c.value)}${opJa(c.operator)}`;
+    case 'SELF_HAS_KEYWORD': return `このシグニが【${c.keyword}】を持っている`;
     case 'IS_SELF_ARMORED': return 'このシグニが血晶武装状態';
     case 'IS_SELF_ACCED': return 'このシグニに【アクセ】が付いている';
     case 'IS_SELF_ACCE_CARD': return 'このカードが【アクセ】として付いている';

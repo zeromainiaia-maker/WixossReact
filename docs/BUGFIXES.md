@@ -5,6 +5,15 @@
 
 ---
 
+## WX04-088 ビーグル「ランサーを持つかぎり基本10000」＋SELF_HAS_KEYWORD条件新設（2026-06-22）
+
+- **原文 E1:** 「【常】：このシグニが【ランサー】を持っているかぎり、このシグニの基本パワーは10000になる。」 / **E2:** 「【起】《緑》《緑》《緑》：ターン終了時まで、このシグニは【ランサー】を得る。」
+- **旧実装の問題:** E1 は activeCondition 欠落で常時10000。E2 は対象が「あなたのシグニ1体」（本来「このシグニ」）で、別シグニにランサー付与可能だった（E1 条件とも噛み合わない）。
+- **修正:**
+  - 新 activeCondition `SELF_HAS_KEYWORD`（types/effects.ts）を追加。`effectEngine.checkActiveCondition` で `hasKeyword`（印字・keyword_grants(_until_opp_turn)・field_keyword_grants_active を網羅）を用い「このシグニが【keyword】を持つか」を判定。decompile condJa も対応。
+  - JSON E1 に `activeCondition SELF_HAS_KEYWORD(ランサー)`、E2 の target を `filter.thisCardOnly`（このシグニ＝自動付与・プロンプトなし）・duration UNTIL_END_OF_TURN に修正。`manualEffects.ts` に E1・E2 を MANUAL 登録。
+- 検証: `npm run typecheck` 通過、lint 0 errors、decompile 再生成で E1「《このシグニが【ランサー】を持っているかぎり》…基本パワーを10000」・E2「このシグニは【ランサー】を持つ（ターン終了時まで）」を確認。E2でランサー付与→E1条件成立→基本10000 が連動。
+
 ## WX04-086-E1「他の＜空獣＞＜地獣＞に+2000」の誤実装（2026-06-22）
 
 - **原文:** 「【常】：あなたの**他の**＜空獣＞と＜地獣＞のシグニのパワーを＋2000する。」

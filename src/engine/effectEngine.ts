@@ -27,6 +27,7 @@ import type {
   DownAction,
   PowerFlipAction,
 } from '../types/effects';
+import { hasKeyword } from '../utils/keywords';
 
 // ===== activeCondition 判定 =====
 
@@ -221,6 +222,13 @@ export function checkActiveCondition(
       const stack = ownerState.field.signi.find(s => s?.at(-1) === sourceCardNum);
       return !!stack && stack.length > 1;
     }
+
+    case 'SELF_HAS_KEYWORD':
+      // このシグニが【keyword】を持っているかぎり（印字・付与いずれも。WX04-088-E1「ランサーを持っているかぎり基本パワー10000」）
+      if (!sourceCardNum) return false;
+      return hasKeyword(sourceCardNum, cond.keyword, cardMap,
+        ownerState.keyword_grants, undefined,
+        ownerState.keyword_grants_until_opp_turn, ownerState.field_keyword_grants_active);
 
     case 'HAS_BOND': {
       const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);

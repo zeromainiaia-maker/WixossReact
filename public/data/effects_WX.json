@@ -12939,6 +12939,10 @@
     {
       "effectId": "WX04-088-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "SELF_HAS_KEYWORD",
+        "keyword": "ランサー"
+      },
       "action": {
         "type": "POWER_SET",
         "target": {
@@ -12950,7 +12954,7 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-088-E2",
@@ -12979,14 +12983,17 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "thisCardOnly": true
+          }
         },
         "keyword": "ランサー",
-        "duration": "PERMANENT"
+        "duration": "UNTIL_END_OF_TURN"
       },
       "duration": "UNTIL_END_OF_TURN",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-089": [
