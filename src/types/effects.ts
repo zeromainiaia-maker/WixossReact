@@ -704,6 +704,7 @@ export interface GrantEffectAction {
   target: EffectTarget;
   effect: CardEffect;      // 付与するエフェクト（AUTO/ACTIVATED/CONTINUOUSなど）
   duration: EffectDuration;
+  targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX04-094。選択UIを出さず同一対象に付与）
 }
 
 // スタック下のカードから上のシグニへ能力を付与する（CONTINUOUS効果として宣言）
