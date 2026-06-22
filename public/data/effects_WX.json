@@ -13816,7 +13816,7 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-003-E2",
@@ -13829,12 +13829,12 @@
         "target": {
           "type": "HAND_CARD",
           "owner": "opponent",
-          "count": 1
+          "count": "ALL"
         }
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-003-E3",
@@ -13846,22 +13846,14 @@
         "exceed": 5
       },
       "action": {
-        "type": "CONDITIONAL",
-        "condition": {
-          "type": "HAND_COUNT",
-          "owner": "self",
-          "operator": "lt",
-          "value": 6
-        },
-        "then": {
-          "type": "DRAW",
-          "owner": "self",
-          "count": 1
-        }
+        "type": "DRAW",
+        "owner": "self",
+        "count": 0,
+        "untilHandCount": 6
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX05-004": [
