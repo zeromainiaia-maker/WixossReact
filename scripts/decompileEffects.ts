@@ -494,6 +494,16 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'GROW_COST_ZERO') return 'あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'BANISH_REDIRECT_POWER0_TRASH') return 'このターン、パワーが0以下のシグニがバニッシュされる場合、エナゾーンの代わりにトラッシュに置かれる';
       if (a.id === 'DOUBLE_POWER_MINUS_THIS_TURN') return 'このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合、代わりに2倍－される';
+      // DISCARD_OR_PENALTY: 原文から「＜クラス＞/種別のカードを1枚捨てないかぎり手札をN枚捨てる」を復元
+      if (a.id === 'DISCARD_OR_PENALTY') {
+        const toHWdop = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const clsM = currentCardText.match(/手札から[<＜]([^>＞]+)[>＞]のシグニを１枚捨てないかぎり/);
+        const typeM = !clsM ? currentCardText.match(/手札から(スペル|シグニ|アーツ)を１枚捨てないかぎり/) : null;
+        const penM = currentCardText.match(/かぎり手札を([２-９\d]+)枚捨てる/);
+        const n = penM ? parseInt(toHWdop(penM[1])) : 2;
+        const subj = clsM ? `手札から＜${clsM[1]}＞のシグニを1枚` : typeM ? `手札から${typeM[1]}を1枚` : '手札から指定カードを1枚';
+        return `あなたは${subj}捨てないかぎり手札を${n}枚捨てる`;
+      }
       const burstExtra = a.id === 'GRANT_ALL_ZONE_LIFEBURST'
         ? `（全領域のカードに【ライフバースト】付与${a.burstAdditive ? '・既存バーストにも追加' : ''}${a.burstFilter ? '・対象' + filterJa(a.burstFilter) : ''}${a.burstAction ? '・効果=' + actionJa(a.burstAction) : ''}）`
         : '';
