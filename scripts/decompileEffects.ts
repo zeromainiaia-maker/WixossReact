@@ -108,6 +108,8 @@ function filterJa(f?: any): string {
 
 function targetJa(t?: any, unit = 'シグニ'): string {
   if (!t) return '';
+  // owner='any' は「対象のシグニ」＝自分・対戦相手どちらも選べる（マイナス対象などで明示する）
+  const own = t.owner === 'any' ? '自分または対戦相手の' : ownerJa(t.owner);
   // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
   const loc = t.type === 'HAND_CARD' ? '(手札)' : t.type === 'TRASH_CARD' ? '(トラッシュ)'
     : t.type === 'ENERGY_CARD' ? '(エナ)' : t.type === 'DECK_CARD' ? '(デッキ)'
