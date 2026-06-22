@@ -14864,6 +14864,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               opp_hand:    '相手の手札から',
               self_field:  '自分のシグニゾーンから',
               opp_field:   '相手のシグニゾーンから',
+              both_field:  '自分または相手のシグニから',
               self_energy: 'エナから',
               opp_energy:  '相手のエナから',
               self_trash:  'トラッシュから',
