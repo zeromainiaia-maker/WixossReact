@@ -764,6 +764,15 @@ export interface RevealUntilToHandAction {
   restDest: 'deck_bottom_shuffled' | 'deck_bottom' | 'trash'; // 公開した他のカードの行き先
 }
 
+// デッキ上からシグニがめくれるまで公開し、そのシグニを場に出し、公開した他のカードをトラッシュへ置く。
+// これを repeat 回繰り返す（WX04-093「惰眠」）。場に出せないシグニ（空きゾーンなし）はトラッシュへ。
+export interface RevealUntilToFieldAction {
+  type: 'REVEAL_UNTIL_TO_FIELD';
+  owner: Owner;            // 公開するデッキの持ち主（通常 self）
+  repeat: number;          // 繰り返し回数（WX04-093 = 3）
+  revealClass?: string;    // めくり続ける対象シグニの＜クラス＞（省略=任意のシグニ）
+}
+
 // トラッシュ/エナ/フィールドからデッキへ移動
 export interface TransferToDeckAction {
   type: 'TRANSFER_TO_DECK';
