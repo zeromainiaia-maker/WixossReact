@@ -6489,7 +6489,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cutinAllColorSigniNums = new Set([...collectAllColorSigniForField(cutinPaid, battleCardMap, effectsMap, newCasterState, cutinIsOwnerTurn), ...collectAllColorSigniForField(newCasterState, battleCardMap, effectsMap, cutinPaid, !cutinIsOwnerTurn)]);
       const cutinExtraColors = new Map([...collectFieldSigniExtraColors(cutinPaid, battleCardMap, effectsMap, newCasterState, cutinIsOwnerTurn), ...collectFieldSigniExtraColors(newCasterState, battleCardMap, effectsMap, cutinPaid, !cutinIsOwnerTurn)]);
       const cutinDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(cutinPaid, newCasterState, effectsMap);
-      const cutinDeclaredCardMap = applyDeclaredZoneClassOverride(battleCardMap, cutinPaid, newCasterState);
+      const cutinDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, cutinPaid, newCasterState), cutinPaid, newCasterState, effectsMap, cutinIsOwnerTurn);
       const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: cutinDeclaredCardMap, logs: [], effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId, allColorSigniNums: cutinAllColorSigniNums, fieldSigniExtraColors: cutinExtraColors, deckTrashLevel1Nums: cutinDeckTrashLevel1Nums };
       let result = executeEffect(cutinEff, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペルカットイン解決後）
