@@ -5,6 +5,13 @@
 
 ---
 
+## WX04-093「惰眠」のデッキ公開→場出し→3回繰り返しを本実装（2026-06-22）
+
+- **原文:** 「あなたのデッキの上からシグニがめくれるまで公開する。その後、公開されたシグニを場に出し、残りをトラッシュに置く。その後、この効果を２回繰り返す。（場に出すことのできないシグニはトラッシュに置かれる）」
+- **旧実装の問題:** E1 が `SEQUENCE(STUB DECK_REVEAL_UNTIL / REVEALED_SIGNI_TO_FIELD_REST_TRASH / REPEAT_EFFECT)` で未実装（ログのみ）だった。
+- **修正:** 新アクション `REVEAL_UNTIL_TO_FIELD`（types/effects.ts）を追加。`execRevealUntilToField`（effectExecutor.ts）でデッキ上からシグニがめくれるまで公開→そのシグニを場に出し→手前の公開カードをトラッシュ→これを `repeat` 回繰り返す。空きシグニゾーンが無く場に出せないシグニはトラッシュへ（原文の括弧書きに対応）。空きゾーンが複数ある場合は `SELECT_SIGNI_ZONE` で配置先を選択し、残りの繰り返しを `continuation` に積む。JSON E1 を `REVEAL_UNTIL_TO_FIELD(repeat:3)` に置換、`manualEffects.ts` に E1・BURST を MANUAL 登録。decompile actionJa も対応。
+- 検証: `npm run typecheck` 通過、decompile 再生成で「あなたのデッキを上からシグニがめくれるまで公開し、そのシグニを場に出し、残りをトラッシュに置く（場に出せないシグニはトラッシュへ）。これを3回繰り返す」を確認。
+
 ## WX04-089-E1「＜美巧＞が3体あるかぎり+2000」の minCount 欠落（2026-06-22）
 
 - **症状（ユーザー確認依頼）:** E1「【常】：あなたの場に＜美巧＞のシグニが**３体**あるかぎり、あなたのシグニのパワーを＋2000する。」の activeCondition に `minCount` が無く「1体以上あるかぎり」になっていた（WX04-079 と同型）。
