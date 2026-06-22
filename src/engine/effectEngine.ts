@@ -3300,6 +3300,90 @@ export function collectBanishEffectProtectedSigni(
 }
 
 /**
+ * collectEffectImmuneSigni: 「対戦相手の、ルリグ／シグニ（等）の効果を受けない」完全効果耐性を持つシグニを返す。
+ * GRANT_PROTECTION の from に source-type トークン（ルリグ/シグニ/スペル/アーツ）または 'any'、もしくは
+ * fromAll(+exceptSource) を持つCONT効果を対象とし、いま解決中の効果のソースカード種別 `sourceCardType` が
+ * 耐性対象に該当する場合のみ、保護シグニを返す。
+ *
+ * 返り値は呼び出し側で各保護セット（バニッシュ/バウンス/ダウン/トラッシュ/能力消失/能力付与）に union する。
+ * これにより「効果を受けない」を既存の個別保護パスへ一括反映し、対象種別（ルリグ/シグニ）のみを遮断する。
+ *
+ * - state:          保護対象プレイヤー（耐性シグニを持つ側）
+ * - opponentState:  効果ソース側（= state の対戦相手）
+ * - isOwnerTurn:    state 視点での自ターンか（activeCondition 評価用）
+ * - sourceCardType: 解決中効果のソースカードの CardType（'シグニ'/'ルリグ'/'スペル'/'アーツ'/'アシストルリグ' 等）
+ */
+export function collectEffectImmuneSigni(
+  state: PlayerState,
+  opponentState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn: boolean,
+  sourceCardType: string,
+): Set<string> {
+  const immune = new Set<string>();
+  const srcType = sourceCardType ?? '';
+  // アシストルリグも「ルリグ」の効果。レゾナはシグニ扱い。
+  const srcIsLrig = srcType.includes('ルリグ');
+  const srcIsSigni = srcType.includes('シグニ') || srcType.includes('レゾナ');
+  const srcIsSpell = srcType.includes('スペル');
+  const srcIsArts = srcType.includes('アーツ') || srcType.includes('ピース') || srcType.includes('キー');
+
+  const sourceMatches = (from: string[] | undefined): boolean => {
+    if (!from) return false;
+    if (from.includes('any')) return true;
+    if (srcIsLrig && from.includes('ルリグ')) return true;
+    if (srcIsSigni && from.includes('シグニ')) return true;
+    if (srcIsSpell && from.includes('スペル')) return true;
+    if (srcIsArts && from.includes('アーツ')) return true;
+    return false;
+  };
+  const exceptMatches = (ex: { sourceType: string } | undefined): boolean => {
+    if (!ex) return false;
+    return (ex.sourceType === 'ルリグ' && srcIsLrig)
+      || (ex.sourceType === 'シグニ' && srcIsSigni)
+      || (ex.sourceType === 'スペル' && srcIsSpell)
+      || (ex.sourceType === 'アーツ' && srcIsArts);
+  };
+
+  for (const stack of state.field.signi) {
+    if (!stack?.length) continue;
+    const sourceNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (eff.action.type !== 'GRANT_PROTECTION') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, opponentState, isOwnerTurn, cardMap, sourceNum)) continue;
+      const gp = eff.action as GrantProtectionAction;
+      if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
+
+      // この解決中のソース種別が耐性対象に含まれるか判定
+      let blocked = false;
+      if (gp.fromAll) {
+        blocked = !exceptMatches(gp.exceptSource);
+      } else {
+        blocked = sourceMatches(gp.from);
+      }
+      if (!blocked) continue;
+
+      // 保護対象シグニを収集
+      if (gp.subjectFilter) {
+        const subjState = gp.subjectOwner === 'opponent' ? opponentState : state;
+        for (const s2 of subjState.field.signi) {
+          const top2 = s2?.at(-1);
+          if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter)) immune.add(top2);
+        }
+      } else if (gp.target) {
+        // target ベース（一時付与でない CONT は稀）: self/any count:1 → このシグニ自身
+        if ((gp.target.owner === 'self' || gp.target.owner === 'any')) immune.add(sourceNum);
+      } else {
+        immune.add(sourceNum);
+      }
+    }
+  }
+  return immune;
+}
+
+/**
  * PREVENT_POWER_MINUS_BY_OPP: 対戦相手の効果によるパワーマイナスから保護されているシグニを返す。
  */
 export function collectPowerProtectedSigni(
