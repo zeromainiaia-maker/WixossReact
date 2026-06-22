@@ -882,6 +882,14 @@ export interface RearrangeSigniAction {
   optional?: boolean; // true=「配置し直してもよい」（プレイヤーがスキップ可能）
 }
 
+// シグニの基本レベルをNにする（CONTINUOUS。「このシグニの基本レベルは2になる」WX04-049-E1）。
+// cardMap の Level を上書きして全レベル参照（matchesFilter のレベルフィルタ等）に反映する。
+export interface SetBaseLevelAction {
+  type: 'SET_BASE_LEVEL';
+  target: EffectTarget;  // 通常は自分（このシグニ）。count:1=効果元シグニ
+  value: number;         // 設定する基本レベル
+}
+
 // コストなしでグロウする
 export interface GrowFreeAction {
   type: 'GROW_FREE';
