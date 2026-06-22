@@ -11726,6 +11726,7 @@
       ],
       "action": {
         "type": "ATTACH_CHARM",
+        "optional": true,
         "charm": {
           "type": "DECK_CARD",
           "owner": "self",
@@ -11734,12 +11735,15 @@
         "to": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "thisCardOnly": true
+          }
         }
       },
       "duration": "INSTANT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-052-BURST",
