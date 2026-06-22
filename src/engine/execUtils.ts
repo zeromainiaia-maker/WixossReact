@@ -33,6 +33,8 @@ export interface ExecCtx {
   otherBounceProtectedNums?: string[];
   // GRANT_PROTECTION from=['BANISH'/'any']: 相手効果でバニッシュされないシグニ
   otherBanishProtectedNums?: Set<string>;
+  // CHARM_PROTECTION（WX04-052-E1）: バニッシュされる際にチャーム1枚をトラッシュして場に残るシグニ（両プレイヤー分）
+  charmShieldNums?: Set<string>;
   // GRANT_PROTECTION from=['ルリグ'/'シグニ'…] 完全効果耐性（「対戦相手の、ルリグとシグニの効果を受けない」）:
   // 解決中効果のソース種別が耐性対象に該当する相手(otherState)シグニ。FREEZE/POWER_MODIFY等の対象から除外する。
   // （バニッシュ/バウンス/ダウン/トラッシュ/能力消失/能力付与は各専用保護セットへ別途 union 済み）
