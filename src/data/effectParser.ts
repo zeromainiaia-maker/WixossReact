@@ -1039,7 +1039,12 @@ function parseActionText(text: string): EffectAction {
     if (condM) {
       const condText = condM[1];
       const thenText = condM[2].replace(/。$/, '');
-      const thenAction = parseSingleSentence(thenText);
+      let thenAction = parseSingleSentence(thenText);
+      // 「公開した（＝選んだ）カードをエナゾーンに置く」は ADD_TO_ENERGY（applyDirectAction が選択カードをエナへ）。
+      // ENERGY_CHARGE{DECK_CARD} だと execEnergyCharge が場のシグニを選ぶ誤動作になるため正規化する。
+      if (thenAction.type === 'ENERGY_CHARGE' && (thenAction as EnergyChargeAction).target?.type === 'DECK_CARD') {
+        thenAction = { type: 'ADD_TO_ENERGY', owner: 'self' } as AddToEnergyAction;
+      }
       const filter: TargetFilter = {
         cardType: 'シグニ',
         ...parseStoryFilter(condText),
