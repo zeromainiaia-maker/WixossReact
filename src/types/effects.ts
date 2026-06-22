@@ -209,6 +209,7 @@ export interface EffectCost {
   coin?: number;          // 《コインアイコン》×N（【出】《コイン》等）
   // ─ v0.263 追加: 無発火だった任意【出】コストの表現（ONPLAY_DEAD_OPTIONAL対策）─
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean }; // 場の自分シグニN体をトラッシュ（「他の＜原子＞のシグニ１体を場からトラッシュに置く」等）
+  fieldTrashGroups?: { count: number; filter?: TargetFilter }[]; // 異なるフィルタの場シグニを組で指定（「＜アーム＞1体と＜ウェポン＞1体を場からトラッシュ」WX04-040-E2）。fieldTrashと併用不可
   handToEnergy?: { count: number; filter?: TargetFilter };    // 手札からN枚をエナゾーンに置く
   handToUnderSelf?: { count: number; filter?: TargetFilter }; // 手札からN枚をこのシグニの下に置く
   lrigDown?: { count: number; centerOnly?: boolean };         // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）
