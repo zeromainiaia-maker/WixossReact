@@ -5,6 +5,16 @@
 
 ---
 
+## WX04-041-E2「シグニ再配置」UIの実装（2026-06-22）
+
+- **症状（ユーザー報告）:** WX04-041-E2「対戦相手のすべてのシグニを好きなように配置し直してもよい」の**再配置UIが未実装**。エンジンの `REARRANGE_SIGNI` は `done(addLog('…BattleScreen側で処理'))` のログのみで、BattleScreen に処理が存在せず**何も起きない no-op**だった。また `mandatory:true`（原文は「もよい」＝任意）。
+- **修正:**
+  - `PendingInteractionDef` に `REARRANGE_SIGNI`（owner / signiNums / optional）を追加。`RearrangeSigniAction.optional` を追加。
+  - エンジン `execRearrangeSigni`（count:'ALL'、swap以外）: 対象オーナーのシグニを集めて配置選択の pending を返す（1体以下はスキップ）。`resumeRearrangeSigni`: `newArrangement[newZone]=instance id` を受け、**ゾーン状態（スタック/ダウン/凍結/チャーム/アクセ/ソウル/武装/ウィルス）ごと**新ゾーンへ並び替え（順列適用）。
+  - BattleScreen: 各シグニにゾーン1/2/3を割り当てる**再配置モーダル**（新配置プレビュー付き）、確定/「配置し直さない」（optional）ハンドラ `handleRearrangeSigniConfirm`、CPU自動応答（現状維持で確定）。
+  - JSON は `optional:true`/`mandatory:false` に修正、`manualEffects.ts` に MANUAL 登録。decompile の `REARRANGE_SIGNI` 和文化を「好きなように配置し直す（してもよい）」に改善。
+  - 検証: 3体（A/B/C、Bダウン）を [C,A,B] へ並び替え→ゾーンとダウン状態が正しく追従することをテストで確認。`npm run typecheck` 通過、`npm run verify` フラグなし・サマリー不変。
+
 ## WX04-040「極壊 ハンマ」3効果修正・fieldTrashGroups コスト新設（2026-06-22）
 
 - **症状（ユーザー報告）:** WX04-040 の効果が誤り。
