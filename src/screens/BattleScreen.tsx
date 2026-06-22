@@ -4903,6 +4903,51 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  // REARRANGE_SIGNI: シグニ配置し直しの確定（newArrangement[newZone]=instance id / ''=空き、skip=配置せず）
+  const handleRearrangeSigniConfirm = async (newArrangement: string[] | null) => {
+    if (!bs?.pending_effect || loading) return;
+    setLoading(true);
+    try {
+      const pe = bs.pending_effect;
+      const inter = pe.interaction;
+      if (inter.type !== 'REARRANGE_SIGNI') return;
+      const ownerIsHost = pe.sourcePlayerId === bs.host_id;
+      const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
+      const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
+      const declaredCardMapR = applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState);
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum };
+      // skip（null）または継続のみ: 並び替えず continuation を実行
+      const arrangement = newArrangement ?? inter.signiNums.map((n, i) => (ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === n) === i ? n : n)); // 使われない（skip時は下で分岐）
+      let result: ExecResult;
+      if (newArrangement === null) {
+        // スキップ: continuation のみ実行（並び替えなし）
+        result = inter.continuation
+          ? executeEffectActionDirect(inter.continuation, ctx)
+          : { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ['配置し直さなかった'] };
+      } else {
+        result = resumeRearrangeSigni(arrangement, inter, ctx);
+      }
+      result = applyRefreshOnDone(result, battleCardMap);
+      if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
+      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
+      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
+      if (!result.done) {
+        const { respondPlayerId: _drop, ...peBase } = pe;
+        update.pending_effect = { ...peBase, interaction: result.pending } satisfies PendingEffect;
+      } else {
+        update.pending_effect = null;
+        const existingStack = bs.effect_stack ?? null;
+        if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
+      }
+      setRearrangeSlots([null, null, null]);
+      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // SELECT_VIRUS_ZONE: 【ウィルス】を置くシグニゾーンの選択（zoneIndex=nullで配置打ち切り）
   const handleSelectVirusZoneForEffect = async (zoneIndex: number | null) => {
     if (!bs?.pending_effect || loading) return;
