@@ -446,6 +446,7 @@ export interface DrawAction {
   type: 'DRAW';
   owner: Owner;
   count: NumberOrRef;
+  untilHandCount?: number; // 指定時、手札が N 枚になるまで（差の分だけ）引く。手札が N 枚以上なら引かない（WX05-003「手札が6枚より少ない場合、その差の分だけ引く」）
 }
 
 // フィールドのシグニ N体につき M枚ドロー
