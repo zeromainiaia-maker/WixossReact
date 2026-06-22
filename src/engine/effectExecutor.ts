@@ -2061,6 +2061,17 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
 }
 
 function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
+  // optional:「チャームにしてもよい」→ 付ける/付けないを選択
+  if (a.optional) {
+    const noop: SequenceAction = { type: 'SEQUENCE', steps: [] };
+    const attachAct: AttachCharmAction = { ...a, optional: false };
+    return needsInteraction(ctx, {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'attach', label: 'チャームにする', action: attachAct as EffectAction, available: true },
+        { id: 'skip',   label: 'しない',        action: noop as EffectAction, available: true },
+      ],
+    } as PendingInteractionDef);
+  }
   const charmOwner = a.charm.owner ?? 'self';
   const toOwner    = a.to.owner ?? 'self';
   const charmSrc   = ownerState(charmOwner, ctx);
