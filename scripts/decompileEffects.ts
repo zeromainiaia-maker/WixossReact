@@ -344,8 +344,8 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 軸トークン（BANISH/BOUNCE/DOWN）→「対戦相手の効果によってバニッシュされない」等
       const axisJa: Record<string, string> = { BANISH: 'バニッシュされ', BOUNCE: '手札に戻され', DOWN: 'ダウンし', FREEZE: '凍結され' };
-      const axes = fromArr.map(f => axisJa[f] ?? f);
-      return `${subject}は${ownerJa(a.sourceOwner)}効果によって${axes.join('も')}ない`;
+      const axes = fromArr.map(f => axisJa[f] ?? (f + 'され'));
+      return `${subject}は${ownerJa(a.sourceOwner)}効果によって${axes.join('・')}ない`;
     }
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
