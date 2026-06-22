@@ -3696,8 +3696,12 @@ export function resumeSelectSigniZone(
     newDown[zoneIndex] = true;
     newS = { ...newS, field: { ...newS.field, signi_down: newDown } };
   }
-  const cur = addLog(setOwnerState(pending.owner, newS, ctx),
+  let cur = addLog(setOwnerState(pending.owner, newS, ctx),
     `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}をゾーン${zoneIndex + 1}に場に出す`);
+  // REVEAL_UNTIL_TO_FIELD 等：ゾーン選択を跨いで「場に出したシグニ」を維持（【出】発火の追跡用）。
+  if (pending.placedSoFar !== undefined) {
+    cur = { ...cur, lastProcessedCards: [...pending.placedSoFar, pending.cardNum] };
+  }
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
