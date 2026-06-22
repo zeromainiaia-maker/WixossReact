@@ -12008,11 +12008,12 @@
           "type": "SIGNI",
           "owner": "self",
           "count": "ALL"
-        }
+        },
+        "optional": true
       },
       "duration": "INSTANT",
-      "mandatory": true,
-      "parseStatus": "AUTO"
+      "mandatory": false,
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-059": [
