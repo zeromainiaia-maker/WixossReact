@@ -1995,10 +1995,36 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
   });
 }
 
+// PLACE_LRIGS_UNDER_CENTER: ルリグトラッシュのすべてのルリグを、自分のセンタールリグの下（スタック最下部）に置く（WX05-001）。
+function execPlaceLrigsUnderCenter(a: import('../types/effects').PlaceLrigsUnderCenterAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  const lrigs = (state.lrig_trash ?? []).filter(n => ctx.cardMap.get(n)?.Type === 'ルリグ');
+  if (lrigs.length === 0) return done(addLog(ctx, 'ルリグトラッシュにルリグがない'));
+  const newLrigTrash = state.lrig_trash.filter(n => !lrigs.includes(n));
+  // 「下に置く」= センタールリグスタックの最下部（applyGrowEffect と同じ並び）
+  const newLrig = [...lrigs, ...state.field.lrig];
+  const newS: PlayerState = { ...state, lrig_trash: newLrigTrash, field: { ...state.field, lrig: newLrig } };
+  return done(addLog(setOwnerState(a.owner, newS, ctx),
+    `ルリグトラッシュのルリグ${lrigs.length}枚をセンタールリグの下に置く`));
+}
+
 function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   const src = a.source;
   const state = ownerState(src.owner, ctx);
   const toBottom = a.position === 'bottom';
+
+  // LRIG_TRASH_CARD: ルリグトラッシュから（アーツ等を）ルリグデッキ/デッキへ戻す（WX05-001「白と黒のアーツをルリグデッキに戻す」）
+  if (src.type === 'LRIG_TRASH_CARD') {
+    const cands = (state.lrig_trash ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), src.filter));
+    const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
+    if (cards.length === 0) return done(addLog(ctx, '対象のカードがルリグトラッシュにない'));
+    const newLrigTrash = state.lrig_trash.filter(n => !cards.includes(n));
+    const dest = a.destination ?? 'deck';
+    const newS: PlayerState = dest === 'lrig_deck'
+      ? { ...state, lrig_trash: newLrigTrash, lrig_deck: [...(state.lrig_deck ?? []), ...cards] }
+      : { ...state, lrig_trash: newLrigTrash, deck: a.shuffle ? shuffle([...state.deck, ...cards]) : (toBottom ? [...state.deck, ...cards] : [...cards, ...state.deck]) };
+    return done({ ...addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}枚を${dest === 'lrig_deck' ? 'ルリグデッキ' : 'デッキ'}に戻す`), lastProcessedCards: cards });
+  }
 
   function insertToDeck(s: PlayerState, cards: string[]): PlayerState {
     if (a.shuffle) return { ...s, deck: shuffle([...s.deck, ...cards]) };
