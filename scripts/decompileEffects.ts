@@ -354,7 +354,18 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
       // thisCardOnly: このシグニ自身が持つキーワード（「このシグニは【X】を持つ」）
       if (a.target?.filter?.thisCardOnly) return `このシグニは【${a.keyword}】を持つ${durJa}`;
+      // targetsLastProcessed:「それ」= 直前に選択/処理したシグニへ付与
+      if (a.targetsLastProcessed) return `それは【${a.keyword}】を得る${durJa}`;
       return `${targetJa(a.target)}に【${a.keyword}】を与える${durJa}`;
+    }
+    case 'GRANT_EFFECT': {
+      const durJaGE = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
+        : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
+        : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
+      const subjGE = a.targetsLastProcessed ? 'それ'
+        : a.target?.filter?.thisCardOnly ? 'このシグニ'
+        : targetJa(a.target);
+      return `${subjGE}は『${effJa(a.effect)}』を得る${durJaGE}`;
     }
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失う${a.frontOfSelf ? '（正面）' : ''}`;
     case 'GRANT_PROTECTION': {
