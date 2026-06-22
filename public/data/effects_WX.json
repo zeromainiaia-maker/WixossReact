@@ -11642,18 +11642,17 @@
         "excludeSelf": true
       },
       "action": {
-        "type": "BLOCK_ACTION",
+        "type": "SET_BASE_LEVEL",
         "target": {
           "type": "SIGNI",
           "owner": "self",
           "count": 1
         },
-        "actionId": "SET_LEVEL_2",
-        "until": "END_OF_TURN"
+        "value": 2
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-049-E2",
