@@ -122,8 +122,10 @@ function filterJa(f?: any): string {
   return parts.join('');
 }
 
-function targetJa(t?: any, unit = 'シグニ'): string {
+function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   if (!t) return '';
+  // excludeSelf は filter の外（target 直下・action 直下）にも置かれるため、ここで filter にマージして「他の」を出す
+  if ((exSelf || t.excludeSelf) && !t.filter?.excludeSelf) t = { ...t, filter: { ...(t.filter || {}), excludeSelf: true } };
   // isTriggerSource: トリガー元（「アタックしたそのシグニ」等）→ 主語省略で「その〜」
   if (t.filter?.isTriggerSource) {
     const lvMax = t.filter.levelRange?.max ?? (typeof t.filter.level === 'object' ? t.filter.level?.max : undefined);
