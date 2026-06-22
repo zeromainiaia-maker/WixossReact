@@ -12518,24 +12518,43 @@
         ]
       },
       "action": {
-        "type": "BANISH",
-        "target": {
-          "type": "SIGNI",
-          "owner": "opponent",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "powerRange": {
-              "min": 10000,
-              "max": 5000
+        "type": "SEQUENCE",
+        "steps": [
+          {
+            "type": "BANISH",
+            "target": {
+              "type": "SIGNI",
+              "owner": "opponent",
+              "count": 1,
+              "filter": {
+                "cardType": "シグニ",
+                "powerRange": {
+                  "max": 5000
+                }
+              },
+              "upToCount": false
             }
           },
-          "upToCount": false
-        }
+          {
+            "type": "BANISH",
+            "target": {
+              "type": "SIGNI",
+              "owner": "opponent",
+              "count": 1,
+              "filter": {
+                "cardType": "シグニ",
+                "powerRange": {
+                  "min": 10000
+                }
+              },
+              "upToCount": false
+            }
+          }
+        ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-074-BURST",
