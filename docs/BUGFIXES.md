@@ -5,6 +5,17 @@
 
 ---
 
+## WX04-102-E1「堕落の消滅 アリトン」のチャーム源・発生源限定の欠落（2026-06-22）
+
+- **原文:** 「【自】：このカードが手札かデッキからトラッシュに置かれたとき、あなたのシグニ1体を対象とし、このカードをそれの【チャーム】にしてもよい。」
+- **旧実装の問題:** ①チャーム源が `charm:{type:SIGNI,owner:self}`（場の自分シグニを選ぶ）で、原文の「**このカード**（トラッシュにある自身）」になっていなかった。②**発生源限定（手札かデッキから）が無く**、ON_TRASH 収集の都合上「場から」トラッシュされても発火し、逆に「手札から」は `fromAnyZone` 未指定で発火しなかった。③「してもよい」(optional) も欠落。
+- **修正:**
+  - `execAttachCharm` の `TRASH_CARD` 分岐に `filter.thisCardOnly` を実装（効果元自身＝`ctx.sourceCardNum` をトラッシュからチャーム化）。JSON の charm を `TRASH_CARD + thisCardOnly`、`optional:true` に。
+  - `triggerCondition.fromZones`（`Array<'hand'|'deck'|'energy'|'field'>`）を新設。ON_TRASH 収集3経路を発生源でゲート：`collectTrashTriggers`（場）・`collectDeckTrashSelfTriggers`（デッキ）・`collectAnyZoneTrashSelfTriggers`（手札/エナ、origin 引数で領域判定）。`detectHandEnergyTrashed` を `detectHandTrashed`/`detectEnergyTrashed` に分割し、領域を区別して収集。
+  - JSON に `triggerScope:self`＋`triggerCondition.fromZones:['hand','deck']`。`manualEffects.ts` に MANUAL 登録。
+  - decompile: ATTACH_CHARM の thisCardOnly→「このカード」、ON_TRASH timing に fromZones（「手札かデッキから」）を反映。
+- 検証: `npm run typecheck` 通過、`tsx scripts/decompileEffects.ts WX04-102` で「【自】このカードが手札かデッキからトラッシュに置かれたとき：このカードをあなたのシグニ1体の【チャーム】にする（してもよい）」を確認。場からトラッシュ時は発火しない・手札/デッキからは発火する挙動に。
+
 ## WX04-099-E1「ツヴァイ＝サリナ」のバトルトリガー誤実装（2026-06-22）
 
 - **原文:** 「【自】：対戦相手のターンの間、このシグニが対戦相手のレベル2以下のシグニとバトルしたとき、バトル終了時に、その対戦相手のシグニをバニッシュする。（このシグニがバトルでバニッシュされていても、この能力は発動する）」
