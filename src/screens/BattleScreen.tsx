@@ -1359,6 +1359,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!isCpuBattle || !bs?.pending_effect) return;
     const pe = bs.pending_effect;
     const inter = pe.interaction;
+    // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
+    if (inter.type === 'REARRANGE_SIGNI') {
+      if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
+      const timerRS = setTimeout(() => { handleRearrangeSigniConfirm(null); }, CPU_ACTION_DELAY);
+      return () => clearTimeout(timerRS);
+    }
     // SELECT_VIRUS_ZONE / SELECT_ZONE / SELECT_SIGNI_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
     if (inter.type === 'SELECT_VIRUS_ZONE' || inter.type === 'SELECT_ZONE' || inter.type === 'SELECT_SIGNI_ZONE') {
       if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
