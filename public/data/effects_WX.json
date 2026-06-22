@@ -11770,7 +11770,8 @@
               "count": 1,
               "upToCount": false,
               "filter": {
-                "cardType": "シグニ"
+                "cardType": "シグニ",
+                "story": "悪魔"
               }
             }
           }
@@ -11778,7 +11779,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-053": [
