@@ -588,6 +588,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } }, rest: text.slice('あなたの場にレゾナがあるかぎり、'.length), conditionFound: true };
   }
 
+  // パターン3b2: 「あなたの場にそれぞれ名前の異なる＜X＞のシグニがN体あるかぎり、」（名前相違N種条件）
+  const fieldDistinctCountM = text.match(/^あなたの場にそれぞれ名前の異なる((?:＜[^＞]+＞(?:か)?)+)のシグニが([０-９\d]+)体あるかぎり、/);
+  if (fieldDistinctCountM) {
+    const storyFilter = parseStoryFilter(fieldDistinctCountM[1]);
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter }, minCount: parseNum(fieldDistinctCountM[2]), distinctNames: true },
+      rest: text.slice(fieldDistinctCountM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3b: 「あなたの場に〜クラスのシグニがN体あるかぎり、」（クラス数体条件）
   const fieldClassCountM = text.match(/^あなたの場に(?:他の)?((?:＜[^＞]+＞(?:か)?)+)のシグニが([０-９\d]+)体あるかぎり、/);
   if (fieldClassCountM) {
