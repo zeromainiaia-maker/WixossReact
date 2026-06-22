@@ -114,6 +114,7 @@ export type ActiveCondition =
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
   | { type: 'IS_SELF_ARMORED' }                                 // このシグニが血晶武装状態であるかぎり
   | { type: 'IS_SELF_ACCED' }                                   // このシグニにアクセが付いているかぎり
+  | { type: 'IS_SELF_CHARMED' }                                 // このシグニに【チャーム】が付いているかぎり（WX04-096-E1）
   | { type: 'IS_SELF_ACCE_CARD' }                               // このカードがアクセとして装着されているかぎり（アクセカード側の条件）
   | { type: 'IS_DRIVE_STATE' }                                  // このシグニがドライブ状態（ルリグに乗られている）であるかぎり
   | { type: 'IS_SELF_AWAKENED' }                                // このシグニが覚醒状態であるかぎり
