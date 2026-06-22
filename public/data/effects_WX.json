@@ -12833,35 +12833,38 @@
         ]
       },
       "action": {
-        "type": "SEARCH",
-        "from": {
-          "location": "deck",
-          "owner": "self"
-        },
-        "filter": {
-          "cardType": "スペル"
-        },
-        "maxCount": 1,
-        "then": {
-          "type": "SEQUENCE",
-          "steps": [
-            {
-              "type": "REVEAL"
-            },
-            {
-              "type": "ADD_TO_HAND",
-              "owner": "self"
-            }
-          ]
-        },
-        "afterSearch": {
-          "type": "SHUFFLE_DECK",
-          "owner": "self"
-        }
+        "type": "SEQUENCE",
+        "steps": [
+          {
+            "type": "SEARCH",
+            "from": { "location": "deck", "owner": "self" },
+            "filter": { "cardType": "スペル", "costMin": 1, "costMax": 1 },
+            "maxCount": 1,
+            "then": { "type": "SEQUENCE", "steps": [ { "type": "REVEAL" }, { "type": "ADD_TO_HAND", "owner": "self" } ] }
+          },
+          {
+            "type": "SEARCH",
+            "from": { "location": "deck", "owner": "self" },
+            "filter": { "cardType": "スペル", "costMin": 2, "costMax": 2 },
+            "maxCount": 1,
+            "then": { "type": "SEQUENCE", "steps": [ { "type": "REVEAL" }, { "type": "ADD_TO_HAND", "owner": "self" } ] }
+          },
+          {
+            "type": "SEARCH",
+            "from": { "location": "deck", "owner": "self" },
+            "filter": { "cardType": "スペル", "costMin": 3, "costMax": 3 },
+            "maxCount": 1,
+            "then": { "type": "SEQUENCE", "steps": [ { "type": "REVEAL" }, { "type": "ADD_TO_HAND", "owner": "self" } ] }
+          },
+          {
+            "type": "SHUFFLE_DECK",
+            "owner": "self"
+          }
+        ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-086": [

@@ -100,7 +100,11 @@ function filterJa(f?: any): string {
   if (f.levelRange?.min != null) parts.push(`レベル${f.levelRange.min}以上の`);
   if (f.powerRange?.max != null) parts.push(`パワー${f.powerRange.max}以下の`);
   if (f.powerRange?.min != null) parts.push(`パワー${f.powerRange.min}以上の`);
-  if (f.costMax != null) parts.push(`コストの合計が${f.costMax}以下の`);
+  if (f.costMin != null && f.costMax != null && f.costMin === f.costMax) parts.push(`コストの合計が${f.costMax}の`);
+  else {
+    if (f.costMax != null) parts.push(`コストの合計が${f.costMax}以下の`);
+    if (f.costMin != null) parts.push(`コストの合計が${f.costMin}以上の`);
+  }
   if (f.powerLteSelf) parts.push('このシグニのパワー以下の');
   if (f.powerLtSelf) parts.push('このシグニよりパワーの低い');
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');

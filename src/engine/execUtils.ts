@@ -242,15 +242,16 @@ export function matchesFilter(
     const hasLB = !!card.BurstText && card.BurstText !== '-';
     if (filter.hasLifeBurst !== hasLB) return false;
   }
-  if (filter.costMax !== undefined) {
-    // 使用コストの合計（《色×N》の合計、コインは除く）が costMax 以下か
+  if (filter.costMax !== undefined || filter.costMin !== undefined) {
+    // 使用コストの合計（《色×N》の合計、コインは除く）
     let total = 0;
     for (const m of (card.Cost ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
       if (m[1] === 'コイン') continue;
       const n = parseInt(m[2].replace(/[０-９]/g, d => String('０１２３４５６７８９'.indexOf(d))), 10);
       if (!isNaN(n)) total += n;
     }
-    if (total > filter.costMax) return false;
+    if (filter.costMax !== undefined && total > filter.costMax) return false;
+    if (filter.costMin !== undefined && total < filter.costMin) return false;
   }
   if (filter.keyword) {
     // 【キーワード能力】を持つカードの判定（フィールド全体の付与効果は考慮しない印字ベース近似）
