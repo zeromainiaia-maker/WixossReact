@@ -3958,6 +3958,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: myTrashAfterCoinCheck,
         field: myFieldAfterCoinCheck,
         temp_power_mods: [], keyword_grants: {}, granted_effects: {},
+        abilities_removed: [], // REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
         blocked_actions: [], blocked_card_names: [], actions_done: [],
         cards_drawn_by_effect_this_turn: 0,
