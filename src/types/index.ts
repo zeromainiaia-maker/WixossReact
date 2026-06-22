@@ -392,7 +392,7 @@ export interface PendingSpell {
 // ===== 効果エンジン インタラクション定義 =====
 
 export type TargetScope =
-  | 'self_field' | 'opp_field'
+  | 'self_field' | 'opp_field' | 'both_field'  // both_field: 自分・対戦相手の両シグニゾーン（「対象のシグニ」owner:'any'）
   | 'self_hand'  | 'opp_hand'
   | 'self_trash' | 'opp_trash'
   | 'self_energy'| 'opp_energy';
