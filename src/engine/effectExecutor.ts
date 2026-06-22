@@ -234,7 +234,14 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       candidatePowers,
     });
   }
-  if (tgt.count === 'ALL') return done(applyBanish(cands, ctx));
+  if (tgt.count === 'ALL') {
+    // 「好きな数」（count:'ALL' + upToCount）: プレイヤーが0〜全部を選択（自動全バニッシュにしない）。execTrash と同じ慣例。
+    if (tgt.upToCount) {
+      if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+      return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
+    }
+    return done({ ...applyBanish(cands, ctx), lastProcessedCards: cands });
+  }
   // last_processed_count: 「トラッシュに置いたシグニ1体につき対戦相手のシグニ1体」→ 直前にトラッシュした枚数
   const count = (typeof tgt.count === 'object' && tgt.count.$ref === 'last_processed_count')
     ? (ctx.lastProcessedCards?.length ?? 0)
