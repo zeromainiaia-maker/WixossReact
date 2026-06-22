@@ -148,6 +148,10 @@ export interface PlayerState {
   banish_redirect?: boolean;
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る（BANISH_REDIRECT_TO_HAND）
   banish_redirect_to_hand?: boolean;
+  // このターン、パワーが0以下のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（所有者問わず。WX04-038-E1）
+  power0_banish_to_trash?: boolean;
+  // このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1）
+  double_power_minus_this_turn?: boolean;
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
   declared_guard_restrict_level?: number;
   // DECLARE_CARD_NAME で宣言されたカード名（デッキ上確認効果等で使用）
