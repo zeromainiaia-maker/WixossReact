@@ -5,6 +5,19 @@
 
 ---
 
+## WX04-052「堕落の虚無 パイモン」3効果の実装（チャーム盾ほか）（2026-06-22）
+
+- **症状（ユーザー報告）:** 3効果すべて誤り。
+  - **E1【常】**「＜悪魔＞シグニがバニッシュされる場合、代わりに付いている【チャーム】1枚をトラッシュしてもよい」（チャーム盾）が `CHARM_PROTECTION` STUB のみで**どのバニッシュ経路でも消費されず no-op**。
+  - **E2【出】**「デッキトップを**このシグニ**の【チャーム】にしてもよい」が、`ATTACH_CHARM` の `to` が任意自シグニ（`toCands[0]`）で**このシグニを狙えず**、かつ「してもよい」（任意）未対応。
+  - **BURST**「トラッシュから**＜悪魔＞の**シグニ1枚を手札へ」が ＜悪魔＞ フィルタ欠落。
+- **修正:**
+  - **E1（チャーム盾）:** `collectCharmShieldSigni`（effectEngine）を新設＝CONTINUOUS `CHARM_PROTECTION` の signiFilter に一致し**チャーム付き**のシグニ集合を返す。`ctx.charmShieldNums` 経由で **効果バニッシュ（execBanish applyBanish）**＝チャーム1枚トラッシュで場に残す、**バトルバニッシュ**＝`COOKING_BANISH_SUBSTITUTE` と同型の自動代替分岐を追加。BattleScreen ctx で両プレイヤー分を計算。
+  - **E2:** `execAttachCharm` が `to.filter.thisCardOnly`（効果元シグニ自身）と `optional`（付ける/付けないの CHOOSE）に対応。
+  - **BURST:** `TRANSFER_TO_HAND` の filter に `story:'悪魔'` を追加。
+  - JSON＋`manualEffects.ts` に3効果を MANUAL 登録。decompile に `CHARM_PROTECTION`／`ATTACH_CHARM` の和文化を追加。
+  - 検証: 効果バニッシュ／バトルでチャーム盾が発動（チャーム→トラッシュ・シグニ残存）、`collectCharmShieldSigni` が悪魔かつチャーム有のみ返す、`ATTACH_CHARM(thisCardOnly)` が効果元に付く、をテストで確認。`npm run typecheck` 通過、`npm run verify` フラグなし・サマリー不変。
+
 ## WX04-050-E1「めくれるまで公開→手札→残りデッキ下」の実装（REVEAL_UNTIL_TO_HAND）（2026-06-22）
 
 - **症状（ユーザー報告）:** E1「【起】《ダウン》：デッキを上から＜美巧＞のシグニがめくれるまで公開→そのシグニを手札に加え、公開した他のカードをシャッフルしてデッキの一番下に置く」が誤実装。
