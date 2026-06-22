@@ -708,6 +708,35 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+// PLACE_SIGNI_ON_FIELD: cardNums を1枚ずつ場に出す。各カードでゾーン選択が必要なら、残りカードの配置を
+// continuation にチェーンして順次解決する（複数枚の場出しでカードが消失しないようにする）。
+function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAction, ctx: ExecCtx): ExecResult {
+  if (a.cardNums.length === 0) {
+    return a.afterAction ? executeAction(a.afterAction, ctx) : done(ctx);
+  }
+  const [head, ...rest] = a.cardNums;
+  const placeAction: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: a.owner, ...(a.asDown ? { asDown: a.asDown } : {}) };
+  const cont: import('../types/effects').PlaceSigniOnFieldAction = {
+    type: 'PLACE_SIGNI_ON_FIELD', owner: a.owner, cardNums: rest,
+    ...(a.asDown ? { asDown: a.asDown } : {}),
+    ...(a.afterAction ? { afterAction: a.afterAction } : {}),
+  };
+  const result = applyDirectAction(placeAction, head, ctx);
+  if (!result.done) {
+    // ゾーン選択待ち: 残りカードの配置を continuation に合成
+    const existing = result.pending.continuation;
+    result.pending = {
+      ...result.pending,
+      continuation: existing
+        ? ({ type: 'SEQUENCE', steps: [existing, cont] } as SequenceAction)
+        : cont,
+    };
+    return result;
+  }
+  // 即時配置完了（空きゾーン1つ/空きなし）→ 残りを継続
+  return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+}
+
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.owner;
   const src = a.source;
