@@ -13664,20 +13664,31 @@
         "ON_PLAY"
       ],
       "action": {
-        "type": "TRANSFER_TO_DECK",
-        "source": {
-          "type": "SIGNI",
-          "owner": "self",
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ"
+        "type": "SEQUENCE",
+        "steps": [
+          {
+            "type": "PLACE_LRIGS_UNDER_CENTER",
+            "owner": "self"
+          },
+          {
+            "type": "TRANSFER_TO_DECK",
+            "source": {
+              "type": "LRIG_TRASH_CARD",
+              "owner": "self",
+              "count": "ALL",
+              "filter": {
+                "cardType": "アーツ",
+                "color": ["白", "黒"]
+              }
+            },
+            "shuffle": false,
+            "destination": "lrig_deck"
           }
-        },
-        "shuffle": false
+        ]
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-001-E2",
@@ -13695,11 +13706,11 @@
           "owner": "opponent",
           "count": "ALL"
         },
-        "until": "PERMANENT"
+        "until": "END_OF_TURN"
       },
       "duration": "UNTIL_END_OF_TURN",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-001-E3",
@@ -13716,6 +13727,14 @@
           {
             "type": "TRASH",
             "target": {
+              "type": "ENERGY_CARD",
+              "owner": "self",
+              "count": "ALL"
+            }
+          },
+          {
+            "type": "TRASH",
+            "target": {
               "type": "HAND_CARD",
               "owner": "self",
               "count": "ALL"
@@ -13729,7 +13748,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX05-002": [
