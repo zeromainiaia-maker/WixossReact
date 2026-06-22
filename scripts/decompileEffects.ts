@@ -513,7 +513,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「対象のパワーを〈countOwner〉の場の〈countFilter〉シグニ1体につき±Nする」
       const d = a.deltaPerUnit ?? a.delta ?? 0;
       const cf = filterJa(a.countFilter);
-      return `${targetJa(a.target)}のパワーを${ownerJa(a.countOwner)}場の${cf}シグニ1体につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+      return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${ownerJa(a.countOwner)}場の${cf}シグニ1体につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
     }
     case 'POWER_MODIFY_PER_LEVEL_SUM': {
       // 「対象のパワーを〈countOwner〉の場の〈countFilter〉シグニのレベルを合計した数だけ±Nする」（WX04-103）
