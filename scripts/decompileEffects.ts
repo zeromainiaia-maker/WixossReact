@@ -58,6 +58,8 @@ const stubDescMap = new Map<string, string>();
 }
 
 // ── 部品の和文化 ──
+// 現在和文化中のカードの原文（STUB等で原文からパラメータを補完する用。出力ループでカードごとに設定）
+let currentCardText = '';
 const ownerJa = (o?: string) => o === 'opponent' ? '対戦相手の' : o === 'self' ? 'あなたの' : '';
 const opJa = (op?: string) => ({ gte: '以上', lte: '以下', gt: 'より多く', lt: '未満', eq: 'である', neq: 'ではない' } as Record<string, string>)[op ?? ''] ?? (op ?? '');
 const numJa = (n: any) => typeof n === 'object' ? '[参照値]' : String(n);
