@@ -5,6 +5,17 @@
 
 ---
 
+## 【マルチエナ】逆翻訳の一貫性（未登録19枚へ効果追加・パーサー修正）（2026-06-22）
+
+- **症状（ユーザー指摘）:** WX04-054 など18枚は effects.json に【マルチエナ】効果を持ち逆翻訳に出るが、ガード・サーバント系の約19枚（WD01-016/017・WD04-016/017・WX01-051/100・WX02-077/078・WX10-097〜100・WXDi-D01-020/D03-020・WXK01-119〜122・WXK05-030）はテキストのみで逆翻訳に出ない不整合。WX04-054 が例外に見えた。
+- **原因:** `parseSentencePart4` の【マルチエナ】判定が `RULE_REMINDER_TEXT`（no-op）で、かつ括弧の補足「【マルチエナ】（…）」にマッチしていなかった。機能面は `isMultiEna` の EffectText フォールバックで全カード正常だが、逆翻訳（effects.json直読み）に差が出ていた。
+- **修正:**
+  - パーサー: `parseSentencePart4` の【マルチエナ】を `GRANT_KEYWORD(マルチエナ, thisCardOnly)` に変更し、`（…）` 補足付きも許容。
+  - 未登録19枚を `manualEffects.ts` に【マルチエナ】CONTINUOUS（`thisCardOnly`）として登録（runtime の `buildEffectsMap` は manualEffects を常にマージ）。
+  - decompile（`decompileEffects.ts`）が `mergeManualEffects` をマージするよう変更し、逆翻訳が runtime と同じ effects を反映。
+  - decompile の `GRANT_KEYWORD(thisCardOnly)` は「このシグニは【X】を持つ」。
+  - 全マルチエナカードが逆翻訳で一貫表示。`npm run typecheck` 通過、`npm run verify` サマリー不変、`decompile_sheet1` 差分は当該行のみ（他カードへの波及なし）。
+
 ## WX04-054「サーバント X」E1フィルタ欠落・E2マルチエナ修正（2026-06-22）
 
 - **症状（ユーザー報告）:** E1が「カード名に《サーバント》を含むあなたの他のシグニの」になっていない／E2が誤り。
