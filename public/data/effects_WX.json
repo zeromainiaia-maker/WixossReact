@@ -11130,27 +11130,18 @@
         "type": "SEQUENCE",
         "steps": [
           {
-            "type": "BANISH_REDIRECT",
-            "target": {
-              "type": "SIGNI",
-              "owner": "self",
-              "count": "ALL",
-              "filter": {
-                "cardType": "シグニ"
-              }
-            },
-            "redirectTo": "trash",
-            "until": "END_OF_TURN"
+            "type": "STUB",
+            "id": "BANISH_REDIRECT_POWER0_TRASH"
           },
           {
             "type": "STUB",
-            "id": "DOUBLE_POWER_MINUS"
+            "id": "DOUBLE_POWER_MINUS_THIS_TURN"
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-038-BURST",
@@ -11159,20 +11150,48 @@
         "ON_LIFE_BURST"
       ],
       "action": {
-        "type": "TRANSFER_TO_HAND",
-        "source": {
-          "type": "TRASH_CARD",
-          "owner": "self",
-          "count": 1,
-          "upToCount": false,
-          "filter": {
-            "cardType": "シグニ"
+        "type": "CHOOSE",
+        "choose_count": 1,
+        "from_count": 2,
+        "choices": [
+          {
+            "choiceId": "hand",
+            "label": "手札に加える",
+            "action": {
+              "type": "TRANSFER_TO_HAND",
+              "source": {
+                "type": "TRASH_CARD",
+                "owner": "self",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ",
+                  "color": "黒"
+                }
+              }
+            }
+          },
+          {
+            "choiceId": "field",
+            "label": "場に出す",
+            "action": {
+              "type": "ADD_TO_FIELD",
+              "owner": "self",
+              "source": {
+                "type": "TRASH_CARD",
+                "owner": "self",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ",
+                  "color": "黒"
+                }
+              }
+            }
           }
-        }
+        ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-040": [
