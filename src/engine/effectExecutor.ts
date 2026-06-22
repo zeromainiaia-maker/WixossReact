@@ -331,19 +331,23 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   }
 
   function applyPowerMod(selected: string[], c: ExecCtx): ExecCtx {
-    const s = ownerState(tgtOwner, c);
-    const mods = [
-      ...(s[powerModKey] ?? []),
-      ...selected.map(cardNum => ({ cardNum, delta })),
-    ];
-    const newS: PlayerState = { ...s, [powerModKey]: mods };
-    return addLog(setOwnerState(tgtOwner, newS, c),
-      `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}のパワー${delta > 0 ? '+' : ''}${delta}`);
+    // owner:'any' は対象ごとに所属フィールドを判定して該当プレイヤーの mods に加える
+    let cur = c;
+    for (const cardNum of selected) {
+      const own: Owner = isAny
+        ? (cur.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
+        : tgtOwner;
+      const s = ownerState(own, cur);
+      const mods = [...(s[powerModKey] ?? []), { cardNum, delta }];
+      cur = addLog(setOwnerState(own, { ...s, [powerModKey]: mods }, cur),
+        `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワー${delta > 0 ? '+' : ''}${delta}`);
+    }
+    return cur;
   }
 
   if (a.target.count === 'ALL') return done(applyPowerMod(cands, ctx));
   const count = resolveNum(a.target.count);
-  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+  const scope: TargetScope = isAny ? 'both_field' : (tgtOwner === 'self' ? 'self_field' : 'opp_field');
   return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
