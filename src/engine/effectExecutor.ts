@@ -1301,6 +1301,16 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     searchCardMap = overrides;
   }
 
+  // maxCount の解決（{$ref:'last_processed_count'} = 直前にバニッシュ/トラッシュした枚数。「同じ枚数」）
+  const maxPick = typeof a.maxCount === 'number'
+    ? a.maxCount
+    : (a.maxCount?.$ref === 'last_processed_count' ? (ctx.lastProcessedCards?.length ?? 0) : 0);
+  // 探索枚数0（同数が0等）: 探索せず afterSearch のみ実行
+  if (maxPick <= 0) {
+    if (a.afterSearch) return executeAction(a.afterSearch, ctx);
+    return done(ctx);
+  }
+
   // 1
   const hasVisible = pool.some(n => matchesFilter(searchCardMap.get(n), resolvedFilter));
   if (!hasVisible) {
@@ -1314,7 +1324,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   return needsInteraction(ctx, {
     type: 'SEARCH',
     visibleCards,
-    maxPick: a.maxCount,
+    maxPick,
     thenAction: a.then,
     afterAction: a.afterSearch,
   });
