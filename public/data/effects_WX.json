@@ -11821,14 +11821,17 @@
           "owner": "self",
           "count": "ALL",
           "filter": {
-            "cardType": "シグニ"
+            "cardType": "シグニ",
+            "cardName": "サーバント",
+            "excludeSelf": true
           }
         },
-        "delta": 3000
+        "delta": 3000,
+        "excludeSelf": true
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-054-E2",
@@ -11838,14 +11841,17 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "thisCardOnly": true
+          }
         },
         "keyword": "マルチエナ",
         "duration": "PERMANENT"
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-054-E3",
