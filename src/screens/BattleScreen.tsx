@@ -2972,11 +2972,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // デッキからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self のみ）を収集する。
   // 場のシグニ用フィールドトリガー（any_ally等）はデッキミルでは発火しないため除外する。
-  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string): StackEntry[] => {
+  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] => {
     const entries: StackEntry[] = [];
     for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
       const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
       entries.push({
         id: generateUUID(),
@@ -2984,6 +2985,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cardNum: trashedCardNum,
         effectId: eff.effectId,
         label: `${cardName} の【トラッシュ時】効果（デッキから）`,
+        effect: eff,
+      });
+    }
+    return entries;
+  };
+
+  // 手札・エナゾーンからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self かつ fromAnyZone）を収集する。
+  // 「いずれかの領域からトラッシュに置かれたとき」（WX04-035-E2）のうち、場/デッキ以外（手札・エナ）の経路を補う。
+  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (!eff.triggerCondition?.fromAnyZone) continue; // 場/デッキ以外は fromAnyZone 指定の効果のみ
+      if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
+      entries.push({
+        id: generateUUID(),
+        playerId: trashedPlayerId,
+        cardNum: trashedCardNum,
+        effectId: eff.effectId,
+        label: `${cardName} の【トラッシュ時】効果（手札／エナから）`,
         effect: eff,
       });
     }
