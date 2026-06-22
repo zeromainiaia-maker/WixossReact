@@ -677,7 +677,7 @@ function effJa(e: Eff): string {
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' ? `《${e.usageLimit}》` : '';
   const body = actionJa(e.action, e.effectType);
-  return `${typeMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}`;
+  return `${crossCond}${typeMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}`;
 }
 
 // ── 対象カードの決定 ──
