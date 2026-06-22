@@ -776,6 +776,12 @@ export interface RevealUntilToFieldAction {
   revealClass?: string;    // めくり続ける対象シグニの＜クラス＞（省略=任意のシグニ）
 }
 
+// ルリグトラッシュにあるすべてのルリグを、自分のセンタールリグの下（スタック最下部）に置く（WX05-001「創世の巫女 マユ」の【出】）。
+export interface PlaceLrigsUnderCenterAction {
+  type: 'PLACE_LRIGS_UNDER_CENTER';
+  owner: Owner;
+}
+
 // トラッシュ/エナ/フィールドからデッキへ移動
 export interface TransferToDeckAction {
   type: 'TRANSFER_TO_DECK';
