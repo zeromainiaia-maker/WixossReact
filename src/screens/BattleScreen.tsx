@@ -4959,9 +4959,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             }
           }
           if (rutfOnPlayEntries.length > 0) {
-            const baseStackR = (update.effect_stack as ReturnType<typeof initStack> | null | undefined) ?? bs.effect_stack ?? null;
-            update.effect_stack = baseStackR
-              ? pushToStack(baseStackR, rutfOnPlayEntries)
+            const canReuse = existingStack && !isStackDone(existingStack);
+            update.effect_stack = canReuse
+              ? pushToStack(existingStack, rutfOnPlayEntries)
               : initStack(bs.active_user_id ?? user.id, rutfOnPlayEntries);
           }
         }
