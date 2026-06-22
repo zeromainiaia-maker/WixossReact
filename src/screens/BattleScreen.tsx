@@ -7333,7 +7333,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, top),
               );
             });
-          if (cookingBanishSub) {
+          // CHARM_PROTECTION（WX04-052-E1）: ＜悪魔＞のシグニにチャームがある場合、チャーム1枚をトラッシュしてバニッシュ回避
+          const charmShieldBattle = opTopCardNum != null &&
+            (opS.field.signi_charms?.[opZoneIndex] ?? null) !== null &&
+            collectCharmShieldSigni(opS, myS, false, effectsMap, battleCardMap).has(opTopCardNum);
+          if (charmShieldBattle) {
+            const charmTrashCS = newOpCharms[opZoneIndex]!;
+            newOpCharms[opZoneIndex] = null;
+            newOpFrozen[opZoneIndex] = false;
+            const newOpSigniCS = [...opS.field.signi] as (string[] | null)[];
+            newOpState = { ...opS, trash: [...opS.trash, charmTrashCS], field: { ...opS.field, signi: newOpSigniCS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            appendBattleLogs([`${opCardName}（チャーム盾）【チャーム】をトラッシュしてバニッシュ回避`]);
+          } else if (cookingBanishSub) {
             const acceTrash = newOpAcce[opZoneIndex]!;
             newOpAcce[opZoneIndex] = null;
             newOpFrozen[opZoneIndex] = false;
