@@ -599,6 +599,7 @@ for (const id of targets) {
   }
   console.log('\n【JSON 逆翻訳】');
   if (!effs) { console.log('  (effects.json に登録なし)'); continue; }
+  currentCardText = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
   for (const e of effs) console.log(`  ${e.effectId}: ${effJa(e)}`);
 }
 console.log('\n' + '='.repeat(78));
