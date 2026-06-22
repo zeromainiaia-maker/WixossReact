@@ -4769,3 +4769,39 @@ export function applyDeclaredZoneClassOverride(
   }
   return newMap;
 }
+
+/**
+ * CONTINUOUS SET_BASE_LEVEL（「このシグニの基本レベルはNになる」WX04-049-E1）を cardMap に反映する。
+ * 両プレイヤーの場のシグニを走査し、条件を満たす効果元シグニの Level を上書きした cardMap を返す。
+ * cardMap の Level を直接上書きするため、matchesFilter のレベルフィルタ等すべてのレベル参照に反映される。
+ */
+export function applyContinuousBaseLevelOverride(
+  cardMap: Map<string, CardData>,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOwnerTurn: boolean,
+): Map<string, CardData> {
+  const overrides: { cn: string; level: number }[] = [];
+  const scan = (state: PlayerState, opp: PlayerState, myTurn: boolean) => {
+    for (const stack of state.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      for (const eff of (effectsMap.get(top) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        if (eff.action?.type !== 'SET_BASE_LEVEL') continue;
+        if (!checkActiveCondition(eff.activeCondition, state, opp, myTurn, cardMap, top)) continue;
+        overrides.push({ cn: top, level: (eff.action as import('../types/effects').SetBaseLevelAction).value });
+      }
+    }
+  };
+  scan(ownerState, otherState, isOwnerTurn);
+  scan(otherState, ownerState, !isOwnerTurn);
+  if (overrides.length === 0) return cardMap;
+  const newMap = new Map(cardMap);
+  for (const { cn, level } of overrides) {
+    const card = newMap.get(cn);
+    if (card) newMap.set(cn, { ...card, Level: String(level) });
+  }
+  return newMap;
+}
