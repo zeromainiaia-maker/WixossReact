@@ -250,25 +250,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WX05-005 黒点の巫女 タマヨリヒメ（ルリグ タマ Lv5）
-  //  E1【グロウ】トラッシュに黒のカードが10枚以上ある【常】：エナゾーン以外のシグニは黒になる（CHANGE_ALL_SIGNI_COLOR_TO_BLACK）。
-  //    グロウ条件は activeCondition COUNT_THRESHOLD(trash/黒/gte10) で表現（旧: 条件なし＝常時発動の誤）。実装は effectEngine collectFieldSigniExtraColors。
+  //  グロウ条件「トラッシュに黒のカードが10枚以上ある」はグロウ時ゲート（checkGrowCondition・511行）で処理。グロウ後はE1は常時発動。
+  //  E1【常】エナゾーン以外のシグニは黒になる（CHANGE_ALL_SIGNI_COLOR_TO_BLACK・常時発動。WX04-005と同じくグロウ条件はactiveConditionにしない）。実装は effectEngine collectFieldSigniExtraColors。
   //  E2【起】《黒》エナゾーンから黒のカード1枚をトラッシュ：対戦相手のシグニ1体をトラッシュ。コストは energy 黒×1 ＋ energyTrash(黒×1)（旧: energyTrash 欠落）。
   //  E3【起】エクシード5：対戦相手のセンタールリグと全シグニをダウン。
   "WX05-005": [
-    {"effectId":"WX05-005-E1","effectType":"CONTINUOUS","activeCondition":{"type":"COUNT_THRESHOLD","location":"trash","owner":"self","operator":"gte","value":10,"color":"黒"},"action":{"type":"STUB","id":"CHANGE_ALL_SIGNI_COLOR_TO_BLACK"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-005-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"CHANGE_ALL_SIGNI_COLOR_TO_BLACK"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX05-005-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}],"energyTrash":{"count":1,"filter":{"color":"黒"}}},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WX05-005-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}},{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX05-006 虚無の閻魔 ウリス（ルリグ ウリス Lv5）
-  //  E1【グロウ】エナゾーンのカードの色が3種類以上【常】：あなたのエナはマルチエナを持つ。
-  //    グロウ条件は activeCondition ENERGY_COLOR_TYPES(self/gte3) で表現（旧: 条件なし＝常時発動の誤）。BattleScreen myEnaAllMulti が activeCondition を評価。
+  //  グロウ条件「エナゾーンのカードの色が3種類以上」はグロウ時ゲート（checkGrowCondition・520行）で処理。グロウ後はE1は常時発動。
+  //  E1【常】あなたのエナはマルチエナを持つ（常時発動。WX04-005と同じくグロウ条件はactiveConditionにしない）。BattleScreen myEnaAllMulti が検出。
   //  E2【常】あなたが使用するアーツとスペルの限定条件は無視される（IGNORE_LRIG_RESTRICTION_ARTS）。
   //    旧: BLOCK_ACTION/IGNORE_RESTRICTIONS はエンジン未認識で無効だった。meetsRestriction が STUB IGNORE_LRIG_RESTRICTION_ARTS を認識。
   //  E3【起】エクシード5：手札1枚を選ぶ→相手が色を宣言→公開し宣言色を持たない場合のみ相手の全シグニをトラッシュ。
   //    旧: SEQUENCE末尾に無条件 TRASH があり常に全シグニ消失＝誤。条件判定は OPP_DECLARE_CHOICE→INTERNAL_ODC_COLOR_CHECK が担う（送り先をエナ→トラッシュに是正）。
   "WX05-006": [
-    {"effectId":"WX05-006-E1","effectType":"CONTINUOUS","activeCondition":{"type":"ENERGY_COLOR_TYPES","owner":"self","operator":"gte","value":3},"action":{"type":"GRANT_KEYWORD","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-006-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX05-006-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"IGNORE_LRIG_RESTRICTION_ARTS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX05-006-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CHOOSE_HAND_CARD"},{"type":"STUB","id":"OPP_DECLARE_CHOICE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],

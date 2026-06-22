@@ -5,6 +5,15 @@
 
 ---
 
+## 訂正: WX05-005/006 のグロウ条件は activeCondition ではなく grow ゲート（2026-06-23）
+
+- **背景:** decompile の【JSON逆翻訳】にグロウ条件行を追加した際、先の WX05-005-E1・WX05-006-E1 の修正が誤りだったと判明。
+- **誤り:** 【グロウ】の動的条件（WX05-005「トラッシュに黒10枚以上」/ WX05-006「エナの色3種類以上」）を **CONTINUOUS の `activeCondition` として継続判定**にしていた。これだと条件が崩れた瞬間に能力が切れる（黒<10でシグニ黒化が消える／エナ色<3でマルチエナが消える）。
+- **正しい挙動:** WIXOSS の【グロウ】条件は**グロウ時のみ判定するゲート**で、`checkGrowCondition`（grow UI・5597行）が担当。グロウ後の【常】能力は**条件に関係なく常時発動**。既存の正例 WX04-005「アルテマ/メイデン イオナ」（【グロウ】ライフ1枚以下）も activeCondition を持たず grow ゲートのみ。`checkGrowCondition` は「トラッシュに○色N枚以上」(511行)・「エナの色N種類以上」(520行) を既に判定可能。
+- **訂正:** WX05-005-E1・WX05-006-E1 から `activeCondition` を削除し常時発動に戻した（effects_WX.json / manualEffects.ts）。grow ゲートは checkGrowCondition が従来どおり担保。
+- **据え置き（無害なので残置）:** 追加した汎用プリミティブ `ActiveCondition.ENERGY_COLOR_TYPES`・`COUNT_THRESHOLD.color`・`myEnaAllMulti` の activeCondition 評価・decompile 表示は、継続条件を持つ別カード用に有用なため温存。WX05-005 の E2（energyTrash コスト）、WX05-006 の E2/E3 修正は正しく、対象外。
+- 検証: `npm run typecheck` 通過。`tsx scripts/decompileEffects.ts WX05-005 WX05-006` で「【グロウ条件】…（grow ゲート）」＋「E1【常】…（無条件）」を確認。
+
 ## WX05-008「遊月・伍」E1が「３枚まで」でなく1枚だった（2026-06-23）
 
 - **原文（ルリグ ユヅキ Lv5）:** 【グロウ】センタールリグがカード名に《遊月》を含む【出】：対戦相手のエナゾーンからカードを**３枚まで**対象とし、それらをトラッシュ／【起】《ターン1回》エクシード1：相手エナ1枚トラッシュ／【起】エクシード2：手札の赤スペル1枚をコストなしで使用。

@@ -13941,14 +13941,6 @@
     {
       "effectId": "WX05-005-E1",
       "effectType": "CONTINUOUS",
-      "activeCondition": {
-        "type": "COUNT_THRESHOLD",
-        "location": "trash",
-        "owner": "self",
-        "operator": "gte",
-        "value": 10,
-        "color": "黒"
-      },
       "action": {
         "type": "STUB",
         "id": "CHANGE_ALL_SIGNI_COLOR_TO_BLACK"
@@ -14036,12 +14028,6 @@
     {
       "effectId": "WX05-006-E1",
       "effectType": "CONTINUOUS",
-      "activeCondition": {
-        "type": "ENERGY_COLOR_TYPES",
-        "owner": "self",
-        "operator": "gte",
-        "value": 3
-      },
       "action": {
         "type": "GRANT_KEYWORD",
         "target": {
