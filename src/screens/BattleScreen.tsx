@@ -8610,6 +8610,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: undefined,
         banish_redirect: undefined, banish_redirect_to_hand: undefined,
+        power0_banish_to_trash: undefined, double_power_minus_this_turn: undefined,
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
