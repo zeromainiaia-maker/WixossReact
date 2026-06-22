@@ -361,6 +361,7 @@ export type EffectAction =
   | RevealAndPickAction
   | BanishRedirectAction
   | RearrangeSigniAction
+  | SetBaseLevelAction
   | GrowFreeAction
   | RemoveAbilitiesAction
   | PlayFreeAction
