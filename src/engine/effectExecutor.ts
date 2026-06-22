@@ -961,7 +961,16 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
 
 function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.target.owner, ctx);
-  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // isTriggerSource: トリガー元カード（ctx.triggeringCardNum＝アタッカー等）のみを対象（「アタックしたそのシグニ」WX04-082-E1）
+  let freezeFilter = a.target.filter;
+  let triggerRestrictFZ: string[] | null = null;
+  if (freezeFilter?.isTriggerSource) {
+    const { isTriggerSource: _ts, ...rest } = freezeFilter;
+    freezeFilter = rest;
+    triggerRestrictFZ = ctx.triggeringCardNum ? [ctx.triggeringCardNum] : [];
+  }
+  let cands = fieldCandidates(state, freezeFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (triggerRestrictFZ !== null) cands = cands.filter(n => triggerRestrictFZ!.includes(n));
   // 完全効果耐性: 相手の凍結効果は耐性シグニに無効
   if (a.target.owner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
     cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));

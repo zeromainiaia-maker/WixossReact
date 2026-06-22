@@ -6911,11 +6911,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const opFrontZoneIdx = 2 - zoneIndex;
       const opAtkedEntries: StackEntry[] = [];
       const opPlayerId = defenderId;
-      for (const opSigniStack of newOpState.field.signi) {
+      newOpState.field.signi.forEach((opSigniStack, ozi) => {
         const opTopNum = opSigniStack?.at(-1);
-        if (!opTopNum) continue;
+        if (!opTopNum) return;
         for (const oe of (effectsMap.get(opTopNum) ?? [])) {
-          if (oe.effectType !== 'AUTO' || !oe.timing?.includes('ON_ATTACK_SIGNI')) continue;
+          if (oe.effectType !== 'AUTO') continue;
+          // ON_FRONT_SIGNI_ATTACK: 「このシグニの正面のシグニがアタックしたとき」。
+          //   正面（opFrontZoneIdx＝アタッカーと向かい合うゾーン）の守備側シグニのみ発火。triggeringCardNum=アタッカー。
+          if (oe.timing?.includes('ON_FRONT_SIGNI_ATTACK')) {
+            if (ozi !== opFrontZoneIdx) continue;
+            if (oe.activeCondition && !checkActiveCondition(oe.activeCondition, newOpState, newMyState, false, battleCardMap, opTopNum)) continue;
+            opAtkedEntries.push({
+              id: generateUUID(),
+              playerId: opPlayerId,
+              cardNum: opTopNum,
+              effectId: oe.effectId,
+              label: `${battleCardMap.get(opTopNum)?.CardName ?? opTopNum} の【自】効果（正面シグニアタック時）`,
+              effect: oe,
+              triggeringCardNum: myTopNum, // 「それ」= アタッカー（正面のシグニ）
+            } satisfies StackEntry);
+            continue;
+          }
+          if (!oe.timing?.includes('ON_ATTACK_SIGNI')) continue;
           const oeAct = oe.action as import('../types/effects').StubAction;
           if (oeAct.type !== 'STUB') continue;
           if (oeAct.id === 'MOVE_TO_OTHER_SIGNI_ZONE') {
@@ -6938,7 +6955,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             } satisfies StackEntry);
           }
         }
-      }
+      });
 
       // ON_OPP_SIGNI_ATTACK_DIRECT: 正面が空（=守備側ルリグへの直接アタック）のとき、
       // 守備側ルリグの「コストを払ってアタックを無効にしてもよい」能力をスタックに積んで提示する（WX04-004-E2）。

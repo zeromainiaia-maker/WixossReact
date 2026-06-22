@@ -54,7 +54,8 @@ export type EffectTiming =
   | 'ON_OPP_VIRUS_CHANGED'      // 対戦相手の場に【ウィルス】が置かれるか取り除かれたとき（WX21-030。opp_virus_placed/removed_justフラグで発火）
   | 'ON_ENERGY_CHARGE'          // あなたのエナゾーンにカード1枚が置かれたとき（WX03-032-E1。エナ+1枚ちょうどで発火。2枚同時は不発）
   | 'ON_POWER_THRESHOLD'        // このシグニのパワーが閾値以上になったとき（WX03-032-E2。condition: SELF_POWER_GTE で閾値を保持）
-  | 'ON_OPP_SIGNI_ATTACK_DIRECT'; // 対戦相手のシグニが正面が空の状態でアタックしたとき（=守備側ルリグへの直接アタック時）に守備側で発火（WX04-004-E2）
+  | 'ON_OPP_SIGNI_ATTACK_DIRECT' // 対戦相手のシグニが正面が空の状態でアタックしたとき（=守備側ルリグへの直接アタック時）に守備側で発火（WX04-004-E2）
+  | 'ON_FRONT_SIGNI_ATTACK';   // このシグニの正面のシグニ（=このシグニにアタックしてくる相手シグニ）がアタックしたとき、守備側の正面シグニで発火（WX04-082-E1）。triggeringCardNum=アタッカー
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回

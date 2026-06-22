@@ -12756,23 +12756,23 @@
       "effectId": "WX04-082-E1",
       "effectType": "AUTO",
       "timing": [
-        "ON_ATTACK_SIGNI"
+        "ON_FRONT_SIGNI_ATTACK"
       ],
       "action": {
         "type": "FREEZE",
         "target": {
           "type": "SIGNI",
-          "owner": "self",
-          "count": 1,
+          "owner": "opponent",
+          "count": "ALL",
           "filter": {
-            "cardType": "シグニ"
-          },
-          "upToCount": false
+            "cardType": "シグニ",
+            "isTriggerSource": true
+          }
         }
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-083": [

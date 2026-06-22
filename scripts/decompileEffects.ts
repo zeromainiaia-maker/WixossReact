@@ -120,6 +120,8 @@ function filterJa(f?: any): string {
 
 function targetJa(t?: any, unit = 'シグニ'): string {
   if (!t) return '';
+  // isTriggerSource: トリガー元（「アタックしたそのシグニ」等）→ 主語省略で「その〜」
+  if (t.filter?.isTriggerSource) return `その${unit}`;
   // owner='any': count='ALL' は「すべてのシグニ」（両者・主語省略）、単体選択は「自分または対戦相手の」（どちらも選べる）
   const own = t.owner === 'any' ? (t.count === 'ALL' ? '' : '自分または対戦相手の') : ownerJa(t.owner);
   // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
@@ -569,6 +571,7 @@ const timingJa: Record<string, string> = {
   MAIN: '（メイン起動）', ON_LIFE_BURST: '【ライフバースト】',
   ON_ENERGY_CHARGE: 'あなたのエナゾーンにカード1枚が置かれたとき', ON_POWER_THRESHOLD: 'このシグニのパワーが閾値以上になったとき',
   SPELL_CUTIN: 'スペルカットイン', ON_OPP_SIGNI_ATTACK_DIRECT: '対戦相手のシグニが正面が空の状態でアタックしたとき',
+  ON_FRONT_SIGNI_ATTACK: 'このシグニの正面のシグニがアタックしたとき',
 };
 
 function effJa(e: Eff): string {

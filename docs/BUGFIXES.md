@@ -5,6 +5,16 @@
 
 ---
 
+## WX04-082-E1「正面シグニ＝アタッカーを凍結」を正しく実装（防御側トリガー新設）（2026-06-22）
+
+- **原文:** 「【自】：このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。」
+- **旧実装の問題:** timing `ON_ATTACK_SIGNI`（=このシグニ自身がアタックしたとき）＋対象 `owner:self`（自分のシグニを凍結）で、トリガーも対象も誤り。さらに「防御側の正面シグニがアタッカーを凍結する」機構自体が未配線（防御側 ON_ATTACK_SIGNI 収集は移動系STUB2種のみ対応）だった。
+- **修正（機構新設）:**
+  - 新トリガー `ON_FRONT_SIGNI_ATTACK`（types/effects.ts）を追加。`BattleScreen` のアタックハンドラの防御側ループをゾーンindex対応にし、**アタッカーの正面ゾーン（opFrontZoneIdx）の守備側シグニ**が持つ `ON_FRONT_SIGNI_ATTACK` を `triggeringCardNum=アタッカー` で発火。
+  - `execFreeze` に `filter.isTriggerSource` 対応を追加（凍結対象を `ctx.triggeringCardNum`＝アタッカーに限定）。
+  - JSON E1 を timing `ON_FRONT_SIGNI_ATTACK`／FREEZE target `owner:opponent, count:ALL, filter.isTriggerSource`（count:ALL でプロンプトなし自動凍結）に修正。`manualEffects.ts` に MANUAL 登録。decompile に timing ラベルと `targetJa` の isTriggerSource（「そのシグニ」）描画を追加。
+- 検証: `npm run typecheck` 通過、lint 0 errors、decompile 再生成で「このシグニの正面のシグニがアタックしたとき：そのシグニを凍結する」＝原文一致を確認。アタッカーは正面ゾーンのみ・凍結はバトル解決前（Phase1）に適用＝次の自分のアップフェイズにアップしない挙動。
+
 ## decompile: ON_BANISH トリガー表示の不要な「（など）」を除去（2026-06-22）
 
 - **症状（ユーザー疑問）:** WX04-081-E1 等の逆翻訳が「このシグニ**（など）**がバニッシュされたとき」となっており、「（など）」が何を指すか不明だった。
