@@ -4321,7 +4321,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const oppTrashColorLoss = collectOppTrashLoseColorClass(otherState, ownerStateForCtx, effectsMap, battleCardMap, !isOwnerTurn);
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerStateForCtx, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerStateForCtx, otherState, effectsMap);
-      const declaredCardMap1 = applyDeclaredZoneClassOverride(battleCardMap, ownerStateForCtx, otherState);
+      const declaredCardMap1 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerStateForCtx, otherState), ownerStateForCtx, otherState, effectsMap, isOwnerTurn);
       const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, triggeringCardNum: entry.triggeringCardNum, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
       let result = executeEffect(entry.effect, ctx);
       // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
