@@ -14036,6 +14036,12 @@
     {
       "effectId": "WX05-006-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "ENERGY_COLOR_TYPES",
+        "owner": "self",
+        "operator": "gte",
+        "value": 3
+      },
       "action": {
         "type": "GRANT_KEYWORD",
         "target": {
@@ -14048,24 +14054,18 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-006-E2",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "BLOCK_ACTION",
-        "target": {
-          "type": "PLAYER",
-          "owner": "self",
-          "count": 1
-        },
-        "actionId": "IGNORE_RESTRICTIONS",
-        "until": "PERMANENT"
+        "type": "STUB",
+        "id": "IGNORE_LRIG_RESTRICTION_ARTS"
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-006-E3",
@@ -14086,20 +14086,12 @@
           {
             "type": "STUB",
             "id": "OPP_DECLARE_CHOICE"
-          },
-          {
-            "type": "TRASH",
-            "target": {
-              "type": "SIGNI",
-              "owner": "opponent",
-              "count": "ALL"
-            }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX05-007": [

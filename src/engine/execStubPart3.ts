@@ -2225,19 +2225,19 @@ export function execStubPart3(
     const targetCardIOCC = targetInstIOCC ? ctx.cardMap.get(getCardNum(targetInstIOCC)) : undefined;
     const cardColorIOCC = targetCardIOCC?.Color ?? '';
     const revealName = targetCardIOCC?.CardName ?? targetInstIOCC ?? '?';
-    // 宣言色と一致しないか確認（カードの色が宣言を含まない → 対戦相手の全シグニバニッシュ）
+    // 宣言色と一致しないか確認（カードの色が宣言を含まない → 対戦相手の全シグニをトラッシュ）
     const colorMatchIOCC = cardColorIOCC.includes(declaredColor);
-    const logMsg = `公開: ${revealName}（色: ${cardColorIOCC}）/ 宣言: ${declaredColor} → ${colorMatchIOCC ? '一致（ペナルティなし）' : '不一致→相手全シグニバニッシュ'}`;
+    const logMsg = `公開: ${revealName}（色: ${cardColorIOCC}）/ 宣言: ${declaredColor} → ${colorMatchIOCC ? '一致（ペナルティなし）' : '不一致→相手全シグニトラッシュ'}`;
     if (!colorMatchIOCC) {
-      // 相手の全シグニをトラッシュへ
+      // 相手の全シグニをトラッシュへ（スタック下のカードも含めて）
       let newOtherIOCC = ctx.otherState;
       const newSigniIOCC = [...newOtherIOCC.field.signi] as (string[] | null)[];
-      const banishedIOCC: string[] = [];
+      const trashedIOCC: string[] = [];
       for (let zi = 0; zi < 3; zi++) {
-        const top = newSigniIOCC[zi]?.at(-1);
-        if (top) { banishedIOCC.push(top); newSigniIOCC[zi] = null; }
+        const stack = newSigniIOCC[zi];
+        if (stack && stack.length > 0) { trashedIOCC.push(...stack); newSigniIOCC[zi] = null; }
       }
-      newOtherIOCC = { ...newOtherIOCC, field: { ...newOtherIOCC.field, signi: newSigniIOCC }, energy: [...newOtherIOCC.energy, ...banishedIOCC] };
+      newOtherIOCC = { ...newOtherIOCC, field: { ...newOtherIOCC.field, signi: newSigniIOCC }, trash: [...newOtherIOCC.trash, ...trashedIOCC] };
       return done(addLog({ ...ctx, otherState: newOtherIOCC }, logMsg));
     }
     return done(addLog(ctx, logMsg));

@@ -250,6 +250,7 @@ function condJa(c?: any): string {
         : `${ownerJa(c.owner)}${loc}が${numJa(c.value)}枚${opJa(c.operator)}`;
     }
     case 'SELF_POWER_THRESHOLD': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator)}`;
+    case 'ENERGY_COLOR_TYPES': return `${ownerJa(c.owner)}エナゾーンにあるカードが持つ色が${numJa(c.value)}種類${opJa(c.operator)}`;
     // diff = 自分 − 相手（符号付き）。gte のみ使用＝「自分が相手よりN枚以上多い」（相手が多い場合は不成立）
     case 'HAND_DIFF': return `あなたの手札が対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
     case 'ENA_DIFF': return `あなたのエナが対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
@@ -600,6 +601,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // CHANGE_ALL_SIGNI_COLOR_TO_BLACK / FORCE_COLOR_BLACK: エナゾーン以外のシグニは黒になる（effectEngine collectFieldSigniExtraColors で実装済み）
       if (a.id === 'CHANGE_ALL_SIGNI_COLOR_TO_BLACK' || a.id === 'FORCE_COLOR_BLACK') {
         return 'エナゾーン以外の領域にあるシグニは黒になる';
+      }
+      // IGNORE_LRIG_RESTRICTION_ARTS: あなたが使用するアーツとスペルの限定条件は無視される（BattleScreen meetsRestriction で実装済み）
+      if (a.id === 'IGNORE_LRIG_RESTRICTION_ARTS') {
+        return 'あなたが使用するアーツとスペルの限定条件は無視される';
       }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);

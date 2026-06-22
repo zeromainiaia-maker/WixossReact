@@ -139,6 +139,28 @@ export function checkActiveCondition(
       break;
     }
 
+    case 'ENERGY_COLOR_TYPES': {
+      // エナゾーンのカードが持つ色の種類数（マルチエナ等の複数色カードは各色を別々に数える。無色はカウントしない）
+      const enaState = cond.owner === 'self' ? ownerState : otherState;
+      const colorSet = new Set<string>();
+      for (const cn of enaState.energy) {
+        const colorStr = cardMap.get(cn)?.Color ?? '';
+        for (const col of ['白', '赤', '青', '緑', '黒']) {
+          if (colorStr.includes(col)) colorSet.add(col);
+        }
+      }
+      const typeCount = colorSet.size;
+      switch (cond.operator) {
+        case 'gte': return typeCount >= cond.value;
+        case 'lte': return typeCount <= cond.value;
+        case 'gt':  return typeCount >  cond.value;
+        case 'lt':  return typeCount <  cond.value;
+        case 'eq':  return typeCount === cond.value;
+        case 'neq': return typeCount !== cond.value;
+      }
+      break;
+    }
+
     case 'LRIG_LEVEL': {
       const lrigState = cond.owner === 'self' ? ownerState : otherState;
       const lrig = lrigState.field.lrig;

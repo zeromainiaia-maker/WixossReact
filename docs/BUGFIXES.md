@@ -5,6 +5,20 @@
 
 ---
 
+## WX05-006「虚無の閻魔 ウリス」グロウ条件欠落・E2無効・E3全シグニ常時消失（2026-06-22）
+
+- **原文:** 【グロウ】エナゾーンのカードの色が３種類以上【常】：あなたのエナは【マルチエナ】を持つ／【常】：あなたが使用するアーツとスペルの限定条件は無視される／【起】エクシード5：手札を1枚選ぶ。相手が色を1つ宣言。公開し、宣言された色を持たない場合のみ対戦相手の全シグニをトラッシュ。
+- **旧実装の問題:**
+  - E1: グロウ条件「エナの色が3種類以上」が `activeCondition` に無く、さらに `BattleScreen.myEnaAllMulti` が activeCondition を見ないため、**エナの色数に関係なく常時マルチエナ付与**。
+  - E2: `BLOCK_ACTION`/`actionId:"IGNORE_RESTRICTIONS"` で表現されていたが、エンジンは限定無視を CONTINUOUS STUB `IGNORE_LRIG_RESTRICTION_ARTS` のみ認識（`meetsRestriction`/5608行）。`IGNORE_RESTRICTIONS` は `isActionBlocked` でも未参照で**完全に無効**。
+  - E3: SEQUENCE 末尾に**無条件の `TRASH 相手全シグニ`** があり、宣言の正誤に関係なく毎回相手の全シグニが消失（条件判定が無意味化）。加えて条件判定本体 `INTERNAL_ODC_COLOR_CHECK` が不一致時にシグニを**エナゾーンへ移動（バニッシュ）**しており、原文の「トラッシュ」と不一致。
+- **修正:**
+  - 新 `ActiveCondition` `ENERGY_COLOR_TYPES`（自エナの異なる色数、多色は各色カウント・無色除外）を型・`checkActiveCondition`・decompile に追加。E1 に `gte:3` を付与し、`myEnaAllMulti` で activeCondition を評価するよう改修。
+  - E2 を CONTINUOUS STUB `IGNORE_LRIG_RESTRICTION_ARTS` に置換（スペル・アーツ両方の限定を `meetsRestriction` が無視）。
+  - E3 の無条件 TRASH ステップを削除（条件付きトラッシュは `INTERNAL_ODC_COLOR_CHECK` が担当）。`INTERNAL_ODC_COLOR_CHECK` の送り先をエナ→**トラッシュ**に是正（スタック下のカードも含む）。
+  - 3効果を parseStatus MANUAL 化し `manualEffects.ts` に登録。decompile に `ENERGY_COLOR_TYPES`・`IGNORE_LRIG_RESTRICTION_ARTS` の自然文表示を追加。
+- 検証: `npm run typecheck` 通過。`checkActiveCondition` 単体テストで 白赤=2色→false / 白赤青=3色→true / 多色1枚(白赤青)→true / 無色は非カウント を確認。`tsx scripts/decompileEffects.ts WX05-006` で E1「色が3種類以上であるかぎりマルチエナ」・E2「限定条件は無視される」を確認。`checkAllEffects` 退化なし。
+
 ## WX05-005「黒点の巫女 タマヨリヒメ」E1グロウ条件欠落・E2コスト不足（2026-06-22）
 
 - **原文:** 【グロウ】あなたのトラッシュに黒のカードが１０枚以上ある【常】：エナゾーン以外の領域にあるシグニは黒になる／【起】《黒》エナゾーンから黒のカード１枚をトラッシュに置く：対戦相手のシグニ１体をトラッシュ／【起】エクシード5：対戦相手のセンタールリグと全シグニをダウン。

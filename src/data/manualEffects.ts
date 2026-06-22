@@ -260,6 +260,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX05-005-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}},{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
+  // WX05-006 虚無の閻魔 ウリス（ルリグ ウリス Lv5）
+  //  E1【グロウ】エナゾーンのカードの色が3種類以上【常】：あなたのエナはマルチエナを持つ。
+  //    グロウ条件は activeCondition ENERGY_COLOR_TYPES(self/gte3) で表現（旧: 条件なし＝常時発動の誤）。BattleScreen myEnaAllMulti が activeCondition を評価。
+  //  E2【常】あなたが使用するアーツとスペルの限定条件は無視される（IGNORE_LRIG_RESTRICTION_ARTS）。
+  //    旧: BLOCK_ACTION/IGNORE_RESTRICTIONS はエンジン未認識で無効だった。meetsRestriction が STUB IGNORE_LRIG_RESTRICTION_ARTS を認識。
+  //  E3【起】エクシード5：手札1枚を選ぶ→相手が色を宣言→公開し宣言色を持たない場合のみ相手の全シグニをトラッシュ。
+  //    旧: SEQUENCE末尾に無条件 TRASH があり常に全シグニ消失＝誤。条件判定は OPP_DECLARE_CHOICE→INTERNAL_ODC_COLOR_CHECK が担う（送り先をエナ→トラッシュに是正）。
+  "WX05-006": [
+    {"effectId":"WX05-006-E1","effectType":"CONTINUOUS","activeCondition":{"type":"ENERGY_COLOR_TYPES","owner":"self","operator":"gte","value":3},"action":{"type":"GRANT_KEYWORD","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-006-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"IGNORE_LRIG_RESTRICTION_ARTS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-006-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CHOOSE_HAND_CARD"},{"type":"STUB","id":"OPP_DECLARE_CHOICE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
   //   新トリガー ON_FRONT_SIGNI_ATTACK（BattleScreen のアタックハンドラが正面ゾーンの守備側シグニで発火・triggeringCardNum=アタッカー）、

@@ -1726,12 +1726,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!bs) return false;
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const isMyTurnNow = bs.active_user_id === user.id;
     const hasAllMultiEffect = (cardNum: string) =>
       (effectsMap.get(cardNum) ?? []).some(e =>
         e.effectType === 'CONTINUOUS' &&
         e.action?.type === 'GRANT_KEYWORD' &&
         (e.action as { keyword: string }).keyword === 'マルチエナ' &&
-        (e.action as { target: { count: unknown } }).target?.count === 'ALL'
+        (e.action as { target: { count: unknown } }).target?.count === 'ALL' &&
+        // グロウ条件等の activeCondition（WX05-006「エナの色が3種類以上」）を尊重
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, myS, opS, isMyTurnNow, battleCardMap, cardNum))
       );
     // シグニゾーン
     if (myS.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasAllMultiEffect(top); })) return true;
@@ -1739,7 +1743,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const lrigTop = myS.field.lrig.at(-1);
     if (lrigTop && hasAllMultiEffect(lrigTop)) return true;
     return false;
-  }, [bs, effectsMap, user.id]);
+  }, [bs, effectsMap, user.id, battleCardMap]);
 
   // ── Rules of Hooks 対策：PLAYING セクション由来の hooks を if(!bs)/SETUP return より前に置く ──
 
