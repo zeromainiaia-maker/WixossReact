@@ -56,10 +56,19 @@ for (const r of allRows) {
   const before = JSON.stringify(eff[cardNum] ?? null);
   const after = JSON.stringify(regenerated);
   if (before !== after) {
+    // minCount を除いて比較し、それ以外の差分がないか検証
+    if (stripMinCount(before) !== stripMinCount(after)) {
+      suspicious.push(cardNum);
+    }
     eff[cardNum] = regenerated;
     touched++;
     changedCards.push(cardNum);
   }
+}
+
+if (suspicious.length > 0) {
+  console.log(`⚠ minCount以外の差分があるカード（要確認・書き込み中止）: ${suspicious.join(', ')}`);
+  process.exit(1);
 }
 
 writeFileSync(effPath, JSON.stringify(eff), 'utf-8');
