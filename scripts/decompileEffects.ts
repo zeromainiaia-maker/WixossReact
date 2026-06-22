@@ -531,7 +531,9 @@ function effJa(e: Eff): string {
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
   const scope = (e.triggerScope && e.triggerScope !== 'self' && (scopeSubj === null || !(e.timing || []).some((t: string) => (timingJa[t] ?? '').startsWith('このシグニ')))) ? `〔範囲:${e.triggerScope}〕` : '';
-  const cond = e.condition ? `${condJa(e.condition)}場合、` : '';
+  // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
+  const condStr = e.condition ? condJa(e.condition) : '';
+  const cond = condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}場合、`) : '';
   // 「〜かぎり」：述語（い形容詞「い」/動詞「る」終わり）はそのまま、名詞終わりは「である」を補う
   const acJa = e.activeCondition ? condJa(e.activeCondition) : '';
   const actCond = e.activeCondition ? `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》` : '';
