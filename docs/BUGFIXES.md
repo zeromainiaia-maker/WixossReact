@@ -5,6 +5,18 @@
 
 ---
 
+## POWER_MODIFY owner:'any'（「対象のシグニ」）の両フィールド対象選択を実装（2026-06-22）
+
+- **症状（ユーザー報告）:** WX04-037-BURST「対象のシグニ1体のパワーを－10000」など、**owner:'any'（「対象のシグニ」＝自分・相手どちらも選べる）の対象選択UIが機能していない**。
+- **根本原因:** `execPowerModify` と `applyDirectAction(POWER_MODIFY)` が `owner:'any'` を一律 `'self'` に潰しており、候補・選択スコープが**自分フィールドのみ**。相手シグニを選べず、相手シグニへの適用先も誤っていた（237カードが該当）。
+- **修正:**
+  - `TargetScope` に `'both_field'` を追加。
+  - `execPowerModify`: `owner:'any'` のとき自分＋相手両フィールドから候補収集し `scope:'both_field'`。マイナス時は相手側の完全効果耐性シグニ（[[project_effect_system]] の `otherEffectImmuneNums`）を除外。`applyPowerMod` は対象ごとに所属フィールドを判定して該当プレイヤーへ適用。
+  - `applyDirectAction(POWER_MODIFY)`: 選ばれたカードの所属フィールドを判定して該当プレイヤーへ適用（`duration` による `power_mods_until_opp_turn` も考慮）。
+  - `selectOrInteract`: `both_field` でも**相手側候補にはシャドウ**を適用（自分側は常に選択可）。
+  - BattleScreen 選択モーダル: `both_field` の説明文と、候補ごとに「自分の/相手の ゾーンN」を表示。
+  - 検証: 最小状態テストで両フィールド候補（A自分/B相手）が出ること・相手B選択で otherState に -10000 が入ることを確認。`npm run typecheck` 通過。
+
 ## WX04-037「フィア＝リカブト」E2修正・decompile和文化の改善（2026-06-22）
 
 - **症状（ユーザー報告）:** WX04-037 の逆翻訳が不正確。E1「FIELD数に応じて」が曖昧、E2が誤実装、BURSTのマイナス対象が自分/相手どちらか不明。
