@@ -10124,6 +10124,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (e.cost!.fieldTrash!.excludeSelf && zi === rawZoneIdx) return false;
           return !e.cost!.fieldTrash!.filter || matchesFilter(battleCardMap.get(getCardNum(ftTop)), e.cost!.fieldTrash!.filter);
         }).length < e.cost.fieldTrash.count) &&
+        // fieldTrashGroups: 各グループ（異クラス）を満たすシグニ構成が場にないと支払えない
+        !(e.cost?.fieldTrashGroups && !fieldTrashGroupsAffordable(e.cost.fieldTrashGroups, my.field.signi, battleCardMap)) &&
         // fieldDown: アップ状態の該当シグニが必要数いないと支払えない
         !(e.cost?.fieldDown && [0, 1, 2].filter(zi => {
           const fdTop = my.field.signi[zi]?.at(-1);
