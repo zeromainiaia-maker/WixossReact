@@ -330,7 +330,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     if (autoNum && cands.includes(autoNum)) {
       const s = ownerState(tgtOwner, ctx);
-      const mods = [...(s[powerModKey] ?? []), { cardNum: autoNum, delta }];
+      const mods = [...(s[powerModKey] ?? []), { cardNum: autoNum, delta, srcNonSigni }];
       const newS: PlayerState = { ...s, [powerModKey]: mods };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
         `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}のパワー${delta > 0 ? '+' : ''}${delta}`));
