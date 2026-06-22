@@ -13006,7 +13006,8 @@
         "filter": {
           "cardType": "シグニ",
           "story": "美巧"
-        }
+        },
+        "minCount": 3
       },
       "action": {
         "type": "POWER_MODIFY",
@@ -13022,7 +13023,7 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-091": [
