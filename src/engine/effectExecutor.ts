@@ -2095,8 +2095,13 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   }
   if (charmCands.length === 0) return done(addLog(ctx, 'チャームなし'));
 
-  // 対象シグニのゾーンを探す
-  const toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
+  // 対象シグニのゾーンを探す。thisCardOnly=効果元シグニ自身（「このシグニの【チャーム】にする」）
+  let toCands: string[];
+  if (a.to.filter?.thisCardOnly) {
+    toCands = (ctx.sourceCardNum && toState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+  } else {
+    toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
+  }
   if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
 
   const charmNum = charmCands[0];
