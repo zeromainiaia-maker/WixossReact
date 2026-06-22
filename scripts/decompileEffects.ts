@@ -444,6 +444,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const thenJa = a.then
         ? (a.then.type === 'ADD_TO_HAND' ? '手札に加える'
          : a.then.type === 'ADD_TO_FIELD' ? '場に出す'
+         : a.then.type === 'ADD_TO_ENERGY' ? 'エナゾーンに置く'
          : actionJa(a.then))
         : (a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : '処理する');
       const pickN = a.pickCount === 'ALL' ? 'すべて' : `${numJa(a.pickCount ?? 1)}枚`;
