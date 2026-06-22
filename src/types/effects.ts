@@ -434,6 +434,7 @@ export type EffectAction =
   | GrantSoulHostAbilityAction
   | RevealUntilBanishSameLevelAction
   | RevealUntilToHandAction
+  | RevealUntilToFieldAction
   | StubAction
   | GainBondAction
   | MILLAction
