@@ -201,6 +201,18 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     let cur = c;
     for (const num of selected) {
       const s = ownerState(tgt.owner, cur);
+      // CHARM_PROTECTION（WX04-052-E1）: チャーム盾対象なら、チャーム1枚をトラッシュして場に残す（バニッシュ回避）
+      if (cur.charmShieldNums?.has(num)) {
+        const zi = s.field.signi.findIndex(st => st?.at(-1) === num);
+        const charm = zi >= 0 ? (s.field.signi_charms?.[zi] ?? null) : null;
+        if (charm) {
+          const newCharms = [...(s.field.signi_charms ?? [null, null, null])];
+          newCharms[zi] = null;
+          cur = addLog(setOwnerState(tgt.owner, { ...s, field: { ...s.field, signi_charms: newCharms }, trash: [...s.trash, charm] }, cur),
+            `${cur.cardMap.get(num)?.CardName ?? num}の【チャーム】をトラッシュしてバニッシュを回避`);
+          continue;
+        }
+      }
       // 効果離場の powerReduction 身代わり（WX06-019）: tgt.owner==='opponent'＝相手効果で victim 側が場を離れる。
       // protector があれば victim を残し protector のパワーを下げてバニッシュを回避（自動適用）。
       if (tgt.owner === 'opponent') {
