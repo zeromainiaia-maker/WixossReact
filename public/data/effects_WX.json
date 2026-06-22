@@ -13513,27 +13513,45 @@
         "type": "SEQUENCE",
         "steps": [
           {
-            "type": "STUB",
-            "id": "POWER_MOD_BY_FIELD_CLASS_LEVEL"
+            "type": "POWER_MODIFY_PER_LEVEL_SUM",
+            "target": {
+              "type": "SIGNI",
+              "owner": "opponent",
+              "count": 1
+            },
+            "deltaPerLevel": -1000,
+            "countFilter": {
+              "cardType": "シグニ",
+              "cardClass": "悪魔"
+            },
+            "countOwner": "self"
           },
           {
             "type": "ATTACH_CHARM",
             "charm": {
-              "type": "SIGNI",
+              "type": "TRASH_CARD",
               "owner": "self",
-              "count": 1
+              "count": 1,
+              "filter": {
+                "thisCardOnly": true
+              }
             },
             "to": {
               "type": "SIGNI",
               "owner": "self",
-              "count": 1
-            }
+              "count": 1,
+              "filter": {
+                "cardType": "シグニ",
+                "cardClass": "悪魔"
+              }
+            },
+            "optional": true
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-104": [
