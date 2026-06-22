@@ -18,6 +18,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Papa from 'papaparse';
 import type { CardData } from '../src/types';
+import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Eff = any;
