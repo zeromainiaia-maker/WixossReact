@@ -13706,7 +13706,7 @@
           "owner": "opponent",
           "count": "ALL"
         },
-        "until": "END_OF_TURN"
+        "until": "UNTIL_END_OF_TURN"
       },
       "duration": "UNTIL_END_OF_TURN",
       "mandatory": false,
