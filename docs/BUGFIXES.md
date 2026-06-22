@@ -5,6 +5,12 @@
 
 ---
 
+## decompile: OPTIONAL_COST 系STUBの逆翻訳を「《色》を支払ってもよい」に（WX04-081-E1 他）（2026-06-22）
+
+- **症状（ユーザー確認依頼）:** WX04-081-E1 の逆翻訳が `[STUB:OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース）…]` という STUBS.md の冗長な説明文になっていた。
+- **原因:** decompile の STUB 描画が OPTIONAL_COST に専用ケースを持たず、STUB レジストリ説明文へフォールバックしていた（表示のみ。JSON 構造 `SEQUENCE[OPTIONAL_COST, CONDITIONAL(IS_MY_TURN→…)]` は正しく、`effectExecutor` が直後の CONDITIONAL と結合して「支払う→効果発動／スキップ」を生成する標準パターンで**機構は正常**）。
+- **修正:** `decompileEffects.ts` の STUB 描画に `OPTIONAL_COST` / `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` / `OPTIONAL_TRASH_ENERGY_CLASS` の専用ケースを追加し `costColors` から「《色》を支払ってもよい」を生成。decompile_sheet1.txt 再生成で WX04-035/081/092・WX05-025/028 等が正しく表示されるようになった。
+
 ## WX04-079-E1「＜原子＞が3体あるかぎり+2000」の minCount 欠落（2026-06-22）
 
 - **症状（ユーザー確認依頼）:** E1「【常】：あなたの場に＜原子＞のシグニが**３体**あるかぎり、あなたのシグニのパワーを＋2000する。」の activeCondition に `minCount` が無く、「1体以上あるかぎり」になっていた。

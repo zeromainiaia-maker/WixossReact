@@ -537,6 +537,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const subj = clsM ? `手札から＜${clsM[1]}＞のシグニを1枚` : typeM ? `手札から${typeM[1]}を1枚` : '手札から指定カードを1枚';
         return `あなたは${subj}捨てないかぎり手札を${n}枚捨てる`;
       }
+      // OPTIONAL_COST 系: 「《色》を支払ってもよい」（effectExecutor が直後の CONDITIONAL(IS_MY_TURN) と結合して
+      // 「支払う→効果発動 / スキップ」を生成する標準パターン。後続の「そうした場合、…」が効果本体）
+      if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || a.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
+        const costJaOC = (a.costColors ?? []).map((c: string) => `《${c}》`).join('');
+        return `${costJaOC || 'コスト'}を支払ってもよい`;
+      }
       const burstExtra = a.id === 'GRANT_ALL_ZONE_LIFEBURST'
         ? `（全領域のカードに【ライフバースト】付与${a.burstAdditive ? '・既存バーストにも追加' : ''}${a.burstFilter ? '・対象' + filterJa(a.burstFilter) : ''}${a.burstAction ? '・効果=' + actionJa(a.burstAction) : ''}）`
         : '';
