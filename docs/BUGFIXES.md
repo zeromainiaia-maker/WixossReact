@@ -5,6 +5,12 @@
 
 ---
 
+## WX04-079-E1「＜原子＞が3体あるかぎり+2000」の minCount 欠落（2026-06-22）
+
+- **症状（ユーザー確認依頼）:** E1「【常】：あなたの場に＜原子＞のシグニが**３体**あるかぎり、あなたのシグニのパワーを＋2000する。」の activeCondition に `minCount` が無く、「1体以上あるかぎり」になっていた。
+- **修正:** JSON E1 の `activeCondition`（HAS_CARD_IN_FIELD）に `minCount:3` を追加、`manualEffects.ts` に MANUAL 登録。`checkActiveCondition` は `matched >= (minCount ?? 1)` で評価するため3体以上で発動。
+- 検証: `npm run typecheck` 通過、decompile 再生成で「＜原子＞のシグニが3体以上いるかぎり」を確認。
+
 ## WX04-078-E1「相手場に凍結シグニがあるかぎり基本パワー10000」＋HAS_CARD_IN_FIELD の状態フィルタ対応（2026-06-22）
 
 - **症状（ユーザー確認依頼）:** E1「【常】：対戦相手の場に凍結状態のシグニがあるかぎり、このシグニの基本パワーは10000になる。」が `activeCondition` 欠落で常時10000になっていた。
