@@ -879,6 +879,7 @@ export interface RearrangeSigniAction {
   type: 'REARRANGE_SIGNI';
   target: EffectTarget;
   swap?: boolean; // true=このシグニと対象シグニの位置を交換
+  optional?: boolean; // true=「配置し直してもよい」（プレイヤーがスキップ可能）
 }
 
 // コストなしでグロウする
