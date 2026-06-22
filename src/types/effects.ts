@@ -347,6 +347,7 @@ export type EffectAction =
   | StoryChangeAction
   | GrantKeywordAction
   | SearchAction
+  | PlaceSigniOnFieldAction
   | SequenceAction
   | ChooseAction
   | ConditionalAction
