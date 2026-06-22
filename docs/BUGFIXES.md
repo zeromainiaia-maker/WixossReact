@@ -5,6 +5,13 @@
 
 ---
 
+## WX04-058-E2「自分のシグニ再配置」の任意化（2026-06-22）
+
+- **症状（ユーザー確認依頼）:** E2「【出】：あなたのすべてのシグニを好きなように配置し直して**もよい**」が `mandatory:true`・`optional` 欠落で、任意（してもよい）になっていなかった。
+- **確認結果:** 再配置の本体（`REARRANGE_SIGNI` / `execRearrangeSigni` / `resumeRearrangeSigni` / 再配置モーダル）は WX04-041-E2 実装時から **owner:'self' にも対応済み**（owner で対象フィールドを切替）。不足は JSON の任意フラグのみ。
+- **修正:** JSON に `optional:true`・`mandatory:false` を設定、`manualEffects.ts` に E2 を MANUAL 登録。E1（POWER_SET 基本パワー7000）は元から正しいため変更なし。
+- 検証: owner:'self' の `REARRANGE_SIGNI` が pending（owner:self, optional:true）を返し、`resumeRearrangeSigni` で自分フィールドが並び替わることをテストで確認。`npm run typecheck` 通過、`npm run verify` フラグなし・サマリー不変。decompile「あなたのすべてのシグニを好きなように配置し直す（してもよい）」＝原文一致。
+
 ## WX04-056-E1「他の＜アーム＞ +2000」修正・effectEngine matchesFilter の cardClass 対応（2026-06-22）
 
 - **症状（ユーザー報告）:** E1「【常】あなたの**他の＜アーム＞**のシグニのパワーを＋2000」が `POWER_MODIFY target {owner:'any', count:1}` という**全くの別物**（「自分または対戦相手のシグニ1体 +2000」）。
