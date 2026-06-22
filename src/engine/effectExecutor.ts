@@ -2308,6 +2308,55 @@ function execRevealUntilToHand(a: import('../types/effects').RevealUntilToHandAc
     `${ctx.cardMap.get(hit)?.CardName ?? hit}を手札に加える（公開${revealedRest.length + 1}枚）`));
 }
 
+// REVEAL_UNTIL_TO_FIELD: デッキ上からシグニがめくれるまで公開→そのシグニを場に出し、公開した他のカードをトラッシュへ。
+// これを repeat 回繰り返す（WX04-093「惰眠」）。空きゾーンがなく場に出せないシグニはトラッシュへ。
+function execRevealUntilToField(a: import('../types/effects').RevealUntilToFieldAction, ctx: ExecCtx): ExecResult {
+  if (a.repeat <= 0) return done(ctx);
+  const state = ownerState(a.owner, ctx);
+  let foundIdx = -1;
+  for (let i = 0; i < state.deck.length; i++) {
+    const card = ctx.cardMap.get(state.deck[i]);
+    if (card?.Type === 'シグニ' && (!a.revealClass || (card.CardClass ?? '').includes(a.revealClass))) { foundIdx = i; break; }
+  }
+  // 該当シグニなし：公開した全カード（=デッキ全体）をトラッシュ。残りデッキが尽きるので繰り返し終了。
+  if (foundIdx < 0) {
+    if (state.deck.length === 0) return done(addLog(ctx, 'デッキが空のため何もしない'));
+    const newS: PlayerState = { ...state, deck: [], trash: [...state.trash, ...state.deck] };
+    return done(addLog(setOwnerState(a.owner, newS, ctx),
+      `デッキに${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがなかった（${state.deck.length}枚をトラッシュ）`));
+  }
+  const hit = state.deck[foundIdx];
+  const revealedRest = state.deck.slice(0, foundIdx); // ヒット手前の公開カード → トラッシュ
+  const remaining = state.deck.slice(foundIdx + 1);   // 未公開の残りデッキ
+  // ヒットをデッキから除去し、手前の公開カードをトラッシュへ
+  let cur = addLog(setOwnerState(a.owner, { ...state, deck: remaining, trash: [...state.trash, ...revealedRest] }, ctx),
+    `${ctx.cardMap.get(hit)?.CardName ?? hit}を公開（手前${revealedRest.length}枚をトラッシュ）`);
+  const next: import('../types/effects').RevealUntilToFieldAction = {
+    type: 'REVEAL_UNTIL_TO_FIELD', owner: a.owner, repeat: a.repeat - 1,
+    ...(a.revealClass ? { revealClass: a.revealClass } : {}),
+  };
+  // 公開したシグニを場に出す
+  const fieldState = ownerState(a.owner, cur);
+  const signi = [...fieldState.field.signi] as (string[] | null)[];
+  const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
+  if (emptyZones.length === 0) {
+    // 場に出せない → トラッシュ
+    cur = addLog(setOwnerState(a.owner, { ...fieldState, trash: [...fieldState.trash, hit] }, cur),
+      `空きゾーンなし → ${ctx.cardMap.get(hit)?.CardName ?? hit}をトラッシュ`);
+    return executeAction(next, cur);
+  }
+  if (emptyZones.length === 1 || (a.owner !== 'self' && a.owner !== 'opponent')) {
+    signi[emptyZones[0].i] = [hit];
+    cur = addLog(setOwnerState(a.owner, { ...fieldState, field: { ...fieldState.field, signi } }, cur),
+      `${ctx.cardMap.get(hit)?.CardName ?? hit}を場に出す`);
+    return executeAction(next, cur);
+  }
+  // 複数空きゾーン：ゾーン選択。残りの繰り返しを continuation に積む
+  return needsInteraction(cur, {
+    type: 'SELECT_SIGNI_ZONE', cardNum: hit, owner: a.owner as 'self' | 'opponent', continuation: next,
+  });
+}
+
 function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   let cands: string[];
 
