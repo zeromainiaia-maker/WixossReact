@@ -13866,7 +13866,7 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-004-E2",
@@ -13882,7 +13882,7 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-004-E3",
