@@ -5,6 +5,17 @@
 
 ---
 
+## WX04-103-E1「エビルズ・ソウル」のレベル合計パワー減・チャーム源の誤実装（2026-06-22）
+
+- **原文:** 「対戦相手のシグニ1体を対象とし、ターン終了時まで、それのパワーをあなたの場にある＜悪魔＞のシグニのレベルを合計した数だけ－1000する。その後、あなたの＜悪魔＞のシグニ1体を対象とし、このスペルをそれの【チャーム】にしてもよい。」
+- **旧実装の問題:** Step1 が `STUB(POWER_MOD_BY_FIELD_CLASS_LEVEL)` で未実装。Step2 はチャーム源が `charm:{type:SIGNI}`（場のシグニ）で「**このスペル**」になっておらず、付与先も＜悪魔＞絞りが欠落。
+- **修正:**
+  - `POWER_MODIFY_PER_LEVEL_SUM` の **executor 実装を新設**（`execPowerModifyPerLevelSum`）。従来は CONTINUOUS（calcFieldPowers）専用だったが、スペルの一回限り効果として countOwner 場の countFilter 一致シグニのレベル合計 × deltaPerLevel を、選択対象に temp_power_mods（＝ターン終了時まで）で付与。再帰ループ回避のため解決済み delta の `POWER_MODIFY` を thenAction にして `applyDirectAction` で適用。
+  - Step1 を `POWER_MODIFY_PER_LEVEL_SUM`（target:opponent 1、deltaPerLevel:-1000、countFilter:cardClass 悪魔、countOwner:self）に。
+  - Step2 のチャームを `TRASH_CARD + thisCardOnly`（＝このスペル。解決時スペルはトラッシュにあるので WX04-102 と同機構で自身を参照）、付与先 `cardClass:悪魔`、`optional:true` に。
+  - decompile: `POWER_MODIFY_PER_LEVEL_SUM` 専用ケース（「…のレベルを合計した数だけ－N」）を追加。
+- 検証: `npm run typecheck` 通過、`tsx scripts/decompileEffects.ts WX04-103` で「対戦相手のシグニ1体のパワーをあなたの場の＜悪魔＞のシグニのレベルを合計した数だけ－1000する。そしてこのカードをあなたの＜悪魔＞のシグニ1体の【チャーム】にする（してもよい）」を確認。
+
 ## WX04-102-E1「堕落の消滅 アリトン」のチャーム源・発生源限定の欠落（2026-06-22）
 
 - **原文:** 「【自】：このカードが手札かデッキからトラッシュに置かれたとき、あなたのシグニ1体を対象とし、このカードをそれの【チャーム】にしてもよい。」
