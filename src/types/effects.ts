@@ -801,7 +801,8 @@ export interface GrantProtectionAction {
 export interface AttachCharmAction {
   type: 'ATTACH_CHARM';
   charm: EffectTarget; // チャームにするカード
-  to: EffectTarget;    // 付ける対象シグニ
+  to: EffectTarget;    // 付ける対象シグニ（to.filter.thisCardOnly=効果元シグニ自身）
+  optional?: boolean;  // true=「チャームにしてもよい」（付ける/付けないを選択）
 }
 
 // デッキの上からN枚公開し、条件を満たすカードをpickする
