@@ -2689,6 +2689,18 @@ export function collectCrossStates(playerState: PlayerState, cardMap: Map<string
 }
 
 /**
+ * crossOnly 効果（【クロス出】【クロス自】等）のゲート判定。
+ * cardNum のシグニが現在クロス状態のゾーンにあるかを返す。場にいなければ false。
+ * 【クロス常】は effectEngine 内の CONTINUOUS ループで別途判定済み。本関数は
+ * BattleScreen の ON_PLAY / ON_ATTACK_SIGNI 等のトリガー収集側で使う。
+ */
+export function isCrossZoneActive(playerState: PlayerState, cardNum: string, cardMap: Map<string, CardData>): boolean {
+  const zoneIdx = playerState.field.signi.findIndex(s => s?.at(-1) === cardNum || s?.includes(cardNum));
+  if (zoneIdx < 0) return false;
+  return collectCrossStates(playerState, cardMap)[zoneIdx] ?? false;
+}
+
+/**
  * 動的キーワード付与の収集（バッジ表示用）。
  * CONTINUOUS GRANT_KEYWORD で activeCondition が現在満たされている付与を、各シグニ instanceId 単位で集める。
  * - 「このシグニは【ランサー】を得る」型（count:1, owner:self, source=シグニ自身）＝ WD04-010 等の動的キーワード
