@@ -717,6 +717,11 @@ for (const id of targets) {
   console.log('\n【JSON 逆翻訳】');
   if (!effs) { console.log('  (effects.json に登録なし)'); continue; }
   currentCardText = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+  // グロウ条件（EffectText の【グロウ】〜【 を runtime checkGrowCondition が評価。JSON効果には含まれないため別途表示）
+  const growCondM = (card?.EffectText ?? '').match(/【グロウ】([^【]*)/);
+  if (growCondM && growCondM[1].trim()) {
+    console.log(`  【グロウ条件】${growCondM[1].trim()}（runtime checkGrowCondition で評価）`);
+  }
   for (const e of effs) console.log(`  ${e.effectId}: ${effJa(e)}`);
 }
 console.log('\n' + '='.repeat(78));
