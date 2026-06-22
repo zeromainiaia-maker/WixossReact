@@ -13234,21 +13234,72 @@
             "type": "POWER_MODIFY",
             "target": {
               "type": "SIGNI",
-              "owner": "any",
-              "count": 1
+              "owner": "self",
+              "count": 1,
+              "filter": {
+                "cardType": "シグニ",
+                "cardClass": ["空獣", "地獣"]
+              }
             },
             "delta": 2000
           },
           {
-            "type": "ENERGY_CHARGE_FROM_DECK",
-            "owner": "self",
-            "count": 1
+            "type": "CONDITIONAL",
+            "condition": {
+              "type": "HAS_CARD_IN_FIELD",
+              "owner": "self",
+              "filter": {
+                "cardType": "シグニ",
+                "cardClass": ["空獣", "地獣"]
+              },
+              "minCount": 3
+            },
+            "then": {
+              "type": "SEQUENCE",
+              "steps": [
+                {
+                  "type": "GRANT_KEYWORD",
+                  "targetsLastProcessed": true,
+                  "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "count": 1
+                  },
+                  "keyword": "ランサー",
+                  "duration": "UNTIL_END_OF_TURN"
+                },
+                {
+                  "type": "GRANT_EFFECT",
+                  "targetsLastProcessed": true,
+                  "target": {
+                    "type": "SIGNI",
+                    "owner": "self",
+                    "count": 1
+                  },
+                  "duration": "UNTIL_END_OF_TURN",
+                  "effect": {
+                    "effectId": "WX04-094-E1-GRANT",
+                    "effectType": "AUTO",
+                    "timing": ["ON_OPP_LIFE_CRASHED"],
+                    "triggerScope": "self",
+                    "action": {
+                      "type": "ENERGY_CHARGE_FROM_DECK",
+                      "owner": "self",
+                      "count": 1
+                    },
+                    "duration": "INSTANT",
+                    "mandatory": true,
+                    "parseStatus": "MANUAL"
+                  }
+                }
+              ]
+            }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-096": [
