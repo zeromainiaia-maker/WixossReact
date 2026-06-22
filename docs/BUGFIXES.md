@@ -5,6 +5,20 @@
 
 ---
 
+## WX04-036-E1「再誕」場出し・好きな数バニッシュ・同数探索の修正（2026-06-22）
+
+- **症状（ユーザー報告）:** WX04-036-E1「あなたの＜美巧＞のシグニを**好きな数**対象としバニッシュ→デッキから**同じ枚数**の＜美巧＞シグニを探して**場に出す**」が誤実装。「場に出す」はプレイヤーがカード・ゾーンを選択できる必要がある。
+- **根本原因（複数）:**
+  1. バニッシュが固定1体（原文「好きな数」）、探索が固定最大1枚（原文「バニッシュした数と同じ枚数」）。
+  2. `applyDirectAction` の `ADD_TO_FIELD` が**場に出すカードをデッキから除去していなかった**（`src` の trash/energy のみ対応）。デッキ探索→場出しでカードがデッキに残り、`SHUFFLE_DECK` 後に二重化（**66カードに潜在**）。
+  3. `resumeSearch` が複数ピック時に最初のゾーン選択で残りカード配置・afterAction を**消失**させていた。
+- **修正:**
+  - `applyDirectAction` の `ADD_TO_FIELD`: cardNum をデッキ/手札/トラッシュ/エナのいずれかから除去してから配置（src 非依存）。
+  - `PLACE_SIGNI_ON_FIELD` アクションを新設。`resumeSearch` は `then=ADD_TO_FIELD` のとき各カードのゾーン選択（`SELECT_SIGNI_ZONE`）を `continuation` で順次チェーンし、全配置後に afterAction（シャッフル）＋外側 continuation を実行。
+  - `execBanish`: `count:'ALL' + upToCount` でプレイヤー選択UI（0〜全部）＋ `lastProcessedCards` 設定（`execTrash` と同じ慣例）。
+  - `execSearch`: `maxCount` を `NumberOrRef` 化し `{$ref:'last_processed_count'}`（直前バニッシュ数=「同じ枚数」）を解決。0枚なら探索せず afterSearch のみ。
+  - WX04-036-E1 を JSON と `manualEffects.ts` に MANUAL 登録。`npm run typecheck` 通過、`npm run verify` で WX04-036 フラグなし・サマリー不変。
+
 ## WX04-035「コンテンポラ」3効果の完全実装（2026-06-22）
 
 - **症状:** WX04-035 の3効果がいずれも近似/誤実装だった。
