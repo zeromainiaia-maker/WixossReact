@@ -218,6 +218,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX05-001-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},{"type":"STUB","id":"GAIN_EXTRA_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
+  // WX05-002 花代・伍（ルリグ 花代 Lv5）
+  //  【グロウ】「センタールリグがカード名に《花代》を含む」はグロウ条件（checkGrowCondition が EffectText から処理）。
+  //  E1【常】このルリグはルリグトラッシュにあるルリグの【起】能力を持つ（COPY_LRIG_TRASH_ACTIVATED。BattleScreen のルリグメニューが継承【起】を提示）。
+  //  E2【常】あなたのシグニは【ダブルクラッシュ】を得る。 E3【起】エクシード5：相手シグニをパワー合計30000以下になるよう好きな数バニッシュ。
+  "WX05-002": [
+    {"effectId":"WX05-002-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"COPY_LRIG_TRASH_ACTIVATED"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-002-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"ダブルクラッシュ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-002-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"totalPowerMax":30000}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
   //   新トリガー ON_FRONT_SIGNI_ATTACK（BattleScreen のアタックハンドラが正面ゾーンの守備側シグニで発火・triggeringCardNum=アタッカー）、
