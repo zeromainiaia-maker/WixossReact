@@ -334,6 +334,8 @@ function actionJa(a?: Action, effectType?: string): string {
       const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
         : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
+      // thisCardOnly: このシグニ自身が持つキーワード（「このシグニは【X】を持つ」）
+      if (a.target?.filter?.thisCardOnly) return `このシグニは【${a.keyword}】を持つ${durJa}`;
       return `${targetJa(a.target)}に【${a.keyword}】を与える${durJa}`;
     }
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失う${a.frontOfSelf ? '（正面）' : ''}`;
