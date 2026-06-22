@@ -249,6 +249,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX05-004-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL","filter":{"color":["白","赤","青","緑","黒"]}}},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":"ALL","filter":{"color":["白","赤","青","緑","黒"]}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
+  // WX05-005 黒点の巫女 タマヨリヒメ（ルリグ タマ Lv5）
+  //  E1【グロウ】トラッシュに黒のカードが10枚以上ある【常】：エナゾーン以外のシグニは黒になる（CHANGE_ALL_SIGNI_COLOR_TO_BLACK）。
+  //    グロウ条件は activeCondition COUNT_THRESHOLD(trash/黒/gte10) で表現（旧: 条件なし＝常時発動の誤）。実装は effectEngine collectFieldSigniExtraColors。
+  //  E2【起】《黒》エナゾーンから黒のカード1枚をトラッシュ：対戦相手のシグニ1体をトラッシュ。コストは energy 黒×1 ＋ energyTrash(黒×1)（旧: energyTrash 欠落）。
+  //  E3【起】エクシード5：対戦相手のセンタールリグと全シグニをダウン。
+  "WX05-005": [
+    {"effectId":"WX05-005-E1","effectType":"CONTINUOUS","activeCondition":{"type":"COUNT_THRESHOLD","location":"trash","owner":"self","operator":"gte","value":10,"color":"黒"},"action":{"type":"STUB","id":"CHANGE_ALL_SIGNI_COLOR_TO_BLACK"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-005-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}],"energyTrash":{"count":1,"filter":{"color":"黒"}}},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-005-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}},{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
   //   新トリガー ON_FRONT_SIGNI_ATTACK（BattleScreen のアタックハンドラが正面ゾーンの守備側シグニで発火・triggeringCardNum=アタッカー）、

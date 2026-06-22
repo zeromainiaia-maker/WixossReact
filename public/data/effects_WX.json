@@ -13941,13 +13941,21 @@
     {
       "effectId": "WX05-005-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "COUNT_THRESHOLD",
+        "location": "trash",
+        "owner": "self",
+        "operator": "gte",
+        "value": 10,
+        "color": "黒"
+      },
       "action": {
         "type": "STUB",
         "id": "CHANGE_ALL_SIGNI_COLOR_TO_BLACK"
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-005-E2",
@@ -13961,7 +13969,13 @@
             "color": "黒",
             "count": 1
           }
-        ]
+        ],
+        "energyTrash": {
+          "count": 1,
+          "filter": {
+            "color": "黒"
+          }
+        }
       },
       "action": {
         "type": "TRASH",
@@ -13977,7 +13991,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-005-E3",

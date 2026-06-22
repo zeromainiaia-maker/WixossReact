@@ -63,7 +63,9 @@ export function checkActiveCondition(
 
     case 'COUNT_THRESHOLD': {
       const state = cond.owner === 'self' ? ownerState : otherState;
-      const count = getLocationCount(state, cond.location);
+      const count = cond.color
+        ? getLocationCards(state, cond.location).filter(cn => cardMap.get(cn)?.Color?.includes(cond.color!)).length
+        : getLocationCount(state, cond.location);
       switch (cond.operator) {
         case 'gte': return count >= cond.value;
         case 'lte': return count <= cond.value;
@@ -306,6 +308,20 @@ function getLocationCount(state: PlayerState, location: string): number {
     case 'lrig_deck': return (state.lrig_deck ?? []).length;
     case 'lrig_trash': return (state.lrig_trash ?? []).length;
     default:         return 0;
+  }
+}
+
+// 指定ロケーションのカード番号一覧（色フィルタ付きCOUNT_THRESHOLD等で使用）
+function getLocationCards(state: PlayerState, location: string): string[] {
+  switch (location) {
+    case 'hand':       return state.hand;
+    case 'trash':      return state.trash;
+    case 'energy':     return state.energy;
+    case 'deck':       return state.deck;
+    case 'life_cloth': return state.life_cloth;
+    case 'lrig_deck':  return state.lrig_deck ?? [];
+    case 'lrig_trash': return state.lrig_trash ?? [];
+    default:           return [];
   }
 }
 

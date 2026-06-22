@@ -173,6 +173,7 @@ function costJa(c?: any): string {
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
   if (c.coin != null) parts.push(`コイン${c.coin}`);
+  if (c.energyTrash) parts.push(`エナゾーンから${filterJa(c.energyTrash.filter)}カード${c.energyTrash.count}枚をトラッシュに置く`);
   if (c.charmTrash != null) parts.push(`場の【チャーム】${c.charmTrash}枚をトラッシュ`);
   if (c.charmTrashVariable) parts.push('場の【チャーム】を好きな枚数トラッシュ');
   if (c.fieldTrash) parts.push(`場から${c.fieldTrash.excludeSelf ? '他の' : ''}${filterJa(c.fieldTrash.filter)}シグニ${c.fieldTrash.count}体をトラッシュ`);
@@ -244,7 +245,9 @@ function condJa(c?: any): string {
     // ── ActiveCondition（CONTINUOUS の activeCondition）系 ──
     case 'COUNT_THRESHOLD': {
       const loc = ({ hand: '手札', trash: 'トラッシュ', energy: 'エナ', deck: 'デッキ', life_cloth: 'ライフ', lrig_deck: 'ルリグデッキ', lrig_trash: 'ルリグトラッシュ' } as Record<string, string>)[c.location] ?? c.location;
-      return `${ownerJa(c.owner)}${loc}が${numJa(c.value)}枚${opJa(c.operator)}`;
+      return c.color
+        ? `${ownerJa(c.owner)}${loc}に${c.color}のカードが${numJa(c.value)}枚${opJa(c.operator)}`
+        : `${ownerJa(c.owner)}${loc}が${numJa(c.value)}枚${opJa(c.operator)}`;
     }
     case 'SELF_POWER_THRESHOLD': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator)}`;
     // diff = 自分 − 相手（符号付き）。gte のみ使用＝「自分が相手よりN枚以上多い」（相手が多い場合は不成立）
@@ -593,6 +596,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // COPY_LRIG_TRASH_ACTIVATED / INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュのルリグの【起】能力を継承（BattleScreen のルリグメニューで実装済み）
       if (a.id === 'COPY_LRIG_TRASH_ACTIVATED' || a.id === 'INHERIT_LRIG_TRASH_ABILITIES') {
         return 'このルリグはあなたのルリグトラッシュにあるルリグの【起】能力を持つ';
+      }
+      // CHANGE_ALL_SIGNI_COLOR_TO_BLACK / FORCE_COLOR_BLACK: エナゾーン以外のシグニは黒になる（effectEngine collectFieldSigniExtraColors で実装済み）
+      if (a.id === 'CHANGE_ALL_SIGNI_COLOR_TO_BLACK' || a.id === 'FORCE_COLOR_BLACK') {
+        return 'エナゾーン以外の領域にあるシグニは黒になる';
       }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);

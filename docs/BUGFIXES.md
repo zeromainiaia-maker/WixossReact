@@ -5,6 +5,18 @@
 
 ---
 
+## WX05-005「黒点の巫女 タマヨリヒメ」E1グロウ条件欠落・E2コスト不足（2026-06-22）
+
+- **原文:** 【グロウ】あなたのトラッシュに黒のカードが１０枚以上ある【常】：エナゾーン以外の領域にあるシグニは黒になる／【起】《黒》エナゾーンから黒のカード１枚をトラッシュに置く：対戦相手のシグニ１体をトラッシュ／【起】エクシード5：対戦相手のセンタールリグと全シグニをダウン。
+- **旧実装の問題:**
+  - E1: STUB `CHANGE_ALL_SIGNI_COLOR_TO_BLACK` 自体は effectEngine `collectFieldSigniExtraColors` で実装済みだが、**グロウ条件「トラッシュに黒のカードが10枚以上」が `activeCondition` に無く、`checkActiveCondition` が `if (!cond) return true` のため常時発動**していた。
+  - E2: コストが energy 黒×1 のみで、「エナゾーンから黒のカード１枚をトラッシュに置く」という追加コスト（`energyTrash`）が欠落。
+- **修正:**
+  - `ActiveCondition` の `COUNT_THRESHOLD` に任意 `color` を追加。`effectEngine` に `getLocationCards` を新設し、`color` 指定時は `cardMap` でその色を含むカードのみ計数するよう判定。E1 に `activeCondition: COUNT_THRESHOLD(trash/黒/gte10)` を付与。
+  - E2 のコストに `energyTrash:{count:1,filter:{color:"黒"}}` を追加（既存 energy 黒×1 と併記）。ルリグ【起】の発動経路（`executeLrigGranted`）は energyTrash の選択UI・支払いを既に配線済みで、color フィルタも `matchesFilter` で機能。
+  - 3効果を parseStatus MANUAL 化し `manualEffects.ts` に登録（再パースドリフト耐性）。decompile に COUNT_THRESHOLD の color 表示・`energyTrash` コスト表示・`CHANGE_ALL_SIGNI_COLOR_TO_BLACK` の自然文表示を追加。
+- 検証: `npm run typecheck` 通過。`checkActiveCondition` 単体テストで黒9枚→false / 黒10枚→true / 黒0白20→false を確認。`tsx scripts/decompileEffects.ts WX05-005` で E1〜E3 が原文どおり表示されることを確認。
+
 ## WX05-003「コード・ピルルク ACRO」E2全捨て・E3差分ドローの誤実装（2026-06-22）
 
 - **原文:** 【グロウ】センタールリグがカード名に《ピルルク》を含む（グロウ条件）／【常】このルリグはルリグトラッシュにあるルリグの【起】能力を持つ／【出】対戦相手は手札をすべて捨てる／【起】エクシード5：あなたの手札が6枚より少ない場合、その差の分だけカードを引く。
