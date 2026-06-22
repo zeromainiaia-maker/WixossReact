@@ -3272,6 +3272,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MODIFY_PER_CHARM':         return execPowerModifyPerCharm(action as import('../types/effects').PowerModifyPerCharmAction, ctx);
     case 'REVEAL_UNTIL_BANISH_SAME_LEVEL': return execRevealUntilBanishSameLevel(action as import('../types/effects').RevealUntilBanishSameLevelAction, ctx);
     case 'REVEAL_UNTIL_TO_HAND':           return execRevealUntilToHand(action as import('../types/effects').RevealUntilToHandAction, ctx);
+    case 'REVEAL_UNTIL_TO_FIELD':          return execRevealUntilToField(action as import('../types/effects').RevealUntilToFieldAction, ctx);
     case 'GAIN_BOND':               return execGainBond(action as import('../types/effects').GainBondAction, ctx);
     case 'MILL':                    return execMill(action as MILLAction, ctx);
     case 'STUB': return execStub(action as StubAction, ctx, executeAction);
