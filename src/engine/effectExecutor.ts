@@ -285,16 +285,16 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
   return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx);
 }
 
-// 発生元カード（ctx.sourceCardNum）がシグニ以外（スペル/アーツ/ルリグ等）なら true。
-// DOUBLE_POWER_MINUS「あなたのシグニの効果で」の2倍判定でシグニ発生元のみ倍化するために temp_power_mods へ付与する。
-function srcIsNonSigni(ctx: ExecCtx): boolean {
+// 発生元カード（ctx.sourceCardNum）の Type を返す（'シグニ'/'スペル'/'アーツ'/'ルリグ' 等）。
+// パワー修正の発生元種別を temp_power_mods に保持し、「あなたのシグニ/アーツ/ルリグの効果で」等の参照に使う。
+function srcTypeOf(ctx: ExecCtx): string | undefined {
   const src = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
-  return src ? !(src.Type ?? '').includes('シグニ') : false;
+  return src?.Type;
 }
 
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const delta = resolveNum(a.delta);
-  const srcNonSigni = srcIsNonSigni(ctx);
+  const srcType = srcTypeOf(ctx);
   // owner:'any'（「対象のシグニ」）= 自分・対戦相手どちらのシグニも選べる
   const isAny = a.target.owner === 'any';
   const tgtOwner = isAny ? 'self' : a.target.owner as Owner;
