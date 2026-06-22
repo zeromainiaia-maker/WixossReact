@@ -1283,6 +1283,24 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
 }
 
 function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
+  // targetsLastProcessed:「それ」= 直前に選択/処理したシグニ(lastProcessedCards)へ付与（WX04-094。選択UIを出さず同一対象に付与）
+  if (a.targetsLastProcessed) {
+    const key = a.duration === 'UNTIL_OPP_TURN_END' ? 'granted_effects_until_opp_turn' : 'granted_effects';
+    let cur = ctx;
+    for (const cn of ctx.lastProcessedCards ?? []) {
+      let owner: Owner | null = null;
+      if (cur.ownerState.field.signi.some(s => s?.at(-1) === cn)) owner = 'self';
+      else if (cur.otherState.field.signi.some(s => s?.at(-1) === cn)) owner = 'opponent';
+      if (!owner) continue;
+      const s = ownerState(owner, cur);
+      const granted = { ...(s[key] ?? {}) };
+      granted[cn] = [...(granted[cn] ?? []), a.effect];
+      const effectLabel = (a.effect as { effectType?: string })?.effectType ?? '効果';
+      cur = addLog(setOwnerState(owner, { ...s, [key]: granted }, cur),
+        `${cur.cardMap.get(cn)?.CardName ?? cn}に${effectLabel}を付与`);
+    }
+    return done(cur);
+  }
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   let cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
