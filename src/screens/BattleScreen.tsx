@@ -4903,7 +4903,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  // REARRANGE_SIGNI: シグニ配置し直しの確定（newArrangement[newZone]=instance id / ''=空き、skip=配置せず）
+  // REARRANGE_SIGNI: シグニ配置し直しの確定。newArrangement[newZone]=instance id / ''=空き。
+  // skip=null のときは現状維持（恒等配置）で解決し、continuation があれば実行する。
   const handleRearrangeSigniConfirm = async (newArrangement: string[] | null) => {
     if (!bs?.pending_effect || loading) return;
     setLoading(true);
@@ -4916,17 +4917,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
       const declaredCardMapR = applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum };
-      // skip（null）または継続のみ: 並び替えず continuation を実行
-      const arrangement = newArrangement ?? inter.signiNums.map((n, i) => (ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === n) === i ? n : n)); // 使われない（skip時は下で分岐）
-      let result: ExecResult;
-      if (newArrangement === null) {
-        // スキップ: continuation のみ実行（並び替えなし）
-        result = inter.continuation
-          ? executeEffectActionDirect(inter.continuation, ctx)
-          : { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ['配置し直さなかった'] };
-      } else {
-        result = resumeRearrangeSigni(arrangement, inter, ctx);
-      }
+      const targetState = inter.owner === 'opponent' ? otherState : ownerState;
+      // skip（null）= 現状の配置をそのまま渡す（恒等変換。continuation はそのまま実行される）
+      const arrangement = newArrangement ?? [0, 1, 2].map(zi => targetState.field.signi[zi]?.at(-1) ?? '');
+      let result: ExecResult = resumeRearrangeSigni(arrangement, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
