@@ -2231,6 +2231,34 @@ function execRevealUntilBanishSameLevel(
   return selectOrInteract(cands, 1, false, scope, banishAction, undefined, logged);
 }
 
+// REVEAL_UNTIL_TO_HAND: デッキ上から revealClass のシグニ（省略=任意シグニ）がめくれるまで公開し、
+// そのシグニを手札に加え、公開した他のカードを restDest（シャッフルしてデッキ下/デッキ下/トラッシュ）へ。
+function execRevealUntilToHand(a: import('../types/effects').RevealUntilToHandAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  let foundIdx = -1;
+  for (let i = 0; i < state.deck.length; i++) {
+    const card = ctx.cardMap.get(state.deck[i]);
+    if (card?.Type === 'シグニ' && (!a.revealClass || (card.CardClass ?? '').includes(a.revealClass))) { foundIdx = i; break; }
+  }
+  if (foundIdx < 0) {
+    // 該当シグニなし：公開した全カード（=デッキ全体）を restDest へ（シャッフル）
+    const newS: PlayerState = { ...state, deck: a.restDest === 'trash' ? [] : shuffle([...state.deck]),
+      ...(a.restDest === 'trash' ? { trash: [...state.trash, ...state.deck] } : {}) };
+    return done(addLog(setOwnerState(a.owner, newS, ctx), `デッキに${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがなかった`));
+  }
+  const hit = state.deck[foundIdx];
+  const revealedRest = state.deck.slice(0, foundIdx); // ヒット手前の公開カード
+  const remaining = state.deck.slice(foundIdx + 1);   // 未公開の残りデッキ
+  let newDeck: string[];
+  let newTrash = state.trash;
+  if (a.restDest === 'trash') { newDeck = remaining; newTrash = [...state.trash, ...revealedRest]; }
+  else if (a.restDest === 'deck_bottom_shuffled') newDeck = [...remaining, ...shuffle(revealedRest)];
+  else newDeck = [...remaining, ...revealedRest];
+  const newS: PlayerState = { ...state, deck: newDeck, trash: newTrash, hand: [...state.hand, hit] };
+  return done(addLog(setOwnerState(a.owner, newS, ctx),
+    `${ctx.cardMap.get(hit)?.CardName ?? hit}を手札に加える（公開${revealedRest.length + 1}枚）`));
+}
+
 function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   let cands: string[];
 
