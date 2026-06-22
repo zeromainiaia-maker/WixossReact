@@ -3629,16 +3629,24 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'ADD_TO_FIELD': {
       const owner = (action as AddToFieldAction).owner;
-      const src = (action as AddToFieldAction).source;
       const asDown = (action as AddToFieldAction).asDown;
       const state = ownerState(owner, ctx);
       let newS = { ...state };
-      if (src?.type === 'TRASH_CARD') {
-        const ti = newS.trash.indexOf(cardNum);
-        if (ti >= 0) { const t = [...newS.trash]; t.splice(ti, 1); newS = { ...newS, trash: t }; }
-      } else if (src?.type === 'ENERGY_CARD') {
-        const ei = newS.energy.indexOf(cardNum);
-        if (ei >= 0) { const e = [...newS.energy]; e.splice(ei, 1); newS = { ...newS, energy: e }; }
+      // 場に出すカードを現在の領域（デッキ/手札/トラッシュ/エナ）から除去する。
+      // src 指定の有無に依らず、cardNum が存在する領域から取り除く（デッキ探索→場出しでデッキに残る不具合の修正）。
+      const di = newS.deck.indexOf(cardNum);
+      if (di >= 0) { const dk = [...newS.deck]; dk.splice(di, 1); newS = { ...newS, deck: dk }; }
+      else {
+        const hi = newS.hand.indexOf(cardNum);
+        if (hi >= 0) { const h = [...newS.hand]; h.splice(hi, 1); newS = { ...newS, hand: h }; }
+        else {
+          const ti = newS.trash.indexOf(cardNum);
+          if (ti >= 0) { const t = [...newS.trash]; t.splice(ti, 1); newS = { ...newS, trash: t }; }
+          else {
+            const ei = newS.energy.indexOf(cardNum);
+            if (ei >= 0) { const e = [...newS.energy]; e.splice(ei, 1); newS = { ...newS, energy: e }; }
+          }
+        }
       }
       const signi = [...newS.field.signi] as (string[] | null)[];
       const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
