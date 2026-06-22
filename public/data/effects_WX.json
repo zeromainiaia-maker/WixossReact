@@ -10896,16 +10896,29 @@
             "count": 1
           },
           {
-            "type": "ADD_TO_LIFE",
-            "owner": "self",
-            "count": 1,
-            "fromTop": true
+            "type": "CONDITIONAL",
+            "condition": {
+              "type": "ENERGY_COUNT_FILTER",
+              "owner": "self",
+              "filter": {
+                "cardType": "シグニ",
+                "story": "美巧"
+              },
+              "operator": "gte",
+              "value": 5
+            },
+            "then": {
+              "type": "ADD_TO_LIFE",
+              "owner": "self",
+              "count": 1,
+              "fromTop": true
+            }
           }
         ]
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-036": [
