@@ -5,6 +5,15 @@
 
 ---
 
+## WX04-056-E1「他の＜アーム＞ +2000」修正・effectEngine matchesFilter の cardClass 対応（2026-06-22）
+
+- **症状（ユーザー報告）:** E1「【常】あなたの**他の＜アーム＞**のシグニのパワーを＋2000」が `POWER_MODIFY target {owner:'any', count:1}` という**全くの別物**（「自分または対戦相手のシグニ1体 +2000」）。
+- **修正:**
+  - JSON を `target {owner:'self', count:'ALL', filter:{cardType:シグニ, cardClass:'アーム', excludeSelf:true}}, delta:2000, excludeSelf:true` に修正。`manualEffects.ts` に MANUAL 登録。
+  - **根本修正:** `effectEngine.ts` の `matchesFilter` が **`cardClass`/`cardClassExclude` を処理していなかった**（`story` のみ対応＝execUtils 版と非対称）。`cardClass` を追加し、CONTINUOUS パワー計算（calcFieldPowers）等でクラスフィルタが効くように。これがないと `cardClass:'アーム'` が無視され全シグニに +2000 されていた（テストで ウェポンが誤って+2000 を確認→修正後は他アームのみ）。
+  - 検証: 自身アーム=+0、他アーム=+2000、ウェポン=+0 をテストで確認。`npm run typecheck` 通過、`npm run verify` フラグなし・サマリー不変。
+- 補足: CONTINUOUS パワー系で従来クラス指定に `story` を使っていた（effectEngine matchesFilter が story のみ対応だった）のは、この非対称が原因。今後はクラスに `cardClass` を使える。
+
 ## 【マルチエナ】逆翻訳の一貫性（未登録19枚へ効果追加・パーサー修正）（2026-06-22）
 
 - **症状（ユーザー指摘）:** WX04-054 など18枚は effects.json に【マルチエナ】効果を持ち逆翻訳に出るが、ガード・サーバント系の約19枚（WD01-016/017・WD04-016/017・WX01-051/100・WX02-077/078・WX10-097〜100・WXDi-D01-020/D03-020・WXK01-119〜122・WXK05-030）はテキストのみで逆翻訳に出ない不整合。WX04-054 が例外に見えた。
