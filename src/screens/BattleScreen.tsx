@@ -14919,14 +14919,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const fieldZoneInfo: number[] = (() => {
             if (inter.type !== 'SELECT_TARGET') return [];
             const scope = inter.targetScope;
-            if (scope !== 'opp_field' && scope !== 'self_field') return [];
-            const fieldState = scope === 'opp_field' ? op : my;
+            if (scope !== 'opp_field' && scope !== 'self_field' && scope !== 'both_field') return [];
+            const states = scope === 'opp_field' ? [op] : scope === 'self_field' ? [my] : [my, op];
             return sortedCandidates.map(rawId => {
-              for (let zi = 0; zi < 3; zi++) {
-                const top = fieldState.field.signi[zi]?.at(-1);
+              for (const fs of states) for (let zi = 0; zi < 3; zi++) {
+                const top = fs.field.signi[zi]?.at(-1);
                 if (top === rawId || top === getCardNum(rawId)) return zi;
               }
               return -1;
+            });
+          })();
+          // both_field: 各候補が自分/相手どちらのシグニかを示す（ゾーン番号と併記）
+          const fieldSideInfo: string[] = (() => {
+            if (inter.type !== 'SELECT_TARGET' || inter.targetScope !== 'both_field') return [];
+            return sortedCandidates.map(rawId => {
+              if (my.field.signi.some(s => s?.at(-1) === rawId || s?.at(-1) === getCardNum(rawId))) return '自分の';
+              if (op.field.signi.some(s => s?.at(-1) === rawId || s?.at(-1) === getCardNum(rawId))) return '相手の';
+              return '';
             });
           })();
 
