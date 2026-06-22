@@ -5858,6 +5858,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   const handleRemove = async () => {
     if (!isMyTurn || loading || selectedRemoveZones.size === 0) return;
+    // SELF_SIGNI_TRASH 封じ（WX04-046-E1等）: リムーブ不可（保険のガード）
+    if (isActionBlocked('SELF_SIGNI_TRASH')) { setShowRemoveModal(false); setShowRemoveBlockedWarn(true); return; }
     setLoading(true);
     setShowRemoveModal(false);
     try {
