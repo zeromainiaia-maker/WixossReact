@@ -3233,6 +3233,25 @@ export function resumeSearch(
   ctx: ExecCtx,
 ): ExecResult {
   let cur = ctx;
+  // ADD_TO_FIELD（場に出す）: 複数枚を1枚ずつゾーン選択でチェーン配置（途中で消失しないように）。
+  // afterAction（シャッフル等）と外側 continuation は全配置後に実行する。
+  if (pending.thenAction.type === 'ADD_TO_FIELD' && picked.length > 0) {
+    cur = { ...cur, lastProcessedCards: picked };
+    const afterParts: EffectAction[] = [];
+    if (pending.afterAction) afterParts.push(pending.afterAction);
+    if (pending.continuation) afterParts.push(pending.continuation);
+    const after: EffectAction | undefined = afterParts.length === 0 ? undefined
+      : afterParts.length === 1 ? afterParts[0]
+      : ({ type: 'SEQUENCE', steps: afterParts } as SequenceAction);
+    const placeAll: import('../types/effects').PlaceSigniOnFieldAction = {
+      type: 'PLACE_SIGNI_ON_FIELD',
+      owner: (pending.thenAction as AddToFieldAction).owner,
+      cardNums: picked,
+      ...((pending.thenAction as AddToFieldAction).asDown ? { asDown: true } : {}),
+      ...(after ? { afterAction: after } : {}),
+    };
+    return execPlaceSigniOnField(placeAll, cur);
+  }
   for (const id of picked) {
     const result = applyDirectAction(pending.thenAction, id, cur);
     if (!result.done) return result;
