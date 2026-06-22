@@ -5,6 +5,17 @@
 
 ---
 
+## WX04-054「サーバント X」E1フィルタ欠落・E2マルチエナ修正（2026-06-22）
+
+- **症状（ユーザー報告）:** E1が「カード名に《サーバント》を含むあなたの他のシグニの」になっていない／E2が誤り。
+  - **E1【常】**「カード名に《サーバント》を含む**他の**自シグニのパワー+3000」が、`filter:{cardType:シグニ}` のみで**全自シグニ +3000**（cardName/他の が欠落）。
+  - **E2【常】**「【マルチエナ】」（このシグニ自身が持つ）が `GRANT_KEYWORD target count:1`（場の任意シグニに付与）で意味が誤り。
+- **修正:**
+  - E1: filter に `cardName:'サーバント'`、action/filter に `excludeSelf:true` を追加（`applyDeltaToState` は action.excludeSelf で効果元を除外、filterJa は filter.excludeSelf で「他の」を表示）。
+  - E2: target を `filter:{thisCardOnly:true}` に（このシグニ自身の【マルチエナ】）。`isMultiEna` は `GRANT_KEYWORD マルチエナ` の `count!=='ALL'` で自身マルチエナを検出するため機能継続。decompile の `GRANT_KEYWORD(thisCardOnly)` を「このシグニは【X】を持つ」に改善。
+  - E3（《サーバント》検索）はパーサー結果が正しいため変更なし。JSON＋`manualEffects.ts` に E1/E2 を MANUAL 登録。
+  - 検証: 自身は+0、他《サーバント》は+3000、非サーバントは+0 をテストで確認。`npm run typecheck` 通過、`npm run verify` フラグなし・サマリー不変。
+
 ## WX04-052「堕落の虚無 パイモン」3効果の実装（チャーム盾ほか）（2026-06-22）
 
 - **症状（ユーザー報告）:** 3効果すべて誤り。
