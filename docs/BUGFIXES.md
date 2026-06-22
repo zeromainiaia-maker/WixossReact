@@ -5,6 +5,15 @@
 
 ---
 
+## WX04-078-E1「相手場に凍結シグニがあるかぎり基本パワー10000」＋HAS_CARD_IN_FIELD の状態フィルタ対応（2026-06-22）
+
+- **症状（ユーザー確認依頼）:** E1「【常】：対戦相手の場に凍結状態のシグニがあるかぎり、このシグニの基本パワーは10000になる。」が `activeCondition` 欠落で常時10000になっていた。
+- **追加で判明した機構バグ:** `effectEngine` の `checkActiveCondition` / `evalUseCondition` の `HAS_CARD_IN_FIELD` は card ベースの `matchesFilter` のみで判定しており、`isFrozen` / `isDown` 等の**状態フィルタを無視**していた（「凍結状態のシグニがあるかぎり」が「シグニがあるかぎり」になる）。
+- **修正:**
+  - 両 `HAS_CARD_IN_FIELD` をゾーンindex付き走査に変更し、`matchesFilter`（カード）＋`matchesStateFilter`（状態：isFrozen/isDown/infected等）を併用するよう拡張。状態フィルタ未指定の条件は従来どおり（`matchesStateFilter` が true）。
+  - JSON E1 に `activeCondition HAS_CARD_IN_FIELD(owner:opponent, filter:{cardType:シグニ, isFrozen:true})` を追加、`manualEffects.ts` に MANUAL 登録。
+- 検証: `npm run typecheck` 通過、lint 0 errors、decompile 再生成で「《対戦相手の場に凍結状態のシグニがいるかぎり》このシグニの基本パワーを10000にする」を確認。
+
 ## WX04-074-E1 懐疑する慟哭の誤実装（2体バニッシュが成立不能フィルタに潰れていた）（2026-06-22）
 
 - **原文:** 「対戦相手の、パワー5000以下のシグニ１体と**パワー10000以上のシグニ１体**を対象とし、それらをバニッシュする。」（2体）

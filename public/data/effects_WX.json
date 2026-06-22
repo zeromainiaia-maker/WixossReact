@@ -12627,6 +12627,14 @@
     {
       "effectId": "WX04-078-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "HAS_CARD_IN_FIELD",
+        "owner": "opponent",
+        "filter": {
+          "cardType": "シグニ",
+          "isFrozen": true
+        }
+      },
       "action": {
         "type": "POWER_SET",
         "target": {
@@ -12638,7 +12646,7 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-079": [
