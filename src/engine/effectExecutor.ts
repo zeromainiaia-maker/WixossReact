@@ -2340,21 +2340,19 @@ function execRevealUntilToField(a: import('../types/effects').RevealUntilToField
   const signi = [...fieldState.field.signi] as (string[] | null)[];
   const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
   if (emptyZones.length === 0) {
-    // 場に出せない → トラッシュ
+    // 場に出せない → トラッシュ（原文「場に出すことのできないシグニはトラッシュに置かれる」）
     cur = addLog(setOwnerState(a.owner, { ...fieldState, trash: [...fieldState.trash, hit] }, cur),
       `空きゾーンなし → ${ctx.cardMap.get(hit)?.CardName ?? hit}をトラッシュ`);
     return executeAction(next, cur);
   }
-  if (emptyZones.length === 1 || (a.owner !== 'self' && a.owner !== 'opponent')) {
-    signi[emptyZones[0].i] = [hit];
-    cur = addLog(setOwnerState(a.owner, { ...fieldState, field: { ...fieldState.field, signi } }, cur),
-      `${ctx.cardMap.get(hit)?.CardName ?? hit}を場に出す`);
-    return executeAction(next, cur);
-  }
-  // 複数空きゾーン：ゾーン選択。残りの繰り返しを continuation に積む
-  return needsInteraction(cur, {
-    type: 'SELECT_SIGNI_ZONE', cardNum: hit, owner: a.owner as 'self' | 'opponent', continuation: next,
-  });
+  // 空きゾーン（最も若いゾーン）へ自動配置する。複数体を1回の効果処理内で中断なく順に場へ出すため、
+  // ゾーン選択（SELECT_SIGNI_ZONE）は行わない。場に出したシグニは lastProcessedCards に蓄積し、
+  // 呼び出し側（BattleScreen）がこのスペルの処理後に【出】(ON_PLAY) を発火するためのキーにする。
+  signi[emptyZones[0].i] = [hit];
+  cur = addLog(setOwnerState(a.owner, { ...fieldState, field: { ...fieldState.field, signi } }, cur),
+    `${ctx.cardMap.get(hit)?.CardName ?? hit}を場に出す`);
+  cur = { ...cur, lastProcessedCards: [...(cur.lastProcessedCards ?? []), hit] };
+  return executeAction(next, cur);
 }
 
 function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
