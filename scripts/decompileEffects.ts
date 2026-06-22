@@ -638,8 +638,13 @@ const timingJa: Record<string, string> = {
 };
 
 function effJa(e: Eff): string {
-  const typeMark = e.effectType === 'AUTO' ? '【自】' : e.effectType === 'CONTINUOUS' ? '【常】'
-    : e.effectType === 'ACTIVATED' ? '【起】' : e.effectType === 'LIFE_BURST' ? '【LB】' : `【${e.effectType}】`;
+  // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。
+  // クロス条件文（「《X》の左」等）は effects JSON に無いため card の EffectText から補う。
+  const crossPrefix = e.crossOnly ? 'クロス' : '';
+  const typeMark = e.effectType === 'AUTO' ? `【${crossPrefix}自】` : e.effectType === 'CONTINUOUS' ? `【${crossPrefix}常】`
+    : e.effectType === 'ACTIVATED' ? `【${crossPrefix}起】` : e.effectType === 'LIFE_BURST' ? '【LB】' : `【${e.effectType}】`;
+  const crossCondText = e.crossOnly ? (currentCardText.match(/《クロスアイコン》([^【]+)/)?.[1]?.trim() ?? '') : '';
+  const crossCond = crossCondText ? `${crossCondText}に置かれているかぎり ` : '';
   // triggerScope（any_ally/any_opp/any）+ triggerFilter を主語に反映（「このシグニが」→「あなたの赤のシグニが」等）
   const subjFilter = e.triggerFilter ? filterJa(e.triggerFilter) : '';
   const scopeSubj = e.triggerScope === 'any_ally' ? `あなたの${subjFilter}`
