@@ -12040,6 +12040,14 @@
     {
       "effectId": "WX04-059-E2",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "HAS_CARD_IN_FIELD",
+        "owner": "self",
+        "filter": {
+          "cardType": "シグニ",
+          "color": "赤"
+        }
+      },
       "action": {
         "type": "POWER_SET",
         "target": {
