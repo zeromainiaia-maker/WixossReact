@@ -436,6 +436,7 @@ export type EffectAction =
   | RevealUntilBanishSameLevelAction
   | RevealUntilToHandAction
   | RevealUntilToFieldAction
+  | PlaceLrigsUnderCenterAction
   | StubAction
   | GainBondAction
   | MILLAction
