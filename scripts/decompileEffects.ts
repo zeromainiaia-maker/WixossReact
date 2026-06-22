@@ -158,6 +158,7 @@ function costJa(c?: any): string {
   if (c.energy) parts.push(c.energy.map((e: any) => `《${e.color}×${e.count}》`).join(''));
   if (c.exceed != null) parts.push(`エクシード${c.exceed}`);
   if (c.down_self) parts.push('《ダウン》');
+  if (c.trash_self) parts.push('このシグニを場からトラッシュに置く');
   if (c.discard != null) parts.push(`手札${c.discard}枚を捨てる`);
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
