@@ -4937,6 +4937,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         update.pending_effect = null;
         const existingStack = bs.effect_stack ?? null;
         if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
+
+        // REVEAL_UNTIL_TO_FIELD（WX04-093「惰眠」等）でゾーン選択を挟んだ場合、最終解決はこの resume パスに来る。
+        // 場に出した全シグニ（lastProcessedCards：placedSoFar 連鎖で中断跨ぎ維持）の【出】(ON_PLAY) をここで積む。
+        const srcEffects = effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [];
+        const srcEff = srcEffects.find(e => e.effectId === pe.effectId);
+        if ((srcEff?.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD') {
+          const rutfOnPlayEntries: StackEntry[] = [];
+          for (const instanceId of result.lastProcessedCards ?? []) {
+            const cn = getCardNum(instanceId);
+            for (const eff of (effectsMap.get(cn) ?? [])) {
+              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+              rutfOnPlayEntries.push({
+                id: generateUUID(),
+                playerId: pe.sourcePlayerId,
+                cardNum: instanceId,
+                effectId: eff.effectId,
+                label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果`,
+                effect: eff,
+              });
+            }
+          }
+          if (rutfOnPlayEntries.length > 0) {
+            const baseStackR = (update.effect_stack as ReturnType<typeof initStack> | null | undefined) ?? bs.effect_stack ?? null;
+            update.effect_stack = baseStackR
+              ? pushToStack(baseStackR, rutfOnPlayEntries)
+              : initStack(bs.active_user_id ?? user.id, rutfOnPlayEntries);
+          }
+        }
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
       await flushBattleLogs();
