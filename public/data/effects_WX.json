@@ -13306,6 +13306,9 @@
     {
       "effectId": "WX04-096-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "IS_SELF_CHARMED"
+      },
       "action": {
         "type": "POWER_SET",
         "target": {
@@ -13317,7 +13320,7 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-096-E2",
@@ -13338,12 +13341,16 @@
         "to": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "cardType": "シグニ",
+            "cardClass": "悪魔"
+          }
         }
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-096-BURST",
