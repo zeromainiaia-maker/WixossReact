@@ -125,7 +125,10 @@ function filterJa(f?: any): string {
 function targetJa(t?: any, unit = 'シグニ'): string {
   if (!t) return '';
   // isTriggerSource: トリガー元（「アタックしたそのシグニ」等）→ 主語省略で「その〜」
-  if (t.filter?.isTriggerSource) return `その${unit}`;
+  if (t.filter?.isTriggerSource) {
+    const lvMax = t.filter.levelRange?.max ?? (typeof t.filter.level === 'object' ? t.filter.level?.max : undefined);
+    return lvMax !== undefined ? `そのレベル${lvMax}以下の${unit}` : `その${unit}`;
+  }
   // owner='any': count='ALL' は「すべてのシグニ」（両者・主語省略）、単体選択は「自分または対戦相手の」（どちらも選べる）
   const own = t.owner === 'any' ? (t.count === 'ALL' ? '' : '自分または対戦相手の') : ownerJa(t.owner);
   // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
