@@ -1068,7 +1068,7 @@ export function calcFieldPowers(
                 if (target.owner === 'self' || target.owner === 'any')
                   applyDeltaToState(ownerState, delta, target.filter, cardMap, powers);
                 if (target.owner === 'opponent' || target.owner === 'any')
-                  applyDeltaToState(otherState, delta, target.filter, cardMap, powers, otherPowerProtected, hasDoublePowerMinus ? 2 : 1);
+                  applyDeltaToState(otherState, delta, target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
               }
             }
           }
