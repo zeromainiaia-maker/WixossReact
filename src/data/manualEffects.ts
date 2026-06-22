@@ -228,6 +228,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX05-002-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"totalPowerMax":30000}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
+  // WX05-003 コード・ピルルク ACRO（ルリグ ピルルク Lv5）
+  //  【グロウ】「センタールリグがカード名に《ピルルク》を含む」はグロウ条件（checkGrowCondition）。
+  //  E1【常】ルリグトラッシュのルリグの【起】能力を持つ（COPY_LRIG_TRASH_ACTIVATED）。
+  //  E2【出】対戦相手は手札をすべて捨てる（旧: 1枚のみ＝誤）。 E3【起】エクシード5：手札が6枚より少ない場合、差の分だけ引く（旧: 1枚固定＝誤。untilHandCount で本実装）。
+  "WX05-003": [
+    {"effectId":"WX05-003-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"COPY_LRIG_TRASH_ACTIVATED"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-003-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":"ALL"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-003-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"DRAW","owner":"self","count":0,"untilHandCount":6},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
   //   新トリガー ON_FRONT_SIGNI_ATTACK（BattleScreen のアタックハンドラが正面ゾーンの守備側シグニで発火・triggeringCardNum=アタッカー）、
