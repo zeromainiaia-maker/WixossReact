@@ -811,6 +811,16 @@ export function execStubPart3(
     const newOwnerBRTH: PlayerState = { ...ctx.ownerState, banish_redirect_to_hand: true };
     return done(addLog({ ...ctx, ownerState: newOwnerBRTH }, 'このターン、対戦相手のシグニバニッシュ先→手札'));
   }
+  // BANISH_REDIRECT_POWER0_TRASH: このターン、パワー0以下のシグニがバニッシュされる場合エナの代わりにトラッシュへ（所有者問わず。WX04-038-E1）
+  if (stub.id === 'BANISH_REDIRECT_POWER0_TRASH') {
+    const newOwnerBRP0: PlayerState = { ...ctx.ownerState, power0_banish_to_trash: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerBRP0 }, 'このターン、パワー0以下のシグニのバニッシュ先→トラッシュ'));
+  }
+  // DOUBLE_POWER_MINUS_THIS_TURN: このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1）
+  if (stub.id === 'DOUBLE_POWER_MINUS_THIS_TURN') {
+    const newOwnerDPM: PlayerState = { ...ctx.ownerState, double_power_minus_this_turn: true };
+    return done(addLog({ ...ctx, ownerState: newOwnerDPM }, 'このターン、あなたのシグニ効果による相手へのパワーマイナスが2倍'));
+  }
   // OPP_RETURN_HAND_ON_SELF_BANISH: バニッシュされたとき、対戦相手は手札を1枚デッキの一番上に置く
   if (stub.id === 'OPP_RETURN_HAND_ON_SELF_BANISH') {
     const candsORHOSB = ctx.otherState.hand;
