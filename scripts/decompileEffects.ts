@@ -332,7 +332,20 @@ function actionJa(a?: Action, effectType?: string): string {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
         return `${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`;
       }
-      return `${subject}は${ownerJa(a.sourceOwner)}効果によって${a.from?.join('・')}されない`;
+      const fromArr: string[] = a.from ?? [];
+      const srcTypes = ['ルリグ', 'シグニ', 'スペル', 'アーツ'];
+      const srcTokens = fromArr.filter(f => srcTypes.includes(f));
+      // ソース種別（ルリグ/シグニ等）の効果耐性 →「対戦相手の、ルリグとシグニの効果を受けない」
+      if (srcTokens.length > 0) {
+        return `${subject}は${ownerJa(a.sourceOwner)}、${srcTokens.join('と')}の効果を受けない`;
+      }
+      if (fromArr.includes('any')) {
+        return `${subject}は${ownerJa(a.sourceOwner)}効果を受けない`;
+      }
+      // 軸トークン（BANISH/BOUNCE/DOWN）→「対戦相手の効果によってバニッシュされない」等
+      const axisJa: Record<string, string> = { BANISH: 'バニッシュされ', BOUNCE: '手札に戻され', DOWN: 'ダウンし', FREEZE: '凍結され' };
+      const axes = fromArr.map(f => axisJa[f] ?? f);
+      return `${subject}は${ownerJa(a.sourceOwner)}効果によって${axes.join('も')}ない`;
     }
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
