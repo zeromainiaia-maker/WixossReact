@@ -3633,10 +3633,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'POWER_MODIFY': {
       const pmAction = action as PowerModifyAction;
       const delta = resolveNum(pmAction.delta);
-      const tgtOwner = pmAction.target.owner === 'any' ? 'self' : pmAction.target.owner as Owner;
+      // owner:'any' は選ばれたカードの所属フィールドを判定して該当プレイヤーへ適用
+      const tgtOwner: Owner = pmAction.target.owner === 'any'
+        ? (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
+        : pmAction.target.owner as Owner;
+      const powerModKey = pmAction.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
       const s = ownerState(tgtOwner, ctx);
-      const mods = [...(s.temp_power_mods ?? []), { cardNum, delta }];
-      const newS: PlayerState = { ...s, temp_power_mods: mods };
+      const mods = [...(s[powerModKey] ?? []), { cardNum, delta }];
+      const newS: PlayerState = { ...s, [powerModKey]: mods };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx), `パワー${delta > 0 ? '+' : ''}${delta}`));
     }
     case 'POWER_MODIFY_BY_TARGET_LEVEL': {
