@@ -4304,21 +4304,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
 
         // ON_TRASH: トラッシュに移動したシグニを検出してスタックに追加
+        // 原因owner = entry.playerId（この効果のオーナー）。トラッシュされたカードの所有者と異なれば「対戦相手の効果によって」。
+        const hostTrashedByOpp  = entry.playerId === bs.guest_id;
+        const guestTrashedByOpp = entry.playerId === bs.host_id;
         const hostTrashed  = detectTrashedSigni(bs.host_state, hostState);
         const guestTrashed = detectTrashedSigni(bs.guest_state, guestState);
         const trashEntries: StackEntry[] = [];
         for (const cardNum of hostTrashed) {
-          trashEntries.push(...collectTrashTriggers(cardNum, bs.host_id, hostState, guestState));
+          trashEntries.push(...collectTrashTriggers(cardNum, bs.host_id, hostState, guestState, hostTrashedByOpp));
         }
         for (const cardNum of guestTrashed) {
-          trashEntries.push(...collectTrashTriggers(cardNum, bs.guest_id, hostState, guestState));
+          trashEntries.push(...collectTrashTriggers(cardNum, bs.guest_id, hostState, guestState, guestTrashedByOpp));
         }
         // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
         for (const cardNum of detectDeckTrashed(bs.host_state, hostState)) {
-          trashEntries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id));
+          trashEntries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp));
         }
         for (const cardNum of detectDeckTrashed(bs.guest_state, guestState)) {
-          trashEntries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id));
+          trashEntries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp));
+        }
+        // 手札／エナ→トラッシュの ON_TRASH（「いずれかの領域から」fromAnyZone 指定の効果のみ）
+        for (const cardNum of detectHandEnergyTrashed(bs.host_state, hostState)) {
+          trashEntries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp));
+        }
+        for (const cardNum of detectHandEnergyTrashed(bs.guest_state, guestState)) {
+          trashEntries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp));
         }
         if (trashEntries.length > 0) {
           const baseStackT = (update.effect_stack as typeof stackAfter) ?? null;
