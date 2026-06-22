@@ -197,6 +197,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX04-102-E1","effectType":"AUTO","timing":["ON_TRASH"],"triggerScope":"self","triggerCondition":{"fromZones":["hand","deck"]},"action":{"type":"ATTACH_CHARM","charm":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"to":{"type":"SIGNI","owner":"self","count":1},"optional":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
 
+  // WX04-103 エビルズ・ソウル（スペル -）
+  //  対戦相手のシグニ1体のパワーを、あなたの場の＜悪魔＞シグニのレベル合計×-1000（ターン終了時まで）。
+  //  その後、あなたの＜悪魔＞シグニ1体を対象とし、このスペルをそれの【チャーム】にしてもよい。
+  //  旧: Step1=STUB（未実装）、Step2 のチャーム源が場のシグニ・対象が＜悪魔＞絞りなし（誤）。
+  //  新: POWER_MODIFY_PER_LEVEL_SUM（executor対応を追加）＋ATTACH_CHARM(charm=このスペル＝TRASH_CARD thisCardOnly, to=＜悪魔＞, optional)。
+  "WX04-103": [
+    {"effectId":"WX04-103-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY_PER_LEVEL_SUM","target":{"type":"SIGNI","owner":"opponent","count":1},"deltaPerLevel":-1000,"countFilter":{"cardType":"シグニ","cardClass":"悪魔"},"countOwner":"self"},{"type":"ATTACH_CHARM","charm":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"to":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","cardClass":"悪魔"}},"optional":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
   //   新トリガー ON_FRONT_SIGNI_ATTACK（BattleScreen のアタックハンドラが正面ゾーンの守備側シグニで発火・triggeringCardNum=アタッカー）、
