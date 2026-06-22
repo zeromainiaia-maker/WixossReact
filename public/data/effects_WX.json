@@ -14153,12 +14153,13 @@
         "target": {
           "type": "ENERGY_CARD",
           "owner": "opponent",
-          "count": 1
+          "count": 3,
+          "upToCount": true
         }
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-008-E2",

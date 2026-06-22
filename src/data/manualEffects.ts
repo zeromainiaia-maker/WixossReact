@@ -282,6 +282,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX05-007-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"白","count":1},{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_TO_TRASH","value":4},{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
+  // WX05-008 遊月・伍（ルリグ ユヅキ Lv5・GrowCost《赤》×3）
+  //  グロウ条件「センタールリグがカード名に《遊月》を含む」は checkGrowCondition（EffectText経由）で処理。本カードは名前が遊月・伍のため常に成立。
+  //  E1【出】対戦相手のエナを3枚まで対象としトラッシュ（旧: count:1＝「3枚まで」欠落の誤）。
+  //  E2【起】《ターン1回》エクシード1：相手エナ1枚トラッシュ。 E3【起】エクシード2：手札の赤スペル1枚をコストなしで使用。
+  "WX05-008": [
+    {"effectId":"WX05-008-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":3,"upToCount":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-008-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":1},"action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+    {"effectId":"WX05-008-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":2},"action":{"type":"PLAY_FREE","source":"hand","filter":{"cardType":"スペル","color":"赤"},"ignoreCost":true,"optional":false},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
   //   新トリガー ON_FRONT_SIGNI_ATTACK（BattleScreen のアタックハンドラが正面ゾーンの守備側シグニで発火・triggeringCardNum=アタッカー）、
