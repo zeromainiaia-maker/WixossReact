@@ -1330,12 +1330,13 @@ export function calcFieldPowers(
 
   // temp_power_mods（起動・自動効果によるターン内一時パワー修正）を適用
   // negatePositiveFor: このセットにあるシグニへの正デルタを負に置換（REPLACE_PLUS_N）
-  const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>) => {
+  // doubleNeg: このstateのシグニへの負デルタを2倍にする（対戦相手が double_power_minus_this_turn を持つ場合。WX04-038-E1）
+  const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>, doubleNeg = false) => {
     const doublers = state.double_power_minus_targets ?? [];
     for (const mod of [...(state.temp_power_mods ?? []), ...(state.power_mods_until_opp_turn ?? [])]) {
       if (powers.has(mod.cardNum)) {
-        // DOUBLE_OWN_POWER_MINUS: 特定シグニへの負デルタを2倍に
-        let delta = mod.delta < 0 && doublers.includes(mod.cardNum) ? mod.delta * 2 : mod.delta;
+        // DOUBLE_OWN_POWER_MINUS（特定シグニ）/ DOUBLE_POWER_MINUS（このターン・相手フラグ）: 負デルタを2倍に
+        let delta = mod.delta < 0 && (doublers.includes(mod.cardNum) || doubleNeg) ? mod.delta * 2 : mod.delta;
         // REPLACE_PLUS_N: 対象シグニへの正デルタを負に置換
         if (negatePositiveFor?.has(mod.cardNum) && delta > 0) delta = -delta;
         powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + delta);
@@ -1346,8 +1347,9 @@ export function calcFieldPowers(
   const opSigniNums = new Set<string>();
   for (const stack of opState.field.signi) { const top = stack?.at(-1); if (top) opSigniNums.add(top); }
   const negateForOp = myState.replace_opp_power_plus ? opSigniNums : undefined;
-  applyTempMods(myState, negateForOp);
-  applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined);
+  // 各プレイヤーのシグニへの負デルタは、その対戦相手が「このターン2倍－」を持つ場合に倍化する
+  applyTempMods(myState, negateForOp, opState.double_power_minus_this_turn === true);
+  applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined, myState.double_power_minus_this_turn === true);
 
   // POWER_CAP: パワー上限の適用（全パワー修正後に上限を適用）
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
