@@ -1309,6 +1309,12 @@ export interface CardEffect {
   // （例: ミョルニル「あなたの＜アーム＞のシグニ１体が場を離れたとき」）
   triggerFilter?: TargetFilter;
 
+  // AUTO トリガーの発火条件（原因・領域の限定）。WX04-035-E2「対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき」等。
+  triggerCondition?: {
+    byOpponentEffect?: boolean; // 対戦相手の効果が原因の場合のみ発火（バトル・自分の効果・ルール処理では発火しない）
+    fromAnyZone?: boolean;      // 場以外（手札・エナ・デッキ）からトラッシュに置かれた場合も発火（ON_TRASH triggerScope:self用）
+  };
+
   // CONTINUOUS 用：常時効果がいつ適用されるか
   activeCondition?: ActiveCondition;
 
