@@ -14,6 +14,7 @@
   - 実装: PlayerState に `power0_banish_to_trash` / `double_power_minus_this_turn`（このターン）を新設。
     - ①: STUB `BANISH_REDIRECT_POWER0_TRASH` でフラグ設定 → `checkPowerZeroBanish`（パワー0以下バニッシュ処理）で、いずれかのプレイヤーがこのフラグを持つときトラッシュへリダイレクト。
     - ②: STUB `DOUBLE_POWER_MINUS_THIS_TURN` でフラグ設定 → `calcFieldPowers` が CONTINUOUS 負デルタ（`hasDoublePowerMinus`）と一時 `temp_power_mods` 負デルタ（`applyTempMods` の `doubleNeg`）の両方を、相手がフラグ所持時に2倍。
+    - **「あなたのシグニの効果で」の正確化:** 発生元がシグニのマイナスのみ倍化する。`temp_power_mods` に `srcNonSigni`（発生元が非シグニ＝スペル/アーツ/ルリグ）を付与（汎用 `POWER_MODIFY` 経路の `execPowerModify`/`applyDirectAction` が `ctx.sourceCardNum` の Type で判定）、`applyTempMods` は `!srcNonSigni` のみ倍化。CONTINUOUS 側は発生元カード `topNum` がシグニのときのみ倍化（`dblOtherMult`）。スペル/アーツ/ルリグ由来のマイナスは倍化しない。STUB系の個別パワーダウン（大多数がシグニ効果）は未タグ＝シグニ扱い。
     - 両フラグはターン終了時クリア（3箇所のリセット集約に追加）。
   - 検証: フラグ設定／相手シグニ -2000 が -4000（5000→1000）になることをテストで確認。
 - **BURST:** 原文「トラッシュから**黒の**シグニ1枚を対象とし、**手札に加えるか場に出す**」に対し、修正前は黒フィルタ欠落＋手札固定。`CHOOSE`（手札に加える `TRANSFER_TO_HAND` ／場に出す `ADD_TO_FIELD`、ともに `filter:{cardType:シグニ,color:黒}`）に修正。場出しは [[（applyDirectAction の ADD_TO_FIELD 修正）]] によりゾーン選択＋トラッシュ除去。
