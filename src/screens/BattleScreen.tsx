@@ -1117,6 +1117,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [cutinSpellZoomed, setCutinSpellZoomed] = useState(false);   // スペルカットイン画面の拡大
   // 効果インタラクション：SELECT_TARGET / SEARCH / CHOOSE
   const [effectSelectedNums, setEffectSelectedNums] = useState<string[]>([]);
+  // REARRANGE_SIGNI: 各ゾーン（新配置）に割り当てたシグニ instance id（null=空き）
+  const [rearrangeSlots, setRearrangeSlots] = useState<(string | null)[]>([null, null, null]);
   // カード選択UI長押し拡大
   const [expandedPickImgUrl, setExpandedPickImgUrl] = useState<string | null>(null);
   const pickLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
