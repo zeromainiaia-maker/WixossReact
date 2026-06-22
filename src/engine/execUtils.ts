@@ -33,6 +33,10 @@ export interface ExecCtx {
   otherBounceProtectedNums?: string[];
   // GRANT_PROTECTION from=['BANISH'/'any']: 相手効果でバニッシュされないシグニ
   otherBanishProtectedNums?: Set<string>;
+  // GRANT_PROTECTION from=['ルリグ'/'シグニ'…] 完全効果耐性（「対戦相手の、ルリグとシグニの効果を受けない」）:
+  // 解決中効果のソース種別が耐性対象に該当する相手(otherState)シグニ。FREEZE/POWER_MODIFY等の対象から除外する。
+  // （バニッシュ/バウンス/ダウン/トラッシュ/能力消失/能力付与は各専用保護セットへ別途 union 済み）
+  otherEffectImmuneNums?: Set<string>;
   // BLOCK_OPP_DECK_TO_ENERGY: 相手CONTにより自分のデッキ→エナ効果がブロックされている
   deckToEnergyBlocked?: boolean;
   // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 相手CONTにより自分はシグニ効果でシグニを出せない
