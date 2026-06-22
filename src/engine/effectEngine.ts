@@ -873,7 +873,8 @@ export function calcFieldPowers(
     }
 
     // DOUBLE_POWER_MINUS: 自分のフィールドにこの効果があれば相手シグニへの負デルタを2倍にする
-    const hasDoublePowerMinus = ownerState.field.signi.some(stack => {
+    // （WX04-038-E1 のスペル版はフィールドに残らないため double_power_minus_this_turn フラグでも判定）
+    const hasDoublePowerMinus = ownerState.double_power_minus_this_turn === true || ownerState.field.signi.some(stack => {
       const top = stack?.at(-1);
       if (!top) return false;
       return (effectsMap.get(top) ?? []).some(eff =>
