@@ -1335,8 +1335,8 @@ export function calcFieldPowers(
     const doublers = state.double_power_minus_targets ?? [];
     for (const mod of [...(state.temp_power_mods ?? []), ...(state.power_mods_until_opp_turn ?? [])]) {
       if (powers.has(mod.cardNum)) {
-        // DOUBLE_OWN_POWER_MINUS（特定シグニ）/ DOUBLE_POWER_MINUS（このターン・相手フラグ）: 負デルタを2倍に
-        let delta = mod.delta < 0 && (doublers.includes(mod.cardNum) || doubleNeg) ? mod.delta * 2 : mod.delta;
+        // DOUBLE_OWN_POWER_MINUS（特定シグニ）/ DOUBLE_POWER_MINUS（このターン・相手フラグ。シグニ発生元のみ）: 負デルタを2倍に
+        let delta = mod.delta < 0 && (doublers.includes(mod.cardNum) || (doubleNeg && !mod.srcNonSigni)) ? mod.delta * 2 : mod.delta;
         // REPLACE_PLUS_N: 対象シグニへの正デルタを負に置換
         if (negatePositiveFor?.has(mod.cardNum) && delta > 0) delta = -delta;
         powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + delta);
