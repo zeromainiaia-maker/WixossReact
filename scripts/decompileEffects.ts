@@ -412,6 +412,12 @@ function actionJa(a?: Action, effectType?: string): string {
       const thisOnlySBL = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner);
       return `${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
     }
+    case 'REVEAL_UNTIL_TO_HAND': {
+      const restJa = a.restDest === 'trash' ? '残りをトラッシュに置く'
+        : a.restDest === 'deck_bottom_shuffled' ? '公開した他のカードをシャッフルしてデッキの一番下に置く'
+        : '公開した他のカードをデッキの一番下に置く';
+      return `${ownerJa(a.owner)}デッキを上から${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがめくれるまで公開し、そのシグニを手札に加える。そして${restJa}`;
+    }
     case 'NEGATE_ATTACK': return 'そのアタックを無効にする';
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
