@@ -1339,7 +1339,9 @@ export function calcFieldPowers(
     for (const mod of [...(state.temp_power_mods ?? []), ...(state.power_mods_until_opp_turn ?? [])]) {
       if (powers.has(mod.cardNum)) {
         // DOUBLE_OWN_POWER_MINUS（特定シグニ）/ DOUBLE_POWER_MINUS（このターン・相手フラグ。シグニ発生元のみ）: 負デルタを2倍に
-        let delta = mod.delta < 0 && (doublers.includes(mod.cardNum) || (doubleNeg && !mod.srcNonSigni)) ? mod.delta * 2 : mod.delta;
+        // srcType 未設定はシグニ発生元として扱う（STUB系シグニ効果が大多数）。レゾナもシグニ。
+        const fromSigni = mod.srcType === undefined || mod.srcType.includes('シグニ') || mod.srcType.includes('レゾナ');
+        let delta = mod.delta < 0 && (doublers.includes(mod.cardNum) || (doubleNeg && fromSigni)) ? mod.delta * 2 : mod.delta;
         // REPLACE_PLUS_N: 対象シグニへの正デルタを負に置換
         if (negatePositiveFor?.has(mod.cardNum) && delta > 0) delta = -delta;
         powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + delta);
