@@ -7849,9 +7849,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!effectivelyEmpty && opTopCardNum) {
         const myBattleUsed: string[] = [];
         const opBattleUsed: string[] = [];
-        const collectBattleTrig = (cardNum: string, playerId: string, doneIds: string[] | undefined, used: string[], ownerSt: PlayerState, otherSt: PlayerState) => {
+        // 条件ツリーに IS_MY_TURN / IS_OPPONENT_TURN を含むか（evalCondition では両者 true のため、ターン判定はここで行う）
+        const condHasBattle = (c: import('../types/effects').Condition | undefined, t: string): boolean =>
+          !!c && (c.type === t || (c.type === 'AND' && (c.conditions ?? []).some(cc => condHasBattle(cc, t))));
+        // battleOpponentNum: このシグニのバトル相手（「その対戦相手のシグニ」= triggeringCardNum。WX04-099）。
+        const collectBattleTrig = (cardNum: string, playerId: string, doneIds: string[] | undefined, used: string[], ownerSt: PlayerState, otherSt: PlayerState, battleOpponentNum: string) => {
+          const isControllerTurnPlayer = playerId === bs.active_user_id;
           for (const eff of (effectsMap.get(cardNum) ?? [])) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BATTLE')) continue;
+            // 「あなたのターンの間」(IS_MY_TURN) / 「対戦相手のターンの間」(IS_OPPONENT_TURN) のターン判定
+            if (condHasBattle(eff.condition, 'IS_MY_TURN') && !isControllerTurnPlayer) continue;
+            if (condHasBattle(eff.condition, 'IS_OPPONENT_TURN') && isControllerTurnPlayer) continue;
             // condition を持つAUTOは発動条件を満たす場合のみ収集（「このターンに手札を2枚以上捨てていたかぎり…を得る」等の付与AUTO）
             if (eff.condition && !evalUseCondition(eff.condition, ownerSt, otherSt, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
             if (eff.usageLimit === 'once_per_turn' && (doneIds?.includes(eff.effectId) || used.includes(eff.effectId))) continue;
@@ -7863,11 +7871,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               effectId: eff.effectId,
               label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【自】効果（バトル時）`,
               effect: eff,
+              triggeringCardNum: battleOpponentNum,
             } satisfies StackEntry);
           }
         };
-        collectBattleTrig(myTopNum, attackerId, newMyState.actions_done, myBattleUsed, newMyState, newOpState);
-        collectBattleTrig(opTopCardNum, defenderId, newOpState.actions_done, opBattleUsed, newOpState, newMyState);
+        collectBattleTrig(myTopNum, attackerId, newMyState.actions_done, myBattleUsed, newMyState, newOpState, opTopCardNum);
+        collectBattleTrig(opTopCardNum, defenderId, newOpState.actions_done, opBattleUsed, newOpState, newMyState, myTopNum);
         if (myBattleUsed.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...myBattleUsed];
         if (opBattleUsed.length > 0) newOpState.actions_done = [...(newOpState.actions_done ?? []), ...opBattleUsed];
       }
