@@ -11198,6 +11198,14 @@
     {
       "effectId": "WX04-040-E1",
       "effectType": "CONTINUOUS",
+      "activeCondition": {
+        "type": "HAS_CARD_IN_FIELD",
+        "owner": "self",
+        "filter": {
+          "cardType": "シグニ",
+          "story": "ウェポン"
+        }
+      },
       "action": {
         "type": "POWER_SET",
         "target": {
@@ -11209,7 +11217,7 @@
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-040-E2",
@@ -11218,13 +11226,22 @@
         "MAIN"
       ],
       "cost": {
-        "fieldTrash": {
-          "count": 1,
-          "filter": {
-            "cardType": "シグニ",
-            "story": "ウェポン"
+        "fieldTrashGroups": [
+          {
+            "count": 1,
+            "filter": {
+              "cardType": "シグニ",
+              "story": "アーム"
+            }
+          },
+          {
+            "count": 1,
+            "filter": {
+              "cardType": "シグニ",
+              "story": "ウェポン"
+            }
           }
-        }
+        ]
       },
       "action": {
         "type": "BANISH",
@@ -11240,7 +11257,7 @@
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX04-040-BURST",
@@ -11249,29 +11266,72 @@
         "ON_LIFE_BURST"
       ],
       "action": {
-        "type": "SEQUENCE",
-        "steps": [
-          {
-            "type": "TRASH",
-            "target": {
-              "type": "HAND_CARD",
+        "type": "CONDITIONAL",
+        "condition": {
+          "type": "AND",
+          "conditions": [
+            {
+              "type": "HAND_COUNT_FILTER",
               "owner": "self",
-              "count": 1,
               "filter": {
                 "cardType": "シグニ",
-                "story": [
-                  "アーム",
-                  "ウェポン"
-                ]
-              }
-            }
-          },
-          {
-            "type": "CONDITIONAL",
-            "condition": {
-              "type": "IS_MY_TURN"
+                "story": "アーム"
+              },
+              "operator": "gte",
+              "value": 1
             },
-            "then": {
+            {
+              "type": "HAND_COUNT_FILTER",
+              "owner": "self",
+              "filter": {
+                "cardType": "シグニ",
+                "story": "ウェポン"
+              },
+              "operator": "gte",
+              "value": 1
+            }
+          ]
+        },
+        "then": {
+          "type": "SEQUENCE",
+          "steps": [
+            {
+              "type": "TRASH",
+              "target": {
+                "type": "HAND_CARD",
+                "owner": "self",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ",
+                  "story": "アーム"
+                }
+              }
+            },
+            {
+              "type": "TRASH",
+              "target": {
+                "type": "HAND_CARD",
+                "owner": "self",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ",
+                  "story": "ウェポン"
+                }
+              }
+            },
+            {
+              "type": "BOUNCE",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ"
+                },
+                "upToCount": false
+              }
+            },
+            {
               "type": "BANISH",
               "target": {
                 "type": "SIGNI",
@@ -11283,12 +11343,12 @@
                 "upToCount": false
               }
             }
-          }
-        ]
+          ]
+        }
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-041": [
