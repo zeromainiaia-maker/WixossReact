@@ -12302,12 +12302,15 @@
         "target": {
           "type": "ENERGY_CARD",
           "owner": "opponent",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "keyword": "マルチエナ"
+          }
         }
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "WX04-069": [
