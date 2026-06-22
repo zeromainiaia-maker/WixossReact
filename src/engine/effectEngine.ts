@@ -3258,6 +3258,42 @@ export function collectDownProtectedSigni(
 }
 
 /**
+ * CONTINUOUS CHARM_PROTECTION（「あなたの＜悪魔＞のシグニがバニッシュされる場合、代わりにそのシグニの【チャーム】1枚をトラッシュに置いてもよい」WX04-052-E1）:
+ * state（保護される側）のシグニのうち、(1) signiFilter に一致し、(2) チャームが付いている ものを「チャーム盾」対象として返す。
+ * 呼び出し側（バニッシュ各経路）は、これらのシグニがバニッシュされる際にチャーム1枚をトラッシュして場に残す。
+ */
+export function collectCharmShieldSigni(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Set<string> {
+  // この state にチャーム盾の CONTINUOUS 効果があるか（signiFilter を集める）
+  const filters: (import('../types/effects').TargetFilter | undefined)[] = [];
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (eff.action?.type !== 'CHARM_PROTECTION') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, top)) continue;
+      filters.push((eff.action as import('../types/effects').CharmProtectionAction).signiFilter);
+    }
+  }
+  const shielded = new Set<string>();
+  if (filters.length === 0) return shielded;
+  state.field.signi.forEach((stack, zi) => {
+    const top = stack?.at(-1);
+    if (!top) return;
+    const hasCharm = (state.field.signi_charms?.[zi] ?? null) !== null;
+    if (!hasCharm) return; // チャームがなければ盾にできない
+    if (filters.some(f => matchesFilter(cardMap.get(top), f))) shielded.add(top);
+  });
+  return shielded;
+}
+
+/**
  * CONTINUOUS GRANT_PROTECTION from=['BANISH'|'any'|'シグニ'|'ルリグ']: 対戦相手の効果バニッシュから保護されているシグニ番号を返す。
  * hasBanishResist の EffectText フォールバックは activeCondition を無視するため、effects.json 登録済みカードはここで評価する。
  */
