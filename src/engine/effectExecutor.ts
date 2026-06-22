@@ -3581,6 +3581,62 @@ export function resumeSelectSigniZone(
   return done(cur);
 }
 
+// REARRANGE_SIGNI: フィールドのシグニを好きなように配置し直す（count:'ALL'）。プレイヤーに配置選択を促す。
+function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, ctx: ExecCtx): ExecResult {
+  // swap や単体指定は未対応（従来どおりログのみ。WX04-041-E2 の「すべてを配置し直す」を対象）
+  if (a.swap || a.target.count !== 'ALL') {
+    return done(addLog(ctx, 'シグニ並び替え（未対応の形式）'));
+  }
+  const tgtOwner: Owner = a.target.owner === 'opponent' ? 'opponent' : 'self';
+  const state = ownerState(tgtOwner, ctx);
+  const signiNums = state.field.signi.map(s => s?.at(-1)).filter((x): x is string => !!x);
+  // 1体以下なら並び替えても変化なし → スキップ
+  if (signiNums.length <= 1) return done(addLog(ctx, '並び替え対象が1体以下のためスキップ'));
+  return needsInteraction(ctx, {
+    type: 'REARRANGE_SIGNI',
+    owner: tgtOwner,
+    signiNums,
+    optional: a.optional ?? false,
+  } as PendingInteractionDef);
+}
+
+// REARRANGE_SIGNI 解決: newArrangement[newZone] = 配置するシグニのトップ instance id（''=空き）。
+// 元ゾーンのゾーン状態（スタック・ダウン・凍結・チャーム・アクセ・ソウル・武装・ウィルス）ごと新ゾーンへ移す。
+export function resumeRearrangeSigni(
+  newArrangement: string[],
+  pending: PendingInteractionDef & { type: 'REARRANGE_SIGNI' },
+  ctx: ExecCtx,
+): ExecResult {
+  const state = ownerState(pending.owner, ctx);
+  const f = state.field;
+  // 各シグニ instance の現在ゾーンを引く
+  const oldZoneOf = (num: string): number => f.signi.findIndex(s => s?.at(-1) === num);
+  // newArrangement[ni] のシグニが元々あったゾーン index（''は-1）
+  const srcZone = (ni: number): number => {
+    const num = newArrangement[ni];
+    return num ? oldZoneOf(num) : -1;
+  };
+  const permute = <T,>(arr: T[] | undefined, empty: T): T[] | undefined => {
+    if (!arr) return arr;
+    return [0, 1, 2].map(ni => { const oz = srcZone(ni); return oz >= 0 ? arr[oz] : empty; });
+  };
+  const newField: typeof f = {
+    ...f,
+    signi: permute(f.signi as (string[] | null)[], null) as typeof f.signi,
+    signi_down:   permute(f.signi_down, false) as typeof f.signi_down,
+    signi_frozen: permute(f.signi_frozen, false) as typeof f.signi_frozen,
+    signi_charms: permute(f.signi_charms, null) as typeof f.signi_charms,
+    signi_acce:   permute(f.signi_acce, null) as typeof f.signi_acce,
+    signi_soul:   permute(f.signi_soul, null) as typeof f.signi_soul,
+    signi_armor:  permute(f.signi_armor, false) as typeof f.signi_armor,
+    signi_virus:  permute(f.signi_virus, 0) as typeof f.signi_virus,
+  };
+  const newState: PlayerState = { ...state, field: newField };
+  const cur = addLog(setOwnerState(pending.owner, newState, ctx), 'シグニを配置し直した');
+  if (pending.continuation) return executeAction(pending.continuation, cur);
+  return done(cur);
+}
+
 // ===== 直接アクション適用（特定のcardNumに対して） =====
 
 function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx): ExecResult {
