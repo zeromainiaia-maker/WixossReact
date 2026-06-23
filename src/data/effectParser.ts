@@ -710,8 +710,8 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: { type: 'ENA_DIFF', operator: 'gte', value: parseNum(enaDiffM[1]) }, rest: text.slice(enaDiffM[0].length), conditionFound: true };
   }
 
-  // パターン5c: 「あなたの手札がN枚以上/以下あるかぎり、」（「以上あるかぎり」も含む）
-  const handCountM = text.match(/^あなたの手札が([０-９\d]+)枚(以上あるかぎり|以下あるかぎり|以上かぎり|以下かぎり|あるかぎり)、/);
+  // パターン5c: 「あなたの手札がN枚以上/以下(である)?(ある)?かぎり、」（「以上あるかぎり」「N枚以下であるかぎり」も含む。G086）
+  const handCountM = text.match(/^あなたの手札が([０-９\d]+)枚(以上あるかぎり|以下あるかぎり|以上であるかぎり|以下であるかぎり|以上かぎり|以下かぎり|あるかぎり)、/);
   if (handCountM) {
     const val = parseNum(handCountM[1]);
     const op: CompareOp = handCountM[2].startsWith('以上') ? 'gte' : handCountM[2].startsWith('以下') ? 'lte' : 'eq';
