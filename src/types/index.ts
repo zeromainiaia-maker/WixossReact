@@ -171,6 +171,8 @@ export interface PlayerState {
   awakened_signi?: string[];
   // このターン次にアタックしたとき無効にされるシグニのCardNum一覧
   negated_attacks?: string[];
+  // negated_attacks のうち「アタック側が手札をN枚捨てれば回避できる」もの（CardNum→必要捨て枚数。G154 BURST）
+  negated_attacks_escape?: Record<string, number>;
   // このターンまたは次のターン、グロウできない
   no_grow?: boolean;
   // このターン、ライフバースト発動を抑制（クラッシュされた側）
