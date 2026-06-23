@@ -599,8 +599,8 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
-  // パターン3b: 「あなたの場に〜クラスのシグニがN体あるかぎり、」（クラス数体条件）
-  const fieldClassCountM = text.match(/^あなたの場に(?:他の)?((?:＜[^＞]+＞(?:か)?)+)のシグニが([０-９\d]+)体あるかぎり、/);
+  // パターン3b: 「あなたの場に〜クラスのシグニが(合計)?N体あるかぎり、」（クラス数体条件 / ＜X＞か＜Y＞の合計指定を含む）
+  const fieldClassCountM = text.match(/^あなたの場に(?:他の)?((?:＜[^＞]+＞(?:か)?)+)のシグニが(?:合計)?([０-９\d]+)体あるかぎり、/);
   if (fieldClassCountM) {
     const storyFilter = parseStoryFilter(fieldClassCountM[1]);
     return {
