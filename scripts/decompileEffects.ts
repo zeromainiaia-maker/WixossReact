@@ -698,7 +698,9 @@ function effJa(e: Eff): string {
       s = 'レゾナの出現条件のために' + s.replace('トラッシュに置かれたとき', '場からトラッシュに置かれたとき');
     }
     // ON_PLAY の「効果によって」限定を反映（手札からの通常召喚では発火しない）
-    if (t === 'ON_PLAY' && e.triggerCondition?.byEffect) {
+    if (t === 'ON_PLAY' && e.triggerCondition?.bySigniEffect) {
+      s = s.replace('場に出たとき', 'シグニの効果によって場に出たとき');
+    } else if (t === 'ON_PLAY' && e.triggerCondition?.byEffect) {
       s = s.replace('場に出たとき', '効果によって場に出たとき');
     }
     return s;
