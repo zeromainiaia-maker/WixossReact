@@ -1334,7 +1334,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
         : charmIsSelf || charmIsThisCard
           ? { type: 'SIGNI', owner: 'self', count: 1 }
           : { type: 'SIGNI', owner: 'self', count: 1 };
-    const toTarget: EffectTarget = { type: 'SIGNI', owner: toOwner, count: 1 };
+    // 付与先が「このシグニの【チャーム】」＝効果元シグニ自身（任意選択でなく thisCardOnly。G147）
+    const toThisCard = /このシグニの【チャーム】/.test(t);
+    const toTarget: EffectTarget = { type: 'SIGNI', owner: toOwner, count: 1, ...(toThisCard ? { filter: { thisCardOnly: true } } : {}) };
     return { type: 'ATTACH_CHARM', charm, to: toTarget } as AttachCharmAction;
   }
 
