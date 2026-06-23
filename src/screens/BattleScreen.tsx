@@ -10514,7 +10514,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const acceCount = (my.field.signi_acce ?? []).filter(a => a !== null).length;
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
-        (e.timing === undefined || e.timing.includes('MAIN')) &&
+        // メイン: timing未指定 or MAIN を含む。アタックフェイズ: ATTACK_ARTS を含む（《アタックフェイズアイコン》）。
+        (actPhase === 'MAIN'
+          ? (e.timing === undefined || e.timing.includes('MAIN'))
+          : !!e.timing?.includes('ATTACK_ARTS')) &&
         !(e.cost?.acceTrash && acceCount < e.cost.acceTrash) &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
