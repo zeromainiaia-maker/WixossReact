@@ -5,6 +5,16 @@
 
 ---
 
+## G075「対戦相手の場にシグニがN体あるかぎり」activeCondition が欠落していたのを修正（2026-06-23）
+
+逆翻訳（grouped_all.txt G075）で「このシグニの基本パワーを12000にする」と無条件 POWER_SET になっていた（原文は「**対戦相手の場にシグニが3体あるかぎり**、…基本パワーは12000になる」）。`parseActiveCondition` に「対戦相手の場に…」系のパターンが一つも無く（全て「あなたの場に…」のみ）、相手フィールド条件が黙って捨てられていた。
+
+- **修正（パーサー）:** `parseActiveCondition` に「対戦相手の場にシグニが(合計)?N体あるかぎり、」→ `HAS_CARD_IN_FIELD{owner:opponent, filter:cardType:シグニ, minCount:N}` を追加。
+- **適用範囲（全カード差分）:** 4効果が `activeCondition:undefined → 条件` の純追加・巻き添えゼロ。WX15-077/078/079（基本パワーをNにする POWER_SET）＋ WX09-Re16（このシグニは【ランサー】を得る）。JSON 直パッチ（effects_WX）。
+- **engine 検証:** calcFieldPowers で WX15-077（印刷8000）が相手シグニ0/2体→8000・3体→12000 と条件どおり。POWER_SET CONTINUOUS は checkActiveCondition を通すため activeCondition を正しく尊重。
+- 検証: `npm run typecheck` 通過。decompile「《対戦相手の場にシグニが3体以上いるかぎり》」描画。
+- ※ WX09-Re16 の付与対象表記「あなたのシグニ1体」は別系統の「このシグニ」self-target 慣習の問題（条件追加自体は正しい改善）。
+
 ## 《相手ターン》《自分ターン》が CONTINUOUS で完全に無視されていた系統バグ（G074 調査で発覚・2026-06-23）
 
 G074 の実装確認中に WX25-P1-114（【常】**《相手ターン》**：パワーは色種類につき＋2000）を検証したところ、`activeCondition` が欠落し**自分ターンでも +2000 が適用される**誤りを発見。パーサーに `《相手ターン》`/`《自分ターン》` の処理が一切無く、ターン限定が黙って捨てられていた（CONTINUOUS で30枚／32効果が該当）。

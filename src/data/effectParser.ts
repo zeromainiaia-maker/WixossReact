@@ -621,6 +621,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3d: 「対戦相手の場にシグニが(合計)?N体あるかぎり、」（相手シグニ数体条件。G075）
+  const oppFieldSigniCountM = text.match(/^対戦相手の場にシグニが(?:合計)?([０-９\d]+)体あるかぎり、/);
+  if (oppFieldSigniCountM) {
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ' }, minCount: parseNum(oppFieldSigniCountM[1]) },
+      rest: text.slice(oppFieldSigniCountM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
