@@ -4689,6 +4689,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(stack.turnPlayerId, drawEntries);
         }
 
+        // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニに対する、場の他シグニの反応を収集（G144/G145/WX11-054）。
+        // 出たシグニ自身の ON_PLAY は各効果配置経路（REVEAL/SEED_BLOOM/COLLAB等）が個別に収集済み。ここでは他シグニ（any_ally/any）のみ。
+        // 場出しした効果元（entry.cardNum）がシグニかどうかで bySigniEffect の発火可否を判定する。
+        const placeSourceIsSigni = battleCardMap.get(entry.cardNum)?.Type === 'シグニ';
+        const placeEntries: StackEntry[] = [];
+        for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
+          placeEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni }));
+        }
+        for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
+          placeEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni }));
+        }
+        if (placeEntries.length > 0) {
+          const baseStackP = (update.effect_stack as typeof stackAfter) ?? null;
+          update.effect_stack = baseStackP
+            ? pushToStack(baseStackP, placeEntries)
+            : initStack(stack.turnPlayerId, placeEntries);
+        }
+
         // ON_ENERGY_FROM_TRASH: トラッシュからエナゾーンに移動したカードのトリガー
         const hostEnergyFromTrash  = detectEnergyFromTrash(bs.host_state, hostState);
         const guestEnergyFromTrash = detectEnergyFromTrash(bs.guest_state, guestState);
