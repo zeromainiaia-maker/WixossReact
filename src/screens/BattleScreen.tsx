@@ -5330,10 +5330,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!eff.timing?.includes(event)) continue;
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any_ally' && scope !== 'any') continue;
-        // byEffect: 「効果によって場に出たとき」限定（WX11-054等）。この収集経路は手札からの通常召喚のため発火させない。
-        //   （効果による場出し経路＝REVEAL_UNTIL_TO_FIELD/SEED_BLOOM等は現状フィールドの any_ally トリガーを収集しないため、
-        //    他シグニが効果で場に出た場合の発火は未配線。自身が効果で場に出た場合は各召喚経路の自己ON_PLAY収集で発火する）
-        if ((eff.triggerCondition?.byEffect || eff.triggerCondition?.bySigniEffect) && event === 'ON_PLAY') continue;
+        // byEffect/bySigniEffect:「効果によって場に出たとき」限定（WX11-054/G145等）。
+        //   手札召喚経路では発火せず、効果配置経路（placedByEffect）でのみ発火する。
+        if (!byEffectTriggerOk(eff)) continue;
         // placedDown（G144「あなたのシグニがダウン状態で場に出たとき」any_ally経路）: トリガー元シグニがダウン状態で出ていなければ発火しない。
         if (eff.triggerCondition?.placedDown && event === 'ON_PLAY') {
           const ziTrig = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
