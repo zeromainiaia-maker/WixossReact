@@ -652,6 +652,15 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3i: 「このターンにシグニが場から手札に戻っていた場合、」（このターンのシグニ手札戻り条件。G087）
+  if (text.startsWith('このターンにシグニが場から手札に戻っていた場合、')) {
+    return {
+      condition: { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN', owner: 'self' } as ActiveCondition,
+      rest: text.slice('このターンにシグニが場から手札に戻っていた場合、'.length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3h: 「このターンにあなたが手札をN枚以上捨てていた場合、」（このターンの手札捨て枚数条件。G088）
   const turnDiscardM = text.match(/^このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合、/);
   if (turnDiscardM) {
