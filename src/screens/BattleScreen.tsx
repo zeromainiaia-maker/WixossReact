@@ -10486,8 +10486,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return [{ label: 'エナチャージ', color: C.accent, onClick: () => handleEnergyChargeFromSigni(rawZoneIdx) }];
     }
 
-    if (bs.turn_phase === 'MAIN') {
+    // MAIN（メインフェイズ）と ATTACK_ARTS（自分のアタックフェイズ＝アーツステップ）の場シグニ【起】発動。
+    // 《アタックフェイズアイコン》付き【起】（timing:['ATTACK_ARTS']）はアタックフェイズのみ、無印【起】（timing未指定/['MAIN']）はメインのみ。
+    if (bs.turn_phase === 'MAIN' || bs.turn_phase === 'ATTACK_ARTS') {
       if (!stack || stack.length === 0) return [];
+      const actPhase = bs.turn_phase; // 'MAIN' | 'ATTACK_ARTS'
       const topNum = stack[stack.length - 1];
       const effects = effectsMap.get(topNum) ?? [];
       // PREVENT_INFECTED_SIGNI_ACTIVATE: 感染状態のシグニの起動能力をブロック
