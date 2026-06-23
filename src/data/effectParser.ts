@@ -1452,9 +1452,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (allyPlayM[2]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
           actionText = allyPlayM[3];
         } else {
-          // 「（このシグニが）（シグニの）効果によって場に出たとき」= self＋byEffect 限定（G079「このシグニがシグニの効果によって場に出たとき」）
-          const selfByEffM = actionText.match(/^(?:このシグニが)?(?:シグニの)?効果によって場に出たとき[、,]\s*(.+)/s);
-          if (selfByEffM) {
+          // 「（このシグニが）（シグニの）効果によって場に出たとき」= self 限定。
+          // 「シグニの効果によって」= bySigniEffect（シグニの効果のみ）／「効果によって」= byEffect（任意の効果）。
+          const selfBySigniM = actionText.match(/^(?:このシグニが)?シグニの効果によって場に出たとき[、,]\s*(.+)/s);
+          const selfByEffM = actionText.match(/^(?:このシグニが)?効果によって場に出たとき[、,]\s*(.+)/s);
+          if (selfBySigniM) {
+            extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), bySigniEffect: true };
+            actionText = selfBySigniM[1];
+          } else if (selfByEffM) {
             extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
             actionText = selfByEffM[1];
           }
