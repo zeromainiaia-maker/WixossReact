@@ -614,6 +614,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'LRIG_UNDER_TO_TRASH') {
         return `あなたのセンタールリグの下からカード${a.value ?? '?'}枚をルリグトラッシュに置く（置けた場合のみ次へ）`;
       }
+      // GAIN_SUBSCRIBER_COUNT: 登録者数をN万人得る（valueに万人の数値）
+      if (a.id === 'GAIN_SUBSCRIBER_COUNT') {
+        return a.value != null ? `登録者数を${a.value}万人得る` : '登録者数を得る';
+      }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
