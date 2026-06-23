@@ -1085,7 +1085,7 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をアップ`));
   }
   const state = ownerState(a.target.owner, ctx);
-  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニをアップする」。WX16-Re07/G145等）→ 選択不要で即アップ
   if (a.target.filter?.thisCardOnly) {
     const selfNum = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
