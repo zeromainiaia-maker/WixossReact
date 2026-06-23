@@ -537,12 +537,20 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'POWER_MODIFY_PER_DECK_COUNT':
     case 'POWER_MODIFY_PER_ENERGY_COLOR':
     case 'POWER_MODIFY_PER_VIRUS_COUNT': {
-      const per = a.type.replace('POWER_MODIFY_PER_', '');
+      const perJaMap: Record<string, string> = {
+        POWER_MODIFY_PER_LRIG_LEVEL: 'センタールリグのレベル',
+        POWER_MODIFY_PER_ENERGY: 'エナゾーンのカード枚数',
+        POWER_MODIFY_PER_CHARM: '【チャーム】の枚数',
+        POWER_MODIFY_PER_DECK_COUNT: 'デッキの枚数',
+        POWER_MODIFY_PER_ENERGY_COLOR: 'エナゾーンの色の種類数',
+        POWER_MODIFY_PER_VIRUS_COUNT: '【ウィルス】の数',
+      };
+      const per = perJaMap[a.type] ?? a.type.replace('POWER_MODIFY_PER_', '') + '数';
       const d = a.deltaPerUnit ?? a.deltaPerLevel ?? a.deltaPerLife ?? a.delta ?? a.deltaPerColor ?? 0;
       // count!=='ALL' かつ self/any =「このシグニ」（常時自己強化）
       const thisOnlyPC = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || a.target?.owner === 'any');
       const tgtPC = thisOnlyPC ? 'このシグニ' : targetJa(a.target);
-      return `${tgtPC}のパワーを${per}数に応じて${d >= 0 ? '＋' : '－'}${Math.abs(d)}ずつ変更する`;
+      return `${tgtPC}のパワーを${per}に応じて${d >= 0 ? '＋' : '－'}${Math.abs(d)}ずつ変更する`;
     }
     case 'PLAY_FREE': {
       const srcLoc: Record<string, string> = {
