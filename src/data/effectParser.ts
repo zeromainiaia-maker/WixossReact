@@ -641,6 +641,27 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3g: 「あなたのトラッシュに＜X＞(か＜Y＞)*のシグニがN枚以上あるかぎり、」（トラッシュのクラス指定枚数条件。G090）
+  const trashStoryCountM = text.match(/^あなたのトラッシュに((?:＜[^＞]+＞(?:か)?)+)のシグニが([０-９\d]+)枚以上あるかぎり、/);
+  if (trashStoryCountM) {
+    const storyFilter = parseStoryFilter(trashStoryCountM[1]);
+    return {
+      condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter }, minCount: parseNum(trashStoryCountM[2]) },
+      rest: text.slice(trashStoryCountM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン3h: 「このターンにあなたが手札をN枚以上捨てていた場合、」（このターンの手札捨て枚数条件。G088）
+  const turnDiscardM = text.match(/^このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合、/);
+  if (turnDiscardM) {
+    return {
+      condition: { type: 'TURN_HAND_DISCARD_GTE', value: parseNum(turnDiscardM[1]) } as ActiveCondition,
+      rest: text.slice(turnDiscardM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3f: 「このシグニがアクセされているかぎり、」（自身にアクセが付いている条件。G078）
   if (text.startsWith('このシグニがアクセされているかぎり、')) {
     return {
