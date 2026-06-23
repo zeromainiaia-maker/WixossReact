@@ -16,7 +16,10 @@ export function hasKeyword(
   bonds?: string[], // 絆アイコン効果チェック用（プレイヤーが絆獲得済みのカード名一覧）
   extraGrants?: Record<string, string[]>, // UNTIL_OPP_TURN_END で付与されたキーワード
   fieldKeywords?: string[], // 自ターン中に全自シグニが得ているキーワード（field_keyword_grants_active）
+  abilitiesRemoved?: string[], // REMOVE_ABILITIES で能力を失っているシグニ（印字・付与いずれのキーワードも持たない）
 ): boolean {
+  // 能力を失っているシグニはいかなるキーワードも持たない（「能力を失い、新たに得られない」。G085 等）
+  if (abilitiesRemoved?.includes(cardNum)) return false;
   const card = cardMap.get(cardNum);
   const matches = (kw: string) => kw === keyword || kw.startsWith(keyword + ':');
   if (card?.effects?.some(e => {
