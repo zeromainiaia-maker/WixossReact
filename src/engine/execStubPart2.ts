@@ -18,6 +18,7 @@ import {
   removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination,
   getCardNum,
   createTokenInstanceId,
+  resolveTokenBase,
 } from './execUtils';
 
 export function execStubPart2(
