@@ -5664,6 +5664,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.timing?.includes('ON_PLAY') &&
         (e.triggerScope === undefined || e.triggerScope === 'self') &&
         e.mandatory !== false &&
+        // byEffect:「（シグニの）効果によって場に出たとき」限定（G079）は手札からの通常召喚では発火しない
+        !e.triggerCondition?.byEffect &&
         // activeCondition（英知=N等）を満たさない【出】は発火しない
         (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, true, battleCardMap, cardNum)) &&
         // THIS_CARD_FROM_TRASH 条件のみ収集時に評価（手札召喚では false）
