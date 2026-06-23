@@ -147,6 +147,8 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   if (text.includes('アップ状態')) filter.isUp = true;
   if (text.includes('ダウン状態') && !text.includes('ダウン状態で場に出')) filter.isDown = true;
   if (text.includes('凍結状態')) filter.isFrozen = true;
+  // 「あなたの他の（＜X＞の）シグニ」= 効果元シグニ自身を対象から除外（execTrash等が filter.excludeSelf を尊重）
+  if (/他の[^。、]*シグニ/.test(text)) filter.excludeSelf = true;
   return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
 }
 
