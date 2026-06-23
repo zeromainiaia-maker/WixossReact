@@ -606,6 +606,7 @@ export interface AddToFieldAction {
   source?: EffectTarget; // トラッシュ・エナ・手札など出処が明示される場合
   asDown?: boolean;      // true = ダウン状態で場に出す
   cardName?: string;     // ゲーム外からトークンを生成して場に出す場合のCardNum
+  optional?: boolean;    // true =「場に出してもよい」（出す/出さないを選択可能にする）
 }
 
 export interface FreezeAction {
