@@ -288,7 +288,8 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
     for (const num of selected) {
       const s = ownerState(tgt.owner, cur);
       const removed = removeFromField(num, s);
-      const withHand: PlayerState = { ...removed, hand: [...removed.hand, num] };
+      // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
+      const withHand: PlayerState = { ...removed, hand: [...removed.hand, num], turn_signi_returned_to_hand: true };
       cur = addLog(setOwnerState(tgt.owner, withHand, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}を手札に戻す`);
     }
