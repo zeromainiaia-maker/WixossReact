@@ -1876,10 +1876,11 @@ export function execStubPart2(
       });
     }
     // ADD_CARD_TO_LRIG_DECK（非HIDDEN）または1候補：全て追加
+    // 既存インスタンスが無い名前はゲーム外トークン（アクセクラフト等）として生成する。
     let sACLD2 = ctx.ownerState;
     let addedACLD = 0;
     for (const name of nameMatchesACLD) {
-      const inst = findInstance(sACLD2, name);
+      const inst = findInstance(sACLD2, name) ?? createTokenInstanceId(ctx.cardMap, name, sACLD2, ctx.otherState);
       if (inst) {
         sACLD2 = moveToLrigDeck(sACLD2, inst);
         addedACLD++;
