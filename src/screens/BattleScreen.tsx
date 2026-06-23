@@ -5159,6 +5159,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!eff.timing?.includes(event)) continue;
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any_ally' && scope !== 'any') continue;
+        // byEffect: 「効果によって場に出たとき」限定（WX11-054等）。この収集経路は手札からの通常召喚のため発火させない。
+        //   （効果による場出し経路＝REVEAL_UNTIL_TO_FIELD/SEED_BLOOM等は現状フィールドの any_ally トリガーを収集しないため、
+        //    他シグニが効果で場に出た場合の発火は未配線。自身が効果で場に出た場合は各召喚経路の自己ON_PLAY収集で発火する）
+        if (eff.triggerCondition?.byEffect && event === 'ON_PLAY') continue;
         // triggerFilter: ON_ATTACK_SIGNI等でトリガー元カードがフィルタを満たすか確認
         if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
