@@ -5227,6 +5227,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               : initStack(bs.active_user_id ?? user.id, rutfOnPlayEntries);
           }
         }
+
+        // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニへの他シグニの反応（G144/G145/WX11-054）。
+        const resumePlaceSourceIsSigni = battleCardMap.get(getCardNum(pe.sourceCardNum))?.Type === 'シグニ';
+        const resumePlaceEntries: StackEntry[] = [];
+        for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
+          resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni }));
+        }
+        for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
+          resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni }));
+        }
+        if (resumePlaceEntries.length > 0) {
+          const baseRP = (update.effect_stack as ReturnType<typeof initStack> | null) ?? (existingStack && !isStackDone(existingStack) ? existingStack : null);
+          update.effect_stack = baseRP
+            ? pushToStack(baseRP, resumePlaceEntries)
+            : initStack(bs.active_user_id ?? user.id, resumePlaceEntries);
+        }
       }
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
       await flushBattleLogs();
