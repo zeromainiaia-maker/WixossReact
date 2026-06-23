@@ -593,11 +593,12 @@ function evalConditionForContinuous(
     }
     case 'TRASH_HAS_CARD': {
       const stripCC = oppTrashColorLoss && cond.owner === 'self';
-      return st(cond.owner).trash.some(n => {
+      const matched = st(cond.owner).trash.filter(n => {
         const c = cardMap.get(n);
         if (!c) return false;
         return matchesFilter(stripCC ? { ...c, Color: '', CardClass: '' } : c, cond.filter);
-      });
+      }).length;
+      return matched >= (cond.minCount ?? 1);
     }
     case 'LRIG_LEVEL': {
       const lrig = st(cond.owner).field.lrig;
