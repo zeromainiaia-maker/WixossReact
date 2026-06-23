@@ -1852,10 +1852,38 @@ export function execStubPart2(
       lrig_trash: s.lrig_trash.filter(c => c !== inst),
       lrig_deck: s.lrig_deck.includes(inst) ? s.lrig_deck : [...s.lrig_deck, inst],
     });
+    // 既存インスタンスが無ければゲーム外からトークン（レゾナクラフト等）を生成して instanceId を返す。
+    // レゾナクラフトの候補（《白羅星姫 サタン》等）はデッキに無いため、CardName→CardNum を解決して新規IDを作る。
+    const normACLD = (s: string) => s.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+    const resolveOrCreate = (name: string): string | undefined => {
+      const existing = findInstance(ctx.ownerState, name);
+      if (existing) return existing;
+      const want = normACLD(name);
+      let base: string | undefined;
+      for (const [num, cd] of ctx.cardMap) {
+        if (normACLD(cd.CardName ?? '') === want && /クラフト|レゾナ/.test(cd.Type ?? '')) { base = getCardNum(num); break; }
+      }
+      if (!base) for (const [num, cd] of ctx.cardMap) {
+        if (normACLD(cd.CardName ?? '') === want) { base = getCardNum(num); break; }
+      }
+      if (!base) return undefined;
+      // 全領域を走査して既存連番の最大値+1で衝突しないIDを作る
+      let maxIdx = 0;
+      const baseACLD = base;
+      const scan = (arr?: (string | null)[] | null) => arr?.forEach(n => {
+        if (n && getCardNum(n) === baseACLD) { const i = parseInt(n.slice(baseACLD.length + 1), 10) || 0; if (i > maxIdx) maxIdx = i; }
+      });
+      const sa = ctx.ownerState, so = ctx.otherState;
+      for (const s of [sa, so]) {
+        scan(s.deck); scan(s.hand); scan(s.trash); scan(s.energy); scan(s.lrig_deck); scan(s.lrig_trash);
+        s.field.signi.forEach(z => scan(z)); scan(s.field.lrig); scan(s.field.free_zone);
+      }
+      return `${baseACLD}#${maxIdx + 1}`;
+    };
     // HIDDEN かつ 2候補ある場合：CHOOSE を提示
     if (stub.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN' && nameMatchesACLD.length >= 2) {
-      const instA = findInstance(ctx.ownerState, nameMatchesACLD[0]);
-      const instB = findInstance(ctx.ownerState, nameMatchesACLD[1]);
+      const instA = resolveOrCreate(nameMatchesACLD[0]);
+      const instB = resolveOrCreate(nameMatchesACLD[1]);
       const opts = [
         ...(instA ? [{ id: 'acldh_a', label: nameMatchesACLD[0], action: ({ type: 'STUB', id: 'INTERNAL_ACLDH_APPLY', value: instA } as StubAction) as EffectAction, available: true }] : []),
         ...(instB ? [{ id: 'acldh_b', label: nameMatchesACLD[1], action: ({ type: 'STUB', id: 'INTERNAL_ACLDH_APPLY', value: instB } as StubAction) as EffectAction, available: true }] : []),
