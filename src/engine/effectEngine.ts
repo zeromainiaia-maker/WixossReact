@@ -325,6 +325,12 @@ export function checkActiveCondition(
       return matched >= (cond.minCount ?? 1);
     }
 
+    case 'TRASH_HAS_CARD': {
+      const trashState = cond.owner === 'self' ? ownerState : otherState;
+      const matched = trashState.trash.filter(cn => matchesFilter(cardMap.get(cn), cond.filter)).length;
+      return matched >= (cond.minCount ?? 1);
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss));
   }
