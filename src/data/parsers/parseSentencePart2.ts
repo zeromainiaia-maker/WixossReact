@@ -1648,6 +1648,11 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SELF_TRASH_IF_NO_OPP_VIRUS' } as StubAction;
   }
 
+  // ---- 対戦相手の場に【チャーム】がない場合このシグニをトラッシュ ----
+  if (t.match(/対戦相手の場に【チャーム】がない場合.*このシグニを.*トラッシュに置く/)) {
+    return { type: 'STUB', id: 'SELF_TRASH_IF_NO_OPP_CHARM' } as StubAction;
+  }
+
   // ---- 対戦相手のシグニ１体とこのシグニが同じカードになる ----
   if (t.match(/対象のあなたのシグニ.*トラッシュにある.*シグニ.*と同じカードになる/)) {
     return { type: 'STUB', id: 'COPY_SIGNI' } as StubAction;
