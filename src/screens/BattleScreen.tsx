@@ -10762,6 +10762,63 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return [...lrigActionsMA, ...grantedActionsMA];
     }
 
+    // ATTACK_ARTSフェイズ（自分のアタックフェイズ）：《アタックフェイズアイコン》付きルリグ【起】（timing:['ATTACK_ARTS']）を表示。
+    // MAIN分岐のSONG_FRAGMENT/継承/ガードバリア等のMAIN固有処理は対象外（timingがATTACK_ARTSの能力のみ）。
+    if (bs.turn_phase === 'ATTACK_ARTS') {
+      const lrigTopAA = my.field.lrig.at(-1) ?? '';
+      const lrigActionsAA: CardAction[] = [];
+      const buildCostLabelAA = (eff: import('../types/effects').CardEffect): string => {
+        const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+        const exceedCost = eff.cost?.exceed ?? 0;
+        const parts: string[] = [];
+        if (exceedCost > 0) parts.push(`エクシード${exceedCost}`);
+        if (energyTotal > 0) parts.push(`エナ${energyTotal}`);
+        if (eff.cost?.discardAll) parts.push('手札すべて捨て');
+        if (eff.cost?.energyTrashAll) parts.push('エナすべトラッシュ');
+        return parts.join('・') || 'コストなし';
+      };
+      // センタールリグ本来のACTIVATED効果（timing ATTACK_ARTS）
+      if (lrigTopAA && !isActionBlocked('USE_ACT')) {
+        for (const eff of (effectsMap.get(lrigTopAA) ?? [])) {
+          if (eff.effectType !== 'ACTIVATED') continue;
+          if (!eff.timing?.includes('ATTACK_ARTS')) continue;
+          if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
+          if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
+          if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
+          if (my.blocked_actions?.includes(eff.effectId)) continue;
+          lrigActionsAA.push({
+            label: `【起】${buildCostLabelAA(eff)}`,
+            color: C.coin,
+            onClick: () => {
+              setPendingLrigGranted({ sourceCardNum: lrigTopAA, effect: eff });
+              setSelectedLrigGrantedCost(new Set());
+              setSelectedLrigGrantedHandDiscard(new Set());
+            },
+          });
+        }
+      }
+      // 付与された ACTIVATED 能力（timing ATTACK_ARTS）
+      const grantedActionsAA = grantedMyLrigEffects
+        .filter(e =>
+          e.effectType === 'ACTIVATED' &&
+          !!e.timing?.includes('ATTACK_ARTS') &&
+          !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
+          !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
+          !(my.blocked_actions?.includes(e.effectId)) &&
+          !isActionBlocked('USE_ACT'),
+        )
+        .map(eff => ({
+          label: `【起】${buildCostLabelAA(eff)}`,
+          color: C.coin,
+          onClick: () => {
+            setPendingLrigGranted({ sourceCardNum: lrigTopAA, effect: eff });
+            setSelectedLrigGrantedCost(new Set());
+            setSelectedLrigGrantedHandDiscard(new Set());
+          },
+        }));
+      return [...lrigActionsAA, ...grantedActionsAA];
+    }
+
     // ATTACK_LRIGフェイズ：ルリグアタック
     if (bs.turn_phase === 'ATTACK_LRIG') {
       if (my.field.lrig_down) return []; // 攻撃済み
