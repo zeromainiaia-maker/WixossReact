@@ -10494,6 +10494,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!stack || stack.length === 0) return [];
       const actPhase = bs.turn_phase; // 'MAIN' | 'ATTACK_ARTS'
       const topNum = stack[stack.length - 1];
+      // REMOVE_ABILITIES で能力を失っているシグニは【起】を発動できない（G085-E2 等）
+      if (my.abilities_removed?.includes(topNum)) return [];
       const effects = effectsMap.get(topNum) ?? [];
       // PREVENT_INFECTED_SIGNI_ACTIVATE: 感染状態のシグニの起動能力をブロック
       const infectedBlocked = collectInfectedActivateBlockedSigni(my, op, battleCardMap, effectsMap, true);
