@@ -1447,11 +1447,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_PLAY: 「あなたの[＜X＞の]シグニ[N体]が（効果によって）場に出たとき」= any_ally＋triggerFilter。「効果によって」= byEffect 限定
       if (timing[0] === 'ON_PLAY') {
         const allyPlayM = actionText.match(/^あなたの(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が(効果によって)?場に出たとき[、,]\s*(.+)/s);
+        // 所有者指定なしの「シグニ[N体]が場に出たとき」= any（両者のシグニ。自身も含む。G085「（このシグニが場に出たときも発動する）」）。
+        const anyPlayM = !allyPlayM && actionText.match(/^シグニ(?:[０-９\d]+体)?が場に出たとき[、,]\s*(.+)/s);
         if (allyPlayM) {
           extractedTriggerScope = 'any_ally';
           if (allyPlayM[1]) extractedTriggerFilter = { story: allyPlayM[1] };
           if (allyPlayM[2]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
           actionText = allyPlayM[3];
+        } else if (anyPlayM) {
+          extractedTriggerScope = 'any';
+          actionText = anyPlayM[1];
         } else {
           // 「（このシグニが）（シグニの）効果によって場に出たとき」= self 限定。
           // 「シグニの効果によって」= bySigniEffect（シグニの効果のみ）／「効果によって」= byEffect（任意の効果）。
