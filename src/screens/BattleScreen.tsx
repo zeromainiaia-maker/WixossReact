@@ -1048,6 +1048,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // v0.278: WX25-P2-001 付与【起】（ガードシグニ捨て→ルリグバリア）
   const [pendingGuardBarrierAct, setPendingGuardBarrierAct] = useState(false);
   const [selectedBarrierGuardCard, setSelectedBarrierGuardCard] = useState<number | null>(null);
+  // G154 BURST: アタック無効化を「手札N枚捨て」で回避するか選択（NEGATE_ATTACK escapeDiscard）
+  const [negateEscape, setNegateEscape] = useState<{ zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null>(null);
+  const [selectedNegateEscape, setSelectedNegateEscape] = useState<Set<number>>(new Set());
   const [pendingCutinCard, setPendingCutinCard] = useState<CutinCandidate | null>(null);
   const [selectedCutinCost, setSelectedCutinCost] = useState<Set<number>>(new Set());
   const [selectedCutinExceed, setSelectedCutinExceed] = useState<Set<number>>(new Set());
