@@ -21,6 +21,15 @@
 
 呼び出し元は `ADD_CARD_TO_LRIG_DECK_HIDDEN` でレゾナをルリグデッキに加え、出現条件を満たして場に出す。
 
+> 2026-06-23 修正（G039）: 旧実装は `findInstance` で既存ゾーン（lrig_deck/deck/hand/lrig_trash）のみ
+> を探していたため、デッキに存在しないレゾナクラフトを **1枚も追加できていなかった**（候補レゾナが
+> `battleCardNums` 未登録でcardMapにも無し）。さらに前段「《X》１枚と《Y》１枚を公開する」が
+> `OPTIONAL_COST` に誤マッピングされ不要な「発動しますか？」プロンプトが出ていた。
+> → ① パーサ（`parseSentencePart4.ts`）の当該パターンを no-op(`RULE_REMINDER_TEXT`)化、
+> ② `ADD_CARD_TO_LRIG_DECK_HIDDEN`（`execStubPart2.ts`）に **ゲーム外トークン生成**（CardName→CardNum
+> 解決＋新規instanceId）を追加、③ 候補レゾナ10種を `battleCardNums` に常時ロード登録。
+> 検証: `scripts/_verifyG039.ts`（7項目パス）。
+
 | トークン | 呼び出し元 | 状況 |
 |---|---|---|
 | WXDi-P11-TK01/02 サタン・フルムーン | WXDi-P11-013 サシェ・クラフト | ✅ |
