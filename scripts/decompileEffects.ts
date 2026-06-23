@@ -398,7 +398,7 @@ function actionJa(a?: Action, effectType?: string): string {
         : targetJa(a.target);
       return `${subjGE}は『${effJa(a.effect)}』を得る${durJaGE}`;
     }
-    case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失う${a.frontOfSelf ? '（正面）' : ''}`;
+    case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : ''}`;
     case 'GRANT_PROTECTION': {
       const subject = a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ';
       if (a.fromAll && a.exceptSource) {
