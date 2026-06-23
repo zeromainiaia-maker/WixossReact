@@ -317,6 +317,12 @@ export function checkActiveCondition(
       return (gateState.own_gate_zones ?? []).length > 0;
     }
 
+    case 'ENERGY_HAS_CARD': {
+      const enaState = cond.owner === 'self' ? ownerState : otherState;
+      const matched = enaState.energy.filter(cn => matchesFilter(cardMap.get(cn), cond.filter)).length;
+      return matched >= (cond.minCount ?? 1);
+    }
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss));
   }
