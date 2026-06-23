@@ -4187,12 +4187,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(cur);
     }
     case 'NEGATE_ATTACK': {
-      // cardNum を対象シグニの negated_attacks に追加
+      // cardNum を対象シグニ/ルリグの negated_attacks に追加
       const na = action as import('../types/effects').NegateAttackAction;
       const tgtOwner = na.target.owner === 'any' ? 'opponent' : na.target.owner as Owner;
       const s = ownerState(tgtOwner, ctx);
       const negated = [...(s.negated_attacks ?? []), cardNum];
-      const newS = { ...s, negated_attacks: negated };
+      // escapeDiscard: アタック側が手札N枚捨てで回避可（G154 BURST）
+      const escape = na.escapeDiscard ? { ...(s.negated_attacks_escape ?? {}), [cardNum]: na.escapeDiscard } : s.negated_attacks_escape;
+      const newS = { ...s, negated_attacks: negated, ...(escape ? { negated_attacks_escape: escape } : {}) };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
