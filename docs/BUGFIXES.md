@@ -5,6 +5,17 @@
 
 ---
 
+## 逆翻訳割れグループ G001/G002/G003 の修正（条件・対象欠落）（2026-06-23）
+
+`grouped_all.txt` の「★逆翻訳が割れているグループ（要確認）」3件（計6枚）を修正。原文は同型なのに、AUTOパースで条件・対象が欠落し「あなたのシグニ1体を無条件強化」へ退化していた（同型の WXK02-081/090/099 が正データ）。修正後、★割れグループは **3→0**。
+
+- **G001**（このターン手札1枚以上捨てた場合このシグニ＋N）: WDK06-R13/R15 に `activeCondition:{TURN_HAND_DISCARD_GTE,value:1}` と `target.filter.thisCardOnly` を追加。
+- **G002**（カードを引いたときターン終了時までこのシグニ＋N）: WDK05-R13/R15 は `timing` が誤って `ON_TURN_END`（正:`ON_DRAW`）＋`thisCardOnly` 欠落。両方修正（usageLimit twice/once は据置）。
+- **G003**（トラッシュに＜武勇＞シグニN枚以上あるかぎりこのシグニ＋N）: WDK06-C13(5枚以上)/C15(3枚以上) に `activeCondition:{TRASH_HAS_CARD,武勇,minCount}` と `thisCardOnly` を追加。
+- エンジンは `TURN_HAND_DISCARD_GTE`/`ON_DRAW`/`TRASH_HAS_CARD`/`thisCardOnly` を既にサポート済み＝データ修正のみで実装も揃う。`docs/decompile_sheet5.txt`・`docs/grouped_all.txt` 再生成済み。
+
+---
+
 ## COPY_LRIG_NAME_ABILITY の【常】能力コピー実装（2026-06-23）
 
 P4エクシード等「ルリグトラッシュのレベル3の＜X＞と同じカード名としても扱い、そのルリグの【常】能力を得る」（該当=WX24-P4-021＜ひとえ＞）を実装。従来は名前エイリアス＋【自】コピー（`collectCopiedLrigAutoEffects`）のみで、【常】コピーは未対応だった。
