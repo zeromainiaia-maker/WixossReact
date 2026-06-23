@@ -1407,7 +1407,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       }
       break;
     case '起':
-      effectType = 'ACTIVATED'; timing = ['MAIN'];
+      effectType = 'ACTIVATED';
       // 使用フェイズはコスト先頭のアイコンで決まる（スペルカットイン／アタックフェイズ／メインフェイズ）。
       // 手札起動（手札からこのカードを捨てる）でも場の【起】でも同様にアイコンで判定する（G082「【起】《アタックフェイズアイコン》このシグニを場からトラッシュに置く」）。
       {
