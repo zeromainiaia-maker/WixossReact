@@ -952,6 +952,54 @@ function splitSentences(text: string): string[] {
 // ===== アクションテキスト全体パース =====
 
 function parseActionText(text: string): EffectAction {
+  // ---- リコレクトアイコン分割（最優先：他の早期returnに飲み込まれる前に処理する） ----
+  // 《リコレクトアイコン》［N枚以上］を境界に base（前）と bonus/replacement（後）へ分割する。
+  // リコレクトは「ルリグトラッシュのアーツ枚数」で判定し、使用中のアーツ自身(sourceCardNum)は数えない（excludeSource）。
+  //  - 「追加で」/ アイコン直後効果 = 条件達成時に追加発動 → base + RECOLLECT_GATE + bonus
+  //  - 「代わりに」                 = 条件達成時に基本効果を置換 → CONDITIONAL(then=置換 / else=基本)
+  {
+    const iconIdx = text.indexOf('《リコレクトアイコン》［');
+    const head = iconIdx >= 0
+      ? text.slice(iconIdx).match(/^《リコレクトアイコン》［([０-９\d]+)枚以上］(代わりに|追加で)?[、,]?/)
+      : null;
+    if (head) {
+      const minArts = parseNum(head[1]);
+      const mode = head[2]; // '代わりに' | '追加で' | undefined
+      const baseText = text.slice(0, iconIdx).trim().replace(/。$/, '');
+      // 末尾のルール注釈（丸括弧）を除去してから bonus を取り出す
+      const bonusText = text.slice(iconIdx + head[0].length).trim().replace(/（[^（）]*）\s*$/, '').trim();
+      const recoCond = { type: 'LRIG_TRASH_COUNT' as const, cardType: 'アーツ' as const, operator: 'gte' as const, value: minArts, excludeSource: true };
+      // SEQUENCE を平坦化しつつ UNKNOWN ステップを除去して push するヘルパー
+      const pushFlat = (arr: EffectAction[], a: EffectAction) => {
+        if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') arr.push(st); }
+        else if (a.type !== 'UNKNOWN') arr.push(a);
+      };
+
+      const baseAction = baseText ? parseActionText(baseText) : null;
+      // base 全体がパース不能（例:「以下のN個から1つ選ぶ」だけが残る選択数変更型）なら
+      // 分割を諦めて通常パースにフォールバック（UNKNOWN 退化を防ぐ）。
+      const baseUnknown = !!baseText && baseAction!.type === 'UNKNOWN';
+
+      if (mode === '代わりに' && baseText && !baseUnknown) {
+        const thenAction = parseActionText(bonusText);
+        if (thenAction.type !== 'UNKNOWN') {
+          return { type: 'CONDITIONAL', condition: recoCond, then: thenAction, else: baseAction! };
+        }
+        // bonus がパース不能なら分割を諦める
+      } else if (mode !== '代わりに' && !baseUnknown) {
+        // 追加で / アイコン直後効果（baseText が空の場合も含む）: base + GATE + bonus
+        const flat: EffectAction[] = [];
+        if (baseAction) pushFlat(flat, baseAction);
+        flat.push({ type: 'RECOLLECT_GATE', minArts });
+        // bonus 先頭が「…対象とする。」のみの文なら剥がす（本体効果は後続文にある＝余計な対象STUBを避ける）。
+        const strippedBonus = bonusText.replace(/^[^。]*?対象とする。/, '').trim();
+        const effBonus = strippedBonus || bonusText;
+        if (effBonus && !/^[^。]*?対象とする$/.test(effBonus)) pushFlat(flat, parseActionText(effBonus));
+        return flat.length === 1 ? flat[0] : { type: 'SEQUENCE', steps: flat };
+      }
+      // ここに来た場合は分割を諦め、以降の通常パースに委ねる
+    }
+  }
   // ---- ARTS_SELF_RECYCLE_ON_TRIGGER: コスト支払いでルリグトラッシュ→ルリグデッキへ戻す ----
   if (text.match(/《[^》]+》を支払ってもよい。そうした場合、このカードを(?:あなたの)?ルリグトラッシュからルリグデッキに戻す/))
     return { type: 'STUB', id: 'ARTS_SELF_RECYCLE_ON_TRIGGER' } as import('../types/effects').StubAction;

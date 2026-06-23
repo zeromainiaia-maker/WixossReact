@@ -627,6 +627,18 @@ function evalConditionForContinuous(
       if (!name) return false;
       return ownerState.bonds?.includes(name) ?? false;
     }
+    case 'LRIG_TRASH_COUNT': {
+      const types = cond.cardType
+        ? (Array.isArray(cond.cardType) ? cond.cardType : [cond.cardType])
+        : null;
+      const cnt = ownerState.lrig_trash.filter(n => {
+        if (cond.excludeSource && n === sourceCardNum) return false;
+        const c = cardMap.get(n);
+        if (!c) return false;
+        return types ? types.includes(c.Type as typeof types[number]) : true;
+      }).length;
+      return cmp(cnt, cond.operator, cond.value);
+    }
     case 'AND':
       return cond.conditions.every(c => evalConditionForContinuous(c, ownerState, otherState, cardMap, sourceCardNum, oppTrashColorLoss));
     default:

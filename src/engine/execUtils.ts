@@ -648,6 +648,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         ? (Array.isArray(cond.cardType) ? cond.cardType : [cond.cardType])
         : null;
       const cnt = ctx.ownerState.lrig_trash.filter(n => {
+        // excludeSource: 使用中のカード自身（sourceCardNum）はまだルリグトラッシュに置かれていない扱い＝リコレクト判定
+        if (cond.excludeSource && n === ctx.sourceCardNum) return false;
         const c = ctx.cardMap.get(n);
         if (!c) return false;
         return types ? types.includes(c.Type as typeof types[number]) : true;
