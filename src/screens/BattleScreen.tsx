@@ -2945,6 +2945,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return result;
   };
 
+  // 効果で新たに場に出たシグニ（各ゾーン最前面で、before のフィールドに存在しなかった instanceId）を検出。
+  // 効果配置経路の any_ally ON_PLAY 発火（G144/G145/WX11-054「他のシグニが効果で場に出たとき」）用。
+  const detectPlacedSigni = (before: PlayerState, after: PlayerState): string[] => {
+    const beforeOnField = new Set<string>();
+    for (const stack of before.field.signi) for (const cn of (stack ?? [])) beforeOnField.add(cn);
+    const result: string[] = [];
+    for (const stack of after.field.signi) {
+      const top = stack?.at(-1);
+      if (top && !beforeOnField.has(top)) result.push(top);
+    }
+    return result;
+  };
+
   // トラッシュからエナゾーンに移動したカードを検出（ON_ENERGY_FROM_TRASHトリガー用）
   const detectEnergyFromTrash = (before: PlayerState, after: PlayerState): string[] => {
     const newInEnergy = after.energy.filter(n => !before.energy.includes(n));
