@@ -1624,6 +1624,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const pm = a as import('../types/effects').PowerModifyAction;
         if (pm.target?.owner === 'self' && pm.target?.count === 1) return { ...pm, targetsTriggerSource: true };
       }
+      if (a.type === 'GRANT_KEYWORD') {
+        const gk = a as import('../types/effects').GrantKeywordAction;
+        if (gk.target?.owner === 'self' && gk.target?.count === 1 && !gk.target.filter) return { ...gk, targetsTriggerSource: true };
+      }
       if (a.type === 'SEQUENCE') {
         const seq = a as import('../types/effects').SequenceAction;
         return { ...seq, steps: seq.steps.map(markSelfPM) };

@@ -5,6 +5,17 @@
 
 ---
 
+## GRANT_KEYWORD に targetsTriggerSource を追加（ON_ZONE_MOVED 配線の仕上げ・2026-06-23）
+
+ON_ZONE_MOVED 配線の残課題だった「移動シグニ自身への【KW】付与」を正式対応。self-scope では既存の `!tgt.filter && sourceCardNum∈cands` 自動付与（execGrantKeyword:1281）でプロンプトは出ないが、any_ally/any_opp で「それ＝移動シグニ ≠ 効果元カード」の場合に正しく解決できなかった。
+
+- **types:** `GrantKeywordAction.targetsTriggerSource` 追加。
+- **engine:** execGrantKeyword 冒頭（targetsLastProcessed の次）に `triggeringCardNum→sourceCardNum` を所属フィールド判定して keyword_grants へ無選択付与する分岐を追加（POWER_MODIFY の targetsTriggerSource と同思想）。
+- **parser:** effectParser の ON_ZONE_MOVED self 後処理（markSelfPM）が POWER_MODIFY に加え GRANT_KEYWORD(self,count:1,filterなし)も自動マーク。
+- **decompile:** GRANT_KEYWORD の targetsTriggerSource を「それ（トリガー元シグニ）は【KW】を得る」と描画。
+- **WXK03-073:** SEQUENCE の GRANT_KEYWORD(ランサー)に targetsTriggerSource を付与（JSON 直・MANUAL）。+2000 もランサーも移動シグニ自身に適用されることを decompile で確認。
+- 検証: `npm run typecheck` 通過。`verifyEffects` 退化なし。
+
 ## G074「パワーはエナの色の種類1つにつき＋N」CONTINUOUS が未実装だったのを配線（2026-06-23）
 
 逆翻訳の同型グルーピング（grouped_all.txt G074）で「あなたのシグニ1体のパワーを…」と出ていた（原文は「**このシグニ**のパワーは…」）。調査したところ、表現の誤りだけでなく **`POWER_MODIFY_PER_ENERGY_COLOR` アクションが CONTINUOUS パワー計算（effectEngine.calcFieldPowers）に一切配線されておらず、+N が全く適用されない完全未実装**だった（effectExecutor 側は「effectEngine処理」とログするだけのプレースホルダ）。

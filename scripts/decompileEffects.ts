@@ -377,6 +377,8 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.target?.filter?.thisCardOnly) return `このシグニは【${a.keyword}】を持つ${durJa}`;
       // targetsLastProcessed:「それ」= 直前に選択/処理したシグニへ付与
       if (a.targetsLastProcessed) return `それは【${a.keyword}】を得る${durJa}`;
+      // targetsTriggerSource:「それ（トリガー元シグニ）」へ付与
+      if (a.targetsTriggerSource) return `それ（トリガー元シグニ）は【${a.keyword}】を得る${durJa}`;
       return `${targetJa(a.target)}に【${a.keyword}】を与える${durJa}`;
     }
     case 'GRANT_EFFECT': {

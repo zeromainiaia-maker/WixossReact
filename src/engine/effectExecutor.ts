@@ -1208,6 +1208,21 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     }
     return done(cur);
   }
+  // targetsTriggerSource:「このシグニ/それ」= トリガー元シグニ（triggeringCardNum→sourceCardNum）へ無選択付与（ON_ZONE_MOVED self 等）
+  if (a.targetsTriggerSource) {
+    const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+    if (!autoNum) return done(ctx);
+    let owner: Owner | null = null;
+    if (ctx.ownerState.field.signi.some(s => s?.at(-1) === autoNum)) owner = 'self';
+    else if (ctx.otherState.field.signi.some(s => s?.at(-1) === autoNum)) owner = 'opponent';
+    if (!owner) return done(ctx);
+    const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
+    const s = ownerState(owner, ctx);
+    const grants = { ...(s[gkey] ?? {}) };
+    grants[autoNum] = [...new Set([...(grants[autoNum] ?? []), a.keyword])];
+    return done(addLog(setOwnerState(owner, { ...s, [gkey]: grants }, ctx),
+      `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}に「${a.keyword}」を付与`));
+  }
   const tgt = a.target;
   // duration:NEXT_TURN かつ「あなたのすべてのシグニ」（クラス等の絞り込みなし）への付与
   // → 次の自分ターン中に存在する全シグニ（新たに出したシグニも含む）が得る場全体付与として予約する。

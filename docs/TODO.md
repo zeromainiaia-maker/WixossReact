@@ -153,7 +153,7 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 
 **G073 系（ON_ZONE_MOVED）の engine 配線 — 完了（2026-06-23・ymst）:**
 - 配線済（BUGFIXES 参照）。移動実行3パス（`INTERNAL_MOVE_TO_ZONE` / `INTERNAL_REPOSITION_TO_ZONE` / `INTERNAL_REPOSITION_MOVE` / `REARRANGE_SIGNI` 解決）が `zone_moved_just` フラグを所有者 state に積み、BattleScreen の watcher が `collectZoneMovedTriggers` で scope 別（self/any_ally=mover側・any_opp=相手側・any=両方）に発火・クリア。テキスト読み取りハックは撤去。
-- **残課題:** GRANT_KEYWORD は `targetsTriggerSource` 非対応のため、「このシグニは【KW】を得る」系（WXK03-073 のランサー等）は移動時に対象選択プロンプトが出る（power 部は targetsTriggerSource で自動。WXK03-073 は JSON 直 SEQUENCE 化で +2000 を保持）。必要なら GrantKeywordAction に targetsTriggerSource を追加し execGrantKeyword で解決する。
+- **GRANT_KEYWORD の targetsTriggerSource 対応済（2026-06-23）:** GrantKeywordAction に `targetsTriggerSource` を追加し execGrantKeyword で `triggeringCardNum→sourceCardNum` へ無選択付与。effectParser の ON_ZONE_MOVED self 後処理が POWER_MODIFY に加え GRANT_KEYWORD(self,count:1,filterなし) も自動マーク。WXK03-073 はランサーも +2000 も移動シグニ自身に適用（JSON 直 SEQUENCE・MANUAL）。
 
 **次の一手（zerom）: 文型★のトリアージ。**
 - `grouped_sentence_all.txt` に **344文型 / 1580枚**。ただし誤検出が多い。
