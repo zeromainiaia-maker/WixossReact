@@ -6,6 +6,19 @@
 
 凡例：✅=実装済 / ⚠️=部分的・要確認 / ❌=未実装
 
+## cardMap ロード監査（2026-06-23）
+
+トークンが対戦中 `battleCardMap`（cardMap）に載るのは **`BattleScreen.tsx` の `battleCardNums` に含まれる場合のみ**
+（`battleCards`=`allCards` には全TKデータが入っているが、`battleCardNums` でフィルタされる）。
+`addState` が走査する領域（deck/lrig_deck/hand/field.signi スタック/free_zone/charms/soul/seeds 等）に
+インスタンスが入れば反応的にロードされるが、**`signi_acce` と `hastarliq_zones` は非走査**のため、
+そこへ置くトークンは静的登録が必須。
+
+監査の結果、CardData_TK.csv 全46件のうち19件が `battleCardNums` 未登録だった（G039の5レゾナ含む）。
+特にアクセクラフト（WXDi-P09-TK01A〜03A→signi_acce）とハスターリク（WXDi-P05-TK01A→hastarliq_zones）は
+反応的ロードもされず確実に欠落していた。**→ 全46件を `battleCardNums` に明示登録して恒久対策済み。**
+（`scripts/_auditTokenCardMap.mts` で 46/46 登録・未登録0 を確認。）
+
 ## 1. クラフト系アーツ／スペル／ピース（ルリグデッキに加えるタイプ）
 
 | トークン | 呼び出し元 | 生成機構 | 状況 |
