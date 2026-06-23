@@ -19,6 +19,21 @@
 反応的ロードもされず確実に欠落していた。**→ 全46件を `battleCardNums` に明示登録して恒久対策済み。**
 （`scripts/_auditTokenCardMap.mts` で 46/46 登録・未登録0 を確認。）
 
+## トークン生成ロジック修正（2026-06-23）
+
+cardMap 登録とは別に、**トークンを実体生成する生成側ロジック**も複数壊れていた（G039型）。
+共通ヘルパー `createTokenInstanceId` / `resolveTokenBase` / `freshTokenInstanceId`（`execUtils.ts`）を追加し、
+CardName→CardNum 解決＋衝突しない新規 instanceId 生成を各機構に配線した。
+
+| 機構 | 対象 | 旧バグ | 修正 |
+|---|---|---|---|
+| `ADD_CARD_TO_LRIG_DECK`(非HIDDEN) | アクセクラフト3種（WXDi-P09-007） | findInstanceのみ＝0枚追加 | 無ければゲーム外生成 |
+| `ADD_CRAFT_TO_LRIG_DECK` | 棘々迷路/改造素材/インビンシブル（WXK01-042/WXK09-015/WXDi-P16-009 ほか） | `sourceCardNum`＝本体カード自身を追加 | 原文《クラフト名》を解決→生成 |
+| `PLACE_CARD_UNDER_SIGNI` | 給食推進車両/虎丸（WX25-CP1-083/WXDi-CP02-061） | 既存カードのスタックのみ＝トークン非生成 | 「クラフトの《X》を下に置く」を生成しスタック下へ |
+| `CRAFT_TO_LRIG_DECK`(セット選択) | フェゾーネマジック/ダークアーツ 各5種（WXDi-P14-006ほか/WX25-P1-034） | クラフトカードなしで終了 | 固定5種からN種をCHOOSE→`INTERNAL_GEN_TOKEN_TO_LRIG_DECK`で生成 |
+
+検証: `scripts/_verifyTokenGen.ts`（14項目パス）。`scripts/_verifyG039.ts`（7）/`_verifyRakkaServantZero.ts`（7）に回帰なし。
+
 ## 1. クラフト系アーツ／スペル／ピース（ルリグデッキに加えるタイプ）
 
 | トークン | 呼び出し元 | 生成機構 | 状況 |
