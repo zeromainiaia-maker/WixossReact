@@ -7087,6 +7087,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     attacker: PlayerState; defender: PlayerState;
     attackerId: string; defenderId: string;
     attackerKey: 'host_state' | 'guest_state';
+    targetOpZone?: number; // 【側面アタック】: 正面(2-zoneIndex)ではなく指定した相手シグニゾーンを攻撃。シグニ無ければ何も起きない・ライフダメージなし
   }) => {
     const { attacker: my, defender: op, attackerId, defenderId } = p;
     const attackerIsHost = p.attackerKey === 'host_state';
@@ -7098,12 +7099,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (my.blocked_actions?.includes(`ATTACK:${myTopNum}`)) return;
 
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
-      let opZoneIndex = 2 - zoneIndex; // 正面ゾーン（表示反転を考慮）
+      const isSideAttack = p.targetOpZone !== undefined; // 【側面アタック】
+      let opZoneIndex = p.targetOpZone ?? (2 - zoneIndex); // 正面ゾーン（表示反転を考慮）／側面アタックは指定ゾーン
       let opStack = op.field.signi[opZoneIndex] ?? [];
       let opTopCardNum: string | null = opStack.length > 0 ? opStack[opStack.length - 1] : null;
 
-      // REDIRECT_ATTACK_TO_SELF_ZONE: 正面が空の場合、このSTUBを持つ相手シグニのゾーンへリダイレクト
-      if (!opTopCardNum) {
+      // REDIRECT_ATTACK_TO_SELF_ZONE: 正面が空の場合、このSTUBを持つ相手シグニのゾーンへリダイレクト（側面アタックは対象固定のため対象外）
+      if (!opTopCardNum && !isSideAttack) {
         for (let zi = 0; zi < op.field.signi.length; zi++) {
           const top = op.field.signi[zi]?.at(-1);
           if (!top) continue;
@@ -7178,7 +7180,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const allyAttackEntries = collectFieldTriggers('ON_ATTACK_SIGNI', myTopNum, newMyState, newOpState, attackerId);
 
       // ON_ATTACK_SIGNIトリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
-      const opFrontZoneIdx = 2 - zoneIndex;
+      const opFrontZoneIdx = p.targetOpZone ?? (2 - zoneIndex); // 側面アタックは攻撃先＝指定ゾーン
       const opAtkedEntries: StackEntry[] = [];
       const opPlayerId = defenderId;
       newOpState.field.signi.forEach((opSigniStack, ozi) => {
@@ -7230,7 +7232,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_OPP_SIGNI_ATTACK_DIRECT: 正面が空（=守備側ルリグへの直接アタック）のとき、
       // 守備側ルリグの「コストを払ってアタックを無効にしてもよい」能力をスタックに積んで提示する（WX04-004-E2）。
       // STUB(OPP_DIRECT_ATTACK_NEGATE)が支払い可否判定・選択・アタッカーのキャンセルフラグ設定までを担う。
-      if (!opTopCardNum) {
+      // 側面アタックはシグニゾーンへの攻撃で直接アタックではないため対象外。
+      if (!opTopCardNum && !isSideAttack) {
         const defLrigTop = newOpState.field.lrig.at(-1);
         if (defLrigTop) {
           for (const de of (effectsMap.get(defLrigTop) ?? effectsMap.get(getCardNum(defLrigTop)) ?? [])) {
@@ -7247,8 +7250,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      // バトル解決前にON_ATTACK_SIGNIを処理するため pending_signi_battle をセット
-      const newMyStateWithPending: PlayerState = { ...newMyState, pending_signi_battle: { zoneIndex } };
+      // バトル解決前にON_ATTACK_SIGNIを処理するため pending_signi_battle をセット（側面アタックは攻撃先ゾーンを保持）
+      const newMyStateWithPending: PlayerState = { ...newMyState, pending_signi_battle: { zoneIndex, ...(isSideAttack ? { targetOpZone: p.targetOpZone } : {}) } };
 
       const allAttackTriggers = [...attackEntries, ...allyAttackEntries, ...opAtkedEntries];
       if (allAttackTriggers.length > 0) {
@@ -7308,7 +7311,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ) => {
     if (!myS.pending_signi_battle) return;
     if (loading) return;
-    const { zoneIndex } = myS.pending_signi_battle;
+    const { zoneIndex, targetOpZone } = myS.pending_signi_battle;
+    const isSideAttack = targetOpZone !== undefined; // 【側面アタック】: 指定ゾーンを攻撃・ライフダメージなし
     const opKey = myKey === 'host_state' ? 'guest_state' : 'host_state';
     const attackerIsHost = myKey === 'host_state';
     setLoading(true);
@@ -7342,13 +7346,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      let opZoneIndex = 2 - zoneIndex;
+      let opZoneIndex = targetOpZone ?? (2 - zoneIndex); // 側面アタックは指定ゾーン
       let opStack = opS.field.signi[opZoneIndex] ?? [];
       let opTopCardNum: string | null = opStack.length > 0 ? opStack[opStack.length - 1] : null;
       let opTopCard = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;
 
-      // REDIRECT_ATTACK_TO_SELF_ZONE
-      if (!opTopCardNum) {
+      // REDIRECT_ATTACK_TO_SELF_ZONE（側面アタックは対象固定のため対象外）
+      if (!opTopCardNum && !isSideAttack) {
         for (let zi = 0; zi < opS.field.signi.length; zi++) {
           const top = opS.field.signi[zi]?.at(-1);
           if (!top) continue;
@@ -7459,7 +7463,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (hasNoBattleDefender && opTopCardNum) {
         appendBattleLogs([`${battleCardMap.get(opTopCardNum)?.CardName ?? opTopCardNum}はバトルしない（ダメージは受ける）`]);
       }
-      const effectivelyEmpty = !opTopCardNum || isAssassin || hasNoBattleDefender;
+      // 側面アタック: シグニゾーンへの攻撃。アサシン等の直接アタック化は無視し、シグニがいればバトル・いなければ何もしない。
+      const effectivelyEmpty = isSideAttack ? !opTopCardNum : (!opTopCardNum || isAssassin || hasNoBattleDefender);
 
       if (!effectivelyEmpty && opTopCardNum && opTopCard) {
         // ─── 通常バトル（正面シグニあり・アサシンなし）───
@@ -7818,6 +7823,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } else {
           appendBattleLogs([`${myCardName}はバトルに敗北`]);
         }
+      } else if (isSideAttack) {
+        // ─── 側面アタックで対象シグニゾーンが空 → 何も起こらない（バトルもダメージもなし）───
+        appendBattleLogs([`${myCardName}の側面アタック：対象のシグニゾーンにシグニがいないため何も起こらない`]);
       } else {
         // ─── ライフへのアタック（正面空 or アサシン）───
         const crashCount = isDoubleCrush ? 2 : 1;
@@ -8158,6 +8166,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       attackerId: user.id,
       defenderId: isHost ? bs.guest_id : bs.host_id,
       attackerKey: isHost ? 'host_state' : 'guest_state',
+    });
+  };
+
+  // 【側面アタック】（G077等）: 正面ではなく指定した相手シグニゾーン（正面の1つ隣）を攻撃する。
+  const handleSigniSideAttack = async (zoneIndex: number, targetOpZone: number) => {
+    if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
+    if (op.field.check) return;
+    await performSigniAttack(zoneIndex, {
+      attacker: my,
+      defender: op,
+      attackerId: user.id,
+      defenderId: isHost ? bs.guest_id : bs.host_id,
+      attackerKey: isHost ? 'host_state' : 'guest_state',
+      targetOpZone,
     });
   };
 
@@ -10563,6 +10585,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (signiAtkCost > 0 && my.energy.length < signiAtkCost) return []; // エナ不足でアタック不可
       const atkLabel = signiAtkCost > 0 ? `アタック（《無》×${signiAtkCost}）` : 'アタック';
       const actions: CardAction[] = [{ label: atkLabel, color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
+      // 【側面アタック】（G077等）: 正面の1つ隣の相手シグニゾーンにアタックできる。
+      // 攻撃先は正面か側面を「選ぶ」（同時攻撃ではない）。空ゾーンは何も起きないため占有ゾーンのみ提示。
+      const hasSideAttack = (dynamicKeywords.my[topNum] ?? []).includes('側面アタック')
+        || (my.keyword_grants?.[topNum] ?? []).includes('側面アタック');
+      if (hasSideAttack) {
+        const frontOpZone = 2 - rawZoneIdx;
+        for (const adj of [frontOpZone - 1, frontOpZone + 1]) {
+          if (adj < 0 || adj > 2) continue;
+          const adjTop = op.field.signi[adj]?.at(-1);
+          if (!adjTop) continue; // 空ゾーンは提示しない（アタックしても何も起こらない）
+          const targetName = battleCardMap.get(adjTop)?.CardName ?? adjTop;
+          actions.push({ label: `側面アタック→${targetName}`, color: '#b5651d', onClick: () => handleSigniSideAttack(rawZoneIdx, adj) });
+        }
+      }
       // WXDi-P05-069: フリップアタック（ロビンフッド対象）
       const altFlip = collectAltAttackFlipSigni(my, battleCardMap, effectsMap);
       if (altFlip && (battleCardMap.get(topNum)?.CardName ?? '').includes(altFlip.targetSigniName)) {

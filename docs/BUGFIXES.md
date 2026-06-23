@@ -5,6 +5,19 @@
 
 ---
 
+## G077【側面アタック】を engine 実装（2026-06-23）
+
+【側面アタック】（G077=WX15-094/095/096「あなたの場に＜英知＞のシグニが3体あるかぎり、このシグニは正面の1つ隣の対戦相手のシグニゾーンにもアタックできる」）はキーワード付与されるだけで **engine 実装が無く完全に no-op** だった。
+
+- **仕様（ユーザー確認）:** 追加バトルではなく、アタック先を**正面か側面のどちらか選ぶ**（同時攻撃ではない）。側面（正面の1つ隣のシグニゾーン）を攻撃した場合、そこにシグニがいればバトル、いなければ何も起こらない（バトルもライフダメージもなし）。シグニゾーンへの攻撃なので**対戦相手にライフダメージは与えない**。
+- **実装:** `performSigniAttack` / `resolvePendingSigniBattleFor` に攻撃先ゾーン override `targetOpZone` を追加（`pending_signi_battle` に保持して phase1→phase2 を跨ぐ）。
+  - 正面固定だった `opZoneIndex`(phase1/phase2) と `opFrontZoneIdx` を `targetOpZone ?? (2 - zoneIndex)` に。
+  - 側面アタックは REDIRECT_ATTACK_TO_SELF_ZONE / ON_OPP_SIGNI_ATTACK_DIRECT（正面直接アタック系）をスキップ。
+  - `effectivelyEmpty` を側面時は `!opTopCardNum` のみ（アサシン等の直接アタック化を無視）。占有→バトル、空→新設の `else if (isSideAttack)` で no-op（ライフダメージ分岐に入らない）。
+- **UI:** 側面アタック保持シグニ（`dynamicKeywords`/`keyword_grants` で判定）に、正面の1つ隣の**占有**相手ゾーンへの「側面アタック→<名>」アクションを追加（空ゾーンは何も起きないため非提示）。通常の正面アタックは従来どおり並存。
+- 付与条件（英知3体）は `collectContinuousGrantedKeywords`/`contGrantedKeywords` が活性条件込みで評価済み。
+- 検証: `npm run typecheck` 通過。
+
 ## G075「対戦相手の場にシグニがN体あるかぎり」activeCondition が欠落していたのを修正（2026-06-23）
 
 逆翻訳（grouped_all.txt G075）で「このシグニの基本パワーを12000にする」と無条件 POWER_SET になっていた（原文は「**対戦相手の場にシグニが3体あるかぎり**、…基本パワーは12000になる」）。`parseActiveCondition` に「対戦相手の場に…」系のパターンが一つも無く（全て「あなたの場に…」のみ）、相手フィールド条件が黙って捨てられていた。

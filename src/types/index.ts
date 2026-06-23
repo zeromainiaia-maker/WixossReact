@@ -360,7 +360,7 @@ export interface PlayerState {
   game_guard_barrier_act?: boolean;      // 手札ガードシグニ捨て→ルリグバリア付与 能力を持つ
   game_opp_guard_extra_colorless?: boolean; // 相手ガード時に追加で《無》1枚必要（このゲーム）
   // ON_ATTACK_SIGNI解決後のバトル解決待ち（zoneIndex: アタックしたゾーン番号）
-  pending_signi_battle?: { zoneIndex: number };
+  pending_signi_battle?: { zoneIndex: number; targetOpZone?: number };
   // ON_ATTACK_LRIG解決後にlrig_attacked: trueをセット待ち（防御側IDを保持）
   pending_lrig_attack?: boolean;
   // UPKEEP_OR_NO_UP: 次の自分のUPフェーズにルリグアップ条件（条件未達でセンタールリグはアップしない）
