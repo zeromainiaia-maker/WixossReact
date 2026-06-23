@@ -1387,7 +1387,21 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let extractedTriggerCondObj: import('../types/effects').CardEffect['triggerCondition']; // トリガー文から抽出した発火限定（byOpponentEffect/fromZones/forResonaCondition）
 
   switch (marker) {
-    case '常': effectType = 'CONTINUOUS'; mandatory = true; break;
+    case '常':
+      effectType = 'CONTINUOUS'; mandatory = true;
+      // 【常】表記だが「（対戦相手のターンの間、）このシグニがバニッシュされたとき、…」は ON_BANISH トリガー（AUTO）として扱う（G150）。
+      {
+        const banishTrigM = actionText.match(/このシグニがバニッシュされたとき[、,]\s*(.+)/s);
+        if (banishTrigM) {
+          effectType = 'AUTO';
+          timing = ['ON_BANISH'];
+          extractedTriggerScope = 'self';
+          // 「対戦相手のターンの間、」= 相手ターン限定の発動条件
+          if (/対戦相手のターンの間/.test(actionText)) extractedTriggerCondition = { type: 'IS_OPPONENT_TURN' };
+          actionText = banishTrigM[1];
+        }
+      }
+      break;
     case '出':
       effectType = 'AUTO'; timing = ['ON_PLAY'];
       mandatory = costStr === '' && !eichiCondition;
