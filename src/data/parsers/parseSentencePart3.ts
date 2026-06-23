@@ -1055,6 +1055,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
       return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cnt, filter: parseCardTypeFilter(optDiscardM[1]) } };
     }
   }
+  // ---- （対象なし・文頭）手札から＜クラス＞のカードをN枚捨ててもよい ----
+  // 対象指定（「…を対象とし、」）を伴うものは後段の TARGET_AND_DISCARD_HAND に回すため文頭限定。
+  // ＜クラス＞指定のあるものに限定（無指定の任意捨ては従来どおり OPTIONAL_COST 等に委ねる）。
+  {
+    const optDiscardCardM = t.match(/^手札から(＜[^＞]+＞)のカードを([０-９\d]+)枚?捨ててもよい/);
+    if (optDiscardCardM) {
+      const cnt = parseNum(optDiscardCardM[2]);
+      const filter = { ...parseCardTypeFilter(optDiscardCardM[1]), ...parseStoryFilter(optDiscardCardM[1]) };
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cnt, filter } };
+    }
+  }
 
   // ---- 対戦相手が任意コストを支払う（支払わなかった場合に効果発動）----
   if (t.match(/^対戦相手は.*を支払ってもよい/)) {
@@ -1203,8 +1214,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
   }
 
-  // ---- 対戦相手のシグニN体を対象とし、手札から〜を捨てる（複合パターン）----
-  if (t.match(/対戦相手のシグニ[０-９\d]*体?(?:まで)?を対象とし、手札から.+捨て(?:る|てもよい)?$/)) {
+  // ---- 対戦相手のシグニ/ルリグN体を対象とし、（中間条件節を挟んでも）手札から〜を捨てる（複合パターン）----
+  // 「対象とし、それが能力を持たない場合、手札から…捨ててもよい」「対戦相手のルリグを対象とし、手札から…捨ててもよい」も含む。
+  if (t.match(/対戦相手の(?:シグニ|ルリグ)[０-９\d]*体?(?:まで)?を対象とし、.*?手札から.+捨て(?:る|てもよい)?$/)) {
     return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
   }
 
