@@ -1361,6 +1361,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     case '出':
       effectType = 'AUTO'; timing = ['ON_PLAY'];
       mandatory = costStr === '' && !eichiCondition;
+      // 「このシグニが（シグニの）効果によって場に出たとき」= byEffect 限定（G079）。
+      // 通常召喚・グロウでは発火せず、効果による場出し経路でのみ発火する。
+      {
+        const byEffM = actionText.match(/^このシグニが(?:シグニの)?効果によって場に出たとき[、,]\s*(.+)/s);
+        if (byEffM) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
+          actionText = byEffM[1];
+        }
+      }
       break;
     case '起':
       effectType = 'ACTIVATED'; timing = ['MAIN'];
