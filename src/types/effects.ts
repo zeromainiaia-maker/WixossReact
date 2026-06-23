@@ -492,10 +492,12 @@ export interface PlaceUnderSourceSigniAction {
   fromLocation: 'trash' | 'hand' | 'energy' | 'field';
 }
 
-// このターン、次にターゲットシグニがアタックしたとき、そのアタックを無効にする
+// このターン、次にターゲットシグニ（またはルリグ）がアタックしたとき、そのアタックを無効にする
 export interface NegateAttackAction {
   type: 'NEGATE_ATTACK';
   target: EffectTarget;
+  // escapeDiscard: アタック側が手札をN枚捨てれば無効化を回避できる（「対戦相手が手札をN枚捨てないかぎり無効」。G154 BURST）
+  escapeDiscard?: number;
 }
 
 export interface BounceAction {
