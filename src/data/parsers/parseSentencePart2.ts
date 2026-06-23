@@ -772,8 +772,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 登録者数を得る（条件付き）----
-  if (t.match(/登録者数を[０-９\d０-９万]+人得る/)) {
-    return { type: 'STUB', id: 'GAIN_SUBSCRIBER_COUNT' } as StubAction;
+  const gainSubM = t.match(/登録者数を([０-９\d]+)万人得る/);
+  if (gainSubM) {
+    return { type: 'STUB', id: 'GAIN_SUBSCRIBER_COUNT', value: parseNum(gainSubM[1]) } as StubAction;
   }
 
   // ---- 場のすべてのシグニとキーをトラッシュ ----
