@@ -4649,10 +4649,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_DRAW: 効果でカードを引いた場合（cards_drawn_by_effect_this_turn の増加を検出）、引いたプレイヤーの ON_DRAW【自】を発火（G089）
         const drawEntries: StackEntry[] = [];
         if ((hostState.cards_drawn_by_effect_this_turn ?? 0) > (bs.host_state.cards_drawn_by_effect_this_turn ?? 0)) {
-          drawEntries.push(...collectDrawTriggers(bs.host_id, hostState, guestState));
+          const dt = collectDrawTriggers(bs.host_id, hostState, guestState);
+          drawEntries.push(...dt.entries);
+          if (dt.usedOncePerTurnIds.length > 0) {
+            update.host_state = { ...(update.host_state as PlayerState), actions_done: [...((update.host_state as PlayerState).actions_done ?? []), ...dt.usedOncePerTurnIds] };
+          }
         }
         if ((guestState.cards_drawn_by_effect_this_turn ?? 0) > (bs.guest_state.cards_drawn_by_effect_this_turn ?? 0)) {
-          drawEntries.push(...collectDrawTriggers(bs.guest_id, guestState, hostState));
+          const dt = collectDrawTriggers(bs.guest_id, guestState, hostState);
+          drawEntries.push(...dt.entries);
+          if (dt.usedOncePerTurnIds.length > 0) {
+            update.guest_state = { ...(update.guest_state as PlayerState), actions_done: [...((update.guest_state as PlayerState).actions_done ?? []), ...dt.usedOncePerTurnIds] };
+          }
         }
         if (drawEntries.length > 0) {
           const baseStackD = (update.effect_stack as typeof stackAfter) ?? null;
