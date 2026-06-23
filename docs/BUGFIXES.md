@@ -5,6 +5,18 @@
 
 ---
 
+## COPY_LRIG_NAME_ABILITY の【常】能力コピー実装（2026-06-23）
+
+P4エクシード等「ルリグトラッシュのレベル3の＜X＞と同じカード名としても扱い、そのルリグの【常】能力を得る」（該当=WX24-P4-021＜ひとえ＞）を実装。従来は名前エイリアス＋【自】コピー（`collectCopiedLrigAutoEffects`）のみで、【常】コピーは未対応だった。
+
+- `collectCopiedLrigContinuousEffects`（effectEngine）新設：センタールリグが「【常】能力を得る」COPY_LRIG_NAME_ABILITY を持つとき、ルリグトラッシュの該当ルリグの CONTINUOUS 効果を集めて返す（effectId に `-COPYC-`、元カード番号を `copiedFromCardNum` に保持）。
+- `BattleScreen.effectsMap` メモに `hasCopyLrigCont` 判定＋注入を追加。コピーした CONTINUOUS をセンタールリグ(instanceId)の効果に足すことで各 CONTINUOUS 収集関数が自動的に拾う。
+- `CardEffect.copiedFromCardNum` を追加。テキスト駆動 STUB がコピー時に元カードの EffectText を解決できるようにする。
+- `collectGuardAlternativeCost` をセンタールリグも走査＋`copiedFromCardNum` のテキスト参照に拡張（＜ひとえ＞の【常】＝植物ガード代替コストが P4-021 で実際に機能）。
+- **残注意**: コピー先の【常】が text 駆動 STUB の場合は当該 STUB 自体の実装に依存（連鎖）。data 駆動（POWER_MODIFY 等）は自動で機能。
+
+---
+
 ## リコレクト（《リコレクトアイコン》）の系統的実装（**完了**・全88枚）（2026-06-23）
 
 効果文に《リコレクトアイコン》［N枚以上］を含む全88枚（Sheet9/10：WX24/25/26・SPDi）を系統的に実装。リコレクトは「ルリグトラッシュのアーツ枚数 ≥ N」で判定し、**使用中のアーツ自身は数えない**（エンジンは `BattleScreen.tsx:6354` で効果解決前に lrig_trash へ先行追加するため、判定時に `sourceCardNum` を除外＝`excludeSource`）。
