@@ -397,6 +397,47 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX04-035-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"CONDITIONAL","condition":{"type":"ENERGY_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"美巧"},"operator":"gte","value":5},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
+  // G154「TOO BADLY」（スペル WX24-D3-25 / SPDi37-06）。
+  //  E1: カードを1枚引き、対戦相手は手札を1枚捨てる。《リコレクトアイコン》[5枚以上]代わりに、引いて相手の手札を1枚ランダムに捨てさせる。
+  //   → DRAW1 + CONDITIONAL(トラッシュ5枚以上 ? 相手手札1枚blind : 相手手札1枚(相手選択))。両分岐ともDRAWは共通なので前段で実行。
+  //  BURST: 対戦相手のルリグかシグニ1体を対象。このターンそれがアタックしたとき、相手が手札を3枚捨てないかぎりそのアタックを無効（escapeDiscard:3）。
+  ...Object.fromEntries((['WX24-D3-25', 'SPDi37-06'] as const).map(cardNum => [cardNum, [
+    {
+      effectId: `${cardNum}-E1`,
+      effectType: 'ACTIVATED' as const,
+      timing: ['MAIN' as const],
+      cost: { energy: [{ color: '青', count: 1 }] },
+      action: {
+        type: 'SEQUENCE' as const,
+        steps: [
+          { type: 'DRAW' as const, owner: 'self' as const, count: 1 },
+          {
+            type: 'CONDITIONAL' as const,
+            condition: { type: 'TRASH_COUNT' as const, owner: 'self' as const, operator: 'gte' as const, value: 5 },
+            then: { type: 'TRASH' as const, target: { type: 'HAND_CARD' as const, owner: 'opponent' as const, count: 1, blind: true } },
+            else: { type: 'TRASH' as const, target: { type: 'HAND_CARD' as const, owner: 'opponent' as const, count: 1 } },
+          },
+        ],
+      },
+      duration: 'INSTANT' as const,
+      mandatory: true,
+      parseStatus: 'MANUAL' as const,
+    },
+    {
+      effectId: `${cardNum}-BURST`,
+      effectType: 'LIFE_BURST' as const,
+      timing: ['ON_LIFE_BURST' as const],
+      action: {
+        type: 'NEGATE_ATTACK' as const,
+        target: { type: 'CENTER_LRIG_OR_SIGNI' as const, owner: 'opponent' as const, count: 1 },
+        escapeDiscard: 3,
+      },
+      duration: 'INSTANT' as const,
+      mandatory: false,
+      parseStatus: 'MANUAL' as const,
+    },
+  ]])),
+
   // ===== 「センタールリグと共通する色を持つ」系の誤パース修正（CHOOSE/SEQUENCE復元）=====
   // 自動パーサーが選択肢構造を STUB/誤 SEQUENCE に潰し colorMatchesLrig フィルタも欠落していた4枚を manual 化。
   // fixLrigColorFilters.mjs の locate() パスが旧構造前提で再適用不能だったため、本体ごとここで定義する。
