@@ -1024,11 +1024,17 @@ export function calcFieldPowers(
       );
     });
 
+    // REMOVE_ABILITIES: 能力を失っているシグニ（CONTINUOUS REMOVE_ABILITIES＋一過性 abilities_removed）の
+    // CONTINUOUS効果（自己パワー増減・キーワード付与等）は発生させない。
+    const abilitiesRemovedCont = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap);
+
     // 同一CardNumが複数ゾーンに存在する場合、効果元として重複処理しない
     const seenSources = new Set<string>();
     for (const topNum of candidates) {
       if (seenSources.has(topNum)) continue;
       seenSources.add(topNum);
+      // REMOVE_ABILITIES: 能力喪失シグニのCONTINUOUS効果をスキップ
+      if (abilitiesRemovedCont.has(topNum)) continue;
       // FROZEN_LOSES_ABILITIES: 凍結中の自シグニのCONTINUOUS効果をスキップ
       if (frozenLosesAbilities) {
         const zi = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum);
