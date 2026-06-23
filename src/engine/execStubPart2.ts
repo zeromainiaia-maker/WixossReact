@@ -2606,20 +2606,27 @@ export function execStubPart2(
   }
   // === バッチ9: ルリグ・条件サーチ・選択系 ===
   // CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ
+  // 原文の《クラフト名》を解決し、既存インスタンスが無ければゲーム外から生成して加える。
+  // （旧実装は sourceCardNum＝本体カード自身を加える誤りだった。WXK01-042/WXK09-015/WXDi-P16-009）
   if (stub.id === 'CRAFT_TO_LRIG_DECK' || stub.id === 'ADD_CRAFT_TO_LRIG_DECK') {
-    let cnCTLD = ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
-    if (!cnCTLD) {
-      // テキストから《カード名》を解析してlrig_trash→field→deck から検索
-      const srcCTLD2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-      const txtCTLD2 = srcCTLD2 ? (srcCTLD2.EffectText ?? '') : '';
-      const nameMCTLD2 = txtCTLD2.match(/クラフトの《([^》]+)》/);
-      const craftNameCTLD2 = nameMCTLD2 ? nameMCTLD2[1] : '';
-      if (craftNameCTLD2) {
-        const fromLrigTrash = ctx.ownerState.lrig_trash.find(cn => ctx.cardMap.get(cn)?.CardName === craftNameCTLD2);
-        const fromField = ctx.ownerState.field.lrig.find(cn => ctx.cardMap.get(cn)?.CardName === craftNameCTLD2);
-        cnCTLD = fromLrigTrash ?? fromField;
-      }
-      if (!cnCTLD) return done(addLog(ctx, `クラフトカードなし${craftNameCTLD2 ? `（${craftNameCTLD2}）` : ''}`));
+    const srcCTLD2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    const txtCTLD2 = srcCTLD2 ? (srcCTLD2.EffectText ?? '') + ' ' + (srcCTLD2.BurstText ?? '') : '';
+    // テキスト中の《名前》のうち、クラフト/トークンとして解決できる最初のものを採用
+    const craftNameCTLD2 = [...txtCTLD2.matchAll(/《([^》]+)》/g)]
+      .map(m => m[1])
+      .find(nm => resolveTokenBase(ctx.cardMap, nm) !== undefined);
+    let cnCTLD: string | undefined;
+    if (craftNameCTLD2) {
+      // 既存インスタンス（lrig_trash→field→lrig_deck）を優先、無ければゲーム外生成
+      cnCTLD = ctx.ownerState.lrig_trash.find(cn => ctx.cardMap.get(cn)?.CardName === craftNameCTLD2)
+        ?? ctx.ownerState.field.lrig.find(cn => ctx.cardMap.get(cn)?.CardName === craftNameCTLD2)
+        ?? ctx.ownerState.lrig_deck.find(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === craftNameCTLD2)
+        ?? createTokenInstanceId(ctx.cardMap, craftNameCTLD2, ctx.ownerState, ctx.otherState);
+    }
+    cnCTLD = cnCTLD ?? ctx.lastProcessedCards?.[0];
+    if (!cnCTLD) return done(addLog(ctx, `クラフトカードなし${craftNameCTLD2 ? `（${craftNameCTLD2}）` : ''}`));
+    if (ctx.ownerState.lrig_deck.includes(cnCTLD)) {
+      return done(addLog(ctx, `${ctx.cardMap.get(getCardNum(cnCTLD))?.CardName ?? cnCTLD}は既にルリグデッキにある`));
     }
     let sCTLD = ctx.ownerState;
     sCTLD = {
