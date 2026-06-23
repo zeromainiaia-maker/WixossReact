@@ -4702,11 +4702,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // lastProcessedCards に場へ出した instanceId が全て入る（トラッシュ送りのシグニは含まれない）。
         // 原文「【出】能力はこのスペルを処理したあとに好きな順番で発動する」→ 複数エントリを積めば整列UIで順番を選べる。
         if ((entry.effect.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD') {
+          // bySigniEffect 限定の【出】はソース（場出しした効果元）がシグニの場合のみ発火（G079）。
+          const sourceIsSigni = battleCardMap.get(entry.cardNum)?.Type === 'シグニ';
           const rutfOnPlayEntries: StackEntry[] = [];
           for (const instanceId of result.lastProcessedCards ?? []) {
             const cn = getCardNum(instanceId);
             for (const eff of (effectsMap.get(cn) ?? [])) {
               if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+              if (eff.triggerCondition?.bySigniEffect && !sourceIsSigni) continue;
               rutfOnPlayEntries.push({
                 id: generateUUID(),
                 playerId: entry.playerId,
