@@ -683,6 +683,10 @@ function effJa(e: Eff): string {
     if (t === 'ON_TRASH' && e.triggerCondition?.forResonaCondition) {
       s = 'レゾナの出現条件のために' + s.replace('トラッシュに置かれたとき', '場からトラッシュに置かれたとき');
     }
+    // ON_PLAY の「効果によって」限定を反映（手札からの通常召喚では発火しない）
+    if (t === 'ON_PLAY' && e.triggerCondition?.byEffect) {
+      s = s.replace('場に出たとき', '効果によって場に出たとき');
+    }
     return s;
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
