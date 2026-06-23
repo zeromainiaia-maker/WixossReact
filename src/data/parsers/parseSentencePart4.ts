@@ -832,9 +832,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/対象の対戦相手のセンタールリグ[１-９\d０-９]*体?は.*アタックできない.*を得/))
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
 
-  // ---- コードN枚と〜１枚を公開する（特定カード名公開） ----
+  // ---- 《X》N枚と《Y》N枚を公開する（特定カード名公開）----
+  // レゾナクラフトの「2枚を公開→どちらか1枚を裏向きでルリグデッキへ」型（G039）の前段。
+  // 公開自体はゲーム効果を持たず、後続 ADD_CARD_TO_LRIG_DECK_HIDDEN が原文から候補名を再解析するため no-op 扱い。
   if (t.match(/《[^》]+》[１-９\d０-９]*枚と《[^》]+》[１-９\d０-９]*枚を公開する/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- 好きな生徒との絆を獲得する（デッキからカード選択） ----
   if (t.match(/好きな生徒.+との絆を獲得する/))
