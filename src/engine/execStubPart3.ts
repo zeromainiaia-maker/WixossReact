@@ -1461,7 +1461,7 @@ export function execStubPart3(
           const newSigni = [...newOtherBounce.field.signi] as (string[] | null)[];
           const zi = newSigni.findIndex(s => s?.at(-1) === cn);
           if (zi >= 0) { newSigni[zi] = null; }
-          newOtherBounce = { ...newOtherBounce, hand: [...newOtherBounce.hand, cn], field: { ...newOtherBounce.field, signi: newSigni } };
+          newOtherBounce = { ...newOtherBounce, hand: [...newOtherBounce.hand, cn], field: { ...newOtherBounce.field, signi: newSigni }, turn_signi_returned_to_hand: true };
         }
         return done(addLog({ ...ctx, otherState: newOtherBounce }, `${nRNT}回繰り返し: バウンス${toBounce.length}体`));
       }
