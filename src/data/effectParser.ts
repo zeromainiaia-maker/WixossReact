@@ -1380,6 +1380,23 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         }
         // アクション部分の抽出は parseSingleSentence 側のプレフィックス除去に委ねる
       }
+      // ON_PLAY: 「あなたの[＜X＞の]シグニ[N体]が（効果によって）場に出たとき」= any_ally＋triggerFilter。「効果によって」= byEffect 限定
+      if (timing[0] === 'ON_PLAY') {
+        const allyPlayM = actionText.match(/^あなたの(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が(効果によって)?場に出たとき[、,]\s*(.+)/s);
+        if (allyPlayM) {
+          extractedTriggerScope = 'any_ally';
+          if (allyPlayM[1]) extractedTriggerFilter = { story: allyPlayM[1] };
+          if (allyPlayM[2]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
+          actionText = allyPlayM[3];
+        } else {
+          // 「（このシグニが）効果によって場に出たとき」= self＋byEffect 限定
+          const selfByEffM = actionText.match(/^(?:このシグニが)?効果によって場に出たとき[、,]\s*(.+)/s);
+          if (selfByEffM) {
+            extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
+            actionText = selfByEffM[1];
+          }
+        }
+      }
       // ON_LIFE_CRASHED / ON_OPP_LIFE_CRASHED: 自分ライフ＝triggerScope:self。トリガー文を除去
       if (timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED') {
         if (timing[0] === 'ON_LIFE_CRASHED') extractedTriggerScope = 'self';
