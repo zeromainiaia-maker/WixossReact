@@ -519,10 +519,15 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${ownerJa(a.countOwner)}場の${cf}シグニ1体につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
     }
     case 'POWER_MODIFY_PER_LEVEL_SUM': {
-      // 「対象のパワーを〈countOwner〉の場の〈countFilter〉シグニのレベルを合計した数だけ±Nする」（WX04-103）
+      // 「対象のパワーを〈countOwner〉の場の〈countFilter〉シグニのレベル1につき±Nする」
+      // excludeSelf は対象（target）ではなくカウント対象（場の他シグニ）にかかる → countFilter 側に「他の」を出す
+      // CONTINUOUS は engine 上「このシグニのみ」に解決される（effectEngine 参照）
       const d = a.deltaPerLevel ?? 0;
-      const cf = filterJa(a.countFilter);
-      return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${ownerJa(a.countOwner)}場の${cf}シグニのレベルを合計した数だけ${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+      const cf = filterJa({ ...a.countFilter, excludeSelf: a.excludeSelf || a.countFilter?.excludeSelf });
+      const thisOnly = effectType === 'CONTINUOUS' && a.target?.count !== 'ALL'
+        && (a.target?.owner === 'self' || a.target?.owner === 'any');
+      const tgt = thisOnly ? 'このシグニ' : targetJa(a.target, 'シグニ');
+      return `${tgt}のパワーを${ownerJa(a.countOwner)}場の${cf}シグニのレベル1につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
     }
     case 'POWER_MODIFY_PER_LRIG_LEVEL':
     case 'POWER_MODIFY_PER_ENERGY':
