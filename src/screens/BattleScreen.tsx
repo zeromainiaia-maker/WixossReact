@@ -6630,6 +6630,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const cn = getCardNum(instanceId);
           for (const eff of (effectsMap.get(cn) ?? [])) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+            // bySigniEffect 限定の【出】はスペルの効果による場出しでは発火しない（G079）
+            if (eff.triggerCondition?.bySigniEffect) continue;
             spellUseEntries.push({
               id: generateUUID(),
               playerId: caster_id,
