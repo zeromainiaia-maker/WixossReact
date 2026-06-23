@@ -619,6 +619,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'GAIN_SUBSCRIBER_COUNT') {
         return a.value != null ? `登録者数を${a.value}万人得る` : '登録者数を得る';
       }
+      // ADD_CARD_TO_LRIG_DECK_HIDDEN: 公開した候補レゾナのどちらか1枚を裏向きでルリグデッキへ（G039）
+      if (a.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN') {
+        return '原文の候補レゾナのどちらか1枚を裏向きでルリグデッキに加える（ゲーム外から生成）';
+      }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
