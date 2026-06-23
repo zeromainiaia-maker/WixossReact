@@ -2808,7 +2808,15 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   let cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
-  const removed = [...(state.abilities_removed ?? []), ...cands];
+  if (cands.length === 0) return done(ctx);
+  // count:'ALL'（または thisCardOnly/frontOfSelf で対象が確定済み）は全候補に適用。
+  // count が数値（「対戦相手のシグニ1体を対象とし」等。G085）は選択して該当数だけに適用する。
+  if (a.target.count !== 'ALL' && thisCardRestrict === null && frontRestrict === null) {
+    const count = resolveNum(a.target.count);
+    const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+    return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  }
+  const removed = [...new Set([...(state.abilities_removed ?? []), ...cands])];
   const newS: PlayerState = { ...state, abilities_removed: removed };
   return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}`));
 }
