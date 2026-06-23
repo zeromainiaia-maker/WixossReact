@@ -8889,6 +8889,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           e.timing?.includes('ON_PLAY') &&
           (e.triggerScope === undefined || e.triggerScope === 'self') &&
           e.mandatory !== false &&
+          // byEffect/bySigniEffect:「（シグニの）効果によって場に出たとき」限定は通常召喚では発火しない
+          !e.triggerCondition?.byEffect && !e.triggerCondition?.bySigniEffect &&
           // activeCondition（英知=N等）を満たさない【出】は発火しない
           (!e.activeCondition || checkActiveCondition(e.activeCondition, newCpuSt, huSt, true, battleCardMap, candidate.id)),
         );
