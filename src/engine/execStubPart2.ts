@@ -17,6 +17,7 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination,
   getCardNum,
+  createTokenInstanceId,
 } from './execUtils';
 
 export function execStubPart2(
