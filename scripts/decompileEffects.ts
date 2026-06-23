@@ -650,6 +650,7 @@ const timingJa: Record<string, string> = {
   ON_ENERGY_CHARGE: 'あなたのエナゾーンにカード1枚が置かれたとき', ON_POWER_THRESHOLD: 'このシグニのパワーが閾値以上になったとき',
   SPELL_CUTIN: 'スペルカットイン', ON_OPP_SIGNI_ATTACK_DIRECT: '対戦相手のシグニが正面が空の状態でアタックしたとき',
   ON_FRONT_SIGNI_ATTACK: 'このシグニの正面のシグニがアタックしたとき',
+  ON_ZONE_MOVED: 'このシグニが効果によって他のシグニゾーンに移動したとき',
 };
 
 function effJa(e: Eff): string {

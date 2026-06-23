@@ -1342,6 +1342,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     case '自':
       effectType = 'AUTO';
       timing = actionText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
+             // 「他のシグニゾーンに移動したとき」は付与能力の引用内「アタックしたとき」より優先（WXK10-079 等）。
+             : actionText.match(/他のシグニゾーンに移動したとき/) ? ['ON_ZONE_MOVED']
              : actionText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
              : actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
@@ -1431,6 +1433,21 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           // 「このシグニが（パワーN以下の場合）バニッシュされたとき、」のみ除去（前置き条件がある場合は除去しない）
           const m = actionText.match(/^(?:パワー[０-９\d]+以下の)?このシグニがバニッシュされたとき[、,]\s*(.+)/s);
           if (m) actionText = m[1];
+        }
+      }
+      if (timing[0] === 'ON_ZONE_MOVED') {
+        // 「（あなたの効果によって）（場にある）<主語>が（効果によって）他のシグニゾーンに移動したとき、」を除去し主語からスコープ判定。
+        // 「このシグニ」=self／「対戦相手の(場にある)シグニ」=any_opp／「あなたの(場にある)シグニ」=any_ally／無主語「シグニ」=any。
+        // パワー＋N（このシグニ自身）は MOVE_TO_OTHER_SIGNI_ZONE ハンドラ（execStubPart1）が原文を読んで適用済み。
+        // ON_ZONE_MOVED トリガー自体は現状 engine 未配線（TODO 参照）。decompile の表現整合と ON_TURN_END/ON_PLAY 誤分類解消が目的。
+        const zmM = actionText.match(/^(?:あなたの効果によって、?)?(?:場にある)?(対戦相手の|あなたの|この)?(?:場にある)?シグニ(?:[０-９\d]+体)?が(?:[０-９\d]+体以上)?(?:あなたの効果によって|効果によって)?他のシグニゾーンに移動したとき[、,]\s*(.+)/s);
+        if (zmM) {
+          const subj = zmM[1] ?? '';
+          extractedTriggerScope = subj === '対戦相手の' ? 'any_opp'
+            : subj === 'あなたの' ? 'any_ally'
+            : subj === 'この' ? 'self'
+            : 'any';
+          actionText = zmM[2];
         }
       }
       if (timing[0] === 'ON_TRASH') {
