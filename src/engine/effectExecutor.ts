@@ -4322,6 +4322,17 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog({ ...ctx, ownerState: newOwner },
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${destLabel}`));
     }
+    case 'REMOVE_ABILITIES': {
+      // SELECT_TARGET 解決後: 選ばれた1枚の能力を失わせる（abilities_removed に追加）。
+      let raOwner: Owner | null = null;
+      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) raOwner = 'self';
+      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) raOwner = 'opponent';
+      if (!raOwner) return done(ctx);
+      const raS = ownerState(raOwner, ctx);
+      const raRemoved = [...new Set([...(raS.abilities_removed ?? []), cardNum])];
+      return done(addLog(setOwnerState(raOwner, { ...raS, abilities_removed: raRemoved }, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}は能力を失う`));
+    }
     case 'ADD_TO_LIFE': {
       // fromHand 選択後: 手札からライフクロスに移動
       const atlA = action as import('../types/effects').AddToLifeAction;
