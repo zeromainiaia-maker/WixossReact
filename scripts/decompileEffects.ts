@@ -689,11 +689,13 @@ function effJa(e: Eff): string {
     : e.triggerScope === 'any_opp' ? `対戦相手の${subjFilter}`
     : e.triggerScope === 'any' ? `いずれかの${subjFilter}`
     : null;
+  // トリガー主語の名詞（triggerFilter.cardType がレゾナ等ならその名詞。既定はシグニ。G148）
+  const scopeNoun = e.triggerFilter?.cardType && !Array.isArray(e.triggerFilter.cardType) ? e.triggerFilter.cardType : 'シグニ';
   const trig = (e.timing || []).map((t: string) => {
     let s = timingJa[t] ?? t;
-    if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}シグニ${s.slice('このシグニ'.length)}`;
+    if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}${scopeNoun}${s.slice('このシグニ'.length)}`;
     // ON_TRASH/ON_LEAVE_FIELD 等「このカード」始まりも scope 主語に置換（any_opp→「対戦相手のシグニが…」）
-    else if (scopeSubj !== null && s.startsWith('このカード')) s = `${scopeSubj}シグニ${s.slice('このカード'.length)}`;
+    else if (scopeSubj !== null && s.startsWith('このカード')) s = `${scopeSubj}${scopeNoun}${s.slice('このカード'.length)}`;
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
     // ON_TRASH の発生源限定（fromZones）を反映（「このカードが手札かデッキからトラッシュに置かれたとき」）
