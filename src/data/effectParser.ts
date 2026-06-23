@@ -653,6 +653,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン5a1: 「あなたのエナゾーンにあるカードが持つ色がN種類以上あるかぎり、」（無色は数えない。G070）
+  const enaColorTypesM = text.match(/^あなたのエナゾーンにあるカードが持つ色が([０-９\d]+)種類(以上|以下)?あるかぎり、/);
+  if (enaColorTypesM) {
+    const op: CompareOp = enaColorTypesM[2] === '以下' ? 'lte' : 'gte';
+    return {
+      condition: { type: 'ENERGY_COLOR_TYPES', owner: 'self', operator: op, value: parseNum(enaColorTypesM[1]) },
+      rest: text.slice(enaColorTypesM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン5a2: 「あなたのエナゾーンに＜X＞(か＜Y＞)*のシグニが(N枚)?あるかぎり、」（クラス指定エナ存在条件。G038）
   const enaSigniM = text.match(/^あなたのエナゾーンに((?:＜[^＞]+＞(?:か)?)+)のシグニが(?:([０-９\d]+)枚以上)?あるかぎり、/);
   if (enaSigniM) {
