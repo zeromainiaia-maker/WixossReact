@@ -5,6 +5,17 @@
 
 ---
 
+## 《相手ターン》《自分ターン》が CONTINUOUS で完全に無視されていた系統バグ（G074 調査で発覚・2026-06-23）
+
+G074 の実装確認中に WX25-P1-114（【常】**《相手ターン》**：パワーは色種類につき＋2000）を検証したところ、`activeCondition` が欠落し**自分ターンでも +2000 が適用される**誤りを発見。パーサーに `《相手ターン》`/`《自分ターン》` の処理が一切無く、ターン限定が黙って捨てられていた（CONTINUOUS で30枚／32効果が該当）。
+
+- **原因:** parseBlock が costStr（マーカーと：の間）の `《相手ターン》`/`《自分ターン》` を解釈せず破棄。
+- **修正（パーサー）:** costStr から両マーカーを抽出し `TURN_OWNER`（相手=owner:opponent／自分=owner:self）を生成。**CONTINUOUS のみ** `activeCondition` に統合（checkActiveCondition が `TURN_OWNER` を line 47-48 で評価＝engine 既対応）。既存 activeCondition がある場合は AND で保持（WX24-P2-076 の手札4枚条件等）。
+- **適用範囲（全カード差分で検証）:** ちょうど32効果（30枚）が `activeCondition:undefined → TURN_OWNER` の純追加。巻き添えゼロ。JSON 直パッチ（effects_WXDi/WX24_26/misc）。
+- **注意（重要）:** ターン条件に `IS_MY_TURN`/`IS_OPPONENT_TURN` は使わない。`IS_MY_TURN` はパーサーが「コスト支払い→効果発動（そうした場合）」の CONDITIONAL プレースホルダーに転用しており衝突する。ターン限定は必ず `TURN_OWNER`。
+- **未対応（TODO E節）:** AUTO/ACTIVATED の `《相手ターン》`/`《自分ターン》`（33枚）。これらは `condition` 側の評価がトリガー収集時の ad-hoc 判定（evalCondition は IS_*_TURN を実行時 true 扱い）で timing ごとに整備が要るため別タスク。今回はマーカー除去もせず据え置き（CONTINUOUS のみ costStr から除去）。
+- 検証: `npm run typecheck` 通過。`verifyEffects` 退化なし。WX25-P1-114 が自ターン=base/相手ターン=+2000×色 に。decompile「《対戦相手のターンの間であるかぎり》」描画。
+
 ## GRANT_KEYWORD に targetsTriggerSource を追加（ON_ZONE_MOVED 配線の仕上げ・2026-06-23）
 
 ON_ZONE_MOVED 配線の残課題だった「移動シグニ自身への【KW】付与」を正式対応。self-scope では既存の `!tgt.filter && sourceCardNum∈cands` 自動付与（execGrantKeyword:1281）でプロンプトは出ないが、any_ally/any_opp で「それ＝移動シグニ ≠ 効果元カード」の場合に正しく解決できなかった。

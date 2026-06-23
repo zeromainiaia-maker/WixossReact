@@ -1312,6 +1312,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     costStr = costStr.slice(eichiInCostM[0].length).trim();
   }
 
+  // 《相手ターン》《自分ターン》: そのターン中のみ有効。CONTINUOUS は activeCondition TURN_OWNER として適用
+  // （checkActiveCondition が評価）。AUTO/ACTIVATED の turn 限定はトリガー収集側の ad-hoc 判定が必要なため
+  // 現状はマーカー除去のみ（condition 化は別タスク・TODO）。
+  let turnOwnerCond: ActiveCondition | undefined;
+  if (costStr.includes('《相手ターン》')) { turnOwnerCond = { type: 'TURN_OWNER', owner: 'opponent' }; costStr = costStr.replace('《相手ターン》', '').trim(); }
+  else if (costStr.includes('《自分ターン》')) { turnOwnerCond = { type: 'TURN_OWNER', owner: 'self' }; costStr = costStr.replace('《自分ターン》', '').trim(); }
+
   let effectType: EffectType;
   let timing: EffectTiming[] | undefined;
   let mandatory = false;
@@ -1652,6 +1659,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     finalActiveCondition = finalActiveCondition
       ? { type: 'AND', conditions: [driveCond, finalActiveCondition] }
       : driveCond;
+  }
+
+  // 《相手ターン》《自分ターン》（CONTINUOUS のみ activeCondition 化。AUTO/ACTIVATED は engine 側未整備のため見送り）
+  if (effectType === 'CONTINUOUS' && turnOwnerCond) {
+    finalActiveCondition = finalActiveCondition
+      ? { type: 'AND', conditions: [turnOwnerCond, finalActiveCondition] }
+      : turnOwnerCond;
   }
 
   // ビートアイコン条件を useCondition にマージ

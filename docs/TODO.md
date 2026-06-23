@@ -155,6 +155,10 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 - 配線済（BUGFIXES 参照）。移動実行3パス（`INTERNAL_MOVE_TO_ZONE` / `INTERNAL_REPOSITION_TO_ZONE` / `INTERNAL_REPOSITION_MOVE` / `REARRANGE_SIGNI` 解決）が `zone_moved_just` フラグを所有者 state に積み、BattleScreen の watcher が `collectZoneMovedTriggers` で scope 別（self/any_ally=mover側・any_opp=相手側・any=両方）に発火・クリア。テキスト読み取りハックは撤去。
 - **GRANT_KEYWORD の targetsTriggerSource 対応済（2026-06-23）:** GrantKeywordAction に `targetsTriggerSource` を追加し execGrantKeyword で `triggeringCardNum→sourceCardNum` へ無選択付与。effectParser の ON_ZONE_MOVED self 後処理が POWER_MODIFY に加え GRANT_KEYWORD(self,count:1,filterなし) も自動マーク。WXK03-073 はランサーも +2000 も移動シグニ自身に適用（JSON 直 SEQUENCE・MANUAL）。
 
+**《相手ターン》《自分ターン》の AUTO/ACTIVATED 対応（2026-06-23・ymst）:**
+- CONTINUOUS は activeCondition `TURN_OWNER` で対応済（BUGFIXES。G074 調査で発覚した系統バグ）。
+- **残: AUTO/ACTIVATED の `《相手ターン》`/`《自分ターン》`（約33枚）は未対応。** condition 側はトリガー収集時の ad-hoc 判定（`evalCondition` は IS_*_TURN を実行時 true 扱い）で timing ごとの整備が要る。ターン条件は **必ず `TURN_OWNER`**（`IS_MY_TURN` はパーサーが「そうした場合」CONDITIONAL プレースホルダーに転用しており衝突するため使用禁止）。collectSelfEventTriggers 等の収集側で `TURN_OWNER` を評価する共通フックを入れるのが筋。
+
 **次の一手（zerom）: 文型★のトリアージ。**
 - `grouped_sentence_all.txt` に **344文型 / 1580枚**。ただし誤検出が多い。
 - **先に `groupBySentence.mjs` の `bodyKey` に、`groupSimilar.mjs` の `normDec` と同じタイミング語除去（`.replace(/[／\/]?[A-Z][A-Z_]+/g,'')`＝ATTACK 等スラッシュ無し大文字語も除去）を入れて誤検出を減らす**。上位文型の多くはタイミング/コスト差の誤検出のはず。
