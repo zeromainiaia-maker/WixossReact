@@ -1616,6 +1616,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     ...(trashActivated ? { trashActivated: true } : {}),
     ...(extractedTriggerScope !== undefined ? { triggerScope: extractedTriggerScope } : {}),
     ...(extractedTriggerFilter !== undefined ? { triggerFilter: extractedTriggerFilter } : {}),
+    ...(extractedTriggerCondObj !== undefined ? { triggerCondition: extractedTriggerCondObj } : {}),
     ...(usageLimit !== undefined ? { usageLimit } : {}),
   };
 }
