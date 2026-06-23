@@ -440,7 +440,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.condition?.type === 'IS_MY_TURN') {
         return `そうした場合、${actionJa(a.then)}`;
       }
-      return `${condJa(a.condition)}なら、${actionJa(a.then)}`;
+      return `${condJa(a.condition)}なら、${actionJa(a.then)}${a.else ? `、そうでなければ${actionJa(a.else)}` : ''}`;
     }
     case 'BANISH_SUBSTITUTE': {
       const sc = a.substituteCost ?? {};
