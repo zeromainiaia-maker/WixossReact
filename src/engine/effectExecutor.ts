@@ -1443,8 +1443,10 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     // リコレクトゲート：条件未達なら残りステップをすべてスキップ
     if (step.type === 'RECOLLECT_GATE') {
       const gate = step as import('../types/effects').RecollectGateAction;
+      // 使用中のアーツ自身（sourceCardNum）はまだルリグトラッシュに置かれていない扱いのため数えない。
+      // エンジンでは使用時に先行してlrig_trashへ移すため、source分を除外して正しい枚数にする。
       const artsInLrigTrash = (cur.ownerState.lrig_trash ?? []).filter(
-        n => cur.cardMap.get(n)?.Type === 'アーツ'
+        n => n !== cur.sourceCardNum && cur.cardMap.get(n)?.Type === 'アーツ'
       ).length;
       if (artsInLrigTrash < gate.minArts) {
         return done(addLog(cur, `リコレクト条件未達（アーツ${artsInLrigTrash}枚 / 必要${gate.minArts}枚以上）`));
