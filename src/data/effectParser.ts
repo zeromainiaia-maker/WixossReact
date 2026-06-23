@@ -1765,6 +1765,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     ? (activeCondition ? { type: 'AND', conditions: [eichiCondition, activeCondition] } : eichiCondition)
     : activeCondition;
 
+  // marker処理で強制設定した activeCondition（G150のON_BANISH再分類等）をマージ
+  if (forcedActiveCondition) {
+    finalActiveCondition = finalActiveCondition
+      ? { type: 'AND', conditions: [forcedActiveCondition, finalActiveCondition] }
+      : forcedActiveCondition;
+  }
+
   // 【ドライブ常】【ドライブ自】：ドライブ状態であるかぎり有効
   if (isDrive) {
     const driveCond: ActiveCondition = { type: 'IS_DRIVE_STATE' };
