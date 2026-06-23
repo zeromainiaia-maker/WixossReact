@@ -722,7 +722,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const ps = st(cond.owner);
       const topNum = ps.deck[0];
       if (!topNum) return false;
-      const topColors = (ctx.cardMap.get(topNum)?.Color ?? '').split(/[\/／、,]/).map(c => c.trim()).filter(Boolean);
+      const topColors = (ctx.cardMap.get(topNum)?.Color ?? '').split(/[/／、,]/).map(c => c.trim()).filter(Boolean);
       if (topColors.length === 0) return false;
       const lrigNums = [ps.field.lrig.at(-1), ps.field.assist_lrig_l?.at(-1), ps.field.assist_lrig_r?.at(-1)].filter((n): n is string => !!n);
       return lrigNums.some(ln => {
