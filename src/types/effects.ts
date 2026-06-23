@@ -177,6 +177,7 @@ export type Condition =
   | { type: 'PAID_ADDITIONAL_COST' }
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }
+  | { type: 'LAST_PROCESSED_COUNT_GTE'; value: number }      // この方法で直前に処理した（手札に加えた等）カード枚数がN以上（G158 プライマル「5枚以上手札に加えた場合」）
   | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number }   // lastProcessedCardsのシグニレベル合計=N
   | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number }   // この方法でトラッシュ(lastProcessedCards)したシグニのうち相異なるレベルがcount種以上（WX03-015）
   | { type: 'TRASHED_STORY_COUNT_GTE'; story: string; count: number }  // この方法でトラッシュ(lastProcessedCards)した＜story＞のシグニがcount体以上（WX03-021）
@@ -190,6 +191,8 @@ export type Condition =
   | { type: 'SAME_ZONE_HAS_GATE' }                            // このシグニと同じシグニゾーンにTHE DOOR【ゲート】がある場合（own_gate_zones）
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                  // 指定プレイヤーの場にTHE DOOR【ゲート】がある場合（own_gate_zones が非空）
   | { type: 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN' }       // このターンに《ディソナアイコン》ではないスペルを使用していない（DISONA_RESTRICTION用）
+  | { type: 'DECK_TOP_SHARES_COLOR_WITH_LRIG'; owner: Owner } // デッキの一番上のカードと共通する色を持つルリグ（センター/アシスト）が場にいる場合（G157）
+  | { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS'; owner: Owner }  // 場のすべてのシグニがそれぞれ共通するクラスを持たない（互いに異クラス）場合（プライマル系。G158）
   | { type: 'LAST_PROCESSED_HAS_BURST' };                    // lastProcessedCards[0] が【ライフバースト】を持つ場合
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
@@ -281,6 +284,7 @@ export interface TargetFilter {
   isDown?:    boolean;
   isUp?:      boolean; // アップ状態（ダウンしていない）
   isFrozen?:  boolean;
+  crossState?: boolean; // クロス状態のシグニ（field.cross_state[zone]）。イノセンス等（G159）
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
   levelEqualsVar?: 'charm_trash_count' | 'field_trash_level'; // レベルがlast_charm_trash_count/last_field_trash_levelと一致するか（WXK10-082 / WX03-001用）
@@ -339,6 +343,7 @@ export type EffectAction =
   | DrawAction
   | BounceAction
   | BanishAction
+  | SendToEnergyAction
   | PowerModifyAction
   | PowerSetAction
   | TrashAction
@@ -513,6 +518,15 @@ export interface BanishAction {
   conditional?: boolean; // true = 前ステップ（STUB等）が成功した場合のみ実行
   selfTrashCost?: boolean; // 「このシグニを場からトラッシュに置いてもよい。そうした場合〜バニッシュ」：対象を1体以上選んだ場合、効果元シグニ自身をコストとしてトラッシュ（WX21-052）
   opponentSelects?: boolean; // 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」：対戦相手が自分のシグニを選んでバニッシュ（target.owner='opponent'）
+}
+
+// フィールドのシグニをエナゾーンに置く（エナ送り）。
+// バニッシュとは別アクション＝「バニッシュされたとき」を誘発しない。最終的な行き先はエナだが
+// バニッシュイベントではない（BANISHで代用しないこと）。Bounceの送り先がエナ版に相当。
+export interface SendToEnergyAction {
+  type: 'SEND_TO_ENERGY';
+  target: EffectTarget;
+  optional?: boolean; // true = 「してもよい」
 }
 
 export interface PowerModifyAction {

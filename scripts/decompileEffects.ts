@@ -115,6 +115,7 @@ function filterJa(f?: any): string {
   if (f.isDown) parts.push('ダウン状態の');
   if (f.isUp) parts.push('アップ状態の');
   if (f.isFrozen) parts.push('凍結状態の');
+  if (f.crossState) parts.push('クロス状態の');
   if (f.hasCharm) parts.push('チャームのある');
   if (f.hasAcce) parts.push('アクセのある');
   if (f.infected) parts.push('感染状態の');
@@ -222,6 +223,9 @@ function condJa(c?: any): string {
     case 'IS_MY_TURN': return '自分のターンの間';
     case 'IS_OPPONENT_TURN': return '対戦相手のターンの間';
     case 'DECK_TOP_MATCHES': return `${ownerJa(c.owner)}デッキの一番上が${filterJa(c.filter)}カード`;
+    case 'DECK_TOP_SHARES_COLOR_WITH_LRIG': return `${ownerJa(c.owner)}場にそのカードと共通する色を持つルリグがいる`;
+    case 'FIELD_SIGNI_ALL_DISTINCT_CLASS': return `${ownerJa(c.owner)}場にあるすべてのシグニがそれぞれ共通するクラスを持たない`;
+    case 'LAST_PROCESSED_COUNT_GTE': return `この方法でカードを${numJa(c.value)}枚以上手札に加えた`;
     case 'LRIG_STORY': return `${ownerJa(c.owner)}センタールリグが＜${c.story}＞`;
     case 'LRIG_LEVEL_EQ_OPP': return '自分と対戦相手のセンタールリグのレベルが同じ';
     case 'LRIG_TRASH_COUNT': return `ルリグトラッシュに${c.cardType ? c.cardType : ''}が${numJa(c.value)}枚${opJa(c.operator)}`;
@@ -291,6 +295,7 @@ function actionJa(a?: Action, effectType?: string): string {
       ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
       : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
     case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}`;
+    case 'SEND_TO_ENERGY': return `${targetJa(a.target)}をエナゾーンに置く${a.optional ? '（してもよい）' : ''}`;
     case 'TRASH': {
       const t = a.target;
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
@@ -598,6 +603,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG') {
         return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';
       }
+      if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
       if (a.id === 'FREE_GROW_NEXT_TURN') return '次のあなたのターンの間、あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'GROW_COST_ZERO') return 'あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'POWER_DOUBLE_ALL') return 'ターン終了時まで、あなたのすべてのシグニのパワーを2倍にする';

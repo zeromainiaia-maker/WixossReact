@@ -36,6 +36,14 @@
   - **解決済（v0.435〜0.437・27効果）:** エナ配置9（parser「エナゾーンから…場に出す」→source:ENERGY_CARD）／ルリグデッキレゾナ9（→ STUB `SUMMON_RESONA_FROM_LRIG_DECK`）／手札配置の単純系9（parser「手札から…場に出す」→source:HAND_CARD、「Xではない」=colorExclude）。
   - **解決済（v0.438・①〜⑥すべて／詳細は BUGFIXES.md）:** ①エナ配置 SEQUENCE 形11（対象再生成。parser は v0.435 で生成済だったが JSON 未再生成だった。`parseStoryFilter` 重複除去も追加）②動的フィルタ手札配置/leave2（`ON_LEAVE_FIELD` timing 判定新設＋`powerBelowLeftCard` 新設＋triggerScope/triggerFilter 抽出）③名指し手札配置2（`parseNameFilter` 付与＋`ON_REVEALED_FROM_HAND` broaden）④ベット/アンコール2（現行 parser で正・再生成のみ）⑤クラフト/トークン配置7（parser「クラフトの《X》場に出す」→`ADD_TO_FIELD{cardName}`＋`execAddToField` で CardName→CardNum 解決・幅正規化）⑥WX20-002-E3 エナ配置・WX22-001-E1 トラッシュ配置（再生成）。`WX22-001-E3`（付与型遅延 leave トリガー）は機構未実装のため no-op STUB `GRANT_LEAVE_PLACE_PENDING` で誤配置回避。**残り近似:** WXDi-CP02-087 エナ枚数条件・WXDi-P03-078 自パワー動的フィルタ・WXDi-P05-068 先頭ドロー脱落・WXK07-105 ベット分岐・WX25-CP1-066 場存在条件・WX22-001-E3 付与型 leave トリガー機構・**クラフトトークン実機配置の検証**。
 - **逆翻訳器の表示漏れ（実害なし・カードは正しい）:** `cardType` フィルタ未表示で「カード」に見える（WX01-007/025＝SEARCH/領域カードに cardType 名詞反映で解消）等。**「カードに見えるが実はシグニ限定」は逆翻訳器の表示問題でカードは正しいことが多い** ので、必ず JSON を確認してから直すこと。
+- **エナ送り（エナゾーンに置く）の `SEND_TO_ENERGY` 移行・残6枚（2026-06-24）:** バニッシュと別アクション `SEND_TO_ENERGY` を新設し、相手シグニのエナ送り48枚中42枚を移行済（BUGFIXES参照）。**残6枚はエナ送り文がSTUB/能力付与/別誤パースに埋もれており要個別実装:**
+  - `WXEX2-20`（ルリグ・E3 `GRANT_QUOTED_AUTO_ABILITY` 内：捨てたシグニと同レベルの相手ダウン状態シグニをエナ送り）
+  - `WXDi-P01-040`（E1/E2 `GRANT_QUOTED_AUTO_ABILITY`・FLIP系STUB内：相手全シグニをエナ送り）
+  - `WX25-P2-041`（アーツ・付与する引用能力「それは『…エナゾーンに置く』」内：パワー10000以下をエナ送り）
+  - `WXK09-031`（シグニ・E1 が `ENERGY_LEVEL_CONDITION_CHOOSE` STUB＋`TRASH ALL` に誤パース。本来は「対象の相手シグニ1体をエナ送り」）
+  - `WXK10-011`（アーツ・選択肢①が `CONDITIONAL_MULTI_CHOOSE_BY_CENTER` STUBに吸収。①＝相手シグニ1体をエナ送り）
+  - `WXDi-P01-005`（ピース・【使用条件】が `GRANT_KEYWORD` に誤パース。本来は条件達成で相手全シグニをエナ送り）
+  - いずれも親STUB（引用能力付与・選択肢・使用条件）の実装が前提＝エナ送り区別とは独立の既存課題。
 
 ---
 

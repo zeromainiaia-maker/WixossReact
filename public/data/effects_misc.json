@@ -21398,7 +21398,7 @@
         "type": "SEQUENCE",
         "steps": [
           {
-            "type": "ENERGY_CHARGE",
+            "type": "SEND_TO_ENERGY",
             "target": {
               "type": "SIGNI",
               "owner": "opponent",
@@ -21476,7 +21476,7 @@
         "ON_LIFE_BURST"
       ],
       "action": {
-        "type": "ENERGY_CHARGE",
+        "type": "SEND_TO_ENERGY",
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
@@ -21511,7 +21511,7 @@
         "down_self": true
       },
       "action": {
-        "type": "ENERGY_CHARGE",
+        "type": "SEND_TO_ENERGY",
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
@@ -28164,7 +28164,7 @@
         }
       },
       "action": {
-        "type": "ENERGY_CHARGE",
+        "type": "SEND_TO_ENERGY",
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
@@ -30261,7 +30261,7 @@
         "value": 8
       },
       "action": {
-        "type": "ENERGY_CHARGE",
+        "type": "SEND_TO_ENERGY",
         "target": {
           "type": "SIGNI",
           "owner": "opponent",
@@ -32628,7 +32628,7 @@
             "choiceId": "c1",
             "label": "選択肢2",
             "action": {
-              "type": "ENERGY_CHARGE",
+              "type": "SEND_TO_ENERGY",
               "target": {
                 "type": "SIGNI",
                 "owner": "opponent",
@@ -36910,7 +36910,7 @@
             }
           },
           {
-            "type": "BANISH",
+            "type": "SEND_TO_ENERGY",
             "target": {
               "type": "SIGNI",
               "owner": "opponent",

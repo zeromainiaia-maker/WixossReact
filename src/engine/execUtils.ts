@@ -416,6 +416,10 @@ export function fieldCandidates(
       const isFrozen = state.field.signi_frozen?.[zoneIdx] ?? false;
       if (filter.isFrozen !== isFrozen) return [];
     }
+    if (filter?.crossState !== undefined) {
+      const isCross = state.field.cross_state?.[zoneIdx] ?? false;
+      if (filter.crossState !== isCross) return [];
+    }
     if (filter?.isArmored !== undefined) {
       const isArmored = state.field.signi_armor?.[zoneIdx] ?? false;
       if (filter.isArmored !== isArmored) return [];
@@ -713,6 +717,35 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return (ctx.ownerState.last_energy_trash_color_count ?? 0) >= cond.value;
     case 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN':
       return !ctx.ownerState.non_dissona_spell_played_this_turn;
+    case 'DECK_TOP_SHARES_COLOR_WITH_LRIG': {
+      // デッキの一番上のカードと共通する色を持つルリグ（センター＋アシスト）が場にいるか（G157）
+      const ps = st(cond.owner);
+      const topNum = ps.deck[0];
+      if (!topNum) return false;
+      const topColors = (ctx.cardMap.get(topNum)?.Color ?? '').split(/[\/／、,]/).map(c => c.trim()).filter(Boolean);
+      if (topColors.length === 0) return false;
+      const lrigNums = [ps.field.lrig.at(-1), ps.field.assist_lrig_l?.at(-1), ps.field.assist_lrig_r?.at(-1)].filter((n): n is string => !!n);
+      return lrigNums.some(ln => {
+        const lc = ctx.cardMap.get(ln)?.Color ?? '';
+        return topColors.some(c => lc.includes(c));
+      });
+    }
+    case 'FIELD_SIGNI_ALL_DISTINCT_CLASS': {
+      // 場のシグニが互いに共通するクラス（CardClass）を持たない場合（プライマル系。G158）
+      const ps = st(cond.owner);
+      const classSets = ps.field.signi
+        .map(stack => stack?.at(-1))
+        .filter((n): n is string => !!n)
+        .map(n => new Set((ctx.cardMap.get(n)?.CardClass ?? '').split('／').map(s => s.trim()).filter(Boolean)));
+      for (let i = 0; i < classSets.length; i++) {
+        for (let j = i + 1; j < classSets.length; j++) {
+          for (const cl of classSets[i]) if (classSets[j].has(cl)) return false;
+        }
+      }
+      return true;
+    }
+    case 'LAST_PROCESSED_COUNT_GTE':
+      return (ctx.lastProcessedCards?.length ?? 0) >= cond.value;
     case 'LAST_PROCESSED_LEVEL_SUM_EQ': {
       // lastProcessedCardsのシグニのレベル合計がvalue=Nか判定（WD21-012等）
       const processed = ctx.lastProcessedCards ?? [];

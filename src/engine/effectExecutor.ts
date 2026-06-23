@@ -6,6 +6,7 @@ import type {
   DrawAction,
   BanishAction,
   BounceAction,
+  SendToEnergyAction,
   PowerModifyAction,
   PowerSetAction,
   TrashAction,
@@ -298,6 +299,33 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.count === 'ALL') return done(applyBounce(cands, ctx));
   const count = resolveNum(tgt.count);
+  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx);
+}
+
+// SEND_TO_ENERGY: フィールドのシグニをエナゾーンに置く（エナ送り）。
+// execBounce と同型だが送り先が「対象オーナーのエナゾーン」。バニッシュではないので
+// 「バニッシュされたとき」を誘発しない（banishDestination/トラッシュ経路を通さない）。
+function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
+  const tgt = a.target;
+  const state = ownerState(tgt.owner, ctx);
+  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+
+  function applySend(selected: string[], c: ExecCtx): ExecCtx {
+    let cur = c;
+    for (const num of selected) {
+      const s = ownerState(tgt.owner, cur);
+      const removed = removeFromField(num, s);
+      const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, num] };
+      cur = addLog(setOwnerState(tgt.owner, withEnergy, cur),
+        `${cur.cardMap.get(num)?.CardName ?? num}をエナゾーンに置く`);
+    }
+    return cur;
+  }
+
+  if (tgt.count === 'ALL') return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
+  const count = resolveNum(tgt.count);
+  if (count <= 0) return done(addLog(ctx, 'エナ送り数0 → スキップ'));
   return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx);
 }
 
@@ -3339,6 +3367,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'DRAW':                    return execDraw(action as DrawAction, ctx);
     case 'BANISH':                  return execBanish(action as BanishAction, ctx);
     case 'BOUNCE':                  return execBounce(action as BounceAction, ctx);
+    case 'SEND_TO_ENERGY':          return execSendToEnergy(action as SendToEnergyAction, ctx);
     case 'POWER_MODIFY':            return execPowerModify(action as PowerModifyAction, ctx);
     case 'POWER_MULTIPLY':          return execPowerMultiply(action as import('../types/effects').PowerMultiplyAction, ctx);
     case 'POWER_SET':               return execPowerSet(action as PowerSetAction, ctx);
@@ -3994,6 +4023,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum], turn_signi_returned_to_hand: true };
       return done(addLog(setOwnerState(found, withHand, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+    }
+    case 'SEND_TO_ENERGY': {
+      // エナ送り（バニッシュではない）: 場から除去して対象オーナーのエナゾーンへ
+      let found: Owner | null = null;
+      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
+      if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
+      if (!found) return done(ctx);
+      const s = ownerState(found, ctx);
+      const removed = removeFromField(cardNum, s);
+      const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, cardNum] };
+      return done(addLog(setOwnerState(found, withEnergy, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をエナゾーンに置く`));
     }
     case 'TRASH': {
       const trashAction = action as TrashAction;

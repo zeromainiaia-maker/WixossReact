@@ -47,6 +47,7 @@ import type {
   StubAction,
   PowerModifyAction,
   BanishAction,
+  SendToEnergyAction,
 } from '../../types/effects';
 import {
   parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseNameFilter, parseEnergyCosts, toHalf,
@@ -707,26 +708,26 @@ export function parseSentencePart1(t: string): EffectAction | null {
   const drawM = t.match(/カードを?([０-９\d]+)枚引(?:く|いてもよい)/);
   if (drawM && !t.includes('体につき')) return { type: 'DRAW', owner: 'self', count: parseNum(drawM[1]) };
 
-  // ---- 対戦相手シグニをエナゾーンに置く（パワーフィルタあり）----
+  // ---- 対戦相手のシグニをエナゾーンに置く（エナ送り。バニッシュとは別アクション。ENERGY_CHARGE=デッキ等からチャージとは無関係）----
   {
     // "対戦相手のパワーN以上のシグニN体を対象とし、それをエナゾーンに置く"
     const m1 = t.match(/対戦相手のパワー([０-９\d]+)以上のシグニ([０-９\d]+|すべての)体?を対象とし.*エナゾーンに置く/);
     if (m1) {
       const count = m1[2] === 'すべての' ? 'ALL' : parseNum(m1[2]);
       return {
-        type: 'ENERGY_CHARGE',
+        type: 'SEND_TO_ENERGY',
         target: { type: 'SIGNI', owner: 'opponent', count, filter: { cardType: 'シグニ', powerRange: { min: parseNum(m1[1]) } } },
-      } as EnergyChargeAction;
+      } as SendToEnergyAction;
     }
     // "対戦相手のパワーN以上のすべてのシグニをエナゾーンに置く"
     const m2 = t.match(/対戦相手のパワー([０-９\d]+)以上のすべてのシグニをエナゾーンに置く/);
     if (m2) {
       return {
-        type: 'ENERGY_CHARGE',
+        type: 'SEND_TO_ENERGY',
         target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', powerRange: { min: parseNum(m2[1]) } } },
-      } as EnergyChargeAction;
+      } as SendToEnergyAction;
     }
-    // "対戦相手のシグニN体を対象とし、それをエナゾーンに置く" （フィルタなし）
+    // "対戦相手の(レベルN以下/以上の)シグニN体を対象とし、それをエナゾーンに置く"
     const m3 = t.match(/対戦相手の(?:レベル([０-９\d]+)(以下|以上)の)?シグニ([０-９\d]+)体を対象とし.*それをエナゾーンに置く/);
     if (m3) {
       const lv = m3[1] ? parseNum(m3[1]) : undefined;
@@ -734,9 +735,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
         ? { cardType: 'シグニ', level: m3[2] === '以下' ? { max: lv } : { min: lv } }
         : { cardType: 'シグニ' };
       return {
-        type: 'ENERGY_CHARGE',
+        type: 'SEND_TO_ENERGY',
         target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m3[3]), filter },
-      } as EnergyChargeAction;
+      } as SendToEnergyAction;
     }
   }
 
@@ -748,13 +749,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
     const colorEnergyM = t.match(/対戦相手の([白赤青緑黒]か[白赤青緑黒])のシグニ([０-９\d]+)体を対象とし.*エナゾーンに置く/);
     if (colorEnergyM) {
-      return { type: 'ENERGY_CHARGE', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorEnergyM[2]) } } as EnergyChargeAction;
+      return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorEnergyM[2]) } } as SendToEnergyAction;
     }
     // 対戦相手は自分のシグニN体を選びエナゾーンに置く
     if (t.match(/対戦相手は自分のシグニ[０-９\d]*体?を選びエナゾーンに置く/)) {
       const cntM = t.match(/([０-９\d]+)体/);
       const cnt = cntM ? parseNum(cntM[1]) : 1;
-      return { type: 'ENERGY_CHARGE', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as EnergyChargeAction;
+      return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as SendToEnergyAction;
     }
   }
 

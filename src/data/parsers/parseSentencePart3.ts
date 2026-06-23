@@ -15,6 +15,7 @@ import type {
   StubAction,
   PowerModifyAction,
   BanishAction,
+  SendToEnergyAction,
   BounceAction,
   DownAction,
   RecollectGateAction,
@@ -481,16 +482,16 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPP_TURN_NO_ENERGY_COST_ZERO' } as StubAction;
   }
 
-  // ---- 対戦相手のシグニをエナゾーンに置く → BANISH と同等 ----
+  // ---- 対戦相手のシグニをエナゾーンに置く（エナ送り。バニッシュとは別アクション） ----
   {
     const m = t.match(/対戦相手のシグニ([０-９\d]*)体(?:を対象とし、)?(?:それを)?エナゾーンに置く/);
     if (m) {
       const cnt = m[1] ? parseNum(m[1]) : 1;
-      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as BanishAction;
+      return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as SendToEnergyAction;
     }
   }
   if (t.match(/対戦相手は自分の.+シグニ.+選び.+エナゾーン/)) {
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
+    return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as SendToEnergyAction;
   }
 
   // ---- サーバントZEROにする / シグニ名変更 ----
@@ -860,12 +861,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REPEAT_N_TIMES' } as StubAction;
   }
 
-  // ---- 対戦相手のパワーN以下のシグニをエナゾーンに置く ----
+  // ---- 対戦相手のパワーN以下のシグニをエナゾーンに置く（エナ送り。バニッシュとは別アクション） ----
   {
-    const banishM = t.match(/対戦相手のパワー([０-９\d]+)以下のシグニ([０-９\d]*)体?を対象とし、それをエナゾーンに置く/);
-    if (banishM) {
-      const cnt = banishM[2] ? parseNum(banishM[2]) : 1;
-      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: cnt, filter: { maxPower: parseNum(banishM[1]) } } } as BanishAction;
+    const enaM = t.match(/対戦相手のパワー([０-９\d]+)以下のシグニ([０-９\d]*)体?を対象とし、それをエナゾーンに置く/);
+    if (enaM) {
+      const cnt = enaM[2] ? parseNum(enaM[2]) : 1;
+      return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: cnt, filter: { powerRange: { max: parseNum(enaM[1]) } } } } as SendToEnergyAction;
     }
   }
 

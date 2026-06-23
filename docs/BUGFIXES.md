@@ -5,6 +5,32 @@
 
 ---
 
+## 逆翻訳割れ G156/G157/G158/G159 の修正（条件欠落・誤実装・技名扱い）（2026-06-24）
+
+SP/ボカロコラボのレベル3ルリグ系4グループ（各2枚・計8枚）を `manualEffects.ts` で durable 実装。**イノセンス／プライマルはキーワード機構ではなく単なる技名**（ユーザー指摘）＝通常の【起】能力として効果本体のみ実装。
+
+- **新エンジン要素**: 条件型 `DECK_TOP_SHARES_COLOR_WITH_LRIG`（G157「公開カードと共通色のルリグがいる場合」）、`FIELD_SIGNI_ALL_DISTINCT_CLASS`（G158「場の全シグニが互いに異クラス」＝CardClassの／区切りトークン積集合が空）、`LAST_PROCESSED_COUNT_GTE`（「この方法でN枚以上手札に加えた場合」）を `execUtils` 評価に追加。フィルタ `crossState`（クロス状態シグニ。`field.cross_state[zone]` 判定）を `fieldCandidates` に追加。逆翻訳器（decompileEffects.ts）にも各描画を追加。
+- **G156**（WX25-CD1-06/WX25-CP1-030）: 単体NEGATE_ATTACK→2択CHOOSEに。①相手ルリグ/シグニ1体のアタック無効（`CENTER_LRIG_OR_SIGNI`）②エナ＜ブルアカ＞2枚トラッシュ→2体まで無効。②のクラス指定エナトラッシュは `OPTIONAL_TRASH_ENERGY_CLASS` STUB（近似）。
+- **G157**（SPDi01-121/WX25-P1-115）: 無条件エナチャージ→`DECK_TOP_SHARES_COLOR_WITH_LRIG` 条件付きに（完全動作）。
+- **G158**（SPDi44-04/WX25-P1-026）: E1 無条件→`FIELD_SIGNI_ALL_DISTINCT_CLASS` 条件付きエナチャージ2（完全動作）。E2(プライマル) エナのシグニを手札→5枚以上で `GRANT_LRIG_ABILITY`（対戦相手効果のダメージ無効＝`PREVENT_DAMAGE_FROM_OPP_EFFECTS`）。選択集合の異クラス制約は未強制（近似）。
+- **G159**（SPDi44-08/WX25-P1-018）: E1 timing誤り（ON_PLAY=自身）→`ON_PLAY` any_ally＋triggerFilter＜ウェポン＞＋DURING_PHASE main、トラッシュ対象に `hasIcon:クロス` 追加。E2(イノセンス) は**無関係なREMOVE_ABILITIES誤パースを破棄**し、クロス状態シグニの基本パワー15000化（`POWER_SET`+`crossState`）＋ルリグ身代わり【常】付与に作り直し。身代わり置換の実行とパワーの「次相手ターン終了時まで」持続は近似。
+- **検証**: `typecheck` 通過、`verify` 新規警告なし。decompile_sheet(9/10)・grouped_all 再生成、8枚すべて原文と一致。★割れグループ0維持。
+
+---
+
+## エナ送り（エナゾーンに置く）を SEND_TO_ENERGY 新設で正しく表現（G155他・全42枚）（2026-06-24）
+
+「対戦相手のシグニをエナゾーンに置く（エナ送り）」を**バニッシュと別アクション**として新設。バニッシュは「バニッシュされたとき」を誘発するがエナ送りは誘発しない＝厳密に別物（最終的な行き先は同じエナでも別イベント）。従来パーサーはエナ送りを `BANISH` 代用、または**壊れた `ENERGY_CHARGE`（フィールドSIGNI対象＝実行時に「undefined枚エナチャージ」）**に誤マップしていた。
+
+- **発見**: G155（WX24-D4-07／WX25-CD1-10）の逆翻訳が「デッキからundefined枚エナチャージ／バニッシュ」と原文（エナゾーンに置く）から乖離。根因は `parseSentencePart1.ts` がエナ送り文を `ENERGY_CHARGE{target:SIGNI,owner:opponent}` に誤変換していたこと（part3のエナ送り規則に届く前に先取り）。
+- **新アクション**: `SEND_TO_ENERGY`（types/effects.ts）。executor は `execSendToEnergy`（execBounce同型・場→対象オーナーのエナ・誘発なし）＋ `applyDirectAction` の単体適用ケース。decompiler（decompileEffects.ts）も対応。
+- **パーサー根治**: part1（パワー以上/レベル/色/相手選択）・part3（対象とし…エナゾーン／パワー以下）・part4（すべて／対象の〜）の各「エナゾーンに置く」分岐を `BANISH`/壊れ`ENERGY_CHARGE` から `SEND_TO_ENERGY` へ。`maxPower`（エンジン未対応の無効フィールド）も `powerRange.max` に是正。
+- **データ移行**: `scripts/migrateSendToEnergy.ts` で対象48枚を再パースし、現JSONと「BANISH/SEND_TO_ENERGY/壊れENERGY_CHARGE を同一視した正規化比較」で一致した41枚＋手動1枚（WX24-P3-083）＝**42枚**を SEND_TO_ENERGY へ移行。
+- **残6枚**（WXEX2-20／WXK09-031／WXK10-011／WXDi-P01-005／WXDi-P01-040／WX25-P2-041）はエナ送りが能力付与（GRANT_QUOTED_AUTO_ABILITY）・選択肢①・使用条件・別誤パース等のSTUB/未対応に埋もれており、エナ送り区別とは独立の既存課題のため未着手（要個別実装）。
+- **検証**: `npm run typecheck` 通過、`npm run verify` 新規警告なし。decompile_sheet（2/3/4/5/6/7/9/10）・grouped_all 再生成。★割れグループは 0 を維持。
+
+---
+
 ## 逆翻訳割れグループ G001/G002/G003 の修正（条件・対象欠落）（2026-06-23）
 
 `grouped_all.txt` の「★逆翻訳が割れているグループ（要確認）」3件（計6枚）を修正。原文は同型なのに、AUTOパースで条件・対象が欠落し「あなたのシグニ1体を無条件強化」へ退化していた（同型の WXK02-081/090/099 が正データ）。修正後、★割れグループは **3→0**。

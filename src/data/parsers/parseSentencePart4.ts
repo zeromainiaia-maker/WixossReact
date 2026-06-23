@@ -4,7 +4,7 @@ import type {
   EnergyChargeAction,
   TakeFromUnderSigniAction,
   StubAction,
-  BanishAction,
+  SendToEnergyAction,
   ConditionalAction,
   BlockCardUseAction,
   PlaceVirusAction,
@@ -207,9 +207,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/^プレイヤーを[１-９\d０-９]*人?まで選ぶ$/))
     return { type: 'STUB', id: 'CHOOSE_N_FROM_LIST' } as StubAction;
 
-  // ---- 対戦相手のすべてのシグニをエナゾーンに置く（= 全バニッシュ）----
+  // ---- 対戦相手のすべてのシグニをエナゾーンに置く（エナ送り。バニッシュとは別アクション）----
   if (t.match(/対戦相手のすべてのシグニをエナゾーンに置く/))
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as BanishAction;
+    return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as SendToEnergyAction;
 
   // ---- あなたの他の＜クラス＞のシグニ１体を場からトラッシュに置いてもよい ----
   if (t.match(/対象のあなたの他の[＜〈<].+[＞〉>]のシグニ[１-９\d０-９]*体?を場からトラッシュに置いてもよい/))
@@ -347,11 +347,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/手札から.+捨てないかぎり/))
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
-  // ---- 対象のシグニをエナゾーンに置く（= バニッシュ相当）----
+  // ---- 対象のシグニをエナゾーンに置く（エナ送り。バニッシュとは別アクション）----
   if (t.match(/^対象の対戦相手のシグニ[１-９\d０-９]*体?をエナゾーンに置く$/)) {
     const cntM = t.match(/([１-９\d０-９]+)体/);
     const cnt = cntM ? parseNum(cntM[1]) : 1;
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as BanishAction;
+    return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: cnt } } as SendToEnergyAction;
   }
 
   // ---- デッキ公開して宣言した色のカードをエナゾーン ----
