@@ -8373,7 +8373,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const dieZoneP0 = currentOwner.field.signi.findIndex(s => s?.at(-1) === topNum);
         const opZoneSigniP0 = dieZoneP0 >= 0 ? opState.field.signi[dieZoneP0]?.at(-1) ?? null : null;
         const opShootP0 = opZoneSigniP0 != null &&
-          hasKeyword(opZoneSigniP0, 'シュート', battleCardMap, opState.keyword_grants, undefined, opState.keyword_grants_until_opp_turn);
+          hasKeyword(opZoneSigniP0, 'シュート', battleCardMap, opState.keyword_grants, undefined, opState.keyword_grants_until_opp_turn, undefined, opState.abilities_removed);
         const redirectBanishP0 =
           opShootP0 ||
           opState.banish_redirect === true ||
