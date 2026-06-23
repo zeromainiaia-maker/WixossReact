@@ -264,7 +264,8 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       return hasKeyword(sourceCardNum, cond.keyword, cardMap,
         ownerState.keyword_grants, undefined,
-        ownerState.keyword_grants_until_opp_turn, ownerState.field_keyword_grants_active);
+        ownerState.keyword_grants_until_opp_turn, ownerState.field_keyword_grants_active,
+        ownerState.abilities_removed);
 
     case 'HAS_BOND': {
       const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);
