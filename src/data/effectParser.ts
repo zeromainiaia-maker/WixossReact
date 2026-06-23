@@ -1437,6 +1437,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              : actionText.includes('ライフバーストが発動したとき') ? ['ON_LIFE_BURST']
+             // 「あなたがカードをN枚引いたとき」= ドロー時トリガー（G089）。「ターン終了時まで」より先に判定する。
+             : /(?:あなたが)?カードを[０-９\d]+枚引いたとき/.test(actionText) ? ['ON_DRAW']
              // 「ターン終了時まで」は持続期間指定であってトリガーではない（G085「ターン終了時まで、このシグニのパワーを＋N」）。
              // 実トリガーの「ターン終了時、/に」のみ ON_TURN_END とする。
              : /ターン終了時(?!まで)/.test(actionText) ? ['ON_TURN_END']
