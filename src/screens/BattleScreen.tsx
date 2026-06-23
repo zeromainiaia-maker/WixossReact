@@ -5295,9 +5295,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     myState: PlayerState,
     opState: PlayerState,
     ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
+    // 効果でシグニが場に出た経路から呼ばれた場合（G144/G145/WX11-054 の any_ally byEffect/placedDown を発火させる）。
+    // placeSourceIsSigni: 場出しした効果元がシグニか（bySigniEffect 用）。手札召喚経路は placedByEffect=false で従来どおり byEffect 非発火。
+    opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean },
   ): StackEntry[] => {
     const entries: StackEntry[] = [];
     const opId = ownerId === bs.host_id ? bs.guest_id : bs.host_id;
+    // byEffect/bySigniEffect:「効果によって場に出たとき」限定の発火可否（ON_PLAY）。
+    //   手札召喚（placedByEffect 無し）では発火しない。効果配置経路では byEffect 発火、bySigniEffect はソースがシグニのときのみ。
+    const byEffectTriggerOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (event !== 'ON_PLAY') return true;
+      if (eff.triggerCondition?.bySigniEffect) return !!(opts?.placedByEffect && opts?.placeSourceIsSigni);
+      if (eff.triggerCondition?.byEffect) return !!opts?.placedByEffect;
+      return true;
+    };
 
     // CONTINUOUS REMOVE_ABILITIES: 能力を失っているシグニのセットを事前計算
     const isOwnerTurnForTrigger = ownerId === bs.active_user_id;
