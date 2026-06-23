@@ -1398,6 +1398,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_TRASH') {
+        // 「レゾナの出現条件のために、〜トラッシュに置かれたとき」: レゾナ出現条件の支払い時のみ発火
+        if (/レゾナの出現条件のために/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), forResonaCondition: true };
+        }
         const m = actionText.match(/(?:(?:(?:手札か)?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき)[、,]\s*(.+)/s);
         if (m) actionText = m[1];
         else {
