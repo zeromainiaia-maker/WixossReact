@@ -5,6 +5,15 @@
 
 ---
 
+## G074「パワーはエナの色の種類1つにつき＋N」CONTINUOUS が未実装だったのを配線（2026-06-23）
+
+逆翻訳の同型グルーピング（grouped_all.txt G074）で「あなたのシグニ1体のパワーを…」と出ていた（原文は「**このシグニ**のパワーは…」）。調査したところ、表現の誤りだけでなく **`POWER_MODIFY_PER_ENERGY_COLOR` アクションが CONTINUOUS パワー計算（effectEngine.calcFieldPowers）に一切配線されておらず、+N が全く適用されない完全未実装**だった（effectExecutor 側は「effectEngine処理」とログするだけのプレースホルダ）。
+
+- **修正（engine）:** `extractPowerModifiesPerEnergyColor` を追加し、CONTINUOUS パワー適用ループに処理を追加。エナゾーンの色種類数（白赤青緑黒を個別カウント／マルチエナは各色別／無色は不算入＝既存 `ENERGY_COLOR_TYPES` 条件と同ロジック）× `deltaPerColor` を、`target.count!=='ALL'` なら効果元シグニ自身（topNum）、`ALL` なら `applyDeltaToState` でフィルタ一致シグニに適用。
+- **修正（decompile）:** 共有ケースに `thisOnly`（count!=='ALL' かつ self/any →「このシグニ」）を追加。`POWER_MODIFY_PER_VIRUS_COUNT` と共有のため両者の self/count:1 表現が「このシグニ」に統一。
+- **対象（全5枚）:** WX14-063/065/068（+1000/色）・WXDi-P08-071（+1000/色）・WX25-P1-114（+2000/色）。すべて target {self,count:1}・energyOwner:self で本配線が全対応。
+- 検証: `npm run typecheck` 通過。focused テストで色2種→+2000・マルチ色は各色カウント・エナ無し→base を確認。decompile が「このシグニのパワーを…」に。
+
 ## ON_ZONE_MOVED トリガーの engine 配線（2026-06-23）
 
 G073 系の timing 分類修正（下記）に続き、`ON_ZONE_MOVED` をゲームエンジンに配線。従来は `INTERNAL_MOVE_TO_ZONE` が原文「移動したとき…パワー+N」をテキスト読みして temp_power_mods に直書きする簡易ハックのみだった。

@@ -537,7 +537,10 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'POWER_MODIFY_PER_VIRUS_COUNT': {
       const per = a.type.replace('POWER_MODIFY_PER_', '');
       const d = a.deltaPerUnit ?? a.deltaPerLevel ?? a.deltaPerLife ?? a.delta ?? a.deltaPerColor ?? 0;
-      return `${targetJa(a.target)}のパワーを${per}数に応じて${d >= 0 ? '＋' : '－'}${Math.abs(d)}ずつ変更する`;
+      // count!=='ALL' かつ self/any =「このシグニ」（常時自己強化）
+      const thisOnlyPC = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || a.target?.owner === 'any');
+      const tgtPC = thisOnlyPC ? 'このシグニ' : targetJa(a.target);
+      return `${tgtPC}のパワーを${per}数に応じて${d >= 0 ? '＋' : '－'}${Math.abs(d)}ずつ変更する`;
     }
     case 'PLAY_FREE': {
       const srcLoc: Record<string, string> = {

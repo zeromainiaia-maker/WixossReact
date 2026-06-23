@@ -10,6 +10,7 @@ import type {
   PowerModifyPerTrashCountAction,
   PowerModifyPerLifeCountAction,
   PowerModifyPerVirusCountAction,
+  PowerModifyPerEnergyColorAction,
   PowerModifyPerCharmAction,
   PowerSetAction,
   CostIncreaseAction,
@@ -681,6 +682,14 @@ function extractPowerModifiesPerVirusCount(action: EffectAction): PowerModifyPer
   return [];
 }
 
+function extractPowerModifiesPerEnergyColor(action: EffectAction): PowerModifyPerEnergyColorAction[] {
+  if (action.type === 'POWER_MODIFY_PER_ENERGY_COLOR') return [action as PowerModifyPerEnergyColorAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerEnergyColor(s));
+  }
+  return [];
+}
+
 function extractPowerModifiesPerCharm(action: EffectAction): PowerModifyPerCharmAction[] {
   if (action.type === 'POWER_MODIFY_PER_CHARM') {
     const a = action as PowerModifyPerCharmAction;
@@ -1253,6 +1262,34 @@ export function calcFieldPowers(
           const delta = mod.deltaPerVirus * virusCount;
           if (delta !== 0 && powers.has(topNum)) {
             powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+          }
+        }
+
+        // POWER_MODIFY_PER_ENERGY_COLOR: エナゾーンのカードが持つ色の種類数に比例したパワー増減（常時）
+        // 「このシグニのパワーはあなたのエナゾーンにあるカードが持つ色の種類1つにつき＋N」(G074=WX14-063等)。
+        // 色種類=白赤青緑黒の個別カウント（マルチエナは各色別／無色は不算入）。target.count!=='ALL'=このシグニ自身。
+        const perEnergyColorMods = extractPowerModifiesPerEnergyColor(effect.action);
+        for (const mod of perEnergyColorMods) {
+          const enaState = mod.energyOwner === 'self' ? ownerState : otherState;
+          const colorSet = new Set<string>();
+          for (const cn of enaState.energy) {
+            const colorStr = cardMap.get(cn)?.Color ?? '';
+            for (const col of ['白', '赤', '青', '緑', '黒']) {
+              if (colorStr.includes(col)) colorSet.add(col);
+            }
+          }
+          const delta = mod.deltaPerColor * colorSet.size;
+          if (delta !== 0) {
+            if (mod.target.count !== 'ALL') {
+              if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
+                powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+              }
+            } else {
+              const tgtIsOwner = mod.target.owner === 'self' || mod.target.owner === 'any';
+              const tgtIsOther = mod.target.owner === 'opponent' || mod.target.owner === 'any';
+              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers);
+              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
+            }
           }
         }
 
