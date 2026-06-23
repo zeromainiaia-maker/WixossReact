@@ -96,5 +96,21 @@ console.log('\n[4] CRAFT_TO_LRIG_DECK フェゾーネ: 5種→2種選択（WXDi-
   check('2種選択', pend?.count === 2 && pend?.multiSelect === true, `count=${pend?.count}`);
 }
 
+console.log('\n[5] CRAFT_TO_LRIG_DECK ダークアーツ: 5種→2種選択（WX25-P1-034）');
+{
+  const cardMap = new InstanceMap<CardData>([
+    ['WX25-P1-034', card({ CardNum: 'WX25-P1-034', CardName: 'ヤミノ＝Ⅲ', Type: 'ルリグ',
+      EffectText: 'クラフトの《幻怪 ヤミノザンシ》1体を場に出す。ダークアーツのクラフトから2種類を1枚ずつ公開しルリグデッキに加える。(ダークアーツは5種類から)' })],
+    ['WX25-P1-TK6', card({ CardNum: 'WX25-P1-TK6', CardName: '幻怪 ヤミノザンシ', Type: 'シグニ/クラフト' })],
+    ...(['WX25-P1-TK1', 'WX25-P1-TK2', 'WX25-P1-TK3', 'WX25-P1-TK4', 'WX25-P1-TK5']
+      .map((n, i) => [n, card({ CardNum: n, CardName: `ダークアーツ${i}`, Type: 'アーツ/クラフト' })] as [string, CardData])),
+  ]);
+  const r = execStub({ type: 'STUB', id: 'CRAFT_TO_LRIG_DECK' } as never, ctxOf(blankState(), cardMap, 'WX25-P1-034'), dummyExec);
+  const pend = (r as unknown as { pending?: { options?: { id: string }[]; count?: number } }).pending;
+  check('5択（ダークアーツ）', pend?.options?.length === 5, `len=${pend?.options?.length}`);
+  check('2種選択', pend?.count === 2);
+  check('ヤミノザンシは候補に含まれない', !pend?.options?.some(o => o.id.includes('TK6')), JSON.stringify(pend?.options?.map(o => o.id)));
+}
+
 console.log(`\n結果: ${pass} pass / ${fail} fail`);
 process.exit(fail > 0 ? 1 : 0);
