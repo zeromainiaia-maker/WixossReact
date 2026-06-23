@@ -1390,14 +1390,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     case '常':
       effectType = 'CONTINUOUS'; mandatory = true;
       // 【常】表記だが「（対戦相手のターンの間、）このシグニがバニッシュされたとき、…」は ON_BANISH トリガー（AUTO）として扱う（G150）。
+      // 相手ターン限定は activeCondition TURN_OWNER(opponent)（ON_BANISH 自己トリガー収集が activeCondition を評価するため）。
       {
         const banishTrigM = actionText.match(/このシグニがバニッシュされたとき[、,]\s*(.+)/s);
         if (banishTrigM) {
           effectType = 'AUTO';
           timing = ['ON_BANISH'];
           extractedTriggerScope = 'self';
-          // 「対戦相手のターンの間、」= 相手ターン限定の発動条件
-          if (/対戦相手のターンの間/.test(actionText)) extractedTriggerCondition = { type: 'IS_OPPONENT_TURN' };
+          if (/対戦相手のターンの間/.test(actionText)) forcedActiveCondition = { type: 'TURN_OWNER', owner: 'opponent' };
           actionText = banishTrigM[1];
         }
       }
