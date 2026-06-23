@@ -3940,7 +3940,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
-      const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum] };
+      // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
+      const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum], turn_signi_returned_to_hand: true };
       return done(addLog(setOwnerState(found, withHand, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
