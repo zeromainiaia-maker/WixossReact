@@ -1596,6 +1596,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const m = actionText.match(/(?:あなたか?(?:対戦相手の)?)?ライフバーストが発動したとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
+      // ON_DRAW: 「（あなたが）カードをN枚引いたとき、」を除去（G089）
+      if (timing[0] === 'ON_DRAW') {
+        const m = actionText.match(/(?:あなたが)?カードを[０-９\d]+枚引いたとき[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
       mandatory = true;
       // ON_LEAVE_FIELD / ON_REVEALED_FROM_HAND / ON_LIFE_CRASHED / ON_TRASH の「〜してもよい」等は任意トリガー（発動しない選択可）
       if ((timing[0] === 'ON_LEAVE_FIELD' || timing[0] === 'ON_REVEALED_FROM_HAND'
