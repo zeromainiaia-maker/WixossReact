@@ -4627,6 +4627,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(stack.turnPlayerId, leaveEntries);
         }
 
+        // ON_DRAW: 効果でカードを引いた場合（cards_drawn_by_effect_this_turn の増加を検出）、引いたプレイヤーの ON_DRAW【自】を発火（G089）
+        const drawEntries: StackEntry[] = [];
+        if ((hostState.cards_drawn_by_effect_this_turn ?? 0) > (bs.host_state.cards_drawn_by_effect_this_turn ?? 0)) {
+          drawEntries.push(...collectDrawTriggers(bs.host_id, hostState, guestState));
+        }
+        if ((guestState.cards_drawn_by_effect_this_turn ?? 0) > (bs.guest_state.cards_drawn_by_effect_this_turn ?? 0)) {
+          drawEntries.push(...collectDrawTriggers(bs.guest_id, guestState, hostState));
+        }
+        if (drawEntries.length > 0) {
+          const baseStackD = (update.effect_stack as typeof stackAfter) ?? null;
+          update.effect_stack = baseStackD
+            ? pushToStack(baseStackD, drawEntries)
+            : initStack(stack.turnPlayerId, drawEntries);
+        }
+
         // ON_ENERGY_FROM_TRASH: トラッシュからエナゾーンに移動したカードのトリガー
         const hostEnergyFromTrash  = detectEnergyFromTrash(bs.host_state, hostState);
         const guestEnergyFromTrash = detectEnergyFromTrash(bs.guest_state, guestState);
