@@ -995,7 +995,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
     } else if (t.match(/あなたの(?:感染状態の)?シグニ([０-９\d]+)体/)) {
       target = parseSigniTarget(t, 'self');
     } else if (t.match(/このシグニ/)) {
-      target = { type: 'SIGNI', owner: 'self', count: 1 };
+      // 「このシグニのパワーを±N」= 効果元シグニ自身（任意選択でなく thisCardOnly）。
+      // 自分の場のシグニから1体選ばせるのではなく、効果元（sourceCardNum）に固定する（G085）。
+      target = { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
     } else if (t.match(/^それのパワーを/) || t.match(/^それはパワーが/)) {
       // 「それ」= トリガー元シグニ（ON_ATTACK_SIGNI等で発火したシグニ自身）
       target = { type: 'SIGNI', owner: 'self', count: 1 };
