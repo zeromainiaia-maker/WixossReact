@@ -5,6 +5,19 @@
 
 ---
 
+## リコレクト（《リコレクトアイコン》）の系統的実装（**完了**・全88枚）（2026-06-23）
+
+効果文に《リコレクトアイコン》［N枚以上］を含む全88枚（Sheet9/10：WX24/25/26・SPDi）を系統的に実装。リコレクトは「ルリグトラッシュのアーツ枚数 ≥ N」で判定し、**使用中のアーツ自身は数えない**（エンジンは `BattleScreen.tsx:6354` で効果解決前に lrig_trash へ先行追加するため、判定時に `sourceCardNum` を除外＝`excludeSource`）。
+
+- **発見バグ**: パーサーが「追加で／代わりに／選択数変更」の意味差を区別せず、(1) 追加で型はゲート欠落で追加効果が**無条件発動**、(2) 代わりに型は `TRASH_COUNT`（通常トラッシュ全カード）で**誤判定**または未実装、(3) `RECOLLECT_GATE` が**使用中アーツ自身を+1して数える** off-by-one。
+- **機構**: 追加で/アイコン直後 → `RECOLLECT_GATE`。代わりに → `CONDITIONAL` + `{type:'LRIG_TRASH_COUNT', cardType:'アーツ', excludeSource:true}`（常時効果は `evalConditionForContinuous` に LRIG_TRASH_COUNT 追加で対応）。選択数変更（「N個からMつ選ぶ.代わりにKつ選ぶ」）→ `ChooseAction.recollectArts`（execChoose で枚数≥minArtsなら choose_count/upTo を上書き）。
+- **パーサー**: `parseActionText` 最上部で `《リコレクトアイコン》［` 境界を分割（早期returnに飲み込まれる前に処理）。base/bonus がパース不能なら分割を諦め旧挙動へフォールバック＝UNKNOWN退化ゼロ。
+- **適用**: effects_*.json は正データのため全再生成せず、対象88枚（「パーサー出力==現JSON」を確認済み）のみ再適用。手書き2枚（WX24-D3-25/SPDi37-06）は manualEffects.ts の条件を直接修正。
+- **残**: WX25-CP1-002/004・WX26-CP1-003 は CHOOSE の1選択肢のみ複雑で UNKNOWN（パーサー既知の制約）。P4エクシード等の base 効果が STUB のものは recollect 部分のみゲート化（base は別課題）。
+- **コミット**: c9251596（GATE off-by-one）／5018ddab（追加で/代わりに 63枚＋基盤）／04f6fac2（選択数変更9枚＋手書き2枚）。
+
+---
+
 ## G144/G145 any_ally 効果配置トリガーの配線（**完了**・実機検証推奨）（2026-06-23）
 
 G144（`WX10-074/078` `placedDown`）／G145（`WX10-080/083` `byEffect`＋`excludeSelf`）の「あなたの（他の）シグニが〈ダウン状態で／効果によって〉場に出たとき」系 any_ally ON_PLAY を、**効果配置経路で発火させる配線**を追加（従来は手札召喚経路のみで、効果でシグニが場に出ても他シグニが反応しなかった）。
