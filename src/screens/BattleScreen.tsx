@@ -3148,6 +3148,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
       // fromZones 指定があり 'field' を含まない場合は「場から」では発火しない（WX04-102「手札かデッキから」）
       if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('field')) continue;
+      // レゾナの出現条件の支払いとしてトラッシュされた場合のみ発火（WX10-055等）。通常のトラッシュでは発火しない
+      if (eff.triggerCondition?.forResonaCondition) continue;
       const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
       entries.push({
         id: generateUUID(),
