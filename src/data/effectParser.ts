@@ -653,6 +653,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン5a2: 「あなたのエナゾーンに＜X＞(か＜Y＞)*のシグニが(N枚)?あるかぎり、」（クラス指定エナ存在条件。G038）
+  const enaSigniM = text.match(/^あなたのエナゾーンに((?:＜[^＞]+＞(?:か)?)+)のシグニが(?:([０-９\d]+)枚以上)?あるかぎり、/);
+  if (enaSigniM) {
+    const storyFilter = parseStoryFilter(enaSigniM[1]);
+    return {
+      condition: { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter }, ...(enaSigniM[2] ? { minCount: parseNum(enaSigniM[2]) } : {}) },
+      rest: text.slice(enaSigniM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン5b: 「あなたのエナゾーンにあるカードが対戦相手よりN枚以上多いかぎり、」
   const enaDiffM = text.match(/^あなたのエナゾーンにあるカードが対戦相手より([０-９\d]+)枚以上多いかぎり、/);
   if (enaDiffM) {
