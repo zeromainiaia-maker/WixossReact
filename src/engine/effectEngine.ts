@@ -331,6 +331,9 @@ export function checkActiveCondition(
       return matched >= (cond.minCount ?? 1);
     }
 
+    case 'SIGNI_RETURNED_TO_HAND_THIS_TURN':
+      return (cond.owner === 'self' ? ownerState : otherState).turn_signi_returned_to_hand === true;
+
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss));
   }
