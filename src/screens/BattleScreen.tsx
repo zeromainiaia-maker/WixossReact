@@ -1522,6 +1522,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     nums.add('WX25-P2-TK04');    // コードヒート ウィクロンジャーロボ
     nums.add('WX25-P2-TK05');    // 蒼穹将姫 ニヴルヘイム
     nums.add('WX25-P2-TK06');    // 蒼穹将姫 ユミル
+    // アクセクラフト（signi_acce はaddStateが走査しない＝反応的ロード不可のため必須。WXDi-P09-007）
+    nums.add('WXDi-P09-TK01A');  // コードイート ケチャチャ
+    nums.add('WXDi-P09-TK02A');  // コードイート セアブラマシマシ
+    nums.add('WXDi-P09-TK03A');  // コードイート オンタマ
+    // ハスターリク（hastarliq_zones はaddStateが走査しない＝反応的ロード不可のため必須。WXDi-P05-016）
+    nums.add('WXDi-P05-TK01A');  // 【ハスターリク】
+    // ピース/クラフト（ADD_CRAFT_TO_LRIG_DECK でルリグデッキへ。WXDi-P16-009/010/011）
+    nums.add('WXDi-P16-TK01');   // インビンシブル・ストーリー
+    // フェゾーネマジック（スペル/クラフト。WXDi-P14-006/007/008/009/071）
+    nums.add('WXDi-P14-TK01');   // フェゾーネマジック・ホワイト
+    nums.add('WXDi-P14-TK02');   // フェゾーネマジック・レッド
+    nums.add('WXDi-P14-TK03');   // フェゾーネマジック・BLUE
+    nums.add('WXDi-P14-TK04');   // フェゾーネマジック・グリーン
+    nums.add('WXDi-P14-TK05');   // フェゾーネマジック・ブラック
+    // 下に置くクラフト（PLACE_CARD_UNDER_SIGNI。WX25-CP1-083 / WXDi-CP02-061）
+    nums.add('WX25-CP1-TK2A');   // 給食推進車両
+    nums.add('WXDi-CP02-TK03A'); // 虎丸
+    // バリアトークン（free_zoneは反応的ロード可だが初回描画安定化のため明示）
+    nums.add('WX24-P1-TK2A');    // 【ルリグバリア】
+    nums.add('WX26-CP1-TK01');   // 【シグニバリア】
+    // 変身/REV先（field.signi等へ配置され反応的ロードされるが、確実性のため明示）
+    nums.add('WXDi-P13-003B');   // 未知の巫女 マユ
+    nums.add('WXDi-P13-004B');   // UNKNOWN-CODE-RU-
+    nums.add('WXDi-P16-001B');   // 扉の俯瞰者 ウトゥルス
+    nums.add('WXDi-P11-010B');   // 夢限 -A-
+    nums.add('PR-Di017B');       // REV:アンコーリング
     return nums;
   }, [myDeckData, bs]);
 
