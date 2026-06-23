@@ -7457,7 +7457,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       const hasGrantedKeyword = (kw: string) =>
-        hasKeyword(myTopNum, kw, battleCardMap, myGrants, undefined, myS.keyword_grants_until_opp_turn, myS.field_keyword_grants_active) || contGrantedKeywords.has(kw);
+        // REMOVE_ABILITIES で能力を失っているシグニは印字・付与いずれのキーワードも持たない（G085 等）
+        !myS.abilities_removed?.includes(myTopNum) &&
+        (hasKeyword(myTopNum, kw, battleCardMap, myGrants, undefined, myS.keyword_grants_until_opp_turn, myS.field_keyword_grants_active, myS.abilities_removed) || contGrantedKeywords.has(kw));
       const isAssassin    = hasGrantedKeyword('アサシン');
       const isLancer      = hasGrantedKeyword('ランサー');
       const isSLancer     = hasGrantedKeyword('Sランサー');
