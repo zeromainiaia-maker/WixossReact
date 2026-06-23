@@ -2843,7 +2843,8 @@ export function collectContinuousGrantedKeywords(
 /**
  * COPY_LRIG_NAME_ABILITY (CONT): センタールリグに「ルリグトラッシュのルリグと同じカード名として扱う」
  * CONTINUOUS効果があれば、そのエイリアスカード名のリストを返す。
- * NOTE: 同ルリグの【自】能力コピーは未実装（名前エイリアスのみ対応）。
+ * NOTE: 同ルリグの【自】能力コピーは collectCopiedLrigAutoEffects、【常】能力コピーは
+ * collectCopiedLrigContinuousEffects で対応（本関数は名前エイリアスのみ担当）。
  */
 /** すべてのルリグ名を持つことを示すセンチネル（LRIG_ALL_NAMES CONTINUOUS効果） */
 export const LRIG_ALL_NAMES_SENTINEL = '__ALL_LRIG_NAMES__';
@@ -3010,7 +3011,58 @@ export function collectCopiedLrigAutoEffects(
 
     for (const trashEff of (effectsMap.get(targetLrig) ?? [])) {
       if (trashEff.effectType !== 'AUTO') continue;
-      result.push({ ...trashEff, effectId: `${centerTop}-COPY-${trashEff.effectId}` });
+      result.push({ ...trashEff, effectId: `${centerTop}-COPY-${trashEff.effectId}`, copiedFromCardNum: cardMap.get(targetLrig)?.CardNum ?? targetLrig });
+    }
+  }
+  return result;
+}
+
+/**
+ * COPY_LRIG_NAME_ABILITY (CONT) 【常】能力コピー:
+ * センタールリグが「…と同じカード名としても扱い、そのルリグの【常】能力を得る」場合、
+ * ルリグトラッシュの該当ルリグの CONTINUOUS 効果をセンタールリグの効果として返す。
+ * effectId に "{centerTop}-COPYC-" プレフィックスを付けて重複を防ぐ。
+ * 「【自】能力を得る」カードは collectCopiedLrigAutoEffects 側で扱うため、ここでは【常】指定のみ対象。
+ */
+export function collectCopiedLrigContinuousEffects(
+  ownerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): import('../types/effects').CardEffect[] {
+  const result: import('../types/effects').CardEffect[] = [];
+  const centerTop = ownerState.field.lrig.at(-1);
+  if (!centerTop) return result;
+  const toHW2 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
+  for (const eff of (effectsMap.get(centerTop) ?? [])) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    const act = eff.action as import('../types/effects').StubAction;
+    if (act.type !== 'STUB' || act.id !== 'COPY_LRIG_NAME_ABILITY') continue;
+    if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, centerTop)) continue;
+
+    const card = cardMap.get(centerTop);
+    const txt = card?.EffectText ?? '';
+    // 「そのルリグの【常】能力を得る」のみ対象（【自】は AUTO コピー側で処理）
+    if (!/そのルリグの【常】能力を得る/.test(txt)) continue;
+    const m = txt.match(/ルリグトラッシュにある(?:レベル([０-９\d]+)の)?＜([^＞]+)＞(?:のルリグ)?と同じカード名/);
+    if (!m) continue;
+
+    const targetLevel = m[1] !== undefined ? parseInt(toHW2(m[1])) : undefined;
+    const storyName = m[2];
+
+    const targetLrig = ownerState.lrig_trash.find(cn => {
+      const c = cardMap.get(cn);
+      if (!c) return false;
+      if (targetLevel !== undefined && parseInt(c.Level ?? '0') !== targetLevel) return false;
+      return c.CardClass?.includes(storyName) || c.Story?.includes(storyName) || c.CardName?.includes(storyName);
+    });
+    if (!targetLrig) continue;
+
+    for (const trashEff of (effectsMap.get(targetLrig) ?? [])) {
+      if (trashEff.effectType !== 'CONTINUOUS') continue;
+      result.push({ ...trashEff, effectId: `${centerTop}-COPYC-${trashEff.effectId}`, copiedFromCardNum: cardMap.get(targetLrig)?.CardNum ?? targetLrig });
     }
   }
   return result;
@@ -4823,16 +4875,18 @@ export function collectGuardAlternativeCost(
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
 ): { signiClass: string; sourceCardNum: string } | null {
-  for (const stack of ownerState.field.signi) {
-    const top = stack?.at(-1);
+  // シグニゾーンに加え、センタールリグも走査（COPY_LRIG_NAME_ABILITY でルリグが【常】コピーした場合に対応）。
+  const lrigTop = ownerState.field.lrig.at(-1);
+  const holders = [...ownerState.field.signi.map(s => s?.at(-1)), lrigTop];
+  for (const top of holders) {
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'GUARD_ALTERNATIVE_COST') continue;
-      const card = cardMap.get(top);
-      if (!card) continue;
-      const txt = card.EffectText ?? '';
+      // コピー効果の場合は元カードの EffectText を参照（保持者のテキストには記述がないため）。
+      const txtCard = eff.copiedFromCardNum ? cardMap.get(eff.copiedFromCardNum) : cardMap.get(top);
+      const txt = txtCard?.EffectText ?? '';
       // 「《ガードアイコン》を持つカードを１枚捨てる代わりにあなたのエナゾーンから＜植物＞のシグニ１枚をトラッシュ」
       const classM = txt.match(/代わりにあなたのエナゾーンから＜([^＞]+)＞のシグニ/);
       if (classM) {

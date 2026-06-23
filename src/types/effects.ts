@@ -1373,6 +1373,10 @@ export interface CardEffect {
   effectId: string;
   effectType: EffectType;
 
+  // COPY_LRIG_NAME_ABILITY 等で他カードからコピーされた効果の場合、元カード番号を保持する。
+  // テキスト駆動の STUB（GUARD_ALTERNATIVE_COST 等）が元カードの EffectText を解決するために使う。
+  copiedFromCardNum?: string;
+
   // ACTIVATED / AUTO / LIFE_BURST 用：いつ使えるか
   timing?: EffectTiming[];
 

@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes} from '../engine/effectEngine';
@@ -1632,9 +1632,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.effectType === 'CONTINUOUS' && e.action.type === 'GRANT_SOUL_HOST_ABILITY');
     });
 
-    if (!hasGranted && !hasStack && !hasOverrides && !hasFieldGrant && !hasAcceGrant && !hasSoulGrant) return baseEffectsMap;
+    // COPY_LRIG_NAME_ABILITY で「そのルリグの【常】能力を得る」センタールリグの有無チェック
+    const hasCopyLrigCont = [myS, opS].some(st => {
+      const top = st.field.lrig.at(-1);
+      if (!top) return false;
+      const txt = battleCardMap.get(top)?.EffectText ?? '';
+      if (!/そのルリグの【常】能力を得る/.test(txt)) return false;
+      return (baseEffectsMap.get(top) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' &&
+        (e.action as import('../types/effects').StubAction).id === 'COPY_LRIG_NAME_ABILITY');
+    });
+
+    if (!hasGranted && !hasStack && !hasOverrides && !hasFieldGrant && !hasAcceGrant && !hasSoulGrant && !hasCopyLrigCont) return baseEffectsMap;
 
     const augMap = new Map<string, import('../types/effects').CardEffect[]>(baseEffectsMap);
+
+    // COPY_LRIG_NAME_ABILITY 【常】能力コピー：ルリグトラッシュの該当ルリグの CONTINUOUS 効果を
+    // センタールリグ（instanceId）に注入する。これにより各 CONTINUOUS 収集関数が自動的に拾う。
+    if (hasCopyLrigCont) {
+      for (const [st, otherSt, isTurn] of [[myS, opS, myTurn], [opS, myS, !myTurn]] as const) {
+        const copiedCont = collectCopiedLrigContinuousEffects(st, battleCardMap, baseEffectsMap, otherSt, isTurn);
+        if (copiedCont.length === 0) continue;
+        const top = st.field.lrig.at(-1)!;
+        const base = augMap.get(top) ?? baseEffectsMap.get(top) ?? [];
+        augMap.set(top, [...base, ...copiedCont]);
+      }
+    }
 
     // card_identity_overrides: ZERO化されたシグニの効果を差し替えカードの効果に設定（通常は空）
     for (const [instanceId, overrideNum] of [...Object.entries(myOverrides), ...Object.entries(opOverrides)]) {
