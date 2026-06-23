@@ -631,6 +631,25 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3e: 「対戦相手の場にパワーN以上のシグニがあるかぎり、」（相手シグニのパワー条件。G076）
+  const oppFieldPowerM = text.match(/^対戦相手の場にパワー([０-９\d]+)以上のシグニがあるかぎり、/);
+  if (oppFieldPowerM) {
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', powerRange: { min: parseNum(oppFieldPowerM[1]) } } },
+      rest: text.slice(oppFieldPowerM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン3f: 「このシグニがアクセされているかぎり、」（自身にアクセが付いている条件。G078）
+  if (text.startsWith('このシグニがアクセされているかぎり、')) {
+    return {
+      condition: { type: 'IS_SELF_ACCED' } as ActiveCondition,
+      rest: text.slice('このシグニがアクセされているかぎり、'.length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
