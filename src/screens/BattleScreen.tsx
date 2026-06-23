@@ -4094,7 +4094,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
         spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
-        turn_hand_discarded_count: undefined,
+        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined,
         is_betting_this_effect: undefined, last_discarded_signi_power: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
