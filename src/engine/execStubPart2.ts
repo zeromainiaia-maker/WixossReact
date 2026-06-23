@@ -2212,6 +2212,17 @@ export function execStubPart2(
     const newSSTINOV: PlayerState = { ...removedSTINOV, trash: [...removedSTINOV.trash, ctx.sourceCardNum] };
     return done(addLog({ ...ctx, ownerState: newSSTINOV }, '相手ウィルスなし→自トラッシュ'));
   }
+  // SELF_TRASH_IF_NO_OPP_CHARM: 相手の場に【チャーム】がなければ自トラッシュ（WX13-086等）
+  if (stub.id === 'SELF_TRASH_IF_NO_OPP_CHARM') {
+    const hasCharmSTINOC = (ctx.otherState.field.signi_charms ?? []).some(c => c != null);
+    if (hasCharmSTINOC) return done(addLog(ctx, '相手チャームあり（トラッシュなし）'));
+    if (!ctx.sourceCardNum) return done(ctx);
+    if (!ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+      return done(addLog(ctx, 'フィールドにいない（SELF_TRASH_IF_NO_OPP_CHARM）'));
+    const removedSTINOC = removeFromField(ctx.sourceCardNum, ctx.ownerState);
+    const newSSTINOC: PlayerState = { ...removedSTINOC, trash: [...removedSTINOC.trash, ctx.sourceCardNum] };
+    return done(addLog({ ...ctx, ownerState: newSSTINOC }, '相手チャームなし→自トラッシュ'));
+  }
   // NO_ABILITY_SIGNI_TO_DECK_BOTTOM: 能力なしシグニをデッキ下に
   if (stub.id === 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM') {
     if (!ctx.sourceCardNum) return done(ctx);
