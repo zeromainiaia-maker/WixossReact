@@ -2635,13 +2635,22 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
 function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // CENTER_LRIG_OR_SIGNI:「ルリグかシグニ」を候補に（G154 BURST）。それ以外はシグニ候補。
+  let cands: string[];
+  if (a.target.type === 'CENTER_LRIG_OR_SIGNI') {
+    const lrigTop = state.field.lrig.at(-1);
+    const signiCands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
+  } else {
+    cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  }
   if (cands.length === 0) return done(ctx);
 
   if (a.target.count === 'ALL') {
     const s = ownerState(tgtOwner, ctx);
     const negated = [...(s.negated_attacks ?? []), ...cands];
-    const newS = { ...s, negated_attacks: negated };
+    const escape = a.escapeDiscard ? { ...(s.negated_attacks_escape ?? {}), ...Object.fromEntries(cands.map(n => [n, a.escapeDiscard!])) } : s.negated_attacks_escape;
+    const newS = { ...s, negated_attacks: negated, ...(escape ? { negated_attacks_escape: escape } : {}) };
     return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}体のシグニのアタックを無効化`));
   }
   const cnt = resolveNum(a.target.count);
