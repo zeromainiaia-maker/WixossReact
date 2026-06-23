@@ -2612,6 +2612,23 @@ export function execStubPart2(
   if (stub.id === 'CRAFT_TO_LRIG_DECK' || stub.id === 'ADD_CRAFT_TO_LRIG_DECK') {
     const srcCTLD2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCTLD2 = srcCTLD2 ? (srcCTLD2.EffectText ?? '') + ' ' + (srcCTLD2.BurstText ?? '') : '';
+    // フェゾーネマジック: 5種のクラフトスペルから2種を選んでルリグデッキに加える（WXDi-P14-006等）
+    if (txtCTLD2.includes('フェゾーネマジック')) {
+      const FEZONE = ['WXDi-P14-TK01', 'WXDi-P14-TK02', 'WXDi-P14-TK03', 'WXDi-P14-TK04', 'WXDi-P14-TK05'];
+      const optsFZ = FEZONE
+        .filter(num => !ctx.ownerState.lrig_deck.some(cn => getCardNum(cn) === num)) // 既にあるものは除外
+        .map(num => ({
+          id: `fezone_${num}`,
+          label: ctx.cardMap.get(num)?.CardName ?? num,
+          action: ({ type: 'STUB', id: 'INTERNAL_GEN_TOKEN_TO_LRIG_DECK', value: num } as StubAction) as EffectAction,
+          available: true,
+        }));
+      if (optsFZ.length === 0) return done(addLog(ctx, 'フェゾーネマジック：追加できるクラフトなし'));
+      const pickFZ = Math.min(2, optsFZ.length);
+      return needsInteraction(addLog(ctx, `フェゾーネマジックのクラフトから${pickFZ}種類を選んでルリグデッキに加える`), {
+        type: 'CHOOSE', options: optsFZ, count: pickFZ, multiSelect: true,
+      });
+    }
     // テキスト中の《名前》のうち、クラフト/トークンとして解決できる最初のものを採用
     const craftNameCTLD2 = [...txtCTLD2.matchAll(/《([^》]+)》/g)]
       .map(m => m[1])
