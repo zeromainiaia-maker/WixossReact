@@ -679,6 +679,10 @@ function effJa(e: Eff): string {
       const zones = e.triggerCondition.fromZones.map((z: string) => zoneJa[z] ?? z).join('か');
       s = s.replace('トラッシュに置かれたとき', `${zones}からトラッシュに置かれたとき`);
     }
+    // ON_TRASH の「レゾナの出現条件のために」限定を反映
+    if (t === 'ON_TRASH' && e.triggerCondition?.forResonaCondition) {
+      s = 'レゾナの出現条件のために' + s.replace('トラッシュに置かれたとき', '場からトラッシュに置かれたとき');
+    }
     return s;
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
