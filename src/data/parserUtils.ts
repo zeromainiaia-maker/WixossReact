@@ -144,6 +144,7 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   };
   if (text.includes('感染状態')) filter.infected = true;
   if (text.includes('アクセされている') || text.match(/アクセされて(?:いる|いた)/)) filter.hasAcce = true;
+  if (/【チャーム】が付いている/.test(text)) filter.hasCharm = true; // 「【チャーム】が付いている対戦相手のシグニ」（G153）
   if (text.includes('アップ状態')) filter.isUp = true;
   if (text.includes('ダウン状態') && !text.includes('ダウン状態で場に出')) filter.isDown = true;
   if (text.includes('凍結状態')) filter.isFrozen = true;
