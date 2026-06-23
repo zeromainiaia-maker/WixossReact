@@ -109,6 +109,8 @@ function filterJa(f?: any): string {
   if (f.powerLtSelf) parts.push('このシグニよりパワーの低い');
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
+  if (f.noGuard) parts.push('《ガードアイコン》を持たない');
+  if (f.commonClass) parts.push('共通するクラスを持つ');
   if (f.hasIcon) parts.push(`《${f.hasIcon}アイコン》を持つ`);
   if (f.isDown) parts.push('ダウン状態の');
   if (f.isUp) parts.push('アップ状態の');
@@ -131,6 +133,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     const lvMax = t.filter.levelRange?.max ?? (typeof t.filter.level === 'object' ? t.filter.level?.max : undefined);
     return lvMax !== undefined ? `そのレベル${lvMax}以下の${unit}` : `その${unit}`;
   }
+  // thisCardOnly: このシグニ自身に限定 → 主語・数詞を省略して「このシグニ」
+  if (t.filter?.thisCardOnly) {
+    return 'このシグニ';
+  }
   // owner='any': count='ALL' は「すべてのシグニ」（両者・主語省略）、単体選択は「自分または対戦相手の」（どちらも選べる）
   const own = t.owner === 'any' ? (t.count === 'ALL' ? '' : '自分または対戦相手の') : ownerJa(t.owner);
   // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
@@ -144,7 +150,8 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   else if (loc) {
     const ct = t.filter?.cardType;
     u = (ct ? ([] as string[]).concat(ct).join('か') : 'カード') + loc;
-  } else u = unit; // SIGNI 等
+  } else if (t.filter?.isResona) u = 'レゾナ';
+  else u = unit; // SIGNI 等
   // パワー合計上限つき「好きな数」（「パワーの合計がN以下になるように好きな数」）
   if (t.totalPowerMax !== undefined) {
     return `${own}${filterJa(t.filter)}${u}をパワーの合計が${t.totalPowerMax}以下になるように好きな数`.trim();
@@ -208,7 +215,7 @@ function condJa(c?: any): string {
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
-    case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}シグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
+    case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}シグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;
@@ -311,7 +318,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'POWER_MODIFY_PER_HAND_COUNT': return `${targetJa(a.target)}のパワーを手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
     case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
     case 'DOWN': return `${targetJa(a.target)}をダウンする`;
-    case 'UP': return `${targetJa(a.target)}をアップする`;
+    case 'UP': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
     case 'ENERGY_CHARGE_FROM_DECK': return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
     case 'ADD_TO_LIFE': {
@@ -323,8 +330,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'ADD_TO_FIELD':
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
-        return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す`;
-      return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
+        return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}`;
+      return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
     case 'BLOCK_ACTION': {
       if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
       const actionLabel: Record<string, string> = {
@@ -479,7 +486,7 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'SET_BASE_LEVEL': {
       const thisOnlySBL = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner);
-      return `${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
+      return `${a.until === 'END_OF_TURN' ? 'ターン終了時まで、' : ''}${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
     }
     case 'REVEAL_UNTIL_TO_HAND': {
       const restJa = a.restDest === 'trash' ? '残りをトラッシュに置く'
@@ -704,6 +711,10 @@ function effJa(e: Eff): string {
       s = s.replace('場に出たとき', 'シグニの効果によって場に出たとき');
     } else if (t === 'ON_PLAY' && e.triggerCondition?.byEffect) {
       s = s.replace('場に出たとき', '効果によって場に出たとき');
+    }
+    // ON_PLAY の「ダウン状態で」限定（G144「あなたのシグニがダウン状態で場に出たとき」）
+    if (t === 'ON_PLAY' && e.triggerCondition?.placedDown) {
+      s = s.replace('場に出たとき', 'ダウン状態で場に出たとき');
     }
     return s;
   }).join('/');

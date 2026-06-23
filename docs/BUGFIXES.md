@@ -5,6 +5,92 @@
 
 ---
 
+## G145 「あなたの他のシグニが効果によって場に出たとき」（部分実装・残課題は TODO 可視化）（2026-06-23）
+
+`WX10-080`/`WX10-083` の原文「【自】：あなたの他のシグニ1体が効果によって場に出たとき、このシグニをアップする」が `ON_PLAY`＋`UP{owner:self,count:1}`（「このシグニが場に出たとき：任意のシグニをアップ」）と誤り。
+
+- **データ:** `ON_PLAY`＋`triggerScope:any_ally`＋`triggerFilter:{excludeSelf:true}`（「他の」）＋`triggerCondition:{byEffect:true}`＋`action:UP{target.filter.thisCardOnly}`。逆翻訳「あなたの他のシグニが効果によって場に出たとき：このシグニをアップする」（原文一致）。
+- **engine（検証済み）:** `execUp` の `thisCardOnly` を「候補1枚でも選択 pending」→「選択不要で即アップ」に修正（既存の thisCardOnly UP 全体が選択UI削減の改善。検証 PASS）。
+- **⚠️ 残課題（TODO 可視化／G144 と同根）:** `any_ally`＋`byEffect`（他シグニが効果で場に出た→このシグニが反応）の発火は、効果配置経路で `collectFieldTriggers(any_ally)` が呼ばれず未配線。**※ G079（`WX15-108`等＝`triggerScope:self`＋`bySigniEffect`「このシグニが効果で出たとき」）は自己 ON_PLAY 収集に判定が配線済み（BattleScreen line 4801/5181）で動くが、G145 は self ではなく any_ally のため別経路で未配線。** [[decompile-engine-parity]] の原則で可視化。
+
+## G144 「ダウン状態で場に出たとき」トリガー（部分実装・残課題は TODO 可視化）（2026-06-23）
+
+`WX10-074`/`WX10-078` の原文「【自】：あなたのシグニ1体がダウン状態で場に出たとき、そのシグニをアップする」が、JSON で `ON_PLAY`＋`UP{owner:self,count:1}`（＝「このシグニが場に出たとき：あなたのシグニ1体をアップ」）と**トリガーも対象も誤り**だった。
+
+- **データ:** `timing:ON_PLAY`＋`triggerScope:any_ally`＋`triggerCondition:{placedDown:true}`＋`action:UP{targetsTriggerSource:true}` に。逆翻訳「あなたのシグニがダウン状態で場に出たとき：それ（トリガー元シグニ）をアップする」（原文一致）。
+- **型:** `UpAction.targetsTriggerSource`、`triggerCondition.placedDown` を追加。
+- **decompile:** `UP` に `targetsTriggerSource`→「それ（トリガー元シグニ）」、`ON_PLAY`＋`placedDown`→「ダウン状態で場に出たとき」を追加。
+- **engine（検証済み）:** `execUp` に `targetsTriggerSource`（トリガー元シグニ＝`triggeringCardNum`を無選択アップ）。検証スクリプトでダウン中のトリガー元がアップ／不在時 no-op を確認（PASS）。BattleScreen の**手札召喚経路**に `placedDown` 判定（`queueCardEffects` self・`collectFieldTriggers` any_ally）。
+- **⚠️ 残課題（TODO 可視化）:** ダウン配置は効果でのみ起こるが、BattleScreen の「効果配置時の ON_PLAY トリガー収集」は経路ごとにハードコードで分散し `placedDown`／`any_ally` を呼んでいない（既存の未配線課題と同根）。**逆翻訳は健全に見えるが効果ダウン配置時は未発火**。ユーザー判断で根幹改修は見送り、`docs/TODO.md` に明記して乖離を可視化（[[decompile-engine-parity]] の原則）。
+
+## G141/G142 の engine 実装（DECK_CARD 場出し／一時的な基本レベル変更）（2026-06-23）
+
+下の G135/G141/G142/G143 修正で「★engine 未対応」とした2点を実装。検証スクリプトで動作確認（PASS）。
+
+- **G141 — `ADD_TO_FIELD` で `source:DECK_CARD` 対応（`execAddToField`）:** デッキ上から `count` 枚を `matchesFilter` で絞り、一致したものを候補に。一致が無ければ何も起きない。配置は既存 `applyDirectAction('ADD_TO_FIELD')`（line 4061〜）がカードの所在＝デッキを問わず除去・配置するため、候補生成のみ追加すれば成立。`optional:true` は selectOrInteract に渡し「出す／出さない」を選択可能（G129 で直した経路）。検証: デッキトップが ＜宇宙＞Lv3→SELECT_TARGET（候補1枚）、Lv5（レベル超過）/凶蟲（class不一致）→候補なしで何もしない、を確認。※ `filter.story` は実装上 `card.CardClass` を部分一致照合（既存仕様）。宇宙/凶蟲シグニの CardClass は「精羅：宇宙」等で `includes('宇宙')` 一致。
+- **G142 E2 — `SET_BASE_LEVEL` の `until:'END_OF_TURN'` 対応（`executeAction`）:** 起動効果での一時的レベル変更を、既存の一時レベル上書き機構 `ownerState.attack_phase_level_overrides[sourceCardNum] = value` に書き込む（CHANGE_BASE_LEVEL STUB と同じ仕組み＝同じクリアタイミングに乗る）。`SetBaseLevelAction` に `until?: 'END_OF_TURN'` を追加。CONTINUOUS（until無し）は従来どおり `applyContinuousBaseLevelOverride` 経由。検証: overrides に `{src:4}` が書かれることを確認。
+- `tsc --noEmit` 通過。
+
+## G135/G141/G142/G143 逆翻訳の取りこぼし・誤りを修正（2026-06-23）
+
+grouped_all.txt の比較で4グループを修正。**データ・逆翻訳は全て原文準拠に修正済み。一部は engine 未実装のため動作は別途**（下記★）。
+
+- **G135（WX08-049 / WX08-051）:** 原文「【常】：あなたの場に《X》か《X》があるかぎり、基本パワーはNになる」の activeCondition が欠落。E1 に `activeCondition:{HAS_CARD_IN_FIELD, owner:self, filter:{cardNames:[…2枚…]}}` を追加（cardName は全角スペース表記）。逆翻訳「《あなたの場に《羅星　アルシャ》《羅星　ディアデム》のいずれか…がいるかぎり》」。
+- **G141（WX10-007 / WX10-021）★:** 原文「デッキの一番上を見る。それがレベル3以下の＜X＞のシグニの場合、それを場に出してもよい」が `LOOK_AND_REORDER → ADD_TO_FIELD(source無し=直前に選んだカード)` で条件も任意性も欠落。`ADD_TO_FIELD` に `source:{DECK_CARD, fromTop, filter:{cardType:シグニ, level:{max:3}, story:X}}` ＋ `optional:true` を付与。decompile の ADD_TO_FIELD(source) に `（してもよい）` を追加。**→ engine 実装済み（上記エントリ参照）。**
+- **G142（WX10-056 / WX10-058）:** E1 原文「あなたの場に**レゾナ**があるかぎり」が「シグニがいるかぎり」に。activeCondition.filter に `isResona:true` を追加（cardType:レゾナ は残置）、`condJa` の HAS_CARD_IN_FIELD で `isResona` 時に名詞を「レゾナ」に。E2★ 原文「ターン終了時まで、このシグニの基本レベルはNになる」が `BLOCK_ACTION{actionId:"SET_LEVEL_N"}` という誤parseに → `SET_BASE_LEVEL{value:N, until:"END_OF_TURN"}` に置換。decompile の SET_BASE_LEVEL に until→「ターン終了時まで、」を追加。**→ engine 実装済み（上記エントリ参照）。**
+- **G143（WX10-069 / WX10-072）:** 原文「**対戦相手は**ライフクロス1枚をトラッシュに置く…**対戦相手は**デッキの一番上をライフクロスに加える」が owner:self になっていた。`LIFE_CRASH` と `ADD_TO_LIFE` の owner を self→opponent に。逆翻訳「対戦相手のライフクロスを…/対戦相手のデッキの一番上から…」。
+- decompile 3箇所修正（condJa isResona / SET_BASE_LEVEL until / ADD_TO_FIELD(source) optional）。`tsc --noEmit` 通過。生成物 `grouped_all.txt`・`decompile_sheet1.txt` の該当12行を更新（E1/E2連結・LIFE_BURST記述は保持）。
+
+## G134 「あなたのレゾナ」が「自分または対戦相手のシグニ1体」になっていたのを修正（2026-06-23）
+
+WX07-007 / WX08-019 の原文「【常】：あなたのレゾナのパワーを＋2000する」が、JSON では `POWER_MODIFY target:{type:SIGNI, owner:any, count:1}` となっており、owner も対象範囲もレゾナ限定も全て誤っていた（逆翻訳「自分または対戦相手のシグニ1体のパワーを＋2000する」）。
+
+- **修正（データ）:** target を `{type:SIGNI, owner:self, count:"ALL", filter:{isResona:true}}` に（`effects_WX.json`）。G103（WD01-001「あなたのすべてのシグニのパワーを＋N」）と同じ owner:self / count:ALL 構造。
+- **修正（逆翻訳）:** `decompileEffects.ts` の `targetJa` で `filter.isResona` のとき名詞を「シグニ」→「レゾナ」に切り替え。
+- 逆翻訳「あなたのすべてのレゾナのパワーを＋2000する」に（「すべての」は count:ALL の既存表記。G103 と同様）。`grouped_all.txt`・`decompile_sheet1.txt` 更新。
+
+## G129 自己蘇生 ADD_TO_FIELD が「してもよい」＝任意発動になっていなかったのを修正（2026-06-23・追補）
+
+G129（WX02-073 / WX10-092）の「このカードをトラッシュから場に出して**もよい**」が、データ・逆翻訳・engine の3層で任意化されていなかった。
+
+- **修正（データ）:** 両 E1 の `action` に `optional:true` を追加（`effects_WX.json`）。
+- **修正（逆翻訳）:** `decompileEffects.ts` の ADD_TO_FIELD 自己蘇生分岐（thisCardOnly source）に `${a.optional ? '（してもよい）' : ''}` を追加。
+- **修正（engine）:** `execAddToField` 末尾の `selectOrInteract` が任意性を `src.upToCount` だけで判定し `a.optional` を無視していた → `(a.optional ?? false) || (src.upToCount ?? false)` に（他のターゲット解決 line 267/301 と同形）。これで「場に出す／出さない」を選択可能に。`tsc --noEmit` 通過。
+- 逆翻訳「このシグニをトラッシュから場に出す（してもよい）」。`grouped_all.txt`・`decompile_sheet1.txt` 更新。
+- ※ 同型の自己蘇生 ADD_TO_FIELD は他に35件あり全て optional 無し。強制蘇生を誤って任意化しないよう、原文が「〜してもよい」のもののみ個別対応する方針（今回は G129 の2枚）。
+
+## G129 ON_TRASH の発生源「デッキから」が欠落していたのを修正（2026-06-23）
+
+WX02-073 / WX10-092（コードアンチ）の原文「このカードが**デッキから**トラッシュに置かれたとき、…」に対し、逆翻訳が「このカードがトラッシュに置かれたとき」と発生源を欠いていた。`decompileEffects.ts` は `ON_TRASH` の `triggerCondition.fromZones` を見て「〜からトラッシュに置かれたとき」を出す仕組みを既に持っており（場からのバニッシュ等と区別）、データ側に `fromZones` が無かっただけ。
+
+- **修正（データ）:** WX02-073-E1 / WX10-092-E1 に `triggerCondition:{fromZones:["deck"]}` を追加（`effects_WX.json`）。逆翻訳が「このカードがデッキからトラッシュに置かれたとき」に。
+- 生成物 `grouped_all.txt`・`decompile_sheet1.txt` の該当行を更新（同一行の LIFE_BURST 記述は保持）。
+
+## G100/G101/G102 逆翻訳の取りこぼしを修正（2026-06-23）
+
+grouped_all.txt の比較で3グループに欠落を発見。
+
+- **G100（WXDi-P02-025 / P07-022 / CP02-032）:** 原文「対戦相手の**レベル1の**シグニ1体をデッキの一番下に置く」の「レベル1の」が逆翻訳で抜けていた。**データ（filter.level:1）もコード（filterJa の `typeof level==='number'`→「レベルNの」）も既に正しく**、`grouped_all.txt` が古い生成物だっただけ。該当行を最新 decompile で更新（データ修正不要）。
+- **G101（WXDi-P10-029 / CP01-020 / CP02-046）:** 原文「あなたのトラッシュから**《ガードアイコン》を持たない、共通するクラスを持つ**シグニ2枚を…手札に加える」のフィルタ2条件が `TRANSFER_TO_HAND` の source.filter から欠落。filter に `noGuard:true` / `commonClass:true` を追加し、`decompileEffects.ts` の `filterJa` に対応語彙（「《ガードアイコン》を持たない」「共通するクラスを持つ」）を新規追加。
+- **G102（WX24-P1-020 宝石 / WX25-P1-037 ウェポン / WX25-P3-040 天使）:** 原文「デッキの上から5枚見る。その中から＜X＞のシグニを2枚まで公開し手札に加え、残りを…デッキの一番下に置く」が、JSON では `LOOK_AND_REORDER(5) → TRANSFER_TO_DECK(自軍シグニ1体をデッキ下)` という別物になっていて、**手札に加える選別が丸ごと欠落**していた。該当2ステップを `REVEAL_AND_PICK{revealCount:5, filter:story, pickCount:2, pickTo:hand, remainder:{deck,bottom}}` 1つに置換（WX02-018 と同形）。BANISH ステップは維持。＜X＞は `story`（宝石／ウェポン／天使）。
+- 生成物 `grouped_all.txt`・`decompile_sheet7/8/9.txt` の該当9行を更新。
+
+## G093 スペルのモード選択（2つから1つ選ぶ）が丸ごと欠落していたのを修正（2026-06-23）
+
+WXK07-069「大成の爆火」/ WDK01-020「光明の流星」/ WDK08-L20「血晶の斧撃」（いずれもスペル・コスト《赤》×０）の効果が、原文「以下の２つから１つを選ぶ。①対象のあなたの＜X＞のシグニ１体を場からトラッシュに置く。そうした場合、対象の対戦相手のパワー12000以下のシグニ１体をバニッシュする。②【エナチャージ１】」に対し、JSON では `action` が **BANISH 単体**になっていて、モード選択も①のトラッシュコストも②エナチャージも全て失われていた。
+
+- **修正（データ）:** `action` を `CHOOSE`（choose_count:1 / from_count:2）に置換。選択肢①＝`SEQUENCE[TRASH(自軍＜story＞シグニ1体) → CONDITIONAL{IS_MY_TURN}（「そうした場合」マーカー）→ BANISH(対戦相手パワー12000以下1体)]`、選択肢②＝`ENERGY_CHARGE_FROM_DECK(1)`。＜X＞は `story`（原子／乗機／紅蓮）。WX02-024 の CHOOSE（BANISH or エナチャージ）と同形。
+- effectType/timing/cost（ACTIVATED・MAIN・energy赤0）は CSV の《赤》×０どおりで正しいため維持。
+- 逆翻訳が「次から1つ選ぶ【…をトラッシュに置く。そうした場合、…をバニッシュする / …エナゾーンに置く】」と原文の2択を表現するようになった。`grouped_all.txt`・`decompile_sheet3/4/5.txt` の該当行も更新。
+
+## G091「このシグニを手札に戻す」BOUNCE が任意ターゲット選択になっていたのを修正（2026-06-23）
+
+逆翻訳（grouped_all.txt G091）で原文「**このシグニを**場から手札に戻してもよい」が「**あなたのシグニ1体を**手札に戻す（してもよい）」となっていた。BOUNCE の target が `{type:SIGNI, owner:self, count:1, filter:{cardType:シグニ}}` で、自分自身固定ではなく自軍シグニから1体選ぶ形になっていた。
+
+- **修正（データ）:** WXK06-034 / WXK06-036 / WXK10-061 の BOUNCE target filter に `thisCardOnly:true` を追加（`effects_WXK.json` 直パッチ、3効果）。`effectExecutor.ts` は `target.filter.thisCardOnly` を解釈済み（マルチエナ等で確立済みのフラグ）。
+- **修正（逆翻訳）:** `decompileEffects.ts` の `targetJa` に `thisCardOnly` の早期分岐を追加し「あなたの…シグニ1体」ではなく「このシグニ」を返すよう統一（従来は filter の「このシグニ自身」と type/count 由来の「シグニ1体」が重複し「このシグニ自身シグニ1体」になっていた）。マルチエナ等の既存 thisCardOnly カードも「このシグニは…」と自然化。
+- 生成物 `decompile_sheet3/4.txt`・`grouped_all.txt` の該当行も再生成相当で更新。逆翻訳が原文どおり「このシグニを手札に戻す（してもよい）」に一致。
+
 ## G077【側面アタック】を engine 実装（2026-06-23）
 
 【側面アタック】（G077=WX15-094/095/096「あなたの場に＜英知＞のシグニが3体あるかぎり、このシグニは正面の1つ隣の対戦相手のシグニゾーンにもアタックできる」）はキーワード付与されるだけで **engine 実装が無く完全に no-op** だった。

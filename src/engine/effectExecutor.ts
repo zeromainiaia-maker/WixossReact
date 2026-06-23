@@ -889,6 +889,15 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   } else if (src.type === 'HAND_CARD') {
     cands = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_hand' : 'opp_hand';
+  } else if (src.type === 'DECK_CARD') {
+    // 「デッキの一番上を見る。それが〈filter〉の場合、場に出してもよい」（G141）。
+    // デッキ上から count 枚を対象に filter で絞る。一致しなければ候補なし＝何も起きない。
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt);
+    const topCount = src.count === 'ALL' ? state.deck.length : resolveNum(src.count);
+    const pool = state.deck.slice(0, topCount);
+    cands = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter, undefined, undefined, ctx.treatAsClassAllZones));
+    // 配置は applyDirectAction(ADD_TO_FIELD) が所在（デッキ）を問わず除去・配置する。scope はUI表示用の近似。
+    scope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
   } else {
     return done(ctx);
   }
@@ -936,7 +945,8 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
 
   const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
   if (src.count === 'ALL') return done(applyToField(cands, ctx));
-  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx);
+  // a.optional:「場に出してもよい」→ 出す/出さないを選択可能にする（src.upToCount と同様に任意化）
+  return selectOrInteract(cands, count, (a.optional ?? false) || (src.upToCount ?? false), scope, a, undefined, ctx);
 }
 
 function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
@@ -1076,10 +1086,19 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
   }
   const state = ownerState(a.target.owner, ctx);
   let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  // thisCardOnly: 効果元シグニ自身のみ（「このシグニをアップする」。WX16-Re07等）
+  // thisCardOnly: 効果元シグニ自身のみ（「このシグニをアップする」。WX16-Re07/G145等）→ 選択不要で即アップ
   if (a.target.filter?.thisCardOnly) {
-    cands = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
+    const selfNum = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
       ? [ctx.sourceCardNum] : [];
+    return done(applyUp(selfNum, ctx));
+  }
+  // targetsTriggerSource: 「それ」= トリガー元シグニ（ダウン状態で場に出たそのシグニ）を無選択でアップ（G144）
+  if (a.targetsTriggerSource) {
+    const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+    if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
+      return done(applyUp([autoNum], ctx));
+    }
+    return done(ctx);
   }
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
 
@@ -3389,7 +3408,16 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手のシグニのバニッシュ先をトラッシュへ変更'));
     }
     case 'REARRANGE_SIGNI':                return execRearrangeSigni(action as import('../types/effects').RearrangeSigniAction, ctx);
-    case 'SET_BASE_LEVEL':                 return done(ctx); // CONTINUOUS。基本レベルは applyContinuousBaseLevelOverride（cardMap上書き）で反映
+    case 'SET_BASE_LEVEL': {
+      // until:END_OF_TURN は【起】等で一時的に基本レベルを変更（CHANGE_BASE_LEVEL STUB と同じ attack_phase_level_overrides を使用）。
+      const sbl = action as import('../types/effects').SetBaseLevelAction;
+      if (sbl.until === 'END_OF_TURN' && ctx.sourceCardNum && typeof sbl.value === 'number') {
+        const newOv = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [ctx.sourceCardNum]: sbl.value };
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: newOv } },
+          `${ctx.cardMap.get(ctx.sourceCardNum)?.CardName ?? ctx.sourceCardNum}の基本レベルを${sbl.value}に変更（ターン終了時まで）`));
+      }
+      return done(ctx); // CONTINUOUS。基本レベルは applyContinuousBaseLevelOverride（cardMap上書き）で反映
+    }
     case 'GROW_FREE':                      return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
     case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
     case 'POWER_MODIFY_PER_DECK_COUNT':    return done(addLog(ctx, 'デッキ枚数比例パワー（effectEngine処理）'));

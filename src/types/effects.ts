@@ -622,6 +622,7 @@ export interface DownAction {
 export interface UpAction {
   type: 'UP'; // アップ
   target: EffectTarget;
+  targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニ（ダウン状態で場に出たシグニ等）をアップ（ctx.triggeringCardNum → ctx.sourceCardNum）
 }
 
 export interface BlockActionAction {
@@ -930,6 +931,7 @@ export interface SetBaseLevelAction {
   type: 'SET_BASE_LEVEL';
   target: EffectTarget;  // 通常は自分（このシグニ）。count:1=効果元シグニ
   value: number;         // 設定する基本レベル
+  until?: 'END_OF_TURN'; // 起動効果で一時的に基本レベルを変更する場合（attack_phase_level_overrides に反映）
 }
 
 // コストなしでグロウする
@@ -1381,6 +1383,7 @@ export interface CardEffect {
     forResonaCondition?: boolean; // レゾナの出現条件のためにトラッシュに置かれた場合のみ発火（WX10-055等）。通常のトラッシュ（バトル・効果・ルール処理）では発火しない
     byEffect?: boolean; // 効果によって場に出た場合のみ発火（WX11-054等「効果によって場に出たとき」）。手札からの通常召喚では発火しない
     bySigniEffect?: boolean; // シグニの効果によって場に出た場合のみ発火（G079等「シグニの効果によって場に出たとき」）。通常召喚・スペル/アーツ/ルリグの効果では発火しない
+    placedDown?: boolean; // ダウン状態で場に出た場合のみ発火（G144「あなたのシグニがダウン状態で場に出たとき」。ON_PLAY と併用）
   };
 
   // CONTINUOUS 用：常時効果がいつ適用されるか

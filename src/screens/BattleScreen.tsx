@@ -4403,6 +4403,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const crossOk = isCrossZoneActive(startMyState, cardNum, battleCardMap);
       targets = targets.filter(e => !e.crossOnly || crossOk);
     }
+    // placedDown（G144「このシグニがダウン状態で場に出たとき」self経路）: 自身がダウン状態で出ていなければ発動しない。
+    // 手札からの通常召喚はダウンにならないため自然に除外される（ダウン配置は効果経由のみ）。
+    if (timings.includes('ON_PLAY') && targets.some(e => e.triggerCondition?.placedDown)) {
+      const zi = startMyState.field.signi.findIndex(s => s?.at(-1) === cardNum);
+      const isDown = zi >= 0 && (startMyState.field.signi_down?.[zi] ?? false);
+      targets = targets.filter(e => !e.triggerCondition?.placedDown || isDown);
+    }
     if (targets.length === 0 && extraEntries.length === 0) return false;
 
     const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
@@ -5316,6 +5323,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         //   （効果による場出し経路＝REVEAL_UNTIL_TO_FIELD/SEED_BLOOM等は現状フィールドの any_ally トリガーを収集しないため、
         //    他シグニが効果で場に出た場合の発火は未配線。自身が効果で場に出た場合は各召喚経路の自己ON_PLAY収集で発火する）
         if ((eff.triggerCondition?.byEffect || eff.triggerCondition?.bySigniEffect) && event === 'ON_PLAY') continue;
+        // placedDown（G144「あなたのシグニがダウン状態で場に出たとき」any_ally経路）: トリガー元シグニがダウン状態で出ていなければ発火しない。
+        if (eff.triggerCondition?.placedDown && event === 'ON_PLAY') {
+          const ziTrig = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
+          if (ziTrig < 0 || !(myState.field.signi_down?.[ziTrig] ?? false)) continue;
+        }
         // triggerFilter: ON_ATTACK_SIGNI等でトリガー元カードがフィルタを満たすか確認
         if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
