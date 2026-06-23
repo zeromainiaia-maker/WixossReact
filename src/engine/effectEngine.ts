@@ -2789,11 +2789,14 @@ export function collectContinuousGrantedKeywords(
   };
   const signiTops: string[] = ownerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : []));
   const signiSet = new Set(signiTops);
+  // REMOVE_ABILITIES: 能力を失っているシグニは付与を発生させず（発生源）、新たに得もしない（対象）。
+  const abilitiesRemoved = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap);
   // 発生源: 自分の場のシグニ＋センタールリグ
   const sources: string[] = [...signiTops];
   const lrigTop = ownerState.field.lrig.at(-1);
   if (lrigTop) sources.push(lrigTop);
   for (const srcNum of sources) {
+    if (abilitiesRemoved.has(srcNum)) continue; // 能力喪失シグニはキーワードを付与しない
     for (const eff of effectsMap.get(srcNum) ?? []) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'GRANT_KEYWORD') continue;
@@ -2804,6 +2807,7 @@ export function collectContinuousGrantedKeywords(
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, srcNum, effectivePowers)) continue;
       const targetsAll = gk.target.count === 'ALL';
       for (const num of signiTops) {
+        if (abilitiesRemoved.has(num)) continue; // 能力喪失シグニは新たにキーワードを得ない
         if (gk.target.filter && !matchesFilter(cardMap.get(num), gk.target.filter)) continue;
         // count:1（「このシグニ」想定）は発生源シグニ自身のみ。count:ALL は条件一致の全シグニ。
         if (!targetsAll && !(signiSet.has(srcNum) && num === srcNum)) continue;
