@@ -243,41 +243,15 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 - **実機検証:** 対話 pause/resume・CPU即決はヘッドレス検証不可。PvP／CPU戦での動作確認が必要。
 - **効果離場トリガー型:** `WX06-019`（対戦相手効果による場離れ＋`powerReduction`）/ `WX25-P1-056`（非バニッシュ離場→バニッシュ置換）＝場離れ全般のフックが要る。`WX17-075`（「正面にレベル2以下が出たとき任意バニッシュ」＝置換でなく `ON_PLACED_FRONT` 任意トリガー）。いずれも現状 no-op で無害。
 
-### G144 「シグニがダウン状態で場に出たとき」トリガーの効果配置経路への配線（**逆翻訳・型・UP・手札召喚経路は実装済み／効果配置経路が未配線**）
+### G144 「シグニがダウン状態で場に出たとき」/ G145 「他のシグニが効果によって場に出たとき」any_ally 効果配置トリガー（**配線完了・実機検証推奨**）
 
-`WX10-074`「肆ノ遊 ツナヒキ」/ `WX10-078`「参ノ遊 ナワトビ」。原文「【自】：あなたのシグニ1体がダウン状態で場に出たとき、そのシグニをアップする。（このシグニがダウン状態で場に出たときも発動する）」。
+G144=`WX10-074`「肆ノ遊 ツナヒキ」/ `WX10-078`「参ノ遊 ナワトビ」（`placedDown`＋`UP targetsTriggerSource`）。G145=`WX10-080`「弐ノ遊 ナゲナワ」/ `WX10-083`「壱ノ遊 アヤトリ」（`byEffect`＋`triggerFilter:{excludeSelf}`＋`UP{thisCardOnly}`）。両者 `ON_PLAY`＋`triggerScope:any_ally`。
 
-**✅ 実装済み:** データ（`ON_PLAY`＋`triggerScope:any_ally`＋`triggerCondition.placedDown`＋`UP targetsTriggerSource`）／型（`UpAction.targetsTriggerSource`・`triggerCondition.placedDown`）／decompile（逆翻訳は原文どおり）／engine の `UP` action（`targetsTriggerSource`、検証PASS）／BattleScreen の**手札召喚経路**の `placedDown` 判定（`queueCardEffects` self・`collectFieldTriggers` any_ally）。
+**✅ 配線完了（2026-06-23）:** 効果でシグニが場に出る各経路（メインスタック解決 / スペル解決 / REVEAL resume）で、出たシグニへの**他シグニ（any_ally/any）の反応**を発火させる配線を追加。
+- `detectPlacedSigni(before, after)`（新ヘルパー）で「効果で新たに場に出た最前面シグニ」を検出し、各解決完了時に `collectFieldTriggers('ON_PLAY', placedNum, …, { placedByEffect:true, placeSourceIsSigni })` を呼ぶ（自身は自己除外＝他シグニのみ）。
+- `collectFieldTriggers` に `opts.placedByEffect / placeSourceIsSigni` を追加。`byEffectTriggerOk` で **手札召喚（placedByEffect 無し）では byEffect/bySigniEffect 非発火／効果配置では byEffect 発火・bySigniEffect はソースがシグニのときのみ**を制御。
+- `placedDown`（G144）は `collectFieldTriggers` 内で配置直後の `field.signi_down[zone]` を見て判定。`excludeSelf`（G145）は自己除外で担保（matchesFilter は excludeSelf を無視）。
 
-**⚠️ 未配線（要対応）:** ダウン配置は**効果でのみ**起こるが、BattleScreen の「効果でシグニが場に出たとき」の ON_PLAY トリガー収集は経路ごとにハードコードで分散（COLLAB / SEED_BLOOM / REVEAL_UNTIL_TO_FIELD / 一般 ADD_TO_FIELD…）し、いずれも `placedDown` 判定も `any_ally` 収集（他シグニのダウン配置への反応）も**呼んでいない**。これは既存の「効果配置時の any_ally トリガー未配線」（`collectFieldTriggers` のコメント参照）と同根。**逆翻訳は健全に見えるが、効果ダウン配置時の発火は現状動かない**（＝乖離。本TODOで可視化）。完全動作には各効果配置経路への配線が必要（BattleScreen 根幹・他カード影響あり・検証は対戦画面必須）。
+**⚠️ 実機検証（ヘッドレス不可）:** PvP/CPU 対戦画面で、(a) 効果で他シグニをダウン配置 → G144 がそのシグニをアップ、(b) 効果で他シグニを場出し → G145 が自身をアップ、を確認する。**回帰注意:** 非 byEffect の any_ally ON_PLAY（例 WX11-054）も**効果配置時に発火するようになった**（従来は手札召喚のみ）＝WIXOSS ルール上は正しいが、全 any_ally ON_PLAY カードの挙動を実機確認推奨。
 
-### G145 「あなたの他のシグニが効果によって場に出たとき、このシグニをアップ」（**逆翻訳・型・UP は実装済み／any_ally 効果配置発火が未配線・G144 と同根**）
-
-`WX10-080`「弐ノ遊 ナゲナワ」/ `WX10-083`「壱ノ遊 アヤトリ」。
-
-**✅ 実装済み:** データ（`ON_PLAY`＋`triggerScope:any_ally`＋`triggerFilter:{excludeSelf}`＋`triggerCondition:{byEffect}`＋`UP{thisCardOnly}`）／逆翻訳（原文一致）／engine の `UP thisCardOnly` 即適用（検証 PASS）。
-
-**⚠️ 未配線（G144 と同根）:** `any_ally`＋`byEffect`（他シグニが効果で場に出た→このシグニが反応）は、効果配置経路で `collectFieldTriggers(any_ally)` が未呼び出しのため発火しない。**参考:** G079（`triggerScope:self`＋`bySigniEffect`）は自己 ON_PLAY 収集（BattleScreen line 4801/5181）に判定が配線済みで動く＝「効果配置時の triggerCondition 判定」の実装パターンは既存。これを any_ally（効果配置経路から `collectFieldTriggers` を呼ぶ）に拡張すれば G144/G145 とも動く（BattleScreen 根幹・他カード影響・対戦画面検証必須）。
-
----
-
-## 【引継ぎ】any_ally 効果配置トリガーの配線（次の着手者 = zerom へ）
-
-**目的:** 「あなたの（他の）シグニが〈効果で／ダウン状態で〉場に出たとき」系トリガー（G144 `placedDown` / G145 `byEffect`+`excludeSelf` / 既存 WX11-054）を実ゲームで発火させる。
-
-**現状（このセッションで完了済み）:**
-- データ・逆翻訳は原文どおり修正済み（G144=`WX10-074/078`、G145=`WX10-080/083`）。
-- 型: `UpAction.targetsTriggerSource`、`triggerCondition.placedDown` 追加済み。
-- engine 中核は実装＋検証 PASS: `execUp` の `targetsTriggerSource`（トリガー元シグニをアップ）と `thisCardOnly` 即アップ。
-- BattleScreen の **手札召喚経路** の条件判定は追加済み（`queueCardEffects` の `placedDown`、`collectFieldTriggers` の `placedDown`）。
-
-**残作業（未配線。ここが本体）:**
-効果でシグニが場に出る各経路（`BattleScreen.tsx`：COLLAB 4733〜 / SEED_BLOOM 4759・5025 / REVEAL_UNTIL_TO_FIELD 4790・5170 / 一般 ADD_TO_FIELD）は、出たシグニ **自身** の ON_PLAY しか収集しておらず、**場の他の味方シグニ（any_ally）の反応を集める `collectFieldTriggers('ON_PLAY', 出たシグニ, …)` を呼んでいない**。このため G144/G145 の「他シグニが出たとき自分が反応」が発火しない。
-
-**着手点 / 進め方:**
-1. **足がかり = G079**（`WX15-108`等、`triggerScope:self`+`bySigniEffect`）。自己 ON_PLAY 収集に triggerCondition 判定を入れる配線が **line 4801 / 5181** に既にある。これと対になる any_ally 版を、各効果配置経路の自己 ON_PLAY 収集の直後に `collectFieldTriggers` 呼び出しとして追加する。
-2. `collectFieldTriggers`（line 5292〜）側の `placedDown`（line 5327）/ `byEffect`（line 5325 で現状 continue）の扱いを、効果配置経由なら発火するよう見直す（手札召喚経由は従来どおり非発火）。`byEffect` は「効果配置時のみ発火」が正なので、line 5325 の一律 continue を経路フラグで分岐させる。
-3. `placedDown` のダウン判定は「配置直後に `field.signi_down[zone]` が立っているか」。配置フローのどの時点で `collectFieldTriggers` を呼ぶかでダウン状態が見えるか変わるので注意。
-4. **検証:** この層は Supabase/React 密結合でヘッドレス不可。PvP / CPU 戦の対戦画面で、(a) 効果で他シグニをダウン配置 → G144 がそのシグニをアップ、(b) 効果で他シグニを場出し → G145 が自身をアップ、を確認する。
-
-**影響範囲:** BattleScreen のトリガー収集の根幹。既存 WX11-054 も同時に発火するようになるため、全 any_ally ON_PLAY カードの回帰確認が必要。
+**残（副次・未対応）:** ①CPU 自身の効果配置経路（cpuTurnAction）からの any_ally 発火は未配線（人間 PvP の主経路はカバー）。②**self** placedDown を効果配置で出した場合の自己トリガーは、効果配置の自己 ON_PLAY 収集が placedDown 条件を未チェック（手札召喚経路は実装済み）。

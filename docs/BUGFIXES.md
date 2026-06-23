@@ -5,6 +5,17 @@
 
 ---
 
+## G144/G145 any_ally 効果配置トリガーの配線（**完了**・実機検証推奨）（2026-06-23）
+
+G144（`WX10-074/078` `placedDown`）／G145（`WX10-080/083` `byEffect`＋`excludeSelf`）の「あなたの（他の）シグニが〈ダウン状態で／効果によって〉場に出たとき」系 any_ally ON_PLAY を、**効果配置経路で発火させる配線**を追加（従来は手札召喚経路のみで、効果でシグニが場に出ても他シグニが反応しなかった）。
+
+- **新ヘルパー `detectPlacedSigni(before, after)`**: 効果で新たに場に出た最前面シグニ（before のフィールドに無い instanceId）を検出。
+- **配線箇所**: メインスタック解決（`executeEffect` の `result.done`）／スペル解決／REVEAL resume の各完了時に、出たシグニへ `collectFieldTriggers('ON_PLAY', placedNum, …, { placedByEffect:true, placeSourceIsSigni })` を呼ぶ（自身は line 5313 で除外＝他シグニのみ）。
+- **`collectFieldTriggers` に `opts.placedByEffect / placeSourceIsSigni` を追加**。`byEffectTriggerOk(eff)` で手札召喚（`placedByEffect` 無し）では byEffect/bySigniEffect を従来どおり非発火、効果配置では byEffect 発火・bySigniEffect はソースがシグニのときのみ発火。`placedDown`（G144）は配置直後の `field.signi_down[zone]` で判定。`excludeSelf`（G145）は自己除外で担保。
+- **回帰注意:** 非 byEffect の any_ally ON_PLAY（例 WX11-054）も**効果配置時に発火するようになった**（ルール上正しい）。**実機検証**（PvP/CPU・ヘッドレス不可）と**残（副次）**は [[TODO.md]] 参照（CPU 効果配置経路・self placedDown の効果配置自己トリガー）。
+
+---
+
 ## G145 「あなたの他のシグニが効果によって場に出たとき」（部分実装・残課題は TODO 可視化）（2026-06-23）
 
 `WX10-080`/`WX10-083` の原文「【自】：あなたの他のシグニ1体が効果によって場に出たとき、このシグニをアップする」が `ON_PLAY`＋`UP{owner:self,count:1}`（「このシグニが場に出たとき：任意のシグニをアップ」）と誤り。
