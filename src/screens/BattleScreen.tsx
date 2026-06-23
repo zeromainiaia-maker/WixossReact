@@ -5668,7 +5668,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownOnPlay = ownEffects.filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
-        (e.triggerScope === undefined || e.triggerScope === 'self') &&
+        // self/未指定に加え、'any'（「シグニが場に出たとき」=自身も含む。G085）も自身召喚時に発火させる
+        (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any') &&
         e.mandatory !== false &&
         // byEffect/bySigniEffect:「（シグニの）効果によって場に出たとき」限定（WX11-054/G079）は手札からの通常召喚では発火しない
         !e.triggerCondition?.byEffect && !e.triggerCondition?.bySigniEffect &&
