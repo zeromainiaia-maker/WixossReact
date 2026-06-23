@@ -8370,6 +8370,46 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
+  // G154 BURST: アタック無効化を「手札N枚捨て」で回避してアタックを通す
+  const resolveNegateEscapeDiscard = async () => {
+    if (!negateEscape || selectedNegateEscape.size !== negateEscape.count || loading) return;
+    const { zoneIndex, targetOpZone, cardNum } = negateEscape;
+    const discardNums = [...selectedNegateEscape].map(i => my.hand[i]).filter((n): n is string => !!n);
+    const newMy: PlayerState = { ...my, hand: my.hand.filter((_, i) => !selectedNegateEscape.has(i)), trash: [...my.trash, ...discardNums] };
+    const escMap = { ...(op.negated_attacks_escape ?? {}) }; delete escMap[cardNum];
+    const newOp: PlayerState = { ...op, negated_attacks: (op.negated_attacks ?? []).filter(n => n !== cardNum), negated_attacks_escape: Object.keys(escMap).length ? escMap : undefined };
+    appendBattleLogs([`手札${negateEscape.count}枚を捨ててアタックを通した`]);
+    setNegateEscape(null); setSelectedNegateEscape(new Set());
+    // 無効化を解除した状態でアタックを再実行（performSigniAttack 冒頭の negated_attacks 判定を通過する）
+    await performSigniAttack(zoneIndex, {
+      attacker: newMy, defender: newOp,
+      attackerId: user.id, defenderId: isHost ? bs.guest_id : bs.host_id,
+      attackerKey: isHost ? 'host_state' : 'guest_state', targetOpZone,
+    });
+  };
+
+  // G154 BURST: 手札を捨てず、アタック無効化を受け入れる
+  const resolveNegateEscapeAccept = async () => {
+    if (!negateEscape || loading) return;
+    setLoading(true);
+    try {
+      const { zoneIndex, cardNum } = negateEscape;
+      const newSigniDown = [...(my.field.signi_down ?? [false, false, false])] as boolean[];
+      newSigniDown[zoneIndex] = true;
+      const newMy: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: [...(my.attacked_signi_ids ?? []), cardNum] };
+      const escMap = { ...(op.negated_attacks_escape ?? {}) }; delete escMap[cardNum];
+      const newOp: PlayerState = { ...op, negated_attacks: (op.negated_attacks ?? []).filter(n => n !== cardNum), negated_attacks_escape: Object.keys(escMap).length ? escMap : undefined };
+      appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}のアタックは無効化された`]);
+      setNegateEscape(null); setSelectedNegateEscape(new Set());
+      const myKey = isHost ? 'host_state' : 'guest_state';
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      await supabase.from('battle_states').update({ [myKey]: newMy, [opKey]: newOp }).eq('room_id', roomId);
+      await flushBattleLogs();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ルリグアタックの実行（人間・CPU共通）: アタッカーのルリグをダウンし防御側にガード応答を要求。
   // アタック不可（ドライブ状態・無効化等）の場合は状態を変えずに false を返す
   const performLrigAttack = async (p: {
