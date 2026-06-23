@@ -963,6 +963,27 @@ function parseActionText(text: string): EffectAction {
       ? text.slice(iconIdx).match(/^《リコレクトアイコン》［([０-９\d]+)枚以上］(代わりに|追加で)?[、,]?/)
       : null;
     if (head) {
+      // 選択数変更型: 「以下のN個からMつ(まで)選ぶ。《リコレクトアイコン》［X］代わりにKつ(まで)選ぶ。①…②…」
+      // → CHOOSE(choose_count=M) に recollectArts(thenChooseCount=K) を付与（条件達成で選択数が増える）。
+      const chooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
+      const chooseRecoM = text.match(/《リコレクトアイコン》［([０-９\d]+)枚以上］代わりに([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
+      if (chooseHeadM && chooseRecoM && /[①②③④]/.test(text)) {
+        const items = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
+        if (items.length >= 2) {
+          return {
+            type: 'CHOOSE',
+            choose_count: parseNum(chooseHeadM[1]),
+            from_count: items.length,
+            choices: items.map((m, i) => ({
+              choiceId: `c${i}`,
+              label: `選択肢${i + 1}`,
+              action: parseActionText(m[1].replace(/[。）\s]+$/, '').trim()),
+            })),
+            ...(chooseHeadM[2] ? { upTo: true } : {}),
+            recollectArts: { minArts: parseNum(chooseRecoM[1]), thenChooseCount: parseNum(chooseRecoM[2]), thenUpTo: !!chooseRecoM[3] },
+          } as ChooseAction;
+        }
+      }
       const minArts = parseNum(head[1]);
       const mode = head[2]; // '代わりに' | '追加で' | undefined
       const baseText = text.slice(0, iconIdx).trim().replace(/。$/, '');

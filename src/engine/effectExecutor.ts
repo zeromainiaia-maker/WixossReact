@@ -2019,6 +2019,17 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
       effectiveUpTo = a.recollect.thenUpTo ?? false;
     }
   }
+  // 《リコレクトアイコン》条件: ルリグトラッシュのアーツ枚数が閾値以上なら choose_count/upTo を上書き。
+  // 使用中のアーツ自身(sourceCardNum)はまだルリグトラッシュに置かれていない扱いのため数えない。
+  if (a.recollectArts) {
+    const artsCount = ctx.ownerState.lrig_trash.filter(n =>
+      n !== ctx.sourceCardNum && ctx.cardMap.get(n)?.Type === 'アーツ',
+    ).length;
+    if (artsCount >= a.recollectArts.minArts) {
+      effectiveCount = a.recollectArts.thenChooseCount;
+      effectiveUpTo = a.recollectArts.thenUpTo ?? false;
+    }
+  }
   return needsInteraction(ctx, {
     type: 'CHOOSE', options, count: effectiveCount,
     ...(effectiveUpTo || effectiveCount > 1 ? { multiSelect: true } : {}),

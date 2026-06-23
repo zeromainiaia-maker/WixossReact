@@ -399,7 +399,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // G154「TOO BADLY」（スペル WX24-D3-25 / SPDi37-06）。
   //  E1: カードを1枚引き、対戦相手は手札を1枚捨てる。《リコレクトアイコン》[5枚以上]代わりに、引いて相手の手札を1枚ランダムに捨てさせる。
-  //   → DRAW1 + CONDITIONAL(トラッシュ5枚以上 ? 相手手札1枚blind : 相手手札1枚(相手選択))。両分岐ともDRAWは共通なので前段で実行。
+  //   → DRAW1 + CONDITIONAL(リコレクト5＝ルリグトラッシュのアーツ5枚以上 ? 相手手札1枚blind : 相手手札1枚(相手選択))。両分岐ともDRAWは共通なので前段で実行。
   //  BURST: 対戦相手のルリグかシグニ1体を対象。このターンそれがアタックしたとき、相手が手札を3枚捨てないかぎりそのアタックを無効（escapeDiscard:3）。
   ...Object.fromEntries((['WX24-D3-25', 'SPDi37-06'] as const).map(cardNum => [cardNum, [
     {
@@ -413,7 +413,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
           { type: 'DRAW' as const, owner: 'self' as const, count: 1 },
           {
             type: 'CONDITIONAL' as const,
-            condition: { type: 'TRASH_COUNT' as const, owner: 'self' as const, operator: 'gte' as const, value: 5 },
+            condition: { type: 'LRIG_TRASH_COUNT' as const, cardType: 'アーツ' as const, operator: 'gte' as const, value: 5, excludeSource: true },
             then: { type: 'TRASH' as const, target: { type: 'HAND_CARD' as const, owner: 'opponent' as const, count: 1, blind: true } },
             else: { type: 'TRASH' as const, target: { type: 'HAND_CARD' as const, owner: 'opponent' as const, count: 1 } },
           },
