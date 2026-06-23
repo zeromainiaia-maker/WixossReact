@@ -1385,6 +1385,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let extractedTriggerFilter: TargetFilter | undefined;
   let extractedTriggerCondition: Condition | undefined; // トリガー文から抽出した発動条件（ON_ENERGY_CHARGE=IS_MY_TURN等）
   let extractedTriggerCondObj: import('../types/effects').CardEffect['triggerCondition']; // トリガー文から抽出した発火限定（byOpponentEffect/fromZones/forResonaCondition）
+  let forcedActiveCondition: ActiveCondition | undefined; // marker処理で強制設定する activeCondition（G150「【常】…バニッシュされたとき」のON_BANISH再分類＝相手ターン限定）
 
   switch (marker) {
     case '常':
