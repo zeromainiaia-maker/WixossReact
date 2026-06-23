@@ -1301,7 +1301,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- チャーム除去 ----
-  if ((t.includes('チャーム】') || t.includes('【チャーム】')) && t.includes('トラッシュに置く')) {
+  // 「【チャーム】を…トラッシュに置く」（チャーム自体が除去対象）のみ。
+  // 「【チャーム】がない場合、このシグニをトラッシュに置く」等の自己トラッシュ／チャーム有無条件は除外（part2 の専用ルールへ委譲）。
+  if ((t.includes('チャーム】') || t.includes('【チャーム】')) && t.includes('トラッシュに置く')
+      && !/【チャーム】が(?:ない|なかった)/.test(t)
+      && !/この(?:シグニ|カード)を(?:場から)?トラッシュに置く/.test(t)) {
     const isOpp = t.includes('対戦相手');
     const targetOwner: Owner = isOpp ? 'opponent' : 'self';
     const countM = t.match(/【チャーム】([１-９\d]+)枚/);
