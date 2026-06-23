@@ -1374,6 +1374,7 @@ export interface CardEffect {
     fromAnyZone?: boolean;      // 場以外（手札・エナ・デッキ）からトラッシュに置かれた場合も発火（ON_TRASH triggerScope:self用）
     fromZones?: Array<'hand' | 'deck' | 'energy' | 'field'>; // ON_TRASH の発生源を限定（「手札かデッキから」=['hand','deck']。指定領域からのみ発火。WX04-102）
     forResonaCondition?: boolean; // レゾナの出現条件のためにトラッシュに置かれた場合のみ発火（WX10-055等）。通常のトラッシュ（バトル・効果・ルール処理）では発火しない
+    byEffect?: boolean; // 効果によって場に出た場合のみ発火（WX11-054等「効果によって場に出たとき」）。手札からの通常召喚では発火しない
   };
 
   // CONTINUOUS 用：常時効果がいつ適用されるか
