@@ -6781,6 +6781,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       const hostState  = casterIsHost ? casterAfter : result.otherState;
       const guestState = casterIsHost ? result.otherState : casterAfter;
+      // ON_PLAY（any_ally/any・効果配置）: スペル効果で新たに場に出たシグニへの他シグニの反応（G145「他のシグニが効果で場に出たとき」等）。
+      // ソースはスペルのため placeSourceIsSigni=false（bySigniEffect は非発火、byEffect は発火）。
+      if (result.done) {
+        const spellPlaceSourceIsSigni = battleCardMap.get(card_num)?.Type === 'シグニ';
+        for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
+          spellUseEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni }));
+        }
+        for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
+          spellUseEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni }));
+        }
+      }
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
       if (spellUseEntries.length > 0) {
         const existingStackSU = bs.effect_stack ?? null;
