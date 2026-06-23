@@ -1511,6 +1511,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     nums.add('WXDi-CP02-TK03B'); // クルセイダーちゃん
     nums.add('WX25-P1-TK6');     // 幻怪 ヤミノザンシ（ON_LEAVE_FIELD で怪異シグニ離脱時に生成）
     nums.add('WX25-P3-TK03');    // 【みこみこ親衛隊】キーワードトークン（ON_TURN_END trigger用）
+    // レゾナクラフト（ADD_CARD_TO_LRIG_DECK_HIDDEN でゲーム外から生成・ルリグデッキへ。G039）
+    nums.add('WXDi-P11-TK01');   // 白羅星姫 サタン
+    nums.add('WXDi-P11-TK02');   // 白羅星姫 フルムーン
+    nums.add('WXDi-P11-TK03');   // 緑参ノ遊姫 メリゴラン
+    nums.add('WXDi-P11-TK04');   // 緑参ノ遊姫 アスレ【HARD】
+    nums.add('WXDi-P11-TK05');   // 黒大幻蟲 アラクネ・パイダ
+    nums.add('WXDi-P11-TK06');   // 黒大幻蟲 オウグソク【FA】
+    nums.add('WX25-P2-TK03');    // コードヒート ウィクロンジャービークル
+    nums.add('WX25-P2-TK04');    // コードヒート ウィクロンジャーロボ
+    nums.add('WX25-P2-TK05');    // 蒼穹将姫 ニヴルヘイム
+    nums.add('WX25-P2-TK06');    // 蒼穹将姫 ユミル
     return nums;
   }, [myDeckData, bs]);
 
