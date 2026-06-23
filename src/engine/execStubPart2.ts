@@ -1905,6 +1905,15 @@ export function execStubPart2(
     const name = ctx.cardMap.get(getCardNum(inst))?.CardName ?? inst;
     return done(addLog({ ...ctx, ownerState: moveToLD(ctx.ownerState, inst) }, `裏向きルリグデッキへ: ${name}`));
   }
+  // INTERNAL_GEN_TOKEN_TO_LRIG_DECK: 指定 base CardNum のトークンをゲーム外生成しルリグデッキへ（フェゾーネ等）
+  if (stub.id === 'INTERNAL_GEN_TOKEN_TO_LRIG_DECK') {
+    const baseIGT = typeof stub.value === 'string' ? stub.value : '';
+    if (!baseIGT) return done(addLog(ctx, '[INTERNAL_GEN_TOKEN_TO_LRIG_DECK: CardNumなし]'));
+    const instIGT = createTokenInstanceId(ctx.cardMap, ctx.cardMap.get(baseIGT)?.CardName ?? baseIGT, ctx.ownerState, ctx.otherState);
+    if (!instIGT) return done(addLog(ctx, `[INTERNAL_GEN_TOKEN_TO_LRIG_DECK: 生成不可 ${baseIGT}]`));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: [...ctx.ownerState.lrig_deck, instIGT] } },
+      `ルリグデッキに加えた: ${ctx.cardMap.get(baseIGT)?.CardName ?? baseIGT}`));
+  }
   // PREVENT_LOW_LEVEL_LRIG_DAMAGE / PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ
   if (stub.id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' || stub.id === 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP') {
     const newSPLLD: PlayerState = { ...ctx.ownerState, prevent_lrig_damage: true };
