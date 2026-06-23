@@ -309,6 +309,45 @@ export function getCardNum(id: string): string {
   return h > 0 ? id.slice(0, h) : id;
 }
 
+// ─── ゲーム外トークン生成ヘルパー ───────────────────────────────
+// クラフト/レゾナ/トークンは盤外から生成される。CardName を CardNum に解決し、
+// 既存インスタンスと衝突しない新規 instanceId（CardNum#N）を返す。
+// cardMap にトークンの CardData が載っている必要がある（BattleScreen の battleCardNums で常時ロード）。
+const normTokenName = (s: string) =>
+  (s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+
+export function resolveTokenBase(cardMap: Map<string, CardData>, cardName: string): string | undefined {
+  const want = normTokenName(cardName);
+  // クラフト/レゾナ/トークン型を優先解決（同名の通常カードより先に）
+  for (const [num, cd] of cardMap) {
+    if (normTokenName(cd.CardName ?? '') === want && /クラフト|レゾナ|トークン/.test(cd.Type ?? '')) return getCardNum(num);
+  }
+  for (const [num, cd] of cardMap) {
+    if (normTokenName(cd.CardName ?? '') === want) return getCardNum(num);
+  }
+  return undefined;
+}
+
+export function freshTokenInstanceId(base: string, ...states: PlayerState[]): string {
+  let maxIdx = 0;
+  const scan = (arr?: (string | null)[] | null) => arr?.forEach(n => {
+    if (n && getCardNum(n) === base) { const i = parseInt(n.slice(base.length + 1), 10) || 0; if (i > maxIdx) maxIdx = i; }
+  });
+  for (const s of states) {
+    scan(s.deck); scan(s.hand); scan(s.trash); scan(s.energy); scan(s.lrig_deck); scan(s.lrig_trash);
+    s.field.signi.forEach(z => scan(z)); scan(s.field.lrig); scan(s.field.free_zone);
+  }
+  return `${base}#${maxIdx + 1}`;
+}
+
+// CardName から新規トークンインスタンスIDを生成（解決不可なら undefined）
+export function createTokenInstanceId(
+  cardMap: Map<string, CardData>, cardName: string, ...states: PlayerState[]
+): string | undefined {
+  const base = resolveTokenBase(cardMap, cardName);
+  return base ? freshTokenInstanceId(base, ...states) : undefined;
+}
+
 // ─── バリアトークン（フリーゾーンにカードとして設置する） ───────────────
 // 【ルリグバリア】【シグニバリア】はトークンカード。数値カウンタではなく
 // field.free_zone にトークンカードのインスタンス（CardNum#N）として置く。
