@@ -3601,6 +3601,43 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return entries;
   };
 
+  // ドロー時（ON_DRAW）トリガー収集。引いたプレイヤー（drawerId）の場のシグニ/ルリグの ON_DRAW【自】を集める（G089）。
+  // ターンドロー・効果ドローの双方から呼ばれるため playerId を引数で受け取る。
+  const collectDrawTriggers = (
+    drawerId: string,
+    drawerState: PlayerState,
+    otherState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const isDrawerTurn = drawerId === bs.active_user_id;
+    const removed = collectContinuousAbilitiesRemovedSigni(drawerState, otherState, isDrawerTurn, effectsMap, battleCardMap);
+    const ownAutoBlocked = drawerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const sources: string[] = [
+      ...drawerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(drawerState.field.lrig.at(-1) ? [drawerState.field.lrig.at(-1)!] : []),
+    ];
+    for (const topNum of sources) {
+      if (ownAutoBlocked) continue;
+      if (removed.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DRAW')) continue;
+        if ((eff.triggerScope ?? 'self') !== 'self') continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, drawerState, otherState, isDrawerTurn, battleCardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, drawerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: drawerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（ドロー時）`,
+          effect: eff,
+        });
+      }
+    }
+    return entries;
+  };
+
   // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
   const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {
     // いずれかのチェックゾーンにカードがある間はフェーズ移動不可
