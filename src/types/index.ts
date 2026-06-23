@@ -352,6 +352,8 @@ export interface PlayerState {
   lrig_abilities_disabled?: boolean;
   // このターンに手札を捨てた枚数の累計（BANISH_IF_DISCARDED_3_THIS_TURN等で参照）
   turn_hand_discarded_count?: number;
+  // このターンにシグニが場から手札に戻ったか（G087「このターンにシグニが場から手札に戻っていた場合」）。ターン境界でリセット
+  turn_signi_returned_to_hand?: boolean;
   // v0.278: discardVariable コスト支払いで捨てたカードのレベル合計（WDK13-011用）
   last_activated_discard_level_sum?: number;
   // v0.278: WX25-P2-001 GAIN_ABILITY_THIS_GAME で付与されるゲーム全体フラグ
