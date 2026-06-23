@@ -208,6 +208,7 @@ function condJa(c?: any): string {
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
     case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}シグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
+    case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}シグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;
     case 'IS_MY_TURN': return '自分のターンの間';
