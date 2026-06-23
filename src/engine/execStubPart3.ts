@@ -1338,7 +1338,8 @@ export function execStubPart3(
     const tnB = ctx.lastProcessedCards?.[0];
     if (!tnB) return done(addLog(ctx, '[INTERNAL_TOSFC_BOUNCE: 対象なし]'));
     const removedB = removeFromField(tnB, ctx.otherState);
-    const newOtherB: PlayerState = { ...removedB, hand: [...removedB.hand, tnB] };
+    // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
+    const newOtherB: PlayerState = { ...removedB, hand: [...removedB.hand, tnB], turn_signi_returned_to_hand: true };
     return done(addLog({ ...ctx, otherState: newOtherB }, `${ctx.cardMap.get(tnB)?.CardName ?? tnB}を手札に戻す`));
   }
   // INTERNAL_TOSFC_TRASH: 選択した相手シグニをトラッシュ
