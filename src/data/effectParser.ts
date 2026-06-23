@@ -1421,9 +1421,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_BANISH') {
-        // 「このシグニが（パワーN以下の場合）バニッシュされたとき、」のみ除去（前置き条件がある場合は除去しない）
-        const m = actionText.match(/^(?:パワー[０-９\d]+以下の)?このシグニがバニッシュされたとき[、,]\s*(.+)/s);
-        if (m) actionText = m[1];
+        // 「対戦相手の（＜X＞の）シグニ[N体]がバニッシュされたとき」= any_opp（相手シグニのバニッシュに反応。collectBanishTriggers step2 が triggerScope で処理）
+        const oppBanM = actionText.match(/^対戦相手の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
+        if (oppBanM) {
+          extractedTriggerScope = 'any_opp';
+          if (oppBanM[1]) extractedTriggerFilter = { story: oppBanM[1] };
+          actionText = oppBanM[2];
+        } else {
+          // 「このシグニが（パワーN以下の場合）バニッシュされたとき、」のみ除去（前置き条件がある場合は除去しない）
+          const m = actionText.match(/^(?:パワー[０-９\d]+以下の)?このシグニがバニッシュされたとき[、,]\s*(.+)/s);
+          if (m) actionText = m[1];
+        }
       }
       if (timing[0] === 'ON_TRASH') {
         // 「レゾナの出現条件のために、〜トラッシュに置かれたとき」: レゾナ出現条件の支払い時のみ発火

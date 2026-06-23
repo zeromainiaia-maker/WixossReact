@@ -5,6 +5,19 @@
 
 ---
 
+## G072「対戦相手のシグニがバニッシュされたとき」が ON_BANISH(自バニッシュ) に誤分類されていたのを修正（2026-06-23）
+
+逆翻訳の同型グルーピング（grouped_all.txt G072）で、原文「対戦相手のシグニ１体がバニッシュされたとき」が逆翻訳「**このシグニ**がバニッシュされたとき」と出ていた（ymsty 指摘）。
+
+- **原因:** `effectParser.ts` の【自】timing 分類（`actionText.includes('バニッシュされたとき') ? ['ON_BANISH']`）が「対戦相手のシグニがバニッシュ」も一律 `ON_BANISH`（=このシグニがバニッシュされたとき）に潰し、トリガー文の除去も「このシグニが〜」しか剥がさなかった。結果 `triggerScope` 無し＝**このシグニが死んだとき**発火という逆の挙動。
+- **修正（パーサー）:** ON_BANISH ブロックに「`^対戦相手の(＜X＞の)?シグニ[N体]がバニッシュされたとき`」分岐を追加し、`extractedTriggerScope='any_opp'`（＋ストーリー filter）を設定してトリガー文を除去。`collectBanishTriggers` step2 が既に ON_BANISH×triggerScope(any_opp/any) で「相手シグニのバニッシュに反応」を処理しているため、**ゲーム挙動も同時に正常化**。decompile は `timingJa[ON_BANISH]`＋scopeSubj 置換で「対戦相手のシグニがバニッシュされたとき」と正しく描画。
+- **JSON 直パッチ（10枚）:** ON_BANISH 効果に `triggerScope:any_opp` を追加。
+  - effects_WX.json: WX13-085/087/091/094・WXEX2-26
+  - effects_WXK.json: WXK02-047・WXK03-027・WXK11-020
+  - effects_WXDi.json: WXDi-P10-075 / effects_WX24_26.json: WX24-D2-19
+- **未対応（TODO に記録）:** トリガー前に条件前置きが付く 6 枚（「あなたのメインフェイズの間」WX05-040/WX11-027、「アタックフェイズの間」WXEX2-23、「あなたの効果によって」WXK11-055、「あなたの＜龍獣＞のシグニの効果によって」WX13-051、「【チャーム】が付いている対戦相手のシグニ」WXDi-P11-TK05）。前置きの condition/triggerCondition モデリングが必要で誤モデル化リスクが高いため別タスク。
+- 検証: `npm run typecheck` 通過。再パースで該当10枚に `triggerScope:any_opp` を確認。grouped_all 再生成で同型割れ★=0。
+
 ## G002「デッキトップ公開→＜X＞のシグニならエナゾーンに置く」23枚の誤実装を修正（2026-06-23）
 
 逆翻訳の同型グルーピング（grouped_all.txt の G002・23枚／全て WXK 帯）の代表照合で発覚。逆翻訳が「デッキから**undefined枚**エナチャージする」と出ていたのを起点に調査。
