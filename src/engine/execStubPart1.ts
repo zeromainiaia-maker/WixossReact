@@ -188,6 +188,26 @@ export function execStubPart1(
     const srcPCUS = ctx.sourceCardNum;
     const effPCUS = srcPCUS ? ctx.cardMap.get(srcPCUS) : undefined;
     const txtPCUS = effPCUS ? (effPCUS.EffectText ?? '') + ' ' + (effPCUS.BurstText ?? '') : '';
+    // 「クラフトの《X》1枚をこのシグニの下に置く」パターン（給食推進車両 / 虎丸 等）
+    // ゲーム外からクラフトトークンを生成し、ソースシグニの下（スタック先頭=下）に重ねる。
+    // 「下に《X》がない場合」条件はテキストに含まれるが、既に同名がスタック下にあれば置かない。
+    const craftUnderM = txtPCUS.match(/クラフトの《([^》]+)》[０-９\d]*枚?を(?:この)?シグニの下に置く/);
+    if (craftUnderM && srcPCUS && resolveTokenBase(ctx.cardMap, craftUnderM[1])) {
+      const craftNamePCUS = craftUnderM[1];
+      const srcZoneCU = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
+      if (srcZoneCU < 0) return done(addLog(ctx, 'このシグニが場にいない'));
+      const stackCU = ctx.ownerState.field.signi[srcZoneCU] ?? [];
+      // 既に同名クラフトがスタック下にあるなら何もしない（「〜がない場合」条件）
+      if (stackCU.some(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === craftNamePCUS)) {
+        return done(addLog(ctx, `${craftNamePCUS}は既にこのシグニの下にある`));
+      }
+      const tokenCU = createTokenInstanceId(ctx.cardMap, craftNamePCUS, ctx.ownerState, ctx.otherState);
+      if (!tokenCU) return done(addLog(ctx, `クラフト生成不可（${craftNamePCUS}）`));
+      const newSigniCU = [...ctx.ownerState.field.signi] as (string[] | null)[];
+      newSigniCU[srcZoneCU] = [tokenCU, ...stackCU]; // 先頭=下に挿入
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniCU } } },
+        `クラフト《${craftNamePCUS}》を${effPCUS?.CardName ?? srcPCUS}の下に置いた`));
+    }
     // 「このシグニを他のシグニの下に置く」パターン
     if (txtPCUS.match(/このシグニを.+の下に置く/) && srcPCUS) {
       const srcZonePCUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
