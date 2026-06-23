@@ -3602,13 +3602,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ドロー時（ON_DRAW）トリガー収集。引いたプレイヤー（drawerId）の場のシグニ/ルリグの ON_DRAW【自】を集める（G089）。
   // ターンドロー・効果ドローの双方から呼ばれるため playerId を引数で受け取る。
+  // usageLimit（《ターン1回》《ターン2回》）は actions_done(effectId) の出現回数で制御。
+  // usedOncePerTurnIds を呼び出し側で drawer の actions_done に追加して永続化すること。
   const collectDrawTriggers = (
     drawerId: string,
     drawerState: PlayerState,
     otherState: PlayerState,
-  ): StackEntry[] => {
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
     const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
     const isDrawerTurn = drawerId === bs.active_user_id;
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (drawerState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIds.push(eff.effectId);
+      return true;
+    };
     const removed = collectContinuousAbilitiesRemovedSigni(drawerState, otherState, isDrawerTurn, effectsMap, battleCardMap);
     const ownAutoBlocked = drawerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
     const sources: string[] = [
@@ -3623,6 +3635,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if ((eff.triggerScope ?? 'self') !== 'self') continue;
         if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, drawerState, otherState, isDrawerTurn, battleCardMap, topNum)) continue;
         if (eff.condition && !evalUseCondition(eff.condition, drawerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
@@ -3634,7 +3647,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
       }
     }
-    return entries;
+    return { entries, usedOncePerTurnIds };
   };
 
   // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
