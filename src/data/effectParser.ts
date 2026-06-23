@@ -1616,6 +1616,23 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     }
   }
 
+  // ON_ZONE_MOVED self-scope: 主語「このシグニ」＝移動したシグニ自身。POWER_MODIFY(self,count:1) を
+  // トリガー源（移動シグニ）に自動対象化（targetsTriggerSource）。engine は triggeringCardNum で解決。
+  if (timing?.[0] === 'ON_ZONE_MOVED' && extractedTriggerScope === 'self') {
+    const markSelfPM = (a: EffectAction): EffectAction => {
+      if (a.type === 'POWER_MODIFY') {
+        const pm = a as import('../types/effects').PowerModifyAction;
+        if (pm.target?.owner === 'self' && pm.target?.count === 1) return { ...pm, targetsTriggerSource: true };
+      }
+      if (a.type === 'SEQUENCE') {
+        const seq = a as import('../types/effects').SequenceAction;
+        return { ...seq, steps: seq.steps.map(markSelfPM) };
+      }
+      return a;
+    };
+    resolvedAction = markSelfPM(resolvedAction);
+  }
+
   const duration: EffectDuration = effectType === 'CONTINUOUS' ? 'PERMANENT'
     : actionText.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
     : 'INSTANT';

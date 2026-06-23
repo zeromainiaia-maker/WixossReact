@@ -251,6 +251,9 @@ export interface PlayerState {
   // （BattleScreenでON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGEDトリガー検出用。複数個の同時増減でも1回扱い）
   opp_virus_placed_just?: boolean | null;
   opp_virus_removed_just?: boolean | null;
+  // このプレイヤーのシグニが効果によって他のシグニゾーンに移動した直後にセット: 移動したシグニのCardNum
+  // （BattleScreenでON_ZONE_MOVEDトリガー検出用。所有者の state に積む。両プレイヤーが各自フィルタで処理）
+  zone_moved_just?: string[] | null;
   // OPP_MAIN_PHASE_LIMIT_DOWN: 次の自ターンMAINフェイズ開始時に適用するリミット修正
   pending_lrig_limit_mod?: number;
   // OPP_SIGNI_ATTACK_COST: 自シグニのアタックに支払う無色コスト枚数（エナ消費）

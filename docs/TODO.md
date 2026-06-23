@@ -151,10 +151,9 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
   - 「【チャーム】が付いている対戦相手のシグニ」WXDi-P11-TK05（→ charm 付き triggerFilter）
 - これらは前置きの condition/triggerCondition モデリングが要り、誤モデル化リスクが高いため個別対応。
 
-**G073 系（ON_ZONE_MOVED）の engine 配線（2026-06-23・ymst）:**
-- 「他のシグニゾーンに移動したとき」トリガーを新 timing `ON_ZONE_MOVED` に分類修正済（21効果・BUGFIXES）。**ただしトリガー自体は engine 未配線。**
-- G073(WX14-050/052/053) のパワー＋N は `INTERNAL_MOVE_TO_ZONE`(execStubPart1.ts:3668) が原文を読んで適用するため動作するが、**それ以外の ON_ZONE_MOVED 効果は不発**（能力喪失 WXEX1-55、バウンス WX11-036/WX20-054、ルリグデッキ追加 WXK03-026、パワー操作 WXK03-072/WXK06-029/WXDi-P01-041/WXDi-P05-071/WX24-P2-088 等）。
-- 配線するなら `INTERNAL_MOVE_TO_ZONE` 完了後に移動シグニ/scope に応じて ON_ZONE_MOVED トリガーをスタックに積む機構が必要（execStub→BattleScreen のスタック連携。現状ハンドラは temp_power_mods 直書きの簡易対応のみ）。配線後は 3668-3677 のテキスト読み取りハックを ON_ZONE_MOVED の POWER_MODIFY に一本化できる。
+**G073 系（ON_ZONE_MOVED）の engine 配線 — 完了（2026-06-23・ymst）:**
+- 配線済（BUGFIXES 参照）。移動実行3パス（`INTERNAL_MOVE_TO_ZONE` / `INTERNAL_REPOSITION_TO_ZONE` / `INTERNAL_REPOSITION_MOVE` / `REARRANGE_SIGNI` 解決）が `zone_moved_just` フラグを所有者 state に積み、BattleScreen の watcher が `collectZoneMovedTriggers` で scope 別（self/any_ally=mover側・any_opp=相手側・any=両方）に発火・クリア。テキスト読み取りハックは撤去。
+- **残課題:** GRANT_KEYWORD は `targetsTriggerSource` 非対応のため、「このシグニは【KW】を得る」系（WXK03-073 のランサー等）は移動時に対象選択プロンプトが出る（power 部は targetsTriggerSource で自動。WXK03-073 は JSON 直 SEQUENCE 化で +2000 を保持）。必要なら GrantKeywordAction に targetsTriggerSource を追加し execGrantKeyword で解決する。
 
 **次の一手（zerom）: 文型★のトリアージ。**
 - `grouped_sentence_all.txt` に **344文型 / 1580枚**。ただし誤検出が多い。

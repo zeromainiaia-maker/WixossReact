@@ -3880,7 +3880,12 @@ export function resumeRearrangeSigni(
     signi_armor:  permute(f.signi_armor, false) as typeof f.signi_armor,
     signi_virus:  permute(f.signi_virus, 0) as typeof f.signi_virus,
   };
-  const newState: PlayerState = { ...state, field: newField };
+  // ON_ZONE_MOVED 用：ゾーンが実際に変わったシグニを記録（旧ゾーン != 新ゾーン）
+  const rearrMoved = [0, 1, 2]
+    .filter(ni => { const num = newArrangement[ni]; return !!num && oldZoneOf(num) !== ni; })
+    .map(ni => newArrangement[ni]);
+  const newState: PlayerState = { ...state, field: newField,
+    ...(rearrMoved.length > 0 ? { zone_moved_just: [...(state.zone_moved_just ?? []), ...rearrMoved] } : {}) };
   const cur = addLog(setOwnerState(pending.owner, newState, ctx), 'シグニを配置し直した');
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);

@@ -2206,6 +2206,71 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myVirusPlacedRef, myVirusRemovedRef, cpuVirusPlacedRef, cpuVirusRemovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // シグニが効果によって他のシグニゾーンに移動した直後フラグ（zone_moved_just）を検出して ON_ZONE_MOVED を発火（G073 等）。
+  // フラグは移動シグニの所有者(=mover)の state に積まれる。mover のクライアントが処理し、mover 側(self/any_ally/any)と
+  // 対戦相手側(any_opp/any)の両トリガーを収集する。CPU(=guest)のフラグはホスト(人間)が代行処理する。
+  const myZoneMovedRef = (user && bs)
+    ? (user.id === bs.host_id ? bs.host_state?.zone_moved_just : bs.guest_state?.zone_moved_just)
+    : undefined;
+  const cpuZoneMovedRef = isCpuBattle ? bs?.guest_state?.zone_moved_just : undefined;
+  useEffect(() => {
+    if (!bs || !user || loading) return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    const localIsHost = user.id === bs.host_id;
+    const processOwn = !!(myZoneMovedRef && myZoneMovedRef.length > 0);
+    const processCpu = isCpuBattle && localIsHost && !!(cpuZoneMovedRef && cpuZoneMovedRef.length > 0);
+    if (!processOwn && !processCpu) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const entries: StackEntry[] = [];
+        const update: Record<string, unknown> = {};
+        const usedByKey: Record<string, string[]> = {};
+        const handleMovedFor = (
+          moverState: PlayerState, otherState: PlayerState,
+          moverKey: string, otherKey: string, moverId: string, otherId: string,
+        ) => {
+          for (const movedNum of moverState.zone_moved_just ?? []) {
+            const r = collectZoneMovedTriggers(movedNum, moverState, otherState, moverId, otherId);
+            entries.push(...r.entries);
+            if (r.moverUsedIds.length) usedByKey[moverKey] = [...(usedByKey[moverKey] ?? []), ...r.moverUsedIds];
+            if (r.otherUsedIds.length) usedByKey[otherKey] = [...(usedByKey[otherKey] ?? []), ...r.otherUsedIds];
+          }
+        };
+        const hostS = bs.host_state, guestS = bs.guest_state;
+        if (processOwn) {
+          if (localIsHost) handleMovedFor(hostS, guestS, 'host_state', 'guest_state', bs.host_id, bs.guest_id);
+          else handleMovedFor(guestS, hostS, 'guest_state', 'host_state', bs.guest_id, bs.host_id);
+        }
+        if (processCpu) handleMovedFor(guestS, hostS, 'guest_state', 'host_state', CPU_PLAYER_ID, bs.host_id);
+        // フラグクリア＋usageLimit永続化（mover 側のフラグのみクリア）
+        const applyState = (key: string, base: PlayerState, clearFlag: boolean) => {
+          const used = usedByKey[key];
+          if (!used && !clearFlag) return;
+          update[key] = {
+            ...(update[key] as PlayerState ?? base),
+            ...(clearFlag ? { zone_moved_just: null } : {}),
+            ...(used ? { actions_done: [...(base.actions_done ?? []), ...used] } : {}),
+          };
+        };
+        applyState('host_state', hostS, !!(processOwn && localIsHost));
+        applyState('guest_state', guestS, !!((processOwn && !localIsHost) || processCpu));
+        if (entries.length > 0) {
+          const existingStack = bs.effect_stack ?? null;
+          update.effect_stack = existingStack
+            ? pushToStack(existingStack, entries)
+            : initStack(bs.active_user_id ?? user.id, entries);
+        }
+        if (Object.keys(update).length > 0) {
+          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myZoneMovedRef, cpuZoneMovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ON_ENERGY_CHARGE / ON_POWER_THRESHOLD の検知ウォッチャー（WX03-032）。
   // 状態変化のたびに、前回スナップショット（prevEnergyRef/prevPowersRef）と比較して
   //  - エナゾーンにカードがちょうど1枚増えた → ON_ENERGY_CHARGE（2枚同時=エナチャージ2等は不発）
@@ -5364,6 +5429,61 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
     return { entries, usedOncePerTurnIds };
+  };
+
+  /**
+   * シグニが効果によって他のシグニゾーンに移動したとき（ON_ZONE_MOVED）のトリガーを収集する。
+   * - 移動シグニの所有者(moverState)側: scope self(=移動シグニ自身) / any_ally / any を収集
+   * - 対戦相手(otherState)側: scope any_opp / any を収集（相手シグニの移動を観測）
+   * triggeringCardNum=移動シグニ（「このシグニ」「それ」参照／targetsTriggerSourceで自動対象化）。
+   * usageLimit は actions_done(effectId) の出現回数で制御。usedIds を呼び出し側で各 actions_done に追加して保存する。
+   */
+  const collectZoneMovedTriggers = (
+    movedNum: string,
+    moverState: PlayerState,
+    otherState: PlayerState,
+    moverId: string,
+    otherId: string,
+  ): { entries: StackEntry[]; moverUsedIds: string[]; otherUsedIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const moverUsedIds: string[] = [];
+    const otherUsedIds: string[] = [];
+    const scan = (
+      fieldState: PlayerState, ownerId: string, usedIds: string[],
+      accept: (scope: string) => boolean,
+    ) => {
+      if (fieldState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return;
+      for (let zi = 0; zi < fieldState.field.signi.length; zi++) {
+        const topNum = fieldState.field.signi[zi]?.at(-1);
+        if (!topNum) continue;
+        for (const eff of effectsMap.get(topNum) ?? []) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ZONE_MOVED')) continue;
+          const scope = eff.triggerScope ?? 'self';
+          if (scope === 'self' && topNum !== movedNum) continue;
+          if (!accept(scope)) continue;
+          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
+            const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+            const used = (fieldState.actions_done ?? []).filter(id => id === eff.effectId).length
+              + usedIds.filter(id => id === eff.effectId).length;
+            if (used >= max) continue;
+            usedIds.push(eff.effectId);
+          }
+          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+          entries.push({
+            id: generateUUID(),
+            playerId: ownerId,
+            cardNum: topNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（ゾーン移動時）`,
+            effect: eff,
+            triggeringCardNum: movedNum,
+          });
+        }
+      }
+    };
+    scan(moverState, moverId, moverUsedIds, scope => scope === 'self' || scope === 'any_ally' || scope === 'any');
+    scan(otherState, otherId, otherUsedIds, scope => scope === 'any_opp' || scope === 'any');
+    return { entries, moverUsedIds, otherUsedIds };
   };
 
   /**

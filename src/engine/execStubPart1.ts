@@ -3663,19 +3663,11 @@ export function execStubPart1(
       signi_down: newDown as boolean[], signi_frozen: newFrozen as boolean[],
       signi_charms: newCharms, signi_acce: newAcce, signi_virus: newVirus, signi_chokkin: newChokkin,
     };
-    let ctxMov = addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: newFieldMov } },
+    // ON_ZONE_MOVED トリガー検出用フラグ（BattleScreen が collectZoneMovedTriggers で発火・クリア）。
+    // 旧実装はここで原文「移動したとき…パワー+N」を読んで即時適用していたが、ON_ZONE_MOVED 配線に一本化。
+    const ctxMov = addLog({ ...ctx, ownerState: { ...ctx.ownerState, field: newFieldMov,
+      zone_moved_just: [...(ctx.ownerState.zone_moved_just ?? []), srcZ] } },
       `${ctx.cardMap.get(srcZ)?.CardName ?? srcZ}をゾーン${curZone + 1}→ゾーン${targetZoneNum + 1}に移動`);
-    // 「効果によって移動したとき、パワー+N」テキストがあれば即時適用
-    const movTxt = ctx.cardMap.get(srcZ)?.EffectText ?? '';
-    const movPwrM = movTxt.match(/移動したとき.*パワーを＋([０-９\d]+)/);
-    if (movPwrM) {
-      const toHWMov = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const boost = parseInt(toHWMov(movPwrM[1]));
-      const modsM = [...(ctxMov.ownerState.temp_power_mods ?? [])];
-      modsM.push({ cardNum: srcZ, delta: boost });
-      ctxMov = addLog({ ...ctxMov, ownerState: { ...ctxMov.ownerState, temp_power_mods: modsM } },
-        `${ctx.cardMap.get(srcZ)?.CardName ?? srcZ}のパワー+${boost}（ターン終了時まで）`);
-    }
     return done(ctxMov);
   }
   // ソウル付与（ルリグの下カードを選択シグニに付与）

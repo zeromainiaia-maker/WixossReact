@@ -5,6 +5,19 @@
 
 ---
 
+## ON_ZONE_MOVED トリガーの engine 配線（2026-06-23）
+
+G073 系の timing 分類修正（下記）に続き、`ON_ZONE_MOVED` をゲームエンジンに配線。従来は `INTERNAL_MOVE_TO_ZONE` が原文「移動したとき…パワー+N」をテキスト読みして temp_power_mods に直書きする簡易ハックのみだった。
+
+- **フラグ方式（virus トリガーと同パターン）:** PlayerState に `zone_moved_just?: string[]` を追加。ゾーン移動を実行する全パスが**移動シグニの所有者 state** に移動カードを積む:
+  - `INTERNAL_MOVE_TO_ZONE`（execStubPart1。MOVE_TO_OTHER_SIGNI_ZONE / MOVE_TO_ATTACKER_FRONT 経由＝G073 の本線）
+  - `INTERNAL_REPOSITION_TO_ZONE` / `INTERNAL_REPOSITION_MOVE`（execStubPart3。SIGNI_REPOSITION。入れ替え時は両シグニ）
+  - `REARRANGE_SIGNI` 解決（effectExecutor。旧ゾーン≠新ゾーンのシグニのみ）
+- **発火（BattleScreen）:** `collectZoneMovedTriggers(movedNum, mover, other, …)` を追加。watcher useEffect が `zone_moved_just` を検出し、**mover 側=scope self(=移動シグニ自身)/any_ally/any／相手側=any_opp/any** を収集してスタックに積み、フラグをクリア。`triggeringCardNum=移動シグニ`。usageLimit は actions_done で制御。CPU(=guest) のフラグはホストが代行（virus と同様）。
+- **自己対象化:** scope self の「このシグニのパワー＋N」は `POWER_MODIFY.targetsTriggerSource=true` を effectParser が自動付与（`triggeringCardNum`→移動シグニへ無選択適用）。G073（WX14-050/052/053）の JSON を再パッチ。
+- **WXK03-073:** 「パワー＋2000し【ランサー】を得る」の power 部がパーサーで欠落していた（ハック削除で +2000 喪失）ため、JSON を SEQUENCE[POWER_MODIFY(targetsTriggerSource +2000) / GRANT_KEYWORD(ランサー)] に直パッチ（parseStatus MANUAL）。GRANT_KEYWORD は targetsTriggerSource 非対応のため KW 付与は対象選択プロンプトになる（残課題・TODO E節）。
+- 検証: `npm run typecheck` 通過。`verifyEffects` 退化なし。decompile で「それ（トリガー元シグニ）のパワーを＋N」と描画。
+
 ## G073 系「他のシグニゾーンに移動したとき」トリガー 21効果の誤分類を ON_ZONE_MOVED に修正（2026-06-23）
 
 逆翻訳の同型グルーピング（grouped_all.txt G073）で、E2「場にあるこのシグニが効果によって他のシグニゾーンに移動したとき、ターン終了時まで、このシグニのパワーを＋N」が逆翻訳「**ターン終了時**：あなたのシグニ1体のパワーを＋N」と出ていた（ymst 指摘）。

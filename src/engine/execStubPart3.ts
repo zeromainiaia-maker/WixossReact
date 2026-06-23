@@ -3455,7 +3455,8 @@ export function execStubPart3(
     const stack = signiIRM[srcIdxIRM]!;
     signiIRM[srcIdxIRM] = stack.length > 1 ? stack.slice(0, -1) : null;
     signiIRM[dstIdxIRM] = [cnIRM];
-    const newSIRM: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: signiIRM } };
+    const newSIRM: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: signiIRM },
+      zone_moved_just: [...(ctx.ownerState.zone_moved_just ?? []), cnIRM] };
     return done(addLog({ ...ctx, ownerState: newSIRM },
       `${ctx.cardMap.get(cnIRM)?.CardName ?? cnIRM}をゾーン${srcIdxIRM + 1}→${dstIdxIRM + 1}に移動`));
   }
@@ -3473,17 +3474,20 @@ export function execStubPart3(
     // 移動先が空きなら移動、占有なら入れ替え
     const stackSrcIRTZ = signiIRTZ[srcIdxIRTZ]!;
     const stackDstIRTZ = signiIRTZ[dstIdxIRTZ];
+    const movedIRTZ: string[] = [cnIRTZ]; // ON_ZONE_MOVED 用：移動したシグニ（入れ替え時は両方）
     if (!stackDstIRTZ || stackDstIRTZ.length === 0) {
       signiIRTZ[srcIdxIRTZ] = stackSrcIRTZ.length > 1 ? stackSrcIRTZ.slice(0, -1) : null;
       signiIRTZ[dstIdxIRTZ] = [cnIRTZ];
     } else {
       const topDstIRTZ = stackDstIRTZ[stackDstIRTZ.length - 1];
+      movedIRTZ.push(topDstIRTZ);
       signiIRTZ[srcIdxIRTZ] = stackSrcIRTZ.length > 1
         ? [...stackSrcIRTZ.slice(0, -1), topDstIRTZ] : [topDstIRTZ];
       signiIRTZ[dstIdxIRTZ] = stackDstIRTZ.length > 1
         ? [...stackDstIRTZ.slice(0, -1), cnIRTZ] : [cnIRTZ];
     }
-    const newStateIRTZ = { ...targetStateIRTZ, field: { ...targetStateIRTZ.field, signi: signiIRTZ } };
+    const newStateIRTZ = { ...targetStateIRTZ, field: { ...targetStateIRTZ.field, signi: signiIRTZ },
+      zone_moved_just: [...(targetStateIRTZ.zone_moved_just ?? []), ...movedIRTZ] };
     const newCtxIRTZ = isOppIRTZ
       ? { ...ctx, otherState: newStateIRTZ }
       : { ...ctx, ownerState: newStateIRTZ };
