@@ -5,6 +5,173 @@
 
 ---
 
+## G186「アタック時に手札に戻り→デッキトップ公開→シグニならアタック継続」逆翻訳乖離修正（2026-06-24・3枚）
+
+WXK02-071（偉智の遊 サンポケ）/ WXK10-057（讃の遊 ボブスレー）/ WDK05-T15（仁の遊 カマクラ）の【自】「このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、デッキの一番上を公開する。それがシグニの場合、それをアタックしているシグニとしてダウン状態で場に出す」。
+
+- **逆翻訳乖離（偽陰性）**: JSON が BOUNCE（`thisCardOnly`無し）＋ `LOOK_AND_REORDER`（見るだけ）＋ `ADD_TO_FIELD`（直前カード）の近似で、逆翻訳が「あなたのシグニ1体を手札に戻す…デッキの上1枚を見る…直前に選んだカードを場に出す」となり、**①「このシグニ」自身限定、②「それがシグニの場合」分岐、③「アタックしているシグニとして」、④「ダウン状態で」が全て脱落**。健全に見えて中身が別物だった。
+- **修正**: ①BOUNCE 対象に `thisCardOnly:true`（「このシグニ」）。②③④を 1 つの専用 STUB `REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI` に集約（既存 `REVEAL_TOP_CONDITIONAL_ROUTE` と同方式＝bespoke ハンドラ＋逆翻訳に `[STUB:説明]` を明示）。`そうした場合`（バウンス時）の `CONDITIONAL(IS_MY_TURN)` の中に配置。
+- **engine ハンドラ（execStubPart3）**: デッキトップを公開し、**シグニなら空きシグニゾーンへダウン状態で配置**（デッキから除去）、シグニでなければ場に出さずトップに残す、空きゾーンが無ければ温存。「アタックしているシグニとして（アタック継続）」は**ダウン配置で近似**（厳密なアタック継続＝同一アタックの続行は battle ループ未対応・TODO 記録）。
+- **検証**: `typecheck`・`lint`（新規エラーなし）。`scripts/_verifyRevealTopPlaceAttacker.ts`（**6/6 pass**）でシグニ→ダウン配置/非シグニ→温存/空き無し→温存を確認。STUBS.md 再生成、decompile_sheet3/4/5・grouped_all 再生成、3枚とも原文の各句を逆翻訳が再現（STUB明示）。
+
+---
+
+## G185「ルリグトラッシュにアーツがあるかぎり＋5000」条件欠落バグ修正（2026-06-24・2枚）
+
+WXK01-098（幻怪 ドライアド）/ WDK03-015（幻怪 イッタンモメン）の【常】「あなたのルリグトラッシュにアーツがあるかぎり、このシグニのパワーは＋5000される」が、**activeCondition が欠落**し `POWER_MODIFY{owner:self,count:1,delta:5000}` のみだった。
+
+- **engine バグ（有害）**: CONTINUOUS POWER_MODIFY は `count !== 'ALL'` を「このシグニ自身」として扱い、`checkActiveCondition(undefined)=true` のため、**ルリグトラッシュにアーツが無くても常時＋5000**が乗っていた（条件無視）。
+- **逆翻訳乖離**: `thisCardOnly` 無しのため「あなたのシグニ1体のパワーを＋5000する」と描画され、原文「このシグニ」とも実 engine 挙動（自己バフ）とも不一致だった。
+- **データ修正**: 両カードに `activeCondition: LRIG_TRASH_COUNT(アーツ,gte,1)` と target.filter に `thisCardOnly:true` を追加。
+- **engine 配線**: `LRIG_TRASH_COUNT` は `Condition`（AUTO/CONDITIONAL）と decompiler・`evalConditionForContinuous` には既存だったが **`ActiveCondition` 型と `checkActiveCondition` に未対応**（不明な条件は default で true＝常時有効になっていた）。`ActiveCondition` に `LRIG_TRASH_COUNT` を追加し、`checkActiveCondition` に `evalConditionForContinuous` と同実装のケースを追加。`matchesFilter` は `thisCardOnly` を無視するため自己バフ挙動は不変。
+- **検証**: `typecheck`・`lint`（新規エラーなし）。`scripts/_verifyArtsTrashBuff.ts`（**3/3 pass**）で「アーツあり→10000／空→5000／スペルのみ→5000」を確認。decompile_sheet3/4・grouped_all 再生成、2枚とも原文一致。
+
+---
+
+## G184/G218「ドライブ状態になったとき」逆翻訳乖離修正＋`ON_SIGNI_BECOMES_DRIVE` engine 配線（2026-06-24・4枚）
+
+「シグニがドライブ状態になったとき（＝ルリグがライドした瞬間）、相手のパワーN以下のシグニをバニッシュする」効果4枚が、トリガーを `ON_PLAY` と誤分類していた。逆翻訳が「このシグニが場に出たとき」となり原文「ドライブ状態になったとき」を再現できず、さらに G184 はバニッシュ対象のパワー条件（パワーN以下）も欠落。エンジン上も**場に出た瞬間に相手シグニをバニッシュする偽の挙動**で発火していた。
+
+- **新トリガー timing**: `ON_SIGNI_BECOMES_DRIVE` を新設（EffectTiming）。逆翻訳語「このシグニがドライブ状態になったとき」を追加し、`triggerScope:any_ally` で「あなたのシグニが…」に展開。
+- **データ修正**: WXK01-076/079（effects_WXK）＝`ON_PLAY`→`ON_SIGNI_BECOMES_DRIVE`・`triggerScope:any_ally`・バニッシュ対象に `powerRange.max`(3000/1000) 補完・任意《赤》コスト。WDK01-014/017（effects_misc）＝timing 修正（パワー条件は既存・正、自身がドライブ化する `self` スコープ）。
+- **engine 配線（G073/ON_ZONE_MOVED と同パターン）**: PlayerState に `drive_became_just?: string[]` を追加。ライド実行3パス（execStub `LRIG_RIDE_SIGNI`/`CENTER_LRIG_RIDES_ON_SIGNI`/`RIDE_ON`）が `lrig_riding_signi` を**新規セットする差分シグニ**を所有者 state に積む。BattleScreen の watcher useEffect が `drive_became_just` を検出し、`collectDriveBecameTriggers`（self/any_ally=driver側・any_opp=相手側・any=両方）でスタックに積んでフラグをクリア。`triggeringCardNum=ドライブ化シグニ`。usageLimit は actions_done で制御。CPU(=guest) のフラグはホストが代行。
+- **検証**: `typecheck`・`lint`（新規エラーなし）。`scripts/_verifyDriveBecome.ts`（**8/8 pass**）で3スタックのフラグ積み・差分のみ積む挙動を確認。decompile_sheet3/4・grouped_all 再生成、4枚とも原文一致・未配線マーク無し。
+
+---
+
+## G179 数字宣言のガード制限副作用バグ修正＋逆翻訳STUB解消（2026-06-24）
+
+G179（WX20-Re05 羅星 デネブ／WX20-Re06 羅星 ポラリス）の【出】「数字1つを宣言する。その後デッキの一番上を公開し、宣言数字と同じレベルのシグニなら手札に加える」。**コアは実装済みで正しく動作**（DECLARE_NUMBER=CHOOSE UIで1〜5宣言／DECK_TOP_CHECK_LEVEL_HAND=デッキトップ判定）。だが2点の問題があった。
+
+- **副作用バグ（修正）**: `DECLARE_NUMBER` は宣言値を `declared_guard_restrict_level` に保存するが、この同一フィールドをガードUI（BattleScreen 13318）が「相手はそのレベルのシグニでガード不可」として無条件に読む。そのため**ガード制限を持たない G179 でも、宣言後に自分のルリグでアタックすると相手が宣言レベルでガード不可になる原文に無い副作用**が出ていた。→ `DECK_TOP_CHECK_LEVEL_HAND` が宣言数字を消費した時点で `declared_guard_restrict_level` をクリア（一致/不一致の両分岐）。本 stub を使う5枚（WX20-Re05/06, WXEX1-58, WXK07-085, WXK10-017）はすべて末尾ステップが判定で、いずれもガード制限文を持たないため安全。本来のガード制限カード（WX10-009/WX19-054/WD21-009 等）はこの stub を使わず無影響。
+- **逆翻訳STUB（偽陰性）解消**: 実装済みなのに `[STUB:数字宣言：現在はランダム値で代用]`／`[STUB:デッキトップを公開して…]` と未実装表示だった。decompiler に両 stub の通常文描画を追加。エンジンの古いコメント（「ランダム値で代用」）も実態（CHOOSE UI）に修正。
+- **検証**: `typecheck`・`lint`（新規エラーなし）・`verify`（新規警告なし）。**ユニットテスト**で一致/不一致の両分岐とも宣言数字クリアを確認。decompile_sheet2/3/4・grouped_all 再生成、原文一致。JSON は無変更。
+
+---
+
+## 「シグニの効果によってバニッシュされない」の正確化（軸×発生源種別）（2026-06-24・全10枚）
+
+「対戦相手のシグニの効果によってバニッシュされない（シグニとのバトルやパワーが0以下になった場合はバニッシュされる）」が、全10枚で `GRANT_PROTECTION{from:['シグニ']}`＝**シグニの効果を全部受けない**と広すぎる近似だった（G001の★割れ調査で発覚。バウンス/ダウン/パワー減もシグニ効果なら無効化してしまう誤り）。原文は**バニッシュ軸のみ**の保護。
+
+- **新表現**: `from:['BANISH'] + bySourceType:'シグニ'`（GrantProtectionAction に `bySourceType` 追加）。「軸＝バニッシュ」かつ「発生源カード種別＝シグニ」のときのみ保護。
+- **エンジン**: 新コレクタ `collectBanishBySourceProtectedSigni(…, sourceCardType)` を追加し、効果解決文脈（ソース種別 `immuneSourceType` が判明する箇所）でのみ `otherBanishProtectedNums` に union。`collectBanishEffectProtectedSigni`（汎用・バトル文脈含む）は `bySourceType` 持ちを**スキップ**＝バトル/ルール処理（power≤0）のバニッシュは保護しない（原文の括弧書きと整合）。`collectEffectImmuneSigni` は `from:['BANISH']` に反応しない＝広義「受けない」化を回避。
+- **適用範囲の正確化**: 変換後はバウンス/ダウン/パワー減等の他軸シグニ効果は**保護されなくなる**（＝原文どおりバニッシュのみ）。スペル/ルリグ/アーツ効果のバニッシュも非保護。
+- **データ**: 原文に「シグニの効果によってバニッシュされない」を含み `from:['シグニ']` の10枚のみ変換（WXK01-094/096/099, WXK04-064, WXK08-036, WDK07-Y17, WDK17-015, WXDi-P03-074/P10-046/CP01-038）。広義「シグニの効果を受けない」系22枚は不変。
+- **逆翻訳器**: 軸トークン描画に `bySourceType` を反映（「対戦相手のシグニの効果によってバニッシュされない」）。
+- **検証**: `typecheck`・`lint`（新規エラーなし）・`verify`（新規警告なし）。**ユニットテスト5ケース**（源=シグニ/スペル/ルリグ、汎用コレクタのスキップ、effectImmune非反応）で確認。decompile_sheet3/4/5/7/8・grouped_all 再生成、10枚とも原文一致。
+
+---
+
+## G178 FORCE_PLACE_FRONT（正面配置強制）の実装（2026-06-24）
+
+G178（WX19-Re05 コードメイズ 凱旋／WD07-010 コードメイズ バベル）の【常】「対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない」が、`BLOCK_ACTION{actionId:'FORCE_PLACE_FRONT'}` として保持されるだけでエンジン未実装＝**完全な no-op**だった（パーサーが生成するのみ・エンジンに参照なし。STUBS.md にも未掲載）。逆翻訳も「対戦相手のは「FORCE_PLACE_FRONT」ことができない」と壊れていた。E2（【起】黒シグニサーチ）・BURST（1ドロー）は正しい。
+
+- **新ヘルパー**: `collectForcePlaceFrontZones(opponentState, myState, ...)`（effectEngine.ts）。配置を強制する側(opponentState)の各シグニ`j`について、強制される側(myState)の正面ゾーン`2-j`（盤面ミラー）を、**空きの場合のみ**集合へ。`collectCenterZoneDeployRestrict` と同型の配置制限パターン。
+- **強制の適用**: ①手札召喚UI（ゾーン選択モーダル：正面以外を「正面強制」で無効化）②`handleSummonSigni`（不正ゾーンを拒否）③CPU召喚ループ（正面ゾーンへ誘導）。ライズ（上乗せ）は対象外。
+- **複数枚（2枚）対応**: 集合(Set)で全該当シグニの正面を合算。相手が2枚（例 zone0/zone2）持つ場合は正面{0,2}が候補となり、配置側はどちらか一方に置けばよい（1体は1ゾーンのみ＝「可能ならば」充足）。正面が埋まっていれば集合から除外＝強制解除。**ユニットテスト6ケース**（2枚/正面片埋/両埋/0枚/1枚）で確認済み。
+- **逆翻訳器**: `BLOCK_ACTION` の `actionId==='FORCE_PLACE_FRONT'` を原文どおり描画（decompileEffects.ts）。全シート（同actionId持ち含む）再生成で旧表記0件。
+- **既知の範囲**: 「配置」は通常召喚（人間UI/CPU）を対象。効果による場出し（ADD_TO_FIELD のゾーン選択）への適用は未対応。
+- **検証**: `typecheck`・`lint`（新規エラーなし）・`verify`（新規警告なし）。
+
+---
+
+## 逆翻訳割れ G177 の修正（「効果によって場から」トリガー限定の欠落）（2026-06-24）
+
+G177（WX18-086 似之遊 †マヨケメン†／WX18-089 異血之遊 †オニガワラ†）の【自】「このシグニが**効果によって場から**トラッシュに置かれたとき、相手シグニ1体のパワーを－7000/－3000」が、トリガー限定なしの ON_TRASH で、逆翻訳が「このカードがトラッシュに置かれたとき」と無限定に見えていた（ユーザー指摘）。アクションは正しい。
+
+- **修正**: `triggerCondition: { fromZones:['field'], byEffect:true }` と `triggerScope:'self'` を追加。`fromZones:['field']` はエンジンで実際にゲートされ（手札/デッキ/エナからのトラッシュでは発火しない）、自身トラッシュ収集パスは元々 field-origin。
+- **「効果によって」の挙動**: 該当 ON_TRASH（自身・field-origin）は効果解決パス（detectTrashedSigni）由来で、通常のバトルバニッシュは ON_BANISH のみ発火し ON_TRASH は発火しない＝実質「効果によって」を満たす。`byEffect` は表現＋意図記録（ルール処理の厳密除外までは個別ゲートせず、ON_TRASH 全体共通の近似）。
+- **逆翻訳器**: ON_TRASH に `byEffect→「効果によって場から」` 描画を追加（decompileEffects.ts）。
+- **検証**: `lint`・`verify` 新規警告なし。decompile_sheet2・grouped_all 再生成、2枚とも「このカードが効果によって場からトラッシュに置かれたとき」に一致。
+
+---
+
+## 逆翻訳割れ G176 の修正（「トラッシュから場に出す」→「場のシグニをダウン」誤訳。G171と同型）（2026-06-24）
+
+G176（WX18-084 惨之遊 †オオウチ†／WX18-087 似之遊 †ヤマハリ†）の【自】《ターン1回》「このシグニが対戦相手のライフをクラッシュしたとき、あなたの**トラッシュから**レベルN以下の＜遊具＞のシグニ1枚を対象とし、**それをダウン状態で場に出す**」が、[[G171]]と同じく `DOWN{target:self 遊具シグニ}`＝**場のシグニをダウンするだけ**に誤訳されていた（ユーザー指摘「少し違い」）。
+
+- **修正**: アクションを `ADD_TO_FIELD{owner:self, asDown:true, source:TRASH_CARD self count1 filter(シグニ/level≤N/＜遊具＞)}` に置換（G171と同型）。トリガー（`ON_OPP_LIFE_CRASHED`／`once_per_turn`）は適切なため据え置き。
+- **既知の近似（未対応）**: `ON_OPP_LIFE_CRASHED` はクラッシュ側フィールドの全シグニから収集するため「**この**シグニがクラッシュしたとき」の限定はしていない（全 ON_OPP_LIFE_CRASHED カード共通のエンジン近似。個別データ修正の範囲外）。
+- **検証**: `verify` 新規警告なし。decompile_sheet2・grouped_all 再生成、2枚とも「トラッシュからレベルN以下の遊具シグニをダウン状態で場に出す」に一致。
+
+---
+
+## 逆翻訳割れ G174 の修正（対象スペルの色・コスト条件の欠落）（2026-06-24）
+
+G174（WX17-Re03 コードアート Ｂ・Ｂ・Ｑ／PR-247 同名）の【出】「あなたのトラッシュから**コストの合計が4以上の青の**スペル1枚を対象とし手札に加える」が、対象フィルタが `{cardType:'スペル'}` のみで、**「青」と「コスト合計4以上」が欠落**＝任意のスペルを回収できる誤りだった（ユーザー指摘）。
+
+- **修正**: `TRANSFER_TO_HAND` の source.filter に `color:'青'` と `costMin:4` を追加。`matchesFilter` は `costMin` を「《色×N》の合計（コイン除く）≥N」で判定する既存実装あり（execUtils）。
+- **2ファイル横断**: WX17-Re03 は `effects_WX.json`、PR-247 は `effects_misc.json`（PRカード）。decompile は WX17→sheet2 / PR-247→sheet6 の双方を再生成。
+- **検証**: `verify` 新規警告なし。grouped_all 再生成、2枚とも色・コスト条件が逆翻訳に反映。
+
+---
+
+## G172 使用条件 COND_STUB の実装（《ライズアイコン》持ちシグニ条件）（2026-06-24）
+
+G172（WX15-071 折刀の円卓 ケイ／WX15-074 白槍の円卓 ガレス）の【起】《ダウン》：相手のパワーN以下のシグニ1体をバニッシュ「**この能力はあなたの場に《ライズアイコン》を持つシグニがある場合にしか使用できない**」が、使用条件が `COND_STUB`（`evalCondition` で常に true）＝**条件が全く強制されていなかった**（ライズ持ちが場になくても使用可能だった）。アクション・コストは正しい。
+
+- **修正**: `condition` を `COND_STUB` → `HAS_CARD_IN_FIELD{owner:self, filter:{cardType:シグニ, hasIcon:ライズ}}` に置換。ACTIVATED は使用可否判定（BattleScreen 10796）で `evalUseCondition` を通すため、これで実際にゲートされる。`hasIcon:'ライズ'` は `matchesFilter` が EffectText の `【ライズ】` 有無で判定（既存の近似）。
+- **検証**: `verify` 新規警告なし（純データ修正）。decompile_sheet2・grouped_all 再生成、`[条件STUB:...]` が解消し「あなたの場に《ライズアイコン》を持つシグニがいる場合」と原文一致。
+
+---
+
+## 逆翻訳割れ G171 の修正（「トラッシュから場に出す」が「場のシグニをダウン」に誤訳）（2026-06-24）
+
+G171（WX15-062 似之遊 †チャッキー†／WX15-063 異血之遊 †ワラニン†）の【出】《無》「あなたの**トラッシュから**レベルN以下の＜遊具＞のシグニ1枚を対象とし、**それをダウン状態で場に出す**」が、`DOWN{target:self 遊具シグニ}`＝**場のシグニをダウンするだけ**に誤訳されていた（ユーザー指摘）。蘇生（トラッシュ→場）が完全に欠落。
+
+- **修正**: アクションを `ADD_TO_FIELD{owner:self, asDown:true, source:TRASH_CARD self count1 filter(シグニ/level≤N/＜遊具＞)}` に置換（参照 WX03-011 と同型＋`asDown`）。エンジン `execAddToField` は source からの選択→空きゾーン配置（複数空きは SELECT_SIGNI_ZONE）まで対応済みで、`asDown` で signi_down を立てる処理も既存。
+- **逆翻訳器**: ADD_TO_FIELD(source あり) の描画に `asDown→「ダウン状態で」` を追加（decompileEffects.ts）。
+- **検証**: `lint`・`verify` 新規警告なし。decompile_sheet2・grouped_all 再生成、2枚とも原文一致（トラッシュからレベルN以下の遊具シグニをダウン状態で場に出す）。
+
+---
+
+## 逆翻訳割れ G170 の修正（条件欠落＋「黒」フィルタの誤付与）（2026-06-24）
+
+G170（WX14-074 コードアンチ タユソウ／WX14-078 コードアンチ ジョモドキ）の【自】「**対戦相手のターンの間**、このシグニがバニッシュされたとき、対戦相手のシグニ1体を対象とし、**あなたのセンタールリグが黒の場合**、ターン終了時まで、それのパワーを－3000/－2000する」が、3点壊れていた（ユーザー指摘）。
+
+- **①ターゲットの「黒」誤付与**: 原文の「黒」は**自分のセンタールリグの条件**だが、パーサーが**対象シグニの色フィルタ**（`target.filter.color:'黒'`）に誤付与＝「相手の黒のシグニ」しか対象にできない誤り。→ フィルタを `{cardType:'シグニ'}` のみに是正（対象は対戦相手のシグニ1体）。
+- **②センタールリグ黒条件の欠落** / **③「対戦相手のターンの間」の欠落**: ともに未実装。→ `activeCondition: AND(TURN_OWNER opponent, LRIG_COLOR self 黒)` を追加。`triggerScope:'self'` も明示。
+- **配置先の注意**: 自身バニッシュ経路（`collectBanishTriggers` の section 1）は `eff.condition` を評価せず **`activeCondition` のみ**を `checkActiveCondition`（実ターン判定可）でチェックする。`evalCondition` の `IS_OPPONENT_TURN` は常に true を返すプレースホルダのため、ターン制限は必ず `activeCondition`（TURN_OWNER）で表現する。
+- **検証**: `verify` 新規警告なし（コード変更なしの純データ修正）。decompile_sheet2・grouped_all 再生成、2枚とも原文一致（対戦相手のターン＋ルリグ黒条件＋対象=相手シグニ1体）。
+
+---
+
+## 逆翻訳割れ G169 の修正（基本パワー設定の欠落＋対象スコープ誤り）（2026-06-24）
+
+G169（WX14-060 幻水 ナヨハギ／WX14-061 幻水 ツノダシ）の【常】「対戦相手のターンの間、手札6枚以上のかぎり、**このシグニの基本パワーは15000/12000になり**、対戦相手の効果を受けない」が、`GRANT_PROTECTION{target:self,count:'ALL'}` のみで実装され、**①基本パワー設定が完全欠落**、**②対象が「すべてのシグニ」**（原文は「このシグニ」）になっていた（ユーザー指摘）。
+
+- **②は実挙動バグ**: 効果耐性の一般パス（`collectEffectImmuneSigni`）は target self なら sourceNum のみ保護するが、**バニッシュ保護（`collectBanishEffectProtectedSigni`）は `count:'ALL'` を honor して全シグニを保護**していた（＝対戦相手のバニッシュから自分の全シグニが保護される誤り）。
+- **修正**: 各カードを2つの CONTINUOUS 効果に再構成（同一 activeCondition: 相手ターン∧手札≥6）。E1=`POWER_SET{self,count:1}`（15000/12000、参照 WX01-054 と同型＝engine上「このシグニ」）、E2=`GRANT_PROTECTION{self,count:1, from:['any']}`。`count:1` で全保護コレクタが「このシグニのみ」に解決。
+- **GRANT_PROTECTION に filter は付けない**: バウンス保護パスは `count:1` でも `target.filter` があると全シグニを走査するため。代わりに逆翻訳器（decompileEffects.ts）を POWER_SET と同様に特例対応し、CONTINUOUS・self・count≠ALL・filter/subjectFilterなし→「このシグニ」と描画。
+- **検証**: `typecheck`・`lint`・`verify`（新規警告なし）。decompile_sheet2・grouped_all 再生成、2枚とも原文（基本パワー設定＋このシグニ限定の効果耐性）に一致。
+
+---
+
+## G168「好きな枚数を上に・残りを下に」分割UIの新設（split_top_bottom）（2026-06-24）
+
+G168（WX13-081 弐ノ遊 カザグルマ／WX13-082 壱ノ遊 カミカブト）の【自】「デッキ上N枚を見て、**好きな枚数を好きな順番でデッキの一番上に置き、残りを好きな順番でデッキの一番下に置く**」が、`LOOK_AND_REORDER{destPosition:'bottom'}`＝**見た札を全部デッキ下に送る**実装になっており、原文の「一部を上に残す」分割ができていなかった（ユーザー指摘：新UIが必要）。
+
+- **新 destPosition**: `LOOK_AND_REORDER` に `'split_top_bottom'` を追加（`types/effects.ts` の destination.position、`types/index.ts` の PendingInteractionDef）。
+- **エンジン**: `resumeLookAndReorder` に `bottomCards` 引数を追加。`split_top_bottom` 時は keep を「下に送る集合」で2分割し `deck: [...top, ...残りデッキ, ...bottom]` に配置（各群は並べ替え順を維持）。
+- **新UI**: LOOK_AND_REORDER モーダルに分割モードを追加。各カードに「上/下」トグル（既定=上）、↑↓で群内順序を調整、上群の枚数を表示。状態 `lookReorderBottom` を追加・リセット。CPUは全カードを上（原順）に置く既定動作。
+- **逆翻訳器**: `decompileEffects.ts` で split_top_bottom を原文どおり描画。
+- **データ**: WX13-081/082 の destPosition を `bottom`→`split_top_bottom`、reorder:true。
+- **検証**: `typecheck`・`lint`（新規エラーなし）・`verify`（新規警告なし）。decompile_sheet2・grouped_all 再生成、2枚とも原文一致。
+
+> ⚠️ **注意**: effects_*.json は**手動管理**で `scripts/buildEffectsJson.ts`（`npm run build:effects`）のパーサー出力と大きく乖離している。`build:effects` を実行すると手動修正（本件・G164等）が全消去される。**実行しないこと**。データ修正は JSON 直接編集で行う。
+
+---
+
+## 逆翻訳割れ G164 の修正（「スペルがある場合」条件の欠落）（2026-06-24）
+
+G164（WX12-054 コードアート †Ｊ・Ｖ†／WX12-055 コードアート †Ｓ・Ｃ†）の【出】「デッキの上からN枚トラッシュ→**この方法でトラッシュに置いたカードの中にスペルがある場合**、1枚引く」が、ドロー無条件（`SEQUENCE[TRASH, DRAW]`）で実装されており条件が欠落していた（ユーザー指摘）。
+
+- **新エンジン要素**: 条件型 `LAST_PROCESSED_HAS_TYPE{cardType}` を追加（`execUtils` 評価）。`TRASH{target:DECK_CARD}` は milled カードを `lastProcessedCards` に残すため、後続 `CONDITIONAL` で「直前にトラッシュしたカードに指定Typeが含まれるか」を判定できる。逆翻訳器（decompileEffects.ts）にも描画追加。
+- **データ**: 両カードの DRAW ステップを `CONDITIONAL{condition: LAST_PROCESSED_HAS_TYPE(スペル), then: DRAW}` でラップ（完全動作）。
+- **検証**: `typecheck`・`lint` 通過、`verify` 新規警告なし。decompile_sheet2・grouped_all 再生成、2枚とも原文の条件を反映。
+
+---
+
 ## 逆翻訳割れ G156/G157/G158/G159 の修正（条件欠落・誤実装・技名扱い）（2026-06-24）
 
 SP/ボカロコラボのレベル3ルリグ系4グループ（各2枚・計8枚）を `manualEffects.ts` で durable 実装。**イノセンス／プライマルはキーワード機構ではなく単なる技名**（ユーザー指摘）＝通常の【起】能力として効果本体のみ実装。

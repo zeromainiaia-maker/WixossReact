@@ -134,14 +134,17 @@ export function execStubPart2(
     const topLv = parseInt(topData?.Level ?? '-1');
     if (declaredLv !== undefined && topData?.Type === 'シグニ' && topLv === declaredLv) {
       const newDeck = ctx.ownerState.deck.slice(1);
-      const newOwner = { ...ctx.ownerState, deck: newDeck, hand: [...ctx.ownerState.hand, topCard] };
+      // 宣言数字はこのデッキトップ判定で消費。ガード制限フィールド（declared_guard_restrict_level）に
+      // 残すと「数字宣言だけの効果」で原文にないガード制限が漏れるためクリアする。
+      const newOwner = { ...ctx.ownerState, deck: newDeck, hand: [...ctx.ownerState.hand, topCard], declared_guard_restrict_level: undefined };
       return done(addLog({ ...ctx, ownerState: newOwner },
         `デッキトップ公開：${topData?.CardName ?? topCard}（Lv${topLv}）→手札`));
     }
     const name = topData?.CardName ?? topCard;
     const lv = topData?.Level ?? '?';
-    // 一致しない場合はデッキトップに戻す（移動なし）
-    return done(addLog(ctx, `デッキトップ公開：${name}（Lv${lv}）→不一致、デッキトップに戻す`));
+    // 一致しない場合もデッキトップに戻す（移動なし）。宣言数字は消費済みのためクリア。
+    const newOwnerNM = { ...ctx.ownerState, declared_guard_restrict_level: undefined };
+    return done(addLog({ ...ctx, ownerState: newOwnerNM }, `デッキトップ公開：${name}（Lv${lv}）→不一致、デッキトップに戻す`));
   }
   // 相手の手札のシグニを見て捨てさせる（宣言数字フィルタ or 有色フィルタ）
   if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
@@ -4329,7 +4332,8 @@ export function execStubPart2(
     const selectedRO = (ctx.lastProcessedCards ?? []).find(cn =>
       ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
     if (selectedRO) {
-      const newOwnerRO = { ...ctx.ownerState, lrig_riding_signi: [selectedRO] };
+      const newOwnerRO = { ...ctx.ownerState, lrig_riding_signi: [selectedRO],
+        drive_became_just: [...(ctx.ownerState.drive_became_just ?? []), selectedRO] };
       const namRO = ctx.cardMap.get(selectedRO)?.CardName ?? selectedRO;
       return done(addLog({ ...ctx, ownerState: newOwnerRO }, `ルリグが${namRO}に乗る（ドライブ状態）`));
     }

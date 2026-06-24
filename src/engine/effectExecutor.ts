@@ -3834,6 +3834,7 @@ export function resumeOptionalCost(
   trashed: string[],
   pending: PendingInteractionDef & { type: 'LOOK_AND_REORDER' },
   ctx: ExecCtx,
+  bottomCards: string[] = [],
 ): ExecResult {
   const keep = reordered.filter(n => !trashed.includes(n));
   const destOwner = pending.destOwner;
@@ -3847,6 +3848,11 @@ export function resumeOptionalCost(
     // 1枚目→デッキトップ、残り→デッキ下
     const [firstCard, ...restCards] = keep;
     newS = { ...state, deck: [...(firstCard ? [firstCard] : []), ...state.deck, ...restCards], trash: [...state.trash, ...trashed] };
+  } else if (pending.destPosition === 'split_top_bottom') {
+    // 好きな枚数を一番上へ、残りを一番下へ（各群は reordered の並び順を維持）。G168
+    const topGroup = keep.filter(n => !bottomCards.includes(n));
+    const bottomGroup = keep.filter(n => bottomCards.includes(n));
+    newS = { ...state, deck: [...topGroup, ...state.deck, ...bottomGroup], trash: [...state.trash, ...trashed] };
   } else {
     newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
   }

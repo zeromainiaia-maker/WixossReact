@@ -163,6 +163,14 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 - 配線済（BUGFIXES 参照）。移動実行3パス（`INTERNAL_MOVE_TO_ZONE` / `INTERNAL_REPOSITION_TO_ZONE` / `INTERNAL_REPOSITION_MOVE` / `REARRANGE_SIGNI` 解決）が `zone_moved_just` フラグを所有者 state に積み、BattleScreen の watcher が `collectZoneMovedTriggers` で scope 別（self/any_ally=mover側・any_opp=相手側・any=両方）に発火・クリア。テキスト読み取りハックは撤去。
 - **GRANT_KEYWORD の targetsTriggerSource 対応済（2026-06-23）:** GrantKeywordAction に `targetsTriggerSource` を追加し execGrantKeyword で `triggeringCardNum→sourceCardNum` へ無選択付与。effectParser の ON_ZONE_MOVED self 後処理が POWER_MODIFY に加え GRANT_KEYWORD(self,count:1,filterなし) も自動マーク。WXK03-073 はランサーも +2000 も移動シグニ自身に適用（JSON 直 SEQUENCE・MANUAL）。
 
+**`ON_SIGNI_BECOMES_DRIVE`（ドライブ状態になったとき）の engine 配線 — 完了（2026-06-24）:**
+- 逆翻訳乖離 G184/G218 修正で新設したトリガー timing を配線済（`【※engine未配線】`マークは除去）。対象: WXK01-076/079（`triggerScope:any_ally`・任意《赤》コスト→パワー以下バニッシュ）／ WDK01-014/017（このシグニ自身・無条件バニッシュ＋LBドロー）。従来は `ON_PLAY` 誤分類で「場に出たとき」に発火していた（偽の挙動）。
+- ライド実行3パス（execStub の `LRIG_RIDE_SIGNI`/`CENTER_LRIG_RIDES_ON_SIGNI`/`RIDE_ON` が `lrig_riding_signi` を**新規**セットする瞬間＝旧 riding との差分）で所有者 state に `drive_became_just` フラグを積み、BattleScreen の watcher が `collectDriveBecameTriggers` で G073（ON_ZONE_MOVED）と同型に scope 別（self/any_ally=driver側・any_opp=相手側・any=両方）収集・発火・クリア。`triggeringCardNum=ドライブ化シグニ`。検証: `scripts/_verifyDriveBecome.ts`（8/8 pass）。
+
+**`REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI`（G186）のアタック継続が近似（2026-06-24）:**
+- WXK02-071/WXK10-057/WDK05-T15「アタック時このシグニを手札に戻し→デッキトップ公開→シグニならアタックしているシグニとしてダウン状態で場に出す」。STUB ハンドラはデッキトップを公開しシグニを**空きゾーンへダウン配置**するところまで実装済（BUGFIXES 参照）。
+- **残（近似）**: 「アタックしているシグニとして」＝**同一アタックをそのまま継続**（新シグニで対戦相手/正面へのダメージ処理を続行）する部分は battle ループ未対応。現状はダウン配置までで、配置後のアタック続行は再現していない。厳密化には BattleScreen のアタック解決中に攻撃側シグニを差し替える機構が必要。
+
 **《相手ターン》《自分ターン》の AUTO/ACTIVATED 対応（2026-06-23・ymst）:**
 - CONTINUOUS は activeCondition `TURN_OWNER` で対応済（BUGFIXES。G074 調査で発覚した系統バグ）。
 - **残: AUTO/ACTIVATED の `《相手ターン》`/`《自分ターン》`（約33枚）は未対応。** condition 側はトリガー収集時の ad-hoc 判定（`evalCondition` は IS_*_TURN を実行時 true 扱い）で timing ごとの整備が要る。ターン条件は **必ず `TURN_OWNER`**（`IS_MY_TURN` はパーサーが「そうした場合」CONDITIONAL プレースホルダーに転用しており衝突するため使用禁止）。collectSelfEventTriggers 等の収集側で `TURN_OWNER` を評価する共通フックを入れるのが筋。

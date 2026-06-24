@@ -119,3 +119,27 @@ CardData_Sheet*.csv（カードテキスト）
 - STUB 実装状況: [STUBS.md](./STUBS.md)（`genStubsMd.mjs` で自動生成）
 - トークン↔呼び出し元: [TokenCallers.md](./TokenCallers.md)
 - effects JSON 表現語彙: [effects-json-guide.md](./effects-json-guide.md)
+
+---
+
+## 8. フェイズ処理順（ゲームルール・再発注意）
+
+公式ルールの処理順を実装でも厳守する。特に **エンドフェイズ** は順序を間違えやすい。
+
+**エンドフェイズの処理順：**
+1. **「ターン終了時に」と書かれた効果を発動する**
+2. ターンプレイヤーの手札が7枚以上なら6枚になるよう手札を捨てる。「ターン終了時まで」「このターン」の効果がなくなる
+3. ターン終了を宣言し、対戦相手のターンへ移行する
+
+→ **「ターン終了時に」効果（①）は、必ず手札上限調整（②）より前に解決する。** 終了時ドロー（例: WXK01-054/089 ドレイク/レヴィアタン、STUB `DRAW_AT_TURN_END` ／ 状態 `turn_end_draw_count`）を上限チェック後に引くと、引いた分が6枚調整の対象外になりルール違反になる。
+
+**「ターン終了時に」効果の2経路（どちらも②より前で解決）:**
+1. **標準 `timing: ON_TURN_END`**（約300効果）: `doPhaseAdvance` の END 分岐**先頭**で `collectTurnTriggers('ON_TURN_END')` がスタックに積んで解決。これはビートゾーン処理・手札上限チェックより前。✅ 正しい。
+2. **予約型の状態フラグ**（場を離れても発動する遅延効果）: `turn_end_draw_count`（DRAW_AT_TURN_END）/ `coin_condition_signi_instances` / `turn_end_field_trash_targets` / `game_turn_end_trash_to_hand` / `flip_attack_signi_zones`。これらは `doPhaseAdvance` の **ENDフェーズ①ブロックで手札上限チェックより前に一括解決**する。
+
+**実装メモ:**
+- `doPhaseAdvance`（`phase==='END'`）：①の予約型効果をすべて適用して `myHandEND`/`myDeckPreLimit`/`myTrashAfterCoinCheck`/`myFieldAfterCoinCheck` を確定 → **その後**で手札上限チェック（`myHandEND.length > handLimitEND`）。
+- 手札上限超過で捨て札選択へ抜ける場合（`confirmEndDiscard` 経路）は、**①の解決結果を先に永続化**し、一時マーカー `end_turn_effects_resolved: true` を立ててから `setPendingEndDiscard`。`confirmEndDiscard` 側は各ターン終了時効果ブロックを `!my.end_turn_effects_resolved` でガードして二重適用を防ぐ。
+  - 特に `game_turn_end_trash_to_hand` は「このゲーム」持続でフラグを消せないため、フラグクリアではなく**マーカーで抑止**する必要がある。
+- マーカーは `confirmEndDiscard` の最終クリーンアップで `undefined` に戻す。
+- ⚠️ **CPU の END 分岐（`cpuTurnAction`）は予約型のうち `turn_end_draw_count` のみ対応**。coin/field_trash/trash_to_hand は未対応（[§4](#4-cpu-戦と対人戦の処理統一) の統一が未了。CPU は手札上限処理自体が無いため順序は問題にならない）。

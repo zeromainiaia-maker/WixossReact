@@ -4,8 +4,8 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, TurnPhase, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
-applyContinuousBaseLevelOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni,
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+applyContinuousBaseLevelOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
@@ -1135,6 +1135,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
   // LOOK_AND_REORDER：トラッシュに置くカード（canTrash 時のみ。「好きな枚数をトラッシュに置き」）
   const [lookReorderTrash, setLookReorderTrash] = useState<Set<string>>(new Set());
+  // LOOK_AND_REORDER：デッキ下へ置くカード（split_top_bottom 時のみ。「残りを一番下に置く」。未選択=一番上）
+  const [lookReorderBottom, setLookReorderBottom] = useState<Set<string>>(new Set());
   const [selectedMultiChoiceIds, setSelectedMultiChoiceIds] = useState<Set<string>>(new Set());
   // アシストルリグセットアップ（センタールリグ選択後の中間状態）
   const [pendingLrigSetup, setPendingLrigSetup] = useState<{
@@ -1965,8 +1967,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return same ? prev : [...inter.cards];
       });
       setLookReorderTrash(prev => (prev.size === 0 ? prev : new Set()));
+      setLookReorderBottom(prev => (prev.size === 0 ? prev : new Set()));
     }
-   
+
   }, [bs?.pending_effect]);
 
   // 効果スタック整列UI の更新
@@ -2296,6 +2299,71 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myZoneMovedRef, cpuZoneMovedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // シグニがドライブ状態になった直後フラグ（drive_became_just）を検出して ON_SIGNI_BECOMES_DRIVE を発火（G184/G218）。
+  // フラグはドライブ化したシグニの所有者(=driver)の state に積まれる。driver のクライアントが処理し、driver 側(self/any_ally/any)と
+  // 対戦相手側(any_opp/any)の両トリガーを収集する。CPU(=guest)のフラグはホスト(人間)が代行処理する。zone_moved_just と同型。
+  const myDriveBecameRef = (user && bs)
+    ? (user.id === bs.host_id ? bs.host_state?.drive_became_just : bs.guest_state?.drive_became_just)
+    : undefined;
+  const cpuDriveBecameRef = isCpuBattle ? bs?.guest_state?.drive_became_just : undefined;
+  useEffect(() => {
+    if (!bs || !user || loading) return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    const localIsHost = user.id === bs.host_id;
+    const processOwn = !!(myDriveBecameRef && myDriveBecameRef.length > 0);
+    const processCpu = isCpuBattle && localIsHost && !!(cpuDriveBecameRef && cpuDriveBecameRef.length > 0);
+    if (!processOwn && !processCpu) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const entries: StackEntry[] = [];
+        const update: Record<string, unknown> = {};
+        const usedByKey: Record<string, string[]> = {};
+        const handleDriveFor = (
+          driverState: PlayerState, otherState: PlayerState,
+          driverKey: string, otherKey: string, driverId: string, otherId: string,
+        ) => {
+          for (const becameNum of driverState.drive_became_just ?? []) {
+            const r = collectDriveBecameTriggers(becameNum, driverState, otherState, driverId, otherId);
+            entries.push(...r.entries);
+            if (r.driverUsedIds.length) usedByKey[driverKey] = [...(usedByKey[driverKey] ?? []), ...r.driverUsedIds];
+            if (r.otherUsedIds.length) usedByKey[otherKey] = [...(usedByKey[otherKey] ?? []), ...r.otherUsedIds];
+          }
+        };
+        const hostS = bs.host_state, guestS = bs.guest_state;
+        if (processOwn) {
+          if (localIsHost) handleDriveFor(hostS, guestS, 'host_state', 'guest_state', bs.host_id, bs.guest_id);
+          else handleDriveFor(guestS, hostS, 'guest_state', 'host_state', bs.guest_id, bs.host_id);
+        }
+        if (processCpu) handleDriveFor(guestS, hostS, 'guest_state', 'host_state', CPU_PLAYER_ID, bs.host_id);
+        // フラグクリア＋usageLimit永続化（driver 側のフラグのみクリア）
+        const applyState = (key: string, base: PlayerState, clearFlag: boolean) => {
+          const used = usedByKey[key];
+          if (!used && !clearFlag) return;
+          update[key] = {
+            ...(update[key] as PlayerState ?? base),
+            ...(clearFlag ? { drive_became_just: null } : {}),
+            ...(used ? { actions_done: [...(base.actions_done ?? []), ...used] } : {}),
+          };
+        };
+        applyState('host_state', hostS, !!(processOwn && localIsHost));
+        applyState('guest_state', guestS, !!((processOwn && !localIsHost) || processCpu));
+        if (entries.length > 0) {
+          const existingStack = bs.effect_stack ?? null;
+          update.effect_stack = existingStack
+            ? pushToStack(existingStack, entries)
+            : initStack(bs.active_user_id ?? user.id, entries);
+        }
+        if (Object.keys(update).length > 0) {
+          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myDriveBecameRef, cpuDriveBecameRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ON_ENERGY_CHARGE / ON_POWER_THRESHOLD の検知ウォッチャー（WX03-032）。
   // 状態変化のたびに、前回スナップショット（prevEnergyRef/prevPowersRef）と比較して
@@ -3793,19 +3861,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           myBeatEND = [];
         }
 
-        // ENDフェーズ：手札上限チェック（HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT 効果）
-        const handLimitEND = myEffectiveHandLimit;
-        if (my.hand.length > handLimitEND) {
-          // プレイヤーに捨てるカードを選択させる
-          setPendingEndDiscard(my.hand.length - handLimitEND);
-          setSelectedEndDiscard(new Set());
-          return; // Supabase未更新 - ユーザー選択後に confirmEndDiscard で処理
-        }
+        // ENDフェーズ①：「ターン終了時に」と書かれた効果をすべて解決する。
+        // 公式ルール：エンドフェイズは ①「ターン終了時に」効果 → ②手札上限調整(6枚) → ③ターン終了 の順。
+        // 手札を増やす効果（ドロー／トラッシュ→手札）も②より前に解決する必要があるため、ここで一括処理する。
+        // ※標準の timing:ON_TURN_END 効果は上の collectTurnTriggers でスタック解決済み（同じく②より前）。
         let myHandEND = my.hand;
-        const myTrashEND = myTrashBeat;
-        // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
+        let myDeckPreLimit = my.deck;
         let myFieldAfterCoinCheck = { ...my.field, beat_zone: myBeatEND };
-        let myTrashAfterCoinCheck = myTrashEND;
+        let myTrashAfterCoinCheck = myTrashBeat;
+        // DRAW_AT_TURN_END: このターン終了時に引く（このシグニが場を離れていても引く）
+        if ((my.turn_end_draw_count ?? 0) > 0) {
+          const nDrawEND = my.turn_end_draw_count!;
+          const drawnEND = myDeckPreLimit.slice(0, nDrawEND);
+          myDeckPreLimit = myDeckPreLimit.slice(nDrawEND);
+          myHandEND = [...myHandEND, ...drawnEND];
+          appendBattleLogs([`ターン終了時：カードを${drawnEND.length}枚引く`]);
+        }
+        // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
         if ((my.coin_condition_signi_instances ?? []).length > 0) {
           const coinSpent = (my.actions_done ?? []).includes('COIN_SPENT');
           if (!coinSpent) {
@@ -3867,12 +3939,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi_down: newSigniDownFA };
           if (unflipped.length > 0) appendBattleLogs([`フリップアタック復元：${unflipped.join('・')}を表向きに`]);
         }
+
+        // ENDフェーズ②：手札上限チェック（①の「ターン終了時に」効果をすべて適用した後の手札で判定）
+        const handLimitEND = myEffectiveHandLimit;
+        if (myHandEND.length > handLimitEND) {
+          // ①の解決結果を先に永続化してから捨て札選択へ。confirmEndDiscard は解決済み状態を参照し、
+          // end_turn_effects_resolved マーカーで効果の二重適用を防ぐ
+          // （特に game_turn_end_trash_to_hand は「このゲーム」持続でフラグを消せないため、マーカーで抑止）。
+          await supabase.from('battle_states')
+            .update({ [stateKey]: {
+              ...my,
+              hand: myHandEND, deck: myDeckPreLimit,
+              trash: myTrashAfterCoinCheck, field: myFieldAfterCoinCheck,
+              turn_end_draw_count: undefined,
+              coin_condition_signi_instances: undefined,
+              turn_end_field_trash_targets: undefined,
+              flip_attack_signi_zones: undefined,
+              end_turn_effects_resolved: true,
+            } })
+            .eq('room_id', roomId);
+          setPendingEndDiscard(myHandEND.length - handLimitEND);
+          setSelectedEndDiscard(new Set());
+          return; // ユーザー選択後に confirmEndDiscard で処理
+        }
+
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
+        // （ターン終了時に効果＝ドロー/コイン/場トラッシュ/トラッシュ→手札/フリップ復元 は上で解決済み）
         newMyState = {
           ...my,
           hand: myHandEND,
+          deck: myDeckPreLimit,
           trash: myTrashAfterCoinCheck,
           field: myFieldAfterCoinCheck,
+          turn_end_draw_count: undefined,
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
           field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
@@ -4094,10 +4193,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const myTrashEND = [...myTrashBeat, ...discardNums];
       appendBattleLogs([`手札上限超過（${my.hand.length}枚→${myHandEND.length}枚）：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て`]);
 
-      // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
+      // ターン終了時に効果（コイン/場トラッシュ/トラッシュ→手札/フリップ復元）。
+      // doPhaseAdvance（ENDフェーズ①）で解決済み（end_turn_effects_resolved）の場合は再実行しない
+      // ＝手札上限超過でここに来たケースは常に解決済み。未解決の防御として個別ガードを付ける。
       let myFieldAfterCoinCheck = { ...my.field, beat_zone: [] as string[] };
       let myTrashAfterCoinCheck = myTrashEND;
-      if ((my.coin_condition_signi_instances ?? []).length > 0) {
+      // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
+      if (!my.end_turn_effects_resolved && (my.coin_condition_signi_instances ?? []).length > 0) {
         const coinSpent = (my.actions_done ?? []).includes('COIN_SPENT');
         if (!coinSpent) {
           const newSigniField = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
@@ -4114,7 +4216,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // turn_end_field_trash_targets
-      if ((my.turn_end_field_trash_targets ?? []).length > 0) {
+      if (!my.end_turn_effects_resolved && (my.turn_end_field_trash_targets ?? []).length > 0) {
         const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
         const trashedTEFT: string[] = [];
         for (const targetId of my.turn_end_field_trash_targets!) {
@@ -4129,8 +4231,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`ターン終了時：${trashedTEFT.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`]);
         }
       }
-      // game_turn_end_trash_to_hand
-      if (my.game_turn_end_trash_to_hand) {
+      // game_turn_end_trash_to_hand（「このゲーム」持続なのでフラグは消さない。マーカーで二重適用を防ぐ）
+      if (!my.end_turn_effects_resolved && my.game_turn_end_trash_to_hand) {
         const { class: ttCls, count: ttCnt } = my.game_turn_end_trash_to_hand;
         const ttMatches = myTrashAfterCoinCheck.filter(cn => {
           const c = battleCardMap.get(cn);
@@ -4144,7 +4246,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // flip_attack_signi_zones
-      if ((my.flip_attack_signi_zones ?? []).length > 0) {
+      if (!my.end_turn_effects_resolved && (my.flip_attack_signi_zones ?? []).length > 0) {
         const newSigniDownFA = [...(myFieldAfterCoinCheck.signi_down ?? [false, false, false])] as [boolean, boolean, boolean];
         const unflipped: string[] = [];
         for (const zi of my.flip_attack_signi_zones!) {
@@ -4157,12 +4259,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi_down: newSigniDownFA };
         if (unflipped.length > 0) appendBattleLogs([`フリップアタック復元：${unflipped.join('・')}を表向きに`]);
       }
+      // ターン終了時に効果（ドロー等）は doPhaseAdvance（ENDフェーズ①）で解決・永続化済み。
+      // ここではフラグのクリアと最終クリーンアップのみ行う。
       // ターン内一時状態をクリアして newMyState を確定
       let newMyState: typeof my = {
         ...my,
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
         field: myFieldAfterCoinCheck,
+        turn_end_draw_count: undefined,
+        end_turn_effects_resolved: undefined, // マーカーをクリア（次ターンの解決に持ち越さない）
         temp_power_mods: [], keyword_grants: {}, granted_effects: {},
         abilities_removed: [], // REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
@@ -4543,9 +4649,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 解決中効果のソースカード種別が耐性対象に該当する場合、その美巧シグニを全保護パスへ反映する。
       const immuneSourceType = battleCardMap.get(entry.cardNum)?.Type ?? '';
       const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, immuneSourceType);
+      // 「対戦相手の【シグニ】の効果によってバニッシュされない」: ソース種別一致時のみバニッシュ保護（バニッシュ軸限定）
+      const otherBanishBySourceNums = collectBanishBySourceProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, immuneSourceType);
       const otherDownProtectedNumsM   = [...otherDownProtectedNums, ...otherEffectImmuneNums];
       const otherBounceProtectedNumsM = [...otherBounceProtectedNums, ...otherEffectImmuneNums];
-      const otherBanishProtectedNumsM = new Set<string>([...otherBanishProtectedNums, ...otherEffectImmuneNums]);
+      const otherBanishProtectedNumsM = new Set<string>([...otherBanishProtectedNums, ...otherEffectImmuneNums, ...otherBanishBySourceNums]);
       const otherTrashFieldProtectedNumsM = [...otherTrashFieldProtectedNums, ...otherEffectImmuneNums];
       const otherProtectedSigniNumsM  = [...otherProtectedSigniNums, ...otherEffectImmuneNums];
       const otherAbilityGainProtectedNums = [...otherAbilityGainProtectedNums0, ...otherEffectImmuneNums];
@@ -5023,7 +5131,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       } else if (inter.type === 'LOOK_AND_REORDER') {
         const trashList = inter.canTrash ? selectedOrChoiceId.filter(n => lookReorderTrash.has(n)) : [];
-        result = resumeLookAndReorder(selectedOrChoiceId, trashList, inter, ctx);
+        const bottomList = inter.destPosition === 'split_top_bottom'
+          ? selectedOrChoiceId.filter(n => lookReorderBottom.has(n)) : [];
+        result = resumeLookAndReorder(selectedOrChoiceId, trashList, inter, ctx, bottomList);
       } else if (inter.type === 'REVEAL_CARDS') {
         // 閲覧専用モーダルの確認（OK）→ continuation を実行
         result = resumeRevealCards(inter, ctx);
@@ -5669,6 +5779,57 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, moverUsedIds, otherUsedIds };
   };
 
+  // シグニがドライブ状態になったとき（ルリグがライドした瞬間）の ON_SIGNI_BECOMES_DRIVE を収集（G184/G218）。
+  // フラグ drive_became_just はドライブ化したシグニの所有者(=driver)の state に積まれる。collectZoneMovedTriggers と同型：
+  // driver 側=self(=そのシグニ自身)/any_ally/any、対戦相手側=any_opp/any。triggeringCardNum=ドライブ化したシグニ。
+  const collectDriveBecameTriggers = (
+    becameNum: string,
+    driverState: PlayerState,
+    otherState: PlayerState,
+    driverId: string,
+    otherId: string,
+  ): { entries: StackEntry[]; driverUsedIds: string[]; otherUsedIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const driverUsedIds: string[] = [];
+    const otherUsedIds: string[] = [];
+    const scan = (
+      fieldState: PlayerState, ownerId: string, usedIds: string[],
+      accept: (scope: string) => boolean,
+    ) => {
+      if (fieldState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return;
+      for (let zi = 0; zi < fieldState.field.signi.length; zi++) {
+        const topNum = fieldState.field.signi[zi]?.at(-1);
+        if (!topNum) continue;
+        for (const eff of effectsMap.get(topNum) ?? []) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BECOMES_DRIVE')) continue;
+          const scope = eff.triggerScope ?? 'self';
+          if (scope === 'self' && topNum !== becameNum) continue;
+          if (!accept(scope)) continue;
+          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
+            const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+            const used = (fieldState.actions_done ?? []).filter(id => id === eff.effectId).length
+              + usedIds.filter(id => id === eff.effectId).length;
+            if (used >= max) continue;
+            usedIds.push(eff.effectId);
+          }
+          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+          entries.push({
+            id: generateUUID(),
+            playerId: ownerId,
+            cardNum: topNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（ドライブ状態時）`,
+            effect: eff,
+            triggeringCardNum: becameNum,
+          });
+        }
+      }
+    };
+    scan(driverState, driverId, driverUsedIds, scope => scope === 'self' || scope === 'any_ally' || scope === 'any');
+    scan(otherState, otherId, otherUsedIds, scope => scope === 'any_opp' || scope === 'any');
+    return { entries, driverUsedIds, otherUsedIds };
+  };
+
   /**
    * 手札が捨てられたときのトリガーを収集する。
    * - ON_DISCARDED_AS_COST（asCost=true時のみ）: 捨てられたカード自身のAUTO効果（WX25-P3-085 ユーグレナ）
@@ -5795,6 +5956,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (my.signi_deploy_power_limit !== undefined) {
       const cardPwr = parsePowerVal(battleCardMap.get(my.hand[handIndex])?.Power);
       if (cardPwr >= my.signi_deploy_power_limit) return;
+    }
+    // FORCE_PLACE_FRONT: 相手の該当シグニの正面に配置を強制（正面が空いている場合のみ）。ライズは上乗せのため対象外。
+    if (!riseFilter) {
+      const forcedFront = collectForcePlaceFrontZones(op, my, battleCardMap, effectsMap, !isMyTurn);
+      if (forcedFront.size > 0 && !forcedFront.has(zoneIndex)) return;
     }
     setLoading(true);
     setPendingSigniSummon(null);
@@ -9079,6 +9245,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (handSignis.length === 0) break;
         // 場出し数上限に達していたら召喚しない
         if (newCpuSt.field.signi.filter(stk => (stk ?? []).length > 0).length >= cpuFieldSigniLimit) break;
+        // FORCE_PLACE_FRONT: 人間（host）の該当シグニの正面ゾーンが空いている場合、そのゾーンにしか配置できない
+        const cpuForcedFront = collectForcePlaceFrontZones(bs.host_state, newCpuSt, battleCardMap, effectsMap, false);
+        if (cpuForcedFront.size > 0 && !cpuForcedFront.has(zone)) continue;
 
         // 召喚できるシグニを探す（リミット内 かつ シグニLv ≤ ルリグLv）
         const candidate = handSignis.find(({ card }) => {
@@ -9293,8 +9462,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         assist_lrig_l_down: false,
         assist_lrig_r_down: false,
       }};
+      // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
+      let cpuHandEND = cpuSt.hand;
+      let cpuDeckEND = cpuSt.deck;
+      if ((cpuSt.turn_end_draw_count ?? 0) > 0) {
+        const drawnCPU = cpuDeckEND.slice(0, cpuSt.turn_end_draw_count);
+        cpuDeckEND = cpuDeckEND.slice(cpuSt.turn_end_draw_count);
+        cpuHandEND = [...cpuHandEND, ...drawnCPU];
+        appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
+      }
       const cleanCpuSt: PlayerState = {
         ...cpuSt,
+        hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined,
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
@@ -13507,6 +13686,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 const zoneStack = my.field.signi[zi] ?? [];
                 const isOccupied = zoneStack.length > 0;
                 const pendingRiseFilter = summonCard ? getRiseFilter(summonCard.EffectText ?? '') : null;
+                // FORCE_PLACE_FRONT: 相手の該当シグニの正面ゾーンのみ配置可（正面が空いている場合のみ強制）
+                const forcedFrontSummon = collectForcePlaceFrontZones(op, my, battleCardMap, effectsMap, !isMyTurn);
+                const forcedBlocked = !pendingRiseFilter && forcedFrontSummon.size > 0 && !forcedFrontSummon.has(zi);
                 // ライズカード: 条件を満たす占有ゾーンのみ有効
                 const riseConditionMet = pendingRiseFilter
                   ? (isOccupied && matchesRiseFilter(getCardNum(zoneStack.at(-1)!), pendingRiseFilter, battleCardMap))
@@ -13519,7 +13701,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 const overLimit = afterTotal > lrigLimit;
                 // DEPLOY_RESTRICT: signi_deploy_power_limit が設定されている場合
                 const overPowerLimit = my.signi_deploy_power_limit !== undefined && signiPower >= my.signi_deploy_power_limit;
-                const isDisabled = loading || overLimit || overPowerLimit ||
+                const isDisabled = loading || overLimit || overPowerLimit || forcedBlocked ||
                   (pendingRiseFilter ? !riseConditionMet : isOccupied);
                 return (
                   <button key={zi}
@@ -13533,9 +13715,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       fontSize: 13, cursor: isDisabled ? 'default' : 'pointer',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     }}>
-                    <span>ゾーン{zi + 1}{pendingRiseFilter ? (riseConditionMet ? ' (ライズ可)' : ' (条件不一致)') : (isOccupied ? ' (使用中)' : '')}</span>
+                    <span>ゾーン{zi + 1}{pendingRiseFilter ? (riseConditionMet ? ' (ライズ可)' : ' (条件不一致)') : (forcedBlocked ? ' (正面強制)' : isOccupied ? ' (使用中)' : '')}</span>
                     <span style={{ fontSize: 11, color: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? C.textFaint : (overLimit || overPowerLimit) ? C.danger : C.textDim }}>
-                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (isOccupied ? '—' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
+                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (forcedBlocked ? '正面のみ' : isOccupied ? '—' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
                     </span>
                   </button>
                 );
@@ -16154,7 +16336,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               return next;
             });
           };
+          const toggleBottom = (cardNum: string) => {
+            setLookReorderBottom(prev => {
+              const next = new Set(prev);
+              if (next.has(cardNum)) next.delete(cardNum); else next.add(cardNum);
+              return next;
+            });
+          };
+          const isSplit = inter.destPosition === 'split_top_bottom';
           const trashCount = lookReorderOrder.filter(n => lookReorderTrash.has(n)).length;
+          const topCount = isSplit ? lookReorderOrder.filter(n => !lookReorderBottom.has(n)).length : 0;
           return createPortal(
             <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
               backgroundColor: 'rgba(0,0,0,0.92)',
@@ -16167,7 +16358,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {srcCard?.CardName ?? pe.sourceCardNum}の効果
                 </p>
                 <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
-                  {inter.canTrash
+                  {isSplit
+                    ? `好きな枚数を「上」（デッキトップ）に、残りを「下」（デッキ下）に置いてください ／ 上:${topCount}枚`
+                    : inter.canTrash
                     ? `トラッシュに置くカードを選び、残りを並べ替えてください（上がデッキトップ）${trashCount > 0 ? ` ／ トラッシュ:${trashCount}枚` : ''}`
                     : inter.destPosition === 'first_top_rest_bottom'
                     ? '1枚目をデッキトップへ戻し、残りはデッキ下へ（上が優先）'
@@ -16177,19 +16370,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {lookReorderOrder.map((cardNum, i) => {
                     const c = battleCardMap.get(cardNum);
                     const isTrashed = inter.canTrash && lookReorderTrash.has(cardNum);
+                    const isBottom = isSplit && lookReorderBottom.has(cardNum);
                     return (
                       <div key={cardNum} style={{ display: 'flex', alignItems: 'center', gap: 8,
                         backgroundColor: C.bgButton, borderRadius: 6, padding: '6px 8px',
                         opacity: isTrashed ? 0.45 : 1 }}>
-                        <span style={{ color: C.textDim, fontSize: 11, width: 16 }}>{isTrashed ? '×' : i + 1}</span>
+                        <span style={{ color: isSplit ? (isBottom ? C.textDim : C.success) : C.textDim, fontSize: 11, width: 16 }}>
+                          {isTrashed ? '×' : isSplit ? (isBottom ? '下' : '上') : i + 1}</span>
                         <img src={c?.ImgURL} alt={c?.CardName} draggable={false}
                           onClick={() => setExpandedPickImgUrl(c?.ImgURL ?? null)}
                           style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0,
                             cursor: 'pointer',
-                            filter: isTrashed ? 'grayscale(1)' : 'none' }}
+                            filter: isTrashed || isBottom ? 'grayscale(1)' : 'none' }}
                           onError={e2 => { const img = e2.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                         <span style={{ color: C.textSub, fontSize: 12, flex: 1,
                           textDecoration: isTrashed ? 'line-through' : 'none' }}>{c?.CardName ?? cardNum}</span>
+                        {isSplit && (
+                          <button onClick={() => toggleBottom(cardNum)}
+                            style={{ padding: '4px 8px', fontSize: 11, borderRadius: 4,
+                              border: C.borderUI, backgroundColor: isBottom ? 'transparent' : C.success,
+                              color: C.text, cursor: 'pointer', flexShrink: 0, width: 44 }}>
+                            {isBottom ? '下' : '上'}
+                          </button>
+                        )}
                         {inter.canTrash && (
                           <button onClick={() => toggleTrash(cardNum)}
                             style={{ padding: '4px 8px', fontSize: 11, borderRadius: 4,
@@ -16213,7 +16416,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     );
                   })}
                 </div>
-                <button onClick={() => { handleEffectInteraction(lookReorderOrder); setLookReorderOrder([]); setLookReorderTrash(new Set()); }}
+                <button onClick={() => { handleEffectInteraction(lookReorderOrder); setLookReorderOrder([]); setLookReorderTrash(new Set()); setLookReorderBottom(new Set()); }}
                   disabled={loading}
                   style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                     backgroundColor: loading ? C.disabled : C.success,

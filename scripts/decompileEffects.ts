@@ -216,6 +216,7 @@ function condJa(c?: any): string {
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
+    case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
     case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}シグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
@@ -336,9 +337,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
         return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}`;
-      return a.source ? `${targetJa(a.source)}をコストを支払わずに場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
+      return a.source ? `${targetJa(a.source)}をコストを支払わず${a.asDown ? 'ダウン状態で' : 'に'}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
     case 'BLOCK_ACTION': {
       if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
+      if (a.actionId === 'FORCE_PLACE_FRONT') return '対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない';
       const actionLabel: Record<string, string> = {
         SELF_SIGNI_TRASH: 'カードの効果を除き、自分で自分のシグニを場からトラッシュに置く（リムーブ）',
         DRAW: 'カードを引く', ENERGY: 'エナチャージ', USE_ACT: '【起】能力の使用',
@@ -349,6 +351,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'LOOK_AND_REORDER': {
       const src = a.source?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
       const loc = a.source?.location === 'hand' ? '手札' : 'デッキの上';
+      if (a.destination?.position === 'split_top_bottom') {
+        return `${src}${loc}${a.count === 99 ? '' : numJa(a.count) + '枚'}を見て、好きな枚数を好きな順番でデッキの一番上に置き、残りを好きな順番でデッキの一番下に置く`;
+      }
       const ops = [a.reorder ? '並べ替える' : '見る', a.canTrash ? '（不要札はトラッシュ可）' : ''].filter(Boolean).join('');
       return `${src}${loc}${a.count === 99 ? '' : numJa(a.count) + '枚'}を${ops}`;
     }
@@ -405,7 +410,12 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : ''}`;
     case 'GRANT_PROTECTION': {
-      const subject = a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ';
+      // CONTINUOUS の self/any count≠ALL（filter/subjectFilterなし）は engine 上「このシグニのみ」に解決される
+      const protThisOnly = effectType === 'CONTINUOUS' && !a.subjectFilter && a.target
+        && a.target.count !== 'ALL' && !a.target.filter
+        && (a.target.owner === 'self' || a.target.owner === 'any');
+      const subject = protThisOnly ? 'このシグニ'
+        : a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ';
       if (a.fromAll && a.exceptSource) {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
         return `${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`;
@@ -421,9 +431,11 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${subject}は${ownerJa(a.sourceOwner)}効果を受けない`;
       }
       // 軸トークン（BANISH/BOUNCE/DOWN）→「対戦相手の効果によってバニッシュされない」等
+      // bySourceType 指定時は発生源種別を明示（「対戦相手のシグニの効果によってバニッシュされない」）
       const axisJa: Record<string, string> = { BANISH: 'バニッシュされ', BOUNCE: '手札に戻され', DOWN: 'ダウンし', FREEZE: '凍結され' };
-      const axes = fromArr.map(f => axisJa[f] ?? (f + 'され'));
-      return `${subject}は${ownerJa(a.sourceOwner)}効果によって${axes.join('・')}ない`;
+      const axes = fromArr.filter(f => axisJa[f] !== undefined || !srcTypes.includes(f)).map(f => axisJa[f] ?? (f + 'され'));
+      const srcQ = a.bySourceType ? `${a.bySourceType}の` : '';
+      return `${subject}は${ownerJa(a.sourceOwner)}${srcQ}効果によって${axes.join('・')}ない`;
     }
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
@@ -655,6 +667,13 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'ADD_CARD_TO_LRIG_DECK_HIDDEN') {
         return '原文の候補レゾナのどちらか1枚を裏向きでルリグデッキに加える（ゲーム外から生成）';
       }
+      // DECLARE_NUMBER: 数字宣言（CHOOSE UIで1〜5を選択。declared_guard_restrict_level に保存＝実装済み）
+      if (a.id === 'DRAW_AT_TURN_END') return `このターン終了時、あなたのカードを${a.value ?? 1}枚引く（このシグニが場になくても引く）`;
+      if (a.id === 'DECLARE_NUMBER') return '数字1つを宣言する';
+      // DECK_TOP_CHECK_LEVEL_HAND: デッキトップ公開→宣言レベルのシグニなら手札へ（execStubPart2 で実装済み）
+      if (a.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
+        return 'あなたのデッキの一番上を公開し、それが宣言した数字と同じレベルを持つシグニである場合、それを手札に加える';
+      }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
@@ -679,7 +698,12 @@ const timingJa: Record<string, string> = {
   SPELL_CUTIN: 'スペルカットイン', ON_OPP_SIGNI_ATTACK_DIRECT: '対戦相手のシグニが正面が空の状態でアタックしたとき',
   ON_FRONT_SIGNI_ATTACK: 'このシグニの正面のシグニがアタックしたとき',
   ON_ZONE_MOVED: 'このシグニが効果によって他のシグニゾーンに移動したとき',
+  ON_SIGNI_BECOMES_DRIVE: 'このシグニがドライブ状態になったとき',
 };
+
+// engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
+// 逆翻訳末尾に【※engine未配線】を付与し、偽陰性（健全に見えて未実装）を防ぐ。配線したら除去する。docs/TODO.md に記録。
+const engineUnwiredTimings = new Set<string>([]);
 
 function effJa(e: Eff): string {
   // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。
@@ -714,6 +738,12 @@ function effJa(e: Eff): string {
     if (t === 'ON_TRASH' && e.triggerCondition?.forResonaCondition) {
       s = 'レゾナの出現条件のために' + s.replace('トラッシュに置かれたとき', '場からトラッシュに置かれたとき');
     }
+    // ON_TRASH の「効果によって」限定を反映（バトル・ルール処理では発火しない。G177）
+    if (t === 'ON_TRASH' && e.triggerCondition?.byEffect) {
+      s = s.includes('場からトラッシュに置かれたとき')
+        ? s.replace('場からトラッシュに置かれたとき', '効果によって場からトラッシュに置かれたとき')
+        : s.replace('トラッシュに置かれたとき', '効果によって場からトラッシュに置かれたとき');
+    }
     // ON_PLAY の「効果によって」限定を反映（手札からの通常召喚では発火しない）
     if (t === 'ON_PLAY' && e.triggerCondition?.bySigniEffect) {
       s = s.replace('場に出たとき', 'シグニの効果によって場に出たとき');
@@ -737,7 +767,8 @@ function effJa(e: Eff): string {
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' ? `《${e.usageLimit}》` : '';
   const body = actionJa(e.action, e.effectType);
-  return `${crossCond}${typeMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}`;
+  const unwired = (e.timing || []).some((t: string) => engineUnwiredTimings.has(t)) ? '【※engine未配線】' : '';
+  return `${crossCond}${typeMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}${unwired}`;
 }
 
 // ── 対象カードの決定 ──

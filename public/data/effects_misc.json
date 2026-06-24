@@ -12369,7 +12369,7 @@
       "effectId": "WDK01-014-E1",
       "effectType": "AUTO",
       "timing": [
-        "ON_PLAY"
+        "ON_SIGNI_BECOMES_DRIVE"
       ],
       "action": {
         "type": "BANISH",
@@ -12432,7 +12432,7 @@
       "effectId": "WDK01-017-E1",
       "effectType": "AUTO",
       "timing": [
-        "ON_PLAY"
+        "ON_SIGNI_BECOMES_DRIVE"
       ],
       "action": {
         "type": "BANISH",
@@ -13370,13 +13370,22 @@
         "target": {
           "type": "SIGNI",
           "owner": "self",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "thisCardOnly": true
+          }
         },
         "delta": 5000
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "activeCondition": {
+        "type": "LRIG_TRASH_COUNT",
+        "cardType": "アーツ",
+        "operator": "gte",
+        "value": 1
+      }
     }
   ],
   "WDK03-017": [
@@ -14533,7 +14542,8 @@
               "count": 1,
               "upToCount": false,
               "filter": {
-                "cardType": "シグニ"
+                "cardType": "シグニ",
+                "thisCardOnly": true
               }
             },
             "optional": true
@@ -14544,24 +14554,9 @@
               "type": "IS_MY_TURN"
             },
             "then": {
-              "type": "LOOK_AND_REORDER",
-              "source": {
-                "location": "deck",
-                "owner": "self"
-              },
-              "count": 1,
-              "private": false,
-              "reorder": false,
-              "destination": {
-                "location": "deck",
-                "owner": "self",
-                "position": "top"
-              }
+              "type": "STUB",
+              "id": "REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI"
             }
-          },
-          {
-            "type": "ADD_TO_FIELD",
-            "owner": "self"
           }
         ]
       },
@@ -17669,14 +17664,15 @@
           "count": 1
         },
         "from": [
-          "シグニ"
+          "BANISH"
         ],
         "sourceOwner": "opponent",
-        "duration": "PERMANENT"
+        "duration": "PERMANENT",
+        "bySourceType": "シグニ"
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WDK07-Y17-BURST",
@@ -25605,14 +25601,15 @@
           "count": 1
         },
         "from": [
-          "シグニ"
+          "BANISH"
         ],
         "sourceOwner": "opponent",
-        "duration": "PERMANENT"
+        "duration": "PERMANENT",
+        "bySourceType": "シグニ"
       },
       "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WDK17-015-BURST",
@@ -29633,13 +29630,15 @@
           "count": 1,
           "upToCount": false,
           "filter": {
-            "cardType": "スペル"
+            "cardType": "スペル",
+            "color": "青",
+            "costMin": 4
           }
         }
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "PR-247-BURST",

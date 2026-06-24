@@ -331,6 +331,29 @@ export function checkActiveCondition(
       return matched >= (cond.minCount ?? 1);
     }
 
+    case 'LRIG_TRASH_COUNT': {
+      // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」。G185）。
+      // evalConditionForContinuous の同名ケースと同実装。
+      const types = cond.cardType
+        ? (Array.isArray(cond.cardType) ? cond.cardType : [cond.cardType])
+        : null;
+      const cnt = ownerState.lrig_trash.filter(n => {
+        if (cond.excludeSource && n === sourceCardNum) return false;
+        const c = cardMap.get(n);
+        if (!c) return false;
+        return types ? types.includes(c.Type as typeof types[number]) : true;
+      }).length;
+      switch (cond.operator) {
+        case 'gte': return cnt >= cond.value;
+        case 'lte': return cnt <= cond.value;
+        case 'gt':  return cnt >  cond.value;
+        case 'lt':  return cnt <  cond.value;
+        case 'eq':  return cnt === cond.value;
+        case 'neq': return cnt !== cond.value;
+        default:    return false;
+      }
+    }
+
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN':
       return (cond.owner === 'self' ? ownerState : otherState).turn_signi_returned_to_hand === true;
 
@@ -3543,6 +3566,9 @@ export function collectBanishEffectProtectedSigni(
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
       const gp = eff.action as import('../types/effects').GrantProtectionAction;
       if (gp.sourceOwner !== 'opponent') continue;
+      // bySourceType（「シグニの効果によってバニッシュされない」等）は発生源種別を知る効果解決文脈でのみ
+      // 評価する（collectBanishBySourceProtectedSigni）。バトル・他コンテキストの本コレクタでは適用しない。
+      if (gp.bySourceType) continue;
       if (!gp.from?.includes('BANISH') && !gp.from?.includes('any')) continue;
       if (gp.subjectFilter) {
         for (const s2 of state.field.signi) {
@@ -3568,6 +3594,56 @@ export function collectBanishEffectProtectedSigni(
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sn)) continue;
       const a = eff.action as import('../types/effects').StubAction;
       if (a.type === 'STUB' && a.id === 'PREVENT_SELF_MOVE_BY_OPP') protected_.add(sn);
+    }
+  }
+  return protected_;
+}
+
+/**
+ * collectBanishBySourceProtectedSigni: GRANT_PROTECTION で from に 'BANISH' を持ち bySourceType（発生源カード種別）が
+ * 指定されたシグニのうち、いま解決中の効果のソース種別 `sourceCardType` が一致する場合のみ、バニッシュ保護される
+ * シグニ番号を返す（「対戦相手のシグニの効果によってバニッシュされない」WXK04-064 等）。
+ * バトルやルール処理（power≤0）はソース種別を持たないため発火しない＝原文の「シグニとのバトル…はバニッシュされる」と整合。
+ * 呼び出し側で otherBanishProtectedNums に union する（バニッシュ軸のみ。バウンス/ダウン等は保護しない）。
+ */
+export function collectBanishBySourceProtectedSigni(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+  sourceCardType: string,
+): Set<string> {
+  const protected_ = new Set<string>();
+  const srcType = sourceCardType ?? '';
+  const srcIsSigni = srcType.includes('シグニ') || srcType.includes('レゾナ');
+  const srcIsLrig = srcType.includes('ルリグ');
+  const srcIsSpell = srcType.includes('スペル');
+  const srcIsArts = srcType.includes('アーツ') || srcType.includes('ピース') || srcType.includes('キー');
+  const matchesSource = (t: string): boolean =>
+    (t === 'シグニ' && srcIsSigni) || (t === 'ルリグ' && srcIsLrig)
+    || (t === 'スペル' && srcIsSpell) || (t === 'アーツ' && srcIsArts);
+  for (const stack of state.field.signi) {
+    const sourceNum = stack?.at(-1);
+    if (!sourceNum) continue;
+    for (const eff of (effectsMap.get(sourceNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (eff.action.type !== 'GRANT_PROTECTION') continue;
+      const gp = eff.action as import('../types/effects').GrantProtectionAction;
+      if (!gp.bySourceType || !gp.from?.includes('BANISH')) continue;
+      if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
+      if (!matchesSource(gp.bySourceType)) continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+      if (gp.subjectFilter) {
+        for (const s2 of state.field.signi) {
+          const top2 = s2?.at(-1);
+          if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter)) protected_.add(top2);
+        }
+      } else if (gp.target?.count === 'ALL') {
+        for (const s2 of state.field.signi) { const top2 = s2?.at(-1); if (top2) protected_.add(top2); }
+      } else {
+        protected_.add(sourceNum); // target self count:1 → このシグニ
+      }
     }
   }
   return protected_;
@@ -4515,6 +4591,36 @@ export function collectCenterZoneDeployRestrict(
     }
   }
   return undefined;
+}
+
+/**
+ * FORCE_PLACE_FRONT (CONTINUOUS): 「対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない」。
+ * opponentState = この能力を持つシグニのプレイヤー（配置を強制する側）
+ * myState       = シグニを配置しようとしているプレイヤー（強制される側）
+ * 戻り値: myState が配置を強制されるゾーン番号の集合（該当シグニの正面＝2-j。空きゾーンのみ）。
+ *   空集合 = 強制なし（該当シグニなし、または正面ゾーンがすべて埋まっている＝「可能ならば」不成立）。
+ */
+export function collectForcePlaceFrontZones(
+  opponentState: PlayerState,
+  myState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOpponentTurn: boolean,
+): Set<number> {
+  const zones = new Set<number>();
+  for (let j = 0; j < opponentState.field.signi.length; j++) {
+    const cn = opponentState.field.signi[j]?.at(-1);
+    if (!cn) continue;
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').BlockActionAction;
+      if (act.type !== 'BLOCK_ACTION' || act.actionId !== 'FORCE_PLACE_FRONT') continue;
+      if (!checkActiveCondition(eff.activeCondition, opponentState, myState, isOpponentTurn, cardMap, cn)) continue;
+      const front = 2 - j; // 盤面ミラー：相手ゾーンjの正面は自分ゾーン2-j
+      if (!(myState.field.signi[front]?.length)) zones.add(front); // 正面が空きのときのみ強制
+    }
+  }
+  return zones;
 }
 
 /**

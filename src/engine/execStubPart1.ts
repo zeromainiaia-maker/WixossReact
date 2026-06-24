@@ -101,7 +101,7 @@ export function execStubPart1(
   if (stub.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || stub.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
     return done(ctx); // コストは支払い時点で計算済み、ここでは何もしない
   }
-  // 数字宣言：現在はランダム値で代用
+  // 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存
   if (stub.id === 'DECLARE_NUMBER') {
     // 宣言した数字をPlayerStateに保存するSETアクションを各選択肢に
     const setAction = (n: number): StubAction => ({

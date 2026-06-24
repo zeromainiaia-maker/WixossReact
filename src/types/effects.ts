@@ -31,6 +31,7 @@ export type EffectTiming =
   | 'ON_HEAVEN'  // このシグニが《ヘブン》したとき（ヘブンヘブン時）
   | 'ON_ACCE'    // シグニにアクセが付いたとき
   | 'ON_SIGNI_DOWN'             // 自分のシグニがダウンしたとき
+  | 'ON_SIGNI_BECOMES_DRIVE'    // あなたのシグニがドライブ状態になったとき（ルリグがライドした瞬間。WXK01-076/079・WDK01-014/017）。drive_became_just フラグ＋BattleScreen watcher で発火
   | 'ON_SIGNI_ENTERS'           // シグニが場に出たとき
   | 'ON_SIGNI_BANISH_OPPONENT'  // 相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BANISH_BATTLE'    // バトルで相手シグニをバニッシュしたとき
@@ -133,6 +134,7 @@ export type ActiveCondition =
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                    // 指定プレイヤーの場にTHE DOOR【ゲート】があるかぎり（own_gate_zones が非空）
   | { type: 'ENERGY_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // エナゾーンにフィルタ一致カードがN枚以上あるかぎり（省略=1。「エナゾーンに＜植物＞のシグニがあるかぎり」。G038）
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // トラッシュにフィルタ一致カードがN枚以上あるかぎり（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」。G090）
+  | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner } // このターンにシグニが場から手札に戻っていた場合（turn_signi_returned_to_hand。G087）
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
@@ -193,7 +195,8 @@ export type Condition =
   | { type: 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN' }       // このターンに《ディソナアイコン》ではないスペルを使用していない（DISONA_RESTRICTION用）
   | { type: 'DECK_TOP_SHARES_COLOR_WITH_LRIG'; owner: Owner } // デッキの一番上のカードと共通する色を持つルリグ（センター/アシスト）が場にいる場合（G157）
   | { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS'; owner: Owner }  // 場のすべてのシグニがそれぞれ共通するクラスを持たない（互いに異クラス）場合（プライマル系。G158）
-  | { type: 'LAST_PROCESSED_HAS_BURST' };                    // lastProcessedCards[0] が【ライフバースト】を持つ場合
+  | { type: 'LAST_PROCESSED_HAS_BURST' }                     // lastProcessedCards[0] が【ライフバースト】を持つ場合
+  | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string };   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
@@ -717,7 +720,8 @@ export interface LookAndReorderAction {
   destination: {
     location: CardLocation;
     owner: Owner;
-    position: 'top' | 'bottom' | 'any';
+    // split_top_bottom: 見た中から好きな枚数を一番上へ、残りを一番下へ振り分ける（G168）
+    position: 'top' | 'bottom' | 'any' | 'split_top_bottom';
   };
 }
 
@@ -844,7 +848,10 @@ export interface GrantProtectionAction {
   target?: EffectTarget;          // 一時付与（AUTO/ACTIVATED）: 特定ターゲットに付与
   subjectFilter?: TargetFilter;   // CONTINUOUS用: このフィルターの全シグニを保護
   subjectOwner?: Owner;           // subjectFilter の所有者（省略時: 'self'）
-  from?: string[];    // 保護元：'ルリグ' | 'シグニ' | 'スペル' | 'アーツ' | 'DOWN' | 'BOUNCE' | 'any'
+  from?: string[];    // 保護元：'ルリグ' | 'シグニ' | 'スペル' | 'アーツ' | 'DOWN' | 'BOUNCE' | 'BANISH' | 'any'
+  // 軸（BANISH等）を発生源カード種別で限定する（「対戦相手の【シグニ】の効果によってバニッシュされない」。
+  // from に 'BANISH' 等の軸トークンを置き、bySourceType でソース種別を絞る。バトル・ルール処理には適用されない）。
+  bySourceType?: 'シグニ' | 'ルリグ' | 'スペル' | 'アーツ';
   sourceOwner?: Owner; // 誰の効果から保護するか
   fromAll?: boolean;   // true = すべての効果から保護（exceptSource 以外）
   exceptSource?: { sourceType: string; sourceOwner: Owner }; // fromAll 時の例外

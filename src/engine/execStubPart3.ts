@@ -356,7 +356,9 @@ export function execStubPart3(
       return ctx.cardMap.get(top)?.CardClass?.includes('乗機') ? [top] : [];
     });
     if (ridingAllLRS.length === 0) return done(addLog(ctx, '乗機シグニなし（LRIG_RIDE_SIGNI）'));
-    const newOwnerLRS = { ...ctx.ownerState, lrig_riding_signi: ridingAllLRS };
+    const newlyDriveLRS = ridingAllLRS.filter(cn => !(ctx.ownerState.lrig_riding_signi ?? []).includes(cn));
+    const newOwnerLRS = { ...ctx.ownerState, lrig_riding_signi: ridingAllLRS,
+      ...(newlyDriveLRS.length ? { drive_became_just: [...(ctx.ownerState.drive_became_just ?? []), ...newlyDriveLRS] } : {}) };
     return done(addLog({ ...ctx, ownerState: newOwnerLRS },
       `ルリグが${ridingAllLRS.length}体の乗機シグニに乗る（ドライブ状態）`));
   }
@@ -365,7 +367,9 @@ export function execStubPart3(
     const selectedCLR = (ctx.lastProcessedCards ?? []).find(cn =>
       ctx.ownerState.field.signi.some(s => s?.at(-1) === cn));
     if (selectedCLR) {
-      const newOwnerCLR = { ...ctx.ownerState, lrig_riding_signi: [selectedCLR] };
+      const newlyDriveCLR = (ctx.ownerState.lrig_riding_signi ?? []).includes(selectedCLR) ? [] : [selectedCLR];
+      const newOwnerCLR = { ...ctx.ownerState, lrig_riding_signi: [selectedCLR],
+        ...(newlyDriveCLR.length ? { drive_became_just: [...(ctx.ownerState.drive_became_just ?? []), ...newlyDriveCLR] } : {}) };
       return done(addLog({ ...ctx, ownerState: newOwnerCLR },
         `ルリグが${ctx.cardMap.get(selectedCLR)?.CardName ?? selectedCLR}に乗る（ドライブ状態）`));
     }
@@ -3343,6 +3347,30 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newSRTCR },
       `公開${cardRTCR?.CardName ?? topRTCR}(Lv${topLevelRTCR})：条件${condMetRTCR ? '達成' : '未達成'}→トラッシュ`));
   }
+  // REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI: デッキの一番上を公開し、シグニならアタックしているシグニとしてダウン状態で場に出す（G186。アタック継続はダウン配置で近似）
+  if (stub.id === 'REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI') {
+    const sRTP = ctx.ownerState;
+    if (sRTP.deck.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI）'));
+    const topRTP = sRTP.deck[0];
+    const cardRTP = ctx.cardMap.get(topRTP);
+    const nameRTP = cardRTP?.CardName ?? topRTP;
+    // それがシグニの場合のみ場に出す（シグニでなければデッキトップに残し公開のみ）
+    if (!(cardRTP?.Type ?? '').includes('シグニ')) {
+      return done(addLog(ctx, `デッキトップ公開：${nameRTP}（シグニでないため場に出さない）`));
+    }
+    // アタックしているシグニ（=直前に手札に戻ったシグニ）の空いたゾーンへダウン状態で配置。
+    // 空きゾーンが複数ある場合は先頭の空きゾーンへ（アタック継続の正確な再現は近似）。
+    const signiRTP = [...sRTP.field.signi] as (string[] | null)[];
+    const emptyIdxRTP = signiRTP.findIndex(z => !z || z.length === 0);
+    if (emptyIdxRTP < 0) {
+      return done(addLog(ctx, `デッキトップ公開：${nameRTP}（空きシグニゾーンなしで場に出せない）`));
+    }
+    signiRTP[emptyIdxRTP] = [topRTP];
+    const newDownRTP = [...(sRTP.field.signi_down ?? [false, false, false])] as boolean[];
+    newDownRTP[emptyIdxRTP] = true;
+    const newSRTP: PlayerState = { ...sRTP, deck: sRTP.deck.slice(1), field: { ...sRTP.field, signi: signiRTP, signi_down: newDownRTP } };
+    return done(addLog({ ...ctx, ownerState: newSRTP }, `デッキトップ公開：${nameRTP}をアタックしているシグニとしてダウン状態で場に出す`));
+  }
   // === バッチ12: アクセ・シグニ配置・能力付与・無効系 ===
   // ACCE_FROM_HAND: 手札のアクセカードを自分のシグニに付ける
   if (stub.id === 'ACCE_FROM_HAND' || stub.id === 'MULTI_ACCE_FROM_HAND') {
@@ -3918,6 +3946,17 @@ export function execStubPart3(
     const newOwnerTATTE = { ...ctx.ownerState, turn_end_field_trash_targets: newTargets };
     return done(addLog({ ...ctx, ownerState: newOwnerTATTE },
       `ターン終了時にトラッシュ予定: ${targets.map(n => ctx.cardMap.get(n)?.CardName ?? n).join(', ')}`));
+  }
+
+  // DRAW_AT_TURN_END: このターン終了時にカードをN枚引く予約（場を離れても引く。WXK01-054/089）
+  if (stub.id === 'DRAW_AT_TURN_END') {
+    const nDATE = typeof stub.value === 'number' ? stub.value : 1;
+    const newOwnerDATE = {
+      ...ctx.ownerState,
+      turn_end_draw_count: (ctx.ownerState.turn_end_draw_count ?? 0) + nDATE,
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerDATE },
+      `このターン終了時にカードを${nDATE}枚引く（予約）`));
   }
 
   // DECLARE_AND_MILL: effects.jsonではDECLARE_NUMBER+MILL(useDeclaredCount)に移行済み

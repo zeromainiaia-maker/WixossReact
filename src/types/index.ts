@@ -266,6 +266,9 @@ export interface PlayerState {
   lrig_has_attacked?: boolean;
   // ライドシステム：LRIGが現在乗っている乗機シグニのCardNum一覧（ターン終了時にクリア）
   lrig_riding_signi?: string[];
+  // このプレイヤーのシグニがドライブ状態になった（ルリグがライドした）直後にセット: 新たにドライブ状態になったシグニのCardNum
+  // （BattleScreenでON_SIGNI_BECOMES_DRIVEトリガー検出用。所有者の state に積む。zone_moved_just と同型）
+  drive_became_just?: string[] | null;
   // SUPPRESS_CENTER_ON_PLAY: このターン自分のセンタールリグの【出】効果は発動しない
   suppress_center_on_play?: boolean;
   // CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスがクラッシュされた場合エナではなくトラッシュへ
@@ -336,6 +339,11 @@ export interface PlayerState {
   flip_attack_signi_zones?: number[];              // WXDi-P05-069: フリップアタックで裏向きにしたゾーン番号
   // TRASH_AT_TURN_END: ターン終了時にフィールドからトラッシュに置くカードのインスタンスID一覧
   turn_end_field_trash_targets?: string[];
+  // DRAW_AT_TURN_END: このターン終了時に引くカード枚数（場を離れても引く。WXK01-054/089）。ターン終了時に消化してクリア
+  turn_end_draw_count?: number;
+  // エンドフェイズの「ターン終了時に」効果（①）を doPhaseAdvance で解決済みであることを示す一時マーカー。
+  // 手札上限超過で confirmEndDiscard へ抜ける際に立て、confirmEndDiscard 側での効果二重適用を防ぐ（消化後クリア）。
+  end_turn_effects_resolved?: boolean;
   // NEGATE_SPELL: このターン、このプレイヤーのスペル（コスト合計5以下）が打ち消される
   spell_negated_this_turn?: boolean;
   // GRANT_NEXT_SPELL_UNCOUNTERABLE: 次にこのプレイヤーが使用するスペルは対戦相手の効果で打ち消されない（WX04-008 ファフニール）
@@ -453,7 +461,7 @@ export type PendingInteractionDef =
       canTrash: boolean;
       destLocation: 'deck';
       destOwner: 'self' | 'opponent';
-      destPosition: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom';
+      destPosition: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom' | 'split_top_bottom';
       private: boolean;       // true=自分だけ見る（見る）/ false=両者公開（公開する）
       continuation?: EffectAction;
     }

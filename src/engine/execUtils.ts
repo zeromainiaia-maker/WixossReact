@@ -786,6 +786,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const c = ctx.cardMap.get(proc[0]);
       return !!c?.LifeBurst && c.LifeBurst !== '-' && c.LifeBurst !== '';
     }
+    case 'LAST_PROCESSED_HAS_TYPE': {
+      // この方法で直前に処理した（トラッシュ等）カードの中に指定Type（'スペル'等）が含まれるか（G164）
+      const proc = ctx.lastProcessedCards ?? [];
+      return proc.some(cn => ctx.cardMap.get(cn)?.Type === cond.cardType);
+    }
     case 'LAST_PROCESSED_POWER_GTE': {
       // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー判定（WX03-046「それのパワーが15000以上」）。
       // effectivePowers は直前の POWER_MODIFY 適用前のスナップショットのため、addDelta でその+パワーを加味する。
