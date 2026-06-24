@@ -5,6 +5,35 @@
 
 ---
 
+## 「これにアクセされている」系・複雑8枚の完全実装（新語彙整備）（2026-06-25）
+
+前記の棚卸しで no-op 据置とした複雑/特殊8枚を、必要な新語彙をエンジンに整備して本実装。全て `scripts/_verifyAcceHost.ts`（計23項 pass）で検証。`tsc` 通過・`eslint` 新規エラー0。
+
+- **動的パワー減 `POWER_MODIFY_BY_SOURCE`（新アクション）**: 効果元シグニ（このシグニ）の **レベル or 実効パワー × multiplier** を delta として算出し `POWER_MODIFY` へ委譲（対象選択・効果耐性・ターン終了/相手ターン終了ストアを再利用）。`WDK07-E14 ラムレーズン`（level×−2000）／`WXK10-075 ラムネ`（power×−1、E2は任意《青》=`OPTIONAL_COST`＋`PAID_ADDITIONAL_COST`、E1は `THIS_CARD_IS_ACCED` 自己条件付き）。
+- **`WXK10-074 ワラビモチ`**: ホストへ「アタック時、相手手札を見てこのシグニよりパワーの低いシグニ1枚を捨てさせる」＝AUTO `ON_ATTACK_SIGNI` `TRASH HAND_CARD`（`powerLtSelf`＋`actingPlayerSelects`）付与。
+- **`WX22-043 クギニ`（全色）**: `collectAllColorSigniForField` に **signi_acce 走査**を追加。アクセカードの CONTINUOUS `ACCE_SIGNI_ALL_COLOR` を読み装着先ホストを全色集合へ（従来の story_overrides 経路はアクセが場のシグニでないため発火しなかった）。
+- **`WX17-077 サルサス`**: ホストへ「対戦相手のターン終了時、このシグニをトラッシュしてよい→デッキ上3枚エナ or 3枚ドロー」＝AUTO `ON_TURN_END`／`triggerScope:any_opp`（＝相手ターン終了時のみ発火）／`CHOOSE upTo:1`（してもよい）。各選択肢は `SEQUENCE[TRASH self(thisCardOnly), …]`。
+- **`WX20-045 マロンクリーム`（正面個別強制）**: 新アクション `FORCE_FRONT_SIGNI_ATTACK`＋`collectForcedFrontAttackZones`（盤面反転を考慮し相手の本効果を読んで自分の正面ゾーンを強制対象化）。`BattleScreen.mustAttackRemainingZones`／フェイズ進行ゲートを個別強制ゾーン対応に拡張（従来は `must_attack_signi` プレイヤー全体フラグのみ）。
+- **`WX17-075 タルタル`（正面低レベル登場誘発）**: 新トリガー条件 `triggerCondition.frontLowerLevelThanSource`。`collectFieldTriggers` の相手場 `any_opp` `ON_PLAY` 分岐で「効果元の正面（2−ziHost）に効果元より低レベルのシグニが出た」ときのみ収集。アクションは `BANISH optional`＋`filter.isTriggerSource`（出たそのシグニを任意バニッシュ）。各召喚は召喚側クライアントの `collectFieldTriggers` を通るため両方向で発火。
+- **`SPK01-11 ラズベリー`（装着時選択付与）**: `GRANT_ACCE_HOST_ABILITY.byChoice`＋`PlayerState.acce_choice`（アクセCardNum→選択index）＋`SET_ACCE_CHOICE` stub を新設。E1 `ON_ACCE_ATTACH` `CHOOSE` 3択が選択indexを記録し、E2 の `byChoice` 付与が **選んだ1能力のみ**（①ダウン耐性②バウンス耐性③アタック時ドロー）をホストへ付与（未選択中は付与なし）。
+
+---
+
+## 「これにアクセされている」系の全棚卸し・本実装（2026-06-25）
+
+「これにアクセされている（＝このカードがアクセとして装着されているホストシグニ）」を参照する全31枚を CSV から洗い出し、未実装/誤実装を本実装。多くが **クォートされた能力をアクセカード自身の効果へフラット化**（場に出ていないアクセカード上の CONTINUOUS ＝ no-op）していた。[[banish-vs-ener-send]] と同様、ホスト宛の付与・パワーは専用機構に載せる。
+
+- **engine（`calcFieldPowers` の `signi_acce` ループ）**: ホスト宛 `POWER_MODIFY` に **＜クラス＞/《カード名》フィルタ判定**を追加。従来は acce カードの `POWER_MODIFY` を無条件でホストへ加算していた（`WD18-015 マヨ`＝＜調理＞限定が非調理ホストにも誤加算）。`target.filter` から関係フラグ `acceHost` を除いた残り（cardClass/cardName 等）を `matchesFilter(hostCard, …)` で判定し、満たすときのみ加算。
+- **パワー acceHost 化（4枚）**: `WX17-033 キャビアラ`(＋1000調理)／`WD18-013 ケチャ`(＋5000調理)／`WD18-015 マヨ`(＋2000調理)／`WXDi-P09-TK01A ケチャチャ`(＋10000)。plain `POWER_MODIFY`→`filter:{acceHost,(cardClass)}`。
+- **能力付与 `GRANT_ACCE_HOST_ABILITY` 化（フラット化是正）**: 効果耐性＝`WX15-102 メダマヤキ`(シグニ)／`WX15-105 トロチー`(スペル)／`WXK04-050 ブルジャム`(ルリグ)、ダウン耐性＝`WX21-041 オロラソ`(GRANT_PROTECTION from `DOWN`)、キーワード＝`WXEX1-70 セアブラ`/`WXDi-P09-TK02A セアブラマシマシ`(【ランサー】)、AUTO＝`WX15-058 テキソス`(ON_ATTACK エナチャージ)/`WX16-074 メーシロ`(ON_BANISH ドロー)。いずれも付与能力は `target self count1` でホスト自身を指し、各保護/キーワード収集器がホスト（augMap 上の効果元）を対象に解決する。
+- **パワー＋付与の複合**: `WX20-072 チョコプレート`(《ウェディング》限定へ filter 修正＋＋1000 power 追加)／`WXEX2-69 メロシロ`(＋3000調理 power 追加)／`WDK17-015 グラシュ`(＋2000 power＋被バニッシュ耐性 from `BANISH`/`bySourceType:シグニ`)／`SP27-015 トンカツ`(既存 power E2 へ `acceHost` 付与)。
+- **置換効果**: `WXDi-P09-TK03A オンタマ`(`ACCE_BANISH_SUBSTITUTE`＝既存配線)に加え、`WXK04-031 メレドール`(`ACCE_BANISH_SELF_TRASH`＝代わりにアクセをトラッシュ。CONTINUOUS STUB は発火しないため **BattleScreen バトルバニッシュ防御チェーンに分岐追加**＝アクセをトラッシュしホストはダウンせず存置)。
+- **parser（`parseSentencePart2`）**: acceHost パワールールを ＜クラス＞/《名前》限定にも拡張（従来は無限定のみ。build:effects は不使用だが将来同型に追従）。
+- **検証**: `scripts/_verifyAcceHost.ts` ハーネス12項 pass（クラス限定の加算/非加算、《名前》限定、能力付与＝シグニ免疫あり・アーツ免疫なし・非調理ホストへ付与なし、【ランサー】付与、AUTO付着）。`tsc` 通過・`eslint` 新規エラー0。
+- **未対応（複雑/特殊。現状 no-op のまま据置）**: `WX17-075 タルタル`(正面低レベル誘発)／`WX17-077 サルサス`(相手ターン終了時の自己トラッシュ＋選択)／`WXK10-074/075`・`WDK07-E14`(アタック時の動的パワー減/任意コスト)／`WX20-045 マロンクリーム`(正面強制アタック)／`WX22-043 クギニ`(全色)／`SPK01-11 ラズベリー`(他能力の選択参照)。忠実な語彙が未整備のため、誤動作を避け付与しない方針。→ TODO 参照。
+
+---
+
 ## 逆翻訳乖離 G194／G196／G197 の修正（条件・コスト欠落）（2026-06-25）
 
 grouped_all の「がない」乖離3系統を修正。いずれもデータ欠落で、エンジン側は既に対応済みだったため [[decompile-engine-parity]] の偽陰性（逆翻訳だけ健全に見える）に該当。

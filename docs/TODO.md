@@ -235,6 +235,8 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 **✅ バッチ9（v0.385）:** `WXDi-P04-040`（自己犠牲型＝`execTrash` に `thisCardOnly` 追加＋OPTIONAL_COST《無×3》払わなければ自己トラッシュ）。
 **✅ バッチ10（v0.386）:** `WXK10-039`（シグニ犠牲型＝`execTrash`/`TargetFilter` に `excludeSelf` 追加＋CHOOSE「他の原子2体トラッシュ／自己トラッシュ」）。
 
+**「これにアクセされている」系（2026-06-25 棚卸し → 全31枚完全実装）**: パワー(acceHost＋クラス/名前)・能力付与(`GRANT_ACCE_HOST_ABILITY`)・置換(`ACCE_BANISH_SELF_TRASH`)に加え、複雑8枚も新語彙を整備して本実装（BUGFIXES 冒頭2記録）。`POWER_MODIFY_BY_SOURCE`（効果元レベル/パワー基準）・`FORCE_FRONT_SIGNI_ATTACK`＋`collectForcedFrontAttackZones`（正面個別強制アタック）・`triggerCondition.frontLowerLevelThanSource`（正面低レベル登場誘発）・`GRANT_ACCE_HOST_ABILITY.byChoice`＋`acce_choice` state＋`SET_ACCE_CHOICE` stub（装着時選択付与）・`collectAllColorSigniForField` のアクセ装着先全色対応を新設。残作業なし。
+
 **F-2 はすべて完了**（既存機構でクリーンに実装可能な付与型・コスト型・相手場付与・自ゲート・身代わり置換は v0.377〜v0.393 で完了）:
 - ~~**ゲート条件（自ゲート未モデリング）:** `WXDi-P15-082` / `WXDi-P15-076`~~ → **v0.388 で実装済**（THE DOOR 自ゲート機構 `own_gate_zones`＋`SAME_ZONE_HAS_GATE`/`FIELD_HAS_GATE`/`frontOfGateZone`＋配置 `PLACE_OWN_GATE`＋UI バッジを新設。詳細は BUGFIXES.md）。
 - ~~**相手場への付与（機構は v0.377 で用意済・未配線）:** `WXDi-P10-072`~~ → **v0.387 で実装済**。

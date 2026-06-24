@@ -1054,6 +1054,17 @@ export function calcFieldPowers(
         if (act.type === 'POWER_MODIFY') {
           const pmAct = act as import('../types/effects').PowerModifyAction;
           if (typeof pmAct.delta === 'number') {
+            // ＜クラス＞／《カード名》限定のホスト宛バフは、ホストが条件を満たすときのみ加算する。
+            // acceHost は「装着先ホスト」を表す関係フィルタなので、判定からは除外する（WD18-013 ケチャ
+            // ＝＜調理＞限定、WX20-072 チョコプレート＝《コードオーダーウェディング》限定 等）。
+            const f = pmAct.target?.filter;
+            if (f) {
+              const rest = { ...f }; delete rest.acceHost;
+              if (Object.keys(rest).length > 0) {
+                const hostBase = hostNum.includes('#') ? hostNum.slice(0, hostNum.indexOf('#')) : hostNum;
+                if (!matchesFilter(cardMap.get(hostBase), rest)) continue;
+              }
+            }
             powers.set(hostNum, (powers.get(hostNum) ?? 0) + pmAct.delta);
           }
         }
@@ -3654,6 +3665,35 @@ export function collectBanishBySourceProtectedSigni(
 }
 
 /**
+ * collectForcedFrontAttackZones: 「この正面のシグニは可能ならばアタックしなければならない」（FORCE_FRONT_SIGNI_ATTACK）。
+ * viewerState（いまアタックフェイズのプレイヤー）の各シグニゾーンのうち、対戦相手 ownerState の正面シグニが
+ * この CONTINUOUS 効果を持つために強制アタック対象となるゾーン番号の集合を返す。
+ * 盤面は左右反転するため、ownerState のゾーン zi の正面は viewerState のゾーン (2 - zi)。
+ */
+export function collectForcedFrontAttackZones(
+  viewerState: PlayerState,
+  ownerState: PlayerState,
+  isViewerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Set<number> {
+  const zones = new Set<number>();
+  for (let zi = 0; zi < ownerState.field.signi.length; zi++) {
+    const hostTop = ownerState.field.signi[zi]?.at(-1);
+    if (!hostTop) continue;
+    const frontZi = 2 - zi;
+    if (!viewerState.field.signi[frontZi]?.at(-1)) continue; // 正面にシグニがいなければ対象なし
+    for (const eff of (effectsMap.get(hostTop) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (eff.action.type !== 'FORCE_FRONT_SIGNI_ATTACK') continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, viewerState, !isViewerTurn, cardMap, hostTop)) continue;
+      zones.add(frontZi);
+    }
+  }
+  return zones;
+}
+
+/**
  * collectEffectImmuneSigni: 「対戦相手の、ルリグ／シグニ（等）の効果を受けない」完全効果耐性を持つシグニを返す。
  * GRANT_PROTECTION の from に source-type トークン（ルリグ/シグニ/スペル/アーツ）または 'any'、もしくは
  * fromAll(+exceptSource) を持つCONT効果を対象とし、いま解決中の効果のソースカード種別 `sourceCardType` が
@@ -4392,6 +4432,14 @@ export function collectGrantedFromAcce(
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, acceNum)) continue;
       const g = eff.action as GrantAcce;
       if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
+      // byChoice（SPK01-11 ラズベリー）: 装着時に選んだ1能力（acce_choice[acceNum]）だけを付与する。
+      // 未選択（インデックス未登録）の間は付与しない。
+      if (g.byChoice) {
+        const idx = ownerState.acce_choice?.[acceNum];
+        if (idx === undefined || idx < 0 || idx >= g.abilities.length) continue;
+        result.set(hostTop, [...(result.get(hostTop) ?? []), g.abilities[idx]]);
+        continue;
+      }
       result.set(hostTop, [...(result.get(hostTop) ?? []), ...g.abilities]);
     }
   }
@@ -4760,6 +4808,22 @@ export function collectAllColorSigniForField(
   for (const stack of state.field.signi) {
     const top = stack?.at(-1);
     if (top && state.story_overrides?.[top] === 'ALL_COLOR') result.add(top);
+  }
+
+  // アクセカードの CONTINUOUS ACCE_SIGNI_ALL_COLOR：装着先ホストシグニを全色にする
+  // （「これにアクセされている＜調理＞のシグニはすべての色を得る」WX22-043 クギニ）。
+  // アクセカードは場のシグニではないため CONTINUOUS STUB が発火せず story_overrides に乗らない。
+  // ここで signi_acce を直接走査し、ホストへ全色バイパスを付与する。
+  for (let zi = 0; zi < (state.field.signi_acce?.length ?? 0); zi++) {
+    const acceNum = state.field.signi_acce?.[zi] ?? null;
+    if (!acceNum) continue;
+    const hostTop = state.field.signi[zi]?.at(-1);
+    if (!hostTop) continue;
+    for (const eff of (effectsMap.get(acceNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type === 'STUB' && act.id === 'ACCE_SIGNI_ALL_COLOR') result.add(hostTop);
+    }
   }
 
   // INHERIT_UNDER_SIGNI_COLOR: スタック下の天使シグニの色を得る（色は固定ではないので全色バイパスではない）

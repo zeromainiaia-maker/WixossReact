@@ -395,6 +395,7 @@ export type EffectAction =
   | CharmProtectionAction
   | MutualDiscardAndDrawAction
   | PowerModifyByTargetLevelAction
+  | PowerModifyBySourceAction
   | PowerMultiplyAction
   | LevelModifyAction
   | PowerModifyPerCharmAction
@@ -425,6 +426,7 @@ export type EffectAction =
   | DiscardBothAction
   | RemoveCharmAction
   | ForceSigniAttackAction
+  | ForceFrontSigniAttackAction
   | GrantLrigAbilityAction
   | PlaceVirusAction
   | AttachAcceAction
@@ -778,6 +780,7 @@ export interface GrantAcceHostAbilityAction {
   type: 'GRANT_ACCE_HOST_ABILITY';
   filter?: TargetFilter;   // ホストシグニへのフィルタ（例: cardClass:'調理'。省略時は任意）
   abilities: CardEffect[]; // 付与する能力（ホストシグニ自身の能力として扱われる）
+  byChoice?: boolean;      // true: abilities を選択肢とみなし、装着時に選んだ1つ（acce_choice[acceNum]）のみ付与（SPK01-11 ラズベリー）
 }
 
 // このカードが【ソウル】として付いているシグニ（ホスト）へ能力を付与する（CONTINUOUS宣言型）
@@ -997,6 +1000,18 @@ export interface PowerModifyByTargetLevelAction {
   target: EffectTarget;
   deltaPerLevel: number;
   until: EffectDuration;
+}
+
+// 効果元シグニ（このシグニ）のレベル/パワーを基準にした対象パワー変更。
+// 「対象のパワーをこのシグニのレベル１につき－2000」(basis:'level', multiplier:-2000) /
+// 「対象のパワーをこのシグニのパワーと同じだけ－」(basis:'power', multiplier:-1)。
+// delta = (効果元のレベル or 実効パワー) × multiplier。既定は temp_power_mods（ターン終了まで）。
+export interface PowerModifyBySourceAction {
+  type: 'POWER_MODIFY_BY_SOURCE';
+  target: EffectTarget;
+  basis: 'level' | 'power';
+  multiplier: number;
+  until?: EffectDuration;
 }
 
 // パワーをN倍にする
@@ -1240,6 +1255,13 @@ export interface ForceSigniAttackAction {
   infectedOnly?: boolean; // 感染状態のシグニのみを強制対象とする（WX16-047等）
 }
 
+// このシグニの正面のシグニ（＝対戦相手の、このシグニと向かい合うゾーンのシグニ）は
+// 可能ならばアタックしなければならない。CONTINUOUS 宣言型（付与能力としてホストに乗る。WX20-045 マロンクリーム）。
+// collectForcedFrontAttackZones が「相手の場のこの効果」を読み、自分の該当ゾーンを強制対象にする。
+export interface ForceFrontSigniAttackAction {
+  type: 'FORCE_FRONT_SIGNI_ATTACK';
+}
+
 // 対戦相手の場のウィルス数Nにつきパワー±M（常時効果）
 export interface PowerModifyPerVirusCountAction {
   type: 'POWER_MODIFY_PER_VIRUS_COUNT';
@@ -1420,6 +1442,7 @@ export interface CardEffect {
     byEffect?: boolean; // 効果によって場に出た場合のみ発火（WX11-054等「効果によって場に出たとき」）。手札からの通常召喚では発火しない
     bySigniEffect?: boolean; // シグニの効果によって場に出た場合のみ発火（G079等「シグニの効果によって場に出たとき」）。通常召喚・スペル/アーツ/ルリグの効果では発火しない
     placedDown?: boolean; // ダウン状態で場に出た場合のみ発火（G144「あなたのシグニがダウン状態で場に出たとき」。ON_PLAY と併用）
+    frontLowerLevelThanSource?: boolean; // このシグニ（効果元）の正面に、効果元よりレベルの低いシグニが出た場合のみ発火（WX17-075 タルタル付与。ON_PLAY any_opp と併用）
   };
 
   // CONTINUOUS 用：常時効果がいつ適用されるか

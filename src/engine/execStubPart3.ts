@@ -2161,6 +2161,17 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newSASAC },
       `${ctx.cardMap.get(targetSigniASAC)?.CardName ?? targetSigniASAC}が全色を持つ`));
   }
+  // SET_ACCE_CHOICE: アクセ装着時に選んだ付与能力のインデックスを記録（SPK01-11 ラズベリー）。
+  // sourceCardNum（=このアクセカード）をキーに ownerState.acce_choice へ保存。GRANT_ACCE_HOST_ABILITY(byChoice)
+  // がこのインデックスを読み、対応する1能力だけをホストへ付与する。
+  if (stub.id === 'SET_ACCE_CHOICE') {
+    const acceSAC = ctx.sourceCardNum;
+    if (!acceSAC) return done(ctx);
+    const idxSAC = typeof stub.value === 'string' ? parseInt(stub.value, 10) : (stub.value ?? 0);
+    const newChoice = { ...(ctx.ownerState.acce_choice ?? {}), [acceSAC]: idxSAC };
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, acce_choice: newChoice } },
+      `アクセ付与能力（${idxSAC + 1}番目）を選択`));
+  }
   // TRASH_ACCE_AT_TURN_END: アクセカードをターン終了時にトラッシュ（即座に処理）
   // TRASH_ACCE_AT_TURN_END: このシグニに付いているアクセ1枚をトラッシュへ
   if (stub.id === 'TRASH_ACCE_AT_TURN_END') {

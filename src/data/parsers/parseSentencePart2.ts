@@ -1702,11 +1702,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ATTACK_PHASE_LEVEL_OVERRIDE' } as StubAction;
   }
 
-  // ---- これにアクセされているシグニのパワーを＋Nする（アクセ→ホストのパワー修正。WXK04-080/082）----
-  //   「これにアクセされているシグニ」＝このカードがアクセとして装着されているホスト。
-  //   acceHost フィルタで表現し、calcFieldPowers の signi_acce ループがホストへ加算する。
-  //   ＜クラス＞限定（WX17-033「＜調理＞のシグニ」）は別形（ホスト側クラス判定が要るため対象外）。
+  // ---- これにアクセされている（＜クラス＞/《名前》/無限定）シグニのパワーを＋Nする ----
+  //   「これにアクセされている～」＝このカードがアクセとして装着されているホスト。acceHost
+  //   フィルタで表現し、calcFieldPowers の signi_acce ループがホストへ加算する（＜クラス＞/《名前》
+  //   限定はホスト側を matchesFilter で判定）。WXK04-080/082, WX17-033/WD18-013/015（調理）,
+  //   WX20-072（《コードオーダーウェディング》）, WXDi-P09-TK01A 等。
   {
+    const acceHostClassM = t.match(/^これにアクセされている＜([^＞]+)＞のシグニのパワーを＋([０-９\d]+)/);
+    if (acceHostClassM) {
+      return { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { acceHost: true, cardClass: acceHostClassM[1] } }, delta: parseNum(acceHostClassM[2]) };
+    }
+    const acceHostNameM = t.match(/^これにアクセされている《([^》]+)》のパワーを＋([０-９\d]+)/);
+    if (acceHostNameM) {
+      return { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { acceHost: true, cardName: acceHostNameM[1] } }, delta: parseNum(acceHostNameM[2]) };
+    }
     const acceHostPmM = t.match(/^これにアクセされているシグニのパワーを＋([０-９\d]+)する/);
     if (acceHostPmM) {
       return { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { acceHost: true } }, delta: parseNum(acceHostPmM[1]) };

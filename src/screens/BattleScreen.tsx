@@ -7,7 +7,7 @@ import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
-collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes} from '../engine/effectEngine';
+collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -4408,8 +4408,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // 「アタック可能か」は実際にアタックボタンが出る条件（getMySigniZoneActions）で判定するため、
   // パワー上限・コスト不足・アタック禁止など「可能ならば」の対象外ケースは自動的に除外され、
   // アタックできないシグニだけが残ってフェイズを進められなくなるソフトロックを防ぐ。
+  // FORCE_FRONT_SIGNI_ATTACK（WX20-045 マロンクリーム「この正面のシグニは可能ならばアタックしなければならない」）:
+  // 相手の場のこの効果を読み、自分の該当（正面）ゾーンを個別強制対象にする。
+  const forcedFrontAttackZones = (): Set<number> =>
+    collectForcedFrontAttackZones(my, op, isMyTurn, effectsMap, battleCardMap);
+
   const mustAttackRemainingZones = (): number[] => {
-    if (!my.must_attack_signi) return [];
+    const forcedFront = forcedFrontAttackZones();
+    if (!my.must_attack_signi && forcedFront.size === 0) return [];
     const signiDown = my.field.signi_down  ?? [false, false, false];
     const virus     = my.field.signi_virus ?? [0, 0, 0];
     const zones: number[] = [];
@@ -4417,7 +4423,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const top = my.field.signi[i]?.at(-1);
       if (!top) continue;
       if (signiDown[i]) continue;                                   // 既にアタック済み（ダウン）
-      if (my.must_attack_infected_only && (virus[i] ?? 0) === 0) continue; // 非感染は対象外
+      // 全体強制でない（個別の正面強制のみの）ゾーンは forcedFront に含まれるゾーンに限定
+      const isForcedByFront = forcedFront.has(i);
+      if (!my.must_attack_signi && !isForcedByFront) continue;
+      if (my.must_attack_signi && my.must_attack_infected_only && (virus[i] ?? 0) === 0 && !isForcedByFront) continue; // 非感染は対象外
       const acts = getMySigniZoneActions(i);                        // アタックボタンが出る＝アタック可能
       if (!acts.some(a => a.label.includes('アタック'))) continue;
       zones.push(i);
@@ -4463,7 +4472,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const signiDown   = my.field.signi_down   ?? [false, false, false];
       // 強制攻撃: アタック（ダウン）していない「可能ならばアタックしなければならない」対象シグニが
       // 残っている間は次フェイズへ進めない（感染状態限定の場合は感染シグニのみ対象）
-      if (my.must_attack_signi && mustAttackRemainingZones().length > 0) {
+      if (mustAttackRemainingZones().length > 0) {
         setShowMustAttackWarning(true);
         return;
       }
@@ -5589,6 +5598,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           && (oeStub.id === 'MOVE_TO_ATTACKER_FRONT' || oeStub.id === 'MOVE_TO_OTHER_SIGNI_ZONE')) continue;
         // triggerFilter: 「対戦相手の＜X＞のシグニがアタックしたとき」等、トリガー元カードの絞り込み
         if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
+        // frontLowerLevelThanSource（WX17-075 タルタル付与）: このシグニ（=topNum）の正面に、
+        //   このシグニよりレベルの低いシグニが出たときのみ発火。盤面反転のため正面ゾーンは 2-ziHost。
+        if (eff.triggerCondition?.frontLowerLevelThanSource) {
+          if (event !== 'ON_PLAY') continue;
+          const ziHost = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
+          if (ziHost < 0) continue;
+          const frontNum = myState.field.signi[2 - ziHost]?.at(-1);
+          if (!frontNum || frontNum !== triggeringCardNum) continue; // 正面に出たシグニ以外は無視
+          const hostLv = parseInt(battleCardMap.get(topNum)?.Level ?? '0', 10);
+          const newLv = parseInt(battleCardMap.get(triggeringCardNum)?.Level ?? '0', 10);
+          if (isNaN(hostLv) || isNaN(newLv) || newLv >= hostLv) continue; // このシグニより低レベルのみ
+        }
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
@@ -8136,6 +8157,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const newOpSigniABS = [...opS.field.signi] as (string[] | null)[];
             newOpState = { ...opS, trash: [...opS.trash, exiledAcce], field: { ...opS.field, signi: newOpSigniABS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（アクセ代替バニッシュ）アクセをゲームから除外してダウン`]);
+          } else if (newOpAcce[opZoneIndex] && (effectsMap.get(newOpAcce[opZoneIndex]!) ?? []).some(eff =>
+            eff.effectType === 'CONTINUOUS' &&
+            (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
+            (eff.action as import('../types/effects').StubAction).id === 'ACCE_BANISH_SELF_TRASH')) {
+            // ACCE_BANISH_SELF_TRASH（WXK04-031 メレドール）: 代わりにアクセ（このカード）をトラッシュに置きバニッシュ回避。
+            // シグニはダウンせずそのまま場に残る（バニッシュを丸ごとアクセの離脱で置換）。
+            const trashedAcce = newOpAcce[opZoneIndex]!;
+            newOpAcce[opZoneIndex] = null;
+            newOpFrozen[opZoneIndex] = false;
+            const newOpSigniABT = [...opS.field.signi] as (string[] | null)[];
+            newOpState = { ...opS, trash: [...opS.trash, trashedAcce], field: { ...opS.field, signi: newOpSigniABT, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            appendBattleLogs([`${opCardName}（アクセ代替バニッシュ）アクセをトラッシュしてバニッシュ回避`]);
           } else {
             // RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE: 宇宙レゾナ場離れを代替シグニのトラッシュで回避
             const opTopCardData = opTopCardNum ? battleCardMap.get(opTopCardNum) : null;

@@ -110,6 +110,7 @@ export interface PlayerState {
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
   story_overrides?: Record<string, string>; // CardNum -> ゲーム中に変更されたStory（大本のCardDataは変えない）
+  acce_choice?: Record<string, number>;     // アクセCardNum -> 装着時に選んだ付与能力のインデックス（SPK01-11 ラズベリー）
   // DECLARE_ZONE_FOR_CLASS_CHANGE: このプレイヤーが指定した領域（相手シグニがクラス/色を失い＜精元＞を得る）
   declared_class_zones?: Array<{ sourceCardNum: string; zone: 'deck' | 'hand' | 'signi' | 'trash' }>;
   pending_crashed_cards?: string[]; // ダブルクラッシュ等で同時クラッシュしたが未処理のカード番号（バースト処理待ち）

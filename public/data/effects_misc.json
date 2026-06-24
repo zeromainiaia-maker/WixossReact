@@ -7502,8 +7502,12 @@
         "type": "POWER_MODIFY",
         "target": {
           "type": "SIGNI",
-          "owner": "any",
-          "count": 1
+          "owner": "self",
+          "count": 1,
+          "filter": {
+            "acceHost": true,
+            "cardClass": "調理"
+          }
         },
         "delta": 5000
       },
@@ -7558,8 +7562,12 @@
         "type": "POWER_MODIFY",
         "target": {
           "type": "SIGNI",
-          "owner": "any",
-          "count": 1
+          "owner": "self",
+          "count": 1,
+          "filter": {
+            "acceHost": true,
+            "cardClass": "調理"
+          }
         },
         "delta": 2000
       },
@@ -16885,8 +16893,34 @@
       "effectId": "WDK07-E14-E1",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "STUB",
-        "id": "GRANT_QUOTED_AUTO_ABILITY"
+        "type": "GRANT_ACCE_HOST_ABILITY",
+        "abilities": [
+          {
+            "effectId": "WDK07-E14-E1-G",
+            "effectType": "AUTO",
+            "action": {
+              "type": "POWER_MODIFY_BY_SOURCE",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "filter": {
+                  "cardType": "シグニ"
+                },
+                "upToCount": false
+              },
+              "basis": "level",
+              "multiplier": -2000
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL",
+            "timing": [
+              "ON_ATTACK_SIGNI"
+            ],
+            "triggerScope": "self"
+          }
+        ]
       },
       "duration": "PERMANENT",
       "mandatory": true,
@@ -25596,18 +25630,52 @@
       "effectId": "WDK17-015-E2",
       "effectType": "CONTINUOUS",
       "action": {
-        "type": "GRANT_PROTECTION",
-        "target": {
-          "type": "SIGNI",
-          "owner": "self",
-          "count": 1
+        "type": "GRANT_ACCE_HOST_ABILITY",
+        "filter": {
+          "cardType": "シグニ"
         },
-        "from": [
-          "BANISH"
-        ],
-        "sourceOwner": "opponent",
-        "duration": "PERMANENT",
-        "bySourceType": "シグニ"
+        "abilities": [
+          {
+            "effectId": "WDK17-015-E2-PG",
+            "effectType": "CONTINUOUS",
+            "action": {
+              "type": "POWER_MODIFY",
+              "target": {
+                "type": "SIGNI",
+                "owner": "self",
+                "count": 1,
+                "filter": {
+                  "acceHost": true
+                }
+              },
+              "delta": 2000
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+          },
+          {
+            "effectId": "WDK17-015-E2-G",
+            "effectType": "CONTINUOUS",
+            "action": {
+              "type": "GRANT_PROTECTION",
+              "target": {
+                "type": "SIGNI",
+                "owner": "self",
+                "count": 1
+              },
+              "from": [
+                "BANISH"
+              ],
+              "sourceOwner": "opponent",
+              "duration": "PERMANENT",
+              "bySourceType": "シグニ"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
+          }
+        ]
       },
       "duration": "PERMANENT",
       "mandatory": true,
@@ -27361,7 +27429,10 @@
         "target": {
           "type": "SIGNI",
           "owner": "any",
-          "count": 1
+          "count": 1,
+          "filter": {
+            "acceHost": true
+          }
         },
         "delta": 1000
       },
@@ -28551,7 +28622,7 @@
       "effectId": "SPK01-11-E1",
       "effectType": "AUTO",
       "timing": [
-        "ON_ATTACK_SIGNI"
+        "ON_ACCE_ATTACH"
       ],
       "action": {
         "type": "CHOOSE",
@@ -28560,7 +28631,47 @@
         "choices": [
           {
             "choiceId": "c0",
-            "label": "選択肢1",
+            "label": "①このシグニは対戦相手の効果によってダウンしない",
+            "action": {
+              "type": "STUB",
+              "id": "SET_ACCE_CHOICE",
+              "value": "0"
+            }
+          },
+          {
+            "choiceId": "c1",
+            "label": "②このシグニは対戦相手の効果によって手札に戻らない",
+            "action": {
+              "type": "STUB",
+              "id": "SET_ACCE_CHOICE",
+              "value": "1"
+            }
+          },
+          {
+            "choiceId": "c2",
+            "label": "③このシグニがアタックしたとき、カードを1枚引く",
+            "action": {
+              "type": "STUB",
+              "id": "SET_ACCE_CHOICE",
+              "value": "2"
+            }
+          }
+        ]
+      },
+      "duration": "INSTANT",
+      "mandatory": true,
+      "parseStatus": "MANUAL"
+    },
+    {
+      "effectId": "SPK01-11-E2",
+      "effectType": "CONTINUOUS",
+      "action": {
+        "type": "GRANT_ACCE_HOST_ABILITY",
+        "byChoice": true,
+        "abilities": [
+          {
+            "effectId": "SPK01-11-E2-G0",
+            "effectType": "CONTINUOUS",
             "action": {
               "type": "GRANT_PROTECTION",
               "target": {
@@ -28573,30 +28684,52 @@
               ],
               "sourceOwner": "opponent",
               "duration": "PERMANENT"
-            }
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
           },
           {
-            "choiceId": "c1",
-            "label": "選択肢2",
+            "effectId": "SPK01-11-E2-G1",
+            "effectType": "CONTINUOUS",
             "action": {
-              "type": "STUB",
-              "id": "GRANT_QUOTED_ABILITY"
-            }
+              "type": "GRANT_PROTECTION",
+              "target": {
+                "type": "SIGNI",
+                "owner": "self",
+                "count": 1
+              },
+              "from": [
+                "BOUNCE"
+              ],
+              "sourceOwner": "opponent",
+              "duration": "PERMANENT"
+            },
+            "duration": "PERMANENT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
           },
           {
-            "choiceId": "c2",
-            "label": "選択肢3",
+            "effectId": "SPK01-11-E2-G2",
+            "effectType": "AUTO",
+            "timing": [
+              "ON_ATTACK_SIGNI"
+            ],
+            "triggerScope": "self",
             "action": {
               "type": "DRAW",
               "owner": "self",
               "count": 1
-            }
+            },
+            "duration": "INSTANT",
+            "mandatory": true,
+            "parseStatus": "MANUAL"
           }
         ]
       },
-      "duration": "INSTANT",
+      "duration": "PERMANENT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     }
   ],
   "SPK01-12": [

@@ -2926,6 +2926,24 @@ function execPowerModifyByTargetLevel(a: PowerModifyByTargetLevelAction, ctx: Ex
   return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
+function execPowerModifyBySource(a: import('../types/effects').PowerModifyBySourceAction, ctx: ExecCtx): ExecResult {
+  // 効果元シグニ（このシグニ）のレベル/実効パワーを基準に delta を算出して POWER_MODIFY へ委譲する。
+  const src = ctx.sourceCardNum;
+  if (!src) return done(ctx);
+  let base: number;
+  if (a.basis === 'level') {
+    base = parseInt(ctx.cardMap.get(getCardNum(src))?.Level ?? '0', 10);
+  } else {
+    base = ctx.effectivePowers?.get(src)
+      ?? parseInt(ctx.cardMap.get(getCardNum(src))?.Power ?? '0', 10);
+  }
+  if (isNaN(base)) base = 0;
+  const delta = base * a.multiplier;
+  if (delta === 0) return done(ctx);
+  const mod: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta, ...(a.until ? { duration: a.until } : {}) };
+  return execPowerModify(mod, ctx);
+}
+
 function execPowerModifyPerTrashedLevel(a: import('../types/effects').PowerModifyPerTrashedLevelAction, ctx: ExecCtx): ExecResult {
   const processed = ctx.lastProcessedCards ?? [];
   const totalLevel = processed.reduce((acc, cn) => {
@@ -3487,6 +3505,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     }
     case 'ENERGY_CHARGE_BY_FIELD_COUNT':   return execEnergyChargeByFieldCount(action as import('../types/effects').EnergyChargeByFieldCountAction, ctx);
     case 'POWER_MODIFY_BY_TARGET_LEVEL':   return execPowerModifyByTargetLevel(action as PowerModifyByTargetLevelAction, ctx);
+    case 'POWER_MODIFY_BY_SOURCE':         return execPowerModifyBySource(action as import('../types/effects').PowerModifyBySourceAction, ctx);
     case 'POWER_MODIFY_PER_TRASHED_LEVEL': return execPowerModifyPerTrashedLevel(action as import('../types/effects').PowerModifyPerTrashedLevelAction, ctx);
     case 'POWER_MODIFY_PER_CHARM':         return execPowerModifyPerCharm(action as import('../types/effects').PowerModifyPerCharmAction, ctx);
     case 'REVEAL_UNTIL_BANISH_SAME_LEVEL': return execRevealUntilBanishSameLevel(action as import('../types/effects').RevealUntilBanishSameLevelAction, ctx);
