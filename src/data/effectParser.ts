@@ -812,8 +812,8 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
-  // パターン6b: 「このシグニが血晶武装状態であるかぎり、」
-  const armorKagiriM = text.match(/^このシグニが血晶武装状態であるかぎり、/);
+  // パターン6b: 「このシグニ{は/が}血晶武装状態であるかぎり、」
+  const armorKagiriM = text.match(/^このシグニ[はが]血晶武装状態であるかぎり、/);
   if (armorKagiriM) {
     return {
       condition: { type: 'IS_SELF_ARMORED' } as ActiveCondition,
@@ -906,6 +906,8 @@ function parseSingleSentence(text: string): EffectAction {
     .replace(/^あなたのターン開始時、/, '')
     .replace(/^ターン終了時、/, '')
     .replace(/^このシグニがアタックしたとき、/, '')
+    .replace(/^このシグニが開花したとき、/, '')
+    .replace(/^あなたの(?:他の)?(?:＜[^＞]+＞の)?シグニ(?:[０-９\d]+体)?が開花したとき、/, '')
     .replace(/^このシグニがバニッシュされたとき、/, '')
     .replace(/^バニッシュされたとき、/, '')
     .replace(/^パワー[０-９\d]+以下のこのシグニがバニッシュされたとき、/, '')
@@ -1510,6 +1512,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
              : actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
+             // 「（このシグニ／あなたの他のシグニが）開花したとき」=【シード】開花トリガー。場に出た扱いではないため ON_PLAY とは別（triggerScope は下で設定）。
+             : actionText.includes('開花したとき') ? ['ON_BLOOM']
              : actionText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュ(?:した|された)とき/) ? ['ON_OPP_LIFE_CRASHED']
              : actionText.match(/(?:あなたの)?ライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_LIFE_CRASHED']
              : actionText.includes('場を離れたとき') ? ['ON_LEAVE_FIELD']
@@ -1546,6 +1550,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
             extractedTriggerScope = 'any_opp';
             if (oppAttM[1]) extractedTriggerFilter = { story: oppAttM[1] };
           }
+        }
+      }
+      // ON_BLOOM: トリガー元のスコープを抽出（「このシグニが開花したとき」=self／「あなたの[他の]シグニが開花したとき」=any_ally）
+      if (timing[0] === 'ON_BLOOM') {
+        if (/^このシグニが開花したとき[、,]/.test(actionText)) {
+          extractedTriggerScope = 'self';
+        } else if (/あなたの(?:他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が開花したとき/.test(actionText)) {
+          extractedTriggerScope = 'any_ally';
+          const storyBloomM = actionText.match(/あなたの(?:他の)?＜([^＞]+)＞のシグニ(?:[０-９\d]+体)?が開花したとき/);
+          if (storyBloomM) extractedTriggerFilter = { story: storyBloomM[1] };
+        } else {
+          extractedTriggerScope = 'self';
         }
       }
       // ON_LEAVE_FIELD: トリガー元のスコープを抽出（「このシグニ」=self／「あなたの＜X＞のシグニが」=any_ally＋triggerFilter）
@@ -1679,7 +1695,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_BLOOD_CRYSTAL_ARMOR') {
-        const m = actionText.match(/(?:(?:あなたの|このシグニが?)(?:シグニ[１-９\d０-９]*体?が?)?血晶武装状態になったとき)[、,]\s*(.+)/s);
+        const m = actionText.match(/(?:(?:あなたの|このシグニが?)(?:(?:＜[^＞]*＞の)?シグニ[１-９\d０-９]*体?が?)?血晶武装状態になったとき)[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_LIFE_BURST') {
@@ -2143,8 +2159,8 @@ function inferTriggerScope(effect: CardEffect, card: CardData): import('../types
   if (effect.effectType !== 'AUTO') return undefined;
   const text = (card.EffectText ?? '') + (card.BurstText ?? '');
   if (effect.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) {
-    // 「あなたのシグニ１体が血晶武装状態になったとき」→ 味方シグニ全体
-    if (/あなたのシグニ[１-９\d０-９]*体?が血晶武装状態になったとき/.test(text)) return 'any_ally';
+    // 「あなたの（＜紅蓮＞の）シグニ１体が血晶武装状態になったとき」→ 味方シグニ全体
+    if (/あなたの(?:＜[^＞]*＞の)?シグニ[１-９\d０-９]*体?が血晶武装状態になったとき/.test(text)) return 'any_ally';
     return 'self'; // 「このシグニが血晶武装状態になったとき」→ 自身のみ
   }
   // 「対戦相手のターン開始時/終了時」→ 相手ターン中に自分のシグニが発動（any_opp）

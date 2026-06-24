@@ -29,6 +29,85 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK05-030": [{"effectId":"WXK05-030-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
 
 
+  // ===== 血晶武装：逆翻訳乖離の修正（「血晶武装状態であるかぎり/の場合」の条件欠落） =====
+  // WXK04-002 英血の器 優羽莉Lv4'（ルリグ）：E1【常】あなたの血晶武装状態のシグニは対戦相手のルリグの効果を受けない。
+  //   旧JSONは target:{owner:self,count:ALL}（collectEffectImmuneSigni が count:ALL を honor せず効果元のみ保護）で実質機能せず。
+  //   → subjectFilter:{isArmored:true}/subjectOwner:self（武装シグニ全体）へ。collectEffectImmuneSigni に matchesStateFilter 評価を追加済み。
+  "WXK04-002": [
+    {"effectId":"WXK04-002-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","isArmored":true},"subjectOwner":"self","from":["ルリグ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK04-002-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand","trash"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
+  ],
+  // WXK04-028 紅蓮の使い魔 アカズキン：E1【常】このシグニは血晶武装状態であるかぎり【ダブルクラッシュ】を得る。
+  //   旧JSONは activeCondition 欠落で常時ダブルクラッシュだった（パターン6b正規表現が「は」を取りこぼし）。
+  "WXK04-028": [{"effectId":"WXK04-028-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_ARMORED"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WDK08-L15 紅蓮の使い魔 コノハナサクヤ：E1【常】このシグニは血晶武装状態であるかぎり【アサシン】を得る。
+  //   旧JSONは activeCondition 欠落で常時アサシンだった。
+  "WDK08-L15": [{"effectId":"WDK08-L15-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_ARMORED"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WXK04-074 紅蓮の使い魔 スノーホワイト：E2【自】あなたのターン終了時、このシグニが血晶武装状態の場合、エナチャージ1。
+  //   旧JSONは condition 欠落で武装状態に関係なく常にチャージしていた。E1（武装中+5000）はJSON維持。
+  "WXK04-074": [{"effectId":"WXK04-074-E2","effectType":"AUTO","timing":["ON_TURN_END"],"condition":{"type":"THIS_CARD_IS_ARMORED"},"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WDK08-L13 紅蓮の使い魔 アマテラス：E1【常】あなたの血晶武装状態のシグニは【ダブルクラッシュ】を得る。
+  //   旧JSONは owner:any count:1（任意1体に常時付与）の誤り → 自分の血晶武装シグニ全体へ付与（BattleScreen contGrantedKeywords が isArmored を honor）。
+  "WDK08-L13": [{"effectId":"WDK08-L13-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","isArmored":true}},"keyword":"ダブルクラッシュ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WXK04-042 紅蓮の使い魔 オトタチバナ：
+  //   E1【常】このシグニが血晶武装状態であるかぎり、+2000され、「【自】アタック時、自パワー以下の相手シグニ1体をバニッシュ」を得る。
+  //     旧JSONは E1 が「CONTINUOUS BANISH（常時バニッシュ）」に誤訳され +2000 も欠落。→ E1=POWER+2000(武装中)／E1b=武装中のアタック時バニッシュへ分割。
+  //   E2【自】アタック時、パワー10000以上の場合、相手のパワー7000以下を1体バニッシュ（旧JSONは「10000以上」条件が欠落）。
+  "WXK04-042": [
+    {"effectId":"WXK04-042-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_ARMORED"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK04-042-E1b","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"THIS_CARD_IS_ARMORED"},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK04-042-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"SELF_POWER_GTE","value":10000},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":7000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // WXK04-044 紅蓮の使い魔 オズマ姫：E1【常】このシグニは血晶武装状態であるかぎり、「【自】正面のシグニ1体をバニッシュしたとき、このシグニをアップする」を得る。
+  //   旧JSONは「CONTINUOUS UP（常時アップ）」に誤訳。→ AUTO ON_SIGNI_BANISH_BATTLE（バトルで正面をバニッシュ）＋ condition:THIS_CARD_IS_ARMORED で自身アップ。E2（手札1捨て→デッキトップ5見て紅蓮1枚手札）はJSON維持。
+  "WXK04-044": [{"effectId":"WXK04-044-E1","effectType":"AUTO","timing":["ON_SIGNI_BANISH_BATTLE"],"triggerScope":"self","condition":{"type":"THIS_CARD_IS_ARMORED"},"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WDK08-L14 紅蓮の使い魔 清姫：E1【自】アタック時、以下の3つから1つを選ぶ。血晶武装中は代わりに3つまで選ぶ（同一選択肢可）。
+  //   旧JSONは CHOOSE from3/choose1 固定で「武装中3つまで・重複可」が欠落 → 専用STUB INTERNAL_KIYOHIME_CHOOSE（武装で1→3回ループ）。BURSTはJSON維持。
+  "WDK08-L14": [{"effectId":"WDK08-L14-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"STUB","id":"INTERNAL_KIYOHIME_CHOOSE"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
+  // 血晶武装［X］する アクションの対象クラス限定（原文「あなたの＜紅蓮＞のシグニ１体を対象とし」）。
+  //   旧JSONは targetFilter 欠落で非紅蓮シグニも武装可だった → story:紅蓮 を付与。パーサー(parseSentencePart2)にも同抽出を追加済み。
+  "WXK04-011": [{"effectId":"WXK04-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WXK04-012": [{"effectId":"WXK04-012-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WXK04-013": [{"effectId":"WXK04-013-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WXK05-011": [{"effectId":"WXK05-011-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WDK08-L01": [{"effectId":"WDK08-L01-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WDK08-L02": [{"effectId":"WDK08-L02-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WDK08-L03": [{"effectId":"WDK08-L03-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WDK08-L04": [{"effectId":"WDK08-L04-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"BLOOD_CRYSTAL_ARMOR","source":["hand"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  // WXK05-023 紅蓮の使い魔 アンゴルモア：E1【自】このシグニが血晶武装状態になったとき、シグニ1体（自他不問）を対象としバニッシュ。
+  //   旧JSONは owner:self 固定だった（原文は「対戦相手の」が無く任意のシグニ）→ owner:any。
+  "WXK05-023": [{"effectId":"WXK05-023-E1","effectType":"AUTO","timing":["ON_BLOOD_CRYSTAL_ARMOR"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WXK04-070 紅蓮の使い魔 那須与一：E1【常】このシグニは血晶武装状態であるかぎり、正面に加えてその両隣のシグニゾーンにもアタックする。
+  //   旧JSONは MULTI_ZONE_ATTACK に activeCondition 欠落で常時多面アタックだった → IS_SELF_ARMORED を付与（MULTI_ZONE_ATTACK検出に activeCondition 評価を追加済み）。E2/BURSTはJSON維持。
+  "WXK04-070": [{"effectId":"WXK04-070-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_ARMORED"},"action":{"type":"STUB","id":"MULTI_ZONE_ATTACK"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WXK04-072 紅蓮の使い魔 ママリリ：E1【常】このシグニが血晶武装状態であるかぎり、+3000され、正面以外の相手シグニゾーンにもアタックできる。
+  //   旧JSONは +3000（E1）のみで多面アタックが欠落していた → E1bに MULTI_ZONE_ATTACK（武装中）を追加。E1(+3000)/E2はJSON維持。
+  "WXK04-072": [{"effectId":"WXK04-072-E1b","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_ARMORED"},"action":{"type":"STUB","id":"MULTI_ZONE_ATTACK"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WXK04-030 血晶の紅雨（スペル）：紅蓮シグニ1体を血晶武装［デッキ］→シャッフル。ターン終了時まで、自分の全血晶武装シグニ+5000かつ「【自】アタック時、自パワー以下の相手シグニ1体をバニッシュ」を付与。
+  //   旧JSONのE1は「SHUFFLE_DECK＋相手シグニ全バニッシュ」という完全誤訳だった。→ SEQUENCE（武装→武装シグニ全体+5000→アタック時バニッシュ能力付与）に再構成。BURSTはJSON維持（正しい）。
+  "WXK04-030": [{"effectId":"WXK04-030-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":3}]},"action":{"type":"SEQUENCE","steps":[
+    {"type":"BLOOD_CRYSTAL_ARMOR","source":["deck"],"count":1,"targetFilter":{"cardType":"シグニ","story":"紅蓮"}},
+    {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","isArmored":true}},"delta":5000},
+    {"type":"STUB","id":"INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED"}
+  ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],
+
+
+  // ===== 【デコレ】：手札の＜調理＞シグニ1枚を場の＜調理＞シグニの【アクセ】にする起動能力（青×0・ターン1回） =====
+  //   パーサーは【デコレ】を非効果キーワード接頭辞として除去するため（effectParser stripKeywordPrefixes）、
+  //   デコレ起動能力はどのカードにも登録されていなかった（execAttachAcce の fromHand パスが到達不能の死にコードだった）。
+  //   → ＜調理＞のエルドラ全9枚に ATTACH_ACCE(fromHand) の ACTIVATED 能力を付与。既存効果には -DECORE の新IDで追記（マージは追記方式）。
+  //   signiFilter=手札のアクセカード側／targetFilter=場のホストシグニ側、どちらも＜調理＞シグニ限定。
+  "WXK04-003": [{"effectId":"WXK04-003-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WXK04-016": [{"effectId":"WXK04-016-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WXK04-017": [{"effectId":"WXK04-017-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WXK04-018": [{"effectId":"WXK04-018-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WXK05-014": [{"effectId":"WXK05-014-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WDK07-E01": [{"effectId":"WDK07-E01-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WDK07-E02": [{"effectId":"WDK07-E02-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WDK07-E03": [{"effectId":"WDK07-E03-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+  "WDK07-E04": [{"effectId":"WDK07-E04-DECORE","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"ATTACH_ACCE","fromHand":true,"sourceOwner":"self","targetSigniOwner":"self","signiFilter":{"cardType":"シグニ","story":"調理"},"targetFilter":{"cardType":"シグニ","story":"調理"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}],
+
+
   // ===== F: フラット化 CONTINUOUS BANISH 修正の durable 化（v0.414 JSON 修正を manualEffects へ昇格・再生成耐性）=====
   "WX10-063": [{"effectId":"WX10-063-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"AND","conditions":[{"type":"THIS_CARD_IN_CENTER_ZONE"},{"type":"LRIG_COLOR","owner":"self","color":"赤"}]},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":1000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
   "WXK07-044": [{"effectId":"WXK07-044-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"THIS_CARD_IN_CENTER_ZONE"},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":7000,"max":7000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],

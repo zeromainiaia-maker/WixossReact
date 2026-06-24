@@ -167,9 +167,17 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 - 逆翻訳乖離 G184/G218 修正で新設したトリガー timing を配線済（`【※engine未配線】`マークは除去）。対象: WXK01-076/079（`triggerScope:any_ally`・任意《赤》コスト→パワー以下バニッシュ）／ WDK01-014/017（このシグニ自身・無条件バニッシュ＋LBドロー）。従来は `ON_PLAY` 誤分類で「場に出たとき」に発火していた（偽の挙動）。
 - ライド実行3パス（execStub の `LRIG_RIDE_SIGNI`/`CENTER_LRIG_RIDES_ON_SIGNI`/`RIDE_ON` が `lrig_riding_signi` を**新規**セットする瞬間＝旧 riding との差分）で所有者 state に `drive_became_just` フラグを積み、BattleScreen の watcher が `collectDriveBecameTriggers` で G073（ON_ZONE_MOVED）と同型に scope 別（self/any_ally=driver側・any_opp=相手側・any=両方）収集・発火・クリア。`triggeringCardNum=ドライブ化シグニ`。検証: `scripts/_verifyDriveBecome.ts`（8/8 pass）。
 
-**`REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI`（G186）のアタック継続が近似（2026-06-24）:**
-- WXK02-071/WXK10-057/WDK05-T15「アタック時このシグニを手札に戻し→デッキトップ公開→シグニならアタックしているシグニとしてダウン状態で場に出す」。STUB ハンドラはデッキトップを公開しシグニを**空きゾーンへダウン配置**するところまで実装済（BUGFIXES 参照）。
-- **残（近似）**: 「アタックしているシグニとして」＝**同一アタックをそのまま継続**（新シグニで対戦相手/正面へのダメージ処理を続行）する部分は battle ループ未対応。現状はダウン配置までで、配置後のアタック続行は再現していない。厳密化には BattleScreen のアタック解決中に攻撃側シグニを差し替える機構が必要。
+**`REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI`（G186）のアタック継続 — 完了（2026-06-24）:**
+- WXK02-071/WXK10-057/WDK05-T15「アタック時このシグニを手札に戻し→デッキトップ公開→シグニならアタックしているシグニとしてダウン状態で場に出す」。
+- **正確化のキモ**: BattleScreen のアタックは ON_ATTACK_SIGNI 収集前に `pending_signi_battle.zoneIndex`（アタッカーの元ゾーン）を保存し、トリガー解決後の Phase 2（`resolvePendingSigniBattleFor`）が**同ゾーンのシグニをアタッカーとして**ダメージ処理する。よって新シグニを**アタッカーの元ゾーン**へ置けばアタックがそのまま継続する（battle ループの攻撃側差し替え機構は不要だった）。STUB を「空きゾーン」配置→「元ゾーン(zoneIndex)」配置に修正。
+- **「そうした場合」の厳密化**: バウンス（BOUNCE optional）を選ばなかった場合は公開も配置もしない。`IS_MY_TURN`（シグニアタック中は常時 true で「そうした場合」を表現できない）に頼らず、STUB 内で `sourceCardNum` がまだ自分の場にいる＝バウンス未実行なら不発と判定。
+- 検証: `scripts/_verifyRevealTopPlaceAttacker.ts`（10/10 pass）。STUBS.md/decompile も再生成（「近似」注記を除去）。
+
+**WXK09-038「いずれかのプレイヤーが手札を捨てたとき」の相手側発火 — 完了（2026-06-24）:**
+- G189系の timing 誤り（持続「ターン終了時まで」をトリガー `ON_TURN_END` と誤認）を「あなたが」5枚＋「いずれか」1枚すべて `ON_HAND_DISCARDED` に修正（BUGFIXES 参照）。
+- WXK09-038-E1 に `triggerScope:'any'` を付与。`collectHandDiscardTriggers` を triggerScope 対応に拡張し、捨てた側(discarder)のクライアントが**discarder の自フィールド（self/any）＋ discarder の相手フィールドの 'any' 効果**を収集（相手をコントローラーとして playerId 設定）。`any` はターン問わず発火、self/any_ally は従来どおり discarder の自ターンのみ。
+- CPU戦は watcher に CPU(guest)側 `hand_discarded_just` 処理を追加（virus watcher の processCpu と同型。人間が CPU の捨てを検出し CPU自身＋人間盤面の効果を収集）。
+- 「ガードステップ以外で」は `performGuardResponse` がガード時の手札捨てに `hand_discarded_just`/asCost を立てない構造で自然に担保。decompiler は `ON_HAND_DISCARDED`+`triggerScope:any` を「いずれかのプレイヤーが手札を捨てたとき」と和文化（`〔範囲〕`マーカーは抑制）。
 
 **《相手ターン》《自分ターン》の AUTO/ACTIVATED 対応（2026-06-23・ymst）:**
 - CONTINUOUS は activeCondition `TURN_OWNER` で対応済（BUGFIXES。G074 調査で発覚した系統バグ）。

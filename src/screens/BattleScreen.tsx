@@ -2110,11 +2110,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handDiscardedJustRef = (user && bs)
     ? (user.id === bs.host_id ? bs.host_state?.hand_discarded_just : bs.guest_state?.hand_discarded_just)
     : undefined;
+  // CPU戦: CPU(=guest)が効果で捨てた手札のフラグも人間(host)クライアントが処理する（ON_HAND_DISCARDED 'any' 等）
+  const cpuHandDiscardedRef = (user && bs && isCpuBattle && user.id === bs.host_id)
+    ? bs.guest_state?.hand_discarded_just : undefined;
   useEffect(() => {
     if (!bs || !user || loading) return;
     const revealedHJ = handRevealedJustRef ?? [];
     const discardedHJ = handDiscardedJustRef ?? [];
-    if (revealedHJ.length === 0 && discardedHJ.length === 0) return;
+    const cpuDiscardedHJ = cpuHandDiscardedRef ?? [];
+    if (revealedHJ.length === 0 && discardedHJ.length === 0 && cpuDiscardedHJ.length === 0) return;
     if (bs.effect_stack || bs.pending_effect) return;
     const localIsHost = user.id === bs.host_id;
     const localMy: PlayerState = localIsHost ? bs.host_state : bs.guest_state;
@@ -2139,7 +2143,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         // ON_HAND_DISCARDED: 効果による手札捨て（コスト捨てはコスト支払い側で別途収集）
-        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(discardedHJ, localMy, false);
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
+          discardedHJ, localMy, user.id, false,
+          localIsHost ? bs.guest_state : bs.host_state, localIsHost ? bs.guest_id : bs.host_id);
         entries.push(...hdEntries);
         const cleared: PlayerState = {
           ...localMy,
@@ -2148,6 +2154,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actions_done: usedLimitIds.length > 0 ? [...(localMy.actions_done ?? []), ...usedLimitIds] : localMy.actions_done,
         };
         const update: Record<string, unknown> = { [stateKey]: cleared };
+        // CPU戦: CPU(guest)が捨てた手札 → CPU自身の self/any 効果 + 人間(host)の 'any' 効果を収集し、guest フラグをクリア
+        if (cpuDiscardedHJ.length > 0) {
+          const { entries: cpuHd, usedLimitIds: cpuUsed } = collectHandDiscardTriggers(
+            cpuDiscardedHJ, bs.guest_state, CPU_PLAYER_ID, false, bs.host_state, bs.host_id);
+          entries.push(...cpuHd);
+          update.guest_state = {
+            ...bs.guest_state,
+            hand_discarded_just: null,
+            actions_done: cpuUsed.length > 0 ? [...(bs.guest_state.actions_done ?? []), ...cpuUsed] : bs.guest_state.actions_done,
+          };
+        }
         if (entries.length > 0) {
           const existingStack = bs.effect_stack ?? null;
           update.effect_stack = existingStack
@@ -2160,7 +2177,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handRevealedJustRef, handDiscardedJustRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handRevealedJustRef, handDiscardedJustRef, cpuHandDiscardedRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 対戦相手の場のウィルス増減フラグ（opp_virus_placed_just / opp_virus_removed_just）を検出して
   // ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED トリガーを発火（WD19-009 / WX21-030）
@@ -3048,6 +3065,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     for (const stack of after.field.signi) {
       const top = stack?.at(-1);
       if (top && !beforeOnField.has(top)) result.push(top);
+    }
+    return result;
+  };
+
+  // 【シード】から開花してシグニになったカードを検出（ON_BLOOMトリガー用）。
+  // 開花前は signi_seeds に裏向きで存在し、開花後は同じ instanceId が signi に表向きで存在する。
+  // ルール上「開花」は「場に出た」扱いではないため、これらは detectPlacedSigni（ON_PLAY）から除外する。
+  const detectBloomedSigni = (before: PlayerState, after: PlayerState): string[] => {
+    const beforeSeeds = new Set<string>((before.field.signi_seeds ?? []).filter((c): c is string => !!c));
+    const result: string[] = [];
+    for (const stack of after.field.signi) {
+      const top = stack?.at(-1);
+      if (top && beforeSeeds.has(top)) result.push(top);
     }
     return result;
   };
@@ -4824,15 +4854,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
 
         // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニに対する、場の他シグニの反応を収集（G144/G145/WX11-054）。
-        // 出たシグニ自身の ON_PLAY は各効果配置経路（REVEAL/SEED_BLOOM/COLLAB等）が個別に収集済み。ここでは他シグニ（any_ally/any）のみ。
+        // 出たシグニ自身の ON_PLAY は各効果配置経路（REVEAL/COLLAB等）が個別に収集済み。ここでは他シグニ（any_ally/any）のみ。
         // 場出しした効果元（entry.cardNum）がシグニかどうかで bySigniEffect の発火可否を判定する。
+        // 【シード】開花は「場に出た」扱いではないため ON_PLAY からは除外し、直後に ON_BLOOM として別収集する。
         const placeSourceIsSigni = battleCardMap.get(entry.cardNum)?.Type === 'シグニ';
+        // 開花したシグニは「場に出た」扱いではないため ON_PLAY（出現時/他シグニ召喚反応）から除外し、ON_BLOOM として扱う。
+        const hostBloomedSE  = detectBloomedSigni(bs.host_state, hostState);
+        const guestBloomedSE = detectBloomedSigni(bs.guest_state, guestState);
+        const bloomedSetSE = new Set<string>([...hostBloomedSE, ...guestBloomedSE]);
         const placeEntries: StackEntry[] = [];
         for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
+          if (bloomedSetSE.has(placedNum)) continue;
           placeEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni }));
         }
         for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
+          if (bloomedSetSE.has(placedNum)) continue;
           placeEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni }));
+        }
+        // ON_BLOOM: 開花したシグニ自身＋場の他シグニの開花監視トリガー
+        for (const bloomedNum of hostBloomedSE) {
+          placeEntries.push(...collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id));
+        }
+        for (const bloomedNum of guestBloomedSE) {
+          placeEntries.push(...collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id));
         }
         if (placeEntries.length > 0) {
           const baseStackP = (update.effect_stack as typeof stackAfter) ?? null;
@@ -4921,36 +4965,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
-        // SEED_BLOOM系: 開花したシグニのON_PLAY効果をスタックに積む
-        // INTERNAL_BLOOM_SEED（1枚開花）またはSEED_BLOOM「好きな枚数」パスのどちらも
-        // lastProcessedCards に開花したCardNumが入る
-        {
-          const stubId = (entry.effect.action as import('../types/effects').StubAction)?.id;
-          const isBloomAction = stubId === 'INTERNAL_BLOOM_SEED' || stubId === 'SEED_BLOOM' || stubId === 'SEED_BLOOM_OPTIONAL';
-          if (isBloomAction && (result.lastProcessedCards?.length ?? 0) > 0) {
-            const bloomOnPlayEntries: StackEntry[] = [];
-            for (const instanceId of result.lastProcessedCards!) {
-              const cn = getCardNum(instanceId);
-              for (const eff of (effectsMap.get(cn) ?? [])) {
-                if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
-                bloomOnPlayEntries.push({
-                  id: generateUUID(),
-                  playerId: entry.playerId,
-                  cardNum: instanceId,
-                  effectId: eff.effectId,
-                  label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果（開花）`,
-                  effect: eff,
-                });
-              }
-            }
-            if (bloomOnPlayEntries.length > 0) {
-              const baseStackB = (update.effect_stack as typeof stackAfter) ?? null;
-              update.effect_stack = baseStackB
-                ? pushToStack(baseStackB, bloomOnPlayEntries)
-                : initStack(stack.turnPlayerId, bloomOnPlayEntries);
-            }
-          }
-        }
+        // 開花（ON_BLOOM）トリガーは上の detectBloomedSigni / collectBloomTriggers で収集済み。
+        // ルール上「開花」は「場に出た」扱いではないため、ここで ON_PLAY（出現時）は発火させない。
 
         // REVEAL_UNTIL_TO_FIELD（WX04-093「惰眠」等）: 効果で場に出したシグニの【出】(ON_PLAY) を積む。
         // lastProcessedCards に場へ出した instanceId が全て入る（トラッシュ送りのシグニは含まれない）。
@@ -5189,26 +5205,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           banishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState));
         }
 
-        // SEED_BLOOM: 開花したシグニのON_PLAY効果をスタックに積む（pending_effect経由の場合）
-        // 元の効果が SEED_BLOOM 系の場合のみ処理（BANISH 等の通常選択で lastProcessedCards が入っても誤発動しないよう）
-        const peEffectForBloom = (effectsMap.get(pe.sourceCardNum) ?? []).find(e => e.effectId === pe.effectId);
-        const peStubId = (peEffectForBloom?.action as import('../types/effects').StubAction)?.id;
-        const isBloomActionPE = peStubId === 'INTERNAL_BLOOM_SEED' || peStubId === 'SEED_BLOOM' || peStubId === 'SEED_BLOOM_OPTIONAL';
-        const bloomedCardsPE = isBloomActionPE ? (result.lastProcessedCards ?? []) : [];
+        // ON_BLOOM: 開花してシグニになったカードを検出し、開花トリガーを収集する（pending_effect経由の場合）。
+        // ルール上「開花」は「場に出た」扱いではないため ON_PLAY（出現時）は発火させない。
+        const hostBloomedPE  = detectBloomedSigni(bs.host_state, hostState);
+        const guestBloomedPE = detectBloomedSigni(bs.guest_state, guestState);
         const bloomOnPlayPE: StackEntry[] = [];
-        for (const instanceId of bloomedCardsPE) {
-          const cn = getCardNum(instanceId);
-          for (const eff of (effectsMap.get(cn) ?? [])) {
-            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
-            bloomOnPlayPE.push({
-              id: generateUUID(),
-              playerId: pe.sourcePlayerId,
-              cardNum: instanceId,
-              effectId: eff.effectId,
-              label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果（開花）`,
-              effect: eff,
-            });
-          }
+        for (const bloomedNum of hostBloomedPE) {
+          bloomOnPlayPE.push(...collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id));
+        }
+        for (const bloomedNum of guestBloomedPE) {
+          bloomOnPlayPE.push(...collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id));
         }
 
         // ON_BLOOD_CRYSTAL_ARMOR: 血晶武装状態になったシグニを検出してトリガー収集
@@ -5365,13 +5371,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
 
         // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニへの他シグニの反応（G144/G145/WX11-054）。
+        // 開花（【シード】→シグニ）は「場に出た」扱いではないため ON_PLAY から除外し、ON_BLOOM として別収集する。
         const resumePlaceSourceIsSigni = battleCardMap.get(getCardNum(pe.sourceCardNum))?.Type === 'シグニ';
+        const hostBloomedRSZ  = detectBloomedSigni(bs.host_state, hostState);
+        const guestBloomedRSZ = detectBloomedSigni(bs.guest_state, guestState);
+        const bloomedSetRSZ = new Set<string>([...hostBloomedRSZ, ...guestBloomedRSZ]);
         const resumePlaceEntries: StackEntry[] = [];
         for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
+          if (bloomedSetRSZ.has(placedNum)) continue;
           resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni }));
         }
         for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
+          if (bloomedSetRSZ.has(placedNum)) continue;
           resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni }));
+        }
+        for (const bloomedNum of hostBloomedRSZ) {
+          resumePlaceEntries.push(...collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id));
+        }
+        for (const bloomedNum of guestBloomedRSZ) {
+          resumePlaceEntries.push(...collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id));
         }
         if (resumePlaceEntries.length > 0) {
           const baseRP = (update.effect_stack as ReturnType<typeof initStack> | null) ?? (existingStack && !isStackDone(existingStack) ? existingStack : null);
@@ -5473,7 +5491,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * 召喚されたカード自身（triggerScope='self'）はここでは除き、queueCardEffects で別途処理する。
    */
   const collectFieldTriggers = (
-    event: 'ON_PLAY' | 'ON_BANISH' | 'ON_ATTACK_SIGNI',
+    event: 'ON_PLAY' | 'ON_BANISH' | 'ON_ATTACK_SIGNI' | 'ON_BLOOM',
     triggeringCardNum: string,
     myState: PlayerState,
     opState: PlayerState,
@@ -5604,6 +5622,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    return entries;
+  };
+
+  // 【シード】が開花したときの ON_BLOOM トリガーを収集する。
+  //  ・開花したシグニ自身の「このシグニが開花したとき」（triggerScope: self）
+  //  ・場の他シグニの「あなたの他のシグニが開花したとき」（triggerScope: any_ally/any）
+  // 開花は「場に出た」扱いではないため、ON_PLAY（出現時）は発火させない（公式ルール）。
+  const collectBloomTriggers = (
+    bloomedInstanceId: string,
+    myState: PlayerState,
+    opState: PlayerState,
+    ownerId: string,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const cn = getCardNum(bloomedInstanceId);
+    const cardName = battleCardMap.get(cn)?.CardName ?? cn;
+    // 開花したシグニ自身の self スコープ ON_BLOOM
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOM')) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      entries.push({
+        id: generateUUID(),
+        playerId: ownerId,
+        cardNum: bloomedInstanceId,
+        effectId: eff.effectId,
+        label: `${cardName} の【自】効果（開花時）`,
+        effect: eff,
+      });
+    }
+    // 場の他シグニ（any_ally/any）の開花監視トリガー
+    entries.push(...collectFieldTriggers('ON_BLOOM', bloomedInstanceId, myState, opState, ownerId));
     return entries;
   };
 
@@ -5831,17 +5880,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /**
-   * 手札が捨てられたときのトリガーを収集する。
+   * 手札が捨てられたときのトリガーを収集する。discarder=手札を捨てたプレイヤー（=このクライアントの user）。
    * - ON_DISCARDED_AS_COST（asCost=true時のみ）: 捨てられたカード自身のAUTO効果（WX25-P3-085 ユーグレナ）
-   * - ON_HAND_DISCARDED: 自フィールドシグニのAUTO効果。triggerFilterで捨てカードを照合（WXDi-CP02-077 花岡ユズ）。
-   *   テキストが「あなたのターンの間」のため自ターンのみ発火
+   * - ON_HAND_DISCARDED: フィールドシグニのAUTO効果。triggerFilterで捨てカードを照合（WXDi-CP02-077 花岡ユズ）。
+   *   - triggerScope 未指定/'self'/'any_ally'（「あなたが手札を捨てたとき」）: discarder の自フィールド・自ターンのみ。
+   *   - triggerScope 'any'（「いずれかのプレイヤーが手札を捨てたとき」WXK09-038）: discarder の自フィールドは
+   *     ターン問わず発火。さらに opState が渡されていれば discarder の相手フィールドの 'any' 効果も
+   *     その相手をコントローラーとして収集する（相手が捨てた＝対戦相手から見て「いずれか」が捨てた）。
+   *   ガードによる手札捨ては hand_discarded_just / asCost いずれも立たない（performGuardResponse 参照）ため、
+   *   「ガードステップ以外で」は構造的に担保される。
    * usageLimitは actions_done(effectId) の出現回数で制御（once_per_turn=1回 / twice_per_turn=2回）。
-   * usedLimitIds を呼び出し側で actions_done に追加して保存すること。
+   * usedLimitIds（discarder側のみ）を呼び出し側で actions_done に追加して保存すること。
    */
   const collectHandDiscardTriggers = (
     discardedNums: string[],
     myState: PlayerState,
+    discarderId: string,
     asCost: boolean,
+    opState?: PlayerState,
+    opId?: string,
   ): { entries: StackEntry[]; usedLimitIds: string[] } => {
     const entries: StackEntry[] = [];
     const usedLimitIds: string[] = [];
@@ -5855,6 +5912,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       usedLimitIds.push(eff.effectId);
       return true;
     };
+    const matchesTrigFilter = (eff: import('../types/effects').CardEffect): boolean =>
+      !eff.triggerFilter || discardedNums.some(cn => matchesFilter(battleCardMap.get(cn), eff.triggerFilter));
     // ON_DISCARDED_AS_COST: 捨てられたカード自身（シグニ能力のコストとして捨てられた場合のみ）
     if (asCost) {
       for (const cn of discardedNums) {
@@ -5863,7 +5922,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (!limitOk(eff)) continue;
           entries.push({
             id: generateUUID(),
-            playerId: user.id,
+            playerId: discarderId,
             cardNum: cn,
             effectId: eff.effectId,
             label: `${battleCardMap.get(cn)?.CardName ?? cn}【自】コスト捨て時`,
@@ -5872,18 +5931,46 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
     }
-    // ON_HAND_DISCARDED: 自フィールドシグニ（自ターンのみ）
-    if (bs.active_user_id === user.id && !(myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO'))) {
-      for (const stack of myState.field.signi) {
+    // ON_HAND_DISCARDED: discarder の自フィールド。'any' は常時、それ以外は discarder のターンのみ。
+    const myIsTurn = bs.active_user_id === discarderId;
+    const myBlocked = !!myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    for (const stack of myState.field.signi) {
+      const topNum = stack?.at(-1);
+      if (!topNum) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
+        const isAny = eff.triggerScope === 'any';
+        if (myBlocked) continue;
+        if (!isAny && !myIsTurn) continue;
+        if (!matchesTrigFilter(eff)) continue;
+        if (!limitOk(eff)) continue;
+        entries.push({
+          id: generateUUID(),
+          playerId: discarderId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札捨て時`,
+          effect: eff,
+        });
+      }
+    }
+    // ON_HAND_DISCARDED 'any': discarder の相手フィールドにある「いずれかのプレイヤーが捨てたとき」効果を
+    // その相手をコントローラーとして収集（相手の usageLimit は参照チェックのみ・記録は省略）。
+    if (opState && opId && !opState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) {
+      for (const stack of opState.field.signi) {
         const topNum = stack?.at(-1);
         if (!topNum) continue;
         for (const eff of (effectsMap.get(topNum) ?? [])) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
-          if (eff.triggerFilter && !discardedNums.some(cn => matchesFilter(battleCardMap.get(cn), eff.triggerFilter))) continue;
-          if (!limitOk(eff)) continue;
+          if (eff.triggerScope !== 'any') continue;
+          if (!matchesTrigFilter(eff)) continue;
+          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
+            const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+            if ((opState.actions_done ?? []).filter(id => id === eff.effectId).length >= max) continue;
+          }
           entries.push({
             id: generateUUID(),
-            playerId: user.id,
+            playerId: opId,
             cardNum: topNum,
             effectId: eff.effectId,
             label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札捨て時`,
@@ -6993,11 +7080,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ソースはスペルのため placeSourceIsSigni=false（bySigniEffect は非発火、byEffect は発火）。
       if (result.done) {
         const spellPlaceSourceIsSigni = battleCardMap.get(card_num)?.Type === 'シグニ';
+        // 開花（【シード】→シグニ）は「場に出た」扱いではないため ON_PLAY から除外し、ON_BLOOM として別収集する。
+        const hostBloomedSU  = detectBloomedSigni(bs.host_state, hostState);
+        const guestBloomedSU = detectBloomedSigni(bs.guest_state, guestState);
+        const bloomedSetSU = new Set<string>([...hostBloomedSU, ...guestBloomedSU]);
         for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
+          if (bloomedSetSU.has(placedNum)) continue;
           spellUseEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni }));
         }
         for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
+          if (bloomedSetSU.has(placedNum)) continue;
           spellUseEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni }));
+        }
+        for (const bloomedNum of hostBloomedSU) {
+          spellUseEntries.push(...collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id));
+        }
+        for (const bloomedNum of guestBloomedSU) {
+          spellUseEntries.push(...collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id));
         }
       }
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
@@ -8248,6 +8347,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 「アタックする」（強制）か「アタックできる」（任意）かをテキストで判定
       const mzaEffect = (effectsMap.get(myTopNum) ?? []).find(e =>
         e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' && (e.action as import('../types/effects').StubAction).id === 'MULTI_ZONE_ATTACK'
+        // activeCondition（例: 血晶武装状態であるかぎり）を満たす場合のみ有効
+        && (!e.activeCondition || checkActiveCondition(e.activeCondition, newMyState, newOpState, true, battleCardMap, myTopNum))
       );
       if (mzaEffect) {
         const myCardDataMZA = battleCardMap.get(myTopNum);
@@ -8384,6 +8485,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BANISH_BATTLE')) continue;
             const scopeBB = eff.triggerScope ?? 'self';
             if (scopeBB === 'self' && topNumBB !== myTopNum) continue;
+            // condition を持つAUTOは条件を満たす場合のみ収集（例: WXK04-044 血晶武装中のみアップ）
+            if (eff.condition && !evalUseCondition(eff.condition, newMyState, newOpState, battleCardMap, topNumBB, bs.turn_phase, effectivePowers)) continue;
             if (eff.usageLimit === 'once_per_turn' &&
                 ((myS.actions_done?.includes(eff.effectId)) || usedIdsBB.includes(eff.effectId))) continue;
             if (eff.usageLimit === 'once_per_turn') usedIdsBB.push(eff.effectId);
@@ -10207,7 +10310,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 【起】コストで手札を捨てた場合のトリガー
       const allDiscardedForTrigger = [...discardedCards, ...discardAllCards, ...discardVarCards];
       if (allDiscardedForTrigger.length > 0) {
-        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(allDiscardedForTrigger, paid, true);
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
+          allDiscardedForTrigger, paid, user.id, true,
+          isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id);
         stackEntries.push(...hdEntries);
         if (usedLimitIds.length > 0) {
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
@@ -10322,7 +10427,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const stackEntries: StackEntry[] = [entry];
       // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 自身をコストとして捨てた場合のトリガー
-      const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers([cardNum], paid, true);
+      const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
+        [cardNum], paid, user.id, true,
+        isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id);
       stackEntries.push(...hdEntries);
       if (usedLimitIds.length > 0) {
         paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
@@ -10716,7 +10823,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const allEntries = [...mandatoryEntries, costEntry];
       // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 【出】コストで手札を捨てた場合のトリガー
       if (discardNums.length > 0) {
-        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(discardNums, paid, true);
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
+          discardNums, paid, user.id, true,
+          user.id === bs.host_id ? bs.guest_state : bs.host_state, user.id === bs.host_id ? bs.guest_id : bs.host_id);
         allEntries.push(...hdEntries);
         if (usedLimitIds.length > 0) {
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };

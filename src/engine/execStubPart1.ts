@@ -378,6 +378,31 @@ export function execStubPart1(
     }
     return done(curW7);
   }
+  // INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED: WXK04-030 血晶の紅雨。
+  //   あなたの血晶武装状態のすべてのシグニに「【自】このシグニがアタックしたとき、自パワー以下の対戦相手のシグニ1体をバニッシュ」を
+  //   ターン終了時まで付与する。granted_effects（instanceId単位）に積むと effectsMap マージ経由でアタックトリガー収集が拾う。
+  if (stub.id === 'INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED') {
+    const armoredTops = ctx.ownerState.field.signi.flatMap((s, i) =>
+      (ctx.ownerState.field.signi_armor?.[i] && s?.at(-1)) ? [s.at(-1)!] : []);
+    if (armoredTops.length === 0) return done(addLog(ctx, '血晶武装シグニなし（能力付与なし）'));
+    const grantedMapKKB = { ...(ctx.ownerState.granted_effects ?? {}) };
+    let seqKKB = 0;
+    for (const tnKKB of armoredTops) {
+      const grantedEffKKB: import('../types/effects').CardEffect = {
+        effectId: `granted-wxk04030-${tnKKB}-${Date.now()}-${seqKKB++}`,
+        effectType: 'AUTO',
+        timing: ['ON_ATTACK_SIGNI'],
+        triggerScope: 'self',
+        duration: 'UNTIL_END_OF_TURN',
+        action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLteSelf: true }, upToCount: false } },
+        mandatory: true,
+        parseStatus: 'MANUAL',
+      };
+      grantedMapKKB[tnKKB] = [...(grantedMapKKB[tnKKB] ?? []), grantedEffKKB];
+    }
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapKKB } },
+      `血晶武装シグニ${armoredTops.length}体に「アタック時バニッシュ」を付与（ターン終了時まで）`));
+  }
   // 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects）
   if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
       stub.id === 'GRANT_ABILITY_INNER_TEXT') {

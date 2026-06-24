@@ -19,6 +19,7 @@ import type {
   BlockActionAction,
   SearchAction,
   ShuffleDeckAction,
+  BloodCrystalArmorAction,
 } from '../types/effects';
 
 export interface ParsedChoiceOption {
@@ -64,6 +65,16 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   // 「手札がN枚より少ない分だけカードを引く」→ STUB(DRAW_UP_TO_N)（SPK16-13E③用。通常のDRAWより先に判定）
   if (choiceTxt.match(/手札が[６6]枚より少ない分だけカードを引く/)) {
     return ({ type: 'STUB', id: 'DRAW_UP_TO_SIX' } as StubAction) as EffectAction;
+  }
+  // 「カードをN枚引く。…＜クラス＞のシグニをM枚捨てないかぎり、カードをK枚捨てる」（WXK04-014①。汎用DRAWより先に判定）
+  const drawUnlessM = choiceTxt.match(/カードを([１-９1-9])枚引く。[^。]*＜([^＞]+)＞のシグニを[１-９1-9]枚捨てないかぎり、カードを([１-９1-9])枚捨てる/);
+  if (drawUnlessM) {
+    return {
+      type: 'SEQUENCE', steps: [
+        { type: 'DRAW', count: parseInt(toHW(drawUnlessM[1])) } as DrawAction,
+        ({ type: 'STUB', id: 'INTERNAL_DISCARD_CLASS_OR_PENALTY', value: `${drawUnlessM[2]}:${parseInt(toHW(drawUnlessM[3]))}` } as StubAction) as EffectAction,
+      ],
+    } as SequenceAction;
   }
   // 「カードをN枚引く」→ DRAW（後続の「その後…」は近似で省略。JSONの後続STUBが担う場合あり）
   const drawM = choiceTxt.match(/カードを([１-９1-9])枚引く/);
@@ -312,6 +323,19 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   // 「ダウンする」（汎用フォールバック: 相手シグニ1体）
   if (choiceTxt.match(/ダウンする/)) {
     return { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction;
+  }
+  // 「あなたの＜紅蓮＞のシグニ1体を対象とし、それを血晶武装［トラッシュ/手札/デッキ］する」（WXK04-014③）
+  const bcaCM = choiceTxt.match(/血晶武装［([^］]+)］する/);
+  if (bcaCM) {
+    const srcTxtBCA = bcaCM[1];
+    const sourcesBCA: ('hand' | 'trash' | 'deck')[] = [];
+    if (srcTxtBCA.includes('手札')) sourcesBCA.push('hand');
+    if (srcTxtBCA.includes('トラッシュ')) sourcesBCA.push('trash');
+    if (srcTxtBCA.includes('デッキ')) sourcesBCA.push('deck');
+    const bcaAction: BloodCrystalArmorAction = { type: 'BLOOD_CRYSTAL_ARMOR', source: sourcesBCA.length > 0 ? sourcesBCA : ['hand', 'trash'], count: 1 };
+    const clsBCA = choiceTxt.match(/＜([^＞]+)＞のシグニ/);
+    if (clsBCA) bcaAction.targetFilter = { cardType: 'シグニ', story: clsBCA[1] };
+    return bcaAction as EffectAction;
   }
   return null;
 }

@@ -35,8 +35,11 @@ for (const part of ['execStubPart1', 'execStubPart2', 'execStubPart3']) {
     const cmt = [];
     for (let j = i - 1; j >= 0; j--) {
       const t = lines[j].trim();
-      if (t.startsWith('//')) cmt.unshift(t.replace(/^\/\/\s?/, ''));
-      else break;
+      if (!t.startsWith('//')) break;
+      const c = t.replace(/^\/\/\s?/, '');
+      // 「─── セクション名 ───」「=== バッチN: … ===」のような装飾区切りはここで打ち切る（説明に混入させない）
+      if (/─{3,}|={3,}/.test(c)) break;
+      cmt.unshift(c);
     }
     for (const id of ids) {
       if (!handlerFile[id]) { handlerFile[id] = part; handlerComment[id] = cmt.join(' '); }

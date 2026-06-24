@@ -17411,7 +17411,7 @@
       "effectId": "WDK07-Y11-E2",
       "effectType": "AUTO",
       "timing": [
-        "ON_PLAY"
+        "ON_BLOOM"
       ],
       "action": {
         "type": "CHOOSE",
@@ -17458,7 +17458,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "self"
     },
     {
       "effectId": "WDK07-Y11-BURST",
@@ -17581,7 +17582,7 @@
       "effectId": "WDK07-Y14-E2",
       "effectType": "AUTO",
       "timing": [
-        "ON_PLAY"
+        "ON_BLOOM"
       ],
       "action": {
         "type": "DRAW",
@@ -17590,7 +17591,8 @@
       },
       "duration": "INSTANT",
       "mandatory": true,
-      "parseStatus": "AUTO"
+      "parseStatus": "AUTO",
+      "triggerScope": "self"
     },
     {
       "effectId": "WDK07-Y14-BURST",
@@ -20292,7 +20294,7 @@
       "effectId": "WDK10-011-E1",
       "effectType": "AUTO",
       "timing": [
-        "ON_TURN_END"
+        "ON_HAND_DISCARDED"
       ],
       "action": {
         "type": "POWER_MODIFY",

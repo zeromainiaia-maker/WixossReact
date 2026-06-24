@@ -3293,29 +3293,67 @@ export function execStubPart2(
     if (!pickedISD) return done(addLog(ctx, 'シード設置：未選択'));
     const newDeckISD = ctx.ownerState.deck.filter(c => c !== pickedISD);
     const newOwnerISD = { ...ctx.ownerState, deck: newDeckISD };
+    // 設置カードは option の seedCards に埋め込む（lastProcessedCards はインタラクション跨ぎで保持されないため）。
     const zoneOptsISD = [0, 1, 2].map(zi => ({
       id: `seed_zone_${zi}`,
       label: `ゾーン${zi + 1}にシード設置`,
-      action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi } as StubAction) as EffectAction,
+      action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi, seedCards: [pickedISD] } as StubAction) as EffectAction,
       available: true,
     }));
     return needsInteraction(addLog({ ...ctx, ownerState: newOwnerISD }, 'シード設置ゾーンを選択'), {
       type: 'CHOOSE', options: zoneOptsISD, count: 1,
     });
   }
-  // INTERNAL_SET_SEED: lastProcessedCards[0]を指定ゾーンにシード設置
+  // INTERNAL_SET_SEED: 指定ゾーンにシード設置。設置カードは stub.seedCards[0]（複数枚設置の順次配置）優先、なければ lastProcessedCards[0]。
   if (stub.id === 'INTERNAL_SET_SEED') {
     const zoneIdxISS = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
-    const seedCardISS = ctx.lastProcessedCards?.[0] ?? null;
+    const seedCardISS = stub.seedCards?.[0] ?? ctx.lastProcessedCards?.[0] ?? null;
     if (!seedCardISS) return done(addLog(ctx, 'シード設置：対象カードなし'));
     const currentSeedsISS = [...(ctx.ownerState.field.signi_seeds ?? [null, null, null])] as (string | null)[];
     const newTrashISS = [...ctx.ownerState.trash];
     if (currentSeedsISS[zoneIdxISS]) newTrashISS.push(currentSeedsISS[zoneIdxISS]!);
     currentSeedsISS[zoneIdxISS] = seedCardISS;
-    // 手札にあれば手札からも除去（手札から設置するケース）
+    // 手札／デッキにあれば取り除く（手札から設置・デッキから設置の両ケース）
     const newHandISS = ctx.ownerState.hand.filter(c => c !== seedCardISS);
-    const newOwnerISS = { ...ctx.ownerState, hand: newHandISS, trash: newTrashISS, field: { ...ctx.ownerState.field, signi_seeds: currentSeedsISS } };
+    const newDeckISS = ctx.ownerState.deck.filter(c => c !== seedCardISS);
+    const newOwnerISS = { ...ctx.ownerState, hand: newHandISS, deck: newDeckISS, trash: newTrashISS, field: { ...ctx.ownerState.field, signi_seeds: currentSeedsISS } };
     return done(addLog({ ...ctx, ownerState: newOwnerISS }, `シード設置: ゾーン${zoneIdxISS + 1}`));
+  }
+  // PLACE_SEEDS_FROM_REVEALED: デッキ上4枚を見て stub.value 枚まで【シード】設置（WXK04-010 アンコール・シード）。
+  // SEARCH で最大N枚選び、continuation の INTERNAL_SEEDS_PLACE_LOOP が1枚ずつゾーン選択して順次設置する。
+  if (stub.id === 'PLACE_SEEDS_FROM_REVEALED') {
+    const maxNPSDR = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '1'));
+    const topCardsPSDR = ctx.ownerState.deck.slice(0, 4);
+    if (topCardsPSDR.length === 0) return done(addLog(ctx, 'PLACE_SEEDS_FROM_REVEALED: デッキなし'));
+    return needsInteraction(addLog(ctx, `【シード】として設置するカードを最大${maxNPSDR}枚選択（任意）`), {
+      type: 'SEARCH',
+      visibleCards: topCardsPSDR,
+      maxPick: maxNPSDR,
+      thenAction: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction,
+      continuation: ({ type: 'STUB', id: 'INTERNAL_SEEDS_PLACE_LOOP' } as StubAction) as EffectAction,
+    });
+  }
+  // INTERNAL_SEEDS_PLACE_LOOP: 選択した【シード】候補を1枚ずつ順次設置する。残りは CHOOSE の continuation に積んで
+  // インタラクション跨ぎで保持する（execPlaceSigniOnField と同じ連鎖方式。lastProcessedCards に依存しない）。
+  if (stub.id === 'INTERNAL_SEEDS_PLACE_LOOP') {
+    const seedsISPL = stub.seedCards ?? ctx.lastProcessedCards ?? [];
+    if (seedsISPL.length === 0) return done(addLog(ctx, 'シード設置：完了'));
+    const [headISPL, ...restISPL] = seedsISPL;
+    // head をデッキから取り出してからゾーン選択（設置確定は INTERNAL_SET_SEED）
+    const newDeckISPL = ctx.ownerState.deck.filter(c => c !== headISPL);
+    const newCtxISPL = { ...ctx, ownerState: { ...ctx.ownerState, deck: newDeckISPL } };
+    const zoneOptsISPL = [0, 1, 2].map(zi => ({
+      id: `seeds_zone_${zi}`,
+      label: `ゾーン${zi + 1}にシード設置`,
+      action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi, seedCards: [headISPL] } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(newCtxISPL, `${ctx.cardMap.get(headISPL)?.CardName ?? headISPL}をシード設置`), {
+      type: 'CHOOSE',
+      options: zoneOptsISPL,
+      count: 1,
+      continuation: ({ type: 'STUB', id: 'INTERNAL_SEEDS_PLACE_LOOP', seedCards: restISPL } as StubAction) as EffectAction,
+    });
   }
   // SEED_BLOOM: シード1枚（または好きな枚数）を開花する
   // SEED_BLOOM_OPTIONAL: 任意でシード1枚を開花する
@@ -3461,7 +3499,7 @@ export function execStubPart2(
     const zoneOptsISTH = [0, 1, 2].map(zi => ({
       id: `isth_zone_${zi}`,
       label: `ゾーン${zi + 1}にシード設置`,
-      action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi } as StubAction) as EffectAction,
+      action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi, seedCards: [topCardISTH] } as StubAction) as EffectAction,
       available: true,
     }));
     return needsInteraction(addLog({ ...ctx, ownerState: newOwnerISTH, lastProcessedCards: [topCardISTH] }, `デッキ上${ctx.cardMap.get(topCardISTH)?.CardName ?? topCardISTH}をシード設置`), {
@@ -3499,7 +3537,7 @@ export function execStubPart2(
     const zoneOptsSFDTP = [0, 1, 2].map(zi => ({
       id: `sfdtp_zone_${zi}`,
       label: `ゾーン${zi + 1}にシード設置`,
-      action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi } as StubAction) as EffectAction,
+      action: ({ type: 'STUB', id: 'INTERNAL_SET_SEED', value: zi, seedCards: [topCardSFDTP] } as StubAction) as EffectAction,
       available: true,
     }));
     return needsInteraction(addLog({ ...ctx, ownerState: newOwnerSFDTP, lastProcessedCards: [topCardSFDTP] }, `デッキ上${ctx.cardMap.get(topCardSFDTP)?.CardName ?? topCardSFDTP}をシード設置`), {

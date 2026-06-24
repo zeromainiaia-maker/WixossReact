@@ -245,7 +245,11 @@ export function parseSentencePart2(t: string): EffectAction | null {
       if (srcText.includes('手札')) sources.push('hand');
       if (srcText.includes('トラッシュ')) sources.push('trash');
       if (srcText.includes('デッキ')) sources.push('deck');
-      return { type: 'BLOOD_CRYSTAL_ARMOR', source: sources.length > 0 ? sources : ['hand', 'trash'], count: 1 } as BloodCrystalArmorAction;
+      const bca: BloodCrystalArmorAction = { type: 'BLOOD_CRYSTAL_ARMOR', source: sources.length > 0 ? sources : ['hand', 'trash'], count: 1 };
+      // 「あなたの＜紅蓮＞のシグニ１体を対象とし、それを血晶武装」→ 対象をそのクラスに限定
+      const bcaClassM = t.match(/＜([^＞]+)＞のシグニ[^。]*血晶武装/);
+      if (bcaClassM) bca.targetFilter = { cardType: 'シグニ', story: bcaClassM[1] };
+      return bca;
     }
   }
 
@@ -1696,6 +1700,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
   // ---- アタックフェイズの間レベル参照変更 ----
   if (t.match(/アタックフェイズの間.*レベルを参照する場合.*レベルは.*として扱う/)) {
     return { type: 'STUB', id: 'ATTACK_PHASE_LEVEL_OVERRIDE' } as StubAction;
+  }
+
+  // ---- これにアクセされているシグニのパワーを＋Nする（アクセ→ホストのパワー修正。WXK04-080/082）----
+  //   「これにアクセされているシグニ」＝このカードがアクセとして装着されているホスト。
+  //   acceHost フィルタで表現し、calcFieldPowers の signi_acce ループがホストへ加算する。
+  //   ＜クラス＞限定（WX17-033「＜調理＞のシグニ」）は別形（ホスト側クラス判定が要るため対象外）。
+  {
+    const acceHostPmM = t.match(/^これにアクセされているシグニのパワーを＋([０-９\d]+)する/);
+    if (acceHostPmM) {
+      return { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { acceHost: true } }, delta: parseNum(acceHostPmM[1]) };
+    }
   }
 
   // ---- アクセされているシグニが能力を得る ----

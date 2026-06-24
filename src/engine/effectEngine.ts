@@ -1160,6 +1160,10 @@ export function calcFieldPowers(
 
           // count !== 'ALL' はCONTINUOUSにおける「このシグニ」= 効果元カードのみ対象
           if (isSelfOnly) {
+            // acceHost:「これにアクセされているシグニ」＝このカードのアクセ装着先ホスト宛。
+            // 効果元（このカード）が場のシグニのときは自己適用しない。実際のホスト加算は
+            // 下の signi_acce ループ（このカードがアクセとして付いている場合）が行う。
+            if (target.filter?.acceHost) continue;
             const card = cardMap.get(topNum);
             if ((target.owner === 'self' || target.owner === 'any') &&
                 matchesFilter(card, target.filter) &&
@@ -3715,10 +3719,11 @@ export function collectEffectImmuneSigni(
       // 保護対象シグニを収集
       if (gp.subjectFilter) {
         const subjState = gp.subjectOwner === 'opponent' ? opponentState : state;
-        for (const s2 of subjState.field.signi) {
+        // カード属性（matchesFilter）に加えゾーン状態（isArmored 等）も honor する（WXK04-002 血晶武装シグニ保護）
+        subjState.field.signi.forEach((s2, zi2) => {
           const top2 = s2?.at(-1);
-          if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter)) immune.add(top2);
-        }
+          if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter) && matchesStateFilter(subjState, zi2, gp.subjectFilter)) immune.add(top2);
+        });
       } else if (gp.target) {
         // target ベース（一時付与でない CONT は稀）: self/any count:1 → このシグニ自身
         if ((gp.target.owner === 'self' || gp.target.owner === 'any')) immune.add(sourceNum);

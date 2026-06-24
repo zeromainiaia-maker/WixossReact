@@ -5,6 +5,141 @@
 
 ---
 
+## 逆翻訳乖離 G194／G196／G197 の修正（条件・コスト欠落）（2026-06-25）
+
+grouped_all の「がない」乖離3系統を修正。いずれもデータ欠落で、エンジン側は既に対応済みだったため [[decompile-engine-parity]] の偽陰性（逆翻訳だけ健全に見える）に該当。
+
+- **G194（WXK04-065 カモミール／WXK04-067 キヌガサ）**: 【自】「**対戦相手のターンの間**、このシグニがバニッシュされたとき【エナチャージ１】」の **`対戦相手のターンの間` が欠落**（常時のバニッシュ誘発になっていた）。`activeCondition:{TURN_OWNER, owner:opponent}` を付与（前例 WXK04-060／engine `checkActiveCondition`＋ON_BANISH収集が活性条件を評価）。
+- **G196 E1（WXK04-080 アラザン／WXK04-082 ブルーワイハ）**: 【常】「**このシグニに【アクセ】が付いているかぎり**、**このシグニ**のパワー＋3000」が **`IS_SELF_ACCED` 条件欠落＋対象が「あなたのシグニ1体」**（常時＋誤対象）だった → `activeCondition:{IS_SELF_ACCED}`＋対象 `filter:{thisCardOnly:true}`（前例 WX15-099／engine実装済）。
+- **G197（WXK04-089 マダラモリ＝水獣／WXK09-079 Ｔ・Ｐ・Ｓ＝電機）**: 【出】「手札から＜X＞シグニ1枚をエナに置く：エナから＜X＞シグニ1枚を手札」の **コスト（手札→エナ）と＜X＞クラスフィルタが両方欠落**。さらに `mandatory:false`＋コスト無しのため `handleSummonSigni` の `droppedOnPlay` 警告対象＝**そもそも発火していなかった**。`cost:{handToEnergy:{count:1, filter:{cardClass}}}`＋TRANSFER_TO_HAND source に `filter:{cardClass}` を付与。**engine／支払いUIは `executeSigniOnPlayCost`（手札→エナ移送）＋ON_PLAYコストモーダル（can-afford・選択フィルタ・ラベル）が既に `handToEnergy` 完備**。`cost.handToEnergy`／`handToUnderSelf` の **decompile レンダリングが未対応だった点のみ `costJa` に追加**。
+- **検証**: `typecheck` 通過。`verifyEffects` 6枚とも新規警告なし。decompile sheet3／4＋grouped_all＋_review_repr 再生成、6枚とも原文一致、★逆翻訳割れグループ **0件** 維持。
+
+### 追記: G196 E2「これにアクセされているシグニのパワーを＋3000する」も本実装（同日）
+
+E2（WXK04-080／082）は **`POWER_MODIFY owner:any count:1`** だったため、`calcFieldPowers` の「count≠ALL＝効果元自身」規則（effectEngine.ts:1162）で **アラザンが場にいる限り常に自己＋3000**になる誤実装だった（逆翻訳も「自分または対戦相手のシグニ1体」）。意味は「これ（アラザン）がアクセとして装着されているホストシグニを＋3000」＝**アクセ→ホストのパワー修正**（ユーザー確認）。エンジンの既存機構 effectEngine.ts:1040（アクセカードの CONTINUOUS POWER_MODIFY をホストへ加算）を使う形へ修正。
+
+- **新フィルタ `TargetFilter.acceHost`**: 「これにアクセされているシグニ＝このカードのアクセ装着先ホスト」。`POWER_MODIFY target.filter.acceHost:true delta:3000`（activeCondition は付けない＝原文に条件節が無いため逆翻訳一致）。
+- **engine（effectEngine.ts:1162）**: count≠ALL の自己適用ブロックに `if (target.filter?.acceHost) continue;` を追加。場のシグニとしての自己バフを抑止し、ホスト加算は signi_acce ループ（:1040、activeCondition 無し/IS_SELF_ACCE_CARD のみ許可）に委ねる。
+- **parser（parseSentencePart2.ts）**: `^これにアクセされているシグニのパワーを＋N(する)` → `POWER_MODIFY acceHost` を生成する系統ルールを新設（同型の将来カードも自動対応。＜クラス＞限定形 WX17-033 はホスト側クラス判定が要るため対象外）。
+- **decompile（costJa 隣の `POWER_MODIFY`）**: `target.filter.acceHost` を「これにアクセされているシグニ」と表示。
+- **実機相当検証**: `calcFieldPowers` ハーネスで3系統 pass — ①アラザンがアクセ装着→ホスト+3000、②場・アクセ無し→base据え置き（スプリアス+3000なし）、③場・アクセ有り→E1のみ+3000（E2は自己適用せず）。E1とE2の逆翻訳が原文と完全一致。
+
+---
+
+## 【デコレ】起動能力の未実装（G192）と逆翻訳の読みやすさ改善（2026-06-25）
+
+逆翻訳グループ G192（WXK04-016/017 エルドラ TYPE×Ⅲ／Ⅱ）が「(effects.json に登録なし)」になっていた件を調査。**【デコレ】起動能力が全デコレカードで未実装**だったことが判明し修正した。
+
+- **根本原因**: パーサー `effectParser.ts` `stripKeywordPrefixes` が **【デコレ】を非効果キーワード接頭辞として丸ごと除去**していたため、デコレ起動能力（青×0・ターン1回で手札の＜調理＞シグニを場の＜調理＞シグニの【アクセ】にする）がどのカードにも生成されていなかった。デコレ持ち9枚すべてで欠落（効果ありの7枚は「デコレ**以外**」の能力のみ登録）。`execAttachAcce` の `fromHand` 分岐（＝デコレ実行パス）は実装済みだが、JSON全体で `ATTACH_ACCE fromHand:true` が0件で**到達不能の死にコード**だった。逆翻訳上は「登録なし」と綺麗に出るため [[decompile-engine-parity]] の典型的な偽陰性。
+- **修正（manualEffects へ durable 登録）**: ＜調理＞のエルドラ全9枚（WXK04-003/016/017/018、WXK05-014、WDK07-E01〜E04）に `-DECORE` の新IDで **`ACTIVATED timing:[MAIN] cost:{energy:[青×0]} ATTACH_ACCE(fromHand:true, signiFilter/targetFilter=story:調理) usageLimit:once_per_turn`** を追記（マージは追記方式なので既存効果は不変）。中央ルリグの自前【起】機構（BattleScreen `getMyLrigFieldActions`）でボタン化され `execAttachAcce`→fromHandパスに到達。青×0は既存 BLOOD_CRYSTAL_ARMOR と同パターンで実績あり。
+- **decompile 読みやすさ**: `actionJa` に **`ATTACH_ACCE`**（デコレ/アクセクラフト両対応）と **`BLOOD_CRYSTAL_ARMOR`**（領域・枚数を反映）のケースを追加（従来は `[アクション:型名]` のフォールバック表示だった）。
+- **`genStubsMd.mjs` 区切りコメント漏れ修正**: `stub.id ===` 直前コメントを遡る際 **`─── …`／`=== バッチN: …` の装飾区切り行まで巻き込み**、STUB説明に混入していた（PLACE_SEED_FROM_REVEALED, ACCE_FROM_HAND, CRAFT_TO_LRIG_DECK 他多数）。区切り行（`─{3,}`／`={3,}`）で打ち切るよう修正し、全シートの `[STUB:…]` から罫線混入を一掃（残存0）。
+- **検証**: `typecheck`／`eslint`（変更3ファイル）／`verifyEffects`（デコレ9枚に新規警告なし）通過。逆翻訳を全10シート＋ grouped_all＋_review_repr 再生成、★逆翻訳割れグループ **0件** 維持。G192の2枚は「登録なし」→デコレ起動能力の和文表示に解消。
+
+---
+
+## 血晶武装：関連カード全数監査と逆翻訳乖離の修正（2026-06-24）
+
+血晶武装に関連する全カード（CSV上26枚）を監査。**エンジン層（アクション実行・場離脱時の下カードトラッシュ・`IS_SELF_ARMORED`/`THIS_CARD_IS_ARMORED` 条件・`isArmored` フィルタ・`ON_BLOOD_CRYSTAL_ARMOR` トリガー収集・既武装の再武装でトリガー不発）は完備**を確認。一方で **decompile された effects JSON 側に複数の逆翻訳乖離**があり、確証の取れたものを修正した。
+
+- **parser修正①（triggerScope）**: `inferTriggerScope` の「あなたのシグニ…が血晶武装状態になったとき」正規表現が **`＜紅蓮＞の` を挟む形を取りこぼし**、WDK08-L01 英血の器 優羽莉Lv4（ルリグ）の「あなたの＜紅蓮＞のシグニ１体が血晶武装状態になったとき」が `self` 既定になり**ルリグでは永久に不発**だった。`あなたの(?:＜[^＞]*＞の)?シグニ…` に拡張し `any_ally` を返すよう修正。トリガー本文抽出の正規表現も同様に拡張。
+- **parser修正②（活性条件）**: `extractActiveCondition` パターン6b が **「このシグニ**が**血晶武装状態であるかぎり」しか拾わず「このシグニ**は**…」を取りこぼし**ていた（`[はが]` に拡張）。これが下記JSON乖離の根因。
+- **JSON修正・第1弾（条件欠落系。manualEffects へ durable 化）**:
+  - **WXK04-028 アカズキン-E1**: `activeCondition:IS_SELF_ARMORED` 欠落で**常時ダブルクラッシュ**だった → 武装中のみへ。
+  - **WDK08-L15 コノハナサクヤ-E1**: 同様に**常時アサシン**だった → 武装中のみへ。
+  - **WXK04-074 スノーホワイト-E2**: `condition:THIS_CARD_IS_ARMORED` 欠落で**ターン終了時に武装と無関係に常時エナチャージ**していた → 武装時のみへ。
+  - **WDK08-L13 アマテラス-E1**: 「あなたの血晶武装状態のシグニはダブルクラッシュを得る」が `owner:any count:1`（任意1体へ常時付与）だった → `count:'ALL' owner:self filter:{isArmored:true}`（BattleScreen `contGrantedKeywords` が `isArmored` を honor）。
+
+- **JSON修正・第2弾（誤訳・付与能力系。manualEffects＋エンジン補強）**:
+  - **WXK04-042 オトタチバナ**: E1 が「CONTINUOUS BANISH（常時バニッシュ）」に**完全誤訳**＋ +2000欠落だった → **E1=`POWER_MODIFY+2000`（武装中）／E1b=`AUTO ON_ATTACK_SIGNI condition:THIS_CARD_IS_ARMORED BANISH(powerLteSelf)`** に分割。E2 に欠落していた「パワー10000以上の場合」を `condition:SELF_POWER_GTE 10000` で補完。
+  - **WXK04-044 オズマ姫-E1**: 「常時UP」誤訳 → **`AUTO ON_SIGNI_BANISH_BATTLE condition:THIS_CARD_IS_ARMORED` で自身UP**。あわせて BattleScreen の `ON_SIGNI_BANISH_BATTLE` 収集に **`eff.condition` 評価を追加**（従来 condition 未評価だった経路を他カード含め healthier 化）。
+  - **WXK05-023 アンゴルモア-E1**: 「シグニ1体（自他不問）」が `owner:self` 固定だった → `owner:any`。
+  - **WXK04-030 血晶の紅雨**: E1 が「`SHUFFLE_DECK`＋相手シグニ全バニッシュ」の**完全誤訳**だった → **SEQUENCE**〔①`BLOOD_CRYSTAL_ARMOR source:[deck] targetFilter:{story:紅蓮}`（武装＋シャッフル）→ ②`POWER_MODIFY count:ALL filter:{isArmored} +5000` → ③新設STUB `INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED`〕に再構成。③は全血晶武装シグニへ「【自】アタック時、自パワー以下の相手シグニ1体バニッシュ」を `granted_effects`（ターン終了時まで）で付与（`execSequence` の continuation で対話的①の後に②③が継続することを確認）。BURSTはJSON維持（正しい）。
+- **検証**: `typecheck`／`eslint`（変更ファイル）通過。修正正規表現を実カードテキストで単体確認（L01/043/L17=any_ally、05-023=self、028/074/L15 の は/が 両方一致）。
+
+- **JSON修正・第3弾（残りの乖離を全消化。manualEffects＋エンジン基盤）**:
+  - **WXK04-002 優羽莉Lv4'-E1**: 「あなたの血晶武装状態のシグニは相手ルリグの効果を受けない」が `target:{count:ALL}`（`collectEffectImmuneSigni` が honor せず実質無効）だった → **`subjectFilter:{isArmored:true}/subjectOwner:self`** へ。あわせて `collectEffectImmuneSigni` の `subjectFilter` 収集に **`matchesStateFilter` 評価を追加**（カード属性だけでなくゾーン状態 isArmored 等も honor）。
+  - **WXK04-070 那須与一-E1／WXK04-072 ママリリ-E1b**: 武装中の多面アタック（070=両隣にも／072=正面以外にも）。070はMULTI_ZONE_ATTACKに `activeCondition:IS_SELF_ARMORED` 欠落で常時発動だった→付与。072は多面アタック自体が欠落→E1bで追加（+3000のE1はJSON維持）。BattleScreen の MULTI_ZONE_ATTACK 検出に **`activeCondition` 評価を追加**。
+  - **WDK08-L14 清姫-E1**: 「通常1つ／血晶武装中は3つまで（同一選択肢可）選ぶ」が常時 from3/choose1 だった → 専用STUB **`INTERNAL_KIYOHIME_CHOOSE`**（武装で1→3回ループ、各回で①全シグニ-1000／②パワー4000以下バニッシュ／③2引き2捨て を重複選択可）。
+  - **血晶武装アクションの対象クラス限定**: `BLOOD_CRYSTAL_ARMOR` に `targetFilter:{story:'紅蓮'}` を付与（非紅蓮シグニの誤武装を防止）。WXK04-002/011/012/013、WXK05-011、WDK08-L01/L02/L03/L04（WXK04-030は再構成時に付与済み）。パーサー `parseSentencePart2` にも「＜紅蓮＞のシグニ…血晶武装」抽出を追加。
+- **検証**: `typecheck`／`eslint`（変更ファイル・新規エラーなし）通過。`buildEffectsMap` マージ結果を16項目で実地検証（第3弾の全構造＋第1/2弾の回帰）→ ALL PASS。
+
+- **JSON修正・第4弾（WXK04-014 血晶操作のベット選択肢を完全実装）**:
+  - 血晶操作はベット（`BET_MECHANIC`）で「3つから1つ／ベット時は2つまで選ぶ」。BET_MECHANIC自体は実装済みだが、選択肢パーサー `parseSingleChoiceText`（choiceTextParser）が**①の条件付き捨てと③の血晶武装を解析できず**、③は選択肢から脱落、①はドロー4のみの近似だった。
+  - **③** 「あなたの＜紅蓮＞のシグニ1体を血晶武装［トラッシュ］する」→ `BLOOD_CRYSTAL_ARMOR source:[trash] targetFilter:{story:紅蓮}` を解析するブランチを追加。
+  - **①** 「カードを4枚引く。＜紅蓮＞のシグニを1枚捨てないかぎりカードを2枚捨てる」→ `SEQUENCE[DRAW4, STUB INTERNAL_DISCARD_CLASS_OR_PENALTY("紅蓮:2")]` に。新設STUBは「＜紅蓮＞を1枚捨ててペナルティ回避」か「2枚捨てる」を選ばせる（紅蓮非所持なら後者のみ）。
+  - **②**（ルリグダメージ無効）は既存対応。検証: `parseChoiceOptionsFromText` で3択すべてが期待アクションに解決されることを確認（ALL PASS）。
+
+### 仕様上の標準表現（乖離ではない）
+- **WDK08-L14-E1 ②「対象→パワー4000以下ならバニッシュ」**: `filter:powerRange.max=4000` で表現。これは本コードベースで「パワーN以下の場合バニッシュ」を表す**標準慣例**（4000超はどちらの表現でも非バニッシュで結果同値。>4000を「対象に取って何も起きない」縮退選択を許さない分むしろ親切）。専用の対象後条件分岐は導入しない（全カードの一貫性を優先）。
+
+---
+
+## 【シード】設置フローの修正：複数枚設置の新設＋設置カード消失バグ（2026-06-24）
+
+【シード】をデッキ等から設置する全フローで、**ゾーン選択（CHOOSE）を挟むと設置カードが消える**潜在バグを修正し、あわせて **WXK04-010 アンコール・シード（2枚まで設置）** を実装した。
+
+- **潜在バグ（設置カード消失）**: シード設置の確定 `INTERNAL_SET_SEED` は設置カードを `ctx.lastProcessedCards[0]` から読んでいたが、`needsInteraction` も BattleScreen の resume（`handleEffectInteraction` の ctx 再構築 5123行）も **`lastProcessedCards` をインタラクション跨ぎで保持しない**。そのため「カードを選ぶ → デッキから取り出す → ゾーンを選ぶ」型の単数シード設置（`INTERNAL_SEED_FROM_DECK` / `INTERNAL_SEED_TO_HAND_THEN_DECK_TOP` / `INTERNAL_SEED_FROM_DECK_TOP_PLACE`）は、ゾーン選択後に設置カードを見失い、**デッキからは抜けるのに【シード】が置かれない＝カードが消失**していた（WXK04-007/008/009・WXK05-007・WDK07-Y02/Y03/Y04、ヤマレンゲ `SEED_FLOWER_OP`、プラント・アレンジ `SEED_HAND_AND_BLOOM_FROM_DECK_TOP`）。
+- **修正**: `StubAction` に `seedCards?: string[]` を追加し、ゾーン選択 CHOOSE の各オプション action に**設置カードを埋め込む**（`INTERNAL_SET_SEED { value:zone, seedCards:[card] }`）。`INTERNAL_SET_SEED` は `stub.seedCards[0] ?? lastProcessedCards[0]` の順で解決。これは `execPlaceSigniOnField`（複数枚場出し）が remaining をオプション/continuation に積んでインタラクション跨ぎ保持する既存方式と同じ。`INTERNAL_SET_SEED` はデッキからの除去も行うよう補強。
+- **WXK04-010 アンコール・シード（2枚まで設置）**: action を `LOOK_AND_REORDER`(top4 を見る) → `STUB PLACE_SEEDS_FROM_REVEALED{value:2}` → `SHUFFLE_DECK` に再構成。新設の `PLACE_SEEDS_FROM_REVEALED`（SEARCH maxPick:N）＋ `INTERNAL_SEEDS_PLACE_LOOP`（選んだ N 枚を1枚ずつゾーン選択、残りは CHOOSE の continuation に `seedCards` で積んで順次設置）で、**0/1/2枚いずれの選択でも正しく設置**。`lastProcessedCards` に非依存。
+- **検証**: `typecheck` 通過。エンジン直結の統合テストで (a) 2枚設置（両方が指定ゾーンに着地・デッキから除去）、(b) 1枚のみ／0枚選択、(c) 単数シード設置の回帰（**resume を ctx に lastProcessedCards 無しで再現**しても設置成功）を確認。
+
+---
+
+## 【シード】開花トリガー ON_BLOOM 新設（開花≠場に出た）（2026-06-24・11効果）
+
+【シード】を開花したときのトリガー「【自】：このシグニが開花したとき、…」が **ON_PLAY（出現時）として扱われていた** ため、ルール上の3つの誤りが生じていた。公式ルール「開花して表向きにしたシグニは**新たに場に出たわけではない**ので出現時能力はトリガーしない」に合わせて専用 timing `ON_BLOOM` を新設して修正した。
+
+- **誤り①（開花トリガーが通常召喚で誤発火）**: 「開花したとき」が `ON_PLAY` に分類されていたため、そのシグニを**普通に場に出しただけで開花効果が発火**していた（例: WXK05-033 イジュは本来 別の【出】を持つため、開花効果まで召喚時に暴発）。
+- **誤り②（開花で本来の出現時が誤発火）**: 旧 `SEED_BLOOM` ハンドラが開花したシグニの **ON_PLAY（＝本物の出現時）をスタックに積んでいた**。開花は場に出た扱いではないので出現時は発火してはならない。
+- **誤り③（開花が他シグニの「場に出たとき」を誤起動）**: `detectPlacedSigni` が【シード】→シグニの遷移を「新規場出し」と判定し、他シグニの ON_PLAY(any_ally) 監視が開花に反応していた。
+- **修正（型）**: `EffectTiming` に `ON_BLOOM` を追加。
+- **修正（JSON・手動管理）**: 開花トリガー11効果を `timing:["ON_BLOOM"]` に変更。自己＝`triggerScope:"self"`（WXK04-026-E2〔旧ON_TURN_END〕/ WXK04-036-E1/E2 / WXK05-033-E2 / WXK10-059-E3 / WXK04-060-E3 / WXK05-050-E2 / WDK07-Y11-E2 / WDK07-Y14-E2）、他シグニ監視＝`triggerScope:"any_ally"`（WXK05-021-E1 / WXK10-059-E2「あなたの他のシグニが開花したとき」）。
+- **修正（engine・BattleScreen）**: `detectBloomedSigni`（signi_seeds→signi の同一 instanceId 遷移を検出）と `collectBloomTriggers`（自己 self ＋ 場の他シグニ any_ally/any を `collectFieldTriggers('ON_BLOOM')` で収集）を新設。両エフェクト解決経路（通常／pending_effect）で、開花したシグニを `detectPlacedSigni` の ON_PLAY 収集から除外しつつ ON_BLOOM を発火。旧 `SEED_BLOOM` の ON_PLAY 積み込み（2箇所）は削除。state 差分検出ベースなので INTERNAL_BLOOM_SEED / 好きな枚数 / SEED_FLOWER_OP 等の全開花経路を漏れなく拾う。レベル/リミット超過でトラッシュ送りになった開花は signi に入らないため ON_BLOOM 不発＝ルール通り。
+- **修正（decompiler/parser parity）**: `effectParser` の【自】timing 判定に「開花したとき」→`ON_BLOOM` を追加し、`このシグニが`=self／`あなたの[他の]シグニが`=any_ally の triggerScope を抽出。プレフィックス除去にも開花トリガー文を追加（「アタックしたとき…開花してもよい」は ON_ATTACK_SIGNI のまま誤検出しないことを確認）。
+- **検証**: `typecheck` 通過。`lint` 新規エラーなし（既存 warning のみ）。parser 単体テストで self/ally/attack-非開花の3ケースが期待どおり分類されることを確認。
+
+---
+
+## WXK09-038「いずれかのプレイヤーが手札を捨てたとき」を engine 対応（2026-06-24）
+
+[G189系 timing 修正](#g189系ガードステップ以外で手札を捨てたときのトリガー-timing-誤り修正2026-06-245枚)で保留した WXK09-038-E1（魔界の射手 ステラ系）「【自】：ガードステップ以外で**いずれかのプレイヤー**が手札を１枚捨てたとき、対戦相手のシグニ１体を…－2000」を正確実装した。
+
+- **課題**: 既存 `collectHandDiscardTriggers` は「捨てた本人(=自ターン・自フィールド)」のみ収集。「いずれかのプレイヤー」だと**相手の手札捨て**でも自分のシグニが発火する必要がある。
+- **JSON**: WXK09-038-E1 を `timing:["ON_HAND_DISCARDED"]` + `triggerScope:"any"`。
+- **engine（BattleScreen）**: `collectHandDiscardTriggers` を triggerScope 対応に拡張。引数を `(discardedNums, myState, discarderId, asCost, opState?, opId?)` に変更し、
+  - **discarder の自フィールド**: `any` はターン問わず・`self`/`any_ally` は discarder の自ターンのみ収集（既存挙動維持）。
+  - **discarder の相手フィールド**: `triggerScope:'any'` のみ、その相手をコントローラー(playerId)として収集。usageLimit は参照チェックのみ（該当カードは無制限）。
+  - 手札捨ての全4経路（効果捨て watcher・【起】/【出】/起動コスト捨て）に `discarderId=user.id` と相手 state/id を渡すよう更新。
+- **CPU戦**: watcher に CPU(guest)の `hand_discarded_just` 検出を追加（virus watcher の processCpu と同型）。人間(host)が CPU の捨てを処理し、CPU自身の self/any＋人間盤面の any を収集・guest フラグをクリア。
+- **「ガードステップ以外で」**: `performGuardResponse` はガード時の手札→トラッシュで `hand_discarded_just`/asCost を立てない（コード確認済）ため、`ON_HAND_DISCARDED` はガードでは発火せず構造的に担保される。
+- **decompiler**: `ON_HAND_DISCARDED`+`triggerScope:'any'` を「ガードステップ以外でいずれかのプレイヤーが手札を捨てたとき」と和文化し、`〔範囲:any〕`マーカーを抑制。
+- **検証**: `typecheck`・`lint`（新規エラーなし／既存 warning のみ）。decompile_sheet4・grouped_all 再生成で原文どおりの逆翻訳を確認。
+
+---
+
+## G189系「ガードステップ以外で手札を捨てたとき」のトリガー timing 誤り修正（2026-06-24・5枚）
+
+WXK03-064（魔界の公爵 クロケル）/ WXK03-065（魔界の破片 カガミ）ほか、原文「【自】：ガードステップ以外であなたが手札を１枚捨てたとき、対戦相手のシグニ１体を…ターン終了時まで、それのパワーを－N する」系。
+
+- **逆翻訳乖離（トリガーが別物）**: パーサが**持続「ターン終了時まで」をトリガー timing「ターン終了時(ON_TURN_END)」と誤認**し、JSON が `timing:["ON_TURN_END"]` になっていた。結果、本来「手札を捨てたとき」に発火すべき効果が**毎ターン終了時に誤発火**する挙動だった（パワー減少の持続自体は `duration:UNTIL_END_OF_TURN` で別途保持されていたため二重に取り違え）。
+- **修正**: `timing` を `ON_HAND_DISCARDED`（=「ガードステップ以外であなたが手札を捨てたとき」）へ変更。`duration:UNTIL_END_OF_TURN`・`usageLimit`・`mandatory` は据え置き。`ON_HAND_DISCARDED` は engine 配線済（`collectHandDiscardTriggers`。自ターンのみ収集＝ガードはアタック中＝相手ターンなので**ガードステップ除外を自然に担保**）。対象5枚: **WXK03-064-E1 / WXK03-065-E1 / WXK03-024-E3 / WXK10-070-E1 / WDK10-011-E1**（いずれも主語「あなたが」・対象「対戦相手のシグニ1体」）。
+- **decompiler**: `timingJa` に `ON_HAND_DISCARDED`（「ガードステップ以外であなたが手札を捨てたとき」）と `ON_DISCARDED_AS_COST` のラベルを追加（未登録だと生 id が逆翻訳に露出するため）。
+- **保留（TODO 記録）**: **WXK09-038-E1** は原文が「**いずれかのプレイヤー**が手札を捨てたとき」で、相手の手札捨てでも発火させる engine 拡張（`collectHandDiscardTriggers` の相手ターン/相手捨て対応）が要るため timing は据え置き（`ON_TURN_END` のまま）。逆翻訳を「あなた」に変えると主語が原文と乖離するため、エンジン側とセットで対応する。
+- **検証**: `typecheck`・`lint`（新規エラーなし）。JSON 妥当性 OK。decompile_sheet3/4/5・grouped_all 再生成で5枚とも原文どおりの逆翻訳になることを確認。
+
+---
+
+## G186「アタックしているシグニとして場に出す」を近似→正確化（2026-06-24・3枚）
+
+WXK02-071 / WXK10-057 / WDK05-T15。直前の[初回修正](#g186アタック時に手札に戻りデッキトップ公開シグニならアタック継続逆翻訳乖離修正2026-06-243枚)で残した2つの近似を解消し、`REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI`（execStubPart3）を正確実装にした。
+
+- **アタック継続を正確に**: BattleScreen のアタックは ON_ATTACK_SIGNI 収集前に `pending_signi_battle.zoneIndex`（アタッカーの元ゾーン）を保存し、トリガー解決後の Phase 2（`resolvePendingSigniBattleFor`）が**そのゾーンのシグニをアタッカーとして**ダメージ処理する。よって新シグニを**「空きゾーン」ではなくアタッカーの元ゾーン**へダウン配置すれば、同一アタックがそのまま継続する。battle ループ側の攻撃側差し替え機構は不要だった。旧実装は先頭の空きゾーンへ置いていたため、元ゾーン≠先頭空きのとき Phase 2 がアタッカーを見失い**アタックが消える**バグでもあった。
+- **「そうした場合」を正確に**: バウンス（BOUNCE optional）を選ばなかった場合は公開も配置も起きない。パーサが「そうした場合」に転用する `CONDITIONAL(IS_MY_TURN)` はシグニアタック中は常時 true で条件にならないため、STUB 内で **`sourceCardNum` がまだ自分のシグニゾーンに残っている＝バウンス未実行なら不発**と判定するように変更。
+- **検証**: `typecheck`・`lint`（新規エラーなし）。`scripts/_verifyRevealTopPlaceAttacker.ts` を拡充（**10/10 pass**）＝元ゾーン配置/非シグニ温存/バウンス未実行で不発/フォールバック/空き無し温存。STUBS.md・decompile_sheet3/4/5・grouped_all を再生成し「近似」注記を除去。
+
+---
+
 ## G186「アタック時に手札に戻り→デッキトップ公開→シグニならアタック継続」逆翻訳乖離修正（2026-06-24・3枚）
 
 WXK02-071（偉智の遊 サンポケ）/ WXK10-057（讃の遊 ボブスレー）/ WDK05-T15（仁の遊 カマクラ）の【自】「このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、デッキの一番上を公開する。それがシグニの場合、それをアタックしているシグニとしてダウン状態で場に出す」。

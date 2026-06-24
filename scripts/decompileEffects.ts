@@ -181,6 +181,8 @@ function costJa(c?: any): string {
   if (c.trash_self) parts.push('このシグニを場からトラッシュに置く');
   if (c.discard != null) parts.push(`手札${c.discard}枚を捨てる`);
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
+  if (c.handToEnergy) parts.push(`手札から${filterJa(c.handToEnergy.filter)}シグニ${c.handToEnergy.count}枚をエナゾーンに置く`);
+  if (c.handToUnderSelf) parts.push(`手札から${filterJa(c.handToUnderSelf.filter)}カード${c.handToUnderSelf.count}枚をこのシグニの下に置く`);
   if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
   if (c.coin != null) parts.push(`コイン${c.coin}`);
   if (c.energyTrash) parts.push(`エナゾーンから${filterJa(c.energyTrash.filter)}カード${c.energyTrash.count}枚をトラッシュに置く`);
@@ -297,6 +299,20 @@ function actionJa(a?: Action, effectType?: string): string {
       : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
     case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}`;
     case 'SEND_TO_ENERGY': return `${targetJa(a.target)}をエナゾーンに置く${a.optional ? '（してもよい）' : ''}`;
+    // ATTACH_ACCE: シグニを別シグニの【アクセ】にする。fromHand=手札から（デコレ）／省略時=エナゾーンから（アクセクラフト）
+    case 'ATTACH_ACCE': {
+      const srcJaAA = a.fromHand ? '手札' : 'エナゾーン';
+      const acceFilJaAA = a.signiFilter ? filterJa(a.signiFilter) : '';
+      const hostFilJaAA = a.targetFilter ? filterJa(a.targetFilter) : '';
+      return `${srcJaAA}から${acceFilJaAA}シグニ1枚を、あなたの場の${hostFilJaAA}シグニ1体の【アクセ】にする`;
+    }
+    // BLOOD_CRYSTAL_ARMOR: シグニ1体を血晶武装する（指定領域から同名カードをそのシグニの下に置き血晶武装状態にする）
+    case 'BLOOD_CRYSTAL_ARMOR': {
+      const zoneJaBCA: Record<string, string> = { hand: '手札', trash: 'トラッシュ', deck: 'デッキ', energy: 'エナゾーン' };
+      const srcBCA = (Array.isArray(a.source) ? a.source : [a.source]).map((s: string) => zoneJaBCA[s] ?? s).filter(Boolean).join('／') || '手札';
+      const tgtBCA = a.target ? targetJa(a.target, 'シグニ') : 'あなたのシグニ1体';
+      return `${tgtBCA}を血晶武装［${srcBCA}］する（${srcBCA}からそれと同名のカード${a.count ?? 1}枚をそのシグニの下に置き、血晶武装状態にする）`;
+    }
     case 'TRASH': {
       const t = a.target;
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
@@ -313,7 +329,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const cnt = t?.count === 'ALL' ? 'すべて' : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}`;
     }
-    case 'POWER_MODIFY': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
+    case 'POWER_MODIFY': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
     case 'POWER_SET': {
       // CONTINUOUS の POWER_SET で count≠ALL は engine 上「このシグニのみ」に解決される（effectEngine 参照）
       const thisOnly = effectType === 'CONTINUOUS' && a.target?.count !== 'ALL'
@@ -699,6 +715,8 @@ const timingJa: Record<string, string> = {
   ON_FRONT_SIGNI_ATTACK: 'このシグニの正面のシグニがアタックしたとき',
   ON_ZONE_MOVED: 'このシグニが効果によって他のシグニゾーンに移動したとき',
   ON_SIGNI_BECOMES_DRIVE: 'このシグニがドライブ状態になったとき',
+  ON_HAND_DISCARDED: 'ガードステップ以外であなたが手札を捨てたとき',
+  ON_DISCARDED_AS_COST: 'このカードがシグニ能力のコストとして手札から捨てられたとき',
 };
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
@@ -754,10 +772,14 @@ function effJa(e: Eff): string {
     if (t === 'ON_PLAY' && e.triggerCondition?.placedDown) {
       s = s.replace('場に出たとき', 'ダウン状態で場に出たとき');
     }
+    // ON_HAND_DISCARDED の triggerScope:'any'（「いずれかのプレイヤーが」WXK09-038）を主語に反映
+    if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any') {
+      s = s.replace('あなたが手札を捨てたとき', 'いずれかのプレイヤーが手札を捨てたとき');
+    }
     return s;
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
-  const scope = (e.triggerScope && e.triggerScope !== 'self' && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
+  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
   // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
   const condStr = e.condition ? condJa(e.condition) : '';
   const cond = condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}場合、`) : '';

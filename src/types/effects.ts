@@ -14,6 +14,7 @@ export type EffectTiming =
   | 'ATTACK_ARTS'     // アーツステップ（手札起動型シグニ等で使用）
   | 'SPELL_CUTIN'     // スペルカットイン
   | 'ON_PLAY'         // 出効果（場に出たとき）
+  | 'ON_BLOOM'        // このシグニが開花したとき／あなたの他のシグニが開花したとき（【シード】の開花。場に出た扱いではないため ON_PLAY とは別）
   | 'ON_LIFE_BURST'   // ライフバースト発動時
   | 'ON_TRAP_ACTIVATE' // トラップアイコン発動時
   | 'ON_SONG_ACTIVATE' // 歌のカケラ発動時
@@ -304,6 +305,7 @@ export interface TargetFilter {
   colorNotMatchesLrig?: boolean; // センタールリグと共通する色を持たない。ENERGY_CARD対象では対象オーナー（＝相手エナなら相手）のルリグ基準で解決（WX21-035①等）
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）
   hasAcce?:   boolean; // アクセが付いている
+  acceHost?:  boolean; // 「これにアクセされているシグニ」＝このカードがアクセとして装着されているホストシグニ。CONTINUOUS POWER_MODIFY のホスト宛バフ（calcFieldPowers の signi_acce ループが適用）。主体が場のシグニのときは自己適用しない
   hasIcon?:   'クロス' | 'ライズ' | 'トラップ' | 'アクセ'; // 《Xアイコン》を持つカード（カードテキストのキーワード有無で判定する近似）
   hasLifeBurst?: boolean; // 《ライフバースト》を持つカード
   infected?:  boolean; // 感染状態（ウィルスのあるゾーンのシグニ）
@@ -1318,6 +1320,7 @@ export interface StubAction {
     // 1段目（手札）の後に、残りから特定クラスを1枚までエナゾーンへ送る2段階ピック（FUTURE SESSION ②）
     secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' };
   };
+  seedCards?: string[]; // INTERNAL_SEEDS_PLACE_LOOP / INTERNAL_SET_SEED: 【シード】として順次設置するカード（複数枚設置をインタラクション跨ぎで保持。WXK04-010 アンコール・シード）
   revealed?: string[]; // REVEAL_SECOND_PICK_ENERGY: 1段目で公開したカード一覧（残り算出用）
   secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
   value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）

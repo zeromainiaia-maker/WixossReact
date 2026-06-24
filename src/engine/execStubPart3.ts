@@ -2898,6 +2898,62 @@ export function execStubPart3(
     const newOv = { ...(ctx.ownerState.story_overrides ?? {}), '__selected_colors__': selectedColors.join(',') };
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, story_overrides: newOv } }, `《${colISC}》を選択`));
   }
+  // INTERNAL_DISCARD_CLASS_OR_PENALTY: 「＜クラス＞のシグニを1枚捨てないかぎり、カードをN枚捨てる」（WXK04-014①）。
+  //   value="クラス:N"。＜クラス＞シグニを手札に持つ場合のみ「1枚捨ててペナルティ回避」を選べる。
+  if (stub.id === 'INTERNAL_DISCARD_CLASS_OR_PENALTY') {
+    const [clsDCP, penStrDCP] = (typeof stub.value === 'string' ? stub.value : '').split(':');
+    const penaltyDCP = parseInt(penStrDCP || '2', 10);
+    const classCardsDCP = ctx.ownerState.hand.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return (c?.Type?.includes('シグニ') ?? false) && (c?.CardClass ?? '').includes(clsDCP);
+    });
+    const payActDCP: EffectAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: clsDCP } } } as TrashAction as EffectAction;
+    const penaltyActDCP: EffectAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: penaltyDCP } } as TrashAction as EffectAction;
+    const optsDCP = [
+      { id: 'dcp_pay', label: `＜${clsDCP}＞のシグニを1枚捨てる（${penaltyDCP}枚捨てを回避）`, action: payActDCP, available: classCardsDCP.length > 0 },
+      { id: 'dcp_pen', label: `カードを${penaltyDCP}枚捨てる`, action: penaltyActDCP, available: true },
+    ];
+    return needsInteraction(addLog(ctx, `＜${clsDCP}＞のシグニを1枚捨てないかぎりカードを${penaltyDCP}枚捨てる`), {
+      type: 'CHOOSE', options: optsDCP, count: 1,
+    });
+  }
+  // INTERNAL_KIYOHIME_CHOOSE: WDK08-L14 紅蓮の使い魔 清姫。
+  //   【自】アタック時、以下の3つから1つを選ぶ。血晶武装状態の場合は代わりに3つまで選ぶ（同じ選択肢を2回以上選んでもよい）。
+  //   ①対戦相手の全シグニ-1000（ターン終了時まで） ②相手シグニ1体（パワー4000以下）をバニッシュ ③2枚引き2枚捨て
+  if (stub.id === 'INTERNAL_KIYOHIME_CHOOSE') {
+    const srcKIY = ctx.sourceCardNum;
+    const isArmoredKIY = (() => {
+      if (!srcKIY) return false;
+      const ziKIY = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcKIY);
+      return ziKIY >= 0 ? (ctx.ownerState.field.signi_armor?.[ziKIY] ?? false) : false;
+    })();
+    const remainingKIY = typeof stub.value === 'number' ? stub.value : (isArmoredKIY ? 3 : 1);
+    if (remainingKIY <= 0) return done(addLog(ctx, '清姫：選択完了'));
+    const optsKIY = [
+      {
+        id: 'kiy1', label: '①対戦相手のすべてのシグニのパワーを-1000（ターン終了時まで）',
+        action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, delta: -1000, duration: 'UNTIL_END_OF_TURN' } as EffectAction,
+        available: true,
+      },
+      {
+        id: 'kiy2', label: '②対戦相手のシグニ1体（パワー4000以下）をバニッシュ',
+        action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerRange: { max: 4000 } }, upToCount: false } } as EffectAction,
+        available: ctx.otherState.field.signi.some(s => s && s.length > 0),
+      },
+      {
+        id: 'kiy3', label: '③カードを2枚引き、手札を2枚捨てる',
+        action: { type: 'SEQUENCE', steps: [
+          { type: 'DRAW', owner: 'self', count: 2 },
+          { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 2 } },
+        ] } as EffectAction,
+        available: true,
+      },
+    ];
+    const contKIY: StubAction = { type: 'STUB', id: 'INTERNAL_KIYOHIME_CHOOSE', value: remainingKIY - 1 };
+    return needsInteraction(addLog(ctx, `清姫：選択（残り${remainingKIY}回、同一選択肢可）`), {
+      type: 'CHOOSE', options: optsKIY, count: 1, ...(remainingKIY > 1 ? { continuation: contKIY as EffectAction } : {}),
+    });
+  }
   if (stub.id === 'CHOOSE_SAME_OPTION_TWICE' || stub.id === 'CHOOSE_SAME_OPTION_MULTIPLE') {
     const srcCSO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCSO = srcCSO ? (srcCSO.EffectText ?? '') + ' ' + (srcCSO.BurstText ?? '') : '';
@@ -3347,9 +3403,21 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newSRTCR },
       `公開${cardRTCR?.CardName ?? topRTCR}(Lv${topLevelRTCR})：条件${condMetRTCR ? '達成' : '未達成'}→トラッシュ`));
   }
-  // REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI: デッキの一番上を公開し、シグニならアタックしているシグニとしてダウン状態で場に出す（G186。アタック継続はダウン配置で近似）
+  // REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI: このシグニを手札に戻した場合のみ、デッキの一番上を公開し、シグニならアタッカーの元ゾーンにダウン状態で出してアタックを継続する（G186）
   if (stub.id === 'REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI') {
     const sRTP = ctx.ownerState;
+    // 「このシグニを場から手札に戻してもよい。そうした場合、…」: 直前の BOUNCE が実行された場合のみ後続が起きる。
+    // バウンスを選ばなければアタッカーは自分のシグニゾーンに残ったまま → 不発。
+    // アタッカーの元ゾーン(zoneIndex)で判定する（field.signi はカード番号管理のため、同名の別コピーを
+    // 全ゾーン走査で誤検知しないようゾーン特定で見る）。pending が無い異常系のみ全ゾーン走査にフォールバック。
+    const srcRTP = ctx.sourceCardNum;
+    const atkZoneRTP = sRTP.pending_signi_battle?.zoneIndex;
+    const stillOnField = atkZoneRTP != null
+      ? sRTP.field.signi[atkZoneRTP]?.at(-1) === srcRTP
+      : (srcRTP != null && sRTP.field.signi.some(z => z?.at(-1) === srcRTP));
+    if (stillOnField) {
+      return done(addLog(ctx, 'このシグニを手札に戻さなかったため不発（REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI）'));
+    }
     if (sRTP.deck.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI）'));
     const topRTP = sRTP.deck[0];
     const cardRTP = ctx.cardMap.get(topRTP);
@@ -3358,18 +3426,20 @@ export function execStubPart3(
     if (!(cardRTP?.Type ?? '').includes('シグニ')) {
       return done(addLog(ctx, `デッキトップ公開：${nameRTP}（シグニでないため場に出さない）`));
     }
-    // アタックしているシグニ（=直前に手札に戻ったシグニ）の空いたゾーンへダウン状態で配置。
-    // 空きゾーンが複数ある場合は先頭の空きゾーンへ（アタック継続の正確な再現は近似）。
+    // 「アタックしているシグニとして」: バトル解決(Phase2)は pending_signi_battle.zoneIndex のシグニを
+    // アタッカーとして処理するため、手札に戻ったアタッカーの元ゾーン（=今は空）へ出せばアタックがそのまま継続する。
     const signiRTP = [...sRTP.field.signi] as (string[] | null)[];
-    const emptyIdxRTP = signiRTP.findIndex(z => !z || z.length === 0);
-    if (emptyIdxRTP < 0) {
+    const placeIdxRTP = (atkZoneRTP != null && (!signiRTP[atkZoneRTP] || signiRTP[atkZoneRTP]!.length === 0))
+      ? atkZoneRTP
+      : signiRTP.findIndex(z => !z || z.length === 0); // 防御的フォールバック（通常は元ゾーンが空）
+    if (placeIdxRTP < 0) {
       return done(addLog(ctx, `デッキトップ公開：${nameRTP}（空きシグニゾーンなしで場に出せない）`));
     }
-    signiRTP[emptyIdxRTP] = [topRTP];
+    signiRTP[placeIdxRTP] = [topRTP];
     const newDownRTP = [...(sRTP.field.signi_down ?? [false, false, false])] as boolean[];
-    newDownRTP[emptyIdxRTP] = true;
+    newDownRTP[placeIdxRTP] = true;
     const newSRTP: PlayerState = { ...sRTP, deck: sRTP.deck.slice(1), field: { ...sRTP.field, signi: signiRTP, signi_down: newDownRTP } };
-    return done(addLog({ ...ctx, ownerState: newSRTP }, `デッキトップ公開：${nameRTP}をアタックしているシグニとしてダウン状態で場に出す`));
+    return done(addLog({ ...ctx, ownerState: newSRTP }, `デッキトップ公開：${nameRTP}をアタックしているシグニとしてダウン状態で場に出す（アタック継続）`));
   }
   // === バッチ12: アクセ・シグニ配置・能力付与・無効系 ===
   // ACCE_FROM_HAND: 手札のアクセカードを自分のシグニに付ける
