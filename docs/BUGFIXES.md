@@ -5,6 +5,15 @@
 
 ---
 
+## 文型★脱落バグ修正 4巡目（4択全脱落・効果丸ごと欠落 2枚・2026-06-26）
+
+脱落疑い続き。偽陽性（3択完全＝WD23-012-A、BET_MECHANIC＝WX18-005）を除外し、本物2枚を修正。
+
+- **WX16-006 イノセント・ディフェンス**: STUB `ARTS_COLORLESS_MUST_PAY_CENTER_COLOR` 単独で**4択（2つまで）が全脱落** → `SEQUENCE[コスト制限マーカー, CHOOSE upTo2 from4[①相手センタールリグに「アタックできない」付与(target LRIG) / ②相手シグニをダウンし凍結(FREEZE down) / ③自シグニに「バニッシュされない」付与(GRANT_PROTECTION from BANISH) / ④トラッシュから共通色シグニ2枚まで手札(colorMatchesLrig, upToCount)]]`。
+- **WD07-012 コードアンチ ヴィマナ**: JSON が **E1 のみで E2（出能力）と BURST が丸ごと欠落** → E2 を追加（AUTO ON_PLAY・cost《黒》・`SEQUENCE[TRANSFER_TO_DECK トラッシュの＜古代兵器＞4枚(eachDistinctLevel)→デッキ下, POWER_MODIFY 相手-10000]`）、BURST を追加（相手シグニ-10000）。E1 の `BANISH_ATTACKER_IF_WEAKER_THAN_FRONT` は既存維持。
+- **後回し（新機構要・TODO記録）**: WX24-P3-032（②が「アサシン/ランサー/Sランサー/ダブルクラッシュ のいずれかを持つ」キーワード複数フィルタ＝TargetFilter は単一 `keyword` のみ）／WXK10-013（①「相手は自分の効果でシグニを場に出せない」＋相手ターン限定の配置制限）／WX26-CP1-019・WX25-P1-103・WX24-P2-070（look-pickチェーン／条件付きトラッシュ判定／相手の支払いで防ぐ）／WX16-048（取り除いたウィルス数+1の選択数スケール）。
+- `tsc` 通過。sheet2/3＋下流再生成済み。
+
 ## 文型★脱落バグ修正 3巡目（択一脱落・owner誤り 6枚・2026-06-26）
 
 脱落疑いリストをさらに精査し、本物の択一脱落／owner誤りを6枚修正（既存語彙のみ・新機構なし）。偽陽性（REVEAL_AND_PICK の文法崩れ＝WX11-059/060/WXEX1-08-E2、使用条件＋バニッシュ＝WX01-046/WX06-034/WXK01-020、3択完全＝WX17-Re14）は対象外と判定。
