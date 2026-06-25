@@ -327,7 +327,8 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
     if (cands.length === 0) return done({ ...addLog(ctx, '公開できるカードがない'), lastProcessedCards: [] });
     const scope: TargetScope = src.owner === 'self' ? 'self_hand' : 'opp_hand';
     // 選択＝公開（手札に残す）。resumeSelectTarget が lastProcessedCards=選択カード をセットし continuation を実行する
-    return selectOrInteract(cands, resolveNum(src.count), false, scope, { type: 'REVEAL' }, undefined, ctx);
+    const revealCount = src.count === 'ALL' ? cands.length : resolveNum(src.count);
+    return selectOrInteract(cands, revealCount, false, scope, { type: 'REVEAL' }, undefined, ctx);
   }
   return done(addLog(ctx, 'カードを公開'));
 }
@@ -341,7 +342,7 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   const cands = trashCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
   if (cands.length === 0) return done({ ...addLog(ctx, '除外できるカードがない'), lastProcessedCards: [] });
   const scope: TargetScope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
-  const count = Math.min(resolveNum(tgt.count), cands.length);
+  const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
   return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
 }
 
