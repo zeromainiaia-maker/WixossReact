@@ -5,6 +5,16 @@
 
 ---
 
+## 文型★脱落バグ修正 2巡目＋コイン任意払い機構＋クロス条件の実評価（2026-06-26）
+
+脱落疑いリスト続き（#11〜）の本物バグ2系統を修正。あわせて再利用可能な機構を2つ整備。
+
+- **WXDi-P07-066 コードライド バギーカー（LB）**: 旧JSONは `BANISH owner:self`（**自分のシグニをバニッシュ**＝owner誤り）の単発で、原文「どちらか1つを選ぶ ①相手パワー5000以下バニッシュ ②相手パワー12000以下＋《コイン》払いバニッシュ」の**択一が丸ごと脱落**。`CHOOSE(from2)[①BANISH opp≤5000 / ②SEQUENCE[OPTIONAL_COST coinCost:1, BANISH opp≤12000]]` で完全実装。
+- **コイン任意払い機構（新設・再利用可）**: `OPTIONAL_COST` STUB に `coinCost?:number` を追加（`StubAction`＋CHOOSE option 型）。effectExecutor の OPTIONAL_COST インターセプト（Pattern⑤）が `coins>=coinCost` で支払可否を判定し、`resumeOptionalCost` がコインを控除。BattleScreen の dispatch を `costColors||coinCost` で resumeOptionalCost に振り分け（コイン専用はエナ選択UIを挟まず即決済）。decompiler も `《コイン》×N を支払ってもよい` を描画。**他の「《コイン》を支払ってもよい→そうした場合〜」系に流用可。**
+- **`HAS_CARD_IN_FIELD` のゾーン状態（クロス/凍結）実評価バグ（系統・engine）**: `evalCondition` の `HAS_CARD_IN_FIELD` が `matchesFilter(card, filter)` のみで判定しており、**`crossState`/`isFrozen` は `CardData` のプロパティでないため無視**されていた（＝「クロス状態のシグニがある」が実際は「シグニがいる」になっていた／1巡目の WX07-012 修正も実は不完全だった）。`fieldCandidates` 同様に `field.cross_state[zoneIdx]`/`field.signi_frozen[zoneIdx]` をゾーン別に参照して判定するよう修正。
+- **クロス状態条件の COND_STUB 一括是正（14枚）**: `{COND_STUB raw:"あなたの場にクロス状態のシグニがある"}` を `HAS_CARD_IN_FIELD{owner:self, filter:{シグニ, crossState:true}}` へ置換（WX07-002/003/004/005/014/018/020・WX08-001/002/003/011/013/018・PR-195）。上記 engine 修正により実際にクロス状態を判定する。
+- `tsc` 通過・`eslint` 新規エラー0。sheet1/6/7＋下流（_review_repr/grouped_all/grouped_sentence_all）再生成済み。同型★ 0件。
+
 ## 文型★脱落バグ修正 1巡目（10枚・2026-06-26）
 
 脱落疑い（逆翻訳＜原文）リスト先頭から10枚を処理。主効果（択一・探索）を復元、複雑riderは近似/別途TODO。

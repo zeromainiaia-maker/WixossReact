@@ -2016,12 +2016,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ? (remaining5.length === 1 ? remaining5[0] : { type: 'SEQUENCE', steps: remaining5 } as SequenceAction)
             : noopAction5;
           const costColors5 = stub5.costColors ?? [];
-          const canAfford5 = costColors5.length === 0 || canPayOptionalCost(costColors5, cur.ownerState, cur.cardMap);
-          const payLabel5 = costColors5.length > 0
-            ? `支払う（${costColors5.map(c => `《${c}》`).join('')}）`
-            : '支払う';
+          const coinCost5 = stub5.coinCost ?? 0;
+          const canAfford5 = (costColors5.length === 0 || canPayOptionalCost(costColors5, cur.ownerState, cur.cardMap))
+            && (cur.ownerState.coins ?? 0) >= coinCost5;
+          const costParts5 = [
+            ...costColors5.map(c => `《${c}》`),
+            ...(coinCost5 > 0 ? [`《コイン》×${coinCost5}`] : []),
+          ];
+          const payLabel5 = costParts5.length > 0 ? `支払う（${costParts5.join('')}）` : '支払う';
           const options5 = [
-            { id: 'pay', label: payLabel5, action: cont5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}) },
+            { id: 'pay', label: payLabel5, action: cont5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}), ...(coinCost5 > 0 ? { coinCost: coinCost5 } : {}) },
             { id: 'skip', label: 'スキップ', action: noopAction5 as EffectAction, available: true },
           ];
           const pending5: PendingInteractionDef = { type: 'CHOOSE', options: options5, count: 1 };
@@ -3943,9 +3947,14 @@ export function resumeOptionalCost(
 
   const newEnergy = ctx.ownerState.energy.filter(n => !energyNums.includes(n));
   const newTrash  = [...ctx.ownerState.trash, ...energyNums];
+  const coinCost = payOpt?.coinCost ?? 0;
+  if (coinCost > 0 && (ctx.ownerState.coins ?? 0) < coinCost) {
+    return done(addLog(ctx, `コスト支払いエラー: コイン不足`));
+  }
+  const newCoins = Math.max(0, (ctx.ownerState.coins ?? 0) - coinCost);
   const cur = addLog(
-    { ...ctx, ownerState: { ...ctx.ownerState, energy: newEnergy, trash: newTrash } },
-    `コスト支払い: ${(payOpt?.costColors ?? []).map(c => `《${c}》`).join('')}`,
+    { ...ctx, ownerState: { ...ctx.ownerState, energy: newEnergy, trash: newTrash, coins: newCoins } },
+    `コスト支払い: ${[...(payOpt?.costColors ?? []).map(c => `《${c}》`), ...(coinCost > 0 ? [`《コイン》×${coinCost}`] : [])].join('')}`,
   );
 
   const result = executeAction(payOpt?.action ?? noopAction, cur);

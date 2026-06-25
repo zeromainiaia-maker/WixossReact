@@ -1378,6 +1378,7 @@ export interface StubAction {
   type: 'STUB';
   id: string;
   costColors?: string[]; // OPTIONAL_COST: 支払うエナの色リスト（例: ['赤','赤']）
+  coinCost?: number;     // OPTIONAL_COST: 支払う《コイン》の枚数（「《コイン》を支払ってもよい」。エナと併用も可）
   revealPickParams?: {   // REVEAL_PICK_HAND_SHUFFLE_BOTTOM: REVEAL_AND_PICK マージ用メタデータ
     pickCount: number | 'ALL';
     restDest: 'deck_bottom' | 'trash' | 'energy';

@@ -556,10 +556,20 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).cards_drawn_by_effect_this_turn ?? 0, cond.operator, cond.value);
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
-      const matched = st(cond.owner).field.signi.filter(stack => {
+      const fst = st(cond.owner);
+      const matched = fst.field.signi.filter((stack, zoneIdx) => {
         if (!stack || stack.length === 0) return false;
         const top = stack[stack.length - 1];
         if (cond.excludeSelf && srcNum && top === srcNum) return false;
+        // ゾーン状態（クロス/凍結）はCardDataに無いのでmatchesFilterと別に判定する
+        if (cond.filter?.crossState !== undefined) {
+          const isCross = fst.field.cross_state?.[zoneIdx] ?? false;
+          if (cond.filter.crossState !== isCross) return false;
+        }
+        if (cond.filter?.isFrozen !== undefined) {
+          const isFrozen = (fst.field.signi_frozen?.[zoneIdx] ?? false);
+          if (cond.filter.isFrozen !== isFrozen) return false;
+        }
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
       }).length;
       return matched >= (cond.minCount ?? 1);

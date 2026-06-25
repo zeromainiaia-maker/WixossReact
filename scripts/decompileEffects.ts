@@ -717,7 +717,8 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
         // コストスロットは「青|黒」（青か黒のいずれか）形式を許容 → 「《青》か《黒》」
-        const costJaOC = (a.costColors ?? []).map((c: string) => c.split('|').map((x: string) => `《${x}》`).join('か')).join('');
+        const costJaOC = (a.costColors ?? []).map((c: string) => c.split('|').map((x: string) => `《${x}》`).join('か')).join('')
+          + (a.coinCost ? `《コイン》×${a.coinCost}` : '');
         return `${costJaOC || 'コスト'}を支払ってもよい`;
       }
       const burstExtra = a.id === 'GRANT_ALL_ZONE_LIFEBURST'

@@ -454,7 +454,7 @@ export type PendingInteractionDef =
     }
   | {
       type: 'CHOOSE';
-      options: Array<{ id: string; label: string; action: EffectAction; available: boolean; costColors?: string[] }>;
+      options: Array<{ id: string; label: string; action: EffectAction; available: boolean; costColors?: string[]; coinCost?: number }>;
       count: number;
       continuation?: EffectAction;
       opponentResponds?: boolean; // true = 対戦相手が選択するインタラクション（例:「対戦相手は支払ってもよい」）
