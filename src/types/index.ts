@@ -95,6 +95,7 @@ export interface PlayerState {
     signi_magic_boxes?: (string | null)[]; // [zone0, zone1, zone2] 【マジックボックス】のCardNum（裏向き設置中）
     signi_seeds?:  (string | null)[]; // [zone0, zone1, zone2] 【シード】のCardNum（設置済み・未開花）
     signi_armor?:  boolean[];         // [zone0, zone1, zone2] true=血晶武装状態（場を離れるまで維持）
+    puppet_signi?: string[];          // 傀儡状態でこの場に出ている（持ち主＝対戦相手の）シグニのインスタンスID。場を離れると持ち主のトラッシュへ回収される（WDK17-007）
     free_zone?:    string[];          // フリーゾーン（チアガール等を置く汎用ゾーン）
     beat_zone?:    string[];          // ビートゾーン（ターン終了時にトラッシュへ、UIはフリーゾーンと共有）
     cross_state?:  boolean[];         // [zone0, zone1, zone2] true=クロス状態
@@ -385,6 +386,8 @@ export interface PlayerState {
   last_discarded_signi_power?: number;
   // BET_CONDITION: このアーツ/効果でベット宣言していた場合 true（execStub内でチェック）
   is_betting_this_effect?: boolean;
+  // ベットで実際に支払ったコイン枚数（可変ベット「好きな枚数」・段階ベット「or」のスケール用）。is_betting_this_effect と同時に設定/クリア
+  bet_coins_paid?: number;
   // FUTURE SESSION③: 次のアタックフェイズ開始時にプリオケシグニへアタック時トラッシュ能力を付与
   pending_prioke_attack_trash_grant?: boolean;
   // PR-Di035: 次のアタックフェイズ開始時にプリパラ共通色・レベル3種類チェックして色別効果
@@ -437,6 +440,8 @@ export type PendingInteractionDef =
       opponentResponds?: boolean; // true = 相手プレイヤーが選択するインタラクション（例:「対戦相手は手札を1枚捨てる」）
       totalPowerMax?: number;     // 「パワーの合計がN以下になるように好きな数」: 選択カードの実効パワー合計の上限
       candidatePowers?: Record<string, number>; // 各候補の実効パワー（totalPowerMax 判定・UI用）
+      totalLevelMax?: number;     // 「レベルの合計がN以下になるようにM体まで」: 選択カードのレベル合計の上限（count=M と併用。WDK13-007）
+      candidateLevels?: Record<string, number>; // 各候補のレベル（totalLevelMax 判定用）
     }
   | {
       type: 'SEARCH';

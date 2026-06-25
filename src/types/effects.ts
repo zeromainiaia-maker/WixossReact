@@ -27,6 +27,7 @@ export type EffectTiming =
   | 'ON_DRAW'          // あなたがカードを引いたとき（G089）
   | 'ON_OPP_ARTS_USE'  // 相手がアーツを使用したとき（自分フィールドのシグニがトリガー）
   | 'ON_REVEALED_FROM_HAND' // このカードが効果によって手札から公開されたとき
+  | 'ON_SELF_REVEAL_FROM_HAND' // あなたが自分の効果によって手札からカードを公開したとき（場のシグニが反応。G198）
   | 'ON_ENERGY_FROM_TRASH' // このカードがトラッシュからエナゾーンに置かれたとき
   | 'ON_BLOOD_CRYSTAL_ARMOR' // シグニが血晶武装状態になったとき
   | 'ON_HEAVEN'  // このシグニが《ヘブン》したとき（ヘブンヘブン時）
@@ -157,6 +158,7 @@ export type Condition =
   | { type: 'THIS_CARD_IN_LOCATION'; location: CardLocation }
   | { type: 'THIS_CARD_IN_CENTER_ZONE' }
   | { type: 'THIS_CARD_IS_DOWN' }
+  | { type: 'THIS_CARD_IS_UP' }                               // このシグニがアップ状態の場合（ダウンしていない。G247）
   | { type: 'THIS_CARD_IS_ARMORED' }                          // このシグニが血晶武装状態の場合
   | { type: 'THIS_CARD_IS_AWAKENED' }                         // このシグニが覚醒状態の場合
   | { type: 'THIS_CARD_IS_ACCED' }                            // このシグニに【アクセ】が付いている場合
@@ -168,6 +170,7 @@ export type Condition =
   | { type: 'LRIG_COLOR'; owner: Owner; color: string }       // センタールリグが指定色を持つ場合（「あなたのセンタールリグが青で」等）
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）カード枚数（「ルリグトラッシュにアーツが4枚以上」等）。excludeSource=trueで使用中カード自身(sourceCardNum)を除外＝リコレクト判定
   | { type: 'FIELD_CLASS_COUNT'; owner: Owner; story: string; operator: CompareOp; value: number } // 場のシグニのうちCardClassがstoryを含むものの数（「場に＜天使＞が3体」等）
+  | { type: 'LRIG_TEAM_COUNT'; owner: Owner; team: string; operator: CompareOp; value: number } // 場のルリグ（センター＋アシストL/R）のうちTeamがteamを含むものの数（「＜うちゅうのはじまり＞のルリグが3体」。WXDi-D05-021。Teamはチーム名でCardClass/Storyとは別）
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number } // 登録者数（万人）条件
   | { type: 'SELF_POWER_GTE'; value: number }
   | { type: 'THIS_CARD_FROM_TRASH' } // このシグニがトラッシュから場に出た場合（WX03-034-E1。signi_played_from_trashで判定）
@@ -177,6 +180,7 @@ export type Condition =
   | { type: 'AND'; conditions: Condition[] }
   | { type: 'IS_MY_TURN' }
   | { type: 'IS_OPPONENT_TURN' }
+  | { type: 'IS_BETTING'; minCoins?: number }                  // このアーツ/スペルでベットを宣言していた場合（is_betting_this_effect）。minCoins 指定時は支払ったコイン枚数（bet_coins_paid）がN以上の段階ベット判定（WX16-004）。「あなたがベットしていた場合、代わりに」の択一に使う
   | { type: 'PAID_ADDITIONAL_COST' }
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }
@@ -197,7 +201,8 @@ export type Condition =
   | { type: 'DECK_TOP_SHARES_COLOR_WITH_LRIG'; owner: Owner } // デッキの一番上のカードと共通する色を持つルリグ（センター/アシスト）が場にいる場合（G157）
   | { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS'; owner: Owner }  // 場のすべてのシグニがそれぞれ共通するクラスを持たない（互いに異クラス）場合（プライマル系。G158）
   | { type: 'LAST_PROCESSED_HAS_BURST' }                     // lastProcessedCards[0] が【ライフバースト】を持つ場合
-  | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string };   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
+  | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string }   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
+  | { type: 'LAST_PROCESSED_SHARE_COLOR' };                  // lastProcessedCards 全てに共通する色が1つ以上ある場合（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
@@ -285,6 +290,10 @@ export interface TargetFilter {
   cardClass?: string | string[]; // ＜クラス＞フィルター（CSVのCardClassフィールドに対してincludesでマッチ）
   cardClassExclude?: string | string[]; // ＜クラス＞除外（「＜天使＞ではないシグニ」等。CardClassにincludesでマッチしたら除外）WX03-002
   hasGuard?:  boolean;
+  noGuard?:   boolean; // 《ガードアイコン》を持たない（G237）。matchesFilter で Guard!=='1' を要求
+  nonColorless?: boolean; // 無色ではない（色を1つ以上持つ）。matchesFilter で Color が空/無色のカードを除外（G240）
+  eachDistinctColor?: boolean; // 選択した複数枚がそれぞれ共通する色を持たない（G240）。逆翻訳の表示用＋選択補助（engine は per-card 判定しないため厳密enforce はTODO）
+  eachDistinctLevel?: boolean; // 選択した複数枚がそれぞれレベルの異なる（G256「それぞれレベルの異なる＜X＞のシグニ2枚」）。逆翻訳の表示用＋選択補助（厳密enforce はTODO）
   isDown?:    boolean;
   isUp?:      boolean; // アップ状態（ダウンしていない）
   isFrozen?:  boolean;
@@ -340,6 +349,7 @@ export interface EffectTarget {
   blind?: boolean;       // true = 対戦相手の手札を見ないで選ぶ（ランダム選択）
   actingPlayerSelects?: boolean; // true = 手札を見て自分が選ぶ（「手札を見てN枚選び捨てさせる」）
   totalPowerMax?: number; // 「パワーの合計がN以下になるように好きな数」: 選択カードの実効パワー合計の上限（count='ALL'と併用）
+  totalLevelMax?: number; // 「レベルの合計がN以下になるようにM体まで」: 選択カードのレベル合計の上限（count=M・upToCount と併用。WDK13-007）
 }
 
 // ===== アクション =====
@@ -352,6 +362,7 @@ export type EffectAction =
   | PowerModifyAction
   | PowerSetAction
   | TrashAction
+  | ExileAction
   | EnergyChargeAction
   | EnergyChargeFromDeckAction
   | LifeCrashAction
@@ -380,6 +391,7 @@ export type EffectAction =
   | GrantProtectionAction
   | AttachCharmAction
   | RevealAndPickAction
+  | LookPickChainAction
   | BanishRedirectAction
   | RearrangeSigniAction
   | SetBaseLevelAction
@@ -516,6 +528,7 @@ export interface BounceAction {
   type: 'BOUNCE'; // フィールド→手札
   target: EffectTarget;
   optional?: boolean; // true = 「してもよい」（プレイヤーがスキップ可能）
+  opponentSelects?: boolean; // 「対戦相手は対象の自分のシグニ1体を手札に戻す」：対戦相手が自分のシグニを選んで手札に戻す（target.owner='opponent'。WDK05-T20/WDK16-22）
 }
 
 export interface BanishAction {
@@ -551,10 +564,19 @@ export interface PowerSetAction {
   value: NumberOrRef;
 }
 
+// カードをゲームから除外する（トラッシュ等から取り除く。除外ゾーンは未実装のため取り除き＝消去で近似）。
+// 選択したカードを lastProcessedCards に記録（「それらが共通する色を持つ場合」等の後続条件参照用。WDK10-008）。
+export interface ExileAction {
+  type: 'EXILE';
+  target: EffectTarget; // TRASH_CARD など除外元
+}
+
 export interface TrashAction {
   type: 'TRASH'; // 指定カードをトラッシュへ
   target: EffectTarget;
   opponentSelects?: boolean; // 「対戦相手は自分の〜1枚を対象とし、それをトラッシュに置く」：対戦相手が自分のカードを選んでトラッシュ（target.owner='opponent'。WX04-009）
+  bestEffort?: boolean; // true = 対象がなくても後続SEQUENCEをスキップしない（「手札を1枚捨て、カードをN枚引く（捨てられなくても引く）」の捨て。WDK06-R20/WDK14-022）
+  optional?: boolean; // true =「捨ててもよい」（スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない。WXDi-D08-013/P14-084）
 }
 
 export interface EnergyChargeAction {
@@ -641,6 +663,7 @@ export interface FreezeAction {
 export interface DownAction {
   type: 'DOWN'; // ダウン
   target: EffectTarget;
+  optional?: boolean; // true =「ダウンしてもよい」（スキップ可能。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない。WD12-013/015）
 }
 
 export interface UpAction {
@@ -872,12 +895,32 @@ export interface AttachCharmAction {
 }
 
 // デッキの上からN枚公開し、条件を満たすカードをpickする
+// デッキ上N枚を見て、複数段の選択を順に行い、残りを所定の場所へ（G252「シグニ1枚＋共通クラス無色でないシグニ1枚を手札」／
+// G255「カード1枚までトラッシュ＋＜X＞シグニ2枚まで手札」など、1度の公開からの多段ピック）。
+export interface LookPickChainStage {
+  filter?: TargetFilter;          // ピック対象フィルタ（省略=任意カード）
+  pickCount: number;              // 上限枚数（「N枚まで」）
+  then: 'hand' | 'energy' | 'trash'; // ピック先（手札／エナ／トラッシュ）
+  sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
+  pickNoun?: string;              // 逆翻訳の名詞（既定「シグニ」。任意カードは「カード」）
+}
+export interface LookPickChainAction {
+  type: 'LOOK_PICK_CHAIN';
+  owner: Owner;
+  revealCount: NumberOrRef;
+  stages: LookPickChainStage[];
+  remainder: { location: CardLocation; position: 'top' | 'bottom' | 'any' };
+  _revealed?: string[]; // 内部用: 段間 continuation で公開済みカードを引き継ぐ（JSONには書かない）
+}
+
 export interface RevealAndPickAction {
   type: 'REVEAL_AND_PICK';
   owner: Owner;
   revealCount: NumberOrRef;
   filter?: TargetFilter;
   pickCount: number | 'ALL';
+  pickUpTo?: boolean; // pickCount を「N枚まで」（上限）として扱う（G236）。逆翻訳に「まで」を付与
+  pickNoun?: string;  // ピック対象の名詞（既定「シグニ」）。色一致で任意カードを拾う等は「カード」（G236）
   then: EffectAction;
   remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' };
 }
@@ -1386,6 +1429,9 @@ export interface BlockCardUseAction {
 export interface PreventNextDamageAction {
   type: 'PREVENT_NEXT_DAMAGE';
   count: number;
+  // ダメージ源の限定（「次にあなたがルリグ/シグニによってダメージを受ける場合」）。
+  // 逆翻訳の忠実化用。engine 側は現状ダメージ源を区別せず次の1回を無効化する（軽微な過剰軽減・偽陰性ではない）。
+  damageSource?: 'lrig' | 'signi';
 }
 
 export interface TakeFromUnderSigniAction {
@@ -1443,6 +1489,7 @@ export interface CardEffect {
     bySigniEffect?: boolean; // シグニの効果によって場に出た場合のみ発火（G079等「シグニの効果によって場に出たとき」）。通常召喚・スペル/アーツ/ルリグの効果では発火しない
     placedDown?: boolean; // ダウン状態で場に出た場合のみ発火（G144「あなたのシグニがダウン状態で場に出たとき」。ON_PLAY と併用）
     frontLowerLevelThanSource?: boolean; // このシグニ（効果元）の正面に、効果元よりレベルの低いシグニが出た場合のみ発火（WX17-075 タルタル付与。ON_PLAY any_opp と併用）
+    fromFieldByCostOrEffect?: boolean; // このシグニがコストか効果によって「場から」トラッシュに置かれた場合のみ発火（バトル・ルール処理では発火しない。G204。ON_TRASH と併用）
   };
 
   // CONTINUOUS 用：常時効果がいつ適用されるか

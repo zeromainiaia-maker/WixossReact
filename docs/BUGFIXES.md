@@ -5,6 +5,90 @@
 
 ---
 
+## 文型★脱落バグ修正 1巡目（10枚・2026-06-26）
+
+脱落疑い（逆翻訳＜原文）リスト先頭から10枚を処理。主効果（択一・探索）を復元、複雑riderは近似/別途TODO。
+- **WXDi-CP01-036**: STUB単独 → `CHOOSE[①＜バーチャル＞いれば相手能力喪失(REMOVE_ABILITIES) / ②LOOK_TOP_ONE_RETURN_REST_BOTTOM]`。
+- **WX24-P4-026**: ルリグ付与のみ → `SEQUENCE[REVEAL_AND_PICK(5→シグニ2枚手札), 付与]`（色ゲート近似）。
+- **WX26-CP1-001**: 択一②③誤 → ②`LOOK_PICK_CHAIN(5→2枚手札+プリオケ1枚エナ)`、③`GRANT_EFFECT`（プリオケに攻撃時トラッシュ付与・遅延近似）。
+- **WXK10-008**: 自シグニバニッシュ誤 → 相手パワー7000以下・任意《赤》バニッシュ（①エナ色喪失モードは別途）。
+- **WXDi-P02-039**: E1 timing誤(ON_TURN_END)→`ON_PLAY any_ally ＜地獣＞`（E2引用付与は別途）。
+- **WXDi-P16-048**: ①シャドウを thisCardOnly＋次相手ターン、②バニッシュにパワー8000以下付与。
+- **WX25-P3-027**: E1 にトラッシュ＜悪魔＞15枚以上条件付与（E2 LB付与は別途）。
+- **WX25-CP1-006**: ③ダメージ軽減を damageSource:lrig、④エナ＜ブルアカ＞トラッシュ→相手パワー10000以上バニッシュ（枚数誤マッチは別途）。
+- **WX07-012**: COND_STUB → `HAS_CARD_IN_FIELD crossState`（クロス状態シグニ条件）。
+- **WX25-CP1-037**（前出）。`tsc` 通過、全シート＋下流再生成済み。近似/別途項目は TODO.md に記録。
+
+## 文型★トリアージ: 検出器改良＋S001択一脱落カード修正（2026-06-26）
+
+`grouped_sentence_all.txt`（文型★）の誤検出を抑制（`groupBySentence.mjs`）: ①`bodyKey` で先頭接続句（そして／そうした場合等）・選択肢番号（①②③④）を除去、②`splitDecomp` で CHOOSE「次から…選ぶ【A / B】」を選択肢別文に展開＋原文の選択ヘッダー除外、③外れ判定を「共通バリアント（2枚以上に出る逆翻訳型）のどれにも一致しないカードのみ」に変更。**★要確認 1626枚→390枚**。詳細は TODO.md E節。
+
+**⚠ 重要な方法論訂正:** 当初「逆翻訳に `[STUB:]` を含む外れ＝意図的未実装でスキップ」と仕分けたが**誤り**。STUB は**実装済みハンドラ**（STUBS.md: 541種中534種にハンドラ。STUB_LOG 0件）であり、`[STUB:]` タグは「汎用アクションで描けない固有ロジックをハンドラに逃がしている＝decompiler が自然文化できずタグ表示」の意味。**ただしタグだけでは「ハンドラがカード全体を実装（WX11-017）」と「STUB/単一アクションが断片しか実装せず残りを落とした（WX09-Re03/WDK07-E08）」を区別できない**ため、STUB外れも個別に「実装が原文全体を覆うか」検証が必要。STUBフィルタで一括除外すると実バグを見落とす。
+
+S001「カードをN枚引く」の外れ4枚を個別検証 → 実バグ3枚を修正、1枚は実装済み:
+- **WX22-005 グラン・クロス（アーツ）**: 旧JSONは最終文「デッキトップをライフへ」だけで、**「3つから1つ選ぶ①＜天使＞3枚サーチ場出し②6枚引く③スペル打ち消し」＋相手エナ1枚トラッシュが丸ごと欠落**。`SEQUENCE[CHOOSE(SEARCH天使/DRAW6/COUNTER_SPELL), TRASH 相手ENERGY_CARD, ADD_TO_LIFE]` で完全実装。
+- **WX09-Re03 ゼノ・マルチプル**: 旧STUB `PREVENT_TARGET_LRIG_ATTACK_THIS_TURN` は**選択肢①のみ**実装（②全凍結③手札戻し④2ドロー欠落）。汎用ハンドラ `CONDITIONAL_MULTI_CHOOSE_BY_CENTER`（EffectText を実行時パースして「4つから2つ選ぶ」全4択を生成。WX11-017 と同型）に置換。smoke テストで count=2・options=4 を確認。
+- **WDK07-E08 キャンディ・レイン**: 旧JSは `NAME_BAN(targetSelf)` 断片のみ（③の同名禁止の誤実装）で**択一丸ごと欠落**。`CHOOSE(①DOWN/②DRAW2/③COUNTER_SPELL)` を手組み（③の「トラッシュから相手手札に戻す＋一時同名禁止」riderは新語彙未対応で近似）。
+- **WX11-017 ブルー・パニッシュ**: STUB `CONDITIONAL_MULTI_CHOOSE_BY_CENTER` が全選択肢を実行時パース済＝**正しく実装済み**（decompiler のタグ表示のみ・バグではない）。
+- `tsc` 通過、sheet1/3/5＋下流再生成済み。
+
+**トリアージ効率化ツール（同日）**: ①`grouped_sentence_all.txt` の各★外れに**原文・逆翻訳を併記**＋**⚠脱落疑い(原文N文/逆翻訳M文)** マーカー（逆翻訳の効果文数＜原文＝効果脱落の実バグ）を追加し、脱落疑いを先頭に並べる（現在262枚前後）。②decompiler が `CONDITIONAL_MULTI_CHOOSE_BY_CENTER(_LEVEL_GTE)` を原文の選択肢で自然文描画（実装済みSTUBの偽陽性除去。WX11-017等が脱落疑いから外れた）。原文を別途引かずバグ判定できる。
+- **WX25-CP1-037 虚妄のサンクトゥム攻略会議**（ツール実証修正）: 旧 `LOOK_AND_REORDER`（並べ替え）誤→ `REVEAL_AND_PICK`（デッキ上4枚→＜ブルアカ＞シグニ1枚場に出す→残りデッキ下）。「出能力発動しない」riderは新語彙未対応で近似。sheet9再生成済み。
+
+## G250〜G265 一括是正（逆翻訳乖離16系統32枚）＋新語彙整備（2026-06-26）
+
+逆翻訳が原文と大きく乖離していた G250〜G265 を上から順に全是正。エンジン実装もセットで配線（[[decompile-engine-parity]]）。
+
+- **G250**（WXDi-P11-065/WX25-P1-066）: `LOOK_AND_REORDER`（並べ替える）→ `REVEAL_AND_PICK`（デッキ上N枚→＜X＞シグニ1枚手札、残りデッキ下）。cost 手札1枚捨て維持。
+- **G251**（WXDi-P12-084/088）: TRASH `DECK_CARD` owner `self`→`opponent`（「対戦相手のデッキの上から」）。
+- **G252**（WXDi-P13-027/CP02-025）: 新アクション `LOOK_PICK_CHAIN`（後述）で完全実装。look5→シグニ1枚まで手札＋そのシグニと共通クラスを持つ無色でないシグニ1枚まで手札、残り下。
+- **G253**（WXDi-P14-083/WX24-P3-068）: 新stub `OPTIONAL_DISCARD_HAND_CLASS`（G249のエナ版＝手札からクラスシグニを任意捨て→そうした場合バニッシュ）。effectExecutor の IS_MY_TURN インターセプトに handler 追加、decompiler も対応。対象パワー≤5000付与。
+- **G254**（WXDi-P15-093/WX24-P1-076）: `PREVENT_NEXT_DAMAGE.damageSource:'lrig'`（新フィールド・逆翻訳忠実化用。engine は源を区別せず次1回無効＝軽微な過剰軽減で偽陰性ではない）。
+- **G255**（WX24-P1-029/WX25-P1-043）: 旧 `TRANSFER_TO_DECK`（自シグニをデッキ下）誤→ −8000 ＋ `LOOK_PICK_CHAIN`（look5→カード1枚までトラッシュ＋＜X＞シグニ2枚まで手札、残り下）。中間トラッシュも完全実装。
+- **G256**（WX24-P1-085/WX25-P3-107）: E1 ADD_TO_FIELD source に `eachDistinctLevel`（新フィルタ・表示/選択補助）。BURST を `CHOOSE`（手札に加える／場に出す）＋`noGuard` フィルタに（旧 TRANSFER_TO_HAND のみ）。
+- **G257**（WX24-P3-035/WX25-P2-043）: G255同型（−10000 ＋ look5→＜X＞2枚まで手札、残り下）。
+- **G258**（WX24-P4-080/WX25-P3-096）: E1 に condition `ENERGY_COUNT_FILTER`（エナに＜X＞シグニ3枚以上ある場合）。BURST `damageSource:'signi'`。
+- **G259**（WX25-P3-074/078）: 旧「アタック時直接バニッシュ」誤→ ON_ATTACK_PHASE_START・任意 `DOWN`（thisCardOnly/isUp）→ そうした場合 他の＜天使＞1体へ `GRANT_EFFECT`（「アタック時相手パワーN以下バニッシュ」をターン終了まで付与）。
+- **G260**（WX25-P3-081/WX26-CP1-074）: condition `HAS_CARD_IN_FIELD`（場に他の＜X＞）＋ TRASH `ENERGY_CARD` opponent `colorNotMatchesLrig`（相手センタールリグと共通色でない）。
+- **G261**（WX25-CP1-033/WX26-CP1-020）: `REVEAL_AND_PICK`（look4→＜X＞カード2枚まで手札）＋ `PLACE_LIMIT_UPPER`（decompiler に専用描画追加）。
+- **G262**（WX26-CP1-064/067）: アクションは正・cost `discardFilter`（＜プリオケ＞）が逆翻訳器 `costJa` 未描画だったため反映追加。
+- **G263**（WX26-CP1-072/075）: 旧「2連バニッシュ」誤→ `CONDITIONAL(HAND_COUNT eq0)`（手札0枚なら高パワー、そうでなければ低パワーの択一バニッシュ＝「代わりに」）。
+- **G264**（WX26-CP1-080/083）: G262同様 cost `discardFilter` 描画で解決（POWER_MODIFY は正）。
+- **G265**（WX26-CP1-088/091）: 旧「あなたのシグニ1体に【ランサー】を与える」誤→ thisCardOnly＋keyword `ランサー:N`（`hasKeyword` の `'ランサー:'` プレフィックスで検出。decompiler が「ランサー（パワーN以下のシグニ）」へ復号）＋ターン終了まで。
+- 逆翻訳器の文法是正: `ENERGY_COUNT_FILTER`（cardType名詞＋「ある」）。`tsc`・`eslint` 通過。sheet8/9＋下流再生成済み。
+
+### 追記: G252/G255 を多段ピック新機構で完全実装（2026-06-26）
+
+当初 G252「共通クラス無色でない2段目」・G255「中間トラッシュ」を近似（省略）としたが、汎用の多段ピック機構を新設して完全実装に置換。
+
+- **新アクション `LOOK_PICK_CHAIN`**（types/effects.ts）: デッキ上N枚を1度公開し、`stages[]`（各 `{filter, pickCount, then:'hand'|'energy'|'trash', sharesClassWithPrev, pickNoun}`）を順にピック、残りを `remainder` へ。段間は `SEARCH` の continuation に自身（remaining stages ＋ 内部 `_revealed`）を渡して再入し、`resumeSearch` がセットする `lastProcessedCards`（直前ステージのピック）を `sharesClassWithPrev`（共通クラス判定）の参照に使う。executor `execLookPickChain`（effectExecutor.ts）＋ switch 登録、decompiler 描画追加。
+- **`applyDirectAction` の `TRASH` に `DECK_CARD` 分岐追加**（公開中のデッキ1枚をトラッシュ＝G255の中間トラッシュ）。
+- **副次バグ修正**: `nonColorless` フィルタ（execUtils.ts）が無色を `''`/`'無色'` のみで判定していたが、データ上の無色は `'無'`（36枚）。`'無'` を除外条件に追加（G240 の同フィルタ使用カードも従来一切マッチしなかった不具合を是正）。
+- スモークテストで両系統を検証: G252＝stage1でシグニ選択→stage2は共通クラスかつ非無色のシグニのみ候補（無色は除外）→残りデッキ下。G255＝stage1で任意カード1枚トラッシュ→stage2で＜悪魔＞2枚手札→残りデッキ下。いずれも期待どおり。`tsc`・`eslint` 通過。sheet8/9＋下流再生成済み。
+
+---
+
+## G249 任意コスト誤り（手札捨て→エナのシグニトラッシュ）＋対象パワー欠落の修正（2026-06-25）
+
+`WXDi-P10-056 プリパラアイドル 黒須あろま`／`WX24-P2-068 羅植 モミジ`（G249）が **誤った STUB `TARGET_AND_DISCARD_HAND`（手札を捨てる）** で表現され、原文の任意コスト「あなたのエナゾーンから＜X＞のシグニ1枚をトラッシュに置いてもよい」と乖離。加えてバニッシュ対象の **パワー制限（N以下）が欠落**（任意の相手シグニをバニッシュできてしまう）。
+
+- **JSON 修正**（effects_WXDi.json / effects_WX24_26.json）: STUB id を `OPTIONAL_TRASH_ENERGY_CLASS` に変更（エナのクラス/枚数は engine が EffectText から解釈する既存パターン）。`SEQUENCE[STUB, CONDITIONAL(IS_MY_TURN → BANISH)]` の形は維持（effectExecutor の任意コスト・インターセプトがこの形を「払う→そうした場合バニッシュ／スキップ」に変換）。BANISH 対象に `filter.powerRange.max`（P10-056=10000／P2-068=5000）を付与。
+- **逆翻訳器**（decompileEffects.ts）: `OPTIONAL_TRASH_ENERGY_CLASS` を「コストを支払ってもよい」一律描画から分離し、原文（currentCardText）から ＜クラス＞・枚数を復元して「あなたのエナゾーンから＜X＞のシグニN枚をトラッシュに置いてもよい」と描画。
+- 逆翻訳: 「【自】あなたのアタックフェイズ開始時：あなたのエナゾーンから＜プリパラ＞のシグニ1枚をトラッシュに置いてもよい。そうした場合、対戦相手のパワー10000以下のシグニ1体をバニッシュする」。`tsc` 通過。sheet8/9＋下流再生成済み。
+
+---
+
+## G247「あなたのターン終了時、このシグニがアップ状態の場合」の欠落修正（2026-06-25）
+
+`WXDi-P09-063 蒼魔 キマリス`／`WXDi-P14-075 電音部 東雲和音`（G247）の逆翻訳が **「このシグニがアップ状態の場合」条件を欠落**し、さらに `REVEAL_AND_PICK` 表現のため「公開→悪魔シグニなら1枚引く」構造が崩れていた（「その中から＜悪魔＞のシグニを1枚あなたのカードを1枚引く…」と非文）。
+
+- **新条件型 `THIS_CARD_IS_UP`**（types/effects.ts）: このシグニがアップ状態（ダウンしていない）の場合。`execUtils.ts` 評価は `THIS_CARD_IS_DOWN` の反転（場にいて signi_down=false）。逆翻訳器（decompileEffects.ts）に `condJa` 描画追加。
+- **JSON 再構成**（effects_WXDi.json, 両カード）: `REVEAL_AND_PICK` → `condition:THIS_CARD_IS_UP` ＋ `SEQUENCE[REVEAL, CONDITIONAL(DECK_TOP_MATCHES{シグニ,story} → DRAW 1)]`。`execReveal`（source無＝デッキ上を公開しトップ据置）→ 後続 CONDITIONAL がそのトップを判定して引く、で原文どおり。
+- **逆翻訳器の文法修正2点**: ①`condition` 描画で名詞（状態）終わりに「の」を補い「…状態の場合」化（既存の 覚醒状態/血晶武装状態 条件7枚の「状態場合」非文も同時是正）。②`DECK_TOP_MATCHES` 描画で filter.cardType を名詞に反映（「＜悪魔＞のカード」→「＜悪魔＞のシグニ」）。
+- 逆翻訳: 「【自】ターン終了時：このシグニがアップ状態の場合、あなたのデッキの上を公開する。そしてあなたのデッキの一番上が＜悪魔＞のシグニなら、あなたのカードを1枚引く」。`tsc` 通過。sheet3/5/7/8/9 と下流（_review_repr / grouped_all / grouped_sentence_all）再生成済み。
+
+---
+
 ## 「これにアクセされている」系・複雑8枚の完全実装（新語彙整備）（2026-06-25）
 
 前記の棚卸しで no-op 据置とした複雑/特殊8枚を、必要な新語彙をエンジンに整備して本実装。全て `scripts/_verifyAcceHost.ts`（計23項 pass）で検証。`tsc` 通過・`eslint` 新規エラー0。

@@ -104,7 +104,8 @@ export function parseShadowScopeText(inner: string): ShadowScope | null {
   // レベル（以下／以上／ちょうど）
   if ((m = s.match(/^レベル([０-９\d]+)以下/))) return { levelLte: parseInt(half(m[1]), 10) };
   if ((m = s.match(/^レベル([０-９\d]+)以上/))) return { levelGte: parseInt(half(m[1]), 10) };
-  if ((m = s.match(/^レベル([０-９\d]+)/)))     return { levelEq:  parseInt(half(m[1]), 10) };
+  // 「レベルN」（以下/以上の明示なし）は「そのレベル以下」が範囲（シャドウのルール）
+  if ((m = s.match(/^レベル([０-９\d]+)/)))     return { levelLte: parseInt(half(m[1]), 10) };
   // パワー（自分基準を先に判定）
   if (/^パワーがこのシグニのパワーの半分以下/.test(s)) return { selfPowerHalfLte: true, cardType: 'シグニ' };
   if (/^このシグニのパワー以下/.test(s))               return { selfPowerLte: true };

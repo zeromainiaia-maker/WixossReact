@@ -3,9 +3,36 @@
 未実装・未対応の作業をまとめた恒久ドキュメント。完了したら該当項目を消すこと。
 設計方針は [DESIGN.md](./DESIGN.md)、過去の修正は [BUGFIXES.md](./BUGFIXES.md)。
 
-最終更新: 2026-06-21（**v0.437 まで**）。F-2／F-3／F-4 の状況は従来通り（下記）。直近は **逆翻訳スキャンによる Sheet1 個別カードの誤り修正ラウンド**（v0.403〜0.437）を継続中。詳細は BUGFIXES.md 冒頭の各記録を参照。**現在のメインタスク（逆翻訳スキャン継続）は ymst → zerom に引き継ぎ。**
+最終更新: 2026-06-26。F-2／F-3／F-4 の状況は従来通り（下記）。直近は **逆翻訳スキャンによる個別カードの誤り修正ラウンド**を継続中。詳細は BUGFIXES.md 冒頭の各記録を参照。**現在のメインタスク（逆翻訳スキャン＝文型★トリアージ）は zerom → ymst に引き継ぎ。まず下記「📌 引き継ぎ」を読むこと。**
 
-**2026-06-23 追記（ymst→zerom）:** 逆翻訳スキャンを効率化する**系統分け／同型グルーピング・インデックス**を新設（`scripts/group*.mjs`＋全10シート統合 `docs/grouped_all.txt` / `grouped_sentence_all.txt`）。同型★（高精度バグ候補）は枯れ、WX05-009/054/076 を修正済（BUGFIXES）。**次の一手は文型★のトリアージ。詳細は下記 E節「系統分け／同型グルーピング・インデックス」。**
+**2026-06-23 追記（ymst→zerom）:** 逆翻訳スキャンを効率化する**系統分け／同型グルーピング・インデックス**を新設（`scripts/group*.mjs`＋全10シート統合 `docs/grouped_all.txt` / `grouped_sentence_all.txt`）。同型★（高精度バグ候補）は枯れ、WX05-009/054/076 を修正済（BUGFIXES）。
+
+---
+
+## 📌 引き継ぎ（2026-06-26 zerom → ymst）— まずここを読む
+
+**現在地:** `grouped_all.txt`（同型グルーピング）の **G1〜G265 を全件確認・修正完了**。いま `grouped_sentence_all.txt`（文型グルーピング）のトリアージ中。**脱落疑い262枚のうち先頭10枚を修正済**（BUGFIXES 冒頭参照）。
+
+**今セッションで整備したトリアージ基盤（これを使えば速い）:**
+1. **`docs/grouped_sentence_all.txt` が強化済み**。各★外れに **原文・逆翻訳を併記**＋ **⚠脱落疑い(原文N文/逆翻訳M文)** マーカー（逆翻訳の効果文数 < 原文＝効果の脱落＝実バグの主流）。脱落疑いを各グループ先頭・脱落疑い含むグループを全体先頭に並べる。**＝原文を別途引かずに「バグか／何が欠けてるか」が一目で分かる。**ヘッダの脱落疑い総数から上詰めで潰す。
+2. **`scripts/groupBySentence.mjs` の誤検出抑制**（接続句・選択肢番号除去／CHOOSE選択肢の別文展開／共通バリアント許容）で ★1626→約390枚に圧縮。
+3. **`scripts/decompileEffects.ts` 強化**: `CONDITIONAL_MULTI_CHOOSE_BY_CENTER(_LEVEL_GTE)` を原文の選択肢で自然文描画（実装済みSTUBの偽陽性除去）。
+
+**⚠ 重要な作業ルール（今セッションで判明した落とし穴）:**
+- **逆翻訳の `[STUB:id]` は「未実装」ではなく実装済みハンドラのタグ表示**（STUBS.md: 541種中534種ハンドラあり・STUB_LOG 0件）。**`[STUB:]` を含むからとスキップしてはいけない。**タグだけでは「ハンドラがカード全体を実装（例: WX11-017 の CONDITIONAL_MULTI_CHOOSE_BY_CENTER は◎）」と「STUB/単一アクションが断片しか実装せず残りを落とした（例: WX09-Re03/WDK07-E08 は実バグ）」を区別できない。各外れは**該当ハンドラを読む or smoke テスト**で「実装が原文全体を覆うか」個別検証する。
+- **逆翻訳を直したらエンジン実装までセットで**（乖離＝偽陰性を作らない）。`effects_*.json` は**手動管理**（`build:effects` は破壊的なので実行しない）。
+
+**標準ワークフロー（1回 = 数分）:** ①`grouped_sentence_all.txt` の脱落疑いを上から見る → ②原文 vs 逆翻訳で欠落を把握 → ③既存語彙で `effects_*.json` を直す（`REVEAL_AND_PICK`/`LOOK_PICK_CHAIN`/`CHOOSE`/`GRANT_EFFECT` 等。G250〜G265 が手本）→ ④`npx tsc --noEmit` → ⑤該当シート再生成 `npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt` → ⑥下流 `node scripts/genReviewRepr.mjs && node scripts/groupSimilar.mjs --all && node scripts/groupBySentence.mjs --all` → ⑦該当カードの逆翻訳が原文と一致を確認 → ⑧BUGFIXES に追記。
+
+**今セッションで切り出した別途対応（複雑・要新語彙）:** 下記 E節「次の一手」末尾の「修正進捗」リスト参照（引用付与/LB付与型 `WXDi-P02-039-E2`・`WX25-P3-027-E2` 等）。**未修正の明確な実バグ例: `WX24-P4-026`（修正済）, `WX26-CP1-019`（並べ替え後の択一脱落・未修正）。**
+
+**次の一手:** 脱落疑い #11〜 を10枚ずつ。look→pick系・owner誤り・単純脱落は機械的に直せる。複雑な引用付与/LB付与は新語彙が要るので後回しでよい。
+
+**前提:** 新設の語彙は `src/types/effects.ts`、エンジンは `src/engine/effectExecutor.ts`（`execLookPickChain` 等）/`execUtils.ts`。逆翻訳器は `scripts/decompileEffects.ts`。
+
+---
+
+**次の一手は文型★のトリアージ。詳細は下記 E節「系統分け／同型グルーピング・インデックス」。**
 
 > **F-2 全完了**（付与型14枚＋相手場付与 WXDi-P10-072＋THE DOOR自ゲート＋身代わり置換）。**F-4（THE DOOR）全完了**。**F-3 はバトルバニッシュ経路を対話本実装**（犠牲型5枚＋コスト払い型2枚・**要実機検証**／効果バニッシュ経路は powerReduction型 WX06-019 のみ v0.403 で実装、犠牲/コスト型の効果バニッシュは未）。
 
@@ -30,6 +57,17 @@
 - **「それ」のトリガー元参照が `owner:any` 自由選択に:** 「アタックしたとき、それの…」の「それ」＝トリガー元なのに任意シグニ（相手も）選べる（WX01-029-E1＝`targetsTriggerSource` で修正）。
 - **「このシグニ」が自由選択に:** GRANT_KEYWORD 等で「このシグニは得る」が任意自シグニに見える（WX01-029-E3＝`thisCardOnly` で明示。`execGrantKeyword` に thisCardOnly 対応追加済）。
 - **「そのシグニのパワー以下」等の動的フィルタ欠落:** WD04-018＝`powerLteLastProcessed` 新設で修正。
+- **【Team】参照が Story/CardClass 誤参照 or 脱落（系統バグ・修正済）:** WIXOSS の **Team**（CSV `Team` 列。NoLimit/CardJockey/うちゅうのはじまり/アンシエント・サプライズ/DIAGRAM/きゅるきゅるーん☆/さんばか/デウス・エクス・マキナ/夢限少女 の9種）は CardClass/Story とは別軸。「＜Team＞のルリグが3体いる場合」等を AUTO パーサーが `story` に誤parse、または Team 条件ごと脱落（「代わりに」累積化）していた。**`LRIG_TEAM_COUNT` 条件を新設**（場のルリグ＝センター＋アシストL/R の `CardData.Team` 一致数）。本文Team参照の8枚を修正済: WXDi-D01-021（アンシエント・サプライズ）/WXDi-D02-29（さんばか）/WXDi-D03-021（NoLimit。story:NoLimit 誤参照も除去）/WXDi-D04-021（CardJockey。REVEAL_AND_PICK化）/WXDi-D05-021・WXDi-D09-P27（うちゅうのはじまり＝G227）/WXDi-D06-021（DIAGRAM）。WXDi-D02-19LAT は **【使用条件】＜さんばか＞** が対象シグニフィルタに誤混入（＋使用条件「全員レベル1以上」の level:{min:1} 混入）→除去し、本来の ＜バーチャル＞(CardClass) を付与。**残**: WXDi-P00-026（＜さんばか＞のルリグに能力付与）はルリグ対象 grant＋`TargetFilter.team`＋付与能力(ON_ATTACK_LRIG→UP)が必要で未配線（誤UPは no-op STUB `GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG` で停止）。47枚の **【使用条件】【チーム】＜Team＞** 系（ピース/アーツの使用ゲート）は使用条件機構が未実装で別途。
+  - **着手調査（2026-06-25）— P00-026 と47枚は core 機構の改変が必要なため保留:**
+    - **P00-026 の核心ブロッカー＝ルリグ再アタック未実装。** 付与自体は `GRANT_LRIG_ABILITY`→`lrig_granted_auto_effects`（ターン終了でクリア）で可能だが、付与能力「アタック時このルリグをアップ」でアップしても **`lrig_has_attacked` ハードゲート（BattleScreen:8800「ON_ATTACK_LRIGでアップされても再攻撃不可」）** で再アタックできない＝効果が空振り。実装には ①新アクション `LRIG_ATTACK_AGAIN`（アップ＋`lrig_has_attacked`クリア）②付与ルリグON_ATTACK_LRIGトリガーの `usageLimit`(once_per_turn) **強制**（現状8832-8843は未チェック＝無いと無限再アタック）が必要。core戦闘＋ループ防止に関わり、1枚のためにはリスク過大として保留。
+    - **47枚の使用条件【チーム】は意図的な非強制（`USE_CONDITION_TEXT` no-op）。** 強制化はピース/アーツ使用フローへの横断的フック＋誤ブロックのリスク。かつ正規デッキでは条件は常に満たされる（チームデッキでしか積まない）ため**ゲーム的価値が低い**。現状の「常に使用可」近似で機能的に等価。保留が妥当。
+- **ベットのコイン支払い機構（コア解決済）:** 以前は **(1) スペルのベットが未実装＝コイン未払い**（`castSpell`/スペルモーダルにベット無し）、**(2)「ベット―好きな枚数」(WX22-016) が解析不能**、**(3)「ベット―《コイン》or《コイン》《コイン》」(WX16-004) が第1段のみ**、だった。**修正:** `parseBetOptions`（固定/段階(or)/可変(好きな枚数)を統一）＋ベット枚数を数値 state `betAmount` 化。アーツ/スペル両モーダルに枚数選択UI、`executeArts`/`castSpell` で選択枚数分のコイン消費＋`is_betting_this_effect`/`bet_coins_paid`（PlayerState 新設）設定。アンコール併用時の合算可否ガードも追加。**残:** 可変/段階ベットの**効果スケール**（WX22-016 のコイン枚数ぶん繰り返し等）は `bet_coins_paid` を読む個別対応が未（コイン支払いは正しい）。
+- **ベット「あなたがベットしていた場合、代わりに〜」が累積化（系統バグ・一部修正済）:** AUTO パーサーが「基本効果」と「代わりに」の強化効果を **SEQUENCE で両方適用**（例: 1体バニッシュ＋全体バニッシュ）してしまう。本来は**択一**（ベットなら強化／しなければ基本）。**`IS_BETTING` 条件を新設**（`evalCondition`＝`is_betting_this_effect` 参照、`CONDITIONAL{IS_BETTING, then:強化, else:基本}` で表現）。`BANISH`/`BOUNCE` に `opponentSelects`、`TrashAction` に `bestEffort`、`DownAction` に `optional` も新設済。
+  - **修正済（20枚・CONDITIONAL{IS_BETTING}化）:** ①単純置換11枚: WDK08-L08・SPK16-13B（1体→全体バニッシュ）／WX15-015（draw2→4）／WX15-030（チャージ1→2）／WX16-011（バウンスLv3以下→無制限）／WXK01-011（バニッシュ7000→20000）／WDK02-008（ダウン1→2）／WXDi-P07-068（バニッシュ8000→無制限）／WXDi-P09-076（チャージ2→3）／WXDi-P09-083（－7000→－12000）／WXDi-P15-075（－2000→－7000）。②複合9枚: WX15-005（ライズ場出し＋バニッシュ1→全体、powerLteLastProcessed付与）／WX15-026（黒蘇生1→2）／WX16-010（怪異サーチ1→2）／WX18-004（ダウン＋ドロー：欠落を復元し1体1枚→3体3枚）／WD22-012-G（相手トラッシュ＋遊具蘇生のレベル制限解除）／WDA-F01-09（能力消失1→全体、both ターン終了時まで）／WXDi-D09-P26（draw2→3、discard固定＋スペル封じ）／WXK04-019（ダメージ無効1→2、PREVENT_NEXT_DAMAGE count）／WDK13-007（レベル合計バニッシュ・**自シグニ巻き込み誤りを修正**。`EffectTarget.totalLevelMax` 新設）。
+  - **修正済（追加2枚・専用機構）:** WDK08-Y07（手札からシグニ公開→そのパワー以下を対象。`REVEAL{source:HAND_CARD}` を実装＝手札選択で公開し lastProcessedCards に記録、`execSendToEnergy` に動的フィルタ解決を追加。ベットでバニッシュ→エナ送り＋チャージに分岐）／WX16-004（段階追加型：基本ダウン＋ベットで追加ダウン＋《コイン》2枚で常時能力付与。`IS_BETTING.minCoins` 新設で段階判定。ルリグ能力＝ホログラフ置換は GRANT_LRIG_ABILITY のまま近似）。
+  - **修正済（追加1枚・専用機構）:** WDK10-008（相手トラッシュ3枚をゲーム除外→共通色なら黒シグニ手札2/4。**`EXILE` アクション新設**＝トラッシュから取り除き lastProcessedCards に記録、**`LAST_PROCESSED_SHARE_COLOR` 条件新設**＝除外カード全てに共通色があるか判定）。
+  - **修正済（追加1枚・傀儡サブシステム）:** WDK17-007（相手トラッシュからシグニを傀儡状態で自場に1→2枚）。①**steal を独立STUB** `STEAL_OPP_TRASH_PUPPET`＋`INTERNAL_PLACE_PUPPET` で実装（`execAddToField` を触らず、`opp_trash` から選択→自場の空きゾーンへ配置→`field.puppet_signi` に記録。ベットで2枚）②**離場回収**＝`field.puppet_signi`（PlayerState.field 新設）＋`sweepPuppets`（execUtils）で、場を離れた傀儡を持ち主＝相手のトラッシュへ回収。`applyRefreshOnDone`（効果解決後・全効果チョークポイント）と `resolvePendingSigniBattleFor`（バトル解決後）の2箇所に配線。**近似:** バニッシュは一旦エナ等へ行ってからスイープで持ち主トラッシュへ回収する後追い方式（最終位置は正しい）。**ベット系の「代わりに/段階/追加/傀儡」は全24枚完了。**
+  - **STUB系（BET_MECHANIC①②③選択／未対応パターン）:** WX15-029・WX16-005・WX17-003/005/006/019・WX19-005/006・WX22-016・WXK01-034・WXK04-014・WXK07-105/106・WD17-006・WD19-006/007・WD20-006/007・WD21-007・WD23-017-EA・WDK01-007/010・WDK03-009・WDK05-T10・WDK06-R07/R08・WDK07-Y07/Y08・WDK08-Y06・WDK12-007・WDK15-007・SPK16-13E・PR-K072・WXDi-P07-059/P15-071 等は `execStub` の `BET_MECHANIC`/`BET_CONDITION` 依存。BET_CONDITION はテキストマッチで一部パターン（さらにN枚引く／A枚の代わりにB枚手札）のみ対応、それ以外は no-op。要個別確認。
 - **引用付与のフラット化 → 有害 CONTINUOUS BANISH:** F 節参照（27件 v0.414/0.415 で manualEffects 昇格・解決済。同型が他Sheetにある可能性）。
 - **`FREEZE` の自動ダウン誤り（解決済 v0.433/0.434）:** engine の `execFreeze` が常時 `signi_down` も立てていたため純「凍結する」カードまで誤ってダウンしていた。`FreezeAction.down?` 新設で「ダウンし凍結」のみダウン。既存 `SEQUENCE[DOWN,FREEZE]` 82効果も `FREEZE(down:true)` に一括変換（同一対象の二重選択バグ解消）。**他Sheetの凍結カードは挙動 OK。**
 - **`ADD_TO_FIELD` の source 欠落でデッキトップ誤配置（一部解決・残あり）:** 「エナ/手札/トラッシュ/ルリグデッキ から[フィルタ]シグニ（レゾナ）を場に出す」が source 無しの bare `ADD_TO_FIELD` になると `execAddToField` の `!src` 分岐が**デッキトップを出す**（全く別カードが出る重大誤り）。逆翻訳の「**直前に選んだカードを場に出す**」がサイン。**LOOK/SEARCH の後に続く bare ADD_TO_FIELD は正当**（`applyDirectAction` が選んだカードを出す）。`effect.action` が直接 or SEQUENCE 先頭の bare ADD_TO_FIELD のみ要注意。
@@ -184,9 +222,18 @@ JSON効果を日本語に逆翻訳し CardData 原文と並べてレビューす
 - **残: AUTO/ACTIVATED の `《相手ターン》`/`《自分ターン》`（約33枚）は未対応。** condition 側はトリガー収集時の ad-hoc 判定（`evalCondition` は IS_*_TURN を実行時 true 扱い）で timing ごとの整備が要る。ターン条件は **必ず `TURN_OWNER`**（`IS_MY_TURN` はパーサーが「そうした場合」CONDITIONAL プレースホルダーに転用しており衝突するため使用禁止）。collectSelfEventTriggers 等の収集側で `TURN_OWNER` を評価する共通フックを入れるのが筋。
 
 **次の一手（zerom）: 文型★のトリアージ。**
-- `grouped_sentence_all.txt` に **344文型 / 1580枚**。ただし誤検出が多い。
-- **先に `groupBySentence.mjs` の `bodyKey` に、`groupSimilar.mjs` の `normDec` と同じタイミング語除去（`.replace(/[／\/]?[A-Z][A-Z_]+/g,'')`＝ATTACK 等スラッシュ無し大文字語も除去）を入れて誤検出を減らす**。上位文型の多くはタイミング/コスト差の誤検出のはず。
-- 精度を上げた上で、上位の文型を系統ごとに原文と突き合わせて潰す。
+- **grouped_all.txt（同型）は全グループ G1〜G265 を確認・修正完了（2026-06-25〜26）。** 直近では G247〜G265 を是正＋多段ピック新機構 `LOOK_PICK_CHAIN` 等を新設（BUGFIXES 参照）。
+- **`groupBySentence.mjs` の誤検出抑制を実装済（2026-06-26）**。3点: ①`bodyKey` で先頭接続句（そして／そうした場合／その後…）・選択肢番号（①②③④）を除去、②`splitDecomp` で CHOOSE の「次から…選ぶ【A / B】」を選択肢A・Bの別文に展開＋原文側の選択ヘッダー（「以下の2つから1つを選ぶ」等）を除外、③外れ判定を「単一多数派キー欠落」→「**共通バリアント（2枚以上に出る逆翻訳型）のどれにも一致しないカードのみ**」に変更（複数の正当バリアントを許容）。
+  - 効果: **★要確認 1626枚 → 392枚**（うち STUB/UNKNOWN 除く実候補 **約339枚**）。S001「引く」は外れ147→1枚。`grouped_sentence_all.txt` の★節が実用的なバグ候補表になった。
+- **残作業:** ★節（276文型・多くは外れ1〜2枚）を原文と突き合わせて潰す。**⚠ STUB行をスキップしてはいけない**: `[STUB:]` は実装済みハンドラのタグ表示（STUBS.md参照）だが、**ハンドラがカード全体を覆う場合（WX11-017＝正しい）と、STUB/単一アクションが断片しか実装せず残りを落とした場合（WX09-Re03/WDK07-E08＝実バグ）をタグだけでは区別できない**。各外れは「実装が原文全体を覆うか」を個別検証する（ハンドラ確認 or smoke テスト）。汎用 `CONDITIONAL_MULTI_CHOOSE_BY_CENTER` は「以下のNつからMつ選ぶ」全般を EffectText 実行時パースで実装できるので、択一脱落カードはこのSTUBへ置換するのが定石。
+- **修正進捗（10枚ずつ）**: 1巡目（2026-06-26）で脱落疑い先頭10枚を処理（WXDi-CP01-036/WX24-P4-026/WX25-CP1-037/WX26-CP1-001/WXK10-008/WXDi-P02-039/WXDi-P16-048/WX25-P3-027/WX25-CP1-006/WX07-012）。下記の複雑rider/モードは**近似または別途要対応**:
+  - `WXDi-P02-039-E2` / `WX25-P3-027-E2`: 引用付与・LB付与（ディスペア）型で未対応＝**要本実装**（現状 E2 は no-op or 誤バニッシュ）。
+  - `WXK10-008` ①「相手ターン中エナの色と能力を失う」: 新語彙未対応で**①モード脱落**（②の任意赤コストバニッシュのみ実装）。
+  - `WX25-CP1-006` ④: `OPTIONAL_TRASH_ENERGY_CLASS` がカード内の別「エナゾーンから…」記述（②）を誤マッチし枚数/名詞がずれる＝**テキスト解析STUBの多重記述カードでの限界**。要ハンドリング。
+  - `WX24-P4-026` 色ゲート（白1+他色1で付与）/`WX26-CP1-001` リコレクト2つ・③の遅延付与/`WX25-CP1-037` 出能力無効: rider近似。
+- G250〜G265 と同じ要領でバッチ修正していくとよい。
+- **トリアージ用ツール（2026-06-26 実装済み）**: `grouped_sentence_all.txt` が以下を持つ。①各★外れに**原文・逆翻訳を併記**＋**⚠脱落疑い(原文N文/逆翻訳M文)**マーカー（逆翻訳の効果文数＜原文＝効果脱落の最優先実バグ）。脱落疑いを各グループ先頭・脱落疑い含む★グループを全体先頭に並べる。ヘッダに脱落疑い総数（現在262枚前後）。②decompiler が `CONDITIONAL_MULTI_CHOOSE_BY_CENTER(_LEVEL_GTE)` を原文の選択肢で描画（実装済みSTUBの偽陽性除去）。**→ 原文を別途引かずに「バグか／何が欠けてるか」が一目で分かる。脱落疑いから順に潰すのが効率的。**
+- **decompiler 改良候補（継続）**: 他のテキスト実行時パース型STUB（`BET_MECHANIC`・`CHOOSE_SAME_OPTION_*`・`DO_THREE_THINGS` 等）も同様に原文反映で描画すれば★偽陽性がさらに減る。
 
 ---
 

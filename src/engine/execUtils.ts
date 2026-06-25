@@ -106,6 +106,39 @@ export function banishDestination(
   return { state: { ...removed, energy: [...removed.energy, num] }, log: 'をバニッシュ' };
 }
 
+// 傀儡（puppet）の離場回収: fieldOwner の場の puppet_signi のうち、もう場にないものを
+// fieldOwner の各ゾーン（エナ/トラッシュ/手札/デッキ）から取り除き、持ち主（trueOwner）のトラッシュへ移す。
+// 「傀儡状態のシグニが場を離れる場合、代わりに持ち主のトラッシュに置かれる」（WDK17-007）の近似（移動後に回収）。
+function relocateLeftPuppets(fieldOwner: PlayerState, trueOwner: PlayerState): { fieldOwner: PlayerState; trueOwner: PlayerState } {
+  const puppets = fieldOwner.field.puppet_signi ?? [];
+  if (puppets.length === 0) return { fieldOwner, trueOwner };
+  const onField = new Set<string>();
+  for (const z of fieldOwner.field.signi) for (const id of (z ?? [])) onField.add(id);
+  const left = puppets.filter(p => !onField.has(p));
+  if (left.length === 0) return { fieldOwner, trueOwner };
+  const leftSet = new Set(left);
+  const fo: PlayerState = {
+    ...fieldOwner,
+    energy: fieldOwner.energy.filter(n => !leftSet.has(n)),
+    trash: fieldOwner.trash.filter(n => !leftSet.has(n)),
+    hand: fieldOwner.hand.filter(n => !leftSet.has(n)),
+    deck: fieldOwner.deck.filter(n => !leftSet.has(n)),
+    field: { ...fieldOwner.field, puppet_signi: puppets.filter(p => !leftSet.has(p)) },
+  };
+  const to: PlayerState = { ...trueOwner, trash: [...trueOwner.trash, ...left] };
+  return { fieldOwner: fo, trueOwner: to };
+}
+
+// 両プレイヤーの場から離れた傀儡を持ち主のトラッシュへ回収する（効果/バトル解決後に呼ぶ）。
+export function sweepPuppets(a: PlayerState, b: PlayerState): { a: PlayerState; b: PlayerState } {
+  if ((a.field.puppet_signi?.length ?? 0) === 0 && (b.field.puppet_signi?.length ?? 0) === 0) return { a, b };
+  const r1 = relocateLeftPuppets(a, b); // a の場の傀儡（持ち主=b）が離場 → b.trash
+  let aS = r1.fieldOwner, bS = r1.trueOwner;
+  const r2 = relocateLeftPuppets(bS, aS); // b の場の傀儡（持ち主=a）が離場 → a.trash
+  bS = r2.fieldOwner; aS = r2.trueOwner;
+  return { a: aS, b: bS };
+}
+
 // Color列は「黒青」のような連結形式（'/'区切りではない）。単色文字に分解する（「無」は色を持たないため含まない）
 export function splitColors(col: string | undefined): string[] {
   if (!col) return [];
@@ -127,16 +160,23 @@ export function addLog(ctx: ExecCtx, msg: string): ExecCtx {
 }
 
 // 任意コストが支払えるかチェック（色の一致を検証）
+// コストスロットは「青」「無」のほか、選択肢を表す「青|黒」（青か黒のいずれか1エナ）形式を許容する。
+export const costSlotIsAny = (slot: string): boolean => slot.split('|').some(c => c === '無');
+export const energyMatchesCostSlot = (color: string, slot: string): boolean =>
+  slot.split('|').some(c => color.includes(c));
+/** コストスロットを表示用に整形（"青|黒" → "《青》か《黒》"） */
+export const formatCostSlot = (slot: string): string => slot.split('|').map(c => `《${c}》`).join('か');
+
 export function canPayOptionalCost(costColors: string[], state: PlayerState, cardMap: Map<string, CardData>): boolean {
   const pool = [...state.energy];
-  // 無色は任意のエナで支払えるため、色指定コストを先に消費してから無色を割り当てる
-  const ordered = [...costColors].sort((a, b) => (a === '無' ? 1 : 0) - (b === '無' ? 1 : 0));
-  for (const color of ordered) {
-    if (color === '無') {
+  // 無色（任意エナ可）スロットは色指定スロットを先に消費してから割り当てる
+  const ordered = [...costColors].sort((a, b) => (costSlotIsAny(a) ? 1 : 0) - (costSlotIsAny(b) ? 1 : 0));
+  for (const slot of ordered) {
+    if (costSlotIsAny(slot)) {
       if (pool.length === 0) return false;
       pool.splice(0, 1);
     } else {
-      const idx = pool.findIndex(n => cardMap.get(n)?.Color?.includes(color));
+      const idx = pool.findIndex(n => energyMatchesCostSlot(cardMap.get(n)?.Color ?? '', slot));
       if (idx === -1) return false;
       pool.splice(idx, 1);
     }
@@ -226,6 +266,12 @@ export function matchesFilter(
     // Guard列は '1'/'0' 形式（空文字判定だと全カードがガード持ち扱いになる）
     const hasGuard = card.Guard === '1';
     if (filter.hasGuard !== hasGuard) return false;
+  }
+  if (filter.noGuard && card.Guard === '1') return false;
+  if (filter.nonColorless) {
+    const col = card.Color ?? '';
+    // 無色のColorはデータ上「無」（36枚）。空/「無色」表記も保険で除外する。
+    if (col === '' || col === '無' || col === '無色') return false;
   }
   if (filter.hasIcon !== undefined) {
     // 《Xアイコン》持ちの判定: カード自身のテキストにキーワード能力があるかの近似
@@ -566,6 +612,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const card = ctx.cardMap.get(topLrig);
       return card?.CardClass?.includes(cond.story) ?? false;
     }
+    case 'LRIG_TEAM_COUNT': {
+      // 場のルリグ（センター＋アシストL/R）のうち Team が一致する数（「＜うちゅうのはじまり＞のルリグが3体」。WXDi-D05-021）
+      const fLTC = st(cond.owner).field;
+      const lrigNumsLTC = [fLTC.lrig.at(-1), fLTC.assist_lrig_l?.at(-1), fLTC.assist_lrig_r?.at(-1)].filter((n): n is string => !!n);
+      const cntLTC = lrigNumsLTC.filter(n => (ctx.cardMap.get(getCardNum(n))?.Team ?? '').includes(cond.team)).length;
+      return cmp(cntLTC, cond.operator, cond.value);
+    }
     case 'THIS_CARD_IN_LOCATION': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
@@ -586,6 +639,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const zoneIdx = ctx.ownerState.field.signi.findIndex(z => z?.includes(src));
       if (zoneIdx < 0) return false;
       return ctx.ownerState.field.signi_down?.[zoneIdx] ?? false;
+    }
+    case 'THIS_CARD_IS_UP': {
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const zoneIdx = ctx.ownerState.field.signi.findIndex(z => z?.includes(src));
+      if (zoneIdx < 0) return false;
+      return !(ctx.ownerState.field.signi_down?.[zoneIdx] ?? false);
     }
     case 'THIS_CARD_IS_ARMORED': {
       const src = ctx.sourceCardNum;
@@ -698,9 +758,21 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // どちらもプレースホルダとして true を返す。実際のターン判定は収集側（BattleScreen）が condHas で行う。
     case 'IS_MY_TURN':            return true;
     case 'IS_OPPONENT_TURN':      return true;
+    // IS_BETTING: このアーツ/スペルでベットを宣言していたか（is_betting_this_effect）。
+    // 「あなたがベットしていた場合、代わりに」の択一に使う（CONDITIONAL then=強化 / else=基本）。
+    case 'IS_BETTING':            return !!ctx.ownerState.is_betting_this_effect &&
+      (cond.minCoins == null || (ctx.ownerState.bet_coins_paid ?? 0) >= cond.minCoins);
     case 'BEAT_CONDITION': {
       const beatZone = ctx.ownerState.field.beat_zone ?? [];
       return checkBeatCondition(beatZone, cond.condText, ctx.cardMap);
+    }
+    case 'LAST_PROCESSED_SHARE_COLOR': {
+      // lastProcessedCards 全てに共通する色が1つ以上あるか（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
+      const lst = ctx.lastProcessedCards ?? [];
+      if (lst.length === 0) return false;
+      const colorSets = lst.map(n => splitColors(ctx.cardMap.get(getCardNum(n))?.Color));
+      const common = colorSets.reduce((acc, cols) => acc.filter(c => cols.includes(c)), colorSets[0]);
+      return common.length > 0;
     }
     case 'PAID_ADDITIONAL_COST':  return false; // execSequence の look-ahead で処理済みのため通常到達しない
     case 'COND_STUB':             return true;
@@ -900,7 +972,7 @@ export function selectOrInteract(
   continuation: EffectAction | undefined,
   ctx: ExecCtx,
   opponentResponds = false,
-  extra?: { totalPowerMax?: number; candidatePowers?: Record<string, number> },
+  extra?: { totalPowerMax?: number; candidatePowers?: Record<string, number>; totalLevelMax?: number; candidateLevels?: Record<string, number> },
 ): ExecResult {
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
   // both_field（owner:'any'）でも相手側の候補にはシャドウを適用する（自分側候補は対象外）
@@ -947,6 +1019,8 @@ export function selectOrInteract(
     ...(opponentResponds ? { opponentResponds: true } : {}),
     ...(extra?.totalPowerMax !== undefined ? { totalPowerMax: extra.totalPowerMax } : {}),
     ...(extra?.candidatePowers ? { candidatePowers: extra.candidatePowers } : {}),
+    ...(extra?.totalLevelMax !== undefined ? { totalLevelMax: extra.totalLevelMax } : {}),
+    ...(extra?.candidateLevels ? { candidateLevels: extra.candidateLevels } : {}),
   });
 }
 

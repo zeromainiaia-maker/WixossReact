@@ -37,14 +37,38 @@ function bodyKey(sentence) {
     .replace(/《[^》]*》/g, '《X》')     // カード名・色
     .replace(/＜[^＞]*＞/g, '＜X＞')     // 種族・タイプ
     .replace(/[0-9０-９]+/g, 'N')      // 数字
+    // 先頭の接続句を除去（複合カードで2番目以降に付く「そして」「そうした場合」等で
+    // 単独文型の多数派と一致しなくなる偽陽性を防ぐ。原文・逆翻訳の双方に適用）
+    .replace(/^(?:そして|そうした場合|その後|そうでなければ|代わりに|または)[、,]?/g, '')
+    .replace(/^[①-⑳]+/, '')           // 選択肢番号 ①②③④ 等（CHOOSE選択肢を基本効果と同型に）
     .replace(/^[：:、。\s]+/, '')      // 先頭の区切り記号
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** 逆翻訳を文/効果行に分割（「。」と改行で区切る） */
+/** 逆翻訳を文/効果行に分割（「。」と改行で区切る）。
+ *  CHOOSE の「次から/どちらか…選ぶ【A / B】」ブロックは選択肢A・Bを別文に展開し、
+ *  原文側の各選択肢文（「①…」等）と整列できるようにする（CHOOSE偽陽性の抑制）。 */
 function splitDecomp(s) {
-  return s.split(/[。\n]/).map(x => x.trim()).filter(Boolean);
+  const expanded = s.replace(/(?:次から|どちらか)[^【】]*?選ぶ【([^】]*)】/g,
+    (_m, inner) => inner.split(' / ').join('。'));
+  return expanded.split(/[。\n]/).map(x => x.trim()).filter(Boolean);
+}
+
+// 原文側の「選択ヘッダー」文（それ自体は効果でなく構造）。グルーピングから除外し、
+// 選択肢の本体（①…）だけを基本効果と同型で突き合わせる。
+const CHOICE_HEADER_RE = /(?:^|：)\s*(?:どちらか|以下の).*選ぶ$/;
+
+// 効果として数える文の本数（マスク後 MIN_LEN 以上・STOP/選択ヘッダー除外）。
+// 原文と逆翻訳で比較し、逆翻訳が大幅に少なければ「効果の脱落」を疑う。
+function origSentenceCount(orig) {
+  return orig.split(/。/).filter(s => {
+    const k = bodyKey(s);
+    return k.length >= MIN_LEN && !STOP.has(k) && !CHOICE_HEADER_RE.test(s);
+  }).length;
+}
+function decompSentenceCount(decomp) {
+  return splitDecomp(decomp).map(bodyKey).filter(k => k.length >= MIN_LEN && !STOP.has(k)).length;
 }
 
 // 接続句など、それ単体ではグルーピングに値しない断片を除外
@@ -72,6 +96,7 @@ for (const c of cards) {
   // 「。」で文分割
   const sentences = c.orig.split(/。/).map(s => s.trim()).filter(Boolean);
   for (const s of sentences) {
+    if (CHOICE_HEADER_RE.test(s)) continue;   // 「以下の2つから1つを選ぶ」等の選択ヘッダーは除外
     const key = bodyKey(s);
     if (key.length < MIN_LEN || STOP.has(key)) continue;
     totalSentences++;
@@ -89,28 +114,50 @@ const multi = [...groups.values()].filter(g => g.cards.size >= 2);
 // (= 原文は同型なのに逆翻訳の構造が違う = バグ候補。WX05-009 型を文粒度で拾う)
 for (const g of multi) {
   const decCount = new Map();
+  const cardKeys = new Map();
   for (const num of g.cards) {
     const keys = new Set(splitDecomp(byNum.get(num).decomp).map(bodyKey).filter(k => k.length >= MIN_LEN));
+    cardKeys.set(num, keys);
     for (const k of keys) decCount.set(k, (decCount.get(k) || 0) + 1);
   }
+  // 共通の逆翻訳型 = 2枚以上に現れるキー（＝正規な描画バリアントの集合。複数バリアントを許容）
+  const commonKeys = new Set([...decCount].filter(([, n]) => n >= 2).map(([k]) => k));
   let top = null, topN = 0;
   for (const [k, n] of decCount) if (n > topN) { topN = n; top = k; }
   g.top = top;
   g.topN = topN;
-  g.outliers = top
-    ? [...g.cards].filter(num => !new Set(splitDecomp(byNum.get(num).decomp).map(bodyKey)).has(top))
+  // outlier = 共通バリアントを1つも含まないカード（＝多数派のどの描画にも一致しない真の外れ）
+  g.outliers = commonKeys.size > 0
+    ? [...g.cards].filter(num => {
+        for (const k of cardKeys.get(num)) if (commonKeys.has(k)) return false;
+        return true;
+      })
     : [];
-  // 多数派が2枚以上あり、それを欠くカードがある場合のみ要確認
-  g.flagged = topN >= 2 && g.outliers.length > 0;
+  // 多数派（共通バリアントに適合）が2枚以上あり、それを欠くカードがある場合のみ要確認
+  g.flagged = g.outliers.length > 0 && (g.cards.size - g.outliers.length) >= 2;
+  // 脱落疑い（逆翻訳の文数 < 原文の文数）の外れを含むか＝最優先の実バグ候補
+  g.hasDrop = g.flagged && g.outliers.some(num => {
+    const c = byNum.get(num);
+    return decompSentenceCount(c.decomp) < origSentenceCount(c.orig);
+  });
 }
-// ★を上に、その中・その他はサイズ降順
-multi.sort((a, b) => (Number(b.flagged) - Number(a.flagged)) || (b.cards.size - a.cards.size));
+// ★（さらに脱落疑い含むものを最優先）を上に、その中はサイズ降順
+multi.sort((a, b) =>
+  (Number(b.flagged) - Number(a.flagged)) ||
+  (Number(b.hasDrop) - Number(a.hasDrop)) ||
+  (b.cards.size - a.cards.size));
 
 const coveredCards = new Set();
 for (const g of multi) for (const n of g.cards) coveredCards.add(n);
 const flaggedGroups = multi.filter(g => g.flagged);
 const flaggedOutliers = new Set();
 for (const g of flaggedGroups) for (const n of g.outliers) flaggedOutliers.add(n);
+// 脱落疑い（逆翻訳の文数 < 原文の文数）の外れカード集合＝最優先の実バグ候補
+const dropSuspects = new Set();
+for (const n of flaggedOutliers) {
+  const c = byNum.get(n);
+  if (decompSentenceCount(c.decomp) < origSentenceCount(c.orig)) dropSuspects.add(n);
+}
 
 // ---- 出力ファイル ----
 const lines = [];
@@ -119,8 +166,10 @@ lines.push(`効果ありカード数: ${cards.length}`);
 lines.push(`抽出した効果文(のべ): ${totalSentences} / ユニーク文型: ${groups.size}`);
 lines.push(`2枚以上にまとまる文型: ${multi.length}  (カバー ${coveredCards.size}枚)`);
 lines.push(`★逆翻訳が割れている文型: ${flaggedGroups.length}  (要確認カード ${flaggedOutliers.size}枚)`);
+lines.push(`⚠脱落疑い（逆翻訳が原文より短い＝効果脱落の最優先実バグ候補）: ${dropSuspects.size}枚`);
 lines.push('');
 lines.push('※★ = 同じ原文文型なのに、一部カードだけ逆翻訳の構造が多数派と違う = バグ候補');
+lines.push('※⚠脱落疑い = 逆翻訳の効果文数 < 原文の効果文数。択一や複数効果の脱落＝実バグの主流。各★グループ内で先頭に並ぶ。');
 lines.push('='.repeat(78));
 
 let gid = 0;
@@ -134,9 +183,16 @@ for (const g of multi) {
   if (g.flagged) {
     lines.push(`  多数派の逆翻訳型(${g.topN}枚): ${g.top}`);
     lines.push(`  ▼要確認カード(多数派を欠く):`);
-    for (const num of g.outliers) {
-      lines.push(`    ── ${num}  ${byNum.get(num).name}`);
-      lines.push(`       逆翻訳: ${byNum.get(num).decomp.replace(/\s+/g, ' ')}`);
+    // 脱落疑い（逆翻訳の文数 < 原文の文数）を先頭に並べると実バグから着手できる
+    const annotated = g.outliers.map(num => {
+      const c = byNum.get(num);
+      const oN = origSentenceCount(c.orig), dN = decompSentenceCount(c.decomp);
+      return { num, c, oN, dN, drop: dN < oN };
+    }).sort((a, b) => Number(b.drop) - Number(a.drop));
+    for (const { num, c, oN, dN, drop } of annotated) {
+      lines.push(`    ── ${num}  ${c.name}${drop ? `  ⚠脱落疑い(原文${oN}文/逆翻訳${dN}文)` : ''}`);
+      lines.push(`       原文 : ${c.orig.replace(/\s+/g, ' ')}`);
+      lines.push(`       逆翻訳: ${c.decomp.replace(/\s+/g, ' ')}`);
     }
     lines.push(`  ・その他: ${[...g.cards].filter(n => !g.outliers.includes(n)).join(', ')}`);
   } else {

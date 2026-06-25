@@ -59,7 +59,8 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum,
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
-  evalUseCondition, banishDestination,
+  costSlotIsAny, energyMatchesCostSlot,
+  evalUseCondition, banishDestination, sweepPuppets,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition };
@@ -250,6 +251,17 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       candidatePowers,
     });
   }
+  // totalLevelMax: 「レベルの合計がN以下になるようにM体まで」→ レベル合計制限つき複数選択（最大 tgt.count 体）
+  if (tgt.totalLevelMax !== undefined) {
+    if (cands.length === 0) return done(ctx);
+    const candidateLevels: Record<string, number> = {};
+    for (const n of cands) candidateLevels[n] = parseInt(ctx.cardMap.get(n)?.Level ?? '0', 10) || 0;
+    const maxPick = typeof tgt.count === 'number' ? tgt.count : cands.length;
+    return selectOrInteract(cands, maxPick, true, scope, a, undefined, ctx, false, {
+      totalLevelMax: tgt.totalLevelMax,
+      candidateLevels,
+    });
+  }
   if (tgt.count === 'ALL') {
     // 「好きな数」（count:'ALL' + upToCount）: プレイヤーが0〜全部を選択（自動全バニッシュにしない）。execTrash と同じ慣例。
     if (tgt.upToCount) {
@@ -299,7 +311,38 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.count === 'ALL') return done(applyBounce(cands, ctx));
   const count = resolveNum(tgt.count);
-  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx);
+  // opponentSelects: 「対戦相手は対象の自分のシグニ1体を手札に戻す」→ 対戦相手が選ぶ
+  const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
+  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds);
+}
+
+// REVEAL: カードを公開する。source が HAND_CARD のときは手札からフィルタ一致のカードを選んで公開し、
+// 公開したカードを lastProcessedCards に記録する（「公開されたシグニのパワー以下」等の参照用。WDK08-Y07）。
+// 公開しても手札からは移動しない（選択＝公開のみ。thenAction はノーオップ REVEAL）。
+function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): ExecResult {
+  const src = a.source;
+  if (src && src.type === 'HAND_CARD') {
+    const state = ownerState(src.owner, ctx);
+    const cands = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    if (cands.length === 0) return done({ ...addLog(ctx, '公開できるカードがない'), lastProcessedCards: [] });
+    const scope: TargetScope = src.owner === 'self' ? 'self_hand' : 'opp_hand';
+    // 選択＝公開（手札に残す）。resumeSelectTarget が lastProcessedCards=選択カード をセットし continuation を実行する
+    return selectOrInteract(cands, resolveNum(src.count), false, scope, { type: 'REVEAL' }, undefined, ctx);
+  }
+  return done(addLog(ctx, 'カードを公開'));
+}
+
+// EXILE: カードをゲームから除外する（現状トラッシュからの除外のみ。除外ゾーン未実装＝取り除き＝消去で近似）。
+// 選択カードを lastProcessedCards に記録（後続の LAST_PROCESSED_SHARE_COLOR 等の参照用。WDK10-008）。
+function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): ExecResult {
+  const tgt = a.target;
+  if (tgt.type !== 'TRASH_CARD') return done(ctx);
+  const state = ownerState(tgt.owner, ctx);
+  const cands = trashCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+  if (cands.length === 0) return done({ ...addLog(ctx, '除外できるカードがない'), lastProcessedCards: [] });
+  const scope: TargetScope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
+  const count = Math.min(resolveNum(tgt.count), cands.length);
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 // SEND_TO_ENERGY: フィールドのシグニをエナゾーンに置く（エナ送り）。
@@ -308,7 +351,9 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
 function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // 動的フィルタ（powerLteLastProcessed=「公開したシグニのパワー以下」等）を解決（WDK08-Y07）
+  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers);
+  const cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applySend(selected: string[], c: ExecCtx): ExecCtx {
@@ -358,6 +403,10 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     if (tgtOwner === 'opponent' && delta < 0 && ctx.otherEffectImmuneNums?.size) {
       cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
     }
+  }
+  // excludeSelf: 効果元シグニ自身を対象から除外（「あなたの他の＜地獣＞のシグニ」。WXDi-P15-093 / WX24-P1-076）
+  if ((a.excludeSelf || a.target.filter?.excludeSelf) && ctx.sourceCardNum) {
+    cands = cands.filter(n => n !== ctx.sourceCardNum);
   }
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニのパワーを±X」。WX25-CP1-075 等の付与能力で使用）
   if (a.target.filter?.thisCardOnly) {
@@ -553,7 +602,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
     const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
-    return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, opponentResponds);
+    return selectOrInteract(cands, count, (a.optional || a.target.upToCount) ?? false, scope, a, undefined, ctx, opponentResponds);
   }
 
   if (tgt.type === 'ENERGY_CARD') {
@@ -1097,10 +1146,12 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
-  if (a.target.count === 'ALL') return done(applyDown(cands, ctx));
+  if (a.target.count === 'ALL') return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
   const count = resolveNum(a.target.count);
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  // optional:「ダウンしてもよい」（スキップ可。スキップ時は resumeSelectTarget が後続の「そうした場合」を除去）
+  const downOptional = a.optional || (a.target.upToCount ?? false);
+  return selectOrInteract(cands, count, downOptional, scope, a, undefined, ctx);
 }
 
 function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
@@ -1742,7 +1793,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           void toHWTOSOC; // count解析は利用しない（execBanish/execBounce が自律的に候補を提示）
           const fixedThenTOSOC = fixOwnerTOSOC(conditional.then);
           const payLabelTOSOC = costColors.length > 0
-            ? `対象選択して発動（${costColors.map(c => `《${c}》`).join('')}）`
+            ? `対象選択して発動（${costColors.map(c => c.split('|').map(x => `《${x}》`).join('か')).join('')}）`
             : '対象選択して発動';
           // BANISH/BOUNCE等は opponent 修正により execBanish で相手フィールドから selectOrInteract が走る
       const optsTOSOC = [
@@ -1797,6 +1848,35 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           ];
           return needsInteraction(addLog(cur, `エナゾーンのカードを選択しますか？`), {
             type: 'CHOOSE', options: optsOTEC, count: 1, ...(cont ? { continuation: cont } : {}),
+          });
+        }
+
+        // OPTIONAL_DISCARD_HAND_CLASS: 手札から＜X＞のシグニ1枚を任意で捨てる → そうした場合 conditional.then（G253）
+        // クラスは EffectText から解釈（OPTIONAL_TRASH_ENERGY_CLASS の手札版）。
+        if (stub.id === 'OPTIONAL_DISCARD_HAND_CLASS') {
+          const srcODHC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
+          const txtODHC = srcODHC ? (srcODHC.EffectText ?? '') + ' ' + (srcODHC.BurstText ?? '') : '';
+          const clsMODHC = txtODHC.match(/手札から(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)/);
+          const reqClassODHC = clsMODHC?.[1] ?? '';
+          const handFilterODHC = { cardType: 'シグニ' as const, ...(reqClassODHC ? { story: reqClassODHC } : {}) };
+          const handCandsODHC = cur.ownerState.hand.filter(cn => matchesFilter(cur.cardMap.get(cn), handFilterODHC));
+          const elseActODHC = (conditional.else ?? noopAction) as EffectAction;
+          if (handCandsODHC.length === 0) {
+            // 捨てられる候補なし: 効果不発（else があれば実行）。続行ステップは継続。
+            if (cont) return executeAction(cont, cur);
+            return executeAction(elseActODHC, cur);
+          }
+          const discardODHC: EffectAction = {
+            type: 'TRASH',
+            target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: handFilterODHC },
+          } as EffectAction;
+          const payActODHC: EffectAction = { type: 'SEQUENCE', steps: [discardODHC, conditional.then] } as SequenceAction;
+          const optsODHC = [
+            { id: 'pay', label: reqClassODHC ? `手札から＜${reqClassODHC}＞のシグニを捨てて発動` : '手札を捨てて発動', action: payActODHC, available: true },
+            { id: 'skip', label: 'スキップ', action: elseActODHC, available: true },
+          ];
+          return needsInteraction(addLog(cur, '手札を捨てて発動しますか？'), {
+            type: 'CHOOSE', options: optsODHC, count: 1, ...(cont ? { continuation: cont } : {}),
           });
         }
 
@@ -2002,6 +2082,11 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         cur = { ...cur, lastProcessedCards: [] };
       }
     }
+    // 自分の DOWN（このシグニをダウン）実行前にもリセット（ダウン不可＝対象なしなら「そうした場合」をスキップ。WD12-013/015）
+    if (step.type === 'DOWN') {
+      const dA = step as DownAction;
+      if (dA.target.owner === 'self') cur = { ...cur, lastProcessedCards: [] };
+    }
     const result = executeAction(step, cur);
     if (!result.done) {
       // インタラクション必要：残りのステップをcontinuationに入れる
@@ -2018,10 +2103,17 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     // 自分のTRASH（HAND_CARD/SIGNI/ENERGY_CARD）が対象なし（done だが lastProcessedCards 空）→ 残りSEQUENCEをスキップ
     if (step.type === 'TRASH' && i + 1 < a.steps.length) {
       const tA = step as import('../types/effects').TrashAction;
-      if (tA.target.owner === 'self' &&
+      if (tA.target.owner === 'self' && !tA.bestEffort &&
           (tA.target.type === 'HAND_CARD' || tA.target.type === 'SIGNI' || tA.target.type === 'ENERGY_CARD') &&
           (cur.lastProcessedCards ?? []).length === 0) {
         return done(addLog(cur, 'TRASH対象なし：残りのSEQUENCEをスキップ'));
+      }
+    }
+    // 自分の DOWN がダウン不可（アップ状態でない等で対象なし＝done だが lastProcessedCards 空）→ 残り（「そうした場合」）をスキップ
+    if (step.type === 'DOWN' && i + 1 < a.steps.length) {
+      const dA = step as DownAction;
+      if (dA.target.owner === 'self' && (cur.lastProcessedCards ?? []).length === 0) {
+        return done(addLog(cur, 'ダウン不可：残りのSEQUENCEをスキップ'));
       }
     }
   }
@@ -2339,7 +2431,11 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   const count = resolveNum(a.revealCount);
   const visible = state.deck.slice(0, count);
-  let pickable = a.filter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), a.filter)) : visible;
+  // colorMatchesLrig 等の動的フィルタを具体値へ解決（「センタールリグと共通する色を持つカード」G236）
+  const ownerSt = a.owner === 'self' ? ctx.ownerState : ctx.otherState;
+  const otherSt = a.owner === 'self' ? ctx.otherState : ctx.ownerState;
+  const rapFilter = resolveDynamicFilter(a.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers);
+  let pickable = rapFilter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), rapFilter)) : visible;
   // LEVEL_REFERENCE_OVERRIDE: レベルフィルターがある場合、デッキ/手札/トラッシュ中の
   // 「レベル参照上書き」カードも対象に含める
   if (a.filter?.level !== undefined) {
@@ -2391,6 +2487,61 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
         }
       : undefined,
   });
+}
+
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash', owner: Owner): EffectAction {
+  if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
+  if (then === 'energy') return { type: 'ADD_TO_ENERGY', owner } as EffectAction;
+  return { type: 'TRASH', target: { type: 'DECK_CARD', owner } } as EffectAction;
+}
+
+// LOOK_PICK_CHAIN: デッキ上N枚を1度公開し、stages を順にピック（手札/エナ/トラッシュ）、残りを remainder へ。
+// 段間は SEARCH の continuation に自身（remaining stages + _revealed）を渡して再入し、resumeSearch が
+// セットする lastProcessedCards（直前ステージのピック）を sharesClassWithPrev の参照に使う。
+function execLookPickChain(a: import('../types/effects').LookPickChainAction, ctx: ExecCtx): ExecResult {
+  const owner = a.owner;
+  const isCont = !!a._revealed;
+  const deck0 = ownerState(owner, ctx).deck;
+  const revealed: string[] = a._revealed ?? deck0.slice(0, Math.min(resolveNum(a.revealCount), deck0.length));
+  if (revealed.length === 0) return done(ctx);
+  const cur = isCont ? ctx : addLog(ctx, `デッキ上${revealed.length}枚を見る`);
+  let prevPicks: string[] = isCont ? (cur.lastProcessedCards ?? []) : [];
+  let stages = a.stages;
+  while (stages.length > 0) {
+    const stage = stages[0];
+    const state = ownerState(owner, cur);
+    let cands = revealed.filter(n => state.deck.includes(n));
+    if (stage.filter) cands = cands.filter(n => matchesFilter(cur.cardMap.get(getCardNum(n)), stage.filter));
+    if (stage.sharesClassWithPrev) {
+      const prevClasses = prevPicks.flatMap(p => (cur.cardMap.get(getCardNum(p))?.CardClass ?? '').split(/[/／]/).map(s => s.trim()).filter(Boolean));
+      cands = prevClasses.length === 0 ? [] : cands.filter(n => {
+        const cls = cur.cardMap.get(getCardNum(n))?.CardClass ?? '';
+        return prevClasses.some(pc => cls.includes(pc));
+      });
+    }
+    if (cands.length === 0) { stages = stages.slice(1); prevPicks = []; continue; }
+    const cont = { type: 'LOOK_PICK_CHAIN', owner, revealCount: a.revealCount, stages: stages.slice(1), remainder: a.remainder, _revealed: revealed } as import('../types/effects').LookPickChainAction;
+    return needsInteraction(cur, {
+      type: 'SEARCH',
+      visibleCards: cands,
+      maxPick: stage.pickCount,
+      thenAction: lookPickThenAction(stage.then, owner),
+      continuation: cont as EffectAction,
+    });
+  }
+  // 残り（公開してまだデッキにあるカード）を remainder へ
+  const state = ownerState(owner, cur);
+  const rest = revealed.filter(n => state.deck.includes(n));
+  if (rest.length === 0) return done(cur);
+  const deckRest = state.deck.filter(n => !rest.includes(n));
+  if (a.remainder.location === 'deck') {
+    const newDeck = a.remainder.position === 'bottom' ? [...deckRest, ...rest] : [...rest, ...deckRest];
+    return done(addLog(setOwnerState(owner, { ...state, deck: newDeck }, cur), `残り${rest.length}枚をデッキの${a.remainder.position === 'bottom' ? '一番下' : '上'}へ`));
+  }
+  if (a.remainder.location === 'trash') {
+    return done(addLog(setOwnerState(owner, { ...state, deck: deckRest, trash: [...state.trash, ...rest] }, cur), `残り${rest.length}枚をトラッシュへ`));
+  }
+  return done(cur);
 }
 
 function execRevealUntilBanishSameLevel(
@@ -3390,11 +3541,12 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MULTIPLY':          return execPowerMultiply(action as import('../types/effects').PowerMultiplyAction, ctx);
     case 'POWER_SET':               return execPowerSet(action as PowerSetAction, ctx);
     case 'TRASH':                   return execTrash(action as TrashAction, ctx);
+    case 'EXILE':                   return execExile(action as import('../types/effects').ExileAction, ctx);
     case 'ENERGY_CHARGE':           return execEnergyCharge(action as EnergyChargeAction, ctx);
     case 'ENERGY_CHARGE_FROM_DECK': return execEnergyChargeFromDeck(action as EnergyChargeFromDeckAction, ctx);
     case 'LIFE_CRASH':              return execLifeCrash(action as LifeCrashAction, ctx);
     case 'SHUFFLE_DECK':            return execShuffleDeck(action as ShuffleDeckAction, ctx);
-    case 'REVEAL':                  return done(addLog(ctx, 'カードを公開'));
+    case 'REVEAL':                  return execReveal(action as import('../types/effects').RevealAction, ctx);
     case 'ADD_TO_HAND':             return done(addLog(ctx, 'カードを手札に加える')); // SEARCH内で処理
     case 'TRANSFER_TO_HAND':        return execTransferToHand(action as TransferToHandAction, ctx);
     case 'ADD_TO_FIELD':            return execAddToField(action as AddToFieldAction, ctx);
@@ -3430,6 +3582,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
     case 'ATTACH_CHARM':            return execAttachCharm(action as AttachCharmAction, ctx);
     case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);
+    case 'LOOK_PICK_CHAIN':         return execLookPickChain(action as import('../types/effects').LookPickChainAction, ctx);
     case 'PLAY_FREE':               return execPlayFree(action as PlayFreeAction, ctx);
     case 'COST_INCREASE':           return execCostIncrease(action as CostIncreaseAction, ctx);
     case 'POWER_MODIFY_PER_FIELD':     return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
@@ -3559,6 +3712,11 @@ export function applyRefreshOnDone(
   cardMap: Map<string, import('../types').CardData>,
 ): ExecResult & { ownerRefreshed?: boolean; otherRefreshed?: boolean } {
   if (!result.done) return result;
+  // 傀儡の離場回収（効果で場を離れた傀儡を持ち主のトラッシュへ。WDK17-007）
+  const swept = sweepPuppets(result.ownerState, result.otherState);
+  if (swept.a !== result.ownerState || swept.b !== result.otherState) {
+    result = { ...result, ownerState: swept.a, otherState: swept.b };
+  }
   const o = refreshPlayerIfDeckEmpty(result.ownerState, cardMap);
   const t = refreshPlayerIfDeckEmpty(result.otherState, cardMap);
   if (!o.refreshed && !t.refreshed) return result;
@@ -3584,6 +3742,17 @@ export function applyRefreshOnDone(
       const p = powers[n] ?? 0;
       if (sum + p > pending.totalPowerMax!) return false;
       sum += p;
+      return true;
+    });
+  }
+  // totalLevelMax: 選択カードのレベル合計が上限を超えないよう保証（超過分は順に切り捨て）
+  if (pending.totalLevelMax !== undefined) {
+    const levels = pending.candidateLevels ?? {};
+    let lsum = 0;
+    selected = selected.filter(n => {
+      const l = levels[n] ?? 0;
+      if (lsum + l > pending.totalLevelMax!) return false;
+      lsum += l;
       return true;
     });
   }
@@ -3764,9 +3933,9 @@ export function resumeOptionalCost(
      const costColors = [...(payOpt?.costColors ?? [])];
   for (const n of energyNums) {
     const color = ctx.cardMap.get(n)?.Color ?? '無';
-    // 色一致コストを優先して消費し、なければ無色枠に充てる（多色カード対応のため includes 判定）
-    let idx = costColors.findIndex(c => c !== '無' && color.includes(c));
-    if (idx === -1) idx = costColors.findIndex(c => c === '無');
+    // 色一致コストを優先して消費し、なければ無色枠に充てる（多色カード対応／「青|黒」選択肢スロットも考慮）
+    let idx = costColors.findIndex(c => !costSlotIsAny(c) && energyMatchesCostSlot(color, c));
+    if (idx === -1) idx = costColors.findIndex(c => costSlotIsAny(c));
     if (idx === -1) return done(addLog(ctx, `コスト支払いエラー: ${color}は不要`));
     costColors.splice(idx, 1);
   }
@@ -4076,6 +4245,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
         return done(ctx);
       }
+      // DECK_CARD: デッキ（公開中の1枚）からトラッシュへ（LOOK_PICK_CHAIN の trash ステージ等）
+      if (tgt.type === 'DECK_CARD') {
+        const owner = (tgt.owner as Owner) ?? 'self';
+        const s = ownerState(owner, ctx);
+        const di = s.deck.indexOf(cardNum);
+        if (di >= 0) {
+          const newDeck = [...s.deck]; newDeck.splice(di, 1);
+          const newS: PlayerState = { ...s, deck: newDeck, trash: [...s.trash, cardNum] };
+          return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をトラッシュへ`));
+        }
+        return done(ctx);
+      }
       // HAND_CARD: hand からトラッシュ（同名カードが複数ある場合は先頭の1枚のみ）
       for (const owner of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(owner, ctx);
@@ -4085,6 +4266,21 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           newHand.splice(hi, 1);
           const newS: PlayerState = { ...s, hand: newHand, trash: [...s.trash, cardNum] };
           return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
+        }
+      }
+      return done(ctx);
+    }
+    case 'EXILE': {
+      // 選択カードをトラッシュから取り除く（ゲーム除外の近似）。owner のトラッシュを優先し、なければ両者を探索
+      const exTgt = (action as import('../types/effects').ExileAction).target;
+      const owners: Owner[] = exTgt.owner === 'opponent' ? ['opponent'] : exTgt.owner === 'self' ? ['self'] : ['self', 'opponent'];
+      for (const o of owners) {
+        const s = ownerState(o, ctx);
+        const ti = s.trash.indexOf(cardNum);
+        if (ti >= 0) {
+          const newTrash = [...s.trash]; newTrash.splice(ti, 1);
+          return done(addLog(setOwnerState(o, { ...s, trash: newTrash }, ctx),
+            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
         }
       }
       return done(ctx);

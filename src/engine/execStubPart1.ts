@@ -1270,6 +1270,88 @@ export function execStubPart1(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, temp_power_mods: modsIAPMA } },
       `全相手シグニパワー${deltaIAPMA}`));
   }
+  // DISRUPT_OPP_LRIG_UNDER_BY_TYPE: このシグニがアタックしたとき、対戦相手のセンタールリグの下のカードを最大2枚、
+  // あなたのルリグデッキから「あなたのセンタールリグと同じルリグタイプ（CardClass）」のルリグ2枚をルリグトラッシュに置いて（任意コスト）、
+  // ルリグトラッシュに置く（SPK16-8C / PR-465）。
+  if (stub.id === 'DISRUPT_OPP_LRIG_UNDER_BY_TYPE') {
+    const oppUnderDLU = ctx.otherState.field.lrig.slice(0, -1);
+    if (oppUnderDLU.length === 0) return done(addLog(ctx, '相手センタールリグの下にカードなし'));
+    const myCenterDLU = ctx.ownerState.field.lrig.at(-1);
+    const centerClsDLU = (ctx.cardMap.get(getCardNum(myCenterDLU ?? ''))?.CardClass ?? '').split(/[/／]/).filter(Boolean);
+    const payableDLU = (ctx.ownerState.lrig_deck ?? []).filter(cn => {
+      const c = ctx.cardMap.get(getCardNum(cn));
+      if (c?.Type !== 'ルリグ') return false;
+      const cls = (c.CardClass ?? '').split(/[/／]/).filter(Boolean);
+      return cls.some(x => centerClsDLU.includes(x));
+    });
+    if (payableDLU.length < 2) return done(addLog(ctx, 'ルリグデッキに同タイプのルリグが2枚なく実行不可'));
+    const doDLU: StubAction = { type: 'STUB', id: 'INTERNAL_DISRUPT_LRIG_UNDER_EXEC' };
+    const skipDLU: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
+    return needsInteraction(addLog(ctx, '相手センタールリグの下のカード除去（ルリグ2枚コスト）を実行するか'), {
+      type: 'CHOOSE',
+      options: [
+        { id: 'do', label: 'ルリグデッキから同タイプのルリグ2枚をルリグトラッシュ→相手の下のカードを最大2枚ルリグトラッシュ', action: doDLU as EffectAction, available: true },
+        { id: 'skip', label: 'スキップ', action: skipDLU as EffectAction, available: true },
+      ],
+      count: 1,
+    });
+  }
+  // INTERNAL_DISRUPT_LRIG_UNDER_EXEC: DISRUPT_OPP_LRIG_UNDER_BY_TYPE の実行部（コスト支払い＋除去）
+  if (stub.id === 'INTERNAL_DISRUPT_LRIG_UNDER_EXEC') {
+    const myCenterDX = ctx.ownerState.field.lrig.at(-1);
+    const centerClsDX = (ctx.cardMap.get(getCardNum(myCenterDX ?? ''))?.CardClass ?? '').split(/[/／]/).filter(Boolean);
+    const payableDX = (ctx.ownerState.lrig_deck ?? []).filter(cn => {
+      const c = ctx.cardMap.get(getCardNum(cn));
+      if (c?.Type !== 'ルリグ') return false;
+      return (c.CardClass ?? '').split(/[/／]/).filter(Boolean).some(x => centerClsDX.includes(x));
+    }).slice(0, 2);
+    if (payableDX.length < 2) return done(addLog(ctx, 'コスト支払い不可（同タイプのルリグ不足）'));
+    const paySetDX = new Set(payableDX);
+    const newOwnerDX: PlayerState = {
+      ...ctx.ownerState,
+      lrig_deck: (ctx.ownerState.lrig_deck ?? []).filter(n => !paySetDX.has(n)),
+      lrig_trash: [...ctx.ownerState.lrig_trash, ...payableDX],
+    };
+    const underDX = ctx.otherState.field.lrig.slice(0, -1);
+    const removeDX = underDX.slice(-2); // 下のカードを最大2枚（下＝古い側から末尾2枚＝現センター直下）
+    const removeSetDX = new Set(removeDX);
+    const newOtherDX: PlayerState = {
+      ...ctx.otherState,
+      field: { ...ctx.otherState.field, lrig: ctx.otherState.field.lrig.filter(n => !removeSetDX.has(n)) },
+      lrig_trash: [...ctx.otherState.lrig_trash, ...removeDX],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerDX, otherState: newOtherDX },
+      `同タイプのルリグ2枚をルリグトラッシュ→相手センタールリグの下${removeDX.length}枚をルリグトラッシュ`));
+  }
+  // STEAL_OPP_TRASH_PUPPET: 対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（WDK17-007）。
+  // ベット時は2枚、非ベットは1枚。空きゾーン数・候補数で上限。選択した各カードを INTERNAL_PLACE_PUPPET で配置。
+  if (stub.id === 'STEAL_OPP_TRASH_PUPPET') {
+    const oppTrashSPP = ctx.otherState.trash.filter(cn => ctx.cardMap.get(getCardNum(cn))?.Type === 'シグニ');
+    if (oppTrashSPP.length === 0) return done(addLog(ctx, '相手トラッシュにシグニなし'));
+    const emptyZonesSPP = ctx.ownerState.field.signi.filter(z => !z || z.length === 0).length;
+    if (emptyZonesSPP === 0) return done(addLog(ctx, '空きシグニゾーンなし（傀儡を出せない）'));
+    const wantSPP = ctx.ownerState.is_betting_this_effect ? 2 : 1;
+    const countSPP = Math.min(wantSPP, oppTrashSPP.length, emptyZonesSPP);
+    const placeAct: StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_PUPPET' };
+    return selectOrInteract(oppTrashSPP, countSPP, false, 'opp_trash', placeAct as EffectAction, undefined, ctx);
+  }
+  // INTERNAL_PLACE_PUPPET: 選択した相手トラッシュのシグニ1枚を、傀儡状態で自分の空きゾーンに出す（applyDirectActionが1枚ずつ呼ぶ）
+  if (stub.id === 'INTERNAL_PLACE_PUPPET') {
+    const cnPP = ctx.lastProcessedCards?.[0];
+    if (!cnPP) return done(ctx);
+    if (!ctx.otherState.trash.includes(cnPP)) return done(ctx);
+    const signiPP = [...ctx.ownerState.field.signi] as (string[] | null)[];
+    const zPP = signiPP.findIndex(z => !z || z.length === 0);
+    if (zPP < 0) return done(addLog(ctx, '空きゾーンなし（傀儡配置スキップ）'));
+    signiPP[zPP] = [cnPP];
+    const newOwnerPP: PlayerState = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, signi: signiPP, puppet_signi: [...(ctx.ownerState.field.puppet_signi ?? []), cnPP] },
+    };
+    const newOtherPP: PlayerState = { ...ctx.otherState, trash: ctx.otherState.trash.filter(x => x !== cnPP) };
+    return done(addLog({ ...ctx, ownerState: newOwnerPP, otherState: newOtherPP },
+      `${ctx.cardMap.get(getCardNum(cnPP))?.CardName ?? cnPP}を傀儡状態で場に出す`));
+  }
   // INTERNAL_EXILE_OPP_TRASH: 相手トラッシュのカードをゲームから除外（2枚まで）
   if (stub.id === 'INTERNAL_EXILE_OPP_TRASH') {
     const oppTrashIEOT = ctx.otherState.trash;

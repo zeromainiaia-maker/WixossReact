@@ -9,7 +9,7 @@ applyContinuousBaseLevelOverride, hasBanishRedirectInAction, collectBanishEffect
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
-import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken } from '../engine/execUtils';
+import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
@@ -773,11 +773,20 @@ function parseCoinCost(costStr: string): number {
   return 0;
 }
 
-function parseBetCost(effectText: string): number {
-  if (!effectText) return 0;
-  const m = effectText.match(/ベット[―─]\s*((?:《コインアイコン》)+)/);
-  if (!m) return 0;
-  return (m[1].match(/《コインアイコン》/g) ?? []).length;
+// ベットで支払えるコイン枚数の選択肢を返す。
+//  - 固定（「ベット―《コイン》《コイン》」）→ { options:[2], variable:false }
+//  - 段階（「ベット―《コイン》or《コイン》《コイン》」）→ { options:[1,2], variable:false }
+//  - 可変（「ベット―好きな枚数の《コイン》」）→ { options:[], variable:true }（UIで1..所持枚数を提示）
+function parseBetOptions(effectText: string): { options: number[]; variable: boolean } {
+  if (!effectText) return { options: [], variable: false };
+  const m = effectText.match(/ベット[―─]\s*([\s\S]*)/);
+  if (!m) return { options: [], variable: false };
+  const seg = m[1];
+  if (/^好きな枚数/.test(seg)) return { options: [], variable: true };
+  // 先頭の《コインアイコン》/or の連続部分だけを取り出して段階を数える
+  const prefix = (seg.match(/^(?:《コインアイコン》|or)+/) ?? [''])[0];
+  const tiers = prefix.split('or').map(s => (s.match(/《コインアイコン》/g) ?? []).length).filter(n => n > 0);
+  return { options: tiers, variable: false };
 }
 
 // アンコールコストをパース（エナコスト＋コイン枚数）
@@ -1028,7 +1037,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [pendingArtsEffectiveCost, setPendingArtsEffectiveCost] = useState<string | null>(null);
   const [selectedArtsCost, setSelectedArtsCost] = useState<Set<number>>(new Set());
   const [selectedArtsDiscard, setSelectedArtsDiscard] = useState<Set<number>>(new Set());
-  const [isBetting, setIsBetting] = useState(false);
+  const [betAmount, setBetAmount] = useState(0); // ベットで支払うコイン枚数（0=ベットしない）。固定/段階(or)/可変(好きな枚数)を統一表現
   const [isEncore, setIsEncore] = useState(false);
   const [closeZoneSignal, setCloseZoneSignal] = useState(0);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
@@ -2140,6 +2149,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               label: `${battleCardMap.get(cn)?.CardName ?? cn}【自】手札公開時`,
               effect: eff,
             });
+          }
+        }
+        // ON_SELF_REVEAL_FROM_HAND: あなたが自分の効果で手札からカードを公開したとき、場のシグニ自身のAUTO効果が反応（G198）
+        // （hand_revealed_just は1回の公開処理ごとに立つので「同時に複数公開でも一度しか発動しない」が自然に満たされる）
+        if (revealedHJ.length > 0) {
+          for (const stack of localMy.field.signi) {
+            if (!stack?.length) continue;
+            const topNum = stack[stack.length - 1];
+            for (const eff of (effectsMap.get(topNum) ?? [])) {
+              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SELF_REVEAL_FROM_HAND')) continue;
+              entries.push({
+                id: generateUUID(),
+                playerId: user.id,
+                cardNum: topNum,
+                effectId: eff.effectId,
+                label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札公開時`,
+                effect: eff,
+              });
+            }
           }
         }
         // ON_HAND_DISCARDED: 効果による手札捨て（コスト捨てはコスト支払い側で別途収集）
@@ -3335,12 +3363,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ON_TRASH トリガーを収集する
   // causeByOpponent: このトラッシュが対戦相手の効果によるものか（byOpponentEffect ゲート用）。
   //   バトル・自分の効果・ルール処理（リムーブ等）では false。
+  // byCostOrEffect: このトラッシュがコストか効果によるものか（fromFieldByCostOrEffect ゲート用。G204）。
+  //   バトルでのバニッシュやリムーブ等のルール処理では false。既定 true（効果発動後の差分検出経路は効果起因）。
   const collectTrashTriggers = (
     trashedCardNum: string,
     trashedPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
     causeByOpponent = false,
+    byCostOrEffect = true,
   ): StackEntry[] => {
     const entries: StackEntry[] = [];
     // トラッシュに置かれたカード自身の ON_TRASH 効果（このパスは「場から」トラッシュ＝field origin）
@@ -3348,6 +3379,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       // 「対戦相手の効果によって」限定トリガーは対戦相手効果が原因のときのみ発火（WX04-035-E2）
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      // 「コストか効果によって場から」限定トリガーはコスト/効果起因のときのみ発火（バトル・ルール処理では発火しない。G204）
+      if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
       // fromZones 指定があり 'field' を含まない場合は「場から」では発火しない（WX04-102「手札かデッキから」）
       if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('field')) continue;
       // レゾナの出現条件の支払いとしてトラッシュされた場合のみ発火（WX10-055等）。通常のトラッシュでは発火しない
@@ -6088,12 +6121,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newSigniFrozen = [...(my.field.signi_frozen  ?? [false, false, false])];
       const newCharms      = [...(my.field.signi_charms  ?? [null, null, null])];
       const newAcce        = [...(my.field.signi_acce    ?? [null, null, null])];
+      const newSoul        = [...(my.field.signi_soul    ?? [null, null, null])];
       newSigniDown[zoneIndex]   = false;
       newSigniFrozen[zoneIndex] = false;
       const zoneExtraTrash: string[] = [];
+      const zoneExtraLrigTrash: string[] = [];
       // ライズ時: チャームはルール処理でトラッシュへ（アクセもリセット）
       if (newCharms[zoneIndex]) { zoneExtraTrash.push(newCharms[zoneIndex]!); newCharms[zoneIndex] = null; }
       if (newAcce[zoneIndex])   { zoneExtraTrash.push(newAcce[zoneIndex]!);   newAcce[zoneIndex]   = null; }
+      // ライズで元のトップシグニが下に置かれるカードになると、付いていた【ソウル】はルリグトラッシュへ（ルール処理）
+      if (newSoul[zoneIndex])   { zoneExtraLrigTrash.push(newSoul[zoneIndex]!); newSoul[zoneIndex] = null; }
       const placed: PlayerState = {
         ...my,
         hand: my.hand.filter((_, i) => i !== handIndex),
@@ -6104,8 +6141,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_frozen: newSigniFrozen,
           signi_charms: newCharms,
           signi_acce:   newAcce,
+          signi_soul:   newSoul,
         },
         trash: [...my.trash, ...zoneExtraTrash],
+        lrig_trash: zoneExtraLrigTrash.length > 0 ? [...my.lrig_trash, ...zoneExtraLrigTrash] : my.lrig_trash,
       };
 
       // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
@@ -6598,9 +6637,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const stateKey = isHost ? 'host_state' : 'guest_state';
       // ON_TRASH トリガー（フィールドから直接トラッシュ）
+      // リムーブはルールによる処理でコスト/効果起因ではない（fromFieldByCostOrEffect は発火しない。G204）
       const removeTrashEntries: StackEntry[] = [];
       for (const cn of removedSigniNums) {
-        removeTrashEntries.push(...collectTrashTriggers(cn, user.id, newMyState, op));
+        removeTrashEntries.push(...collectTrashTriggers(cn, user.id, newMyState, op, false, false));
       }
       if (removeTrashEntries.length > 0) {
         const existing = bs?.effect_stack ?? null;
@@ -6623,7 +6663,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
-  const executeArts = async (card: CardData, costIndices: Set<number>, betting: boolean = false, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false) => {
+  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
     setLoading(true);
@@ -6631,7 +6671,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setPendingArtsCard(null);
     setSelectedArtsCost(new Set());
     setSelectedArtsDiscard(new Set());
-    setIsBetting(false);
+    setBetAmount(0);
     setIsEncore(false);
     setKeySubstituteEnabled(false);
     try {
@@ -6644,7 +6684,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       const discardNums = [...discardIndices].map(i => my.hand[i]);
       const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
-      const betCost = betting ? parseBetCost(card.EffectText ?? '') : 0;
+      // ベット消費コインは UI で選んだ枚数（betCoins）。アンコールとの合算可否は UI でガード済み
+      const betCost = Math.max(0, betCoins);
       const encoreCoinCost = encore ? (parseEncoreCost(card.EffectText ?? '')?.coins ?? 0) : 0;
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）
       const keySub = useKeySub && myEnergyTrashSubInfo.keySubInstId;
@@ -6664,9 +6705,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
         // BET_CONDITION: ベット宣言フラグ（execStub内でBET_CONDITIONが参照）
-        is_betting_this_effect: betting && betCost > 0 ? true : undefined,
+        is_betting_this_effect: betCost > 0 ? true : undefined,
+        bet_coins_paid: betCost > 0 ? betCost : undefined,
       };
-      if (betting && betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
+      if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
       // アーツ効果を発火
       const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paid, op);
@@ -6902,7 +6944,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // スペル発動: 手札から除いてコスト支払い → pending_spell をセット（カットイン待ち）
   // fromLrigDeck=true のとき: ルリグデッキから除いてpending_spell.from_lrig_deck=trueをセット（フェゾーネマジック）
-  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean) => {
+  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0) => {
     if (!isMyTurn || loading) return;
     if (isActionBlocked('USE_SPELL')) return;
     if (isActionBlocked('PLAY_COLORLESS') && card.Color === '無') return;
@@ -6924,6 +6966,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     setPendingSpellCast(null);
     setSelectedSpellCost(new Set());
+    setBetAmount(0);
     try {
       const paidNums = [...costIndices].map(i => my.energy[i]);
       // 支払ったエナ1枚ごとの色配列（WX04-063「支払われたエナの色」参照用）。
@@ -6933,6 +6976,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? ['白', '赤', '青', '緑', '黒']
           : splitColors(battleCardMap.get(getCardNum(num))?.Color));
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // ベット：UIで選んだコイン枚数を支払う（所持を超えない）。is_betting_this_effect は handleCutinPass の効果解決まで持続
+      const betCost = Math.min(Math.max(0, betCoins), my.coins);
       let spellInstanceId: string;
       let newMyState: PlayerState;
       if (fromLrigDeck) {
@@ -6946,9 +6991,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_deck: my.lrig_deck.filter(id => id !== spellInstanceId),
           energy: newEnergy,
           trash: [...my.trash, ...paidNums],
-          actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
+          actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
+          coins: Math.max(0, my.coins - betCost),
+          is_betting_this_effect: betCost > 0 ? true : undefined, // 非ベット時は明示的にクリア（前回ベットの持ち越し防止）
+          bet_coins_paid: betCost > 0 ? betCost : undefined,
         };
       } else {
         spellInstanceId = my.hand[handIdx] ?? card.CardNum;
@@ -6957,11 +7005,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hand: my.hand.filter((_, i) => i !== handIdx),
           energy: newEnergy,
           trash: [...my.trash, ...paidNums],
-          actions_done: [...(my.actions_done ?? []), 'USE_SPELL'],
+          actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
+          coins: Math.max(0, my.coins - betCost),
+          is_betting_this_effect: betCost > 0 ? true : undefined, // 非ベット時は明示的にクリア（前回ベットの持ち越し防止）
+          bet_coins_paid: betCost > 0 ? betCost : undefined,
         };
       }
+      if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const spell: PendingSpell = { caster_id: user.id, card_num: spellInstanceId, paid_energy_colors: paidEnergyColors, ...(fromLrigDeck ? { from_lrig_deck: true } : {}) };
       await supabase.from('battle_states')
@@ -7326,7 +7378,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actionList.push({
             label: '発動',
             color: C.accent,
-            onClick: () => { setPendingSpellCast({ cardNum, handIndex }); setSelectedSpellCost(new Set()); },
+            onClick: () => { setPendingSpellCast({ cardNum, handIndex }); setSelectedSpellCost(new Set()); setBetAmount(0); },
           });
         }
       }
@@ -7414,7 +7466,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions.push({
           label: '使用',
           color: C.accent,
-          onClick: () => { setPendingSpellCast({ cardNum, handIndex: -1, fromLrigDeck: true }); setSelectedSpellCost(new Set()); },
+          onClick: () => { setPendingSpellCast({ cardNum, handIndex: -1, fromLrigDeck: true }); setSelectedSpellCost(new Set()); setBetAmount(0); },
         });
       }
       return actions;
@@ -8506,8 +8558,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           )
         : [];
 
-      // ON_SIGNI_BANISH_BATTLE: バトルで相手シグニをバニッシュしたとき
-      // scope 'self'（デフォルト）はバニッシュしたアタッカー自身のみ、'any_ally'/'any' は自フィールド全シグニ
+      // ON_SIGNI_BANISH_BATTLE / ON_SIGNI_BANISH_OPPONENT: （バトルで）相手シグニをバニッシュしたとき
+      // scope 'self'（デフォルト）はバニッシュしたアタッカー自身のみ、'any_ally'/'any' は自フィールド全シグニ。
+      // ON_SIGNI_BANISH_OPPONENT（「対戦相手のシグニをバニッシュしたとき」）は現状バトルバニッシュ経路のみ配線（WD12-012/013/014/015）。
       const battleBanishEntries: StackEntry[] = [];
       if (banishedOpCardNum) {
         const usedIdsBB: string[] = [];
@@ -8515,7 +8568,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const topNumBB = stackBB?.at(-1);
           if (!topNumBB) continue;
           for (const eff of (effectsMap.get(topNumBB) ?? [])) {
-            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BANISH_BATTLE')) continue;
+            if (eff.effectType !== 'AUTO' ||
+                !(eff.timing?.includes('ON_SIGNI_BANISH_BATTLE') || eff.timing?.includes('ON_SIGNI_BANISH_OPPONENT'))) continue;
             const scopeBB = eff.triggerScope ?? 'self';
             if (scopeBB === 'self' && topNumBB !== myTopNum) continue;
             // condition を持つAUTOは条件を満たす場合のみ収集（例: WXK04-044 血晶武装中のみアップ）
@@ -8551,7 +8605,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           );
         });
       if (banishedOpCardNum && redirectBanishForTrigger) {
-        trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, defenderId, newHostState, newGuestState));
+        // バトルでのバニッシュ→トラッシュはコスト/効果起因ではない（fromFieldByCostOrEffect は発火しない。G204）
+        trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, defenderId, newHostState, newGuestState, false, false));
       }
 
       // ON_LEAVE_FIELD: バトルでバニッシュされたシグニは場を離れている
@@ -8618,6 +8673,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // 傀儡の離場回収（バトルでバニッシュ等で場を離れた傀儡を持ち主のトラッシュへ。WDK17-007）
+      const sweptBattle = sweepPuppets(newMyState, newOpState);
+      const finalMyState = sweptBattle.a;
+      const finalOpState = sweptBattle.b;
+
       // Phase 2のトリガー（ON_BANISHなど。ON_ATTACK_SIGNIはPhase 1で処理済み）
       const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries, ...damageEntries];
       if (allTriggers.length > 0) {
@@ -8627,11 +8687,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(existingStack, allTriggers)
           : initStack(turnPlayerId, allTriggers);
         await supabase.from('battle_states')
-          .update({ [myKey]: newMyState, [opKey]: newOpState, effect_stack: stack })
+          .update({ [myKey]: finalMyState, [opKey]: finalOpState, effect_stack: stack })
           .eq('room_id', roomId);
       } else {
         await supabase.from('battle_states')
-          .update({ [myKey]: newMyState, [opKey]: newOpState })
+          .update({ [myKey]: finalMyState, [opKey]: finalOpState })
           .eq('room_id', roomId);
       }
     } finally {
@@ -11884,7 +11944,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* アーツ使用モーダル */}
       {showArtsModal && createPortal(
-        <div onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); setIsBetting(false); setIsEncore(false); setKeySubstituteEnabled(false); }}
+        <div onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); setBetAmount(0); setIsEncore(false); setKeySubstituteEnabled(false); }}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -11915,13 +11975,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       .flatMap(m => m.amount);
                     const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
                     const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
-                    const betCostAmt = parseBetCost(card.EffectText ?? '');
+                    const betSpecBadge = parseBetOptions(card.EffectText ?? '');
+                    const betBadge = betSpecBadge.variable ? 'ベット: 好きな枚数'
+                      : betSpecBadge.options.length > 1 ? `ベット: ${betSpecBadge.options.join('か')}枚`
+                      : betSpecBadge.options.length === 1 ? `ベット: コイン${betSpecBadge.options[0]}枚` : '';
                     const costReduced = effCost !== card.Cost;
                     return (
                       <button key={card.CardNum}
                         onClick={() => {
                           if (!canAfford) return;
-                          setIsBetting(false);
+                          setBetAmount(0);
                           if (totalReq === 0) { executeArts(card, new Set()); }
                           else {
                             setPendingArtsCard(card);
@@ -11948,9 +12011,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>
                             {card.Timing}
                           </p>
-                          {betCostAmt > 0 && (
+                          {betBadge && (
                             <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>
-                              ベット: コイン{betCostAmt}枚
+                              {betBadge}
                             </p>
                           )}
                           {(() => {
@@ -11973,7 +12036,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   });
                   })()}
                 </div>
-                <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setIsBetting(false); }}
+                <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setBetAmount(0); }}
                   style={{ padding: '8px 0', borderRadius: 8, border: C.borderUI,
                     backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 13 }}>
                   キャンセル
@@ -12015,13 +12078,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   }).length >= req.count
                 ));
               const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost;
-              const betCostForCard = parseBetCost(pendingArtsCard.EffectText ?? '');
-              const canBet = betCostForCard > 0 && my.coins >= betCostForCard && !isActionBlocked('BET') && !my.negate_coin_abilities;
-              const canEncore = !!encoreCostForCard && (encoreCostForCard.coins === 0 || my.coins >= encoreCostForCard.coins) && !isActionBlocked('ENCORE');
+              const betSpec = parseBetOptions(pendingArtsCard.EffectText ?? '');
+              const encoreCoins = encoreCostForCard?.coins ?? 0;
+              const betReservedForEncore = isEncore ? encoreCoins : 0;
+              // ベットで選べるコイン枚数（固定/段階/可変）。アンコール併用時はその分を残す
+              const betOptions: number[] = betSpec.variable
+                ? Array.from({ length: Math.max(0, Math.min(5, my.coins) - betReservedForEncore) }, (_, i) => i + 1)
+                : betSpec.options;
+              const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities;
+              const canBet = !betBlocked && betOptions.some(n => n > 0 && n + betReservedForEncore <= my.coins);
+              const canEncore = !!encoreCostForCard && (encoreCoins === 0 || my.coins >= encoreCoins + betAmount) && !isActionBlocked('ENCORE');
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setIsBetting(false); setIsEncore(false); setKeySubstituteEnabled(false); }}
+                    <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setBetAmount(0); setIsEncore(false); setKeySubstituteEnabled(false); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← 戻る
@@ -12043,21 +12113,42 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </p>
                     </div>
                   </div>
-                  {betCostForCard > 0 && (
-                    <button
-                      onClick={() => { if (canBet || isBetting) setIsBetting(b => !b); }}
-                      disabled={!canBet && !isBetting}
-                      style={{ padding: '8px 12px', borderRadius: 8,
-                        border: isBetting ? `2px solid ${C.coin}` : C.borderUI,
-                        backgroundColor: isBetting ? 'rgba(204,136,0,0.15)' : C.bgButton,
-                        color: isBetting ? C.coin : (canBet ? C.text : C.textFaint),
-                        cursor: (canBet || isBetting) ? 'pointer' : 'default',
-                        fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>ベット（コイン{betCostForCard}枚追加消費）</span>
-                      <span style={{ fontSize: 11, color: canBet ? C.coin : C.danger }}>
-                        {isBetting ? 'ON' : 'OFF'} / 所持: {my.coins}枚
-                      </span>
-                    </button>
+                  {(betSpec.variable || betSpec.options.length > 0) && (
+                    <div style={{ padding: '8px 12px', borderRadius: 8, border: betAmount > 0 ? `2px solid ${C.coin}` : C.borderUI,
+                      backgroundColor: betAmount > 0 ? 'rgba(204,136,0,0.15)' : C.bgButton, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 13, color: betAmount > 0 ? C.coin : C.text }}>
+                          ベット{betSpec.variable ? '（好きな枚数）' : betSpec.options.length > 1 ? '（段階）' : `（コイン${betSpec.options[0]}枚）`}
+                        </span>
+                        <span style={{ fontSize: 11, color: canBet || betAmount > 0 ? C.coin : C.danger }}>
+                          選択: {betAmount}枚 / 所持: {my.coins}枚
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button onClick={() => setBetAmount(0)} disabled={betBlocked}
+                          style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: betBlocked ? 'default' : 'pointer',
+                            border: betAmount === 0 ? `2px solid ${C.coin}` : C.borderUI,
+                            backgroundColor: betAmount === 0 ? 'rgba(204,136,0,0.2)' : 'transparent',
+                            color: betAmount === 0 ? C.coin : C.textDim }}>
+                          OFF
+                        </button>
+                        {betOptions.map(n => {
+                          const affordable = !betBlocked && n + betReservedForEncore <= my.coins;
+                          const sel = betAmount === n;
+                          return (
+                            <button key={n} onClick={() => { if (affordable || sel) setBetAmount(sel ? 0 : n); }}
+                              disabled={!affordable && !sel}
+                              style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12,
+                                cursor: (affordable || sel) ? 'pointer' : 'default',
+                                border: sel ? `2px solid ${C.coin}` : C.borderUI,
+                                backgroundColor: sel ? 'rgba(204,136,0,0.2)' : 'transparent',
+                                color: sel ? C.coin : (affordable ? C.text : C.textFaint) }}>
+                              {n}枚
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                   {encoreCostForCard && (
                     <button
@@ -12188,13 +12279,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
-                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, isBetting, isEncore, selectedArtsDiscard, keySubstituteEnabled)}
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? (isEncore ? '#3377bb' : C.coin) : C.disabled,
                       color: isValid ? (isEncore ? '#fff' : '#000') : C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
-                    {isEncore ? 'アーツ使用（アンコール）' : isBetting ? 'アーツ使用（ベットあり）' : 'アーツ使用'}
+                    {isEncore ? 'アーツ使用（アンコール）' : betAmount > 0 ? `アーツ使用（ベット${betAmount}枚）` : 'アーツ使用'}
                   </button>
                 </>
               );
@@ -12207,7 +12298,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* スペル発動コスト選択 */}
       {pendingSpellCast && createPortal(
-        <div onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); }}
+        <div onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); setBetAmount(0); }}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -12246,7 +12337,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); }}
+                    <button onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); setBetAmount(0); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← キャンセル
@@ -12316,13 +12407,52 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
-                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck)}
+                  {(() => {
+                    const betSpecSp = parseBetOptions(spellCard.EffectText ?? '');
+                    if (!betSpecSp.variable && betSpecSp.options.length === 0) return null;
+                    const betBlockedSp = isActionBlocked('BET') || !!my.negate_coin_abilities;
+                    const betOptionsSp = betSpecSp.variable
+                      ? Array.from({ length: Math.min(5, my.coins) }, (_, i) => i + 1)
+                      : betSpecSp.options;
+                    return (
+                      <div style={{ padding: '8px 12px', borderRadius: 8, border: betAmount > 0 ? `2px solid ${C.coin}` : C.borderUI,
+                        backgroundColor: betAmount > 0 ? 'rgba(204,136,0,0.15)' : C.bgButton, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: betAmount > 0 ? C.coin : C.text }}>
+                            ベット{betSpecSp.variable ? '（好きな枚数）' : betSpecSp.options.length > 1 ? '（段階）' : `（コイン${betSpecSp.options[0]}枚）`}
+                          </span>
+                          <span style={{ fontSize: 11, color: C.coin }}>選択: {betAmount}枚 / 所持: {my.coins}枚</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button onClick={() => setBetAmount(0)} disabled={betBlockedSp}
+                            style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: betBlockedSp ? 'default' : 'pointer',
+                              border: betAmount === 0 ? `2px solid ${C.coin}` : C.borderUI,
+                              backgroundColor: betAmount === 0 ? 'rgba(204,136,0,0.2)' : 'transparent',
+                              color: betAmount === 0 ? C.coin : C.textDim }}>OFF</button>
+                          {betOptionsSp.map(n => {
+                            const affordableSp = !betBlockedSp && n <= my.coins;
+                            const selSp = betAmount === n;
+                            return (
+                              <button key={n} onClick={() => { if (affordableSp || selSp) setBetAmount(selSp ? 0 : n); }}
+                                disabled={!affordableSp && !selSp}
+                                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12,
+                                  cursor: (affordableSp || selSp) ? 'pointer' : 'default',
+                                  border: selSp ? `2px solid ${C.coin}` : C.borderUI,
+                                  backgroundColor: selSp ? 'rgba(204,136,0,0.2)' : 'transparent',
+                                  color: selSp ? C.coin : (affordableSp ? C.text : C.textFaint) }}>{n}枚</button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck, betAmount)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.accent : C.disabled,
                       color: C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
-                    発動する
+                    {betAmount > 0 ? `発動する（ベット${betAmount}枚）` : '発動する'}
                   </button>
                 </>
               );
@@ -16297,9 +16427,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const needed = [...costColors];
               for (const n of selectedNums) {
                 const color = battleCardMap.get(n)?.Color ?? '無';
-                // 色一致コストを優先して消費し、なければ無色枠に充てる（多色カード対応・エンジン側resumeOptionalCostと同一ロジック）
-                let idx = needed.findIndex(c => c !== '無' && color.includes(c));
-                if (idx === -1) idx = needed.findIndex(c => c === '無');
+                // 色一致コストを優先して消費し、なければ無色枠に充てる（多色カード対応・エンジン側resumeOptionalCostと同一ロジック。「青|黒」選択肢スロットも考慮）
+                let idx = needed.findIndex(c => !costSlotIsAny(c) && energyMatchesCostSlot(color, c));
+                if (idx === -1) idx = needed.findIndex(c => costSlotIsAny(c));
                 if (idx === -1) return false;
                 needed.splice(idx, 1);
               }
@@ -16319,11 +16449,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     {srcCard?.CardName ?? pe.sourceCardNum}の効果
                   </p>
                   <p style={{ color: C.text, fontSize: 12, margin: 0, textAlign: 'center' }}>
-                    コスト: {costColors.map(c => `《${c}》`).join('')} を支払いますか？
+                    コスト: {costColors.map(formatCostSlot).join('')} を支払いますか？
                   </p>
                   <p style={{ color: canConfirm ? C.success : C.textMuted, fontSize: 11, margin: 0, textAlign: 'center' }}>
                     エナから選択: {selectedOptCost.size} / {totalReq}枚
-                    {costColors.map((c, i) => <span key={i} style={{ marginLeft: 4, color: C.textDim }}>({c})</span>)}
+                    {costColors.map((c, i) => <span key={i} style={{ marginLeft: 4, color: C.textDim }}>({c.split('|').join('か')})</span>)}
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
                     {my.energy.length === 0

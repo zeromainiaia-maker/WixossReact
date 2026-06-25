@@ -431,6 +431,11 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     const hasGuard = cardData.Guard === '1';
     if (filter.hasGuard !== hasGuard) return false;
   }
+  if (filter.noGuard && cardData.Guard === '1') return false;
+  if (filter.nonColorless) {
+    const col = cardData.Color ?? '';
+    if (col === '' || col === '無色') return false;
+  }
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
     if (!stories.some(s => cardData.CardClass?.includes(s))) return false;

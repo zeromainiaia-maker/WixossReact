@@ -82,6 +82,7 @@ function filterJa(f?: any): string {
   if (f.frontOfGateZone) parts.push('【ゲート】の正面の');
   if (f.inGateZone) parts.push('同じゾーンに【ゲート】がある');
   if (f.centerZoneOnly) parts.push('中央ゾーンの');
+  if (f.eachDistinctLevel) parts.push('それぞれレベルの異なる');
   if (f.color) parts.push(`《${[].concat(f.color).join('・')}》の`);
   if (f.colorExclude) parts.push(`《${[].concat(f.colorExclude).join('・')}》以外の`);
   if (f.cardClass) parts.push(`＜${[].concat(f.cardClass).join('・')}＞の`);
@@ -110,6 +111,8 @@ function filterJa(f?: any): string {
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
   if (f.noGuard) parts.push('《ガードアイコン》を持たない');
+  if (f.eachDistinctColor) parts.push('それぞれ共通する色を持たず');
+  if (f.nonColorless) parts.push('無色ではない');
   if (f.commonClass) parts.push('共通するクラスを持つ');
   if (f.hasIcon) parts.push(`《${f.hasIcon}アイコン》を持つ`);
   if (f.isDown) parts.push('ダウン状態の');
@@ -157,6 +160,11 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   if (t.totalPowerMax !== undefined) {
     return `${own}${filterJa(t.filter)}${u}をパワーの合計が${t.totalPowerMax}以下になるように好きな数`.trim();
   }
+  // レベル合計上限つき「M体まで」（「レベルの合計がN以下になるようにM体まで」）
+  if (t.totalLevelMax !== undefined) {
+    const mPick = typeof t.count === 'number' ? `${t.count}体まで` : '好きな数';
+    return `${own}${filterJa(t.filter)}${u}をレベルの合計が${t.totalLevelMax}以下になるように${mPick}`.trim();
+  }
   const counter = loc ? '枚' : '体';
   // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
@@ -179,7 +187,7 @@ function costJa(c?: any): string {
   if (c.exceed != null) parts.push(`エクシード${c.exceed}`);
   if (c.down_self) parts.push('《ダウン》');
   if (c.trash_self) parts.push('このシグニを場からトラッシュに置く');
-  if (c.discard != null) parts.push(`手札${c.discard}枚を捨てる`);
+  if (c.discard != null) parts.push(c.discardFilter ? `手札から${filterJa(c.discardFilter)}カード${c.discard}枚を捨てる` : `手札${c.discard}枚を捨てる`);
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.handToEnergy) parts.push(`手札から${filterJa(c.handToEnergy.filter)}シグニ${c.handToEnergy.count}枚をエナゾーンに置く`);
   if (c.handToUnderSelf) parts.push(`手札から${filterJa(c.handToUnderSelf.filter)}カード${c.handToUnderSelf.count}枚をこのシグニの下に置く`);
@@ -208,24 +216,27 @@ function condJa(c?: any): string {
     case 'HAND_COUNT_FILTER': return `${ownerJa(c.owner)}手札に${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}カードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LIFE_COUNT': return `${ownerJa(c.owner)}ライフが${numJa(c.value)}${opJa(c.operator)}`;
     case 'ENERGY_COUNT': return `${ownerJa(c.owner)}エナが${numJa(c.value)}${opJa(c.operator)}`;
-    case 'ENERGY_COUNT_FILTER': return `${ownerJa(c.owner)}エナゾーンに${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}カードが${numJa(c.value)}枚${opJa(c.operator)}`;
+    case 'ENERGY_COUNT_FILTER': return `${ownerJa(c.owner)}エナゾーンに${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
     case 'ENERGY_HAS_COLOR': return `${ownerJa(c.owner)}エナゾーンに${(c.colors || []).map((col: string) => `《${col}》のカード`).join('と')}がある`;
     case 'LRIG_NAME_CONTAINS': return `${ownerJa(c.owner)}センタールリグ名が「${c.name}」を含む`;
     case 'LRIG_COLOR': return `${ownerJa(c.owner)}センタールリグが${c.color}`;
     case 'LRIG_LEVEL': return `${ownerJa(c.owner)}センタールリグがレベル${numJa(c.value)}${opJa(c.operator)}`;
     case 'FIELD_CLASS_COUNT': return `${ownerJa(c.owner)}場に＜${c.story}＞が${numJa(c.value)}体${opJa(c.operator)}`;
+    case 'LRIG_TEAM_COUNT': return `${ownerJa(c.owner)}場に＜${c.team}＞のルリグが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'TRASH_HAS_CARD': return `${ownerJa(c.owner)}トラッシュに${filterJa(c.filter)}カードが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
+    case 'LAST_PROCESSED_SHARE_COLOR': return 'それらがそれぞれ共通する色を持つ';
     case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}シグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;
     case 'IS_MY_TURN': return '自分のターンの間';
     case 'IS_OPPONENT_TURN': return '対戦相手のターンの間';
-    case 'DECK_TOP_MATCHES': return `${ownerJa(c.owner)}デッキの一番上が${filterJa(c.filter)}カード`;
+    case 'IS_BETTING': return c.minCoins != null ? `あなたが《コイン》${c.minCoins}枚以上ベットしていた` : 'あなたがベットしていた';
+    case 'DECK_TOP_MATCHES': return `${ownerJa(c.owner)}デッキの一番上が${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}`;
     case 'DECK_TOP_SHARES_COLOR_WITH_LRIG': return `${ownerJa(c.owner)}場にそのカードと共通する色を持つルリグがいる`;
     case 'FIELD_SIGNI_ALL_DISTINCT_CLASS': return `${ownerJa(c.owner)}場にあるすべてのシグニがそれぞれ共通するクラスを持たない`;
     case 'LAST_PROCESSED_COUNT_GTE': return `この方法でカードを${numJa(c.value)}枚以上手札に加えた`;
@@ -241,6 +252,7 @@ function condJa(c?: any): string {
     case 'THIS_CARD_IN_LOCATION': return `このカードが${c.location}にある`;
     case 'THIS_CARD_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
     case 'THIS_CARD_IS_DOWN': return 'このシグニがダウンしている';
+    case 'THIS_CARD_IS_UP': return 'このシグニがアップ状態';
     case 'THIS_CARD_IS_ARMORED': return 'このシグニが血晶武装状態';
     case 'THIS_CARD_IS_AWAKENED': return 'このシグニが覚醒状態';
     case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
@@ -297,7 +309,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'BANISH': return a.opponentSelects
       ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
       : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
-    case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}`;
+    case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
     case 'SEND_TO_ENERGY': return `${targetJa(a.target)}をエナゾーンに置く${a.optional ? '（してもよい）' : ''}`;
     // ATTACH_ACCE: シグニを別シグニの【アクセ】にする。fromHand=手札から（デコレ）／省略時=エナゾーンから（アクセクラフト）
     case 'ATTACH_ACCE': {
@@ -327,7 +339,7 @@ function actionJa(a?: Action, effectType?: string): string {
         ? (t.blind ? '（見ないでランダム）' : t.actingPlayerSelects ? '（自分が見て選ぶ）' : '（相手が選ぶ）')
         : '';
       const cnt = t?.count === 'ALL' ? 'すべて' : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
-      return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}`;
+      return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
     }
     case 'POWER_MODIFY': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
     case 'POWER_SET': {
@@ -339,9 +351,18 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'POWER_MODIFY_PER_HAND_COUNT': return `${targetJa(a.target)}のパワーを手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
     case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
-    case 'DOWN': return `${targetJa(a.target)}をダウンする`;
+    case 'DOWN': return `${targetJa(a.target)}をダウンする${a.optional ? '（してもよい）' : ''}`;
+    case 'PREVENT_NEXT_DAMAGE': return a.damageSource
+      ? `このターン、次にあなたが${a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ'}によってダメージを受ける場合、代わりにダメージを受けない`
+      : `このターン、次の${a.count ?? 1}回のダメージを受けない`;
+    case 'EXILE': return `${targetJa(a.target)}をゲームから除外する`;
     case 'UP': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}をアップする`;
-    case 'ENERGY_CHARGE': return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
+    case 'ENERGY_CHARGE': {
+      // target 形式（デッキ/トラッシュ/手札/場のカードをエナゾーンへ）。全カードが target 形式
+      if (a.target?.type === 'DECK_CARD') return `${ownerJa(a.target.owner)}デッキの上から${numJa(a.target.count)}枚をエナゾーンに置く`;
+      if (a.target) return `${targetJa(a.target)}を対象とし、それらをエナゾーンに置く`;
+      return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
+    }
     case 'ENERGY_CHARGE_FROM_DECK': return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
     case 'ADD_TO_LIFE': {
       if (typeof a.count === 'object' && a.count?.$ref === 'last_processed_count') {
@@ -383,6 +404,8 @@ function actionJa(a?: Action, effectType?: string): string {
       return a.shuffle
         ? `${targetJa(a.source)}をデッキに加えてシャッフルする`
         : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く`;
+    case 'ADD_CRAFT_TO_LRIG_DECK':
+      return `${ownerJa(a.owner)}ルリグデッキに《${a.cardName}》${numJa(a.count)}枚を加える`;
     case 'PLACE_LRIGS_UNDER_CENTER':
       return `${ownerJa(a.owner)}ルリグトラッシュからすべてのルリグをこのカードの下に置く`;
     case 'ADD_TO_HAND': return `${targetJa(a.target)}を手札に加える`;
@@ -407,13 +430,16 @@ function actionJa(a?: Action, effectType?: string): string {
       const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
         : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
+      // ランサー:N → 「ランサー（パワーN以下のシグニ）」（hasKeyword は 'ランサー:' プレフィックスで検出）
+      const kw = typeof a.keyword === 'string' && a.keyword.startsWith('ランサー:')
+        ? `ランサー（パワー${a.keyword.slice('ランサー:'.length)}以下のシグニ）` : a.keyword;
       // thisCardOnly: このシグニ自身が持つキーワード（「このシグニは【X】を持つ」）
-      if (a.target?.filter?.thisCardOnly) return `このシグニは【${a.keyword}】を持つ${durJa}`;
+      if (a.target?.filter?.thisCardOnly) return `このシグニは【${kw}】を持つ${durJa}`;
       // targetsLastProcessed:「それ」= 直前に選択/処理したシグニへ付与
-      if (a.targetsLastProcessed) return `それは【${a.keyword}】を得る${durJa}`;
+      if (a.targetsLastProcessed) return `それは【${kw}】を得る${durJa}`;
       // targetsTriggerSource:「それ（トリガー元シグニ）」へ付与
-      if (a.targetsTriggerSource) return `それ（トリガー元シグニ）は【${a.keyword}】を得る${durJa}`;
-      return `${targetJa(a.target)}に【${a.keyword}】を与える${durJa}`;
+      if (a.targetsTriggerSource) return `それ（トリガー元シグニ）は【${kw}】を得る${durJa}`;
+      return `${targetJa(a.target)}に【${kw}】を与える${durJa}`;
     }
     case 'GRANT_EFFECT': {
       const durJaGE = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
@@ -455,6 +481,7 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return `${ownerJa(a.targetOwner)}${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
+    case 'GRANT_SOUL_HOST_ABILITY': return `このカードが【ソウル】として付いている${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': {
       if (!a.steps || a.steps.length === 0) return '何もしない';
       const parts = a.steps.map(actionJa) as string[];
@@ -482,6 +509,14 @@ function actionJa(a?: Action, effectType?: string): string {
         : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}する` : '';
       return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}てもよい`;
     }
+    case 'LOOK_PICK_CHAIN': {
+      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : 'トラッシュに置き';
+      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${numJa(s.pickCount)}枚まで${destVerb(s.then)}`;
+      const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
+        : a.remainder?.position === 'top' ? '残りをデッキの上に戻す'
+        : '残りを好きな順番でデッキの一番下に置く';
+      return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.revealCount)}枚見る。その中から${(a.stages || []).map(stageJa).join('、')}、${remJa}`;
+    }
     case 'REVEAL_AND_PICK': {
       const rapOwner = a.owner ?? a.from?.owner;
       const rapCnt = a.revealCount ?? a.count;
@@ -492,8 +527,8 @@ function actionJa(a?: Action, effectType?: string): string {
          : a.then.type === 'ADD_TO_ENERGY' ? 'エナゾーンに置く'
          : actionJa(a.then))
         : (a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : '処理する');
-      const pickN = a.pickCount === 'ALL' ? 'すべて' : `${numJa(a.pickCount ?? 1)}枚`;
-      const filterStr = rapFilter ? filterJa(rapFilter) + 'シグニ' : 'カード';
+      const pickN = a.pickCount === 'ALL' ? 'すべて' : `${numJa(a.pickCount ?? 1)}枚${a.pickUpTo ? 'まで' : ''}`;
+      const filterStr = rapFilter ? filterJa(rapFilter) + (a.pickNoun ?? 'シグニ') : 'カード';
       // 残り（remainder）の行き先を反映
       const rem = a.remainder;
       const remJa = !rem ? ''
@@ -623,7 +658,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'PLACE_UNDER_SIGNI': return `${targetJa(a.source)}をこのシグニの下に置く`;
     case 'TAKE_FROM_UNDER_SIGNI': return 'このシグニの下のカードを取る';
     case 'STACK_SPELL': return 'トラッシュからスペルをこのカードの下に置く';
-    case 'REVEAL': return `${ownerJa(a.owner)}デッキの上を公開する`;
+    case 'REVEAL':
+      if (a.source?.type === 'HAND_CARD') return `${ownerJa(a.source.owner)}手札から${filterJa(a.source.filter)}シグニ${a.source.count ?? 1}枚を公開する`;
+      return `${ownerJa(a.owner)}デッキの上を公開する`;
     case 'GRANT_LRIG_ABILITY': return `あなたのセンタールリグは『${(a.abilities || []).map(effJa).join(' / ') || a.rawText || ''}』を得る`;
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
@@ -632,6 +669,10 @@ function actionJa(a?: Action, effectType?: string): string {
         return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';
       }
       if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
+      if (a.id === 'PLACE_LIMIT_UPPER') return 'あなたのルリグゾーンに【リミットアッパー】1つを置く';
+      if (a.id === 'STEAL_OPP_TRASH_PUPPET') return '対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（ベット時2枚／非ベット1枚。離場時は持ち主のトラッシュへ）';
+      if (a.id === 'DISRUPT_OPP_LRIG_UNDER_BY_TYPE') return '対戦相手のセンタールリグの下のカードを最大2枚、あなたのルリグデッキから同じルリグタイプのルリグ2枚をルリグトラッシュに置いてもよい。そうした場合、それらをルリグトラッシュに置く';
+      if (a.id === 'GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG') return 'あなたの＜さんばか＞のルリグ1体に「【自】《ターン1回》：このルリグがアタックしたとき、このルリグをアップする」を付与する（ターン終了時まで）※ルリグ対象grant未配線';
       if (a.id === 'FREE_GROW_NEXT_TURN') return '次のあなたのターンの間、あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'GROW_COST_ZERO') return 'あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'POWER_DOUBLE_ALL') return 'ターン終了時まで、あなたのすべてのシグニのパワーを2倍にする';
@@ -649,8 +690,34 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // OPTIONAL_COST 系: 「《色》を支払ってもよい」（effectExecutor が直後の CONDITIONAL(IS_MY_TURN) と結合して
       // 「支払う→効果発動 / スキップ」を生成する標準パターン。後続の「そうした場合、…」が効果本体）
-      if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || a.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
-        const costJaOC = (a.costColors ?? []).map((c: string) => `《${c}》`).join('');
+      // OPTIONAL_TRASH_ENERGY_CLASS: エナゾーンから＜X＞のシグニN枚をトラッシュに置く任意コスト。
+      // クラス/枚数はJSONに無く EffectText から解釈する（engine と同じ）ので原文から復元する。
+      if (a.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
+        const m = currentCardText.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚/);
+        const cls = m?.[1] ? `＜${m[1]}＞の` : '';
+        const n = m?.[2] ? numJa(parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)))) : '1';
+        return `あなたのエナゾーンから${cls}シグニ${n}枚をトラッシュに置いてもよい`;
+      }
+      // CONDITIONAL_MULTI_CHOOSE_BY_CENTER（系）: 「以下のNつからMつ選ぶ①②③④」を実行時パースで実装する
+      // STUB。decompiler は JSON に選択肢を持たないため、原文の選択肢をそのまま反映する（＝engine 挙動と一致）。
+      if (a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER' || a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
+        const pm = currentCardText.match(/以下の[０-９\d]+つから([０-９\d]+)つ(?:まで)?選ぶ/);
+        const pick = pm ? pm[1] : '1';
+        const enh = currentCardText.match(/代わりに([０-９\d]+)つ(?:まで)?選ぶ/);
+        const segs = [...currentCardText.matchAll(/[①-⑨]([^①-⑨]*)/g)]
+          .map(x => x[1].replace(/\s+/g, ' ').trim().replace(/(?:。|\s|-)+$/, ''));
+        if (segs.length >= 2) return `次から${pick}つ${enh ? `（条件達成で${enh[1]}つまで）` : ''}選ぶ【${segs.join(' / ')}】`;
+      }
+      // OPTIONAL_DISCARD_HAND_CLASS: 手札から＜X＞のシグニN枚を任意で捨てる（クラス/枚数は EffectText から復元）
+      if (a.id === 'OPTIONAL_DISCARD_HAND_CLASS') {
+        const m = currentCardText.match(/手札から(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)を?([０-９\d]+)枚/);
+        const cls = m?.[1] ? `＜${m[1]}＞の` : '';
+        const n = m?.[2] ? numJa(parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)))) : '1';
+        return `あなたの手札から${cls}シグニ${n}枚を捨ててもよい`;
+      }
+      if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
+        // コストスロットは「青|黒」（青か黒のいずれか）形式を許容 → 「《青》か《黒》」
+        const costJaOC = (a.costColors ?? []).map((c: string) => c.split('|').map((x: string) => `《${x}》`).join('か')).join('');
         return `${costJaOC || 'コスト'}を支払ってもよい`;
       }
       const burstExtra = a.id === 'GRANT_ALL_ZONE_LIFEBURST'
@@ -701,7 +768,11 @@ function actionJa(a?: Action, effectType?: string): string {
 const timingJa: Record<string, string> = {
   ON_PLAY: 'このシグニが場に出たとき', ON_ATTACK_SIGNI: 'このシグニがアタックしたとき',
   ON_ATTACK_LRIG: 'このルリグがアタックしたとき',
+  ON_ACCE: 'このシグニに【アクセ】が付いたとき',
+  ON_SELF_REVEAL_FROM_HAND: 'あなたが自分の効果によって手札からカードを公開したとき',
   ON_BANISH: 'このシグニがバニッシュされたとき', ON_TRASH: 'このカードがトラッシュに置かれたとき',
+  ON_SIGNI_BANISH_OPPONENT: 'このシグニが対戦相手のシグニをバニッシュしたとき',
+  ON_SIGNI_BANISH_BATTLE: 'このシグニがバトルで対戦相手のシグニをバニッシュしたとき',
   ON_TURN_START: 'ターン開始時', ON_TURN_END: 'ターン終了時',
   ON_ATTACK_PHASE_START: 'あなたのアタックフェイズ開始時', ON_LIFE_CRASHED: 'あなたのライフがクラッシュされたとき',
   ON_OPP_LIFE_CRASHED: '対戦相手のライフがクラッシュされたとき', ON_SIGNI_BATTLE: 'このシグニがバトルしたとき',
@@ -762,6 +833,10 @@ function effJa(e: Eff): string {
         ? s.replace('場からトラッシュに置かれたとき', '効果によって場からトラッシュに置かれたとき')
         : s.replace('トラッシュに置かれたとき', '効果によって場からトラッシュに置かれたとき');
     }
+    // ON_TRASH の「コストか効果によって場から」限定を反映（バトル・ルール処理では発火しない。G204）
+    if (t === 'ON_TRASH' && e.triggerCondition?.fromFieldByCostOrEffect) {
+      s = 'このシグニがコストか効果によって場からトラッシュに置かれたとき';
+    }
     // ON_PLAY の「効果によって」限定を反映（手札からの通常召喚では発火しない）
     if (t === 'ON_PLAY' && e.triggerCondition?.bySigniEffect) {
       s = s.replace('場に出たとき', 'シグニの効果によって場に出たとき');
@@ -782,7 +857,7 @@ function effJa(e: Eff): string {
   const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
   // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
   const condStr = e.condition ? condJa(e.condition) : '';
-  const cond = condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}場合、`) : '';
+  const cond = condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}${condStr.endsWith('状態') ? 'の' : ''}場合、`) : '';
   // 「〜かぎり」：述語（い形容詞「い」/動詞「る」終わり）はそのまま、名詞終わりは「である」を補う
   const acJa = e.activeCondition ? condJa(e.activeCondition) : '';
   const actCond = e.activeCondition ? `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》` : '';
