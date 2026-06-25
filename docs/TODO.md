@@ -28,7 +28,9 @@
 
 **次の一手:** 脱落疑い #11〜 を10枚ずつ。look→pick系・owner誤り・単純脱落は機械的に直せる。複雑な引用付与/LB付与は新語彙が要るので後回しでよい。
 
-**2026-06-26 追記（2巡目・ymst）:** ①WXDi-P07-066 LB の owner誤り（self→opponent）＋択一脱落を修正し、**コイン任意払い機構**（`OPTIONAL_COST.coinCost`）を新設＝「《コイン》を支払ってもよい→そうした場合〜」系に流用可。②`HAS_CARD_IN_FIELD` が `crossState`/`isFrozen` を無視していた engine バグを修正し、クロス状態 COND_STUB 14枚（WX07/08帯＋PR-195）を `HAS_CARD_IN_FIELD` へ一括是正（BUGFIXES 2巡目参照）。**脱落疑い先頭に残る 1巡目修正済カード（WXDi-CP01-036/WX24-P4-026/WX26-CP1-001/WX25-CP1-037 等）は CHOOSE を1文に圧縮する文数カウントの偽陽性なので再修正不要。** 本物の未修正バグは BET_MECHANIC 系（WX19-005 等・別途）と、未精査の WXDi/WXK 帯 owner/脱落系。
+**2026-06-26 追記（2巡目・ymst）:** ①WXDi-P07-066 LB の owner誤り（self→opponent）＋択一脱落を修正し、**コイン任意払い機構**（`OPTIONAL_COST.coinCost`）を新設＝「《コイン》を支払ってもよい→そうした場合〜」系に流用可。②`HAS_CARD_IN_FIELD` が `crossState`/`isFrozen` を無視していた engine バグを修正し、クロス状態 COND_STUB 14枚（WX07/08帯＋PR-195）を `HAS_CARD_IN_FIELD` へ一括是正（BUGFIXES 2巡目参照）。**脱落疑い先頭に残る 1巡目修正済カード（WXDi-CP01-036/WX24-P4-026/WX26-CP1-001/WX25-CP1-037 等）は CHOOSE を1文に圧縮する文数カウントの偽陽性なので再修正不要。** 本物の未修正バグは BET_MECHANIC 系（WX19-005/WX18-005 等・別途）と、未精査の WXDi/WXK 帯 owner/脱落系。
+
+**3巡目（同日・ymst）:** 択一脱落・owner誤り 6枚を既存語彙で修正（WXDi-P15-034/WXDi-P07-083/WX05-081/WX17-004/WX20-006/WXK05-048。BUGFIXES 3巡目参照）。**後回し（新機構要）:** ①WDK07-E15＝公開したデッキカードを自身のアクセにする（既存 `ACCE_FROM_HAND` は手札アクセ用で逆向き＝新 STUB `INTERNAL_ACCE_PICKED_TO_SELF` が要る）。②WX24-P3-063＝公開カードと同レベルの相手全シグニ能力消失（公開カードのレベルを読む動的フィルタ）。③WX25-CP1-002（リコレクト択一④ owner）・WX25-P3-023-E2（遅延トリガー）・WXEX1-08（コインベット誘発＋ライズフィルタ）。
 
 **前提:** 新設の語彙は `src/types/effects.ts`、エンジンは `src/engine/effectExecutor.ts`（`execLookPickChain` 等）/`execUtils.ts`。逆翻訳器は `scripts/decompileEffects.ts`。
 
