@@ -672,7 +672,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GAIN_BOND': return a.source === 'declared'
       ? 'あなたのデッキからカード1枚を選び、そのカード名との絆を獲得する'
       : '直前に見つけたカード名との絆を獲得する';
-    case 'GROW_COST_REDUCTION': return `あなたの次のグロウコストを${costJa(a.reduction)}減らす`;
+    case 'GROW_COST_REDUCTION': return `あなたの次のグロウコストを${costJa({ energy: a.reduction })}減らす`;
     case 'LRIG_LIMIT_MODIFY': {
       const untilLLM = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次のターンの間）' : '';
       return `${ownerJa(a.owner)}センタールリグのリミットを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${untilLLM}`;
