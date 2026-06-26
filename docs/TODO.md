@@ -51,7 +51,7 @@
 - **《相手ターン》/《自分ターン》トリガー基盤**（最高価値・最高リスク）：`IS_MY_TURN`はevalCondition常時true・`TURN_OWNER`はCONTINUOUS activeConditionのみ。AUTO/ACTIVATEDのターン限定発動が未対応。多数の付与能力の前提。core（トリガー収集＝effectEngine `collectSelfEventTriggers`/BattleScreen）に踏み込む。
 - **【ビート】機構**（出現44・部分基盤 `beat_zone`/`BEAT_CONDITION`/`beat_signi` あり・大きく曖昧）：WDK14-008 等。
 - **引用能力付与の精緻化**（`GRANT_QUOTED_AUTO_ABILITY` 系・ヒューリスティック）：WX25-CP1-074・WXK09-055・WX24-P2-044 等の「シグニに『〜』を付与」。
-- **`LOOK_PICK_CHAIN` の field 宛先拡張**（小規模・影響7枚＋将来分）：`LookPickChainStage.then` に `'field'` を追加し、`lookPickThenAction`／`execLookPickChain` の SEARCH→ADD_TO_FIELD でゾーン選択の入れ子interactionを resumeSearch に再入させる。これで「look5→手札＋場」の二目的pick（WX24-P1-017/026・WX25-P1-039・WX25-P3-038・WX25-CP1-025・WXDi-P16-035・WXDi-P02-020）が機械化できる。17巡で hand/energy 版は完了済。
+- ~~**`LOOK_PICK_CHAIN` の field 宛先拡張**~~ → **実装済み（機構実装③・BUGFIXES参照）**。WXDi-P16-035・WXDi-P02-020・WX24-P1-026 配線済。**残**: WX24-P1-017・WX25-P3-038（場出しシグニへ引用AUTO付与＝GRANT_EFFECT要・引用付与タスク）／WX25-P1-039（`levelLteLastProcessed` フィルタ新設要）／WX25-CP1-025（hand＋「白を手札に加えた場合」条件）／WX26-CP1-019（CHOOSE2分岐×look→ener/hand）。
 - 個別の複合（place-swap WXDi-P08-037／look-pickチェーン WX26-CP1-019・WX25-P1-103／ウィルス数スケール WX16-048/023 等）は TODO 下部参照。
 - 機構選択はユーザーに確認してよい（前回 AskUserQuestion で「コスト増加」を選定）。
 

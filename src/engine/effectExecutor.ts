@@ -2498,9 +2498,11 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash', owner: Owner): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field', owner: Owner): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
   if (then === 'energy') return { type: 'ADD_TO_ENERGY', owner } as EffectAction;
+  // 'field': resumeSearch の ADD_TO_FIELD 分岐がゾーン選択チェーン＋外側 continuation を処理する
+  if (then === 'field') return { type: 'ADD_TO_FIELD', owner } as EffectAction;
   return { type: 'TRASH', target: { type: 'DECK_CARD', owner } } as EffectAction;
 }
 

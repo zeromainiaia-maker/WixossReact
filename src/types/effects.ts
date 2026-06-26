@@ -903,7 +903,7 @@ export interface AttachCharmAction {
 export interface LookPickChainStage {
   filter?: TargetFilter;          // ピック対象フィルタ（省略=任意カード）
   pickCount: number;              // 上限枚数（「N枚まで」）
-  then: 'hand' | 'energy' | 'trash'; // ピック先（手札／エナ／トラッシュ）
+  then: 'hand' | 'energy' | 'trash' | 'field'; // ピック先（手札／エナ／トラッシュ／場出し）
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
   pickNoun?: string;              // 逆翻訳の名詞（既定「シグニ」。任意カードは「カード」）
 }

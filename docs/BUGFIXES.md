@@ -5,6 +5,20 @@
 
 ---
 
+## 機構実装③：LOOK_PICK_CHAIN の field 宛先 ＋ 配線3枚（2026-06-26）
+
+「デッキを見て、その中から〈X〉を手札に加え、〈Y〉を**場に出し**、残りを…」の **hand＋field 二目的pick** を `LOOK_PICK_CHAIN` で表現可能にした。これまで `then` は hand/energy/trash のみで、場出しを含む二目的が `LOOK_AND_REORDER`（「並べ替える」）に退化・脱落していた。
+
+- **型**: `LookPickChainStage.then` に `'field'` を追加（effects.ts）。
+- **実行（engine変更は最小）**: `lookPickThenAction('field')` → `ADD_TO_FIELD`。**`resumeSearch` の既存 `ADD_TO_FIELD` 分岐**が「複数枚を1枚ずつゾーン選択でチェーン配置し、afterAction＋外側 continuation を全配置後に実行」を既に行うため、stage 間の continuation（残りステージの LOOK_PICK_CHAIN）と remainder 処理がそのまま合成される（追加のフロー改修不要）。
+- **decompiler**: `destVerb` に `field → '場に出し'` を追加。
+- **配線3枚**:
+  - **WXDi-P16-035**（look5→カード1手札＋シグニ1場＋【出】抑止）= `SEQUENCE[LOOK_PICK_CHAIN{hand1, field1}, BLOCK_ACTION ON_PLAY_ABILITY]`。15巡の後回し解消。
+  - **WXDi-P02-020**（look5→カード1手札＋シグニ2場＋【出】抑止）= 同型（field pickCount2）。15巡の後回し解消。
+  - **WX24-P1-026**（look5→＜地獣＞1手札＋＜地獣＞1場＋ランサー付与）= `SEQUENCE[LOOK_PICK_CHAIN{地獣hand1, 地獣field1}, GRANT_KEYWORD{targetsLastProcessed, ランサー, ターン終了時まで}]`。`targetsLastProcessed` が field 配置した signi（lastProcessedCards）を参照。
+- **後回し（個別の重い後続効果が残る）**: WX24-P1-017・WX25-P3-038（場出しシグニへ**引用AUTO付与**＝GRANT_EFFECT要・引用付与タスク）／WX25-P1-039（**場出しシグニのレベル以下**の相手バニッシュ＝`levelLteLastProcessed` フィルタ新設要）／WX25-CP1-025（hand-only＋「白を手札に加えた場合」条件）／WX26-CP1-019（CHOOSE2分岐×look→ener/hand）。
+- `tsc` 通過。sheet7/8/9＋下流再生成済み。同型★ 0件。**要実機検証**（field ステージのゾーン選択チェーン・残りデッキ下処理）。
+
 ## 文型★脱落バグ17巡目：look→pick→エナ／手札＋エナ二目的 が「並べ替える」退化 3枚（2026-06-26）
 
 16巡の「手札」版に続き、**エナ**ピック退化と**手札＋エナの二目的pick**を是正。二目的は既存 `LOOK_PICK_CHAIN`（stages: hand/energy/trash 対応）で表現（**field 宛先は未対応**＝下記後回し）。
