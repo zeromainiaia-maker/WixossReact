@@ -10488,6 +10488,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_field_trash_level: trashedSigniLevelFA,
         };
       }
+      // beat_signi: シグニを【ビート】にするコスト（自動選択・近似。beat_zone へ移し ON_BECOME_BEAT 用フラグを積む）
+      if ((effect.cost?.beat_signi ?? 0) > 0) {
+        const beatPayA = payBeatSigniCost(paid, cardNum, battleCardMap, effect.cost!.beat_signi!);
+        if (!beatPayA.ok) { setLoading(false); return; } // 支払い不能（対象不足）
+        paid = beatPayA.state;
+      }
       // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
       let plant3rdDownTriggerEntry: StackEntry | null = null;
       if (effect.cost?.down_self && my.turn_trigger_3rd_plant_down) {
