@@ -5,6 +5,18 @@
 
 ---
 
+## 機構：【ビート】機構 Phase1 ＝《ビートアイコン》[条件]ゲートの配線（2026-06-26・着手中）
+
+§5大型機構【ビート】（44枚）に着手。**Phase1＝《ビートアイコン》[条件]ゲート**（「自分の【ビート】が条件を満たすかぎり能力が有効」）を実装・配線。従来 parser はこのゲートを**完全に脱落**させていた（例: WXK08-073 常《ビート》[1枚以上]＋5000 が無条件化、WXK08-041 自《ビート》[条件]も条件なし）。既存基盤（`beat_zone`／`checkBeatCondition`／ENDフェーズ回収／beat化STUB）は流用。
+
+- **engine**: `BEAT_CONDITION` を `ActiveCondition` union に追加（従来 `Condition` のみ）＋`checkActiveCondition` に評価追加（CONTINUOUS の常《ビート》ゲート用。`ownerState.field.beat_zone` を `checkBeatCondition` で判定）。AUTO/ACTIVATED/ON_PLAY は既存の `eff.condition`→`evalUseCondition`→`evalCondition`(BEAT_CONDITION) 経路で機能（配線のみ）。
+- **checkBeatCondition 拡張**: 「同じレベルがN枚以上」パターンを新設（WXK10-041-E2）。既存の枚数/レベル各種は流用。
+- **decompiler**: BEAT_CONDITION を `あなたの【ビート】が{条件}` に自然文化（CONTINUOUS＝`《…であるかぎり》`が公式表現と一致／AUTO＝`…の場合、`。条件末尾 以上/以下/枚 に「の」補正も追加）。
+- **JSON配線12効果**: AUTO=condition／CONTINUOUS=activeCondition で `BEAT_CONDITION` 付与。WXK08-026-E1／041-E1,E2／042-E1,E2／044-E1／067-E1／073-E1(＋thisCardOnly補正)／WXK10-041-E1,E2／WDK14-001-E1／WDK14-011-E2。
+- **smokeテスト**: `_verifyBeatCondition.ts`（枚数/レベル/同じレベル/activeCondition経路 計16ケース・全pass）。
+- `npm run typecheck` 通過・sheet4/5＋下流再生成・同型★0維持。**要実機検証**（beat_zone へのカード投入後にゲートが正しく開閉するか）。
+- **Phase1 残**: ①コスト型《ビート》[4枚以下]＋「シグニを【ビート】にする」の使用ゲート（WDK14-011-E1/012/013・WXK10-041-E3 等の出/起）②**ON_BECOME_BEAT トリガー**（「このカードが【ビート】になったとき」＝WXK08-045/070/074/077・WXK10-069・WDK14-014/015/017。現状 ON_TURN_END 等に誤parse・未実装）③MAKE_BEAT アクションの正規化。→ TODO/バトン参照。
+
 ## 逆翻訳器：高頻出STUBの説明文を追加（`[STUB:X]` 生ID残存を ~140→54 に削減・2026-06-26）
 
 アクション生IDに続き、`[STUB:X]` の生IDのまま出ていた高頻出STUBに `actionJa` の STUB ブロックへ説明文を追加。**複数出現STUBを全解消**（残54件は全て1回のみの深いテール）。
