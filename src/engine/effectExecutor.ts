@@ -292,7 +292,9 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
       }
     }
   }
-  const allCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // 動的フィルタ（powerLteLastProcessed / levelLteLastProcessed＝「この方法で処理したシグニのパワー/レベル以下」等）を解決
+  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers);
+  const allCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const cands = bounceProtected.size > 0 ? allCands.filter(n => !bounceProtected.has(n)) : allCands;
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
@@ -1480,10 +1482,12 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     if (revealedName) resolvedFilter.cardName = revealedName;
     else delete resolvedFilter.cardName;
   }
-  if (resolvedFilter.colorMatchesLrig || resolvedFilter.colorNotMatchesLrig) {
+  {
+    // 動的フィルタ（colorMatchesLrig / powerLteLastProcessed / levelLteLastProcessed 等）を解決。
+    // 該当フラグが無ければ no-op。lastProcessedCards を渡して「この方法で処理したシグニのレベル/パワー以下」を解決可能にする。
     const searchOwnerSt = a.from.owner === 'self' ? ctx.ownerState : ctx.otherState;
     const searchOtherSt = a.from.owner === 'self' ? ctx.otherState : ctx.ownerState;
-    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt) };
+    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt, ctx.lastProcessedCards, ctx.effectivePowers) };
   }
 
   // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュ内でレベル1シグニとして扱うカードのオーバーライド

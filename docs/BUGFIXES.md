@@ -5,6 +5,16 @@
 
 ---
 
+## levelLteLastProcessed：engine解決の穴埋め（execBounce/execSearch）＋WXEX2-17（2026-06-26）
+
+前項で新設した `levelLteLastProcessed`（および既存 `powerLteLastProcessed`）が、**一部アクションの実行経路で `resolveDynamicFilter` に `lastProcessedCards` が渡っておらず解決されない**穴を発見・是正（＝逆翻訳に出るのにエンジンが無視する偽陽性の防止）。
+
+- **`execBounce`**: `resolveDynamicFilter` を**全く呼んでいなかった**。追加（`lastProcessedCards`/`effectivePowers` 付き）。→ 前項 **WX21-022**（BOUNCE のレベル制約）が実際に効くようになった（解決経路の確認：TRANSFER_TO_HAND → `resumeSelect` が `lastProcessedCards=選択シグニ` を設定 → continuation の BOUNCE が解決）。
+- **`execSearch`**: 動的フィルタ解決が `colorMatchesLrig` 系のときだけだったのを**常時解決**（no-op安全）に変更し `lastProcessedCards` を渡すよう修正。
+- **配線 WXEX2-17-E2**: SEARCH（デッキから美巧を探して場出し）の filter に `levelLteLastProcessed` を付与。直前の self-BANISH（execBanish が lastProcessedCards に記録）したシグニのレベルを参照。
+- **未対応（別機構が要る・本フィルタでは不可）**: WX22-046・WXK10-044-E2 は参照対象が**コストで捨てたシグニ**（lastProcessedCards ではない＝「コスト捨てシグニのレベル」追跡が別途必要）。WXK10-055 は E2 が丸ごと誤parse（バトルバニッシュ時の傀儡場出しが「自身をトラッシュから場出し」に化け）＝個別再構築案件。
+- `tsc` 通過。sheet3＋下流再生成済み。同型★ 0件。**要実機検証**（特に BOUNCE/SEARCH のレベル制約解決）。
+
 ## 小機構：levelLteLastProcessed フィルタ ＋ 配線3枚（2026-06-26）
 
 「この方法で〈処理／場に出し／手札に加え〉たシグニの**レベル以下**の対戦相手のシグニ」という動的フィルタを新設（既存 `powerLteLastProcessed`＝パワー版の鏡）。
