@@ -5,6 +5,19 @@
 
 ---
 
+## 機構：傀儡場出しの汎用化（count/optional/levelLteTrigger）＋ WXK10-055 全効果再構築（2026-06-26）
+
+§5の大型機構。`STEAL_OPP_TRASH_PUPPET`（相手トラッシュからシグニを傀儡状態で自場へ）を**パラメータ化**し、WXK10-055（千匹の童話　センショク）のE2/BURST/E1を正しく表現・実装。従来は丸ごと誤parse（E1=相手バニッシュ＋デッキ手札／E2・BURST=自トラッシュから自身を場出し）だった。
+
+- **型**: `StubAction.puppetParams?: { count?; optional?; levelLteTrigger? }`（effects.ts）。省略時は従来挙動（ベット2/非ベット1・必須・レベル制限なし）。
+- **engine（execStubPart1）**: `STEAL_OPP_TRASH_PUPPET` が `puppetParams` を読む。`levelLteTrigger` は候補を**トリガー元シグニ（`ctx.triggeringCardNum`）のレベル以下**に限定、`count`/`optional` を `selectOrInteract` に反映。
+- **被バニッシュ参照**: `BattleScreen` の `battleBanishEntries` に `triggeringCardNum: banishedOpCardNum` を付与（「そのシグニのレベル以下」用。ON_SIGNI_BANISH_BATTLE 経路）。
+- **小機構（汎用）**: `execTrash` の SIGNI 固定数経路が `a.optional` を尊重するよう修正（従来 false 固定）。「あなたのシグニ１体を場からトラッシュに置いてもよい」をスキップ可に。E1 は pure JSON `SEQUENCE[TRASH{optional}, CONDITIONAL{IS_MY_TURN→TRANSFER_TO_HAND(トラッシュの＜美巧＞)}]` で表現（スキップ時は resumeSelectTarget の stripDidItConditional で「そうした場合」を除去）。
+- **decompiler**: `puppetParams` 付き STEAL_OPP_TRASH_PUPPET を枚数/レベル制限/任意で自然文描画。
+- **JSON**: WXK10-055 の E1（ON_ATTACK_SIGNI・トレード回収）／E2（ON_SIGNI_BANISH_BATTLE・傀儡optional+levelLte）／BURST（傀儡必須1枚）を再構築。
+- **smokeテスト**: `_verifyPuppetGeneralize.ts`（levelLteTrigger 候補絞り／BURST必須全候補／該当なしdone 計8ケース・全pass）。
+- `npm run typecheck` 通過。sheet4＋下流再生成済み。逆翻訳が原文一致・同型★0。**要実機検証**（傀儡の離場回収・E1コスト支払い対話）。
+
 ## 機構実装④：《自分ターン》/《相手ターン》AUTOトリガー基盤 ＋ 配線30枚（2026-06-26）
 
 AUTO能力のターン限定発火（「【自】《相手ターン》：〜のとき」）を実装。従来 parser は CONTINUOUS のみ activeCondition 化し **AUTO/ACTIVATED は見送り**（effectParser.ts:1868 のコメント）＝ターン限定が脱落していた。**スタック投入の単一チョークポイント**でゲートする低リスク設計を採用（~40 箇所ある AUTO 収集点を個別に触らない）。
