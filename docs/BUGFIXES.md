@@ -5,6 +5,21 @@
 
 ---
 
+## 小機構：levelLteLastProcessed フィルタ ＋ 配線3枚（2026-06-26）
+
+「この方法で〈処理／場に出し／手札に加え〉たシグニの**レベル以下**の対戦相手のシグニ」という動的フィルタを新設（既存 `powerLteLastProcessed`＝パワー版の鏡）。
+
+- **型**: `TargetFilter.levelLteLastProcessed?: boolean`（effects.ts）。
+- **解決**: `resolveDynamicFilter`（effectExecutor.ts）で `lastProcessedCards[0]` のレベルを読み `level.max` に解決（powerLte… と同位置・同形）。
+- **decompiler**: `filterJa` に「この方法で処理したシグニのレベル以下の」を追加。
+- **配線3枚**:
+  - **WX21-022-BURST**: BOUNCE 対象フィルタに付与（トラッシュ→手札したシグニのレベル以下の相手を手札に戻す）。元々アクションは在り、レベル制約のみ欠落＝1フィールド追加。
+  - **WX24-P3-026-E1**: SEND_TO_ENERGY 対象フィルタに付与（同上・エナ送り）。1フィールド追加。
+  - **WX25-P1-039**: 「並べ替える」退化を全再構築＝`SEQUENCE[LOOK_PICK_CHAIN{原子hand1, 原子field1}, BANISH{levelLteLastProcessed}]`（機構③ field 宛先＋本フィルタの合わせ技）。
+- **未配線（同フィルタで表現可能・次回）**: WX22-046（捨てた→トラッシュ探し手札）／WXEX2-17（バニッシュした→デッキ探し場出し）／WXK10-044（捨てた→相手デッキトップ）／WXK10-055（バトル相手→傀儡場出し）。WXK11-036 は LRIG レベル基準で別。
+- **近似メモ**: ピックが0枚（「1枚まで」で未配置）の場合 ref 不在＝max 無し（任意対象）に縮退。原文の含意（配置時のみ）からは緩いが許容。
+- `tsc` 通過。sheet2/9＋下流再生成済み。同型★ 0件。**要実機検証**。
+
 ## 機構実装③：LOOK_PICK_CHAIN の field 宛先 ＋ 配線3枚（2026-06-26）
 
 「デッキを見て、その中から〈X〉を手札に加え、〈Y〉を**場に出し**、残りを…」の **hand＋field 二目的pick** を `LOOK_PICK_CHAIN` で表現可能にした。これまで `then` は hand/energy/trash のみで、場出しを含む二目的が `LOOK_AND_REORDER`（「並べ替える」）に退化・脱落していた。

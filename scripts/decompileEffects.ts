@@ -109,6 +109,7 @@ function filterJa(f?: any): string {
   if (f.powerLteSelf) parts.push('このシグニのパワー以下の');
   if (f.powerLtSelf) parts.push('このシグニよりパワーの低い');
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
+  if (f.levelLteLastProcessed) parts.push('この方法で処理したシグニのレベル以下の');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
   if (f.noGuard) parts.push('《ガードアイコン》を持たない');
   if (f.eachDistinctColor) parts.push('それぞれ共通する色を持たず');

@@ -767,6 +767,14 @@ function resolveDynamicFilter(
       ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: pw } }
       : rest;
   }
+  if (result.levelLteLastProcessed) {
+    const { levelLteLastProcessed: _l, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const lvl = ref ? parseInt(cardMap.get(getCardNum(ref))?.Level ?? '', 10) : NaN;
+    result = !isNaN(lvl)
+      ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: lvl } }
+      : rest;
+  }
   if (result.colorMatchesLrig || result.colorNotMatchesLrig) {
     const lrigTop = ownerSt.field.lrig.at(-1);
     const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
