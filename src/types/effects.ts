@@ -230,6 +230,7 @@ export interface EffectCost {
   trash_key?: boolean;    // このキーを場からルリグトラッシュに置く（【起】コスト）
   exceed?: number;        // エクシード：ルリグの下からN枚をルリグトラッシュへ
   beat_signi?: number;    // 場のシグニN体をビートにする（コスト）
+  beat_signi_from_trash?: { count: number; filter?: TargetFilter }; // トラッシュからシグニN体を【ビート】にする（コスト・WDK14-013）
   coin?: number;          // 《コインアイコン》×N（【出】《コイン》等）
   // ─ v0.263 追加: 無発火だった任意【出】コストの表現（ONPLAY_DEAD_OPTIONAL対策）─
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean }; // 場の自分シグニN体をトラッシュ（「他の＜原子＞のシグニ１体を場からトラッシュに置く」等）

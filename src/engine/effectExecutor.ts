@@ -60,10 +60,10 @@ import {
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot,
-  evalUseCondition, banishDestination, sweepPuppets, payBeatSigniCost,
+  evalUseCondition, banishDestination, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
-export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost };
+export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost };
 import { matchesStateFilter } from './effectEngine';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';

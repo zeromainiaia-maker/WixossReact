@@ -433,6 +433,37 @@ export function payBeatSigniCost(
   return { state: newState, moved, ok: true, log: `${names}を【ビート】にする（コスト）` };
 }
 
+// cost.beat_signi_from_trash の支払い：トラッシュから filter 一致のシグニ count 枚を beat_zone へ移す
+// （WDK14-013「トラッシュから＜悪魔＞のシグニ1枚を【ビート】にする」）。beat_became_just に積み ON_BECOME_BEAT 連鎖を発火。
+// 近似：トラッシュ順の先頭から自動選択（プレイヤー選択UIは別タスク）。payBeatSigniCost と同型の戻り値。
+export function payBeatSigniFromTrashCost(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  count: number,
+  filter?: import('../types/effects').TargetFilter,
+): { state: PlayerState; moved: string[]; ok: boolean; log: string } {
+  const eff = filter ?? { cardType: 'シグニ' };
+  const matchIdx: number[] = [];
+  state.trash.forEach((n, i) => {
+    const c = cardMap.get(getCardNum(n));
+    if (c && c.Type === 'シグニ' && matchesFilter(c, eff)) matchIdx.push(i);
+  });
+  if (matchIdx.length < count) {
+    return { state, moved: [], ok: false, log: '【ビート】コスト支払い不能（トラッシュにシグニ不足）' };
+  }
+  const take = new Set(matchIdx.slice(0, count));
+  const moved = [...take].map(i => state.trash[i]);
+  const newTrash = state.trash.filter((_, i) => !take.has(i));
+  const newState: PlayerState = {
+    ...state,
+    trash: newTrash,
+    field: { ...state.field, beat_zone: [...(state.field.beat_zone ?? []), ...moved] },
+    beat_became_just: [...(state.beat_became_just ?? []), ...moved],
+  };
+  const names = moved.map(cn => cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・');
+  return { state: newState, moved, ok: true, log: `${names}をトラッシュから【ビート】にする（コスト）` };
+}
+
 // ─── ゲーム外トークン生成ヘルパー ───────────────────────────────
 // クラフト/レゾナ/トークンは盤外から生成される。CardName を CardNum に解決し、
 // 既存インスタンスと衝突しない新規 instanceId（CardNum#N）を返す。

@@ -5,6 +5,19 @@
 
 ---
 
+## 機構：【ビート】機構 Phase5 ＝ トラッシュ→beat コスト（beat_signi_from_trash）＋WDK14-013（2026-06-26）
+
+Phase4 で「残」とした **WDK14-013-E1** を実装。「【出】《ビート》[４枚以下]**トラッシュから＜悪魔＞のシグニ１枚を【ビート】にする**：この方法で【ビート】が４枚になった場合、カードを１枚引く」。従来は `mandatory:false`＋cost無し＝dropped で**無発火**（コストも条件も脱落）だった。既存 `beat_signi`（場シグニ→beat）とは別経路の**トラッシュ→beat コスト**を新設。
+
+- **型**: `Cost.beat_signi_from_trash?: { count; filter? }`（effects.ts）。
+- **engine（純関数）**: `payBeatSigniFromTrashCost(state, cardMap, count, filter)`（execUtils・payBeatSigniCost と同型の戻り値）。トラッシュから `Type==='シグニ'`＋filter 一致を**先頭から count 枚**（プレイヤー選択UIは別タスク）beat_zone へ移し `beat_became_just` に積む（ON_BECOME_BEAT 連鎖）。**重複カード番号でも count 枚だけ移動**（index ベースで全消し防止）。対象不足は ok=false。
+- **BattleScreen**: `executeSigniOnPlayCost` の beat_signi 支払い直後に beat_signi_from_trash を追加（ok=false で発動中止）。**ON_PLAYコストモーダル**に affordability（`beatTrashOkM`＝トラッシュに必要数あるか）と cost ラベル（beat_signi/beat_signi_from_trash 両方）を追加。
+- **「この方法で４枚になった場合」**: コスト支払いで beat が+1 された**後**の状態で action を実行するため、`action: CONDITIONAL{ BEAT_CONDITION '４枚'(=ちょうど4) → DRAW1 }` で表現（checkBeatCondition は `^N枚$` を完全一致でサポート済）。支払い前=3枚のときだけ4枚ちょうど→ドロー。
+- **decompiler**: costJa に beat_signi_from_trash 描画追加。逆翻訳＝「〈トラッシュから＜悪魔＞のシグニ1枚を【ビート】にする〉あなたの【ビート】が４枚以下の場合、あなたの【ビート】が４枚なら、…1枚引く」＝原文一致。
+- **smokeテスト**: `_verifyBeatFromTrash.ts`（filter一致のみ移動／支払い不能／重複番号で count 枚のみ 計12ケース・全pass）。
+- `npm run typecheck`（tsc -b）通過・sheet5＋下流再生成・同型★0維持。**要実機検証**（出発動→トラッシュ→beat→4枚ちょうどでドロー・ON_BECOME_BEAT連鎖）。
+- **残（beat サブタスク）**: ①beat対象のプレイヤー選択UI（payBeatSigniCost／payBeatSigniFromTrashCost とも自動近似）②MAKE_BEAT アクションの正規化③WDK14-008（公開4→1手札＋1ビート→ビート同レベルの相手バニッシュ）。
+
 ## 機構：【ビート】機構 Phase4 ＝ コスト型《ビートアイコン》[４枚以下]使用ゲートの配線（2026-06-26）
 
 「【出】/【起】《ビートアイコン》［４枚以下］…シグニを【ビート】にする：〜」の使用ゲート（自分の【ビート】が条件を満たすかぎり使用可）を9効果に配線。従来 parser はこのゲートを脱落させ無条件発動だった。Phase1 の CONTINUOUS/AUTO ゲートに続き、コスト型【出】/【起】を網羅。

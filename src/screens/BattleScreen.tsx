@@ -8,7 +8,7 @@ import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calc
 applyContinuousBaseLevelOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones} from '../engine/effectEngine';
-import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -10958,6 +10958,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paid = beatPay.state;
         payLogs.push(beatPay.log);
       }
+      // beat_signi_from_trash: トラッシュからシグニを【ビート】にするコスト（WDK14-013・自動選択近似）
+      if ((cost?.beat_signi_from_trash?.count ?? 0) > 0) {
+        const btPay = payBeatSigniFromTrashCost(paid, battleCardMap, cost!.beat_signi_from_trash!.count, cost!.beat_signi_from_trash!.filter);
+        if (!btPay.ok) { setLoading(false); return; } // 支払い不能（トラッシュにシグニ不足）
+        paid = btPay.state;
+        payLogs.push(btPay.log);
+      }
       // lrigDown: アップ状態のルリグをダウン（センター→アシストL→Rの順で自動支払い）
       const lrigDownCost = cost?.lrigDown;
       if (lrigDownCost) {
@@ -15498,7 +15505,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 if (f.cardType === 'シグニ' || (Array.isArray(f.cardType) && f.cardType.includes('シグニ'))) parts.push('シグニ');
                 return parts.join('の');
               };
-              const canAfford = energyOk && coinOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM
+              // beat_signi_from_trash: トラッシュに filter 一致シグニが必要数あるか（WDK14-013）
+              const beatTrashCostM = eff.cost?.beat_signi_from_trash;
+              const beatTrashOkM = !beatTrashCostM || pState.trash.filter(n => {
+                const c = battleCardMap.get(getCardNum(n));
+                return c && c.Type === 'シグニ' && matchesFilter(c, beatTrashCostM.filter ?? { cardType: 'シグニ' });
+              }).length >= beatTrashCostM.count;
+              const canAfford = energyOk && coinOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && beatTrashOkM
                 && selectedSigniOnPlayDiscard.size >= handNeeded
                 && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
                 && selectedSigniOnPlayFieldTrash.size >= ftNeeded;
@@ -15532,6 +15545,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                             charmNeeded > 0 ? `チャーム${charmNeeded}枚トラッシュ` : null,
                             charmVarOPCostM ? `チャーム${charmVarOPCostM.min}枚以上トラッシュ（現在${totalOPCharmsM}枚）` : null,
                             artsTrashOPCostM ? `ルリグデッキから${artsTrashOPCostM.color ? artsTrashOPCostM.color + 'の' : ''}アーツ${artsTrashOPCostM.count}枚をトラッシュ` : null,
+                            (eff.cost?.beat_signi ?? 0) > 0 ? `シグニ${eff.cost!.beat_signi}体を【ビート】に` : null,
+                            beatTrashCostM ? `トラッシュから${filterLabel(beatTrashCostM.filter) || 'シグニ'}${beatTrashCostM.count}枚を【ビート】に` : null,
                             virusNeeded > 0 ? `相手の【ウィルス】${virusNeeded}個除去` : null,
                             coinNeeded > 0 ? `《コイン》×${coinNeeded}（所持${pState.coins ?? 0}）` : null,
                           ].filter(Boolean).join('・') || 'なし'}
