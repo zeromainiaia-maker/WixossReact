@@ -5,6 +5,19 @@
 
 ---
 
+## 機構：【ビート】機構 Phase2 ＝ ON_BECOME_BEAT トリガー（このカードが【ビート】になったとき・2026-06-26）
+
+「【自】：このカードが【ビート】になったとき〜」のトリガーを新設。従来は **timing が ON_PLAY／ON_TURN_END に誤parse**（本体アクションは概ね正・トリガーだけ別物）＝発火しない／誤発火していた8枚を正す。`drive_became_just`/ON_SIGNI_BECOMES_DRIVE と同型のフラグ＋watcher 設計。
+
+- **型**: timing `ON_BECOME_BEAT`（effects.ts）／`PlayerState.beat_became_just?: string[]|null`（index.ts。drive_became_just と同型）。
+- **engine（発火元）**: `INTERNAL_MOVE_TO_BEAT`/`TRASH_SIGNI_TO_BEAT`（execStubPart3）でカードが beat_zone へ入るとき `beat_became_just` に積む。
+- **BattleScreen**: ①watcher useEffect（`beat_became_just` を検出→収集→スタック投入→フラグクリア。drive watcher と同型・CPU代行対応）②`collectBeatBecameTriggers`（**self=なったカード自身＝beat_zone在中なので effectsMap から直接引く**／any_ally・any=オーナーの場のシグニ＝「あなたの他のカードが【ビート】になったとき」WDK14-014。usageLimit対応）。
+- **decompiler**: timingJa に `ON_BECOME_BEAT`='このカードが【ビート】になったとき'。
+- **JSON修正8枚**: WXK08-045（＋beat3条件・GRANT先を自＜悪魔＞へ）／070（＋beat5）／074／077／WXK10-069（＋beat2）／WDK14-014（any_ally＋ターン1回）／015／017。逆翻訳が原文一致。
+- **smokeテスト**: `_verifyBecomeBeat.ts`（INTERNAL_MOVE_TO_BEAT/TRASH_SIGNI_TO_BEAT がフラグを立てる・6ケースpass）。
+- `npm run typecheck` 通過・sheet4/5＋下流再生成・同型★0維持。**要実機検証**（watcher の発火・self/any_ally の出し分け・CPU代行）。
+- **残（beat_signi コスト未処理）**: 出/起「シグニを【ビート】にする」の `cost.beat_signi` が engine 未処理＝この経路の beat 化＋ON_BECOME_BEAT 発火は未（INTERNAL_MOVE_TO_BEAT/TRASH_SIGNI_TO_BEAT 経路のみ動く）。コスト処理の実装が次の beat サブタスク。
+
 ## 機構：【ビート】機構 Phase1 ＝《ビートアイコン》[条件]ゲートの配線（2026-06-26・着手中）
 
 §5大型機構【ビート】（44枚）に着手。**Phase1＝《ビートアイコン》[条件]ゲート**（「自分の【ビート】が条件を満たすかぎり能力が有効」）を実装・配線。従来 parser はこのゲートを**完全に脱落**させていた（例: WXK08-073 常《ビート》[1枚以上]＋5000 が無条件化、WXK08-041 自《ビート》[条件]も条件なし）。既存基盤（`beat_zone`／`checkBeatCondition`／ENDフェーズ回収／beat化STUB）は流用。
