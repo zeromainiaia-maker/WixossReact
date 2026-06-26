@@ -2746,6 +2746,19 @@ export function checkBeatCondition(beatZone: string[], condText: string, cardMap
     return levels.every(lv => beatZone.filter(num => parseInt(cardMap.get(num)?.Level ?? '-1', 10) === lv).length >= each);
   }
 
+  // 同じレベルがN枚以上: "同じレベルが4枚以上"（あるレベル値の枚数が閾値に達するか）
+  m = condText.match(/同じレベルが([０-９\d]+)枚以上/);
+  if (m) {
+    const need = n(m[1]);
+    const byLevel = new Map<number, number>();
+    for (const num of beatZone) {
+      const lv = parseInt(cardMap.get(num)?.Level ?? '-1', 10);
+      if (isNaN(lv) || lv < 0) continue;
+      byLevel.set(lv, (byLevel.get(lv) ?? 0) + 1);
+    }
+    return [...byLevel.values()].some(c => c >= need);
+  }
+
   return false;
 }
 
