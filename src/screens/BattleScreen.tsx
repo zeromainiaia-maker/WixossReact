@@ -11307,6 +11307,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }).length < e.cost.fieldTrash.count) &&
         // fieldTrashGroups: 各グループ（異クラス）を満たすシグニ構成が場にないと支払えない
         !(e.cost?.fieldTrashGroups && !fieldTrashGroupsAffordable(e.cost.fieldTrashGroups, my.field.signi, battleCardMap)) &&
+        // beat_signi: 場にシグニがいないと【ビート】にできない（精密な不足は支払い時に判定）
+        !(e.cost?.beat_signi && my.field.signi.filter(s => (s?.length ?? 0) > 0).length < 1) &&
         // fieldDown: アップ状態の該当シグニが必要数いないと支払えない
         !(e.cost?.fieldDown && [0, 1, 2].filter(zi => {
           const fdTop = my.field.signi[zi]?.at(-1);
