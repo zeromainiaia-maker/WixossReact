@@ -540,6 +540,18 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン2a: 「あなたの場に《X》(か《Y》)*があるかぎり、」（複数カード名のいずれか存在。WX08-049「《羅星　アルシャ》か《羅星　ディアデム》」）
+  // 単一名は cardName、複数名は cardNames に解決。下のパターン2は単一《》/＜＞のみなので、複数《》はここで先取りする。
+  const fieldNamesM = text.match(/^あなたの場に((?:《[^》]+》(?:か)?)+)があるかぎり、/);
+  if (fieldNamesM && fieldNamesM[1].includes('か《')) {
+    const names = [...fieldNamesM[1].matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardNames: names } },
+      rest: text.slice(fieldNamesM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン2: 「あなたの場に《カード名》/＜カード名＞があるかぎり、」
   const fieldNameM = text.match(/^あなたの場に(《[^》]+》|＜[^＞]+＞)があるかぎり、/);
   if (fieldNameM) {
