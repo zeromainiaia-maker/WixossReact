@@ -320,7 +320,11 @@ export function matchesFilter(
       if (!printed && !selfGrant) return false;
     } else {
       const txt = card.EffectText ?? '';
-      if (!txt.includes(`【${filter.keyword}】`) && !txt.includes(`《${filter.keyword}》`)) return false;
+      const kws = Array.isArray(filter.keyword) ? filter.keyword : [filter.keyword];
+      // いずれかのキーワードを持てばマッチ（OR）。【ランサー（条件）】等の括弧付き変種も含める（公式ルール）。
+      const hasAny = kws.some(kw =>
+        txt.includes(`【${kw}】`) || txt.includes(`《${kw}》`) || txt.includes(`【${kw}（`));
+      if (!hasAny) return false;
     }
   }
   return true;

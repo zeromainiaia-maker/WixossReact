@@ -5,6 +5,16 @@
 
 ---
 
+## 小機構：keyword フィルタの複数OR対応 ＋ WX24-P3-032（2026-06-26）
+
+個別★精査。`TargetFilter.keyword` を `string | string[]` に拡張（配列＝いずれかを持つ＝OR）。併せて **【ランサー（条件）】等の括弧付き変種**も `【kw（` 前方一致で含めるよう matchesFilter を修正（公式ルール「【ランサー（条件）】は【ランサー】に含まれる」）。
+
+- **型**: `keyword?: string | string[]`（effects.ts）。
+- **matchesFilter**（execUtils.ts）: 配列を OR 判定。各 kw を `【kw】`/`《kw》`/`【kw（`（変種）で照合。
+- **decompiler**: `【X】か【Y】…を持つ` と連結描画（単一は従来どおり）。
+- **配線 WX24-P3-032**: CHOOSE② のバウンス対象が「【アサシン】か【ランサー】か【Ｓランサー】か【ダブルクラッシュ】を持つ相手シグニ」だったのにキーワード制限が脱落していた→ `keyword:["アサシン","ランサー","Ｓランサー","ダブルクラッシュ"]`（カード印字に合わせ全角Ｓ）を付与。
+- `tsc` 通過。sheet9＋下流再生成済み。同型★ 0件。**要実機検証**。
+
 ## 小機構：levelLteDiscardSigni（コストで捨てたシグニのレベル以下）＋配線2枚（2026-06-26）
 
 「`handDiscardSigni` コストで捨てたシグニのレベル以下」を参照する動的フィルタを新設。`last_activated_discard_level_sum` は別系統（discardVarCards）専用で **handDiscardSigni の捨て札レベルは記録されていなかった**（パワーは `last_discarded_signi_power` で記録済だがレベルは欠落）ため、レベル記録から追加。

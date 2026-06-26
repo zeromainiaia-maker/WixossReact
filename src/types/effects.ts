@@ -322,7 +322,7 @@ export interface TargetFilter {
   hasLifeBurst?: boolean; // 《ライフバースト》を持つカード
   infected?:  boolean; // 感染状態（ウィルスのあるゾーンのシグニ）
   isArmored?: boolean; // 血晶武装状態
-  keyword?: string;             // 【キーワード能力】or《キーワード》を持つカードのフィルタ（「【ライフバースト】を持つ」等）
+  keyword?: string | string[];  // 【キーワード能力】or《キーワード》を持つカードのフィルタ（「【ライフバースト】を持つ」等）。配列はOR（いずれかを持つ）。【ランサー（条件）】等の括弧付き変種も含む
   // ─ 動的フィルタ（ON_LEAVE_FIELD系トリガーの収集時に具体値へ解決される。未解決時は無視）─
   levelBelowLeftCard?: boolean; // 場を離れたカードよりレベルが低い → level:{max:N-1} に解決（ミョルニル/花代・伍）
   powerBelowLeftCard?: boolean; // 場を離れたカードよりパワーが低い → powerRange.max:N-1 に解決（スノークイーン WX16-025）

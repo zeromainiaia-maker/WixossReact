@@ -128,7 +128,7 @@ function filterJa(f?: any): string {
   if (f.infected) parts.push('感染状態の');
   if (f.colorMatchesLrig) parts.push('センタールリグと共通色の');
   if (f.colorNotMatchesLrig) parts.push('センタールリグと共通色でない');
-  if (f.keyword) parts.push(`【${f.keyword}】を持つ`);
+  if (f.keyword) parts.push(`${[].concat(f.keyword).map((k: string) => `【${k}】`).join('か')}を持つ`);
   return parts.join('');
 }
 

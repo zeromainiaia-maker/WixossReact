@@ -36,8 +36,9 @@
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
 - **最終更新**: 2026-06-26
-- **直近やったこと**: 機構③（field宛先）／`levelLteLastProcessed`（engine穴埋め含む）／**`levelLteDiscardSigni`（コスト捨てシグニのレベル以下）小機構＋WX22-046・WXK10-044-E2 配線**。同型★0維持。→ `BUGFIXES.md` 先頭参照。
-- **重要な調査結果**: 「同じ壊れ方を一括で潰すクリーンな横展開系統はほぼ枯れた」。残りは(a)複数択の中の択落ち、(b)カード丸ごとの誤parse、(c)機構待ち、に分散。→ **今後は“小機構＋少数配線”or“個別★割れ”が中心**。
+- **直近やったこと**: `levelLteDiscardSigni`／**keywordフィルタの複数OR対応＋WX24-P3-032 配線**（個別★精査）。同型★0維持。→ `BUGFIXES.md` 先頭参照。
+- **重要な調査結果**: 「クリーンな横展開系統はほぼ枯れた」。**個別★も“トリビアルに直せる”ものは尽き**、残りは1枚ごとに小機構/小フィルタ拡張が要る（今回の keyword-OR のように）。→ **そろそろ大型機構（§5）に舵を切るのが効率的**。個別を続けるなら「1枚＝1小拡張」の覚悟で。
+- **WXK10-055 は“個別誤parse”ではなく機構案件**（前バトンの誤分類を訂正）: E1=保持対象＋任意自シグニトラッシュコスト→手札（複雑）、E2/BURST=**相手トラッシュから傀儡で場出し**（既存 STUB `STEAL_OPP_TRASH_PUPPET` は WDK17-007 専用でベット数ハードコード・count/optional/levelフィルタ無し＝**汎用化が要る**）、E2 は「バトルでバニッシュしたシグニのレベル以下」＝ON_BATTLE_BANISH の被バニッシュ参照プラミング要。→ §5 に「傀儡場出し汎用化」を機構候補として追加。
 - **engine注意（重要）**: 動的フィルタ（`*LteLastProcessed`/`*DiscardSigni` 等）は**アクションごとに解決経路を個別確認**。`lastProcessedCards` を渡して resolveDynamicFilter する＝execBanish/SendToEnergy/Bounce/Search/REVEAL_AND_PICK/applyDirectAction。**キャスター値**（捨て札レベル等）は target-owner と別なので `resolveDiscardLevelFilter(filter, ctx.ownerState)` を使う（execTransferToHand/Deck に導入済）。新アクションに付ける時は渡っているか必ず確認（漏れると逆翻訳だけ出てengine無視＝偽陽性）。
 - **次の一手（候補・上から推奨）**:
   1. **個別★割れ/誤parseの精査**（mechanical寄り）：WXK10-055（E2 が丸ごと誤parse＝バトル傀儡場出し→自身場出しに化け）等を1枚ずつ。`grouped_sentence_all.txt` の★（偽陽性§4を先に除外）。
@@ -66,7 +67,8 @@
 | 《相手ターン》/《自分ターン》トリガー基盤 | 最大（多数の付与能力の前提） | 高（core: トリガー収集に踏み込む） | 未着手 |
 | 【ビート】機構 | 44枚 | 中（部分基盤あり・曖昧） | 未着手 |
 | 引用AUTO付与の精緻化（GRANT_QUOTED_AUTO_ABILITY） | 中 | 中 | 未着手 |
-| `levelLteLastProcessed` フィルタ（場出しシグニのレベル以下） | 小 | 低 | 未着手 |
+| 傀儡場出しの汎用化（STEAL_OPP_TRASH_PUPPET を count/optional/level対応へ）＋ON_BATTLE_BANISH被バニッシュ参照 | 小〜中（WXK10-055 等） | 中 | 未着手 |
+| ~~`levelLteLastProcessed` フィルタ~~ | — | — | **実装済**（BUGFIXES参照） |
 
 - 実装済み機構の履歴：コスト増加(①)・ライフクラッシュ履歴(②)・LOOK_PICK_CHAIN field宛先(③) は `BUGFIXES.md` 参照。
 
