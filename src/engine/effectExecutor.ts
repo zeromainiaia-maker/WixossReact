@@ -558,7 +558,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const count = resolveNum(tgt.count);
     // 「各プレイヤーは自分のシグニ1体を対象とし、それをトラッシュ」：相手のシグニは相手自身が選ぶ（WX04-025）
     const oppRespondsField = !!a.opponentSelects && tgt.owner === 'opponent';
-    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, oppRespondsField);
+    // optional:「場からトラッシュに置いてもよい」＝スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない（WXK10-055-E1）
+    return selectOrInteract(cands, count, a.optional ?? false, scope, a, undefined, ctx, oppRespondsField);
   }
 
   if (tgt.type === 'HAND_CARD') {
