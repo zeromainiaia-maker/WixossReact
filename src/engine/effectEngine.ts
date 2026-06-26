@@ -47,6 +47,10 @@ export function checkActiveCondition(
     case 'TURN_OWNER':
       return cond.owner === 'self' ? isOwnerTurn : !isOwnerTurn;
 
+    case 'BEAT_CONDITION':
+      // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり有効（CONTINUOUS常時能力のゲート）
+      return checkBeatCondition(ownerState.field.beat_zone ?? [], cond.condText, cardMap);
+
     case 'HAS_CARD_IN_FIELD': {
       const state = cond.owner === 'self' ? ownerState : otherState;
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
