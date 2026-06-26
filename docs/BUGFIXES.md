@@ -5,6 +5,18 @@
 
 ---
 
+## 機構：【ビート】機構 Phase7 ＝ MAKE_BEAT正規化＋beat対象のプレイヤー選択UI（2026-06-26）
+
+ビート機構の残り2項目を実装し、コア＋UIを完了。①**MAKE_BEAT正規化**＝5箇所でコピペしていた「beat_zone＋beat_became_just へ積む」を共通ヘルパ `addToBeatZone` に集約。②**beat対象のプレイヤー選択UI**＝従来「他のシグニN体を【ビート】に」のコスト支払いがレベル低い順の自動近似だったのを、ON_PLAY/ACTIVATED の両コストモーダルでプレイヤーがゾーン選択できるようにした。
+
+- **正規化（engine）**: `addToBeatZone(state, cards)`（execUtils・**配置のみ**＝元の場所からの除去は呼び出し側）を新設し、`payBeatSigniCost`／`payBeatSigniFromTrashCost`／`INTERNAL_MOVE_TO_BEAT`／`TRASH_SIGNI_TO_BEAT`／`ADD_TO_BEAT` の5経路を集約。挙動不変（既存ビートsmoke全pass）。
+- **選択UI（engine）**: `analyzeBeatSigniCost`（{includeSelf, selfZone, otherPart, eligibleOtherZones}）を新設＝UIが「何枚どこから選ぶか」を知る。`payBeatSigniCost` に `selectedOtherZones?: number[]` を追加（指定時はそのゾーンを beat に・**未指定は従来のレベル低い順自動近似でフォールバック**＝CPU/省略時の互換維持）。
+- **選択UI（BattleScreen）**: ON_PLAY コストモーダル（`selectedSigniOnPlayBeat`）／ACTIVATED コストモーダル（`selectedSigniActivatedBeat`）に【ビート】対象のゾーン選択を追加（fieldTrash と同型のUI・オレンジ枠「ビート」）。**候補が必要数より多いときだけ選択を要求**（同数以下は自動＝モーダル簡潔化）。`canAfford` に `beatSelectOk`／`actBeatSelectOk` を追加。
+- **対象**: 「他のシグニ1体を【ビート】に」系（WXK08-043/068/075・WXK10-041-E3・WDK14-012/014-E2・WXK08-026-E2 等）。WXK08-046（このシグニ＝self only）は選択不要。トラッシュ→beat（WDK14-013）は自動近似のまま（トラッシュピッカーは別途・低優先）。
+- **smokeテスト**: `_verifyBeatSelectUI.ts`（analyze の候補解析／selectedOtherZones で高レベルも選べる／未指定は自動近似／self+他1体／候補≤必要数は選択不要 計12ケース・全pass）。既存ビートsmoke計63も全pass（正規化の挙動不変を確認）。
+- `npm run typecheck`（tsc -b）通過。**JSON/decompiler 変更なし**（engine＋UIのみ＝同型★に影響なし）。**要実機検証**（選択UIの表示・選んだシグニが beat になるか・ON_BECOME_BEAT連鎖・CPU=自動近似のまま）。
+- **→ 【ビート】機構は Phase1-7 でコア＋UI完了**。残はトラッシュ版の選択ピッカー（WDK14-013・低優先）のみ。
+
 ## 機構：【ビート】機構 Phase6 ＝ look→pick の【ビート】化宛先＋同レベルバニッシュ（WDK14-008・2026-06-26）
 
 WDK14-008（アーツ「回心転火」）を実装。従来は bare `LOOK_AND_REORDER`（見て下に戻すだけ）で「1枚手札に加え／1枚【ビート】にし／その後この方法で【ビート】にしたシグニと同レベルの相手をバニッシュ」が**丸ごと脱落**していた。LOOK_PICK_CHAIN に【ビート】化宛先を追加し、deferred だった multi-dest pick（手札＋beat）＋後続の同レベルバニッシュを表現・実装。

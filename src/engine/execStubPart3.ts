@@ -19,7 +19,7 @@ import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination,
-  getCardNum, shuffle,
+  getCardNum, shuffle, addToBeatZone,
   LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
@@ -503,26 +503,18 @@ export function execStubPart3(
       const f = s.filter(c => c !== cardIMTB);
       return f.length > 0 ? f : null;
     }) as (string[] | null)[];
-    const newBeatIMTB = [...(ctx.ownerState.field.beat_zone ?? []), cardIMTB];
-    const newOwnerIMTB: PlayerState = {
-      ...ctx.ownerState,
-      field: { ...ctx.ownerState.field, signi: newSigniIMTB, beat_zone: newBeatIMTB },
-      beat_became_just: [...(ctx.ownerState.beat_became_just ?? []), cardIMTB], // ON_BECOME_BEAT 検出用
-    };
+    // 場から除去 → addToBeatZone（beat_zone＋beat_became_just＝ON_BECOME_BEAT 検出用）
+    const removedIMTB: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIMTB } };
+    const newOwnerIMTB = addToBeatZone(removedIMTB, [cardIMTB]);
     return done(addLog({ ...ctx, ownerState: newOwnerIMTB },
       `${ctx.cardMap.get(cardIMTB)?.CardName ?? cardIMTB}をビートゾーンへ`));
   }
   if (stub.id === 'TRASH_SIGNI_TO_BEAT') {
     const selectedTSTB = ctx.lastProcessedCards ?? [];
     if (selectedTSTB.length > 0) {
-      const newBeatTSTB = [...(ctx.ownerState.field.beat_zone ?? []), ...selectedTSTB];
       const newTrashTSTB = ctx.ownerState.trash.filter(cn => !selectedTSTB.includes(cn));
-      const newOwnerTSTB: PlayerState = {
-        ...ctx.ownerState,
-        trash: newTrashTSTB,
-        field: { ...ctx.ownerState.field, beat_zone: newBeatTSTB },
-        beat_became_just: [...(ctx.ownerState.beat_became_just ?? []), ...selectedTSTB], // ON_BECOME_BEAT 検出用
-      };
+      // トラッシュから除去 → addToBeatZone（beat_zone＋beat_became_just＝ON_BECOME_BEAT 検出用）
+      const newOwnerTSTB = addToBeatZone({ ...ctx.ownerState, trash: newTrashTSTB }, selectedTSTB);
       const namesTSTB = selectedTSTB.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
       return done(addLog({ ...ctx, ownerState: newOwnerTSTB }, `${namesTSTB}をビートゾーンへ`));
     }

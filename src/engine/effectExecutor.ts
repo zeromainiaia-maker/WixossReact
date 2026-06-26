@@ -60,10 +60,10 @@ import {
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot,
-  evalUseCondition, banishDestination, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost,
+  evalUseCondition, banishDestination, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
-export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost };
+export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
 import { matchesStateFilter } from './effectEngine';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
@@ -4432,11 +4432,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (tiB >= 0) { const t = [...sB.trash]; t.splice(tiB, 1); sB = { ...sB, trash: t }; }
         else { const hiB = sB.hand.indexOf(cardNum); if (hiB >= 0) { const h = [...sB.hand]; h.splice(hiB, 1); sB = { ...sB, hand: h }; } }
       }
-      const newSB: PlayerState = {
-        ...sB,
-        field: { ...sB.field, beat_zone: [...(sB.field.beat_zone ?? []), cardNum] },
-        beat_became_just: [...(sB.beat_became_just ?? []), cardNum],
-      };
+      const newSB = addToBeatZone(sB, [cardNum]);
       return done(addLog({ ...ctx, ownerState: newSB }, `${ctx.cardMap.get(cnB)?.CardName ?? cnB}を【ビート】にする`));
     }
     case 'TRANSFER_TO_HAND': {

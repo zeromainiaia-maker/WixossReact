@@ -366,69 +366,95 @@ export function getCardNum(id: string): string {
   return h > 0 ? id.slice(0, h) : id;
 }
 
+// ─── 【ビート】化の共通ヘルパ（MAKE_BEAT 正規化）──────────────────────────
+// カードを beat_zone へ加え、beat_became_just に積む（ON_BECOME_BEAT 発火用）。**配置のみ**を担い、
+// 元の場所（場/トラッシュ/デッキ等）からの除去は呼び出し側が行う。従来は5箇所で
+// `beat_zone:[...], beat_became_just:[...]` をコピペしていたのを集約（payBeatSigniCost/
+// payBeatSigniFromTrashCost/INTERNAL_MOVE_TO_BEAT/TRASH_SIGNI_TO_BEAT/ADD_TO_BEAT）。
+export function addToBeatZone(state: PlayerState, cards: string[]): PlayerState {
+  if (cards.length === 0) return state;
+  return {
+    ...state,
+    field: { ...state.field, beat_zone: [...(state.field.beat_zone ?? []), ...cards] },
+    beat_became_just: [...(state.beat_became_just ?? []), ...cards],
+  };
+}
+
 // ─── 【ビート】コスト支払い（cost.beat_signi）───────────────────────────────
 // 「シグニを【ビート】にする」コストを支払う＝対象シグニを場から beat_zone へ移し beat_became_just に積む
 //（ON_BECOME_BEAT 発火用）。beat_signi は count のみ保持するため、対象の意味（このシグニ/他の/以外/任意）は
 // 効果元の EffectText から導出する。**近似：「他の」シグニはレベルが低い順に自動選択**（プレイヤー選択は未実装）。
+// 【ビート】コストの構造を解析（UIのプレイヤー選択／payBeatSigniCost の自動近似の双方が参照）。
+// includeSelf=自身も【ビート】に／otherPart=「他の/任意」で選ぶ枚数／eligibleOtherZones=その選択候補ゾーン。
+export function analyzeBeatSigniCost(
+  state: PlayerState,
+  sourceCardNum: string,
+  cardMap: Map<string, CardData>,
+  count: number,
+): { includeSelf: boolean; selfZone: number; otherPart: number; eligibleOtherZones: number[] } {
+  const srcNum = getCardNum(sourceCardNum);
+  const text = cardMap.get(srcNum)?.EffectText ?? '';
+  const includeSelf = /このシグニ(を|と他のシグニ[０-９0-9]*体)[^。：]*【ビート】に/.test(text);
+  const selfOtherM = text.match(/このシグニと他のシグニ([０-９0-9]+)体/);
+  const toN = (s: string) => parseInt(s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30)), 10);
+  const otherPart = includeSelf ? (selfOtherM ? toN(selfOtherM[1]) : 0) : Math.max(1, count);
+  const signi = state.field.signi;
+  const selfZone = signi.findIndex(s => getCardNum(s?.at(-1) ?? '') === srcNum && (s?.length ?? 0) > 0);
+  const eligibleOtherZones = signi
+    .map((s, zi) => ({ zi, cn: s?.at(-1) }))
+    .filter(z => z.cn && z.zi !== selfZone)
+    .map(z => z.zi);
+  return { includeSelf, selfZone, otherPart, eligibleOtherZones };
+}
+
 // 返り値 ok=false は対象不足で支払い不能（呼び出し側で発動を無効化する）。
+// selectedOtherZones を渡すとプレイヤー選択（ゾーン番号）でそのシグニを beat に。省略時はレベル低い順の自動近似。
 export function payBeatSigniCost(
   state: PlayerState,
   sourceCardNum: string,
   cardMap: Map<string, CardData>,
   count: number,
+  selectedOtherZones?: number[],
 ): { state: PlayerState; moved: string[]; ok: boolean; log: string } {
-  const srcNum = getCardNum(sourceCardNum);
-  const text = cardMap.get(srcNum)?.EffectText ?? '';
-  // 「このシグニを【ビート】にする」/「このシグニと他のシグニN体を【ビート】にする」＝自身を含む
-  const includeSelf = /このシグニ(を|と他のシグニ[０-９0-9]*体)[^。：]*【ビート】に/.test(text);
-  // 自身を含む場合の「他の」枚数（「このシグニと他のシグニN体」）。それ以外の otherPart は count。
-  const selfOtherM = text.match(/このシグニと他のシグニ([０-９0-9]+)体/);
-  const toN = (s: string) => parseInt(s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30)), 10);
-  const otherPart = includeSelf ? (selfOtherM ? toN(selfOtherM[1]) : 0) : Math.max(1, count);
-  // 「他の」「以外の」＝自身を対象から除外（excludeSelf）。任意（このシグニでも他でもない）は除外しない。
-  const excludeSelf = !includeSelf && /(他のシグニ|以外のシグニ)[^。：]*【ビート】に/.test(text);
+  const { includeSelf, selfZone, otherPart } = analyzeBeatSigniCost(state, sourceCardNum, cardMap, count);
 
   const signi = [...state.field.signi] as (string[] | null)[];
-  const selfZone = signi.findIndex(s => getCardNum(s?.at(-1) ?? '') === srcNum && (s?.length ?? 0) > 0);
   const moved: string[] = [];
   const movedZones = new Set<number>();
 
   // 自身を含む
   if (includeSelf && selfZone >= 0) { moved.push(signi[selfZone]!.at(-1)!); movedZones.add(selfZone); }
 
-  // 「他の」候補＝場のシグニ（自身ゾーンは includeSelf/excludeSelf いずれでも除外）。レベル低い順に選ぶ。
-  const otherCands = signi
+  // 「他の」候補＝場のシグニ（自身ゾーンは除外）。プレイヤー選択（selectedOtherZones）があればそれを、
+  // なければレベル低い順の自動近似で otherPart 枚選ぶ。
+  const otherCandZones = signi
     .map((s, zi) => ({ zi, cn: s?.at(-1) }))
-    .filter(z => z.cn && !movedZones.has(z.zi) && z.zi !== selfZone)
-    .sort((a, b) => (parseInt(cardMap.get(getCardNum(a.cn!))?.Level ?? '0', 10) || 0) - (parseInt(cardMap.get(getCardNum(b.cn!))?.Level ?? '0', 10) || 0));
-  for (let i = 0; i < otherPart && i < otherCands.length; i++) {
-    moved.push(otherCands[i].cn!); movedZones.add(otherCands[i].zi);
-  }
+    .filter(z => z.cn && !movedZones.has(z.zi) && z.zi !== selfZone);
+  const chosenZones: number[] = (selectedOtherZones && selectedOtherZones.length > 0)
+    ? selectedOtherZones.filter(zi => otherCandZones.some(z => z.zi === zi)).slice(0, otherPart)
+    : otherCandZones
+        .slice()
+        .sort((a, b) => (parseInt(cardMap.get(getCardNum(a.cn!))?.Level ?? '0', 10) || 0) - (parseInt(cardMap.get(getCardNum(b.cn!))?.Level ?? '0', 10) || 0))
+        .slice(0, otherPart)
+        .map(z => z.zi);
+  for (const zi of chosenZones) { moved.push(signi[zi]!.at(-1)!); movedZones.add(zi); }
 
   // 支払い不能判定：自身を含むのに自身が場にいない／「他の」が必要数に満たない
-  const needOthers = otherPart;
   const gotOthers = [...movedZones].filter(zi => zi !== selfZone).length;
-  if ((includeSelf && selfZone < 0) || gotOthers < needOthers) {
+  if ((includeSelf && selfZone < 0) || gotOthers < otherPart) {
     return { state, moved: [], ok: false, log: '【ビート】コスト支払い不能（対象シグニ不足）' };
   }
-  void excludeSelf; // excludeSelf は selfZone 除外で表現済み（候補生成で常に除外）
 
-  // beat_zone へ移動＋場から除去＋beat_became_just に積む（ON_BECOME_BEAT 用）
+  // 場から除去（down/frozen リセット）→ addToBeatZone で beat_zone へ（beat_became_just＝ON_BECOME_BEAT 用）
   const newSigni = signi.map((s, zi) => (movedZones.has(zi) ? null : s));
   const down = [...(state.field.signi_down ?? [false, false, false])];
   const frozen = [...(state.field.signi_frozen ?? [false, false, false])];
   movedZones.forEach(zi => { down[zi] = false; frozen[zi] = false; });
-  const newState: PlayerState = {
+  const removed: PlayerState = {
     ...state,
-    field: {
-      ...state.field,
-      signi: newSigni,
-      signi_down: down,
-      signi_frozen: frozen,
-      beat_zone: [...(state.field.beat_zone ?? []), ...moved],
-    },
-    beat_became_just: [...(state.beat_became_just ?? []), ...moved],
+    field: { ...state.field, signi: newSigni, signi_down: down, signi_frozen: frozen },
   };
+  const newState = addToBeatZone(removed, moved);
   const names = moved.map(cn => cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・');
   return { state: newState, moved, ok: true, log: `${names}を【ビート】にする（コスト）` };
 }
@@ -454,12 +480,7 @@ export function payBeatSigniFromTrashCost(
   const take = new Set(matchIdx.slice(0, count));
   const moved = [...take].map(i => state.trash[i]);
   const newTrash = state.trash.filter((_, i) => !take.has(i));
-  const newState: PlayerState = {
-    ...state,
-    trash: newTrash,
-    field: { ...state.field, beat_zone: [...(state.field.beat_zone ?? []), ...moved] },
-    beat_became_just: [...(state.beat_became_just ?? []), ...moved],
-  };
+  const newState = addToBeatZone({ ...state, trash: newTrash }, moved);
   const names = moved.map(cn => cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・');
   return { state: newState, moved, ok: true, log: `${names}をトラッシュから【ビート】にする（コスト）` };
 }

@@ -8,7 +8,7 @@ import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calc
 applyContinuousBaseLevelOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones} from '../engine/effectEngine';
-import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
+import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -1089,6 +1089,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash] = useState<Set<number>>(new Set());
   // 場のシグニをトラッシュするコスト（cost.fieldTrash）のゾーン選択
   const [selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash] = useState<Set<number>>(new Set());
+  // 「シグニを【ビート】にする」コスト（cost.beat_signi）の「他の/任意」beat対象ゾーン選択（自動近似の代替）
+  const [selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat] = useState<Set<number>>(new Set());
+  const [selectedSigniActivatedBeat, setSelectedSigniActivatedBeat] = useState<Set<number>>(new Set());
   // ルリグデッキからアーツを選択するコスト（trashArtsFromLrigDeck）
   const [selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash] = useState<string | null>(null);
   // 可変チャームトラッシュコスト - ON_PLAY効果用
@@ -10309,7 +10312,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ起動効果を実行（コスト支払い後）
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set()) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set()) => {
     if (loading) return;
     // down_self コストは、対象シグニが既にダウンしていると支払えない（多重発動防止）
     if (effect.cost?.down_self) {
@@ -10324,6 +10327,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSigniActivatedEnergyTrash(new Set());
     setSelectedSigniActivatedTrashExile(new Set());
     setSelectedSigniActivatedFieldTrash(new Set());
+    setSelectedSigniActivatedBeat(new Set());
     setSigniActCharmTrashVar(0);
     setKeySubstituteEnabled(false);
     try {
@@ -10492,7 +10496,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // beat_signi: シグニを【ビート】にするコスト（自動選択・近似。beat_zone へ移し ON_BECOME_BEAT 用フラグを積む）
       if ((effect.cost?.beat_signi ?? 0) > 0) {
-        const beatPayA = payBeatSigniCost(paid, cardNum, battleCardMap, effect.cost!.beat_signi!);
+        const beatPayA = payBeatSigniCost(paid, cardNum, battleCardMap, effect.cost!.beat_signi!, [...beatZones]);
         if (!beatPayA.ok) { setLoading(false); return; } // 支払い不能（対象不足）
         paid = beatPayA.state;
       }
@@ -10875,6 +10879,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     remainingCostEffects?: import('../types/effects').CardEffect[],
     fieldTrashZones: Set<number> = new Set(),
     placedZone?: number,
+    beatZones: Set<number> = new Set(),
   ) => {
     if (loading) return;
     setLoading(true);
@@ -10883,6 +10888,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSigniOnPlayDiscard(new Set());
     setSelectedSigniOnPlayEnergyTrash(new Set());
     setSelectedSigniOnPlayFieldTrash(new Set());
+    setSelectedSigniOnPlayBeat(new Set());
     setSelectedSigniOnPlayArtsTrash(null);
     setSigniOnPlayCharmTrashVar(0);
     try {
@@ -10951,9 +10957,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         };
         if (toTrashF.length > 0) payLogs.push(`場のシグニ${fieldTrashZones.size}体をコストでトラッシュ`);
       }
-      // beat_signi: シグニを【ビート】にするコスト（自動選択・近似。beat_zone へ移し ON_BECOME_BEAT 用フラグを積む）
+      // beat_signi: シグニを【ビート】にするコスト（beatZones=プレイヤー選択。空なら自動近似）
       if ((cost?.beat_signi ?? 0) > 0) {
-        const beatPay = payBeatSigniCost(paid, cardNum, battleCardMap, cost!.beat_signi!);
+        const beatPay = payBeatSigniCost(paid, cardNum, battleCardMap, cost!.beat_signi!, [...beatZones]);
         if (!beatPay.ok) { setLoading(false); return; } // 支払い不能（対象不足）
         paid = beatPay.state;
         payLogs.push(beatPay.log);
@@ -11100,6 +11106,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setSelectedSigniOnPlayDiscard(new Set());
     setSelectedSigniOnPlayEnergyTrash(new Set());
     setSelectedSigniOnPlayFieldTrash(new Set());
+    setSelectedSigniOnPlayBeat(new Set());
     setSelectedSigniOnPlayArtsTrash(null);
     setSigniOnPlayCharmTrashVar(0);
     try {
@@ -14856,7 +14863,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const actFieldTrashOk = actFieldTrashGroups
                 ? fieldTrashGroupsSatisfied(actFieldTrashGroups, [...selectedSigniActivatedFieldTrash], my.field.signi, battleCardMap)
                 : (actFtNeeded === 0 || selectedSigniActivatedFieldTrash.size === actFtNeeded);
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk;
+              // beat_signi: 「他の/任意」シグニを【ビート】にする対象のゾーン選択（候補が必要数より多いとき）
+              const actBeatCost = analyzeBeatSigniCost(my, pendingSigniActivated.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
+              const actBeatNeedSelect = (eff.cost?.beat_signi ?? 0) > 0 && actBeatCost.otherPart > 0 && actBeatCost.eligibleOtherZones.length > actBeatCost.otherPart;
+              const actBeatSelectOk = !actBeatNeedSelect || selectedSigniActivatedBeat.size === actBeatCost.otherPart;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actBeatSelectOk;
 
               return (
                 <>
@@ -15265,17 +15276,62 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       )}
                     </>
                   )}
+                  {/* beat_signi: 「他の/任意」シグニを【ビート】にする対象のゾーン選択（候補が必要数より多いとき） */}
+                  {actBeatNeedSelect && (
+                    <>
+                      <p style={{ color: actBeatSelectOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        【ビート】にするシグニを選択: {selectedSigniActivatedBeat.size} / {actBeatCost.otherPart}体
+                        {actBeatCost.includeSelf ? '（このシグニは自動で【ビート】に）' : '（このシグニ以外）'}
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {actBeatCost.eligibleOtherZones.map(zi => {
+                          const top = my.field.signi[zi]?.at(-1);
+                          const c = top ? battleCardMap.get(getCardNum(top)) : undefined;
+                          const isSel = selectedSigniActivatedBeat.has(zi);
+                          return (
+                            <div key={zi}
+                              onClick={() => setSelectedSigniActivatedBeat(prev => {
+                                const next = new Set(prev);
+                                if (next.has(zi)) { next.delete(zi); return next; }
+                                if (next.size >= actBeatCost.otherPart) return prev;
+                                next.add(zi); return next;
+                              })}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 52, height: 73, borderRadius: 4, flexShrink: 0,
+                                border: isSel ? '2px solid #ff9800' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{top}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>ビート</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
 
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setSigniActCharmTrashVar(0); setKeySubstituteEnabled(false); setSelectedSigniActivatedEnergyTrash(new Set()); setSelectedSigniActivatedTrashExile(new Set()); setSelectedSigniActivatedFieldTrash(new Set()); }}
+                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setSigniActCharmTrashVar(0); setKeySubstituteEnabled(false); setSelectedSigniActivatedEnergyTrash(new Set()); setSelectedSigniActivatedTrashExile(new Set()); setSelectedSigniActivatedFieldTrash(new Set()); setSelectedSigniActivatedBeat(new Set()); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash)}
+                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash, selectedSigniActivatedBeat)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,
@@ -15456,6 +15512,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const ftNeeded = ftCost?.count ?? 0;
               const selfZoneFT = pendingSigniOnPlayCost.placedZone
                 ?? pState.field.signi.findIndex(s => s?.at(-1) === pendingSigniOnPlayCost.cardNum);
+              // beat_signi: 「他の/任意」beat対象のゾーン選択。候補が必要数より多いときだけプレイヤーに選ばせる（同数以下は自動）。
+              const beatCostM = analyzeBeatSigniCost(pState, pendingSigniOnPlayCost.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
+              const beatNeedSelect = (eff.cost?.beat_signi ?? 0) > 0 && beatCostM.otherPart > 0 && beatCostM.eligibleOtherZones.length > beatCostM.otherPart;
+              const beatSelectOk = !beatNeedSelect || selectedSigniOnPlayBeat.size === beatCostM.otherPart;
               const ftSelectableZones = [0, 1, 2].filter(zi => {
                 const top = pState.field.signi[zi]?.at(-1);
                 if (!top) return false;
@@ -15511,7 +15571,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 const c = battleCardMap.get(getCardNum(n));
                 return c && c.Type === 'シグニ' && matchesFilter(c, beatTrashCostM.filter ?? { cardType: 'シグニ' });
               }).length >= beatTrashCostM.count;
-              const canAfford = energyOk && coinOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && beatTrashOkM
+              const canAfford = energyOk && coinOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && beatTrashOkM && beatSelectOk
                 && selectedSigniOnPlayDiscard.size >= handNeeded
                 && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
                 && selectedSigniOnPlayFieldTrash.size >= ftNeeded;
@@ -15752,6 +15812,57 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       </div>
                     </>
                   )}
+                  {/* beat_signi: 「他の/任意」シグニを【ビート】にする対象のゾーン選択（候補が必要数より多いとき） */}
+                  {beatNeedSelect && (
+                    <>
+                      <p style={{ color: beatSelectOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        【ビート】にするシグニを選択: {selectedSigniOnPlayBeat.size} / {beatCostM.otherPart}体
+                        {beatCostM.includeSelf ? '（このシグニは自動で【ビート】に）' : '（このシグニ以外）'}
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {[0, 1, 2].map(zi => {
+                          const top = pState.field.signi[zi]?.at(-1);
+                          if (!top) return null;
+                          const c = battleCardMap.get(getCardNum(top));
+                          const selectable = beatCostM.eligibleOtherZones.includes(zi);
+                          const isSel = selectedSigniOnPlayBeat.has(zi);
+                          return (
+                            <div key={zi}
+                              onClick={() => selectable && setSelectedSigniOnPlayBeat(prev => {
+                                const next = new Set(prev);
+                                if (next.has(zi)) { next.delete(zi); return next; }
+                                if (next.size >= beatCostM.otherPart) return prev;
+                                next.add(zi); return next;
+                              })}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #ff9800' : C.borderCard,
+                                opacity: selectable ? 1 : 0.35,
+                                cursor: selectable ? 'pointer' : 'default', overflow: 'hidden' }}>
+                              {c ? (
+                                <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: 7, color: C.textFaint }}>{top}</span>
+                                </div>
+                              )}
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>ビート</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   {/* charmTrashVariable: 可変チャームトラッシュ枚数選択ステッパー (ON_PLAY) */}
                   {charmVarOPCostM && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -15855,6 +15966,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                         pendingSigniOnPlayCost.remainingCostEffects,
                         selectedSigniOnPlayFieldTrash,
                         pendingSigniOnPlayCost.placedZone,
+                        selectedSigniOnPlayBeat,
                       )}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
