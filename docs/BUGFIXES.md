@@ -5,6 +5,17 @@
 
 ---
 
+## 機構：【ビート】機構 Phase3 ＝ cost.beat_signi（シグニを【ビート】にするコスト）の支払い実装（2026-06-26）
+
+「【出】/【起】…シグニを【ビート】にする：〜」のコストが engine 未処理（＝コスト未払いで素通り・beat 化が起きずON_BECOME_BEATも不発）だったのを実装。これで beat_signi 経由でも beat_zone へ入り、Phase2 の ON_BECOME_BEAT チェーンが発火する。
+
+- **`payBeatSigniCost`（execUtils・純関数）**: `cost.beat_signi` は count のみ保持するため、対象の意味を効果元 EffectText から導出＝「このシグニを」(self)／「このシグニと他のシグニN体を」(self＋他N)／「他の・以外のシグニ」(excludeSelf)／「シグニN体」(任意)。対象を場から beat_zone へ移し `beat_became_just` に積む（Phase2 watcher が発火）。**近似：「他の」シグニはレベル低い順に自動選択**（プレイヤー選択は未実装）。対象不足は ok=false で支払い不能。
+- **BattleScreen**: ACTIVATED（`executeSigniActivated`）/ ON_PLAY（`executeSigniOnPlayCost`）両支払い経路の fieldTrash 直後に beat_signi 支払いを追加（ok=false で発動中止）。発動可否に「場にシグニが1体以上」チェックを追加（精密な不足は支払い時 ok=false）。
+- **decompiler**: costJa に `beat_signi`='シグニN体を【ビート】にする' を追加。
+- **smokeテスト**: `_verifyBeatSigniCost.ts`（self/excludeSelf＋低レベル選択/self＋他1体=2枚/支払い不能/ルリグ任意 計14ケース・全pass）。
+- `npm run typecheck` 通過・sheet4/5＋下流再生成・同型★0維持。**要実機検証**（出/起の発動→beat化→ON_BECOME_BEAT連鎖・CPU）。
+- **残（次の beat サブタスク）**: ①コスト型《ビート》[4枚以下]使用ゲート（ON_PLAYは condition で配線可・**ACTIVATEDは発動可否が e.condition 未評価なので enforcement追加が要る**）②beat対象のプレイヤー選択UI（現状レベル低い順の自動近似）③MAKE_BEATアクションの正規化（効果による beat 化＝TRASH_SIGNI_TO_BEAT等の整理）。
+
 ## 機構：【ビート】機構 Phase2 ＝ ON_BECOME_BEAT トリガー（このカードが【ビート】になったとき・2026-06-26）
 
 「【自】：このカードが【ビート】になったとき〜」のトリガーを新設。従来は **timing が ON_PLAY／ON_TURN_END に誤parse**（本体アクションは概ね正・トリガーだけ別物）＝発火しない／誤発火していた8枚を正す。`drive_became_just`/ON_SIGNI_BECOMES_DRIVE と同型のフラグ＋watcher 設計。
