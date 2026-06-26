@@ -517,7 +517,12 @@ export function execStubPart3(
     if (selectedTSTB.length > 0) {
       const newBeatTSTB = [...(ctx.ownerState.field.beat_zone ?? []), ...selectedTSTB];
       const newTrashTSTB = ctx.ownerState.trash.filter(cn => !selectedTSTB.includes(cn));
-      const newOwnerTSTB: PlayerState = { ...ctx.ownerState, trash: newTrashTSTB, field: { ...ctx.ownerState.field, beat_zone: newBeatTSTB } };
+      const newOwnerTSTB: PlayerState = {
+        ...ctx.ownerState,
+        trash: newTrashTSTB,
+        field: { ...ctx.ownerState.field, beat_zone: newBeatTSTB },
+        beat_became_just: [...(ctx.ownerState.beat_became_just ?? []), ...selectedTSTB], // ON_BECOME_BEAT 検出用
+      };
       const namesTSTB = selectedTSTB.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
       return done(addLog({ ...ctx, ownerState: newOwnerTSTB }, `${namesTSTB}をビートゾーンへ`));
     }
