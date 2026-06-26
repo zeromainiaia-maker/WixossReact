@@ -5,6 +5,16 @@
 
 ---
 
+## 文型★脱落バグ17巡目：look→pick→エナ／手札＋エナ二目的 が「並べ替える」退化 3枚（2026-06-26）
+
+16巡の「手札」版に続き、**エナ**ピック退化と**手札＋エナの二目的pick**を是正。二目的は既存 `LOOK_PICK_CHAIN`（stages: hand/energy/trash 対応）で表現（**field 宛先は未対応**＝下記後回し）。
+
+- **WXK02-045**（純エナ）: SEQUENCE[LOOK_AND_REORDER, STUB CLASS_SIGNI_TO_ENERGY, …] → `REVEAL_AND_PICK{filter:＜遊具＞シグニ, pickCount2 upTo, then:ADD_TO_ENERGY, remainder:deck/top}`。
+- **WXDi-P14-077-E2**（手札＋エナ）: `LOOK_AND_REORDER` → `LOOK_PICK_CHAIN{revealCount3, stages:[＜電音部＞シグニ1→hand, ＜電音部＞シグニ1→energy], remainder:bottom}`。
+- **WX26-CP1-021**（手札＋エナ＋トークン）: `SEQUENCE[LOOK_PICK_CHAIN{＜プリオケ＞カード1→hand, 1→energy}, STUB:PLACE_LIMIT_UPPER]`（リミットアッパー設置は既存STUB・engine実装済）。
+- **後回し（要 LOOK_PICK_CHAIN の field 宛先拡張＝mechanism）**: look5→**手札＋場**の二目的pick（WX24-P1-017/026・WX25-P1-039・WX25-P3-038・WX25-CP1-025・WXDi-P16-035・WXDi-P02-020・WX26-CP1-019）。`LookPickChainStage.then` に `'field'` を足すと execLookPickChain の SEARCH→ADD_TO_FIELD がゾーン選択の入れ子interactionになり、resumeSearch の再入設計が要る（TODO §6 に候補追記）。
+- `tsc` 通過。sheet3/8/9＋下流再生成済み。同型★ 0件。**要実機検証**。
+
 ## 文型★脱落バグ16巡目：look→pick→手札 が「並べ替える」に退化した系統 16枚（2026-06-26）
 
 逆翻訳が `LOOK_AND_REORDER`（「デッキの上N枚を並べ替える」）に**退化し、原文の「その中から〈フィルタ〉を公開し手札に加え、残りをデッキの一番下に置く」(pick→手札) が脱落**していた系統を横展開で是正。8〜11巡の「REVEAL_AND_PICK then副作用」系の同類で、今回は **then が丸ごと消えて reorder だけ残った**ケース。
