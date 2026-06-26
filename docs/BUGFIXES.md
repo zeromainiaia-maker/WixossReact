@@ -5,6 +5,14 @@
 
 ---
 
+## 逆翻訳器：未描画アクション21種を自然文化（生ID `[アクション:X]` 残存を全解消・2026-06-26）
+
+`decompileEffects.ts` の `actionJa` が未対応で `[アクション:X]` の生IDのまま出ていた21アクション型を自然文描画に追加。**全シートで生アクションID残存=0**（約180箇所→0）。逆翻訳の網羅性が上がり、P1「逆翻訳が原文一致」の判定が正確になる。**decompiler表示のみの変更**（engine/JSON不変・低リスク）。
+
+- **高頻出**: RECOLLECT_GATE(63)／PLACE_VIRUS(31)／AWAKEN_SIGNI(30)／GRANT_ACCE_HOST_ABILITY(20)／GROW_COST_REDUCTION(7)／GAIN_BOND(6)／DISCARD_BOTH(5)／LRIG_LIMIT_MODIFY(3)。
+- **残り**: POWER_MODIFY_BY_SOURCE／LOOK_AT_DECK_AND_LIFE／GRANT_SIGNI_ABOVE_ABILITY／NAME_BAN／BLOCK_CARD_USE／COST_SUBSTITUTE／VARIABLE_DISCARD_AND_DRAW／SELF_TRASH_PREVENT／REVEAL_UNTIL_BANISH_SAME_LEVEL／ENERGY_CHARGE_BY_FIELD_COUNT／COLOR_INHERIT／FORCE_FRONT_SIGNI_ATTACK。
+- `npm run typecheck` 通過。全10シート＋下流再生成済み。同型★0維持。**残る生ID＝`[STUB:X]`系のみ**（STUBS.md管理・各STUBの意味理解が要るので別途）。
+
 ## 機構：傀儡場出しの汎用化（count/optional/levelLteTrigger）＋ WXK10-055 全効果再構築（2026-06-26）
 
 §5の大型機構。`STEAL_OPP_TRASH_PUPPET`（相手トラッシュからシグニを傀儡状態で自場へ）を**パラメータ化**し、WXK10-055（千匹の童話　センショク）のE2/BURST/E1を正しく表現・実装。従来は丸ごと誤parse（E1=相手バニッシュ＋デッキ手札／E2・BURST=自トラッシュから自身を場出し）だった。
