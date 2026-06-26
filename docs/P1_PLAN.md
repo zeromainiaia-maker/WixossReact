@@ -38,11 +38,12 @@
 - **最終更新**: 2026-06-26（karka → **次の人へ**）
 - **直近やったこと（karka）**: **【ビート】機構 Phase4-7 で完了**。Phase4＝コスト型《ビート》[４枚以下]使用ゲート9。Phase5＝トラッシュ→beat コスト（WDK14-013）。Phase6＝look→pick の【ビート】化宛先（`then:'beat'`）＋`levelEqLastProcessed`（WDK14-008）。Phase7＝**MAKE_BEAT正規化**（`addToBeatZone` で5経路集約）＋**beat対象のプレイヤー選択UI**（`analyzeBeatSigniCost`＋`payBeatSigniCost(selectedOtherZones)`＝ON_PLAY/ACTIVATEDモーダルでゾーン選択）。smoke 計75pass・同型★0。→ `BUGFIXES.md` 先頭4件。
 - **直近やったこと（zerom）**: **【ビート】機構 Phase1-3**（《ビート》[条件]ゲート12＋ON_BECOME_BEAT8＋cost.beat_signi支払い）。→ `BUGFIXES.md`。
-- **🎯 次の一手（上から推奨）— ビートは完了したので次の機構へ**:
+- **直近やったこと（karka・続き2）**: **機構④誤parse3枚を是正**（WXDi-P07-044 全3効果＝ON_HAND_DISCARDED/ON_PLAY byEffect＋FREEZE復元・engine配線あり／WX25-P3-062-E2＝ハナレ条件＋エナ＜毒牙＞任意トラッシュ→両者-20000・配線あり／WX25-P2-009＝1ACTIVATEDマッシュを2 AUTOに分割＝refresh置換STUB＋新timing ON_CARD_MILLED_FROM_DECK[未配線マーク]）。逆翻訳が原文一致・同型★0。→ `BUGFIXES.md` 先頭。
+- **🎯 次の一手（上から推奨）**:
   1. **次の大型機構（§5）**: 引用AUTO付与（GRANT_QUOTED_AUTO_ABILITY精緻化・中/中）。着手したら §5 を `着手中(名前)` に。WX25-CP1-074・WXK09-055・WX24-P2-044 等の「シグニに『〜』を付与」。
-  2. または **機構④の誤parse3枚**（WXDi-P07-044／WX25-P2-009／WX25-P3-062＝下記。新トリガー機構が要る）。
-  3. **ビートの残（低優先・任意）**: トラッシュ→beat（WDK14-013）のプレイヤー選択ピッカーのみ自動近似のまま。コア＋場シグニ選択UIは完了。
-- **⚠ 実機検証の宿題**: ビート Phase1-7 は全て **要実機検証**（特に Phase7 の選択UI表示・選んだシグニが beat になるか）。
+  2. **機構④の残（engine配線・重い）**: `ON_CARD_MILLED_FROM_DECK` の収集機構（WX25-P2-009-E2 のミルトリガー＝現【※engine未配線】）／refresh置換実体（WX25-P2-009-E1）／「他＜毒牙＞効果で相手パワー減少」トリガー（WX25-P3-062-E1）。いずれも新トリガー機構。
+  3. **ビートの残（低優先）**: トラッシュ→beat（WDK14-013）の選択ピッカーのみ自動近似。
+- **⚠ 実機検証の宿題**: ビート Phase1-7＋機構④誤parse3枚は全て **要実機検証**。
 - **⚠ 実機検証の宿題（ヘッドレス不可・PvP/CPU要）**: ビート Phase1-3 は全て **要実機検証**（[条件]ゲートの開閉／ON_BECOME_BEAT watcher の self/any_ally 出し分け・CPU代行／beat_signi の出・起発動→beat化→ON_BECOME_BEAT連鎖）。
 - **その前**: 逆翻訳器の生ID一掃（アクション21種＋STUB18種）／機構：傀儡場出し汎用化（WXK10-055）／機構④ターン限定AUTO基盤。
 - **⚠ ゲートは `npm run typecheck`（`tsc -b`）を使う**（plain `tsc --noEmit` は build-mode未使用でCIが拾うエラーを見逃す。今回それで既存CI赤に気づけなかった）。

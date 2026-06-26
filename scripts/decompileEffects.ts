@@ -719,6 +719,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DOUBLE_POWER_MINUS' || a.id === 'POWER_MOD_PER_OPPONENT_FIELD') return '対戦相手の場のシグニ数に応じてパワーを±する／パワーをN倍にする（テキスト記載）';
       if (a.id === 'BANISH_TO_LRIG_TRASH_INSTEAD') return 'このカードがバニッシュされる場合、代わりにルリグトラッシュに置く';
       if (a.id === 'DECLARE_COLOR') return '色（白/赤/青/緑/黒）を1つ宣言する';
+      if (a.id === 'REPLACE_NEXT_OPP_REFRESH_MILL_LRIG') return '次に対戦相手が行うリフレッシュを「トラッシュをすべてデッキに加えてシャッフルし、ルリグデッキからカード1枚をルリグトラッシュに置く」に置き換える';
       if (a.id === 'TRASH_SIGNI_TO_BEAT') return 'トラッシュからシグニを【ビート】にする';
       if (a.id === 'INTERNAL_MOVE_TO_BEAT') return '直前に選んだシグニを【ビート】にする';
       if (a.id === 'TRASH_ALL_SIGNI_AND_KEY') return '対象プレイヤーのシグニすべてとキーをトラッシュ／ルリグトラッシュに置く';
@@ -862,11 +863,12 @@ const timingJa: Record<string, string> = {
   ON_BECOME_BEAT: 'このカードが【ビート】になったとき',
   ON_HAND_DISCARDED: 'ガードステップ以外であなたが手札を捨てたとき',
   ON_DISCARDED_AS_COST: 'このカードがシグニ能力のコストとして手札から捨てられたとき',
+  ON_CARD_MILLED_FROM_DECK: 'あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき',
 };
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
 // 逆翻訳末尾に【※engine未配線】を付与し、偽陰性（健全に見えて未実装）を防ぐ。配線したら除去する。docs/TODO.md に記録。
-const engineUnwiredTimings = new Set<string>([]);
+const engineUnwiredTimings = new Set<string>(['ON_CARD_MILLED_FROM_DECK']);
 
 function effJa(e: Eff): string {
   // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。

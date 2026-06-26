@@ -5,6 +5,22 @@
 
 ---
 
+## 機構④誤parse3枚の是正（WXDi-P07-044／WX25-P3-062／WX25-P2-009・2026-06-26）
+
+機構④（《自分/相手ターン》AUTO）で「未配線・別系統の重い誤parse」として残していた3枚を、既存語彙＋トリガー配線で是正。トリガー/アクションが丸ごと壊れていたのを原文一致まで復元。
+
+- **WXDi-P07-044（全3効果・engine配線あり）**:
+  - E1: ON_PLAY誤り→**ON_HAND_DISCARDED**＋triggerFilter{シグニ}＋DURING_PHASE{MAIN}（「メインフェイズの間シグニを捨てたとき、そのカードをトラッシュから場に」）。「そのカード」は近似（トラッシュのシグニを場へ）。collectHandDiscardTriggers で発火。
+  - E2: ON_TURN_END誤り→**ON_PLAY＋triggerScope:any_ally＋byEffect＋turnOwner:self**（「あなたのシグニが手札以外＝効果で場に出たとき」）。**欠落していたFREEZEを復元**＋POWER_MODIFY-2000。collectFieldTriggers(byEffect)＋機構④ゲートで発火。
+  - E3: 既に正しい（コイン2で相手手札捨て）。
+- **WX25-P3-062-E2（engine配線あり）**: TARGET_AND_DISCARD_HAND誤り→**HAS_CARD_IN_FIELD{《虚幸の冥者　ハナレ》}条件＋OPTIONAL_TRASH_ENERGY_CLASS（エナから＜毒牙＞を任意トラッシュ）→そうした場合、対戦相手とこのシグニ両方を-20000**。E1（他＜毒牙＞効果でパワー減少時トリガー）は専用機構が要るため STUB `POWER_COPY_FROM_DOWNED` のまま据置。
+- **WX25-P2-009（1ACTIVATEDに全マッシュ→2 AUTOに分割）**:
+  - E1: **ON_OPP_LIFE_CRASHED＋once_per_game**＋新STUB `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG`（次の相手リフレッシュをルリグデッキ1ミル版に置換＝refresh置換機構は未実装のため no-op STUB＋decompiler説明で表現）。
+  - E2: 新timing **`ON_CARD_MILLED_FROM_DECK`**（デッキ→トラッシュのミル時）＋turnOwner:self＋once_per_turn＋POWER_MODIFY opp-5000。**収集機構が未実装のため engineUnwiredTimings に登録＝逆翻訳に【※engine未配線】を付与**（偽陰性防止）。
+- **新規**: timing `ON_CARD_MILLED_FROM_DECK`（型＋timingJa＋unwired登録）／STUB `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG`（decompiler説明）。
+- `npm run typecheck`（tsc -b）通過。sheet7/9＋下流再生成・同型★0維持。逆翻訳が原文一致（近似は明示）。**要実機検証**（特に WXDi-P07-044 E1/E2 の発火）。
+- **残（重い機構・別途）**: WX25-P3-062-E1（「他＜毒牙＞効果で相手パワー減少」トリガー）／WX25-P2-009-E1 のリフレッシュ置換実体／E2 のミルトリガー収集（`ON_CARD_MILLED_FROM_DECK` 配線）。
+
 ## 機構：【ビート】機構 Phase7 ＝ MAKE_BEAT正規化＋beat対象のプレイヤー選択UI（2026-06-26）
 
 ビート機構の残り2項目を実装し、コア＋UIを完了。①**MAKE_BEAT正規化**＝5箇所でコピペしていた「beat_zone＋beat_became_just へ積む」を共通ヘルパ `addToBeatZone` に集約。②**beat対象のプレイヤー選択UI**＝従来「他のシグニN体を【ビート】に」のコスト支払いがレベル低い順の自動近似だったのを、ON_PLAY/ACTIVATED の両コストモーダルでプレイヤーがゾーン選択できるようにした。
