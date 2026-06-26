@@ -35,8 +35,13 @@
 ### 📍 現在地（バトン）— 次の人はここから
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
-- **最終更新**: 2026-06-26
-- **直近やったこと**: **【ビート】機構**（着手中）。①《ビート》[条件]ゲート12効果②**ON_BECOME_BEAT トリガー**新設＋8枚③**cost.beat_signi 支払い実装**（payBeatSigniCost＝テキストから self/他/任意/N体を導出しbeat_zoneへ移動→ON_BECOME_BEAT連鎖が動く）。smoke計36pass・同型★0。→ `BUGFIXES.md` 先頭3件。**残**: コスト型《ビート》[4枚以下]使用ゲート（ACTIVATEDは発動可否の e.condition enforcement要）／beat対象のプレイヤー選択UI（現状レベル低い順の自動近似）／MAKE_BEAT正規化。
+- **最終更新**: 2026-06-26（zerom → **karka 引き継ぎ**）
+- **直近やったこと（zerom）**: **【ビート】機構 Phase1-3**。①《ビート》[条件]ゲート12効果②**ON_BECOME_BEAT トリガー**新設＋8枚③**cost.beat_signi 支払い実装**（payBeatSigniCost＝テキストから self/他/任意/N体を導出しbeat_zoneへ移動→ON_BECOME_BEAT連鎖が動く）。smoke計36pass・同型★0。→ `BUGFIXES.md` 先頭3件。
+- **🎯 karka への引き継ぎ（次の一手・上から推奨）**:
+  1. **【ビート】機構の残り（最有力・基盤は揃った）**: (a) **コスト型《ビート》[4枚以下]使用ゲート**＝ON_PLAY効果は `condition:{type:'BEAT_CONDITION',condText:'４枚以下'}` をJSON配線で即可（evalUseConditionで効く）。**ACTIVATEDは発動可否(BattleScreen ~11288)が `e.condition` を未評価**＝enforcement追加が要る（既存の条件付きACTIVATED全般に影響するので慎重に）。対象: WXK08-026-E2/043/046/068/075・WXK10-041-E3・WDK14-012/014-E2 等。(b) **beat対象のプレイヤー選択UI**（現状 payBeatSigniCost はレベル低い順の自動近似）。(c) MAKE_BEATアクションの正規化。**実装の型は §5/§6・手本は zerom の Phase1-3（BUGFIXES先頭3件）**。
+  2. または **次の大型機構（§5）**: 引用AUTO付与（GRANT_QUOTED_AUTO_ABILITY精緻化）。着手したら §5 を `着手中(karka)` に。
+  3. または **機構④の誤parse3枚**（WXDi-P07-044／WX25-P2-009／WX25-P3-062＝下記）。
+- **⚠ 実機検証の宿題（ヘッドレス不可・PvP/CPU要）**: ビート Phase1-3 は全て **要実機検証**（[条件]ゲートの開閉／ON_BECOME_BEAT watcher の self/any_ally 出し分け・CPU代行／beat_signi の出・起発動→beat化→ON_BECOME_BEAT連鎖）。
 - **その前**: 逆翻訳器の生ID一掃（アクション21種＋STUB18種）／機構：傀儡場出し汎用化（WXK10-055）／機構④ターン限定AUTO基盤。
 - **⚠ ゲートは `npm run typecheck`（`tsc -b`）を使う**（plain `tsc --noEmit` は build-mode未使用でCIが拾うエラーを見逃す。今回それで既存CI赤に気づけなかった）。
 - **重要な調査結果**: クリーンな横展開系統・トリビアル個別★は枯れた。**大型機構が主戦場**。機構④で「ターン限定AUTO」を単一チョーク（initStack/pushToStack）で解決できたのが好例＝core収集点を個別に触らず安全に入れられた。
