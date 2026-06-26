@@ -37,6 +37,16 @@
 - ✅ **activeCondition「あなたの場に[色/クラス]のシグニがあるかぎり」**：`effectParser.ts parseActiveCondition` のキャッチオール（condition=undefined）の前に色/クラス存在条件パターン3zを追加。activeCondition 18→15。
 - いずれも収穫マージで回帰0・held 420→413。
 
+## ⚠ 着手して破棄した教訓（filter.color/story in trash→hand source）
+- `parseSentencePart1.ts` の `if(t.includes('トラッシュから')&&t.includes('手札に加える'))` ハンドラに
+  `parseColorFilter(t)/parseStoryFilter(t)` を足したら**205カードが変化**し、WX05-027（「場に出す」）や
+  WX05-023（「下から手札」）など**トラッシュ→手札でない/別文の色・種族を誤付与**した。
+- 原因：`parseXxxFilter(t)` が**文全体をスキャン**するため、対象の名詞句以外の色・種族を拾う。
+  そして**収穫マージの richness ガードは「喪失」しか弾かず、誤った“追加”は通してしまう**。
+- 教訓：filter 抽出は **`トラッシュから〔...〕のシグニ` の名詞句に限定**して行う（文全体スキャン禁止）。
+  広い `includes()` ゲート＋全文スキャンは不可。narrow な正規表現キャプチャで該当句だけを解析すること。
+  → このパターンは**スコープ限定の実装が要る別タスク**として保留。
+
 ## 残りの進め方
 1. 上表「信頼できる弱点」の**優先1（filter脱落）**から着手＝最大の具体的勝ち。
 2. 1パターン直す → `npm run build:effects`（収穫マージ）→ 該当カードが純改善で自動採用されるか確認。
