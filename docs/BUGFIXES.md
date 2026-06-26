@@ -5,6 +5,14 @@
 
 ---
 
+## 逆翻訳器：高頻出STUBの説明文を追加（`[STUB:X]` 生ID残存を ~140→54 に削減・2026-06-26）
+
+アクション生IDに続き、`[STUB:X]` の生IDのまま出ていた高頻出STUBに `actionJa` の STUB ブロックへ説明文を追加。**複数出現STUBを全解消**（残54件は全て1回のみの深いテール）。
+
+- **追加(複数出現)**: GRANT_ABILITY_INNER_TEXT(18・テキスト検出型)／GUARD_EXTRA_COST_BY_OPP(9)／LEVEL_REFERENCE_OVERRIDE(8)／POWER_MOD_BY_HAND_COUNT(6)／DOUBLE_POWER_MINUS(6)／BANISH_TO_LRIG_TRASH_INSTEAD(5)／DECLARE_COLOR(4)／SET_ACCE_CHOICE／MULTI_ZONE_ATTACK／TRASH_ALL_SIGNI_AND_KEY／SPELL_COST_REDUCTION_BY_TRASH_COUNT／SIGNI_CANT_BOUNCE_FROM_FIELD／PREVENT_SIGNI_ABILITY_LOSS_BY_OPP／PREVENT_POWER_MINUS_BY_OPP／NEGATE_ATTACK_ON_TRIGGER／CHOOSE_SAME_OPTION_TWICE／INHERIT_OPP_LRIG_TYPE／GRANT_LEAVE_PLACE_PENDING。
+- **decompiler表示のみ**（engine/JSON不変）。`npm run typecheck` 通過・全シート＋下流再生成・同型★0維持。
+- **残54件**＝1回のみ出現の単発STUB（WHITE_SIGNI_ABILITY_PROTECT 等の保護系・特殊ルール系）。費用対効果が下がるので後続セッションで随時。
+
 ## 逆翻訳器：未描画アクション21種を自然文化（生ID `[アクション:X]` 残存を全解消・2026-06-26）
 
 `decompileEffects.ts` の `actionJa` が未対応で `[アクション:X]` の生IDのまま出ていた21アクション型を自然文描画に追加。**全シートで生アクションID残存=0**（約180箇所→0）。逆翻訳の網羅性が上がり、P1「逆翻訳が原文一致」の判定が正確になる。**decompiler表示のみの変更**（engine/JSON不変・低リスク）。
