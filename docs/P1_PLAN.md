@@ -35,7 +35,8 @@
 ### 📍 現在地（バトン）— 次の人はここから
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
-- **最終更新**: 2026-06-26（karka → **次の人へ**）
+- **最終更新**: 2026-06-27（karka → **次の人へ**）
+- **直近やったこと（karka・最新）**: **`build:effects` を非破壊化（収穫マージ）＋パーサー3修正**。ブランチ `fix/parser-harvest-merge`（未マージ・要レビュー/実機検証）。**重要な前提変更**：従来「effects_*.json は手動・build:effects 禁止」だったが、`buildEffectsJson.ts` を **richness ガード付き収穫マージ**化（既存の全リーフ値を保持したまま情報が増える「純粋上位集合」カードのみ自動採用、損失/値変更/混在/MANUAL は温存）＝**手作業を一切失わずパーサー改善だけ収穫できる**ようになり `npm run build:effects` 実行可。パーサー修正＝①POWER_MODIFY「他の＜種族＞/色」バフ（filter/excludeSelf破棄是正）②activeCondition「[色/クラス]のシグニがあるかぎり」③activeCondition「《X》か《Y》」複数名。要レビュー backlog 420→411・全工程回帰0・typecheck緑。パーサー改善の残バックログは **`docs/parser_backlog.md`**（次は triggerCondition脱落51・filter.cardType98・filter.color/storyは名詞句限定で要再設計＝全文スキャン禁止の教訓あり）。`docs/effects_merge_report.md`（gitignore）に採用/温存の全ID。**要実機検証**（データ360枚改善が実ゲームで正しいか未確認）。
 - **直近やったこと（karka）**: **【ビート】機構 Phase4-7 で完了**。Phase4＝コスト型《ビート》[４枚以下]使用ゲート9。Phase5＝トラッシュ→beat コスト（WDK14-013）。Phase6＝look→pick の【ビート】化宛先（`then:'beat'`）＋`levelEqLastProcessed`（WDK14-008）。Phase7＝**MAKE_BEAT正規化**（`addToBeatZone` で5経路集約）＋**beat対象のプレイヤー選択UI**（`analyzeBeatSigniCost`＋`payBeatSigniCost(selectedOtherZones)`＝ON_PLAY/ACTIVATEDモーダルでゾーン選択）。smoke 計75pass・同型★0。→ `BUGFIXES.md` 先頭4件。
 - **直近やったこと（zerom）**: **【ビート】機構 Phase1-3**（《ビート》[条件]ゲート12＋ON_BECOME_BEAT8＋cost.beat_signi支払い）。→ `BUGFIXES.md`。
 - **直近やったこと（karka・続き2）**: **機構④誤parse3枚を是正**（WXDi-P07-044 全3効果＝ON_HAND_DISCARDED/ON_PLAY byEffect＋FREEZE復元・engine配線あり／WX25-P3-062-E2＝ハナレ条件＋エナ＜毒牙＞任意トラッシュ→両者-20000・配線あり／WX25-P2-009＝1ACTIVATEDマッシュを2 AUTOに分割＝refresh置換STUB＋新timing ON_CARD_MILLED_FROM_DECK[未配線マーク]）。逆翻訳が原文一致・同型★0。→ `BUGFIXES.md` 先頭。
