@@ -690,6 +690,18 @@ function actionJa(a?: Action, effectType?: string): string {
       const pwPV = a.powerDeltaOnZone !== undefined ? `（そのゾーンのシグニのパワーを${a.powerDeltaOnZone >= 0 ? '＋' : '－'}${Math.abs(a.powerDeltaOnZone)}）` : '';
       return `${ownerJa(a.targetOwner)}${zonesPV}に【ウィルス】を${a.virusCount > 1 ? `${a.virusCount}つずつ` : ''}置く${pwPV}`;
     }
+    case 'POWER_MODIFY_BY_SOURCE': return `${targetJa(a.target)}のパワーを効果元の${a.basis === 'level' ? 'レベル' : 'パワー'}×${a.multiplier}だけ変更する`;
+    case 'LOOK_AT_DECK_AND_LIFE': return `${ownerJa(a.targetOwner)}デッキの上${a.mode === 'both' ? 'とライフクロスの上' : 'かライフクロスの上'}を見る`;
+    case 'GRANT_SIGNI_ABOVE_ABILITY': return `このカードの上の${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
+    case 'NAME_BAN': return `このゲームの間、${a.targetSelf ? 'あなた' : '対戦相手'}は同名のカードを使用できない`;
+    case 'BLOCK_CARD_USE': return `このターン、対戦相手は《${a.cardName}》を使用できない`;
+    case 'COST_SUBSTITUTE': return `${costJa({ energy: a.originalCost })}のコストを${costJa(a.substituteCost)}で支払って${a.optional ? 'もよい' : '支払う'}`;
+    case 'VARIABLE_DISCARD_AND_DRAW': return `${ownerJa(a.owner)}手札を好きな枚数捨て、その枚数${a.drawBonus ? `＋${a.drawBonus}枚` : '分'}カードを引く`;
+    case 'SELF_TRASH_PREVENT': return 'あなたは自分の効果ではこのシグニをトラッシュに置けない';
+    case 'REVEAL_UNTIL_BANISH_SAME_LEVEL': return `＜${a.revealClass}＞のシグニがめくれるまでデッキの上を公開し、それと同じレベルの${ownerJa(a.banishOwner)}シグニ1体をバニッシュする（公開したカードはデッキの一番下に置く）`;
+    case 'ENERGY_CHARGE_BY_FIELD_COUNT': return `${ownerJa(a.owner)}場のシグニの数${a.bonus ? `＋${a.bonus}` : ''}枚をデッキの上からエナゾーンに置く`;
+    case 'COLOR_INHERIT': return `${ownerJa(a.owner)}エナゾーンのカードの色を、このシグニの色として追加で得る`;
+    case 'FORCE_FRONT_SIGNI_ATTACK': return 'このシグニの正面のシグニは、可能ならアタックしなければならない';
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
       // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）
