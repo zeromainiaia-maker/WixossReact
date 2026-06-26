@@ -1763,14 +1763,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     };
   }, [bs, effectsMap, battleCardMap, user.id, effectivePowers]);
 
-  // CONTINUOUS コスト修正（CostIncreaseAction 効果を集計）
+  // CONTINUOUS コスト修正（CostIncreaseAction 効果を集計）＋ 遅延コスト増加（NEXT_OPP_TURN）
   const activeCostMods = useMemo(() => {
     if (!bs) return { forMy: [], forOp: [] };
     const localIsHost = user.id === bs.host_id;
     const myS  = localIsHost ? bs.host_state  : bs.guest_state;
     const opS  = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
-    return calcActiveCostMods(myS, opS, myTurn, effectsMap, battleCardMap);
+    const mods = calcActiveCostMods(myS, opS, myTurn, effectsMap, battleCardMap);
+    // COST_INCREASE(NEXT_OPP_TURN): 対戦相手(opS)が保持する「相手ターンの相手コスト増加」は
+    // 自分(myS)のコストへ加算（forMy）。逆に自分が保持するものは相手のコスト表示用（forOp）。
+    const toMods = (arr?: Array<{ targetCardType: string; amount: { color: string; count: number }[] }>) =>
+      (arr ?? []).map(e => ({ direction: 'increase' as const, targetCardType: e.targetCardType, amount: e.amount }));
+    return {
+      forMy: [...mods.forMy, ...toMods(opS.opp_cost_up_until_opp_turn)],
+      forOp: [...mods.forOp, ...toMods(myS.opp_cost_up_until_opp_turn)],
+    };
   }, [bs, effectsMap, battleCardMap, user.id]);
 
   // SPECIFIC_CARD_COST_REDUCE: 特定カード名のコスト軽減（《無×N》）を収集
@@ -4043,6 +4051,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           blocked_card_names: [],   // ターン内使用禁止カードをリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           cards_drawn_by_effect_this_turn: 0, // 効果ドロー累計をリセット
+          life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
           must_attack_infected_only: undefined,
@@ -4139,6 +4148,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           keyword_grants_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 次の相手ターン終了時（=自分のターン再開時）にクリア
           granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 付与効果を次の相手ターン終了時にクリア
           power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END: 長期パワー修正を次の相手ターン終了時にクリア
+          opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN): 相手コスト増加を次の相手ターン終了時にクリア
+          life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
           field: {
             ...opState.field,
             signi_down:   newSigniDown,
@@ -4337,6 +4348,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
         blocked_actions: [], blocked_card_names: [], actions_done: [],
         cards_drawn_by_effect_this_turn: 0,
+        life_crashed_this_turn: undefined,
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, life_burst_double_next: undefined,
@@ -4392,6 +4404,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         keyword_grants_until_opp_turn: undefined,
         granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END
         power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END
+        opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN)
         field: {
           ...opState.field,
           signi_down:   newSigniDown,
@@ -7563,6 +7576,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       newState: {
         ...state,
         life_cloth: state.life_cloth.slice(0, -1),
+        life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + 1, // LIFE_CRASHED_THIS_TURN 用
         field: { ...state.field, check: crashed },
       },
       crashed,
@@ -9671,6 +9685,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...cpuSt,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
+        life_crashed_this_turn: undefined,
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined,
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),

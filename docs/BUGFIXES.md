@@ -5,6 +5,111 @@
 
 ---
 
+## 機構実装②：自/相手ライフクラッシュ履歴条件（LIFE_CRASHED_THIS_TURN）5枚（2026-06-26）
+
+「このターンに（自分/相手の）ライフクロスがN枚クラッシュされていた場合」を判定する条件機構を新設。
+
+- **カウンタ**: `PlayerState.life_crashed_this_turn`（index.ts）＝このターンに自分のライフがクラッシュされた枚数。
+- **加算**: 全クラッシュ経路で加算＝`crashOneLife`（BattleScreen・戦闘/ダブルクラッシュ、+1）と `execLifeCrash`（effectExecutor・効果、+crashed枚数）。
+- **条件**: `LIFE_CRASHED_THIS_TURN { owner, operator, value }`（effects.ts）を `evalCondition`（execUtils.ts）に追加。
+- **リセット**: ターン境界の3リセットブロック（PvP通常終了 line~4053・PvP確認後 line~4350・CPU line~9687）で `undefined` に。ON_TURN_END 効果は `collectTurnTriggers` でリセット前に解決されるので、ターン終了時効果も正しく読める。
+- **decompiler**: `condJa` に専用描画追加。
+- **JSON（5枚）**: WX18-063（自≥1→エナチャージ）／WX18-064（自≥1→ドロー）／WX11-021②（自≥1→デッキトップをライフ。「相手効果によって」限定は近似）／WD21-011-E2（ライフ0枚→ライフ追加 ＋ 自≥2→ライフ追加 の2分岐を復元）／WXDi-P16-065-E1（**相手**≥2→エナチャージ）。
+- **後回し**: WXDi-P11-001（「**直前のターン**に」＝前ターン跨ぎ保持が別途必要）。
+- `tsc` 通過。sheet1/2/4/8＋下流再生成済み。同型★ 0件。脱落疑い 242→241枚。**要実機検証**。
+
+## 機構実装①：コスト増加（NEXT_OPP_TURN型）2枚＋基盤配線（2026-06-26）
+
+「次の対戦相手のターン、対戦相手のアーツ/スペルのコストが《無×N》増える」遅延・期間型コスト増加を実装。**既存の `cost_modifiers` ストアは書かれるだけでコスト計算で読まれていなかった**（＝機構の穴）。NEXT_OPP_TURN 型は `power_mods_until_opp_turn` と同型のライフサイクルで実装。
+
+- **型**: `CostIncreaseAction.duration` に `'NEXT_OPP_TURN'` 追加（effects.ts）。
+- **ストア**: `PlayerState.opp_cost_up_until_opp_turn`（index.ts）＝キャスター側へ保持。
+- **実行**: `execCostIncrease`（effectExecutor.ts）で duration==='NEXT_OPP_TURN' のとき self（キャスター）へ push。
+- **コスト計算読み取り（穴を塞ぐ）**: BattleScreen `activeCostMods` memo で、相手(opS)の `opp_cost_up_until_opp_turn` を `forMy` へ加算（自分のアーツ/スペルコストに反映）。既存の forMy increase 適用経路にそのまま乗る。
+- **クリア**: ターン開始時クリア2箇所に `opp_cost_up_until_opp_turn: undefined` を追加（`power_mods_until_opp_turn` と同位置）。
+- **decompiler**: COST_INCREASE に NEXT_OPP_TURN 接頭辞を追加。
+- **JSON**: WXK09-006 タマヨリヒメ（E1②コスト軽減マーカー誤り→COST_INCREASE arts+spell《無×2》NEXT_OPP_TURN。①＜天使＞フィルタ・③相手手札0条件 `HAND_COUNT eq0` も補完）／SPDi43-31 Nフライングギター（E1を公開→レベル分岐に再構築：Lv1相手トラッシュ/Lv2コスト増加/Lv3全自シグニ+3000）。
+- **後回し**: WXK11-003「このターン」型（clearが自ターン終了で別）／WXDi-P06-031・P15-033・P13-072（起動能力コスト増加＝別collector）／WX20-Re20・PR-K056・SP38-005（自アーツコストが選択数依存・別問題）。
+- `tsc` 通過。sheet4/10＋下流再生成済み。同型★ 0件。脱落疑い 243→242枚。**要実機検証**（コスト増加が使用モーダルの必要エナに反映・相手ターンで適用/クリアされるか）。
+
+## 保護系キーワードの owner誤り是正 14巡目（2枚・2026-06-26）
+
+別系統「**保護系キーワード（バニッシュされない等）を対戦相手に付与**」を構造抽出（GRANT_KEYWORD で keyword が保護系 かつ target.owner==='opponent'）。保護を相手に与えるのは無意味＝owner誤り。全網羅で本物2枚を是正。
+
+- **WXDi-P03-010 アキノ＊クラップ**（アシストルリグ）: E2「あなたのシグニ1体に『バニッシュされない』付与」が owner:opponent に誤parse → self。（「対戦相手のターンの場合」条件は IS_OPPONENT_TURN が実行時判定不可のため近似省略）
+- **WXK07-029 羅菌姫 プロテイン**: E1「あなたの＜微菌＞のシグニに『対戦相手の効果でバニッシュされず手札に戻らない』付与」が owner:opponent に誤parse → self。（「表記パワーと異なるパワーの」フィルタは近似省略）
+- **後回し**: WXK03-018（GRANT_PROTECTION owner:opponent だが原文「対戦相手のシグニが対戦相手の効果で＋されない」＝owner:opponentが正当・センタールリグ付与のパース失敗が別問題）。
+- **同時に確認した実害なし系統**: LIFE_BURST 内 `CONDITIONAL{IS_MY_TURN}`（105枚）は `evalCondition` で常時true＋「そうした場合」プレースホルダー特別処理のため**実害なし**（修正不要）。能力数欠落（差≥2＝42枚）は引用能力付与/複数能力付与/強制アタック/エクシード等の**重い機構待ち**で単純修正不可。
+- `tsc` 通過。sheet3/7＋下流再生成済み。同型★ 0件。
+
+## BURST欠落 網羅チェック＋WX04-029 是正 13巡目（1枚・2026-06-26）
+
+別系統「**LIFE_BURST（ライフバースト）効果の丸ごと欠落**」を構造抽出で網羅チェック（原文 BurstText 非空 かつ JSON に LIFE_BURST effect 無し）。結果**全カードで1枚のみ**＝既によく整備済みと確認。
+
+- **WX04-029 コードラビリンス クイン**: BURST「あなたのデッキから＜迷宮＞のシグニ１枚を探して公開し、手札に加えるか場に出し、デッキをシャッフルする」が丸ごと欠落 → `CHOOSE[①SEARCH(deck,迷宮,then:ADD_TO_HAND,afterSearch:SHUFFLE) / ②SEARCH(同,then:ADD_TO_FIELD,afterSearch:SHUFFLE)]` を追加（手本 WX07-023-BURST/WX04-038-BURST）。
+- **同時に確認した地雷系統（修正せず）**: `TRASH owner:any`（2枚＝WXDi-P05-052 は付与能力内で逆翻訳上は既に「対戦相手の」表示／WXDi-P13-057 は//ディソナで原文欠落）も単純修正に不向き。owner:any 系全般は構造一括に不適と再確認。
+- `tsc` 通過。sheet1＋下流再生成済み。同型★ 0件。脱落疑い 243→242枚。
+
+## owner誤り調査＋ロードバフ owner:any 是正 12巡目（2枚・2026-06-26）
+
+別系統「`owner:'any'`（＝『自分または対戦相手の』）誤り」を構造抽出で調査。**重要な知見**: `owner:any` の多くは**誤りではなく正当**だった——
+- **BANISH owner:any（30枚）**: 大半が「すべてのシグニをバニッシュ」＝owner:any が正しい。
+- **POWER_MODIFY owner:any（220枚）**: 大半が「**シグニ1体を対象とし**、パワー±N」＝WIXOSS に実在する自他選択強化/弱体（例 WX04-027 ドーピング）。delta符号で self/opp を機械決定するのは**誤り**。
+- ⇒ `owner:any` の一括変換は厳禁。**原文に明示主語があるものだけ**個別是正する。
+
+本物の誤りとして、CONTINUOUS ロードバフ「あなたの**他の**＜X＞のシグニのパワーを＋2000」が `owner:any` 単体に誤parseされた2枚を是正（前例 WX04-054/056/086 の `owner:self, count:ALL, filter{...,excludeSelf}, excludeSelf:true` に合わせる）:
+- **WXDi-P12-060 ギロチン//ディソナ**: 他の《ディソナ》全体＋2000（`isDisona`）。
+- **WXDi-CP02-051 歌住サクラコ**: 他の＜ブルアカ＞全体＋2000（`story:ブルアカ`）。
+- **後回し**: WX25-CP1-087（2体まで対象＋トラッシュ枚数連動で複合・owner:any部分含む）。
+- `tsc` 通過。sheet8＋下流再生成済み。同型★ 0件。脱落疑い 243枚（owner誤りは文数不変のため増減なし）。
+
+## 文型★脱落バグ修正 11巡目（同系統の後回し回収＝isDisona/levelParity フィルタ新設 5枚・2026-06-26）
+
+8〜10巡目で後回しにした「公開→条件付き副作用」のうち、**filter 不足が原因**だった5枚を、汎用フィルタ2種を新設して回収。
+
+- **`TargetFilter.isDisona`（新設）**: 《ディソナアイコン》を持つカード＝CSV `Story==='Dissona'`。matchesFilter／decompiler 対応。`DECK_TOP_MATCHES` で deck-top の disona 判定に使える（`filter.story='Dissona'` は CardClass 照合で効かなかったのが原因）。
+  - **WXDi-P12-070 マドカ//ディソナ**: ターン終了時・アップ状態なら 公開→《ディソナ》なら1引く（`THIS_CARD_IS_UP`で包む）。
+  - **WXDi-P12-057 ノヴァ//ディソナ**: ターン終了時 公開→《ディソナ》なら**このシグニ**+5000（`POWER_MODIFY thisCardOnly`, `UNTIL_OPP_TURN_END`）。
+  - **WXDi-P13-060 コメッチ//ディソナ**: アタック時 公開→《ディソナ》なら `CHOOSE[1引く/エナチャージ1]`。
+- **`TargetFilter.levelParity:'odd'|'even'`（新設）**: レベルが奇数/偶数のシグニ（Level 非数値は不一致）。matchesFilter／decompiler 対応。
+  - **WXK01-004 グズ子**: 公開→**奇数**レベルシグニなら2引く。
+  - **WDK04-012 ダイシャリン**: 公開→**偶数**レベルシグニならエナへ。
+- いずれも `SEQUENCE[LOOK_AND_REORDER(公開), CONDITIONAL{DECK_TOP_MATCHES〔新filter〕, then}]` 型（8〜10巡目と統一）。
+- `tsc` 通過。sheet3/4/8＋下流再生成済み。同型★ 0件。脱落疑い 251→243枚。
+
+## 文型★脱落バグ修正 10巡目（「公開→条件付き副作用」横展開の続き＝エナ/バニッシュ/パワー 10枚・2026-06-26）
+
+9巡目と同抽出（`REVEAL_AND_PICK` で `then` が公開カード非消費）の `then=ENERGY_CHARGE(_FROM_DECK)/BANISH/POWER_MODIFY` を精査。いずれも `SEQUENCE[LOOK_AND_REORDER(公開・top維持), CONDITIONAL{DECK_TOP_MATCHES〔条件〕, then:〔副作用〕}]` に統一（公開でトップ不動→条件成立時にトップ＝公開カードへ作用するので「それをエナへ」「エナチャージ１」両表現とも同一機構で表せる）。
+
+- **エナ系7枚**: WX12-050 イグアノドン（＜龍獣＞→エナ）／WX18-067 コニプラ（レベル4→エナ。Lv参照上書きは DECK_TOP_MATCHES の override で対応済）／WXK04-046 ミリア（＜紅蓮/古代兵器＞→エナ）／WXK10-022-E3 御伽原江良（無色でないシグニ→エナ・nonColorless）／WX24-P1-047-E2 キャトミ（レベル1→エナチャージ）／WX24-P3-082 リトルグレイ（レベル1→エナチャージ）／WX26-CP1-049-E1 リップル＆ジール（＜プリオケ＞→エナチャージ）。`then:ENERGY_CHARGE_FROM_DECK count1`。
+- **バニッシュ系2枚**: WX22-027-E2 ナオマサ（公開→《ライズ》持ちシグニなら相手パワー12000以下バニッシュ。`hasIcon:ライズ`。対象先取りの順は近似）／WXEX1-62-E2 ケプリ（公開→レベル4シグニなら相手パワー1000以下バニッシュ）。
+- **パワー系1枚（2分岐）**: WX12-CB02 ぷにとー（公開→レベル1シグニなら**このシグニ**+5000＝`POWER_MODIFY thisCardOnly`、レベル2なら**デッキトップをエナ**）。`SEQUENCE[公開, CONDITIONAL{Lv1, POWER+5000}, CONDITIONAL{Lv2, ENERGY_CHARGE}]`＋effect.duration=UNTIL_END_OF_TURN。
+- **後回し（複雑・新機構/フィルタ/timing要）**: WDK04-012（偶数レベルフィルタ）／WX18-073-E2（公開カード手札＋次カードエナの複合）／WX25-P3-092（CHOOSE構造内の択一・②未表示）／WXDi-CP02-068（トリガーが「自効果で相手シグニ移動時」＝現 ON_PLAY 誤り）／WXDi-P12-057（disona＋UNTIL_OPP_TURN_END）／WX24-P4-060（UNTIL_OPP_TURN_END＋2効果目）／WX13-052・WX25-P1-053（self-banish/自身手札戻し起点の複合）／WXDi-P00-034（GRANTは可だがtimingが「相手メイン開始時」で現 ON_TURN_END 誤り）。
+- `tsc` 通過。sheet2/3/4/9＋下流再生成済み。同型★ 0件。脱落疑い 253→251枚。
+
+## 文型★脱落バグ修正 9巡目（「デッキ一番上公開→条件付きドロー」の横展開 9枚・2026-06-26）
+
+8巡目で確立した系統を**横展開で機械的に潰す**。`REVEAL_AND_PICK` で `then` が**公開カードを消費しないアクション**になっているものを全シート抽出（`then` が ADD_TO_HAND/ADD_TO_ENERGY/ADD_TO_FIELD/TRASH/TRANSFER_TO_HAND 等＝公開カードを動かす正当ケースは除外）。`then:DRAW` の本物バグ9枚を `SEQUENCE[LOOK_AND_REORDER(公開・top維持), CONDITIONAL{DECK_TOP_MATCHES〔条件〕, then:DRAW}]` に是正。
+
+- **条件なし6枚**: WX02-018 火紅柳緑（公開→＜鉱石/宝石＞シグニなら2枚引く）／WXDi-P06-064 デルフィヌス（レベル1シグニ→1引く・ATTACK_PHASE_START）／WXDi-P09-068 富士葵（レベル1シグニ→1引く・出）／WXDi-P10-042 ピルルクＷ//メモリア（**スペル**→1引く＝旧 filter は誤って cardType:シグニ。スペルに是正）／WX24-P1-066 Sコアボード（**スペル**→1引く・同上是正）／WX26-CP1-077 佐藤かえで（レベル2以下＜プリオケ＞→1引く）。
+- **「このシグニがアップ状態の場合」条件付き3枚**: WXDi-P07-051 ヤギュウ（白→1引く）／WXDi-P07-070 カイヤナイト（青→1引く）／WXDi-P11-052 ミカムネ（＜アーム/ウェポン＞→1引く）。全体を `CONDITIONAL{THIS_CARD_IS_UP, then:SEQUENCE[公開, CONDITIONAL{DECK_TOP_MATCHES,DRAW}]}` で包む（公開自体がアップ前提のため）。
+- **後回し（複雑・新条件/フィルタ要）**: WXK01-004 グズ子（奇数レベルフィルタ）／WXDi-P12-070 マドカ//ディソナ（《ディソナアイコン》deck-top 判定が不確実）／WX25-P1-082 ケルピー（このターンアーツ使用条件）／WXDi-P04-045・WXDi-P13-006・WXDi-CP01-025・WX25-CP1-038・WX26-CP1-046・WD21-001（原文乖離・別系統の複合誤り）。
+- **次の横展開候補（10巡目）**: 同抽出の `then=ENERGY_CHARGE(_FROM_DECK)`／`POWER_MODIFY`／`BANISH`／`BOUNCE`／`GRANT_KEYWORD` 系（同じく公開カード非消費の副作用）。
+- `tsc` 通過。sheet1/7/9＋下流再生成済み。同型★ 0件。
+
+## 文型★脱落バグ修正 8巡目（「デッキ一番上公開→条件付き副作用」のREVEAL_AND_PICK誤用 4枚・2026-06-26）
+
+脱落疑い続き（karka引き継ぎ＝WXDi/WX24帯の脱落系）。**S019系統「このシグニがアタックしたとき、デッキの一番上を公開する。そのカードが〔条件〕の場合、〔効果〕」**の誤パースを是正。
+
+- **系統の核心**: REVEAL_AND_PICK は**ピックしたカード自体を then で動かす**前提（多数派の `then:ADD_TO_ENERGY/ADD_TO_HAND` ＝公開カードをエナ/手札へ＝正しい）。だが then が**公開カードを消費しない副作用（ドロー等）**の場合、エンジンは公開カードをデッキから抜いたまま戻さず（resumeSearch は非hand/field の then でピック札を捨てる）、かつ別カードをドローする**二重バグ**だった。
+- **正しい型**: `SEQUENCE[LOOK_AND_REORDER(デッキ上1枚・public・reorder無・top維持＝公開), CONDITIONAL{DECK_TOP_MATCHES〔条件〕, then:〔副作用〕}]`（WX01-057 と同型）。ドローはデッキトップ＝公開カードを引くので「公開カードが手札へ」の正味結果も一致。
+- **WXDi-D02-21 コード２４３４ 宇志海いちご**: 公開→＜バーチャル＞シグニなら1枚引く。`then:DRAW1`。
+- **WXDi-P01-048 羅星 アルファルド**: 公開→レベル1シグニなら1枚引く。`then:DRAW1`。
+- **WXDi-D03-017 羅石 アダマスフィア**: 公開→レベル3シグニなら《赤》《赤》払ってもよい→このシグニに【アサシン】（ターン終了まで）。`then:SEQUENCE[OPTIONAL_COST赤赤, GRANT_KEYWORD(thisCardOnly アサシン UNTIL_END_OF_TURN)]`（Pattern⑤ pay/skip）。
+- **WX24-P2-070 幻竜 ズメイ**（S009系・別系統）: `BANISH owner:opponent filter{story:龍獣}` ＝**＜龍獣＞フィルタが対戦相手ターゲットに誤混入**（龍獣は自場の条件側）＋**自場条件・防御払いが脱落**。→ `CONDITIONAL{HAS_CARD_IN_FIELD self excludeSelf 龍獣, then:BANISH 相手パワー8000以下}`。「対戦相手が《無》《無》を支払わないかぎり」の防御払いは機構未実装のため近似省略（旧版は龍獣フィルタでほぼ不発だったため明確な改善）。
+- **後回し（同S019/系統・複雑）**: WXDi-P08-037（公開シグニと自アップシグニの場所入れ替え＋覚醒トリガーE3誤パース）／WXDi-P13-060（公開→《ディソナアイコン》ならドロー/エナチャージ択一＝ディソナアイコンの deck-top フィルタ判定が不確実）。
+- `tsc` 通過。sheet7/9＋下流（_review_repr/grouped_all/grouped_sentence_all）再生成済み。同型★ 0件。
+
 ## 文型★脱落バグ修正 7巡目（CONTINUOUS owner誤り・択一崩壊・枚数誤り 3枚・2026-06-26）
 
 脱落疑い続き。偽陽性（アンコール注記のみ＝WX13-015/WX18-016/WXK07-012）を除外し本物3枚を修正。

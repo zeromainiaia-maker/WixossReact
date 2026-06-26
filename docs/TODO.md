@@ -3,9 +3,63 @@
 未実装・未対応の作業をまとめた恒久ドキュメント。完了したら該当項目を消すこと。
 設計方針は [DESIGN.md](./DESIGN.md)、過去の修正は [BUGFIXES.md](./BUGFIXES.md)。
 
-最終更新: 2026-06-26。F-2／F-3／F-4 の状況は従来通り（下記）。直近は **逆翻訳スキャンによる個別カードの誤り修正ラウンド**を継続中。詳細は BUGFIXES.md 冒頭の各記録を参照。**現在のメインタスク（逆翻訳スキャン＝文型★トリアージ）は ymst → karka に引き継ぎ。まず下記「📌 引き継ぎ（2026-06-26 ymst → karka）」を読むこと。**（文型★は 1〜7巡で本物バグ25枚＋機構2件を修正済。続きは脱落疑いリストの未精査分。）
+最終更新: 2026-06-26。**まず下記「📌 引き継ぎ（最新・2026-06-26）」を読むこと。** それ以前の引き継ぎ（zerom→ymst / ymst→karka）は履歴として残置。
 
-**2026-06-23 追記（ymst→zerom）:** 逆翻訳スキャンを効率化する**系統分け／同型グルーピング・インデックス**を新設（`scripts/group*.mjs`＋全10シート統合 `docs/grouped_all.txt` / `grouped_sentence_all.txt`）。同型★（高精度バグ候補）は枯れ、WX05-009/054/076 を修正済（BUGFIXES）。
+---
+
+## 📌 引き継ぎ（最新・2026-06-26）— 新セッションはここから読む
+
+### 0. このプロジェクトで今やっていること（2系統）
+1. **逆翻訳トリアージ（文型★脱落バグ修正）**＝ `docs/grouped_sentence_all.txt` の「⚠脱落疑い」を上から潰す。**簡単な系統バグはほぼ枯れた**（残241枚は機構実装待ちが中心）。
+2. **機構実装ラウンド**＝残った複雑カードに必要な未実装機構を1つずつ作る。**①コスト増加(NEXT_OPP_TURN)・②ライフクラッシュ履歴条件 を実装済**（BUGFIXES「機構実装①②」）。今はこちらが主軸。
+
+### 1. 現在地（数字）
+- 文型★：1〜14巡で本物バグ約58枚＋汎用フィルタ2種を修正。機構実装①②で計7枚。**脱落疑い 253→241枚**。同型★ は常に0（退化なし）を維持。
+- 直近未コミット（git未コミット）。`git status` で確認し、区切りでコミットする運用。
+
+### 2. ⚠ 最重要の運用注意（時間を無駄にしないため）
+- **`effects_*.json` は手動管理。`build:effects`（再生成）は破壊的なので実行しない。** 修正は JSON を直接パッチ。
+- **逆翻訳を直したらエンジン実装までセット**（乖離＝偽陰性を作らない）。[[decompile-engine-parity]]
+- **`node -e` 内に日本語リテラルを書くと Git Bash 経由で文字化けし誤動作する**（実例: owner調査で count 0 の誤判定）。**日本語を含むスクリプトは scratchpad に `.mjs` を書いて `node <path>` で実行**すること（UTF-8 保証）。
+- **大きな編集の直後は永続化を必ず検証する**（本セッションで一部の Edit/Bash 出力が乱れ、BUGFIXES記録が飛んでいた。コードとJSONは残っていた）。`grep -c` で目印を数えて確認。
+
+### 3. 標準ワークフロー（1カード/1巡）
+①`grouped_sentence_all.txt` の⚠脱落疑いを上から見る（原文・逆翻訳併記済）→ ②欠落把握 → ③`effects_*.json` を既存語彙で直す → ④`npx tsc --noEmit` → ⑤該当シート再生成 `npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt` → ⑥下流 `node scripts/genReviewRepr.mjs && node scripts/groupSimilar.mjs --all && node scripts/groupBySentence.mjs --all` → ⑦逆翻訳が原文一致を確認＆同型★0確認 → ⑧BUGFIXES追記。カード→シート対応は `grep -q "^<CardNum> " docs/decompile_sheet<N>.txt` で特定。
+
+### 4. 機構実装の「型」（①②で確立。新機構もこれに倣う）
+1. `src/types/effects.ts`：アクション/条件の型を追加・拡張。
+2. `src/types/index.ts`：必要なら `PlayerState` に状態フィールド追加。
+3. `src/engine/effectExecutor.ts`（実行）/ `src/engine/execUtils.ts`（`evalCondition`）：ロジック。
+4. `src/screens/BattleScreen.tsx`：**状態の読み取り（コスト計算/バトル等）と、ターン境界でのリセット**を忘れない（リセット箇所は3つ：PvP通常終了・PvP確認後・CPU。`power_mods_until_opp_turn` や `cards_drawn_by_effect_this_turn` の隣に追記すると漏れない）。
+5. `scripts/decompileEffects.ts`：表示。
+6. JSON を該当カードに配線 → ④〜⑧で検証。
+- **期間「次の相手ターン」型は `power_mods_until_opp_turn` と同じライフサイクル**（キャスター側保持→相手ターン通過→自分の次ターン開始でクリア）が手本。
+
+### 5. 落とし穴・既に調査済みで「触らなくてよい/枯れた」系統
+- **owner:any は一括変換禁止**：POWER_MODIFY/BANISH の `owner:'any'` は大半が正当（「シグニ1体を対象とし±N」＝自他選択／「すべてのシグニをバニッシュ」）。原文に明示主語があるものだけ個別是正。
+- **LIFE_BURST 内 `CONDITIONAL{IS_MY_TURN}`（105枚）は実害なし**（evalCondition で常時true＋「そうした場合」プレースホルダー特別処理）。修正不要。
+- **強制アタック**は実装済み（`must_attack_signi`/FORCE_SIGNI_ATTACK）。未配線は WX12-010（複雑レゾナ・CONTINUOUS強制）のみ。
+- **BURST丸ごと欠落**は全網羅で残0（WX04-029 で最後の1枚を是正済）。
+- **保護系キーワード（バニッシュされない等）を相手付与の owner誤り**＝残0。
+- `REVEAL_AND_PICK` の `then` が公開カード非消費（DRAW/ENERGY_CHARGE等）＝8〜11巡で潰し済。残は重い機構（disona済・奇偶済）。
+- 偽陽性パターン（脱落疑いに出るが直さない）：CHOOSE1文圧縮／REVEAL_AND_PICK文法崩れ／使用条件＋本体／アンコール注記のみ／BET_MECHANIC。
+
+### 6. 次の一手（機構実装の候補・影響枚数順）
+当初ユーザー方針＝「影響枚数が多い順に機構を1つずつ」。残候補：
+- **《相手ターン》/《自分ターン》トリガー基盤**（最高価値・最高リスク）：`IS_MY_TURN`はevalCondition常時true・`TURN_OWNER`はCONTINUOUS activeConditionのみ。AUTO/ACTIVATEDのターン限定発動が未対応。多数の付与能力の前提。core（トリガー収集＝effectEngine `collectSelfEventTriggers`/BattleScreen）に踏み込む。
+- **【ビート】機構**（出現44・部分基盤 `beat_zone`/`BEAT_CONDITION`/`beat_signi` あり・大きく曖昧）：WDK14-008 等。
+- **引用能力付与の精緻化**（`GRANT_QUOTED_AUTO_ABILITY` 系・ヒューリスティック）：WX25-CP1-074・WXK09-055・WX24-P2-044 等の「シグニに『〜』を付与」。
+- 個別の複合（place-swap WXDi-P08-037／look-pickチェーン WX26-CP1-019・WX25-P1-103／ウィルス数スケール WX16-048/023 等）は TODO 下部参照。
+- 機構選択はユーザーに確認してよい（前回 AskUserQuestion で「コスト増加」を選定）。
+
+### 7. 主要ファイル
+- 語彙: `src/types/effects.ts` / `src/types/index.ts`（PlayerState）
+- エンジン: `src/engine/effectExecutor.ts`（実行・`execLookPickChain`/`execCostIncrease`/`execLifeCrash` 等）・`src/engine/execUtils.ts`（`evalCondition`/`matchesFilter`）・`src/engine/effectEngine.ts`（CONTINUOUS収集・`calcActiveCostMods`）
+- UI/ルール: `src/screens/BattleScreen.tsx`（コスト計算・バトル・ターン境界リセット・`crashOneLife`）
+- 逆翻訳器: `scripts/decompileEffects.ts`、グルーピング: `scripts/groupBySentence.mjs`/`groupSimilar.mjs`
+- 記録: `docs/BUGFIXES.md`（修正記録・新しい順）・`docs/TODO.md`（本ファイル）・`docs/DESIGN.md`（設計方針）
+
+**2026-06-23 追記（ymst→zerom）:** 逆翻訳スキャンを効率化する**系統分け／同型グルーピング・インデックス**を新設（`scripts/group*.mjs`＋全10シート統合 `docs/grouped_all.txt` / `grouped_sentence_all.txt`）。
 
 ---
 
@@ -32,7 +86,13 @@
 
 ## 📌 引き継ぎ（2026-06-26 ymst → karka）— 文型★脱落トリアージの続き
 
-**現在地:** `grouped_sentence_all.txt`（文型★）の脱落疑いを上から精査中。**1〜7巡で本物バグ25枚＋機構2件を修正済**（BUGFIXES の「文型★脱落バグ修正 1〜7巡目」を参照）。脱落疑いリストの**先頭〜70件程度まで一通り目視済み**。karka はその先（未精査の WXDi/WXK/WD 帯の owner/脱落系）を続ける。
+**現在地:** `grouped_sentence_all.txt`（文型★）の脱落疑いを上から精査中。**1〜11巡で本物バグ53枚＋機構2件＋汎用フィルタ2種、12巡で owner誤り2枚、13巡で BURST欠落1枚を修正済**（BUGFIXES の各記録を参照）。脱落疑い 253→242枚。**構造系統チェック済み（脱落少）:** BURST欠落（残0）／REVEAL_AND_PICK then副作用（残は重い機構のみ）／owner:any（大半正当・地雷）／保護系キーワードのowner誤り（残0）／LIFE_BURST内IS_MY_TURN（実害なし・修正不要）／能力数欠落（差≥2＝42枚は引用付与/複数能力/強制アタック/エクシード等の重い機構待ち）。**簡単な系統バグはほぼ枯れ、残りは機構実装待ちが中心。**
+
+**⚠ owner:any は一括変換禁止（12巡目の知見）:** `owner:'any'` POWER_MODIFY/BANISH の**大半は正当**（「シグニ1体を対象とし±N」＝自他選択／「すべてのシグニをバニッシュ」）。delta符号で self/opp を機械決定するのは誤り。**原文に明示主語があるものだけ**個別是正する。本物の誤りは「あなたの他の＜X＞のシグニ…」ロードバフが owner:any単体化したもの等、少数。
+
+**8〜11巡目の系統（横展開で効率潰し）:** `REVEAL_AND_PICK` で `then` が**公開カードを消費しない副作用**（DRAW/ENERGY_CHARGE/BANISH/POWER_MODIFY等）になっている誤りを `SEQUENCE[LOOK_AND_REORDER(公開), CONDITIONAL{DECK_TOP_MATCHES, then}]` へ統一是正（8巡:4／9巡:DRAW9／10巡:エナ/バニッシュ/パワー10／11巡:isDisona/levelParity 新設で5）。**抽出コマンド**（再利用可）: 全 effects_*.json を走査し `REVEAL_AND_PICK.then.type ∉ {ADD_TO_HAND,ADD_TO_ENERGY,ADD_TO_FIELD,TRASH,TRANSFER_TO_HAND,TRANSFER_TO_DECK,EXILE,ADD_TO_LIFE}` を列挙。新フィルタ `isDisona`（Story==='Dissona'）／`levelParity:'odd'|'even'` は今後も流用可。
+
+**この系統で後回し中（複雑・新機構/timing要）:** WX25-P1-082（このターンアーツ使用条件）／WX18-073-E2（公開手札＋次カードエナ複合）／WX25-P3-092（CHOOSE内択一・②未表示）／WXDi-CP02-068・WXDi-P00-034（トリガーtiming誤り＝「自効果で相手シグニ移動時」「相手メイン開始時」が現 ON_PLAY/ON_TURN_END 誤り）／WX24-P4-060（UNTIL_OPP_TURN_END＋2効果目）／WX13-052・WX25-P1-053（self-banish/自身手札戻し起点の複合）／WXDi-P04-045・WXDi-P13-006・WXDi-CP01-025・WX25-CP1-038・WX26-CP1-046・WD21-001（原文乖離・別系統の複合誤り）／WXDi-P08-037（place-swap＋覚醒トリガー誤）。
 
 **新設・流用できる機構（今セッションで追加）:**
 - **コイン任意払い** `OPTIONAL_COST` の `coinCost?:number`（StubAction）＝「《コイン》を支払ってもよい→そうした場合〜」系に流用可。`SEQUENCE[{STUB OPTIONAL_COST, coinCost:1}, <本体>]` の形（effectExecutor Pattern⑤が pay/skip を生成）。
@@ -47,12 +107,12 @@
 5. **BET_MECHANIC STUB**＝別タスク（後回し）。
 
 **未修正の本物バグ（複雑・新機構要。karka 着手候補）:**
-- **コスト増加機構**: WXK09-006-E1②「次の相手ターン、相手のアーツ/スペルのコストが《無×2》増える」（現状コスト軽減マーカー誤り）。コスト軽減の逆＝相手のコスト計算に加算するフックが要る。WXK09-006③は相手手札0条件も脱落。
+- ~~**コスト増加機構**: WXK09-006-E1②~~ → **実装済み（機構実装①・BUGFIXES参照）。残**: WXK11-003「このターン」型／WXDi-P06-031等の起動能力コスト増加／WX20-Re20等の自アーツコスト選択数依存。
 - **【ビート】機構**: WDK14-008（公開4→1手札＋1ビート→ビートと同レベルの相手バニッシュ）。
 - **凍結状態フィルタのアサシン変種**: WX25-P2-084②「【アサシン（凍結状態のパワー3000以下のシグニ）】」＋2択。
 - **公開カード→自身のアクセ化**: WDK07-E15（新 STUB `INTERNAL_ACCE_PICKED_TO_SELF` が要る。既存 ACCE_FROM_HAND は手札用で逆向き）。
 - **公開カードと同レベルの動的フィルタ**: WX24-P3-063（公開カードのレベルを読んで相手全シグニ能力消失）。
-- **自ライフクラッシュ履歴条件**: WX11-021②「このターンにあなたのライフが相手効果でクラッシュされていた場合」。
+- ~~**自ライフクラッシュ履歴条件**: WX11-021②~~ → **実装済み（機構実装②・BUGFIXES参照）。残**: WXDi-P11-001（「直前のターン」＝前ターン跨ぎ保持）。
 - **使用制限の誤パース＋3択崩壊**: WX20-021（「対戦相手のターンにしか使用できない」が壊れた CONTINUOUS 化＋3択全脱落、各択に条件）。WX24-P3-036（スペル打ち消し＋コスト合計比例の《無》任意払い）。
 - **トリガー/BURST 崩壊**: WD14-011（E1 トリガーが thisCardOnly 化＋「より低いレベル」フィルタ脱落／BURST 2択崩壊）。
 - **複雑系（既出）**: WX25-CP1-002（リコレクト択一④ owner）/WX25-P3-023-E2（遅延トリガー）/WXEX1-08（コインベット誘発＋ライズフィルタ）/WX16-048・WX16-023（ウィルス数+1の選択数スケール）/WX26-CP1-019・WX25-P1-103（look-pickチェーン）/WD22-036-G（self-banish起点の複合2択）/WX25-P1-052-E1（《相手ターン》AUTO＋名指しカード在場条件）。

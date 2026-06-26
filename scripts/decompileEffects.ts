@@ -113,6 +113,8 @@ function filterJa(f?: any): string {
   if (f.noGuard) parts.push('《ガードアイコン》を持たない');
   if (f.eachDistinctColor) parts.push('それぞれ共通する色を持たず');
   if (f.nonColorless) parts.push('無色ではない');
+  if (f.isDisona) parts.push('《ディソナアイコン》を持つ');
+  if (f.levelParity) parts.push(f.levelParity === 'odd' ? 'レベルが奇数の' : 'レベルが偶数の');
   if (f.commonClass) parts.push('共通するクラスを持つ');
   if (f.hasIcon) parts.push(`《${f.hasIcon}アイコン》を持つ`);
   if (f.isDown) parts.push('ダウン状態の');
@@ -215,6 +217,7 @@ function condJa(c?: any): string {
     case 'HAND_COUNT': return `${ownerJa(c.owner)}手札が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'HAND_COUNT_FILTER': return `${ownerJa(c.owner)}手札に${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}カードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LIFE_COUNT': return `${ownerJa(c.owner)}ライフが${numJa(c.value)}${opJa(c.operator)}`;
+    case 'LIFE_CRASHED_THIS_TURN': return `このターンに${ownerJa(c.owner)}ライフが${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた場合`;
     case 'ENERGY_COUNT': return `${ownerJa(c.owner)}エナが${numJa(c.value)}${opJa(c.operator)}`;
     case 'ENERGY_COUNT_FILTER': return `${ownerJa(c.owner)}エナゾーンに${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
     case 'ENERGY_HAS_COLOR': return `${ownerJa(c.owner)}エナゾーンに${(c.colors || []).map((col: string) => `《${col}》のカード`).join('と')}がある`;
@@ -646,7 +649,8 @@ function actionJa(a?: Action, effectType?: string): string {
       const inc = Array.isArray(a.amount) && a.amount.length > 0
         ? a.amount.map((e: any) => `《${e.color}×${e.count}》`).join('')
         : 'コスト';
-      return `${ownerJa(a.targetOwner)}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
+      const when = a.duration === 'NEXT_OPP_TURN' ? '次の対戦相手のターンの間、' : '';
+      return `${when}${ownerJa(a.targetOwner)}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
     }
     case 'PREVENT_DAMAGE': return 'ダメージを無効にする';
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;

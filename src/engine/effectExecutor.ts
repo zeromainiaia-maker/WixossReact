@@ -717,6 +717,8 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
     crashed.push(life.pop()!);
   }
   let newS: PlayerState;
+  // LIFE_CRASHED_THIS_TURN 用カウンタ（実際にクラッシュした枚数を加算）
+  const crashedCountAcc = (state.life_crashed_this_turn ?? 0) + crashed.length;
   if (a.triggerBurst) {
     // バースト発動あり: 先頭1枚をチェックゾーンへ、残りはpending
     const checkCard = crashed[0] ?? null;
@@ -724,6 +726,7 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
     newS = {
       ...state,
       life_cloth: life,
+      life_crashed_this_turn: crashedCountAcc,
       field: { ...state.field, check: checkCard },
       pending_crashed_cards: pending.length > 0 ? [...(state.pending_crashed_cards ?? []), ...pending] : state.pending_crashed_cards,
     };
@@ -732,6 +735,7 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
     newS = {
       ...state,
       life_cloth: life,
+      life_crashed_this_turn: crashedCountAcc,
       trash: [...state.trash, ...crashed],
     };
   }
@@ -2714,6 +2718,17 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
 }
 
 function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
+  // NEXT_OPP_TURN: 「次の対戦相手のターン、相手のコストが増える」＝キャスター(self)側へ保持し、
+  // 相手ターンのコスト計算で参照する（power_mods_until_opp_turn と同型のライフサイクル）。
+  if (a.duration === 'NEXT_OPP_TURN') {
+    const selfS = ownerState('self', ctx);
+    const entry = { targetCardType: a.targetCardType, amount: a.amount };
+    const newSelf: PlayerState = {
+      ...selfS,
+      opp_cost_up_until_opp_turn: [...(selfS.opp_cost_up_until_opp_turn ?? []), entry],
+    };
+    return done(addLog(setOwnerState('self', newSelf, ctx), `次の相手ターン、相手の${a.targetCardType}コスト+${a.amount.map(e => e.count + e.color).join('')}`));
+  }
   const tgtOwner = a.targetOwner === 'self' ? 'self' : 'opponent';
   const state = ownerState(tgtOwner, ctx);
   const mod = {

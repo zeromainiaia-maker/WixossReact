@@ -273,6 +273,13 @@ export function matchesFilter(
     // 無色のColorはデータ上「無」（36枚）。空/「無色」表記も保険で除外する。
     if (col === '' || col === '無' || col === '無色') return false;
   }
+  if (filter.isDisona && (card.Story ?? '') !== 'Dissona') return false;
+  if (filter.levelParity) {
+    const lvP = parseInt(card.Level ?? '', 10);
+    if (isNaN(lvP)) return false;
+    if (filter.levelParity === 'odd' && lvP % 2 !== 1) return false;
+    if (filter.levelParity === 'even' && lvP % 2 !== 0) return false;
+  }
   if (filter.hasIcon !== undefined) {
     // 《Xアイコン》持ちの判定: カード自身のテキストにキーワード能力があるかの近似
     const txt = card.EffectText ?? '';
@@ -539,6 +546,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'LIFE_COUNT':
       return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
+    case 'LIFE_CRASHED_THIS_TURN':
+      return cmp(st(cond.owner).life_crashed_this_turn ?? 0, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT':
       return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT_FILTER': {

@@ -122,6 +122,10 @@ export interface PlayerState {
   temp_power_mods?: Array<{ cardNum: string; delta: number; srcType?: string }>;
   // 次の対戦相手のターン終了時までの一時パワー修正（temp_power_modsの長期版。UNTIL_OPP_TURN_END）
   power_mods_until_opp_turn?: Array<{ cardNum: string; delta: number; srcType?: string }>;
+  // COST_INCREASE(NEXT_OPP_TURN): 「次の対戦相手のターン、対戦相手のアーツ/スペルのコストが《無×N》増える」。
+  //   キャスター側へ保持し、相手ターンのコスト計算で「相手(=キャスター)のこのストア」を参照して加算する。
+  //   power_mods_until_opp_turn と同じライフサイクルで自分の次ターン開始時にクリア。
+  opp_cost_up_until_opp_turn?: Array<{ targetCardType: string; amount: { color: string; count: number }[] }>;
   keyword_grants?: Record<string, string[]>; // instanceId → ['ランサー', ...]
   keyword_grants_until_opp_turn?: Record<string, string[]>; // 次の対戦相手ターン終了時までの付与キーワード
   // 次の自分のターンの間、自分の場の「すべて」のシグニ（その間に新たに出したシグニも含む）が得るキーワード（GRANT_KEYWORD duration:NEXT_TURN）
@@ -130,6 +134,8 @@ export interface PlayerState {
   granted_effects?: Record<string, import('./effects').CardEffect[]>; // instanceId → 付与された CardEffect[]
   // 次の対戦相手のターン終了時までの付与効果（granted_effectsの長期版。UNTIL_OPP_TURN_END）
   granted_effects_until_opp_turn?: Record<string, import('./effects').CardEffect[]>;
+  // このターンに自分のライフクロスがクラッシュされた枚数（LIFE_CRASHED_THIS_TURN 条件用。ターン開始時にリセット）
+  life_crashed_this_turn?: number;
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
   // 強制攻撃を感染状態のシグニのみに限定する（WX16-047等）

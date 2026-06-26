@@ -145,6 +145,7 @@ export type Condition =
   | { type: 'HAND_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'HAND_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean } // フィルタ一致する手札枚数（distinctName=名前の異なる枚数）
   | { type: 'LIFE_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
+  | { type: 'LIFE_CRASHED_THIS_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef } // このターンに owner のライフクロスがクラッシュされた枚数
   | { type: 'ENERGY_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean } // フィルタ一致するエナゾーンのカード枚数（「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
   | { type: 'ENERGY_HAS_COLOR'; owner: Owner; colors: string[] } // エナゾーンに指定色すべてのカードがある場合（「エナゾーンに赤のカードと緑のカードがある場合」）
@@ -292,6 +293,8 @@ export interface TargetFilter {
   hasGuard?:  boolean;
   noGuard?:   boolean; // 《ガードアイコン》を持たない（G237）。matchesFilter で Guard!=='1' を要求
   nonColorless?: boolean; // 無色ではない（色を1つ以上持つ）。matchesFilter で Color が空/無色のカードを除外（G240）
+  isDisona?:  boolean; // 《ディソナアイコン》を持つカード（CSVの Story==='Dissona'）。matchesFilter で判定
+  levelParity?: 'odd' | 'even'; // レベルが奇数/偶数のシグニ（WXK01-004「奇数」/WDK04-012「偶数」）。Level 非数値は不一致
   eachDistinctColor?: boolean; // 選択した複数枚がそれぞれ共通する色を持たない（G240）。逆翻訳の表示用＋選択補助（engine は per-card 判定しないため厳密enforce はTODO）
   eachDistinctLevel?: boolean; // 選択した複数枚がそれぞれレベルの異なる（G256「それぞれレベルの異なる＜X＞のシグニ2枚」）。逆翻訳の表示用＋選択補助（厳密enforce はTODO）
   isDown?:    boolean;
@@ -943,7 +946,9 @@ export interface CostIncreaseAction {
   targetCardType: 'スペル' | 'アーツ' | 'ルリグ';
   targetOwner: Owner;
   amount: EnergyCost[];
-  duration?: 'UNTIL_END_OF_TURN' | 'PERMANENT';
+  // NEXT_OPP_TURN: 「次の対戦相手のターンの間、対戦相手のコストが増える」（遅延・期間型。
+  //   power_mods_until_opp_turn と同様にキャスター側へ保持し相手ターンを通過、自分の次ターン開始時にクリア）
+  duration?: 'UNTIL_END_OF_TURN' | 'PERMANENT' | 'NEXT_OPP_TURN';
 }
 
 // スタック枚数に比例したパワー修正（CONTINUOUS効果内）
