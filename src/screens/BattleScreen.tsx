@@ -5947,6 +5947,59 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, driverUsedIds, otherUsedIds };
   };
 
+  // カードが【ビート】になったとき（beat_zone へ入った瞬間）の ON_BECOME_BEAT を収集。
+  // becameNum は beat_zone に在中（＝場にいない）。self=なったカード自身の効果／any_ally・any=オーナーの場のシグニの効果（「他のカードが【ビート】になったとき」WDK14-014）。
+  const collectBeatBecameTriggers = (
+    becameNum: string,
+    ownerState: PlayerState,
+    ownerId: string,
+  ): { entries: StackEntry[]; usedIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedIds: string[] = [];
+    const consumeLimit = (eff: { effectId: string; usageLimit?: string }): boolean => {
+      if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
+        const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+        const used = (ownerState.actions_done ?? []).filter(id => id === eff.effectId).length
+          + usedIds.filter(id => id === eff.effectId).length;
+        if (used >= max) return false;
+        usedIds.push(eff.effectId);
+      }
+      return true;
+    };
+    const pushEntry = (cardNum: string, eff: import('../types/effects').CardEffect) => {
+      entries.push({
+        id: generateUUID(),
+        playerId: ownerId,
+        cardNum,
+        effectId: eff.effectId,
+        label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【自】効果（【ビート】になったとき）`,
+        effect: eff,
+        triggeringCardNum: becameNum,
+      });
+    };
+    if (ownerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedIds };
+    // 1. なったカード自身（self scope。beat_zone 在中なので effectsMap から直接引く）
+    for (const eff of effectsMap.get(becameNum) ?? []) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BECOME_BEAT')) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (!consumeLimit(eff)) continue;
+      pushEntry(becameNum, eff);
+    }
+    // 2. オーナーの場のシグニ（any_ally/any scope。「あなたの他のカードが【ビート】になったとき」）
+    for (let zi = 0; zi < ownerState.field.signi.length; zi++) {
+      const topNum = ownerState.field.signi[zi]?.at(-1);
+      if (!topNum || topNum === becameNum) continue;
+      for (const eff of effectsMap.get(topNum) ?? []) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BECOME_BEAT')) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope !== 'any_ally' && scope !== 'any') continue;
+        if (!consumeLimit(eff)) continue;
+        pushEntry(topNum, eff);
+      }
+    }
+    return { entries, usedIds };
+  };
+
   /**
    * 手札が捨てられたときのトリガーを収集する。discarder=手札を捨てたプレイヤー（=このクライアントの user）。
    * - ON_DISCARDED_AS_COST（asCost=true時のみ）: 捨てられたカード自身のAUTO効果（WX25-P3-085 ユーグレナ）
