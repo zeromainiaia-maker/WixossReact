@@ -46,8 +46,8 @@
   2. 機構④の誤parse3枚（WXDi-P07-044／WX25-P2-009／WX25-P3-062）。いずれもトリガー/アクション全体が壊れた重い誤parse（WXDi-P07-044=「シグニ捨てた時→そのカード場出し」＋「手札以外から場出した時→相手凍結-2000」／WX25-P2-009=ゲーム全体能力付与＋リフレッシュ置換／WX25-P3-062=「他＜毒牙＞効果で相手パワー減った時」特殊トリガー）。各々新トリガー機構が要る。
 - **engine注意（重要）**: 動的フィルタ（`*LteLastProcessed`/`*DiscardSigni` 等）は**アクションごとに解決経路を個別確認**。`lastProcessedCards` を渡して resolveDynamicFilter する＝execBanish/SendToEnergy/Bounce/Search/REVEAL_AND_PICK/applyDirectAction。**キャスター値**（捨て札レベル等）は target-owner と別なので `resolveDiscardLevelFilter(filter, ctx.ownerState)` を使う（execTransferToHand/Deck に導入済）。新アクションに付ける時は渡っているか必ず確認（漏れると逆翻訳だけ出てengine無視＝偽陽性）。
 - **次の一手（候補・上から推奨）**:
-  1. **個別★割れ/誤parseの精査**（mechanical寄り）：WXK10-055（E2 が丸ごと誤parse＝バトル傀儡場出し→自身場出しに化け）等を1枚ずつ。`grouped_sentence_all.txt` の★（偽陽性§4を先に除外）。
-  2. **大型機構**（§5。1つ着手したら §5 の状態を `着手中(名前)` に）。最有力＝《相手ターン》トリガー基盤（影響最大）。
+  1. **個別★割れ/誤parseの精査**（mechanical寄り）：`grouped_sentence_all.txt` の★（偽陽性§4を先に除外）を1枚ずつ。
+  2. **大型機構**（§5。1つ着手したら §5 の状態を `着手中(名前)` に）。残＝【ビート】機構（44枚）／引用AUTO付与。
 - **着手中の機構**: なし
 - **注意/未解決**: 「脱落疑い件数」は指標にしない（§2）。WX24-P3-026-E1 は timing 誤り（原文「メイン開始時」が ON_PLAY）が**別途**残存。
 
