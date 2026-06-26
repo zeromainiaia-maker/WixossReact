@@ -138,6 +138,7 @@ export type ActiveCondition =
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // トラッシュにフィルタ一致カードがN枚以上あるかぎり（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」。G090）
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner } // このターンにシグニが場から手札に戻っていた場合（turn_signi_returned_to_hand。G087）
+  | { type: 'BEAT_CONDITION'; condText: string }               // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり（CONTINUOUS の常時能力ゲート。【常】《ビート》系）
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
