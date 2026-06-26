@@ -46,14 +46,10 @@
 - **⚠ ゲートは `npm run typecheck`（`tsc -b`）を使う**（plain `tsc --noEmit` は build-mode未使用でCIが拾うエラーを見逃す。今回それで既存CI赤に気づけなかった）。
 - **重要な調査結果**: クリーンな横展開系統・トリビアル個別★は枯れた。**大型機構が主戦場**。機構④で「ターン限定AUTO」を単一チョーク（initStack/pushToStack）で解決できたのが好例＝core収集点を個別に触らず安全に入れられた。
 - **機構④の残り**: 誤parse3枚（WXDi-P07-044／WX25-P2-009／WX25-P3-062）＋WX25-CP1-060-E2 本体は別課題（マーカーは正）。turnOwner の付け方は確立済（該当AUTO効果の triggerCondition に追加）。**ACTIVATED《相手ターン》は現データに該当0**（将来出たら BattleScreen の起動可否ゲートが要る）。
-- **次の一手（候補）**:
-  1. **次の大型機構（§5）**: 【ビート】機構（44枚・部分基盤あり）or 引用AUTO付与。着手したら §5 の状態を `着手中(名前)` に。
-  2. 機構④の誤parse3枚（WXDi-P07-044／WX25-P2-009／WX25-P3-062）。いずれもトリガー/アクション全体が壊れた重い誤parse（WXDi-P07-044=「シグニ捨てた時→そのカード場出し」＋「手札以外から場出した時→相手凍結-2000」／WX25-P2-009=ゲーム全体能力付与＋リフレッシュ置換／WX25-P3-062=「他＜毒牙＞効果で相手パワー減った時」特殊トリガー）。各々新トリガー機構が要る。
-- **engine注意（重要）**: 動的フィルタ（`*LteLastProcessed`/`*DiscardSigni` 等）は**アクションごとに解決経路を個別確認**。`lastProcessedCards` を渡して resolveDynamicFilter する＝execBanish/SendToEnergy/Bounce/Search/REVEAL_AND_PICK/applyDirectAction。**キャスター値**（捨て札レベル等）は target-owner と別なので `resolveDiscardLevelFilter(filter, ctx.ownerState)` を使う（execTransferToHand/Deck に導入済）。新アクションに付ける時は渡っているか必ず確認（漏れると逆翻訳だけ出てengine無視＝偽陽性）。
-- **次の一手（候補・上から推奨）**:
-  1. **個別★割れ/誤parseの精査**（mechanical寄り）：`grouped_sentence_all.txt` の★（偽陽性§4を先に除外）を1枚ずつ。
-  2. **大型機構**（§5。1つ着手したら §5 の状態を `着手中(名前)` に）。残＝【ビート】機構（44枚）／引用AUTO付与。
-- **着手中の機構**: なし
+- **機構④の誤parse3枚（中リスク・別系統）**: WXDi-P07-044=「シグニ捨てた時→そのカード場出し」＋「手札以外から場出した時→相手凍結-2000」／WX25-P2-009=ゲーム全体能力付与＋リフレッシュ置換／WX25-P3-062=「他＜毒牙＞効果で相手パワー減った時」特殊トリガー。いずれもトリガー/アクション全体が壊れた重い誤parseで新トリガー機構が要る。
+- **⚠ ゲートは `npm run typecheck`（`tsc -b`）を使う**（plain `tsc --noEmit` は CI が拾うエラーを見逃す）。**effects_*.json は手動管理＝`build:effects` 禁止**。**日本語含むスクリプトは scratchpad に .mjs を書いて `node` 実行**（papaparse 等の解決のためカード参照スクリプトは project root に一時cpして実行・終わったら削除）。
+- **engine注意（重要）**: 動的フィルタ（`*LteLastProcessed`/`*DiscardSigni` 等）は**アクションごとに解決経路を個別確認**。`lastProcessedCards` を渡して resolveDynamicFilter する＝execBanish/SendToEnergy/Bounce/Search/REVEAL_AND_PICK/applyDirectAction。**キャスター値**は `resolveDiscardLevelFilter(filter, ctx.ownerState)`。
+- **着手中の機構**: 【ビート】（zerom が Phase1-3 完了。残サブタスクは karka が継続可。新規に別パートへ深入りする場合は §5 を `着手中(karka)` に）。
 - **注意/未解決**: 「脱落疑い件数」は指標にしない（§2）。WX24-P3-026-E1 は timing 誤り（原文「メイン開始時」が ON_PLAY）が**別途**残存。
 
 ### 共有ファイルの扱い
