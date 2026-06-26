@@ -854,6 +854,7 @@ const timingJa: Record<string, string> = {
   ON_FRONT_SIGNI_ATTACK: 'このシグニの正面のシグニがアタックしたとき',
   ON_ZONE_MOVED: 'このシグニが効果によって他のシグニゾーンに移動したとき',
   ON_SIGNI_BECOMES_DRIVE: 'このシグニがドライブ状態になったとき',
+  ON_BECOME_BEAT: 'このカードが【ビート】になったとき',
   ON_HAND_DISCARDED: 'ガードステップ以外であなたが手札を捨てたとき',
   ON_DISCARDED_AS_COST: 'このカードがシグニ能力のコストとして手札から捨てられたとき',
 };
