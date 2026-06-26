@@ -70,7 +70,7 @@
 | 機構 | 影響 | リスク | 状態 |
 |---|---|---|---|
 | ~~《相手ターン》/《自分ターン》AUTOトリガー基盤~~ | — | — | **実装済（機構④・BUGFIXES参照）**。AUTO 30枚配線。effectStack でゲート。残: ACTIVATED版（該当0だった）・誤parse3枚 |
-| 【ビート】機構 | 44枚 | 中（部分基盤あり・曖昧） | **着手中(zerom)**＝《ビート》[条件]ゲート配線12効果＋ON_BECOME_BEATトリガー8枚（BUGFIXES参照）。残: **`cost.beat_signi` のengine未処理**（出/起「シグニを【ビート】にする」コスト＝beat化が起きない）／コスト型《ビート》[4枚以下]使用ゲート／MAKE_BEAT正規化 |
+| 【ビート】機構 | 44枚 | 中（部分基盤あり・曖昧） | **着手中(zerom)**＝《ビート》[条件]ゲート12効果＋ON_BECOME_BEAT8枚＋**cost.beat_signi支払い実装**（BUGFIXES参照）。残: コスト型《ビート》[4枚以下]使用ゲート（ACTIVATEDは e.condition enforcement要）／beat対象のプレイヤー選択UI（現状自動近似）／MAKE_BEAT正規化 |
 | 引用AUTO付与の精緻化（GRANT_QUOTED_AUTO_ABILITY） | 中 | 中 | 未着手 |
 | ~~傀儡場出しの汎用化（STEAL_OPP_TRASH_PUPPET を count/optional/level対応へ）＋ON_BATTLE_BANISH被バニッシュ参照~~ | 小〜中（WXK10-055 等） | 中 | **実装済（BUGFIXES参照）**。WXK10-055 全効果再構築。残: 他に同型の傀儡カードがあれば横展開可 |
 | ~~`levelLteLastProcessed` フィルタ~~ | — | — | **実装済**（BUGFIXES参照） |
