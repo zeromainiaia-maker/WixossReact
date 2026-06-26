@@ -6300,7 +6300,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.timing?.includes('ON_PLAY') &&
         (e.triggerScope === undefined || e.triggerScope === 'self') &&
         e.mandatory === false &&
-        e.cost,
+        e.cost &&
+        // 使用条件（《ビートアイコン》[N枚以下]ゲート＝BEAT_CONDITION や「〜の場合にしか使用できない」）を満たさない【出】コスト効果は提示しない
+        (!e.condition || evalUseCondition(e.condition, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
       );
       // 収集漏れ検出: mandatory:false+costなしはどちらの収集にも入らず無発火（v0.261コインバグと同型。JSON側のcost表現が必要）
       const droppedOnPlay = ownEffects.filter(e =>

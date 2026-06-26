@@ -5,6 +5,18 @@
 
 ---
 
+## 機構：【ビート】機構 Phase4 ＝ コスト型《ビートアイコン》[４枚以下]使用ゲートの配線（2026-06-26）
+
+「【出】/【起】《ビートアイコン》［４枚以下］…シグニを【ビート】にする：〜」の使用ゲート（自分の【ビート】が条件を満たすかぎり使用可）を9効果に配線。従来 parser はこのゲートを脱落させ無条件発動だった。Phase1 の CONTINUOUS/AUTO ゲートに続き、コスト型【出】/【起】を網羅。
+
+- **JSON配線9効果**: `condition:{type:'BEAT_CONDITION',condText:'４枚以下'}` を付与。ON_PLAY=WXK08-043-E1／068-E1／075-E1・WXK10-041-E3・WDK14-011-E1／012-E1／014-E2、ACTIVATED=WXK08-026-E2／046-E1。
+- **engine（収集ゲート）**: 【出】コスト効果の収集 `ownCostOnPlay`（BattleScreen `handleSummonSigni`）が `e.condition` を**未評価**だった→`evalUseCondition` で評価を追加（使用条件を満たさない【出】コスト効果はモーダル提示しない）。**ACTIVATED は既存の発動可否ゲート（line ~11320）が `e.condition` を評価済＝配線のみで機能**（バトンの「ACTIVATEDは e.condition 未評価」は 2026-05-28 に解消済で誤りだった）。
+- **収集ゲートの副次効果**: 同filterに該当する唯一の既存条件付き【出】コスト効果 WX06-027-E1（「この能力は対戦相手のエナが４枚以下の場合にしか使用できない」）も正しくゲートされるようになった（従来は無条件提示の潜在バグ）。**ゲートは支払い前の状態で評価**＝「コストの支払いで【ビート】が５枚以上になっても発動する」公式裁定とも整合。
+- **decompiler**: 既存 condJa(BEAT_CONDITION) で「あなたの【ビート】が４枚以下の場合、」描画。併せて `TRASH_SIGNI_TO_BEAT`／`INTERNAL_MOVE_TO_BEAT` のSTUB説明も追加（WDK14-011-E1 等の生ID解消）。
+- **smokeテスト**: `_verifyBeatUseGate.ts`（[４枚以下]境界=4可/5不可・[５枚以上]逆ゲート 計6ケース・全pass）。
+- `npm run typecheck`（tsc -b）通過・sheet4/5＋下流再生成・同型★0維持。**要実機検証**（[４枚以下]ゲートの開閉／コスト支払いで5枚超過時も発動）。
+- **残（次の beat サブタスク）**: ①**WDK14-013-E1**＝「トラッシュから＜悪魔＞シグニ1枚を【ビート】にする」コスト＋「この方法で【ビート】が4枚になった場合」条件＝**新コスト機構が要る**（現状 mandatory:false＋cost無し＝dropped で無発火）②beat対象のプレイヤー選択UI（payBeatSigniCost はレベル低い順の自動近似）③MAKE_BEAT アクションの正規化。
+
 ## 機構：【ビート】機構 Phase3 ＝ cost.beat_signi（シグニを【ビート】にするコスト）の支払い実装（2026-06-26）
 
 「【出】/【起】…シグニを【ビート】にする：〜」のコストが engine 未処理（＝コスト未払いで素通り・beat 化が起きずON_BECOME_BEATも不発）だったのを実装。これで beat_signi 経由でも beat_zone へ入り、Phase2 の ON_BECOME_BEAT チェーンが発火する。

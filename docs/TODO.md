@@ -51,7 +51,7 @@
 ### 6. 次の一手（機構実装の候補・影響枚数順）
 当初ユーザー方針＝「影響枚数が多い順に機構を1つずつ」。残候補：
 - **《相手ターン》/《自分ターン》トリガー基盤**（最高価値・最高リスク）：`IS_MY_TURN`はevalCondition常時true・`TURN_OWNER`はCONTINUOUS activeConditionのみ。AUTO/ACTIVATEDのターン限定発動が未対応。多数の付与能力の前提。core（トリガー収集＝effectEngine `collectSelfEventTriggers`/BattleScreen）に踏み込む。
-- **【ビート】機構**（出現44・部分基盤 `beat_zone`/`BEAT_CONDITION`/`beat_signi` あり・大きく曖昧）：WDK14-008 等。
+- ~~**【ビート】機構**（出現44）~~ → **Phase1-4実装済**（《ビート》[条件]ゲート12＋ON_BECOME_BEAT8＋cost.beat_signi支払い＋コスト型[４枚以下]使用ゲート9。BUGFIXES参照）。**残**: WDK14-013-E1のトラッシュ→beatコスト機構／beat対象のプレイヤー選択UI（現状レベル低い順の自動近似）／MAKE_BEAT正規化／WDK14-008（公開4→1手札＋1ビート→ビート同レベルの相手バニッシュ）。
 - **引用能力付与の精緻化**（`GRANT_QUOTED_AUTO_ABILITY` 系・ヒューリスティック）：WX25-CP1-074・WXK09-055・WX24-P2-044 等の「シグニに『〜』を付与」。
 - ~~**`LOOK_PICK_CHAIN` の field 宛先拡張**~~ → **実装済み（機構実装③・BUGFIXES参照）**。WXDi-P16-035・WXDi-P02-020・WX24-P1-026 配線済。**残**: WX24-P1-017・WX25-P3-038（場出しシグニへ引用AUTO付与＝GRANT_EFFECT要・引用付与タスク）／WX25-P1-039（`levelLteLastProcessed` フィルタ新設要）／WX25-CP1-025（hand＋「白を手札に加えた場合」条件）／WX26-CP1-019（CHOOSE2分岐×look→ener/hand）。
 - 個別の複合（place-swap WXDi-P08-037／look-pickチェーン WX26-CP1-019・WX25-P1-103／ウィルス数スケール WX16-048/023 等）は TODO 下部参照。
