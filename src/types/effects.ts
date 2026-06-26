@@ -332,6 +332,7 @@ export interface TargetFilter {
   levelLteFieldVirusCount?: boolean; // レベルが場（両プレイヤー）にある【ウィルス】の数以下 → level:{max:N}に解決（WX16-005）
   powerLteLastProcessed?: boolean; // パワーが直前に処理したシグニ（lastProcessedCards[0]）の実効パワー以下 → powerRange.max に解決（「ダウンしたそのシグニのパワー以下」WD04-018）
   levelLteLastProcessed?: boolean; // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル以下 → level.max に解決（「この方法で場に出たシグニのレベル以下」WX25-P1-039 等）
+  levelEqLastProcessed?: boolean;  // レベルが直前に処理したシグニと同じ → level.min/max に解決（「この方法で【ビート】にしたシグニと同じレベル」WDK14-008）
   levelLteDiscardSigni?: boolean; // レベルが handDiscardSigni コストで捨てたシグニ（caster.last_discarded_signi_level）のレベル以下 → level.max に解決（「この方法で捨てたシグニのレベル以下」WX22-046/WXK10-044 等）
 }
 
@@ -376,6 +377,7 @@ export type EffectAction =
   | ShuffleDeckAction
   | RevealAction
   | AddToHandAction
+  | AddToBeatAction
   | AddToEnergyAction
   | TransferToHandAction
   | AddToFieldAction
@@ -618,6 +620,12 @@ export interface RevealAction {
 
 export interface AddToHandAction {
   type: 'ADD_TO_HAND'; // SEARCH内で直前に選んだカードを手札へ
+  owner: Owner;
+}
+
+// SEARCH/LOOK_PICK_CHAIN 内で直前に選んだカード（公開中のデッキ等）を【ビート】にする（beat_zone へ＋ON_BECOME_BEAT 用フラグ）。WDK14-008
+export interface AddToBeatAction {
+  type: 'ADD_TO_BEAT';
   owner: Owner;
 }
 
@@ -907,7 +915,7 @@ export interface AttachCharmAction {
 export interface LookPickChainStage {
   filter?: TargetFilter;          // ピック対象フィルタ（省略=任意カード）
   pickCount: number;              // 上限枚数（「N枚まで」）
-  then: 'hand' | 'energy' | 'trash' | 'field'; // ピック先（手札／エナ／トラッシュ／場出し）
+  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat'; // ピック先（手札／エナ／トラッシュ／場出し／【ビート】化）
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
   pickNoun?: string;              // 逆翻訳の名詞（既定「シグニ」。任意カードは「カード」）
 }

@@ -793,6 +793,15 @@ function resolveDynamicFilter(
       ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: lvl } }
       : rest;
   }
+  if (result.levelEqLastProcessed) {
+    const { levelEqLastProcessed: _le, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const lvl = ref ? parseInt(cardMap.get(getCardNum(ref))?.Level ?? '', 10) : NaN;
+    // 同じレベル＝min/max を同値に。参照不能（NaN・非シグニ等）なら到達不能 level にして空ヒット
+    result = !isNaN(lvl)
+      ? { ...rest, level: { min: lvl, max: lvl } }
+      : { ...rest, level: { min: 99, max: -1 } };
+  }
   if (result.colorMatchesLrig || result.colorNotMatchesLrig) {
     const lrigTop = ownerSt.field.lrig.at(-1);
     const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
@@ -2527,11 +2536,13 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field', owner: Owner): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat', owner: Owner): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
   if (then === 'energy') return { type: 'ADD_TO_ENERGY', owner } as EffectAction;
   // 'field': resumeSearch の ADD_TO_FIELD 分岐がゾーン選択チェーン＋外側 continuation を処理する
   if (then === 'field') return { type: 'ADD_TO_FIELD', owner } as EffectAction;
+  // 'beat': 公開中のデッキカードを【ビート】にする（applyDirectAction の ADD_TO_BEAT 分岐・ゾーン選択不要）
+  if (then === 'beat') return { type: 'ADD_TO_BEAT', owner } as EffectAction;
   return { type: 'TRASH', target: { type: 'DECK_CARD', owner } } as EffectAction;
 }
 
@@ -4409,6 +4420,24 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       const newSE: PlayerState = { ...sE, energy: [...sE.energy, cardNum] };
       return done(addLog({ ...ctx, ownerState: newSE }, `${ctx.cardMap.get(cnE)?.CardName ?? cnE}をエナゾーンへ`));
+    }
+    case 'ADD_TO_BEAT': {
+      // 公開中のデッキ（またはトラッシュ/手札）のカードを【ビート】にする（beat_zone へ＋ON_BECOME_BEAT 用フラグ）。WDK14-008
+      const cnB = getCardNum(cardNum);
+      let sB = { ...ctx.ownerState };
+      const diB = sB.deck.indexOf(cardNum);
+      if (diB >= 0) { const d = [...sB.deck]; d.splice(diB, 1); sB = { ...sB, deck: d }; }
+      else {
+        const tiB = sB.trash.indexOf(cardNum);
+        if (tiB >= 0) { const t = [...sB.trash]; t.splice(tiB, 1); sB = { ...sB, trash: t }; }
+        else { const hiB = sB.hand.indexOf(cardNum); if (hiB >= 0) { const h = [...sB.hand]; h.splice(hiB, 1); sB = { ...sB, hand: h }; } }
+      }
+      const newSB: PlayerState = {
+        ...sB,
+        field: { ...sB.field, beat_zone: [...(sB.field.beat_zone ?? []), cardNum] },
+        beat_became_just: [...(sB.beat_became_just ?? []), cardNum],
+      };
+      return done(addLog({ ...ctx, ownerState: newSB }, `${ctx.cardMap.get(cnB)?.CardName ?? cnB}を【ビート】にする`));
     }
     case 'TRANSFER_TO_HAND': {
       const src = (action as TransferToHandAction).source;

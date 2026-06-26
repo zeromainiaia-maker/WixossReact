@@ -5,6 +5,19 @@
 
 ---
 
+## 機構：【ビート】機構 Phase6 ＝ look→pick の【ビート】化宛先＋同レベルバニッシュ（WDK14-008・2026-06-26）
+
+WDK14-008（アーツ「回心転火」）を実装。従来は bare `LOOK_AND_REORDER`（見て下に戻すだけ）で「1枚手札に加え／1枚【ビート】にし／その後この方法で【ビート】にしたシグニと同レベルの相手をバニッシュ」が**丸ごと脱落**していた。LOOK_PICK_CHAIN に【ビート】化宛先を追加し、deferred だった multi-dest pick（手札＋beat）＋後続の同レベルバニッシュを表現・実装。
+
+- **型**: `AddToBeatAction`（'ADD_TO_BEAT'）新設＋EffectAction union 追加／`LookPickChainStage.then` に `'beat'`／`TargetFilter.levelEqLastProcessed`（同じレベル＝`level{min,max}` 同値に解決）。
+- **engine**: `lookPickThenAction('beat')`→ADD_TO_BEAT／`applyDirectAction` の ADD_TO_BEAT 分岐（公開デッキ/トラッシュ/手札のカードを beat_zone へ＋`beat_became_just`＝ON_BECOME_BEAT 連鎖）／`resolveDynamicFilter` に levelEqLastProcessed（参照不能＝非シグニ等なら空ヒット `level{min:99,max:-1}`）。
+- **chain→banish**: 既存 `SEQUENCE[LOOK_PICK_CHAIN, <action>]`（WX25-P1-039 と同型）に乗る。chain の最終 stage=beat pick が `lastProcessedCards` に残り、後続 BANISH(levelEqLastProcessed) が同レベルの相手シグニのみに候補を絞る。
+- **decompiler**: destVerb に 'beat'='【ビート】にし'／filterJa に levelEqLastProcessed。
+- **JSON**: WDK14-008-E1 = `SEQUENCE[ LOOK_PICK_CHAIN{reveal4, stages:[hand, beat], remainder:デッキ下}, BANISH{opponent, levelEqLastProcessed} ]`。アンコール－《コイン》は注記（偽陽性・非表現）。
+- **smokeテスト**: `_verifyBeatLookPick.ts`（ADD_TO_BEAT で beat_zone/became_just/lastProcessed 記録／levelEq で候補が同レベルのみ・他レベル除外／同レベル不在で空 計9ケース・全pass）。
+- `npm run typecheck`（tsc -b）通過・sheet5＋下流再生成・同型★0維持。**要実機検証**（look4→手札/beat の2連ピック対話→同レベルバニッシュ・ON_BECOME_BEAT連鎖）。
+- **再利用可**: `then:'beat'` は他の look→beat カードに、`levelEqLastProcessed` は「同じレベル」参照に流用可。
+
 ## 機構：【ビート】機構 Phase5 ＝ トラッシュ→beat コスト（beat_signi_from_trash）＋WDK14-013（2026-06-26）
 
 Phase4 で「残」とした **WDK14-013-E1** を実装。「【出】《ビート》[４枚以下]**トラッシュから＜悪魔＞のシグニ１枚を【ビート】にする**：この方法で【ビート】が４枚になった場合、カードを１枚引く」。従来は `mandatory:false`＋cost無し＝dropped で**無発火**（コストも条件も脱落）だった。既存 `beat_signi`（場シグニ→beat）とは別経路の**トラッシュ→beat コスト**を新設。

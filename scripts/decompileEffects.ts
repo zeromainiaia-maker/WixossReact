@@ -110,6 +110,7 @@ function filterJa(f?: any): string {
   if (f.powerLtSelf) parts.push('このシグニよりパワーの低い');
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.levelLteLastProcessed) parts.push('この方法で処理したシグニのレベル以下の');
+  if (f.levelEqLastProcessed) parts.push('この方法で【ビート】にしたシグニと同じレベルの');
   if (f.levelLteDiscardSigni) parts.push('この方法で捨てたシグニのレベル以下の');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
   if (f.noGuard) parts.push('《ガードアイコン》を持たない');
@@ -517,7 +518,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}てもよい`;
     }
     case 'LOOK_PICK_CHAIN': {
-      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : 'トラッシュに置き';
+      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : 'トラッシュに置き';
       const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${numJa(s.pickCount)}枚まで${destVerb(s.then)}`;
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.position === 'top' ? '残りをデッキの上に戻す'

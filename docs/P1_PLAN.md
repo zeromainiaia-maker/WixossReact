@@ -36,10 +36,10 @@
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
 - **最終更新**: 2026-06-26（karka → **次の人へ**）
-- **直近やったこと（karka）**: **【ビート】機構 Phase4＋Phase5**。Phase4＝コスト型《ビート》[４枚以下]使用ゲート9効果（`ownCostOnPlay` に `evalUseCondition` 追加。ACTIVATEDゲート ~11320 は既に評価済でバトンの「未評価」は誤りだった）。Phase5＝**トラッシュ→beat コスト**（`beat_signi_from_trash`＋`payBeatSigniFromTrashCost`）で WDK14-013-E1（従来 dropped で無発火）を実装。「この方法で4枚になった場合」＝コスト後の `CONDITIONAL{BEAT_CONDITION'４枚'→DRAW}`。smoke 計54pass・同型★0。→ `BUGFIXES.md` 先頭2件。
+- **直近やったこと（karka）**: **【ビート】機構 Phase4-6**。Phase4＝コスト型《ビート》[４枚以下]使用ゲート9効果（`ownCostOnPlay` に `evalUseCondition` 追加。ACTIVATEDゲート ~11320 は既に評価済でバトンの「未評価」は誤りだった）。Phase5＝トラッシュ→beat コスト（`beat_signi_from_trash`）で WDK14-013。Phase6＝**look→pick の【ビート】化宛先**（`then:'beat'`/`AddToBeatAction`）＋`levelEqLastProcessed`（同レベル）で WDK14-008（従来 bare LOOK_AND_REORDER で丸ごと脱落）。smoke 計63pass・同型★0。→ `BUGFIXES.md` 先頭3件。
 - **直近やったこと（zerom）**: **【ビート】機構 Phase1-3**（《ビート》[条件]ゲート12＋ON_BECOME_BEAT8＋cost.beat_signi支払い）。→ `BUGFIXES.md`。
 - **🎯 次の一手（上から推奨）**:
-  1. **【ビート】機構の残り**: (a) **beat対象のプレイヤー選択UI**＝`payBeatSigniCost`（場・レベル低い順）と `payBeatSigniFromTrashCost`（トラッシュ・先頭）が**ともに自動近似**。「他のシグニ1体を【ビート】にする」等で複数候補があるときプレイヤーに選ばせる対話が無い。場シグニ→beat の選択UIが本命。(b) MAKE_BEAT アクションの正規化（INTERNAL_MOVE_TO_BEAT/TRASH_SIGNI_TO_BEAT/beat_signi 系の整理）。(c) WDK14-008（公開4→1手札＋1ビート→ビート同レベルの相手バニッシュ）。**手本は BUGFIXES 先頭のPhase1-5**。
+  1. **【ビート】機構の残り（ほぼ最後）**: (a) **beat対象のプレイヤー選択UI**＝`payBeatSigniCost`（場・レベル低い順）/`payBeatSigniFromTrashCost`（トラッシュ・先頭）/ADD_TO_BEAT（look-pick=プレイヤー選択済）が**自動近似**。「他のシグニ1体を【ビート】にする」等で複数候補があるとき選ばせる対話が無い（場シグニ→beat が本命）。**UI作業＝実機検証必須・ヘッドレス不可**。(b) MAKE_BEAT アクションの正規化（INTERNAL_MOVE_TO_BEAT/TRASH_SIGNI_TO_BEAT/beat_signi/ADD_TO_BEAT 系の整理）。**→ ビートはコア表現はほぼ完了。次は §5 の別機構へ移る判断もあり。**
   2. または **次の大型機構（§5）**: 引用AUTO付与（GRANT_QUOTED_AUTO_ABILITY精緻化）。着手したら §5 を `着手中(名前)` に。
   3. または **機構④の誤parse3枚**（WXDi-P07-044／WX25-P2-009／WX25-P3-062＝下記）。
 - **⚠ 実機検証の宿題（ヘッドレス不可・PvP/CPU要）**: ビート Phase1-3 は全て **要実機検証**（[条件]ゲートの開閉／ON_BECOME_BEAT watcher の self/any_ally 出し分け・CPU代行／beat_signi の出・起発動→beat化→ON_BECOME_BEAT連鎖）。
@@ -72,7 +72,7 @@
 | 機構 | 影響 | リスク | 状態 |
 |---|---|---|---|
 | ~~《相手ターン》/《自分ターン》AUTOトリガー基盤~~ | — | — | **実装済（機構④・BUGFIXES参照）**。AUTO 30枚配線。effectStack でゲート。残: ACTIVATED版（該当0だった）・誤parse3枚 |
-| 【ビート】機構 | 44枚 | 中（部分基盤あり・曖昧） | **着手中**＝Phase1-5実装済（《ビート》[条件]ゲート12＋ON_BECOME_BEAT8＋cost.beat_signi支払い＋コスト型[４枚以下]使用ゲート9＋**トラッシュ→beatコスト/WDK14-013**。BUGFIXES参照）。残: beat対象のプレイヤー選択UI（場/トラッシュとも自動近似）／MAKE_BEAT正規化／WDK14-008 |
+| 【ビート】機構 | 44枚 | 中（部分基盤あり・曖昧） | **ほぼ完了**＝Phase1-6実装済（《ビート》[条件]ゲート12＋ON_BECOME_BEAT8＋cost.beat_signi支払い＋コスト型[４枚以下]使用ゲート9＋トラッシュ→beatコスト/WDK14-013＋**look→pick の beat化宛先/同レベルバニッシュ/WDK14-008**。BUGFIXES参照）。残: beat対象のプレイヤー選択UI（自動近似・要実機）／MAKE_BEAT正規化 |
 | 引用AUTO付与の精緻化（GRANT_QUOTED_AUTO_ABILITY） | 中 | 中 | 未着手 |
 | ~~傀儡場出しの汎用化（STEAL_OPP_TRASH_PUPPET を count/optional/level対応へ）＋ON_BATTLE_BANISH被バニッシュ参照~~ | 小〜中（WXK10-055 等） | 中 | **実装済（BUGFIXES参照）**。WXK10-055 全効果再構築。残: 他に同型の傀儡カードがあれば横展開可 |
 | ~~`levelLteLastProcessed` フィルタ~~ | — | — | **実装済**（BUGFIXES参照） |
