@@ -8599,6 +8599,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               effectId: eff.effectId,
               label: `${battleCardMap.get(topNumBB)?.CardName ?? topNumBB} の【自】効果（バトルバニッシュ時）`,
               effect: eff,
+              triggeringCardNum: banishedOpCardNum, // 「そのシグニのレベル以下」等の被バニッシュ参照用
             } satisfies StackEntry);
           }
         }
