@@ -676,7 +676,16 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
       if (a.id === 'PLACE_LIMIT_UPPER') return 'あなたのルリグゾーンに【リミットアッパー】1つを置く';
-      if (a.id === 'STEAL_OPP_TRASH_PUPPET') return '対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（ベット時2枚／非ベット1枚。離場時は持ち主のトラッシュへ）';
+      if (a.id === 'STEAL_OPP_TRASH_PUPPET') {
+        const pp = (a as { puppetParams?: { count?: number; optional?: boolean; levelLteTrigger?: boolean } }).puppetParams;
+        if (pp) {
+          const n = pp.count ?? 1;
+          const lvl = pp.levelLteTrigger ? 'そのシグニのレベル以下の' : '';
+          const opt = pp.optional ? '出してもよい' : '出す';
+          return `対戦相手のトラッシュから${lvl}シグニ${n}枚を対象とし、それを傀儡状態であなたの場に${opt}（離場時は持ち主のトラッシュへ）`;
+        }
+        return '対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（ベット時2枚／非ベット1枚。離場時は持ち主のトラッシュへ）';
+      }
       if (a.id === 'DISRUPT_OPP_LRIG_UNDER_BY_TYPE') return '対戦相手のセンタールリグの下のカードを最大2枚、あなたのルリグデッキから同じルリグタイプのルリグ2枚をルリグトラッシュに置いてもよい。そうした場合、それらをルリグトラッシュに置く';
       if (a.id === 'GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG') return 'あなたの＜さんばか＞のルリグ1体に「【自】《ターン1回》：このルリグがアタックしたとき、このルリグをアップする」を付与する（ターン終了時まで）※ルリグ対象grant未配線';
       if (a.id === 'FREE_GROW_NEXT_TURN') return '次のあなたのターンの間、あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
