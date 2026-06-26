@@ -9,6 +9,7 @@ import type {
   EffectDuration,
   ActiveCondition,
   TargetFilter,
+  CardTypeFilter,
   EffectTarget,
   Owner,
   CompareOp,
@@ -717,6 +718,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return {
       condition: { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'gte', value: parseNum(trashM[1]) },
       rest: text.slice(trashM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン4a2: 「あなたのルリグトラッシュに〔アーツ/スペル/シグニ/カード〕が(N枚以上)?あるかぎり、」（ルリグトラッシュ枚数条件。WDK03-015/WXK01-098）
+  const lrigTrashM = text.match(/^あなたのルリグトラッシュに(アーツ|スペル|シグニ|カード)が(?:([０-９\d]+)枚以上)?あるかぎり、/);
+  if (lrigTrashM) {
+    const noun = lrigTrashM[1];
+    return {
+      condition: { type: 'LRIG_TRASH_COUNT', ...(noun !== 'カード' ? { cardType: noun as CardTypeFilter } : {}), operator: 'gte', value: lrigTrashM[2] ? parseNum(lrigTrashM[2]) : 1 },
+      rest: text.slice(lrigTrashM[0].length),
       conditionFound: true,
     };
   }
