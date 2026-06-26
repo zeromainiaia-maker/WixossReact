@@ -277,6 +277,9 @@ export interface PlayerState {
   // このプレイヤーのシグニがドライブ状態になった（ルリグがライドした）直後にセット: 新たにドライブ状態になったシグニのCardNum
   // （BattleScreenでON_SIGNI_BECOMES_DRIVEトリガー検出用。所有者の state に積む。zone_moved_just と同型）
   drive_became_just?: string[] | null;
+  // このプレイヤーのカードが【ビート】になった直後にセット: 新たに【ビート】になったカードのCardNum
+  // （BattleScreenでON_BECOME_BEATトリガー検出用。所有者の state に積む。drive_became_just と同型）
+  beat_became_just?: string[] | null;
   // SUPPRESS_CENTER_ON_PLAY: このターン自分のセンタールリグの【出】効果は発動しない
   suppress_center_on_play?: boolean;
   // CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスがクラッシュされた場合エナではなくトラッシュへ
