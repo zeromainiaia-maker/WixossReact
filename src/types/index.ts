@@ -390,6 +390,8 @@ export interface PlayerState {
   lrig_upkeep_condition?: 'pay_colorless1' | 'pay_colorless3' | 'discard_or_colorless1';
   // DISCARD_BY_POWER_MATCH: 起動コスト支払い後に捨てたシグニのパワーを記録（次のexecStub呼び出しで参照）
   last_discarded_signi_power?: number;
+  // levelLteDiscardSigni: handDiscardSigniコストで捨てたシグニのレベルを記録（「この方法で捨てたシグニのレベル以下」WX22-046/WXK10-044 等）
+  last_discarded_signi_level?: number;
   // BET_CONDITION: このアーツ/効果でベット宣言していた場合 true（execStub内でチェック）
   is_betting_this_effect?: boolean;
   // ベットで実際に支払ったコイン枚数（可変ベット「好きな枚数」・段階ベット「or」のスケール用）。is_betting_this_effect と同時に設定/クリア

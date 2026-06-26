@@ -4115,6 +4115,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           opp_signi_energy_to_deck_bottom: undefined,
           is_betting_this_effect: undefined,          // BET_CONDITION: ターン終了時にクリア
           last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
+          last_discarded_signi_level: undefined,      // levelLteDiscardSigni: ターン終了時にクリア
           cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
         };
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
@@ -4373,7 +4374,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
         turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined,
-        is_betting_this_effect: undefined, last_discarded_signi_power: undefined,
+        is_betting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
       };
@@ -10290,6 +10291,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_discarded_signi_power: discardedCards.length > 0
           ? (parseInt(battleCardMap.get(discardedCards[0])?.Power ?? '0', 10) || undefined)
           : my.last_discarded_signi_power,
+        // levelLteDiscardSigni: handDiscardSigniコストで捨てたシグニのレベルを記録
+        last_discarded_signi_level: discardedCards.length > 0
+          ? (() => { const lv = parseInt(battleCardMap.get(discardedCards[0])?.Level ?? '', 10); return isNaN(lv) ? my.last_discarded_signi_level : lv; })()
+          : my.last_discarded_signi_level,
       };
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
       if (effect.cost?.trashExile?.self) {

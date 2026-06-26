@@ -5,6 +5,18 @@
 
 ---
 
+## 小機構：levelLteDiscardSigni（コストで捨てたシグニのレベル以下）＋配線2枚（2026-06-26）
+
+「`handDiscardSigni` コストで捨てたシグニのレベル以下」を参照する動的フィルタを新設。`last_activated_discard_level_sum` は別系統（discardVarCards）専用で **handDiscardSigni の捨て札レベルは記録されていなかった**（パワーは `last_discarded_signi_power` で記録済だがレベルは欠落）ため、レベル記録から追加。
+
+- **状態**: `PlayerState.last_discarded_signi_level`（index.ts）。
+- **記録**: BattleScreen のコスト支払いで `discardedCards[0]` の Level を記録（`last_discarded_signi_power` の隣）。クリアはターン境界2箇所（line~4117/~4378）に追記。
+- **型/解決**: `TargetFilter.levelLteDiscardSigni`（effects.ts）。`resolveDiscardLevelFilter(filter, casterState)` を新設し **常にキャスター（ctx.ownerState）の値**で `level.max` に解決（対象が相手でもキャスターの捨て札を参照するため、target-owner を渡す resolveDynamicFilter とは別経路）。execTransferToHand（TRASH_CARD源）と execTransferToDeck（SIGNI源）の filter 前処理に組込み。
+- **decompiler**: filterJa に「この方法で捨てたシグニのレベル以下の」。
+- **配線2枚**: WX22-046（トラッシュから＜天使＞＋レベル以下を手札へ。天使クラス自体も脱落していたので併せて復元）／WXK10-044-E2（捨てたレベル以下の相手シグニをデッキトップへ）。
+- **カバレッジ注意**: `last_discarded_signi_*` を設定するのはコスト支払いの1経路のみ＝既存パワー版と同等。別経路（CPU等）での網羅は power版と共通の課題として残置。
+- `tsc` 通過。sheet3/4＋下流再生成済み。同型★ 0件。**要実機検証**。
+
 ## levelLteLastProcessed：engine解決の穴埋め（execBounce/execSearch）＋WXEX2-17（2026-06-26）
 
 前項で新設した `levelLteLastProcessed`（および既存 `powerLteLastProcessed`）が、**一部アクションの実行経路で `resolveDynamicFilter` に `lastProcessedCards` が渡っておらず解決されない**穴を発見・是正（＝逆翻訳に出るのにエンジンが無視する偽陽性の防止）。

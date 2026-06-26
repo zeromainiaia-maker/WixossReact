@@ -751,6 +751,21 @@ function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, newS, ctx), 'デッキをシャッフル'));
 }
 
+// levelLteDiscardSigni:「この方法で捨てたシグニのレベル以下」を caster（効果実行者）の
+// last_discarded_signi_level で level.max に解決。対象オーナーに依らず常にキャスター側の値を読むため、
+// resolveDynamicFilter とは別に ctx.ownerState を明示で渡すこの関数で前処理する。
+function resolveDiscardLevelFilter(
+  filter: import('../types/effects').TargetFilter | undefined,
+  casterState: import('../types').PlayerState,
+): import('../types/effects').TargetFilter | undefined {
+  if (!filter?.levelLteDiscardSigni) return filter;
+  const { levelLteDiscardSigni: _x, ...rest } = filter;
+  const lvl = casterState.last_discarded_signi_level;
+  return (lvl != null && !isNaN(lvl))
+    ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: lvl } }
+    : rest;
+}
+
 function resolveDynamicFilter(
   filter: import('../types/effects').TargetFilter | undefined,
   ownerSt: import('../types').PlayerState,
@@ -813,7 +828,7 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
     if (src.filter?.thisCardOnly) {
       cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
     } else {
-      const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt);
+      const resolvedFilter = resolveDynamicFilter(resolveDiscardLevelFilter(src.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt);
       cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
@@ -2276,7 +2291,8 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   if (src.type === 'SIGNI') {
     // frontOfGateZone: THE DOOR【ゲート】がある自分のシグニゾーンの正面にある対戦相手のシグニに限定
     let gateFrontRestrict: string[] | null = null;
-    let srcFilter = src.filter;
+    // levelLteDiscardSigni:「この方法で捨てたシグニのレベル以下」をキャスター側の値で解決（WXK10-044）
+    let srcFilter = resolveDiscardLevelFilter(src.filter, ctx.ownerState);
     if (srcFilter?.frontOfGateZone) {
       const { frontOfGateZone: _g, ...rest } = srcFilter;
       srcFilter = rest;
