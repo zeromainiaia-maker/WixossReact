@@ -275,7 +275,7 @@ function condJa(c?: any): string {
     case 'TRASHED_STORY_COUNT_GTE': return `この方法で${numJa(c.count)}体の＜${c.story}＞のシグニがトラッシュに置かれた`;
     case 'LAST_PROCESSED_POWER_GTE': return `直前に選んだシグニのパワー${c.addDelta ? `（+${c.addDelta}後）` : ''}が${numJa(c.value)}以上`;
     case 'ENERGY_TRASH_COLOR_COUNT_GTE': return `この方法で指定色のカードが${numJa(c.value)}枚以上トラッシュに置かれた`;
-    case 'BEAT_CONDITION': return `《ビート》[${c.condText ?? ''}]`;
+    case 'BEAT_CONDITION': return `あなたの【ビート】が${c.condText ?? ''}`;
     case 'COND_STUB': return `[条件STUB:${c.raw ?? ''}]`;
     // ── ActiveCondition（CONTINUOUS の activeCondition）系 ──
     case 'COUNT_THRESHOLD': {
