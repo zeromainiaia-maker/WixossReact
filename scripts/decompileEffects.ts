@@ -716,6 +716,17 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DOUBLE_POWER_MINUS' || a.id === 'POWER_MOD_PER_OPPONENT_FIELD') return '対戦相手の場のシグニ数に応じてパワーを±する／パワーをN倍にする（テキスト記載）';
       if (a.id === 'BANISH_TO_LRIG_TRASH_INSTEAD') return 'このカードがバニッシュされる場合、代わりにルリグトラッシュに置く';
       if (a.id === 'DECLARE_COLOR') return '色（白/赤/青/緑/黒）を1つ宣言する';
+      if (a.id === 'TRASH_ALL_SIGNI_AND_KEY') return '対象プレイヤーのシグニすべてとキーをトラッシュ／ルリグトラッシュに置く';
+      if (a.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || a.id === 'SPECIFIC_CARD_COST_REDUCE') return 'トラッシュ枚数等に応じてスペル／特定カードの使用コストを軽減する';
+      if (a.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') return 'このシグニは場から手札に戻らない';
+      if (a.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') return 'このシグニは対戦相手の効果によって能力を失わない';
+      if (a.id === 'PREVENT_POWER_MINUS_BY_OPP') return 'このシグニは対戦相手の効果によってパワーをマイナスされない';
+      if (a.id === 'NEGATE_ATTACK_ON_TRIGGER') return 'そのアタックを無効にしてもよい';
+      if (a.id === 'CHOOSE_SAME_OPTION_TWICE' || a.id === 'CHOOSE_SAME_OPTION_MULTIPLE') return '同じ選択肢を複数回選ぶ';
+      if (a.id === 'INHERIT_OPP_LRIG_TYPE') return '対戦相手のセンタールリグのルリグタイプを得る';
+      if (a.id === 'MULTI_ZONE_ATTACK') return '複数のシグニゾーンに対してアタックできる（アタック範囲の特殊ルール）';
+      if (a.id === 'SET_ACCE_CHOICE') return '【アクセ】装着時に付与する能力を1つ選ぶ';
+      if (a.id === 'GRANT_LEAVE_PLACE_PENDING') return 'シグニが場を離れたときに発動する配置能力を付与する（機構未実装・近似）';
       if (a.id === 'PLACE_LIMIT_UPPER') return 'あなたのルリグゾーンに【リミットアッパー】1つを置く';
       if (a.id === 'STEAL_OPP_TRASH_PUPPET') {
         const pp = (a as { puppetParams?: { count?: number; optional?: boolean; levelLteTrigger?: boolean } }).puppetParams;
