@@ -668,6 +668,28 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.source?.type === 'HAND_CARD') return `${ownerJa(a.source.owner)}手札から${filterJa(a.source.filter)}シグニ${a.source.count ?? 1}枚を公開する`;
       return `${ownerJa(a.owner)}デッキの上を公開する`;
     case 'GRANT_LRIG_ABILITY': return `あなたのセンタールリグは『${(a.abilities || []).map(effJa).join(' / ') || a.rawText || ''}』を得る`;
+    case 'AWAKEN_SIGNI': return 'このシグニを覚醒状態にする';
+    case 'GAIN_BOND': return a.source === 'declared'
+      ? 'あなたのデッキからカード1枚を選び、そのカード名との絆を獲得する'
+      : '直前に見つけたカード名との絆を獲得する';
+    case 'GROW_COST_REDUCTION': return `あなたの次のグロウコストを${costJa(a.reduction)}減らす`;
+    case 'LRIG_LIMIT_MODIFY': {
+      const untilLLM = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次のターンの間）' : '';
+      return `${ownerJa(a.owner)}センタールリグのリミットを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${untilLLM}`;
+    }
+    case 'DISCARD_BOTH': return `あなたと対戦相手はそれぞれ手札を${a.count}枚捨てる`;
+    case 'RECOLLECT_GATE': return `（リコレクト：ルリグトラッシュのアーツが${a.minArts}枚以上ある場合のみ以下を行う）`;
+    case 'GRANT_ACCE_HOST_ABILITY': {
+      const hostGAH = a.filter ? filterJa(a.filter) : '';
+      const absGAH = (a.abilities || []).map(effJa).join(' / ');
+      return `これに【アクセ】されている${hostGAH}シグニは『${absGAH}』を得る${a.byChoice ? '（装着時に1つ選ぶ）' : ''}`;
+    }
+    case 'PLACE_VIRUS': {
+      const zonesPV = a.zoneCount === 'ALL' ? 'すべてのシグニゾーン' : `${a.zoneCount}つのシグニゾーン${a.upToZoneCount ? 'まで' : ''}`;
+      if (a.fillToTotal !== undefined) return `${ownerJa(a.targetOwner)}場の【ウィルス】の合計が${a.fillToTotal}つになるように【ウィルス】を置く`;
+      const pwPV = a.powerDeltaOnZone !== undefined ? `（そのゾーンのシグニのパワーを${a.powerDeltaOnZone >= 0 ? '＋' : '－'}${Math.abs(a.powerDeltaOnZone)}）` : '';
+      return `${ownerJa(a.targetOwner)}${zonesPV}に【ウィルス】を${a.virusCount > 1 ? `${a.virusCount}つずつ` : ''}置く${pwPV}`;
+    }
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
       // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）
