@@ -980,17 +980,22 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const delta = plusM ? parseNum(plusM[1]) : -(parseNum(minusM![1]));
     let target: EffectTarget;
     let isTriggerSource = false;
+    let excludeSelf = false;
     const iconM = t.match(/(あなた|対戦相手)の《(クロス|ライズ|トラップ|アクセ)アイコン》を持つシグニのパワーを/);
     if (iconM) {
       // 「あなたの《クロスアイコン》を持つシグニのパワーを＋Nする」等。対象は該当アイコン持ち全シグニ
       const owner: Owner = iconM[1] === 'あなた' ? 'self' : 'opponent';
       target = { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', hasIcon: iconM[2] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ' } };
-    } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:[白赤青緑黒]の|＜[^＞]+＞の|他の)?(?:すべての)?シグニのパワーを/)) {
+    } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:他の)?(?:[白赤青緑黒]の|＜[^＞]+＞の)?(?:すべての)?シグニのパワーを/)) {
+      // 「あなたの[他の][色|＜種族＞]の[すべての]シグニのパワーを±N」＝該当する自分シグニ全体への持続バフ。
+      // 「他の」併用時（例:「他の＜天使＞のシグニ」）も拾えるよう、他の/色/種族を独立オプションにする。
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t) } };
+      if (/あなたの他の/.test(t)) excludeSelf = true;
     } else if (t.match(/対戦相手のすべてのシグニ/) ||
                t.match(/(?:感染状態の)?対戦相手のシグニすべて/) ||
-               t.match(/対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞の|感染状態の)?(?:すべての)?シグニのパワーを/)) {
+               t.match(/対戦相手の(?:他の)?(?:[白赤青緑黒]の|＜[^＞]+＞の|感染状態の)?(?:すべての)?シグニのパワーを/)) {
       target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t), ...(t.includes('感染状態') ? { infected: true } : {}) } };
+      if (/対戦相手の他の/.test(t)) excludeSelf = true;
     } else if (t.match(/対戦相手の(?:感染状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
       target = parseSigniTarget(t, 'opponent');
     } else if (t.match(/あなたの(?:感染状態の)?シグニ([０-９\d]+)体/)) {
@@ -1008,6 +1013,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
     const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target, delta };
     if (isTriggerSource) pmAction.targetsTriggerSource = true;
+    if (excludeSelf) pmAction.excludeSelf = true;
     return pmAction;
   }
 

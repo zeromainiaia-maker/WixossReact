@@ -680,6 +680,19 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3z: 「あなたの場に[色][＜クラス＞]のシグニが(N体)?あるかぎり、」（色/クラス指定の存在条件。WX03-038「赤のシグニがあるかぎり」）
+  // 上の story/count/level 専用パターンに当たらない素の色・クラス存在条件を拾う（従来はキャッチオールで condition=undefined に落ちていた）。
+  const fieldColorStoryM = text.match(/^あなたの場に((?:[白赤青緑黒]の|＜[^＞]+＞(?:か)?)+)シグニが(?:([０-９\d]+)体)?あるかぎり、/);
+  if (fieldColorStoryM) {
+    const sub = fieldColorStoryM[1];
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseColorFilter(sub), ...parseStoryFilter(sub) };
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter, ...(fieldColorStoryM[2] ? { minCount: parseNum(fieldColorStoryM[2]) } : {}) },
+      rest: text.slice(fieldColorStoryM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
