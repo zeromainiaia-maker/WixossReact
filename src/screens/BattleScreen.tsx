@@ -2418,6 +2418,65 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myDriveBecameRef, cpuDriveBecameRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // カードが【ビート】になった直後フラグ（beat_became_just）を検出して ON_BECOME_BEAT を発火。
+  // フラグは【ビート】になったカードの所有者の state に積まれる（drive_became_just と同型）。
+  const myBeatBecameRef = (user && bs)
+    ? (user.id === bs.host_id ? bs.host_state?.beat_became_just : bs.guest_state?.beat_became_just)
+    : undefined;
+  const cpuBeatBecameRef = isCpuBattle ? bs?.guest_state?.beat_became_just : undefined;
+  useEffect(() => {
+    if (!bs || !user || loading) return;
+    if (bs.effect_stack || bs.pending_effect) return;
+    const localIsHost = user.id === bs.host_id;
+    const processOwn = !!(myBeatBecameRef && myBeatBecameRef.length > 0);
+    const processCpu = isCpuBattle && localIsHost && !!(cpuBeatBecameRef && cpuBeatBecameRef.length > 0);
+    if (!processOwn && !processCpu) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const entries: StackEntry[] = [];
+        const update: Record<string, unknown> = {};
+        const usedByKey: Record<string, string[]> = {};
+        const handleBeatFor = (ownerState: PlayerState, ownerKey: string, ownerId: string) => {
+          for (const becameNum of ownerState.beat_became_just ?? []) {
+            const r = collectBeatBecameTriggers(becameNum, ownerState, ownerId);
+            entries.push(...r.entries);
+            if (r.usedIds.length) usedByKey[ownerKey] = [...(usedByKey[ownerKey] ?? []), ...r.usedIds];
+          }
+        };
+        const hostS = bs.host_state, guestS = bs.guest_state;
+        if (processOwn) {
+          if (localIsHost) handleBeatFor(hostS, 'host_state', bs.host_id);
+          else handleBeatFor(guestS, 'guest_state', bs.guest_id);
+        }
+        if (processCpu) handleBeatFor(guestS, 'guest_state', CPU_PLAYER_ID);
+        const applyState = (key: string, base: PlayerState, clearFlag: boolean) => {
+          const used = usedByKey[key];
+          if (!used && !clearFlag) return;
+          update[key] = {
+            ...(update[key] as PlayerState ?? base),
+            ...(clearFlag ? { beat_became_just: null } : {}),
+            ...(used ? { actions_done: [...(base.actions_done ?? []), ...used] } : {}),
+          };
+        };
+        applyState('host_state', hostS, !!(processOwn && localIsHost));
+        applyState('guest_state', guestS, !!((processOwn && !localIsHost) || processCpu));
+        if (entries.length > 0) {
+          const existingStack = bs.effect_stack ?? null;
+          update.effect_stack = existingStack
+            ? pushToStack(existingStack, entries)
+            : initStack(bs.active_user_id ?? user.id, entries);
+        }
+        if (Object.keys(update).length > 0) {
+          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myBeatBecameRef, cpuBeatBecameRef, bs?.effect_stack, bs?.pending_effect]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ON_ENERGY_CHARGE / ON_POWER_THRESHOLD の検知ウォッチャー（WX03-032）。
   // 状態変化のたびに、前回スナップショット（prevEnergyRef/prevPowersRef）と比較して
   //  - エナゾーンにカードがちょうど1枚増えた → ON_ENERGY_CHARGE（2枚同時=エナチャージ2等は不発）
