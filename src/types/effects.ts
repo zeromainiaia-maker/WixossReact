@@ -1489,6 +1489,7 @@ export interface CardEffect {
 
   // AUTO トリガーの発火条件（原因・領域の限定）。WX04-035-E2「対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき」等。
   triggerCondition?: {
+    turnOwner?: 'self' | 'opponent'; // 《自分ターン》/《相手ターン》: そのターン中のみ AUTO 発火（self=効果オーナーのターン / opponent=相手のターン）。effectStack の initStack/pushToStack で現ターンと照合しゲート（WXDi-P06-033 等）
     byOpponentEffect?: boolean; // 対戦相手の効果が原因の場合のみ発火（バトル・自分の効果・ルール処理では発火しない）
     fromAnyZone?: boolean;      // 場以外（手札・エナ・デッキ）からトラッシュに置かれた場合も発火（ON_TRASH triggerScope:self用）
     fromZones?: Array<'hand' | 'deck' | 'energy' | 'field'>; // ON_TRASH の発生源を限定（「手札かデッキから」=['hand','deck']。指定領域からのみ発火。WX04-102）

@@ -5,6 +5,18 @@
 
 ---
 
+## 機構実装④：《自分ターン》/《相手ターン》AUTOトリガー基盤 ＋ 配線30枚（2026-06-26）
+
+AUTO能力のターン限定発火（「【自】《相手ターン》：〜のとき」）を実装。従来 parser は CONTINUOUS のみ activeCondition 化し **AUTO/ACTIVATED は見送り**（effectParser.ts:1868 のコメント）＝ターン限定が脱落していた。**スタック投入の単一チョークポイント**でゲートする低リスク設計を採用（~40 箇所ある AUTO 収集点を個別に触らない）。
+
+- **型**: `triggerCondition.turnOwner?: 'self' | 'opponent'`（effects.ts）。self=効果オーナーのターン、opponent=相手のターンのみ発火。
+- **engine（単一チョーク）**: `effectStack.ts` の `initStack`/`pushToStack` 冒頭で `turnGateOk(entry, turnPlayerId)` フィルタ。`turnOwner` 無しは常に通す（既存挙動不変）。`self` は `entry.playerId===turnPlayerId`、`opponent` はその否定。**全AUTOトリガーは必ずスタックを経由するため、ここ1箇所で全経路をカバー**。
+- **decompiler**: 【自】直後に `《自分ターン》`/`《相手ターン》` を描画。
+- **配線30枚**: 単一AUTO 25枚＋複数AUTOのうち対象効果を特定できた5枚（WXDi-P06-033-E2／WX24-P2-054-E1／WX24-P4-043-E1／WX25-P3-054-E2／WX25-CP1-046-E1）。`triggerCondition.turnOwner` を該当AUTO効果に付与（JSON parse→stringifyでキー順保持・差分は該当エントリのみ）。
+- **smokeテスト**: initStack/pushToStack の self/opp×ターン一致/不一致/untagged 計6ケースを確認（全pass）。
+- **未配線（別途・カード自体が誤parse）**: WXDi-P07-044（ON_PLAY本体がADD_TO_FIELD誤り）／WX25-P2-009（AUTOがACTIVATED化＝0 AUTO）／WX25-P3-062（「パワーが減ったとき」トリガー無し）。WX25-CP1-060 はマーカー付与したE2の本体がWD21型STUB誤parse（マーカー自体は正・本体は別課題）。
+- `tsc` 通過。sheet7/8/9＋下流再生成済み。同型★ 0件。**要実機検証**（特に相手ターン中の発火/非発火）。
+
 ## 小機構：keyword フィルタの複数OR対応 ＋ WX24-P3-032（2026-06-26）
 
 個別★精査。`TargetFilter.keyword` を `string | string[]` に拡張（配列＝いずれかを持つ＝OR）。併せて **【ランサー（条件）】等の括弧付き変種**も `【kw（` 前方一致で含めるよう matchesFilter を修正（公式ルール「【ランサー（条件）】は【ランサー】に含まれる」）。

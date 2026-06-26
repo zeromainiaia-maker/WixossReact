@@ -870,9 +870,12 @@ function effJa(e: Eff): string {
   const actCond = e.activeCondition ? `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》` : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' ? `《${e.usageLimit}》` : '';
+  // 《自分ターン》/《相手ターン》: AUTO のターン限定発火マーカー（triggerCondition.turnOwner）
+  const turnMark = e.triggerCondition?.turnOwner
+    ? (e.triggerCondition.turnOwner === 'self' ? '《自分ターン》' : '《相手ターン》') : '';
   const body = actionJa(e.action, e.effectType);
   const unwired = (e.timing || []).some((t: string) => engineUnwiredTimings.has(t)) ? '【※engine未配線】' : '';
-  return `${crossCond}${typeMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}${unwired}`;
+  return `${crossCond}${typeMark}${turnMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}${unwired}`;
 }
 
 // ── 対象カードの決定 ──

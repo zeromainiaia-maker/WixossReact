@@ -1,10 +1,23 @@
 import type { StackEntry, EffectStack } from '../types';
 
 /**
+ * 《自分ターン》/《相手ターン》ゲート: triggerCondition.turnOwner があれば現ターンと照合し、
+ * 合わないAUTOトリガーをスタック投入前に弾く（self=効果オーナーのターン / opponent=相手のターン）。
+ * turnOwner 無しのエントリ（通常のAUTO/ACTIVATED/LB等）は常に通す。
+ */
+function turnGateOk(entry: StackEntry, turnPlayerId: string): boolean {
+  const to = entry.effect?.triggerCondition?.turnOwner;
+  if (!to) return true;
+  const isControllerTurn = entry.playerId === turnPlayerId;
+  return to === 'self' ? isControllerTurn : !isControllerTurn;
+}
+
+/**
  * スタックを生成する。
  * 1つ以下の効果しか持たないプレイヤーは自動的に順序確定済みとなる。
  */
-export function initStack(turnPlayerId: string, entries: StackEntry[]): EffectStack {
+export function initStack(turnPlayerId: string, entriesIn: StackEntry[]): EffectStack {
+  const entries = entriesIn.filter(e => turnGateOk(e, turnPlayerId));
   const pendingTurn = entries.filter(e => e.playerId === turnPlayerId);
   const pendingOpp  = entries.filter(e => e.playerId !== turnPlayerId);
   const orderTurnDone = pendingTurn.length <= 1;
@@ -77,7 +90,8 @@ export function isStackDone(stack: EffectStack): boolean {
  * 両プレイヤーが既に順序確定済みの場合（解決中に新トリガーが発生した場合）は、
  * 解決済みエントリの二重発動を防ぐためキューに直接追記する。
  */
-export function pushToStack(stack: EffectStack, entries: StackEntry[]): EffectStack {
+export function pushToStack(stack: EffectStack, entriesIn: StackEntry[]): EffectStack {
+  const entries = entriesIn.filter(e => turnGateOk(e, stack.turnPlayerId));
   const addTurn = entries.filter(e => e.playerId === stack.turnPlayerId);
   const addOpp  = entries.filter(e => e.playerId !== stack.turnPlayerId);
 
