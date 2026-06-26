@@ -1326,14 +1326,20 @@ export function execStubPart1(
   // STEAL_OPP_TRASH_PUPPET: 対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（WDK17-007）。
   // ベット時は2枚、非ベットは1枚。空きゾーン数・候補数で上限。選択した各カードを INTERNAL_PLACE_PUPPET で配置。
   if (stub.id === 'STEAL_OPP_TRASH_PUPPET') {
-    const oppTrashSPP = ctx.otherState.trash.filter(cn => ctx.cardMap.get(getCardNum(cn))?.Type === 'シグニ');
+    const pp = stub.puppetParams;
+    let oppTrashSPP = ctx.otherState.trash.filter(cn => ctx.cardMap.get(getCardNum(cn))?.Type === 'シグニ');
+    // levelLteTrigger: トリガー元シグニ（バニッシュしたシグニ）のレベル以下に候補を限定
+    if (pp?.levelLteTrigger && ctx.triggeringCardNum) {
+      const trigLv = parseInt(ctx.cardMap.get(getCardNum(ctx.triggeringCardNum))?.Level ?? '0', 10);
+      oppTrashSPP = oppTrashSPP.filter(cn => parseInt(ctx.cardMap.get(getCardNum(cn))?.Level ?? '99', 10) <= trigLv);
+    }
     if (oppTrashSPP.length === 0) return done(addLog(ctx, '相手トラッシュにシグニなし'));
     const emptyZonesSPP = ctx.ownerState.field.signi.filter(z => !z || z.length === 0).length;
     if (emptyZonesSPP === 0) return done(addLog(ctx, '空きシグニゾーンなし（傀儡を出せない）'));
-    const wantSPP = ctx.ownerState.is_betting_this_effect ? 2 : 1;
+    const wantSPP = pp?.count ?? (ctx.ownerState.is_betting_this_effect ? 2 : 1);
     const countSPP = Math.min(wantSPP, oppTrashSPP.length, emptyZonesSPP);
     const placeAct: StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_PUPPET' };
-    return selectOrInteract(oppTrashSPP, countSPP, false, 'opp_trash', placeAct as EffectAction, undefined, ctx);
+    return selectOrInteract(oppTrashSPP, countSPP, pp?.optional ?? false, 'opp_trash', placeAct as EffectAction, undefined, ctx);
   }
   // INTERNAL_PLACE_PUPPET: 選択した相手トラッシュのシグニ1枚を、傀儡状態で自分の空きゾーンに出す（applyDirectActionが1枚ずつ呼ぶ）
   if (stub.id === 'INTERNAL_PLACE_PUPPET') {
