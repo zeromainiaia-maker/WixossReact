@@ -504,7 +504,11 @@ export function execStubPart3(
       return f.length > 0 ? f : null;
     }) as (string[] | null)[];
     const newBeatIMTB = [...(ctx.ownerState.field.beat_zone ?? []), cardIMTB];
-    const newOwnerIMTB: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIMTB, beat_zone: newBeatIMTB } };
+    const newOwnerIMTB: PlayerState = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, signi: newSigniIMTB, beat_zone: newBeatIMTB },
+      beat_became_just: [...(ctx.ownerState.beat_became_just ?? []), cardIMTB], // ON_BECOME_BEAT 検出用
+    };
     return done(addLog({ ...ctx, ownerState: newOwnerIMTB },
       `${ctx.cardMap.get(cardIMTB)?.CardName ?? cardIMTB}をビートゾーンへ`));
   }
