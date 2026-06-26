@@ -36,7 +36,8 @@
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
 - **最終更新**: 2026-06-26
-- **直近やったこと**: **機構④《自分ターン》/《相手ターン》AUTOトリガー基盤**（effectStack でゲート）＋AUTO 30枚配線。同型★0維持・smokeテスト6ケースpass。→ `BUGFIXES.md` 先頭参照。
+- **直近やったこと**: **機構④《自分ターン》/《相手ターン》AUTOトリガー基盤**（effectStack でゲート）＋AUTO 30枚配線。＋**CI赤の修正**（既存の重複`levelParity`／`toMods`の型）。同型★0維持・smokeテスト6ケースpass。→ `BUGFIXES.md` 先頭参照。
+- **⚠ ゲートは `npm run typecheck`（`tsc -b`）を使う**（plain `tsc --noEmit` は build-mode未使用でCIが拾うエラーを見逃す。今回それで既存CI赤に気づけなかった）。
 - **重要な調査結果**: クリーンな横展開系統・トリビアル個別★は枯れた。**大型機構が主戦場**。機構④で「ターン限定AUTO」を単一チョーク（initStack/pushToStack）で解決できたのが好例＝core収集点を個別に触らず安全に入れられた。
 - **機構④の残り**: 誤parse3枚（WXDi-P07-044／WX25-P2-009／WX25-P3-062）＋WX25-CP1-060-E2 本体は別課題（マーカーは正）。turnOwner の付け方は確立済（該当AUTO効果の triggerCondition に追加）。**ACTIVATED《相手ターン》は現データに該当0**（将来出たら BattleScreen の起動可否ゲートが要る）。
 - **次の一手（候補）**:
@@ -80,7 +81,7 @@
 2. **分類**：偽陽性(§4)・既知複雑札を除外し、**自担当ファイルのクリーンな系統**を確定。
 3. **パッチ**：`effectId` をアンカーにした一括スクリプトで安全に置換（他カードを巻き込まない）。
 4. **検証ゲート（必須・この順）**：
-   - `npx tsc --noEmit`
+   - **`npm run typecheck`（＝`tsc -b --noEmit`）** ← CIと同じ。**`npx tsc --noEmit`（-b無し）は project references を見ず重複識別子等を見逃すので不可**。
    - 該当シート再生成：`npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt`
    - 下流再生成：`node scripts/genReviewRepr.mjs && node scripts/groupSimilar.mjs --all && node scripts/groupBySentence.mjs --all`
    - **逆翻訳が原文一致 ＆ 同型★0** を確認

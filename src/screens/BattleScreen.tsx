@@ -1773,8 +1773,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const mods = calcActiveCostMods(myS, opS, myTurn, effectsMap, battleCardMap);
     // COST_INCREASE(NEXT_OPP_TURN): 対戦相手(opS)が保持する「相手ターンの相手コスト増加」は
     // 自分(myS)のコストへ加算（forMy）。逆に自分が保持するものは相手のコスト表示用（forOp）。
-    const toMods = (arr?: Array<{ targetCardType: string; amount: { color: string; count: number }[] }>) =>
-      (arr ?? []).map(e => ({ direction: 'increase' as const, targetCardType: e.targetCardType, amount: e.amount }));
+    const toMods = (arr?: Array<{ targetCardType: string; amount: { color: string; count: number }[] }>): import('../engine/effectEngine').ActiveCostMod[] =>
+      (arr ?? []).map(e => ({ direction: 'increase' as const, targetCardType: e.targetCardType, amount: e.amount as import('../engine/effectEngine').ActiveCostMod['amount'] }));
     return {
       forMy: [...mods.forMy, ...toMods(opS.opp_cost_up_until_opp_turn)],
       forOp: [...mods.forOp, ...toMods(myS.opp_cost_up_until_opp_turn)],

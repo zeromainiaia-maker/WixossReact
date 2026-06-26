@@ -282,7 +282,6 @@ export interface TargetFilter {
   cardNum?:   string;
   color?:     string | string[];
   level?:     number | { min?: number; max?: number };
-  levelParity?: 'even' | 'odd';
   levelRange?: { min?: number; max?: number };
   powerRange?: { min?: number; max?: number };
   costMax?:   number;  // 使用コストの合計（《色×N》の合計、コインを除く）がこの値以下（「コストの合計が1以下のスペル」WX04-071 等）
