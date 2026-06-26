@@ -36,7 +36,7 @@
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
 - **最終更新**: 2026-06-26
-- **直近やったこと**: **【ビート】機構 Phase1＝《ビートアイコン》[条件]ゲートの配線**（着手中）。BEAT_CONDITION を ActiveCondition にも追加＋checkBeatCondition「同じレベルがN枚以上」拡張＋decompiler自然文化＋JSON12効果に配線。smoke16pass・同型★0。→ `BUGFIXES.md` 先頭。**Phase1残**: コスト型《ビート》[4枚以下]使用ゲート／**ON_BECOME_BEAT トリガー**（このカードが【ビート】になったとき・~8枚が誤parse中）／MAKE_BEATアクション正規化。
+- **直近やったこと**: **【ビート】機構**（着手中）。①《ビート》[条件]ゲート配線12効果＋engine基盤（BEAT_CONDITION→ActiveCondition・checkBeatCondition拡張）②**ON_BECOME_BEAT トリガー**新設＋8枚修正（drive_became_just同型のフラグ＋watcher＋collectBeatBecameTriggers）。smoke計22pass・同型★0。→ `BUGFIXES.md` 先頭2件。**残**: `cost.beat_signi` のengine未処理（出/起「シグニを【ビート】にする」のbeat化が起きない＝次の最有力サブタスク）／コスト型《ビート》[4枚以下]使用ゲート／MAKE_BEAT正規化。
 - **その前**: 逆翻訳器の生ID一掃（アクション21種＋STUB18種）／機構：傀儡場出し汎用化（WXK10-055）／機構④ターン限定AUTO基盤。
 - **⚠ ゲートは `npm run typecheck`（`tsc -b`）を使う**（plain `tsc --noEmit` は build-mode未使用でCIが拾うエラーを見逃す。今回それで既存CI赤に気づけなかった）。
 - **重要な調査結果**: クリーンな横展開系統・トリビアル個別★は枯れた。**大型機構が主戦場**。機構④で「ターン限定AUTO」を単一チョーク（initStack/pushToStack）で解決できたのが好例＝core収集点を個別に触らず安全に入れられた。
