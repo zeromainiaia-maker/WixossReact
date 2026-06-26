@@ -36,8 +36,8 @@
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
 - **最終更新**: 2026-06-26
-- **直近やったこと**: **機構：傀儡場出しの汎用化**（`STEAL_OPP_TRASH_PUPPET` を count/optional/levelLteTrigger 対応＋被バニッシュ参照）。**WXK10-055 全効果（E1/E2/BURST）を再構築**（丸ごと誤parse解消）。＋汎用に `execTrash` の SIGNI optional を尊重。逆翻訳が原文一致・同型★0・smokeテスト8ケースpass（`_verifyPuppetGeneralize.ts`）。→ `BUGFIXES.md` 先頭参照。
-- **その前**: 機構④《自分ターン》/《相手ターン》AUTOトリガー基盤＋AUTO30枚配線。
+- **直近やったこと**: **逆翻訳器の未描画アクション21種を自然文化**（生`[アクション:X]`残存を約180→0）。decompiler表示のみの低リスク改善で逆翻訳の網羅性UP。→ `BUGFIXES.md` 先頭参照。**残る生ID＝`[STUB:X]`系のみ**（最多 GRANT_ABILITY_INNER_TEXT 18・GUARD_EXTRA_COST_BY_OPP 9 等。STUBS.md管理・各STUBの意味理解要）。
+- **その前**: 機構：傀儡場出しの汎用化（WXK10-055 全効果再構築・smoke8pass）／機構④《自分ターン》《相手ターン》AUTOトリガー基盤＋AUTO30枚。
 - **⚠ ゲートは `npm run typecheck`（`tsc -b`）を使う**（plain `tsc --noEmit` は build-mode未使用でCIが拾うエラーを見逃す。今回それで既存CI赤に気づけなかった）。
 - **重要な調査結果**: クリーンな横展開系統・トリビアル個別★は枯れた。**大型機構が主戦場**。機構④で「ターン限定AUTO」を単一チョーク（initStack/pushToStack）で解決できたのが好例＝core収集点を個別に触らず安全に入れられた。
 - **機構④の残り**: 誤parse3枚（WXDi-P07-044／WX25-P2-009／WX25-P3-062）＋WX25-CP1-060-E2 本体は別課題（マーカーは正）。turnOwner の付け方は確立済（該当AUTO効果の triggerCondition に追加）。**ACTIVATED《相手ターン》は現データに該当0**（将来出たら BattleScreen の起動可否ゲートが要る）。
