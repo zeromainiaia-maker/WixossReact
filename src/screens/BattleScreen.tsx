@@ -10943,6 +10943,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         };
         if (toTrashF.length > 0) payLogs.push(`場のシグニ${fieldTrashZones.size}体をコストでトラッシュ`);
       }
+      // beat_signi: シグニを【ビート】にするコスト（自動選択・近似。beat_zone へ移し ON_BECOME_BEAT 用フラグを積む）
+      if ((cost?.beat_signi ?? 0) > 0) {
+        const beatPay = payBeatSigniCost(paid, cardNum, battleCardMap, cost!.beat_signi!);
+        if (!beatPay.ok) { setLoading(false); return; } // 支払い不能（対象不足）
+        paid = beatPay.state;
+        payLogs.push(beatPay.log);
+      }
       // lrigDown: アップ状態のルリグをダウン（センター→アシストL→Rの順で自動支払い）
       const lrigDownCost = cost?.lrigDown;
       if (lrigDownCost) {
