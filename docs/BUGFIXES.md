@@ -5,6 +5,14 @@
 
 ---
 
+## データ正規化: Stage B R12＝「対戦相手のシグニをエナゾーンに置く」の ENERGY_CHARGE→SEND_TO_ENERGY（11枚・mis-curation）（2026-06-27・ymst）
+
+Stage B 第1弾（非REVEALの最有望クラスタ）。「対戦相手のシグニ１体を対象とし…それをエナゾーンに置く」（＝エナ送り）が HEAD では `ENERGY_CHARGE` with `target:{SIGNI,opponent}` と **mis-curate** されていた。engine 上 `SEND_TO_ENERGY` が「フィールドのシグニをエナゾーンに置く（エナ送り）」の正規アクションで、パーサーは正しく `SEND_TO_ENERGY` を出力済み。`ENERGY_CHARGE` は本来 deck/hand/trash→エナのチャージ用（HEAD でも DECK_CARD 21・TRASH_CARD 31・HAND_CARD 4 が正用途）。SIGNI ターゲットの **11枚のみ**が誤り。
+
+- **パーサー変更なし＝データのみ正規化**（fresh が既に SEND_TO_ENERGY なので恒久安定）。`ENERGY_CHARGE`+`target.type:SIGNI` の11箇所を一律 `SEND_TO_ENERGY` へ（型 swap のみ・他leaf無変更）。engine は execEnergyCharge の field 分岐も execSendToEnergy も同じエナ送りを行うが、SEND_TO_ENERGY は解決済み対象に直接作用し再選択の齟齬がない＝正。
+- 対象: WX20-046/WXDi-P02-023/WX24-P2-007/P2-086/P2-087/WXK01-042/WXK09-052/WXK10-046/WXK11-068/WXK11-069/PR-K054。
+- 計器：**LOSS 178→167（−11）**（WXK10-046 のみ別件の timing `ON_TURN_END`↔`ON_PLAY` で held 残＝VALUE 再分類）。typecheck（tsc -b）緑・**同型★0維持**。**要実機検証**（エナ送りの挙動）。
+
 ## パーサー: Stage C R11＝AUTO/ACTIVATED の《自分ターン》《相手ターン》を triggerCondition.turnOwner 化（最大の単発・LOSS −28）（2026-06-27・ymst）
 
 Stage C の本丸。`effectParser.ts:1948` が 《相手ターン》《自分ターン》マーカーを **CONTINUOUS のみ** activeCondition 化し、AUTO/ACTIVATED は「engine 側未整備」として**見送っていた**（コメントが陳腐化）。実際は engine の `effectStack.ts`（機構④）が `triggerCondition.turnOwner` を現ターンと照合してゲートする実装が完了済み（`types/effects.ts:1509` も WXDi-P06-033 を名指しで文書化）。AUTO/ACTIVATED 経路で `extractedTriggerCondObj.turnOwner = (turnOwnerCond.owner)` を付与するよう是正。
