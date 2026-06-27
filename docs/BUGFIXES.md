@@ -5,6 +5,13 @@
 
 ---
 
+## パーサー: R19＝トラッシュ抽出に《ガードアイコン》hasGuard/noGuard 付与（LOSS −4）（2026-06-27・ymst）
+
+`parserUtils` に `parseGuardFilter`（《ガードアイコン》を持つ→hasGuard／持たない→noGuard）を新設し、`parseSentencePart1.ts` の2ハンドラに適用：①トラッシュ→手札（行1105・名詞句スパン spanTxt 限定）②トラッシュ→エナ汎用（行1883）。
+
+- 計器：**LOSS 162→158（−4）／held 321→317**。WXDi-P00-025/P01-011（hasGuard・TRANSFER_TO_HAND source.filter）＋WXDi-P01-030/P07-029（noGuard・ENERGY_CHARGE target.filter）が IDENTICAL 化。同型★0維持・typecheck（tsc -b）緑・JSON無変更・要実機検証。
+- filter（その他）バケツの hasGuard 2／noGuard 2 を解消（helper 化したので REVEAL 一族等への横展開も今後容易）。
+
 ## パーサー: R18＝「このシグニを場から手札に戻す」BOUNCE に thisCardOnly 付与（LOSS −3）（2026-06-27・ymst）
 
 `parseSentencePart1.ts` の BOUNCE handler（行866）が「このシグニを場から手札に戻してもよい」の自身限定（`filter.thisCardOnly`）を落とし、汎用 `filter:{cardType:シグニ}` に潰していた。語順 `/このシグニを(?:場から)?手札に戻/` で判定して `thisCardOnly:true` を付与（トリガーの「このシグニが…とき」や対戦相手/他シグニ対象には付けない）。

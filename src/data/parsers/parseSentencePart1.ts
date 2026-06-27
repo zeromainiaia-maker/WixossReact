@@ -50,7 +50,7 @@ import type {
   SendToEnergyAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseNameFilter, parseEnergyCosts, toHalf,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf,
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
@@ -1102,7 +1102,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     // story は「トラッシュから…手札に加える」の名詞句スパン内に限定（前置きの条件クラス＜X＞を拾わない・WX22-002 偽陽性回避）。
     const trashSpan = t.match(/トラッシュから(.*?)手札に加える/s);
     const spanTxt = trashSpan ? trashSpan[1] : '';
-    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseStoryFilter(spanTxt), ...parseColorMatchesLrig(t) };
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseStoryFilter(spanTxt), ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt) };
     // 色は「[単色]の〔カード/シグニ/スペル〕」の一意な単色のみ付与（「白か赤」「白のカードと黒のカード」等の複色は単一色filterで表せず誤るため除外）。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
     if (spanColors.length === 1 && spanTxt.includes(`${spanColors[0]}の`)) filter.color = spanColors[0];
@@ -1880,7 +1880,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     // 汎用: トラッシュから(フィルタ)N枚を対象とし、それをエナゾーンに置く
     const trashToEnaG = t.match(/トラッシュから.{0,30}?([０-９\d]+)枚(まで)?を?対象とし、それら?をエナゾーンに置く/);
     if (trashToEnaG) {
-      const filter: TargetFilter = { ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t) };
+      const filter: TargetFilter = { ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parseGuardFilter(t) };
       if (t.includes('シグニ')) filter.cardType = 'シグニ';
       if (t.includes('スペル')) filter.cardType = 'スペル';
       return {

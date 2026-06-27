@@ -101,6 +101,13 @@ export function parseColorMatchesLrig(text: string): Partial<TargetFilter> {
   return LRIG_COLOR_RE.test(text) ? { colorMatchesLrig: true } : {};
 }
 
+// 《ガードアイコン》を持つ → hasGuard ／ 持たない → noGuard（G237）。名詞句スパンに対して呼ぶこと。
+export function parseGuardFilter(text: string): Partial<TargetFilter> {
+  if (/《ガードアイコン》を持たない/.test(text)) return { noGuard: true };
+  if (/《ガードアイコン》を持つ/.test(text)) return { hasGuard: true };
+  return {};
+}
+
 export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
   if (text.includes('シグニ')) return { cardType: 'シグニ' };
   if (text.includes('スペル')) return { cardType: 'スペル' };
