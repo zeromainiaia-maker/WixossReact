@@ -21,6 +21,7 @@
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
+- 2026-06-28 R26（filter（その他）バケツ全 MANUAL化／ymst）: 21枚すべて「EXIST正・FRESH退化」（acceHost/cardClass/level/levelLteDiscardSigni/eachDistinctColor/commonClass/keyword/powerRange 脱落、ON_ACCE timing穴、STUB退化）と判定し MANUAL化。stale/LOOK-REVEAL なし。**LOSS 105→84（−21）／held 264→243**。残 LOSS 84 の大半は action.type 76（構造差）。
 - 2026-06-28 R25（filter.cardType／count バケツ triage／ymst）: 2刀流で15枚処理。MANUAL化6（WX10-007/021・WXDi-P12-060・WXDi-P15-093・WX24-P1-076・WXK08-045）＋resync/採用9（WXK04-042・WXDi-P14-077-E1・WX25-P1-018・WX25-P1-026・WX25-P1-115・WXK04-002・SPDi01-121・SPDi44-04・SPDi44-08＝stale JSON の実バグ修正）。**LOSS 120→105（−15）／held 279→264**。⚠SKIP＝REVEAL_AND_PICK 3枚（LOOK/REVEAL一族）・WXDi-D09-P18（覚醒・両不正確）。
 - 2026-06-27 R24（stale データ6枚を FRESH へ再同期/採用／ymst）: R23 で発見した逆パターン（FRESHの方が正しい）を `scripts/_resync.ts` で処理＝**実 runtime バグ修正**（JSON直ロードのため stale が誤動作していた）。①再同期3＝WXK04-030（相手シグニ全バニッシュ誤実装→血晶武装）・WX25-CP1-030・WX25-CD1-06（2択喪失→復元）。②data採用3＝WX24-P3-064・WXK07-027（無条件バフ→トラッシュ条件+thisCardOnly）・WX21-Re09（timing誤り→triggerFilter正配置）。**LOSS 126→120（−6）／held 285→279**。⚠WX20-026-E3 不採用（過剰発火・LOSS据置）。
 - 2026-06-27 R23（小バケツ hard-tail の MANUAL化／ymst）: action.id 4／condition.type 2／costThreshold 1／optional 2／then 3＝計12枚を「EXIST正・FRESH退化」確認のうえ MANUAL化。**LOSS 138→126（−12）／held 297→285**。⚠逆パターン発見＝FRESH の方が正しいカード（JSON stale 再同期＝WX25-CP1-030/CD1-06/WXK04-030、data採用＝WX24-P3-064/WXK07-027/WX20-026/WX21-Re09、curation＝SP27-016/WXK05-030）は MANUAL化せず別処理（BUGFIXES 先頭参照）。

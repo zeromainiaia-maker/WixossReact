@@ -5,6 +5,18 @@
 
 ---
 
+## データ: R26＝filter（その他）バケツ21枚を全 parseStatus:MANUAL 化（2026-06-28・ymst）
+
+filter（その他）バケツ全21枚を1枚ずつ dry-run。**全て「EXIST 正・FRESH 退化」の hard-tail**（stale/FRESH 優位なし・LOOK/REVEAL 構造問題なし）と判明し MANUAL化。差分effectのみ・runtime不変・構造完全一致を検証。**LOSS 105→84（−21）／held 264→243**。
+
+- **脱落していた filter 詳細（FRESH が落とす leaf）**：`acceHost`（「これにアクセされているシグニ」＝WX17-033/WXK04-080/082/WXDi-P09-TK01A/WD18-013/015）、`cardClass`（調理/水獣/電機）、`level`（≤2/≤3）、`levelLteDiscardSigni`（「この方法で捨てたシグニのレベル以下」＝WX22-046/WXK10-044）、`eachDistinctColor`+`nonColorless`（「それぞれ共通する色を持たず無色ではない」＝WXDi-P02-031/P13-034）、`commonClass`（「共通するクラスを持つ」＝WXDi-P10-029/CP01-020/CP02-046）、`keyword`（アサシン等＝WX24-P3-032）、`powerRange`（WXDi-P10-056/WX24-P2-068）、`filter.excludeSelf`（WXDi-CP02-051）。
+- **timing 穴も併発**：WXK05-066/067 は `ON_ACCE`（アクセが付いたとき）が timing 検出無く `ON_PLAY`＋owner 誤り（self）に退化。
+- **STUB 退化**：WXDi-P10-056/WX24-P2-068 は EXIST の `OPTIONAL_TRASH_ENERGY_CLASS` が FRESH では無関係な `TARGET_AND_DISCARD_HAND` に化ける。
+- WX24-P3-032 は CHOOSE だが**構造は EXIST/FRESH 完全一致**（c1 の filter.keyword のみ脱落）＝R14 が警告した CHOOSE 構造の curation 不整合ではないため MANUAL化。
+- 残 LOSS 84 の大半は action.type 76（構造差）。次ラウンドはここを1枚ずつ突き合わせ（curated-STUB 正→MANUAL化／stale→resync／LOOK/REVEAL/CHOOSE 構造→bulk送り）。
+
+---
+
 ## データ: R25＝filter.cardType／count バケツ triage 15枚（MANUAL化6＋resync9）（2026-06-28・ymst）
 
 2刀流（`_manualize2.ts`＝EXIST正→MANUAL化／`_resync.ts`＝FRESH正→採用）で残2バケツを1枚ずつ判定。**LOSS 120→105（−15）／held 279→264**。
