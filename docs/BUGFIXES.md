@@ -5,6 +5,17 @@
 
 ---
 
+## パーサー＋データ: Stage B R13＝「デッキ上N枚見る→その中からピックして手札に加える」を LOOK_AND_REORDER→REVEAL_AND_PICK に統一（116枚・engine 実害修正／LOSS −18）（2026-06-27・ymst）
+
+Stage B の本丸（LOOK/REVEAL 一族）。「あなたのデッキの上からカードをN枚見る。その中から〔filter〕を〔N枚[まで]〕[公開し]手札に加え、残りをデッキ/トラッシュへ」のピック文を `REVEAL_AND_PICK` で表現する。**engine 上 `execLookAndReorder` はカードをデッキへ戻すだけで手札に加える経路が無い**（effectExecutor.ts:2214）ため、ピック文を `LOOK_AND_REORDER` にしているカードは**実機で手札に入らない＝実害バグ**。
+
+- **根因**：`effectParser.ts:1218` のブロックで、ピック句と「残りを…**デッキ**の一番下に置く」が同一文に同居すると、下の `LOOK_AND_REORDER` 分岐（`その中から.*(?:デッキ|トラッシュ)`）が remainder の「デッキ」で**誤発火**し、pick を持つ文まで潰していた（§🅑 R4 が予告したまさにその誤発火）。
+- **パーサー修正**：手札取得を含む場合は先に `REVEAL_AND_PICK` を試す分岐を追加（1222-1264）。filter＝cardType(シグニ/スペル)・story(＜X＞・cardClass と engine/decompiler 同義)・level・hasGuard(《ガードアイコン》)、pickUpTo(「N枚まで」)、pickNoun(スペル時のみ＝HEAD規約)、remainder(デッキ上下/トラッシュ)。**パーサーが正しく表現できない言い回し（好きな枚数=ALL／色フィルタ／非ガードアイコン／パワー・コスト条件）は除外ガードで LOOK のまま残す**（誤表現を作らない）。
+- **データ移行**：HEAD が `LOOK_AND_REORDER` のままだった **123 subtree（≈116枚・うち8枚は CHOOSE/SEQUENCE ネスト）を REVEAL_AND_PICK へ surgical 置換**（effectId 構造を並行に辿り該当 action subtree のみ差し替え・他リーフ温存）。これらは元々パーサーも LOOK を出していたため held ではなかったが、**実機で手札に入らないバグ**＝逆翻訳とengine実装の乖離を解消（`decompile-engine-parity`）。
+- **cardClass→story 正規化5枚**（WX16-054/WX24-P1-053/WX24-P2-061/WX25-P3-054/SP27-009）：REVEAL_AND_PICK の filter で HEAD が少数派 `cardClass` を使っていた7枚のうち本一族の5枚を、多数派規約の `story` へ正規化（matchesFilter は両者とも `CardClass.includes`＝完全同義・decompiler も同一表示）。
+- **計器**：**LOSS 178→160（−18・action.type 78→60）／held 339→311**。VALUE 不変（151）・他バケツ全て不変（regression 0・count は migration を effectId ネスト対応にして +0 に復帰）。**同型★0維持**（265グループ・★0）・typecheck（tsc -b）緑。**要実機検証**（ピック→手札 が実際に入ること・トラッシュ remainder・ネスト CHOOSE 内の発火）。
+- **⚠保留**：除外した言い回し（好きな枚数=ALL／色フィルタ／非ガードアイコン《ライズ》等／パワー・コスト filter）の REVEAL 化は parser 拡張が要る別ラウンド。素の「その中から1枚を手札に加える」（公開・まで無し）も LOOK のまま（同じ実害だが HEAD と一致＝held でない・別途）。
+
 ## データ正規化: Stage B R12＝「対戦相手のシグニをエナゾーンに置く」の ENERGY_CHARGE→SEND_TO_ENERGY（11枚・mis-curation）（2026-06-27・ymst）
 
 Stage B 第1弾（非REVEALの最有望クラスタ）。「対戦相手のシグニ１体を対象とし…それをエナゾーンに置く」（＝エナ送り）が HEAD では `ENERGY_CHARGE` with `target:{SIGNI,opponent}` と **mis-curate** されていた。engine 上 `SEND_TO_ENERGY` が「フィールドのシグニをエナゾーンに置く（エナ送り）」の正規アクションで、パーサーは正しく `SEND_TO_ENERGY` を出力済み。`ENERGY_CHARGE` は本来 deck/hand/trash→エナのチャージ用（HEAD でも DECK_CARD 21・TRASH_CARD 31・HAND_CARD 4 が正用途）。SIGNI ターゲットの **11枚のみ**が誤り。

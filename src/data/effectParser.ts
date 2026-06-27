@@ -1219,6 +1219,58 @@ function parseActionText(text: string): EffectAction {
     const cM = sentences[0].match(/([０-９\d]+)枚見る/);
     if (cM) {
       const nextS = sentences[1].trim();
+      // ---- その中から〔filter〕を〔N枚[まで]〕[公開し]手札に加え、残りをデッキ/トラッシュへ（REVEAL_AND_PICK）----
+      // pick 句と「残りを…デッキ」が同一文に同居すると、下の LOOK_AND_REORDER 分岐が「デッキ」で
+      // 誤発火し pick を潰すため、手札/場/エナへの取得を含む場合は必ずこちらを先に処理する。
+      if (/その中から/.test(nextS) && /(手札に加える|手札に加え)/.test(nextS)) {
+        const clauseM = nextS.match(/その中から(.+?)(?:を公開し)?(?:手札に加える|手札に加え)/);
+        // 「公開し」を含む or「N枚まで」（pickUpTo）の選択ピックのみ REVEAL_AND_PICK。
+        // 素の「その中からN枚を手札に加える」（公開・まで・filter 無し）は HEAD 規約で LOOK_AND_REORDER のまま。
+        const countM = clauseM ? clauseM[1].match(/([０-９\d]+|すべて)枚(まで)?/) : null;
+        const pickUpTo = !!(countM && countM[2]);
+        // パーサーが正しい filter/count を出せない言い回しは REVEAL 化せず LOOK_AND_REORDER に委ねる
+        // （好きな枚数=ALL／色フィルタ／非ガードアイコン／パワー・コスト条件は未対応＝誤表現になるため除外）。
+        const clauseStr = clauseM ? clauseM[1] : '';
+        const unhandledClause =
+          /好きな枚数/.test(clauseStr) ||
+          /(赤|青|緑|黒|白)の/.test(clauseStr) ||
+          /パワー|コスト/.test(clauseStr) ||
+          (/《[^》]*アイコン》/.test(clauseStr) && !/《ガードアイコン》/.test(clauseStr));
+        if (clauseM && !unhandledClause && (/公開/.test(nextS) || pickUpTo)) {
+          const clause = clauseM[1];
+          const pickCount = countM ? (countM[1] === 'すべて' ? 'ALL' : parseNum(countM[1])) : 1;
+          const noun: 'シグニ' | 'スペル' | 'カード' | undefined =
+            /シグニ/.test(clause) ? 'シグニ' : /スペル/.test(clause) ? 'スペル' : /カード/.test(clause) ? 'カード' : undefined;
+          // filter は noun が「カード」のときは付けない（HEAD 規約＝REVEAL_AND_PICK の noun=カードは filter 無し）
+          const filter: TargetFilter = {};
+          if (noun === 'シグニ') filter.cardType = 'シグニ';
+          else if (noun === 'スペル') filter.cardType = 'スペル';
+          if (noun !== 'カード') {
+            Object.assign(filter, parseStoryFilter(clause));   // ＜X＞ → story（cardClass と engine/decompiler 同義）
+            Object.assign(filter, parseLevelFilter(clause));
+            if (/《ガードアイコン》を持つ/.test(clause)) filter.hasGuard = true;
+          }
+          // remainder（同一文 or 後続文の「残りを…デッキ/トラッシュ」。間に「好きな順番で」等が挟まる）
+          const remainS = sentences.find(s => /残りを/.test(s) && /(デッキ|トラッシュ)/.test(s)) ?? nextS;
+          const toTrash = /トラッシュ/.test(remainS) && !/残りを[^。]*デッキ/.test(remainS);
+          const remainder: RevealAndPickAction['remainder'] = toTrash
+            ? { location: 'trash', position: 'any' }
+            : { location: 'deck', position: /一番上/.test(remainS) ? 'top' : 'bottom' };
+          // HEAD のキー順に合わせて構築（worklist の厳密一致／同型判定のため）
+          const action: Record<string, unknown> = {
+            type: 'REVEAL_AND_PICK',
+            owner: 'self',
+            revealCount: parseNum(cM[1]),
+          };
+          if (Object.keys(filter).length > 0) action.filter = filter;
+          if (noun === 'スペル') action.pickNoun = 'スペル';
+          action.pickCount = pickCount;
+          if (pickUpTo) action.pickUpTo = true;
+          action.then = { type: 'ADD_TO_HAND', owner: 'self' };
+          action.remainder = remainder;
+          return action as unknown as RevealAndPickAction;
+        }
+      }
       if (nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
         return {
           type: 'LOOK_AND_REORDER',
@@ -1229,28 +1281,6 @@ function parseActionText(text: string): EffectAction {
           canTrash: nextS.includes('トラッシュ'),
           destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
         };
-      }
-      // その中からXを手札に加える → 残りをシャッフルしてデッキへ
-      if (nextS.match(/その中から.+(手札に加える|手札に加え)/)) {
-        const pickM = nextS.match(/その中から(?:(.+?)の)?(?:シグニ|カード)?([０-９\d]+|すべて)枚?(?:を公開し)?(?:手札に加える|手札に加え)/);
-        const remainS = sentences.find(s => s.trim().match(/残りを(?:シャッフルして)?デッキ/));
-        const remainder: RevealAndPickAction['remainder'] = remainS?.includes('一番下')
-          ? { location: 'deck', position: 'bottom' }
-          : { location: 'deck', position: 'top' };
-        if (pickM) {
-          const story = pickM[1] ? parseStoryFilter(pickM[1]) : {};
-          const filter: TargetFilter = { ...story };
-          const pickCount = pickM[2] === 'すべて' ? 'ALL' : parseNum(pickM[2]);
-          return {
-            type: 'REVEAL_AND_PICK',
-            owner: 'self',
-            revealCount: parseNum(cM[1]),
-            filter: Object.keys(filter).length > 0 ? filter : undefined,
-            pickCount,
-            then: { type: 'ADD_TO_HAND', owner: 'self' },
-            remainder,
-          } as RevealAndPickAction;
-        }
       }
     }
   }
