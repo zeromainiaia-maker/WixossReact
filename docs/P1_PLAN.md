@@ -35,7 +35,7 @@
 ### 📍 現在地（バトン）— 次の人はここから
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
-- **最終更新**: 2026-06-27（karka → **次の人へ**）
+- **最終更新**: 2026-06-27（karka → **ymst へ**）
 - **🧭 パーサー作業の地盤＝`docs/parser_worklist.md`（cold start はまずこれ）**: held 404 を **LOSS 255（真の弱点＝直す）／ VALUE 149（慣例・対象外）** に重複なく分割した有限ワークリスト。計器 `npx tsx scripts/parserWorklist.ts` で数字を再生成。**完了条件＝LOSS 255→0**。手当たり次第をやめ、バケツ単位（Stage A 局所67→C トリガー73→B action.type中心109）で潰す。各ラウンドで計器の LOSS 減＋同型★0 をゲートにする。
 - **直近やったこと（karka・最新9）**: **Stage B（LOOK/REVEAL_AND_PICK 一族）に着手→広域ハンドラ追加で held 387→516 の+129退行を検知し全revert**。コード変更なし（held 387 維持）。**確定知見を `docs/parser_worklist.md` の「🅑 Stage B 着手記録」に詳細記録**：①新ハンドラ追加は厳禁＝既存ハンドラ(LOOK_PICK_CHAIN/結合1373/makeRevealPickStub)が広範カバー済みで横取り退行する。②正道は effectParser.ts:1210 の誤発火分岐をピンポイント修正＋1222分岐拡張。③正解形マッピング（then/filter/pickUpTo/pickNoun/SEQUENCE+BLOCK_ACTION）と story/cardClass 同一視・story正規化方針を全て記録済み。**次の実装者はこの記録通りに surgical 修正すれば一族を安全に進められる**。⚠build後は held合計+N退行ゼロを毎回確認。
 - **直近やったこと（karka・最新8）**: **Stage A R3（filter.cardType・複数クラスバフ）**＋**重要発見**。「＜X＞と＜Y＞のシグニのパワー」全体バフのゲート正規表現を複数クラス対応に（WX04-016/086一致・WXK04-043/WXDi-P11-041は旧バグJSONをfresh正値にパッチ）。held 388→387・LOSS 235→234。**⚠filter.cardType は単一クリーン修正ではなく84箇所に分散し多くが構造差(STUB/action.type)と絡むと判明**（worklist R3ログ参照）＝今後は「LOOK_PICK系」「アクセGRANT系」「deck-top条件系」等の下位パターンに割り、Stage B(action.type 77)の構造修正とセットで進める。次の純局所候補は count 11／activeCondition 7／filter.story 4。
@@ -49,11 +49,12 @@
 - **直近やったこと（karka）**: **【ビート】機構 Phase4-7 で完了**。Phase4＝コスト型《ビート》[４枚以下]使用ゲート9。Phase5＝トラッシュ→beat コスト（WDK14-013）。Phase6＝look→pick の【ビート】化宛先（`then:'beat'`）＋`levelEqLastProcessed`（WDK14-008）。Phase7＝**MAKE_BEAT正規化**（`addToBeatZone` で5経路集約）＋**beat対象のプレイヤー選択UI**（`analyzeBeatSigniCost`＋`payBeatSigniCost(selectedOtherZones)`＝ON_PLAY/ACTIVATEDモーダルでゾーン選択）。smoke 計75pass・同型★0。→ `BUGFIXES.md` 先頭4件。
 - **直近やったこと（zerom）**: **【ビート】機構 Phase1-3**（《ビート》[条件]ゲート12＋ON_BECOME_BEAT8＋cost.beat_signi支払い）。→ `BUGFIXES.md`。
 - **直近やったこと（karka・続き2）**: **機構④誤parse3枚を是正**（WXDi-P07-044 全3効果＝ON_HAND_DISCARDED/ON_PLAY byEffect＋FREEZE復元・engine配線あり／WX25-P3-062-E2＝ハナレ条件＋エナ＜毒牙＞任意トラッシュ→両者-20000・配線あり／WX25-P2-009＝1ACTIVATEDマッシュを2 AUTOに分割＝refresh置換STUB＋新timing ON_CARD_MILLED_FROM_DECK[未配線マーク]）。逆翻訳が原文一致・同型★0。→ `BUGFIXES.md` 先頭。
-- **🎯 次の一手（上から推奨）**:
-  1. **次の大型機構（§5）**: 引用AUTO付与（GRANT_QUOTED_AUTO_ABILITY精緻化・中/中）。着手したら §5 を `着手中(名前)` に。WX25-CP1-074・WXK09-055・WX24-P2-044 等の「シグニに『〜』を付与」。
-  2. **機構④の残（engine配線・重い）**: `ON_CARD_MILLED_FROM_DECK` の収集機構（WX25-P2-009-E2 のミルトリガー＝現【※engine未配線】）／refresh置換実体（WX25-P2-009-E1）／「他＜毒牙＞効果で相手パワー減少」トリガー（WX25-P3-062-E1）。いずれも新トリガー機構。
-  3. **ビートの残（低優先）**: トラッシュ→beat（WDK14-013）の選択ピッカーのみ自動近似。
-- **⚠ 実機検証の宿題**: ビート Phase1-7＋機構④誤parse3枚は全て **要実機検証**。
+- **🎯 次の一手（ymst へ・上から推奨）**＝**現在地は「パーサー LOSS 234→0」の途中**。まず `docs/parser_worklist.md` を読む（地盤）。`npx tsx scripts/parserWorklist.ts` で現在値（held 387／LOSS 234／VALUE 153）を再生成できる。
+  1. **【本命】Stage B：LOOK/REVEAL_AND_PICK 一族の surgical 修正**（最大レバー＝action.type の約半分＋filter.cardType/count/then に連鎖）。**設計図は `docs/parser_worklist.md`「🅑 Stage B 着手記録」に完成済み**。R4 で「新ハンドラ追加は+129退行」を確認済みなので、必ず **effectParser.ts:1210 の誤発火分岐をピンポイント修正＋1222分岐拡張**（広域ハンドラ追加は禁止）。正解形マッピング（then/filter/pickUpTo/pickNoun/SEQUENCE+BLOCK_ACTION・story正規化・cardClass7枚パッチ）も同記録にある。**毎ステップ build→`parserWorklist.ts` で held合計が増えていない（横取り退行ゼロ）ことを必ず確認**（R4 はこれで事故検知）。
+  2. **【息抜き用の純局所】Stage A 残**：count 11／activeCondition 7（WXK04-080「【アクセ】が付いているかぎり」等）／filter.story 4。これらは R1/R2/R3 と同型の「属性付与漏れ」で低リスク。詰まったらこちらで数を稼ぐ。
+  3. **【着手しない】** duration「次の対戦相手のターン終了時まで」＝145枚波及の慣例問題（`docs/parser_backlog.md` 参照）。VALUE 153 は最後にまとめて逆翻訳レビューで（パーサーでは減らない）。
+- **⚠ パーサー作業の鉄則**（R1-R4の教訓）: ①逆翻訳を直す前に **engine が当該構文を実装済みか必ず確認**（`decompile-engine-parity`）。②filter抽出は **名詞句限定**（全文スキャン禁止）。③**build後に held合計が増えていないか毎回確認**（新ハンドラの横取り退行検知）。④毎ラウンド **typecheck(tsc -b)＋同型★0** をゲートに。
+- **⚠ 機構系の宿題（パーサーが一段落したら）**: 引用AUTO付与（§5 GRANT_QUOTED_AUTO_ABILITY）／機構④残（ON_CARD_MILLED_FROM_DECK 収集・refresh置換実体・「他＜毒牙＞効果で相手パワー減少」トリガー）／ビート Phase1-7＋機構④誤parse3枚は **全て要実機検証**。詳細は下の旧バトン履歴と `BUGFIXES.md`。
 - **⚠ 実機検証の宿題（ヘッドレス不可・PvP/CPU要）**: ビート Phase1-3 は全て **要実機検証**（[条件]ゲートの開閉／ON_BECOME_BEAT watcher の self/any_ally 出し分け・CPU代行／beat_signi の出・起発動→beat化→ON_BECOME_BEAT連鎖）。
 - **その前**: 逆翻訳器の生ID一掃（アクション21種＋STUB18種）／機構：傀儡場出し汎用化（WXK10-055）／機構④ターン限定AUTO基盤。
 - **⚠ ゲートは `npm run typecheck`（`tsc -b`）を使う**（plain `tsc --noEmit` は build-mode未使用でCIが拾うエラーを見逃す。今回それで既存CI赤に気づけなかった）。
