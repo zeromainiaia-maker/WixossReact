@@ -35,7 +35,9 @@
 ### 📍 現在地（バトン）— 次の人はここから
 > **push する人は、このブロックを上書きしてから push する。** 詳細な修正履歴は `BUGFIXES.md`（新しい順）に積むので、ここは**短く・次の一手だけ**。
 
-- **最終更新**: 2026-06-27（ymst・継続）
+- **最終更新**: 2026-06-28（ymst・継続）
+- **🔜 明日の続き（次の一手）＝最後の LOSS 1枚 WX20-026-E3 の engine 実装**。「自＜凶蟲＞シグニの効果で引いたとき相手パワー−4000」。**設計は `TODO.md` §3「機構④の残」に詳細記載済み**（execDraw で draw-source を PlayerState 記録→collectDrawTriggers に `drawBySourceStory` 判定→リセット境界の厳密化）。⚠ドローのホットパス＋state ライフサイクルが微妙＝**実機テスト前提で慎重に**。完了すれば **LOSS 0**。これが済めばパーサー整合ワークリストは完全終了し、次フェーズは②LOOK_AND_REORDER 252枚の取得未実装疑いの精査 or ③VALUE 159 の curation レビュー（下記）。
+- **🛠 再開時の確認コマンド**: `npx tsx scripts/parserWorklist.ts`（現在値 held 160 / LOSS 1 / VALUE 159 を再生成）。診断ツールは `scripts/_manualize2.ts <id>`（EXIST/FRESH 突き合わせ）・`scripts/_resync.ts <id> --apply`（FRESH 採用）＝未追跡のままローカル保持。
 - **⛔ 直近の重要発見（R14）**: **Stage B の本命「LOOK/REVEAL 一族」はパーサーでは直せない**。R4 の処方どおり surgical 実装したら **+105 退行**＝既存 curation が不整合（同一文法で REVEAL_AND_PICK 23枚 vs LOOK_AND_REORDER 119枚・判別不能）。パーサー現状（LOOK_AND_REORDER 多数派）が正しく、23枚が outlier。**この一族は着手禁止**＝curation 統一は VALUE の最終 bulk レビュー案件。詳細 `docs/parser_worklist.md`「🅑 Stage B」⛔R14。**→ 次は LOOK/REVEAL を避け、別の LOSS バケツ（filter.cardType 13／count 11／triggerCondition 12 等の局所）か、Stage B の非 LOOK/REVEAL 型ペア（CHOOSE←BANISH 3／CONDITIONAL←DRAW 4 等の小クラスタ）を診断してから選ぶ**。
 - **🧭 パーサー作業の地盤＝`docs/parser_worklist.md`（cold start はまずこれ）**: held 404 を **LOSS 255（真の弱点＝直す）／ VALUE 149（慣例・対象外）** に重複なく分割した有限ワークリスト。計器 `npx tsx scripts/parserWorklist.ts` で数字を再生成。**完了条件＝LOSS 255→0**。手当たり次第をやめ、バケツ単位（Stage A 局所67→C トリガー73→B action.type中心109）で潰す。各ラウンドで計器の LOSS 減＋同型★0 をゲートにする。**現在値＝held 160 / LOSS 1 / VALUE 159**（R30 commit 後）。**🎉 LOSS 255→1**。残 LOSS 1（WX20-026）は draw-source-class 追跡が要る engine 案件＝下記。
 - **🏁 LOSS ほぼ完了（R28・255→6）**。LOOK/REVEAL 一族を MANUAL化で一掃。**エンジン調査の結論＝`REVEAL_AND_PICK` のみ「公開→ピック→手札/場/エナに加える」を実装、`LOOK_AND_REORDER` は並べ替え専用（取得不可）**。よって「N枚見てその中から手札等に加える」take系の canonical は **REVEAL_AND_PICK**（LOOK/REVEAL の curated JSON は概ね正しく、パーサーが LOOK_AND_REORDER に割れて flag されていただけ）。パーサー surgical は R14 で +105 退行のため不可＝MANUAL化で確定。
