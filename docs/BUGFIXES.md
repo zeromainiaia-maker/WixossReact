@@ -5,6 +5,13 @@
 
 ---
 
+## パーサー: R18＝「このシグニを場から手札に戻す」BOUNCE に thisCardOnly 付与（LOSS −3）（2026-06-27・ymst）
+
+`parseSentencePart1.ts` の BOUNCE handler（行866）が「このシグニを場から手札に戻してもよい」の自身限定（`filter.thisCardOnly`）を落とし、汎用 `filter:{cardType:シグニ}` に潰していた。語順 `/このシグニを(?:場から)?手札に戻/` で判定して `thisCardOnly:true` を付与（トリガーの「このシグニが…とき」や対戦相手/他シグニ対象には付けない）。
+
+- 計器：**LOSS 165→162（−3）／held 324→321**。WXK06-034/036/WXK10-061 が IDENTICAL 化（「アタック時このシグニを手札に戻す→手札からレベルN英知シグニを場に出す」一族）。同パターンの WXK02-071/WXK10-057/WDK05-T15 は別途 STUB（REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI）差分が残るため held 継続（別件）。同型★0維持・typecheck（tsc -b）緑・JSON無変更・要実機検証。
+- filter（その他）バケツの最大サブクラスタ（thisCardOnly 6枚）のうち clean な3枚を解消。
+
 ## データ正規化: R17＝公開→エナ送りの stale ENERGY_CHARGE{DECK_CARD}→ADD_TO_ENERGY（3枚・engine バグ修正）（2026-06-27・ymst）
 
 「デッキの一番上を公開する。それが〔X〕の場合、それをエナゾーンに置く」の REVEAL_AND_PICK の `then` が、HEAD では **stale な `{type:ENERGY_CHARGE, target:{DECK_CARD,self,1}}`** で保存されていた。これは `effectParser.ts:1284` が明示する既知バグ形＝`execEnergyCharge` が DECK_CARD ターゲットを場のシグニ選択と誤解する。パーサーは正しく `{type:ADD_TO_ENERGY, owner:self}`（applyDirectAction が公開カードをエナへ）に正規化済み。

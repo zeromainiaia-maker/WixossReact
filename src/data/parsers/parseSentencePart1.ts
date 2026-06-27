@@ -869,11 +869,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const countM = t.match(/([０-９\d]+)体を対象/);
     const all = t.includes('すべて');
     const count = all ? 'ALL' : (upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1));
+    // 「このシグニを（場から）手札に戻す」＝自身限定（thisCardOnly）。トリガーの「このシグニが…とき」とは
+    // 区別するため「このシグニを…手札に戻」の語順で判定する（対戦相手/他シグニ対象には付けない）。
+    const isThisCard = /このシグニを(?:場から)?手札に戻/.test(t);
     return {
       type: 'BOUNCE',
       target: {
         type: 'SIGNI', owner, count, upToCount: !!upToM,
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t) },
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
