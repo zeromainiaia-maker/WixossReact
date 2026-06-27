@@ -36,7 +36,15 @@
 - ✅ **POWER_MODIFY「他の＜種族＞/色」持続バフ**：`parseSentencePart1.ts` のゲート正規表現が「他の＋＜＞」併用語順を拾えず汎用target+filter破棄していたのを修正＋excludeSelf付与。filter.story 16→11。
 - ✅ **activeCondition「あなたの場に[色/クラス]のシグニがあるかぎり」**：`effectParser.ts parseActiveCondition` のキャッチオール（condition=undefined）の前に色/クラス存在条件パターン3zを追加。activeCondition 18→15。
 - ✅ **【自】ON_BANISH「(対戦相手|あなた)のターンの間、…バニッシュされたとき」**：AUTO経路に前置き検出＋TURN_OWNER化（G150の【常】版を【自】へ展開）。engine配線済み（collectBanishTriggers）。純改善12枚採用・held 409→408。
-- いずれも収穫マージで回帰0。
+- ✅ **自身の基本レベル SET_BASE_LEVEL 化**：「このシグニの基本レベルはNになる」を `parseSentencePart1.ts` で SET_BASE_LEVEL(until:END_OF_TURN) 出力（旧 BLOCK_ACTION/SET_LEVEL_N は execBlockAction が no-op＝engine 非実行 divergence）。self（sourceCardNum）限定で安全。対象指定の他シグニ版は engine 未対応で BLOCK_ACTION 据置。
+- ✅ **レゾナ表現を cardType:'レゾナ' に一本化＋decompile退化是正**：decompiler が `filter.cardType:'レゾナ'` をレゾナと認識せず「シグニ」と退化（6枚＝★非検出の隠れバグ）→ decompileEffects.ts 2箇所で `cardType==='レゾナ'` 認識。「あなたのレゾナのパワーを±N」の target 脱落も是正（POWER_MODIFY 分岐がシグニ限定だった→レゾナ分岐追加）。死にキー `isResona` を JSON から完全撤去（残0・engine 0参照）。
+- いずれも収穫マージで回帰0・同型★0維持。
+
+## ⚠ 調査して「クリーンでない」と判断した案件（着手しない）
+### duration「次の対戦相手のターン終了時まで」→ UNTIL_OPP_TURN_END（145枚の慣例問題・据置）
+- 根本：`effectParser.ts` の effect-level duration 解決（`actionText.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'`）が、**部分文字列**として「次の対戦相手のターン終了時まで」を拾い UNTIL_END_OF_TURN に誤判定。より特定の句を先に判定すれば UNTIL_OPP_TURN_END に直せる。
+- **しかしブラストが大**：この句を持つ186枚中、fresh が effect.duration=UNTIL_END_OF_TURN を出すのが153枚。そのうち**既存JSONも UNTIL_END_OF_TURN が145枚**（パーサーと一致＝事実上の慣例）、UNTIL_OPP_TURN_END に手修正済みは3枚（WXDi-P12-057/WXDi-P15-093/WX24-P1-076）のみ。
+- パーサーを直すと**145枚が新規 held 化**＝大規模 bulk 値変更。「正しい値」も effect.duration vs action.duration の役割（action 側で正しく持てば effect 側は無害の可能性）を含め未確定。**§2「bulk 値変更禁止」案件**。やるなら145枚のJSON一括移行＋engine の duration 役割確認をセットで、人間判断のうえで。単発パーサー修正としては着手しない。
 
 ## ⚠ 着手して破棄した教訓（filter.color/story in trash→hand source）
 - `parseSentencePart1.ts` の `if(t.includes('トラッシュから')&&t.includes('手札に加える'))` ハンドラに
