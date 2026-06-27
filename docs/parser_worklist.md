@@ -86,3 +86,20 @@
 - **進捗の見方**：`npx tsx scripts/parserWorklist.ts` の `LOSS` 合計が減る＝前進。0が完了。
 - **1ラウンド**：LOSS の1バケツ（or 下位パターン）を選ぶ → narrow 修正 → `npm run build:effects`（収穫マージ）→ 計器で当該バケツ減を確認 → typecheck＋同型★0 → commit。
 - **同型★0 と典型カードの逆翻訳一致**を毎回ゲートにする（件数だけを信じない＝§2）。
+- **⚠ build 後は held 合計が増えていないか必ず確認**（新ハンドラが他カードを横取りすると +N 退行する。R4 参照）。
+
+## 🅑 Stage B 着手記録：LOOK/REVEAL_AND_PICK 一族（最大レバー・要surgical）
+
+action.type 77 を fresh 出力で分解すると **約半分が LOOK/REVEAL 一族**（25 LOOK_AND_REORDER 退化 ＋ 8 REVEAL_AND_PICK/DRAW ＋ singleton 多数）。filter.cardType / count / then-steps / upToCount の脱落も同時に生む**最大の cross-bucket レバー**。だが着手で重要な制約が判明：
+
+### R4（2026-06-27）＝**広域ハンドラ追加は厳禁**（+129退行→全revert）
+- 「N枚見る→その中から〔filter〕をM枚(まで)〔手札/場/エナ〕→残りデッキ下/上」を REVEAL_AND_PICK 化する**新ハンドラを早い位置に追加**したら **held 387→516（+129）の大規模退行**。原因＝この一族は既存ハンドラ（`LOOK_PICK_CHAIN`／結合処理 effectParser.ts:1373／`makeRevealPickStub` 等）が**既に広範にカバー**しており、早い位置の広域 match が正しく処理されていたカードを横取りした。→ **即 revert（held 387 復帰）**。
+- **教訓**：新ハンドラ追加は不可。**既存の誤発火分岐をピンポイント修正**せよ。具体的には effectParser.ts **1206 の第1分岐(1210)** `その中から.*(?:デッキ|トラッシュ)` が**残り句の「デッキ」で誤発火**し pick を持つ文まで LOOK_AND_REORDER に潰す＝ここに「手札に加え|場に出|エナゾーンに置 を含むなら発火させない」ガードを足し、第2分岐(1222)を 場/エナ＋pickUpTo＋story へ拡張するのが正道。**毎回 build→worklist で +N 退行ゼロを確認**。
+
+### この一族の正解形マッピング（確定済み・次の実装者へ）
+- 単一pick: `REVEAL_AND_PICK{owner:self, revealCount, filter, pickCount, pickUpTo?(「N枚まで」), pickNoun?(カード/スペル時のみ), then, remainder}`。このキー順で WXDi-P01-018/WXDi-D05-007/WX24-P1-036/WXDi-P16-060/WXDi-D04-012 が IDENTICAL/SUPERSET になった（R4で検証済み）。
+- `then`：手札に加え→`ADD_TO_HAND` ／ 場に出(す/し)→`ADD_TO_FIELD` ／ エナゾーンに置(く/き)→`ADD_TO_ENERGY`。
+- `filter`：noun=シグニ/スペル→`cardType`、カード→cardType無し＋`pickNoun:'カード'`。＜X＞→**`story`**。色共通→`colorMatchesLrig`、《ガードアイコン》→`hasGuard`、レベル→`level`。「を」は noun と枚数の間で**任意**（「スペル１枚」）。
+- **場に出す＋「シグニの【出】能力は発動しない」**＝`SEQUENCE{steps:[REVEAL_AND_PICK, BLOCK_ACTION{target:PLAYER/self, actionId:'ON_PLAY_ABILITY', until:'END_OF_TURN'}]}`。
+- **story/cardClass は engine・decompiler とも完全に同一視**（execUtils 231/237＝両方 card.CardClass.includes）。REVEAL_AND_PICK filter は **story が124枚で規約・cardClass はわずか7枚**（WX16-054/WXDi-D02-18AT/WX24-P1-053/WX24-P2-061/WX25-P3-054/WXK02-045/SP27-009）。この7枚を story 正規化してから進めると IDENTICAL になる。
+- 多段（手札＋場の2段）は `LOOK_PICK_CHAIN`（WX24-P1-026/WX25-P1-039/WXDi-P02-020/WXDi-P16-035 等）＝別サブパターン。WXDi-P00-045 は既存JSONが旧 LOOK_AND_REORDER（要個別確認）。
