@@ -21,6 +21,7 @@
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
+- 2026-06-28 🏁 R28（LOOK/REVEAL 一族61枚 MANUAL化／ymst）: エンジン調査で REVEAL_AND_PICK＝取得実装あり／LOOK_AND_REORDER＝並べ替え専用と確定→take系 canonical は REVEAL_AND_PICK。残LOSSの LOOK/REVEAL 61枚（action.type 57＋filter.cardType 3＋PR-457）を MANUAL化。**LOSS 67→6／held 226→165**。**LOSS 255→6 でワークリストほぼ完了**。残6＝個別判断の難物（WX20-026/WXK05-030/WXDi-D09-P18/WXK10-022/SP27-016/WDK08-L14）→VALUE最終レビューへ合流。別軸＝LOOK_AND_REORDER curate 約252枚の取得未実装疑い（要精査）。
 - 2026-06-28 R27（action.type の非LOOK/REVEAL 17枚 MANUAL化／ymst）: action.type 76枚を全数 triage。大半(~59)は LOOK/REVEAL一族で bulk送り。非LOOK/REVEALの17枚のみ MANUAL化（CHOOSE構造崩壊・「代わりに」二重適用・CONDITIONAL/cost脱落）。**LOSS 84→67（−17）／held 243→226**。🚩**1枚ずつのクリーン鉱脈は枯渇**。残 LOSS 67 はほぼ LOOK/REVEAL（REVEAL_AND_PICK↔LOOK_AND_REORDER）の bulk正規化案件＝次フェーズは canonical を決める設計判断。保留2＝WDK08-L14/WXK10-022。
 - 2026-06-28 R26（filter（その他）バケツ全 MANUAL化／ymst）: 21枚すべて「EXIST正・FRESH退化」（acceHost/cardClass/level/levelLteDiscardSigni/eachDistinctColor/commonClass/keyword/powerRange 脱落、ON_ACCE timing穴、STUB退化）と判定し MANUAL化。stale/LOOK-REVEAL なし。**LOSS 105→84（−21）／held 264→243**。残 LOSS 84 の大半は action.type 76（構造差）。
 - 2026-06-28 R25（filter.cardType／count バケツ triage／ymst）: 2刀流で15枚処理。MANUAL化6（WX10-007/021・WXDi-P12-060・WXDi-P15-093・WX24-P1-076・WXK08-045）＋resync/採用9（WXK04-042・WXDi-P14-077-E1・WX25-P1-018・WX25-P1-026・WX25-P1-115・WXK04-002・SPDi01-121・SPDi44-04・SPDi44-08＝stale JSON の実バグ修正）。**LOSS 120→105（−15）／held 279→264**。⚠SKIP＝REVEAL_AND_PICK 3枚（LOOK/REVEAL一族）・WXDi-D09-P18（覚醒・両不正確）。

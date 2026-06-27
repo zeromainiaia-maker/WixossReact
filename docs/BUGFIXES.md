@@ -5,6 +5,16 @@
 
 ---
 
+## データ: R28＝LOOK/REVEAL 一族61枚を MANUAL化（LOSS 67→6・worklist ほぼ完了）（2026-06-28・ymst）
+
+**エンジン調査が決め手**：`execRevealAndPick` は「公開→フィルタ→○枚ピック→`then`(手札/場/エナに加える)＋残り下」を完全実装。`execLookAndReorder` は**見て並べ替えてデッキに戻すだけで `then`(取得)を持たない**。→ 両者は別メカニクスで、「N枚見てその中から手札等に加える」take系は **REVEAL_AND_PICK が唯一の正**。残 LOSS の LOOK/REVEAL 一族は EXIST が概ね正しく `REVEAL_AND_PICK`/`LOOK_PICK_CHAIN`/`LOOK_AND_REORDER+CONDITIONAL(DECK_TOP_MATCHES)` でcurateされ、パーサーが共通文法から型を判別できず `LOOK_AND_REORDER` に割れて flag されていただけ（R14 のとおりパーサー surgical は +105 退行で不可）。→ **canonical を REVEAL_AND_PICK と確定し、61枚を MANUAL化**（runtime不変・構造完全一致）。**LOSS 67→6／held 226→165**。
+
+- **MANUAL化 61枚**＝action.type 57（LOOK/REVEAL）＋filter.cardType 3（WX24-P1-020/WX25-P1-037/WX25-P3-040＝REVEAL_AND_PICK）＋PR-457（E2 の SEARCH+colorMatchesLrig 脱落）。
+- **⚠残 LOSS 6枚＝個別判断（bulk不可）**：WX20-026-E3／WXK05-030（FRESH優位だが各々難あり＝過剰発火・bundle乱れ）／WXDi-D09-P18／WXK10-022-E1（EXIST/FRESH ともに誤＝覚醒 activeCondition 欠落・ON_PLACE系トリガー穴）／SP27-016（lossy choice 近似）／WDK08-L14（FRESH=manual STUB・engine確認待ち）。VALUE 最終レビューに合流予定。
+- **📌 統計の参考**：`scripts/_lr.ts` 計測で REVEAL_AND_PICK 217／LOOK_PICK_CHAIN 13／LOOK_AND_REORDER 448（うち最大252枚はテキストが「その中から…手札/場/エナに加える」take系＝engine が取得を実装しない疑い・要精査の別軸品質課題。複数効果カードの誤検出を含む粗い上限）。
+
+---
+
 ## データ: R27＝action.type バケツの非LOOK/REVEAL hard-tail 17枚を MANUAL化（2026-06-28・ymst）
 
 action.type バケツ76枚を全数 dry-run。**大半（~59枚）は LOOK/REVEAL 一族**＝EXIST の `REVEAL_AND_PICK`/`LOOK_PICK_CHAIN`/`LOOK_AND_REORDER+CONDITIONAL(DECK_TOP_MATCHES)` に対し FRESH が `REVEAL_AND_PICK`↔`LOOK_AND_REORDER` のどちらかに割れる（R14 で判明した curation 不整合）。これらは触らず bulk 正規化送り。**「EXIST 正・FRESH 退化」かつ LOOK/REVEAL を含まない17枚のみ MANUAL化**。差分effectのみ・runtime不変・構造完全一致を検証。**LOSS 84→67（−17）／held 243→226**。
