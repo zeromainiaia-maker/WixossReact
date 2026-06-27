@@ -35,7 +35,8 @@
 ## 着手済み（このセッション）
 - ✅ **POWER_MODIFY「他の＜種族＞/色」持続バフ**：`parseSentencePart1.ts` のゲート正規表現が「他の＋＜＞」併用語順を拾えず汎用target+filter破棄していたのを修正＋excludeSelf付与。filter.story 16→11。
 - ✅ **activeCondition「あなたの場に[色/クラス]のシグニがあるかぎり」**：`effectParser.ts parseActiveCondition` のキャッチオール（condition=undefined）の前に色/クラス存在条件パターン3zを追加。activeCondition 18→15。
-- いずれも収穫マージで回帰0・held 420→413。
+- ✅ **【自】ON_BANISH「(対戦相手|あなた)のターンの間、…バニッシュされたとき」**：AUTO経路に前置き検出＋TURN_OWNER化（G150の【常】版を【自】へ展開）。engine配線済み（collectBanishTriggers）。純改善12枚採用・held 409→408。
+- いずれも収穫マージで回帰0。
 
 ## ⚠ 着手して破棄した教訓（filter.color/story in trash→hand source）
 - `parseSentencePart1.ts` の `if(t.includes('トラッシュから')&&t.includes('手札に加える'))` ハンドラに

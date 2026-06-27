@@ -1659,6 +1659,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_BANISH') {
+        // 「(対戦相手|あなた)のターンの間、」前置き＝そのプレイヤーのターン限定（activeCondition TURN_OWNER）。
+        // engine の ON_BANISH 自己トリガー収集（BattleScreen collectBanishTriggers）が activeCondition を評価する。
+        // 【常】→ON_BANISH 再分類（G150）と同じ扱い。WXK04-065/067 等の【自】版がここに該当。
+        const turnIntervalM = actionText.match(/^(対戦相手|あなた)のターンの間、(.+)/s);
+        if (turnIntervalM) {
+          forcedActiveCondition = { type: 'TURN_OWNER', owner: turnIntervalM[1] === '対戦相手' ? 'opponent' : 'self' };
+          actionText = turnIntervalM[2];
+        }
         // 「対戦相手の（＜X＞の）シグニ[N体]がバニッシュされたとき」= any_opp（相手シグニのバニッシュに反応。collectBanishTriggers step2 が triggerScope で処理）
         const oppBanM = actionText.match(/^対戦相手の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
         if (oppBanM) {

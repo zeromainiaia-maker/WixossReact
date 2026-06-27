@@ -5,6 +5,15 @@
 
 ---
 
+## パーサー: 【自】ON_BANISH「(対戦相手|あなた)のターンの間、…バニッシュされたとき」のactiveCondition脱落を是正（2026-06-27・karka）
+
+`effectParser.ts` の **AUTO【自】ON_BANISH** 経路に「(対戦相手|あなた)のターンの間、」前置きの検出を追加し、`forcedActiveCondition = TURN_OWNER` を設定＋プレフィックス除去。従来は【常】→ON_BANISH 再分類（G150）にだけ TURN_OWNER 化があり、**素の【自】版は activeCondition 丸ごと脱落**していた（WXK04-065/067 が要レビューに滞留）。
+
+- **engine配線済み（パリティOK）**: BattleScreen `collectBanishTriggers`（src/screens/BattleScreen.tsx:3571-3577）が ON_BANISH 自己トリガー収集時に `checkActiveCondition` を評価（コメントにも「対戦相手のターンの間」）。【常】G150 と同じ機構を流用＝新規engine作業なし。
+- **収穫マージ（build:effects）で純改善採用12枚**: TURN_OWNER activeCondition を追加（全て原文に「ターンの間」を持つ）。WXK04-065/067・WX11-066・WX14-044/071・WX16-029・WXDi-P03-042・WXDi-P05-058・WXDi-P15-090・WXK07-048・WXK08-059。WXDi-P03-042/WXDi-P15-090 は「あなたの他の/＜原子＞のシグニ」被バニッシュ（any_ally scope は別の既存制約・本修正で悪化なし）。
+- **held（要レビュー）409→408**。typecheck（tsc -b）緑・全sheet＋下流再生成・**同型★0維持**・逆翻訳に《対戦相手のターンの間であるかぎり》反映。
+- **要実機検証**（相手/自分ターン中のみ ON_BANISH が発火するか）。
+
 ## 機構④誤parse3枚の是正（WXDi-P07-044／WX25-P3-062／WX25-P2-009・2026-06-26）
 
 機構④（《自分/相手ターン》AUTO）で「未配線・別系統の重い誤parse」として残していた3枚を、既存語彙＋トリガー配線で是正。トリガー/アクションが丸ごと壊れていたのを原文一致まで復元。
