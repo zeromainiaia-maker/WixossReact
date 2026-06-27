@@ -5,6 +5,18 @@
 
 ---
 
+## データ: R23＝小バケツ hard-tail 12枚を parseStatus:MANUAL 化＋逆パターン3種の発見（2026-06-27・ymst）
+
+R21/R22 の MANUAL化戦略継続。残 LOSS の小バケツを `scripts/_manualize2.ts <id>` で1枚ずつ dry-run し、**EXIST が正・FRESH が退化** の hard-tail のみ MANUAL化（差分effectのみ・runtime不変・構造完全一致を検証）。**LOSS 138→126（−12）／held 297→285**。
+
+- **MANUAL化 12枚**：action.id 4＝WX04-015（curated STUB `OPP_REVEAL_SPELL_USE_FREE`・FRESH は誤 TRANSFER_TO_DECK を含む分解）／WXDi-P06-054-E2（`GRANT_QUOTED_AUTO_ABILITY`・FRESH は内側能力が UNKNOWN に漏れる＝R13 同型）／WXK01-054・WXK01-089（`DRAW_AT_TURN_END`・FRESH は「ターン終了時」を落とし即時DRAW）。condition.type 2＝WXK08-070・WXK10-069（`ON_BECOME_BEAT` timing穴＋`BEAT_CONDITION` 脱落）。costThreshold 1＝WX04-011（`costThreshold`＋`useTimingIncludes` 脱落）。optional 2＝WXDi-D08-013・WXDi-P14-084（TRASH の `optional:true` 脱落）。then 3＝WXK02-071・WXK10-057・WDK05-T15（curated STUB `REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI`・FRESH は LOOK_AND_REORDER+ADD_TO_FIELD に lossy 分解＝「それがシグニの場合」条件喪失）。
+- **⚠重要発見＝MANUAL化してはいけない逆パターン**（dry-run で FRESH の方が正しいもの。誤って MANUAL化すると誤データを凍結する）：
+  1. **JSON stale（manualEffects.ts に richer 定義・保存JSONが古い）＝再同期案件**：WX25-CP1-030／WX25-CD1-06（2択 CHOOSE が単一 NEGATE_ATTACK に退化）／WXK04-030（血晶武装+power+grant が「BANISH ALL」に誤退化）。FRESH（mergeManualEffects 後）が既に parseStatus:MANUAL で完全版を出す＝**JSON を FRESH 値に再同期すれば held 化**（最もクリーンな次の一手）。
+  2. **パーサー優位の stale データ＝data採用案件（R12/R17 型）**：WX24-P3-064／WXK07-027（activeCondition のトラッシュ枚数条件＋target.thisCardOnly を JSON が欠落・FRESH が完備）／WX20-026-E3／WX21-Re09-E1（JSON が timing `ON_TURN_END` 誤り＋story を target に誤配置・FRESH が `triggerScope`/`triggerFilter`/`triggerCondition.byEffect` に正配置）。JSON を FRESH 値に寄せれば改善＋held 化。
+  3. **curation 案件**：SP27-016（choice① が SEARCH→ENERGY を落とした lossy 近似）／WXK05-030（【マルチエナ】を RULE_REMINDER_TEXT で近似・本来 GRANT_KEYWORD）。bulk 正規化送り。
+
+---
+
 ## データ: R22＝powerRange anaphora／トリガー穴 hard-tail 6枚を parseStatus:MANUAL 化（LOSS から正当除外）（2026-06-27・ymst）
 
 R21 と同じ「既存 JSON は正しいがパーサー再現不能な hard-tail を MANUAL化」戦略の継続。計器（`scripts/parserWorklist.ts`）の triggerCondition/Scope バケツ6枚を 1枚ずつ dry-run（`scripts/_manualize2.ts <id>`＝HEAD effect と fresh parser 出力の leaf 差分を表示）で「EXIST正・FRESH退化」を確認のうえ MANUAL化。**差分effectのみ・runtime不変（leaf 不変・parseStatus メタデータのみ）**。
