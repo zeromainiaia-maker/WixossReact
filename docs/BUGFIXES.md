@@ -5,6 +5,13 @@
 
 ---
 
+## パーサー: Stage C R11＝AUTO/ACTIVATED の《自分ターン》《相手ターン》を triggerCondition.turnOwner 化（最大の単発・LOSS −28）（2026-06-27・ymst）
+
+Stage C の本丸。`effectParser.ts:1948` が 《相手ターン》《自分ターン》マーカーを **CONTINUOUS のみ** activeCondition 化し、AUTO/ACTIVATED は「engine 側未整備」として**見送っていた**（コメントが陳腐化）。実際は engine の `effectStack.ts`（機構④）が `triggerCondition.turnOwner` を現ターンと照合してゲートする実装が完了済み（`types/effects.ts:1509` も WXDi-P06-033 を名指しで文書化）。AUTO/ACTIVATED 経路で `extractedTriggerCondObj.turnOwner = (turnOwnerCond.owner)` を付与するよう是正。
+
+- 計器：**LOSS 206→178（−28）／held 360→339**。turnOwner 値の衝突＝**0件**（HEAD の既存 turnOwner と矛盾なし・純粋に欠落補完）。**同型★0維持**・typecheck（tsc -b）緑。**要実機検証**（《自分/相手ターン》AUTO がターン外で発火しないこと）。
+- 解消例：WXDi-D05-013/WXDi-P06-033/WXDi-P11-058/WX24-P1-013/WX24-P2-030 等。VALUE が +7（154→161）したのは、turnOwner 脱落が primary だった一部（WX24-P1-059/P1-084/WXDi-P11-040＝timing `ON_TURN_END`↔`ON_PLAY` の別ズレ）が LOSS→VALUE に再分類されただけ（held のまま・別系統の宿題）。
+
 ## パーサー: Stage C R10＝ON_PLAY「他の…場に出た」excludeSelf／UP thisCardOnly／ON_TRASH fromZones／自己蘇生 optional（2026-06-27・ymst）
 
 Stage C（triggerCondition/Scope/Filter バケツ）の第1弾。トリガー検出の穴を4点是正：

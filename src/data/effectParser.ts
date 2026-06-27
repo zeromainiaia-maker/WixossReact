@@ -1945,11 +1945,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       : driveCond;
   }
 
-  // 《相手ターン》《自分ターン》（CONTINUOUS のみ activeCondition 化。AUTO/ACTIVATED は engine 側未整備のため見送り）
+  // 《相手ターン》《自分ターン》：CONTINUOUS は activeCondition TURN_OWNER、
+  // AUTO/ACTIVATED は triggerCondition.turnOwner（engine effectStack がターン照合でゲート＝機構④で配線済み）。
   if (effectType === 'CONTINUOUS' && turnOwnerCond) {
     finalActiveCondition = finalActiveCondition
       ? { type: 'AND', conditions: [turnOwnerCond, finalActiveCondition] }
       : turnOwnerCond;
+  } else if (effectType !== 'CONTINUOUS' && turnOwnerCond?.type === 'TURN_OWNER') {
+    extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: (turnOwnerCond as { owner: 'self' | 'opponent' }).owner };
   }
 
   // ビートアイコン条件：【常】CONTINUOUS は activeCondition（engine checkActiveCondition が評価）、
