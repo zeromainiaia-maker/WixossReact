@@ -50,7 +50,7 @@ import type {
   SendToEnergyAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseLevelLteLastProcessed, parseNameFilter, parseEnergyCosts, toHalf,
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
@@ -734,7 +734,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       const lv = m3[1] ? parseNum(m3[1]) : undefined;
       const filter: TargetFilter = lv !== undefined
         ? { cardType: 'シグニ', level: m3[2] === '以下' ? { max: lv } : { min: lv } }
-        : { cardType: 'シグニ' };
+        : { cardType: 'シグニ', ...parseLevelLteLastProcessed(t) };
       return {
         type: 'SEND_TO_ENERGY',
         target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m3[3]), filter },
@@ -876,7 +876,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       type: 'BOUNCE',
       target: {
         type: 'SIGNI', owner, count, upToCount: !!upToM,
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}) },
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...(isThisCard ? { thisCardOnly: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
@@ -931,6 +931,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const filter: TargetFilter = {
       ...parseCardTypeFilter(t),
       ...parseLevelFilter(t),
+      ...parseLevelLteLastProcessed(t),
       ...parseColorFilter(t),
       ...parseStoryFilter(t),
       ...parseColorMatchesLrig(t),

@@ -21,6 +21,7 @@
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
+- 2026-06-27 R20（filter（その他）・levelLteLastProcessed／ymst）: 「この方法で…したシグニのレベル以下」の動的レベル参照を `parseLevelLteLastProcessed` 新設し BOUNCE/SEND_TO_ENERGY/SEARCH の3ハンドラに適用。**LOSS 158→155（−3）／held 317→314**（WX21-022/WX24-P3-026/WXEX2-17 IDENTICAL）。同型★0維持・typecheck緑・JSON無変更。
 - 2026-06-27 R19（filter（その他）・《ガードアイコン》hasGuard/noGuard／ymst）: `parseGuardFilter` ヘルパー新設しトラッシュ→手札（spanTxt限定）／トラッシュ→エナ汎用に適用。**LOSS 162→158（−4）／held 321→317**（WXDi-P00-025/P01-011 hasGuard・WXDi-P01-030/P07-029 noGuard が IDENTICAL）。同型★0維持・typecheck緑・JSON無変更。helper 化で横展開容易。
 - 2026-06-27 R18（filter（その他）・BOUNCE「このシグニを手札に戻す」thisCardOnly／ymst）: BOUNCE handler（part1:866）が自身限定 thisCardOnly を落としていた。`/このシグニを(?:場から)?手札に戻/` で付与。**LOSS 165→162（−3）／held 324→321**（WXK06-034/036/WXK10-061 IDENTICAL）。同パターンの3枚は別 STUB 差分で held 継続。同型★0維持・typecheck緑・JSON無変更。filter（その他）バケツ細分の最大＝thisCardOnly 6枚のうち clean 3枚を解消。
 - 2026-06-27 R17（データ正規化・stale ENERGY_CHARGE{DECK_CARD}→ADD_TO_ENERGY／ymst）: 「デッキ一番上を公開→それが〔X〕の場合エナに置く」の REVEAL_AND_PICK.then が HEAD で stale な `ENERGY_CHARGE{DECK_CARD}`（既知 engine バグ形・effectParser.ts:1284）。パーサー正値 `ADD_TO_ENERGY{owner:self}` に JSON パッチ3枚（WX12-051/052/WX18-070）＝IDENTICAL 化。**LOSS 168→165（−3）／held 327→324**。同パターンの残17枚は別差分ありで対象外。同型★0維持・typecheck緑・パーサー無変更（データのみ）。

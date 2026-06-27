@@ -108,6 +108,11 @@ export function parseGuardFilter(text: string): Partial<TargetFilter> {
   return {};
 }
 
+// 「この方法で〔加えた/バニッシュした/移動した等〕シグニのレベル以下」＝直前処理カードのレベル参照（動的・engine 解決済）。
+export function parseLevelLteLastProcessed(text: string): Partial<TargetFilter> {
+  return /この方法で[^。]{0,20}?シグニのレベル以下/.test(text) ? { levelLteLastProcessed: true } : {};
+}
+
 export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
   if (text.includes('シグニ')) return { cardType: 'シグニ' };
   if (text.includes('スペル')) return { cardType: 'スペル' };

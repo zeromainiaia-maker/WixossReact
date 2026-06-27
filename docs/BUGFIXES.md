@@ -5,6 +5,13 @@
 
 ---
 
+## パーサー: R20＝「この方法で…したシグニのレベル以下」levelLteLastProcessed 付与（LOSS −3）（2026-06-27・ymst）
+
+「この方法で〔手札に加えた／バニッシュした／手札に移動した〕シグニのレベル以下の…シグニ」の動的レベル参照（engine 解決済 `levelLteLastProcessed`）をパーサーが出せていなかった。`parserUtils` に `parseLevelLteLastProcessed`（`/この方法で[^。]{0,20}?シグニのレベル以下/`）を新設し、3ハンドラに適用：①BOUNCE「それを手札に戻す」target②SEND_TO_ENERGY「それをエナゾーンに置く」target（m3）③SEARCH「探して場に出し」filter。
+
+- 計器：**LOSS 158→155（−3）／held 317→314**。WX21-022（BOUNCE）/WX24-P3-026（SEND_TO_ENERGY）/WXEX2-17（SEARCH・CONDITIONAL内）が IDENTICAL 化。同型★0維持・typecheck（tsc -b）緑・JSON無変更・要実機検証。
+- filter（その他）の動的フィルタ系を解消。helper 化で横展開可能。
+
 ## パーサー: R19＝トラッシュ抽出に《ガードアイコン》hasGuard/noGuard 付与（LOSS −4）（2026-06-27・ymst）
 
 `parserUtils` に `parseGuardFilter`（《ガードアイコン》を持つ→hasGuard／持たない→noGuard）を新設し、`parseSentencePart1.ts` の2ハンドラに適用：①トラッシュ→手札（行1105・名詞句スパン spanTxt 限定）②トラッシュ→エナ汎用（行1883）。
