@@ -5,6 +5,15 @@
 
 ---
 
+## パーサー: filter.color／colorMatchesLrig 脱落是正（trash→hand 単色＋SEARCH/REVEAL系の共通色）（2026-06-27・ymst）
+
+Stage A（filter.color バケツ）。2系統：
+
+1. **trash→hand の単色 filter**：R5 で story は付与したが**色を落としていた**（WX04-021「トラッシュから黒のシグニ…手札に加える」の color:'黒'）。名詞句スパン内に**一意な単色のみ**付与（`[白赤青緑黒](?=[のか])` を集合化し distinct===1 かつ「色の」形のときだけ）。**⚠複色は除外**＝「白か赤のシグニ」「白のカード１枚と黒のカード１枚」は単一色 filter で表せず誤るため付けない（WX14-031/WX20-022 の偽陽性を回避）。単色 curation bug 56枚を純改善採用。
+2. **colorMatchesLrig の共用ヘルパー化**：「(あなたの)センタールリグと共通する色を持つ〔シグニ/カード〕」を `parseColorMatchesLrig`（parserUtils・名詞句限定の共通正規表現）に切り出し、**SEARCH（part1:926）／trash→hand／trash→field（part1:1222）** に適用。WDK13-009・PR-K064（SEARCH）・WX19-004（trash→field choice）解消＋PR-318 等を harvest。R2 のインライン正規表現も同ヘルパーへ統一。
+
+- 計器：**LOSS 214→210**（WX04-021/WDK13-009/PR-K064/WX19-004）＋単色56枚・colorMatchesLrig数枚の純改善。typecheck（tsc -b）緑・**同型★0維持**。**要実機検証**。残＝PR-457（REVEAL_AND_PICK の filter.colorMatchesLrig＝**Stage B 一族**で別途）。
+
 ## パーサー: 「手札から＜X＞のシグニをN枚捨ててもよい」コスト捨ての class filter 脱落是正（2026-06-27・ymst）
 
 Stage A（filter.cardType バケツ）。任意捨て handler（`parseSentencePart3.ts` 行1053 `手札から(.+?)のシグニ?を(N)枚?捨ててもよい`）が `parseCardTypeFilter(＜X＞)` のみ＝`＜天使＞` 等のクラス名を空 filter に落としていた（**捨てる版** part1:1623 は parseStoryFilter で正しく story を付与しており不整合だった）。`cardType:'シグニ'`＋名詞句スパン限定の `parseStoryFilter`/`parseColorFilter`/`parseLevelFilter` を付与して整合。

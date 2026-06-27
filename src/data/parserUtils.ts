@@ -94,6 +94,13 @@ export function parseColorFilter(text: string): Partial<TargetFilter> {
   return {};
 }
 
+// 「(あなたの)センタールリグと共通する色を持つ〔シグニ/スペル/カード〕」＝colorMatchesLrig（engine が動的解決）。
+// 名詞句修飾形に限定（全文スキャン禁止の教訓・parser_backlog）。SEARCH/REVEAL/ADD_TO_FIELD/TRANSFER_TO_HAND の各 handler で共用。
+const LRIG_COLOR_RE = /センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:すべての)?(?:シグニ|スペル|カード)/;
+export function parseColorMatchesLrig(text: string): Partial<TargetFilter> {
+  return LRIG_COLOR_RE.test(text) ? { colorMatchesLrig: true } : {};
+}
+
 export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
   if (text.includes('シグニ')) return { cardType: 'シグニ' };
   if (text.includes('スペル')) return { cardType: 'スペル' };

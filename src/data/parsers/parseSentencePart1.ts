@@ -50,7 +50,7 @@ import type {
   SendToEnergyAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseNameFilter, parseEnergyCosts, toHalf,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseNameFilter, parseEnergyCosts, toHalf,
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
@@ -930,6 +930,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ...parseLevelFilter(t),
       ...parseColorFilter(t),
       ...parseStoryFilter(t),
+      ...parseColorMatchesLrig(t),
     };
     const nameM = t.match(/《([^》]+)》/);
     if (nameM) filter.cardName = nameM[1];
@@ -1093,10 +1094,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
   if (t.includes('トラッシュから') && t.includes('手札に加える')) {
     // story は「トラッシュから…手札に加える」の名詞句スパン内に限定（前置きの条件クラス＜X＞を拾わない・WX22-002 偽陽性回避）。
     const trashSpan = t.match(/トラッシュから(.*?)手札に加える/s);
-    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseStoryFilter(trashSpan ? trashSpan[1] : '') };
-    // 「(あなたの)センタールリグと共通する色を持つ〔シグニ/カード/スペル〕」＝colorMatchesLrig（engine が動的解決）。
-    // 名詞句修飾形に限定（全文スキャン禁止の教訓・parser_backlog）。SEQUENCE/CHOICE も sub-clause がここへ再帰する。
-    if (/センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:シグニ|スペル|カード)/.test(t)) filter.colorMatchesLrig = true;
+    const spanTxt = trashSpan ? trashSpan[1] : '';
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseStoryFilter(spanTxt), ...parseColorMatchesLrig(t) };
+    // 色は「[単色]の〔カード/シグニ/スペル〕」の一意な単色のみ付与（「白か赤」「白のカードと黒のカード」等の複色は単一色filterで表せず誤るため除外）。
+    const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
+    if (spanColors.length === 1 && spanTxt.includes(`${spanColors[0]}の`)) filter.color = spanColors[0];
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
@@ -1226,6 +1228,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ...parseLevelFilter(t),
       ...parseColorFilter(t),
       ...parseStoryFilter(t),
+      ...parseColorMatchesLrig(t),
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
