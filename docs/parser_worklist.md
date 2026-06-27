@@ -14,16 +14,16 @@
 **held の内訳（1カード=1プライマリバケツ・重複なし）** ← 数字は計器の最新値（下の進捗ログ参照）
 | トラック | 初期 | 現在 | 性質 | 対応 |
 |---|---|---|---|---|
-| **① LOSS** | 255 | **235** | 既存JSONが持つ構造をパーサーが出せない＝**真の弱点** | **直す**（この計画の本体） |
+| **① LOSS** | 255 | **234** | 既存JSONが持つ構造をパーサーが出せない＝**真の弱点** | **直す**（この計画の本体） |
 | ② VALUE | 149 | 153 | 同キーで値が違うだけ＝慣例/効果分割ズレの水増し | **1件ずつ人間判断**（bulk禁止・§2） |
 | ③ ADD/OTHER | 0 | 0 | — | — |
-| held合計 | 404 | **388** | | |
+| held合計 | 404 | **387** | | |
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
 - 2026-06-27 R1（filter.cardType・crossState条件）: 「(あなた\|相手)の場にクロス状態の[＜X＞の]シグニがある」を COND_STUB→HAS_CARD_IN_FIELD 正規化（engine実装済み）。**filter.cardType 30→16**。held 404→394 / **LOSS 255→241**。JSON無変更（既存が正・パーサーが再現できるようになった）。
 - 2026-06-27 R2（filter.color・colorMatchesLrig）: 「トラッシュから(センタールリグと共通する色を持つ)〔シグニ/カード/スペル〕…手札に加える」の名詞句限定で colorMatchesLrig 付与（engine動的解決済み）。**filter.color 11→5**。held 394→388 / **LOSS 241→235**。既存が取りこぼしていた7枚に colorMatchesLrig を純改善採用（latent curation bug 修正）。残5＝WX04-021（filter.color 黒・別件）＋SEARCH/reveal の action.filter 4枚（別handler・follow-up）。
-- 2026-06-27 R3（filter.cardType・複数クラスバフ）: 「あなたの[他の]＜X＞と＜Y＞のシグニのパワーを±N」のゲート正規表現が単一クラスしか許さず default（owner:any/count:1）に落ちていたのを複数クラス対応に拡張。WX04-016/086 一致、WXK04-043/WXDi-P11-041 は**既存JSONが旧バグの owner:any/count:1 を保存していた**ため fresh（正）に直接パッチ。held 388→386。
+- 2026-06-27 R3（filter.cardType・複数クラスバフ）: 「あなたの[他の]＜X＞と＜Y＞のシグニのパワーを±N」のゲート正規表現が単一クラスしか許さず default（owner:any/count:1）に落ちていたのを複数クラス対応に拡張。WX04-016/086 一致、WXK04-043/WXDi-P11-041 は**既存JSONが旧バグの owner:any/count:1 を保存していた**ため fresh（正）に直接パッチ。held 388→387 / LOSS 235→234 / filter.cardType 16→15。
 - **⚠ R3 の重要発見＝filter.cardType バケツは「単一クリーン修正」ではない**：worklist 上は primary 16 だが、cardType 脱落は実は **84箇所に分散**し、その多くが STUB↔REVEAL_AND_PICK／STUB↔GRANT_ACCE_HOST_ABILITY／DECK_TOP_MATCHES↔REVEAL_AND_PICK 等の**構造差（action.type バケツ）と絡む**。`makeRevealPickStub` は filter 無し STUB を返す、`これにアクセされている…を得る` は STUB を返す等。**→ filter.cardType は「LOOK_PICK系」「アクセGRANT系」「deck-top条件系」「複数クラスバフ(R3で対処)」等の下位パターンに割って、構造修正（Stage B）とセットで進める必要がある**。純粋な属性付与の局所修正で片付くのは crossState(R1)/colorMatchesLrig(R2)/複数クラス(R3) のような一部のみ。
 
 ### 🎯 完了条件（Definition of Done）

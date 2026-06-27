@@ -37,6 +37,7 @@
 
 - **最終更新**: 2026-06-27（karka → **次の人へ**）
 - **🧭 パーサー作業の地盤＝`docs/parser_worklist.md`（cold start はまずこれ）**: held 404 を **LOSS 255（真の弱点＝直す）／ VALUE 149（慣例・対象外）** に重複なく分割した有限ワークリスト。計器 `npx tsx scripts/parserWorklist.ts` で数字を再生成。**完了条件＝LOSS 255→0**。手当たり次第をやめ、バケツ単位（Stage A 局所67→C トリガー73→B action.type中心109）で潰す。各ラウンドで計器の LOSS 減＋同型★0 をゲートにする。
+- **直近やったこと（karka・最新8）**: **Stage A R3（filter.cardType・複数クラスバフ）**＋**重要発見**。「＜X＞と＜Y＞のシグニのパワー」全体バフのゲート正規表現を複数クラス対応に（WX04-016/086一致・WXK04-043/WXDi-P11-041は旧バグJSONをfresh正値にパッチ）。held 388→387・LOSS 235→234。**⚠filter.cardType は単一クリーン修正ではなく84箇所に分散し多くが構造差(STUB/action.type)と絡むと判明**（worklist R3ログ参照）＝今後は「LOOK_PICK系」「アクセGRANT系」「deck-top条件系」等の下位パターンに割り、Stage B(action.type 77)の構造修正とセットで進める。次の純局所候補は count 11／activeCondition 7／filter.story 4。
 - **直近やったこと（karka・最新7）**: **Stage A R2（filter.color・colorMatchesLrig）**。「トラッシュ→手札」source に「センタールリグと共通する色を持つ」を名詞句限定で付与（engine動的解決済み）。**filter.color 11→5・LOSS 241→235・held 394→388**。既存取りこぼし7枚に純改善採用・同型★0維持。残5＝SEARCH/reveal の action.filter（別handler）。次は filter.cardType 残16／filter.color 残5（action.filter版）／count 11 等の Stage A 局所、または計器を見て選ぶ。
 - **直近やったこと（karka・最新6）**: **Stage A R1（filter.cardType・crossState条件）**。「場にクロス状態のシグニがある」を COND_STUB→HAS_CARD_IN_FIELD 正規化（engine実装済み・JSON無変更）。計器で **filter.cardType 30→16・LOSS 255→241・held 404→394**。同型★0維持。次は filter.cardType 残16（WX04-016 等の「＜X＞と＜Y＞のシグニ」複数種族 と filter.color 11 等の Stage A 局所）。
 - **直近やったこと（karka・最新5）**: **定量計画の地盤を整備**。`scripts/parserWorklist.ts`＋`docs/parser_worklist.md` を新設＝held を LOSS/VALUE に分割しランク化（終わりが見える化）。手当たり次第の修正を卒業。
