@@ -5,6 +5,14 @@
 
 ---
 
+## パーサー: 「手札から＜X＞のシグニをN枚捨ててもよい」コスト捨ての class filter 脱落是正（2026-06-27・ymst）
+
+Stage A（filter.cardType バケツ）。任意捨て handler（`parseSentencePart3.ts` 行1053 `手札から(.+?)のシグニ?を(N)枚?捨ててもよい`）が `parseCardTypeFilter(＜X＞)` のみ＝`＜天使＞` 等のクラス名を空 filter に落としていた（**捨てる版** part1:1623 は parseStoryFilter で正しく story を付与しており不整合だった）。`cardType:'シグニ'`＋名詞句スパン限定の `parseStoryFilter`/`parseColorFilter`/`parseLevelFilter` を付与して整合。
+
+- **35枚の curation bug を純改善採用**：これら任意捨てカードは HEAD JSON も空 filter（旧パーサー出力に追従）だった＝**捨てるシグニのクラス絞りが効かない実害**。fresh の正値（cardType＋story/level）を収穫マージで採用（全て pure superset）。
+- **cardClass→story 正規化（4枚）**：WX21-017/018・WXDi-D08-013・WXDi-P14-084 は HEAD が `cardClass:'天使/電音部'` の少数派表記（story が規約・124枚 vs cardClass 7枚／`parser_worklist.md` Stage B 記録参照）。engine・decompiler は story/cardClass を同一視するため、規約の story に正規化して parser 出力と一致。**WX21-017/018 解消**（WXDi-D08-013/P14-084 は steps[0].optional の脱落が別途残＝任意捨ての optional 表現は handler 横断で不統一のため据置）。
+- 計器：**LOSS 216→214**（WX21-017/018）＋35枚 filter 是正＋4枚 story 正規化。typecheck（tsc -b）緑・**同型★0維持**。**要実機検証**（捨てコストのクラス絞り）。
+
 ## パーサー: 対戦相手エナゾーン→トラッシュの「N枚まで」count/upToCount是正＋curation bug 17枚採用（2026-06-27・ymst）
 
 Stage A（count バケツ）。`parseSentencePart1.ts` の「対戦相手エナゾーン→トラッシュ」handler（行108）の count 抽出が `カード([０-９\d]+)枚` で**数字直後のみ**マッチ＝「カード**を**２枚まで」の `を` で外れ、count が 1 に落ち、`upToCount` も未設定だった。`カード(?:を)?([０-９\d]+)枚` ＋ `枚まで` 検出で是正（WX04-010 解消）。

@@ -25,7 +25,7 @@ import type {
   ConditionalAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors,
+  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -1053,7 +1053,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
     const optDiscardM = t.match(/手札から(.+?)のシグニ?を([０-９\d]+)枚?捨ててもよい/);
     if (optDiscardM) {
       const cnt = parseNum(optDiscardM[2]);
-      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cnt, filter: parseCardTypeFilter(optDiscardM[1]) } };
+      // クラス修飾子（＜X＞/色/レベル）を名詞句スパン（optDiscardM[1]）から付与。
+      // 旧実装は parseCardTypeFilter のみで「＜天使＞」等を空filterに落としていた（捨てる版 part1:1623 と整合させる）。
+      const g = optDiscardM[1];
+      const filter: TargetFilter = {
+        ...(optDiscardM[0].includes('シグニ') ? { cardType: 'シグニ' as const } : {}),
+        ...parseStoryFilter(g), ...parseColorFilter(g), ...parseLevelFilter(g),
+      };
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cnt, filter } };
     }
   }
   // ---- （対象なし・文頭）手札から＜クラス＞のカードをN枚捨ててもよい ----
