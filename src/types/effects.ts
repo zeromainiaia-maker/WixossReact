@@ -1041,6 +1041,7 @@ export interface RemoveAbilitiesAction {
   type: 'REMOVE_ABILITIES';
   target: EffectTarget;
   until: EffectDuration;
+  targetsTriggerSource?: boolean; // 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ等）へ無選択で適用（ctx.triggeringCardNum → ctx.sourceCardNum）
 }
 
 // ルリグのレベルに比例したパワー修正（ACTIVATED効果）

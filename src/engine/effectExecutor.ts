@@ -3066,6 +3066,16 @@ function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): 
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
+  // targetsTriggerSource: 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ。WXK10-022 ON_PLAY any_opp）へ無選択で適用
+  if (a.targetsTriggerSource) {
+    const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+    if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
+      const removed = [...new Set([...(state.abilities_removed ?? []), autoNum])];
+      const newS: PlayerState = { ...state, abilities_removed: removed };
+      return done(addLog(setOwnerState(tgtOwner, newS, ctx), `1`));
+    }
+    return done(ctx);
+  }
   // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）のシグニに限定（WX17-035「このシグニの正面のシグニ」）
   let resolvedFilter = a.target.filter;
   let frontRestrict: string[] | null = null;
