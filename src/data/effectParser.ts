@@ -938,6 +938,17 @@ function parseSingleSentence(text: string): EffectAction {
       } as import('../types/effects').ConditionalAction;
     }
   }
+  // 「この方法で〔…〕の中に〔Type〕がある場合、〜」→ CONDITIONAL(LAST_PROCESSED_HAS_TYPE)（G164 WX12-054/055）
+  {
+    const m = text.trim().match(/^この方法で.*?の中に(スペル|シグニ|アーツ|ルリグ)がある場合、(.+)/s);
+    if (m) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LAST_PROCESSED_HAS_TYPE', cardType: m[1] },
+        then: parseSingleSentence(m[2]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
   // 「あなたの場に＜X＞(か＜Y＞)*のシグニがある場合、〜」→ CONDITIONAL(HAS_CARD_IN_FIELD)
   {
     const m = text.trim().match(/^(あなた|対戦相手)の場に((?:＜[^＞]+＞(?:か)?)+)のシグニがある場合、(.+)/s);

@@ -5,6 +5,13 @@
 
 ---
 
+## パーサー: Stage B R15＝「この方法で…の中に〔Type〕がある場合」CONDITIONAL 復元（LOSS −2）（2026-06-27・ymst）
+
+「あなたのデッキの上からカードをN枚トラッシュに置く。**この方法でトラッシュに置いたカードの中にスペルがある場合、カードを１枚引く**」（G164）の第2文が、条件 `LAST_PROCESSED_HAS_TYPE` を落として DRAW を無条件 step 化していた（fresh＝SEQUENCE[TRASH, DRAW]・existing＝SEQUENCE[TRASH, CONDITIONAL{LAST_PROCESSED_HAS_TYPE, then:DRAW}]）。`parseSingleSentence` 冒頭の「…場合、〜」CONDITIONAL 群（LAST_PROCESSED_HAS_BURST の隣）に narrow handler を追加＝`^この方法で.*?の中に(スペル|シグニ|アーツ|ルリグ)がある場合、(.+)` を CONDITIONAL でラップ。
+
+- 計器：**LOSS 170→168（−2）／held 329→327**。WX12-054/055 が IDENTICAL 化（型 `LAST_PROCESSED_HAS_TYPE` は engine 実装済＝effects.ts:208）。SEQUENCE 結合の thenM 正規表現（1389）は「た場合」を要求し「ある場合」を拾わないため標準文として parseSingleSentence に到達＝衝突なし。typecheck（tsc -b）緑・同型★0維持・effects_*.json 無変更・要実機検証。
+- **R14 の教訓を適用**：着手前に逆方向ペア（DRAW←CONDITIONAL）を計器で確認＝0件＝curation 不整合なし。同 CONDITIONAL←DRAW バケツの残2枚（WX18-064＝LIFE_CRASHED_THIS_TURN／WDK14-013＝BEAT_CONDITION＋cost.beat_signi_from_trash 脱落）は別パターンで別途。
+
 ## パーサー: Stage B R13＝アクセホスト能力付与（GRANT_ACCE_HOST_ABILITY）の wrapper 復元（LOSS −8）（2026-06-27・ymst）
 
 「【常】：これにアクセされている[＜X＞の]シグニは『…』を得る」（アクセ装着先ホストへ引用能力／キーワードを付与）が、`splitSentences` が引用「」内の「。」で wrapper を割ってしまい、**内側の能力が単独の効果として漏れ出していた**（fresh が GRANT_ACCE_HOST_ABILITY を一切出さず DRAW/GRANT_PROTECTION/STUB 等に退化＝全 leaf 喪失の LOSS 本体）。engine は `effectEngine.ts:4453` 等で CONTINUOUS の GRANT_ACCE_HOST_ABILITY を読みホストへ付与する実装が既にあった（＝表現だけ欠けていた）。
