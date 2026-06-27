@@ -5,6 +5,19 @@
 
 ---
 
+## engine: R30＝REMOVE_ABILITIES targetsTriggerSource 追加＋WXK10-022 配線（LOSS 2→1）（2026-06-28・ymst）
+
+WXK10-022-E1「【自】：あなたのターンの間、対戦相手のシグニ１体が場に出たとき、ターン終了時まで、そのシグニは能力を失う」を配線。**当初 TODO に「`ON_OPPONENT_SIGNI_PLAY` が未配線」と書いたが、調査の結果 新 timing は不要で既存機構で表現できると判明**：
+
+- **`collectFieldTriggers`（BattleScreen:5687 opState ループ）が既に「相手シグニ配置時に自分のシグニが反応」を `timing:ON_PLAY`＋`triggerScope:any_opp`/`any` で収集**（通常召喚 6280 でも呼ばれる）。entry に `triggeringCardNum`（＝場に出たシグニ）を持たせ、executor ctx.triggeringCardNum へ渡る（4822）。
+- **`effectStack.turnGateOk`（effectStack.ts:8）が `triggerCondition.turnOwner` を全エントリに集約適用**＝「あなたのターンの間」は `turnOwner:'self'` を立てるだけで効く（collectFieldTriggers 改変不要）。
+- **engine 追加は1点のみ**＝`execRemoveAbilities` に `targetsTriggerSource` ハンドラ（ctx.triggeringCardNum→そのシグニの abilities_removed 追加・既存 UP/GRANT/BANISH と同パターン）。型 `RemoveAbilitiesAction` に `targetsTriggerSource?` を追加。
+- **データ再curate**：WXK10-022-E1＝`ON_PLAY`＋`triggerScope:any_opp`＋`triggerCondition:{turnOwner:self}`＋`action.targetsTriggerSource:true`＋MANUAL。旧 `ON_TURN_END` 代用を解消。
+- typecheck緑。⚠ヘッドレス検証不可＝**実機未検証**（any_opp+ON_PLAY 経路は現状このカードのみ使用＝万一の不具合も本カードに限局）。
+- **残 LOSS 1＝WX20-026-E3**（最後の1枚）：draw-source-class 追跡という別機構が要る（`TODO.md` §3 に設計詳細）。ホットパス＋state ライフサイクルが微妙でヘッドレス不可のため、blind 実装は見送り＝実機テスト前提の慎重実装案件。
+
+---
+
 ## データ: R29＝残 LOSS 6枚を個別対応（6→2・worklist 実質完了）（2026-06-28・ymst）
 
 R28 で除外した「EXIST誤り/FRESH優位/曖昧」な残 LOSS 6枚を engine 実装を確認しながら1枚ずつ処理。**4枚を実修正/MANUAL化（LOSS 6→2）**。残2はデータ不能の engine 配線案件。

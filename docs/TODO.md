@@ -56,8 +56,8 @@
   - `ON_CARD_MILLED_FROM_DECK` の収集機構（WX25-P2-009-E2＝現 `【※engine未配線】`）。
   - リフレッシュ置換の実体（WX25-P2-009-E1＝現 no-op STUB `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG`）。
   - 「他＜毒牙＞のシグニ効果で相手パワーが減ったとき」トリガー（WX25-P3-062-E1＝現 STUB `POWER_COPY_FROM_DOWNED`）。
-  - **`ON_OPPONENT_SIGNI_PLAY`（相手シグニが場に出たとき）の発火配線**（型は `src/types/effects.ts` にあるが engine 未配線・JSON 未使用）。WXK10-022-E1（「あなたのターンの間、対戦相手のシグニが場に出たとき能力を失う」＝現 JSON は ON_TURN_END で代用＝誤発火）・WX08-006-E2（同トリガーを ON_PLAY で代用）。配線後この timing＋triggerScope:opponent＋turnOwner:self に正す。パーサーは LOSS残（R29 で確認・データだけでは直せない）。
-  - **「自分の＜X＞シグニの効果でカードを引いたとき」トリガー**（引いた原因が特定クラスのシグニ効果か、の triggerCondition）。WX20-026-E3（「場の＜凶蟲＞シグニの効果で引いたとき相手パワー−4000」＝現 JSON ON_TURN_END で代用＝誤）。ON_DRAW に source-class 条件が要る。パーサーは LOSS残（R29）。
+  - ~~`ON_OPPONENT_SIGNI_PLAY` 配線~~ **【R30 完了】** WXK10-022-E1 は新 timing ではなく**既存機構**で配線済み＝`ON_PLAY`＋`triggerScope:any_opp`（`collectFieldTriggers` opStateループが収集）＋`triggerCondition:turnOwner:self`（`effectStack.turnGateOk` が集約ゲート）＋`REMOVE_ABILITIES.targetsTriggerSource`（新規追加）。**参考**：WX08-006-E2（同「相手シグニが場に出たとき→チャーム」を ON_PLAY 代用）も同様に any_opp＋targetsTriggerSource(ATTACH_CHARM側に要追加)で正せる可能性。⚠実機未検証。
+  - **「自分の＜X＞シグニの効果でカードを引いたとき」トリガー（WX20-026-E3＝LOSS残1・最後の1枚）**。ON_DRAW 反応収集は既存（`collectDrawTriggers` BattleScreen:3847）だが、**ドローの原因カード（source）とそのクラスを追跡していない**（`cards_drawn_by_effect_this_turn` カウンタ増加で発火するだけ）。要設計：①`execDraw`（effectExecutor:74）で `ctx.sourceCardNum` がシグニなら draw-source を PlayerState の新フィールドに記録②`collectDrawTriggers` に `triggerCondition.drawBySourceStory:'凶蟲'` 判定を追加③そのフィールドのリセット境界（draw イベント単位）を厳密化。ホットパス＋state ライフサイクルが微妙で、ヘッドレス検証不可のため**実機テスト前提の慎重実装が要る**（現 JSON は ON_TURN_END 代用＝誤・無害寄り）。
 - **ビートの残（低優先）**: トラッシュ→beat（WDK14-013）の**プレイヤー選択ピッカー**のみ自動近似（場シグニ選択UIは Phase7 で完了）。
 - **G072 残6枚（条件前置き付きの相手シグニ被バニッシュ反応）**: トリガー前に前置きが付き ON_BANISH 自バニッシュに誤分類。「メインフェイズの間」WX05-040/WX11-027・「アタックフェイズの間」WXEX2-23（→相フェイズ condition）／「あなたの効果によって」WXK11-055・「＜龍獣＞効果で」WX13-051（→byOwnEffect+story）／「【チャーム】付き相手シグニ」WXDi-P11-TK05（→charm triggerFilter）。前置きモデリングの誤りリスク高く個別対応。
 - **multi-dest pick（look→手札＋場の二目的）**: WX24-P1-017／WX24-P1-026／WX25-P3-038／WX25-CP1-025／WX26-CP1-019。LOOK_PICK_CHAIN の hand+field/beat は実装済だが、付与/条件/絆を伴う同時pickは別語彙が要る。
