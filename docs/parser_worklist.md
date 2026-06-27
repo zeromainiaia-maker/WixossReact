@@ -24,6 +24,19 @@
 - 2026-06-27 R1（filter.cardType・crossState条件）: 「(あなた\|相手)の場にクロス状態の[＜X＞の]シグニがある」を COND_STUB→HAS_CARD_IN_FIELD 正規化（engine実装済み）。**filter.cardType 30→16**。held 404→394 / **LOSS 255→241**。JSON無変更（既存が正・パーサーが再現できるようになった）。
 - 2026-06-27 R2（filter.color・colorMatchesLrig）: 「トラッシュから(センタールリグと共通する色を持つ)〔シグニ/カード/スペル〕…手札に加える」の名詞句限定で colorMatchesLrig 付与（engine動的解決済み）。**filter.color 11→5**。held 394→388 / **LOSS 241→235**。既存が取りこぼしていた7枚に colorMatchesLrig を純改善採用（latent curation bug 修正）。残5＝WX04-021（filter.color 黒・別件）＋SEARCH/reveal の action.filter 4枚（別handler・follow-up）。
 - 2026-06-27 R3（filter.cardType・複数クラスバフ）: 「あなたの[他の]＜X＞と＜Y＞のシグニのパワーを±N」のゲート正規表現が単一クラスしか許さず default（owner:any/count:1）に落ちていたのを複数クラス対応に拡張。WX04-016/086 一致、WXK04-043/WXDi-P11-041 は**既存JSONが旧バグの owner:any/count:1 を保存していた**ため fresh（正）に直接パッチ。held 388→387 / LOSS 235→234 / filter.cardType 16→15。
+- 2026-06-27 R11.5（Stage C 残り診断＋Stage B 診断／ymst）: **Stage C は clean な山を消化し残り10枚は hard tail**＝①powerRange.max の anaphora 伝播（「パワーN以下のシグニを対象とし…そうした場合、それをバニッシュ」の `それ` に filter 伝播・WXDi-P06-052/WXK07-061/WXK01-076/079・汎用伝播機構が要る）②2枚クラスタの timing+scope（ON_SIGNI_BECOMES_DRIVE/ON_HAND_DISCARDED/ON_BECOME_BEAT＋triggerScope）③Cluster 1 placedDown+targetsTriggerSource（WX10-074/078）。⚠**fromFieldByCostOrEffect は着手禁止**＝「コストか効果によって場から」は HEAD が **fromZones:["field"] が13枚で規約・fromFieldByCostOrEffect は2枚の少数派**。fromField 化すると13枚が退行（+13 held で検知・revert 済）。直すなら少数派2枚を fromZones へ正規化だが powerRange が残るので保留。
+  **🅑 Stage B 診断（action.type 77 を HEAD←fresh の型ペアで分解）**：
+  | 枚 | HEAD型 ← fresh型 | 系統 |
+  |---|---|---|
+  | 23 | SEQUENCE ← REVEAL_AND_PICK | LOOK/REVEAL 一族 |
+  | 23 | REVEAL_AND_PICK ← LOOK_AND_REORDER | LOOK/REVEAL 一族（退化） |
+  | 10 | SEQUENCE ← LOOK_AND_REORDER | LOOK/REVEAL 一族 |
+  | 3 | STUB ← LOOK_AND_REORDER | LOOK/REVEAL 一族 |
+  | **11** | **ENERGY_CHARGE ← SEND_TO_ENERGY** | **非REVEAL・最有望の clean 型ミス**（WX20-046/WXDi-P02-023/WX24-P2-007…） |
+  | ~11 | GRANT_ACCE_HOST_ABILITY ← STUB/GRANT_PROTECTION/DRAW/GRANT_KEYWORD | アクセ host 付与一族 |
+  | 4 | CONDITIONAL ← DRAW | WX12-054/055/WX18-064/WDK14-013 |
+  | 3 | CHOOSE ← BANISH | WXK07-069/WDK01-020/WDK08-L20 |
+  - **LOOK/REVEAL 一族＝約59枚**（最大レバーだが R4 で「広域ハンドラ＝+129退行」確認済＝§🅑 R4 記録の surgical 手順必須）。**先に潰すべき低リスク候補＝ENERGY_CHARGE←SEND_TO_ENERGY 11枚**（単一 handler の型ミスの可能性大）。
 - 2026-06-27 R11（Stage C 本丸・turnOwner／ymst）: 《自分ターン》《相手ターン》を **AUTO/ACTIVATED でも** `triggerCondition.turnOwner` 化（従来 CONTINUOUS の activeCondition のみで AUTO は「engine未整備」と見送られていたが機構④で配線済み）。effectParser.ts:1948 に else-if 追加。**LOSS 206→178（−28・最大の単発）／held 360→339**。turnOwner 値衝突0・同型★0維持・typecheck緑。VALUE +7 は LOSS→VALUE 再分類（timing別ズレ・held のまま）。
 - 2026-06-27 R10（Stage C 第1弾・トリガー検出／ymst）: ①ON_PLAY「あなたの**他の**シグニが（効果によって）場に出たとき」の正規表現に `(他の)?` 追加＝excludeSelf 付与（1641）②UP「このシグニをアップ」に thisCardOnly（44枚 harvest）③ON_TRASH の出自ゾーンを `fromZones` 記録（deck/field/hand+deck・63枚 harvest・engine未使用＝表現専用）④自己蘇生「場に出してもよい」の optional（15枚 harvest）。**LOSS 210→206**（WX10-080/083/092/WX02-073）。同型★0維持・typecheck緑。**保留**＝Cluster 1（WX10-074/078 placedDown＋targetsTriggerSource「そのシグニ」自動対象化）は機構追加が要るため次。
 - 2026-06-27 R9（filter.color・trash→hand単色＋colorMatchesLrig共用化／ymst）: ①trash→hand に**一意な単色のみ** filter.color 付与（R5 で色を落としていた・複色「白か赤」「白と黒」は誤るので除外＝WX04-021 解消＋単色56枚採用）②`parseColorMatchesLrig` ヘルパーを parserUtils に新設し SEARCH/trash→hand/trash→field に適用（WDK13-009/PR-K064/WX19-004 解消）。**LOSS 214→210**。同型★0維持・typecheck緑。残 filter.color＝PR-457（REVEAL_AND_PICK の colorMatchesLrig＝Stage B 一族）。
