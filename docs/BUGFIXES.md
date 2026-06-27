@@ -5,6 +5,14 @@
 
 ---
 
+## パーサー: 複数クラス「＜X＞と＜Y＞のシグニのパワー」全体バフのtarget是正（2026-06-27・karka）
+
+Stage A R3（filter.cardType の一部）。`parseSentencePart1.ts` の POWER_MODIFY 全体バフ分岐のゲート正規表現が単一クラス（`＜X＞の`）しか許さず、「あなたの[他の]＜X＞と＜Y＞のシグニのパワーを±N」が default（owner:'any', count:1, filter無）に落ちていた。`(?:＜[^＞]+＞[とか])*＜[^＞]+＞の` で複数クラス連結を許容。self/opponent 両分岐。
+
+- WX04-016/086 が一致（既存JSON正）。WXK04-043・WXDi-P11-041 は**既存JSONが旧バグの owner:'any'/count:1 を保存していた**ため fresh（正＝owner:'self'/count:'ALL'/filter）に直接パッチ（収穫マージは owner/count の値変更を採用しないため手修正）。held 388→386。
+- typecheck（tsc -b）緑・同型★0維持。**要実機検証**。
+- **重要発見**：filter.cardType バケツは単一修正ではなく84箇所に分散し多くが構造差（STUB/action.type）と絡む（`docs/parser_worklist.md` R3 ログ参照）。
+
 ## パーサー: 「トラッシュ→手札」source に colorMatchesLrig を名詞句限定で付与（2026-06-27・karka）
 
 Stage A R2（filter.color バケツ）。`parseSentencePart1.ts` の TRANSFER_TO_HAND トラッシュ handler が「あなたのセンタールリグと共通する色を持つ」を落としていた。**名詞句修飾形に限定**した正規表現（`センタールリグと共通する色を持つ…(シグニ|スペル|カード)`）で `filter.colorMatchesLrig=true` を付与。engine は動的解決済み（effectExecutor）。SEQUENCE/CHOICE の sub-clause も再帰でこの handler に到達するため step/choice 版も拾える。
