@@ -21,6 +21,7 @@
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
+- 2026-06-28 🎉 R29（残 LOSS 6枚を個別対応／ymst）: 4枚を engine 確認のうえ実修正/MANUAL化（WDK08-L14 resync・WXDi-D09-P18 覚醒activeCondition付与・SP27-016 SEARCH再構築・WXK05-030 印字検出で機能的に正）。**LOSS 6→2／held 162→161**。**LOSS 255→2＝パーサー整合ワークリスト実質完了**。残2＝engine トリガー未配線（WXK10-022 `ON_OPPONENT_SIGNI_PLAY`／WX20-026 自クラス効果ドロー trigger）＝データ不能・`TODO.md` §3 機構④へ登録。
 - 2026-06-28 🏁 R28（LOOK/REVEAL 一族61枚 MANUAL化／ymst）: エンジン調査で REVEAL_AND_PICK＝取得実装あり／LOOK_AND_REORDER＝並べ替え専用と確定→take系 canonical は REVEAL_AND_PICK。残LOSSの LOOK/REVEAL 61枚（action.type 57＋filter.cardType 3＋PR-457）を MANUAL化。**LOSS 67→6／held 226→165**。**LOSS 255→6 でワークリストほぼ完了**。残6＝個別判断の難物（WX20-026/WXK05-030/WXDi-D09-P18/WXK10-022/SP27-016/WDK08-L14）→VALUE最終レビューへ合流。別軸＝LOOK_AND_REORDER curate 約252枚の取得未実装疑い（要精査）。
 - 2026-06-28 R27（action.type の非LOOK/REVEAL 17枚 MANUAL化／ymst）: action.type 76枚を全数 triage。大半(~59)は LOOK/REVEAL一族で bulk送り。非LOOK/REVEALの17枚のみ MANUAL化（CHOOSE構造崩壊・「代わりに」二重適用・CONDITIONAL/cost脱落）。**LOSS 84→67（−17）／held 243→226**。🚩**1枚ずつのクリーン鉱脈は枯渇**。残 LOSS 67 はほぼ LOOK/REVEAL（REVEAL_AND_PICK↔LOOK_AND_REORDER）の bulk正規化案件＝次フェーズは canonical を決める設計判断。保留2＝WDK08-L14/WXK10-022。
 - 2026-06-28 R26（filter（その他）バケツ全 MANUAL化／ymst）: 21枚すべて「EXIST正・FRESH退化」（acceHost/cardClass/level/levelLteDiscardSigni/eachDistinctColor/commonClass/keyword/powerRange 脱落、ON_ACCE timing穴、STUB退化）と判定し MANUAL化。stale/LOOK-REVEAL なし。**LOSS 105→84（−21）／held 264→243**。残 LOSS 84 の大半は action.type 76（構造差）。

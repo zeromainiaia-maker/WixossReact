@@ -5,6 +5,18 @@
 
 ---
 
+## データ: R29＝残 LOSS 6枚を個別対応（6→2・worklist 実質完了）（2026-06-28・ymst）
+
+R28 で除外した「EXIST誤り/FRESH優位/曖昧」な残 LOSS 6枚を engine 実装を確認しながら1枚ずつ処理。**4枚を実修正/MANUAL化（LOSS 6→2）**。残2はデータ不能の engine 配線案件。
+
+- **WDK08-L14＝resync**：`INTERNAL_KIYOHIME_CHOOSE` は engine 実装済み（execStubPart3.ts:2935・血晶武装で1→3回ループ）。旧JSONは `CHOOSE from3/choose1` 固定で「武装中3つまで・重複可」を欠落。manualEffects 定義（STUB）へ resync。
+- **WXDi-D09-P18-E1＝activeCondition 付与**：「覚醒状態であるかぎり+3000」の `activeCondition:{IS_SELF_AWAKENED}` が欠落し +3000 が無条件適用（過大）になっていた。付与＋target `thisCardOnly`。engine は `IS_SELF_AWAKENED`（effectEngine.ts:248 が `awakened_signi` を参照）↔`AWAKEN_SIGNI`（E2 が `awakened_signi` に push）の連動を確認。MANUAL化（granted ability は別途・未表現）。
+- **SP27-016-E1 choice①＝SEARCH 再構築**：「デッキから共通色カードを2枚まで探してエナに置きシャッフル」が `SHUFFLE_DECK`＋colorMatchesLrig の lossy 近似に退化。canonical（WX20-006）に倣い `SEARCH(deck,colorMatchesLrig,maxCount2,upToTarget)→ADD_TO_ENERGY→afterSearch SHUFFLE_DECK` に再構築。MANUAL化。
+- **WXK05-030＝MANUAL化（EXIST 正と判明）**：【常】：【マルチエナ】は engine が**印字テキスト検出**（execUtils.ts:313 `EffectText.includes('：【マルチエナ】')`）で機能。E1 の `RULE_REMINDER_TEXT` は「印字で処理済み」の妥当なプレースホルダ＝機能的に正。FRESH の SEQUENCE 内 GRANT_KEYWORD は `selfGrant` 検出（CONTINUOUS限定）に掛からず劣る。EXIST を MANUAL化。
+- **⚠残 LOSS 2＝engine トリガー未配線（データ不能・TODO.md §3 機構④へ登録）**：①WXK10-022-E1（「対戦相手のシグニが場に出たとき」＝`ON_OPPONENT_SIGNI_PLAY` 型は存在するが engine 未配線・JSON未使用。現 ON_TURN_END 代用は誤）②WX20-026-E3（「自＜凶蟲＞シグニの効果で引いたとき」＝source-class 付き ON_DRAW trigger が無い。現 ON_TURN_END 代用は誤）。
+
+---
+
 ## データ: R28＝LOOK/REVEAL 一族61枚を MANUAL化（LOSS 67→6・worklist ほぼ完了）（2026-06-28・ymst）
 
 **エンジン調査が決め手**：`execRevealAndPick` は「公開→フィルタ→○枚ピック→`then`(手札/場/エナに加える)＋残り下」を完全実装。`execLookAndReorder` は**見て並べ替えてデッキに戻すだけで `then`(取得)を持たない**。→ 両者は別メカニクスで、「N枚見てその中から手札等に加える」take系は **REVEAL_AND_PICK が唯一の正**。残 LOSS の LOOK/REVEAL 一族は EXIST が概ね正しく `REVEAL_AND_PICK`/`LOOK_PICK_CHAIN`/`LOOK_AND_REORDER+CONDITIONAL(DECK_TOP_MATCHES)` でcurateされ、パーサーが共通文法から型を判別できず `LOOK_AND_REORDER` に割れて flag されていただけ（R14 のとおりパーサー surgical は +105 退行で不可）。→ **canonical を REVEAL_AND_PICK と確定し、61枚を MANUAL化**（runtime不変・構造完全一致）。**LOSS 67→6／held 226→165**。

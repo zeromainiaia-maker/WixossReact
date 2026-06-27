@@ -56,6 +56,8 @@
   - `ON_CARD_MILLED_FROM_DECK` の収集機構（WX25-P2-009-E2＝現 `【※engine未配線】`）。
   - リフレッシュ置換の実体（WX25-P2-009-E1＝現 no-op STUB `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG`）。
   - 「他＜毒牙＞のシグニ効果で相手パワーが減ったとき」トリガー（WX25-P3-062-E1＝現 STUB `POWER_COPY_FROM_DOWNED`）。
+  - **`ON_OPPONENT_SIGNI_PLAY`（相手シグニが場に出たとき）の発火配線**（型は `src/types/effects.ts` にあるが engine 未配線・JSON 未使用）。WXK10-022-E1（「あなたのターンの間、対戦相手のシグニが場に出たとき能力を失う」＝現 JSON は ON_TURN_END で代用＝誤発火）・WX08-006-E2（同トリガーを ON_PLAY で代用）。配線後この timing＋triggerScope:opponent＋turnOwner:self に正す。パーサーは LOSS残（R29 で確認・データだけでは直せない）。
+  - **「自分の＜X＞シグニの効果でカードを引いたとき」トリガー**（引いた原因が特定クラスのシグニ効果か、の triggerCondition）。WX20-026-E3（「場の＜凶蟲＞シグニの効果で引いたとき相手パワー−4000」＝現 JSON ON_TURN_END で代用＝誤）。ON_DRAW に source-class 条件が要る。パーサーは LOSS残（R29）。
 - **ビートの残（低優先）**: トラッシュ→beat（WDK14-013）の**プレイヤー選択ピッカー**のみ自動近似（場シグニ選択UIは Phase7 で完了）。
 - **G072 残6枚（条件前置き付きの相手シグニ被バニッシュ反応）**: トリガー前に前置きが付き ON_BANISH 自バニッシュに誤分類。「メインフェイズの間」WX05-040/WX11-027・「アタックフェイズの間」WXEX2-23（→相フェイズ condition）／「あなたの効果によって」WXK11-055・「＜龍獣＞効果で」WX13-051（→byOwnEffect+story）／「【チャーム】付き相手シグニ」WXDi-P11-TK05（→charm triggerFilter）。前置きモデリングの誤りリスク高く個別対応。
 - **multi-dest pick（look→手札＋場の二目的）**: WX24-P1-017／WX24-P1-026／WX25-P3-038／WX25-CP1-025／WX26-CP1-019。LOOK_PICK_CHAIN の hand+field/beat は実装済だが、付与/条件/絆を伴う同時pickは別語彙が要る。
