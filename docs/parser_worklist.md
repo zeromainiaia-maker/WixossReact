@@ -21,6 +21,7 @@
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
+- 2026-06-27 R14（Stage B・LOOK/REVEAL 一族＝着手→curation 不整合判明→全 revert／ymst）: R4 の「正道」処方（pick動詞ガード＋REVEAL_AND_PICK 分岐拡張）を実装したが **held 329→434（+105）の退行**。**根本＝既存 curation が不整合**（同一文法で REVEAL_AND_PICK 23枚 vs LOOK_AND_REORDER 119枚・判別シグナル無し）。パーサーの現状（LOOK_AND_REORDER）が多数派119枚に正しく一致＝23枚は outlier。**パーサー単独では net 改善不能＝VALUE の最終 curation 統一案件**。全 revert（held 329 復帰）。詳細＝下「🅑 Stage B」⛔R14。**この23枚は着手禁止**。LOSS 170 不変。
 - 2026-06-27 R13（Stage B 第2弾・GRANT_ACCE_HOST_ABILITY wrapper 復元／ymst）: 「これにアクセされている[＜X＞の]シグニは『…』を得る」が splitSentences で wrapper を割られ内側能力が単独効果に漏れていた（fresh が GRANT_ACCE_HOST_ABILITY を出せず全 leaf 喪失）。`parseActionText` 冒頭で wrapper を捕捉し rawText→`parseBlock` 再帰展開（GRANT_LRIG_ABILITY と同方式・effectId `{cardNum}-E{N}-G`）。本体は引用「」/『』 か キーワード【】 始まり限定（「すべての色を得る」専用STUB を誤捕捉せず＝WX22-043 退行を narrow 化で回避）。**LOSS 178→170（−8）／held 329 不変（横取り退行0）**。8枚 LOSS→VALUE（WX15-058/WX21-041/WXEX1-70/WXDi-P09-TK02A は inner parseStatus・WX15-102/105/WXK04-050 は inner GRANT_PROTECTION count・WX20-045 は FORCE_FRONT↔FORCE）。残6枚（WX16-074/WX17-075/WX17-077/WXK10-074/WXK10-075/WDK07-E14）は内側が MANUAL 専用（triggerScope/isTriggerSource/独自CHOOSE）で再現不能＝LOSS 残。同型★0維持・typecheck緑・effects_*.json 無変更。
 - 2026-06-27 R1（filter.cardType・crossState条件）: 「(あなた\|相手)の場にクロス状態の[＜X＞の]シグニがある」を COND_STUB→HAS_CARD_IN_FIELD 正規化（engine実装済み）。**filter.cardType 30→16**。held 404→394 / **LOSS 255→241**。JSON無変更（既存が正・パーサーが再現できるようになった）。
 - 2026-06-27 R2（filter.color・colorMatchesLrig）: 「トラッシュから(センタールリグと共通する色を持つ)〔シグニ/カード/スペル〕…手札に加える」の名詞句限定で colorMatchesLrig 付与（engine動的解決済み）。**filter.color 11→5**。held 394→388 / **LOSS 241→235**。既存が取りこぼしていた7枚に colorMatchesLrig を純改善採用（latent curation bug 修正）。残5＝WX04-021（filter.color 黒・別件）＋SEARCH/reveal の action.filter 4枚（別handler・follow-up）。
@@ -114,9 +115,16 @@
 
 action.type 77 を fresh 出力で分解すると **約半分が LOOK/REVEAL 一族**（25 LOOK_AND_REORDER 退化 ＋ 8 REVEAL_AND_PICK/DRAW ＋ singleton 多数）。filter.cardType / count / then-steps / upToCount の脱落も同時に生む**最大の cross-bucket レバー**。だが着手で重要な制約が判明：
 
-### R4（2026-06-27）＝**広域ハンドラ追加は厳禁**（+129退行→全revert）
+### ⛔ R14（2026-06-27・ymst）＝**この一族はパーサーでは直せない（curation 不整合が根本）。R4 の処方は誤り。着手禁止**
+- R4 が「正道」とした処方（LOOK_AND_REORDER 分岐に pick動詞ガード＋REVEAL_AND_PICK 分岐を 場/エナ/pickUpTo/story/pickNoun/colorMatchesLrig/hasGuard へ拡張＝**新ハンドラではなく既存分岐のピンポイント拡張**）を `effectParser.ts:1236`（「N枚見る」分岐）に実装したところ、**held 329→434（+105）の大規模退行**。typecheck緑でも計器で即検知。→ **全 revert（held 329 復帰）**。
+- **根本原因＝既存 JSON の curation が不整合**。同一文法「その中から〔＜X＞の〕シグニN枚(まで)を公開し手札に加え／エナゾーンに置き、残りを好きな順番でデッキの一番下に置く」に対し、**既存 JSON は REVEAL_AND_PICK が23枚・LOOK_AND_REORDER が119枚**（後者が多数派）。判別シグナルは**存在しない**。実例：`WX24-P1-053`「＜宝石＞のシグニ１枚を公開し手札に加え」＝REVEAL_AND_PICK／`WX16-043-E1`「＜英知＞のシグニ１枚を公開し手札に加え」＝LOOK_AND_REORDER（**完全同型なのに別 curation**）。`WX16-054`(REVEAL) vs `WX16-057`(LOOK) も同様。
+- **パーサーの現状（LOOK_AND_REORDER 出力）は多数派119枚に正しく一致**しており、REVEAL_AND_PICK の23枚が**少数派の outlier**。どちらに寄せても他方が held 化する＝パーサー単独では net 改善不能。
+- **正しい解決は curation 統一（142枚を一族として REVEAL_AND_PICK か LOOK_AND_REORDER の一方へ正規化）＝VALUE トラックの最終レビュー（bulk 判断）案件であり、LOSS の surgical ラウンドではない**。engine が REVEAL_AND_PICK のピック UI を全経路で持つかの確認も要る。**次の人はこの23枚（REVEAL_AND_PICK ← LOOK_AND_REORDER）に手を出さないこと**。
+- 旧 R4 記録（下記）は歴史として残すが、**「正道」の処方は R14 で否定された**（+105退行）。LOOK/REVEAL 一族の他の型ペア（SEQUENCE←REVEAL_AND_PICK 23／SEQUENCE←LOOK_AND_REORDER 10）も同じ curation 不整合の疑いが濃厚＝着手前に必ず「逆方向の型ペア」を計器で数えて多数派/少数派を確認する（少数派なら不整合＝着手しない）。
+
+### R4（2026-06-27）＝広域ハンドラ追加は厳禁（+129退行→全revert）※処方部分は R14 で否定
 - 「N枚見る→その中から〔filter〕をM枚(まで)〔手札/場/エナ〕→残りデッキ下/上」を REVEAL_AND_PICK 化する**新ハンドラを早い位置に追加**したら **held 387→516（+129）の大規模退行**。原因＝この一族は既存ハンドラ（`LOOK_PICK_CHAIN`／結合処理 effectParser.ts:1373／`makeRevealPickStub` 等）が**既に広範にカバー**しており、早い位置の広域 match が正しく処理されていたカードを横取りした。→ **即 revert（held 387 復帰）**。
-- **教訓**：新ハンドラ追加は不可。**既存の誤発火分岐をピンポイント修正**せよ。具体的には effectParser.ts **1206 の第1分岐(1210)** `その中から.*(?:デッキ|トラッシュ)` が**残り句の「デッキ」で誤発火**し pick を持つ文まで LOOK_AND_REORDER に潰す＝ここに「手札に加え|場に出|エナゾーンに置 を含むなら発火させない」ガードを足し、第2分岐(1222)を 場/エナ＋pickUpTo＋story へ拡張するのが正道。**毎回 build→worklist で +N 退行ゼロを確認**。
+- **教訓（有効な部分）**：新ハンドラ追加は不可。**毎回 build→worklist で +N 退行ゼロを確認**。⚠ R4 が続けて書いた「既存分岐のピンポイント拡張なら正道」は **R14 で +105 退行を出して否定された**（curation 不整合が原因でパーサーでは直せない）。
 
 ### この一族の正解形マッピング（確定済み・次の実装者へ）
 - 単一pick: `REVEAL_AND_PICK{owner:self, revealCount, filter, pickCount, pickUpTo?(「N枚まで」), pickNoun?(カード/スペル時のみ), then, remainder}`。このキー順で WXDi-P01-018/WXDi-D05-007/WX24-P1-036/WXDi-P16-060/WXDi-D04-012 が IDENTICAL/SUPERSET になった（R4で検証済み）。
