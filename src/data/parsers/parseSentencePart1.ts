@@ -106,8 +106,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- 対戦相手エナゾーン→トラッシュ ----
   if (t.match(/対戦相手(?:は自分)?のエナゾーンから.*カード.*トラッシュに置く/)) {
-    const cM = t.match(/カード([０-９\d]+)枚/);
-    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: cM ? parseNum(cM[1]) : 1 } };
+    const cM = t.match(/カード(?:を)?([０-９\d]+)枚/); // 「カードを２枚まで」の「を」を許容（旧regexは数字直後のみ＝WX04-010 が count:1 に落ちていた）
+    const upTo = /([０-９\d]+)枚まで/.test(t);
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: cM ? parseNum(cM[1]) : 1, ...(upTo ? { upToCount: true } : {}) } };
   }
   // ---- 自分エナゾーン→トラッシュ ----
   if (t.match(/あなたのエナゾーンからカード([０-９\d]+)枚をトラッシュに置く/)) {
