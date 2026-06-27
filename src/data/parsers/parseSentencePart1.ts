@@ -1103,6 +1103,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
     // 色は「[単色]の〔カード/シグニ/スペル〕」の一意な単色のみ付与（「白か赤」「白のカードと黒のカード」等の複色は単一色filterで表せず誤るため除外）。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
     if (spanColors.length === 1 && spanTxt.includes(`${spanColors[0]}の`)) filter.color = spanColors[0];
+    // 《ガードアイコン》を持つ/持たない（engine matchesFilter が hasGuard/noGuard を実装済み）
+    if (/《ガードアイコン》を持たない/.test(spanTxt)) filter.noGuard = true;
+    else if (/《ガードアイコン》を持つ/.test(spanTxt)) filter.hasGuard = true;
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
@@ -1880,6 +1883,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
       const filter: TargetFilter = { ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t) };
       if (t.includes('シグニ')) filter.cardType = 'シグニ';
       if (t.includes('スペル')) filter.cardType = 'スペル';
+      // 《ガードアイコン》を持つ/持たない（engine matchesFilter が hasGuard/noGuard を実装済み）
+      if (/《ガードアイコン》を持たない/.test(t)) filter.noGuard = true;
+      else if (/《ガードアイコン》を持つ/.test(t)) filter.hasGuard = true;
       return {
         type: 'ENERGY_CHARGE',
         target: { type: 'TRASH_CARD', owner: 'self', count: parseNum(trashToEnaG[1]), upToCount: !!trashToEnaG[2], filter: Object.keys(filter).length > 0 ? filter : undefined },

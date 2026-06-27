@@ -5,6 +5,15 @@
 
 ---
 
+## パーサー: R15＝トラッシュ対象の《ガードアイコン》hasGuard/noGuard フィルタ脱落是正（4枚・LOSS −4）（2026-06-27・ymst）
+
+filter（その他）バケツの最大クリーン系統。「あなたのトラッシュから《ガードアイコン》を持(つ/たない)〔カード/シグニ〕を…対象とし、それらを〔エナゾーンに置く/手札に加える〕」で、ターゲットの guard フィルタが脱落していた。engine matchesFilter は hasGuard/noGuard 実装済み（effectEngine.ts:433/438・execUtils.ts:265/270）＝乖離解消。
+
+- `parseSentencePart1.ts` の①トラッシュ→手札 handler（TRANSFER_TO_HAND, 名詞句スパン spanTxt 限定）②トラッシュ→エナ handler（ENERGY_CHARGE, 行1880）に `《ガードアイコン》を持たない→noGuard / 持つ→hasGuard` を付与。
+- 解消：WXDi-P01-030/P07-029（noGuard・エナ）、WXDi-P00-025/P01-011（hasGuard・手札）。
+- 計器：**LOSS 154→150（−4・filter その他 34→30）／held 305→301**。action.type 等他バケツ不変・regression 0。パーサーのみ・データ無変更（HEAD は元から guard filter 保持）。同型★0維持・typecheck（tsc -b）緑。**要実機検証**。
+- **⚠保留**：同系統の「共通するクラスを持つ」`commonClass`（WXDi-P10-029/CP01-020/CP02-046 ＝noGuard+commonClass）は **engine matchesFilter が commonClass 未実装**（src 内で types/decompiler のみ・matcher 無し）。乖離を作らないため parser でも出さず保留＝engine 実装（複数選択カードがクラス共有する制約）とセットの別タスク。
+
 ## パーサー: Stage B R14＝先頭条件文 LIFE_CRASHED_THIS_TURN / LAST_PROCESSED_HAS_TYPE の CONDITIONAL 化（6枚・LOSS −6）（2026-06-27・ymst）
 
 action.type バケツの「← -」系（HEAD は CONDITIONAL を持つがパーサーが条件を落として bare action を出す）クラスタ2系統を是正。engine は両 condition を実装済み（execUtils.ts:672 / :1003）＝乖離解消。
