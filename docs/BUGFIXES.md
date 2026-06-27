@@ -5,6 +5,14 @@
 
 ---
 
+## パーサー: 「トラッシュ→手札」source に filter.story を名詞句スパン限定で付与（2026-06-27・ymst）
+
+Stage A（filter.story バケツ）。`parseSentencePart1.ts` の TRANSFER_TO_HAND トラッシュ handler が `parseCardTypeFilter` のみで `＜種族＞の` を落としていた（WX03-050「トラッシュから＜悪魔＞のシグニ…手札に加える」の story:'悪魔' が脱落）。`parseStoryFilter` を追加して付与。
+
+- **⚠ 偽陽性回避が肝**：全文 `t` に `parseStoryFilter` を当てると前置きの**条件クラス**を誤って拾う（例 WX22-002「黒の＜天使＞がある場合、トラッシュから対象のシグニ１枚を手札に加える」＝retrieved は無クラスなのに story:'天使' が漏れる）。→ `トラッシュから(.*?)手札に加える` の**名詞句スパン内**に限定して抽出（前置き条件 ＜X＞ を構造的に除外）。広い版だと139枚・うち7枚が条件漏れ偽陽性 → narrow 版で132枚（全て純粋な story-only 追加）。
+- 計器：**LOSS 234→233・held 387→386**（WX03-050 が LOSS から解消）。残り132枚は既存JSONが取りこぼしていた retrieved-card の class フィルタ＝**latent curation bug の純改善**（収穫マージで採用・全て pure superset／leaf 削除/値変更なし）。
+- typecheck（tsc -b）緑・**同型★0維持**。**要実機検証**（トラッシュ回収のクラス絞り込み）。残3枚の filter.story（WX20-026/WX21-Re09/WX22-046）は別構造（条件/トリガーfilter/コスト）＝別ラウンド。
+
 ## パーサー: 複数クラス「＜X＞と＜Y＞のシグニのパワー」全体バフのtarget是正（2026-06-27・karka）
 
 Stage A R3（filter.cardType の一部）。`parseSentencePart1.ts` の POWER_MODIFY 全体バフ分岐のゲート正規表現が単一クラス（`＜X＞の`）しか許さず、「あなたの[他の]＜X＞と＜Y＞のシグニのパワーを±N」が default（owner:'any', count:1, filter無）に落ちていた。`(?:＜[^＞]+＞[とか])*＜[^＞]+＞の` で複数クラス連結を許容。self/opponent 両分岐。

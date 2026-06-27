@@ -1090,7 +1090,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- トラッシュ → 手札 ----
   if (t.includes('トラッシュから') && t.includes('手札に加える')) {
-    const filter: TargetFilter = { ...parseCardTypeFilter(t) };
+    // story は「トラッシュから…手札に加える」の名詞句スパン内に限定（前置きの条件クラス＜X＞を拾わない・WX22-002 偽陽性回避）。
+    const trashSpan = t.match(/トラッシュから(.*?)手札に加える/s);
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseStoryFilter(trashSpan ? trashSpan[1] : '') };
     // 「(あなたの)センタールリグと共通する色を持つ〔シグニ/カード/スペル〕」＝colorMatchesLrig（engine が動的解決）。
     // 名詞句修飾形に限定（全文スキャン禁止の教訓・parser_backlog）。SEQUENCE/CHOICE も sub-clause がここへ再帰する。
     if (/センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:シグニ|スペル|カード)/.test(t)) filter.colorMatchesLrig = true;
