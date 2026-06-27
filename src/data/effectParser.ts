@@ -20,6 +20,7 @@ import type {
   EnergyChargeAction,
   AddToEnergyAction,
   GrantLrigAbilityAction,
+  GrantAcceHostAbilityAction,
   LookAndReorderAction,
   StubAction,
   Condition,
@@ -1120,6 +1121,20 @@ function parseActionText(text: string): EffectAction {
       return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedLrigM[1].trim() } as GrantLrigAbilityAction;
     }
   }
+  // ---- アクセホストへの能力付与（GRANT_ACCE_HOST_ABILITY）----
+  // 「これにアクセされている[＜X＞の|《Y》の]シグニは「...」を得る」（引用能力）/「...は【ランサー】等を得る」（キーワード）。
+  // splitSentences で引用内の「。」により wrapper が壊れる前に最優先で捕捉する（さもないと内側の能力が単独効果として漏れ出す）。
+  // abilities は parseBlock で rawText から展開する（GRANT_LRIG_ABILITY と同方式）。
+  {
+    // 本体は引用能力「…」/『…』 か キーワード【…】 に限定する（「すべての色を得る」等は専用STUB＝ここでは捕捉しない）。
+    const acceGrantM = text.match(/^これにアクセされている(?:＜([^＞]+)＞の|《([^》]+)》の)?シグニは([「『【][\s\S]+?)を得る。?$/);
+    if (acceGrantM) {
+      const filter: TargetFilter = { cardType: 'シグニ' };
+      if (acceGrantM[1]) filter.cardClass = acceGrantM[1];
+      if (acceGrantM[2]) filter.cardName = acceGrantM[2];
+      return { type: 'GRANT_ACCE_HOST_ABILITY', filter, abilities: [], rawText: acceGrantM[3].trim() } as GrantAcceHostAbilityAction;
+    }
+  }
 
   const sentences = splitSentences(text).filter(s => {
     const c = s.trim().replace(/。$/, '');
@@ -1865,6 +1880,26 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     resolvedAction = parseActionText(actionText);
   }
 
+  // GRANT_ACCE_HOST_ABILITY: rawText から付与能力を展開（引用「…」ブロック or 引用符なしキーワード）。
+  // 既存JSONの慣例に合わせ、付与能力の effectId は `{cardNum}-E{N}-G` とする。
+  if (resolvedAction.type === 'GRANT_ACCE_HOST_ABILITY') {
+    const gaa = resolvedAction as GrantAcceHostAbilityAction;
+    const raw = gaa.rawText ?? '';
+    const subBlocks = /[「『]/.test(raw)
+      ? splitEffectBlocks(raw.replace(/^[『「]/, '').replace(/[』」]$/, ''))
+      // 引用符なし（「…は【ランサー】を得る」等のキーワード付与）→ ホスト自身の能力として再構成
+      : [`【常】：このシグニは${raw}を得る`];
+    gaa.abilities = subBlocks
+      .map((b, si) => {
+        const e = parseBlock(cardNum, b, index);
+        if (e) e.effectId = `${cardNum}-E${index + 1}-G${si > 0 ? si + 1 : ''}`;
+        return e;
+      })
+      .filter((e): e is import('../types/effects').CardEffect => e !== null);
+    delete gaa.rawText;
+    const hasUnknownSub = gaa.abilities.length === 0 || gaa.abilities.some(e => e.parseStatus === 'UNKNOWN');
+    parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
+  } else
   // GRANT_LRIG_ABILITY: rawText からサブ能力をここでパース（parseBlock が使えるタイミング）
   if (resolvedAction.type === 'GRANT_LRIG_ABILITY') {
     const gla = resolvedAction as GrantLrigAbilityAction;

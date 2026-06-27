@@ -820,6 +820,7 @@ export interface GrantAcceHostAbilityAction {
   filter?: TargetFilter;   // ホストシグニへのフィルタ（例: cardClass:'調理'。省略時は任意）
   abilities: CardEffect[]; // 付与する能力（ホストシグニ自身の能力として扱われる）
   byChoice?: boolean;      // true: abilities を選択肢とみなし、装着時に選んだ1つ（acce_choice[acceNum]）のみ付与（SPK01-11 ラズベリー）
+  rawText?: string;        // parseBlock で abilities へ展開する前の引用能力テキスト（パース中の一時フィールド・展開後に削除）
 }
 
 // このカードが【ソウル】として付いているシグニ（ホスト）へ能力を付与する（CONTINUOUS宣言型）

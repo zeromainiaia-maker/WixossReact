@@ -5,6 +5,16 @@
 
 ---
 
+## パーサー: Stage B R13＝アクセホスト能力付与（GRANT_ACCE_HOST_ABILITY）の wrapper 復元（LOSS −8）（2026-06-27・ymst）
+
+「【常】：これにアクセされている[＜X＞の]シグニは『…』を得る」（アクセ装着先ホストへ引用能力／キーワードを付与）が、`splitSentences` が引用「」内の「。」で wrapper を割ってしまい、**内側の能力が単独の効果として漏れ出していた**（fresh が GRANT_ACCE_HOST_ABILITY を一切出さず DRAW/GRANT_PROTECTION/STUB 等に退化＝全 leaf 喪失の LOSS 本体）。engine は `effectEngine.ts:4453` 等で CONTINUOUS の GRANT_ACCE_HOST_ABILITY を読みホストへ付与する実装が既にあった（＝表現だけ欠けていた）。
+
+- **修正＝最優先での wrapper 捕捉＋再帰展開**（GRANT_LRIG_ABILITY と同方式）。`parseActionText` 冒頭（splitSentences の前）に `^これにアクセされている(?:＜X＞の|《Y》の)?シグニは([「『【]…)を得る$` を追加し `{type:GRANT_ACCE_HOST_ABILITY, filter:{cardType:シグニ, cardClass?:X, cardName?:Y}, abilities:[], rawText}` を返す。`parseBlock` で rawText を `splitEffectBlocks`→`parseBlock` 再帰し abilities へ展開（effectId は既存慣例 `{cardNum}-E{N}-G`）。引用符なしのキーワード付与（「…は【ランサー】を得る」）は `【常】：このシグニは{kw}を得る` に再構成して解析。
+- **本体は引用「」/『』 か キーワード【】 始まりに限定**（`[「『【]`）＝「すべての色を得る」等の専用STUB（ACCE_SIGNI_ALL_COLOR）を誤捕捉しない（初版で WX22-043 を +1 退行させたため narrow 化＝held +1→0）。
+- 計器：**LOSS 178→170（−8）／held 329 不変（横取り退行0）**。LOSS→VALUE へ移った8枚＝WX15-058/WX21-041/WXEX1-70/WXDi-P09-TK02A（内側 parseStatus）・WX15-102/WX15-105/WXK04-050（内側 GRANT_PROTECTION の count ALL↔1）・WX20-045（FORCE_FRONT_SIGNI_ATTACK↔FORCE_SIGNI_ATTACK）。残6枚（WX16-074/WX17-075/WX17-077/WXK10-074/WXK10-075/WDK07-E14）は内側が MANUAL 専用（triggerScope/isTriggerSource/独自CHOOSE 等）で再現不能＝LOSS 残（filter.cardType/triggerCondition/timing バケツへ移動）。
+- **検証**：WXEX1-70 等は内側まで既存JSONと leaf 完全一致（差は inner `parseStatus` MANUAL↔AUTO のみ＝だから VALUE）。**effects_*.json 無変更**（VALUE 差＝収穫マージ非対象・MANUAL 内側を温存）。typecheck（tsc -b）緑・**同型★0維持**（JSON 不変）。**要実機検証**（アクセ付与の発火）。
+- **教訓**：引用能力を含む付与系（GRANT_*_ABILITY）は splitSentences より前に wrapper を捕捉し rawText→再帰展開するのが定石。内側が MANUAL 品質のカードは LOSS→VALUE 止まり（parseStatus/effectId が必ず差分化）＝VALUE は最終レビュー送り。
+
 ## データ正規化: Stage B R12＝「対戦相手のシグニをエナゾーンに置く」の ENERGY_CHARGE→SEND_TO_ENERGY（11枚・mis-curation）（2026-06-27・ymst）
 
 Stage B 第1弾（非REVEALの最有望クラスタ）。「対戦相手のシグニ１体を対象とし…それをエナゾーンに置く」（＝エナ送り）が HEAD では `ENERGY_CHARGE` with `target:{SIGNI,opponent}` と **mis-curate** されていた。engine 上 `SEND_TO_ENERGY` が「フィールドのシグニをエナゾーンに置く（エナ送り）」の正規アクションで、パーサーは正しく `SEND_TO_ENERGY` を出力済み。`ENERGY_CHARGE` は本来 deck/hand/trash→エナのチャージ用（HEAD でも DECK_CARD 21・TRASH_CARD 31・HAND_CARD 4 が正用途）。SIGNI ターゲットの **11枚のみ**が誤り。
