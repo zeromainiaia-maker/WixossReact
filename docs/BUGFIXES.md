@@ -5,6 +5,17 @@
 
 ---
 
+## データ: R22＝powerRange anaphora／トリガー穴 hard-tail 6枚を parseStatus:MANUAL 化（LOSS から正当除外）（2026-06-27・ymst）
+
+R21 と同じ「既存 JSON は正しいがパーサー再現不能な hard-tail を MANUAL化」戦略の継続。計器（`scripts/parserWorklist.ts`）の triggerCondition/Scope バケツ6枚を 1枚ずつ dry-run（`scripts/_manualize2.ts <id>`＝HEAD effect と fresh parser 出力の leaf 差分を表示）で「EXIST正・FRESH退化」を確認のうえ MANUAL化。**差分effectのみ・runtime不変（leaf 不変・parseStatus メタデータのみ）**。
+
+- **再現不能の2系統**：①**powerRange anaphora**＝「対戦相手のパワーN以下のシグニ１体を**対象とし**…《X》を支払ってもよい。**そうした場合、それ**をバニッシュする」。BANISH 対象が後続文の「それ」で照応されるため、`parseSingleSentence("それをバニッシュする")`（effectParser.ts:1399-1405 の「そうした場合」CONDITIONAL）に前文の `filter.powerRange` が伝播せず脱落。②**timing 穴**＝`ON_SIGNI_BECOMES_DRIVE`（ドライブ状態になったとき）/`ON_HAND_DISCARDED`（手札を捨てたとき）/`ON_BECOME_BEAT`（ビートになったとき）は timing 検出ロジック自体が存在せず FRESH が `ON_PLAY` に退化。timing を足しても①の照応で powerRange は落ちるため held に戻せない。
+- **6枚**：WXDi-P06-052（ON_TRASH・powerRange max5000・fromFieldByCostOrEffect）／WXK01-076（ON_SIGNI_BECOMES_DRIVE・max3000・any_ally）／WXK01-079（同・max1000）／WXK07-061（ON_TRASH・max10000・fromFieldByCostOrEffect）／WXK09-038（ON_HAND_DISCARDED・any・E1のみ）／WDK14-014（ON_BECOME_BEAT・any_ally・E1のみ）。
+- **検証**：3ファイルとも parseStatus を除けば HEAD と構造完全一致（`structurallyIdentical=true`）＝他カード巻き込みなし。AUTO→MANUAL は WXDi:1／WXK:4／misc:1＝計6 のみ。**LOSS 144→138（−6）／held 303→297**。triggerCondition/Scope バケツ枯渇。
+- ⚠LOOK/REVEAL・CHOOSE 一族は curation 不整合のため MANUAL化しない（最終 VALUE の bulk 正規化案件）。
+
+---
+
 ## データ: R21＝hard-tail 11枚を parseStatus:MANUAL 化（表現完成・LOSS から正当除外）（2026-06-27・ymst）
 
 クリーンなパーサー鉱脈が枯れたため、**「既存 JSON は正しく完成済みだがパーサーが構造的に再現不能」な hard-tail** を `parseStatus:MANUAL` 化する戦略へ移行（計器は MANUAL/PARTIAL を held から除外＝§2 の「手動管理・パーサー対象外」明示）。**メタデータのみ変更・効果本体と runtime 挙動は不変**。差分のある effect だけを MANUAL 化（パーサーと一致する effect は AUTO 据置）。

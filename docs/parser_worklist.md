@@ -21,6 +21,7 @@
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
+- 2026-06-27 R22（powerRange anaphora／トリガー穴 hard-tail の MANUAL化／ymst）: R21 継続。triggerCondition/Scope バケツ6枚（WXDi-P06-052・WXK01-076・WXK01-079・WXK07-061・WXK09-038・WDK14-014）を MANUAL化。①「対象とし…そうした場合それをバニッシュ」の文跨ぎ照応で powerRange 脱落（effectParser.ts:1399-1405）②ON_SIGNI_BECOMES_DRIVE/ON_HAND_DISCARDED/ON_BECOME_BEAT は timing 検出ロジックが無く ON_PLAY 退化。差分effectのみ・runtime不変・構造完全一致を検証。**LOSS 144→138（−6）／held 303→297**。triggerCondition バケツ枯渇。
 - 2026-06-27 R21（hard-tail の MANUAL化／ymst）: クリーンなパーサー鉱脈が枯れたため、**既存JSONが正しく完成済みだがパーサー再現不能な hard-tail を parseStatus:MANUAL 化**する戦略へ移行。batch1＝GRANT_ACCE 6枚（内側手書き品質）／batch2＝機構依存5枚（機構④/placedDown/傀儡）。差分effectのみMANUAL化・メタデータのみ・runtime不変・キー順保持を検証。**LOSS 155→144（−11）／held 314→303**。⚠LOOK/REVEAL・CHOOSE は curation 不整合のため MANUAL化せず（凍結回避＝bulk正規化案件）。
 - 2026-06-27 R20（filter（その他）・levelLteLastProcessed／ymst）: 「この方法で…したシグニのレベル以下」の動的レベル参照を `parseLevelLteLastProcessed` 新設し BOUNCE/SEND_TO_ENERGY/SEARCH の3ハンドラに適用。**LOSS 158→155（−3）／held 317→314**（WX21-022/WX24-P3-026/WXEX2-17 IDENTICAL）。同型★0維持・typecheck緑・JSON無変更。
 - 2026-06-27 R19（filter（その他）・《ガードアイコン》hasGuard/noGuard／ymst）: `parseGuardFilter` ヘルパー新設しトラッシュ→手札（spanTxt限定）／トラッシュ→エナ汎用に適用。**LOSS 162→158（−4）／held 321→317**（WXDi-P00-025/P01-011 hasGuard・WXDi-P01-030/P07-029 noGuard が IDENTICAL）。同型★0維持・typecheck緑・JSON無変更。helper 化で横展開容易。
