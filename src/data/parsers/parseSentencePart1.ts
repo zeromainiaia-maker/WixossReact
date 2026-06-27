@@ -1077,6 +1077,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if (t.includes('すべてのシグニをアップ') || t.match(/あなたのシグニ[をが]アップ/)) {
       return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
     }
+    // 「このシグニをアップする」＝効果元自身（thisCardOnly）。
+    if (t.includes('このシグニ')) {
+      return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
+    }
     return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 } };
   }
 
@@ -1218,6 +1222,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       type: 'ADD_TO_FIELD', owner: 'self',
       source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { thisCardOnly: true } },
       ...(asDown ? { asDown: true } : {}),
+      ...(t.includes('もよい') ? { optional: true } : {}), // 「場に出してもよい」＝任意
     };
   }
 

@@ -1638,16 +1638,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       }
       // ON_PLAY: 「あなたの[＜X＞の]シグニ[N体]が（効果によって）場に出たとき」= any_ally＋triggerFilter。「効果によって」= byEffect 限定
       if (timing[0] === 'ON_PLAY') {
-        const allyPlayM = actionText.match(/^あなたの(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が(効果によって)?場に出たとき[、,]\s*(.+)/s);
+        const allyPlayM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が(効果によって)?場に出たとき[、,]\s*(.+)/s);
         // 「あなたのレゾナ[N体]が場に出たとき」= any_ally＋cardType:レゾナ（レゾナは効果でのみ場に出る。G148）
         const allyResonaPlayM = !allyPlayM && actionText.match(/^あなたのレゾナ(?:[０-９\d]+体)?が場に出たとき[、,]\s*(.+)/s);
         // 所有者指定なしの「シグニ[N体]が場に出たとき」= any（両者のシグニ。自身も含む。G085「（このシグニが場に出たときも発動する）」）。
         const anyPlayM = !allyPlayM && !allyResonaPlayM && actionText.match(/^シグニ(?:[０-９\d]+体)?が場に出たとき[、,]\s*(.+)/s);
         if (allyPlayM) {
           extractedTriggerScope = 'any_ally';
-          if (allyPlayM[1]) extractedTriggerFilter = { story: allyPlayM[1] };
-          if (allyPlayM[2]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
-          actionText = allyPlayM[3];
+          const tf: NonNullable<typeof extractedTriggerFilter> = {};
+          if (allyPlayM[1]) tf.excludeSelf = true; // 「他の」＝自身を除く
+          if (allyPlayM[2]) tf.story = allyPlayM[2];
+          if (Object.keys(tf).length) extractedTriggerFilter = tf;
+          if (allyPlayM[3]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
+          actionText = allyPlayM[4];
         } else if (allyResonaPlayM) {
           extractedTriggerScope = 'any_ally';
           extractedTriggerFilter = { cardType: 'レゾナ' };
@@ -1722,8 +1725,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/レゾナの出現条件のために/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), forResonaCondition: true };
         }
-        const m = actionText.match(/(?:(?:(?:手札か)?デッキから|場から|いずれかの領域から)トラッシュに置かれたとき)[、,]\s*(.+)/s);
-        if (m) actionText = m[1];
+        const m = actionText.match(/((?:手札か)?デッキ|場|いずれかの領域)からトラッシュに置かれたとき[、,]\s*(.+)/s);
+        if (m) {
+          // 出自ゾーンを fromZones に記録（「デッキから」=deck／「場から」=field／「手札かデッキから」=hand+deck）。
+          const zoneStr = m[1];
+          const zones: string[] = [];
+          if (zoneStr.includes('手札')) zones.push('hand');
+          if (zoneStr.includes('デッキ')) zones.push('deck');
+          if (zoneStr === '場') zones.push('field');
+          if (zones.length) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromZones: zones as ('hand' | 'deck' | 'field')[] };
+          actionText = m[2];
+        }
         else {
           // 「対戦相手の効果によって〜」等のトリガー文を除去
           const m2 = actionText.match(/[^、。「」]{2,100}トラッシュに置かれたとき[、,]\s*(.+)/s);

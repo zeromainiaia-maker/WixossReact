@@ -5,6 +5,18 @@
 
 ---
 
+## パーサー: Stage C R10＝ON_PLAY「他の…場に出た」excludeSelf／UP thisCardOnly／ON_TRASH fromZones／自己蘇生 optional（2026-06-27・ymst）
+
+Stage C（triggerCondition/Scope/Filter バケツ）の第1弾。トリガー検出の穴を4点是正：
+
+1. **ON_PLAY「あなたの他のシグニが（効果によって）場に出たとき」**：`effectParser.ts:1641` の any_ally 正規表現が「他の」を許さず scope/byEffect/excludeSelf を丸ごと落としていた。`(他の)?` を追加し triggerFilter.excludeSelf を付与。WX10-080/083 ほか、story 付き4枚（WX06-021/WXDi-P00-042/WXDi-P03-050/WX24-P1-046）を harvest。
+2. **UP「このシグニをアップする」= thisCardOnly**：`parseSentencePart1.ts` の UP handler が単体「このシグニ」に thisCardOnly を付けず汎用 self/count:1 に落としていた。`このシグニ`→`filter:{thisCardOnly:true}`。**44枚の curation bug を harvest**。
+3. **ON_TRASH の fromZones**：`effectParser.ts:1728` がトリガー文を除去するだけで出自ゾーンを捨てていた。「デッキ/場/手札かデッキ から」→ `triggerCondition.fromZones`（deck/field/hand+deck）を記録。**63枚を harvest**（engine は fromZones 未使用＝表現専用・無害）。
+4. **自己蘇生 ADD_TO_FIELD の optional**：「このカードをトラッシュから場に出してもよい」の `もよい`→`optional:true`。WX10-092/WX02-073 ほか **15枚を harvest**。
+
+- 計器：**LOSS 210→206**（WX10-080/083/092・WX02-073）＋ thisCardOnly 44・fromZones 63・optional 15・excludeSelf 4 の harvest。typecheck（tsc -b）緑・**同型★0維持**。**要実機検証**。
+- **保留**：Cluster 1（WX10-074/078「ダウン状態で場に出たとき→そのシグニをアップ」＝placedDown＋**targetsTriggerSource**）は「そのシグニ」自動対象化の機構追加が要るため次ラウンド。
+
 ## パーサー: filter.color／colorMatchesLrig 脱落是正（trash→hand 単色＋SEARCH/REVEAL系の共通色）（2026-06-27・ymst）
 
 Stage A（filter.color バケツ）。2系統：
