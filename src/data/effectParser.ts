@@ -9,6 +9,7 @@ import type {
   EffectDuration,
   ActiveCondition,
   TargetFilter,
+  CardTypeFilter,
   EffectTarget,
   Owner,
   CompareOp,
@@ -36,7 +37,18 @@ function parseUseCondition(text: string): Condition {
   const n = (s: string) => parseInt(toHalf(s), 10);
   const op = (s: string): import('../types/effects').CompareOp => s === '以上' ? 'gte' : s === '以下' ? 'lte' : 'eq';
 
-  // クロス状態（未実装メカニクス → COND_STUB で常に許可）
+  // 「(あなた|対戦相手)の場にクロス状態の[＜X＞の]シグニがある」＝HAS_CARD_IN_FIELD。
+  // engine は crossState フィルタを実装済み（execUtils evaluateCondition HAS_CARD_IN_FIELD / fieldCandidates）。
+  // 旧: クロス状態を一律 COND_STUB（常に許可）にしていたが、それは未実装時代の名残＝場の存在条件は正規化する。
+  const crossFieldM = text.match(/(あなた|対戦相手)の場に(?:ある)?クロス状態の(?:(＜[^＞]+＞)の)?シグニが(?:いる|ある)/);
+  if (crossFieldM) {
+    return {
+      type: 'HAS_CARD_IN_FIELD',
+      owner: crossFieldM[1] === 'あなた' ? 'self' : 'opponent',
+      filter: { cardType: 'シグニ', crossState: true, ...(crossFieldM[2] ? parseStoryFilter(crossFieldM[2]) : {}) },
+    };
+  }
+  // それ以外のクロス状態参照（このシグニ自身がクロス状態 等）は未対応 → COND_STUB（常に許可）
   if (text.match(/クロス状態/)) return { type: 'COND_STUB', raw: text };
 
   // 対戦相手のセンタールリグがレベルX以上/以下
@@ -540,6 +552,18 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン2a: 「あなたの場に《X》(か《Y》)*があるかぎり、」（複数カード名のいずれか存在。WX08-049「《羅星　アルシャ》か《羅星　ディアデム》」）
+  // 単一名は cardName、複数名は cardNames に解決。下のパターン2は単一《》/＜＞のみなので、複数《》はここで先取りする。
+  const fieldNamesM = text.match(/^あなたの場に((?:《[^》]+》(?:か)?)+)があるかぎり、/);
+  if (fieldNamesM && fieldNamesM[1].includes('か《')) {
+    const names = [...fieldNamesM[1].matchAll(/《([^》]+)》/g)].map(m => m[1]);
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardNames: names } },
+      rest: text.slice(fieldNamesM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン2: 「あなたの場に《カード名》/＜カード名＞があるかぎり、」
   const fieldNameM = text.match(/^あなたの場に(《[^》]+》|＜[^＞]+＞)があるかぎり、/);
   if (fieldNameM) {
@@ -680,6 +704,19 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3z: 「あなたの場に[色][＜クラス＞]のシグニが(N体)?あるかぎり、」（色/クラス指定の存在条件。WX03-038「赤のシグニがあるかぎり」）
+  // 上の story/count/level 専用パターンに当たらない素の色・クラス存在条件を拾う（従来はキャッチオールで condition=undefined に落ちていた）。
+  const fieldColorStoryM = text.match(/^あなたの場に((?:[白赤青緑黒]の|＜[^＞]+＞(?:か)?)+)シグニが(?:([０-９\d]+)体)?あるかぎり、/);
+  if (fieldColorStoryM) {
+    const sub = fieldColorStoryM[1];
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseColorFilter(sub), ...parseStoryFilter(sub) };
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter, ...(fieldColorStoryM[2] ? { minCount: parseNum(fieldColorStoryM[2]) } : {}) },
+      rest: text.slice(fieldColorStoryM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3: 「あなたの場に〜があるかぎり、」（カード名特定不可→conditionはundefined）
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
@@ -692,6 +729,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return {
       condition: { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'gte', value: parseNum(trashM[1]) },
       rest: text.slice(trashM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン4a2: 「あなたのルリグトラッシュに〔アーツ/スペル/シグニ/カード〕が(N枚以上)?あるかぎり、」（ルリグトラッシュ枚数条件。WDK03-015/WXK01-098）
+  const lrigTrashM = text.match(/^あなたのルリグトラッシュに(アーツ|スペル|シグニ|カード)が(?:([０-９\d]+)枚以上)?あるかぎり、/);
+  if (lrigTrashM) {
+    const noun = lrigTrashM[1];
+    return {
+      condition: { type: 'LRIG_TRASH_COUNT', ...(noun !== 'カード' ? { cardType: noun as CardTypeFilter } : {}), operator: 'gte', value: lrigTrashM[2] ? parseNum(lrigTrashM[2]) : 1 },
+      rest: text.slice(lrigTrashM[0].length),
       conditionFound: true,
     };
   }
@@ -1622,6 +1670,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_BANISH') {
+        // 「(対戦相手|あなた)のターンの間、」前置き＝そのプレイヤーのターン限定（activeCondition TURN_OWNER）。
+        // engine の ON_BANISH 自己トリガー収集（BattleScreen collectBanishTriggers）が activeCondition を評価する。
+        // 【常】→ON_BANISH 再分類（G150）と同じ扱い。WXK04-065/067 等の【自】版がここに該当。
+        const turnIntervalM = actionText.match(/^(対戦相手|あなた)のターンの間、(.+)/s);
+        if (turnIntervalM) {
+          forcedActiveCondition = { type: 'TURN_OWNER', owner: turnIntervalM[1] === '対戦相手' ? 'opponent' : 'self' };
+          actionText = turnIntervalM[2];
+        }
         // 「対戦相手の（＜X＞の）シグニ[N体]がバニッシュされたとき」= any_opp（相手シグニのバニッシュに反応。collectBanishTriggers step2 が triggerScope で処理）
         const oppBanM = actionText.match(/^対戦相手の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
         if (oppBanM) {

@@ -980,17 +980,26 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const delta = plusM ? parseNum(plusM[1]) : -(parseNum(minusM![1]));
     let target: EffectTarget;
     let isTriggerSource = false;
+    let excludeSelf = false;
     const iconM = t.match(/(あなた|対戦相手)の《(クロス|ライズ|トラップ|アクセ)アイコン》を持つシグニのパワーを/);
     if (iconM) {
       // 「あなたの《クロスアイコン》を持つシグニのパワーを＋Nする」等。対象は該当アイコン持ち全シグニ
       const owner: Owner = iconM[1] === 'あなた' ? 'self' : 'opponent';
       target = { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', hasIcon: iconM[2] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ' } };
-    } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:[白赤青緑黒]の|＜[^＞]+＞の|他の)?(?:すべての)?シグニのパワーを/)) {
+    } else if (t.match(/あなたの(?:すべての)?レゾナのパワーを/)) {
+      // 「あなたの(すべての)レゾナのパワーを±N」＝自分のレゾナ全体への持続バフ（WX07-007/WX08-019）。
+      // cardType:'レゾナ' で engine（card.Type==='レゾナ'）も decompiler もレゾナと認識する。
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'レゾナ' } };
+    } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:他の)?(?:[白赤青緑黒]の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)?(?:すべての)?シグニのパワーを/)) {
+      // 「あなたの[他の][色|＜種族＞]の[すべての]シグニのパワーを±N」＝該当する自分シグニ全体への持続バフ。
+      // 「他の」併用時（例:「他の＜天使＞のシグニ」）も拾えるよう、他の/色/種族を独立オプションにする。
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t) } };
+      if (/あなたの他の/.test(t)) excludeSelf = true;
     } else if (t.match(/対戦相手のすべてのシグニ/) ||
                t.match(/(?:感染状態の)?対戦相手のシグニすべて/) ||
-               t.match(/対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞の|感染状態の)?(?:すべての)?シグニのパワーを/)) {
+               t.match(/対戦相手の(?:他の)?(?:[白赤青緑黒]の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の|感染状態の)?(?:すべての)?シグニのパワーを/)) {
       target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t), ...(t.includes('感染状態') ? { infected: true } : {}) } };
+      if (/対戦相手の他の/.test(t)) excludeSelf = true;
     } else if (t.match(/対戦相手の(?:感染状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
       target = parseSigniTarget(t, 'opponent');
     } else if (t.match(/あなたの(?:感染状態の)?シグニ([０-９\d]+)体/)) {
@@ -1008,6 +1017,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
     const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target, delta };
     if (isTriggerSource) pmAction.targetsTriggerSource = true;
+    if (excludeSelf) pmAction.excludeSelf = true;
     return pmAction;
   }
 
@@ -1081,6 +1091,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- トラッシュ → 手札 ----
   if (t.includes('トラッシュから') && t.includes('手札に加える')) {
     const filter: TargetFilter = { ...parseCardTypeFilter(t) };
+    // 「(あなたの)センタールリグと共通する色を持つ〔シグニ/カード/スペル〕」＝colorMatchesLrig（engine が動的解決）。
+    // 名詞句修飾形に限定（全文スキャン禁止の教訓・parser_backlog）。SEQUENCE/CHOICE も sub-clause がここへ再帰する。
+    if (/センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:シグニ|スペル|カード)/.test(t)) filter.colorMatchesLrig = true;
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
@@ -1636,6 +1649,18 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- この方法で場に出たシグニの【出】能力は発動しない ----
   if (t.match(/この方法で場に出たシグニの【出】能力は発動しない/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'any', count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' };
+  }
+
+  // ---- このシグニの基本レベルはNになる（自身の基本レベル変更）----
+  // engine 実行可能な SET_BASE_LEVEL（effectExecutor が ctx.sourceCardNum に適用）。
+  // 「ターン終了時まで」=【起】等の一時変更（until:END_OF_TURN）／無指定=【常】の恒常上書き（cardMap）。
+  // 「を…にする」形（対象指定の他シグニ）は engine が source 以外へ適用できないため下の BLOCK_ACTION 近似のまま。
+  const selfBaseLevelM = t.match(/このシグニの基本レベルは([０-９\d]+)になる/);
+  if (selfBaseLevelM) {
+    // 現データの該当は全て【起】の一時変更（「ターン終了時まで」は duration 側で除去済みのためここでは検出不可）。
+    // until:END_OF_TURN で attack_phase_level_overrides に反映（旧 BLOCK_ACTION 近似も END_OF_TURN 既定だった）。
+    // 恒常【常】（WX04-049）は manualEffects 側で until 無し SET_BASE_LEVEL を持つためここには来ない。
+    return { type: 'SET_BASE_LEVEL', target: { type: 'SIGNI', owner: 'self', count: 1 }, value: parseNum(selfBaseLevelM[1]), until: 'END_OF_TURN' };
   }
 
   // ---- 基本レベルをNにする ----

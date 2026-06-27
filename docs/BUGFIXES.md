@@ -5,6 +5,55 @@
 
 ---
 
+## パーサー: 複数クラス「＜X＞と＜Y＞のシグニのパワー」全体バフのtarget是正（2026-06-27・karka）
+
+Stage A R3（filter.cardType の一部）。`parseSentencePart1.ts` の POWER_MODIFY 全体バフ分岐のゲート正規表現が単一クラス（`＜X＞の`）しか許さず、「あなたの[他の]＜X＞と＜Y＞のシグニのパワーを±N」が default（owner:'any', count:1, filter無）に落ちていた。`(?:＜[^＞]+＞[とか])*＜[^＞]+＞の` で複数クラス連結を許容。self/opponent 両分岐。
+
+- WX04-016/086 が一致（既存JSON正）。WXK04-043・WXDi-P11-041 は**既存JSONが旧バグの owner:'any'/count:1 を保存していた**ため fresh（正＝owner:'self'/count:'ALL'/filter）に直接パッチ（収穫マージは owner/count の値変更を採用しないため手修正）。held 388→386。
+- typecheck（tsc -b）緑・同型★0維持。**要実機検証**。
+- **重要発見**：filter.cardType バケツは単一修正ではなく84箇所に分散し多くが構造差（STUB/action.type）と絡む（`docs/parser_worklist.md` R3 ログ参照）。
+
+## パーサー: 「トラッシュ→手札」source に colorMatchesLrig を名詞句限定で付与（2026-06-27・karka）
+
+Stage A R2（filter.color バケツ）。`parseSentencePart1.ts` の TRANSFER_TO_HAND トラッシュ handler が「あなたのセンタールリグと共通する色を持つ」を落としていた。**名詞句修飾形に限定**した正規表現（`センタールリグと共通する色を持つ…(シグニ|スペル|カード)`）で `filter.colorMatchesLrig=true` を付与。engine は動的解決済み（effectExecutor）。SEQUENCE/CHOICE の sub-clause も再帰でこの handler に到達するため step/choice 版も拾える。
+
+- **backlog の全文スキャン教訓を遵守**＝広い `includes()` ではなく名詞句限定の narrow 正規表現。過剰発火チェックで「fresh が付与・既存に無い」7枚を精査したが、全て実際に当該名詞句を持つ＝**既存JSONの取りこぼしを補う純改善**（収穫マージで7枚採用）。
+- WX04-026/WX06-015/WX15-029/WX20-047-CB/WDK01-010/WDK06-C09 が一致（既存が正・JSON無変更）。WXDi-P04-004/P14-005/P15-045・WX24-P1-009/P2-009・WX25-P2-044/P3-009 に colorMatchesLrig 採用。
+- 計器：**filter.color 11→5・held 394→388・LOSS 241→235**。typecheck（tsc -b）緑・**同型★0維持**。残5＝SEARCH/reveal の action.filter（別handler）＋filter.color 黒（別件）。**要実機検証**。
+
+## パーサー: 「場にクロス状態のシグニがある」条件を COND_STUB→HAS_CARD_IN_FIELD 正規化（2026-06-27・karka）
+
+Stage A（parser_worklist の filter.cardType バケツ）の R1。`effectParser.ts parseUseCondition` が「クロス状態」を一律 `COND_STUB`（常に許可）に倒していたが、これは**未実装時代の名残**。engine は crossState フィルタを実装済み（`execUtils` の HAS_CARD_IN_FIELD 条件評価 行697／`fieldCandidates` 行595）。「(あなた｜対戦相手)の場に[ある]クロス状態の[＜X＞の]シグニがいる／ある」を `HAS_CARD_IN_FIELD{owner, filter:{cardType:'シグニ', crossState:true, ...story}}` に正規化（それ以外の自身クロス参照等は COND_STUB 据置）。
+
+- **engine配線済み（パリティOK）**＝新規engine作業なし。既存JSONが元々この正規形を持っていたため**JSON無変更**（パーサーが再現できるようになっただけ）。WX07-014/018/020・WX08-011・WX07-003・WX08-002/003 が一致、WX07-002/004/005・WX08-001 は crossState 解消（残差は無関係の timing 差＝別バケツ）。
+- 計器：**filter.cardType 30→16・held 404→394・LOSS 255→241**。typecheck（tsc -b）緑・全sheet＋下流再生成で**同型★0維持**。**要実機検証**（クロス状態条件の開閉）。
+
+## パーサー: 「あなたのレゾナのパワーを±N」のtarget脱落を是正＋isResona完全撤去（2026-06-27・karka）
+
+`parseSentencePart1.ts` の POWER_MODIFY 分岐が「シグニ」限定で「あなたのレゾナのパワーを」を拾えず、デフォルト `{owner:'any',count:1}`（filter無）に落としていた（owner/count/filter 全滅）。レゾナ専用分岐を追加し `{owner:'self', count:'ALL', filter:{cardType:'レゾナ'}}` を出力。engine（`card.Type==='レゾナ'` でマッチ）も decompiler（前コミットで cardType:'レゾナ' 認識済み）も正しく解釈する。WX07-007/WX08-019 一致。
+
+併せて既存JSON最後の `isResona`（死にキー）2箇所を `cardType:'レゾナ'` へ移行し、**isResona をコードベースから完全撤去**（残0）。レゾナ表現は cardType:'レゾナ' に一本化。
+
+- typecheck（tsc -b）緑・下流再生成・**同型★0維持**・逆翻訳「あなたのすべてのレゾナのパワーを＋2000する」（count:'ALL' の標準表記）。**要実機検証**。
+
+## パーサー/decompiler: 自身の基本レベルSET_BASE_LEVEL化＋レゾナ存在条件のdecompile退化を是正（2026-06-27・karka）
+
+2系統の是正。**①SET_BASE_LEVEL（engine実行可）**＝「このシグニの基本レベルはNになる」を `parseSentencePart1.ts` で `SET_BASE_LEVEL`（until:END_OF_TURN）として出力。従来は `BLOCK_ACTION/actionId:SET_LEVEL_N` に退化していたが、`execBlockAction` は actionId を `blocked_actions` に積むだけで**基本レベルを変更しない no-op**（divergence）。`SET_BASE_LEVEL` executor（effectExecutor.ts:3695）が `attack_phase_level_overrides` に反映＝実行可。対象は self（ctx.sourceCardNum）のみ engine 対応のため、「を…にする」（対象指定の他シグニ）は engine 未対応につき BLOCK_ACTION 近似のまま据置。WX10-056/058（【起】基本レベル4/3）が一致。
+
+**②レゾナ存在条件のdecompile退化**＝`decompileEffects.ts` の `HAS_CARD_IN_FIELD`／targetJa が `filter.isResona` だけでレゾナ名詞を出していたため、`filter.cardType:'レゾナ'`（多数派の正準形）のカードが原文「レゾナ」なのに「シグニ」と退化していた（WX08-033/WX14-042/WX21-Re19/WD09-009/WD11-009/PR-319 の6枚＝★非検出の隠れバグ）。`cardType==='レゾナ'` もレゾナと認識するよう2箇所修正。これに伴い WX10-056/058 の冗長な `isResona:true`（死にキー・engine 0参照）を JSON から除去し cardType に統一。
+
+- typecheck（tsc -b）緑・全sheet＋下流再生成・**同型★0維持**・8枚のレゾナ存在条件が原文一致「レゾナがいるかぎり」。WX10-056/058 は fresh==JSON で held 解消。
+- **要実機検証**（基本レベル変更が実ゲームで反映されるか）。
+
+## パーサー: 【自】ON_BANISH「(対戦相手|あなた)のターンの間、…バニッシュされたとき」のactiveCondition脱落を是正（2026-06-27・karka）
+
+`effectParser.ts` の **AUTO【自】ON_BANISH** 経路に「(対戦相手|あなた)のターンの間、」前置きの検出を追加し、`forcedActiveCondition = TURN_OWNER` を設定＋プレフィックス除去。従来は【常】→ON_BANISH 再分類（G150）にだけ TURN_OWNER 化があり、**素の【自】版は activeCondition 丸ごと脱落**していた（WXK04-065/067 が要レビューに滞留）。
+
+- **engine配線済み（パリティOK）**: BattleScreen `collectBanishTriggers`（src/screens/BattleScreen.tsx:3571-3577）が ON_BANISH 自己トリガー収集時に `checkActiveCondition` を評価（コメントにも「対戦相手のターンの間」）。【常】G150 と同じ機構を流用＝新規engine作業なし。
+- **収穫マージ（build:effects）で純改善採用12枚**: TURN_OWNER activeCondition を追加（全て原文に「ターンの間」を持つ）。WXK04-065/067・WX11-066・WX14-044/071・WX16-029・WXDi-P03-042・WXDi-P05-058・WXDi-P15-090・WXK07-048・WXK08-059。WXDi-P03-042/WXDi-P15-090 は「あなたの他の/＜原子＞のシグニ」被バニッシュ（any_ally scope は別の既存制約・本修正で悪化なし）。
+- **held（要レビュー）409→408**。typecheck（tsc -b）緑・全sheet＋下流再生成・**同型★0維持**・逆翻訳に《対戦相手のターンの間であるかぎり》反映。
+- **要実機検証**（相手/自分ターン中のみ ON_BANISH が発火するか）。
+
 ## 機構④誤parse3枚の是正（WXDi-P07-044／WX25-P3-062／WX25-P2-009・2026-06-26）
 
 機構④（《自分/相手ターン》AUTO）で「未配線・別系統の重い誤parse」として残していた3枚を、既存語彙＋トリガー配線で是正。トリガー/アクションが丸ごと壊れていたのを原文一致まで復元。
