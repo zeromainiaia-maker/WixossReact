@@ -695,11 +695,23 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
-  // パターン3f: 「このシグニがアクセされているかぎり、」（自身にアクセが付いている条件。G078）
-  if (text.startsWith('このシグニがアクセされているかぎり、')) {
+  // パターン3f: 「このシグニがアクセされているかぎり、」「このシグニに【アクセ】が付いているかぎり、」（自身にアクセが付いている条件。G078／WXK04-080）
+  for (const accePhrase of ['このシグニがアクセされているかぎり、', 'このシグニに【アクセ】が付いているかぎり、']) {
+    if (text.startsWith(accePhrase)) {
+      return {
+        condition: { type: 'IS_SELF_ACCED' } as ActiveCondition,
+        rest: text.slice(accePhrase.length),
+        conditionFound: true,
+      };
+    }
+  }
+
+  // パターン3f2: 「あなたの登録者数がN万人を達成しているかぎり、」（登録者数条件。WXK08-061/064）
+  const subscriberM = text.match(/^あなたの登録者数が([０-９\d]+)万人を達成しているかぎり、/);
+  if (subscriberM) {
     return {
-      condition: { type: 'IS_SELF_ACCED' } as ActiveCondition,
-      rest: text.slice('このシグニがアクセされているかぎり、'.length),
+      condition: { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(subscriberM[1]) } as ActiveCondition,
+      rest: text.slice(subscriberM[0].length),
       conditionFound: true,
     };
   }
@@ -1475,7 +1487,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
   // ビートアイコン条件を costStr から抽出（《ビートアイコン》[条件]）
   let beatCondition: import('../types/effects').Condition | undefined;
-  const beatIconM = costStr.match(/^《ビートアイコン》\[([^\]]+)\]\s*/);
+  const beatIconM = costStr.match(/^《ビートアイコン》[\[［]([^\]］]+)[\]］]\s*/);
   if (beatIconM) {
     beatCondition = { type: 'BEAT_CONDITION', condText: beatIconM[1] };
     costStr = costStr.slice(beatIconM[0].length).trim();
@@ -1928,10 +1940,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       : turnOwnerCond;
   }
 
-  // ビートアイコン条件を useCondition にマージ
-  let mergedCondition: import('../types/effects').Condition | undefined = beatCondition
-    ? (useCondition ? { type: 'AND', conditions: [beatCondition, useCondition] } : beatCondition)
-    : useCondition;
+  // ビートアイコン条件：【常】CONTINUOUS は activeCondition（engine checkActiveCondition が評価）、
+  // それ以外（起動/自動）は useCondition にマージ。（WXK08-073＝【常】《ビートアイコン》[１枚以上]）
+  if (effectType === 'CONTINUOUS' && beatCondition) {
+    finalActiveCondition = finalActiveCondition
+      ? { type: 'AND', conditions: [beatCondition as ActiveCondition, finalActiveCondition] }
+      : (beatCondition as ActiveCondition);
+  }
+  let mergedCondition: import('../types/effects').Condition | undefined =
+    (effectType !== 'CONTINUOUS' && beatCondition)
+      ? (useCondition ? { type: 'AND', conditions: [beatCondition, useCondition] } : beatCondition)
+      : useCondition;
   // トリガー文から抽出した条件（ON_ENERGY_CHARGE=IS_MY_TURN / ON_POWER_THRESHOLD=SELF_POWER_GTE）をマージ
   if (extractedTriggerCondition) {
     mergedCondition = mergedCondition

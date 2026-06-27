@@ -5,6 +5,17 @@
 
 ---
 
+## パーサー: activeCondition 3系統＋《ビートアイコン》全角ブラケット是正（2026-06-27・ymst）
+
+Stage A（activeCondition バケツ）＋大きな波及。`effectParser.ts` に3つの修正：
+
+1. **SUBSCRIBER_COUNT 条件**：`parseActiveCondition` に「あなたの登録者数がN万人を達成しているかぎり、」→ `{type:'SUBSCRIBER_COUNT', operator:'gte', value:N}`（万単位の数値をそのまま格納＝既存JSON規約 value:40）。WXK08-061/064 解消＋WXK08-034/038（80/100万）を純改善採用。
+2. **IS_SELF_ACCED の言い回し追加**：既存は「このシグニがアクセされているかぎり、」のみ。「このシグニに【アクセ】が付いているかぎり、」を追加（WDK07-E11 解消・WXK04-080/082 の[0]も是正。ただし両者は[1]「これにアクセされているシグニのパワーを＋N」の acceHost 脱落が別途残＝広域 POWER_MODIFY が先に発火する precedence 問題で別件）。
+3. **《ビートアイコン》の全角ブラケット ［］ 対応（最大の波及）**：`beatIconM` の正規表現が ASCII `[]` のみで、実データは全角 `［１枚以上］`（U+FF3B/FF3D）。`[\[［]([^\]］]+)[\]］]` で両対応。これで WXK08-041/042/043/046/067/068/073/075・WXK10-041・WDK14-001/011/012 等の 《ビートアイコン》[条件] 一族（【常】【自】【起】【出】）がまとめて解消（従来は条件丸ごと脱落）。併せて **【常】CONTINUOUS の beatCondition は activeCondition に**ルーティング（engine checkActiveCondition が評価・WXK08-073）。それ以外（起動/自動）は従来どおり useCondition。
+
+- 計器：**LOSS 233→217・held 386→371**（18枚改善・全て pure superset／leaf 削除なし）。typecheck（tsc -b）緑・**同型★0維持**。**要実機検証**（登録者数/ビート条件の開閉）。
+- 残 activeCondition 2枚＝WX24-P3-064/WXK07-027（「《相手ターン》/ターンの間＋トラッシュ枚数」の TURN_OWNER↔AND 複合構造ズレ＝別構造）。
+
 ## パーサー: 「トラッシュ→手札」source に filter.story を名詞句スパン限定で付与（2026-06-27・ymst）
 
 Stage A（filter.story バケツ）。`parseSentencePart1.ts` の TRANSFER_TO_HAND トラッシュ handler が `parseCardTypeFilter` のみで `＜種族＞の` を落としていた（WX03-050「トラッシュから＜悪魔＞のシグニ…手札に加える」の story:'悪魔' が脱落）。`parseStoryFilter` を追加して付与。
