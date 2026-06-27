@@ -5,6 +5,14 @@
 
 ---
 
+## パーサー: 「トラッシュ→手札」source に colorMatchesLrig を名詞句限定で付与（2026-06-27・karka）
+
+Stage A R2（filter.color バケツ）。`parseSentencePart1.ts` の TRANSFER_TO_HAND トラッシュ handler が「あなたのセンタールリグと共通する色を持つ」を落としていた。**名詞句修飾形に限定**した正規表現（`センタールリグと共通する色を持つ…(シグニ|スペル|カード)`）で `filter.colorMatchesLrig=true` を付与。engine は動的解決済み（effectExecutor）。SEQUENCE/CHOICE の sub-clause も再帰でこの handler に到達するため step/choice 版も拾える。
+
+- **backlog の全文スキャン教訓を遵守**＝広い `includes()` ではなく名詞句限定の narrow 正規表現。過剰発火チェックで「fresh が付与・既存に無い」7枚を精査したが、全て実際に当該名詞句を持つ＝**既存JSONの取りこぼしを補う純改善**（収穫マージで7枚採用）。
+- WX04-026/WX06-015/WX15-029/WX20-047-CB/WDK01-010/WDK06-C09 が一致（既存が正・JSON無変更）。WXDi-P04-004/P14-005/P15-045・WX24-P1-009/P2-009・WX25-P2-044/P3-009 に colorMatchesLrig 採用。
+- 計器：**filter.color 11→5・held 394→388・LOSS 241→235**。typecheck（tsc -b）緑・**同型★0維持**。残5＝SEARCH/reveal の action.filter（別handler）＋filter.color 黒（別件）。**要実機検証**。
+
 ## パーサー: 「場にクロス状態のシグニがある」条件を COND_STUB→HAS_CARD_IN_FIELD 正規化（2026-06-27・karka）
 
 Stage A（parser_worklist の filter.cardType バケツ）の R1。`effectParser.ts parseUseCondition` が「クロス状態」を一律 `COND_STUB`（常に許可）に倒していたが、これは**未実装時代の名残**。engine は crossState フィルタを実装済み（`execUtils` の HAS_CARD_IN_FIELD 条件評価 行697／`fieldCandidates` 行595）。「(あなた｜対戦相手)の場に[ある]クロス状態の[＜X＞の]シグニがいる／ある」を `HAS_CARD_IN_FIELD{owner, filter:{cardType:'シグニ', crossState:true, ...story}}` に正規化（それ以外の自身クロス参照等は COND_STUB 据置）。

@@ -1091,6 +1091,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- トラッシュ → 手札 ----
   if (t.includes('トラッシュから') && t.includes('手札に加える')) {
     const filter: TargetFilter = { ...parseCardTypeFilter(t) };
+    // 「(あなたの)センタールリグと共通する色を持つ〔シグニ/カード/スペル〕」＝colorMatchesLrig（engine が動的解決）。
+    // 名詞句修飾形に限定（全文スキャン禁止の教訓・parser_backlog）。SEQUENCE/CHOICE も sub-clause がここへ再帰する。
+    if (/センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:シグニ|スペル|カード)/.test(t)) filter.colorMatchesLrig = true;
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
