@@ -5,6 +5,15 @@
 
 ---
 
+## パーサー/decompiler: 自身の基本レベルSET_BASE_LEVEL化＋レゾナ存在条件のdecompile退化を是正（2026-06-27・karka）
+
+2系統の是正。**①SET_BASE_LEVEL（engine実行可）**＝「このシグニの基本レベルはNになる」を `parseSentencePart1.ts` で `SET_BASE_LEVEL`（until:END_OF_TURN）として出力。従来は `BLOCK_ACTION/actionId:SET_LEVEL_N` に退化していたが、`execBlockAction` は actionId を `blocked_actions` に積むだけで**基本レベルを変更しない no-op**（divergence）。`SET_BASE_LEVEL` executor（effectExecutor.ts:3695）が `attack_phase_level_overrides` に反映＝実行可。対象は self（ctx.sourceCardNum）のみ engine 対応のため、「を…にする」（対象指定の他シグニ）は engine 未対応につき BLOCK_ACTION 近似のまま据置。WX10-056/058（【起】基本レベル4/3）が一致。
+
+**②レゾナ存在条件のdecompile退化**＝`decompileEffects.ts` の `HAS_CARD_IN_FIELD`／targetJa が `filter.isResona` だけでレゾナ名詞を出していたため、`filter.cardType:'レゾナ'`（多数派の正準形）のカードが原文「レゾナ」なのに「シグニ」と退化していた（WX08-033/WX14-042/WX21-Re19/WD09-009/WD11-009/PR-319 の6枚＝★非検出の隠れバグ）。`cardType==='レゾナ'` もレゾナと認識するよう2箇所修正。これに伴い WX10-056/058 の冗長な `isResona:true`（死にキー・engine 0参照）を JSON から除去し cardType に統一。
+
+- typecheck（tsc -b）緑・全sheet＋下流再生成・**同型★0維持**・8枚のレゾナ存在条件が原文一致「レゾナがいるかぎり」。WX10-056/058 は fresh==JSON で held 解消。
+- **要実機検証**（基本レベル変更が実ゲームで反映されるか）。
+
 ## パーサー: 【自】ON_BANISH「(対戦相手|あなた)のターンの間、…バニッシュされたとき」のactiveCondition脱落を是正（2026-06-27・karka）
 
 `effectParser.ts` の **AUTO【自】ON_BANISH** 経路に「(対戦相手|あなた)のターンの間、」前置きの検出を追加し、`forcedActiveCondition = TURN_OWNER` を設定＋プレフィックス除去。従来は【常】→ON_BANISH 再分類（G150）にだけ TURN_OWNER 化があり、**素の【自】版は activeCondition 丸ごと脱落**していた（WXK04-065/067 が要レビューに滞留）。

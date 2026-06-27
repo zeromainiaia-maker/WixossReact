@@ -159,7 +159,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   else if (loc) {
     const ct = t.filter?.cardType;
     u = (ct ? ([] as string[]).concat(ct).join('か') : 'カード') + loc;
-  } else if (t.filter?.isResona) u = 'レゾナ';
+  } else if (t.filter?.isResona || t.filter?.cardType === 'レゾナ') u = 'レゾナ';
   else u = unit; // SIGNI 等
   // パワー合計上限つき「好きな数」（「パワーの合計がN以下になるように好きな数」）
   if (t.totalPowerMax !== undefined) {
@@ -237,7 +237,7 @@ function condJa(c?: any): string {
     case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
     case 'LAST_PROCESSED_SHARE_COLOR': return 'それらがそれぞれ共通する色を持つ';
-    case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
+    case 'HAS_CARD_IN_FIELD': return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}シグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;

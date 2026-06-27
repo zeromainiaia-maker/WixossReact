@@ -1644,6 +1644,18 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'any', count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' };
   }
 
+  // ---- このシグニの基本レベルはNになる（自身の基本レベル変更）----
+  // engine 実行可能な SET_BASE_LEVEL（effectExecutor が ctx.sourceCardNum に適用）。
+  // 「ターン終了時まで」=【起】等の一時変更（until:END_OF_TURN）／無指定=【常】の恒常上書き（cardMap）。
+  // 「を…にする」形（対象指定の他シグニ）は engine が source 以外へ適用できないため下の BLOCK_ACTION 近似のまま。
+  const selfBaseLevelM = t.match(/このシグニの基本レベルは([０-９\d]+)になる/);
+  if (selfBaseLevelM) {
+    // 現データの該当は全て【起】の一時変更（「ターン終了時まで」は duration 側で除去済みのためここでは検出不可）。
+    // until:END_OF_TURN で attack_phase_level_overrides に反映（旧 BLOCK_ACTION 近似も END_OF_TURN 既定だった）。
+    // 恒常【常】（WX04-049）は manualEffects 側で until 無し SET_BASE_LEVEL を持つためここには来ない。
+    return { type: 'SET_BASE_LEVEL', target: { type: 'SIGNI', owner: 'self', count: 1 }, value: parseNum(selfBaseLevelM[1]), until: 'END_OF_TURN' };
+  }
+
   // ---- 基本レベルをNにする ----
   const baseLevelM = t.match(/基本レベルは([０-９\d]+)になる/) ?? t.match(/基本レベルを([０-９\d]+)にする/);
   if (baseLevelM) {
