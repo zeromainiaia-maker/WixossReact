@@ -5,6 +5,18 @@
 
 ---
 
+## データ: R27＝action.type バケツの非LOOK/REVEAL hard-tail 17枚を MANUAL化（2026-06-28・ymst）
+
+action.type バケツ76枚を全数 dry-run。**大半（~59枚）は LOOK/REVEAL 一族**＝EXIST の `REVEAL_AND_PICK`/`LOOK_PICK_CHAIN`/`LOOK_AND_REORDER+CONDITIONAL(DECK_TOP_MATCHES)` に対し FRESH が `REVEAL_AND_PICK`↔`LOOK_AND_REORDER` のどちらかに割れる（R14 で判明した curation 不整合）。これらは触らず bulk 正規化送り。**「EXIST 正・FRESH 退化」かつ LOOK/REVEAL を含まない17枚のみ MANUAL化**。差分effectのみ・runtime不変・構造完全一致を検証。**LOSS 84→67（−17）／held 243→226**。
+
+- **①CHOOSE 構造を FRESH が潰した**：WXK07-069／WDK01-020／WDK08-L20（「①対象シグニをトラッシュ→相手バニッシュ ②エナチャージ」の2択 CHOOSE を FRESH が `BANISH` 単体に崩壊）／WXK09-006（3択の c1 COST_INCREASE×2・c2 CONDITIONAL(手札0) を FRESH が STUB/単純 BANISH に退化）。
+- **②「代わりに」CONDITIONAL then/else**：WXDi-P01-085／WXDi-P06-079（「－N。トラッシュ15枚以上なら代わりに－M」を EXIST は then/else で表現＝排他、FRESH は －N → CONDITIONAL(+−M) の逐次＝**二重適用バグ**）。
+- **③CONDITIONAL/cost/条件の脱落**：WX03-046（power≥15000）／WX04-025（opponentSelects＋field=0）／WX11-021（c1 LIFE_CRASHED）／WX18-063・WX18-064・WXDi-P16-065（LIFE_CRASHED）／WX24-P2-070（HAS_CARD(龍獣) 条件を FRESH が誤って target filter に merge）／WX25-P3-062（OPTIONAL_TRASH→誤 STUB＋両者−20000＋ハナレ条件脱落）／WD21-011（life=0 条件）／WDK14-013（beat cost＋4枚条件）／SPDi43-31（DECK_TOP level1/2/3 分岐3つ・両側 LOOK_AND_REORDER で REVEAL 曖昧性なし）。
+- **⚠保留（次フェーズ送り）**：WDK08-L14（FRESH=manual STUB `INTERNAL_KIYOHIME_CHOOSE`＝EXIST の CHOOSE3 より intended だが engine 実装未確認で resync 保留）／WXK10-022（E3 が LOOK/REVEAL・E1 timing が ON_TURN_END↔ON_PLAY で両者不正確）。
+- **🚩 マイルストーン**：1枚ずつの MANUAL化/resync で削れる LOSS は出し切り。残 LOSS 67 はほぼ LOOK/REVEAL bulk正規化案件（REVEAL_AND_PICK と LOOK_AND_REORDER の canonical を決める設計判断＝VALUE 最終 bulk と同性質）。
+
+---
+
 ## データ: R26＝filter（その他）バケツ21枚を全 parseStatus:MANUAL 化（2026-06-28・ymst）
 
 filter（その他）バケツ全21枚を1枚ずつ dry-run。**全て「EXIST 正・FRESH 退化」の hard-tail**（stale/FRESH 優位なし・LOOK/REVEAL 構造問題なし）と判明し MANUAL化。差分effectのみ・runtime不変・構造完全一致を検証。**LOSS 105→84（−21）／held 264→243**。
