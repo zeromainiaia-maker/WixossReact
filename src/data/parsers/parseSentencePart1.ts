@@ -986,6 +986,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
       // 「あなたの《クロスアイコン》を持つシグニのパワーを＋Nする」等。対象は該当アイコン持ち全シグニ
       const owner: Owner = iconM[1] === 'あなた' ? 'self' : 'opponent';
       target = { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', hasIcon: iconM[2] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ' } };
+    } else if (t.match(/あなたの(?:すべての)?レゾナのパワーを/)) {
+      // 「あなたの(すべての)レゾナのパワーを±N」＝自分のレゾナ全体への持続バフ（WX07-007/WX08-019）。
+      // cardType:'レゾナ' で engine（card.Type==='レゾナ'）も decompiler もレゾナと認識する。
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'レゾナ' } };
     } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:他の)?(?:[白赤青緑黒]の|＜[^＞]+＞の)?(?:すべての)?シグニのパワーを/)) {
       // 「あなたの[他の][色|＜種族＞]の[すべての]シグニのパワーを±N」＝該当する自分シグニ全体への持続バフ。
       // 「他の」併用時（例:「他の＜天使＞のシグニ」）も拾えるよう、他の/色/種族を独立オプションにする。

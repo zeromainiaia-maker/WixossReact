@@ -5,6 +5,14 @@
 
 ---
 
+## パーサー: 「あなたのレゾナのパワーを±N」のtarget脱落を是正＋isResona完全撤去（2026-06-27・karka）
+
+`parseSentencePart1.ts` の POWER_MODIFY 分岐が「シグニ」限定で「あなたのレゾナのパワーを」を拾えず、デフォルト `{owner:'any',count:1}`（filter無）に落としていた（owner/count/filter 全滅）。レゾナ専用分岐を追加し `{owner:'self', count:'ALL', filter:{cardType:'レゾナ'}}` を出力。engine（`card.Type==='レゾナ'` でマッチ）も decompiler（前コミットで cardType:'レゾナ' 認識済み）も正しく解釈する。WX07-007/WX08-019 一致。
+
+併せて既存JSON最後の `isResona`（死にキー）2箇所を `cardType:'レゾナ'` へ移行し、**isResona をコードベースから完全撤去**（残0）。レゾナ表現は cardType:'レゾナ' に一本化。
+
+- typecheck（tsc -b）緑・下流再生成・**同型★0維持**・逆翻訳「あなたのすべてのレゾナのパワーを＋2000する」（count:'ALL' の標準表記）。**要実機検証**。
+
 ## パーサー/decompiler: 自身の基本レベルSET_BASE_LEVEL化＋レゾナ存在条件のdecompile退化を是正（2026-06-27・karka）
 
 2系統の是正。**①SET_BASE_LEVEL（engine実行可）**＝「このシグニの基本レベルはNになる」を `parseSentencePart1.ts` で `SET_BASE_LEVEL`（until:END_OF_TURN）として出力。従来は `BLOCK_ACTION/actionId:SET_LEVEL_N` に退化していたが、`execBlockAction` は actionId を `blocked_actions` に積むだけで**基本レベルを変更しない no-op**（divergence）。`SET_BASE_LEVEL` executor（effectExecutor.ts:3695）が `attack_phase_level_overrides` に反映＝実行可。対象は self（ctx.sourceCardNum）のみ engine 対応のため、「を…にする」（対象指定の他シグニ）は engine 未対応につき BLOCK_ACTION 近似のまま据置。WX10-056/058（【起】基本レベル4/3）が一致。
