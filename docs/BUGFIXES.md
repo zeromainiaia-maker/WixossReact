@@ -5,6 +5,15 @@
 
 ---
 
+## パーサー: Stage B R14＝先頭条件文 LIFE_CRASHED_THIS_TURN / LAST_PROCESSED_HAS_TYPE の CONDITIONAL 化（6枚・LOSS −6）（2026-06-27・ymst）
+
+action.type バケツの「← -」系（HEAD は CONDITIONAL を持つがパーサーが条件を落として bare action を出す）クラスタ2系統を是正。engine は両 condition を実装済み（execUtils.ts:672 / :1003）＝乖離解消。
+
+- **LIFE_CRASHED_THIS_TURN**（WX18-063/064・WXDi-P16-065・WX11-021）：「このターンに〔あなた/対戦相手〕のライフクロスが〔N枚以上〕クラッシュされていた場合、〜」を `parseSingleSentence` で `CONDITIONAL{condition:{LIFE_CRASHED_THIS_TURN, owner, operator:'gte', value}, then}` 化。**⚠ON_TURN_END 札は actionText 先頭に timing 句「各ターン終了時、」が残ったまま渡る**（strip リストに「各ターン終了時、」が無い）ため、正規表現に先頭 timing 句を食う `(?:[^、]*?(?:終了時|開始時)、)?` を付けて吸収。value は「N枚以上」明記時のみ N、無ければ 1。owner は あなた→self/対戦相手→opponent。CHOOSE ネスト（WX11-021 choice②）も buildChoose 経由で解決。
+- **LAST_PROCESSED_HAS_TYPE**（WX12-054/055）：「この方法で…トラッシュに置いたカードの中に〔スペル/シグニ/…〕がある場合、〜」を `CONDITIONAL{condition:{LAST_PROCESSED_HAS_TYPE, cardType}, then}` 化。SEQUENCE[TRASH, …] の第2文として解決。
+- 計器：**LOSS 160→154（−6・action.type 60→54）／held 311→305**。VALUE 不変・他バケツ全不変（regression 0）。**パーサーのみ変更＝データ無変更**（HEAD は元から CONDITIONAL）。同型★0維持（★0/265グループ）・typecheck（tsc -b）緑。**要実機検証**（条件成立/不成立で then 発火が分岐すること）。
+- **⚠没ネタの記録**：同セッションで「デッキの一番上を公開→そのカードが〔X〕の場合→then」を `SEQUENCE[LOOK_AND_REORDER, CONDITIONAL{DECK_TOP_MATCHES}]` 化する案を試したが、**この pattern は HEAD で REVEAL_AND_PICK が多数派（約94枚）／SEQUENCE は少数派（13枚）の inconsistent curation**で、SEQUENCE 化すると +94 退行（R13 と同じ罠）。REVEAL_AND_PICK が多数派なので現状維持が正＝revert 済。
+
 ## パーサー＋データ: Stage B R13＝「デッキ上N枚見る→その中からピックして手札に加える」を LOOK_AND_REORDER→REVEAL_AND_PICK に統一（116枚・engine 実害修正／LOSS −18）（2026-06-27・ymst）
 
 Stage B の本丸（LOOK/REVEAL 一族）。「あなたのデッキの上からカードをN枚見る。その中から〔filter〕を〔N枚[まで]〕[公開し]手札に加え、残りをデッキ/トラッシュへ」のピック文を `REVEAL_AND_PICK` で表現する。**engine 上 `execLookAndReorder` はカードをデッキへ戻すだけで手札に加える経路が無い**（effectExecutor.ts:2214）ため、ピック文を `LOOK_AND_REORDER` にしているカードは**実機で手札に入らない＝実害バグ**。

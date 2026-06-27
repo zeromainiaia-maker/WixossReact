@@ -949,6 +949,30 @@ function parseSingleSentence(text: string): EffectAction {
       } as import('../types/effects').ConditionalAction;
     }
   }
+  // 「このターンに（あなた|対戦相手）のライフクロスが（N枚以上）クラッシュされていた場合、〜」→ CONDITIONAL(LIFE_CRASHED_THIS_TURN)
+  {
+    const m = text.trim().match(/^(?:[^、]*?(?:終了時|開始時)、)?このターンに(あなた|対戦相手)の?ライフ(?:クロス)?が([^、]*?)クラッシュされ(?:てい)?た場合、(.+)/s);
+    if (m) {
+      const owner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      const vm = m[2].match(/([０-９\d]+)枚以上/);
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LIFE_CRASHED_THIS_TURN', owner, operator: 'gte', value: vm ? parseNum(vm[1]) : 1 },
+        then: parseSingleSentence(m[3]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
+  // 「この方法で…トラッシュに置いたカードの中に〔型〕がある場合、〜」→ CONDITIONAL(LAST_PROCESSED_HAS_TYPE)
+  {
+    const m = text.trim().match(/^この方法で[^、]*?カードの中に(スペル|シグニ|アーツ|ルリグ)がある場合、(.+)/s);
+    if (m) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LAST_PROCESSED_HAS_TYPE', cardType: m[1] },
+        then: parseSingleSentence(m[2]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
   // 「（ターン終了時まで|次のあなたのターン）、あなたの（すべての）＜X＞(と＜Y＞)*のシグニは【K】を得る」
   // → 期間つき全シグニへのキーワード付与（ストリップ前に期間/クラスフィルタを抽出）
   {
