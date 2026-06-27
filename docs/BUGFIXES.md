@@ -5,6 +5,15 @@
 
 ---
 
+## データ: R21＝hard-tail 11枚を parseStatus:MANUAL 化（表現完成・LOSS から正当除外）（2026-06-27・ymst）
+
+クリーンなパーサー鉱脈が枯れたため、**「既存 JSON は正しく完成済みだがパーサーが構造的に再現不能」な hard-tail** を `parseStatus:MANUAL` 化する戦略へ移行（計器は MANUAL/PARTIAL を held から除外＝§2 の「手動管理・パーサー対象外」明示）。**メタデータのみ変更・効果本体と runtime 挙動は不変**。差分のある effect だけを MANUAL 化（パーサーと一致する effect は AUTO 据置）。
+
+- **batch1＝GRANT_ACCE_HOST_ABILITY 6枚**（WX16-074/WX17-075/WX17-077/WXK10-074/WXK10-075/WDK07-E14）。内側 abilities が手書き品質（triggerScope/isTriggerSource/独自CHOOSE）で R13 検証済の再現不能。**LOSS 155→149**。
+- **batch2＝機構依存 5枚**（WXDi-P07-044=機構④ ON_HAND_DISCARDED＋FREEZE／WX25-P2-009=ゲーム能力付与＋ON_CARD_MILLED_FROM_DECK 2AUTO手動分割／WX10-074・078=placedDown＋targetsTriggerSource／WXK10-055=傀儡 STEAL_OPP_TRASH_PUPPET）。**LOSS 149→144**。
+- 各カード HEAD vs fresh を effectId 単位で比較し、差分 effect のみ MANUAL 化したことをスクリプトで検証（想定カード以外・parseStatus 以外の変化ゼロを確認）。同型★0維持・JSON キー順保持。
+- **⚠ MANUAL化しない対象**：LOOK/REVEAL（〜50）・CHOOSE 一族は curation 不整合（同テキスト形で REVEAL_AND_PICK/LOOK_AND_REORDER 等が割れている）＝MANUAL化は不整合を凍結するだけ。これらは**curation 統一（bulk 正規化）** で扱う別案件（R14/R16 参照）。トリガー検出の系統的な穴（ON_ACCE 等）も、systematic ならパーサー修正候補として保留。
+
 ## パーサー: R20＝「この方法で…したシグニのレベル以下」levelLteLastProcessed 付与（LOSS −3）（2026-06-27・ymst）
 
 「この方法で〔手札に加えた／バニッシュした／手札に移動した〕シグニのレベル以下の…シグニ」の動的レベル参照（engine 解決済 `levelLteLastProcessed`）をパーサーが出せていなかった。`parserUtils` に `parseLevelLteLastProcessed`（`/この方法で[^。]{0,20}?シグニのレベル以下/`）を新設し、3ハンドラに適用：①BOUNCE「それを手札に戻す」target②SEND_TO_ENERGY「それをエナゾーンに置く」target（m3）③SEARCH「探して場に出し」filter。

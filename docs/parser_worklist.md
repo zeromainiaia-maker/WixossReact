@@ -21,6 +21,7 @@
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
+- 2026-06-27 R21（hard-tail の MANUAL化／ymst）: クリーンなパーサー鉱脈が枯れたため、**既存JSONが正しく完成済みだがパーサー再現不能な hard-tail を parseStatus:MANUAL 化**する戦略へ移行。batch1＝GRANT_ACCE 6枚（内側手書き品質）／batch2＝機構依存5枚（機構④/placedDown/傀儡）。差分effectのみMANUAL化・メタデータのみ・runtime不変・キー順保持を検証。**LOSS 155→144（−11）／held 314→303**。⚠LOOK/REVEAL・CHOOSE は curation 不整合のため MANUAL化せず（凍結回避＝bulk正規化案件）。
 - 2026-06-27 R20（filter（その他）・levelLteLastProcessed／ymst）: 「この方法で…したシグニのレベル以下」の動的レベル参照を `parseLevelLteLastProcessed` 新設し BOUNCE/SEND_TO_ENERGY/SEARCH の3ハンドラに適用。**LOSS 158→155（−3）／held 317→314**（WX21-022/WX24-P3-026/WXEX2-17 IDENTICAL）。同型★0維持・typecheck緑・JSON無変更。
 - 2026-06-27 R19（filter（その他）・《ガードアイコン》hasGuard/noGuard／ymst）: `parseGuardFilter` ヘルパー新設しトラッシュ→手札（spanTxt限定）／トラッシュ→エナ汎用に適用。**LOSS 162→158（−4）／held 321→317**（WXDi-P00-025/P01-011 hasGuard・WXDi-P01-030/P07-029 noGuard が IDENTICAL）。同型★0維持・typecheck緑・JSON無変更。helper 化で横展開容易。
 - 2026-06-27 R18（filter（その他）・BOUNCE「このシグニを手札に戻す」thisCardOnly／ymst）: BOUNCE handler（part1:866）が自身限定 thisCardOnly を落としていた。`/このシグニを(?:場から)?手札に戻/` で付与。**LOSS 165→162（−3）／held 324→321**（WXK06-034/036/WXK10-061 IDENTICAL）。同パターンの3枚は別 STUB 差分で held 継続。同型★0維持・typecheck緑・JSON無変更。filter（その他）バケツ細分の最大＝thisCardOnly 6枚のうち clean 3枚を解消。
