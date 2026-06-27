@@ -5,6 +5,14 @@
 
 ---
 
+## データ正規化: R17＝公開→エナ送りの stale ENERGY_CHARGE{DECK_CARD}→ADD_TO_ENERGY（3枚・engine バグ修正）（2026-06-27・ymst）
+
+「デッキの一番上を公開する。それが〔X〕の場合、それをエナゾーンに置く」の REVEAL_AND_PICK の `then` が、HEAD では **stale な `{type:ENERGY_CHARGE, target:{DECK_CARD,self,1}}`** で保存されていた。これは `effectParser.ts:1284` が明示する既知バグ形＝`execEnergyCharge` が DECK_CARD ターゲットを場のシグニ選択と誤解する。パーサーは正しく `{type:ADD_TO_ENERGY, owner:self}`（applyDirectAction が公開カードをエナへ）に正規化済み。
+
+- **JSON 直接パッチ3枚**（WX12-051/052/WX18-070・全 effects_WX.json）。`then` を `ADD_TO_ENERGY{owner:self}` に置換＝**パーサー出力と完全一致（IDENTICAL）**。engine バグ修正でもある（公開カードが正しくエナへ行く）。
+- 同パターンの stale `ENERGY_CHARGE{DECK_CARD}` は他17枚に残存するが、それらは別の差分も持ち本パッチだけでは解決しない（held のまま）＝**今回は完全解決する3枚のみに限定**（スコープを絞る）。残17枚は当該カードを本格対応する際に同時修正。
+- 計器：**LOSS 168→165（−3）／held 327→324**。同型★0維持・typecheck（tsc -b）緑・パーサー変更なし（データのみ）。**要実機検証**（公開カードのエナ送り）。
+
 ## パーサー: Stage B R15＝「この方法で…の中に〔Type〕がある場合」CONDITIONAL 復元（LOSS −2）（2026-06-27・ymst）
 
 「あなたのデッキの上からカードをN枚トラッシュに置く。**この方法でトラッシュに置いたカードの中にスペルがある場合、カードを１枚引く**」（G164）の第2文が、条件 `LAST_PROCESSED_HAS_TYPE` を落として DRAW を無条件 step 化していた（fresh＝SEQUENCE[TRASH, DRAW]・existing＝SEQUENCE[TRASH, CONDITIONAL{LAST_PROCESSED_HAS_TYPE, then:DRAW}]）。`parseSingleSentence` 冒頭の「…場合、〜」CONDITIONAL 群（LAST_PROCESSED_HAS_BURST の隣）に narrow handler を追加＝`^この方法で.*?の中に(スペル|シグニ|アーツ|ルリグ)がある場合、(.+)` を CONDITIONAL でラップ。
