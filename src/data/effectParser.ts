@@ -37,7 +37,18 @@ function parseUseCondition(text: string): Condition {
   const n = (s: string) => parseInt(toHalf(s), 10);
   const op = (s: string): import('../types/effects').CompareOp => s === '以上' ? 'gte' : s === '以下' ? 'lte' : 'eq';
 
-  // クロス状態（未実装メカニクス → COND_STUB で常に許可）
+  // 「(あなた|対戦相手)の場にクロス状態の[＜X＞の]シグニがある」＝HAS_CARD_IN_FIELD。
+  // engine は crossState フィルタを実装済み（execUtils evaluateCondition HAS_CARD_IN_FIELD / fieldCandidates）。
+  // 旧: クロス状態を一律 COND_STUB（常に許可）にしていたが、それは未実装時代の名残＝場の存在条件は正規化する。
+  const crossFieldM = text.match(/(あなた|対戦相手)の場に(?:ある)?クロス状態の(?:(＜[^＞]+＞)の)?シグニが(?:いる|ある)/);
+  if (crossFieldM) {
+    return {
+      type: 'HAS_CARD_IN_FIELD',
+      owner: crossFieldM[1] === 'あなた' ? 'self' : 'opponent',
+      filter: { cardType: 'シグニ', crossState: true, ...(crossFieldM[2] ? parseStoryFilter(crossFieldM[2]) : {}) },
+    };
+  }
+  // それ以外のクロス状態参照（このシグニ自身がクロス状態 等）は未対応 → COND_STUB（常に許可）
   if (text.match(/クロス状態/)) return { type: 'COND_STUB', raw: text };
 
   // 対戦相手のセンタールリグがレベルX以上/以下

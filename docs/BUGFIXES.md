@@ -5,6 +5,13 @@
 
 ---
 
+## パーサー: 「場にクロス状態のシグニがある」条件を COND_STUB→HAS_CARD_IN_FIELD 正規化（2026-06-27・karka）
+
+Stage A（parser_worklist の filter.cardType バケツ）の R1。`effectParser.ts parseUseCondition` が「クロス状態」を一律 `COND_STUB`（常に許可）に倒していたが、これは**未実装時代の名残**。engine は crossState フィルタを実装済み（`execUtils` の HAS_CARD_IN_FIELD 条件評価 行697／`fieldCandidates` 行595）。「(あなた｜対戦相手)の場に[ある]クロス状態の[＜X＞の]シグニがいる／ある」を `HAS_CARD_IN_FIELD{owner, filter:{cardType:'シグニ', crossState:true, ...story}}` に正規化（それ以外の自身クロス参照等は COND_STUB 据置）。
+
+- **engine配線済み（パリティOK）**＝新規engine作業なし。既存JSONが元々この正規形を持っていたため**JSON無変更**（パーサーが再現できるようになっただけ）。WX07-014/018/020・WX08-011・WX07-003・WX08-002/003 が一致、WX07-002/004/005・WX08-001 は crossState 解消（残差は無関係の timing 差＝別バケツ）。
+- 計器：**filter.cardType 30→16・held 404→394・LOSS 255→241**。typecheck（tsc -b）緑・全sheet＋下流再生成で**同型★0維持**。**要実機検証**（クロス状態条件の開閉）。
+
 ## パーサー: 「あなたのレゾナのパワーを±N」のtarget脱落を是正＋isResona完全撤去（2026-06-27・karka）
 
 `parseSentencePart1.ts` の POWER_MODIFY 分岐が「シグニ」限定で「あなたのレゾナのパワーを」を拾えず、デフォルト `{owner:'any',count:1}`（filter無）に落としていた（owner/count/filter 全滅）。レゾナ専用分岐を追加し `{owner:'self', count:'ALL', filter:{cardType:'レゾナ'}}` を出力。engine（`card.Type==='レゾナ'` でマッチ）も decompiler（前コミットで cardType:'レゾナ' 認識済み）も正しく解釈する。WX07-007/WX08-019 一致。
