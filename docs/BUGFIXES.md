@@ -5,6 +5,17 @@
 
 ---
 
+## データ: R24＝stale データ6枚を FRESH へ再同期/採用（実 runtime バグ修正）（2026-06-27・ymst）
+
+R23 で発見した「FRESH（パーサー出力）の方が保存JSONより正しい」逆パターンを処理。**runtime は `public/data/effects_*.json` を直ロードし build:effects で再生成しない**ため、stale JSON は実ゲームで誤動作していた＝これは LOSS 削減であると同時に **runtime バグ修正**。`scripts/_resync.ts <id>`（差分のある effect だけを FRESH 値へ置換・BURST 等は据置・スコープ検証付き）で実施。**LOSS 126→120（−6）／held 285→279**。
+
+- **①JSON stale 再同期 3枚**（manualEffects.ts に完全定義があり FRESH が parseStatus:MANUAL で出す）：**WXK04-030**＝OLD は `SHUFFLE+BANISH ALL 相手シグニ` という無関係な誤実装→NEW は `BLOOD_CRYSTAL_ARMOR+POWER_MODIFY(armored+5000)+grant STUB`（テキスト通り）。**WX25-CP1-030／WX25-CD1-06**＝OLD は単一 `NEGATE_ATTACK`（2択を喪失）→NEW は完全な2択 `CHOOSE`（①単体無効化／②エナから＜ブルアカ＞2枚トラッシュで2体まで無効化）。
+- **②パーサー優位の data 採用 3枚**（FRESH=AUTO で IDENTICAL 化）：**WX24-P3-064／WXK07-027**＝OLD は activeCondition が `TURN_OWNER` のみ（無条件バフ）＋target に thisCardOnly 無し（全味方対象）→NEW は `AND[TURN_OWNER, TRASH_HAS_CARD(class≥N)]`＋`thisCardOnly`（テキスト「トラッシュにN枚以上あるかぎり、このシグニのパワー」通り）。**WX21-Re09**＝OLD は timing `ON_TURN_END` 誤り＋story:天使 を target に誤配置→NEW は `ON_PLAY`＋`triggerScope:any_ally`＋`triggerFilter:{story:天使}`＋`triggerCondition:{byEffect:true}`（「あなたの＜天使＞のシグニが効果によって場に出たとき」）。
+- **⚠不採用＝WX20-026-E3**：FRESH は timing を `ON_DRAW` にするが「あなたの場にある＜凶蟲＞のシグニの効果で引いたとき」の**発生源限定を落とし過剰発火**になる（OLD の ON_TURN_END も誤り）。どちらも不正確＝**パーサーギャップとして LOSS 据置**（class-effect-triggered-draw の triggerCondition が必要）。
+- ツール：`scripts/_resync.ts`（FRESH正の stale を採用）と `scripts/_manualize2.ts`（EXIST正の hard-tail を MANUAL化）の2刀流。dry-run で EXIST/FRESH を必ず突き合わせ、**どちらが正しいかを1枚ずつ判定**してから適用（誤った方を凍結しない）。
+
+---
+
 ## データ: R23＝小バケツ hard-tail 12枚を parseStatus:MANUAL 化＋逆パターン3種の発見（2026-06-27・ymst）
 
 R21/R22 の MANUAL化戦略継続。残 LOSS の小バケツを `scripts/_manualize2.ts <id>` で1枚ずつ dry-run し、**EXIST が正・FRESH が退化** の hard-tail のみ MANUAL化（差分effectのみ・runtime不変・構造完全一致を検証）。**LOSS 138→126（−12）／held 297→285**。

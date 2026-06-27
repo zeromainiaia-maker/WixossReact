@@ -21,6 +21,7 @@
 
 ### 進捗ログ（LOSS が減る＝前進）
 - 2026-06-27 起点: held 404 / LOSS 255。
+- 2026-06-27 R24（stale データ6枚を FRESH へ再同期/採用／ymst）: R23 で発見した逆パターン（FRESHの方が正しい）を `scripts/_resync.ts` で処理＝**実 runtime バグ修正**（JSON直ロードのため stale が誤動作していた）。①再同期3＝WXK04-030（相手シグニ全バニッシュ誤実装→血晶武装）・WX25-CP1-030・WX25-CD1-06（2択喪失→復元）。②data採用3＝WX24-P3-064・WXK07-027（無条件バフ→トラッシュ条件+thisCardOnly）・WX21-Re09（timing誤り→triggerFilter正配置）。**LOSS 126→120（−6）／held 285→279**。⚠WX20-026-E3 不採用（過剰発火・LOSS据置）。
 - 2026-06-27 R23（小バケツ hard-tail の MANUAL化／ymst）: action.id 4／condition.type 2／costThreshold 1／optional 2／then 3＝計12枚を「EXIST正・FRESH退化」確認のうえ MANUAL化。**LOSS 138→126（−12）／held 297→285**。⚠逆パターン発見＝FRESH の方が正しいカード（JSON stale 再同期＝WX25-CP1-030/CD1-06/WXK04-030、data採用＝WX24-P3-064/WXK07-027/WX20-026/WX21-Re09、curation＝SP27-016/WXK05-030）は MANUAL化せず別処理（BUGFIXES 先頭参照）。
 - 2026-06-27 R22（powerRange anaphora／トリガー穴 hard-tail の MANUAL化／ymst）: R21 継続。triggerCondition/Scope バケツ6枚（WXDi-P06-052・WXK01-076・WXK01-079・WXK07-061・WXK09-038・WDK14-014）を MANUAL化。①「対象とし…そうした場合それをバニッシュ」の文跨ぎ照応で powerRange 脱落（effectParser.ts:1399-1405）②ON_SIGNI_BECOMES_DRIVE/ON_HAND_DISCARDED/ON_BECOME_BEAT は timing 検出ロジックが無く ON_PLAY 退化。差分effectのみ・runtime不変・構造完全一致を検証。**LOSS 144→138（−6）／held 303→297**。triggerCondition バケツ枯渇。
 - 2026-06-27 R21（hard-tail の MANUAL化／ymst）: クリーンなパーサー鉱脈が枯れたため、**既存JSONが正しく完成済みだがパーサー再現不能な hard-tail を parseStatus:MANUAL 化**する戦略へ移行。batch1＝GRANT_ACCE 6枚（内側手書き品質）／batch2＝機構依存5枚（機構④/placedDown/傀儡）。差分effectのみMANUAL化・メタデータのみ・runtime不変・キー順保持を検証。**LOSS 155→144（−11）／held 314→303**。⚠LOOK/REVEAL・CHOOSE は curation 不整合のため MANUAL化せず（凍結回避＝bulk正規化案件）。
