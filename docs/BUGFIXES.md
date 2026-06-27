@@ -5,6 +5,22 @@
 
 ---
 
+## データ: R25＝filter.cardType／count バケツ triage 15枚（MANUAL化6＋resync9）（2026-06-28・ymst）
+
+2刀流（`_manualize2.ts`＝EXIST正→MANUAL化／`_resync.ts`＝FRESH正→採用）で残2バケツを1枚ずつ判定。**LOSS 120→105（−15）／held 279→264**。
+
+- **MANUAL化 6枚**（EXIST が正・FRESH が退化）：WX10-007／WX10-021（「デッキトップを見てレベル≤3の＜X＞シグニなら場に出してもよい」の ADD_TO_FIELD source filter＋optional 脱落）／WXDi-P12-060（他《ディソナ》全体バフの ALL/filter/excludeSelf 脱落）／WXDi-P15-093／WX24-P1-076（他＜地獣＞の cardClass filter＋UNTIL_OPP_TURN_END＋BURST の damageSource:lrig 脱落）／WXK08-045（ON_BECOME_BEAT timing穴＋BEAT条件＋悪魔 filter 脱落）。
+- **resync/採用 9枚**（FRESH/manual が正・保存JSONが stale＝実 runtime バグ修正）：
+  - WXK04-042＝E1 が誤 `BANISH`→正 `POWER_MODIFY+2000(thisCardOnly)`、E2 に `SELF_POWER_GTE:10000` 条件追加。
+  - WXDi-P14-077＝**mixed**。E1 は EXIST が filter 無し（+2000 を任意1体）→FRESH の「他＜電音部＞全体」を採用。E2 は逆に EXIST の詳細 `LOOK_PICK_CHAIN` が正→MANUAL化（FRESH は generic LOOK_AND_REORDER に退化）。effect 単位で逆判定が要る例。
+  - WX25-P1-018／SPDi44-08＝E2 が `REMOVE_ABILITIES`（全く無関係な誤実装）→正しい `POWER_SET 15000(crossState)+GRANT_LRIG_ABILITY`、E1 に triggerScope/Filter＋DURING_PHASE＋hasIcon クロス追加。
+  - WX25-P1-026／SPDi44-04＝無条件 ENERGY_CHARGE/TRANSFER→`FIELD_SIGNI_ALL_DISTINCT_CLASS` 条件付き＋`LAST_PROCESSED_COUNT_GTE:5` の付与。
+  - WX25-P1-115／SPDi01-121＝無条件 ENERGY_CHARGE→`DECK_TOP_SHARES_COLOR_WITH_LRIG` 条件付き。
+  - WXK04-002＝E1 `GRANT_PROTECTION` が全シグニ対象→`isArmored` のみ、E2 BLOOD_CRYSTAL_ARMOR に紅蓮 filter 追加。
+- **⚠SKIP**：REVEAL_AND_PICK 3枚（WX24-P1-020／WX25-P1-037／WX25-P3-040）は LOOK/REVEAL 一族＝bulk 正規化送り（R14 教訓）。WXDi-D09-P18（覚醒）は EXIST が `activeCondition`（覚醒状態であるかぎり）を欠落し+3000が無条件化、FRESH は内側 granted ability が誤 top-level に漏れ＝両方不正確で LOSS 据置。
+
+---
+
 ## データ: R24＝stale データ6枚を FRESH へ再同期/採用（実 runtime バグ修正）（2026-06-27・ymst）
 
 R23 で発見した「FRESH（パーサー出力）の方が保存JSONより正しい」逆パターンを処理。**runtime は `public/data/effects_*.json` を直ロードし build:effects で再生成しない**ため、stale JSON は実ゲームで誤動作していた＝これは LOSS 削減であると同時に **runtime バグ修正**。`scripts/_resync.ts <id>`（差分のある effect だけを FRESH 値へ置換・BURST 等は据置・スコープ検証付き）で実施。**LOSS 126→120（−6）／held 285→279**。
