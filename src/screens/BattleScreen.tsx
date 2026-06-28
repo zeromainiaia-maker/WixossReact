@@ -6406,6 +6406,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         effect: eff,
       }));
 
+      // ON_RISE: ライズ配置時、ライズされたシグニ自身の「このシグニがライズされたとき」を収集（self）。
+      // risedOntoNameContains: ライズで下に置かれた元シグニ（existingTopNum）の名前で限定（WX20-056-E2《オダノブ》）。
+      if (isRise) {
+        // ライズで下に置かれた元トップシグニ（risedOntoNameContains 判定用）
+        const underTop = existingZoneStack.at(-1);
+        const underNum = underTop ? getCardNum(underTop) : undefined;
+        for (const eff of ownEffects) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_RISE')) continue;
+          if ((eff.triggerScope ?? 'self') !== 'self') continue;
+          const needName = eff.triggerCondition?.risedOntoNameContains;
+          if (needName) {
+            const underName = underNum ? (battleCardMap.get(underNum)?.CardName ?? '') : '';
+            if (!underName.includes(needName)) continue;
+          }
+          if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, placed, op, true, battleCardMap, cardNum)) continue;
+          ownEntries.push({
+            id: generateUUID(),
+            playerId: user.id,
+            cardNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（ライズ時）`,
+            effect: eff,
+          });
+        }
+      }
+
       // コスト付き【出】効果があればモーダルで確認（DBはモーダル確定後に保存。複数あれば1効果ずつ連鎖）
       if (ownCostOnPlay.length > 0) {
         setPendingSigniOnPlayCost({
@@ -6419,7 +6445,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
-      if (ownOnPlay.length === 0 && fieldEntries.length === 0) {
+      if (ownEntries.length === 0 && fieldEntries.length === 0) {
         // 効果なし：そのまま保存
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await supabase.from('battle_states').update({ [stateKey]: placed }).eq('room_id', roomId);

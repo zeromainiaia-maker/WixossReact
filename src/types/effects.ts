@@ -27,6 +27,7 @@ export type EffectTiming =
   | 'ON_DRAW'          // あなたがカードを引いたとき（G089）
   | 'ON_OPP_ARTS_USE'  // 相手がアーツを使用したとき（自分フィールドのシグニがトリガー）
   | 'ON_ARTS_USE'      // あなたがアーツを使用したとき（使用者自身のルリグ/シグニがトリガー。ON_SPELL_USE のアーツ版。collectArtsUseTriggers で配線）
+  | 'ON_RISE'          // このシグニがライズされたとき（ライズ配置時にライズされたシグニ自身がトリガー。handleSummonSigni で配線）
   | 'ON_REVEALED_FROM_HAND' // このカードが効果によって手札から公開されたとき
   | 'ON_SELF_REVEAL_FROM_HAND' // あなたが自分の効果によって手札からカードを公開したとき（場のシグニが反応。G198）
   | 'ON_ENERGY_FROM_TRASH' // このカードがトラッシュからエナゾーンに置かれたとき
@@ -1520,6 +1521,7 @@ export interface CardEffect {
     frontLowerLevelThanSource?: boolean; // このシグニ（効果元）の正面に、効果元よりレベルの低いシグニが出た場合のみ発火（WX17-075 タルタル付与。ON_PLAY any_opp と併用）
     fromFieldByCostOrEffect?: boolean; // このシグニがコストか効果によって「場から」トラッシュに置かれた場合のみ発火（バトル・ルール処理では発火しない。G204。ON_TRASH と併用）
     drawBySourceStory?: string; // このドローの原因が、あなたの場にある指定＜story＞のシグニの効果である場合のみ発火（WX20-026-E3「あなたの場にある＜凶蟲＞のシグニの効果でカードを引いたとき」。ON_DRAW と併用。ドローフェイズの通常ドローやその他カードの効果ドローでは発火しない）
+    risedOntoNameContains?: string; // このシグニが、カード名に指定文字列を含むシグニの上にライズされた場合のみ発火（WX20-056-E2「《オダノブ》を含むシグニにライズされたとき」。ON_RISE と併用。ライズで下に置かれた元シグニの名前で判定）
   };
 
   // CONTINUOUS 用：常時効果がいつ適用されるか

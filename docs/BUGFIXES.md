@@ -5,6 +5,17 @@
 
 ---
 
+## engine: ON_RISE 新規配線＋timing flatten ライズクラスタ6効果（2026-06-28・ymst）
+
+未配線トリガー「このシグニがライズされたとき」を engine 実装。
+
+- **型**: `effects.ts` timing union に `ON_RISE`＋triggerCondition に `risedOntoNameContains`（特定名カードにライズ限定）追加。decompiler timingJa＋risedOntoNameContains 描画。
+- **配線**: `handleSummonSigni`（BattleScreen）のライズ配置分岐（`isRise`）後に、ライズされたシグニ自身（cardNum）の ON_RISE【自】を収集して mandatory entries に合流。triggerScope:self／activeCondition 評価／`risedOntoNameContains` は下に置かれた元シグニ（existingZoneStack.at(-1)）の CardName で判定。empty-check を ownEntries.length ベースに変更（rise エントリも考慮）。
+- **データ**: 6効果を timing:ON_TURN_END→ON_RISE 再curate＋MANUAL。「このシグニ/そのシグニ」=thisCardOnly（WX16-037 バニッシュ保護／WX16-039 ダブクラ／WX20-056-E1・WD17-011 +3000）。WX17-054=自全シグニ+2000。WX20-056-E2=《オダノブ》ライズ限定（risedOntoNameContains）＋既存 STUB `RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY`（実装済）維持。
+- typecheck緑・同型★0・逆翻訳原文一致。⚠実機未検証＋⚠CPU 召喚経路のライズは未収集（人間召喚経路のみ）。timing flatten 残 ≈81。
+
+---
+
 ## engine: ON_ARTS_USE 新規配線＋timing flatten アーツ使用クラスタ5枚（2026-06-28・ymst）
 
 未配線トリガー「あなたがアーツを使用したとき」を engine 実装。**`ON_SPELL_USE` のアーツ版**＝既存 `ON_OPP_ARTS_USE`（相手アーツ使用）の裏で、使用者自身のトリガーを収集する `ON_ARTS_USE` を新設。

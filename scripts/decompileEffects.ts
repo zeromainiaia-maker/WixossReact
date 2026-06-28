@@ -854,6 +854,7 @@ const timingJa: Record<string, string> = {
   ON_HEAVEN: 'ヘブンヘブン（すべてのクロスシグニがダウン状態でアタックしたとき）',
   ON_SPELL_USE: 'あなたがスペルを使用したとき', ON_GUARD: 'あなたがガードしたとき',
   ON_ARTS_USE: 'あなたがアーツを使用したとき',
+  ON_RISE: 'このシグニがライズされたとき',
   MAIN: '（メイン起動）', ATTACK_ARTS: '（アタックフェイズ起動）', ON_LIFE_BURST: '【ライフバースト】',
   ON_DRAW: 'あなたがカードを引いたとき',
   ON_ENERGY_CHARGE: 'あなたのエナゾーンにカード1枚が置かれたとき', ON_POWER_THRESHOLD: 'このシグニのパワーが閾値以上になったとき',
@@ -927,6 +928,10 @@ function effJa(e: Eff): string {
     // ON_DRAW の「あなたの場の＜story＞シグニの効果で」限定（WX20-026-E3）。ドローフェイズの通常ドローでは発火しない。
     if (t === 'ON_DRAW' && e.triggerCondition?.drawBySourceStory) {
       s = `あなたの場にある＜${e.triggerCondition.drawBySourceStory}＞のシグニの効果であなたがカードを１枚引いたとき`;
+    }
+    // ON_RISE の「カード名に〜を含むシグニにライズされたとき」限定（WX20-056-E2）
+    if (t === 'ON_RISE' && e.triggerCondition?.risedOntoNameContains) {
+      s = `このシグニがカード名に《${e.triggerCondition.risedOntoNameContains}》を含むシグニにライズされたとき`;
     }
     // ON_HAND_DISCARDED の triggerScope:'any'（「いずれかのプレイヤーが」WXK09-038）を主語に反映
     if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any') {
