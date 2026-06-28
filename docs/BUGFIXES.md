@@ -5,6 +5,16 @@
 
 ---
 
+## データ＋engine小追加: timing flatten 手札捨て/トラッシュ系 2枚（R36・2026-06-28・ymst）
+
+VALUE timing flatten（`ON_TURN_END` 誤 flatten した【自】）を配線済みトリガーで修正（MANUAL）。1枚は純データ・1枚は小エンジン追加（後方互換）。
+
+- **WDA-F02-17-E3（ON_TRASH 手札から・純データ）**: 「このカードが手札からトラッシュに置かれたとき→相手シグニ1体に《青》か《黒》任意払いで-5000」。`collectAnyZoneTrashSelfTriggers(origin:'hand')` が配線済み＝`timing:ON_TRASH`＋`triggerScope:self`＋`triggerCondition.fromZones:["hand"]` に再構築。旧 JSON は POWER_MODIFY target が `owner:self/targetsTriggerSource` の誤りだったため `owner:opponent` に是正。OPTIONAL_COST + CONDITIONAL{IS_MY_TURN} は「そうした場合」の構造プレースホルダ（executor が pay 時 then を直接実行・IS_MY_TURN は実行時非評価）＝維持。逆翻訳が原文一致。⚠E2【自】（あなたの手札からカードがトラッシュ→正面ダウン）は別の未配線機構（場シグニが手札トラッシュを監視）で別バグ＝今回スコープ外（TODO §3.5 へ）。
+- **WXDi-CP02-082（ON_HAND_DISCARDED ＜ブルアカ＞・E1/E2 分割＋engine 小追加）**: 旧 JSON は2つの【自】【絆自】を1つの ON_TURN_END SEQUENCE に flatten し story:ブルアカ を POWER_MODIFY target に誤配置していた。**E1**（あなたのターン）＝`turnOwner:self`＋`triggerFilter.story:ブルアカ`＋POWER_MODIFY 相手 -3000（target の story 誤配置を除去）。**E2**（【絆自】対戦相手のターン）＝`turnOwner:opponent`＋同 triggerFilter＋DRAW。`collectHandDiscardTriggers` のターンゲートに `triggerCondition.turnOwner==='opponent'` 分岐を追加（相手ターン=!myIsTurn のみ発火・未指定/self は従来どおり自ターン＝後方互換）。逆翻訳が E1/E2 とも原文トリガー一致。⚠近似＝「コストか効果によって」限定未表現・絆条件は engine 未ゲート（全 AUTO 同様）・相手ターン手札捨ての発火経路は実機未検証。
+- typecheck緑・同型★0・逆翻訳一致・⚠実機未検証。VALUE 35→33。
+
+---
+
 ## engine: ON_CARD_MOVED_TO_DECK 機構＋デッキ移動 flatten 4枚（R35・2026-06-28・ymst）
 
 「カードが効果によってデッキに移動したとき」を**ミル機構の鏡像**で新設（set-diff 検出）。`countMovedToDeck(before,after,fromTrashOnly)`＝`after.deck \ before.deck`（fromTrashOnly 時は解決前トラッシュ起点に限定）。`collectMoveToDeckTriggers`＝controller の場シグニ/ルリグの `ON_CARD_MOVED_TO_DECK`【自】を `triggerCondition.movedToDeckOwner`（self/opponent/any）/`movedToDeckMinCount`/`movedToDeckFromTrash` で限定収集。検出はミルと同じ効果解決点（1箇所）。
