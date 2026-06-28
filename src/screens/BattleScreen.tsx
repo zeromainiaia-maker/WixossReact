@@ -2247,6 +2247,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           placed: boolean, removed: boolean,
         ) => {
           let usedIds: string[] = [];
+          if (placed) {
+            const rp = collectSelfEventTriggers('ON_OPP_VIRUS_PLACED', state, opState, 'ウィルス配置時', ownerId);
+            entries.push(...rp.entries);
+            usedIds = [...usedIds, ...rp.usedOncePerTurnIds];
+          }
           if (removed) {
             const r = collectSelfEventTriggers('ON_OPP_VIRUS_REMOVED', state, opState, 'ウィルス除去時', ownerId);
             entries.push(...r.entries);
