@@ -5,6 +5,14 @@
 
 ---
 
+## engine: opp-draw（対戦相手が引いたとき）トリガー機構＋4枚（R40・2026-06-28・ymst）
+
+「対戦相手が（効果によって）カードを引いたとき」を新設。`triggerScope:'any_opp'`＋`ON_DRAW` で表現し、`collectOppDrawTriggers(reactorId,reactorState,drawerState)` が **drawer の反対側プレイヤー（reactor）**の場シグニ/ルリグの any_opp ON_DRAW【自】を収集。効果ドロー検出ブロック（line ~5297/5304・`cards_drawn_by_effect_this_turn` 増加）に相乗り＝host が効果ドロー→guest が反応／guest→host が反応。位相限定 `triggerCondition.drawPhaseRestriction`（main_attack＝MAIN/ATTACK系サブフェイズ／opp_attack＝ATTACK系サブフェイズ＋!reactorIsTurn）＋turnOwner/usageLimit/activeCondition/condition 評価。`drawByEffect` は逆翻訳「効果によって」表示専用（効果ドロー経路でのみ呼ばれるため暗黙）。
+
+- 型 `triggerCondition.drawPhaseRestriction`/`drawByEffect` 追加＋engine collector＋呼び出し2箇所＋decompiler（any_opp 主語/位相プレフィクス、ON_DRAW を scope マーカー抑制に追加）。
+- データ4枚（MANUAL・全 ON_PLAY flatten 誤）: WXDi-P04-038-E1（main_attack・相手手札1捨て・once）／WXDi-P15-091-E1（drawByEffect・自ドロー1・once）／WD22-029-G-E1（opp_attack・相手シグニ1ダウン）／PR-423-E1（main_attack+drawByEffect・ダメージ＋自バニッシュ）。action本体は維持。
+- typecheck緑・同型★0・逆翻訳が原文トリガー一致（と/か・効果によって/自分の効果で の軽微差のみ）・⚠実機未検証。VALUE 29→25。**⚠近似**＝「対戦相手が自分の効果で」の発生源プレイヤー限定は未判定（自効果で相手に引かせた場合も発火しうる）／main_attack はターン主体未判定（相手のメイン/アタック中の効果ドロー前提）。
+
 ## engine: outsideDrawPhase（ドローフェイズ以外ドロー）トリガー2枚（R39・2026-06-28・ymst）
 
 「ドローフェイズ以外であなたがカードを１枚引いたとき」を **既存 ON_DRAW 機構に triggerCondition を相乗り**させて実装（R36-R38 で確立した低リスク手法）。`collectDrawTriggers` に第4引数 `isDrawPhaseDraw`（既定 false）を追加。ドローフェイズの通常ドロー呼び出し（line ~4230）のみ `true` を渡し、効果ドロー呼び出し（line ~5234/5241・execDraw 経由）は `false`。ループ内で `eff.triggerCondition?.outsideDrawPhase && isDrawPhaseDraw` を skip＝通常ドローでは発火せず効果ドローでのみ発火。
