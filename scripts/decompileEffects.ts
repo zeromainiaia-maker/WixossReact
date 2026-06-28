@@ -464,6 +464,17 @@ function actionJa(a?: Action, effectType?: string): string {
         : targetJa(a.target);
       return `${subjGE}は『${effJa(a.effect)}』を得る${durJaGE}`;
     }
+    case 'INSTALL_DELAYED_TRIGGER': {
+      // 「このターン、…したとき、…」遅延条件トリガーの設置（B3）
+      const cf = a.trigger?.crasherFilter;
+      const subjIDT = cf
+        ? `あなたの${cf.color ? [].concat(cf.color).join('・') + 'の' : ''}${cf.story ? '＜' + [].concat(cf.story).join('・') + '＞の' : ''}${cf.cardClass ? '＜' + [].concat(cf.cardClass).join('・') + '＞の' : ''}シグニが`
+        : '';
+      const trigJaIDT = a.trigger?.timing === 'ON_OPP_LIFE_CRASHED'
+        ? '対戦相手のライフクロス1枚をクラッシュしたとき'
+        : (timingJa[a.trigger?.timing] ?? a.trigger?.timing ?? '');
+      return `このターン、${subjIDT}${trigJaIDT}、${actionJa(a.effect)}`;
+    }
     case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : ''}`;
     case 'GRANT_PROTECTION': {
       // CONTINUOUS の self/any count≠ALL（filter/subjectFilterなし）は engine 上「このシグニのみ」に解決される
