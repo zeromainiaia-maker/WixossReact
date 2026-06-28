@@ -5,6 +5,15 @@
 
 ---
 
+## repr: 最難物2件＝ウェポン効果バニッシュ＋複合ORトリガー（R58・VALUE 2→0・🎉 timing flatten 完了）（R58・2026-06-28）
+
+残 VALUE 2 の最難物を表現し切り、**timing flatten（VALUE）を 0 にした**（P1 表現①の到達点）。両者とも既存単一 timing では表せない／engine 機構が無いため、専用の新 timing＋engine未配線マークで表現のみ確定。
+
+- **WX07-036**「あなたの＜ウェポン＞のシグニが効果によって対戦相手のシグニ１体をバニッシュしたとき」＝新 timing `ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`。既存 `ON_SIGNI_BANISH_OPPONENT` は**バトル経路のみ配線**で「効果バニッシュ」とは別イベント＝共有すると未配線注記が付けられない（偽陰性）ため別 timing 化。triggerScope=any_ally＋triggerFilter.story=ウェポンで主語を表現（decompiler の汎用「このシグニ」置換で `あなたの＜ウェポン＞のシグニが…` を生成）。
+- **WXDi-P11-064**「あなたの他の＜天使＞のシグニ１体が場に出る**か**、あなたの効果によって対戦相手が手札を１枚捨てたとき」＝**OR複合トリガー**を新 timing `ON_ALLY_PLAY_OR_OPP_HAND_DISCARD` で表現。ON_PLAY と ON_HAND_DISCARDED は両方とも**配線済み**＝配列に並べると engine が誤scopeで実発火する危険があるため、専用の未配線 timing 1個に集約。triggerFilter.{excludeSelf,story:天使} を decompiler 専用レンダリングで「あなたの他の＜天使＞の…」に反映。
+- 型＝effects.ts に2 timing 追加。パーサー＝'自'チェーンに句ルール2件（トリガー文非除去）＋scope/filter 抽出ブロック2件。decompiler＝`timingJa` 2件・`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD` 専用レンダリング・`engineUnwiredTimings` に2件登録。データ＝両 E1 を FRESH 同期。
+- typecheck緑・**同型★0**・逆翻訳トリガー句**原文一致**・**VALUE 2→0・LOSS 0 維持**・⚠両者 engine未配線。⚠pre-existing（別件・metric非影響）：WX07-036 action 対象が「このシグニ」でなく owner:self count:1 近似／WXDi-P11-064 は「あなたのターンの間」condition と「次の対戦相手のターン終了時まで」duration（UNTIL_END_OF_TURN 近似）が未表現。
+
 ## repr: ON_MATERIAL_USED（《改造素材》が使用されたとき）8効果（R57・2026-06-28）
 
 WXK09-047/084「《改造素材》が使用されたとき…」を新 timing `ON_MATERIAL_USED` で表現。同句6枚（WXK09-047/048/049/077/084・WXK10-050）を一括対応。**3変種**を triggerScope/triggerCondition で区別：

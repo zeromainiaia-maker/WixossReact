@@ -46,6 +46,8 @@ export type EffectTiming =
   | 'ON_LRIG_GROW'              // あなた/対戦相手のルリグがグロウしたとき（WXDi-P05-010 等）。triggerScope any_ally/any_opp・excludeSelf で主語を表現。⚠engine未配線（grow が executeGrow/CPU/アシストの多経路に分散＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_COIN_PAID'              // あなたが《コイン》を1枚以上支払ったとき（WXDi-P15-055/069・WXDi-P16-057）。⚠engine未配線（コイン支払がグロウ/ベット/起動コスト等の多経路に分散＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_MATERIAL_USED'          // 《改造素材》が使用されたとき（WXK09-047/048/049/077/084・WXK10-050）。triggerScope self/any_ally・excludeSelf・triggerCondition.materialUsedByPlayer で「このシグニに/他のシグニに/あなたが」を区別。⚠engine未配線（改造素材の use イベントが未実装＝decompiler engineUnwiredTimings に登録済み）
+  | 'ON_SIGNI_BANISH_OPPONENT_BY_EFFECT' // あなたの〔X〕のシグニが効果によって対戦相手のシグニをバニッシュしたとき（WX07-036）。triggerScope any_ally・triggerFilter で主語を表現。既存 ON_SIGNI_BANISH_OPPONENT（バトル経路のみ配線）と別＝効果バニッシュ経路。⚠engine未配線（効果バニッシュの発生源追跡が未実装＝decompiler engineUnwiredTimings に登録済み）
+  | 'ON_ALLY_PLAY_OR_OPP_HAND_DISCARD' // あなたの他の〔X〕のシグニが場に出るか、あなたの効果によって対戦相手が手札を捨てたとき（WXDi-P11-064）＝複合ORトリガー。triggerFilter で「他の＜天使＞の」主語を表現。⚠engine未配線（OR複合トリガーの機構が未実装＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_SIGNI_BANISH_OPPONENT'  // 相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BANISH_BATTLE'    // バトルで相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BATTLE'           // このシグニがシグニ1体とバトルしたとき（攻撃側・防御側の両参加シグニで発火）

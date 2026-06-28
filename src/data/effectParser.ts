@@ -1598,6 +1598,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
              : actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
+             // 「あなたの＜X＞のシグニが効果によって対戦相手のシグニをバニッシュしたとき」（WX07-036）。既存 ON_SIGNI_BANISH_OPPONENT（バトル経路のみ配線）と別＝効果バニッシュ経路。⚠engine未配線。トリガー文非除去・scope/filter は下で抽出
+             : actionText.match(/効果によって対戦相手のシグニ[^。]{0,4}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT_BY_EFFECT']
+             // 「あなたの他の＜X＞のシグニが場に出るか、あなたの効果によって対戦相手が手札を捨てたとき」（WXDi-P11-064）＝複合ORトリガー。⚠engine未配線。トリガー文非除去・filter は下で抽出
+             : actionText.match(/あなたの他の＜[^＞]+＞のシグニ[^。]{0,4}が場に出るか[、,]?\s*あなたの効果によって対戦相手が手札を[^。]{0,4}捨てたとき/) ? ['ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']
              // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。⚠engine未配線
              : actionText.match(/対戦相手の[、,]?\s*能力か効果の対象になったとき/) ? ['ON_TARGETED']
              // 「あなたのデッキがシャッフルされたとき」（PR-470A）。⚠engine未配線。トリガー文は除去しない（action 解析を変えないため）
@@ -1741,6 +1745,27 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         else {
           extractedTriggerScope = 'any_ally';
           if (/あなたの他の(?:センター)?ルリグがグロウしたとき/.test(actionText)) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
+        }
+      }
+      // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（「あなたの＜X＞のシグニが効果によって…バニッシュしたとき」WX07-036）：主語を triggerScope:any_ally＋triggerFilter に抽出（actionText 非改変）。
+      if (timing[0] === 'ON_SIGNI_BANISH_OPPONENT_BY_EFFECT') {
+        const subjM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の)?シグニが効果によって対戦相手のシグニ/);
+        if (subjM) {
+          extractedTriggerScope = 'any_ally';
+          const tf: NonNullable<typeof extractedTriggerFilter> = {};
+          if (subjM[1]) tf.excludeSelf = true;
+          if (subjM[2]) tf.story = subjM[2];
+          if (Object.keys(tf).length) extractedTriggerFilter = tf;
+        }
+      }
+      // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（複合ORトリガー WXDi-P11-064）：「あなたの他の＜X＞の」を triggerFilter に抽出（triggerScope は設定せず・主語は decompiler の専用レンダリングが担う／actionText 非改変）。
+      if (timing[0] === 'ON_ALLY_PLAY_OR_OPP_HAND_DISCARD') {
+        const subjM = actionText.match(/あなたの(他の)?＜([^＞]+)＞のシグニ[^。]{0,4}が場に出るか/);
+        if (subjM) {
+          const tf: NonNullable<typeof extractedTriggerFilter> = {};
+          if (subjM[1]) tf.excludeSelf = true;
+          if (subjM[2]) tf.story = subjM[2];
+          if (Object.keys(tf).length) extractedTriggerFilter = tf;
         }
       }
       // ON_TARGETED（「このシグニが対戦相手の、能力か効果の対象になったとき」）はトリガー文を除去しない。

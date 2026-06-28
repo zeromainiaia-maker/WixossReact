@@ -888,11 +888,13 @@ const timingJa: Record<string, string> = {
   ON_LRIG_GROW: 'あなたのルリグがグロウしたとき',
   ON_COIN_PAID: 'あなたが《コイン》を１枚以上支払ったとき',
   ON_MATERIAL_USED: 'このシグニに《改造素材》が使用されたとき',
+  ON_SIGNI_BANISH_OPPONENT_BY_EFFECT: 'このシグニが効果によって対戦相手のシグニ１体をバニッシュしたとき',
+  ON_ALLY_PLAY_OR_OPP_HAND_DISCARD: 'あなたの他のシグニ１体が場に出るか、あなたの効果によって対戦相手が手札を１枚捨てたとき',
 };
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
 // 逆翻訳末尾に【※engine未配線】を付与し、偽陰性（健全に見えて未実装）を防ぐ。配線したら除去する。docs/TODO.md に記録。
-const engineUnwiredTimings = new Set<string>(['ON_TARGETED', 'ON_DECK_SHUFFLED', 'ON_KEYWORD_GAINED', 'ON_LRIG_UNDER_MOVED', 'ON_LRIG_ATTACK_STEP_START', 'ON_LRIG_GROW', 'ON_COIN_PAID', 'ON_MATERIAL_USED']);
+const engineUnwiredTimings = new Set<string>(['ON_TARGETED', 'ON_DECK_SHUFFLED', 'ON_KEYWORD_GAINED', 'ON_LRIG_UNDER_MOVED', 'ON_LRIG_ATTACK_STEP_START', 'ON_LRIG_GROW', 'ON_COIN_PAID', 'ON_MATERIAL_USED', 'ON_SIGNI_BANISH_OPPONENT_BY_EFFECT', 'ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']);
 
 function effJa(e: Eff): string {
   // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。
@@ -929,6 +931,10 @@ function effJa(e: Eff): string {
       s = e.triggerCondition?.materialUsedByPlayer ? 'あなたが《改造素材》を使用したとき'
         : e.triggerScope === 'any_ally' ? `あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}シグニ１体に《改造素材》が使用されたとき`
         : 'このシグニに《改造素材》が使用されたとき';
+    }
+    // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（複合ORトリガー WXDi-P11-064）：triggerFilter（他の＜天使＞の）を主語に反映
+    if (t === 'ON_ALLY_PLAY_OR_OPP_HAND_DISCARD') {
+      s = `あなたの${e.triggerFilter ? filterJa(e.triggerFilter) : ''}シグニ１体が場に出るか、あなたの効果によって対戦相手が手札を１枚捨てたとき`;
     }
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
