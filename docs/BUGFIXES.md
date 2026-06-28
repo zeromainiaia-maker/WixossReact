@@ -5,6 +5,16 @@
 
 ---
 
+## データ: timing flatten ON_DRAW（効果ドロー）2＋ON_HAND_DISCARDED（ディソナ捨て）1（2026-06-28・ymst）
+
+VALUE timing flatten（`ON_TURN_END` へ誤 flatten した【自】3枚）を**既存配線**で修正（新機構不要・MANUAL ロック）。いずれも parser は ON_PLAY を出すが triggerScope/Condition を欠き両誤＝per-card 再構築。
+
+- **ON_DRAW（自分の効果ドロー・2枚）**: `collectDrawTriggers` は効果ドロー時のみ呼ばれ通常ドローでは非発火（triggerScope:self）。WXK10-025-E1「効果1つによって引いたとき→相手シグニ-4000」＝`ON_DRAW`＋scope self（twice_per_turn 維持）。WXK10-040-E1「あなたのターンの間、効果で引いたとき→このシグニ+1000」＝`ON_DRAW`＋scope self＋`triggerCondition.turnOwner:self`＋`target.filter.thisCardOnly`（POWER_MODIFY は target.filter.thisCardOnly を解決＝effectExecutor:417）。
+- **ON_HAND_DISCARDED（ディソナ捨て・1枚）**: `collectHandDiscardTriggers` は triggerFilter で捨てカードを照合＋scope self は discarder の自ターンのみ発火。WXDi-P12-048-E1「あなたのターンの間、《ディソナアイコン》のカードを捨てたとき→相手シグニ-3000」＝`ON_HAND_DISCARDED`＋scope self＋`triggerFilter.isDisona`（matchesFilter が CSV Story==='Dissona' を判定・execUtils:280）。⚠decompiler は ON_HAND_DISCARDED の triggerFilter 未描画（逆翻訳に「ディソナ」が出ない）＝データ/engine は正・表示のみ未対応。
+- typecheck緑・同型★0・WXK10 逆翻訳原文一致・⚠実機未検証（§TODO5）。timing flatten 残 ≈45。
+
+---
+
 ## engine: placedFromTrash 機構＋トラッシュから場出し6枚（2026-06-28・ymst）
 
 「シグニがトラッシュから場に出たとき」を配線。triggerCondition に `placedFromTrash` を新設し、ミル機構と同じ **set-diff** で配置元を判定（配置されたインスタンスが解決前トラッシュにあったか＝`bs.{host,guest}_state.trash` に含まれるか）。
