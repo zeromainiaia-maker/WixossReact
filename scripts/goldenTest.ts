@@ -51,8 +51,12 @@ const SIGNI_P3000 = findCard(c => isSigni(c) && c.Power === '3000');
 const SIGNI_P12000 = findCard(c => isSigni(c) && c.Power === '12000');
 const SIGNI_L1 = findCard(c => isSigni(c) && c.Level === '1');
 const SIGNI_L2 = findCard(c => isSigni(c) && c.Level === '2');
-const FILL = [...cardMap.values()].filter(isSigni).slice(0, 30).map(c => c.CardNum);
-const fill = (n: number, base = FILL) => Array.from({ length: n }, (_, i) => `${base[i % base.length]}#g${i}`);
+// engine は cardMap.get(インスタンスID) で照合するため、インスタンスID＝素のCardNum（#suffixなし）を使う。
+// 重複でゾーン間が混ざらないよう、全シグニから distinct に払い出すカーソル方式。
+const POOL = [...cardMap.values()].filter(isSigni).map(c => c.CardNum);
+let cursor = 0;
+const fresh = () => { const v = POOL[cursor % POOL.length]; cursor++; return v; };
+const fill = (n: number) => Array.from({ length: n }, () => fresh());
 
 // ── 盤面ビルダー ──
 interface StateOpts { signi?: (string | null)[]; deckTop?: string[]; hand?: number; trash?: number; energy?: number; life?: number; coins?: number; down?: boolean[]; }
