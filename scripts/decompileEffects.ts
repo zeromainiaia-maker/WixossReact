@@ -866,6 +866,9 @@ const timingJa: Record<string, string> = {
   ON_HAND_DISCARDED: 'ガードステップ以外であなたが手札を捨てたとき',
   ON_DISCARDED_AS_COST: 'このカードがシグニ能力のコストとして手札から捨てられたとき',
   ON_EXCEED_COST: 'このカードがエクシードのコストとしてルリグトラッシュに置かれたとき',
+  ON_OPP_VIRUS_PLACED: '対戦相手の場に【ウィルス】が置かれたとき',
+  ON_OPP_VIRUS_REMOVED: '対戦相手の場から【ウィルス】が取り除かれたとき',
+  ON_OPP_VIRUS_CHANGED: '対戦相手の場に【ウィルス】が置かれるか取り除かれたとき',
   ON_ACCE_ATTACH: 'あなたのシグニ１体に【アクセ】が付いたとき',
   ON_CARD_MILLED_FROM_DECK: 'あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき',
 };
