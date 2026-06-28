@@ -5,6 +5,14 @@
 
 ---
 
+## repr: ON_COIN_PAID（コインを1枚以上支払ったとき）3枚（R56・2026-06-28）
+
+WXDi-P15-069「あなたが《コイン》を１枚以上支払ったとき…」を新 timing `ON_COIN_PAID` で表現。同句3枚（WXDi-P15-055/069・WXDi-P16-057）を一括対応＝全て self scope（変種なし・素直）。**コイン支払がグロウ/ベット/起動コスト等の多経路に分散＝engine未配線**（`engineUnwiredTimings` 登録）。
+
+- 型＝`ON_COIN_PAID`（effects.ts）。パーサー＝句ルール `/あなたが《コイン[^》]*》を[^。]{0,8}支払ったとき/`→`['ON_COIN_PAID']`（トリガー文非除去・scope=self 既定）。decompiler＝`timingJa` 追加＋`engineUnwiredTimings` 登録。
+- データ＝3枚の E1（WXDi-P15-055/069・WXDi-P16-057）を一括 sync。WXDi-P15-069-E1 は thisCardOnly 補完含め FRESH 丸ごと置換で完全一致。
+- typecheck緑・同型★0・逆翻訳原文一致・**VALUE 5→4・LOSS 0 維持**・⚠engine未配線。
+
 ## repr: ON_LRIG_GROW（ルリグがグロウしたとき）6効果（R55・2026-06-28）
 
 WXDi-P05-010「あなたの他のルリグがグロウしたとき…」を新 timing `ON_LRIG_GROW` で表現。同句が多数（self/any_ally/any_opp/excludeSelf 変種）に出るカスケード＝R49 式に**パーサー句ルール＋scope抽出＋一括patch**で系統対応。**grow が executeGrow/CPU/アシストの多経路に分散＝engine未配線**（`engineUnwiredTimings` 登録）。
