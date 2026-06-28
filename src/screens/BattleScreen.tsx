@@ -3699,14 +3699,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    *    WXEX2-03 も相手アタックフェイズでは発火しない近似）
    */
   const collectTurnTriggers = (
-    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START',
+    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START',
     myState: PlayerState,
     opState: PlayerState,
   ): StackEntry[] => {
     const entries: StackEntry[] = [];
     const opId = isHost ? bs.guest_id : bs.host_id;
     const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時'
-      : timing === 'ON_TURN_END' ? 'ターン終了時' : 'アタックフェイズ開始時';
+      : timing === 'ON_TURN_END' ? 'ターン終了時'
+      : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時' : 'アタックフェイズ開始時';
 
     // 自分のフィールドシグニ（self = このターンプレイヤーのカード）
     // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ
@@ -4905,6 +4906,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.effect_stack = baseStackAPS
               ? pushToStack(baseStackAPS, apsEntries)
               : initStack(bs.active_user_id ?? user.id, apsEntries);
+          }
+        }
+        // ON_MAIN_PHASE_START: GROW→MAIN移行時（メインフェイズ開始時）トリガー。
+        // newMyState=ターンプレイヤー／op=非ターンプレイヤー。triggerScope:any_opp（「対戦相手のメインフェイズ開始時」
+        // WXDi-P00-034）は op の場シグニで発火＝collectTurnTriggers の相手フィールド分岐が拾う。
+        if (phase === 'GROW') {
+          const mpsEntries = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op);
+          if (mpsEntries.length > 0) {
+            const baseStackMPS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
+            update.effect_stack = baseStackMPS
+              ? pushToStack(baseStackMPS, mpsEntries)
+              : initStack(bs.active_user_id ?? user.id, mpsEntries);
           }
         }
       }

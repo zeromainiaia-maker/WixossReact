@@ -57,6 +57,7 @@ export type EffectTiming =
   | 'ON_OPP_LIFE_CRASHED'       // 対戦相手のライフクロスがクラッシュされたとき（クラッシュした側＝ターンプレイヤーのフィールドで反応）
   | 'ON_GUARD'                  // あなたが【ガード】したとき
   | 'ON_ATTACK_PHASE_START'     // あなたのアタックフェイズ開始時
+  | 'ON_MAIN_PHASE_START'       // メインフェイズ開始時（GROW→MAIN 遷移で発火。triggerScope:any_opp＝「対戦相手のメインフェイズ開始時」WXDi-P00-034。collectTurnTriggers で収集）
   | 'ON_ACCE_ATTACH'            // シグニに【アクセ】が付いたとき（ルリグ監視/アクセカード自身）
   | 'ON_SPELL_USE'              // あなたがスペルを使用したとき
   | 'ON_DISCARDED_AS_COST'      // このカードがシグニ能力のコストとして手札から捨てられたとき
