@@ -5,6 +5,14 @@
 
 ---
 
+## engine: ON_EXCEED_COST 場シグニ反応（エクシードコスト支払い時）1枚（R44・2026-06-28・ymst）
+
+「あなたがエクシードのコストを支払ったとき」に**場のシグニ/ルリグが反応**する変種を `triggerCondition.exceedCostPaidByPlayer` で新設。既存 ON_EXCEED_COST は exceedPaidCards（コストとして置かれたカード自身）のみ走査だったため、ルリグ起動のエクシード支払いブロック（line ~11960）に「exceedCost>0 のとき自分の場シグニ/ルリグの ON_EXCEED_COST【自】（exceedCostPaidByPlayer のみ）を発火」を追加。turnOwner/usageLimit 評価。既存 exceedPaidCards 走査は `exceedCostPaidByPlayer` を skip して二重発火回避。
+
+- 型 `triggerCondition.exceedCostPaidByPlayer`＋engine 走査追加＋decompiler ラベル。
+- データ1枚（MANUAL）: WXDi-P06-078-E1（ON_TURN_END flatten・exceedCostPaidByPlayer:true・turnOwner:self）。**+action実バグ修正**＝conditional.then の POWER_MODIFY が `targetsTriggerSource:true`＋owner:self で、ON_EXCEED_COST にトリガー元が無く autoNum=自カード（相手候補外）→ execPowerModify が短絡 no-op していた。targetsTriggerSource を除去し owner:opponent に是正（STUB TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST の CHOOSE→対象選択が正しく -5000 を適用）。
+- typecheck緑・同型★0・逆翻訳がトリガー＋action とも原文一致・⚠実機未検証。VALUE 22→21。**⚠近似**＝アーツ/スペルのカットイン exceed 支払い経路では未発火（ルリグ起動経路のみ）。
+
 ## engine: ON_ENERGY_TO_TRASH（エナがトラッシュに置かれたとき）トリガー1枚（R43・2026-06-28・ymst）
 
 「あなたの効果によって対戦相手のエナゾーンからカード１枚がトラッシュに置かれたとき」を**ミル機構と同じ効果解決の set-diff 検出**で新設。`countEnergyToTrash(before,after)`＝`energy`（cardNum）が before にあって after に無く、かつ after.trash に在中する枚数。`collectEnergyToTrashTriggers`＝両プレイヤー場シグニ/ルリグの ON_ENERGY_TO_TRASH【自】を `triggerCondition.energyTrashedOwner`（self/opponent/any）で発生源限定して収集。配線はミル/チャームと同じ統合ブロック（line ~5330）。

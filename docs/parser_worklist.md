@@ -9,19 +9,20 @@
 |---|---|---|
 | parser == 既存JSON | 約5400 | **解決済み**（同型★0で構造検証済み） |
 | MANUAL（手書き効果） | 約165 | 意図的にパーサー対象外（型どおり） |
-| **held（parser ≠ 既存JSON）** | **404→22** | ↓ ここが全作業 |
+| **held（parser ≠ 既存JSON）** | **404→21** | ↓ ここが全作業 |
 
 **held の内訳（1カード=1プライマリバケツ・重複なし）** ← 数字は計器の最新値（下の進捗ログ参照）
 | トラック | 初期 | 現在 | 性質 | 対応 |
 |---|---|---|---|---|
 | **① LOSS** | 255 | **0** 🎉 | 既存JSONが持つ構造をパーサーが出せない＝**真の弱点** | **完了**（R31 で 255→0） |
-| ② VALUE | 149 | **22** | 同キーで値が違うだけ＝慣例/効果分割ズレ＝timing flatten（実バグ） | **1件ずつ人間判断**（bulk禁止・§2／TODO §3.5） |
+| ② VALUE | 149 | **21** | 同キーで値が違うだけ＝慣例/効果分割ズレ＝timing flatten（実バグ） | **1件ずつ人間判断**（bulk禁止・§2／TODO §3.5） |
 | ③ ADD/OTHER | 0 | 0 | — | — |
-| held合計 | 404 | **22** | | |
+| held合計 | 404 | **21** | | |
 
-> **現在地（2026-06-28 R43 後）＝held 22 / LOSS 0 / VALUE 22**。LOSS は R31 で 0 達成（🎉）。以降は VALUE（=timing flatten 実バグ・当初159枚）を engine 機構実装で消化中（159→22）。残 VALUE 22 は全て**未配線トリガーの新機構待ち**（詳細・分類は `TODO.md` §3.5「📍 残の分類」が唯一の正）。次の一手も `P1_PLAN.md` §3 バトンと TODO §3.5 を見る。
+> **現在地（2026-06-28 R44 後）＝held 21 / LOSS 0 / VALUE 21**。LOSS は R31 で 0 達成（🎉）。以降は VALUE（=timing flatten 実バグ・当初159枚）を engine 機構実装で消化中（159→21）。残 VALUE 21 は全て**未配線トリガーの新機構待ち**（詳細・分類は `TODO.md` §3.5「📍 残の分類」が唯一の正）。次の一手も `P1_PLAN.md` §3 バトンと TODO §3.5 を見る。
 
 ### 進捗ログ（LOSS が減る＝前進）
+- 2026-06-28 R44（VALUE timing flatten・ON_EXCEED_COST 場シグニ反応 1枚／ymst）: 「あなたがエクシードのコストを支払ったとき」場シグニ反応を `triggerCondition.exceedCostPaidByPlayer` で新設（ルリグ起動エクシード支払いブロックに走査追加）。WXDi-P06-078-E1＋action の targetsTriggerSource no-op バグ除去。**VALUE 22→21**。typecheck緑・同型★0・実機未検証（カットイン exceed 経路は未発火）。
 - 2026-06-28 R43（VALUE timing flatten・ON_ENERGY_TO_TRASH 1枚／ymst）: 「あなたの効果によって対戦相手のエナゾーンからカードがトラッシュに置かれたとき」を `energy→trash` set-diff（ミル機構と同じ効果解決ブロック）で新設。`countEnergyToTrash`＋`collectEnergyToTrashTriggers`（triggerCondition.energyTrashedOwner）。WD15-015-E1（target thisCardOnly 是正）。**VALUE 23→22**。typecheck緑・同型★0・実機未検証（発生源「自効果」限定なし）。
 - 2026-06-28 R42（VALUE timing flatten・ON_CHARM_TO_TRASH 1枚／ymst）: 「【チャーム】がトラッシュに置かれたとき」を `signi_charms` set-diff（ミル機構と同じ効果解決ブロック）で新設。`countCharmsToTrash`＋`collectCharmToTrashTriggers`（triggerScope any/any_ally/any_opp）。WX16-Re05-E1。**VALUE 24→23**。typecheck緑・同型★0・実機未検証（バトル離脱経路は未検出）。
 - 2026-06-28 R41（VALUE timing flatten・placedFront 1枚／ymst）: 「対戦相手のシグニがこのシグニの正面に配置されたとき」を `ON_PLAY`＋`triggerScope:any_opp`＋`triggerCondition.placedFront` で配線。`collectFieldTriggers` の `frontLowerLevelThanSource` 正面ゾーン検出をレベル条件なしで相乗り。WXDi-P03-043-E3（POWER_MODIFY targetsTriggerSource -3000）。**VALUE 25→24**。typecheck緑・同型★0・実機未検証。
