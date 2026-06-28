@@ -5,6 +5,19 @@
 
 ---
 
+## 機構: B3 遅延条件トリガー（INSTALL_DELAYED_TRIGGER）新設＋WX25-CP1-069 配線（2026-06-28）
+
+P1_PLAN §5 B3。「このターン、…したとき、…」＝1ターン限りのプレイヤーレベル遅延条件トリガー機構を新設。特定シグニへの能力付与（GRANT_EFFECT）と異なり、設置後に出たシグニ・プレイヤーレベルの誘発を捕捉できる。
+
+- **型**＝`InstallDelayedTriggerAction`（`trigger.{timing,crasherFilter}`＋`effect`＋`conditional`）を effects.ts に追加・EffectAction union 登録。
+- **PlayerState**＝`delayed_triggers?: InstallDelayedTriggerAction[]`（index.ts）。
+- **executor**＝`execInstallDelayedTrigger`（ownerState.delayed_triggers へ追加・conditional は lastProcessedCards で「そうした場合」判定）＋dispatch 登録。
+- **収集（engine配線）**＝BattleScreen の ON_OPP_LIFE_CRASHED 収集ブロックで op（クラッシュ側＝ターンプレイヤー）の delayed_triggers を走査し oppCrashTriggers に積む。crasherFilter は op の場に該当シグニがいるかで**近似判定**（実際のクラッシュ源シグニは未追跡）。
+- **ターン境界リセット3箇所**（PvP通常終了4727／PvP確認後5038／CPU10738）に `delayed_triggers: undefined` を追加。
+- **decompiler**＝`INSTALL_DELAYED_TRIGGER` を「このターン、{crasher主語}{trigger文}、{effect}」で描画。あわせて `kizunaIcon` の **【絆常】等プレフィックス描画**を effJa に追加（従来 絆 が 【常】表記だった）。
+- **WX25-CP1-069**（小塗マキ）を再構成＝旧E1（ON_OPP_LIFE_CRASHED→相手捨て+自+4000・2能力混同の誤）を、E1（【自】アタック開始時 手札1捨て→そうした場合 遅延トリガー設置）＋E2（【絆常】+4000 を分離・kizunaIcon）に是正。
+- typecheck緑・**同型★0維持（5986枚）**・held/LOSS/VALUE 0・逆翻訳原文一致。⚠crasherFilter 近似＝**要実機検証**（自分の青ブルアカ以外のクラッシュでも場に該当シグニがいれば発火しうる）。
+
 ## repr: A3＝OPTIONAL_COST 具体コストの systematic 是正（58枚）＋decompileシートUTF-8正規化（2026-06-28）
 
 A3残「OPTIONAL_COST 句の具体コスト」を一括是正。`OPTIONAL_COST` STUB が **costColors/coinCost を持たない bare** だと逆翻訳が「コストを支払ってもよい」と generic 化し、原文の具体コスト（このシグニをトラッシュ／手札の特定札捨て／ライフトラッシュ／追加エクシードN 等）を落としていた（全80枚）。
