@@ -5,6 +5,14 @@
 
 ---
 
+## engine: ON_CHARM_TO_TRASH（チャームがトラッシュに置かれたとき）トリガー1枚（R42・2026-06-28・ymst）
+
+「【チャーム】１枚が場からいずれかのトラッシュに置かれたとき」を**ミル機構と同じ効果解決の set-diff 検出**で新設。`countCharmsToTrash(before,after)`＝`signi_charms`（cardNum or null）が before にあって after に無く、かつ after.trash に在中する枚数（チャームは host 離脱時に owner トラッシュへ＝removeFromField で extraTrash 送り）。`collectCharmToTrashTriggers(controllerId,controllerState,otherState,myCharms,oppCharms)`＝両プレイヤー場シグニ/ルリグの ON_CHARM_TO_TRASH【自】を triggerScope（any=どちらの／any_ally=自分の／any_opp=相手の）で絞り収集。usageLimit/activeCondition/condition 評価。配線はミル/デッキ移動と同じ統合ブロック（line ~5330）。
+
+- 型 `ON_CHARM_TO_TRASH`＋detector/collector（BattleScreen）＋decompiler ラベル/scope 主語/scope マーカー抑制を追加。
+- データ1枚（MANUAL）: WX16-Re05-E1（ON_TURN_END flatten・action は既に正＝対戦相手シグニ1体 -4000・triggerScope:any）。timing のみ是正。
+- typecheck緑・同型★0・逆翻訳が原文トリガー完全一致・⚠実機未検証。VALUE 24→23。**⚠近似**＝①同一解決で複数チャームがトラッシュ送りでも1回のみ発火（per-charm 未対応）②**バトルバニッシュで host が離脱しチャームがトラッシュに行くケースは効果解決経路外で未検出の可能性**（ミルの「コスト払い未検出」と同種の制約）。
+
 ## engine: placedFront（正面に配置されたとき）トリガー1枚（R41・2026-06-28・ymst）
 
 「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」を `ON_PLAY`＋`triggerScope:any_opp`＋`triggerCondition.placedFront` で配線。`collectFieldTriggers` の any_opp ループに既存の `frontLowerLevelThanSource`（WX17-075）と同じ正面ゾーン検出（盤面反転 `2-ziHost`）を**レベル条件なし**で相乗り＝最小追加。
