@@ -5,6 +5,15 @@
 
 ---
 
+## repr: ON_LRIG_GROW（ルリグがグロウしたとき）6効果（R55・2026-06-28）
+
+WXDi-P05-010「あなたの他のルリグがグロウしたとき…」を新 timing `ON_LRIG_GROW` で表現。同句が多数（self/any_ally/any_opp/excludeSelf 変種）に出るカスケード＝R49 式に**パーサー句ルール＋scope抽出＋一括patch**で系統対応。**grow が executeGrow/CPU/アシストの多経路に分散＝engine未配線**（`engineUnwiredTimings` 登録）。
+
+- 型＝`ON_LRIG_GROW`（effects.ts）。パーサー＝句ルール `/(?:あなた|対戦相手)の(?:他の)?(?:センター)?ルリグがグロウしたとき/`→`['ON_LRIG_GROW']`＋専用 scope 抽出ブロック（`対戦相手の…`→any_opp／`あなたの他の…`→any_ally+excludeSelf／他→any_ally）。トリガー文非除去。
+- decompiler＝`timingJa.ON_LRIG_GROW` ＋ scope 反映ブロック（any_opp→「対戦相手の」／excludeSelf→「他の」）＋`〔範囲:…〕`フォールバック除外に ON_LRIG_GROW 追加＋`engineUnwiredTimings` 登録。
+- データ＝一括 sync 6効果：WXDi-P05-010-E1/E2（any_ally+excludeSelf／E2 は action source filter `color:黒` も補完）・WXK11-012-E3・WXDi-P03-039-E2（any_ally）・WXDi-P03-046-E1・WXDi-P13-047-E2（any_opp）。ACTIVATED/注記文（WXDi-P03-002/WXDi-P13-023/WX24-P4-036/WXK11-012 付与）は '自' チェーン非対象/未生成で誤分類せず。
+- typecheck緑・同型★0・逆翻訳トリガー句原文一致（センター省略は偽陽性）・**VALUE 6→5・LOSS 0 維持**・⚠engine未配線。
+
 ## repr+engine: ON_OPP_ARTS_USE 配線流用（相手アーツの効果を受けたとき）1枚（R54・2026-06-28）
 
 WXK11-019-E2「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、…」を**既存の配線済み timing `ON_OPP_ARTS_USE`** に載せる（新 timing 不要・**engine未配線ではない＝genuine**）。`collectOppArtsUseTriggers`（BattleScreen:7028）が相手アーツ使用時に場シグニの ON_OPP_ARTS_USE【自】を収集する既存機構をそのまま使う。
