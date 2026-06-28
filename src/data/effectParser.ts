@@ -1709,12 +1709,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const m = actionText.match(/^.*?クラッシュ(?:した|された)とき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
-      // ON_TARGETED:「このシグニが対戦相手の、能力か効果の対象になったとき」＝triggerScope:self。トリガー文を除去
-      if (timing[0] === 'ON_TARGETED') {
-        extractedTriggerScope = 'self';
-        const m = actionText.match(/^.*?対戦相手の[、,]?\s*能力か効果の対象になったとき[、,]\s*(.+)/s);
-        if (m) actionText = m[1];
-      }
+      // ON_TARGETED（「このシグニが対戦相手の、能力か効果の対象になったとき」）はトリガー文を除去しない。
+      //   除去すると後続アクションの target/owner 解析が変わり手修正JSONと乖離するため、actionText 全体を parseSentence に委ねる
+      //   （トリガー句は parseSentence 側で前置きとして消費される）。timing のみ ON_TARGETED に確定する。
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
       if (timing[0] === 'ON_HEAVEN') {
         const m = actionText.match(/このシグニが《ヘブン》したとき[、,]\s*(.+)/s);
