@@ -5,6 +5,14 @@
 
 ---
 
+## engine: outsideDrawPhase（ドローフェイズ以外ドロー）トリガー2枚（R39・2026-06-28・ymst）
+
+「ドローフェイズ以外であなたがカードを１枚引いたとき」を **既存 ON_DRAW 機構に triggerCondition を相乗り**させて実装（R36-R38 で確立した低リスク手法）。`collectDrawTriggers` に第4引数 `isDrawPhaseDraw`（既定 false）を追加。ドローフェイズの通常ドロー呼び出し（line ~4230）のみ `true` を渡し、効果ドロー呼び出し（line ~5234/5241・execDraw 経由）は `false`。ループ内で `eff.triggerCondition?.outsideDrawPhase && isDrawPhaseDraw` を skip＝通常ドローでは発火せず効果ドローでのみ発火。
+
+- 型 `triggerCondition.outsideDrawPhase?: boolean` 追加（effects.ts）＋engine 1分岐＋呼び出し1箇所＋decompiler ラベル（ON_DRAW 用）。
+- データ2枚（MANUAL・全 triggerScope:self・旧 ON_TURN_END/ON_PLAY flatten 誤）: WXDi-D09-P19-E1（ON_TURN_END誤・《ターン2回》→全自シグニ+1000）／WXDi-P05-062-E1（ON_PLAY誤・《ターン1回》→手札1捨て→ドロー）。action本体は既存の確立済み近似（`CONDITIONAL{IS_MY_TURN}`＝「そうした場合」）を維持＝トリガーのみ是正。
+- typecheck緑・同型★0・逆翻訳が原文トリガー一致・⚠実機未検証（効果ドローが実際にドローフェイズ外で起きるか／twice_per_turn の発火回数）。VALUE 31→29（commit 後に計器反映）。残 ON_DRAW は opp-draw 4枚（§4・別機構）。
+
 ## engine: ON_SIGNI_FROZEN 新設＋凍結トリガー3枚（R38・2026-06-28・ymst）
 
 「シグニが凍結状態になったとき」を**ミル機構と同じ効果解決の set-diff 検出点**で新設。`detectNewlyFrozen(before,after)`＝`field.signi_frozen` の false→true ゾーンの在中シグニ番号を返す。`collectFreezeTriggers(frozenByOwner,host,guest)`＝両プレイヤー場シグニ/ルリグの `ON_SIGNI_FROZEN`【自】を triggerScope（any_opp 多数派/any_ally/any）で絞り収集し、`triggeringCardNum` に凍結シグニを渡す（「そのシグニ」= targetsTriggerSource 用）。turnOwner/usageLimit《ターン1回》評価。検出はミル/デッキ移動と同じ統合ブロック（line ~5231）に追加。

@@ -92,7 +92,7 @@
   - ~~パワー0以下になったとき~~ **【✅R37 完了・5枚】** `ON_SIGNI_POWER_ZERO_OR_LESS` を `checkAndBanishPowerZero`（ルールバニッシュ useEffect・単一フック）で配線。`collectPowerZeroTriggers`＝両場シグニの【自】を triggerScope（any_opp 多数派/any_ally/self/any）＋turnOwner＋usageLimit で収集（同時0化は effectId dedup）。WX20-Re03/WX21-067/WX22-013-E2/WXDi-P01-043/WXDi-P14-009（全 any_opp・旧 ON_PLAY/ON_TURN_END 誤）。⚠近似＝-5000 連鎖0化の再発火・once_per_turn の actions_done 記録タイミングは実機未検証。
   - ⚠**ON_EXCEED_COST は field signi 非対応**（WXDi-P06-078）＝収集は exceedPaidCards（コストカード自身）のみ走査。field signi の「エクシードコストを支払ったとき」反応には field 走査追加が要る＝engine 拡張案件。
   - **📍 残31の分類（2026-06-28・R38 時点・`npx tsx scripts/_flattenList.ts` で再確認）**＝**配線済みで直せるクラスタは枯れた。残りは全て新トリガー機構が要る**：
-    - **§4 ON_DRAW（opp-draw/位相）6枚＝別管理**: WXDi-D09-P19・WXDi-P05-062（ドローフェイズ以外＝位相条件）／WXDi-P04-038・WXDi-P15-091・WD22-029-G・PR-423（対戦相手が引いた＝opp-draw）。`collectDrawTriggers` は自分ドローのみ。要トリガー拡張（§4 と統合）。
+    - **§4 ON_DRAW（opp-draw）4枚＝別管理**: ~~WXDi-D09-P19・WXDi-P05-062（ドローフェイズ以外＝位相条件）~~ **【✅R39 完了＝`triggerCondition.outsideDrawPhase`・`collectDrawTriggers` 第4引数 isDrawPhaseDraw】**／WXDi-P04-038・WXDi-P15-091・WD22-029-G・PR-423（対戦相手が引いた＝opp-draw）。`collectDrawTriggers` は drawer の場のみ走査＝opp-draw は反対側の場を走査する collector 追加が要る（効果ドロー検出は line ~5234/5241 で両プレイヤー走査済み）。位相条件（メイン/アタックフェイズ間・対戦相手のアタックフェイズ）と「効果によって」条件も各カードで要対応。
     - **§3 機構④ 毒牙パワー減 2枚**: WX13-036・WXEX2-52「あなたの効果で対戦相手のシグニのパワーが減ったとき」。
     - **ON_TARGETED「対象になったとき」3枚**: WXDi-P11-040・WX25-P2-055・WX25-CP1-060（上記⛔）。侵襲的＝重い。
     - **改造素材使用 2枚**: WXK09-047・WXK09-084「《改造素材》が使用されたとき」。改造素材の「使用」イベントが engine に無い＝use フロー実装が前提。
@@ -124,6 +124,7 @@
 
 実装済みだが対話 pause/resume・CPU代行のため自動検証できないもの。**安定確認まで関連拡張に進まない。**
 
+- **outsideDrawPhase（R39）**：ドローフェイズ以外で引いたとき→各効果（全自シグニ+1000／手札1捨て→ドロー）。要確認＝①メイン/アタックフェイズの効果ドロー（グロウ時・スペル等）で発火②ドローフェイズの通常ドロー（マンダトリードロー）では非発火③WXDi-D09-P19 の twice_per_turn が2回まで発火。対象=WXDi-D09-P19/WXDi-P05-062。
 - **凍結トリガー（R38・ON_SIGNI_FROZEN）**：相手シグニが凍結状態になったとき→各効果（相手手札1捨て×2／そのシグニ-1000）。要確認＝①FREEZE 効果で相手シグニが凍結したとき `detectNewlyFrozen` が検出し watcher の【自】を発火②《ターン1回》が複数同時凍結（WXEX2-02 の【出】全凍結等）でも1回③WXDi-P04-065 の targetsTriggerSource が凍結したそのシグニに-1000。対象=WX08-039/WXEX2-02/WXDi-P04-065。
 - **パワー0以下トリガー（R37・ON_SIGNI_POWER_ZERO_OR_LESS）**：相手シグニが0化したとき→各効果（エナ/ドロー/CHOOSE/エナチャージ/相手-5000）。要確認＝①相手シグニ0化で `checkAndBanishPowerZero` が watcher の【自】を発火②《ターン1回》が複数同時0化でも1回③WXDi-P14-009 の-5000 が別シグニを0化したときの連鎖再発火④WXDi-P14-009 は自ターンのみ発火。対象=WX20-Re03/WX21-067/WX22-013/WXDi-P01-043/WXDi-P14-009。
 - **手札捨て/トラッシュ flatten（R36）**：①WDA-F02-17-E3＝このカードを手札からトラッシュ→相手シグニに任意《青/黒》払い−5000（ON_TRASH 手札から発火確認）。②WXDi-CP02-082＝自ターンにブルアカ手札捨て→相手−3000（E1）／**相手ターン**にブルアカ手札捨て→ドロー（E2・`turnOwner:opponent`）。要確認＝相手ターンに手札を捨てる経路（ガード等）で `collectHandDiscardTriggers` が E2 を発火するか・自ターンで E1 のみ発火するか。

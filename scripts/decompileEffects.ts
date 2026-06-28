@@ -943,6 +943,10 @@ function effJa(e: Eff): string {
     if (t === 'ON_DRAW' && e.triggerCondition?.drawBySourceStory) {
       s = `あなたの場にある＜${e.triggerCondition.drawBySourceStory}＞のシグニの効果であなたがカードを１枚引いたとき`;
     }
+    // ON_DRAW の「ドローフェイズ以外で引いたとき」限定（WXDi-D09-P19/WXDi-P05-062）
+    if (t === 'ON_DRAW' && e.triggerCondition?.outsideDrawPhase) {
+      s = 'ドローフェイズ以外であなたがカードを１枚引いたとき';
+    }
     // ON_RISE の「カード名に〜を含むシグニにライズされたとき」限定（WX20-056-E2）
     if (t === 'ON_RISE' && e.triggerCondition?.risedOntoNameContains) {
       s = `このシグニがカード名に《${e.triggerCondition.risedOntoNameContains}》を含むシグニにライズされたとき`;

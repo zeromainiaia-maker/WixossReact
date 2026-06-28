@@ -3899,6 +3899,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     drawerId: string,
     drawerState: PlayerState,
     otherState: PlayerState,
+    isDrawPhaseDraw = false,
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
     const entries: StackEntry[] = [];
     const usedOncePerTurnIds: string[] = [];
@@ -3933,6 +3934,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (!srcCard || srcCard.Type !== 'シグニ') continue;
           if (!(srcCard.CardClass ?? '').includes(eff.triggerCondition.drawBySourceStory)) continue;
         }
+        // outsideDrawPhase: ドローフェイズの通常ドロー（マンダトリードロー）では発火しない。
+        // 効果ドロー（execDraw 経由・isDrawPhaseDraw=false）でのみ発火（WXDi-D09-P19/WXDi-P05-062）。
+        if (eff.triggerCondition?.outsideDrawPhase && isDrawPhaseDraw) continue;
         if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, drawerState, otherState, isDrawerTurn, battleCardMap, topNum)) continue;
         if (eff.condition && !evalUseCondition(eff.condition, drawerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
         if (!limitOk(eff)) continue;
@@ -4227,7 +4231,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ドローした場合は ON_DRAW（G089「カードを引いたとき」）も併せて収集する。
         const startEntries = collectTurnTriggers('ON_TURN_START', newMyState, op);
         if (!drawBlocked) {
-          const dt = collectDrawTriggers(bs.active_user_id ?? user.id, newMyState, op);
+          const dt = collectDrawTriggers(bs.active_user_id ?? user.id, newMyState, op, true);
           startEntries.push(...dt.entries);
           if (dt.usedOncePerTurnIds.length > 0) {
             newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...dt.usedOncePerTurnIds] };
