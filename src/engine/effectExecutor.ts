@@ -346,7 +346,7 @@ function execRevealDeckTop(a: import('../types/effects').RevealDeckTopAction, ct
   const revealed = state.deck.slice(0, Math.min(n, state.deck.length));
   const levelSum = revealed.reduce((s, num) => {
     const card = ctx.cardMap.get(getCardNum(num));
-    if (card?.CardType !== 'シグニ') return s;
+    if (card?.Type !== 'シグニ') return s;
     const lv = parseInt(card?.Level ?? '', 10);
     return s + (isNaN(lv) ? 0 : lv);
   }, 0);
