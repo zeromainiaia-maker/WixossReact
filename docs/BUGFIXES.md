@@ -5,6 +5,16 @@
 
 ---
 
+## repr: ON_LRIG_ATTACK_STEP_START（ルリグアタックステップ開始時）2効果（R53・2026-06-28）
+
+WX25-CP1-042-E2「あなたのルリグアタックステップ開始時、…対戦相手は手札を１枚捨てる」を新 timing `ON_LRIG_ATTACK_STEP_START` で表現。同句が3枚（WXK01-038/WXDi-CP02-059/WX25-CP1-042）に出るが、**actionText 先頭アンカー `/^あなたのルリグアタックステップ開始時/`** でトップレベルのトリガーのみ拾う設計：
+
+- WXDi-CP02-059＝句がアクション内（遅延効果）＝実トリガー ON_OPP_LIFE_CRASHED のまま（誤分類せず）。
+- WXK01-038＝句が GRANT_LRIG_ABILITY の付与能力内（先頭アンカー一致）＝付与能力の内側 timing も `ON_PLAY`（旧近似）→`ON_LRIG_ATTACK_STEP_START`（正）に更新＝JSON も揃えて完全一致。
+- 型＝`ON_LRIG_ATTACK_STEP_START`（effects.ts）。decompiler＝`timingJa` 追加＋`engineUnwiredTimings` 登録。データ＝WX25-CP1-042-E2 timing＋WXK01-038-E1.action.abilities[0].timing を更新。
+- typecheck緑・同型★0・逆翻訳トリガー句原文一致・**VALUE 8→7・LOSS 0 維持**・⚠engine未配線（クラッシュ数カウント等のアクション機構も要）。
+- ⚠pre-existing（別件）：WX25-CP1-042-E2 の action は「ライフ1枚につき」カウントや E3 との切り分けが近似（変更前から EXIST=FRESH 共通・metric非影響）。
+
 ## repr: ON_LRIG_UNDER_MOVED（ルリグの下からカードが移動したとき）1枚（R52・2026-06-28）
 
 WXDi-P04-042「あなたのターンの間、あなたのルリグ１体の下からカード１枚が移動したとき、対戦相手のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－8000する」を新 timing `ON_LRIG_UNDER_MOVED` で表現。**ルリグ下スタックの set-diff 配線が必要かつ発火が稀（検証困難）のため engine未配線**（`engineUnwiredTimings` 登録＋【※engine未配線】）。R49〜R51 と同手順（句ユニーク・トリガー文非除去・timing差分のみ＝完全一致）。
