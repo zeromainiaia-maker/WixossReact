@@ -5,6 +5,15 @@
 
 ---
 
+## repr+engine: ON_OPP_ARTS_USE 配線流用（相手アーツの効果を受けたとき）1枚（R54・2026-06-28）
+
+WXK11-019-E2「あなたのシグニ１体が対戦相手のアーツの効果を受けたとき、…」を**既存の配線済み timing `ON_OPP_ARTS_USE`** に載せる（新 timing 不要・**engine未配線ではない＝genuine**）。`collectOppArtsUseTriggers`（BattleScreen:7028）が相手アーツ使用時に場シグニの ON_OPP_ARTS_USE【自】を収集する既存機構をそのまま使う。
+
+- パーサー＝timing チェーンに `/対戦相手のアーツの効果を受けたとき/`→`['ON_OPP_ARTS_USE']`（トリガー文非除去）。これまで WX05-020 は manualEffect で ON_OPP_ARTS_USE を持っていたが、パーサーが拾えず WXK11-019 は ON_PLAY 化していた＝パーサー優先で是正（[[feedback_parser_over_manual]]）。
+- decompiler＝`timingJa.ON_OPP_ARTS_USE='あなたのシグニが対戦相手のアーツの効果を受けたとき'` を追加（従来 raw 表示だった WX05-020 の逆翻訳も改善）。engineUnwiredTimings には**追加しない**（配線済み）。
+- データ＝WXK11-019-E2 timing `ON_TURN_END`→`ON_OPP_ARTS_USE`＋E1（中央ゾーン付与の UP）target に `thisCardOnly` 補完で完全一致。カスケードは WX05-020（manual・非影響）/WXK11-019 のみ。
+- typecheck緑・同型★0・逆翻訳トリガー句原文一致・**VALUE 7→6・LOSS 0 維持**。⚠pre-existing：WXK11-019-E2 action の対象が「そのシグニ（trigger源）」でなく「対戦相手のシグニ」近似（別件・metric非影響）。
+
 ## repr: ON_LRIG_ATTACK_STEP_START（ルリグアタックステップ開始時）2効果（R53・2026-06-28）
 
 WX25-CP1-042-E2「あなたのルリグアタックステップ開始時、…対戦相手は手札を１枚捨てる」を新 timing `ON_LRIG_ATTACK_STEP_START` で表現。同句が3枚（WXK01-038/WXDi-CP02-059/WX25-CP1-042）に出るが、**actionText 先頭アンカー `/^あなたのルリグアタックステップ開始時/`** でトップレベルのトリガーのみ拾う設計：
