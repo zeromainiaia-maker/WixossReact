@@ -6471,11 +6471,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // 自分のフィールド：'any_ally' または 'any' トリガー
     // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ（GRANT_ABILITY_INNER_TEXT付与）
     const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    // ウォッチャー＝場のシグニ各最前面。ON_PLAY ではルリグも監視対象に含める
+    //   （WDK17-001「あなたの傀儡状態のシグニが場に出たとき」等、味方シグニの出現に反応するルリグの any_ally【自】）。
+    const allyWatchers: { topNum: string; isLrig: boolean }[] = [];
     for (const stack of myState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
+      if (stack?.length) allyWatchers.push({ topNum: stack[stack.length - 1], isLrig: false });
+    }
+    const myLrigWatcher = event === 'ON_PLAY' ? myState.field.lrig.at(-1) : undefined;
+    if (myLrigWatcher) allyWatchers.push({ topNum: myLrigWatcher, isLrig: true });
+    for (const { topNum, isLrig } of allyWatchers) {
       if (topNum === triggeringCardNum) continue; // 自身は除く（ON_PLAYは queueCardEffects で処理）
-      if (ownAutoBlocked) continue;
+      if (ownAutoBlocked && !isLrig) continue; // BLOCK_OWN_SIGNI_AUTO はシグニ限定
       if (myAbilitiesRemoved.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
       const effects = effectsMap.get(topNum) ?? [];
       for (const eff of effects) {
@@ -6493,6 +6499,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         // placedFromTrash（「シグニがトラッシュから場に出たとき」）: 配置元がトラッシュでなければ発火しない。
         if (eff.triggerCondition?.placedFromTrash && event === 'ON_PLAY' && !opts?.placedFromTrash) continue;
+        // placedPuppet（WDK17-001「あなたの傀儡状態のシグニが場に出たとき」）: トリガー元が傀儡状態（puppet_signi 在中）でなければ発火しない。
+        if (eff.triggerCondition?.placedPuppet && event === 'ON_PLAY' && !(myState.field.puppet_signi ?? []).includes(triggeringCardNum)) continue;
         // triggerFilter: ON_ATTACK_SIGNI等でトリガー元カードがフィルタを満たすか確認
         if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
