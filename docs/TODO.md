@@ -184,5 +184,6 @@
 
 ## 8. 検証・品質（補助）
 
+- **`npm run smoke`（②実行スモークハーネス・2026-06-28新設）＝全効果10557件をヘッドレス自動実行しCRASH/HANG/INVARIANTを検出**。現状＝全0（SKIP 5のみ）。**C/D 作業時の回帰チェックに毎回回す**。次段の拡張候補＝(a)autopilot のカバレッジ拡張（REVEAL_CARDS/DECLARE_BOND/SELECT_TARGETループ＝現SKIP 5を解消）(b)不変条件の強化（カード総数保存＝token/exile例外を考慮）(c)**構文ゴールデンテスト**（アクション型ごと代表1枚で結果をassert＝③正しさを型単位で担保）(d)乱択CPU自己対戦ファズ。
 - `checkAllEffects` の `MANDATORY_SUSPICIOUS`（ヒューリスティック検出）の精査。`verifyEffects` の「定義なし」誤検出（注釈・トークン）の除外改善。
 - 生ID残存＝表示or実装の穴：`[STUB:X]` 系（残54件＝単発テール・STUBS.md管理）。`[条件:X]`/`[アクション:X]` は解消済み。
