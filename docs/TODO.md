@@ -72,6 +72,7 @@
 - **直し方（per-card・trigger-type 別にグループ化して）**: ①原文トリガーを判定→正しい `timing`＋`triggerScope`（多くは any_ally）＋`triggerFilter`（クロス/ライズ/レゾナ/story 等）＋`triggerCondition` を再構築②**engine が当該トリガーを配線済みか必ず確認**（未配線＝ライズされたとき/ウィルス配置/トラッシュから場出し 等は機構実装が要る可能性）③`duration:UNTIL_END_OF_TURN` は維持。
 - **⛔ bulk 禁止**（baton 鉄則）。trigger-type 別の小クラスタ単位で engine 確認→数枚ずつ→typecheck＋同型★0＋実機検証。trigger-type 内訳の目安＝スペル使用7／トラッシュから場出し6／ライズ6／ヘブン5／ウィルス4／レゾナ3／クロス持ち場出し 等＋汎用「場に出たとき」多数。
 - **これが VALUE curation の最後の本丸**（残 VALUE 107 のうち 102＝この系統。他5＝下記 ON_DRAW 機構待ち）。
+- **進捗**: ✅スペル使用クラスタ7枚 完了（R5・2026-06-28）＝timing→ON_SPELL_USE＋triggerFilter.color＋MANUAL。⚠WXK11-033-E1 の step2「相手センタールリグLv4以上なら追加でダブルクラッシュ」の条件は未表現（現状無条件付与の近似）＝要 opp-lrig-level 条件。残 flatten ≈95。次クラスタ候補＝ヘブン/ライズ/レゾナ場出し/トラッシュから場出し/ウィルス。
 
 ## 4. 個別の複雑カード（機構待ち・着手候補）
 
