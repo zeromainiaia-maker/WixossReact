@@ -5,6 +5,17 @@
 
 ---
 
+## 機構: B2 動的閾値フィルタ（公開シグニのレベル合計×N以下）新設＋WX17-028 配線（2026-06-28）
+
+P1_PLAN §5 B2。「パワーが『この方法で公開したシグニのレベルの合計×1000』以下」の動的閾値を新設。WX17-028 は**【出】効果が丸ごと脱落**＋【自】E1も劣化（count:1・filter/任意性欠落）していた。
+
+- **型**＝アクション `RevealDeckTopAction`（`REVEAL_DECK_TOP`・デッキ上N枚公開＝ピックなし）／`TrashRevealedAction`（`TRASH_REVEALED`・公開カードをトラッシュ）を新設・union 登録。TargetFilter に動的フラグ `powerLteRevealedSigniLevelSum?: number`（乗数）を追加。
+- **PlayerState**＝`last_revealed_signi_level_sum`（公開シグニのレベル合計）／`last_revealed_deck_cards`（公開カード番号）。
+- **executor**＝`execRevealDeckTop`（デッキ上N枚を公開＝デッキから除かず、シグニのレベル合計と公開番号を記録）／`execTrashRevealed`（記録した公開カードをデッキ→トラッシュ）＋dispatch。`resolveDynamicFilter` に `powerLteRevealedSigniLevelSum`→`powerRange.max = sum × 乗数` 解決を追加。
+- **decompiler**＝`REVEAL_DECK_TOP`「デッキの上からカードをN枚公開する」／`TRASH_REVEALED`「公開したカードをトラッシュに置く」／filterJa に「パワーが『この方法で公開したシグニのレベルの合計×N』以下の」。
+- **WX17-028**（羅星姫 ソラフレア）＝E1 を TRANSFER_TO_DECK count:4＋filter（宇宙・eachDistinctLevel）に是正、**脱落していた【出】を E2 として復元**＝SEQUENCE[REVEAL_DECK_TOP 4, BANISH 相手シグニ1（動的閾値）, TRASH_REVEALED]。
+- 2効果 MANUAL・typecheck緑・**同型★0維持（5986枚）**・held/LOSS/VALUE 0・逆翻訳原文一致。⚠eachDistinctLevel の厳密 enforce は未対応（既存近似）・【出】は AUTO ON_PLAY 表現（要実機検証）。
+
 ## 機構: B3 遅延条件トリガー（INSTALL_DELAYED_TRIGGER）新設＋WX25-CP1-069 配線（2026-06-28）
 
 P1_PLAN §5 B3。「このターン、…したとき、…」＝1ターン限りのプレイヤーレベル遅延条件トリガー機構を新設。特定シグニへの能力付与（GRANT_EFFECT）と異なり、設置後に出たシグニ・プレイヤーレベルの誘発を捕捉できる。
