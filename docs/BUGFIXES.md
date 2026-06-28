@@ -5,6 +5,17 @@
 
 ---
 
+## engine: ON_PLAY placedPuppet（傀儡状態のシグニが場に出たとき）1枚（R48・2026-06-28）
+
+WDK17-001「あなたの傀儡状態のシグニ１体が場に出たとき、以下の３つから１つを選ぶ」を新設。トリガーは新 timing 不要＝**既存 ON_PLAY any_ally 機構に相乗り**（バトンの「低リスク（既存単一検出点に相乗り）」方針）。
+
+- 型＝`triggerCondition.placedPuppet`（effects.ts）。
+- パーサー＝`effectParser.ts` の ON_PLAY ally 抽出正規表現に `(傀儡状態の)?` を追加し、マッチ時 `placedPuppet:true`＋`triggerScope:any_ally`。capture group ずれに伴い `他の`/`story`/`効果によって`/action の index を +1 補正。
+- エンジン＝`collectFieldTriggers`（BattleScreen.tsx）。(1) ON_PLAY のとき**ルリグも any_ally ウォッチャーに追加**（WDK17-001 は ルリグの【自】。ON_LEAVE_FIELD の既存 lrig watcher 前例に倣う）。(2) `placedPuppet` 条件＝トリガー元 instanceId が `myState.field.puppet_signi` に在中するかで判定（INTERNAL_PLACE_PUPPET が cnPP を puppet_signi に積む＝placedNum と一致）。BLOCK_OWN_SIGNI_AUTO はシグニ限定にしルリグは除外。
+- decompiler＝ON_PLAY placedPuppet で `シグニが場に出たとき`→`傀儡状態のシグニが場に出たとき` 置換。逆翻訳「あなたの傀儡状態のシグニが場に出たとき」＝原文一致。
+- データ＝effects_misc.json WDK17-001-E1 を `ON_TURN_END`（仮置き）→`ON_PLAY`＋`triggerScope:any_ally`＋`triggerCondition.placedPuppet`（パーサー FRESH と leaf 完全一致）。
+- typecheck緑・同型★0（sheet5/grouped 再生成）・**VALUE 15→14・LOSS 0 維持**・⚠実機未検証（puppet 配置→ON_PLAY 収集→lrig watcher 発火の経路）。
+
 ## engine: ON_MAIN_PHASE_START（対戦相手のメインフェイズ開始時）1枚（R47・2026-06-28・ymst）
 
 「対戦相手のメインフェイズ開始時、あなたのデッキの一番上を公開する。そのカードが＜バーチャル＞のシグニの場合、…このシグニは【シャドウ】を得る」のトリガーを新設。フェイズ遷移 `GROW→MAIN` で `collectTurnTriggers('ON_MAIN_PHASE_START', …)` を ON_ATTACK_PHASE_START と同じ要領で呼ぶ。`triggerScope:any_opp`（「対戦相手の」）＝非ターンプレイヤー（watcher）の場シグニが、ターンプレイヤーの MAIN 開始に反応＝collectTurnTriggers の既存「相手フィールドシグニ any_opp/any」分岐が拾う（新規ループ不要・低リスク）。
