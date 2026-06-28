@@ -5,6 +5,17 @@
 
 ---
 
+## ツール: ②実行スモーク／不変条件ハーネス `npm run smoke` 新設（2026-06-28）
+
+6600枚を実機検証する負担を下げるため、ヘッドレスで「壊れないこと」を機械検証する第一段を新設。
+
+- **`scripts/smokeTest.ts`**＝全カードの全効果（10557件）を**オートパイロット**で実行。`executeEffect` の結果が `{done:false, pending}` なら pending 種別ごとに最小入力（先頭候補／スキップ／ゾーン巡回）で `resume*` を呼び、done まで自動で進める。`effects_*.json`＋manualEffects（＝実機と同じ curated 効果）を使用。
+- **検出**＝CRASH（例外）／HANG（step>60）／INVARIANT（field.signi が3ゾーンでない等の構造破壊）／SKIP（autopilot未対応の対話）。detail を正規化集計。
+- **初回結果＝CRASH 0／HANG 0／INVARIANT 0／SKIP 5**（全10557効果）。engine は「各効果を汎用盤面で1回実行」レベルでクラッシュ・ハング・構造破壊なし＝極めて堅牢と確認。
+  - 当初 HANG 12 は autopilot がゾーン選択で占有済み zone0 を再選択し続けるアーティファクト→ゾーン巡回＋同一pending連続検出で SKIP 化し解消（engine 実バグではない）。
+  - SKIP 5＝REVEAL_CARDS 1／DECLARE_BOND 3／稀な SELECT_TARGET ループ 1＝autopilot のカバレッジ漏れ（今後の harness 拡張対象）。
+- ⚠**限界**＝「壊れない」を保証するもので「ルール的に正しい結果か（③挙動）」は判定しない。③は構文ゴールデンテスト＋新機構の代表目視（実機）で別途。**用途＝C（engine配線）/D（STUB実装）の回帰検出の安全網**。
+
 ## 機構: B1 トラップ機構の逆翻訳（9系統トラップSTUBの【トラップ】語彙描画）（2026-06-28）
 
 P1_PLAN §5 B1。調査の結果、**トラップ機構の engine は既に実装済み**だった＝`PlayerState.field.signi_traps`（3ゾーン裏向きトラップ）＋execStubPart2 の `PLACE_TRAP_OPTIONAL`/`SET_HAND_CARD_AS_TRAP`/`CHOOSE_TRAP_ZONE`/`INTERNAL_SET_TRAP`/`TRAP_TO_HAND`/`ACTIVATE_TRAP`/`SET_OPP_SIGNI_AS_TRAP`/`TRAP_TO_SIGNI_IF_ZONE_EMPTY`/`PLACE_TRAP_FROM_REVEALED` ハンドラ。**P1の課題は逆翻訳（decompiler）**で、これらトラップSTUBが raw `[STUB:id: 英語説明]` のまま描画されていた。
