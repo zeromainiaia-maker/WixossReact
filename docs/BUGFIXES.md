@@ -5,6 +5,14 @@
 
 ---
 
+## engine: ON_ENERGY_TO_TRASH（エナがトラッシュに置かれたとき）トリガー1枚（R43・2026-06-28・ymst）
+
+「あなたの効果によって対戦相手のエナゾーンからカード１枚がトラッシュに置かれたとき」を**ミル機構と同じ効果解決の set-diff 検出**で新設。`countEnergyToTrash(before,after)`＝`energy`（cardNum）が before にあって after に無く、かつ after.trash に在中する枚数。`collectEnergyToTrashTriggers`＝両プレイヤー場シグニ/ルリグの ON_ENERGY_TO_TRASH【自】を `triggerCondition.energyTrashedOwner`（self/opponent/any）で発生源限定して収集。配線はミル/チャームと同じ統合ブロック（line ~5330）。
+
+- 型 `ON_ENERGY_TO_TRASH`＋`triggerCondition.energyTrashedOwner`＋detector/collector＋decompiler ラベル。
+- データ1枚（MANUAL）: WD15-015-E1（ON_TURN_END flatten・energyTrashedOwner:opponent・GRANT_KEYWORD ダブルクラッシュ）。target を `thisCardOnly`（「このシグニは」）に是正。
+- typecheck緑・同型★0・逆翻訳が原文トリガー完全一致・⚠実機未検証。VALUE 23→22。**⚠近似**＝「あなたの効果によって」の発生源限定は未表現（効果解決経路で発火＝相手効果による自エナトラッシュも発火しうる）。
+
 ## engine: ON_CHARM_TO_TRASH（チャームがトラッシュに置かれたとき）トリガー1枚（R42・2026-06-28・ymst）
 
 「【チャーム】１枚が場からいずれかのトラッシュに置かれたとき」を**ミル機構と同じ効果解決の set-diff 検出**で新設。`countCharmsToTrash(before,after)`＝`signi_charms`（cardNum or null）が before にあって after に無く、かつ after.trash に在中する枚数（チャームは host 離脱時に owner トラッシュへ＝removeFromField で extraTrash 送り）。`collectCharmToTrashTriggers(controllerId,controllerState,otherState,myCharms,oppCharms)`＝両プレイヤー場シグニ/ルリグの ON_CHARM_TO_TRASH【自】を triggerScope（any=どちらの／any_ally=自分の／any_opp=相手の）で絞り収集。usageLimit/activeCondition/condition 評価。配線はミル/デッキ移動と同じ統合ブロック（line ~5330）。
