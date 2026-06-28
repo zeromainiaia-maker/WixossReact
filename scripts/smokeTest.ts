@@ -30,7 +30,7 @@ const argVal = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[
 const LIMIT = argVal('--limit') ? parseInt(argVal('--limit')!) : Infinity;
 const VERBOSE = args.includes('--verbose');
 const ONLY_ID = argVal('--id');
-const STEP_CAP = 60;
+const STEP_CAP = 200;
 
 // ── データ読み込み（decompileEffects と同じ）──
 const cardMap = new Map<string, CardData>();
