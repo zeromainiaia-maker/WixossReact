@@ -947,6 +947,14 @@ function effJa(e: Eff): string {
     if (t === 'ON_DRAW' && e.triggerCondition?.outsideDrawPhase) {
       s = 'ドローフェイズ以外であなたがカードを１枚引いたとき';
     }
+    // ON_DRAW triggerScope:any_opp（対戦相手が引いたとき）＋位相/効果限定（WXDi-P04-038/WXDi-P15-091/WD22-029-G/PR-423）
+    if (t === 'ON_DRAW' && e.triggerScope === 'any_opp') {
+      const pr = e.triggerCondition?.drawPhaseRestriction;
+      const phasePrefix = pr === 'main_attack' ? 'メインフェイズかアタックフェイズの間、'
+        : pr === 'opp_attack' ? '対戦相手のアタックフェイズの間、' : '';
+      const byEffect = e.triggerCondition?.drawByEffect ? '効果によって' : '';
+      s = `${phasePrefix}対戦相手が${byEffect}カードを１枚引いたとき`;
+    }
     // ON_RISE の「カード名に〜を含むシグニにライズされたとき」限定（WX20-056-E2）
     if (t === 'ON_RISE' && e.triggerCondition?.risedOntoNameContains) {
       s = `このシグニがカード名に《${e.triggerCondition.risedOntoNameContains}》を含むシグニにライズされたとき`;
@@ -998,7 +1006,7 @@ function effJa(e: Eff): string {
     return s;
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
-  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
+  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_DRAW') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
   // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
   const condStr = e.condition ? condJa(e.condition) : '';
   const cond = condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}${/(状態|以上|以下|枚)$/.test(condStr) ? 'の' : ''}場合、`) : '';

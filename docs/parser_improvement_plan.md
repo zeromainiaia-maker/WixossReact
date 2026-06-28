@@ -1,5 +1,7 @@
 # パーサー改善 計画（収穫マージ時代）
 
+> ⚠**【2026-06-28 時点で歴史的文書・現行ではない】**：本書は `build:effects`（収穫マージ）を前提とした旧時代の計画。**現在 `build:effects`（全再生成）は破壊的＝禁止**（`P1_PLAN.md`§2・`TODO.md`§0）。JSON は手動パッチ運用。**パーサー整合（LOSS）は R31 で 255→0 達成済み（🎉完了）**＝本書の「held 411 を 0 に」目標は達成済み。現在の作業は VALUE（timing flatten 実バグ・held 29）の engine 機構実装。**現行の正＝`docs/parser_worklist.md`＋`TODO.md`§3.5＋`P1_PLAN.md`§3 バトン**。本書は手法（名詞句限定・アンカー return 等のガードレール §1）の参考としてのみ有効。
+
 > 前提：`build:effects` は **richness ガード付き収穫マージ**化済み（`buildEffectsJson.ts`）。
 > パーサーを直す→`npm run build:effects`→**無損失な改善だけJSONへ自動収穫**。手作業は温存。
 > バックログの定量は `docs/parser_backlog.md`、本書は**順序・手法・ガードレール**。

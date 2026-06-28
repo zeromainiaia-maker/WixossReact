@@ -3954,6 +3954,65 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, usedOncePerTurnIds };
   };
 
+  // 対戦相手が（効果によって）カードを引いたとき（ON_DRAW triggerScope:any_opp）トリガー収集。
+  // drawer の反対側プレイヤー（reactor）の場シグニ/ルリグの any_opp ON_DRAW【自】を集める。
+  // ⚠ 効果ドロー経路（cards_drawn_by_effect_this_turn 増加）からのみ呼ばれる＝「効果によって」は暗黙。
+  // triggerCondition.drawPhaseRestriction（main_attack/opp_attack）で位相を、turnOwner/usageLimit も評価。
+  // ⚠ 近似：「対戦相手が自分の効果で」（drawByEffect）の発生源プレイヤー限定は未判定（自効果で相手に引かせた場合も発火しうる）。
+  const collectOppDrawTriggers = (
+    reactorId: string,
+    reactorState: PlayerState,
+    drawerState: PlayerState,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
+    const reactorIsTurn = reactorId === bs.active_user_id;
+    const ATTACK_PHASES = ['ATTACK_SIGNI', 'ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_LRIG'];
+    const phase = bs.turn_phase ?? '';
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (reactorState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIds.push(eff.effectId);
+      return true;
+    };
+    const removed = collectContinuousAbilitiesRemovedSigni(reactorState, drawerState, reactorIsTurn, effectsMap, battleCardMap);
+    const ownAutoBlocked = reactorState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const sources: string[] = [
+      ...reactorState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(reactorState.field.lrig.at(-1) ? [reactorState.field.lrig.at(-1)!] : []),
+    ];
+    for (const topNum of sources) {
+      if (ownAutoBlocked) continue;
+      if (removed.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DRAW')) continue;
+        if (eff.triggerScope !== 'any_opp') continue;
+        const pr = eff.triggerCondition?.drawPhaseRestriction;
+        if (pr === 'main_attack' && !(phase === 'MAIN' || ATTACK_PHASES.includes(phase))) continue;
+        if (pr === 'opp_attack' && !(ATTACK_PHASES.includes(phase) && !reactorIsTurn)) continue;
+        const to = eff.triggerCondition?.turnOwner;
+        if (to === 'self' && !reactorIsTurn) continue;
+        if (to === 'opponent' && reactorIsTurn) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, reactorState, drawerState, reactorIsTurn, battleCardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, reactorState, drawerState, battleCardMap, topNum, phase, effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: reactorId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（対戦相手ドロー時）`,
+          effect: eff,
+        });
+      }
+    }
+    return { entries, usedOncePerTurnIds };
+  };
+
   // デッキ→トラッシュ（ミル）時（ON_CARD_MILLED_FROM_DECK）トリガー収集。controller の場のシグニ/ルリグの
   // ON_CARD_MILLED_FROM_DECK【自】を集める。triggerCondition.milledDeckOwner（self/opponent/any）で発生源デッキを、
   // milledMinCount でその解決単位の最低ミル枚数を判定。usageLimit は actions_done(effectId) 出現回数で制御。
@@ -5241,12 +5300,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (dt.usedOncePerTurnIds.length > 0) {
             update.host_state = { ...(update.host_state as PlayerState), actions_done: [...((update.host_state as PlayerState).actions_done ?? []), ...dt.usedOncePerTurnIds] };
           }
+          // host が効果ドロー → guest の「対戦相手が引いたとき」（any_opp ON_DRAW）を発火
+          const odt = collectOppDrawTriggers(bs.guest_id, guestState, hostState);
+          drawEntries.push(...odt.entries);
+          if (odt.usedOncePerTurnIds.length > 0) {
+            update.guest_state = { ...((update.guest_state as PlayerState) ?? guestState), actions_done: [...(((update.guest_state as PlayerState) ?? guestState).actions_done ?? []), ...odt.usedOncePerTurnIds] };
+          }
         }
         if ((guestState.cards_drawn_by_effect_this_turn ?? 0) > (bs.guest_state.cards_drawn_by_effect_this_turn ?? 0)) {
           const dt = collectDrawTriggers(bs.guest_id, guestState, hostState);
           drawEntries.push(...dt.entries);
           if (dt.usedOncePerTurnIds.length > 0) {
             update.guest_state = { ...(update.guest_state as PlayerState), actions_done: [...((update.guest_state as PlayerState).actions_done ?? []), ...dt.usedOncePerTurnIds] };
+          }
+          // guest が効果ドロー → host の「対戦相手が引いたとき」（any_opp ON_DRAW）を発火
+          const odt = collectOppDrawTriggers(bs.host_id, hostState, guestState);
+          drawEntries.push(...odt.entries);
+          if (odt.usedOncePerTurnIds.length > 0) {
+            update.host_state = { ...((update.host_state as PlayerState) ?? hostState), actions_done: [...(((update.host_state as PlayerState) ?? hostState).actions_done ?? []), ...odt.usedOncePerTurnIds] };
           }
         }
         if (drawEntries.length > 0) {

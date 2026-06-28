@@ -1,5 +1,7 @@
 # effectParser 改善バックログ（収穫マージ・要レビュー420件の分類）
 
+> ⚠**【2026-06-28 時点で歴史的文書】**：本書の420件分類は収穫マージ時代のスナップショット。**パーサー弱点（LOSS）は R31 で 255→0 達成済み（🎉）**＝下記「信頼できる弱点」表は全て消化済み（filter 脱落／triggerCondition／action.type 等は MANUAL化 or 再curate で解消）。**現行の正＝`docs/parser_worklist.md`（held 29）＋`TODO.md`§3.5（残 VALUE timing flatten 29枚の分類）＋`P1_PLAN.md`§3 バトン**。本書は当時の分類の参考としてのみ残置。
+
 > 出典：`npx tsx scripts/analyzeHeldCards.ts`（existing=git HEAD の effects_*.json vs fresh=現パーサー出力 のリーフ差分を分類）。
 > 収穫マージ（`build:effects` の richness ガード）で「温存：要レビュー」になった **420カード**＝
 > **現パーサーが既存JSONを再現できない札**。ここを直すほど、再生成で純改善として安全に取り込める。
