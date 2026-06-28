@@ -47,6 +47,7 @@ export type EffectTiming =
   | 'ON_CHARM_TO_TRASH'         // 【チャーム】1枚が場からいずれかのトラッシュに置かれたとき（signi_charms の set-diff で検出。WX16-Re05。triggerScope any/any_ally/any_opp）
   | 'ON_ENERGY_TO_TRASH'        // エナゾーンからカードがトラッシュに置かれたとき（energy→trash の set-diff で検出。WD15-015「あなたの効果によって対戦相手のエナゾーンから」。triggerCondition.energyTrashedOwner で発生源）
   | 'ON_REFRESH'                // いずれかのプレイヤーがリフレッシュしたとき（refresh_count_this_turn の set-diff で検出。WXDi-P04-043。triggerCondition.refreshedOwner で発生源。⚠効果解決経路のリフレッシュのみ検出＝ドローフェイズの過剰ドロー refresh は未検出の近似）
+  | 'ON_OPP_POWER_DECREASED'    // あなたの効果によって対戦相手のシグニのパワーが減ったとき（毒牙。temp_power_mods の新規負 delta を効果解決の set-diff で検出。WX13-036/WXEX2-52。⚠「あなたの効果」限定は近似＝相手自身の自己弱体でも発火しうる／temp_power_mods のみ＝UNTIL_OPP_TURN_END 弱体は未計上）
   | 'ON_LEAVE_FIELD'            // カードがフィールドを離れたとき
   | 'ON_HAND_DISCARDED'         // 手札が捨てられたとき
   | 'ON_OPP_EFFECT_TRASH_FROM_HAND' // 相手の効果で手札がトラッシュに置かれたとき
@@ -575,6 +576,7 @@ export interface PowerModifyAction {
   delta: NumberOrRef; // 正=強化、負=弱体化
   excludeSelf?: boolean; // 「あなたの他のシグニ」: 効果元カード自身を対象から除外
   targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニを自動対象（ctx.triggeringCardNum → ctx.sourceCardNum の順で解決）
+  deltaFromOppPowerDecrease?: boolean; // 「減った値と同じだけ＋する」（毒牙 WX13-036/WXEX2-52）。delta を収集時に直前の対戦相手パワー減少量で動的に上書き（ON_OPP_POWER_DECREASED と併用）
   duration?: EffectDuration; // 'UNTIL_OPP_TURN_END' のとき power_mods_until_opp_turn へ（省略時はターン終了まで＝temp_power_mods）
 }
 

@@ -4269,6 +4269,74 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, usedOncePerTurnIds };
   };
 
+  // 効果解決の前後 state を比較し、その player のシグニのパワー減少量（temp_power_mods の新規負 delta 合計の絶対値）を算出（ON_OPP_POWER_DECREASED）。
+  // temp_power_mods は execPowerModify が末尾に append するため、before.length 以降の新規エントリの負 delta を合算。
+  const detectPowerDecrease = (before: PlayerState, after: PlayerState): number => {
+    if (!before || !after) return 0;
+    const beforeMods = before.temp_power_mods ?? [];
+    const afterMods = after.temp_power_mods ?? [];
+    let dec = 0;
+    for (let i = beforeMods.length; i < afterMods.length; i++) {
+      if (afterMods[i].delta < 0) dec += -afterMods[i].delta;
+    }
+    return dec;
+  };
+
+  // 対戦相手のシグニのパワーが減ったとき（ON_OPP_POWER_DECREASED・毒牙）トリガー収集。controller の場の
+  // ON_OPP_POWER_DECREASED【自】を集め、deltaFromOppPowerDecrease のとき delta を decreaseAmount で動的注入。
+  const collectPowerDecreaseTriggers = (
+    controllerId: string,
+    controllerState: PlayerState,
+    otherState: PlayerState,
+    decreaseOnOpp: number,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
+    if (decreaseOnOpp <= 0) return { entries, usedOncePerTurnIds };
+    const isControllerTurn = controllerId === bs.active_user_id;
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (controllerState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIds.push(eff.effectId);
+      return true;
+    };
+    const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, effectsMap, battleCardMap);
+    const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const sources: string[] = [
+      ...controllerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(controllerState.field.lrig.at(-1) ? [controllerState.field.lrig.at(-1)!] : []),
+    ];
+    for (const topNum of sources) {
+      if (ownAutoBlocked) continue;
+      if (removed.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_POWER_DECREASED')) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, battleCardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        // deltaFromOppPowerDecrease: 「減った値と同じだけ＋」を decreaseOnOpp で動的注入
+        let resolvedEff = eff;
+        const act = eff.action as import('../types/effects').PowerModifyAction;
+        if (act?.type === 'POWER_MODIFY' && act.deltaFromOppPowerDecrease) {
+          resolvedEff = { ...eff, action: { ...act, delta: decreaseOnOpp, deltaFromOppPowerDecrease: undefined } };
+        }
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: controllerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（相手パワー減少時）`,
+          effect: resolvedEff,
+        });
+      }
+    }
+    return { entries, usedOncePerTurnIds };
+  };
+
   // 効果解決の前後 state を比較し、対象プレイヤーのデッキ→トラッシュ枚数（ミル枚数）を算出。
   // インスタンスIDが一意（cardNum#id）なので、before.deck かつ after.trash かつ not before.trash の集合差で精密に数える。
   const countMilledFromDeck = (before: PlayerState, after: PlayerState): number => {
@@ -5620,6 +5688,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.effect_stack = baseStackR
               ? pushToStack(baseStackR, refreshEntries)
               : initStack(stack.turnPlayerId, refreshEntries);
+          }
+        }
+
+        // ON_OPP_POWER_DECREASED（毒牙）: この解決でシグニのパワーが減った場合、減らした側（controller）の
+        // ON_OPP_POWER_DECREASED【自】を発火（host のシグニが減った→guest が反応／その逆）。
+        const decOnHost  = detectPowerDecrease(bs.host_state, hostState);
+        const decOnGuest = detectPowerDecrease(bs.guest_state, guestState);
+        if (decOnHost > 0 || decOnGuest > 0) {
+          const decEntries: StackEntry[] = [];
+          // guest のシグニが減った → host が反応（host から見て対戦相手=guest のパワーが減った）
+          const dpH = collectPowerDecreaseTriggers(bs.host_id, hostState, guestState, decOnGuest);
+          decEntries.push(...dpH.entries);
+          if (dpH.usedOncePerTurnIds.length > 0) {
+            update.host_state = { ...((update.host_state as PlayerState) ?? hostState), actions_done: [...(((update.host_state as PlayerState) ?? hostState).actions_done ?? []), ...dpH.usedOncePerTurnIds] };
+          }
+          // host のシグニが減った → guest が反応
+          const dpG = collectPowerDecreaseTriggers(bs.guest_id, guestState, hostState, decOnHost);
+          decEntries.push(...dpG.entries);
+          if (dpG.usedOncePerTurnIds.length > 0) {
+            update.guest_state = { ...((update.guest_state as PlayerState) ?? guestState), actions_done: [...(((update.guest_state as PlayerState) ?? guestState).actions_done ?? []), ...dpG.usedOncePerTurnIds] };
+          }
+          if (decEntries.length > 0) {
+            const baseStackDP = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackDP
+              ? pushToStack(baseStackDP, decEntries)
+              : initStack(stack.turnPlayerId, decEntries);
           }
         }
 

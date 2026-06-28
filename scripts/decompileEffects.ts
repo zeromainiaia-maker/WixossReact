@@ -349,7 +349,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const cnt = t?.count === 'ALL' ? 'すべて' : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
     }
-    case 'POWER_MODIFY': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
+    case 'POWER_MODIFY': {
+      const pmSubj = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf);
+      if (a.deltaFromOppPowerDecrease) return `${pmSubj}のパワーを減った値と同じだけ＋する`;
+      return `${pmSubj}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
+    }
     case 'POWER_SET': {
       // CONTINUOUS の POWER_SET で count≠ALL は engine 上「このシグニのみ」に解決される（effectEngine 参照）
       const thisOnly = effectType === 'CONTINUOUS' && a.target?.count !== 'ALL'
@@ -1000,6 +1004,10 @@ function effJa(e: Eff): string {
       const sc = e.triggerScope ?? 'any';
       const who = sc === 'any_opp' ? '対戦相手のシグニ' : sc === 'any_ally' ? 'あなたのシグニ' : sc === 'self' ? 'このシグニ' : 'シグニ';
       s = `${who}のパワーが0以下になったとき`;
+    }
+    // ON_OPP_POWER_DECREASED（毒牙・相手パワー減少時）（WX13-036/WXEX2-52）
+    if (t === 'ON_OPP_POWER_DECREASED') {
+      s = 'あなたの効果によって対戦相手のシグニのパワーが減ったとき';
     }
     // ON_REFRESH（リフレッシュ時）の refreshedOwner を主語に反映（WXDi-P04-043）
     if (t === 'ON_REFRESH') {
