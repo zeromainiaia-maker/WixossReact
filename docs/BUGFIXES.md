@@ -5,6 +5,14 @@
 
 ---
 
+## engine: ON_OPP_POWER_DECREASED（毒牙・相手パワー減少時）2枚（R46・2026-06-28・ymst）
+
+「あなたの効果によって対戦相手のシグニのパワーが減ったとき、…このシグニのパワーを減った値と同じだけ＋する」を新設（§3 機構④の毒牙）。`detectPowerDecrease(before,after)`＝`temp_power_mods` が execPowerModify で末尾 append される性質を使い、before.length 以降の新規エントリの負 delta 合計の絶対値＝減少量を算出。`collectPowerDecreaseTriggers`＝減らした側（controller）の場の ON_OPP_POWER_DECREASED【自】を発火（host のシグニが減った→guest が反応／その逆）。`PowerModifyAction.deltaFromOppPowerDecrease` のとき delta を減少量で動的注入（クローン）。
+
+- 型 `ON_OPP_POWER_DECREASED`＋`PowerModifyAction.deltaFromOppPowerDecrease`＋detector/collector＋decompiler（トリガー文＋「減った値と同じだけ＋」action 描画）。
+- データ2枚（MANUAL）: WX13-036-E1／WXEX2-52-E1（STUB `REACTIVE_POWER_UP`→POWER_MODIFY thisCardOnly deltaFromOppPowerDecrease）。
+- typecheck緑・同型★0・逆翻訳が原文完全一致・⚠実機未検証。VALUE 18→16。**⚠近似**＝①「あなたの効果」限定は未判定（相手自身の自己弱体でも発火しうる）②`temp_power_mods` のみ計上＝UNTIL_OPP_TURN_END 弱体（power_mods_until_opp_turn）は未計上③複数同時減少は合算（per-event ではない）。
+
 ## engine: ON_ACCE_ATTACH host条件＋ON_REFRESH＋ON_LEAVE_FIELD leftToZone 計3枚（R45・2026-06-28・ymst）
 
 3機構を連続実装（いずれも MANUAL・typecheck緑・同型★0・逆翻訳原文一致・⚠実機未検証）。VALUE 21→18。

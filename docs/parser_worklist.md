@@ -9,19 +9,20 @@
 |---|---|---|
 | parser == 既存JSON | 約5400 | **解決済み**（同型★0で構造検証済み） |
 | MANUAL（手書き効果） | 約165 | 意図的にパーサー対象外（型どおり） |
-| **held（parser ≠ 既存JSON）** | **404→18** | ↓ ここが全作業 |
+| **held（parser ≠ 既存JSON）** | **404→16** | ↓ ここが全作業 |
 
 **held の内訳（1カード=1プライマリバケツ・重複なし）** ← 数字は計器の最新値（下の進捗ログ参照）
 | トラック | 初期 | 現在 | 性質 | 対応 |
 |---|---|---|---|---|
 | **① LOSS** | 255 | **0** 🎉 | 既存JSONが持つ構造をパーサーが出せない＝**真の弱点** | **完了**（R31 で 255→0） |
-| ② VALUE | 149 | **18** | 同キーで値が違うだけ＝慣例/効果分割ズレ＝timing flatten（実バグ） | **1件ずつ人間判断**（bulk禁止・§2／TODO §3.5） |
+| ② VALUE | 149 | **16** | 同キーで値が違うだけ＝慣例/効果分割ズレ＝timing flatten（実バグ） | **1件ずつ人間判断**（bulk禁止・§2／TODO §3.5） |
 | ③ ADD/OTHER | 0 | 0 | — | — |
-| held合計 | 404 | **18** | | |
+| held合計 | 404 | **16** | | |
 
-> **現在地（2026-06-28 R45 後）＝held 18 / LOSS 0 / VALUE 18**。LOSS は R31 で 0 達成（🎉）。以降は VALUE（=timing flatten 実バグ・当初159枚）を engine 機構実装で消化中（159→18）。残 VALUE 18 は全て**未配線トリガーの新機構待ち**（詳細・分類は `TODO.md` §3.5「📍 残の分類」が唯一の正）。次の一手も `P1_PLAN.md` §3 バトンと TODO §3.5 を見る。
+> **現在地（2026-06-28 R46 後）＝held 16 / LOSS 0 / VALUE 16**。LOSS は R31 で 0 達成（🎉）。以降は VALUE（=timing flatten 実バグ・当初159枚）を engine 機構実装で消化中（159→16）。残 VALUE 16 は全て**未配線トリガーの新機構待ち**（詳細・分類は `TODO.md` §3.5「📍 残の分類」が唯一の正）。次の一手も `P1_PLAN.md` §3 バトンと TODO §3.5 を見る。
 
 ### 進捗ログ（LOSS が減る＝前進）
+- 2026-06-28 R46（VALUE timing flatten・ON_OPP_POWER_DECREASED 2枚／ymst）: 「あなたの効果で対戦相手のパワーが減ったとき→このシグニを減った値と同じだけ＋」を `temp_power_mods` 新規負delta set-diff で新設（detectPowerDecrease＋collectPowerDecreaseTriggers＋deltaFromOppPowerDecrease 動的注入）。WX13-036/WXEX2-52（§3機構④毒牙）。**VALUE 18→16**。typecheck緑・同型★0・実機未検証（「あなたの効果」限定なし・temp_power_modsのみ）。
 - 2026-06-28 R45（VALUE timing flatten・3機構3枚／ymst）: ①WXK05-041＝ON_ACCE_ATTACH `accedHostMinLevel`（host Lv≧4）＋usageLimit／E1/E2 action 是正 ②WXDi-P04-043＝`ON_REFRESH`（refresh_count set-diff・refreshedOwner）③WXK02-041＝`ON_LEAVE_FIELD leftToZone:'hand'`（行き先=手札判定を collectLeaveFieldTriggers 内に追加）。**VALUE 21→18**。typecheck緑・同型★0・実機未検証。
 - 2026-06-28 R44（VALUE timing flatten・ON_EXCEED_COST 場シグニ反応 1枚／ymst）: 「あなたがエクシードのコストを支払ったとき」場シグニ反応を `triggerCondition.exceedCostPaidByPlayer` で新設（ルリグ起動エクシード支払いブロックに走査追加）。WXDi-P06-078-E1＋action の targetsTriggerSource no-op バグ除去。**VALUE 22→21**。typecheck緑・同型★0・実機未検証（カットイン exceed 経路は未発火）。
 - 2026-06-28 R43（VALUE timing flatten・ON_ENERGY_TO_TRASH 1枚／ymst）: 「あなたの効果によって対戦相手のエナゾーンからカードがトラッシュに置かれたとき」を `energy→trash` set-diff（ミル機構と同じ効果解決ブロック）で新設。`countEnergyToTrash`＋`collectEnergyToTrashTriggers`（triggerCondition.energyTrashedOwner）。WD15-015-E1（target thisCardOnly 是正）。**VALUE 23→22**。typecheck緑・同型★0・実機未検証（発生源「自効果」限定なし）。
