@@ -749,6 +749,20 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
   return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `ライフクロスを${crashed.length}枚クラッシュ`), lastProcessedCards: crashed });
 }
 
+// INSTALL_DELAYED_TRIGGER（B3）: 「このターン、…したとき、…」の遅延トリガーを効果オーナーに設置する。
+// conditional:true のときは直前ステップ（任意コスト等）が成功＝lastProcessedCards が残る場合のみ設置（「そうした場合」）。
+function execInstallDelayedTrigger(
+  a: import('../types/effects').InstallDelayedTriggerAction,
+  ctx: ExecCtx,
+): ExecResult {
+  if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
+    return done(addLog(ctx, '条件未達成 → 遅延トリガー設置スキップ'));
+  }
+  const state = ctx.ownerState;
+  const newS: PlayerState = { ...state, delayed_triggers: [...(state.delayed_triggers ?? []), a] };
+  return done(addLog(setOwnerState('self', newS, ctx), 'このターンの遅延トリガーを設置'));
+}
+
 function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   const newS: PlayerState = { ...state, deck: shuffle([...state.deck]) };
