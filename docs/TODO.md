@@ -73,8 +73,8 @@
 - **計器/診断**: `npx tsx scripts/_valueTriage.ts timing`（EXIST/FRESH の timing 差を一覧）。flatten 102枚は `EXIST="ON_TURN_END" FRESH="ON_PLAY"`。
 - **直し方（per-card・trigger-type 別にグループ化して）**: ①原文トリガーを判定→正しい `timing`＋`triggerScope`（多くは any_ally）＋`triggerFilter`（クロス/ライズ/レゾナ/story 等）＋`triggerCondition` を再構築②**engine が当該トリガーを配線済みか必ず確認**（未配線＝ライズされたとき/ウィルス配置/トラッシュから場出し 等は機構実装が要る可能性）③`duration:UNTIL_END_OF_TURN` は維持。
 - **⛔ bulk 禁止**（baton 鉄則）。trigger-type 別の小クラスタ単位で engine 確認→数枚ずつ→typecheck＋同型★0＋実機検証。trigger-type 内訳の目安＝スペル使用7／トラッシュから場出し6／ライズ6／ヘブン5／ウィルス4／レゾナ3／クロス持ち場出し 等＋汎用「場に出たとき」多数。
-- **これが VALUE curation の最後の本丸**（残 VALUE 107 のうち 102＝この系統。他5＝下記 ON_DRAW 機構待ち）。
-- **進捗**: ✅スペル使用7（R5）＋✅ドライブ3（R6・ON_SIGNI_BECOMES_DRIVE＋triggerScope any_ally/self）完了。残 flatten ≈92。⚠WXK11-033-E1 step2「相手センタールリグLv4以上で追加ダブルクラッシュ」条件は未表現（近似）。
+- **これが VALUE curation の最後の本丸**。**進捗＝VALUE 159→31（R5-R38 で消化）。残31は上記「📍 残31の分類」へ集約**。
+- **進捗（R別の完了ログは下記の取り消し線マーカー）**: R5-R13＝スペル使用/ドライブ/手札捨て/場出し各種/クロス・ライズアイコン/トラッシュから場出し等。R32-R38＝ON_DRAW効果ドロー/ウィルス/手札公開/コスト捨て/デッキ移動/手札トラッシュ/パワー0以下/凍結。⚠WXK11-033-E1 step2「相手センタールリグLv4以上で追加ダブルクラッシュ」条件は未表現（近似）。
 - **🔭 残 flatten のトリガー別・engine 配線分類（次セッションの地図）**＝`node scripts/_flattenView.mjs [正規表現]` で各カードのトリガー文＋action を確認できる（auto effect 順≒【自】文順で対応）。
   - **✅配線済み＝修正可（per-card で timing+scope+filter 再構築→MANUAL→実機検証）**: 「場に出たとき」系（クロス場出し4／レゾナ場出し3／傀儡1／他アーム1／ライズアイコン場出し1／トラッシュから場出し2 等）＝`ON_PLAY`＋`triggerScope:any_ally`＋triggerFilter（cross/story 等）。「手札を捨てたとき」系＝`ON_HAND_DISCARDED`。「アクセが付いたとき」＝`ON_ACCE`/`ON_ACCE_ATTACH`。「エクシードのコストとして…置かれたとき」2＝`ON_EXCEED_COST`。
   - **⛔未配線＝機構待ち（新 timing/収集機構が要る・触らない）**: ~~「ライズされたとき」~~ **【✅R8 ON_RISE】**／~~「アーツを使用したとき」~~ **【✅R7 ON_ARTS_USE】**／~~「デッキからトラッシュ」系~~ **【✅R9 ON_CARD_MILLED_FROM_DECK 新設・set-diff 検出・12枚。⚠原因限定/合計N枚/ミルカードフィルタは近似（下記）】**／「効果で対戦相手のパワーが減ったとき」2（§3 機構④の毒牙トリガー）／「コインを支払ったとき」「ウィルスが取り除かれたとき」「ゾーン移動」等。
