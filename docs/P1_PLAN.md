@@ -51,7 +51,7 @@
 
 **B. 機構待ち（新語彙/機構が要る・中リスク・§5表）＝4機構**
 - **B1**　`SET_TRAP` 設置アクション（「手札/デッキのカードを【トラップ】として設置」）＝トラップ設置型 ~十数枚が依存（`PLACE_TRAP_FROM_REVEALED`/`PLACE_TRAP_OPTIONAL` STUB を置換）。
-- **B2**　動的閾値フィルタ（WX17-028「公開したシグニのレベル合計×1000以下」）。
+- ~~**B2**　動的閾値フィルタ（WX17-028「公開したシグニのレベル合計×1000以下」）~~ **✅完了（2026-06-28）**＝`REVEAL_DECK_TOP`/`TRASH_REVEALED`/`powerLteRevealedSigniLevelSum` 新設。残B＝B1/B4。
 - ~~**B3**　遅延条件トリガー（WX25-CP1-069「このターン、…クラッシュしたとき」）~~ **✅完了（2026-06-28）**＝`INSTALL_DELAYED_TRIGGER` 機構新設。残B＝B1/B2/B4。
 - **B4**　`GRANT_QUOTED_AUTO_ABILITY` の engine 精緻化（表現は A1 で前進）。
 
