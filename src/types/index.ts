@@ -287,6 +287,9 @@ export interface PlayerState {
   // SET_NEXT_LIFE_CRASH_COUNTER: 自分のライフがクラッシュされたとき、相手のライフを perTrigger 枚クラッシュし返す（remaining回まで）。
   // 防御用カウンタークラッシュ（WX25-P1-004 アーツ / WXDi-P12-030 アシストルリグ）。ターン終了時にクリア。
   life_crash_counter?: { remaining: number; perTrigger: number };
+  // INSTALL_DELAYED_TRIGGER（B3）: 「このターン、…したとき、…」で設置された1ターン限りの遅延条件トリガー。
+  // 後続のトリガー（trigger.timing）発火時に effect を実行する。ターン終了時にクリア。
+  delayed_triggers?: import('./effects').InstallDelayedTriggerAction[];
   // NEGATE_NTH_ATTACK: このターン、相手シグニアタックをN回目まで自動無効化する残り回数
   negate_opp_signi_attacks_until?: number;
   // NEGATE_ALL_OPP_EFFECTS: このターン、自分のCONTINUOUS効果は何もしない（相手が効果無効化）
