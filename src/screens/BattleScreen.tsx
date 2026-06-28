@@ -11116,6 +11116,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         }
       }
+      // INSTALL_DELAYED_TRIGGER（B3）: op（クラッシュした側＝ターンプレイヤー）に設置された
+      // 「このターン、…がクラッシュしたとき、…」遅延トリガーを収集する。crasherFilter があれば
+      // op の場に該当シグニがいるかで近似判定（実際のクラッシュ源シグニは未追跡＝要実機検証）。
+      for (const dt of op.delayed_triggers ?? []) {
+        if (dt.trigger?.timing !== 'ON_OPP_LIFE_CRASHED') continue;
+        if (dt.trigger.crasherFilter) {
+          const ok = op.field.signi.some(stack => {
+            const num = stack?.at(-1);
+            const card = num ? battleCardMap.get(num) : undefined;
+            return card ? matchesFilter(card, dt.trigger.crasherFilter!) : false;
+          });
+          if (!ok) continue;
+        }
+        oppCrashTriggers.push({
+          id: generateUUID(),
+          playerId: crasherId,
+          cardNum,
+          effectId: 'DELAYED_TRIGGER',
+          label: 'このターンの遅延トリガー（相手ライフクラッシュ時）',
+          effect: {
+            effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_OPP_LIFE_CRASHED'],
+            action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+          },
+        });
+      }
       const opStateForUsed: PlayerState | null = oppUsedIds.length > 0
         ? { ...op, actions_done: [...(op.actions_done ?? []), ...oppUsedIds] }
         : null;
