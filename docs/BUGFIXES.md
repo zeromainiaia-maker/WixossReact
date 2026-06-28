@@ -5,6 +5,14 @@
 
 ---
 
+## repr: ON_KEYWORD_GAINED（他シグニがアサシン/ランサー/ダブルクラッシュを得たとき）1枚（R51・2026-06-28）
+
+WXDi-P04-035「あなたの他のシグニ１体が【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき、《赤》《無》を支払ってもよい。そうした場合、このシグニはその能力を得る」を新 timing `ON_KEYWORD_GAINED` で表現。**「その能力を得る」の動的注入（得たキーワードを引き継ぐ）＋任意コストで配線が重いため engine未配線**（`engineUnwiredTimings` 登録＋【※engine未配線】）。R49/R50 と同型の手順。
+
+- 型＝`ON_KEYWORD_GAINED`（effects.ts）。パーサー＝timing チェーンに `/(?:【アサシン】|【ランサー】|【ダブルクラッシュ】)[^。]{0,40}を得たとき/`→`['ON_KEYWORD_GAINED']`（トリガー文非除去）。decompiler＝`timingJa` 追加＋`engineUnwiredTimings` 登録。
+- データ＝WXDi-P04-035-E1 timing `ON_TURN_END`→`ON_KEYWORD_GAINED`。句ユニーク（カスケードなし・timing差分のみ＝完全一致）。
+- typecheck緑・同型★0・逆翻訳原文一致・**VALUE 10→9・LOSS 0 維持**・⚠engine未配線。なお `PlayerState.keyword_grants`（set-diff 可能）が存在＝将来配線の足掛かり有り。
+
 ## repr: ON_DECK_SHUFFLED（あなたのデッキがシャッフルされたとき）1枚（R50・2026-06-28）
 
 PR-470A「あなたのデッキがシャッフルされたとき、ターン終了時まで、このシグニのパワーを＋5000する」を新 timing `ON_DECK_SHUFFLED` で表現。**`shuffle()` がリフレッシュ/サーチ後/各種デッキ操作の多数箇所に分散（フック分散）＝配線が重いため engine未配線**（`engineUnwiredTimings` 登録＋【※engine未配線】）。R49 ON_TARGETED と同型の手順。
