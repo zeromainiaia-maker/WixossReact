@@ -957,6 +957,16 @@ function effJa(e: Eff): string {
       const who = mo === 'self' ? 'あなたの' : mo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
       s = `${who}デッキからカードが${mc}枚以上トラッシュに置かれたとき`;
     }
+    // ON_CARD_MOVED_TO_DECK の宛先デッキ・枚数・発生源限定（movedToDeckOwner/MinCount/FromTrash）
+    if (t === 'ON_CARD_MOVED_TO_DECK') {
+      const vo = e.triggerCondition?.movedToDeckOwner ?? 'any';
+      const vc = e.triggerCondition?.movedToDeckMinCount ?? 1;
+      const fromTrash = e.triggerCondition?.movedToDeckFromTrash ?? false;
+      if (vo === 'self' && fromTrash) s = `あなたのトラッシュからカードが${vc}枚以上デッキに移動したとき`;
+      else if (vo === 'opponent') s = `対戦相手のカードが${vc}枚以上デッキに移動したとき`;
+      else if (vo === 'self') s = `あなたのカードが${vc}枚以上デッキに移動したとき`;
+      else s = `いずれかのプレイヤーのカードが${vc}枚以上デッキに移動したとき`;
+    }
     // ON_HAND_DISCARDED の triggerFilter（捨て札のクラス限定）を反映（「手札から＜宝石＞のシグニを捨てたとき」）
     if (t === 'ON_HAND_DISCARDED' && e.triggerFilter && (e.triggerFilter.story || e.triggerFilter.cardClass)) {
       const cls = e.triggerFilter.story ?? e.triggerFilter.cardClass;
