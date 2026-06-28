@@ -290,6 +290,10 @@ export interface PlayerState {
   // INSTALL_DELAYED_TRIGGER（B3）: 「このターン、…したとき、…」で設置された1ターン限りの遅延条件トリガー。
   // 後続のトリガー（trigger.timing）発火時に effect を実行する。ターン終了時にクリア。
   delayed_triggers?: import('./effects').InstallDelayedTriggerAction[];
+  // REVEAL_DECK_TOP（B2）: 直前に公開したデッキ上カードのうちシグニのレベル合計（動的閾値 powerLteRevealedSigniLevelSum 用）。
+  last_revealed_signi_level_sum?: number;
+  // REVEAL_DECK_TOP（B2）: 直前に公開したデッキ上カード番号（TRASH_REVEALED が参照）。
+  last_revealed_deck_cards?: string[];
   // NEGATE_NTH_ATTACK: このターン、相手シグニアタックをN回目まで自動無効化する残り回数
   negate_opp_signi_attacks_until?: number;
   // NEGATE_ALL_OPP_EFFECTS: このターン、自分のCONTINUOUS効果は何もしない（相手が効果無効化）
