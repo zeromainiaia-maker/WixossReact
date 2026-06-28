@@ -338,6 +338,37 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
   return done(addLog(ctx, 'カードを公開'));
 }
 
+// REVEAL_DECK_TOP（B2）: デッキの上から count 枚を公開（ピックしない）。公開シグニのレベル合計と公開カード番号を記録。
+// デッキからは取り除かない（公開のみ）。後続の動的閾値フィルタ・TRASH_REVEALED が記録を参照する。WX17-028。
+function execRevealDeckTop(a: import('../types/effects').RevealDeckTopAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  const n = resolveNum(a.count);
+  const revealed = state.deck.slice(0, Math.min(n, state.deck.length));
+  const levelSum = revealed.reduce((s, num) => {
+    const card = ctx.cardMap.get(getCardNum(num));
+    if (card?.CardType !== 'シグニ') return s;
+    const lv = parseInt(card?.Level ?? '', 10);
+    return s + (isNaN(lv) ? 0 : lv);
+  }, 0);
+  const newS: PlayerState = { ...state, last_revealed_signi_level_sum: levelSum, last_revealed_deck_cards: revealed };
+  return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `デッキの上から${revealed.length}枚を公開（公開シグニのレベル合計${levelSum}）`), lastProcessedCards: revealed });
+}
+
+// TRASH_REVEALED（B2）: 直前に REVEAL_DECK_TOP で公開したカード（last_revealed_deck_cards）をデッキからトラッシュへ移す。WX17-028。
+function execTrashRevealed(a: import('../types/effects').TrashRevealedAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  const revealed = state.last_revealed_deck_cards ?? [];
+  if (revealed.length === 0) return done(addLog(ctx, '公開したカードがない'));
+  const newDeck = state.deck.filter(n => !revealed.includes(n));
+  const newS: PlayerState = {
+    ...state,
+    deck: newDeck,
+    trash: [...state.trash, ...revealed.filter(n => state.deck.includes(n))],
+    last_revealed_deck_cards: undefined,
+  };
+  return done(addLog(setOwnerState(a.owner, newS, ctx), `公開した${revealed.length}枚をトラッシュに置く`));
+}
+
 // EXILE: カードをゲームから除外する（現状トラッシュからの除外のみ。除外ゾーン未実装＝取り除き＝消去で近似）。
 // 選択カードを lastProcessedCards に記録（後続の LAST_PROCESSED_SHARE_COLOR 等の参照用。WDK10-008）。
 function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): ExecResult {
