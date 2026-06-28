@@ -99,6 +99,7 @@ function filterJa(f?: any): string {
   if (f.levelEqDiscardLevelSum) parts.push('捨てたカードのレベル合計と同じレベルの');
   if (f.levelRange?.max != null) parts.push(`レベル${f.levelRange.max}以下の`);
   if (f.levelRange?.min != null) parts.push(`レベル${f.levelRange.min}以上の`);
+  if (f.powerLteRevealedSigniLevelSum != null) parts.push(`パワーが「この方法で公開したシグニのレベルの合計×${f.powerLteRevealedSigniLevelSum}」以下の`);
   if (f.powerRange?.max != null) parts.push(`パワー${f.powerRange.max}以下の`);
   if (f.powerRange?.min != null) parts.push(`パワー${f.powerRange.min}以上の`);
   if (f.costMin != null && f.costMax != null && f.costMin === f.costMax) parts.push(`コストの合計が${f.costMax}の`);
