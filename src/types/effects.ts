@@ -490,6 +490,7 @@ export type EffectAction =
   | PreventNextDamageAction
   | TakeFromUnderSigniAction
   | GrantEffectAction
+  | InstallDelayedTriggerAction
   | GrantSigniAboveAbilityAction
   | GrantFieldSigniAbilityAction
   | GrantFieldShadowAction
