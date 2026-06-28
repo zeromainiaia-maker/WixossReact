@@ -5,6 +5,20 @@
 
 ---
 
+## データ: VALUE curation R1-R4＝小バケツ整理＋timing flatten 実バグ発見（VALUE 159→107）（2026-06-28・ymst）
+
+LOSS 0 達成後、held の残り＝VALUE（EXIST≠FRESH の値違い・leaf 喪失なし）159枚を `scripts/_valueTriage.ts`（新設・EXIST/FRESH 変更リーフ一覧）で1枚ずつ triage。**判定原則＝①FRESH/manual が正で JSON stale＝resync（実バグ修正）②EXIST 正で parser 退化＝MANUAL-lock（metadata のみ・挙動不変）③両方 lossy 近似＝EXIST ロック＋TODO に機構待ち記録**。
+
+- **R1 owner 7**: resync1（WXK05-023＝無指定「シグニ1体」バニッシュは any 正・EXIST=self 過小）＋MANUAL6（「あなたの」「対戦相手のデッキ」を parser が誤）。
+- **R2 小バケツ10**（count/then/action.type/effectType/action.id/mandatory）: resync4（WDK08-L13＝「あなたの血晶武装シグニは」self/ALL／WXK08-044＝mandatory true／WXK04-044＝CONTINUOUS UP 誤訳→AUTO ON_SIGNI_BANISH_BATTLE／WXK06-041＝activeCondition TURN_OWNER:opponent 補完）＋MANUAL6（アクセホスト付与 count=1／split_top_bottom／FORCE_FRONT）。
+- **R3 parseStatus/then 20**: resync12（manual 定義は MANUAL だが JSON が AUTO の stale ラベル整合）＋MANUAL8（内側 quoted ability の MANUAL 維持4／「対戦相手は」誤2／STUB近似ロック2＝WDK08-Y12・WX24-P2-048 は OPTIONAL_COST↔TARGET_AND_DISCARD_HAND の機構待ち）。
+- **R4 timing 小グループ15**: MANUAL13（EXIST が具体トリガー＝ON_HAND_DISCARDED/ON_SELF_REVEAL_FROM_HAND/ON_BECOME_BEAT/ON_SIGNI_BECOMES_DRIVE を持ち parser が ON_PLAY に退化）＋resync2（MAIN→ATTACK_ARTS＝《アタックフェイズアイコン》明示で FRESH 正）。
+- **⚠ 重大発見＝timing flatten 102枚（実バグ・残 VALUE の本丸）**: `timing:ON_TURN_END` だが action は `duration:UNTIL_END_OF_TURN` の【自】。原文トリガー「〜したとき」（場出し/ヘブン/スペル使用/ライズ/ウィルス/レゾナ 等）を丸ごと落として flatten＝**ターン終了時に付与し即失効＝実質 no-op**。parser の ON_PLAY も scope/filter 欠で誤＝resync 不可。**per-card で trigger 再構築＋engine 配線確認が要る**＝`TODO.md` §3.5 に手順登録。⛔bulk禁止。
+
+全ラウンド typecheck緑・同型★0維持。runtime 変更は resync 分のみ（実バグ修正）。
+
+---
+
 ## engine: R31＝drawBySourceStory トリガー実装＋WX20-026 配線（LOSS 1→0・worklist 完了🎉）（2026-06-28・ymst）
 
 最後の LOSS 1枚 WX20-026-E3「【自】：あなたの場にある＜凶蟲＞のシグニの効果であなたがカードを１枚引いたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－4000する」を配線。**ドローの「原因カードのクラス」を追跡する新トリガー条件 `drawBySourceStory` を実装**：

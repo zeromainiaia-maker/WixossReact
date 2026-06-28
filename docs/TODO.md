@@ -64,6 +64,15 @@
 
 ---
 
+## 3.5. ⚠ timing flatten 系統（実バグ・102枚・VALUE curation の本丸）
+
+**発見（VALUE curation R1-R4・2026-06-28）**: VALUE バケツの最大塊＝**`timing:["ON_TURN_END"]` だが action は `duration:UNTIL_END_OF_TURN` の【自】トリガー 102枚**。原文トリガーは「〜したとき」（場に出た/ヘブン/スペル使用/ライズ/ウィルス配置/レゾナ場出し/トラッシュから場出し 等の多様な誘発）なのに、curated JSON が **トリガーを丸ごと落として `ON_TURN_END` に flatten**。結果＝**ターン終了時に付与して同時に失効＝実質 no-op の実バグ**（buff/debuff が一切効かない）。parser は `ON_PLAY` を出すが triggerScope/Filter を欠くため**両方とも誤**（resync 不可）。
+
+- **計器/診断**: `npx tsx scripts/_valueTriage.ts timing`（EXIST/FRESH の timing 差を一覧）。flatten 102枚は `EXIST="ON_TURN_END" FRESH="ON_PLAY"`。
+- **直し方（per-card・trigger-type 別にグループ化して）**: ①原文トリガーを判定→正しい `timing`＋`triggerScope`（多くは any_ally）＋`triggerFilter`（クロス/ライズ/レゾナ/story 等）＋`triggerCondition` を再構築②**engine が当該トリガーを配線済みか必ず確認**（未配線＝ライズされたとき/ウィルス配置/トラッシュから場出し 等は機構実装が要る可能性）③`duration:UNTIL_END_OF_TURN` は維持。
+- **⛔ bulk 禁止**（baton 鉄則）。trigger-type 別の小クラスタ単位で engine 確認→数枚ずつ→typecheck＋同型★0＋実機検証。trigger-type 内訳の目安＝スペル使用7／トラッシュから場出し6／ライズ6／ヘブン5／ウィルス4／レゾナ3／クロス持ち場出し 等＋汎用「場に出たとき」多数。
+- **これが VALUE curation の最後の本丸**（残 VALUE 107 のうち 102＝この系統。他5＝下記 ON_DRAW 機構待ち）。
+
 ## 4. 個別の複雑カード（機構待ち・着手候補）
 
 - **エナ送り残6枚**（親STUB＝引用付与/選択肢/使用条件の実装が前提）: WXEX2-20（E3 引用内）／WXDi-P01-040（FLIP系STUB内）／WX25-P2-041（付与引用内）／WXK09-031（誤パース）／WXK10-011（CHOOSE吸収）／WXDi-P01-005（使用条件誤パース）。
@@ -76,6 +85,7 @@
 - **引用/LB付与（ディスペア型）未対応**: WXDi-P02-039-E2／WX25-P3-027-E2（現 no-op or 誤バニッシュ）＝要本実装。
 - **多重「エナゾーンから…」記述の取り違え**: WX25-CP1-006④（`OPTIONAL_TRASH_ENERGY_CLASS` がカード内の別記述②を誤マッチ）。
 - **WXK10-008①**「相手ターン中エナの色と能力を失う」＝新語彙未対応（②のみ実装）。
+- **ON_DRAW 系の opp-draw / 位相条件（機構待ち・VALUE curation R4 で分離）6枚**: 「対戦相手がカードを引いたとき」（WXDi-P04-038・WXDi-P15-091・WD22-029-G・PR-423）＝ON_DRAW は自分ドローのみ収集（`collectDrawTriggers` triggerScope:self）で相手ドロー反応は未配線／「ドローフェイズ以外で引いたとき」（WXDi-P05-062・WXDi-D09-P19）＝位相条件が未表現。EXIST=ON_PLAY も誤だが blind resync 不可（ON_DRAW にしても opp-draw/位相を落とす）。要トリガー機構拡張。
 - **任意コスト＋特定札捨ての複合 STUB 近似（機構待ち）**: WDK08-Y12（《緑》《緑》《無》《無》支払い＋手札から《幻水ダンクルテウス》1枚捨て→そうした場合バニッシュ）／WX24-P2-048-E1 choice①（対象シグニのレベル1につき白カード1枚捨て→手札に戻す）。現状 `OPTIONAL_COST` で近似（energyコスト or per-level discard を完全表現せず）。parser は `TARGET_AND_DISCARD_HAND` を出すがこちらも特定札/energy/per-level を落とす＝どちらも lossy。EXIST 近似を MANUAL ロック中（VALUE curation R3）。本実装には「energy＋特定名カード捨て」「per-level 捨て枚数」の汎用コスト機構が要る。
 - **その他既出複合**: WX25-CP1-002（リコレクト択一④ owner）／WX25-P3-023-E2（遅延トリガー）／WXEX1-08（コインベット誘発＋ライズフィルタ）／WX16-048・WX16-023（ウィルス数+1の選択数スケール）／WX25-P1-103（look-pickチェーン）／WD22-036-G（self-banish起点の複合2択）／WX25-P1-052-E1（《相手ターン》AUTO＋名指しカード在場）／WXDi-P08-037（place-swap＋覚醒トリガー誤）。
 - **保留（core改変が必要・1枚のためにはリスク過大）**: WXDi-P00-026（＜さんばか＞ルリグ付与＝ルリグ再アタック未実装がブロッカー）／**47枚の【使用条件】【チーム】**（ピース/アーツ使用ゲート＝正規デッキでは常に成立し機能的に等価のため保留妥当）。
