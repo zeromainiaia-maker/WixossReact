@@ -87,7 +87,7 @@
 |---|---|---|---|
 | 引用AUTO付与（`GRANT_QUOTED_AUTO_ABILITY`） | 中 | 中 | **表現はほぼ完了**（decompiler が前置型「…は『…』を得る」＋後置型「以下の能力を得る。『…』」を原文描画・2026-06-28）。残＝engine 精緻化（B4）＋誤パース是正（A2・約30枚は原文に引用が無い parser 案件） |
 | `SET_TRAP` 設置アクション | 中（トラップ設置型 ~十数枚） | 中 | 未着手（B1）。現状 `PLACE_TRAP_FROM_REVEALED`/`PLACE_TRAP_OPTIONAL` STUB |
-| 動的閾値フィルタ（公開レベル合計×N 以下 等） | 小（WX17-028 等） | 中 | 未着手（B2） |
+| 動的閾値フィルタ（公開レベル合計×N 以下 等） | 小（WX17-028 等） | 中 | **着手中(claude)**（B2・2026-06-28） |
 | ~~遅延条件トリガー（「このターン、…したとき」）~~ | 小（WX25-CP1-069 等） | 中 | **✅完了(claude・2026-06-28)**＝`INSTALL_DELAYED_TRIGGER` 機構を新設（型＋PlayerState.delayed_triggers＋executor＋ON_OPP_LIFE_CRASHED収集＋ターン境界リセット3箇所＋decompiler）。WX25-CP1-069 を配線・原文一致・同型★0。⚠crasherFilter は「場に該当シグニがいるか」で近似＝要実機検証 |
 | engine未配線 timing 群の実機配線 | 大（~15 timing・R33-R58） | 高 | 未着手（C1）＝P2。一覧は `engineUnwiredTimings` |
 | ~~《相手ターン》/《自分ターン》AUTOトリガー基盤~~ | — | — | **実装済**（機構④・BUGFIXES参照） |
