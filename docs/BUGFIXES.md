@@ -5,6 +5,15 @@
 
 ---
 
+## engine: ON_MAIN_PHASE_START（対戦相手のメインフェイズ開始時）1枚（R47・2026-06-28・ymst）
+
+「対戦相手のメインフェイズ開始時、あなたのデッキの一番上を公開する。そのカードが＜バーチャル＞のシグニの場合、…このシグニは【シャドウ】を得る」のトリガーを新設。フェイズ遷移 `GROW→MAIN` で `collectTurnTriggers('ON_MAIN_PHASE_START', …)` を ON_ATTACK_PHASE_START と同じ要領で呼ぶ。`triggerScope:any_opp`（「対戦相手の」）＝非ターンプレイヤー（watcher）の場シグニが、ターンプレイヤーの MAIN 開始に反応＝collectTurnTriggers の既存「相手フィールドシグニ any_opp/any」分岐が拾う（新規ループ不要・低リスク）。
+
+- 型 `ON_MAIN_PHASE_START`（effects.ts）＋collectTurnTriggers の timing union/labelSuffix 追加＋doPhaseAdvance の `phase==='GROW'` 分岐で収集（BattleScreen.tsx）。
+- decompiler＝timingJa に `あなたのメインフェイズ開始時`、`triggerScope:any_opp` で `対戦相手のメインフェイズ開始時` に切替、`〔範囲:…〕` フォールバック除外に ON_MAIN_PHASE_START 追加。
+- データ＝WXDi-P00-034-E1 を `ON_TURN_END`（誤 flatten）→`ON_MAIN_PHASE_START`＋`triggerScope:any_opp`＋`parseStatus:MANUAL`。action は既存 REVEAL_AND_PICK 近似のまま（シャドウ付与 target は「あなたのシグニ1体」近似＝原文「このシグニ」とは差・別途要改善）。
+- typecheck緑・同型★0（sheet7/grouped_all 再生成）・逆翻訳トリガー原文一致・**VALUE 16→15**・⚠実機未検証（GROW→MAIN での any_opp 発火経路）。
+
 ## engine: ON_OPP_POWER_DECREASED（毒牙・相手パワー減少時）2枚（R46・2026-06-28・ymst）
 
 「あなたの効果によって対戦相手のシグニのパワーが減ったとき、…このシグニのパワーを減った値と同じだけ＋する」を新設（§3 機構④の毒牙）。`detectPowerDecrease(before,after)`＝`temp_power_mods` が execPowerModify で末尾 append される性質を使い、before.length 以降の新規エントリの負 delta 合計の絶対値＝減少量を算出。`collectPowerDecreaseTriggers`＝減らした側（controller）の場の ON_OPP_POWER_DECREASED【自】を発火（host のシグニが減った→guest が反応／その逆）。`PowerModifyAction.deltaFromOppPowerDecrease` のとき delta を減少量で動的注入（クローン）。
