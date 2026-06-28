@@ -5928,7 +5928,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * usedOncePerTurnIds として返すので、呼び出し側で actions_done に追加して保存すること。
    */
   const collectSelfEventTriggers = (
-    timing: 'ON_LIFE_CRASHED' | 'ON_GUARD' | 'ON_OPP_VIRUS_REMOVED' | 'ON_OPP_VIRUS_CHANGED',
+    timing: 'ON_LIFE_CRASHED' | 'ON_GUARD' | 'ON_OPP_VIRUS_PLACED' | 'ON_OPP_VIRUS_REMOVED' | 'ON_OPP_VIRUS_CHANGED',
     myState: PlayerState,
     opState: PlayerState,
     labelSuffix: string,
