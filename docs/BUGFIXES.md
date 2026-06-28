@@ -5,6 +5,17 @@
 
 ---
 
+## repr: ON_TARGETED（対戦相手の能力か効果の対象になったとき）14枚（R49・2026-06-28）
+
+「このシグニ／あなたの〔色/クラス〕のシグニが対戦相手の、能力か効果の対象になったとき」を新 timing `ON_TARGETED` として表現。**対象選択の確定経路への配線は重い（インタラクション中核の多経路改変＝高リスク）ため engine未配線**＝decompiler `engineUnwiredTimings` に `ON_TARGETED` を登録し逆翻訳末尾に【※engine未配線】を付与（TODO §3 の方針どおり）。
+
+- 型＝`EffectTiming` に `ON_TARGETED` 追加（effects.ts）。
+- パーサー＝timing 検出チェーンに `/対戦相手の[、,]?\s*能力か効果の対象になったとき/`→`['ON_TARGETED']` を追加。**トリガー文は除去しない**（除去すると後続アクションの target/owner 解析が変わり手修正JSONと乖離＝検証で判明）。主語が「あなたの〔＜X＞/色〕のシグニ」の場合のみ `triggerScope:any_ally`＋`triggerFilter`（story/color/excludeSelf）を抽出（actionText 非改変）。
+- decompiler＝`timingJa.ON_TARGETED='このシグニが対戦相手の能力か効果の対象になったとき'`。triggerScope:any_ally は既存の汎用 scope主語置換（「このシグニ」→「あなたの《色》/＜クラス＞のシグニ」）に自動的に乗る。`engineUnwiredTimings` 登録。
+- データ＝該当14効果（WXDi-P11-040/WX25-P2-055/WX25-CP1-060 ＋ パーサー修正で新たに露出した WXDi-D09-H14/D09-P13/P02-043/P03-067/P11-058/P12-074/P13-054・WX24-P1-045/P3-051/P4-102・WX26-CP1-050）の timing を `ON_TURN_END`/`ON_PLAY`仮置き→`ON_TARGETED` に統一。any_ally の4枚は triggerScope/triggerFilter も付与。1枚 WX25-CP1-060 は POWER_MODIFY target に `thisCardOnly` 補完で完全一致。
+- typecheck緑・同型★0（sheet7/8/9＋grouped 再生成）・**VALUE 14→11・LOSS 0 維持**・⚠engine未配線（ON_TARGETED 発火は未実装）。
+- ⚠既知残：WX25-P2-055-E2 の REMOVE_ABILITIES owner が `opponent`（原文「このシグニ」＝self のはず）＝**変更前から存在する pre-existing parser誤り**（trigger文「対戦相手の」が target解析に滲む。EXIST=FRESH共通＝VALUE/LOSS非影響）。本ラウンドのスコープ外。
+
 ## engine: ON_PLAY placedPuppet（傀儡状態のシグニが場に出たとき）1枚（R48・2026-06-28）
 
 WDK17-001「あなたの傀儡状態のシグニ１体が場に出たとき、以下の３つから１つを選ぶ」を新設。トリガーは新 timing 不要＝**既存 ON_PLAY any_ally 機構に相乗り**（バトンの「低リスク（既存単一検出点に相乗り）」方針）。
