@@ -82,6 +82,8 @@
   - ~~トラッシュから場出し~~ **【✅R13 完了＝placedFromTrash 機構・set-diff 検出・6枚】**。
   - ~~ON_DRAW 効果ドロー2／ON_HAND_DISCARDED ディソナ1~~ **【✅R32 完了・既存配線】** WXK10-025/WXK10-040（ON_DRAW・scope self・turnOwner/thisCardOnly）／WXDi-P12-048（ON_HAND_DISCARDED・triggerFilter.isDisona）。
   - ~~ウィルス配置/除去 4枚~~ **【✅R33 完了】** `ON_OPP_VIRUS_REMOVED`/`CHANGED` は配線済み（JSON 未配線だった）＋`ON_OPP_VIRUS_PLACED` 新設。WX19-079（PLACED）/WX21-030（CHANGED）/WX21-068・WD19-009（REMOVED）。
+  - ~~手札公開1／コスト捨て1~~ **【✅R34 完了】** WXK04-055（ON_SELF_REVEAL_FROM_HAND・target lossy も是正）／WX25-P3-071-E2（ON_DISCARDED_AS_COST）。⚠ON_SELF_REVEAL は usageLimit 未チェック・ON_DISCARDED_AS_COST は微菌限定未判定＝近似。
+  - ⚠**ON_EXCEED_COST は field signi 非対応**（WXDi-P06-078）＝収集は exceedPaidCards（コストカード自身）のみ走査。field signi の「エクシードコストを支払ったとき」反応には field 走査追加が要る＝engine 拡張案件。
   - **次の着手候補**：①傀儡状態場出し1（WDK17-001「あなたの傀儡状態のシグニが場に出たとき」＝3択＋傀儡フィルタ要）。②毒牙パワー減2（§3 機構④「あなたの効果で相手シグニのパワーが減ったとき」）。③残り flatten ≈41 は**大半が未配線トリガー**（凍結状態になったとき/能力・効果の対象になったとき/コイン支払い/ルリググロウ/リフレッシュ/改造素材使用/カードがデッキ移動/エクシードコスト支払い/アクセとして付いたとき/手札公開 等）＝**新トリガー機構が要る**＝§3 機構④と統合して別途。なお ON_EXCEED_COST・ON_ACCE_ATTACH・ON_SELF_REVEAL_FROM_HAND・ON_BANISH・ON_ZONE_MOVED は**配線済み**だが該当カードに optional コスト/STUB/host レベル条件/byEffect 等の複雑要素が絡み要個別精査。`npx tsx scripts/_flattenList.ts [正規表現]`（R32 で tracked 化）で原文＋EXIST/FRESH timing を確認。⚠ON_DRAW(opp-draw/位相)6＝§4 ON_DRAW機構待ちで別管理。
   - **進め方**: 配線済みクラスタを1つずつ（`_flattenView.mjs` でトリガー確定→`_fix<Cluster>.mjs` で timing+scope+filter 再構築＋MANUAL→typecheck＋同型★0＋decompile 原文一致→commit）。未配線クラスタは機構実装が要るので §3 機構④と統合して別途。
 
