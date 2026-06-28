@@ -80,7 +80,8 @@
   - ~~手札捨て/アクセ/エクシードコスト~~ **【✅R10 完了・9枚】**。~~場に出たとき Group A（レゾナ/アーム/偶数Lv/相手効果場出し）~~ **【✅R11 完了・6枚】**。
   - ~~クロスアイコン4／ライズアイコン2~~ **【✅R12 完了＝matchesFilter に hasCrossIcon/hasRiseIcon 追加】**。
   - ~~トラッシュから場出し~~ **【✅R13 完了＝placedFromTrash 機構・set-diff 検出・6枚】**。
-  - **次の着手候補**：①傀儡状態場出し1（WDK17-001「あなたの傀儡状態のシグニが場に出たとき」）＝傀儡フィルタ要。②毒牙パワー減2（§3 機構④「あなたの効果で相手シグニのパワーが減ったとき」）。③残り flatten ≈42 は《ターン1回》「あなたのターンの間…」の複合トリガーや単発系（ウィルス除去/凍結/コイン支払い/ゾーン移動/アクセ複合 等）が中心＝個別調査。`node scripts/_flattenView.mjs` で残を確認。
+  - ~~ON_DRAW 効果ドロー2／ON_HAND_DISCARDED ディソナ1~~ **【✅R32 完了・既存配線】** WXK10-025/WXK10-040（ON_DRAW・scope self・turnOwner/thisCardOnly）／WXDi-P12-048（ON_HAND_DISCARDED・triggerFilter.isDisona）。
+  - **次の着手候補**：①傀儡状態場出し1（WDK17-001「あなたの傀儡状態のシグニが場に出たとき」＝3択＋傀儡フィルタ要）。②毒牙パワー減2（§3 機構④「あなたの効果で相手シグニのパワーが減ったとき」）。③残り flatten ≈45 は**大半が未配線トリガー**（ウィルス配置・除去/凍結/対象化になったとき/コイン支払い/グロウ/リフレッシュ/改造素材使用/カードがデッキ移動/エクシードコスト支払い 等）＝**新トリガー機構が要る**＝§3 機構④と統合して別途。配線済みで直せるクリーンな残りは枯れ気味。`npx tsx scripts/_flattenList.ts [正規表現]`（R32 で tracked 化）で原文＋EXIST/FRESH timing を確認。⚠ON_DRAW(opp-draw/位相)6＝§4 ON_DRAW機構待ちで別管理。
   - **進め方**: 配線済みクラスタを1つずつ（`_flattenView.mjs` でトリガー確定→`_fix<Cluster>.mjs` で timing+scope+filter 再構築＋MANUAL→typecheck＋同型★0＋decompile 原文一致→commit）。未配線クラスタは機構実装が要るので §3 機構④と統合して別途。
 
 ## 4. 個別の複雑カード（機構待ち・着手候補）
