@@ -25,6 +25,9 @@ for(const f of FILES){
         const fscope = targetedScope.get(e.effectId);
         if(fscope===undefined && 'triggerScope' in e){ delete e.triggerScope; changed=true; console.log('  removed triggerScope from', e.effectId); }
         else if(fscope!==undefined && e.triggerScope!==fscope){ e.triggerScope=fscope; changed=true; console.log('  set scope', e.effectId, fscope); }
+        const ffilter = targetedFilter.get(e.effectId);
+        if(ffilter===undefined && 'triggerFilter' in e){ delete e.triggerFilter; changed=true; console.log('  removed triggerFilter from', e.effectId); }
+        else if(ffilter!==undefined && JSON.stringify(e.triggerFilter)!==JSON.stringify(ffilter)){ e.triggerFilter=ffilter; changed=true; console.log('  set filter', e.effectId, JSON.stringify(ffilter)); }
       }
     }
   }
