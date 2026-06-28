@@ -4094,6 +4094,79 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, usedOncePerTurnIds };
   };
 
+  // 効果解決の前後でシグニが新たに凍結状態になった（signi_frozen が false→true）ゾーンの
+  // シグニ番号を返す。場の同ゾーンで解決後に在中するシグニを対象（凍結のまま移動する稀ケースは未対応）。
+  const detectNewlyFrozen = (before: PlayerState, after: PlayerState): string[] => {
+    if (!before || !after) return [];
+    const bf = before.signi_frozen ?? [];
+    const af = after.signi_frozen ?? [];
+    const out: string[] = [];
+    const zones = after.field.signi?.length ?? 0;
+    for (let z = 0; z < zones; z++) {
+      if (af[z] === true && bf[z] !== true) {
+        const num = after.field.signi[z]?.at(-1);
+        if (num) out.push(num);
+      }
+    }
+    return out;
+  };
+
+  // ON_SIGNI_FROZEN トリガー収集。frozenByOwner=各所有者と新規凍結シグニ番号。両プレイヤーの
+  // 場シグニ/ルリグの ON_SIGNI_FROZEN【自】を triggerScope（any_opp 多数派/any_ally/any）で絞って収集。
+  // triggeringCardNum に凍結シグニを渡す（「そのシグニ」= targetsTriggerSource 用）。turnOwner/usageLimit も評価。
+  const collectFreezeTriggers = (
+    frozenByOwner: { ownerId: string; nums: string[] }[],
+    hostState: PlayerState,
+    guestState: PlayerState,
+  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedHostIds: string[] = [];
+    const usedGuestIds: string[] = [];
+    for (const watcherIsHost of [true, false]) {
+      const watcherId = watcherIsHost ? bs.host_id : bs.guest_id;
+      const watcherState = watcherIsHost ? hostState : guestState;
+      if (watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
+      const watcherIsTurn = watcherId === bs.active_user_id;
+      const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
+      const sources: string[] = [
+        ...watcherState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+        ...(watcherState.field.lrig.at(-1) ? [watcherState.field.lrig.at(-1)!] : []),
+      ];
+      for (const topNum of sources) {
+        for (const eff of (effectsMap.get(topNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_FROZEN')) continue;
+          const scope = eff.triggerScope ?? 'any_opp';
+          const to = eff.triggerCondition?.turnOwner;
+          if (to === 'self' && !watcherIsTurn) continue;
+          if (to === 'opponent' && watcherIsTurn) continue;
+          const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+          for (const fz of frozenByOwner) {
+            const frozenIsWatcherOwn = fz.ownerId === watcherId;
+            if (scope === 'any_opp' && frozenIsWatcherOwn) continue;
+            if (scope === 'any_ally' && !frozenIsWatcherOwn) continue;
+            for (const frozenNum of fz.nums) {
+              const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
+                + usedIds.filter(id => id === eff.effectId).length;
+              if (used >= max) break;
+              if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+              const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+              entries.push({
+                id: generateUUID(),
+                playerId: watcherId,
+                cardNum: topNum,
+                effectId: eff.effectId,
+                label: `${cardName} の【自】効果（凍結時）`,
+                effect: eff,
+                triggeringCardNum: frozenNum,
+              });
+            }
+          }
+        }
+      }
+    }
+    return { entries, usedHostIds, usedGuestIds };
+  };
+
   // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
   const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {
     // いずれかのチェックゾーンにカードがある間はフェーズ移動不可
