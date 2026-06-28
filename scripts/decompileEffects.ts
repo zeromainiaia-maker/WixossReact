@@ -464,6 +464,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : targetJa(a.target);
       return `${subjGE}は『${effJa(a.effect)}』を得る${durJaGE}`;
     }
+    case 'REVEAL_DECK_TOP': return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.count)}枚公開する`;
+    case 'TRASH_REVEALED': return '公開したカードをトラッシュに置く';
     case 'INSTALL_DELAYED_TRIGGER': {
       // 「このターン、…したとき、…」遅延条件トリガーの設置（B3）
       const cf = a.trigger?.crasherFilter;
