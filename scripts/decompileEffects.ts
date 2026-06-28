@@ -886,6 +886,7 @@ const timingJa: Record<string, string> = {
   ON_LRIG_ATTACK_STEP_START: 'あなたのルリグアタックステップ開始時',
   ON_OPP_ARTS_USE: 'あなたのシグニが対戦相手のアーツの効果を受けたとき',
   ON_LRIG_GROW: 'あなたのルリグがグロウしたとき',
+  ON_COIN_PAID: 'あなたが《コイン》を１枚以上支払ったとき',
 };
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
