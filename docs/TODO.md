@@ -170,7 +170,7 @@
 ### 7.1 ✅ 脱落疑い 棚卸し＋実バグ候補修正 完了（2026-06-28・P1 DoD(a)）
 診断＝`node scripts/_dropTriage.mjs`（再現可能・`docs/_drop_triage.txt` に明細）。**⚠脱落疑い 255枚を全分類（要確認 0・実バグ候補 0）**：
 - **偽陽性 179枚**（直さない）＝CHOOSE/選択肢圧縮77・LOOK/REVEAL文法崩れ50（R14/R28 で着手禁止確定）・使用条件前置き26・ルール注記6・アンコール注記+本体present7・リコレクト条件分岐/付与展開6・付与展開present等。
-- **機構待ち 72枚**＝STUB 56・GRANT_QUOTED付与引用（空/圧縮/遅延）9・トラップ設置(SET_TRAP語彙なし)1・GRANT_KEYWORD CHOOSE脱落1・別timing付与の1効果脱落2・近似注記1＋**WX17-028（【出】動的閾値「公開シグニのレベル合計×1000以下」＝語彙なし）／~~WX25-CP1-069（遅延条件トリガー）~~ **✅B3完了（2026-06-28・INSTALL_DELAYED_TRIGGER）**。残るは新機構が要る（GRANT_QUOTED_AUTO 精緻化＝P1_PLAN §5 未着手・WX17-028 動的閾値は未語彙）。
+- **機構待ち 72枚**＝STUB 56・GRANT_QUOTED付与引用（空/圧縮/遅延）9・トラップ設置(SET_TRAP語彙なし)1・GRANT_KEYWORD CHOOSE脱落1・別timing付与の1効果脱落2・近似注記1＋**WX17-028（【出】動的閾値「公開シグニのレベル合計×1000以下」＝語彙なし）／~~WX25-CP1-069（遅延条件トリガー）~~ **✅B3完了（2026-06-28・INSTALL_DELAYED_TRIGGER）**／~~WX17-028（動的閾値）~~ **✅B2完了（2026-06-28・REVEAL_DECK_TOP＋powerLteRevealedSigniLevelSum）**。残るは新機構が要る（GRANT_QUOTED_AUTO 精緻化＝P1_PLAN §5 B4 未着手・SET_TRAP＝B1）。
 - **✅ 修正済（JSON を MANUAL でパッチ・逆翻訳が原文一致・typecheck緑・同型★0）＝255内4枚＋トラップ調査発見1枚（255外）**:
   - **WXK01-063 貫穿**＝SEQUENCE に POWER_MODIFY +2000（ターン終了時まで）を追加＋GRANT_KEYWORD Ｓランサー（targetsLastProcessed）。
   - **WX18-019 奮闘努力**＝SEQUENCE で SEARCH(maxCount2)→ENERGY_CHARGE＋SHUFFLE_DECK に復元（旧 SHUFFLE_DECK のみ）。
