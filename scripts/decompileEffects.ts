@@ -942,6 +942,10 @@ function effJa(e: Eff): string {
     if (t === 'ON_PLAY' && e.triggerCondition?.placedDown) {
       s = s.replace('場に出たとき', 'ダウン状態で場に出たとき');
     }
+    // ON_PLAY の「傀儡状態で」限定（WDK17-001「あなたの傀儡状態のシグニ１体が場に出たとき」）
+    if (t === 'ON_PLAY' && e.triggerCondition?.placedPuppet) {
+      s = s.replace('シグニが場に出たとき', '傀儡状態のシグニが場に出たとき');
+    }
     // ON_PLAY の「トラッシュから」限定（「シグニがトラッシュから場に出たとき」）
     if (t === 'ON_PLAY' && e.triggerCondition?.placedFromTrash) {
       const subj = (e.triggerScope === 'any_ally' || e.triggerScope === 'any')
