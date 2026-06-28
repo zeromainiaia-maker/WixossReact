@@ -5,6 +5,15 @@
 
 ---
 
+## 機構: B1 トラップ機構の逆翻訳（9系統トラップSTUBの【トラップ】語彙描画）（2026-06-28）
+
+P1_PLAN §5 B1。調査の結果、**トラップ機構の engine は既に実装済み**だった＝`PlayerState.field.signi_traps`（3ゾーン裏向きトラップ）＋execStubPart2 の `PLACE_TRAP_OPTIONAL`/`SET_HAND_CARD_AS_TRAP`/`CHOOSE_TRAP_ZONE`/`INTERNAL_SET_TRAP`/`TRAP_TO_HAND`/`ACTIVATE_TRAP`/`SET_OPP_SIGNI_AS_TRAP`/`TRAP_TO_SIGNI_IF_ZONE_EMPTY`/`PLACE_TRAP_FROM_REVEALED` ハンドラ。**P1の課題は逆翻訳（decompiler）**で、これらトラップSTUBが raw `[STUB:id: 英語説明]` のまま描画されていた。
+
+- **改善**＝decompiler の STUB フォールバック直前に9系統トラップSTUBの描画を追加。原文の【トラップ】関連クラスタを currentCardText から正規表現抽出（OPTIONAL_TRASH_ENERGY_CLASS と同方式）＋canonicalフォールバック。
+  - `PLACE_TRAP_FROM_REVEALED`／`PLACE_TRAP_OPTIONAL`／`SET_HAND_CARD_AS_TRAP`／`ACTIVATE_TRAP`／`TRAP_TO_HAND`／`SET_OPP_SIGNI_AS_TRAP`／`TRAP_TO_SIGNI_IF_ZONE_EMPTY`＝原文一致描画。
+  - `TRAP_OP`／`TRAP_OPERATION`（テキスト駆動・多段）＝【トラップ】設置を含む文を抽出（「（【トラップ】操作）」付記・多段は近似）。
+- **生トラップSTUB残0**（`[STUB:...trap...]` 全消滅）・**同型★0維持（5986枚）**・held/LOSS/VALUE 0・typecheck緑。⚠近似＝TRAP_OP/TRAP_OPERATION の多段（WX17-029 で「そうした場合」重複）・WX16-017/WX16-028 の per-trap-count 別STUB（`動的パワー修正` 誤parse＝別件）。engine は実機未検証。
+
 ## 機構: B4 引用付与 engine 精緻化（GRANT_QUOTED 引用能力の実発火）（2026-06-28）
 
 P1_PLAN §5 B4。`GRANT_QUOTED_AUTO_ABILITY`/`GRANT_QUOTED_ABILITY` の engine（execStubPart1.ts）は、引用能力からキーワード（アサシン等）と既知 CONTINUOUS パターンは付与していたが、**引用された【自】トリガー能力は log-only（no-op）でフォールバック**していた。これを実発火させる。
