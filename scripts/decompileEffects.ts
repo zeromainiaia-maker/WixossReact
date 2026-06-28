@@ -721,7 +721,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // 付与引用（「…」の能力を得る）＝原文から引用能力を抽出して描画（テキスト検出型）。
       // 本物の付与カード（原文に「【自/常/起/出】…」を得る がある）は引用能力を表示、誤パース等で引用が無い場合は従来フォールバック。
       if (a.id === 'GRANT_QUOTED_AUTO_ABILITY' || a.id === 'GRANT_QUOTED_ABILITY') {
-        const gm = currentCardText.match(/(ターン終了時まで、|このゲームの間、|次の対戦相手のターン終了時まで、)?(この(?:ルリグ|シグニ)|あなたの[^「『。]{0,20}?)は[「『]([\s\S]+?)[」』]を得る/);
+        const gm = currentCardText.match(/(ターン終了時まで、|このゲームの間、|次の対戦相手のターン終了時まで、)?(この(?:ルリグ|シグニ)|これ[^「『。]{0,20}?|あなたの[^「『。]{0,20}?)は[「『]([\s\S]+?)[」』]を得る/);
         if (gm && /【(?:自|常|起|出)/.test(gm[3])) {
           const dur = gm[1] ?? '';
           const subj = gm[2];

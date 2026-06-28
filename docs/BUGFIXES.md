@@ -5,6 +5,15 @@
 
 ---
 
+## repr: GRANT_QUOTED_AUTO 誤パース是正（A2・虚偽の付与主張を除去）（2026-06-28）
+
+`GRANT_QUOTED_AUTO_ABILITY` STUB を持つが**原文に引用（『…』を得る）が無い**14枚を精査。原文に引用がある TK03A（本物の付与・TK行未ロードの誤検出）を除く13枚は、パーサーが optional-cost 句「…してもよい。そうした場合、…」を誤って付与STUB化したもの。
+
+- **9枚を是正**（WX15-059・WX20-069・WXDi-P02-083・WXDi-CP02-056・WXDi-CP02-072・WX25-P3-060・WXK06-053・WXK11-071・WD22-007-G）：step[0] の `GRANT_QUOTED_AUTO_ABILITY` を、338枚が使う標準の任意コスト規約 **`OPTIONAL_COST`** に置換（engine が `SEQUENCE[OPTIONAL_COST, CONDITIONAL(IS_MY_TURN→then)]` を intercept）。逆翻訳が「[STUB:引用された能力を付与する]」（虚偽）→「コストを支払ってもよい。そうした場合、…」（正・規約準拠）に。parseStatus:MANUAL。
+- **TK03A**（本物の付与）：decompiler の前置型 subject 正規表現を「これ…は『…』を得る」に拡張＝「これの上にある《棗イロハ》は『【自】…』を得る」を完全描画。
+- **残4枚は別系の誤パース（A2残・別途）**：WXDi-P09-079（デッキミル→場出し）／WXDi-P10-041（ルリグ下カード機構）／WX25-CP1-060（ON_TARGETED 裏表機構）／WD13-002（グロウコスト軽減）＝optional-cost ではなく機構絡みの誤パース。
+- ⚠各カードの timing/result の別件近似（例 WXK06-053 の result が BANISH＝本来 TRASH、WX15-059 の timing が ON_ACCE であるべき 等）は**A2 対象外の pre-existing**。9枚は typecheck緑・**同型★0維持**・held 0。
+
 ## repr(decompiler): GRANT_QUOTED 付与引用を原文の引用能力で描画（2026-06-28）
 
 `GRANT_QUOTED_AUTO_ABILITY`/`GRANT_QUOTED_ABILITY` STUB は JSON に引用能力本体を持たない（純STUB）。decompiler を**テキスト検出型**に改良し、`currentCardText` から「…は『【自/常/起/出】…』を得る」を抽出して引用能力を完全描画。
