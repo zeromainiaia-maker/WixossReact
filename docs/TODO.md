@@ -51,7 +51,7 @@
 
 ## 3. 残・大型機構（次の一手の候補。詳細・着手状況は P1_PLAN §5）
 
-- **引用AUTO付与の精緻化（`GRANT_QUOTED_AUTO_ABILITY` 系・ヒューリスティック）** ＝**未着手・次の推奨**。「シグニに『〜』を付与」型。例: WX25-CP1-074／WXK09-055／WX24-P2-044。
+- **引用AUTO付与の精緻化（`GRANT_QUOTED_AUTO_ABILITY` 系・ヒューリスティック）** ＝**✅一次完了（2026-06-28・B4）**＝引用【自】/【常】能力を `parseCardEffects`→granted_effects 実発火（自場シグニ・ターン限定・parse成功時のみ）。**残**＝permanent（このゲームの間）付与・相手シグニ付与・STUB能力＝従来 log-only 据置（追加実装課題・要実機検証）。「シグニに『〜』を付与」型。例: WX25-CP1-074／WXK09-055／WX24-P2-044。
 - **機構④の残（新トリガー機構が要る）**:
   - `ON_CARD_MILLED_FROM_DECK` の収集機構（WX25-P2-009-E2＝現 `【※engine未配線】`）。
   - リフレッシュ置換の実体（WX25-P2-009-E1＝現 no-op STUB `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG`）。
