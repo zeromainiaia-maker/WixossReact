@@ -4098,8 +4098,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // シグニ番号を返す。場の同ゾーンで解決後に在中するシグニを対象（凍結のまま移動する稀ケースは未対応）。
   const detectNewlyFrozen = (before: PlayerState, after: PlayerState): string[] => {
     if (!before || !after) return [];
-    const bf = before.signi_frozen ?? [];
-    const af = after.signi_frozen ?? [];
+    const bf = before.field.signi_frozen ?? [];
+    const af = after.field.signi_frozen ?? [];
     const out: string[] = [];
     const zones = after.field.signi?.length ?? 0;
     for (let z = 0; z < zones; z++) {
