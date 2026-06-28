@@ -128,9 +128,9 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
           result = resumeLookAndReorder(cards, [], pending as never, ctx);
           break;
         }
-        case 'SELECT_ZONE': result = resumeSelectZone(0, pending as never, ctx); break;
-        case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(0, pending as never, ctx); break;
-        case 'SELECT_VIRUS_ZONE': result = resumeSelectVirusZone(0, pending as never, ctx); break;
+        case 'SELECT_ZONE': result = resumeSelectZone(zone, pending as never, ctx); break;
+        case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(zone, pending as never, ctx); break;
+        case 'SELECT_VIRUS_ZONE': result = resumeSelectVirusZone(sameN >= 3 ? null : zone, pending as never, ctx); break;
         case 'REARRANGE_SIGNI': {
           const arr = (p.signi as string[]) ?? (p.cards as string[]) ?? [];
           result = resumeRearrangeSigni(arr, pending as never, ctx);
