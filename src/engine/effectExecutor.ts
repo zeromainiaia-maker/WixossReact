@@ -862,6 +862,11 @@ function resolveDynamicFilter(
       result = lrigColor ? { ...rest, colorExclude: lrigColor } : rest;
     }
   }
+  if (result.powerLteRevealedSigniLevelSum != null) {
+    const { powerLteRevealedSigniLevelSum: mult, ...rest } = result;
+    const sum = ownerSt.last_revealed_signi_level_sum ?? 0;
+    result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: sum * mult } };
+  }
   if (result.levelLteFieldVirusCount && otherSt) {
     const ownVirus = (ownerSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
     const oppVirus = (otherSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
