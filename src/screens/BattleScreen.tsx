@@ -5037,6 +5037,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cards_drawn_by_effect_this_turn: 0,
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         life_crashed_this_turn: undefined,
+        delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, life_burst_double_next: undefined,
