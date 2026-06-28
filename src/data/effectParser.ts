@@ -1721,6 +1721,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const m = actionText.match(/^.*?クラッシュ(?:した|された)とき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
+      // ON_LRIG_GROW（「あなた/対戦相手の[他の]ルリグがグロウしたとき」）：主語の所有者を triggerScope に抽出（actionText 非改変）。
+      if (timing[0] === 'ON_LRIG_GROW') {
+        if (/対戦相手の(?:センター)?ルリグがグロウしたとき/.test(actionText)) extractedTriggerScope = 'any_opp';
+        else {
+          extractedTriggerScope = 'any_ally';
+          if (/あなたの他の(?:センター)?ルリグがグロウしたとき/.test(actionText)) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
+        }
+      }
       // ON_TARGETED（「このシグニが対戦相手の、能力か効果の対象になったとき」）はトリガー文を除去しない。
       //   除去すると後続アクションの target/owner 解析が変わり手修正JSONと乖離するため、actionText 全体を parseSentence に委ねる
       //   （トリガー句は parseSentence 側で前置きとして消費される）。timing のみ ON_TARGETED に確定する。
