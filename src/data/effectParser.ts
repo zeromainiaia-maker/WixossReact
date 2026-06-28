@@ -1712,6 +1712,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_TARGETED（「このシグニが対戦相手の、能力か効果の対象になったとき」）はトリガー文を除去しない。
       //   除去すると後続アクションの target/owner 解析が変わり手修正JSONと乖離するため、actionText 全体を parseSentence に委ねる
       //   （トリガー句は parseSentence 側で前置きとして消費される）。timing のみ ON_TARGETED に確定する。
+      //   ただし主語が「あなたの[＜X＞/色]のシグニ」の場合は triggerScope:any_ally＋triggerFilter を抽出（actionText は非改変）。
+      if (timing[0] === 'ON_TARGETED') {
+        const subjM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の|([赤青白緑黒])の)?シグニ(?:[０-９\d]+体)?が対戦相手の[、,]?\s*能力か効果の対象になったとき/);
+        if (subjM) {
+          extractedTriggerScope = 'any_ally';
+          const tf: NonNullable<typeof extractedTriggerFilter> = {};
+          if (subjM[1]) tf.excludeSelf = true;
+          if (subjM[2]) tf.story = subjM[2];
+          if (subjM[3]) tf.color = subjM[3];
+          if (Object.keys(tf).length) extractedTriggerFilter = tf;
+        }
+      }
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
       if (timing[0] === 'ON_HEAVEN') {
         const m = actionText.match(/このシグニが《ヘブン》したとき[、,]\s*(.+)/s);
