@@ -87,14 +87,15 @@ function mkCtx(sourceNum: string): ExecCtx {
 function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detail?: string } {
   let result = first;
   let steps = 0;
-  let sameType = ''; let sameN = 0; // 同一pending種別が進展なく連続したら autopilot 限界として SKIP
+  let lastSig = ''; let sameN = 0; // 同一シグネチャ（候補が同一）の連続＝真のループ。種別違い/候補変化は進行とみなす
   while (!result.done) {
     if (++steps > STEP_CAP) return { status: 'HANG', detail: `step>${STEP_CAP}` };
     const pending = (result as { pending: { type: string; [k: string]: unknown } }).pending;
-    if (pending.type === sameType) { if (++sameN > 6) return { status: 'SKIP', detail: `autopilot loop: ${pending.type}` }; }
-    else { sameType = pending.type; sameN = 0; }
-    const ctx: ExecCtx = { ...baseCtx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
     const p = pending as Record<string, unknown>;
+    const sig = `${pending.type}:${JSON.stringify(p.candidates ?? (p.options as { id: string }[] | undefined)?.map(o => o.id) ?? p.cards ?? '')}`;
+    if (sig === lastSig) { if (++sameN > 4) return { status: 'SKIP', detail: `autopilot loop: ${pending.type}` }; }
+    else { lastSig = sig; sameN = 0; }
+    const ctx: ExecCtx = { ...baseCtx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
     const zone = steps % 3; // ゾーン選択は巡回（占有済み zone0 の再選択ループを避ける）
     try {
       switch (pending.type) {
