@@ -5089,13 +5089,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const guestBloomedSE = detectBloomedSigni(bs.guest_state, guestState);
         const bloomedSetSE = new Set<string>([...hostBloomedSE, ...guestBloomedSE]);
         const placeEntries: StackEntry[] = [];
+        // placedFromTrash 判定: 配置されたインスタンスが解決前トラッシュにあったか（「トラッシュから場に出た」）
+        const hostTrashBefore = new Set(bs.host_state?.trash ?? []);
+        const guestTrashBefore = new Set(bs.guest_state?.trash ?? []);
         for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
           if (bloomedSetSE.has(placedNum)) continue;
-          placeEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni }));
+          placeEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: hostTrashBefore.has(placedNum) }));
         }
         for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
           if (bloomedSetSE.has(placedNum)) continue;
-          placeEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni }));
+          placeEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: guestTrashBefore.has(placedNum) }));
         }
         // ON_BLOOM: 開花したシグニ自身＋場の他シグニの開花監視トリガー
         for (const bloomedNum of hostBloomedSE) {
@@ -5624,13 +5627,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const guestBloomedRSZ = detectBloomedSigni(bs.guest_state, guestState);
         const bloomedSetRSZ = new Set<string>([...hostBloomedRSZ, ...guestBloomedRSZ]);
         const resumePlaceEntries: StackEntry[] = [];
+        const hostTrashBeforeRSZ = new Set(bs.host_state?.trash ?? []);
+        const guestTrashBeforeRSZ = new Set(bs.guest_state?.trash ?? []);
         for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
           if (bloomedSetRSZ.has(placedNum)) continue;
-          resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni }));
+          resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni, placedFromTrash: hostTrashBeforeRSZ.has(placedNum) }));
         }
         for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
           if (bloomedSetRSZ.has(placedNum)) continue;
-          resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni }));
+          resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni, placedFromTrash: guestTrashBeforeRSZ.has(placedNum) }));
         }
         for (const bloomedNum of hostBloomedRSZ) {
           resumePlaceEntries.push(...collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id));
@@ -5745,7 +5750,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
     // 効果でシグニが場に出た経路から呼ばれた場合（G144/G145/WX11-054 の any_ally byEffect/placedDown を発火させる）。
     // placeSourceIsSigni: 場出しした効果元がシグニか（bySigniEffect 用）。手札召喚経路は placedByEffect=false で従来どおり byEffect 非発火。
-    opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean },
+    opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean; placedFromTrash?: boolean },
   ): StackEntry[] => {
     const entries: StackEntry[] = [];
     const opId = ownerId === bs.host_id ? bs.guest_id : bs.host_id;
@@ -5786,6 +5791,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const ziTrig = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
           if (ziTrig < 0 || !(myState.field.signi_down?.[ziTrig] ?? false)) continue;
         }
+        // placedFromTrash（「シグニがトラッシュから場に出たとき」）: 配置元がトラッシュでなければ発火しない。
+        if (eff.triggerCondition?.placedFromTrash && event === 'ON_PLAY' && !opts?.placedFromTrash) continue;
         // triggerFilter: ON_ATTACK_SIGNI等でトリガー元カードがフィルタを満たすか確認
         if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;

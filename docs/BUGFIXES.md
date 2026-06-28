@@ -5,6 +5,16 @@
 
 ---
 
+## engine: placedFromTrash 機構＋トラッシュから場出し6枚（2026-06-28・ymst）
+
+「シグニがトラッシュから場に出たとき」を配線。triggerCondition に `placedFromTrash` を新設し、ミル機構と同じ **set-diff** で配置元を判定（配置されたインスタンスが解決前トラッシュにあったか＝`bs.{host,guest}_state.trash` に含まれるか）。
+
+- `collectFieldTriggers` opts に `placedFromTrash` 追加＋any_ally ON_PLAY で `triggerCondition.placedFromTrash` を判定。ON_PLAY 検出ブロック（通常5092・resume5630）で `detectPlacedSigni` の各 placedNum がトラッシュ起点かを set-diff で渡す。
+- データ6枚: WX03-020（自全+2000）／WX12-023（相手-7000）／WX14-018（相手-5000）／WXDi-P07-047（自ターン・相手-3000）／WXDi-P09-080（このシグニ+4000）／WDK06-C11（＜武勇＞・武勇を target→triggerFilter 移動・相手-3000）。
+- decompiler に ON_PLAY+placedFromTrash 描画追加。typecheck緑・同型★0・逆翻訳原文一致・lint 0。⚠実機未検証。timing flatten 残 ≈42。
+
+---
+
 ## engine: triggerFilter hasCrossIcon/hasRiseIcon 追加＋クロス/ライズ場出し6枚（2026-06-28・ymst）
 
 「《クロスアイコン》/《ライズアイコン》を持つシグニが場に出たとき」を配線。`matchesFilter`（execUtils）に triggerFilter フィールド `hasCrossIcon`（EffectText が《クロスアイコン》で始まる・`cardHasCrossIcon` と同基準）／`hasRiseIcon`（EffectText に【ライズ】を含む）を追加。既存 `collectFieldTriggers` ON_PLAY any_ally が entering signi を triggerFilter で照合するため、データ側で triggerFilter を付けるだけで発火。

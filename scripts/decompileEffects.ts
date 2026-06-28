@@ -927,6 +927,12 @@ function effJa(e: Eff): string {
     if (t === 'ON_PLAY' && e.triggerCondition?.placedDown) {
       s = s.replace('場に出たとき', 'ダウン状態で場に出たとき');
     }
+    // ON_PLAY の「トラッシュから」限定（「シグニがトラッシュから場に出たとき」）
+    if (t === 'ON_PLAY' && e.triggerCondition?.placedFromTrash) {
+      const subj = (e.triggerScope === 'any_ally' || e.triggerScope === 'any')
+        ? `あなたの${e.triggerFilter ? filterJa(e.triggerFilter) : ''}シグニ１体` : 'このシグニ';
+      s = `${subj}がトラッシュから場に出たとき`;
+    }
     // ON_DRAW の「あなたの場の＜story＞シグニの効果で」限定（WX20-026-E3）。ドローフェイズの通常ドローでは発火しない。
     if (t === 'ON_DRAW' && e.triggerCondition?.drawBySourceStory) {
       s = `あなたの場にある＜${e.triggerCondition.drawBySourceStory}＞のシグニの効果であなたがカードを１枚引いたとき`;
