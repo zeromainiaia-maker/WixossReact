@@ -169,8 +169,8 @@ for (const [num, effs] of effectsMap) {
       res = { status: 'CRASH', detail: `[executeEffect] ${(e as Error).message}` };
     }
     counts[res.status] = (counts[res.status] ?? 0) + 1;
-    if (res.status === 'CRASH' || res.status === 'INVARIANT' || res.status === 'HANG') {
-      crashes.push({ card: num, eff: eff.effectId ?? '?', detail: res.detail ?? '' });
+    if (res.status !== 'OK') {
+      if (res.status !== 'SKIP') crashes.push({ card: num, eff: eff.effectId ?? '?', detail: res.detail ?? '' });
       if (VERBOSE) console.log(`  [${res.status}] ${num} ${eff.effectId}: ${res.detail}`);
     }
   }
