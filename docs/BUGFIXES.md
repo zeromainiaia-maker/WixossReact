@@ -5,6 +5,17 @@
 
 ---
 
+## engine: ON_SIGNI_POWER_ZERO_OR_LESS 配線＋パワー0以下トリガー5枚（R37・2026-06-28・ymst）
+
+「シグニのパワーが0以下になったとき」を**既存のルール処理点1箇所**で配線（型は既存・収集機構が無かった）。`checkAndBanishPowerZero`（パワー0以下シグニのルールバニッシュ・useEffect 反応）の中で各 0化シグニについて `collectBanishTriggers` と並べて `collectPowerZeroTriggers` を呼ぶ＝**単一フック・低リスク**（既存の collectBanishTriggers と同パターン）。
+
+- `collectPowerZeroTriggers(zeroedCardNum,zeroedOwnerId,host,guest)`＝両プレイヤー場シグニの `ON_SIGNI_POWER_ZERO_OR_LESS`【自】を triggerScope（any_opp 多数派／any_ally／self／any）で絞り収集。`triggerCondition.turnOwner`（《自分ターン》）と usageLimit《ターン1回》（actions_done 照合）も評価。同パス複数同時0化の once_per_turn 重複は effectId dedup で回避。
+- decompiler に timingJa＋scope 別主語（any_opp→「対戦相手のシグニのパワーが0以下になったとき」）＋〔範囲〕マーカー抑制を追加。
+- データ5枚（MANUAL・全て旧 ON_PLAY/ON_TURN_END 誤 flatten を是正）: WX20-Re03（→デッキ上をエナ）／WX21-067（→ドロー）／WX22-013-E2（→CHOOSE[エナ/ドロー]・action も CHOOSE 再構築）／WXDi-P01-043（→エナチャージ1）／WXDi-P14-009（《自分ターン》→相手-5000・UNTIL_END_OF_TURN）。全て any_opp。
+- typecheck緑・同型★0・逆翻訳が原文トリガー一致・⚠実機未検証（特に複数同時0化の dedup／once_per_turn の actions_done 記録タイミング／-5000 連鎖0化の再発火）。VALUE 33→32（flatten 該当は WXDi-P14-009 のみ・他4枚は ON_PLAY 誤 curation で計器外だったが今回正配線＝実質5枚改善）。
+
+---
+
 ## データ＋engine小追加: timing flatten 手札捨て/トラッシュ系 2枚（R36・2026-06-28・ymst）
 
 VALUE timing flatten（`ON_TURN_END` 誤 flatten した【自】）を配線済みトリガーで修正（MANUAL）。1枚は純データ・1枚は小エンジン追加（後方互換）。
