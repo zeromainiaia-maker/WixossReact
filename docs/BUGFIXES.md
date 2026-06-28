@@ -5,6 +5,17 @@
 
 ---
 
+## 機構: C1 engine未配線timing配線② `ON_LRIG_GROW`（ルリグがグロウしたとき）（2026-06-29）
+
+C1 第2弾＝`ON_LRIG_GROW`（5枚・「（センター）ルリグがグロウしたとき」）。効果本体（TRASH/TRANSFER_TO_HAND/POWER_MODIFY/ENERGY_CHARGE/SEQUENCE）は既存ハンドラで正常＝**欠けていたのは発火配線のみ**。
+
+- **発火点**＝センターグロウの実行箇所2つ。①`executeGrow`（人間。通常グロウ＋GROW_FREE ゲット・グロウも同関数を通る）②CPUセンターグロウ（GROWフェイズ自動処理）。どちらもグロウ確定後に収集して effect_stack へ積む。
+- **収集**＝新ヘルパ `collectLrigGrowTriggers(grownOwnerId, afterGrowerState, afterOpState)`。両プレイヤーの場（シグニ＋キー＋ルリグ上＝watcher はシグニ/キー/ルリグに跨るため3ゾーン走査）から ON_LRIG_GROW AUTO を `triggerScope` で絞る：`any_ally`（自分のルリグがグロウ・WXDi-P03-039/WXDi-P05-010/WXK11-012）／`any_opp`（対戦相手のルリグがグロウ・WXDi-P03-046/WXDi-P13-047）／`self` はグロウ先自身＝ON_PLAY 経路で処理するため除外。`triggerCondition.turnOwner`・`condition`・`usageLimit` も評価。
+- **解決順**＝`any_opp`（対戦相手のグロウに反応）は非ターンプレイヤー側のため、effect_stack の opp 側が先に解決＝グロウ先ルリグの【出】（ON_PLAY・ターンプレイヤー）より先に処理される。WXDi-P13-047 の「（そのルリグの【出】能力よりも先に発動する）」と整合。
+- **decompiler**＝`engineUnwiredTimings` から `ON_LRIG_GROW` 除外。`types/effects.ts` コメント更新。
+- **検証**＝`npm run typecheck` 緑／`npm run smoke`（CRASH/HANG/INVARIANT 0・不変）／`npm run golden`（21/21）／decompile 逆翻訳が原文一致（WXDi-P13-047/WXK11-012/WXDi-P03-046）。
+- **既知の未カバー**＝アシストルリグのグロウ経路は未配線（「センタールリグがグロウ」のみ）。⚠発火経路は BattleScreen＝実機未検証(C2)。
+
 ## 機構: C1 engine未配線timing配線① `ON_TARGETED`（対象になったとき）（2026-06-29）
 
 P2 の最大残＝engine未配線 timing 群（`engineUnwiredTimings`）の配線に着手。第1弾は最多14枚の `ON_TARGETED`（「このシグニが対戦相手の能力か効果の対象になったとき」）。効果本体（TRASH/ENERGY_CHARGE/GRANT_KEYWORD/REMOVE_ABILITIES 等）は既に正常で、**欠けていたのは発火配線のみ**。
