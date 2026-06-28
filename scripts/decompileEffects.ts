@@ -825,6 +825,8 @@ function actionJa(a?: Action, effectType?: string): string {
         return `あなたの手札から${cls}シグニ${n}枚を捨ててもよい`;
       }
       if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
+        // costText（エナ色以外の任意コスト句）が明示されていれば原文どおり描画（A3）
+        if (a.costText) return a.costText;
         // コストスロットは「青|黒」（青か黒のいずれか）形式を許容 → 「《青》か《黒》」
         const costJaOC = (a.costColors ?? []).map((c: string) => c.split('|').map((x: string) => `《${x}》`).join('か')).join('')
           + (a.coinCost ? `《コイン》×${a.coinCost}` : '');
