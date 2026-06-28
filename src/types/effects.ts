@@ -1422,6 +1422,7 @@ export interface StubAction {
   id: string;
   costColors?: string[]; // OPTIONAL_COST: 支払うエナの色リスト（例: ['赤','赤']）
   coinCost?: number;     // OPTIONAL_COST: 支払う《コイン》の枚数（「《コイン》を支払ってもよい」。エナと併用も可）
+  costText?: string;     // OPTIONAL_COST: エナ色以外の任意コスト句を原文どおり明示（例: 「このシグニを場からトラッシュに置いてもよい」「使用コストとして追加でエクシード４を支払ってもよい」）。decompiler はこれをそのまま描画。engine 精緻化は別途（A3）
   revealPickParams?: {   // REVEAL_PICK_HAND_SHUFFLE_BOTTOM: REVEAL_AND_PICK マージ用メタデータ
     pickCount: number | 'ALL';
     restDest: 'deck_bottom' | 'trash' | 'energy';
