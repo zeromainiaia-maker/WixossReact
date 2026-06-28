@@ -56,8 +56,10 @@
 - **B4**　`GRANT_QUOTED_AUTO_ABILITY` の engine 精緻化。**✅一次完了（2026-06-28）**＝引用【自】/【常】能力を `parseCardEffects` 経由で granted_effects に積み実発火（自場シグニ・ターン限定・parse成功時のみ）。残＝permanent（このゲームの間）/相手付与/STUB能力＝従来 log-only 据置（要追加実装・実機検証）。
 
 **C. engine 実機配線（P2・高リスク・要テスト環境）＝最大の残**
-- **C1**　**engine未配線 timing 群の発火配線**＝R33-R58 で新設した ~15種（`ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID`/`ON_MATERIAL_USED`/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`/`ON_LRIG_UNDER_MOVED`/`ON_KEYWORD_GAINED`/`ON_DECK_SHUFFLED`/`ON_LRIG_ATTACK_STEP_START` 他）。一覧＝`scripts/decompileEffects.ts` の `engineUnwiredTimings`。
-- **C2**　**R5-R58 の全 engine 配線が実機未検証** → PvP/CPU 実機検証（ヘッドレス不可・`/verify` または手動）。
+- **C1**　**engine未配線 timing 群の発火配線**＝R33-R58 で新設した ~15種。一覧＝`scripts/decompileEffects.ts` の `engineUnwiredTimings`。
+  - ~~`ON_TARGETED`（14枚）~~ **✅配線済(claude・2026-06-29)**＝`BattleScreen.handleEffectInteraction` の SELECT_TARGET 確定経路で `collectTargetedTriggers` が発火（人間/CPU 双方カバー・BUGFIXES参照）。⚠実機未検証(C2)・forced単一対象経路は未カバー(follow-up)。
+  - 残＝`ON_LRIG_GROW`(5)/`ON_MATERIAL_USED`(6)/`ON_COIN_PAID`(3)/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(1)/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(1)/`ON_LRIG_UNDER_MOVED`(1)/`ON_KEYWORD_GAINED`(1)/`ON_DECK_SHUFFLED`(1)/`ON_LRIG_ATTACK_STEP_START`(1)。
+- **C2**　**R5-R58 の全 engine 配線＋C1 ON_TARGETED が実機未検証** → PvP/CPU 実機検証（ヘッドレス不可・`/verify` または手動）。
 
 **D. STUB テール（低優先）**
 - STUB 544種/2372件。大半は**実装済みハンドラ**の表示（`[STUB:id]` はスキップ理由にしない＝個別検証）。残・単発生IDテール 54件は `STUBS.md` 管理（`node scripts/genStubsMd.mjs` で再生成）。
