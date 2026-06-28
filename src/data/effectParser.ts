@@ -1674,10 +1674,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'any_ally';
           const tf: NonNullable<typeof extractedTriggerFilter> = {};
           if (allyPlayM[1]) tf.excludeSelf = true; // 「他の」＝自身を除く
-          if (allyPlayM[2]) tf.story = allyPlayM[2];
+          if (allyPlayM[3]) tf.story = allyPlayM[3];
           if (Object.keys(tf).length) extractedTriggerFilter = tf;
-          if (allyPlayM[3]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
-          actionText = allyPlayM[4];
+          if (allyPlayM[2]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedPuppet: true }; // 「傀儡状態の」
+          if (allyPlayM[4]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
+          actionText = allyPlayM[5];
         } else if (allyResonaPlayM) {
           extractedTriggerScope = 'any_ally';
           extractedTriggerFilter = { cardType: 'レゾナ' };
