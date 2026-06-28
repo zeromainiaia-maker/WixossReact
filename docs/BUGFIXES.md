@@ -5,6 +5,19 @@
 
 ---
 
+## データ: timing flatten「場に出たとき」Group A 6枚（既存 ON_PLAY any_ally/any_opp）（2026-06-28・ymst）
+
+「シグニが場に出たとき」系のうち、既存 `collectFieldTriggers`（ON_PLAY・any_ally/any_opp＋標準 triggerFilter）で配線できる Group A を修正（新機構不要）。
+
+- **レゾナ場出し**（any_ally＋triggerFilter cardType:レゾナ）: WX08-004（自ターン・相手-7000）／WX08-031（相手全-5000）／WXEX1-04（自ターン・3択CHOOSE）。
+- **アーム場出し**（any_ally＋story:アーム）: WXDi-P03-086（相手-2000）。
+- **偶数レベル場出し**（any_ally＋levelParity:even）: WXK03-028（相手-3000）。
+- **相手シグニ効果場出し**（any_opp＋byEffect＋REMOVE_ABILITIES.targetsTriggerSource）: WXEX2-29（そのシグニ能力喪失。⚠原文の「凍結」は未表現＝近似）。
+- typecheck緑・同型★0・逆翻訳原文一致・lint 0。⚠実機未検証（特にレゾナ場出しが ON_PLAY any_ally を発火するか要確認・false-negative でも現状 no-op と同等で無害）。
+- **⛔ 残「場に出たとき」（support 追加が要る・TODO §3.5）**: クロスアイコン4／ライズアイコン2＝triggerFilter に hasCrossIcon/hasRiseIcon 追加要／トラッシュから場出し7＝placedFromTrash 条件（配置元=トラッシュ検出）要／傀儡状態1＝傀儡フィルタ要。
+
+---
+
 ## データ: timing flatten 配線済みクラスタ9枚（ON_EXCEED_COST/ON_ACCE/ON_HAND_DISCARDED）（2026-06-28・ymst）
 
 既に engine 配線済みのトリガーへ timing を差し替えるデータ修正（新機構不要）。
