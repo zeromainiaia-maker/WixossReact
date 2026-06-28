@@ -883,6 +883,37 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
         return 'あなたのデッキの一番上を公開し、それが宣言した数字と同じレベルを持つシグニである場合、それを手札に加える';
       }
+      // 【トラップ】設置/操作 STUB群（B1）。engine は signi_traps ゾーン＋execStubPart2 で実装済み。
+      // decompiler を原文の【トラップ】語彙で描画（原文クラスタ抽出＋canonicalフォールバック）。
+      if (a.id === 'PLACE_TRAP_FROM_REVEALED') {
+        const m = currentCardText.match(/その中から[^。]*?【トラップ】として[^。]*?設置[^。]*?(?:よい|する)/);
+        return m ? m[0] : 'その中からカードを【トラップ】としてあなたのシグニゾーンに設置する';
+      }
+      if (a.id === 'PLACE_TRAP_OPTIONAL' || a.id === 'SET_HAND_CARD_AS_TRAP') {
+        const m = currentCardText.match(/(?:あなたは)?(?:その(?:カード)?か、?)?(?:あなたの)?(?:手札|デッキの一番上)[^。]*?【トラップ】として[^。]*?設置[^。]*?(?:よい|する)/);
+        return m ? m[0] : 'あなたの手札から1枚を【トラップ】としてあなたのシグニゾーンに設置してもよい';
+      }
+      if (a.id === 'ACTIVATE_TRAP' || a.id === 'ACTIVATE_TRAP_IN_FIELD') {
+        const m = currentCardText.match(/あなたの【トラップ】[^。]*?表向きに[^。]*?(?:発動[^。]*?(?:させる|する)|シグニにする)/);
+        return m ? m[0] : 'あなたの【トラップ】1つを対象とし、それを表向きにし《トラップアイコン》を発動させる';
+      }
+      if (a.id === 'TRAP_TO_HAND') {
+        const m = currentCardText.match(/あなたの【トラップ】[^。]*?手札に(?:加える|戻す)[^。]*/);
+        return m ? m[0] : 'あなたの【トラップ】を手札に加える';
+      }
+      if (a.id === 'SET_OPP_SIGNI_AS_TRAP') {
+        const m = currentCardText.match(/対戦相手のシグニ[^。]*?【トラップ】として[^。]*?設置[^。]*?(?:よい|する)/);
+        return m ? m[0] : '対戦相手のシグニ1体を対象とし、それを【トラップ】としてそのシグニゾーンに設置する';
+      }
+      if (a.id === 'TRAP_TO_SIGNI_IF_ZONE_EMPTY') {
+        const m = currentCardText.match(/この【トラップ】[^。]*?シグニがない場合[^。]*?シグニにする/);
+        return m ? m[0] : 'この【トラップ】と同じシグニゾーンにシグニがない場合、この【トラップ】を表向きにしてシグニにする';
+      }
+      if (a.id === 'TRAP_OP' || a.id === 'TRAP_OPERATION') {
+        // テキスト駆動（設置/トラッシュ/手札の複合）。原文の【トラップ】設置クラスタを抽出（多段は近似）。
+        const m = currentCardText.match(/[^。]*?【トラップ】として[^。]*?設置[^。]*?(?:よい|する)/);
+        return m ? m[0] + '（【トラップ】操作）' : '【トラップ】を操作する（設置／トラッシュ／手札。原文参照）';
+      }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
