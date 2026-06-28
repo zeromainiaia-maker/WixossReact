@@ -53,7 +53,7 @@
 - **B1**　`SET_TRAP` 設置アクション（「手札/デッキのカードを【トラップ】として設置」）＝トラップ設置型 ~十数枚が依存（`PLACE_TRAP_FROM_REVEALED`/`PLACE_TRAP_OPTIONAL` STUB を置換）。
 - ~~**B2**　動的閾値フィルタ（WX17-028「公開したシグニのレベル合計×1000以下」）~~ **✅完了（2026-06-28）**＝`REVEAL_DECK_TOP`/`TRASH_REVEALED`/`powerLteRevealedSigniLevelSum` 新設。残B＝B1/B4。
 - ~~**B3**　遅延条件トリガー（WX25-CP1-069「このターン、…クラッシュしたとき」）~~ **✅完了（2026-06-28）**＝`INSTALL_DELAYED_TRIGGER` 機構新設。残B＝B1/B2/B4。
-- **B4**　`GRANT_QUOTED_AUTO_ABILITY` の engine 精緻化（表現は A1 で前進）。
+- **B4**　`GRANT_QUOTED_AUTO_ABILITY` の engine 精緻化。**✅一次完了（2026-06-28）**＝引用【自】/【常】能力を `parseCardEffects` 経由で granted_effects に積み実発火（自場シグニ・ターン限定・parse成功時のみ）。残＝permanent（このゲームの間）/相手付与/STUB能力＝従来 log-only 据置（要追加実装・実機検証）。
 
 **C. engine 実機配線（P2・高リスク・要テスト環境）＝最大の残**
 - **C1**　**engine未配線 timing 群の発火配線**＝R33-R58 で新設した ~15種（`ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID`/`ON_MATERIAL_USED`/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`/`ON_LRIG_UNDER_MOVED`/`ON_KEYWORD_GAINED`/`ON_DECK_SHUFFLED`/`ON_LRIG_ATTACK_STEP_START` 他）。一覧＝`scripts/decompileEffects.ts` の `engineUnwiredTimings`。
