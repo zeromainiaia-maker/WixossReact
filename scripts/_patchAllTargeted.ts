@@ -10,8 +10,9 @@ const tk='public/data/CardData_TK.csv';if(existsSync(tk)){const {data}=Papa.pars
 // FRESH: effectId -> true (timing は ['ON_TARGETED'])
 const targetedEffectIds = new Set<string>();
 const targetedScope = new Map<string,any>();
+const targetedFilter = new Map<string,any>();
 for(const r of rows){if(!r.CardNum)continue;const eff=mergeManualEffects(r.CardNum, parseCardEffects({...r,effects:[]} as unknown as CardData));
-  for(const e of eff){ if(Array.isArray(e.timing)&&e.timing.length===1&&e.timing[0]==='ON_TARGETED'){ targetedEffectIds.add(e.effectId); targetedScope.set(e.effectId, e.triggerScope); } }
+  for(const e of eff){ if(Array.isArray(e.timing)&&e.timing.length===1&&e.timing[0]==='ON_TARGETED'){ targetedEffectIds.add(e.effectId); targetedScope.set(e.effectId, e.triggerScope); targetedFilter.set(e.effectId, (e as any).triggerFilter); } }
 }
 let patched=0;
 for(const f of FILES){
