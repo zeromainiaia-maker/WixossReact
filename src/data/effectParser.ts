@@ -1610,6 +1610,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/^あなたのルリグアタックステップ開始時/) ? ['ON_LRIG_ATTACK_STEP_START']
              // 「あなたのシグニが対戦相手のアーツの効果を受けたとき」（WXK11-019-E2 等）＝ON_OPP_ARTS_USE（配線済み）。トリガー文非除去
              : actionText.match(/対戦相手のアーツの効果を受けたとき/) ? ['ON_OPP_ARTS_USE']
+             // 「あなた/対戦相手の[他の][センター]ルリグがグロウしたとき」（WXDi-P05-010 等）。⚠engine未配線。トリガー文非除去・scope は下で抽出
+             : actionText.match(/(?:あなた|対戦相手)の(?:他の)?(?:センター)?ルリグがグロウしたとき/) ? ['ON_LRIG_GROW']
              // 「（このシグニ／あなたの他のシグニが）開花したとき」=【シード】開花トリガー。場に出た扱いではないため ON_PLAY とは別（triggerScope は下で設定）。
              : actionText.includes('開花したとき') ? ['ON_BLOOM']
              : actionText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュ(?:した|された)とき/) ? ['ON_OPP_LIFE_CRASHED']
