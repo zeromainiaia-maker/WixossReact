@@ -13,7 +13,8 @@
 - **WX18-019 奮闘努力**＝旧 JSON は `SHUFFLE_DECK` のみ＝原文「デッキから2枚まで探してエナに置きシャッフル」の **SEARCH→ENERGY が脱落**。SEQUENCE で SEARCH(maxCount2,then ENERGY_CHARGE)＋SHUFFLE_DECK に復元。
 - **WDK15-009 スティング・スイング**＝旧 JSON は TRANSFER_TO_HAND count:1 シグニ＝原文「ライズ黒持ち1枚＋無色でない1枚を手札」の **対象2枚→1枚＋フィルタが脱落**。SEQUENCE で TRANSFER_TO_HAND×2（filter:hasRiseIcon／nonColorless）に復元。decompiler の filterJa に hasRiseIcon/hasCrossIcon を追加（《ライズアイコン_黒》の色は hasRiseIcon で近似＝色未限定）。
 - 機構待ち再分類＝**WX17-028**（【出】が「公開シグニのレベル合計×1000以下」の動的閾値＝語彙なし）／**WX25-CP1-069**（「このターン…クラッシュしたとき」の遅延条件トリガー＝語彙なし）。
-- 追加修正＝**WX16-062 中罠　ラクガキ**＝旧 JSON は BURST のみ＝《トラップアイコン》本体（対戦相手レベル3シグニを手札に戻す）が脱落。TRAP_ICON 効果（BOUNCE level:3 owner:opponent）を追加（WX15-081-TRAP/WX19-039-TRAP に倣う）。
+- 追加修正＝**WX16-062 中罠　ラクガキ**（TRAP_ICON＝BOUNCE level:3 owner:opponent「対戦相手レベル3シグニを手札に戻す」）／**WX16-064 小罠　ケシオトシ**（TRAP_ICON＝BANISH owner:opponent count:ALL powerRange.max:2000「パワー2000以下のすべてのシグニをバニッシュ」）。両者とも旧 JSON は BURST のみで《トラップアイコン》本体が脱落＝TRAP_ICON 効果を追加（WX15-081-TRAP/WX19-039-TRAP に倣う）。
+- **🪤 トラップ未表現クラスタ調査＝系統的でないと結論**: 「原文に《トラップアイコン》ありJSONにTRAP無し」約20枚を精査＝大半はルール注記の偽陽性（本体見出し無し）、残りは SET_TRAP 設置型（PLACE_TRAP_FROM_REVEALED STUB・語彙なし）or 本体が他効果にマージ済み（WX16-029/041/065/066＝誤構造だが機能present）。クリーンに本体だけ脱落は WX16-062/WX16-064 の2枚のみ＝両方修正済。
 - いずれも parseStatus:MANUAL・typecheck緑・同型★0・逆翻訳が原文の全効果を表現。⚠実機未検証。⚠SET_TRAP（手札→トラップ設置）語彙が無く「引くか設置」型トラップ（WX15-047 等）は機構待ち。
 
 ## repr: 最難物2件＝ウェポン効果バニッシュ＋複合ORトリガー（R58・VALUE 2→0・🎉 timing flatten 完了）（R58・2026-06-28）
