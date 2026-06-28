@@ -5,6 +5,14 @@
 
 ---
 
+## repr: ON_DECK_SHUFFLED（あなたのデッキがシャッフルされたとき）1枚（R50・2026-06-28）
+
+PR-470A「あなたのデッキがシャッフルされたとき、ターン終了時まで、このシグニのパワーを＋5000する」を新 timing `ON_DECK_SHUFFLED` で表現。**`shuffle()` がリフレッシュ/サーチ後/各種デッキ操作の多数箇所に分散（フック分散）＝配線が重いため engine未配線**（`engineUnwiredTimings` 登録＋【※engine未配線】）。R49 ON_TARGETED と同型の手順。
+
+- 型＝`ON_DECK_SHUFFLED`（effects.ts）。パーサー＝timing チェーンに `/デッキがシャッフルされたとき/`→`['ON_DECK_SHUFFLED']`（トリガー文非除去＝action 解析を変えない）。decompiler＝`timingJa` 追加＋`engineUnwiredTimings` 登録。
+- データ＝PR-470A-E1 timing `ON_TURN_END`→`ON_DECK_SHUFFLED`＋POWER_MODIFY target に `thisCardOnly` 補完で完全一致。句はユニーク（カスケードなし）。
+- typecheck緑・同型★0・逆翻訳原文一致・**VALUE 11→10・LOSS 0 維持**・⚠engine未配線。
+
 ## repr: ON_TARGETED（対戦相手の能力か効果の対象になったとき）14枚（R49・2026-06-28）
 
 「このシグニ／あなたの〔色/クラス〕のシグニが対戦相手の、能力か効果の対象になったとき」を新 timing `ON_TARGETED` として表現。**対象選択の確定経路への配線は重い（インタラクション中核の多経路改変＝高リスク）ため engine未配線**＝decompiler `engineUnwiredTimings` に `ON_TARGETED` を登録し逆翻訳末尾に【※engine未配線】を付与（TODO §3 の方針どおり）。
