@@ -828,6 +828,21 @@ export interface InstallDelayedTriggerAction {
   conditional?: boolean;          // 「そうした場合」＝直前ステップ（任意コスト等）が成功したときのみ設置
 }
 
+// B2 動的閾値: あなたのデッキの上からカードをN枚公開する（ピックしない）。公開したシグニのレベル合計を
+// ownerState.last_revealed_signi_level_sum に、公開カード番号を last_revealed_deck_cards に記録する。
+// 後続の動的閾値フィルタ（powerLteRevealedSigniLevelSum）と TRASH_REVEALED が参照する。WX17-028。
+export interface RevealDeckTopAction {
+  type: 'REVEAL_DECK_TOP';
+  owner: Owner;
+  count: number;
+}
+
+// B2: 直前に REVEAL_DECK_TOP で公開したカード（last_revealed_deck_cards）をトラッシュに置く。WX17-028「公開したカードをトラッシュに置く」。
+export interface TrashRevealedAction {
+  type: 'TRASH_REVEALED';
+  owner: Owner;
+}
+
 // スタック下のカードから上のシグニへ能力を付与する（CONTINUOUS効果として宣言）
 export interface GrantSigniAboveAbilityAction {
   type: 'GRANT_SIGNI_ABOVE_ABILITY';
