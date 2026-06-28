@@ -963,6 +963,10 @@ function effJa(e: Eff): string {
     if (t === 'ON_PLAY' && e.triggerCondition?.placedFront) {
       s = '対戦相手のシグニ１体がこのシグニの正面に配置されたとき';
     }
+    // ON_EXCEED_COST「あなたがエクシードのコストを支払ったとき」変種（WXDi-P06-078）
+    if (t === 'ON_EXCEED_COST' && e.triggerCondition?.exceedCostPaidByPlayer) {
+      s = 'あなたがエクシードのコストを支払ったとき';
+    }
     // ON_PLAY の triggerFilter（クロス/ライズアイコン）を主語に反映（「あなたの《クロスアイコン》を持つシグニが場に出たとき」）
     if (t === 'ON_PLAY' && (e.triggerScope === 'any_ally' || e.triggerScope === 'any') && (e.triggerFilter?.hasCrossIcon || e.triggerFilter?.hasRiseIcon)) {
       const icon = e.triggerFilter.hasCrossIcon ? 'クロスアイコン' : 'ライズアイコン';

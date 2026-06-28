@@ -11960,6 +11960,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const cn of exceedPaidCards) {
         for (const eff of (effectsMap.get(cn) ?? [])) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_EXCEED_COST')) continue;
+          if (eff.triggerCondition?.exceedCostPaidByPlayer) continue; // 「あなたが支払ったとき」変種は下の場シグニ走査で処理
           entriesLG.push({
             id: generateUUID(),
             playerId: user.id,
@@ -11969,6 +11970,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             effect: eff,
           });
         }
+      }
+      // ON_EXCEED_COST（場のシグニ）: 「あなたがエクシードのコストを支払ったとき」変種（exceedCostPaidByPlayer）。
+      // エクシードコストを支払った場合のみ、自分の場のシグニ/ルリグの該当【自】を発火（WXDi-P06-078）。
+      if (exceedCost > 0) {
+        const myTurnEC = user.id === bs.active_user_id;
+        const exceedUsedIds: string[] = [];
+        const ecSources: string[] = [
+          ...paid.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+          ...(paid.field.lrig.at(-1) ? [paid.field.lrig.at(-1)!] : []),
+        ];
+        for (const topEC of ecSources) {
+          for (const eff of (effectsMap.get(topEC) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_EXCEED_COST')) continue;
+            if (!eff.triggerCondition?.exceedCostPaidByPlayer) continue;
+            const toEC = eff.triggerCondition?.turnOwner;
+            if (toEC === 'self' && !myTurnEC) continue;
+            if (toEC === 'opponent' && myTurnEC) continue;
+            if (eff.usageLimit === 'once_per_turn' &&
+                ((paid.actions_done?.includes(eff.effectId)) || exceedUsedIds.includes(eff.effectId))) continue;
+            if (eff.usageLimit === 'once_per_turn') exceedUsedIds.push(eff.effectId);
+            entriesLG.push({
+              id: generateUUID(),
+              playerId: user.id,
+              cardNum: topEC,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(topEC)?.CardName ?? topEC}【自】エクシードコスト支払い時`,
+              effect: eff,
+            });
+          }
+        }
+        if (exceedUsedIds.length > 0) paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...exceedUsedIds] };
       }
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existingStack = bs?.effect_stack ?? null;
