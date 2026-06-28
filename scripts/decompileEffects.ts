@@ -728,6 +728,12 @@ function actionJa(a?: Action, effectType?: string): string {
           const inner = gm[3].replace(/\s+/g, '');
           return `${dur}${subj}は「${inner}」を得る`;
         }
+        // 後置型「…は（以下の能力を）得る。『…』」（引用が「得る」の後）
+        const gm2 = currentCardText.match(/(それ|この(?:ルリグ|シグニ)|あなたの[^「『。]{0,30}?)は[^「『。]{0,12}以下の能力を得る。?(?:（[^）]*）)?\s*[「『]([\s\S]+?)[」』]/);
+        if (gm2 && /【(?:自|常|起|出)/.test(gm2[2])) {
+          const inner = gm2[2].replace(/\s+/g, '');
+          return `${gm2[1]}は以下の能力を得る「${inner}」`;
+        }
         // 引用が見つからない（誤パース／引用無し）＝従来フォールバック
         return '[STUB:引用された能力を付与する（原文参照）]';
       }
