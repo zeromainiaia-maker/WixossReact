@@ -154,10 +154,9 @@ for (const [num, effs] of effectsMap) {
   if (ONLY_ID && num !== ONLY_ID) continue;
   if (cardN++ >= LIMIT) break;
   for (const eff of effs) {
-    const sourceInst = `${num}#src`;
     let res: { status: string; detail?: string };
     try {
-      const ctx = mkCtx(sourceInst);
+      const ctx = mkCtx(num);
       const first = executeEffect(eff, ctx);
       res = autopilot(first, ctx);
     } catch (e) {
