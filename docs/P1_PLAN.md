@@ -108,6 +108,7 @@
 5. **記録＆バトン**：`BUGFIXES.md` に追記（新しいものを上）→ **§3 を上書き** → コミット（末尾に「要実機検証」）→ **push**。
 
 ## 7. 進捗の可視化（整備済み）
+- **`npm run smoke`（`scripts/smokeTest.ts`）＝②実行スモーク／不変条件ハーネス（2026-06-28新設）**。全カードの全効果（10557件）を**オートパイロット**（pending を最小入力で自動応答）でヘッドレス実行し、例外（CRASH）／無限ループ（HANG・step>60）／構造不変条件違反（INVARIANT）を機械検出。実機不要・数秒。**初回結果＝CRASH 0／HANG 0／INVARIANT 0／SKIP 5**（SKIP＝REVEAL_CARDS/DECLARE_BOND/稀なSELECT_TARGETループ＝autopilot未対応であり engine バグではない）。⚠「壊れない」を保証するもので「ルール的に正しい結果か（③）」は判定しない＝③は構文ゴールデン＋代表目視で別途。C（engine配線）/D（STUB実装）の回帰検出にこれを使う。
 - **`node scripts/_dropTriage.mjs`**＝脱落疑いを〔偽陽性／機構待ち／修正済／実バグ候補〕に自動＋手動分類（明細 `docs/_drop_triage.txt`）。残り作業の性質が一目で分かる。
 - **`npx tsx scripts/parserWorklist.ts`**＝held/LOSS/VALUE の health 計器（現在すべて 0）。回帰検出に使う。
 - **`npx tsx scripts/_flattenList.ts`**＝timing flatten の EXIST/FRESH 差分（現在 0 枚）。
