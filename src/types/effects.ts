@@ -810,6 +810,20 @@ export interface GrantEffectAction {
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX04-094。選択UIを出さず同一対象に付与）
 }
 
+// 「このターン、…したとき、…」＝1ターン限りのプレイヤーレベル遅延条件トリガーを設置する（B3・WX25-CP1-069）。
+// 設置時点では何もせず、後続のトリガー（trigger.timing）がそのターン中に発火したとき effect を実行。ターン終了時に消滅。
+// 特定シグニへの能力付与（GRANT_EFFECT）と異なり、設置後に出たシグニ・プレイヤーレベルの誘発を捕捉できる。
+export interface InstallDelayedTriggerAction {
+  type: 'INSTALL_DELAYED_TRIGGER';
+  duration: 'THIS_TURN';
+  trigger: {
+    timing: string;               // 発火タイミング（例: 'ON_OPP_LIFE_CRASHED'）
+    crasherFilter?: TargetFilter; // 発火源シグニの条件（例: 青の＜ブルアカ＞）。⚠engine は「場に該当シグニがいるか」で近似判定（実際のクラッシュ源シグニは未追跡）
+  };
+  effect: EffectAction;           // 発火時に実行するアクション
+  conditional?: boolean;          // 「そうした場合」＝直前ステップ（任意コスト等）が成功したときのみ設置
+}
+
 // スタック下のカードから上のシグニへ能力を付与する（CONTINUOUS効果として宣言）
 export interface GrantSigniAboveAbilityAction {
   type: 'GRANT_SIGNI_ABOVE_ABILITY';
