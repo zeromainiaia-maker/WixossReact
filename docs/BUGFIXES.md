@@ -5,6 +5,14 @@
 
 ---
 
+## repr: A3＝WXDi-CP02-074/089 の別timing 1効果脱落の復元（2026-06-28）
+
+両カードとも【自】＋【絆自】の2能力のうち**先頭の【自】が丸ごと脱落**し【絆自】のみ表現されていた（P1_PLAN §3 A3残「別timing 1効果脱落2」）。脱落していた【自】を復元し、原文順（自→絆自）に並べ替え（src 参照なしを確認のうえ effectId を E1/E2 振り直し）。
+
+- **WXDi-CP02-074-E1**（音瀬コタマ）＝「あなたのターン終了時、このシグニがアップ状態なら、デッキ一番上を公開→＜ブルアカ＞なら1枚引く」。`ON_TURN_END`＋`triggerCondition.turnOwner:self`＋`CONDITIONAL{THIS_CARD_IS_UP}→SEQUENCE[REVEAL, CONDITIONAL{DECK_TOP_MATCHES story:ブルアカ}→DRAW]`。全て既存配線アクション。
+- **WXDi-CP02-089-E1**（黒見セリカ）＝「アタックフェイズ開始時、エナから＜ブルアカ＞1枚をトラッシュしてもよい。そうした場合、ターン終了時まで、このシグニは『【常】：正面シグニのパワー5000以下のかぎり【ランサー】を得る』を得る」。確立パターン `SEQUENCE[STUB OPTIONAL_TRASH_ENERGY_CLASS, CONDITIONAL{IS_MY_TURN}→STUB GRANT_QUOTED_ABILITY]`。GRANT_QUOTED_ABILITY は decompiler が原文から引用能力を抽出し原文一致描画。⚠引用付与の engine 精緻化は B4 待ち（既存30枚超と同じ表現STUB）。
+- 各カードE1 parseStatus:MANUAL・typecheck緑・**同型★0維持**・held/LOSS/VALUE 0。逆翻訳が原文一致（CP02-089 は「カード／シグニ」表記のみ近似）。
+
 ## repr: A3＝WXDi-P11-032 3択GRANT 脱落の復元（2026-06-28）
 
 カーニバル -罪- WXDi-P11-032（アシストルリグ）の【出】×2が、原文「シグニ1体を対象とし、ターン終了時まで、それは【アサシン】か【ランサー】か「【常】：アタックできない。」を得る」を**アサシン1択に縮退**していた（GRANT_QUOTED CHOOSE脱落・P1_PLAN §1「機構待ち72枚」の GRANT_KEYWORD CHOOSE脱落1）。
