@@ -5,6 +5,16 @@
 
 ---
 
+## engine: ON_OPP_VIRUS_PLACED 追加＋ウィルス配置/除去 flatten 4枚（R33・2026-06-28・ymst）
+
+timing flatten のウィルス系4枚を配線。`ON_OPP_VIRUS_REMOVED`/`ON_OPP_VIRUS_CHANGED` は型・`collectSelfEventTriggers`・呼び出し（virus flag useEffect）が既に配線済みで**コメントに WD19-009/WX21-030 を名指ししていたのに JSON が未配線**だった＝データ修正のみ。「置かれたとき」専用が無かったため `ON_OPP_VIRUS_PLACED` を新設（`opp_virus_placed_just` フラグ・`placed` 時に collectSelfEventTriggers 呼び出し追加）。
+
+- 型 union（effects.ts）＋collectSelfEventTriggers timing 引数＋呼び出し（`if(placed)`）＋decompiler ラベル3種を追加。
+- データ4枚（POWER_MODIFY はクリーン・timing のみ修正・MANUAL）: WX19-079（置かれた→相手-2000・PLACED）／WX21-030（置く/除去→相手-5000・CHANGED）／WX21-068（除去→相手-2000・REMOVED）／WD19-009（除去→相手-5000・REMOVED・once）。
+- typecheck緑・同型★0・逆翻訳が原文トリガー完全一致・⚠実機未検証。VALUE 45→41。
+
+---
+
 ## データ: timing flatten ON_DRAW（効果ドロー）2＋ON_HAND_DISCARDED（ディソナ捨て）1（2026-06-28・ymst）
 
 VALUE timing flatten（`ON_TURN_END` へ誤 flatten した【自】3枚）を**既存配線**で修正（新機構不要・MANUAL ロック）。いずれも parser は ON_PLAY を出すが triggerScope/Condition を欠き両誤＝per-card 再構築。
