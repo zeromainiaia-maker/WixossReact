@@ -1,5 +1,4 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { execSync } from 'child_process';
 import Papa from 'papaparse';
 import { parseCardEffects } from '../src/data/effectParser';
 import { mergeManualEffects } from '../src/data/manualEffects';
