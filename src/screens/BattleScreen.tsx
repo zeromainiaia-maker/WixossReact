@@ -9496,6 +9496,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         const triggers = collectBanishTriggers(topNum, ownerId, hostState, guestState);
         allTriggers.push(...triggers);
+        // パワー0以下になったとき（ON_SIGNI_POWER_ZERO_OR_LESS）を監視するシグニのトリガーも収集。
+        // 同パスで複数シグニが同時に0化した場合の once_per_turn 重複発火を避けるため effectId で dedup。
+        const pzTriggers = collectPowerZeroTriggers(topNum, ownerId, hostState, guestState)
+          .filter(e => !allTriggers.some(a => a.effectId === e.effectId));
+        allTriggers.push(...pzTriggers);
       }
     }
 
