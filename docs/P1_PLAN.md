@@ -89,7 +89,7 @@
 | ~~`SET_TRAP` 設置アクション~~ | 中（トラップ設置型 ~30枚） | 中 | **✅完了(claude・2026-06-28)**＝engine は既に実装済み（`signi_traps` ゾーン＋execStubPart2 の PLACE_TRAP_*/ACTIVATE_TRAP/TRAP_TO_HAND/SET_OPP_SIGNI_AS_TRAP/TRAP_TO_SIGNI_IF_ZONE_EMPTY 等）。**B1の課題は逆翻訳（decompiler）**＝9系統のトラップSTUBを raw `[STUB:id]`→原文の【トラップ】語彙で描画（原文クラスタ抽出＋canonical）。生STUB残0・同型★0。⚠TRAP_OP/TRAP_OPERATION は多段近似（一部 そうした場合 重複） |
 | ~~動的閾値フィルタ（公開レベル合計×N 以下 等）~~ | 小（WX17-028 等） | 中 | **✅完了(claude・2026-06-28)**＝`REVEAL_DECK_TOP`＋`TRASH_REVEALED` アクション＋動的閾値フィルタ `powerLteRevealedSigniLevelSum`（resolveDynamicFilter で powerRange.max に解決）を新設。WX17-028 の脱落【出】を復元＋劣化E1是正。原文一致・同型★0 |
 | ~~遅延条件トリガー（「このターン、…したとき」）~~ | 小（WX25-CP1-069 等） | 中 | **✅完了(claude・2026-06-28)**＝`INSTALL_DELAYED_TRIGGER` 機構を新設（型＋PlayerState.delayed_triggers＋executor＋ON_OPP_LIFE_CRASHED収集＋ターン境界リセット3箇所＋decompiler）。WX25-CP1-069 を配線・原文一致・同型★0。⚠crasherFilter は「場に該当シグニがいるか」で近似＝要実機検証 |
-| engine未配線 timing 群の実機配線 | 大（~15 timing・R33-R58） | 高 | 未着手（C1）＝P2。一覧は `engineUnwiredTimings` |
+| engine未配線 timing 群の実機配線 | 大（~15 timing・R33-R58） | 高 | **着手中(claude・2026-06-29)＝C1**。`ON_TARGETED`（14枚）から配線開始。残一覧は `engineUnwiredTimings`。⚠要実機検証 |
 | ~~《相手ターン》/《自分ターン》AUTOトリガー基盤~~ | — | — | **実装済**（機構④・BUGFIXES参照） |
 | ~~【ビート】機構（Phase1-7）~~ | 44枚 | — | **完了**（BUGFIXES参照）。残はトラッシュ版選択ピッカーのみ（低優先） |
 | ~~傀儡場出しの汎用化~~ / ~~`levelLteLastProcessed`~~ | — | — | **実装済**（BUGFIXES参照） |
