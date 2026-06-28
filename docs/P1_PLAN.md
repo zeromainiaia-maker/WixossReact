@@ -49,7 +49,7 @@
 - ~~**A2**　`GRANT_QUOTED_AUTO_ABILITY` の**誤パース是正**~~ **✅完了（2026-06-28・引用無しGQ残0）**＝引用無しGQ13枚（TK03A除く）を全是正。9枚（optional-cost 句）を `OPTIONAL_COST` 規約に置換、残4枚（WD13-002 グロウ軽減／WXDi-P09-079 ミル場出し／WXDi-P10-041 下カードコスト／WX25-CP1-060 ON_TARGETED裏返し＋絆常+5000をE3分離）を記述的STUB＋既存アクションで個別是正。TK03A（本物の付与）は decompiler subject を「これ…は『…』を得る」に拡張。全て MANUAL・同型★0維持。⚠各カードの細部（条件/フィルタ）は一部近似。
 - **A3**　各カードの timing/result 近似の是正。**✅完了＝A3クローズ（2026-06-28）**＝A2修正カードの timing 6枚（ON_ACCE_ATTACH/ON_SIGNI_BANISH_OPPONENT/placedFront/ON_SIGNI_BANISH_BATTLE/any_opp/placedFromTrash）＋result 3枚（TRASH是正）＋`PLACE_UNDER_SIGNI` 描画バグ修正。~~WXDi-P11-032 アサシン/ランサー/常 の3択 GRANT~~ **✅完了（2026-06-28）**＝CHOOSE(3)＝GRANT_KEYWORD アサシン/ランサー/アタックできない に復元（MANUAL・同型★0）。~~WXDi-CP02-074/089 の別timing 1効果脱落~~ **✅完了（2026-06-28）**＝先頭【自】を復元し原文順に並べ替え（074=ターン終了時reveal→ブルアカでdraw／089=エナトラッシュ→引用ランサー付与）。~~その他 OPTIONAL_COST 句の具体コスト~~ **✅完了（2026-06-28）＝A3クローズ**＝`StubAction.costText` 追加＋抽出パッチで bare OPTIONAL_COST 80→22枚（58枚を原文コスト句で是正・MANUAL）。残22枚は A3具体コスト対象外＝別系統（誤パース13／替コスト・F-3 2／複数択複合4／動的閾値1／引用内コスト1／ルール注記偽陽性1）に分類済み。decompileシートも UTF-8 正規化（真のカード数5986・同型★0）。**⚠decompile再生成は Bash の `>`（UTF-8）で行う。PowerShell `>` は UTF-16 を書き下流を壊すので禁止。**
 
-**B. 機構待ち（新語彙/機構が要る・中リスク・§5表）＝4機構**
+**B. 機構待ち（新語彙/機構が要る・中リスク・§5表）＝✅全4機構完了（B1-B4・2026-06-28）**
 - ~~**B1**　`SET_TRAP` 設置アクション~~ **✅完了（2026-06-28）**＝engine は既存（`signi_traps` ゾーン）。decompiler で9系統トラップSTUBを原文【トラップ】語彙描画（生STUB残0）。**§5 のB機構は全完了**。
 - ~~**B2**　動的閾値フィルタ（WX17-028「公開したシグニのレベル合計×1000以下」）~~ **✅完了（2026-06-28）**＝`REVEAL_DECK_TOP`/`TRASH_REVEALED`/`powerLteRevealedSigniLevelSum` 新設。残B＝B1/B4。
 - ~~**B3**　遅延条件トリガー（WX25-CP1-069「このターン、…クラッシュしたとき」）~~ **✅完了（2026-06-28）**＝`INSTALL_DELAYED_TRIGGER` 機構新設。残B＝B1/B2/B4。
