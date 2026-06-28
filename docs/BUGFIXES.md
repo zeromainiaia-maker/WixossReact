@@ -5,6 +5,18 @@
 
 ---
 
+## engine: ON_ARTS_USE 新規配線＋timing flatten アーツ使用クラスタ5枚（2026-06-28・ymst）
+
+未配線トリガー「あなたがアーツを使用したとき」を engine 実装。**`ON_SPELL_USE` のアーツ版**＝既存 `ON_OPP_ARTS_USE`（相手アーツ使用）の裏で、使用者自身のトリガーを収集する `ON_ARTS_USE` を新設。
+
+- **型**: `effects.ts` timing union に `ON_ARTS_USE` 追加。
+- **収集**: `collectArtsUseTriggers(casterId, casterState, opState, isCasterTurn)`（BattleScreen・collectOppArtsUseTriggers 直後）＝caster のセンタールリグ＋場シグニを走査。triggerScope:self／usageLimit（《ターン1回/2回》＝actions_done 出現回数）／activeCondition／condition を ON_SPELL_USE と同様に評価。
+- **配線点**: アーツ解決後ブロック（`entryCardType === 'アーツ'`）で、`entry.playerId === user.id`（=自分が使用）の場合のみ収集＝ON_OPP_ARTS_USE（`!== user.id`）と裏表で二重押し防止。usedIds を caster の actions_done に永続化。
+- **データ**: 5枚を timing:ON_TURN_END→ON_ARTS_USE に再curate＋target 是正＋MANUAL。WXK01-059-E2／WDK03-011-E1（自全＜怪異＞へ）＝self/ALL/story:怪異。WXK05-042/WXK10-046＝無指定「シグニ1体」any/1。WDK03-017＝「このシグニ」thisCardOnly。
+- typecheck緑・同型★0・逆翻訳原文一致。⚠実機未検証（アーツ使用→自トリガー発火）。timing flatten 残 ≈87。
+
+---
+
 ## データ: VALUE curation R1-R4＝小バケツ整理＋timing flatten 実バグ発見（VALUE 159→107）（2026-06-28・ymst）
 
 LOSS 0 達成後、held の残り＝VALUE（EXIST≠FRESH の値違い・leaf 喪失なし）159枚を `scripts/_valueTriage.ts`（新設・EXIST/FRESH 変更リーフ一覧）で1枚ずつ triage。**判定原則＝①FRESH/manual が正で JSON stale＝resync（実バグ修正）②EXIST 正で parser 退化＝MANUAL-lock（metadata のみ・挙動不変）③両方 lossy 近似＝EXIST ロック＋TODO に機構待ち記録**。

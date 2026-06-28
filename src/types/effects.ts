@@ -26,6 +26,7 @@ export type EffectTiming =
   | 'ON_TURN_END'      // ターン終了時
   | 'ON_DRAW'          // あなたがカードを引いたとき（G089）
   | 'ON_OPP_ARTS_USE'  // 相手がアーツを使用したとき（自分フィールドのシグニがトリガー）
+  | 'ON_ARTS_USE'      // あなたがアーツを使用したとき（使用者自身のルリグ/シグニがトリガー。ON_SPELL_USE のアーツ版。collectArtsUseTriggers で配線）
   | 'ON_REVEALED_FROM_HAND' // このカードが効果によって手札から公開されたとき
   | 'ON_SELF_REVEAL_FROM_HAND' // あなたが自分の効果によって手札からカードを公開したとき（場のシグニが反応。G198）
   | 'ON_ENERGY_FROM_TRASH' // このカードがトラッシュからエナゾーンに置かれたとき

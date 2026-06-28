@@ -5146,6 +5146,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // ON_ARTS_USE: 自分がアーツを使用した場合、使用者自身の ON_ARTS_USE トリガーを収集（ON_SPELL_USE のアーツ版）。
+        // caster の client のみが収集する（entry.playerId === user.id）＝ON_OPP_ARTS_USE と裏表で二重押しを防ぐ。
+        if (entryCardType === 'アーツ' && entry.playerId === user.id) {
+          const casterState = isHost ? hostState : guestState;
+          const casterOpState = isHost ? guestState : hostState;
+          const casterIsActive = bs.active_user_id === user.id;
+          const au = collectArtsUseTriggers(user.id, casterState, casterOpState, casterIsActive);
+          if (au.entries.length > 0) {
+            const baseStackAU = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackAU
+              ? pushToStack(baseStackAU, au.entries)
+              : initStack(user.id, au.entries);
+            // usageLimit（《ターン1回/2回》）を caster の actions_done に永続化
+            if (au.usedIds.length > 0) {
+              const keyAU = isHost ? 'host_state' : 'guest_state';
+              const baseStAU = (update[keyAU] as PlayerState) ?? (isHost ? hostState : guestState);
+              update[keyAU] = { ...baseStAU, actions_done: [...(baseStAU.actions_done ?? []), ...au.usedIds] };
+            }
+          }
+        }
+
         // FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する
         if (result.forceEndTurn) {
           const activeIsHost = bs.active_user_id === bs.host_id;
@@ -6207,6 +6228,50 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
     return entries;
+  };
+
+  /**
+   * あなたがアーツを使用したとき（ON_ARTS_USE）、使用者自身のルリグ/シグニのトリガーを収集する。
+   * ON_SPELL_USE の自分版（BattleScreen:7237）と同型：caster のセンタールリグ＋場のシグニを走査。
+   * usageLimit（《ターン1回》《ターン2回》）は actions_done(effectId) 出現回数で制御し、
+   * 呼び出し側で usedIds を caster の actions_done に永続化する。
+   */
+  const collectArtsUseTriggers = (
+    casterId: string,
+    casterState: PlayerState,
+    opState: PlayerState,
+    isCasterTurn: boolean,
+  ): { entries: StackEntry[]; usedIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedIds: string[] = [];
+    const sources = [
+      casterState.field.lrig.at(-1),
+      ...casterState.field.signi.map(s => s?.at(-1)),
+    ].filter((n): n is string => !!n);
+    for (const srcNum of sources) {
+      for (const eff of (effectsMap.get(srcNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ARTS_USE')) continue;
+        if ((eff.triggerScope ?? 'self') !== 'self') continue;
+        if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
+          const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+          const used = (casterState.actions_done ?? []).filter(id => id === eff.effectId).length
+            + usedIds.filter(id => id === eff.effectId).length;
+          if (used >= max) continue;
+          usedIds.push(eff.effectId);
+        }
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, casterState, opState, isCasterTurn, battleCardMap, srcNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, casterState, opState, battleCardMap, srcNum, bs.turn_phase, effectivePowers)) continue;
+        entries.push({
+          id: generateUUID(),
+          playerId: casterId,
+          cardNum: srcNum,
+          effectId: eff.effectId,
+          label: `${battleCardMap.get(srcNum)?.CardName ?? srcNum}【自】アーツ使用時`,
+          effect: eff,
+        });
+      }
+    }
+    return { entries, usedIds };
   };
 
   // シグニ召喚（ゾーン選択後に実行）

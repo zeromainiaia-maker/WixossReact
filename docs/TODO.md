@@ -75,7 +75,8 @@
 - **進捗**: ✅スペル使用7（R5）＋✅ドライブ3（R6・ON_SIGNI_BECOMES_DRIVE＋triggerScope any_ally/self）完了。残 flatten ≈92。⚠WXK11-033-E1 step2「相手センタールリグLv4以上で追加ダブルクラッシュ」条件は未表現（近似）。
 - **🔭 残 flatten のトリガー別・engine 配線分類（次セッションの地図）**＝`node scripts/_flattenView.mjs [正規表現]` で各カードのトリガー文＋action を確認できる（auto effect 順≒【自】文順で対応）。
   - **✅配線済み＝修正可（per-card で timing+scope+filter 再構築→MANUAL→実機検証）**: 「場に出たとき」系（クロス場出し4／レゾナ場出し3／傀儡1／他アーム1／ライズアイコン場出し1／トラッシュから場出し2 等）＝`ON_PLAY`＋`triggerScope:any_ally`＋triggerFilter（cross/story 等）。「手札を捨てたとき」系＝`ON_HAND_DISCARDED`。「アクセが付いたとき」＝`ON_ACCE`/`ON_ACCE_ATTACH`。「エクシードのコストとして…置かれたとき」2＝`ON_EXCEED_COST`。
-  - **⛔未配線＝機構待ち（新 timing/収集機構が要る・触らない）**: 「ライズされたとき」6＋《オダノブ》ライズ2（`ON_RISE` 不在）／「アーツを使用したとき」4（`ON_ARTS_USE` 不在）／「デッキからカードがトラッシュに置かれたとき」系 多数（`ON_CARD_MILLED_FROM_DECK` 未配線・§3 機構④）／「効果で対戦相手のパワーが減ったとき」2（§3 機構④の毒牙トリガー）／「コインを支払ったとき」「ウィルスが取り除かれたとき」「ゾーン移動」等。
+  - **⛔未配線＝機構待ち（新 timing/収集機構が要る・触らない）**: 「ライズされたとき」6＋《オダノブ》ライズ2（`ON_RISE` 不在）／~~「アーツを使用したとき」~~ **【✅R7 配線済み＝ON_ARTS_USE 新設・5枚修正・BUGFIXES参照】**／「デッキからカードがトラッシュに置かれたとき」系 多数（`ON_CARD_MILLED_FROM_DECK` 未配線・§3 機構④）／「効果で対戦相手のパワーが減ったとき」2（§3 機構④の毒牙トリガー）／「コインを支払ったとき」「ウィルスが取り除かれたとき」「ゾーン移動」等。
+  - **次の未配線着手候補＝ON_RISE（ライズされたとき）8枚**：「このシグニがライズされたとき」（WX16-037/039・WX17-054・WX20-056・WD17-011）＋《オダノブ》指定（WX20-056-E2）。ライズ配置の hook（`collectRiseBanishSubstituteSigni` 周辺＝ライズ処理点）に `ON_RISE` 収集を足す。triggerScope:self（「このシグニ」）＝ライズされたシグニ自身。
   - **進め方**: 配線済みクラスタを1つずつ（`_flattenView.mjs` でトリガー確定→`_fix<Cluster>.mjs` で timing+scope+filter 再構築＋MANUAL→typecheck＋同型★0＋decompile 原文一致→commit）。未配線クラスタは機構実装が要るので §3 機構④と統合して別途。
 
 ## 4. 個別の複雑カード（機構待ち・着手候補）
