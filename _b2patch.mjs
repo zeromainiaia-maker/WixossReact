@@ -40,7 +40,7 @@ d['WX17-028'] = [
   // 対戦相手のシグニ1体を対象とし、それをバニッシュする。公開したカードをトラッシュに置く。
   {
     effectId: 'WX17-028-E2',
-    effectType: 'ACTIVATED',
+    effectType: 'AUTO',
     timing: ['ON_PLAY'],
     cost: { energy: [{ color: '赤', count: 0 }] },
     action: {
