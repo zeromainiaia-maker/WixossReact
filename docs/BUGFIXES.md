@@ -5,6 +5,15 @@
 
 ---
 
+## ツール: ③構文ゴールデンテスト `npm run golden` 登録＋UP/誤SKIP修正（2026-06-29）
+
+smoke（②壊れない）に対し、③「ルール的に正しい結果か」を型単位で担保する構文ゴールデンテストを `npm run golden` に登録（`scripts/goldenTest.ts`）。主要DSLアクション型ごと制御盤面で効果を実行し結果を assert。**現状＝PASS 21／FAIL 0**。
+
+- **engine 実バグ修正（`UP` 選択後適用ループ）**＝golden が検出。`applyDirectAction` に `UP` case が無く、選択式UP（「シグニ1体を対象とし、アップする」）が選択後に default 経由で `execUp` を再実行→再選択 pending を返し続ける**無限ループ**になっていた。`UP` case を追加し、対象ゾーンの `signi_down[idx]=false` を立てて `done` で確定（`16fb4de2`）。`DOWN` の対称形。
+- **smoke autopilot 誤SKIP 解消**＝旧判定は「同一pending**種別**が連続したら autopilot 限界として SKIP」だったため、SELECT_TARGET が連続するだけで候補は毎回変わる**正常進行**まで誤って SKIP していた。**候補シグネチャ（`type`＋`candidates`/`options[].id`/`cards` の JSON）が同一**のときだけ真のループとみなす方式に変更（`cd1edf23`）。これにより誤SKIPが減り OK が増加。
+- **STEP_CAP 60→200**＝正常な多段効果が HANG 誤検出されないよう拡大（`c796aa3d`）。
+- 検証＝`npm run smoke`（CRASH/HANG/INVARIANT 0・OK 10294/SKIP 263）／`npm run golden`（21/21）／`npm run typecheck` 緑。
+
 ## ツール: ②実行スモーク／不変条件ハーネス `npm run smoke` 新設（2026-06-28）
 
 6600枚を実機検証する負担を下げるため、ヘッドレスで「壊れないこと」を機械検証する第一段を新設。
