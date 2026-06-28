@@ -6280,6 +6280,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
       }
+
+      // ON_TARGETED トリガーを（done/not-done どちらの分岐で確定したスタックにも）後乗せで積む。
+      if (targetedEntries.length > 0) {
+        const turnPlayerId = bs.active_user_id ?? user.id;
+        const baseStack = (('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null) as EffectStack | null;
+        update.effect_stack = baseStack
+          ? pushToStack(baseStack, targetedEntries)
+          : initStack(turnPlayerId, targetedEntries);
+      }
+
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
       await flushBattleLogs();
       setEffectSelectedNums([]);
