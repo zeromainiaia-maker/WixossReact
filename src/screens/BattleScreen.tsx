@@ -6356,6 +6356,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
     // ON_HAND_DISCARDED: discarder の自フィールド。'any' は常時、それ以外は discarder のターンのみ。
+    // triggerCondition.turnOwner:'opponent'（【絆自】等「対戦相手のターンの間、あなたが手札を捨てたとき」
+    // WXDi-CP02-082-E2）は discarder の相手ターン（=!myIsTurn）のみ発火。'self'/未指定は従来どおり自ターンのみ。
     const myIsTurn = bs.active_user_id === discarderId;
     const myBlocked = !!myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
     for (const stack of myState.field.signi) {
@@ -6365,7 +6367,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
         const isAny = eff.triggerScope === 'any';
         if (myBlocked) continue;
-        if (!isAny && !myIsTurn) continue;
+        if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
+        else if (!isAny && !myIsTurn) continue;
         if (!matchesTrigFilter(eff)) continue;
         if (!limitOk(eff)) continue;
         entries.push({
