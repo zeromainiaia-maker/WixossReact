@@ -92,11 +92,15 @@ function mkCtx(sourceInst: string): ExecCtx {
 function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detail?: string } {
   let result = first;
   let steps = 0;
+  let sameType = ''; let sameN = 0; // 同一pending種別が進展なく連続したら autopilot 限界として SKIP
   while (!result.done) {
     if (++steps > STEP_CAP) return { status: 'HANG', detail: `step>${STEP_CAP}` };
     const pending = (result as { pending: { type: string; [k: string]: unknown } }).pending;
+    if (pending.type === sameType) { if (++sameN > 6) return { status: 'SKIP', detail: `autopilot loop: ${pending.type}` }; }
+    else { sameType = pending.type; sameN = 0; }
     const ctx: ExecCtx = { ...baseCtx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
     const p = pending as Record<string, unknown>;
+    const zone = steps % 3; // ゾーン選択は巡回（占有済み zone0 の再選択ループを避ける）
     try {
       switch (pending.type) {
         case 'SELECT_TARGET': {
