@@ -590,6 +590,30 @@ export function execStubPart1(
         return done(addLog(ctx, 'ルリグへのシグニパワー付与能力（effectEngineで処理）'));
       }
 
+      // B4 精緻化: 引用された【自】/【常】/【起】能力を parseCardEffects で CardEffect 化し、
+      // 自分の場のシグニ（selfTargets）の granted_effects（ターン終了時まで）に積んで実発火させる。
+      // 安全ガード＝(1)対象が自場シグニのみ (2)「このゲームの間」(permanent)は除外（turn-scopedで誤失効を避ける）
+      // (3)parse結果が STUB のみ/空なら従来どおり no-op（誤った能動化を避ける）。⚠相手付与・permanent付与は未対応＝要実機検証。
+      if (/【(?:自|常|起)】/.test(quotedText) && !/このゲームの間/.test(txtGQ)) {
+        const ownerSigniTops = new Set(ctx.ownerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])));
+        const selfTargets = targetCardNums.filter(cn => ownerSigniTops.has(cn));
+        if (selfTargets.length > 0) {
+          const synthCard = { ...(srcGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').CardData;
+          let parsedEffs: import('../types/effects').CardEffect[] = [];
+          try { parsedEffs = parseCardEffects(synthCard); } catch { parsedEffs = []; }
+          const usable = parsedEffs.filter(e => e.action && e.action.type !== 'STUB');
+          if (usable.length > 0) {
+            const grantedMapGQ = { ...(ctx.ownerState.granted_effects ?? {}) };
+            let seqGQ = 0;
+            for (const cn of selfTargets) {
+              const tagged = usable.map(e => ({ ...e, effectId: `granted-gq-${cn}-${Date.now()}-${seqGQ++}`, duration: e.duration ?? ('UNTIL_END_OF_TURN' as const) }));
+              grantedMapGQ[cn] = [...(grantedMapGQ[cn] ?? []), ...tagged];
+            }
+            return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapGQ } },
+              `引用能力「${quotedText.slice(0, 20)}」を${selfTargets.length}体に付与（解析${usable.length}件・ターン終了時まで）`));
+          }
+        }
+      }
       return done(addLog(ctx, `能力付与：「${quotedText.slice(0, 24)}」（ログのみ）`));
     }
     return done(addLog(ctx, '能力を付与（effectEngine処理）'));
