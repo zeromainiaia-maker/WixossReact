@@ -1525,6 +1525,7 @@ export interface CardEffect {
     placedDown?: boolean; // ダウン状態で場に出た場合のみ発火（G144「あなたのシグニがダウン状態で場に出たとき」。ON_PLAY と併用）
     placedFromTrash?: boolean; // トラッシュから場に出た場合のみ発火（「シグニがトラッシュから場に出たとき」。ON_PLAY と併用。配置元がトラッシュかを場出し前後の set-diff で判定）
     frontLowerLevelThanSource?: boolean; // このシグニ（効果元）の正面に、効果元よりレベルの低いシグニが出た場合のみ発火（WX17-075 タルタル付与。ON_PLAY any_opp と併用）
+    placedFront?: boolean; // このシグニ（効果元）の正面ゾーンにトリガー元シグニが配置された場合のみ発火（WXDi-P03-043「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」。ON_PLAY any_opp と併用。frontLowerLevelThanSource のレベル条件なし版）
     fromFieldByCostOrEffect?: boolean; // このシグニがコストか効果によって「場から」トラッシュに置かれた場合のみ発火（バトル・ルール処理では発火しない。G204。ON_TRASH と併用）
     drawBySourceStory?: string; // このドローの原因が、あなたの場にある指定＜story＞のシグニの効果である場合のみ発火（WX20-026-E3「あなたの場にある＜凶蟲＞のシグニの効果でカードを引いたとき」。ON_DRAW と併用。ドローフェイズの通常ドローやその他カードの効果ドローでは発火しない）
     outsideDrawPhase?: boolean; // ドローフェイズの通常ドロー（マンダトリードロー）では発火せず、それ以外（効果等）で引いたときのみ発火（WXDi-D09-P19/WXDi-P05-062「ドローフェイズ以外であなたがカードを１枚引いたとき」。ON_DRAW と併用）

@@ -6177,6 +6177,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const newLv = parseInt(battleCardMap.get(triggeringCardNum)?.Level ?? '0', 10);
           if (isNaN(hostLv) || isNaN(newLv) || newLv >= hostLv) continue; // このシグニより低レベルのみ
         }
+        // placedFront（WXDi-P03-043「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」）:
+        //   このシグニ（topNum）の正面ゾーンにトリガー元シグニが配置された場合のみ発火。盤面反転で正面は 2-ziHost。
+        if (eff.triggerCondition?.placedFront) {
+          if (event !== 'ON_PLAY') continue;
+          const ziHost = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
+          if (ziHost < 0) continue;
+          const frontNum = myState.field.signi[2 - ziHost]?.at(-1);
+          if (!frontNum || frontNum !== triggeringCardNum) continue; // 正面に配置されたシグニ以外は無視
+        }
         const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: generateUUID(),
