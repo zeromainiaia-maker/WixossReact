@@ -5,6 +5,14 @@
 
 ---
 
+## repr: ON_LRIG_UNDER_MOVED（ルリグの下からカードが移動したとき）1枚（R52・2026-06-28）
+
+WXDi-P04-042「あなたのターンの間、あなたのルリグ１体の下からカード１枚が移動したとき、対戦相手のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－8000する」を新 timing `ON_LRIG_UNDER_MOVED` で表現。**ルリグ下スタックの set-diff 配線が必要かつ発火が稀（検証困難）のため engine未配線**（`engineUnwiredTimings` 登録＋【※engine未配線】）。R49〜R51 と同手順（句ユニーク・トリガー文非除去・timing差分のみ＝完全一致）。
+
+- 型＝`ON_LRIG_UNDER_MOVED`（effects.ts）。パーサー＝timing チェーンに `/ルリグ[^。]{0,6}下から[^。]{0,8}移動したとき/`→`['ON_LRIG_UNDER_MOVED']`。decompiler＝`timingJa` 追加＋`engineUnwiredTimings` 登録。データ＝WXDi-P04-042-E1 timing `ON_TURN_END`→`ON_LRIG_UNDER_MOVED`。
+- typecheck緑・同型★0・逆翻訳トリガー句原文一致・**VALUE 9→8・LOSS 0 維持**・⚠engine未配線。
+- ⚠既知残（pre-existing・別件）：E1 action の POWER_MODIFY が `targetsTriggerSource:true`＝原文「それ」はstep[0]（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）で選んだ対戦相手シグニを指すべき。変更前から EXIST=FRESH 共通の action 誤り（VALUE/LOSS 非影響）。本ラウンドのスコープ外。
+
 ## repr: ON_KEYWORD_GAINED（他シグニがアサシン/ランサー/ダブルクラッシュを得たとき）1枚（R51・2026-06-28）
 
 WXDi-P04-035「あなたの他のシグニ１体が【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき、《赤》《無》を支払ってもよい。そうした場合、このシグニはその能力を得る」を新 timing `ON_KEYWORD_GAINED` で表現。**「その能力を得る」の動的注入（得たキーワードを引き継ぐ）＋任意コストで配線が重いため engine未配線**（`engineUnwiredTimings` 登録＋【※engine未配線】）。R49/R50 と同型の手順。
