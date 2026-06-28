@@ -1528,6 +1528,9 @@ export interface CardEffect {
     risedOntoNameContains?: string; // このシグニが、カード名に指定文字列を含むシグニの上にライズされた場合のみ発火（WX20-056-E2「《オダノブ》を含むシグニにライズされたとき」。ON_RISE と併用。ライズで下に置かれた元シグニの名前で判定）
     milledDeckOwner?: 'self' | 'opponent' | 'any';   // ON_CARD_MILLED_FROM_DECK の発生源デッキ（トリガー所有者から見た self/opponent/any）。省略=any
     milledMinCount?: number;                          // ON_CARD_MILLED_FROM_DECK の発火に必要な、その効果解決で対象デッキからトラッシュに置かれた最低枚数（省略=1）。「合計N枚」型はこの解決単位での近似（cf. TODO §3.5）
+    movedToDeckOwner?: 'self' | 'opponent' | 'any';  // ON_CARD_MOVED_TO_DECK の宛先デッキ（トリガー所有者から見た self/opponent/any）。省略=any
+    movedToDeckMinCount?: number;                     // ON_CARD_MOVED_TO_DECK の発火に必要な、その効果解決で対象デッキに加わった最低枚数（省略=1）。「N枚以上」型はこの解決単位での近似（cf. TODO §3.5）
+    movedToDeckFromTrash?: boolean;                   // ON_CARD_MOVED_TO_DECK の発生源をトラッシュに限定（「あなたのトラッシュから…デッキに移動したとき」WX09-020/WX22-014）。省略=任意の発生源
   };
 
   // CONTINUOUS 用：常時効果がいつ適用されるか
