@@ -5,6 +5,16 @@
 
 ---
 
+## engine: ON_SIGNI_FROZEN 新設＋凍結トリガー3枚（R38・2026-06-28・ymst）
+
+「シグニが凍結状態になったとき」を**ミル機構と同じ効果解決の set-diff 検出点**で新設。`detectNewlyFrozen(before,after)`＝`field.signi_frozen` の false→true ゾーンの在中シグニ番号を返す。`collectFreezeTriggers(frozenByOwner,host,guest)`＝両プレイヤー場シグニ/ルリグの `ON_SIGNI_FROZEN`【自】を triggerScope（any_opp 多数派/any_ally/any）で絞り収集し、`triggeringCardNum` に凍結シグニを渡す（「そのシグニ」= targetsTriggerSource 用）。turnOwner/usageLimit《ターン1回》評価。検出はミル/デッキ移動と同じ統合ブロック（line ~5231）に追加。
+
+- 型 `ON_SIGNI_FROZEN`＋detector/collector（BattleScreen）＋decompiler ラベル/scope 主語/〔範囲〕抑制を追加。
+- データ3枚（MANUAL・全 any_opp・旧 ON_PLAY/ON_TURN_END 誤）: WX08-039-E1（→相手手札1捨て）／WXEX2-02-E2（→相手手札1捨て）／WXDi-P04-065-E1（→そのシグニ-1000・`targetsTriggerSource` で「そのシグニ」を表現・旧 isFrozen filter 近似を是正）。
+- typecheck緑・同型★0・逆翻訳が原文トリガー一致・⚠実機未検証（複数同時凍結時の once_per_turn／凍結のまま移動する稀ケース未対応／targetsTriggerSource の triggeringCardNum 伝播）。VALUE 32→31（flatten 該当は WXDi-P04-065 のみ・他2枚は ON_PLAY 誤 curation で計器外だったが今回正配線＝実質3枚改善）。
+
+---
+
 ## engine: ON_SIGNI_POWER_ZERO_OR_LESS 配線＋パワー0以下トリガー5枚（R37・2026-06-28・ymst）
 
 「シグニのパワーが0以下になったとき」を**既存のルール処理点1箇所**で配線（型は既存・収集機構が無かった）。`checkAndBanishPowerZero`（パワー0以下シグニのルールバニッシュ・useEffect 反応）の中で各 0化シグニについて `collectBanishTriggers` と並べて `collectPowerZeroTriggers` を呼ぶ＝**単一フック・低リスク**（既存の collectBanishTriggers と同パターン）。
