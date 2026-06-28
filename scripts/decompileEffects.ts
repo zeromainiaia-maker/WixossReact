@@ -881,6 +881,7 @@ const timingJa: Record<string, string> = {
   ON_SIGNI_FROZEN: 'シグニが凍結状態になったとき',
   ON_TARGETED: 'このシグニが対戦相手の能力か効果の対象になったとき',
   ON_DECK_SHUFFLED: 'あなたのデッキがシャッフルされたとき',
+  ON_KEYWORD_GAINED: 'あなたの他のシグニが【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき',
 };
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
