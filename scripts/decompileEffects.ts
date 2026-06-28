@@ -991,6 +991,12 @@ function effJa(e: Eff): string {
       const who = sc === 'any_opp' ? '対戦相手のシグニ' : sc === 'any_ally' ? 'あなたのシグニ' : sc === 'self' ? 'このシグニ' : 'シグニ';
       s = `${who}のパワーが0以下になったとき`;
     }
+    // ON_ENERGY_TO_TRASH（エナゾーン→トラッシュ）の energyTrashedOwner を主語に反映（WD15-015）
+    if (t === 'ON_ENERGY_TO_TRASH') {
+      const eo = e.triggerCondition?.energyTrashedOwner ?? 'any';
+      const who = eo === 'self' ? 'あなたの' : eo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
+      s = `あなたの効果によって${who}エナゾーンからカードが１枚トラッシュに置かれたとき`;
+    }
     // ON_CHARM_TO_TRASH（【チャーム】が場→トラッシュ）の triggerScope を主語に反映
     if (t === 'ON_CHARM_TO_TRASH') {
       const sc = e.triggerScope ?? 'any';

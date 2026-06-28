@@ -4139,6 +4139,74 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, usedOncePerTurnIds };
   };
 
+  // 効果解決の前後 state を比較し、その player のエナゾーン→トラッシュ枚数を算出（ON_ENERGY_TO_TRASH）。
+  // energy（cardNum）の set-diff：before にあって after に無く、かつ after.trash に在中＝トラッシュ送り。
+  const countEnergyToTrash = (before: PlayerState, after: PlayerState): number => {
+    if (!before || !after) return 0;
+    const afterEnergy = new Set(after.energy ?? []);
+    const afterTrash = new Set(after.trash ?? []);
+    let count = 0;
+    for (const c of (before.energy ?? [])) {
+      if (!afterEnergy.has(c) && afterTrash.has(c)) count++;
+    }
+    return count;
+  };
+
+  // エナゾーン→トラッシュ時（ON_ENERGY_TO_TRASH）トリガー収集。controller の場のシグニ/ルリグの
+  // ON_ENERGY_TO_TRASH【自】を集める。triggerCondition.energyTrashedOwner（self/opponent/any）で発生源エナを判定。
+  // ⚠ 近似：「あなたの効果によって」の発生源限定は未表現（効果解決経路で発火）。
+  const collectEnergyToTrashTriggers = (
+    controllerId: string,
+    controllerState: PlayerState,
+    otherState: PlayerState,
+    fromControllerEnergy: number,
+    fromOppEnergy: number,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
+    const isControllerTurn = controllerId === bs.active_user_id;
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (controllerState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIds.push(eff.effectId);
+      return true;
+    };
+    const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, effectsMap, battleCardMap);
+    const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const sources: string[] = [
+      ...controllerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(controllerState.field.lrig.at(-1) ? [controllerState.field.lrig.at(-1)!] : []),
+    ];
+    for (const topNum of sources) {
+      if (ownAutoBlocked) continue;
+      if (removed.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_TRASH')) continue;
+        const owner = eff.triggerCondition?.energyTrashedOwner ?? 'any';
+        const relevant = owner === 'self' ? fromControllerEnergy
+          : owner === 'opponent' ? fromOppEnergy
+          : fromControllerEnergy + fromOppEnergy;
+        if (relevant <= 0) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, battleCardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: controllerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（エナトラッシュ時）`,
+          effect: eff,
+        });
+      }
+    }
+    return { entries, usedOncePerTurnIds };
+  };
+
   // 効果解決の前後 state を比較し、対象プレイヤーのデッキ→トラッシュ枚数（ミル枚数）を算出。
   // インスタンスIDが一意（cardNum#id）なので、before.deck かつ after.trash かつ not before.trash の集合差で精密に数える。
   const countMilledFromDeck = (before: PlayerState, after: PlayerState): number => {
@@ -5442,6 +5510,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.effect_stack = baseStackC
               ? pushToStack(baseStackC, charmEntries)
               : initStack(stack.turnPlayerId, charmEntries);
+          }
+        }
+
+        // ON_ENERGY_TO_TRASH: この解決でエナゾーン→トラッシュが起きた場合、両プレイヤーの
+        // ON_ENERGY_TO_TRASH【自】を controller 視点で収集（energyTrashedOwner で発生源限定）。
+        const energyTrashHost  = countEnergyToTrash(bs.host_state, hostState);
+        const energyTrashGuest = countEnergyToTrash(bs.guest_state, guestState);
+        if (energyTrashHost > 0 || energyTrashGuest > 0) {
+          const energyTrashEntries: StackEntry[] = [];
+          const etH = collectEnergyToTrashTriggers(bs.host_id, hostState, guestState, energyTrashHost, energyTrashGuest);
+          energyTrashEntries.push(...etH.entries);
+          if (etH.usedOncePerTurnIds.length > 0) {
+            update.host_state = { ...((update.host_state as PlayerState) ?? hostState), actions_done: [...(((update.host_state as PlayerState) ?? hostState).actions_done ?? []), ...etH.usedOncePerTurnIds] };
+          }
+          const etG = collectEnergyToTrashTriggers(bs.guest_id, guestState, hostState, energyTrashGuest, energyTrashHost);
+          energyTrashEntries.push(...etG.entries);
+          if (etG.usedOncePerTurnIds.length > 0) {
+            update.guest_state = { ...((update.guest_state as PlayerState) ?? guestState), actions_done: [...(((update.guest_state as PlayerState) ?? guestState).actions_done ?? []), ...etG.usedOncePerTurnIds] };
+          }
+          if (energyTrashEntries.length > 0) {
+            const baseStackE = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackE
+              ? pushToStack(baseStackE, energyTrashEntries)
+              : initStack(stack.turnPlayerId, energyTrashEntries);
           }
         }
 
