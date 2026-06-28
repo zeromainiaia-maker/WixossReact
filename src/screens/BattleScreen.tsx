@@ -11537,6 +11537,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (attachedAcceNum) {
       for (const eff of (effectsMap.get(attachedAcceNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
+        // accedHostMinLevel:「レベルN以上のシグニに付いたとき」host シグニのレベル条件（WXK05-041=4）
+        if (eff.triggerCondition?.accedHostMinLevel) {
+          const hostLv = parseInt(battleCardMap.get(getCardNum(acceHostCardNum))?.Level ?? '0', 10);
+          if (isNaN(hostLv) || hostLv < eff.triggerCondition.accedHostMinLevel) continue;
+        }
+        if (eff.usageLimit === 'once_per_turn' &&
+            ((state.actions_done?.includes(eff.effectId)) || usedOncePerTurnIdsAcce.includes(eff.effectId))) continue;
+        if (eff.usageLimit === 'once_per_turn') usedOncePerTurnIdsAcce.push(eff.effectId);
         triggerEntries.push({
           id: generateUUID(),
           playerId: user.id,
