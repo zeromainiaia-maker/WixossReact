@@ -51,39 +51,34 @@ for (const [id, card] of cardMap) {
   if (merged.length > 0) { effectsMap.set(id, merged as CardEffect[]); (card as { effects?: CardEffect[] }).effects = merged as CardEffect[]; }
 }
 
-// フィラー用の汎用シグニ instance プール（distinct な real CardNum を使う）
-const signiPool = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 40).map(c => c.CardNum);
-const fillerDeck = (n: number) => Array.from({ length: n }, (_, i) => `${signiPool[i % signiPool.length]}#f${i}`);
+// engine は cardMap.get(インスタンスID) で照合するため、インスタンスID＝素のCardNum（#suffixなし）を使う。
+// これを怠ると対象系効果が候補0で静かに no-op し、スモークが空振りする。distinct カーソルで払い出す。
+const signiPool = [...cardMap.values()].filter(c => c.Type === 'シグニ' && +(c.Power || '0') > 0).map(c => c.CardNum);
+const lrigCard = [...cardMap.values()].find(c => c.Type === 'ルリグ')?.CardNum;
+let cursor = 0;
+const fill = (n: number) => Array.from({ length: n }, () => signiPool[cursor++ % signiPool.length]);
 
-function mkState(sourceInst: string | null): PlayerState {
-  const lrigCard = [...cardMap.values()].find(c => c.Type === 'ルリグ')?.CardNum;
+function mkState(sourceNum: string | null): PlayerState {
   return {
-    deck: fillerDeck(20),
-    lrig_deck: [],
-    hand: fillerDeck(5),
-    life_cloth: fillerDeck(7),
-    trash: fillerDeck(3),
-    lrig_trash: [],
-    energy: fillerDeck(5),
-    coins: 3,
-    bonds: [],
+    deck: fill(20), lrig_deck: [], hand: fill(5), life_cloth: fill(7),
+    trash: fill(3), lrig_trash: [], energy: fill(5), coins: 3, bonds: [],
     field: {
-      lrig: lrigCard ? [`${lrigCard}#lrig`] : [],
-      signi: [sourceInst ? [sourceInst] : null, null, null],
+      lrig: lrigCard ? [lrigCard] : [],
+      signi: [sourceNum ? [sourceNum] : null, null, null],
       assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [],
       signi_traps: [null, null, null],
     },
   } as unknown as PlayerState;
 }
 
-function mkCtx(sourceInst: string): ExecCtx {
+function mkCtx(sourceNum: string): ExecCtx {
   return {
-    ownerState: mkState(sourceInst),
-    otherState: mkState(`${signiPool[1] ?? sourceInst}#opp`),
+    ownerState: mkState(sourceNum),
+    otherState: mkState(signiPool[(cursor++) % signiPool.length]),
     cardMap: cardMap as Map<string, CardData>,
     logs: [],
-    sourceCardNum: sourceInst,
-    triggeringCardNum: sourceInst,
+    sourceCardNum: sourceNum,
+    triggeringCardNum: sourceNum,
     currentPhase: 'MAIN',
   } as unknown as ExecCtx;
 }
