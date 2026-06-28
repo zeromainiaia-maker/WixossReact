@@ -39,11 +39,13 @@ for (const f of files) {
     for (const e of effs) {
       const isBurst = (e.effectType === 'LIFE_BURST');
       const text = isBurst ? (BT[id] || ET[id]) : ET[id];
+      const isManual = !!manual[id];
       const bareNodes = [];
       (function walk(n) {
         if (!n || typeof n !== 'object') return;
         if (Array.isArray(n)) { n.forEach(walk); return; }
-        if (n.type === 'STUB' && n.id === 'OPTIONAL_COST' && !n.costColors && !n.coinCost && !n.costText) bareNodes.push(n);
+        // manual 指定カードは costText 上書き許可（truncation 是正）
+        if (n.type === 'STUB' && n.id === 'OPTIONAL_COST' && !n.costColors && !n.coinCost && (isManual || !n.costText)) bareNodes.push(n);
         for (const v of Object.values(n)) walk(v);
       })(e.action);
       if (bareNodes.length === 0) continue;
