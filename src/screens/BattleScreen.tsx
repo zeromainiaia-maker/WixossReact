@@ -4070,6 +4070,75 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, usedOncePerTurnIds };
   };
 
+  // 効果解決の前後 state を比較し、その player の場の【チャーム】がトラッシュに置かれた枚数を算出（ON_CHARM_TO_TRASH）。
+  // signi_charms（cardNum or null）の set-diff：before にあって after に無く、かつ after.trash に在中＝トラッシュ送り。
+  const countCharmsToTrash = (before: PlayerState, after: PlayerState): number => {
+    if (!before || !after) return 0;
+    const beforeCharms = (before.field.signi_charms ?? []).filter((c): c is string => !!c);
+    const afterCharms = new Set((after.field.signi_charms ?? []).filter((c): c is string => !!c));
+    const afterTrash = new Set(after.trash ?? []);
+    let count = 0;
+    for (const c of beforeCharms) {
+      if (!afterCharms.has(c) && afterTrash.has(c)) count++;
+    }
+    return count;
+  };
+
+  // 【チャーム】がトラッシュに置かれたとき（ON_CHARM_TO_TRASH）トリガー収集。controller の場のシグニ/ルリグの
+  // ON_CHARM_TO_TRASH【自】を集める。triggerScope（any=どちらの／any_ally=自分の／any_opp=相手の チャーム）で発生源を判定。
+  // ⚠ 近似：同一解決で複数チャームがトラッシュに置かれても1回のみ発火（「1枚が…」の per-charm は未対応）。
+  const collectCharmToTrashTriggers = (
+    controllerId: string,
+    controllerState: PlayerState,
+    otherState: PlayerState,
+    charmsFromControllerField: number,
+    charmsFromOppField: number,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
+    const isControllerTurn = controllerId === bs.active_user_id;
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (controllerState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIds.push(eff.effectId);
+      return true;
+    };
+    const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, effectsMap, battleCardMap);
+    const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const sources: string[] = [
+      ...controllerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(controllerState.field.lrig.at(-1) ? [controllerState.field.lrig.at(-1)!] : []),
+    ];
+    for (const topNum of sources) {
+      if (ownAutoBlocked) continue;
+      if (removed.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CHARM_TO_TRASH')) continue;
+        const scope = eff.triggerScope ?? 'any';
+        const relevant = scope === 'any_ally' ? charmsFromControllerField
+          : scope === 'any_opp' ? charmsFromOppField
+          : charmsFromControllerField + charmsFromOppField;
+        if (relevant <= 0) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, battleCardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: controllerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（チャームトラッシュ時）`,
+          effect: eff,
+        });
+      }
+    }
+    return { entries, usedOncePerTurnIds };
+  };
+
   // 効果解決の前後 state を比較し、対象プレイヤーのデッキ→トラッシュ枚数（ミル枚数）を算出。
   // インスタンスIDが一意（cardNum#id）なので、before.deck かつ after.trash かつ not before.trash の集合差で精密に数える。
   const countMilledFromDeck = (before: PlayerState, after: PlayerState): number => {
@@ -5349,6 +5418,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.effect_stack = baseStackM
               ? pushToStack(baseStackM, millEntries)
               : initStack(stack.turnPlayerId, millEntries);
+          }
+        }
+
+        // ON_CHARM_TO_TRASH: この解決で【チャーム】が場→トラッシュに置かれた場合、両プレイヤーの
+        // ON_CHARM_TO_TRASH【自】を controller 視点で収集（triggerScope any/any_ally/any_opp で発生源限定）。
+        const charmHost  = countCharmsToTrash(bs.host_state, hostState);
+        const charmGuest = countCharmsToTrash(bs.guest_state, guestState);
+        if (charmHost > 0 || charmGuest > 0) {
+          const charmEntries: StackEntry[] = [];
+          const chH = collectCharmToTrashTriggers(bs.host_id, hostState, guestState, charmHost, charmGuest);
+          charmEntries.push(...chH.entries);
+          if (chH.usedOncePerTurnIds.length > 0) {
+            update.host_state = { ...((update.host_state as PlayerState) ?? hostState), actions_done: [...(((update.host_state as PlayerState) ?? hostState).actions_done ?? []), ...chH.usedOncePerTurnIds] };
+          }
+          const chG = collectCharmToTrashTriggers(bs.guest_id, guestState, hostState, charmGuest, charmHost);
+          charmEntries.push(...chG.entries);
+          if (chG.usedOncePerTurnIds.length > 0) {
+            update.guest_state = { ...((update.guest_state as PlayerState) ?? guestState), actions_done: [...(((update.guest_state as PlayerState) ?? guestState).actions_done ?? []), ...chG.usedOncePerTurnIds] };
+          }
+          if (charmEntries.length > 0) {
+            const baseStackC = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackC
+              ? pushToStack(baseStackC, charmEntries)
+              : initStack(stack.turnPlayerId, charmEntries);
           }
         }
 

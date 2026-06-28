@@ -991,6 +991,12 @@ function effJa(e: Eff): string {
       const who = sc === 'any_opp' ? '対戦相手のシグニ' : sc === 'any_ally' ? 'あなたのシグニ' : sc === 'self' ? 'このシグニ' : 'シグニ';
       s = `${who}のパワーが0以下になったとき`;
     }
+    // ON_CHARM_TO_TRASH（【チャーム】が場→トラッシュ）の triggerScope を主語に反映
+    if (t === 'ON_CHARM_TO_TRASH') {
+      const sc = e.triggerScope ?? 'any';
+      const who = sc === 'any_ally' ? 'あなたの' : sc === 'any_opp' ? '対戦相手の' : '';
+      s = `${who}【チャーム】１枚が場からいずれかのトラッシュに置かれたとき`;
+    }
     // ON_SIGNI_FROZEN の triggerScope を主語に反映（any_opp=対戦相手/any_ally=あなた）
     if (t === 'ON_SIGNI_FROZEN') {
       const sc = e.triggerScope ?? 'any_opp';
@@ -1010,7 +1016,7 @@ function effJa(e: Eff): string {
     return s;
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
-  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_DRAW') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
+  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_CHARM_TO_TRASH') && !(e.timing || []).includes('ON_DRAW') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
   // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
   const condStr = e.condition ? condJa(e.condition) : '';
   const cond = condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}${/(状態|以上|以下|枚)$/.test(condStr) ? 'の' : ''}場合、`) : '';
