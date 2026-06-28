@@ -65,7 +65,8 @@ export type EffectTiming =
   | 'ON_OPP_SIGNI_ATTACK_DIRECT' // 対戦相手のシグニが正面が空の状態でアタックしたとき（=守備側ルリグへの直接アタック時）に守備側で発火（WX04-004-E2）
   | 'ON_FRONT_SIGNI_ATTACK'    // このシグニの正面のシグニ（=このシグニにアタックしてくる相手シグニ）がアタックしたとき、守備側の正面シグニで発火（WX04-082-E1）。triggeringCardNum=アタッカー
   | 'ON_ZONE_MOVED'            // 場にあるこのシグニが効果によって他のシグニゾーンに移動したとき（WX14-050/052/053）。パワー＋N は MOVE_TO_OTHER_SIGNI_ZONE ハンドラが原文を読んで適用済みのため現状 engine 未配線
-  | 'ON_CARD_MILLED_FROM_DECK'; // あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき（WX25-P2-009-E2）。**engine 未配線**（収集機構が必要）
+  | 'ON_CARD_MILLED_FROM_DECK' // あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき（WX25-P2-009-E2）。collectMillTriggers で配線済み
+  | 'ON_CARD_MOVED_TO_DECK';   // あなたか対戦相手のカードが効果によって1枚以上デッキに移動したとき（WX09-020/WX22-014/WXK10-076/WDK09-013）。collectMoveToDeckTriggers が解決前後の set-diff で検出（movedToDeckOwner/MinCount/FromTrash で限定）
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
