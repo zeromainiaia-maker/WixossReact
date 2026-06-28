@@ -5,6 +5,13 @@
 
 ---
 
+## repr: A3＝WXDi-P11-032 3択GRANT 脱落の復元（2026-06-28）
+
+カーニバル -罪- WXDi-P11-032（アシストルリグ）の【出】×2が、原文「シグニ1体を対象とし、ターン終了時まで、それは【アサシン】か【ランサー】か「【常】：アタックできない。」を得る」を**アサシン1択に縮退**していた（GRANT_QUOTED CHOOSE脱落・P1_PLAN §1「機構待ち72枚」の GRANT_KEYWORD CHOOSE脱落1）。
+
+- E1/E2 を `CHOOSE`(choose_count:1/from_count:3) に復元＝3択それぞれ `GRANT_KEYWORD`（アサシン／ランサー／アタックできない・SIGNI owner:any・UNTIL_END_OF_TURN）。keyword="アタックできない" は既存の常アタック不可表現の慣例に倣う。
+- 2効果 parseStatus:MANUAL・typecheck緑・**同型★0維持**・held/LOSS/VALUE 0。逆翻訳に3択すべて出現。⚠「【常】：アタックできない。」の引用書式は keyword で近似（既存慣例）。engine は CHOOSE→GRANT_KEYWORD 汎用ディスパッチで実行（実機未検証）。
+
 ## repr: A3＝A2修正カードの timing/result 近似是正＋PLACE_UNDER_SIGNI描画バグ修正（2026-06-28）
 
 A2 で OPTIONAL_COST 化したカードの timing/result の別件近似を是正（全て MANUAL）。
