@@ -5303,6 +5303,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // ON_SIGNI_FROZEN: この解決でシグニが新たに凍結状態になった場合、両プレイヤーの
+        // ON_SIGNI_FROZEN【自】を収集（「対戦相手のシグニが凍結状態になったとき」any_opp が多数派）。
+        const frozenHost  = detectNewlyFrozen(bs.host_state, hostState);
+        const frozenGuest = detectNewlyFrozen(bs.guest_state, guestState);
+        if (frozenHost.length > 0 || frozenGuest.length > 0) {
+          const fz = collectFreezeTriggers(
+            [{ ownerId: bs.host_id, nums: frozenHost }, { ownerId: bs.guest_id, nums: frozenGuest }],
+            hostState, guestState,
+          );
+          if (fz.usedHostIds.length > 0) {
+            update.host_state = { ...((update.host_state as PlayerState) ?? hostState), actions_done: [...(((update.host_state as PlayerState) ?? hostState).actions_done ?? []), ...fz.usedHostIds] };
+          }
+          if (fz.usedGuestIds.length > 0) {
+            update.guest_state = { ...((update.guest_state as PlayerState) ?? guestState), actions_done: [...(((update.guest_state as PlayerState) ?? guestState).actions_done ?? []), ...fz.usedGuestIds] };
+          }
+          if (fz.entries.length > 0) {
+            const baseStackF = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackF
+              ? pushToStack(baseStackF, fz.entries)
+              : initStack(stack.turnPlayerId, fz.entries);
+          }
+        }
+
         // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニに対する、場の他シグニの反応を収集（G144/G145/WX11-054）。
         // 出たシグニ自身の ON_PLAY は各効果配置経路（REVEAL/COLLAB等）が個別に収集済み。ここでは他シグニ（any_ally/any）のみ。
         // 場出しした効果元（entry.cardNum）がシグニかどうかで bySigniEffect の発火可否を判定する。
