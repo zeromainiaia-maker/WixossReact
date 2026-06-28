@@ -40,6 +40,7 @@ export type EffectTiming =
   | 'ON_SIGNI_ENTERS'           // シグニが場に出たとき
   | 'ON_TARGETED'               // このシグニが対戦相手の能力か効果の対象になったとき（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。⚠engine未配線（対象選択の確定経路への配線が重い＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_DECK_SHUFFLED'          // あなたのデッキがシャッフルされたとき（PR-470A）。⚠engine未配線（shuffle() がリフレッシュ/サーチ後等多数箇所に分散＝decompiler engineUnwiredTimings に登録済み）
+  | 'ON_KEYWORD_GAINED'         // あなたの他のシグニが【アサシン】【ランサー】【ダブルクラッシュ】を得たとき（WXDi-P04-035）。⚠engine未配線（「その能力を得る」動的注入＋任意コストで配線が重い＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_SIGNI_BANISH_OPPONENT'  // 相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BANISH_BATTLE'    // バトルで相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BATTLE'           // このシグニがシグニ1体とバトルしたとき（攻撃側・防御側の両参加シグニで発火）
