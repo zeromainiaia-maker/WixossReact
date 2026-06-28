@@ -892,7 +892,7 @@ const timingJa: Record<string, string> = {
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
 // 逆翻訳末尾に【※engine未配線】を付与し、偽陰性（健全に見えて未実装）を防ぐ。配線したら除去する。docs/TODO.md に記録。
-const engineUnwiredTimings = new Set<string>(['ON_TARGETED', 'ON_DECK_SHUFFLED', 'ON_KEYWORD_GAINED', 'ON_LRIG_UNDER_MOVED', 'ON_LRIG_ATTACK_STEP_START', 'ON_LRIG_GROW', 'ON_COIN_PAID']);
+const engineUnwiredTimings = new Set<string>(['ON_TARGETED', 'ON_DECK_SHUFFLED', 'ON_KEYWORD_GAINED', 'ON_LRIG_UNDER_MOVED', 'ON_LRIG_ATTACK_STEP_START', 'ON_LRIG_GROW', 'ON_COIN_PAID', 'ON_MATERIAL_USED']);
 
 function effJa(e: Eff): string {
   // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。
