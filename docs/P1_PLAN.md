@@ -39,7 +39,7 @@
 - **脱落疑い 255枚を全分類済み**（DoD §1 第2項クリア・`node scripts/_dropTriage.mjs`）：偽陽性179／機構待ち72／修正済。
 - **timing flatten**（当初159枚の「ON_TURN_END に潰れて付与即失効＝no-op の実バグ」）は R5-R58 で**完了＝VALUE 0**。
 - **母数**：効果カード 5975／効果 10549／MANUAL効果 733／STUB含むカード 1820。
-- 直近：**A3 クローズ**＋**B2・B3・B4 機構完了**。B3＝`INSTALL_DELAYED_TRIGGER`。B2＝`REVEAL_DECK_TOP`/`TRASH_REVEALED`/`powerLteRevealedSigniLevelSum`（WX17-028）。B4＝GRANT_QUOTED フォールバックで引用【自】/【常】能力を `parseCardEffects`→granted_effects 実発火（自場・ターン限定・純engine＝表現/同型★不変）。残B＝**B1(SET_TRAP・大規模)のみ**。**decompile再生成は Bash の `>` を使う（PowerShell `>` は UTF-16 で下流破壊）。**
+- 直近：**A3 クローズ**＋**§5 B機構を全完了（B1-B4）**。B1＝トラップ機構（engineは既存の `signi_traps` ゾーン。decompilerで9系統トラップSTUBを原文【トラップ】語彙描画＝生STUB残0）。B2＝動的閾値（WX17-028）。B3＝遅延条件トリガー。B4＝引用付与の実発火。**残るP1機構＝C（engine実機配線・P2）のみ**。同型★0（5986枚）。**decompile再生成は Bash の `>` を使う（PowerShell `>` は UTF-16 で下流破壊）。**
 
 ### 🔜 今後の計画と必要作業数
 > P1 の機械指標は 0。残るのは **(A) 表現の長いテール（個別）** と **(B) 新機構** と **(C) engine 実機配線（P2/P3）**。bulk 再生成は引き続き禁止。1機構/1パターンずつ §6 のゲートで。
