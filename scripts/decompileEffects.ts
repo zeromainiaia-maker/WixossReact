@@ -924,6 +924,12 @@ function effJa(e: Eff): string {
       s = e.triggerScope === 'any_opp' ? '対戦相手のルリグがグロウしたとき'
         : `あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}ルリグがグロウしたとき`;
     }
+    // ON_MATERIAL_USED の主語を反映（materialUsedByPlayer＝あなたが使用／any_ally＝他のシグニに／既定＝このシグニに）
+    if (t === 'ON_MATERIAL_USED') {
+      s = e.triggerCondition?.materialUsedByPlayer ? 'あなたが《改造素材》を使用したとき'
+        : e.triggerScope === 'any_ally' ? `あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}シグニ１体に《改造素材》が使用されたとき`
+        : 'このシグニに《改造素材》が使用されたとき';
+    }
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
     // ON_TRASH の発生源限定（fromZones）を反映（「このカードが手札かデッキからトラッシュに置かれたとき」）
