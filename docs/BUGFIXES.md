@@ -5,6 +5,14 @@
 
 ---
 
+## engine: ON_ACCE_ATTACH host条件＋ON_REFRESH＋ON_LEAVE_FIELD leftToZone 計3枚（R45・2026-06-28・ymst）
+
+3機構を連続実装（いずれも MANUAL・typecheck緑・同型★0・逆翻訳原文一致・⚠実機未検証）。VALUE 21→18。
+
+- **R45-1 WXK05-041（ON_ACCE_ATTACH host レベル条件）**: `triggerCondition.accedHostMinLevel`（=4）をアクセカード自身の ON_ACCE_ATTACH パスに追加（host シグニ Level 判定）＋usageLimit once_per_turn 評価を acce-self パスに追加。E2 を ON_ACCE_ATTACH に正配線＋action の targetsTriggerSource no-op を是正（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 青→対戦相手シグニ -12000）。E1 も「対戦相手のターン終了時、このシグニを手札に戻す」＝ON_TURN_END turnOwner:opponent＋BOUNCE self thisCardOnly に是正（旧 BOUNCE opponent 誤）。
+- **R45-2 WXDi-P04-043（ON_REFRESH）**: `refresh_count_this_turn` の set-diff（`countRefresh`＋`collectRefreshTriggers`・triggerCondition.refreshedOwner）で「いずれかのプレイヤーがリフレッシュしたとき」を新設。effect-resolution ブロックに相乗り。E1（+action targetsTriggerSource no-op 是正→対戦相手シグニ -10000）。⚠近似＝ドローフェイズの過剰ドロー refresh は未検出（効果解決経路のみ）。
+- **R45-3 WXK02-041（ON_LEAVE_FIELD leftToZone:'hand'）**: `collectLeaveFieldTriggers` の watcher ループに「離れたカードが所有者の手札に在中する場合のみ発火」判定を内部追加（signature 不変＝`ownerStateAfter.hand` 参照）。`triggerCondition.leftToZone:'hand'`。E2（target を自＜遊具＞シグニに是正）。⚠近似＝triggerScope any でも実装上は離脱カードと同じ側の watcher のみ（既存 collectLeaveFieldTriggers の制約）。
+
 ## engine: ON_EXCEED_COST 場シグニ反応（エクシードコスト支払い時）1枚（R44・2026-06-28・ymst）
 
 「あなたがエクシードのコストを支払ったとき」に**場のシグニ/ルリグが反応**する変種を `triggerCondition.exceedCostPaidByPlayer` で新設。既存 ON_EXCEED_COST は exceedPaidCards（コストとして置かれたカード自身）のみ走査だったため、ルリグ起動のエクシード支払いブロック（line ~11960）に「exceedCost>0 のとき自分の場シグニ/ルリグの ON_EXCEED_COST【自】（exceedCostPaidByPlayer のみ）を発火」を追加。turnOwner/usageLimit 評価。既存 exceedPaidCards 走査は `exceedCostPaidByPlayer` を skip して二重発火回避。
