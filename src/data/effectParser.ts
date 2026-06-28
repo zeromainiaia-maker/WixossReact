@@ -1602,6 +1602,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/対戦相手の[、,]?\s*能力か効果の対象になったとき/) ? ['ON_TARGETED']
              // 「あなたのデッキがシャッフルされたとき」（PR-470A）。⚠engine未配線。トリガー文は除去しない（action 解析を変えないため）
              : actionText.match(/デッキがシャッフルされたとき/) ? ['ON_DECK_SHUFFLED']
+             // 「あなたの他のシグニが【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき」（WXDi-P04-035）。⚠engine未配線。トリガー文非除去
+             : actionText.match(/(?:【アサシン】|【ランサー】|【ダブルクラッシュ】)[^。]{0,40}を得たとき/) ? ['ON_KEYWORD_GAINED']
              // 「（このシグニ／あなたの他のシグニが）開花したとき」=【シード】開花トリガー。場に出た扱いではないため ON_PLAY とは別（triggerScope は下で設定）。
              : actionText.includes('開花したとき') ? ['ON_BLOOM']
              : actionText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュ(?:した|された)とき/) ? ['ON_OPP_LIFE_CRASHED']
