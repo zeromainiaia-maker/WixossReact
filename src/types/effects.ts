@@ -44,6 +44,7 @@ export type EffectTiming =
   | 'ON_LRIG_UNDER_MOVED'       // あなたのルリグの下からカードが移動したとき（WXDi-P04-042）。⚠engine未配線（ルリグ下スタックの set-diff 配線が要・発火が稀＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_LRIG_ATTACK_STEP_START' // あなたのルリグアタックステップ開始時（WX25-CP1-042-E2）。⚠engine未配線（クラッシュ数カウント等のアクション機構も要＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_LRIG_GROW'              // あなた/対戦相手のルリグがグロウしたとき（WXDi-P05-010 等）。triggerScope any_ally/any_opp・excludeSelf で主語を表現。⚠engine未配線（grow が executeGrow/CPU/アシストの多経路に分散＝decompiler engineUnwiredTimings に登録済み）
+  | 'ON_COIN_PAID'              // あなたが《コイン》を1枚以上支払ったとき（WXDi-P15-055/069・WXDi-P16-057）。⚠engine未配線（コイン支払がグロウ/ベット/起動コスト等の多経路に分散＝decompiler engineUnwiredTimings に登録済み）
   | 'ON_SIGNI_BANISH_OPPONENT'  // 相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BANISH_BATTLE'    // バトルで相手シグニをバニッシュしたとき
   | 'ON_SIGNI_BATTLE'           // このシグニがシグニ1体とバトルしたとき（攻撃側・防御側の両参加シグニで発火）
