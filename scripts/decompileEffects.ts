@@ -873,6 +873,7 @@ const timingJa: Record<string, string> = {
   ON_CARD_MILLED_FROM_DECK: 'あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき',
   ON_CARD_MOVED_TO_DECK: 'あなたか対戦相手のカードが効果によって1枚以上デッキに移動したとき',
   ON_SIGNI_POWER_ZERO_OR_LESS: 'シグニのパワーが0以下になったとき',
+  ON_SIGNI_FROZEN: 'シグニが凍結状態になったとき',
 };
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
