@@ -4715,6 +4715,19 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(downOwner, { ...downS, field: { ...downS.field, signi_down: newDown } }, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をダウン`));
     }
+    case 'UP': {
+      // 選択式UP（「シグニ1体を対象とし、アップする」）の選択後適用。
+      // UP case が無いと default→execUp 再実行で再選択ループ＝無限ループになるため明示処理（goldenTest 検出）。
+      const upA = action as import('../types/effects').UpAction;
+      const upOwner = upA.target.owner === 'any' ? 'self' : upA.target.owner as Owner;
+      const upS = ownerState(upOwner, ctx);
+      const zoneIdx = upS.field.signi.findIndex(st => st?.at(-1) === cardNum);
+      if (zoneIdx < 0) return done(ctx);
+      const newDown = [...(upS.field.signi_down ?? [false, false, false])] as boolean[];
+      newDown[zoneIdx] = false;
+      return done(addLog(setOwnerState(upOwner, { ...upS, field: { ...upS.field, signi_down: newDown } }, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をアップ`));
+    }
     case 'FREEZE': {
       const frzA = action as import('../types/effects').FreezeAction;
       const frzOwner = frzA.target.owner === 'any' ? 'opponent' : frzA.target.owner as Owner;

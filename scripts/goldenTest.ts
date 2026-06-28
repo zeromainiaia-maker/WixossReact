@@ -138,38 +138,38 @@ test('SHUFFLE_DECK: 枚数不変', () => {
   eq(r.ownerState.deck.length, d0, 'deck len');
 });
 test('BANISH 相手シグニ1: 場から除去', () => {
-  const ctx = mkCtx({}, { signi: [`${SIGNI}#o0`, null, null] });
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq(tops(r.otherState)[0], null, 'signi[0] 除去');
   ok(r.otherState.energy.length + r.otherState.trash.length >= 9, '場外へ移動');
 });
 test('BOUNCE 相手シグニ1: 手札へ', () => {
-  const ctx = mkCtx({}, { signi: [`${SIGNI}#o0`, null, null], hand: 5 });
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null], hand: 5 });
   const r = run({ type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq(tops(r.otherState)[0], null, '除去'); eq(r.otherState.hand.length, 6, '手札+1');
 });
 test('SEND_TO_ENERGY 相手シグニ1: エナへ', () => {
-  const ctx = mkCtx({}, { signi: [`${SIGNI}#o0`, null, null], energy: 5 });
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null], energy: 5 });
   const r = run({ type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq(tops(r.otherState)[0], null, '除去'); eq(r.otherState.energy.length, 6, 'エナ+1');
 });
 test('DOWN 相手シグニ: ダウン状態', () => {
-  const ctx = mkCtx({}, { signi: [`${SIGNI}#o0`, null, null] });
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   const r = run({ type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq(r.otherState.field.signi_down?.[0], true, 'down[0]');
 });
 test('UP 自シグニ: ダウン解除', () => {
-  const ctx = mkCtx({ signi: [`${SIGNI}#s0`, null, null], down: [true, false, false] }, {});
+  const ctx = mkCtx({ signi: [SIGNI, null, null], down: [true, false, false] }, {});
   const r = run({ type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 } } as EffectAction, ctx);
   eq(r.ownerState.field.signi_down?.[0], false, 'up[0]');
 });
 test('FREEZE 相手シグニ: 凍結', () => {
-  const ctx = mkCtx({}, { signi: [`${SIGNI_P3000}#o0`, null, null] });
+  const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null] });
   const r = run({ type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq(r.otherState.field.signi_frozen?.[0], true, 'frozen[0]');
 });
 test('POWER_MODIFY 相手-3000: temp_power_mods に記録', () => {
-  const ctx = mkCtx({}, { signi: [`${SIGNI}#o0`, null, null] });
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   const r = run({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } }, delta: -3000 } as EffectAction, ctx);
   const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
   ok(mods.some(m => m.delta === -3000), `temp_power_mods に-3000 (${JSON.stringify(mods)})`);
@@ -185,7 +185,7 @@ test('GAIN_COIN 自分1: coins+1', () => {
   eq(r.ownerState.coins, 4, 'coins');
 });
 test('GRANT_KEYWORD 自シグニ アサシン: keyword_grants', () => {
-  const src = `${SIGNI}#s0`;
+  const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
   const r = run({ type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, keyword: 'アサシン', duration: 'UNTIL_END_OF_TURN' } as EffectAction, ctx);
   const g = (r.ownerState.keyword_grants ?? {})[src] ?? [];
@@ -204,13 +204,13 @@ test('SEARCH デッキからシグニ1→手札', () => {
 
 // ── 新機構（B2/B3）＝実機検証できないものを自動で正しさ確認 ──
 test('B2 REVEAL_DECK_TOP: レベル合計と公開枚数を記録', () => {
-  const ctx = mkCtx({ deckTop: [`${SIGNI_L1}#d0`, `${SIGNI_L2}#d1`] }, {});
+  const ctx = mkCtx({ deckTop: [SIGNI_L1, SIGNI_L2] }, {});
   const r = run({ type: 'REVEAL_DECK_TOP', owner: 'self', count: 2 } as EffectAction, ctx);
   eq(r.ownerState.last_revealed_deck_cards?.length, 2, '公開2枚');
   eq(r.ownerState.last_revealed_signi_level_sum, 3, 'Lv合計=1+2');
 });
 test('B2 TRASH_REVEALED: 公開カードをデッキ→トラッシュ', () => {
-  const ctx = mkCtx({ deckTop: [`${SIGNI_L1}#d0`, `${SIGNI_L2}#d1`], trash: 3 }, {});
+  const ctx = mkCtx({ deckTop: [SIGNI_L1, SIGNI_L2], trash: 3 }, {});
   let r = run({ type: 'REVEAL_DECK_TOP', owner: 'self', count: 2 } as EffectAction, { ...ctx });
   const ctx2 = { ...ctx, ownerState: r.ownerState, otherState: r.otherState } as ExecCtx;
   r = run({ type: 'TRASH_REVEALED', owner: 'self' } as EffectAction, ctx2);
@@ -218,11 +218,11 @@ test('B2 TRASH_REVEALED: 公開カードをデッキ→トラッシュ', () => {
 });
 test('B2 動的閾値: 公開Lv合計×1000以下のみ対象', () => {
   // deckTop Lv1+Lv2=3 → 閾値3000。相手にP3000とP12000 → P3000のみバニッシュ可
-  const ctx = mkCtx({ deckTop: [`${SIGNI_L1}#d0`, `${SIGNI_L2}#d1`] }, { signi: [`${SIGNI_P3000}#o0`, `${SIGNI_P12000}#o1`, null] });
+  const ctx = mkCtx({ deckTop: [SIGNI_L1, SIGNI_L2] }, { signi: [SIGNI_P3000, SIGNI_P12000, null] });
   let r = run({ type: 'REVEAL_DECK_TOP', owner: 'self', count: 2 } as EffectAction, ctx);
   const ctx2 = { ...ctx, ownerState: r.ownerState, otherState: r.otherState } as ExecCtx;
   r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', powerLteRevealedSigniLevelSum: 1000 } } } as EffectAction, ctx2);
-  eq(tops(r.otherState)[0], null, 'P3000除去'); eq(tops(r.otherState)[1], `${SIGNI_P12000}#o1`, 'P12000残存');
+  eq(tops(r.otherState)[0], null, 'P3000除去'); eq(tops(r.otherState)[1], SIGNI_P12000, 'P12000残存');
 });
 test('B3 INSTALL_DELAYED_TRIGGER: delayed_triggers に追加', () => {
   const ctx = mkCtx({}, {});
