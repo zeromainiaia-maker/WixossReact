@@ -865,6 +865,8 @@ const timingJa: Record<string, string> = {
   ON_BECOME_BEAT: 'このカードが【ビート】になったとき',
   ON_HAND_DISCARDED: 'ガードステップ以外であなたが手札を捨てたとき',
   ON_DISCARDED_AS_COST: 'このカードがシグニ能力のコストとして手札から捨てられたとき',
+  ON_EXCEED_COST: 'このカードがエクシードのコストとしてルリグトラッシュに置かれたとき',
+  ON_ACCE_ATTACH: 'あなたのシグニ１体に【アクセ】が付いたとき',
   ON_CARD_MILLED_FROM_DECK: 'あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき',
 };
 
@@ -939,6 +941,12 @@ function effJa(e: Eff): string {
       const mc = e.triggerCondition?.milledMinCount ?? 1;
       const who = mo === 'self' ? 'あなたの' : mo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
       s = `${who}デッキからカードが${mc}枚以上トラッシュに置かれたとき`;
+    }
+    // ON_HAND_DISCARDED の triggerFilter（捨て札のクラス限定）を反映（「手札から＜宝石＞のシグニを捨てたとき」）
+    if (t === 'ON_HAND_DISCARDED' && e.triggerFilter && (e.triggerFilter.story || e.triggerFilter.cardClass)) {
+      const cls = e.triggerFilter.story ?? e.triggerFilter.cardClass;
+      const clsStr = Array.isArray(cls) ? cls.join('か') : cls;
+      s = `あなたが手札から＜${clsStr}＞のカードを捨てたとき`;
     }
     // ON_HAND_DISCARDED の triggerScope:'any'（「いずれかのプレイヤーが」WXK09-038）を主語に反映
     if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any') {

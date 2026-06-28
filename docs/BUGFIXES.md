@@ -5,6 +5,18 @@
 
 ---
 
+## データ: timing flatten 配線済みクラスタ9枚（ON_EXCEED_COST/ON_ACCE/ON_HAND_DISCARDED）（2026-06-28・ymst）
+
+既に engine 配線済みのトリガーへ timing を差し替えるデータ修正（新機構不要）。
+
+- **ON_EXCEED_COST**（11427配線）: WX11-014-E1（ダブクラ付与）・WXDi-P04-025-E2（相手-2000）。
+- **ON_ACCE_ATTACH**（ルリグ・10987）: WXK04-003-E1（オーバークロック3択CHOOSE）。**ON_ACCE**（シグニ・10963）: WXK05-064-E1（相手-3000）。
+- **ON_HAND_DISCARDED**（6246配線・triggerFilter で捨て札クラス照合）: WXDi-P10-058（プリパラ捨て→自プリパラ+2000）・WX24-P1-059（このシグニ+4000）・WX24-P1-084（宝石捨て・宝石を target→triggerFilter へ移動）・WXK01-082（相手-4000・ターン2回）・WXK11-054（自全赤+2000）。
+- decompiler に ON_EXCEED_COST/ON_ACCE_ATTACH の timingJa＋ON_HAND_DISCARDED の triggerFilter（捨て札クラス）描画を追加。
+- typecheck緑・同型★0・逆翻訳原文一致・lint 0。⚠ON_ACCE シグニ収集（10963）は usageLimit 未enforce（WXK05-064 のターン2回はデータ正・engine 側別途）。timing flatten 残 ≈60。
+
+---
+
 ## engine: ON_CARD_MILLED_FROM_DECK 新規配線（デッキミル機構）＋12枚（2026-06-28・ymst）
 
 未配線トリガー「デッキからカードがトラッシュに置かれたとき」を engine 実装。**各 mill 経路（MILL/TRASH-DECK_CARD 等）を instrument せず、効果解決の前後 state を set-diff してミル枚数を精密算出**するアプローチ（インスタンスID一意＝`before.deck ∩ after.trash − before.trash`）。
