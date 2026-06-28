@@ -3693,6 +3693,64 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /**
+   * ON_TARGETED（「このシグニが対戦相手の能力か効果の対象になったとき」）のトリガーを収集する（C1 配線）。
+   * targetedNums=対象に取られたシグニのカード番号群／targetedOwnerId=その所有者（＝効果発生源の対戦相手）。
+   * 両プレイヤーの場シグニから ON_TARGETED AUTO を triggerScope で絞って収集する。
+   *   self（既定）: 対象に取られたシグニ自身が ON_TARGETED を持つ場合（WXDi-P11-040/WX25-P2-055 等）
+   *   any_ally: watcher 自分側のシグニが対象に取られ triggerFilter（色等）に一致する場合（発火元は能力保持シグニ・WXDi-D09-H14 等）
+   *   any_opp/any: 対戦相手側 / いずれか
+   * triggerCondition.turnOwner（「対戦相手のターンの間」WXDi-P11-040 等）・condition（WX25-CP1-060）・usageLimit（《ターン1回》）も評価。
+   */
+  const collectTargetedTriggers = (
+    targetedNums: string[],
+    targetedOwnerId: string,
+    afterHostState: PlayerState,
+    afterGuestState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const targetedSet = new Set(targetedNums);
+    for (const watcherIsHost of [true, false]) {
+      const watcherId = watcherIsHost ? bs.host_id : bs.guest_id;
+      const watcherState = watcherIsHost ? afterHostState : afterGuestState;
+      const otherState = watcherIsHost ? afterGuestState : afterHostState;
+      const targetedIsWatcherOwn = targetedOwnerId === watcherId;
+      const watcherIsTurn = bs.active_user_id === watcherId;
+      for (const stack of watcherState.field.signi) {
+        if (!stack?.length) continue;
+        const topNum = stack[stack.length - 1];
+        for (const eff of (effectsMap.get(topNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TARGETED')) continue;
+          const scope = eff.triggerScope ?? 'self';
+          if (scope === 'self') {
+            if (!targetedSet.has(topNum)) continue;
+          } else if (scope === 'any_ally') {
+            if (!targetedIsWatcherOwn) continue;
+            if (eff.triggerFilter && !targetedNums.some(n => matchesFilter(battleCardMap.get(getCardNum(n)), eff.triggerFilter))) continue;
+          } else if (scope === 'any_opp') {
+            if (targetedIsWatcherOwn) continue;
+            if (eff.triggerFilter && !targetedNums.some(n => matchesFilter(battleCardMap.get(getCardNum(n)), eff.triggerFilter))) continue;
+          } // 'any' は無条件
+          const to = eff.triggerCondition?.turnOwner;
+          if (to === 'self' && !watcherIsTurn) continue;
+          if (to === 'opponent' && watcherIsTurn) continue;
+          if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+          if (eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)) continue;
+          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+          entries.push({
+            id: generateUUID(),
+            playerId: watcherId,
+            cardNum: topNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（対象になったとき）`,
+            effect: eff,
+          });
+        }
+      }
+    }
+    return entries;
+  };
+
+  /**
    * ターン開始時・終了時・アタックフェイズ開始時の AUTO 効果を収集する。
    * 自分のフィールドシグニ（'self' スコープ）+ ルリグ + 相手の any_opp/any も対象。
    * ※ ON_ATTACK_PHASE_START はターンプレイヤー側のみ発火（「各アタックフェイズ開始時」の
