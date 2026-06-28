@@ -1725,6 +1725,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const m = actionText.match(/^.*?クラッシュ(?:した|された)とき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
+      // ON_MATERIAL_USED（《改造素材》使用）：主語を区別（actionText 非改変）。
+      //   「あなたが…を使用したとき」＝materialUsedByPlayer／「あなたの他の…シグニに…使用されたとき」＝any_ally+excludeSelf／「このシグニに…使用されたとき」＝self 既定。
+      if (timing[0] === 'ON_MATERIAL_USED') {
+        if (/あなたが《改造素材》[^。]{0,12}を使用したとき/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), materialUsedByPlayer: true };
+        } else if (/あなたの他の[^。]{0,8}シグニ[^。]{0,8}に《改造素材》が使用されたとき/.test(actionText)) {
+          extractedTriggerScope = 'any_ally';
+          extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
+        }
+      }
       // ON_LRIG_GROW（「あなた/対戦相手の[他の]ルリグがグロウしたとき」）：主語の所有者を triggerScope に抽出（actionText 非改変）。
       if (timing[0] === 'ON_LRIG_GROW') {
         if (/対戦相手の(?:センター)?ルリグがグロウしたとき/.test(actionText)) extractedTriggerScope = 'any_opp';
