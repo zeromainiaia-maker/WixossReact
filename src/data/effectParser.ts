@@ -1600,6 +1600,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
              // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。⚠engine未配線
              : actionText.match(/対戦相手の[、,]?\s*能力か効果の対象になったとき/) ? ['ON_TARGETED']
+             // 「あなたのデッキがシャッフルされたとき」（PR-470A）。⚠engine未配線。トリガー文は除去しない（action 解析を変えないため）
+             : actionText.match(/デッキがシャッフルされたとき/) ? ['ON_DECK_SHUFFLED']
              // 「（このシグニ／あなたの他のシグニが）開花したとき」=【シード】開花トリガー。場に出た扱いではないため ON_PLAY とは別（triggerScope は下で設定）。
              : actionText.includes('開花したとき') ? ['ON_BLOOM']
              : actionText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュ(?:した|された)とき/) ? ['ON_OPP_LIFE_CRASHED']
