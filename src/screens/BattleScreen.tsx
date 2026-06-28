@@ -5158,6 +5158,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // ON_CARD_MOVED_TO_DECK: この解決で他領域→デッキ移動が起きた場合、両プレイヤーの
+        // ON_CARD_MOVED_TO_DECK【自】を controller 視点で収集（movedToDeckOwner/MinCount/FromTrash で限定）。
+        const movedHost = countMovedToDeck(bs.host_state, hostState, false);
+        const movedGuest = countMovedToDeck(bs.guest_state, guestState, false);
+        const movedHostFromTrash = countMovedToDeck(bs.host_state, hostState, true);
+        const movedGuestFromTrash = countMovedToDeck(bs.guest_state, guestState, true);
+        if (movedHost > 0 || movedGuest > 0) {
+          const moveEntries: StackEntry[] = [];
+          const mvH = collectMoveToDeckTriggers(bs.host_id, hostState, guestState, movedHost, movedHostFromTrash, movedGuest);
+          moveEntries.push(...mvH.entries);
+          if (mvH.usedOncePerTurnIds.length > 0) {
+            update.host_state = { ...((update.host_state as PlayerState) ?? hostState), actions_done: [...(((update.host_state as PlayerState) ?? hostState).actions_done ?? []), ...mvH.usedOncePerTurnIds] };
+          }
+          const mvG = collectMoveToDeckTriggers(bs.guest_id, guestState, hostState, movedGuest, movedGuestFromTrash, movedHost);
+          moveEntries.push(...mvG.entries);
+          if (mvG.usedOncePerTurnIds.length > 0) {
+            update.guest_state = { ...((update.guest_state as PlayerState) ?? guestState), actions_done: [...(((update.guest_state as PlayerState) ?? guestState).actions_done ?? []), ...mvG.usedOncePerTurnIds] };
+          }
+          if (moveEntries.length > 0) {
+            const baseStackV = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackV
+              ? pushToStack(baseStackV, moveEntries)
+              : initStack(stack.turnPlayerId, moveEntries);
+          }
+        }
+
         // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニに対する、場の他シグニの反応を収集（G144/G145/WX11-054）。
         // 出たシグニ自身の ON_PLAY は各効果配置経路（REVEAL/COLLAB等）が個別に収集済み。ここでは他シグニ（any_ally/any）のみ。
         // 場出しした効果元（entry.cardNum）がシグニかどうかで bySigniEffect の発火可否を判定する。
