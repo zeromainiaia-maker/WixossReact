@@ -882,6 +882,7 @@ const timingJa: Record<string, string> = {
   ON_TARGETED: 'このシグニが対戦相手の能力か効果の対象になったとき',
   ON_DECK_SHUFFLED: 'あなたのデッキがシャッフルされたとき',
   ON_KEYWORD_GAINED: 'あなたの他のシグニが【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき',
+  ON_LRIG_UNDER_MOVED: 'あなたのルリグの下からカード１枚が移動したとき',
 };
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
