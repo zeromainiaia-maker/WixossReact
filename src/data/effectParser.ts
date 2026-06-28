@@ -1513,7 +1513,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
   // ビートアイコン条件を costStr から抽出（《ビートアイコン》[条件]）
   let beatCondition: import('../types/effects').Condition | undefined;
-  const beatIconM = costStr.match(/^《ビートアイコン》[\[［]([^\]］]+)[\]］]\s*/);
+  const beatIconM = costStr.match(/^《ビートアイコン》[[［]([^\]］]+)[\]］]\s*/);
   if (beatIconM) {
     beatCondition = { type: 'BEAT_CONDITION', condText: beatIconM[1] };
     costStr = costStr.slice(beatIconM[0].length).trim();

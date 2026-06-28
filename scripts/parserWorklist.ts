@@ -61,12 +61,12 @@ for(const [id,e] of existing){
   for(const[p,v]of em){ if(!fm.has(p))lost.push(p); else if(JSON.stringify(fm.get(p))!==JSON.stringify(v))changed.push(p); }
   if(lost.length){
     const cats=new Set(lost.map(lossCat));
-    let primary=LOSS_PRIORITY.find(c=>cats.has(c)) ?? [...cats][0];
+    const primary=LOSS_PRIORITY.find(c=>cats.has(c)) ?? [...cats][0];
     recs.push({id,track:'LOSS',bucket:primary});
   } else if(changed.length){
     // value-change track: bucket by changed leaf category
     const cats=new Set(changed.map(lossCat));
-    let primary=LOSS_PRIORITY.find(c=>cats.has(c)) ?? [...cats][0];
+    const primary=LOSS_PRIORITY.find(c=>cats.has(c)) ?? [...cats][0];
     recs.push({id,track:'VALUE',bucket:primary});
   } else {
     recs.push({id,track:'ADD/OTHER',bucket:'parser追加のみ'});
