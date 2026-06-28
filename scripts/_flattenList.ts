@@ -34,11 +34,11 @@ for(const [id,e] of existing){
   if(!changed.length) continue;
   if(!changed.some(p=>/\.timing\b/.test(p))) continue; // timing変更のみ
   const r = rowMap.get(id)!;
-  const text = (r.effects || r.Effects || r.text || r.Text || '') as string;
+  const text = ((r.EffectText||'') + ' 〔LB〕' + (r.BurstText||'')) as string;
   if(filter && !filter.test(text) && !filter.test(id)) continue;
   count++;
   const timingChanges = changed.filter(p=>/\.timing\b/.test(p));
-  console.log(`\n=== ${id} (${r.Name||r.name||''}) ===`);
+  console.log(`\n=== ${id} (${r.CardName||''}) ===`);
   for(const p of timingChanges){ console.log(`  ${p}: EXIST=${JSON.stringify(em.get(p))} FRESH=${JSON.stringify(fm.get(p))}`); }
   console.log(`  原文: ${text.replace(/\r?\n/g,' / ').slice(0,300)}`);
 }
