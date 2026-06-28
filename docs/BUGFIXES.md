@@ -5,6 +5,16 @@
 
 ---
 
+## engine: ON_CARD_MOVED_TO_DECK 機構＋デッキ移動 flatten 4枚（R35・2026-06-28・ymst）
+
+「カードが効果によってデッキに移動したとき」を**ミル機構の鏡像**で新設（set-diff 検出）。`countMovedToDeck(before,after,fromTrashOnly)`＝`after.deck \ before.deck`（fromTrashOnly 時は解決前トラッシュ起点に限定）。`collectMoveToDeckTriggers`＝controller の場シグニ/ルリグの `ON_CARD_MOVED_TO_DECK`【自】を `triggerCondition.movedToDeckOwner`（self/opponent/any）/`movedToDeckMinCount`/`movedToDeckFromTrash` で限定収集。検出はミルと同じ効果解決点（1箇所）。
+
+- 型 union＋triggerCondition 3フィールド＋collector/detector（BattleScreen）＋decompiler ラベル/条件描画を追加。
+- データ4枚（POWER_MODIFY クリーン・MANUAL）: WX09-020-E1（自トラッシュ→自デッキ1枚・相手-2000）／WX22-014-E2（自トラッシュ→自デッキ4枚以上・相手-8000・once）／WXK10-076-E1（相手カード→相手デッキ・相手-1000・twice）／WDK09-013-E1（相手カード→相手デッキ・相手-2000）。
+- typecheck緑・同型★0・逆翻訳が原文トリガー一致・⚠実機未検証。VALUE 39→35。⚠近似＝発生源限定（効果1つ/悪魔等）未表現・解決単位 delta（複数効果跨ぎ累積は未対応・ミルと同様）。
+
+---
+
 ## データ: timing flatten ON_SELF_REVEAL_FROM_HAND 1＋ON_DISCARDED_AS_COST 1（R34・2026-06-28・ymst）
 
 配線済みトリガー2種で flatten 2枚を修正（MANUAL）。
