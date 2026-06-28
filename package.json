@@ -9,6 +9,7 @@
     "typecheck": "tsc -b --noEmit",
     "build:effects": "tsx scripts/buildEffectsJson.ts && node scripts/fixLrigColorFilters.mjs",
     "verify": "tsx scripts/verifyEffects.ts",
+    "smoke": "tsx scripts/smokeTest.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
