@@ -5,6 +5,16 @@
 
 ---
 
+## データ: timing flatten ON_SELF_REVEAL_FROM_HAND 1＋ON_DISCARDED_AS_COST 1（R34・2026-06-28・ymst）
+
+配線済みトリガー2種で flatten 2枚を修正（MANUAL）。
+
+- **WXK04-055（ON_SELF_REVEAL_FROM_HAND・G198 配線済み）**: E2「自分の効果で手札公開時→すべての＜水獣＞+2000」。timing 修正に加え **E1【常】・E2 とも target が lossy**（owner:any count:1＝「自分または対戦相手のシグニ1体」）だったため両方を canonical `{owner:self,count:ALL,filter:{cardType:シグニ,story:水獣}}` に是正（E1 も MANUAL）。逆翻訳が E1/E2 とも原文完全一致。⚠ON_SELF_REVEAL_FROM_HAND 収集は usageLimit 未チェック＝《ターン1回》は公開ごと発火の近似。
+- **WX25-P3-071-E2（ON_DISCARDED_AS_COST 配線済み）**: 「＜微菌＞シグニの【出】【起】コストとしてこのカードが捨てられたとき→相手能力消失」。`collectHandDiscardTriggers` asCost が捨てられたカード自身の ON_DISCARDED_AS_COST を発火（シグニ能力コスト捨てに限定済み）。⚠「微菌 signi の出/起」限定は未判定＝任意シグニ能力コストで発火の近似。
+- typecheck緑・同型★0・逆翻訳一致・⚠実機未検証。VALUE 41→39。
+
+---
+
 ## engine: ON_OPP_VIRUS_PLACED 追加＋ウィルス配置/除去 flatten 4枚（R33・2026-06-28・ymst）
 
 timing flatten のウィルス系4枚を配線。`ON_OPP_VIRUS_REMOVED`/`ON_OPP_VIRUS_CHANGED` は型・`collectSelfEventTriggers`・呼び出し（virus flag useEffect）が既に配線済みで**コメントに WD19-009/WX21-030 を名指ししていたのに JSON が未配線**だった＝データ修正のみ。「置かれたとき」専用が無かったため `ON_OPP_VIRUS_PLACED` を新設（`opp_virus_placed_just` フラグ・`placed` 時に collectSelfEventTriggers 呼び出し追加）。
