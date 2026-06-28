@@ -5,6 +5,15 @@
 
 ---
 
+## 機構: B4 引用付与 engine 精緻化（GRANT_QUOTED 引用能力の実発火）（2026-06-28）
+
+P1_PLAN §5 B4。`GRANT_QUOTED_AUTO_ABILITY`/`GRANT_QUOTED_ABILITY` の engine（execStubPart1.ts）は、引用能力からキーワード（アサシン等）と既知 CONTINUOUS パターンは付与していたが、**引用された【自】トリガー能力は log-only（no-op）でフォールバック**していた。これを実発火させる。
+
+- **改善**＝GRANT_QUOTED フォールバックの直前に、引用テキストに【自】/【常】/【起】を含む場合、synthetic CardData（EffectText=引用テキスト）を `parseCardEffects` で CardEffect 化し、**自分の場のシグニの `granted_effects`（ターン終了時まで）に積む**。effectsMap マージ経由でトリガー収集・CONTINUOUS収集が拾い実発火する（INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED と同じ granted_effects パターン）。
+- **安全ガード**＝①対象は自場シグニのみ（相手付与は対象外）②「このゲームの間」(permanent)は除外（turn-scoped で誤失効を避ける）③parse結果が STUB のみ/空なら従来どおり log-only（誤った能動化を避ける）。
+- 検証＝サンプル parse 確認（WX24-P2-018 引用「【自】アタック時…アサシン」→GRANT_KEYWORD ON_ATTACK_SIGNI 実発火／複雑引用は STUB→log-only 据置）。**純 engine 変更＝decompiler/JSON 不変＝同型★0・held/LOSS/VALUE 不変**。typecheck緑。
+- ⚠**要実機検証**（granted AUTO が実戦で正しく発火するか）。残＝permanent（このゲームの間）付与・相手シグニへの付与・STUB能力の実装は従来 log-only 据置（追加実装課題）。
+
 ## 機構: B2 動的閾値フィルタ（公開シグニのレベル合計×N以下）新設＋WX17-028 配線（2026-06-28）
 
 P1_PLAN §5 B2。「パワーが『この方法で公開したシグニのレベルの合計×1000』以下」の動的閾値を新設。WX17-028 は**【出】効果が丸ごと脱落**＋【自】E1も劣化（count:1・filter/任意性欠落）していた。
