@@ -57,7 +57,7 @@
   - リフレッシュ置換の実体（WX25-P2-009-E1＝現 no-op STUB `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG`）。
   - 「他＜毒牙＞のシグニ効果で相手パワーが減ったとき」トリガー（WX25-P3-062-E1＝現 STUB `POWER_COPY_FROM_DOWNED`）。
   - ~~`ON_OPPONENT_SIGNI_PLAY` 配線~~ **【R30 完了】** WXK10-022-E1 は新 timing ではなく**既存機構**で配線済み＝`ON_PLAY`＋`triggerScope:any_opp`（`collectFieldTriggers` opStateループが収集）＋`triggerCondition:turnOwner:self`（`effectStack.turnGateOk` が集約ゲート）＋`REMOVE_ABILITIES.targetsTriggerSource`（新規追加）。**参考**：WX08-006-E2（同「相手シグニが場に出たとき→チャーム」を ON_PLAY 代用）も同様に any_opp＋targetsTriggerSource(ATTACH_CHARM側に要追加)で正せる可能性。⚠実機未検証。
-  - **「自分の＜X＞シグニの効果でカードを引いたとき」トリガー（WX20-026-E3＝LOSS残1・最後の1枚）**。ON_DRAW 反応収集は既存（`collectDrawTriggers` BattleScreen:3847）だが、**ドローの原因カード（source）とそのクラスを追跡していない**（`cards_drawn_by_effect_this_turn` カウンタ増加で発火するだけ）。要設計：①`execDraw`（effectExecutor:74）で `ctx.sourceCardNum` がシグニなら draw-source を PlayerState の新フィールドに記録②`collectDrawTriggers` に `triggerCondition.drawBySourceStory:'凶蟲'` 判定を追加③そのフィールドのリセット境界（draw イベント単位）を厳密化。ホットパス＋state ライフサイクルが微妙で、ヘッドレス検証不可のため**実機テスト前提の慎重実装が要る**（現 JSON は ON_TURN_END 代用＝誤・無害寄り）。
+  - ~~「自分の＜X＞シグニの効果でカードを引いたとき」トリガー（WX20-026-E3）~~ **【R31 完了・LOSS 0達成🎉】** `triggerCondition.drawBySourceStory` を実装＝`PlayerState.last_effect_draw_source`（execDraw が原因カードを記録）を `collectDrawTriggers` で照合（シグニ かつ CardClass に story を含む場合のみ発火）。ドローフェイズ通常ドロー／ターン境界でクリア。⚠実機未検証（ホットパス・state ライフサイクル）＝§5 へ。
 - **ビートの残（低優先）**: トラッシュ→beat（WDK14-013）の**プレイヤー選択ピッカー**のみ自動近似（場シグニ選択UIは Phase7 で完了）。
 - **G072 残6枚（条件前置き付きの相手シグニ被バニッシュ反応）**: トリガー前に前置きが付き ON_BANISH 自バニッシュに誤分類。「メインフェイズの間」WX05-040/WX11-027・「アタックフェイズの間」WXEX2-23（→相フェイズ condition）／「あなたの効果によって」WXK11-055・「＜龍獣＞効果で」WX13-051（→byOwnEffect+story）／「【チャーム】付き相手シグニ」WXDi-P11-TK05（→charm triggerFilter）。前置きモデリングの誤りリスク高く個別対応。
 - **multi-dest pick（look→手札＋場の二目的）**: WX24-P1-017／WX24-P1-026／WX25-P3-038／WX25-CP1-025／WX26-CP1-019。LOOK_PICK_CHAIN の hand+field/beat は実装済だが、付与/条件/絆を伴う同時pickは別語彙が要る。
@@ -85,6 +85,8 @@
 
 実装済みだが対話 pause/resume・CPU代行のため自動検証できないもの。**安定確認まで関連拡張に進まない。**
 
+- **drawBySourceStory（WX20-026-E3・R31）**：自＜凶蟲＞シグニの効果ドローで相手シグニ−4000。要確認＝①E1/E2 の自前ドローで発火し相手シグニが−4000される②ドローフェイズの通常ドローでは非発火③別カードの効果ドロー（凶蟲以外）では非発火④前ターンの効果ドロー後、次ターン通常ドローで残値誤発火しない。
+- **ON_PLAY any_opp + targetsTriggerSource（WXK10-022・R30）**：相手シグニ配置時に自ターン中のみ能力消失。
 - **ビート機構 Phase1-7**：[条件]ゲート開閉／ON_BECOME_BEAT watcher の self/any_ally 出し分け／コスト発動→beat化→連鎖／**beat対象のプレイヤー選択UI**（場シグニ選択）／CPU=自動近似。
 - **機構④誤parse3枚**：WXDi-P07-044（E1 手札捨て時／E2 効果配置時のFREEZE+−2000）／WX25-P3-062-E2（ハナレ条件＋エナ＜毒牙＞任意トラッシュ→両者−20000）。
 - **F-3 身代わり対話**（バトルバニッシュ経路）：犠牲型 WX12-024/WXEX2-60/WX20-055/WXDi-CP01-032/WXDi-P10-052、コスト払い型 WX10-033/WX11-029。

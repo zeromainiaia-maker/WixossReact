@@ -5,6 +5,20 @@
 
 ---
 
+## engine: R31＝drawBySourceStory トリガー実装＋WX20-026 配線（LOSS 1→0・worklist 完了🎉）（2026-06-28・ymst）
+
+最後の LOSS 1枚 WX20-026-E3「【自】：あなたの場にある＜凶蟲＞のシグニの効果であなたがカードを１枚引いたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－4000する」を配線。**ドローの「原因カードのクラス」を追跡する新トリガー条件 `drawBySourceStory` を実装**：
+
+- **型**：`triggerCondition.drawBySourceStory?: string`（effects.ts）。「このドローの原因が、指定＜story＞のシグニの効果である場合のみ ON_DRAW を発火」。`PlayerState.last_effect_draw_source?: string`（index.ts）＝直近の効果ドローの原因カード番号。
+- **記録**：`execDraw`（effectExecutor.ts:74）が実際に引いた場合（canDraw>0）のみ `last_effect_draw_source = ctx.sourceCardNum` を記録。
+- **判定**：`collectDrawTriggers`（BattleScreen:3874）に `drawBySourceStory` ガードを追加＝`last_effect_draw_source` のカードが シグニ かつ CardClass に指定 story を含む場合のみ通す。WX20-026 は自身が＜凶蟲＞シグニで E1/E2 の自前ドローが原因＝発火する。
+- **リセット境界**：ドロー検出（4951）は `cards_drawn_by_effect_this_turn` 増加比較で、その直後に `last_effect_draw_source` を読むため**常に最新の原因が反映**（execDraw が直前に上書き）。誤発火対策＝①ドローフェイズ通常ドロー（drawCards 経由・効果ドローではない）で `last_effect_draw_source:undefined` にクリア（直後の collectDrawTriggers が前ターン残値で誤発火しないように）②ターン境界リセット2箇所（4115/4413・`cards_drawn_by_effect_this_turn` と同位置）でも undefined。CPU 通常ドロー（9363）は collectDrawTriggers を呼ばない＝誤発火経路なし。
+- **データ再curate**：WX20-026-E3＝`ON_DRAW`＋`triggerCondition:{drawBySourceStory:'凶蟲'}`＋target は単に `{SIGNI,opponent,1}`（旧 EXIST は story:凶蟲 を**ターゲット側**に誤付与＝対象を凶蟲に絞っていた／本来は原因の限定）＋MANUAL。旧 `ON_TURN_END` 代用を解消。decompiler に ON_DRAW+drawBySourceStory の描画を追加（逆翻訳が原文トリガー完全一致）。
+- typecheck緑・同型★0維持・逆翻訳原文一致。⚠ドローのホットパス＋state ライフサイクルのため**実機未検証**（PvP で＜凶蟲＞シグニ自前ドロー→相手シグニ−4000、通常ドローや別カード効果ドローでは非発火、を要確認）。
+- **🎉 これで held の LOSS 255→0。パーサー整合ワークリスト完了。** 残 held 159 は全て VALUE（値違い＝慣例/1件ずつ判断・bulk禁止）＝P1 最終フェーズの curation レビュー案件。
+
+---
+
 ## engine: R30＝REMOVE_ABILITIES targetsTriggerSource 追加＋WXK10-022 配線（LOSS 2→1）（2026-06-28・ymst）
 
 WXK10-022-E1「【自】：あなたのターンの間、対戦相手のシグニ１体が場に出たとき、ターン終了時まで、そのシグニは能力を失う」を配線。**当初 TODO に「`ON_OPPONENT_SIGNI_PLAY` が未配線」と書いたが、調査の結果 新 timing は不要で既存機構で表現できると判明**：

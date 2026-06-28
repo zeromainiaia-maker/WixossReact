@@ -84,6 +84,9 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
     deck: state.deck.slice(canDraw),
     // このターンに効果で引いた累計枚数（CARDS_DRAWN_BY_EFFECT 条件用）。ドローフェイズのドローは drawCards 経由でここを通らない。
     cards_drawn_by_effect_this_turn: (state.cards_drawn_by_effect_this_turn ?? 0) + canDraw,
+    // このドローの原因カード（drawBySourceStory 判定用）。実際に引いた場合のみ更新。collectDrawTriggers が
+    // cards_drawn_by_effect_this_turn の増加を検出した直後に読むため、ここで上書きすれば常に最新の原因が反映される。
+    last_effect_draw_source: canDraw > 0 ? ctx.sourceCardNum : state.last_effect_draw_source,
   };
   // リフレッシュはここでは行わず、効果解決後（result.done）の applyRefreshOnDone に集約する
   // （ルール：効果解決中はデッキ0のまま可能な限り解決し、その後リフレッシュ）。

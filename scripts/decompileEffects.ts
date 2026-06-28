@@ -923,6 +923,10 @@ function effJa(e: Eff): string {
     if (t === 'ON_PLAY' && e.triggerCondition?.placedDown) {
       s = s.replace('場に出たとき', 'ダウン状態で場に出たとき');
     }
+    // ON_DRAW の「あなたの場の＜story＞シグニの効果で」限定（WX20-026-E3）。ドローフェイズの通常ドローでは発火しない。
+    if (t === 'ON_DRAW' && e.triggerCondition?.drawBySourceStory) {
+      s = `あなたの場にある＜${e.triggerCondition.drawBySourceStory}＞のシグニの効果であなたがカードを１枚引いたとき`;
+    }
     // ON_HAND_DISCARDED の triggerScope:'any'（「いずれかのプレイヤーが」WXK09-038）を主語に反映
     if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any') {
       s = s.replace('あなたが手札を捨てたとき', 'いずれかのプレイヤーが手札を捨てたとき');

@@ -3873,6 +3873,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const eff of (effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DRAW')) continue;
         if ((eff.triggerScope ?? 'self') !== 'self') continue;
+        // drawBySourceStory: このドローの原因が、指定＜story＞のシグニの効果である場合のみ発火（WX20-026-E3）。
+        // 直近の効果ドロー（execDraw）が記録した原因カードのクラスを照合。通常ドロー（last_effect_draw_source 未設定）や
+        // 別系統のカードによる効果ドローでは発火しない。
+        if (eff.triggerCondition?.drawBySourceStory) {
+          const srcNum = drawerState.last_effect_draw_source;
+          const srcCard = srcNum ? battleCardMap.get(srcNum) : undefined;
+          if (!srcCard || srcCard.Type !== 'シグニ') continue;
+          if (!(srcCard.CardClass ?? '').includes(eff.triggerCondition.drawBySourceStory)) continue;
+        }
         if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, drawerState, otherState, isDrawerTurn, battleCardMap, topNum)) continue;
         if (eff.condition && !evalUseCondition(eff.condition, drawerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
         if (!limitOk(eff)) continue;
@@ -3921,7 +3930,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ターン開始時にリフレッシュ回数をリセット（ドローによるリフレッシュはこのターン分としてカウント）
         newMyState = drawBlocked
           ? { ...my, refresh_count_this_turn: 0, actions_done: [], draw_limit: undefined }
-          : { ...drawCards({ ...my, refresh_count_this_turn: 0 }, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined };
+          // ドローフェイズの通常ドローは「効果ドロー」ではないため last_effect_draw_source をクリアし、
+          // 直後の collectDrawTriggers で drawBySourceStory トリガー（WX20-026-E3）が前ターンの残値で誤発火しないようにする。
+          : { ...drawCards({ ...my, refresh_count_this_turn: 0 }, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined, last_effect_draw_source: undefined };
         // UPKEEP_OR_NO_UP: コストを支払ったらアップ、そうでなければダウンのままクリア
         if (newMyState.lrig_upkeep_condition) {
           if (upkeepPay) {
@@ -4113,6 +4124,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           blocked_card_names: [],   // ターン内使用禁止カードをリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           cards_drawn_by_effect_this_turn: 0, // 効果ドロー累計をリセット
+          last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
           life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
@@ -4411,6 +4423,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
         blocked_actions: [], blocked_card_names: [], actions_done: [],
         cards_drawn_by_effect_this_turn: 0,
+        last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         life_crashed_this_turn: undefined,
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
