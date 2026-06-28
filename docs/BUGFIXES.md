@@ -5,6 +5,15 @@
 
 ---
 
+## repr: A3＝A2修正カードの timing/result 近似是正＋PLACE_UNDER_SIGNI描画バグ修正（2026-06-28）
+
+A2 で OPTIONAL_COST 化したカードの timing/result の別件近似を是正（全て MANUAL）。
+
+- **decompiler バグ修正**＝`PLACE_UNDER_SIGNI` が `targetJa(a.source)` で「シグニundefined体」と誤描画していたのを、`source`(deck_top/trash/energy/hand)＋`count`＋`filter` を正しく描画（20枚超に波及・例「あなたのデッキの上からカードを2枚このシグニの下に置く」）。
+- **timing 是正6枚**＝WX15-059（ON_PLAY→`ON_ACCE_ATTACH`「シグニがアクセされたとき」）／WX20-069（→`ON_SIGNI_BANISH_OPPONENT`）／WXDi-P02-083（→ON_PLAY+any_opp+`placedFront`+level≤2「相手シグニが正面に出たとき」）／WXDi-CP02-072（→`ON_SIGNI_BANISH_BATTLE`）／WXK11-071（→ON_PLAY+any_opp「相手シグニが場に出たとき」）／WD22-007-G（→ON_PLAY+any_ally+`placedFromTrash`+story遊具「＜遊具＞がトラッシュから場に出たとき」）。
+- **result 是正3枚**＝WXK06-053（CONDITIONAL.then を BANISH相手シグニ→`TRASH`相手エナ1枚＝原文「それをトラッシュに置く」）／WXDi-P02-083・WXK11-071（then を RULE_REMINDER STUB→`TRASH`相手シグニ1体）。
+- typecheck緑・**同型★0維持**・held 0。⚠OPTIONAL_COST 句の具体的コスト内容は依然 generic（pre-existing）。
+
 ## repr: A2残4枚の個別是正（GRANT_QUOTED 誤パース完了＝引用無しGQ残0）（2026-06-28）
 
 A2残4枚（optional-cost ではない別系の機構絡み誤パース）を個別是正。虚偽の付与STUBを除去し、原文を正直に表す記述的STUB＋既存アクションで表現（decompiler に3 STUB描画を追加）。

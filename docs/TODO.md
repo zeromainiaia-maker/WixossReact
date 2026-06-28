@@ -162,7 +162,7 @@
 - `grouped_sentence_all.txt`（文型★）の⚠脱落疑いを上から潰す。**簡単な系統バグはほぼ枯れ、残りは機構実装待ちが中心**（§3〜§6）。
 - ⚠ **「脱落疑い件数（242枚前後）」は指標にしない**：メトリクスが「。区切りの文数」で粗く、decompiler が複数効果を1行に圧縮するため内容修正で減らない。真の指標は **同型★0＋該当カードの逆翻訳が原文一致**。
 - **decompiler 改良候補**: テキスト実行時パース型STUB（`BET_MECHANIC`・`CHOOSE_SAME_OPTION_*`・`DO_THREE_THINGS` 等）を原文反映で描画すれば★偽陽性がさらに減る。
-  - **`PLACE_UNDER_SIGNI` の count 描画バグ**: WXDi-P10-041-E2 等で「シグニ**undefined**体をこのシグニの下に置く」と出る（`count` を読めていない）。decompiler の PLACE_UNDER_SIGNI 分岐で `a.count` 参照の修正が要る（軽微）。
+  - ~~**`PLACE_UNDER_SIGNI` の count 描画バグ**~~ **✅修正済（2026-06-28）**＝source/count/filter を正しく描画。
   - ✅**`GRANT_QUOTED_AUTO_ABILITY`/`GRANT_QUOTED_ABILITY` を原文の引用能力で描画（2026-06-28）**: **前置型**「…は『【自/常/起/出】…』を得る」（10枚）＋**後置型**「…は以下の能力を得る。『…』」（2枚＝WXDi-D04-011/WX24-P3-003）の両方を完全描画。引用が見つからない場合のみ `[STUB:引用された能力を付与する（原文参照）]` フォールバック。同型★0維持。**残課題**＝WX15-059/WX20-069 等 約30枚は GRANT_QUOTED_AUTO_ABILITY 自体が**誤パース**（原文に引用が無い）＝parser 是正案件（P1_PLAN §3 A2）。
 
 ### 7.1 ✅ 脱落疑い 棚卸し＋実バグ候補修正 完了（2026-06-28・P1 DoD(a)）

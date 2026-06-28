@@ -670,7 +670,14 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'POWER_FLIP': return `${targetJa(a.target)}のパワーの増減を反転する`;
     case 'POWER_MODIFY_BY_TARGET_LEVEL': return `${targetJa(a.target)}のパワーを対象のレベルに応じて変更する`;
     case 'POWER_MODIFY_PER_TRASHED_LEVEL': return `${targetJa(a.target)}のパワーをトラッシュしたシグニのレベル合計に応じて変更する`;
-    case 'PLACE_UNDER_SIGNI': return `${targetJa(a.source)}をこのシグニの下に置く`;
+    case 'PLACE_UNDER_SIGNI': {
+      // source は文字列の領域指定（deck_top/trash/energy/hand）＋ count ＋ 任意 filter
+      const puLoc: Record<string, string> = { deck_top: 'あなたのデッキの上から', trash: 'あなたのトラッシュから', energy: 'あなたのエナゾーンから', hand: 'あなたの手札から' };
+      const puFrom = puLoc[a.source] ?? `${a.source}から`;
+      const puNoun = a.filter?.cardType && !Array.isArray(a.filter.cardType) ? a.filter.cardType : 'カード';
+      const puCnt = a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
+      return `${puFrom}${a.filter ? filterJa(a.filter) : ''}${puNoun}を${puCnt}このシグニの下に置く`;
+    }
     case 'TAKE_FROM_UNDER_SIGNI': return 'このシグニの下のカードを取る';
     case 'STACK_SPELL': return 'トラッシュからスペルをこのカードの下に置く';
     case 'REVEAL':
