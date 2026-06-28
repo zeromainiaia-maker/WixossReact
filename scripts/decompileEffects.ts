@@ -114,6 +114,8 @@ function filterJa(f?: any): string {
   if (f.levelLteDiscardSigni) parts.push('この方法で捨てたシグニのレベル以下の');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
   if (f.noGuard) parts.push('《ガードアイコン》を持たない');
+  if (f.hasRiseIcon) parts.push('《ライズアイコン》を持つ');
+  if (f.hasCrossIcon) parts.push('《クロスアイコン》を持つ');
   if (f.eachDistinctColor) parts.push('それぞれ共通する色を持たず');
   if (f.nonColorless) parts.push('無色ではない');
   if (f.isDisona) parts.push('《ディソナアイコン》を持つ');

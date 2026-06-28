@@ -163,17 +163,15 @@
 - ⚠ **「脱落疑い件数（242枚前後）」は指標にしない**：メトリクスが「。区切りの文数」で粗く、decompiler が複数効果を1行に圧縮するため内容修正で減らない。真の指標は **同型★0＋該当カードの逆翻訳が原文一致**。
 - **decompiler 改良候補**: テキスト実行時パース型STUB（`BET_MECHANIC`・`CHOOSE_SAME_OPTION_*`・`DO_THREE_THINGS` 等）を原文反映で描画すれば★偽陽性がさらに減る。
 
-### 7.1 ✅ 脱落疑い 棚卸し完了（2026-06-28・P1 DoD(a)）
-診断＝`node scripts/_dropTriage.mjs`（再現可能・`docs/_drop_triage.txt` に明細）。**⚠脱落疑い 255枚を全分類（要確認 0）**：
+### 7.1 ✅ 脱落疑い 棚卸し＋実バグ候補修正 完了（2026-06-28・P1 DoD(a)）
+診断＝`node scripts/_dropTriage.mjs`（再現可能・`docs/_drop_triage.txt` に明細）。**⚠脱落疑い 255枚を全分類（要確認 0・実バグ候補 0）**：
 - **偽陽性 179枚**（直さない）＝CHOOSE/選択肢圧縮77・LOOK/REVEAL文法崩れ50（R14/R28 で着手禁止確定）・使用条件前置き26・ルール注記6・アンコール注記+本体present7・リコレクト条件分岐/付与展開6・付与展開present等。
-- **機構待ち 71枚**＝STUB 56・GRANT_QUOTED付与引用（空/圧縮/遅延）9・トラップ選択肢/別効果脱落2・GRANT_KEYWORD CHOOSE脱落1・1効果脱落(ターン終了時/アタック開始の別timing付与)2・近似注記1。**いずれも §3〜§6 の既知機構待ち**（特に GRANT_QUOTED_AUTO 精緻化＝P1_PLAN §5 未着手）。
-- **🔧 実バグ候補 5枚（JSON実体で脱落確認済・要個別修正＝次の着手候補）**:
-  - **WXK01-063 貫穿**＝原文「＋2000し【Ｓランサー】を得る」だが JSON は GRANT_KEYWORD のみ＝**POWER_MODIFY +2000 脱落**。
-  - **WX18-019 奮闘努力**＝原文「デッキから2枚までエナに置きシャッフル」だが JSON は `SHUFFLE_DECK` のみ＝**SEARCH→ENERGY 脱落**。
-  - **WDK15-009 スティング・スイング**＝原文「ライズ黒持ち1枚＋無色でない1枚を手札」だが JSON は TRANSFER_TO_HAND count:1 シグニ＝**対象2枚→1枚＋フィルタ脱落**。
-  - **WX17-028 ≡ソラフレア≡**＝【出】《赤×0》のデッキ4枚公開→レベル合計依存バニッシュ効果が JSON に無く**【出】効果まるごと脱落**。
-  - **WX25-CP1-069 小塗マキ**＝原文「アタックフェイズ開始時手札捨て→このターン条件付き相手手札捨て」を ON_OPP_LIFE_CRASHED 即時に近似＝**トリガー誤り＋遅延効果近似**。
-  - ※5枚はいずれも parseStatus:AUTO のパーサー近似＝MANUAL 追加 or パーサー拡張で個別修正（修正後 same workflow＝typecheck＋該当シート再生成＋同型★0＋decompile 原文一致）。
+- **機構待ち 73枚**＝STUB 56・GRANT_QUOTED付与引用（空/圧縮/遅延）9・トラップ選択肢/別効果脱落2・GRANT_KEYWORD CHOOSE脱落1・別timing付与の1効果脱落2・近似注記1＋**WX17-028（【出】動的閾値「公開シグニのレベル合計×1000以下」＝語彙なし）／WX25-CP1-069（遅延条件トリガー「このターン…クラッシュしたとき」＝語彙なし）**。いずれも新機構が要る（GRANT_QUOTED_AUTO 精緻化＝P1_PLAN §5 未着手・動的閾値/遅延トリガーは未語彙）。
+- **✅ 修正済 3枚（JSON を MANUAL でパッチ・逆翻訳が原文一致・typecheck緑・同型★0）**:
+  - **WXK01-063 貫穿**＝SEQUENCE に POWER_MODIFY +2000（ターン終了時まで）を追加＋GRANT_KEYWORD Ｓランサー（targetsLastProcessed）。
+  - **WX18-019 奮闘努力**＝SEQUENCE で SEARCH(maxCount2)→ENERGY_CHARGE＋SHUFFLE_DECK に復元（旧 SHUFFLE_DECK のみ）。
+  - **WDK15-009 スティング・スイング**＝SEQUENCE で TRANSFER_TO_HAND×2（filter:hasRiseIcon／nonColorless）に復元（旧 count:1 シグニ）。⚠《ライズアイコン_黒》の色限定は hasRiseIcon で近似（色は未限定）。decompiler に hasRiseIcon/hasCrossIcon の filterJa を追加。
+  - ※crude metric（。区切り文数）では rule-note（）が原文文数を水増しするため 3枚は計数上 dropSuspect に残るが、逆翻訳は原文の全効果を表現済み（件数は非指標＝§7 冒頭の注記参照）。
 
 ## 8. 検証・品質（補助）
 

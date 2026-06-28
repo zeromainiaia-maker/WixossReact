@@ -5,6 +5,16 @@
 
 ---
 
+## repr: 脱落疑い棚卸しの実バグ候補3枚を修正（2026-06-28・P1 DoD(a)）
+
+脱落疑い255枚の棚卸し（`scripts/_dropTriage.mjs`）で JSON 実体の脱落を確認した3枚を MANUAL パッチで原文一致に修正。残2枚は語彙なしで機構待ちに再分類。
+
+- **WXK01-063 貫穿**＝旧 JSON は GRANT_KEYWORD Ｓランサーのみ＝原文「＋2000し【Ｓランサー】を得る」の **POWER_MODIFY +2000 が脱落**。SEQUENCE に POWER_MODIFY +2000（UNTIL_END_OF_TURN）を追加し GRANT_KEYWORD を targetsLastProcessed で同一対象に。
+- **WX18-019 奮闘努力**＝旧 JSON は `SHUFFLE_DECK` のみ＝原文「デッキから2枚まで探してエナに置きシャッフル」の **SEARCH→ENERGY が脱落**。SEQUENCE で SEARCH(maxCount2,then ENERGY_CHARGE)＋SHUFFLE_DECK に復元。
+- **WDK15-009 スティング・スイング**＝旧 JSON は TRANSFER_TO_HAND count:1 シグニ＝原文「ライズ黒持ち1枚＋無色でない1枚を手札」の **対象2枚→1枚＋フィルタが脱落**。SEQUENCE で TRANSFER_TO_HAND×2（filter:hasRiseIcon／nonColorless）に復元。decompiler の filterJa に hasRiseIcon/hasCrossIcon を追加（《ライズアイコン_黒》の色は hasRiseIcon で近似＝色未限定）。
+- 機構待ち再分類＝**WX17-028**（【出】が「公開シグニのレベル合計×1000以下」の動的閾値＝語彙なし）／**WX25-CP1-069**（「このターン…クラッシュしたとき」の遅延条件トリガー＝語彙なし）。
+- 3枚とも parseStatus:MANUAL・typecheck緑・同型★0・逆翻訳が原文の全効果を表現。⚠実機未検証。
+
 ## repr: 最難物2件＝ウェポン効果バニッシュ＋複合ORトリガー（R58・VALUE 2→0・🎉 timing flatten 完了）（R58・2026-06-28）
 
 残 VALUE 2 の最難物を表現し切り、**timing flatten（VALUE）を 0 にした**（P1 表現①の到達点）。両者とも既存単一 timing では表せない／engine 機構が無いため、専用の新 timing＋engine未配線マークで表現のみ確定。
