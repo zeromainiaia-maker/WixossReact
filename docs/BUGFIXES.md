@@ -5,6 +5,16 @@
 
 ---
 
+## engine: triggerFilter hasCrossIcon/hasRiseIcon 追加＋クロス/ライズ場出し6枚（2026-06-28・ymst）
+
+「《クロスアイコン》/《ライズアイコン》を持つシグニが場に出たとき」を配線。`matchesFilter`（execUtils）に triggerFilter フィールド `hasCrossIcon`（EffectText が《クロスアイコン》で始まる・`cardHasCrossIcon` と同基準）／`hasRiseIcon`（EffectText に【ライズ】を含む）を追加。既存 `collectFieldTriggers` ON_PLAY any_ally が entering signi を triggerFilter で照合するため、データ側で triggerFilter を付けるだけで発火。
+
+- クロス4: WX07-002（シグニ+2000）／WX07-004（自全+2000）／WX07-005（相手-2000）／WX08-001（《赤赤》払い→アサシン）。
+- ライズ2: WX16-026（3択CHOOSE）／WX22-Re01（このシグニ+4000・thisCardOnly・ターン2回）。
+- decompiler に ON_PLAY+hasCrossIcon/hasRiseIcon 描画追加。typecheck緑・同型★0・逆翻訳原文一致・lint 0。⚠実機未検証。timing flatten 残 ≈48。
+
+---
+
 ## データ: timing flatten「場に出たとき」Group A 6枚（既存 ON_PLAY any_ally/any_opp）（2026-06-28・ymst）
 
 「シグニが場に出たとき」系のうち、既存 `collectFieldTriggers`（ON_PLAY・any_ally/any_opp＋標準 triggerFilter）で配線できる Group A を修正（新機構不要）。

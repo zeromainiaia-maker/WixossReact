@@ -228,6 +228,10 @@ export function matchesFilter(
     if (filter.levelParity === 'even' && lv % 2 !== 0) return false;
     if (filter.levelParity === 'odd'  && lv % 2 !== 1) return false;
   }
+  // 《クロスアイコン》を持つ（EffectText が《クロスアイコン》で始まる。cardHasCrossIcon と同基準・循環import回避のため inline）
+  if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
+  // 《ライズアイコン》を持つ（EffectText に【ライズ】を含む）
+  if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
     // card_class_overridesによるクラス上書き、次にTREAT_AS_CLASS_ALL_ZONESオーバーライドを考慮

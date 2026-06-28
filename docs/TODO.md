@@ -78,7 +78,8 @@
   - **⛔未配線＝機構待ち（新 timing/収集機構が要る・触らない）**: ~~「ライズされたとき」~~ **【✅R8 ON_RISE】**／~~「アーツを使用したとき」~~ **【✅R7 ON_ARTS_USE】**／~~「デッキからトラッシュ」系~~ **【✅R9 ON_CARD_MILLED_FROM_DECK 新設・set-diff 検出・12枚。⚠原因限定/合計N枚/ミルカードフィルタは近似（下記）】**／「効果で対戦相手のパワーが減ったとき」2（§3 機構④の毒牙トリガー）／「コインを支払ったとき」「ウィルスが取り除かれたとき」「ゾーン移動」等。
   - **⚠ ミル機構の近似（R9・将来精緻化）**: ①原因限定（「効果1つ」「コストか効果」「あなたの＜悪魔＞シグニの効果」「《ディソナ》カードの効果」「あなたの効果」）は未表現＝過剰発火の可能性／②「合計N枚以上」は解決単位の delta で近似（複数効果跨ぎ累積は未対応）＝`cards_milled_from_deck_this_turn` ターンカウンタを足せば精緻化可／③ミルカードのクラスフィルタ（WXK10-052 ＜龍獣＞）は未判定／④コスト払いによるミルは効果解決経路外で未検出の可能性。対象=WXDi-P08-079・WXDi-CP02-010・WX24-P3-087・WXK10-052・WXDi-P13-085 等。
   - ~~手札捨て/アクセ/エクシードコスト~~ **【✅R10 完了・9枚】**。~~場に出たとき Group A（レゾナ/アーム/偶数Lv/相手効果場出し）~~ **【✅R11 完了・6枚】**。
-  - **次の着手候補＝「場に出たとき」残＝support 追加が要る3系統**：①**クロスアイコン4**（WX07-002/004/005・WX08-001）＝triggerFilter に `hasCrossIcon` 追加（matchesFilter で `cardHasCrossIcon` 利用・execUtils）。②**ライズアイコン2**（WX16-026・WX22-Re01）＝triggerFilter に `hasRiseIcon`（EffectText に【ライズ】判定・既存 `__requiresRiseIcon` を正式フィールド化）。③**トラッシュから場出し7**（WX03-020・WX12-023・WX14-018・WXDi-P07-047・WXDi-P09-080・WDK06-C11 ほか）＝triggerCondition に `placedFromTrash`（配置元がトラッシュかを detectPlacedSigni 経路で判定＝新機構）。④傀儡状態1（WDK17-001）。⑤毒牙パワー減（§3 機構④）。
+  - ~~クロスアイコン4／ライズアイコン2~~ **【✅R12 完了＝matchesFilter に hasCrossIcon/hasRiseIcon 追加】**。
+  - **次の着手候補＝「場に出たとき」残**：①**トラッシュから場出し7**（WX03-020・WX12-023・WX14-018・WXDi-P07-047・WXDi-P09-080・WDK06-C11 ほか）＝triggerCondition に `placedFromTrash`（配置元がトラッシュかを判定＝新機構。`detectPlacedSigni` がトラッシュ起点の配置を識別できるか要調査・effectExecutor の場出し系が trash 由来フラグを残すか）。②傀儡状態1（WDK17-001）＝傀儡フィルタ。③毒牙パワー減（§3 機構④）。
   - **進め方**: 配線済みクラスタを1つずつ（`_flattenView.mjs` でトリガー確定→`_fix<Cluster>.mjs` で timing+scope+filter 再構築＋MANUAL→typecheck＋同型★0＋decompile 原文一致→commit）。未配線クラスタは機構実装が要るので §3 機構④と統合して別途。
 
 ## 4. 個別の複雑カード（機構待ち・着手候補）

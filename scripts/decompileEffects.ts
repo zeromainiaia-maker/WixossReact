@@ -935,6 +935,11 @@ function effJa(e: Eff): string {
     if (t === 'ON_RISE' && e.triggerCondition?.risedOntoNameContains) {
       s = `このシグニがカード名に《${e.triggerCondition.risedOntoNameContains}》を含むシグニにライズされたとき`;
     }
+    // ON_PLAY の triggerFilter（クロス/ライズアイコン）を主語に反映（「あなたの《クロスアイコン》を持つシグニが場に出たとき」）
+    if (t === 'ON_PLAY' && (e.triggerScope === 'any_ally' || e.triggerScope === 'any') && (e.triggerFilter?.hasCrossIcon || e.triggerFilter?.hasRiseIcon)) {
+      const icon = e.triggerFilter.hasCrossIcon ? 'クロスアイコン' : 'ライズアイコン';
+      s = `あなたの《${icon}》を持つシグニ１体が場に出たとき`;
+    }
     // ON_CARD_MILLED_FROM_DECK の発生源デッキ・枚数限定（milledDeckOwner/milledMinCount）
     if (t === 'ON_CARD_MILLED_FROM_DECK') {
       const mo = e.triggerCondition?.milledDeckOwner ?? 'any';
