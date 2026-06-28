@@ -72,7 +72,7 @@
 
 **発見（VALUE curation R1-R4・2026-06-28）**: VALUE バケツの最大塊＝**`timing:["ON_TURN_END"]` だが action は `duration:UNTIL_END_OF_TURN` の【自】トリガー（当初102枚・他系統含め VALUE 全体159枚）**。原文トリガーは「〜したとき」（場に出た/ヘブン/スペル使用/ライズ/ウィルス配置/レゾナ場出し/トラッシュから場出し 等の多様な誘発）なのに、curated JSON が **トリガーを丸ごと落として `ON_TURN_END` に flatten**。結果＝**ターン終了時に付与して同時に失効＝実質 no-op の実バグ**（buff/debuff が一切効かない）。parser は `ON_PLAY` を出すが triggerScope/Filter を欠くため**両方とも誤**（resync 不可）。
 
-- **計器/診断**: `npx tsx scripts/_valueTriage.ts timing`（EXIST/FRESH の timing 差を一覧）。flatten 102枚は `EXIST="ON_TURN_END" FRESH="ON_PLAY"`。
+- **計器/診断**: `npx tsx scripts/_flattenList.ts`（timing 変更カードの EXIST/FRESH 差を一覧・現在 0 枚）。health 計器は `npx tsx scripts/parserWorklist.ts`（held/LOSS/VALUE すべて 0）。※旧 `_valueTriage.ts`/`_resync.ts`/`_manualize2.ts`/`analyzeHeldCards.ts` と parser 計画3文書（parser_worklist/backlog/improvement_plan）は held 0 達成で 2026-06-28 削除。
 - **直し方（per-card・trigger-type 別にグループ化して）**: ①原文トリガーを判定→正しい `timing`＋`triggerScope`（多くは any_ally）＋`triggerFilter`（クロス/ライズ/レゾナ/story 等）＋`triggerCondition` を再構築②**engine が当該トリガーを配線済みか必ず確認**（未配線＝ライズされたとき/ウィルス配置/トラッシュから場出し 等は機構実装が要る可能性）③`duration:UNTIL_END_OF_TURN` は維持。
 - **⛔ bulk 禁止**（baton 鉄則）。trigger-type 別の小クラスタ単位で engine 確認→数枚ずつ→typecheck＋同型★0＋実機検証。trigger-type 内訳の目安＝スペル使用7／トラッシュから場出し6／ライズ6／ヘブン5／ウィルス4／レゾナ3／クロス持ち場出し 等＋汎用「場に出たとき」多数。
 - **これが VALUE curation の最後の本丸**。**進捗＝VALUE 159→25（R5-R40 で消化）。残25は下記「📍 残の分類」へ集約**。
