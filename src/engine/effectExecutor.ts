@@ -3671,6 +3671,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ENERGY_CHARGE_FROM_DECK': return execEnergyChargeFromDeck(action as EnergyChargeFromDeckAction, ctx);
     case 'LIFE_CRASH':              return execLifeCrash(action as LifeCrashAction, ctx);
     case 'INSTALL_DELAYED_TRIGGER': return execInstallDelayedTrigger(action as import('../types/effects').InstallDelayedTriggerAction, ctx);
+    case 'REVEAL_DECK_TOP':         return execRevealDeckTop(action as import('../types/effects').RevealDeckTopAction, ctx);
+    case 'TRASH_REVEALED':          return execTrashRevealed(action as import('../types/effects').TrashRevealedAction, ctx);
     case 'SHUFFLE_DECK':            return execShuffleDeck(action as ShuffleDeckAction, ctx);
     case 'REVEAL':                  return execReveal(action as import('../types/effects').RevealAction, ctx);
     case 'ADD_TO_HAND':             return done(addLog(ctx, 'カードを手札に加える')); // SEARCH内で処理
