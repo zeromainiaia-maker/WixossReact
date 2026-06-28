@@ -5,6 +5,19 @@
 
 ---
 
+## repr: ON_MATERIAL_USED（《改造素材》が使用されたとき）8効果（R57・2026-06-28）
+
+WXK09-047/084「《改造素材》が使用されたとき…」を新 timing `ON_MATERIAL_USED` で表現。同句6枚（WXK09-047/048/049/077/084・WXK10-050）を一括対応。**3変種**を triggerScope/triggerCondition で区別：
+- `このシグニに…使用されたとき`＝self（既定）
+- `あなたの他のシグニ１体に…使用されたとき`＝any_ally + excludeSelf
+- `あなたが…を使用したとき`＝triggerCondition.materialUsedByPlayer（プレイヤー起点）
+
+**改造素材の use イベントが engine 未実装＝engine未配線**（`engineUnwiredTimings` 登録）。
+
+- 型＝`ON_MATERIAL_USED`＋`triggerCondition.materialUsedByPlayer`（effects.ts）。パーサー＝句ルール＋専用 scope/cond 抽出ブロック（トリガー文非除去）。decompiler＝`timingJa`＋3分岐レンダリング＋`engineUnwiredTimings` 登録。
+- データ＝8効果を superset-safe で FRESH 丸ごと一括置換（WXK09-047-E1/E2/BURST・WXK09-048-E1・WXK09-049-E1・WXK09-077-E1・WXK09-084-E1・WXK10-050-E1）。WXK09-047-BURST の source filter story:電機 も同時補完。
+- typecheck緑・同型★0・逆翻訳3変種とも原文一致・**VALUE 4→2・LOSS 0 維持**・⚠engine未配線。⚠pre-existing：WXK09-084-E1 action の対象 owner が「自分または対戦相手」近似（別件）。
+
 ## repr: ON_COIN_PAID（コインを1枚以上支払ったとき）3枚（R56・2026-06-28）
 
 WXDi-P15-069「あなたが《コイン》を１枚以上支払ったとき…」を新 timing `ON_COIN_PAID` で表現。同句3枚（WXDi-P15-055/069・WXDi-P16-057）を一括対応＝全て self scope（変種なし・素直）。**コイン支払がグロウ/ベット/起動コスト等の多経路に分散＝engine未配線**（`engineUnwiredTimings` 登録）。
