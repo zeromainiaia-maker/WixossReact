@@ -50,7 +50,7 @@
 - **A3**　各カードの timing/result 近似の是正。**✅完了＝A3クローズ（2026-06-28）**＝A2修正カードの timing 6枚（ON_ACCE_ATTACH/ON_SIGNI_BANISH_OPPONENT/placedFront/ON_SIGNI_BANISH_BATTLE/any_opp/placedFromTrash）＋result 3枚（TRASH是正）＋`PLACE_UNDER_SIGNI` 描画バグ修正。~~WXDi-P11-032 アサシン/ランサー/常 の3択 GRANT~~ **✅完了（2026-06-28）**＝CHOOSE(3)＝GRANT_KEYWORD アサシン/ランサー/アタックできない に復元（MANUAL・同型★0）。~~WXDi-CP02-074/089 の別timing 1効果脱落~~ **✅完了（2026-06-28）**＝先頭【自】を復元し原文順に並べ替え（074=ターン終了時reveal→ブルアカでdraw／089=エナトラッシュ→引用ランサー付与）。~~その他 OPTIONAL_COST 句の具体コスト~~ **✅完了（2026-06-28）＝A3クローズ**＝`StubAction.costText` 追加＋抽出パッチで bare OPTIONAL_COST 80→22枚（58枚を原文コスト句で是正・MANUAL）。残22枚は A3具体コスト対象外＝別系統（誤パース13／替コスト・F-3 2／複数択複合4／動的閾値1／引用内コスト1／ルール注記偽陽性1）に分類済み。decompileシートも UTF-8 正規化（真のカード数5986・同型★0）。**⚠decompile再生成は Bash の `>`（UTF-8）で行う。PowerShell `>` は UTF-16 を書き下流を壊すので禁止。**
 
 **B. 機構待ち（新語彙/機構が要る・中リスク・§5表）＝4機構**
-- **B1**　`SET_TRAP` 設置アクション（「手札/デッキのカードを【トラップ】として設置」）＝トラップ設置型 ~十数枚が依存（`PLACE_TRAP_FROM_REVEALED`/`PLACE_TRAP_OPTIONAL` STUB を置換）。
+- ~~**B1**　`SET_TRAP` 設置アクション~~ **✅完了（2026-06-28）**＝engine は既存（`signi_traps` ゾーン）。decompiler で9系統トラップSTUBを原文【トラップ】語彙描画（生STUB残0）。**§5 のB機構は全完了**。
 - ~~**B2**　動的閾値フィルタ（WX17-028「公開したシグニのレベル合計×1000以下」）~~ **✅完了（2026-06-28）**＝`REVEAL_DECK_TOP`/`TRASH_REVEALED`/`powerLteRevealedSigniLevelSum` 新設。残B＝B1/B4。
 - ~~**B3**　遅延条件トリガー（WX25-CP1-069「このターン、…クラッシュしたとき」）~~ **✅完了（2026-06-28）**＝`INSTALL_DELAYED_TRIGGER` 機構新設。残B＝B1/B2/B4。
 - **B4**　`GRANT_QUOTED_AUTO_ABILITY` の engine 精緻化。**✅一次完了（2026-06-28）**＝引用【自】/【常】能力を `parseCardEffects` 経由で granted_effects に積み実発火（自場シグニ・ターン限定・parse成功時のみ）。残＝permanent（このゲームの間）/相手付与/STUB能力＝従来 log-only 据置（要追加実装・実機検証）。
