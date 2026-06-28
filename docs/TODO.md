@@ -184,6 +184,7 @@
 
 ## 8. 検証・品質（補助）
 
-- **`npm run smoke`（②実行スモークハーネス・2026-06-28新設）＝全効果10557件をヘッドレス自動実行しCRASH/HANG/INVARIANTを検出**。現状＝全0（SKIP 5のみ）。**C/D 作業時の回帰チェックに毎回回す**。次段の拡張候補＝(a)autopilot のカバレッジ拡張（REVEAL_CARDS/DECLARE_BOND/SELECT_TARGETループ＝現SKIP 5を解消）(b)不変条件の強化（カード総数保存＝token/exile例外を考慮）(c)**構文ゴールデンテスト**（アクション型ごと代表1枚で結果をassert＝③正しさを型単位で担保）(d)乱択CPU自己対戦ファズ。
+- **`npm run smoke`（②実行スモークハーネス・2026-06-28新設）＝全効果10557件をヘッドレス自動実行しCRASH/HANG/INVARIANTを検出**。現状＝CRASH/HANG/INVARIANT 全0（OK 10294／SKIP 263）。**C/D 作業時の回帰チェックに毎回回す**。**autopilot ループ判定を修正済（2026-06-29）**＝同一pending種別の連続ではなく候補シグネチャ同一でのみ SKIP 判定（SELECT_TARGET連続の誤SKIP解消）。STEP_CAP 60→200。次段の拡張候補＝(a)autopilot のカバレッジ拡張（REVEAL_CARDS/DECLARE_BOND 等＝現SKIPを解消）(b)不変条件の強化（カード総数保存＝token/exile例外を考慮）(c)乱択CPU自己対戦ファズ。
+- **`npm run golden`（③構文ゴールデンテスト・`scripts/goldenTest.ts`・2026-06-29 npm登録）＝主要DSLアクション型ごと制御盤面で結果をassert（型単位で③正しさを担保）**。現状＝PASS 21／FAIL 0。テストの足し方＝`test('名前', () => { ... assert ... })` を追加するだけ。C/D 作業時は smoke と併せて回す。直近で `UP` アクションの選択後適用ループを本テストが検出→engine 修正（BUGFIXES参照）。
 - `checkAllEffects` の `MANDATORY_SUSPICIOUS`（ヒューリスティック検出）の精査。`verifyEffects` の「定義なし」誤検出（注釈・トークン）の除外改善。
 - 生ID残存＝表示or実装の穴：`[STUB:X]` 系（残54件＝単発テール・STUBS.md管理）。`[条件:X]`/`[アクション:X]` は解消済み。
