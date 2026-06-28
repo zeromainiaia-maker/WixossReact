@@ -3644,6 +3644,52 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return entries;
   };
 
+  // ON_SIGNI_POWER_ZERO_OR_LESS トリガーを収集する（checkAndBanishPowerZero から呼ぶ）。
+  // zeroedCardNum=パワー0以下になったシグニ／zeroedOwnerId=その所有者。両プレイヤーの場シグニから
+  // 「シグニのパワーが0以下になったとき」AUTO を triggerScope で絞って収集する。
+  //   any_opp（既定の多数派「対戦相手のシグニのパワーが0以下」）: 0化シグニが watcher の対戦相手のもの
+  //   any_ally: watcher 自分側のもの ／ self: 0化シグニ自身 ／ any: いずれでも
+  // triggerCondition.turnOwner（WXDi-P14-009「あなたのターンの間」）と usageLimit（《ターン1回》）も評価。
+  const collectPowerZeroTriggers = (
+    zeroedCardNum: string,
+    zeroedOwnerId: string,
+    afterHostState: PlayerState,
+    afterGuestState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    for (const watcherIsHost of [true, false]) {
+      const watcherId = watcherIsHost ? bs.host_id : bs.guest_id;
+      const watcherState = watcherIsHost ? afterHostState : afterGuestState;
+      const zeroedIsWatcherOwn = zeroedOwnerId === watcherId;
+      const watcherIsTurn = bs.active_user_id === watcherId;
+      for (const stack of watcherState.field.signi) {
+        if (!stack?.length) continue;
+        const topNum = stack[stack.length - 1];
+        for (const eff of (effectsMap.get(topNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_POWER_ZERO_OR_LESS')) continue;
+          const scope = eff.triggerScope ?? 'any';
+          if (scope === 'self' && topNum !== zeroedCardNum) continue;
+          if (scope === 'any_ally' && !zeroedIsWatcherOwn) continue;
+          if (scope === 'any_opp' && zeroedIsWatcherOwn) continue;
+          const to = eff.triggerCondition?.turnOwner;
+          if (to === 'self' && !watcherIsTurn) continue;
+          if (to === 'opponent' && watcherIsTurn) continue;
+          if (eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)) continue;
+          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+          entries.push({
+            id: generateUUID(),
+            playerId: watcherId,
+            cardNum: topNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（パワー0以下時）`,
+            effect: eff,
+          });
+        }
+      }
+    }
+    return entries;
+  };
+
   /**
    * ターン開始時・終了時・アタックフェイズ開始時の AUTO 効果を収集する。
    * 自分のフィールドシグニ（'self' スコープ）+ ルリグ + 相手の any_opp/any も対象。
