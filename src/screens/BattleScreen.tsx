@@ -3751,6 +3751,61 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /**
+   * ON_LRIG_GROW（「（センター）ルリグがグロウしたとき」）のトリガーを収集する（C1 配線）。
+   * grownOwnerId=グロウしたプレイヤー（センターグロウの実行者）。両プレイヤーの場（シグニ＋キー＋ルリグ上）から
+   * ON_LRIG_GROW AUTO を triggerScope で絞る：
+   *   any_ally: watcher 自分側のルリグがグロウ（grownOwner=watcher・WXDi-P03-039/WXDi-P05-010/WXK11-012）
+   *   any_opp: 対戦相手のルリグがグロウ（grownOwner≠watcher・WXDi-P03-046/WXDi-P13-047）。
+   *            ⚠Wixossルール上グロウ先ルリグの【出】より先に解決＝非ターンプレイヤーのため effect_stack の opp 側が先に解決され整合。
+   *   self: グロウ先自身の【自】はグロウ＝場に出た扱いではないためここでは扱わない（ON_PLAY 経路で処理）。
+   * triggerCondition.turnOwner・condition・usageLimit（《ターン1回》）も評価。
+   */
+  const collectLrigGrowTriggers = (
+    grownOwnerId: string,
+    afterGrowerState: PlayerState,
+    afterOpState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const oppOfGrowerId = grownOwnerId === bs.host_id ? bs.guest_id : bs.host_id;
+    const effsOf = (n: string) => effectsMap.get(n) ?? effectsMap.get(getCardNum(n)) ?? [];
+    for (const watcherIsGrower of [true, false]) {
+      const watcherId = watcherIsGrower ? grownOwnerId : oppOfGrowerId;
+      const watcherState = watcherIsGrower ? afterGrowerState : afterOpState;
+      const otherState = watcherIsGrower ? afterOpState : afterGrowerState;
+      const watcherIsTurn = bs.active_user_id === watcherId;
+      const watcherCardNums: string[] = [];
+      for (const stack of watcherState.field.signi) { if (stack?.length) watcherCardNums.push(stack[stack.length - 1]); }
+      if (watcherState.field.key_piece) watcherCardNums.push(watcherState.field.key_piece);
+      const lrigTop = watcherState.field.lrig?.at(-1);
+      if (lrigTop) watcherCardNums.push(lrigTop);
+      for (const topNum of watcherCardNums) {
+        for (const eff of effsOf(topNum)) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LRIG_GROW')) continue;
+          const scope = eff.triggerScope ?? 'self';
+          if (scope === 'self') continue;
+          if (scope === 'any_ally' && !watcherIsGrower) continue;
+          if (scope === 'any_opp' && watcherIsGrower) continue;
+          const to = eff.triggerCondition?.turnOwner;
+          if (to === 'self' && !watcherIsTurn) continue;
+          if (to === 'opponent' && watcherIsTurn) continue;
+          if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+          if (eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)) continue;
+          const cardName = battleCardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+          entries.push({
+            id: generateUUID(),
+            playerId: watcherId,
+            cardNum: topNum,
+            effectId: eff.effectId,
+            label: `${cardName} の【自】効果（グロウ時）`,
+            effect: eff,
+          });
+        }
+      }
+    }
+    return entries;
+  };
+
+  /**
    * ターン開始時・終了時・アタックフェイズ開始時の AUTO 効果を収集する。
    * 自分のフィールドシグニ（'self' スコープ）+ ルリグ + 相手の any_opp/any も対象。
    * ※ ON_ATTACK_PHASE_START はターンプレイヤー側のみ発火（「各アタックフェイズ開始時」の
