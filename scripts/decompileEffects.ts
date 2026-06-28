@@ -945,8 +945,10 @@ function effJa(e: Eff): string {
   // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。
   // クロス条件文（「《X》の左」等）は effects JSON に無いため card の EffectText から補う。
   const crossPrefix = e.crossOnly ? 'クロス' : '';
-  const typeMark = e.effectType === 'AUTO' ? `【${crossPrefix}自】` : e.effectType === 'CONTINUOUS' ? `【${crossPrefix}常】`
-    : e.effectType === 'ACTIVATED' ? `【${crossPrefix}起】` : e.effectType === 'LIFE_BURST' ? '【LB】' : `【${e.effectType}】`;
+  const kizunaPrefix = e.kizunaIcon ? '絆' : ''; // 【絆常】【絆自】【絆起】【絆出】
+  const mk = `${kizunaPrefix}${crossPrefix}`;
+  const typeMark = e.effectType === 'AUTO' ? `【${mk}自】` : e.effectType === 'CONTINUOUS' ? `【${mk}常】`
+    : e.effectType === 'ACTIVATED' ? `【${mk}起】` : e.effectType === 'LIFE_BURST' ? '【LB】' : `【${e.effectType}】`;
   const crossCondText = e.crossOnly ? (currentCardText.match(/《クロスアイコン》([^【]+)/)?.[1]?.trim() ?? '') : '';
   const crossCond = crossCondText ? `${crossCondText}に置かれているかぎり ` : '';
   // triggerScope（any_ally/any_opp/any）+ triggerFilter を主語に反映（「このシグニが」→「あなたの赤のシグニが」等）
