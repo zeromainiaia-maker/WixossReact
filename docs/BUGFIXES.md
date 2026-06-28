@@ -5,6 +5,16 @@
 
 ---
 
+## 機構: C1 engine未配線timing配線① `ON_TARGETED`（対象になったとき）（2026-06-29）
+
+P2 の最大残＝engine未配線 timing 群（`engineUnwiredTimings`）の配線に着手。第1弾は最多14枚の `ON_TARGETED`（「このシグニが対戦相手の能力か効果の対象になったとき」）。効果本体（TRASH/ENERGY_CHARGE/GRANT_KEYWORD/REMOVE_ABILITIES 等）は既に正常で、**欠けていたのは発火配線のみ**。
+
+- **発火点**＝`BattleScreen.handleEffectInteraction` の `SELECT_TARGET` 確定経路。対象選択が確定した瞬間、選択カードのうち**効果発生源の対戦相手側に置かれていたシグニ**（＝「対戦相手の効果の対象」になったもの）を、対象選択前の盤面（`bs.host_state/guest_state`）の所有で判定して抽出。**CPU所有効果の SELECT_TARGET も自動応答が同関数を通る**ため、人間/CPU 双方をここ1箇所でカバー。
+- **収集**＝新ヘルパ `collectTargetedTriggers(targetedNums, targetedOwnerId, afterHostState, afterGuestState)`（`collectPowerZeroTriggers` と同型）。両プレイヤーの場シグニから ON_TARGETED AUTO を `triggerScope` で絞る：`self`（対象シグニ自身）／`any_ally`（自分側が対象＋`triggerFilter` 色等一致＝発火元は能力保持シグニ・WXDi-D09-H14）／`any_opp`／`any`。`triggerCondition.turnOwner`（WXDi-P11-040「対戦相手のターン」）・`condition`（WX25-CP1-060 HAS_CARD_IN_FIELD）・`usageLimit`（《ターン1回》）も評価。収集した StackEntry は done/not-done どちらの分岐で確定したスタックにも後乗せで積む。
+- **decompiler**＝`engineUnwiredTimings` から `ON_TARGETED` を除外（「※engine未配線」注記が外れる）。`types/effects.ts` のコメントも更新。
+- **検証**＝`npm run typecheck` 緑／`npm run smoke`（CRASH/HANG/INVARIANT 0・不変）／`npm run golden`（21/21）。**⚠発火経路は BattleScreen（ヘッドレス不可）＝実機未検証。C2 として PvP/CPU 実機検証が必要**。
+- **既知の未カバー**＝forced 単一対象（pending を出さず executeEffect 内で自動解決される対象取り）経路は ON_TARGETED が発火しない＝follow-up。
+
 ## ツール: ③構文ゴールデンテスト `npm run golden` 登録＋UP/誤SKIP修正（2026-06-29）
 
 smoke（②壊れない）に対し、③「ルール的に正しい結果か」を型単位で担保する構文ゴールデンテストを `npm run golden` に登録（`scripts/goldenTest.ts`）。主要DSLアクション型ごと制御盤面で効果を実行し結果を assert。**現状＝PASS 21／FAIL 0**。
