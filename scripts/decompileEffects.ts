@@ -968,6 +968,12 @@ function effJa(e: Eff): string {
       else if (vo === 'self') s = `あなたのカードが${vc}枚以上デッキに移動したとき`;
       else s = `いずれかのプレイヤーのカードが${vc}枚以上デッキに移動したとき`;
     }
+    // ON_SIGNI_POWER_ZERO_OR_LESS の triggerScope を主語に反映（any_opp=対戦相手/any_ally=あなた/self=このシグニ）
+    if (t === 'ON_SIGNI_POWER_ZERO_OR_LESS') {
+      const sc = e.triggerScope ?? 'any';
+      const who = sc === 'any_opp' ? '対戦相手のシグニ' : sc === 'any_ally' ? 'あなたのシグニ' : sc === 'self' ? 'このシグニ' : 'シグニ';
+      s = `${who}のパワーが0以下になったとき`;
+    }
     // ON_HAND_DISCARDED の triggerFilter（捨て札のクラス限定）を反映（「手札から＜宝石＞のシグニを捨てたとき」）
     if (t === 'ON_HAND_DISCARDED' && e.triggerFilter && (e.triggerFilter.story || e.triggerFilter.cardClass)) {
       const cls = e.triggerFilter.story ?? e.triggerFilter.cardClass;
