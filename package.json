@@ -10,6 +10,7 @@
     "build:effects": "tsx scripts/buildEffectsJson.ts && node scripts/fixLrigColorFilters.mjs",
     "verify": "tsx scripts/verifyEffects.ts",
     "smoke": "tsx scripts/smokeTest.ts",
+    "golden": "tsx scripts/goldenTest.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
