@@ -47,7 +47,7 @@
 **A. 表現の残（decompiler/parser・低〜中リスク・個別）**
 - ~~**A1**　GRANT_QUOTED「…は以下の能力を得る。『…』」**後置型**の decompiler 対応~~ **✅完了（2026-06-28）**＝対象は2枚（WXDi-D04-011/WX24-P3-003）のみで両方とも引用能力を描画。※両者は周辺に別の誤パースSTUB（条件付きパワーボーナス/リミット修正）が残る＝A3/別件。
 - ~~**A2**　`GRANT_QUOTED_AUTO_ABILITY` の**誤パース是正**~~ **✅完了（2026-06-28・引用無しGQ残0）**＝引用無しGQ13枚（TK03A除く）を全是正。9枚（optional-cost 句）を `OPTIONAL_COST` 規約に置換、残4枚（WD13-002 グロウ軽減／WXDi-P09-079 ミル場出し／WXDi-P10-041 下カードコスト／WX25-CP1-060 ON_TARGETED裏返し＋絆常+5000をE3分離）を記述的STUB＋既存アクションで個別是正。TK03A（本物の付与）は decompiler subject を「これ…は『…』を得る」に拡張。全て MANUAL・同型★0維持。⚠各カードの細部（条件/フィルタ）は一部近似。
-- **A3**　各カードの timing/result 近似の是正。**✅一部完了（2026-06-28）**＝A2修正カードの timing 6枚（ON_ACCE_ATTACH/ON_SIGNI_BANISH_OPPONENT/placedFront/ON_SIGNI_BANISH_BATTLE/any_opp/placedFromTrash）＋result 3枚（TRASH是正）＋`PLACE_UNDER_SIGNI` 描画バグ修正。**A3残**＝WXDi-P11-032 アサシン/ランサー/常 の3択 GRANT、WXDi-CP02-074/089 の別timing 1効果脱落、その他 OPTIONAL_COST 句の具体コスト等＝数枚ずつ・parser/機構絡み。
+- **A3**　各カードの timing/result 近似の是正。**✅一部完了（2026-06-28）**＝A2修正カードの timing 6枚（ON_ACCE_ATTACH/ON_SIGNI_BANISH_OPPONENT/placedFront/ON_SIGNI_BANISH_BATTLE/any_opp/placedFromTrash）＋result 3枚（TRASH是正）＋`PLACE_UNDER_SIGNI` 描画バグ修正。~~WXDi-P11-032 アサシン/ランサー/常 の3択 GRANT~~ **✅完了（2026-06-28）**＝CHOOSE(3)＝GRANT_KEYWORD アサシン/ランサー/アタックできない に復元（MANUAL・同型★0）。**A3残**＝WXDi-CP02-074/089 の別timing 1効果脱落、その他 OPTIONAL_COST 句の具体コスト等＝数枚ずつ・parser/機構絡み。
 
 **B. 機構待ち（新語彙/機構が要る・中リスク・§5表）＝4機構**
 - **B1**　`SET_TRAP` 設置アクション（「手札/デッキのカードを【トラップ】として設置」）＝トラップ設置型 ~十数枚が依存（`PLACE_TRAP_FROM_REVEALED`/`PLACE_TRAP_OPTIONAL` STUB を置換）。
