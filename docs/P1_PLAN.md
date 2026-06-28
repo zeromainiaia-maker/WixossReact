@@ -86,7 +86,7 @@
 | 機構 | 影響 | リスク | 状態 |
 |---|---|---|---|
 | 引用AUTO付与（`GRANT_QUOTED_AUTO_ABILITY`） | 中 | 中 | **表現完了＋engine精緻化(B4)着手済(claude・2026-06-28)**＝GRANT_QUOTED フォールバックで引用【自】/【常】能力を `parseCardEffects` で CardEffect 化し granted_effects に積み**実発火**（自場シグニ・ターン限定・parse成功時のみ。permanent/相手付与/STUB能力は従来 log-only 据置＝安全側）。残＝permanent/相手付与対応・誤パース是正（A2・約30枚は原文に引用無し parser 案件）。⚠要実機検証 |
-| `SET_TRAP` 設置アクション | 中（トラップ設置型 ~十数枚） | 中 | **着手中(claude)**（B1・2026-06-28）。現状 `PLACE_TRAP_FROM_REVEALED`/`PLACE_TRAP_OPTIONAL` STUB |
+| ~~`SET_TRAP` 設置アクション~~ | 中（トラップ設置型 ~30枚） | 中 | **✅完了(claude・2026-06-28)**＝engine は既に実装済み（`signi_traps` ゾーン＋execStubPart2 の PLACE_TRAP_*/ACTIVATE_TRAP/TRAP_TO_HAND/SET_OPP_SIGNI_AS_TRAP/TRAP_TO_SIGNI_IF_ZONE_EMPTY 等）。**B1の課題は逆翻訳（decompiler）**＝9系統のトラップSTUBを raw `[STUB:id]`→原文の【トラップ】語彙で描画（原文クラスタ抽出＋canonical）。生STUB残0・同型★0。⚠TRAP_OP/TRAP_OPERATION は多段近似（一部 そうした場合 重複） |
 | ~~動的閾値フィルタ（公開レベル合計×N 以下 等）~~ | 小（WX17-028 等） | 中 | **✅完了(claude・2026-06-28)**＝`REVEAL_DECK_TOP`＋`TRASH_REVEALED` アクション＋動的閾値フィルタ `powerLteRevealedSigniLevelSum`（resolveDynamicFilter で powerRange.max に解決）を新設。WX17-028 の脱落【出】を復元＋劣化E1是正。原文一致・同型★0 |
 | ~~遅延条件トリガー（「このターン、…したとき」）~~ | 小（WX25-CP1-069 等） | 中 | **✅完了(claude・2026-06-28)**＝`INSTALL_DELAYED_TRIGGER` 機構を新設（型＋PlayerState.delayed_triggers＋executor＋ON_OPP_LIFE_CRASHED収集＋ターン境界リセット3箇所＋decompiler）。WX25-CP1-069 を配線・原文一致・同型★0。⚠crasherFilter は「場に該当シグニがいるか」で近似＝要実機検証 |
 | engine未配線 timing 群の実機配線 | 大（~15 timing・R33-R58） | 高 | 未着手（C1）＝P2。一覧は `engineUnwiredTimings` |
