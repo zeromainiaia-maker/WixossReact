@@ -5,6 +5,16 @@
 
 ---
 
+## repr: A2残4枚の個別是正（GRANT_QUOTED 誤パース完了＝引用無しGQ残0）（2026-06-28）
+
+A2残4枚（optional-cost ではない別系の機構絡み誤パース）を個別是正。虚偽の付与STUBを除去し、原文を正直に表す記述的STUB＋既存アクションで表現（decompiler に3 STUB描画を追加）。
+
+- **WD13-002-E1**＝グロウ時の手札公開コスト軽減。SEQUENCE[GQ,CONDITIONAL]→`GROW_COST_REDUCTION`{白1,黒1}に簡約（⚠＜迷宮＞/＜毒牙＞公開の条件は近似で無条件化）。E2/E3（ターン別パワー増減）は正で据置。
+- **WXDi-P09-079-E1**＝「デッキからLv1シグニがミルされたとき→場出し、ターン終了時トラッシュ」。timing `ON_TURN_END`(誤)→`ON_CARD_MILLED_FROM_DECK`(正・triggerCondition.milledDeckOwner:self)＋STUB `PLAY_MILLED_SIGNI_DELAYED_TRASH`（⚠Lv1限定/メインフェイズ限定は近似）。旧 BANISH(相手)は誤りで除去。
+- **WXDi-P10-041-E1**＝「下のカードをエナコストとして使える」常時。GQ+RULE_REMINDER→STUB `UNDER_CARD_AS_ENERGY_COST`。
+- **WX25-CP1-060**＝ON_TARGETED の裏返し+能力消失。E2 を SEQUENCE[STUB `FLIP_SELF_FACE_DOWN_UP`, REMOVE_ABILITIES(self,ターン終了まで)]＋condition(他＜ブルアカ＞在場)に是正。**E2にマージされていた絆常パワー+5000をE3(CONTINUOUS《相手ターン》)に分離**。
+- 4枚 parseStatus:MANUAL・typecheck緑・**同型★0維持**・held 0・**引用無しGQ残0**（A2完了）。⚠pre-existing別件＝WXDi-P10-041-E2 の PLACE_UNDER_SIGNI 描画が「シグニundefined体」（decompiler バグ・別途）。
+
 ## repr: GRANT_QUOTED_AUTO 誤パース是正（A2・虚偽の付与主張を除去）（2026-06-28）
 
 `GRANT_QUOTED_AUTO_ABILITY` STUB を持つが**原文に引用（『…』を得る）が無い**14枚を精査。原文に引用がある TK03A（本物の付与・TK行未ロードの誤検出）を除く13枚は、パーサーが optional-cost 句「…してもよい。そうした場合、…」を誤って付与STUB化したもの。

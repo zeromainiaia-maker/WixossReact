@@ -718,6 +718,10 @@ function actionJa(a?: Action, effectType?: string): string {
         return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';
       }
       if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
+      // A2残4枚の誤パース是正で導入（虚偽の付与STUBの置換・原文を正直に表す）
+      if (a.id === 'PLAY_MILLED_SIGNI_DELAYED_TRASH') return 'この方法でトラッシュに置かれたそのシグニを場に出す（ターン終了時、そのシグニを場からトラッシュに置く）';
+      if (a.id === 'UNDER_CARD_AS_ENERGY_COST') return 'あなたのアタックフェイズの間、このシグニの下のカードをエナゾーンにあるかのようにトラッシュに置いてエナコストを支払える（この方法で1ターンに3つまで）';
+      if (a.id === 'FLIP_SELF_FACE_DOWN_UP') return 'このシグニを裏向きにし、表向きにする';
       // 付与引用（「…」の能力を得る）＝原文から引用能力を抽出して描画（テキスト検出型）。
       // 本物の付与カード（原文に「【自/常/起/出】…」を得る がある）は引用能力を表示、誤パース等で引用が無い場合は従来フォールバック。
       if (a.id === 'GRANT_QUOTED_AUTO_ABILITY' || a.id === 'GRANT_QUOTED_ABILITY') {
