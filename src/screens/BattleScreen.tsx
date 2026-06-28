@@ -3974,6 +3974,80 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return n;
   };
 
+  // 効果解決の前後 state を比較し、対象プレイヤーのデッキに「新たに加わった」枚数（＝他領域→デッキ移動）を算出。
+  // after.deck かつ not before.deck の集合差。fromTrashOnly=true のときは解決前トラッシュにあったカードのみ数える（WX09-020/WX22-014）。
+  const countMovedToDeck = (before: PlayerState, after: PlayerState, fromTrashOnly: boolean): number => {
+    if (!before || !after) return 0;
+    const beforeDeck = new Set(before.deck);
+    const beforeTrash = new Set(before.trash);
+    let n = 0;
+    for (const c of after.deck) {
+      if (beforeDeck.has(c)) continue;
+      if (fromTrashOnly && !beforeTrash.has(c)) continue;
+      n++;
+    }
+    return n;
+  };
+
+  // 他領域→デッキ移動時（ON_CARD_MOVED_TO_DECK）トリガー収集。controller の場のシグニ/ルリグの
+  // ON_CARD_MOVED_TO_DECK【自】を集める。triggerCondition.movedToDeckOwner（self/opponent/any）で宛先デッキを、
+  // movedToDeckMinCount で最低枚数を、movedToDeckFromTrash で発生源をトラッシュに限定。usageLimit は actions_done(effectId) 出現回数で制御。
+  const collectMoveToDeckTriggers = (
+    controllerId: string,
+    controllerState: PlayerState,
+    otherState: PlayerState,
+    movedToControllerDeck: number,
+    movedToControllerDeckFromTrash: number,
+    movedToOppDeck: number,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
+    const isControllerTurn = controllerId === bs.active_user_id;
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (controllerState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIds.push(eff.effectId);
+      return true;
+    };
+    const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, effectsMap, battleCardMap);
+    const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const sources: string[] = [
+      ...controllerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(controllerState.field.lrig.at(-1) ? [controllerState.field.lrig.at(-1)!] : []),
+    ];
+    for (const topNum of sources) {
+      if (ownAutoBlocked) continue;
+      if (removed.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MOVED_TO_DECK')) continue;
+        if ((eff.triggerScope ?? 'self') !== 'self') continue;
+        const owner = eff.triggerCondition?.movedToDeckOwner ?? 'any';
+        const fromTrash = eff.triggerCondition?.movedToDeckFromTrash ?? false;
+        const minCount = eff.triggerCondition?.movedToDeckMinCount ?? 1;
+        const relevant = owner === 'self' ? (fromTrash ? movedToControllerDeckFromTrash : movedToControllerDeck)
+          : owner === 'opponent' ? movedToOppDeck
+          : movedToControllerDeck + movedToOppDeck;
+        if (relevant < minCount) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, battleCardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: controllerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（デッキ移動時）`,
+          effect: eff,
+        });
+      }
+    }
+    return { entries, usedOncePerTurnIds };
+  };
+
   // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
   const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {
     // いずれかのチェックゾーンにカードがある間はフェーズ移動不可
