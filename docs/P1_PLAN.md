@@ -39,7 +39,7 @@
 - **脱落疑い 255枚を全分類済み**（DoD §1 第2項クリア・`node scripts/_dropTriage.mjs`）：偽陽性179／機構待ち72／修正済。
 - **timing flatten**（当初159枚の「ON_TURN_END に潰れて付与即失効＝no-op の実バグ」）は R5-R58 で**完了＝VALUE 0**。
 - **母数**：効果カード 5975／効果 10549／MANUAL効果 733／STUB含むカード 1820。
-- 直近：**A3 をクローズ**＝WXDi-P11-032 3択GRANT復元・WXDi-CP02-074/089 先頭【自】復元・OPTIONAL_COST 具体コスト58枚を `costText` で是正（bare 80→22、残は別系統に分類）。あわせて decompileシートを UTF-8 正規化（真のカード数5986・同型★0）。**decompile再生成は Bash の `>` を使う（PowerShell `>` は UTF-16 で下流破壊）。**
+- 直近：**A3 クローズ**＋**B3 機構完了**。B3＝`INSTALL_DELAYED_TRIGGER`（「このターン、…したとき」遅延条件トリガー）を新設し WX25-CP1-069 を配線（型/PlayerState/executor/ON_OPP_LIFE_CRASHED収集/ターン境界3箇所/decompiler＋絆プレフィックス）。同型★0（5986枚）。残B＝B1(SET_TRAP)/B2(動的閾値)/B4(引用付与engine)。**decompile再生成は Bash の `>` を使う（PowerShell `>` は UTF-16 で下流破壊）。**
 
 ### 🔜 今後の計画と必要作業数
 > P1 の機械指標は 0。残るのは **(A) 表現の長いテール（個別）** と **(B) 新機構** と **(C) engine 実機配線（P2/P3）**。bulk 再生成は引き続き禁止。1機構/1パターンずつ §6 のゲートで。
