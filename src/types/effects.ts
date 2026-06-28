@@ -494,6 +494,8 @@ export type EffectAction =
   | TakeFromUnderSigniAction
   | GrantEffectAction
   | InstallDelayedTriggerAction
+  | RevealDeckTopAction
+  | TrashRevealedAction
   | GrantSigniAboveAbilityAction
   | GrantFieldSigniAbilityAction
   | GrantFieldShadowAction
