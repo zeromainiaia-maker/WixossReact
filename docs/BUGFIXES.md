@@ -5,6 +5,14 @@
 
 ---
 
+## engine: placedFront（正面に配置されたとき）トリガー1枚（R41・2026-06-28・ymst）
+
+「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」を `ON_PLAY`＋`triggerScope:any_opp`＋`triggerCondition.placedFront` で配線。`collectFieldTriggers` の any_opp ループに既存の `frontLowerLevelThanSource`（WX17-075）と同じ正面ゾーン検出（盤面反転 `2-ziHost`）を**レベル条件なし**で相乗り＝最小追加。
+
+- 型 `triggerCondition.placedFront` 追加＋engine 1分岐（collectFieldTriggers）＋decompiler ラベル。
+- データ1枚（MANUAL）: WXDi-P03-043-E3＝ON_TURN_END flatten（STUB `POWER_MOD_ON_FRONT_PLACE`）を是正。action＝`POWER_MODIFY targetsTriggerSource`（それ=配置された相手シグニ）-3000 UNTIL_END_OF_TURN・mandatory:false（してもよい）。
+- typecheck緑・同型★0・逆翻訳が原文トリガー完全一致・⚠実機未検証。VALUE 25→24。**⚠近似**＝「してもよい」は targetsTriggerSource が無選択自動適用（相手デバフのため実害ほぼなし）。
+
 ## engine: opp-draw（対戦相手が引いたとき）トリガー機構＋4枚（R40・2026-06-28・ymst）
 
 「対戦相手が（効果によって）カードを引いたとき」を新設。`triggerScope:'any_opp'`＋`ON_DRAW` で表現し、`collectOppDrawTriggers(reactorId,reactorState,drawerState)` が **drawer の反対側プレイヤー（reactor）**の場シグニ/ルリグの any_opp ON_DRAW【自】を収集。効果ドロー検出ブロック（line ~5297/5304・`cards_drawn_by_effect_this_turn` 増加）に相乗り＝host が効果ドロー→guest が反応／guest→host が反応。位相限定 `triggerCondition.drawPhaseRestriction`（main_attack＝MAIN/ATTACK系サブフェイズ／opp_attack＝ATTACK系サブフェイズ＋!reactorIsTurn）＋turnOwner/usageLimit/activeCondition/condition 評価。`drawByEffect` は逆翻訳「効果によって」表示専用（効果ドロー経路でのみ呼ばれるため暗黙）。

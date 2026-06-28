@@ -9,19 +9,20 @@
 |---|---|---|
 | parser == 既存JSON | 約5400 | **解決済み**（同型★0で構造検証済み） |
 | MANUAL（手書き効果） | 約165 | 意図的にパーサー対象外（型どおり） |
-| **held（parser ≠ 既存JSON）** | **404→25** | ↓ ここが全作業 |
+| **held（parser ≠ 既存JSON）** | **404→24** | ↓ ここが全作業 |
 
 **held の内訳（1カード=1プライマリバケツ・重複なし）** ← 数字は計器の最新値（下の進捗ログ参照）
 | トラック | 初期 | 現在 | 性質 | 対応 |
 |---|---|---|---|---|
 | **① LOSS** | 255 | **0** 🎉 | 既存JSONが持つ構造をパーサーが出せない＝**真の弱点** | **完了**（R31 で 255→0） |
-| ② VALUE | 149 | **25** | 同キーで値が違うだけ＝慣例/効果分割ズレ＝timing flatten（実バグ） | **1件ずつ人間判断**（bulk禁止・§2／TODO §3.5） |
+| ② VALUE | 149 | **24** | 同キーで値が違うだけ＝慣例/効果分割ズレ＝timing flatten（実バグ） | **1件ずつ人間判断**（bulk禁止・§2／TODO §3.5） |
 | ③ ADD/OTHER | 0 | 0 | — | — |
-| held合計 | 404 | **25** | | |
+| held合計 | 404 | **24** | | |
 
-> **現在地（2026-06-28 R40 後）＝held 25 / LOSS 0 / VALUE 25**。LOSS は R31 で 0 達成（🎉）。以降は VALUE（=timing flatten 実バグ・当初159枚）を engine 機構実装で消化中（159→25）。残 VALUE 25 は全て**未配線トリガーの新機構待ち**（詳細・分類は `TODO.md` §3.5「📍 残の分類」が唯一の正）。次の一手も `P1_PLAN.md` §3 バトンと TODO §3.5 を見る。
+> **現在地（2026-06-28 R41 後）＝held 24 / LOSS 0 / VALUE 24**。LOSS は R31 で 0 達成（🎉）。以降は VALUE（=timing flatten 実バグ・当初159枚）を engine 機構実装で消化中（159→24）。残 VALUE 24 は全て**未配線トリガーの新機構待ち**（詳細・分類は `TODO.md` §3.5「📍 残の分類」が唯一の正）。次の一手も `P1_PLAN.md` §3 バトンと TODO §3.5 を見る。
 
 ### 進捗ログ（LOSS が減る＝前進）
+- 2026-06-28 R41（VALUE timing flatten・placedFront 1枚／ymst）: 「対戦相手のシグニがこのシグニの正面に配置されたとき」を `ON_PLAY`＋`triggerScope:any_opp`＋`triggerCondition.placedFront` で配線。`collectFieldTriggers` の `frontLowerLevelThanSource` 正面ゾーン検出をレベル条件なしで相乗り。WXDi-P03-043-E3（POWER_MODIFY targetsTriggerSource -3000）。**VALUE 25→24**。typecheck緑・同型★0・実機未検証。
 - 2026-06-28 R40（VALUE timing flatten・opp-draw 機構 4枚／ymst）: 「対戦相手が（効果によって）カードを引いたとき」を `ON_DRAW`＋`triggerScope:any_opp` で新設。`collectOppDrawTriggers` が drawer 反対側（reactor）の場を効果ドロー経路（line ~5297/5304）で収集。位相 `drawPhaseRestriction`（main_attack/opp_attack）＋`drawByEffect` 表示。WXDi-P04-038/WXDi-P15-091/WD22-029-G/PR-423。**VALUE 29→25**。これで ON_DRAW 一族（当初6枚）完了。typecheck緑・同型★0・実機未検証。
 - 2026-06-28 R39（VALUE timing flatten・outsideDrawPhase 2枚／ymst）: 「ドローフェイズ以外であなたがカードを引いたとき」を既存 ON_DRAW に `triggerCondition.outsideDrawPhase` 相乗り（`collectDrawTriggers` 第4引数 `isDrawPhaseDraw`＝通常ドローのみ true で skip）。WXDi-D09-P19/WXDi-P05-062。**VALUE 31→29**。typecheck緑・同型★0・実機未検証。残 ON_DRAW 4枚＝opp-draw（相手が引いたとき）＝新機構（反対側の場を走査する collector）。
 - 2026-06-28 R38（VALUE timing flatten・ON_SIGNI_FROZEN 新設 3枚／ymst）: 「シグニが凍結状態になったとき」をミル機構と同じ set-diff 検出点で新設。WX08-039/WXEX2-02/WXDi-P04-065。**VALUE 32→31**。typecheck緑・同型★0・実機未検証。

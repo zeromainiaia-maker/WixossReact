@@ -64,9 +64,9 @@
 
 ---
 
-## 3.5. ⚠ timing flatten 系統（実バグ・当初159枚→**残25枚**・VALUE curation の本丸）
+## 3.5. ⚠ timing flatten 系統（実バグ・当初159枚→**残24枚**・VALUE curation の本丸）
 
-> **進捗サマリ（2026-06-28・R40 時点）＝VALUE 159→25 まで消化（R5-R40）**。残25の大半は**未配線トリガー（新機構が要る・1機構1〜数枚）**。配線済みクラスタ＋ON_DRAW 一族は枯れた。次の地図は下記「📍 残の分類」。診断＝`npx tsx scripts/_flattenList.ts`。
+> **進捗サマリ（2026-06-28・R41 時点）＝VALUE 159→24 まで消化（R5-R41）**。残24の大半は**未配線トリガー（新機構が要る・1機構1〜数枚）**。配線済みクラスタ＋ON_DRAW 一族＋正面配置は枯れた。次の地図は下記「📍 残の分類」。診断＝`npx tsx scripts/_flattenList.ts`。
 
 **発見（VALUE curation R1-R4・2026-06-28）**: VALUE バケツの最大塊＝**`timing:["ON_TURN_END"]` だが action は `duration:UNTIL_END_OF_TURN` の【自】トリガー（当初102枚・他系統含め VALUE 全体159枚）**。原文トリガーは「〜したとき」（場に出た/ヘブン/スペル使用/ライズ/ウィルス配置/レゾナ場出し/トラッシュから場出し 等の多様な誘発）なのに、curated JSON が **トリガーを丸ごと落として `ON_TURN_END` に flatten**。結果＝**ターン終了時に付与して同時に失効＝実質 no-op の実バグ**（buff/debuff が一切効かない）。parser は `ON_PLAY` を出すが triggerScope/Filter を欠くため**両方とも誤**（resync 不可）。
 
@@ -91,12 +91,12 @@
   - ~~凍結状態になったとき~~ **【✅R38 完了・3枚】** `ON_SIGNI_FROZEN` 新設（ミル機構と同じ set-diff 検出点・`field.signi_frozen` false→true）。`collectFreezeTriggers`＝両場シグニの【自】を any_opp/any_ally で収集・triggeringCardNum で「そのシグニ」。WX08-039/WXEX2-02（相手手札1捨て）/WXDi-P04-065（targetsTriggerSource -1000）。全 any_opp・旧 ON_PLAY/ON_TURN_END 誤。⚠複数同時凍結時の once_per_turn／凍結のまま移動する稀ケースは未対応＝実機未検証。
   - ~~パワー0以下になったとき~~ **【✅R37 完了・5枚】** `ON_SIGNI_POWER_ZERO_OR_LESS` を `checkAndBanishPowerZero`（ルールバニッシュ useEffect・単一フック）で配線。`collectPowerZeroTriggers`＝両場シグニの【自】を triggerScope（any_opp 多数派/any_ally/self/any）＋turnOwner＋usageLimit で収集（同時0化は effectId dedup）。WX20-Re03/WX21-067/WX22-013-E2/WXDi-P01-043/WXDi-P14-009（全 any_opp・旧 ON_PLAY/ON_TURN_END 誤）。⚠近似＝-5000 連鎖0化の再発火・once_per_turn の actions_done 記録タイミングは実機未検証。
   - ⚠**ON_EXCEED_COST は field signi 非対応**（WXDi-P06-078）＝収集は exceedPaidCards（コストカード自身）のみ走査。field signi の「エクシードコストを支払ったとき」反応には field 走査追加が要る＝engine 拡張案件。
-  - **📍 残25の分類（2026-06-28・R40 時点・`npx tsx scripts/_flattenList.ts` で再確認）**＝**配線済みクラスタ＋ON_DRAW 一族は枯れた。残りは全て新トリガー機構が要る（1機構1〜数枚）**：
+  - **📍 残24の分類（2026-06-28・R41 時点・`npx tsx scripts/_flattenList.ts` で再確認）**＝**配線済みクラスタ＋ON_DRAW 一族＋正面配置(R41)は枯れた。残りは全て新トリガー機構が要る（1機構1〜数枚）**：
     - ~~**§4 ON_DRAW（opp-draw/位相）6枚**~~ **【✅R39+R40 完了＝ON_DRAW 一族完了】**: 位相2枚＝`triggerCondition.outsideDrawPhase`（R39・第4引数 isDrawPhaseDraw）／opp-draw 4枚＝`triggerScope:any_opp`＋`collectOppDrawTriggers`（R40・反対側の場を効果ドロー経路で収集・`drawPhaseRestriction`/`drawByEffect`）。WXDi-D09-P19/WXDi-P05-062/WXDi-P04-038/WXDi-P15-091/WD22-029-G/PR-423。
     - **§3 機構④ 毒牙パワー減 2枚**: WX13-036・WXEX2-52「あなたの効果で対戦相手のシグニのパワーが減ったとき」。
     - **ON_TARGETED「対象になったとき」3枚**: WXDi-P11-040・WX25-P2-055・WX25-CP1-060（上記⛔）。侵襲的＝重い。
     - **改造素材使用 2枚**: WXK09-047・WXK09-084「《改造素材》が使用されたとき」。改造素材の「使用」イベントが engine に無い＝use フロー実装が前提。
-    - **1機構1枚の未配線トリガー（要個別実装）**: WX07-036（味方＜ウェポン＞が効果で相手をバニッシュ＝ON_SIGNI_BANISH_OPPONENT 系）／WX16-Re05（【チャーム】が場→トラッシュ）／WXDi-P00-034（対戦相手のメインフェイズ開始時）／WXDi-P03-043（正面に配置された＝placed front）／WXDi-P04-035（味方がキーワード得た）／WXDi-P04-042（ルリグ下からカード移動）／WXDi-P04-043（リフレッシュ＝applyRefreshOnDone が7箇所分散）／WXDi-P05-010（他ルリグがグロウ＝center/assist/CPU 分散）／WXDi-P06-078（ON_EXCEED_COST だが field signi 非対応・下記）／WXDi-P11-064（他天使場出し OR 相手手札捨て＝複合）／WXDi-P15-069（コイン支払い）／WX25-CP1-042（ルリグアタックステップ開始時＋このターンのクラッシュ数依存）／WXK02-041（シグニが場→手札に戻った＝ON_LEAVE_FIELD 宛先hand 限定要）／WXK05-041（ON_ACCE_ATTACH だが host レベル≧4 条件未対応・下記）／WXK11-019（味方シグニが相手アーツの効果を受けた）／WD15-015（相手エナ→トラッシュ by 自効果）／PR-470A（デッキがシャッフルされた）。
+    - **1機構1枚の未配線トリガー（要個別実装）**: WX07-036（味方＜ウェポン＞が効果で相手をバニッシュ＝ON_SIGNI_BANISH_OPPONENT 系）／WX16-Re05（【チャーム】が場→トラッシュ）／WXDi-P00-034（対戦相手のメインフェイズ開始時）／~~WXDi-P03-043（正面に配置された＝placed front）~~ **【✅R41 完了＝triggerCondition.placedFront・frontLowerLevelThanSource 相乗り】**／WXDi-P04-035（味方がキーワード得た）／WXDi-P04-042（ルリグ下からカード移動）／WXDi-P04-043（リフレッシュ＝applyRefreshOnDone が7箇所分散）／WXDi-P05-010（他ルリグがグロウ＝center/assist/CPU 分散）／WXDi-P06-078（ON_EXCEED_COST だが field signi 非対応・下記）／WXDi-P11-064（他天使場出し OR 相手手札捨て＝複合）／WXDi-P15-069（コイン支払い）／WX25-CP1-042（ルリグアタックステップ開始時＋このターンのクラッシュ数依存）／WXK02-041（シグニが場→手札に戻った＝ON_LEAVE_FIELD 宛先hand 限定要）／WXK05-041（ON_ACCE_ATTACH だが host レベル≧4 条件未対応・下記）／WXK11-019（味方シグニが相手アーツの効果を受けた）／WD15-015（相手エナ→トラッシュ by 自効果）／PR-470A（デッキがシャッフルされた）。
     - **傀儡場出し 1枚**: WDK17-001「傀儡状態のシグニが場に出たとき」＝3択＋傀儡フィルタ。
   - **⚠ 配線済みだが該当カードに複雑要素が絡み未対応の2枚**: WXDi-P06-078（`ON_EXCEED_COST` は exceedPaidCards=コストカード自身のみ走査・field signi の反応は未対応＝field 走査追加が要る）／WXK05-041（`ON_ACCE_ATTACH` 配線済みだが「レベル4以上のシグニに付いたとき」の host レベル条件が未対応）。
   - **進め方（R36-R38 で確立した低リスク手法）**: **既存の単一検出点に新トリガー収集を相乗りさせる**のが安全（R37=`checkAndBanishPowerZero`／R38=ミルと同じ効果解決 set-diff ブロック／R36=`collectHandDiscardTriggers`）。リフレッシュ/グロウ/正面配置のように**フック点が分散する機構は高リスク**。`_flattenList.ts` でトリガー確定→1機構ずつ（timing+scope+filter 再構築＋MANUAL→typecheck＋同型★0＋decompile 原文一致→commit）。⚠全 R5-R38 は実機未検証（§5）。
@@ -124,6 +124,7 @@
 
 実装済みだが対話 pause/resume・CPU代行のため自動検証できないもの。**安定確認まで関連拡張に進まない。**
 
+- **placedFront（R41・ON_PLAY any_opp placedFront）**：WXDi-P03-043＝対戦相手のシグニがこのシグニの正面に配置されたとき→それを-3000。要確認＝①相手が正面ゾーン（盤面反転で 2-自ゾーン）にシグニを配置（召喚/効果）したときのみ発火②正面以外の配置では非発火③targetsTriggerSource がその配置シグニに-3000。
 - **opp-draw（R40・ON_DRAW any_opp）**：対戦相手が効果でカードを引いたとき→各効果。要確認＝①相手の効果ドローで reactor 側の【自】が発火（host↔guest 両方向）②WXDi-P04-038 はメイン/アタック中のみ・once_per_turn③WD22-029-G は相手アタックフェイズ中のみ（opp_attack＝ATTACK系サブフェイズ＋!自ターン）④PR-423 はダメージ＋自バニッシュ。⚠近似＝「自分の効果で」発生源限定なし（自効果で相手に引かせても発火しうる）。対象=WXDi-P04-038/WXDi-P15-091/WD22-029-G/PR-423。
 - **outsideDrawPhase（R39）**：ドローフェイズ以外で引いたとき→各効果（全自シグニ+1000／手札1捨て→ドロー）。要確認＝①メイン/アタックフェイズの効果ドロー（グロウ時・スペル等）で発火②ドローフェイズの通常ドロー（マンダトリードロー）では非発火③WXDi-D09-P19 の twice_per_turn が2回まで発火。対象=WXDi-D09-P19/WXDi-P05-062。
 - **凍結トリガー（R38・ON_SIGNI_FROZEN）**：相手シグニが凍結状態になったとき→各効果（相手手札1捨て×2／そのシグニ-1000）。要確認＝①FREEZE 効果で相手シグニが凍結したとき `detectNewlyFrozen` が検出し watcher の【自】を発火②《ターン1回》が複数同時凍結（WXEX2-02 の【出】全凍結等）でも1回③WXDi-P04-065 の targetsTriggerSource が凍結したそのシグニに-1000。対象=WX08-039/WXEX2-02/WXDi-P04-065。
