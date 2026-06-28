@@ -1,7 +1,6 @@
 import fs from 'fs';
 import Papa from 'papaparse';
 
-// load card text (EffectText + BurstText)
 const ET = {}, BT = {};
 for (let i = 1; i <= 11; i++) {
   const p = `public/data/CardData_Sheet${i}.csv`;
@@ -17,30 +16,29 @@ for (let i = 1; i <= 11; i++) {
 
 const files = ['effects_WXDi.json', 'effects_WX.json', 'effects_WXK.json', 'effects_WX24_26.json', 'effects_misc.json'];
 
-// て-形動詞で終わる「…してもよい」コスト句を、後続「そうした場合」を手掛かりに抽出。
-// 句の先頭は直前の境界（。：】、（ または 行頭・effectType マーカー）から。
-function extractCost(text) {
+// 手動指定（truncation 是正・特殊構造）
+const manual = {
+  'WXDi-CP02-056': '「手札を２枚捨てる」を行ってもよい',
+  'WDK12-015': '《緑》を支払い、あなたの場にある【チャーム】１枚をトラッシュに置いてもよい',
+};
+
+// 「使用コストとして追加で…してもよい」（追加コスト・そうした場合なし）を抽出
+function extractAddl(text) {
   if (!text) return null;
-  // 「そうした場合」直前の「…もよい」句を全部拾う
-  const re = /(?:^|。|：|】|、|（|」)([^。：】、（）」]*?(?:支払って|捨てて|置いて|公開して|取り除いて|行って|ダウンして|消費して|戻して)もよい)。?そうした場合/g;
-  const hits = [];
-  let m;
-  while ((m = re.exec(text)) !== null) hits.push(m[1].trim());
-  return hits;
+  const m = text.match(/使用コストとして追加で[^。（）]*?もよい/);
+  return m ? m[0] : null;
 }
 
 const patched = [];
-const skipped = [];
+const stillBare = [];
 for (const f of files) {
   const path = 'public/data/' + f;
   const d = JSON.parse(fs.readFileSync(path, 'utf8'));
   let changed = false;
   for (const [id, effs] of Object.entries(d)) {
-    // collect bare OPTIONAL_COST nodes (with parent context = which effect/burst)
     for (const e of effs) {
       const isBurst = (e.effectType === 'LIFE_BURST');
       const text = isBurst ? (BT[id] || ET[id]) : ET[id];
-      // walk this effect's action tree
       const bareNodes = [];
       (function walk(n) {
         if (!n || typeof n !== 'object') return;
@@ -49,22 +47,22 @@ for (const f of files) {
         for (const v of Object.values(n)) walk(v);
       })(e.action);
       if (bareNodes.length === 0) continue;
-      const hits = extractCost(text);
-      // 一意に決まる場合のみ適用（bareNode 1個 かつ hit 1個）
-      if (bareNodes.length === 1 && hits && hits.length === 1) {
-        bareNodes[0].costText = hits[0];
+      let ct = null;
+      if (manual[id]) ct = manual[id];
+      else if (bareNodes.length === 1) ct = extractAddl(text);
+      if (ct && bareNodes.length === 1) {
+        bareNodes[0].costText = ct;
         if (e.parseStatus !== 'MANUAL') e.parseStatus = 'MANUAL';
-        patched.push(`${id} ${e.effectId}\t${hits[0]}`);
+        patched.push(`${id} ${e.effectId}\t${ct}`);
         changed = true;
       } else {
-        skipped.push(`${id} ${e.effectId}\tbareNodes=${bareNodes.length} hits=${JSON.stringify(hits)}`);
+        stillBare.push(`${id} ${e.effectId}`);
       }
     }
   }
   if (changed) fs.writeFileSync(path, JSON.stringify(d) + '\n');
 }
-
 console.log('=== PATCHED (' + patched.length + ') ===');
 console.log(patched.join('\n'));
-console.log('\n=== SKIPPED (' + skipped.length + ') ===');
-console.log(skipped.join('\n'));
+console.log('\n=== STILL BARE (' + stillBare.length + ') ===');
+console.log(stillBare.join('\n'));
