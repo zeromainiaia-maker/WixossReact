@@ -870,7 +870,7 @@ const timingJa: Record<string, string> = {
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
 // 逆翻訳末尾に【※engine未配線】を付与し、偽陰性（健全に見えて未実装）を防ぐ。配線したら除去する。docs/TODO.md に記録。
-const engineUnwiredTimings = new Set<string>(['ON_CARD_MILLED_FROM_DECK']);
+const engineUnwiredTimings = new Set<string>([]);
 
 function effJa(e: Eff): string {
   // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。
@@ -932,6 +932,13 @@ function effJa(e: Eff): string {
     // ON_RISE の「カード名に〜を含むシグニにライズされたとき」限定（WX20-056-E2）
     if (t === 'ON_RISE' && e.triggerCondition?.risedOntoNameContains) {
       s = `このシグニがカード名に《${e.triggerCondition.risedOntoNameContains}》を含むシグニにライズされたとき`;
+    }
+    // ON_CARD_MILLED_FROM_DECK の発生源デッキ・枚数限定（milledDeckOwner/milledMinCount）
+    if (t === 'ON_CARD_MILLED_FROM_DECK') {
+      const mo = e.triggerCondition?.milledDeckOwner ?? 'any';
+      const mc = e.triggerCondition?.milledMinCount ?? 1;
+      const who = mo === 'self' ? 'あなたの' : mo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
+      s = `${who}デッキからカードが${mc}枚以上トラッシュに置かれたとき`;
     }
     // ON_HAND_DISCARDED の triggerScope:'any'（「いずれかのプレイヤーが」WXK09-038）を主語に反映
     if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any') {

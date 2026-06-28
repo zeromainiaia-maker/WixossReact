@@ -3899,6 +3899,76 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, usedOncePerTurnIds };
   };
 
+  // デッキ→トラッシュ（ミル）時（ON_CARD_MILLED_FROM_DECK）トリガー収集。controller の場のシグニ/ルリグの
+  // ON_CARD_MILLED_FROM_DECK【自】を集める。triggerCondition.milledDeckOwner（self/opponent/any）で発生源デッキを、
+  // milledMinCount でその解決単位の最低ミル枚数を判定。usageLimit は actions_done(effectId) 出現回数で制御。
+  const collectMillTriggers = (
+    controllerId: string,
+    controllerState: PlayerState,
+    otherState: PlayerState,
+    milledFromControllerDeck: number,
+    milledFromOppDeck: number,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
+    const isControllerTurn = controllerId === bs.active_user_id;
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (controllerState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIds.push(eff.effectId);
+      return true;
+    };
+    const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, effectsMap, battleCardMap);
+    const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const sources: string[] = [
+      ...controllerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(controllerState.field.lrig.at(-1) ? [controllerState.field.lrig.at(-1)!] : []),
+    ];
+    for (const topNum of sources) {
+      if (ownAutoBlocked) continue;
+      if (removed.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MILLED_FROM_DECK')) continue;
+        if ((eff.triggerScope ?? 'self') !== 'self') continue;
+        const owner = eff.triggerCondition?.milledDeckOwner ?? 'any';
+        const minCount = eff.triggerCondition?.milledMinCount ?? 1;
+        const relevant = owner === 'self' ? milledFromControllerDeck
+          : owner === 'opponent' ? milledFromOppDeck
+          : milledFromControllerDeck + milledFromOppDeck;
+        if (relevant < minCount) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, battleCardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: controllerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（デッキトラッシュ時）`,
+          effect: eff,
+        });
+      }
+    }
+    return { entries, usedOncePerTurnIds };
+  };
+
+  // 効果解決の前後 state を比較し、対象プレイヤーのデッキ→トラッシュ枚数（ミル枚数）を算出。
+  // インスタンスIDが一意（cardNum#id）なので、before.deck かつ after.trash かつ not before.trash の集合差で精密に数える。
+  const countMilledFromDeck = (before: PlayerState, after: PlayerState): number => {
+    if (!before || !after) return 0;
+    const beforeDeck = new Set(before.deck);
+    const beforeTrash = new Set(before.trash);
+    let n = 0;
+    for (const c of after.trash) {
+      if (beforeDeck.has(c) && !beforeTrash.has(c)) n++;
+    }
+    return n;
+  };
+
   // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
   const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {
     // いずれかのチェックゾーンにカードがある間はフェーズ移動不可
@@ -4982,6 +5052,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           update.effect_stack = baseStackD
             ? pushToStack(baseStackD, drawEntries)
             : initStack(stack.turnPlayerId, drawEntries);
+        }
+
+        // ON_CARD_MILLED_FROM_DECK: この解決でデッキ→トラッシュ（ミル）が起きた場合、両プレイヤーの
+        // ON_CARD_MILLED_FROM_DECK【自】を controller 視点で収集（milledDeckOwner/milledMinCount で限定）。
+        const milledHost  = countMilledFromDeck(bs.host_state, hostState);
+        const milledGuest = countMilledFromDeck(bs.guest_state, guestState);
+        if (milledHost > 0 || milledGuest > 0) {
+          const millEntries: StackEntry[] = [];
+          // host を controller とした場合：self=host のデッキ、opponent=guest のデッキ
+          const mtH = collectMillTriggers(bs.host_id, hostState, guestState, milledHost, milledGuest);
+          millEntries.push(...mtH.entries);
+          if (mtH.usedOncePerTurnIds.length > 0) {
+            update.host_state = { ...((update.host_state as PlayerState) ?? hostState), actions_done: [...(((update.host_state as PlayerState) ?? hostState).actions_done ?? []), ...mtH.usedOncePerTurnIds] };
+          }
+          const mtG = collectMillTriggers(bs.guest_id, guestState, hostState, milledGuest, milledHost);
+          millEntries.push(...mtG.entries);
+          if (mtG.usedOncePerTurnIds.length > 0) {
+            update.guest_state = { ...((update.guest_state as PlayerState) ?? guestState), actions_done: [...(((update.guest_state as PlayerState) ?? guestState).actions_done ?? []), ...mtG.usedOncePerTurnIds] };
+          }
+          if (millEntries.length > 0) {
+            const baseStackM = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackM
+              ? pushToStack(baseStackM, millEntries)
+              : initStack(stack.turnPlayerId, millEntries);
+          }
         }
 
         // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニに対する、場の他シグニの反応を収集（G144/G145/WX11-054）。

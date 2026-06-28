@@ -75,7 +75,8 @@
 - **進捗**: ✅スペル使用7（R5）＋✅ドライブ3（R6・ON_SIGNI_BECOMES_DRIVE＋triggerScope any_ally/self）完了。残 flatten ≈92。⚠WXK11-033-E1 step2「相手センタールリグLv4以上で追加ダブルクラッシュ」条件は未表現（近似）。
 - **🔭 残 flatten のトリガー別・engine 配線分類（次セッションの地図）**＝`node scripts/_flattenView.mjs [正規表現]` で各カードのトリガー文＋action を確認できる（auto effect 順≒【自】文順で対応）。
   - **✅配線済み＝修正可（per-card で timing+scope+filter 再構築→MANUAL→実機検証）**: 「場に出たとき」系（クロス場出し4／レゾナ場出し3／傀儡1／他アーム1／ライズアイコン場出し1／トラッシュから場出し2 等）＝`ON_PLAY`＋`triggerScope:any_ally`＋triggerFilter（cross/story 等）。「手札を捨てたとき」系＝`ON_HAND_DISCARDED`。「アクセが付いたとき」＝`ON_ACCE`/`ON_ACCE_ATTACH`。「エクシードのコストとして…置かれたとき」2＝`ON_EXCEED_COST`。
-  - **⛔未配線＝機構待ち（新 timing/収集機構が要る・触らない）**: ~~「ライズされたとき」~~ **【✅R8 配線済み＝ON_RISE 新設・6効果修正】**／~~「アーツを使用したとき」~~ **【✅R7 配線済み＝ON_ARTS_USE 新設・5枚】**／「デッキからカードがトラッシュに置かれたとき」系 多数（`ON_CARD_MILLED_FROM_DECK` 未配線・§3 機構④）／「効果で対戦相手のパワーが減ったとき」2（§3 機構④の毒牙トリガー）／「コインを支払ったとき」「ウィルスが取り除かれたとき」「ゾーン移動」等。
+  - **⛔未配線＝機構待ち（新 timing/収集機構が要る・触らない）**: ~~「ライズされたとき」~~ **【✅R8 ON_RISE】**／~~「アーツを使用したとき」~~ **【✅R7 ON_ARTS_USE】**／~~「デッキからトラッシュ」系~~ **【✅R9 ON_CARD_MILLED_FROM_DECK 新設・set-diff 検出・12枚。⚠原因限定/合計N枚/ミルカードフィルタは近似（下記）】**／「効果で対戦相手のパワーが減ったとき」2（§3 機構④の毒牙トリガー）／「コインを支払ったとき」「ウィルスが取り除かれたとき」「ゾーン移動」等。
+  - **⚠ ミル機構の近似（R9・将来精緻化）**: ①原因限定（「効果1つ」「コストか効果」「あなたの＜悪魔＞シグニの効果」「《ディソナ》カードの効果」「あなたの効果」）は未表現＝過剰発火の可能性／②「合計N枚以上」は解決単位の delta で近似（複数効果跨ぎ累積は未対応）＝`cards_milled_from_deck_this_turn` ターンカウンタを足せば精緻化可／③ミルカードのクラスフィルタ（WXK10-052 ＜龍獣＞）は未判定／④コスト払いによるミルは効果解決経路外で未検出の可能性。対象=WXDi-P08-079・WXDi-CP02-010・WX24-P3-087・WXK10-052・WXDi-P13-085 等。
   - **次の未配線着手候補**：「あなたが手札を捨てたとき」系（`ON_HAND_DISCARDED`＝配線済み・cluster修正のみ）／「アクセが付いたとき」（`ON_ACCE`/`ON_ACCE_ATTACH`配線済み）／エクシードコスト（`ON_EXCEED_COST`配線済み）＝これらは timing 配線済みでデータ修正のみ。新機構が要るのはデッキミル系（`ON_CARD_MILLED_FROM_DECK`）と毒牙パワー減。⚠ON_RISE/ON_ARTS_USE は CPU 召喚/CPU アーツ経路は未収集（人間経路のみ・要追補）。
   - **進め方**: 配線済みクラスタを1つずつ（`_flattenView.mjs` でトリガー確定→`_fix<Cluster>.mjs` で timing+scope+filter 再構築＋MANUAL→typecheck＋同型★0＋decompile 原文一致→commit）。未配線クラスタは機構実装が要るので §3 機構④と統合して別途。
 

@@ -5,6 +5,18 @@
 
 ---
 
+## engine: ON_CARD_MILLED_FROM_DECK 新規配線（デッキミル機構）＋12枚（2026-06-28・ymst）
+
+未配線トリガー「デッキからカードがトラッシュに置かれたとき」を engine 実装。**各 mill 経路（MILL/TRASH-DECK_CARD 等）を instrument せず、効果解決の前後 state を set-diff してミル枚数を精密算出**するアプローチ（インスタンスID一意＝`before.deck ∩ after.trash − before.trash`）。
+
+- **型**: triggerCondition に `milledDeckOwner`（self/opponent/any）＋`milledMinCount`。`ON_CARD_MILLED_FROM_DECK` は timing 既存。decompiler の `engineUnwiredTimings` から除外＋owner/枚数描画。
+- **検出**: `countMilledFromDeck(before, after)`（set-diff）でホスト/ゲスト各デッキのミル枚数を算出。ドロー検出ブロック直後で、両プレイヤーを controller として `collectMillTriggers` 収集（milledDeckOwner を controller 視点で self/opponent/any 判定・milledMinCount 以上・usageLimit・activeCondition・condition 評価）。ターンカウンタ不要（解決単位の delta＝usageLimit は actions_done でターン境界リセット済み）。
+- **データ12枚**を ON_TURN_END→ON_CARD_MILLED_FROM_DECK 再curate＋MANUAL。WXDi-P07-093（自1→このシグニ+5000）／WXK01-065（自1→全トリック+2000）／WXK02-059（自1→武勇1体+4000）／WXK03-027（自3→相手-5000）／WXK09-056（自1・ターン2回）／WXK10-052・WX24-P3-087・WXDi-P08-079（自・合計2近似）／WXEX1-49（自3→エナチャージ+相手-8000・欠落-8000補完）／WXDi-CP02-010（any3→相手全-3000）／WXDi-P13-085（相手1）／WX24-P4-088（any1→このシグニ+4000）。
+- **⚠近似（TODO §3.5 記録）**: 原因限定（効果/コスト/＜悪魔＞シグニ/《ディソナ》カード/＜龍獣＞ミルカードフィルタ）は未表現／「合計N枚」は解決単位の delta で近似（複数効果跨ぎの累積は未対応）／コスト払いミルは効果解決経路外のため未検出の可能性。
+- typecheck緑・同型★0・逆翻訳原文一致・lint 0。⚠実機未検証。timing flatten 残 ≈69。
+
+---
+
 ## engine: ON_RISE 新規配線＋timing flatten ライズクラスタ6効果（2026-06-28・ymst）
 
 未配線トリガー「このシグニがライズされたとき」を engine 実装。
