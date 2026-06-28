@@ -901,6 +901,8 @@ function effJa(e: Eff): string {
     if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}${scopeNoun}${s.slice('このシグニ'.length)}`;
     // ON_TRASH/ON_LEAVE_FIELD 等「このカード」始まりも scope 主語に置換（any_opp→「対戦相手のシグニが…」）
     else if (scopeSubj !== null && s.startsWith('このカード')) s = `${scopeSubj}${scopeNoun}${s.slice('このカード'.length)}`;
+    // ON_LEAVE_FIELD の leftToZone:'hand'（「シグニ１体が場から手札に戻ったとき」WXK02-041）
+    if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.leftToZone === 'hand') s = 'シグニ１体が場から手札に戻ったとき';
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
     // ON_TRASH の発生源限定（fromZones）を反映（「このカードが手札かデッキからトラッシュに置かれたとき」）
@@ -998,6 +1000,12 @@ function effJa(e: Eff): string {
       const sc = e.triggerScope ?? 'any';
       const who = sc === 'any_opp' ? '対戦相手のシグニ' : sc === 'any_ally' ? 'あなたのシグニ' : sc === 'self' ? 'このシグニ' : 'シグニ';
       s = `${who}のパワーが0以下になったとき`;
+    }
+    // ON_REFRESH（リフレッシュ時）の refreshedOwner を主語に反映（WXDi-P04-043）
+    if (t === 'ON_REFRESH') {
+      const ro = e.triggerCondition?.refreshedOwner ?? 'any';
+      const who = ro === 'self' ? 'あなた' : ro === 'opponent' ? '対戦相手' : 'いずれかのプレイヤー';
+      s = `${who}がリフレッシュしたとき`;
     }
     // ON_ENERGY_TO_TRASH（エナゾーン→トラッシュ）の energyTrashedOwner を主語に反映（WD15-015）
     if (t === 'ON_ENERGY_TO_TRASH') {

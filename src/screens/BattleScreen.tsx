@@ -3340,6 +3340,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const scope = eff.triggerScope ?? 'self';
         if (scope !== 'any_ally' && scope !== 'any') continue;
         if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
+        // leftToZone:'hand'（「場から手札に戻ったとき」WXK02-041）: 離れたカードが所有者の手札に在中する場合のみ発火
+        if (eff.triggerCondition?.leftToZone === 'hand' && !ownerStateAfter.hand.includes(leftCardNum)) continue;
         entries.push({
           id: generateUUID(),
           playerId: leftPlayerId,
@@ -4200,6 +4202,66 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           cardNum: topNum,
           effectId: eff.effectId,
           label: `${cardName} の【自】効果（エナトラッシュ時）`,
+          effect: eff,
+        });
+      }
+    }
+    return { entries, usedOncePerTurnIds };
+  };
+
+  // 効果解決の前後 state を比較し、その player がリフレッシュした回数の差を算出（ON_REFRESH）。
+  const countRefresh = (before: PlayerState, after: PlayerState): number => {
+    if (!before || !after) return 0;
+    return Math.max(0, (after.refresh_count_this_turn ?? 0) - (before.refresh_count_this_turn ?? 0));
+  };
+
+  // いずれかのプレイヤーがリフレッシュしたとき（ON_REFRESH）トリガー収集。controller の場のシグニ/ルリグの
+  // ON_REFRESH【自】を集める。triggerCondition.refreshedOwner（self/opponent/any）で発生源を判定。
+  const collectRefreshTriggers = (
+    controllerId: string,
+    controllerState: PlayerState,
+    otherState: PlayerState,
+    refreshedByController: number,
+    refreshedByOpp: number,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
+    const entries: StackEntry[] = [];
+    const usedOncePerTurnIds: string[] = [];
+    const isControllerTurn = controllerId === bs.active_user_id;
+    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
+      const used = (controllerState.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIds.push(eff.effectId);
+      return true;
+    };
+    const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, effectsMap, battleCardMap);
+    const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const sources: string[] = [
+      ...controllerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+      ...(controllerState.field.lrig.at(-1) ? [controllerState.field.lrig.at(-1)!] : []),
+    ];
+    for (const topNum of sources) {
+      if (ownAutoBlocked) continue;
+      if (removed.has(topNum)) continue;
+      for (const eff of (effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_REFRESH')) continue;
+        const owner = eff.triggerCondition?.refreshedOwner ?? 'any';
+        const relevant = owner === 'self' ? refreshedByController
+          : owner === 'opponent' ? refreshedByOpp
+          : refreshedByController + refreshedByOpp;
+        if (relevant <= 0) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, battleCardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: controllerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（リフレッシュ時）`,
           effect: eff,
         });
       }
@@ -5534,6 +5596,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.effect_stack = baseStackE
               ? pushToStack(baseStackE, energyTrashEntries)
               : initStack(stack.turnPlayerId, energyTrashEntries);
+          }
+        }
+
+        // ON_REFRESH: この解決でいずれかのプレイヤーがリフレッシュした場合、両プレイヤーの
+        // ON_REFRESH【自】を controller 視点で収集（refreshedOwner で発生源限定）。
+        const refreshHost  = countRefresh(bs.host_state, hostState);
+        const refreshGuest = countRefresh(bs.guest_state, guestState);
+        if (refreshHost > 0 || refreshGuest > 0) {
+          const refreshEntries: StackEntry[] = [];
+          const rfH = collectRefreshTriggers(bs.host_id, hostState, guestState, refreshHost, refreshGuest);
+          refreshEntries.push(...rfH.entries);
+          if (rfH.usedOncePerTurnIds.length > 0) {
+            update.host_state = { ...((update.host_state as PlayerState) ?? hostState), actions_done: [...(((update.host_state as PlayerState) ?? hostState).actions_done ?? []), ...rfH.usedOncePerTurnIds] };
+          }
+          const rfG = collectRefreshTriggers(bs.guest_id, guestState, hostState, refreshGuest, refreshHost);
+          refreshEntries.push(...rfG.entries);
+          if (rfG.usedOncePerTurnIds.length > 0) {
+            update.guest_state = { ...((update.guest_state as PlayerState) ?? guestState), actions_done: [...(((update.guest_state as PlayerState) ?? guestState).actions_done ?? []), ...rfG.usedOncePerTurnIds] };
+          }
+          if (refreshEntries.length > 0) {
+            const baseStackR = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackR
+              ? pushToStack(baseStackR, refreshEntries)
+              : initStack(stack.turnPlayerId, refreshEntries);
           }
         }
 
