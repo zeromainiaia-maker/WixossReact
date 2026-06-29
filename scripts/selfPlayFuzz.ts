@@ -184,6 +184,9 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
   return { status: 'OK', result };
 }
 
+// ── カバレッジ統計（空振りでないことの担保）──
+const cov = { executed: 0, skipped: 0, firedEffects: new Set<string>() };
+
 // ── 1 ゲーム ──
 type MoveFail = { game: number; move: number; card: string; eff: string; status: string; detail: string };
 function playGame(gameSeed: number, fails: MoveFail[], gameIdx: number): void {
