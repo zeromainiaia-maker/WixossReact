@@ -975,6 +975,18 @@ function actionJa(a?: Action, effectType?: string): string {
         BLOCK_OPP_ENCORE_AND_BET: '対戦相手はアンコールとベットをできない',
       };
       if (blockContinuousMap[a.id]) return blockContinuousMap[a.id];
+      // 能力/色 継承系STUB（CONTINUOUS・activeCondition なし・engine実装済み）の原文意味文。各1枚＝原文の該当文を丸写し。
+      const grantUnderMap: Record<string, string> = {
+        GRANT_UNDER_LRIG_ACTIVATE_ABILITY: 'このルリグはこのカードの下にあるルリグの【起】能力を持つ',
+        GRANT_UNDER_LRIG_AUTO_ABILITY: 'このルリグはこのカードの下にあるルリグの【自】能力を持つ',
+        GRANT_UNDER_SIGNI_ALL_ABILITIES: 'このシグニはこのカードの下にある《荒ぶる海洋 §ポセイドナ§》以外の＜天使＞のシグニの【常】と【自】と【起】の能力と、限定条件を得る',
+        GRANT_UNDER_SIGNI_AUTO_ABILITY_ATTACK_PHASE: 'あなたのアタックフェイズの間、このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る',
+        GRANT_UNDER_SIGNI_CONSTANT_ABILITY: 'このシグニはこのカードの下にあるシグニの【常】の【英知】能力を得る',
+        INHERIT_UNDER_SIGNI_COLOR: 'このシグニはこのカードの下にある＜天使＞のシグニが持つ色を得る',
+        GAIN_LRIG_COLOR: 'このシグニはあなたの場にいるルリグが持つ色を得る',
+        GAIN_ADDITIONAL_LRIG_TYPE: 'あなたのセンタールリグが＜タウィル＞か＜ウムル＞であるかぎり、それは追加で＜タウィル/ウムル＞を得る',
+      };
+      if (grantUnderMap[a.id]) return grantUnderMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
