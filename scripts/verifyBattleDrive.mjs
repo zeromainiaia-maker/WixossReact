@@ -184,6 +184,14 @@ try {
     }
     return null;
   };
+  // 注入直後はグロウフェイズに戻ることがある（ターン遷移のリアルタイム処理と競合）。
+  // 召喚は MAIN フェイズ限定なので、「メインフェイズへ」を押して確実に MAIN にしてから手札を開く。
+  for (let k = 0; k < 5; k++) {
+    await page.waitForTimeout(800);
+    const adv = await clickTextOrBtn(['メインフェイズへ']);
+    if (!adv) break;
+    console.log('フェイズ進行:', adv);
+  }
   // 手札先頭（注入した WXK09-050）を開く（自分の手札= my-hand-card-*。相手の裏向き op-hand-card-* と区別）
   const opened = await clickTestId('my-hand-card-0');
   console.log('手札クリック:', opened ?? '見つからず（フォールバック座標）');
