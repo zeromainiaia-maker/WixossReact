@@ -1927,8 +1927,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             const wt = thenOTEC as unknown as { target?: { owner?: string; [k: string]: unknown }; [k: string]: unknown };
             if (wt.target?.owner === 'self') thenOTEC = { ...wt, target: { ...wt.target, owner: 'opponent' } } as unknown as EffectAction;
           }
-          const cntMOTEC = txtOTEC.match(/([０-９\d]+)枚?(?:まで)?を?対象/);
-          const pickCountOTEC = cntMOTEC ? parseInt(toHWOTEC(cntMOTEC[1])) : 1;
+          // トラッシュ枚数＝「(シグニ|カード)N枚をトラッシュ」句の N（取れなければ1）。
+          const pickCountOTEC = trashClauseMOTEC?.[2] ? parseInt(toHWOTEC(trashClauseMOTEC[2])) : 1;
           const destOTEC = toHandOTEC ? 'hand' : 'trash';
           const selectStubOTEC: import('../types/effects').StubAction = {
             type: 'STUB', id: 'INTERNAL_OTEC_SELECT',
