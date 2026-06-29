@@ -924,6 +924,18 @@ function actionJa(a?: Action, effectType?: string): string {
       // engine が no-op スキップする説明テキスト系STUB（execStubPart1.ts と同一）は逆翻訳でも描画しない（空文字）。
       // SEQUENCE/CHOOSE 結合側で空文字ステップを除外する。
       if (a.id === 'RULE_REMINDER_TEXT' || a.id === 'USE_CONDITION_TEXT' || a.id === 'UNLIMITED_KEYS') return '';
+      // 敗北/ルリグダメージ防止系STUB（engine実装済み＝prevent_defeat/prevent_lrig_damage フラグ）を原文の意味文で描画。
+      // 生STUB（id露出）や `[STUB:〜フラグ]` を逆翻訳語彙に置換（条件・限定は周辺の activeCondition/CHOOSE 側で描画）。
+      const preventDmgMap: Record<string, string> = {
+        PREVENT_DEFEAT: 'このターン、あなたはゲームに敗北しない',
+        PREVENT_DEFEAT_THIS_TURN: 'このターン、あなたはゲームに敗北しない',
+        PREVENT_DEFEAT_UNTIL_NEXT_TURN: '次の対戦相手のターン終了時まで、あなたはゲームに敗北しない',
+        PREVENT_LRIG_DAMAGE: 'あなたは対戦相手のルリグによってダメージを受けない',
+        PREVENT_LRIG_DAMAGE_THIS_TURN: 'このターン、あなたは対戦相手のルリグによってダメージを受けない',
+        PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN: '次のターンの間、あなたは対戦相手のルリグによってダメージを受けない',
+        PREVENT_LOW_LEVEL_LRIG_DAMAGE: 'あなたは対戦相手のレベル２以下のルリグによってダメージを受けない',
+      };
+      if (preventDmgMap[a.id]) return preventDmgMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
