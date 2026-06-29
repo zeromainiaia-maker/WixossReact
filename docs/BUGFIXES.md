@@ -16,6 +16,17 @@
 
 ---
 
+## ツール: Stage2⑦ ON_DRAW/対戦相手ドロー/ミル 3関数の pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第7弾。`collectDrawTriggers`/`collectOppDrawTriggers`/`collectMillTriggers` を `triggerCollect.ts` へ pure 化（同型3関数＝共通ヘルパで重複圧縮）。
+
+- **`triggerCollect.ts` に3関数＋共通ヘルパ2つ追加**＝`mkLimitOk`（once/twice_per_turn を actions_done＋収集内 used で判定）／`ownFieldSources`（場シグニ top＋ルリグ top）。`collectContinuousAbilitiesRemovedSigni`（effectEngine.ts）を import 追加。drawBySourceStory/outsideDrawPhase（draw）・drawPhaseRestriction/turnOwner（oppDraw）・milledDeckOwner/milledMinCount（mill）ゲートを保持。戻り値 `{entries, usedOncePerTurnIds}` も維持。
+- **BattleScreen 側**＝約175行の3クロージャを薄いラッパに置換＝挙動不変。呼び出し元は無変更。
+- **golden に4件追加（PASS 43→47）**＝self ドロー発火・once_per_turn 消化済み非発火（WXK02-090-E1）／outsideDrawPhase はドローフェイズ通常ドローで非発火（WXDi-D09-P19-E1）／any_opp 相手ドローで反応側発火（WXDi-P15-091-E1）／milledMinCount 未満は非発火（WXDi-P08-079-E1 min=2）。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（47/47）／`npm run fuzz`（全0）。
+
+---
+
 ## ツール: Stage2⑥ collectLeaveFieldTriggers の pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第6弾。ON_LEAVE_FIELD 収集＋依存ヘルパ `resolveLeaveFieldDynamicFilters`（動的フィルタ解決）を `triggerCollect.ts` へ pure 化。
