@@ -112,9 +112,11 @@ try {
       const el = page.getByRole('button', { name: h }).first();
       if (await el.count()) { await el.click().catch(() => {}); clicked = 'じゃんけん:' + h; }
       await page.waitForTimeout(2500);
-    } else if (/ルリグを選/.test(txt)) {
-      const imgs = page.locator('img');
-      if (await imgs.count()) { await imgs.first().click().catch(() => {}); clicked = 'ルリグ画像'; }
+    } else if (/ルリグを配置|ルリグを選/.test(txt)) {
+      // Lv0ルリグのボタン（カード名/番号を含む）をクリック
+      const btn = page.locator('button', { hasText: 'WD03-005' }).first();
+      if (await btn.count()) { await btn.click().catch(() => {}); clicked = 'ルリグ(WD03-005)'; }
+      else { const b2 = page.locator('button', { hasText: 'コード・ピルルク' }).first(); if (await b2.count()) { await b2.click().catch(() => {}); clicked = 'ルリグ(名前)'; } }
     } else {
       for (const t of ['この手札でOK', '引き直さない', 'キープ', 'この手札で', 'ゲーム開始', '開始', '決定', 'OK', '完了']) {
         const el = page.getByRole('button', { name: t }).first();
