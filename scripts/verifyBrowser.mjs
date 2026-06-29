@@ -13,8 +13,8 @@ function startDev() {
     const proc = spawn('npm', ['run', 'dev'], { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let url = null;
     const onData = (b) => {
-      const s = b.toString();
-      const m = s.match(/Local:\s+(http:\/\/localhost:\d+)\/?/);
+      const s = b.toString().replace(/\x1b\[[0-9;]*m/g, ''); // ANSIカラー除去
+      const m = s.match(/(http:\/\/localhost:\d+)/);
       if (m && !url) { url = m[1]; resolve({ proc, url }); }
     };
     proc.stdout.on('data', onData);
