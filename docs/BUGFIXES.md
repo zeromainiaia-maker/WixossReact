@@ -5,6 +5,17 @@
 
 ---
 
+## 機構: C1 engine未配線timing配線④ `ON_LRIG_ATTACK_STEP_START`（ルリグアタックステップ開始時）（2026-06-29）
+
+C1 第4弾＝`ON_LRIG_ATTACK_STEP_START`（1枚・WX25-CP1-042-E2「あなたのルリグアタックステップ開始時」）。トリガーはクリーンなフェイズ遷移点で配線可能。
+
+- **発火点**＝`doPhaseAdvance` の `ATTACK_SIGNI`→`ATTACK_LRIG` 移行時（既存の `MAIN`→`ATTACK_ARTS` での `ON_ATTACK_PHASE_START` 発火と同型）。ターンプレイヤー（newMyState）の self【自】を `collectTurnTriggers('ON_LRIG_ATTACK_STEP_START', ...)` で収集→effect_stack へ。
+- **collectTurnTriggers 拡張**＝timing union に `ON_LRIG_ATTACK_STEP_START` を追加＋labelSuffix「ルリグアタックステップ開始時」。self-scope シグニ／ルリグ／キーワードトークンを既存ロジックで拾う（usageLimit《ターン1回》は解決時 enforce）。
+- **アクションは既存パース近似**＝原文「このターンに青の＜ブルアカ＞シグニがクラッシュした相手ライフ1枚につき相手手札1捨て」はパース時に**固定SEQUENCE（相手手札1トラッシュ＋ブルアカ-5000）**へ近似済み（クラッシュ数カウント非依存）。本配線はトリガーを通すのみで、アクションの厳密スケーリングは別課題（既存の近似を踏襲）。
+- **decompiler**＝`engineUnwiredTimings` から除外。`types/effects.ts` コメント更新。
+- **検証**＝`npm run typecheck` 緑／`npm run smoke`（CRASH/HANG/INVARIANT 0・不変）／`npm run golden`（21/21）／decompile マーカー消失確認。
+- **既知の未カバー**＝CPUターンのルリグアタックステップ（CPUは別のフェイズ進行経路）は未配線＝follow-up。⚠実機未検証(C2)。
+
 ## 機構: C1 engine未配線timing配線③ `ON_COIN_PAID`（コインを支払ったとき）（2026-06-29）
 
 C1 第3弾＝`ON_COIN_PAID`（3枚・「あなたが《コイン》を1枚以上支払ったとき」・WXDi-P15-055/069・WXDi-P16-057＝闘争派//THE DOOR）。支払い1イベントにつき1回発火（枚数に依らず）。効果本体は既存ハンドラで正常＝**欠けていたのは発火配線のみ**。
