@@ -3806,6 +3806,50 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   /**
+   * ON_COIN_PAID（「あなたが《コイン》を1枚以上支払ったとき」）のトリガーを収集する（C1 配線）。
+   * payerId=コインを支払ったプレイヤー。支払い1イベントにつき1回発火（枚数に依らず）。
+   * self（既定・「あなたが」）＝支払ったプレイヤー自身の場シグニが反応（WXDi-P15-055/069・WXDi-P16-057 は全て self）。
+   * any_ally/any も payer 側で発火。any_opp（相手が支払い）は対象外。
+   * triggerCondition.turnOwner・condition・usageLimit（《ターン1回/2回》）も評価。
+   * ⚠コイン支払はグロウ/ベット/スペル/起動/出 の多経路に分散＝各支払いサイトから本関数を呼ぶ。
+   */
+  const collectCoinPaidTriggers = (
+    payerId: string,
+    afterPayerState: PlayerState,
+    afterOpState: PlayerState,
+  ): StackEntry[] => {
+    const entries: StackEntry[] = [];
+    const payerIsTurn = bs.active_user_id === payerId;
+    const effsOf = (n: string) => effectsMap.get(n) ?? effectsMap.get(getCardNum(n)) ?? [];
+    for (const stack of afterPayerState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of effsOf(topNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_COIN_PAID')) continue;
+        const scope = eff.triggerScope ?? 'self';
+        if (scope === 'any_opp') continue; // 相手支払いは対象外（payer 視点では発火しない）
+        const to = eff.triggerCondition?.turnOwner;
+        if (to === 'self' && !payerIsTurn) continue;
+        if (to === 'opponent' && payerIsTurn) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, afterPayerState, afterOpState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        const doneCount = afterPayerState.actions_done?.filter(id => id === eff.effectId).length ?? 0;
+        if (eff.usageLimit === 'once_per_turn' && doneCount >= 1) continue;
+        if (eff.usageLimit === 'twice_per_turn' && doneCount >= 2) continue;
+        const cardName = battleCardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+        entries.push({
+          id: generateUUID(),
+          playerId: payerId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（コイン支払時）`,
+          effect: eff,
+        });
+      }
+    }
+    return entries;
+  };
+
+  /**
    * ターン開始時・終了時・アタックフェイズ開始時の AUTO 効果を収集する。
    * 自分のフィールドシグニ（'self' スコープ）+ ルリグ + 相手の any_opp/any も対象。
    * ※ ON_ATTACK_PHASE_START はターンプレイヤー側のみ発火（「各アタックフェイズ開始時」の
