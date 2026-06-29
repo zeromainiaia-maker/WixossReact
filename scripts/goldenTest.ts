@@ -667,6 +667,27 @@ test('C1 ON_DECK_SHUFFLED: シャッフル検出＋self 発火（PR-470A-E1）',
   eq(has(collectDeckShuffledTriggers(trigCtx(HOST), HOST, host).entries, 'PR-470A-E1'), true, 'self発火');
 });
 
+// OPTIONAL_TRASH_ENERGY_CLASS: 「エナゾーンから＜X＞のカードN枚をトラッシュ」句の N 枚を支払う（multi-card 札）。
+// 旧実装は枚数を「N枚を対象」から取り 1枚しか払わなかった（zerom 2026-06-29 修正）。source の EffectText から
+// クラス（ブルアカ）と枚数（3）を解釈するため、実カード WXDi-CP02-051（「＜ブルアカ＞のカード３枚をトラッシュ」）を source にする。
+test('OPTIONAL_TRASH_ENERGY_CLASS: トラッシュ句のN枚を支払う(カード3枚)', () => {
+  const blues = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('ブルアカ')).map(c => c.CardNum);
+  ok(blues.length >= 3, `ブルアカ3種以上(${blues.length})`);
+  const SOURCE = 'WXDi-CP02-051';
+  ok((cardMap.get(SOURCE)?.EffectText ?? '').includes('ブルアカ'), 'source原文にブルアカ');
+  const oppSigni = fresh();
+  const ctx = mkCtx({}, { signi: [oppSigni, null, null] }, SOURCE);
+  ctx.ownerState.energy = [blues[0], blues[1], blues[2]];
+  const eff = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' },
+      then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } },
+  ] } as unknown as EffectAction;
+  const r = run(eff, ctx);
+  eq(r.ownerState.energy.length, 0, 'エナ3枚全部がトラッシュへ');
+  eq(r.otherState.field.signi[0], null, '相手シグニがバニッシュ');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
