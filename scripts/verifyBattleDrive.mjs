@@ -183,8 +183,8 @@ try {
     }
     return null;
   };
-  // 手札先頭（注入した WXK09-050）を開く
-  const opened = await clickTestId('hand-card-0');
+  // 手札先頭（注入した WXK09-050）を開く（自分の手札= my-hand-card-*。相手の裏向き op-hand-card-* と区別）
+  const opened = await clickTestId('my-hand-card-0');
   console.log('手札クリック:', opened ?? '見つからず（フォールバック座標）');
   if (!opened) await page.mouse.click(37, 593);
 
