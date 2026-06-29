@@ -112,7 +112,8 @@
    - **逆翻訳が原文一致 ＆ 同型★0** を確認（必要に応じ `node scripts/_dropTriage.mjs` で分類の変化も確認）。
 5. **記録＆バトン**：`BUGFIXES.md` に追記（新しいものを上）→ **§3 を上書き** → コミット（末尾に「要実機検証」）→ **push**。
 
-## 7. 進捗の可視化（整備済み）
+## 7. 進捗の可視化／検証ハーネス（整備済み）
+> **検証3層（実機検証を Claude がヘッドレスで代替）**：①表現＝decompile逆翻訳一致／②実行（壊れない）＝`smoke`（全効果・新品盤面）＋`fuzz`（乱択連鎖・進化盤面）／③正しさ＝`golden`（型ごと結果assert）。C/D 作業時は **smoke・golden・fuzz** を回帰チェックに回す。⚠どれも engine（executeEffect/resume*）が対象＝**BattleScreen.tsx の配線（フェイズ進行・トリガー収集 collect\*Triggers・effect_stack 整列）は対象外**（C2 実機 or Stage2 抽出が要）。
 - **`npm run smoke`（`scripts/smokeTest.ts`）＝②実行スモーク／不変条件ハーネス（2026-06-28新設）**。全カードの全効果（10557件）を**オートパイロット**（pending を最小入力で自動応答）でヘッドレス実行し、例外（CRASH）／無限ループ（HANG・step>STEP_CAP=200）／構造不変条件違反（INVARIANT）を機械検出。実機不要・数秒。**現状＝CRASH 0／HANG 0／INVARIANT 0／OK 10294／SKIP 263**（SKIP＝autopilot未対応の対話＝engine バグではない）。⚠「壊れない」を保証するもので「ルール的に正しい結果か（③）」は判定しない＝③は構文ゴールデン＋代表目視で別途。C（engine配線）/D（STUB実装）の回帰検出にこれを使う。
   - **autopilot ループ判定の修正（2026-06-29）**：旧判定は「同一pending**種別**が連続したら SKIP」だったため、SELECT_TARGET が連続するだけで候補が毎回変わる正常進行も誤SKIPしていた。**候補シグネチャ（type＋candidates/options/cards のJSON）が同一**のときだけ真のループとみなす方式に変更（`cd1edf23`）。STEP_CAP も 60→200 に拡大（`c796aa3d`）。
 - **`npm run golden`（`scripts/goldenTest.ts`）＝③正しさの構文ゴールデンテスト（2026-06-29 npm登録）**。主要DSLアクション型ごとに制御盤面で効果を実行し「結果がこうなる」を assert（型単位で正しさを担保＝全カードを帰納的に信頼）。**現状＝PASS 21／FAIL 0**。smoke が「壊れないか」を全カードで見るのに対し、本テストは型ごとの「正しさ」を見る。C/D 作業時は smoke と併せて回す。
