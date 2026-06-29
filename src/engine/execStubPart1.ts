@@ -378,6 +378,52 @@ export function execStubPart1(
     }
     return done(curW7);
   }
+  // SIGNI_GRANT_CHOSEN_ABILITY: WXK09-050 コードアート Ｒ・Ｌ・Ｃ【出】。
+  //   「以下の２つから１つを選ぶ。表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ１体を対象とし、
+  //    ターン終了時まで、それは選んだ能力を得る。①対戦相手の効果によってダウンしない ②対戦相手の効果によって手札に戻らない」
+  //   CHOOSE(2) → 対象選択（＜電機＞・現在パワー>表記パワー）→ GRANT_PROTECTION(DOWN/BOUNCE) を granted_effects に付与。
+  if (stub.id === 'SIGNI_GRANT_CHOSEN_ABILITY') {
+    const optsGCA = [
+      { id: 'gca_down', label: '①対戦相手の効果によってダウンしない', action: ({ type: 'STUB', id: 'INTERNAL_GCA_SELECT', value: 'down' } as StubAction) as EffectAction, available: true },
+      { id: 'gca_bounce', label: '②対戦相手の効果によって手札に戻らない', action: ({ type: 'STUB', id: 'INTERNAL_GCA_SELECT', value: 'bounce' } as StubAction) as EffectAction, available: true },
+    ];
+    return needsInteraction(addLog(ctx, '以下の２つから１つを選ぶ'), { type: 'CHOOSE', options: optsGCA, count: 1 });
+  }
+  // INTERNAL_GCA_SELECT: 表記パワーより現在パワーが高いあなたの＜電機＞シグニ１体を対象に選ぶ
+  if (stub.id === 'INTERNAL_GCA_SELECT') {
+    const modeGCA = typeof stub.value === 'string' ? stub.value : '';
+    const candsGCA = ctx.ownerState.field.signi.flatMap(s => {
+      if (!s?.length) return [];
+      const cn = s[s.length - 1];
+      const card = ctx.cardMap.get(cn);
+      if (!card?.CardClass?.includes('電機')) return [];
+      const printed = parseInt(card.Power ?? '0', 10) || 0;
+      const effPw = ctx.effectivePowers?.get(cn) ?? printed;
+      return effPw > printed ? [cn] : [];
+    });
+    if (candsGCA.length === 0) return done(addLog(ctx, '表記より高いパワーの＜電機＞シグニなし（能力付与なし）'));
+    const contGCA: StubAction = { type: 'STUB', id: 'INTERNAL_GCA_APPLY', value: modeGCA };
+    return selectOrInteract(candsGCA, 1, false, 'self_field', contGCA as EffectAction, undefined, ctx);
+  }
+  // INTERNAL_GCA_APPLY: 選んだ保護（ダウン/バウンス）をターン終了時まで付与
+  if (stub.id === 'INTERNAL_GCA_APPLY') {
+    const modeGCAb = typeof stub.value === 'string' ? stub.value : '';
+    const tnGCA = ctx.lastProcessedCards?.[0];
+    if (!tnGCA) return done(addLog(ctx, '対象なし'));
+    const nameGCA = ctx.cardMap.get(tnGCA)?.CardName ?? tnGCA;
+    const fromGCA = modeGCAb === 'bounce' ? 'BOUNCE' : 'DOWN';
+    const labelGCA = modeGCAb === 'bounce' ? '手札に戻らない' : 'ダウンしない';
+    const grantedEffGCA: import('../types/effects').CardEffect = {
+      effectId: `granted-wxk09050-${modeGCAb}-${Date.now()}-${tnGCA}`,
+      effectType: 'CONTINUOUS',
+      duration: 'UNTIL_END_OF_TURN',
+      action: { type: 'GRANT_PROTECTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, from: [fromGCA], sourceOwner: 'opponent', duration: 'UNTIL_END_OF_TURN' },
+    };
+    const grantedMapGCA = { ...(ctx.ownerState.granted_effects ?? {}) };
+    grantedMapGCA[tnGCA] = [...(grantedMapGCA[tnGCA] ?? []), grantedEffGCA];
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapGCA } },
+      `${nameGCA}は対戦相手の効果によって${labelGCA}（ターン終了時まで）`));
+  }
   // INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED: WXK04-030 血晶の紅雨。
   //   あなたの血晶武装状態のすべてのシグニに「【自】このシグニがアタックしたとき、自パワー以下の対戦相手のシグニ1体をバニッシュ」を
   //   ターン終了時まで付与する。granted_effects（instanceId単位）に積むと effectsMap マージ経由でアタックトリガー収集が拾う。
