@@ -141,7 +141,8 @@ try {
     const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=*`, { headers: h });
     const row = (await r2.json())?.[0];
     const hs = row.host_state;
-    hs.field.lrig = ['WX14-013#1'];                       // Lv2 コード・ピルルク（lrigはフラットなスタック配列）
+    // Lv3 コード・ピルルク ｍＶ（Limit=6）。Lv2 の Limit4 では Lv4 シグニ(4)+WXK09-050(2)=6>4 で召喚不可だったため引き上げ。
+    hs.field.lrig = ['WXK09-018#1'];                      // lrig はフラットなスタック配列
     hs.field.signi = [['WD03-009#1'], null, null];        // ＜電機＞ P12000（各ゾーン=スタック配列）
     hs.temp_power_mods = [{ cardNum: 'WD03-009#1', delta: 3000 }]; // バフ→15000>表記12000
     hs.hand = ['WXK09-050#1', ...(hs.hand ?? []).slice(0, 4)];
