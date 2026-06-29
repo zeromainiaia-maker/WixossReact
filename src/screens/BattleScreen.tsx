@@ -16135,6 +16135,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     return (
                       <div key={dispIdx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         <div
+                          data-testid={selectable ? `pick-${candIdx}` : undefined}
+                          data-card-num={selectable ? cardNum : undefined}
                           onPointerDown={() => {
                             pickLongPressTimer.current = setTimeout(() => {
                               setExpandedPickImgUrl(c?.ImgURL ?? null);
