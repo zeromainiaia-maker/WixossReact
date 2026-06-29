@@ -1174,7 +1174,9 @@ function effJa(e: Eff): string {
   const turnMark = e.triggerCondition?.turnOwner
     ? (e.triggerCondition.turnOwner === 'self' ? '《自分ターン》' : '《相手ターン》') : '';
   const body = actionJa(e.action, e.effectType);
-  const unwired = (e.timing || []).some((t: string) => engineUnwiredTimings.has(t)) ? '【※engine未配線】' : '';
+  // ON_MATERIAL_USED は materialUsedByPlayer 変種のみ配線済（改造素材機構 Step3a）＝それ以外は未配線。
+  const matUsedWired = (e.timing || []).includes('ON_MATERIAL_USED') && !!e.triggerCondition?.materialUsedByPlayer;
+  const unwired = !matUsedWired && (e.timing || []).some((t: string) => engineUnwiredTimings.has(t)) ? '【※engine未配線】' : '';
   return `${crossCond}${typeMark}${turnMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}${unwired}`;
 }
 

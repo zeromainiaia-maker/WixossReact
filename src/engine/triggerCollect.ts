@@ -1710,3 +1710,32 @@ export function collectAllyPlayOrOppDiscardTriggers(
   }
   return { entries, usedOncePerTurnIds };
 }
+
+/**
+ * ON_MATERIAL_USED の「あなたが《改造素材》を使用したとき」（materialUsedByPlayer）変種を収集する（改造素材機構 Step3a・2026-06-29）。
+ * 使用者 userId の場シグニ／ルリグの ON_MATERIAL_USED AUTO のうち triggerCondition.materialUsedByPlayer===true のものを発火。
+ * 対象シグニ不要（プレイヤー起点）＝WXK09-047-E2（エナから電機回収）/WXK09-049-E1（デッキから電機サーチ）。
+ * ⚠「このシグニに/他の味方に使用されたとき」（self/any_ally・対象シグニ依存）は Step2（トークン3択の対象捕捉）が前提＝別途。
+ * usedOncePerTurnIds は呼び出し側で userState の actions_done に永続化すること。
+ */
+export function collectMaterialUsedByPlayerTriggers(
+  ctx: TrigCtx, userId: string, userState: PlayerState,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (userState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const limitOk = mkLimitOk(userState.actions_done, usedOncePerTurnIds);
+  for (const topNum of ownFieldSources(userState)) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_MATERIAL_USED')) continue;
+      if (!eff.triggerCondition?.materialUsedByPlayer) continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: userId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（改造素材を使用したとき）`, effect: eff,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}

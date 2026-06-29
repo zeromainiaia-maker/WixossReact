@@ -16,6 +16,19 @@
 
 ---
 
+## 機構: 改造素材 foundation Step3a＝ON_MATERIAL_USED(materialUsedByPlayer)配線（2026-06-29）
+
+Step1（プレイ可能化）に続き、ON_MATERIAL_USED の**「あなたが《改造素材》を使用したとき」（materialUsedByPlayer）変種**を配線（対象シグニ不要＝Step2 のトークン3択対象捕捉に依存しない部分）。
+
+- **`collectMaterialUsedByPlayerTriggers`（pure・triggerCollect.ts）追加**＝使用者の場シグニ/ルリグから ON_MATERIAL_USED AUTO のうち `triggerCondition.materialUsedByPlayer===true` を発火（once_per_turn 制御）。対象＝WXK09-047-E2（エナから電機回収）/WXK09-049-E1（デッキから電機サーチ→シャッフル）。
+- **`executeArts` で発火**＝使用カードが『改造素材』のとき collectMaterialUsedByPlayerTriggers を queueCardEffects の extraEntries で積む＋usedOncePerTurnIds を永続化。Step1 でプレイ可能化済のため実際に発火する。
+- **decompiler**＝ON_MATERIAL_USED の `【※engine未配線】` を materialUsedByPlayer 変種のみ除去（self/any_ally は対象シグニ依存で未配線維持）。sheet4 再生成・同型★0。
+- **golden に1件追加（PASS 82→83）**＝materialUsedByPlayer 2効果が発火・self 変種（対象依存）は非発火。
+- **検証**＝typecheck 緑／lint 0／smoke（不変・全0）／golden（83/83）／fuzz（全0）。
+- **残（Step2 + Step3b）**＝トークン WXK09-TK-01A の3択（①+4000／②③ 引用能力付与・現 DO_THREE_THINGS no-op）実装＋対象シグニ捕捉→self/any_ally 変種（047-E1/048/077/10-050/084）発火。
+
+---
+
 ## 機構: 改造素材 foundation Step1＝'アーツ/クラフト'8枚をプレイ可能化（2026-06-29）
 
 改造素材機構（ON_MATERIAL_USED）の前提＝『アーツ/クラフト』型がプレイ不可だった問題（card-action ディスパッチ/`artsCandidates` が `Type==='アーツ'` 完全一致で除外）を解消。
