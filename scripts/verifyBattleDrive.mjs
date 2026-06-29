@@ -141,8 +141,8 @@ try {
     const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=*`, { headers: h });
     const row = (await r2.json())?.[0];
     const hs = row.host_state;
-    hs.field.lrig = ['WX14-013#1'];                       // Lv2 コード・ピルルク（limitでLv2シグニ可）
-    hs.field.signi = ['WD03-009#1', null, null];          // ＜電機＞ P12000
+    hs.field.lrig = ['WX14-013#1'];                       // Lv2 コード・ピルルク（lrigはフラットなスタック配列）
+    hs.field.signi = [['WD03-009#1'], null, null];        // ＜電機＞ P12000（各ゾーン=スタック配列）
     hs.temp_power_mods = [{ cardNum: 'WD03-009#1', delta: 3000 }]; // バフ→15000>表記12000
     hs.hand = ['WXK09-050#1', ...(hs.hand ?? []).slice(0, 4)];
     const upd = {
