@@ -63,6 +63,10 @@ try {
   await page.waitForFunction(() => ![...document.querySelectorAll('input')].some(i => i.placeholder === 'ユーザーネーム'), { timeout: 15000 });
   await page.waitForTimeout(1500);
 
+  // 残ルーム掃除（前回の PLAYING ルームで BATTLE に飛ぶのを防ぐ）
+  const cleaned = await cleanupRooms(page);
+  console.log(`残ルーム掃除: ${cleaned}件削除`);
+
   // オンライン対戦（sessionStorage→reload→matchmaking）を確定的に
   await page.evaluate(() => sessionStorage.setItem('gotoMatchmaking', '1'));
   await page.reload({ waitUntil: 'networkidle' });
