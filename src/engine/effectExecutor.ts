@@ -1906,7 +1906,11 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const srcOTEC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
           const txtOTEC = srcOTEC ? (srcOTEC.EffectText ?? '') + ' ' + (srcOTEC.BurstText ?? '') : '';
           const toHWOTEC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-          const classMOTEC = txtOTEC.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)/);
+          // クラス・トラッシュ枚数は「エナゾーンから＜X＞の(シグニ|カード)N枚をトラッシュ」句から取る。
+          // （同カード内の「N体を対象」＝バニッシュ対象数 や 別記述＝場出し記述 の誤マッチを避ける。
+          //  従来は枚数を別途「N枚を対象」から取り multi-card 札で常に1枚しか払わなかったバグの修正）
+          const trashClauseMOTEC = txtOTEC.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ/);
+          const classMOTEC = trashClauseMOTEC ?? txtOTEC.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)/);
           const reqClassOTEC = classMOTEC?.[1] ?? '';
           const energyCandsOTEC = cur.ownerState.energy.filter(cn => {
             if (!reqClassOTEC) return true;
