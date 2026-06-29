@@ -962,6 +962,19 @@ function actionJa(a?: Action, effectType?: string): string {
         PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN: '次の対戦相手のターンの間、あなたが最初にダメージを受ける場合、代わりにダメージを受けない',
       };
       if (preventProtectMap[a.id]) return preventProtectMap[a.id];
+      // 行動制限系STUB（CONTINUOUS「対戦相手は〜できない」・engine認識済み）の原文意味文。
+      // 「あなた/対戦相手のターンの間」は activeCondition(TURN_OWNER) が別途前置描画するので本体のみ。
+      const blockContinuousMap: Record<string, string> = {
+        BLOCK_ALL_OPP_ACTIVATE_ABILITY: '対戦相手はすべての領域にあるシグニの【起】能力を使用できない',
+        BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: '対戦相手は自分のシグニの効果によってシグニを新たに場に出せない',
+        BLOCK_OPP_DECK_TO_ENERGY: '対戦相手は自分の効果によってカードをデッキからエナゾーンに移動できない',
+        BLOCK_COLORLESS_PLAY: 'あなたは無色のシグニを場に出せず、無色のスペルを使用できない',
+        BLOCK_FRONT_SIGNI_ATTACK: '対戦相手は《無》を支払わないかぎり、このシグニの正面にあるシグニでアタックできない',
+        BLOCK_LOW_COST_SPELL_BY_CHARM_COUNT: '対戦相手はコストの合計が場にある【チャーム】の数以下のスペルを使用できない',
+        BLOCK_NON_WHITE_SPELL: 'すべてのプレイヤーは白ではないスペルを使用できない',
+        BLOCK_OPP_ENCORE_AND_BET: '対戦相手はアンコールとベットをできない',
+      };
+      if (blockContinuousMap[a.id]) return blockContinuousMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
