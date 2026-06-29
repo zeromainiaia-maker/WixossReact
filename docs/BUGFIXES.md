@@ -5,6 +5,16 @@
 
 ---
 
+## 機構: C1 engine未配線timing配線③ `ON_COIN_PAID`（コインを支払ったとき）（2026-06-29）
+
+C1 第3弾＝`ON_COIN_PAID`（3枚・「あなたが《コイン》を1枚以上支払ったとき」・WXDi-P15-055/069・WXDi-P16-057＝闘争派//THE DOOR）。支払い1イベントにつき1回発火（枚数に依らず）。効果本体は既存ハンドラで正常＝**欠けていたのは発火配線のみ**。
+
+- **収集**＝新ヘルパ `collectCoinPaidTriggers(payerId, afterPayerState, afterOpState)`。支払ったプレイヤー自身の場シグニから ON_COIN_PAID AUTO を収集（self/any_ally/any＝payer 側、any_opp は対象外）。`triggerCondition.turnOwner`・`condition`・`usageLimit`（《ターン1回/2回》＝`actions_done` の出現回数で判定）も評価。
+- **発火点（多経路）**＝コイン支払はグロウ/起動/キー/出/ベット等に分散。配線したサイト：①人間センターグロウ（`executeGrow`・growCoinCost>0）②CPUセンターグロウ（growCoinCostCpu>0）③シグニ【起】《コイン》（coinCostAct>0→stackEntries）④キープレイ（coinCost>0→`queueCardEffects` の extraEntries）⑤シグニ【出】《コイン》（coinCostOPC>0→allEntries）⑥アーツのベット/アンコール（betCost+encoreCoinCost>0→extraEntries）。
+- **decompiler**＝`engineUnwiredTimings` から `ON_COIN_PAID` 除外。`types/effects.ts` コメント更新。
+- **検証**＝`npm run typecheck` 緑／`npm run smoke`（CRASH/HANG/INVARIANT 0・不変）／`npm run golden`（21/21）／decompile 逆翻訳が原文一致（WXDi-P15-055/WXDi-P16-057）。
+- **既知の未カバー（follow-up）**＝スペルのベット（`pending_spell`/カットイン経由でスタックを介さない＝フロー破壊回避のため未配線）・CPUルリグ【出】《コイン》の支払。⚠発火経路は BattleScreen＝実機未検証(C2)。
+
 ## 機構: C1 engine未配線timing配線② `ON_LRIG_GROW`（ルリグがグロウしたとき）（2026-06-29）
 
 C1 第2弾＝`ON_LRIG_GROW`（5枚・「（センター）ルリグがグロウしたとき」）。効果本体（TRASH/TRANSFER_TO_HAND/POWER_MODIFY/ENERGY_CHARGE/SEQUENCE）は既存ハンドラで正常＝**欠けていたのは発火配線のみ**。
