@@ -958,14 +958,9 @@ function actionJa(a?: Action, effectType?: string): string {
         PREVENT_SIGNI_DOWN_BY_OPP_ALL: 'あなたの他のシグニは対戦相手の効果によってダウンしない',
         PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH: 'あなたのアタックフェイズの間、対戦相手の効果はバニッシュ以外であなたの＜宇宙＞のシグニを場から移動させない',
         PREVENT_OWN_ARTS_USE: 'このターン、あなたはアーツを使用できない',
-        PREVENT_POWER_MINUS_BY_OPP: '対戦相手の効果によって、このシグニのパワーは－（マイナス）されない',
+        PREVENT_FIRST_DAMAGE_NEXT_OPP_TURN: '次の対戦相手のターンの間、あなたが最初にダメージを受ける場合、代わりにダメージを受けない',
       };
       if (preventProtectMap[a.id]) return preventProtectMap[a.id];
-      // 色だけカードで異なる（白/赤）保護＝原文から色を抽出して一致させる。
-      if (a.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') {
-        const cm = currentCardText.match(/あなたの他の(?:(白|赤|青|緑|黒|無色)の)?シグニは対戦相手の効果によって能力を失わない/);
-        return cm ? cm[0] : 'あなたの他のシグニは対戦相手の効果によって能力を失わない';
-      }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
