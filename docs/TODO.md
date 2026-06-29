@@ -188,7 +188,10 @@
 
 ## 8. 検証・品質（補助）
 
-- **`npm run smoke`（②実行スモークハーネス・2026-06-28新設）＝全効果10557件をヘッドレス自動実行しCRASH/HANG/INVARIANTを検出**。現状＝CRASH/HANG/INVARIANT 全0（OK 10294／SKIP 263）。**C/D 作業時の回帰チェックに毎回回す**。**autopilot ループ判定を修正済（2026-06-29）**＝同一pending種別の連続ではなく候補シグネチャ同一でのみ SKIP 判定（SELECT_TARGET連続の誤SKIP解消）。STEP_CAP 60→200。次段の拡張候補＝(a)autopilot のカバレッジ拡張（REVEAL_CARDS/DECLARE_BOND 等＝現SKIPを解消）(b)不変条件の強化（カード総数保存＝token/exile例外を考慮）(c)乱択CPU自己対戦ファズ。
-- **`npm run golden`（③構文ゴールデンテスト・`scripts/goldenTest.ts`・2026-06-29 npm登録）＝主要DSLアクション型ごと制御盤面で結果をassert（型単位で③正しさを担保）**。現状＝PASS 21／FAIL 0。テストの足し方＝`test('名前', () => { ... assert ... })` を追加するだけ。C/D 作業時は smoke と併せて回す。直近で `UP` アクションの選択後適用ループを本テストが検出→engine 修正（BUGFIXES参照）。
+- **検証ハーネス＝C/D 作業時は毎回 `npm run smoke` ＋ `npm run golden` ＋ `npm run fuzz` を回帰チェックに回す**（全て数秒・実機不要）。3つとも engine（executeEffect/resume*）対象＝BattleScreen 配線は対象外（後述 Stage2）。
+- **`npm run smoke`（②実行スモークハーネス・2026-06-28新設）＝全効果10557件をヘッドレス自動実行しCRASH/HANG/INVARIANTを検出**。現状＝CRASH/HANG/INVARIANT 全0（OK 10294／SKIP 263）。**autopilot ループ判定を修正済（2026-06-29）**＝同一pending種別の連続ではなく候補シグネチャ同一でのみ SKIP 判定（SELECT_TARGET連続の誤SKIP解消）。STEP_CAP 60→200。次段の拡張候補＝(a)autopilot のカバレッジ拡張（REVEAL_CARDS/DECLARE_BOND 等＝現SKIPを解消）(b)不変条件の強化。
+- **`npm run golden`（③構文ゴールデンテスト・`scripts/goldenTest.ts`・2026-06-29 npm登録）＝主要DSLアクション型ごと制御盤面で結果をassert（型単位で③正しさを担保）**。現状＝PASS 21／FAIL 0。テストの足し方＝`test('名前', () => { ... assert ... })` を追加するだけ。直近で `UP` アクションの選択後適用ループを本テストが検出→engine 修正（BUGFIXES参照）。
+- **`npm run fuzz`（②実行レベル検証の最終形・`scripts/selfPlayFuzz.ts`・2026-06-29新設）＝乱択 自己対戦ファズ。ランダム初期盤面で効果を連鎖発動し相互作用/進化盤面クラッシュ/ループ/カード爆発を検出**。シード固定で完全再現可能（既定200ゲーム×40手・約0.4秒・効果実行≈7800手/distinct≈2640種）。現状＝CRASH/HANG/INVARIANT/EXPLOSION 全0。重め＝`npm run fuzz -- --games 2000 --moves 80`。失敗時はシード＋手番で再現（`--seed S --verbose`）。次段拡張候補＝(a)attack/grow/phase など「手」の種類を増やす(b)EXPLOSION 閾値の精緻化(c)owner/other 偏りの調整。
+- **【Stage2・未着手】BattleScreen 配線の純粋抽出＝C 配線の自動検証化**。`collect*Triggers`（collectTargetedTriggers/collectLrigGrowTriggers/collectCoinPaidTriggers/collectBanishTriggers 等）と effect_stack 整列・フェイズ進行は現在 BattleScreen.tsx の React クロージャ＝smoke/golden/fuzz の対象外（だから C 配線は全て「実機未検証(C2)」になる）。これらを `src/engine/` の pure 関数へ抽出すれば golden/fuzz から呼べて C 配線（ON_TARGETED 発火等）を自動検証できる＝C2 宿題の大幅削減。⚠17000行ファイルからの抽出＝中リスク・着手前に §5 状態を更新。
 - `checkAllEffects` の `MANDATORY_SUSPICIOUS`（ヒューリスティック検出）の精査。`verifyEffects` の「定義なし」誤検出（注釈・トークン）の除外改善。
 - 生ID残存＝表示or実装の穴：`[STUB:X]` 系（残54件＝単発テール・STUBS.md管理）。`[条件:X]`/`[アクション:X]` は解消済み。
