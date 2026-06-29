@@ -43,3 +43,5 @@ scripts/_dbg*.ts
 docs/effects_merge_report.md
 # 逆翻訳ツールの出力: ルート直下はスクラッチ（無視）。共有分は docs/ にコミットする。
 /decompile_*.txt
+# ブラウザ検証ハーネスのスクショ出力（非追跡）
+/scratchpad-verify/
