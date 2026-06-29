@@ -5067,6 +5067,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               : initStack(bs.active_user_id ?? user.id, apsEntries);
           }
         }
+        // ON_LRIG_ATTACK_STEP_START（C1 配線）: ATTACK_SIGNI→ATTACK_LRIG移行時（ルリグアタックステップ開始時）トリガー。
+        // ターンプレイヤー（newMyState）の self【自】を発火（WX25-CP1-042-E2 等）。
+        if (phase === 'ATTACK_SIGNI') {
+          const lasEntries = collectTurnTriggers('ON_LRIG_ATTACK_STEP_START', newMyState, op);
+          if (lasEntries.length > 0) {
+            const baseStackLAS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
+            update.effect_stack = baseStackLAS
+              ? pushToStack(baseStackLAS, lasEntries)
+              : initStack(bs.active_user_id ?? user.id, lasEntries);
+          }
+        }
         // ON_MAIN_PHASE_START: GROW→MAIN移行時（メインフェイズ開始時）トリガー。
         // newMyState=ターンプレイヤー／op=非ターンプレイヤー。triggerScope:any_opp（「対戦相手のメインフェイズ開始時」
         // WXDi-P00-034）は op の場シグニで発火＝collectTurnTriggers の相手フィールド分岐が拾う。
