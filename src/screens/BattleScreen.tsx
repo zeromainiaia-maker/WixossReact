@@ -7963,8 +7963,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
+      // ON_COIN_PAID（C1 配線・アーツのベット/アンコールのコイン支払）: extraEntries 経由で反応【自】を積む。
+      const artsCoinPaidEntries = (betCost + encoreCoinCost) > 0 ? collectCoinPaidTriggers(user.id, paid, op) : [];
       // アーツ効果を発火
-      const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paid, op);
+      const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paid, op, {}, 1, artsCoinPaidEntries);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await supabase.from('battle_states').update({ [stateKey]: paid }).eq('room_id', roomId);
