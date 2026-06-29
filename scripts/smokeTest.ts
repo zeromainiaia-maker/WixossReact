@@ -184,3 +184,6 @@ for (const c of crashes) {
 console.log(`\n--- CRASH/HANG/INVARIANT 内訳（detail 正規化・上位30）---`);
 [...byDetail.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 30)
   .forEach(([k, v]) => console.log(`  ${String(v.n).padStart(4)}件  ${k}   例:${v.ex}`));
+
+// CI 用: CRASH/HANG/INVARIANT があれば非ゼロ終了（SKIP は autopilot のカバレッジ漏れ＝失敗扱いしない）
+if (counts.CRASH + counts.HANG + counts.INVARIANT > 0) process.exitCode = 1;
