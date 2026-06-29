@@ -34,7 +34,8 @@
 > 3人は**同時に作業しない**。**① `git pull` → ② 本節を読む → ③ 作業 → ④ 本節と `BUGFIXES.md` を更新 → ⑤ commit & push** を回す。詳細な修正履歴は `BUGFIXES.md`（新しい順）に積む。ここは**現在地・計画・残作業数だけ**。
 
 ### 📍 進捗サマリ（最終更新 2026-06-29・zerom 作業中）
-- **🆕 zerom セッション（2026-06-29）＝A表現テール着手（2件）**＝①`OPTIONAL_TRASH_ENERGY_CLASS` の別記述誤マッチを decompiler＋engine で是正（WX25-CP1-006④の「シグニ1枚」→「カード3枚」／種別シグニ/カード区別／枚数のトラッシュ句由来化）⚠engine 枚数支払いは実機未検証。②説明テキスト系STUB（RULE_REMINDER_TEXT/USE_CONDITION_TEXT/UNLIMITED_KEYS）を逆翻訳から無音スキップ（`[STUB:無音…]` タグ44件→0・SEQUENCE/CHOOSE 空ステップ除外）。いずれも同型★0維持・golden 88/88・smoke/fuzz 全0。詳細は BUGFIXES.md 上部。**GRANT_QUOTED_AUTO_ABILITY の誤パース（A2残）は既に枯れていた**（誤パース疑いはトークン1枚＝原文なしのみ）／**OPTIONAL_DISCARD_HAND_CLASS も枯れ**（2枚とも原文「シグニ」表記）。
+- **🆕 zerom セッション（2026-06-29）＝A表現テール着手（3件）**＝①`OPTIONAL_TRASH_ENERGY_CLASS` の別記述誤マッチを decompiler＋engine で是正（WX25-CP1-006④の「シグニ1枚」→「カード3枚」／種別シグニ/カード区別／枚数のトラッシュ句由来化）⚠engine 枚数支払いは実機未検証。②説明テキスト系STUB（RULE_REMINDER_TEXT/USE_CONDITION_TEXT/UNLIMITED_KEYS）を逆翻訳から無音スキップ（`[STUB:無音…]` タグ44件→0・SEQUENCE/CHOOSE 空ステップ除外）。③敗北/ルリグダメージ防止系STUB 8 id（PREVENT_DEFEAT*/PREVENT_LRIG_DAMAGE*/PREVENT_LOW_LEVEL_LRIG_DAMAGE/PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP）を生STUB（id露出）→原文意味文に（engine実装済み・decompiler描画のみ欠落）。いずれも同型★0維持・golden 88/88・smoke/fuzz 全0。詳細は BUGFIXES.md 上部。**GRANT_QUOTED_AUTO_ABILITY の誤パース（A2残）は既に枯れていた**／**OPTIONAL_DISCARD_HAND_CLASS も枯れ**。
+  - **生STUB（id露出 `[STUB:ENGLISH_ID]`）は STUBS.md 管理の単発テール約54件が残**＝engine実装済みなら decompiler に意味文を足すだけの低リスク表現テール（例 PREVENT_* の保護系・ZONE_MOVE/ABILITY系、GRANT_UNDER_*、SPELL系 等）。次の人はここを1系統ずつ。残`PREVENT_DAMAGE_FROM_OPP_EFFECTS`（文脈差3件）。
 - **🆕 ymst 引き継ぎ（2026-06-29）**＝Stage2（C配線の pure 抽出・golden 化）完了 ＋ C1 engine未配線timing をほぼ全配線 ＋ 改造素材機構を完成。golden 31→88件・同型★0・全ハーネス緑。残った engine未配線は `ON_KEYWORD_GAINED` 1枚のみ（COPY_ABILITY no-op で保留）。**意味ある C1 配線は打ち止め＝C は実質収束**。次は A/B 表現テール（低リスク）か実機 `/verify` 推奨。
 - **P1 表現①の systematic 指標は全達成・維持中**：**held 0 / LOSS 0 / VALUE 0 / 同型★0**。
   - 再生成・検証＝`npx tsx scripts/parserWorklist.ts`（held/LOSS/VALUE）＋`node scripts/groupSimilar.mjs --all`（同型★）。
