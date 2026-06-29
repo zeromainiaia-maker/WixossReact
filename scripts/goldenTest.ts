@@ -595,6 +595,21 @@ test('C1 ON_ALLY_PLAY_OR_OPP_HAND_DISCARD: discard枝・自ターン限定・onc
   eq(has(collectAllyPlayOrOppDiscardTriggers(trigCtx(HOST), HOST, host, [], 1).entries, 'WXDi-P11-064-E1'), false, 'once_per_turn');
 });
 
+// 改造素材 foundation Step1: 'アーツ/クラフト'8枚がプレイ可能化＝ACTIVATED効果がクラッシュ/ハングせず解決するか検証。
+test("'アーツ/クラフト'8枚: ACTIVATED効果が解決（クラッシュ/ハングなし）", () => {
+  const craftIds = ['WXK01-TK-01A', 'WXK03-TK-01B', 'WXK09-TK-01A', 'WX25-P1-TK1', 'WX25-P1-TK2', 'WX25-P1-TK3', 'WX25-P1-TK4', 'WX25-P1-TK5'];
+  for (const id of craftIds) {
+    eq(cardMap.get(id)?.Type, 'アーツ/クラフト', `${id} は アーツ/クラフト`);
+    const act = (effectsMap.get(id) ?? []).find(e => e.effectType === 'ACTIVATED');
+    eq(!!act, true, `${id} に ACTIVATED効果あり`);
+    if (!act) continue;
+    let ok = true;
+    try { run(act.action as EffectAction, mkCtx({ signi: [SIGNI, null, null] }, { signi: [SIGNI, null, null] }, id)); }
+    catch { ok = false; }
+    eq(ok, true, `${id} 解決でクラッシュ/ハングしない`);
+  }
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

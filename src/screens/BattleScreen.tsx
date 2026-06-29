@@ -5750,10 +5750,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
 
   // アーツ候補（自分の lrig_deck からアーツカード）
+  // 'アーツ' と 'アーツ/クラフト'（改造素材 WXK09-TK-01A 等8枚）は同じプレイ経路で使用できる。
   const artsCandidates: CardData[] = my.lrig_deck
     .filter((num, i, arr) => arr.indexOf(num) === i)
     .map(num => battleCardMap.get(num))
-    .filter((c): c is CardData => !!c && c.Type === 'アーツ');
+    .filter((c): c is CardData => !!c && (c.Type === 'アーツ' || c.Type === 'アーツ/クラフト'));
 
   // アシストグロウ候補（各ゾーンごとに、lrig_deck からアシストルリグを検索）
   const getAssistGrowCandidates = (side: 'l' | 'r'): CardData[] => {
@@ -6917,8 +6918,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return actions;
     }
 
-    // ── アーツ ──
-    if (cardData.Type === 'アーツ') {
+    // ── アーツ（'アーツ/クラフト'＝改造素材等8枚も同経路で使用可能）──
+    if (cardData.Type === 'アーツ' || cardData.Type === 'アーツ/クラフト') {
       // blocked_card_names チェック
       if (my.blocked_card_names?.includes(cardData.CardName)) return actions;
       const canUse =

@@ -16,6 +16,18 @@
 
 ---
 
+## 機構: 改造素材 foundation Step1＝'アーツ/クラフト'8枚をプレイ可能化（2026-06-29）
+
+改造素材機構（ON_MATERIAL_USED）の前提＝『アーツ/クラフト』型がプレイ不可だった問題（card-action ディスパッチ/`artsCandidates` が `Type==='アーツ'` 完全一致で除外）を解消。
+
+- **2箇所の Type 判定を拡張**＝`artsCandidates`（アーツ選択モーダル一覧）と getCardActions のアーツ分岐を `'アーツ' || 'アーツ/クラフト'` に。これで lrig_deck の8枚全『アーツ/クラフト』が既存アーツ経路（モーダル/コスト支払/`executeArts`→`queueCardEffects`→使用後 lrig_trash）でプレイ可能に。改造素材の同ターン再使用不可は `BLOCK_CARD_USE`→`blocked_card_names` の既存ガードが機能。
+- **対象8枚**＝WXK01-TK-01A 棘々迷路／WXK03-TK-01B 落華流粋／WXK09-TK-01A 改造素材／WX25-P1-TK1〜TK5（ダーク系）。全て battleCardMap ロード済・ACTIVATED 効果あり。
+- **golden に1件追加（PASS 81→82）**＝8枚の ACTIVATED 効果が autopilot 解決でクラッシュ/ハングしないこと＋Type/効果存在を検証。
+- **検証**＝typecheck 緑／lint 0／smoke（不変・全0）／golden（82/82）／fuzz（全0）。⚠UI のプレイ操作（モーダル/コスト/lrig_deck除去）自体は実機 `/verify` 推奨（golden は効果解決のみ）。
+- **残（改造素材機構 Step2/3）**＝(2) トークン WXK09-TK-01A の3択アクション（DO_THREE_THINGS no-op→CHOOSE3 実装）／(3) ON_MATERIAL_USED 発火（対象シグニ捕捉＋3系統）。TODO §4 参照。
+
+---
+
 ## C1: ON_ALLY_PLAY_OR_OPP_HAND_DISCARD 配線（WXDi-P11-064・2026-06-29）
 
 Stage2 完了後の C1 継続。OR複合トリガー `ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`（WXDi-P11-064「あなたのターンの間、あなたの他の＜天使＞のシグニが場に出る か あなたの効果で対戦相手が手札を捨てたとき→このシグニ+4000・ターン1回」）を配線。action は実 POWER_MODIFY（STUB でない）＝配線で実際に機能する。
