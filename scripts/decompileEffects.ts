@@ -512,17 +512,19 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_SOUL_HOST_ABILITY': return `このカードが【ソウル】として付いている${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': {
       if (!a.steps || a.steps.length === 0) return '何もしない';
-      const parts = a.steps.map(actionJa) as string[];
-      return parts.reduce((acc: string, part: string, i: number) => {
+      // 空文字ステップ（engine が no-op スキップする説明テキスト系STUB等）は結合から除外する。
+      const pairs = a.steps.map((s: any) => ({ step: s, part: actionJa(s) as string })).filter((p: any) => p.part !== '');
+      if (pairs.length === 0) return '何もしない';
+      return pairs.reduce((acc: string, { step, part }: any, i: number) => {
         if (i === 0) return part;
         // IS_MY_TURN の CONDITIONAL は「そうした場合」で始まるので「そして」は不要
-        if (a.steps[i]?.condition?.type === 'IS_MY_TURN' || part.startsWith('そうした場合')) {
+        if (step?.condition?.type === 'IS_MY_TURN' || part.startsWith('そうした場合')) {
           return acc + '。' + part;
         }
         return acc + '。そして' + part;
       }, '');
     }
-    case 'CHOOSE': return `次から${a.choose_count}つ選ぶ【${(a.choices || []).map((c: any) => actionJa(c.action)).join(' / ')}】`;
+    case 'CHOOSE': return `次から${a.choose_count}つ選ぶ【${(a.choices || []).map((c: any) => actionJa(c.action)).filter((s: string) => s !== '').join(' / ')}】`;
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
       if (a.condition?.type === 'IS_MY_TURN') {
