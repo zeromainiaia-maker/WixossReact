@@ -68,7 +68,7 @@
 - STUB 544種/2372件。大半は**実装済みハンドラ**の表示（`[STUB:id]` はスキップ理由にしない＝個別検証）。残・単発生IDテール 54件は `STUBS.md` 管理（`node scripts/genStubsMd.mjs` で再生成）。
 
 ### 📌 次の一手（推奨順）
-1. **C1 の続き**（engine未配線timing配線）＝`ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID` 配線済。残は単発(各1枚)＝`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(効果バニッシュ発生源追跡が要)/`ON_LRIG_UNDER_MOVED`(ルリグ下スタックdiff)/`ON_DECK_SHUFFLED`(shuffle多箇所)/`ON_KEYWORD_GAINED`/`ON_LRIG_ATTACK_STEP_START`/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(OR複合)。`ON_MATERIAL_USED`(6)は改造素材機構依存で重い。発火点を特定→`collect*Triggers` 同型ヘルパ＋BattleScreen配線。⚠各 timing は実機未検証(C2)になる点に注意。
+1. **C1 の続き**（engine未配線timing配線）＝`ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID`/`ON_LRIG_ATTACK_STEP_START` 配線済（計23枚）。残は単発(各1枚)＝`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(効果バニッシュ発生源追跡が要・action単純)/`ON_LRIG_UNDER_MOVED`(ルリグ下スタックdiff)/`ON_DECK_SHUFFLED`(shuffle多箇所・action単純)/`ON_KEYWORD_GAINED`/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(OR複合)。`ON_MATERIAL_USED`(6)は改造素材機構依存で重い。発火点を特定→`collect*Triggers` 同型ヘルパ＋BattleScreen配線。⚠各 timing は実機未検証(C2)になる点に注意。
 2. **A1/A2/A3**（個別 parser/decompiler 是正・数枚・低リスク）。
 3. **B（§5 機構）残**＝引用AUTO付与の permanent/相手付与。着手前に §5 表の「状態」を `着手中(担当名)` に更新してコミット（重複防止）。
 
