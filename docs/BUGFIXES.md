@@ -5,6 +5,18 @@
 
 ---
 
+## A表現テール: OPTIONAL_TRASH_ENERGY_CLASS の別記述誤マッチ＋シグニ/カード/枚数の是正（WX25-CP1-006 他・2026-06-29・zerom）
+
+`OPTIONAL_TRASH_ENERGY_CLASS`（エナゾーンから＜X＞のカードを任意トラッシュするコスト）の解釈バグを decompiler・engine の両方で修正。
+
+- **症状（WX25-CP1-006 ④）**＝逆翻訳が「＜ブルアカ＞の**シグニ1枚**をトラッシュ」になっていたが原文は「＜ブルアカ＞の**カード3枚**をトラッシュ」。原因＝正規表現が `currentCardText` 全体にマッチし、同カード内の別記述②「エナゾーンから＜ブルアカ＞のシグニ1枚を選び場に出す」を先に拾っていた（TODO §4 既知案件）。
+- **修正**＝クラス・種別・枚数を「`エナゾーンから＜X＞の(シグニ|カード)N枚をトラッシュ`」句から優先取得（取れなければ従来の緩いマッチにフォールバック）。①別記述の誤マッチ回避②**種別(シグニ/カード)を原文どおり反映**（旧描画は常に「シグニ」固定で、原文「カード」の多数札＝WX25-CD1-06/CP1-045/049/058/081・WXDi-CP02-051 等を誤描画していた）③枚数を正しく取得。
+  - **decompiler**（`scripts/decompileEffects.ts`）＝逆翻訳表現の是正。
+  - **engine**（`src/engine/effectExecutor.ts` OPTIONAL_TRASH_ENERGY_CLASS）＝従来トラッシュ枚数を「N枚を**対象**」句から取り（「N体を対象」＝バニッシュ対象数を指すため）**multi-card 札で常に1枚しか払わない実バグ**だったのを、同じトラッシュ句の N から取るよう統一。WX25-CP1-006(1→3)/CD1-06・CP1-030(1→2)/WXDi-CP02-051・059(1→3) 等 13枚前後で正しい枚数を支払うようになる。
+- **検証**＝typecheck 緑／lint 0／全シート再生成＋genReviewRepr＋groupSimilar/Sentence で**同型★0維持**（5986枚）・WX25-CP1-006④が原文一致／smoke（全0・10294 OK）／golden（88/88）／fuzz（全0）。⚠engine の枚数支払いは実機未検証（要 /verify）＝対話 SELECT_TARGET 経路。
+
+---
+
 ## ツール: CI に検証ハーネス（golden/smoke/fuzz）を追加＝回帰検出の自動化（2026-06-29）
 
 既存 CI（`.github/workflows/ci.yml`・push/PR(master) で typecheck＋lint）に **golden・smoke・fuzz** の3ステップを追加。共同開発者が手動実行を忘れても CI が回帰を検出する。
