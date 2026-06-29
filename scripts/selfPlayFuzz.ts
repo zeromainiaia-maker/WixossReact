@@ -238,7 +238,8 @@ function playGame(gameSeed: number, fails: MoveFail[], gameIdx: number): void {
       if (VERBOSE) console.log(`  [${res.status}] game#${gameIdx} move${m} ${chosen.card} ${chosen.eff.effectId}: ${res.detail}`);
       continue; // この手はスキップして続行（状態は持ち越さない）
     }
-    if (res.status !== 'OK' || !res.result) continue; // SKIP 等は状態を進めない
+    if (res.status !== 'OK' || !res.result) { cov.skipped++; continue; } // SKIP 等は状態を進めない
+    cov.executed++; cov.firedEffects.add(chosen.eff.effectId ?? chosen.card);
 
     // 結果状態を持ち越す（次の手は進化した盤面で発動）
     const newOwner = res.result.ownerState as PlayerState;
