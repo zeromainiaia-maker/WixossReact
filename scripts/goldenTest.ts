@@ -20,7 +20,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -235,8 +235,8 @@ test('B3 INSTALL_DELAYED_TRIGGER: delayed_triggers に追加', () => {
 // Stage2: collect*Triggers を pure 化したことで、従来「実機未検証(C2)」だった C1 発火条件を
 // ヘッドレスで自動検証できる。HOST/GUEST の2プレイヤー＋場にカードを置いて発火有無を assert する。
 const HOST = 'H', GUEST = 'G';
-const trigCtx = (activeUserId: string | null): TrigCtx => ({
-  hostId: HOST, guestId: GUEST, activeUserId, turnPhase: 'MAIN',
+const trigCtx = (activeUserId: string | null, meId?: string): TrigCtx => ({
+  hostId: HOST, guestId: GUEST, meId, activeUserId, turnPhase: 'MAIN',
   effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'tid',
 });
 
@@ -326,6 +326,23 @@ test('Stage2 ON_TRASH: fromAnyZone + byOpponentEffect ゲート（WX04-035-E2）
   const c = collectAnyZoneTrashSelfTriggers;
   eq(has(c(trigCtx(HOST), 'WX04-035', HOST, true, 'hand'), 'WX04-035-E2'), true, '相手効果起因で発火');
   eq(has(c(trigCtx(HOST), 'WX04-035', HOST, false, 'hand'), 'WX04-035-E2'), false, '自起因では非発火');
+});
+
+// Stage2⑤: ON_BANISH（collectBanishTriggers）を pure 化→自動検証。meId 視点での my/op 分岐も検証。
+test('Stage2 ON_BANISH: self バニッシュで自身が発火（WX02-025-E2）', () => {
+  const host = mkState({}); const guest = mkState({});
+  eq(has(collectBanishTriggers(trigCtx(HOST, HOST), 'WX02-025', HOST, host, guest), 'WX02-025-E2'), true, 'self発火');
+});
+test('Stage2 ON_BANISH: any_opp 相手バニッシュで発火・自バニッシュで非発火（WX13-085-E1）', () => {
+  const host = mkState({ signi: ['WX13-085', null, null] }); const guest = mkState({});
+  eq(has(collectBanishTriggers(trigCtx(HOST, HOST), SIGNI, GUEST, host, guest), 'WX13-085-E1'), true, '相手バニッシュ発火');
+  eq(has(collectBanishTriggers(trigCtx(HOST, HOST), SIGNI, HOST, host, guest), 'WX13-085-E1'), false, '自バニッシュ非発火');
+});
+test('Stage2 ON_BANISH: meId 視点に依らず対称（GUEST 視点でも同結果・playerId は能力保持者）', () => {
+  const host = mkState({ signi: ['WX13-085', null, null] }); const guest = mkState({});
+  // meId=GUEST 視点でも、相手(GUEST)のシグニがバニッシュ→host の any_opp が発火（playerId=HOST）
+  const e = collectBanishTriggers(trigCtx(HOST, GUEST), SIGNI, GUEST, host, guest);
+  eq(e.find(x => x.effectId === 'WX13-085-E1')?.playerId, HOST, 'playerId=能力保持者HOST');
 });
 
 // ── レポート ──

@@ -16,6 +16,18 @@
 
 ---
 
+## ツール: Stage2⑤ collectBanishTriggers の pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第5弾。ON_BANISH 収集（バニッシュ最頻トリガー）を `triggerCollect.ts` へ pure 化。アクセ付与ON_BANISH復元（WX18-076）・activeCondition・condition・once_per_turn ゲートを保持。
+
+- **`triggerCollect.ts` に `collectBanishTriggers` 追加**＝(0)アクセ付与ON_BANISH復元(prevOwnerState から GRANT_ACCE_HOST_ABILITY 再構築)／(1)バニッシュされたカード自身(self)／(2)自分フィールド／(3)相手フィールド の4段。`checkActiveCondition`（effectEngine.ts）と `GrantAcceHostAbilityAction` 型を import 追加（循環なし・typecheck緑）。
+- **視点 `meId` を `TrigCtx` に追加**＝この関数だけ「ローカル操作者視点」で my/op を分け、エントリ順（自分側→相手側）を BattleScreen 版と一致させる。`mkTrigCtx()` に `meId: user.id` を追加（他ヘルパは未使用＝無害）。
+- **BattleScreen 側**＝約115行のクロージャを薄いラッパ（`mkTrigCtx()` 経由）に置換＝挙動不変。呼び出し元は無変更。
+- **golden に3件追加（PASS 37→40）**＝self バニッシュで自身発火（WX02-025-E2）／any_opp 相手バニッシュで発火・自バニッシュで非発火（WX13-085-E1）／meId 視点に依らず対称（GUEST 視点でも playerId=能力保持者）。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（40/40）／`npm run fuzz`（全0）。
+
+---
+
 ## ツール: Stage2④ ON_TRASH ファミリの pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第4弾。ON_TRASH の3収集関数（`collectTrashTriggers`/`collectDeckTrashSelfTriggers`/`collectAnyZoneTrashSelfTriggers`）を `triggerCollect.ts` へ pure 化。

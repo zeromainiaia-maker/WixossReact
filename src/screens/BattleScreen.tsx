@@ -11,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinu
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -3375,120 +3375,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * バニッシュされたシグニの ON_BANISH 効果 + フィールド上の全シグニのトリガーを収集する。
    * banishedPlayerId: バニッシュされたシグニのオーナーの userId (host_id or guest_id)。
    */
+  // ON_BANISH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectBanishTriggers = (
     banishedCardNum: string,
     banishedPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
     prevOwnerState?: PlayerState, // バニッシュされたカードのオーナーのバニッシュ前状態（アクセ付与ON_BANISH復元用）
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const opId = isHost ? bs.guest_id : bs.host_id;
-    const myAfterState = isHost ? afterHostState : afterGuestState;
-    const opAfterState = isHost ? afterGuestState : afterHostState;
-    const banishedOwnerIsMe = banishedPlayerId === user.id;
-
-    // 0. アクセ付与の ON_BANISH 能力を復元（WX18-076: 離場で消えるため前状態から再構築）
-    if (prevOwnerState) {
-      const zi = prevOwnerState.field.signi.findIndex(s => s?.at(-1) === banishedCardNum);
-      const acceNum = zi >= 0 ? (prevOwnerState.field.signi_acce ?? [])[zi] : null;
-      if (acceNum) {
-        const ownerAfter = banishedOwnerIsMe ? myAfterState : opAfterState;
-        const otherAfter = banishedOwnerIsMe ? opAfterState : myAfterState;
-        const hostCard = battleCardMap.get(getCardNum(banishedCardNum));
-        const isBanishedOwnerTurn = bs.active_user_id === banishedPlayerId;
-        for (const eff of (effectsMap.get(acceNum) ?? [])) {
-          if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'GRANT_ACCE_HOST_ABILITY') continue;
-          const g = eff.action as import('../types/effects').GrantAcceHostAbilityAction;
-          if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
-          for (const ab of g.abilities) {
-            if (ab.effectType !== 'AUTO' || !ab.timing?.includes('ON_BANISH')) continue;
-            if (ab.activeCondition && !checkActiveCondition(ab.activeCondition, ownerAfter, otherAfter, isBanishedOwnerTurn, battleCardMap, banishedCardNum)) continue;
-            const frontNum = otherAfter.field.signi[2 - zi]?.at(-1); // 正面（前ゾーン 2-zi）の相手シグニ
-            entries.push({
-              id: generateUUID(),
-              playerId: banishedPlayerId,
-              cardNum: banishedCardNum,
-              effectId: ab.effectId,
-              label: `${hostCard?.CardName ?? banishedCardNum} の付与【自】（バニッシュ時）`,
-              effect: ab,
-              triggeringCardNum: frontNum,
-            });
-          }
-        }
-      }
-    }
-
-    // 1. バニッシュされたカード自身の ON_BANISH 効果
-    for (const eff of (effectsMap.get(banishedCardNum) ?? [])) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
-      if ((eff.triggerScope ?? 'self') !== 'self') continue;
-      // activeCondition チェック（「対戦相手のターンの間」等）
-      const isBanishedOwnerTurn = bs.active_user_id === banishedPlayerId;
-      if (!checkActiveCondition(eff.activeCondition, banishedOwnerIsMe ? myAfterState : opAfterState, banishedOwnerIsMe ? opAfterState : myAfterState, isBanishedOwnerTurn, battleCardMap, banishedCardNum)) continue;
-      const cardName = battleCardMap.get(banishedCardNum)?.CardName ?? banishedCardNum;
-      entries.push({
-        id: generateUUID(),
-        playerId: banishedPlayerId,
-        cardNum: banishedCardNum,
-        effectId: eff.effectId,
-        label: `${cardName} の【バニッシュ時】効果`,
-        effect: eff,
-      });
-    }
-
-    // 2. 自分フィールド上シグニのトリガー
-    for (const stack of myAfterState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (banishedOwnerIsMe  && scope !== 'any_ally' && scope !== 'any') continue;
-        if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
-        // condition を持つAUTOは条件を満たす場合のみ収集（WXDi-P16-074-E2 の FIELD_HAS_GATE 等）
-        if (eff.condition && !evalUseCondition(eff.condition, myAfterState, opAfterState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-        // usageLimit once_per_turn: actions_done に記録済みならスキップ（実行時に永続化される）
-        if (eff.usageLimit === 'once_per_turn' && myAfterState.actions_done?.includes(eff.effectId)) continue;
-        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（バニッシュ時）`,
-          effect: eff,
-        });
-      }
-    }
-
-    // 3. 相手フィールド上シグニのトリガー
-    for (const stack of opAfterState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
-        const scope = eff.triggerScope ?? 'self';
-        // 相手視点：「自分の味方がバニッシュ」= !banishedOwnerIsMe
-        if (!banishedOwnerIsMe && scope !== 'any_ally' && scope !== 'any') continue;
-        if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
-        // condition / usageLimit（相手＝opAfterState 視点で評価）
-        if (eff.condition && !evalUseCondition(eff.condition, opAfterState, myAfterState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-        if (eff.usageLimit === 'once_per_turn' && opAfterState.actions_done?.includes(eff.effectId)) continue;
-        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: opId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（バニッシュ時）`,
-          effect: eff,
-        });
-      }
-    }
-
-    return entries;
-  };
+  ): StackEntry[] =>
+    pureCollectBanishTriggers(mkTrigCtx(), banishedCardNum, banishedPlayerId, afterHostState, afterGuestState, prevOwnerState);
 
   // ON_SIGNI_POWER_ZERO_OR_LESS トリガー収集（pure: triggerCollect.ts）。checkAndBanishPowerZero から呼ぶ。
   const collectPowerZeroTriggers = (zeroedCardNum: string, zeroedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState): StackEntry[] =>
@@ -3506,7 +3401,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // C1 トリガー収集の依存 ctx（pure 関数 triggerCollect.ts へ注入）。ロジックは同モジュールに集約し、
   // ここは bs/effectsMap/battleCardMap 等を束ねて渡すだけ（golden/fuzz から pure 関数を直接検証可能にするため）。
   const mkTrigCtx = (): TrigCtx => ({
-    hostId: bs.host_id, guestId: bs.guest_id, activeUserId: bs.active_user_id ?? null,
+    hostId: bs.host_id, guestId: bs.guest_id, meId: user.id, activeUserId: bs.active_user_id ?? null,
     turnPhase: bs.turn_phase, effectsMap, cardMap: battleCardMap, effectivePowers, genId: generateUUID,
   });
   const collectTargetedTriggers = (targetedNums: string[], targetedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState): StackEntry[] =>

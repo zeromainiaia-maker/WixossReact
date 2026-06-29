@@ -9,13 +9,16 @@
  *           / ON_SIGNI_POWER_ZERO_OR_LESS（R37・Stage2第2弾）/ ON_BLOOD_CRYSTAL_ARMOR（Stage2第3弾）。
  */
 import type { PlayerState, CardData, StackEntry } from '../types';
-import type { CardEffect, Condition } from '../types/effects';
+import type { CardEffect, Condition, GrantAcceHostAbilityAction } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
+import { checkActiveCondition } from './effectEngine';
 
 /** トリガー収集の依存（BattleScreen の bs/effectsMap/battleCardMap 等を注入）。 */
 export interface TrigCtx {
   hostId: string;
   guestId: string;
+  /** 視点プレイヤー（ローカル操作者）の userId。collectBanishTriggers の my/op 分岐で使用。省略時は hostId 視点。 */
+  meId?: string;
   activeUserId: string | null;
   turnPhase: string;
   effectsMap: Map<string, CardEffect[]>;
@@ -400,5 +403,112 @@ export function collectTrashTriggers(
       });
     }
   }
+  return entries;
+}
+
+/**
+ * バニッシュされたシグニの ON_BANISH 効果 + フィールド上の全シグニのトリガーを収集する（Stage2 抽出）。
+ * banishedPlayerId: バニッシュされたシグニのオーナーの userId。
+ * prevOwnerState: バニッシュされたカードのオーナーのバニッシュ前状態（アクセ付与ON_BANISH復元用）。
+ * ctx.meId（視点プレイヤー）で my/op を確定し、エントリ順（自分側→相手側）を BattleScreen 版と一致させる。
+ */
+export function collectBanishTriggers(
+  ctx: TrigCtx,
+  banishedCardNum: string,
+  banishedPlayerId: string,
+  afterHostState: PlayerState,
+  afterGuestState: PlayerState,
+  prevOwnerState?: PlayerState,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  const meId = ctx.meId ?? ctx.hostId;
+  const isHost = meId === ctx.hostId;
+  const opId = isHost ? ctx.guestId : ctx.hostId;
+  const myAfterState = isHost ? afterHostState : afterGuestState;
+  const opAfterState = isHost ? afterGuestState : afterHostState;
+  const banishedOwnerIsMe = banishedPlayerId === meId;
+
+  // 0. アクセ付与の ON_BANISH 能力を復元（WX18-076: 離場で消えるため前状態から再構築）
+  if (prevOwnerState) {
+    const zi = prevOwnerState.field.signi.findIndex(s => s?.at(-1) === banishedCardNum);
+    const acceNum = zi >= 0 ? (prevOwnerState.field.signi_acce ?? [])[zi] : null;
+    if (acceNum) {
+      const ownerAfter = banishedOwnerIsMe ? myAfterState : opAfterState;
+      const otherAfter = banishedOwnerIsMe ? opAfterState : myAfterState;
+      const hostCard = ctx.cardMap.get(getCardNum(banishedCardNum));
+      const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
+      for (const eff of (ctx.effectsMap.get(acceNum) ?? [])) {
+        if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'GRANT_ACCE_HOST_ABILITY') continue;
+        const g = eff.action as GrantAcceHostAbilityAction;
+        if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
+        for (const ab of g.abilities) {
+          if (ab.effectType !== 'AUTO' || !ab.timing?.includes('ON_BANISH')) continue;
+          if (ab.activeCondition && !checkActiveCondition(ab.activeCondition, ownerAfter, otherAfter, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;
+          const frontNum = otherAfter.field.signi[2 - zi]?.at(-1); // 正面（前ゾーン 2-zi）の相手シグニ
+          entries.push({
+            id: ctx.genId(), playerId: banishedPlayerId, cardNum: banishedCardNum, effectId: ab.effectId,
+            label: `${hostCard?.CardName ?? banishedCardNum} の付与【自】（バニッシュ時）`, effect: ab, triggeringCardNum: frontNum,
+          });
+        }
+      }
+    }
+  }
+
+  // 1. バニッシュされたカード自身の ON_BANISH 効果
+  for (const eff of (ctx.effectsMap.get(banishedCardNum) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
+    if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    // activeCondition チェック（「対戦相手のターンの間」等）
+    const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
+    if (!checkActiveCondition(eff.activeCondition, banishedOwnerIsMe ? myAfterState : opAfterState, banishedOwnerIsMe ? opAfterState : myAfterState, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;
+    const cardName = ctx.cardMap.get(banishedCardNum)?.CardName ?? banishedCardNum;
+    entries.push({
+      id: ctx.genId(), playerId: banishedPlayerId, cardNum: banishedCardNum, effectId: eff.effectId,
+      label: `${cardName} の【バニッシュ時】効果`, effect: eff,
+    });
+  }
+
+  // 2. 自分フィールド上シグニのトリガー
+  for (const stack of myAfterState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (banishedOwnerIsMe  && scope !== 'any_ally' && scope !== 'any') continue;
+      if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
+      // condition を持つAUTOは条件を満たす場合のみ収集（WXDi-P16-074-E2 の FIELD_HAS_GATE 等）
+      if (eff.condition && !evalUseCondition(eff.condition, myAfterState, opAfterState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      // usageLimit once_per_turn: actions_done に記録済みならスキップ（実行時に永続化される）
+      if (eff.usageLimit === 'once_per_turn' && myAfterState.actions_done?.includes(eff.effectId)) continue;
+      const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（バニッシュ時）`, effect: eff,
+      });
+    }
+  }
+
+  // 3. 相手フィールド上シグニのトリガー
+  for (const stack of opAfterState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
+      const scope = eff.triggerScope ?? 'self';
+      // 相手視点：「自分の味方がバニッシュ」= !banishedOwnerIsMe
+      if (!banishedOwnerIsMe && scope !== 'any_ally' && scope !== 'any') continue;
+      if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
+      // condition / usageLimit（相手＝opAfterState 視点で評価）
+      if (eff.condition && !evalUseCondition(eff.condition, opAfterState, myAfterState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (eff.usageLimit === 'once_per_turn' && opAfterState.actions_done?.includes(eff.effectId)) continue;
+      const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: opId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（バニッシュ時）`, effect: eff,
+      });
+    }
+  }
+
   return entries;
 }
