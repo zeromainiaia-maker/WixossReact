@@ -5,6 +5,18 @@
 
 ---
 
+## D課題: SIGNI_GRANT_CHOSEN_ABILITY を engine 実装＝生STUB 3→2（2026-06-29・zerom）
+
+前セッションで「CHOOSE 2択の能力付与＝固定文化は近似大」として見送った生STUB `SIGNI_GRANT_CHOSEN_ABILITY`（WXK09-050 コードアート Ｒ・Ｌ・Ｃ【出】）を engine に**実装**（近似ではなく実挙動）。
+
+- **原文**＝「以下の２つから１つを選ぶ。表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは選んだ能力を得る。①「【常】：対戦相手の効果によってダウンしない。」②「【常】：対戦相手の効果によって手札に戻らない。」」
+- **engine（`src/engine/execStubPart1.ts`）**＝WD007型を踏襲し3ハンドラ新設。`SIGNI_GRANT_CHOSEN_ABILITY`＝CHOOSE(2)（ダウン保護/バウンス保護）→`INTERNAL_GCA_SELECT`＝対象選択（自場＜電機＞かつ現在パワー>表記パワー＝`effectivePowers > Power` で抽出）→`INTERNAL_GCA_APPLY`＝`GRANT_PROTECTION` を `granted_effects` に付与（DOWN なら from:['DOWN']／bounce なら from:['BOUNCE']・target self count1・sourceOwner opponent・UNTIL_END_OF_TURN）。既存の `collectDownProtectedSigni`/`collectBounceProtectedSigni`（GRANT_PROTECTION from DOWN/BOUNCE・target self count1 を消費）が拾うため**実発火**。
+- **decompiler（`scripts/decompileEffects.ts`）**＝`miscStubMap` に原文意味文を追加（生STUB id露出→原文一致）。
+- **golden（`scripts/goldenTest.ts`・PASS 89→91）**＝①現在>表記の電機シグニにダウン保護が `granted_effects` へ付与される ②表記=現在（バフ無し）なら対象外＝付与なし、を assert。
+- **成果**＝生STUB（id露出）3種→**2種**（残＝CONDITIONAL_GROW_AND_KEY_DISABLE／BANISH_ATTACKER_IF_WEAKER_THAN_FRONT）。同型★0維持・原文一致・smoke/fuzz 全0。⚠CHOOSE 第2択（バウンス）の実盤面動作は実機 /verify 推奨（golden は down 経路＋付与構造を検証）。
+
+---
+
 ## ツール: OTEC 枚数支払いを golden で検証＝実機未検証の⚠を解消（2026-06-29・zerom）
 
 先の OTEC 枚数修正（multi-card 札で N 枚払う）が「実機未検証（対話 SELECT_TARGET 経路）」だった点を、golden の `run()`（pending を resume* で自動駆動）で検証。
