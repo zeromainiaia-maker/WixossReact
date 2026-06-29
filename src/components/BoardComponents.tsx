@@ -1074,6 +1074,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             statusKeywords={getSigniStatusKeywords(s, cards, state.keyword_grants, state.abilities_removed, dynamicKeywords, state.field_keyword_grants_active)}
             hasGate={state.own_gate_zones?.includes(rawIdx) ?? false}
             isMe={isMe} />
+          </div>
         );
       })}
       {/* 登録者数カウンター（にじさんじシリーズ用） */}
