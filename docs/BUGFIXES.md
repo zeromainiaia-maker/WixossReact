@@ -5,6 +5,17 @@
 
 ---
 
+## ツール: Stage2② collectPowerZeroTriggers の pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第2弾。既存配線 `ON_SIGNI_POWER_ZERO_OR_LESS`（R37・C2リスト5枚＝WX20-Re03/WX21-067/WX22-013/WXDi-P01-043/WXDi-P14-009）の発火収集を pure 化。
+
+- **`triggerCollect.ts` に `collectPowerZeroTriggers` 追加**＝両プレイヤーの場シグニから「パワー0以下になったとき」AUTO を triggerScope（self/any_ally/any_opp/any）・turnOwner・usageLimit で絞る。依存は `TrigCtx` で注入（condition/filter なし＝C1ヘルパより単純）。
+- **BattleScreen 側**＝クロージャを薄いラッパ（`mkTrigCtx()` 経由）に置換＝挙動不変（呼び出し元 `checkAndBanishPowerZero` は無変更）。
+- **golden に3件追加（PASS 28→31）**＝any_opp 相手0化で発火／自分0化で非発火／once_per_turn 消化済み非発火。**R37 の発火条件が C2(実機)→golden(自動)へ**。
+- **検証**＝`npm run typecheck` 緑／`npm run lint`（0 errors）／`npm run smoke`（不変）／`npm run golden`（31/31）／`npm run fuzz`（全0）。
+
+---
+
 ## ツール: Stage2① C1 collect*Triggers の pure 抽出＋golden 自動検証（2026-06-29）
 
 C 配線（BattleScreen.tsx の React クロージャ）は smoke/golden/fuzz の対象外で「実機未検証(C2)」になっていた問題への着手。C1 の3トリガー収集を pure 化し、golden から発火条件を自動検証できるようにした。
