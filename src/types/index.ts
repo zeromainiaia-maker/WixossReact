@@ -131,6 +131,9 @@ export interface PlayerState {
   // 次の自分のターンの間、自分の場の「すべて」のシグニ（その間に新たに出したシグニも含む）が得るキーワード（GRANT_KEYWORD duration:NEXT_TURN）
   field_keyword_grants_next_turn?: string[]; // 付与予約（発動時セット → 次の自分ターン開始時に active へ移動）
   field_keyword_grants_active?: string[];    // 現在の自ターン中に全自シグニが得ているキーワード（自ターン終了時にクリア）
+  // 《改造素材》がこの解決で使用された対象シグニ（instanceId）。MARK_MATERIAL_TARGET が記録し、
+  // BattleScreen が ON_MATERIAL_USED（self/any_ally）発火後にクリアする（改造素材機構 Step3b）。
+  material_used_targets?: string[];
   granted_effects?: Record<string, import('./effects').CardEffect[]>; // instanceId → 付与された CardEffect[]
   // 次の対戦相手のターン終了時までの付与効果（granted_effectsの長期版。UNTIL_OPP_TURN_END）
   granted_effects_until_opp_turn?: Record<string, import('./effects').CardEffect[]>;

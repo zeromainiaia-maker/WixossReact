@@ -16,6 +16,19 @@
 
 ---
 
+## 機構: 改造素材 foundation Step2+3b＝トークン3択UI＋ON_MATERIAL_USED(self/any_ally)配線＝**改造素材機構 完成**（2026-06-29）
+
+Step1（プレイ可能化）/Step3a（materialUsedByPlayer）に続き、トークンの3択実装（Step2）と self/any_ally トリガー発火（Step3b）を実装＝**ON_MATERIAL_USED 全変種が engine 配線済**。
+
+- **Step2＝トークン WXK09-TK-01A の3択（manualEffects）**＝DO_THREE_THINGS no-op を CHOOSE(3) に置換：①＜電機＞シグニ+4000（POWER_MODIFY）／②《緑》で「【起】《ダウン》：より低パワー相手シグニ1体バニッシュ」付与（GRANT_EFFECT・filter powerLtSelf）／③《緑×2》で「【自】《ターン1回》：アタック時このシグニをアップ」付与（GRANT_EFFECT・ON_ATTACK_SIGNI/UP thisCardOnly）。各選択は対象＜電機＞シグニを選択（SELECT_TARGET→lastProcessedCards）→効果適用→**新STUB `MARK_MATERIAL_TARGET`** で対象を `material_used_targets`（新 PlayerState フィールド）へ記録。
+- **Step3b＝self/any_ally 発火**＝`collectMaterialUsedOnSigniTriggers`（pure）＝対象シグニ所有者の場から ON_MATERIAL_USED（materialUsedByPlayer でない）を self（対象が自身）/any_ally+excludeSelf（他の味方）で収集。BattleScreen 中央 diff で `material_used_targets` の新規分を検出→発火→クリア（transient）。triggeringCardNum に対象シグニ（targetsTriggerSource 用）。対象＝WXK09-047-E1/048-E1/077-E1/10-050-E1（self）/084-E1（any_ally）。
+- **decompiler**＝`ON_MATERIAL_USED` を engineUnwiredTimings から完全除去（全変種配線済）＝該当6カードの `【※engine未配線】` マーカー全消去。sheet4 再生成・同型★0。
+- **golden に2件追加（PASS 83→85）**＝collectMaterialUsedOnSigniTriggers の self/any_ally／MARK_MATERIAL_TARGET の対象記録。
+- **検証**＝typecheck 緑／lint 0／smoke（不変・全0）／golden（85/85）／fuzz（全0）。⚠UI（3択モーダル/対象選択/コスト）は実機 /verify 推奨。granted 能力（②③）の細部挙動も実機確認推奨。
+- **改造素材機構（Step1-3b）完成**＝『アーツ/クラフト』8枚プレイ可能化＋ON_MATERIAL_USED 全3変種配線。
+
+---
+
 ## 機構: 改造素材 foundation Step3a＝ON_MATERIAL_USED(materialUsedByPlayer)配線（2026-06-29）
 
 Step1（プレイ可能化）に続き、ON_MATERIAL_USED の**「あなたが《改造素材》を使用したとき」（materialUsedByPlayer）変種**を配線（対象シグニ不要＝Step2 のトークン3択対象捕捉に依存しない部分）。

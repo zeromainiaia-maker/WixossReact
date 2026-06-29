@@ -105,9 +105,9 @@
 
 ## 4. 個別の複雑カード（機構待ち・着手候補）
 
-- **🔧 改造素材機構（ON_MATERIAL_USED・WXK09-047/048/049/077/084・WXK10-050＝6カード7効果）＝大型・基盤未実装でブロック中（2026-06-29 調査確定）**。安易な trigger 配線は dead code になる（下記 (1)(2) が無いと改造素材は使用されず ON_MATERIAL_USED は永遠に発火しない）。**実装順序**：
+- **🔧 改造素材機構（ON_MATERIAL_USED・WXK09-047/048/049/077/084・WXK10-050＝6カード7効果）＝✅完成（2026-06-29・Step1-3b）**。『アーツ/クラフト』8枚プレイ可能化＋ON_MATERIAL_USED 全3変種配線・engineUnwiredTimings 除去・同型★0。⚠UI/granted能力の細部は実機 /verify 推奨。以下は実装記録：
   - ~~**(1) 『アーツ/クラフト』型のプレイ経路**~~ **✅完了（2026-06-29）**＝`artsCandidates` と getCardActions のアーツ分岐を `'アーツ'||'アーツ/クラフト'` に拡張＝8枚全『アーツ/クラフト』が既存アーツ経路でプレイ可能（executeArts→queueCardEffects、使用後 lrig_trash）。golden で8枚の効果解決（クラッシュ/ハングなし）を検証。⚠使用後の正式な「ゲーム外」除去は lrig_trash で近似・UI操作は実機 /verify 推奨。
-  - **(2) トークン WXK09-TK-01A の3択アクション**＝原文「①＜電機＞シグニ1体+4000／②《緑》で起動能力付与／③自動能力付与 から1つ」。現状 manualEffects は `BLOCK_CARD_USE`＋`DO_THREE_THINGS` STUB だが、DO_THREE_THINGS(execStubPart3:2322) はこの3択分岐を持たず **no-op**。CHOOSE(3)＋各 target(電機シグニ1体) を実装。
+  - ~~**(2) トークン WXK09-TK-01A の3択アクション**~~ **✅完了（2026-06-29）**＝DO_THREE_THINGS no-op を CHOOSE(3) に置換（manualEffects）＝①POWER_MODIFY+4000／②GRANT_EFFECT 起動(powerLtSelf バニッシュ)／③GRANT_EFFECT 自動(ON_ATTACK_SIGNI/UP)。各選択は対象＜電機＞選択→効果適用→新STUB `MARK_MATERIAL_TARGET` で `material_used_targets` へ記録。
   - **(3) ON_MATERIAL_USED 発火**＝3系統：`materialUsedByPlayer`（P 視点・target不要・WXK09-047-E2/049）／`self`（S 自身・WXK09-047-E1/048/077/10-050）／`any_ally`+excludeSelf（S 以外の味方・WXK09-084）。
     - ~~`materialUsedByPlayer` 変種（Step3a）~~ **✅完了（2026-06-29）**＝`collectMaterialUsedByPlayerTriggers`（pure・golden）＋`executeArts` で『改造素材』使用時に発火。decompiler の未配線マーカーも該当2効果のみ除去。
     - **残（Step3b）**＝`self`/`any_ally` 変種は (2) の対象シグニ S 捕捉が前提。トークン3択が S を取った後、効果解決経路で S を state（例 `material_used_targets`）に記録→中央 diff で `collectMaterialUsed{Self,AnyAlly}Triggers` を発火。収集器は Stage2 基盤で低リスク。

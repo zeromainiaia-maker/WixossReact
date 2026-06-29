@@ -2818,6 +2818,15 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsIBAC } },
       `${ctx.cardMap.get(targetIBAC)?.CardName ?? targetIBAC}はアタックできない`));
   }
+  // MARK_MATERIAL_TARGET（改造素材機構 Step2/3b）: 直前に処理したシグニ（lastProcessedCards＝《改造素材》を
+  // 使用した対象＜電機＞シグニ）を ownerState.material_used_targets に記録。BattleScreen が ON_MATERIAL_USED
+  // （self/any_ally）を発火後にクリアする。対象が無ければ no-op。
+  if (stub.id === 'MARK_MATERIAL_TARGET') {
+    const marks = ctx.lastProcessedCards ?? [];
+    if (marks.length === 0) return done(ctx);
+    return done({ ...ctx, ownerState: { ...ctx.ownerState,
+      material_used_targets: [...(ctx.ownerState.material_used_targets ?? []), ...marks] } });
+  }
   // DOWN_UP_SIGNI_AND_CHOOSE: シグニをダウン/アップして選択
   // DOWN_UP_SIGNI_AND_CHOOSE: アップ状態の特定クラスシグニを好きな数ダウン（コスト軽減素材）
   if (stub.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {

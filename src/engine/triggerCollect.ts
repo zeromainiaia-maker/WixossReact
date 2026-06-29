@@ -1739,3 +1739,42 @@ export function collectMaterialUsedByPlayerTriggers(
   }
   return { entries, usedOncePerTurnIds };
 }
+
+/**
+ * ON_MATERIAL_USED の「このシグニに/あなたの他のシグニに《改造素材》が使用されたとき」（self/any_ally）変種を収集する（改造素材機構 Step3b・2026-06-29）。
+ * targetNums=この解決で《改造素材》が使用された対象シグニ（所有者 ownerId の場）。ownerState の場シグニ/ルリグから ON_MATERIAL_USED AUTO
+ * （materialUsedByPlayer でないもの）を triggerScope で絞る：self（W が targetNums に含まれる）／any_ally+excludeSelf（W 以外の対象がある）。
+ * triggeringCardNum に対象シグニを渡す（targetsTriggerSource 用）。usedOncePerTurnIds は呼び出し側で永続化。
+ */
+export function collectMaterialUsedOnSigniTriggers(
+  ctx: TrigCtx, targetNums: string[], ownerId: string, ownerState: PlayerState,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (targetNums.length === 0) return { entries, usedOncePerTurnIds };
+  if (ownerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const limitOk = mkLimitOk(ownerState.actions_done, usedOncePerTurnIds);
+  const targetSet = new Set(targetNums);
+  for (const topNum of ownFieldSources(ownerState)) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_MATERIAL_USED')) continue;
+      if (eff.triggerCondition?.materialUsedByPlayer) continue; // materialUsedByPlayer 変種は別収集
+      const scope = eff.triggerScope ?? 'self';
+      let trgSigni: string | undefined;
+      if (scope === 'any_ally') {
+        trgSigni = targetNums.find(n => n !== topNum); // excludeSelf＝発火元以外の対象
+        if (!trgSigni) continue;
+      } else { // self（既定）＝対象が発火元自身
+        if (!targetSet.has(topNum)) continue;
+        trgSigni = topNum;
+      }
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（改造素材が使用されたとき）`, effect: eff, triggeringCardNum: trgSigni,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}

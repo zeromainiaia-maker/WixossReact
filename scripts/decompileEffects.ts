@@ -974,7 +974,7 @@ const timingJa: Record<string, string> = {
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
 // 逆翻訳末尾に【※engine未配線】を付与し、偽陰性（健全に見えて未実装）を防ぐ。配線したら除去する。docs/TODO.md に記録。
 // C1（2026-06-29）で配線済＝除外：ON_TARGETED（handleEffectInteraction→collectTargetedTriggers）・ON_LRIG_GROW（executeGrow/CPU→collectLrigGrowTriggers・センターグロウのみ）・ON_COIN_PAID（グロウ/起動/キー/出/アーツの各支払サイト→collectCoinPaidTriggers・スペルベットは未配線）・ON_LRIG_ATTACK_STEP_START（doPhaseAdvance ATTACK_SIGNI→ATTACK_LRIG→collectTurnTriggers・人間ターンのみ）。
-const engineUnwiredTimings = new Set<string>(['ON_DECK_SHUFFLED', 'ON_KEYWORD_GAINED', 'ON_LRIG_UNDER_MOVED', 'ON_MATERIAL_USED', 'ON_SIGNI_BANISH_OPPONENT_BY_EFFECT']);
+const engineUnwiredTimings = new Set<string>(['ON_DECK_SHUFFLED', 'ON_KEYWORD_GAINED', 'ON_LRIG_UNDER_MOVED', 'ON_SIGNI_BANISH_OPPONENT_BY_EFFECT']);
 
 function effJa(e: Eff): string {
   // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。
@@ -1174,9 +1174,8 @@ function effJa(e: Eff): string {
   const turnMark = e.triggerCondition?.turnOwner
     ? (e.triggerCondition.turnOwner === 'self' ? '《自分ターン》' : '《相手ターン》') : '';
   const body = actionJa(e.action, e.effectType);
-  // ON_MATERIAL_USED は materialUsedByPlayer 変種のみ配線済（改造素材機構 Step3a）＝それ以外は未配線。
-  const matUsedWired = (e.timing || []).includes('ON_MATERIAL_USED') && !!e.triggerCondition?.materialUsedByPlayer;
-  const unwired = !matUsedWired && (e.timing || []).some((t: string) => engineUnwiredTimings.has(t)) ? '【※engine未配線】' : '';
+  // ON_MATERIAL_USED は改造素材機構（Step1-3b）で全変種配線済＝engineUnwiredTimings から除外済。
+  const unwired = (e.timing || []).some((t: string) => engineUnwiredTimings.has(t)) ? '【※engine未配線】' : '';
   return `${crossCond}${typeMark}${turnMark}${actCond}${trig ? trig + '：' : ''}${scope}${limit}${cost}${cond}${body}${unwired}`;
 }
 

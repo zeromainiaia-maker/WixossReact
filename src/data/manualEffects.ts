@@ -2204,8 +2204,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WXK09-TK-01A 改造素材（アーツ/クラフト）
-  // このターン改造素材使用不可 + 電機シグニ対象に①+4000 ②起動能力付与 ③自動能力付与 から1つ選択
+  // WXK09-TK-01A 改造素材（アーツ/クラフト・改造素材機構 Step2）
+  // このターン改造素材使用不可 + ＜電機＞シグニ1体を対象に①+4000 ②《緑》で起動付与 ③《緑×2》で自動付与 から1つ選択。
+  // 各選択は対象＜電機＞シグニを選択（lastProcessedCards にセット）→効果適用→MARK_MATERIAL_TARGET で対象を記録。
+  // 記録された対象に対し BattleScreen が ON_MATERIAL_USED（self/any_ally）を発火する（Step3b）。
   'WXK09-TK-01A': [
     {
       effectId: 'WXK09-TK-01A-E1',
@@ -2216,12 +2218,41 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
         type: 'SEQUENCE',
         steps: [
           { type: 'BLOCK_CARD_USE', cardName: '改造素材' },
-          { type: 'STUB', id: 'DO_THREE_THINGS' },
+          { type: 'CHOOSE', choose_count: 1, from_count: 3, choices: [
+            // ①＜電機＞シグニ1体のパワーを+4000（ターン終了時まで）
+            { choiceId: 'c0', label: '＜電機＞シグニのパワー+4000',
+              action: { type: 'SEQUENCE', steps: [
+                { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', story: '電機' } }, delta: 4000, duration: 'UNTIL_END_OF_TURN' },
+                { type: 'STUB', id: 'MARK_MATERIAL_TARGET' },
+              ] } },
+            // ②《緑》を払い、＜電機＞シグニ1体に「【起】《ダウン》：より低パワーの相手シグニ1体をバニッシュ」を付与
+            { choiceId: 'c1', label: '《緑》で起動能力を付与',
+              action: { type: 'SEQUENCE', steps: [
+                { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['緑'] },
+                { type: 'GRANT_EFFECT', duration: 'UNTIL_END_OF_TURN',
+                  target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', story: '電機' } },
+                  effect: { effectId: 'WXK09-TK-01A-G2', effectType: 'ACTIVATED', timing: ['MAIN'], cost: { down_self: true },
+                    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', powerLtSelf: true } } },
+                    duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL' } },
+                { type: 'STUB', id: 'MARK_MATERIAL_TARGET' },
+              ] } },
+            // ③《緑》《緑》を払い、＜電機＞シグニ1体に「【自】《ターン1回》：アタックしたとき、このシグニをアップ」を付与
+            { choiceId: 'c2', label: '《緑》《緑》で自動能力を付与',
+              action: { type: 'SEQUENCE', steps: [
+                { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['緑', '緑'] },
+                { type: 'GRANT_EFFECT', duration: 'UNTIL_END_OF_TURN',
+                  target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', story: '電機' } },
+                  effect: { effectId: 'WXK09-TK-01A-G3', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'], usageLimit: 'once_per_turn',
+                    action: { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } },
+                    duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL' } },
+                { type: 'STUB', id: 'MARK_MATERIAL_TARGET' },
+              ] } },
+          ] },
         ],
       } as SequenceAction,
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
