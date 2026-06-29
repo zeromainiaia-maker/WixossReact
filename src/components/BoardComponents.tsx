@@ -1055,7 +1055,8 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       {displaySigni.map((s, i) => {
         const rawIdx = isMe ? i : (rawSigni.length - 1 - i);
         return (
-          <StackedSigniSlot key={i} stack={s} cards={cards} width={signiW} height={signiH}
+          <div key={i} data-testid={`${isMe ? 'my' : 'op'}-signi-zone-${rawIdx}`} style={{ display: 'flex' }}>
+          <StackedSigniSlot stack={s} cards={cards} width={signiW} height={signiH}
             label={`シグニ${rawIdx + 1}`}
             actions={getSigniZoneActions ? getSigniZoneActions(rawIdx) : undefined}
             isDown={state.field.signi_down?.[rawIdx] ?? false}
