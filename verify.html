@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WixossReact engine 検証ハーネス</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #0f1420; color: #e8edf5; margin: 0; padding: 24px; }
+      h1 { font-size: 20px; }
+      .sub { color: #8aa0c0; font-size: 13px; margin-bottom: 20px; }
+      .scenario { background: #18202f; border: 1px solid #283248; border-radius: 10px; padding: 16px 20px; margin-bottom: 18px; }
+      .title { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+      .card-id { color: #7fa8ff; font-size: 12px; }
+      .verdict { display: inline-block; padding: 2px 12px; border-radius: 999px; font-weight: 700; font-size: 13px; margin-left: 10px; }
+      .pass { background: #14532d; color: #5ee08a; }
+      .fail { background: #5c1a1a; color: #ff7b7b; }
+      .orig { color: #c8d4e8; font-size: 13px; margin: 8px 0; line-height: 1.6; }
+      .row { display: flex; gap: 24px; margin-top: 10px; flex-wrap: wrap; }
+      .panel { flex: 1; min-width: 280px; }
+      .panel h4 { margin: 0 0 6px; font-size: 12px; color: #8aa0c0; text-transform: uppercase; letter-spacing: .05em; }
+      .board { font-family: ui-monospace, monospace; font-size: 12px; background: #0c111c; border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; line-height: 1.5; }
+      .logs { font-family: ui-monospace, monospace; font-size: 11px; color: #9fb4d4; background: #0c111c; border-radius: 6px; padding: 8px 10px; margin-top: 8px; white-space: pre-wrap; }
+      .assert { font-size: 12px; margin-top: 8px; }
+      .assert div { padding: 1px 0; }
+      .ok::before { content: "✅ "; }
+      .ng::before { content: "❌ "; }
+      #summary { font-size: 15px; font-weight: 700; margin: 16px 0; }
+      .err { color: #ff7b7b; font-family: ui-monospace, monospace; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>WixossReact engine 検証ハーネス <span id="summary"></span></h1>
+    <div class="sub">
+      ブラウザ実行で engine（executeEffect/resume*）＋トリガー収集配線（triggerCollect）を実盤面シナリオで駆動し、
+      結果を可視化します。認証・Supabase 不要。対象＝今セッション実装の3カード。
+    </div>
+    <div id="app">読み込み中…</div>
+    <script type="module" src="/src/verify/main.ts"></script>
+  </body>
+</html>
