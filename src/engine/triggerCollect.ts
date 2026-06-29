@@ -176,3 +176,50 @@ export function collectCoinPaidTriggers(
   }
   return entries;
 }
+
+/**
+ * ON_SIGNI_POWER_ZERO_OR_LESS（「シグニのパワーが0以下になったとき」）のトリガーを収集する（Stage2 抽出）。
+ * zeroedCardNum=パワー0以下になったシグニ／zeroedOwnerId=その所有者。両プレイヤーの場シグニから収集。
+ *   any（既定）/any_opp（多数派「対戦相手のシグニが0以下」）/any_ally（自分側）/self（0化シグニ自身）。
+ * triggerCondition.turnOwner（WXDi-P14-009「あなたのターンの間」）・usageLimit（《ターン1回》）も評価。
+ */
+export function collectPowerZeroTriggers(
+  ctx: TrigCtx,
+  zeroedCardNum: string,
+  zeroedOwnerId: string,
+  afterHostState: PlayerState,
+  afterGuestState: PlayerState,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const watcherIsHost of [true, false]) {
+    const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
+    const watcherState = watcherIsHost ? afterHostState : afterGuestState;
+    const zeroedIsWatcherOwn = zeroedOwnerId === watcherId;
+    const watcherIsTurn = ctx.activeUserId === watcherId;
+    for (const stack of watcherState.field.signi) {
+      if (!stack?.length) continue;
+      const topNum = stack[stack.length - 1];
+      for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_POWER_ZERO_OR_LESS')) continue;
+        const scope = eff.triggerScope ?? 'any';
+        if (scope === 'self' && topNum !== zeroedCardNum) continue;
+        if (scope === 'any_ally' && !zeroedIsWatcherOwn) continue;
+        if (scope === 'any_opp' && zeroedIsWatcherOwn) continue;
+        const to = eff.triggerCondition?.turnOwner;
+        if (to === 'self' && !watcherIsTurn) continue;
+        if (to === 'opponent' && watcherIsTurn) continue;
+        if (eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)) continue;
+        const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+        entries.push({
+          id: ctx.genId(),
+          playerId: watcherId,
+          cardNum: topNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【自】効果（パワー0以下時）`,
+          effect: eff,
+        });
+      }
+    }
+  }
+  return entries;
+}
