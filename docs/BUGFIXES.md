@@ -16,6 +16,16 @@
 
 ---
 
+## ツール: Stage2⑬ effect_stack 整列（effectStack.ts）の golden 自動検証（2026-06-29）
+
+Stage2 第13弾。effect_stack の整列ロジックは既に `src/engine/effectStack.ts` に pure モジュールとして分離済みだったが golden 被覆が無かったため、自動検証テストを追加（コード移動なし＝ゼロリスク）。
+
+- **golden に5件追加（PASS 74→79）**＝initStack のターン→相手順キュー構築／turnGate（self/opponent ゲートで投入前に弾く）／confirmTurnOrder（複数自効果は確定まで保留→希望順で確定）／pushToStack（解決中の追加はキュー末尾）／shiftQueue・isStackDone（先頭取り出しと完了判定）。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（79/79）／`npm run fuzz`（全0）。
+- **Stage2 の到達点**＝**トリガー収集（collect 28）・イベント検出（detect/count 17）・スタック整列（effectStack）がすべて pure＋golden 自動検証済み**。C 配線の「いつ・どの効果が積まれ・どの順で解決されるか」がヘッドレス検証可能に。残るのは `doPhaseAdvance`（フェイズ遷移本体・React state 密結合＝任意）のみ。
+
+---
+
 ## ツール: Stage2⑫ 盤面差分 detect/count 17関数を boardDiff.ts へ pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第12弾。効果解決の前後 PlayerState を比較する detect\*/count\* の17関数を新モジュール `src/engine/boardDiff.ts` へ pure 抽出。

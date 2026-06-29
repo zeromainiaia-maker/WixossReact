@@ -205,6 +205,7 @@
   - ~~第10弾（2026-06-29）＝大物 `collectFieldTriggers`（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM）＋`collectBloomTriggers`（field 依存）を抽出＋golden4件追加（PASS 63/63）。~~ **✅完了**
   - ~~第11弾（2026-06-29）＝最後の collect `collectTurnTriggers`（ターン/フェイズ境界・keyword token/lrig付与/FUTURE SESSION③/PR-Di035 含む）を抽出＋golden3件追加（PASS 66/66）。`collectContinuousAbilitiesRemovedSigni` の BattleScreen import も除去。**collect*Triggers 全28関数 完走**。~~ **✅完了**
   - ~~第12弾（2026-06-29）＝盤面差分 detect/count 17関数を新モジュール `src/engine/boardDiff.ts` へ pure 抽出＋golden8件追加（PASS 74/74）。BattleScreen の約160行を import 化。~~ **✅完了**
-  - **残＝フェイズ進行/effect_stack のみ**。`doPhaseAdvance`（フェイズ遷移・ターン境界リセット）／effect_stack 整列（pushToStack/initStack 周辺の順序制御）の抽出。collect/detect は完走したため、ここが Stage2 最後の塊。⚠重い・React state と密結合のため中〜高リスク＝着手は任意（C2 削減の主目的は collect/detect 抽出でほぼ達成済み）。やる場合は1ブロックずつ薄いラッパ化で挙動不変を保つ。
+  - ~~第13弾（2026-06-29）＝effect_stack 整列（`src/engine/effectStack.ts`・既存 pure モジュール）に golden5件追加（PASS 79/79）。initStack/turnGate/confirmTurnOrder/pushToStack/shiftQueue・isStackDone を自動検証。~~ **✅完了**
+  - **残＝doPhaseAdvance のみ（任意）**。フェイズ遷移本体（ターン境界リセット3箇所・ドロー・アップキープ・各フェイズ開始/終了トリガー収集の呼び出し）。React state（setState/非同期/Supabase 更新）と密結合で薄いラッパ化が効きにくい＝**中〜高リスク**。collect/detect/effectStack の pure 化で C2 削減の主目的は達成済みのため、**着手は任意**（やるなら純粋な状態遷移計算部分だけを切り出す方針で1ブロックずつ）。これ以上は費用対効果が逓減するため、A/B テールや C1 残 timing 配線へ移るのも合理的。
 - `checkAllEffects` の `MANDATORY_SUSPICIOUS`（ヒューリスティック検出）の精査。`verifyEffects` の「定義なし」誤検出（注釈・トークン）の除外改善。
 - 生ID残存＝表示or実装の穴：`[STUB:X]` 系（残54件＝単発テール・STUBS.md管理）。`[条件:X]`/`[アクション:X]` は解消済み。
