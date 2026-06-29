@@ -159,28 +159,36 @@ try {
   await page.screenshot({ path: `${SHOT}/inj-01-board.png`, fullPage: true });
   console.log('注入後盤面:', (await bodyText(page)).slice(0, 160).replace(/\n/g, ' '));
 
-  // WXK09-050 を手札からプレイ → 出現するプロンプト（ゾーン選択/CHOOSE/SELECT）を順次処理
-  const tryPlay = async () => {
-    const card = page.locator('[class*="card"],img,div').filter({ hasText: 'WXK09-050' }).first();
-    const byNum = page.getByText('WXK09-050', { exact: false }).first();
-    if (await byNum.count()) { await byNum.click().catch(() => {}); return 'WXK09-050(text)'; }
-    if (await card.count()) { await card.click().catch(() => {}); return 'WXK09-050(card)'; }
-    return null;
-  };
-  console.log('プレイ試行:', await tryPlay());
-  for (let s = 0; s < 12; s++) {
-    await page.waitForTimeout(1200);
+  // WXK09-050（手札0番目）をクリック → 召喚 → ゾーン選択 → CHOOSE → 対象選択 を順次処理
+  // 手札カードは alt=カード名の img。WXK09-050 のカード名で特定。
+  const handCard = page.getByAltText('コードアート　Ｒ・Ｌ・Ｃ').last(); // 手札側（最後に描画される手札バー）
+  if (await handCard.count()) { await handCard.click().catch(() => {}); console.log('手札クリック: WXK09-050'); }
+  else { await page.mouse.click(37, 593); console.log('手札クリック: 座標フォールバック'); }
+
+  const emptyZones = [[700, 400], [787, 400], [700, 480], [787, 480], [615, 480]];
+  let zi = 0;
+  for (let s = 0; s < 14; s++) {
+    await page.waitForTimeout(1100);
     const t = await bodyText(page);
     await page.screenshot({ path: `${SHOT}/inj-play-${s}.png`, fullPage: true });
-    console.log(`  play[${s}] ${t.slice(0, 110).replace(/\n/g, ' ')}`);
-    // ゾーン選択・選択肢・対象選択を素朴に進める
+    console.log(`  play[${s}] ${t.slice(0, 120).replace(/\n/g, ' ')}`);
+    if (/ダウンしない|手札に戻らない|能力を得る|選んだ能力/.test(t)) { console.log('  ★ CHOOSE/付与 検出'); }
     let did = null;
-    for (const t2 of ['①', 'ダウンしない', '選ぶ', 'OK', '決定', 'この', 'はい', '出す', '配置']) {
-      const el = page.getByRole('button', { name: t2 }).first();
-      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = t2; break; }
+    for (const lbl of ['召喚', 'ダウンしない', '①', '選ぶ', '決定', 'OK', 'はい']) {
+      const el = page.getByRole('button', { name: lbl }).first();
+      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'btn:' + lbl; break; }
     }
-    if (!did) { const z = page.locator('[class*="zone"],[class*="signi"]').first(); if (await z.count()) { await z.click().catch(() => {}); did = 'zone'; } }
-    if (/能力を得る|ダウンしない|付与|granted/.test(t)) { console.log('  → 付与ログ検出'); break; }
+    if (!did) {
+      // テキストでも探す（モーダル選択肢）
+      for (const lbl of ['召喚', '対戦相手の効果によってダウンしない', '①']) {
+        const el = page.getByText(lbl, { exact: false }).first();
+        if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'txt:' + lbl; break; }
+      }
+    }
+    if (!did && /ゾーン|配置|召喚先|どこに/.test(t) && zi < emptyZones.length) {
+      await page.mouse.click(...emptyZones[zi++]); did = 'zone座標';
+    }
+    console.log(`     -> ${did ?? 'なし'}`);
   }
   await page.screenshot({ path: `${SHOT}/inj-99-final.png`, fullPage: true });
 
