@@ -41,9 +41,11 @@ try {
   await page.waitForFunction(() => ![...document.querySelectorAll('input')].some(i => i.placeholder === 'ユーザーネーム'), { timeout: 15000 });
   await page.waitForTimeout(1500);
 
-  // オンライン対戦（sessionStorage→reload→matchmaking）
-  await page.getByRole('button', { name: 'オンライン対戦' }).click();
-  await page.waitForTimeout(2500);
+  // オンライン対戦（sessionStorage→reload→matchmaking）を確定的に
+  await page.evaluate(() => sessionStorage.setItem('gotoMatchmaking', '1'));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
+  await page.waitForTimeout(500);
   await page.screenshot({ path: `${SHOT}/drv-01-matchmaking.png`, fullPage: true });
   console.log('① matchmaking:', await bodyText(page));
 
