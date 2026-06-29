@@ -3856,7 +3856,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    *    WXEX2-03 も相手アタックフェイズでは発火しない近似）
    */
   const collectTurnTriggers = (
-    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START',
+    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
     myState: PlayerState,
     opState: PlayerState,
   ): StackEntry[] => {
@@ -3864,7 +3864,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opId = isHost ? bs.guest_id : bs.host_id;
     const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時'
       : timing === 'ON_TURN_END' ? 'ターン終了時'
-      : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時' : 'アタックフェイズ開始時';
+      : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時'
+      : timing === 'ON_LRIG_ATTACK_STEP_START' ? 'ルリグアタックステップ開始時' : 'アタックフェイズ開始時';
 
     // 自分のフィールドシグニ（self = このターンプレイヤーのカード）
     // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ
