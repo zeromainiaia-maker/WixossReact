@@ -9274,6 +9274,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         temp_power_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
         life_crashed_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
+        keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined,
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
