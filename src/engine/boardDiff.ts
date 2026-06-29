@@ -197,6 +197,19 @@ export function countMovedToDeck(before: PlayerState, after: PlayerState, fromTr
 }
 
 /**
+ * センタールリグの下（field.lrig スタックの top 以外）からカードが移動した枚数を算出（ON_LRIG_UNDER_MOVED）。
+ * before の under（top 以外）のうち after の lrig スタックに存在しなくなった＝下から離脱したカードを数える。
+ * ⚠ センタールリグのみ対象（アシストルリグ下は未対応）。
+ */
+export function countLrigUnderMoved(before: PlayerState, after: PlayerState): number {
+  if (!before || !after) return 0;
+  const beforeUnder = (before.field.lrig ?? []).slice(0, -1);
+  if (beforeUnder.length === 0) return 0;
+  const afterLrig = new Set(after.field.lrig ?? []);
+  return beforeUnder.filter(c => !afterLrig.has(c)).length;
+}
+
+/**
  * 新たに凍結状態（signi_frozen false→true）になったゾーンのシグニ番号を返す。
  * 解決後に同ゾーンに在中するシグニを対象（凍結のまま移動する稀ケースは未対応）。
  */

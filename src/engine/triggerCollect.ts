@@ -1810,3 +1810,30 @@ export function collectBanishOppByEffectTriggers(
   }
   return { entries, usedOncePerTurnIds };
 }
+
+/**
+ * ON_LRIG_UNDER_MOVED（「あなたのターンの間、あなたのルリグの下からカード1枚が移動したとき」WXDi-P04-042）を収集する（C1・2026-06-29）。
+ * controllerId=ルリグ下が変化したプレイヤー。「あなたのターンの間」＝controller がターンプレイヤーのときのみ発火。
+ * controller の場シグニ/ルリグから ON_LRIG_UNDER_MOVED self【自】を once_per_turn 制御で収集。
+ */
+export function collectLrigUnderMovedTriggers(
+  ctx: TrigCtx, controllerId: string, controllerState: PlayerState,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (controllerId !== ctx.activeUserId) return { entries, usedOncePerTurnIds }; // 「あなたのターンの間」
+  if (controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
+  for (const topNum of ownFieldSources(controllerState)) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LRIG_UNDER_MOVED')) continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: controllerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（ルリグ下からカード移動時）`, effect: eff,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}

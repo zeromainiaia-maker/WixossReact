@@ -16,6 +16,20 @@
 
 ---
 
+## C1: ON_LRIG_UNDER_MOVED 配線（WXDi-P04-042・2026-06-29）
+
+「あなたのターンの間、あなたのルリグの下からカード1枚が移動したとき→相手シグニ1体に《無》任意-8000」を配線。アクションの STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）は実装済。
+
+- **`countLrigUnderMoved`（boardDiff.ts）追加**＝センタールリグ（field.lrig スタック）の top 以外（＝下）のカードのうち after の lrig スタックに無くなった枚数。⚠センタールリグのみ（アシスト下は未対応）。
+- **`collectLrigUnderMovedTriggers`（pure・triggerCollect.ts）追加**＝controller の場シグニ/ルリグから ON_LRIG_UNDER_MOVED self【自】を once_per_turn で収集。「あなたのターンの間」＝controller がターンプレイヤーのときのみ。
+- **BattleScreen 中央 diff で発火**＝各プレイヤーの lrig 下移動を検出→当該プレイヤーで発火（collector が turn 限定をゲート）。
+- **decompiler**＝`ON_LRIG_UNDER_MOVED` を engineUnwiredTimings から除去（マーカー消去・sheet7 再生成・同型★0）。
+- **golden に1件追加（PASS 86→87）**＝detector（下移動検出/変化なし0）＋collector（自ターン発火/相手ターン非発火）。
+- **検証**＝typecheck 緑／lint 0／smoke（不変・全0）／golden（87/87）／fuzz（全0）。⚠要実機検証。
+- **C1 残＝2 timing**＝ON_DECK_SHUFFLED（PR-470A・shuffle 検出困難＝state にカウンタ無し）/ON_KEYWORD_GAINED（WXDi-P04-035・action COPY_ABILITY STUB＝no-op・scope曖昧）。いずれも低ROIまたは検出基盤無し。
+
+---
+
 ## C1: ON_SIGNI_BANISH_OPPONENT_BY_EFFECT 配線（WX07-036・2026-06-29）
 
 「あなたの＜ウェポン＞のシグニが効果によって対戦相手シグニ1体をバニッシュしたとき→このシグニ【ダブルクラッシュ】」を配線。実 GRANT_KEYWORD＝配線で機能。
