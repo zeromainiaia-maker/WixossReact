@@ -120,7 +120,6 @@
 - **使用制限の誤パース＋択崩壊**: WX20-021（「相手ターンにしか使えない」が壊れCONTINUOUS化＋3択全脱落）／WX24-P3-036（スペル打消し＋《無》任意払い）／WD14-011（E1トリガー thisCardOnly化＋BURST2択崩壊）。
 - **コスト増加 残**: WXK11-003「このターン」型／WXDi-P06-031 等の起動能力コスト増加／WX20-Re20 等の自アーツコスト選択数依存。
 - **引用/LB付与（ディスペア型）未対応**: WXDi-P02-039-E2／WX25-P3-027-E2（現 no-op or 誤バニッシュ）＝要本実装。
-- **多重「エナゾーンから…」記述の取り違え**: WX25-CP1-006④（`OPTIONAL_TRASH_ENERGY_CLASS` がカード内の別記述②を誤マッチ）。
 - **WXK10-008①**「相手ターン中エナの色と能力を失う」＝新語彙未対応（②のみ実装）。
 - ~~**ON_DRAW 系の opp-draw / 位相条件6枚**~~ **【✅R39+R40 完了】**: opp-draw 4枚＝`triggerScope:any_opp`＋`collectOppDrawTriggers`（drawPhaseRestriction/drawByEffect）／位相2枚＝`triggerCondition.outsideDrawPhase`。⚠近似＝「自分の効果で」の発生源プレイヤー限定・main_attack のターン主体は未判定（§5 で実機検証）。
 - **任意コスト＋特定札捨ての複合 STUB 近似（機構待ち）**: WDK08-Y12（《緑》《緑》《無》《無》支払い＋手札から《幻水ダンクルテウス》1枚捨て→そうした場合バニッシュ）／WX24-P2-048-E1 choice①（対象シグニのレベル1につき白カード1枚捨て→手札に戻す）。現状 `OPTIONAL_COST` で近似（energyコスト or per-level discard を完全表現せず）。parser は `TARGET_AND_DISCARD_HAND` を出すがこちらも特定札/energy/per-level を落とす＝どちらも lossy。EXIST 近似を MANUAL ロック中（VALUE curation R3）。本実装には「energy＋特定名カード捨て」「per-level 捨て枚数」の汎用コスト機構が要る。
