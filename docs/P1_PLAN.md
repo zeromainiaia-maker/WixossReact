@@ -65,8 +65,8 @@
   - ~~`ON_COIN_PAID`(3)~~ **✅配線済(claude・2026-06-29)**＝コイン支払の各サイト（グロウ人間/CPU・シグニ【起】・キープレイ・シグニ【出】・アーツベット）で `collectCoinPaidTriggers` が発火（BUGFIXES参照）。⚠実機未検証(C2)・スペルベット/CPUルリグ【出】コインは未カバー(follow-up)。
   - ~~`ON_LRIG_ATTACK_STEP_START`(1)~~ **✅配線済(claude・2026-06-29)**＝`doPhaseAdvance` の ATTACK_SIGNI→ATTACK_LRIG 移行で `collectTurnTriggers` が発火（アクションはパース済み近似・BUGFIXES参照）。⚠実機未検証(C2)・CPUターンは未カバー(follow-up)。
   - 残＝`ON_MATERIAL_USED`(6・改造素材機構依存)/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(1)/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(1・OR複合)/`ON_LRIG_UNDER_MOVED`(1)/`ON_KEYWORD_GAINED`(1)/`ON_DECK_SHUFFLED`(1・shuffle多経路)。
-  - **Stage2(2026-06-29)**＝`ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID` の収集を `src/engine/triggerCollect.ts` へ pure 抽出し **golden に発火条件テスト7件追加（自動検証化）**。これら3 timing の発火条件は C2(実機)から golden(自動)へ移行。残る発火経路（CPU・forced単一対象・アシストグロウ等）と他 timing は引き続き C2。
-- **C2**　**R5-R58 の全 engine 配線が実機未検証** → PvP/CPU 実機検証（ヘッドレス不可・`/verify` または手動）。C1 の `ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID` は **発火条件のみ golden 自動検証済**（Stage2）＝実機確認は「実盤面での総合動作」に絞れる。
+  - **Stage2(2026-06-29)**＝collect*Triggers を `src/engine/triggerCollect.ts` へ pure 抽出し **golden に発火条件テスト10件追加（自動検証化）**。抽出済4ファミリ＝`collectTargetedTriggers`(ON_TARGETED)/`collectLrigGrowTriggers`(ON_LRIG_GROW)/`collectCoinPaidTriggers`(ON_COIN_PAID)/`collectPowerZeroTriggers`(ON_SIGNI_POWER_ZERO_OR_LESS)。これらの発火条件は C2(実機)→golden(自動)へ移行。残る発火経路（CPU・forced単一対象・アシストグロウ等）と他 collect*Triggers は TODO §8 参照。
+- **C2**　**R5-R58 の全 engine 配線が実機未検証** → PvP/CPU 実機検証（ヘッドレス不可・`/verify` または手動）。C1 の `ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID` ＋ `ON_SIGNI_POWER_ZERO_OR_LESS` は **発火条件のみ golden 自動検証済**（Stage2）＝実機確認は「実盤面での総合動作」に絞れる。
 
 **D. STUB テール（低優先）**
 - STUB 544種/2372件。大半は**実装済みハンドラ**の表示（`[STUB:id]` はスキップ理由にしない＝個別検証）。残・単発生IDテール 54件は `STUBS.md` 管理（`node scripts/genStubsMd.mjs` で再生成）。
