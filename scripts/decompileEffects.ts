@@ -994,6 +994,30 @@ function actionJa(a?: Action, effectType?: string): string {
         CENTER_LRIG_COLOR_CHANGE_BLACK: 'あなたのセンタールリグは黒になる',
       };
       if (colorChangeMap[a.id]) return colorChangeMap[a.id];
+      // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
+      // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
+      const miscStubMap: Record<string, string> = {
+        WHITE_SIGNI_ABILITY_PROTECT: 'あなたの白のシグニは対戦相手の効果によって能力を失わない',
+        SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: 'このシグニは対戦相手の効果によって場からエナゾーン以外の領域に移動しない',
+        RESTRICT_CHARMED_SIGNI_ACTIVATED: '対戦相手は【チャーム】が付いているシグニの【起】能力を使用できない',
+        RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE: 'あなたの＜宇宙＞のレゾナ１体が対戦相手の効果によって場を離れる場合、代わりにこのシグニを場からトラッシュに置いてもよい',
+        REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER: '下にカードが１枚以上あるこのシグニが対戦相手の効果によって場を離れる場合、代わりにこのシグニの下からすべてのカードをトラッシュに置いてもよい',
+        PLAY_EFFECT_TARGET_CLASS_CHANGE: 'このシグニの【出】能力で指定された領域にある対戦相手のシグニであるカードはクラスと色を失い、＜精元＞を得る',
+        GROW_FROM_LEVEL0: 'レベル０のルリグからこのルリグにグロウできる',
+        GROW_COST_SUBSTITUTE_TRASH_SIGNI: '《天啓の天恵 アン=フォース》のグロウコストとして《白》を支払う際、代わりにあなたのエナゾーンから＜美巧＞のシグニ１枚をトラッシュに置いてもよい',
+        DYNAMIC_LEVEL_BY_ENERGY: 'このシグニのレベルはあなたのエナゾーンにあるカード５枚につき＋１され、このシグニのパワーはこのシグニのレベル１につき＋3000される',
+        COOKING_BANISH_SUBSTITUTE: 'あなたの＜調理＞のシグニ１体がバニッシュされる場合、代わりにそのシグニに付いている【アクセ】１枚をトラッシュに置いてもよい',
+        BANISH_SUBSTITUTE_RISE_STACK: 'このシグニがバニッシュされる場合、代わりにこのシグニの下からカード１枚をトラッシュに置く',
+        ATTACK_COUNT_BY_POWER: '各ターン、このシグニは自身のパワー10000につき一度までしかアタックできない',
+        ARTS_COST_REDUCTION_BY_COST_THRESHOLD: 'あなたがコストの合計が３以上のアーツを使用する場合、それの使用コストは《緑×1》減る',
+        ALLOW_ATTACK_WHILE_DRIVE: 'このルリグはドライブ状態でもアタックできる',
+        ADJACENT_ZONE_ATTACK: 'このシグニが正面にアタックする場合、このシグニは正面に加えてその隣のシグニゾーン１つにアタックしてもよい',
+        ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI: 'あなたが《白》を支払う際、代わりにあなたのエナゾーンから＜美巧＞のシグニ１枚をトラッシュに置いてもよい',
+        ENERGY_SUBSTITUTE_TRASH_KEY: 'あなたがエナコストを支払う際、このキーを場からルリグトラッシュに置くことで好きな色のエナ２つを支払える',
+        PLAY_SPELL_FROM_HAND: 'あなたの手札からコストの合計が２～４の青か黒のスペル１枚を、そのコストを支払って使用する',
+        PLAY_SPELL_FROM_HAND_FREE: 'あなたの手札からコストの合計が１以下の赤のスペル１枚をコストを支払わずに使用してもよい',
+      };
+      if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
