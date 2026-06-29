@@ -133,7 +133,7 @@ function scenarioBanishAttacker(): ScenarioResult {
     const effectsMap = new Map<string, CardEffect[]>();
     for (const [id, c] of cardMap) effectsMap.set(id, (c as { effects?: CardEffect[] }).effects ?? []);
     let gid = 0;
-    const tctx: TrigCtx = { hostId: 'A', guestId: 'D', activeUserId: 'A', effectsMap, cardMap, genId: () => `e${gid++}` };
+    const tctx: TrigCtx = { hostId: 'A', guestId: 'D', activeUserId: 'A', turnPhase: 'ATTACK_SIGNI', effectsMap, cardMap, genId: () => `e${gid++}` };
     r.before = renderBoard('防御側D（WD07-012 P12000）', defender) + '\n\n' + renderBoard('攻撃側A（アタッカー P3000・zone2）', attacker);
     // 収集配線：A の zone2 シグニがアタック → D の WD07-012（any_opp）が拾われるはず
     const entries: StackEntry[] = collectFieldTriggers(tctx, 'ON_ATTACK_SIGNI', WEAK, attacker, defender, 'A');
