@@ -195,8 +195,13 @@ try {
     // 召喚ゾーン選択モーダル: 空きゾーンを testid で順に試す（無効ボタンは disabled で弾かれる）
     if (!did && summoned) did = await clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
     if (!did) did = await clickTextOrBtn(['対戦相手の効果によってダウンしない', '①ダウンしない', 'ダウンしない', '①']);
-    // CHOOSE 対象（盤面シグニ）: 自分のシグニゾーンを testid で
-    if (!did) did = await clickTestId('my-signi-zone-0', 'my-signi-zone-1', 'my-signi-zone-2');
+    // SELECT_TARGET 対象選択: ピッカー候補（pick-N）を未選択なら1枚クリック → 決定で確定
+    const pick0 = page.getByTestId('pick-0').first();
+    if (!did && await pick0.count() && await pick0.isVisible().catch(() => false)) {
+      // すでに ✓ が付いていれば（決定ボタンが活性）対象選択済み → 決定へ進む
+      const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+      if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+    }
     if (!did) did = await clickTextOrBtn(['決定', 'OK', 'はい', '選ぶ']);
     console.log(`     -> ${did ?? 'なし'}`);
     if (star) { await page.waitForTimeout(800); await page.screenshot({ path: `${SHOT}/inj-CHOOSE.png`, fullPage: true }); }
