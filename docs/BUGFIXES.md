@@ -5,15 +5,25 @@
 
 ---
 
-## D課題: SIGNI_GRANT_CHOSEN_ABILITY を engine 実装＝生STUB 3→2（2026-06-29・zerom）
+## D課題: 残生STUB 3種を全 engine 実装＝生STUB id露出 0達成（2026-06-29・zerom）
 
-前セッションで「CHOOSE 2択の能力付与＝固定文化は近似大」として見送った生STUB `SIGNI_GRANT_CHOSEN_ABILITY`（WXK09-050 コードアート Ｒ・Ｌ・Ｃ【出】）を engine に**実装**（近似ではなく実挙動）。
+前セッションで「engine/CHOOSE 対応とセット＝意味文化すると偽陰性」として見送った最後の生STUB（id露出）3種を engine に**実装**（固定文化の近似ではなく実挙動）。`grep "\[STUB:[A-Z_]+\]" docs/decompile_sheet*.txt` が**全シート0件**に。
 
-- **原文**＝「以下の２つから１つを選ぶ。表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは選んだ能力を得る。①「【常】：対戦相手の効果によってダウンしない。」②「【常】：対戦相手の効果によって手札に戻らない。」」
-- **engine（`src/engine/execStubPart1.ts`）**＝WD007型を踏襲し3ハンドラ新設。`SIGNI_GRANT_CHOSEN_ABILITY`＝CHOOSE(2)（ダウン保護/バウンス保護）→`INTERNAL_GCA_SELECT`＝対象選択（自場＜電機＞かつ現在パワー>表記パワー＝`effectivePowers > Power` で抽出）→`INTERNAL_GCA_APPLY`＝`GRANT_PROTECTION` を `granted_effects` に付与（DOWN なら from:['DOWN']／bounce なら from:['BOUNCE']・target self count1・sourceOwner opponent・UNTIL_END_OF_TURN）。既存の `collectDownProtectedSigni`/`collectBounceProtectedSigni`（GRANT_PROTECTION from DOWN/BOUNCE・target self count1 を消費）が拾うため**実発火**。
-- **decompiler（`scripts/decompileEffects.ts`）**＝`miscStubMap` に原文意味文を追加（生STUB id露出→原文一致）。
-- **golden（`scripts/goldenTest.ts`・PASS 89→91）**＝①現在>表記の電機シグニにダウン保護が `granted_effects` へ付与される ②表記=現在（バフ無し）なら対象外＝付与なし、を assert。
-- **成果**＝生STUB（id露出）3種→**2種**（残＝CONDITIONAL_GROW_AND_KEY_DISABLE／BANISH_ATTACKER_IF_WEAKER_THAN_FRONT）。同型★0維持・原文一致・smoke/fuzz 全0。⚠CHOOSE 第2択（バウンス）の実盤面動作は実機 /verify 推奨（golden は down 経路＋付与構造を検証）。
+**① SIGNI_GRANT_CHOSEN_ABILITY**（WXK09-050 コードアート Ｒ・Ｌ・Ｃ【出】）
+- 原文＝「以下の２つから１つを選ぶ。表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは選んだ能力を得る。①ダウンしない ②手札に戻らない」
+- engine（`execStubPart1.ts`）＝WD007型を踏襲し3ハンドラ新設。CHOOSE(2)→`INTERNAL_GCA_SELECT`（自場＜電機＞かつ現在パワー>表記パワー＝`effectivePowers > Power`）→`INTERNAL_GCA_APPLY`＝`GRANT_PROTECTION`（DOWN/BOUNCE・target self count1・sourceOwner opponent・UNTIL_END_OF_TURN）を `granted_effects` へ。既存 `collectDownProtectedSigni`/`collectBounceProtectedSigni` が拾い**実発火**。
+
+**② BANISH_ATTACKER_IF_WEAKER_THAN_FRONT**（WD07-012 コードアンチ ヴィマナ【自】・ON_ATTACK_SIGNI any_opp）
+- 原文＝「対戦相手のシグニがアタックしたとき、そのシグニのパワーがそのシグニの正面のシグニのパワーより低い場合、アタックしたそのシグニをバニッシュする」
+- engine（`execStubPart1.ts`）＝`collectFieldTriggers` が ON_ATTACK_SIGNI で渡す `ctx.triggeringCardNum`（アタッカー）を使用。アタッカーのゾーン→正面（`ownerState.field.signi[2-zone]`）のパワーと比較（`effectivePowers` 優先）し、低ければ `banishDestination(removeFromField(...))` でアタッカーをバニッシュ。
+
+**③ CONDITIONAL_GROW_AND_KEY_DISABLE**（WXK02-029 ビカム・ユー〔アーツ〕の選択肢①）
+- 原文＝「あなたのセンタールリグが対戦相手のセンタールリグのレベル以下の場合、あなたのセンタールリグはグロウする。ターン終了時まで、あなたのすべてのキーは能力を失う。（グロウコストは支払う）」
+- engine（`execStubPart3.ts`）＝条件付きセンターグロウ（`GROW_CENTER_IF_LEVEL_LTE_OPP` と同ロジック・自Lv≤相手Lvでルリグデッキ先頭へグロウ）＋ `keys_abilities_disabled` フラグ（このターン）を立てる。**キー能力喪失**＝`PlayerState.keys_abilities_disabled` を新設し、`effectEngine.ts` の key_piece をソース候補に push する**8箇所**を `&& !state.keys_abilities_disabled` でゲート。フラグをセットするのは本カードのみ＝既存全カードは素通り＝**回帰リスク0**。ターン終了クリーンアップ（`BattleScreen.tsx` PvP/CPU の2箇所）で `undefined` リセット。
+
+- **decompiler**＝3 id を `miscStubMap` に原文意味文で追加（CHOOSE 内 step も同経路で描画）。
+- **golden（`scripts/goldenTest.ts`・PASS 89→95＝+6）**＝①ダウン保護付与/対象外で非付与 ②正面より低/以上でバニッシュ有無 ③自Lv≤相手でグロウ+フラグ/自Lv>相手でグロウ無+フラグ。
+- **成果**＝生STUB（id露出）**3種→0種**。同型★0維持・各カード原文一致・typecheck/golden 95/95・smoke/fuzz 全0。⚠各 engine 配線は実機未検証（C2・SIGNI_GRANT 第2択バウンス／BANISH の実アタック経路／キー能力喪失の実盤面）＝`/verify` 推奨。
 
 ---
 
