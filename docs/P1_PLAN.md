@@ -108,6 +108,7 @@
 3. **パッチ**：`effectId` をアンカーにした一括スクリプトで安全に置換（他カードを巻き込まない）。MANUAL 化する場合は `parseStatus:'MANUAL'`。
 4. **検証ゲート（必須・この順）**：
    - **`npm run typecheck`（＝`tsc -b --noEmit`）** ← CIと同じ。
+   - **engine/BattleScreen/decompiler を触ったら（C・D・Stage2 等）必ず `npm run smoke` ＋ `npm run golden` ＋ `npm run fuzz`**（全て実機不要・数秒。§7 参照。回帰0／全PASS を確認）。表現パッチ（parser/decompiler のみ）なら下記の逆翻訳ゲートでよい。
    - 該当シート再生成：`npx tsx scripts/decompileEffects.ts --sheet <N> > docs/decompile_sheet<N>.txt`（**⚠Bash で実行。PowerShell の `>` は UTF-16LE を書き genReviewRepr 等の utf-8 読みを壊す。シートは1〜10のみ＝Sheet11は存在しない**）
    - 下流再生成：`node scripts/genReviewRepr.mjs && node scripts/groupSimilar.mjs --all && node scripts/groupBySentence.mjs --all`
    - **逆翻訳が原文一致 ＆ 同型★0** を確認（必要に応じ `node scripts/_dropTriage.mjs` で分類の変化も確認）。
