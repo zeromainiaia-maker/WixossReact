@@ -277,6 +277,22 @@ test('C1 ON_COIN_PAID: usageLimit once_per_turn（消化済みは非発火）', 
   eq(collectCoinPaidTriggers(trigCtx(HOST), HOST, host, guest).length, 0, 'once_per_turn');
 });
 
+// Stage2②: ON_SIGNI_POWER_ZERO_OR_LESS（既存配線・R37・C2リスト5枚）の collectPowerZeroTriggers を pure 化→自動検証。
+test('Stage2 ON_SIGNI_POWER_ZERO_OR_LESS: any_opp 相手0化で発火', () => {
+  const host = mkState({ signi: ['WX20-Re03', null, null] }); const guest = mkState({ signi: [SIGNI, null, null] });
+  const e = collectPowerZeroTriggers(trigCtx(HOST), SIGNI, GUEST, host, guest); // guest のシグニが0化
+  eq(e.length, 1, 'entries'); eq(e[0].effectId, 'WX20-Re03-E1', 'effectId'); eq(e[0].playerId, HOST, 'player');
+});
+test('Stage2 ON_SIGNI_POWER_ZERO_OR_LESS: any_opp は自分0化で非発火', () => {
+  const host = mkState({ signi: ['WX20-Re03', null, null] }); const guest = mkState({});
+  eq(collectPowerZeroTriggers(trigCtx(HOST), SIGNI, HOST, host, guest).length, 0, '自0化非発火');
+});
+test('Stage2 ON_SIGNI_POWER_ZERO_OR_LESS: once_per_turn 消化済み非発火', () => {
+  const host = mkState({ signi: ['WX20-Re03', null, null] }); host.actions_done = ['WX20-Re03-E1'];
+  const guest = mkState({ signi: [SIGNI, null, null] });
+  eq(collectPowerZeroTriggers(trigCtx(HOST), SIGNI, GUEST, host, guest).length, 0, 'once_per_turn');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
