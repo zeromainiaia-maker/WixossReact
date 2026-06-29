@@ -174,7 +174,12 @@ try {
   const clickTestId = async (...ids) => {
     for (const id of ids) {
       const el = page.getByTestId(id).first();
-      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); return 'tid:' + id; }
+      // disabled なボタン（占有済みゾーン等）は飛ばす。enabled でないと click はタイムアウトまで待つため。
+      if (await el.count()
+        && await el.isVisible().catch(() => false)
+        && await el.isEnabled().catch(() => true)) {
+        await el.click({ timeout: 2000 }).catch(() => {}); return 'tid:' + id;
+      }
     }
     return null;
   };
