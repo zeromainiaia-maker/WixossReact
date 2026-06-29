@@ -7810,12 +7810,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // any_opp（対戦相手のルリグがグロウ）は非ターンプレイヤー側＝effect_stack の opp 側が先に解決され、
       // グロウ先ルリグの【出】（ON_PLAY・ターンプレイヤー）より先に処理される（WXDi-P13-047 の注記と整合）。
       const growTriggerEntries = collectLrigGrowTriggers(user.id, newMyState, op);
+      // ON_COIN_PAID（C1 配線・グロウコストのコイン支払）: グロウコストでコインを支払った場合に反応【自】を積む。
+      const growCoinPaidEntries = growCoinCost > 0 ? collectCoinPaidTriggers(user.id, newMyState, op) : [];
 
       // コスト付き任意【出】効果があればモーダルで確認（複数あれば1効果ずつ連鎖）
       if (costOnPlay.length > 0) {
         const mandatoryEntries: StackEntry[] = [
           ...fieldLimitEntries,
           ...growTriggerEntries,
+          ...growCoinPaidEntries,
           ...mandatoryOnPlay.map(eff => ({
             id: generateUUID(), playerId: user.id, cardNum,
             effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
@@ -7829,10 +7832,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
-      // mandatory ON_PLAY 効果＋場出し数制限の選択トラッシュ＋グロウ反応をスタックに積む
+      // mandatory ON_PLAY 効果＋場出し数制限の選択トラッシュ＋グロウ反応＋コイン支払反応をスタックに積む
       const entries: StackEntry[] = [
         ...fieldLimitEntries,
         ...growTriggerEntries,
+        ...growCoinPaidEntries,
         ...mandatoryOnPlay.map(eff => ({
           id: generateUUID(), playerId: user.id, cardNum,
           effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
