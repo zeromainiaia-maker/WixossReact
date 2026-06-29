@@ -11,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinu
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -5895,117 +5895,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * usageLimit 'once_per_turn' は actions_done（effectId）で管理する。発火させた effectId を
    * usedOncePerTurnIds として返すので、呼び出し側で actions_done に追加して保存すること。
    */
+  // ON_LIFE_CRASHED/ON_GUARD/ウィルス系 自イベント収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectSelfEventTriggers = (
     timing: 'ON_LIFE_CRASHED' | 'ON_GUARD' | 'ON_OPP_VIRUS_PLACED' | 'ON_OPP_VIRUS_REMOVED' | 'ON_OPP_VIRUS_CHANGED',
     myState: PlayerState,
     opState: PlayerState,
     labelSuffix: string,
     ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
-  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } => {
-    const entries: StackEntry[] = [];
-    const usedOncePerTurnIds: string[] = [];
-    // usageLimit を actions_done の出現回数で制御（once_per_turn=1 / twice_per_turn=2）。
-    // usedOncePerTurnIds は呼び出し側で actions_done に追加して永続化される。
-    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
-      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
-      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
-      const used = (myState.actions_done ?? []).filter(id => id === eff.effectId).length
-        + usedOncePerTurnIds.filter(id => id === eff.effectId).length;
-      if (used >= max) return false;
-      usedOncePerTurnIds.push(eff.effectId);
-      return true;
-    };
-    if (myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
-    // FROZEN_LOSES_ABILITIES: 相手ルリグにこの常在があれば自分の凍結シグニのAUTOは発火しない
-    const opLrigTop = opState.field.lrig.at(-1);
-    const frozenLosesAbilities = opLrigTop
-      ? (effectsMap.get(opLrigTop) ?? []).some(e =>
-          e.effectType === 'CONTINUOUS' &&
-          (e.action as import('../types/effects').StubAction)?.type === 'STUB' &&
-          (e.action as import('../types/effects').StubAction)?.id === 'FROZEN_LOSES_ABILITIES',
-        )
-      : false;
-    // CONTINUOUS REMOVE_ABILITIES: 能力を失っているシグニのセットを事前計算
-    const isOwnerTurnForSelfTrigger = ownerId === bs.active_user_id;
-    const myAbilitiesRemovedSelf = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForSelfTrigger, effectsMap, battleCardMap);
-    for (let zi = 0; zi < myState.field.signi.length; zi++) {
-      const topNum = myState.field.signi[zi]?.at(-1);
-      if (!topNum) continue;
-      if (frozenLosesAbilities && (myState.field.signi_frozen?.[zi] ?? false)) continue;
-      if (myAbilitiesRemovedSelf.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
-      for (const eff of effectsMap.get(topNum) ?? []) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-        // トラッシュからの自己復活（ADD_TO_FIELD source:TRASH_CARD で自身を出す）はトラッシュ専用能力。
-        // 場にいる間は機能しないため、フィールド走査では除外する（トラッシュ走査側で発火）。
-        {
-          const fAct = eff.action as import('../types/effects').AddToFieldAction;
-          const selfName = battleCardMap.get(topNum)?.CardName;
-          if (fAct.type === 'ADD_TO_FIELD' && fAct.source?.type === 'TRASH_CARD'
-            && selfName && fAct.source.filter?.cardName && selfName.includes(fAct.source.filter.cardName)) {
-            continue;
-          }
-        }
-        if (!limitOk(eff)) continue;
-        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: ownerId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（${labelSuffix}）`,
-          effect: eff,
-        });
-      }
-    }
-    // ルリグ／アシストルリグ／キーの自イベントトリガー（ライフクラッシュ時等：シグニ以外の発生源）
-    // 例: WX02-003(ルリグ・ライフクラッシュ時ドロー) / WXK03-014(キー・ライフクラッシュ時ドロー)
-    //     WXDi-P16-039(アシストルリグ自身に付与された【自】) 等
-    const nonSigniSources = [
-      myState.field.lrig.at(-1),
-      myState.field.assist_lrig_l?.at(-1),
-      myState.field.assist_lrig_r?.at(-1),
-      myState.field.key_piece,
-      ...(myState.field.key_piece_extra ?? []),
-    ].filter((n): n is string => !!n);
-    for (const srcNum of nonSigniSources) {
-      for (const eff of effectsMap.get(srcNum) ?? []) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-        if (!limitOk(eff)) continue;
-        const cardName = battleCardMap.get(srcNum)?.CardName ?? srcNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: ownerId,
-          cardNum: srcNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（${labelSuffix}）`,
-          effect: eff,
-        });
-      }
-    }
-    // トラッシュからの自己復活（WX11-026 ヘスチア等）：トラッシュにあるこのカード自身が
-    // ON_LIFE_CRASHED でトリガー源になる。アクションが「トラッシュから場に出す」(ADD_TO_FIELD
-    // source:TRASH_CARD) の AUTO 効果のみを対象とし、誤発火を防ぐ。
-    if (timing === 'ON_LIFE_CRASHED') {
-      for (const trashInstance of myState.trash) {
-        for (const eff of effectsMap.get(trashInstance) ?? []) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-          const act = eff.action as import('../types/effects').AddToFieldAction;
-          if (act.type !== 'ADD_TO_FIELD' || act.source?.type !== 'TRASH_CARD') continue;
-          if (!limitOk(eff)) continue;
-          const cardName = battleCardMap.get(trashInstance)?.CardName ?? trashInstance;
-          entries.push({
-            id: generateUUID(),
-            playerId: ownerId,
-            cardNum: trashInstance,
-            effectId: eff.effectId,
-            label: `${cardName} の【自】効果（${labelSuffix}・トラッシュから復活）`,
-            effect: eff,
-          });
-        }
-      }
-    }
-    return { entries, usedOncePerTurnIds };
-  };
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
+    pureCollectSelfEventTriggers(mkTrigCtx(), timing, myState, opState, labelSuffix, ownerId);
 
   /**
    * シグニが効果によって他のシグニゾーンに移動したとき（ON_ZONE_MOVED）のトリガーを収集する。
@@ -6014,157 +5912,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * triggeringCardNum=移動シグニ（「このシグニ」「それ」参照／targetsTriggerSourceで自動対象化）。
    * usageLimit は actions_done(effectId) の出現回数で制御。usedIds を呼び出し側で各 actions_done に追加して保存する。
    */
+  // ON_ZONE_MOVED 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectZoneMovedTriggers = (
     movedNum: string,
     moverState: PlayerState,
     otherState: PlayerState,
     moverId: string,
     otherId: string,
-  ): { entries: StackEntry[]; moverUsedIds: string[]; otherUsedIds: string[] } => {
-    const entries: StackEntry[] = [];
-    const moverUsedIds: string[] = [];
-    const otherUsedIds: string[] = [];
-    const scan = (
-      fieldState: PlayerState, ownerId: string, usedIds: string[],
-      accept: (scope: string) => boolean,
-    ) => {
-      if (fieldState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return;
-      for (let zi = 0; zi < fieldState.field.signi.length; zi++) {
-        const topNum = fieldState.field.signi[zi]?.at(-1);
-        if (!topNum) continue;
-        for (const eff of effectsMap.get(topNum) ?? []) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ZONE_MOVED')) continue;
-          const scope = eff.triggerScope ?? 'self';
-          if (scope === 'self' && topNum !== movedNum) continue;
-          if (!accept(scope)) continue;
-          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
-            const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
-            const used = (fieldState.actions_done ?? []).filter(id => id === eff.effectId).length
-              + usedIds.filter(id => id === eff.effectId).length;
-            if (used >= max) continue;
-            usedIds.push(eff.effectId);
-          }
-          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-          entries.push({
-            id: generateUUID(),
-            playerId: ownerId,
-            cardNum: topNum,
-            effectId: eff.effectId,
-            label: `${cardName} の【自】効果（ゾーン移動時）`,
-            effect: eff,
-            triggeringCardNum: movedNum,
-          });
-        }
-      }
-    };
-    scan(moverState, moverId, moverUsedIds, scope => scope === 'self' || scope === 'any_ally' || scope === 'any');
-    scan(otherState, otherId, otherUsedIds, scope => scope === 'any_opp' || scope === 'any');
-    return { entries, moverUsedIds, otherUsedIds };
-  };
+  ): { entries: StackEntry[]; moverUsedIds: string[]; otherUsedIds: string[] } =>
+    pureCollectZoneMovedTriggers(mkTrigCtx(), movedNum, moverState, otherState, moverId, otherId);
 
   // シグニがドライブ状態になったとき（ルリグがライドした瞬間）の ON_SIGNI_BECOMES_DRIVE を収集（G184/G218）。
   // フラグ drive_became_just はドライブ化したシグニの所有者(=driver)の state に積まれる。collectZoneMovedTriggers と同型：
   // driver 側=self(=そのシグニ自身)/any_ally/any、対戦相手側=any_opp/any。triggeringCardNum=ドライブ化したシグニ。
+  // ON_SIGNI_BECOMES_DRIVE 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectDriveBecameTriggers = (
     becameNum: string,
     driverState: PlayerState,
     otherState: PlayerState,
     driverId: string,
     otherId: string,
-  ): { entries: StackEntry[]; driverUsedIds: string[]; otherUsedIds: string[] } => {
-    const entries: StackEntry[] = [];
-    const driverUsedIds: string[] = [];
-    const otherUsedIds: string[] = [];
-    const scan = (
-      fieldState: PlayerState, ownerId: string, usedIds: string[],
-      accept: (scope: string) => boolean,
-    ) => {
-      if (fieldState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return;
-      for (let zi = 0; zi < fieldState.field.signi.length; zi++) {
-        const topNum = fieldState.field.signi[zi]?.at(-1);
-        if (!topNum) continue;
-        for (const eff of effectsMap.get(topNum) ?? []) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BECOMES_DRIVE')) continue;
-          const scope = eff.triggerScope ?? 'self';
-          if (scope === 'self' && topNum !== becameNum) continue;
-          if (!accept(scope)) continue;
-          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
-            const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
-            const used = (fieldState.actions_done ?? []).filter(id => id === eff.effectId).length
-              + usedIds.filter(id => id === eff.effectId).length;
-            if (used >= max) continue;
-            usedIds.push(eff.effectId);
-          }
-          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-          entries.push({
-            id: generateUUID(),
-            playerId: ownerId,
-            cardNum: topNum,
-            effectId: eff.effectId,
-            label: `${cardName} の【自】効果（ドライブ状態時）`,
-            effect: eff,
-            triggeringCardNum: becameNum,
-          });
-        }
-      }
-    };
-    scan(driverState, driverId, driverUsedIds, scope => scope === 'self' || scope === 'any_ally' || scope === 'any');
-    scan(otherState, otherId, otherUsedIds, scope => scope === 'any_opp' || scope === 'any');
-    return { entries, driverUsedIds, otherUsedIds };
-  };
+  ): { entries: StackEntry[]; driverUsedIds: string[]; otherUsedIds: string[] } =>
+    pureCollectDriveBecameTriggers(mkTrigCtx(), becameNum, driverState, otherState, driverId, otherId);
 
   // カードが【ビート】になったとき（beat_zone へ入った瞬間）の ON_BECOME_BEAT を収集。
   // becameNum は beat_zone に在中（＝場にいない）。self=なったカード自身の効果／any_ally・any=オーナーの場のシグニの効果（「他のカードが【ビート】になったとき」WDK14-014）。
+  // ON_BECOME_BEAT 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectBeatBecameTriggers = (
     becameNum: string,
     ownerState: PlayerState,
     ownerId: string,
-  ): { entries: StackEntry[]; usedIds: string[] } => {
-    const entries: StackEntry[] = [];
-    const usedIds: string[] = [];
-    const consumeLimit = (eff: { effectId: string; usageLimit?: string }): boolean => {
-      if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
-        const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
-        const used = (ownerState.actions_done ?? []).filter(id => id === eff.effectId).length
-          + usedIds.filter(id => id === eff.effectId).length;
-        if (used >= max) return false;
-        usedIds.push(eff.effectId);
-      }
-      return true;
-    };
-    const pushEntry = (cardNum: string, eff: import('../types/effects').CardEffect) => {
-      entries.push({
-        id: generateUUID(),
-        playerId: ownerId,
-        cardNum,
-        effectId: eff.effectId,
-        label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【自】効果（【ビート】になったとき）`,
-        effect: eff,
-        triggeringCardNum: becameNum,
-      });
-    };
-    if (ownerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedIds };
-    // 1. なったカード自身（self scope。beat_zone 在中なので effectsMap から直接引く）
-    for (const eff of effectsMap.get(becameNum) ?? []) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BECOME_BEAT')) continue;
-      if ((eff.triggerScope ?? 'self') !== 'self') continue;
-      if (!consumeLimit(eff)) continue;
-      pushEntry(becameNum, eff);
-    }
-    // 2. オーナーの場のシグニ（any_ally/any scope。「あなたの他のカードが【ビート】になったとき」）
-    for (let zi = 0; zi < ownerState.field.signi.length; zi++) {
-      const topNum = ownerState.field.signi[zi]?.at(-1);
-      if (!topNum || topNum === becameNum) continue;
-      for (const eff of effectsMap.get(topNum) ?? []) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BECOME_BEAT')) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (scope !== 'any_ally' && scope !== 'any') continue;
-        if (!consumeLimit(eff)) continue;
-        pushEntry(topNum, eff);
-      }
-    }
-    return { entries, usedIds };
-  };
+  ): { entries: StackEntry[]; usedIds: string[] } =>
+    pureCollectBeatBecameTriggers(mkTrigCtx(), becameNum, ownerState, ownerId);
 
   /**
    * 手札が捨てられたときのトリガーを収集する。discarder=手札を捨てたプレイヤー（=このクライアントの user）。
@@ -6179,6 +5958,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * usageLimitは actions_done(effectId) の出現回数で制御（once_per_turn=1回 / twice_per_turn=2回）。
    * usedLimitIds（discarder側のみ）を呼び出し側で actions_done に追加して保存すること。
    */
+  // ON_HAND_DISCARDED/ON_DISCARDED_AS_COST 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectHandDiscardTriggers = (
     discardedNums: string[],
     myState: PlayerState,
@@ -6186,122 +5966,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     asCost: boolean,
     opState?: PlayerState,
     opId?: string,
-  ): { entries: StackEntry[]; usedLimitIds: string[] } => {
-    const entries: StackEntry[] = [];
-    const usedLimitIds: string[] = [];
-    if (discardedNums.length === 0) return { entries, usedLimitIds };
-    const limitOk = (eff: import('../types/effects').CardEffect): boolean => {
-      if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
-      const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
-      const used = (myState.actions_done ?? []).filter(id => id === eff.effectId).length
-        + usedLimitIds.filter(id => id === eff.effectId).length;
-      if (used >= max) return false;
-      usedLimitIds.push(eff.effectId);
-      return true;
-    };
-    const matchesTrigFilter = (eff: import('../types/effects').CardEffect): boolean =>
-      !eff.triggerFilter || discardedNums.some(cn => matchesFilter(battleCardMap.get(cn), eff.triggerFilter));
-    // ON_DISCARDED_AS_COST: 捨てられたカード自身（シグニ能力のコストとして捨てられた場合のみ）
-    if (asCost) {
-      for (const cn of discardedNums) {
-        for (const eff of (effectsMap.get(cn) ?? [])) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DISCARDED_AS_COST')) continue;
-          if (!limitOk(eff)) continue;
-          entries.push({
-            id: generateUUID(),
-            playerId: discarderId,
-            cardNum: cn,
-            effectId: eff.effectId,
-            label: `${battleCardMap.get(cn)?.CardName ?? cn}【自】コスト捨て時`,
-            effect: eff,
-          });
-        }
-      }
-    }
-    // ON_HAND_DISCARDED: discarder の自フィールド。'any' は常時、それ以外は discarder のターンのみ。
-    // triggerCondition.turnOwner:'opponent'（【絆自】等「対戦相手のターンの間、あなたが手札を捨てたとき」
-    // WXDi-CP02-082-E2）は discarder の相手ターン（=!myIsTurn）のみ発火。'self'/未指定は従来どおり自ターンのみ。
-    const myIsTurn = bs.active_user_id === discarderId;
-    const myBlocked = !!myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
-    for (const stack of myState.field.signi) {
-      const topNum = stack?.at(-1);
-      if (!topNum) continue;
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
-        const isAny = eff.triggerScope === 'any';
-        if (myBlocked) continue;
-        if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
-        else if (!isAny && !myIsTurn) continue;
-        if (!matchesTrigFilter(eff)) continue;
-        if (!limitOk(eff)) continue;
-        entries.push({
-          id: generateUUID(),
-          playerId: discarderId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札捨て時`,
-          effect: eff,
-        });
-      }
-    }
-    // ON_HAND_DISCARDED 'any': discarder の相手フィールドにある「いずれかのプレイヤーが捨てたとき」効果を
-    // その相手をコントローラーとして収集（相手の usageLimit は参照チェックのみ・記録は省略）。
-    if (opState && opId && !opState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) {
-      for (const stack of opState.field.signi) {
-        const topNum = stack?.at(-1);
-        if (!topNum) continue;
-        for (const eff of (effectsMap.get(topNum) ?? [])) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
-          if (eff.triggerScope !== 'any') continue;
-          if (!matchesTrigFilter(eff)) continue;
-          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
-            const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
-            if ((opState.actions_done ?? []).filter(id => id === eff.effectId).length >= max) continue;
-          }
-          entries.push({
-            id: generateUUID(),
-            playerId: opId,
-            cardNum: topNum,
-            effectId: eff.effectId,
-            label: `${battleCardMap.get(topNum)?.CardName ?? topNum}【自】手札捨て時`,
-            effect: eff,
-          });
-        }
-      }
-    }
-    return { entries, usedLimitIds };
-  };
+  ): { entries: StackEntry[]; usedLimitIds: string[] } =>
+    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId);
 
   /**
    * 相手がアーツを使用したとき、ON_OPP_ARTS_USE トリガーを持つ自分のシグニを収集する。
    * activeCondition（HAS_CARD_IN_FIELD 等）を満たす場合のみスタックに追加する。
    */
+  // ON_OPP_ARTS_USE 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectOppArtsUseTriggers = (
     myState: PlayerState,
     opState: PlayerState,
     isMyTurnNow: boolean,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    for (const stack of myState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      for (const eff of effectsMap.get(topNum) ?? []) {
-        if (eff.effectType !== 'AUTO') continue;
-        if (!eff.timing?.includes('ON_OPP_ARTS_USE')) continue;
-        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, myState, opState, isMyTurnNow, battleCardMap)) continue;
-        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（相手アーツ使用時）`,
-          effect: eff,
-        });
-      }
-    }
-    return entries;
-  };
+  ): StackEntry[] =>
+    pureCollectOppArtsUseTriggers(mkTrigCtx(), myState, opState, isMyTurnNow);
 
   /**
    * あなたがアーツを使用したとき（ON_ARTS_USE）、使用者自身のルリグ/シグニのトリガーを収集する。
@@ -6309,43 +5987,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * usageLimit（《ターン1回》《ターン2回》）は actions_done(effectId) 出現回数で制御し、
    * 呼び出し側で usedIds を caster の actions_done に永続化する。
    */
+  // ON_ARTS_USE 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectArtsUseTriggers = (
     casterId: string,
     casterState: PlayerState,
     opState: PlayerState,
     isCasterTurn: boolean,
-  ): { entries: StackEntry[]; usedIds: string[] } => {
-    const entries: StackEntry[] = [];
-    const usedIds: string[] = [];
-    const sources = [
-      casterState.field.lrig.at(-1),
-      ...casterState.field.signi.map(s => s?.at(-1)),
-    ].filter((n): n is string => !!n);
-    for (const srcNum of sources) {
-      for (const eff of (effectsMap.get(srcNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ARTS_USE')) continue;
-        if ((eff.triggerScope ?? 'self') !== 'self') continue;
-        if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
-          const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
-          const used = (casterState.actions_done ?? []).filter(id => id === eff.effectId).length
-            + usedIds.filter(id => id === eff.effectId).length;
-          if (used >= max) continue;
-          usedIds.push(eff.effectId);
-        }
-        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, casterState, opState, isCasterTurn, battleCardMap, srcNum)) continue;
-        if (eff.condition && !evalUseCondition(eff.condition, casterState, opState, battleCardMap, srcNum, bs.turn_phase, effectivePowers)) continue;
-        entries.push({
-          id: generateUUID(),
-          playerId: casterId,
-          cardNum: srcNum,
-          effectId: eff.effectId,
-          label: `${battleCardMap.get(srcNum)?.CardName ?? srcNum}【自】アーツ使用時`,
-          effect: eff,
-        });
-      }
-    }
-    return { entries, usedIds };
-  };
+  ): { entries: StackEntry[]; usedIds: string[] } =>
+    pureCollectArtsUseTriggers(mkTrigCtx(), casterId, casterState, opState, isCasterTurn);
 
   // シグニ召喚（ゾーン選択後に実行）
   const handleSummonSigni = async (handIndex: number, zoneIndex: number) => {

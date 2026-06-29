@@ -16,6 +16,18 @@
 
 ---
 
+## ツール: Stage2⑨ クリーン系7トリガー収集の pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第9弾。残るクリーン系7関数を `triggerCollect.ts` へ pure 化＝`collectSelfEventTriggers`（ON_LIFE_CRASHED/ON_GUARD/ウィルス系）/`collectZoneMovedTriggers`（ON_ZONE_MOVED）/`collectDriveBecameTriggers`（ON_SIGNI_BECOMES_DRIVE）/`collectBeatBecameTriggers`（ON_BECOME_BEAT）/`collectHandDiscardTriggers`（ON_HAND_DISCARDED/ON_DISCARDED_AS_COST）/`collectOppArtsUseTriggers`（ON_OPP_ARTS_USE）/`collectArtsUseTriggers`（ON_ARTS_USE）。
+
+- **特殊要素を保持**＝selfEvent の FROZEN_LOSES_ABILITIES/REMOVE_ABILITIES/トラッシュ自己復活、zoneMoved/driveBecame の mover/other 二方向 scan、handDiscard の 'any'＋相手フィールド収集＋turnOwner:opponent、oppArtsUse の meId 視点。`AddToFieldAction`/`StubAction` 型を import 追加。`mkLimitOk` 流用。
+- **BattleScreen 側**＝7クロージャ（約470行）を薄いラッパに置換＝挙動不変。selfEvent の `ownerId = user.id` 既定はラッパに残置。呼び出し元は無変更。
+- **golden に7件追加（PASS 53→60）**＝ON_LIFE_CRASHED ルリグ発火／ON_ZONE_MOVED self／ON_SIGNI_BECOMES_DRIVE any_ally／ON_BECOME_BEAT self／ON_HAND_DISCARDED の triggerFilter(story:プリパラ) ゲート／ON_DISCARDED_AS_COST の asCost ゲート／ON_OPP_ARTS_USE＋ON_ARTS_USE 発火。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（60/60）／`npm run fuzz`（全0）。
+- **残（TODO §8 Stage2）**＝大物 `collectTurnTriggers`（中リスク）/`collectFieldTriggers`（ON_PLAY・複雑、`collectBloomTriggers` も依存）＋`detect*`（約13個）／フェイズ進行／effect_stack 整列。
+
+---
+
 ## ツール: Stage2⑧ set-diff 系 6ファミリの pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第8弾。盤面差分起点の6収集関数を `triggerCollect.ts` へ pure 化＝`collectCharmToTrashTriggers`（ON_CHARM_TO_TRASH）/`collectEnergyToTrashTriggers`（ON_ENERGY_TO_TRASH）/`collectRefreshTriggers`（ON_REFRESH）/`collectPowerDecreaseTriggers`（ON_OPP_POWER_DECREASED・毒牙）/`collectMoveToDeckTriggers`（ON_CARD_MOVED_TO_DECK）/`collectFreezeTriggers`（ON_SIGNI_FROZEN）。
