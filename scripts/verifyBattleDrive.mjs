@@ -44,6 +44,9 @@ try {
   // オンライン対戦（sessionStorage→reload→matchmaking）を確定的に
   await page.evaluate(() => sessionStorage.setItem('gotoMatchmaking', '1'));
   await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path: `${SHOT}/drv-00-after-reload.png`, fullPage: true });
+  console.log('reload後:', await bodyText(page));
   await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${SHOT}/drv-01-matchmaking.png`, fullPage: true });
