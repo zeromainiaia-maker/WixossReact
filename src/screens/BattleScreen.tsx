@@ -11,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinu
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -3232,95 +3232,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return result;
   };
 
-  // ON_LEAVE_FIELD効果内の動的フィルタを、場を離れたカードの具体値に解決した複製を返す
-  //  levelBelowLeftCard → level:{max: 離れたカードのレベル-1}
-  //  underLeftCard → cardNames:[下にあった《ライズアイコン》を持たないシグニ名]（該当なしなら空＝候補なし）
-  const resolveLeaveFieldDynamicFilters = (
-    eff: import('../types/effects').CardEffect,
-    leftCard: CardData | undefined,
-    underCards: string[],
-  ): import('../types/effects').CardEffect => {
-    if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard)":true/.test(JSON.stringify(eff.action))) return eff;
-    const clone = JSON.parse(JSON.stringify(eff)) as import('../types/effects').CardEffect;
-    const leftLevel = parseInt(leftCard?.Level ?? '', 10);
-    const leftPower = parseInt((leftCard?.Power ?? '').replace(/[^\d]/g, ''), 10);
-    const underNames = underCards
-      .map(n => battleCardMap.get(getCardNum(n)))
-      .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
-      .map(c => c.CardName);
-    const visit = (node: unknown): void => {
-      if (!node || typeof node !== 'object') return;
-      if (Array.isArray(node)) { node.forEach(visit); return; }
-      const obj = node as Record<string, unknown> & import('../types/effects').TargetFilter;
-      if (obj.levelBelowLeftCard === true) {
-        delete obj.levelBelowLeftCard;
-        obj.level = { max: isNaN(leftLevel) ? 0 : leftLevel - 1 };
-      }
-      if (obj.powerBelowLeftCard === true) {
-        delete obj.powerBelowLeftCard;
-        obj.powerRange = { max: isNaN(leftPower) ? 0 : leftPower - 1 };
-      }
-      if (obj.underLeftCard === true) {
-        delete obj.underLeftCard;
-        obj.cardNames = underNames;
-      }
-      Object.values(obj).forEach(visit);
-    };
-    visit(clone.action);
-    return clone;
-  };
-
-  // ON_LEAVE_FIELD トリガーを収集する
-  // 離れたカード自身の効果（scope=self）と、場の味方シグニの効果（scope=any_ally。
-  // triggerFilter があれば離れたカードがそれを満たす場合のみ）を集める
+  // ON_LEAVE_FIELD トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectLeaveFieldTriggers = (
     leftCardNum: string,
     leftUnder: string[],
     leftPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const leftCard = battleCardMap.get(getCardNum(leftCardNum));
-    for (const eff of (effectsMap.get(getCardNum(leftCardNum)) ?? [])) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
-      if ((eff.triggerScope ?? 'self') !== 'self') continue;
-      entries.push({
-        id: generateUUID(),
-        playerId: leftPlayerId,
-        cardNum: leftCardNum,
-        effectId: eff.effectId,
-        label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
-        effect: resolveLeaveFieldDynamicFilters(eff, leftCard, leftUnder),
-      });
-    }
-    const ownerStateAfter = leftPlayerId === bs!.host_id ? afterHostState : afterGuestState;
-    // 場のシグニに加えてルリグも監視対象（例: 炎・花代・伍はルリグの【自】で味方シグニの離脱を見る）
-    const lrigTop = ownerStateAfter.field.lrig.at(-1);
-    const watcherNums = [
-      ...ownerStateAfter.field.signi.flatMap(stack => stack?.length ? [stack[stack.length - 1]] : []),
-      ...(lrigTop ? [lrigTop] : []),
-    ];
-    for (const topNum of watcherNums) {
-      for (const eff of (effectsMap.get(getCardNum(topNum)) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (scope !== 'any_ally' && scope !== 'any') continue;
-        if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
-        // leftToZone:'hand'（「場から手札に戻ったとき」WXK02-041）: 離れたカードが所有者の手札に在中する場合のみ発火
-        if (eff.triggerCondition?.leftToZone === 'hand' && !ownerStateAfter.hand.includes(leftCardNum)) continue;
-        entries.push({
-          id: generateUUID(),
-          playerId: leftPlayerId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${battleCardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（味方が場を離れたとき）`,
-          effect: resolveLeaveFieldDynamicFilters(eff, leftCard, leftUnder),
-        });
-      }
-    }
-    return entries;
-  };
+  ): StackEntry[] =>
+    pureCollectLeaveFieldTriggers(mkTrigCtx(), leftCardNum, leftUnder, leftPlayerId, afterHostState, afterGuestState);
 
   // フィールドからトラッシュに移動したシグニを検出（ON_TRASHトリガー用）
   const detectTrashedSigni = (before: PlayerState, after: PlayerState): string[] => {

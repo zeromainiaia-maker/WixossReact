@@ -16,6 +16,17 @@
 
 ---
 
+## ツール: Stage2⑥ collectLeaveFieldTriggers の pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第6弾。ON_LEAVE_FIELD 収集＋依存ヘルパ `resolveLeaveFieldDynamicFilters`（動的フィルタ解決）を `triggerCollect.ts` へ pure 化。
+
+- **`triggerCollect.ts` に2関数追加**＝`resolveLeaveFieldDynamicFilters`（cardMap を引数化・levelBelowLeftCard/powerBelowLeftCard/underLeftCard を離れたカードの具体値に解決）＋`collectLeaveFieldTriggers`（離脱カード自身 self／場の味方シグニ＋ルリグ any_ally・triggerFilter・leftToZone:hand ゲート）。`TargetFilter` 型を import 追加。
+- **BattleScreen 側**＝約90行（2関数）を薄いラッパ（`mkTrigCtx()` 経由）に置換＝挙動不変。`resolveLeaveFieldDynamicFilters` は collectLeaveFieldTriggers 内のみ使用だったため BattleScreen から完全に移設。呼び出し元5箇所は無変更。
+- **golden に4件追加（PASS 40→43）**＝self 離脱で自身発火（WX06-016-E2）／any_ally triggerFilter(story:アーム) 一致時のみ発火（WX11-035-E1・アーム離脱で発火/非アーム非発火）／leftToZone=hand は手札在中時のみ発火（WXK02-041-E2）。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（43/43）／`npm run fuzz`（全0）。
+
+---
+
 ## ツール: Stage2⑤ collectBanishTriggers の pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第5弾。ON_BANISH 収集（バニッシュ最頻トリガー）を `triggerCollect.ts` へ pure 化。アクセ付与ON_BANISH復元（WX18-076）・activeCondition・condition・once_per_turn ゲートを保持。

@@ -9,7 +9,7 @@
  *           / ON_SIGNI_POWER_ZERO_OR_LESS（R37・Stage2第2弾）/ ON_BLOOD_CRYSTAL_ARMOR（Stage2第3弾）。
  */
 import type { PlayerState, CardData, StackEntry } from '../types';
-import type { CardEffect, Condition, GrantAcceHostAbilityAction } from '../types/effects';
+import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 import { checkActiveCondition } from './effectEngine';
 
@@ -510,5 +510,97 @@ export function collectBanishTriggers(
     }
   }
 
+  return entries;
+}
+
+/**
+ * ON_LEAVE_FIELD効果内の動的フィルタを、場を離れたカードの具体値に解決した複製を返す（Stage2 抽出）。
+ *  levelBelowLeftCard → level:{max: 離れたカードのレベル-1}
+ *  powerBelowLeftCard → powerRange:{max: 離れたカードのパワー-1}
+ *  underLeftCard → cardNames:[下にあった《ライズアイコン》を持たないシグニ名]（該当なしなら空＝候補なし）
+ */
+export function resolveLeaveFieldDynamicFilters(
+  cardMap: Map<string, CardData>,
+  eff: CardEffect,
+  leftCard: CardData | undefined,
+  underCards: string[],
+): CardEffect {
+  if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard)":true/.test(JSON.stringify(eff.action))) return eff;
+  const clone = JSON.parse(JSON.stringify(eff)) as CardEffect;
+  const leftLevel = parseInt(leftCard?.Level ?? '', 10);
+  const leftPower = parseInt((leftCard?.Power ?? '').replace(/[^\d]/g, ''), 10);
+  const underNames = underCards
+    .map(n => cardMap.get(getCardNum(n)))
+    .filter((c): c is CardData => !!c && !(c.EffectText ?? '').includes('【ライズ】'))
+    .map(c => c.CardName);
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    const obj = node as Record<string, unknown> & TargetFilter;
+    if (obj.levelBelowLeftCard === true) {
+      delete obj.levelBelowLeftCard;
+      obj.level = { max: isNaN(leftLevel) ? 0 : leftLevel - 1 };
+    }
+    if (obj.powerBelowLeftCard === true) {
+      delete obj.powerBelowLeftCard;
+      obj.powerRange = { max: isNaN(leftPower) ? 0 : leftPower - 1 };
+    }
+    if (obj.underLeftCard === true) {
+      delete obj.underLeftCard;
+      obj.cardNames = underNames;
+    }
+    Object.values(obj).forEach(visit);
+  };
+  visit(clone.action);
+  return clone;
+}
+
+/**
+ * ON_LEAVE_FIELD トリガーを収集する（Stage2 抽出）。
+ * 離れたカード自身の効果（scope=self）と、場の味方シグニ＋ルリグの効果（scope=any_ally。
+ * triggerFilter があれば離れたカードがそれを満たす場合のみ）を集める。
+ * leftUnder=離れたカードの下にあったカード（動的フィルタ解決用）。
+ */
+export function collectLeaveFieldTriggers(
+  ctx: TrigCtx,
+  leftCardNum: string,
+  leftUnder: string[],
+  leftPlayerId: string,
+  afterHostState: PlayerState,
+  afterGuestState: PlayerState,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  const leftCard = ctx.cardMap.get(getCardNum(leftCardNum));
+  for (const eff of (ctx.effectsMap.get(getCardNum(leftCardNum)) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
+    if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    entries.push({
+      id: ctx.genId(), playerId: leftPlayerId, cardNum: leftCardNum, effectId: eff.effectId,
+      label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
+      effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+    });
+  }
+  const ownerStateAfter = leftPlayerId === ctx.hostId ? afterHostState : afterGuestState;
+  // 場のシグニに加えてルリグも監視対象（例: 炎・花代・伍はルリグの【自】で味方シグニの離脱を見る）
+  const lrigTop = ownerStateAfter.field.lrig.at(-1);
+  const watcherNums = [
+    ...ownerStateAfter.field.signi.flatMap(stack => stack?.length ? [stack[stack.length - 1]] : []),
+    ...(lrigTop ? [lrigTop] : []),
+  ];
+  for (const topNum of watcherNums) {
+    for (const eff of (ctx.effectsMap.get(getCardNum(topNum)) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_ally' && scope !== 'any') continue;
+      if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
+      // leftToZone:'hand'（「場から手札に戻ったとき」WXK02-041）: 離れたカードが所有者の手札に在中する場合のみ発火
+      if (eff.triggerCondition?.leftToZone === 'hand' && !ownerStateAfter.hand.includes(leftCardNum)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: leftPlayerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（味方が場を離れたとき）`,
+        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+      });
+    }
+  }
   return entries;
 }
