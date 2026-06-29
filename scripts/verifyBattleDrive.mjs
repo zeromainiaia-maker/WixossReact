@@ -7,6 +7,27 @@ import { readFileSync, mkdirSync } from 'node:fs';
 const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
 const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
+const env = readFileSync('.env.local', 'utf-8');
+const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
+const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();
+
+// ユーザーの残ルーム（PLAYING含む）と battle_states を掃除（再入場で BATTLE に飛ぶのを防ぐ）。
+async function cleanupRooms(page) {
+  return await page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const token = sess.access_token, uid = sess.user?.id;
+    const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const roomsRes = await fetch(`${SUPA_URL}/rest/v1/rooms?or=(host_id.eq.${uid},guest_id.eq.${uid})&select=id`, { headers: h });
+    const rooms = await roomsRes.json();
+    const ids = Array.isArray(rooms) ? rooms.map(r => r.id) : [];
+    for (const id of ids) {
+      await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${id}`, { method: 'DELETE', headers: h });
+      await fetch(`${SUPA_URL}/rest/v1/rooms?id=eq.${id}`, { method: 'DELETE', headers: h });
+    }
+    return ids.length;
+  }, { SUPA_URL, ANON });
+}
 
 // 本番ビルドを preview で配信（dev の StrictMode 二重実行で gotoMatchmaking が消える問題を回避）。
 function startDev() {
