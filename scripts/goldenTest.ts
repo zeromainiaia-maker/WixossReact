@@ -730,6 +730,31 @@ test('BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: 正面以上なら残る', () => {
   ok(r.otherState.field.signi[0]?.at(-1) === ATK, 'アタッカーが残っていない');
 });
 
+// CONDITIONAL_GROW_AND_KEY_DISABLE: WXK02-029 ビカム・ユー①。「自センターが相手センターのレベル以下なら
+// グロウ（コスト支払い）。ターン終了時まで、あなたのすべてのキーは能力を失う。」条件付きグロウ＋keys_abilities_disabled。
+const LRIG_BY_LV = (lv: string) => findCard(c => c.Type === 'ルリグ' && c.Level === lv);
+test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv≤相手→グロウ＋キー能力喪失', () => {
+  const MYL = LRIG_BY_LV('1'), OPPL = LRIG_BY_LV('3'), NEXT = LRIG_BY_LV('2');
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.lrig = [MYL];
+  (ctx.ownerState as { lrig_deck: string[] }).lrig_deck = [NEXT];
+  ctx.otherState.field.lrig = [OPPL];
+  const r = run({ type: 'STUB', id: 'CONDITIONAL_GROW_AND_KEY_DISABLE' } as unknown as EffectAction, ctx);
+  eq(r.ownerState.field.lrig.length, 2, 'グロウしていない');
+  eq(r.ownerState.field.lrig.at(-1), NEXT, '次ルリグへグロウしていない');
+  eq((r.ownerState as { keys_abilities_disabled?: boolean }).keys_abilities_disabled, true, 'キー能力喪失フラグ');
+});
+test('CONDITIONAL_GROW_AND_KEY_DISABLE: 自Lv>相手→グロウせずキー能力喪失のみ', () => {
+  const MYL = LRIG_BY_LV('3'), OPPL = LRIG_BY_LV('1'), NEXT = LRIG_BY_LV('4');
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.lrig = [MYL];
+  (ctx.ownerState as { lrig_deck: string[] }).lrig_deck = [NEXT];
+  ctx.otherState.field.lrig = [OPPL];
+  const r = run({ type: 'STUB', id: 'CONDITIONAL_GROW_AND_KEY_DISABLE' } as unknown as EffectAction, ctx);
+  eq(r.ownerState.field.lrig.length, 1, '条件不成立なのにグロウした');
+  eq((r.ownerState as { keys_abilities_disabled?: boolean }).keys_abilities_disabled, true, 'キー能力喪失フラグ');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
