@@ -13681,7 +13681,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 const isDisabled = loading || overLimit || overPowerLimit || forcedBlocked ||
                   (pendingRiseFilter ? !riseConditionMet : isOccupied);
                 return (
-                  <button key={zi}
+                  <button key={zi} data-testid={`summon-zone-${zi}`}
                     onClick={() => !isDisabled && handleSummonSigni(pendingSigniSummon.handIndex, zi)}
                     disabled={isDisabled}
                     style={{
