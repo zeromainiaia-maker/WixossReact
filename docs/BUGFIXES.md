@@ -5,6 +5,16 @@
 
 ---
 
+## A表現テール: 色変化系STUB（3 id）を逆翻訳の意味文で描画（2026-06-29・zerom）
+
+色変化の CONTINUOUS STUB を生STUB（id露出）から原文意味文に置換。engine実装済み・activeCondition なし・action STUB として持つカードは各1枚。
+
+- **修正（`scripts/decompileEffects.ts`・decompiler のみ）**＝`colorChangeMap`（3 id）。CARDS_OUTSIDE_ENERGY_BECOME_WHITE（WX08-005「エナゾーン以外の領域にあるカードは白になる」）/ENERGY_NON_COLORLESS_ALL_COLORS（WX14-017「エナゾーンの無色でないカードはすべての色を持つ」）/CENTER_LRIG_COLOR_CHANGE_BLACK（WXK03-006「センタールリグは黒になる」）。
+- **注意（次の人向け）**＝同 id を `activeCondition` 等 action 以外で持つカードもある（WX08-008/WXEX2-50 等）が、それらは別経路で描画され生STUBではない。actionJa は action のみ描画するので影響は action STUB カードに限定。**残りの生STUBは「1 id が複数カードで原文/activeCondition が異なる」ゾーンに入っており（例 SIGNI_PROTECT_MOVE_EXCEPT_ENERGY/WHITE_SIGNI_ABILITY_PROTECT）、固定文化は二重/脱落リスクがあるため全カードの原文・ac を網羅確認してから1系統ずつ。**
+- **検証**＝typecheck 緑／lint 0／全シート再生成で該当生STUB消滅・**同型★0維持**（5986枚）・各カード原文一致／golden 88/88・smoke 全0・fuzz 全0（engine 不変）。
+
+---
+
 ## A表現テール: 能力/色 継承系STUB（GRANT_UNDER_* 等8 id）を逆翻訳の意味文で描画（2026-06-29・zerom）
 
 「このカードの下にある〜の能力／色を得る」型の CONTINUOUS 継承 STUB を生STUB（id露出）から原文意味文に置換。全 id は engine 実装済み・activeCondition なし。
