@@ -59,7 +59,8 @@
 - **C1**　**engine未配線 timing 群の発火配線**＝R33-R58 で新設した ~15種。一覧＝`scripts/decompileEffects.ts` の `engineUnwiredTimings`。
   - ~~`ON_TARGETED`（14枚）~~ **✅配線済(claude・2026-06-29)**＝`BattleScreen.handleEffectInteraction` の SELECT_TARGET 確定経路で `collectTargetedTriggers` が発火（人間/CPU 双方カバー・BUGFIXES参照）。⚠実機未検証(C2)・forced単一対象経路は未カバー(follow-up)。
   - ~~`ON_LRIG_GROW`(5)~~ **✅配線済(claude・2026-06-29)**＝`executeGrow`（人間・ゲットグロウ含む）/CPUセンターグロウで `collectLrigGrowTriggers` が発火（BUGFIXES参照）。⚠実機未検証(C2)・アシストグロウ経路は未カバー(follow-up)。
-  - 残＝`ON_MATERIAL_USED`(6・改造素材機構依存)/`ON_COIN_PAID`(3)/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(1)/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(1)/`ON_LRIG_UNDER_MOVED`(1)/`ON_KEYWORD_GAINED`(1)/`ON_DECK_SHUFFLED`(1)/`ON_LRIG_ATTACK_STEP_START`(1)。
+  - ~~`ON_COIN_PAID`(3)~~ **✅配線済(claude・2026-06-29)**＝コイン支払の各サイト（グロウ人間/CPU・シグニ【起】・キープレイ・シグニ【出】・アーツベット）で `collectCoinPaidTriggers` が発火（BUGFIXES参照）。⚠実機未検証(C2)・スペルベット/CPUルリグ【出】コインは未カバー(follow-up)。
+  - 残＝`ON_MATERIAL_USED`(6・改造素材機構依存)/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(1)/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(1)/`ON_LRIG_UNDER_MOVED`(1)/`ON_KEYWORD_GAINED`(1)/`ON_DECK_SHUFFLED`(1)/`ON_LRIG_ATTACK_STEP_START`(1)。
 - **C2**　**R5-R58 の全 engine 配線＋C1 ON_TARGETED が実機未検証** → PvP/CPU 実機検証（ヘッドレス不可・`/verify` または手動）。
 
 **D. STUB テール（低優先）**
