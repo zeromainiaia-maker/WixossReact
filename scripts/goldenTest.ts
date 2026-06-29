@@ -713,6 +713,23 @@ test('SIGNI_GRANT_CHOSEN_ABILITY: 表記=現在なら対象外＝付与なし', 
   eq(granted.length, 0, '対象外なのに付与された');
 });
 
+// BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: WD07-012【自】。「対戦相手のシグニがアタックしたとき、そのシグニのパワーが
+// その正面のシグニのパワーより低い場合、アタックしたそのシグニをバニッシュする」。triggeringCardNum＝アタッカー。
+test('BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: 正面より低パワー→バニッシュ', () => {
+  const ATK = SIGNI_P3000, FRONT = SIGNI_P12000;
+  const ctx = mkCtx({ signi: [null, null, FRONT] }, { signi: [ATK, null, null] }, 'WD07-012');
+  (ctx as { triggeringCardNum?: string }).triggeringCardNum = ATK;
+  const r = run({ type: 'STUB', id: 'BANISH_ATTACKER_IF_WEAKER_THAN_FRONT' } as unknown as EffectAction, ctx);
+  eq(r.otherState.field.signi[0], null, 'アタッカーがバニッシュされていない');
+});
+test('BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: 正面以上なら残る', () => {
+  const ATK = SIGNI_P12000, FRONT = SIGNI_P3000;
+  const ctx = mkCtx({ signi: [null, null, FRONT] }, { signi: [ATK, null, null] }, 'WD07-012');
+  (ctx as { triggeringCardNum?: string }).triggeringCardNum = ATK;
+  const r = run({ type: 'STUB', id: 'BANISH_ATTACKER_IF_WEAKER_THAN_FRONT' } as unknown as EffectAction, ctx);
+  ok(r.otherState.field.signi[0]?.at(-1) === ATK, 'アタッカーが残っていない');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
