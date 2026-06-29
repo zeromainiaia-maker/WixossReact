@@ -11,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinu
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -3356,59 +3356,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return after.trash.filter(n => beforeEnergy.has(n) && !beforeTrash.has(n));
   };
 
-  // デッキからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self のみ）を収集する。
-  // 場のシグニ用フィールドトリガー（any_ally等）はデッキミルでは発火しないため除外する。
-  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
-      if ((eff.triggerScope ?? 'self') !== 'self') continue;
-      if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
-      // fromZones 指定があり 'deck' を含まない場合はデッキからでは発火しない
-      if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('deck')) continue;
-      const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
-      entries.push({
-        id: generateUUID(),
-        playerId: trashedPlayerId,
-        cardNum: trashedCardNum,
-        effectId: eff.effectId,
-        label: `${cardName} の【トラッシュ時】効果（デッキから）`,
-        effect: eff,
-      });
-    }
-    return entries;
-  };
-
-  // 手札・エナゾーンからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self かつ fromAnyZone）を収集する。
-  // 「いずれかの領域からトラッシュに置かれたとき」（WX04-035-E2）のうち、場/デッキ以外（手札・エナ）の経路を補う。
-  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' = 'hand'): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
-      if ((eff.triggerScope ?? 'self') !== 'self') continue;
-      // 場/デッキ以外（手札・エナ）は fromAnyZone 指定、または fromZones が当該領域を含む効果のみ
-      const fromZones = eff.triggerCondition?.fromZones;
-      const okByZones = fromZones ? fromZones.includes(origin) : !!eff.triggerCondition?.fromAnyZone;
-      if (!okByZones) continue;
-      if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
-      const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
-      entries.push({
-        id: generateUUID(),
-        playerId: trashedPlayerId,
-        cardNum: trashedCardNum,
-        effectId: eff.effectId,
-        label: `${cardName} の【トラッシュ時】効果（手札／エナから）`,
-        effect: eff,
-      });
-    }
-    return entries;
-  };
-
-  // ON_TRASH トリガーを収集する
-  // causeByOpponent: このトラッシュが対戦相手の効果によるものか（byOpponentEffect ゲート用）。
-  //   バトル・自分の効果・ルール処理（リムーブ等）では false。
-  // byCostOrEffect: このトラッシュがコストか効果によるものか（fromFieldByCostOrEffect ゲート用。G204）。
-  //   バトルでのバニッシュやリムーブ等のルール処理では false。既定 true（効果発動後の差分検出経路は効果起因）。
+  // ON_TRASH ファミリ（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
+  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] =>
+    pureCollectDeckTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent);
+  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' = 'hand'): StackEntry[] =>
+    pureCollectAnyZoneTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, origin);
   const collectTrashTriggers = (
     trashedCardNum: string,
     trashedPlayerId: string,
@@ -3416,83 +3368,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     afterGuestState: PlayerState,
     causeByOpponent = false,
     byCostOrEffect = true,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    // トラッシュに置かれたカード自身の ON_TRASH 効果（このパスは「場から」トラッシュ＝field origin）
-    for (const eff of (effectsMap.get(trashedCardNum) ?? [])) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
-      // 「対戦相手の効果によって」限定トリガーは対戦相手効果が原因のときのみ発火（WX04-035-E2）
-      if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
-      // 「コストか効果によって場から」限定トリガーはコスト/効果起因のときのみ発火（バトル・ルール処理では発火しない。G204）
-      if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
-      // fromZones 指定があり 'field' を含まない場合は「場から」では発火しない（WX04-102「手札かデッキから」）
-      if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('field')) continue;
-      // レゾナの出現条件の支払いとしてトラッシュされた場合のみ発火（WX10-055等）。通常のトラッシュでは発火しない
-      if (eff.triggerCondition?.forResonaCondition) continue;
-      const cardName = battleCardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
-      entries.push({
-        id: generateUUID(),
-        playerId: trashedPlayerId,
-        cardNum: trashedCardNum,
-        effectId: eff.effectId,
-        label: `${cardName} の【トラッシュ時】効果`,
-        effect: eff,
-      });
-    }
-    // フィールド上シグニのON_TRASHフィールドトリガー（ally_banished等）
-    const ownerState = trashedPlayerId === bs.host_id ? afterHostState : afterGuestState;
-    for (const stack of ownerState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
-        if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (scope !== 'any_ally' && scope !== 'any') continue;
-        entries.push({
-          id: generateUUID(),
-          playerId: trashedPlayerId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（シグニトラッシュ時）`,
-          effect: eff,
-        });
-      }
-    }
-    // 対戦相手のシグニがトラッシュに置かれたのを監視する any_opp トリガー（トラッシュされたカードの対戦相手フィールド）。
-    // 例: WX04-037-E2「あなたのターンの間、対戦相手のシグニ1体が場からトラッシュに置かれたとき」。
-    const watcherPlayerId = trashedPlayerId === bs.host_id ? bs.guest_id : bs.host_id;
-    const watcherState = trashedPlayerId === bs.host_id ? afterGuestState : afterHostState;
-    const watcherOppState = ownerState; // = トラッシュされたカードのオーナー状態
-    const watcherIsTurnPlayer = bs.active_user_id === watcherPlayerId;
-    // 条件ツリーに IS_MY_TURN / IS_OPPONENT_TURN が含まれるか（evalCondition では IS_MY_TURN が常時true のため明示判定）
-    const condHas = (c: import('../types/effects').Condition | undefined, t: string): boolean =>
-      !!c && (c.type === t || (c.type === 'AND' && (c.conditions ?? []).some(cc => condHas(cc, t))));
-    for (const stack of watcherState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
-        if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (scope !== 'any_opp') continue; // 'any' は既存の自分側ループで収集済み
-        // 「あなたのターンの間」: IS_MY_TURN 指定があれば watcher がターンプレイヤーのときのみ
-        if (condHas(eff.condition, 'IS_MY_TURN') && !watcherIsTurnPlayer) continue;
-        if (condHas(eff.condition, 'IS_OPPONENT_TURN') && watcherIsTurnPlayer) continue;
-        // ターン条件以外の condition を評価
-        if (eff.condition && !evalUseCondition(eff.condition, watcherState, watcherOppState, battleCardMap, topNum, bs.turn_phase ?? '')) continue;
-        entries.push({
-          id: generateUUID(),
-          playerId: watcherPlayerId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（対戦相手シグニのトラッシュ時）`,
-          effect: eff,
-        });
-      }
-    }
-    return entries;
-  };
+  ): StackEntry[] =>
+    pureCollectTrashTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, afterHostState, afterGuestState, causeByOpponent, byCostOrEffect);
 
   /**
    * バニッシュされたシグニの ON_BANISH 効果 + フィールド上の全シグニのトリガーを収集する。

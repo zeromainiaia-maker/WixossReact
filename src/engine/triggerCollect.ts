@@ -9,7 +9,7 @@
  *           / ON_SIGNI_POWER_ZERO_OR_LESS（R37・Stage2第2弾）/ ON_BLOOD_CRYSTAL_ARMOR（Stage2第3弾）。
  */
 import type { PlayerState, CardData, StackEntry } from '../types';
-import type { CardEffect } from '../types/effects';
+import type { CardEffect, Condition } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 
 /** トリガー収集の依存（BattleScreen の bs/effectsMap/battleCardMap 等を注入）。 */
@@ -269,6 +269,134 @@ export function collectArmorTriggers(
         effectId: eff.effectId,
         label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum} の【自】効果（血晶武装時）`,
         effect: eff,
+      });
+    }
+  }
+  return entries;
+}
+
+// 条件ツリーに IS_MY_TURN / IS_OPPONENT_TURN が含まれるか（evalCondition では IS_MY_TURN が常時true のため明示判定）。
+const condHas = (c: Condition | undefined, t: string): boolean =>
+  !!c && (c.type === t || (c.type === 'AND' && (c.conditions ?? []).some(cc => condHas(cc, t))));
+
+/**
+ * デッキからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self のみ）を収集する（Stage2 抽出）。
+ * 場のシグニ用フィールドトリガー（any_ally等）はデッキミルでは発火しないため除外する。
+ */
+export function collectDeckTrashSelfTriggers(
+  ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+    if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    // fromZones 指定があり 'deck' を含まない場合はデッキからでは発火しない
+    if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('deck')) continue;
+    const cardName = ctx.cardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
+    entries.push({
+      id: ctx.genId(), playerId: trashedPlayerId, cardNum: trashedCardNum, effectId: eff.effectId,
+      label: `${cardName} の【トラッシュ時】効果（デッキから）`, effect: eff,
+    });
+  }
+  return entries;
+}
+
+/**
+ * 手札・エナゾーンからトラッシュに置かれたカード自身の ON_TRASH（triggerScope:self かつ fromAnyZone）を収集する（Stage2 抽出）。
+ * 「いずれかの領域からトラッシュに置かれたとき」（WX04-035-E2）のうち、場/デッキ以外（手札・エナ）の経路を補う。
+ */
+export function collectAnyZoneTrashSelfTriggers(
+  ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' = 'hand',
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+    if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    // 場/デッキ以外（手札・エナ）は fromAnyZone 指定、または fromZones が当該領域を含む効果のみ
+    const fromZones = eff.triggerCondition?.fromZones;
+    const okByZones = fromZones ? fromZones.includes(origin) : !!eff.triggerCondition?.fromAnyZone;
+    if (!okByZones) continue;
+    if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    const cardName = ctx.cardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
+    entries.push({
+      id: ctx.genId(), playerId: trashedPlayerId, cardNum: trashedCardNum, effectId: eff.effectId,
+      label: `${cardName} の【トラッシュ時】効果（手札／エナから）`, effect: eff,
+    });
+  }
+  return entries;
+}
+
+/**
+ * ON_TRASH トリガーを収集する（Stage2 抽出。「場から」トラッシュ＝field origin が主経路）。
+ * causeByOpponent: このトラッシュが対戦相手の効果によるものか（byOpponentEffect ゲート用）。
+ * byCostOrEffect: このトラッシュがコストか効果によるものか（fromFieldByCostOrEffect ゲート用。G204）。
+ */
+export function collectTrashTriggers(
+  ctx: TrigCtx,
+  trashedCardNum: string,
+  trashedPlayerId: string,
+  afterHostState: PlayerState,
+  afterGuestState: PlayerState,
+  causeByOpponent = false,
+  byCostOrEffect = true,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  // トラッシュに置かれたカード自身の ON_TRASH 効果（このパスは「場から」トラッシュ＝field origin）
+  for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+    // 「対戦相手の効果によって」限定トリガーは対戦相手効果が原因のときのみ発火（WX04-035-E2）
+    if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    // 「コストか効果によって場から」限定トリガーはコスト/効果起因のときのみ発火（バトル・ルール処理では発火しない。G204）
+    if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
+    // fromZones 指定があり 'field' を含まない場合は「場から」では発火しない（WX04-102「手札かデッキから」）
+    if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('field')) continue;
+    // レゾナの出現条件の支払いとしてトラッシュされた場合のみ発火（WX10-055等）。通常のトラッシュでは発火しない
+    if (eff.triggerCondition?.forResonaCondition) continue;
+    const cardName = ctx.cardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
+    entries.push({
+      id: ctx.genId(), playerId: trashedPlayerId, cardNum: trashedCardNum, effectId: eff.effectId,
+      label: `${cardName} の【トラッシュ時】効果`, effect: eff,
+    });
+  }
+  // フィールド上シグニのON_TRASHフィールドトリガー（ally_banished等）
+  const ownerState = trashedPlayerId === ctx.hostId ? afterHostState : afterGuestState;
+  for (const stack of ownerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+      if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_ally' && scope !== 'any') continue;
+      entries.push({
+        id: ctx.genId(), playerId: trashedPlayerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum} の【自】効果（シグニトラッシュ時）`, effect: eff,
+      });
+    }
+  }
+  // 対戦相手のシグニがトラッシュに置かれたのを監視する any_opp トリガー（トラッシュされたカードの対戦相手フィールド）。
+  // 例: WX04-037-E2「あなたのターンの間、対戦相手のシグニ1体が場からトラッシュに置かれたとき」。
+  const watcherPlayerId = trashedPlayerId === ctx.hostId ? ctx.guestId : ctx.hostId;
+  const watcherState = trashedPlayerId === ctx.hostId ? afterGuestState : afterHostState;
+  const watcherOppState = ownerState; // = トラッシュされたカードのオーナー状態
+  const watcherIsTurnPlayer = ctx.activeUserId === watcherPlayerId;
+  for (const stack of watcherState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+      if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_opp') continue; // 'any' は既存の自分側ループで収集済み
+      // 「あなたのターンの間」: IS_MY_TURN 指定があれば watcher がターンプレイヤーのときのみ
+      if (condHas(eff.condition, 'IS_MY_TURN') && !watcherIsTurnPlayer) continue;
+      if (condHas(eff.condition, 'IS_OPPONENT_TURN') && watcherIsTurnPlayer) continue;
+      // ターン条件以外の condition を評価
+      if (eff.condition && !evalUseCondition(eff.condition, watcherState, watcherOppState, ctx.cardMap, topNum, ctx.turnPhase ?? '')) continue;
+      entries.push({
+        id: ctx.genId(), playerId: watcherPlayerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum} の【自】効果（対戦相手シグニのトラッシュ時）`, effect: eff,
       });
     }
   }

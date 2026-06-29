@@ -20,7 +20,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -302,6 +302,30 @@ test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: self-scope 武装シグニ自身が発火',
 test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: armor 無しカードは非発火', () => {
   const host = mkState({ signi: [SIGNI, null, null] }); const guest = mkState({});
   eq(collectArmorTriggers(trigCtx(HOST), SIGNI, HOST, host, guest).length, 0, 'non-armor');
+});
+
+// Stage2④: ON_TRASH ファミリ（collectTrashTriggers/collectDeckTrashSelfTriggers/collectAnyZoneTrashSelfTriggers）を pure 化→自動検証。
+const has = (e: { effectId: string }[], id: string) => e.some(x => x.effectId === id);
+test('Stage2 ON_TRASH: 場からトラッシュで self トリガー発火（WXDi-P09-043-E2）', () => {
+  const host = mkState({}); const guest = mkState({});
+  const e = collectTrashTriggers(trigCtx(HOST), 'WXDi-P09-043', HOST, host, guest);
+  eq(has(e, 'WXDi-P09-043-E2'), true, 'self発火');
+});
+test('Stage2 ON_TRASH: any_opp + IS_MY_TURN ゲート（WX04-037-E2）', () => {
+  // 相手(GUEST)のシグニがトラッシュ→watcher=HOST の WX04-037 が「自分のターンの間」のみ発火
+  const host = mkState({ signi: ['WX04-037', null, null] }); const guest = mkState({});
+  eq(has(collectTrashTriggers(trigCtx(HOST), SIGNI, GUEST, host, guest), 'WX04-037-E2'), true, '自ターン発火');
+  eq(has(collectTrashTriggers(trigCtx(GUEST), SIGNI, GUEST, host, guest), 'WX04-037-E2'), false, '相手ターン非発火');
+});
+test('Stage2 ON_TRASH: fromZones=[deck] は場からでは非発火・デッキからのみ発火（WX02-073-E1）', () => {
+  const host = mkState({}); const guest = mkState({});
+  eq(has(collectTrashTriggers(trigCtx(HOST), 'WX02-073', HOST, host, guest), 'WX02-073-E1'), false, '場からは非発火');
+  eq(has(collectDeckTrashSelfTriggers(trigCtx(HOST), 'WX02-073', HOST), 'WX02-073-E1'), true, 'デッキから発火');
+});
+test('Stage2 ON_TRASH: fromAnyZone + byOpponentEffect ゲート（WX04-035-E2）', () => {
+  const c = collectAnyZoneTrashSelfTriggers;
+  eq(has(c(trigCtx(HOST), 'WX04-035', HOST, true, 'hand'), 'WX04-035-E2'), true, '相手効果起因で発火');
+  eq(has(c(trigCtx(HOST), 'WX04-035', HOST, false, 'hand'), 'WX04-035-E2'), false, '自起因では非発火');
 });
 
 // ── レポート ──

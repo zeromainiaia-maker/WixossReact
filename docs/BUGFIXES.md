@@ -16,6 +16,17 @@
 
 ---
 
+## ツール: Stage2④ ON_TRASH ファミリの pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第4弾。ON_TRASH の3収集関数（`collectTrashTriggers`/`collectDeckTrashSelfTriggers`/`collectAnyZoneTrashSelfTriggers`）を `triggerCollect.ts` へ pure 化。
+
+- **`triggerCollect.ts` に3関数＋`condHas` ヘルパ追加**＝場からトラッシュ（field origin・self/any_ally/any＋相手シグニ監視 any_opp）／デッキから（self・fromZones deck）／手札・エナから（self・fromAnyZone/fromZones）。byOpponentEffect・fromFieldByCostOrEffect・fromZones・forResonaCondition・IS_MY_TURN/IS_OPPONENT_TURN ゲートを保持。依存は `TrigCtx`＋`evalUseCondition`（既存 import）。`Condition` 型を import 追加。
+- **BattleScreen 側**＝約135行の3クロージャを薄いラッパ（`mkTrigCtx()` 経由）に置換＝挙動不変。呼び出し元（trashEntries/removeTrashEntries/trashEntriesSA の計8箇所）は無変更。
+- **golden に4件追加（PASS 33→37）**＝場から self 発火（WXDi-P09-043-E2）／any_opp+IS_MY_TURN ゲート（WX04-037-E2・自ターンのみ）／fromZones=[deck] は場から非発火・デッキからのみ発火（WX02-073-E1）／fromAnyZone+byOpponentEffect ゲート（WX04-035-E2・相手起因のみ）。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（37/37）／`npm run fuzz`（全0）。
+
+---
+
 ## ツール: Stage2③ collectArmorTriggers の pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第3弾。`ON_BLOOD_CRYSTAL_ARMOR`（血晶武装したとき）の収集を pure 化。armor 対象6枚（WDK08-L01/L17・WXK04-043・WXK05-023/036/058）は全て scope=self。
