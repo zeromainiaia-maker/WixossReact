@@ -212,7 +212,13 @@ try {
     }
     // 召喚ゾーン選択モーダル: 空きゾーンを testid で順に試す（無効ボタンは disabled で弾かれる）
     if (!did && summoned) did = await clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
-    if (!did) did = await clickTextOrBtn(['対戦相手の効果によってダウンしない', '①ダウンしない', 'ダウンしない', '①']);
+    // CHOOSE 選択肢: ボタン限定（盤面ログ「…ダウンしない（ターン終了時まで）」への誤マッチを防ぐ）
+    if (!did) {
+      for (const lbl of ['対戦相手の効果によってダウンしない', '①ダウンしない', '①']) {
+        const b = page.getByRole('button', { name: lbl, exact: false }).first();
+        if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:' + lbl; break; }
+      }
+    }
     // SELECT_TARGET 対象選択: ピッカー候補（pick-N）を未選択なら1枚クリック → 決定で確定
     const pick0 = page.getByTestId('pick-0').first();
     if (!did && await pick0.count() && await pick0.isVisible().catch(() => false)) {
@@ -223,6 +229,10 @@ try {
     if (!did) did = await clickTextOrBtn(['決定', 'OK', 'はい', '選ぶ']);
     console.log(`     -> ${did ?? 'なし'}`);
     if (star) { await page.waitForTimeout(800); await page.screenshot({ path: `${SHOT}/inj-CHOOSE.png`, fullPage: true }); }
+    // 付与が盤面ログに反映されたら完了（残りの空クリックを止める）
+    if (/ダウンしない（ターン終了時まで）|手札に戻らない（ターン終了時まで）/.test(await bodyText(page))) {
+      console.log('  ✓ 付与成功を盤面ログで確認 → クリック列完了'); break;
+    }
   }
   await page.screenshot({ path: `${SHOT}/inj-99-final.png`, fullPage: true });
   // 付与結果をログ/盤面から確認
