@@ -274,6 +274,7 @@ for (const f of fails) counts[f.status] = (counts[f.status] ?? 0) + 1;
 
 console.log('\n===== selfPlayFuzz 結果 =====');
 console.log(`シード ${SEED0} / ${GAMES}ゲーム × 最大${MOVES}手 / ${(Date.now() - t0)}ms`);
+console.log(`カバレッジ: 効果実行 ${cov.executed}手 / SKIP ${cov.skipped}手 / distinct効果 ${cov.firedEffects.size}種`);
 console.log(`不具合: CRASH ${counts.CRASH} / HANG ${counts.HANG} / INVARIANT ${counts.INVARIANT} / EXPLOSION ${counts.EXPLOSION}`);
 if (fails.length === 0) {
   console.log('✓ 全ゲーム 不具合なし（engine は乱択連鎖でも堅牢）');
