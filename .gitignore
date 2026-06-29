@@ -45,3 +45,6 @@ docs/effects_merge_report.md
 /decompile_*.txt
 # ブラウザ検証ハーネスのスクショ出力（非追跡）
 /scratchpad-verify/
+# 検証用すてアカウントの認証情報（コミット禁止）
+/verify-accounts.json
+
