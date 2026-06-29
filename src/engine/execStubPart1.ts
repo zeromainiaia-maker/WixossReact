@@ -424,6 +424,26 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapGCA } },
       `${nameGCA}は対戦相手の効果によって${labelGCA}（ターン終了時まで）`));
   }
+  // BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: WD07-012 コードアンチ ヴィマナ【自】。
+  //   「対戦相手のシグニがアタックしたとき、そのシグニのパワーがそのシグニの正面のシグニのパワーより低い場合、
+  //    アタックしたそのシグニをバニッシュする。」triggeringCardNum＝アタックした相手シグニ。
+  //   その正面（ownerState の鏡像ゾーン 2-zone）のシグニとパワーを比較し、低ければアタッカーをバニッシュ。
+  if (stub.id === 'BANISH_ATTACKER_IF_WEAKER_THAN_FRONT') {
+    const attackerBAW = ctx.triggeringCardNum;
+    if (!attackerBAW) return done(addLog(ctx, 'アタッカー不明（BANISH_ATTACKER_IF_WEAKER_THAN_FRONT）'));
+    const ziBAW = ctx.otherState.field.signi.findIndex(s => s?.at(-1) === attackerBAW);
+    if (ziBAW < 0) return done(addLog(ctx, 'アタッカーが場にいない'));
+    const frontBAW = ctx.ownerState.field.signi[2 - ziBAW]?.at(-1);
+    if (!frontBAW) return done(addLog(ctx, '正面シグニなし（バニッシュなし）'));
+    const atkPwBAW = ctx.effectivePowers?.get(attackerBAW) ?? (parseInt(ctx.cardMap.get(attackerBAW)?.Power ?? '0', 10) || 0);
+    const frontPwBAW = ctx.effectivePowers?.get(frontBAW) ?? (parseInt(ctx.cardMap.get(frontBAW)?.Power ?? '0', 10) || 0);
+    if (atkPwBAW >= frontPwBAW) {
+      return done(addLog(ctx, `アタッカー(${atkPwBAW})は正面(${frontPwBAW})未満でない＝バニッシュなし`));
+    }
+    const { state: newOtherBAW, log: logBAW } = banishDestination(removeFromField(attackerBAW, ctx.otherState), ctx.ownerState, attackerBAW);
+    return done(addLog({ ...ctx, otherState: newOtherBAW },
+      `${ctx.cardMap.get(attackerBAW)?.CardName ?? attackerBAW}${logBAW}（正面より低パワー）`));
+  }
   // INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED: WXK04-030 血晶の紅雨。
   //   あなたの血晶武装状態のすべてのシグニに「【自】このシグニがアタックしたとき、自パワー以下の対戦相手のシグニ1体をバニッシュ」を
   //   ターン終了時まで付与する。granted_effects（instanceId単位）に積むと effectsMap マージ経由でアタックトリガー収集が拾う。
