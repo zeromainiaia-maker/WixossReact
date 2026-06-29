@@ -4753,6 +4753,34 @@ export function execStubPart3(
     });
   }
 
+  // CONDITIONAL_GROW_AND_KEY_DISABLE: WXK02-029 ビカム・ユー（アーツ）の選択肢①。
+  //   「あなたのセンタールリグが対戦相手のセンタールリグのレベル以下の場合、あなたのセンタールリグはグロウする。
+  //    ターン終了時まで、あなたのすべてのキーは能力を失う。（グロウコストは支払う）」
+  //   条件付きグロウ（GROW_CENTER_IF_LEVEL_LTE_OPP と同ロジック）＋ keys_abilities_disabled フラグ（このターン）。
+  if (stub.id === 'CONDITIONAL_GROW_AND_KEY_DISABLE') {
+    const myLrigCnCG = ctx.ownerState.field.lrig.at(-1);
+    const oppLrigCnCG = ctx.otherState.field.lrig.at(-1);
+    const myLvCG = myLrigCnCG ? parseInt(ctx.cardMap.get(myLrigCnCG)?.Level ?? '0') || 0 : 0;
+    const oppLvCG = oppLrigCnCG ? parseInt(ctx.cardMap.get(oppLrigCnCG)?.Level ?? '0') || 0 : 0;
+    let ownerCG: PlayerState = { ...ctx.ownerState, keys_abilities_disabled: true };
+    let logCG = 'ターン終了時まで、あなたのすべてのキーは能力を失う';
+    if (myLvCG <= oppLvCG) {
+      const nextLrigCG = ctx.ownerState.lrig_deck?.at(0);
+      if (nextLrigCG) {
+        ownerCG = {
+          ...ownerCG,
+          lrig_deck: ctx.ownerState.lrig_deck?.slice(1) ?? [],
+          field: { ...ownerCG.field, lrig: [...ownerCG.field.lrig, nextLrigCG] },
+        };
+        logCG = `グロウ条件成立（自Lv${myLvCG}≤相手Lv${oppLvCG}）→${ctx.cardMap.get(nextLrigCG)?.CardName ?? nextLrigCG}にグロウ（コスト支払い済み）。${logCG}`;
+      } else {
+        logCG = `グロウ不可（ルリグデッキ空）。${logCG}`;
+      }
+    } else {
+      logCG = `グロウ条件不成立（自Lv${myLvCG} > 相手Lv${oppLvCG}）。${logCG}`;
+    }
+    return done(addLog({ ...ctx, ownerState: ownerCG }, logCG));
+  }
   // GROW_CENTER_IF_LEVEL_LTE_OPP: センタールリグのレベルが相手以下なら無コストグロウ
   if (stub.id === 'GROW_CENTER_IF_LEVEL_LTE_OPP') {
     const myLrigCnGC = ctx.ownerState.field.lrig.at(-1);

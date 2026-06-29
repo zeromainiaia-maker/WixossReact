@@ -1044,7 +1044,7 @@ export function calcFieldPowers(
     const ar = ownerState.field.assist_lrig_r ?? [];
     if (ar.length > 0) candidates.push(ar[ar.length - 1]);
     // キーピース
-    if (ownerState.field.key_piece) candidates.push(ownerState.field.key_piece);
+    if (ownerState.field.key_piece && !ownerState.keys_abilities_disabled) candidates.push(ownerState.field.key_piece);
 
     // アクセカードのCONTINUOUS効果（パワー修正のみ）をホストシグニに適用
     // 例: 「これにアクセされているシグニはパワー+3000を得る」
@@ -1685,7 +1685,7 @@ export function collectLrigGrantedEffects(
   for (const stack of ownerState.field.signi) {
     if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
   }
-  if (ownerState.field.key_piece) candidates.push(ownerState.field.key_piece);
+  if (ownerState.field.key_piece && !ownerState.keys_abilities_disabled) candidates.push(ownerState.field.key_piece);
 
   for (const cardNum of candidates) {
     const effects = effectsMap.get(cardNum) ?? [];
@@ -2151,7 +2151,7 @@ export function collectDrawLimits(
     ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...opponentState.field.lrig.slice(-1),
   ];
-  if (opponentState.field.key_piece) candidates.push(opponentState.field.key_piece);
+  if (opponentState.field.key_piece && !opponentState.keys_abilities_disabled) candidates.push(opponentState.field.key_piece);
   for (const cn of candidates) {
     const effs = effectsMap.get(cn) ?? [];
     for (const eff of effs) {
@@ -2186,7 +2186,7 @@ export function collectProtectedZones(
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (state.field.key_piece) candidates.push(state.field.key_piece);
+  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
   // ルリグフィールドも対象（WXEX2-22等のルリグ常時効果）
   if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
   for (const cn of candidates) {
@@ -2255,7 +2255,7 @@ export function collectEnergyColorSubs(
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (state.field.key_piece) candidates.push(state.field.key_piece);
+  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
   if (state.field.lrig.length > 0) candidates.push(state.field.lrig.at(-1)!);
   for (const cn of candidates) {
     const effs = effectsMap.get(cn) ?? [];
@@ -3201,7 +3201,7 @@ export function collectHandGuardIconClasses(
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (state.field.key_piece) candidates.push(state.field.key_piece);
+  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
 
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
@@ -3261,7 +3261,7 @@ export function collectArtsThresholdCostReductions(
     if (top) candidates.push(top);
   }
   if (state.field.lrig.length > 0) candidates.push(state.field.lrig.at(-1)!);
-  if (state.field.key_piece) candidates.push(state.field.key_piece);
+  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
 
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
@@ -3337,7 +3337,7 @@ export function collectLrigColorAndLimitMods(
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (state.field.key_piece) candidates.push(state.field.key_piece);
+  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
 
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
