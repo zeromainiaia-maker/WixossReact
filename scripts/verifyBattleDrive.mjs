@@ -127,8 +127,30 @@ try {
     await page.waitForTimeout(1500);
     if ((i + 1) % 5 === 0) await page.screenshot({ path: `${SHOT}/drv-setup-${i + 1}.png`, fullPage: true });
   }
-  await page.screenshot({ path: `${SHOT}/drv-99-final.png`, fullPage: true });
-  console.log('最終画面:', await bodyText(page));
+  await page.screenshot({ path: `${SHOT}/drv-99-playing.png`, fullPage: true });
+  console.log('PLAYING盤面:', (await bodyText(page)).slice(0, 120).replace(/\n/g, ' '));
+
+  // ── battle_states 行を読んで構造をダンプ（注入の足場確認）──
+  const dump = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+    const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+    const rooms = await r1.json(); const roomId = rooms?.[0]?.id;
+    if (!roomId) return { error: 'PLAYINGルームなし' };
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=*`, { headers: h });
+    const row = (await r2.json())?.[0];
+    const hs = row?.host_state ?? {};
+    return {
+      roomId, uid, host_id: row?.host_id, active_user_id: row?.active_user_id,
+      turn_phase: row?.turn_phase, turn_count: row?.turn_count,
+      host_state_keys: Object.keys(hs), field_keys: Object.keys(hs.field ?? {}),
+      hand_len: hs.hand?.length, lrig: hs.field?.lrig, signi: hs.field?.signi, energy_len: hs.energy?.length,
+    };
+  }, { SUPA_URL, ANON });
+  console.log('\n=== battle_states ダンプ ===');
+  console.log(JSON.stringify(dump, null, 2));
+
   if (errors.length) { console.log('\n[console errors]'); errors.slice(0, 8).forEach(e => console.log('  ' + e)); }
   await browser.close();
 } catch (e) { console.error('失敗:', e.message); code = 2; }
