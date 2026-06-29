@@ -21,7 +21,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
@@ -632,6 +632,15 @@ test('改造素材 Step2 MARK_MATERIAL_TARGET: lastProcessed を material_used_t
   const ctx = { ...mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI), lastProcessedCards: [SIGNI] } as ExecCtx;
   const r = run({ type: 'STUB', id: 'MARK_MATERIAL_TARGET' } as EffectAction, ctx);
   eq((r.ownerState.material_used_targets ?? []).includes(SIGNI), true, 'MARK が対象を記録');
+});
+
+// C1: ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（WX07-036）配線の発火条件を検証。
+test('C1 ON_SIGNI_BANISH_OPPONENT_BY_EFFECT: ウェポン発生源で発火・非ウェポンは非発火（WX07-036-E1）', () => {
+  const host = mkState({ signi: ['WX07-036', null, null] });
+  // banisher が ＜ウェポン＞シグニ（WX01-039）→ triggerFilter(story:ウェポン) 一致で発火
+  eq(has(collectBanishOppByEffectTriggers(trigCtx(HOST), 'WX01-039', HOST, host).entries, 'WX07-036-E1'), true, 'ウェポン発生源で発火');
+  // banisher が 非ウェポン（SIGNI）→ 非発火
+  eq(has(collectBanishOppByEffectTriggers(trigCtx(HOST), SIGNI, HOST, host).entries, 'WX07-036-E1'), false, '非ウェポン発生源は非発火');
 });
 
 // ── レポート ──

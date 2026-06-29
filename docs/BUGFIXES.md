@@ -16,6 +16,19 @@
 
 ---
 
+## C1: ON_SIGNI_BANISH_OPPONENT_BY_EFFECT 配線（WX07-036・2026-06-29）
+
+「あなたの＜ウェポン＞のシグニが効果によって対戦相手シグニ1体をバニッシュしたとき→このシグニ【ダブルクラッシュ】」を配線。実 GRANT_KEYWORD＝配線で機能。
+
+- **`collectBanishOppByEffectTriggers`（pure・triggerCollect.ts）追加**＝バニッシュ実行シグニ（banisher）所有者の場から ON_SIGNI_BANISH_OPPONENT_BY_EFFECT AUTO（any_ally/any）を triggerFilter（＜ウェポン＞・banisher に照合）で収集。
+- **BattleScreen 中央 diff で発火**＝解決中 entry（効果発生源）が発生源側の場シグニで、かつこの解決で対戦相手シグニがバニッシュ（場→エナ・既存 `detectBanishedSigni`）された場合に、`entry.cardNum` を banisher として収集。
+- **decompiler**＝`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT` を engineUnwiredTimings から除去（マーカー消去・sheet1 再生成・同型★0）。
+- **golden に1件追加（PASS 85→86）**＝ウェポン発生源で発火／非ウェポンは非発火。
+- **検証**＝typecheck 緑／lint 0／smoke（不変・全0）／golden（86/86）／fuzz（全0）。⚠近似＝効果解決＝「効果によって」とみなす／banisher は entry.cardNum で近似（連鎖の実発生源は未追跡）＝要実機検証。
+- **C1 残**＝ON_DECK_SHUFFLED（多経路）/ON_KEYWORD_GAINED（COPY_ABILITY STUB・scope曖昧）/ON_LRIG_UNDER_MOVED（STUB action）の3 timing（各1カード）。
+
+---
+
 ## 機構: 改造素材 foundation Step2+3b＝トークン3択UI＋ON_MATERIAL_USED(self/any_ally)配線＝**改造素材機構 完成**（2026-06-29）
 
 Step1（プレイ可能化）/Step3a（materialUsedByPlayer）に続き、トークンの3択実装（Step2）と self/any_ally トリガー発火（Step3b）を実装＝**ON_MATERIAL_USED 全変種が engine 配線済**。

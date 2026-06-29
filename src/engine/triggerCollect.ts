@@ -1778,3 +1778,35 @@ export function collectMaterialUsedOnSigniTriggers(
   }
   return { entries, usedOncePerTurnIds };
 }
+
+/**
+ * ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（「あなたの＜ウェポン＞シグニが効果で対戦相手シグニをバニッシュしたとき」WX07-036）を収集する（C1・2026-06-29）。
+ * banisherCardNum=この解決でバニッシュを行った効果の発生源シグニ（＝解決中 entry.cardNum）／banisherOwnerId=その所有者。
+ * banisherOwnerState の場シグニ/ルリグから ON_SIGNI_BANISH_OPPONENT_BY_EFFECT AUTO（any_ally/any）を triggerFilter（ウェポン等・バニッシュ実行シグニに対して）で絞って収集。
+ * ⚠ 近似：効果解決＝「効果によって」を満たすとみなす／バニッシュ実行シグニは entry.cardNum で近似（連鎖の実発生源は未追跡）。
+ */
+export function collectBanishOppByEffectTriggers(
+  ctx: TrigCtx, banisherCardNum: string, banisherOwnerId: string, banisherOwnerState: PlayerState,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (banisherOwnerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const limitOk = mkLimitOk(banisherOwnerState.actions_done, usedOncePerTurnIds);
+  const banisherCard = ctx.cardMap.get(getCardNum(banisherCardNum));
+  for (const topNum of ownFieldSources(banisherOwnerState)) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BANISH_OPPONENT_BY_EFFECT')) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_ally' && scope !== 'any') continue;
+      // triggerFilter（＜ウェポン＞等）はバニッシュ実行シグニ（banisher）に対して照合
+      if (eff.triggerFilter && !matchesFilter(banisherCard, eff.triggerFilter)) continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: banisherOwnerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（味方ウェポンが効果でバニッシュ時）`, effect: eff, triggeringCardNum: banisherCardNum,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}
