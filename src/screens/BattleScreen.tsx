@@ -12254,6 +12254,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
         }
       }
+      // ON_COIN_PAID（C1 配線・シグニ【出】《コイン》）: コインを支払った場合に反応【自】を積む。
+      if (coinCostOPC > 0) {
+        allEntries.push(...collectCoinPaidTriggers(user.id, paid, user.id === bs.host_id ? bs.guest_state : bs.host_state));
+      }
       await finishOrChainSigniOnPlayCost(cardNum, paid, allEntries, remainingCostEffects, placedZone);
     } finally {
       setLoading(false);
