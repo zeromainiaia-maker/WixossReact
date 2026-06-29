@@ -10641,8 +10641,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
           // ON_LRIG_GROW（C1 配線・CPUセンターグロウ）: CPU=guest のグロウに反応する【自】を収集。
           const cpuGrowReactEntries = collectLrigGrowTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state);
-          // 場出し数制限の選択トラッシュ（人間相手）＋グロウ反応＋ルリグ【出】効果をスタックに積む
-          const cpuAllGrowEntries = [...cpuLimitEntries, ...cpuGrowReactEntries, ...cpuGrowEntries];
+          // ON_COIN_PAID（C1 配線・CPUグロウコストのコイン支払）
+          const cpuGrowCoinEntries = growCoinCostCpu > 0 ? collectCoinPaidTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state) : [];
+          // 場出し数制限の選択トラッシュ（人間相手）＋グロウ反応＋コイン支払反応＋ルリグ【出】効果をスタックに積む
+          const cpuAllGrowEntries = [...cpuLimitEntries, ...cpuGrowReactEntries, ...cpuGrowCoinEntries, ...cpuGrowEntries];
           if (cpuAllGrowEntries.length > 0) {
             // スタックに積んで解決を待つ（GROWに留まり、解決後の再実行でMAINへ進む）
             const existingStackGR = bs.effect_stack ?? null;
