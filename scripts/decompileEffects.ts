@@ -1016,6 +1016,9 @@ function actionJa(a?: Action, effectType?: string): string {
         ENERGY_SUBSTITUTE_TRASH_KEY: 'あなたがエナコストを支払う際、このキーを場からルリグトラッシュに置くことで好きな色のエナ２つを支払える',
         PLAY_SPELL_FROM_HAND: 'あなたの手札からコストの合計が２～４の青か黒のスペル１枚を、そのコストを支払って使用する',
         PLAY_SPELL_FROM_HAND_FREE: 'あなたの手札からコストの合計が１以下の赤のスペル１枚をコストを支払わずに使用してもよい',
+        USE_SPELL_FROM_TRASH: '対戦相手のトラッシュからスペル１枚を対象とし、それを使用する',
+        ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 'このアーツの使用コストに含まれる《無》コストは、あなたのセンタールリグが持つ色でしか支払えない',
+        BLACK_RISE_PLAY_STACK_FROM_TRASH: 'あなたのトラッシュからシグニ１枚を対象とし、それをそのシグニの下に置く',
       };
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
