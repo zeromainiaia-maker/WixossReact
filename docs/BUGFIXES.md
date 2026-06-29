@@ -16,6 +16,19 @@
 
 ---
 
+## ツール: Stage2⑩ 大物 collectFieldTriggers/collectBloomTriggers の pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第10弾。最大の汎用トリガー収集 `collectFieldTriggers`（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM）と、それに依存する `collectBloomTriggers` を `triggerCollect.ts` へ pure 化。
+
+- **`collectFieldTriggers`（約160行）を pure 化**＝自分の場（any_ally/any・ルリグも ON_PLAY 監視）＋相手の場（any_opp/any）の二重走査。byEffect/bySigniEffect・placedDown/placedFromTrash/placedPuppet・frontLowerLevelThanSource/placedFront・triggerFilter・REMOVE_ABILITIES/FROZEN_LOSES_ABILITIES・MOVE_TO_ATTACKER_FRONT 二重発火防止・ARTS_SELF_RECYCLE_ON_TRIGGER をすべて保持。opId は ownerId 基準（視点非依存）。
+- **`collectBloomTriggers` も pure 化**＝自身 self ON_BLOOM ＋ pure collectFieldTriggers(ON_BLOOM) を呼ぶ。
+- **BattleScreen 側**＝2クロージャを薄いラッパに置換＝挙動不変。`ownerId = user.id` 既定はラッパに残置。呼び出し元（複数の ON_PLAY/ON_ATTACK_SIGNI 経路）は無変更。
+- **golden に4件追加（PASS 60→63）**＝any_opp 相手シグニが召喚に反応（WXK10-022-E1・playerId=相手）／any_ally triggerFilter(story:毒牙) ゲート（WX06-021-E1）／ON_BLOOM self（WXK04-026-E2）＋場の any_ally（WXK05-021-E1）。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（63/63）／`npm run fuzz`（全0）。
+- **残（TODO §8 Stage2）**＝大物 `collectTurnTriggers`（中リスク・特殊ケース多数）＋`detect*`（約13個）／フェイズ進行／effect_stack 整列。collect 系は turn を残すのみ。
+
+---
+
 ## ツール: Stage2⑨ クリーン系7トリガー収集の pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第9弾。残るクリーン系7関数を `triggerCollect.ts` へ pure 化＝`collectSelfEventTriggers`（ON_LIFE_CRASHED/ON_GUARD/ウィルス系）/`collectZoneMovedTriggers`（ON_ZONE_MOVED）/`collectDriveBecameTriggers`（ON_SIGNI_BECOMES_DRIVE）/`collectBeatBecameTriggers`（ON_BECOME_BEAT）/`collectHandDiscardTriggers`（ON_HAND_DISCARDED/ON_DISCARDED_AS_COST）/`collectOppArtsUseTriggers`（ON_OPP_ARTS_USE）/`collectArtsUseTriggers`（ON_ARTS_USE）。

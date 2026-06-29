@@ -11,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinu
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -5693,202 +5693,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * フィールド上の全シグニから、指定イベントに反応する AUTO 効果を収集して StackEntry[] を返す。
    * 召喚されたカード自身（triggerScope='self'）はここでは除き、queueCardEffects で別途処理する。
    */
+  // ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM の場トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectFieldTriggers = (
     event: 'ON_PLAY' | 'ON_BANISH' | 'ON_ATTACK_SIGNI' | 'ON_BLOOM',
     triggeringCardNum: string,
     myState: PlayerState,
     opState: PlayerState,
     ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
-    // 効果でシグニが場に出た経路から呼ばれた場合（G144/G145/WX11-054 の any_ally byEffect/placedDown を発火させる）。
-    // placeSourceIsSigni: 場出しした効果元がシグニか（bySigniEffect 用）。手札召喚経路は placedByEffect=false で従来どおり byEffect 非発火。
     opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean; placedFromTrash?: boolean },
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const opId = ownerId === bs.host_id ? bs.guest_id : bs.host_id;
-    // byEffect/bySigniEffect:「効果によって場に出たとき」限定の発火可否（ON_PLAY）。
-    //   手札召喚（placedByEffect 無し）では発火しない。効果配置経路では byEffect 発火、bySigniEffect はソースがシグニのときのみ。
-    const byEffectTriggerOk = (eff: import('../types/effects').CardEffect): boolean => {
-      if (event !== 'ON_PLAY') return true;
-      if (eff.triggerCondition?.bySigniEffect) return !!(opts?.placedByEffect && opts?.placeSourceIsSigni);
-      if (eff.triggerCondition?.byEffect) return !!opts?.placedByEffect;
-      return true;
-    };
-
-    // CONTINUOUS REMOVE_ABILITIES: 能力を失っているシグニのセットを事前計算
-    const isOwnerTurnForTrigger = ownerId === bs.active_user_id;
-    const myAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForTrigger, effectsMap, battleCardMap);
-    const opAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(opState, myState, !isOwnerTurnForTrigger, effectsMap, battleCardMap);
-
-    // 自分のフィールド：'any_ally' または 'any' トリガー
-    // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ（GRANT_ABILITY_INNER_TEXT付与）
-    const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
-    // ウォッチャー＝場のシグニ各最前面。ON_PLAY ではルリグも監視対象に含める
-    //   （WDK17-001「あなたの傀儡状態のシグニが場に出たとき」等、味方シグニの出現に反応するルリグの any_ally【自】）。
-    const allyWatchers: { topNum: string; isLrig: boolean }[] = [];
-    for (const stack of myState.field.signi) {
-      if (stack?.length) allyWatchers.push({ topNum: stack[stack.length - 1], isLrig: false });
-    }
-    const myLrigWatcher = event === 'ON_PLAY' ? myState.field.lrig.at(-1) : undefined;
-    if (myLrigWatcher) allyWatchers.push({ topNum: myLrigWatcher, isLrig: true });
-    for (const { topNum, isLrig } of allyWatchers) {
-      if (topNum === triggeringCardNum) continue; // 自身は除く（ON_PLAYは queueCardEffects で処理）
-      if (ownAutoBlocked && !isLrig) continue; // BLOCK_OWN_SIGNI_AUTO はシグニ限定
-      if (myAbilitiesRemoved.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
-      const effects = effectsMap.get(topNum) ?? [];
-      for (const eff of effects) {
-        if (eff.effectType !== 'AUTO') continue;
-        if (!eff.timing?.includes(event)) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (scope !== 'any_ally' && scope !== 'any') continue;
-        // byEffect/bySigniEffect:「効果によって場に出たとき」限定（WX11-054/G145等）。
-        //   手札召喚経路では発火せず、効果配置経路（placedByEffect）でのみ発火する。
-        if (!byEffectTriggerOk(eff)) continue;
-        // placedDown（G144「あなたのシグニがダウン状態で場に出たとき」any_ally経路）: トリガー元シグニがダウン状態で出ていなければ発火しない。
-        if (eff.triggerCondition?.placedDown && event === 'ON_PLAY') {
-          const ziTrig = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
-          if (ziTrig < 0 || !(myState.field.signi_down?.[ziTrig] ?? false)) continue;
-        }
-        // placedFromTrash（「シグニがトラッシュから場に出たとき」）: 配置元がトラッシュでなければ発火しない。
-        if (eff.triggerCondition?.placedFromTrash && event === 'ON_PLAY' && !opts?.placedFromTrash) continue;
-        // placedPuppet（WDK17-001「あなたの傀儡状態のシグニが場に出たとき」）: トリガー元が傀儡状態（puppet_signi 在中）でなければ発火しない。
-        if (eff.triggerCondition?.placedPuppet && event === 'ON_PLAY' && !(myState.field.puppet_signi ?? []).includes(triggeringCardNum)) continue;
-        // triggerFilter: ON_ATTACK_SIGNI等でトリガー元カードがフィルタを満たすか確認
-        if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
-        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: ownerId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（他のシグニ召喚時）`,
-          effect: eff,
-          triggeringCardNum,
-        });
-      }
-    }
-
-    // 相手のフィールド：'any_opp' または 'any' トリガー（相手のシグニが自分の召喚に反応）
-    // BLOCK_OPP_SIGNI_AUTO: 自分の blocked_actions に設定済みの場合、相手シグニAUTOをスキップ
-    const oppAutoBlocked = myState.blocked_actions?.includes('BLOCK_OPP_SIGNI_AUTO');
-    // FROZEN_LOSES_ABILITIES: 自ルリグにこの常在があれば相手の凍結シグニのAUTOをスキップ
-    const myLrigTop = myState.field.lrig.at(-1);
-    const frozenLosesAbilitiesOnMyLrig = myLrigTop
-      ? (effectsMap.get(myLrigTop) ?? []).some(e =>
-          e.effectType === 'CONTINUOUS' &&
-          (e.action as import('../types/effects').StubAction)?.type === 'STUB' &&
-          (e.action as import('../types/effects').StubAction)?.id === 'FROZEN_LOSES_ABILITIES',
-        )
-      : false;
-    for (const stack of opState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      if (opAbilitiesRemoved.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
-      const effects = effectsMap.get(topNum) ?? [];
-      for (const eff of effects) {
-        if (eff.effectType !== 'AUTO') continue;
-        if (!eff.timing?.includes(event)) continue;
-        if (oppAutoBlocked) continue; // BLOCK_OPP_AUTO_ABILITY_EXTENDED
-        // FROZEN_LOSES_ABILITIES: 凍結中の相手シグニのAUTOをスキップ
-        if (frozenLosesAbilitiesOnMyLrig) {
-          const zi2 = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
-          if (zi2 >= 0 && (opState.field.signi_frozen?.[zi2] ?? false)) continue;
-        }
-        const scope = eff.triggerScope ?? 'self';
-        if (scope !== 'any' && scope !== 'any_opp') continue;
-        // MOVE_TO_ATTACKER_FRONT / MOVE_TO_OTHER_SIGNI_ZONE は専用ハンドラ（opAtkedEntries）が
-        // 移動先ゾーンを注入して処理するため、ここでは収集しない（二重発火防止）。
-        const oeStub = eff.action as import('../types/effects').StubAction;
-        if (event === 'ON_ATTACK_SIGNI' && oeStub.type === 'STUB'
-          && (oeStub.id === 'MOVE_TO_ATTACKER_FRONT' || oeStub.id === 'MOVE_TO_OTHER_SIGNI_ZONE')) continue;
-        // triggerFilter: 「対戦相手の＜X＞のシグニがアタックしたとき」等、トリガー元カードの絞り込み
-        if (eff.triggerFilter && !matchesFilter(battleCardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
-        // frontLowerLevelThanSource（WX17-075 タルタル付与）: このシグニ（=topNum）の正面に、
-        //   このシグニよりレベルの低いシグニが出たときのみ発火。盤面反転のため正面ゾーンは 2-ziHost。
-        if (eff.triggerCondition?.frontLowerLevelThanSource) {
-          if (event !== 'ON_PLAY') continue;
-          const ziHost = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
-          if (ziHost < 0) continue;
-          const frontNum = myState.field.signi[2 - ziHost]?.at(-1);
-          if (!frontNum || frontNum !== triggeringCardNum) continue; // 正面に出たシグニ以外は無視
-          const hostLv = parseInt(battleCardMap.get(topNum)?.Level ?? '0', 10);
-          const newLv = parseInt(battleCardMap.get(triggeringCardNum)?.Level ?? '0', 10);
-          if (isNaN(hostLv) || isNaN(newLv) || newLv >= hostLv) continue; // このシグニより低レベルのみ
-        }
-        // placedFront（WXDi-P03-043「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」）:
-        //   このシグニ（topNum）の正面ゾーンにトリガー元シグニが配置された場合のみ発火。盤面反転で正面は 2-ziHost。
-        if (eff.triggerCondition?.placedFront) {
-          if (event !== 'ON_PLAY') continue;
-          const ziHost = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
-          if (ziHost < 0) continue;
-          const frontNum = myState.field.signi[2 - ziHost]?.at(-1);
-          if (!frontNum || frontNum !== triggeringCardNum) continue; // 正面に配置されたシグニ以外は無視
-        }
-        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: opId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（相手シグニアタック時）`,
-          effect: eff,
-          triggeringCardNum,
-        });
-      }
-    }
-
-    // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER: ON_PLAYトリガーでアーツ自己回収）
-    if (event === 'ON_PLAY') {
-      for (const artsNum of (myState.lrig_trash ?? [])) {
-        for (const eff of (effectsMap.get(artsNum) ?? [])) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
-          const act = eff.action as import('../types/effects').StubAction;
-          if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
-          const cardName = battleCardMap.get(artsNum)?.CardName ?? artsNum;
-          entries.push({
-            id: generateUUID(),
-            playerId: ownerId,
-            cardNum: artsNum,
-            effectId: eff.effectId,
-            label: `${cardName} の【自】効果（シグニ召喚時）`,
-            effect: eff,
-          });
-        }
-      }
-    }
-
-    return entries;
-  };
+  ): StackEntry[] =>
+    pureCollectFieldTriggers(mkTrigCtx(), event, triggeringCardNum, myState, opState, ownerId, opts);
 
   // 【シード】が開花したときの ON_BLOOM トリガーを収集する。
   //  ・開花したシグニ自身の「このシグニが開花したとき」（triggerScope: self）
   //  ・場の他シグニの「あなたの他のシグニが開花したとき」（triggerScope: any_ally/any）
   // 開花は「場に出た」扱いではないため、ON_PLAY（出現時）は発火させない（公式ルール）。
+  // ON_BLOOM 収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectBloomTriggers = (
     bloomedInstanceId: string,
     myState: PlayerState,
     opState: PlayerState,
     ownerId: string,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const cn = getCardNum(bloomedInstanceId);
-    const cardName = battleCardMap.get(cn)?.CardName ?? cn;
-    // 開花したシグニ自身の self スコープ ON_BLOOM
-    for (const eff of (effectsMap.get(cn) ?? [])) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOM')) continue;
-      if ((eff.triggerScope ?? 'self') !== 'self') continue;
-      entries.push({
-        id: generateUUID(),
-        playerId: ownerId,
-        cardNum: bloomedInstanceId,
-        effectId: eff.effectId,
-        label: `${cardName} の【自】効果（開花時）`,
-        effect: eff,
-      });
-    }
-    // 場の他シグニ（any_ally/any）の開花監視トリガー
-    entries.push(...collectFieldTriggers('ON_BLOOM', bloomedInstanceId, myState, opState, ownerId));
-    return entries;
-  };
+  ): StackEntry[] =>
+    pureCollectBloomTriggers(mkTrigCtx(), bloomedInstanceId, myState, opState, ownerId);
 
   /**
    * 自分側イベント（ON_LIFE_CRASHED / ON_GUARD）に反応する自フィールドシグニの AUTO 効果を収集する。

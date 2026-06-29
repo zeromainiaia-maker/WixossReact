@@ -1348,3 +1348,166 @@ export function collectArtsUseTriggers(
   }
   return { entries, usedIds };
 }
+
+/**
+ * フィールドのシグニ/ルリグの「他のシグニが◯◯したとき」系トリガー（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM）を収集する（Stage2 抽出）。
+ * 自分の場＝any_ally/any、相手の場＝any_opp/any。byEffect/bySigniEffect・placedDown/placedFromTrash/placedPuppet・
+ * frontLowerLevelThanSource/placedFront・triggerFilter・REMOVE_ABILITIES/FROZEN_LOSES_ABILITIES・ARTS_SELF_RECYCLE を保持。
+ * ownerId=myState の持ち主。
+ */
+export function collectFieldTriggers(
+  ctx: TrigCtx,
+  event: 'ON_PLAY' | 'ON_BANISH' | 'ON_ATTACK_SIGNI' | 'ON_BLOOM',
+  triggeringCardNum: string,
+  myState: PlayerState,
+  opState: PlayerState,
+  ownerId: string,
+  opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean; placedFromTrash?: boolean },
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  const opId = ownerId === ctx.hostId ? ctx.guestId : ctx.hostId;
+  // byEffect/bySigniEffect:「効果によって場に出たとき」限定の発火可否（ON_PLAY）。
+  const byEffectTriggerOk = (eff: CardEffect): boolean => {
+    if (event !== 'ON_PLAY') return true;
+    if (eff.triggerCondition?.bySigniEffect) return !!(opts?.placedByEffect && opts?.placeSourceIsSigni);
+    if (eff.triggerCondition?.byEffect) return !!opts?.placedByEffect;
+    return true;
+  };
+
+  const isOwnerTurnForTrigger = ownerId === ctx.activeUserId;
+  const myAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForTrigger, ctx.effectsMap, ctx.cardMap);
+  const opAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(opState, myState, !isOwnerTurnForTrigger, ctx.effectsMap, ctx.cardMap);
+
+  // 自分のフィールド：'any_ally' または 'any' トリガー。ON_PLAY ではルリグも監視対象。
+  const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+  const allyWatchers: { topNum: string; isLrig: boolean }[] = [];
+  for (const stack of myState.field.signi) {
+    if (stack?.length) allyWatchers.push({ topNum: stack[stack.length - 1], isLrig: false });
+  }
+  const myLrigWatcher = event === 'ON_PLAY' ? myState.field.lrig.at(-1) : undefined;
+  if (myLrigWatcher) allyWatchers.push({ topNum: myLrigWatcher, isLrig: true });
+  for (const { topNum, isLrig } of allyWatchers) {
+    if (topNum === triggeringCardNum) continue; // 自身は除く
+    if (ownAutoBlocked && !isLrig) continue; // BLOCK_OWN_SIGNI_AUTO はシグニ限定
+    if (myAbilitiesRemoved.has(topNum)) continue;
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO') continue;
+      if (!eff.timing?.includes(event)) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_ally' && scope !== 'any') continue;
+      if (!byEffectTriggerOk(eff)) continue;
+      // placedDown（G144）: トリガー元シグニがダウン状態で出ていなければ発火しない。
+      if (eff.triggerCondition?.placedDown && event === 'ON_PLAY') {
+        const ziTrig = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
+        if (ziTrig < 0 || !(myState.field.signi_down?.[ziTrig] ?? false)) continue;
+      }
+      // placedFromTrash: 配置元がトラッシュでなければ発火しない。
+      if (eff.triggerCondition?.placedFromTrash && event === 'ON_PLAY' && !opts?.placedFromTrash) continue;
+      // placedPuppet（WDK17-001）: トリガー元が傀儡状態でなければ発火しない。
+      if (eff.triggerCondition?.placedPuppet && event === 'ON_PLAY' && !(myState.field.puppet_signi ?? []).includes(triggeringCardNum)) continue;
+      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
+      const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（他のシグニ召喚時）`, effect: eff, triggeringCardNum,
+      });
+    }
+  }
+
+  // 相手のフィールド：'any_opp' または 'any' トリガー
+  const oppAutoBlocked = myState.blocked_actions?.includes('BLOCK_OPP_SIGNI_AUTO');
+  const myLrigTop = myState.field.lrig.at(-1);
+  const frozenLosesAbilitiesOnMyLrig = myLrigTop
+    ? (ctx.effectsMap.get(myLrigTop) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' &&
+        (e.action as StubAction)?.type === 'STUB' &&
+        (e.action as StubAction)?.id === 'FROZEN_LOSES_ABILITIES',
+      )
+    : false;
+  for (const stack of opState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    if (opAbilitiesRemoved.has(topNum)) continue;
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO') continue;
+      if (!eff.timing?.includes(event)) continue;
+      if (oppAutoBlocked) continue;
+      if (frozenLosesAbilitiesOnMyLrig) {
+        const zi2 = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
+        if (zi2 >= 0 && (opState.field.signi_frozen?.[zi2] ?? false)) continue;
+      }
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any' && scope !== 'any_opp') continue;
+      // MOVE_TO_ATTACKER_FRONT / MOVE_TO_OTHER_SIGNI_ZONE は専用ハンドラ（二重発火防止）。
+      const oeStub = eff.action as StubAction;
+      if (event === 'ON_ATTACK_SIGNI' && oeStub.type === 'STUB'
+        && (oeStub.id === 'MOVE_TO_ATTACKER_FRONT' || oeStub.id === 'MOVE_TO_OTHER_SIGNI_ZONE')) continue;
+      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
+      // frontLowerLevelThanSource（WX17-075）: このシグニの正面に、これよりレベルの低いシグニが出たときのみ。
+      if (eff.triggerCondition?.frontLowerLevelThanSource) {
+        if (event !== 'ON_PLAY') continue;
+        const ziHost = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
+        if (ziHost < 0) continue;
+        const frontNum = myState.field.signi[2 - ziHost]?.at(-1);
+        if (!frontNum || frontNum !== triggeringCardNum) continue;
+        const hostLv = parseInt(ctx.cardMap.get(topNum)?.Level ?? '0', 10);
+        const newLv = parseInt(ctx.cardMap.get(triggeringCardNum)?.Level ?? '0', 10);
+        if (isNaN(hostLv) || isNaN(newLv) || newLv >= hostLv) continue;
+      }
+      // placedFront（WXDi-P03-043）: このシグニの正面ゾーンにトリガー元が配置された場合のみ。
+      if (eff.triggerCondition?.placedFront) {
+        if (event !== 'ON_PLAY') continue;
+        const ziHost = opState.field.signi.findIndex(s => s?.at(-1) === topNum);
+        if (ziHost < 0) continue;
+        const frontNum = myState.field.signi[2 - ziHost]?.at(-1);
+        if (!frontNum || frontNum !== triggeringCardNum) continue;
+      }
+      const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: opId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（相手シグニアタック時）`, effect: eff, triggeringCardNum,
+      });
+    }
+  }
+
+  // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER: ON_PLAYトリガーでアーツ自己回収）
+  if (event === 'ON_PLAY') {
+    for (const artsNum of (myState.lrig_trash ?? [])) {
+      for (const eff of (ctx.effectsMap.get(artsNum) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+        const act = eff.action as StubAction;
+        if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
+        const cardName = ctx.cardMap.get(artsNum)?.CardName ?? artsNum;
+        entries.push({
+          id: ctx.genId(), playerId: ownerId, cardNum: artsNum, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（シグニ召喚時）`, effect: eff,
+        });
+      }
+    }
+  }
+
+  return entries;
+}
+
+/**
+ * 【シード】が開花したとき（ON_BLOOM）のトリガーを収集する（Stage2 抽出）。
+ * 開花シグニ自身の self ON_BLOOM ＋場の他シグニの any_ally/any（collectFieldTriggers 経由）。
+ * 開花は「場に出た」扱いではないため ON_PLAY は発火させない（公式ルール）。
+ */
+export function collectBloomTriggers(
+  ctx: TrigCtx, bloomedInstanceId: string, myState: PlayerState, opState: PlayerState, ownerId: string,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  const cn = getCardNum(bloomedInstanceId);
+  const cardName = ctx.cardMap.get(cn)?.CardName ?? cn;
+  for (const eff of (ctx.effectsMap.get(cn) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOM')) continue;
+    if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    entries.push({
+      id: ctx.genId(), playerId: ownerId, cardNum: bloomedInstanceId, effectId: eff.effectId,
+      label: `${cardName} の【自】効果（開花時）`, effect: eff,
+    });
+  }
+  entries.push(...collectFieldTriggers(ctx, 'ON_BLOOM', bloomedInstanceId, myState, opState, ownerId));
+  return entries;
+}
