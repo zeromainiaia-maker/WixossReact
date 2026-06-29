@@ -5,6 +5,18 @@
 
 ---
 
+## A表現テール: 保護系STUB（PREVENT_* 18 id＋SUPPRESS_GAIN_ABILITY）を逆翻訳の意味文で描画（2026-06-29・zerom）
+
+「対戦相手の効果によって〜されない」型の保護系STUBを生STUB（id露出）／`[STUB:〜フラグ]` から原文意味文に置換（前項のダメージ/敗北系の続き）。全 PREVENT_* は **engine 実装済み**（`src/engine` で参照・防御経路でフラグ/フィルタ判定）で decompiler 描画だけが欠けていた。
+
+- **修正（`scripts/decompileEffects.ts`・decompiler のみ）**＝`preventProtectMap`（16 id）＋個別分岐。能力保護（ABILITY_CHANGE/GAIN/OPP_SIGNI_ABILITY_GAIN）・パワー保護（ALL_SIGNI_POWER_MINUS/OPP_POWER_PLUS/POWER_MINUS）・移動保護（SELF_MOVE/SELF_MOVE_EXCEPT_BANISH/NON_FIELD_MOVE/SIGNI_MOVE_EXCEPT_BANISH/BOUNCE_AND_DOWN）・ダウン保護（SIGNI_DOWN/SIGNI_DOWN_ALL）・その他（INFECTED_SIGNI_ACTIVATE/LIFE_REFRESH_TRASH/OWN_ARTS_USE/FIRST_DAMAGE_NEXT_OPP_TURN）＋SUPPRESS_GAIN_ABILITY（WX13-029④）。
+  - **色動的**＝`PREVENT_SIGNI_ABILITY_LOSS_BY_OPP` は保護色がカードで異なる（白=WX25-P2-053／赤=WXK10-024）ため原文から色を抽出（既存の近似固定文「このシグニは〜」を是正）。
+  - **既存近似の是正**＝`PREVENT_POWER_MINUS_BY_OPP` を「このシグニは〜パワーをマイナスされない」→原文「対戦相手の効果によって、このシグニのパワーは－（マイナス）されない」に。
+- **残（次ラウンド）**＝`PREVENT_ZONE_MOVE_BY_OPP`（3件・CONTINUOUS/AUTO＋エナ/手札＋ターン制限の文脈差で動的抽出要）／`PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE`（付与型「アタックできないを得る」）／`SUPPRESS_CENTER_ON_PLAY`・`SUPPRESS_OPP_SIGNI_ABILITIES`（別系統）。
+- **検証**＝typecheck 緑／lint 0／全シート再生成で該当生STUB消滅・**同型★0維持**（5986枚）・各カード原文一致／golden 88/88・smoke 全0・fuzz 全0（engine 不変）。
+
+---
+
 ## A表現テール: 敗北/ルリグダメージ防止系STUB（PREVENT_DEFEAT 等8 id）を逆翻訳の意味文で描画（2026-06-29・zerom）
 
 逆翻訳に生STUB（id露出 `[STUB:PREVENT_…]`）や `[STUB:敗北無効フラグ]` のタグで出ていた敗北/ルリグダメージ防止系を、原文の意味文に置換。**engine は実装済み**（`execStubPart1.ts`＝`prevent_defeat`/`prevent_lrig_damage` フラグセット・`execStubPart3`/`BattleScreen` で消費）で、**decompiler 描画だけが欠けていた**純粋な表現テール。
