@@ -816,10 +816,15 @@ function actionJa(a?: Action, effectType?: string): string {
       // OPTIONAL_TRASH_ENERGY_CLASS: エナゾーンから＜X＞のシグニN枚をトラッシュに置く任意コスト。
       // クラス/枚数はJSONに無く EffectText から解釈する（engine と同じ）ので原文から復元する。
       if (a.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
-        const m = currentCardText.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚/);
+        // 「エナゾーンから＜X＞の(シグニ|カード)N枚をトラッシュ」句を優先マッチ（同カード内の別記述＝
+        // 「エナから＜X＞のシグニ1枚を選び場に出す」等を誤マッチしないため。WX25-CP1-006 の②誤マッチ修正）。
+        // 取れなければ従来の緩いマッチにフォールバック。種別(シグニ/カード)も原文どおり反映する。
+        const m = currentCardText.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(シグニ|カード)([０-９\d]+)枚を?トラッシュ/)
+          || currentCardText.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(シグニ|カード)([０-９\d]+)枚/);
         const cls = m?.[1] ? `＜${m[1]}＞の` : '';
-        const n = m?.[2] ? numJa(parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)))) : '1';
-        return `あなたのエナゾーンから${cls}シグニ${n}枚をトラッシュに置いてもよい`;
+        const kind = m?.[2] || 'シグニ';
+        const n = m?.[3] ? numJa(parseInt(m[3].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)))) : '1';
+        return `あなたのエナゾーンから${cls}${kind}${n}枚をトラッシュに置いてもよい`;
       }
       // CONDITIONAL_MULTI_CHOOSE_BY_CENTER（系）: 「以下のNつからMつ選ぶ①②③④」を実行時パースで実装する
       // STUB。decompiler は JSON に選択肢を持たないため、原文の選択肢をそのまま反映する（＝engine 挙動と一致）。
