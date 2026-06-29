@@ -869,7 +869,7 @@ export function HandCards({ cardNums, cards, faceDown, getCardActions }: {
       {n > 0 && (
         <div style={{ position: 'relative', height: cardH, width: '100%' }}>
           {cardNums.map((num, i) => (
-            <div key={i} data-testid={`hand-card-${i}`} data-card-num={getCardNum(num)}
+            <div key={i} data-testid={`${faceDown ? 'op' : 'my'}-hand-card-${i}`} data-card-num={faceDown ? undefined : getCardNum(num)}
               style={{ position: 'absolute', left: i * spacing, top: 0, zIndex: i }}>
               <CardSlot cardNum={num} cards={cards} width={cardW} height={cardH} faceDown={faceDown}
                 actions={!faceDown && getCardActions ? getCardActions(num, i) : undefined} />
