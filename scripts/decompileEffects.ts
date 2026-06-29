@@ -937,6 +937,31 @@ function actionJa(a?: Action, effectType?: string): string {
         PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: '対戦相手の効果によって、あなたはダメージを受けず、あなたのライフクロスは他の領域に移動しない',
       };
       if (preventDmgMap[a.id]) return preventDmgMap[a.id];
+      // 保護系STUB（対戦相手の効果によって〜されない・engine実装済み）の原文意味文。条件/duration は周辺の activeCondition 側で描画。
+      const preventProtectMap: Record<string, string> = {
+        PREVENT_ABILITY_CHANGE_BY_OPP: 'あなたの＜古代兵器＞のシグニは対戦相手の効果によって、能力を失わず新たに能力を得られない',
+        PREVENT_ABILITY_GAIN_BY_OPP: 'このシグニは対戦相手の効果によって新たに能力を得られない',
+        PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: 'あなたの他のシグニのパワーは対戦相手の効果によって－（マイナス）されない',
+        PREVENT_BOUNCE_AND_DOWN_BY_OPP: 'このシグニは対戦相手の効果によって、手札に戻らずダウンしない',
+        PREVENT_INFECTED_SIGNI_ACTIVATE: '対戦相手は感染状態のシグニの【起】能力を使用できない',
+        PREVENT_LIFE_REFRESH_TRASH: 'あなたのライフクロスはリフレッシュによってトラッシュに移動しない',
+        PREVENT_NON_FIELD_MOVE_BY_OPP: '場以外のあなたの領域にあるカードは、クラッシュ以外の対戦相手の効果によって他の領域に移動しない',
+        PREVENT_OPP_POWER_PLUS: '対戦相手の【常】能力の効果によって、シグニのパワーは＋（プラス）されない',
+        PREVENT_OPP_SIGNI_ABILITY_GAIN: '対戦相手のシグニは、対戦相手の効果によって新たに能力を得られない',
+        PREVENT_SELF_MOVE_BY_OPP: 'このシグニは対戦相手の効果によって場から他の領域に移動しない',
+        PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH: '対戦相手の効果はバニッシュ以外でこのシグニを場から移動させない',
+        PREVENT_SIGNI_DOWN_BY_OPP: 'このターン、あなたのシグニは対戦相手の効果によってダウンしない',
+        PREVENT_SIGNI_DOWN_BY_OPP_ALL: 'あなたの他のシグニは対戦相手の効果によってダウンしない',
+        PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH: 'あなたのアタックフェイズの間、対戦相手の効果はバニッシュ以外であなたの＜宇宙＞のシグニを場から移動させない',
+        PREVENT_OWN_ARTS_USE: 'このターン、あなたはアーツを使用できない',
+        PREVENT_POWER_MINUS_BY_OPP: '対戦相手の効果によって、このシグニのパワーは－（マイナス）されない',
+      };
+      if (preventProtectMap[a.id]) return preventProtectMap[a.id];
+      // 色だけカードで異なる（白/赤）保護＝原文から色を抽出して一致させる。
+      if (a.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') {
+        const cm = currentCardText.match(/あなたの他の(?:(白|赤|青|緑|黒|無色)の)?シグニは対戦相手の効果によって能力を失わない/);
+        return cm ? cm[0] : 'あなたの他のシグニは対戦相手の効果によって能力を失わない';
+      }
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
