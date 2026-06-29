@@ -599,7 +599,7 @@ export function execStubPart1(
         const selfTargets = targetCardNums.filter(cn => ownerSigniTops.has(cn));
         if (selfTargets.length > 0) {
           const synthCard = { ...(srcGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').CardData;
-          let parsedEffs: import('../types/effects').CardEffect[] = [];
+          let parsedEffs: import('../types/effects').CardEffect[];
           try { parsedEffs = parseCardEffects(synthCard); } catch { parsedEffs = []; }
           const usable = parsedEffs.filter(e => e.action && e.action.type !== 'STUB');
           if (usable.length > 0) {
