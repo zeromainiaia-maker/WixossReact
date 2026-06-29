@@ -919,6 +919,9 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/[^。]*【トラップ】として[^。]*?設置[^。]*?(?:。|$)/);
         return m ? m[0].replace(/。$/, '') + '（【トラップ】操作）' : '【トラップ】を操作する（設置／トラッシュ／手札。原文参照）';
       }
+      // engine が no-op スキップする説明テキスト系STUB（execStubPart1.ts と同一）は逆翻訳でも描画しない（空文字）。
+      // SEQUENCE/CHOOSE 結合側で空文字ステップを除外する。
+      if (a.id === 'RULE_REMINDER_TEXT' || a.id === 'USE_CONDITION_TEXT' || a.id === 'UNLIMITED_KEYS') return '';
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
