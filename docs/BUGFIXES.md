@@ -16,6 +16,18 @@
 
 ---
 
+## ツール: Stage2⑫ 盤面差分 detect/count 17関数を boardDiff.ts へ pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第12弾。効果解決の前後 PlayerState を比較する detect\*/count\* の17関数を新モジュール `src/engine/boardDiff.ts` へ pure 抽出。
+
+- **`src/engine/boardDiff.ts` 新設**＝detectBanishedSigni/detectPlacedSigni/detectBloomedSigni/detectEnergyFromTrash/detectNewlyArmored/detectLeftFieldSigni/detectTrashedSigni/detectDeckTrashed/detectHandTrashed/detectEnergyTrashed/countCharmsToTrash/countEnergyToTrash/countRefresh/detectPowerDecrease/countMilledFromDeck/countMovedToDeck/detectNewlyFrozen。いずれも (before, after) のみ依存で effectsMap/cardMap/React state 不参照＝元々 pure なので移設＋import 化（挙動不変）。
+- **BattleScreen 側**＝17の const 定義（約160行）を削除し boardDiff からの import に置換。呼び出し元は同名のため無変更。
+- **golden に8件追加（PASS 66→74）**＝detectBanishedSigni（場→エナ）／detectTrashedSigni（場→トラッシュ・エナ送り除外）／detectDeckTrashed／countRefresh（delta）／detectPowerDecrease（負delta絶対値合計）／detectNewlyFrozen（false→true）／countMovedToDeck（fromTrashOnly ゲート）／countCharmsToTrash。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（74/74）／`npm run fuzz`（全0）。
+- **残（TODO §8 Stage2）**＝フェイズ進行（doPhaseAdvance）／effect_stack 整列の抽出のみ（重い・後半）。collect/detect は完走。
+
+---
+
 ## ツール: Stage2⑪ collectTurnTriggers の pure 抽出＝collect 系 全28関数 完走（2026-06-29）
 
 Stage2 第11弾。最後の collect である `collectTurnTriggers`（ON_TURN_START/END・ON_ATTACK_PHASE_START・ON_MAIN_PHASE_START・ON_LRIG_ATTACK_STEP_START）を `triggerCollect.ts` へ pure 化。**これで collect*Triggers は全28関数が pure 抽出完了**。

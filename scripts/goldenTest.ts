@@ -21,6 +21,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -495,6 +496,54 @@ test('Stage2 ON_TURN_START: self シグニが発火（WXDi-P05-039-E1）', () =>
 test('Stage2 ON_TURN_START: ルリグの自イベントが発火（WX20-001-E1）', () => {
   const host = mkState({}); host.field.lrig = ['WX20-001']; const guest = mkState({});
   eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest), 'WX20-001-E1'), true, 'ルリグ発火');
+});
+
+// Stage2⑫: 盤面差分 detect*/count*（boardDiff.ts）を pure 化→自動検証。
+test('Stage2 boardDiff detectBanishedSigni: 場→エナ移動を検出', () => {
+  const before = mkState({ signi: ['cardA', null, null] });
+  const after = mkState({}); after.energy = [...after.energy, 'cardA'];
+  eq(detectBanishedSigni(before, after).includes('cardA'), true, 'banish検出');
+});
+test('Stage2 boardDiff detectTrashedSigni: 場→トラッシュ移動を検出（エナ送りは除外）', () => {
+  const before = mkState({ signi: ['cardB', null, null] });
+  const after = mkState({}); after.trash = [...after.trash, 'cardB'];
+  eq(detectTrashedSigni(before, after).includes('cardB'), true, 'trash検出');
+  const after2 = mkState({}); after2.energy = [...after2.energy, 'cardB'];
+  eq(detectTrashedSigni(before, after2).includes('cardB'), false, 'エナ送りは非検出');
+});
+test('Stage2 boardDiff detectDeckTrashed: デッキ→トラッシュ移動を検出', () => {
+  const before = mkState({}); before.deck = ['cardC', 'd1', 'd2']; before.trash = [];
+  const after = mkState({}); after.deck = ['d1', 'd2']; after.trash = ['cardC'];
+  eq(detectDeckTrashed(before, after).includes('cardC'), true, 'デッキミル検出');
+});
+test('Stage2 boardDiff countRefresh: refresh_count_this_turn の delta', () => {
+  const before = mkState({}); before.refresh_count_this_turn = 0;
+  const after = mkState({}); after.refresh_count_this_turn = 2;
+  eq(countRefresh(before, after), 2, 'refresh差');
+});
+test('Stage2 boardDiff detectPowerDecrease: 新規負 delta の絶対値合計', () => {
+  const before = mkState({}); before.temp_power_mods = [];
+  const after = mkState({}); after.temp_power_mods = [{ delta: -3000 }, { delta: 1000 }] as never;
+  eq(detectPowerDecrease(before, after), 3000, '減少量3000');
+});
+test('Stage2 boardDiff detectNewlyFrozen: signi_frozen false→true を検出', () => {
+  const before = mkState({ signi: ['cardF', null, null] }); before.field.signi_frozen = [false, false, false];
+  const after = mkState({ signi: ['cardF', null, null] }); after.field.signi_frozen = [true, false, false];
+  eq(detectNewlyFrozen(before, after).includes('cardF'), true, '凍結検出');
+});
+test('Stage2 boardDiff countMovedToDeck: fromTrashOnly はトラッシュ起源のみ計上', () => {
+  const before = mkState({}); before.trash = ['cardG']; before.deck = ['d1'];
+  const after = mkState({}); after.deck = ['cardG', 'd1']; after.trash = [];
+  eq(countMovedToDeck(before, after, true), 1, 'トラッシュ起源で1');
+  const before2 = mkState({}); before2.trash = []; before2.deck = ['d1'];
+  const after2 = mkState({}); after2.deck = ['cardH', 'd1'];
+  eq(countMovedToDeck(before2, after2, true), 0, '非トラッシュ起源は0');
+  eq(countMovedToDeck(before2, after2, false), 1, 'fromTrashOnly=falseなら1');
+});
+test('Stage2 boardDiff countCharmsToTrash: チャームのトラッシュ送りを計数', () => {
+  const before = mkState({}); before.field.signi_charms = ['charmA', null, null];
+  const after = mkState({}); after.field.signi_charms = [null, null, null]; after.trash = ['charmA'];
+  eq(countCharmsToTrash(before, after), 1, 'チャーム1枚');
 });
 
 // ── レポート ──
