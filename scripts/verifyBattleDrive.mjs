@@ -204,8 +204,12 @@ try {
     await page.screenshot({ path: `${SHOT}/inj-play-${s}.png`, fullPage: true });
     const star = /ダウンしない|手札に戻らない|能力を得る|選んだ能力/.test(t) ? ' ★CHOOSE/付与' : '';
     console.log(`  play[${s}]${star} ${t.slice(0, 110).replace(/\n/g, ' ')}`);
-    let did = await clickTextOrBtn(['召喚']);
-    if (did) summoned = true;
+    // 「召喚」はボタン限定で取る（テキスト fallback だと「召喚先のゾーンを選択」見出しに誤マッチする）
+    let did = null;
+    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+    if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+      await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+    }
     // 召喚ゾーン選択モーダル: 空きゾーンを testid で順に試す（無効ボタンは disabled で弾かれる）
     if (!did && summoned) did = await clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
     if (!did) did = await clickTextOrBtn(['対戦相手の効果によってダウンしない', '①ダウンしない', 'ダウンしない', '①']);
