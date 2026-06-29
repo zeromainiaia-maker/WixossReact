@@ -16,6 +16,18 @@
 
 ---
 
+## ツール: Stage2⑧ set-diff 系 6ファミリの pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第8弾。盤面差分起点の6収集関数を `triggerCollect.ts` へ pure 化＝`collectCharmToTrashTriggers`（ON_CHARM_TO_TRASH）/`collectEnergyToTrashTriggers`（ON_ENERGY_TO_TRASH）/`collectRefreshTriggers`（ON_REFRESH）/`collectPowerDecreaseTriggers`（ON_OPP_POWER_DECREASED・毒牙）/`collectMoveToDeckTriggers`（ON_CARD_MOVED_TO_DECK）/`collectFreezeTriggers`（ON_SIGNI_FROZEN）。
+
+- **共通ヘルパ `mkLimitOk`/`ownFieldSources` を流用**＝5関数は controller 場走査の同型。powerDecrease は deltaFromOppPowerDecrease 動的注入、freeze は両プレイヤー watcher×frozenByOwner の二重ループ（戻り値 `{entries, usedHostIds, usedGuestIds}`）を保持。`PowerModifyAction` 型を import 追加。
+- **count/detect ヘルパ（countCharmsToTrash/countEnergyToTrash/countRefresh/countMovedToDeck/detectPowerDecrease/detectNewlyFrozen）は BattleScreen に残置**＝collect は枚数を引数で受けるため移設不要（呼び出し元無変更）。
+- **BattleScreen 側**＝6クロージャ（約330行）を薄いラッパに置換＝挙動不変。
+- **golden に6件追加（PASS 47→53）**＝charm枚数0/>0／energyTrashedOwner=opponent ゲート／refreshedOwner=any／powerDecrease の発火＋delta=減少量の動的注入／movedToDeckFromTrash のトラッシュ起源限定／freeze any_opp（相手凍結のみ）。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（53/53）／`npm run fuzz`（全0）。
+
+---
+
 ## ツール: Stage2⑦ ON_DRAW/対戦相手ドロー/ミル 3関数の pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第7弾。`collectDrawTriggers`/`collectOppDrawTriggers`/`collectMillTriggers` を `triggerCollect.ts` へ pure 化（同型3関数＝共通ヘルパで重複圧縮）。
