@@ -11,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinu
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -3207,48 +3207,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ON_BLOOD_CRYSTAL_ARMOR トリガーを収集する
+  // ON_BLOOD_CRYSTAL_ARMOR トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectArmorTriggers = (
     armoredCardNum: string,
     armoredPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const ownerStateAfter = armoredPlayerId === bs!.host_id ? afterHostState : afterGuestState;
-    // このシグニ自身の ON_BLOOD_CRYSTAL_ARMOR (scope=self)
-    for (const eff of (effectsMap.get(armoredCardNum) ?? [])) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
-      const scope = eff.triggerScope ?? 'self';
-      if (scope !== 'self') continue;
-      entries.push({
-        id: generateUUID(),
-        playerId: armoredPlayerId,
-        cardNum: armoredCardNum,
-        effectId: eff.effectId,
-        label: `${battleCardMap.get(armoredCardNum)?.CardName ?? armoredCardNum} の【血晶武装時】効果`,
-        effect: eff,
-      });
-    }
-    // フィールド上の全シグニの ON_BLOOD_CRYSTAL_ARMOR (scope=any_ally)
-    for (const stack of ownerStateAfter.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (scope !== 'any_ally' && scope !== 'any') continue;
-        entries.push({
-          id: generateUUID(),
-          playerId: armoredPlayerId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（血晶武装時）`,
-          effect: eff,
-        });
-      }
-    }
-    return entries;
-  };
+  ): StackEntry[] =>
+    pureCollectArmorTriggers(mkTrigCtx(), armoredCardNum, armoredPlayerId, afterHostState, afterGuestState);
 
   // 場を離れたシグニを検出（ON_LEAVE_FIELDトリガー用。行き先は問わない）
   // under = そのシグニの下にあったカード（ライズ素材等。フンババの動的フィルタ解決に使う）

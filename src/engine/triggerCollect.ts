@@ -5,7 +5,8 @@
  * pure 関数として抽出した。これにより golden/fuzz から呼んで C1 配線（ON_TARGETED 発火等）を
  * ヘッドレス自動検証できる（＝実機検証(C2)の宿題を削減）。BattleScreen 側は本関数を呼ぶ薄いラッパに置換。
  *
- * 対象 timing: ON_TARGETED / ON_LRIG_GROW / ON_COIN_PAID（いずれも C1・2026-06-29 配線）。
+ * 対象 timing: ON_TARGETED / ON_LRIG_GROW / ON_COIN_PAID（いずれも C1・2026-06-29 配線）
+ *           / ON_SIGNI_POWER_ZERO_OR_LESS（R37・Stage2第2弾）/ ON_BLOOD_CRYSTAL_ARMOR（Stage2第3弾）。
  */
 import type { PlayerState, CardData, StackEntry } from '../types';
 import type { CardEffect } from '../types/effects';
@@ -219,6 +220,56 @@ export function collectPowerZeroTriggers(
           effect: eff,
         });
       }
+    }
+  }
+  return entries;
+}
+
+/**
+ * ON_BLOOD_CRYSTAL_ARMOR（「血晶武装したとき」）のトリガーを収集する（Stage2 抽出）。
+ * armoredCardNum=血晶武装したシグニ／armoredPlayerId=その所有者。所有者の場のみ走査。
+ *   self（既定）: 血晶武装したシグニ自身（ラベルは「【血晶武装時】効果」）
+ *   any_ally/any: 同じ所有者の場シグニが反応
+ */
+export function collectArmorTriggers(
+  ctx: TrigCtx,
+  armoredCardNum: string,
+  armoredPlayerId: string,
+  afterHostState: PlayerState,
+  afterGuestState: PlayerState,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  const ownerStateAfter = armoredPlayerId === ctx.hostId ? afterHostState : afterGuestState;
+  // このシグニ自身の ON_BLOOD_CRYSTAL_ARMOR (scope=self)
+  for (const eff of (ctx.effectsMap.get(armoredCardNum) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
+    const scope = eff.triggerScope ?? 'self';
+    if (scope !== 'self') continue;
+    entries.push({
+      id: ctx.genId(),
+      playerId: armoredPlayerId,
+      cardNum: armoredCardNum,
+      effectId: eff.effectId,
+      label: `${ctx.cardMap.get(armoredCardNum)?.CardName ?? armoredCardNum} の【血晶武装時】効果`,
+      effect: eff,
+    });
+  }
+  // フィールド上の全シグニの ON_BLOOD_CRYSTAL_ARMOR (scope=any_ally)
+  for (const stack of ownerStateAfter.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_ally' && scope !== 'any') continue;
+      entries.push({
+        id: ctx.genId(),
+        playerId: armoredPlayerId,
+        cardNum: topNum,
+        effectId: eff.effectId,
+        label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum} の【自】効果（血晶武装時）`,
+        effect: eff,
+      });
     }
   }
   return entries;

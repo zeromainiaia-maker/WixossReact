@@ -20,7 +20,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -291,6 +291,17 @@ test('Stage2 ON_SIGNI_POWER_ZERO_OR_LESS: once_per_turn 消化済み非発火', 
   const host = mkState({ signi: ['WX20-Re03', null, null] }); host.actions_done = ['WX20-Re03-E1'];
   const guest = mkState({ signi: [SIGNI, null, null] });
   eq(collectPowerZeroTriggers(trigCtx(HOST), SIGNI, GUEST, host, guest).length, 0, 'once_per_turn');
+});
+
+// Stage2③: ON_BLOOD_CRYSTAL_ARMOR（血晶武装したとき・自分の場のみ走査）の collectArmorTriggers を pure 化→自動検証。
+test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: self-scope 武装シグニ自身が発火', () => {
+  const host = mkState({ signi: ['WXK05-023', null, null] }); const guest = mkState({});
+  const e = collectArmorTriggers(trigCtx(HOST), 'WXK05-023', HOST, host, guest);
+  eq(e.length, 1, 'entries'); eq(e[0].effectId, 'WXK05-023-E1', 'effectId'); eq(e[0].playerId, HOST, 'player');
+});
+test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: armor 無しカードは非発火', () => {
+  const host = mkState({ signi: [SIGNI, null, null] }); const guest = mkState({});
+  eq(collectArmorTriggers(trigCtx(HOST), SIGNI, HOST, host, guest).length, 0, 'non-armor');
 });
 
 // ── レポート ──

@@ -16,6 +16,18 @@
 
 ---
 
+## ツール: Stage2③ collectArmorTriggers の pure 抽出＋golden 自動検証（2026-06-29）
+
+Stage2 第3弾。`ON_BLOOD_CRYSTAL_ARMOR`（血晶武装したとき）の収集を pure 化。armor 対象6枚（WDK08-L01/L17・WXK04-043・WXK05-023/036/058）は全て scope=self。
+
+- **`triggerCollect.ts` に `collectArmorTriggers` 追加**＝武装したシグニ自身（self）＋同じ所有者の場シグニ（any_ally/any）を走査。所有者の場のみ参照（両プレイヤー走査の他ヘルパと異なる）。依存は `TrigCtx` で注入。
+- **BattleScreen 側**＝42行のクロージャを薄いラッパ（`mkTrigCtx()` 経由）に置換＝挙動不変。呼び出し元（armorEntriesSE/armorEntries の4箇所）は無変更。
+- **golden に2件追加（PASS 31→33）**＝self-scope 武装シグニ自身が発火（WXK05-023-E1）／armor 無しカードは非発火。
+- **検証**＝`npm run typecheck` 緑／`npm run smoke`（不変・CRASH/HANG/INVARIANT 0）／`npm run golden`（33/33）／`npm run fuzz`（全0）。
+- **残（TODO §8 Stage2）**＝`collectTurnTriggers`（大物・特殊ケース多数）・`collectBanish/LeaveField/Field/HandDiscard*Triggers`・detect*・フェイズ進行の抽出。
+
+---
+
 ## ツール: Stage2② collectPowerZeroTriggers の pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第2弾。既存配線 `ON_SIGNI_POWER_ZERO_OR_LESS`（R37・C2リスト5枚＝WX20-Re03/WX21-067/WX22-013/WXDi-P01-043/WXDi-P14-009）の発火収集を pure 化。
