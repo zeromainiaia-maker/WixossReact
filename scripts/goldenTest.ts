@@ -231,6 +231,52 @@ test('B3 INSTALL_DELAYED_TRIGGER: delayed_triggers に追加', () => {
   eq(r.ownerState.delayed_triggers?.length, 1, 'delayed_triggers+1');
 });
 
+// ══════════════ C1 トリガー収集（BattleScreen 配線の pure 抽出・triggerCollect.ts）══════════════
+// Stage2: collect*Triggers を pure 化したことで、従来「実機未検証(C2)」だった C1 発火条件を
+// ヘッドレスで自動検証できる。HOST/GUEST の2プレイヤー＋場にカードを置いて発火有無を assert する。
+const HOST = 'H', GUEST = 'G';
+const trigCtx = (activeUserId: string | null): TrigCtx => ({
+  hostId: HOST, guestId: GUEST, activeUserId, turnPhase: 'MAIN',
+  effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'tid',
+});
+
+test('C1 ON_TARGETED: self-scope 対象シグニ自身が発火（相手ターン）', () => {
+  const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
+  // host のターン中に guest のシグニが対象に取られた＝guest 視点で相手ターン（turnOwner:opponent 成立）
+  const e = collectTargetedTriggers(trigCtx(HOST), ['WXDi-P11-040'], GUEST, host, guest);
+  eq(e.length, 1, 'entries'); eq(e[0].effectId, 'WXDi-P11-040-E2', 'effectId'); eq(e[0].playerId, GUEST, 'player');
+});
+test('C1 ON_TARGETED: turnOwner:opponent ゲート（自ターンは非発火）', () => {
+  const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
+  // guest 自身のターンでは turnOwner:opponent を満たさず非発火
+  eq(collectTargetedTriggers(trigCtx(GUEST), ['WXDi-P11-040'], GUEST, host, guest).length, 0, '自ターン非発火');
+});
+test('C1 ON_TARGETED: 対象でないシグニは非発火', () => {
+  const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
+  eq(collectTargetedTriggers(trigCtx(HOST), [SIGNI], GUEST, host, guest).length, 0, '別カード対象');
+});
+test('C1 ON_LRIG_GROW: any_opp 相手グロウで発火', () => {
+  const host = mkState({}); const guest = mkState({ signi: ['WXDi-P13-047', null, null] });
+  // grownOwner=HOST（host がグロウ）→ guest の any_opp が反応
+  const e = collectLrigGrowTriggers(trigCtx(HOST), HOST, host, guest);
+  eq(e.length, 1, 'entries'); eq(e[0].effectId, 'WXDi-P13-047-E2', 'effectId'); eq(e[0].playerId, GUEST, 'player');
+});
+test('C1 ON_LRIG_GROW: any_opp は自分グロウでは非発火', () => {
+  const host = mkState({}); const guest = mkState({ signi: ['WXDi-P13-047', null, null] });
+  // grownOwner=GUEST（guest 自身がグロウ）→ any_opp は反応しない
+  eq(collectLrigGrowTriggers(trigCtx(GUEST), GUEST, guest, host).length, 0, '自グロウ非発火');
+});
+test('C1 ON_COIN_PAID: self 支払者の場シグニが発火', () => {
+  const host = mkState({ signi: ['WXDi-P15-055', null, null] }); const guest = mkState({});
+  const e = collectCoinPaidTriggers(trigCtx(HOST), HOST, host, guest);
+  eq(e.length, 1, 'entries'); eq(e[0].effectId, 'WXDi-P15-055-E1', 'effectId'); eq(e[0].playerId, HOST, 'player');
+});
+test('C1 ON_COIN_PAID: usageLimit once_per_turn（消化済みは非発火）', () => {
+  const host = mkState({ signi: ['WXDi-P15-055', null, null] }); const guest = mkState({});
+  host.actions_done = ['WXDi-P15-055-E1']; // このターン既に発動済み
+  eq(collectCoinPaidTriggers(trigCtx(HOST), HOST, host, guest).length, 0, 'once_per_turn');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
