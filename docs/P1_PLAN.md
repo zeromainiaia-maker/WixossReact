@@ -33,8 +33,9 @@
 ## 3. 現在地と今後の計画（バトン）
 > 3人は**同時に作業しない**。**① `git pull` → ② 本節を読む → ③ 作業 → ④ 本節と `BUGFIXES.md` を更新 → ⑤ commit & push** を回す。詳細な修正履歴は `BUGFIXES.md`（新しい順）に積む。ここは**現在地・計画・残作業数だけ**。
 
-### 📍 進捗サマリ（最終更新 2026-06-29・ymst→**zerom 引き継ぎ**）
-- **🆕 zerom への引き継ぎメモ（2026-06-29）**＝ymst セッションで **Stage2（C配線の pure 抽出・golden 化）完了** ＋ **C1 engine未配線timing をほぼ全配線** ＋ **改造素材機構を完成**。golden **31→88件**・同型★0・全ハーネス緑。詳細は BUGFIXES.md 上部（新しい順）。**次の一手は §3 末尾「📌 次の一手」を見る**。残った engine未配線は `ON_KEYWORD_GAINED` 1枚のみ（COPY_ABILITY no-op で保留）。**意味ある C1 配線は打ち止め＝C は実質収束**。次は A/B 表現テール（低リスク）か実機 `/verify` 推奨。
+### 📍 進捗サマリ（最終更新 2026-06-29・zerom 作業中）
+- **🆕 zerom セッション（2026-06-29）＝A表現テール着手**＝`OPTIONAL_TRASH_ENERGY_CLASS` の別記述誤マッチを decompiler＋engine で是正（WX25-CP1-006④の「シグニ1枚」→「カード3枚」／種別シグニ/カード区別／枚数のトラッシュ句由来化）。同型★0維持・golden 88/88・smoke/fuzz 全0。詳細は BUGFIXES.md 上部。**GRANT_QUOTED_AUTO_ABILITY の誤パース（A2残）は既に枯れていた**（誤パース疑いはトークン1枚＝原文なしのみ）。⚠engine 枚数支払いは実機未検証。
+- **🆕 ymst 引き継ぎ（2026-06-29）**＝Stage2（C配線の pure 抽出・golden 化）完了 ＋ C1 engine未配線timing をほぼ全配線 ＋ 改造素材機構を完成。golden 31→88件・同型★0・全ハーネス緑。残った engine未配線は `ON_KEYWORD_GAINED` 1枚のみ（COPY_ABILITY no-op で保留）。**意味ある C1 配線は打ち止め＝C は実質収束**。次は A/B 表現テール（低リスク）か実機 `/verify` 推奨。
 - **P1 表現①の systematic 指標は全達成・維持中**：**held 0 / LOSS 0 / VALUE 0 / 同型★0**。
   - 再生成・検証＝`npx tsx scripts/parserWorklist.ts`（held/LOSS/VALUE）＋`node scripts/groupSimilar.mjs --all`（同型★）。
 - **脱落疑い 255枚を全分類済み**（DoD §1 第2項クリア・`node scripts/_dropTriage.mjs`）：偽陽性179／機構待ち72／修正済。
