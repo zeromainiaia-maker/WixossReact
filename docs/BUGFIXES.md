@@ -5,6 +5,19 @@
 
 ---
 
+## ツール: 乱択 自己対戦ファズ `npm run fuzz` 新設＝②実行検証の最終形（2026-06-29）
+
+実機（ブラウザ対戦）を Claude がヘッドレスで代替する検証ハーネスの最終段。smoke（全効果を1回ずつ・新品盤面）／golden（型ごと結果assert）に続く③本目。
+
+- **`scripts/selfPlayFuzz.ts`**＝**ランダム初期盤面**（両者の場シグニ/手札/エナ/トラッシュ/ライフ/コイン/ルリグをシード乱数で生成）を作り、その盤面上で効果を次々に発動→**結果状態を持ち越し**→別効果を発動…と連鎖させる。smoke が拾えない「効果同士の相互作用」「進化した盤面でのクラッシュ／ループ」「カード爆発（複製バグ）」を検出する。
+- **検出**＝CRASH（例外）／HANG（step>200）／INVARIANT（field.signi が3ゾーンでない・ゾーンに非文字列 等の構造破壊）／EXPLOSION（1ゲーム内でカード総数が基準＋120超＝複製疑い）。
+- **再現性**＝mulberry32 シード固定で完全再現可能（既定シード `0xC0FFEE`）。失敗は `--seed S --verbose` でゲーム#・手番つきに再現。
+- **初回結果＝CRASH 0／HANG 0／INVARIANT 0／EXPLOSION 0**。既定200ゲーム×40手で**効果実行≈7846手・distinct≈2640種**（空振りでなく engine を深く駆動していることを統計で担保）。重め検証 `--games 2000 --moves 80`＝160k手・約3.3秒も全0。
+- **オートパイロット**は smokeTest と同一ロジック（pending を最小入力で done まで進める・候補シグネチャでループ判定）。
+- ⚠**限界**＝engine（executeEffect/resume\*）の堅牢性を盤面遷移つきで検証する。**BattleScreen.tsx のオーケストレーション（フェイズ進行・トリガー収集 collect\*Triggers・effect_stack 整列）は React/supabase 結合のため対象外**＝C 配線の発火検証は引き続き実機(C2)か、TODO §8【Stage2】collect\*Triggers の pure 抽出が必要。
+
+---
+
 ## 機構: C1 engine未配線timing配線④ `ON_LRIG_ATTACK_STEP_START`（ルリグアタックステップ開始時）（2026-06-29）
 
 C1 第4弾＝`ON_LRIG_ATTACK_STEP_START`（1枚・WX25-CP1-042-E2「あなたのルリグアタックステップ開始時」）。トリガーはクリーンなフェイズ遷移点で配線可能。
