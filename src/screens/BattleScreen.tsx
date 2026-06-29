@@ -3702,153 +3702,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    *   any_opp/any: 対戦相手側 / いずれか
    * triggerCondition.turnOwner（「対戦相手のターンの間」WXDi-P11-040 等）・condition（WX25-CP1-060）・usageLimit（《ターン1回》）も評価。
    */
-  const collectTargetedTriggers = (
-    targetedNums: string[],
-    targetedOwnerId: string,
-    afterHostState: PlayerState,
-    afterGuestState: PlayerState,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const targetedSet = new Set(targetedNums);
-    for (const watcherIsHost of [true, false]) {
-      const watcherId = watcherIsHost ? bs.host_id : bs.guest_id;
-      const watcherState = watcherIsHost ? afterHostState : afterGuestState;
-      const otherState = watcherIsHost ? afterGuestState : afterHostState;
-      const targetedIsWatcherOwn = targetedOwnerId === watcherId;
-      const watcherIsTurn = bs.active_user_id === watcherId;
-      for (const stack of watcherState.field.signi) {
-        if (!stack?.length) continue;
-        const topNum = stack[stack.length - 1];
-        for (const eff of (effectsMap.get(topNum) ?? [])) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TARGETED')) continue;
-          const scope = eff.triggerScope ?? 'self';
-          if (scope === 'self') {
-            if (!targetedSet.has(topNum)) continue;
-          } else if (scope === 'any_ally') {
-            if (!targetedIsWatcherOwn) continue;
-            if (eff.triggerFilter && !targetedNums.some(n => matchesFilter(battleCardMap.get(getCardNum(n)), eff.triggerFilter))) continue;
-          } else if (scope === 'any_opp') {
-            if (targetedIsWatcherOwn) continue;
-            if (eff.triggerFilter && !targetedNums.some(n => matchesFilter(battleCardMap.get(getCardNum(n)), eff.triggerFilter))) continue;
-          } // 'any' は無条件
-          const to = eff.triggerCondition?.turnOwner;
-          if (to === 'self' && !watcherIsTurn) continue;
-          if (to === 'opponent' && watcherIsTurn) continue;
-          if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-          if (eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)) continue;
-          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-          entries.push({
-            id: generateUUID(),
-            playerId: watcherId,
-            cardNum: topNum,
-            effectId: eff.effectId,
-            label: `${cardName} の【自】効果（対象になったとき）`,
-            effect: eff,
-          });
-        }
-      }
-    }
-    return entries;
-  };
-
-  /**
-   * ON_LRIG_GROW（「（センター）ルリグがグロウしたとき」）のトリガーを収集する（C1 配線）。
-   * grownOwnerId=グロウしたプレイヤー（センターグロウの実行者）。両プレイヤーの場（シグニ＋キー＋ルリグ上）から
-   * ON_LRIG_GROW AUTO を triggerScope で絞る：
-   *   any_ally: watcher 自分側のルリグがグロウ（grownOwner=watcher・WXDi-P03-039/WXDi-P05-010/WXK11-012）
-   *   any_opp: 対戦相手のルリグがグロウ（grownOwner≠watcher・WXDi-P03-046/WXDi-P13-047）。
-   *            ⚠Wixossルール上グロウ先ルリグの【出】より先に解決＝非ターンプレイヤーのため effect_stack の opp 側が先に解決され整合。
-   *   self: グロウ先自身の【自】はグロウ＝場に出た扱いではないためここでは扱わない（ON_PLAY 経路で処理）。
-   * triggerCondition.turnOwner・condition・usageLimit（《ターン1回》）も評価。
-   */
-  const collectLrigGrowTriggers = (
-    grownOwnerId: string,
-    afterGrowerState: PlayerState,
-    afterOpState: PlayerState,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const oppOfGrowerId = grownOwnerId === bs.host_id ? bs.guest_id : bs.host_id;
-    const effsOf = (n: string) => effectsMap.get(n) ?? effectsMap.get(getCardNum(n)) ?? [];
-    for (const watcherIsGrower of [true, false]) {
-      const watcherId = watcherIsGrower ? grownOwnerId : oppOfGrowerId;
-      const watcherState = watcherIsGrower ? afterGrowerState : afterOpState;
-      const otherState = watcherIsGrower ? afterOpState : afterGrowerState;
-      const watcherIsTurn = bs.active_user_id === watcherId;
-      const watcherCardNums: string[] = [];
-      for (const stack of watcherState.field.signi) { if (stack?.length) watcherCardNums.push(stack[stack.length - 1]); }
-      if (watcherState.field.key_piece) watcherCardNums.push(watcherState.field.key_piece);
-      const lrigTop = watcherState.field.lrig?.at(-1);
-      if (lrigTop) watcherCardNums.push(lrigTop);
-      for (const topNum of watcherCardNums) {
-        for (const eff of effsOf(topNum)) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LRIG_GROW')) continue;
-          const scope = eff.triggerScope ?? 'self';
-          if (scope === 'self') continue;
-          if (scope === 'any_ally' && !watcherIsGrower) continue;
-          if (scope === 'any_opp' && watcherIsGrower) continue;
-          const to = eff.triggerCondition?.turnOwner;
-          if (to === 'self' && !watcherIsTurn) continue;
-          if (to === 'opponent' && watcherIsTurn) continue;
-          if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-          if (eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)) continue;
-          const cardName = battleCardMap.get(getCardNum(topNum))?.CardName ?? topNum;
-          entries.push({
-            id: generateUUID(),
-            playerId: watcherId,
-            cardNum: topNum,
-            effectId: eff.effectId,
-            label: `${cardName} の【自】効果（グロウ時）`,
-            effect: eff,
-          });
-        }
-      }
-    }
-    return entries;
-  };
-
-  /**
-   * ON_COIN_PAID（「あなたが《コイン》を1枚以上支払ったとき」）のトリガーを収集する（C1 配線）。
-   * payerId=コインを支払ったプレイヤー。支払い1イベントにつき1回発火（枚数に依らず）。
-   * self（既定・「あなたが」）＝支払ったプレイヤー自身の場シグニが反応（WXDi-P15-055/069・WXDi-P16-057 は全て self）。
-   * any_ally/any も payer 側で発火。any_opp（相手が支払い）は対象外。
-   * triggerCondition.turnOwner・condition・usageLimit（《ターン1回/2回》）も評価。
-   * ⚠コイン支払はグロウ/ベット/スペル/起動/出 の多経路に分散＝各支払いサイトから本関数を呼ぶ。
-   */
-  const collectCoinPaidTriggers = (
-    payerId: string,
-    afterPayerState: PlayerState,
-    afterOpState: PlayerState,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const payerIsTurn = bs.active_user_id === payerId;
-    const effsOf = (n: string) => effectsMap.get(n) ?? effectsMap.get(getCardNum(n)) ?? [];
-    for (const stack of afterPayerState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      for (const eff of effsOf(topNum)) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_COIN_PAID')) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (scope === 'any_opp') continue; // 相手支払いは対象外（payer 視点では発火しない）
-        const to = eff.triggerCondition?.turnOwner;
-        if (to === 'self' && !payerIsTurn) continue;
-        if (to === 'opponent' && payerIsTurn) continue;
-        if (eff.condition && !evalUseCondition(eff.condition, afterPayerState, afterOpState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-        const doneCount = afterPayerState.actions_done?.filter(id => id === eff.effectId).length ?? 0;
-        if (eff.usageLimit === 'once_per_turn' && doneCount >= 1) continue;
-        if (eff.usageLimit === 'twice_per_turn' && doneCount >= 2) continue;
-        const cardName = battleCardMap.get(getCardNum(topNum))?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: payerId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（コイン支払時）`,
-          effect: eff,
-        });
-      }
-    }
-    return entries;
-  };
+  // C1 トリガー収集の依存 ctx（pure 関数 triggerCollect.ts へ注入）。ロジックは同モジュールに集約し、
+  // ここは bs/effectsMap/battleCardMap 等を束ねて渡すだけ（golden/fuzz から pure 関数を直接検証可能にするため）。
+  const mkTrigCtx = (): TrigCtx => ({
+    hostId: bs.host_id, guestId: bs.guest_id, activeUserId: bs.active_user_id ?? null,
+    turnPhase: bs.turn_phase, effectsMap, cardMap: battleCardMap, effectivePowers, genId: generateUUID,
+  });
+  const collectTargetedTriggers = (targetedNums: string[], targetedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState): StackEntry[] =>
+    pureCollectTargetedTriggers(mkTrigCtx(), targetedNums, targetedOwnerId, afterHostState, afterGuestState);
+  const collectLrigGrowTriggers = (grownOwnerId: string, afterGrowerState: PlayerState, afterOpState: PlayerState): StackEntry[] =>
+    pureCollectLrigGrowTriggers(mkTrigCtx(), grownOwnerId, afterGrowerState, afterOpState);
+  const collectCoinPaidTriggers = (payerId: string, afterPayerState: PlayerState, afterOpState: PlayerState): StackEntry[] =>
+    pureCollectCoinPaidTriggers(mkTrigCtx(), payerId, afterPayerState, afterOpState);
 
   /**
    * ターン開始時・終了時・アタックフェイズ開始時の AUTO 効果を収集する。
