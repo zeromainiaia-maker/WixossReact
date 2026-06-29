@@ -5,6 +5,17 @@
 
 ---
 
+## A表現テール: 行動制限系STUB（BLOCK_* CONTINUOUS 8 id）を逆翻訳の意味文で描画（2026-06-29・zerom）
+
+「対戦相手は〜できない」型の CONTINUOUS 制限 STUB を生STUB（id露出）／`[STUB:〜封じ]` から原文意味文に置換。全 BLOCK_* は engine 認識済み（`src` で参照）。
+
+- **修正（`scripts/decompileEffects.ts`・decompiler のみ）**＝`blockContinuousMap`（8 id）を actionJa STUB分岐に追加。BLOCK_ALL_OPP_ACTIVATE_ABILITY（相手起動封じ）/OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT（効果場出し封じ）/OPP_DECK_TO_ENERGY（デッキ→エナ移動封じ）/COLORLESS_PLAY（無色プレイ封じ）/FRONT_SIGNI_ATTACK（正面アタック制限）/LOW_COST_SPELL_BY_CHARM_COUNT（低コストスペル封じ）/NON_WHITE_SPELL（白以外スペル封じ）/OPP_ENCORE_AND_BET（アンコール・ベット封じ）。
+  - **「あなた/対戦相手のターンの間」は activeCondition(TURN_OWNER) が別途前置描画**するため本体のみ固定文化（二重回避）。WXEX2-54「《自分のターンの間であるかぎり》対戦相手は〜できない」と自然連結を確認。
+- **見送り（次ラウンド）**＝duration系（AUTO/ACTIVATED・INSTANT）の BLOCK_OPP_ARTS_SPELL_ACT/OPP_SPELL_ACT_NEXT_TURN/OPP_AUTO_ABILITY_EXTENDED は engine 実装が不確実（STUBS.md desc に「行動ブロック未実装」注記）＝engine 実装確認とセットで対応。`BLOCK_OPP_ZONE_PLACEMENT` も別構造で別途。
+- **検証**＝typecheck 緑／lint 0／全シート再生成で該当生STUB消滅・**同型★0維持**（5986枚）・各カード原文一致／golden 88/88・smoke 全0・fuzz 全0（engine 不変）。
+
+---
+
 ## A表現テール: 保護系STUB（PREVENT_* 18 id＋SUPPRESS_GAIN_ABILITY）を逆翻訳の意味文で描画（2026-06-29・zerom）
 
 「対戦相手の効果によって〜されない」型の保護系STUBを生STUB（id露出）／`[STUB:〜フラグ]` から原文意味文に置換（前項のダメージ/敗北系の続き）。全 PREVENT_* は **engine 実装済み**（`src/engine` で参照・防御経路でフラグ/フィルタ判定）で decompiler 描画だけが欠けていた。
