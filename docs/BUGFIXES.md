@@ -5,6 +5,15 @@
 
 ---
 
+## A表現テール: 能力/色 継承系STUB（GRANT_UNDER_* 等8 id）を逆翻訳の意味文で描画（2026-06-29・zerom）
+
+「このカードの下にある〜の能力／色を得る」型の CONTINUOUS 継承 STUB を生STUB（id露出）から原文意味文に置換。全 id は engine 実装済み・activeCondition なし。
+
+- **修正（`scripts/decompileEffects.ts`・decompiler のみ）**＝`grantUnderMap`（8 id）を actionJa STUB分岐に追加。GRANT_UNDER_LRIG_ACTIVATE_ABILITY/AUTO_ABILITY（下のルリグの【起】/【自】能力を持つ）・GRANT_UNDER_SIGNI_ALL_ABILITIES/AUTO_ABILITY_ATTACK_PHASE/CONSTANT_ABILITY（下のシグニの能力を得る）・INHERIT_UNDER_SIGNI_COLOR/GAIN_LRIG_COLOR（色を得る）・GAIN_ADDITIONAL_LRIG_TYPE（追加タイプを得る）。各 id 1枚＝原文の該当文を丸写し（クラス/名前/レベル等のカード固有要素込み）。
+- **検証**＝typecheck 緑／lint 0／全シート再生成で該当生STUB消滅・**同型★0維持**（5986枚）・各カード原文一致／golden 88/88・smoke 全0・fuzz 全0（engine 不変）。
+
+---
+
 ## A表現テール: 行動制限系STUB（BLOCK_* CONTINUOUS 8 id）を逆翻訳の意味文で描画（2026-06-29・zerom）
 
 「対戦相手は〜できない」型の CONTINUOUS 制限 STUB を生STUB（id露出）／`[STUB:〜封じ]` から原文意味文に置換。全 BLOCK_* は engine 認識済み（`src` で参照）。
