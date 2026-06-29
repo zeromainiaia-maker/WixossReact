@@ -777,8 +777,12 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'TRASH_ALL_SIGNI_AND_KEY') return '対象プレイヤーのシグニすべてとキーをトラッシュ／ルリグトラッシュに置く';
       if (a.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || a.id === 'SPECIFIC_CARD_COST_REDUCE') return 'トラッシュ枚数等に応じてスペル／特定カードの使用コストを軽減する';
       if (a.id === 'SIGNI_CANT_BOUNCE_FROM_FIELD') return 'このシグニは場から手札に戻らない';
-      if (a.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') return 'このシグニは対戦相手の効果によって能力を失わない';
-      if (a.id === 'PREVENT_POWER_MINUS_BY_OPP') return 'このシグニは対戦相手の効果によってパワーをマイナスされない';
+      if (a.id === 'PREVENT_SIGNI_ABILITY_LOSS_BY_OPP') {
+        // 保護対象の色（白/赤など）はカードで異なる＝原文から抽出して一致させる。
+        const cm = currentCardText.match(/あなたの他の(?:(?:白|赤|青|緑|黒|無色)の)?シグニは対戦相手の効果によって能力を失わない/);
+        return cm ? cm[0] : 'あなたの他のシグニは対戦相手の効果によって能力を失わない';
+      }
+      if (a.id === 'PREVENT_POWER_MINUS_BY_OPP') return '対戦相手の効果によって、このシグニのパワーは－（マイナス）されない';
       if (a.id === 'NEGATE_ATTACK_ON_TRIGGER') return 'そのアタックを無効にしてもよい';
       if (a.id === 'CHOOSE_SAME_OPTION_TWICE' || a.id === 'CHOOSE_SAME_OPTION_MULTIPLE') return '同じ選択肢を複数回選ぶ';
       if (a.id === 'INHERIT_OPP_LRIG_TYPE') return '対戦相手のセンタールリグのルリグタイプを得る';
