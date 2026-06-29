@@ -5,6 +5,17 @@
 
 ---
 
+## ツール: CI に検証ハーネス（golden/smoke/fuzz）を追加＝回帰検出の自動化（2026-06-29）
+
+既存 CI（`.github/workflows/ci.yml`・push/PR(master) で typecheck＋lint）に **golden・smoke・fuzz** の3ステップを追加。共同開発者が手動実行を忘れても CI が回帰を検出する。
+
+- **追加ステップ**＝`npm run golden`（③型＋トリガー収集 assert）／`npm run smoke`（②全効果 CRASH/HANG/INVARIANT 検出）／`npm run fuzz`（②乱択連鎖）。`npm install` のみで動く（env/supabase 不要＝CIで完結）。
+- **smoke の終了コード追加**＝従来 smoke は console.log のみで CRASH があっても exit 0 だった（CI 素通り）→ `CRASH+HANG+INVARIANT>0` で `process.exitCode=1`。SKIP（autopilot カバレッジ漏れ）は失敗扱いしない。golden は元から FAIL で exit(1)、fuzz は不具合で exitCode=1。
+- **3スクリプトの exit code 確認**＝現状すべて exit 0（緑）。回帰時のみ非ゼロでCI失敗。
+- **docs**＝CLAUDE.md「検証コマンド」節・P1_PLAN §6 ゲート・§7 に CI 自動実行を明記。
+
+---
+
 ## ツール: Stage2② collectPowerZeroTriggers の pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第2弾。既存配線 `ON_SIGNI_POWER_ZERO_OR_LESS`（R37・C2リスト5枚＝WX20-Re03/WX21-067/WX22-013/WXDi-P01-043/WXDi-P14-009）の発火収集を pure 化。
