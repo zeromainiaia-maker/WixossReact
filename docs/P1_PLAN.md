@@ -42,7 +42,7 @@
 - **A3 クローズ＋§5 B機構全完了（B1-B4）**。B1＝トラップ機構／B2＝動的閾値（WX17-028）／B3＝遅延条件トリガー／B4＝引用付与の実発火。**残るP1機構＝C（engine実機配線・P2）のみ**。同型★0（5986枚）。**decompile再生成は Bash の `>` を使う（PowerShell `>` は UTF-16 で下流破壊）。**
 - **🆕 検証ハーネス3層＋CI 整備（2026-06-29）**＝実機検証を Claude/開発者がヘッドレス代替。`npm run smoke`（全効果・新品盤面）／`npm run golden`（型＋トリガー収集 assert・31/31）／`npm run fuzz`（乱択連鎖・進化盤面）。**CI（`.github/workflows/ci.yml`）が push/PR で typecheck・lint・golden・smoke・fuzz を自動実行**（§7・CLAUDE.md 参照）。現状すべて緑。
 - **🆕 C1 着手（engine未配線timing配線・2026-06-29）**＝`ON_TARGETED`(14)/`ON_LRIG_GROW`(5)/`ON_COIN_PAID`(3)/`ON_LRIG_ATTACK_STEP_START`(1)＝**計23枚を配線**（§3-C・BUGFIXES参照）。⚠発火経路は BattleScreen＝実機未検証(C2)だが、下記 Stage2 で一部 golden 自動検証化。
-- **🆕 Stage2 着手（BattleScreen 配線の pure 抽出・2026-06-29）**＝`collect*Triggers` を `src/engine/triggerCollect.ts` へ pure 化し golden で C 配線を自動検証（C2 宿題を削減）。**collect*Triggers 全28関数＋detect/count 17関数（boardDiff.ts）＋effect_stack 整列（effectStack.ts・golden化）を pure 検証完了**（golden 79/79・TODO §8）。残るは doPhaseAdvance（フェイズ遷移本体・React state 密結合＝任意）のみ。
+- **✅ Stage2 実質完了（BattleScreen 配線の pure 抽出・2026-06-29）**＝`collect*Triggers` 全28関数を `src/engine/triggerCollect.ts` へ、detect/count 17関数を `src/engine/boardDiff.ts` へ pure 化し、effect_stack 整列（`effectStack.ts`）も golden 化。**C 配線の「トリガー収集・イベント検出・スタック整列」の3層がすべて pure＋golden 自動検証済み**（golden 79/79）。⚠残るは `doPhaseAdvance`（フェイズ遷移本体・React state 密結合）のみだが、C2 削減の主目的は達成済みのため**着手は任意・費用対効果が逓減**＝Stage2 はここで区切り、次は別タスク（A/B 表現テール・C1 残 timing 配線・CPU AI 等）へ。
 
 ### 🔜 今後の計画と必要作業数
 > P1 の機械指標は 0。残るのは **(A) 表現の長いテール（個別）** と **(B) 新機構** と **(C) engine 実機配線（P2/P3）**。bulk 再生成は引き続き禁止。1機構/1パターンずつ §6 のゲートで。
