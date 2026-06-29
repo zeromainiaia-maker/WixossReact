@@ -1837,3 +1837,29 @@ export function collectLrigUnderMovedTriggers(
   }
   return { entries, usedOncePerTurnIds };
 }
+
+/**
+ * ON_DECK_SHUFFLED（「あなたのデッキがシャッフルされたとき」PR-470A）を収集する（C1・2026-06-29）。
+ * shufflerId=デッキがシャッフルされたプレイヤー。その場シグニ/ルリグから ON_DECK_SHUFFLED self【自】を収集（usageLimit も評価）。
+ */
+export function collectDeckShuffledTriggers(
+  ctx: TrigCtx, shufflerId: string, shufflerState: PlayerState,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (shufflerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const limitOk = mkLimitOk(shufflerState.actions_done, usedOncePerTurnIds);
+  for (const topNum of ownFieldSources(shufflerState)) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DECK_SHUFFLED')) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: shufflerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（デッキシャッフル時）`, effect: eff,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}

@@ -974,7 +974,7 @@ const timingJa: Record<string, string> = {
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
 // 逆翻訳末尾に【※engine未配線】を付与し、偽陰性（健全に見えて未実装）を防ぐ。配線したら除去する。docs/TODO.md に記録。
 // C1（2026-06-29）で配線済＝除外：ON_TARGETED（handleEffectInteraction→collectTargetedTriggers）・ON_LRIG_GROW（executeGrow/CPU→collectLrigGrowTriggers・センターグロウのみ）・ON_COIN_PAID（グロウ/起動/キー/出/アーツの各支払サイト→collectCoinPaidTriggers・スペルベットは未配線）・ON_LRIG_ATTACK_STEP_START（doPhaseAdvance ATTACK_SIGNI→ATTACK_LRIG→collectTurnTriggers・人間ターンのみ）。
-const engineUnwiredTimings = new Set<string>(['ON_DECK_SHUFFLED', 'ON_KEYWORD_GAINED']);
+const engineUnwiredTimings = new Set<string>(['ON_KEYWORD_GAINED']);
 
 function effJa(e: Eff): string {
   // crossOnly（【クロス常】【クロス出】【クロス起】【クロス自】）: マーカーに「クロス」を冠する。

@@ -68,7 +68,8 @@
   - ~~`ON_MATERIAL_USED`(6・改造素材機構)~~ **✅完成（2026-06-29・改造素材 foundation Step1-3b）**＝『アーツ/クラフト』8枚プレイ可能化＋トークン3択UI（CHOOSE3＋GRANT_EFFECT）＋ON_MATERIAL_USED 全3変種（materialUsedByPlayer/self/any_ally）配線。engineUnwiredTimings から除去・同型★0・golden 85。⚠UI/granted能力は実機 /verify 推奨。
   - ~~`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(1)~~ **✅配線済（2026-06-29）**＝WX07-036。`collectBanishOppByEffectTriggers`（pure・golden）＋中央 diff（detectBanishedSigni＋entry.cardNum=banisher）。実 GRANT_KEYWORD。⚠効果解決＝「効果によって」近似。
   - ~~`ON_LRIG_UNDER_MOVED`(1)~~ **✅配線済（2026-06-29）**＝WXDi-P04-042。`countLrigUnderMoved`（boardDiff）＋`collectLrigUnderMovedTriggers`（pure・golden・自ターン限定）＋中央 diff。STUB アクション実装済。
-  - 残＝`ON_KEYWORD_GAINED`(1・COPY_ABILITY STUB＝no-op・scope曖昧)/`ON_DECK_SHUFFLED`(1・shuffle 検出基盤なし)＝**配線価値が薄い**（action no-op／検出不能）。C1 の意味ある配線は打ち止め。
+  - ~~`ON_DECK_SHUFFLED`(1)~~ **✅配線済（2026-06-29）**＝PR-470A。`deck_shuffled_count`（execShuffleDeck でインクリメント）＋`detectDeckShuffled`＋`collectDeckShuffledTriggers`（pure・golden）。実 POWER_MODIFY。⚠リフレッシュ等 execShuffleDeck 外は未計上。
+  - 残＝`ON_KEYWORD_GAINED`(1)のみ＝WXDi-P04-035。action が COPY_ABILITY STUB＝**no-op**・scope曖昧（「他のシグニが得たとき」だが JSON self）＝配線しても無動作のため保留（COPY_ABILITY 実装が前提）。**意味ある C1 配線は打ち止め＝C1 実質完了**。
   - **Stage2(2026-06-29)**＝collect*Triggers を `src/engine/triggerCollect.ts` へ pure 抽出し **golden に発火条件テスト10件追加（自動検証化）**。抽出済4ファミリ＝`collectTargetedTriggers`(ON_TARGETED)/`collectLrigGrowTriggers`(ON_LRIG_GROW)/`collectCoinPaidTriggers`(ON_COIN_PAID)/`collectPowerZeroTriggers`(ON_SIGNI_POWER_ZERO_OR_LESS)。これらの発火条件は C2(実機)→golden(自動)へ移行。残る発火経路（CPU・forced単一対象・アシストグロウ等）と他 collect*Triggers は TODO §8 参照。
 - **C2**　**R5-R58 の全 engine 配線が実機未検証** → PvP/CPU 実機検証（ヘッドレス不可・`/verify` または手動）。C1 の `ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID` ＋ `ON_SIGNI_POWER_ZERO_OR_LESS` は **発火条件のみ golden 自動検証済**（Stage2）＝実機確認は「実盤面での総合動作」に絞れる。
 

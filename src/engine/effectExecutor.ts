@@ -796,7 +796,8 @@ function execInstallDelayedTrigger(
 
 function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
-  const newS: PlayerState = { ...state, deck: shuffle([...state.deck]) };
+  // deck_shuffled_count をインクリメント（ON_DECK_SHUFFLED 検出用・PR-470A）。
+  const newS: PlayerState = { ...state, deck: shuffle([...state.deck]), deck_shuffled_count: (state.deck_shuffled_count ?? 0) + 1 };
   return done(addLog(setOwnerState(a.owner, newS, ctx), 'デッキをシャッフル'));
 }
 

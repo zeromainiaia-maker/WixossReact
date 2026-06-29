@@ -16,6 +16,19 @@
 
 ---
 
+## C1: ON_DECK_SHUFFLED 配線（PR-470A・2026-06-29）
+
+「あなたのデッキがシャッフルされたとき→このシグニ+5000」を配線。実 POWER_MODIFY＝配線で機能。
+
+- **`deck_shuffled_count`（PlayerState）＋`execShuffleDeck` でインクリメント**＝SHUFFLE_DECK アクション（＋SEARCH の afterSearch:SHUFFLE_DECK）が単一 funnel。`detectDeckShuffled`（boardDiff）が解決前後の delta>0 で検出。
+- **`collectDeckShuffledTriggers`（pure・triggerCollect.ts）**＝シャッフルしたプレイヤーの場シグニ/ルリグから ON_DECK_SHUFFLED self【自】を収集。BattleScreen 中央 diff で発火。
+- **decompiler**＝`ON_DECK_SHUFFLED` を engineUnwiredTimings から除去（マーカー消去・sheet6 再生成・同型★0）。
+- **golden に1件追加（PASS 87→88）**＝detector（delta検出/変化なし）＋collector（self発火）。
+- **検証**＝typecheck 緑／lint 0／smoke（不変・全0）／golden（88/88）／fuzz（全0）。⚠近似＝リフレッシュ等 execShuffleDeck を経ないシャッフルは未計上＝要実機検証。
+- **C1 残＝ON_KEYWORD_GAINED のみ（WXDi-P04-035）**＝action が COPY_ABILITY STUB＝no-op・scope曖昧（「他のシグニが得たとき」だが JSON self）＝**配線しても無動作のため保留**（COPY_ABILITY 実装が前提）。**意味ある C1 配線は打ち止め**。
+
+---
+
 ## C1: ON_LRIG_UNDER_MOVED 配線（WXDi-P04-042・2026-06-29）
 
 「あなたのターンの間、あなたのルリグの下からカード1枚が移動したとき→相手シグニ1体に《無》任意-8000」を配線。アクションの STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）は実装済。

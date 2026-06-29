@@ -21,8 +21,8 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
-import { countLrigUnderMoved } from '../src/engine/boardDiff';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { countLrigUnderMoved, detectDeckShuffled } from '../src/engine/boardDiff';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
@@ -655,6 +655,16 @@ test('C1 ON_LRIG_UNDER_MOVED: ルリグ下からの移動を検出＋自ター�
   const host = mkState({ signi: ['WXDi-P04-042', null, null] });
   eq(has(collectLrigUnderMovedTriggers(trigCtx(HOST, HOST), HOST, host).entries, 'WXDi-P04-042-E1'), true, '自ターンで発火');
   eq(has(collectLrigUnderMovedTriggers(trigCtx(GUEST, HOST), HOST, host).entries, 'WXDi-P04-042-E1'), false, '相手ターンは非発火');
+});
+
+// C1: ON_DECK_SHUFFLED（PR-470A）配線を検証＝detector（deck_shuffled_count delta）＋collector。
+test('C1 ON_DECK_SHUFFLED: シャッフル検出＋self 発火（PR-470A-E1）', () => {
+  const before = mkState({}); before.deck_shuffled_count = 0;
+  const after = mkState({}); after.deck_shuffled_count = 1;
+  eq(detectDeckShuffled(before, after), true, 'シャッフル検出');
+  eq(detectDeckShuffled(after, after), false, '変化なしは非検出');
+  const host = mkState({ signi: ['PR-470A', null, null] });
+  eq(has(collectDeckShuffledTriggers(trigCtx(HOST), HOST, host).entries, 'PR-470A-E1'), true, 'self発火');
 });
 
 // ── レポート ──

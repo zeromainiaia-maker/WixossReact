@@ -134,6 +134,9 @@ export interface PlayerState {
   // 《改造素材》がこの解決で使用された対象シグニ（instanceId）。MARK_MATERIAL_TARGET が記録し、
   // BattleScreen が ON_MATERIAL_USED（self/any_ally）発火後にクリアする（改造素材機構 Step3b）。
   material_used_targets?: string[];
+  // デッキがシャッフルされた累積回数（execShuffleDeck がインクリメント）。BattleScreen が解決前後の差で
+  // ON_DECK_SHUFFLED を発火（PR-470A）。⚠execShuffleDeck 経由のみ（リフレッシュのシャッフルは別経路で未計上）。
+  deck_shuffled_count?: number;
   granted_effects?: Record<string, import('./effects').CardEffect[]>; // instanceId → 付与された CardEffect[]
   // 次の対戦相手のターン終了時までの付与効果（granted_effectsの長期版。UNTIL_OPP_TURN_END）
   granted_effects_until_opp_turn?: Record<string, import('./effects').CardEffect[]>;

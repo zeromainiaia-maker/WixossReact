@@ -209,6 +209,12 @@ export function countLrigUnderMoved(before: PlayerState, after: PlayerState): nu
   return beforeUnder.filter(c => !afterLrig.has(c)).length;
 }
 
+/** デッキがこの解決でシャッフルされたか（deck_shuffled_count の delta>0・ON_DECK_SHUFFLED）。⚠execShuffleDeck 経由のみ。 */
+export function detectDeckShuffled(before: PlayerState, after: PlayerState): boolean {
+  if (!before || !after) return false;
+  return (after.deck_shuffled_count ?? 0) > (before.deck_shuffled_count ?? 0);
+}
+
 /**
  * 新たに凍結状態（signi_frozen false→true）になったゾーンのシグニ番号を返す。
  * 解決後に同ゾーンに在中するシグニを対象（凍結のまま移動する稀ケースは未対応）。
