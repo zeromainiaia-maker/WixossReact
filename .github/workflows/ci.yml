@@ -28,3 +28,13 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # ヘッドレス検証ハーネス（実機不要・数秒）。詳細は docs/P1_PLAN.md §7。
+      - name: Golden (③正しさ・型＋トリガー収集の結果 assert)
+        run: npm run golden
+
+      - name: Smoke (②全効果10557件を自動実行しCRASH/HANG/INVARIANT検出)
+        run: npm run smoke
+
+      - name: Fuzz (②乱択 自己対戦・進化盤面で効果連鎖し相互作用/複製バグ検出)
+        run: npm run fuzz
