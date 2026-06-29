@@ -5,6 +5,17 @@
 
 ---
 
+## A表現テール: 単発STUB 19 id（保護/代替/グロウ/アタック制限 等）を逆翻訳の意味文で描画（2026-06-29・zerom）
+
+action STUB が各1枚の単発 STUB（engine実装/認識済み）を生STUB（id露出）から原文意味文に置換。全カードの原文・activeCondition を網羅確認（`scratchpad/scanRemain.mjs`）した上で固定文化。
+
+- **修正（`scripts/decompileEffects.ts`・decompiler のみ）**＝`miscStubMap`（19 id）を actionJa STUB分岐に追加。保護（WHITE_SIGNI_ABILITY_PROTECT/SIGNI_PROTECT_MOVE_EXCEPT_ENERGY）・置換離脱（RESONANCE_LEAVE_SELF_TRASH_SUBSTITUTE/REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER/COOKING_BANISH_SUBSTITUTE/BANISH_SUBSTITUTE_RISE_STACK）・代替コスト（ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI/ENERGY_SUBSTITUTE_TRASH_KEY/GROW_COST_SUBSTITUTE_TRASH_SIGNI）・グロウ/アタック（GROW_FROM_LEVEL0/ALLOW_ATTACK_WHILE_DRIVE/ATTACK_COUNT_BY_POWER/ADJACENT_ZONE_ATTACK）・その他（RESTRICT_CHARMED_SIGNI_ACTIVATED/PLAY_EFFECT_TARGET_CLASS_CHANGE/DYNAMIC_LEVEL_BY_ENERGY/ARTS_COST_REDUCTION_BY_COST_THRESHOLD/PLAY_SPELL_FROM_HAND/PLAY_SPELL_FROM_HAND_FREE）。
+  - **activeCondition(TURN_OWNER/英知/相手ターン)や timing/cost を持つものは本体のみ固定文化**＝条件・timing は別途前置描画されるため二重回避。再生成で WXDi-P15-085「《対戦相手のターンの間であるかぎり》あなたの白のシグニは〜失わない」等、全カードの前置連結を確認。
+- **残（個別対応要）**＝USE_SPELL_FROM_TRASH/ARTS_COLORLESS_MUST_PAY_CENTER_COLOR/CONDITIONAL_GROW_AND_KEY_DISABLE（action STUB 0件＝別経路/複雑）・SIGNI_GRANT_CHOSEN_ABILITY（CHOOSE構造）・BLACK_RISE_PLAY_STACK_FROM_TRASH/BANISH_ATTACKER_IF_WEAKER_THAN_FRONT（AUTO trigger 絡み）。生STUB は当初41種→**6種**に。
+- **検証**＝typecheck 緑／lint 0／全シート再生成で該当生STUB消滅・二重/脱落なし・**同型★0維持**（5986枚）・各カード原文一致／golden 88/88・smoke 全0・fuzz 全0（engine 不変）。
+
+---
+
 ## A表現テール: 色変化系STUB（3 id）を逆翻訳の意味文で描画（2026-06-29・zerom）
 
 色変化の CONTINUOUS STUB を生STUB（id露出）から原文意味文に置換。engine実装済み・activeCondition なし・action STUB として持つカードは各1枚。
