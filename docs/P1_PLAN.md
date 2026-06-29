@@ -33,7 +33,8 @@
 ## 3. 現在地と今後の計画（バトン）
 > 3人は**同時に作業しない**。**① `git pull` → ② 本節を読む → ③ 作業 → ④ 本節と `BUGFIXES.md` を更新 → ⑤ commit & push** を回す。詳細な修正履歴は `BUGFIXES.md`（新しい順）に積む。ここは**現在地・計画・残作業数だけ**。
 
-### 📍 進捗サマリ（最終更新 2026-06-29・ymst引き継ぎ）
+### 📍 進捗サマリ（最終更新 2026-06-29・ymst→**zerom 引き継ぎ**）
+- **🆕 zerom への引き継ぎメモ（2026-06-29）**＝ymst セッションで **Stage2（C配線の pure 抽出・golden 化）完了** ＋ **C1 engine未配線timing をほぼ全配線** ＋ **改造素材機構を完成**。golden **31→88件**・同型★0・全ハーネス緑。詳細は BUGFIXES.md 上部（新しい順）。**次の一手は §3 末尾「📌 次の一手」を見る**。残った engine未配線は `ON_KEYWORD_GAINED` 1枚のみ（COPY_ABILITY no-op で保留）。**意味ある C1 配線は打ち止め＝C は実質収束**。次は A/B 表現テール（低リスク）か実機 `/verify` 推奨。
 - **P1 表現①の systematic 指標は全達成・維持中**：**held 0 / LOSS 0 / VALUE 0 / 同型★0**。
   - 再生成・検証＝`npx tsx scripts/parserWorklist.ts`（held/LOSS/VALUE）＋`node scripts/groupSimilar.mjs --all`（同型★）。
 - **脱落疑い 255枚を全分類済み**（DoD §1 第2項クリア・`node scripts/_dropTriage.mjs`）：偽陽性179／機構待ち72／修正済。
@@ -41,7 +42,8 @@
 - **母数**：効果カード 5975／効果 10549／MANUAL効果 733／STUB含むカード 1820。
 - **A3 クローズ＋§5 B機構全完了（B1-B4）**。B1＝トラップ機構／B2＝動的閾値（WX17-028）／B3＝遅延条件トリガー／B4＝引用付与の実発火。**残るP1機構＝C（engine実機配線・P2）のみ**。同型★0（5986枚）。**decompile再生成は Bash の `>` を使う（PowerShell `>` は UTF-16 で下流破壊）。**
 - **🆕 検証ハーネス3層＋CI 整備（2026-06-29）**＝実機検証を Claude/開発者がヘッドレス代替。`npm run smoke`（全効果・新品盤面）／`npm run golden`（型＋トリガー収集 assert・31/31）／`npm run fuzz`（乱択連鎖・進化盤面）。**CI（`.github/workflows/ci.yml`）が push/PR で typecheck・lint・golden・smoke・fuzz を自動実行**（§7・CLAUDE.md 参照）。現状すべて緑。
-- **🆕 C1 着手（engine未配線timing配線・2026-06-29）**＝`ON_TARGETED`(14)/`ON_LRIG_GROW`(5)/`ON_COIN_PAID`(3)/`ON_LRIG_ATTACK_STEP_START`(1)＝**計23枚を配線**（§3-C・BUGFIXES参照）。⚠発火経路は BattleScreen＝実機未検証(C2)だが、下記 Stage2 で一部 golden 自動検証化。
+- **🆕 C1 ほぼ完了（engine未配線timing配線）**＝R33-R58 で新設した timing 群を順次配線。`ON_TARGETED`(14)/`ON_LRIG_GROW`(5)/`ON_COIN_PAID`(3)/`ON_LRIG_ATTACK_STEP_START`(1)（6/28）＋`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`/`ON_LRIG_UNDER_MOVED`/`ON_DECK_SHUFFLED`（6/29・各1枚・実アクション）。**残 engine未配線は `ON_KEYWORD_GAINED` 1枚のみ**（COPY_ABILITY no-op で配線価値なし＝保留）。`ON_MATERIAL_USED`(6) は改造素材機構として別途完成。新パターン＝pure collector(triggerCollect.ts)＋detector(boardDiff.ts)＋中央 diff 発火＋golden。⚠各配線は近似含み実機未検証(C2)。
+- **🆕 改造素材機構 完成（2026-06-29）**＝『アーツ/クラフト』8枚プレイ可能化＋トークン WXK09-TK-01A の3択UI（CHOOSE3＋GRANT_EFFECT）＋ON_MATERIAL_USED 全3変種（materialUsedByPlayer/self/any_ally）配線＋新STUB `MARK_MATERIAL_TARGET`/新 state `material_used_targets`。BUGFIXES 参照。⚠UI/granted能力は実機 /verify 推奨。
 - **✅ Stage2 実質完了（BattleScreen 配線の pure 抽出・2026-06-29）**＝`collect*Triggers` 全28関数を `src/engine/triggerCollect.ts` へ、detect/count 17関数を `src/engine/boardDiff.ts` へ pure 化し、effect_stack 整列（`effectStack.ts`）も golden 化。**C 配線の「トリガー収集・イベント検出・スタック整列」の3層がすべて pure＋golden 自動検証済み**（golden 79/79）。⚠残るは `doPhaseAdvance`（フェイズ遷移本体・React state 密結合）のみだが、C2 削減の主目的は達成済みのため**着手は任意・費用対効果が逓減**＝Stage2 はここで区切り、次は別タスク（A/B 表現テール・C1 残 timing 配線・CPU AI 等）へ。
 
 ### 🔜 今後の計画と必要作業数
@@ -76,11 +78,16 @@
 **D. STUB テール（低優先）**
 - STUB 544種/2372件。大半は**実装済みハンドラ**の表示（`[STUB:id]` はスキップ理由にしない＝個別検証）。残・単発生IDテール 54件は `STUBS.md` 管理（`node scripts/genStubsMd.mjs` で再生成）。
 
-### 📌 次の一手（推奨順・ymst向け）
-> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。
-1. **Stage2 の続き（推奨・検証基盤を強化しつつ C2 を減らす）**＝他の collect*Triggers を `src/engine/triggerCollect.ts` へ pure 抽出し golden 化。手順は確立済（pure関数追加→BattleScreenを薄いラッパ化＝挙動不変→golden テスト追加）。~~collect*Triggers 全28関数~~/~~detect・count 17関数（boardDiff.ts）~~/~~effect_stack 整列（effectStack.ts・golden化）~~**✅2026-06-29 完走**。残 Stage2 ＝doPhaseAdvance（フェイズ遷移本体・React state 密結合＝任意）のみ。詳細は TODO §8【Stage2】。
-2. **C1 の続き**（engine未配線timing配線）＝配線済4種(計23枚)。残は単発(各1枚)＝`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(効果バニッシュ発生源追跡・action単純)/`ON_LRIG_UNDER_MOVED`/`ON_DECK_SHUFFLED`(action単純)/`ON_KEYWORD_GAINED`/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(OR複合)。`ON_MATERIAL_USED`(6)は改造素材機構依存で重い。発火点特定→`collect*Triggers` 同型ヘルパ＋BattleScreen配線。⚠実機未検証(C2)になる（Stage2 で抽出すれば golden 化可）。
-3. **A1/A2/A3**（個別 parser/decompiler 是正・数枚・低リスク）／**B（§5 機構）残**＝引用AUTO付与の permanent/相手付与。着手前に §5 表の「状態」を `着手中(担当名)` に更新してコミット（重複防止）。
+### 📌 次の一手（推奨順・**zerom 向け**）
+> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 88/88・smoke/fuzz 全0・同型★0。
+>
+> **ymst セッションの状況（2026-06-29）**：Stage2（C配線の pure 抽出・golden 化）完走 ＋ C1 engine未配線timing をほぼ全配線（実アクションのもの）＋ 改造素材機構 完成。**機械指標は全て 0、C は実質収束**。よって次は **低リスクの表現テール or 実機検証** が中心。
+1. **実機検証（C2・推奨）**＝`/verify` または手動で、今セッション配線分（C1 各 timing＋改造素材機構の3択UI/granted能力）を PvP/CPU 実盤面で確認。発火条件は golden 済なので「実盤面での総合動作」に絞れる。⚠各配線は近似を含む（BUGFIXES の各⚠参照）。
+2. **A 表現の残テール**（decompiler/parser・低リスク・個別）＝TODO §3〜§4 の個別複雑カード（引用AUTO付与の permanent/相手付与＝B4残、エナ送り残6枚、機構④の残トリガー 等）。同型★0＋逆翻訳一致をゲートに1枚ずつ。
+3. **C1 残＝`ON_KEYWORD_GAINED`(WXDi-P04-035) 1枚のみ**＝ただし action が COPY_ABILITY STUB＝**no-op** で配線価値なし＝保留推奨（COPY_ABILITY 実装が前提）。やるなら先に COPY_ABILITY 機構を実装。
+4. **CPU AI 拡張 / doPhaseAdvance pure 抽出**（TODO §6・§8）＝大型・任意。費用対効果は逓減。
+
+> **新規 timing 配線の確立パターン（zerom 向け・今セッションで6回適用）**：①該当カードの effect/原文を確認 ②`triggerCollect.ts` に pure collector 追加（`mkLimitOk`/`ownFieldSources`/`effsOf` 流用）③検出が要れば `boardDiff.ts` に detector 追加 ④BattleScreen 中央 diff ブロック（`resolveStackNext` 内・mill/freeze 等と同じ場所）に発火配線＋薄いラッパ ⑤`goldenTest.ts` に発火条件テスト ⑥`decompileEffects.ts` の `engineUnwiredTimings` から除去 ⑦該当 decompile シート再生成（**Bash の `>`**）＋下流再生成＋同型★0 確認 ⑧typecheck/lint/smoke/golden/fuzz 全緑 → commit/push。
 
 ### 共有ファイルの扱い
 - `BUGFIXES.md`：**新しいものを上に**追記（誰がやったか分かるよう日付/系統名を見出しに）。
