@@ -5,6 +5,19 @@
 
 ---
 
+## ツール: Stage2① C1 collect*Triggers の pure 抽出＋golden 自動検証（2026-06-29）
+
+C 配線（BattleScreen.tsx の React クロージャ）は smoke/golden/fuzz の対象外で「実機未検証(C2)」になっていた問題への着手。C1 の3トリガー収集を pure 化し、golden から発火条件を自動検証できるようにした。
+
+- **`src/engine/triggerCollect.ts` 新設**＝`collectTargetedTriggers`/`collectLrigGrowTriggers`/`collectCoinPaidTriggers` を pure 関数として抽出。依存（host/guest/active_user_id・turn_phase・effectsMap・cardMap・effectivePowers・genId）は `TrigCtx` で注入。ロジックは BattleScreen 版と1対1（`evalUseCondition`/`matchesFilter`/`getCardNum` は execUtils から直接 import）。
+- **BattleScreen 側**＝3クロージャを**薄いラッパ**（`mkTrigCtx()` で bs/effectsMap/battleCardMap/effectivePowers/generateUUID を束ねて pure 関数へ渡すだけ）に置換。呼び出し側は無変更＝**挙動不変**。
+- **golden に C1 トリガー収集テスト7件追加（PASS 21→28）**＝ON_TARGETED（self発火／turnOwner:opponentゲートで自ターン非発火／非対象は非発火）・ON_LRIG_GROW（any_opp相手グロウ発火／自グロウ非発火）・ON_COIN_PAID（self発火／once_per_turn消化済み非発火）を HOST/GUEST 2プレイヤー盤面でヘッドレス検証。**従来 C2（実機）だった C1 発火条件が自動検証に**。
+- **lint修正**＝`execStubPart1.ts` の `parsedEffs` 初期化子（try/catch で必ず上書き＝未使用代入）を除去（`let parsedEffs: CardEffect[];`）。lint 0 errors。
+- **検証**＝`npm run typecheck` 緑／`npm run smoke`（CRASH/HANG/INVARIANT 0・不変）／`npm run golden`（28/28）／`npm run fuzz`（全0）。
+- **残（TODO §8 Stage2）**＝他の collect*Triggers（banish/leave/ON_PLAY/powerZero/handDiscard/turn 等）・detect*・フェイズ進行・effect_stack 整列の抽出。済めば既存配線(R5-R58)も golden 化でき C2 が大幅減。
+
+---
+
 ## ツール: 乱択 自己対戦ファズ `npm run fuzz` 新設＝②実行検証の最終形（2026-06-29）
 
 実機（ブラウザ対戦）を Claude がヘッドレスで代替する検証ハーネスの最終段。smoke（全効果を1回ずつ・新品盤面）／golden（型ごと結果assert）に続く③本目。
