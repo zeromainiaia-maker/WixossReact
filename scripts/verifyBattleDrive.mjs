@@ -128,28 +128,61 @@ try {
     if ((i + 1) % 5 === 0) await page.screenshot({ path: `${SHOT}/drv-setup-${i + 1}.png`, fullPage: true });
   }
   await page.screenshot({ path: `${SHOT}/drv-99-playing.png`, fullPage: true });
-  console.log('PLAYING盤面:', (await bodyText(page)).slice(0, 120).replace(/\n/g, ' '));
+  console.log('PLAYING盤面:', (await bodyText(page)).slice(0, 100).replace(/\n/g, ' '));
 
-  // ── battle_states 行を読んで構造をダンプ（注入の足場確認）──
-  const dump = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+  // ── 検証用盤面を battle_states 行へ直接注入（WXK09-050 シナリオ）──
+  // 自分のMAINターン・Lv2ルリグ（WXK09-050 Lv2 がプレイ可）・バフ済み＜電機＞シグニ・手札にWXK09-050。
+  const inj = await page.evaluate(async ({ SUPA_URL, ANON }) => {
     const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
     const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
-    const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+    const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
-    const rooms = await r1.json(); const roomId = rooms?.[0]?.id;
-    if (!roomId) return { error: 'PLAYINGルームなし' };
+    const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'PLAYINGルームなし' };
     const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=*`, { headers: h });
     const row = (await r2.json())?.[0];
-    const hs = row?.host_state ?? {};
-    return {
-      roomId, uid, host_id: row?.host_id, active_user_id: row?.active_user_id,
-      turn_phase: row?.turn_phase, turn_count: row?.turn_count,
-      host_state_keys: Object.keys(hs), field_keys: Object.keys(hs.field ?? {}),
-      hand_len: hs.hand?.length, lrig: hs.field?.lrig, signi: hs.field?.signi, energy_len: hs.energy?.length,
+    const hs = row.host_state;
+    hs.field.lrig = ['WX14-013#1'];                       // Lv2 コード・ピルルク（limitでLv2シグニ可）
+    hs.field.signi = ['WD03-009#1', null, null];          // ＜電機＞ P12000
+    hs.temp_power_mods = [{ cardNum: 'WD03-009#1', delta: 3000 }]; // バフ→15000>表記12000
+    hs.hand = ['WXK09-050#1', ...(hs.hand ?? []).slice(0, 4)];
+    const upd = {
+      host_state: hs, active_user_id: uid, turn_phase: 'MAIN', turn_count: 2,
+      effect_stack: null, pending_effect: null, pending_spell: null,
     };
+    const w = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
+      method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(upd),
+    });
+    return { roomId, ok: w.ok, status: w.status, body: w.ok ? null : await w.text() };
   }, { SUPA_URL, ANON });
-  console.log('\n=== battle_states ダンプ ===');
-  console.log(JSON.stringify(dump, null, 2));
+  console.log('注入:', JSON.stringify(inj));
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${SHOT}/inj-01-board.png`, fullPage: true });
+  console.log('注入後盤面:', (await bodyText(page)).slice(0, 160).replace(/\n/g, ' '));
+
+  // WXK09-050 を手札からプレイ → 出現するプロンプト（ゾーン選択/CHOOSE/SELECT）を順次処理
+  const tryPlay = async () => {
+    const card = page.locator('[class*="card"],img,div').filter({ hasText: 'WXK09-050' }).first();
+    const byNum = page.getByText('WXK09-050', { exact: false }).first();
+    if (await byNum.count()) { await byNum.click().catch(() => {}); return 'WXK09-050(text)'; }
+    if (await card.count()) { await card.click().catch(() => {}); return 'WXK09-050(card)'; }
+    return null;
+  };
+  console.log('プレイ試行:', await tryPlay());
+  for (let s = 0; s < 12; s++) {
+    await page.waitForTimeout(1200);
+    const t = await bodyText(page);
+    await page.screenshot({ path: `${SHOT}/inj-play-${s}.png`, fullPage: true });
+    console.log(`  play[${s}] ${t.slice(0, 110).replace(/\n/g, ' ')}`);
+    // ゾーン選択・選択肢・対象選択を素朴に進める
+    let did = null;
+    for (const t2 of ['①', 'ダウンしない', '選ぶ', 'OK', '決定', 'この', 'はい', '出す', '配置']) {
+      const el = page.getByRole('button', { name: t2 }).first();
+      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = t2; break; }
+    }
+    if (!did) { const z = page.locator('[class*="zone"],[class*="signi"]').first(); if (await z.count()) { await z.click().catch(() => {}); did = 'zone'; } }
+    if (/能力を得る|ダウンしない|付与|granted/.test(t)) { console.log('  → 付与ログ検出'); break; }
+  }
+  await page.screenshot({ path: `${SHOT}/inj-99-final.png`, fullPage: true });
 
   if (errors.length) { console.log('\n[console errors]'); errors.slice(0, 8).forEach(e => console.log('  ' + e)); }
   await browser.close();
