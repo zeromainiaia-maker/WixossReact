@@ -48,3 +48,5 @@ docs/effects_merge_report.md
 # 検証用すてアカウントの認証情報（コミット禁止）
 /verify-accounts.json
 
+# 検証用デッキ定義（生成物）
+/verify-deck.json
