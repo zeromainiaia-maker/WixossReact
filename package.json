@@ -12,6 +12,7 @@
     "smoke": "tsx scripts/smokeTest.ts",
     "golden": "tsx scripts/goldenTest.ts",
     "fuzz": "tsx scripts/selfPlayFuzz.ts",
+    "verify:browser": "node scripts/verifyBrowser.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
