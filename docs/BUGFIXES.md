@@ -5,6 +5,16 @@
 
 ---
 
+## A表現テール: 生STUB残テール 3 id（SEQUENCE/CHOOSE/action 内）を意味文化＝生STUBほぼ枯れ（2026-06-29・zerom）
+
+SEQUENCE/CHOOSE 内 step や AUTO action として残っていた生STUB（id露出）のうち **engine実装済み3 id** を原文意味文に。
+
+- **修正（`scripts/decompileEffects.ts`・decompiler のみ）**＝`miscStubMap` に追加。USE_SPELL_FROM_TRASH（WXDi-P06-066「対戦相手のトラッシュからスペル1枚を対象とし、使用する」）/ARTS_COLORLESS_MUST_PAY_CENTER_COLOR（WX16-006「《無》コストはセンタールリグの色でしか支払えない」）/BLACK_RISE_PLAY_STACK_FROM_TRASH（WDK15-001 の action本体「トラッシュからシグニ1枚を対象とし、それをそのシグニの下に置く」）。
+- **見送り（engine未実装・偽陰性回避）**＝CONDITIONAL_GROW_AND_KEY_DISABLE/BANISH_ATTACKER_IF_WEAKER_THAN_FRONT（engine grep 0件＝STUBハンドラ無し＝意味文化すると効かない効果を効くように見せる）／SIGNI_GRANT_CHOSEN_ABILITY（CHOOSE 2択の能力付与＝固定文化は近似大）。これら3 id は engine 実装 or CHOOSE構造対応とセットで（D課題）。
+- **成果**＝生STUB（id露出）は当初41種→**3種**に。同型★0維持・各カード原文一致・golden 88/88・smoke/fuzz 全0。
+
+---
+
 ## A表現テール: 単発STUB 19 id（保護/代替/グロウ/アタック制限 等）を逆翻訳の意味文で描画（2026-06-29・zerom）
 
 action STUB が各1枚の単発 STUB（engine実装/認識済み）を生STUB（id露出）から原文意味文に置換。全カードの原文・activeCondition を網羅確認（`scratchpad/scanRemain.mjs`）した上で固定文化。
