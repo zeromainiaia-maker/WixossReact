@@ -70,28 +70,34 @@ try {
   await page.screenshot({ path: `${SHOT}/drv-03-battle-enter.png`, fullPage: true });
   console.log('② battle enter:', await bodyText(page));
 
-  // セットアップ自動進行（じゃんけん→ルリグ選択→マリガン→ゲーム開始）を最大25周トライ
-  const tryClicks = ['パー', 'この手札でOK', '引き直さない', 'キープ', 'ゲーム開始', '開始', 'OK', '決定'];
-  for (let i = 0; i < 25; i++) {
-    await page.waitForTimeout(1200);
+  // セットアップ自動進行（じゃんけん→ルリグ選択→マリガン→ゲーム開始）。phase 認識で1手ずつ・待ち長め。
+  const hands = ['グー', 'チョキ', 'パー'];
+  let handIdx = 0;
+  for (let i = 0; i < 40; i++) {
     const txt = await bodyText(page);
-    if (/メインフェイズ|あなたのターン|ターン[0-9]|エナチャージ|グロウフェイズ/.test(txt)) {
+    if (/メインフェイズ|あなたのターン|ターン[0-9]|エナチャージ|グロウフェイズ|アタックフェイズ/.test(txt)) {
       console.log(`③ PLAYING 到達（${i}周目）`); break;
     }
     let clicked = null;
-    // ルリグ選択：Lv0ルリグ画像をクリック（「ルリグを選」表示時、最初のカードを押す）
-    if (/ルリグを選/.test(txt)) {
+    if (/相手の選択を待って|結果|移行中|準備中|待っています/.test(txt)) {
+      clicked = '(待機)';
+    } else if (/出す手を選んで/.test(txt)) {
+      // じゃんけん：手を変えながら1回ずつ
+      const h = hands[handIdx++ % 3];
+      const el = page.getByRole('button', { name: h }).first();
+      if (await el.count()) { await el.click().catch(() => {}); clicked = 'じゃんけん:' + h; }
+      await page.waitForTimeout(2500);
+    } else if (/ルリグを選/.test(txt)) {
       const imgs = page.locator('img');
       if (await imgs.count()) { await imgs.first().click().catch(() => {}); clicked = 'ルリグ画像'; }
+    } else {
+      for (const t of ['この手札でOK', '引き直さない', 'キープ', 'この手札で', 'ゲーム開始', '開始', '決定', 'OK', '完了']) {
+        const el = page.getByRole('button', { name: t }).first();
+        if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); clicked = t; break; }
+      }
     }
-    if (!clicked) for (const t of tryClicks) {
-      const el = page.getByRole('button', { name: t }).first();
-      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); clicked = t; break; }
-    }
-    if (!clicked) for (const t of tryClicks) {
-      try { await clickText(page, t, 800); clicked = t + '(text)'; break; } catch {}
-    }
-    console.log(`  [${i}] click=${clicked ?? 'なし'} | ${txt.slice(0, 80).replace(/\n/g, ' ')}`);
+    console.log(`  [${i}] click=${clicked ?? 'なし'} | ${txt.slice(0, 90).replace(/\n/g, ' ')}`);
+    await page.waitForTimeout(1500);
     if ((i + 1) % 5 === 0) await page.screenshot({ path: `${SHOT}/drv-setup-${i + 1}.png`, fullPage: true });
   }
   await page.screenshot({ path: `${SHOT}/drv-99-final.png`, fullPage: true });
