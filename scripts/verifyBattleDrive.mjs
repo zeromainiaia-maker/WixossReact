@@ -8,13 +8,14 @@ const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
 const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accounts;
 
+// 本番ビルドを preview で配信（dev の StrictMode 二重実行で gotoMatchmaking が消える問題を回避）。
 function startDev() {
   return new Promise((resolve, reject) => {
-    const proc = spawn('npm', ['run', 'dev'], { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn('npm', ['run', 'preview'], { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let url = null;
     const onData = (b) => { const s = b.toString().replace(/\x1b\[[0-9;]*m/g, ''); const m = s.match(/(http:\/\/localhost:\d+)/); if (m && !url) { url = m[1]; resolve({ proc, url }); } };
     proc.stdout.on('data', onData); proc.stderr.on('data', onData); proc.on('error', reject);
-    setTimeout(() => { if (!url) reject(new Error('dev起動タイムアウト')); }, 30000);
+    setTimeout(() => { if (!url) reject(new Error('preview起動タイムアウト')); }, 30000);
   });
 }
 const bodyText = (page) => page.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n').slice(0, 500));
