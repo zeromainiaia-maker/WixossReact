@@ -5,6 +5,16 @@
 
 ---
 
+## ツール: OTEC 枚数支払いを golden で検証＝実機未検証の⚠を解消（2026-06-29・zerom）
+
+先の OTEC 枚数修正（multi-card 札で N 枚払う）が「実機未検証（対話 SELECT_TARGET 経路）」だった点を、golden の `run()`（pending を resume* で自動駆動）で検証。
+
+- **追加（`scripts/goldenTest.ts`・PASS 88→89）**＝source を実カード WXDi-CP02-051（EffectText「＜ブルアカ＞のカード３枚をトラッシュ」）にし、エナにブルアカ3枚＋OTEC SEQUENCE を `run()` で駆動。「エナ3枚全部がトラッシュへ」「相手シグニがバニッシュ」を assert。
+- **判明**＝engine は pickCount=3 で SELECT_TARGET→`INTERNAL_OTEC_MOVE_SELECTED` が**3枚とも処理**する（1枚止まりではない）。修正が実挙動として効いていることをヘッドレスで実証＝C2 の⚠を1件解消。
+- **意義**＝対話を含む engine 効果も golden で結果 assert 可能（`run()` が SELECT_TARGET/SEARCH/CHOOSE 等を自動 resume）。実機が本質的に要るのは `BattleScreen.tsx` の React state 密結合部分（doPhaseAdvance/CPU/実UI）のみ。
+
+---
+
 ## A表現テール: 生STUB残テール 3 id（SEQUENCE/CHOOSE/action 内）を意味文化＝生STUBほぼ枯れ（2026-06-29・zerom）
 
 SEQUENCE/CHOOSE 内 step や AUTO action として残っていた生STUB（id露出）のうち **engine実装済み3 id** を原文意味文に。
