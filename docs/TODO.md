@@ -105,6 +105,11 @@
 
 ## 4. 個別の複雑カード（機構待ち・着手候補）
 
+- **🔧 改造素材機構（ON_MATERIAL_USED・WXK09-047/048/049/077/084・WXK10-050＝6カード7効果）＝大型・基盤未実装でブロック中（2026-06-29 調査確定）**。安易な trigger 配線は dead code になる（下記 (1)(2) が無いと改造素材は使用されず ON_MATERIAL_USED は永遠に発火しない）。**実装順序**：
+  - **(1) 『アーツ/クラフト』型のプレイ経路**＝現状 `BattleScreen` の card-action ディスパッチは `スペル/クラフト`(6900)/`アーツ`(6921) のみ対応で **`アーツ/クラフト`(WXK09-TK-01A 改造素材) のプレイハンドラが無い**。ルリグデッキ(`ADD_CRAFT_TO_LRIG_DECK` で追加済)から《緑×0》で使用→使用後ゲーム外へ、の経路を新設。`artsCandidates`(5756) も Type 完全一致 `アーツ` 除外なので拡張要。
+  - **(2) トークン WXK09-TK-01A の3択アクション**＝原文「①＜電機＞シグニ1体+4000／②《緑》で起動能力付与／③自動能力付与 から1つ」。現状 manualEffects は `BLOCK_CARD_USE`＋`DO_THREE_THINGS` STUB だが、DO_THREE_THINGS(execStubPart3:2322) はこの3択分岐を持たず **no-op**。CHOOSE(3)＋各 target(電機シグニ1体) を実装。
+  - **(3) ON_MATERIAL_USED 発火**＝(2)で対象に取った電機シグニ番号 S と使用者 P を捕捉し、効果解決後に3系統を発火：`materialUsedByPlayer`（P 視点・target不要・WXK09-047-E2/049）／`self`（S 自身・WXK09-047-E1/048/077/10-050）／`any_ally`+excludeSelf（S 以外の味方・WXK09-084）。**収集器は Stage2 基盤（triggerCollect.ts の pure 関数＋golden）で書ける**＝(1)(2) さえ出来れば trigger 部分は低リスク。`materialUsedByPlayer` 変種のみ target 不要で先行配線可だが、(1) が無いと発火機会ゼロ＝先行しても無意味。
+  - **検出**＝改造素材インスタンスが lrig_deck を離れたかの board-diff（`getCardNum==='WXK09-TK-01A'`）で「使用された」を捕捉可（boardDiff.ts に detector 追加）。ただし (1) 実装が前提。
 - **エナ送り残6枚**（親STUB＝引用付与/選択肢/使用条件の実装が前提）: WXEX2-20（E3 引用内）／WXDi-P01-040（FLIP系STUB内）／WX25-P2-041（付与引用内）／WXK09-031（誤パース）／WXK10-011（CHOOSE吸収）／WXDi-P01-005（使用条件誤パース）。
 - **凍結状態フィルタのアサシン変種**: WX25-P2-084②「【アサシン（凍結状態のパワー3000以下のシグニ）】」＋2択。
 - **公開カード→自身のアクセ化**: WDK07-E15（新STUB `INTERNAL_ACCE_PICKED_TO_SELF` が要る）。
