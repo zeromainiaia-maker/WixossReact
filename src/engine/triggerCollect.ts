@@ -1511,3 +1511,158 @@ export function collectBloomTriggers(
   entries.push(...collectFieldTriggers(ctx, 'ON_BLOOM', bloomedInstanceId, myState, opState, ownerId));
   return entries;
 }
+
+/**
+ * ターン/フェイズ境界トリガー（ON_TURN_START/END・ON_ATTACK_PHASE_START・ON_MAIN_PHASE_START・ON_LRIG_ATTACK_STEP_START）を収集する（Stage2 抽出）。
+ * myState=ターンプレイヤー（=視点 meId）の状態。自シグニ/キーワードトークン/自ルリグ/相手場 any_opp/ルリグトラッシュ自己回収/
+ * 相手ルリグ付与AUTO/FUTURE SESSION③/PR-Di035 を保持。ctx.meId で my/op を確定。
+ */
+export function collectTurnTriggers(
+  ctx: TrigCtx,
+  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+  myState: PlayerState,
+  opState: PlayerState,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  const meId = ctx.meId ?? ctx.hostId;
+  const opId = meId === ctx.hostId ? ctx.guestId : ctx.hostId;
+  const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時'
+    : timing === 'ON_TURN_END' ? 'ターン終了時'
+    : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時'
+    : timing === 'ON_LRIG_ATTACK_STEP_START' ? 'ルリグアタックステップ開始時' : 'アタックフェイズ開始時';
+
+  const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+  // collectTurnTriggers はターンプレイヤー=自分が主体（isOwnerTurn: my=true / op=false）
+  const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, ctx.effectsMap, ctx.cardMap);
+  const opAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(opState, myState, false, ctx.effectsMap, ctx.cardMap);
+  // 自分のフィールドシグニ（self）
+  for (const stack of myState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    if (ownAutoBlockedTurn) continue;
+    if (myAbilitiesRemovedTurn.has(topNum)) continue;
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (eff.condition && !evalUseCondition(eff.condition, myState, opState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
+      });
+    }
+  }
+
+  // キーワードトークン効果（GRANT_KEYWORD で付与されたキーワードが ON_TURN_END 等を持つ場合）
+  const KEYWORD_TOKEN_MAP: Record<string, string> = { 'みこみこ親衛隊': 'WX25-P3-TK03' };
+  const myGrantsKT = myState.keyword_grants ?? {};
+  for (const stack of myState.field.signi) {
+    if (!stack?.length) continue;
+    const topNumKT = stack[stack.length - 1];
+    if (ownAutoBlockedTurn) continue;
+    if (myAbilitiesRemovedTurn.has(topNumKT)) continue;
+    for (const kw of (myGrantsKT[topNumKT] ?? [])) {
+      const tokenCardKT = KEYWORD_TOKEN_MAP[kw];
+      if (!tokenCardKT) continue;
+      for (const eff of (ctx.effectsMap.get(tokenCardKT) ?? [])) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        const cardNameKT = ctx.cardMap.get(topNumKT)?.CardName ?? topNumKT;
+        entries.push({
+          id: ctx.genId(), playerId: meId, cardNum: topNumKT, effectId: `${tokenCardKT}:${eff.effectId}:${topNumKT}`,
+          label: `${cardNameKT}【${kw}】（${labelSuffix}）`, effect: eff,
+        });
+      }
+    }
+  }
+
+  // 自分のルリグ
+  const myLrigNum = myState.field.lrig.at(-1);
+  if (myLrigNum) {
+    for (const eff of (ctx.effectsMap.get(myLrigNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, myState, opState, true, ctx.cardMap, myLrigNum)) continue;
+      const cardName = ctx.cardMap.get(myLrigNum)?.CardName ?? myLrigNum;
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: myLrigNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
+      });
+    }
+  }
+
+  // 相手フィールドシグニ（any_opp / any でこちらのターンにも反応するカード）
+  for (const stack of opState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    if (opAbilitiesRemovedTurn.has(topNum)) continue;
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_opp' && scope !== 'any') continue;
+      const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: opId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
+      });
+    }
+  }
+
+  // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER）
+  for (const artsNum of (myState.lrig_trash ?? [])) {
+    for (const eff of (ctx.effectsMap.get(artsNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      const act = eff.action as StubAction;
+      if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
+      const cardName = ctx.cardMap.get(artsNum)?.CardName ?? artsNum;
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: artsNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
+      });
+    }
+  }
+
+  // 相手ルリグの付与AUTO（lrig_granted_auto_effects: any_opp/any scope）
+  for (const eff of (opState.lrig_granted_auto_effects ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+    const scope = eff.triggerScope ?? 'self';
+    if (scope !== 'any_opp' && scope !== 'any') continue;
+    const opLrigNum = opState.field.lrig.at(-1) ?? '';
+    entries.push({
+      id: ctx.genId(), playerId: opId, cardNum: opLrigNum, effectId: eff.effectId,
+      label: `ルリグ付与効果（${labelSuffix}）`, effect: eff,
+    });
+  }
+
+  // FUTURE SESSION③: 次のAPSにプリオケシグニへアタック時トラッシュ能力を付与（フラグ検出）
+  if (timing === 'ON_ATTACK_PHASE_START' && myState.pending_prioke_attack_trash_grant) {
+    const priokeSignis = myState.field.signi.flatMap(s => {
+      const top = s?.at(-1);
+      return (top && (ctx.cardMap.get(top)?.CardClass ?? '').includes('プリオケ')) ? [top] : [];
+    });
+    if (priokeSignis.length > 0) {
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: 'WX26-CP1-001', effectId: 'WX26-CP1-001-DELAYED-FS3',
+        label: 'FUTURE SESSION③ プリオケシグニへアタック時トラッシュ能力付与',
+        effect: {
+          effectId: 'WX26-CP1-001-DELAYED-FS3', effectType: 'AUTO', timing: ['ON_ATTACK_PHASE_START'],
+          action: { type: 'STUB', id: 'INTERNAL_APPLY_PRIOKE_ATTACK_TRASH' } as StubAction,
+          duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+        },
+      });
+    }
+  }
+
+  // PR-Di035 OPEN DREAM LAND!: 次のAPSにプリパラ共通色・レベル3種類チェック（フラグ検出）
+  if (timing === 'ON_ATTACK_PHASE_START' && myState.pending_pridi035_paradise) {
+    entries.push({
+      id: ctx.genId(), playerId: meId, cardNum: 'PR-Di035', effectId: 'PR-Di035-DELAYED-PARADISE',
+      label: 'OPEN DREAM LAND! 色別効果（アタックフェイズ開始時）',
+      effect: {
+        effectId: 'PR-Di035-DELAYED-PARADISE', effectType: 'AUTO', timing: ['ON_ATTACK_PHASE_START'],
+        action: { type: 'STUB', id: 'PRDI035_APPLY_PARADISE' } as StubAction,
+        duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+    });
+  }
+
+  return entries;
+}

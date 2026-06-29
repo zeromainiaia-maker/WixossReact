@@ -16,6 +16,18 @@
 
 ---
 
+## ツール: Stage2⑪ collectTurnTriggers の pure 抽出＝collect 系 全28関数 完走（2026-06-29）
+
+Stage2 第11弾。最後の collect である `collectTurnTriggers`（ON_TURN_START/END・ON_ATTACK_PHASE_START・ON_MAIN_PHASE_START・ON_LRIG_ATTACK_STEP_START）を `triggerCollect.ts` へ pure 化。**これで collect*Triggers は全28関数が pure 抽出完了**。
+
+- **`collectTurnTriggers` を pure 化**＝自シグニ self／キーワードトークン（みこみこ親衛隊）／自ルリグ／相手場 any_opp/any／ルリグトラッシュ ARTS_SELF_RECYCLE／相手ルリグ付与AUTO（lrig_granted_auto_effects）／FUTURE SESSION③（プリオケ付与）／PR-Di035（OPEN DREAM LAND!）の特殊ケースを全保持。`ctx.meId` で my/op を確定し playerId とエントリ順を一致。
+- **BattleScreen 側**＝約195行のクロージャを薄いラッパに置換＝挙動不変。これに伴い `collectContinuousAbilitiesRemovedSigni` の import が BattleScreen から不要になり削除（全 collect が triggerCollect.ts へ移ったため）。
+- **golden に3件追加（PASS 63→66）**＝ON_TURN_END self シグニ＋timing 不一致非発火＋playerId=自分（WX05-021-E2）／ON_TURN_START self シグニ（WXDi-P05-039-E1）／ON_TURN_START ルリグ（WX20-001-E1）。
+- **検証**＝`npm run typecheck` 緑／lint 0 errors／`npm run smoke`（不変・全0）／`npm run golden`（66/66）／`npm run fuzz`（全0）。
+- **残（TODO §8 Stage2）**＝collect は完走。残るは `detect*`（盤面差分・約13個）／フェイズ進行／effect_stack 整列の抽出のみ。
+
+---
+
 ## ツール: Stage2⑩ 大物 collectFieldTriggers/collectBloomTriggers の pure 抽出＋golden 自動検証（2026-06-29）
 
 Stage2 第10弾。最大の汎用トリガー収集 `collectFieldTriggers`（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM）と、それに依存する `collectBloomTriggers` を `triggerCollect.ts` へ pure 化。

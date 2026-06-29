@@ -42,7 +42,7 @@
 - **A3 クローズ＋§5 B機構全完了（B1-B4）**。B1＝トラップ機構／B2＝動的閾値（WX17-028）／B3＝遅延条件トリガー／B4＝引用付与の実発火。**残るP1機構＝C（engine実機配線・P2）のみ**。同型★0（5986枚）。**decompile再生成は Bash の `>` を使う（PowerShell `>` は UTF-16 で下流破壊）。**
 - **🆕 検証ハーネス3層＋CI 整備（2026-06-29）**＝実機検証を Claude/開発者がヘッドレス代替。`npm run smoke`（全効果・新品盤面）／`npm run golden`（型＋トリガー収集 assert・31/31）／`npm run fuzz`（乱択連鎖・進化盤面）。**CI（`.github/workflows/ci.yml`）が push/PR で typecheck・lint・golden・smoke・fuzz を自動実行**（§7・CLAUDE.md 参照）。現状すべて緑。
 - **🆕 C1 着手（engine未配線timing配線・2026-06-29）**＝`ON_TARGETED`(14)/`ON_LRIG_GROW`(5)/`ON_COIN_PAID`(3)/`ON_LRIG_ATTACK_STEP_START`(1)＝**計23枚を配線**（§3-C・BUGFIXES参照）。⚠発火経路は BattleScreen＝実機未検証(C2)だが、下記 Stage2 で一部 golden 自動検証化。
-- **🆕 Stage2 着手（BattleScreen 配線の pure 抽出・2026-06-29）**＝`collect*Triggers` を `src/engine/triggerCollect.ts` へ pure 化し golden で C 配線を自動検証（C2 宿題を削減）。targeted/lrigGrow/coinPaid/powerZero/armor/trash(3)/banish/leaveField/draw(self/opp)/mill/charm/energy/refresh/powerDecrease/moveToDeck/freeze/selfEvent/zoneMoved/driveBecame/beatBecame/handDiscard/oppArtsUse/artsUse/field/bloom の**26ファミリ抽出済**（golden 63/63・TODO §8）。残る collect は **collectTurnTriggers のみ**（中リスク）。
+- **🆕 Stage2 着手（BattleScreen 配線の pure 抽出・2026-06-29）**＝`collect*Triggers` を `src/engine/triggerCollect.ts` へ pure 化し golden で C 配線を自動検証（C2 宿題を削減）。**collect*Triggers は全28関数を pure 抽出完了**（golden 66/66・TODO §8）。残るは detect*（盤面差分・約13個）／フェイズ進行／effect_stack 整列のみ。
 
 ### 🔜 今後の計画と必要作業数
 > P1 の機械指標は 0。残るのは **(A) 表現の長いテール（個別）** と **(B) 新機構** と **(C) engine 実機配線（P2/P3）**。bulk 再生成は引き続き禁止。1機構/1パターンずつ §6 のゲートで。
@@ -73,7 +73,7 @@
 
 ### 📌 次の一手（推奨順・ymst向け）
 > まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。
-1. **Stage2 の続き（推奨・検証基盤を強化しつつ C2 を減らす）**＝他の collect*Triggers を `src/engine/triggerCollect.ts` へ pure 抽出し golden 化。手順は確立済（pure関数追加→BattleScreenを薄いラッパ化＝挙動不変→golden テスト追加）。~~armor/trash3/banish/leaveField/draw3/set-diff6/クリーン7/field・bloom~~**✅2026-06-29 抽出済**。残 collect ＝**collectTurnTriggers のみ（中リスク・keyword token/lrig付与/FUTURE SESSION③/PR-Di035 等の特殊ケース多数）**＋detect* 約13個＋フェイズ進行/effect_stack。詳細は TODO §8【Stage2】。
+1. **Stage2 の続き（推奨・検証基盤を強化しつつ C2 を減らす）**＝他の collect*Triggers を `src/engine/triggerCollect.ts` へ pure 抽出し golden 化。手順は確立済（pure関数追加→BattleScreenを薄いラッパ化＝挙動不変→golden テスト追加）。~~collect*Triggers 全28関数~~**✅2026-06-29 完走**。残 Stage2 ＝detect*（盤面差分・約13個）＋フェイズ進行/effect_stack 整列の抽出のみ。詳細は TODO §8【Stage2】。
 2. **C1 の続き**（engine未配線timing配線）＝配線済4種(計23枚)。残は単発(各1枚)＝`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(効果バニッシュ発生源追跡・action単純)/`ON_LRIG_UNDER_MOVED`/`ON_DECK_SHUFFLED`(action単純)/`ON_KEYWORD_GAINED`/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(OR複合)。`ON_MATERIAL_USED`(6)は改造素材機構依存で重い。発火点特定→`collect*Triggers` 同型ヘルパ＋BattleScreen配線。⚠実機未検証(C2)になる（Stage2 で抽出すれば golden 化可）。
 3. **A1/A2/A3**（個別 parser/decompiler 是正・数枚・低リスク）／**B（§5 機構）残**＝引用AUTO付与の permanent/相手付与。着手前に §5 表の「状態」を `着手中(担当名)` に更新してコミット（重複防止）。
 

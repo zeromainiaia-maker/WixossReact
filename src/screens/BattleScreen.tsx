@@ -7,11 +7,11 @@ import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, LRIG_ALL_NAMES_SENTINEL, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectFirstSpellCostUp, collectIncreaseActCost, collectAcceCostReduction, collectTrashFieldProtectedSigni, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, hasBanishRedirectInAction, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
-collectEffectImmuneSigni, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones} from '../engine/effectEngine';
+collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -3337,202 +3337,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * ※ ON_ATTACK_PHASE_START はターンプレイヤー側のみ発火（「各アタックフェイズ開始時」の
    *    WXEX2-03 も相手アタックフェイズでは発火しない近似）
    */
+  // ターン/フェイズ境界トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectTurnTriggers = (
     timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
     myState: PlayerState,
     opState: PlayerState,
-  ): StackEntry[] => {
-    const entries: StackEntry[] = [];
-    const opId = isHost ? bs.guest_id : bs.host_id;
-    const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時'
-      : timing === 'ON_TURN_END' ? 'ターン終了時'
-      : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時'
-      : timing === 'ON_LRIG_ATTACK_STEP_START' ? 'ルリグアタックステップ開始時' : 'アタックフェイズ開始時';
-
-    // 自分のフィールドシグニ（self = このターンプレイヤーのカード）
-    // BLOCK_OWN_SIGNI_AUTO: 設定時は自シグニの【自】能力をスキップ
-    const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
-    // CONTINUOUS REMOVE_ABILITIES: 能力を失っているシグニを事前計算（collectTurnTriggersはターンプレイヤー=自分が主体）
-    const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, effectsMap, battleCardMap);
-    const opAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(opState, myState, false, effectsMap, battleCardMap);
-    for (const stack of myState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      if (ownAutoBlockedTurn) continue;
-      if (myAbilitiesRemovedTurn.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-        if ((eff.triggerScope ?? 'self') !== 'self') continue;
-        // condition を持つAUTOは条件を満たす場合のみ収集（「覚醒であるかぎり」等の付与AUTO）
-        if (eff.condition && !evalUseCondition(eff.condition, myState, opState, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（${labelSuffix}）`,
-          effect: eff,
-        });
-      }
-    }
-
-    // キーワードトークン効果（GRANT_KEYWORD で付与されたキーワードが ON_TURN_END 等を持つ場合）
-    const KEYWORD_TOKEN_MAP: Record<string, string> = {
-      'みこみこ親衛隊': 'WX25-P3-TK03',
-    };
-    const myGrantsKT = myState.keyword_grants ?? {};
-    for (const stack of myState.field.signi) {
-      if (!stack?.length) continue;
-      const topNumKT = stack[stack.length - 1];
-      if (ownAutoBlockedTurn) continue;
-      if (myAbilitiesRemovedTurn.has(topNumKT)) continue;
-      for (const kw of (myGrantsKT[topNumKT] ?? [])) {
-        const tokenCardKT = KEYWORD_TOKEN_MAP[kw];
-        if (!tokenCardKT) continue;
-        for (const eff of (effectsMap.get(tokenCardKT) ?? [])) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-          const cardNameKT = battleCardMap.get(topNumKT)?.CardName ?? topNumKT;
-          entries.push({
-            id: generateUUID(),
-            playerId: user.id,
-            cardNum: topNumKT,
-            effectId: `${tokenCardKT}:${eff.effectId}:${topNumKT}`,
-            label: `${cardNameKT}【${kw}】（${labelSuffix}）`,
-            effect: eff,
-          });
-        }
-      }
-    }
-
-    // 自分のルリグ
-    const myLrigNum = myState.field.lrig.at(-1);
-    if (myLrigNum) {
-      for (const eff of (effectsMap.get(myLrigNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, myState, opState, true, battleCardMap, myLrigNum)) continue;
-        const cardName = battleCardMap.get(myLrigNum)?.CardName ?? myLrigNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: myLrigNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（${labelSuffix}）`,
-          effect: eff,
-        });
-      }
-    }
-
-    // 相手フィールドシグニ（any_opp / any でこちらのターンにも反応するカード）
-    for (const stack of opState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
-      if (opAbilitiesRemovedTurn.has(topNum)) continue; // CONTINUOUS REMOVE_ABILITIES
-      for (const eff of (effectsMap.get(topNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-        const scope = eff.triggerScope ?? 'self';
-        if (scope !== 'any_opp' && scope !== 'any') continue;
-        const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: opId,
-          cardNum: topNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（${labelSuffix}）`,
-          effect: eff,
-        });
-      }
-    }
-
-    // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER: ターン終了時・開始時に自己回収できるアーツ）
-    for (const artsNum of (myState.lrig_trash ?? [])) {
-      for (const eff of (effectsMap.get(artsNum) ?? [])) {
-        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-        const act = eff.action as import('../types/effects').StubAction;
-        if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
-        const cardName = battleCardMap.get(artsNum)?.CardName ?? artsNum;
-        entries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: artsNum,
-          effectId: eff.effectId,
-          label: `${cardName} の【自】効果（${labelSuffix}）`,
-          effect: eff,
-        });
-      }
-    }
-
-    // 相手ルリグの付与AUTO（lrig_granted_auto_effects: any_opp/any scope）
-    // WXDi-P07-073等: 相手APS開始時に自分のルリグへ付与した自動能力が相手ターン終了時等に発火
-    for (const eff of (opState.lrig_granted_auto_effects ?? [])) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-      const scope = eff.triggerScope ?? 'self';
-      if (scope !== 'any_opp' && scope !== 'any') continue;
-      const opLrigNum = opState.field.lrig.at(-1) ?? '';
-      entries.push({
-        id: generateUUID(),
-        playerId: opId,
-        cardNum: opLrigNum,
-        effectId: eff.effectId,
-        label: `ルリグ付与効果（${labelSuffix}）`,
-        effect: eff,
-      });
-    }
-
-    // FUTURE SESSION③: 次のAPSにプリオケシグニへアタック時トラッシュ能力を付与（フラグ検出）
-    if (timing === 'ON_ATTACK_PHASE_START' && myState.pending_prioke_attack_trash_grant) {
-      const priokeSignis = myState.field.signi.flatMap(s => {
-        const top = s?.at(-1);
-        return (top && (battleCardMap.get(top)?.CardClass ?? '').includes('プリオケ')) ? [top] : [];
-      });
-      if (priokeSignis.length > 0) {
-        entries.push({
-          id: generateUUID(),
-          playerId: user.id,
-          cardNum: 'WX26-CP1-001',
-          effectId: 'WX26-CP1-001-DELAYED-FS3',
-          label: 'FUTURE SESSION③ プリオケシグニへアタック時トラッシュ能力付与',
-          effect: {
-            effectId: 'WX26-CP1-001-DELAYED-FS3',
-            effectType: 'AUTO',
-            timing: ['ON_ATTACK_PHASE_START'],
-            action: {
-              type: 'STUB',
-              id: 'INTERNAL_APPLY_PRIOKE_ATTACK_TRASH',
-            } as import('../types/effects').StubAction,
-            duration: 'INSTANT',
-            mandatory: true,
-            parseStatus: 'MANUAL',
-          },
-        });
-      }
-    }
-
-    // PR-Di035 OPEN DREAM LAND!: 次のAPSにプリパラ共通色・レベル3種類チェック（フラグ検出）
-    if (timing === 'ON_ATTACK_PHASE_START' && myState.pending_pridi035_paradise) {
-      entries.push({
-        id: generateUUID(),
-        playerId: user.id,
-        cardNum: 'PR-Di035',
-        effectId: 'PR-Di035-DELAYED-PARADISE',
-        label: 'OPEN DREAM LAND! 色別効果（アタックフェイズ開始時）',
-        effect: {
-          effectId: 'PR-Di035-DELAYED-PARADISE',
-          effectType: 'AUTO',
-          timing: ['ON_ATTACK_PHASE_START'],
-          action: {
-            type: 'STUB',
-            id: 'PRDI035_APPLY_PARADISE',
-          } as import('../types/effects').StubAction,
-          duration: 'INSTANT',
-          mandatory: true,
-          parseStatus: 'MANUAL',
-        },
-      });
-    }
-
-    return entries;
-  };
+  ): StackEntry[] =>
+    pureCollectTurnTriggers(mkTrigCtx(), timing, myState, opState);
 
   // ドロー時（ON_DRAW）トリガー収集。引いたプレイヤー（drawerId）の場のシグニ/ルリグの ON_DRAW【自】を集める（G089）。
   // ターンドロー・効果ドローの双方から呼ばれるため playerId を引数で受け取る。
