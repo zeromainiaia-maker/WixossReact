@@ -987,6 +987,13 @@ function actionJa(a?: Action, effectType?: string): string {
         GAIN_ADDITIONAL_LRIG_TYPE: 'あなたのセンタールリグが＜タウィル＞か＜ウムル＞であるかぎり、それは追加で＜タウィル/ウムル＞を得る',
       };
       if (grantUnderMap[a.id]) return grantUnderMap[a.id];
+      // 色変化系STUB（CONTINUOUS・activeCondition なし・engine実装済み・action STUB は各1枚）の原文意味文。
+      const colorChangeMap: Record<string, string> = {
+        CARDS_OUTSIDE_ENERGY_BECOME_WHITE: 'エナゾーン以外の領域にあるカードは白になる',
+        ENERGY_NON_COLORLESS_ALL_COLORS: 'あなたのエナゾーンにある無色ではないカードはすべての色を持つ',
+        CENTER_LRIG_COLOR_CHANGE_BLACK: 'あなたのセンタールリグは黒になる',
+      };
+      if (colorChangeMap[a.id]) return colorChangeMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       const desc = stubDescMap.get(a.id);
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
