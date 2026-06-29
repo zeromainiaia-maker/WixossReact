@@ -5,6 +5,16 @@
 
 ---
 
+## A表現テール: 説明テキスト系STUB（RULE_REMINDER_TEXT 等）を逆翻訳から無音スキップ（2026-06-29・zerom）
+
+逆翻訳に `[STUB:ゲームプレイに影響しない説明テキストは無音でスキップ]` が **44件** 出ていた矛盾を解消。engine（`execStubPart1.ts`）は `RULE_REMINDER_TEXT`/`USE_CONDITION_TEXT`/`UNLIMITED_KEYS` を no-op スキップするのに、decompiler は STUBS.md の説明文をそのまま `[STUB:…]` 描画していた。
+
+- **修正（`scripts/decompileEffects.ts`・decompiler のみ）**＝①これら3 id を空文字描画（engine と同一リスト）②`SEQUENCE` 結合で空文字ステップを除外（`{step,part}` ペア化で IS_MY_TURN 判定の index ズレも回避）③`CHOOSE` 選択肢でも空文字を除外。
+- **効果**＝「〜する。そして[STUB:無音…]。そして〜」のような注記混入が消え、SEQUENCE 先頭の場合も「：原文の候補レゾナを…」とクリーンに始まる（例 WX25-P2-017-E1／WX24-P2-009-E1）。
+- **検証**＝typecheck 緑／lint 0／全シート再生成で**無音スキップタグ残存0**・**同型★0維持**（5986枚）／golden 88/88・smoke 全0・fuzz 全0（engine 不変）。
+
+---
+
 ## A表現テール: OPTIONAL_TRASH_ENERGY_CLASS の別記述誤マッチ＋シグニ/カード/枚数の是正（WX25-CP1-006 他・2026-06-29・zerom）
 
 `OPTIONAL_TRASH_ENERGY_CLASS`（エナゾーンから＜X＞のカードを任意トラッシュするコスト）の解釈バグを decompiler・engine の両方で修正。
