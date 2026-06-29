@@ -71,10 +71,11 @@
 **D. STUB テール（低優先）**
 - STUB 544種/2372件。大半は**実装済みハンドラ**の表示（`[STUB:id]` はスキップ理由にしない＝個別検証）。残・単発生IDテール 54件は `STUBS.md` 管理（`node scripts/genStubsMd.mjs` で再生成）。
 
-### 📌 次の一手（推奨順）
-1. **C1 の続き**（engine未配線timing配線）＝`ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID`/`ON_LRIG_ATTACK_STEP_START` 配線済（計23枚）。残は単発(各1枚)＝`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(効果バニッシュ発生源追跡が要・action単純)/`ON_LRIG_UNDER_MOVED`(ルリグ下スタックdiff)/`ON_DECK_SHUFFLED`(shuffle多箇所・action単純)/`ON_KEYWORD_GAINED`/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(OR複合)。`ON_MATERIAL_USED`(6)は改造素材機構依存で重い。発火点を特定→`collect*Triggers` 同型ヘルパ＋BattleScreen配線。⚠各 timing は実機未検証(C2)になる点に注意。
-2. **A1/A2/A3**（個別 parser/decompiler 是正・数枚・低リスク）。
-3. **B（§5 機構）残**＝引用AUTO付与の permanent/相手付与。着手前に §5 表の「状態」を `着手中(担当名)` に更新してコミット（重複防止）。
+### 📌 次の一手（推奨順・ymst向け）
+> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。
+1. **Stage2 の続き（推奨・検証基盤を強化しつつ C2 を減らす）**＝他の collect*Triggers を `src/engine/triggerCollect.ts` へ pure 抽出し golden 化。手順は確立済（pure関数追加→BattleScreenを薄いラッパ化＝挙動不変→golden テスト追加）。次候補＝`collectTurnTriggers`（turn系timing多数＋ON_LRIG_ATTACK_STEP_START含む）か `collectArmorTriggers`（小・クリーン）。詳細は TODO §8【Stage2】。
+2. **C1 の続き**（engine未配線timing配線）＝配線済4種(計23枚)。残は単発(各1枚)＝`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`(効果バニッシュ発生源追跡・action単純)/`ON_LRIG_UNDER_MOVED`/`ON_DECK_SHUFFLED`(action単純)/`ON_KEYWORD_GAINED`/`ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`(OR複合)。`ON_MATERIAL_USED`(6)は改造素材機構依存で重い。発火点特定→`collect*Triggers` 同型ヘルパ＋BattleScreen配線。⚠実機未検証(C2)になる（Stage2 で抽出すれば golden 化可）。
+3. **A1/A2/A3**（個別 parser/decompiler 是正・数枚・低リスク）／**B（§5 機構）残**＝引用AUTO付与の permanent/相手付与。着手前に §5 表の「状態」を `着手中(担当名)` に更新してコミット（重複防止）。
 
 ### 共有ファイルの扱い
 - `BUGFIXES.md`：**新しいものを上に**追記（誰がやったか分かるよう日付/系統名を見出しに）。
