@@ -5,6 +5,21 @@
 
 ---
 
+## A表現テール: 敗北/ルリグダメージ防止系STUB（PREVENT_DEFEAT 等8 id）を逆翻訳の意味文で描画（2026-06-29・zerom）
+
+逆翻訳に生STUB（id露出 `[STUB:PREVENT_…]`）や `[STUB:敗北無効フラグ]` のタグで出ていた敗北/ルリグダメージ防止系を、原文の意味文に置換。**engine は実装済み**（`execStubPart1.ts`＝`prevent_defeat`/`prevent_lrig_damage` フラグセット・`execStubPart3`/`BattleScreen` で消費）で、**decompiler 描画だけが欠けていた**純粋な表現テール。
+
+- **修正（`scripts/decompileEffects.ts`・decompiler のみ）**＝STUB フォールバック前に `preventDmgMap` を追加し、以下8 id を意味文で描画（条件/限定は周辺の activeCondition/CHOOSE 側で描画）：
+  - `PREVENT_DEFEAT`/`PREVENT_DEFEAT_THIS_TURN`＝「このターン、あなたはゲームに敗北しない」（WX12-002/WXDi-P16-041 他）
+  - `PREVENT_DEFEAT_UNTIL_NEXT_TURN`＝「次の対戦相手のターン終了時まで〜敗北しない」（WXEX2-08）
+  - `PREVENT_LRIG_DAMAGE`/`_THIS_TURN`/`_UNTIL_NEXT_TURN`＝「（このターン/次のターンの間、）あなたは対戦相手のルリグによってダメージを受けない」（WXK03-001/WXK10-019 他）
+  - `PREVENT_LOW_LEVEL_LRIG_DAMAGE`＝「〜レベル２以下のルリグによってダメージを受けない」（WXK11-012）
+  - `PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP`＝原文1文（WX19-046-E3）
+- **近似**＝WX25-P3-049 の2択（①ルリグ/②Lv2以下シグニ限定）は両肢とも「敗北しない」描画＝限定差は脱落（engine も無条件 prevent_defeat で整合）。`PREVENT_DAMAGE_FROM_OPP_EFFECTS`（WXK03-011 単体複合／SPDi44-04・WX25-P1-026 引用内）は文脈差で固定文化できず**今回見送り**（残3件＝次ラウンド）。
+- **検証**＝typecheck 緑／lint 0／全シート再生成で該当生STUB消滅・**同型★0維持**（5986枚）・各カード原文一致／golden 88/88・smoke 全0・fuzz 全0（engine 不変）。
+
+---
+
 ## A表現テール: 説明テキスト系STUB（RULE_REMINDER_TEXT 等）を逆翻訳から無音スキップ（2026-06-29・zerom）
 
 逆翻訳に `[STUB:ゲームプレイに影響しない説明テキストは無音でスキップ]` が **44件** 出ていた矛盾を解消。engine（`execStubPart1.ts`）は `RULE_REMINDER_TEXT`/`USE_CONDITION_TEXT`/`UNLIMITED_KEYS` を no-op スキップするのに、decompiler は STUBS.md の説明文をそのまま `[STUB:…]` 描画していた。
