@@ -16,6 +16,19 @@
 
 ---
 
+## C1: ON_ALLY_PLAY_OR_OPP_HAND_DISCARD 配線（WXDi-P11-064・2026-06-29）
+
+Stage2 完了後の C1 継続。OR複合トリガー `ON_ALLY_PLAY_OR_OPP_HAND_DISCARD`（WXDi-P11-064「あなたのターンの間、あなたの他の＜天使＞のシグニが場に出る か あなたの効果で対戦相手が手札を捨てたとき→このシグニ+4000・ターン1回」）を配線。action は実 POWER_MODIFY（STUB でない）＝配線で実際に機能する。
+
+- **`triggerCollect.ts` に `collectAllyPlayOrOppDiscardTriggers` 追加**（pure）＝controller がターンプレイヤーのときのみ（「あなたのターンの間」）、play枝（味方が場に出た・triggerFilter excludeSelf/story:天使 で絞る）か discard枝（相手手札→トラッシュ）で発火。once_per_turn。検出は既存 `detectPlacedSigni`＋`detectHandTrashed`（boardDiff.ts）を再利用＝新規 detector 不要。
+- **BattleScreen 配線**＝効果解決後の中央 diff ブロック（mill/freeze 等と同じ場所）に追加。ターンプレイヤー視点で allyPlaced/oppDiscarded を算出して発火、usedOncePerTurnIds を actions_done に永続化。薄いラッパ経由。
+- **decompiler**＝`engineUnwiredTimings` から `ON_ALLY_PLAY_OR_OPP_HAND_DISCARD` を除去（`【※engine未配線】` マーカー消滅）。sheet8 再生成・同型★0 維持。
+- **golden に2件追加（PASS 79→81）**＝play枝（天使場出しで発火/非天使は非発火）／discard枝（相手手札捨てで発火・相手ターン非発火・once_per_turn）。
+- **検証**＝typecheck 緑／lint 0／smoke（不変・全0）／golden（81/81）／fuzz（全0）。⚠近似＝「あなたの効果によって」の相手手札捨て発生源限定は未判定（相手効果での相手手札捨ても発火しうる）・duration は UNTIL_END_OF_TURN（原文「次の対戦相手ターン終了時まで」の近似）＝要実機検証。
+- **C1 残**＝ON_DECK_SHUFFLED（多経路）/ON_KEYWORD_GAINED（COPY_ABILITY STUB・scope曖昧）/ON_LRIG_UNDER_MOVED（STUB action）/ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（発生源追跡）/ON_MATERIAL_USED（改造素材機構依存）＝いずれも mechanism-blocked か低ROI。
+
+---
+
 ## ツール: Stage2⑬ effect_stack 整列（effectStack.ts）の golden 自動検証（2026-06-29）
 
 Stage2 第13弾。effect_stack の整列ロジックは既に `src/engine/effectStack.ts` に pure モジュールとして分離済みだったが golden 被覆が無かったため、自動検証テストを追加（コード移動なし＝ゼロリスク）。

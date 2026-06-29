@@ -11,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectBanishSubstit
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, analyzeBeatSigniCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, canSatisfyDiscardGroups, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, costSlotIsAny, energyMatchesCostSlot, formatCostSlot } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, countCharmsToTrash, countEnergyToTrash, countRefresh, detectPowerDecrease, countMilledFromDeck, countMovedToDeck, detectNewlyFrozen } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, CardModal, HandCards, PlayerField } from '../components/BoardComponents';
@@ -3235,6 +3235,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): StackEntry[] =>
     pureCollectTurnTriggers(mkTrigCtx(), timing, myState, opState);
 
+  // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD 収集（C1・triggerCollect.ts。ここは薄いラッパ）。
+  const collectAllyPlayOrOppDiscardTriggers = (
+    controllerId: string,
+    controllerState: PlayerState,
+    allyPlacedNums: string[],
+    oppDiscardCount: number,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
+    pureCollectAllyPlayOrOppDiscardTriggers(mkTrigCtx(), controllerId, controllerState, allyPlacedNums, oppDiscardCount);
+
   // ドロー時（ON_DRAW）トリガー収集。引いたプレイヤー（drawerId）の場のシグニ/ルリグの ON_DRAW【自】を集める（G089）。
   // ターンドロー・効果ドローの双方から呼ばれるため playerId を引数で受け取る。
   // usageLimit（《ターン1回》《ターン2回》）は actions_done(effectId) の出現回数で制御。
@@ -4611,6 +4620,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.effect_stack = baseStackF
               ? pushToStack(baseStackF, fz.entries)
               : initStack(stack.turnPlayerId, fz.entries);
+          }
+        }
+
+        // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（OR複合・WXDi-P11-064）: 「あなたのターンの間」のみ＝ターンプレイヤーを
+        // controller として、この解決で味方シグニが場に出た（play枝）か相手手札がトラッシュに置かれた（discard枝・⚠自効果限定は近似）
+        // 場合に発火。play枝は triggerFilter（他の＜天使＞）で絞る。
+        {
+          const apTurnIsHost = stack.turnPlayerId === bs.host_id;
+          const apTurnBefore = apTurnIsHost ? bs.host_state : bs.guest_state;
+          const apTurnAfter = apTurnIsHost ? hostState : guestState;
+          const apOppBefore = apTurnIsHost ? bs.guest_state : bs.host_state;
+          const apOppAfter = apTurnIsHost ? guestState : hostState;
+          const allyPlaced = detectPlacedSigni(apTurnBefore, apTurnAfter);
+          const oppDiscarded = detectHandTrashed(apOppBefore, apOppAfter).length;
+          if (allyPlaced.length > 0 || oppDiscarded > 0) {
+            const ap = collectAllyPlayOrOppDiscardTriggers(stack.turnPlayerId, apTurnAfter, allyPlaced, oppDiscarded);
+            if (ap.usedOncePerTurnIds.length > 0) {
+              const key = apTurnIsHost ? 'host_state' : 'guest_state';
+              const base = (update[key] as PlayerState) ?? apTurnAfter;
+              update[key] = { ...base, actions_done: [...(base.actions_done ?? []), ...ap.usedOncePerTurnIds] };
+            }
+            if (ap.entries.length > 0) {
+              const baseStackAP = (update.effect_stack as typeof stackAfter) ?? null;
+              update.effect_stack = baseStackAP
+                ? pushToStack(baseStackAP, ap.entries)
+                : initStack(stack.turnPlayerId, ap.entries);
+            }
           }
         }
 

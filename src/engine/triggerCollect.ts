@@ -1666,3 +1666,47 @@ export function collectTurnTriggers(
 
   return entries;
 }
+
+/**
+ * ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（OR複合・WXDi-P11-064「あなたのターンの間、あなたの他の＜天使＞のシグニが
+ * 場に出る か あなたの効果で対戦相手が手札を捨てたとき」）のトリガーを収集する（C1・2026-06-29 配線）。
+ * 「あなたのターンの間」＝controller がターンプレイヤーのときのみ。allyPlacedNums=この解決で controller 場に出たシグニ／
+ * oppDiscardCount=この解決で相手手札→トラッシュに置かれた枚数。play 枝は triggerFilter（excludeSelf/story）で絞る。
+ * ⚠ 近似：「あなたの効果によって」の発生源限定は未判定（相手効果での相手手札捨ても発火しうる）。usedOncePerTurnIds は呼び出し側で永続化。
+ */
+export function collectAllyPlayOrOppDiscardTriggers(
+  ctx: TrigCtx,
+  controllerId: string,
+  controllerState: PlayerState,
+  allyPlacedNums: string[],
+  oppDiscardCount: number,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (controllerId !== ctx.activeUserId) return { entries, usedOncePerTurnIds }; // 「あなたのターンの間」
+  if (controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
+  for (const stack of controllerState.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ALLY_PLAY_OR_OPP_HAND_DISCARD')) continue;
+      const filter = eff.triggerFilter;
+      // play 枝：味方が場に出た（excludeSelf＝発火元自身は除外／story 等は triggerFilter で照合）
+      const playOk = allyPlacedNums.some(n => {
+        if (filter?.excludeSelf && n === topNum) return false;
+        return !filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), filter);
+      });
+      // discard 枝：相手手札がトラッシュに置かれた（filter は play 枝専用＝discard 枝には適用しない）
+      const discardOk = oppDiscardCount > 0;
+      if (!playOk && !discardOk) continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: controllerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（味方場出し/相手手札捨て時）`, effect: eff,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}
