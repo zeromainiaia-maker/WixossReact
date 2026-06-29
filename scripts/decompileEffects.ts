@@ -1020,6 +1020,7 @@ function actionJa(a?: Action, effectType?: string): string {
         ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 'このアーツの使用コストに含まれる《無》コストは、あなたのセンタールリグが持つ色でしか支払えない',
         BLACK_RISE_PLAY_STACK_FROM_TRASH: 'あなたのトラッシュからシグニ１枚を対象とし、それをそのシグニの下に置く',
         SIGNI_GRANT_CHOSEN_ABILITY: '以下の２つから１つを選ぶ。表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは選んだ能力を得る。①「【常】：対戦相手の効果によってダウンしない。」②「【常】：対戦相手の効果によって手札に戻らない。」',
+        BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: 'そのシグニのパワーがそのシグニの正面のシグニのパワーより低い場合、アタックしたそのシグニをバニッシュする',
       };
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
