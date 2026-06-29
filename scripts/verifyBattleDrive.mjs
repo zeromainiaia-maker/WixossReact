@@ -159,10 +159,8 @@ try {
   await page.screenshot({ path: `${SHOT}/inj-01-board.png`, fullPage: true });
   console.log('注入後盤面:', (await bodyText(page)).slice(0, 160).replace(/\n/g, ' '));
 
-  // WXK09-050（手札0番目）を座標クリック → CardModal の「召喚」→ ゾーン選択 → CHOOSE → 対象選択
-  await page.mouse.click(37, 593); // 手札バー左端（WXK09-050）
-  const emptyZones = [[700, 400], [787, 400], [700, 480], [787, 480]];
-  let zi = 0, summoned = false;
+  // WXK09-050（手札0番目）を要素クリック → CardModal の「召喚」→ ゾーン選択 → CHOOSE → 対象選択
+  // ピクセル座標依存を廃止し data-testid / role=button(name) で安定駆動する。
   const clickTextOrBtn = async (labels) => {
     for (const lbl of labels) {
       const b = page.getByRole('button', { name: lbl }).first();
@@ -172,6 +170,20 @@ try {
     }
     return null;
   };
+  // testid 要素を見えていればクリック（プレフィックス一致でゾーンを順に試す）
+  const clickTestId = async (...ids) => {
+    for (const id of ids) {
+      const el = page.getByTestId(id).first();
+      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); return 'tid:' + id; }
+    }
+    return null;
+  };
+  // 手札先頭（注入した WXK09-050）を開く
+  const opened = await clickTestId('hand-card-0');
+  console.log('手札クリック:', opened ?? '見つからず（フォールバック座標）');
+  if (!opened) await page.mouse.click(37, 593);
+
+  let summoned = false;
   for (let s = 0; s < 16; s++) {
     await page.waitForTimeout(1000);
     const t = await bodyText(page);
@@ -180,8 +192,11 @@ try {
     console.log(`  play[${s}]${star} ${t.slice(0, 110).replace(/\n/g, ' ')}`);
     let did = await clickTextOrBtn(['召喚']);
     if (did) summoned = true;
+    // 召喚ゾーン選択モーダル: 空きゾーンを testid で順に試す（無効ボタンは disabled で弾かれる）
+    if (!did && summoned) did = await clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
     if (!did) did = await clickTextOrBtn(['対戦相手の効果によってダウンしない', '①ダウンしない', 'ダウンしない', '①']);
-    if (!did && summoned && zi < emptyZones.length) { await page.mouse.click(...emptyZones[zi++]); did = 'zone座標'; }
+    // CHOOSE 対象（盤面シグニ）: 自分のシグニゾーンを testid で
+    if (!did) did = await clickTestId('my-signi-zone-0', 'my-signi-zone-1', 'my-signi-zone-2');
     if (!did) did = await clickTextOrBtn(['決定', 'OK', 'はい', '選ぶ']);
     console.log(`     -> ${did ?? 'なし'}`);
     if (star) { await page.waitForTimeout(800); await page.screenshot({ path: `${SHOT}/inj-CHOOSE.png`, fullPage: true }); }
