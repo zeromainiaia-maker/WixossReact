@@ -9,6 +9,14 @@ WixossカードゲームのReactクローン実装。
 - **CSV の順番を必ず維持する**（スクリプト内の `sorted` ロジックで対応済み）
 - `scripts/addWX01.mjs` などのWEL化スクリプトは削除済み（WEL化は廃止）
 
+## 検証コマンド（共同開発者・必読）
+実機（ブラウザ対戦）不要でヘッドレス回帰検証できる。**`npm install` 後すぐ動く**（tsx は devDependency）。詳細は `docs/P1_PLAN.md §7`。
+- `npm run typecheck` — 型チェック（CIと同じ／必須）
+- `npm run smoke` — 全効果10557件を自動実行し CRASH/HANG/INVARIANT 検出（現状 全0）
+- `npm run golden` — DSLアクション型＋C1トリガー収集の結果を assert（現状 31/31 PASS）
+- `npm run fuzz` — 乱択 自己対戦ファズ＝進化盤面で効果連鎖し相互作用/複製バグ検出（現状 全0・シード再現可）
+- **engine / BattleScreen / decompiler を触ったら（C・D・Stage2）上記 smoke・golden・fuzz を必ず回す**（数秒）。バグを golden に1件足してから直すと回帰を防げる。
+
 ## ドキュメント配置ルール
 - **メモ・ノート・引き継ぎ（HANDOFF）・調査記録などの .md は必ず `docs/` にまとめる**。プロジェクトルートに散らばせない。
 - ルート直下に置いてよいのは定位置が規約で決まっているものだけ：`CLAUDE.md` / `README.md` / `.github/pull_request_template.md`
