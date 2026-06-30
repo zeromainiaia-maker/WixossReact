@@ -538,7 +538,13 @@ function actionJa(a?: Action, effectType?: string): string {
         return acc + '。そして' + part;
       }, '');
     }
-    case 'CHOOSE': return `次から${a.choose_count}つ選ぶ【${(a.choices || []).map((c: any) => actionJa(c.action)).filter((s: string) => s !== '').join(' / ')}】`;
+    case 'CHOOSE': {
+      // 原文「以下の[N]つから[M]つ（まで）を選ぶ。①…②…」に合わせる（N=from_count）。区切りは規約の「 / 」。
+      const chOpts = (a.choices || []).map((c: any) => actionJa(c.action)).filter((s: string) => s !== '');
+      const totalCh = a.from_count ?? (a.choices?.length ?? chOpts.length);
+      const cntCh = a.upTo ? `${numJa(a.choose_count)}つまで選ぶ` : `${numJa(a.choose_count)}つを選ぶ`;
+      return `以下の${numJa(totalCh)}つから${cntCh}【${chOpts.join(' / ')}】`;
+    }
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
       if (a.condition?.type === 'IS_MY_TURN') {
