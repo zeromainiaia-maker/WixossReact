@@ -81,7 +81,7 @@
   - ~~`ON_DECK_SHUFFLED`(1)~~ **✅配線済（2026-06-29）**＝PR-470A。`deck_shuffled_count`（execShuffleDeck でインクリメント）＋`detectDeckShuffled`＋`collectDeckShuffledTriggers`（pure・golden）。実 POWER_MODIFY。⚠リフレッシュ等 execShuffleDeck 外は未計上。
   - 残＝`ON_KEYWORD_GAINED`(1)のみ＝WXDi-P04-035。action が COPY_ABILITY STUB＝**no-op**・scope曖昧（「他のシグニが得たとき」だが JSON self）＝配線しても無動作のため保留（COPY_ABILITY 実装が前提）。**意味ある C1 配線は打ち止め＝C1 実質完了**。
   - **Stage2(2026-06-29)**＝collect*Triggers を `src/engine/triggerCollect.ts` へ pure 抽出し **golden に発火条件テスト10件追加（自動検証化）**。抽出済4ファミリ＝`collectTargetedTriggers`(ON_TARGETED)/`collectLrigGrowTriggers`(ON_LRIG_GROW)/`collectCoinPaidTriggers`(ON_COIN_PAID)/`collectPowerZeroTriggers`(ON_SIGNI_POWER_ZERO_OR_LESS)。これらの発火条件は C2(実機)→golden(自動)へ移行。残る発火経路（CPU・forced単一対象・アシストグロウ等）と他 collect*Triggers は TODO §8 参照。
-- **C2**　**R5-R58 の全 engine 配線が実機未検証** → PvP/CPU 実機検証（ヘッドレス不可・`/verify` または手動）。C1 の `ON_TARGETED`/`ON_LRIG_GROW`/`ON_COIN_PAID` ＋ `ON_SIGNI_POWER_ZERO_OR_LESS` は **発火条件のみ golden 自動検証済**（Stage2）＝実機確認は「実盤面での総合動作」に絞れる。
+- **C2**　**R5-R58 の全 engine 配線が実機未検証** → PvP/CPU 実機検証。**🆕 2026-06-30＝専用 driver `scripts/verifyBattleDrive.mjs`（preview＋Playwright・要 verify-accounts.json/.env.local）でヘッドレス実機駆動が可能に**（盤面注入＋クリック列・シナリオ切替式）。**生STUB 3（WXK09-050/WD07-012/WXK02-029）＋C1 timing `ON_LRIG_GROW`（WXDi-P03-039）を実 UI 観測クローズ**。残 C1 timing は `scenarios` テーブルに追加して横展開（§3 次の一手①）。C1 の発火条件は **golden 自動検証済**（Stage2）なので実機は「総合動作」に絞れる。
 
 **D. STUB テール（低優先）**
 - STUB 544種/2372件。大半は**実装済みハンドラ**の表示（`[STUB:id]` はスキップ理由にしない＝個別検証）。残・単発生IDテール 54件は `STUBS.md` 管理（`node scripts/genStubsMd.mjs` で再生成）。
