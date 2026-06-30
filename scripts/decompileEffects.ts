@@ -551,22 +551,32 @@ function actionJa(a?: Action, effectType?: string): string {
       const rapOwner = a.owner ?? a.from?.owner;
       const rapCnt = a.revealCount ?? a.count;
       const rapFilter = a.filter ?? a.pickFilter;
-      const thenJa = a.then
-        ? (a.then.type === 'ADD_TO_HAND' ? '手札に加える'
-         : a.then.type === 'ADD_TO_FIELD' ? '場に出す'
-         : a.then.type === 'ADD_TO_ENERGY' ? 'エナゾーンに置く'
-         : actionJa(a.then))
-        : (a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : '処理する');
       const pickN = a.pickCount === 'ALL' ? 'すべて' : `${numJa(a.pickCount ?? 1)}枚${a.pickUpTo ? 'まで' : ''}`;
       const filterStr = rapFilter ? filterJa(rapFilter) + (a.pickNoun ?? 'シグニ') : 'カード';
-      // 残り（remainder）の行き先を反映
+      const revealJa = `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
+      // 残り（remainder）の行き先
       const rem = a.remainder;
       const remJa = !rem ? ''
         : rem.location === 'trash' ? '、残りをトラッシュに置く'
         : rem.location === 'deck'
           ? (rem.position === 'bottom' ? '、残りをデッキの一番下に置く' : '、残りをデッキの上に戻す')
           : '、残りを戻す';
-      return `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し、その中から${filterStr}を${pickN}${thenJa}${remJa}`;
+      // 配置系（公開カードを手札/場/エナ/トラッシュ等へ）＝「その中から[filter]を[pickN][動詞]」
+      const placeVerb =
+        (a.then?.type === 'ADD_TO_HAND' || a.then?.type === 'TRANSFER_TO_HAND') ? '手札に加える'
+        : a.then?.type === 'ADD_TO_FIELD' ? '場に出す'
+        : a.then?.type === 'ADD_TO_ENERGY' ? 'エナゾーンに置く'
+        : a.then?.type === 'TRASH' ? 'トラッシュに置く'
+        : a.then?.type === 'BANISH' ? 'バニッシュする'
+        : !a.then ? (a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : null)
+        : null;
+      if (placeVerb) return `${revealJa}、その中から${filterStr}を${pickN}${placeVerb}${remJa}`;
+      // 別効果系（公開カードが条件）＝「それが[filter]の場合、[then]」。1枚公開時は残り句を省く（原文も省く）。
+      if (a.then) {
+        const condRem = (rapCnt && rapCnt > 1) ? remJa : '';
+        return `${revealJa}、それが${filterStr}の場合、${actionJa(a.then)}${condRem}`;
+      }
+      return `${revealJa}、その中から${filterStr}を${pickN}処理する${remJa}`;
     }
     case 'REARRANGE_SIGNI': return a.swap ? `${targetJa(a.target)}とこのシグニの場所を入れ替える${a.optional ? '（してもよい）' : ''}` : `${targetJa(a.target)}を好きなように配置し直す${a.optional ? '（してもよい）' : ''}`;
     case 'CHARM_PROTECTION':
