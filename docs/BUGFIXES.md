@@ -5,6 +5,16 @@
 
 ---
 
+## A表現テール：アーツ/スペル使用コスト改変句を原文復元（2026-06-30・zerom）＝STUBマーカー約125件→4件
+
+`ARTS_COST_REDUCTION_BY_EFFECT` / `ARTS_COST_REDUCTION_BY_CENTER_LRIG` は逆翻訳で内部マーカー `[STUB:アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み）]` を露出していた（122枚）。軽減/増加量は JSON に無く支払い時に `computeArtsEffectiveCost` が原文 EffectText を再パースして算出するため、decompiler 単独では数値を復元できないのが原因。
+
+- **修正＝decompiler が `currentCardText`（原文 EffectText＋BurstText）から「…使用コストは…減る/減り/増える/増え、/になる」文を抽出して描画**（`scripts/decompileEffects.ts` の STUB ケース。`GRANT_QUOTED_AUTO_ABILITY` 等と同じテキスト検出型）。複数のコスト文（例 SP36-001／WX09-Re02）は `。` で連結。engine は不変＝表現のみの修正。
+- **122/126 枚がクリーン抽出**。残4枚は別記述機構のため従来マーカーにフォールバック＝PR-433（コスト色無視）／WXDi-P06-066（エナコスト代替）／WXK11-014（グロウコスト）／WXK11-016（複合効果内）。
+- 検証＝同型★0 維持（割れグループ 0／5986枚）・typecheck OK。STUB総数 1392→1267。decompile_sheet1-10 再生成（Bash `>`）＋genReviewRepr/groupSimilar/groupBySentence 下流再生成。**engine 不変のため smoke/golden/fuzz 影響なし（表現パッチ）。**
+
+---
+
 ## COPY_ABILITY 実装＋ON_KEYWORD_GAINED 配線・実 UI 検証完了（2026-06-30・zerom）＝engine未配線 C1 timing 完全消化
 
 最後まで保留だった `ON_KEYWORD_GAINED`（WXDi-P04-035 羅輝石 アレキサンドライト：「他のシグニが【アサシン/ランサー/ダブルクラッシュ】を得たとき、《赤》《無》を払えば自身もその能力を得る」）を実装・配線し、実 UI 検証（シナリオ `keywordgained`）で PASS。これで**engine 未配線だった C1 timing は全て消化**。
