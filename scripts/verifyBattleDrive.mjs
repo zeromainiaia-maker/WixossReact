@@ -216,9 +216,11 @@ const scenarios = {
   },
 
   // ⑥ PR-470A: 【自】ON_DECK_SHUFFLED＝あなたのデッキがシャッフルされたとき、このシグニのパワー+5000。
-  //    C1 配線（execShuffleDeck→deck_shuffled_count→detectDeckShuffled→collectDeckShuffledTriggers）を実 UI で検証。
-  //    シャッフルの最簡経路＝SEARCHER（WX02-060・スペル《無》×1）＝デッキからスペルを探してシャッフルする。
-  //    スペル発動→コスト払い→SEARCH（取得/スキップ）→afterSearch シャッフル→ON_DECK_SHUFFLED 発火→watcher +5000。
+  //    ⚠調査保留（既定スイート外）。SEARCHER（WX02-060・スペル《無》×1）の afterSearch シャッフルで駆動を試みたが、
+  //    スペルは「相手カットイン応答待ち」を挟んで解決し、解決後も watcher は +5000 されず（PR-470A は 5000 のまま）。
+  //    ON_DECK_SHUFFLED の中央 diff（resolveStackNext の deck_shuffled_count before/after 比較）が
+  //    スペル解決経路のシャッフルを観測できていない可能性（または注入盤面のアーティファクト）。
+  //    collector 自体は golden 緑なので engine 配線側の実機 C2 知見＝別途調査（非スペルのシャッフル源での再試行 or 配線確認）。
   deckshuffle: {
     title: 'PR-470A 現実からの逃避 タマ（ON_DECK_SHUFFLED＝シャッフル時 自身+5000）',
     spec: {
