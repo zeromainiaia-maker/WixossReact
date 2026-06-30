@@ -79,31 +79,36 @@ const scenarios = {
   },
 
   // ② WXK02-029: アーツ【メイン】CHOOSE①＝条件付きグロウ（自Lv2≤相手Lv3）＋全キー能力喪失。
-  //    アーツを手札に注入し、手札カード→「使用」→「アーツ使用」→CHOOSE① で発火。
+  //    アーツはルリグデッキから使う（getMyLrigDeckCardActions）。lrig_deck=[アーツ, グロウ先] とし、
+  //    アーツ使用で lrig_deck からアーツが除かれ→効果は lrig_deck.at(0)=グロウ先(Lv3) へグロウする。
+  //    クリック列: ルリグDK→zone-card-0(アーツ)→使用→アーツ使用→CHOOSE①。
   wxk02029: {
     title: 'WXK02-029 ビカム・ユー（CONDITIONAL_GROW_AND_KEY_DISABLE）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD03-003#1'],   // コード・ピルルク・Ｍ Lv2（自センター）
-        'lrig_deck': ['WD03-002#1'],    // コード・ピルルク・Ｇ Lv3（グロウ先）
+        'field.lrig': ['WD03-003#1'],                 // コード・ピルルク・Ｍ Lv2（自センター）
+        'lrig_deck': ['WXK02-029#1', 'WD03-002#1'],   // [アーツ, グロウ先 ピルルク・Ｇ Lv3]
         'field.signi': [null, null, null],
       },
       guestSet: {
         'field.lrig': ['WD03-002#1'],   // 相手センター Lv3（自Lv2 ≤ 相手Lv3 でグロウ条件成立）
       },
-      handPrepend: ['WXK02-029#1'],
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
       await H.ensureMain();
-      const opened = await H.clickTestId('my-hand-card-0');
-      H.log('アーツ手札クリック:', opened ?? '見つからず');
+      // ルリグデッキを開く（ルリグDK バッジ）→ アーツ(zone-card-0) を開く
+      const openDk = await H.clickTextOrBtn(['ルリグDK']);
+      H.log('ルリグDK:', openDk ?? '見つからず');
+      await page.waitForTimeout(700);
+      const openArts = await H.clickTestId('zone-card-0');
+      H.log('アーツ(zone-card-0):', openArts ?? '見つからず');
       for (let s = 0; s < 14; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/wxk02029-${s}.png`, fullPage: true });
         let did = null;
-        // CardModal の「使用」→ アーツモーダルPhase2「アーツ使用」→ CHOOSE① の順に1手ずつ
-        did = await H.clickTextOrBtn(['使用', 'アーツ使用']);
+        // CardModal「使用」→ アーツモーダルPhase2「アーツ使用」→ CHOOSE① の順に1手ずつ
+        did = await H.clickTextOrBtn(['アーツ使用', '使用']);
         if (!did) {
           for (const lbl of ['条件付きグロウ＋全キー能力喪失', '条件付きグロウ', 'グロウ＋全キー', '①']) {
             const b = page.getByRole('button', { name: lbl, exact: false }).first();
