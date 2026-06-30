@@ -3284,6 +3284,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
     pureCollectDeckShuffledTriggers(mkTrigCtx(), shufflerId, shufflerState);
 
+  // ON_DECK_SHUFFLED をスタックを経由しないインライン解決（スペル＝handleCutinPass／pending効果 resume＝
+  // handleEffectInteraction）で検出する共有ヘルパー。resolveStackNext の中央 diff（deck_shuffled_count
+  // before/after）はスタック解決のみを通るため、スペル/resume はこれを呼んで ON_DECK_SHUFFLED を拾う。
+  // before は bs.host_state/guest_state。entries（スタックへ積む）と once_per_turn の actions_done を反映した
+  // host/guest を返す（呼び出し側で update.host_state/guest_state に反映する）。
+  const collectDeckShuffleInline = (
+    afterHost: PlayerState,
+    afterGuest: PlayerState,
+  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
+    const entries: StackEntry[] = [];
+    let h = afterHost, g = afterGuest;
+    for (const dsIsHost of [true, false]) {
+      const dsOwnerId = dsIsHost ? bs.host_id : bs.guest_id;
+      const before = dsIsHost ? bs.host_state : bs.guest_state;
+      const after = dsIsHost ? afterHost : afterGuest;
+      if (!detectDeckShuffled(before, after)) continue;
+      const ds = collectDeckShuffledTriggers(dsOwnerId, after);
+      entries.push(...ds.entries);
+      if (ds.usedOncePerTurnIds.length > 0) {
+        if (dsIsHost) h = { ...h, actions_done: [...(h.actions_done ?? []), ...ds.usedOncePerTurnIds] };
+        else g = { ...g, actions_done: [...(g.actions_done ?? []), ...ds.usedOncePerTurnIds] };
+      }
+    }
+    return { entries, hostState: h, guestState: g };
+  };
+
   // ドロー時（ON_DRAW）トリガー収集。引いたプレイヤー（drawerId）の場のシグニ/ルリグの ON_DRAW【自】を集める（G089）。
   // ターンドロー・効果ドローの双方から呼ばれるため playerId を引数で受け取る。
   // usageLimit（《ターン1回》《ターン2回》）は actions_done(effectId) の出現回数で制御。
