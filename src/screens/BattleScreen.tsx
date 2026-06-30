@@ -16286,6 +16286,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           const isSel = selectedOptCost.has(i);
                           return (
                             <div key={i}
+                              data-testid={`optcost-energy-${i}`}
                               onClick={() => setSelectedOptCost(prev => {
                                 const next = new Set(prev);
                                 isSel ? next.delete(i) : next.add(i);
