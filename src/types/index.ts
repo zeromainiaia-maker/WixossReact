@@ -562,6 +562,7 @@ export interface StackEntry {
   label: string;                               // 表示用 e.g. "サーバント O の【自】効果"
   effect: import('./effects').CardEffect;
   triggeringCardNum?: string;                  // any_ally/self scope で効果を引き起こしたカード番号（「それ」参照用）
+  triggeringKeyword?: string;                  // ON_KEYWORD_GAINED で得られたキーワード（COPY_ABILITY が「その能力」として参照・WXDi-P04-035）
 }
 
 export interface EffectStack {
