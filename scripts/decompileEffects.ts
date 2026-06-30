@@ -1159,6 +1159,12 @@ const timingJa: Record<string, string> = {
   ON_MATERIAL_USED: 'このシグニに《改造素材》が使用されたとき',
   ON_SIGNI_BANISH_OPPONENT_BY_EFFECT: 'このシグニが効果によって対戦相手のシグニ１体をバニッシュしたとき',
   ON_ALLY_PLAY_OR_OPP_HAND_DISCARD: 'あなたの他のシグニ１体が場に出るか、あなたの効果によって対戦相手が手札を１枚捨てたとき',
+  ON_BLOOM: 'このシグニが開花したとき',
+  ON_REVEALED_FROM_HAND: 'このカードがあなたの効果によって手札から公開されたとき',
+  ON_BLOOD_CRYSTAL_ARMOR: 'あなたのシグニが血晶武装状態になったとき',
+  // 【トラップアイコン】【歌のカケラ】はアイコン（effectType）側で表示するため、timing ラベルは空にする。
+  ON_TRAP_ACTIVATE: '',
+  ON_SONG_ACTIVATE: '',
 };
 
 // engine 未配線のトリガー（JSON/逆翻訳は揃っているがゲームでは発火しない）。
