@@ -97,8 +97,8 @@ const scenarios = {
     },
     async drive(page, H) {
       await H.ensureMain();
-      // ルリグデッキを開く（ルリグDK バッジ）→ アーツ(zone-card-0) を開く
-      const openDk = await H.clickTextOrBtn(['ルリグDK']);
+      // ルリグデッキを開く（自分の my-lrig-dk バッジ。相手の同名は非クリック）→ アーツ(zone-card-0) を開く
+      const openDk = await H.clickTestId('my-lrig-dk');
       H.log('ルリグDK:', openDk ?? '見つからず');
       await page.waitForTimeout(700);
       const openArts = await H.clickTestId('zone-card-0');
