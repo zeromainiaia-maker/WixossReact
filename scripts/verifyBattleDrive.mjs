@@ -236,12 +236,8 @@ const scenarios = {
     },
     async drive(page, H) {
       // グロウボタン→グロウ先（free grow でコスト0＝即 executeGrow）→ ON_LRIG_GROW 発火
-      const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
-      if (await gb.count() && await gb.isVisible().catch(() => false)) { await gb.click().catch(() => {}); H.log('グロウ: btn:グロウ'); }
-      else H.log('グロウ: ボタン見つからず');
-      await page.waitForTimeout(900);
-      const cand = page.getByRole('button', { name: /ピルルク・Ｇ/ }).first();
-      if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); H.log('グロウ先: ピルルク・Ｇ'); }
+      const grew = await H.openGrow(/ピルルク・Ｇ/);
+      H.log('グロウ実行:', grew ? 'OK' : '失敗');
       let fired = false;
       for (let s = 0; s < 16; s++) {
         await page.waitForTimeout(900);
