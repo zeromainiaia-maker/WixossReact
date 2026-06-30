@@ -90,16 +90,20 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - `spec.top.active`＝`'host'`（自分ターン）/`'cpu'`（CPUターン＝相手アタック誘発用）。`spec.top.turn_phase` で注入後フェイズ。
 - `drive(page, H)`＝クリック列＋観測。`H.findLog(re)` で**実エンジンログ**（CHOOSE選択肢ラベルではなく）を assert する。新シナリオはここに1件足すだけ。
 
-### 検証した3効果
+### 検証した効果（生STUB 3＋C1 timing 横展開）
 1. `wxk09050`（WXK09-050）＝【出】CHOOSE①でバフ済み＜電機＞に「ダウンしない」付与。ログ「ダウンしない（ターン終了時まで）」。
 2. `wxk02029`（WXK02-029 ビカム・ユー）＝アーツをルリグデッキから使用→CHOOSE①＝条件付きグロウ＋全キー能力喪失。ログ「グロウ条件成立（自Lv2≤相手Lv3）→…にグロウ…すべてのキーは能力を失う」。
 3. `wd07012`（WD07-012 ヴィマナ）＝CPUターン・ATTACK_SIGNI を注入し**CPUに自動アタックさせ**、自場の WD07-012【自】ON_ATTACK_SIGNI(any_opp) でアタッカーをバニッシュ。ログ「小剣 ククリをバニッシュ（正面より低パワー）」。
+4. `lriggrow`（WXDi-P03-039 幻獣神 コッコ・ルピコ）＝**C1 timing `ON_LRIG_GROW` の実機検証**。`free_grow_this_turn` でグロウコスト0化→通常グロウUI（グロウ→グロウ先）→`executeGrow`→`collectLrigGrowTriggers` が watcher を発火→OPTIONAL_COST《無》を払って相手シグニをバニッシュ。ログ「小剣 ククリをバニッシュ」。**＝C1 配線の C2 横展開はこの1件で確立**（同パターンで他 timing も追加可能）。
 
 ### このセッションで足した安定セレクタ（通常表示に影響なし）
 | testid | 場所 | 用途 |
 |---|---|---|
 | `my-lrig-dk` | `BoardComponents.tsx` Stat（自分のルリグDKバッジ） | ルリグデッキ ZoneCardModal を開く（相手の同名バッジは非クリックなので testid で自分側を確定） |
 | `zone-card-{i}` | `BoardComponents.tsx` ZoneCardModal | ゾーン一覧（ルリグデッキ等）内のカードを開く＝アーツ「使用」へ |
+| `optcost-energy-{i}` / `optcost-pay` / `optcost-skip` | `BattleScreen.tsx` OPTIONAL_COST モーダル | 任意コスト（CHOOSE pay/skip）のエナ選択・支払う・スキップ。グロウ等で発火する任意コスト【自】の駆動に汎用 |
+
+> グロウは `free_grow_this_turn:true` を注入するとコスト0化でき、`btn:グロウ`→グロウ先（カード名で取得）の2クリックで `executeGrow` に到達できる（コイン/エナ選択を回避）。コスト系トリガー（ON_LRIG_GROW/ON_COIN_PAID 等）の C2 検証に有用。
 
 ### 併せて直した潜在バグ（盤面直接注入のロード漏れ）
 `BattleScreen.tsx` の `battleCardNums` が `field.signi`/`check`/`key_piece`/`charms` 等を **instanceId（`CardNum#N`）のまま** Set に入れていたため、base CardNum でフィルタする `battleCardMap` に載らなかった（通常は deck/hand 経由で base が載るので顕在化しなかったが、**デッキ外カードを盤面へ直接注入すると未ロード→パワー0扱いでバニッシュ**された）。これらを `getCardNum` で base 化して登録するよう修正。効果生成シグニのロードも確実になる。回帰：typecheck/golden 95/golden 0FAIL・smoke 全0・fuzz 全0。
