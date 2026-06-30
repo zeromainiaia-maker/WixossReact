@@ -332,7 +332,7 @@ function startDev() {
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
 const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));
-const order = ['wxk09050', 'wxk02029', 'lriggrow', 'wd07012']; // 自分ターン系→CPUターンの順（互いに干渉しない）
+const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'wd07012']; // 自分ターン系→CPUターンの順（互いに干渉しない）
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
