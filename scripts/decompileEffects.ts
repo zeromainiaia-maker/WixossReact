@@ -1087,6 +1087,13 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:シグニのない)?(?:対戦相手の)?シグニゾーン[０-９\d]*つを指定する/);
         if (m) return m[0];
       }
+      // レゾナ場出し（SUMMON_RESONA_FROM_LRIG_DECK・engine実装済み）＝
+      // 「あなたのルリグデッキから（…の）レゾナ（N枚）を（その）出現条件を無視して場に出す」。
+      // レゾナの条件（レベル/色/クラス/枚数）はカードごとに異なるため currentCardText から抽出。
+      if (a.id === 'SUMMON_RESONA_FROM_LRIG_DECK') {
+        const m = currentCardText.match(/あなたのルリグデッキから[^。：]*?レゾナ[^。：]*?出現条件を無視して場に出す/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
