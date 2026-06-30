@@ -5157,7 +5157,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap2 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, triggeringCardNum: pe.triggeringCardNum, triggeringKeyword: pe.triggeringKeyword, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
       const inter = pe.interaction;
 
       let result: ExecResult;
