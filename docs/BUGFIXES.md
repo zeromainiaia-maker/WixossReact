@@ -5,6 +5,20 @@
 
 ---
 
+## 残り C1 timing 3種の実 UI 検証完了＋resume経路の取りこぼし修正（2026-06-30・zerom）
+
+C1 の残 timing 3種を `verifyBattleDrive.mjs` のシナリオ追加で実 UI 検証し全 PASS。検証過程で **resume 経路（handleEffectInteraction）の取りこぼしバグ**を1件発見・修正。
+
+- **#1 `ON_TARGETED`（WXDi-P03-067 羅石 アパタイト・対象化でドロー）**＝シナリオ `ontargeted`。watcher を CPU(guest) 側に置き、host のスペル WD05-017 ホール・ダーク（黒×1・対戦相手シグニ-4000）で対象化→watcher が1枚ドローを確認（guest 手札 5→6）。配線（SELECT_TARGET 確定→`collectTargetedTriggers`/5166）は元から正常。
+- **#2 `ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`（WX07-036 弩炎 フレイスロ少佐）**＝シナリオ `banishbyeffect`。＜ウェポン＞バニッシャー WX19-023 弩砲 チタイクウ（[出]《無》で対戦相手12000以下をバニッシュ・**タマ限定**→タマ Lv4/Limit11 の WD01-001 を注入）を summon→対戦相手バニッシュ→自シグニに【ダブルクラッシュ】付与を確認。
+  - **🐛 真因修正＝resume 経路の取りこぼし**：[出]バニッシュは対象選択（SELECT_TARGET）を伴うため `handleEffectInteraction`（resume）で解決され、中央 diff(`resolveStackNext`/4760) を通らない。resume の done ブロックは ON_BANISH/BLOOM/ARMOR/LEAVE/DECK_SHUFFLED は拾うが **ON_SIGNI_BANISH_OPPONENT_BY_EFFECT と ON_LRIG_UNDER_MOVED を拾っていなかった**＝対象選択を伴う効果でこれら2 timing が発火しない実バグ（deckshuffle スペル経路と同型）。→`collectBanishOppByEffectInline`/`collectLrigUnderMovedInline` 共有ヘルパーを新設し resume の done ブロックに追加（`collectDeckShuffleInline` と同型・source は pe.sourceCardNum/pe.sourcePlayerId）。
+- **#3 `ON_LRIG_UNDER_MOVED`（WXDi-P04-042）**＝シナリオ `lrigundermoved`。アーツ WX05-007 ラスト・セレクト（タマ/イオナ限定・《白》《黒》：センタールリグの下から4枚をルリグトラッシュ＋対戦相手シグニ1体トラッシュ）で下札移動を起こし発火。
+  - **設計上の注意**＝中央 diff(4782) は `result.done` 時のみ走る。WX05-007 は SEQUENCE [下札移動→対戦相手TRASH] で、対象選択を挟むと pause し下札移動が pending 確定前に起きるため resume の before/after が同値になり取りこぼす。**guest シグニ場を空にすると TRASH 対象0（`selectOrInteract` が候補0で done）→ SEQUENCE が一気に done=true** となり resolveStackNext の 4782 が下札移動を検出して発火。発火証拠＝once_per_turn 記録 `host.actions_done` に 'WXDi-P04-042-E1'。
+- **検証ハーネス強化**＝`queryState` を両プレイヤー対応化（hand/trash/powerMods/keywordGrants/actionsDone/lrigUnder/lrigTrash）。新 testid＝`onplaycost-energy-{i}`（[出]効果コストモーダル）/`artscost-energy-{i}`（アーツ Phase2 コスト）。既定スイートに ontargeted/banishbyeffect/lrigundermoved を追加（既定10件 全PASS）。
+- 回帰：typecheck・golden 95/0FAIL・smoke 全0・fuzz 全0。**これで engine 未配線だった C1 timing は実 UI 検証まで完了（`ON_KEYWORD_GAINED` のみ COPY_ABILITY 前提で保留）。**
+
+---
+
 ## スペル経路 ON_DECK_SHUFFLED の実 UI 検証完了＋2つの真因修正（2026-06-30・zerom）
 
 `ON_DECK_SHUFFLED`（PR-470A「あなたのデッキがシャッフルされたとき +5000」）の**スペル経路**実 UI 検証（`verifyBattleDrive.mjs deckshufflespell`）が長く未完だった。再実行したところ FAIL し、診断の結果**2つの独立した真因**が判明。両方を修正して PASS（`shuffled` 0→1→PR-470A#1 に +5000 反映を実 `battle_states` で確認）。
