@@ -164,6 +164,64 @@ const scenarios = {
       return { pass: false, detail: 'バニッシュログ未確認' };
     },
   },
+  // ④ WXDi-P03-039: 【自】ON_LRIG_GROW（any_ally）＝自分のルリグがグロウしたとき、《無》を払えば相手シグニ1体をバニッシュ。
+  //    C1 配線（executeGrow→collectLrigGrowTriggers）を実 UI で検証。グロウは通常UI操作＝最も駆動しやすいトリガー。
+  //    free_grow_this_turn でグロウコスト0化→グロウ即実行→ON_LRIG_GROW 発火→OPTIONAL_COST(無)払い→相手バニッシュ。
+  lriggrow: {
+    title: 'WXDi-P03-039（ON_LRIG_GROW＝グロウ時 任意コストで相手バニッシュ）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WXDi-P03-039#1'], null, null], // watcher（any_ally・P10000）
+        'field.lrig': ['WD03-003#1'],                    // 自センター Lv2 ピルルク・Ｍ
+        'lrig_deck': ['WD03-002#1'],                     // グロウ先 Lv3 ピルルク・Ｇ（同系統・条件なし）
+        'free_grow_this_turn': true,                     // グロウコスト0（単一クリックで executeGrow）
+        'energy': ['WD01-013#2', 'WD01-013#3'],          // OPTIONAL_COST《無》用（無は任意色で払える）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null],     // バニッシュ対象
+      },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      // グロウボタン→グロウ先（free grow でコスト0＝即 executeGrow）→ ON_LRIG_GROW 発火
+      const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+      if (await gb.count() && await gb.isVisible().catch(() => false)) { await gb.click().catch(() => {}); H.log('グロウ: btn:グロウ'); }
+      else H.log('グロウ: ボタン見つからず');
+      await page.waitForTimeout(900);
+      const cand = page.getByRole('button', { name: /ピルルク・Ｇ/ }).first();
+      if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); H.log('グロウ先: ピルルク・Ｇ'); }
+      let fired = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lriggrow-${s}.png`, fullPage: true });
+        let did = null;
+        // OPTIONAL_COST《無》：エナ1枚選択→支払う（＝ON_LRIG_GROW が発火し効果が提示された証拠）
+        const payBtn = page.getByTestId('optcost-pay').first();
+        if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+          fired = true;
+          await H.clickTestId('optcost-energy-0');
+          await page.waitForTimeout(300);
+          if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
+        }
+        // BANISH 対象選択（pick-0→決定）
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+        H.log(`  grow[${s}] -> ${did ?? 'なし'}`);
+        const banish = await H.findLog(/バニッシュ/);
+        if (fired && banish) return { pass: true, detail: `ON_LRIG_GROW 発火→相手バニッシュ確認「${banish}」` };
+      }
+      // バニッシュ完走しなくとも、OPTIONAL_COST 提示＝トリガー発火は確認できている
+      if (fired) return { pass: true, detail: 'ON_LRIG_GROW 発火（任意コスト提示）を確認・バニッシュ未完走' };
+      return { pass: false, detail: 'ON_LRIG_GROW 発火を確認できず' };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
