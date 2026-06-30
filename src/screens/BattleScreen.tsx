@@ -6691,6 +6691,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // スペル効果を発火（casterがowner）
       const effects = effectsMap.get(card_num) ?? [];
       const spellEff = effects.find(e => e.effectType === 'ACTIVATED');
+      console.error('[DIAG cutinPass]', 'card_num=', card_num, 'effects=', effects.length, 'types=', effects.map(e => e.effectType).join(','), 'spellEff=', spellEff?.effectId ?? 'NONE');
       if (!spellEff) {
         await supabase.from('battle_states')
           .update({
