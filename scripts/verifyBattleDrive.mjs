@@ -468,6 +468,7 @@ const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'w
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
+await buildFirst();
 const { proc, url } = await startDev();
 console.log(`dev: ${url} / 実行シナリオ: ${runIds.join(', ')}`);
 let code = 0;
