@@ -995,7 +995,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       <Stat label="手札"        value={state.hand.length} color="#7ab8ff" />
       <Stat label="デッキ"      value={state.deck.length} />
       {isMe
-        ? <Stat label="ルリグDK" value={state.lrig_deck.length} onClick={() => setZoneModal({ title: 'ルリグデッキ', cardNums: state.lrig_deck, isLrigDeck: true })} />
+        ? <Stat label="ルリグDK" value={state.lrig_deck.length} testId="my-lrig-dk" onClick={() => setZoneModal({ title: 'ルリグデッキ', cardNums: state.lrig_deck, isLrigDeck: true })} />
         : <Stat label="ルリグDK" value={state.lrig_deck.length} />
       }
       <Stat label="ライフ"      value={state.life_cloth.length} color="#bb3333" />
