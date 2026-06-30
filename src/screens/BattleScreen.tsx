@@ -15210,6 +15210,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
                           return (
                             <div key={i}
+                              data-testid={`onplaycost-energy-${i}`}
                               onClick={() => setSelectedSigniOnPlayCost(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
