@@ -5,6 +5,21 @@
 
 ---
 
+## スペル経路 ON_DECK_SHUFFLED の実 UI 検証完了＋2つの真因修正（2026-06-30・zerom）
+
+`ON_DECK_SHUFFLED`（PR-470A「あなたのデッキがシャッフルされたとき +5000」）の**スペル経路**実 UI 検証（`verifyBattleDrive.mjs deckshufflespell`）が長く未完だった。再実行したところ FAIL し、診断の結果**2つの独立した真因**が判明。両方を修正して PASS（`shuffled` 0→1→PR-470A#1 に +5000 反映を実 `battle_states` で確認）。
+
+1. **検証ハーネスが古いバンドルを配信していた（最重要・罠）**＝`verifyBattleDrive.mjs` の `startDev` は `vite preview`＝**ビルド済 `dist` を静的配信**する。build せずに実行すると**ソース変更が一切反映されない**まま古いコードを検証し、「直したのに FAIL」「engine 診断では出るのに UI で出ない」という誤った結論に至る（P1_PLAN の「ツール障害でUI再実行不能」の正体）。
+   - 修正＝driver に `buildFirst()` を追加し起動前に必ず `npm run build`（`SKIP_BUILD=1` で明示スキップ可）。
+2. **`battleCardNums` が `pending_spell`/`pending_effect` を走査していなかった**＝スペルは発動でハンドから除かれ `pending_spell` に保持される。`battleCardNums`（effectsMap/battleCardMap のロード対象）は deck/hand/trash/field 等と `myDeckData.main_deck` を走査するが **pending_spell は対象外**。そのため「VERIFY_DECK に無い注入スペル」は発動後どのゾーンにも属さず effectsMap から脱落し、`handleCutinPass` で `effectsMap.get(card_num)` が空→`spellEff=undefined`→**効果を実行せずトラッシュ送りの no-op** になっていた（SEARCH もシャッフルも発火せず、当然 ON_DECK_SHUFFLED も発火しない）。
+   - 通常プレイでは spell が必ず `myDeckData.main_deck` に在り常時ロードされるため顕在化しないが、効果でゲーム外生成されたスペル等の潜在エッジでもあり得る。
+   - 修正＝`battleCardNums` に `pending_spell.card_num` と `pending_effect.sourceCardNum`（`getCardNum` で base 化）を追加。実プレイ挙動は不変、ハーネスのスペル経路検証を可能化。
+- 併せて検証判定を**可視ログ走査（`findLog`）→実 `battle_states` 照会（`queryState`）**へ強化。ログパネル折り畳み時に「デッキをシャッフル」「パワー＋5000」が `innerText` に出ず偽陰性になる問題を回避し、`deck_shuffled_count`/`temp_power_mods`/`effect_stack`/`pending_*` を ground truth として読む。
+- なお `collectDeckShuffleInline`（スペル＝`handleCutinPass`／resume＝`handleEffectInteraction` の両経路で ON_DECK_SHUFFLED を拾う共有ヘルパー）自体は元から正しく、上記 no-op によって発火機会が無かっただけ。
+- `deckshufflespell` を既定スイートに追加（既定7件 全PASS）。回帰：typecheck・golden 95/0FAIL・smoke 全0・fuzz 全0。
+
+---
+
 ## battleCardNums の盤面ゾーン走査が instanceId のままでカード未ロード（2026-06-30・zerom）
 
 `BattleScreen.tsx` の `battleCardNums`（バトルで使うカードだけ抽出する useMemo）が `field.signi`/`field.check`/`field.key_piece`/`key_piece_extra`/`signi_charms`/`signi_soul`/`signi_seeds` を **instanceId（`CardNum#N`）のまま** Set に追加していた。`battleCardMap` は `cards.filter(c => battleCardNums.has(c.CardNum))`＝**base CardNum** でフィルタするため instanceId 入りエントリは一切マッチせず、これらのゾーンに「**deck/hand 経由で base が載っていないカード**」が居ると未ロードになる。
