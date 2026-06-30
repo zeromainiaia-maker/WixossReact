@@ -254,6 +254,11 @@ try {
     log: (...a) => console.log('   ', ...a),
     body: () => page.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n').slice(0, 500)),
     fullBody: () => page.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n').slice(0, 4000)),
+    // 盤面の全テキスト行から正規表現に一致する最初の行を返す（CHOOSE選択肢ラベルではなく実ログ判定用）。
+    findLog: async (re) => {
+      const lines = await page.evaluate(() => document.body.innerText.split('\n').map(s => s.trim()).filter(Boolean));
+      return lines.find(l => re.test(l)) ?? null;
+    },
     clickTextOrBtn: async (labels) => {
       for (const lbl of labels) {
         const b = page.getByRole('button', { name: lbl, exact: false }).first();
