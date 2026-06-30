@@ -263,6 +263,53 @@ const scenarios = {
     },
   },
 
+  // ⑥' PR-470A: ON_DECK_SHUFFLED を【スペル経路】で検証（既定スイート外・engine 修正の回帰ガード）。
+  //    SEARCHER（WX02-060・スペル《無》×1）の afterSearch シャッフル。スペルはカットイン解決経路で resolveStackNext を
+  //    通らないため、以前は ON_DECK_SHUFFLED が未発火だった→handleCutinPass/handleEffectInteraction に検出を追加して修正。
+  deckshufflespell: {
+    title: 'PR-470A（ON_DECK_SHUFFLED・スペル経路＝SEARCHER／修正回帰ガード）',
+    spec: {
+      hostSet: {
+        'field.signi': [['PR-470A#1'], null, null],
+        'energy': ['WD01-013#2', 'WD01-013#3'],   // スペルコスト《無》×1 用
+        'actions_done': [],
+      },
+      handPrepend: ['WX02-060#1'],                // ＳＥＡＲＣＨＥＲ
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const opened = await H.clickTestId('my-hand-card-0');
+      H.log('スペル手札クリック:', opened ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/deckshufflespell-${s}.png`, fullPage: true });
+        let did = null;
+        did = await clickExact('発動'); // CardModal「発動」（exact）
+        if (!did) { // スペルコスト：エナ未選択なら選択、選択済みなら「発動する」
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) { // SEARCH／PR-470A ピッカー
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        H.log(`  spell[${s}] -> ${did ?? 'なし'}`);
+        const pw = await H.findLog(/パワー[＋+]\s*5000/);
+        if (pw) return { pass: true, detail: `スペル経路 ON_DECK_SHUFFLED 発火→watcher +5000 確認「${pw}」` };
+      }
+      return { pass: false, detail: 'スペル経路 ON_DECK_SHUFFLED 発火（+5000）を確認できず' };
+    },
+  },
+
   // ④ WXDi-P03-039: 【自】ON_LRIG_GROW（any_ally）＝自分のルリグがグロウしたとき、《無》を払えば相手シグニ1体をバニッシュ。
   //    C1 配線（executeGrow→collectLrigGrowTriggers）を実 UI で検証。グロウは通常UI操作＝最も駆動しやすいトリガー。
   //    free_grow_this_turn でグロウコスト0化→グロウ即実行→ON_LRIG_GROW 発火→OPTIONAL_COST(無)払い→相手バニッシュ。
