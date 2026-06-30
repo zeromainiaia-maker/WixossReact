@@ -744,12 +744,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // アーツ/スペルの使用コスト改変句（ARTS_COST_REDUCTION_BY_EFFECT/BY_CENTER_LRIG）。
       // 軽減/増加量は支払い時に computeArtsEffectiveCost が原文 EffectText を再パースして算出する
       // ため JSON には数値が無い。逆翻訳は原文の「…使用コストは…減る/増える/になる」文を復元する。
-      if (a.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || a.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
+      if (a.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || a.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG' || a.id === 'CONDITIONAL_ARTS_COST') {
         const costSents = currentCardText.split('。')
           .map(s => s.trim())
           .filter(s => /使用コスト/.test(s) && /(減る|減り|増える|増え[、]|になる)/.test(s));
         if (costSents.length > 0) return costSents.join('。');
-        // 抽出不能（コスト色無視/エナコスト代替/グロウコスト等の別記述）は従来マーカーにフォールバック
+        // 抽出不能（コスト色無視/エナコスト代替/グロウコスト/ライフ枚数条件等の別記述）は従来マーカーにフォールバック
       }
       // A2残4枚の誤パース是正で導入（虚偽の付与STUBの置換・原文を正直に表す）
       if (a.id === 'PLAY_MILLED_SIGNI_DELAYED_TRASH') return 'この方法でトラッシュに置かれたそのシグニを場に出す（ターン終了時、そのシグニを場からトラッシュに置く）';
