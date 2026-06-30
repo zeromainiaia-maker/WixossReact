@@ -5238,7 +5238,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, under, bs.guest_id, hostState, guestState));
         }
 
-        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE];
+        // ON_DECK_SHUFFLED: この pending 解決でデッキがシャッフルされた場合（spell SEARCH の afterSearch 等）。
+        // スタック解決を経由しない resume 経路は中央 diff(resolveStackNext) を通らないためここで拾う。
+        const dsInlinePE = collectDeckShuffleInline(hostState, guestState);
+        if (dsInlinePE.entries.length > 0) { update.host_state = dsInlinePE.hostState; update.guest_state = dsInlinePE.guestState; }
+
+        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE, ...dsInlinePE.entries];
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
