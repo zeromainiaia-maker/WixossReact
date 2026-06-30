@@ -234,14 +234,23 @@ const scenarios = {
       await H.ensureMain();
       const opened = await H.clickTestId('my-hand-card-0');
       H.log('スペル手札クリック:', opened ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
       for (let s = 0; s < 18; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/deckshuffle-${s}.png`, fullPage: true });
         let did = null;
-        // CardModal「発動」→ スペルコスト（エナ1枚）→「発動する」
-        did = await H.clickTextOrBtn(['発動']);
-        if (!did) { const e0 = await H.clickTestId('spellcost-energy-0'); if (e0) { await page.waitForTimeout(250); did = await H.clickTextOrBtn(['発動する']) ?? e0; } }
-        // SEARCH ピッカー（スペル取得/スキップ）→ pick-0 あれば取得、無くても決定で確定（→ afterSearch シャッフル）
+        // CardModal「発動」（exact＝コストモーダルの「発動する」と誤マッチさせない）
+        did = await clickExact('発動');
+        // スペルコストモーダル：エナ未選択なら1枚選択、選択済みなら「発動する」
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const castReady = await clickExact('発動する'); // 有効なら即唱える
+            if (castReady) did = castReady;
+            else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; } // 未選択→選択して次iterで発動する
+          }
+        }
+        // SEARCH ピッカー／PR-470A対象ピッカー → pick-0（無くても決定で確定）→ afterSearch シャッフル
         if (!did) {
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
