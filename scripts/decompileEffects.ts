@@ -1074,6 +1074,13 @@ function actionJa(a?: Action, effectType?: string): string {
         CENTER_LRIG_COLOR_CHANGE_BLACK: 'あなたのセンタールリグは黒になる',
       };
       if (colorChangeMap[a.id]) return colorChangeMap[a.id];
+      // カード名コピー系（COPY_LRIG_NAME_ABILITY・WX24-P4-011〜025/WX25-P3-028）＝
+      // 「このルリグはルリグトラッシュにあるレベルNの＜X＞と同じカード名としても扱い、そのルリグの【自】能力を得る」。
+      // ＜X＞のクラス・レベルはカードごとに異なるため currentCardText から原文文を抽出。
+      if (a.id === 'COPY_LRIG_NAME_ABILITY') {
+        const m = currentCardText.match(/このルリグはあなたのルリグトラッシュにある[^。]*?と同じカード名としても扱い[^。]*?能力を得る/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
