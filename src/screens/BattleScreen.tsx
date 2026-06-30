@@ -16307,6 +16307,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     }
                   </div>
                   <button
+                    data-testid="optcost-pay"
                     disabled={loading || !canConfirm || !payOpt.available}
                     onClick={() => { handleEffectInteraction(['pay', ...selectedNums]); setSelectedOptCost(new Set()); }}
                     style={{ padding: '12px 0', borderRadius: 8, border: 'none',
@@ -16316,6 +16317,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                     {payOpt.label}
                   </button>
                   <button
+                    data-testid="optcost-skip"
                     disabled={loading}
                     onClick={() => { handleEffectInteraction([skipOpt?.id ?? 'skip']); setSelectedOptCost(new Set()); }}
                     style={{ padding: '10px 0', borderRadius: 8, border: C.borderUI,
