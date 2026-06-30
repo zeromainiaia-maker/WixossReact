@@ -882,11 +882,12 @@ export function HandCards({ cardNums, cards, faceDown, getCardActions }: {
 }
 
 // ─── 数値バッジ ──────────────────────────────────────────────────────
-export function Stat({ label, value, color = C.statDefault, onClick }: {
-  label: string; value: number; color?: string; onClick?: () => void;
+export function Stat({ label, value, color = C.statDefault, onClick, testId }: {
+  label: string; value: number; color?: string; onClick?: () => void; testId?: string;
 }) {
   return onClick ? (
     <div
+      data-testid={testId}
       onClick={onClick}
       style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
