@@ -385,7 +385,7 @@ const scenarios = {
     title: 'WX19-023→WX07-036（ON_SIGNI_BANISH_OPPONENT_BY_EFFECT＝味方ウェポンの効果バニッシュで【ダブルクラッシュ】付与）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD02-001#1'],                 // Lv4/Limit11（4+4=8 を許容）
+        'field.lrig': ['WD01-001#1'],                 // タマ Lv4/Limit11（WX19-023 は「タマ限定」＝タマ必須・4+4=8 を許容）
         'field.signi': [['WX07-036#1'], null, null],  // watcher（フレイスロ少佐）
         'energy': ['WD01-013#1', 'WD01-013#2'],        // [出]《無》×1 用
         'actions_done': [],
