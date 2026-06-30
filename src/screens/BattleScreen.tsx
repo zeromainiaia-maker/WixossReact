@@ -6795,6 +6795,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const bloomedNum of guestBloomedSU) {
           spellUseEntries.push(...collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id));
         }
+        // ON_DECK_SHUFFLED: スペル効果がインラインで完了し（SEARCH の afterSearch 等）デッキがシャッフルされた場合。
+        // スタック解決（resolveStackNext）を経由しないスペル解決経路は中央 diff を通らないためここで拾う。
+        const dsInlineSU = collectDeckShuffleInline(hostState, guestState);
+        if (dsInlineSU.entries.length > 0) { spellUseEntries.push(...dsInlineSU.entries); hostState = dsInlineSU.hostState; guestState = dsInlineSU.guestState; }
       }
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
       if (spellUseEntries.length > 0) {
