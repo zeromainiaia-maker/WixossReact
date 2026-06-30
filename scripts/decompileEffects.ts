@@ -748,7 +748,7 @@ function actionJa(a?: Action, effectType?: string): string {
         const costSents = currentCardText.split('。')
           .map(s => s.trim())
           .filter(s => /使用コスト/.test(s) && /(減る|減り|増える|増え[、]|になる)/.test(s));
-        if (costSents.length > 0) return costSents.join('。') + '。';
+        if (costSents.length > 0) return costSents.join('。');
         // 抽出不能（コスト色無視/エナコスト代替/グロウコスト等の別記述）は従来マーカーにフォールバック
       }
       // A2残4枚の誤パース是正で導入（虚偽の付与STUBの置換・原文を正直に表す）
