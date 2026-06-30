@@ -4232,9 +4232,17 @@ export function execStubPart2(
       || stub.id === 'GRANT_LRIG_TYPE_GAME_WIDE') {
     return done(addLog(ctx, `[能力付与: ${stub.id}]`));
   }
-  // COPY_ABILITY: このシグニはその（lastProcessed[0]の）能力を得る
+  // COPY_ABILITY: このシグニはその能力を得る
   if (stub.id === 'COPY_ABILITY') {
     const targetCA = ctx.sourceCardNum;
+    // ON_KEYWORD_GAINED 経路（WXDi-P04-035）: 「その能力」＝トリガーで得られたキーワード（triggeringKeyword）を
+    // watcher 自身（sourceCardNum）へターン終了時まで付与する。keyword_grants は日本語正式名で照合される（短縮コード不可）。
+    if (ctx.triggeringKeyword && targetCA) {
+      const grantsCA = { ...(ctx.ownerState.keyword_grants ?? {}) };
+      grantsCA[targetCA] = [...new Set([...(grantsCA[targetCA] ?? []), ctx.triggeringKeyword])];
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grantsCA } },
+        `${ctx.cardMap.get(targetCA)?.CardName ?? targetCA}が【${ctx.triggeringKeyword}】を得る（ターン終了時まで）`));
+    }
     const copiedCA = ctx.lastProcessedCards?.[0];
     if (!targetCA || !copiedCA) return done(addLog(ctx, 'COPY_ABILITY: 対象またはコピー元なし'));
     const copiedCardCA = ctx.cardMap.get(copiedCA);
