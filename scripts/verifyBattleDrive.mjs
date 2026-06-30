@@ -314,9 +314,11 @@ const scenarios = {
         if (pw) return { pass: true, detail: `スペル経路 ON_DECK_SHUFFLED 発火→watcher +5000 確認「${pw}」` };
       }
       const fin = await H.queryState();
+      H.log('=== 全ログ末尾(-25) ===');
+      for (const l of (fin?.logTail ?? [])) H.log('   LOG:', l);
       return {
         pass: false,
-        detail: `スペル経路 +5000 未確認（shuffled=${fin?.host?.deck_shuffled_count ?? '-'} stack=${fin?.stackLen ?? '-'} log末尾=${(fin?.logTail ?? []).slice(-4).join(' / ')}）`,
+        detail: `スペル経路 +5000 未確認（shuffled=${fin?.host?.deck_shuffled_count ?? '-'} stack=${fin?.stackLen ?? '-'}）`,
       };
     },
   },
