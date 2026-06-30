@@ -450,7 +450,7 @@ try {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
   const errors = [];
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('console', (m) => { const t = m.text(); if (m.type() === 'error') errors.push(t); if (t.includes('DIAG')) console.log('   [console] ' + t); });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 
   // 共通ヘルパー束（シナリオ drive に渡す）
