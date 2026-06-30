@@ -215,6 +215,50 @@ const scenarios = {
     },
   },
 
+  // ⑥ PR-470A: 【自】ON_DECK_SHUFFLED＝あなたのデッキがシャッフルされたとき、このシグニのパワー+5000。
+  //    C1 配線（execShuffleDeck→deck_shuffled_count→detectDeckShuffled→collectDeckShuffledTriggers）を実 UI で検証。
+  //    シャッフルの最簡経路＝SEARCHER（WX02-060・スペル《無》×1）＝デッキからスペルを探してシャッフルする。
+  //    スペル発動→コスト払い→SEARCH（取得/スキップ）→afterSearch シャッフル→ON_DECK_SHUFFLED 発火→watcher +5000。
+  deckshuffle: {
+    title: 'PR-470A 現実からの逃避 タマ（ON_DECK_SHUFFLED＝シャッフル時 自身+5000）',
+    spec: {
+      hostSet: {
+        'field.signi': [['PR-470A#1'], null, null],  // watcher レゾナ P5000（注入で出現条件はバイパス）
+        'energy': ['WD01-013#2', 'WD01-013#3'],      // スペルコスト《無》×1 用
+        'actions_done': [],
+      },
+      handPrepend: ['WX02-060#1'],                   // ＳＥＡＲＣＨＥＲ（デッキ参照→シャッフル）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const opened = await H.clickTestId('my-hand-card-0');
+      H.log('スペル手札クリック:', opened ?? '見つからず');
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/deckshuffle-${s}.png`, fullPage: true });
+        let did = null;
+        // CardModal「発動」→ スペルコスト（エナ1枚）→「発動する」
+        did = await H.clickTextOrBtn(['発動']);
+        if (!did) { const e0 = await H.clickTestId('spellcost-energy-0'); if (e0) { await page.waitForTimeout(250); did = await H.clickTextOrBtn(['発動する']) ?? e0; } }
+        // SEARCH ピッカー（スペル取得/スキップ）→ pick-0 あれば取得、無くても決定で確定（→ afterSearch シャッフル）
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        H.log(`  shuffle[${s}] -> ${did ?? 'なし'}`);
+        // ON_DECK_SHUFFLED 発火＝watcher の POWER_MODIFY 結果ログ「パワー+5000」（ピッカー文言「パワーを+5000」とは別）
+        const pw = await H.findLog(/パワー[＋+]\s*5000/);
+        if (pw) return { pass: true, detail: `ON_DECK_SHUFFLED 発火→watcher +5000 確認「${pw}」` };
+      }
+      return { pass: false, detail: 'ON_DECK_SHUFFLED 発火（+5000）を確認できず' };
+    },
+  },
+
   // ④ WXDi-P03-039: 【自】ON_LRIG_GROW（any_ally）＝自分のルリグがグロウしたとき、《無》を払えば相手シグニ1体をバニッシュ。
   //    C1 配線（executeGrow→collectLrigGrowTriggers）を実 UI で検証。グロウは通常UI操作＝最も駆動しやすいトリガー。
   //    free_grow_this_turn でグロウコスト0化→グロウ即実行→ON_LRIG_GROW 発火→OPTIONAL_COST(無)払い→相手バニッシュ。
