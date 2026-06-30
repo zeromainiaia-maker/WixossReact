@@ -667,6 +667,28 @@ test('C1 ON_DECK_SHUFFLED: シャッフル検出＋self 発火（PR-470A-E1）',
   eq(has(collectDeckShuffledTriggers(trigCtx(HOST), HOST, host).entries, 'PR-470A-E1'), true, 'self発火');
 });
 
+// C1: ON_KEYWORD_GAINED（WXDi-P04-035）配線を検証＝detector（keyword_grants 差分・対象3種に限定）＋collector（他シグニ限定）。
+test('C1 ON_KEYWORD_GAINED: 対象キーワード付与検出＋他シグニで発火・自己付与は非発火（WXDi-P04-035-E1）', () => {
+  // detector: 別シグニにダブルクラッシュが新規付与
+  const before = mkState({ signi: ['WXDi-P04-035', 'WX07-036', null] });
+  const after = mkState({ signi: ['WXDi-P04-035', 'WX07-036', null] });
+  after.keyword_grants = { 'WX07-036': ['ダブルクラッシュ'] };
+  const gains = detectKeywordGained(before, after);
+  eq(gains.some(g => g.cardNum === 'WX07-036' && g.keyword === 'ダブルクラッシュ'), true, '新規付与を検出');
+  eq(detectKeywordGained(after, after).length, 0, '変化なしは0');
+  // 対象外キーワード（例: シャドウ）は検出しない
+  const afterShadow = mkState({ signi: ['WXDi-P04-035', 'WX07-036', null] });
+  afterShadow.keyword_grants = { 'WX07-036': ['シャドウ'] };
+  eq(detectKeywordGained(before, afterShadow).length, 0, '対象外キーワードは非検出');
+  // collector: watcher 以外のシグニが得たら発火（triggeringKeyword を積む）。自身が得た場合は非発火（「他のシグニ」）。
+  const host = mkState({ signi: ['WXDi-P04-035', 'WX07-036', null] });
+  const fired = collectKeywordGainedTriggers(gains, HOST, host).entries;
+  eq(has(fired, 'WXDi-P04-035-E1'), true, '他シグニ付与で発火');
+  eq(fired.find(e => e.effectId === 'WXDi-P04-035-E1')?.triggeringKeyword, 'ダブルクラッシュ', '得たキーワードを triggeringKeyword に保持');
+  const selfGain = [{ cardNum: 'WXDi-P04-035', keyword: 'ダブルクラッシュ' }];
+  eq(has(collectKeywordGainedTriggers(selfGain, HOST, host).entries, 'WXDi-P04-035-E1'), false, '自己付与は非発火');
+});
+
 // OPTIONAL_TRASH_ENERGY_CLASS: 「エナゾーンから＜X＞のカードN枚をトラッシュ」句の N 枚を支払う（multi-card 札）。
 // 旧実装は枚数を「N枚を対象」から取り 1枚しか払わなかった（zerom 2026-06-29 修正）。source の EffectText から
 // クラス（ブルアカ）と枚数（3）を解釈するため、実カード WXDi-CP02-051（「＜ブルアカ＞のカード３枚をトラッシュ」）を source にする。
