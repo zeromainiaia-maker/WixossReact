@@ -1094,6 +1094,13 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたのルリグデッキから[^。：]*?レゾナ[^。：]*?出現条件を無視して場に出す/);
         if (m) return m[0];
       }
+      // 歌のカケラ使用（SONG_FRAGMENT・engine実装済み）＝コスト句は別途描画され、本体は
+      // 「このルリグ/シグニはそのカードの【歌のカケラ】を使用する」。currentCardText から抽出。
+      if (a.id === 'SONG_FRAGMENT') {
+        const m = currentCardText.match(/この(?:ルリグ|シグニ)はそのカードの【歌のカケラ】を使用する/);
+        if (m) return m[0];
+        return 'このルリグはそのカードの【歌のカケラ】を使用する';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {

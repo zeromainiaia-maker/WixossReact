@@ -5,6 +5,12 @@
 
 ---
 
+## 逆翻訳機の本格改善⑨：SONG_FRAGMENT の英語ID漏れを是正（2026-06-30）
+
+STUB id `SONG_FRAGMENT`（11件＝SPDi47-* 等）が STUBS.md 由来の説明文で英語IDを露出していた。engine 実装済み（エナの【歌のカケラ】持ちカードをトラッシュしルリグ効果として発動）で逆翻訳描画のみ欠落。コスト句は別途描画されるため本体「このルリグ/シグニはそのカードの【歌のカケラ】を使用する」を `currentCardText` から抽出（無ければ既定文）。SPDi47-01 等で原文一致・英語ID漏れ 0・同型★0 維持・typecheck 緑・engine 不変。decompile_sheet9/10＋下流再生成。
+
+---
+
 ## 逆翻訳機の本格改善⑧：SUMMON_RESONA_FROM_LRIG_DECK の英語ID漏れを是正（2026-06-30）
 
 STUB id `SUMMON_RESONA_FROM_LRIG_DECK`（11件）が STUBS.md 由来の説明文で英語IDを露出していた。engine 実装済み（ルリグデッキからレゾナを出現条件無視で場出し）で逆翻訳描画のみ欠落。原文「あなたのルリグデッキから（…の）レゾナ（N枚）を（その）出現条件を無視して場に出す」はレゾナ条件（レベル/色/クラス/枚数）がカードごとに異なるため `currentCardText` から抽出（1カード1SUMMON を確認済）。WX07-050 等で原文一致・英語ID漏れ 0・同型★0 維持・typecheck 緑・engine 不変。decompile_sheet1-4＋下流再生成。
