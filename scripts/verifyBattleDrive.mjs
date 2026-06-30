@@ -406,6 +406,33 @@ try {
     closeModals: async () => {
       for (let k = 0; k < 3; k++) { await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(300); }
     },
+    // トップレベル列（turn_phase/active_user_id 等）を再 PATCH（フェイズドリフト対策）。
+    repatchTop: (fields) => page.evaluate(async ({ SUPA_URL, ANON, CPU_PLAYER_ID, fields }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+      const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
+      const upd = { ...fields };
+      if (upd.active === 'host') { upd.active_user_id = uid; delete upd.active; }
+      if (upd.active === 'cpu') { upd.active_user_id = CPU_PLAYER_ID; delete upd.active; }
+      await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, { method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(upd) });
+      return { ok: true };
+    }, { SUPA_URL, ANON, CPU_PLAYER_ID, fields }),
+    // GROW フェイズを再注入しつつグロウボタンを押す（注入後 GROW→MAIN ドリフトのレース対策）。
+    // candidateRe にマッチするグロウ先候補が見えたら true を返す。
+    openGrow: async (candidateRe) => {
+      for (let k = 0; k < 5; k++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(600);
+        const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+        if (await gb.count() && await gb.isVisible().catch(() => false)) { await gb.click().catch(() => {}); }
+        await page.waitForTimeout(500);
+        const cand = page.getByRole('button', { name: candidateRe }).first();
+        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); return true; }
+      }
+      return false;
+    },
   };
   const bodyText = H.body;
 
