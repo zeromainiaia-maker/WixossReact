@@ -59,7 +59,20 @@
 - **✅ Stage2 実質完了（BattleScreen 配線の pure 抽出・2026-06-29）**＝`collect*Triggers` 全28関数を `src/engine/triggerCollect.ts` へ、detect/count 17関数を `src/engine/boardDiff.ts` へ pure 化し、effect_stack 整列（`effectStack.ts`）も golden 化。**C 配線の「トリガー収集・イベント検出・スタック整列」の3層がすべて pure＋golden 自動検証済み**（golden 79/79）。⚠残るは `doPhaseAdvance`（フェイズ遷移本体・React state 密結合）のみだが、C2 削減の主目的は達成済みのため**着手は任意・費用対効果が逓減**＝Stage2 はここで区切り、次は別タスク（A/B 表現テール・C1 残 timing 配線・CPU AI 等）へ。
 
 ### 🔜 今後の計画と必要作業数
-> P1 の機械指標は 0。残るのは **(A) 表現の長いテール（個別）** と **(B) 新機構** と **(C) engine 実機配線（P2/P3）**。bulk 再生成は引き続き禁止。1機構/1パターンずつ §6 のゲートで。
+> **🆕 現在の本丸＝(Z) 逆翻訳機の出力品質を原文一致へ（§1 4つ目）**。P1 の機械指標（同型★0 等）は達成済みだが、逆翻訳機が英語ID漏れ・文法崩れで原文一致しないカードが多数あった。§4 の「文法崩れ着手禁止」を解除し、レンダラを1系統ずつ原文一致へ改善中。**進め方＝逆翻訳行を `grep -ohE "[A-Z][A-Z0-9_]+"` で英語漏れ走査 → 1系統ずつ原文に直す → 同型★0＋原文照合で確認 → push**。残る英語漏れは機構待ちSTUB id（BET_MECHANIC 等＝(B)）。
+>
+> 旧来の (A) 表現テール・(B) 新機構・(C) engine 実機配線（P2/P3）は下記のとおり大半完了。bulk 再生成は引き続き禁止。1系統ずつ §6 のゲートで。
+
+**Z. 逆翻訳機の出力品質（decompiler レンダラ・低〜中リスク・現在の主作業）**
+- ~~① REVEAL_AND_PICK 文法崩れ~~ **✅是正（2026-06-30・BUGFIXES①）**＝then フル節の二重主語崩壊を配置系/別効果系の2形に。
+- ~~② LOOK_AND_REORDER 行き先欠落~~ **✅是正（BUGFIXES②）**＝destination（一番下に置く/上に戻す）を描画・513枚。
+- ~~③ CHOOSE 圧縮~~ **✅是正（BUGFIXES③）**＝「次から」→「以下のNつからMつ（まで）を選ぶ」。
+- ~~④ BLOCK_ACTION 英語ID漏れ~~ **✅是正（BUGFIXES④）**＝「は「ATTACK」ことができない（END_OF_TURN）」108件→0。制限/許可/特殊の3分類。
+- ~~⑤ timing/icon 英語漏れ~~ **✅是正（BUGFIXES⑤）**＝TRAP_ICON→【トラップアイコン】/SONG_ICON→【歌のカケラ】/ON_BLOOM/血晶武装 等。
+- **残＝engine実装済みSTUB id の意味文化**（`[STUB:ENGLISH_ID]`→原文意味文・低リスク）。`grep -ohE "[A-Z][A-Z0-9_]+" 逆翻訳行 | sort | uniq -c | sort -rn` で多い順に：COPY_LRIG_NAME_ABILITY(16)・DOWN_UP_SIGNI_AND_CHOOSE・SUMMON_RESONA_FROM_LRIG_DECK・CHOOSE_COLOR_FROM_LIST・DESIGNATE_SIGNI_ZONE 等。engine実装済みなら decompiler に意味文を1行足すだけ。
+- **B層（JSONデータ欠落・中リスク）**＝REVEAL_AND_PICK/LOOK_AND_REORDER で pick部分（「その中から…手札に加え」）が JSON に無く逆翻訳から脱落するカード（WXDi-P04-047 等）。curated JSON 補完が要る。
+
+**過去の作業（大半完了）：(A) 表現の長いテール（個別）／(B) 新機構／(C) engine 実機配線（P2/P3）。** bulk 再生成は引き続き禁止。1機構/1パターンずつ §6 のゲートで。
 
 **A. 表現の残（decompiler/parser・低〜中リスク・個別）**
 - ~~**A1**　GRANT_QUOTED「…は以下の能力を得る。『…』」**後置型**の decompiler 対応~~ **✅完了（2026-06-28）**＝対象は2枚（WXDi-D04-011/WX24-P3-003）のみで両方とも引用能力を描画。※両者は周辺に別の誤パースSTUB（条件付きパワーボーナス/リミット修正）が残る＝A3/別件。
