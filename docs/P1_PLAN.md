@@ -104,12 +104,12 @@
 - STUB 544種/2372件。大半は**実装済みハンドラ**の表示（`[STUB:id]` はスキップ理由にしない＝個別検証）。残・単発生IDテール 54件は `STUBS.md` 管理（`node scripts/genStubsMd.mjs` で再生成）。
 
 ### 📌 次の一手（推奨順・**zerom 向け**）
-> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 88/88・smoke/fuzz 全0・同型★0。
+> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 96/96・smoke/fuzz 全0・同型★0。
 >
-> **ymst セッションの状況（2026-06-29）**：Stage2（C配線の pure 抽出・golden 化）完走 ＋ C1 engine未配線timing をほぼ全配線（実アクションのもの）＋ 改造素材機構 完成。**機械指標は全て 0、C は実質収束**。よって次は **低リスクの表現テール or 実機検証** が中心。
-1. **実機検証（C2・着手済→継続推奨）**＝**フル driver `scripts/verifyBattleDrive.mjs` がシナリオ切替式に一般化済**＝盤面注入＋クリック列で実 BattleScreen を駆動できる。**2026-06-30 時点で生STUB 3＋C1 timing 3種（`ON_LRIG_GROW`/`ON_COIN_PAID`/`ON_DECK_SHUFFLED`）を実 UI 観測クローズ（既定6件 全PASS）**。残 C1 timing（`ON_TARGETED`/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`/`ON_LRIG_UNDER_MOVED` 等）は**同 `scenarios` テーブルに1件足すだけ**で横展開できる（トリガー＝対象化/シャッフル等を注入＋ドライブ。グロウ/コイン払いは `H.openGrow`、召喚は `summon-zone-{zi}`、スペルは `spellcost-energy-{i}` で安定駆動）。発火条件は golden 済なので「実盤面での総合動作」に絞れる。**🔎 follow-up＝スペル解決経路のシャッフルで ON_DECK_SHUFFLED が未発火**（シグニ【出】では発火・上記参照）。⚠`ON_TARGETED` 候補は「対戦相手の対象」を DSL 未エンコードで自分の対象でも発火＝意味的に弱い検証になるため対象選定に注意。
-2. **A 表現の残テール**（decompiler/parser・低リスク・個別）＝TODO §3〜§4 の個別複雑カード（引用AUTO付与の permanent/相手付与＝B4残、エナ送り残6枚、機構④の残トリガー 等）。同型★0＋逆翻訳一致をゲートに1枚ずつ。
-3. **C1 残＝`ON_KEYWORD_GAINED`(WXDi-P04-035) 1枚のみ**＝ただし action が COPY_ABILITY STUB＝**no-op** で配線価値なし＝保留推奨（COPY_ABILITY 実装が前提）。やるなら先に COPY_ABILITY 機構を実装。
+> **🆕 現在の主作業＝(Z) 逆翻訳機の出力品質を原文一致へ（§1 4つ目・上の Z 節）**。§4「文法崩れ着手禁止」は解除済み。レンダラ5系統は是正済（BUGFIXES①〜⑤）。**表現パッチ（decompiler のみ・engine 不変）はゲートが軽い＝§6 の「逆翻訳ゲート」（同型★0＋原文照合）でよく、smoke/golden/fuzz は不要。**
+1. **🆕 逆翻訳機の英語ID漏れ／文法崩れの残を1系統ずつ是正**＝`grep -hE "^\s+[A-Z0-9]+[-_][A-Za-z0-9-]+.*:" docs/decompile_sheet*.txt`（＝逆翻訳行）を `grep -ohE "[A-Z][A-Z0-9_]+" | sort | uniq -c | sort -rn` で英語漏れを多い順に出す。**engine実装済みSTUB id（COPY_LRIG_NAME_ABILITY 等）→ decompiler に原文意味文を1行足す**（`miscStubMap` 等の既存パターン）。手順＝対象id確認→engine実装の有無確認→`decompileEffects.ts` に意味文→該当シート再生成（**Bash `>`**）→下流再生成→同型★0＋原文照合→push。
+2. **B層（JSONデータ欠落）**＝REVEAL_AND_PICK/LOOK_AND_REORDER で pick部分が JSON に無く逆翻訳から脱落するカード（WXDi-P04-047 等）。curated JSON 補完（中リスク・§2 のとおり直接パッチ）。
+3. **実機検証（C2・任意）**＝`scripts/verifyBattleDrive.mjs`（シナリオ切替式）。生STUB 3＋C1 timing 6種は実 UI 観測クローズ済（既定10件 全PASS）。残 timing は `scenarios` に1件足すだけで横展開可。逆翻訳機の改善とは独立。
 4. **CPU AI 拡張 / doPhaseAdvance pure 抽出**（TODO §6・§8）＝大型・任意。費用対効果は逓減。
 
 > **新規 timing 配線の確立パターン（zerom 向け・今セッションで6回適用）**：①該当カードの effect/原文を確認 ②`triggerCollect.ts` に pure collector 追加（`mkLimitOk`/`ownFieldSources`/`effsOf` 流用）③検出が要れば `boardDiff.ts` に detector 追加 ④BattleScreen 中央 diff ブロック（`resolveStackNext` 内・mill/freeze 等と同じ場所）に発火配線＋薄いラッパ ⑤`goldenTest.ts` に発火条件テスト ⑥`decompileEffects.ts` の `engineUnwiredTimings` から除去 ⑦該当 decompile シート再生成（**Bash の `>`**）＋下流再生成＋同型★0 確認 ⑧typecheck/lint/smoke/golden/fuzz 全緑 → commit/push。
