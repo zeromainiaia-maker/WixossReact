@@ -9,9 +9,9 @@
 
 `ARTS_COST_REDUCTION_BY_EFFECT` / `ARTS_COST_REDUCTION_BY_CENTER_LRIG` は逆翻訳で内部マーカー `[STUB:アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み）]` を露出していた（122枚）。軽減/増加量は JSON に無く支払い時に `computeArtsEffectiveCost` が原文 EffectText を再パースして算出するため、decompiler 単独では数値を復元できないのが原因。
 
-- **修正＝decompiler が `currentCardText`（原文 EffectText＋BurstText）から「…使用コストは…減る/減り/増える/増え、/になる」文を抽出して描画**（`scripts/decompileEffects.ts` の STUB ケース。`GRANT_QUOTED_AUTO_ABILITY` 等と同じテキスト検出型）。複数のコスト文（例 SP36-001／WX09-Re02）は `。` で連結。engine は不変＝表現のみの修正。
-- **122/126 枚がクリーン抽出**。残4枚は別記述機構のため従来マーカーにフォールバック＝PR-433（コスト色無視）／WXDi-P06-066（エナコスト代替）／WXK11-014（グロウコスト）／WXK11-016（複合効果内）。
-- 検証＝同型★0 維持（割れグループ 0／5986枚）・typecheck OK。STUB総数 1392→1267。decompile_sheet1-10 再生成（Bash `>`）＋genReviewRepr/groupSimilar/groupBySentence 下流再生成。**engine 不変のため smoke/golden/fuzz 影響なし（表現パッチ）。**
+- **修正＝decompiler が `currentCardText`（原文 EffectText＋BurstText）から「…使用コストは…減る/減り/増える/増え、/になる」文を抽出して描画**（`scripts/decompileEffects.ts` の STUB ケース。`GRANT_QUOTED_AUTO_ABILITY` 等と同じテキスト検出型）。複数のコスト文（例 SP36-001／WX09-Re02）は `。` で連結。engine は不変＝表現のみの修正。**同族の `CONDITIONAL_ARTS_COST`（14枚・「対戦相手のセンタールリグが…の場合、このアーツの使用コストは…になる」）も同ケースに合流＝8枚クリーン抽出**（残6＝ライフ枚数/レベル条件等の別記述でフォールバック）。
+- **ARTS_COST_REDUCTION 系 122/126 枚＋CONDITIONAL_ARTS_COST 8/14 枚がクリーン抽出**。残は別記述機構のため従来マーカーにフォールバック＝PR-433（コスト色無視）／WXDi-P06-066（エナコスト代替）／WXK11-014（グロウコスト）／WXK11-016（複合効果内）等。
+- 検証＝同型★0 維持（割れグループ 0／5986枚）・typecheck OK。STUB総数 1392→1259。decompile_sheet1-10 再生成（Bash `>`）＋genReviewRepr/groupSimilar/groupBySentence 下流再生成。**engine 不変のため smoke/golden/fuzz 影響なし（表現パッチ）。**
 
 ---
 
