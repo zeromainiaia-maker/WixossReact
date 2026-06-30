@@ -1570,6 +1570,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     nums.add('WXDi-P16-001B');   // 扉の俯瞰者 ウトゥルス
     nums.add('WXDi-P11-010B');   // 夢限 -A-
     nums.add('PR-Di017B');       // REV:アンコーリング
+    // 解決待ちのスペル/効果は一時的にどのゾーンにも属さない（pending_spell は hand から除かれ pending に保持）。
+    // この瞬間に effectsMap から脱落すると handleCutinPass で spellEff=undefined となり効果が no-op 化するため、
+    // pending_spell.card_num と pending_effect.sourceCardNum も明示的にロード対象へ含める。
+    if (bs?.pending_spell?.card_num) nums.add(getCardNum(bs.pending_spell.card_num));
+    if (bs?.pending_effect?.sourceCardNum) nums.add(getCardNum(bs.pending_effect.sourceCardNum));
     return nums;
   }, [myDeckData, bs]);
 
