@@ -945,6 +945,7 @@ export function ZoneCardModal({ title, cardNums, cards, onClose, getCardActions 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {cardNums.map((num, i) => (
               <div key={i}
+                data-testid={`zone-card-${i}`} data-card-num={getCardNum(num)}
                 onClick={e => e.stopPropagation()}
                 onTouchEnd={e => e.stopPropagation()}>
                 <CardSlot cardNum={num} cards={cards} width={62} height={87}
