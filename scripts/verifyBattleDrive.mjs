@@ -202,10 +202,18 @@ const scenarios = {
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
-        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'スキップ', '発動しない']);
+        // POWER_MODIFY 結果ログは picker 確定直後に出る→消える前に毎iter検査。広めに照合。
+        const pwEarly = await H.findLog(/パワー[＋+]\s*2000/);
+        if (pwEarly) return { pass: true, detail: `ON_COIN_PAID 発火→watcher +2000 確認「${pwEarly}」` };
+        // グロウ先 WXK03-002 の【出】CHOOSE が出たら適当に1つ選んで進める（詰まり防止）
+        if (!did) {
+          for (const lbl of ['コードアート', '決定', 'OK', 'はい', 'スキップ', '発動しない']) {
+            const b = page.getByRole('button', { name: lbl, exact: false }).first();
+            if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:' + lbl; break; }
+          }
+        }
         H.log(`  coin[${s}] -> ${did ?? 'なし'}`);
-        // ON_COIN_PAID 発火＝watcher の POWER_MODIFY ログ「…のパワー+2000」
-        const pw = await H.findLog(/レイラ.*のパワー\+2000|THE DOOR.*のパワー\+2000|のパワー\+2000/);
+        const pw = await H.findLog(/パワー[＋+]\s*2000/);
         if (pw) return { pass: true, detail: `ON_COIN_PAID 発火→watcher +2000 確認「${pw}」` };
       }
       return { pass: false, detail: 'ON_COIN_PAID 発火（+2000）を確認できず' };
