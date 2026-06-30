@@ -3289,6 +3289,38 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
     pureCollectDeckShuffledTriggers(mkTrigCtx(), shufflerId, shufflerState);
 
+  // ON_KEYWORD_GAINED 収集（C1・WXDi-P04-035。ここは薄いラッパ）。
+  const collectKeywordGainedTriggers = (
+    gains: { cardNum: string; keyword: string }[],
+    gainOwnerId: string,
+    ownerState: PlayerState,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
+    pureCollectKeywordGainedTriggers(mkTrigCtx(), gains, gainOwnerId, ownerState);
+
+  // ON_KEYWORD_GAINED をスタック解決(resolveStackNext)/resume(handleEffectInteraction) 双方で拾う共有ヘルパー。
+  // キーワード付与（GRANT_KEYWORD）は対象選択を伴い resume 経路で完了することが多いため、両経路で検出する。
+  const collectKeywordGainedInline = (
+    afterHost: PlayerState,
+    afterGuest: PlayerState,
+  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
+    const entries: StackEntry[] = [];
+    let h = afterHost, g = afterGuest;
+    for (const kgIsHost of [true, false]) {
+      const ownerId = kgIsHost ? bs.host_id : bs.guest_id;
+      const before = kgIsHost ? bs.host_state : bs.guest_state;
+      const after = kgIsHost ? afterHost : afterGuest;
+      const gains = detectKeywordGained(before, after);
+      if (gains.length === 0) continue;
+      const kg = collectKeywordGainedTriggers(gains, ownerId, after);
+      entries.push(...kg.entries);
+      if (kg.usedOncePerTurnIds.length > 0) {
+        if (kgIsHost) h = { ...h, actions_done: [...(h.actions_done ?? []), ...kg.usedOncePerTurnIds] };
+        else g = { ...g, actions_done: [...(g.actions_done ?? []), ...kg.usedOncePerTurnIds] };
+      }
+    }
+    return { entries, hostState: h, guestState: g };
+  };
+
   // ON_DECK_SHUFFLED をスタックを経由しないインライン解決（スペル＝handleCutinPass／pending効果 resume＝
   // handleEffectInteraction）で検出する共有ヘルパー。resolveStackNext の中央 diff（deck_shuffled_count
   // before/after）はスタック解決のみを通るため、スペル/resume はこれを呼んで ON_DECK_SHUFFLED を拾う。
