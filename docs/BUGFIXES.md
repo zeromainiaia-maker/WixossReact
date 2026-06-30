@@ -5,6 +5,17 @@
 
 ---
 
+## 逆翻訳機の本格改善①：REVEAL_AND_PICK レンダラの文法崩れを是正（2026-06-30・zerom）＝§4「着手禁止」解除の第一歩
+
+`P1_PLAN §4` が「LOOK/REVEAL文法崩れ＝偽陽性・着手禁止」と凍結していた最大クラスタに着手。逆翻訳機（`decompileEffects.ts`）の `REVEAL_AND_PICK` レンダラが、`a.then` がフル・アクションのとき「を1枚」の直後に主語付き節を連結器なしで繋いで**文法崩壊**していた（例 WX11-059「＜天使＞のシグニを1枚あなたのカード(デッキ)1枚を手札に加える」／WX24-P4-060「レベル1のシグニを1枚このシグニのパワーを＋7000する」）。
+
+- **根因**＝旧コードは `then.type` を `ADD_TO_HAND/ADD_TO_FIELD/ADD_TO_ENERGY` の3種だけ動詞化し、それ以外（**`TRANSFER_TO_HAND`=59件**・DRAW・POWER_MODIFY・REARRANGE 等）は `actionJa(then)` のフル節にフォールバック→「を[pickN]」の後に二重主語が付いて崩壊。
+- **修正＝2形に整理**。①**配置系**（公開カードを手札/場/エナ/トラッシュ/バニッシュへ＝ADD_TO_HAND/TRANSFER_TO_HAND/ADD_TO_FIELD/ADD_TO_ENERGY/TRASH/BANISH）は「その中から[filter]を[pickN][動詞]」。②**別効果系**（公開カードが条件＝DRAW/POWER_MODIFY/ENERGY_CHARGE_FROM_DECK/REMOVE_ABILITIES/REARRANGE_SIGNI 等）は原文構造どおり「**それが[filter]の場合、[then]**」。1枚公開時は残り句を省略（原文も省く）。
+- **効果**＝TRANSFER_TO_HAND 59件＋別効果系 ~25件が文法崩れ→原文一致へ（例 WX24-P4-060「それがレベル1のシグニの場合、このシグニのパワーを＋7000する」＝原文と一致）。既存の ADD_TO_HAND(90)/ADD_TO_ENERGY(29)/ADD_TO_FIELD(13) は出力不変（回帰なし）。崩れパターン残存 0。
+- 検証＝同型★0 維持（割れ0／5986枚）・typecheck OK。decompile_sheet1-10＋下流再生成。**engine 不変（表現のみ）。** ⚠`_dropTriage` の「文法崩れ:51」件数は構造ベース分類のため変化しない（文法品質は測れない）＝改善は原文照合で確認。
+
+---
+
 ## A表現テール：アーツ/スペル使用コスト改変句を原文復元（2026-06-30・zerom）＝STUBマーカー約125件→4件
 
 `ARTS_COST_REDUCTION_BY_EFFECT` / `ARTS_COST_REDUCTION_BY_CENTER_LRIG` は逆翻訳で内部マーカー `[STUB:アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み）]` を露出していた（122枚）。軽減/増加量は JSON に無く支払い時に `computeArtsEffectiveCost` が原文 EffectText を再パースして算出するため、decompiler 単独では数値を復元できないのが原因。
