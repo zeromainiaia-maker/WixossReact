@@ -95,7 +95,9 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 2. `wxk02029`（WXK02-029 ビカム・ユー）＝アーツをルリグデッキから使用→CHOOSE①＝条件付きグロウ＋全キー能力喪失。ログ「グロウ条件成立（自Lv2≤相手Lv3）→…にグロウ…すべてのキーは能力を失う」。
 3. `wd07012`（WD07-012 ヴィマナ）＝CPUターン・ATTACK_SIGNI を注入し**CPUに自動アタックさせ**、自場の WD07-012【自】ON_ATTACK_SIGNI(any_opp) でアタッカーをバニッシュ。ログ「小剣 ククリをバニッシュ（正面より低パワー）」。
 4. `lriggrow`（WXDi-P03-039 幻獣神 コッコ・ルピコ）＝**C1 timing `ON_LRIG_GROW` の実機検証**。`free_grow_this_turn` でグロウコスト0化→通常グロウUI（グロウ→グロウ先）→`executeGrow`→`collectLrigGrowTriggers` が watcher を発火→OPTIONAL_COST《無》を払って相手シグニをバニッシュ。ログ「小剣 ククリをバニッシュ」。
-5. `coinpaid`（WXDi-P15-069 コードライド レイラ//THE DOOR）＝**C1 timing `ON_COIN_PAID` の実機検証**。コイン支払いの最簡経路＝コインGrowCostのグロウ（WX17-001 Lv4 カーニバル→WXK03-002 Lv5・GrowCost《コイン》×1）。`executeGrow` の `growCoinPaidEntries`→`collectCoinPaidTriggers` が watcher を発火→（発動順序確定→対象選択）→自身パワー+2000。ログ「パワー+2000」。**＝C1 配線の C2 横展開パターンは2 timing で確立**（同方式で他 timing も追加可能）。
+5. `coinpaid`（WXDi-P15-069 コードライド レイラ//THE DOOR）＝**C1 timing `ON_COIN_PAID` の実機検証**。コイン支払いの最簡経路＝コインGrowCostのグロウ（WX17-001 Lv4 カーニバル→WXK03-002 Lv5・GrowCost《コイン》×1）。`executeGrow` の `growCoinPaidEntries`→`collectCoinPaidTriggers` が watcher を発火→（発動順序確定→対象選択）→自身パワー+2000。ログ「パワー+2000」。
+6. `deckshuffle`（PR-470A 現実からの逃避 タマ）＝**C1 timing `ON_DECK_SHUFFLED` の実機検証**。シャッフル源＝**シグニ【出】**（WX12-Re20 ベルフェーゴ＝デッキから＜悪魔＞を探してトラッシュ→デッキをシャッフル）を召喚で発火。`resolveStackNext` 中央 diff（`deck_shuffled_count` before/after）→`collectDeckShuffledTriggers`→watcher 自身+5000。ログ「パワー+5000」。**＝C1 配線の C2 横展開は3 timing で確立**。
+   - **🔎 知見＝シャッフル源で発火が分かれる**：シグニ【出】（**スタック解決経路**）＝発火する。一方 **スペル（SEARCHER）経路＝発火しない**（カットイン応答待ちを挟んで解決し watcher が +5000 されなかった）。中央 diff はスタック解決のシャッフルは捉えるが**スペル解決経路のシャッフルを観測できていない**＝engine 実機配線の要調査点（collector は golden 緑）。
 
 > グロウ系シナリオの肝＝**フェイズドリフト対策**：注入後の数秒で `turn_phase` が GROW→MAIN に流れ「グロウ」ボタン（`turn_phase==='GROW'` 限定表示）が消えるレースがある。`H.openGrow(candidateRe)` が **GROW フェイズを再 PATCH しながらグロウ→グロウ先候補クリックを最大5回リトライ**して安定化する（`H.repatchTop` でトップレベル列を再注入）。
 
