@@ -164,6 +164,43 @@ const scenarios = {
       return { pass: false, detail: 'バニッシュログ未確認' };
     },
   },
+  // ⑤ WXDi-P15-069: 【自】ON_COIN_PAID＝コインを支払ったとき、このシグニのパワー+2000。
+  //    C1 配線（executeGrow の growCoinPaidEntries→collectCoinPaidTriggers）を実 UI で検証。
+  //    コイン支払いの最簡経路＝コインGrowCostでのグロウ：WX17-001(Lv4 カーニバル)→WXK03-002(Lv5・GrowCost《コイン》×1)。
+  //    エナ不要のグロウなので executeGrow 直行→コイン支払→ON_COIN_PAID 発火→watcher +2000。
+  coinpaid: {
+    title: 'WXDi-P15-069（ON_COIN_PAID＝コイン支払時 自身+2000）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WXDi-P15-069#1'], null, null], // watcher（self・P3000）
+        'field.lrig': ['WX17-001#1'],                    // 自センター Lv4 カーニバル ―Ｑ―
+        'lrig_deck': ['WXK03-002#1'],                    // グロウ先 Lv5 カーニバル †ＭＡＩＳ†（GrowCost《コイン》×1）
+        'coins': 3,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+      if (await gb.count() && await gb.isVisible().catch(() => false)) { await gb.click().catch(() => {}); H.log('グロウ: btn:グロウ'); }
+      else H.log('グロウ: ボタン見つからず');
+      await page.waitForTimeout(900);
+      const cand = page.getByRole('button', { name: /ＭＡＩＳ/ }).first();
+      if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); H.log('グロウ先: †ＭＡＩＳ†（コイン払い）'); }
+      else H.log('グロウ先: 見つからず');
+      for (let s = 0; s < 12; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/coinpaid-${s}.png`, fullPage: true });
+        // 任意【出】等のプロンプトが出たら進める（コイングロウ自体はコスト確認なしで進む）
+        await H.clickTextOrBtn(['決定', 'OK', 'はい', 'スキップ', '発動しない']);
+        // ON_COIN_PAID 発火＝watcher の POWER_MODIFY ログ「…のパワー+2000」
+        const pw = await H.findLog(/レイラ.*のパワー\+2000|THE DOOR.*のパワー\+2000|のパワー\+2000/);
+        if (pw) return { pass: true, detail: `ON_COIN_PAID 発火→watcher +2000 確認「${pw}」` };
+      }
+      return { pass: false, detail: 'ON_COIN_PAID 発火（+2000）を確認できず' };
+    },
+  },
+
   // ④ WXDi-P03-039: 【自】ON_LRIG_GROW（any_ally）＝自分のルリグがグロウしたとき、《無》を払えば相手シグニ1体をバニッシュ。
   //    C1 配線（executeGrow→collectLrigGrowTriggers）を実 UI で検証。グロウは通常UI操作＝最も駆動しやすいトリガー。
   //    free_grow_this_turn でグロウコスト0化→グロウ即実行→ON_LRIG_GROW 発火→OPTIONAL_COST(無)払い→相手バニッシュ。
