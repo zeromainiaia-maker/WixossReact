@@ -5359,7 +5359,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const luInlinePE = collectLrigUnderMovedInline(luAfterHostPE, luAfterGuestPE);
         if (luInlinePE.entries.length > 0) { update.host_state = luInlinePE.hostState; update.guest_state = luInlinePE.guestState; }
 
-        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE, ...dsInlinePE.entries, ...bnInlinePE.entries, ...luInlinePE.entries];
+        // ON_KEYWORD_GAINED（C1・WXDi-P04-035）: キーワード付与は対象選択を伴い resume 経路で完了することが多い（WX07-036→
+        // ダブルクラッシュ付与等）ため、ここでも拾う。
+        const kgAfterHostPE  = (update.host_state  as PlayerState) ?? hostState;
+        const kgAfterGuestPE = (update.guest_state as PlayerState) ?? guestState;
+        const kgInlinePE = collectKeywordGainedInline(kgAfterHostPE, kgAfterGuestPE);
+        if (kgInlinePE.entries.length > 0) { update.host_state = kgInlinePE.hostState; update.guest_state = kgInlinePE.guestState; }
+
+        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE, ...dsInlinePE.entries, ...bnInlinePE.entries, ...luInlinePE.entries, ...kgInlinePE.entries];
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
