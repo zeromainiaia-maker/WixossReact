@@ -4898,6 +4898,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // ON_KEYWORD_GAINED（C1・WXDi-P04-035）: この解決で味方シグニが【アサシン/ランサー/ダブルクラッシュ】を得た場合、
+        // 同じ側の watcher（「あなたの他のシグニが…得たとき」）を、得たキーワードを triggeringKeyword に積んで発火。
+        {
+          const kgInline = collectKeywordGainedInline(
+            (update.host_state as PlayerState) ?? hostState,
+            (update.guest_state as PlayerState) ?? guestState,
+          );
+          if (kgInline.entries.length > 0) {
+            update.host_state = kgInline.hostState;
+            update.guest_state = kgInline.guestState;
+            const baseStackKG = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackKG
+              ? pushToStack(baseStackKG, kgInline.entries)
+              : initStack(stack.turnPlayerId, kgInline.entries);
+          }
+        }
+
         // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニに対する、場の他シグニの反応を収集（G144/G145/WX11-054）。
         // 出たシグニ自身の ON_PLAY は各効果配置経路（REVEAL/COLLAB等）が個別に収集済み。ここでは他シグニ（any_ally/any）のみ。
         // 場出しした効果元（entry.cardNum）がシグニかどうかで bySigniEffect の発火可否を判定する。
