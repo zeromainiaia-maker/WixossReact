@@ -302,8 +302,7 @@ const scenarios = {
           }
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
-        const diag = await H.findLog(/\[DIAG-CUTIN\]/);
-        H.log(`  spell[${s}] -> ${did ?? 'なし'}${diag ? ' | ' + diag : ''}`);
+        H.log(`  spell[${s}] -> ${did ?? 'なし'}`);
         const pw = await H.findLog(/パワー[＋+]\s*5000/);
         if (pw) return { pass: true, detail: `スペル経路 ON_DECK_SHUFFLED 発火→watcher +5000 確認「${pw}」` };
       }
