@@ -5,6 +5,17 @@
 
 ---
 
+## battleCardNums の盤面ゾーン走査が instanceId のままでカード未ロード（2026-06-30・zerom）
+
+`BattleScreen.tsx` の `battleCardNums`（バトルで使うカードだけ抽出する useMemo）が `field.signi`/`field.check`/`field.key_piece`/`key_piece_extra`/`signi_charms`/`signi_soul`/`signi_seeds` を **instanceId（`CardNum#N`）のまま** Set に追加していた。`battleCardMap` は `cards.filter(c => battleCardNums.has(c.CardNum))`＝**base CardNum** でフィルタするため instanceId 入りエントリは一切マッチせず、これらのゾーンに「**deck/hand 経由で base が載っていないカード**」が居ると未ロードになる。
+
+- 通常プレイでは盤面シグニは必ず自分の deck/hand から出る＝base が別経路で載るので顕在化しなかった。
+- だが**デッキ外カードを盤面へ直接注入する検証**（`verifyBattleDrive.mjs` の WD07-012 シナリオ）で露見：注入した WD07-012(P12000)/WD01-013(P3000) が `battleCardMap` 未収録→`calcFieldPowers` がパワー0と算出→「パワー0以下のためバニッシュ」で消えた。
+- 修正＝該当走査を `getCardNum(n)` で base 化して登録（`addAll` は元から getCardNum 済）。効果でゲーム外生成されるシグニ等のロードも確実になる副次効果あり。
+- 回帰：typecheck・golden 95/0FAIL・smoke 全0・fuzz 全0。実機 driver で WD07-012 のバニッシュ（「正面より低パワー」）を観測しC2クローズ。詳細は [VERIFY_BROWSER.md](./VERIFY_BROWSER.md)。
+
+---
+
 ## D課題: 残生STUB 3種を全 engine 実装＝生STUB id露出 0達成（2026-06-29・zerom）
 
 前セッションで「engine/CHOOSE 対応とセット＝意味文化すると偽陰性」として見送った最後の生STUB（id露出）3種を engine に**実装**（固定文化の近似ではなく実挙動）。`grep "\[STUB:[A-Z_]+\]" docs/decompile_sheet*.txt` が**全シート0件**に。
