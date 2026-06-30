@@ -99,6 +99,9 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 
 > グロウ系シナリオの肝＝**フェイズドリフト対策**：注入後の数秒で `turn_phase` が GROW→MAIN に流れ「グロウ」ボタン（`turn_phase==='GROW'` 限定表示）が消えるレースがある。`H.openGrow(candidateRe)` が **GROW フェイズを再 PATCH しながらグロウ→グロウ先候補クリックを最大5回リトライ**して安定化する（`H.repatchTop` でトップレベル列を再注入）。
 
+### ⚠ 調査保留：`deckshuffle`（ON_DECK_SHUFFLED・PR-470A）
+既定スイート外（`node scripts/verifyBattleDrive.mjs deckshuffle` で個別実行）。SEARCHER（WX02-060・スペル《無》×1）の afterSearch シャッフルで駆動を試みたが、**スペルは「相手カットイン応答待ち」を挟んで解決し、解決後も watcher は +5000 されなかった**（PR-470A は 5000 のまま・パワーログ無し）。ON_DECK_SHUFFLED の中央 diff（`resolveStackNext` の `deck_shuffled_count` before/after 比較・`BattleScreen.tsx:4767`）が**スペル解決経路のシャッフルを観測できていない可能性**（または注入盤面のアーティファクト）。`collectDeckShuffledTriggers` 自体は golden 緑なので、これは engine 実機配線側の C2 知見＝別途調査（非スペルのシャッフル源＝シグニ【出】等での再試行 or 配線確認）。スペル発動の安定セレクタ `spellcost-energy-{i}`（スペルコスト選択モーダルのエナ札）は追加済みなので再試行は容易。
+
 ### このセッションで足した安定セレクタ（通常表示に影響なし）
 | testid | 場所 | 用途 |
 |---|---|---|
