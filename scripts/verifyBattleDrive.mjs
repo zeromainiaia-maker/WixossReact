@@ -544,7 +544,7 @@ try {
       const buff = (hs.temp_power_mods ?? []).find(m => m.cardNum === 'PR-470A#1' && (m.delta ?? 0) >= 5000);
       const stack = row.effect_stack;
       const stackLen = stack?.entries?.length ?? (Array.isArray(stack) ? stack.length : 0);
-      const logTail = (row.game_logs ?? []).slice(-8).map(l => [l.action, l.detail].filter(Boolean).join(' '));
+      const logTail = (row.game_logs ?? []).slice(-25).map(l => [l.action, l.detail].filter(Boolean).join(' '));
       return {
         host: { deck_shuffled_count: hs.deck_shuffled_count ?? 0, hand: (hs.hand ?? []).length, trash: (hs.trash ?? []).length },
         stackLen,
