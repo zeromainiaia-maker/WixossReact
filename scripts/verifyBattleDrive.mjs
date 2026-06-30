@@ -214,8 +214,11 @@ const scenarios = {
         }
         if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
         H.log(`  grow[${s}] -> ${did ?? 'なし'}`);
-        const banish = await H.findLog(/バニッシュ/);
-        if (fired && banish) return { pass: true, detail: `ON_LRIG_GROW 発火→相手バニッシュ確認「${banish}」` };
+        // ピッカー文言（「…バニッシュするカードを選んでください」）ではなく実バニッシュ結果ログで判定する
+        const banish = await H.findLog(/(ククリ|小剣|WD01-013).*バニッシュ|をバニッシュ(?!するカード|する対象)/);
+        if (fired && banish && !/選んで|選択してください/.test(banish)) {
+          return { pass: true, detail: `ON_LRIG_GROW 発火→相手バニッシュ確認「${banish}」` };
+        }
       }
       // バニッシュ完走しなくとも、OPTIONAL_COST 提示＝トリガー発火は確認できている
       if (fired) return { pass: true, detail: 'ON_LRIG_GROW 発火（任意コスト提示）を確認・バニッシュ未完走' };
