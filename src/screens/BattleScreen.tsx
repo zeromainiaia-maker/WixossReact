@@ -1499,14 +1499,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       addAll(s.deck); addAll(s.lrig_deck); addAll(s.hand);
       addAll(s.life_cloth); addAll(s.trash); addAll(s.lrig_trash);
       addAll(s.energy); addAll(s.field.lrig);
-      s.field.signi.forEach(stack => stack?.forEach(n => nums.add(n)));
-      if (s.field.check) nums.add(s.field.check);
-      if (s.field.key_piece) nums.add(s.field.key_piece);
-      (s.field.key_piece_extra ?? []).forEach(n => nums.add(n));
+      // ※ battleCardMap は base CardNum でフィルタするため、instanceId（CardNum#N）ではなく
+      //    getCardNum で base 化して登録する（通常は deck/hand 経由で既に載るが、盤面直接注入や
+      //    効果生成シグニも確実にロードするため）。
+      s.field.signi.forEach(stack => stack?.forEach(n => nums.add(getCardNum(n))));
+      if (s.field.check) nums.add(getCardNum(s.field.check));
+      if (s.field.key_piece) nums.add(getCardNum(s.field.key_piece));
+      (s.field.key_piece_extra ?? []).forEach(n => nums.add(getCardNum(n)));
       addAll(s.field.assist_lrig_l); addAll(s.field.assist_lrig_r);
-      (s.field.signi_charms ?? []).forEach(n => n && nums.add(n));
-      (s.field.signi_soul   ?? []).forEach(n => n && nums.add(n));
-      (s.field.signi_seeds  ?? []).forEach(n => n && nums.add(n));
+      (s.field.signi_charms ?? []).forEach(n => n && nums.add(getCardNum(n)));
+      (s.field.signi_soul   ?? []).forEach(n => n && nums.add(getCardNum(n)));
+      (s.field.signi_seeds  ?? []).forEach(n => n && nums.add(getCardNum(n)));
       addAll(s.field.free_zone);
     };
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
