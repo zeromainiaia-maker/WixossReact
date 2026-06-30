@@ -1081,6 +1081,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/このルリグはあなたのルリグトラッシュにある[^。]*?と同じカード名としても扱い[^。]*?能力を得る/);
         if (m) return m[0];
       }
+      // シグニゾーン指定（DESIGNATE_SIGNI_ZONE・engine実装済み）＝「（シグニのない）（対戦相手の）シグニゾーン１つを指定する」。
+      // 「シグニのない」「対戦相手の」前置はカードごとに異なるため currentCardText から抽出。
+      if (a.id === 'DESIGNATE_SIGNI_ZONE') {
+        const m = currentCardText.match(/(?:シグニのない)?(?:対戦相手の)?シグニゾーン[０-９\d]*つを指定する/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {

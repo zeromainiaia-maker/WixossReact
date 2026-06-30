@@ -5,6 +5,12 @@
 
 ---
 
+## 逆翻訳機の本格改善⑦：DESIGNATE_SIGNI_ZONE の英語ID漏れを是正（2026-06-30）
+
+STUB id `DESIGNATE_SIGNI_ZONE`（12件）が STUBS.md 由来の説明文で英語IDを露出していた。engine 実装済み（指定ゾーンを `designated_zones` 等で保持）で逆翻訳描画のみ欠落。原文「（シグニのない）（対戦相手の）シグニゾーン１つを指定する」は前置がカードごとに異なるため `currentCardText` から正規表現抽出して描画。WX08-021/WX10-051 等で原文一致・英語ID漏れ 0・同型★0 維持・typecheck 緑・engine 不変。decompile_sheet1/3/4/5/7/8/9＋下流再生成。
+
+---
+
 ## 逆翻訳機の本格改善⑥：COPY_LRIG_NAME_ABILITY の英語ID漏れを是正（2026-06-30）
 
 STUB id `COPY_LRIG_NAME_ABILITY`（16件＝WX24-P4-011〜025／WX25-P3-028「過日の巫女」系）が STUBS.md 由来の説明文「カード名コピー系 COPY_LRIG_NAME_ABILITY: …」のまま英語IDを露出していた。engine は実装済み（ルリグトラッシュの同レベル同系統ルリグ名/【自】能力を継承）で、逆翻訳の描画のみ欠落。
