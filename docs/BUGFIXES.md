@@ -5,6 +5,17 @@
 
 ---
 
+## 逆翻訳機の本格改善⑤：timing/iconラベルの英語漏れを是正（2026-06-30・zerom）
+
+逆翻訳全体を `[A-Z_]+` で走査し、timing/icon ラベルの英語漏れを発見・是正。`timingJa`/`typeMark` のマップ漏れで効果ヘッダに生英語が出ていた。
+
+- **effectType アイコン**＝`TRAP_ICON`(23)→**【トラップアイコン】**／`SONG_ICON`(15)→**【歌のカケラ】**（typeMark の specialType マップを新設。旧 `【${e.effectType}】` フォールバックで生英語）。対応 timing `ON_TRAP_ACTIVATE`/`ON_SONG_ACTIVATE` はアイコンが意味を担うため `timingJa` で空ラベル化（`trig ? trig+'：' : ''` で消える）。
+- **AUTO timing**＝`ON_BLOOM`(11)→「このシグニが開花したとき」／`ON_REVEALED_FROM_HAND`(13)→「このカードがあなたの効果によって手札から公開されたとき」／`ON_BLOOD_CRYSTAL_ARMOR`(6)→「あなたのシグニが血晶武装状態になったとき」を `timingJa` に追加。
+- **効果**＝WX19-039「【トラップアイコン】対戦相手の手札を…」・WDK08-Y12「このカードがあなたの効果によって手札から公開されたとき：…」・WDK08-L01「あなたのシグニが血晶武装状態になったとき：…」＝原文一致。**timing/icon の英語漏れ 0**。
+- 検証＝同型★0 維持（割れ0／5986枚）・typecheck OK。decompile_sheet1-10＋下流再生成。engine 不変。⚠残る `[A-Z_]+` 漏れは STUB id（BET_MECHANIC/COPY_LRIG_NAME_ABILITY 等＝機構待ち）。
+
+---
+
 ## 逆翻訳機の本格改善④：BLOCK_ACTION の英語ID漏れ＋文法崩れを是正（2026-06-30・zerom）＝108件→0
 
 `BLOCK_ACTION` レンダラが小さなマップ（DRAW/ENERGY/USE_ACT/SELF_SIGNI_TRASH のみ）しか持たず、それ以外の actionId（**ATTACK 52/GUARD 21/GROW 9/USE_SPELL/ARTS_AND_SPELL/USE_ARTS_EXCEPT_OPP_TURN/SIGNI_ATTACK_STEP 等**）と DURATION（END_OF_TURN 等）を**生の英語で漏らし**、かつ「あなた**の**は「ATTACK」ことができない（END_OF_TURN）」と**文法崩壊**していた（出力に108件）。
