@@ -521,6 +521,28 @@ try {
       }
       return false;
     },
+    // 実 battle_states を直接照会して ground truth を取る（可視ログ依存の偽陰性回避）。
+    // deck_shuffled_count（シャッフル発生）/ effect_stack 長 / PR-470A#1 への +5000 / ログ末尾を返す。
+    queryState: () => page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+      const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+      const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,game_logs`, { headers: h });
+      const row = (await r2.json())?.[0]; if (!row) return { error: 'no row' };
+      const hs = row.host_state ?? {};
+      const buff = (hs.temp_power_mods ?? []).find(m => m.cardNum === 'PR-470A#1' && (m.delta ?? 0) >= 5000);
+      const stack = row.effect_stack;
+      const stackLen = stack?.entries?.length ?? (Array.isArray(stack) ? stack.length : 0);
+      const logTail = (row.game_logs ?? []).slice(-8).map(l => [l.action, l.detail].filter(Boolean).join(' '));
+      return {
+        host: { deck_shuffled_count: hs.deck_shuffled_count ?? 0 },
+        stackLen,
+        pr470aBuffed: !!buff,
+        logTail,
+      };
+    }, { SUPA_URL, ANON }),
   };
   const bodyText = H.body;
 
