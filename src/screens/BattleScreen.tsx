@@ -12080,7 +12080,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                           const isSel = selectedSpellCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
                           return (
-                            <div key={i} onClick={() => toggleSpellCostCard(i)}
+                            <div key={i} data-testid={`spellcost-energy-${i}`} onClick={() => toggleSpellCostCard(i)}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                               onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                               onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
