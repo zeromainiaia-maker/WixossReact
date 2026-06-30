@@ -1179,8 +1179,10 @@ function effJa(e: Eff): string {
   const crossPrefix = e.crossOnly ? 'クロス' : '';
   const kizunaPrefix = e.kizunaIcon ? '絆' : ''; // 【絆常】【絆自】【絆起】【絆出】
   const mk = `${kizunaPrefix}${crossPrefix}`;
+  const specialType: Record<string, string> = { TRAP_ICON: '【トラップアイコン】', SONG_ICON: '【歌のカケラ】' };
   const typeMark = e.effectType === 'AUTO' ? `【${mk}自】` : e.effectType === 'CONTINUOUS' ? `【${mk}常】`
-    : e.effectType === 'ACTIVATED' ? `【${mk}起】` : e.effectType === 'LIFE_BURST' ? '【LB】' : `【${e.effectType}】`;
+    : e.effectType === 'ACTIVATED' ? `【${mk}起】` : e.effectType === 'LIFE_BURST' ? '【LB】'
+    : (specialType[e.effectType] ?? `【${e.effectType}】`);
   const crossCondText = e.crossOnly ? (currentCardText.match(/《クロスアイコン》([^【]+)/)?.[1]?.trim() ?? '') : '';
   const crossCond = crossCondText ? `${crossCondText}に置かれているかぎり ` : '';
   // triggerScope（any_ally/any_opp/any）+ triggerFilter を主語に反映（「このシグニが」→「あなたの赤のシグニが」等）
