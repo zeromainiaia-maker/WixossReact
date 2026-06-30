@@ -6771,8 +6771,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
       }
-      const hostState  = casterIsHost ? casterAfter : result.otherState;
-      const guestState = casterIsHost ? result.otherState : casterAfter;
+      let hostState  = casterIsHost ? casterAfter : result.otherState;
+      let guestState = casterIsHost ? result.otherState : casterAfter;
       // ON_PLAY（any_ally/any・効果配置）: スペル効果で新たに場に出たシグニへの他シグニの反応（G145「他のシグニが効果で場に出たとき」等）。
       // ソースはスペルのため placeSourceIsSigni=false（bySigniEffect は非発火、byEffect は発火）。
       if (result.done) {
