@@ -465,13 +465,14 @@ const scenarios = {
       for (let s = 0; s < 22; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lrigundermoved-${s}.png`, fullPage: true });
-        let did = await H.clickTestId('zone-card-0');                 // ルリグデッキ内のアーツ
-        if (!did) did = await H.clickTextOrBtn(['使用', 'アーツ使用']); // 使用→（コスト）→アーツ使用
-        if (!did) { // アーツコスト：白/黒エナを2枚選ぶ（spellcost-energy と同UIの可能性／無ければ汎用）
+        // 「使用」「アーツ使用」を最優先（zone-card-0 は毎回マッチしてしまうので後回し）
+        let did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+        if (!did) { // アーツコスト：白/黒エナを2枚選ぶ（spellcost-energy と同UI）
           for (const i of [0, 1]) { const e = page.getByTestId(`spellcost-energy-${i}`).first(); if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); did = `spellcost-energy-${i}`; } }
         }
         if (!did) { const pick0 = page.getByTestId('pick-0').first(); if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; } }
         if (!did) did = await H.clickTextOrBtn(['発動', '確定', '決定', 'OK', 'はい', 'スキップ', '支払わない', '選ばない']);
+        if (!did) did = await H.clickTestId('zone-card-0');             // モーダル未開時のみ：アーツを開く
         const st = await H.queryState();
         const done = (st?.host?.actionsDone ?? []).includes('WXDi-P04-042-E1');
         H.log(`  lu[${s}] -> ${did ?? 'なし'} | under=${st?.host?.lrigUnder ?? '-'} lrigTrash=${st?.host?.lrigTrash ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcherFired=${done}`);
