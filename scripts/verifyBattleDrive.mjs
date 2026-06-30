@@ -191,8 +191,19 @@ const scenarios = {
       for (let s = 0; s < 12; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/coinpaid-${s}.png`, fullPage: true });
-        // 発動順序モーダル（ON_COIN_PAID＋グロウ先【出】が同時収集）→確定。任意【出】等のプロンプトも進める。
-        await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '発動しない']);
+        let did = null;
+        // 発動順序モーダル（ON_COIN_PAID＋グロウ先【出】が同時収集）→確定
+        did = await H.clickTextOrBtn(['発動順序を確定', '確定']);
+        // POWER_MODIFY 対象ピッカー（watcher 自身・ゾーン1）→pick-0→決定
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'スキップ', '発動しない']);
+        H.log(`  coin[${s}] -> ${did ?? 'なし'}`);
         // ON_COIN_PAID 発火＝watcher の POWER_MODIFY ログ「…のパワー+2000」
         const pw = await H.findLog(/レイラ.*のパワー\+2000|THE DOOR.*のパワー\+2000|のパワー\+2000/);
         if (pw) return { pass: true, detail: `ON_COIN_PAID 発火→watcher +2000 確認「${pw}」` };
