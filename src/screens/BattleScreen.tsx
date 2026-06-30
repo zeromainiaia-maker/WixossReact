@@ -6650,7 +6650,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // スペルカットインをパス → スペル解決（スペル効果を発火）
   const handleCutinPass = async () => {
-    console.error(`[DIAG-CUTIN-ENTER] pending=${!!bs.pending_spell} loading=${loading}`);
     if (!bs.pending_spell || loading) return;
     setLoading(true);
     setPendingCutinCard(null);
