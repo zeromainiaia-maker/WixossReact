@@ -679,6 +679,9 @@ try {
         deck_shuffled_count: s.deck_shuffled_count ?? 0,
         powerMods: (s.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
         keywordGrants: Object.entries(s.keyword_grants ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),
+        actionsDone: s.actions_done ?? [],
+        lrigTrash: (s.lrig_trash ?? []).length,
+        lrigUnder: Math.max(0, (s.field?.lrig ?? []).length - 1),
       });
       return {
         host: sideOf(hs),
