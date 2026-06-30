@@ -103,28 +103,31 @@ const scenarios = {
       await page.waitForTimeout(700);
       const openArts = await H.clickTestId('zone-card-0');
       H.log('アーツ(zone-card-0):', openArts ?? '見つからず');
+      let chose = false;
       for (let s = 0; s < 14; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/wxk02029-${s}.png`, fullPage: true });
         let did = null;
         // CardModal「使用」→ アーツモーダルPhase2「アーツ使用」→ CHOOSE① の順に1手ずつ
-        did = await H.clickTextOrBtn(['アーツ使用', '使用']);
-        if (!did) {
+        if (!chose) did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+        if (!did && !chose) {
           for (const lbl of ['条件付きグロウ＋全キー能力喪失', '条件付きグロウ', 'グロウ＋全キー', '①']) {
             const b = page.getByRole('button', { name: lbl, exact: false }).first();
-            if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:' + lbl; break; }
+            if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:' + lbl; chose = true; break; }
           }
         }
         H.log(`  arts[${s}] -> ${did ?? 'なし'}`);
-        const full = await H.fullBody();
-        if (/グロウ/.test(full) && /キー(は|の能力).*(失|喪失|無効)/.test(full)) {
-          return { pass: true, detail: '盤面ログにグロウ＋キー能力喪失を確認' };
-        }
-        if (/コード・ピルルク・Ｇ|にグロウ/.test(full) && /キー/.test(full)) {
-          return { pass: true, detail: '盤面ログにグロウ先（ピルルク・Ｇ）＋キーを確認' };
+        // CHOOSE① 確定後はモーダルが閉じてエンジンログが盤面に出る。実ログ（CHOOSE選択肢ラベルではなく）で判定する。
+        if (chose && !did) {
+          const grow = await H.findLog(/グロウ条件成立[^。]*にグロウ|→.*にグロウ（コスト/);
+          const key = await H.findLog(/キー(は|の能力)[^。]*(失|喪失|無効)|すべてのキーは能力を失う/);
+          if (grow && key) return { pass: true, detail: `グロウ確認「${grow}」／キー喪失確認「${key}」` };
+          // 条件不成立など想定外ログを拾ったら詳細を出して FAIL（偽陽性防止）
+          const ng = await H.findLog(/グロウ条件不成立[^。]*/);
+          if (ng) return { pass: false, detail: `グロウ条件不成立を検出: ${ng}` };
         }
       }
-      return { pass: false, detail: 'グロウ＋キー能力喪失ログ未確認' };
+      return { pass: false, detail: 'グロウ成立ログ未確認' };
     },
   },
 
