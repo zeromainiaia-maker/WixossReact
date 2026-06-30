@@ -1863,3 +1863,35 @@ export function collectDeckShuffledTriggers(
   }
   return { entries, usedOncePerTurnIds };
 }
+
+/**
+ * ON_KEYWORD_GAINED（「あなたの他のシグニ1体が【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき」WXDi-P04-035）を収集する（C1）。
+ * gains=この解決で得られた {cardNum, keyword} のリスト（detectKeywordGained）。gainOwnerId=得たプレイヤー（＝watcher と同じ側）。
+ * 「他のシグニ」＝watcher 自身（topNum）を得た側（gain.cardNum）から除外。得た各キーワードを triggeringKeyword に積み、
+ * COPY_ABILITY が「その能力」として watcher 自身へ付与する。usageLimit（《ターン1回》）も評価。
+ */
+export function collectKeywordGainedTriggers(
+  ctx: TrigCtx, gains: { cardNum: string; keyword: string }[], gainOwnerId: string, ownerState: PlayerState,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (gains.length === 0) return { entries, usedOncePerTurnIds };
+  if (ownerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const limitOk = mkLimitOk(ownerState.actions_done, usedOncePerTurnIds);
+  for (const topNum of ownFieldSources(ownerState)) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_KEYWORD_GAINED')) continue;
+      for (const gain of gains) {
+        if (gain.cardNum === topNum) continue; // 「他のシグニ」＝自身が得た場合は除外
+        if (!limitOk(eff)) continue;
+        const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+        entries.push({
+          id: ctx.genId(), playerId: gainOwnerId, cardNum: topNum, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（味方が【${gain.keyword}】を得たとき）`, effect: eff,
+          triggeringCardNum: gain.cardNum, triggeringKeyword: gain.keyword,
+        });
+      }
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}
