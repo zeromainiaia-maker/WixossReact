@@ -393,12 +393,50 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'BLOCK_ACTION': {
       if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
       if (a.actionId === 'FORCE_PLACE_FRONT') return '対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない';
-      const actionLabel: Record<string, string> = {
-        SELF_SIGNI_TRASH: 'カードの効果を除き、自分で自分のシグニを場からトラッシュに置く（リムーブ）',
-        DRAW: 'カードを引く', ENERGY: 'エナチャージ', USE_ACT: '【起】能力の使用',
+      const ownerWord = a.target?.owner === 'opponent' ? '対戦相手' : a.target?.owner === 'self' ? 'あなた' : '';
+      const untilPre = a.until === 'END_OF_TURN' ? 'このターン、' : a.until === 'NEXT_TURN' ? '次のターンの間、' : '';
+      // 完成文型（主語/肯定否定が特殊＝テンプレートを使わず直接返す）。許可系（〜できる）含む。
+      const fullMap: Record<string, string> = {
+        IGNORE_LRIG_TYPE: `${ownerWord}はレベル５のシグニの限定条件を無視して場に出すことができる`,
+        ACCE_LIMIT_2: 'このシグニには２枚まで【アクセ】を付けることができる',
+        ACCE_LIMIT_99: 'このシグニには好きな枚数の【アクセ】を付けることができる',
+        ENERGY_PHASE: `${ownerWord}は自分のエナフェイズをスキップする`,
+        SET_LEVEL_1: `${untilPre}対象のシグニの基本レベルを１にする`,
+        NEGATE_NEXT_SIGNI_ATTACK: `${untilPre}次に対戦相手のシグニがアタックしたとき、そのアタックを無効にする`,
       };
-      const lbl = actionLabel[a.actionId] ?? `「${a.actionId}」`;
-      return `${ownerJa(a.target?.owner)}${a.target?.type === 'SIGNI' ? 'シグニ' : ''}は${lbl}ことができない（${a.until ?? ''}）`;
+      if (fullMap[a.actionId]) return fullMap[a.actionId];
+      // 制限文型（主語＝owner±シグニ、述語＝「〜できない」）
+      const predMap: Record<string, string> = {
+        ATTACK: 'アタックできない',
+        GUARD: 'ガードできない',
+        GROW: 'グロウできない',
+        USE_SPELL: 'スペルを使用できない',
+        USE_ARTS: 'アーツを使用できない',
+        ARTS_AND_SPELL: 'アーツとスペルを使用できない',
+        USE_ARTS_EXCEPT_OPP_TURN: '対戦相手のターン以外でアーツを使用できない',
+        SIGNI_ACTIVATED_ABILITY: '場にあるシグニの【起】能力を使用できない',
+        GUARD_MAX_LV2: 'レベル２以下のシグニで【ガード】ができない',
+        GUARD_MAX_LV1: 'レベル１以下のシグニで【ガード】ができない',
+        DRAW_LIMIT_1: 'ドローフェイズにカードを１枚しか引くことができない',
+        DRAW_OUTSIDE_DRAW_PHASE: '自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたり手札に加えることができない',
+        ARTS_LIMIT_1: '各ターンに一度しかアーツを使用できない',
+        USE_SPELL_COST_0: 'コストの合計が０のスペルを使用できない',
+        PLAY_SIGNI_POWER_12000_OR_MORE: '手札からパワー12000以上のシグニを場に出せない',
+        PLAY_SIGNI_NOT_FROM_HAND: '自身の効果によって手札以外からシグニを場に出せない',
+        SIGNI_ATTACK_STEP: 'シグニでアタックできない',
+        SIGNI_ATTACK_PHASE: 'シグニでアタックできない',
+        LRIG_ATTACK_STEP: 'ルリグでアタックできない',
+        SELF_SIGNI_TRASH: 'カードの効果を除き、自分でシグニを場からトラッシュに置けない（リムーブできない）',
+        DRAW: 'カードを引けない',
+        ENERGY: 'エナチャージできない',
+        USE_ACT: '【起】能力を使用できない',
+        SIGNI_ATTACK: 'シグニでアタックできない',
+      };
+      const pred = predMap[a.actionId] ?? `「${a.actionId}」を行えない`;
+      const subj = a.target?.type === 'SIGNI'
+        ? `${ownerWord ? ownerWord + 'の' : ''}シグニ`
+        : (ownerWord || 'すべてのプレイヤー');
+      return `${untilPre}${subj}は${pred}`;
     }
     case 'LOOK_AND_REORDER': {
       const src = a.source?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
