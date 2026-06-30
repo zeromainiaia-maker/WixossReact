@@ -876,12 +876,14 @@ function actionJa(a?: Action, effectType?: string): string {
       // CONDITIONAL_MULTI_CHOOSE_BY_CENTER（系）: 「以下のNつからMつ選ぶ①②③④」を実行時パースで実装する
       // STUB。decompiler は JSON に選択肢を持たないため、原文の選択肢をそのまま反映する（＝engine 挙動と一致）。
       if (a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER' || a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
-        const pm = currentCardText.match(/以下の[０-９\d]+つから([０-９\d]+)つ(?:まで)?選ぶ/);
-        const pick = pm ? pm[1] : '1';
+        const pm = currentCardText.match(/以下の([０-９\d]+)つから([０-９\d]+)つ(まで)?選ぶ/);
+        const totalN = pm ? pm[1] : '';
+        const pick = pm ? pm[2] : '1';
+        const made = pm && pm[3] ? 'まで' : '';
         const enh = currentCardText.match(/代わりに([０-９\d]+)つ(?:まで)?選ぶ/);
         const segs = [...currentCardText.matchAll(/[①-⑨]([^①-⑨]*)/g)]
           .map(x => x[1].replace(/\s+/g, ' ').trim().replace(/(?:。|\s|-)+$/, ''));
-        if (segs.length >= 2) return `次から${pick}つ${enh ? `（条件達成で${enh[1]}つまで）` : ''}選ぶ【${segs.join(' / ')}】`;
+        if (segs.length >= 2) return `以下の${totalN || segs.length}つから${pick}つ${made}${enh ? `（条件達成で${enh[1]}つまで）` : ''}選ぶ【${segs.join(' / ')}】`;
       }
       // OPTIONAL_DISCARD_HAND_CLASS: 手札から＜X＞のシグニN枚を任意で捨てる（クラス/枚数は EffectText から復元）
       if (a.id === 'OPTIONAL_DISCARD_HAND_CLASS') {
