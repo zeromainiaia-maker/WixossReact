@@ -5,6 +5,33 @@
 
 ---
 
+## 逆翻訳機の本格改善⑨：SONG_FRAGMENT の英語ID漏れを是正（2026-06-30）
+
+STUB id `SONG_FRAGMENT`（11件＝SPDi47-* 等）が STUBS.md 由来の説明文で英語IDを露出していた。engine 実装済み（エナの【歌のカケラ】持ちカードをトラッシュしルリグ効果として発動）で逆翻訳描画のみ欠落。コスト句は別途描画されるため本体「このルリグ/シグニはそのカードの【歌のカケラ】を使用する」を `currentCardText` から抽出（無ければ既定文）。SPDi47-01 等で原文一致・英語ID漏れ 0・同型★0 維持・typecheck 緑・engine 不変。decompile_sheet9/10＋下流再生成。
+
+---
+
+## 逆翻訳機の本格改善⑧：SUMMON_RESONA_FROM_LRIG_DECK の英語ID漏れを是正（2026-06-30）
+
+STUB id `SUMMON_RESONA_FROM_LRIG_DECK`（11件）が STUBS.md 由来の説明文で英語IDを露出していた。engine 実装済み（ルリグデッキからレゾナを出現条件無視で場出し）で逆翻訳描画のみ欠落。原文「あなたのルリグデッキから（…の）レゾナ（N枚）を（その）出現条件を無視して場に出す」はレゾナ条件（レベル/色/クラス/枚数）がカードごとに異なるため `currentCardText` から抽出（1カード1SUMMON を確認済）。WX07-050 等で原文一致・英語ID漏れ 0・同型★0 維持・typecheck 緑・engine 不変。decompile_sheet1-4＋下流再生成。
+
+---
+
+## 逆翻訳機の本格改善⑦：DESIGNATE_SIGNI_ZONE の英語ID漏れを是正（2026-06-30）
+
+STUB id `DESIGNATE_SIGNI_ZONE`（12件）が STUBS.md 由来の説明文で英語IDを露出していた。engine 実装済み（指定ゾーンを `designated_zones` 等で保持）で逆翻訳描画のみ欠落。原文「（シグニのない）（対戦相手の）シグニゾーン１つを指定する」は前置がカードごとに異なるため `currentCardText` から正規表現抽出して描画。WX08-021/WX10-051 等で原文一致・英語ID漏れ 0・同型★0 維持・typecheck 緑・engine 不変。decompile_sheet1/3/4/5/7/8/9＋下流再生成。
+
+---
+
+## 逆翻訳機の本格改善⑥：COPY_LRIG_NAME_ABILITY の英語ID漏れを是正（2026-06-30）
+
+STUB id `COPY_LRIG_NAME_ABILITY`（16件＝WX24-P4-011〜025／WX25-P3-028「過日の巫女」系）が STUBS.md 由来の説明文「カード名コピー系 COPY_LRIG_NAME_ABILITY: …」のまま英語IDを露出していた。engine は実装済み（ルリグトラッシュの同レベル同系統ルリグ名/【自】能力を継承）で、逆翻訳の描画のみ欠落。
+
+- 原文「このルリグはあなたのルリグトラッシュにあるレベル３の＜X＞と同じカード名としても扱い、そのルリグの【自】能力を得る」は ＜X＞（タマ/花代/緑子/アルフォウ/ウリス 等）がカードごとに異なるため、`decompileEffects.ts` で `a.id==='COPY_LRIG_NAME_ABILITY'` のとき `currentCardText` から該当文を正規表現で抽出して描画。見つからない場合のみ従来フォールバック。
+- 検証＝WX24-P4-011 等で逆翻訳が原文一致・英語ID漏れ 0・同型★0 維持（割れ0／5986枚）・typecheck OK。decompile_sheet9＋下流再生成。engine 不変。
+
+---
+
 ## 逆翻訳機の本格改善⑤：timing/iconラベルの英語漏れを是正（2026-06-30・zerom）
 
 逆翻訳全体を `[A-Z_]+` で走査し、timing/icon ラベルの英語漏れを発見・是正。`timingJa`/`typeMark` のマップ漏れで効果ヘッダに生英語が出ていた。
