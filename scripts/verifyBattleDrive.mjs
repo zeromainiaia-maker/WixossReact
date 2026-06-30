@@ -407,13 +407,13 @@ const scenarios = {
         const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
         if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
         if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
-        if (!did) { // [出]《無》任意コスト：エナ選択→支払う
-          const e0 = page.getByTestId('optcost-energy-0').first();
+        if (!did) { // 【出】効果コストモーダル：エナ（無×1）選択→「発動」
+          const e0 = page.getByTestId('onplaycost-energy-0').first();
           if (await e0.count() && await e0.isVisible().catch(() => false)) {
             await e0.click().catch(() => {}); await page.waitForTimeout(250);
-            const pay = page.getByTestId('optcost-pay').first();
-            if (await pay.count() && await pay.isEnabled().catch(() => false)) { await pay.click().catch(() => {}); }
-            did = 'optcost-pay';
+            const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await fire.count() && await fire.isEnabled().catch(() => false)) { await fire.click().catch(() => {}); }
+            did = 'onplaycost:発動';
           }
         }
         if (!did) { // SELECT_TARGET（バニッシュ対象＝guest シグニ／付与対象＝自シグニ）
