@@ -5295,7 +5295,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const dsInlinePE = collectDeckShuffleInline(hostState, guestState);
         if (dsInlinePE.entries.length > 0) { update.host_state = dsInlinePE.hostState; update.guest_state = dsInlinePE.guestState; }
 
-        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE, ...dsInlinePE.entries];
+        // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（C1・WX07-036）: 対象選択を伴う効果（[出]バニッシュ等）は resume 経路で
+        // 解決され中央 diff(4760) を通らないため、ここで発生源（pe.sourceCardNum）基準に拾う。
+        const beAfterHostPE  = (update.host_state  as PlayerState) ?? hostState;
+        const beAfterGuestPE = (update.guest_state as PlayerState) ?? guestState;
+        const bnInlinePE = collectBanishOppByEffectInline(pe.sourceCardNum, pe.sourcePlayerId, beAfterHostPE, beAfterGuestPE);
+        if (bnInlinePE.entries.length > 0) { update.host_state = bnInlinePE.hostState; update.guest_state = bnInlinePE.guestState; }
+
+        // ON_LRIG_UNDER_MOVED（C1・WXDi-P04-042）: 同上（resume 経路の取りこぼし対策）。
+        const luAfterHostPE  = (update.host_state  as PlayerState) ?? hostState;
+        const luAfterGuestPE = (update.guest_state as PlayerState) ?? guestState;
+        const luInlinePE = collectLrigUnderMovedInline(luAfterHostPE, luAfterGuestPE);
+        if (luInlinePE.entries.length > 0) { update.host_state = luInlinePE.hostState; update.guest_state = luInlinePE.guestState; }
+
+        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE, ...dsInlinePE.entries, ...bnInlinePE.entries, ...luInlinePE.entries];
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
