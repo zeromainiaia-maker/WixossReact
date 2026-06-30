@@ -465,11 +465,16 @@ const scenarios = {
       for (let s = 0; s < 22; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lrigundermoved-${s}.png`, fullPage: true });
-        // 「使用」「アーツ使用」を最優先（zone-card-0 は毎回マッチしてしまうので後回し）
-        let did = await H.clickTextOrBtn(['アーツ使用', '使用']);
-        if (!did) { // アーツコスト：白/黒エナを2枚選ぶ（spellcost-energy と同UI）
-          for (const i of [0, 1]) { const e = page.getByTestId(`spellcost-energy-${i}`).first(); if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); did = `spellcost-energy-${i}`; } }
+        // アーツ Phase2 コスト：白/黒エナを2枚選んでから「アーツ使用」を押す（未選択だと disabled）。
+        let did = null;
+        const a0 = page.getByTestId('artscost-energy-0').first();
+        if (await a0.count() && await a0.isVisible().catch(() => false)) {
+          for (const i of [0, 1]) { const e = page.getByTestId(`artscost-energy-${i}`).first(); if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); } }
+          await page.waitForTimeout(200);
+          const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+          if (await use.count() && await use.isEnabled().catch(() => false)) { await use.click().catch(() => {}); did = 'btn:アーツ使用'; }
         }
+        if (!did) did = await H.clickTextOrBtn(['使用']);                // 詳細モーダルの「使用」→アーツモーダルへ
         if (!did) { const pick0 = page.getByTestId('pick-0').first(); if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; } }
         if (!did) did = await H.clickTextOrBtn(['発動', '確定', '決定', 'OK', 'はい', 'スキップ', '支払わない', '選ばない']);
         if (!did) did = await H.clickTestId('zone-card-0');             // モーダル未開時のみ：アーツを開く
