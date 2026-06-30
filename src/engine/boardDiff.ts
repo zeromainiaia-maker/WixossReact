@@ -215,6 +215,36 @@ export function detectDeckShuffled(before: PlayerState, after: PlayerState): boo
   return (after.deck_shuffled_count ?? 0) > (before.deck_shuffled_count ?? 0);
 }
 
+/** ON_KEYWORD_GAINED 対象キーワード（WXDi-P04-035「【アサシン】か【ランサー】か【ダブルクラッシュ】」）。 */
+export const KEYWORD_GAINED_TARGETS = ['アサシン', 'ランサー', 'ダブルクラッシュ'] as const;
+
+/**
+ * この解決でシグニが新たに得た対象キーワード（KEYWORD_GAINED_TARGETS）を {cardNum, keyword} の配列で返す（ON_KEYWORD_GAINED）。
+ * keyword_grants と keyword_grants_until_opp_turn の両方を before/after で比較し、新規付与分のみ抽出する。
+ * 同一カードが複数キーワードを同時に得た場合は複数要素を返す。
+ */
+export function detectKeywordGained(before: PlayerState, after: PlayerState): { cardNum: string; keyword: string }[] {
+  if (!before || !after) return [];
+  const merge = (s: PlayerState): Record<string, string[]> => {
+    const out: Record<string, string[]> = {};
+    for (const src of [s.keyword_grants ?? {}, s.keyword_grants_until_opp_turn ?? {}]) {
+      for (const [id, kws] of Object.entries(src)) out[id] = [...(out[id] ?? []), ...(kws ?? [])];
+    }
+    return out;
+  };
+  const bef = merge(before), aft = merge(after);
+  const out: { cardNum: string; keyword: string }[] = [];
+  for (const [cardNum, kws] of Object.entries(aft)) {
+    const had = new Set(bef[cardNum] ?? []);
+    for (const kw of kws) {
+      if (!had.has(kw) && (KEYWORD_GAINED_TARGETS as readonly string[]).includes(kw)) {
+        out.push({ cardNum, keyword: kw });
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * 新たに凍結状態（signi_frozen false→true）になったゾーンのシグニ番号を返す。
  * 解決後に同ゾーンに在中するシグニを対象（凍結のまま移動する稀ケースは未対応）。
