@@ -550,6 +550,8 @@ export interface PendingEffect {
   sourceCardNum: string;
   effectId: string;
   interaction: PendingInteractionDef;
+  triggeringCardNum?: string; // pause を跨いで「それ」参照を保持（resume の ExecCtx 再構築用）
+  triggeringKeyword?: string; // pause を跨いで ON_KEYWORD_GAINED の「その能力」を保持（COPY_ABILITY 用・WXDi-P04-035）
 }
 
 // ===== 効果スタック =====
