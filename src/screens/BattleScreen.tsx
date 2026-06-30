@@ -4455,6 +4455,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           sourceCardNum: entry.cardNum,
           effectId: entry.effectId,
           interaction: result.pending,
+          ...(entry.triggeringCardNum ? { triggeringCardNum: entry.triggeringCardNum } : {}),
+          ...(entry.triggeringKeyword ? { triggeringKeyword: entry.triggeringKeyword } : {}),
         } satisfies PendingEffect;
         // インタラクション中はスタック（残キュー）を保持
         update.effect_stack = newStack;
