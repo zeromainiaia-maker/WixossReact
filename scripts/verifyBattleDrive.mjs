@@ -1,5 +1,13 @@
-// claude1 でログイン→オンライン対戦→VERIFY_DECK選択→CPU対戦→対戦開始→セットアップ自動進行。
-// 各ステップでスクショ＋画面テキストをダンプし、PLAYING 到達を目指す（段階構築・観測重視）。
+// フル BattleScreen 実機 driver（シナリオ切替対応）。
+// claude1 でログイン→オンライン対戦→VERIFY_DECK→CPU対戦→PLAYING 到達まで一度だけ行い、
+// その PLAYING ルームへ「盤面注入＋クリック列」をシナリオ単位で適用して効果を実 UI で発火・観測する。
+//
+// 使い方:
+//   node scripts/verifyBattleDrive.mjs            # 既定の3シナリオを順に実行
+//   node scripts/verifyBattleDrive.mjs wxk02029   # 指定シナリオのみ
+//   node scripts/verifyBattleDrive.mjs wd07012 wxk09050
+//
+// 前提: verify-accounts.json / .env.local / デッキ「VERIFY_DECK」。詳細は docs/VERIFY_BROWSER.md。
 import { spawn } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import { readFileSync, mkdirSync } from 'node:fs';
@@ -10,8 +18,149 @@ const accounts = JSON.parse(readFileSync('verify-accounts.json', 'utf-8')).accou
 const env = readFileSync('.env.local', 'utf-8');
 const SUPA_URL = env.match(/VITE_SUPABASE_URL=(.+)/)?.[1]?.trim();
 const ANON = env.match(/VITE_SUPABASE_ANON_KEY=(.+)/)?.[1]?.trim();
+const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001'; // BattleScreen.tsx と一致
 
-// ユーザーの残ルーム（PLAYING含む）と battle_states を掃除（再入場で BATTLE に飛ぶのを防ぐ）。
+// ─────────────────────────────────────────────────────────────────────────────
+// シナリオ定義
+//   spec: 盤面注入のデータ（in-page で host_state/guest_state にマージ）。
+//     hostSet/guestSet … ドットパス→値（例 'field.signi':[['WD07-012#1'],...]）。
+//     handPrepend       … host_state.hand の先頭に積む（残りは既存 hand.slice(0,4)）。
+//     top.active        … 'host'（自分のターン）/ 'cpu'（CPUのターン）。
+//     top.turn_phase    … 注入後のフェイズ。
+//   drive(page, H): クリック列＋観測。{ pass, detail } を返す。H は共通ヘルパー束。
+// ─────────────────────────────────────────────────────────────────────────────
+const scenarios = {
+  // ① WXK09-050: 【出】CHOOSE①でバフ済み＜電機＞シグニに「ダウンしない」付与（既存・実証済み）。
+  wxk09050: {
+    title: 'WXK09-050 コードアート Ｒ・Ｌ・Ｃ（SIGNI_GRANT_CHOSEN_ABILITY）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXK09-018#1'],                         // Lv3（Limit6）でLv4召喚を許容
+        'field.signi': [['WD03-009#1'], null, null],           // ＜電機＞ P12000
+        'temp_power_mods': [{ cardNum: 'WD03-009#1', delta: 3000 }], // バフ→15000>表記12000
+      },
+      handPrepend: ['WXK09-050#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const opened = await H.clickTestId('my-hand-card-0');
+      H.log('手札クリック:', opened ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(1000);
+        const t = await H.body();
+        await page.screenshot({ path: `${SHOT}/wxk09050-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) {
+          for (const lbl of ['対戦相手の効果によってダウンしない', '①ダウンしない', '①']) {
+            const b = page.getByRole('button', { name: lbl, exact: false }).first();
+            if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:' + lbl; break; }
+          }
+        }
+        const pick0 = page.getByTestId('pick-0').first();
+        if (!did && await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '選ぶ']);
+        H.log(`  play[${s}] -> ${did ?? 'なし'} | ${t.slice(0, 80).replace(/\n/g, ' ')}`);
+        if (/ダウンしない（ターン終了時まで）|手札に戻らない（ターン終了時まで）/.test(await H.fullBody())) {
+          return { pass: true, detail: '盤面ログに「ダウンしない（ターン終了時まで）」を確認' };
+        }
+      }
+      return { pass: false, detail: '付与ログ未確認' };
+    },
+  },
+
+  // ② WXK02-029: アーツ【メイン】CHOOSE①＝条件付きグロウ（自Lv2≤相手Lv3）＋全キー能力喪失。
+  //    アーツを手札に注入し、手札カード→「使用」→「アーツ使用」→CHOOSE① で発火。
+  wxk02029: {
+    title: 'WXK02-029 ビカム・ユー（CONDITIONAL_GROW_AND_KEY_DISABLE）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],   // コード・ピルルク・Ｍ Lv2（自センター）
+        'lrig_deck': ['WD03-002#1'],    // コード・ピルルク・Ｇ Lv3（グロウ先）
+        'field.signi': [null, null, null],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],   // 相手センター Lv3（自Lv2 ≤ 相手Lv3 でグロウ条件成立）
+      },
+      handPrepend: ['WXK02-029#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const opened = await H.clickTestId('my-hand-card-0');
+      H.log('アーツ手札クリック:', opened ?? '見つからず');
+      for (let s = 0; s < 14; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wxk02029-${s}.png`, fullPage: true });
+        let did = null;
+        // CardModal の「使用」→ アーツモーダルPhase2「アーツ使用」→ CHOOSE① の順に1手ずつ
+        did = await H.clickTextOrBtn(['使用', 'アーツ使用']);
+        if (!did) {
+          for (const lbl of ['条件付きグロウ＋全キー能力喪失', '条件付きグロウ', 'グロウ＋全キー', '①']) {
+            const b = page.getByRole('button', { name: lbl, exact: false }).first();
+            if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:' + lbl; break; }
+          }
+        }
+        H.log(`  arts[${s}] -> ${did ?? 'なし'}`);
+        const full = await H.fullBody();
+        if (/グロウ/.test(full) && /キー(は|の能力).*(失|喪失|無効)/.test(full)) {
+          return { pass: true, detail: '盤面ログにグロウ＋キー能力喪失を確認' };
+        }
+        if (/コード・ピルルク・Ｇ|にグロウ/.test(full) && /キー/.test(full)) {
+          return { pass: true, detail: '盤面ログにグロウ先（ピルルク・Ｇ）＋キーを確認' };
+        }
+      }
+      return { pass: false, detail: 'グロウ＋キー能力喪失ログ未確認' };
+    },
+  },
+
+  // ③ WD07-012: 【自】相手アタッカーが正面より低パワーならバニッシュ。
+  //    CPU(=guest)ターン・ATTACK_SIGNI を注入し、CPU の弱アタッカー（P3000）を自動アタックさせる。
+  //    自分の場の WD07-012（P12000・正面）が ON_ATTACK_SIGNI(any_opp) で拾われアタッカーをバニッシュ。
+  wd07012: {
+    title: 'WD07-012 コードアンチ ヴィマナ（BANISH_ATTACKER_IF_WEAKER_THAN_FRONT）',
+    spec: {
+      hostSet: {
+        'field.signi': [null, null, ['WD07-012#1']], // 自zone2＝攻撃側zone0の正面
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null], // 小剣 ククリ P3000（CPUアタッカー zone0）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+    },
+    async drive(page, H) {
+      // クリックは不要。CPU が自動アタック→トリガー発火を待って観測する。
+      // 万一ガード/応答UIが出たら拒否方向で進める。
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/wd07012-${s}.png`, fullPage: true });
+        const full = await H.fullBody();
+        if (/正面より低パワー|ククリ.*バニッシュ|小剣.*バニッシュ/.test(full)) {
+          return { pass: true, detail: '盤面ログに「（正面より低パワー）バニッシュ」を確認' };
+        }
+        // ガード/応答プロンプトが出たら拒否（バニッシュは本来トリガー解決で先に起きるが保険）
+        await H.clickTextOrBtn(['ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        if (s % 4 === 3) H.log(`  wd07012[${s}] 観測中… ${full.slice(0, 70).replace(/\n/g, ' ')}`);
+      }
+      return { pass: false, detail: 'バニッシュログ未確認' };
+    },
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 共通インフラ
+// ─────────────────────────────────────────────────────────────────────────────
 async function cleanupRooms(page) {
   return await page.evaluate(async ({ SUPA_URL, ANON }) => {
     const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
@@ -29,7 +178,40 @@ async function cleanupRooms(page) {
   }, { SUPA_URL, ANON });
 }
 
-// 本番ビルドを preview で配信（dev の StrictMode 二重実行で gotoMatchmaking が消える問題を回避）。
+// 盤面注入（in-page）。ドットパスのマージで host_state/guest_state を上書きし、トップレベルを PATCH。
+async function injectScenario(page, spec) {
+  return await page.evaluate(async ({ SUPA_URL, ANON, CPU_PLAYER_ID, spec }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+    const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'PLAYINGルームなし' };
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=*`, { headers: h });
+    const row = (await r2.json())?.[0];
+    const setPath = (obj, path, val) => {
+      const parts = path.split('.'); let o = obj;
+      for (let i = 0; i < parts.length - 1; i++) { o[parts[i]] = o[parts[i]] ?? {}; o = o[parts[i]]; }
+      o[parts[parts.length - 1]] = val;
+    };
+    const hs = row.host_state, gs = row.guest_state;
+    for (const [p, v] of Object.entries(spec.hostSet ?? {})) setPath(hs, p, v);
+    for (const [p, v] of Object.entries(spec.guestSet ?? {})) setPath(gs, p, v);
+    if (spec.handPrepend) hs.hand = [...spec.handPrepend, ...(hs.hand ?? []).slice(0, 4)];
+    const top = spec.top ?? {};
+    const upd = {
+      host_state: hs, guest_state: gs,
+      active_user_id: top.active === 'cpu' ? CPU_PLAYER_ID : uid,
+      turn_phase: top.turn_phase ?? 'MAIN',
+      turn_count: top.turn_count ?? 2,
+      effect_stack: null, pending_effect: null, pending_spell: null,
+    };
+    const w = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
+      method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(upd),
+    });
+    return { roomId, ok: w.ok, status: w.status, body: w.ok ? null : await w.text() };
+  }, { SUPA_URL, ANON, CPU_PLAYER_ID, spec });
+}
+
 function startDev() {
   return new Promise((resolve, reject) => {
     const proc = spawn('npm', ['run', 'preview'], { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -39,15 +221,19 @@ function startDev() {
     setTimeout(() => { if (!url) reject(new Error('preview起動タイムアウト')); }, 30000);
   });
 }
-const bodyText = (page) => page.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n').slice(0, 500));
-const clickText = async (page, text, timeout = 4000) => {
-  const el = page.getByText(text, { exact: false }).first();
-  await el.waitFor({ state: 'visible', timeout }); await el.click(); return true;
-};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 実行本体
+// ─────────────────────────────────────────────────────────────────────────────
+const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));
+const order = ['wxk09050', 'wxk02029', 'wd07012']; // 自分ターン→自分ターン→CPUターンの順（互いに干渉しない）
+const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
+if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
 const { proc, url } = await startDev();
-console.log(`dev: ${url}`);
+console.log(`dev: ${url} / 実行シナリオ: ${runIds.join(', ')}`);
 let code = 0;
+const results = [];
 try {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
@@ -55,7 +241,45 @@ try {
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 
-  // ログイン
+  // 共通ヘルパー束（シナリオ drive に渡す）
+  const H = {
+    log: (...a) => console.log('   ', ...a),
+    body: () => page.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n').slice(0, 500)),
+    fullBody: () => page.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n').slice(0, 4000)),
+    clickTextOrBtn: async (labels) => {
+      for (const lbl of labels) {
+        const b = page.getByRole('button', { name: lbl, exact: false }).first();
+        if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + lbl; }
+        const tx = page.getByText(lbl, { exact: false }).first();
+        if (await tx.count() && await tx.isVisible().catch(() => false)) { await tx.click().catch(() => {}); return 'txt:' + lbl; }
+      }
+      return null;
+    },
+    clickTestId: async (...ids) => {
+      for (const id of ids) {
+        const el = page.getByTestId(id).first();
+        if (await el.count() && await el.isVisible().catch(() => false) && await el.isEnabled().catch(() => true)) {
+          await el.click({ timeout: 2000 }).catch(() => {}); return 'tid:' + id;
+        }
+      }
+      return null;
+    },
+    // 注入直後はグロウフェイズに戻る競合がある。MAIN を確実にしてから操作する。
+    ensureMain: async () => {
+      for (let k = 0; k < 5; k++) {
+        await page.waitForTimeout(800);
+        const adv = await H.clickTextOrBtn(['メインフェイズへ']);
+        if (!adv) break;
+      }
+    },
+    // モーダル/オーバーレイを閉じてからシナリオ間で盤面を切り替える。
+    closeModals: async () => {
+      for (let k = 0; k < 3; k++) { await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(300); }
+    },
+  };
+  const bodyText = H.body;
+
+  // ── ログイン ──
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.getByPlaceholder('ユーザーネーム').fill(accounts[0].username);
   await page.getByPlaceholder('パスワード').fill(accounts[0].password);
@@ -63,57 +287,40 @@ try {
   await page.waitForFunction(() => ![...document.querySelectorAll('input')].some(i => i.placeholder === 'ユーザーネーム'), { timeout: 15000 });
   await page.waitForTimeout(1500);
 
-  // 残ルーム掃除（前回の PLAYING ルームで BATTLE に飛ぶのを防ぐ）
   const cleaned = await cleanupRooms(page);
   console.log(`残ルーム掃除: ${cleaned}件削除`);
 
-  // オンライン対戦（sessionStorage→reload→matchmaking）を確定的に
+  // ── オンライン対戦→CPU対戦→PLAYING 到達 ──
   await page.evaluate(() => sessionStorage.setItem('gotoMatchmaking', '1'));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(3000);
-  await page.screenshot({ path: `${SHOT}/drv-00-after-reload.png`, fullPage: true });
-  console.log('reload後:', await bodyText(page));
   await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
   await page.waitForTimeout(500);
-  await page.screenshot({ path: `${SHOT}/drv-01-matchmaking.png`, fullPage: true });
-  console.log('① matchmaking:', await bodyText(page));
-
-  // 使用デッキ選択 → 次へ
-  await clickText(page, 'VERIFY_DECK');
+  const clickText = async (text, timeout = 4000) => { const el = page.getByText(text, { exact: false }).first(); await el.waitFor({ state: 'visible', timeout }); await el.click(); };
+  await clickText('VERIFY_DECK');
   await page.waitForTimeout(400);
   await page.getByRole('button', { name: '次へ' }).click();
   await page.waitForTimeout(600);
-
-  // 対戦モード → CPU対戦
   await page.getByRole('button', { name: 'CPU対戦' }).click();
   await page.waitForTimeout(600);
-  await page.screenshot({ path: `${SHOT}/drv-02-cpudeck.png`, fullPage: true });
-
-  // CPUデッキは validDecks[0] 既定 → 対戦開始
   await page.getByRole('button', { name: '対戦開始' }).click();
   await page.waitForTimeout(3500);
-  await page.screenshot({ path: `${SHOT}/drv-03-battle-enter.png`, fullPage: true });
-  console.log('② battle enter:', await bodyText(page));
+  console.log('battle enter:', await bodyText());
 
-  // セットアップ自動進行（じゃんけん→ルリグ選択→マリガン→ゲーム開始）。phase 認識で1手ずつ・待ち長め。
+  // セットアップ自動進行（じゃんけん→ルリグ選択→マリガン→ゲーム開始）
   const hands = ['グー', 'チョキ', 'パー'];
   let handIdx = 0;
   for (let i = 0; i < 40; i++) {
-    const txt = await bodyText(page);
-    if (/メインフェイズ|あなたのターン|ターン[0-9]|エナチャージ|グロウフェイズ|アタックフェイズ/.test(txt)) {
-      console.log(`③ PLAYING 到達（${i}周目）`); break;
-    }
+    const txt = await bodyText();
+    if (/メインフェイズ|あなたのターン|ターン[0-9]|エナチャージ|グロウフェイズ|アタックフェイズ/.test(txt)) { console.log(`PLAYING 到達（${i}周目）`); break; }
     let clicked = null;
-    if (/相手の選択を待って|結果|移行中|準備中|待っています/.test(txt)) {
-      clicked = '(待機)';
-    } else if (/出す手を選んで/.test(txt)) {
-      // じゃんけん：手を変えながら1回ずつ
-      const h = hands[handIdx++ % 3];
-      const el = page.getByRole('button', { name: h }).first();
-      if (await el.count()) { await el.click().catch(() => {}); clicked = 'じゃんけん:' + h; }
+    if (/相手の選択を待って|結果|移行中|準備中|待っています/.test(txt)) { clicked = '(待機)'; }
+    else if (/出す手を選んで/.test(txt)) {
+      const hh = hands[handIdx++ % 3];
+      const el = page.getByRole('button', { name: hh }).first();
+      if (await el.count()) { await el.click().catch(() => {}); clicked = 'じゃんけん:' + hh; }
       await page.waitForTimeout(2500);
     } else if (/ルリグを配置|ルリグを選/.test(txt)) {
-      // Lv0ルリグのボタン（カード名/番号を含む）をクリック
       const btn = page.locator('button', { hasText: 'WD03-005' }).first();
       if (await btn.count()) { await btn.click().catch(() => {}); clicked = 'ルリグ(WD03-005)'; }
       else { const b2 = page.locator('button', { hasText: 'コード・ピルルク' }).first(); if (await b2.count()) { await b2.click().catch(() => {}); clicked = 'ルリグ(名前)'; } }
@@ -123,124 +330,35 @@ try {
         if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); clicked = t; break; }
       }
     }
-    console.log(`  [${i}] click=${clicked ?? 'なし'} | ${txt.slice(0, 90).replace(/\n/g, ' ')}`);
     await page.waitForTimeout(1500);
-    if ((i + 1) % 5 === 0) await page.screenshot({ path: `${SHOT}/drv-setup-${i + 1}.png`, fullPage: true });
   }
   await page.screenshot({ path: `${SHOT}/drv-99-playing.png`, fullPage: true });
-  console.log('PLAYING盤面:', (await bodyText(page)).slice(0, 100).replace(/\n/g, ' '));
 
-  // ── 検証用盤面を battle_states 行へ直接注入（WXK09-050 シナリオ）──
-  // 自分のMAINターン・Lv2ルリグ（WXK09-050 Lv2 がプレイ可）・バフ済み＜電機＞シグニ・手札にWXK09-050。
-  const inj = await page.evaluate(async ({ SUPA_URL, ANON }) => {
-    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
-    const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
-    const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
-    const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'PLAYINGルームなし' };
-    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=*`, { headers: h });
-    const row = (await r2.json())?.[0];
-    const hs = row.host_state;
-    // Lv3 コード・ピルルク ｍＶ（Limit=6）。Lv2 の Limit4 では Lv4 シグニ(4)+WXK09-050(2)=6>4 で召喚不可だったため引き上げ。
-    hs.field.lrig = ['WXK09-018#1'];                      // lrig はフラットなスタック配列
-    hs.field.signi = [['WD03-009#1'], null, null];        // ＜電機＞ P12000（各ゾーン=スタック配列）
-    hs.temp_power_mods = [{ cardNum: 'WD03-009#1', delta: 3000 }]; // バフ→15000>表記12000
-    hs.hand = ['WXK09-050#1', ...(hs.hand ?? []).slice(0, 4)];
-    const upd = {
-      host_state: hs, active_user_id: uid, turn_phase: 'MAIN', turn_count: 2,
-      effect_stack: null, pending_effect: null, pending_spell: null,
-    };
-    const w = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
-      method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(upd),
-    });
-    return { roomId, ok: w.ok, status: w.status, body: w.ok ? null : await w.text() };
-  }, { SUPA_URL, ANON });
-  console.log('注入:', JSON.stringify(inj));
-  await page.waitForTimeout(2500);
-  await page.screenshot({ path: `${SHOT}/inj-01-board.png`, fullPage: true });
-  console.log('注入後盤面:', (await bodyText(page)).slice(0, 160).replace(/\n/g, ' '));
-
-  // WXK09-050（手札0番目）を要素クリック → CardModal の「召喚」→ ゾーン選択 → CHOOSE → 対象選択
-  // ピクセル座標依存を廃止し data-testid / role=button(name) で安定駆動する。
-  const clickTextOrBtn = async (labels) => {
-    for (const lbl of labels) {
-      const b = page.getByRole('button', { name: lbl }).first();
-      if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + lbl; }
-      const tx = page.getByText(lbl, { exact: false }).first();
-      if (await tx.count() && await tx.isVisible().catch(() => false)) { await tx.click().catch(() => {}); return 'txt:' + lbl; }
-    }
-    return null;
-  };
-  // testid 要素を見えていればクリック（プレフィックス一致でゾーンを順に試す）
-  const clickTestId = async (...ids) => {
-    for (const id of ids) {
-      const el = page.getByTestId(id).first();
-      // disabled なボタン（占有済みゾーン等）は飛ばす。enabled でないと click はタイムアウトまで待つため。
-      if (await el.count()
-        && await el.isVisible().catch(() => false)
-        && await el.isEnabled().catch(() => true)) {
-        await el.click({ timeout: 2000 }).catch(() => {}); return 'tid:' + id;
-      }
-    }
-    return null;
-  };
-  // 注入直後はグロウフェイズに戻ることがある（ターン遷移のリアルタイム処理と競合）。
-  // 召喚は MAIN フェイズ限定なので、「メインフェイズへ」を押して確実に MAIN にしてから手札を開く。
-  for (let k = 0; k < 5; k++) {
-    await page.waitForTimeout(800);
-    const adv = await clickTextOrBtn(['メインフェイズへ']);
-    if (!adv) break;
-    console.log('フェイズ進行:', adv);
+  // ── シナリオを順に実行 ──
+  for (const id of runIds) {
+    const sc = scenarios[id];
+    console.log(`\n=== シナリオ ${id}: ${sc.title} ===`);
+    await H.closeModals();
+    const inj = await injectScenario(page, sc.spec);
+    console.log('注入:', JSON.stringify(inj));
+    if (inj.error) { results.push({ id, pass: false, detail: '注入失敗: ' + inj.error }); continue; }
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: `${SHOT}/${id}-inj.png`, fullPage: true });
+    let r;
+    try { r = await sc.drive(page, H); }
+    catch (e) { r = { pass: false, detail: 'drive例外: ' + e.message }; }
+    await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
+    console.log(`--- ${id}: ${r.pass ? 'PASS' : 'FAIL'} : ${r.detail}`);
+    results.push({ id, ...r });
   }
-  // 手札先頭（注入した WXK09-050）を開く（自分の手札= my-hand-card-*。相手の裏向き op-hand-card-* と区別）
-  const opened = await clickTestId('my-hand-card-0');
-  console.log('手札クリック:', opened ?? '見つからず（フォールバック座標）');
-  if (!opened) await page.mouse.click(37, 593);
-
-  let summoned = false;
-  for (let s = 0; s < 16; s++) {
-    await page.waitForTimeout(1000);
-    const t = await bodyText(page);
-    await page.screenshot({ path: `${SHOT}/inj-play-${s}.png`, fullPage: true });
-    const star = /ダウンしない|手札に戻らない|能力を得る|選んだ能力/.test(t) ? ' ★CHOOSE/付与' : '';
-    console.log(`  play[${s}]${star} ${t.slice(0, 110).replace(/\n/g, ' ')}`);
-    // 「召喚」はボタン限定で取る（テキスト fallback だと「召喚先のゾーンを選択」見出しに誤マッチする）
-    let did = null;
-    const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
-    if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
-      await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
-    }
-    // 召喚ゾーン選択モーダル: 空きゾーンを testid で順に試す（無効ボタンは disabled で弾かれる）
-    if (!did && summoned) did = await clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
-    // CHOOSE 選択肢: ボタン限定（盤面ログ「…ダウンしない（ターン終了時まで）」への誤マッチを防ぐ）
-    if (!did) {
-      for (const lbl of ['対戦相手の効果によってダウンしない', '①ダウンしない', '①']) {
-        const b = page.getByRole('button', { name: lbl, exact: false }).first();
-        if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:' + lbl; break; }
-      }
-    }
-    // SELECT_TARGET 対象選択: ピッカー候補（pick-N）を未選択なら1枚クリック → 決定で確定
-    const pick0 = page.getByTestId('pick-0').first();
-    if (!did && await pick0.count() && await pick0.isVisible().catch(() => false)) {
-      // すでに ✓ が付いていれば（決定ボタンが活性）対象選択済み → 決定へ進む
-      const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
-      if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
-    }
-    if (!did) did = await clickTextOrBtn(['決定', 'OK', 'はい', '選ぶ']);
-    console.log(`     -> ${did ?? 'なし'}`);
-    if (star) { await page.waitForTimeout(800); await page.screenshot({ path: `${SHOT}/inj-CHOOSE.png`, fullPage: true }); }
-    // 付与が盤面ログに反映されたら完了（残りの空クリックを止める）
-    if (/ダウンしない（ターン終了時まで）|手札に戻らない（ターン終了時まで）/.test(await bodyText(page))) {
-      console.log('  ✓ 付与成功を盤面ログで確認 → クリック列完了'); break;
-    }
-  }
-  await page.screenshot({ path: `${SHOT}/inj-99-final.png`, fullPage: true });
-  // 付与結果をログ/盤面から確認
-  const finalTxt = await bodyText(page);
-  console.log('最終:', finalTxt.slice(0, 200).replace(/\n/g, ' '));
 
   if (errors.length) { console.log('\n[console errors]'); errors.slice(0, 8).forEach(e => console.log('  ' + e)); }
   await browser.close();
 } catch (e) { console.error('失敗:', e.message); code = 2; }
 finally { proc.kill(); try { spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { shell: true }); } catch {} }
-process.exit(code);
+
+console.log('\n========== 結果サマリ ==========');
+for (const r of results) console.log(`${r.pass ? '✅ PASS' : '❌ FAIL'}  ${r.id}  — ${r.detail}`);
+const allPass = results.length === runIds.length && results.every(r => r.pass);
+console.log(allPass ? '\n🎉 ALL PASS' : '\n⚠️ 一部 FAIL');
+process.exit(code || (allPass ? 0 : 1));
