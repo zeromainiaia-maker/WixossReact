@@ -3315,6 +3315,53 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, hostState: h, guestState: g };
   };
 
+  // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT をスタックを経由しないインライン解決（pending効果 resume＝handleEffectInteraction）
+  // で検出する共有ヘルパー。resolveStackNext の中央 diff（4760）はスタック解決のみを通るため、対象選択を伴う効果が
+  // resume 経路で解決される場合（[出]バニッシュ等）はこれを呼んで発火させる。source=効果発生源（pe.sourceCardNum）。
+  const collectBanishOppByEffectInline = (
+    sourceCardNum: string,
+    sourcePlayerId: string,
+    afterHost: PlayerState,
+    afterGuest: PlayerState,
+  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
+    let h = afterHost, g = afterGuest;
+    const sourceIsHost = sourcePlayerId === bs.host_id;
+    const sourceState = sourceIsHost ? afterHost : afterGuest;
+    const oppBefore = sourceIsHost ? bs.guest_state : bs.host_state;
+    const oppAfter = sourceIsHost ? afterGuest : afterHost;
+    const banisherOnField = sourceState.field.signi.some(s => s?.at(-1) === sourceCardNum);
+    if (detectBanishedSigni(oppBefore, oppAfter).length === 0 || !banisherOnField) return { entries: [], hostState: h, guestState: g };
+    const bn = collectBanishOppByEffectTriggers(sourceCardNum, sourcePlayerId, sourceState);
+    if (bn.usedOncePerTurnIds.length > 0) {
+      if (sourceIsHost) h = { ...h, actions_done: [...(h.actions_done ?? []), ...bn.usedOncePerTurnIds] };
+      else g = { ...g, actions_done: [...(g.actions_done ?? []), ...bn.usedOncePerTurnIds] };
+    }
+    return { entries: bn.entries, hostState: h, guestState: g };
+  };
+
+  // ON_LRIG_UNDER_MOVED をスタックを経由しないインライン解決（resume＝handleEffectInteraction）で検出する共有ヘルパー。
+  // resolveStackNext の中央 diff（4782）はスタック解決のみを通るため、対象選択を伴う効果がここを通る場合に発火させる。
+  const collectLrigUnderMovedInline = (
+    afterHost: PlayerState,
+    afterGuest: PlayerState,
+  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
+    const entries: StackEntry[] = [];
+    let h = afterHost, g = afterGuest;
+    for (const luIsHost of [true, false]) {
+      const luOwnerId = luIsHost ? bs.host_id : bs.guest_id;
+      const before = luIsHost ? bs.host_state : bs.guest_state;
+      const after = luIsHost ? afterHost : afterGuest;
+      if (countLrigUnderMoved(before, after) <= 0) continue;
+      const lu = collectLrigUnderMovedTriggers(luOwnerId, after);
+      entries.push(...lu.entries);
+      if (lu.usedOncePerTurnIds.length > 0) {
+        if (luIsHost) h = { ...h, actions_done: [...(h.actions_done ?? []), ...lu.usedOncePerTurnIds] };
+        else g = { ...g, actions_done: [...(g.actions_done ?? []), ...lu.usedOncePerTurnIds] };
+      }
+    }
+    return { entries, hostState: h, guestState: g };
+  };
+
   // ドロー時（ON_DRAW）トリガー収集。引いたプレイヤー（drawerId）の場のシグニ/ルリグの ON_DRAW【自】を集める（G089）。
   // ターンドロー・効果ドローの双方から呼ばれるため playerId を引数で受け取る。
   // usageLimit（《ターン1回》《ターン2回》）は actions_done(effectId) の出現回数で制御。
