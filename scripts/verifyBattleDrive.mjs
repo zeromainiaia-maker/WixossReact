@@ -376,6 +376,64 @@ const scenarios = {
     },
   },
 
+  // ⑧ ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（C1・WX07-036）: 弩炎 フレイスロ少佐【自】＝味方＜ウェポン＞シグニが
+  //    効果で対戦相手シグニをバニッシュしたとき、自分のシグニ1体に【ダブルクラッシュ】付与（any_ally・triggerFilter story=ウェポン）。
+  //    配線＝resolveStackNext 中央 diff/4761（banisher が場の自シグニ＋対戦相手バニッシュ検出）。
+  //    トリガー源＝WX19-023 弩砲 チタイクウ（＜ウェポン＞・【出】《無》で対戦相手12000以下を無条件バニッシュ）を summon。
+  //    リミット＝watcher(Lv4)+banisher(Lv4)=8 → Lv4/Limit11 の WD02-001 を注入。
+  banishbyeffect: {
+    title: 'WX19-023→WX07-036（ON_SIGNI_BANISH_OPPONENT_BY_EFFECT＝味方ウェポンの効果バニッシュで【ダブルクラッシュ】付与）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD02-001#1'],                 // Lv4/Limit11（4+4=8 を許容）
+        'field.signi': [['WX07-036#1'], null, null],  // watcher（フレイスロ少佐）
+        'energy': ['WD01-013#1', 'WD01-013#2'],        // [出]《無》×1 用
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD05-009#1'], null, null],   // バニッシュ対象（P12000 ≤12000）
+      },
+      handPrepend: ['WX19-023#1'],                    // 弩砲 チタイクウ（[出]《無》バニッシュ）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/banishbyeffect-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+        if (!did) { // [出]《無》任意コスト：エナ選択→支払う
+          const e0 = page.getByTestId('optcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            await e0.click().catch(() => {}); await page.waitForTimeout(250);
+            const pay = page.getByTestId('optcost-pay').first();
+            if (await pay.count() && await pay.isEnabled().catch(() => false)) { await pay.click().catch(() => {}); }
+            did = 'optcost-pay';
+          }
+        }
+        if (!did) { // SELECT_TARGET（バニッシュ対象＝guest シグニ／付与対象＝自シグニ）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const dc = (st?.host?.keywordGrants ?? []).find(g => /ダブルクラッシュ/.test(g));
+        H.log(`  ban[${s}] -> ${did ?? 'なし'} | gSigniBanished? stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} grants=${(st?.host?.keywordGrants ?? []).join(',') || '-'}`);
+        if (dc) return { pass: true, detail: `ON_SIGNI_BANISH_OPPONENT_BY_EFFECT 発火→自シグニに【ダブルクラッシュ】付与確認「${dc}」` };
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `【ダブルクラッシュ】付与 未確認（grants=${(fin?.host?.keywordGrants ?? []).join(',') || '-'} stack=${fin?.stackLen ?? '-'}）` };
+    },
+  },
+
   // ④ WXDi-P03-039: 【自】ON_LRIG_GROW（any_ally）＝自分のルリグがグロウしたとき、《無》を払えば相手シグニ1体をバニッシュ。
   //    C1 配線（executeGrow→collectLrigGrowTriggers）を実 UI で検証。グロウは通常UI操作＝最も駆動しやすいトリガー。
   //    free_grow_this_turn でグロウコスト0化→グロウ即実行→ON_LRIG_GROW 発火→OPTIONAL_COST(無)払い→相手バニッシュ。
