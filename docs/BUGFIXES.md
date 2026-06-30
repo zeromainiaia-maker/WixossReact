@@ -5,6 +5,19 @@
 
 ---
 
+## COPY_ABILITY 実装＋ON_KEYWORD_GAINED 配線・実 UI 検証完了（2026-06-30・zerom）＝engine未配線 C1 timing 完全消化
+
+最後まで保留だった `ON_KEYWORD_GAINED`（WXDi-P04-035 羅輝石 アレキサンドライト：「他のシグニが【アサシン/ランサー/ダブルクラッシュ】を得たとき、《赤》《無》を払えば自身もその能力を得る」）を実装・配線し、実 UI 検証（シナリオ `keywordgained`）で PASS。これで**engine 未配線だった C1 timing は全て消化**。
+
+- **「その能力を得る」のキーワード受け渡し**＝トリガーで得られたキーワードを `StackEntry.triggeringKeyword` / `ExecCtx.triggeringKeyword` / `PendingEffect.triggeringKeyword` に積み、`COPY_ABILITY` STUB が `ctx.triggeringKeyword` を watcher 自身（sourceCardNum）へ `keyword_grants`（ターン終了時まで）として付与する。OPTIONAL_COST(赤無)で pause→resume を跨ぐため pending_effect にも保持（resume の ExecCtx 再構築で復元）。既存 COPY_ABILITY の lastProcessed 全能力コピーは fallback として残置（使用箇所なし）。
+- **detector `detectKeywordGained`**（boardDiff）＝`keyword_grants`＋`keyword_grants_until_opp_turn` の差分から**新規付与**を抽出、対象は `KEYWORD_GAINED_TARGETS`＝【アサシン/ランサー/ダブルクラッシュ】に限定。
+- **collector `collectKeywordGainedTriggers`**（triggerCollect）＝同じ側の watcher（ON_KEYWORD_GAINED AUTO）を、得た側 cardNum ≠ watcher（「他のシグニ」）で発火。得たキーワードを triggeringCardNum/triggeringKeyword に積む。
+- **配線**＝キーワード付与（GRANT_KEYWORD）は対象選択を伴い resolveStackNext と resume(handleEffectInteraction) の双方で完了しうるため、**両経路に `collectKeywordGainedInline` を追加**（先の resume 取りこぼし修正と同型）。
+- 検証シナリオ `keywordgained`＝スペル WXDi-P04-079 豪槍（緑白無：自シグニ1体に【ランサー】付与）で watcher 以外の味方（zone0）に付与→ON_KEYWORD_GAINED→赤無払い→**watcher(WXDi-P04-035#1) が【ランサー】を獲得**を実 battle_states で確認（grants に2体分のランサー＝spell付与＋COPYの証拠）。
+- golden に発火条件テスト1件追加（96/96）。回帰：typecheck・golden 96/0FAIL・smoke 全0・fuzz 全0・実機 driver 既定11件 全PASS。**engineUnwiredTimings は空（残0）。**
+
+---
+
 ## 残り C1 timing 3種の実 UI 検証完了＋resume経路の取りこぼし修正（2026-06-30・zerom）
 
 C1 の残 timing 3種を `verifyBattleDrive.mjs` のシナリオ追加で実 UI 検証し全 PASS。検証過程で **resume 経路（handleEffectInteraction）の取りこぼしバグ**を1件発見・修正。
