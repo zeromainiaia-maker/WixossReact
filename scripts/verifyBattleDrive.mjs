@@ -181,13 +181,8 @@ const scenarios = {
       top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
     },
     async drive(page, H) {
-      const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
-      if (await gb.count() && await gb.isVisible().catch(() => false)) { await gb.click().catch(() => {}); H.log('グロウ: btn:グロウ'); }
-      else H.log('グロウ: ボタン見つからず');
-      await page.waitForTimeout(900);
-      const cand = page.getByRole('button', { name: /ＭＡＩＳ/ }).first();
-      if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); H.log('グロウ先: †ＭＡＩＳ†（コイン払い）'); }
-      else H.log('グロウ先: 見つからず');
+      const grew = await H.openGrow(/ＭＡＩＳ/);
+      H.log('グロウ実行（コイン払い）:', grew ? 'OK' : '失敗');
       for (let s = 0; s < 12; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/coinpaid-${s}.png`, fullPage: true });
