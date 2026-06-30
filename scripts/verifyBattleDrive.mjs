@@ -390,8 +390,7 @@ function startDev() {
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
 const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));
-// 既定スイート（全PASS）。deckshuffle は調査保留のため既定から除外（明示指定で実行可）。
-const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'wd07012']; // 自分ターン系→CPUターンの順
+const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'wd07012']; // 自分ターン系→CPUターンの順
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
