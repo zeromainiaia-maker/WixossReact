@@ -538,7 +538,7 @@ try {
       const h = { apikey: ANON, Authorization: `Bearer ${token}` };
       const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
       const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
-      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,game_logs`, { headers: h });
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,pending_spell,pending_effect,game_logs`, { headers: h });
       const row = (await r2.json())?.[0]; if (!row) return { error: 'no row' };
       const hs = row.host_state ?? {};
       const buff = (hs.temp_power_mods ?? []).find(m => m.cardNum === 'PR-470A#1' && (m.delta ?? 0) >= 5000);
@@ -546,9 +546,11 @@ try {
       const stackLen = stack?.entries?.length ?? (Array.isArray(stack) ? stack.length : 0);
       const logTail = (row.game_logs ?? []).slice(-8).map(l => [l.action, l.detail].filter(Boolean).join(' '));
       return {
-        host: { deck_shuffled_count: hs.deck_shuffled_count ?? 0 },
+        host: { deck_shuffled_count: hs.deck_shuffled_count ?? 0, hand: (hs.hand ?? []).length, trash: (hs.trash ?? []).length },
         stackLen,
         pr470aBuffed: !!buff,
+        pendingSpell: row.pending_spell ? (row.pending_spell.card_num ?? 'y') : null,
+        pendingEffect: row.pending_effect ? (row.pending_effect.interaction?.type ?? 'y') : null,
         logTail,
       };
     }, { SUPA_URL, ANON }),
