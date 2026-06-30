@@ -6800,6 +6800,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const dsInlineSU = collectDeckShuffleInline(hostState, guestState);
         if (dsInlineSU.entries.length > 0) { spellUseEntries.push(...dsInlineSU.entries); hostState = dsInlineSU.hostState; guestState = dsInlineSU.guestState; }
       }
+      appendBattleLogs([`[DIAG-CUTIN] done=${result.done} cntB=${bs.host_state?.deck_shuffled_count ?? 0} cntA=${(hostState as PlayerState).deck_shuffled_count ?? 0} suEntries=${spellUseEntries.length}`]);
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
       if (spellUseEntries.length > 0) {
         const existingStackSU = bs.effect_stack ?? null;
