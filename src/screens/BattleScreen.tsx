@@ -12005,7 +12005,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                       const trashColor = myEnergyTrashSubInfo.colorOverrideMap.get(num);
                       const borderColor = isSel ? '#f44336' : isTrashWild ? '#4caf50' : trashColor ? '#9c27b0' : isWild ? '#ffcc00' : undefined;
                       return (
-                        <div key={i} onClick={() => toggleArtsCostCard(i)}
+                        <div key={i} data-testid={`artscost-energy-${i}`} onClick={() => toggleArtsCostCard(i)}
                           onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                           onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                           onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
