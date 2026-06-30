@@ -26,6 +26,7 @@ scripts/firebase-service-account.json
 .vscode/*
 !.vscode/extensions.json
 .idea
+.vs
 .DS_Store
 *.suo
 *.ntvs*
