@@ -436,6 +436,20 @@ async function injectScenario(page, spec) {
   }, { SUPA_URL, ANON, CPU_PLAYER_ID, spec });
 }
 
+// ⚠ `vite preview` はビルド済み dist を配信するため、ソース変更を反映するには毎回 build が必須。
+//    （省略すると古いバンドルを検証して「直したのに FAIL」の罠にハマる。SKIP_BUILD=1 で明示スキップ可）
+function buildFirst() {
+  if (process.env.SKIP_BUILD === '1') { console.log('build スキップ（SKIP_BUILD=1）'); return Promise.resolve(); }
+  return new Promise((resolve, reject) => {
+    console.log('dist を build 中…（最新ソース反映）');
+    const b = spawn('npm', ['run', 'build'], { shell: true, stdio: ['ignore', 'ignore', 'pipe'] });
+    let err = '';
+    b.stderr.on('data', (d) => { err += d.toString(); });
+    b.on('error', reject);
+    b.on('exit', (code) => code === 0 ? resolve() : reject(new Error('build 失敗:\n' + err.slice(-2000))));
+  });
+}
+
 function startDev() {
   return new Promise((resolve, reject) => {
     const proc = spawn('npm', ['run', 'preview'], { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
