@@ -403,11 +403,25 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'LOOK_AND_REORDER': {
       const src = a.source?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
       const loc = a.source?.location === 'hand' ? '手札' : 'デッキの上';
+      const cntJa = a.count === 99 ? '' : numJa(a.count) + '枚';
       if (a.destination?.position === 'split_top_bottom') {
-        return `${src}${loc}${a.count === 99 ? '' : numJa(a.count) + '枚'}を見て、好きな枚数を好きな順番でデッキの一番上に置き、残りを好きな順番でデッキの一番下に置く`;
+        return `${src}${loc}${cntJa}を見て、好きな枚数を好きな順番でデッキの一番上に置き、残りを好きな順番でデッキの一番下に置く`;
       }
-      const ops = [a.reorder ? '並べ替える' : '見る', a.canTrash ? '（不要札はトラッシュ可）' : ''].filter(Boolean).join('');
-      return `${src}${loc}${a.count === 99 ? '' : numJa(a.count) + '枚'}を${ops}`;
+      // destination（行き先）を原文どおり描画する。reorder＝「好きな順番で〜に置く/戻す」。
+      const dest = a.destination;
+      const destJa = dest?.location === 'deck'
+        ? (dest.position === 'bottom' ? '好きな順番でデッキの一番下に置く'
+         : dest.position === 'top' ? '好きな順番でデッキの一番上に戻す'
+         : '好きな順番でデッキに戻す')
+        : dest?.location === 'life_cloth' ? '好きな順番でライフクロスの上に置く'
+        : '';
+      // canTrash＝「不要なカードをトラッシュに置き、残りを〜」（trashして残りを行き先へ）。
+      if (a.reorder && destJa) {
+        const trashJa = a.canTrash ? 'その中から不要なカードをトラッシュに置き、残りを' : '';
+        return `${src}${loc}から${cntJa}を見て、${trashJa}${destJa}`;
+      }
+      // reorder無し／行き先不明＝見るだけ（canTrash は補助注記）
+      return `${src}${loc}${cntJa}を見る${a.canTrash ? '（不要札はトラッシュに置いてもよい）' : ''}`;
     }
     case 'MILL': return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚トラッシュに置く`;
     case 'LIFE_CRASH': return a.triggerBurst === false
