@@ -52,6 +52,15 @@
 
 **進め方**＝1カードずつ effects JSON を原文どおりの構造に手修正→逆翻訳がJSON宣言を反映して原文一致するか確認→smoke/golden/fuzz→push（§0 標準ワークフロー＋機構実装の型）。**原文コピーでの一括潰しは禁止**（実装未完成を隠蔽し検証目的に反する）。
 
+## 1.8. 意味照合監査（semantic audit）の worklist（2026-07-03 新設・仕組みは [SEMANTIC_AUDIT.md](./SEMANTIC_AUDIT.md)）
+
+原文 vs effects JSON を LLM で意味比較する検査パイプライン（`scripts/semanticAudit{Extract,Run,Triage}.mjs`）を構築済み。パイロット（stub群30枚精査）で **precision 約78%・30枚中17枚に確定バグ**（同型★0・smoke/fuzz 緑を通過済みのカード）。
+
+- [ ] **系統①：相手デッキ削りの owner 取り違え＝確定76枚**。「対戦相手のデッキの上から…トラッシュ」が `TRASH{DECK_CARD, owner:'self'}`＝自分のデッキを削る実挙動。リスト再取得＝`node scratchpad/_auditSystematicScan.mjs`。パーサー修正＋既存JSONの一括是正（§0 ルールどおり系統1回確立→verify）。
+- [ ] **系統②：GRANT_PROTECTION `count:'ALL'`＋subjectFilter無し＝48件**。保護コレクタの `count===1` 分岐に入らず no-op 疑い。原文「このシグニは…受けない」単体保護が約半数。
+- [ ] **パイロット findings の個別修正**（真バグ39件＋stub群残20枚・clean群50枚の findings）＝`node scripts/semanticAuditTriage.mjs <outDir>` で精査→1カードずつ §0 ワークフロー。
+- [ ] **スケールアップ**＝stub群全2,306枚へ拡大（SEMANTIC_AUDIT.md「スケールアップの進め方」）。
+
 ---
 
 ## 2. 触らなくてよい/枯れた系統（調査済み）
