@@ -1259,6 +1259,17 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:[^。]*?正面にシグニがない場合、)?このシグニをアタックした(?:その)?シグニの正面に配置してもよい/);
         if (m) return m[0];
       }
+      // コラボライバーを呼ぶ（COLLAB・engine実装済み）＝「コラボライバーN人を呼ぶ」。
+      if (a.id === 'COLLAB') {
+        const m = currentCardText.match(/コラボライバー[０-９\d一二三四]*人を呼ぶ/);
+        if (m) return m[0];
+      }
+      // スペルを無償・限定無視で使用（PLAY_SPELL_FREE_IGNORE_RESTRICTION・engine実装済み）＝
+      // 「（あなたの手札/対戦相手のトラッシュ/いずれかのプレイヤーのトラッシュ）から…スペル…コストを支払わずに限定条件を無視して使用する」。
+      if (a.id === 'PLAY_SPELL_FREE_IGNORE_RESTRICTION') {
+        const m = currentCardText.match(/(?:あなたの手札|対戦相手のトラッシュ|いずれかのプレイヤーのトラッシュ)から[^。]*?スペル[^。]*?限定条件を無視して使用する/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
