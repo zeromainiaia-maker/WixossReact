@@ -1311,6 +1311,31 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたの手札からカードを[０-９\d]*枚まで(?:この)?シグニの下に置く/);
         if (m) return m[0];
       }
+      // クラス宣言（DECLARE_CLASS・engine実装済み）＝「クラスN つを宣言する」（後続の探索は別描画）。
+      if (a.id === 'DECLARE_CLASS') {
+        const m = currentCardText.match(/クラス[０-９\d一]*つを宣言する/);
+        if (m) return m[0];
+      }
+      // ゲート設置（PLACE_OWN_GATE・engine実装済み）＝「あなたのシグニゾーンN つに【ゲート】M つを置く」。
+      if (a.id === 'PLACE_OWN_GATE') {
+        const m = currentCardText.match(/あなたのシグニゾーン[０-９\d]*つに【ゲート】[０-９\d]*つを置く/);
+        if (m) return m[0];
+      }
+      // デッキトップ公開しアタッカー配置（REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI・engine実装済み）。
+      if (a.id === 'REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI') {
+        const m = currentCardText.match(/あなたのデッキの一番上を公開する。それがシグニの場合、それをアタックしているシグニとしてダウン状態で場に出す/);
+        if (m) return m[0];
+      }
+      // 対象を自身へ強制（FORCE_TARGET_SELF・engine実装済み）＝「（対戦相手のターンの間、）対戦相手は、…対象を選ぶ際、可能ならばこのシグニを対象とする」。
+      if (a.id === 'FORCE_TARGET_SELF') {
+        const m = currentCardText.match(/(?:対戦相手のターンの間、)?対戦相手は、[^。]*?対象を選ぶ際、可能ならばこのシグニを対象とする/);
+        if (m) return m[0];
+      }
+      // 手札1枚選ぶ（CHOOSE_HAND_CARD・engine実装済み）＝「あなたの手札をN枚選ぶ」（後続の宣言当ては別描画）。
+      if (a.id === 'CHOOSE_HAND_CARD') {
+        const m = currentCardText.match(/あなたの手札を[０-９\d一]*枚選ぶ/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
