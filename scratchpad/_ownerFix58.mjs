@@ -40,7 +40,7 @@ for (const f of files) {
     }
   }
   totalFlips += flips;
-  if (flips && !DRY) writeFileSync(p, JSON.stringify(data), 'utf8');
+  if (flips && !DRY) writeFileSync(p, JSON.stringify(data) + eol, 'utf8');
   console.log(`${f}: ${flips} flips${flips && !DRY ? ' (written)' : ''}`);
 }
 console.log(`\n合計 flip=${totalFlips} / card=${cardsHit.size} (期待 card=58)`);
