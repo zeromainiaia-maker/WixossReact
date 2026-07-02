@@ -1465,6 +1465,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/そのカードを【マジックボックス】としてあなたのシグニゾーンに設置してもよい(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
+      // 引用能力付与（GRANT_QUOTED_ACTIVATE_ABILITY＝引用【起】／SIGNI_GRANT_QUOTED_CONSTANT_ABILITY＝引用【常】）
+      // ＝「…は「【起】/【常】：…」を得る(。（補足）)」を原文抽出。主語は直近の。／：以降、引用内は「」を得る の最初の閉じまで。
+      if (a.id === 'GRANT_QUOTED_ACTIVATE_ABILITY' || a.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY') {
+        const m = currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
