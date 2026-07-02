@@ -5,6 +5,15 @@
 
 ---
 
+## 逆翻訳機の本格改善㉒：引用能力付与型の原文抽出（GRANT_QUOTED_ACTIVATE_ABILITY/SIGNI_GRANT_QUOTED_CONSTANT_ABILITY）（2026-07-02・zerom）
+
+引用【起】/【常】能力の付与を「…は「…」を得る(。（補足）)」で原文抽出（`/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/`＝主語は直近の。／：以降、引用内は最初の「」を得る の閉じまで非貪欲）。
+- **`GRANT_QUOTED_ACTIVATE_ABILITY`**（WX13-058/WXK08-078・SEQUENCE内WXDi-P09-066）＝引用【起】付与。**表示に併記されていた `GRANT_SIGNI_ABOVE_ABILITY`／`POWER_MINU`／`WXK08-078` は STUBS.md 説明列内の文字列で実 a.id ではなく、原文化で desc ごと消滅**。
+- **`SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`**（WXDi-P10-025/P14-008）＝引用【常】付与。
+- 検証＝全対象で引用が正しく閉じ原文一致・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。decompile_sheet2/4/8＋下流再生成。**英語ID漏れ総数 378→367**（GRANT_QUOTED_ACTIVATE_ABILITY×3・GRANT_SIGNI_ABOVE_ABILITY×3・POWER_MINU×3・SIGNI_GRANT_QUOTED_CONSTANT_ABILITY×2 が同時消滅）。WXDi-P09-066 は SEQUENCE 内で該当STUBのみ原文化（他STUB=SOUL_OP/並べ替えは別途）。
+
+---
+
 ## 逆翻訳機の本格改善㉑：原文抽出3系統（COPY_SIGNI/PLACE_MAGIC_BOX/CLASS_CHANGE拡張）（2026-07-02・zerom）
 
 - **`COPY_SIGNI`**（WX17-001/WXK04-005）＝「ターン終了時まで、対象のあなたのシグニN体はあなたのトラッシュにある対象のシグニN枚と同じカードになる」。
