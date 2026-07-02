@@ -139,7 +139,7 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
 
   // source をどのゾーンに置くか（トラッシュ発動/手発動/自身thisCardOnly source）
   const e = eff as unknown as Record<string, unknown>;
-  const { targets, sources } = collectTargetsSources(eff);
+  const { targets, sources, zoneNeeds } = collectTargetsSources(eff);
   const selfSrcThis = sources.find(s => s.owner === 'self' && (s.filter.thisCardOnly || s.stype === 'TRASH_CARD' || s.stype === 'HAND_CARD'));
   let sourceZone: 'signi' | 'trash' | 'hand' = 'signi';
   if (e.trashActivated || (selfSrcThis && selfSrcThis.stype === 'TRASH_CARD')) sourceZone = 'trash';
