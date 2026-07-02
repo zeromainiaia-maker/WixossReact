@@ -224,19 +224,19 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
 type Snapshot = {
   loc: Map<string, string>;              // instanceId → 位置ラベル（"自hand" 等）
   power: Map<string, number>;            // instanceId → temp_power_mods 合計
+  flags: Map<string, string>;            // instanceId → 状態フラグ（凍結/ダウン/ウィルス/血晶/クロス/チャーム/アクセ）
+  kw: Map<string, string>;               // instanceId → 付与キーワード
+  blocked: { 自: string; 相: string };   // player-level 行動制限（blocked_actions + blocked_card_names + 付与）
   coins: { 自: number; 相: number };
-  zoneCount: Map<string, number>;        // 位置ラベル → 枚数
 };
 
 function snapshot(ctx: ExecCtx): Snapshot {
   const loc = new Map<string, string>();
   const power = new Map<string, number>();
-  const zoneCount = new Map<string, number>();
-  const put = (id: string | null | undefined, where: string) => {
-    if (!id) return;
-    loc.set(id, where);
-    zoneCount.set(where, (zoneCount.get(where) ?? 0) + 1);
-  };
+  const flags = new Map<string, string>();
+  const kw = new Map<string, string>();
+  const blocked: Record<'自' | '相', string> = { 自: '', 相: '' };
+  const put = (id: string | null | undefined, where: string) => { if (id) loc.set(id, where); };
   for (const [side, st] of [['自', ctx.ownerState], ['相', ctx.otherState]] as const) {
     const s = st as PlayerState;
     s.deck.forEach((id, i) => put(id, `${side}デッキ[${i}]`));
@@ -247,21 +247,38 @@ function snapshot(ctx: ExecCtx): Snapshot {
     s.energy.forEach(id => put(id, `${side}エナ`));
     (s.bonds ?? []).forEach(id => put(id, `${side}ボンド`));
     s.field.lrig.forEach(id => put(id, `${side}ルリグ`));
-    s.field.signi.forEach((stack, z) => (stack ?? []).forEach((id, d) => put(id, `${side}シグニ${z}${d === (stack!.length - 1) ? '(上)' : '(下)'}`)));
+    s.field.signi.forEach((stack, z) => {
+      (stack ?? []).forEach((id, d) => put(id, `${side}シグニ${z}${d === (stack!.length - 1) ? '(上)' : '(下)'}`));
+      const top = stack?.at(-1); if (!top) return;
+      const fl: string[] = [];
+      if (s.field.signi_frozen?.[z]) fl.push('凍結');
+      if (s.field.signi_down?.[z]) fl.push('ダウン');
+      if (s.field.signi_virus?.[z]) fl.push('ウィルス');
+      if (s.field.signi_armor?.[z]) fl.push('血晶');
+      if (s.field.cross_state?.[z]) fl.push('クロス');
+      if (s.field.signi_charms?.[z]) fl.push('チャーム有');
+      if (s.field.signi_acce?.[z]) fl.push('アクセ有');
+      if (fl.length) flags.set(top, fl.join(','));
+    });
     (s.field.assist_lrig_l ?? []).forEach(id => put(id, `${side}アシストL`));
     (s.field.assist_lrig_r ?? []).forEach(id => put(id, `${side}アシストR`));
     put(s.field.check, `${side}チェック`);
     put(s.field.key_piece, `${side}キー`);
     (s.field.free_zone ?? []).forEach(id => put(id, `${side}フリー`));
     (s.field.beat_zone ?? []).forEach(id => put(id, `${side}ビート`));
-    (s.field.signi_charms ?? []).forEach((id, z) => put(id, `${side}チャーム${z}`));
-    (s.field.signi_acce ?? []).forEach((id, z) => put(id, `${side}アクセ${z}`));
     (s.field.signi_traps ?? []).forEach((id, z) => put(id, `${side}トラップ${z}`));
     (s.field.signi_soul ?? []).forEach((id, z) => put(id, `${side}ソウル${z}`));
     (s.field.puppet_signi ?? []).forEach(id => put(id, `${side}傀儡`));
     for (const m of (s.temp_power_mods ?? [])) power.set(m.cardNum, (power.get(m.cardNum) ?? 0) + m.delta);
+    for (const m of (s.power_mods_until_opp_turn ?? [])) power.set(m.cardNum, (power.get(m.cardNum) ?? 0) + m.delta);
+    for (const [id, kws] of Object.entries(s.keyword_grants ?? {})) if (kws.length) kw.set(id, [...kws].sort().join(','));
+    for (const [id, kws] of Object.entries(s.keyword_grants_until_opp_turn ?? {})) if (kws.length) kw.set(id, [...(kw.get(id)?.split(',') ?? []), ...kws].sort().join(','));
+    blocked[side] = [
+      ...(s.blocked_actions ?? []), ...(s.blocked_card_names ?? []),
+      ...(s.field_keyword_grants_active ?? []).map(k => `全付与:${k}`),
+    ].sort().join('|');
   }
-  return { loc, power, coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins }, zoneCount };
+  return { loc, power, flags, kw, blocked, coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins } };
 }
 
 /** 位置ラベルの側（自/相）を判定して owner違いを強調するための小道具 */
