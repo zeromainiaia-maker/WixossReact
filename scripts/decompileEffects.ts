@@ -1380,7 +1380,7 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 相手ドロー制限（OPP_DRAW_LIMIT）＝「（次の対戦相手の／その）ドローフェイズの間…対戦相手はカードを合計N枚までしか引けない」を原文抽出。
       if (a.id === 'OPP_DRAW_LIMIT') {
-        const m = currentCardText.match(/(?:次の対戦相手の|その)?(?:ターンの)?ドローフェイズの間[に、]?対戦相手はカードを合計[０-９\d一二三]+枚までしか引けない。?/);
+        const m = currentCardText.match(/(?:次の対戦相手の|その)?(?:ターンの)?ドローフェイズの間[に、]?対戦相手はカードを合計[０-９\d一二三]+枚までしか引けない/);
         if (m) return m[0];
       }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
