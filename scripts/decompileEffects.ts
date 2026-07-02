@@ -1166,7 +1166,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // 条件は 【常】に前置描画されないため条件ごと currentCardText から抽出。
       if (a.id === 'LOSE_COLOR_ALL_ZONES') {
         const m = currentCardText.match(/(?:あなたの場に[^。]*?いないかぎり、)?このカードはすべての領域で色を失う/);
-        if (m) return m[0];
+        if (m) return '@@MARKER@@' + m[0];
         return 'このカードはすべての領域で色を失う';
       }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
