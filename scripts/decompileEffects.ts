@@ -1191,6 +1191,13 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/[^。]*?の【アクセ】にする/);
         if (m) return m[0].replace(/^【[^】]*】[^：。]*：/, '');
       }
+      // 複数処理をまとめて行う（DO_THREE_THINGS・engine実装済み＝原文の①②③④を動的パースして実行）＝
+      // 「（以下の）N つを行う。①…②…③…（④…）」全体を currentCardText から抽出（。を跨ぐので末尾まで）。
+      // BurstText の "-" 連結は末尾 replace で除去。SEQUENCE 先頭に来る場合は SEQUENCE 側で本STUBのみ描画。
+      if (a.id === 'DO_THREE_THINGS') {
+        const m = currentCardText.match(/以下の[０-９\d一二三四]+つを行う[\s\S]*/);
+        if (m) return m[0].replace(/\s*-\s*$/, '').trim();
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
