@@ -143,7 +143,11 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     const deck = takeN(12, i => `${side}デッキ上${i + 1}`);
     const hand = takeN(5, i => `${side}手札${i + 1}`);
     const trash = takeN(3, i => `${side}トラッシュ${i + 1}`);
-    const signi: (string[] | null)[] = [[take(`${side}S甲`)], [take(`${side}S乙`)], [take(`${side}S丙`)]];
+    // source が signi 以外に居る場合、owner の zone0 を空けて「場に出す」着地先を確保する
+    const emptyZone0 = isSource && sourceZone !== 'signi';
+    const signi: (string[] | null)[] = [
+      emptyZone0 ? null : [take(`${side}S甲`)], [take(`${side}S乙`)], [take(`${side}S丙`)],
+    ];
     if (isSource) {
       labels.set(sourceNum, `${side}S源`);
       if (sourceZone === 'signi') signi[0] = [sourceNum];
