@@ -5,7 +5,7 @@
 
 ---
 
-## 逆翻訳機の本格改善⑪：SERVANT_ZERO/SEED/BARRIER/LOSE_COLOR/MAGIC_BOX の英語ID漏れを是正（2026-07-02・zerom）＝6系統
+## 逆翻訳機の本格改善⑪：SERVANT_ZERO/SEED/BARRIER/LOSE_COLOR/MAGIC_BOX/CAST_FROM_OPP_TRASH の英語ID漏れを是正（2026-07-02・zerom）＝7系統
 
 ⑩に続き engine 実装済みだが逆翻訳描画のみ欠落していた系統を `decompileEffects.ts` で `currentCardText` から原文抽出（engine 不変・表現のみ）。
 
