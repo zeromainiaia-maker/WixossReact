@@ -1393,6 +1393,26 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/[^。：]*新たに[^。]*出せない(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
+      // 相手シグニのアタックパワー制限（OPP_SIGNI_ATTACK_POWER_RESTRICT）＝「このターン、対戦相手はパワーがN以下のシグニでアタックできない」を原文抽出。
+      if (a.id === 'OPP_SIGNI_ATTACK_POWER_RESTRICT') {
+        const m = currentCardText.match(/このターン、対戦相手はパワーが[０-９\d]+以下のシグニでアタックできない/);
+        if (m) return m[0];
+      }
+      // コイン使用先制限（COIN_USE_RESTRICTION）＝「このゲームの間、あなたは《コインアイコン》をスペルとシグニにしか支払えない」を原文抽出。
+      if (a.id === 'COIN_USE_RESTRICTION') {
+        const m = currentCardText.match(/このゲームの間、あなたは《コインアイコン》をスペルとシグニにしか支払えない/);
+        if (m) return m[0];
+      }
+      // 相手が色を宣言（OPP_DECLARE_COLOR）＝「対戦相手は色N つを宣言する」を原文抽出（宣言色によるトラッシュ処理は後続の別効果側で描画）。
+      if (a.id === 'OPP_DECLARE_COLOR') {
+        const m = currentCardText.match(/対戦相手は色[０-９\d一]つを宣言する/);
+        if (m) return m[0];
+      }
+      // 自シグニの下にカードを置く（HAND_CARDS_UNDER_SIGNI / PLACE_SIGNI_UNDER_SELF_OPT）＝カード別（手札から／場のシグニ）に「…をこのシグニの下に置いてもよい」を原文抽出。
+      if (a.id === 'HAND_CARDS_UNDER_SIGNI' || a.id === 'PLACE_SIGNI_UNDER_SELF_OPT') {
+        const m = currentCardText.match(/あなたの[^。]*?をこのシグニの下に置いてもよい(?:。（[^）]*）)?/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
