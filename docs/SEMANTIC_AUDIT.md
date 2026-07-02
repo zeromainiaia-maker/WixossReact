@@ -1,7 +1,6 @@
 # 意味照合監査（Semantic Audit）— 原文 vs effects JSON の LLM 意味比較
 
-> ⚠️ **主軸から外した**：LLM方式は固定プロンプト再送などで完成まで高コスト。原文照合の主軸は
-> [BEHAVIOR_AUDIT.md](BEHAVIOR_AUDIT.md)（実行結果を目視照合・LLM不使用）に移行。本方式は「発見器」実績（下記）を lint 化して引き継ぐ。
+> ⚠️ **原文照合の主軸は [BEHAVIOR_AUDIT.md](BEHAVIOR_AUDIT.md)（実行結果を目視照合・LLM不使用・決定論・基盤実装済）**。本方式（LLM）は主軸ではなく**補完の発見器**＝board-diff で捕まえられない STUB/MANUAL の意味エラー（reversed filter・条件欠落・対象取り違え）に強い。実績（下記の系統バグ）を worklist として引き継ぐ。
 
 > **目的**: 「JSON がカード原文を正しく表現しているか」を、逆翻訳の**文字列一致に頼らず**、LLM の意味比較で直接検査する。
 > 逆翻訳（`decompileEffects.ts`）が原理的に検査できない **STUB/MANUAL カード（2,306枚）** を検査できるのが最大の利点。
