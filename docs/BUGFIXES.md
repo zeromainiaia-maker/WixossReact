@@ -5,6 +5,19 @@
 
 ---
 
+## 逆翻訳機の本格改善⑪：SERVANT_ZERO/SEED/BARRIER/LOSE_COLOR の英語ID漏れを是正（2026-07-02・zerom）＝5系統
+
+⑩に続き engine 実装済みだが逆翻訳描画のみ欠落していた系統を `decompileEffects.ts` で `currentCardText` から原文抽出（engine 不変・表現のみ）。
+
+- **`*_SERVANT_ZERO`系4id（SIGNI_/MAKE_/MAKE_MULTI_/ALL_OPP_SIGNI_・8効果）**＝「（ターン終了時まで、）対戦相手の（すべての）シグニ（N体）を《サーバント ＺＥＲＯ》にする」。対象数/範囲/語順差を `/(?:ターン終了時まで、)?対戦相手の(?:すべての)?シグニ[^。]*?《サーバント[　\s]*ＺＥＲＯ》にする/` で抽出（ベットコスト前置は除外）。WX17-005/WX19-002/WXDi-P07-041/P09-005/P11-031/WXK04-005。ベット強化分は別STUB `BET_ALTERNATIVE`（機構待ち）で処理され重複なし。
+- **`SEED_BLOOM`/`SEED_BLOOM_OPTIONAL`（6効果）**＝「（あなたの）【シード】（N枚/好きな枚数）を…開花する」。`/(?:あなたの)?[^。：]*【シード】[^。：]*?開花する/`（コスト句 : はまたがない）。WXK04-001/060/WDK07-Y01/Y07/WXK10-059。
+- **`PLACE_SEED_FROM_REVEALED`（8効果）**＝LOOK/シャッフルは別描画、本体は「その中からカードN枚を【シード】としてあなたのシグニゾーンに出す（してもよい）」。`/その中から[^。]*?【シード】として[^。]*?出(?:してもよい|す)/`。WDK07-Y02/Y03/Y04/Y07/WXK04-007/008/009/WXK05-007。
+- **`GAIN_LRIG_BARRIER`（5効果）**＝「【ルリグバリア】/【シグニバリア】N つを得る」。`/【(?:ルリグ|シグニ)バリア】[０-９\d]*つを得る/`。SPDi43-26/WX24-P3-026/P4-013/WXDi-P14-001/P16-003。
+- **`LOSE_COLOR_ALL_ZONES`（CONTINUOUS・7効果）**＝条件が 【常】に前置描画されないため条件ごと抽出「（あなたの場に＜X＞のルリグがN体いないかぎり、）このカードはすべての領域で色を失う」。`/(?:あなたの場に[^。]*?いないかぎり、)?このカードはすべての領域で色を失う/`。WXDi-P16-086〜093。
+- 検証＝全対象で原文一致・**英語ID漏れ 548→514**（5系統は0）・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。decompile_sheet2/3/4/5/7/8/9/10＋下流再生成。⚠残る中規模クラスタ（`REPEAT_*`/`DO_THREE_THINGS`/`CAST_FROM_OPP_TRASH`/`OPEN_MAGIC_BOX`/`COLLAB`/`LOOK_TOP_*`/`SIGNI_REPOSITION`/`ACCE_FROM_HAND`）は原文表現が heterogeneous（枚数動的/語順不揃い/他アクションと同一文）で単一正規表現に不適＝個別精査要。`BET_*`系（38）は機構待ち。
+
+---
+
 ## 逆翻訳機の本格改善⑩：DOWN_UP/TRASH_AT_TURN_END/CHOOSE_COLOR/CRAFT の英語ID漏れを是正（2026-07-02・zerom）＝4系統
 
 engine 実装済みだが逆翻訳描画のみ欠落し STUBS.md 由来の説明文で英語IDを露出していた4系統を `decompileEffects.ts` で `currentCardText` から原文抽出して描画（engine 不変・表現のみ）。
