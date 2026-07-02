@@ -1286,6 +1286,31 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたはこの効果をあと[０-９\d]+回まで繰り返してもよい(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
+      // チャームなければ自トラッシュ（SELF_TRASH_IF_NO_OPP_CHARM・engine実装済み）＝「対戦相手の場に【チャーム】がない場合、このシグニをトラッシュに置く」。
+      if (a.id === 'SELF_TRASH_IF_NO_OPP_CHARM') {
+        const m = currentCardText.match(/対戦相手の場に【チャーム】がない場合、このシグニをトラッシュに置く/);
+        if (m) return m[0];
+      }
+      // アクセをエナへ（ACCE_TO_ENERGY/PLACE_ACCE_SIGNI_TO_ENERGY・engine実装済み）＝「あなたの手札から《アクセアイコン》を持つシグニをN枚までエナゾーンに置く」。
+      if (a.id === 'ACCE_TO_ENERGY' || a.id === 'PLACE_ACCE_SIGNI_TO_ENERGY') {
+        const m = currentCardText.match(/あなたの手札から《アクセアイコン》を持つシグニを[０-９\d]*枚まで(?:あなたの)?エナゾーンに置く/);
+        if (m) return m[0];
+      }
+      // 捨てた枚数+Nドロー（DRAW_DISCARD_COUNT_PLUS_N・engine実装済み）＝「この方法でカードをN枚以上捨てた場合、捨てた枚数にMを加えた枚数のカードを引く」。
+      if (a.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
+        const m = currentCardText.match(/この方法でカードを[０-９\d]*枚以上捨てた場合、捨てた枚数に[０-９\d]*を加えた枚数のカードを引く/);
+        if (m) return m[0];
+      }
+      // ライド（CENTER_LRIG_RIDES_ON_SIGNI・engine実装済み）＝「【ライド】（ターン終了時まで、このルリグは…に乗る。…ドライブ状態のルリグはアタックできない）」。
+      if (a.id === 'CENTER_LRIG_RIDES_ON_SIGNI') {
+        const m = currentCardText.match(/【ライド】（[\s\S]*?アタックできない）/);
+        if (m) return m[0];
+      }
+      // 手札をシグニの下に（HAND_CARDS_UNDER_SIGNI・engine実装済み）＝「あなたの手札からカードをN枚までこのシグニの下に置く」。
+      if (a.id === 'HAND_CARDS_UNDER_SIGNI') {
+        const m = currentCardText.match(/あなたの手札からカードを[０-９\d]*枚まで(?:この)?シグニの下に置く/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
