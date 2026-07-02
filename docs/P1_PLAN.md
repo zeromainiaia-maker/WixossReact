@@ -35,7 +35,8 @@
 ## 3. 現在地と今後の計画（バトン）
 > 3人は**同時に作業しない**。**① `git pull` → ② 本節を読む → ③ 作業 → ④ 本節と `BUGFIXES.md` を更新 → ⑤ commit & push** を回す。詳細な修正履歴は `BUGFIXES.md`（新しい順）に積む。ここは**現在地・計画・残作業数だけ**。
 
-### 📍 進捗サマリ（最終更新 2026-06-30）
+### 📍 進捗サマリ（最終更新 2026-07-02）
+- **🆕 セッション（2026-07-02・zerom）＝逆翻訳機の英語ID漏れ STUB を原文抽出で是正（4系統・BUGFIXES⑩）**＝engine実装済みSTUBの説明文が STUBS.md 由来で英語IDを露出していた4系統を `decompileEffects.ts` で `currentCardText` から原文抽出して描画。`DOWN_UP_SIGNI_AND_CHOOSE`(7)／`TRASH_AT_TURN_END`(12)／`CHOOSE_COLOR_FROM_LIST`(4)／`CRAFT_TO_LRIG_DECK`+`ADD_CRAFT_TO_LRIG_DECK`(9)。全て原文一致・同型★0維持・typecheck緑・engine不変。**英語ID漏れ総数 582→548**。次候補＝`ACCE_FROM_HAND`(9・原文表現 heterogeneous で要個別)／`SIGNI_SERVANT_ZERO`系(計24)／`SEED`系(20)／`LOOK_TOP`系(20)／`REPEAT`系(14)。残一覧＝`grep -ohE "\[STUB:[^]]*[A-Z][A-Z0-9_]{4,}[^]]*\]" docs/decompile_sheet*.txt | grep -oE "[A-Z][A-Z0-9_]{4,}" | grep -vE "^(STUB|COUNT|AUTO|WX|CONTINUOUS|SELECT_TARGET)" | sort | uniq -c | sort -rn`。全体計画は [ROADMAP.md](./ROADMAP.md)。
 - **🆕 セッション（2026-06-30）＝逆翻訳機の英語ID漏れ STUB を原文抽出で是正（4系統）**＝engine実装済みSTUBの説明文が STUBS.md 由来で英語IDを露出していた4系統を `decompileEffects.ts` で `currentCardText` から原文抽出して描画。⑥`COPY_LRIG_NAME_ABILITY`(16・過日の巫女系)／⑦`DESIGNATE_SIGNI_ZONE`(12)／⑧`SUMMON_RESONA_FROM_LRIG_DECK`(11)／⑨`SONG_FRAGMENT`(11)。全て同型★0維持・typecheck緑・engine不変。詳細 BUGFIXES.md ⑥〜⑨。**残英語ID漏れ STUB（多い順）＝DOWN_UP_SIGNI_AND_CHOOSE(14)／CHOOSE_COLOR_FROM_LIST(10)／CRAFT_TO_LRIG_DECK(9)／ACCE_FROM_HAND(9)／SERVANT_ZERO系(8)／SEED_BLOOM系 等**。`grep -ohE "\[STUB:[^]]*[A-Z][A-Z0-9_]{4,}[^]]*\]" docs/decompile_sheet*.txt | grep -oE "[A-Z][A-Z0-9_]{4,}" | grep -vE "^(STUB|COUNT|AUTO|WX|CONTINUOUS|SELECT_TARGET)" | sort | uniq -c | sort -rn` で残一覧。BET_MECHANIC 系は機構待ち。
 
 ### 📍 進捗サマリ（最終更新 2026-06-30・zerom 作業中）
