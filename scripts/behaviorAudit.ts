@@ -67,56 +67,135 @@ for (const [id, card] of cardMap) {
 const signiPool = [...cardMap.values()].filter(c => c.Type === 'シグニ' && +(c.Power || '0') > 0).map(c => c.CardNum);
 const lrigCard = [...cardMap.values()].find(c => c.Type === 'ルリグ')?.CardNum ?? null;
 
-/** ラベル付き盤面と instanceId→label マップを返す。source は必ず field.signi[0] に置く。 */
-function buildScenario(sourceNum: string): { ctx: ExecCtx; labels: Map<string, string> } {
+// ── 段階2: 効果対応のシナリオ組み立て補助 ──
+// 状態/相対系フィルタキー（CardData だけでは選別できない＝盤面フラグで別途表現）
+const STATE_KEYS = new Set([
+  'isFrozen', 'isDown', 'isUp', 'crossState', 'hasCharm', 'hasAcce', 'infected', 'isArmored',
+  'powerLteSelf', 'powerLtSelf', 'frontOfSelf', 'frontOfGateZone', 'inGateZone', 'thisCardOnly',
+  'excludeSelf', 'isTriggerSource', 'centerZoneOnly', 'acceHost', 'hasIcon',
+  'levelBelowLeftCard', 'powerBelowLeftCard', 'underLeftCard', 'levelLteFieldVirusCount',
+  'powerLteLastProcessed', 'levelLteLastProcessed', 'levelEqLastProcessed', 'levelLteDiscardSigni',
+  'powerLteRevealedSigniLevelSum', 'levelEqDiscardLevelSum', 'levelEqualsVar',
+  'colorMatchesLrig', 'colorNotMatchesLrig',
+]);
+const staticPart = (f: TargetFilter | undefined): TargetFilter => {
+  const o: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(f ?? {})) if (!STATE_KEYS.has(k)) o[k] = v;
+  return o as TargetFilter;
+};
+const pwOf = (cn: string): number => { const p = cardMap.get(cn)?.Power; return p === '∞' ? Infinity : parseInt(p ?? '', 10); };
+// フィルタに合致する実シグニを選ぶ（未使用のもの・powerLtSelf 等は低パワー優先）
+function pickSigni(f: TargetFilter | undefined, used: Set<string>, lowPower: boolean): string | null {
+  const stat = staticPart(f);
+  let best: string | null = null, bestPw = Infinity, scanned = 0;
+  for (const cn of signiPool) {
+    if (used.has(cn)) continue;
+    const pw = pwOf(cn);
+    if (!matchesFilter(cardMap.get(cn), stat, isNaN(pw) ? undefined : pw)) continue;
+    if (lowPower) { if (pw < bestPw) { best = cn; bestPw = pw; if (pw <= 1000) break; } }
+    else return cn;
+    if (++scanned > 800) break;
+  }
+  return best;
+}
+// 効果ツリーから対象(SIGNI/LRIG)と source を収集
+type Tgt = { owner: string; filter: TargetFilter; ttype: string };
+type Src = { owner: string; stype: string; filter: TargetFilter };
+function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[] } {
+  const targets: Tgt[] = []; const sources: Src[] = [];
+  (function walk(o: unknown) {
+    if (!o || typeof o !== 'object') return;
+    const r = o as Record<string, unknown>;
+    const t = r.target as Record<string, unknown> | undefined;
+    if (t && (t.type === 'SIGNI' || t.type === 'LRIG'))
+      targets.push({ owner: (t.owner as string) ?? 'opponent', filter: (t.filter as TargetFilter) ?? {}, ttype: t.type as string });
+    const s = r.source as Record<string, unknown> | undefined;
+    if (s && typeof s.type === 'string')
+      sources.push({ owner: (s.owner as string) ?? 'self', stype: s.type as string, filter: (s.filter as TargetFilter) ?? {} });
+    for (const v of Object.values(r)) if (v && typeof v === 'object') walk(v);
+  })(eff);
+  return { targets, sources };
+}
+
+/** 効果対応のラベル付き盤面。対象フィルタに合う実シグニを対象側に配置し、source を要求ゾーンに置く。 */
+function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labels: Map<string, string> } {
   const labels = new Map<string, string>();
+  const used = new Set<string>([sourceNum]);
   let cursor = 0;
-  // source と重複しない distinct な実CardNum を払い出す
   const take = (label: string): string => {
     let n = signiPool[cursor++ % signiPool.length];
     let guard = 0;
-    while ((n === sourceNum || labels.has(n)) && guard++ < signiPool.length) n = signiPool[cursor++ % signiPool.length];
-    labels.set(n, label);
+    while (used.has(n) && guard++ < signiPool.length) n = signiPool[cursor++ % signiPool.length];
+    used.add(n); labels.set(n, label);
     return n;
   };
   const takeN = (n: number, mk: (i: number) => string) => Array.from({ length: n }, (_, i) => take(mk(i)));
 
+  // source をどのゾーンに置くか（トラッシュ発動/手発動/自身thisCardOnly source）
+  const e = eff as unknown as Record<string, unknown>;
+  const { targets, sources } = collectTargetsSources(eff);
+  const selfSrcThis = sources.find(s => s.owner === 'self' && (s.filter.thisCardOnly || s.stype === 'TRASH_CARD' || s.stype === 'HAND_CARD'));
+  let sourceZone: 'signi' | 'trash' | 'hand' = 'signi';
+  if (e.trashActivated || (selfSrcThis && selfSrcThis.stype === 'TRASH_CARD')) sourceZone = 'trash';
+  else if (e.handActivated || (e.cost as { discardSelfFromHand?: boolean })?.discardSelfFromHand || (selfSrcThis && selfSrcThis.stype === 'HAND_CARD')) sourceZone = 'hand';
+
   const mkState = (side: '自' | '相', isSource: boolean): PlayerState => {
-    const s0 = isSource ? sourceNum : take(`${side}S甲`);
-    if (isSource) labels.set(sourceNum, `${side}S源`);
+    const deck = takeN(12, i => `${side}デッキ上${i + 1}`);
+    const hand = takeN(5, i => `${side}手札${i + 1}`);
+    const trash = takeN(3, i => `${side}トラッシュ${i + 1}`);
+    const signi: (string[] | null)[] = [[take(`${side}S甲`)], [take(`${side}S乙`)], [take(`${side}S丙`)]];
+    if (isSource) {
+      labels.set(sourceNum, `${side}S源`);
+      if (sourceZone === 'signi') signi[0] = [sourceNum];
+      else if (sourceZone === 'trash') trash.unshift(sourceNum);
+      else hand.unshift(sourceNum);
+    }
     return {
-      deck: takeN(12, i => `${side}デッキ上${i + 1}`),
-      lrig_deck: [],
-      hand: takeN(5, i => `${side}手札${i + 1}`),
-      life_cloth: takeN(7, i => `${side}ライフ${i + 1}`),
-      trash: takeN(3, i => `${side}トラッシュ${i + 1}`),
-      lrig_trash: takeN(2, i => `${side}ルリグトラッシュ${i + 1}`),
-      energy: takeN(5, i => `${side}エナ${i + 1}`),
-      coins: 3,
-      bonds: [],
+      deck, lrig_deck: [], hand, life_cloth: takeN(7, i => `${side}ライフ${i + 1}`),
+      trash, lrig_trash: takeN(2, i => `${side}ルリグトラッシュ${i + 1}`),
+      energy: takeN(5, i => `${side}エナ${i + 1}`), coins: 3, bonds: [],
       field: {
-        lrig: lrigCard ? [lrigCard] : [],
-        signi: [[s0], [take(`${side}S乙`)], [take(`${side}S丙`)]],
-        signi_down: [false, false, false],
-        signi_frozen: [false, false, false],
-        assist_lrig_l: [], assist_lrig_r: [],
-        check: null, key_piece: null, free_zone: [],
+        lrig: lrigCard ? [lrigCard] : [], signi,
+        signi_down: [false, false, false], signi_frozen: [false, false, false],
+        signi_charms: [null, null, null], signi_acce: [null, null, null],
+        signi_virus: [0, 0, 0], signi_armor: [false, false, false], cross_state: [false, false, false],
+        assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [],
         signi_traps: [null, null, null],
-        signi_charms: [null, null, null],
-        signi_acce: [null, null, null],
       },
     } as unknown as PlayerState;
   };
 
   const ownerState = mkState('自', true);
   const otherState = mkState('相', false);
+
+  // 対象フィルタに合う実シグニを対象側ゾーンに配置（zone0 が source のときは 0 を避ける）
+  const nextZone: Record<'自' | '相', number> = { 自: sourceZone === 'signi' ? 1 : 0, 相: 0 };
+  for (const tg of targets) {
+    if (tg.ttype !== 'SIGNI') continue;
+    const side: '自' | '相' = (tg.owner === 'self') ? '自' : '相';
+    const st = side === '自' ? ownerState : otherState;
+    const z = nextZone[side];
+    if (z > 2) continue;
+    const low = !!(tg.filter.powerLtSelf || tg.filter.powerLteSelf || tg.filter.powerBelowLeftCard);
+    const cn = pickSigni(tg.filter, used, low);
+    if (cn) {
+      used.add(cn); labels.set(cn, `${side}S対象${z}`);
+      st.field.signi[z] = [cn];
+      const f = tg.filter;
+      if (f.isFrozen) st.field.signi_frozen![z] = true;
+      if (f.isDown) st.field.signi_down![z] = true;
+      if (f.hasCharm) st.field.signi_charms![z] = take(`${side}チャーム${z}`);
+      if (f.hasAcce || f.acceHost) st.field.signi_acce![z] = take(`${side}アクセ${z}`);
+      if (f.infected) st.field.signi_virus![z] = 1;
+      if (f.isArmored) st.field.signi_armor![z] = true;
+      if (f.crossState) st.field.cross_state![z] = true;
+    }
+    nextZone[side] = z + 1;
+  }
+
   const ctx = {
-    ownerState, otherState,
-    cardMap: cardMap as Map<string, CardData>,
-    logs: [] as string[],
-    sourceCardNum: sourceNum,
-    triggeringCardNum: sourceNum,
-    currentPhase: 'MAIN',
+    ownerState, otherState, cardMap: cardMap as Map<string, CardData>,
+    logs: [] as string[], sourceCardNum: sourceNum, triggeringCardNum: sourceNum, currentPhase: 'MAIN',
   } as unknown as ExecCtx;
   return { ctx, labels };
 }
