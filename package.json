@@ -12,6 +12,8 @@
     "smoke": "tsx scripts/smokeTest.ts",
     "golden": "tsx scripts/goldenTest.ts",
     "fuzz": "tsx scripts/selfPlayFuzz.ts",
+    "audit": "tsx scripts/behaviorAudit.ts",
+    "audit:queue": "tsx scripts/behaviorAudit.ts --queue",
     "verify:browser": "node scripts/verifyBrowser.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
