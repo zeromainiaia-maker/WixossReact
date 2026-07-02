@@ -138,6 +138,10 @@ ${guide}
 6. アーツの使用タイミング（メインフェイズ/アタックフェイズ等）は別管理。報告しない。
 7. **「バニッシュする」と「エナゾーンに置く」「トラッシュに置く」は厳密に別アクション**。取り違えは HIGH。
 8. 効果の分割単位（1文が2 effect に分かれる等）は自由。全体として意味が揃っていれば不一致にしない。
+9. **任意コストイディオム**：STUB（id が OPTIONAL_COST / TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST / OPTIONAL_TRASH_ENERGY_CLASS）の後に CONDITIONAL(IS_MY_TURN または PAID_ADDITIONAL_COST) が続く形は、原文の「〜を支払ってもよい。そうした場合…」をエンジンがインターセプトして表す既知イディオム。**IS_MY_TURN を不一致として報告しない**。さらに TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST の then 内 target.owner が self でもエンジンが opponent に自動修正する＝報告しない。ただし then 内のアクション種別・枚数・フィルターの違い、および原文にあるコスト以外の**発動条件（パワー条件等）が JSON のどこにも無い**場合は報告する。
+10. LIFE_BURST 効果の mandatory:false は「LB発動は任意」というルールの表現＝報告しない。
+11. アンコール（「アンコール－…」）・ベット（「ベット－…」）の注記は engine 側の別機構で処理される＝JSON に無くても報告しない。
+12. AUTO/ACTIVATED 効果で action が STUB の場合、任意（〜してもよい）の確認は STUB ハンドラ内で行われることがある＝mandatory フラグだけの任意/強制ずれは LOW に格下げ（STUB 以外のアクションなら通常どおり）。
 
 # 見るべき典型バグ
 
