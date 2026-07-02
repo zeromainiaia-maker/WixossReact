@@ -1455,6 +1455,16 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたのトラッシュから[^。]*?を対象とし、それをこのシグニの【アクセ】にする/);
         if (m) return m[0];
       }
+      // シグニをトラッシュのシグニと同名化（COPY_SIGNI）＝「ターン終了時まで、対象のあなたのシグニN体はあなたのトラッシュにある対象のシグニN枚と同じカードになる」を原文抽出。
+      if (a.id === 'COPY_SIGNI') {
+        const m = currentCardText.match(/ターン終了時まで、対象のあなたのシグニ[０-９\d一]体はあなたのトラッシュにある対象のシグニ[０-９\d一]枚と同じカードになる/);
+        if (m) return m[0];
+      }
+      // マジックボックス設置（PLACE_MAGIC_BOX）＝「そのカードを【マジックボックス】としてあなたのシグニゾーンに設置してもよい(。（補足）)」を原文抽出。
+      if (a.id === 'PLACE_MAGIC_BOX') {
+        const m = currentCardText.match(/そのカードを【マジックボックス】としてあなたのシグニゾーンに設置してもよい(?:。（[^）]*）)?/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
