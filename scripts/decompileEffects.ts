@@ -1131,6 +1131,15 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return 'クラフトをルリグデッキに加える';
       }
+      // サーバントZERO化（*_SERVANT_ZERO 系4id・engine実装済み）＝
+      // 「（ターン終了時まで、）対戦相手の（すべての）シグニ（N体）を《サーバント ＺＥＲＯ》にする」。
+      // 対象数/範囲/語順がカードごとに異なるため currentCardText から抽出（ベットコスト前置は除外）。
+      if (a.id === 'SIGNI_SERVANT_ZERO' || a.id === 'MAKE_SERVANT_ZERO' ||
+          a.id === 'MAKE_MULTI_SERVANT_ZERO' || a.id === 'ALL_OPP_SIGNI_SERVANT_ZERO') {
+        const m = currentCardText.match(/(?:ターン終了時まで、)?対戦相手の(?:すべての)?シグニ[^。]*?《サーバント[　\s]*ＺＥＲＯ》にする/);
+        if (m) return m[0];
+        return 'ターン終了時まで、対戦相手のシグニを《サーバント　ＺＥＲＯ》にする';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
