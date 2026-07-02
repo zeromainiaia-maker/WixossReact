@@ -1189,7 +1189,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // LOOK等の別アクションと重複しない）。非マッチはフォールスルーして従来表示のまま（誤文を入れない）。
       if (a.id === 'ACCE_FROM_HAND') {
         const m = currentCardText.match(/[^。]*?の【アクセ】にする/);
-        if (m) return m[0];
+        if (m) return m[0].replace(/^【[^】]*】[^：。]*：/, '');
       }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
