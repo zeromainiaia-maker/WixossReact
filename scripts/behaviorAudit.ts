@@ -66,6 +66,10 @@ for (const [id, card] of cardMap) {
 // signiPool: パワー>0 の実シグニ。fill でグローバル一意に払い出し、label を割り当てる。
 const signiPool = [...cardMap.values()].filter(c => c.Type === 'シグニ' && +(c.Power || '0') > 0).map(c => c.CardNum);
 const lrigCard = [...cardMap.values()].find(c => c.Type === 'ルリグ')?.CardNum ?? null;
+const lrigColor = (cardMap.get(lrigCard ?? '')?.Color ?? '白');
+// 色別プール（エナを5色揃えて色フィルタ/色条件の空振りを消す）
+const COLORS = ['白', '青', '赤', '緑', '黒'] as const;
+const colorPool: Record<string, string[]> = Object.fromEntries(COLORS.map(c => [c, signiPool.filter(cn => cardMap.get(cn)?.Color?.includes(c))]));
 
 // ── 段階2: 効果対応のシナリオ組み立て補助 ──
 // 状態/相対系フィルタキー（CardData だけでは選別できない＝盤面フラグで別途表現）
