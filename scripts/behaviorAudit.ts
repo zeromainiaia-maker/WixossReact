@@ -307,7 +307,23 @@ function diffBoard(before: Snapshot, after: Snapshot, labels: Map<string, string
     const d = (after.power.get(id) ?? 0) - (before.power.get(id) ?? 0);
     if (d !== 0) lines.push(`  ${lbl(id)}: パワー${d > 0 ? '+' : ''}${d}`);
   }
-  // 3) コイン
+  // 3) 状態フラグ（凍結/ダウン/ウィルス等）
+  const fIds = new Set([...before.flags.keys(), ...after.flags.keys()]);
+  for (const id of fIds) {
+    const b = before.flags.get(id) ?? '', a = after.flags.get(id) ?? '';
+    if (b !== a) lines.push(`  ${lbl(id)}: 状態[${b || 'なし'}]→[${a || 'なし'}]`);
+  }
+  // 4) 付与キーワード
+  const kIds = new Set([...before.kw.keys(), ...after.kw.keys()]);
+  for (const id of kIds) {
+    const b = before.kw.get(id) ?? '', a = after.kw.get(id) ?? '';
+    if (b !== a) lines.push(`  ${lbl(id)}: 付与[${b || 'なし'}]→[${a || 'なし'}]`);
+  }
+  // 5) 行動制限（player-level）
+  for (const side of ['自', '相'] as const) {
+    if (before.blocked[side] !== after.blocked[side]) lines.push(`  ${side}制限: [${before.blocked[side] || 'なし'}]→[${after.blocked[side] || 'なし'}]`);
+  }
+  // 6) コイン
   for (const side of ['自', '相'] as const) {
     const d = after.coins[side] - before.coins[side];
     if (d !== 0) lines.push(`  ${side}コイン: ${d > 0 ? '+' : ''}${d}`);
