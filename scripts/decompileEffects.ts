@@ -1176,6 +1176,14 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return '【マジックボックス】１つを表向きにしトラッシュに置く';
       }
+      // 相手トラッシュから使用（CAST_FROM_OPP_TRASH・engine実装済み）＝
+      // 「対戦相手の（ルリグ）トラッシュから（アーツ/スペル）N枚を対象とし、…使用する（してもよい）」。
+      // 使用先/条件はカードごとに異なるため currentCardText から抽出。非マッチ（別構造カード）は
+      // フォールスルーして従来表示のまま（誤文を入れない）。
+      if (a.id === 'CAST_FROM_OPP_TRASH') {
+        const m = currentCardText.match(/対戦相手の(?:ルリグ)?トラッシュから[^。]*?使用(?:してもよい|する)/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
