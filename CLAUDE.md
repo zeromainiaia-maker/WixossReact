@@ -27,7 +27,8 @@ WixossカードゲームのReactクローン実装。
   - **`DESIGN.md` — 設計方針・開発ルール（まずこれを読む）**
   - **`TODO.md` — 残作業の一覧（完了したら消す）**
   - **`BUGFIXES.md` — バグ修正記録（新しいものを上に追記）**
-  - `SEMANTIC_AUDIT.md` — 意味照合監査（原文 vs effects JSON を LLM 比較で誤実装検出）の使い方・偽陽性規約・worklist
+  - **`BEHAVIOR_AUDIT.md` — 挙動トレース監査（原文照合の主軸）。engine実行結果（盤面差分＋ログ）を原文と目視照合。LLM不使用・決定論**
+  - `SEMANTIC_AUDIT.md` — （旧・主軸から外した）LLM意味比較。発見器実績は BEHAVIOR_AUDIT へ lint 化して引き継ぎ
   - `STUBS.md` — 全STUBの一覧と実装状況（`node scripts/genStubsMd.mjs` で再生成。手編集しない）
   - `TokenCallers.md` — トークン↔呼び出し元の対応表
   - `effects-json-guide.md` — effects JSONの表現語彙・ガイド
