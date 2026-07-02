@@ -12,9 +12,13 @@
 - **① シナリオビルダー（段階2）**＝ラベル付きトークン（実CardNumをグローバル一意に払い出し）で両プレイヤー盤面を構築。**効果対応の対象配置**＝効果ツリーから対象(SIGNI)/source/ゾーンカード対象を収集し、**engineの `matchesFilter` を流用して対象フィルタ（パワー/レベル/クラス/色）に合う実シグニを対象側ゾーンへ配置**、状態フィルタ（凍結/ダウン/ウィルス/血晶/クロス/チャーム/アクセ）はフラグ設定、`trashActivated`/thisCardOnly source は**source をトラッシュ/手札へ再配置**（着地用に owner zone0 を空ける）、サルベージ/サーチ（TRASH/DECK/HAND 対象）は該当ゾーン先頭へ合致カードを配置。
 - **② 盤面差分器**＝両プレイヤー全ゾーンを instanceId で追跡し、**カード移動／パワー修正／状態フラグ（凍結・ダウン・ウィルス等）／付与キーワード／行動制限／コイン**を自然文化。**側跨ぎ（自↔相）を `⚠側跨ぎ` で強調**（bounce 先の owner 誤り等）。owner系バグ（相手デッキ→自分ミル）は**原文↔差分の目視で即座に露見**（例：修正済 WX25-P2-030 は「相デッキ上→相トラッシュ」と正しく出る）。
 - **③ トレース出力**＝`npm run audit -- --id <CardNum>` / `--set <prefix>` で **原文｜逆翻訳（既存 decompile_sheet 由来）｜盤面差分｜engineログ** を並べる。
-- **④ 要レビュー・キュー**＝`npm run audit:queue`。非CONTINUOUS × OK完走 × 盤面無変化 × 低情報ログ を抽出＝**段階2で 811 → 285 / 9269 効果**（`docs/_behavior_queue.txt`）＝空振りを約65%削減。残285がほぼ真の要レビュー母集団（欠落no-op／未実装STUB／条件未成立／エナ・ルリグ対象未配置）。
+- **④ 要レビュー・キュー**＝`npm run audit:queue`。非CONTINUOUS × OK完走 × 盤面無変化 × 低情報ログ を抽出＝**段階1→2→2c で 811 → 285 → 261 / 9269 効果**（`docs/_behavior_queue.txt`）＝空振りを約68%削減。残261がほぼ真の要レビュー母集団。
 
-**次の段階（残）**＝**段階2c（任意・逓減）**＝残285のうち空振り分をさらに減らす（colorMatchesLrig サルベージ・エナ/ルリグ対象配置・条件ゲート成立化・スペル対象）→ **段階3：HTML表レンダラ**（セット単位レビュー資産）→ **段階4：キューから欠落no-opバグを潰す**（§進め方4・修正は effects JSON 直接パッチ＋逆翻訳/engineセット＋同型★0＋smoke/golden/fuzz）。**位置づけ整理**＝[SEMANTIC_AUDIT.md](SEMANTIC_AUDIT.md)（LLM）とは競合ではなく**補完**（behaviorは決定論で盤面移動系バグに強い／semanticは board-diff で無理なSTUB/MANUALの意味エラー＝reversed filter・条件欠落に強い）。
+**残261の内訳（`node scratchpad/_bqAnalyze.mjs`・段階4レビュー時の地図）**＝other 109（カウント条件〈トラッシュ25枚以上等〉／デッキ内容フィルタ〈スペルを見る〉／CHOOSE の no-op 分岐＝autopilot 限界）・ENERGY_CARD対象 66（「相手が選ぶ」＋条件絡み・マルチエナ等）・条件ゲート 44（場合/かぎり未成立）・**STUB 23（真の未実装＝これは残すべき正の suspect）**・付与 13（GAME_LONG_GRANT等 STUB格納で差分不可視）・制限/防止 5。**段階2cで colorMatchesLrig 8→1・エナ5色化で条件/色フィルタ空振りを解消**。残りは満たすと非代表的になる条件・autopilot分岐限界・STUB＝**さらなる空振り削減は逓減**。
+
+**段階2cの実装（2026-07-03）**＝エナを5色（白青赤緑黒）で構築（色フィルタ/「赤と緑がある場合」条件の空振り解消）／ENERGY_CARD 対象も zoneNeeds 配置に追加／`colorMatchesLrig` は lrig 色に合うカードを選択／keyword/cardName フィルタも zoneNeeds 対象化／差分器に **GRANT_LRIG_ABILITY(`lrig_granted_auto_effects`)・granted_effects・lrig_abilities_disabled** の変化検出を追加。
+
+**次の段階（残）**＝**段階3：HTML表レンダラ**（セット単位レビュー資産）→ **段階4：キューから欠落no-opバグを潰す**（§進め方4・残261を目視で「真no-opバグ／正当な空振り・条件未成立／STUB未実装」に仕分け→バグは effects JSON 直接パッチ＋逆翻訳/engineセット＋同型★0＋smoke/golden/fuzz）。**位置づけ整理**＝[SEMANTIC_AUDIT.md](SEMANTIC_AUDIT.md)（LLM）とは競合ではなく**補完**（behaviorは決定論で盤面移動系バグに強い／semanticは board-diff で無理なSTUB/MANUALの意味エラー＝reversed filter・条件欠落に強い）。
 
 ## なぜこの方針か（背景と実測）
 
