@@ -1161,10 +1161,10 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // バリア獲得（GAIN_LRIG_BARRIER・engine実装済み）＝「【ルリグバリア】/【シグニバリア】N つを得る」。
       // バリア種別/個数がカードごとに異なるため currentCardText から抽出。
-      if (a.id === 'GAIN_LRIG_BARRIER') {
+      if (a.id === 'GAIN_LRIG_BARRIER' || a.id === 'GAIN_SIGNI_BARRIER') {
         const m = currentCardText.match(/【(?:ルリグ|シグニ)バリア】[０-９\d]*つを得る/);
         if (m) return m[0];
-        return '【ルリグバリア】１つを得る';
+        return a.id === 'GAIN_SIGNI_BARRIER' ? '【シグニバリア】１つを得る' : '【ルリグバリア】１つを得る';
       }
       // 全領域で色を失う（LOSE_COLOR_ALL_ZONES・CONTINUOUS・engine実装済み）＝
       // 「（あなたの場に＜X＞のルリグがN体いないかぎり、）このカードはすべての領域で色を失う」。
