@@ -1383,6 +1383,16 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:次の対戦相手の|その)?(?:ターンの)?ドローフェイズの間[に、]?対戦相手はカードを合計[０-９\d一二三]+枚までしか引けない/);
         if (m) return m[0];
       }
+      // トラッシュしたカードからピック（PICK_FROM_TRASHED_CARDS）＝「この方法でトラッシュに置かれたカードの中から…対象とし、それ(ら)を手札に加える(か場に出す)」を原文抽出。
+      if (a.id === 'PICK_FROM_TRASHED_CARDS') {
+        const m = currentCardText.match(/この方法でトラッシュに置かれたカードの中から[^。]*?対象とし、それら?を手札に加える(?:か場に出す)?/);
+        if (m) return m[0];
+      }
+      // 場出し制限（DEPLOY_RESTRICT）＝「…新たに(場に)出せない(。（補足）)」をカード別に原文抽出（先頭の【】：は timing 側で描画済のため除外）。
+      if (a.id === 'DEPLOY_RESTRICT') {
+        const m = currentCardText.match(/[^。：]*新たに[^。]*出せない(?:。（[^）]*）)?/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
