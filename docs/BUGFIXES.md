@@ -5,6 +5,19 @@
 
 ---
 
+## 逆翻訳機の本格改善⑬：固定意味STUB 約28系統を一括是正（2026-07-02・zerom）＝489→406
+
+engine 実装済みだが逆翻訳描画のみ欠けていた STUB を、`currentCardText` からの原文抽出で一括是正（engine 不変・表現のみ・すべて match-only フォールスルーで非マッチ時は誤文を入れず従来表示）。解析ヘルパ（decompileシート×カードテキスト突合）で各 STUB の原文クレーズを確認してから正規表現化。
+
+- **固定意味系（1文抽出）**＝`HAND_SIZE_INCREASE`（手札上限N増える）／`REDUCE_OPP_HAND_LIMIT`（相手手札上限N減る）／`GAIN_EXTRA_TURN`（追加のNターンを得る）／`DECLARE_NUMBER`+`DECLARE_NUMBER_RANGE`（X～Yの数字を宣言→山札からミル）／`REMOVE_SIGNI_ZONE`（相手シグニゾーンを消す）／`EFFECT_LIMIT`（この効果はN枚までしか適用されない）／`DOUBLE_OWN_POWER_MINUS`（－が代わりに２倍－）／`CLASS_CHANGE`（クラスを失い＜X＞を得る）／`CONDITIONAL_COST_REDUCTION_BY_FIELD`（場依存の使用コスト減）／`GRANT_ALL_ZONE_LIFEBURST`（全領域LB付与）／`MOVE_TO_ATTACKER_FRONT`（アタッカー正面に配置）／`GAIN_SIGNI_BARRIER`（既存GAIN_LRIG_BARRIER分岐に追加）。
+- **固定意味系（続き）**＝`SELF_TRASH_IF_NO_OPP_CHARM`／`ACCE_TO_ENERGY`+`PLACE_ACCE_SIGNI_TO_ENERGY`／`DRAW_DISCARD_COUNT_PLUS_N`（捨てた枚数+Nドロー）／`CENTER_LRIG_RIDES_ON_SIGNI`（【ライド】ルール文）／`HAND_CARDS_UNDER_SIGNI`／`DECLARE_CLASS`／`PLACE_OWN_GATE`（【ゲート】設置）／`REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI`／`FORCE_TARGET_SELF`（可能ならこのシグニを対象）／`CHOOSE_HAND_CARD`／`REMOVE_OPP_MULTI_ENA`(_ONLY)／`REVEAL_OPP_HAND_CARD`／`LAYER_ABILITY_COPY`（【レイヤー】）／`CENTER_LRIG_DISMOUNT`。
+- **PLAY_SPELL_FREE_IGNORE_RESTRICTION**＝ソース（手札/相手トラッシュ/いずれかのトラッシュ）をアンカーに「…スペル…限定条件を無視して使用する」抽出。
+- **COLLAB**＝同一カードに【常】（ガード代替「コラボしてもよい」）と【出】（「コラボライバーN人を呼ぶ」）が併存するため `effectType==='CONTINUOUS'` で分岐（currentCardText が card 単位で両方を含むための誤マッチを回避）。
+- **OPP_DECLARE_CHOICE/OPP_CHOOSE_EFFECT/OPP_CHOOSES_FOR_YOU**＝standalone 型（「対戦相手は以下のN つから１つを選び、…それを行う。①②」）を次の効果マーカー【 手前まで抽出。宣言当てゲーム型（別構造）は非マッチでフォールスルー。**REPEAT_EFFECT**＝「あなたはこの効果をあとN回まで繰り返してもよい」。
+- 検証＝全対象を原文照合（末尾の切れ・重複・他アクションとの重複なしを spot-check）・**英語ID漏れ 489→406（-83）**・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。全10シート＋下流再生成。⚠残（≈406）＝`BET_*`系(38・機構待ち)／`REVEAL_AND_PICK`・`CHOOSE`（レンダラ本体側）／`LOOK_TOP_*`・`FLIP_FACE_DOWN_SIGNI`・`SIGNI_REPOSITION`・`REPEAT_N_TIMES` 等の heterogeneous（枚数動的/語順不揃い/SEQUENCE埋め込みで個別設計要）。
+
+---
+
 ## 逆翻訳機の本格改善⑫：DO_THREE_THINGS の英語ID漏れを是正（2026-07-02・zerom）＝SEQUENCE冗長step対応
 
 `DO_THREE_THINGS`（7効果）は engine が原文の①②③（④）を動的パースして実行する複数処理まとめ。逆翻訳は STUBS.md 由来の英語IDを露出していた。**2構造に分かれる**：
