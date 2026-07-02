@@ -1423,6 +1423,16 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/ターン終了時まで、対戦相手のすべてのシグニは「【常】：あなたが《無》(?:《無》)*を支払わないかぎりアタックできない。」を得る/);
         if (m) return m[0];
       }
+      // 対象シグニのパワーを基本パワーにコピー（COPY_TARGET_POWER）＝「シグニN体を対象とし、（次の対戦相手の）ターン終了時まで、このシグニの基本パワーはそれのパワーと同じ値になる」を原文抽出。
+      if (a.id === 'COPY_TARGET_POWER') {
+        const m = currentCardText.match(/シグニ[０-９\d一]体を対象とし、(?:次の対戦相手の)?ターン終了時まで、このシグニの基本パワーはそれのパワーと同じ値になる/);
+        if (m) return m[0];
+      }
+      // 場・エナのシグニが色を追加取得（FIELD_ENERGY_SIGNI_GAIN_COLOR・CONTINUOUS）＝「あなたの、場とエナゾーンにある…シグニは追加で…を得る」を原文抽出。
+      if (a.id === 'FIELD_ENERGY_SIGNI_GAIN_COLOR') {
+        const m = currentCardText.match(/あなたの、場とエナゾーンにある[^。]*?シグニは追加で[^。]*?を得る/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
