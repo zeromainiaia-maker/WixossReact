@@ -1413,6 +1413,16 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたの[^。]*?をこのシグニの下に置いてもよい(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
+      // 相手メインフェイズのリミット減（OPP_MAIN_PHASE_LIMIT_DOWN）＝「次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットを－Nする」を原文抽出。
+      if (a.id === 'OPP_MAIN_PHASE_LIMIT_DOWN') {
+        const m = currentCardText.match(/次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットを－[０-９\d一二三]+する/);
+        if (m) return m[0];
+      }
+      // 相手シグニのアタックにコスト（OPP_SIGNI_ATTACK_COST）＝「ターン終了時まで、対戦相手のすべてのシグニは「【常】：あなたが《無》…を支払わないかぎりアタックできない。」を得る」を原文抽出。
+      if (a.id === 'OPP_SIGNI_ATTACK_COST') {
+        const m = currentCardText.match(/ターン終了時まで、対戦相手のすべてのシグニは「【常】：あなたが《無》(?:《無》)*を支払わないかぎりアタックできない。」を得る/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
