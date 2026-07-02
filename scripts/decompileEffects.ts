@@ -1169,6 +1169,13 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return 'このカードはすべての領域で色を失う';
       }
+      // マジックボックスを開く（OPEN_MAGIC_BOX・engine実装済み）＝後続のバニッシュ等は別描画、本体は
+      // 「（このシグニと同じシグニゾーンにある）【マジックボックス】N つを表向きにしトラッシュに置く（いてもよい）」。currentCardText から抽出。
+      if (a.id === 'OPEN_MAGIC_BOX') {
+        const m = currentCardText.match(/(?:このシグニと同じシグニゾーンにある)?【マジックボックス】[^。]*?表向きにしトラッシュに置(?:いてもよい|く)/);
+        if (m) return m[0];
+        return '【マジックボックス】１つを表向きにしトラッシュに置く';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
