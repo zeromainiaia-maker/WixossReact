@@ -120,7 +120,7 @@ function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[
       const filter = (t.filter as TargetFilter) ?? {};
       if (t.type === 'SIGNI' || t.type === 'LRIG') targets.push({ owner, filter, ttype: t.type });
       if (key === 'source') sources.push({ owner, stype: t.type, filter });
-      if (ZTYPE[t.type] && (filter.cardType || filter.cardClass || filter.story || filter.color))
+      if (ZTYPE[t.type] && (filter.cardType || filter.cardClass || filter.story || filter.color || filter.keyword || filter.cardName))
         zoneNeeds.push({ owner, zone: ZTYPE[t.type], filter });
     }
     for (const v of Object.values(r)) if (v && typeof v === 'object') walk(v);
