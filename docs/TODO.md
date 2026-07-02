@@ -41,6 +41,19 @@
 7. **LIFE_BURST 内 `CONDITIONAL{IS_MY_TURN}`** は実害なし（常時true＋「そうした場合」特別処理）。修正不要。
 8. **`[STUB:id]` を含むからとスキップしない**：実装済みハンドラのタグ表示。ただしハンドラがカード全体を覆うか（◎）／断片だけで残りを落としたか（実バグ）はタグでは区別不可＝各外れは個別検証。
 
+## 1.7. 逆翻訳の英語ID漏れ残＝混線・未構造化STUB（実装未完成リスト・2026-07-02 zerom 一区切り）
+
+**2026-07-02＝逆翻訳の英語ID漏れを「1 effect=1 クリーンSTUB」で原文抽出できるものは全消化（BUGFIXES⑭〜㉒＝444→367）。** 残 **367** は **effect（JSON）の構造そのものが原文とズレた混線／未構造化STUB** で、**1つのSTUBを原文化しても同 effect 内の他のズレた部分（枚数・分岐・順序）が残り原文一致にならない**＝decompiler の原文抽出では対応不能。**effects JSON の再parse（§4 の型で機構実装＝データ層修正・engine動作に影響・要 smoke/golden/fuzz）が本筋。**（ユーザー判断で現状367で一区切り＝原文コピーで隠すと「実装未完成」が見えなくなり検証目的に反するため。）
+
+残・上位（`grep -ohE "\[STUB:[^]]*[A-Z][A-Z0-9_]{4,}[^]]*\]" docs/decompile_sheet*.txt | grep -oE "[A-Z][A-Z0-9_]{4,}" | grep -vE "^(STUB|COUNT|AUTO|WX|CONTINUOUS|SELECT_TARGET)" | sort | uniq -c | sort -rn` で再取得）：
+- **大型レンダラ系統**（レンダラ本体/parser 再設計）＝`REVEAL_AND_PICK`(13)／`CHOOSE`(10)／`CHOOSE_N_FROM_LIST`(6)／`SIGNI_REPOSITION`+`MOVE_TARGET_SIGNI_TO_OTHER_ZONE`(各7)／`REPEAT_N_TIMES`+`REPEAT_EFFECT`(各6)／`LOOK_AND_REORDER`(5)／`LOOK_TOP_N`/`LOOK_TOP_SORT`/`LOOK_TOP_COLOR_SORT`/`LOOK_TOP_BY_LIFE_COUNT`(各4)／`OPP_DECLARE_CHOICE`/`OPP_CHOOSE_EFFECT`/`OPP_CHOOSES_FOR_YOU`(各4)／`FLIP_FACE_DOWN_SIGNI`/`SIGNI_FLIP_FACEDOWN`。
+- **per-card heterogeneous/混線**＝`PREVENT_ZONE_MOVE_BY_OPP`(3・同一カードE1/E2が同一アクションで出し分け不能)／`TRIGGER_LIFE_BURST`(3)／`NEGATE_NTH_ATTACK`／`EXTRA_COST_REMOVE_VIRUS`(選択肢N+1択展開)／`SET_NEXT_LIFE_CRASH_COUNTER`／その他2件系統多数。
+- **`BET_*`系(38)** ＝機構待ち（§1 偽陽性5・別タスク）。
+
+**進め方**＝1カードずつ effects JSON を原文どおりの構造に手修正→逆翻訳がJSON宣言を反映して原文一致するか確認→smoke/golden/fuzz→push（§0 標準ワークフロー＋機構実装の型）。**原文コピーでの一括潰しは禁止**（実装未完成を隠蔽し検証目的に反する）。
+
+---
+
 ## 2. 触らなくてよい/枯れた系統（調査済み）
 
 - 強制アタック＝実装済（未配線は WX12-010 複雑レゾナのみ）。BURST丸ごと欠落＝残0。保護系キーワードの owner誤り＝残0。
