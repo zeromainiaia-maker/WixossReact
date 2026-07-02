@@ -1203,6 +1203,62 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/以下の[０-９\d一二三四]+つを行う[\s\S]*/);
         if (m) return m[0].replace(/\s*-\s*$/, '').trim();
       }
+      // 手札上限増加（HAND_SIZE_INCREASE・engine実装済み）＝「あなたの手札の枚数の上限はN増える。（X枚からY枚になる）」。
+      if (a.id === 'HAND_SIZE_INCREASE') {
+        const m = currentCardText.match(/あなたの手札の枚数の上限は[０-９\d]*増える(?:。（[０-９\d]+枚から[０-９\d]+枚になる）)?/);
+        if (m) return m[0];
+      }
+      // 相手手札上限減少（REDUCE_OPP_HAND_LIMIT・engine実装済み）＝「対戦相手の手札の上限はN減る」。
+      if (a.id === 'REDUCE_OPP_HAND_LIMIT') {
+        const m = currentCardText.match(/対戦相手の手札の上限は[０-９\d]*減る/);
+        if (m) return m[0];
+      }
+      // 追加ターン（GAIN_EXTRA_TURN・engine実装済み）＝「（あなた/対戦相手）はこのターンの次に、追加のNターンを得る」。
+      if (a.id === 'GAIN_EXTRA_TURN') {
+        const m = currentCardText.match(/(?:あなた|対戦相手)は?このターンの次に、追加の[０-９\d]*ターンを得る/);
+        if (m) return m[0];
+      }
+      // 数字宣言してミル（DECLARE_NUMBER/DECLARE_NUMBER_RANGE・engine実装済み）＝
+      // 「X～Yの数字１つを宣言する。（あなた/対戦相手の）デッキの上から（カードを）宣言した数字に等しい枚数…トラッシュに置く」。
+      if (a.id === 'DECLARE_NUMBER' || a.id === 'DECLARE_NUMBER_RANGE') {
+        const m = currentCardText.match(/[０-９\d]+～[０-９\d]+の数字１つを宣言する。[^。]*?宣言した数字に等しい枚数[^。]*?トラッシュに置く/);
+        if (m) return m[0];
+      }
+      // シグニゾーンを消す（REMOVE_SIGNI_ZONE・engine実装済み）＝「（ターン終了時まで、）対戦相手のシグニゾーンN つを消す」。
+      if (a.id === 'REMOVE_SIGNI_ZONE') {
+        const m = currentCardText.match(/(?:ターン終了時まで、)?対戦相手のシグニゾーン[０-９\d]*つを消す/);
+        if (m) return m[0];
+      }
+      // 効果の適用上限（EFFECT_LIMIT・engine実装済み・パワー修正等の注記）＝「この効果はN枚までしか適用されない」。
+      if (a.id === 'EFFECT_LIMIT') {
+        const m = currentCardText.match(/この効果は[０-９\d]+枚までしか適用されない/);
+        if (m) return m[0];
+      }
+      // 2倍マイナス（DOUBLE_OWN_POWER_MINUS・engine実装済み）＝「（対象とし、）このターン、あなたの効果によってそれのパワーが－（マイナス）される場合、代わりに２倍－（マイナス）される」。
+      if (a.id === 'DOUBLE_OWN_POWER_MINUS') {
+        const m = currentCardText.match(/(?:対戦相手のシグニ[０-９\d]*体を対象とし、)?このターン、あなたの効果によってそれのパワーが－（マイナス）される場合、代わりに２倍－（マイナス）される/);
+        if (m) return m[0];
+      }
+      // クラス変更（CLASS_CHANGE・engine実装済み）＝「シグニN体を対象とし、ターン終了時まで、それはクラスを失い、＜X＞を得る」。
+      if (a.id === 'CLASS_CHANGE') {
+        const m = currentCardText.match(/シグニ[０-９\d]*体を対象とし、ターン終了時まで、それはクラスを失い、＜[^＞]+＞を得る/);
+        if (m) return m[0];
+      }
+      // 場依存の使用コスト減（CONDITIONAL_COST_REDUCTION_BY_FIELD・engine実装済み）＝「あなたの場に…がある場合、このスペルの使用コストは…減る」。
+      if (a.id === 'CONDITIONAL_COST_REDUCTION_BY_FIELD') {
+        const m = currentCardText.match(/あなたの場に[^。]*?使用コストは[^。]*?減る/);
+        if (m) return m[0];
+      }
+      // 全領域ライフバースト付与（GRANT_ALL_ZONE_LIFEBURST・engine実装済み）＝「あなたのすべての領域にある（…の）カードは【ライフバースト】…を持つ」。
+      if (a.id === 'GRANT_ALL_ZONE_LIFEBURST') {
+        const m = currentCardText.match(/あなたのすべての領域にある[^。]*?【ライフバースト】[^。]*?を持つ/);
+        if (m) return m[0];
+      }
+      // アタッカー正面へ配置（MOVE_TO_ATTACKER_FRONT・engine実装済み）＝「（正面にシグニがない場合、）このシグニをアタックした（その）シグニの正面に配置してもよい」。
+      if (a.id === 'MOVE_TO_ATTACKER_FRONT') {
+        const m = currentCardText.match(/(?:[^。]*?正面にシグニがない場合、)?このシグニをアタックした(?:その)?シグニの正面に配置してもよい/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
