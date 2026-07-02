@@ -11,7 +11,7 @@
 
 - **① シナリオビルダー（段階2）**＝ラベル付きトークン（実CardNumをグローバル一意に払い出し）で両プレイヤー盤面を構築。**効果対応の対象配置**＝効果ツリーから対象(SIGNI)/source/ゾーンカード対象を収集し、**engineの `matchesFilter` を流用して対象フィルタ（パワー/レベル/クラス/色）に合う実シグニを対象側ゾーンへ配置**、状態フィルタ（凍結/ダウン/ウィルス/血晶/クロス/チャーム/アクセ）はフラグ設定、`trashActivated`/thisCardOnly source は**source をトラッシュ/手札へ再配置**（着地用に owner zone0 を空ける）、サルベージ/サーチ（TRASH/DECK/HAND 対象）は該当ゾーン先頭へ合致カードを配置。
 - **② 盤面差分器**＝両プレイヤー全ゾーンを instanceId で追跡し、**カード移動／パワー修正／状態フラグ（凍結・ダウン・ウィルス等）／付与キーワード／行動制限／コイン**を自然文化。**側跨ぎ（自↔相）を `⚠側跨ぎ` で強調**（bounce 先の owner 誤り等）。owner系バグ（相手デッキ→自分ミル）は**原文↔差分の目視で即座に露見**（例：修正済 WX25-P2-030 は「相デッキ上→相トラッシュ」と正しく出る）。
-- **③ トレース出力**＝`npm run audit -- --id <CardNum>` / `--set <prefix>` で **原文｜逆翻訳（既存 decompile_sheet 由来）｜盤面差分｜engineログ** を並べる。
+- **③ トレース出力＋HTML表（段階3）**＝`npm run audit -- --id <CardNum>` / `--set <prefix>` で **原文｜逆翻訳（既存 decompile_sheet 由来）｜盤面差分｜engineログ** を端末に並べる。**`npm run audit:html` で `docs/behavior_audit/` にセット単位のHTMLレビュー表（196セット+index.html）を生成**＝要review行を琥珀色・側跨ぎ行を赤帯・crashを赤で強調、検索ボックス＋「要reviewのみ/側跨ぎのみ」フィルタ付き。ライト/ダーク対応・自己完結（外部依存なし）。**HTMLは11M・engine/JSON変更で再生成される派生物＝gitignore**（各自 `npm run audit:html`。軽量な `docs/_behavior_queue.txt` を索引としてコミット）。索引は index.html（セット別に 効果/要review/側跨ぎ/crash 件数）。
 - **④ 要レビュー・キュー**＝`npm run audit:queue`。非CONTINUOUS × OK完走 × 盤面無変化 × 低情報ログ を抽出＝**段階1→2→2c で 811 → 285 → 261 / 9269 効果**（`docs/_behavior_queue.txt`）＝空振りを約68%削減。残261がほぼ真の要レビュー母集団。
 
 **残261の内訳（`node scratchpad/_bqAnalyze.mjs`・段階4レビュー時の地図）**＝other 109（カウント条件〈トラッシュ25枚以上等〉／デッキ内容フィルタ〈スペルを見る〉／CHOOSE の no-op 分岐＝autopilot 限界）・ENERGY_CARD対象 66（「相手が選ぶ」＋条件絡み・マルチエナ等）・条件ゲート 44（場合/かぎり未成立）・**STUB 23（真の未実装＝これは残すべき正の suspect）**・付与 13（GAME_LONG_GRANT等 STUB格納で差分不可視）・制限/防止 5。**段階2cで colorMatchesLrig 8→1・エナ5色化で条件/色フィルタ空振りを解消**。残りは満たすと非代表的になる条件・autopilot分岐限界・STUB＝**さらなる空振り削減は逓減**。
