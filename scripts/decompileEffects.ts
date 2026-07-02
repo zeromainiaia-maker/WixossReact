@@ -1270,6 +1270,17 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:あなたの手札|対戦相手のトラッシュ|いずれかのプレイヤーのトラッシュ)から[^。]*?スペル[^。]*?限定条件を無視して使用する/);
         if (m) return m[0];
       }
+      // 相手が選んで実行（OPP_*・standalone型・engine実装済み）＝「対戦相手は以下のN つから１つを選び、（あなた/対戦相手）はそれを行う。①…②…」。
+      // 次の効果マーカー【 の手前まで抽出。宣言当てゲーム型（別構造）は非マッチでフォールスルー。
+      if (a.id === 'OPP_DECLARE_CHOICE' || a.id === 'OPP_CHOOSE_EFFECT' || a.id === 'OPP_CHOOSES_FOR_YOU') {
+        const m = currentCardText.match(/対戦相手は以下の[０-９\d一二三四]+つから[０-９\d一二]つを選び[^【]*/);
+        if (m) return m[0].replace(/\s*-\s*$/, '').trim();
+      }
+      // 効果を繰り返す（REPEAT_EFFECT・engine実装済み）＝「あなたはこの効果をあとN回まで繰り返してもよい（。（合計で最大M回まで行える）」。
+      if (a.id === 'REPEAT_EFFECT') {
+        const m = currentCardText.match(/あなたはこの効果をあと[０-９\d]+回まで繰り返してもよい(?:。（[^）]*）)?/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
