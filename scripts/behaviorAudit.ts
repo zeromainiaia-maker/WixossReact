@@ -140,6 +140,13 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     return n;
   };
   const takeN = (n: number, mk: (i: number) => string) => Array.from({ length: n }, (_, i) => take(mk(i)));
+  // 指定色の未使用カードを払い出す（無ければ汎用 take）
+  const takeColor = (label: string, color: string): string => {
+    const cand = (colorPool[color] ?? []).find(cn => !used.has(cn));
+    if (!cand) return take(label);
+    used.add(cand); labels.set(cand, label);
+    return cand;
+  };
 
   // source をどのゾーンに置くか（トラッシュ発動/手発動/自身thisCardOnly source）
   const e = eff as unknown as Record<string, unknown>;
