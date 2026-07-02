@@ -5,6 +5,17 @@
 
 ---
 
+## 意味照合監査 系統①(a)：相手デッキ削りの owner 取り違え＝純・相手型58枚を一括是正（2026-07-03・zerom）
+
+semantic audit（LLM）が発見した「対戦相手のデッキの上から…トラッシュ」なのに `TRASH{DECK_CARD, owner:'self'}`＝**自分のデッキを削る実挙動**の系統バグ。`execTrash` は `target.owner` のデッキを削るため実挙動も逆、逆翻訳も「あなたのデッキ…」と誤描画していた。
+
+- **⚠精緻化＝doc旧記載「確定76枚」は over-claim だった**。`scratchpad/_ownerRefine.mjs` で3層に分解＝**(a)純・相手のみ58枚**／**(b)「あなたか対戦相手」選択18枚**（`opponent` でも不完全＝`owner:'any'`要・別作業）／**(c)混在10枚**（正当な自ミル文併存＝ノード単位判別要）。doc通り一括flipしていたら (b)18枚を誤修正するところだった。詳細分類は TODO §1.8。
+- **今回=(a)58枚のみ**を `owner:'self'→'opponent'` に flip（`scratchpad/_ownerFix58.mjs`＝往復安定性チェック＋対象58枚限定＋TRASH DECK_CARD ノードのみ・64ノード）。effects_WXDi/WX24_26/WXK/misc の4ファイル。decompiler/engine のコード変更は不要（両者とも `target.owner` を読む）。
+- 検証＝逆翻訳が「対戦相手のデッキの上からカードをN枚トラッシュに置く」で原文一致・同型★0維持（割れ0）・typecheck緑・**smoke CRASH0/HANG0/INVARIANT0・golden 96/96・fuzz 全0**（engine挙動が変わるため全ハーネス実施）。decompile_sheet4/5/7/8/9/10＋下流再生成。
+- **残**＝(b)選択18枚・(c)混在10枚（TODO §1.8）／系統② GRANT_PROTECTION 48件／パイロット個別真バグ39件。
+
+---
+
 ## 逆翻訳機の本格改善㉒：引用能力付与型の原文抽出（GRANT_QUOTED_ACTIVATE_ABILITY/SIGNI_GRANT_QUOTED_CONSTANT_ABILITY）（2026-07-02・zerom）
 
 引用【起】/【常】能力の付与を「…は「…」を得る(。（補足）)」で原文抽出（`/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/`＝主語は直近の。／：以降、引用内は最初の「」を得る の閉じまで非貪欲）。
