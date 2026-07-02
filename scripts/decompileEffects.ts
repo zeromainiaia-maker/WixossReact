@@ -1259,8 +1259,13 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:[^。]*?正面にシグニがない場合、)?このシグニをアタックした(?:その)?シグニの正面に配置してもよい/);
         if (m) return m[0];
       }
-      // コラボライバーを呼ぶ（COLLAB・engine実装済み）＝「コラボライバーN人を呼ぶ」。
+      // コラボライバー（COLLAB・engine実装済み）＝【常】は「【ガード】する際…コラボしてもよい」（ガード代替）、
+      // それ以外は「コラボライバーN人を呼ぶ」。同一カードに両方あるため effectType で分岐。
       if (a.id === 'COLLAB') {
+        if (effectType === 'CONTINUOUS') {
+          const mc = currentCardText.match(/あなたが【ガード】する際、[^。]*?コラボしてもよい/);
+          if (mc) return mc[0];
+        }
         const m = currentCardText.match(/コラボライバー[０-９\d一二三四]*人を呼ぶ/);
         if (m) return m[0];
       }
