@@ -1109,6 +1109,20 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return 'あなたのアップ状態のシグニを好きな数ダウンしてもよい';
       }
+      // ターン終了時トラッシュ（TRASH_AT_TURN_END・engine実装済み）＝この方法で場に出したシグニを
+      // 「ターン終了時、それ（ら）を場からトラッシュに置く」。単複はカードごとに異なるため currentCardText から抽出。
+      if (a.id === 'TRASH_AT_TURN_END') {
+        const m = currentCardText.match(/ターン終了時、それ[らも]?を(?:場から)?トラッシュに置く/);
+        if (m) return m[0];
+        return 'ターン終了時、それを場からトラッシュに置く';
+      }
+      // 色選択（CHOOSE_COLOR_FROM_LIST・engine実装済み）＝「エナゾーンにあるカードが持つ色から最大N色まで選ぶ」
+      // または「白、赤、青、黒からNつを選ぶ」。表現がカードごとに異なるため currentCardText から抽出。
+      if (a.id === 'CHOOSE_COLOR_FROM_LIST') {
+        const m = currentCardText.match(/(?:あなたの)?エナゾーン[^。]*?色から[^。]*?選ぶ|[白赤青緑黒](?:、[白赤青緑黒])+から[^。]*?選ぶ/);
+        if (m) return m[0];
+        return '色を選ぶ';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
