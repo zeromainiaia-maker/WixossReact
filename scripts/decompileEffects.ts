@@ -564,6 +564,11 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_SOUL_HOST_ABILITY': return `このカードが【ソウル】として付いている${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': {
       if (!a.steps || a.steps.length === 0) return '何もしない';
+      // DO_THREE_THINGS が先頭のSEQUENCEは、その1STUBが原文「N つを行う。①②③」全体を表現し、
+      // 後続 step は parser の冗長な再パース（②③の consequence を重複描画）なので先頭のみ描画する。
+      if (a.steps[0]?.type === 'STUB' && a.steps[0]?.id === 'DO_THREE_THINGS') {
+        return actionJa(a.steps[0]);
+      }
       // 空文字ステップ（engine が no-op スキップする説明テキスト系STUB等）は結合から除外する。
       const pairs = a.steps.map((s: any) => ({ step: s, part: actionJa(s) as string })).filter((p: any) => p.part !== '');
       if (pairs.length === 0) return '何もしない';
