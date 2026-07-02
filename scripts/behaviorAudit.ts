@@ -91,6 +91,7 @@ const pwOf = (cn: string): number => { const p = cardMap.get(cn)?.Power; return 
 // フィルタに合致する実シグニを選ぶ（未使用のもの・powerLtSelf 等は低パワー優先）
 function pickSigni(f: TargetFilter | undefined, used: Set<string>, lowPower: boolean): string | null {
   const stat = staticPart(f);
+  if (f?.colorMatchesLrig && !stat.color) stat.color = [...lrigColor][0]; // lrig と共通色を持つカードを選ぶ
   let best: string | null = null, bestPw = Infinity, scanned = 0;
   for (const cn of signiPool) {
     if (used.has(cn)) continue;
