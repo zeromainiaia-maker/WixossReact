@@ -41,6 +41,8 @@ const ONLY_ID = argVal('--id');
 const SET = argVal('--set');
 const LIMIT = argVal('--limit') ? parseInt(argVal('--limit')!) : Infinity;
 const QUEUE = args.includes('--queue');
+const HTML = args.includes('--html');
+const HTML_OUT = argVal('--html-out') ?? 'docs/behavior_audit';
 const STEP_CAP = 200;
 
 // ── データ読み込み（smokeTest と同じ）──
