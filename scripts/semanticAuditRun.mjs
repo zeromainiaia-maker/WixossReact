@@ -54,6 +54,10 @@ for (const f of batchFiles) {
   const sec = ((Date.now() - t0) / 1000).toFixed(0);
   if (res.status !== 0 || !res.stdout) {
     console.error(`batch_${nn}: 失敗 (exit=${res.status}, ${sec}s)\n${(res.stderr || '').slice(0, 800)}\n${(res.stdout || '').slice(0, 800)}`);
+    if ((res.stdout || '').includes('session limit') || (res.stdout || '').includes('429')) {
+      console.error('セッション上限（429）を検出＝以降のバッチを中断。上限リセット後に同コマンドで再開可（済みバッチはスキップされる）。');
+      break;
+    }
     continue;
   }
   writeFileSync(rawPath, res.stdout);
