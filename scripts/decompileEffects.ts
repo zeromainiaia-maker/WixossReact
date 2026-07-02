@@ -1184,6 +1184,13 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/対戦相手の(?:ルリグ)?トラッシュから[^。]*?使用(?:してもよい|する)/);
         if (m) return m[0];
       }
+      // アクセにする（ACCE_FROM_HAND・engine実装済み）＝原文の表現は多様（エナ/手札/トラッシュ由来・
+      // 対象数可変）だが共通末尾「…の【アクセ】にする」の文を currentCardText から抽出（1文＝1ACCE・句は。で区切られ
+      // LOOK等の別アクションと重複しない）。非マッチはフォールスルーして従来表示のまま（誤文を入れない）。
+      if (a.id === 'ACCE_FROM_HAND') {
+        const m = currentCardText.match(/[^。]*?の【アクセ】にする/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
