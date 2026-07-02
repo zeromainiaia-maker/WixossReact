@@ -5,6 +5,17 @@
 
 ---
 
+## 逆翻訳機の本格改善⑯：LIFE_BURST_DOUBLE / RIDE_ON / OPP_DRAW_LIMIT の英語ID漏れを是正（2026-07-02・zerom）
+
+定型意味の3系統を `currentCardText` 原文抽出で是正（match-only フォールスルー・表現のみ）。
+- **`LIFE_BURST_DOUBLE`**（2枚・WD23-006-E/WXDi-P12-035）＝「このターン、（次に）あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する」を抽出。末尾 `。` は含めず decompiler の効果区切り（「。そして」）に委ねて二重句点を回避。
+- **`RIDE_ON`**（WXK03-022 E2/E3・アタック時/バニッシュ時で同一文）＝「ターン終了時まで、…センタールリグ…は…＜乗機＞のシグニ…に乗ってもよい」を抽出。
+- **`OPP_DRAW_LIMIT`**（WXDi-P05-039/WXDi-P16-005）＝「（次の対戦相手の／その）ドローフェイズの間…対戦相手はカードを合計N枚までしか引けない」を抽出（P16-005 は複数STUB混在行だが該当STUB位置のみ原文化）。
+- 検証＝全対象で原文一致・英語ID漏れ該当0・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。decompile_sheet3/4/7/8＋下流再生成。
+- ⚠**残る英語漏れの主体は大型レンダラ系統（`CHOOSE`／`REVEAL_AND_PICK`／`SELECT`／`REPEAT_N_TIMES`＋`REPEAT_EFFECT`／`LOOK_TOP_*`／`SIGNI_REPOSITION`＋`MOVE_TARGET_SIGNI_TO_OTHER_ZONE`／`OPP_CHOOSE_*`）と per-card heterogeneous（`PREVENT_ZONE_MOVE_BY_OPP`＝同一カードE1/E2が同一アクションで出し分け不能・`DEPLOY_RESTRICT`・`PICK_FROM_TRASHED_CARDS`）**。これらは複数効果が1行に混線 or 原文が全カードで異なり、1本の正規表現で潰せない＝レンダラ本体/parser の分解再設計が必要（無理な固定文化は誤訳を生むため未着手）。`BET_*`系(38)は機構待ち。
+
+---
+
 ## 逆翻訳機の本格改善⑮：相手が公開する系STUBの英語ID漏れを是正（2026-07-02・zerom）
 
 `OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND`（3枚・engine実装済＝`execStubPart3.ts`）が逆翻訳で3つの英語IDを `/` 連結で露出していた（`[STUB:ID1 / ID2 / ID3: 公開ログ]` 形）。3カードで公開元が異なる（WX15-001＝「対戦相手は自分の手札を公開し、その後、自分のルリグデッキからカードを３枚選び公開する。（２枚以下しかない場合はすべて公開する）」／WXDi-D09-P14＝「対戦相手はデッキの一番上と手札を公開する。」／WXDi-P09-039＝「対戦相手は自分のルリグデッキからカードを１枚公開する。」）ため、固定文ではなく `currentCardText` から `/対戦相手は[^。]*公開する。(?:（[^）]*）)?/` で原文抽出（match-only フォールスルー・末尾の括弧補足も取り込む）。
