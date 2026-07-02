@@ -452,7 +452,101 @@ function printTrace(t: Trace) {
 // 低情報ログ判定（要レビュー・キュー用）: STUB no-op マーカーや空だけなら「意味なし」
 const lowInfoLog = (logs: string[]) => logs.every(l => /^\[STUB:|未実装|no-op|^\s*$/.test(l)) || logs.length === 0;
 
-if (QUEUE) {
+const isSuspect = (t: Trace) => t.type !== 'CONTINUOUS' && t.status === 'OK' && t.diff.length === 0 && lowInfoLog(t.logs);
+const isCross = (t: Trace) => t.diff.some(l => l.includes('側跨ぎ'));
+const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+if (HTML) {
+  // ③ HTML表レンダラ: セット単位で 原文｜逆翻訳｜盤面差分｜ログ を並べたレビュー表を吐く
+  const setOf = (n: string) => n.replace(/-[^-]+$/, '') || n;
+  const bySet = new Map<string, Trace[]>();
+  for (const [num, effs] of effectsMap) {
+    for (const eff of effs) {
+      const t = traceEffect(num, eff);
+      const s = setOf(num);
+      let arr = bySet.get(s); if (!arr) { arr = []; bySet.set(s, arr); }
+      arr.push(t);
+    }
+  }
+  const outDir = join(root, HTML_OUT);
+  fs.mkdirSync(outDir, { recursive: true });
+  const fname = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, '_') + '.html';
+  const css = `
+    :root{color-scheme:light dark}
+    *{box-sizing:border-box}
+    body{margin:0;font:13px/1.5 system-ui,'Segoe UI',sans-serif;color:#1a1a1a;background:#fafafa}
+    header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #ddd;padding:8px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    header h1{font-size:17px;margin:0}
+    .counts{color:#666;font-size:12px}
+    .bar{display:flex;gap:12px;align-items:center;margin-left:auto}
+    .bar input[type=text],#q{padding:4px 8px;border:1px solid #ccc;border-radius:5px;min-width:200px}
+    label{font-size:12px;user-select:none}
+    a{color:#0563c1;text-decoration:none}a:hover{text-decoration:underline}
+    .wrap{overflow-x:auto}
+    table{border-collapse:collapse;width:100%;background:#fff}
+    thead th{position:sticky;top:49px;background:#f0f2f5;border-bottom:2px solid #ccc;padding:6px 8px;text-align:left;font-size:12px;white-space:nowrap}
+    td{border-bottom:1px solid #eee;padding:6px 8px;vertical-align:top}
+    tbody tr:hover{background:#f6f9ff}
+    td.c{white-space:nowrap;font-size:12px}
+    td.c small{color:#888}
+    td.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap}
+    td.mono .x{color:#c00;font-weight:600}
+    td:nth-child(3),td:nth-child(4){max-width:32ch;min-width:20ch}
+    td.st{font-weight:600;font-size:11px;text-align:center}
+    td.st.b{color:#c00}
+    tr.suspect{background:#fff7e6}
+    tr.suspect:hover{background:#ffefcf}
+    tr.cross{box-shadow:inset 4px 0 #c00}
+    tr.crash{background:#fdecea}
+    i{color:#aaa}
+    @media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}header,table{background:#1e1e1e}thead th{background:#252525;border-color:#444}td{border-color:#333}tbody tr:hover{background:#232a35}tr.suspect{background:#3a3320}tr.crash{background:#3a2220}.counts{color:#aaa}td.c small,i{color:#888}}
+  `;
+  const script = `
+    var q=document.getElementById('q'),fs=document.getElementById('fs'),fx=document.getElementById('fx');
+    var rows=Array.prototype.slice.call(document.querySelectorAll('tbody tr'));
+    function apply(){var t=(q.value||'').toLowerCase();for(var i=0;i<rows.length;i++){var r=rows[i];var show=!t||r.textContent.toLowerCase().indexOf(t)>=0;var tg=r.getAttribute('data-tags')||'';if(fs.checked&&tg.indexOf('要review')<0)show=false;if(fx.checked&&tg.indexOf('側跨ぎ')<0)show=false;r.style.display=show?'':'none';}}
+    q.addEventListener('input',apply);fs.addEventListener('change',apply);fx.addEventListener('change',apply);
+  `;
+  const setStats: { set: string; file: string; n: number; suspect: number; cross: number; crash: number }[] = [];
+  for (const [s, traces] of [...bySet].sort((a, b) => a[0].localeCompare(b[0]))) {
+    let suspect = 0, cross = 0, crash = 0;
+    const rows = traces.map(t => {
+      const cd = cardMap.get(t.card);
+      const orig = ((cd?.EffectText ?? '') + (cd?.BurstText && cd.BurstText !== '-' ? ' ／BURST: ' + cd.BurstText : '')).trim();
+      const dec = decompLines.get(t.effectId) ?? '';
+      const sus = isSuspect(t), cr = isCross(t), bad = /CRASH|HANG|INVARIANT/.test(t.status);
+      if (sus) suspect++; if (cr) cross++; if (bad) crash++;
+      const cls = [sus ? 'suspect' : '', cr ? 'cross' : '', bad ? 'crash' : ''].filter(Boolean).join(' ');
+      const tags = [sus ? '要review' : '', cr ? '側跨ぎ' : '', bad ? t.status : ''].filter(Boolean).join(' ');
+      const diffHtml = t.diff.length
+        ? t.diff.map(l => (l.includes('側跨ぎ') ? '<span class="x">' : '<span>') + escHtml(l.trim()) + '</span>').join('<br>')
+        : '<i>盤面変化なし</i>';
+      const logHtml = t.logs.length ? t.logs.map(l => escHtml(l)).join('<br>') : '<i>なし</i>';
+      const eff = t.effectId.startsWith(t.card + '-') ? t.effectId.slice(t.card.length + 1) : t.effectId;
+      return `<tr class="${cls}" data-tags="${tags}"><td class="c">${escHtml(t.card)}<br><small>${escHtml(t.name)}</small></td>`
+        + `<td class="c">${escHtml(eff)}<br><small>${t.type}</small></td>`
+        + `<td>${orig ? escHtml(orig) : '<i>なし</i>'}</td><td>${dec ? escHtml(dec) : '<i>—</i>'}</td>`
+        + `<td class="mono">${diffHtml}</td><td class="mono">${logHtml}</td>`
+        + `<td class="st${bad ? ' b' : ''}">${t.status}${sus ? '<br>要review' : ''}${cr ? '<br>側跨ぎ' : ''}</td></tr>`;
+    }).join('\n');
+    const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>挙動監査 ${escHtml(s)}</title><style>${css}</style></head><body>`
+      + `<header><a href="index.html">← 索引</a><h1>${escHtml(s)}</h1><span class="counts">効果 ${traces.length}／要review ${suspect}／側跨ぎ ${cross}／crash ${crash}</span>`
+      + `<div class="bar"><input type="text" id="q" placeholder="検索(カード名/原文/差分…)"><label><input type="checkbox" id="fs"> 要reviewのみ</label><label><input type="checkbox" id="fx"> 側跨ぎのみ</label></div></header>`
+      + `<div class="wrap"><table><thead><tr><th>カード</th><th>効果</th><th>原文</th><th>逆翻訳</th><th>盤面差分</th><th>engineログ</th><th>判定</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      + `<script>${script}</script></body></html>`;
+    const file = fname(s);
+    fs.writeFileSync(join(outDir, file), html, 'utf8');
+    setStats.push({ set: s, file, n: traces.length, suspect, cross, crash });
+  }
+  const idxRows = setStats.map(x =>
+    `<tr><td><a href="${x.file}">${escHtml(x.set)}</a></td><td class="c">${x.n}</td><td class="c">${x.suspect}</td><td class="c">${x.cross}</td><td class="c">${x.crash}</td></tr>`).join('\n');
+  const tot = setStats.reduce((a, x) => ({ n: a.n + x.n, s: a.s + x.suspect, c: a.c + x.cross, cr: a.cr + x.crash }), { n: 0, s: 0, c: 0, cr: 0 });
+  const idx = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>挙動トレース監査 索引</title><style>${css}</style></head><body>`
+    + `<header><h1>挙動トレース監査（Behavior Audit）索引</h1><span class="counts">${setStats.length} セット／効果 ${tot.n}／要review ${tot.s}／側跨ぎ ${tot.c}／crash ${tot.cr}</span></header>`
+    + `<div class="wrap"><table><thead><tr><th>セット</th><th>効果</th><th>要review</th><th>側跨ぎ</th><th>crash</th></tr></thead><tbody>${idxRows}</tbody></table></div></body></html>`;
+  fs.writeFileSync(join(outDir, 'index.html'), idx, 'utf8');
+  console.log(`HTML生成: ${HTML_OUT}/ に ${setStats.length} セット + index.html（効果 ${tot.n}／要review ${tot.s}／側跨ぎ ${tot.c}／crash ${tot.cr}）`);
+} else if (QUEUE) {
   // ④ 要レビュー・キュー: 非CONTINUOUS × OK完走 × 盤面無変化 × 低情報ログ
   const suspects: Trace[] = [];
   let scanned = 0;
