@@ -1240,8 +1240,10 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
       }
       // クラス変更（CLASS_CHANGE・engine実装済み）＝「シグニN体を対象とし、ターン終了時まで、それはクラスを失い、＜X＞を得る」。
+      // fallback＝「ターン終了時まで、…（すべての…シグニ／それ）はクラスを失い、（＜X＞／宣言されたクラス）を得る」。
       if (a.id === 'CLASS_CHANGE') {
-        const m = currentCardText.match(/シグニ[０-９\d]*体を対象とし、ターン終了時まで、それはクラスを失い、＜[^＞]+＞を得る/);
+        const m = currentCardText.match(/シグニ[０-９\d]*体を対象とし、ターン終了時まで、それはクラスを失い、＜[^＞]+＞を得る/)
+          ?? currentCardText.match(/ターン終了時まで、[^。]*?クラスを失い、(?:＜[^＞]+＞|宣言されたクラス)を得る/);
         if (m) return m[0];
       }
       // 場依存の使用コスト減（CONDITIONAL_COST_REDUCTION_BY_FIELD・engine実装済み）＝「あなたの場に…がある場合、このスペルの使用コストは…減る」。
