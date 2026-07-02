@@ -5,6 +5,16 @@
 
 ---
 
+## 逆翻訳機の本格改善⑲：原文抽出4系統（OPP_MAIN_PHASE_LIMIT_DOWN/OPP_SIGNI_ATTACK_COST/COPY_TARGET_POWER/FIELD_ENERGY_SIGNI_GAIN_COLOR）（2026-07-02・zerom）
+
+- **`OPP_MAIN_PHASE_LIMIT_DOWN`**（WXDi-P13-029/WX25-P2-014）＝「次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットを－Nする」。
+- **`OPP_SIGNI_ATTACK_COST`**（WXEX1-04/WX22-Re20・引用能力付与型）＝「ターン終了時まで、対戦相手のすべてのシグニは「【常】：あなたが《無》…を支払わないかぎりアタックできない。」を得る」（《無》の数はカード別に `(?:《無》)*` で吸収）。
+- **`COPY_TARGET_POWER`**（WXDi-P02-079/P09-051）＝「シグニN体を対象とし、（次の対戦相手の）ターン終了時まで、このシグニの基本パワーはそれのパワーと同じ値になる」。
+- **`FIELD_ENERGY_SIGNI_GAIN_COLOR`**（WXDi-P06-040/P12-010・CONTINUOUS）＝「あなたの、場とエナゾーンにある…シグニは追加で…を得る」。
+- 検証＝全対象で原文一致・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。decompile_sheet3/7/8/9＋下流再生成。**英語ID漏れ総数 399→391**。⚠見送り＝`SET_NEXT_LIFE_CRASH_COUNTER`（引用付与 vs 直接型で heterogeneous）・`EXTRA_COST_REMOVE_VIRUS`（選択肢N+1択の展開が要りレンダラ本体側）・`NEGATE_NTH_ATTACK`／`TARGET_OPP_SIGNI_ONLY`／`PEEP_HAND`（後続STUBと混線）。
+
+---
+
 ## 逆翻訳機の本格改善⑱：原文抽出6系統（PICK/DEPLOY/OPP_SIGNI_ATTACK/COIN/OPP_DECLARE/UNDER）（2026-07-02・zerom）
 
 方針＝「原文抽出を1系統ずつ継続（原文一致重視）」（ユーザー確認済み）。engine実装済み or 表現のみのSTUB 6系統を `currentCardText` から原文抽出（match-only フォールスルー・engine不変）。
