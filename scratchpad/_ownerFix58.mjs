@@ -19,11 +19,14 @@ let totalFlips = 0, cardsHit = new Set();
 for (const f of files) {
   const p = join(root, 'public/data', f);
   const raw = readFileSync(p, 'utf8');
-  const data = JSON.parse(raw);
-  // 往復安定性チェック
-  if (JSON.stringify(data) !== raw) {
-    console.error(`⚠ ${f}: 往復不安定（末尾改行/整形差）＝安全のため中断。差分を確認せよ。`);
-    console.error(`  raw.len=${raw.length} restr.len=${JSON.stringify(data).length}`);
+  const eolMatch = raw.match(/(\r?\n)$/);
+  const eol = eolMatch ? eolMatch[1] : '';
+  const body = eol ? raw.slice(0, -eol.length) : raw;
+  const data = JSON.parse(body);
+  // 往復安定性チェック（末尾EOLを除いた本体が完全一致すること）
+  if (JSON.stringify(data) !== body) {
+    console.error(`⚠ ${f}: 往復不安定（整形差）＝安全のため中断。`);
+    console.error(`  body.len=${body.length} restr.len=${JSON.stringify(data).length}`);
     process.exit(1);
   }
   let flips = 0;
