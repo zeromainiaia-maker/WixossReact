@@ -174,7 +174,7 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     return {
       deck, lrig_deck: [], hand, life_cloth: takeN(7, i => `${side}ライフ${i + 1}`),
       trash, lrig_trash: takeN(2, i => `${side}ルリグトラッシュ${i + 1}`),
-      energy: takeN(5, i => `${side}エナ${i + 1}`), coins: 3, bonds: [],
+      energy: COLORS.map(c => takeColor(`${side}エナ${c}`, c)), coins: 3, bonds: [],
       field: {
         lrig: lrigCard ? [lrigCard] : [], signi,
         signi_down: [false, false, false], signi_frozen: [false, false, false],
