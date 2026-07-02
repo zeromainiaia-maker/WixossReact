@@ -44,6 +44,8 @@ scripts/_dbg*.ts
 docs/effects_merge_report.md
 # 逆翻訳ツールの出力: ルート直下はスクラッチ（無視）。共有分は docs/ にコミットする。
 /decompile_*.txt
+# 挙動トレース監査(BEHAVIOR_AUDIT §段階3)のHTML: 11M・engine/JSON変更で再生成される派生物＝非追跡。`npm run audit:html` で各自生成。軽量な docs/_behavior_queue.txt を索引としてコミット。
+docs/behavior_audit/
 # ブラウザ検証ハーネスのスクショ出力（非追跡）
 /scratchpad-verify/
 # 検証用すてアカウントの認証情報（コミット禁止）
