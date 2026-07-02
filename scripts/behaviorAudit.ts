@@ -203,6 +203,16 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     nextZone[side] = z + 1;
   }
 
+  // 段階2b: トラッシュ/デッキ/手札の対象・source フィルタに合う実カードを該当ゾーン先頭へ配置（サルベージ/サーチ系）
+  for (const zn of zoneNeeds) {
+    const st = zn.owner === 'self' ? ownerState : otherState;
+    const side = zn.owner === 'self' ? '自' : '相';
+    const cn = pickSigni(zn.filter, used, false);
+    if (!cn) continue;
+    used.add(cn); labels.set(cn, `${side}${zn.zone === 'trash' ? 'トラッシュ' : zn.zone === 'deck' ? 'デッキ上' : '手札'}対象`);
+    (st[zn.zone] as string[]).unshift(cn); // デッキは上(先頭)、他も先頭に置けば候補に入る
+  }
+
   const ctx = {
     ownerState, otherState, cardMap: cardMap as Map<string, CardData>,
     logs: [] as string[], sourceCardNum: sourceNum, triggeringCardNum: sourceNum, currentPhase: 'MAIN',
