@@ -1370,7 +1370,7 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // ライフバースト二度発動（LIFE_BURST_DOUBLE）＝「（このターン、）（次に）あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する」を原文抽出。
       if (a.id === 'LIFE_BURST_DOUBLE') {
-        const m = currentCardText.match(/このターン、(?:次に)?あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する。?/);
+        const m = currentCardText.match(/このターン、(?:次に)?あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する/);
         if (m) return m[0];
       }
       // ルリグが乗機シグニに乗る（RIDE_ON）＝「ターン終了時まで、…センタールリグ…は…＜乗機＞のシグニ…に乗ってもよい」を原文抽出。
