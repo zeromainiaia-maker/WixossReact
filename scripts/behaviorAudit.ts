@@ -24,6 +24,8 @@ import Papa from 'papaparse';
 import type { CardData, PlayerState } from '../src/types';
 import type { CardEffect } from '../src/types/effects';
 import { mergeManualEffects } from '../src/data/manualEffects';
+import { matchesFilter } from '../src/engine/execUtils';
+import type { TargetFilter } from '../src/types/effects';
 import {
   executeEffect,
   resumeSelectTarget, resumeSearch, resumeChoose,
