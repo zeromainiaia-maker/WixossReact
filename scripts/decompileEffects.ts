@@ -1433,6 +1433,26 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたの、場とエナゾーンにある[^。]*?シグニは追加で[^。]*?を得る/);
         if (m) return m[0];
       }
+      // 次の相手アップフェイズにアップさせない（UPKEEP_OR_NO_UP）＝「次の対戦相手のアップフェイズに、対戦相手が…支払わないかぎり、対戦相手のセンタールリグはアップしない」を原文抽出。
+      if (a.id === 'UPKEEP_OR_NO_UP') {
+        const m = currentCardText.match(/次の対戦相手のアップフェイズに、対戦相手が[^。]*?支払わないかぎり、対戦相手のセンタールリグはアップしない/);
+        if (m) return m[0];
+      }
+      // 能力なしならトラッシュ（ABILITY_CHECK_ELSE_TRASH）＝「それが能力を持たない場合、代わりにそれをトラッシュに置く」を原文抽出。
+      if (a.id === 'ABILITY_CHECK_ELSE_TRASH') {
+        const m = currentCardText.match(/それが能力を持たない場合、代わりにそれをトラッシュに置く/);
+        if (m) return m[0];
+      }
+      // ダウンしたシグニのパワーを加算（POWER_COPY_FROM_DOWNED）＝「ターン終了時まで、このシグニのパワーをこの方法でダウンしたシグニのパワーと同じだけ＋（プラス）する」を原文抽出。
+      if (a.id === 'POWER_COPY_FROM_DOWNED') {
+        const m = currentCardText.match(/ターン終了時まで、このシグニのパワーをこの方法でダウンしたシグニのパワーと同じだけ＋（プラス）する/);
+        if (m) return m[0];
+      }
+      // トラッシュからアクセ付与（ACCE_FROM_TRASH）＝「あなたのトラッシュから…を対象とし、それをこのシグニの【アクセ】にする」を原文抽出。
+      if (a.id === 'ACCE_FROM_TRASH') {
+        const m = currentCardText.match(/あなたのトラッシュから[^。]*?を対象とし、それをこのシグニの【アクセ】にする/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
