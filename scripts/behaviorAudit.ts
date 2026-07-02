@@ -101,20 +101,26 @@ function pickSigni(f: TargetFilter | undefined, used: Set<string>, lowPower: boo
 // 効果ツリーから対象(SIGNI/LRIG)と source を収集
 type Tgt = { owner: string; filter: TargetFilter; ttype: string };
 type Src = { owner: string; stype: string; filter: TargetFilter };
-function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[] } {
-  const targets: Tgt[] = []; const sources: Src[] = [];
+type ZoneNeed = { owner: string; zone: 'trash' | 'deck' | 'hand'; filter: TargetFilter };
+const ZTYPE: Record<string, ZoneNeed['zone']> = { TRASH_CARD: 'trash', DECK_CARD: 'deck', HAND_CARD: 'hand' };
+function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[]; zoneNeeds: ZoneNeed[] } {
+  const targets: Tgt[] = []; const sources: Src[] = []; const zoneNeeds: ZoneNeed[] = [];
   (function walk(o: unknown) {
     if (!o || typeof o !== 'object') return;
     const r = o as Record<string, unknown>;
-    const t = r.target as Record<string, unknown> | undefined;
-    if (t && (t.type === 'SIGNI' || t.type === 'LRIG'))
-      targets.push({ owner: (t.owner as string) ?? 'opponent', filter: (t.filter as TargetFilter) ?? {}, ttype: t.type as string });
-    const s = r.source as Record<string, unknown> | undefined;
-    if (s && typeof s.type === 'string')
-      sources.push({ owner: (s.owner as string) ?? 'self', stype: s.type as string, filter: (s.filter as TargetFilter) ?? {} });
+    for (const key of ['target', 'source'] as const) {
+      const t = r[key] as Record<string, unknown> | undefined;
+      if (!t || typeof t.type !== 'string') continue;
+      const owner = (t.owner as string) ?? (key === 'source' ? 'self' : 'opponent');
+      const filter = (t.filter as TargetFilter) ?? {};
+      if (t.type === 'SIGNI' || t.type === 'LRIG') targets.push({ owner, filter, ttype: t.type });
+      if (key === 'source') sources.push({ owner, stype: t.type, filter });
+      if (ZTYPE[t.type] && (filter.cardType || filter.cardClass || filter.story || filter.color))
+        zoneNeeds.push({ owner, zone: ZTYPE[t.type], filter });
+    }
     for (const v of Object.values(r)) if (v && typeof v === 'object') walk(v);
   })(eff);
-  return { targets, sources };
+  return { targets, sources, zoneNeeds };
 }
 
 /** 効果対応のラベル付き盤面。対象フィルタに合う実シグニを対象側に配置し、source を要求ゾーンに置く。 */
