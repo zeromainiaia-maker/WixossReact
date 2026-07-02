@@ -1140,6 +1140,20 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return 'ターン終了時まで、対戦相手のシグニを《サーバント　ＺＥＲＯ》にする';
       }
+      // シード開花（SEED_BLOOM/SEED_BLOOM_OPTIONAL・engine実装済み）＝「（あなたの）【シード】（N枚/好きな枚数）を（対象とし）開花する」。
+      // 対象数/語順がカードごとに異なるため currentCardText から【シード】を含む開花クレーズを抽出（コスト句 : はまたがない）。
+      if (a.id === 'SEED_BLOOM' || a.id === 'SEED_BLOOM_OPTIONAL') {
+        const m = currentCardText.match(/(?:あなたの)?[^。：]*【シード】[^。：]*?開花する/);
+        if (m) return m[0];
+        return 'あなたの【シード】を開花する';
+      }
+      // 公開からシード設置（PLACE_SEED_FROM_REVEALED・engine実装済み）＝LOOK/シャッフルは別描画され、
+      // 本体は「その中からカードN枚を【シード】としてあなたのシグニゾーンに出す（してもよい）」。currentCardText から抽出。
+      if (a.id === 'PLACE_SEED_FROM_REVEALED') {
+        const m = currentCardText.match(/その中から[^。]*?【シード】として[^。]*?出(?:してもよい|す)/);
+        if (m) return m[0];
+        return 'その中からカードを【シード】としてあなたのシグニゾーンに出す';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {

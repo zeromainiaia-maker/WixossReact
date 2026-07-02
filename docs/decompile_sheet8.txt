@@ -959,7 +959,7 @@ WXDi-P09-005  カーニバル　―TI―  [ルリグ カーニバル]
 
 【JSON 逆翻訳】
   WXDi-P09-005-E1: 【起】（メイン起動）：《once_per_turn》〈手札1枚を捨てる〉以下の3つから1つを選ぶ【あなたのカードを1枚引く / あなたのデッキの上から1枚をエナゾーンに置く / 対戦相手のシグニ1体をトラッシュに置く】
-  WXDi-P09-005-E2: 【起】（メイン起動）：《once_per_game》〈《赤×0》〉[STUB:ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07…]
+  WXDi-P09-005-E2: 【起】（メイン起動）：《once_per_game》〈《赤×0》〉対戦相手のシグニを２体まで対象とし、ターン終了時まで、それらを《サーバント　ＺＥＲＯ》にする
 
 ==============================================================================
 WXDi-P09-006  レイラ＝オーバーテイク  [ルリグ レイラ]
@@ -2925,9 +2925,9 @@ WXDi-P11-031  カーニバル　-終-  [アシストルリグ カーニバル]
   （《サーバント　ＺＥＲＯ》はレベル１、＜精元＞、パワー1000、無色で能力を持たないシグニである）
 
 【JSON 逆翻訳】
-  WXDi-P11-031-E1: 【自】このシグニが場に出たとき：[STUB:ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07…]
-  WXDi-P11-031-E2: 【自】このシグニが場に出たとき：〈手札2枚を捨てる〉[STUB:ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07…]
-  WXDi-P11-031-E3: 【自】このシグニが場に出たとき：〈《赤×1》《無×1》《無×1》〉[STUB:ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07…]
+  WXDi-P11-031-E1: 【自】このシグニが場に出たとき：対戦相手のシグニ１体を対象とし、ターン終了時まで、それを《サーバント　ＺＥＲＯ》にする
+  WXDi-P11-031-E2: 【自】このシグニが場に出たとき：〈手札2枚を捨てる〉対戦相手のシグニ１体を対象とし、ターン終了時まで、それを《サーバント　ＺＥＲＯ》にする
+  WXDi-P11-031-E3: 【自】このシグニが場に出たとき：〈《赤×1》《無×1》《無×1》〉対戦相手のシグニ１体を対象とし、ターン終了時まで、それを《サーバント　ＺＥＲＯ》にする
 
 ==============================================================================
 WXDi-P11-032  カーニバル　-罪-  [アシストルリグ カーニバル]
