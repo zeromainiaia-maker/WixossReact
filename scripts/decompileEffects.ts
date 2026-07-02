@@ -1414,7 +1414,8 @@ function actionJa(a?: Action, effectType?: string): string {
       };
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
-      const desc = stubDescMap.get(a.id);
+      // 説明文中の実装フロー注記（例:（SELECT→INTERNAL））は原文語彙でないため除去。
+      const desc = stubDescMap.get(a.id)?.replace(/（[A-Z][A-Z0-9_]*(?:→[A-Z][A-Z0-9_]*)+）/g, '').trim();
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
     }
     default: return `[アクション:${a.type}]`;
