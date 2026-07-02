@@ -1187,7 +1187,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // アクセにする（ACCE_FROM_HAND・engine実装済み）＝原文の表現は多様（エナ/手札/トラッシュ由来・
       // 対象数可変）だが共通末尾「…の【アクセ】にする」の文を currentCardText から抽出（1文＝1ACCE・句は。で区切られ
       // LOOK等の別アクションと重複しない）。非マッチはフォールスルーして従来表示のまま（誤文を入れない）。
-      if (a.id === 'ACCE_FROM_HAND') {
+      if (a.id === 'ACCE_FROM_HAND' || a.id === 'MULTI_ACCE_FROM_HAND') {
         const m = currentCardText.match(/[^。]*?の【アクセ】にする/);
         if (m) return m[0].replace(/^【[^】]*】[^：。]*：/, '');
       }
