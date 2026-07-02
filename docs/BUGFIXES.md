@@ -5,6 +5,19 @@
 
 ---
 
+## 逆翻訳機の本格改善⑱：原文抽出6系統（PICK/DEPLOY/OPP_SIGNI_ATTACK/COIN/OPP_DECLARE/UNDER）（2026-07-02・zerom）
+
+方針＝「原文抽出を1系統ずつ継続（原文一致重視）」（ユーザー確認済み）。engine実装済み or 表現のみのSTUB 6系統を `currentCardText` から原文抽出（match-only フォールスルー・engine不変）。
+- **`PICK_FROM_TRASHED_CARDS`**（WXEX2-49/WX24-P4-034）＝「この方法でトラッシュに置かれたカードの中から…対象とし、それ(ら)を手札に加える(か場に出す)」。混線行（WXK10-026＝「中から」を含まない別記述）はフォールスルーで非マッチ。
+- **`DEPLOY_RESTRICT`**（WXDi-P11-050/P15-039/WXK09-015）＝カード別に「…新たに(場に)出せない(。（補足）)」を抽出（先頭【】：は timing 側で描画済のため `[^。：]*` で除外）。
+- **`OPP_SIGNI_ATTACK_POWER_RESTRICT`**（WXDi-P05-031/CP01-017）＝「このターン、対戦相手はパワーがN以下のシグニでアタックできない」。
+- **`COIN_USE_RESTRICTION`**（WXDi-P15-008/009）＝「このゲームの間、あなたは《コインアイコン》をスペルとシグニにしか支払えない」。
+- **`OPP_DECLARE_COLOR`**（WXEX1-07/WXK09-037）＝「対戦相手は色N つを宣言する」（宣言色トラッシュ処理は後続の別効果側で描画）。
+- **`HAND_CARDS_UNDER_SIGNI` / `PLACE_SIGNI_UNDER_SELF_OPT`**（WXDi-P05-034=場のシグニ／P11-081=手札・descが「手札から」固定で誤りだった2枚）＝「あなたの…をこのシグニの下に置いてもよい(。（補足）)」で原文どおり出し分け。
+- 検証＝全対象で原文一致・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。decompile_sheet3/4/7/8/9＋下流再生成。**英語ID漏れ総数 444→399**（⑭〜⑱累計）。
+
+---
+
 ## 逆翻訳機の本格改善⑰：STUB説明文の矢印形式 実装フロー注記を除去（2026-07-02・zerom）
 
 STUBS.md 由来の説明文（`stubDescMap`）に混入していた実装フロー注記 `（SELECT→INTERNAL）`／`（SELECT_TARGET→INTERNAL_POWER_UP_SELECTED）`（計6件）を decompiler で除去（`（[A-Z][A-Z0-9_]*(?:→[A-Z][A-Z0-9_]*)+）` を空置換）。原文語彙でない実装メモのため除去して日本語説明のみ残す（例「エナゾーンからカード1枚選んでトラッシュ」）。全10シート再生成・同型★0 維持・typecheck 緑・engine 不変。
