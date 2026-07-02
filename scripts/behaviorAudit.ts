@@ -258,19 +258,19 @@ function traceEffect(num: string, eff: CardEffect): Trace {
   const type = (eff.effectType as string) ?? '?';
   const { ctx, labels } = buildScenario(num);
   const before = snapshot(ctx);
-  let status = 'OK'; let diff: string[] = []; let logs: string[] = [];
+  const out: { status: string; diff: string[]; logs: string[] } = { status: 'OK', diff: [], logs: [] };
   try {
     const first = executeEffect(eff, ctx);
     const ap = autopilot(first, ctx);
-    status = ap.status;
+    out.status = ap.status;
     const afterCtx = { ...ctx, ownerState: ap.result.ownerState, otherState: ap.result.otherState } as ExecCtx;
     const after = snapshot(afterCtx);
-    diff = diffBoard(before, after, labels);
-    logs = ap.result.logs.slice();
+    out.diff = diffBoard(before, after, labels);
+    out.logs = ap.result.logs.slice();
   } catch (e) {
-    status = 'CRASH'; logs = [(e as Error).message];
+    out.status = 'CRASH'; out.logs = [(e as Error).message];
   }
-  return { card: num, name, effectId: (eff.effectId as string) ?? '?', type, status, diff, logs };
+  return { card: num, name, effectId: (eff.effectId as string) ?? '?', type, status: out.status, diff: out.diff, logs: out.logs };
 }
 
 // 逆翻訳シート（既存 docs/decompile_sheet*.txt）から該当行を引く
