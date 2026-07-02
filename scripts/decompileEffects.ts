@@ -1165,7 +1165,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「（あなたの場に＜X＞のルリグがN体いないかぎり、）このカードはすべての領域で色を失う」。
       // 条件は 【常】に前置描画されないため条件ごと currentCardText から抽出。
       if (a.id === 'LOSE_COLOR_ALL_ZONES') {
-        const m = currentCardText.match(/[^。]*?このカードはすべての領域で色を失う/);
+        const m = currentCardText.match(/(?:あなたの場に[^。]*?いないかぎり、)?このカードはすべての領域で色を失う/);
         if (m) return m[0];
         return 'このカードはすべての領域で色を失う';
       }
