@@ -1362,6 +1362,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:このターン、|次のあなたのターンまで、)?対戦相手[^。]*?しかアタックできない/);
         if (m) return m[0];
       }
+      // 相手が公開する系（OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND・engine実装済み）
+      // ＝3枚で公開元（手札＋ルリグデッキ／ルリグデッキ／デッキトップ＋手札）が異なるため currentCardText から原文抽出。
+      if (a.id === 'OPP_REVEAL_HAND_AND_LRIG_DECK' || a.id === 'OPP_REVEAL_LRIG_DECK' || a.id === 'OPP_REVEAL_TOP_AND_HAND') {
+        const m = currentCardText.match(/対戦相手は[^。]*公開する。(?:（[^）]*）)?/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
