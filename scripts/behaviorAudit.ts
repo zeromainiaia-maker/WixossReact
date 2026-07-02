@@ -337,7 +337,7 @@ type Trace = { card: string; name: string; effectId: string; type: string; statu
 function traceEffect(num: string, eff: CardEffect): Trace {
   const name = cardMap.get(num)?.CardName ?? '';
   const type = (eff.effectType as string) ?? '?';
-  const { ctx, labels } = buildScenario(num);
+  const { ctx, labels } = buildScenario(num, eff);
   const before = snapshot(ctx);
   const out: { status: string; diff: string[]; logs: string[] } = { status: 'OK', diff: [], logs: [] };
   try {
