@@ -57,7 +57,7 @@
 原文 vs effects JSON を LLM で意味比較する検査パイプライン（`scripts/semanticAudit{Extract,Run,Triage}.mjs`）を構築済み。パイロット（stub群30枚精査）で **precision 約78%・30枚中17枚に確定バグ**（同型★0・smoke/fuzz 緑を通過済みのカード）。
 
 - [ ] **系統①：相手デッキ削りの owner 取り違え**。「対戦相手のデッキの上から…トラッシュ」が `TRASH{DECK_CARD, owner:'self'}`＝自分のデッキを削る実挙動。リスト再取得＝`node scratchpad/_auditSystematicScan.mjs`（生101ノード）。**⚠2026-07-03 精緻化＝doc旧記載「確定76枚」は over-claim。3層に分解**（`node scratchpad/_ownerRefine.mjs`）：
-  - **(a) 純・相手のみ＝58枚＝真の取り違え・`self→opponent` に安全 flip 可**（原文が「対戦相手のデッキ」のみ）。ここが一括是正の対象。
+  - **(a) 純・相手のみ＝58枚＝✅是正済（2026-07-03・BUGFIXES上部）**＝`self→opponent` に flip（`scratchpad/_ownerFix58.mjs`・64ノード）。全ハーネス緑・原文一致・同型★0。
   - **(b) 「あなたか対戦相手」選択＝18枚**（WX07-005/WXDi-D07-019/D07-022/P01-044/P04-043/P04-082/P05-043/P07-087/P13-002/WX24-P3-057/P3-091/P4-025/WX25-P3-028/WX26-CP1-058/CP1-098/WXK09-034/09-057/11-076）。原文はプレイヤー選択＝`opponent` でも不完全。`owner:'any'`＋engine/decompiler の選択対応が要る（中リスク・別作業）。**opponent に flip してはいけない。**
   - **(c) 混在（自ミル文併存）＝10枚**（WXEX2-21/WXDi-P07-007/P11-082/P15-055/WX24-P3-088/P4-034/P4-049/WX25-P1-010/P1-106/CP1-007）。同一効果に正当な自ミルも持つ＝ノード単位で判別要。
   - **進め方**＝まず (a) 58枚を系統一括是正（§0）→verify。(b)(c) は個別。パーサー側も同修正で回帰防止。
