@@ -11,7 +11,7 @@
 P1_PLAN の3フェーズ枠組み（①表現 P1／②実行 P2／③挙動 P3）のうち **P1 の最終盤**。
 
 - **達成済み**：同型★0・held/LOSS/VALUE 全0・脱落疑い255枚全分類・大型機構B1〜B4完了・**C1 timing 配線 残0**（ON_KEYWORD_GAINED 含め全配線）・検証ハーネス3層（smoke 10557件 全0／golden 96/96／fuzz 全0）＋CI 自動化・実機ドライバ `scripts/verifyBattleDrive.mjs` 既定10シナリオ PASS。
-- **本丸の残**：逆翻訳機の出力品質（原文一致・P1_PLAN §1 4つ目）。実測＝**英語ID露出の `[STUB:…]` は 582件・約280系統**（2026-07-02 走査）。
+- **本丸の残**：逆翻訳機の出力品質（原文一致・P1_PLAN §1 4つ目）。**2026-07-02 に10系統是正で 582→509 件**（BUGFIXES⑩⑪）。当初実測＝**英語ID露出の `[STUB:…]` は 582件・約280系統**。
   - 上位クラスタ：BET_MECHANIC 19／DOWN_UP_SIGNI_AND_CHOOSE 14／TRASH_AT_TURN_END 13／REVEAL_AND_PICK 13／BET_CONDITION 11／CHOOSE_COLOR_FROM_LIST 10／CRAFT_TO_LRIG_DECK＋ADD_CRAFT 18／ACCE_FROM_HAND 9／SERVANT_ZERO系 計24／SEED系 20／LOOK_TOP系 20／REPEAT系 14 …上位20系統で約170件、残りは1〜4件の長いテール。
   - 再走査コマンド（Bash）：
     `grep -ohE "\[STUB:[^]]*[A-Z][A-Z0-9_]{4,}[^]]*\]" docs/decompile_sheet*.txt | grep -oE "[A-Z][A-Z0-9_]{4,}" | grep -vE "^(STUB|COUNT|AUTO|WX|CONTINUOUS|SELECT_TARGET)" | sort | uniq -c | sort -rn`
