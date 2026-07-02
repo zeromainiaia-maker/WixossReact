@@ -5,6 +5,15 @@
 
 ---
 
+## 逆翻訳機の本格改善㉑：原文抽出3系統（COPY_SIGNI/PLACE_MAGIC_BOX/CLASS_CHANGE拡張）（2026-07-02・zerom）
+
+- **`COPY_SIGNI`**（WX17-001/WXK04-005）＝「ターン終了時まで、対象のあなたのシグニN体はあなたのトラッシュにある対象のシグニN枚と同じカードになる」。
+- **`PLACE_MAGIC_BOX`**（WX24-P3-089/P4-064）＝「そのカードを【マジックボックス】としてあなたのシグニゾーンに設置してもよい(。（補足）)」（前半「デッキの上を見る」は別描画済）。
+- **`CLASS_CHANGE` 拡張**（WXK04-006/WX25-P1-058）＝既存regex（「シグニN体を対象とし、…クラスを失い、＜X＞を得る」）に fallback「ターン終了時まで、…（すべての…シグニ／それ）はクラスを失い、（＜X＞／宣言されたクラス）を得る」を追加。既存カードは first-try で挙動不変、残2件（対象非選択型・宣言クラス型）を新regexでカバー。
+- 検証＝全対象で原文一致・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。decompile_sheet2/3/9＋下流再生成。**英語ID漏れ総数 384→378**。⚠見送り＝`TRIGGER_LIFE_BURST`（前後STUB混線）・`GRANT_SIGNI_ABOVE_ABILITY`/`GRANT_QUOTED_ACTIVATE_ABILITY`（引用【起】能力付与＝GRANT_QUOTED 大型処理側）。
+
+---
+
 ## 逆翻訳機の本格改善⑳：原文抽出4系統（UPKEEP_OR_NO_UP/ABILITY_CHECK_ELSE_TRASH/POWER_COPY_FROM_DOWNED/ACCE_FROM_TRASH）（2026-07-02・zerom）
 
 - **`UPKEEP_OR_NO_UP`**（WXDi-P13-075/P06-002）＝「次の対戦相手のアップフェイズに、対戦相手が…支払わないかぎり、対戦相手のセンタールリグはアップしない」。
