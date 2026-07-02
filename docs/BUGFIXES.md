@@ -5,6 +5,16 @@
 
 ---
 
+## 逆翻訳機の本格改善⑳：原文抽出4系統（UPKEEP_OR_NO_UP/ABILITY_CHECK_ELSE_TRASH/POWER_COPY_FROM_DOWNED/ACCE_FROM_TRASH）（2026-07-02・zerom）
+
+- **`UPKEEP_OR_NO_UP`**（WXDi-P13-075/P06-002）＝「次の対戦相手のアップフェイズに、対戦相手が…支払わないかぎり、対戦相手のセンタールリグはアップしない」。
+- **`ABILITY_CHECK_ELSE_TRASH`**（WX25-P3-069/072）＝「それが能力を持たない場合、代わりにそれをトラッシュに置く」。
+- **`POWER_COPY_FROM_DOWNED`**（WXDi-P16-052）＝「ターン終了時まで、このシグニのパワーをこの方法でダウンしたシグニのパワーと同じだけ＋（プラス）する」（WX25-P3-062 は別記述＝原文に該当文なくフォールスルー）。
+- **`ACCE_FROM_TRASH` / `NAMED_SIGNI_ACCE_FROM_TRASH`**（WDK07-E11/WDK17-011）＝「あなたのトラッシュから…を対象とし、それをこのシグニの【アクセ】にする」。**WDK17-011 は action.id が `NAMED_SIGNI_ACCE_FROM_TRASH`（説明文に `ACCE_FROM_TRASH` を含むため漏れ計上されていた別id）と判明し、同分岐に追加**＝集計スクリプトは表示テキスト内の英語を拾うため実 a.id と異なるケースがある点に注意。
+- 検証＝全対象で原文一致・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。decompile_sheet5/7/8/9＋下流再生成。**英語ID漏れ総数 391→384**。
+
+---
+
 ## 逆翻訳機の本格改善⑲：原文抽出4系統（OPP_MAIN_PHASE_LIMIT_DOWN/OPP_SIGNI_ATTACK_COST/COPY_TARGET_POWER/FIELD_ENERGY_SIGNI_GAIN_COLOR）（2026-07-02・zerom）
 
 - **`OPP_MAIN_PHASE_LIMIT_DOWN`**（WXDi-P13-029/WX25-P2-014）＝「次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットを－Nする」。
