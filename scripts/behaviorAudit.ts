@@ -285,10 +285,16 @@ function snapshot(ctx: ExecCtx): Snapshot {
     for (const m of (s.power_mods_until_opp_turn ?? [])) power.set(m.cardNum, (power.get(m.cardNum) ?? 0) + m.delta);
     for (const [id, kws] of Object.entries(s.keyword_grants ?? {})) if (kws.length) kw.set(id, [...kws].sort().join(','));
     for (const [id, kws] of Object.entries(s.keyword_grants_until_opp_turn ?? {})) if (kws.length) kw.set(id, [...(kw.get(id)?.split(',') ?? []), ...kws].sort().join(','));
+    const sx = s as unknown as Record<string, unknown>;
+    const lrigGrants = (sx.lrig_granted_auto_effects as unknown[] | undefined)?.length ?? 0;
+    const signiGrants = (sx.granted_effects as unknown[] | undefined)?.length ?? 0;
     blocked[side] = [
       ...(s.blocked_actions ?? []), ...(s.blocked_card_names ?? []),
       ...(s.field_keyword_grants_active ?? []).map(k => `全付与:${k}`),
-    ].sort().join('|');
+      lrigGrants ? `ルリグ付与能力x${lrigGrants}` : '',
+      signiGrants ? `シグニ付与能力x${signiGrants}` : '',
+      sx.lrig_abilities_disabled ? 'ルリグ能力無効' : '',
+    ].filter(Boolean).sort().join('|');
   }
   return { loc, power, flags, kw, blocked, coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins } };
 }
