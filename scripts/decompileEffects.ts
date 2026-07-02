@@ -1356,6 +1356,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたのセンタールリグ[０-９\d一]*体を対象とし、それはすべてのシグニから降りてもよい/);
         if (m) return m[0];
       }
+      // 相手アタック回数制限（LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE・engine実装済み）
+      // ＝「（このターン、／次のあなたのターンまで、）対戦相手は…しかアタックできない」を原文抽出（3カードで語順・範囲が異なるため currentCardText 由来）。
+      if (a.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || a.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL' || a.id === 'LIMIT_OPP_ATTACK_ONCE') {
+        const m = currentCardText.match(/(?:このターン、|次のあなたのターンまで、)?対戦相手[^。]*?しかアタックできない/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
