@@ -1368,6 +1368,21 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/対戦相手は[^。]*公開する。(?:（[^）]*）)?/);
         if (m) return m[0];
       }
+      // ライフバースト二度発動（LIFE_BURST_DOUBLE）＝「（このターン、）（次に）あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する」を原文抽出。
+      if (a.id === 'LIFE_BURST_DOUBLE') {
+        const m = currentCardText.match(/このターン、(?:次に)?あなたのライフバーストが発動する場合、代わりにそのライフバーストは二度発動する。?/);
+        if (m) return m[0];
+      }
+      // ルリグが乗機シグニに乗る（RIDE_ON）＝「ターン終了時まで、…センタールリグ…は…＜乗機＞のシグニ…に乗ってもよい」を原文抽出。
+      if (a.id === 'RIDE_ON') {
+        const m = currentCardText.match(/ターン終了時まで、[^。]*?センタールリグ[^。]*?乗ってもよい/);
+        if (m) return m[0];
+      }
+      // 相手ドロー制限（OPP_DRAW_LIMIT）＝「（次の対戦相手の／その）ドローフェイズの間…対戦相手はカードを合計N枚までしか引けない」を原文抽出。
+      if (a.id === 'OPP_DRAW_LIMIT') {
+        const m = currentCardText.match(/(?:次の対戦相手の|その)?(?:ターンの)?ドローフェイズの間[に、]?対戦相手はカードを合計[０-９\d一二三]+枚までしか引けない。?/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
