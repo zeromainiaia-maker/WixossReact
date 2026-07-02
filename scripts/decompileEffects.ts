@@ -1123,6 +1123,14 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return '色を選ぶ';
       }
+      // クラフトをルリグデッキへ（CRAFT_TO_LRIG_DECK/ADD_CRAFT_TO_LRIG_DECK・engine実装済み）＝
+      // 「クラフトの《X》N枚をルリグデッキに加える」または「クラフトからN種類を…公開しルリグデッキに加える」。
+      // クラフト名/枚数はカードごとに異なるため currentCardText から抽出。
+      if (a.id === 'CRAFT_TO_LRIG_DECK' || a.id === 'ADD_CRAFT_TO_LRIG_DECK') {
+        const m = currentCardText.match(/クラフト(?:の《[^》]*》|から)[^。]*?ルリグデッキに加える/);
+        if (m) return m[0];
+        return 'クラフトをルリグデッキに加える';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
