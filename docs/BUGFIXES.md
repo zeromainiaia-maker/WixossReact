@@ -5,6 +5,16 @@
 
 ---
 
+## 逆翻訳機の本格改善⑫：DO_THREE_THINGS の英語ID漏れを是正（2026-07-02・zerom）＝SEQUENCE冗長step対応
+
+`DO_THREE_THINGS`（7効果）は engine が原文の①②③（④）を動的パースして実行する複数処理まとめ。逆翻訳は STUBS.md 由来の英語IDを露出していた。**2構造に分かれる**：
+
+- **単独 STUB**（WX24-P4-002/P4-007/WXK11-002）＝action がそのまま `STUB:DO_THREE_THINGS`。→ `decompileEffects.ts` の STUB 分岐で `currentCardText` から「（以下の）N つを行う。①…②…③…（④…）」全体を `/以下の[０-９\d一二三四]+つを行う[\s\S]*/` で抽出（。を跨ぐので末尾まで／BurstText の "-" 連結は `.replace(/\s*-\s*$/,'')` で除去）。WXK11-002 の使用条件前置は別途 condition 描画。
+- **SEQUENCE 埋め込み**（WXK11-007/008/009/010）＝`SEQUENCE[STUB:DO_THREE_THINGS, CONDITIONAL, CONDITIONAL, …]`。後続 CONDITIONAL step は parser が②③の consequence を**再パースした冗長描画**で、DO_THREE_THINGS 全文と**重複**する。→ SEQUENCE レンダラに「先頭 step が STUB:DO_THREE_THINGS なら先頭のみ描画（後続 step は捨てる）」の分岐を追加。DO_THREE_THINGS の1STUBが原文全体を表現するため後続は冗長＝安全に捨てられる（engine は本STUBが①②③を自己完結実行）。
+- 検証＝全7効果で原文全文と一致（末尾も 。/）で正常終了・trailing " -" なし）・重複解消・**英語ID漏れ 496→489**（DO_THREE_THINGS は0）・同型★0 維持（割れ0／5986枚）・typecheck 緑・engine 不変。decompile_sheet4/9＋下流再生成。SEQUENCE 分岐は先頭 step が DO_THREE_THINGS のときのみ発火＝他 SEQUENCE カードに影響なし。
+
+---
+
 ## 逆翻訳機の本格改善⑪：SERVANT_ZERO/SEED/BARRIER/LOSE_COLOR/MAGIC_BOX/CAST_FROM_OPP_TRASH/ACCE の英語ID漏れを是正（2026-07-02・zerom）＝8系統
 
 ⑩に続き engine 実装済みだが逆翻訳描画のみ欠落していた系統を `decompileEffects.ts` で `currentCardText` から原文抽出（engine 不変・表現のみ）。
