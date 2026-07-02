@@ -1101,6 +1101,14 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return 'このルリグはそのカードの【歌のカケラ】を使用する';
       }
+      // アップシグニをダウン（DOWN_UP_SIGNI_AND_CHOOSE・engine実装済み）＝コスト軽減素材として
+      // 「あなたのアップ状態の＜クラス＞（か＜クラス＞）/色のシグニを好きな数/N体までダウンしてもよい」。
+      // クラス/色/枚数はカードごとに異なるため currentCardText から抽出。
+      if (a.id === 'DOWN_UP_SIGNI_AND_CHOOSE') {
+        const m = currentCardText.match(/(?:あなたの)?アップ状態の[^。]*?のシグニを[^。]*?ダウン(?:してもよい|する)/);
+        if (m) return m[0];
+        return 'あなたのアップ状態のシグニを好きな数ダウンしてもよい';
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
