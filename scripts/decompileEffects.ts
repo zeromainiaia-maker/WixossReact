@@ -1449,7 +1449,7 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
       }
       // トラッシュからアクセ付与（ACCE_FROM_TRASH）＝「あなたのトラッシュから…を対象とし、それをこのシグニの【アクセ】にする」を原文抽出。
-      if (a.id === 'ACCE_FROM_TRASH') {
+      if (a.id === 'ACCE_FROM_TRASH' || a.id === 'NAMED_SIGNI_ACCE_FROM_TRASH') {
         const m = currentCardText.match(/あなたのトラッシュから[^。]*?を対象とし、それをこのシグニの【アクセ】にする/);
         if (m) return m[0];
       }
