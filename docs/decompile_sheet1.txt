@@ -4758,7 +4758,7 @@ WX05-006  虚無の閻魔　ウリス  [ルリグ ウリス]
   【グロウ条件】あなたのエナゾーンにあるカードが持つ色が３種類以上（runtime checkGrowCondition で評価）
   WX05-006-E1: 【常】あなたのすべてのカード(エナ)に【マルチエナ】を与える
   WX05-006-E2: 【常】あなたが使用するアーツとスペルの限定条件は無視される
-  WX05-006-E3: 【起】（メイン起動）：〈エクシード5〉[STUB:CHOOSE_HAND_CARD: 手札から1枚選択（lastProcessedCardsに設定）]。そして[STUB:OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ]
+  WX05-006-E3: 【起】（メイン起動）：〈エクシード5〉あなたの手札を１枚選ぶ。そして[STUB:OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ]
 
 ==============================================================================
 WX05-007  ラスト・セレクト  [アーツ -]

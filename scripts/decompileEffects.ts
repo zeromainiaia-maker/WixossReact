@@ -1336,6 +1336,26 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/あなたの手札を[０-９\d一]*枚選ぶ/);
         if (m) return m[0];
       }
+      // 相手マルチエナ剥奪（REMOVE_OPP_MULTI_ENA/_ONLY・engine実装済み）＝「対戦相手のエナゾーンにあるカードは【マルチエナ】を失う（い、新たに得られない）」。
+      if (a.id === 'REMOVE_OPP_MULTI_ENA' || a.id === 'REMOVE_OPP_MULTI_ENA_ONLY') {
+        const m = currentCardText.match(/対戦相手のエナゾーンにあるカードは【マルチエナ】を失(?:い、新たに得られない|う)/);
+        if (m) return m[0];
+      }
+      // 相手手札を見て選び公開（REVEAL_OPP_HAND_CARD・engine実装済み）＝「対戦相手の手札をN枚見ないで選び、（対戦相手はそのカードを公開する/公開させる）」。
+      if (a.id === 'REVEAL_OPP_HAND_CARD') {
+        const m = currentCardText.match(/対戦相手の手札を[０-９\d一]*枚見ないで選び、(?:対戦相手はそのカードを公開する|公開させる)/);
+        if (m) return m[0];
+      }
+      // レイヤー能力付与（LAYER_ABILITY_COPY・engine実装済み）＝「【レイヤー】あなたの＜X＞のシグニは《レイヤーアイコン》の能力を得る」。
+      if (a.id === 'LAYER_ABILITY_COPY') {
+        const m = currentCardText.match(/【レイヤー】あなたの[^。]*?シグニは《レイヤーアイコン》の能力を得る/);
+        if (m) return m[0];
+      }
+      // ルリグがシグニから降りる（CENTER_LRIG_DISMOUNT・engine実装済み）＝「あなたのセンタールリグN体を対象とし、それはすべてのシグニから降りてもよい」。
+      if (a.id === 'CENTER_LRIG_DISMOUNT') {
+        const m = currentCardText.match(/あなたのセンタールリグ[０-９\d一]*体を対象とし、それはすべてのシグニから降りてもよい/);
+        if (m) return m[0];
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
