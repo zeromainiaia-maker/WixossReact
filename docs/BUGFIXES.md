@@ -5,6 +5,13 @@
 
 ---
 
+## 逆翻訳機の本格改善⑰：STUB説明文の矢印形式 実装フロー注記を除去（2026-07-02・zerom）
+
+STUBS.md 由来の説明文（`stubDescMap`）に混入していた実装フロー注記 `（SELECT→INTERNAL）`／`（SELECT_TARGET→INTERNAL_POWER_UP_SELECTED）`（計6件）を decompiler で除去（`（[A-Z][A-Z0-9_]*(?:→[A-Z][A-Z0-9_]*)+）` を空置換）。原文語彙でない実装メモのため除去して日本語説明のみ残す（例「エナゾーンからカード1枚選んでトラッシュ」）。全10シート再生成・同型★0 維持・typecheck 緑・engine 不変。
+- ⚠**判明した残構造**：STUBS.md の説明列は多くが `ID: 日本語説明（実装注記…SELECT_TARGET等）` 形式で、先頭に id を再掲し括弧内に実装メモ（`SELECT_TARGET`／`INTERNAL_*`／`→自己再帰`／カード名など）を含む。これらは原文語彙でないため一括除去可能だが、**残る日本語は STUBS.md 由来のパラフレーズで §1「原文一致」ではない**（英語漏れ指標は消えるが原文照合は別）。desc の一括クリーンアップ（先頭id除去＋括弧内英語注記除去）を行うか、原文抽出を1系統ずつ続けるかは方針判断＝§3 に記載。
+
+---
+
 ## 逆翻訳機の本格改善⑯：LIFE_BURST_DOUBLE / RIDE_ON / OPP_DRAW_LIMIT の英語ID漏れを是正（2026-07-02・zerom）
 
 定型意味の3系統を `currentCardText` 原文抽出で是正（match-only フォールスルー・表現のみ）。
