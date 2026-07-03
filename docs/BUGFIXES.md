@@ -5,6 +5,18 @@
 
 ---
 
+## POWER_MODIFY_PER_ENERGY engine実装＋parserパリティ回復（held 94→28）＋curated実バグ4件（2026-07-03・zerom）
+
+セッション全体の健全性監査（「今行っている作業で間違っているものはないか」）で発見した3群を修正。
+
+- **① `POWER_MODIFY_PER_ENERGY`（WX09-019-E1）が engine 完全未実装＝無言no-op**＝前回（続き12・下記②エントリ）の「engineは該当フィールドを正しく読んでおりパリティOK」は**この型については誤り**だった（executor dispatch にも effectEngine CONT収集にも型名が一度も無い・§6.1 B の worklist には正しく未実装と記載）。逆翻訳はきれいな原文一致文（未配線マーカー無し）で無言no-opを隠す＝鉄則違反状態。**`effectEngine.ts` に extractor＋calcFieldPowers の per-energy 加算を実装**（PER_ENERGY_COLOR と同型・energyOwner のエナ枚数×deltaPerCard・count!=='ALL'=自身）＋executor に CONT 委譲 case。**golden +1（107/107）**＝エナ4枚で+8000／0枚で加算なし。
+- **② parserWorklist held 94→28 のパリティ回復**＝owner58（相手ミル）・protection24（単体保護）の系統パッチが **JSON のみでパーサー未修正**だったため、恒久指標「held 0」が崩れ計器が回帰検出に使えなくなっていた。パーサーを同修正：(a)`parseSentencePart1` のデッキミル2箇所（「置く」「置いてもよい」）に「対戦相手のデッキの上から」→`owner:'opponent'` 判定を追加（「あなたか対戦相手」選択型は従来どおり self に落とし curated 側で個別管理＝flip禁止ルール維持）。(b)GRANT_PROTECTION フォールバックの count を「N体（まで）を対象とし」→N／「このシグニは」→1（自己保護）／それ以外→'ALL' に。**owner バケツ 27→0・count 23→5**。
+- **③ ②の精査で curated 側の実バグ4件を発見・是正**（`scratchpad/_fixParityBugs4.mjs`）＝(1)**WX25-P1-106-E1**＝原文「対戦相手のデッキの上から3枚トラッシュ」が `owner:'self'`（**自分のデッキを削る実害バグ**・owner58 の取り漏らし）→opponent。(2)**WXDi-P15-055-E3**＝引用【自】付与（アタック時に相手デッキ6ミル）を「自分デッキ**即時**6ミル」に平坦化した誤エンコード→B4機構 `GRANT_QUOTED_AUTO_ABILITY`（引用【自】実発火・execStubPart1 の汎用パスが quoted を parseCardEffects で実行）に再エンコード・MANUAL化＝逆翻訳も原文引用ごと一致。(3)(4)**WXEX1-27-E2／WXK09-047-E1**＝protection24 と同系統の取り漏らし（count:'ALL'→1）。
+- **残（意図的に保留）**＝WX25-P1-106-E1 の「このターンにあなたがアーツを使用していた場合」条件は `turn_arts_used` 系フラグ未実装のため脱落（§6.3 に登録）。同カード BURST のダメージ置換（「次にダメージを受ける場合、代わりに自ミル3」）は即時自ミル3の近似のまま＝§6.1 `PREVENT_DAMAGE` 機構待ちに合流。WX18-034/WXEX1-35（条件句除去後・引用内の暗黙主語→curated=1 vs fresh='ALL'）等の残 held 28 は curated 側の count 慣例の非一貫性（CONT収集器は count 無視＝機能同値）を含む逓減テール＝PLAN 恒久指標に実数を記載。
+- **検証**＝typecheck緑・**golden 107/107（+1）**・smoke 全0（OK 10274/SKIP 283）・fuzz 全0・**同型★0維持**・全10シート＋下流再生成・4カードの逆翻訳原文照合OK。⚠要実機検証（WX09-019 の常時パワー表示・WXDi-P15-055-E3 の付与後アタック発火）。
+
+---
+
 ## 逆翻訳のトップレベル英語 enum 漏れ 残3種を解消（2026-07-03・zerom）
 
 ブラケット（`[STUB:…]`/`【…】`/`〈…〉`）を除いた**真のトップレベル英語 enum 漏れ**を走査（`decompile_sheet*.txt` の逆翻訳行から `[A-Z_]+_[A-Z_]+` をブラケット除去後に集計）＝残3種を確定・是正。いずれも `decompileEffects.ts` のみ・engine 不変（該当は engine 実装済み＝パリティOK）。
