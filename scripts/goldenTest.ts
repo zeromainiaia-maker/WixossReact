@@ -897,6 +897,52 @@ test('UP LRIG: ダウン状態のルリグをアップ（lrig_down解除）', ()
   eq(r.ownerState.field.lrig_down, false, 'ルリグがアップしていない');
 });
 
+// HAND_COUNT 条件ゲート: 「カードを1枚引く。その後、あなたの手札が4枚以下の場合、追加でカードを1枚引く」
+// （WX12-020/WX21-026-BURST。旧JSONは IS_MY_TURN＝常時真に誤フォールバック＝無条件2枚ドローの過剰効果）
+test('HAND_COUNT条件: 手札4枚以下なら追加ドロー・5枚以上なら1枚のみ', () => {
+  const act = { type: 'SEQUENCE', steps: [
+    { type: 'DRAW', owner: 'self', count: 1 },
+    { type: 'CONDITIONAL', condition: { type: 'HAND_COUNT', owner: 'self', operator: 'lte', value: 4 },
+      then: { type: 'DRAW', owner: 'self', count: 1 } },
+  ] } as unknown as EffectAction;
+  const ctx1 = mkCtx({ hand: 3 }, {});   // 3+1=4 ≤4 → 追加ドロー
+  const d1 = ctx1.ownerState.deck.length;
+  const r1 = run(act, ctx1);
+  eq(r1.ownerState.hand.length, 5, '手札3開始: 1+条件成立の追加1で5になるはず');
+  eq(r1.ownerState.deck.length, d1 - 2, 'デッキ-2');
+  const ctx2 = mkCtx({ hand: 6 }, {});   // 6+1=7 >4 → 追加なし
+  const d2 = ctx2.ownerState.deck.length;
+  const r2 = run(act, ctx2);
+  eq(r2.ownerState.hand.length, 7, '手札6開始: 追加ドローは発生しないはず');
+  eq(r2.ownerState.deck.length, d2 - 1, 'デッキ-1');
+});
+
+// ENERGY_COUNT 条件ゲート: 「エナチャージ1。その後、エナ4枚以下なら追加でエナチャージ1」（WX05-042-BURST）
+test('ENERGY_COUNT条件: エナ4枚以下なら追加チャージ・5枚以上ならなし', () => {
+  const act = { type: 'SEQUENCE', steps: [
+    { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+    { type: 'CONDITIONAL', condition: { type: 'ENERGY_COUNT', owner: 'self', operator: 'lte', value: 4 },
+      then: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } },
+  ] } as unknown as EffectAction;
+  const ctx1 = mkCtx({ energy: 2 }, {}); // 2+1=3 ≤4 → 追加
+  const r1 = run(act, ctx1);
+  eq(r1.ownerState.energy.length, 4, 'エナ2開始: 1+追加1で4になるはず');
+  const ctx2 = mkCtx({ energy: 5 }, {}); // 5+1=6 >4 → 追加なし
+  const r2 = run(act, ctx2);
+  eq(r2.ownerState.energy.length, 6, 'エナ5開始: 追加チャージは発生しないはず');
+});
+
+// BURST「そうした場合」: TRASH前段が対象なしのとき残りSEQUENCEがスキップされる（engine既存ガードの固定。WX03-034-BURST型）
+test('そうした場合ガード: 手札に該当カードなし→TRASH不成立→後続CONDITIONALスキップ', () => {
+  const act = { type: 'SEQUENCE', steps: [
+    { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', story: '存在しないクラス名' } } },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 2 } },
+  ] } as unknown as EffectAction;
+  const ctx = mkCtx({ hand: 3 }, {});
+  const r = run(act, ctx);
+  eq(r.ownerState.hand.length, 3, '捨てられない場合はドローも発生しないはず');
+});
+
 // CENTER_LRIG_IS_UP: 「あなたのセンタールリグがアップ状態の場合、カードを2枚引く」（WX25-P2-048）
 test('CENTER_LRIG_IS_UP: アップ状態なら引く・ダウン状態なら引かない', () => {
   const act = { type: 'CONDITIONAL', condition: { type: 'CENTER_LRIG_IS_UP' },
