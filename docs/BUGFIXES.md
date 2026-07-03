@@ -5,6 +5,16 @@
 
 ---
 
+## 逆翻訳パリティ系統修正②：per-count パワー改変の「＋0」欠落と「シグニ」名詞固定（2026-07-03・zerom）
+
+BEHAVIOR_AUDIT 段階4のキュー triage 中に発見した、前回（続き11）の PER_TRASH 系4case分割で**取り残された2つの表現バグ**。いずれも `decompileEffects.ts` のみ・engine 不変（engine は該当フィールドを正しく読んでおりパリティOK）。
+
+- **① `POWER_MODIFY_PER_{CHARM,ENERGY,VIRUS_COUNT}` の delta が「＋0」表示**＝これら3型を束ねる case（`POWER_MODIFY_PER_LRIG_LEVEL` 等と同居）の delta フォールバック連鎖が `deltaPerUnit ?? deltaPerLevel ?? deltaPerLife ?? delta ?? deltaPerColor` で、**実フィールド名 `deltaPerCharm`／`deltaPerCard`／`deltaPerVirus` を読まず 0 にフォールバック**していた。3フィールドを連鎖に追加＝**6効果を原文一致に是正**（WX07-045-E1 −7000／WX08-031-E1 −2000／WX09-019-E1 ＋2000／WX11-034-E2 −3000／WX16-032-E1・WX16-046-E1 ＋1000）。併せて WX07-045 の `sourceLocation:'trashed_this_effect'` 変種を「この方法でトラッシュに置いた【チャーム】の枚数」と原文どおり描画。
+- **② `POWER_MODIFY_PER_TRASH_COUNT` が数える対象を常に「シグニ」と誤表示**＝カウント名詞をハードコードしており、`countFilter` に cardType 制限が無い（＝「カード」）／`cardType:スペル` のケースでも「シグニ」と出していた（`filterJa` は cardType を描画しないため）。名詞を `countFilter.cardType` から導出（無し＝「カード」・スペル等はその語・シグニはシグニ）に是正＝**「黒のカード」「スペル」「カード」系 約9効果を原文一致に改善**（WXDi-P16-013-E2「《黒》のカード10枚」／WX12-053-E1「スペル4枚」／PR-402-BURST「《黒》のカード1枚」／WX22-031-E1「各プレイヤーのカード4枚」等）。`cardType:シグニ` 保持カード（WXK02-061「＜武勇＞のシグニ5枚」等）は不変。
+- **検証**＝engine パリティ確認（`effectExecutor` の per-charm/energy/virus は `deltaPerCharm/Card/Virus` を、`effectEngine` の PER_TRASH は `matchesFilter(countFilter)` で全トラッシュを型無制限に数える＝逆翻訳の是正後表現と一致）。typecheck緑・同型★0維持。全10シート再生成＋下流（genReviewRepr/groupSimilar/groupBySentence）再生成。engine 不変につき smoke/golden/fuzz 対象外（§PLAN 101）。
+
+---
+
 ## ON_LEAVE_FIELD トリガーの `turnOwner` 未判定＋WX19-003 味方離脱トリガー誤スコープ（2026-07-03・zerom）
 
 behavior-audit 段階4のトレース照合中に、逆翻訳とトリガー主語の乖離クラスタ（「対戦相手/味方のシグニが場を離れたとき」）を発見。うち**既存機構で直せる2点を是正**。
