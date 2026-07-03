@@ -132,6 +132,12 @@ test('TRASH 相手エナ1(選択): エナ-1 トラッシュ+1', () => {
   eq(r.otherState.energy.length, 4, 'エナ-1');
   eq(r.otherState.trash.length, 4, 'トラッシュ+1');
 });
+test('EQUALIZE_ENERGY 4: 各プレイヤーのエナを4枚に調整', () => {
+  const ctx = mkCtx({ energy: 6 }, { energy: 5 });
+  const r = run({ type: 'EQUALIZE_ENERGY', targetCount: 4 } as EffectAction, ctx);
+  eq(r.ownerState.energy.length, 4, '自エナ4');
+  eq(r.otherState.energy.length, 4, '相エナ4');
+});
 test('ENERGY_CHARGE_FROM_DECK: エナ+2 デッキ-2', () => {
   const ctx = mkCtx({ energy: 5 }, {}); const d0 = ctx.ownerState.deck.length;
   const r = run({ type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 } as EffectAction, ctx);
