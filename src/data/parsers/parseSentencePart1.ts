@@ -691,7 +691,17 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- エナチャージ（【エナチャージN】ショートハンド）----
   // 長音符が異体字ダッシュ（― U+2015 / ‐ / − / -）で記録されたデータにも対応（WX03-033-BURST等）
   const ecM = t.match(/【エナチャ[ー―‐−-]ジ([０-９\d]+)】/);
-  if (ecM) return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) };
+  if (ecM) {
+    // 「カードをN枚引き（、）【エナチャージM】をする」＝ドロー複合（約37枚）。ショートハンドが先頭のドロー節を飲み込まないよう SEQUENCE 化
+    const drawEcM = t.match(/カードを([０-９\d]+)枚引き、?【エナチャ[ー―‐−-]ジ/);
+    if (drawEcM) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'DRAW', owner: 'self', count: parseNum(drawEcM[1]) },
+        { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) },
+      ] };
+    }
+    return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) };
+  }
 
   // ---- ドロー：まず「引き、捨てる」複合パターンを先にチェック ----
   const drawDiscardM = t.match(/カードを([０-９\d]+)枚引き、手札を([０-９\d]+)枚捨てる/);
