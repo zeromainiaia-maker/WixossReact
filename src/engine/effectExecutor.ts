@@ -3866,6 +3866,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
     case 'POWER_MODIFY_PER_DECK_COUNT':    return done(addLog(ctx, 'デッキ枚数比例パワー（effectEngine処理）'));
     case 'POWER_MODIFY_PER_ENERGY_COLOR':  return done(addLog(ctx, 'エナ色種類比例パワー（effectEngine処理）'));
+    case 'POWER_MODIFY_PER_ENERGY':        return done(addLog(ctx, 'エナ枚数比例パワー（effectEngine処理）'));
     case 'ALT_COST_OPP_TURN':
       return done(addLog(ctx, '対戦相手ターン間コスト変動（展開フェイズで適用済み）'));
     case 'BLOCK_CARD_USE': {
