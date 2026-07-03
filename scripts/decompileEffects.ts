@@ -268,6 +268,7 @@ function condJa(c?: any): string {
     case 'THIS_CARD_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
     case 'THIS_CARD_IS_DOWN': return 'このシグニがダウンしている';
     case 'THIS_CARD_IS_UP': return 'このシグニがアップ状態';
+    case 'CENTER_LRIG_IS_UP': return 'あなたのセンタールリグがアップ状態';
     case 'THIS_CARD_IS_ARMORED': return 'このシグニが血晶武装状態';
     case 'THIS_CARD_IS_AWAKENED': return 'このシグニが覚醒状態';
     case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
