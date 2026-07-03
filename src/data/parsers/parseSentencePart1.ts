@@ -1097,8 +1097,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if (t.includes('このシグニ')) {
       return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
     }
-    // 「このルリグ/あなたの（センター）ルリグをアップする」＝ルリグアップ（WX19-014/PR-204 等の付与能力）
-    if (t.match(/(この|あなたの(?:センター)?)ルリグ[をが]?アップ/)) {
+    // 「それとこのルリグをアップする」＝対象シグニ＋このルリグの両方をアップ（WXEX2-01）
+    if (t.match(/それと(この|あなたの(?:センター)?)ルリグ[をが]アップ(する|し)/)) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'UP', target: parseSigniTarget(t, 'self') },
+        { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } },
+      ] };
+    }
+    // 「このルリグ/あなたの（センター/すべての）ルリグをアップする」＝ルリグアップ（WX19-014/WX10-009 等）。
+    // する/し 必須＝「ルリグがアップ状態の場合」等の状態参照には不マッチ
+    if (t.match(/(この|あなたの(?:センター)?|あなたのすべての)ルリグ[をが]アップ(する|し)/)) {
       return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } };
     }
     return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 } };
