@@ -11,7 +11,7 @@
 
 - **pure collector（golden検証済）**＝`collectGrowCostReductions(state, otherState, isOwnerTurn, effectsMap, cardMap): {color,count}[]`（effectEngine）＝自場のシグニ/センタールリグの CONTINUOUS `GROW_COST_REDUCTION`／`COST_REDUCTION{isGrowCost}`（SEQUENCE内も再帰）を色別集計。**golden 104/104**（WX10-010→{赤1,白1} を assert）。
 - **BattleScreen 配線**＝`applyGrowCostReduction(costStr, reductions)` helper（既存 `removeNColorFromCost` 再利用）で減額後グロウコスト文字列を生成し、**人間グロウの全経路**に適用＝①グロウ候補 affordability（UI/自動判定/候補フィルタ）②**支払いモーダルの必要枚数**（`selectedGrowCost.size === totalReq`＝ここが本丸・減額しないと全額要求のまま）③executeGrow の代替シグニ判定④アシストグロウ候補。コイン部分は据置。
-- **⚠要実機検証（C2）＋follow-up**＝(a)配線は React 経路＝headless不可のため `要実機検証` マーク（core collector は golden 済）。(b)**CPUグロウ（9070/9078）は未配線**＝closure変数の確度確認が classifier 障害で取れず follow-up。(c)アシストグロウの支払いモーダルが中央と別なら別途。
+- **⚠要実機検証（C2）＋follow-up**＝(a)配線は React 経路＝headless不可のため `要実機検証` マーク（core collector は golden 済）。(b)~~**CPUグロウ（9070/9078）は未配線**~~→**配線済（2026-07-03）**＝CPUのGROWフェイズ自動処理でも `collectGrowCostReductions(cpuSt, huSt, isCpuTurnNow, …)` を1回算出し、グロウ候補 affordability（`canAffordGrowCost`）と支払いエナの必要枚数（`parseGrowCost`）の両方に `applyGrowCostReduction` を適用。コイン部分は人間経路同様据置。typecheck/golden104/smoke0/fuzz0。(c)アシストグロウの支払いモーダルが中央と別なら別途。
 - typecheck/smoke/fuzz は classifier 復帰後に実行（core は golden 済・collector は pure でエンジン他機能に非干渉）。
 
 ---
