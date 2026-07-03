@@ -112,6 +112,7 @@ CardData_Sheet*.csv（カードテキスト）
 |---|---|
 | `npm run build:effects` | `effects_*.json` を再生成（※原則禁止。上記運用注意参照） |
 | `npm run verify` | effects JSON ⇔ CSV の照合（`scripts/verifyEffects.ts`） |
+| `npm run census` | 語彙センサス＝原文修飾句×JSON対応語彙の突き合わせで**過剰効果（フィルタ脱落）**を検出（高シグナル529枚ベースライン・超過で exit 1・明細 `docs/_vocab_census.txt`） |
 | `node scripts/genStubsMd.mjs` | `docs/STUBS.md`（全 STUB 一覧）を再生成 |
 | `npx tsc --noEmit` | 型チェック |
 | `npm run lint` | ESLint |
