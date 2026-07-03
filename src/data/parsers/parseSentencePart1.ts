@@ -849,7 +849,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
           ],
         };
       }
-      return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckM[1]) } };
+      return { type: 'TRASH', target: { type: 'DECK_CARD', owner: oppDeckMill ? 'opponent' : 'self', count: parseNum(deckM[1]) } };
     }
     // シグニ・ルリグをトラッシュへ（対戦相手 or 自分）
     // 「対戦相手のシグニを対象とし、あなたのシグニをトラッシュ」→ self のトラッシュ
