@@ -14271,8 +14271,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 </p>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {getAssistGrowCandidates(pendingAssistSide).map(card => {
-                    const canAfford = canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
-                    const energyTotal = parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
+                    const growCostRA = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
+                    const canAfford = canAffordGrowCost(my.energy, battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                    const energyTotal = parseGrowCost(growCostRA).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
                         onClick={() => {
