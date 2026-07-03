@@ -5,6 +5,18 @@
 
 ---
 
+## `VARIABLE_DISCARD_AND_DRAW` 未実装（engineハンドラ欠落）を実装＝真の no-op バグ（2026-07-03・zerom）
+
+BEHAVIOR_AUDIT 段階4のキュー triage（高シグナル no-op候補）から発見。**WX09-Re15「手札を好きな枚数捨て、捨てた枚数に１を加えた枚数のカードを引く」**（`VARIABLE_DISCARD_AND_DRAW` drawBonus:1）が型・parser・decompiler には存在するのに **`effectExecutor` の action ディスパッチに case が無く、実行すると完全に素通り（no-op）**していた。[[stub-means-implemented]] とは逆に、これは本当に未配線の真バグ。
+
+- **engine 実装**＝`execVariableDiscardAndDraw`（`execMutualDiscardAndDraw` の隣）を新設し dispatch に `case 'VARIABLE_DISCARD_AND_DRAW'` 追加。手札があれば `SELECT_TARGET`（self_hand・count=手札全数・optional・thenAction=HAND_CARDをTRASH）で好きな枚数（0〜全）を捨てさせ、continuation で捨てた枚数＋bonus を引く。手札0なら bonus 枚だけ引く。
+- **「捨てた枚数」の後続ドローへの伝播**＝`DrawAction` に `addLastProcessedCount?: boolean` を追加。`resumeSelectTarget` が選択後にセットする `ctx.lastProcessedCards` の枚数を `execDraw` が count に加算する（既存の resume 機構を再利用・新pending型は不要）。
+- **決定論autopilot整合**＝smoke/golden/fuzz の autopilot は `SELECT_TARGET` を count 上限まで選ぶ＝手札全捨て→全数+1ドロー。実プレイ（BattleScreen）は既存の選択UI経路でそのまま動く。
+- **回帰ゲート**＝golden に2件追加（手札5全捨て→6ドロー／手札0→bonusのみ）＝**golden 106/106**。typecheck / smoke（CRASH 0・OK 10275/SKIP 282）/ fuzz 0。
+- **副次（audit基盤）**＝`scripts/behaviorAudit.ts` のシナリオビルダーを拡充し、この効果を含む**キューの偽陽性を削減**（スペル/アーツのゾーン対象を全カードプールから配置・SEARCH の `from` とPLACE系の文字列source・複数枚count・countFilter系「場のクラスXシグニ1体につき」の場配置）。要review キュー **169→~136**。
+
+---
+
 ## CPUグロウ配線の仕上げ：CardClass互換／【グロウ】条件／【グロウ】効果を人間経路と同等に（2026-07-03・zerom）
 
 `GROW_COST_REDUCTION` 配線（下記）の follow-up 完了後、CPUの GROWフェイズ自動処理を人間 `executeGrow`／グロウ候補フィルタと突き合わせて残ギャップを解消。CPUグロウ候補は従来 **①レベル+1 ②減額後 affordability** しか見ておらず、以下3点が抜けていた（＝CPUがルール違反グロウ／効果未適用になりうる）。
