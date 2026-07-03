@@ -65,6 +65,19 @@
 - [ ] **パイロット findings の個別修正**（真バグ39件＋stub群残20枚・clean群50枚の findings）＝`node scripts/semanticAuditTriage.mjs <outDir>` で精査→1カードずつ §0 ワークフロー。
 - [ ] **スケールアップ**＝stub群全2,306枚へ拡大（SEMANTIC_AUDIT.md「スケールアップの進め方」）。
 
+## 1.9. 未実装 action型（behavior-audit 段階4で発見・完全no-op）＝engine実装 worklist（2026-07-03）
+
+`npm run audit` の要レビュー・キューから、**action位置なのに engine(`src/engine/*`) にも UI(`BattleScreen.tsx`) にも型名が一度も現れない＝完全未実装で無言no-op**の action型を網羅スキャンで確定（再取得＝`scratchpad` の型走査スクリプト）。**14種42効果**中 `EQUALIZE_ENERGY`(6)は実装済（BUGFIXES上部）。残**13種36効果**：
+
+**A. 自己完結型（executor 追加で直せる・低〜中リスク・優先）**
+- [ ] `LEVEL_MODIFY`（9・例WX11-033/WX11-050）＝シグニのレベル±N。⚠レベルは matchesFilter 等で参照＝`effectivePowers` 同様に `effectiveLevels` を閾値判定に通す必要あり（中リスク）。`temp_level_mods` 状態＋ターン境界クリア。
+- [ ] `LOOK_AT_DECK_AND_LIFE`（3・例WX10-068）／`PLAY_FREE_FROM_TRASH`（2・例WX09-012）／`POWER_MODIFY_PER_ENERGY`（1・WX09-019）／`VARIABLE_DISCARD_AND_DRAW`（1・WX09-Re15＝手札を任意枚捨て+bonus引く・要選択UI）／`STACK_SPELL`（1・WX11-029）。
+
+**B. 横断統合型（コスト計算/ダメージ/CONTINUOUS層への配線が要る・高リスク・後回し）**
+- [ ] `GROW_COST_REDUCTION`（7・WX10-010）＝グロウコスト計算に統合。`PREVENT_DAMAGE`（5・WX08-029）＝ダメージ処理に。`NAME_BAN`（2・WX10-023）／`COST_SUBSTITUTE`（2・WX08-042）／`SELF_TRASH_PREVENT`（1・WX07-033）／`COLOR_INHERIT`（1・WX11-032）／`GRANT_FIELD_SHADOW`（1・WXDi-P15-058）。
+
+**進め方**＝A群から1型ずつ `execXxx` 追加→dispatch 登録→golden テスト1件→smoke/fuzz→キュー減を確認→push（§0/§6）。⚠これらは「表現(逆翻訳)は出るが engine が動かない」＝逆翻訳一致だけでは検出できなかった死角。behavior-audit の盤面差分だから発見できた。
+
 ---
 
 ## 2. 触らなくてよい/枯れた系統（調査済み）
