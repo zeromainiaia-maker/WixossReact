@@ -1571,7 +1571,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- シグニをデッキに戻す ----
   if (t.includes('デッキに戻す') || t.includes('デッキに戻し')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseFrozenFilter(t) };
     return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: false } as TransferToDeckAction;
   }
 
