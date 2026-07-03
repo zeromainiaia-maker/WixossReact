@@ -14,7 +14,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const BASELINE_HIGH = 498; // 2026-07-04 §5c: 凍結7枚(529→522)＋ダウン/アップ28効果(522→498)是正後（続き17でパターン拡充→下で実数更新）
+// 2026-07-04 続き17: 死角調査でパターン拡充（条件節/クラス/色/正面/ライフクロス/任意/能力なし/以外/
+// ターン1回/ゲーム1回＋数値不一致セクション）＝旧14パターン498 → 25計測1469 に再登録。
+// 旧ベースライン履歴: 529（続き15初回）→522（凍結7）→498（ダウン/アップ28効果）
+const BASELINE_HIGH = 1469;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
