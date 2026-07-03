@@ -67,16 +67,18 @@
 
 ## 1.9. 未実装 action型（behavior-audit 段階4で発見・完全no-op）＝engine実装 worklist（2026-07-03）
 
-`npm run audit` の要レビュー・キューから、**action位置なのに engine(`src/engine/*`) にも UI(`BattleScreen.tsx`) にも型名が一度も現れない＝完全未実装で無言no-op**の action型を網羅スキャンで確定（再取得＝`scratchpad` の型走査スクリプト）。**14種42効果**中 `EQUALIZE_ENERGY`(6)は実装済（BUGFIXES上部）。残**13種36効果**：
+`npm run audit` の要レビュー・キューから、**action位置なのに engine(`src/engine/*`) にも UI(`BattleScreen.tsx`) にも型名が一度も現れない＝完全未実装で無言no-op**の action型を網羅スキャンで確定（再取得＝`scratchpad` の型走査スクリプト）。**14種42効果**中 `EQUALIZE_ENERGY`(6)・`LEVEL_MODIFY`(9)は実装済（BUGFIXES上部）。残**11種27効果**。
 
-**A. 自己完結型（executor 追加で直せる・低〜中リスク・優先）**
-- [ ] `LEVEL_MODIFY`（9・例WX11-033/WX11-050）＝シグニのレベル±N。⚠レベルは matchesFilter 等で参照＝`effectivePowers` 同様に `effectiveLevels` を閾値判定に通す必要あり（中リスク）。`temp_level_mods` 状態＋ターン境界クリア。
-- [ ] `LOOK_AT_DECK_AND_LIFE`（3・例WX10-068）／`PLAY_FREE_FROM_TRASH`（2・例WX09-012）／`POWER_MODIFY_PER_ENERGY`（1・WX09-019）／`VARIABLE_DISCARD_AND_DRAW`（1・WX09-Re15＝手札を任意枚捨て+bonus引く・要選択UI）／`STACK_SPELL`（1・WX11-029）。
+**⚠修正層は effectType で決まる**（教訓）＝instant(AUTO/ACTIVATED/LIFE_BURST)→`effectExecutor` の `execXxx`+dispatch。CONTINUOUS→`effectEngine.ts` の calcFieldPowers/CONT収集器。`node scratchpad` の型別effectType集計で判定してから着手する。
 
-**B. 横断統合型（コスト計算/ダメージ/CONTINUOUS層への配線が要る・高リスク・後回し）**
-- [ ] `GROW_COST_REDUCTION`（7・WX10-010）＝グロウコスト計算に統合。`PREVENT_DAMAGE`（5・WX08-029）＝ダメージ処理に。`NAME_BAN`（2・WX10-023）／`COST_SUBSTITUTE`（2・WX08-042）／`SELF_TRASH_PREVENT`（1・WX07-033）／`COLOR_INHERIT`（1・WX11-032）／`GRANT_FIELD_SHADOW`（1・WXDi-P15-058）。
+**A. instant型（executor層・優先）**
+- ~~`LEVEL_MODIFY`(9)~~ **✅実装済**（temp_level_mods＋実効レベル・BUGFIXES上部）。
+- [ ] `LOOK_AT_DECK_AND_LIFE`（3・WX10-068・LB2/AUTO1）／`PLAY_FREE_FROM_TRASH`（2・WX09-012・AUTO/ACT）／`VARIABLE_DISCARD_AND_DRAW`（1・WX09-Re15・ACT＝手札を任意枚捨て+bonus引く・要選択）／`STACK_SPELL`（1・WX11-029・AUTO）／`NAME_BAN`（2・WX10-023・ACT/AUTO）／`PREVENT_DAMAGE`（5・WX08-029・ACT3/AUTO1/LB1＝ただしダメージ層への置換機構が要る＝実質横断）。
 
-**進め方**＝A群から1型ずつ `execXxx` 追加→dispatch 登録→golden テスト1件→smoke/fuzz→キュー減を確認→push（§0/§6）。⚠これらは「表現(逆翻訳)は出るが engine が動かない」＝逆翻訳一致だけでは検出できなかった死角。behavior-audit の盤面差分だから発見できた。
+**B. CONTINUOUS型（calcFieldPowers/CONT収集器層）**
+- [ ] `GROW_COST_REDUCTION`（7・WX10-010・CONT6+ACT1）＝グロウコスト計算に統合。`POWER_MODIFY_PER_ENERGY`（1・WX09-019・CONT＝`calcFieldPowers` に `_COLOR` 同様の per-energy を追加）／`COST_SUBSTITUTE`（2・WX08-042・CONT）／`SELF_TRASH_PREVENT`（1・WX07-033・CONT）／`COLOR_INHERIT`（1・WX11-032・CONT）／`GRANT_FIELD_SHADOW`（1・WXDi-P15-058・CONT）。
+
+**進め方**＝A群から1型ずつ、effectType を確認→ instant なら `execXxx`+dispatch(+必要なら resume 適用case)→golden 1件→smoke/fuzz→キュー減→push（§0/§6）。⚠これらは「表現(逆翻訳)は出るが engine が動かない」＝逆翻訳一致だけでは検出できなかった死角。behavior-audit の盤面差分だから発見できた。
 
 ---
 
