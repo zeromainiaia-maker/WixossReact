@@ -11719,7 +11719,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   const subSigniId = growSubEnaSigni[0];
                   const subMap = new Map([[subSigniId, growSubInfo.substituteColor]]);
                   return canAffordGrowCost(
-                    [...selectedNums, subSigniId], battleCards, pendingGrowCard.GrowCost,
+                    [...selectedNums, subSigniId], battleCards, reducedGrowCost,
                     my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs,
                     undefined, undefined, subMap,
                   );
