@@ -4411,6 +4411,24 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
         return done(ctx);
       }
+      // ENERGY_CARD: エナからトラッシュ（選択制の「エナをN枚トラッシュ」。count:'ALL' は execTrash 内で inline 処理、
+      //   数値countは selectOrInteract 経由でここに来る。この分岐が無いと選択後に何も起きず no-op になっていた）
+      if (tgt.type === 'ENERGY_CARD') {
+        for (const owner of ['self', 'opponent'] as Owner[]) {
+          const s = ownerState(owner, ctx);
+          const ei = s.energy.indexOf(cardNum);
+          if (ei >= 0) {
+            // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（inline版と同じ保護）
+            if (owner === 'opponent' && (ctx.otherProtectedZones?.includes('energy') || ctx.otherState.prevent_opp_trash_from?.includes('energy'))) {
+              return done(addLog(ctx, 'エナ保護により効果なし'));
+            }
+            const newEnergy = [...s.energy]; newEnergy.splice(ei, 1);
+            const newS: PlayerState = { ...s, energy: newEnergy, trash: [...s.trash, cardNum] };
+            return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をエナからトラッシュへ`));
+          }
+        }
+        return done(ctx);
+      }
       // HAND_CARD: hand からトラッシュ（同名カードが複数ある場合は先頭の1枚のみ）
       for (const owner of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(owner, ctx);
