@@ -799,7 +799,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
     if (t.match(/すべてのシグニをバニッシュ/)) {
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
-      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t) } } };
+      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseFrozenFilter(t) } } };
     }
     // 「対戦相手のシグニN体を対象とし、このシグニとそれをバニッシュする」＝選んだ相手シグニ＋自身を共にバニッシュ（WX03-032-E2）
     if (/このシグニと(?:それ|それら)を[^。]*バニッシュ/.test(t) && t.includes('対戦相手')) {
