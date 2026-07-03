@@ -94,6 +94,7 @@
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 25 / LOSS 11 / VALUE 14（2026-07-03 続き13後半終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝旧記載「全0」は curated 手パッチ（owner58/protection24 等）でパーサー未同修正のまま 94 まで増えていたのを、続き13でパーサー同修正＋curated実バグ是正（4件＋条件2系統＋draw脱落系統）で回復した後の実数。残25は (a)LOSS 11＝curated 側の機構修正（EQUALIZE_ENERGY owner・EXILE 等）にパーサーが追いついていない真の弱点ワークリスト、(b)VALUE 14＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**この数字から増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
+- **🆕 語彙センサス（過剰効果＝フィルタ脱落の計器）**：`npm run census`（`scripts/vocabCensus.ts`）＝**高シグナル欠落 529枚（2026-07-04 ベースライン・明細 `docs/_vocab_census.txt`）**。この数字から増えたら回帰（スクリプトが exit 1）。JSON手パッチでフィルタ語彙を足せば自然に減る＝減ったら `BASELINE_HIGH` とここを実数更新。DSLに新語彙を足したらキー表（PATTERNS）にも追加する。
 - **母数**：効果カード 5975／効果 10549／MANUAL効果 733／STUB含むカード 1820。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
 - ⚠**decompile再生成は Bash の `>` を使う**（PowerShell `>` は UTF-16 で下流破壊）。
