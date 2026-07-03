@@ -16,8 +16,8 @@ import * as path from 'path';
 
 const BASELINE_HIGH = 529; // 2026-07-04 初回センサス時点の高シグナル欠落カード数（重複除外）
 
-const DATA_DIR = path.join(__dirname, '..', 'public', 'data');
-const OUT_PATH = path.join(__dirname, '..', 'docs', '_vocab_census.txt');
+const DATA_DIR = path.join(process.cwd(), 'public', 'data');
+const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
 
 interface Pattern {
   name: string;
