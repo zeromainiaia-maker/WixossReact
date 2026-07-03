@@ -120,6 +120,9 @@ export interface PlayerState {
   //   「あなたのシグニの効果で」（WX04-038-E1）等、発生元の種別を参照する効果のために保持する。
   //   includes() で照合する想定（'アシストルリグ'.includes('ルリグ') 等）。未設定はシグニ発生元として扱う（STUB系シグニ効果が大多数のため）。
   temp_power_mods?: Array<{ cardNum: string; delta: number; srcType?: string }>;
+  // LEVEL_MODIFY: シグニのレベルを±する一時修正（UNTIL_END_OF_TURN）。fieldCandidates が実効レベルとして
+  //   temp_power_mods と同様に適用（レベルフィルタ判定用）。ターン境界で temp_power_mods と共にクリア。
+  temp_level_mods?: Array<{ cardNum: string; delta: number }>;
   // 次の対戦相手のターン終了時までの一時パワー修正（temp_power_modsの長期版。UNTIL_OPP_TURN_END）
   power_mods_until_opp_turn?: Array<{ cardNum: string; delta: number; srcType?: string }>;
   // COST_INCREASE(NEXT_OPP_TURN): 「次の対戦相手のターン、対戦相手のアーツ/スペルのコストが《無×N》増える」。
