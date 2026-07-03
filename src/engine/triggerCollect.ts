@@ -581,6 +581,8 @@ export function collectLeaveFieldTriggers(
     });
   }
   const ownerStateAfter = leftPlayerId === ctx.hostId ? afterHostState : afterGuestState;
+  // watcher（味方）視点のターン。turnOwner 条件（「対戦相手/あなたのターンの間」）判定に使う。
+  const watcherIsTurn = ctx.activeUserId === leftPlayerId;
   // 場のシグニに加えてルリグも監視対象（例: 炎・花代・伍はルリグの【自】で味方シグニの離脱を見る）
   const lrigTop = ownerStateAfter.field.lrig.at(-1);
   const watcherNums = [
@@ -593,6 +595,10 @@ export function collectLeaveFieldTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
       if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
+      // turnOwner（「あなた/対戦相手のターンの間」）: watcher 視点のターンで絞る（WX19-003/WX25-P1-034 等）
+      const to = eff.triggerCondition?.turnOwner;
+      if (to === 'self' && !watcherIsTurn) continue;
+      if (to === 'opponent' && watcherIsTurn) continue;
       // leftToZone:'hand'（「場から手札に戻ったとき」WXK02-041）: 離れたカードが所有者の手札に在中する場合のみ発火
       if (eff.triggerCondition?.leftToZone === 'hand' && !ownerStateAfter.hand.includes(leftCardNum)) continue;
       entries.push({
