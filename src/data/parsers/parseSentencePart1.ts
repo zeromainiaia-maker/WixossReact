@@ -1748,8 +1748,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
         { type: 'TRASH', target: { type: 'ENERGY_CARD', owner, count: 'ALL' } },
       ] };
     }
-    const count = t.includes('すべて') ? 'ALL' : (t.match(/([０-９\d]+)枚まで/) ? parseNum(t.match(/([０-９\d]+)枚まで/)![1]) : 1);
+    const upToM = t.match(/([０-９\d]+)枚まで/);
+    const count = t.includes('すべて') ? 'ALL' : (upToM ? parseNum(upToM[1]) : 1);
     const srcType = isHand ? 'HAND_CARD' : isEnergy ? 'ENERGY_CARD' : 'TRASH_CARD';
+    // トラッシュからの除外は EXILE（execExile が TRASH_CARD 対応済み。旧 TRASH{TRASH_CARD} はトラッシュ→トラッシュ＝完全no-op）。
+    // 手札/エナ除外は execExile 未対応のため従来どおり TRASH 近似（除外先の違いのみ）。
+    if (srcType === 'TRASH_CARD') {
+      const filter: TargetFilter | undefined =
+        t.includes('スペル') ? { cardType: 'スペル' } : t.includes('シグニ') ? { cardType: 'シグニ' } : undefined;
+      return { type: 'EXILE', target: { type: 'TRASH_CARD', owner, count, ...(filter ? { filter } : {}), ...(upToM ? { upToCount: true } : {}) } };
+    }
     return { type: 'TRASH', target: { type: srcType as EffectTarget['type'], owner, count } };
   }
 
