@@ -330,6 +330,12 @@ function diffBoard(before: Snapshot, after: Snapshot, labels: Map<string, string
     const d = (after.power.get(id) ?? 0) - (before.power.get(id) ?? 0);
     if (d !== 0) lines.push(`  ${lbl(id)}: パワー${d > 0 ? '+' : ''}${d}`);
   }
+  // 2.5) レベル修正（LEVEL_MODIFY）
+  const lIds = new Set([...before.level.keys(), ...after.level.keys()]);
+  for (const id of lIds) {
+    const d = (after.level.get(id) ?? 0) - (before.level.get(id) ?? 0);
+    if (d !== 0) lines.push(`  ${lbl(id)}: レベル${d > 0 ? '+' : ''}${d}`);
+  }
   // 3) 状態フラグ（凍結/ダウン/ウィルス等）
   const fIds = new Set([...before.flags.keys(), ...after.flags.keys()]);
   for (const id of fIds) {
