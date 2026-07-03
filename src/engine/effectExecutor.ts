@@ -38,6 +38,7 @@ import type {
   PowerModifyPerLrigLevelAction,
   CharmProtectionAction,
   MutualDiscardAndDrawAction,
+  VariableDiscardAndDrawAction,
   RemoveAbilitiesAction,
   GainCoinAction,
   DiscardBothAction,
