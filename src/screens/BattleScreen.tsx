@@ -7242,8 +7242,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ── アーツ（'アーツ/クラフト'＝改造素材等8枚も同経路で使用可能）──
     if (cardData.Type === 'アーツ' || cardData.Type === 'アーツ/クラフト') {
-      // blocked_card_names チェック
-      if (my.blocked_card_names?.includes(cardData.CardName)) return actions;
+      // blocked_card_names チェック（ターン内＋ゲーム内 NAME_BAN）
+      if (my.blocked_card_names?.includes(cardData.CardName) || my.blocked_card_names_game?.includes(cardData.CardName)) return actions;
       const canUse =
         !isActionBlocked('USE_ARTS') && (
           (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
