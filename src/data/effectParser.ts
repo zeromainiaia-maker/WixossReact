@@ -1911,6 +1911,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   // ⚠「代わりに」昇格型（WXDi-P01-054/WXDi-P02-061等）・多段閾値型（PR-470A等）は別構造のため除外（ガード）。
   if (actionText && /このシグニのパワーが([０-９\d]+)以上の場合、/.test(actionText)
       && !/代わりに/.test(actionText)
+      && !/その後、?このシグニのパワーが/.test(actionText) // 中間節型（「その後、〜なら…」WXDi-P07-065等）は別構造＝昇格しない
+      && (!costStr || costStr === '-') // 【起】（コスト付き）は evalUseCondition 配線が別途要＝AUTO系のみ昇格
       && (actionText.match(/以上の場合/g) ?? []).length === 1) {
     const pm = actionText.match(/このシグニのパワーが([０-９\d]+)以上の場合、/)!;
     const powCond = { type: 'SELF_POWER_GTE', value: parseNum(pm[1]) } as const;
