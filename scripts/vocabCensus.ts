@@ -14,7 +14,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const BASELINE_HIGH = 529; // 2026-07-04 初回センサス時点の高シグナル欠落カード数（重複除外）
+const BASELINE_HIGH = 522; // 2026-07-04 凍結フィルタ脱落7枚是正後（初回529→522・§5c凍結バッチ）
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
