@@ -223,7 +223,10 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
   for (const zn of zoneNeeds) {
     const st = zn.owner === 'self' ? ownerState : otherState;
     const side = zn.owner === 'self' ? '自' : '相';
-    const cn = pickSigni(zn.filter, used, false);
+    // cardType がシグニ以外（スペル/アーツ等）を要求する対象は全カードプールから拾う
+    const ct = zn.filter.cardType;
+    const wantsNonSigni = ct && (Array.isArray(ct) ? !ct.includes('シグニ') : ct !== 'シグニ');
+    const cn = pickSigni(zn.filter, used, false, wantsNonSigni ? anyPool : signiPool);
     if (!cn) continue;
     used.add(cn); labels.set(cn, `${side}${zn.zone === 'trash' ? 'トラッシュ' : zn.zone === 'deck' ? 'デッキ上' : '手札'}対象`);
     (st[zn.zone] as string[]).unshift(cn); // デッキは上(先頭)、他も先頭に置けば候補に入る
