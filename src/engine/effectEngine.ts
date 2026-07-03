@@ -11,6 +11,7 @@ import type {
   PowerModifyPerLifeCountAction,
   PowerModifyPerVirusCountAction,
   PowerModifyPerEnergyColorAction,
+  PowerModifyPerEnergyAction,
   PowerModifyPerCharmAction,
   PowerSetAction,
   CostIncreaseAction,
