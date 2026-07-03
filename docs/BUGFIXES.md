@@ -5,6 +5,13 @@
 
 ---
 
+## BEHAVIOR_AUDIT 段階4・第5収穫：未実装 `LOOK_AT_DECK_AND_LIFE`(3) 実装＋広域 owner スキャン（clean）（2026-07-03・zerom）
+
+- **`LOOK_AT_DECK_AND_LIFE`（3効果）実装**＝「対象のデッキ一番上／ライフ一番上を見る」＝**純粋な情報開示（盤面変化なしが正しい挙動）**。`execLookAtDeckAndLife`（log-only）＋dispatch。WX10-070 は完全実装（逆翻訳原文一致）。golden 102/102（+1）・smoke0・fuzz0・typecheck緑。
+- **owner取り違えの広域スキャン＝clean 確認**＝deck 以外（energy/hand/trash）に owner バグが無いか `scratchpad/_ownerScanBroad.mjs` で走査。whole-text 判定は「対戦相手は**自分の**エナ」等の"自分"誤認で偽陽性だらけ＝deck の phrasing が一意だから綺麗だった。**「あなたのエナ」限定に絞ると energy の真 owner バグ 0件**＝deck 系統以外に owner 取り違えは無いと確認（owner 系統は打ち止め）。
+
+---
+
 ## 意味照合監査 系統②：GRANT_PROTECTION `count:'ALL'` 単体保護24件を count:1 に是正（保護コレクタ発火）（2026-07-03・zerom）
 
 semantic audit 系統②＝GRANT_PROTECTION `count:'ALL'`＋subjectFilter無し（48件）は保護コレクタ（effectEngine）が `subjectFilter` か `target.count===1` の分岐しか持たず**どちらにも入らず no-op**。原文で分類（`scratchpad/_protScan.mjs`）＝**単体保護「このシグニは…受けない」24件**（`count:'ALL'→1` で `count===1` 分岐が発火し source を保護）と**広域/不均質24件**（「あなたのシグニは…」等＝subjectFilter や別機構が要る・個別）に二分。
