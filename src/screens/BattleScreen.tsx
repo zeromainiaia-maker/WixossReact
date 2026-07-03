@@ -9109,6 +9109,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
             coins: Math.min(5, Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu) + coinGainCpu),
           };
+          // 【グロウ】条件の追加効果（人間executeGrowと同じ）: ルリグデッキから下に置く・除外する等。
+          const cpuGrowCond = extractGrowCondition(growCard.EffectText);
+          const { state: cpuAfterGrowEffect, log: cpuGrowEffectLog } = applyGrowEffect(cpuGrowCond, newCpuSt, battleCardMap);
+          newCpuSt = cpuAfterGrowEffect;
+          if (cpuGrowEffectLog) appendBattleLogs([`[CPU] ${cpuGrowEffectLog}`]);
           // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: CPUがこの継続効果を持つルリグにグロウした場合、
           // CPU自身は自動削減（レベル高優先）、人間（host）は選択トラッシュをスタックに積む。
           const cpuGrownFieldLimit = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
