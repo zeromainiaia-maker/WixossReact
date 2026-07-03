@@ -248,6 +248,7 @@ type Snapshot = {
 function snapshot(ctx: ExecCtx): Snapshot {
   const loc = new Map<string, string>();
   const power = new Map<string, number>();
+  const level = new Map<string, number>();
   const flags = new Map<string, string>();
   const kw = new Map<string, string>();
   const blocked: Record<'自' | '相', string> = { 自: '', 相: '' };
