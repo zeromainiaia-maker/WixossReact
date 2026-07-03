@@ -184,6 +184,7 @@ export type Condition =
   | { type: 'THIS_CARD_IN_CENTER_ZONE' }
   | { type: 'THIS_CARD_IS_DOWN' }
   | { type: 'THIS_CARD_IS_UP' }                               // このシグニがアップ状態の場合（ダウンしていない。G247）
+  | { type: 'CENTER_LRIG_IS_UP' }                             // あなたのセンタールリグがアップ状態の場合（WX25-P2-048）
   | { type: 'THIS_CARD_IS_ARMORED' }                          // このシグニが血晶武装状態の場合
   | { type: 'THIS_CARD_IS_AWAKENED' }                         // このシグニが覚醒状態の場合
   | { type: 'THIS_CARD_IS_ACCED' }                            // このシグニに【アクセ】が付いている場合
