@@ -9062,20 +9062,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const currentLrigCard = currentLrigNum ? cards.find(c => c.CardNum === currentLrigNum) : null;
         const currentLevel = currentLrigCard ? parseInt(currentLrigCard.Level) || 0 : 0;
 
+        // GROW_COST_REDUCTION（グロウコスト軽減・CONTINUOUS）を人間グロウと同様にCPUグロウにも適用。
+        // CPUのGROWフェイズは常にCPU自身のターン（isCpuTurnNow）なのでisOwnerTurn=true。
+        const cpuGrowRed = collectGrowCostReductions(cpuSt, huSt, isCpuTurnNow, effectsMap, battleCardMap);
+
         // lrig_deckはinstance IDを持つのでgetCardNum()でCardNumに変換して照合
         const growTargetId = cpuSt.lrig_deck.find(instanceId => {
           const cardNum = getCardNum(instanceId);
           const c = cards.find(card => card.CardNum === cardNum);
           if (!c || c.Type !== 'ルリグ') return false;
           if (parseInt(c.Level) !== currentLevel + 1) return false;
-          return canAffordGrowCost(cpuSt.energy, cards, c.GrowCost);
+          return canAffordGrowCost(cpuSt.energy, cards, applyGrowCostReduction(c.GrowCost, cpuGrowRed));
         });
 
         if (growTargetId) {
           const growCardNum = getCardNum(growTargetId);
           const growCard = cards.find(c => c.CardNum === growCardNum)!;
           appendBattleLogs([`[CPU] グロウ: ${growCard.CardName}（Lv.${growCard.Level}）`]);
-          const costs = parseGrowCost(growCard.GrowCost);
+          const costs = parseGrowCost(applyGrowCostReduction(growCard.GrowCost, cpuGrowRed));
           // エナから支払い
           let newEnergy = [...cpuSt.energy];
           for (const { color, count } of costs) {
