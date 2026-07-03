@@ -77,7 +77,7 @@
 - [ ] `PLAY_FREE_FROM_TRASH`（2・WX09-012・AUTO/ACT）／`VARIABLE_DISCARD_AND_DRAW`（1・WX09-Re15・ACT＝手札を任意枚捨て+bonus引く・要選択）／`STACK_SPELL`（1・WX11-029・AUTO）／`NAME_BAN`（2・WX10-023・ACT/AUTO）／`PREVENT_DAMAGE`（5・WX08-029・ACT3/AUTO1/LB1＝ただしダメージ層への置換機構が要る＝実質横断）。
 
 **B. CONTINUOUS型（calcFieldPowers/CONT収集器層）**
-- [ ] `GROW_COST_REDUCTION`（7・WX10-010・CONT6+ACT1）＝グロウコスト計算に統合。`POWER_MODIFY_PER_ENERGY`（1・WX09-019・CONT＝`calcFieldPowers` に `_COLOR` 同様の per-energy を追加）／`COST_SUBSTITUTE`（2・WX08-042・CONT）／`SELF_TRASH_PREVENT`（1・WX07-033・CONT）／`COLOR_INHERIT`（1・WX11-032・CONT）／`GRANT_FIELD_SHADOW`（1・WXDi-P15-058・CONT）。
+- [~] ~~`GROW_COST_REDUCTION`（CONT6）~~ **✅実装（2026-07-03・BUGFIXES上部）**＝pure `collectGrowCostReductions`（golden済）＋人間グロウ全経路に減額配線。**残＝⚠要実機検証・CPUグロウ配線（9070/9078）・ACT型1件（WX24-P2-043）**。`POWER_MODIFY_PER_ENERGY`（1・WX09-019・CONT＝`calcFieldPowers` に `_COLOR` 同様の per-energy を追加）／`COST_SUBSTITUTE`（2・WX08-042・CONT）／`SELF_TRASH_PREVENT`（1・WX07-033・CONT）／`COLOR_INHERIT`（1・WX11-032・CONT）／`GRANT_FIELD_SHADOW`（1・WXDi-P15-058・CONT）。
 
 **進め方**＝A群から1型ずつ、effectType を確認→ instant なら `execXxx`+dispatch(+必要なら resume 適用case)→golden 1件→smoke/fuzz→キュー減→push（§0/§6）。⚠これらは「表現(逆翻訳)は出るが engine が動かない」＝逆翻訳一致だけでは検出できなかった死角。behavior-audit の盤面差分だから発見できた。
 
