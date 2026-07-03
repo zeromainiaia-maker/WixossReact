@@ -1589,6 +1589,7 @@ const timingJa: Record<string, string> = {
   ON_ALLY_PLAY_OR_OPP_HAND_DISCARD: 'あなたの他のシグニ１体が場に出るか、あなたの効果によって対戦相手が手札を１枚捨てたとき',
   ON_BLOOM: 'このシグニが開花したとき',
   ON_REVEALED_FROM_HAND: 'このカードがあなたの効果によって手札から公開されたとき',
+  ON_ENERGY_FROM_TRASH: 'このカードがトラッシュからエナゾーンに置かれたとき',
   ON_BLOOD_CRYSTAL_ARMOR: 'あなたのシグニが血晶武装状態になったとき',
   // 【トラップアイコン】【歌のカケラ】はアイコン（effectType）側で表示するため、timing ラベルは空にする。
   ON_TRAP_ACTIVATE: '',
