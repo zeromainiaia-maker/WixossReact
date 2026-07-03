@@ -156,7 +156,7 @@ function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[
     }
     for (const v of Object.values(r)) if (v && typeof v === 'object') walk(v);
   })(eff);
-  return { targets, sources, zoneNeeds, fieldNeeds };
+  return { targets, sources, zoneNeeds, fieldNeeds, underNeeds };
 }
 
 /** 効果対応のラベル付き盤面。対象フィルタに合う実シグニを対象側に配置し、source を要求ゾーンに置く。 */
