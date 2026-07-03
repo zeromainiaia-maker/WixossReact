@@ -1799,7 +1799,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const count = cM ? parseNum(cM[1]) : 1;
     // 「対戦相手のレベルNのシグニ」等のレベル指定をフィルタに反映（G100）
     const lvM = t.match(/レベル([０-９\d]+)の(?:[白赤青緑黒]の|＜[^＞]+＞の)?シグニ/);
-    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseFrozenFilter(t) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'SIGNI', owner, count, filter },
