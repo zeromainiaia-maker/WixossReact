@@ -11699,7 +11699,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               </>
             ) : (() => {
               /* ── Phase 2: コスト支払いカード選択 ── */
-              const costItems = parseGrowCost(pendingGrowCard.GrowCost);
+              // GROW_COST_REDUCTION 適用後のグロウコストで支払い枚数を要求（エナ部分のみ・⚠要実機検証）
+              const reducedGrowCost = applyGrowCostReduction(pendingGrowCard.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
+              const costItems = parseGrowCost(reducedGrowCost);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedGrowCost].map(i => my.energy[i]);
               // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 代替コスト情報
