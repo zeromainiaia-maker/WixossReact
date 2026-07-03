@@ -112,6 +112,7 @@ type Tgt = { owner: string; filter: TargetFilter; ttype: string };
 type Src = { owner: string; stype: string; filter: TargetFilter };
 type ZoneNeed = { owner: string; zone: 'trash' | 'deck' | 'hand' | 'energy'; filter: TargetFilter };
 const ZTYPE: Record<string, ZoneNeed['zone']> = { TRASH_CARD: 'trash', DECK_CARD: 'deck', HAND_CARD: 'hand', ENERGY_CARD: 'energy' };
+const LOC2ZONE: Record<string, ZoneNeed['zone']> = { deck: 'deck', trash: 'trash', hand: 'hand', energy: 'energy' };
 function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[]; zoneNeeds: ZoneNeed[] } {
   const targets: Tgt[] = []; const sources: Src[] = []; const zoneNeeds: ZoneNeed[] = [];
   (function walk(o: unknown) {
