@@ -572,6 +572,13 @@ test('Stage2 ON_TURN_END: self シグニが発火・timing 不一致は非発火
   eq(e.find(x => x.effectId === 'WX05-021-E2')?.playerId, HOST, 'playerId=自分');
   eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest), 'WX05-021-E2'), false, 'timing不一致は非発火');
 });
+test('ARTS_USED_THIS_TURN 条件: turn_arts_used で発火ゲート（WX25-P3-112-E1）', () => {
+  // 「あなたのアタックフェイズ開始時、このターンにあなたがアーツを使用していた場合、…」＝ turn_arts_used が無ければ非発火
+  const host = mkState({ signi: ['WX25-P3-112', null, null] }); const guest = mkState({});
+  eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', host, guest), 'WX25-P3-112-E1'), false, 'アーツ未使用は非発火');
+  const hostUsed = { ...host, turn_arts_used: true };
+  eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', hostUsed, guest), 'WX25-P3-112-E1'), true, 'アーツ使用済みで発火');
+});
 test('Stage2 ON_TURN_START: self シグニが発火（WXDi-P05-039-E1）', () => {
   const host = mkState({ signi: ['WXDi-P05-039', null, null] }); const guest = mkState({});
   eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest), 'WXDi-P05-039-E1'), true, 'ターン開始で発火');
