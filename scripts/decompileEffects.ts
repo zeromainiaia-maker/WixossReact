@@ -600,10 +600,11 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'BANISH_SUBSTITUTE': {
       const sc = a.substituteCost ?? {};
-      const cost = sc.discardSpell ? `手札からスペル${sc.discardSpell}枚を捨てる`
-        : sc.trashStackSpell ? `このシグニの下からスペル${sc.trashStackSpell}枚をトラッシュする`
-        : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}する` : '';
-      return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}てもよい`;
+      // cost は「て形」で終える（「トラッシュに置いて」等）→ 末尾に「もよい」を付ける
+      const cost = sc.discardSpell ? `手札からスペルを${sc.discardSpell}枚捨てて`
+        : sc.trashStackSpell ? `このシグニの下からスペル${sc.trashStackSpell}枚をトラッシュに置いて`
+        : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}して` : '';
+      return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}もよい`;
     }
     case 'LOOK_PICK_CHAIN': {
       const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : 'トラッシュに置き';
