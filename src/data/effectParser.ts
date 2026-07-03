@@ -1122,7 +1122,8 @@ function parseActionText(text: string): EffectAction {
   if (text.includes('センタールリグは以下の能力を得る') || text.includes('レベルN以上のセンタールリグは以下の能力を得る')) {
     const m = text.match(/以下の能力を得る[。、]?(.+)/s);
     // abilities は parseBlock 後に埋められる（此処では rawText のみ保持）
-    return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: m?.[1]?.trim() ?? '' } as GrantLrigAbilityAction;
+    return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: m?.[1]?.trim() ?? '',
+      ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
   }
   // ---- センタールリグへの能力付与（引用符形式: 「（ターン終了時まで、）あなたのセンタールリグは「...」を得る」）----
   {
