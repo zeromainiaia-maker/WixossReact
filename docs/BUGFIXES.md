@@ -5,6 +5,16 @@
 
 ---
 
+## 意味照合監査 系統②：GRANT_PROTECTION `count:'ALL'` 単体保護24件を count:1 に是正（保護コレクタ発火）（2026-07-03・zerom）
+
+semantic audit 系統②＝GRANT_PROTECTION `count:'ALL'`＋subjectFilter無し（48件）は保護コレクタ（effectEngine）が `subjectFilter` か `target.count===1` の分岐しか持たず**どちらにも入らず no-op**。原文で分類（`scratchpad/_protScan.mjs`）＝**単体保護「このシグニは…受けない」24件**（`count:'ALL'→1` で `count===1` 分岐が発火し source を保護）と**広域/不均質24件**（「あなたのシグニは…」等＝subjectFilter や別機構が要る・個別）に二分。
+
+- **今回＝単体保護24件を `count:'ALL'→1`**（`scratchpad/_fixProtection24.mjs`・全 owner:self）。逆翻訳も「このシグニは対戦相手の効果を受けない」で原文一致に改善。同型★0維持・typecheck緑・smoke CRASH0・golden 101/101・fuzz0。decompile_sheet1-4＋下流再生成。
+- **⚠ 部分的**＝コレクタの from ガードは `from='シグニ'|'any'` のみ。**`any`(3)/`シグニ`(8)/`ルリグ+シグニ`(2)＝計13件は count:1 で実際に保護発火を確認**（`scratchpad/_testProt.ts`）。**`アーツ`単独(8)/`ルリグ`単独(2)/`スペル,アーツ`(1)＝11件は from ガード外＝engine 側でアーツ/ルリグ発生源の自己保護配線が別途必要**（follow-up・TODO §1.8）。WX16-024 等 LAYER型は granted-ability 経路で別。データ修正(count:1)は全24件正しく、engine配線が残11件の課題。
+- ⚠別件＝WX12-018 の `from:['アーツ']` は原文「アーツ**以外**の効果を受けない」の逆＝semantic audit 個別バグ（本修正のスコープ外）。
+
+---
+
 ## BEHAVIOR_AUDIT 段階4・第4収穫：未実装 `LEVEL_MODIFY`（9効果）を実装＝実効レベルをレベルフィルタに反映（2026-07-03・zerom）
 
 §1.9 worklist の最多・instant型 `LEVEL_MODIFY`（「対象シグニのレベルを±N・ターン終了時まで」・9効果 全AUTO/ACTIVATED）を実装。**レベルは matchesFilter で参照される**ため、`effectivePowers` と同型の実効レベル機構を**局所導入**した。
