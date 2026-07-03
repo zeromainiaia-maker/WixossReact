@@ -557,7 +557,7 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 軸トークン（BANISH/BOUNCE/DOWN）→「対戦相手の効果によってバニッシュされない」等
       // bySourceType 指定時は発生源種別を明示（「対戦相手のシグニの効果によってバニッシュされない」）
-      const axisJa: Record<string, string> = { BANISH: 'バニッシュされ', BOUNCE: '手札に戻され', DOWN: 'ダウンし', FREEZE: '凍結され' };
+      const axisJa: Record<string, string> = { BANISH: 'バニッシュされ', BOUNCE: '手札に戻され', DOWN: 'ダウンし', FREEZE: '凍結され', POWER_MODIFY: 'パワーを増減され' };
       const axes = fromArr.filter(f => axisJa[f] !== undefined || !srcTypes.includes(f)).map(f => axisJa[f] ?? (f + 'され'));
       const srcQ = a.bySourceType ? `${a.bySourceType}の` : '';
       return `${subject}は${ownerJa(a.sourceOwner)}${srcQ}効果によって${axes.join('・')}ない`;
