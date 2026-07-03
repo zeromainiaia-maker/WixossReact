@@ -5,6 +5,17 @@
 
 ---
 
+## 重い1機構：`GROW_COST_REDUCTION`（グロウコスト軽減・6効果CONT）を実装（2026-07-03・zerom）
+
+未実装 action型 worklist（§1.9）の CONTINUOUS 群で最多。`calcActiveCostMods`（effectEngine.ts:1655）が `if (red.isGrowCost) continue; // グロウコスト軽減は別経路（GROW_COST_REDUCTION）` と**別経路を想定して未実装のまま残していた**ギャップを埋めた。
+
+- **pure collector（golden検証済）**＝`collectGrowCostReductions(state, otherState, isOwnerTurn, effectsMap, cardMap): {color,count}[]`（effectEngine）＝自場のシグニ/センタールリグの CONTINUOUS `GROW_COST_REDUCTION`／`COST_REDUCTION{isGrowCost}`（SEQUENCE内も再帰）を色別集計。**golden 104/104**（WX10-010→{赤1,白1} を assert）。
+- **BattleScreen 配線**＝`applyGrowCostReduction(costStr, reductions)` helper（既存 `removeNColorFromCost` 再利用）で減額後グロウコスト文字列を生成し、**人間グロウの全経路**に適用＝①グロウ候補 affordability（UI/自動判定/候補フィルタ）②**支払いモーダルの必要枚数**（`selectedGrowCost.size === totalReq`＝ここが本丸・減額しないと全額要求のまま）③executeGrow の代替シグニ判定④アシストグロウ候補。コイン部分は据置。
+- **⚠要実機検証（C2）＋follow-up**＝(a)配線は React 経路＝headless不可のため `要実機検証` マーク（core collector は golden 済）。(b)**CPUグロウ（9070/9078）は未配線**＝closure変数の確度確認が classifier 障害で取れず follow-up。(c)アシストグロウの支払いモーダルが中央と別なら別途。
+- typecheck/smoke/fuzz は classifier 復帰後に実行（core は golden 済・collector は pure でエンジン他機能に非干渉）。
+
+---
+
 ## BEHAVIOR_AUDIT 段階4・第6収穫：`EQUALIZE_ENERGY` の scope バグ是正（自作の実装バグ・5件）＋逆翻訳精緻化（2026-07-03・zerom）
 
 56件高シグナル精査中に発見＝**第3収穫で実装した `EQUALIZE_ENERGY` が常に両プレイヤーのエナを削っていた**が、6枚中**5枚は原文「対戦相手は自分のエナが7枚になるように」＝対戦相手のみ**（各プレイヤー=両方は WX09-Re12 の1枚だけ）。自作実装＋型に scope が欠落していた自己バグ。
