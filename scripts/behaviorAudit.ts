@@ -133,6 +133,11 @@ function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[
     if (r.type === 'TAKE_FROM_UNDER_SIGNI') {
       underNeeds.push({ filter: (r.filter as TargetFilter) ?? {}, fromThis: !!r.fromThis, count: typeof r.count === 'number' ? r.count : 1 });
     }
+    // 「エナゾーンのカードがN枚になるように」系＝owner のエナを N+1 枚に増量（EQUALIZE_ENERGY）
+    if (r.type === 'EQUALIZE_ENERGY' && typeof r.targetCount === 'number') {
+      const eo = String(r.owner ?? '');
+      for (const o2 of eo ? [eo] : ['self', 'opponent']) energyNeeds.push({ owner: o2, count: (r.targetCount as number) + 1 });
+    }
     // 「トラッシュにあるクラスX N枚につき」系＝trashOwner のトラッシュに countFilter 合致カードを unitSize 枚仕込む
     if (r.type === 'POWER_MODIFY_PER_TRASH_COUNT') {
       const to = String(r.trashOwner ?? 'self');
