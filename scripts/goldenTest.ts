@@ -889,6 +889,30 @@ test('GRANT_LRIG_ABILITY: 付与能力が登録され permanent は permanentGra
   eq(after.length, 1, 'ターン境界フィルタでpermanentのみ残っていない');
 });
 
+// UP{LRIG}: 「このルリグをアップする」（WX10-009/WX19-014等）。lrig_down を解除する
+test('UP LRIG: ダウン状態のルリグをアップ（lrig_down解除）', () => {
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.lrig_down = true;
+  const r = run({ type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.field.lrig_down, false, 'ルリグがアップしていない');
+});
+
+// CENTER_LRIG_IS_UP: 「あなたのセンタールリグがアップ状態の場合、カードを2枚引く」（WX25-P2-048）
+test('CENTER_LRIG_IS_UP: アップ状態なら引く・ダウン状態なら引かない', () => {
+  const act = { type: 'CONDITIONAL', condition: { type: 'CENTER_LRIG_IS_UP' },
+    then: { type: 'DRAW', owner: 'self', count: 2 } } as unknown as EffectAction;
+  const ctx1 = mkCtx({}, {});
+  ctx1.ownerState.field.lrig_down = false;
+  const h1 = ctx1.ownerState.hand.length;
+  const r1 = run(act, ctx1);
+  eq(r1.ownerState.hand.length, h1 + 2, 'アップ状態なのに引けていない');
+  const ctx2 = mkCtx({}, {});
+  ctx2.ownerState.field.lrig_down = true;
+  const h2 = ctx2.ownerState.hand.length;
+  const r2 = run(act, ctx2);
+  eq(r2.ownerState.hand.length, h2, 'ダウン状態なのに引いた');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
