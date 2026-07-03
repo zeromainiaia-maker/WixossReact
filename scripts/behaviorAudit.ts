@@ -527,7 +527,7 @@ function traceEffect(num: string, eff: CardEffect): Trace {
   } catch (e) {
     out.status = 'CRASH'; out.logs = [(e as Error).message];
   }
-  return { card: num, name, effectId: (eff.effectId as string) ?? '?', type, status: out.status, diff: out.diff, logs: out.logs };
+  return { card: num, name, effectId: (eff.effectId as string) ?? '?', type, status: out.status, detail: out.detail, diff: out.diff, logs: out.logs };
 }
 
 // 逆翻訳シート（既存 docs/decompile_sheet*.txt）から該当行を引く
