@@ -11641,11 +11641,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   {growCandidates.length === 0 ? (
                     <p style={{ color: C.textFaint, textAlign: 'center', margin: '12px 0' }}>候補なし</p>
                   ) : growCandidates.map(card => {
+                    // GROW_COST_REDUCTION: 場のCONTINUOUS軽減をグロウコストへ適用（エナ部分のみ・コインは据置）。⚠要実機検証
+                    const growCostR = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     const isFreeGrow = my.free_grow_this_turn === true || freeGrowFilter !== null;
                     const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
-                      canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
-                    const totalReq = isFreeGrow ? 0 : parseGrowCost(card.GrowCost).reduce((s, c) => s + c.count, 0);
+                      canAffordGrowCost(my.energy, battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
+                    const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
                         onClick={() => {
