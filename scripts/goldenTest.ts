@@ -133,6 +133,14 @@ test('TRASH 相手エナ1(選択): エナ-1 トラッシュ+1', () => {
   eq(r.otherState.energy.length, 4, 'エナ-1');
   eq(r.otherState.trash.length, 4, 'トラッシュ+1');
 });
+test('collectGrowCostReductions: 場のCONT GROW_COST_REDUCTIONを色別集計', () => {
+  // WX10-010-E1 = CONTINUOUS GROW_COST_REDUCTION reduction:[赤1,白1]
+  const st = mkState({ signi: ['WX10-010', null, null] });
+  const red = collectGrowCostReductions(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  const byColor = Object.fromEntries(red.map(r => [r.color, r.count]));
+  eq(byColor['赤'], 1, '赤-1');
+  eq(byColor['白'], 1, '白-1');
+});
 test('LOOK_AT_DECK_AND_LIFE: 情報開示のみ（盤面不変）', () => {
   const ctx = mkCtx({}, { deckTop: [SIGNI], life: 7 });
   const beforeDeck = ctx.otherState.deck.length, beforeLife = ctx.otherState.life_cloth.length;
