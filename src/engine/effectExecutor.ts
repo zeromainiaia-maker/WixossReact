@@ -3782,7 +3782,6 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MODIFY_PER_TRASH_COUNT': return execPowerModifyPerTrashCount(action as PowerModifyPerTrashCountAction, ctx);
     case 'POWER_MODIFY_PER_LIFE_COUNT':  return execPowerModifyPerLifeCount(action as PowerModifyPerLifeCountAction, ctx);
     case 'POWER_MODIFY_PER_HAND_COUNT':  return execPowerModifyPerHandCount(action as import('../types/effects').PowerModifyPerHandCountAction, ctx);
-    case 'POWER_MODIFY_PER_ENERGY':      return execPowerModifyPerEnergy(action as import('../types/effects').PowerModifyPerEnergyAction, ctx);
     case 'GRANT_LRIG_ABILITY': {
       const ga = action as GrantLrigAbilityAction;
       if (ga.abilities && ga.abilities.length > 0) {
