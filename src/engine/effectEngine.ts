@@ -1666,6 +1666,42 @@ export function calcActiveCostMods(
   return { forMy, forOp };
 }
 
+/**
+ * collectGrowCostReductions: 自分の場のシグニ／センタールリグが持つ CONTINUOUS な
+ * GROW_COST_REDUCTION（および COST_REDUCTION isGrowCost）を集め、色ごとの減少量を返す。
+ * calcActiveCostMods が `isGrowCost` をスキップして残した「別経路」（effectEngine.ts:1655 の想定）を埋める。
+ */
+export function collectGrowCostReductions(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): { color: string; count: number }[] {
+  const totals = new Map<string, number>();
+  const add = (color: string, count: number) => { if (count > 0) totals.set(color, (totals.get(color) ?? 0) + count); };
+  const scan = (action: EffectAction) => {
+    if (action.type === 'GROW_COST_REDUCTION') {
+      for (const r of (action as import('../types/effects').GrowCostReductionAction).reduction) add(r.color, r.count);
+    } else if (action.type === 'COST_REDUCTION' && (action as CostReductionAction).isGrowCost) {
+      for (const r of (action as CostReductionAction).reduction) add(r.color, r.count);
+    } else if (action.type === 'SEQUENCE') {
+      for (const s of (action as import('../types/effects').SequenceAction).steps) scan(s);
+    }
+  };
+  const candidates: string[] = [];
+  for (const stack of state.field.signi) if (stack?.length) candidates.push(stack[stack.length - 1]);
+  if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
+  for (const num of candidates) {
+    for (const eff of (effectsMap.get(num) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, num)) continue;
+      scan(eff.action);
+    }
+  }
+  return [...totals.entries()].map(([color, count]) => ({ color, count }));
+}
+
 // ===== GRANT_LRIG_ABILITY 収集 =====
 
 /**
