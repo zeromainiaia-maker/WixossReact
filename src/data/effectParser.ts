@@ -2205,6 +2205,8 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     : parseActionText(condition ? cleaned : stripped);
   const hasUnknown = action.type === 'UNKNOWN'
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
+  // GRANT_LRIG_ABILITY: rawText から付与能力を展開（parseSpellEffect と同処理。アーツ/ピース経路の展開漏れ是正）
+  const glaUnknownSub = expandGrantLrigAbilities(action, card.CardNum);
   // ALT_COST_OPP_TURN をアクション列から CardEffect フィールドに昇格
   let altCostOppTurn: import('../types/effects').EnergyCost[] | undefined;
   if (action.type === 'ALT_COST_OPP_TURN') {
