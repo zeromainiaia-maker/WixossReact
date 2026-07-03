@@ -781,7 +781,7 @@ try {
       const h = { apikey: ANON, Authorization: `Bearer ${token}` };
       const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
       const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
-      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,pending_spell,pending_effect,game_logs`, { headers: h });
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,pending_spell,pending_effect,game_logs,turn_phase,active_user_id`, { headers: h });
       const row = (await r2.json())?.[0]; if (!row) return { error: 'no row' };
       const hs = row.host_state ?? {}, gs = row.guest_state ?? {};
       const buff = (hs.temp_power_mods ?? []).find(m => m.cardNum === 'PR-470A#1' && (m.delta ?? 0) >= 5000);
