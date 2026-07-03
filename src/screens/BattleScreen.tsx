@@ -3697,6 +3697,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           field: myFieldAfterCoinCheck,
           turn_end_draw_count: undefined,
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
+          temp_level_mods:    [],   // UNTIL_END_OF_TURN レベル修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
           field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
           granted_effects:    {},   // ターン内付与能力をリセット
