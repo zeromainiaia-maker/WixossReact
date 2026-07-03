@@ -35,7 +35,7 @@ P1_PLAN は P1 の DoD しか定義していないため、「開発の完成」
 
 - [ ] **キュー消化を継続**：`node scratchpad/_bqTriage.mjs` で高シグナル選別 → `npm run audit -- --id <CardNum>` で目視 → 「真no-op／シナリオ空振り／STUB未実装」に仕分け → バグは effects JSON 直パッチ＋engine/decompilerセット＋smoke/golden/fuzz で修正。
 - [ ] **未実装action型 worklist**（[TODO.md](./TODO.md) §1.9）＝action位置なのに engine/UI に型名が一度も現れない完全no-opの型。残11種27効果。
-- [ ] **意味照合監査（semantic audit）の worklist**（[TODO.md](./TODO.md) §1.8）＝BEHAVIOR_AUDIT の板面差分では拾えないSTUB/MANUALの意味エラー（owner取り違え・GRANT_PROTECTION no-op 等）の補完的発見器。
+- [ ] **意味照合監査（semantic audit）の worklist**（[TODO.md](./TODO.md) §1.8）＝BEHAVIOR_AUDIT の盤面差分では拾えないSTUB/MANUALの意味エラー（owner取り違え・GRANT_PROTECTION no-op 等）の補完的発見器。
 - [ ] **完了判定**：高シグナル件数がこれ以上減らない逓減限界に達した時点で「P1完了＋P2の一部前倒し完了」を宣言し、残りは個別カードの機構待ちとして TODO §3/§4 に送る。
 
 ### 1b. 逆翻訳機の出力品質（Z節・低優先のテール・大半消化済み）
