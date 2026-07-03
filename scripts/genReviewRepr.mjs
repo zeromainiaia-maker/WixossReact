@@ -29,13 +29,16 @@ function norm(s) {
 }
 
 function normDec(s) {
-  return norm(
-    s.replace(CARD_NUM_RE, '')
+  let t = s.replace(CARD_NUM_RE, '')
      .replace(/〈[^〉]*〉/g, '')
      .replace(/【[^】]*】/g, '')
      .replace(/（[^）]*）/g, '')
-     .replace(/[／\/]?[A-Z][A-Z_]+/g, '')
-  );
+     .replace(/[／\/]?[A-Z][A-Z_]+/g, '');
+  // タイミングヘッダ（最初の「：」より前）に残る区切りスラッシュを除去
+  // （複数timingを「/」で連結して描くため、（メイン起動）等を除去すると孤立「/」が残る）
+  const ci = t.indexOf('：');
+  if (ci >= 0) t = t.slice(0, ci).replace(/[／\/]/g, '') + t.slice(ci);
+  return norm(t);
 }
 
 const blocks = text.split(/^={10,}\s*$/m).map(b => b.trim()).filter(Boolean);
