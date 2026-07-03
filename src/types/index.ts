@@ -396,6 +396,8 @@ export interface PlayerState {
   turn_hand_discarded_count?: number;
   // このターンにシグニが場から手札に戻ったか（G087「このターンにシグニが場から手札に戻っていた場合」）。ターン境界でリセット
   turn_signi_returned_to_hand?: boolean;
+  // このターンにアーツを使用したか（「このターンにあなたがアーツを使用していた場合」WX25-P1-106）。ターン境界でリセット
+  turn_arts_used?: boolean;
   // v0.278: discardVariable コスト支払いで捨てたカードのレベル合計（WDK13-011用）
   last_activated_discard_level_sum?: number;
   // v0.278: WX25-P2-001 GAIN_ABILITY_THIS_GAME で付与されるゲーム全体フラグ
