@@ -434,6 +434,23 @@ function srcTypeOf(ctx: ExecCtx): string | undefined {
   return src?.Type;
 }
 
+// LEVEL_MODIFY: 対象シグニのレベルを±する（UNTIL_END_OF_TURN）。temp_level_mods へ積み、
+//   fieldCandidates が実効レベルとしてレベルフィルタ判定に反映する（matchesFilter の effectiveLevel）。
+function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: ExecCtx): ExecResult {
+  const tgtO: Owner = a.target.owner === 'opponent' ? 'opponent' : 'self';
+  const state = ownerState(tgtO, ctx);
+  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (cands.length === 0) return done({ ...addLog(ctx, 'レベル修正の対象がない'), lastProcessedCards: [] });
+  if (a.target.count === 'ALL') {
+    const s = ownerState(tgtO, ctx);
+    const mods = [...(s.temp_level_mods ?? []), ...cands.map(cardNum => ({ cardNum, delta: a.delta }))];
+    return done(addLog(setOwnerState(tgtO, { ...s, temp_level_mods: mods }, ctx), `レベル${a.delta > 0 ? '+' : ''}${a.delta}`));
+  }
+  const cnt = resolveNum(a.target.count);
+  const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
+}
+
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const delta = resolveNum(a.delta);
   const srcType = srcTypeOf(ctx);
