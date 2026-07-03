@@ -157,6 +157,18 @@ test('SEND_TO_ENERGY 相手シグニ1: エナへ', () => {
   const r = run({ type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq(tops(r.otherState)[0], null, '除去'); eq(r.otherState.energy.length, 6, 'エナ+1');
 });
+test('EXILE 相手シグニ1: 場から消去(トラッシュ/エナに行かない=ゲーム除外)', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
+  const before = ctx.otherState.trash.length + ctx.otherState.energy.length;
+  const r = run({ type: 'EXILE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
+  eq(tops(r.otherState)[0], null, 'signi[0] 除去');
+  eq(r.otherState.trash.length + r.otherState.energy.length, before, 'トラッシュ/エナに行かない');
+});
+test('EXILE 自シグニ thisCardOnly: 自場から消去', () => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const r = run({ type: 'EXILE', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } } as EffectAction, ctx);
+  eq(tops(r.ownerState)[0], null, '自signi[0] 除去');
+});
 test('DOWN 相手シグニ: ダウン状態', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   const r = run({ type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
