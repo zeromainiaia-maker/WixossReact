@@ -373,6 +373,22 @@ function execTrashRevealed(a: import('../types/effects').TrashRevealedAction, ct
 // 選択カードを lastProcessedCards に記録（後続の LAST_PROCESSED_SHARE_COLOR 等の参照用。WDK10-008）。
 function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
+  // 場のシグニをゲームから除外（「このシグニとそれをゲームから除外する」等。トラッシュ経由せず消去）
+  if (tgt.type === 'SIGNI') {
+    let exFilter = tgt.filter;
+    let thisRestrict: string[] | null = null;
+    let triggerRestrict: string[] | null = null;
+    if (exFilter?.thisCardOnly) { const { thisCardOnly: _t, ...rest } = exFilter; exFilter = rest; thisRestrict = ctx.sourceCardNum ? [ctx.sourceCardNum] : []; }
+    if (exFilter?.isTriggerSource) { const { isTriggerSource: _s, ...rest } = exFilter; exFilter = rest; triggerRestrict = ctx.triggeringCardNum ? [ctx.triggeringCardNum] : []; }
+    const state = ownerState(tgt.owner, ctx);
+    let cands = fieldCandidates(state, exFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    if (thisRestrict) cands = cands.filter(n => thisRestrict!.includes(n));
+    if (triggerRestrict) cands = cands.filter(n => triggerRestrict!.includes(n));
+    if (cands.length === 0) return done({ ...addLog(ctx, '除外できるシグニがない'), lastProcessedCards: [] });
+    const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+    const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
+  }
   if (tgt.type !== 'TRASH_CARD') return done(ctx);
   const state = ownerState(tgt.owner, ctx);
   const cands = trashCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
