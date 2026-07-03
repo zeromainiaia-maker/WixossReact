@@ -132,6 +132,14 @@ test('TRASH 相手エナ1(選択): エナ-1 トラッシュ+1', () => {
   eq(r.otherState.energy.length, 4, 'エナ-1');
   eq(r.otherState.trash.length, 4, 'トラッシュ+1');
 });
+test('LOOK_AT_DECK_AND_LIFE: 情報開示のみ（盤面不変）', () => {
+  const ctx = mkCtx({}, { deckTop: [SIGNI], life: 7 });
+  const beforeDeck = ctx.otherState.deck.length, beforeLife = ctx.otherState.life_cloth.length;
+  const r = run({ type: 'LOOK_AT_DECK_AND_LIFE', targetOwner: 'opponent', mode: 'both' } as EffectAction, ctx);
+  eq(r.otherState.deck.length, beforeDeck, 'デッキ不変');
+  eq(r.otherState.life_cloth.length, beforeLife, 'ライフ不変');
+  ok(r.logs.some(l => l.includes('見る')), '見るログ');
+});
 test('EQUALIZE_ENERGY 4: 各プレイヤーのエナを4枚に調整', () => {
   const ctx = mkCtx({ energy: 6 }, { energy: 5 });
   const r = run({ type: 'EQUALIZE_ENERGY', targetCount: 4 } as EffectAction, ctx);
