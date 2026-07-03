@@ -259,7 +259,10 @@ function condJa(c?: any): string {
     case 'THIS_CARD_FROM_TRASH': return 'このシグニがトラッシュから場に出た';
     case 'FIELD_SIGNI_POWER_COUNT': return `${ownerJa(c.owner)}場にパワー${c.minPower}以上のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'LIFE_COMPARE_OPP': return `自分のライフが対戦相手${opJa(c.operator)}`;
-    case 'DURING_PHASE': return `${(c.phases || []).join('/')}フェイズの間`;
+    case 'DURING_PHASE': {
+      const phaseJaMap: Record<string, string> = { MAIN: 'メイン', ATTACK_SIGNI_OP: '対戦相手のアタック', ATTACK: 'アタック' };
+      return `${(c.phases || []).map((p: string) => phaseJaMap[p] ?? p).join('/')}フェイズの間`;
+    }
     case 'THIS_CARD_IN_LOCATION': return `このカードが${c.location}にある`;
     case 'THIS_CARD_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
     case 'THIS_CARD_IS_DOWN': return 'このシグニがダウンしている';
