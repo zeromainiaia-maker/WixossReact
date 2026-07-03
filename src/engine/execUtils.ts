@@ -199,6 +199,7 @@ export function matchesFilter(
   effectivePower?: number,  // 実効パワー（未指定時はcard.Powerを使用）
   classOverride?: string,   // card_class_overridesによるクラス上書き
   allZoneClassOverrides?: Record<string, string>, // TREAT_AS_CLASS_ALL_ZONES: 全ゾーン適用
+  effectiveLevel?: number,  // 実効レベル（temp_level_mods 適用済み。未指定時は card.Level を使用。LEVEL_MODIFY用）
 ): boolean {
   if (!card) return false;
   if (!filter) return true;
