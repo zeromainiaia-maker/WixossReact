@@ -216,7 +216,7 @@ export function matchesFilter(
     if (excl.some(c => card.Color?.includes(c))) return false;
   }
   if (filter.level !== undefined) {
-    const lv = parseInt(card.Level ?? '', 10);
+    const lv = effectiveLevel ?? parseInt(card.Level ?? '', 10);
     if (typeof filter.level === 'number') {
       if (lv !== filter.level) return false;
     } else {
@@ -225,7 +225,7 @@ export function matchesFilter(
     }
   }
   if (filter.levelParity !== undefined) {
-    const lv = parseInt(card.Level ?? '', 10);
+    const lv = effectiveLevel ?? parseInt(card.Level ?? '', 10);
     if (isNaN(lv)) return false;
     if (filter.levelParity === 'even' && lv % 2 !== 0) return false;
     if (filter.levelParity === 'odd'  && lv % 2 !== 1) return false;
