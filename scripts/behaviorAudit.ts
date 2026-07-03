@@ -72,6 +72,8 @@ const lrigColor = (cardMap.get(lrigCard ?? '')?.Color ?? '白');
 // 色別プール（エナを5色揃えて色フィルタ/色条件の空振りを消す）
 const COLORS = ['白', '青', '赤', '緑', '黒'] as const;
 const colorPool: Record<string, string[]> = Object.fromEntries(COLORS.map(c => [c, signiPool.filter(cn => cardMap.get(cn)?.Color?.includes(c))]));
+// 全カードプール（ルリグ除く）＝ゾーン対象がスペル/アーツ等シグニ以外でも配置できるようにする
+const anyPool = [...cardMap.values()].filter(c => c.CardNum && c.Type !== 'ルリグ').map(c => c.CardNum);
 
 // ── 段階2: 効果対応のシナリオ組み立て補助 ──
 // 状態/相対系フィルタキー（CardData だけでは選別できない＝盤面フラグで別途表現）
