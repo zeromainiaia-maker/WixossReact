@@ -236,6 +236,7 @@ function condJa(c?: any): string {
     case 'LRIG_TEAM_COUNT': return `${ownerJa(c.owner)}場に＜${c.team}＞のルリグが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'TRASH_HAS_CARD': return `${ownerJa(c.owner)}トラッシュに${filterJa(c.filter)}カードが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
+    case 'ARTS_USED_THIS_TURN': return 'このターンにあなたがアーツを使用していた';
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
