@@ -313,6 +313,13 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     }
   }
 
+  // EQUALIZE_ENERGY 系: owner のエナを targetCount+1 枚に増量（「N枚になるように置く」を観測可能にする）
+  for (const en of energyNeeds) {
+    const st = en.owner === 'self' ? ownerState : otherState;
+    const side = en.owner === 'self' ? '自' : '相';
+    while (st.energy.length < en.count) st.energy.push(take(`${side}エナ増${st.energy.length + 1}`));
+  }
+
   const ctx = {
     ownerState, otherState, cardMap: cardMap as Map<string, CardData>,
     logs: [] as string[], sourceCardNum: sourceNum, triggeringCardNum: sourceNum, currentPhase: 'MAIN',
