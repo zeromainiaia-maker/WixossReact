@@ -211,16 +211,17 @@ function main(): void {
   ];
   const summary: string[] = [];
 
-  for (const { name, re, keys } of PATTERNS) {
+  for (const { name, re, keys, pre, extraOk } of PATTERNS) {
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
-    for (const [id, t] of texts) {
+    for (const [id, t0] of texts) {
+      const t = pre ? pre(t0) : t0;
       if (!re.test(t)) continue;
       hits++;
       const js = jsonStr.get(id);
       if (!js) continue;
-      if (keys.some(k => js.includes(k))) continue;
+      if (keys.some(k => js.includes(k)) || (extraOk && extraOk(js, t0))) continue;
       if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
       else { missHigh.push(id); highAll.add(id); }
     }
