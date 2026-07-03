@@ -264,6 +264,7 @@ interface Corpus {
 function loadTexts(): Corpus {
   // 効果テキスト列（0-idx 18）・LBテキスト列（19以降）を保持し、注釈・キーワード説明の（…）を除去
   const all = new Map<string, string>(), eff = new Map<string, string>(), burst = new Map<string, string>();
+  const rawAll = new Map<string, string>();
   const ctype = new Map<string, string>(), ctiming = new Map<string, string>();
   const files = fs.readdirSync(DATA_DIR).filter(f => f.startsWith('CardData_') && f.endsWith('.csv')).sort();
   for (const f of files) {
@@ -278,11 +279,12 @@ function loadTexts(): Corpus {
       burst.set(id, (burst.get(id) ?? '') + b);
       // 旧実装（cols.slice(18).join(',')）と同一の連結を維持＝列境界のカンマを保存
       all.set(id, (all.get(id) ?? '') + e + ',' + b);
+      rawAll.set(id, (rawAll.get(id) ?? '') + cols.slice(18).join(','));
       if (!ctype.has(id)) ctype.set(id, cols[3] ?? '');
       if (!ctiming.has(id)) ctiming.set(id, cols[13] ?? '');
     }
   }
-  return { all, eff, burst, ctype, ctiming };
+  return { all, eff, burst, rawAll, ctype, ctiming };
 }
 
 function loadJson(): { str: Map<string, string>; obj: Map<string, unknown[]> } {
