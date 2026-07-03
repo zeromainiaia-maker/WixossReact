@@ -115,7 +115,8 @@ type UnderNeed = { filter: TargetFilter; fromThis: boolean; count: number };
 const ZTYPE: Record<string, ZoneNeed['zone']> = { TRASH_CARD: 'trash', DECK_CARD: 'deck', HAND_CARD: 'hand', ENERGY_CARD: 'energy' };
 const LOC2ZONE: Record<string, ZoneNeed['zone']> = { deck: 'deck', trash: 'trash', hand: 'hand', energy: 'energy' };
 const hasFilterKey = (f: TargetFilter | undefined): boolean =>
-  !!(f && (f.cardType || f.cardClass || f.story || f.color || f.keyword || f.cardName));
+  !!(f && (f.cardType || f.cardClass || f.story || f.color || f.keyword || f.cardName
+    || f.level !== undefined || f.levelRange));
 function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[]; zoneNeeds: ZoneNeed[]; fieldNeeds: Tgt[]; underNeeds: UnderNeed[] } {
   const targets: Tgt[] = []; const sources: Src[] = []; const zoneNeeds: ZoneNeed[] = []; const fieldNeeds: Tgt[] = []; const underNeeds: UnderNeed[] = [];
   (function walk(o: unknown) {
