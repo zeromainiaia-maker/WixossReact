@@ -714,6 +714,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ],
     };
   }
+  // 「あなたのセンタールリグがアップ状態の場合、カードをN枚引く」＝条件付きドロー（WX25-P2-048。
+  // 汎用 DRAW が先取りすると条件が無言脱落する）
+  {
+    const m = t.match(/あなたのセンタールリグがアップ状態の場合、カードを([０-９\d]+)枚引く/);
+    if (m) return { type: 'CONDITIONAL', condition: { type: 'CENTER_LRIG_IS_UP' }, then: { type: 'DRAW', owner: 'self', count: parseNum(m[1]) } };
+  }
   // 「場の…シグニ1体につきカードをN枚引く」は動的枚数（part3 の DRAW_PER_FIELD_COUNT）に委譲する。
   // 汎用 DRAW が先取りすると前半を無視して固定枚数に潰れてしまう。
   const drawM = t.match(/カードを?([０-９\d]+)枚引(?:く|いてもよい)/);
