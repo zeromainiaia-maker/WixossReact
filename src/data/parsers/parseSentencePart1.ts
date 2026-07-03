@@ -1760,7 +1760,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
     // self参照（このカード/このシグニ/このスペル＝遅延自己除外・ルリグデッキのピース除外等）は機構待ち＝従来どおり
     // TRASH 近似のまま（curated と同じ no-op・PLAN §6.3）。手札/エナ除外も execExile 未対応のため TRASH 近似。
     const selfRef = t.match(/この(?:カード|シグニ|スペル)を?ゲームから除外/);
-    if (srcType === 'TRASH_CARD' && !selfRef && t.match(/トラッシュ(?:にある|から)/)) {
+    // 「ルリグデッキにあるピースを除外」（WXDi-P04-013等）は除外対象がトラッシュでない＝機構待ちの従来近似のまま
+    if (srcType === 'TRASH_CARD' && !selfRef && !t.includes('ルリグデッキにある') && t.match(/トラッシュ(?:にある|から)/)) {
       // 「シグニとスペルをそれぞれN枚まで」形は2つの EXILE に分ける（WX14-006B）
       const eachM = t.match(/シグニとスペルをそれぞれ([０-９\d]+)枚まで/);
       const guardF = t.includes('《ガードアイコン》を持たない') ? { hasGuard: false } : {};
