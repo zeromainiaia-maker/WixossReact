@@ -115,8 +115,8 @@ const ZTYPE: Record<string, ZoneNeed['zone']> = { TRASH_CARD: 'trash', DECK_CARD
 const LOC2ZONE: Record<string, ZoneNeed['zone']> = { deck: 'deck', trash: 'trash', hand: 'hand', energy: 'energy' };
 const hasFilterKey = (f: TargetFilter | undefined): boolean =>
   !!(f && (f.cardType || f.cardClass || f.story || f.color || f.keyword || f.cardName));
-function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[]; zoneNeeds: ZoneNeed[]; fieldNeeds: Tgt[] } {
-  const targets: Tgt[] = []; const sources: Src[] = []; const zoneNeeds: ZoneNeed[] = []; const fieldNeeds: Tgt[] = [];
+function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[]; zoneNeeds: ZoneNeed[]; fieldNeeds: Tgt[]; underNeeds: UnderNeed[] } {
+  const targets: Tgt[] = []; const sources: Src[] = []; const zoneNeeds: ZoneNeed[] = []; const fieldNeeds: Tgt[] = []; const underNeeds: UnderNeed[] = [];
   (function walk(o: unknown) {
     if (!o || typeof o !== 'object') return;
     const r = o as Record<string, unknown>;
@@ -125,6 +125,10 @@ function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[
     if (cf && hasFilterKey(cf)) {
       const owner = (r.countOwner as string) ?? 'self';
       for (const o2 of owner === 'any' ? ['self', 'opponent'] : [owner]) fieldNeeds.push({ owner: o2, filter: cf, ttype: 'SIGNI' });
+    }
+    // 「シグニの下にある〈X〉を手札に加える」系＝自シグニの下に合致カードを仕込む（TAKE_FROM_UNDER_SIGNI）
+    if (r.type === 'TAKE_FROM_UNDER_SIGNI') {
+      underNeeds.push({ filter: (r.filter as TargetFilter) ?? {}, fromThis: !!r.fromThis, count: typeof r.count === 'number' ? r.count : 1 });
     }
     for (const key of ['target', 'source'] as const) {
       const t = r[key] as Record<string, unknown> | undefined;
