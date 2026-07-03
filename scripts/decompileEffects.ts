@@ -696,7 +696,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const unit = a.unitSize ?? 1;
       const cf = filterJa(a.countFilter);
       const who = a.trashOwner === 'both' ? '各プレイヤーの' : ownerJa(a.trashOwner);
-      const per = a.countByVariety ? `シグニの種類${unit > 1 ? `${unit}` : '1'}つ` : `シグニ${unit > 1 ? `${unit}` : '1'}枚`;
+      // 数える対象は countFilter.cardType で決まる（cardType 無し＝「カード」／スペル等はその語）
+      const ct = a.countFilter?.cardType;
+      const noun = ct == null ? 'カード' : ([] as string[]).concat(ct).join('か');
+      const per = a.countByVariety ? `${noun}の種類${unit > 1 ? `${unit}` : '1'}つ` : `${noun}${unit > 1 ? `${unit}` : '1'}枚`;
       return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${who}トラッシュにある${cf}${per}につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
     }
     case 'POWER_MODIFY_PER_LIFE_COUNT': {
