@@ -627,19 +627,28 @@ const scenarios = {
     },
     async drive(page, H) {
       // クリック不要。CPU が自動でグロウするのを ground truth（guest.lrig 長）で観測。
-      for (let s = 0; s < 18; s++) {
-        await page.waitForTimeout(1000);
-        await page.screenshot({ path: `${SHOT}/cpugrow-${s}.png`, fullPage: true });
-        const st = await H.queryState();
-        if (st.error) { H.log(`  cpugrow[${s}] queryState error`); continue; }
-        const g = st.guest ?? {};
-        const grewFlag = (g.actionsDone ?? []).includes('GROW');
-        const grewStack = (g.lrigUnder ?? 0) >= 1 && g.lrigTop === 'WD03-002#1';
-        const growLog = await H.findLog(/コード・ピルルク・Ｇ|\[CPU\].*グロウ/);
-        if (s % 3 === 0) H.log(`  cpugrow[${s}] phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} deck=${g.lrigDeck} done=${(g.actionsDone||[]).join(',')}`);
-        if (grewStack) {
-          return { pass: true, detail: `CPUグロウ確認: lrigTop=${g.lrigTop}（Lv3）・lrigUnder=${g.lrigUnder}・GROW済=${grewFlag}・log「${growLog ?? '—'}」` };
+      // ⚠ 直前の CPU 自然ターンが進行中だと注入 guest_state が上書きされる（lrigTop が #g… の自前ルリグになる）。
+      //    そのため各試行で「一旦 host ターンへ戻して CPU を停止→再注入→観測」する（順序非依存にする）。
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(2500);
+        await injectScenario(page, scenarios.cpugrow.spec);
+        await page.waitForTimeout(1200);
+        let overwritten = false;
+        for (let s = 0; s < 12; s++) {
+          await page.waitForTimeout(1000);
+          await page.screenshot({ path: `${SHOT}/cpugrow-a${attempt}-${s}.png`, fullPage: true });
+          const st = await H.queryState();
+          if (st.error) continue;
+          const g = st.guest ?? {};
+          const growLog = await H.findLog(/コード・ピルルク・Ｇ|\[CPU\].*グロウ/);
+          if (g.lrigTop === 'WD03-002#1' && (g.lrigUnder ?? 0) >= 1) {
+            return { pass: true, detail: `CPUグロウ確認: WD03-003→WD03-002（lrigTop=${g.lrigTop}・lrigUnder=${g.lrigUnder}・done=${(g.actionsDone||[]).join(',')}・log「${growLog ?? '—'}」）` };
+          }
+          if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  cpugrow[a${attempt}] CPU自然ターンで上書き（lrigTop=${g.lrigTop}）→再注入`); overwritten = true; break; }
+          if (s % 3 === 0) H.log(`  cpugrow[a${attempt}.${s}] phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} deck=${g.lrigDeck} done=${(g.actionsDone||[]).join(',')}`);
         }
+        if (!overwritten) break; // 上書きでなければ（グロウ未達）これ以上リトライ不要
       }
       const stf = await H.queryState();
       return { pass: false, detail: 'CPUグロウ未確認 guest=' + JSON.stringify(stf.guest) };
