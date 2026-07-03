@@ -3186,6 +3186,25 @@ function execMutualDiscardAndDraw(a: MutualDiscardAndDrawAction, ctx: ExecCtx): 
   return done(addLog(cur, `各${maxCount}枚ドロー`));
 }
 
+// VARIABLE_DISCARD_AND_DRAW: 手札を好きな枚数捨て、捨てた枚数 + drawBonus 枚引く（WX09-Re15）
+function execVariableDiscardAndDraw(a: VariableDiscardAndDrawAction, ctx: ExecCtx): ExecResult {
+  const state = ownerState(a.owner, ctx);
+  // 手札が無ければ捨てる選択は不要、bonus 枚だけ引く
+  if (state.hand.length === 0) {
+    return executeAction({ type: 'DRAW', owner: a.owner, count: a.drawBonus }, ctx);
+  }
+  // 手札から好きな枚数（0〜全部）を選んで捨て、その後 lastProcessedCards.length + drawBonus 枚引く
+  return needsInteraction(addLog(ctx, '捨てる手札を選ぶ（0枚可）'), {
+    type: 'SELECT_TARGET',
+    candidates: [...state.hand],
+    count: state.hand.length,
+    optional: true,
+    targetScope: a.owner === 'self' ? 'self_hand' : 'opp_hand',
+    thenAction: { type: 'TRASH', target: { type: 'HAND_CARD', owner: a.owner } } as import('../types/effects').EffectAction,
+    continuation: { type: 'DRAW', owner: a.owner, count: a.drawBonus, addLastProcessedCount: true } as import('../types/effects').EffectAction,
+  });
+}
+
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
