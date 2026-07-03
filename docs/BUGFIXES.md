@@ -5,6 +5,17 @@
 
 ---
 
+## BEHAVIOR_AUDIT 段階4・初収穫：場シグニ「ゲームから除外」が TRASH{TRASH_CARD,opp}(no-op) に誤エンコード＝12件是正＋engine機構追加（2026-07-03・zerom）
+
+挙動トレース監査（`npm run audit`）の要レビュー・キューを高シグナル選別（原文に動作動詞×STUB露出なし×条件なし×無変化）した中から発見した**系統バグ**。原文「（対戦相手の/この）シグニを**ゲームから除外する**」が `TRASH{ target:{ type:'TRASH_CARD', owner:'opponent' } }`（＝相手トラッシュのカードを触る意味不明な指定）に誤エンコードされ、`execExile` が TRASH_CARD しか扱わなかったため**完全no-op**だった。全域スキャン（`scratchpad/_auditSystematicScan.mjs` 同型の `TRASH{TRASH_CARD,opponent}` × 原文に相手トラッシュ言及なし）で**12件**を確定。
+
+- **engine 機構追加**＝`execExile` に **SIGNI（場のシグニ）除外**分岐を新設（`fieldCandidates`＋`thisCardOnly`／`isTriggerSource` 対応）＋EXILE apply（`resumeSelectTarget` 経路）に**場シグニを `removeFromField` で消去**（トラッシュ経由せずゲーム除外）を追加。decompiler は `targetJa()＋をゲームから除外する` で既に SIGNI 対応済（描画変更不要）。
+- **JSON 12件是正**（`scratchpad/_fixExileEncoding.mjs`）＝場シグニ除外10件（相手単体＝`EXILE{SIGNI,opp}`／自身thisCardOnly＝WXDi-CP02-TK02A/TK03B／自身＋相手SEQUENCE＝WX21-027・WX24-P3-TK1A／trigger相対＝WXDi-P13-089-E2）＋外れ2件（WXDi-P04-016-E3＝相手デッキmill2枚 `TRASH{DECK_CARD,opp,2}`／WXDi-P05-043-E1＝自トラッシュのスペル除外 `EXILE{TRASH_CARD,self,スペル}`）。
+- **検証**＝audit トレースで全12件が「シグニ→(消滅)＋"…をゲームから除外"ログ」を確認（WX21-027は自他2体除外）。逆翻訳が原文一致（「ゲームから除外する」「デッキの上から2枚トラッシュ」）・**同型★0維持・typecheck緑・smoke CRASH0・golden 98/98（EXILEフィールド除外テスト2件追加）・fuzz 全0**。decompile_sheet2/3/4/7/8＋下流再生成。キュー 261→253。
+- ⚠残の「盤面変化なし」（P05-043＝トイ盤面のトラッシュにスペル無し／P13-089-E2＝triggerSource文脈／WXK09-015-E3）は**エンコードは正しくハーネスの限界**（実機では機能）。
+
+---
+
 ## 意味照合監査 系統①(a)：相手デッキ削りの owner 取り違え＝純・相手型58枚を一括是正（2026-07-03・zerom）
 
 semantic audit（LLM）が発見した「対戦相手のデッキの上から…トラッシュ」なのに `TRASH{DECK_CARD, owner:'self'}`＝**自分のデッキを削る実挙動**の系統バグ。`execTrash` は `target.owner` のデッキを削るため実挙動も逆、逆翻訳も「あなたのデッキ…」と誤描画していた。
