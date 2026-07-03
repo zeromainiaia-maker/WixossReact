@@ -507,7 +507,7 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
 }
 
 // ── トレース実行 ──
-type Trace = { card: string; name: string; effectId: string; type: string; status: string; diff: string[]; logs: string[] };
+type Trace = { card: string; name: string; effectId: string; type: string; status: string; detail?: string; diff: string[]; logs: string[] };
 
 function traceEffect(num: string, eff: CardEffect): Trace {
   const name = cardMap.get(num)?.CardName ?? '';
