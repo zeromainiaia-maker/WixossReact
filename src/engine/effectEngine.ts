@@ -1378,6 +1378,26 @@ export function calcFieldPowers(
           }
         }
 
+        // POWER_MODIFY_PER_ENERGY: エナゾーンのカード枚数に比例したパワー増減（常時）
+        // 「このシグニのパワーはあなたのエナゾーンにあるカード1枚につき＋N」(WX09-019)。target.count!=='ALL'=このシグニ自身。
+        const perEnergyMods = extractPowerModifiesPerEnergy(effect.action);
+        for (const mod of perEnergyMods) {
+          const enaState = mod.energyOwner === 'self' ? ownerState : otherState;
+          const delta = mod.deltaPerCard * enaState.energy.length;
+          if (delta !== 0) {
+            if (mod.target.count !== 'ALL') {
+              if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
+                powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+              }
+            } else {
+              const tgtIsOwner = mod.target.owner === 'self' || mod.target.owner === 'any';
+              const tgtIsOther = mod.target.owner === 'opponent' || mod.target.owner === 'any';
+              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers);
+              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
+            }
+          }
+        }
+
         // POWER_MODIFY_PER_CHARM: フィールドのチャーム枚数に比例したパワー増減（常時）
         const perCharmMods = extractPowerModifiesPerCharm(effect.action);
         for (const mod of perCharmMods) {
