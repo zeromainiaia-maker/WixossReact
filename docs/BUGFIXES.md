@@ -13,7 +13,8 @@ BEHAVIOR_AUDIT 段階4のキュー triage（高シグナル no-op候補）から
 - **「捨てた枚数」の後続ドローへの伝播**＝`DrawAction` に `addLastProcessedCount?: boolean` を追加。`resumeSelectTarget` が選択後にセットする `ctx.lastProcessedCards` の枚数を `execDraw` が count に加算する（既存の resume 機構を再利用・新pending型は不要）。
 - **決定論autopilot整合**＝smoke/golden/fuzz の autopilot は `SELECT_TARGET` を count 上限まで選ぶ＝手札全捨て→全数+1ドロー。実プレイ（BattleScreen）は既存の選択UI経路でそのまま動く。
 - **回帰ゲート**＝golden に2件追加（手札5全捨て→6ドロー／手札0→bonusのみ）＝**golden 106/106**。typecheck / smoke（CRASH 0・OK 10275/SKIP 282）/ fuzz 0。
-- **副次（audit基盤）**＝`scripts/behaviorAudit.ts` のシナリオビルダーを拡充し、この効果を含む**キューの偽陽性を削減**（スペル/アーツのゾーン対象を全カードプールから配置・SEARCH の `from` とPLACE系の文字列source・複数枚count・countFilter系「場のクラスXシグニ1体につき」の場配置）。要review キュー **169→~136**。
+- **副次①（audit基盤）**＝`scripts/behaviorAudit.ts` のシナリオビルダーを拡充し、この効果を含む**キューの偽陽性を削減**（スペル/アーツのゾーン対象を全カードプールから配置・SEARCH の `from` とPLACE系の文字列source・複数枚count・countFilter系「場のクラスXシグニ1体につき」の場配置）。要review キュー **169→137**。
+- **副次②（逆翻訳パリティ・系統修正）**＝audit のtriageで気づいた逆翻訳の系統ミスラベルを是正。`decompileEffects.ts` が `POWER_MODIFY_PER_TRASH_COUNT`／`PER_LIFE_COUNT`／`PER_STACK`／`PER_FIELD` の4アクションを**1caseに束ねて一律「場の…シグニ1体につき」と誤表示**（ゾーン種別・`unitSize`・`countByVariety`・LIFE/STACK固有フィールドを全無視。例 WX17-026 は `deltaPerCard` を読まず「＋0」と出ていた）。4caseに分割し、TRASH＝「〈trashOwner〉のトラッシュにある〈filter〉シグニ〈unitSize〉枚/種類につき」・LIFE＝「〈lifeOwner〉のライフクロス1枚につき」・STACK＝「このシグニの下にあるカード1枚につき」・FIELD＝従来「場の…1体につき」を正しく描画。**約30効果の逆翻訳が原文一致に改善**（WXK02-061/WXEX2-73〈種類〉/WX17-026/WX12-039〈各プレイヤー4枚〉等を原文照合で確認）。decompile_sheet1-6/8/9 再生成。engine不変（描画のみ）。
 
 ---
 
