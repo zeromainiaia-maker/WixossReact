@@ -61,7 +61,7 @@
   - **(b) 「あなたか対戦相手」選択＝18枚**（WX07-005/WXDi-D07-019/D07-022/P01-044/P04-043/P04-082/P05-043/P07-087/P13-002/WX24-P3-057/P3-091/P4-025/WX25-P3-028/WX26-CP1-058/CP1-098/WXK09-034/09-057/11-076）。原文はプレイヤー選択＝`opponent` でも不完全。`owner:'any'`＋engine/decompiler の選択対応が要る（中リスク・別作業）。**opponent に flip してはいけない。**
   - **(c) 混在（自ミル文併存）＝10枚**（WXEX2-21/WXDi-P07-007/P11-082/P15-055/WX24-P3-088/P4-034/P4-049/WX25-P1-010/P1-106/CP1-007）。同一効果に正当な自ミルも持つ＝ノード単位で判別要。
   - **進め方**＝まず (a) 58枚を系統一括是正（§0）→verify。(b)(c) は個別。パーサー側も同修正で回帰防止。
-- [ ] **系統②：GRANT_PROTECTION `count:'ALL'`＋subjectFilter無し＝48件**。保護コレクタの `count===1` 分岐に入らず no-op 疑い。原文「このシグニは…受けない」単体保護が約半数。
+- [~] **系統②：GRANT_PROTECTION `count:'ALL'`＋subjectFilter無し＝48件**（保護コレクタの `count===1` 分岐に入らず no-op）。**単体保護24件は `count:'ALL'→1` 是正済（2026-07-03・BUGFIXES上部）**。ただし機能したのは from=`シグニ`/`any`/`ルリグ+シグニ` の**13件**のみ。**残課題**＝(a)**`アーツ`/`ルリグ`/`スペル`単独 from の自己保護11件＝engine 側配線が別途必要**（collectAbilityProtectedSigni 等の from ガードがアーツ/ルリグを含まない＋アーツ/ルリグ効果適用点での保護参照）。(b)**広域24件**（「あなたのシグニは…」等＝subjectFilter/新機構）。分類再取得＝`node scratchpad/_protScan.mjs`。
 - [ ] **パイロット findings の個別修正**（真バグ39件＋stub群残20枚・clean群50枚の findings）＝`node scripts/semanticAuditTriage.mjs <outDir>` で精査→1カードずつ §0 ワークフロー。
 - [ ] **スケールアップ**＝stub群全2,306枚へ拡大（SEMANTIC_AUDIT.md「スケールアップの進め方」）。
 
