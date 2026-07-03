@@ -5,6 +5,21 @@
 
 ---
 
+## GRANT_LRIG_ABILITY無言no-op系統＋「このルリグをアップ」誤エンコード13枚＋per-count選択no-opエンジンバグ（2026-07-04・zerom・続き14）
+
+BEHAVIOR_AUDIT 段階4の高シグナル・キュー（30件）から3系統を収穫。**engine 2バグ＋parser 3ルール＋curated 約28ノード**。高シグナル 30→19・smoke SKIP 283→268。
+
+- **① GRANT_LRIG_ABILITY `abilities:[]` の無言no-op系統（18ノード）**＝アーツ/ピース経路（`parseArtsEffect`）に rawText→サブ能力の展開が無く（スペル/シグニ経路のみ実装済）、curated も展開前の `abilities:[]` のまま＝executor の `abilities.length>0` ガードで無言no-op。**展開を `expandGrantLrigAbilities` に統一**（3経路共通・SEQUENCE/CONDITIONAL 内も走査）＋2つの系統バグを同時是正：(a)複数引用「【起】…。」「【起】…。」形式が最初の1能力しか展開されない→`」「` 境界分割（PR-257/258/317 は各3能力に）。(b)「このアーツによってあなたのルリグが得た能力は、使用タイミング《メイン》《アタック》を得る」後置文が無言で飲み込まれる→granted abilities の timing に反映（PR-317）。
+- **② permanent 機構**＝「このゲームの間」付与（WXDi-P06-004等）が従来のターン境界全消去と矛盾→`GrantLrigAbilityAction.permanent`＋付与能力に `permanentGrant` を刻み、**BattleScreen のターン境界リセット3箇所を「filter で permanent だけ残す」に変更**。decompiler は「このゲームの間、」接頭辞を描画。
+- **③ curated 書込**＝クリーン展開の10ノード（WXDi-P06-004/005・P07-003/004/005・P15-001・PR-257/258/317・WX19-014）に abilities＋permanent を書込（`scratchpad/_glaExpand.ts`）。**展開品質が低く過剰発火になる4枚は MANUAL 化して no-op 据置**（WX15-016＝相手ターントリガーの条件誤約・WD21-009＝多段閾値平坦化・PR-204＝支払いゲート脱落で毎アタック無償ルリグアップ・PR-238＝枚数比例ミル平坦化）→§6.3 に機構待ち登録。
+- **④ 「このルリグをアップする」の UP{SIGNI} 誤エンコード13ノード**＝①の検証中に parser へ UP LRIG ルールを足したところ parserWorklist が curated 側の系統バグを検出（**計器が正しく機能した好例**）。原文「この/あなたの（センター/すべての）ルリグをアップ」が全て「あなたのシグニ1体をアップ」＝**誤対象の実害バグ**（WX08-001/WX10-009/WX22-010/WXEX2-01/WX24-P3-001/WX24-P4-011/WX25-P2-048/WXK11-052/PR-461/SPDi43-03/11/12/13・`scratchpad/_fixUpLrig14.mjs`）。WXEX2-01 は「それとこのルリグをアップ」＝SEQUENCE[UP シグニ(アーム/ウェポン), UP LRIG] の複合ルールも parser に追加。regex は する/し 必須＝「ルリグがアップ状態の場合」の状態参照に誤マッチしない。WXDi-D08-004-E3 は「すべてのシグニをアップ」の平坦化＝主語正しく偽陽性と判定し除外。
+- **⑤ 新条件 `CENTER_LRIG_IS_UP`**＝WX25-P2-048「センタールリグがアップ状態の場合、カードを2枚引く」の条件無言脱落を是正（型+evalCondition+parser+decompiler+curated）。
+- **⑥ engine実バグ＝per-count系パワー修正の選択後no-op**＝`applyDirectAction` に `POWER_MODIFY_PER_{TRASH_COUNT,LIFE_COUNT,HAND_COUNT}` の case が無く、対象選択→default→再実行→再選択の**無限再プロンプト＝選択が永遠に適用されない**（続き7の ENERGY_CARD 分岐欠落と同族）。delta は算出済みなので **selectOrInteract に渡す thenAction を `POWER_MODIFY` に変換**して修正（UNTIL_OPP_TURN_END は duration で伝播）。**smoke SKIP 283→268＝15効果が解消**。WXK02-061 等で盤面差分を確認。
+- **⑦ シナリオビルダー3拡充（偽陽性削減）**＝(a)`hasFilterKey` に level/levelRange を追加（WD03-011「レベル1の手札を捨てさせる」の播種漏れ）。(b)EQUALIZE_ENERGY の targetCount+1 枚エナ増量（WXK11-058）。(c)PER_TRASH_COUNT の countFilter 合致カードを unitSize 枚トラッシュに播種＋zoneNeeds 配置上限 3→6。audit の SKIP に detail 表示も追加。
+- **検証**＝typecheck緑・**golden 108→112（+4＝GLA permanent／UP LRIG／CENTER_LRIG_IS_UP／PER_TRASH_COUNT選択適用）**・smoke 全0（OK 10289/SKIP 268）・fuzz 全0・**同型★0維持**・parserWorklist **held 25/LOSS 11/VALUE 14＝ベースライン一致**（UP LRIG系はparser同修正でパリティ回復・WXEX2-01はstory配列で統一）・全10シート＋下流再生成。⚠要実機検証＝permanentGrant のターン跨ぎ保持・付与【起】エクシードの UI 発動（WXDi-P06-004）・per-count 選択パワー修正の実UI適用。
+
+---
+
 ## 条件の無言脱落2系統（アーツ使用11枚・自パワー閾値21枚）＋ドロー脱落系統24枚を是正（2026-07-03・zerom・続き13後半）
 
 「すべての効果を完璧に」の続きとして、条件節・複合動作の無言脱落を系統横断で発見・是正。**engine新機構1つ＋parser昇格2つ＋curated 約60ノード**。
