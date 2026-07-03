@@ -1362,6 +1362,7 @@ export interface GrantLrigAbilityAction {
   type: 'GRANT_LRIG_ABILITY';
   abilities: CardEffect[];  // 付与される能力（サブエフェクト）
   rawText: string;          // 元のテキスト（表示用）
+  permanent?: boolean;      // 「このゲームの間」付与（グロウしても維持・ターン境界で消えない。WXDi-P06-004等）。省略=ターン終了時まで
 }
 
 // チャームを外す（シグニに付いたチャームをトラッシュに置く）
