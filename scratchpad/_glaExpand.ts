@@ -21,11 +21,17 @@ for (const f of [...Array.from({ length: 11 }, (_, i) => `CardData_Sheet${i + 1}
   for (const r of data) { const id = r.CardNum?.trim(); if (id && !cardMap.has(id)) cardMap.set(id, r as unknown as CardData); }
 }
 
-// 対象: AUTO の 14 ノード（MANUAL 4 は別途個別判断）
+// 書き込み対象: クリーン展開の 10 ノード。
+// 除外→MANUAL化: WX15-016-E1（条件をIS_MY_TURN誤約＝相手ターントリガーで恒久false）・WD21-009-E1（多段閾値平坦化＝無条件ガード封じ/トリクラ付与の過剰発火）・
+//   PR-204-E1（支払いゲート脱落＝毎アタック無償ルリグアップ）・PR-238-E1（枚数比例ミル平坦化）
 const targets: Record<string, string[]> = {
-  'effects_WX.json': ['WX15-016-E1', 'WX19-014-E1'],
+  'effects_WX.json': ['WX19-014-E1'],
   'effects_WXDi.json': ['WXDi-P06-004-E1', 'WXDi-P06-005-E1', 'WXDi-P07-003-E1', 'WXDi-P07-004-E1', 'WXDi-P07-005-E1', 'WXDi-P15-001-E1'],
-  'effects_misc.json': ['WD21-009-E1', 'PR-204-E1', 'PR-238-E1', 'PR-257-E1', 'PR-258-E1', 'PR-317-E1'],
+  'effects_misc.json': ['PR-257-E1', 'PR-258-E1', 'PR-317-E1'],
+};
+const manualize: Record<string, string[]> = {
+  'effects_WX.json': ['WX15-016-E1'],
+  'effects_misc.json': ['WD21-009-E1', 'PR-204-E1', 'PR-238-E1'],
 };
 
 const collectGLA = (a: EffectAction | undefined, out: GrantLrigAbilityAction[]) => {
