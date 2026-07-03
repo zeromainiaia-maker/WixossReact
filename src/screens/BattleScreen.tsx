@@ -209,6 +209,14 @@ function applyContinuousCostDecreases(
   return result;
 }
 
+// GROW_COST_REDUCTION（場のCONTINUOUS「あなたのグロウコストは《色×N》減る」）をグロウコスト文字列へ適用する。
+// reductions は collectGrowCostReductions の色別集計。各色を removeNColorFromCost で減算（0未満はクランプ）。
+function applyGrowCostReduction(cost: string, reductions: { color: string; count: number }[]): string {
+  let result = cost;
+  for (const r of reductions) result = removeNColorFromCost(result, r.color, r.count);
+  return result;
+}
+
 // コスト文字列から指定色を1つ減らす（《X》×Nが1→削除、2+→-1）
 function removeOneCostColor(cost: string, color: string): string {
   const parts = parseGrowCost(cost);
