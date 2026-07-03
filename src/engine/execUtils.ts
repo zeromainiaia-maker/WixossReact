@@ -802,6 +802,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (zoneIdx < 0) return false;
       return !(ctx.ownerState.field.signi_down?.[zoneIdx] ?? false);
     }
+    case 'CENTER_LRIG_IS_UP':
+      return !(ctx.ownerState.field.lrig_down ?? false);
     case 'THIS_CARD_IS_ARMORED': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
