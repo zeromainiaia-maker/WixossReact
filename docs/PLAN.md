@@ -153,7 +153,8 @@
 - ~~`LEVEL_MODIFY`(9)~~ **✅実装済**（temp_level_mods＋実効レベル・BUGFIXES上部）。
 - ~~`LOOK_AT_DECK_AND_LIFE`(3)~~ **✅実装済（2026-07-03）**＝覗き＝情報開示のみ（盤面不変が正しい）・log-only。
 - ~~`VARIABLE_DISCARD_AND_DRAW`（1・WX09-Re15）~~ **✅実装済（2026-07-03・BUGFIXES上部）**。
-- [ ] `PLAY_FREE_FROM_TRASH`（2・WX09-012・AUTO/ACT）／`STACK_SPELL`（1・WX11-029・AUTO）／`NAME_BAN`（2・WX10-023・ACT/AUTO）／`PREVENT_DAMAGE`（5・WX08-029・ACT3/AUTO1/LB1＝ただしダメージ層への置換機構が要る＝実質横断）。
+- ~~`NAME_BAN`（2・WX10-023）~~ **✅実装済（2026-07-04・続き14）**＝`blocked_card_names_game`（ゲーム内持続）＋targetSelf反転是正。
+- [ ] `PLAY_FREE_FROM_TRASH`（2・WX09-012・AUTO/ACT）／`STACK_SPELL`（1・WX11-029・AUTO）／`PREVENT_DAMAGE`（5・WX08-029・ACT3/AUTO1/LB1＝ただしダメージ層への置換機構が要る＝実質横断）。
 
 **B. CONTINUOUS型（calcFieldPowers/CONT収集器層）**
 - ~~`GROW_COST_REDUCTION`（CONT6）~~ **✅実装（2026-07-03・BUGFIXES上部）**＝pure `collectGrowCostReductions`（golden済）＋人間/CPU/アシストグロウ全経路に減額配線。⚠要実機検証(C2)。
