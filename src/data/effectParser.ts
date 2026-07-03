@@ -2230,7 +2230,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     action,
     duration: 'INSTANT',
     mandatory: false,
-    parseStatus: hasUnknown ? (action.type === 'UNKNOWN' ? 'UNKNOWN' : 'PARTIAL') : 'AUTO',
+    parseStatus: hasUnknown ? (action.type === 'UNKNOWN' ? 'UNKNOWN' : 'PARTIAL') : (glaUnknownSub ? 'PARTIAL' : 'AUTO'),
   };
 }
 
