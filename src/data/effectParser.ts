@@ -1674,9 +1674,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       }
       // ON_LEAVE_FIELD: トリガー元のスコープを抽出（「このシグニ」=self／「あなたの＜X＞のシグニが」=any_ally＋triggerFilter）
       if (timing[0] === 'ON_LEAVE_FIELD') {
-        const selfLeaveM = actionText.match(/^このシグニが場を離れたとき[、,]/);
+        // 「(対戦相手|あなた)のターンの間、」前置きは turnOwner に落とし、主語判定はこの後の残り文で行う（WX19-003「相手ターン中、あなたの水獣が離れたとき」）
+        const leaveScan = actionText.replace(/^(対戦相手|あなた)のターンの間、/, (_m, who) => {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: who === '対戦相手' ? 'opponent' : 'self' };
+          return '';
+        });
+        const selfLeaveM = leaveScan.match(/^このシグニが場を離れたとき[、,]/);
         if (!selfLeaveM) {
-          const allyLeaveM = actionText.match(/^あなたの(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場を離れたとき[、,]/);
+          const allyLeaveM = leaveScan.match(/^あなたの(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場を離れたとき[、,]/);
           if (allyLeaveM) {
             extractedTriggerScope = 'any_ally';
             if (allyLeaveM[1]) extractedTriggerFilter = { story: allyLeaveM[1] };
