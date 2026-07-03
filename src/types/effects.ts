@@ -1637,4 +1637,6 @@ export interface CardEffect {
   handActivated?: boolean;
   // トラッシュから発動できる【起】（「このシグニをトラッシュから場に出す」等の自己蘇生。トラッシュゾーンUIから発動）
   trashActivated?: boolean;
+  // GRANT_LRIG_ABILITY permanent:true で付与された能力（lrig_granted_auto_effects 内で「このゲームの間」持続＝ターン境界リセットで残す）
+  permanentGrant?: boolean;
 }
