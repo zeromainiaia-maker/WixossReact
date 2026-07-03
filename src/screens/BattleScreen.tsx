@@ -9114,6 +9114,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const { state: cpuAfterGrowEffect, log: cpuGrowEffectLog } = applyGrowEffect(cpuGrowCond, newCpuSt, battleCardMap);
           newCpuSt = cpuAfterGrowEffect;
           if (cpuGrowEffectLog) appendBattleLogs([`[CPU] ${cpuGrowEffectLog}`]);
+          // game_grow_draw: グロウ時ドロー（GAIN_ABILITY_THIS_GAME・人間executeGrowと同じ）
+          if (newCpuSt.game_grow_draw && newCpuSt.deck.length > 0) {
+            newCpuSt = { ...newCpuSt, deck: newCpuSt.deck.slice(1), hand: [...newCpuSt.hand, newCpuSt.deck[0]] };
+            appendBattleLogs(['[CPU] グロウ時ドロー（このゲーム）']);
+          }
           // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: CPUがこの継続効果を持つルリグにグロウした場合、
           // CPU自身は自動削減（レベル高優先）、人間（host）は選択トラッシュをスタックに積む。
           const cpuGrownFieldLimit = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
