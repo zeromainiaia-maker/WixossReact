@@ -5,6 +5,16 @@
 
 ---
 
+## BURST内IS_MY_TURN 42件の消化＝32偽陽性の較正＋条件化け3枚是正（語彙センサス§5c 続き19）（2026-07-04・zerom・続き19）
+
+census §5c 消化の第1バッチ。「BURST内IS_MY_TURN＝相手ターン発動で常に偽＝永久不発」という当初仮説（manualEffects.ts:970 の旧コメント由来）を **engine 実挙動の再現テストで検証したら不成立**＝現 engine は IS_MY_TURN を実行時プレースホルダ（常に真・`execUtils.ts` evalCondition）とし、**「TRASH対象なし→残りSEQUENCEスキップ」ガードで「そうした場合」を正しく実装済み**だった（scratchpad/_reproBurstImt.ts で A/B 両ケース確認）。
+
+- **① 較正＝42件中32件（TRASH/HAND_CARD 前段）は偽陽性**＝engine 吸収で正動作。census の同セクションを「前段が TRASH 以外のみフラグ」に較正（42→10）＋golden『そうした場合ガード』でこの engine 挙動を固定（仕様化）。
+- **② 実バグ3枚是正＝「その後、〜の場合」の実条件が IS_MY_TURN（常時真）に化けて無条件発火の過剰**：**WX05-042-BURST**「エナ4枚以下の場合追加チャージ」→`ENERGY_COUNT lte 4`・**WX12-020/WX21-026-BURST**「手札4枚以下の場合追加ドロー」→`HAND_COUNT lte 4`（いずれも既存条件語彙・engine 配線済み）。**parser 同修正**＝`parseThisWayTrashCondition` に手札N枚/エナN枚の条件パターンを追加（IS_MY_TURN フォールバック前に解決・影響原文は全CSVでこの3枚のみ＝巻き添えなし）。golden に HAND_COUNT/ENERGY_COUNT 条件ゲート2本追加。
+- **残7枚（BURST内IS_MY_TURN 高シグナル）＝要新語彙・§6.3 ワークリスト**：WD23-023-E（then内容欠落＝SEARCH→ライフ加えが SHUFFLE のみ）・WX14-026（クラッシュ「してもよい」任意性欠落）・WXEX1-43（「この方法で＜美巧＞が置かれた場合」＝LAST_PROCESSED フィルタ条件が要る）・WXEX1-36（「それがレベル4の場合」同上）・WX16-033/WX17-041（コストと対象の参照が逆転＝要再構成）・WX19-Re10（ADD_TO_LIFE の源が fromTop＝手札からが要る）。
+- **検証**＝typecheck緑・**golden 113→116**・smoke 全0（SKIP 263）・fuzz 全0・**parserWorklist held 25 不変**（parser＋curated セット修正）・**census 2023→2003**（BASELINE_HIGH 更新）。engine 不変（parser+JSON+lint+golden のみ）。
+- **教訓**＝census の高シグナルは「JSON の形が原文と違う」であって「実挙動が違う」とは限らない（engine 側の吸収がある）。**バッチ着手時は必ず代表1件を headless 再現してから patch する**（今回それで32枚の無駄パッチを回避）。
+
 ## 状態フィルタ脱落＝除去系の過剰効果 凍結7＋ダウン/アップ28効果 是正（語彙センサス§5c）（2026-07-04・zerom・続き16）
 
 語彙センサス（`npm run census`）高シグナルの状態フィルタ系から、**除去効果（バニッシュ/バウンス/デッキ下/パワー減）の対象フィルタ脱落**を2バッチで系統是正（census 529→498）。原文「対戦相手の**凍結/アップ/ダウン状態の**シグニを対象」が JSON では `filter:{cardType:"シグニ"}` のみ＝**状態を問わず全シグニに効く過剰効果**（盤面が変化するため behavior-audit の無変化キューには掛からない別種バグ・§4 続き15の死角）。
