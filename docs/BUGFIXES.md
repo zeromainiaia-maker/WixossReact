@@ -5,6 +5,17 @@
 
 ---
 
+## BEHAVIOR_AUDIT 段階4・第2収穫：「エナを選択でトラッシュ」が完全no-opだった engine バグ＝76効果を一挙修正（2026-07-03・zerom）
+
+audit キューの高シグナル選別で「対戦相手のエナゾーンからカードを（N枚）トラッシュに置く」が**複数カードで無変化**なのを発見（WXDi-D08-007-E2／WX05-008-E1,E2／WXDi-P10-023-E2 等）。隔離テストで**engine バグを確定**＝TRASH の resume 適用スイッチ（`resumeSelectTarget` 経路・effectExecutor.ts 4387〜）が **SIGNI/DECK_CARD/HAND_CARD は処理するが ENERGY_CARD 分岐を欠いていた**ため、「エナをN枚（選択）トラッシュ」は SELECT_TARGET で選択させた後**何も適用されず no-op**になっていた（`count:'ALL'` だけ execTrash 内 inline で動作）。
+
+- **修正**＝TRASH resume 適用に **ENERGY_CARD 分岐**を追加（選択カードを該当プレイヤーのエナから除去→トラッシュへ／`PREVENT_ZONE_MOVE_BY_OPP` 保護も inline 版と同様にチェック）。**JSON/decompiler は変更不要**（データは正しく、engine の適用漏れが原因）。
+- **影響＝キュー 253→177＝76効果が一挙に解消**（「相手/自分のエナを選択でトラッシュ」系全般）。長らく同型★0/smoke/fuzz を通過していた死角（smoke は autopilot が SELECT_TARGET を通すが「盤面変化」を assert しないため見逃していた）。
+- **検証**＝隔離テスト（相手エナ5→4・ログ出力）／audit トレースで「相エナ→相トラッシュ」を確認・typecheck緑・smoke CRASH0・**golden 99/99（エナ選択トラッシュのテスト1件追加）**・fuzz全0。engine のみの変更のため同型★/シート再生成は不要。
+- ⚠付随発見＝WXDi-D08-007-E2 等は原文の `colorNotMatchesLrig`（相手ルリグと共通しない色）フィルタが JSON で欠落（`TRASH{ENERGY_CARD,opponent}` filter無し）＝**表現欠落は別途**（機能はするが対象が広すぎる。別ラウンドで filter 補完）。
+
+---
+
 ## BEHAVIOR_AUDIT 段階4・初収穫：場シグニ「ゲームから除外」が TRASH{TRASH_CARD,opp}(no-op) に誤エンコード＝12件是正＋engine機構追加（2026-07-03・zerom）
 
 挙動トレース監査（`npm run audit`）の要レビュー・キューを高シグナル選別（原文に動作動詞×STUB露出なし×条件なし×無変化）した中から発見した**系統バグ**。原文「（対戦相手の/この）シグニを**ゲームから除外する**」が `TRASH{ target:{ type:'TRASH_CARD', owner:'opponent' } }`（＝相手トラッシュのカードを触る意味不明な指定）に誤エンコードされ、`execExile` が TRASH_CARD しか扱わなかったため**完全no-op**だった。全域スキャン（`scratchpad/_auditSystematicScan.mjs` 同型の `TRASH{TRASH_CARD,opponent}` × 原文に相手トラッシュ言及なし）で**12件**を確定。
