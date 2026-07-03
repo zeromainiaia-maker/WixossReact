@@ -13051,7 +13051,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             </p>
             <p style={{ color: C.textDimmer, fontSize: 12, margin: '0 0 12px' }}>
               {growCandidates
-                .filter(c => canAffordGrowCost(my.energy, battleCards, c.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs))
+                .filter(c => canAffordGrowCost(my.energy, battleCards, applyGrowCostReduction(c.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap)), my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs))
                 .map(c => c.CardName)
                 .join('・')}
             </p>
