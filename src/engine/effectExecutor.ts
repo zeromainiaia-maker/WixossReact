@@ -3468,7 +3468,10 @@ function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: Ex
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  // delta は算出済みなので thenAction は POWER_MODIFY に変換して渡す
+  // （applyDirectAction に PER_* 系の case が無く、自身を渡すと default→再実行→再選択の無限ループ＝選択後 no-op になる）
+  const pmTC: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, pmTC, undefined, ctx);
 }
 
 function execPowerModifyPerLifeCount(a: PowerModifyPerLifeCountAction, ctx: ExecCtx): ExecResult {
