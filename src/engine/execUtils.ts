@@ -264,7 +264,7 @@ export function matchesFilter(
     if (filter.powerRange.max !== undefined && pw > filter.powerRange.max) return false;
   }
   if (filter.levelRange) {
-    const lv = parseInt(card.Level ?? '', 10);
+    const lv = effectiveLevel ?? parseInt(card.Level ?? '', 10);
     if (filter.levelRange.min !== undefined && lv < filter.levelRange.min) return false;
     if (filter.levelRange.max !== undefined && lv > filter.levelRange.max) return false;
   }
