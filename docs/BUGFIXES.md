@@ -5,6 +5,17 @@
 
 ---
 
+## CPUグロウ配線の仕上げ：CardClass互換／【グロウ】条件／【グロウ】効果を人間経路と同等に（2026-07-03・zerom）
+
+`GROW_COST_REDUCTION` 配線（下記）の follow-up 完了後、CPUの GROWフェイズ自動処理を人間 `executeGrow`／グロウ候補フィルタと突き合わせて残ギャップを解消。CPUグロウ候補は従来 **①レベル+1 ②減額後 affordability** しか見ておらず、以下3点が抜けていた（＝CPUがルール違反グロウ／効果未適用になりうる）。
+
+- **CardClass 互換チェック追加**＝候補フィルタに `lrigClassesCompatible(currentLrigCard.CardClass, c.CardClass)` を追加（人間候補フィルタと同じ）。混成クラスのルリグデッキで非互換ルリグへ誤グロウするのを防止。
+- **【グロウ】条件ゲート追加**＝`checkGrowCondition(extractGrowCondition(c.EffectText), cpuSt, currentLrigCard, battleCardMap)` を候補フィルタに追加。ライフ枚数・カード名・トラッシュ色数・エナ色種数・複数色制限を満たさないルリグへの違反グロウを防止（例 WX04-005「ライフ1枚以下」）。
+- **【グロウ】効果の適用追加**＝グロウ確定後に `applyGrowEffect(extractGrowCondition(growCard.EffectText), newCpuSt, battleCardMap)` を実行（人間executeGrowと同じ）。ルリグデッキから＜X＞を下に置く／除外する・キーを下に置く等の必須追加処理を反映（例 WX05-001 マユ）。併せて `game_grow_draw`（グロウ時ドロー・GAIN_ABILITY_THIS_GAME）も人間経路と同様に処理。
+- **検証**＝typecheck / golden 104 / smoke 0 / fuzz 0。いずれもモジュール関数（`lrigClassesCompatible`/`checkGrowCondition`/`applyGrowEffect`）の再利用で人間経路と挙動一致。
+
+---
+
 ## 重い1機構：`GROW_COST_REDUCTION`（グロウコスト軽減・6効果CONT）を実装（2026-07-03・zerom）
 
 未実装 action型 worklist（§1.9）の CONTINUOUS 群で最多。`calcActiveCostMods`（effectEngine.ts:1655）が `if (red.isGrowCost) continue; // グロウコスト軽減は別経路（GROW_COST_REDUCTION）` と**別経路を想定して未実装のまま残していた**ギャップを埋めた。
