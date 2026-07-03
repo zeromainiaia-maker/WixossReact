@@ -1,7 +1,7 @@
 # バグ修正記録 (BUGFIXES)
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
-設計方針は [DESIGN.md](./DESIGN.md)、未対応の作業は [TODO.md](./TODO.md)。
+設計方針は [DESIGN.md](./DESIGN.md)、未対応の作業・今後の計画は [PLAN.md](./PLAN.md)（旧 P1_PLAN.md/ROADMAP.md/TODO.md を統合）。
 
 ---
 
