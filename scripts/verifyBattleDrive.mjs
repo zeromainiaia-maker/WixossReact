@@ -672,26 +672,33 @@ const scenarios = {
       top: { active: 'cpu', turn_phase: 'GROW', turn_count: 2 },
     },
     async drive(page, H) {
-      // CPU が GROW を通過して MAIN 以降へ進んだ（＝グロウ判断を実行した）ことを確認しつつ、グロウしていないことを検証。
-      let passedGrow = false;
-      for (let s = 0; s < 18; s++) {
-        await page.waitForTimeout(1000);
-        await page.screenshot({ path: `${SHOT}/cpugrowblocked-${s}.png`, fullPage: true });
-        const st = await H.queryState();
-        if (st.error) continue;
-        const g = st.guest ?? {};
-        // 非互換グロウが起きていたら即FAIL（ゲート破れ）
-        if ((g.lrigUnder ?? 0) >= 1 || g.lrigTop === 'WD01-002#1') {
-          return { pass: false, detail: `非互換クラスにグロウしてしまった: lrigTop=${g.lrigTop} under=${g.lrigUnder}（CardClassゲート破れ）` };
+      // cpugrow と同様、直前の CPU 自然ターンを止めてから再注入して観測する（順序非依存）。
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(2500);
+        await injectScenario(page, scenarios.cpugrowblocked.spec);
+        await page.waitForTimeout(1200);
+        let overwritten = false;
+        for (let s = 0; s < 12; s++) {
+          await page.waitForTimeout(1000);
+          await page.screenshot({ path: `${SHOT}/cpugrowblocked-a${attempt}-${s}.png`, fullPage: true });
+          const st = await H.queryState();
+          if (st.error) continue;
+          const g = st.guest ?? {};
+          // 非互換グロウが起きていたら即FAIL（ゲート破れ）
+          if (g.lrigTop === 'WD01-002#1') {
+            return { pass: false, detail: `非互換クラスにグロウしてしまった: lrigTop=${g.lrigTop} under=${g.lrigUnder}（CardClassゲート破れ）` };
+          }
+          if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  cpugrowblocked[a${attempt}] CPU自然ターンで上書き（lrigTop=${g.lrigTop}）→再注入`); overwritten = true; break; }
+          if (s % 3 === 0) H.log(`  cpugrowblocked[a${attempt}.${s}] phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} done=${(g.actionsDone||[]).join(',')}`);
+          // CPUが GROW を通過した（MAIN以外＝attack系）かつ非互換グロウ先が中央のまま＝グロウ判断済みでグロウしなかった証拠
+          if (['ATTACK_ARTS', 'ATTACK_SIGNI', 'ATTACK_ARTS_OP', 'ATTACK_LRIG', 'END'].includes(st.turnPhase) && g.lrigTop === 'WD03-003#1') {
+            return { pass: true, detail: `非互換グロウ先をCPUがグロウせず GROW通過（phase=${st.turnPhase}・lrigTop=${g.lrigTop}・under=${g.lrigUnder}）` };
+          }
         }
-        if (s % 3 === 0) H.log(`  cpugrowblocked[${s}] phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} done=${(g.actionsDone||[]).join(',')}`);
-        // CPUが GROW を通過した（MAIN/ATTACK系へ）＝グロウ判断済みでグロウしなかった証拠
-        if (['MAIN', 'ATTACK_ARTS', 'ATTACK_SIGNI', 'ATTACK_ARTS_OP', 'ATTACK_LRIG', 'END'].includes(st.turnPhase)) {
-          passedGrow = true;
-          return { pass: true, detail: `非互換グロウ先をCPUがグロウせず GROW通過（phase=${st.turnPhase}・lrigTop=${g.lrigTop}・under=${g.lrigUnder}）` };
-        }
+        if (!overwritten) break;
       }
-      return { pass: passedGrow, detail: 'GROW通過を確認できず（判断到達せず・inconclusive）' };
+      return { pass: false, detail: 'GROW通過を確認できず（判断到達せず・inconclusive）' };
     },
   },
 };
