@@ -39,7 +39,9 @@ const collectGLA = (a: EffectAction | undefined, out: GrantLrigAbilityAction[]) 
 
 for (const [file, effIds] of Object.entries(targets)) {
   const p = join(root, 'public/data', file);
-  const j = JSON.parse(fs.readFileSync(p, 'utf-8')) as Record<string, CardEffect[]>;
+  const rawFile = fs.readFileSync(p, 'utf-8');
+  const eol = rawFile.endsWith('\n') ? '\n' : '';
+  const j = JSON.parse(rawFile) as Record<string, CardEffect[]>;
   let patched = 0;
   for (const effId of effIds) {
     const cardNum = effId.replace(/-E\d+$/, '');
