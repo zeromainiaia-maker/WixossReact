@@ -697,6 +697,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'CARDS_DRAWN_BY_EFFECT':
       return cmp(st(cond.owner).cards_drawn_by_effect_this_turn ?? 0, cond.operator, cond.value);
+    case 'ARTS_USED_THIS_TURN':
+      return st(cond.owner).turn_arts_used === true;
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
       const fst = st(cond.owner);
