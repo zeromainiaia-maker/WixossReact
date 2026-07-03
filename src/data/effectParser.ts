@@ -2201,6 +2201,17 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
   // GRANT_LRIG_ABILITY: rawText から付与能力を展開（parseSpellEffect と同処理。アーツ/ピース経路の展開漏れ是正）
   const glaUnknownSub = expandGrantLrigAbilities(action, card.CardNum);
+  // 後置文「このアーツによってあなたのルリグが得た能力は、使用タイミング《…》を得る」を granted abilities の timing に反映
+  if (/得た能力は、?使用タイミング《メインフェイズアイコン》《アタックフェイズアイコン》を得る/.test(stripped)) {
+    const applyTiming = (a: EffectAction) => {
+      if (a.type === 'GRANT_LRIG_ABILITY') {
+        for (const ab of (a as GrantLrigAbilityAction).abilities) {
+          if (ab.effectType === 'ACTIVATED') ab.timing = ['ATTACK_ARTS', 'MAIN'];
+        }
+      } else if (a.type === 'SEQUENCE') (a as SequenceAction).steps.forEach(applyTiming);
+    };
+    applyTiming(action);
+  }
   // ALT_COST_OPP_TURN をアクション列から CardEffect フィールドに昇格
   let altCostOppTurn: import('../types/effects').EnergyCost[] | undefined;
   if (action.type === 'ALT_COST_OPP_TURN') {
