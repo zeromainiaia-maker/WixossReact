@@ -701,6 +701,23 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   return done(ctx);
 }
 
+// EQUALIZE_ENERGY:「各プレイヤーは自分のエナが N枚になるようにエナからトラッシュに置く」（4枚以下のプレイヤーは影響なし）。
+// 各プレイヤーの超過分をトラッシュへ（どのカードを残すかのプレイヤー選択は近似＝末尾の超過分を落とす）。
+function execEqualizeEnergy(a: import('../types/effects').EqualizeEnergyAction, ctx: ExecCtx): ExecResult {
+  const target = a.targetCount ?? 0;
+  let c = ctx;
+  for (const owner of ['self', 'opponent'] as Owner[]) {
+    const s = ownerState(owner, c);
+    if (s.energy.length > target) {
+      const keep = s.energy.slice(0, target);
+      const toTrash = s.energy.slice(target);
+      c = addLog(setOwnerState(owner, { ...s, energy: keep, trash: [...s.trash, ...toTrash] }, c),
+        `${owner === 'self' ? '自分' : '相手'}のエナを${target}枚に調整（${toTrash.length}枚トラッシュ）`);
+    }
+  }
+  return done(c);
+}
+
 function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
