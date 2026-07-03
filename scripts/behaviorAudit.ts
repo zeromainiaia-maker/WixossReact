@@ -387,7 +387,7 @@ function snapshot(ctx: ExecCtx): Snapshot {
     const lrigGrants = (sx.lrig_granted_auto_effects as unknown[] | undefined)?.length ?? 0;
     const signiGrants = (sx.granted_effects as unknown[] | undefined)?.length ?? 0;
     blocked[side] = [
-      ...(s.blocked_actions ?? []), ...(s.blocked_card_names ?? []),
+      ...(s.blocked_actions ?? []), ...(s.blocked_card_names ?? []), ...(s.blocked_card_names_game ?? []),
       ...(s.field_keyword_grants_active ?? []).map(k => `全付与:${k}`),
       lrigGrants ? `ルリグ付与能力x${lrigGrants}` : '',
       signiGrants ? `シグニ付与能力x${signiGrants}` : '',
