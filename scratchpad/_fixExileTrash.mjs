@@ -34,8 +34,8 @@ const fixes = {
   // WX10-023: CHOOSE 2択の構造ごと崩壊（現 curated＝NAME_BAN 単独）を正エンコード
   'WX10-023-E1': e => {
     e.action = { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
-      { choiceId: 'c0', label: '選択肢1', action: { type: 'ADD_TO_HAND',
-        source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', colorMatchesLrig: true } } } },
+      { choiceId: 'c0', label: '選択肢1', action: { type: 'TRANSFER_TO_HAND',
+        source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', colorMatchesLrig: true } } } },
       { choiceId: 'c1', label: '選択肢2', action: { type: 'SEQUENCE', steps: [
         EX('opponent', 1, { cardType: 'スペル' }, false),
         { type: 'NAME_BAN', targetSelf: false, duration: 'GAME' },
