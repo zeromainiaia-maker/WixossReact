@@ -3494,7 +3494,9 @@ function execPowerModifyPerLifeCount(a: PowerModifyPerLifeCountAction, ctx: Exec
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  // delta 算出済み＝POWER_MODIFY に変換（PER_TRASH_COUNT と同じ理由）
+  const pmLC: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, pmLC, undefined, ctx);
 }
 
 function execPowerModifyPerHandCount(a: import('../types/effects').PowerModifyPerHandCountAction, ctx: ExecCtx): ExecResult {
