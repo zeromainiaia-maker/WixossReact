@@ -1906,17 +1906,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     default: return null;
   }
 
-  // 「このシグニのパワーがN以上の場合」= SELF_POWER_GTE 条件に昇格（WXK05-073 等21枚の系統）。
-  // ⚠「代わりに」昇格型（WXDi-P01-054等）・多段閾値型（PR-470A等）は別構造のため除外（ガード）。
-  if (actionText && /このシグニのパワーが([０-９\d]+)以上の場合/.test(actionText)
+  // 「このシグニのパワーがN以上の場合、」= SELF_POWER_GTE 条件に昇格（WXK05-073 等19枚の系統）。
+  // ⚠読点「、」必須＝「〜の場合にしか使用できない」（使用条件文・extractUseCondition の領分）への誤マッチを防ぐ。
+  // ⚠「代わりに」昇格型（WXDi-P01-054/WXDi-P02-061等）・多段閾値型（PR-470A等）は別構造のため除外（ガード）。
+  if (actionText && /このシグニのパワーが([０-９\d]+)以上の場合、/.test(actionText)
       && !/代わりに/.test(actionText)
       && (actionText.match(/以上の場合/g) ?? []).length === 1) {
-    const pm = actionText.match(/このシグニのパワーが([０-９\d]+)以上の場合/)!;
+    const pm = actionText.match(/このシグニのパワーが([０-９\d]+)以上の場合、/)!;
     const powCond = { type: 'SELF_POWER_GTE', value: parseNum(pm[1]) } as const;
     extractedTriggerCondition = extractedTriggerCondition
       ? { type: 'AND', conditions: [extractedTriggerCondition, powCond] }
       : powCond;
-    actionText = actionText.replace(/、?このシグニのパワーが[０-９\d]+以上の場合(?:、)?/, '、').replace(/^、/, '');
+    actionText = actionText.replace(/、?このシグニのパワーが[０-９\d]+以上の場合、/, '、').replace(/^、/, '');
   }
 
   // 「このターンにあなたがアーツを使用していた場合」= ARTS_USED_THIS_TURN 条件に昇格（WX25-P1-106 等11枚の系統）。
