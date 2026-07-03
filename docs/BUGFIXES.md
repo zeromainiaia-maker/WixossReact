@@ -5,6 +5,16 @@
 
 ---
 
+## BEHAVIOR_AUDIT 段階4・第4収穫：未実装 `LEVEL_MODIFY`（9効果）を実装＝実効レベルをレベルフィルタに反映（2026-07-03・zerom）
+
+§1.9 worklist の最多・instant型 `LEVEL_MODIFY`（「対象シグニのレベルを±N・ターン終了時まで」・9効果 全AUTO/ACTIVATED）を実装。**レベルは matchesFilter で参照される**ため、`effectivePowers` と同型の実効レベル機構を**局所導入**した。
+
+- **実装**＝①`PlayerState.temp_level_mods`（新設・temp_power_mods と対）②`execLevelModify`＋dispatch＋resume 適用（対象選択でtemp_level_mods へ積む）③**`matchesFilter` に optional `effectiveLevel` 引数**を追加（level/levelRange/levelParity 判定に使用）④`fieldCandidates` が `state.temp_level_mods` から実効レベルを算出して matchesFilter に渡す（mod無しは undefined＝従来挙動・0未満はクランプ）⑤ターン境界クリア4箇所（BattleScreen・temp_power_mods と並記）。
+- **検証**＝golden に「レベル2のシグニに-1→レベル1以下フィルタで対象化されバニッシュ」テスト追加＝**実効レベルがターゲティングに反映**することを assert（101/101）。behavior-audit 差分器にも temp_level_mods 追跡を追加（WX11-050 が「相S対象0: レベル-1」表示）。typecheck緑・**smoke CRASH0・fuzz0**（core targeting=matchesFilter/fieldCandidates 変更の回帰なし）。キュー 176→167。
+- **⚠層の訂正**＝第3収穫で `POWER_MODIFY_PER_ENERGY` を instant executor 実装しかけたが、当該カード(WX09-019)は **effectType CONTINUOUS**＝executeEffect を通らず `calcFieldPowers`(effectEngine) で扱う層のため撤回。§1.9 の worklist を **instant型（executor層）と CONTINUOUS型（calcFieldPowers層）に再分類**（POWER_MODIFY_PER_ENERGY/SELF_TRASH_PREVENT/COST_SUBSTITUTE/GROW_COST_REDUCTION/COLOR_INHERIT/GRANT_FIELD_SHADOW は CONTINUOUS）。**未実装型は effectType で修正層が変わる**教訓。
+
+---
+
 ## BEHAVIOR_AUDIT 段階4・第3収穫：`EQUALIZE_ENERGY` 実装＋未実装action型13種(36効果)を worklist 化（2026-07-03・zerom）
 
 audit キューの高シグナルに「エナゾーンの枚数を揃える」等が無変化で残っていたのを起点に、**action位置なのに engine（`src/engine/*`）にも UI（`BattleScreen.tsx`）にも型名が一度も現れない＝完全未実装の action型を網羅スキャン**（`scratchpad` の型走査）＝**14種42効果**を確定。
