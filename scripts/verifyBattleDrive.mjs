@@ -606,6 +606,85 @@ const scenarios = {
       return { pass: false, detail: 'ON_LRIG_GROW 発火を確認できず' };
     },
   },
+
+  // ⑫ CPUグロウ配線（正）: CPUが GROWフェイズで Lv2→Lv3 に自動グロウする。
+  //    guest(=CPU) の center=WD03-003(Lv2 ピルルク・Ｍ)、lrig_deck=[WD03-002(Lv3 ピルルク・Ｇ・青×2)]、
+  //    青エナ2枚を注入。CPU自動処理（cpuTurnAction の GROW 分岐）が候補フィルタ（レベル+1／CardClass互換／
+  //    グロウ条件／減額後affordability）を通しグロウ→field.lrig が 1→2（lrigUnder 1）。クリック不要・観測のみ。
+  cpugrow: {
+    title: 'CPUグロウ配線（正）：CPUが Lv2→Lv3 に正規グロウ（互換OK・条件なし）',
+    spec: {
+      guestSet: {
+        'field.lrig': ['WD03-003#1'],              // CPU center Lv2 ピルルク・Ｍ
+        'lrig_deck': ['WD03-002#1'],               // grow target Lv3 ピルルク・Ｇ（青×2・条件なし・同クラス）
+        'energy': ['WD03-013#1', 'WD03-013#2'],    // 青×2（GrowCost 支払い分）
+        'field.signi': [null, null, null],
+        'hand': [],
+        'actions_done': [],
+        'coins': 0,
+      },
+      top: { active: 'cpu', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      // クリック不要。CPU が自動でグロウするのを ground truth（guest.lrig 長）で観測。
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/cpugrow-${s}.png`, fullPage: true });
+        const st = await H.queryState();
+        if (st.error) { H.log(`  cpugrow[${s}] queryState error`); continue; }
+        const g = st.guest ?? {};
+        const grewFlag = (g.actionsDone ?? []).includes('GROW');
+        const grewStack = (g.lrigUnder ?? 0) >= 1 && g.lrigTop === 'WD03-002#1';
+        const growLog = await H.findLog(/コード・ピルルク・Ｇ|\[CPU\].*グロウ/);
+        if (s % 3 === 0) H.log(`  cpugrow[${s}] phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} deck=${g.lrigDeck} done=${(g.actionsDone||[]).join(',')}`);
+        if (grewStack) {
+          return { pass: true, detail: `CPUグロウ確認: lrigTop=${g.lrigTop}（Lv3）・lrigUnder=${g.lrigUnder}・GROW済=${grewFlag}・log「${growLog ?? '—'}」` };
+        }
+      }
+      const stf = await H.queryState();
+      return { pass: false, detail: 'CPUグロウ未確認 guest=' + JSON.stringify(stf.guest) };
+    },
+  },
+
+  // ⑬ CPUグロウ配線（負・CardClass互換ゲート）: グロウ先が非互換クラス（タマ）のみのとき、CPUは
+  //    グロウせず GROW→MAIN 以降へ進む（lrigUnder 0 のまま／GROW 未実行）。lrigClassesCompatible ゲートの実証。
+  cpugrowblocked: {
+    title: 'CPUグロウ配線（負）：非互換クラスのグロウ先はCPUがグロウしない（CardClass互換ゲート）',
+    spec: {
+      guestSet: {
+        'field.lrig': ['WD03-003#1'],              // CPU center Lv2 ピルルク
+        'lrig_deck': ['WD01-002#1'],               // Lv3 だが class=タマ（非互換）→ グロウ不可のはず
+        'energy': ['WD03-013#1', 'WD03-013#2', 'WD01-013#1', 'WD01-013#2'], // 十分なエナ（affordabilityでは弾かれない前提）
+        'field.signi': [null, null, null],
+        'hand': [],
+        'actions_done': [],
+        'coins': 0,
+      },
+      top: { active: 'cpu', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      // CPU が GROW を通過して MAIN 以降へ進んだ（＝グロウ判断を実行した）ことを確認しつつ、グロウしていないことを検証。
+      let passedGrow = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/cpugrowblocked-${s}.png`, fullPage: true });
+        const st = await H.queryState();
+        if (st.error) continue;
+        const g = st.guest ?? {};
+        // 非互換グロウが起きていたら即FAIL（ゲート破れ）
+        if ((g.lrigUnder ?? 0) >= 1 || g.lrigTop === 'WD01-002#1') {
+          return { pass: false, detail: `非互換クラスにグロウしてしまった: lrigTop=${g.lrigTop} under=${g.lrigUnder}（CardClassゲート破れ）` };
+        }
+        if (s % 3 === 0) H.log(`  cpugrowblocked[${s}] phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} done=${(g.actionsDone||[]).join(',')}`);
+        // CPUが GROW を通過した（MAIN/ATTACK系へ）＝グロウ判断済みでグロウしなかった証拠
+        if (['MAIN', 'ATTACK_ARTS', 'ATTACK_SIGNI', 'ATTACK_ARTS_OP', 'ATTACK_LRIG', 'END'].includes(st.turnPhase)) {
+          passedGrow = true;
+          return { pass: true, detail: `非互換グロウ先をCPUがグロウせず GROW通過（phase=${st.turnPhase}・lrigTop=${g.lrigTop}・under=${g.lrigUnder}）` };
+        }
+      }
+      return { pass: passedGrow, detail: 'GROW通過を確認できず（判断到達せず・inconclusive）' };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
