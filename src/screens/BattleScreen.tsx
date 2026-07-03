@@ -14313,7 +14313,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               (() => {
                 const card = pendingAssistGrowCard;
                 const side = pendingAssistSide;
-                const growCost = card.GrowCost;
+                // GROW_COST_REDUCTION 軽減後コストで支払い必要枚数を算出（フェーズ1候補と一致させる。減額しないと全額要求のままになる）
+                const growCost = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
                 const energyTotal = parseGrowCost(growCost).reduce((s, c) => s + c.count, 0);
                 const selectedNums = [...selectedAssistGrowCost].map(i => my.energy[i]);
                 const canAfford = energyTotal === 0
