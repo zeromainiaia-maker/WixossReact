@@ -4023,7 +4023,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field: myFieldAfterCoinCheck,
         turn_end_draw_count: undefined,
         end_turn_effects_resolved: undefined, // マーカーをクリア（次ターンの解決に持ち越さない）
-        temp_power_mods: [], keyword_grants: {}, granted_effects: {},
+        temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},
         abilities_removed: [], // REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
         blocked_actions: [], blocked_card_names: [], actions_done: [],
