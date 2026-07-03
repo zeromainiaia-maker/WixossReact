@@ -3722,7 +3722,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
-          lrig_granted_auto_effects: undefined, // ターン終了時まで付与されたルリグ能力をクリア
+          lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_to_hand: undefined,   // バニッシュ先→手札フラグをクリア
           power0_banish_to_trash: undefined,    // パワー0以下→トラッシュ（このターン）フラグをクリア
