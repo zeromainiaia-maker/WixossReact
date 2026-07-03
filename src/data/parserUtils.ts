@@ -76,12 +76,17 @@ export function parsePowerFilter(text: string): Partial<TargetFilter> {
   return {};
 }
 
-// 凍結状態フィルタ（対象を「凍結状態のシグニ」に絞る）。
-// parseSigniTarget は既に isFrozen を拾うが、BOUNCE/BANISH/TRANSFER_TO_DECK 等の
-// インライン target ビルダーは状態フィルタを落としていたため、それらで再利用する共通化ヘルパー。
-// ※ isDown/isUp は down/up バッチで curated 側を揃えてから同様に切り出す（今は frozen のみ）。
-export function parseFrozenFilter(text: string): Partial<TargetFilter> {
-  return text.includes('凍結状態') ? { isFrozen: true } : {};
+// 状態フィルタ（対象を「凍結/ダウン/アップ状態のシグニ」に絞る）。
+// parseSigniTarget は既に isFrozen/isDown/isUp を拾うが、BOUNCE/BANISH/TRANSFER_TO_DECK 等の
+// インライン target ビルダーは状態フィルタを落としていた（過剰効果の温床）ため、それらで再利用する共通化ヘルパー。
+// ※ owner は呼び出し側で決まる＝状態語は「対戦相手の/あなたの」どちらでも filter として正しい。
+//   「ダウン状態で場に出す」は状態フィルタではないので除外（parseSigniTarget と同一ガード）。
+export function parseStateFilter(text: string): Partial<TargetFilter> {
+  const f: Partial<TargetFilter> = {};
+  if (text.includes('凍結状態')) f.isFrozen = true;
+  if (text.includes('アップ状態')) f.isUp = true;
+  if (text.includes('ダウン状態') && !text.includes('ダウン状態で場に出')) f.isDown = true;
+  return f;
 }
 
 export function parseLevelFilter(text: string): Partial<TargetFilter> {
