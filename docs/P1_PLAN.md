@@ -134,7 +134,9 @@
 ### 📌 次の一手（推奨順・**zerom 向け**）
 > まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 96/96・smoke/fuzz 全0・同型★0。
 >
-> **🆕 現在の主作業＝(Z) 逆翻訳機の出力品質を原文一致へ（§1 4つ目・上の Z 節）**。§4「文法崩れ着手禁止」は解除済み。レンダラ5系統は是正済（BUGFIXES①〜⑤）。**表現パッチ（decompiler のみ・engine 不変）はゲートが軽い＝§6 の「逆翻訳ゲート」（同型★0＋原文照合）でよく、smoke/golden/fuzz は不要。**
+> **🆕 現在の主作業＝BEHAVIOR_AUDIT 段階4（キューから欠落no-opバグ潰し・直近7セッション継続中）**。手順＝`node scratchpad/_bqTriage.mjs`（要review キュー129を高シグナル選別）→ `npm run audit -- --id <CardNum>` で原文｜逆翻訳｜盤面差分｜ログを目視→「真no-op（engine未実装/誤配線）／シナリオ空振り（＝`behaviorAudit.ts` のシナリオビルダーを拡充して偽陽性を消す）／STUB未実装」に仕分け→バグは §0 ワークフロー（JSON直パッチ＋engine/decompilerセット＋golden1件＋smoke/golden/fuzz）で修正。**engine を触ったら smoke/golden/fuzz 必須**。残る高シグナル30の多くは「トラッシュ/自場のクラス数え上げ（unitSize>1で閾値未達）」「CHOOSE の autopilot 分岐」＝逓減域。詳細 [BEHAVIOR_AUDIT.md](./BEHAVIOR_AUDIT.md)。§1.9（未実装action型 worklist）と TODO §3（対戦相手シグニ離脱トリガー3枚）も残タスク。
+>
+> **旧・主作業＝(Z) 逆翻訳機の出力品質を原文一致へ（§1 4つ目・上の Z 節）**。§4「文法崩れ着手禁止」は解除済み。レンダラ5系統は是正済（BUGFIXES①〜⑤）。**表現パッチ（decompiler のみ・engine 不変）はゲートが軽い＝§6 の「逆翻訳ゲート」（同型★0＋原文照合）でよく、smoke/golden/fuzz は不要。**
 1. **🆕 逆翻訳機の英語ID漏れ／文法崩れの残を1系統ずつ是正**＝`grep -hE "^\s+[A-Z0-9]+[-_][A-Za-z0-9-]+.*:" docs/decompile_sheet*.txt`（＝逆翻訳行）を `grep -ohE "[A-Z][A-Z0-9_]+" | sort | uniq -c | sort -rn` で英語漏れを多い順に出す。**engine実装済みSTUB id（COPY_LRIG_NAME_ABILITY 等）→ decompiler に原文意味文を1行足す**（`miscStubMap` 等の既存パターン）。手順＝対象id確認→engine実装の有無確認→`decompileEffects.ts` に意味文→該当シート再生成（**Bash `>`**）→下流再生成→同型★0＋原文照合→push。
 2. **B層（JSONデータ欠落）**＝REVEAL_AND_PICK/LOOK_AND_REORDER で pick部分が JSON に無く逆翻訳から脱落するカード（WXDi-P04-047 等）。curated JSON 補完（中リスク・§2 のとおり直接パッチ）。
 3. **実機検証（C2・任意）**＝`scripts/verifyBattleDrive.mjs`（シナリオ切替式）。生STUB 3＋C1 timing 6種は実 UI 観測クローズ済（既定10件 全PASS）。残 timing は `scenarios` に1件足すだけで横展開可。逆翻訳機の改善とは独立。
