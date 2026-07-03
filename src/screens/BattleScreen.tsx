@@ -3758,6 +3758,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
           turn_hand_discarded_count: undefined,      // このターンの手札捨て枚数をリセット
           turn_signi_returned_to_hand: undefined,    // このターンのシグニ手札戻りフラグをリセット（G087）
+          turn_arts_used: undefined,                 // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
           negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
           coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
