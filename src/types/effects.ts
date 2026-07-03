@@ -173,6 +173,7 @@ export type Condition =
   | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean } // フィルタ一致するエナゾーンのカード枚数（「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
   | { type: 'ENERGY_HAS_COLOR'; owner: Owner; colors: string[] } // エナゾーンに指定色すべてのカードがある場合（「エナゾーンに赤のカードと緑のカードがある場合」）
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
+  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner } // このターンに owner がアーツを使用していた場合（turn_arts_used。WX25-P1-106）
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number } // minCount: フィルタ一致シグニがN体以上あるか（省略=1。「＜空獣＞と＜地獣＞が合計3体ある場合」=minCount:3。WX04-094）
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // minCount: フィルタ一致カードがN枚以上あるか（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」=minCount:2。G090）
   | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
