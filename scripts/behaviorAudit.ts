@@ -298,7 +298,7 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     const wantsNonSigni = ct && (Array.isArray(ct) ? !ct.includes('シグニ') : ct !== 'シグニ');
     const zlabel = zn.zone === 'trash' ? 'トラッシュ' : zn.zone === 'deck' ? 'デッキ上' : zn.zone === 'energy' ? 'エナ' : '手札';
     // count 枚（複数枚対象＝英知2枚を下に置く等）を配置。未指定は1枚。
-    const need = Math.min(Math.max(zn.count ?? 1, 1), 3);
+    const need = Math.min(Math.max(zn.count ?? 1, 1), 6);
     for (let i = 0; i < need; i++) {
       const cn = pickSigni(zn.filter, used, false, wantsNonSigni ? anyPool : signiPool);
       if (!cn) break;
