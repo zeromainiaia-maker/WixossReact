@@ -364,7 +364,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const tgt = thisOnly ? 'このシグニの基本パワー' : `${targetJa(a.target)}のパワー`;
       return `${tgt}を${a.value}にする`;
     }
-    case 'POWER_MODIFY_PER_HAND_COUNT': return `${targetJa(a.target)}のパワーを手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
+    case 'POWER_MODIFY_PER_HAND_COUNT': {
+      const dHand = a.deltaPerCard ?? a.delta ?? 0;
+      return `${targetJa(a.target)}のパワーを${ownerJa(a.handOwner)}手札1枚につき${dHand >= 0 ? '＋' : '－'}${Math.abs(dHand)}する`;
+    }
     case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
     case 'DOWN': return `${targetJa(a.target)}をダウンする${a.optional ? '（してもよい）' : ''}`;
     case 'PREVENT_NEXT_DAMAGE': return a.damageSource
