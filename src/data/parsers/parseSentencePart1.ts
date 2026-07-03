@@ -1097,6 +1097,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if (t.includes('このシグニ')) {
       return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
     }
+    // 「このルリグ/あなたの（センター）ルリグをアップする」＝ルリグアップ（WX19-014/PR-204 等の付与能力）
+    if (t.match(/(この|あなたの(?:センター)?)ルリグ[をが]?アップ/)) {
+      return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } };
+    }
     return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 } };
   }
 
