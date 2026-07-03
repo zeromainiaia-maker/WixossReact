@@ -3832,11 +3832,13 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const ga = action as GrantLrigAbilityAction;
       if (ga.abilities && ga.abilities.length > 0) {
         const existing = ctx.ownerState.lrig_granted_auto_effects ?? [];
+        // permanent（「このゲームの間」）は各能力に permanentGrant を刻み、ターン境界リセットで残す
+        const granted = ga.permanent ? ga.abilities.map(ab => ({ ...ab, permanentGrant: true })) : ga.abilities;
         const newOwner: PlayerState = {
           ...ctx.ownerState,
-          lrig_granted_auto_effects: [...existing, ...ga.abilities],
+          lrig_granted_auto_effects: [...existing, ...granted],
         };
-        return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグ付与能力: ${ga.rawText}`));
+        return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグ付与能力${ga.permanent ? '（このゲームの間）' : ''}: ${ga.rawText}`));
       }
       return done(ctx);
     }
