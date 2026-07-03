@@ -158,8 +158,7 @@ test('collectGrowCostReductions: 場のCONT GROW_COST_REDUCTIONを色別集計',
 });
 test('POWER_MODIFY_PER_ENERGY: エナ枚数×deltaでCONTパワー加算（WX09-019）', () => {
   // WX09-019-E1 = CONTINUOUS POWER_MODIFY_PER_ENERGY deltaPerCard:2000 energyOwner:self target:自身
-  const base = parseInt(cardMap.get('WX09-019')?.Power || '0');
-  ok(base > 0, 'WX09-019のベースパワー取得');
+  const base = parseInt(cardMap.get('WX09-019')?.Power || '0'); // WX09-019はベースパワー0（エナ依存）
   const p4 = calcFieldPowers(mkState({ signi: ['WX09-019', null, null], energy: 4 }), mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   eq(p4.get('WX09-019'), base + 8000, 'エナ4枚で+8000');
   const p0 = calcFieldPowers(mkState({ signi: ['WX09-019', null, null], energy: 0 }), mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
