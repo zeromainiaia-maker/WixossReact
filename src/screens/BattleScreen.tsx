@@ -11713,7 +11713,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               const canUseGrowSub = growSubInfo && growSubEnaSigni.length > 0 &&
                 costItems.some(ci => ci.color === growSubInfo.substituteColor && ci.count > 0);
               const isValidNormal = selectedGrowCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, pendingGrowCard.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                canAffordGrowCost(selectedNums, battleCards, reducedGrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
               const isValidWithSub = !!(canUseGrowSub && growSubInfo &&
                 selectedGrowCost.size === totalReq - 1 && (() => {
                   const subSigniId = growSubEnaSigni[0];
