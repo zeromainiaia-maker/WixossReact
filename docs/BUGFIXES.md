@@ -5,6 +5,18 @@
 
 ---
 
+## ON_LEAVE_FIELD トリガーの `turnOwner` 未判定＋WX19-003 味方離脱トリガー誤スコープ（2026-07-03・zerom）
+
+behavior-audit 段階4のトレース照合中に、逆翻訳とトリガー主語の乖離クラスタ（「対戦相手/味方のシグニが場を離れたとき」）を発見。うち**既存機構で直せる2点を是正**。
+
+- **engine＝`collectLeaveFieldTriggers` の `triggerCondition.turnOwner` 未判定を修正**＝味方離脱（`any_ally`/`any`）watcher ループが `turnOwner`（「対戦相手/あなたのターンの間」）を見ておらず、相手ターン限定の離脱トリガーが**両ターンで過剰発火**していた（WX25-P1-034/052 等 any_ally+turnOwner:opponent の5枚が該当）。他の収集器と同じく `watcherIsTurn = activeUserId === leftPlayerId` で `to==='self'&&!watcherIsTurn`／`to==='opponent'&&watcherIsTurn` を continue するゲートを追加。
+- **JSON＝WX19-003-E2 の誤スコープ是正**＝「対戦相手のターンの間、あなたの＜水獣＞のシグニが場を離れたとき、手札から低レベル水獣を場に出す」が `triggerScope` 無し（＝`self`＝ルリグ自身が離れたとき）で**恒久 no-op**だった。`triggerScope:any_ally`＋`triggerFilter:{story:水獣}`＋`triggerCondition:{turnOwner:opponent}` に修正（`action.filter.levelBelowLeftCard` は離脱カードから動的解決される既存機構に接続）。
+- **parser＝再パース耐性**＝`effectParser.ts` の ON_LEAVE_FIELD スコープ抽出が「対戦相手のターンの間、」前置きで `^あなたの…` アンカーを外して主語を取り零していた。前置きを先に剥がして `turnOwner` へ落とす処理を追加（再生成時も any_ally を復元）。
+- **未対応として TODO §3 に登録**＝「**対戦相手の**シグニが離れたとき」を見るには相手側 watcher 走査＋新 scope が要る（`collectLeaveFieldTriggers` は同側 watcher のみ）＝WXEX1-30-E2／WXK11-017-E1／WXDi-P03-040-E1 の3枚は据置（現 scope=self 誤）。
+- **検証**＝逆翻訳が原文一致（「《相手ターン》あなたの＜水獣＞のシグニが場を離れたとき」）・typecheck緑・**golden 106/106・smoke CRASH0（OK10275）・fuzz 全0**。decompile_sheet2 再生成（1行差分）。
+
+---
+
 ## `VARIABLE_DISCARD_AND_DRAW` 未実装（engineハンドラ欠落）を実装＝真の no-op バグ（2026-07-03・zerom）
 
 BEHAVIOR_AUDIT 段階4のキュー triage（高シグナル no-op候補）から発見。**WX09-Re15「手札を好きな枚数捨て、捨てた枚数に１を加えた枚数のカードを引く」**（`VARIABLE_DISCARD_AND_DRAW` drawBonus:1）が型・parser・decompiler には存在するのに **`effectExecutor` の action ディスパッチに case が無く、実行すると完全に素通り（no-op）**していた。[[stub-means-implemented]] とは逆に、これは本当に未配線の真バグ。
