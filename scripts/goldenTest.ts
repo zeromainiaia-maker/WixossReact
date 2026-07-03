@@ -169,6 +169,17 @@ test('SEND_TO_ENERGY 相手シグニ1: エナへ', () => {
   const r = run({ type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq(tops(r.otherState)[0], null, '除去'); eq(r.otherState.energy.length, 6, 'エナ+1');
 });
+test('LEVEL_MODIFY 相手シグニ-1: temp_level_mods に記録＆レベルフィルタに反映', () => {
+  // レベル2のシグニに -1 → レベル1扱いになり「レベル1以下」フィルタで対象化される
+  const ctx = mkCtx({}, { signi: [SIGNI_L2, null, null] });
+  const r = run({ type: 'LEVEL_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, delta: -1, until: 'UNTIL_END_OF_TURN' } as EffectAction, ctx);
+  const mods = r.otherState.temp_level_mods ?? [];
+  eq(mods.length, 1, 'temp_level_mods +1');
+  eq(mods[0].delta, -1, 'delta=-1');
+  // 実効レベル1 → level:{max:1} フィルタで fieldCandidates が拾う（BANISH で確認）
+  const r2 = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', level: { max: 1 } } } } as EffectAction, { ...ctx, otherState: r.otherState });
+  eq(tops(r2.otherState)[0], null, 'レベル-1でレベル1以下フィルタの対象になり除去された');
+});
 test('EXILE 相手シグニ1: 場から消去(トラッシュ/エナに行かない=ゲーム除外)', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   const before = ctx.otherState.trash.length + ctx.otherState.energy.length;
