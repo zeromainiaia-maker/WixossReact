@@ -6447,6 +6447,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_hand_discarded_count: discardNums.length > 0
           ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
+        // このターンにアーツを使用したフラグ（ARTS_USED_THIS_TURN 条件。WX25-P1-106。ターン境界でリセット）
+        turn_arts_used: true,
         // BET_CONDITION: ベット宣言フラグ（execStub内でBET_CONDITIONが参照）
         is_betting_this_effect: betCost > 0 ? true : undefined,
         bet_coins_paid: betCost > 0 ? betCost : undefined,
