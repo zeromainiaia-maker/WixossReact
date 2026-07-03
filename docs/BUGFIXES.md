@@ -5,6 +5,17 @@
 
 ---
 
+## 逆翻訳のトップレベル英語 enum 漏れ 残3種を解消（2026-07-03・zerom）
+
+ブラケット（`[STUB:…]`/`【…】`/`〈…〉`）を除いた**真のトップレベル英語 enum 漏れ**を走査（`decompile_sheet*.txt` の逆翻訳行から `[A-Z_]+_[A-Z_]+` をブラケット除去後に集計）＝残3種を確定・是正。いずれも `decompileEffects.ts` のみ・engine 不変（該当は engine 実装済み＝パリティOK）。
+
+- **`GRANT_PROTECTION` の `from:['POWER_MODIFY']` が「POWER_MODIFYされない」と生漏れ（4効果）**＝保護軸トークン `axisJa` に `POWER_MODIFY` が無く未マップの汎用フォールバック（`f+'され'`）に落ちていた。`POWER_MODIFY: 'パワーを増減され'` を追加＝「対戦相手の効果によってパワーを増減されない」に（WX05-024/WX12-033/WX22-013/WXK03-018）。engine は `effectExecutor` の保護チェック（BANISH/BOUNCE/DOWN/FREEZE/POWER_MODIFY を含む配列・1726/1947/1992行）で実際に適用＝パリティOK。
+- **`ON_ENERGY_FROM_TRASH` timing ラベル未登録（3効果）**＝「【自】ON_ENERGY_FROM_TRASH：」と生漏れ。timingラベルマップに `ON_ENERGY_FROM_TRASH: 'このカードがトラッシュからエナゾーンに置かれたとき'`（原文どおり）を追加（WXK09-031/080/081）。
+- **`DURING_PHASE` の phase enum 生 join（1効果）**＝「ATTACK_SIGNI_OPフェイズの間」と生漏れ。phase名マップ（`MAIN`→「メイン」・`ATTACK_SIGNI_OP`→「対戦相手のアタック」）を導入＝「対戦相手のアタックフェイズの間」に（WX05-013-E2）。
+- **検証**＝ブラケット除去後のトップレベル `_`付き enum 漏れ再走査でヒット0。typecheck緑・**同型★0**・全10シート＋下流再生成。engine 不変につき smoke/golden/fuzz 対象外。（残る英語漏れは `[STUB:…]` 内部の機構説明文＝§5b テールのみ。）
+
+---
+
 ## 逆翻訳の `ATTACK` timing ラベル漏れ（441ヘッダ）＋ `BANISH_SUBSTITUTE` て形崩れ（2026-07-03・zerom）
 
 逆翻訳行の英語ID漏れ走査（`decompile_sheet*.txt` の逆翻訳行から `[A-Z_]+` を頻度集計）と活用崩れ走査で発見した表現バグ2件。いずれも `decompileEffects.ts` のみ・engine 不変。
