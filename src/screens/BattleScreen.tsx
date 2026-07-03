@@ -4194,10 +4194,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 静的封じ + CONTINUOUS（グロウフェイズスキップ常在）+ no_grow を考慮
       const blocked = isActionBlocked('GROW') || (my.no_grow ?? false);
       if (!grew && !blocked) {
+        const growRed = collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap);
         const hasAffordable = growCandidates.some(card => {
           const gCoin = parseCoinCost(card.GrowCost);
           return (gCoin === 0 || my.coins >= gCoin) &&
-            canAffordGrowCost(my.energy, battleCards, card.GrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+            canAffordGrowCost(my.energy, battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
         });
         if (hasAffordable) {
           setShowGrowSkipConfirm(true);
