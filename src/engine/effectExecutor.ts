@@ -3819,6 +3819,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'FORCE_END_TURN':             return done(addLog({ ...ctx, forceEndTurn: true }, 'ターンを強制終了'));
     case 'CHARM_PROTECTION':           return execCharmProtection(action as CharmProtectionAction, ctx);
     case 'MUTUAL_DISCARD_AND_DRAW': return execMutualDiscardAndDraw(action as MutualDiscardAndDrawAction, ctx);
+    case 'VARIABLE_DISCARD_AND_DRAW': return execVariableDiscardAndDraw(action as VariableDiscardAndDrawAction, ctx);
     case 'REMOVE_ABILITIES':        return execRemoveAbilities(action as RemoveAbilitiesAction, ctx);
     case 'GAIN_COIN':               return execGainCoin(action as GainCoinAction, ctx);
     case 'DISCARD_BOTH':            return execDiscardBoth(action as DiscardBothAction, ctx);
