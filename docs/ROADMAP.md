@@ -27,15 +27,25 @@ P1_PLAN は P1 の DoD しか定義していないため、「開発の完成」
 
 ---
 
-## フェーズ1：P1 完了（表現）— 最優先・低〜中リスク
+## フェーズ1：P1 完了（表現）— 最優先
 
-**目標＝英語ID漏れ 582件→0＋B層データ欠落の解消。** 手法は BUGFIXES ⑥〜⑨ で確立済み（engine 実装済みSTUBなら `decompileEffects.ts` に原文抽出/意味文を足すだけ・engine 不変・ゲートは同型★0＋原文照合のみで軽い）。1セッション30〜80件ペースは実証済み。
+### 1a. BEHAVIOR_AUDIT によるバグ収穫（現在の主作業・2026-07-03〜）
 
-- [ ] **Z-1：多い順に系統消化**。DOWN_UP_SIGNI_AND_CHOOSE(14)→TRASH_AT_TURN_END(13)→CHOOSE_COLOR_FROM_LIST(10)→CRAFT系(18)→ACCE_FROM_HAND(9)→SERVANT_ZERO系(24)→SEED系(20)→LOOK_TOP系(20)→REPEAT系(14)…。手順は P1_PLAN §3 次の一手①のとおり（id確認→engine実装確認→意味文→シート再生成【**Bash `>`**】→下流再生成→同型★0＋原文照合→push）。
-- [ ] **Z-1b：単発テール（約260系統・1〜4件）**。系統単位ではなくシート単位で一括走査→原文抽出パターンの共通ヘルパ（`currentCardText` 正規表現抽出）で潰す。
+**目標＝要レビュー・キュー（`node scratchpad/_bqTriage.mjs`）を逓減限界まで消化。** 全効果を実行し盤面差分＋ログを原文と目視照合＝逆翻訳の文字列一致では検出できない「真no-op」「未配線timing」「未実装action型」「トリガー主語ミス」を発見して直す。手法・キュー件数の推移は [BEHAVIOR_AUDIT.md](./BEHAVIOR_AUDIT.md) を参照（811→285→261→169→129→高シグナル30）。
+
+- [ ] **キュー消化を継続**：`node scratchpad/_bqTriage.mjs` で高シグナル選別 → `npm run audit -- --id <CardNum>` で目視 → 「真no-op／シナリオ空振り／STUB未実装」に仕分け → バグは effects JSON 直パッチ＋engine/decompilerセット＋smoke/golden/fuzz で修正。
+- [ ] **未実装action型 worklist**（[TODO.md](./TODO.md) §1.9）＝action位置なのに engine/UI に型名が一度も現れない完全no-opの型。残11種27効果。
+- [ ] **意味照合監査（semantic audit）の worklist**（[TODO.md](./TODO.md) §1.8）＝BEHAVIOR_AUDIT の板面差分では拾えないSTUB/MANUALの意味エラー（owner取り違え・GRANT_PROTECTION no-op 等）の補完的発見器。
+- [ ] **完了判定**：高シグナル件数がこれ以上減らない逓減限界に達した時点で「P1完了＋P2の一部前倒し完了」を宣言し、残りは個別カードの機構待ちとして TODO §3/§4 に送る。
+
+### 1b. 逆翻訳機の出力品質（Z節・低優先のテール・大半消化済み）
+
+**目標＝英語ID漏れ残（367件）の解消＋B層データ欠落の解消。** 手法は BUGFIXES ⑥〜⑨ で確立済み（engine 実装済みSTUBなら `decompileEffects.ts` に原文抽出/意味文を足すだけ・engine 不変・ゲートは同型★0＋原文照合のみで軽い）。**2026-07-03時点でBEHAVIOR_AUDITに主作業の座を譲ったため、手が空いたときのサブタスク位置づけ。**
+
+- [ ] **Z-1b：残る単発テール（原文とJSON構造がズレた混線・未構造化STUB）**＝1系統ずつ原文抽出では対応不能なため、effects JSON 自体の再parse（データ層修正）が本筋。索引は [TODO.md](./TODO.md) §1.7。
 - [ ] **Z-2：BET系（BET_MECHANIC 19＋BET_CONDITION 11＋BET_ALTERNATIVE 8）**＝機構待ちの唯一の大クラスタ。まず**表現だけ原文抽出で描画**（原文はカードテキストに在る）。engine 側の不足はフェーズ2へ送る。
 - [ ] **B層：JSONデータ欠落の補完（中リスク）**＝REVEAL_AND_PICK/LOOK_AND_REORDER で pick 部分が JSON に無く逆翻訳から脱落するカード（WXDi-P04-047 等）。走査スクリプトで対象確定→effectId アンカーで curated JSON を直接パッチ。**逆翻訳を直したらエンジン実装までセット**の鉄則を守る。
-- [ ] **完了判定**：grep 走査で英語ID漏れ0 ＋ シートごとランダム20枚の原文照合 spot-check で一致を記録 → **P1_PLAN §1 4つ目にチェックを入れ P1 クローズを宣言**。
+- [ ] **完了判定**：grep 走査で英語ID漏れ0 ＋ シートごとランダム20枚の原文照合 spot-check で一致を記録 → **P1_PLAN §1 4つ目にチェックを入れる**。
 
 ## フェーズ2：P2 完了（実行の正しさ）— 中リスク
 
