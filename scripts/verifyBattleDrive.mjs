@@ -797,11 +797,15 @@ try {
         actionsDone: s.actions_done ?? [],
         lrigTrash: (s.lrig_trash ?? []).length,
         lrigUnder: Math.max(0, (s.field?.lrig ?? []).length - 1),
+        lrigTop: (s.field?.lrig ?? []).at(-1) ?? null,
+        lrigDeck: (s.lrig_deck ?? []).length,
       });
       return {
         host: sideOf(hs),
         guest: sideOf(gs),
         stackLen,
+        turnPhase: row.turn_phase,
+        activeUser: row.active_user_id,
         pr470aBuffed: !!buff,
         pendingSpell: row.pending_spell ? (row.pending_spell.card_num ?? 'y') : null,
         pendingEffect: row.pending_effect ? (row.pending_effect.interaction?.type ?? 'y') : null,
