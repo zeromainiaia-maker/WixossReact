@@ -780,8 +780,14 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
     case 'POWER_FLIP': return `${targetJa(a.target)}のパワーの増減を反転する`;
-    case 'POWER_MODIFY_BY_TARGET_LEVEL': return `${targetJa(a.target)}のパワーを対象のレベルに応じて変更する`;
-    case 'POWER_MODIFY_PER_TRASHED_LEVEL': return `${targetJa(a.target)}のパワーをトラッシュしたシグニのレベル合計に応じて変更する`;
+    case 'POWER_MODIFY_BY_TARGET_LEVEL': {
+      const dTL = a.deltaPerLevel ?? 0;
+      return `${targetJa(a.target)}のパワーをそれのレベル1につき${dTL >= 0 ? '＋' : '－'}${Math.abs(dTL)}する`;
+    }
+    case 'POWER_MODIFY_PER_TRASHED_LEVEL': {
+      const dTr = a.deltaPerLevel ?? 0;
+      return `${targetJa(a.target)}のパワーをこの方法でトラッシュに置いたシグニのレベル1につき${dTr >= 0 ? '＋' : '－'}${Math.abs(dTr)}する`;
+    }
     case 'PLACE_UNDER_SIGNI': {
       // source は文字列の領域指定（deck_top/trash/energy/hand）＋ count ＋ 任意 filter
       const puLoc: Record<string, string> = { deck_top: 'あなたのデッキの上から', trash: 'あなたのトラッシュから', energy: 'あなたのエナゾーンから', hand: 'あなたの手札から' };
