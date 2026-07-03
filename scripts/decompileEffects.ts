@@ -670,7 +670,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'NEGATE_ATTACK': return `${a.target?.type === 'CENTER_LRIG_OR_SIGNI' ? `${ownerJa(a.target.owner)}ルリグかシグニ${a.target.count}体を対象とし、このターンそれがアタックしたとき` : 'そのアタックがあったとき'}${a.escapeDiscard ? `、${a.target?.owner === 'opponent' ? '対戦相手' : 'あなた'}が手札を${a.escapeDiscard}枚捨てないかぎり` : ''}そのアタックを無効にする`;
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
-    case 'EQUALIZE_ENERGY': return 'エナゾーンの枚数を揃える';
+    case 'EQUALIZE_ENERGY': return `${a.owner ? ownerJa(a.owner) : '各プレイヤーの'}エナゾーンのカードが${a.targetCount}枚になるようにトラッシュに置く`;
     case 'FORCE_SIGNI_ATTACK': return `${ownerJa(a.target?.owner)}シグニは可能ならアタックする`;
     case 'COST_REDUCTION': {
       const red = Array.isArray(a.reduction) && a.reduction.length > 0
