@@ -3714,6 +3714,7 @@ function execAddCraftToLrigDeck(a: import('../types/effects').AddCraftToLrigDeck
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
   switch (action.type) {
     case 'DRAW':                    return execDraw(action as DrawAction, ctx);
+    case 'LOOK_AT_DECK_AND_LIFE':   return execLookAtDeckAndLife(action as import('../types/effects').LookAtDeckAndLifeAction, ctx);
     case 'BANISH':                  return execBanish(action as BanishAction, ctx);
     case 'BOUNCE':                  return execBounce(action as BounceAction, ctx);
     case 'SEND_TO_ENERGY':          return execSendToEnergy(action as SendToEnergyAction, ctx);
