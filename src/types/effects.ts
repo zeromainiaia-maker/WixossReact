@@ -1180,6 +1180,7 @@ export interface PreventDamageAction {
 export interface EqualizeEnergyAction {
   type: 'EQUALIZE_ENERGY';
   targetCount: number;
+  owner?: Owner; // 未指定=各プレイヤー（両方）。'opponent'=対戦相手のみ／'self'=自分のみ調整（「対戦相手は自分のエナが7枚になるように」等）
 }
 
 // 手札を任意枚捨て、その枚数+bonus枚引く
