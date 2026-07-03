@@ -117,8 +117,9 @@ const LOC2ZONE: Record<string, ZoneNeed['zone']> = { deck: 'deck', trash: 'trash
 const hasFilterKey = (f: TargetFilter | undefined): boolean =>
   !!(f && (f.cardType || f.cardClass || f.story || f.color || f.keyword || f.cardName
     || f.level !== undefined || f.levelRange));
-function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[]; zoneNeeds: ZoneNeed[]; fieldNeeds: Tgt[]; underNeeds: UnderNeed[] } {
+function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[]; zoneNeeds: ZoneNeed[]; fieldNeeds: Tgt[]; underNeeds: UnderNeed[]; energyNeeds: { owner: string; count: number }[] } {
   const targets: Tgt[] = []; const sources: Src[] = []; const zoneNeeds: ZoneNeed[] = []; const fieldNeeds: Tgt[] = []; const underNeeds: UnderNeed[] = [];
+  const energyNeeds: { owner: string; count: number }[] = [];
   (function walk(o: unknown) {
     if (!o || typeof o !== 'object') return;
     const r = o as Record<string, unknown>;
