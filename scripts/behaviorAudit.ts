@@ -125,8 +125,8 @@ function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[
       const filter = (t.filter as TargetFilter) ?? {};
       if (t.type === 'SIGNI' || t.type === 'LRIG') targets.push({ owner, filter, ttype: t.type });
       if (key === 'source') sources.push({ owner, stype: t.type, filter });
-      if (ZTYPE[t.type] && (filter.cardType || filter.cardClass || filter.story || filter.color || filter.keyword || filter.cardName))
-        zoneNeeds.push({ owner, zone: ZTYPE[t.type], filter });
+      if (ZTYPE[t.type] && hasFilterKey(filter))
+        zoneNeeds.push({ owner, zone: ZTYPE[t.type], filter, count: typeof t.count === 'number' ? t.count : undefined });
     }
     // SEARCH/サルベージ系: action直下の from.location + 兄弟の filter（例: デッキからスペルを探す）
     const from = r.from as Record<string, unknown> | undefined;
@@ -134,8 +134,13 @@ function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[
     if (from && fromZone) {
       const owner = (from.owner as string) ?? 'self';
       const filter = (r.filter as TargetFilter) ?? {};
-      if (filter.cardType || filter.cardClass || filter.story || filter.color || filter.keyword || filter.cardName)
-        zoneNeeds.push({ owner, zone: fromZone, filter });
+      if (hasFilterKey(filter)) zoneNeeds.push({ owner, zone: fromZone, filter, count: typeof r.count === 'number' ? r.count : typeof r.maxCount === 'number' ? r.maxCount : undefined });
+    }
+    // PLACE_UNDER_SIGNI 等: source が文字列ゾーン名 + action直下 filter（例: トラッシュから英知を2枚下に置く）
+    const strZone = LOC2ZONE[String(r.source ?? '')];
+    if (strZone && r.filter) {
+      const filter = r.filter as TargetFilter;
+      if (hasFilterKey(filter)) zoneNeeds.push({ owner: (r.owner as string) ?? 'self', zone: strZone, filter, count: typeof r.count === 'number' ? r.count : undefined });
     }
     for (const v of Object.values(r)) if (v && typeof v === 'object') walk(v);
   })(eff);
