@@ -385,7 +385,8 @@ function main(): void {
     pushSection('小さい数(2-5枚/体)不在', hits, missHigh, missStub);
   }
 
-  // ---- 逆方向数値（JSONの4-5桁が原文に無い＝幻覚パラメータ・続き18第4弾。WX24-P4-078=原文に無い powerLte:5000）----
+  // ---- 逆方向数値（JSONの4-5桁が原文に無い＝幻覚パラメータ・続き18第4弾・続き19較正）----
+  // 照合は（…）注釈込みの rawAll＝【シャドウ（パワー5000以下のシグニ）】等の注釈由来の値は正当（4枚の偽陽性を較正）。
   {
     let hits = 0;
     const missHigh: string[] = [];
@@ -394,7 +395,7 @@ function main(): void {
       const nums = [...new Set([...js.matchAll(/(?<![\dA-Za-z-])(\d{4,5})(?!\d)/g)].map(m => m[1]))];
       if (!nums.length) continue;
       hits++;
-      const t = zen2han(texts.get(id) ?? '');
+      const t = zen2han(corpus.rawAll.get(id) ?? '');
       const missing = nums.filter(n => !t.includes(n));
       if (!missing.length) continue;
       if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
