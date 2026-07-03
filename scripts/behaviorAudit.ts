@@ -264,6 +264,23 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     }
   }
 
+  // 「シグニの下にある〈X〉を手札に加える」系: 自シグニのスタック下に合致カードを仕込む（TAKE_FROM_UNDER_SIGNI）
+  for (const un of underNeeds) {
+    // fromThis はソースシグニ限定＝ソースゾーンへ。それ以外は最初の自シグニへ（無ければ zone0）。
+    const hostZ = un.fromThis
+      ? ownerState.field.signi.findIndex(s => s?.at(-1) === sourceNum)
+      : ownerState.field.signi.findIndex(s => s && s.length > 0);
+    const z = hostZ >= 0 ? hostZ : 0;
+    const host = ownerState.field.signi[z];
+    if (!host || host.length === 0) continue; // 下に置くホストが必要
+    for (let i = 0; i < Math.min(Math.max(un.count, 1), 2); i++) {
+      const cn = pickSigni(un.filter, used, false);
+      if (!cn) break;
+      used.add(cn); labels.set(cn, `自S下${z}${i > 0 ? i + 1 : ''}`);
+      host.unshift(cn); // スタック先頭＝下（engine は slice(0,-1) を「下」とみなす）
+    }
+  }
+
   // 段階2b: トラッシュ/デッキ/手札の対象・source フィルタに合う実カードを該当ゾーン先頭へ配置（サルベージ/サーチ系）
   for (const zn of zoneNeeds) {
     const st = zn.owner === 'self' ? ownerState : otherState;
