@@ -5,14 +5,15 @@
 
 ---
 
-## 凍結フィルタ脱落＝除去系の過剰効果7枚是正（語彙センサス§5c・凍結バッチ）（2026-07-04・zerom・続き16）
+## 状態フィルタ脱落＝除去系の過剰効果 凍結7＋ダウン/アップ28効果 是正（語彙センサス§5c）（2026-07-04・zerom・続き16）
 
-語彙センサス（`npm run census`）高シグナル「凍結状態フィルタ」20枚から、**除去効果（バニッシュ/バウンス/デッキ下）の対象フィルタ脱落**7枚を系統是正。原文「対戦相手の**凍結状態の**シグニを対象」が JSON では `filter:{cardType:"シグニ"}` のみ＝**凍結でない全シグニに効く過剰効果**（盤面が変化するため behavior-audit の無変化キューには掛からない別種バグ・§4 続き15の死角）。
+語彙センサス（`npm run census`）高シグナルの状態フィルタ系から、**除去効果（バニッシュ/バウンス/デッキ下/パワー減）の対象フィルタ脱落**を2バッチで系統是正（census 529→498）。原文「対戦相手の**凍結/アップ/ダウン状態の**シグニを対象」が JSON では `filter:{cardType:"シグニ"}` のみ＝**状態を問わず全シグニに効く過剰効果**（盤面が変化するため behavior-audit の無変化キューには掛からない別種バグ・§4 続き15の死角）。
 
-- **① 根本原因＝parser のインライン target ビルダーが状態フィルタを落とす**＝`parseSigniTarget`（parserUtils）は `isFrozen` を拾うが、BOUNCE/BANISH(all)/TRANSFER_TO_DECK(戻す/一番下) の**インライン filter 構築が `parsePowerFilter`/`parseLevelFilter` しか呼ばず状態フィルタを欠く**（`_reparseFreeze.mjs` で全滅を確定）。共通ヘルパー **`parseFrozenFilter`** を新設し4ビルダーに配線＋「デッキの一番下」ビルダーは `parsePowerFilter` も欠けていたので追加（WXDi-P16-075 のパワー3000以下も回復）。※isDown/isUp は down/up バッチで curated を揃えてから同様に切り出す。
-- **② curated 7ノードに `isFrozen:true` をパッチ**（`scratchpad/_patchFrozen.mjs`・effectId アンカー・minified 維持）＝WDK05-R09-E1（BANISH ALL）/WX13-039-E1・WXEX1-02-E3・WXEX1-54-E1・WXEX2-56-E2（BOUNCE）/WXDi-P16-075-E1（+powerRange{max:3000}）・WXDi-P02-065-E1（TRANSFER_TO_DECK）。engine の `matchesFilter`/condition は `isFrozen` を既に実装済＝配線不要。
-- **残（機構待ち・§6.3）**＝WXEX1-02-E1（REMOVE_ABILITIES CONT が count:1・filter無し＝「凍結シグニは【常】【自】を失う」の全体/frozen 未反映）・WXDi-P02-065-E1（count:2 だが原文「1体」＝「2体以上ある場合」の条件を count に誤取り込み）・WXDi-P01-003（アーツ本体「凍結2体までトラッシュ」が丸ごと欠落し【使用条件】のみ）。census 残13は条件/トリガー/CONT 型で別パス。
-- **検証**＝typecheck緑・**census 529→522**（凍結20→13・BASELINE_HIGH 更新）・**parserWorklist held 25 不変**（parser＝curated パリティ維持＝乖離を作らない）・golden 113/113・smoke 全0・fuzz 全0・**同型★0維持**・逆翻訳原文一致（「対戦相手の凍結状態のシグニ…」）・シート2/3/5/7/8＋下流再生成。engine 不変（JSON+parser のみ）。
+- **① 根本原因＝parser のインライン target ビルダーが状態フィルタを落とす**＝`parseSigniTarget`（parserUtils）は `isFrozen`/`isDown`/`isUp` を拾うが、BOUNCE/BANISH(all)/TRANSFER_TO_DECK(戻す/一番下) の**インライン filter 構築が `parsePowerFilter`/`parseLevelFilter` しか呼ばず状態フィルタを欠く**（`_reparseFreeze.mjs`/`_diffDownUp.mjs` で全滅を確定）。共通ヘルパー **`parseStateFilter`**（frozen/down/up・「ダウン状態で場に出す」は除外＝parseSigniTarget と同一ガード）を新設し4ビルダーに配線＋「デッキの一番下」ビルダーは `parsePowerFilter` も欠けていたので追加（WXDi-P16-075 のパワー3000以下も回復）。
+- **② 凍結バッチ＝curated 7ノードに `isFrozen:true`**（`scratchpad/_patchFrozen.mjs`）＝WDK05-R09-E1（BANISH ALL）/WX13-039・WXEX1-02-E3・WXEX1-54・WXEX2-56（BOUNCE）/WXDi-P16-075（+powerRange{max:3000}）・WXDi-P02-065（TRANSFER）。
+- **③ ダウン/アップバッチ＝curated 28効果に `isUp`/`isDown`**（`scratchpad/_patchDownUp.mjs`）＝**parser 出力を source of truth に effectId 単位で注入**（各効果スコープ内を walk して opponent-signi の除去 target にだけ付与＝複数バウンス持ち WX24-P1-057 でも BURST 側だけ・E1 の power8000 は不変）。BOUNCE 22（各BURST等）＋TRANSFER_TO_DECK 6（WXDi-P03-013/P09-035/P16-045 はダウン状態）。engine の `matchesFilter` は isUp/isDown 実装済＝配線不要。
+- **残（別パス・次バッチ）**＝census 残（凍結13・ダウン/アップ38）は (a)コスト節「アップ状態のルリグをダウンする：」＝状態はコスト側（効果テキストに状態語なし＝誤爆せず未patch）(b)条件「このシグニがアップ状態の場合」＝activeCondition 機構 (c)CONT REMOVE_ABILITIES（WXEX1-02-E1 等）(d)WXDi-P02-065 count・WXDi-P01-003 本体欠落。§6.3 登録。
+- **検証**＝typecheck緑・**census 529→498**（凍結20→13・ダウン/アップ66→38・BASELINE_HIGH 更新）・**parserWorklist held 25 不変**（parser＝curated パリティ維持＝乖離を作らない）・golden 113/113・smoke 全0（SKIP 266→263）・fuzz 全0・**同型★0維持**・逆翻訳原文一致・シート2/3/5/7/8/9＋下流再生成。engine 不変（JSON+parser のみ）。
 
 ## GRANT_LRIG_ABILITY無言no-op系統＋「このルリグをアップ」誤エンコード13枚＋per-count選択no-opエンジンバグ（2026-07-04・zerom・続き14）
 
