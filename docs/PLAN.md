@@ -328,7 +328,7 @@
 - **`npm run golden`（`scripts/goldenTest.ts`）**：主要DSLアクション型ごとに制御盤面で効果を実行し「結果がこうなる」をassert。現状＝PASS 106／FAIL 0（うち一部はStage2のトリガー収集テスト）。
 - **`npm run fuzz`（`scripts/selfPlayFuzz.ts`）**：乱択自己対戦ファズ。ランダム初期盤面で効果を連鎖発動し相互作用/進化盤面クラッシュ/ループ/カード爆発を検出。シード固定で完全再現可能（既定200ゲーム×40手）。現状＝全0。重め検証は `npm run fuzz -- --games 2000 --moves 80`。
 - **`node scripts/_dropTriage.mjs`**＝脱落疑いを〔偽陽性／機構待ち／修正済／実バグ候補〕に自動＋手動分類（明細 `docs/_drop_triage.txt`）。
-- **`npm run census`（`scripts/vocabCensus.ts`）**＝語彙センサス＝原文修飾句14パターン×JSON対応語彙の突き合わせで**過剰効果（フィルタ脱落）**を検出（既存網の死角＝盤面が変化するバグ）。高シグナル529枚ベースライン・超過で exit 1・明細 `docs/_vocab_census.txt`。
+- **`npm run census`（`scripts/vocabCensus.ts`）**＝語彙センサス＝原文修飾句24パターン＋数値不一致軸×JSON対応語彙の突き合わせで**過剰効果（フィルタ/条件/使用制限の脱落）**を検出（既存網の死角＝盤面が変化するバグ）。高シグナル1469枚ベースライン（続き17拡充後）・超過で exit 1・明細 `docs/_vocab_census.txt`。
 - **`npx tsx scripts/parserWorklist.ts`**＝held/LOSS/VALUEのhealth計器（現在すべて0）。回帰検出に使う。
 - **`npx tsx scripts/_flattenList.ts`**＝timing flattenのEXIST/FRESH差分（現在0枚）。
 
