@@ -6202,7 +6202,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 選択枚数が totalReq-1 なら代替シグニをトラッシュ
       const growSubInfoExec = collectGrowCostSubstitute(my, battleCardMap, effectsMap);
-      const costItemsExec = parseGrowCost(card.GrowCost);
+      const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap)));
       const totalReqExec = costItemsExec.reduce((s, c) => s + c.count, 0);
       if (growSubInfoExec && costIndices.size === totalReqExec - 1) {
         const subSigni = newEnergy.find(cn => {
