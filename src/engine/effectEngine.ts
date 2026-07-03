@@ -746,6 +746,14 @@ function extractPowerModifiesPerEnergyColor(action: EffectAction): PowerModifyPe
   return [];
 }
 
+function extractPowerModifiesPerEnergy(action: EffectAction): PowerModifyPerEnergyAction[] {
+  if (action.type === 'POWER_MODIFY_PER_ENERGY') return [action as PowerModifyPerEnergyAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerEnergy(s));
+  }
+  return [];
+}
+
 function extractPowerModifiesPerCharm(action: EffectAction): PowerModifyPerCharmAction[] {
   if (action.type === 'POWER_MODIFY_PER_CHARM') {
     const a = action as PowerModifyPerCharmAction;
