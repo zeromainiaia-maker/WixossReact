@@ -252,6 +252,9 @@ interface Corpus {
   eff: Map<string, string>;
   /** LBテキストのみ */
   burst: Map<string, string>;
+  /** （…）注釈を除去しない生テキスト＝逆方向（JSON→原文）照合用。
+   *  例:【シャドウ（パワー5000以下のシグニ）】の 5000 は注釈由来の正当な値（続き19で4枚の偽陽性を較正） */
+  rawAll: Map<string, string>;
   /** カード種別（アーツ/シグニ/…・col4） */
   ctype: Map<string, string>;
   /** アーツ使用タイミング列（col14） */
