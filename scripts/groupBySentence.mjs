@@ -31,7 +31,7 @@ function bodyKey(sentence) {
   return sentence
     .replace(CARD_NUM_RE, '')
     .replace(/【[^】]*】/g, '')       // 【常】【自】【起】【出】等
-    .replace(/（[^）]*）/g, '')        // （メイン起動）等
+    .replace(/[／\/]?（[^）]*）/g, '')  // （メイン起動）等。複数timingは「/」連結なので先行スラッシュごと除去
     .replace(/〈[^〉]*〉/g, '')        // コスト塊
     .replace(/[／\/][A-Z_]+/g, '')    // /ATTACK 等
     .replace(/《[^》]*》/g, '《X》')     // カード名・色
