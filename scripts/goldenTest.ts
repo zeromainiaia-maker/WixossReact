@@ -126,6 +126,12 @@ test('TRASH 手札1: 手札-1 トラッシュ+1', () => {
   const r = run({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } as EffectAction, ctx);
   eq(r.ownerState.hand.length, 4, 'hand'); eq(r.ownerState.trash.length, 4, 'trash');
 });
+test('TRASH 相手エナ1(選択): エナ-1 トラッシュ+1', () => {
+  const ctx = mkCtx({}, { energy: 5, trash: 3 });
+  const r = run({ type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } } as EffectAction, ctx);
+  eq(r.otherState.energy.length, 4, 'エナ-1');
+  eq(r.otherState.trash.length, 4, 'トラッシュ+1');
+});
 test('ENERGY_CHARGE_FROM_DECK: エナ+2 デッキ-2', () => {
   const ctx = mkCtx({ energy: 5 }, {}); const d0 = ctx.ownerState.deck.length;
   const r = run({ type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 } as EffectAction, ctx);
