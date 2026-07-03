@@ -514,11 +514,12 @@ function traceEffect(num: string, eff: CardEffect): Trace {
   const type = (eff.effectType as string) ?? '?';
   const { ctx, labels } = buildScenario(num, eff);
   const before = snapshot(ctx);
-  const out: { status: string; diff: string[]; logs: string[] } = { status: 'OK', diff: [], logs: [] };
+  const out: { status: string; detail?: string; diff: string[]; logs: string[] } = { status: 'OK', diff: [], logs: [] };
   try {
     const first = executeEffect(eff, ctx);
     const ap = autopilot(first, ctx);
     out.status = ap.status;
+    out.detail = ap.detail;
     const afterCtx = { ...ctx, ownerState: ap.result.ownerState, otherState: ap.result.otherState } as ExecCtx;
     const after = snapshot(afterCtx);
     out.diff = diffBoard(before, after, labels);
