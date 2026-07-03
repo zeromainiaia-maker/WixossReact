@@ -5114,6 +5114,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const clearedActive: typeof activeState = {
             ...activeState,
             temp_power_mods:    [],
+            temp_level_mods:    [],
             keyword_grants:     {},
             field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
             granted_effects:    {},
