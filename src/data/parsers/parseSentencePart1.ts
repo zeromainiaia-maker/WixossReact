@@ -1751,12 +1751,30 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const count = t.includes('すべて') ? 'ALL' : (upToM ? parseNum(upToM[1]) : 1);
     const srcType = isHand ? 'HAND_CARD' : isEnergy ? 'ENERGY_CARD' : 'TRASH_CARD';
-    // トラッシュからの除外は EXILE（execExile が TRASH_CARD 対応済み。旧 TRASH{TRASH_CARD} はトラッシュ→トラッシュ＝完全no-op）。
-    // 手札/エナ除外は execExile 未対応のため従来どおり TRASH 近似（除外先の違いのみ）。
-    if (srcType === 'TRASH_CARD') {
-      const filter: TargetFilter | undefined =
-        t.includes('スペル') ? { cardType: 'スペル' } : t.includes('シグニ') ? { cardType: 'シグニ' } : undefined;
-      return { type: 'EXILE', target: { type: 'TRASH_CARD', owner, count, ...(filter ? { filter } : {}), ...(upToM ? { upToCount: true } : {}) } };
+    // 「場にあるこのシグニをゲームから除外する」＝効果元シグニ自身の場からの除外（WX25-P1-TK6）
+    if (t.match(/場にあるこのシグニをゲームから除外する/)) {
+      return { type: 'EXILE', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
+    }
+    // 明示的な「トラッシュにある/から…を対象とし」の除外は EXILE（execExile が TRASH_CARD 対応済み。
+    // 旧 TRASH{TRASH_CARD} はトラッシュ→トラッシュ＝完全no-op）。
+    // self参照（このカード/このシグニ/このスペル＝遅延自己除外・ルリグデッキのピース除外等）は機構待ち＝従来どおり
+    // TRASH 近似のまま（curated と同じ no-op・PLAN §6.3）。手札/エナ除外も execExile 未対応のため TRASH 近似。
+    const selfRef = t.match(/この(?:カード|シグニ|スペル)を?ゲームから除外/);
+    if (srcType === 'TRASH_CARD' && !selfRef && t.match(/トラッシュ(?:にある|から)/)) {
+      // 「シグニとスペルをそれぞれN枚まで」形は2つの EXILE に分ける（WX14-006B）
+      const eachM = t.match(/シグニとスペルをそれぞれ([０-９\d]+)枚まで/);
+      const guardF = t.includes('《ガードアイコン》を持たない') ? { hasGuard: false } : {};
+      if (eachM) {
+        const n = parseNum(eachM[1]);
+        return { type: 'SEQUENCE', steps: [
+          { type: 'EXILE', target: { type: 'TRASH_CARD', owner, count: n, filter: { cardType: 'シグニ', ...guardF }, upToCount: true } },
+          { type: 'EXILE', target: { type: 'TRASH_CARD', owner, count: n, filter: { cardType: 'スペル', ...guardF }, upToCount: true } },
+        ] };
+      }
+      const baseF: TargetFilter | undefined =
+        t.includes('スペル') ? { cardType: 'スペル', ...guardF } : t.includes('シグニ') ? { cardType: 'シグニ', ...guardF }
+        : (Object.keys(guardF).length ? guardF as TargetFilter : undefined);
+      return { type: 'EXILE', target: { type: 'TRASH_CARD', owner, count, ...(baseF ? { filter: baseF } : {}), ...(upToM ? { upToCount: true } : {}) } };
     }
     return { type: 'TRASH', target: { type: srcType as EffectTarget['type'], owner, count } };
   }
