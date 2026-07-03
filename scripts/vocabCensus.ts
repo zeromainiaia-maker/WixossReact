@@ -24,6 +24,10 @@ interface Pattern {
   re: RegExp;
   /** カードJSON文字列にいずれか1つでも含まれれば「表現あり」とみなす語彙キー */
   keys: string[];
+  /** 判定前に原文へ適用する前処理（例: 「そうした場合」＝then連鎖の帰結句を条件節から除外） */
+  pre?: (t: string) => string;
+  /** keys で表せない語彙判定（true＝表現あり＝合格）。keys との OR */
+  extraOk?: (js: string, t: string) => boolean;
 }
 
 // キー表は 2026-07-04 に抜き取り検査で較正済み（SELF_POWER_GTE / levelFilter:"same" / $ref 等の
