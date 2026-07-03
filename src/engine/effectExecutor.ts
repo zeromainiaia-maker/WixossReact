@@ -3701,6 +3701,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'BOUNCE':                  return execBounce(action as BounceAction, ctx);
     case 'SEND_TO_ENERGY':          return execSendToEnergy(action as SendToEnergyAction, ctx);
     case 'POWER_MODIFY':            return execPowerModify(action as PowerModifyAction, ctx);
+    case 'LEVEL_MODIFY':            return execLevelModify(action as import('../types/effects').LevelModifyAction, ctx);
     case 'POWER_MULTIPLY':          return execPowerMultiply(action as import('../types/effects').PowerMultiplyAction, ctx);
     case 'POWER_SET':               return execPowerSet(action as PowerSetAction, ctx);
     case 'TRASH':                   return execTrash(action as TrashAction, ctx);
