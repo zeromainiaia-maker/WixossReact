@@ -3884,6 +3884,20 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const newOwner = { ...ctx.ownerState, blocked_card_names: [...(ctx.ownerState.blocked_card_names ?? []), bcu.cardName] };
       return done(addLog({ ...ctx, ownerState: newOwner }, `${bcu.cardName}`));
     }
+    case 'NAME_BAN': {
+      // 直前に処理（除外等）したカードと同名のカードを、このゲームの間使用禁止にする（WX10-023/WXDi-P13-040）。
+      // 禁止対象プレイヤー＝targetSelf ? 効果オーナー : 対戦相手。
+      const nb = action as import('../types/effects').NameBanAction;
+      const names = [...new Set((ctx.lastProcessedCards ?? [])
+        .map(n => ctx.cardMap.get(getCardNum(n))?.CardName)
+        .filter((s): s is string => !!s))];
+      if (names.length === 0) return done(addLog(ctx, '同名禁止: 対象カードなし'));
+      const tgtOwner: Owner = nb.targetSelf ? 'self' : 'opponent';
+      const s = ownerState(tgtOwner, ctx);
+      const newS: PlayerState = { ...s, blocked_card_names_game: [...(s.blocked_card_names_game ?? []), ...names] };
+      return done(addLog(setOwnerState(tgtOwner, newS, ctx),
+        `このゲームの間、${nb.targetSelf ? 'あなた' : '対戦相手'}は${names.join('・')}を使用できない`));
+    }
     case 'PREVENT_NEXT_DAMAGE': {
       const pnd = action as import('../types/effects').PreventNextDamageAction;
       const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
