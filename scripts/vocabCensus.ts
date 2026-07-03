@@ -107,6 +107,70 @@ const PATTERNS: Pattern[] = [
     re: /(奇数|偶数)/,
     keys: ['levelParity', 'odd', 'even'],
   },
+  // ---- 2026-07-04 続き17 追加分（死角調査＝抜き取り較正済み。確定バグ例は PLAN.md §4 続き17）----
+  {
+    // 「そうした/そうしなかった場合」は直前の任意行動の帰結（then連鎖で表現）なので状態条件から除外
+    name: '条件節(〜の場合)',
+    re: /場合[、,]/,
+    pre: t => t.replace(/そう(しなかった|した|でない|である)場合/g, ''),
+    keys: ['condition', 'Condition', 'CONDITIONAL', 'HAS_CARD_IN_FIELD', 'COUNT_THRESHOLD',
+      'DECK_TOP', 'TRASH_HAS', 'ENERGY_HAS', 'HAND_COUNT', 'LIFE_COUNT', 'TRASH_COUNT',
+      'FIELD_COUNT', 'ENERGY_COUNT', 'LRIG_LEVEL', 'LRIG_STORY', 'LRIG_TEAM', 'LRIG_NAME',
+      'ARTS_USED', 'LIFE_CRASHED', 'FIELD_HAS', 'FIELD_SIGNI', 'FIELD_CLASS'],
+  },
+  {
+    name: 'クラス指定(＜X＞のシグニ)',
+    re: /＜[^＞]+＞の(シグニ|カード)/,
+    keys: ['story', 'cardClass', 'commonClass', 'CLASS'],
+  },
+  {
+    // 色値はコスト側（energy/handDiscardSigni）にも正当に現れるため、
+    // 原文で言及された色がどこにも color 値として現れない場合のみ欠落（保守的下限）
+    name: '色フィルタ(白/赤/青/緑/黒/無色の○○)',
+    re: /[白赤青緑黒]の(シグニ|カード|スペル|ルリグ)|無色の(シグニ|カード)/,
+    keys: [],
+    extraOk: (js, t) => {
+      const colors = [...t.matchAll(/([白赤青緑黒])の(?:シグニ|カード|スペル|ルリグ)/g)].map(m => m[1]);
+      if (/無色の(シグニ|カード)/.test(t)) colors.push('無');
+      return colors.every(c => js.includes(`"color":"${c}`) || js.includes('"colors"')
+        || js.includes('colorMatchesLrig') || js.includes('nonColorless'));
+    },
+  },
+  {
+    name: '正面(正面のシグニ等)',
+    re: /正面/,
+    keys: ['front', 'Front', 'FRONT', 'facing', 'opposite'],
+  },
+  {
+    name: 'ライフクロス枚数条件',
+    re: /ライフクロスが[０-９\d]枚/,
+    keys: ['LIFE_COUNT', 'lifeCount', 'LIFE_CLOTH', 'condition', 'Condition'],
+  },
+  {
+    name: '任意(してもよい)',
+    re: /(してもよい|することができる)/,
+    keys: ['"mandatory":false', '"optional":true', 'mayChoose'],
+  },
+  {
+    name: '能力を持たない/失っている',
+    re: /能力を(持たない|失って)/,
+    keys: ['keyword', 'Abilit', 'abilit', 'vanilla'],
+  },
+  {
+    name: '除外(〜以外の)',
+    re: /以外の(シグニ|カード|スペル|ルリグ)/,
+    keys: ['xclude', 'nonColorless', 'noGuard', 'thisCardOnly', 'exceptSource'],
+  },
+  {
+    name: 'ターン1回制限',
+    re: /《ターン(１|1)回》|ターンに(一度|１回|1回|一回)/,
+    keys: ['usageLimit'],
+  },
+  {
+    name: 'ゲーム1回制限',
+    re: /《ゲーム(１|1)回》|ゲーム(中に)?(一度|１回|1回|一回)/,
+    keys: ['usageLimit', '"GAME"'],
+  },
 ];
 
 function loadTexts(): Map<string, string> {
