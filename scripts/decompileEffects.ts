@@ -690,9 +690,22 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'TRANSFER_TO_ENERGY': return `${targetJa(a.source ?? a.target)}をエナゾーンに置く`;
     case 'REMOVE_CHARM': return `${ownerJa(a.targetOwner)}シグニのチャームを${a.count === 'ALL' ? 'すべて' : a.count}外す`;
     case 'CONDITIONAL_DISCARD': return `${condJa(a.condition)}なら、${actionJa(a.then)}`;
-    case 'POWER_MODIFY_PER_TRASH_COUNT':
-    case 'POWER_MODIFY_PER_LIFE_COUNT':
-    case 'POWER_MODIFY_PER_STACK':
+    case 'POWER_MODIFY_PER_TRASH_COUNT': {
+      // 「対象のパワーを〈trashOwner〉のトラッシュにある〈countFilter〉シグニ〈unitSize〉枚につき±Nする」
+      const d = a.deltaPerUnit ?? 0;
+      const unit = a.unitSize ?? 1;
+      const cf = filterJa(a.countFilter);
+      const who = a.trashOwner === 'both' ? '各プレイヤーの' : ownerJa(a.trashOwner);
+      return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${who}トラッシュにある${cf}${a.countByVariety ? 'の種類' : ''}${unit > 1 ? `${unit}枚` : '1枚'}につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+    }
+    case 'POWER_MODIFY_PER_LIFE_COUNT': {
+      const d = a.deltaPerLife ?? a.deltaPerUnit ?? 0;
+      return `${targetJa(a.target, 'シグニ')}のパワーを${ownerJa(a.lifeOwner)}ライフクロス1枚につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+    }
+    case 'POWER_MODIFY_PER_STACK': {
+      const d = a.deltaPerCard ?? a.deltaPerUnit ?? 0;
+      return `${targetJa(a.target, 'シグニ')}のパワーをこのシグニの下にあるカード1枚につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+    }
     case 'POWER_MODIFY_PER_FIELD': {
       // 「対象のパワーを〈countOwner〉の場の〈countFilter〉シグニ1体につき±Nする」
       const d = a.deltaPerUnit ?? a.delta ?? 0;
