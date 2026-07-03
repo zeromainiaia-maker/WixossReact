@@ -497,24 +497,43 @@ function main(): void {
     }
   }
 
-  // ---- BURST内 IS_MY_TURN（LBは相手ターン発動＝常に偽＝then永久不発・続き18第2弾。WX03-034で確認）----
+  // ---- BURST内 IS_MY_TURN（続き19較正）----
+  // engine 実挙動: IS_MY_TURN は実行時プレースホルダで常に真（execUtils evalCondition）＋
+  // 「TRASH対象なし→残りSEQUENCEスキップ」ガードがあるため、**TRASH直前段の「そうした場合」は正動作**
+  // （golden『そうした場合ガード』で固定）。フラグするのは前段が TRASH 以外（＝条件内容が
+  // IS_MY_TURN に化けて常時真＝過剰、または then 内容の取り違え）のみ。WX05-042/WX12-020/WX21-026 是正済み。
   {
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
+    interface Step { type?: string; condition?: { type?: string }; steps?: Step[] }
+    const hasBadImt = (o: unknown): boolean => {
+      if (Array.isArray(o)) return o.some(hasBadImt);
+      if (!o || typeof o !== 'object') return false;
+      const node = o as Step & Record<string, unknown>;
+      if (Array.isArray(node.steps)) {
+        for (let i = 0; i < node.steps.length; i++) {
+          const st = node.steps[i];
+          if (st?.type === 'CONDITIONAL' && st.condition?.type === 'IS_MY_TURN'
+            && node.steps[i - 1]?.type !== 'TRASH') return true;
+        }
+      }
+      return Object.values(node).some(hasBadImt);
+    };
     for (const [id, effs] of jsonObj) {
       if (!Array.isArray(effs)) continue;
       for (const e of effs as Array<{ effectType?: string; effectId?: string }>) {
         if (e?.effectType !== 'LIFE_BURST') continue;
         const s = JSON.stringify(e);
         if (!s.includes('IS_MY_TURN')) continue;
+        if (!hasBadImt((e as { action?: unknown }).action)) continue;
         hits++;
         if (s.includes('STUB') || s.includes('MANUAL')) missStub.push(e.effectId ?? id);
         else { missHigh.push(e.effectId ?? id); highAll.add(id); }
         break;
       }
     }
-    pushSection('BURST内IS_MY_TURN(常に偽=不発)', hits, missHigh, missStub);
+    pushSection('BURST内IS_MY_TURN(TRASH前段以外=条件化け)', hits, missHigh, missStub);
   }
 
   // ---- IS_MY_TURN 誤変換疑い（原文に「そうした場合」等の該当句が無いのに IS_MY_TURN が居る・続き18第2弾）----
