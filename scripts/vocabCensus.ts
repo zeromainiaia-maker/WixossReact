@@ -35,6 +35,9 @@ interface Pattern {
 
 // キー表は 2026-07-04 に抜き取り検査で較正済み（SELF_POWER_GTE / levelFilter:"same" / $ref 等の
 // 条件系・動的解決系の表現を偽陽性として除外できることを確認）。新語彙を DSL に足したらここにも足す。
+// 続き17追加分の較正メモ: クラス＝JSON語彙は `story`／色＝コスト側（energy/handDiscardSigni）の色値は
+// 正当なので extraOk で色値単位判定／「持続(ターン終了時まで)」は不採用＝engine が INSTANT の
+// POWER_MODIFY/GRANT_KEYWORD を temp バケツ（ターン終了時リセット）で吸収するため偽陽性が支配的。
 const PATTERNS: Pattern[] = [
   {
     name: '最上級(最も×パワー/レベル)',
