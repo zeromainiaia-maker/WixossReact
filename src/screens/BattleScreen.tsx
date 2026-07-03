@@ -9072,6 +9072,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const c = cards.find(card => card.CardNum === cardNum);
           if (!c || c.Type !== 'ルリグ') return false;
           if (parseInt(c.Level) !== currentLevel + 1) return false;
+          // CardClass 互換チェック（人間グロウ候補フィルタと同じ）: グロウ元と共通クラスが無ければ不可
+          if (currentLrigCard && !lrigClassesCompatible(currentLrigCard.CardClass, c.CardClass)) return false;
+          // 【グロウ】条件チェック（人間グロウと同じ）: ライフ枚数・カード名・トラッシュ色数・エナ色種数・複数色制限
+          if (!checkGrowCondition(extractGrowCondition(c.EffectText), cpuSt, currentLrigCard ?? undefined, battleCardMap)) return false;
           return canAffordGrowCost(cpuSt.energy, cards, applyGrowCostReduction(c.GrowCost, cpuGrowRed));
         });
 
