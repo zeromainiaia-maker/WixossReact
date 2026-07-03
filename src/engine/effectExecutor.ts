@@ -3467,15 +3467,6 @@ function execPowerModifyPerHandCount(a: import('../types/effects').PowerModifyPe
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
-// POWER_MODIFY_PER_ENERGY: 対象シグニのパワーを「energyOwner のエナ枚数 × deltaPerCard」修正する（PER_* ファミリー）。
-// 委譲＝deltaを算出して execPowerModify に流す（対象選択・resume 適用は既存 POWER_MODIFY 経路を再利用）。
-function execPowerModifyPerEnergy(a: import('../types/effects').PowerModifyPerEnergyAction, ctx: ExecCtx): ExecResult {
-  const count = ownerState(a.energyOwner, ctx).energy.length;
-  const delta = a.deltaPerCard * count;
-  if (delta === 0) return done(addLog(ctx, `エナ0枚 → パワー修正なし`));
-  return execPowerModify({ type: 'POWER_MODIFY', target: a.target, delta } as PowerModifyAction, ctx);
-}
-
 function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
   const selfDiscard = Math.min(a.count, ctx.ownerState.hand.length);
   const otherDiscard = Math.min(a.count, ctx.otherState.hand.length);
