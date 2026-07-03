@@ -1309,11 +1309,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
       } as GrantProtectionAction;
     }
     // 個別シグニへの保護（従来通り）
+    // 「〜N体（まで）を対象とし…を得る」＝選択式の単体付与（count:N・保護コレクタの単体分岐を発火）。対象句が無ければ広域（ALL）
     const signiFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parsePowerFilter(t) };
     const hasFilter = signiFilter.story || signiFilter.powerRange;
+    const tgtCntM = t.match(/([０-９\d]+)体(?:まで)?を対象とし/);
+    const protCount: number | 'ALL' = tgtCntM ? parseNum(tgtCntM[1]) : 'ALL';
     const target: EffectTarget = hasFilter
-      ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: signiFilter }
-      : { type: 'SIGNI', owner: 'self', count: 'ALL' };
+      ? { type: 'SIGNI', owner: 'self', count: protCount, filter: signiFilter }
+      : { type: 'SIGNI', owner: 'self', count: protCount };
     return { type: 'GRANT_PROTECTION', target, from, sourceOwner: 'opponent', duration: 'PERMANENT' } as GrantProtectionAction;
   }
 
