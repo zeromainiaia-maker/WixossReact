@@ -1130,7 +1130,8 @@ function parseActionText(text: string): EffectAction {
     const quotedLrigM = text.match(/あなたのセンタールリグは[「『]([\s\S]+?)[」』]を得る/);
     if (quotedLrigM) {
       // abilities は parseBlock / parseSpellEffect で rawText から埋められる
-      return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedLrigM[1].trim() } as GrantLrigAbilityAction;
+      return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedLrigM[1].trim(),
+        ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }
   // ---- アクセホストへの能力付与（GRANT_ACCE_HOST_ABILITY）----
