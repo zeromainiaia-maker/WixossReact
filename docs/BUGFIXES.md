@@ -5,6 +5,20 @@
 
 ---
 
+## 条件の無言脱落2系統（アーツ使用11枚・自パワー閾値21枚）＋ドロー脱落系統24枚を是正（2026-07-03・zerom・続き13後半）
+
+「すべての効果を完璧に」の続きとして、条件節・複合動作の無言脱落を系統横断で発見・是正。**engine新機構1つ＋parser昇格2つ＋curated 約60ノード**。
+
+- **① 新機構 `ARTS_USED_THIS_TURN`（turn_arts_used）**＝「このターンにあなたがアーツを使用していた場合」条件が**11枚全カードで脱落＝無条件過剰発火**していた（WXK01-092/097・WX25-P1-062/082/095/101/105/106/109・WX25-P2-062・WX25-P3-112）。§3の機構の型どおり実装：`Condition` 型追加→`PlayerState.turn_arts_used`→`evalCondition`→BattleScreen `executeArts` で設置＋ターン境界リセット5箇所（PvP通常/確認後の自他・CPU）→parser昇格（トリガー後条件節の promotion・THIS_CARD_FROM_TRASH と同型）→decompiler 条件描画→curated 11効果に condition 付与（`scratchpad/_fixArtsUsedCondition11.mjs`）→**golden 108/108（条件ゲートの発火/非発火テスト追加）**。
+- **② 「カードをN枚引き（、）【エナチャージM】をする」のドロー無言脱落＝24ノード是正**＝parser の【エナチャージ】ショートハンド（parseSentencePart1:693）が同文先頭のドロー節を飲み込み ENERGY_CHARGE 単独を返す→curated にも伝播（該当37枚中24ノード）。parser を SEQUENCE[DRAW, EC] 化＋curated 一括是正（`scratchpad/_fixDrawEnaCharge22.mjs`＋follow-up 3件：WXDi-P05-007 の2文目・WXDi-P07-071 の**BURST↔E1 誤配置**を発見し正置・入れ子形の統一4件）。
+- **③ 「このシグニのパワーがN以上の場合、」条件の無言脱落＝21枚是正**＝46枚走査→条件なし39枚→分類（代わりに昇格型/多段閾値型/【起】型を除外）→素直な21枚に `SELF_POWER_GTE` 付与（`scratchpad/_fixSelfPowerCond21.mjs`）＋parser昇格。**⚠昇格regexは読点必須**（「〜の場合**にしか使用できない**」＝使用条件文への誤マッチで WX19-05x 系を壊しかけ→ガードで回避）。
+- **④ 「代わりに」二段閾値型2枚を正エンコード**＝WXDi-P02-061-E1／WX24-P1-081-E1 は「≥Nで効果A、≥Mで代わりに効果A'」型なのに **SEQUENCE で両方実行**（＋P1-081は強化側 target が自シグニ＝自傷）だった→ `condition:SELF_POWER_GTE(base)`＋`CONDITIONAL{≥M then A' else A}`＋target是正＋MANUAL化。
+- **仕分けの学び**＝①条件句の文脈窓を短く取ると「代わりに」二段型を見逃す（全文で分類する）。②系統バッチは「同一カード内の別効果に同種ノードがある」場合の誤配置が起きうる＝適用後に fresh↔curated 突合を全対象で回す。
+- **残（§6.3 登録）**＝WXDi-P05-006（2択構造ごと崩壊＝ピース打ち消し機構）／WXDi-P01-054・WXDi-P12-067（【起】/被バニ時の「代わりに」昇格型）／PR-470A・WXDi-D01-016（多段閾値）／WXDi-P03-062（【起】の自パワー条件）／WX25-P2-062-E1 の action duration（curated正・parser文脈欠き＝VALUEテール）。
+- **検証**＝typecheck緑・**golden 108/108**・smoke 全0・fuzz 全0・**同型★0維持**・全10シート＋下流再生成・是正カードの逆翻訳原文照合OK（条件節が原文どおり描画）。⚠要実機検証＝turn_arts_used の設置/リセット（実アーツ使用→アタック発火・ターン跨ぎ非発火）。
+
+---
+
 ## POWER_MODIFY_PER_ENERGY engine実装＋parserパリティ回復（held 94→28）＋curated実バグ4件（2026-07-03・zerom）
 
 セッション全体の健全性監査（「今行っている作業で間違っているものはないか」）で発見した3群を修正。
