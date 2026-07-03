@@ -1906,6 +1906,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     default: return null;
   }
 
+  // 「このターンにあなたがアーツを使用していた場合」= ARTS_USED_THIS_TURN 条件に昇格（WX25-P1-106 等11枚の系統）。
+  // アクション文中から条件節を除去し、発動条件に昇格する（turn_arts_used フラグを evalCondition が参照）。
+  if (actionText && /このターンにあなたがアーツを使用していた場合/.test(actionText)) {
+    const artsCond = { type: 'ARTS_USED_THIS_TURN', owner: 'self' } as const;
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, artsCond] }
+      : artsCond;
+    actionText = actionText.replace(/、?このターンにあなたがアーツを使用していた場合(?:、)?/, '、').replace(/^、/, '');
+  }
+
   // 「このシグニがトラッシュから場に出た場合」= 効果元がトラッシュ出自であることを条件化（WX03-034-E1）。
   // アクション文中から条件節を除去し、THIS_CARD_FROM_TRASH を発動条件に昇格する。
   if (actionText && /このシグニがトラッシュから場に出た場合/.test(actionText)) {
