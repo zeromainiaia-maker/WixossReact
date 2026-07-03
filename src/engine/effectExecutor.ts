@@ -3689,6 +3689,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'TRASH':                   return execTrash(action as TrashAction, ctx);
     case 'EXILE':                   return execExile(action as import('../types/effects').ExileAction, ctx);
     case 'ENERGY_CHARGE':           return execEnergyCharge(action as EnergyChargeAction, ctx);
+    case 'EQUALIZE_ENERGY':         return execEqualizeEnergy(action as import('../types/effects').EqualizeEnergyAction, ctx);
     case 'ENERGY_CHARGE_FROM_DECK': return execEnergyChargeFromDeck(action as EnergyChargeFromDeckAction, ctx);
     case 'LIFE_CRASH':              return execLifeCrash(action as LifeCrashAction, ctx);
     case 'INSTALL_DELAYED_TRIGGER': return execInstallDelayedTrigger(action as import('../types/effects').InstallDelayedTriggerAction, ctx);
