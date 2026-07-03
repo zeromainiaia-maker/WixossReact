@@ -122,6 +122,21 @@ test('DRAW: 手札+2 デッキ-2', () => {
   const r = run({ type: 'DRAW', owner: 'self', count: 2 } as EffectAction, ctx);
   eq(r.ownerState.hand.length, 7, 'hand'); eq(r.ownerState.deck.length, d0 - 2, 'deck');
 });
+test('VARIABLE_DISCARD_AND_DRAW: 手札5全捨て→捨てた5+bonus1=6枚ドロー（WX09-Re15）', () => {
+  const ctx = mkCtx({ hand: 5, trash: 3 }, {});
+  const d0 = ctx.ownerState.deck.length;
+  // autopilot は SELECT_TARGET を count 上限まで選択＝手札5枚全捨て
+  const r = run({ type: 'VARIABLE_DISCARD_AND_DRAW', owner: 'self', drawBonus: 1 } as EffectAction, ctx);
+  eq(r.ownerState.trash.length, 3 + 5, '5枚捨ててトラッシュ+5');
+  eq(r.ownerState.deck.length, d0 - 6, '捨てた5+bonus1=6枚ドロー');
+  eq(r.ownerState.hand.length, 6, '手札=引いた6枚（5捨て後）');
+});
+test('VARIABLE_DISCARD_AND_DRAW: 手札0なら捨てずbonus分のみドロー', () => {
+  const ctx = mkCtx({ hand: 0 }, {});
+  const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'VARIABLE_DISCARD_AND_DRAW', owner: 'self', drawBonus: 1 } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, 1, 'bonus1枚のみ'); eq(r.ownerState.deck.length, d0 - 1, 'デッキ-1');
+});
 test('TRASH 手札1: 手札-1 トラッシュ+1', () => {
   const ctx = mkCtx({ hand: 5, trash: 3 }, {});
   const r = run({ type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } } as EffectAction, ctx);
