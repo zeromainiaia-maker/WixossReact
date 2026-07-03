@@ -238,6 +238,7 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
 type Snapshot = {
   loc: Map<string, string>;              // instanceId → 位置ラベル（"自hand" 等）
   power: Map<string, number>;            // instanceId → temp_power_mods 合計
+  level: Map<string, number>;            // instanceId → temp_level_mods 合計（LEVEL_MODIFY）
   flags: Map<string, string>;            // instanceId → 状態フラグ（凍結/ダウン/ウィルス/血晶/クロス/チャーム/アクセ）
   kw: Map<string, string>;               // instanceId → 付与キーワード
   blocked: { 自: string; 相: string };   // player-level 行動制限（blocked_actions + blocked_card_names + 付与）
