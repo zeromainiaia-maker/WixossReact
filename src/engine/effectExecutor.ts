@@ -735,7 +735,9 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
 function execEqualizeEnergy(a: import('../types/effects').EqualizeEnergyAction, ctx: ExecCtx): ExecResult {
   const target = a.targetCount ?? 0;
   let c = ctx;
-  for (const owner of ['self', 'opponent'] as Owner[]) {
+  // owner 未指定＝各プレイヤー（両方）／指定時はそのプレイヤーのみ調整
+  const owners: Owner[] = a.owner ? [a.owner] : ['self', 'opponent'];
+  for (const owner of owners) {
     const s = ownerState(owner, c);
     if (s.energy.length > target) {
       const keep = s.energy.slice(0, target);
