@@ -18,7 +18,7 @@
 
 **段階2cの実装（2026-07-03）**＝エナを5色（白青赤緑黒）で構築（色フィルタ/「赤と緑がある場合」条件の空振り解消）／ENERGY_CARD 対象も zoneNeeds 配置に追加／`colorMatchesLrig` は lrig 色に合うカードを選択／keyword/cardName フィルタも zoneNeeds 対象化／差分器に **GRANT_LRIG_ABILITY(`lrig_granted_auto_effects`)・granted_effects・lrig_abilities_disabled** の変化検出を追加。
 
-**次の段階（残）**＝~~段階3：HTML表レンダラ~~ **✅完成（2026-07-03・`npm run audit:html`）** → **段階4：キューから欠落no-opバグを潰す**（§進め方4・残261を `docs/behavior_audit/` の各セットHTMLで「要reviewのみ」フィルタして目視仕分け＝「真no-opバグ／正当な空振り・条件未成立／STUB未実装」→バグは effects JSON 直接パッチ＋逆翻訳/engineセット＋同型★0＋smoke/golden/fuzz）。**段階4がいよいよ実バグ収穫フェーズ。****位置づけ整理**＝[SEMANTIC_AUDIT.md](SEMANTIC_AUDIT.md)（LLM）とは競合ではなく**補完**（behaviorは決定論で盤面移動系バグに強い／semanticは board-diff で無理なSTUB/MANUALの意味エラー＝reversed filter・条件欠落に強い）。
+**次の段階（残）**＝~~段階3：HTML表レンダラ~~ **✅完成（2026-07-03・`npm run audit:html`）** → **段階4：キューから欠落no-opバグを潰す**（§進め方4・残261を `docs/behavior_audit/` の各セットHTMLで「要reviewのみ」フィルタして目視仕分け＝「真no-opバグ／正当な空振り・条件未成立／STUB未実装」→バグは effects JSON 直接パッチ＋逆翻訳/engineセット＋同型★0＋smoke/golden/fuzz）。**段階4＝着手・初収穫済（2026-07-03）**＝キュー高シグナル選別（`scratchpad/_bqTriage.mjs`＝動作動詞×STUB露出なし×条件なし×無変化）→**場シグニ「ゲームから除外」誤エンコード12件を発見・是正**（engine `execExile` に場シグニ除外を新設・BUGFIXES上部）。find→fix→verify ループ実証・キュー261→253。継続時は同 triage で高シグナル順に消化。****位置づけ整理**＝[SEMANTIC_AUDIT.md](SEMANTIC_AUDIT.md)（LLM）とは競合ではなく**補完**（behaviorは決定論で盤面移動系バグに強い／semanticは board-diff で無理なSTUB/MANUALの意味エラー＝reversed filter・条件欠落に強い）。
 
 ## なぜこの方針か（背景と実測）
 
