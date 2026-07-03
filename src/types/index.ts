@@ -110,6 +110,7 @@ export interface PlayerState {
   last_field_trash_level?: number; // 直前コスト支払いで場からトラッシュしたシグニのレベル（BanishFilter: levelEqualsVar='field_trash_level'用。WX03-001）
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
+  blocked_card_names_game?: string[]; // このゲームの間使用禁止のカード名（NAME_BAN 効果。ターン境界でリセットしない）
   story_overrides?: Record<string, string>; // CardNum -> ゲーム中に変更されたStory（大本のCardDataは変えない）
   acce_choice?: Record<string, number>;     // アクセCardNum -> 装着時に選んだ付与能力のインデックス（SPK01-11 ラズベリー）
   // DECLARE_ZONE_FOR_CLASS_CHANGE: このプレイヤーが指定した領域（相手シグニがクラス/色を失い＜精元＞を得る）
