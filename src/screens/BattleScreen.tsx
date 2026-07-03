@@ -9434,7 +9434,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cleanCpuSt: PlayerState = {
         ...cpuSt,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
-        temp_power_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
+        temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
         life_crashed_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
