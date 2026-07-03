@@ -75,10 +75,21 @@ for (const [file, effIds] of Object.entries(targets)) {
     }
     if (WRITE && empty.length === 1 && withAb.length === 1) {
       empty[0].abilities = withAb[0].abilities;
+      if (withAb[0].permanent) empty[0].permanent = true;
       patched++;
-      console.log(`  ✔ patched`);
+      console.log(`  ✔ patched${withAb[0].permanent ? '（permanent）' : ''}`);
     } else if (WRITE) {
       console.log(`  ⚠ skip（対応が1:1でない）`);
+    }
+  }
+  for (const effId of (manualize[file] ?? [])) {
+    const cardNum = effId.replace(/-E\d+$/, '');
+    const cur = (j[cardNum] ?? []).find(e => e.effectId === effId);
+    if (!cur) { console.log(`✗ manualize ${effId}: not found`); continue; }
+    if (WRITE && cur.parseStatus !== 'MANUAL') {
+      cur.parseStatus = 'MANUAL';
+      patched++;
+      console.log(`✔ ${effId} → parseStatus MANUAL（サブ展開の質が低く no-op 据置＝機構待ち）`);
     }
   }
   if (WRITE && patched > 0) {
