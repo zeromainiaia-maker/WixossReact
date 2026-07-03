@@ -901,6 +901,13 @@ function parseThisWayTrashCondition(clause: string): Condition | null {
   // この方法でN体の＜X＞のシグニがトラッシュに置かれた場合（WX03-021）
   const sc = clause.match(/この方法で([０-９\d]+)体の?＜([^＞]+)＞のシグニ.*?トラッシュに置かれた場合/);
   if (sc) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc[2], count: parseNum(sc[1]) };
+  // 「その後、あなたの手札がN枚以下/以上の場合、」→ HAND_COUNT
+  // （IS_MY_TURN フォールバック＝常時真で条件が無言で消えるのを防ぐ。WX12-020/WX21-026-BURST）
+  const hc = clause.match(/あなたの手札が([０-９\d]+)枚(以上|以下)の場合/);
+  if (hc) return { type: 'HAND_COUNT', owner: 'self', operator: hc[2] === '以上' ? 'gte' : 'lte', value: parseNum(hc[1]) };
+  // 「その後、あなたのエナゾーンにあるカードがN枚以下/以上の場合、」→ ENERGY_COUNT（WX05-042-BURST）
+  const ec = clause.match(/エナゾーンにあるカードが([０-９\d]+)枚(以上|以下)の場合/);
+  if (ec) return { type: 'ENERGY_COUNT', owner: 'self', operator: ec[2] === '以上' ? 'gte' : 'lte', value: parseNum(ec[1]) };
   return null;
 }
 
