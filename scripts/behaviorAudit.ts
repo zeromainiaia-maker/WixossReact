@@ -287,6 +287,7 @@ function snapshot(ctx: ExecCtx): Snapshot {
     (s.field.puppet_signi ?? []).forEach(id => put(id, `${side}傀儡`));
     for (const m of (s.temp_power_mods ?? [])) power.set(m.cardNum, (power.get(m.cardNum) ?? 0) + m.delta);
     for (const m of (s.power_mods_until_opp_turn ?? [])) power.set(m.cardNum, (power.get(m.cardNum) ?? 0) + m.delta);
+    for (const m of ((s as unknown as { temp_level_mods?: { cardNum: string; delta: number }[] }).temp_level_mods ?? [])) level.set(m.cardNum, (level.get(m.cardNum) ?? 0) + m.delta);
     for (const [id, kws] of Object.entries(s.keyword_grants ?? {})) if (kws.length) kw.set(id, [...kws].sort().join(','));
     for (const [id, kws] of Object.entries(s.keyword_grants_until_opp_turn ?? {})) if (kws.length) kw.set(id, [...(kw.get(id)?.split(',') ?? []), ...kws].sort().join(','));
     const sx = s as unknown as Record<string, unknown>;
