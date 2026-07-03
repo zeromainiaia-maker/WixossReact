@@ -5,6 +5,16 @@
 
 ---
 
+## BEHAVIOR_AUDIT 段階4・第3収穫：`EQUALIZE_ENERGY` 実装＋未実装action型13種(36効果)を worklist 化（2026-07-03・zerom）
+
+audit キューの高シグナルに「エナゾーンの枚数を揃える」等が無変化で残っていたのを起点に、**action位置なのに engine（`src/engine/*`）にも UI（`BattleScreen.tsx`）にも型名が一度も現れない＝完全未実装の action型を網羅スキャン**（`scratchpad` の型走査）＝**14種42効果**を確定。
+
+- **`EQUALIZE_ENERGY`（6効果）を実装**＝「各プレイヤーは自分のエナが N枚になるようにトラッシュ」（超過分をトラッシュ・どのカードを残すかのプレイヤー選択は近似）。`execEqualizeEnergy` 新設＋dispatch 登録。WX09-Re12 で両者エナ5→4を確認。golden 100/100（テスト+1）・smoke0・fuzz0・typecheck緑。
+- **残り13種36効果は未実装 worklist に登録**（[TODO.md](./TODO.md) §1.9）＝完全no-op。自己完結型（LEVEL_MODIFY 9／LOOK_AT_DECK_AND_LIFE 3／PLAY_FREE_FROM_TRASH 2／POWER_MODIFY_PER_ENERGY 1／VARIABLE_DISCARD_AND_DRAW 1／STACK_SPELL 1）と横断型（GROW_COST_REDUCTION 7／PREVENT_DAMAGE 5／NAME_BAN 2／COST_SUBSTITUTE 2／SELF_TRASH_PREVENT 1／COLOR_INHERIT 1／GRANT_FIELD_SHADOW 1＝コスト計算/ダメージ/CONTINUOUS層への統合が要る）。
+- **behavior-audit が「未実装action型」という系統ギャップの発見に有効**なことを実証。次はこの worklist を1型ずつ（自己完結型が低リスク）。
+
+---
+
 ## BEHAVIOR_AUDIT 段階4・第2収穫：「エナを選択でトラッシュ」が完全no-opだった engine バグ＝76効果を一挙修正（2026-07-03・zerom）
 
 audit キューの高シグナル選別で「対戦相手のエナゾーンからカードを（N枚）トラッシュに置く」が**複数カードで無変化**なのを発見（WXDi-D08-007-E2／WX05-008-E1,E2／WXDi-P10-023-E2 等）。隔離テストで**engine バグを確定**＝TRASH の resume 適用スイッチ（`resumeSelectTarget` 経路・effectExecutor.ts 4387〜）が **SIGNI/DECK_CARD/HAND_CARD は処理するが ENERGY_CARD 分岐を欠いていた**ため、「エナをN枚（選択）トラッシュ」は SELECT_TARGET で選択させた後**何も適用されず no-op**になっていた（`count:'ALL'` だけ execTrash 内 inline で動作）。
