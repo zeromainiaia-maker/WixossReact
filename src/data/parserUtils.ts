@@ -76,6 +76,14 @@ export function parsePowerFilter(text: string): Partial<TargetFilter> {
   return {};
 }
 
+// 凍結状態フィルタ（対象を「凍結状態のシグニ」に絞る）。
+// parseSigniTarget は既に isFrozen を拾うが、BOUNCE/BANISH/TRANSFER_TO_DECK 等の
+// インライン target ビルダーは状態フィルタを落としていたため、それらで再利用する共通化ヘルパー。
+// ※ isDown/isUp は down/up バッチで curated 側を揃えてから同様に切り出す（今は frozen のみ）。
+export function parseFrozenFilter(text: string): Partial<TargetFilter> {
+  return text.includes('凍結状態') ? { isFrozen: true } : {};
+}
+
 export function parseLevelFilter(text: string): Partial<TargetFilter> {
   const above = text.match(/レベル([０-９\d]+)以上/);
   const below = text.match(/レベル([０-９\d]+)以下/);
