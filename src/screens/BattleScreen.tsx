@@ -3816,6 +3816,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END: 長期パワー修正を次の相手ターン終了時にクリア
           opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN): 相手コスト増加を次の相手ターン終了時にクリア
           life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
+          turn_arts_used: undefined,                 // このターンのアーツ使用フラグをリセット（相手ターン中のガード使用分。ARTS_USED_THIS_TURN）
           field: {
             ...opState.field,
             signi_down:   newSigniDown,
