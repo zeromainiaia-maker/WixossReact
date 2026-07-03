@@ -88,7 +88,7 @@
 - **詳細は `BUGFIXES.md`（2026-06-29〜06-30付近の各エントリ）と [VERIFY_BROWSER.md](./VERIFY_BROWSER.md) を参照。**
 
 ### 📊 恒久指標（維持中・逐次更新）
-- **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 28 / LOSS 11 / VALUE 17（2026-07-03 実測・`npx tsx scripts/parserWorklist.ts`）**＝旧記載「全0」は curated 手パッチ（owner58/protection24 等）でパーサー未同修正のまま増えていたのを、続き13でパーサー同修正し 94→28 に回復した後の実数。残28は (a)LOSS 11＝curated 側の機構修正（EQUALIZE_ENERGY owner 等）にパーサーが追いついていない真の弱点ワークリスト、(b)VALUE 17＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値）と単発テール。**この数字から増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
+- **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 24 / LOSS 11 / VALUE 13（2026-07-03 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝旧記載「全0」は curated 手パッチ（owner58/protection24 等）でパーサー未同修正のまま増えていたのを、続き13でパーサー同修正＋curated実バグ4件是正で 94→24 に回復した後の実数。残24は (a)LOSS 11＝curated 側の機構修正（EQUALIZE_ENERGY owner 等）にパーサーが追いついていない真の弱点ワークリスト、(b)VALUE 13＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）と単発テール。**この数字から増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
 - **母数**：効果カード 5975／効果 10549／MANUAL効果 733／STUB含むカード 1820。
