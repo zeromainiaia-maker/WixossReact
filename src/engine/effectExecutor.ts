@@ -71,6 +71,18 @@ import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../ut
 
 // ===== 個別アクション実行 =====
 
+// LOOK_AT_DECK_AND_LIFE: 対象プレイヤーのデッキトップ／ライフトップを「見る」（純粋な情報＝盤面変化なし）。
+//   mode 'both'=両方 / 'either'=どちらか。engine は情報開示のみでログに記録する（状態は不変）。
+function execLookAtDeckAndLife(a: import('../types/effects').LookAtDeckAndLifeAction, ctx: ExecCtx): ExecResult {
+  const s = ownerState(a.targetOwner, ctx);
+  const who = a.targetOwner === 'self' ? '自分' : '相手';
+  const nm = (n: string | undefined) => (n ? ctx.cardMap.get(n)?.CardName ?? n : '（なし）');
+  const deckTop = nm(s.deck[0]);
+  const lifeTop = nm(s.life_cloth[s.life_cloth.length - 1]);
+  const scope = a.mode === 'either' ? 'デッキの一番上かライフの一番上' : 'デッキの一番上とライフの一番上';
+  return done(addLog(ctx, `${who}の${scope}を見る（デッキ:${deckTop} / ライフ:${lifeTop}）`));
+}
+
 function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   // untilHandCount: 手札が N 枚になるまで（差の分だけ）引く。N 枚以上なら引かない（WX05-003）
