@@ -4425,8 +4425,17 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(ctx);
     }
     case 'EXILE': {
-      // 選択カードをトラッシュから取り除く（ゲーム除外の近似）。owner のトラッシュを優先し、なければ両者を探索
+      // 選択カードをゲームから除外。①場のシグニなら場から取り除く（トラッシュ経由しない）②トラッシュなら取り除く
       const exTgt = (action as import('../types/effects').ExileAction).target;
+      // 場のシグニ除外: どちらかの場にあれば removeFromField で消去
+      for (const o of ['self', 'opponent'] as Owner[]) {
+        const s = ownerState(o, ctx);
+        if (s.field.signi.some(st => st?.includes(cardNum))) {
+          return done(addLog(setOwnerState(o, removeFromField(cardNum, s), ctx),
+            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
+        }
+      }
+      // トラッシュからの除外（owner優先、なければ両者を探索）
       const owners: Owner[] = exTgt.owner === 'opponent' ? ['opponent'] : exTgt.owner === 'self' ? ['self'] : ['self', 'opponent'];
       for (const o of owners) {
         const s = ownerState(o, ctx);
