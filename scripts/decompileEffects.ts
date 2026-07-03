@@ -696,7 +696,8 @@ function actionJa(a?: Action, effectType?: string): string {
       const unit = a.unitSize ?? 1;
       const cf = filterJa(a.countFilter);
       const who = a.trashOwner === 'both' ? '各プレイヤーの' : ownerJa(a.trashOwner);
-      return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${who}トラッシュにある${cf}${a.countByVariety ? 'の種類' : ''}${unit > 1 ? `${unit}枚` : '1枚'}につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+      const per = a.countByVariety ? `シグニの種類${unit > 1 ? `${unit}` : '1'}つ` : `シグニ${unit > 1 ? `${unit}` : '1'}枚`;
+      return `${targetJa(a.target, 'シグニ', a.excludeSelf)}のパワーを${who}トラッシュにある${cf}${per}につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
     }
     case 'POWER_MODIFY_PER_LIFE_COUNT': {
       const d = a.deltaPerLife ?? a.deltaPerUnit ?? 0;
