@@ -425,8 +425,9 @@ function main(): void {
     pushSection('キーワード能力語の不在', hits, missHigh, missStub);
   }
 
-  // ---- 逆方向 action センサス（JSONのaction型に対応する動詞が原文に無い＝幻覚/取り違え・続き18第4弾）----
-  // STUB/MANUAL/rawText 含みの効果はスキップ（近似表現のため）。
+  // ---- 逆方向 action センサス（JSONのaction型に対応する動詞が原文に無い＝幻覚/取り違え・続き18第4弾・続き19較正）----
+  // STUB/MANUAL/rawText 含みの効果はスキップ（近似表現のため）。照合は（…）注釈込みの rawAll。
+  // LIFE_CRASH は「ダメージを与える」の正当表現でもあるため ダメージ も許容。
   // 抜き取り確定バグ: WX16-021（置換ルールが即時LIFE_CRASH化）・PR-322（トラッシュ送りがBANISH化）。
   {
     const VERB: Array<[string, RegExp]> = [
@@ -434,7 +435,7 @@ function main(): void {
       ['FREEZE', /凍結/],
       ['EXILE', /除外/],
       ['GAIN_COIN', /コイン/],
-      ['LIFE_CRASH', /クラッシュ/],
+      ['LIFE_CRASH', /クラッシュ|ダメージ/],
       ['DRAW', /引/],
       ['SEARCH', /探し/],
     ];
@@ -450,7 +451,7 @@ function main(): void {
         }
         if (!has) continue;
         hits++;
-        if (!re.test(texts.get(id) ?? '')) { missHigh.push(id); highAll.add(id); }
+        if (!re.test(corpus.rawAll.get(id) ?? '')) { missHigh.push(id); highAll.add(id); }
       }
       pushSection(`逆:JSONに${act}→原文に語なし`, hits, missHigh, []);
     }
