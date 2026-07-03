@@ -7221,7 +7221,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ── スペル/クラフト（フェゾーネマジック）── メインフェイズに手札スペルと同様に使用可能
     if (cardData.Type === 'スペル/クラフト') {
-      if (my.blocked_card_names?.includes(cardData.CardName)) return actions;
+      if (my.blocked_card_names?.includes(cardData.CardName) || my.blocked_card_names_game?.includes(cardData.CardName)) return actions;
       // pending_spell がある間は新たにスペルを発動できない
       const spellBlocked = !!bs.pending_spell;
       const canUse = !isActionBlocked('USE_SPELL') && phase === 'MAIN' && isMyTurn && !spellBlocked;
