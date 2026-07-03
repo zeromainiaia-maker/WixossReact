@@ -894,7 +894,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       type: 'BOUNCE',
       target: {
         type: 'SIGNI', owner, count, upToCount: !!upToM,
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...(isThisCard ? { thisCardOnly: true } : {}) },
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseFrozenFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
