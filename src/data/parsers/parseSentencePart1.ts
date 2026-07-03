@@ -1313,10 +1313,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const signiFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parsePowerFilter(t) };
     const hasFilter = signiFilter.story || signiFilter.powerRange;
     const tgtCntM = t.match(/([０-９\d]+)体(?:まで)?を対象とし/);
-    // 主語が広域（「あなたの（すべての）…シグニは」）のときのみ ALL。
-    // それ以外（「このシグニは」／条件句除去後・引用内の暗黙主語）＝自己保護（count:1 で source を保護）
-    const protCount: number | 'ALL' = tgtCntM ? parseNum(tgtCntM[1])
-      : (/あなたの(?:他の)?(?:すべての)?[^。」『』]*シグニは/.test(t) ? 'ALL' : 1);
+    // 「このシグニは…効果を受けない」＝自己保護（count:1 で source を保護）。それ以外（広域・暗黙主語）は従来どおり ALL
+    const protCount: number | 'ALL' = tgtCntM ? parseNum(tgtCntM[1]) : (/このシグニは/.test(t) ? 1 : 'ALL');
     const target: EffectTarget = hasFilter
       ? { type: 'SIGNI', owner: 'self', count: protCount, filter: signiFilter }
       : { type: 'SIGNI', owner: 'self', count: protCount };
