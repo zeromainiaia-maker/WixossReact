@@ -2021,18 +2021,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
   } else
   // GRANT_LRIG_ABILITY: rawText からサブ能力をここでパース（parseBlock が使えるタイミング）
+  // rawTextが「。」だけ（句点のみ）の場合は、実際の能力は別のブロックで解析済みのためAUTO扱い
   if (resolvedAction.type === 'GRANT_LRIG_ABILITY') {
-    const gla = resolvedAction as GrantLrigAbilityAction;
-    if (gla.rawText) {
-      const cleanRaw = gla.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
-      const subBlocks = splitEffectBlocks(cleanRaw);
-      gla.abilities = subBlocks
-        .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
-        .filter((e): e is import('../types/effects').CardEffect => e !== null);
-    }
-    // rawTextが「。」だけ（句点のみ）の場合は、実際の能力は別のブロックで解析済みのためAUTO扱い
-    const rawTextOnlyPunct = !gla.rawText || /^[。、\s]*$/.test(gla.rawText);
-    const hasUnknownSub = !rawTextOnlyPunct && (gla.abilities.length === 0 || gla.abilities.some(e => e.parseStatus === 'UNKNOWN'));
+    const hasUnknownSub = expandGrantLrigAbilities(resolvedAction, cardNum);
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
   } else if (resolvedAction.type === 'UNKNOWN') {
     parseStatus = 'UNKNOWN';
