@@ -86,9 +86,10 @@ function execLookAtDeckAndLife(a: import('../types/effects').LookAtDeckAndLifeAc
 function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   // untilHandCount: 手札が N 枚になるまで（差の分だけ）引く。N 枚以上なら引かない（WX05-003）
+  // addLastProcessedCount: 直前の選択枚数（捨てた枚数等）を count に加算（VARIABLE_DISCARD_AND_DRAW 用）
   const count = a.untilHandCount !== undefined
     ? Math.max(0, a.untilHandCount - state.hand.length)
-    : resolveNum(a.count);
+    : resolveNum(a.count) + (a.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
   const canDraw = Math.min(count, state.deck.length);
   const s: PlayerState = {
     ...state,
