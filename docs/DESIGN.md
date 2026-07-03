@@ -1,7 +1,7 @@
 # 設計方針 (DESIGN)
 
 WixossReactClone の設計方針・開発ルールをまとめた恒久ドキュメント。
-個別の残作業は [TODO.md](./TODO.md)、過去のバグ修正は [BUGFIXES.md](./BUGFIXES.md) を参照。
+個別の残作業・今後の計画は [PLAN.md](./PLAN.md)、過去のバグ修正は [BUGFIXES.md](./BUGFIXES.md) を参照。
 
 ---
 
