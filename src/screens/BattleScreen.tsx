@@ -9444,7 +9444,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuDown   = huSt.field.signi_down   ?? [false, false, false];
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
-      const nextHuSt = { ...huSt, field: {
+      const nextHuSt = { ...huSt,
+        turn_arts_used: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
+        field: {
         ...huSt.field,
         // 凍結中のシグニはアップしない（frozen=true かつ down=true はそのまま残す）
         signi_down:   curHuDown.map((d, i) => d && curHuFrozen[i]) as boolean[],
