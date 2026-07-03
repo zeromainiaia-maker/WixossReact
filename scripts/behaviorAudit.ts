@@ -301,7 +301,7 @@ function snapshot(ctx: ExecCtx): Snapshot {
       sx.lrig_abilities_disabled ? 'ルリグ能力無効' : '',
     ].filter(Boolean).sort().join('|');
   }
-  return { loc, power, flags, kw, blocked, coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins } };
+  return { loc, power, level, flags, kw, blocked, coins: { 自: ctx.ownerState.coins, 相: ctx.otherState.coins } };
 }
 
 /** 位置ラベルの側（自/相）を判定して owner違いを強調するための小道具 */
