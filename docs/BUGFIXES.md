@@ -5,6 +5,16 @@
 
 ---
 
+## BEHAVIOR_AUDIT 段階4・第6収穫：`EQUALIZE_ENERGY` の scope バグ是正（自作の実装バグ・5件）＋逆翻訳精緻化（2026-07-03・zerom）
+
+56件高シグナル精査中に発見＝**第3収穫で実装した `EQUALIZE_ENERGY` が常に両プレイヤーのエナを削っていた**が、6枚中**5枚は原文「対戦相手は自分のエナが7枚になるように」＝対戦相手のみ**（各プレイヤー=両方は WX09-Re12 の1枚だけ）。自作実装＋型に scope が欠落していた自己バグ。
+
+- **修正**＝`EqualizeEnergyAction` に `owner?: Owner` 追加（未指定=両方／'opponent'=相手のみ）。`execEqualizeEnergy` を owner 尊重に。対戦相手限定5件（WX10-005/WX12-021/WX14-054/WXK11-008/WXK11-058）に `owner:'opponent'` を付与。decompiler も `${owner}エナゾーンのカードがN枚になるように…` で原文一致描画（従来は汎用「揃える」）。
+- **検証**＝golden に「owner:opponent＝相手のみ調整・自分不変」テスト追加（103/103）・smoke0・fuzz0・同型★0維持・逆翻訳原文一致（WXK11-058「対戦相手のエナ…7枚」/WX09-Re12「各プレイヤーの…4枚」）。decompile_sheet1/2/4＋下流再生成。
+- ⚠別途発見（個別・未修正）＝**WDK03-001-E1** `ADD_TO_FIELD owner:self` に **source 欠落**（原文「ルリグデッキから《異体同心 華代》1枚を場に出す」＝何をどこから出すか未指定）＝レゾナ/ルリグデッキ場出し機構待ち（1枚・niche）。
+
+---
+
 ## BEHAVIOR_AUDIT 段階4・第5収穫：未実装 `LOOK_AT_DECK_AND_LIFE`(3) 実装＋広域 owner スキャン（clean）（2026-07-03・zerom）
 
 - **`LOOK_AT_DECK_AND_LIFE`（3効果）実装**＝「対象のデッキ一番上／ライフ一番上を見る」＝**純粋な情報開示（盤面変化なしが正しい挙動）**。`execLookAtDeckAndLife`（log-only）＋dispatch。WX10-070 は完全実装（逆翻訳原文一致）。golden 102/102（+1）・smoke0・fuzz0・typecheck緑。
