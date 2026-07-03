@@ -236,6 +236,37 @@ function main(): void {
     detail.push('');
   }
 
+  // ---- 数値不一致（語彙有無では見えない別軸・2026-07-04 続き17）----
+  // 原文のパワー系数値（4〜5桁）がカードJSONのどこにも現れない＝値の脱落/誤記の候補。
+  // 《…》内のカード名由来の数字（例: タンポポ2434）は除外。抜き取り4/4が確定バグ
+  // （WX06-028 第2対象丸ごと・WX13-030 パワー合計上限・WX09-017 基本パワー/×3000・WX11-053 基本パワー）。
+  {
+    const zen2han = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    let hits = 0;
+    const missHigh: string[] = [];
+    const missStub: string[] = [];
+    for (const [id, t] of texts) {
+      const nums = [...zen2han(t.replace(/《[^》]*》/g, '')).matchAll(/\d{4,5}/g)].map(m => m[0]);
+      if (nums.length === 0) continue;
+      const js = jsonStr.get(id);
+      if (!js) continue;
+      hits++;
+      const missing = [...new Set(nums.filter(n => !js.includes(n)))];
+      if (missing.length === 0) continue;
+      if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
+      else { missHigh.push(`${id}(${missing.join('/')})`); highAll.add(id); }
+    }
+    missHigh.sort();
+    missStub.sort();
+    summary.push(`数値不一致(4-5桁がJSONに不在) | ${hits} | ${missHigh.length} | ${missStub.length}`);
+    detail.push(`## 数値不一致(4-5桁がJSONに不在) ［原文該当 ${hits}／高シグナル ${missHigh.length}／STUB・MANUAL格納 ${missStub.length}］`);
+    detail.push('### 高シグナル（対応数値なし）');
+    detail.push(missHigh.join(' ') || '（なし）');
+    detail.push('### STUB/MANUAL格納（要個別確認）');
+    detail.push(missStub.join(' ') || '（なし）');
+    detail.push('');
+  }
+
   detail.push(`# 高シグナル欠落カード総数（重複除外）: ${highAll.size}（ベースライン ${BASELINE_HIGH}）`);
   fs.writeFileSync(OUT_PATH, detail.join('\n') + '\n', 'utf8');
 
