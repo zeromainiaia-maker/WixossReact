@@ -76,7 +76,7 @@ for (const [file, effIds] of Object.entries(targets)) {
     }
   }
   if (WRITE && patched > 0) {
-    fs.writeFileSync(p, JSON.stringify(j, null, 1) + '\n', 'utf-8');
+    fs.writeFileSync(p, JSON.stringify(j) + eol, 'utf-8');
     console.log(`\n→ ${file} に ${patched} 件書き込み`);
   }
 }
