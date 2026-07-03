@@ -271,7 +271,8 @@ function loadTexts(): Corpus {
       const b = strip(cols.slice(19).join(','));
       eff.set(id, (eff.get(id) ?? '') + e);
       burst.set(id, (burst.get(id) ?? '') + b);
-      all.set(id, (all.get(id) ?? '') + e + b);
+      // 旧実装（cols.slice(18).join(',')）と同一の連結を維持＝列境界のカンマを保存
+      all.set(id, (all.get(id) ?? '') + e + ',' + b);
       if (!ctype.has(id)) ctype.set(id, cols[3] ?? '');
       if (!ctiming.has(id)) ctiming.set(id, cols[13] ?? '');
     }
