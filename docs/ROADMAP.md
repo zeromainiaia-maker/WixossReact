@@ -1,27 +1,27 @@
 # 完成までのロードマップ (ROADMAP)
 
-> ゲーム開発「完成」までの全体計画。**日々の次の一手・バトンは [P1_PLAN.md](./P1_PLAN.md) §3 が唯一の正**（本ファイルは全体地図）。残作業の索引は [TODO.md](./TODO.md)、設計方針は [DESIGN.md](./DESIGN.md)、修正記録は [BUGFIXES.md](./BUGFIXES.md)。
+> ゲーム開発「完成」までの全体計画。**日々の次の一手・バトンは [P1_PLAN.md](./P1_PLAN.md) §3 が唯一の正**（本ファイルは全体地図）。原文照合の主軸は [BEHAVIOR_AUDIT.md](./BEHAVIOR_AUDIT.md)。残作業の索引は [TODO.md](./TODO.md)、設計方針は [DESIGN.md](./DESIGN.md)、修正記録は [BUGFIXES.md](./BUGFIXES.md)。
 >
-> 作成: 2026-07-02（docs 全体＋逆翻訳シート実測に基づく）。フェーズ完了時に本ファイルの該当節と P1_PLAN §1/§3 を更新する。
+> 作成: 2026-07-02（docs 全体＋逆翻訳シート実測に基づく）。**2026-07-03 更新＝原文照合の主軸が逆翻訳の文字列一致（Z節）から BEHAVIOR_AUDIT（実行結果の目視照合）へ移行したことを反映**。フェーズ完了時に本ファイルの該当節と P1_PLAN §1/§3 を更新する。
 
 ---
 
-## 現在地（2026-07-02 時点）
+## 現在地（2026-07-03 時点）
 
-P1_PLAN の3フェーズ枠組み（①表現 P1／②実行 P2／③挙動 P3）のうち **P1 の最終盤**。
+P1_PLAN の3フェーズ枠組み（①表現 P1／②実行 P2／③挙動 P3）のうち **P1 の最終盤〜P2 への越境**。
 
-- **達成済み**：同型★0・held/LOSS/VALUE 全0・脱落疑い255枚全分類・大型機構B1〜B4完了・**C1 timing 配線 残0**（ON_KEYWORD_GAINED 含め全配線）・検証ハーネス3層（smoke 10557件 全0／golden 96/96／fuzz 全0）＋CI 自動化・実機ドライバ `scripts/verifyBattleDrive.mjs` 既定10シナリオ PASS。
-- **本丸の残**：逆翻訳機の出力品質（原文一致・P1_PLAN §1 4つ目）。**2026-07-02 に多数系統是正で 582→406 件**（BUGFIXES⑩〜⑬）。当初実測＝**英語ID露出の `[STUB:…]` は 582件・約280系統**。
-  - 上位クラスタ：BET_MECHANIC 19／DOWN_UP_SIGNI_AND_CHOOSE 14／TRASH_AT_TURN_END 13／REVEAL_AND_PICK 13／BET_CONDITION 11／CHOOSE_COLOR_FROM_LIST 10／CRAFT_TO_LRIG_DECK＋ADD_CRAFT 18／ACCE_FROM_HAND 9／SERVANT_ZERO系 計24／SEED系 20／LOOK_TOP系 20／REPEAT系 14 …上位20系統で約170件、残りは1〜4件の長いテール。
-  - 再走査コマンド（Bash）：
-    `grep -ohE "\[STUB:[^]]*[A-Z][A-Z0-9_]{4,}[^]]*\]" docs/decompile_sheet*.txt | grep -oE "[A-Z][A-Z0-9_]{4,}" | grep -vE "^(STUB|COUNT|AUTO|WX|CONTINUOUS|SELECT_TARGET)" | sort | uniq -c | sort -rn`
+- **達成済み**：同型★0・held/LOSS/VALUE 全0・脱落疑い255枚全分類・大型機構B1〜B4完了・**C1 timing 配線 残0**・検証ハーネス3層（smoke 10557件 全0／golden 106/106／fuzz 全0）＋CI 自動化・実機ドライバ `scripts/verifyBattleDrive.mjs` PASS。逆翻訳の英語ID漏れは 582→367 まで解消（BUGFIXES⑩〜㉒）。
+- **本丸＝BEHAVIOR_AUDIT（実行結果の目視照合）による実バグ収穫**（2026-07-03〜）。「逆翻訳が原文と文字列一致するか」だけでは見つからない**実行時の真バグ**（engine dispatch未配線・トリガー主語ミス・未実装action型・誤った自作実装）が多数見つかっている。**811効果→129（高シグナル30）まで要レビュー・キューを削減**しつつ、その過程で計10件以上の実バグ（真no-op・scope誤り等）を発見・修正済み。
+  - 進め方・現在のキュー件数は [BEHAVIOR_AUDIT.md](./BEHAVIOR_AUDIT.md)「実装状況」と [TODO.md](./TODO.md) §1.9 を参照。
+  - **この作業はP1（表現）とP2（実行）の境界を跨ぐ**：逆翻訳の系統的誤表示（表現バグ）と engine の未配線・no-op（実行バグ）の両方をこの1つのツールが同時に炙り出すため、フェーズ区分は目安として運用する。
+- **旧・本丸（逆翻訳の英語ID漏れ・文字列一致）は大半のクリーンな系統を消化済み**（詳細は下記フェーズ1・Z節）。残りは低優先のテール。
 
 ## 完成の定義（4段）
 
 P1_PLAN は P1 の DoD しか定義していないため、「開発の完成」を以下の4段で定義する。
 
-1. **P1完了（表現）** — 全効果カードで逆翻訳が原文一致（英語ID漏れ0・文法崩れ0・脱落0）
-2. **P2完了（実行）** — エンジンが全DSL構文を正しく実行（golden で型網羅・smoke SKIP 解消・機構待ちテール実装）
+1. **P1完了（表現）** — 全効果カードで逆翻訳が原文一致（英語ID漏れ0・文法崩れ0・脱落0）＋ BEHAVIOR_AUDIT 要レビュー・キューが逓減限界まで消化済み
+2. **P2完了（実行）** — エンジンが全DSL構文を正しく実行（golden で型網羅・smoke SKIP 解消・機構待ちテール実装・BEHAVIOR_AUDIT で見つかる実行バグの解消）
 3. **P3完了（挙動）** — 実機で各カードがルール通り動く（TODO §5 の宿題クローズ・対話UI残の実装）
 4. **対戦体験の完成** — CPU AI がメインフェイズで能動行動し、一人でも通しで遊べる
 
