@@ -96,6 +96,7 @@
 
 - **引用AUTO付与の精緻化（`GRANT_QUOTED_AUTO_ABILITY` 系・ヒューリスティック）** ＝**✅一次完了（2026-06-28・B4）**＝引用【自】/【常】能力を `parseCardEffects`→granted_effects 実発火（自場シグニ・ターン限定・parse成功時のみ）。**残**＝permanent（このゲームの間）付与・相手シグニ付与・STUB能力＝従来 log-only 据置（追加実装課題・要実機検証）。「シグニに『〜』を付与」型。例: WX25-CP1-074／WXK09-055／WX24-P2-044。
 - **機構④の残（新トリガー機構が要る）**:
+  - **「対戦相手のシグニが場を離れたとき」トリガー（3枚・behavior-audit 段階4で発見・2026-07-03）**＝現状 `ON_LEAVE_FIELD` の watcher 収集（`collectLeaveFieldTriggers`）は**離れたカードと同じ側（味方）の watcher しか見ない**ため、`triggerScope` に「敵の離脱を見る」値（例 `any_enemy`）と、**相手フィールドの watcher を走査する収集パス**が要る。該当＝**WXEX1-30-E2**（対戦相手の凍結シグニが離れたとき→相手シグニを手札に戻す）／**WXK11-017-E1**（対戦相手のシグニが効果で離れたとき→エナチャージ）／**WXDi-P03-040-E1**（対戦相手の凍結シグニが離れたとき→デッキ上をこのシグニの下に置く）。3枚とも現 JSON は `scope=(self)`＝「このカードが離れたとき」誤発火。⚠関連の**味方離脱**（`any_ally`）版 WX19-003-E2 は turnOwner 対応と併せ**修正済**（BUGFIXES上部）。
   - `ON_CARD_MILLED_FROM_DECK` の収集機構（WX25-P2-009-E2＝現 `【※engine未配線】`）。
   - リフレッシュ置換の実体（WX25-P2-009-E1＝現 no-op STUB `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG`）。
   - 「他＜毒牙＞のシグニ効果で相手パワーが減ったとき」トリガー（WX25-P3-062-E1＝現 STUB `POWER_COPY_FROM_DOWNED`）。
