@@ -618,19 +618,24 @@ export function fieldCandidates(
     // ACCE_SIGNI_ALL_COLOR / ALL_COLOR / ALL_ZONE_BLACK: 全色を持つシグニは色フィルターをバイパス
     const isAllColor = state.story_overrides?.[cardNum] === 'ALL_COLOR' || allColorSigniNums?.has(cardNum);
     const extraColors = fieldSigniExtraColors?.get(cardNum);
-    if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride)) {
+    // 実効レベル（temp_level_mods 適用済み）＝LEVEL_MODIFY 効果。mod が無ければ undefined（従来挙動）。
+    const lvMods = state.temp_level_mods;
+    const effLevel = lvMods && lvMods.length
+      ? Math.max(0, parseInt(cardMap.get(cardNum)?.Level ?? '', 10) + lvMods.filter(m => m.cardNum === cardNum).reduce((s, m) => s + m.delta, 0))
+      : undefined;
+    if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) {
       // 追加色がある場合: 色フィルターだけ追加色でも再チェック
       if (!extraColors || !filter?.color) return [];
       const filterColors = Array.isArray(filter.color) ? filter.color : [filter.color];
       if (!filterColors.some(c => extraColors.includes(c))) return [];
       // 色フィルター以外のフィルターを通常チェック
       const filterNoColor = { ...filter, color: undefined };
-      if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride)) return [];
+      if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) return [];
     }
     if (isAllColor) {
       // 色フィルター以外のフィルターは通常通りチェック
       const filterNoColor = filter ? { ...filter, color: undefined } : undefined;
-      if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride)) return [];
+      if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) return [];
     }
     return [cardNum];
   });
