@@ -22,14 +22,12 @@ WixossカードゲームのReactクローン実装。
 - **メモ・ノート・引き継ぎ（HANDOFF）・調査記録などの .md は必ず `docs/` にまとめる**。プロジェクトルートに散らばせない。
 - ルート直下に置いてよいのは定位置が規約で決まっているものだけ：`CLAUDE.md` / `README.md` / `.github/pull_request_template.md`
 - 現状の `docs/` の主要ファイル：
-  - **`P1_PLAN.md` — 現在の目標（全カード表現完成）と3人バトン式（順番 push/pull）の方針。§3「現在地（バトン）」に次の一手。cold startはまずこれ**
-  - **`ROADMAP.md` — 完成までの全体計画（P1→P2→P3→対戦体験の4フェーズ）。全体地図はこれ、日々のバトンは P1_PLAN §3**
+  - **`PLAN.md` — 開発計画の唯一の正（旧 P1_PLAN.md/ROADMAP.md/TODO.md を2026-07-03に統合）。全体像・DoD・3人バトン式の現在地・フェーズ別残作業をすべて1本に集約。§4「現在地とバトン」に次の一手。cold startはまずこれ**
   - **`DESIGN.md` — 設計方針・開発ルール（まずこれを読む）**
-  - **`TODO.md` — 残作業の一覧（完了したら消す）**
   - **`BUGFIXES.md` — バグ修正記録（新しいものを上に追記）**
-  - **`BEHAVIOR_AUDIT.md` — 挙動トレース監査（原文照合の主軸）。engine実行結果（盤面差分＋ログ）を原文と目視照合。LLM不使用・決定論**
-  - `SEMANTIC_AUDIT.md` — （旧・主軸から外した）LLM意味比較。発見器実績は BEHAVIOR_AUDIT へ lint 化して引き継ぎ
+  - **`BEHAVIOR_AUDIT.md` — 挙動トレース監査（原文照合の主軸・現在の主作業）。engine実行結果（盤面差分＋ログ）を原文と目視照合。LLM不使用・決定論**
+  - `SEMANTIC_AUDIT.md` — （旧・主軸から外した）LLM意味比較。補完的発見器として継続利用（worklistは PLAN.md §6.2）
   - `STUBS.md` — 全STUBの一覧と実装状況（`node scripts/genStubsMd.mjs` で再生成。手編集しない）
   - `TokenCallers.md` — トークン↔呼び出し元の対応表
   - `effects-json-guide.md` — effects JSONの表現語彙・ガイド
-- 引き継ぎ（HANDOFF）は廃止。残作業は `TODO.md`、設計判断は `DESIGN.md`、修正記録は `BUGFIXES.md` に集約する。
+- 引き継ぎ（HANDOFF）は廃止。残作業・設計判断は `PLAN.md`、修正記録は `BUGFIXES.md` に集約する。
