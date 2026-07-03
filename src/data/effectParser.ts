@@ -2169,7 +2169,10 @@ function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolea
       const gla = a as GrantLrigAbilityAction;
       if (gla.rawText && (!gla.abilities || gla.abilities.length === 0)) {
         const cleanRaw = gla.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
-        gla.abilities = splitEffectBlocks(cleanRaw)
+        // 「【起】…。」「【起】…。」の複数引用形式は 」「 境界で各能力に分割してから展開する
+        const pieces = cleanRaw.split(/[」』]\s*[「『]/);
+        gla.abilities = pieces
+          .flatMap(p => splitEffectBlocks(p))
           .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
           .filter((e): e is CardEffect => e !== null);
       }
