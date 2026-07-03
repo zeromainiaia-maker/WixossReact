@@ -242,22 +242,21 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     nextZone[side] = z + 1;
   }
 
-  // 「場のクラスXシグニ1体につき」系: countFilter に合う実シグニを owner の空き場に置く（数え上げを非0にする）
+  // 「場のクラスXシグニ1体につき」系: countFilter に合う実シグニで owner の未対象ゾーンの汎用シグニを上書き（数え上げを非0にする）
+  // 汎用シグニ（自S乙/丙等）は countFilter に合致しないので、nextZone 以降の未対象ゾーンを差し替える
   for (const fn of fieldNeeds) {
     const side: '自' | '相' = (fn.owner === 'self') ? '自' : '相';
     const st = side === '自' ? ownerState : otherState;
-    let z = nextZone[side];
-    if (z > 2) continue;
-    // 既存の対象と重複しないよう空きゾーンへ2体まで置く（「1体につき」で複数枚ドロー/チャージを観測）
-    for (let placed = 0; placed < 2 && z <= 2; z++) {
-      if (st.field.signi[z]) continue;
+    let placed = 0;
+    for (let z = nextZone[side]; z <= 2 && placed < 2; z++) {
       const cn = pickSigni(fn.filter, used, false);
       if (!cn) break;
+      const prev = st.field.signi[z]?.[0];
+      if (prev) { used.delete(prev); labels.delete(prev); } // 汎用シグニを解放して差し替え
       used.add(cn); labels.set(cn, `${side}S数${z}`);
       st.field.signi[z] = [cn];
       placed++;
     }
-    nextZone[side] = z;
   }
 
   // 段階2b: トラッシュ/デッキ/手札の対象・source フィルタに合う実カードを該当ゾーン先頭へ配置（サルベージ/サーチ系）
