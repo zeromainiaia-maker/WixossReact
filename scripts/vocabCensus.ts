@@ -17,9 +17,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // 2026-07-04 続き18: 死角調査第2〜4弾（トリガー種別/コスト/ゾーン/構造マーカー/引用付与平坦化/
-// 代わりに/できない/機構/逆方向action・数値 等）を組み込み＝25計測 → 約90計測に拡張、実数で再登録。
+// 代わりに/できない/機構/逆方向action・数値 等）を組み込み＝25計測 → 94計測に拡張、実数 2023 で再登録。
 // 旧ベースライン履歴: 529（続き15初回・14パターン）→522→498（続き16）→1469（続き17・25計測）
-const BASELINE_HIGH = 2617;
+const BASELINE_HIGH = 2023;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
