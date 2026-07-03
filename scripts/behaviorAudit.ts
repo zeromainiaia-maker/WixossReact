@@ -546,7 +546,7 @@ function printTrace(t: Trace) {
   console.log(`\n══ ${t.card} ${t.name} [${t.effectId}] (${t.type}) ══`);
   console.log(`原文  : ${orig || '(なし)'}`);
   console.log(`逆翻訳: ${decompLines.get(t.effectId) ?? '(該当なし)'}`);
-  console.log(`実行  : ${t.status}`);
+  console.log(`実行  : ${t.status}${t.detail ? `（${t.detail}）` : ''}`);
   console.log(`差分  :${t.diff.length ? '\n' + t.diff.join('\n') : ' (盤面変化なし)'}`);
   console.log(`ログ  :${t.logs.length ? '\n  ' + t.logs.join('\n  ') : ' (なし)'}`);
 }
