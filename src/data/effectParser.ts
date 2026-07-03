@@ -2160,6 +2160,35 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
 // ===== アーツ・スペルパース =====
 
+// GRANT_LRIG_ABILITY の rawText からサブ能力を展開する（parseBlock/parseSpellEffect と同処理）。
+// SEQUENCE/CONDITIONAL 内の GLA も対象。展開できないサブがあれば true（=PARTIAL相当）を返す。
+function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolean {
+  let hasUnknownSub = false;
+  const walk = (a: EffectAction) => {
+    if (a.type === 'GRANT_LRIG_ABILITY') {
+      const gla = a as GrantLrigAbilityAction;
+      if (gla.rawText && (!gla.abilities || gla.abilities.length === 0)) {
+        const cleanRaw = gla.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
+        gla.abilities = splitEffectBlocks(cleanRaw)
+          .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
+          .filter((e): e is CardEffect => e !== null);
+      }
+      const rawTextOnlyPunct = !gla.rawText || /^[。、\s]*$/.test(gla.rawText);
+      if (!rawTextOnlyPunct && (gla.abilities.length === 0 || gla.abilities.some(e => e.parseStatus === 'UNKNOWN'))) {
+        hasUnknownSub = true;
+      }
+    } else if (a.type === 'SEQUENCE') {
+      (a as SequenceAction).steps.forEach(walk);
+    } else if (a.type === 'CONDITIONAL') {
+      const c = a as import('../types/effects').ConditionalAction;
+      walk(c.then);
+      if (c.else) walk(c.else);
+    }
+  };
+  walk(action);
+  return hasUnknownSub;
+}
+
 function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   // アンコール（《cost》（説明）本文）とベット（《cost》本文）のプレフィックスを除去してから解析
