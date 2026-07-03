@@ -9477,6 +9477,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
+        turn_arts_used: undefined,       // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
       };
       await supabase.from('battle_states').update({
         guest_state: cleanCpuSt,
