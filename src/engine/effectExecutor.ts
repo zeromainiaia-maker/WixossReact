@@ -4502,6 +4502,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       return done(ctx);
     }
+    case 'LEVEL_MODIFY': {
+      const lmAction = action as import('../types/effects').LevelModifyAction;
+      const tgtOwner: Owner = lmAction.target.owner === 'any'
+        ? (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
+        : lmAction.target.owner as Owner;
+      const s = ownerState(tgtOwner, ctx);
+      const mods = [...(s.temp_level_mods ?? []), { cardNum, delta: lmAction.delta }];
+      return done(addLog(setOwnerState(tgtOwner, { ...s, temp_level_mods: mods }, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum} レベル${lmAction.delta > 0 ? '+' : ''}${lmAction.delta}`));
+    }
     case 'POWER_MODIFY': {
       const pmAction = action as PowerModifyAction;
       const delta = resolveNum(pmAction.delta);
