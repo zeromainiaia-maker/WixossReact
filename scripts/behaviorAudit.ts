@@ -127,6 +127,15 @@ function collectTargetsSources(eff: CardEffect): { targets: Tgt[]; sources: Src[
       if (ZTYPE[t.type] && (filter.cardType || filter.cardClass || filter.story || filter.color || filter.keyword || filter.cardName))
         zoneNeeds.push({ owner, zone: ZTYPE[t.type], filter });
     }
+    // SEARCH/サルベージ系: action直下の from.location + 兄弟の filter（例: デッキからスペルを探す）
+    const from = r.from as Record<string, unknown> | undefined;
+    const fromZone = LOC2ZONE[String(from?.location ?? '')];
+    if (from && fromZone) {
+      const owner = (from.owner as string) ?? 'self';
+      const filter = (r.filter as TargetFilter) ?? {};
+      if (filter.cardType || filter.cardClass || filter.story || filter.color || filter.keyword || filter.cardName)
+        zoneNeeds.push({ owner, zone: fromZone, filter });
+    }
     for (const v of Object.values(r)) if (v && typeof v === 'object') walk(v);
   })(eff);
   return { targets, sources, zoneNeeds };
