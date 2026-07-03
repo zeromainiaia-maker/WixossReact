@@ -2236,15 +2236,7 @@ function parseSpellEffect(card: CardData): CardEffect | null {
   let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : 'AUTO';
   // GRANT_LRIG_ABILITY: rawText から付与能力（サブブロック）をパース（parseBlock と同じ処理）
   if (action.type === 'GRANT_LRIG_ABILITY') {
-    const gla = action as GrantLrigAbilityAction;
-    if (gla.rawText) {
-      const cleanRaw = gla.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
-      gla.abilities = splitEffectBlocks(cleanRaw)
-        .map((b, si) => parseBlock(`${card.CardNum}-sub`, b, si))
-        .filter((e): e is CardEffect => e !== null);
-    }
-    const rawTextOnlyPunct = !gla.rawText || /^[。、\s]*$/.test(gla.rawText);
-    const hasUnknownSub = !rawTextOnlyPunct && (gla.abilities.length === 0 || gla.abilities.some(e => e.parseStatus === 'UNKNOWN'));
+    const hasUnknownSub = expandGrantLrigAbilities(action, card.CardNum);
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
   }
   return {
