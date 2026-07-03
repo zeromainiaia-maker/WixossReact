@@ -9475,7 +9475,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined,
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
-        lrig_granted_auto_effects: undefined,
+        lrig_granted_auto_effects: cpuSt.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
         banish_redirect: undefined, banish_redirect_to_hand: undefined,
         power0_banish_to_trash: undefined, double_power_minus_this_turn: undefined,
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
