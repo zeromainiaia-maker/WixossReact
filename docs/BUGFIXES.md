@@ -13,6 +13,7 @@
 - **【グロウ】条件ゲート追加**＝`checkGrowCondition(extractGrowCondition(c.EffectText), cpuSt, currentLrigCard, battleCardMap)` を候補フィルタに追加。ライフ枚数・カード名・トラッシュ色数・エナ色種数・複数色制限を満たさないルリグへの違反グロウを防止（例 WX04-005「ライフ1枚以下」）。
 - **【グロウ】効果の適用追加**＝グロウ確定後に `applyGrowEffect(extractGrowCondition(growCard.EffectText), newCpuSt, battleCardMap)` を実行（人間executeGrowと同じ）。ルリグデッキから＜X＞を下に置く／除外する・キーを下に置く等の必須追加処理を反映（例 WX05-001 マユ）。併せて `game_grow_draw`（グロウ時ドロー・GAIN_ABILITY_THIS_GAME）も人間経路と同様に処理。
 - **検証**＝typecheck / golden 104 / smoke 0 / fuzz 0。いずれもモジュール関数（`lrigClassesCompatible`/`checkGrowCondition`/`applyGrowEffect`）の再利用で人間経路と挙動一致。
+- **実機検証（C2）クローズ**＝`scripts/verifyBattleDrive.mjs` に CPUターン用シナリオ2件を追加し実ブラウザ（preview＋claude1ログイン＋CPU戦）で駆動・観測。①`cpugrow`＝guest(CPU)に center WD03-003(Lv2 ピルルク)／lrig_deck [WD03-002(Lv3)]／青エナ2枚を注入→CPUが自動グロウ→battle_states 実照会で `lrigTop=WD03-002#1・lrigUnder=1・actions_done GROW`＋盤面ログ「[CPU] グロウ: コード・ピルルク・Ｇ（Lv.3）」を確認＝**PASS**。②`cpugrowblocked`＝lrig_deck を非互換クラス [WD01-002(Lv3 タマ)] のみにすると**CPUはグロウせず GROW通過**（lrigTop=WD03-003#1 のまま ATTACK へ）＝CardClass互換ゲートの実証＝**PASS**。⚠ハーネス注意＝注入は直前のCPU自然ターンと競合し guest_state を上書きする（lrigTop が `#g…` 自前IDになる）ため、各試行で「host/MAIN へ戻して CPU 停止→再注入→観測」する順序非依存ドライブにした。`queryState` に `turnPhase`/`lrigTop`/`lrigDeck` を追加。
 
 ---
 
