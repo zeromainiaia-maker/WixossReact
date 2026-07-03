@@ -14,7 +14,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const BASELINE_HIGH = 522; // 2026-07-04 凍結フィルタ脱落7枚是正後（初回529→522・§5c凍結バッチ）
+const BASELINE_HIGH = 498; // 2026-07-04 §5c: 凍結7枚(529→522)＋ダウン/アップ28効果(522→498)是正後
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');

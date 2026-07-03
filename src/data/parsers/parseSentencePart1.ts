@@ -50,7 +50,7 @@ import type {
   SendToEnergyAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseLevelLteLastProcessed, parseNameFilter, parseEnergyCosts, parseFrozenFilter, toHalf,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseLevelLteLastProcessed, parseNameFilter, parseEnergyCosts, parseStateFilter, toHalf,
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
@@ -799,7 +799,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
     if (t.match(/すべてのシグニをバニッシュ/)) {
       const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
-      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseFrozenFilter(t) } } };
+      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseStateFilter(t) } } };
     }
     // 「対戦相手のシグニN体を対象とし、このシグニとそれをバニッシュする」＝選んだ相手シグニ＋自身を共にバニッシュ（WX03-032-E2）
     if (/このシグニと(?:それ|それら)を[^。]*バニッシュ/.test(t) && t.includes('対戦相手')) {
@@ -894,7 +894,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       type: 'BOUNCE',
       target: {
         type: 'SIGNI', owner, count, upToCount: !!upToM,
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseFrozenFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}) },
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
@@ -1571,7 +1571,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- シグニをデッキに戻す ----
   if (t.includes('デッキに戻す') || t.includes('デッキに戻し')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseFrozenFilter(t) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStateFilter(t) };
     return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: false } as TransferToDeckAction;
   }
 
@@ -1799,7 +1799,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const count = cM ? parseNum(cM[1]) : 1;
     // 「対戦相手のレベルNのシグニ」等のレベル指定をフィルタに反映（G100）
     const lvM = t.match(/レベル([０-９\d]+)の(?:[白赤青緑黒]の|＜[^＞]+＞の)?シグニ/);
-    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseFrozenFilter(t) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'SIGNI', owner, count, filter },
