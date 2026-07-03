@@ -820,10 +820,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- デッキからトラッシュ（もよい）----
+  // 「対戦相手のデッキの上から」は owner:'opponent'（相手ミル）。「あなたか対戦相手の」選択型は未対応のため従来どおり self に落とす（curated 側で個別管理）
+  const oppDeckMill = /対戦相手のデッキの上から/.test(t) && !/あなたか対戦相手/.test(t);
   {
     const deckOptM = t.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚トラッシュに置いてもよい/);
     if (deckOptM) {
-      return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: parseNum(deckOptM[1]) } };
+      return { type: 'TRASH', target: { type: 'DECK_CARD', owner: oppDeckMill ? 'opponent' : 'self', count: parseNum(deckOptM[1]) } };
     }
   }
 
