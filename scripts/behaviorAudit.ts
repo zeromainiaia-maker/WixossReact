@@ -243,10 +243,15 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
     // cardType がシグニ以外（スペル/アーツ等）を要求する対象は全カードプールから拾う
     const ct = zn.filter.cardType;
     const wantsNonSigni = ct && (Array.isArray(ct) ? !ct.includes('シグニ') : ct !== 'シグニ');
-    const cn = pickSigni(zn.filter, used, false, wantsNonSigni ? anyPool : signiPool);
-    if (!cn) continue;
-    used.add(cn); labels.set(cn, `${side}${zn.zone === 'trash' ? 'トラッシュ' : zn.zone === 'deck' ? 'デッキ上' : '手札'}対象`);
-    (st[zn.zone] as string[]).unshift(cn); // デッキは上(先頭)、他も先頭に置けば候補に入る
+    const zlabel = zn.zone === 'trash' ? 'トラッシュ' : zn.zone === 'deck' ? 'デッキ上' : zn.zone === 'energy' ? 'エナ' : '手札';
+    // count 枚（複数枚対象＝英知2枚を下に置く等）を配置。未指定は1枚。
+    const need = Math.min(Math.max(zn.count ?? 1, 1), 3);
+    for (let i = 0; i < need; i++) {
+      const cn = pickSigni(zn.filter, used, false, wantsNonSigni ? anyPool : signiPool);
+      if (!cn) break;
+      used.add(cn); labels.set(cn, `${side}${zlabel}対象${need > 1 ? i + 1 : ''}`);
+      (st[zn.zone] as string[]).unshift(cn); // デッキは上(先頭)、他も先頭に置けば候補に入る
+    }
   }
 
   const ctx = {
