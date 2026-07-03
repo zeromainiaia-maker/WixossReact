@@ -146,6 +146,12 @@ test('EQUALIZE_ENERGY 4: 各プレイヤーのエナを4枚に調整', () => {
   eq(r.ownerState.energy.length, 4, '自エナ4');
   eq(r.otherState.energy.length, 4, '相エナ4');
 });
+test('EQUALIZE_ENERGY owner:opponent: 相手のみ調整（自分は不変）', () => {
+  const ctx = mkCtx({ energy: 6 }, { energy: 6 });
+  const r = run({ type: 'EQUALIZE_ENERGY', targetCount: 4, owner: 'opponent' } as EffectAction, ctx);
+  eq(r.ownerState.energy.length, 6, '自エナ不変(6)');
+  eq(r.otherState.energy.length, 4, '相エナ4');
+});
 test('ENERGY_CHARGE_FROM_DECK: エナ+2 デッキ-2', () => {
   const ctx = mkCtx({ energy: 5 }, {}); const d0 = ctx.ownerState.deck.length;
   const r = run({ type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 } as EffectAction, ctx);
