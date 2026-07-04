@@ -1408,7 +1408,18 @@ function parseActionText(text: string): EffectAction {
         ...parseLevelFilter(condText),
         ...parseColorFilter(condText),
       };
-      return { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, filter, pickCount: 1, then: thenAction, remainder: { location: 'deck', position: 'top' } } as RevealAndPickAction;
+      const rp = { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, filter, pickCount: 1, then: thenAction, remainder: { location: 'deck', position: 'top' } } as RevealAndPickAction;
+      // 公開文の前置き「あなたのエナゾーンにあるカードがN枚以下の場合、／エナゾーンにカードがない場合、」
+      // が丸ごと脱落していた（無条件公開の過剰効果）＝ ENERGY_COUNT で持ち上げる（WX12-051/WX12-052）
+      const enaPrefM = sentences[0].trim().match(/^あなたのエナゾーンに(?:あるカードが([０-９\d]+)枚(以上|以下)|カードがない)場合、/);
+      if (enaPrefM) {
+        return {
+          type: 'CONDITIONAL',
+          condition: { type: 'ENERGY_COUNT', owner: 'self', operator: enaPrefM[1] ? (enaPrefM[2] === '以上' ? 'gte' : 'lte') : 'lte', value: enaPrefM[1] ? parseNum(enaPrefM[1]) : 0 },
+          then: rp,
+        } as import('../types/effects').ConditionalAction;
+      }
+      return rp;
     }
     // マッチしない場合、単純に「公開する + 後続」のシーケンスとして扱う
   }
