@@ -826,8 +826,9 @@ export interface InstallDelayedTriggerAction {
   type: 'INSTALL_DELAYED_TRIGGER';
   duration: 'THIS_TURN';
   trigger: {
-    timing: string;               // 発火タイミング（例: 'ON_OPP_LIFE_CRASHED'）
+    timing: string;               // 発火タイミング（例: 'ON_OPP_LIFE_CRASHED' / 'ON_REFRESH'）
     crasherFilter?: TargetFilter; // 発火源シグニの条件（例: 青の＜ブルアカ＞）。⚠engine は「場に該当シグニがいるか」で近似判定（実際のクラッシュ源シグニは未追跡）
+    refreshedOwner?: 'self' | 'opponent' | 'any'; // ON_REFRESH の発生源プレイヤー（設置者から見て）。省略=any。WX11-024=opponent
   };
   effect: EffectAction;           // 発火時に実行するアクション
   conditional?: boolean;          // 「そうした場合」＝直前ステップ（任意コスト等）が成功したときのみ設置
