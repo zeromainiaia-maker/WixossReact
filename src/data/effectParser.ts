@@ -1426,11 +1426,12 @@ function parseActionText(text: string): EffectAction {
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
       const thenAction = parseSingleSentence(rest);
-      // トラッシュ枚数/クラス条件は直前が deck-mill（TRASH DECK_CARD）のときだけ抽出する
-      // （lastProcessedCards 依存。search/energy/life-crash 等が前段の場合は IS_MY_TURN 据置＝curated と乖離させない）。
-      const prevStep = steps[steps.length - 1] as { type?: string; target?: { type?: string } };
-      const prevIsDeckMill = prevStep?.type === 'TRASH' && prevStep.target?.type === 'DECK_CARD';
-      const condition = parseThisWayTrashCondition(thenM[0], prevIsDeckMill) ?? { type: 'IS_MY_TURN' as const };
+      // トラッシュ枚数/クラス条件は直前ステップが lastProcessedCards を残す trash 系
+      //（デッキミル TRASH DECK_CARD／場・手札・エナの TRASH／LIFE_CRASH）のときだけ抽出する。
+      // search/optional-cost/grant 等が前段の場合は誤抽出になるため IS_MY_TURN 据置（§5c）。
+      const prevStep = steps[steps.length - 1] as { type?: string };
+      const prevSetsProcessed = prevStep?.type === 'TRASH' || prevStep?.type === 'LIFE_CRASH';
+      const condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed) ?? { type: 'IS_MY_TURN' as const };
       steps.push({ type: 'CONDITIONAL', condition, then: thenAction });
     } else {
       steps.push(parseSingleSentence(clean));
