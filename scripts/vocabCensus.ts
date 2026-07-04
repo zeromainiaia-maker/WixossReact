@@ -141,7 +141,10 @@ const PATTERNS: Pattern[] = [
     keys: ['condition', 'Condition', 'CONDITIONAL', 'HAS_CARD_IN_FIELD', 'COUNT_THRESHOLD',
       'DECK_TOP', 'TRASH_HAS', 'ENERGY_HAS', 'HAND_COUNT', 'LIFE_COUNT', 'TRASH_COUNT',
       'FIELD_COUNT', 'ENERGY_COUNT', 'LRIG_LEVEL', 'LRIG_STORY', 'LRIG_TEAM', 'LRIG_NAME',
-      'ARTS_USED', 'LIFE_CRASHED', 'FIELD_HAS', 'FIELD_SIGNI', 'FIELD_CLASS'],
+      'ARTS_USED', 'LIFE_CRASHED', 'FIELD_HAS', 'FIELD_SIGNI', 'FIELD_CLASS',
+      // 「このターン、次にあなたが（シグニ/ルリグによって）ダメージを受ける場合、代わりに〜」は
+      // 置換シールド予約アクションが条件を内包する正表現（続き25・46枚較正）
+      'PREVENT_NEXT_DAMAGE', 'REPLACE_NEXT_DAMAGE'],
     // 「（公開して）それが＜X＞のシグニの場合、それを手札/エナ/場へ」は REVEAL_AND_PICK{filter:story}
     // の pick 表現で条件が JSON に載る（続き24・70枚較正＝WX02-030/WXK01-050 系サイクル）。
     // 各節の＜X＞が JSON の story 値に居ることを個別確認し、他に条件節が残らないときだけ合格。
