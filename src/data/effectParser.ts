@@ -894,23 +894,29 @@ function parseActiveCondition(text: string): ConditionParseResult {
 
 // 「この方法で…トラッシュに置かれた場合、」の条件文を解析する。
 // 該当しない場合は null（呼び出し側で IS_MY_TURN にフォールバック）。
-function parseThisWayTrashCondition(clause: string): Condition | null {
-  // この方法で（それぞれ）レベルの異なるシグニがN体/N枚トラッシュに置かれた場合（WX03-015・WXK03-039）
-  const dl = clause.match(/この方法で.*?レベルの異なるシグニが?([０-９\d]+)(?:体|枚)が?.*?トラッシュに置かれた場合/);
-  if (dl) return { type: 'TRASHED_DISTINCT_LEVELS_GTE', count: parseNum(dl[1]) };
-  // この方法でN体の＜X＞のシグニがトラッシュに置かれた場合（WX03-021）
-  const sc = clause.match(/この方法で([０-９\d]+)体の?＜([^＞]+)＞のシグニ.*?トラッシュに置かれた場合/);
-  if (sc) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc[2], count: parseNum(sc[1]) };
-  // この方法で＜X＞のシグニがN枚(以上)/N枚がトラッシュに置かれた場合（語順違い・WX20-075/WD08-015/WX24-P3-075/WXDi-CP01-045）
-  const sc2 = clause.match(/この方法で(?:あなたのデッキから)?＜([^＞]+)＞のシグニ(?:が([０-９\d]+)枚(?:以上)?|([０-９\d]+)枚(?:以上)?が)トラッシュに置かれた場合/);
-  if (sc2) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc2[1], count: parseNum(sc2[2] ?? sc2[3]) };
-  // この方法で＜X＞のシグニ（が）トラッシュに置かれた場合（枚数指定なし＝1枚以上・WXDi-P10-071）
-  const sc3 = clause.match(/この方法で(?:あなたのデッキから)?＜([^＞]+)＞のシグニ(?:が)?トラッシュに置かれた場合/);
-  if (sc3) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc3[1], count: 1 };
-  // この方法でカードをN枚(以上)トラッシュに置いた/N枚(以上)のカードが|カードがN枚(以上)トラッシュに置かれた場合
-  //（プレーンなカード枚数＝MILL結果。PR-442/WX09-Re19/WXK02-063/WXK06-031/WXDi-P11-082/WXDi-P13-003A）
-  const cc = clause.match(/この方法で(?:あなたのデッキから)?(?:カードを([０-９\d]+)枚(?:以上)?トラッシュに置いた|([０-９\d]+)枚(?:以上)?のカードがトラッシュに置かれた|カードが([０-９\d]+)枚(?:以上)?トラッシュに置かれた)場合/);
-  if (cc) return { type: 'LAST_PROCESSED_COUNT_GTE', value: parseNum(cc[1] ?? cc[2] ?? cc[3]) };
+// prevIsDeckMill: 直前ステップが「デッキの上からトラッシュ（TRASH DECK_CARD）」か。
+//   トラッシュ枚数/クラス系の条件は lastProcessedCards（＝デッキミル結果）に依存するため、
+//   前段が deck-mill のときだけ抽出する。search-trash / under-signi-trash / energy-trash /
+//   life-crash / optional-cost などが前段の場合は IS_MY_TURN のまま据置（curated と乖離させない・§5c）。
+function parseThisWayTrashCondition(clause: string, prevIsDeckMill = true): Condition | null {
+  if (prevIsDeckMill) {
+    // この方法で（それぞれ）レベルの異なるシグニがN体/N枚トラッシュに置かれた場合（WX03-015・WXK03-025）
+    const dl = clause.match(/この方法で.*?レベルの異なるシグニが?([０-９\d]+)(?:体|枚)が?.*?トラッシュに置かれた場合/);
+    if (dl) return { type: 'TRASHED_DISTINCT_LEVELS_GTE', count: parseNum(dl[1]) };
+    // この方法でN体の＜X＞のシグニがトラッシュに置かれた場合（WX03-021）
+    const sc = clause.match(/この方法で([０-９\d]+)体の?＜([^＞]+)＞のシグニ.*?トラッシュに置かれた場合/);
+    if (sc) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc[2], count: parseNum(sc[1]) };
+    // この方法で＜X＞のシグニがN枚(以上)/N枚がトラッシュに置かれた場合（語順違い・WX20-075/WD08-015/WX24-P3-075/WXDi-CP01-045）
+    const sc2 = clause.match(/この方法で(?:あなたのデッキから)?＜([^＞]+)＞のシグニ(?:が([０-９\d]+)枚(?:以上)?|([０-９\d]+)枚(?:以上)?が)トラッシュに置かれた場合/);
+    if (sc2) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc2[1], count: parseNum(sc2[2] ?? sc2[3]) };
+    // この方法で＜X＞のシグニ（が）トラッシュに置かれた場合（枚数指定なし＝1枚以上・WXDi-P10-071）
+    const sc3 = clause.match(/この方法で(?:あなたのデッキから)?＜([^＞]+)＞のシグニ(?:が)?トラッシュに置かれた場合/);
+    if (sc3) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc3[1], count: 1 };
+    // この方法でカードをN枚(以上)トラッシュに置いた/N枚(以上)のカードが|カードがN枚(以上)トラッシュに置かれた場合
+    //（プレーンなカード枚数＝MILL結果。PR-442/WX09-Re19/WXK02-063/WXDi-P11-082）
+    const cc = clause.match(/この方法で(?:あなたのデッキから)?(?:カードを([０-９\d]+)枚(?:以上)?トラッシュに置いた|([０-９\d]+)枚(?:以上)?のカードがトラッシュに置かれた|カードが([０-９\d]+)枚(?:以上)?トラッシュに置かれた)場合/);
+    if (cc) return { type: 'LAST_PROCESSED_COUNT_GTE', value: parseNum(cc[1] ?? cc[2] ?? cc[3]) };
+  }
   // 「その後、あなたの手札がN枚以下/以上の場合、」→ HAND_COUNT
   // （IS_MY_TURN フォールバック＝常時真で条件が無言で消えるのを防ぐ。WX12-020/WX21-026-BURST）
   const hc = clause.match(/あなたの手札が([０-９\d]+)枚(以上|以下)の場合/);
