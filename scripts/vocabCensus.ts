@@ -251,7 +251,8 @@ const PATTERNS: Pattern[] = [
   { name: 'triggerScope(他シグニ起点トリガー)', re: /(あなたの|対戦相手の)(他の)?シグニ[０-９\d]体が(場に出た|バニッシュされた|アタックした)とき/, keys: ['triggerScope'], src: 'eff' },
   // ---- 続き18 追加分・第4弾（引用付与平坦化/置換/制限/機構）----
   { name: '引用能力付与の平坦化', re: /「[^」]*【(自|起|常|出)】[^」]*」を(得る|与え)/, keys: ['GRANT', 'grant', 'rawText', 'keyword'] },
-  { name: '代わりに(置換)', re: /代わりに/, keys: ['CONDITIONAL', 'REPLACE', 'instead', 'IS_MY_TURN', 'PAID_ADDITIONAL'] },
+  // PREVENT_NEXT_DAMAGE は「代わりにダメージを受けない」の正当な置換表現（続き25較正）
+  { name: '代わりに(置換)', re: /代わりに/, keys: ['CONDITIONAL', 'REPLACE', 'instead', 'IS_MY_TURN', 'PAID_ADDITIONAL', 'PREVENT_NEXT_DAMAGE'] },
   { name: '制限「できない」', re: /(場に出すことができない|使用できない|アタックできない|ガードできない|支払うことができない|選べない|引けない|出せない)/, keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block'] },
   { name: '見ないで(blind)', re: /見ないで/, keys: ['"blind"', 'blind'] },
   { name: '無作為に(blind)', re: /無作為に/, keys: ['"blind"', 'random', 'RANDOM'] },
