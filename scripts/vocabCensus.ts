@@ -27,6 +27,10 @@ const BASELINE_HIGH = 1931;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
+// --clusters: 高シグナルのマッチ節を文型テンプレートに正規化してクラスタ表を出力（消化バッチの入口）
+// 実行: npm run census:clusters ＝ 1900枚のID羅列でなく「枚数順テンプレ一覧」から系統バッチを選べる
+const CLUSTERS_MODE = process.argv.includes('--clusters');
+const CLUSTERS_OUT = path.join(process.cwd(), 'docs', '_census_clusters.txt');
 
 interface Pattern {
   name: string;
