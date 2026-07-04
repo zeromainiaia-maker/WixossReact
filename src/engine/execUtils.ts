@@ -1022,6 +1022,18 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const proc = ctx.lastProcessedCards ?? [];
       return proc.some(cn => ctx.cardMap.get(cn)?.Type === cond.cardType);
     }
+    case 'LAST_PROCESSED_MATCHES': {
+      // 直前に処理/公開/選択したカード(lastProcessedCards)に filter 一致が minCount（省略=1）枚以上あるか
+      // （「それが＜X＞のシグニの場合」＝ミル/公開/対象選択直後の条件節。WXK06-079/WXEX1-36/43-BURST）
+      const procM = ctx.lastProcessedCards ?? [];
+      const need = cond.minCount ?? 1;
+      let hit = 0;
+      for (const cn of procM) {
+        if (matchesFilter(ctx.cardMap.get(cn), cond.filter)) hit++;
+        if (hit >= need) return true;
+      }
+      return false;
+    }
     case 'LAST_PROCESSED_POWER_GTE': {
       // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー判定（WX03-046「それのパワーが15000以上」）。
       // effectivePowers は直前の POWER_MODIFY 適用前のスナップショットのため、addDelta でその+パワーを加味する。
