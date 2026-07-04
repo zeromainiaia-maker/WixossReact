@@ -18,7 +18,8 @@ const isMillTrash = (s: unknown) => {
   const n = s as Record<string, unknown>;
   return n?.type === 'TRASH' && (n.target as Record<string, unknown>)?.type === 'DECK_CARD';
 };
-const targets = 'PR-442 WD08-015 WDK10-017 WX09-Re19 WX20-075 WX24-P3-075 WX24-P3-088 WXK02-063 WXK06-031 WXK10-088 WXDi-CP01-045 WXDi-P10-071 WXDi-P11-082 WXK03-039 WXDi-P13-003A'.split(' ');
+// 全カードを対象に、parser が MILL 直後に新条件を出すもの＝IS_MY_TURN 誤変換の clean な系統。
+const targets = [...cardMap.keys()];
 
 // From parser: effectId -> new condition (that sits after a MILL step)
 const wanted = new Map<string, unknown>();
