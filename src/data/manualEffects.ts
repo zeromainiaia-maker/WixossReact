@@ -1953,19 +1953,21 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX10-018 暴風警報（スペル）
+  // WX10-018 暴風警報（アーツ・使用タイミング＝アタックフェイズ）
   // このターン、対戦相手のシグニかセンタールリグがアタックしたとき、
-  //   1度目か2度目の場合、そのアタックを無効にする。（PARTIAL：全アタック防止で近似）
+  //   1度目か2度目の場合、そのアタックを無効にする。
+  //   STUB NEGATE_NTH_ATTACK＝原文の「一度目か二度目」を読み取り2回まで自動無効化
+  //   （execStubPart3。⚠センタールリグのアタックは未カバー＝シグニアタックのみの近似）
   'WX10-018': [
     {
       effectId: 'WX10-018-E1',
       effectType: 'ACTIVATED',
-      timing: ['MAIN'],
+      timing: ['ATTACK'],
       cost: { energy: [{ color: '緑', count: 2 }] },
-      action: { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN' },
-      duration: 'UNTIL_END_OF_TURN',
+      action: { type: 'STUB', id: 'NEGATE_NTH_ATTACK' },
+      duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
