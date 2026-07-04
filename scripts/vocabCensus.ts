@@ -445,13 +445,21 @@ function main(): void {
       for (const [id, effs] of jsonObj) {
         if (!Array.isArray(effs)) continue;
         let has = false;
+        let crashAllNoBurst = true;
         for (const e of effs) {
           const s = JSON.stringify(e);
-          if (s.includes('"' + act + '"') && !s.includes('STUB') && !s.includes('MANUAL') && !s.includes('rawText')) has = true;
+          if (s.includes('"' + act + '"') && !s.includes('STUB') && !s.includes('MANUAL') && !s.includes('rawText')) {
+            has = true;
+            if (act === 'LIFE_CRASH' && /"type":"LIFE_CRASH"(?![^}]*"triggerBurst":false)/.test(s)) crashAllNoBurst = false;
+          }
         }
         if (!has) continue;
         hits++;
-        if (!re.test(corpus.rawAll.get(id) ?? '')) { missHigh.push(id); highAll.add(id); }
+        const raw = corpus.rawAll.get(id) ?? '';
+        if (re.test(raw)) continue;
+        // LIFE_CRASH triggerBurst:false は「ライフクロスをトラッシュに置く」の確立済み正表現（WX01-030 慣例・続き19較正）
+        if (act === 'LIFE_CRASH' && crashAllNoBurst && /ライフクロス[^。]{0,25}(トラッシュに置|を捨て)/.test(raw)) continue;
+        missHigh.push(id); highAll.add(id);
       }
       pushSection(`逆:JSONに${act}→原文に語なし`, hits, missHigh, []);
     }
