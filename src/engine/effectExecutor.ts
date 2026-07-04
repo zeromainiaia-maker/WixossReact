@@ -4058,6 +4058,11 @@ export function resumeSearch(
   ctx: ExecCtx,
 ): ExecResult {
   let cur = ctx;
+  // thenAction 欠落データへの防御: ピックの既定義（手札に加える）にフォールバック
+  // （REVEAL_AND_PICK の旧不正キー pickTo:'hand' 形＝then 無しで .type 参照クラッシュしていた）
+  if (!pending.thenAction) {
+    pending = { ...pending, thenAction: { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction };
+  }
   // ADD_TO_FIELD（場に出す）: 複数枚を1枚ずつゾーン選択でチェーン配置（途中で消失しないように）。
   // afterAction（シャッフル等）と外側 continuation は全配置後に実行する。
   if (pending.thenAction.type === 'ADD_TO_FIELD' && picked.length > 0) {
