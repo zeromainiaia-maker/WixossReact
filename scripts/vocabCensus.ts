@@ -24,7 +24,9 @@ import * as path from 'path';
 // トラッシュ→BANISH族（parser 5規則＋curated 37ノード是正）＝2003→1977。
 // 旧ベースライン履歴: 529（続き15初回・14パターン）→522→498（続き16）→1469（続き17・25計測）
 // 2026-07-04 続き23: 文型クラスタバッチ①（状態条件節のCONDITIONAL持ち上げ・parser規則＋heldReview一括採用146枚）＝1931→1872。
-const BASELINE_HIGH = 1872;
+// 2026-07-04 続き24: 「それが＜C＞のシグニの場合」73枚＝70枚はREVEAL_AND_PICK済みの偽陽性（extraOk較正）＋
+// LAST_PROCESSED_MATCHES新設で実バグ13枚是正（採用10＋手パッチ3）＝1872→1800。
+const BASELINE_HIGH = 1800;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
