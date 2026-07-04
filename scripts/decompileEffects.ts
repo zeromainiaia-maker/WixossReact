@@ -870,6 +870,12 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'PLAY_MILLED_SIGNI_DELAYED_TRASH') return 'この方法でトラッシュに置かれたそのシグニを場に出す（ターン終了時、そのシグニを場からトラッシュに置く）';
       if (a.id === 'UNDER_CARD_AS_ENERGY_COST') return 'あなたのアタックフェイズの間、このシグニの下のカードをエナゾーンにあるかのようにトラッシュに置いてエナコストを支払える（この方法で1ターンに3つまで）';
       if (a.id === 'FLIP_SELF_FACE_DOWN_UP') return 'このシグニを裏向きにし、表向きにする';
+      // N回目までアタック自動無効化（WX10-018/WX17-006/SP27-016）＝engine は原文の「一度目か二度目」等を
+      // 実行時に読み取る（execStubPart3）。逆翻訳は原文の該当文をそのまま抽出して描画。
+      if (a.id === 'NEGATE_NTH_ATTACK') {
+        const nm = currentCardText.match(/この(?:ターン|ゲーム)[^。]*?度目[^。]*?アタックを無効にする/);
+        if (nm) return nm[0];
+      }
       // 付与引用（「…」の能力を得る）＝原文から引用能力を抽出して描画（テキスト検出型）。
       // 本物の付与カード（原文に「【自/常/起/出】…」を得る がある）は引用能力を表示、誤パース等で引用が無い場合は従来フォールバック。
       if (a.id === 'GRANT_QUOTED_AUTO_ABILITY' || a.id === 'GRANT_QUOTED_ABILITY') {
