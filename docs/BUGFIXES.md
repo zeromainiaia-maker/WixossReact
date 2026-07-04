@@ -5,6 +5,20 @@
 
 ---
 
+## §5c 少数精鋭バッチ＝アーツタイミング3枚・BURST↔E誤配置5枚・マーカー構造43枚→ブロック分割の系統根本原因を発見（【ガード】/【エナチャージ】等+マーカー隣接の飲み込み）＝計70超効果を復元（2026-07-04・zerom・続き20）
+
+census §5c の残り少数精鋭4系統（FREEZE幻覚1・アーツタイミング5・BURST↔E1誤配置5・マーカー構造43）を消化。**census 1977→1941・held 25 維持・golden 117・smoke/fuzz 全0・同型★0**。
+
+- **① FREEZE幻覚1（WX19-077）＝偽陽性**＝「感染状態のシグニはアップフェイズにアップしない」を CONTINUOUS FREEZE（`calcContinuousSigniMutations` が常時再凍結・END フェイズの frozen→down 維持）で表す正当エンコードと確認→census 逆FREEZE プローブに「アップしない」を正当語として較正。
+- **② アーツタイミング3枚**＝**WX05-014 十人十色**：CSV タイミング列自体が「-」＝データ欠落（公式=アタックフェイズ+スペルカットインを web で確認）→CSV セル修正＋JSON timing [ATTACK,SPELL_CUTIN]。**WX10-018 暴風警報**：timing MAIN→ATTACK＋誤action（PREVENT_DAMAGE 自己＝別物）→既存 STUB `NEGATE_NTH_ATTACK`（原文「一度目か二度目」を実行時読取・⚠ルリグアタック未カバー近似）。**WX11-024 リフレッシュ・エンド**：timing MAIN→SPELL_CUTIN＋即時 FORCE_END_TURN（使用即ターン終了＝過剰）→ `INSTALL_DELAYED_TRIGGER`（B3）× `ON_REFRESH` の遅延発火に正エンコード。**engine 配線＝`collectRefreshTriggers` に delayed_triggers 走査を追加**（`trigger.refreshedOwner` 新設）＋golden 発火/非発火テスト＋decompiler ON_REFRESH 描画（原文一致）。manualEffects 同修正（パリティ）。
+- **③ BURST↔E誤配置5枚（全て実バグ）**＝**WD21-011**：LB の「2枚以上クラッシュされていた場合」条件節が E2（【出】）に混入し LB は無条件ライフ追加化→条件を LB へ移設・E2 は LIFE_COUNT eq0 のみに。**WX14-028/WX20-028**：LB「探してエナゾーンに置き、デッキをシャッフル」が SHUFFLE のみに縮退→(下記⑤の parser 修正で復元)。**WXEX1-52**：LB バニッシュ欠落＋TRASH owner 逆転→SEQUENCE[BANISH opp1, TRASH self1]。E2 も「あなたの他のシグニ」コストが相手シグニ化（コスト対象逆転）→owner self に是正。**WXK05-025**：LB「1体ダウン＋全凍結」が「全ダウン」化→SEQ[DOWN1, FREEZE ALL]。E1 も「2枚引き手札2枚を底へ」のドロー欠落→SEQ[DRAW2, LOOK_AND_REORDER hand2→bottom, FREEZE1]。（3枚は parser 表現不能＝MANUAL 刻印）
+- **④ 探索→エナ送りの系統復元＝43効果**＝parser の deck-search 規則が「エナゾーンに置**き**」形（読点接続）を見ておらず SHUFFLE_DECK 単独に縮退・《Xアイコン》は cardName フィルタ化＝**どのカード名にも含まれず無言 no-match**（WX08-072-BURST 旧バグ）。parser 修正（置き形ゲート＋hasIcon 変換）→**fresh を source of truth に curated 43ノード一括注入**（WX07-066〜PR-384・census を通過していた同族も多数＝カード単位マスキングの実証）。
+- **⑤ ブロック分割の系統根本原因＝キーワードトークン直後のマーカー飲み込み**＝`splitEffectBlocks` は「。」前提の分割のため、**【ガード】（注釈）/【エナチャージN】/【シュート】/【ダブルクラッシュ】の直後に続く【常】【出】【起】【自】ブロックが丸ごと前ブロックに飲み込まれ欠落**していた（【マルチエナ】だけ既対応）。正規化を4トークンに拡張→**15枚の欠落効果を復元**：ガード喪失サイクル3枚（WX12-025/034/036＝新クリーンSTUB `GUARD_LOSS_UNLESS_LRIG`・engine 配線は §6.3）＋12枚（WX20-038 ダブクラ+バニッシュ/ダウン耐性・WXK01-028 出ライフ加え・WXK01-074 E1誤エンコード是正（常時+5000→ドライブ常ダブクラ）+ドライブ時+5000・WXK04-015 起ダブクラ付与・WDK06-R09 起+2000・WXDi-P03-016 出+5000EOT・WXDi-P06-010 出エナチャ2+起ゲーム1回・WXDi-P13-050 出REVEAL_AND_PICK・WX24-P2-049 動的パワー+STUB・WX24-P4-058 バトルバニ時+5000・WX25-P1-054 クロス自ヘブン・WX25-CP1-040 可変コスト STUB）＝**全て MANUAL 挿入（既存 effectId 温存・E1b 形式）**。旧 addMissingEffects2.mjs に同内容の手書きエンコードが存在（AUTO 刻印だったため後年の regen で消滅していた＝**手書き追加は MANUAL/PARTIAL 必須の教訓**）。
+- **⑥ 潜在エンジンバグ＝REVEAL_AND_PICK の不正キー `pickTo:'hand'`**（WX24-P1-020/WX25-P1-037/WX25-P3-040・型に無いキーで then 欠落）＝resume SEARCH が `thenAction.type` 参照でクラッシュ（今回の挿入で smoke の乱数索引がずれて露出）→JSON 3枚を正規 then（REVEAL+ADD_TO_HAND）に是正＋`resumeSearch` に thenAction 欠落時の ADD_TO_HAND フォールバック防御。
+- **⑦ census 較正**＝(a)「【起】能力のコスト」等のマーカー参照除去を全マーカーに拡張（SP27-013/WX12-029/WX25-P3-085/WXEX2-78/PR-046＝偽陽性）。(b)レイヤー付与内マーカー（《レイヤーアイコン》【自】等）は GRANT_FIELD_SIGNI_ABILITY 内包＝数えない（WX16-024/WX17-035/051/052）。(c)G150【常】→ON_BANISH 再分類（WX11-063/064）は【常】として数えない。
+- **残（§6.3 登録）**＝ガード喪失の engine 配線（Guard 列直読み6箇所超の統一が要る）・スペル被破棄【自】2枚（WX17-045/WXDi-P10-070＝スペルはトリガー収集源でない）・WX24-P2-049 の動的パワー値・WX14-028 の「異なる色」制約と「緑ではない」colorExclude・WX20-028-E2 のアクセ3枚以上大量トラッシュ再エンコード・NEGATE_NTH_ATTACK のルリグアタック・WXDi-P16-092 チーム条件（機構censusバッチ）。
+- **検証**＝typecheck/lint 緑・**golden 117（+1＝ON_REFRESH 遅延トリガー）**・smoke 全0（OK 10311/SKIP 271）・fuzz 全0・**held 25 不変**（wtWorklist で逐次確認・fresh注入＋MANUAL隔離の併用）・**census 1977→1941**（BASELINE_HIGH 更新）・同型★0・全10シート＋下流再生成・STUBS.md 再生成。⚠要実機検証＝WX11-024 の遅延ターン終了・WX10-018 のアタック無効・復元15枚の実発火。
+
 ## 幻覚系の消化＝LIFE_CRASH自傷/条件化け7効果＋トラッシュ→BANISH誤変換 parser5規則・curated37ノード（語彙センサス§5c 続き19後半）（2026-07-04・zerom・続き19）
 
 census 幻覚系（逆方向）バッチの後半。**census 2003→1977・held 25 維持・golden 116・smoke/fuzz 全0**。
