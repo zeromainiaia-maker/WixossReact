@@ -2023,19 +2023,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX11-024 リフレッシュ・エンド（スペル）
-  // このターン、対戦相手が次にリフレッシュした場合、その後でこのターンを終了する。
-  //   （PARTIAL：リフレッシュ条件を省略しFORCE_END_TURNで近似）
+  // WX11-024 リフレッシュ・エンド（アーツ・使用タイミング＝スペルカットイン）
+  // このターン、対戦相手が次にリフレッシュをした場合、その後でこのターンを終了する。
+  //   INSTALL_DELAYED_TRIGGER（B3）× ON_REFRESH（refreshedOwner:opponent）で遅延発火。
+  //   発火時 FORCE_END_TURN（スタック解決後にターン終了）。ターン終了時に設置は消滅。
   'WX11-024': [
     {
       effectId: 'WX11-024-E1',
       effectType: 'ACTIVATED',
-      timing: ['MAIN'],
+      timing: ['SPELL_CUTIN'],
       cost: { energy: [{ color: '無', count: 1 }] },
-      action: { type: 'FORCE_END_TURN' },
+      action: {
+        type: 'INSTALL_DELAYED_TRIGGER',
+        duration: 'THIS_TURN',
+        trigger: { timing: 'ON_REFRESH', refreshedOwner: 'opponent' },
+        effect: { type: 'FORCE_END_TURN' },
+      },
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
