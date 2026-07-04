@@ -948,7 +948,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- サーチ（手札 or 場に出す or エナゾーン）----
   if (t.includes('デッキから') && t.includes('探して') &&
-      (t.includes('手札に加え') || t.includes('場に出し') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く'))) {
+      (t.includes('手札に加え') || t.includes('場に出し') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き'))) {
     const filter: TargetFilter = {
       ...parseCardTypeFilter(t),
       ...parseLevelFilter(t),
@@ -958,13 +958,19 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ...parseColorMatchesLrig(t),
     };
     const nameM = t.match(/《([^》]+)》/);
-    if (nameM) filter.cardName = nameM[1];
+    if (nameM) {
+      // 《Xアイコン》を持つカード＝アイコン保持フィルタ（hasIcon）。カード名フィルタにすると
+      // どのカード名にも含まれず無言no-matchになる（WX08-072-BURST の旧バグ）
+      const iconM = nameM[1].match(/^(クロス|ライズ|トラップ|アクセ)アイコン$/);
+      if (iconM) filter.hasIcon = iconM[1] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ';
+      else filter.cardName = nameM[1];
+    }
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を探/);
     const maxCount = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
     const toField = t.includes('場に出し');
     const toTrash = t.includes('トラッシュに置き');
-    const toEnergy = t.includes('エナゾーンに置く');
+    const toEnergy = t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き');
     return {
       type: 'SEARCH',
       from: { location: 'deck', owner: 'self' },
