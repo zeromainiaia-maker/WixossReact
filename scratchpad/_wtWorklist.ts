@@ -29,3 +29,13 @@ for(const [id,e] of existing){
 }
 console.log('held(working tree):', held);
 console.log(ids.join(' '));
+
+// 個別diff表示（引数のID）
+const argIds = process.argv.slice(2);
+for (const id of argIds) {
+  const e = existing.get(id), f = fresh.get(id);
+  console.log('###', id);
+  const em = leafMap(e), fm = leafMap(f);
+  for (const [p, v] of em) if (JSON.stringify(fm.get(p)) !== JSON.stringify(v)) console.log('  cur:', p, '=', JSON.stringify(v), ' fresh:', JSON.stringify(fm.get(p)));
+  for (const [p, v] of fm) if (!em.has(p)) console.log('  fresh+:', p, '=', JSON.stringify(v));
+}
