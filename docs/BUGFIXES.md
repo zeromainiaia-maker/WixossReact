@@ -5,6 +5,15 @@
 
 ---
 
+## 幻覚系の消化＝LIFE_CRASH自傷/条件化け7効果＋トラッシュ→BANISH誤変換 parser5規則・curated37ノード（語彙センサス§5c 続き19後半）（2026-07-04・zerom・続き19）
+
+census 幻覚系（逆方向）バッチの後半。**census 2003→1977・held 25 維持・golden 116・smoke/fuzz 全0**。
+
+- **① 逆数値4枚＝全て偽陽性**＝原文の【シャドウ（パワーN以下のシグニ）】注釈を census が（…）除去していたのが原因→**逆方向系は注釈込み rawAll と照合**する較正（逆数値 4→0・逆LIFE_CRASH は「ダメージ」も正当語に）。⚠続き18の「WX24-P4-078=幻覚パラメータ」判定は誤りだった（同じ罠で目視）。
+- **② LIFE_CRASH 族**＝`parseSentencePart1` のライフトラッシュ規則が (a)owner 常時 self（「対戦相手の」無視）(b)count に条件数値を誤取得、を是正（が形=条件形を除外・「対戦相手の/は」で opponent）。curated 7効果是正: **WXDi-P16-004/WXDi-P14-006**（相手ライフのはずが self＝自傷）・**WD23-023-E-E2**（owner逆転×2＋LB持ち条件脱落→LAST_PROCESSED_HAS_BURST・MANUAL）・**WXDi-CP02-007**（「3枚以上なら代わりに」が self crash count:3→CONDITIONAL then/else・MANUAL）・**WXDi-CP02-052**（choice②が自ライフ4枚クラッシュ化→両択に LIFE_COUNT 条件＋power8000 フィルタ復元・MANUAL）・**WX24-P4-014-E3**（c1 crash count:0→LIFE_COUNT eq0＋STUB・MANUAL）・**PR-Di035**（owner是正＋MANUAL隔離＝5色分岐の全面再エンコードは§6.3）。`triggerBurst:false`＝「ライフをトラッシュに置く」の正慣例（WX01-030）は census 較正で合格に。
+- **③ トラッシュ→BANISH 族（バニッシュ＝エナ送り／トラッシュ送りは行き先も誘発も別物）**＝parser 5規則を是正: 「それを（場から）トラッシュに置く」（Part1・後段の正TRASH規則が死にコード化していた）・「アップ状態のシグニ…トラッシュ」（Part2＝**LB14効果**の行き先誤り）・「無色ではないすべて」（Part2・nonColorless フィルタ復元）・「その/それを場からトラッシュ」（Part3）・「色か色のシグニ」（Part1・color配列フィルタ復元）＋`TRASH_AT_TURN_END` を「そのシグニを」形に拡張。curated は指紋一致で **37ノード一括変換**（PR-322/WXEX1-03×2/WX16-033-BURST/LB14/WX10-052=nonColorless/WX24-P4-027=赤黒/WD17-008・WXEX2-32-E3=一時召喚後始末→STUB TRASH_AT_TURN_END 等）。
+- **教訓**＝(1)逆方向照合は注釈込み原文で（（…）除去は前方向専用）。(2)census を通過したカードにも同族バグが居る（本文の別バニッシュ語でマスク）＝**parser 修正→parserWorklist の乖離で同族を芋づる収穫**が有効（今回+5枚発見）。
+
 ## BURST内IS_MY_TURN 42件の消化＝32偽陽性の較正＋条件化け3枚是正（語彙センサス§5c 続き19）（2026-07-04・zerom・続き19）
 
 census §5c 消化の第1バッチ。「BURST内IS_MY_TURN＝相手ターン発動で常に偽＝永久不発」という当初仮説（manualEffects.ts:970 の旧コメント由来）を **engine 実挙動の再現テストで検証したら不成立**＝現 engine は IS_MY_TURN を実行時プレースホルダ（常に真・`execUtils.ts` evalCondition）とし、**「TRASH対象なし→残りSEQUENCEスキップ」ガードで「そうした場合」を正しく実装済み**だった（scratchpad/_reproBurstImt.ts で A/B 両ケース確認）。
