@@ -490,12 +490,16 @@ function main(): void {
       const missHigh: string[] = [];
       const missStub: string[] = [];
       for (const [id, t0] of corpus.eff) {
-        if (!re.test(stripQuote(t0))) continue;
+        let t1 = stripQuote(t0);
+        const js = jsonStr.get(id) ?? '';
+        // 【レイヤー】付与内のマーカー（《レイヤーアイコン》【自】等）は GRANT_FIELD_SIGNI_ABILITY に
+        // 内包されトップレベル effectType に現れない（WX16-024/WX17-035/051/052）＝付与実装済みなら数えない
+        if (js.includes('GRANT_FIELD_SIGNI_ABILITY')) t1 = t1.replace(/《レイヤーアイコン》【[^】]+】/g, '');
+        if (!re.test(t1)) continue;
         hits++;
         const effs = jsonObj.get(id) as Eff[] | undefined;
         if (!Array.isArray(effs)) continue;
         if (effs.some(pred)) continue;
-        const js = jsonStr.get(id) ?? '';
         if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
         else { missHigh.push(id); highAll.add(id); }
       }
