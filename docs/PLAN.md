@@ -115,7 +115,7 @@
 > まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 130/130・smoke/fuzz 全0・同型★0・census 1765/1765・parserWorklist held 24（LOSS12/VALUE12）。
 >
 > **現在の主作業＝§5c census文型バッチの継続消化（続き23確立のパイプライン・cold startはこの5行）**：
-> ① `npm run census:clusters` → `docs/_census_clusters.txt` を枚数順に見てテンプレを選ぶ（未処理上位＝「場に《X》がいる」13枚＝HAS_CARD_IN_FIELD のルリグ走査対応とセット・「代わりに」昇格置換・「ベットしていた場合」9枚。機構待ちは §6.3 へ送る。⚠着手前に続き24-25の型＝**全数機械分類で偽陽性を先に切る**：「それが＜C＞73枚」は70枚・「次にダメージ46枚」は38枚が既存表現済みの偽陽性だった）
+> ① `npm run census:clusters` → `docs/_census_clusters.txt` を枚数順に見てテンプレを選ぶ（未処理上位＝「代わりに」昇格置換126枚・「ベットしていた場合」9枚。機構待ちは §6.3 へ送る。⚠着手前に続き24-26の型＝**全数機械分類で偽陽性を先に切る**：「それが＜C＞73枚」は70枚・「次にダメージ46枚」は38枚が既存表現済みの偽陽性だった。「場に《X》13枚」は続き26で偽陽性0＝全実バグ）
 > ② parser（`src/data/effectParser.ts` の「状態条件節の CONDITIONAL 持ち上げ」CLAUSES 表がテンプレ追加の定位置）に規則を足す。**engine/decompiler 対応済みの条件型のみ**・既存STUB全文規則の横取りに注意（ガード3種の実装コメント参照）
 > ③ `npm run build:effects` → ④ `node scripts/heldReview.mjs` でdiff署名グループをspot-check→`--adopt ID群` で一括採用（**STUB退化・「代わりに」・別STUB id化は採用しない**）
 > ⑤ golden 1件/テンプレ追加 → 全ゲート＋decompileシート再生成（⚠Bashの`>`）＋同型★0 → `BASELINE_HIGH`/本§更新 → commit/push
