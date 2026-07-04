@@ -649,6 +649,8 @@ function main(): void {
   detail.push(`# 高シグナル欠落カード総数（重複除外）: ${highAll.size}（ベースライン ${BASELINE_HIGH}）`);
   fs.writeFileSync(OUT_PATH, detail.join('\n') + '\n', 'utf8');
 
+  if (CLUSTERS_MODE) writeClusters(corpus, missByPattern);
+
   console.log('パターン | 原文該当 | 高シグナル欠落 | STUB・MANUAL格納(要確認)');
   for (const row of summary) console.log(row);
   console.log(`\n高シグナル欠落カード総数(重複除外): ${highAll.size} ／ ベースライン: ${BASELINE_HIGH}`);
