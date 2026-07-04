@@ -1024,8 +1024,8 @@ function parseSingleSentence(text: string): EffectAction {
         // （元の全文パースでは節が前置していたため中置扱いで拾えていた）＝ここで復元する
         if (/^(追加で)?ターン終了時まで、/.test(rest)) {
           const t = then as { duration?: string; until?: string };
-          if ('until' in t && t.until === 'PERMANENT') t.until = 'UNTIL_END_OF_TURN';
-          else if (t.duration === undefined || t.duration === 'PERMANENT') t.duration = 'UNTIL_END_OF_TURN';
+          if (t.until === 'PERMANENT') t.until = 'UNTIL_END_OF_TURN';
+          else if (t.duration === 'PERMANENT') t.duration = 'UNTIL_END_OF_TURN';
         }
         return {
           type: 'CONDITIONAL',
