@@ -140,6 +140,21 @@ const PATTERNS: Pattern[] = [
       'DECK_TOP', 'TRASH_HAS', 'ENERGY_HAS', 'HAND_COUNT', 'LIFE_COUNT', 'TRASH_COUNT',
       'FIELD_COUNT', 'ENERGY_COUNT', 'LRIG_LEVEL', 'LRIG_STORY', 'LRIG_TEAM', 'LRIG_NAME',
       'ARTS_USED', 'LIFE_CRASHED', 'FIELD_HAS', 'FIELD_SIGNI', 'FIELD_CLASS'],
+    // 「（公開して）それが＜X＞のシグニの場合、それを手札/エナ/場へ」は REVEAL_AND_PICK{filter:story}
+    // の pick 表現で条件が JSON に載る（続き24・70枚較正＝WX02-030/WXK01-050 系サイクル）。
+    // 各節の＜X＞が JSON の story 値に居ることを個別確認し、他に条件節が残らないときだけ合格。
+    extraOk: (js, t) => {
+      if (!js.includes('REVEAL_AND_PICK')) return false;
+      let allCovered = true;
+      const t2 = t.replace(/それが＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニの場合、それを[^。]*。?/g,
+        (whole, s1: string, s2: string | undefined) => {
+          const okCov = js.includes(`"story":"${s1}"`) && (!s2 || js.includes(`"${s2}"`));
+          if (!okCov) { allCovered = false; return whole; }
+          return '';
+        });
+      const t3 = t2.replace(/そう(しなかった|した|でない|である)場合/g, '');
+      return allCovered && t2 !== t && !/場合[、,]/.test(t3);
+    },
   },
   {
     name: 'クラス指定(＜X＞のシグニ)',
