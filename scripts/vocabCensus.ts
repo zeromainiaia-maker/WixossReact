@@ -26,7 +26,9 @@ import * as path from 'path';
 // 2026-07-04 続き23: 文型クラスタバッチ①（状態条件節のCONDITIONAL持ち上げ・parser規則＋heldReview一括採用146枚）＝1931→1872。
 // 2026-07-04 続き24: 「それが＜C＞のシグニの場合」73枚＝70枚はREVEAL_AND_PICK済みの偽陽性（extraOk較正）＋
 // LAST_PROCESSED_MATCHES新設で実バグ13枚是正（採用10＋手パッチ3）＝1872→1800。
-const BASELINE_HIGH = 1800;
+// 2026-07-05 続き25: 「次にダメージを受ける場合」46枚＝A11 PND済み偽陽性（キー較正）＋A2 27 damageSource復元（純改善36自動採用）＋
+// B7 置換ミルが即時自傷化の実バグ→REPLACE_NEXT_DAMAGE_WITH_MILL新設（採用9＋WXDi-D07-007手パッチ）＝1800→1769。
+const BASELINE_HIGH = 1769;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
