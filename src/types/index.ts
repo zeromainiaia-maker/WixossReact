@@ -161,6 +161,9 @@ export interface PlayerState {
   abilities_removed?: string[];
   // 次のダメージを無効にする回数（PREVENT_NEXT_DAMAGE 効果）
   prevent_next_damage?: number;
+  // 次のダメージを「代わりに自デッキ上N枚トラッシュ」で置き換えるキュー（REPLACE_NEXT_DAMAGE_WITH_MILL 効果。
+  // 各要素=ミル枚数。デッキが枚数未満のエントリは置き換え不可＝原文注記どおりダメージ通過。ターン境界でリセット）
+  damage_replace_mill?: number[];
   // このターン、このプレイヤーのすべてのキーは能力を失う（WXK02-029 ビカム・ユー CONDITIONAL_GROW_AND_KEY_DISABLE）
   keys_abilities_disabled?: boolean;
   // このターン、次のライフバーストは2回発動する（LIFE_BURST_DOUBLE 効果）
