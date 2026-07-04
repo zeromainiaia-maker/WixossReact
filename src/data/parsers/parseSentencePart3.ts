@@ -991,8 +991,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- そのシグニ/それを場からトラッシュに置く ----
+  // ⚠TRASH: バニッシュ（エナ送り）ではない（続き19是正）
   if (t.match(/^(?:その|それ)(?:シグニ)?を場からトラッシュに置く$/)) {
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as TrashAction;
   }
 
   // ---- それらの【出】能力は発動しない ----
