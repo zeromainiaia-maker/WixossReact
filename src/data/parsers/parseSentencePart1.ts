@@ -845,6 +845,17 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'BANISH', target: parseSigniTarget(t, owner), ...(isOptional ? { optional: true } : {}), ...(oppSelects ? { opponentSelects: true } : {}) };
   }
 
+  // ---- このターン次にダメージを受ける場合、代わりにデッキ上N枚トラッシュ（置換ミル・WXDi-P15-041/WX24-P1-010 等）----
+  // ⚠下の deck-mill 規則より先に判定すること（「代わりに…デッキの上から…トラッシュに置く」が
+  //   即時自ミルに化けていた実バグの根本原因＝置換シールドが無条件自傷になっていた・続き25）
+  {
+    const rm = t.match(/このターン、?次にあなたが(シグニ|ルリグ)?(?:によって)?ダメージを受ける場合、代わりにあなたのデッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
+    if (rm) {
+      return { type: 'REPLACE_NEXT_DAMAGE_WITH_MILL', millCount: parseNum(rm[2]),
+        ...(rm[1] ? { damageSource: rm[1] === 'ルリグ' ? 'lrig' : 'signi' } : {}) } as import('../../types/effects').ReplaceNextDamageWithMillAction;
+    }
+  }
+
   // ---- デッキからトラッシュ（もよい）----
   // 「対戦相手のデッキの上から」は owner:'opponent'（相手ミル）。「あなたか対戦相手の」選択型は未対応のため従来どおり self に落とす（curated 側で個別管理）
   const oppDeckMill = /対戦相手のデッキの上から/.test(t) && !/あなたか対戦相手/.test(t);
