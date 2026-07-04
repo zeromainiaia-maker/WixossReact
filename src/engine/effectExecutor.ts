@@ -530,6 +530,14 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
+  // targetsLastProcessed: 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ選択UIなしで適用
+  // （WXDi-P07-079「それが＜毒牙＞のシグニの場合、代わりに＋10000」＝直前 POWER_MODIFY の選択対象と同一）
+  if (a.targetsLastProcessed) {
+    const autoNums = (ctx.lastProcessedCards ?? []).filter(n => cands.includes(n));
+    if (autoNums.length === 0) return done(ctx);
+    return done(applyPowerMod(autoNums, ctx));
+  }
+
   if (a.target.count === 'ALL') return done(applyPowerMod(cands, ctx));
   const count = resolveNum(a.target.count);
   const scope: TargetScope = isAny ? 'both_field' : (tgtOwner === 'self' ? 'self_field' : 'opp_field');
