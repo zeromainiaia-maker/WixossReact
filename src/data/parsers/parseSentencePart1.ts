@@ -89,8 +89,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- センタールリグが＜X＞でないかぎり、手札にあるこのシグニは【ガード】を失う（WX12-025/034/036）----
+  // 条件節「＜X＞でないかぎり、」は上流で除去されるため残文にもマッチさせる。decompiler は原文全文を抽出。
   // engine のガード可否判定は Guard 列直読みが分散しており未配線（§6.3）。表現はクリーンSTUBで保持。
-  if (t.match(/センタールリグが＜[^＞]+＞でないかぎり、手札にあるこのシグニは【ガード】を失う/)) {
+  if (t.match(/(センタールリグが＜[^＞]+＞でないかぎり、)?手札にあるこのシグニは【ガード】を失う/)) {
     return { type: 'STUB', id: 'GUARD_LOSS_UNLESS_LRIG' } as StubAction;
   }
 
