@@ -1528,6 +1528,15 @@ export interface PreventNextDamageAction {
   damageSource?: 'lrig' | 'signi';
 }
 
+// 「このターン、次にあなたがダメージを受ける場合、代わりにあなたのデッキの上からカードをN枚トラッシュに置く」
+// （WXDi-P15-041/WX24-P1-010 等・黒ハナレ系）。PlayerState.damage_replace_mill のキューに積み、
+// crashOneLife／ルリグアタック応答が消費する。デッキがN枚未満なら置き換え不可（原文注記）＝ダメージ通過。
+export interface ReplaceNextDamageWithMillAction {
+  type: 'REPLACE_NEXT_DAMAGE_WITH_MILL';
+  millCount: number;
+  damageSource?: 'lrig' | 'signi'; // 逆翻訳の忠実化用（engine はダメージ源を区別しない近似・PREVENT_NEXT_DAMAGE と同様）
+}
+
 export interface TakeFromUnderSigniAction {
   type: 'TAKE_FROM_UNDER_SIGNI';
   destination: 'hand' | 'energy' | 'trash';
