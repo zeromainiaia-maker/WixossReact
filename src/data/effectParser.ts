@@ -1069,15 +1069,17 @@ function parseSingleSentence(text: string): EffectAction {
       }
     }
   }
-  // 「(その後、)あなたがベットしていた場合、(追加で)<X>」→ CONDITIONAL{IS_BETTING, then:<X>}
-  // （2026-07-05 続き27・census文型「あなたがベットしていた場合」9枚バッチ）。ベット宣言は
+  // 「(その後、)あなたがベットしていた場合、追加で<X>」→ CONDITIONAL{IS_BETTING, then:<X>}
+  // （2026-07-05 続き27・census文型「あなたがベットしていた場合」バッチ）。ベット宣言は
   // BattleScreen が raw text の「ベット―《X》」から UI 提示し is_betting_this_effect を立てる＝
   // engine 配線済み（execUtils.evalCondition の IS_BETTING）。追加ボーナス文を条件ゲートする。
+  // ⚠「追加で」を必須にする＝「あなたがベットしていた場合、代わりに<X>」（置換）は else 表現が要る
+  // 別系統（§5c「代わりに」バッチ）として据置。遅延トリガー入れ子（「場合、このターン、〜とき、追加で」）
+  // も「追加で」が直後に無いため対象外＝§6.3。
   {
-    const bm = text.trim().replace(/。$/, '').match(/^(?:その後、)?あなたがベットしていた場合、(?:追加で)?(.+)$/s);
+    const bm = text.trim().replace(/。$/, '').match(/^(?:その後、)?あなたがベットしていた場合、追加で(.+)$/s);
     if (bm) {
       const then = parseSingleSentence(bm[1]);
-      // 帰結が UNKNOWN に退化する複雑文（遅延トリガー入れ子等）は据置＝§6.3
       if (!JSON.stringify(then).includes('"UNKNOWN"')) {
         return { type: 'CONDITIONAL', condition: { type: 'IS_BETTING' }, then } as import('../types/effects').ConditionalAction;
       }
