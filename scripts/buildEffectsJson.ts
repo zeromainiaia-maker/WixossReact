@@ -133,6 +133,8 @@ const report: Record<string, string[]> = {
   preserved_emptyFresh: [], preserved_held: [],
 };
 const allIds = new Set<string>([...existingEffects.keys(), ...Object.keys(result)]);
+// held（温存＝要レビュー）カードの fresh 出力を保存＝scripts/heldReview.mjs のレビュー/採用の入力
+const heldFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
 for (const id of allIds) {
   const existing = existingEffects.get(id);
   const fresh = result[id];
@@ -141,9 +143,11 @@ for (const id of allIds) {
   if (JSON.stringify(existing) === JSON.stringify(fresh)) continue;       // 変化なし
   if (existing.some(e => PRESERVE_STATUSES.has(e?.parseStatus))) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_manual.push(id); continue; }
   if (isPureSuperset(existing, fresh)) { report.adopted_gain.push(id); continue; } // fresh をそのまま採用
+  heldFresh[id] = fresh;
   result[id] = existing as ReturnType<typeof parseCardEffects>;          // 損失リスク→温存
   report.preserved_held.push(id);
 }
+writeFileSync(join(root, 'docs', '_held_fresh.json'), JSON.stringify(heldFresh), 'utf-8');
 console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length}`);
 // レポート出力（採用・保留の全カードIDを残し、何も黙って変えない）
 {
