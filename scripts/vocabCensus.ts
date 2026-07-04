@@ -19,9 +19,11 @@ import * as path from 'path';
 // 2026-07-04 続き18: 死角調査第2〜4弾（トリガー種別/コスト/ゾーン/構造マーカー/引用付与平坦化/
 // 代わりに/できない/機構/逆方向action・数値 等）を組み込み＝25計測 → 98計測に拡張、実数 2023 で再登録。
 // 2026-07-04 続き19: BURST内IS_MY_TURN を較正（TRASH前段32=engine吸収の偽陽性）＋WX05-042/12-020/21-026
-// の条件是正（parser 同修正）＝2023→2003。
+// の条件是正（parser 同修正）＝2023→2003。同日続き＝逆数値4は注釈由来の偽陽性（rawAll較正で0）・
+// LIFE_CRASH族（自傷owner/条件count化け6効果＋triggerBurst:false慣例の較正）・
+// トラッシュ→BANISH族（parser 5規則＋curated 37ノード是正）＝2003→1977。
 // 旧ベースライン履歴: 529（続き15初回・14パターン）→522→498（続き16）→1469（続き17・25計測）
-const BASELINE_HIGH = 2003;
+const BASELINE_HIGH = 1977;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
