@@ -529,6 +529,13 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'TRASH_REVEALED': return '公開したカードをトラッシュに置く';
     case 'INSTALL_DELAYED_TRIGGER': {
       // 「このターン、…したとき、…」遅延条件トリガーの設置（B3）
+      // ON_REFRESH（WX11-024）：「対戦相手が次にリフレッシュをした場合、その後で…」
+      if (a.trigger?.timing === 'ON_REFRESH') {
+        const whoIDT = a.trigger?.refreshedOwner === 'opponent' ? '対戦相手'
+          : a.trigger?.refreshedOwner === 'self' ? 'あなた' : 'いずれかのプレイヤー';
+        const effIDT = a.effect?.type === 'FORCE_END_TURN' ? 'このターンを終了する' : actionJa(a.effect);
+        return `このターン、${whoIDT}が次にリフレッシュをした場合、その後で${effIDT}`;
+      }
       const cf = a.trigger?.crasherFilter;
       const subjIDT = cf
         ? `あなたの${cf.color ? [].concat(cf.color).join('・') + 'の' : ''}${cf.story ? '＜' + [].concat(cf.story).join('・') + '＞の' : ''}${cf.cardClass ? '＜' + [].concat(cf.cardClass).join('・') + '＞の' : ''}シグニが`
