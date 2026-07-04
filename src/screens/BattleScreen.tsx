@@ -3721,6 +3721,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           must_attack_infected_only: undefined,
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
+          damage_replace_mill: undefined,  // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
           lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
