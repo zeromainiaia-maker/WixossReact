@@ -1556,6 +1556,7 @@ function actionJa(a?: Action, effectType?: string): string {
         BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: 'そのシグニのパワーがそのシグニの正面のシグニのパワーより低い場合、アタックしたそのシグニをバニッシュする',
         CONDITIONAL_GROW_AND_KEY_DISABLE: 'あなたのセンタールリグが対戦相手のセンタールリグのレベル以下の場合、あなたのセンタールリグはグロウする。ターン終了時まで、あなたのすべてのキーは能力を失う。（グロウコストは支払う）',
         INTERNAL_ARTS_RECYCLE_EXECUTE: '追加でこのカードをルリグデッキに戻す',
+        LRIG_GRANT_MILL_PER_PREVENTED_DAMAGE: 'ターン終了時まで、このルリグは「【自】：ターン終了時、あなたのデッキの上からカードを５枚トラッシュに置く。」を得る（※engine未実装＝防御成功イベント待ち）',
       };
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
