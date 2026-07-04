@@ -511,14 +511,16 @@ function main(): void {
       const missHigh: string[] = [];
       const missStub: string[] = [];
       for (const [id, t0] of corpus.eff) {
-        const n = (stripQuote(t0).match(/【起】/g) ?? []).length;
+        let t1 = stripQuote(t0);
+        const js = jsonStr.get(id) ?? '';
+        if (js.includes('GRANT_FIELD_SIGNI_ABILITY')) t1 = t1.replace(/《レイヤーアイコン》【[^】]+】/g, '');
+        const n = (t1.match(/【起】/g) ?? []).length;
         if (!n) continue;
         hits++;
         const effs = jsonObj.get(id) as Eff[] | undefined;
         if (!Array.isArray(effs)) continue;
         const m = effs.filter(e => e.effectType === 'ACTIVATED').length;
         if (m >= n) continue;
-        const js = jsonStr.get(id) ?? '';
         if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
         else { missHigh.push(`${id}(${n}vs${m})`); highAll.add(id); }
       }
