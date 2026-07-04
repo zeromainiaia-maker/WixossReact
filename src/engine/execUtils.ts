@@ -717,6 +717,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         }
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
       }).length;
+      // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
+      // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
+      // 専用状態フィルタのため、それらが指定された条件ではルリグを走査しない（偽陽性防止）。
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen) {
+        for (const ln of lrigZoneTops(fst.field)) {
+          if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matched++;
+        }
+      }
       return matched >= (cond.minCount ?? 1);
     }
     case 'TRASH_HAS_CARD': {
