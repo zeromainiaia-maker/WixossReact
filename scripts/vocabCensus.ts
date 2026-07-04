@@ -473,7 +473,11 @@ function main(): void {
   {
     const stripQuote = (t: string) => t
       .replace(/『[^』]*』/g, '').replace(/「[^」]*」/g, '')
-      .replace(/【出】(能力|効果)/g, '');
+      // 「【起】能力のコストとして」「【出】【起】能力」等のマーカー参照（実能力ではない）を除去（続き20較正）
+      .replace(/(?:【[出起自常]】)+(能力|効果)/g, '')
+      // G150: 【常】表記の「（相手ターンの間、）このシグニがバニッシュされたとき」は parser が AUTO[ON_BANISH] に
+      // 系統再分類する（WX11-063/064）＝CONTINUOUS 不在は正しい → 【常】マーカーとして数えない
+      .replace(/【常】：(?=（?(対戦相手のターンの間、)?このシグニがバニッシュされたとき)/g, '');
     interface Eff { effectType?: string; timing?: string[] }
     const MARKERS: Array<[string, RegExp, (e: Eff) => boolean]> = [
       ['構造:【常】→CONTINUOUS無', /【常】/, e => e.effectType === 'CONTINUOUS'],
