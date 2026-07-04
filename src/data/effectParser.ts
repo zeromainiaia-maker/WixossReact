@@ -954,6 +954,45 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
 // ===== アクションパース（1文） =====
 
 
+// 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
+// parseSingleSentence の CONDITIONAL 持ち上げと、SEQUENCE 組み立て時の「代わりに」昇格置換の
+// 両方から使う（engine evalCondition・decompiler 対応済みの条件型のみ）。
+const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+  [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
+    g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
+  [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
+    g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
+  [/(あなた|対戦相手)のエナゾーンにカードが([０-９\d]+)枚(以上|以下)ある場合/,
+    g => ({ type: 'ENERGY_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
+  [/あなたのトラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
+  [/あなたの場に《([^》]+)》がいる場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
+  [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
+  [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
+  [/あなたの場にクロス状態のシグニがある場合/,
+    () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } })],
+  [/このシグニのパワーが([０-９\d]+)以上の場合/,
+    g => ({ type: 'SELF_POWER_GTE', value: parseNum(g[0]) })],
+  [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
+    g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
+  [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
+    g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
+];
+
+// text 先頭が STATE_CONDITION_CLAUSES のいずれかの条件節「〜の場合、」で始まれば、その Condition と
+// 残り（「、」以降）を返す。マッチしなければ null。
+function matchLeadingStateCondition(text: string): { condition: Condition; rest: string } | null {
+  const t = text.trim();
+  for (const [re, mk] of STATE_CONDITION_CLAUSES) {
+    const m = t.match(new RegExp('^' + re.source + '、(.+)$', 's'));
+    if (m) return { condition: mk(m.slice(1, m.length - 1)), rest: m[m.length - 1] };
+  }
+  return null;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   // 一時召喚の後始末: 「（ターン終了時、）それら?を（場から）トラッシュに置く」＝直前に出したカードを
   // ターン終了時にトラッシュ（lastProcessedCards を turn_end_field_trash_targets へ）。
