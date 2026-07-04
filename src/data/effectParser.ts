@@ -1474,6 +1474,9 @@ function splitEffectBlocks(text: string): string[] {
   const MARKER_PAT = MARKER_RE.source;
   const normalized = text
     .replace(new RegExp(`【マルチエナ】(?=${MARKER_PAT})`, 'g'), '【マルチエナ】。')
+    // 【ガード】（注釈はstripRuleParensで除去済み）の直後に別マーカーが続く場合も句点を挿入。
+    // 挿入しないと【ガード】ブロック（=効果登録しない）に後続の【常】等が飲み込まれ丸ごと欠落する（WX12-025/034/036）
+    .replace(new RegExp(`【ガード】(?=${MARKER_PAT})`, 'g'), '【ガード】。')
     .replace(new RegExp(`。[\\s　]+(?=${MARKER_PAT})`, 'g'), '。');
   return normalized.split(/(?<=。)(?=(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
 }
