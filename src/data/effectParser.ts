@@ -1018,10 +1018,19 @@ function parseSingleSentence(text: string): EffectAction {
       // 既存 STUB（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済みハンドラ）も横取りして退化させる
       // ＝ else 表現が要る別系統として据置（本規則の対象外）
       if (m && !m[m.length - 1].startsWith('代わりに')) {
+        const rest = m[m.length - 1];
+        const then = parseSingleSentence(m[1] + rest);
+        // rest 先頭の「ターン終了時まで、」は再帰先の ^プレフィックス除去で消え PERMANENT 化する
+        // （元の全文パースでは節が前置していたため中置扱いで拾えていた）＝ここで復元する
+        if (/^(追加で)?ターン終了時まで、/.test(rest)) {
+          const t = then as { duration?: string; until?: string };
+          if ('until' in t && t.until === 'PERMANENT') t.until = 'UNTIL_END_OF_TURN';
+          else if (t.duration === undefined || t.duration === 'PERMANENT') t.duration = 'UNTIL_END_OF_TURN';
+        }
         return {
           type: 'CONDITIONAL',
           condition: mk(m.slice(2, m.length - 1)),
-          then: parseSingleSentence(m[1] + m[m.length - 1]),
+          then,
         } as import('../types/effects').ConditionalAction;
       }
     }
