@@ -12,9 +12,10 @@ WixossカードゲームのReactクローン実装。
 ## 検証コマンド（共同開発者・必読）
 実機（ブラウザ対戦）不要でヘッドレス回帰検証できる。**`npm install` 後すぐ動く**（tsx は devDependency）。詳細は `docs/PLAN.md §12`。
 - `npm run typecheck` — 型チェック（CIと同じ／必須）
-- `npm run smoke` — 全効果10557件を自動実行し CRASH/HANG/INVARIANT 検出（現状 全0）
-- `npm run golden` — DSLアクション型＋C1トリガー収集の結果を assert（現状 106/106 PASS）
+- `npm run smoke` — 全効果10582件を自動実行し CRASH/HANG/INVARIANT 検出（現状 全0）
+- `npm run golden` — DSLアクション型＋C1トリガー収集の結果を assert（現状 123/123 PASS）
 - `npm run fuzz` — 乱択 自己対戦ファズ＝進化盤面で効果連鎖し相互作用/複製バグ検出（現状 全0・シード再現可）
+- `npm run census` — 語彙センサス＝過剰効果/幻覚の両方向計器（高シグナル1872ベースライン・超過で exit 1）。消化は `npm run census:clusters`（文型クラスタ表）→parser規則→`npm run build:effects`→`node scripts/heldReview.mjs` 一括採用（手順は PLAN.md §5c・§4「次の一手」）
 - **engine / BattleScreen / decompiler を触ったら（C・D・Stage2）上記 smoke・golden・fuzz を必ず回す**（数秒）。バグを golden に1件足してから直すと回帰を防げる。
 - **CI（`.github/workflows/ci.yml`）が push/PR(master) で typecheck・lint・golden・smoke・fuzz を自動実行**＝回し忘れても素通りしない。ローカルで先に回して緑にしてから push する。
 
