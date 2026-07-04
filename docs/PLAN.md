@@ -115,7 +115,7 @@
 - ⚠**decompile再生成は Bash の `>` を使う**（PowerShell `>` は UTF-16 で下流破壊）。
 
 ### 📌 次の一手（推奨順）
-> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 131/131・smoke/fuzz 全0・同型★0・census 1763/1763・parserWorklist held 24（LOSS12/VALUE12）。
+> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 132/132・smoke/fuzz 全0・同型★0・census 1751/1751・parserWorklist held 24（LOSS12/VALUE12）。
 >
 > **現在の主作業＝§5c census文型バッチの継続消化（続き23確立のパイプライン・cold startはこの5行）**：
 > ① `npm run census:clusters` → `docs/_census_clusters.txt` を枚数順に見てテンプレを選ぶ（未処理上位＝**「代わりに」B系統94枚**＝「＜条件＞の場合、代わりに＜enhanced action＞」＝else付きCONDITIONALのsequence層対応が要る最大の構造系。続き28で A:ena→trash16（偽陽性15＝BANISH_REDIRECT較正済）は消化・残 C コスト代替6/D バニッシュされない3/E リコレクト2 は少数テール。機構待ちは §6.3 へ送る。⚠着手前に続き24-28の型＝**全数機械分類で偽陽性を先に切る**：「それが＜C＞73枚」70枚・「次にダメージ46枚」38枚・「代わりにena→trash16枚」15枚が既存表現済みの偽陽性だった。「場に《X》13枚」続き26・「ベット9枚」続き27は偽陽性0＝全実バグ。**B系統も機械分類で更にサブ分割してから着手**）
