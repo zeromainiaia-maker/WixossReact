@@ -1514,9 +1514,15 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- ライフクロス → トラッシュ ----
-  if (t.match(/ライフクロス.*トラッシュに置く/) || t.match(/ライフクロス.*を捨てる/)) {
-    const cM = t.match(/([０-９\d]+)枚/);
-    return { type: 'LIFE_CRASH', owner: 'self', count: cM ? parseNum(cM[1]) : 1, triggerBurst: false };
+  // 「ライフクロスがN枚以上/以下…」は条件節（「代わりに」二段型等）＝ここで自傷クラッシュに誤変換しない
+  // （WXDi-CP02-007: 「3枚以上ある場合、代わりにそれをトラッシュに置く」の 3 が count に化けていた）
+  if ((t.match(/ライフクロス.*トラッシュに置く/) || t.match(/ライフクロス.*を捨てる/))
+      && !t.match(/ライフクロスが[０-９\d]+枚以[上下]/)) {
+    // owner: 「対戦相手の/はライフクロス…」は相手側（WXDi-P16-004/WD23-023-E で self 化＝自傷の誤り）
+    const owner = /対戦相手[のはが][^。、]{0,4}ライフクロス/.test(t) ? 'opponent' as const : 'self' as const;
+    // count は「ライフクロス（を）N枚」の直結形のみ（文中の無関係な数値を拾わない）
+    const cM = t.match(/ライフクロスを?([０-９\d]+)枚/);
+    return { type: 'LIFE_CRASH', owner, count: cM ? parseNum(cM[1]) : 1, triggerBurst: false };
   }
 
   // ---- 手札をすべて捨てる ----
