@@ -1536,7 +1536,7 @@ function parseActionText(text: string): EffectAction {
           const then = parseSingleSentence(enhancedText);
           // enhanced（then）は base（else）と同じ種類の効果の「強化版」であるべき。文脈欠落（「デッキから」
           // 等）で then が別アクションに縮退する誤マージを防ぐ＝両者のコアaction型が一致する場合のみ置換。
-          const core = (a: EffectAction): string => a.type === 'CONDITIONAL' ? core((a as ConditionalAction).then)
+          const core = (a: EffectAction): string => a.type === 'CONDITIONAL' ? core((a as import('../types/effects').ConditionalAction).then)
             : a.type === 'SEQUENCE' ? (((a as SequenceAction).steps.at(-1)?.type) ?? 'SEQUENCE') : a.type;
           if (!JSON.stringify(then).includes('"UNKNOWN"') && core(then) === core(base)) {
             steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
