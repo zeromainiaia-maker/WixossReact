@@ -16,6 +16,7 @@
     "audit:queue": "tsx scripts/behaviorAudit.ts --queue",
     "audit:html": "tsx scripts/behaviorAudit.ts --html",
     "census": "tsx scripts/vocabCensus.ts",
+    "census:clusters": "tsx scripts/vocabCensus.ts --clusters",
     "verify:browser": "node scripts/verifyBrowser.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
