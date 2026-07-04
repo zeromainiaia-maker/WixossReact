@@ -38,7 +38,7 @@ for (const [id, effs] of fresh) {
     const fe = effs.find((e:any)=>e.effectId===cur[i]?.effectId);
     if (!fe) continue;
     if (JSON.stringify(cur[i])===JSON.stringify(fe)) continue;
-    const fs_ = JSON.stringify(fe), cs = JSON.stringify(cur[i]);
+    const fs_ = JSON.stringify(fe);
     const isSearchFamily = (fs_.includes('"SEARCH"') && fs_.includes('"ENERGY_CHARGE"')) || fs_.includes('"hasIcon"');
     if (!isSearchFamily) continue; // 検索/エナ系以外の乖離は据置（既存held）
     // 安全弁：cur にしか無い有意義リーフ（undefined以外）のうち、既知の誤エンコード
