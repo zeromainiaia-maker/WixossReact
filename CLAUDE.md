@@ -26,7 +26,7 @@ WixossカードゲームのReactクローン実装。
   - **`PLAN.md` — 開発計画の唯一の正（旧 P1_PLAN.md/ROADMAP.md/TODO.md を2026-07-03に統合）。全体像・DoD・3人バトン式の現在地・フェーズ別残作業をすべて1本に集約。§4「現在地とバトン」に次の一手。cold startはまずこれ**
   - **`DESIGN.md` — 設計方針・開発ルール（まずこれを読む）**
   - **`BUGFIXES.md` — バグ修正記録（新しいものを上に追記）**
-  - **`BEHAVIOR_AUDIT.md` — 挙動トレース監査（原文照合の主軸・現在の主作業）。engine実行結果（盤面差分＋ログ）を原文と目視照合。LLM不使用・決定論**
+  - **`BEHAVIOR_AUDIT.md` — 挙動トレース監査（原文照合の主軸・§5c census文型バッチと並行の主作業）。engine実行結果（盤面差分＋ログ）を原文と目視照合。LLM不使用・決定論**
   - `SEMANTIC_AUDIT.md` — （旧・主軸から外した）LLM意味比較。補完的発見器として継続利用（worklistは PLAN.md §6.2）
   - `STUBS.md` — 全STUBの一覧と実装状況（`node scripts/genStubsMd.mjs` で再生成。手編集しない）
   - `TokenCallers.md` — トークン↔呼び出し元の対応表
