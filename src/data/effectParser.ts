@@ -1012,10 +1012,13 @@ function parseSingleSentence(text: string): EffectAction {
   // 文頭または「〜対象とし、」の直後に現れる盤面状態の条件節を既存 Condition 型でエンコードする
   // （従来は語彙が無く条件丸ごと脱落＝無条件発火の過剰効果。docs/_census_clusters.txt 上位テンプレ）。
   // engine（evalCondition）・decompiler 対応済みの条件型のみ扱う。「あなたのターンの場合」は
-  // engine 側 IS_MY_TURN がプレースホルダ常時真のため対象外。「場に《X》がいる」は X がルリグの
-  // 可能性があり HAS_CARD_IN_FIELD はシグニゾーンのみ走査＝偽陰性を作るため対象外（据置）。
+  // engine 側 IS_MY_TURN がプレースホルダ常時真のため対象外。「場に《X》がいる」（X はルリグ名の
+  // ことが多い）は execUtils/effectEngine の HAS_CARD_IN_FIELD がルリグゾーンも走査するよう対応済み
+  // （2026-07-05 続き26）＝cardName フィルタで照合する。
   {
     const CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+      [/あなたの場に《([^》]+)》がいる場合/,
+        g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
       [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
         g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
       [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
