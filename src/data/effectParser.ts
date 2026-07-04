@@ -1019,7 +1019,13 @@ function parseSingleSentence(text: string): EffectAction {
       // ＝ else 表現が要る別系統として据置（本規則の対象外）
       if (m && !m[m.length - 1].startsWith('代わりに')) {
         const rest = m[m.length - 1];
+        // ガードA: コスト減文（「〜の場合、このアーツの使用コストは…減る」）は全文STUB
+        // （ARTS_COST_REDUCTION_BY_CENTER_LRIG＝条件込みでengine実装済み）に委ねる＝横取りしない
+        if (/使用コスト.*減る/.test(rest)) continue;
         const then = parseSingleSentence(m[1] + rest);
+        // ガードB: rest 単体では UNKNOWN に退化する文は、全文対象のSTUB規則
+        // （CONDITIONAL_POWER_BONUS 等の実装済みハンドラ）に委ねる＝STUB→UNKNOWN退化の防止
+        if (JSON.stringify(then).includes('"UNKNOWN"')) continue;
         // rest 先頭の「ターン終了時まで、」は再帰先の ^プレフィックス除去で消え PERMANENT 化する
         // （元の全文パースでは節が前置していたため中置扱いで拾えていた）＝ここで復元する
         if (/^(追加で)?ターン終了時まで、/.test(rest)) {
