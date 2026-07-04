@@ -315,8 +315,8 @@ test('B3 INSTALL_DELAYED_TRIGGER: delayed_triggers に追加', () => {
   eq(r.ownerState.delayed_triggers?.length, 1, 'delayed_triggers+1');
 });
 test('B3 遅延トリガー ON_REFRESH: 相手リフレッシュで発火・自リフレッシュ/未設置は非発火（WX11-024）', () => {
-  const dt = { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', trigger: { timing: 'ON_REFRESH', refreshedOwner: 'opponent' }, effect: { type: 'FORCE_END_TURN' } };
-  const host = { ...mkState({}), delayed_triggers: [dt] } as PlayerState;
+  const dt = { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', trigger: { timing: 'ON_REFRESH', refreshedOwner: 'opponent' }, effect: { type: 'FORCE_END_TURN' } } as import('../src/types/effects').InstallDelayedTriggerAction;
+  const host: PlayerState = { ...mkState({}), delayed_triggers: [dt] };
   const guest = mkState({});
   const fired = collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries;
   eq(fired.some(e => e.effectId === 'DELAYED_TRIGGER' && (e.effect.action as { type?: string }).type === 'FORCE_END_TURN'), true, '相手リフレッシュで発火');
