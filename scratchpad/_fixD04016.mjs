@@ -18,6 +18,6 @@ e2.action = {
   ],
 };
 e2.parseStatus = 'MANUAL';
-fs.writeFileSync(path, JSON.stringify(o, null, 2) + '\n');
+fs.writeFileSync(path, JSON.stringify(o));
 console.log('patched WXDi-D04-016-E2');
 console.log(JSON.stringify(e2));
