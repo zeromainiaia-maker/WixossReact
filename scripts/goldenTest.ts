@@ -1083,8 +1083,9 @@ test('LAST_PROCESSED_MATCHES: エナに置いたカードが＜遊具＞なら�
   const ctx1 = mkCtx({}, {});
   ctx1.ownerState.deck = [toy!, ...ctx1.ownerState.deck];
   const h1 = ctx1.ownerState.hand.length;
+  const e1 = ctx1.ownerState.energy.length;
   const r1 = run(act, ctx1);
-  eq(r1.ownerState.energy.length, 1, 'エナ+1のはず');
+  eq(r1.ownerState.energy.length, e1 + 1, 'エナ+1のはず');
   eq(r1.ownerState.hand.length, h1 + 1, '遊具チャージで追加ドローのはず');
   const ctx2 = mkCtx({}, {});
   ctx2.ownerState.deck = [non!, ...ctx2.ownerState.deck];
