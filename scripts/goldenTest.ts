@@ -1113,6 +1113,33 @@ test('POWER_MODIFY targetsLastProcessed: 選択した＜毒牙＞に合計+10000
   eq(sum(run(act, ctx2), non!), 5000, '非毒牙は+5000のみのはず');
 });
 
+// ── REPLACE_NEXT_DAMAGE_WITH_MILL（2026-07-04 続き25）: ダメージ置換ミルの予約 ──
+// 「次にあなたがダメージを受ける場合、代わりにデッキ上N枚トラッシュ」（WXDi-P15-041 等・黒ハナレ系）。
+// 消費側（crashOneLife/ルリグアタック応答）は BattleScreen 層＝実機検証対象。ここでは予約の積み上げを固定。
+test('REPLACE_NEXT_DAMAGE_WITH_MILL: 予約が damage_replace_mill キューに積まれる', () => {
+  const act = { type: 'SEQUENCE', steps: [
+    { type: 'REPLACE_NEXT_DAMAGE_WITH_MILL', millCount: 3 },
+    { type: 'REPLACE_NEXT_DAMAGE_WITH_MILL', millCount: 3, damageSource: 'signi' },
+  ] } as unknown as EffectAction;
+  const ctx = mkCtx({}, {});
+  const r = run(act, ctx);
+  const q = (r.ownerState as PlayerState & { damage_replace_mill?: number[] }).damage_replace_mill ?? [];
+  eq(q.length, 2, '2件予約されるはず');
+  eq(q[0], 3, 'ミル枚数3のはず');
+});
+
+// ダメージ置換/軽減系の採用JSON構造ガード（旧形＝即時自ミル・source欠落に戻ったら即FAIL）
+test('ダメージ置換バッチ: 採用JSONの構造固定（WXDi-P15-041/WXDi-D07-007/WX25-P1-008）', () => {
+  const s1 = JSON.stringify(effectsMap.get('WXDi-P15-041') ?? []);
+  ok((s1.match(/"REPLACE_NEXT_DAMAGE_WITH_MILL"/g) ?? []).length === 3, 'WXDi-P15-041: 置換ミル予約×3のはず');
+  ok(!s1.includes('"DECK_CARD"'), 'WXDi-P15-041: 即時自ミル（TRASH DECK_CARD）は消えているはず');
+  const s2 = JSON.stringify(effectsMap.get('WXDi-D07-007') ?? []);
+  ok(s2.includes('"PREVENT_NEXT_DAMAGE"') && s2.includes('"count":2'), 'WXDi-D07-007: 2回シールドのはず');
+  ok(!s2.includes('"DECK_CARD"'), 'WXDi-D07-007: 即時自ミル5は消えているはず');
+  const s3 = JSON.stringify(effectsMap.get('WX25-P1-008') ?? []);
+  ok(s3.includes('"damageSource":"lrig"') && s3.includes('"damageSource":"signi"'), 'WX25-P1-008: ルリグ/シグニ両方の source 保持のはず');
+});
+
 // 採用/手パッチJSONの構造ガード（再harvestで旧形＝無条件過剰発火に戻ったら即FAIL）
 test('LPMバッチ: 採用JSONの構造固定（WXK06-079/WXEX1-43/SP26-007/WXDi-P07-079）', () => {
   const s1 = JSON.stringify(effectsMap.get('WXK06-079') ?? []);
