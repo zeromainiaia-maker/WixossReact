@@ -1021,7 +1021,8 @@ function parseSingleSentence(text: string): EffectAction {
         const rest = m[m.length - 1];
         // ガードA: コスト減文（「〜の場合、このアーツの使用コストは…減る」）は全文STUB
         // （ARTS_COST_REDUCTION_BY_CENTER_LRIG＝条件込みでengine実装済み）に委ねる＝横取りしない
-        if (/使用コスト.*減る/.test(rest)) continue;
+        // ⚠「このターン、そのピースの使用コストは…」（WXDi-P16-009）は対象外＝先頭形に限定
+        if (/^この(アーツ|スペル)の使用コスト.*減る/.test(rest)) continue;
         const then = parseSingleSentence(m[1] + rest);
         // ガードB: rest 単体では UNKNOWN に退化する文は、全文対象のSTUB規則
         // （CONDITIONAL_POWER_BONUS 等の実装済みハンドラ）に委ねる＝STUB→UNKNOWN退化の防止
