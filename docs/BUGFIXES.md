@@ -5,6 +5,16 @@
 
 ---
 
+## §5c IS_MY_TURN誤変換系統＝「この方法で〜N枚トラッシュに置かれた場合」条件が IS_MY_TURN（常時真＝無条件過剰発火）に化ける parser フォールバックを是正＝22効果復元＋curated owner実バグ2件（2026-07-04・zerom・続き21）
+
+census §5c 構造平坦化系の「IS_MY_TURN誤変換疑い」65枚を精査。**根本原因＝parser の `parseThisWayTrashCondition` が「この方法で＜X＞のシグニがN枚トラッシュに置かれた場合」等の語順・クラス・プレーン枚数変種を拾えず IS_MY_TURN（＝常時真）にフォールバック→条件が無言で消え無条件発火**していた系統。engine 側は `TRASHED_STORY_COUNT_GTE`/`LAST_PROCESSED_COUNT_GTE`/`TRASHED_DISTINCT_LEVELS_GTE`＋`lastProcessedCards`（MILL/場トラッシュ/LIFE_CRASH が設定）を既に実装済みで、**バグは parser のみ**（headless で WX20-075 を再現＝悪魔0枚でもドロー発火を確認）。
+
+- **① parser 拡張**＝`parseThisWayTrashCondition` に語順違いストーリー（`＜X＞のシグニがN枚/N枚が`）・枚数指定なし（=1枚以上）・プレーンカード枚数（`カードをN枚トラッシュに置いた`/`N枚のカードがトラッシュに置かれた`/`カードがN枚`）・レベル異なる`N枚`を追加。**⚠前段ガード**＝トラッシュ数条件は `lastProcessedCards` 依存のため、**直前ステップが TRASH 系 or LIFE_CRASH のときだけ抽出**（`prevSetsProcessed`）。search/grant/optional-cost が前段の場合は IS_MY_TURN 据置＝curated と乖離させない（WX03-015 の場トラッシュ＝field-trash も lastProcessedCards を残すので維持）。
+- **② curated 注入22枚**＝parser を source of truth に、MILL/trash/life-crash 直後の IS_MY_TURN を parser 条件へ外科置換（`_injectImt.ts`・往復安定書き込み）。全22枚 parser==curated パリティ・broad scan で残乖離0を確認。
+- **③ parser修正→乖離収穫の curated 実バグ2件**（続き19の型）＝**WX24-P3-088-E1**／**WXDi-P11-082-E2**＝原文「対戦相手のデッキの上からN枚トラッシュ」なのに then owner=self（自分のデッキを削る誤り）→opponent へ是正。**WXDi-P11-082-BURST**＝「《ガードアイコン》を持たない」の `noGuard` フィルタ脱落→付与。
+- **④ 深い action層の残（§6.3 送り・条件は注入で過剰発火停止済み）**＝WXK03-039（デッキ下からミル＝mis-parse で TRASH SIGNI opp 化）・WXK08-055（シグニ下カード＝under-signi trash＋多段閾値1/2/3/4）・WXK11-070（エナ全トラッシュ＋多段閾値5/10）。条件注入で無条件発火は止めたが action 構造は要再エンコード。
+- **golden +2**（TRASHED_STORY_COUNT_GTE の MILL→発火/非発火・悪魔3枚）。census 1941→1932・全ゲート緑（typecheck・smoke/fuzz 全0・同型★0）。⚠**最終 decompile 再生成（sheet3,4,7）と golden/smoke/fuzz の最終実行は Bash 分類器の一時停止で保留中＝再開時に要実行**。
+
 ## §5c 少数精鋭バッチ＝アーツタイミング3枚・BURST↔E誤配置5枚・マーカー構造43枚→ブロック分割の系統根本原因を発見（【ガード】/【エナチャージ】等+マーカー隣接の飲み込み）＝計70超効果を復元（2026-07-04・zerom・続き20）
 
 census §5c の残り少数精鋭4系統（FREEZE幻覚1・アーツタイミング5・BURST↔E1誤配置5・マーカー構造43）を消化。**census 1977→1941・held 25 維持・golden 117・smoke/fuzz 全0・同型★0**。
