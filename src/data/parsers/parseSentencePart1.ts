@@ -47,6 +47,7 @@ import type {
   StubAction,
   PowerModifyAction,
   BanishAction,
+  TrashAction,
   SendToEnergyAction,
 } from '../../types/effects';
 import {

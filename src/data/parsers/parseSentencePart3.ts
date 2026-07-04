@@ -15,6 +15,7 @@ import type {
   StubAction,
   PowerModifyAction,
   BanishAction,
+  TrashAction,
   SendToEnergyAction,
   BounceAction,
   DownAction,

@@ -918,7 +918,7 @@ function parseSingleSentence(text: string): EffectAction {
   // 一時召喚の後始末: 「（ターン終了時、）それら?を（場から）トラッシュに置く」＝直前に出したカードを
   // ターン終了時にトラッシュ（lastProcessedCards を turn_end_field_trash_targets へ）。
   // 「それら」を全シグニ BANISH と誤解しないよう、プレフィックス除去前に検出する。
-  if (/^ターン終了時、それら?を(?:場から)?トラッシュに置く。?$/.test(text.trim())) {
+  if (/^ターン終了時、(?:それら?|そのシグニ)を(?:場から)?トラッシュに置く。?$/.test(text.trim())) {
     return { type: 'STUB', id: 'TRASH_AT_TURN_END' } as StubAction;
   }
   // 「あなたのトラッシュにカードがN枚以上/以下ある場合、〜」→ CONDITIONAL(TRASH_COUNT)
