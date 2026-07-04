@@ -14,9 +14,10 @@ for (let i = 1; i <= 11; i++) {
   for (const r of data) { const id = r.CardNum?.trim(); if (id && !cardMap.has(id)) cardMap.set(id, r as unknown as CardData); }
 }
 const NEW_TYPES = new Set(['LAST_PROCESSED_COUNT_GTE', 'TRASHED_STORY_COUNT_GTE', 'TRASHED_DISTINCT_LEVELS_GTE']);
+// lastProcessedCards を残す前段（trash 系 or ライフクラッシュ）
 const isMillTrash = (s: unknown) => {
   const n = s as Record<string, unknown>;
-  return n?.type === 'TRASH' && (n.target as Record<string, unknown>)?.type === 'DECK_CARD';
+  return n?.type === 'TRASH' || n?.type === 'LIFE_CRASH';
 };
 // 全カードを対象に、parser が MILL 直後に新条件を出すもの＝IS_MY_TURN 誤変換の clean な系統。
 const targets = [...cardMap.keys()];
