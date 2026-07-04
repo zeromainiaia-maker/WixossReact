@@ -5,6 +5,17 @@
 
 ---
 
+## §5c 条件節バッチ①＝状態条件節の丸ごと脱落（無条件発火）146枚を「文型クラスタ→parser規則→収穫→held一括レビュー」の新パイプラインで是正＋engine TRASH_HAS_CARD minCount無視バグ（2026-07-04・zerom・続き23）
+
+census 最大母集団「条件節773枚」の消化を効率化するため、**作業単位をカードから文型テンプレへ圧縮するパイプラインを新設**し、第1バッチとして既存DSL条件型で表現できる9テンプレを是正。**census 1931→1872・golden 119→123・smoke/fuzz 全0・同型★0**。
+
+- **新ツール**＝(a)`npm run census:clusters`（`vocabCensus.ts --clusters`）＝高シグナルのマッチ節を正規化テンプレにクラスタし枚数順表 `docs/_census_clusters.txt` を出力（条件節773枚→443テンプレ・上位30で304枚）。(b)`scripts/heldReview.mjs`＝build:effects held（温存＝要レビュー）を diff署名でグループ化し `--adopt`/`--adopt-sig` で一括採用（`buildEffectsJson.ts` が fresh を `docs/_held_fresh.json` に保存）。
+- **parser 新規則「状態条件節の CONDITIONAL 持ち上げ」**（effectParser.ts）＝文頭または「〜対象とし、」直後の状態条件節（ライフクロスN枚/手札N枚/エナN枚/トラッシュ＜C＞N枚/場に他の＜C＞・＜C＞N体・クロス状態/センタールリグ＜C＞/登録者数N万人）を LIFE_COUNT/HAND_COUNT/ENERGY_COUNT/TRASH_HAS_CARD/HAS_CARD_IN_FIELD/LRIG_STORY/SUBSCRIBER_COUNT の CONDITIONAL にエンコード（従来は条件が無言脱落＝無条件発火の過剰効果）。**ガード3種**＝「代わりに」帰結は据置（else表現が要る＋CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済STUB保護）・「^この(アーツ|スペル)の使用コスト…減る」は ARTS_COST_REDUCTION_BY_CENTER_LRIG に委譲・rest がUNKNOWN化する文は全文STUB規則に委譲（STUB→UNKNOWN退化防止）。rest 先頭「ターン終了時まで、」の duration 復元も実装。
+- **採用146枚の内訳**＝純ラップ114（unwrap==旧JSON の機械証明）＋**フィルタ漏れ是正27**（条件クラスが target/source フィルタへ漏れ「対象が自クラス限定」化していた実バグ＝WX09-035/WX15-036/WXK07-032/WDK08-L09/WX22-019 等）＋duration復元5＋OPTIONAL_COST条件化3。**大物**＝SP26-008（ライフ2枚以下→【ダブルクラッシュ】付与が「自分ライフを1枚クラッシュ」幻覚だった）・WX25-P2-112（自ルリグダウンコストの owner が opponent）・WX08-072（「カード1枚」サーチがシグニ限定）・WX09-023（白カードサーチが＜アーム＞シグニ限定）。
+- **engine 実バグ（golden が検出）**＝execUtils `evalCondition` の `TRASH_HAS_CARD` が `minCount` を無視（`.some` 判定＝「10枚以上」が1枚で真）→ count 判定へ修正。effectEngine 側の同名2箇所は対応済みだった＝評価器間の非対称。
+- **未採用 held 25枚**＝レガシードリフト（EXILE→TRASH系8・値/構造変更13・単発4）＝将来バッチ（拒否理由つきで `docs/_held_review.txt` に残る）。
+- **golden +4**＝LIFE_COUNT発火/不発・HAS_CARD_IN_FIELD crossState・TRASH_HAS_CARD minCount 境界・採用JSON構造ガード（WX09-035/SP26-008/WXK07-032 の是正形を固定）。
+
 ## §5c IS_MY_TURN誤変換系統＝「この方法で〜N枚トラッシュに置かれた場合」条件が IS_MY_TURN（常時真＝無条件過剰発火）に化ける parser フォールバックを是正＝22効果復元＋curated owner実バグ2件（2026-07-04・zerom・続き21）
 
 census §5c 構造平坦化系の「IS_MY_TURN誤変換疑い」65枚を精査。**根本原因＝parser の `parseThisWayTrashCondition` が「この方法で＜X＞のシグニがN枚トラッシュに置かれた場合」等の語順・クラス・プレーン枚数変種を拾えず IS_MY_TURN（＝常時真）にフォールバック→条件が無言で消え無条件発火**していた系統。engine 側は `TRASHED_STORY_COUNT_GTE`/`LAST_PROCESSED_COUNT_GTE`/`TRASHED_DISTINCT_LEVELS_GTE`＋`lastProcessedCards`（MILL/場トラッシュ/LIFE_CRASH が設定）を既に実装済みで、**バグは parser のみ**（headless で WX20-075 を再現＝悪魔0枚でもドロー発火を確認）。
