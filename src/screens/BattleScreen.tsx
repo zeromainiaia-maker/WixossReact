@@ -9672,6 +9672,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } else if ((my.prevent_next_damage ?? 0) > 0) {
           appendBattleLogs([`ルリグアタック：ダメージ無効`]);
           newMyState = { ...my, prevent_next_damage: (my.prevent_next_damage ?? 0) - 1, field: { ...my.field, lrig_attacked: false } };
+        } else if ((my.damage_replace_mill ?? []).some(n => my.deck.length >= n)) {
+          // REPLACE_NEXT_DAMAGE_WITH_MILL: ルリグアタックのダメージを「デッキ上N枚トラッシュ」で置き換え（crashOneLife と同仕様）
+          const drmL = my.damage_replace_mill ?? [];
+          const diL = drmL.findIndex(n => my.deck.length >= n);
+          const nL = drmL[diL];
+          appendBattleLogs([`ルリグアタック：ダメージ置換＝代わりにデッキの上から${nL}枚をトラッシュに置く`]);
+          newMyState = {
+            ...my,
+            deck: my.deck.slice(nL),
+            trash: [...my.trash, ...my.deck.slice(0, nL)],
+            damage_replace_mill: drmL.filter((_, i) => i !== diL),
+            field: { ...my.field, lrig_attacked: false },
+          };
         } else if (my.prevent_lrig_damage || (() => {
           // PREVENT_LRIG_DAMAGE (条件付き): activeCondition を正確に評価
           return my.field.signi.some((stack) => {
