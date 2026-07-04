@@ -5,6 +5,15 @@
 
 ---
 
+## §5c「代わりに」バッチ着手＝ena→trash置換16枚を機械分類→15枚が BANISH_REDIRECT 済みの census 偽陽性（キー較正）＋1枚実バグ是正（2026-07-05・zerom・続き28）
+
+「代わりに(置換)」高シグナル121枚を全数機械分類し、サブ系統に分割＝**A:エナ→トラッシュ置換16／B:条件+代わりに（enhanced・else要）94／C:コスト代替6／D:バニッシュされない3／E:リコレクト2**。最もクリーンな **A（ena→trash置換）から着手→16枚中15枚が `BANISH_REDIRECT` で正エンコード済みの偽陽性**（続き24「それが＜C＞70/73偽陽性」と同型）。**census 1765→1763・golden 131・smoke 全0・fuzz 全0・同型★0・parserWorklist held 24 不変**。
+
+- **census キー較正**＝「代わりに(置換)」プローブの keys に **`BANISH_REDIRECT` を追加**（「エナゾーンに置かれる代わりにトラッシュに置かれる」の正当な置換表現＝キー漏れで15枚が高シグナル化していた）。代わりにプローブ 121→**105**（−16）。distinct 総数は 1765→1763（−2＝14枚は数値不一致/小さい数の重複シグナル併せ持ち）。
+- **実バグ1枚＝WXDi-D04-016-E2**（唯一 BANISH_REDIRECT 無し）＝原文「あなたのトラッシュにスペルがあるかぎり、このシグニのパワーは＋3000され、このシグニによってバニッシュされたシグニはエナ→トラッシュ」→**条件（活性条件 TRASH_HAS_CARD{スペル}）脱落＋BANISH_REDIRECT 脱落**で無条件+3000のみだった。兄弟 WXDi-CP02-071 に倣い CONTINUOUS SEQUENCE[POWER_MODIFY+3000, BANISH_REDIRECT]＋activeCondition に是正（MANUAL 刻印）。「このシグニによって」の絞りは BANISH_REDIRECT がブラント（相手全バニッシュ→トラッシュ）のため近似＝兄弟 WX09-022/WXK11-032 も同近似。
+- **decompiler 改善**＝`TRASH_HAS_CARD` 条件が名詞を常に「カード」固定だったのを **`filter.cardType` 由来**に（「トラッシュにスペルがある」等・全 TRASH_HAS_CARD カードで原文一致向上・同型★0 維持）。
+- **残＝代わりに B系統94枚（else付きCONDITIONAL のsequence層対応が要る本丸）・C コスト代替6・D バニッシュされない3・E リコレクト2**＝次バッチ以降。
+
 ## §5c 条件節バッチ⑤＝「あなたがベットしていた場合、追加で〜」9枚→ベット追加ボーナスが無条件発火の実バグ＝IS_BETTING ゲート付与（2026-07-05・zerom・続き27）
 
 クラスタ表の「あなたがベットしていた場合」9枚を全数機械分類。**全9が IS_BETTING 脱落＝ベット宣言していなくても「追加で」ボーナスが発火する過剰効果**（防御/除去の追加分が常時発火＝カードが過剰に強い）。IS_BETTING はengine配線済み（`is_betting_this_effect`＝BattleScreen が raw text の「ベット―《X》」から UI 提示し支払い時にセット・execUtils.evalCondition で判定）＝**バグは parser/JSON 側のみ**。**golden 130→131・smoke 全0・fuzz 全0・同型★0・parserWorklist held 24 不変・census 1765 不変**（後述）。
