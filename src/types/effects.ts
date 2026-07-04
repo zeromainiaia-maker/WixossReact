@@ -494,6 +494,7 @@ export type EffectAction =
   | PlaceUnderSigniAction
   | PlaceUnderSourceSigniAction
   | PreventNextDamageAction
+  | ReplaceNextDamageWithMillAction
   | TakeFromUnderSigniAction
   | GrantEffectAction
   | InstallDelayedTriggerAction
