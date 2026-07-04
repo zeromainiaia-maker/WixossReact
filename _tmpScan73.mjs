@@ -11,7 +11,7 @@ const cards = {};
 for (const s of sheets) {
   const { data } = Papa.parse(fs.readFileSync(`public/data/${s}`, 'utf8'), { header: true });
   for (const row of data) {
-    const id = (row['カードNo.'] ?? '').trim();
+    const id = (row['CardNum'] ?? '').trim();
     if (IDS.includes(id)) cards[id] = row;
   }
 }
