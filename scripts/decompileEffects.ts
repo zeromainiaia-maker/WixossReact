@@ -876,6 +876,11 @@ function actionJa(a?: Action, effectType?: string): string {
         const nm = currentCardText.match(/この(?:ターン|ゲーム)[^。]*?度目[^。]*?アタックを無効にする/);
         if (nm) return nm[0];
       }
+      // ガード喪失条件（WX12-025/034/036）＝ルリグ名がカードごとに異なるため原文から該当文を抽出
+      if (a.id === 'GUARD_LOSS_UNLESS_LRIG') {
+        const gl = currentCardText.match(/あなたのセンタールリグが＜[^＞]+＞でないかぎり、手札にあるこのシグニは【ガード】を失う/);
+        if (gl) return gl[0];
+      }
       // 付与引用（「…」の能力を得る）＝原文から引用能力を抽出して描画（テキスト検出型）。
       // 本物の付与カード（原文に「【自/常/起/出】…」を得る がある）は引用能力を表示、誤パース等で引用が無い場合は従来フォールバック。
       if (a.id === 'GRANT_QUOTED_AUTO_ABILITY' || a.id === 'GRANT_QUOTED_ABILITY') {
