@@ -23,7 +23,8 @@ import * as path from 'path';
 // LIFE_CRASH族（自傷owner/条件count化け6効果＋triggerBurst:false慣例の較正）・
 // トラッシュ→BANISH族（parser 5規則＋curated 37ノード是正）＝2003→1977。
 // 旧ベースライン履歴: 529（続き15初回・14パターン）→522→498（続き16）→1469（続き17・25計測）
-const BASELINE_HIGH = 1931;
+// 2026-07-04 続き23: 文型クラスタバッチ①（状態条件節のCONDITIONAL持ち上げ・parser規則＋heldReview一括採用146枚）＝1931→1872。
+const BASELINE_HIGH = 1872;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
