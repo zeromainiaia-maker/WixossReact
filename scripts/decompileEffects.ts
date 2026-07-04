@@ -379,6 +379,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'PREVENT_NEXT_DAMAGE': return a.damageSource
       ? `このターン、次にあなたが${a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ'}によってダメージを受ける場合、代わりにダメージを受けない`
       : `このターン、次の${a.count ?? 1}回のダメージを受けない`;
+    case 'REPLACE_NEXT_DAMAGE_WITH_MILL':
+      return `このターン、次にあなたが${a.damageSource ? (a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ') + 'によって' : ''}ダメージを受ける場合、代わりにあなたのデッキの上からカードを${a.millCount}枚トラッシュに置く`;
     case 'EXILE': return `${targetJa(a.target)}をゲームから除外する`;
     case 'UP': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': {
